@@ -22,7 +22,7 @@ Code serves specifications, not the other way around. The centralized spec (`spe
 All work happens in change folders. Changes track ADDED/MODIFIED/REMOVED requirements that get hydrated into the centralized spec on completion.
 
 ### 4. Stage Visibility
-Always know where you are. Each change folder has a `.status.yaml` manifest that tracks current stage and progress.
+Always know where you are. Each change folder has a `.status.yaml` manifest that tracks current stage and progress. A `current` symlink (`.fab/current → .fab/changes/{active-change}`) provides instant access to whichever change is in flight — no scanning or guessing required.
 
 ### 5. Skill-Based Interface
 Use skills (not rigid commands) for better agent interoperability. Skills are more naturally invocable by AI agents.
@@ -86,6 +86,7 @@ Fab does not manage git. Branch creation, commits, and pushes are separate conce
 project/
 ├── .fab/
 │   ├── config.yaml              # Project configuration
+│   ├── current → changes/add-oauth  # Symlink to active change
 │   ├── memory/
 │   │   └── constitution.md      # Project principles & constraints
 │   ├── templates/
@@ -101,6 +102,7 @@ project/
 │   │   ├── fab-apply.md
 │   │   ├── fab-verify.md
 │   │   ├── fab-archive.md
+│   │   ├── fab-switch.md
 │   │   └── fab-status.md
 │   ├── specs/                    # Centralized source of truth
 │   │   ├── auth/
@@ -137,6 +139,29 @@ naming:
   changes: "{action}-{feature}"     # e.g., add-oauth
   archive: "{date}-{name}"          # e.g., 2024-01-15-add-oauth
 ```
+
+---
+
+## Active Change Tracking (`.fab/current`)
+
+`.fab/current` is a symlink that always points to the change folder you're actively working on. Inspired by SpecKit's `.specify/current`, it removes the need to scan `changes/` or remember folder names.
+
+**Lifecycle**:
+- **Created** by `/fab:new` — points to the newly created change folder
+- **Updated** by `/fab:new` — if you start a new change, the symlink moves
+- **Read** by every other skill — `/fab:continue`, `/fab:apply`, `/fab:verify`, `/fab:status` all resolve the active change via `current` rather than requiring a name argument
+- **Removed** by `/fab:archive` — after archiving, there is no active change
+
+**Switching between changes**: If multiple change folders exist and you want to switch context:
+```
+/fab:switch add-oauth
+→ ".fab/current now points to add-oauth"
+```
+
+**Why a symlink?**
+- Works with all tools (`cat .fab/current/.status.yaml` just works)
+- No parsing required — the filesystem _is_ the pointer
+- Git-friendly — add `.fab/current` to `.gitignore` since it's local working state
 
 ---
 
@@ -296,6 +321,23 @@ last_updated: 2024-01-11T09:15:00Z
    - **REMOVED** → delete from domain spec
 3. Move change folder to `archive/` with date prefix
 4. Update status to `archived`
+
+---
+
+### `/fab:switch <change-name>`
+
+**Purpose**: Switch the active change when multiple changes exist.
+
+**Example**:
+```
+/fab:switch fix-checkout-bug
+→ ".fab/current now points to fix-checkout-bug"
+```
+
+**Behavior**:
+1. Verify `change-name` exists in `.fab/changes/`
+2. Update `.fab/current` symlink to point to it
+3. Display the switched change's status summary
 
 ---
 
@@ -552,6 +594,7 @@ Add adapters for Windsurf, Cline, Copilot, etc.
 | `/fab:apply` | Implement | Code changes |
 | `/fab:verify` | Validate | Validation report |
 | `/fab:archive` | Complete & hydrate | Archive entry, updated specs |
+| `/fab:switch` | Change active change | Updated symlink |
 | `/fab:status` | Check progress | Status display |
 
 ---
