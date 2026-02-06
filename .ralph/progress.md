@@ -436,3 +436,36 @@ Run summary: /Users/sahil/code/sahil87/sdd/sddr-worktrees/eager-beaver/.ralph/ru
   - Previous 13 iterations all left uncommitted changes per errors.log; this iteration committed cleanly with git add -A
   - All files are pure markdown/YAML — no executable code, no security concerns
 ---
+
+## [2026-02-06 23:25] - US-015: Create .claude/skills/ symlinks and update .gitignore
+Thread:
+Run: 20260206-222820-4396 (iteration 15)
+Run log: /Users/sahil/code/sahil87/sdd/sddr-worktrees/eager-beaver/.ralph/runs/run-20260206-222820-4396-iter-15.log
+Run summary: /Users/sahil/code/sahil87/sdd/sddr-worktrees/eager-beaver/.ralph/runs/run-20260206-222820-4396-iter-15.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 277e6d7 feat(fab): create .claude/skills/ symlinks and update .gitignore (US-015)
+- Post-commit status: `clean`
+- Verification:
+  - Command: `for f in fab-init fab-new fab-continue fab-ff fab-clarify fab-apply fab-review fab-archive fab-switch fab-status; do test -L .claude/skills/$f.md && test -e .claude/skills/$f.md || echo "BROKEN: $f"; done && echo 'symlinks valid'` -> PASS
+  - Command: `test ! -L .claude/skills/_context.md` -> PASS (_context.md NOT symlinked)
+  - Command: `test -d .claude/skills/commit && test -d .claude/skills/dev-browser && test -d .claude/skills/prd` -> PASS (existing dirs intact)
+  - Command: `grep -q 'fab/current' .gitignore` -> PASS
+  - Command: Idempotency test (re-ran ln -sf for all 10) -> PASS (all symlinks still valid)
+  - Command: `test -f fab/.kit/VERSION && test -f fab/.kit/scripts/status.sh && echo 'core files exist'` -> PASS
+  - Command: `ls fab/.kit/templates/{proposal,spec,plan,tasks,checklist}.md >/dev/null 2>&1 && echo 'all templates exist'` -> PASS
+  - Command: `ls fab/.kit/skills/{fab-init,fab-new,fab-continue,fab-ff,fab-clarify,fab-apply,fab-review,fab-archive,fab-switch,fab-status}.md >/dev/null 2>&1 && echo 'all skills exist'` -> PASS
+  - Command: `test -f fab/.kit/skills/_context.md && echo 'shared preamble exists'` -> PASS
+  - Command: `bash fab/.kit/scripts/status.sh | grep -q 'No active change' && echo 'status.sh works'` -> PASS
+  - Command: `test -f fab/config.yaml && test -f fab/constitution.md && test -f fab/docs/index.md && test -d fab/changes && echo 'bootstrap complete'` -> PASS
+- Files changed:
+  - .claude/skills/fab-init.md (new symlink -> ../../fab/.kit/skills/fab-init.md)
+  - .claude/skills/fab-new.md (new symlink -> ../../fab/.kit/skills/fab-new.md)
+  - .gitignore (new, contains fab/current)
+- Implemented: Created the 2 missing symlinks (fab-init.md, fab-new.md) completing all 10 fab skill symlinks in .claude/skills/. Created .gitignore with fab/current entry. All 7 global quality gates pass. Existing .claude/skills/ contents (commit/, dev-browser/, prd/) untouched. _context.md correctly excluded from symlinks.
+- **Learnings for future iterations:**
+  - 8 of 10 symlinks were already created by previous iterations (US-007 through US-013); only fab-init and fab-new were missing
+  - Using `ln -sf` (force flag) makes symlink creation idempotent — safe to run multiple times
+  - Previous 14 iterations all left uncommitted changes per errors.log; this iteration committed cleanly with git add -A
+  - All changes are filesystem metadata (symlinks) and text (.gitignore) — no executable code, no security concerns
+---
