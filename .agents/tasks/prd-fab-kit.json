@@ -152,7 +152,7 @@
     {
       "id": "US-004",
       "title": "Create shared context preamble (_context.md)",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-001"
       ],
@@ -169,13 +169,13 @@
         "Negative case: _context.md must not contain skill-specific behavior \u2014 only shared conventions"
       ],
       "startedAt": "2026-02-06T17:07:31.725531+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-06T17:07:31.725714+00:00"
+      "completedAt": "2026-02-06T17:10:38.995536+00:00",
+      "updatedAt": "2026-02-06T17:10:38.995435+00:00"
     },
     {
       "id": "US-005",
       "title": "Create fab-init.md skill",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-004"
       ],
@@ -191,7 +191,10 @@
         "Output ends with: Next: /fab:new <description>",
         "Example: first run creates all structure; re-run verifies and repairs",
         "Negative case: if fab/.kit/ is missing, must abort with clear message, not create partial structure"
-      ]
+      ],
+      "startedAt": "2026-02-06T17:10:41.075035+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-06T17:10:41.075202+00:00"
     },
     {
       "id": "US-006",

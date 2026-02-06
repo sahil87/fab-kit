@@ -1,0 +1,22 @@
+US-004 is complete. Here's what was done:
+
+**Created:** `fab/.kit/skills/_context.md` — the shared context preamble referenced by all Fab skills.
+
+**Content covers all 9 acceptance criteria:**
+1. Shared context loading convention from SKILLS.md
+2. Always-load instructions for `fab/config.yaml` and `fab/constitution.md`
+3. Change context loading via `fab/current` → `.status.yaml` → completed artifacts
+4. Centralized doc lookup via `fab/docs/index.md` → proposal's Affected Docs
+5. Source code loading scoped to plan's File Changes / task descriptions
+6. Next Steps Convention requiring every skill to end with a `Next:` line
+7. Lookup table mapping all 11 skill outcomes to follow-up commands
+8. Example reference line for skill files
+9. No skill-specific behavior — only shared conventions
+
+**Commits:**
+- `b01d50b` feat(fab): create shared context preamble _context.md (US-004)
+- `cf963dc` docs(ralph): update progress log for US-004 completion
+
+**All quality gates pass.** Working tree is clean.
+
+<promise>COMPLETE</promise>
