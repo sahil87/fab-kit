@@ -404,7 +404,7 @@
     {
       "id": "US-014",
       "title": "Bootstrap this repo \u2014 config, constitution, docs, changes",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-001"
       ],
@@ -419,13 +419,13 @@
         "Negative case: fab/current must not exist after bootstrap"
       ],
       "startedAt": "2026-02-06T17:50:26.562354+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-06T17:50:26.562498+00:00"
+      "completedAt": "2026-02-06T17:54:07.059812+00:00",
+      "updatedAt": "2026-02-06T17:54:07.059710+00:00"
     },
     {
       "id": "US-015",
       "title": "Create .claude/skills/ symlinks and update .gitignore",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-005",
         "US-006",
@@ -447,7 +447,10 @@
         "Append 'fab/current' to .gitignore if not already present",
         "Example: ls -la .claude/skills/fab-new.md shows symlink \u2192 ../../fab/.kit/skills/fab-new.md",
         "Negative case: running the symlink creation twice must not create broken or duplicate symlinks"
-      ]
+      ],
+      "startedAt": "2026-02-06T17:54:09.145067+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-06T17:54:09.145231+00:00"
     },
     {
       "id": "US-016",
