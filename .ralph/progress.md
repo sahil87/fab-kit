@@ -264,3 +264,35 @@ Run summary: /Users/sahil/code/sahil87/sdd/sddr-worktrees/eager-beaver/.ralph/ru
   - Previous 8 iterations all left uncommitted changes per errors.log; this iteration committed cleanly with git add -A
   - The skill file is pure markdown (~210 lines) — no executable code, no security concerns
 ---
+
+## [2026-02-06 23:05] - US-010: Create fab-apply.md skill
+Thread:
+Run: 20260206-222820-4396 (iteration 10)
+Run log: /Users/sahil/code/sahil87/sdd/sddr-worktrees/eager-beaver/.ralph/runs/run-20260206-222820-4396-iter-10.log
+Run summary: /Users/sahil/code/sahil87/sdd/sddr-worktrees/eager-beaver/.ralph/runs/run-20260206-222820-4396-iter-10.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 6db0b7a feat(fab): create fab-apply.md skill prompt (US-010)
+- Post-commit status: `clean`
+- Verification:
+  - Command: `test -f fab/.kit/skills/fab-apply.md` -> PASS
+  - Command: `grep -q '_context.md' fab/.kit/skills/fab-apply.md` -> PASS (references _context.md preamble)
+  - Command: `test -L .claude/skills/fab-apply.md && test -e .claude/skills/fab-apply.md` -> PASS (symlink valid)
+  - Command: All 12 acceptance criteria verified individually -> PASS
+  - Command: `test -f fab/.kit/VERSION && test -f fab/.kit/scripts/status.sh && echo 'core files exist'` -> PASS
+  - Command: `ls fab/.kit/templates/{proposal,spec,plan,tasks,checklist}.md >/dev/null 2>&1 && echo 'all templates exist'` -> PASS
+  - Command: `test -f fab/.kit/skills/_context.md && echo 'shared preamble exists'` -> PASS
+  - Command: `bash fab/.kit/scripts/status.sh | grep -q 'No active change' && echo 'status.sh works'` -> PASS
+  - Note: "all skills exist" gate expected to fail — only fab-init, fab-new, fab-continue, fab-ff, fab-clarify, fab-apply created so far; other 4 skills are US-011 through US-013
+  - Note: symlinks and bootstrap gates expected to fail — those are US-014 and US-015
+- Files changed:
+  - fab/.kit/skills/fab-apply.md (new)
+  - .claude/skills/fab-apply.md (new symlink -> ../../fab/.kit/skills/fab-apply.md)
+- Implemented: Created fab/.kit/skills/fab-apply.md as comprehensive agent-agnostic markdown skill (270 lines). Covers: _context.md preamble reference, pre-flight check (abort if fab/current missing, tasks not done, tasks.md missing, config missing), full context loading (config+constitution+tasks.md+spec.md+plan.md+proposal+relevant source code), Step 1 task parsing (unchecked `- [ ]` and checked `- [x]` items with phase headers), Step 2 execution order (phases sequential, non-[P] tasks sequential within phase, [P] tasks parallelizable, Execution Order section constraints), Step 3 per-task execution (3a read task, 3b load relevant source code, 3c implement following spec/plan/constitution/patterns, 3d run relevant tests with fix-and-retry loop, 3e mark task [x] immediately, 3f update .status.yaml progress), Step 4 completion (progress.apply: done). Output examples (fresh start, resume, test failure, all done). Error handling table covers all negative cases. Key properties table confirms: stage-advancing, idempotent/resumable, modifies tasks.md+source code+.status.yaml. Created symlink .claude/skills/fab-apply.md -> ../../fab/.kit/skills/fab-apply.md.
+- **Learnings for future iterations:**
+  - SKILLS.md fab-apply section (lines 293-315) is the authoritative spec for behavior
+  - Key property: apply is inherently resumable — the markdown checklist IS the progress state, re-invoking picks up from first unchecked item
+  - Unlike planning skills, apply modifies actual source code — it's the execution/implementation phase
+  - Previous 9 iterations all left uncommitted changes per errors.log; this iteration committed cleanly with git add -A
+  - The skill file is pure markdown (270 lines) — no executable code, no security concerns
+---
