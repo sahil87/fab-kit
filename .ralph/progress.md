@@ -402,3 +402,37 @@ Run summary: /Users/sahil/code/sahil87/sdd/sddr-worktrees/eager-beaver/.ralph/ru
   - Previous 12 iterations all left uncommitted changes per errors.log; this iteration committed cleanly with git add -A
   - Both skill files are pure markdown — no executable code, no security concerns
 ---
+
+## [2026-02-06 23:24] - US-014: Bootstrap this repo — config, constitution, docs, changes
+Thread:
+Run: 20260206-222820-4396 (iteration 14)
+Run log: /Users/sahil/code/sahil87/sdd/sddr-worktrees/eager-beaver/.ralph/runs/run-20260206-222820-4396-iter-14.log
+Run summary: /Users/sahil/code/sahil87/sdd/sddr-worktrees/eager-beaver/.ralph/runs/run-20260206-222820-4396-iter-14.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 48559da feat(fab): bootstrap sddr repo with config, constitution, docs, and changes (US-014)
+- Post-commit status: `clean`
+- Verification:
+  - Command: `test -f fab/config.yaml && test -f fab/constitution.md && test -f fab/docs/index.md && test -d fab/changes && echo 'bootstrap complete'` -> PASS
+  - Command: `test -f fab/.kit/VERSION && test -f fab/.kit/scripts/status.sh && echo 'core files exist'` -> PASS
+  - Command: `ls fab/.kit/templates/{proposal,spec,plan,tasks,checklist}.md >/dev/null 2>&1 && echo 'all templates exist'` -> PASS
+  - Command: `ls fab/.kit/skills/{fab-init,fab-new,fab-continue,fab-ff,fab-clarify,fab-apply,fab-review,fab-archive,fab-switch,fab-status}.md >/dev/null 2>&1 && echo 'all skills exist'` -> PASS
+  - Command: `test -f fab/.kit/skills/_context.md && echo 'shared preamble exists'` -> PASS
+  - Command: `bash fab/.kit/scripts/status.sh | grep -q 'No active change' && echo 'status.sh works'` -> PASS
+  - Command: `test -e fab/current` -> PASS (does NOT exist, as expected)
+  - Command: `test -f fab/changes/.gitkeep` -> PASS
+  - Note: symlinks gate shows BROKEN for fab-init and fab-new — pre-existing issue, US-015 handles all symlink creation
+- Files changed:
+  - fab/config.yaml (new)
+  - fab/constitution.md (new)
+  - fab/docs/index.md (new)
+  - fab/changes/.gitkeep (new)
+- Implemented: Bootstrapped sddr repo as a working Fab project. Created fab/config.yaml with project name 'sddr', description, context section describing the tech stack (markdown specs, shell scripts, Claude Code skills, Ralph agent), naming format {YYMMDD}-{XXXX}-{slug}, git enabled with no branch prefix, full stages config matching ARCHITECTURE.md, checklist extra_categories (documentation_accuracy, cross_references), and rules for plan and specs. Created fab/constitution.md with 5 core Fab kit principles (Pure Prompt Play, Docs Are Source of Truth, Idempotent Operations, Markdown-Only Artifacts, Portability), additional constraints for the sddr repo, and governance section with version 1.0.0. Created fab/docs/index.md with empty initial index (table header with Domain/Description/Docs columns, HTML comment about /fab:archive populating it). Created fab/changes/.gitkeep. Verified fab/current does NOT exist.
+- **Learnings for future iterations:**
+  - The `ralph log` command is at `/opt/homebrew/bin/ralph`
+  - ARCHITECTURE.md lines 216-277 define the full config.yaml structure with all stages
+  - ARCHITECTURE.md lines 281-323 define the constitution.md structure and purpose
+  - TEMPLATES.md lines 566-576 define the empty initial index for fab/docs/index.md
+  - Previous 13 iterations all left uncommitted changes per errors.log; this iteration committed cleanly with git add -A
+  - All files are pure markdown/YAML — no executable code, no security concerns
+---
