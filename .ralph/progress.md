@@ -232,3 +232,35 @@ Run summary: /Users/sahil/code/sahil87/sdd/sddr-worktrees/eager-beaver/.ralph/ru
   - Previous 7 iterations all left uncommitted changes per errors.log; this iteration committed cleanly with git add -A
   - The skill file is pure markdown (282 lines) — no executable code, no security concerns
 ---
+
+## [2026-02-06 23:01] - US-009: Create fab-clarify.md skill
+Thread:
+Run: 20260206-222820-4396 (iteration 9)
+Run log: /Users/sahil/code/sahil87/sdd/sddr-worktrees/eager-beaver/.ralph/runs/run-20260206-222820-4396-iter-9.log
+Run summary: /Users/sahil/code/sahil87/sdd/sddr-worktrees/eager-beaver/.ralph/runs/run-20260206-222820-4396-iter-9.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 9157536 feat(fab): create fab-clarify.md skill prompt (US-009)
+- Post-commit status: `clean`
+- Verification:
+  - Command: `test -f fab/.kit/skills/fab-clarify.md` -> PASS
+  - Command: `grep -q '_context.md' fab/.kit/skills/fab-clarify.md` -> PASS (references _context.md preamble)
+  - Command: `test -L .claude/skills/fab-clarify.md && test -e .claude/skills/fab-clarify.md` -> PASS (symlink valid)
+  - Command: All 11 acceptance criteria verified individually -> PASS
+  - Command: `test -f fab/.kit/VERSION && test -f fab/.kit/scripts/status.sh && echo 'core files exist'` -> PASS
+  - Command: `ls fab/.kit/templates/{proposal,spec,plan,tasks,checklist}.md >/dev/null 2>&1 && echo 'all templates exist'` -> PASS
+  - Command: `test -f fab/.kit/skills/_context.md && echo 'shared preamble exists'` -> PASS
+  - Command: `bash fab/.kit/scripts/status.sh | grep -q 'No active change' && echo 'status.sh works'` -> PASS
+  - Note: "all skills exist" gate expected to fail — only fab-init, fab-new, fab-continue, fab-ff, fab-clarify created so far; other 5 skills are US-010 through US-013
+  - Note: symlinks and bootstrap gates expected to fail — those are US-014 and US-015
+- Files changed:
+  - fab/.kit/skills/fab-clarify.md (new)
+  - .claude/skills/fab-clarify.md (new symlink -> ../../fab/.kit/skills/fab-clarify.md)
+- Implemented: Created fab/.kit/skills/fab-clarify.md as comprehensive agent-agnostic markdown skill (~210 lines). Covers: _context.md preamble reference, pre-flight check (abort if fab/current missing, config missing), stage guard (only proposal/specs/plan/tasks — if apply or later, suggests /fab:review), stage-specific context loading (proposal: config+constitution+proposal, specs: +docs+centralized docs, plan: +spec+plan, tasks: +plan+tasks), Step 1 artifact identification by stage, Step 2 gap analysis per stage type (proposal: [BLOCKING]/vague scope, specs: [NEEDS CLARIFICATION]/missing scenarios, plan: untested assumptions/missing research, tasks: missing tasks/wrong granularity), Step 3 in-place refinement (edit existing file, preserve structure, add clarified HTML comments), Step 4 change report, Step 5 non-advancing guarantee (never updates stage field). Key properties table confirms: non-advancing, idempotent, in-place modification only. Error handling table covers all negative cases. Created symlink .claude/skills/fab-clarify.md -> ../../fab/.kit/skills/fab-clarify.md.
+- **Learnings for future iterations:**
+  - SKILLS.md fab-clarify section (lines 252-289) is the authoritative spec for behavior
+  - Key property: clarify is strictly non-advancing — it only updates `last_updated` in .status.yaml, never the `stage` field
+  - The gap analysis is stage-specific: each stage has different markers and patterns to look for
+  - Previous 8 iterations all left uncommitted changes per errors.log; this iteration committed cleanly with git add -A
+  - The skill file is pure markdown (~210 lines) — no executable code, no security concerns
+---
