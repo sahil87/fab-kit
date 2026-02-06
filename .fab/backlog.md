@@ -1,0 +1,8 @@
+- [x] [eili] 2026-02-06: Branch creation
+- [x] [hh1n] 2026-02-06: Ability to work on a particular stage individually (spec or plan or tasks)
+- [x] [uf7a] 2026-02-06: A way to go deep in a spec — iterative clarify/research loops to refine ambiguities repeatedly
+- [x] [hccv] 2026-02-06: discuss what happens in a monorepo → single fab/ at root, structured context sections in config.yaml
+- [x] [iioo] 2026-02-06: Add starting instruction (is simply copying the fab/.kit folder enough/is there a script to run?)
+- [x] [cxpe] 2026-02-06: ~~Onboard command~~ → absorbed into `fab:init` (idempotent, accepts sources: Notion URLs, Linear URLs, local files)
+- [x] [8dx2] 2026-02-06: After every command suggest the next possible commands in the flow → added Next Steps Convention with lookup table in SKILLS.md
+
