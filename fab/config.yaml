@@ -1,0 +1,55 @@
+# fab/config.yaml
+
+project:
+  name: "sddr"
+  description: "Specification-Driven Development Resources — research, documentation, and tooling for SDD methodologies"
+
+context: |
+  Tech stack: Markdown specs, shell scripts (Bash), Claude Code skills, Ralph agent
+  Content: Research analyses of SpecKit and OpenSpec, cross-cutting findings
+  Workflow: Fab kit for specification-driven change management
+  Structure: Monorepo with doc/, fab/ directories
+
+naming:
+  format: "{YYMMDD}-{XXXX}-{slug}"
+
+git:
+  enabled: true
+  branch_prefix: ""
+
+stages:
+  - id: proposal
+    generates: proposal.md
+    required: true
+  - id: specs
+    generates: spec.md
+    requires: [proposal]
+    required: true
+  - id: plan
+    generates: plan.md
+    requires: [specs]
+    required: false
+  - id: tasks
+    generates: tasks.md
+    requires: [specs]
+    required: true
+    auto_checklist: true
+  - id: apply
+    requires: [tasks]
+  - id: review
+    requires: [apply]
+  - id: archive
+    requires: [review]
+
+checklist:
+  extra_categories:
+    - documentation_accuracy
+    - cross_references
+
+rules:
+  plan:
+    - Document impacts on existing research docs
+    - Note any methodology comparisons or synthesis
+  specs:
+    - Use GIVEN/WHEN/THEN for scenarios
+    - Mark ambiguities with [NEEDS CLARIFICATION]
