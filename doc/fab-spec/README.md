@@ -81,6 +81,7 @@ flowchart TD
     APPLY["/fab:apply"]
     REVIEW["/fab:review"]
     ARCHIVE["/fab:archive"]
+    PLAN ~~~ CLARIFY["/fab:clarify"]
 
     NEW -->|proposal| PLAN
     PLAN -->|deltas + plan? + tasks| APPLY
@@ -88,14 +89,14 @@ flowchart TD
     REVIEW -->|passed| ARCHIVE
     REVIEW -->|fix code| APPLY
     REVIEW -.->|revise planning| PLAN
-    NEW -.->|"/fab:clarify"| NEW
-    PLAN -.->|"/fab:clarify"| PLAN
+    PLAN <-.-> CLARIFY
 
     style NEW fill:#e8f4f8,stroke:#2196F3
     style PLAN fill:#e8f4f8,stroke:#2196F3
     style APPLY fill:#fff3e0,stroke:#FF9800
     style REVIEW fill:#fff3e0,stroke:#FF9800
     style ARCHIVE fill:#e8f5e9,stroke:#4CAF50
+    style CLARIFY fill:#fff,stroke:#999,stroke-dasharray: 5 5
 ```
 
 ---
