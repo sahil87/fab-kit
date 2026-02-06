@@ -102,10 +102,7 @@ flowchart TD
 ```
 project/
 ├── fab/
-│   ├── .kit/                       # Engine — hidden, rarely touched
-│   │   ├── config.yaml             # Project configuration
-│   │   ├── memory/
-│   │   │   └── constitution.md     # Project principles & constraints
+│   ├── .kit/                       # Engine — replaceable upstream, rarely touched
 │   │   ├── templates/
 │   │   │   ├── proposal.md
 │   │   │   ├── spec.md
@@ -124,11 +121,17 @@ project/
 │   │   │   └── fab-status.md
 │   │   └── scripts/                # Lightweight shell utilities
 │   │       └── status.sh           # Quick-check active change from terminal
+│   ├── config.yaml                 # Project-specific configuration
+│   ├── memory/
+│   │   └── constitution.md         # Project principles & constraints
 │   ├── current                     # Pointer file (contains active change name)
 │   ├── specs/                      # Centralized source of truth
+│   │   ├── index.md               # Top-level spec index
 │   │   ├── auth/
+│   │   │   ├── index.md           # Domain index
 │   │   │   └── authentication.md
 │   │   ├── payments/
+│   │   │   ├── index.md
 │   │   │   └── checkout.md
 │   │   └── ...
 │   └── changes/
@@ -146,6 +149,7 @@ project/
 │           └── 250920-m3x1-add-2fa/
 └── .claude/                        # Agent-specific skill exports
     └── skills/
+        └── fab-new.md → ../../fab/.kit/skills/fab-new.md  # Symlinks into .kit
 ```
 
 ### Folder Naming Convention
@@ -263,13 +267,12 @@ last_updated: 2026-01-16T09:15:00Z
 **Purpose**: Bootstrap `fab/` in an existing project.
 
 **Creates**:
-- `fab/.kit/config.yaml` — project configuration (prompts for name, tech stack, conventions)
-- `fab/.kit/memory/constitution.md` — project principles and constraints (generated from conversation or existing docs)
-- `fab/.kit/templates/` — default templates for each artifact type
-- `fab/.kit/skills/` — skill prompt files
-- `fab/.kit/scripts/status.sh` — quick-check active change from terminal
+- `fab/.kit/` — engine directory (templates, skills, scripts)
+- `fab/config.yaml` — project configuration (prompts for name, tech stack, conventions)
+- `fab/memory/constitution.md` — project principles and constraints (generated from conversation or existing docs)
 - `fab/specs/` — empty, ready for centralized specs
 - `fab/changes/` — empty, ready for change folders
+- `.claude/skills/` — symlinks pointing into `fab/.kit/skills/`
 
 **Example**:
 ```
@@ -282,10 +285,11 @@ last_updated: 2026-01-16T09:15:00Z
 **Behavior**:
 1. Check if `fab/` already exists (abort if so, suggest manual edits)
 2. Prompt for project name, description, tech stack
-3. Generate `config.yaml` from responses
-4. Generate `constitution.md` from project context (README, existing docs, conversation)
-5. Copy default templates into `fab/.kit/templates/`
-6. Optionally scaffold initial specs from existing code or documentation
+3. Create `fab/.kit/` with default templates, skills, and scripts
+4. Generate `fab/config.yaml` from responses
+5. Generate `fab/memory/constitution.md` from project context (README, existing docs, conversation)
+6. Create symlinks in `.claude/skills/` pointing to `fab/.kit/skills/`
+7. Optionally scaffold initial specs from existing code or documentation
 
 ---
 
@@ -394,12 +398,12 @@ last_updated: 2026-01-16T09:15:00Z
 → "✗ 2 items need attention: [CHK-007, CHK-011]"
 ```
 
-**Checks**:
-- All tasks in `tasks.md` completed
-- All checklist items in `checklists/` passed
-- Run tests affected by the change (not necessarily the full suite — scoped to modules touched by this change)
-- Features match spec requirements
-- No spec drift detected
+**Checks** (the agent performs all of these):
+1. All tasks in `tasks.md` marked `[x]`
+2. All checklist items in `checklists/quality.md` verified and checked off — the agent re-reads each `CHK-*` item, inspects the relevant code/tests, and marks `[x]` or reports failure
+3. Run tests affected by the change (scoped to modules touched, not the full suite)
+4. Features match delta spec requirements (spot-check key scenarios from `specs/`)
+5. No spec drift detected (implementation doesn't contradict centralized specs)
 
 **On failure**, the user chooses where to loop back:
 - **Fix code** → `/fab:apply` (implementation bug — re-run uncompleted/fixed tasks)
@@ -564,10 +568,57 @@ The system SHALL support sessions from multiple auth sources.
 
 ---
 
+## Centralized Spec Organization (`fab/specs/`)
+
+Centralized specs use an index-based hierarchy for navigation. Every domain folder and the root `specs/` folder contains an `index.md` that links to its children.
+
+```
+fab/specs/
+├── index.md                    # Top-level: lists all domains with descriptions
+├── auth/
+│   ├── index.md                # Domain index: lists specs in this domain
+│   ├── authentication.md       # Individual spec (source of truth)
+│   └── authorization.md
+├── payments/
+│   ├── index.md
+│   ├── checkout.md
+│   └── refunds.md
+└── users/
+    ├── index.md
+    └── registration.md
+```
+
+**`fab/specs/index.md`** — top-level entry point:
+```markdown
+# Specifications Index
+
+| Domain | Description | Specs |
+|--------|-------------|-------|
+| [auth](auth/index.md) | Authentication and authorization | authentication, authorization |
+| [payments](payments/index.md) | Payment processing | checkout, refunds |
+```
+
+**`fab/specs/{domain}/index.md`** — domain entry point:
+```markdown
+# {Domain} Specifications
+
+| Spec | Description | Last Updated |
+|------|-------------|-------------|
+| [authentication](authentication.md) | Login, sessions, OAuth | 2026-01-20 |
+```
+
+**Individual specs** follow the format defined in `TEMPLATES.md` — each includes a Requirements section (with GIVEN/WHEN/THEN scenarios) and a History table tracking which changes modified it.
+
+**Index maintenance**: `/fab:archive` updates indexes automatically when hydrating delta specs. New specs get added to domain indexes; new domains get added to the top-level index.
+
+See [TEMPLATES.md](TEMPLATES.md) for full template definitions.
+
+---
+
 ## Configuration (config.yaml)
 
 ```yaml
-# fab/.kit/config.yaml
+# fab/config.yaml
 
 project:
   name: "My App"
@@ -626,23 +677,25 @@ rules:
 
 ## Agent Integration
 
-Skills export to agent-specific formats:
+Agent-specific skill files are **symlinks** pointing into `fab/.kit/skills/`. This means updating `.kit/` automatically updates all agent integrations — no re-export step needed.
 
 ### Claude Code (`.claude/skills/`)
-```yaml
-# .claude/skills/fab-new.md
----
-name: fab-new
-description: Start a new Fab change
----
-[Skill prompt content]
+
+`/fab:init` creates symlinks:
+```
+.claude/skills/
+├── fab-new.md → ../../fab/.kit/skills/fab-new.md
+├── fab-continue.md → ../../fab/.kit/skills/fab-continue.md
+├── fab-ff.md → ../../fab/.kit/skills/fab-ff.md
+├── fab-apply.md → ../../fab/.kit/skills/fab-apply.md
+├── fab-verify.md → ../../fab/.kit/skills/fab-verify.md
+├── fab-archive.md → ../../fab/.kit/skills/fab-archive.md
+├── fab-switch.md → ../../fab/.kit/skills/fab-switch.md
+└── fab-status.md → ../../fab/.kit/skills/fab-status.md
 ```
 
-### Cursor (`.cursor/rules/`)
-Equivalent rules generated for Cursor.
-
-### Extensible
-Add adapters for Windsurf, Cline, Copilot, etc.
+### Other agents (Cursor, Windsurf, etc.)
+Same pattern — symlinks from the agent's convention directory into `fab/.kit/skills/`. The skill prompt files are agent-agnostic markdown; only the symlink locations differ.
 
 ---
 
@@ -698,7 +751,7 @@ Add adapters for Windsurf, Cline, Copilot, etc.
 
 | Skill | Purpose | Creates |
 |-------|---------|---------|
-| `/fab:init` | Bootstrap fab/ in a project | `.kit/` (config, templates, skills), empty specs |
+| `/fab:init` | Bootstrap fab/ in a project | `.kit/`, `config.yaml`, `memory/`, skill symlinks |
 | `/fab:new` | Start change | `proposal.md`, `.status.yaml` |
 | `/fab:continue` | Next artifact | Next stage artifact |
 | `/fab:ff` | Fast forward planning | All planning artifacts + checklist |
@@ -707,6 +760,29 @@ Add adapters for Windsurf, Cline, Copilot, etc.
 | `/fab:archive` | Complete & hydrate | Archive entry, updated specs |
 | `/fab:switch` | Change active change | Updated pointer file |
 | `/fab:status` | Check progress | Status display |
+
+---
+
+## Updating `.kit/`
+
+`.kit/` is a self-contained engine directory. To update the workflow framework:
+
+1. Replace `fab/.kit/` contents with the latest version
+2. That's it — symlinks in `.claude/skills/` (and other agent directories) automatically resolve to the new files
+
+**What's preserved** (lives outside `.kit/`, never touched by updates):
+- `fab/config.yaml` — project configuration
+- `fab/memory/` — project principles and constraints
+- `fab/specs/` — centralized specifications
+- `fab/changes/` — active and archived changes
+- `fab/current` — active change pointer
+
+**What's replaced** (lives inside `.kit/`):
+- `fab/.kit/templates/` — artifact templates
+- `fab/.kit/skills/` — skill prompt definitions
+- `fab/.kit/scripts/` — shell utilities
+
+When `.kit/` is eventually extracted to its own repository, the update mechanism becomes a single pull or copy operation.
 
 ---
 
