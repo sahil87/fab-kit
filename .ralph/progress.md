@@ -168,3 +168,35 @@ Run summary: /Users/sahil/code/sahil87/sdd/sddr-worktrees/eager-beaver/.ralph/ru
   - All 5 previous iterations left uncommitted changes per errors.log; this iteration committed cleanly with git add -A
   - The skill file is pure markdown (207 lines) — no executable code, no security concerns
 ---
+
+## [2026-02-06 22:52] - US-007: Create fab-continue.md skill
+Thread:
+Run: 20260206-222820-4396 (iteration 7)
+Run log: /Users/sahil/code/sahil87/sdd/sddr-worktrees/eager-beaver/.ralph/runs/run-20260206-222820-4396-iter-7.log
+Run summary: /Users/sahil/code/sahil87/sdd/sddr-worktrees/eager-beaver/.ralph/runs/run-20260206-222820-4396-iter-7.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 2653ae8 feat(fab): create fab-continue.md skill prompt (US-007)
+- Post-commit status: `clean`
+- Verification:
+  - Command: `test -f fab/.kit/skills/fab-continue.md` -> PASS
+  - Command: `grep -q '_context.md' fab/.kit/skills/fab-continue.md` -> PASS (references _context.md preamble)
+  - Command: `test -L .claude/skills/fab-continue.md && test -e .claude/skills/fab-continue.md` -> PASS (symlink valid)
+  - Command: All 10 acceptance criteria verified individually -> PASS
+  - Command: `test -f fab/.kit/VERSION && test -f fab/.kit/scripts/status.sh && echo 'core files exist'` -> PASS
+  - Command: `ls fab/.kit/templates/{proposal,spec,plan,tasks,checklist}.md >/dev/null 2>&1 && echo 'all templates exist'` -> PASS
+  - Command: `test -f fab/.kit/skills/_context.md && echo 'shared preamble exists'` -> PASS
+  - Command: `bash fab/.kit/scripts/status.sh | grep -q 'No active change' && echo 'status.sh works'` -> PASS
+  - Note: "all skills exist" gate expected to fail — only fab-init, fab-new, fab-continue created so far; other 7 skills are US-008 through US-013
+  - Note: symlinks and bootstrap gates expected to fail — those are US-014 and US-015
+- Files changed:
+  - fab/.kit/skills/fab-continue.md (new)
+  - .claude/skills/fab-continue.md (new symlink -> ../../fab/.kit/skills/fab-continue.md)
+- Implemented: Created fab/.kit/skills/fab-continue.md as comprehensive agent-agnostic markdown skill (416 lines). Covers: _context.md preamble reference, pre-flight check (abort if fab/current missing), Normal Flow with stage-specific context loading (specs: config+constitution+proposal+docs, plan: +spec, tasks: +plan), artifact generation from templates, plan decision (propose skipping to user if straightforward — unlike /fab:ff which decides autonomously), auto-checklist generation (checklists/quality.md with CHK-* items derived from spec), .status.yaml updates. Reset Flow covers: stage validation guard (only specs/plan/tasks), .status.yaml reset with downstream invalidation, in-place artifact regeneration, task checkbox reset, checklist regeneration. Next steps table maps all completion states to appropriate follow-up commands. Error handling table covers all negative cases. Created symlink .claude/skills/fab-continue.md -> ../../fab/.kit/skills/fab-continue.md.
+- **Learnings for future iterations:**
+  - SKILLS.md fab-continue section (lines 180-217) is the authoritative spec for behavior
+  - Key difference from /fab:ff: fab-continue confirms plan skip with user, fab-ff decides autonomously
+  - The reset flow's downstream invalidation is comprehensive: specs reset invalidates plan+tasks, plan reset invalidates tasks, tasks reset unchecks all tasks and regenerates checklist
+  - Previous 6 iterations all left uncommitted changes per errors.log; this iteration committed cleanly with git add -A
+  - The skill file is pure markdown (416 lines) — no executable code, no security concerns
+---
