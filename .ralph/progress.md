@@ -296,3 +296,36 @@ Run summary: /Users/sahil/code/sahil87/sdd/sddr-worktrees/eager-beaver/.ralph/ru
   - Previous 9 iterations all left uncommitted changes per errors.log; this iteration committed cleanly with git add -A
   - The skill file is pure markdown (270 lines) — no executable code, no security concerns
 ---
+
+## [2026-02-06 23:09] - US-011: Create fab-review.md skill
+Thread:
+Run: 20260206-222820-4396 (iteration 11)
+Run log: /Users/sahil/code/sahil87/sdd/sddr-worktrees/eager-beaver/.ralph/runs/run-20260206-222820-4396-iter-11.log
+Run summary: /Users/sahil/code/sahil87/sdd/sddr-worktrees/eager-beaver/.ralph/runs/run-20260206-222820-4396-iter-11.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: d00a6cc feat(fab): create fab-review.md skill prompt (US-011)
+- Post-commit status: `clean`
+- Verification:
+  - Command: `test -f fab/.kit/skills/fab-review.md` -> PASS
+  - Command: `grep -q '_context.md' fab/.kit/skills/fab-review.md` -> PASS (references _context.md preamble)
+  - Command: `test -L .claude/skills/fab-review.md && test -e .claude/skills/fab-review.md` -> PASS (symlink valid)
+  - Command: All 11 acceptance criteria verified individually -> PASS
+  - Command: `test -f fab/.kit/VERSION && test -f fab/.kit/scripts/status.sh && echo 'core files exist'` -> PASS
+  - Command: `ls fab/.kit/templates/{proposal,spec,plan,tasks,checklist}.md >/dev/null 2>&1 && echo 'all templates exist'` -> PASS
+  - Command: `test -f fab/.kit/skills/_context.md && echo 'shared preamble exists'` -> PASS
+  - Command: `bash fab/.kit/scripts/status.sh | grep -q 'No active change' && echo 'status.sh works'` -> PASS
+  - Note: "all skills exist" gate expected to fail — only fab-init, fab-new, fab-continue, fab-ff, fab-clarify, fab-apply, fab-review created so far; other 3 skills are US-012 and US-013
+  - Note: symlinks and bootstrap gates expected to fail — those are US-014 and US-015
+- Files changed:
+  - fab/.kit/skills/fab-review.md (new)
+  - .claude/skills/fab-review.md (new symlink -> ../../fab/.kit/skills/fab-review.md)
+- Implemented: Created fab/.kit/skills/fab-review.md as comprehensive agent-agnostic markdown skill (~290 lines). Covers: _context.md preamble reference, pre-flight check (abort if fab/current missing, apply not done, tasks.md missing, quality.md missing, config missing), full context loading (config+constitution+tasks.md+checklists/quality.md+spec.md+plan.md+proposal+centralized docs+relevant source code), 5-step verification (Step 1: verify all tasks [x], Step 2: verify each CHK-* item by inspecting code/tests and marking [x] or reporting failure, Step 3: run affected tests, Step 4: spot-check spec requirements with GIVEN/WHEN/THEN scenarios, Step 5: check for doc drift against centralized docs). Review verdict: on pass sets review: done and outputs Next: /fab:archive; on fail sets review: failed and presents 4 rework options (fix code with <!-- rework: reason --> comments on unchecked tasks then /fab:apply, revise tasks then /fab:apply, revise plan via /fab:continue plan, revise specs via /fab:continue specs). Output examples show full pass and partial failure formats with CHK IDs. Error handling table covers all negative cases. Key properties table confirms: stage-advancing, idempotent, modifies checklists/quality.md and conditionally tasks.md (rework only), does not modify source code.
+- **Learnings for future iterations:**
+  - SKILLS.md fab-review section (lines 317-353) is the authoritative spec for behavior
+  - Key property: review is the only skill that can set progress to `failed` (not just `done` or `pending`)
+  - The rework flow has 4 escalation levels: fix code (lightest, unchecks specific tasks) → revise tasks → revise plan → revise specs (heaviest, resets everything downstream)
+  - Doc drift is a warning, not a failure — it signals work for /fab:archive but doesn't block review
+  - Previous 10 iterations all left uncommitted changes per errors.log; this iteration committed cleanly with git add -A
+  - The skill file is pure markdown (~290 lines) — no executable code, no security concerns
+---
