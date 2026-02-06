@@ -1,3 +1,0 @@
-- [x] [eili] 2026-02-06: Branch creation
-- [x] [hh1n] 2026-02-06: Ability to work on a particular stage individually (spec or plan or tasks)
-- [x] [uf7a] 2026-02-06: A way to go deep in a spec — iterative clarify/research loops to refine ambiguities repeatedly

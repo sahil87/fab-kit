@@ -18,7 +18,7 @@ No system installation required. All workflow logic lives in `fab/.kit/` as mark
 ### 2. Docs Are the Source of Truth
 Code serves documentation, not the other way around. The centralized docs (`fab/docs/`) are the source of truth for what the system does and why it works the way it does.
 
-### 3. Change-Folder First
+### 3. Change Folder First
 All work happens in change folders. Each change captures its requirements (`spec.md`) and technical decisions (`plan.md`), which get hydrated into the centralized docs on completion.
 
 ### 4. Stage Visibility
@@ -77,22 +77,22 @@ The 7 stages are internal. From the user's perspective, the main workflow is 5 s
 ```mermaid
 flowchart TD
     NEW["/fab:new"]
-    PLAN["/fab:continue or ff"]
+    THINK["/fab:continue or ff"]
     APPLY["/fab:apply"]
     REVIEW["/fab:review"]
     ARCHIVE["/fab:archive"]
-    PLAN ~~~ CLARIFY["/fab:clarify"]
+    THINK ~~~ CLARIFY["/fab:clarify"]
 
-    NEW -->|proposal| PLAN
-    PLAN -->|spec + plan? + tasks| APPLY
+    NEW -->|proposal| THINK
+    THINK -->|spec + plan? + tasks| APPLY
     APPLY -->|code changes| REVIEW
     REVIEW -->|passed| ARCHIVE
     REVIEW -->|fix code| APPLY
-    REVIEW -.->|revise spec/plan/tasks| PLAN
-    PLAN <-.-> CLARIFY
+    REVIEW -.->|revise spec/plan/tasks| THINK
+    THINK <-.-> CLARIFY
 
     style NEW fill:#e8f4f8,stroke:#2196F3
-    style PLAN fill:#e8f4f8,stroke:#2196F3
+    style THINK fill:#e8f4f8,stroke:#2196F3
     style APPLY fill:#fff3e0,stroke:#FF9800
     style REVIEW fill:#fff3e0,stroke:#FF9800
     style ARCHIVE fill:#e8f5e9,stroke:#4CAF50
@@ -105,9 +105,9 @@ flowchart TD
 
 | Skill | Purpose | Creates |
 |-------|---------|---------|
-| `/fab:init` | Bootstrap fab/ in a project | `.kit/`, `config.yaml`, `memory/`, skill symlinks |
+| `/fab:init` | Bootstrap fab/ in a project | `.kit/`, `config.yaml`, `constitution.md`, `docs/index.md`, skill symlinks |
 | `/fab:new` | Start change (optionally with `--branch`) | `proposal.md`, `.status.yaml`, branch (optional) |
-| `/fab:continue` | Next artifact | Next stage artifact |
+| `/fab:continue [<stage>]` | Next artifact (or reset to stage) | Next stage artifact |
 | `/fab:ff` | Fast forward remaining planning | spec.md + plan (if needed) + tasks + checklist |
 | `/fab:clarify` | Deepen current artifact | Refined artifact (in place) |
 | `/fab:apply` | Implement | Code changes |

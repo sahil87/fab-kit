@@ -30,8 +30,7 @@ project/
 │   │   └── scripts/                # Lightweight shell utilities
 │   │       └── status.sh           # Quick-check active change from terminal
 │   ├── config.yaml                 # Project-specific configuration
-│   ├── memory/
-│   │   └── constitution.md         # Project principles & constraints
+│   ├── constitution.md             # Project principles & constraints
 │   ├── current                     # Pointer file (contains active change name)
 │   ├── docs/                       # Centralized source of truth
 │   │   ├── index.md               # Top-level doc index
@@ -165,11 +164,13 @@ There is no `/fab:abandon` skill — this is a manual operation. If you want to 
 
 Every change folder contains a `.status.yaml` manifest:
 
+**Example — plan stage** (checklist not yet generated):
+
 ```yaml
 name: 260115-a7k2-add-oauth
 created: 2026-01-15T14:30:00Z
 branch: 260115-a7k2-add-oauth  # Optional — omitted if user skipped git integration
-stage: plan                 # Current stage
+stage: plan                     # Current stage
 progress:
   proposal: done
   specs: done
@@ -179,11 +180,34 @@ progress:
   review: pending
   archive: pending
 checklist:
-  generated: true
+  generated: false
   path: checklists/quality.md
   completed: 0
-  total: 12
+  total: 0
 last_updated: 2026-01-16T09:15:00Z
+```
+
+**Example — review stage** (checklist partially verified):
+
+```yaml
+name: 260115-a7k2-add-oauth
+created: 2026-01-15T14:30:00Z
+branch: 260115-a7k2-add-oauth
+stage: review
+progress:
+  proposal: done
+  specs: done
+  plan: done
+  tasks: done
+  apply: done
+  review: active
+  archive: pending
+checklist:
+  generated: true
+  path: checklists/quality.md
+  completed: 10
+  total: 12
+last_updated: 2026-01-18T11:00:00Z
 ```
 
 ---
@@ -219,7 +243,7 @@ stages:
     required: true
   - id: plan
     generates: plan.md
-    requires: [proposal]
+    requires: [specs]
     required: false              # Optional for small changes
   - id: tasks
     generates: tasks.md
@@ -253,7 +277,7 @@ rules:
 
 ---
 
-## Project Constitution (`fab/memory/constitution.md`)
+## Project Constitution (`fab/constitution.md`)
 
 The constitution is the **architectural DNA** of a Fab project. It defines immutable principles that govern how specifications become code. Inspired by SpecKit's constitutional system, adapted for Fab's lightweight workflow.
 
@@ -329,7 +353,7 @@ fab/current          # Local working state — each developer has their own acti
 ```
 
 **What to commit** (shared with team):
-- `fab/config.yaml`, `fab/memory/`, `fab/docs/`, `fab/.kit/` — project configuration and docs
+- `fab/config.yaml`, `fab/constitution.md`, `fab/docs/`, `fab/.kit/` — project configuration and docs
 - `fab/changes/` — change artifacts (proposals, specs, plans, tasks)
 
 **What to ignore** (local state):
@@ -371,7 +395,7 @@ Same pattern — symlinks from the agent's convention directory into `fab/.kit/s
 
 **What's preserved** (lives outside `.kit/`, never touched by updates):
 - `fab/config.yaml` — project configuration
-- `fab/memory/` — project principles and constraints
+- `fab/constitution.md` — project principles and constraints
 - `fab/docs/` — centralized documentation
 - `fab/changes/` — active and archived changes
 - `fab/current` — active change pointer

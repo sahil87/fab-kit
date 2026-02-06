@@ -18,9 +18,9 @@ All status fields draw from a fixed set of states. This prevents ad-hoc state na
 | `skipped` | Intentionally bypassed | plan |
 | `failed` | Completed with failures requiring rework | review |
 
-**`stage` field values**: `proposal` | `specs` | `plan` | `tasks` | `apply` | `review` | `archived`
+**`stage` field values**: `proposal` | `specs` | `plan` | `tasks` | `apply` | `review` | `archive`
 
-The `stage` field tracks *where* the change is. The `progress` map tracks *how* each stage went.
+The `stage` field tracks *where* the change is. The `progress` map tracks *how* each stage went. Both use the same key names.
 
 ### Template
 
@@ -38,7 +38,7 @@ progress:
   tasks: pending                    # pending | active | done
   apply: pending                    # pending | active | done
   review: pending                    # pending | active | done | failed
-  archive: pending                  # pending | done
+  archive: pending                  # pending | active | done
 checklist:
   generated: false
   path: checklists/quality.md
@@ -125,6 +125,7 @@ last_updated: {ISO_8601_DATETIME}
   Every requirement MUST have at least one scenario.
   Scenarios use GIVEN/WHEN/THEN format.
   Organize by domain section when the change touches multiple domains.
+  Mark unresolved ambiguities with [NEEDS CLARIFICATION] inline. /fab:clarify resolves these.
 -->
 
 ## {Domain}: {Topic}
@@ -266,7 +267,7 @@ The system SHALL support sessions from multiple auth sources. Sessions MAY origi
 - `{path}`: {why}
 ```
 
-**Design rationale**: OpenSpec's Goals/Non-Goals + Decisions/Risks structure for architectural clarity. SpecKit's research phase for unknowns. The File Changes section bridges plan to tasks — it makes the scope concrete and reviewable before task generation. Unlike SpecKit's explicit "Constitution Check" gate in the plan template, Fab handles this by loading `fab/memory/constitution.md` as context when generating the plan. The agent is expected to respect constitutional principles implicitly — violations are caught during `/fab:review`, not gated at plan time.
+**Design rationale**: OpenSpec's Goals/Non-Goals + Decisions/Risks structure for architectural clarity. SpecKit's research phase for unknowns. The File Changes section bridges plan to tasks — it makes the scope concrete and reviewable before task generation. Unlike SpecKit's explicit "Constitution Check" gate in the plan template, Fab handles this by loading `fab/constitution.md` as context when generating the plan. The agent is expected to respect constitutional principles implicitly — violations are caught during `/fab:review`, not gated at plan time.
 
 ---
 
@@ -509,7 +510,6 @@ fab/docs/
 # {Doc Name}
 
 **Domain**: {domain}
-**Last hydrated**: {DATE} (from {change-name})
 
 ## Overview
 
@@ -544,7 +544,7 @@ fab/docs/
 **Rejected**: {alternative and why it was worse}
 *Introduced by*: {change-name}
 
-## History
+## Changelog
 
 <!-- Auto-maintained by /fab:archive. Most recent first. -->
 
@@ -553,7 +553,29 @@ fab/docs/
 | {change-name} | {DATE} | {one-line summary of what changed} |
 ```
 
-**Design rationale**: The index-based hierarchy solves discoverability — agents and humans can navigate from top-level down to any requirement without scanning folders. The Design Decisions section captures durable "why" context from plans, so developers don't need to dig through archived changes to understand architectural choices. The History table provides traceability back to the change that introduced each modification. Domain indexes include "Last Updated" so stale docs are visible at a glance.
+**Design rationale**: The index-based hierarchy solves discoverability — agents and humans can navigate from top-level down to any requirement without scanning folders. The Design Decisions section captures durable "why" context from plans, so developers don't need to dig through archived changes to understand architectural choices. The Changelog table provides traceability back to the change that introduced each modification. Domain indexes include "Last Updated" so stale docs are visible at a glance.
+
+### Initial Docs (created by `/fab:init`)
+
+A fresh project starts with a single index file. The first `/fab:archive` populates domains and docs:
+
+```
+fab/docs/
+└── index.md
+```
+
+```markdown
+# Documentation Index
+
+> Source of truth for system behavior and design. Updated by `/fab:archive` hydration.
+
+<!-- No domains yet. /fab:archive will create domain folders and populate this table. -->
+
+| Domain | Description | Docs |
+|--------|-------------|------|
+```
+
+---
 
 ### Hydration Rules
 
@@ -563,4 +585,4 @@ When `/fab:archive` hydrates `spec.md` and `plan.md` into centralized docs:
 2. **Existing doc file**: Compare `spec.md` requirements against the current doc to determine what's new, changed, or removed. Update the Requirements section semantically. Minimize edits to unchanged sections.
 3. **Design decisions**: Extract durable decisions from `plan.md`'s Decisions section. Skip tactical details (file paths, library install steps, setup commands). Add to the Design Decisions section with the change name for traceability.
 4. **Index updates**: Update domain index "Last Updated" column. Add new entries if new docs were created.
-5. **History row**: Append a row to the doc's History table with the change name, date, and one-line summary.
+5. **Changelog row**: Append a row to the doc's Changelog table with the change name, date, and one-line summary.

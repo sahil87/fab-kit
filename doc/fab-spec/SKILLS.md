@@ -23,7 +23,7 @@ Every skill that generates or validates artifacts MUST load relevant context bef
 
 **Always loaded** (by every skill except `/fab:init`, `/fab:switch`, `/fab:status`):
 - `fab/config.yaml` — project configuration, tech stack, conventions
-- `fab/memory/constitution.md` — project principles and constraints
+- `fab/constitution.md` — project principles and constraints
 
 **Change context** (loaded by skills operating on an active change):
 - `.status.yaml` — current stage, progress
@@ -49,8 +49,8 @@ Each skill section below lists its specific context requirements under a **Conte
 **Creates**:
 - `fab/.kit/` — engine directory (templates, skills, scripts)
 - `fab/config.yaml` — project configuration (prompts for name, tech stack, conventions)
-- `fab/memory/constitution.md` — project principles and constraints (generated from conversation or existing docs)
-- `fab/docs/` — empty, ready for centralized docs
+- `fab/constitution.md` — project principles and constraints (generated from conversation or existing docs)
+- `fab/docs/index.md` — initial docs index (populated by `/fab:archive` hydration)
 - `fab/changes/` — empty, ready for change folders
 - `.claude/skills/` — symlinks pointing into `fab/.kit/skills/`
 
@@ -67,7 +67,7 @@ Each skill section below lists its specific context requirements under a **Conte
 2. Prompt for project name, description, tech stack
 3. Create `fab/.kit/` with default templates, skills, and scripts
 4. Generate `fab/config.yaml` from responses
-5. Generate `fab/memory/constitution.md` from project context (README, existing docs, conversation)
+5. Generate `fab/constitution.md` from project context (README, existing docs, conversation)
 6. Create symlinks in `.claude/skills/` pointing to `fab/.kit/skills/`
 7. Optionally scaffold initial docs from existing code or documentation
 
@@ -110,35 +110,49 @@ Each skill section below lists its specific context requirements under a **Conte
    - If user declines → skip, no `branch:` field in `.status.yaml`
    - Record chosen branch name in `.status.yaml` as `branch:`
 5. Initialize `.status.yaml` with stage: proposal (and `branch:` if set)
-6. Generate `proposal.md` using template (loading `fab/memory/constitution.md` and `fab/config.yaml` as context)
+6. Generate `proposal.md` using template (loading `fab/constitution.md` and `fab/config.yaml` as context)
 7. Ask clarifying questions if intent is ambiguous
-8. Mark proposal complete when satisfied
+8. Mark proposal complete once the user is satisfied
 
 ---
 
-## `/fab:continue`
+## `/fab:continue [<stage>]`
 
-**Purpose**: Create the next artifact in sequence.
+**Purpose**: Create the next artifact in sequence — or, when called with a stage argument, reset to that stage and regenerate from there.
+
+**Arguments**:
+- `<stage>` *(optional)* — target stage to reset to (`specs`, `plan`, or `tasks`). Used after `/fab:review` identifies issues upstream. When provided, resets `.status.yaml` to this stage and regenerates artifacts from that point forward.
 
 **Context** (varies by target stage):
 - **Specs stage**: config, constitution, `proposal.md`, target centralized doc(s) from `fab/docs/`
 - **Plan stage**: above + completed `spec.md`
 - **Tasks stage**: above + `plan.md` (if not skipped)
 
-**Example**:
+**Examples**:
 ```
 /fab:continue
 → "Stage: proposal (done). Next: Create spec.md."
+
+/fab:continue plan
+→ "Resetting to plan stage. Regenerating plan.md..."
+→ "Plan updated. Run /fab:continue to generate tasks, or /fab:ff to fast-forward."
 ```
 
-**Behavior**:
+**Behavior** (no argument — normal forward flow):
 1. Read `.status.yaml` to determine current stage
 2. Identify next artifact to create
-3. Load relevant template + context (including `fab/memory/constitution.md` for project principles)
+3. Load relevant template + context (including `fab/constitution.md` for project principles)
 4. Generate artifact (with clarification/research as needed)
 5. **Plan decision** (when transitioning from specs to plan): evaluate whether a plan is warranted. If the change is small and the approach is obvious, propose skipping to the user: *"This change is straightforward — skip plan and go directly to tasks?"* If the user agrees, record `plan: skipped` in `.status.yaml` and proceed to tasks. If the user wants a plan, generate it normally.
 6. Auto-generate checklist when creating tasks
 7. Update `.status.yaml`
+
+**Behavior** (with stage argument — reset and regenerate):
+1. **Guard**: target stage must be `specs`, `plan`, or `tasks`. Cannot reset to `proposal` (use `/fab:new`) or `apply`/`review`/`archive`.
+2. Reset `.status.yaml` stage to the target. Mark all stages from target onward as `pending`.
+3. Regenerate the target stage's artifact in place (update, not recreate from scratch — preserve what's still valid).
+4. Downstream artifacts are invalidated: tasks are reset to `- [ ]`, checklist is regenerated. Plan is regenerated if the target is `specs`.
+5. Update `.status.yaml` and report what was reset.
 
 ---
 
@@ -180,7 +194,7 @@ Each skill section below lists its specific context requirements under a **Conte
 
 **Context** (varies by current stage):
 - **Proposal**: config, constitution, `proposal.md`
-- **Specs**: above + `proposal.md`, target centralized doc(s) from `fab/docs/`
+- **Specs**: above + target centralized doc(s) from `fab/docs/`
 - **Plan**: above + `spec.md`, `plan.md`
 - **Tasks**: above + `plan.md` (if not skipped), `tasks.md`
 
@@ -268,11 +282,11 @@ Each skill section below lists its specific context requirements under a **Conte
 - **Revise tasks** → edit `tasks.md`, then `/fab:apply`
   Missing or wrong tasks. The agent adds/modifies tasks in `tasks.md` (new tasks get the next sequential ID). Completed tasks that are unaffected stay `[x]`. Only new or revised tasks are executed.
 
-- **Revise plan** → `/fab:continue` from plan stage
-  Architecture was wrong. The agent updates `plan.md` in place (not recreated from scratch). After the plan is revised, `tasks.md` is regenerated — all tasks are reset to `- [ ]` since the implementation approach changed. The checklist is also regenerated.
+- **Revise plan** → `/fab:continue plan`
+  Architecture was wrong. Resets to plan stage, updates `plan.md` in place, and invalidates downstream artifacts — `tasks.md` is reset to `- [ ]` and the checklist is regenerated.
 
-- **Revise specs** → `/fab:continue` from specs stage
-  Requirements were wrong or incomplete. `spec.md` is updated in place. Plan (if it exists) and tasks are subsequently regenerated. All downstream artifacts are reset.
+- **Revise specs** → `/fab:continue specs`
+  Requirements were wrong or incomplete. Resets to specs stage, updates `spec.md` in place. Plan (if it exists) and tasks are subsequently regenerated. All downstream artifacts are reset.
 
 The `.status.yaml` stage is reset to the chosen re-entry point. The general rule: **artifacts at and after the re-entry point are regenerated or updated; artifacts before it are preserved.**
 
@@ -299,11 +313,13 @@ The `.status.yaml` stage is reset to the chosen re-entry point. The general rule
    - **From spec.md** → integrate new/changed requirements and scenarios into the Requirements section. Remove requirements that the spec explicitly deprecates.
    - **From plan.md** → extract durable design decisions (from the Decisions section) into the Design Decisions section of the centralized doc. Skip tactical details (file paths, setup steps, library install commands).
    The agent compares against the existing doc to determine what's new vs changed vs removed — no explicit delta markers needed. Minimize edits to unchanged sections to prevent drift over successive archives.
-4. **Update status** to `archived` in `.status.yaml`
+4. **Update status** to `archive: done` in `.status.yaml`
 5. **Move change folder** to `archive/` (no rename — date is already in the folder name)
 6. **Clear pointer** — delete `fab/current` (no active change)
 
 **Order of operations**: Steps 3–6 are ordered to fail safely. Status is updated *before* the folder move, so if the move is interrupted, the change is marked archived but still in `changes/` — the agent can detect and complete the move on next invocation. The pointer is cleared last so that mid-archive, `/fab:status` still reports the active change rather than "no active change" with a half-hydrated spec.
+
+**Recovery**: Hydration modifies centralized docs in-place. If the merge goes wrong (garbled text, incorrect removals), the only recovery is `git checkout` on the affected doc files. Commit (or at least review the diff) before pushing after an archive.
 
 ---
 
