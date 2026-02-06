@@ -251,7 +251,7 @@
     {
       "id": "US-008",
       "title": "Create fab-ff.md skill",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-004"
       ],
@@ -272,13 +272,13 @@
         "Negative case: if proposal is not complete, tell user to finish proposal first"
       ],
       "startedAt": "2026-02-06T17:24:04.947883+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-06T17:24:04.948041+00:00"
+      "completedAt": "2026-02-06T17:28:17.472555+00:00",
+      "updatedAt": "2026-02-06T17:28:17.472460+00:00"
     },
     {
       "id": "US-009",
       "title": "Create fab-clarify.md skill",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-004"
       ],
@@ -295,7 +295,10 @@
         "Output ends with: Next: /fab:clarify (refine further) or /fab:continue or /fab:ff",
         "Example: /fab:clarify on specs stage resolves 2 [NEEDS CLARIFICATION] markers",
         "Negative case: if no active change, tell user to run /fab:new"
-      ]
+      ],
+      "startedAt": "2026-02-06T17:28:19.559549+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-06T17:28:19.559717+00:00"
     },
     {
       "id": "US-010",
