@@ -109,7 +109,7 @@
     {
       "id": "US-002",
       "title": "Create status.sh script",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-001"
       ],
@@ -124,13 +124,13 @@
         "Script content must match the spec exactly: #!/usr/bin/env bash, set -euo pipefail, relative path resolution via $(dirname \"$0\")/../../current"
       ],
       "startedAt": "2026-02-06T17:00:55.779911+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-06T17:00:55.780065+00:00"
+      "completedAt": "2026-02-06T17:03:32.285278+00:00",
+      "updatedAt": "2026-02-06T17:03:32.285171+00:00"
     },
     {
       "id": "US-003",
       "title": "Create all 5 artifact templates",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-001"
       ],
@@ -144,7 +144,10 @@
         "All templates must preserve HTML comment instructions (<!-- -->) as they serve as agent guidance",
         "Example: each template contains placeholder variables in {CURLY_BRACES} for the agent to fill",
         "Negative case: templates must not contain filled-in example data \u2014 they are scaffolds only (the examples from TEMPLATES.md go in the spec docs, not the template files)"
-      ]
+      ],
+      "startedAt": "2026-02-06T17:03:34.374737+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-06T17:03:34.374873+00:00"
     },
     {
       "id": "US-004",
