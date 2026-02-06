@@ -5,4 +5,4 @@
 - [x] [iioo] 2026-02-06: Add starting instruction (is simply copying the fab/.kit folder enough/is there a script to run?)
 - [x] [cxpe] 2026-02-06: ~~Onboard command~~ → absorbed into `fab:init` (idempotent, accepts sources: Notion URLs, Linear URLs, local files)
 - [x] [8dx2] 2026-02-06: After every command suggest the next possible commands in the flow → added Next Steps Convention with lookup table in SKILLS.md
-
+- [ ] [k7ho] 2026-02-06: Read the specs at doc/fab-spec/README.md. Implement it in this repo. (By creating distributable fab/.kit folder in this repo, symlinking .claude etc). Replicate the actual structure that other repos would be using.
