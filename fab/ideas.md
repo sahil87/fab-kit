@@ -1,0 +1,2 @@
+- [ ] [eili] 2026-02-06: Branch creation
+- [ ] [hh1n] 2026-02-06: Ability to work on a particular stage individually (spec or plan or tasks)

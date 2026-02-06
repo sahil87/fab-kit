@@ -22,7 +22,7 @@ Code serves specifications, not the other way around. The centralized spec (`spe
 All work happens in change folders. Changes track ADDED/MODIFIED/REMOVED requirements that get hydrated into the centralized spec on completion.
 
 ### 4. Stage Visibility
-Always know where you are. Each change folder has a `.status.yaml` manifest that tracks current stage and progress. A `current` symlink (`fab/current → fab/changes/{active-change}`) provides instant access to whichever change is in flight — no scanning or guessing required.
+Always know where you are. Each change folder has a `.status.yaml` manifest that tracks current stage and progress. A `current` pointer file (`fab/current` contains the active change name) provides instant access to whichever change is in flight — no scanning or guessing required. Run `fab/.kit/scripts/status.sh` for a quick terminal check.
 
 ### 5. Skill-Based Interface
 Use skills (not rigid commands) for better agent interoperability. Skills are more naturally invocable by AI agents.
@@ -34,36 +34,27 @@ Fab does not manage git. Branch creation, commits, and pushes are separate conce
 
 ## The 7 Stages
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              FAB WORKFLOW                                    │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐              │
-│  │ PROPOSAL │ ─→ │  SPECS   │ ─→ │   PLAN   │ ─→ │  TASKS   │              │
-│  │   (1)    │    │   (2)    │    │   (3)    │    │   (4)    │              │
-│  │          │    │ +clarify │    │ +research│    │ +checklist│             │
-│  └──────────┘    └──────────┘    └──────────┘    └──────────┘              │
-│       │                                               │                     │
-│       │              /fab:ff                          │                     │
-│       └─────────────────────────────────────────────→│                     │
-│                                                       │                     │
-│                                                       ↓                     │
-│                              ┌──────────┐    ┌──────────────┐              │
-│                              │  VERIFY  │ ←─ │    APPLY     │              │
-│                              │   (6)    │    │     (5)      │              │
-│                              └────┬─────┘    └──────────────┘              │
-│                                   │                                         │
-│                                   ↓                                         │
-│                              ┌──────────┐                                   │
-│                              │ ARCHIVE  │                                   │
-│                              │   (7)    │                                   │
-│                              └──────────┘                                   │
-│                                   │                                         │
-│                                   ↓                                         │
-│                         Hydrate into specs/                                 │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph planning ["Planning"]
+        direction LR
+        P["1 PROPOSAL"] --> S["2 SPECS"] --> PL["3 PLAN"] --> T["4 TASKS"]
+    end
+    subgraph execution ["Execution"]
+        direction LR
+        A["5 APPLY"] --> V["6 VERIFY"]
+    end
+    subgraph completion ["Completion"]
+        direction LR
+        AR["7 ARCHIVE"] --> H[/"Hydrate into specs"/]
+    end
+
+    T --> A
+    V --> AR
+
+    style planning fill:#e8f4f8,stroke:#2196F3
+    style execution fill:#fff3e0,stroke:#FF9800
+    style completion fill:#e8f5e9,stroke:#4CAF50
 ```
 
 ### Stage Details
@@ -71,11 +62,11 @@ Fab does not manage git. Branch creation, commits, and pushes are separate conce
 | # | Stage | Purpose | Artifact | Includes |
 |---|-------|---------|----------|----------|
 | 1 | **Proposal** | Intent, scope, approach | `proposal.md` | Initial clarification questions |
-| 2 | **Specs** | What's changing (deltas) | `specs/*.md` | Ambiguity resolution, [NEEDS CLARIFICATION] markers |
-| 3 | **Plan** | How to implement | `plan.md` | Technical research, architecture decisions |
-| 4 | **Tasks** | Implementation checklist | `tasks.md` | Auto-generated quality checklist |
-| 5 | **Apply** | Execute tasks | code changes | Progress tracking |
-| 6 | **Verify** | Validate against specs | validation report | Checklist completion check |
+| 2 | **Specs** | What's changing (deltas) | `specs/*.md` | Clarification of ambiguities, [NEEDS CLARIFICATION] markers |
+| 3 | **Plan** | How to implement | `plan.md` | Technical research, architecture decisions, dependency analysis |
+| 4 | **Tasks** | Implementation checklist | `tasks.md` | Auto-generated quality checklist (`checklists/quality.md`) |
+| 5 | **Apply** | Execute tasks | code changes | Run tests per task, progress tracking |
+| 6 | **Verify** | Validate against specs | validation report | Checklist completion, spec drift detection |
 | 7 | **Archive** | Complete & hydrate | archive entry | Delta merge into centralized specs |
 
 ### User Flow (5 skills)
@@ -83,7 +74,7 @@ Fab does not manage git. Branch creation, commits, and pushes are separate conce
 The 7 stages are internal. From the user's perspective, the workflow is 5 skill invocations — planning stages (1–4) are collapsed into a single step via `/fab:ff` or stepped through with `/fab:continue`:
 
 ```mermaid
-flowchart LR
+flowchart TD
     NEW["/fab:new"]
     PLAN["/fab:continue or ff"]
     APPLY["/fab:apply"]
@@ -91,10 +82,11 @@ flowchart LR
     ARCHIVE["/fab:archive"]
 
     NEW -->|proposal| PLAN
-    PLAN -->|specs + plan\n+ tasks| APPLY
+    PLAN -->|specs + plan + tasks| APPLY
     APPLY -->|code changes| VERIFY
     VERIFY -->|passed| ARCHIVE
-    VERIFY -->|"failed"| APPLY
+    VERIFY -->|fix code| APPLY
+    VERIFY -.->|revise planning| PLAN
 
     style NEW fill:#e8f4f8,stroke:#2196F3
     style PLAN fill:#e8f4f8,stroke:#2196F3
@@ -120,17 +112,19 @@ project/
 │   │   │   ├── plan.md
 │   │   │   ├── tasks.md
 │   │   │   └── checklist.md
-│   │   └── skills/                 # Skill definitions (markdown prompts)
-│   │       ├── fab-init.md
-│   │       ├── fab-new.md
-│   │       ├── fab-continue.md
-│   │       ├── fab-ff.md
-│   │       ├── fab-apply.md
-│   │       ├── fab-verify.md
-│   │       ├── fab-archive.md
-│   │       ├── fab-switch.md
-│   │       └── fab-status.md
-│   ├── current → changes/add-oauth # Symlink to active change
+│   │   ├── skills/                 # Skill definitions (markdown prompts)
+│   │   │   ├── fab-init.md
+│   │   │   ├── fab-new.md
+│   │   │   ├── fab-continue.md
+│   │   │   ├── fab-ff.md
+│   │   │   ├── fab-apply.md
+│   │   │   ├── fab-verify.md
+│   │   │   ├── fab-archive.md
+│   │   │   ├── fab-switch.md
+│   │   │   └── fab-status.md
+│   │   └── scripts/                # Lightweight shell utilities
+│   │       └── status.sh           # Quick-check active change from terminal
+│   ├── current                     # Pointer file (contains active change name)
 │   ├── specs/                      # Centralized source of truth
 │   │   ├── auth/
 │   │   │   └── authentication.md
@@ -138,7 +132,7 @@ project/
 │   │   │   └── checkout.md
 │   │   └── ...
 │   └── changes/
-│       ├── add-oauth/              # Active change
+│       ├── 260115-a7k2-add-oauth/  # Active change
 │       │   ├── .status.yaml        # Stage tracking
 │       │   ├── proposal.md
 │       │   ├── specs/
@@ -149,46 +143,90 @@ project/
 │       │   └── checklists/
 │       │       └── quality.md      # Auto-generated
 │       └── archive/                # Completed changes
-│           └── 2024-01-15-add-2fa/
+│           └── 250920-m3x1-add-2fa/
 └── .claude/                        # Agent-specific skill exports
     └── skills/
 ```
 
 ### Folder Naming Convention
 
-**Changes**: Descriptive kebab-case → `add-oauth`, `fix-checkout-bug`, `refactor-auth`
+**Format**: `{YYMMDD}-{XXXX}-{slug}`
 
-**Archive**: Date-prefixed → `2024-01-15-add-oauth`
+| Component | Generated by | Purpose | Example |
+|-----------|-------------|---------|---------|
+| `YYMMDD` | Agent (knows today's date) | Chronological sort, temporal context | `260115` |
+| `XXXX` | Agent (4 random alphanumeric) | Uniqueness guarantee | `a7k2` |
+| `slug` | Agent (2-4 words from description) | Human readability | `add-oauth` |
 
-**Configurable** via `config.yaml`:
-```yaml
-naming:
-  changes: "{action}-{feature}"     # e.g., add-oauth
-  archive: "{date}-{name}"          # e.g., 2024-01-15-add-oauth
-```
+**Examples**: `260115-a7k2-add-oauth`, `260202-m3x1-fix-checkout-bug`, `260205-k8ui-refactor-auth`
+
+**Why this format?**
+- **Unique by construction** — date + random token means no collision scanning needed
+- **Chronological `ls`** — folders sort by creation date naturally
+- **Stable across lifecycle** — same name from creation through archive (no rename on archive)
+- **Agent-generated, no script needed** — simple enough for the skill prompt to specify directly
 
 ---
 
 ## Active Change Tracking (`fab/current`)
 
-`fab/current` is a symlink that always points to the change folder you're actively working on. Inspired by SpecKit's `.specify/current`, it removes the need to scan `changes/` or remember folder names.
+`fab/current` is a plain text file containing the name of the active change folder (e.g. `260115-a7k2-add-oauth`). It removes the need to scan `changes/` or remember folder names.
 
 **Lifecycle**:
-- **Created** by `/fab:new` — points to the newly created change folder
-- **Updated** by `/fab:new` — if you start a new change, the symlink moves
+- **Created** by `/fab:new` — written with the newly created change folder name
+- **Updated** by `/fab:new` or `/fab:switch` — overwritten with the new change name
 - **Read** by every other skill — `/fab:continue`, `/fab:apply`, `/fab:verify`, `/fab:status` all resolve the active change via `current` rather than requiring a name argument
-- **Removed** by `/fab:archive` — after archiving, there is no active change
+- **Cleared** by `/fab:archive` — file is deleted after archiving (no active change)
+
+**Resolution pattern** (used by all skills):
+```
+active=$(cat fab/current)
+# then access: fab/changes/$active/.status.yaml, fab/changes/$active/proposal.md, etc.
+```
 
 **Switching between changes**: If multiple change folders exist and you want to switch context:
 ```
 /fab:switch add-oauth
-→ "fab/current now points to add-oauth"
+→ "fab/current now points to 260115-a7k2-add-oauth"
 ```
 
-**Why a symlink?**
-- Works with all tools (`cat fab/current/.status.yaml` just works)
-- No parsing required — the filesystem _is_ the pointer
-- Git-friendly — add `fab/current` to `.gitignore` since it's local working state. Everything else in `fab/` is committed and shared.
+`/fab:switch` accepts partial matches — the slug portion is enough to identify the change unambiguously.
+
+**Quick check from terminal**: For instant identification when switching between VS Code windows:
+```bash
+fab/.kit/scripts/status.sh
+→ "Active: 260115-a7k2-add-oauth (stage: plan)"
+```
+
+**Why a pointer file (not a symlink)?**
+- **Cross-platform** — symlinks on Windows require Developer Mode or admin privileges. A plain text file works everywhere.
+- **Cleaner errors** — if the target change is deleted, reading a stale name is easy to detect and report clearly, vs. a dangling symlink producing confusing errors.
+- **Simpler operations** — any language/tool can read and write a plain text file. No `ln -sf` semantics.
+- **Git-friendly** — add `fab/current` to `.gitignore` since it's local working state.
+
+**`fab/.kit/scripts/status.sh`**:
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+current_file="$(dirname "$0")/../../current"
+
+if [ ! -f "$current_file" ]; then
+  echo "No active change"
+  exit 0
+fi
+
+name=$(cat "$current_file")
+status_file="$(dirname "$0")/../../changes/$name/.status.yaml"
+
+if [ ! -f "$status_file" ]; then
+  echo "Active: $name (missing — run /fab:switch or /fab:new)"
+  exit 1
+fi
+
+stage=$(grep '^stage:' "$status_file" | cut -d' ' -f2)
+echo "Active: $name (stage: $stage)"
+```
 
 ---
 
@@ -197,8 +235,8 @@ naming:
 Every change folder contains a `.status.yaml` manifest:
 
 ```yaml
-name: add-oauth
-created: 2024-01-10T14:30:00Z
+name: 260115-a7k2-add-oauth
+created: 2026-01-15T14:30:00Z
 stage: plan                 # Current stage
 progress:
   proposal: complete
@@ -213,7 +251,7 @@ checklist:
   path: checklists/quality.md
   completed: 0
   total: 12
-last_updated: 2024-01-11T09:15:00Z
+last_updated: 2026-01-16T09:15:00Z
 ```
 
 ---
@@ -229,6 +267,7 @@ last_updated: 2024-01-11T09:15:00Z
 - `fab/.kit/memory/constitution.md` — project principles and constraints (generated from conversation or existing docs)
 - `fab/.kit/templates/` — default templates for each artifact type
 - `fab/.kit/skills/` — skill prompt files
+- `fab/.kit/scripts/status.sh` — quick-check active change from terminal
 - `fab/specs/` — empty, ready for centralized specs
 - `fab/changes/` — empty, ready for change folders
 
@@ -255,17 +294,18 @@ last_updated: 2024-01-11T09:15:00Z
 **Purpose**: Start a new change from a natural language description.
 
 **Creates**:
-- Change folder with sanitized name
+- Change folder named `{YYMMDD}-{XXXX}-{slug}`
 - `.status.yaml` manifest
 - `proposal.md` from template (with clarifying questions if ambiguous)
 
 **Example**:
 ```
 /fab:new Add OAuth2 support for Google and GitHub sign-in
+→ Created fab/changes/260115-a7k2-add-oauth/
 ```
 
 **Behavior**:
-1. Sanitize description → folder name
+1. Generate folder name: today's date (`YYMMDD`) + 4 random alphanumeric chars + 2-4 word slug from description
 2. Create `fab/changes/{name}/`
 3. Initialize `.status.yaml` with stage: proposal
 4. Generate `proposal.md` using template
@@ -361,6 +401,14 @@ last_updated: 2024-01-11T09:15:00Z
 - Features match spec requirements
 - No spec drift detected
 
+**On failure**, the user chooses where to loop back:
+- **Fix code** → `/fab:apply` (implementation bug — re-run uncompleted/fixed tasks)
+- **Revise tasks** → edit `tasks.md`, then `/fab:apply` (missing or wrong tasks)
+- **Revise plan** → `/fab:continue` from plan stage (architecture was wrong)
+- **Revise specs** → `/fab:continue` from specs stage (requirements were wrong or incomplete)
+
+The `.status.yaml` stage is reset to the chosen re-entry point. Existing artifacts at that stage are updated in place, not recreated from scratch.
+
 ---
 
 ### `/fab:archive`
@@ -370,7 +418,7 @@ last_updated: 2024-01-11T09:15:00Z
 **Example**:
 ```
 /fab:archive
-→ "Archived to fab/changes/archive/2024-01-15-add-oauth/"
+→ "Archived to fab/changes/archive/260115-a7k2-add-oauth/"
 → "Hydrated specs: fab/specs/auth/authentication.md"
 ```
 
@@ -382,7 +430,7 @@ last_updated: 2024-01-11T09:15:00Z
    - **MODIFIED** → agent updates the existing requirement in context, preserving surrounding content
    - **REMOVED** → agent removes the requirement, adjusting related content for coherence
    The agent should minimize edits to unchanged sections to prevent drift over successive archives.
-3. Move change folder to `archive/` with date prefix
+3. Move change folder to `archive/` (no rename — date is already in the folder name)
 4. Update status to `archived`
 
 ---
@@ -393,13 +441,13 @@ last_updated: 2024-01-11T09:15:00Z
 
 **Example**:
 ```
-/fab:switch fix-checkout-bug
-→ "fab/current now points to fix-checkout-bug"
+/fab:switch fix-checkout
+→ "fab/current now points to 260202-m3x1-fix-checkout-bug"
 ```
 
 **Behavior**:
-1. Verify `change-name` exists in `fab/changes/`
-2. Update `fab/current` symlink to point to it
+1. Match `change-name` against `fab/changes/` (supports partial/slug match)
+2. Write the full change name to `fab/current`
 3. Display the switched change's status summary
 
 ---
@@ -410,7 +458,7 @@ last_updated: 2024-01-11T09:15:00Z
 
 **Example output**:
 ```
-Change: add-oauth
+Change: 260115-a7k2-add-oauth
 Stage:  plan (3/7)
 
 Progress:
@@ -434,10 +482,10 @@ Next: Complete plan.md, then /fab:continue
 When `/fab:continue` or `/fab:ff` creates `tasks.md`, it also generates `checklists/quality.md`:
 
 ```markdown
-# Quality Checklist: add-oauth
+# Quality Checklist: 260115-a7k2-add-oauth
 
-**Generated**: 2024-01-11
-**Change**: add-oauth
+**Generated**: 2026-01-16
+**Change**: 260115-a7k2-add-oauth
 **Spec**: specs/auth/authentication.md
 
 ---
@@ -531,8 +579,7 @@ context: |
   Auth: JWT tokens with refresh rotation
 
 naming:
-  changes: "{action}-{feature}"
-  archive: "{date}-{name}"
+  format: "{YYMMDD}-{XXXX}-{slug}"   # e.g., 260115-a7k2-add-oauth
 
 stages:
   - id: proposal
@@ -658,7 +705,7 @@ Add adapters for Windsurf, Cline, Copilot, etc.
 | `/fab:apply` | Implement | Code changes |
 | `/fab:verify` | Validate | Validation report |
 | `/fab:archive` | Complete & hydrate | Archive entry, updated specs |
-| `/fab:switch` | Change active change | Updated symlink |
+| `/fab:switch` | Change active change | Updated pointer file |
 | `/fab:status` | Check progress | Status display |
 
 ---
