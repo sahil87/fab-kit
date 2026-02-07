@@ -6,6 +6,6 @@
 - [x] [cxpe] 2026-02-06: ~~Onboard command~~ → absorbed into `fab:init` (idempotent, accepts sources: Notion URLs, Linear URLs, local files)
 - [x] [8dx2] 2026-02-06: After every command suggest the next possible commands in the flow → added Next Steps Convention with lookup table in SKILLS.md
 - [x] [k7ho] 2026-02-06: Read the specs at doc/fab-spec/README.md. Implement it in this repo. (By creating distributable fab/.kit folder in this repo, symlinking .claude etc). Replicate the actual structure that other repos would be using.
-- [ ] [2t3g] 2026-02-07: Create a setup.sh in the .kit folder, so one can run fab/.kit/setup.sh to setup all the symlinks required properly
+- [x] [2t3g] 2026-02-07: Create a setup.sh in the .kit folder, so one can run fab/.kit/setup.sh to setup all the symlinks required properly
 - [x] [88gc] 2026-02-07: add a fab-help skill also
-- [ ] [pn18] 2026-02-07: fab-init needs to be sync with the setup script. Or else the directory strucutres for both these commands will go out of sync
+- [x] [pn18] 2026-02-07: fab-init needs to be sync with the setup script. Or else the directory strucutres for both these commands will go out of sync
