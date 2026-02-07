@@ -55,7 +55,8 @@ project/
 │           └── 250920-m3x1-add-2fa/
 └── .claude/                        # Agent-specific skill exports
     └── skills/
-        └── fab-new.md → ../../fab/.kit/skills/fab-new.md  # Symlinks into .kit
+        └── fab-new/
+            └── SKILL.md → ../../../fab/.kit/skills/fab-new.md  # Symlinks into .kit
 ```
 
 ---
@@ -368,18 +369,29 @@ Agent-specific skill files are **symlinks** pointing into `fab/.kit/skills/`. Th
 
 ### Claude Code (`.claude/skills/`)
 
-`/fab:init` creates symlinks:
+`/fab:init` (or `fab/.kit/setup.sh`) creates skill subdirectories with symlinks:
 ```
 .claude/skills/
-├── fab-new.md → ../../fab/.kit/skills/fab-new.md
-├── fab-continue.md → ../../fab/.kit/skills/fab-continue.md
-├── fab-ff.md → ../../fab/.kit/skills/fab-ff.md
-├── fab-clarify.md → ../../fab/.kit/skills/fab-clarify.md
-├── fab-apply.md → ../../fab/.kit/skills/fab-apply.md
-├── fab-review.md → ../../fab/.kit/skills/fab-review.md
-├── fab-archive.md → ../../fab/.kit/skills/fab-archive.md
-├── fab-switch.md → ../../fab/.kit/skills/fab-switch.md
-└── fab-status.md → ../../fab/.kit/skills/fab-status.md
+├── fab-init/
+│   └── SKILL.md → ../../../fab/.kit/skills/fab-init.md
+├── fab-new/
+│   └── SKILL.md → ../../../fab/.kit/skills/fab-new.md
+├── fab-continue/
+│   └── SKILL.md → ../../../fab/.kit/skills/fab-continue.md
+├── fab-ff/
+│   └── SKILL.md → ../../../fab/.kit/skills/fab-ff.md
+├── fab-clarify/
+│   └── SKILL.md → ../../../fab/.kit/skills/fab-clarify.md
+├── fab-apply/
+│   └── SKILL.md → ../../../fab/.kit/skills/fab-apply.md
+├── fab-review/
+│   └── SKILL.md → ../../../fab/.kit/skills/fab-review.md
+├── fab-archive/
+│   └── SKILL.md → ../../../fab/.kit/skills/fab-archive.md
+├── fab-switch/
+│   └── SKILL.md → ../../../fab/.kit/skills/fab-switch.md
+└── fab-status/
+    └── SKILL.md → ../../../fab/.kit/skills/fab-status.md
 ```
 
 ### Other agents (Cursor, Windsurf, etc.)
@@ -395,11 +407,14 @@ Same pattern — symlinks from the agent's convention directory into `fab/.kit/s
 
 ```
 1. User obtains .kit/  →  cp -r /path/to/fab-kit fab/.kit
-2. User runs /fab:init →  generates config.yaml, constitution.md, docs/, changes/, symlinks
-3. User runs /fab:new  →  first change is created
+2. User runs fab/.kit/setup.sh  →  creates directories, symlinks, docs/index.md, .gitignore entry
+3. User runs /fab:init →  generates config.yaml, constitution.md (+ optional source hydration)
+4. User runs /fab:new  →  first change is created
 ```
 
-Step 1 is manual. Steps 2–3 are skill-driven.
+Step 1 is manual. Step 2 is a shell script. Steps 3–4 are skill-driven.
+
+`fab/.kit/setup.sh` handles all structural setup (directories, symlinks, `.gitignore`) and is the single source of truth for that structure. `/fab:init` delegates to it (step 1e) and adds the interactive parts (config, constitution, source hydration).
 
 **Re-running `/fab:init`**: Init is idempotent — safe to call at any time. On subsequent runs it verifies structure, repairs broken symlinks, and optionally hydrates `fab/docs/` from external sources (Notion URLs, Linear URLs, local files). See [Skills Reference](SKILLS.md#fabinit-sources) for source hydration behavior.
 

@@ -68,7 +68,9 @@
       "Bash(stat:*)",
       "Bash(file:*)",
       "Bash(tee:*)",
-      "Bash(yes:*)"
+      "Bash(yes:*)",
+      "Bash(fab/.kit/setup.sh:*)",
+      "Bash(bash:*)"
     ]
   }
 }
