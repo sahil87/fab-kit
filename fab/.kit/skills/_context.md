@@ -17,14 +17,22 @@ Read these files first — they define the project's identity, constraints, and 
 - **`fab/constitution.md`** — project principles and constraints (MUST/SHOULD/MUST NOT rules)
 - **`fab/docs/index.md`** — documentation landscape (which domains and docs exist)
 
+> **Note**: If the skill runs `fab-preflight.sh` (Section 2 above), the init check (config.yaml and constitution.md existence) is already covered by the script. Skills using preflight don't need separate existence checks for these files — they only need to read them for content.
+
 ### 2. Change Context (when operating on an active change)
 
-Resolve the active change and load its state:
+Resolve the active change and load its state by running the preflight script:
 
-1. Read `fab/current` to get the active change name
-2. If `fab/current` does not exist, there is no active change — inform the user and suggest `/fab:new`
-3. Load `fab/changes/{name}/.status.yaml` — current stage, progress, branch info
+1. **Run preflight**: Execute `fab/.kit/scripts/fab-preflight.sh` via Bash
+2. **Check exit code**: If the script exits non-zero, STOP and surface the stderr message to the user (it contains the specific error and suggested fix)
+3. **Parse stdout YAML**: On success, parse the YAML output for `name`, `change_dir`, `stage`, `branch`, `progress`, and `checklist` fields — use these for all subsequent change context instead of re-reading `.status.yaml`
 4. Load all completed artifacts in the change folder (e.g., `proposal.md`, `spec.md`, `plan.md`, `tasks.md`) — read each file that exists so you have full context of what has been decided so far
+
+> **What the script validates internally** (for reference — agents do not need to duplicate these checks):
+> 1. `fab/config.yaml` and `fab/constitution.md` exist (project initialized)
+> 2. `fab/current` exists and is non-empty (active change set)
+> 3. Change directory `fab/changes/{name}/` exists
+> 4. `.status.yaml` exists within the change directory
 
 ### 3. Centralized Doc Lookup (when operating on an active change)
 

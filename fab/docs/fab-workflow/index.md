@@ -12,3 +12,4 @@
 | [templates](templates.md) | Artifact templates (proposal, spec, plan, tasks, checklist) and centralized doc format | 2026-02-07 |
 | [kit-architecture](kit-architecture.md) | `.kit/` structure, scripts, agent integration, distribution, versioning, monorepos | 2026-02-07 |
 | [configuration](configuration.md) | `config.yaml` schema, `constitution.md` governance, stage graph definition | 2026-02-07 |
+| [preflight](preflight.md) | `fab-preflight.sh` script — validation, structured YAML output, skill integration | 2026-02-07 |

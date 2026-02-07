@@ -17,29 +17,19 @@ Fast-forward through all remaining planning stages in one pass. Generates specs,
 
 ## Pre-flight Check
 
-Before doing anything else:
+Before doing anything else, run the preflight script:
 
-1. Check that `fab/current` exists and is readable
-2. Read the change name from `fab/current`
-3. Verify `fab/changes/{name}/` directory exists
-4. Read `fab/changes/{name}/.status.yaml`
-5. Verify that `progress.proposal` is `done`
+1. Execute `fab/.kit/scripts/fab-preflight.sh` via Bash
+2. If the script exits non-zero, **STOP** and surface the stderr message to the user
+3. Parse the stdout YAML to get `name`, `change_dir`, `stage`, `branch`, `progress`, and `checklist`
 
-**If `fab/current` does not exist, STOP immediately.** Output:
+Then verify the stage-specific precondition using the preflight output:
 
-> `No active change. Run /fab:new <description> to start one.`
-
-**If the change directory or `.status.yaml` is missing, STOP.** Output:
-
-> `Active change "{name}" is corrupted — .status.yaml not found. Run /fab:new to start a fresh change.`
+4. Verify that `progress.proposal` is `done`
 
 **If `progress.proposal` is not `done`, STOP.** Output:
 
 > `Proposal is not complete. Finish the proposal first with /fab:new or /fab:continue, then run /fab:ff.`
-
-**If `fab/config.yaml` or `fab/constitution.md` is missing, STOP.** Output:
-
-> `fab/ is not initialized. Run /fab:init first.`
 
 ---
 
@@ -260,10 +250,8 @@ Next: /fab:apply
 
 | Condition | Action |
 |-----------|--------|
-| `fab/current` missing | Abort with: "No active change. Run /fab:new \<description\> to start one." |
-| `.status.yaml` missing or corrupted | Abort with: "Active change is corrupted — .status.yaml not found." |
+| Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
 | `progress.proposal` is not `done` | Abort with: "Proposal is not complete. Finish the proposal first with /fab:new or /fab:continue, then run /fab:ff." |
-| `fab/config.yaml` or `fab/constitution.md` missing | Abort with: "fab/ is not initialized. Run /fab:init first." |
 | Template file missing | Abort with: "Template not found at fab/.kit/templates/{file} — kit may be corrupted." |
 | Specs already done (stage is `specs` or later) | Fast-forward from current position — generate only remaining artifacts (skip spec if already done, skip plan if already done/skipped) |
 
