@@ -17,23 +17,17 @@ Complete a change and hydrate its learnings into centralized docs. Performs a fi
 
 ## Pre-flight Check
 
-Before doing anything else:
+Before doing anything else, run the preflight script:
 
-1. Check that `fab/current` exists and is readable
-2. Read the change name from `fab/current`
-3. Verify `fab/changes/{name}/` directory exists
-4. Read `fab/changes/{name}/.status.yaml`
-5. Verify that `progress.review` is `done` (review must have passed before archiving)
-6. Verify that all tasks in `fab/changes/{name}/tasks.md` are checked (`[x]`)
-7. Verify that all checklist items in `fab/changes/{name}/checklists/quality.md` are checked (`[x]`), including items marked **N/A**
+1. Execute `fab/.kit/scripts/fab-preflight.sh` via Bash
+2. If the script exits non-zero, **STOP** and surface the stderr message to the user
+3. Parse the stdout YAML to get `name`, `change_dir`, `stage`, `branch`, `progress`, and `checklist`
 
-**If `fab/current` does not exist, STOP immediately.** Output:
+Then verify stage-specific preconditions using the preflight output:
 
-> `No active change. Run /fab:new <description> to start one.`
-
-**If the change directory or `.status.yaml` is missing, STOP.** Output:
-
-> `Active change "{name}" is corrupted — .status.yaml not found. Run /fab:new to start a fresh change.`
+4. Verify that `progress.review` is `done` (review must have passed before archiving)
+5. Verify that all tasks in `fab/changes/{name}/tasks.md` are checked (`[x]`)
+6. Verify that all checklist items in `fab/changes/{name}/checklists/quality.md` are checked (`[x]`), including items marked **N/A**
 
 **If `progress.review` is not `done`, STOP.** Output:
 
@@ -46,10 +40,6 @@ Before doing anything else:
 **If any checklist items are unchecked in `checklists/quality.md`, STOP.** Output:
 
 > `{N} of {total} checklist items are not verified. All items must be checked (including N/A items). Run /fab:review to complete the checklist.`
-
-**If `fab/config.yaml` or `fab/constitution.md` is missing, STOP.** Output:
-
-> `fab/ is not initialized. Run /fab:init first.`
 
 ---
 
@@ -306,12 +296,10 @@ Review has not passed. Run /fab:review to validate implementation first.
 
 | Condition | Action |
 |-----------|--------|
-| `fab/current` missing | Abort with: "No active change. Run /fab:new \<description\> to start one." |
-| `.status.yaml` missing or corrupted | Abort with: "Active change is corrupted — .status.yaml not found." |
+| Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
 | `progress.review` is not `done` | Abort with: "Review has not passed. Run /fab:review to validate implementation first." |
 | Any tasks unchecked in `tasks.md` | Abort with incomplete task count — user must run /fab:apply then /fab:review |
 | Any checklist items unchecked | Abort with incomplete item count — user must run /fab:review |
-| `fab/config.yaml` or `fab/constitution.md` missing | Abort with: "fab/ is not initialized. Run /fab:init first." |
 | Concurrent change references same doc | Warn but proceed — not blocking |
 | Target centralized doc does not exist | Create from template (new doc flow) |
 | Target domain folder does not exist | Create folder + domain index (new domain flow) |

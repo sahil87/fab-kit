@@ -25,20 +25,13 @@ If no argument is provided, the skill advances to the **next** stage in sequence
 
 ## Pre-flight Check
 
-Before doing anything else:
+Before doing anything else, run the preflight script:
 
-1. Check that `fab/current` exists and is readable
-2. Read the change name from `fab/current`
-3. Verify `fab/changes/{name}/` directory exists
-4. Read `fab/changes/{name}/.status.yaml`
+1. Execute `fab/.kit/scripts/fab-preflight.sh` via Bash
+2. If the script exits non-zero, **STOP** and surface the stderr message to the user
+3. Parse the stdout YAML to get `name`, `change_dir`, `stage`, `branch`, `progress`, and `checklist`
 
-**If `fab/current` does not exist, STOP immediately.** Output:
-
-> `No active change. Run /fab:new <description> to start one.`
-
-**If the change directory or `.status.yaml` is missing, STOP.** Output:
-
-> `Active change "{name}" is corrupted — .status.yaml not found. Run /fab:new to start a fresh change.`
+Use the `stage` and `progress` fields from preflight output for all subsequent stage guard logic (do not re-read `.status.yaml`).
 
 ---
 
@@ -395,13 +388,11 @@ Next: /fab:apply
 
 | Condition | Action |
 |-----------|--------|
-| `fab/current` missing | Abort with: "No active change. Run /fab:new \<description\> to start one." |
-| `.status.yaml` missing or corrupted | Abort with: "Active change is corrupted — .status.yaml not found." |
+| Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
 | Current stage is `apply` or later (normal flow) | Abort with guidance to use `/fab:apply`, `/fab:review`, or `/fab:archive` |
 | Reset target is `proposal` | Abort with: "Cannot reset to proposal. Run /fab:new to start a new change instead." |
 | Reset target is `apply`, `review`, or `archive` | Abort with: "Cannot reset to {stage}. Use /fab:{stage} directly." |
 | Template file missing | Abort with: "Template not found at fab/.kit/templates/{file} — kit may be corrupted." |
-| `fab/config.yaml` or `fab/constitution.md` missing | Abort with: "fab/ is not initialized. Run /fab:init first." |
 
 ---
 

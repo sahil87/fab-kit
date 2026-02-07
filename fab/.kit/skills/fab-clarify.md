@@ -17,24 +17,13 @@ Deepen and refine the current stage artifact without advancing to the next stage
 
 ## Pre-flight Check
 
-Before doing anything else:
+Before doing anything else, run the preflight script:
 
-1. Check that `fab/current` exists and is readable
-2. Read the change name from `fab/current`
-3. Verify `fab/changes/{name}/` directory exists
-4. Read `fab/changes/{name}/.status.yaml`
+1. Execute `fab/.kit/scripts/fab-preflight.sh` via Bash
+2. If the script exits non-zero, **STOP** and surface the stderr message to the user
+3. Parse the stdout YAML to get `name`, `change_dir`, `stage`, `branch`, `progress`, and `checklist`
 
-**If `fab/current` does not exist, STOP immediately.** Output:
-
-> `No active change. Run /fab:new <description> to start one.`
-
-**If the change directory or `.status.yaml` is missing, STOP.** Output:
-
-> `Active change "{name}" is corrupted — .status.yaml not found. Run /fab:new to start a fresh change.`
-
-**If `fab/config.yaml` or `fab/constitution.md` is missing, STOP.** Output:
-
-> `fab/ is not initialized. Run /fab:init first.`
+Use the `stage` field from preflight output for the Stage Guard below (do not re-read `.status.yaml`).
 
 ---
 
@@ -232,11 +221,9 @@ Next: /fab:clarify (refine further) or /fab:continue or /fab:ff
 
 | Condition | Action |
 |-----------|--------|
-| `fab/current` missing | Abort with: "No active change. Run /fab:new \<description\> to start one." |
-| `.status.yaml` missing or corrupted | Abort with: "Active change is corrupted — .status.yaml not found." |
+| Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
 | Stage is `apply`, `review`, or `archive` | Abort with: "Stage is {stage} — use /fab:review instead." |
 | Artifact file missing for current stage | Abort with: "No {artifact} found. Run /fab:continue to generate it first." |
-| `fab/config.yaml` or `fab/constitution.md` missing | Abort with: "fab/ is not initialized. Run /fab:init first." |
 
 ---
 

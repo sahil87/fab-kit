@@ -17,23 +17,17 @@ Validate implementation against specs and checklists. Inspects every task and ch
 
 ## Pre-flight Check
 
-Before doing anything else:
+Before doing anything else, run the preflight script:
 
-1. Check that `fab/current` exists and is readable
-2. Read the change name from `fab/current`
-3. Verify `fab/changes/{name}/` directory exists
-4. Read `fab/changes/{name}/.status.yaml`
-5. Verify that `progress.apply` is `done` (implementation must be complete before review)
-6. Verify that `fab/changes/{name}/tasks.md` exists
-7. Verify that `fab/changes/{name}/checklists/quality.md` exists
+1. Execute `fab/.kit/scripts/fab-preflight.sh` via Bash
+2. If the script exits non-zero, **STOP** and surface the stderr message to the user
+3. Parse the stdout YAML to get `name`, `change_dir`, `stage`, `branch`, `progress`, and `checklist`
 
-**If `fab/current` does not exist, STOP immediately.** Output:
+Then verify stage-specific preconditions using the preflight output:
 
-> `No active change. Run /fab:new <description> to start one.`
-
-**If the change directory or `.status.yaml` is missing, STOP.** Output:
-
-> `Active change "{name}" is corrupted — .status.yaml not found. Run /fab:new to start a fresh change.`
+4. Verify that `progress.apply` is `done` (implementation must be complete before review)
+5. Verify that `fab/changes/{name}/tasks.md` exists
+6. Verify that `fab/changes/{name}/checklists/quality.md` exists
 
 **If `progress.apply` is not `done`, STOP.** Output:
 
@@ -46,10 +40,6 @@ Before doing anything else:
 **If `checklists/quality.md` does not exist, STOP.** Output:
 
 > `No quality checklist found. Run /fab:continue or /fab:ff to generate the checklist first.`
-
-**If `fab/config.yaml` or `fab/constitution.md` is missing, STOP.** Output:
-
-> `fab/ is not initialized. Run /fab:init first.`
 
 ---
 
@@ -308,12 +298,10 @@ Apply stage is not complete. Run /fab:apply to finish implementation first.
 
 | Condition | Action |
 |-----------|--------|
-| `fab/current` missing | Abort with: "No active change. Run /fab:new \<description\> to start one." |
-| `.status.yaml` missing or corrupted | Abort with: "Active change is corrupted — .status.yaml not found." |
+| Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
 | `progress.apply` is not `done` | Abort with: "Apply stage is not complete. Run /fab:apply to finish implementation first." |
 | `tasks.md` missing | Abort with: "No tasks.md found. Run /fab:continue or /fab:ff to generate tasks first." |
 | `checklists/quality.md` missing | Abort with: "No quality checklist found. Run /fab:continue or /fab:ff to generate the checklist first." |
-| `fab/config.yaml` or `fab/constitution.md` missing | Abort with: "fab/ is not initialized. Run /fab:init first." |
 | Unchecked tasks found | Abort with incomplete task list — user must run /fab:apply first |
 | Checklist item fails | Record failure with CHK ID and reason; include in final report |
 | Tests fail | Record failure; include in final report |
