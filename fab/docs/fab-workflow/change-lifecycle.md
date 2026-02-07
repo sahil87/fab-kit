@@ -4,7 +4,7 @@
 
 ## Overview
 
-A "change" is the unit of work in Fab. Each change lives in its own folder under `fab/changes/`, tracks its progress via `.status.yaml`, and is identified by a unique name. This doc covers the naming convention, folder structure, status tracking, active change pointer, git integration, and the utility skills (`/fab:status`, `/fab:switch`) that navigate between changes.
+A "change" is the unit of work in Fab. Each change lives in its own folder under `fab/changes/`, tracks its progress via `.status.yaml`, and is identified by a unique name. This doc covers the naming convention, folder structure, status tracking, active change pointer, git integration, and the utility skills (`/fab-status`, `/fab-switch`) that navigate between changes.
 
 ## Requirements
 
@@ -25,10 +25,10 @@ All components MUST be lowercase — avoids collisions on case-insensitive files
 `fab/current` is a plain text file containing the name of the active change folder. It removes the need to scan `changes/` or remember folder names.
 
 **Lifecycle**:
-- **Created** by `/fab:new` — written with the newly created change folder name
-- **Updated** by `/fab:new` or `/fab:switch` — overwritten with the new change name
-- **Read** by every other skill — `/fab:continue`, `/fab:clarify`, `/fab:apply`, `/fab:review`, `/fab:status` all resolve the active change via `current`
-- **Cleared** by `/fab:archive` — file is deleted after archiving (no active change)
+- **Created** by `/fab-new` — written with the newly created change folder name
+- **Updated** by `/fab-new` or `/fab-switch` — overwritten with the new change name
+- **Read** by every other skill — `/fab-continue`, `/fab-clarify`, `/fab-apply`, `/fab-review`, `/fab-status` all resolve the active change via `current`
+- **Cleared** by `/fab-archive` — file is deleted after archiving (no active change)
 
 **Resolution pattern** (used by all skills):
 ```
@@ -79,7 +79,7 @@ The `plan` stage MAY be skipped for straightforward changes. When skipped, its s
 
 ### Git Integration (Optional)
 
-Fab works without git. Change folders are the unit of identity, not branches — the same change can be worked on across multiple branches, worktrees, or even repos. When git is available, `/fab:new` offers a lightweight convenience link, but this is strictly informational. Fab never couples its state to git state.
+Fab works without git. Change folders are the unit of identity, not branches — the same change can be worked on across multiple branches, worktrees, or even repos. When git is available, `/fab-new` offers a lightweight convenience link, but this is strictly informational. Fab never couples its state to git state.
 
 **Why decoupled**: A developer might work on the same change across multiple worktrees, a change might span multiple branches, or a change might move between branches after a rebase. The `branch:` field in `.status.yaml` is a convenience bookmark, not a coupling.
 
@@ -89,7 +89,7 @@ Fab works without git. Change folders are the unit of identity, not branches —
 | **Adopt current branch** | Already on a feature branch | Records current branch name in `.status.yaml` |
 | **Skip** | Non-git or manual control | No `branch:` field in `.status.yaml` |
 
-Branch name is stored in `.status.yaml` as `branch:` and displayed by `/fab:status`. Fab never commits, pushes, merges, or deletes branches — that remains the user's responsibility.
+Branch name is stored in `.status.yaml` as `branch:` and displayed by `/fab-status`. Fab never commits, pushes, merges, or deletes branches — that remains the user's responsibility.
 
 ### Abandoning a Change
 
@@ -98,17 +98,17 @@ To discard a change that won't be completed:
 2. Clear the pointer (if active): `rm fab/current`
 3. Optionally delete the git branch: `git branch -d {branch}`
 
-There is no `/fab:abandon` skill — this is a manual operation. To preserve context about why a change was dropped, move the folder to `archive/` instead and set `stage: abandoned` in `.status.yaml`.
+There is no `/fab-abandon` skill — this is a manual operation. To preserve context about why a change was dropped, move the folder to `archive/` instead and set `stage: abandoned` in `.status.yaml`.
 
-### `/fab:status`
+### `/fab-status`
 
-`/fab:status` shows the current change state at a glance: name, branch, current stage, progress through all stages, checklist status, and suggested next command.
+`/fab-status` shows the current change state at a glance: name, branch, current stage, progress through all stages, checklist status, and suggested next command.
 
 All mechanical work (file reading, YAML parsing, progress symbol mapping, next command logic) lives in `fab/.kit/scripts/fab-status.sh`. The skill prompt invokes the script and presents its output. The same script can be run directly from the terminal without invoking an agent.
 
-### `/fab:switch <change-name>`
+### `/fab-switch <change-name>`
 
-`/fab:switch` changes the active change when multiple changes exist.
+`/fab-switch` changes the active change when multiple changes exist.
 
 1. Match `change-name` against `fab/changes/` (supports partial/slug match)
 2. **Ambiguous match** — if multiple changes match, list them and ask the user to pick. Never guess
@@ -139,11 +139,12 @@ All mechanical work (file reading, YAML parsing, progress symbol mapping, next c
 ### No Dedicated Abandon Skill
 **Decision**: Abandoning a change is a manual operation (delete folder, clear pointer).
 **Why**: Abandonment is rare and destructive enough to warrant deliberate manual action. A skill would make it too easy to accidentally discard work.
-**Rejected**: `/fab:abandon` skill — low-value automation for a rare, deliberate action.
+**Rejected**: `/fab-abandon` skill — low-value automation for a rare, deliberate action.
 *Source*: doc/fab-spec/ARCHITECTURE.md
 
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab:xxx` colon format to `/fab-xxx` hyphen format |
 | — | 2026-02-07 | Generated from doc/fab-spec/ (ARCHITECTURE.md, SKILLS.md, TEMPLATES.md) |

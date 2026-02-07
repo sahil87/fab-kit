@@ -3,7 +3,7 @@ name: fab-new
 description: "Start a new change from a natural language description. Creates the change folder, sets it active, and generates the proposal."
 ---
 
-# /fab:new <description> [--branch <name>]
+# /fab-new <description> [--branch <name>]
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -24,7 +24,7 @@ Before doing anything else:
 
 **If either check fails, STOP immediately.** Output this message and do nothing else:
 
-> `fab/ is not initialized. Run /fab:init first to bootstrap the project.`
+> `fab/ is not initialized. Run /fab-init first to bootstrap the project.`
 
 Do NOT create partial structure. The project must be initialized before starting a new change.
 
@@ -75,7 +75,7 @@ Write the change folder name (just the name, not the full path) to `fab/current`
 echo "{name}" > fab/current
 ```
 
-This sets the new change as the active change. Any previously active change is replaced — the user can switch back with `/fab:switch`.
+This sets the new change as the active change. Any previously active change is replaced — the user can switch back with `/fab-switch`.
 
 ### Step 4: Git Integration
 
@@ -206,7 +206,7 @@ Branch: 260206-x7k2-add-oauth (created)
 
 Proposal complete.
 
-Next: /fab:continue or /fab:ff (fast-forward all planning)
+Next: /fab-continue or /fab-ff (fast-forward all planning)
 ```
 
 ### Ambiguous Description (questions needed)
@@ -229,13 +229,13 @@ Before finalizing the proposal, I need to clarify:
 
 Proposal complete.
 
-Next: /fab:continue or /fab:ff (fast-forward all planning)
+Next: /fab-continue or /fab-ff (fast-forward all planning)
 ```
 
 ### With `--branch`
 
 ```
-/fab:new --branch feature/dev-907-oauth Add OAuth2 support
+/fab-new --branch feature/dev-907-oauth Add OAuth2 support
 
 Created fab/changes/260206-x7k2-add-oauth/
 Branch: feature/dev-907-oauth (adopted)
@@ -246,7 +246,7 @@ Branch: feature/dev-907-oauth (adopted)
 
 Proposal complete.
 
-Next: /fab:continue or /fab:ff (fast-forward all planning)
+Next: /fab-continue or /fab-ff (fast-forward all planning)
 ```
 
 ### No Git Integration
@@ -260,7 +260,7 @@ Created fab/changes/260206-x7k2-add-oauth/
 
 Proposal complete.
 
-Next: /fab:continue or /fab:ff (fast-forward all planning)
+Next: /fab-continue or /fab-ff (fast-forward all planning)
 ```
 
 ---
@@ -269,7 +269,7 @@ Next: /fab:continue or /fab:ff (fast-forward all planning)
 
 | Condition | Action |
 |-----------|--------|
-| `fab/config.yaml` missing | Abort with: "fab/ is not initialized. Run /fab:init first to bootstrap the project." |
+| `fab/config.yaml` missing | Abort with: "fab/ is not initialized. Run /fab-init first to bootstrap the project." |
 | `fab/constitution.md` missing | Abort with same message as above |
 | No description provided | Ask: "What change do you want to make?" |
 | `fab/.kit/templates/proposal.md` missing | Abort with: "Proposal template not found at fab/.kit/templates/proposal.md — kit may be corrupted." |
@@ -279,4 +279,4 @@ Next: /fab:continue or /fab:ff (fast-forward all planning)
 
 ---
 
-Next: `/fab:continue or /fab:ff (fast-forward all planning)`
+Next: `/fab-continue or /fab-ff (fast-forward all planning)`

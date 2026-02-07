@@ -4,15 +4,15 @@
 
 ## Overview
 
-The `/fab:clarify` skill deepens and refines the current stage artifact without advancing to the next stage. It operates in two modes depending on call context: **suggest mode** for interactive user-driven clarification, and **auto mode** for autonomous resolution when called internally by `fab-ff`.
+The `/fab-clarify` skill deepens and refines the current stage artifact without advancing to the next stage. It operates in two modes depending on call context: **suggest mode** for interactive user-driven clarification, and **auto mode** for autonomous resolution when called internally by `fab-ff`.
 
 ## Requirements
 
 ### Dual-Mode Operation
 
-`/fab:clarify` SHALL support two modes, determined by call context (not flags):
+`/fab-clarify` SHALL support two modes, determined by call context (not flags):
 
-- **Suggest mode**: Activated when the user invokes `/fab:clarify` directly. Interactive, presents structured questions one at a time with recommendations and options.
+- **Suggest mode**: Activated when the user invokes `/fab-clarify` directly. Interactive, presents structured questions one at a time with recommendations and options.
 - **Auto mode**: Activated when `fab-ff` calls clarify internally between stage generations. Autonomous, resolves gaps without user interaction and returns a machine-readable result.
 
 There SHALL be no `--suggest` or `--auto` flags on the clarify skill.
@@ -28,7 +28,7 @@ The skill SHALL perform a systematic scan of the current artifact for gaps, ambi
 - **Plan**: assumption verification, research completeness, decision rationale, risk identification, file change coverage
 - **Tasks**: task completeness, granularity, dependency ordering, file path accuracy, parallel markers
 
-The scan also detects `<!-- auto-guess: ... -->` markers left by `/fab:ff --auto`.
+The scan also detects `<!-- auto-guess: ... -->` markers left by `/fab-ff --auto`.
 
 #### Structured Question Format
 
@@ -44,7 +44,7 @@ Questions SHALL be presented one at a time. Future queued questions are not reve
 
 #### Max 5 Questions Per Invocation
 
-A single invocation SHALL present at most 5 questions. If more gaps remain, the coverage summary indicates outstanding items. Re-running `/fab:clarify` addresses remaining gaps (the taxonomy scan reprioritizes on each invocation).
+A single invocation SHALL present at most 5 questions. If more gaps remain, the coverage summary indicates outstanding items. Re-running `/fab-clarify` addresses remaining gaps (the taxonomy scan reprioritizes on each invocation).
 
 #### Incremental Artifact Updates
 
@@ -74,11 +74,11 @@ Auto mode SHALL return a structured result: `{resolved: N, blocking: N, non_bloc
 
 ### Non-Advancing Property
 
-The clarify skill SHALL never advance the stage in `.status.yaml`. It only updates the `last_updated` timestamp. The user explicitly advances via `/fab:continue`.
+The clarify skill SHALL never advance the stage in `.status.yaml`. It only updates the `last_updated` timestamp. The user explicitly advances via `/fab-continue`.
 
 ### Stage Guard
 
-The skill SHALL only operate on planning stages (`proposal`, `specs`, `plan`, `tasks`). If the stage is `apply`, `review`, or `archive`, the skill aborts with a suggestion to use `/fab:review` instead.
+The skill SHALL only operate on planning stages (`proposal`, `specs`, `plan`, `tasks`). If the stage is `apply`, `review`, or `archive`, the skill aborts with a suggestion to use `/fab-review` instead.
 
 ## Design Decisions
 

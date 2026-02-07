@@ -14,7 +14,7 @@
   Every requirement MUST have at least one scenario.
   Scenarios use GIVEN/WHEN/THEN format.
   Organize by domain section when the change touches multiple domains.
-  Mark unresolved ambiguities with [NEEDS CLARIFICATION] inline. /fab:clarify resolves these.
+  Mark unresolved ambiguities with [NEEDS CLARIFICATION] inline. /fab-clarify resolves these.
 -->
 
 ## {Domain}: {Topic}

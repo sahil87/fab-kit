@@ -10,7 +10,7 @@ The context loading convention defines how fab skills load project context befor
 
 ### Always Load Layer
 
-Every skill (except `/fab:init`, `/fab:switch`, `/fab:status`, `/fab:hydrate`) reads three files as baseline context:
+Every skill (except `/fab-init`, `/fab-switch`, `/fab-status`, `/fab-hydrate`) reads three files as baseline context:
 
 1. `fab/config.yaml` — project configuration, tech stack, naming conventions
 2. `fab/constitution.md` — project principles and constraints (MUST/SHOULD/MUST NOT rules)
@@ -41,10 +41,10 @@ This applies to all skills operating on an active change, not just spec-writing 
 ### Exception Skills
 
 The following skills skip the standard context loading layers:
-- `/fab:init` — bootstraps structure, doesn't need project docs
-- `/fab:switch` — navigation only
-- `/fab:status` — read-only status display
-- `/fab:hydrate` — ingests docs, doesn't need to load them first
+- `/fab-init` — bootstraps structure, doesn't need project docs
+- `/fab-switch` — navigation only
+- `/fab-status` — read-only status display
+- `/fab-hydrate` — ingests docs, doesn't need to load them first
 
 ## Design Decisions
 
@@ -64,5 +64,6 @@ The following skills skip the standard context loading layers:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab:xxx` colon format to `/fab-xxx` hyphen format |
 | 260207-5mjv-preflight-grep-scripts | 2026-02-07 | Added preflight script integration — Change Context layer now uses `fab-preflight.sh` for validation and state resolution |
 | 260207-q7m3-separate-hydrate-smart-context | 2026-02-07 | Added `fab/docs/index.md` to always-load, expanded selective loading to all skills on active changes |

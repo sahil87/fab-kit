@@ -14,7 +14,7 @@
       "Bash(head *)",
       "Bash(tail *)",
       "Bash(mkdir *)",
-      "Bash(mkdir -p *),
+      "Bash(mkdir -p *)",
       "Bash(cp *)",
       "Bash(mv *)",
       "Bash(touch *)",

@@ -1,6 +1,6 @@
 # Documentation Index
 
-> Source of truth for system behavior and design. Updated by `/fab:archive` hydration.
+> Source of truth for system behavior and design. Updated by `/fab-archive` hydration.
 
 | Domain | Description | Docs |
 |--------|-------------|------|

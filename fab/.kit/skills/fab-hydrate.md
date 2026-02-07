@@ -3,7 +3,7 @@ name: fab-hydrate
 description: "Hydrate docs from external sources or generate from codebase analysis. Safe to re-run."
 ---
 
-# /fab:hydrate [sources...|folders...]
+# /fab-hydrate [sources...|folders...]
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -29,9 +29,9 @@ Before doing anything else:
 
 **If either check fails, STOP immediately.** Output this message and do nothing else:
 
-> `fab/docs/ not found. Run /fab:init first to create the docs directory.`
+> `fab/docs/ not found. Run /fab-init first to create the docs directory.`
 
-Do NOT create `fab/docs/` or `fab/docs/index.md`. The structural bootstrap (`/fab:init`) must have run first.
+Do NOT create `fab/docs/` or `fab/docs/index.md`. The structural bootstrap (`/fab-init`) must have run first.
 
 ---
 
@@ -428,7 +428,7 @@ This skill is safe to run any number of times with the same inputs.
 
 | Condition | Action |
 |-----------|--------|
-| `fab/docs/` missing | Abort with: "fab/docs/ not found. Run /fab:init first to create the docs directory." |
+| `fab/docs/` missing | Abort with: "fab/docs/ not found. Run /fab-init first to create the docs directory." |
 | `fab/docs/index.md` missing | Abort with same message (structural bootstrap incomplete) |
 | No sources provided | Enter generate mode (scan from project root) |
 | Mixed-mode arguments | Reject with: "Cannot mix ingest sources (URLs, .md files) with generate targets (folders). Run separately." |
@@ -442,4 +442,4 @@ This skill is safe to run any number of times with the same inputs.
 
 ---
 
-Next: `/fab:new <description>`, `/fab:hydrate <more-sources>`, or `/fab:hydrate` (generate mode)
+Next: `/fab-new <description>`, `/fab-hydrate <more-sources>`, or `/fab-hydrate` (generate mode)

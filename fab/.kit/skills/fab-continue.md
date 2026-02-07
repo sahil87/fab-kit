@@ -3,7 +3,7 @@ name: fab-continue
 description: "Advance to the next planning stage and generate its artifact, or reset to a given stage."
 ---
 
-# /fab:continue [<stage>]
+# /fab-continue [<stage>]
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -17,7 +17,7 @@ Advance to the next planning stage and generate the corresponding artifact — o
 
 ## Arguments
 
-- **`<stage>`** *(optional)* — target stage to reset to. Accepted values: `specs`, `plan`, or `tasks`. When provided, resets `.status.yaml` to this stage and regenerates artifacts from that point forward. Used after `/fab:review` identifies issues upstream.
+- **`<stage>`** *(optional)* — target stage to reset to. Accepted values: `specs`, `plan`, or `tasks`. When provided, resets `.status.yaml` to this stage and regenerates artifacts from that point forward. Used after `/fab-review` identifies issues upstream.
 
 If no argument is provided, the skill advances to the **next** stage in sequence.
 
@@ -51,11 +51,11 @@ Find the current stage from `.status.yaml`'s `stage` field. The **next** stage i
 
 **Guard**: If the current stage is `tasks` (done) or later, this skill does not apply. Output:
 
-> `Planning is complete. Run /fab:apply to begin implementation.`
+> `Planning is complete. Run /fab-apply to begin implementation.`
 
 If the current stage is `apply` or later:
 
-> `Implementation is underway. Use /fab:apply, /fab:review, or /fab:archive as appropriate.`
+> `Implementation is underway. Use /fab-apply, /fab-review, or /fab-archive as appropriate.`
 
 ### Step 2: Load Context
 
@@ -116,7 +116,7 @@ Before generating a plan, evaluate whether one is warranted:
 - **If the user agrees**: Record `plan: skipped` in `.status.yaml` (set `progress.plan` to `skipped`), then proceed directly to generating tasks (Step 3, generating `tasks.md`). Do NOT create a `plan.md` file.
 - **If the user wants a plan**: Generate the plan normally (continue below).
 
-**Note**: Unlike `/fab:ff` which autonomously decides whether to skip the plan, `/fab:continue` always confirms with the user before skipping.
+**Note**: Unlike `/fab-ff` which autonomously decides whether to skip the plan, `/fab-continue` always confirms with the user before skipping.
 
 #### Generating `plan.md`
 
@@ -206,17 +206,17 @@ Display a summary of what was generated and the appropriate next steps.
 
 ## Reset Flow (with stage argument)
 
-When called with a stage argument (e.g., `/fab:continue specs`), reset to that stage and regenerate the artifact.
+When called with a stage argument (e.g., `/fab-continue specs`), reset to that stage and regenerate the artifact.
 
 ### Step 1: Validate Target Stage
 
 The target stage must be one of: `specs`, `plan`, or `tasks`.
 
 **Rejected targets:**
-- `proposal` → Output: `Cannot reset to proposal. Run /fab:new to start a new change instead.`
-- `apply` → Output: `Cannot reset to apply. Use /fab:apply to re-run implementation.`
-- `review` → Output: `Cannot reset to review. Use /fab:review to re-run validation.`
-- `archive` → Output: `Cannot reset to archive. Use /fab:archive to complete the change.`
+- `proposal` → Output: `Cannot reset to proposal. Run /fab-new to start a new change instead.`
+- `apply` → Output: `Cannot reset to apply. Use /fab-apply to re-run implementation.`
+- `review` → Output: `Cannot reset to review. Use /fab-review to re-run validation.`
+- `archive` → Output: `Cannot reset to archive. Use /fab-archive to complete the change.`
 - Any other value → Output: `Unknown stage "{value}". Valid reset targets: specs, plan, tasks.`
 
 ### Step 2: Load Context
@@ -285,7 +285,7 @@ Stage: proposal (done). Creating spec.md...
 
 Spec created.
 
-Next: /fab:continue (plan) or /fab:ff (fast-forward) or /fab:clarify (refine spec)
+Next: /fab-continue (plan) or /fab-ff (fast-forward) or /fab-clarify (refine spec)
 ```
 
 ### Normal Flow — Plan Skipped
@@ -309,7 +309,7 @@ Generated checklists/quality.md with {N} items.
 
 Tasks created.
 
-Next: /fab:apply
+Next: /fab-apply
 ```
 
 ### Normal Flow — Plan Generated
@@ -323,7 +323,7 @@ Stage: specs (done). Creating plan.md...
 
 Plan created.
 
-Next: /fab:continue (tasks) or /fab:clarify (refine plan)
+Next: /fab-continue (tasks) or /fab-clarify (refine plan)
 ```
 
 ### Normal Flow — Tasks Generated
@@ -341,13 +341,13 @@ Generated checklists/quality.md with {N} items.
 
 Tasks created.
 
-Next: /fab:apply
+Next: /fab-apply
 ```
 
 ### Reset Flow
 
 ```
-/fab:continue specs
+/fab-continue specs
 
 Resetting to specs stage...
 - specs: regenerating spec.md
@@ -360,13 +360,13 @@ Resetting to specs stage...
 
 Spec regenerated. Downstream artifacts (plan, tasks) need regeneration.
 
-Next: /fab:continue (plan) or /fab:ff (fast-forward) or /fab:clarify (refine spec)
+Next: /fab-continue (plan) or /fab-ff (fast-forward) or /fab-clarify (refine spec)
 ```
 
 ### Reset Flow — Tasks Reset
 
 ```
-/fab:continue tasks
+/fab-continue tasks
 
 Resetting to tasks stage...
 - tasks: regenerating tasks.md
@@ -379,7 +379,7 @@ Resetting to tasks stage...
 
 Tasks regenerated.
 
-Next: /fab:apply
+Next: /fab-apply
 ```
 
 ---
@@ -389,23 +389,23 @@ Next: /fab:apply
 | Condition | Action |
 |-----------|--------|
 | Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
-| Current stage is `apply` or later (normal flow) | Abort with guidance to use `/fab:apply`, `/fab:review`, or `/fab:archive` |
-| Reset target is `proposal` | Abort with: "Cannot reset to proposal. Run /fab:new to start a new change instead." |
-| Reset target is `apply`, `review`, or `archive` | Abort with: "Cannot reset to {stage}. Use /fab:{stage} directly." |
+| Current stage is `apply` or later (normal flow) | Abort with guidance to use `/fab-apply`, `/fab-review`, or `/fab-archive` |
+| Reset target is `proposal` | Abort with: "Cannot reset to proposal. Run /fab-new to start a new change instead." |
+| Reset target is `apply`, `review`, or `archive` | Abort with: "Cannot reset to {stage}. Use /fab-{stage} directly." |
 | Template file missing | Abort with: "Template not found at fab/.kit/templates/{file} — kit may be corrupted." |
 
 ---
 
 ## Next Steps Reference
 
-After `/fab:continue` completes, output the appropriate next line:
+After `/fab-continue` completes, output the appropriate next line:
 
 | Stage completed | Next line |
 |----------------|-----------|
-| specs | `Next: /fab:continue (plan) or /fab:ff (fast-forward) or /fab:clarify (refine spec)` |
-| plan | `Next: /fab:continue (tasks) or /fab:clarify (refine plan)` |
-| plan (skipped) → tasks | `Next: /fab:apply` |
-| tasks | `Next: /fab:apply` |
-| reset to specs | `Next: /fab:continue (plan) or /fab:ff (fast-forward) or /fab:clarify (refine spec)` |
-| reset to plan | `Next: /fab:continue (tasks) or /fab:clarify (refine plan)` |
-| reset to tasks | `Next: /fab:apply` |
+| specs | `Next: /fab-continue (plan) or /fab-ff (fast-forward) or /fab-clarify (refine spec)` |
+| plan | `Next: /fab-continue (tasks) or /fab-clarify (refine plan)` |
+| plan (skipped) → tasks | `Next: /fab-apply` |
+| tasks | `Next: /fab-apply` |
+| reset to specs | `Next: /fab-continue (plan) or /fab-ff (fast-forward) or /fab-clarify (refine spec)` |
+| reset to plan | `Next: /fab-continue (tasks) or /fab-clarify (refine plan)` |
+| reset to tasks | `Next: /fab-apply` |

@@ -3,7 +3,7 @@ name: fab-switch
 description: "Switch the active change to a different one. Lists available changes when called with no argument."
 ---
 
-# /fab:switch [change-name]
+# /fab-switch [change-name]
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -40,12 +40,12 @@ The only context needed is:
 
 ### No Argument Flow
 
-When invoked as `/fab:switch` with no argument:
+When invoked as `/fab-switch` with no argument:
 
 1. **Scan `fab/changes/`** for all change folders (exclude the `archive/` subdirectory)
 2. **If no change folders exist**, output:
 
-   > `No active changes found. Run /fab:new <description> to start one.`
+   > `No active changes found. Run /fab-new <description> to start one.`
 
 3. **If change folders exist**, list them with their current stage:
 
@@ -67,7 +67,7 @@ When invoked as `/fab:switch` with no argument:
 
 ### Argument Flow
 
-When invoked as `/fab:switch <change-name>`:
+When invoked as `/fab-switch <change-name>`:
 
 1. **Scan `fab/changes/`** for all change folders (exclude the `archive/` subdirectory)
 2. **Match the argument** against the folder names:
@@ -110,7 +110,7 @@ Active changes:
   1. 260202-m3x1-fix-checkout-bug (stage: apply)
   2. 260205-k9p2-add-oauth (stage: specs)
 
-Run /fab:switch <name> with a matching name, or pick from the list above (1-2).
+Run /fab-switch <name> with a matching name, or pick from the list above (1-2).
 ```
 
 Wait for user selection or let the user re-invoke with a different argument.
@@ -150,14 +150,14 @@ Once a single change is identified:
 
    | Stage | Suggested next |
    |-------|---------------|
-   | `proposal` (active) | `Next: /fab:continue or /fab:ff` |
-   | `proposal` (done) | `Next: /fab:continue or /fab:ff` |
-   | `specs` (done) | `Next: /fab:continue (plan) or /fab:ff or /fab:clarify` |
-   | `plan` (done) | `Next: /fab:continue (tasks) or /fab:clarify` |
-   | `tasks` (done) | `Next: /fab:apply` |
-   | `apply` (done) | `Next: /fab:review` |
-   | `review` (done) | `Next: /fab:archive` |
-   | `review` (failed) | `Next: /fab:review (re-review after fixes)` |
+   | `proposal` (active) | `Next: /fab-continue or /fab-ff` |
+   | `proposal` (done) | `Next: /fab-continue or /fab-ff` |
+   | `specs` (done) | `Next: /fab-continue (plan) or /fab-ff or /fab-clarify` |
+   | `plan` (done) | `Next: /fab-continue (tasks) or /fab-clarify` |
+   | `tasks` (done) | `Next: /fab-apply` |
+   | `apply` (done) | `Next: /fab-review` |
+   | `review` (done) | `Next: /fab-archive` |
+   | `review` (failed) | `Next: /fab-review (re-review after fixes)` |
 
 ---
 
@@ -187,13 +187,13 @@ fab/current now points to 260202-m3x1-fix-checkout-bug
 Stage:  apply (5/7)
 Branch: fix/checkout-bug
 
-Next: /fab:review
+Next: /fab-review
 ```
 
 ### No Changes Exist
 
 ```
-No active changes found. Run /fab:new <description> to start one.
+No active changes found. Run /fab-new <description> to start one.
 ```
 
 ### Ambiguous Match
@@ -215,7 +215,7 @@ Active changes:
   1. 260202-m3x1-fix-checkout-bug (stage: apply)
   2. 260205-k9p2-add-oauth (stage: specs)
 
-Run /fab:switch <name> with a matching name, or pick from the list above (1-2).
+Run /fab-switch <name> with a matching name, or pick from the list above (1-2).
 ```
 
 ---
@@ -224,13 +224,13 @@ Run /fab:switch <name> with a matching name, or pick from the list above (1-2).
 
 | Condition | Action |
 |-----------|--------|
-| No argument and no change folders | Output: "No active changes found. Run /fab:new \<description\> to start one." |
+| No argument and no change folders | Output: "No active changes found. Run /fab-new \<description\> to start one." |
 | No argument and changes exist | List all changes with stages, ask user to pick |
 | Argument matches exactly one change | Switch to that change |
 | Argument matches multiple changes | List matches with stages, ask user to pick |
 | Argument matches no changes | List all available changes, inform user |
 | Matched change folder missing `.status.yaml` | Switch anyway but warn: "Warning: .status.yaml not found for {name} — change may be corrupted." |
-| `fab/changes/` directory does not exist | Output: "fab/changes/ not found. Run /fab:init to set up the project." |
+| `fab/changes/` directory does not exist | Output: "fab/changes/ not found. Run /fab-init to set up the project." |
 | `fab/current` cannot be written | Report error with details |
 
 ---
@@ -250,4 +250,4 @@ Run /fab:switch <name> with a matching name, or pick from the list above (1-2).
 
 ## Next Steps Reference
 
-After `/fab:switch` completes, the Next line is contextual based on the switched-to change's current stage (see the Suggested next table above).
+After `/fab-switch` completes, the Next line is contextual based on the switched-to change's current stage (see the Suggested next table above).

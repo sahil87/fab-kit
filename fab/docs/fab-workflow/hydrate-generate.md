@@ -4,13 +4,13 @@
 
 ## Overview
 
-`/fab:hydrate` supports a generate mode that scans the codebase for undocumented areas, presents an interactive gap report, and generates structured documentation into `fab/docs/`. Generate mode is triggered when no arguments are provided (scans project root) or when folder paths are passed as arguments (scans those folders). It complements ingest mode, which handles URLs and `.md` files.
+`/fab-hydrate` supports a generate mode that scans the codebase for undocumented areas, presents an interactive gap report, and generates structured documentation into `fab/docs/`. Generate mode is triggered when no arguments are provided (scans project root) or when folder paths are passed as arguments (scans those folders). It complements ingest mode, which handles URLs and `.md` files.
 
 ## Requirements
 
 ### Unified Argument Routing
 
-`/fab:hydrate` SHALL determine its operating mode from the type of arguments provided, with no flags or subcommands:
+`/fab-hydrate` SHALL determine its operating mode from the type of arguments provided, with no flags or subcommands:
 
 | Argument type | Detection rule | Mode |
 |---|---|---|
@@ -23,7 +23,7 @@ When multiple arguments are provided, they MUST all resolve to the same mode. Mi
 
 ### No-Args Replaces Usage Error
 
-When `/fab:hydrate` is invoked with no arguments, it SHALL enter generate mode instead of displaying a usage error. The previous "Usage: /fab:hydrate ..." abort behavior is removed.
+When `/fab-hydrate` is invoked with no arguments, it SHALL enter generate mode instead of displaying a usage error. The previous "Usage: /fab-hydrate ..." abort behavior is removed.
 
 ### Codebase Gap Detection
 
@@ -127,4 +127,5 @@ Generate mode SHALL be safe to re-run:
 
 | Change | Date | Summary |
 |--------|------|---------|
-| 260207-k5od-hydrate-generate-mode | 2026-02-07 | Created — generate mode requirements and design decisions for `/fab:hydrate` |
+| 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab:xxx` colon format to `/fab-xxx` hyphen format |
+| 260207-k5od-hydrate-generate-mode | 2026-02-07 | Created — generate mode requirements and design decisions for `/fab-hydrate` |

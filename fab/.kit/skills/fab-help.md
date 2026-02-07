@@ -3,13 +3,13 @@ name: fab-help
 description: "Show the fab workflow overview and a quick summary of all available commands."
 ---
 
-# /fab:help
+# /fab-help
 
 ---
 
 ## Purpose
 
-Orient the user in the fab workflow. Show how the stages fit together and list every `/fab:*` command with a one-line description. Read-only — no files are created or modified.
+Orient the user in the fab workflow. Show how the stages fit together and list every `/fab-*` command with a one-line description. Read-only — no files are created or modified.
 
 ---
 

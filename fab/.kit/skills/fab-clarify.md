@@ -3,7 +3,7 @@ name: fab-clarify
 description: "Refine the current stage artifact — resolve gaps, ambiguities, or [NEEDS CLARIFICATION] markers without advancing."
 ---
 
-# /fab:clarify
+# /fab-clarify
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -26,7 +26,7 @@ Mode is determined by **call context**, not flags. There are no `--suggest` or `
 
 | Context | Mode |
 |---------|------|
-| User invokes `/fab:clarify` directly | **Suggest** — interactive, one question at a time |
+| User invokes `/fab-clarify` directly | **Suggest** — interactive, one question at a time |
 | `fab-ff` calls clarify internally between stages | **Auto** — autonomous, returns structured result |
 
 ---
@@ -54,7 +54,7 @@ The current stage must be one of:
 
 **If the stage is `apply`, `review`, or `archive`, STOP.** Output:
 
-> `Stage is "{stage}" — clarify applies to planning artifacts only (proposal, specs, plan, tasks). Use /fab:review to validate implementation instead.`
+> `Stage is "{stage}" — clarify applies to planning artifacts only (proposal, specs, plan, tasks). Use /fab-review to validate implementation instead.`
 
 ---
 
@@ -92,7 +92,7 @@ Context varies by the current stage. Load only what is relevant:
 
 ## Suggest Mode (User Invocation)
 
-When the user invokes `/fab:clarify` directly, follow this flow.
+When the user invokes `/fab-clarify` directly, follow this flow.
 
 ### Step 1: Identify the Current Artifact
 
@@ -107,7 +107,7 @@ Based on the current stage, determine which artifact file to refine:
 
 Read the artifact file. If it does not exist, STOP with:
 
-> `No {artifact} found for this stage. Run /fab:continue to generate it first.`
+> `No {artifact} found for this stage. Run /fab-continue to generate it first.`
 
 ### Step 2: Stage-Scoped Taxonomy Scan
 
@@ -145,7 +145,7 @@ Perform a systematic scan of the artifact for gaps, ambiguities, and `[NEEDS CLA
 - File path accuracy — does each task reference exact file paths?
 - Parallel markers — are independent tasks marked `[P]`?
 
-Also scan for `<!-- auto-guess: {description} -->` markers (left by `/fab:ff --auto`) — these are gaps to resolve interactively.
+Also scan for `<!-- auto-guess: {description} -->` markers (left by `/fab-ff --auto`) — these are gaps to resolve interactively.
 
 After scanning, build a **prioritized question queue** (highest-impact gaps first). Cap at **5 questions maximum** per invocation.
 
@@ -156,7 +156,7 @@ Stage: {stage} (active). Reviewing {artifact} for gaps...
 
 No gaps found — artifact looks solid. Ready to proceed.
 
-Next: /fab:clarify (refine further) or /fab:continue or /fab:ff
+Next: /fab-clarify (refine further) or /fab-continue or /fab-ff
 ```
 
 And stop (skip Steps 3-6).
@@ -246,7 +246,7 @@ Clarification complete.
 
 {N} issues resolved. {M} items remain for further refinement.
 
-Next: /fab:clarify (refine further) or /fab:continue or /fab:ff
+Next: /fab-clarify (refine further) or /fab-continue or /fab-ff
 ```
 
 ### Step 7: Do NOT Advance Stage
@@ -327,7 +327,7 @@ Stage: plan (active). Reviewing plan.md for gaps...
 
 No gaps found — artifact looks solid. Ready to proceed.
 
-Next: /fab:clarify (refine further) or /fab:continue or /fab:ff
+Next: /fab-clarify (refine further) or /fab-continue or /fab-ff
 ```
 
 ### Suggest Mode — Early Termination
@@ -348,7 +348,7 @@ Clarification complete.
 
 1 issue resolved. 3 items remain for further refinement.
 
-Next: /fab:clarify (refine further) or /fab:continue or /fab:ff
+Next: /fab-clarify (refine further) or /fab-continue or /fab-ff
 ```
 
 ### Suggest Mode — Coverage Summary After Full Session
@@ -365,7 +365,7 @@ Clarification complete.
 
 4 issues resolved. 0 items remain for further refinement.
 
-Next: /fab:clarify (refine further) or /fab:continue or /fab:ff
+Next: /fab-clarify (refine further) or /fab-continue or /fab-ff
 ```
 
 ---
@@ -375,11 +375,11 @@ Next: /fab:clarify (refine further) or /fab:continue or /fab:ff
 | Condition | Action |
 |-----------|--------|
 | Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
-| Stage is `apply`, `review`, or `archive` | Abort with: "Stage is {stage} — use /fab:review instead." |
-| Artifact file missing for current stage | Abort with: "No {artifact} found. Run /fab:continue to generate it first." |
+| Stage is `apply`, `review`, or `archive` | Abort with: "Stage is {stage} — use /fab-review instead." |
+| Artifact file missing for current stage | Abort with: "No {artifact} found. Run /fab-continue to generate it first." |
 | Taxonomy scan finds zero gaps (suggest mode) | Output "No gaps found" message and stop |
 | Early termination after 0 answered questions | Display coverage summary with 0 resolved, all deferred |
-| Multiple `/fab:clarify` sessions | Audit trail entries accumulate — new session appended, previous sessions preserved |
+| Multiple `/fab-clarify` sessions | Audit trail entries accumulate — new session appended, previous sessions preserved |
 
 ---
 
@@ -398,6 +398,6 @@ Next: /fab:clarify (refine further) or /fab:continue or /fab:ff
 
 ## Next Steps Reference
 
-After `/fab:clarify` completes:
+After `/fab-clarify` completes:
 
-`Next: /fab:clarify (refine further) or /fab:continue or /fab:ff`
+`Next: /fab-clarify (refine further) or /fab-continue or /fab-ff`

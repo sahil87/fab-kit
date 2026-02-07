@@ -17,13 +17,13 @@ header="Fab Kit v$version"
 # --- Active change ---
 current_file="$fab_root/current"
 if [ ! -f "$current_file" ]; then
-  printf '%s\n\nNo active change. Run /fab:new to start one.\n' "$header"
+  printf '%s\n\nNo active change. Run /fab-new to start one.\n' "$header"
   exit 0
 fi
 
 name=$(tr -d '[:space:]' < "$current_file")
 if [ -z "$name" ]; then
-  printf '%s\n\nNo active change. Run /fab:new to start one.\n' "$header"
+  printf '%s\n\nNo active change. Run /fab-new to start one.\n' "$header"
   exit 0
 fi
 
@@ -31,7 +31,7 @@ fi
 change_dir="$fab_root/changes/$name"
 status_file="$change_dir/.status.yaml"
 if [ ! -f "$status_file" ]; then
-  printf '%s\n\nActive change: %s\n⚠ .status.yaml not found — change may be corrupted.\n\nRun /fab:new to start a fresh change or /fab:switch to select another.\n' "$header" "$name"
+  printf '%s\n\nActive change: %s\n⚠ .status.yaml not found — change may be corrupted.\n\nRun /fab-new to start a fresh change or /fab-switch to select another.\n' "$header" "$name"
   exit 1
 fi
 
@@ -87,22 +87,22 @@ case "${stage:-}" in
   archive)  current_progress="$p_archive" ;;
 esac
 
-next="/fab:status"
+next="/fab-status"
 case "${stage:-}:${current_progress:-}" in
-  proposal:active|proposal:done) next="/fab:continue or /fab:ff" ;;
-  specs:active)                  next="/fab:continue" ;;
-  specs:done)                    next="/fab:continue (plan) or /fab:ff or /fab:clarify" ;;
-  plan:active)                   next="/fab:continue" ;;
-  plan:done)                     next="/fab:continue (tasks) or /fab:clarify" ;;
-  plan:skipped)                  next="/fab:continue (tasks)" ;;
-  tasks:active)                  next="/fab:continue" ;;
-  tasks:done)                    next="/fab:apply" ;;
-  apply:active)                  next="/fab:apply" ;;
-  apply:done)                    next="/fab:review" ;;
-  review:active)                 next="/fab:review" ;;
-  review:done)                   next="/fab:archive" ;;
-  review:failed)                 next="/fab:review (re-review after fixes)" ;;
-  archive:done)                  next="/fab:new <description>" ;;
+  proposal:active|proposal:done) next="/fab-continue or /fab-ff" ;;
+  specs:active)                  next="/fab-continue" ;;
+  specs:done)                    next="/fab-continue (plan) or /fab-ff or /fab-clarify" ;;
+  plan:active)                   next="/fab-continue" ;;
+  plan:done)                     next="/fab-continue (tasks) or /fab-clarify" ;;
+  plan:skipped)                  next="/fab-continue (tasks)" ;;
+  tasks:active)                  next="/fab-continue" ;;
+  tasks:done)                    next="/fab-apply" ;;
+  apply:active)                  next="/fab-apply" ;;
+  apply:done)                    next="/fab-review" ;;
+  review:active)                 next="/fab-review" ;;
+  review:done)                   next="/fab-archive" ;;
+  review:failed)                 next="/fab-review (re-review after fixes)" ;;
+  archive:done)                  next="/fab-new <description>" ;;
 esac
 
 # --- Output ---

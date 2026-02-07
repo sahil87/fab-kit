@@ -3,7 +3,7 @@ name: fab-archive
 description: "Complete a change — validate review passed, hydrate learnings into centralized docs, and move to archive."
 ---
 
-# /fab:archive
+# /fab-archive
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -31,15 +31,15 @@ Then verify stage-specific preconditions using the preflight output:
 
 **If `progress.review` is not `done`, STOP.** Output:
 
-> `Review has not passed. Run /fab:review to validate implementation first.`
+> `Review has not passed. Run /fab-review to validate implementation first.`
 
 **If any tasks are unchecked in `tasks.md`, STOP.** Output:
 
-> `{N} of {total} tasks are incomplete. All tasks must be complete before archiving. Run /fab:apply to finish, then /fab:review.`
+> `{N} of {total} tasks are incomplete. All tasks must be complete before archiving. Run /fab-apply to finish, then /fab-review.`
 
 **If any checklist items are unchecked in `checklists/quality.md`, STOP.** Output:
 
-> `{N} of {total} checklist items are not verified. All items must be checked (including N/A items). Run /fab:review to complete the checklist.`
+> `{N} of {total} checklist items are not verified. All items must be checked (including N/A items). Run /fab-review to complete the checklist.`
 
 ---
 
@@ -80,7 +80,7 @@ Scan `fab/changes/` for **other** active change folders (exclude the current cha
 2. Check if it references any of the same centralized doc paths listed in the current change's proposal Affected Docs section
 3. If overlap is found, warn the user:
 
-> `⚠ Change "{other-name}" also modifies {doc-path}. After this archive, that change's spec was written against a now-stale base. Re-review with /fab:review after switching to it.`
+> `⚠ Change "{other-name}" also modifies {doc-path}. After this archive, that change's spec was written against a now-stale base. Re-review with /fab-review after switching to it.`
 
 If no overlapping changes are found:
 
@@ -234,7 +234,7 @@ Steps 4–6 are executed in this specific order for safety:
 
 1. **Status update first** (Step 4) — if the process is interrupted after this point, the change is marked archived but still in `changes/`. The agent can detect this state and complete the remaining steps on next invocation.
 2. **Folder move second** (Step 5) — moves the change to the archive directory.
-3. **Pointer clear last** (Step 6) — `fab/current` is deleted only after the folder is safely archived. This means that during the archive process, `/fab:status` still reports the active change rather than "no active change" with a half-hydrated state.
+3. **Pointer clear last** (Step 6) — `fab/current` is deleted only after the folder is safely archived. This means that during the archive process, `/fab-status` still reports the active change rather than "no active change" with a half-hydrated state.
 
 **Recovery from interruption**: If the agent detects that `.status.yaml` has `progress.archive: done` but the folder is still in `fab/changes/` (not in `archive/`), it should complete the move and clear the pointer.
 
@@ -260,7 +260,7 @@ Pointer:  ✓ fab/current cleared
 
 Archive complete.
 
-Next: /fab:new <description> (start next change)
+Next: /fab-new <description> (start next change)
 ```
 
 ### Successful Archive with Concurrent Warnings
@@ -270,7 +270,7 @@ Archive: {change name}
 
 Validation: ✓ All tasks and checklist items complete
 Concurrent: ⚠ 1 conflict(s)
-  - Change "{other-name}" also modifies {doc-path}. Re-review with /fab:review after switching.
+  - Change "{other-name}" also modifies {doc-path}. Re-review with /fab-review after switching.
 
 Hydrated docs:
   - fab/docs/{domain}/{name}.md (updated)
@@ -281,13 +281,13 @@ Pointer:  ✓ fab/current cleared
 
 Archive complete.
 
-Next: /fab:new <description> (start next change)
+Next: /fab-new <description> (start next change)
 ```
 
 ### Review Not Passed
 
 ```
-Review has not passed. Run /fab:review to validate implementation first.
+Review has not passed. Run /fab-review to validate implementation first.
 ```
 
 ---
@@ -297,9 +297,9 @@ Review has not passed. Run /fab:review to validate implementation first.
 | Condition | Action |
 |-----------|--------|
 | Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
-| `progress.review` is not `done` | Abort with: "Review has not passed. Run /fab:review to validate implementation first." |
-| Any tasks unchecked in `tasks.md` | Abort with incomplete task count — user must run /fab:apply then /fab:review |
-| Any checklist items unchecked | Abort with incomplete item count — user must run /fab:review |
+| `progress.review` is not `done` | Abort with: "Review has not passed. Run /fab-review to validate implementation first." |
+| Any tasks unchecked in `tasks.md` | Abort with incomplete task count — user must run /fab-apply then /fab-review |
+| Any checklist items unchecked | Abort with incomplete item count — user must run /fab-review |
 | Concurrent change references same doc | Warn but proceed — not blocking |
 | Target centralized doc does not exist | Create from template (new doc flow) |
 | Target domain folder does not exist | Create folder + domain index (new domain flow) |
@@ -328,6 +328,6 @@ Review has not passed. Run /fab:review to validate implementation first.
 
 ## Next Steps Reference
 
-After `/fab:archive` completes:
+After `/fab-archive` completes:
 
-`Next: /fab:new <description> (start next change)`
+`Next: /fab-new <description> (start next change)`

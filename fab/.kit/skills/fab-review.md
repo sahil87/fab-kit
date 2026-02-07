@@ -3,7 +3,7 @@ name: fab-review
 description: "Validate implementation against specs and checklists. On pass, advances to archive. On failure, presents rework options."
 ---
 
-# /fab:review
+# /fab-review
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -31,15 +31,15 @@ Then verify stage-specific preconditions using the preflight output:
 
 **If `progress.apply` is not `done`, STOP.** Output:
 
-> `Apply stage is not complete. Run /fab:apply to finish implementation first.`
+> `Apply stage is not complete. Run /fab-apply to finish implementation first.`
 
 **If `tasks.md` does not exist, STOP.** Output:
 
-> `No tasks.md found for this change. Run /fab:continue or /fab:ff to generate tasks first.`
+> `No tasks.md found for this change. Run /fab-continue or /fab-ff to generate tasks first.`
 
 **If `checklists/quality.md` does not exist, STOP.** Output:
 
-> `No quality checklist found. Run /fab:continue or /fab:ff to generate the checklist first.`
+> `No quality checklist found. Run /fab-continue or /fab-ff to generate the checklist first.`
 
 ---
 
@@ -70,7 +70,7 @@ Read `fab/changes/{name}/tasks.md` and check every task item:
 
 **If unchecked tasks exist, STOP.** Output:
 
-> `{N} of {total} tasks are incomplete. Run /fab:apply to finish implementation first.`
+> `{N} of {total} tasks are incomplete. Run /fab-apply to finish implementation first.`
 >
 > `Incomplete tasks: {list of unchecked task IDs}`
 
@@ -136,7 +136,7 @@ Compare the implementation against centralized docs referenced in the proposal:
 
 1. Read the centralized docs listed in the proposal's **Affected Docs** section
 2. Verify the implementation doesn't contradict what those docs describe
-3. Note any docs that will need updating during `/fab:archive` (this is informational, not a failure — `/fab:archive` handles the hydration)
+3. Note any docs that will need updating during `/fab-archive` (this is informational, not a failure — `/fab-archive` handles the hydration)
 4. Report:
 
 > `✓ No doc drift detected`
@@ -145,7 +145,7 @@ or:
 
 > `⚠ Doc updates needed during archive: {list of docs that diverged}`
 
-(Doc drift is a warning, not a failure — it signals work for `/fab:archive` but does not block the review.)
+(Doc drift is a warning, not a failure — it signals work for `/fab-archive` but does not block the review.)
 
 ---
 
@@ -170,7 +170,7 @@ All of these must be true:
 
 Output the full review report, then:
 
-> `Next: /fab:archive`
+> `Next: /fab-archive`
 
 ### Fail — One or More Checks Failed
 
@@ -190,7 +190,7 @@ Output the full review report with specific failure details (CHK IDs, test names
 
 Present all applicable options and let the user choose:
 
-### Option 1: Fix Code → `/fab:apply`
+### Option 1: Fix Code → `/fab-apply`
 
 **When to use**: Implementation bug — the code doesn't match what the tasks describe.
 
@@ -198,12 +198,12 @@ Present all applicable options and let the user choose:
 1. Identify which tasks need rework based on the failed checklist items
 2. Uncheck those tasks in `tasks.md`: change `- [x] T{NNN}` back to `- [ ] T{NNN}`
 3. Add a rework comment after the unchecked task: `<!-- rework: {reason from failed CHK item} -->`
-4. The user then runs `/fab:apply`, which picks up the unchecked items and re-implements them
+4. The user then runs `/fab-apply`, which picks up the unchecked items and re-implements them
 
 **Output**:
-> `Option 1: Fix code — uncheck {N} tasks for rework, then run /fab:apply`
+> `Option 1: Fix code — uncheck {N} tasks for rework, then run /fab-apply`
 
-### Option 2: Revise Tasks → edit `tasks.md`, then `/fab:apply`
+### Option 2: Revise Tasks → edit `tasks.md`, then `/fab-apply`
 
 **When to use**: Tasks are missing or wrong — the task list doesn't cover what the spec requires.
 
@@ -211,36 +211,36 @@ Present all applicable options and let the user choose:
 1. Add new tasks to `tasks.md` with the next sequential ID (e.g., if last task is T012, new tasks start at T013)
 2. Or modify existing task descriptions to correct them (uncheck modified tasks)
 3. Completed tasks that are unaffected stay `[x]` — only new or revised tasks are executed
-4. The user then runs `/fab:apply`
+4. The user then runs `/fab-apply`
 
 **Output**:
-> `Option 2: Revise tasks — add/modify tasks in tasks.md, then run /fab:apply`
+> `Option 2: Revise tasks — add/modify tasks in tasks.md, then run /fab-apply`
 
-### Option 3: Revise Plan → `/fab:continue plan`
+### Option 3: Revise Plan → `/fab-continue plan`
 
 **When to use**: The architecture or technical approach was wrong.
 
 **What happens**:
-1. Resets to plan stage via `/fab:continue plan`
+1. Resets to plan stage via `/fab-continue plan`
 2. `plan.md` is updated in place
 3. Downstream artifacts are invalidated — `tasks.md` is reset to `- [ ]` and the checklist is regenerated
-4. After plan revision, the user runs `/fab:continue` (for tasks) then `/fab:apply`
+4. After plan revision, the user runs `/fab-continue` (for tasks) then `/fab-apply`
 
 **Output**:
-> `Option 3: Revise plan — run /fab:continue plan to reset and regenerate downstream`
+> `Option 3: Revise plan — run /fab-continue plan to reset and regenerate downstream`
 
-### Option 4: Revise Specs → `/fab:continue specs`
+### Option 4: Revise Specs → `/fab-continue specs`
 
 **When to use**: Requirements were wrong or incomplete.
 
 **What happens**:
-1. Resets to specs stage via `/fab:continue specs`
+1. Resets to specs stage via `/fab-continue specs`
 2. `spec.md` is updated in place
 3. Plan (if it exists) and tasks are subsequently regenerated — all downstream artifacts are reset
-4. After spec revision, the user works through `/fab:continue` stages again
+4. After spec revision, the user works through `/fab-continue` stages again
 
 **Output**:
-> `Option 4: Revise specs — run /fab:continue specs to reset and regenerate all downstream`
+> `Option 4: Revise specs — run /fab-continue specs to reset and regenerate all downstream`
 
 ---
 
@@ -259,7 +259,7 @@ Docs:      ✓ No drift detected (or ⚠ updates needed during archive)
 
 Review PASSED. All checks green.
 
-Next: /fab:archive
+Next: /fab-archive
 ```
 
 ### Partial Failure
@@ -278,10 +278,10 @@ Docs:      ✓ No drift detected
 Review FAILED. {N} issue(s) found.
 
 Rework options:
-  1. Fix code — uncheck {N} tasks for rework, then /fab:apply
-  2. Revise tasks — add/modify tasks in tasks.md, then /fab:apply
-  3. Revise plan — /fab:continue plan (resets downstream)
-  4. Revise specs — /fab:continue specs (resets all downstream)
+  1. Fix code — uncheck {N} tasks for rework, then /fab-apply
+  2. Revise tasks — add/modify tasks in tasks.md, then /fab-apply
+  3. Revise plan — /fab-continue plan (resets downstream)
+  4. Revise specs — /fab-continue specs (resets all downstream)
 
 Which option? (1-4)
 ```
@@ -289,7 +289,7 @@ Which option? (1-4)
 ### Apply Not Complete
 
 ```
-Apply stage is not complete. Run /fab:apply to finish implementation first.
+Apply stage is not complete. Run /fab-apply to finish implementation first.
 ```
 
 ---
@@ -299,15 +299,15 @@ Apply stage is not complete. Run /fab:apply to finish implementation first.
 | Condition | Action |
 |-----------|--------|
 | Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
-| `progress.apply` is not `done` | Abort with: "Apply stage is not complete. Run /fab:apply to finish implementation first." |
-| `tasks.md` missing | Abort with: "No tasks.md found. Run /fab:continue or /fab:ff to generate tasks first." |
-| `checklists/quality.md` missing | Abort with: "No quality checklist found. Run /fab:continue or /fab:ff to generate the checklist first." |
-| Unchecked tasks found | Abort with incomplete task list — user must run /fab:apply first |
+| `progress.apply` is not `done` | Abort with: "Apply stage is not complete. Run /fab-apply to finish implementation first." |
+| `tasks.md` missing | Abort with: "No tasks.md found. Run /fab-continue or /fab-ff to generate tasks first." |
+| `checklists/quality.md` missing | Abort with: "No quality checklist found. Run /fab-continue or /fab-ff to generate the checklist first." |
+| Unchecked tasks found | Abort with incomplete task list — user must run /fab-apply first |
 | Checklist item fails | Record failure with CHK ID and reason; include in final report |
 | Tests fail | Record failure; include in final report |
 | Spec drift detected | Record mismatch; include in final report |
-| Doc drift detected | Report as warning (not blocking) — handled by /fab:archive |
-| All checks pass | Set review: done, output Next: /fab:archive |
+| Doc drift detected | Report as warning (not blocking) — handled by /fab-archive |
+| All checks pass | Set review: done, output Next: /fab-archive |
 | Any check fails | Set review: failed, present rework options |
 
 ---
@@ -327,10 +327,10 @@ Apply stage is not complete. Run /fab:apply to finish implementation first.
 
 ## Next Steps Reference
 
-After `/fab:review` passes:
+After `/fab-review` passes:
 
-`Next: /fab:archive`
+`Next: /fab-archive`
 
-After `/fab:review` fails:
+After `/fab-review` fails:
 
 *(contextual — see rework options above)*
