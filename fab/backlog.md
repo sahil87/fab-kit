@@ -24,3 +24,4 @@
   a single reliable search scope instead of ad-hoc greps that miss locations (as happened when
   fab-help.sh was missed during the hydrate change).
 - [ ] [g3nm] 2026-02-07: Add a "generate" mode to fab-hydrate alongside the existing "ingest" mode. Currently fab-hydrate only handles external source ingestion (Notion URLs, Linear URLs, local files). The new mode should scan the codebase, identify undocumented areas (APIs, modules, patterns, architecture), and generate docs from code analysis into fab/docs/ with proper indexing. For large codebases with many undocumented sections, it should offer interactive scoping — presenting discovered gaps and letting the user prioritize what to document first (similar to Codex's "/init" command).
+- [ ] [hwnz] 2026-02-07: Separate out docs and specs. Specs: Maching generated, how everything works. Docs: much shorted, for humans. Need to undergo review before mergin
