@@ -173,30 +173,22 @@ If `fab/changes/` **already exists**: report "changes/ already exists — skippi
 
 #### 1e. `.claude/skills/` Symlinks
 
-Create or repair symlinks in `.claude/skills/` pointing into `fab/.kit/skills/`. There are **11 skill symlinks** (all skills except `_context.md`, which is internal to the kit):
+Run `fab/.kit/scripts/setup.sh` to create or repair all skill symlinks and directories. This script is the **single source of truth** for the structural bootstrap — it handles directories, symlinks, docs index, and `.gitignore`.
 
-| Symlink | Target |
-|---------|--------|
-| `.claude/skills/fab-init.md` | `../../fab/.kit/skills/fab-init.md` |
-| `.claude/skills/fab-new.md` | `../../fab/.kit/skills/fab-new.md` |
-| `.claude/skills/fab-continue.md` | `../../fab/.kit/skills/fab-continue.md` |
-| `.claude/skills/fab-ff.md` | `../../fab/.kit/skills/fab-ff.md` |
-| `.claude/skills/fab-clarify.md` | `../../fab/.kit/skills/fab-clarify.md` |
-| `.claude/skills/fab-apply.md` | `../../fab/.kit/skills/fab-apply.md` |
-| `.claude/skills/fab-review.md` | `../../fab/.kit/skills/fab-review.md` |
-| `.claude/skills/fab-archive.md` | `../../fab/.kit/skills/fab-archive.md` |
-| `.claude/skills/fab-switch.md` | `../../fab/.kit/skills/fab-switch.md` |
-| `.claude/skills/fab-status.md` | `../../fab/.kit/skills/fab-status.md` |
-| `.claude/skills/fab-help.md` | `../../fab/.kit/skills/fab-help.md` |
+The script discovers skills dynamically by globbing `fab/.kit/skills/fab-*.md` — no hardcoded list to maintain. Each discovered skill gets a subdirectory symlink:
 
-For each symlink:
+```
+.claude/skills/fab-{name}/SKILL.md → ../../../fab/.kit/skills/fab-{name}.md
+```
 
-1. If `.claude/skills/` directory does not exist, create it
-2. If the symlink already exists and resolves correctly (`test -e` passes), skip it
-3. If the symlink exists but is broken (dangling), remove it and recreate
-4. If the symlink does not exist, create it using: `ln -s ../../fab/.kit/skills/fab-{name}.md .claude/skills/fab-{name}.md`
+If the script cannot be executed (e.g., Windows without bash), perform the equivalent manually:
 
-**Important**: Use relative paths (`../../fab/.kit/skills/`) so symlinks work after cloning the repo. Do NOT use absolute paths.
+1. For each `fab-*.md` file in `fab/.kit/skills/`, create `.claude/skills/fab-{name}/SKILL.md` as a relative symlink to `../../../fab/.kit/skills/fab-{name}.md`
+2. Skip `_context.md` (internal, not a skill)
+3. If a symlink already exists and resolves correctly (`test -e` passes), skip it
+4. If a symlink is broken (dangling), remove and recreate it
+
+**Important**: Use relative paths so symlinks work after cloning the repo. Do NOT use absolute paths.
 
 **Important**: Do NOT modify or remove any existing content in `.claude/skills/` (e.g., `commit/`, `dev-browser/`, `prd/`).
 
