@@ -18,6 +18,14 @@ Every skill (except `/fab:init`, `/fab:switch`, `/fab:status`, `/fab:hydrate`) r
 
 This gives the agent awareness of project configuration, constraints, and the documentation landscape before generating any artifact.
 
+### Preflight Script for Change Context
+
+Skills that operate on an active change resolve the change context by running `fab/.kit/scripts/fab-preflight.sh` via Bash. The script validates project initialization, `fab/current`, the change directory, and `.status.yaml`, then outputs structured YAML with name, stage, branch, progress, and checklist fields. On non-zero exit, the agent stops and surfaces the stderr error message. On success, the agent uses the stdout YAML instead of re-reading `.status.yaml`.
+
+Since the preflight script validates `config.yaml` and `constitution.md` existence, skills using preflight don't need separate existence checks for these files — they only need to read them for content.
+
+The existing 4-step inline validation sequence (check current, check directory, check .status.yaml, check config/constitution) remains documented in `_context.md` as reference for what the script validates internally.
+
 ### Selective Domain Loading
 
 When operating on an active change, skills selectively load relevant domain docs based on the change's scope:
@@ -56,4 +64,5 @@ The following skills skip the standard context loading layers:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260207-5mjv-preflight-grep-scripts | 2026-02-07 | Added preflight script integration — Change Context layer now uses `fab-preflight.sh` for validation and state resolution |
 | 260207-q7m3-separate-hydrate-smart-context | 2026-02-07 | Added `fab/docs/index.md` to always-load, expanded selective loading to all skills on active changes |

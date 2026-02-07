@@ -1,7 +1,7 @@
 name: 260207-5mjv-preflight-grep-scripts
 created: 2026-02-07T12:00:00+00:00
 branch: 260207-5mjv-preflight-grep-scripts
-stage: review
+stage: archive
 progress:
   proposal: done
   specs: done
@@ -9,10 +9,10 @@ progress:
   tasks: done
   apply: done
   review: done
-  archive: pending
+  archive: done
 checklist:
   generated: true
   path: checklists/quality.md
   completed: 25
   total: 25
-last_updated: 2026-02-07T12:20:00+00:00
+last_updated: 2026-02-07T12:25:00+00:00
