@@ -9,12 +9,13 @@
 
 Before generating or validating any artifact, load the relevant context layers below. This ensures output is grounded in the actual project state, not assumptions.
 
-### 1. Always Load (every skill except `/fab:init`, `/fab:switch`, `/fab:status`)
+### 1. Always Load (every skill except `/fab:init`, `/fab:switch`, `/fab:status`, `/fab:hydrate`)
 
-Read these files first — they define the project's identity and constraints:
+Read these files first — they define the project's identity, constraints, and documentation landscape:
 
 - **`fab/config.yaml`** — project configuration, tech stack, naming conventions, stage configuration
 - **`fab/constitution.md`** — project principles and constraints (MUST/SHOULD/MUST NOT rules)
+- **`fab/docs/index.md`** — documentation landscape (which domains and docs exist)
 
 ### 2. Change Context (when operating on an active change)
 
@@ -25,13 +26,15 @@ Resolve the active change and load its state:
 3. Load `fab/changes/{name}/.status.yaml` — current stage, progress, branch info
 4. Load all completed artifacts in the change folder (e.g., `proposal.md`, `spec.md`, `plan.md`, `tasks.md`) — read each file that exists so you have full context of what has been decided so far
 
-### 3. Centralized Doc Lookup (when writing or validating specs)
+### 3. Centralized Doc Lookup (when operating on an active change)
 
-Load the documentation landscape to ensure specs reflect the actual current state:
+Selectively load relevant domain docs based on the change's scope:
 
-1. Read `fab/docs/index.md` to understand which domains and docs exist
-2. Read the specific centralized doc(s) referenced by the proposal's **Affected Docs** section (the New, Modified, and Removed entries)
-3. Use this context to write specs against the real current state, not assumptions
+1. Read the proposal's **Affected Docs** section (or spec's **Affected docs** metadata) to identify which domains are relevant
+2. For each referenced domain, read `fab/docs/{domain}/index.md` to understand the domain's docs
+3. Read the specific centralized doc(s) referenced by the Affected Docs entries (the New, Modified, and Removed entries) — read `fab/docs/{domain}/{name}.md` for each listed doc that exists
+4. If a referenced doc or domain does not exist yet (e.g., listed under New Docs), note this and proceed without error — it will be created by `/fab:archive`
+5. Use this context to ground all artifact generation (specs, plans, tasks, reviews) in the real current state, not assumptions
 
 ### 4. Source Code Loading (during implementation and review)
 
@@ -53,7 +56,8 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 | After skill | Stage reached | Next line |
 |-------------|---------------|-----------|
-| `/fab:init` | initialized | `Next: /fab:new <description>` |
+| `/fab:init` | initialized | `Next: /fab:new <description> or /fab:hydrate <sources>` |
+| `/fab:hydrate` | docs hydrated | `Next: /fab:new <description> or /fab:hydrate <more-sources>` |
 | `/fab:new` | proposal done | `Next: /fab:continue or /fab:ff (fast-forward all planning)` |
 | `/fab:continue` → specs | specs done | `Next: /fab:continue (plan) or /fab:ff (fast-forward) or /fab:clarify (refine spec)` |
 | `/fab:continue` → plan | plan done | `Next: /fab:continue (tasks) or /fab:clarify (refine plan)` |

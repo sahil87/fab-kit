@@ -1,9 +1,9 @@
 ---
 name: fab-init
-description: "Bootstrap fab/ directory and optionally hydrate docs from external sources. Safe to re-run."
+description: "Bootstrap fab/ directory structure. Safe to re-run."
 ---
 
-# /fab:init [sources...]
+# /fab:init
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 > **Exception**: `/fab:init` skips the "Always Load" context layer (config and constitution don't exist yet on first run). Load them only if they already exist (re-run scenario).
@@ -12,7 +12,7 @@ description: "Bootstrap fab/ directory and optionally hydrate docs from external
 
 ## Purpose
 
-Bootstrap `fab/` in an existing project and optionally hydrate `fab/docs/` from external documentation sources. Safe to run repeatedly — structural artifacts are created once (skipped if they already exist), symlinks are repaired if broken, and sources are ingested additively.
+Bootstrap `fab/` in an existing project. Safe to run repeatedly — structural artifacts are created once (skipped if they already exist) and symlinks are repaired if broken.
 
 ---
 
@@ -29,16 +29,11 @@ Before doing anything else, verify the kit exists:
 
 Do NOT create partial structure. Do NOT create `fab/config.yaml`, `fab/constitution.md`, or any other file. The kit must be in place before init can run.
 
----
+**If arguments are provided** (e.g., URLs or file paths), STOP and output:
 
-## Arguments
+> `Did you mean /fab:hydrate? /fab:init no longer accepts source arguments.`
 
-- **`[sources...]`** *(optional)* — one or more URLs or local paths containing documentation to ingest into `fab/docs/`. Supported source types:
-  - **Notion URLs** — pages or databases (fetch via Notion MCP or API)
-  - **Linear URLs** — issues or projects (fetch via Linear MCP or API)
-  - **Local files/directories** — markdown, text, or directories of docs (read from filesystem; if directory, read all markdown files recursively)
-
-If no sources are provided, only the structural bootstrap runs.
+Do NOT proceed with structural bootstrap when arguments are passed — this prevents confusion with the old interface.
 
 ---
 
@@ -203,54 +198,6 @@ Report how many symlinks were created, repaired, or already valid.
 
 ---
 
-### Phase 2: Source Hydration
-
-**Only runs when `[sources...]` arguments are provided.** If no sources were given, skip this phase entirely.
-
-For each source provided:
-
-#### 2a. Fetch/Read Source Content
-
-- **Notion URL** (contains `notion.so` or `notion.site`): Fetch page or database content via Notion MCP tool or API. Extract the page title and body content.
-- **Linear URL** (contains `linear.app`): Fetch issue or project content via Linear MCP tool or API. Extract title, description, and relevant details.
-- **Local file path**: Read the file content directly. If it's a directory, recursively read all `.md` files within it.
-
-Report each source as it's fetched: `Fetched: {title or filename} ({source type})`
-
-#### 2b. Analyze and Map to Domains
-
-For each fetched source:
-
-1. Analyze the content to identify **domains** (logical topic areas, e.g., `auth`, `payments`, `api`, `infrastructure`)
-2. Identify individual **topics** within each domain (e.g., `authentication`, `authorization` within `auth`)
-3. Map each topic to a target file: `fab/docs/{domain}/{topic}.md`
-
-#### 2c. Create or Merge Documentation
-
-For each identified topic:
-
-1. If `fab/docs/{domain}/` directory does not exist, create it
-2. If `fab/docs/{domain}/index.md` does not exist, create a domain index
-3. If the target doc file does not exist, create it with the analyzed content, structured as a centralized doc (with Requirements sections, changelog, etc.)
-4. If the target doc file already exists, **merge** the new content into the existing doc — add new requirements, update existing ones, do not remove existing content
-
-#### 2d. Update `fab/docs/index.md`
-
-After all sources are processed:
-
-1. Read the current `fab/docs/index.md`
-2. Add rows for any new domains that were created
-3. Update descriptions if domains were expanded with new docs
-4. Do not remove existing entries
-
-Report what was created and updated:
-```
-Created: fab/docs/{domain}/{topic}.md
-Updated: fab/docs/index.md
-```
-
----
-
 ## Output
 
 ### First Run (fresh bootstrap)
@@ -266,6 +213,8 @@ Created: fab/changes/
 Created: 11 symlinks in .claude/skills/
 Updated: .gitignore (added fab/current)
 fab/ initialized successfully.
+
+Next: /fab:new <description> or /fab:hydrate <sources>
 ```
 
 ### Re-run (structural health check)
@@ -281,21 +230,6 @@ Symlinks: 11/11 valid (repaired 1)
 fab/ structure verified.
 ```
 
-### With Sources
-
-```
-Found fab/.kit/ (v{VERSION}). Verifying structure...
-{structural check output}
-Hydrating docs from 2 sources...
-Fetched: API Spec (Notion)
-Fetched: 3 files from ./legacy-docs/payments/
-Created: fab/docs/api/endpoints.md
-Created: fab/docs/api/authentication.md
-Created: fab/docs/payments/checkout.md
-Created: fab/docs/payments/refunds.md
-Updated: fab/docs/index.md
-```
-
 ---
 
 ## Idempotency Guarantee
@@ -303,11 +237,10 @@ Updated: fab/docs/index.md
 This skill is safe to run any number of times:
 
 - **Config and constitution**: Created once, never overwritten on re-run
-- **Docs index**: Created once, only updated (not replaced) during hydration
+- **Docs index**: Created once, never touched on re-run
 - **Changes directory**: Created once, never touched on re-run
 - **Symlinks**: Verified and repaired on every run — broken symlinks are fixed, valid ones are left alone
 - **`.gitignore`**: Entry is appended only if not already present
-- **Source hydration**: Merges into existing docs, does not overwrite or delete
 
 ---
 
@@ -317,10 +250,9 @@ This skill is safe to run any number of times:
 |-----------|--------|
 | `fab/.kit/` missing | Abort immediately with guidance message. Do NOT create any files. |
 | `fab/.kit/VERSION` unreadable | Abort with: "fab/.kit/VERSION not found or unreadable — kit may be corrupted." |
-| Source URL unreachable | Report the error for that source, continue with remaining sources |
-| Source content unreadable | Report the error, skip that source, continue |
+| Arguments provided | Abort with: "Did you mean /fab:hydrate? /fab:init no longer accepts source arguments." |
 | Symlink target missing | Report which skill file is missing in `fab/.kit/skills/` — do NOT create a broken symlink |
 
 ---
 
-Next: `/fab:new <description>`
+Next: `/fab:new <description>` or `/fab:hydrate <sources>`

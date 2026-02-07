@@ -73,20 +73,20 @@ You're ready. Start your first change with `/fab:new <description>`.
 
 ### Hydrating Docs from Existing Sources
 
-`/fab:init` is safe to run repeatedly. After the initial bootstrap, use it to ingest existing documentation into `fab/docs/`:
+After the initial bootstrap, use `/fab:hydrate` to ingest existing documentation into `fab/docs/`:
 
 ```bash
 # Pull in API docs from Notion
-/fab:init https://notion.so/myteam/API-Spec-abc123
+/fab:hydrate https://notion.so/myteam/API-Spec-abc123
 
 # Ingest local legacy docs
-/fab:init ./docs/legacy/
+/fab:hydrate ./docs/legacy/
 
 # Multiple sources at once
-/fab:init https://notion.so/myteam/Auth-xyz https://linear.app/myteam/project/payments-abc ./specs/
+/fab:hydrate https://notion.so/myteam/Auth-xyz https://linear.app/myteam/project/payments-abc ./specs/
 ```
 
-Supported sources: **Notion URLs**, **Linear URLs**, **local files/directories**. Each run analyzes the content, maps it to domains, and creates or merges into `fab/docs/`. See [Skills Reference](SKILLS.md#fabinit-sources) for details.
+Supported sources: **Notion URLs**, **Linear URLs**, **local files/directories**. Each run analyzes the content, maps it to domains, and creates or merges into `fab/docs/`. See [Skills Reference](SKILLS.md#fabhydrate-sources) for details.
 
 ---
 
@@ -163,7 +163,8 @@ flowchart TD
 
 | Skill | Purpose | Creates |
 |-------|---------|---------|
-| `/fab:init [sources...]` | Bootstrap fab/ and/or hydrate docs from sources | `config.yaml`, `constitution.md`, `docs/`, skill symlinks (idempotent) |
+| `/fab:init` | Bootstrap fab/ structure | `config.yaml`, `constitution.md`, `docs/`, skill symlinks (idempotent) |
+| `/fab:hydrate [sources...]` | Ingest external docs into fab/docs/ | Updated `fab/docs/` with indexes |
 | `/fab:new` | Start change (optionally with `--branch`) | `proposal.md`, `.status.yaml`, branch (optional) |
 | `/fab:continue [<stage>]` | Next artifact (or reset to stage) | Next stage artifact |
 | `/fab:ff` | Fast forward remaining planning | spec.md + plan (if needed) + tasks + checklist |

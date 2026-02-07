@@ -2,7 +2,6 @@
 
 > Source of truth for system behavior and design. Updated by `/fab:archive` hydration.
 
-<!-- No domains yet. /fab:archive will create domain folders and populate this table. -->
-
 | Domain | Description | Docs |
 |--------|-------------|------|
+| [fab-workflow](fab-workflow/index.md) | Fab kit workflow skills — init, hydrate, context loading conventions | hydrate, init, context-loading |

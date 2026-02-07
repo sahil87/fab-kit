@@ -161,6 +161,8 @@ If the centralized doc does not exist yet:
    | [{name}]({name}.md) | {brief description} | {DATE} |
    ```
 
+4. **Update top-level index** — if this is a new domain, the row was already added in step 1. If this is a new doc in an existing domain, update the doc-list column in `fab/docs/index.md` to include the new doc name (comma-separated list of all docs in the domain).
+
 #### 3c. Existing Doc (doc already exists)
 
 If the centralized doc already exists:
@@ -176,6 +178,7 @@ If the centralized doc already exists:
 3. **Update Design Decisions** — see Step 3d
 4. **Add Changelog row** — see Step 3e
 5. **Update domain index** — update the "Last Updated" column for this doc in `fab/docs/{domain}/index.md`
+6. **Update top-level index** — update the doc-list column in `fab/docs/index.md` for this domain to reflect the current set of docs (in case a new doc was added to the domain by this archive)
 
 #### 3d. Extract Design Decisions (from `plan.md`)
 

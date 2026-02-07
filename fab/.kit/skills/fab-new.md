@@ -100,8 +100,9 @@ Detect the current branch and offer options:
   - If user chooses "Create branch": `git checkout -b {branch-name}` and record in `.status.yaml`
   - If user chooses "Skip": no `branch:` field in `.status.yaml`
 
-- **If on a feature branch** (not main/master): Offer to adopt it
+- **If on a feature branch** (not main/master): **Present these options to the user (do NOT auto-select)**:
   - Show current branch name
+  - Note: `wt/*` branches are worktree base branches — default to **Create new branch** instead of Adopt for these.
   - Options: **Adopt this branch** (default), **Create new branch**, **Skip**
   - If user chooses "Adopt": record the current branch name as-is in `.status.yaml`
   - If user chooses "Create new branch": create a new branch as above

@@ -45,7 +45,8 @@ COMMANDS
     /fab:archive            Complete change — hydrate docs, move to archive
 
   Setup
-    /fab:init [sources...]  Bootstrap fab/ directory (safe to re-run)
+    /fab:init               Bootstrap fab/ directory structure (safe to re-run)
+    /fab:hydrate <sources>  Ingest external docs into fab/docs/
     /fab:help               Show this help
 
 TYPICAL FLOW

@@ -19,6 +19,7 @@ project/
 │   │   │   └── checklist.md
 │   │   ├── skills/                 # Skill definitions (markdown prompts)
 │   │   │   ├── fab-init.md
+│   │   │   ├── fab-hydrate.md
 │   │   │   ├── fab-new.md
 │   │   │   ├── fab-continue.md
 │   │   │   ├── fab-ff.md
@@ -377,6 +378,8 @@ Agent-specific skill files are **symlinks** pointing into `fab/.kit/skills/`. Th
 .claude/skills/
 ├── fab-init/
 │   └── SKILL.md → ../../../fab/.kit/skills/fab-init.md
+├── fab-hydrate/
+│   └── SKILL.md → ../../../fab/.kit/skills/fab-hydrate.md
 ├── fab-new/
 │   └── SKILL.md → ../../../fab/.kit/skills/fab-new.md
 ├── fab-continue/
@@ -411,15 +414,16 @@ Same pattern — symlinks from the agent's convention directory into `fab/.kit/s
 ```
 1. User obtains .kit/  →  cp -r /path/to/fab-kit fab/.kit
 2. User runs fab/.kit/scripts/fab-setup.sh  →  creates directories, symlinks, docs/index.md, .gitignore entry
-3. User runs /fab:init →  generates config.yaml, constitution.md (+ optional source hydration)
-4. User runs /fab:new  →  first change is created
+3. User runs /fab:init  →  generates config.yaml, constitution.md (structural bootstrap)
+4. User optionally runs /fab:hydrate  →  ingests external docs into fab/docs/
+5. User runs /fab:new  →  first change is created
 ```
 
-Step 1 is manual. Step 2 is a shell script. Steps 3–4 are skill-driven.
+Step 1 is manual. Step 2 is a shell script. Steps 3–5 are skill-driven.
 
-`fab/.kit/scripts/fab-setup.sh` handles all structural setup (directories, symlinks, `.gitignore`) and is the single source of truth for that structure. `/fab:init` delegates to it (step 1e) and adds the interactive parts (config, constitution, source hydration).
+`fab/.kit/scripts/fab-setup.sh` handles all structural setup (directories, symlinks, `.gitignore`) and is the single source of truth for that structure. `/fab:init` delegates to it (step 1e) and adds the interactive parts (config, constitution). `fab/.kit/scripts/fab-help.sh` mirrors the skill catalog — it must be updated when skills are added or removed.
 
-**Re-running `/fab:init`**: Init is idempotent — safe to call at any time. On subsequent runs it verifies structure, repairs broken symlinks, and optionally hydrates `fab/docs/` from external sources (Notion URLs, Linear URLs, local files). See [Skills Reference](SKILLS.md#fabinit-sources) for source hydration behavior.
+**Re-running `/fab:init`**: Init is idempotent — safe to call at any time. On subsequent runs it verifies structure and repairs broken symlinks. To ingest external documentation into `fab/docs/`, use `/fab:hydrate` — see [Skills Reference](SKILLS.md#fabhydrate-sources) for details.
 
 ### How to Obtain `.kit/`
 
@@ -438,7 +442,7 @@ Step 1 is manual. Step 2 is a shell script. Steps 3–4 are skill-driven.
 `/fab:init` is itself a skill defined inside `fab/.kit/skills/fab-init.md`. It cannot run until `.kit/` exists. Rather than solving this chicken-and-egg with a bootstrap script (which would violate "no system installation"), Fab splits setup into:
 
 1. **Manual step**: Get `.kit/` into the project (a directory copy)
-2. **Skill step**: `/fab:init` generates everything project-specific (idempotent — re-runs skip existing artifacts, repair symlinks, and optionally hydrate docs from sources)
+2. **Skill step**: `/fab:init` generates everything project-specific (idempotent — re-runs skip existing artifacts and repair symlinks). Optionally, `/fab:hydrate` ingests external docs.
 
 This keeps the workflow entirely prompt-driven after the one-time directory copy.
 

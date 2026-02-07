@@ -10,7 +10,7 @@ Fab uses two distinct terms to avoid confusion:
 
 | Term | Location | Meaning |
 |------|----------|---------|
-| **Centralized docs** | `fab/docs/` | Source-of-truth documentation for the system. Contains both requirements (what) and durable design decisions (why). Updated only by `/fab:archive` hydration. |
+| **Centralized docs** | `fab/docs/` | Source-of-truth documentation for the system. Contains both requirements (what) and durable design decisions (why). Updated by `/fab:hydrate` (from external sources) and `/fab:archive` (from change artifacts). |
 | **spec.md** | `fab/changes/{name}/spec.md` | Change-level specification. Describes the requirements relevant to this change. |
 
 The stage named "specs" refers to the *activity* of writing the specification — its output is `spec.md` in the change folder.
@@ -21,18 +21,21 @@ The stage named "specs" refers to the *activity* of writing the specification �
 
 Every skill that generates or validates artifacts MUST load relevant context before proceeding. This ensures agents produce accurate, grounded output rather than hallucinating requirements or ignoring existing patterns.
 
-**Always loaded** (by every skill except `/fab:init`, `/fab:switch`, `/fab:status`):
+**Always loaded** (by every skill except `/fab:init`, `/fab:switch`, `/fab:status`, `/fab:hydrate`):
 - `fab/config.yaml` — project configuration, tech stack, conventions
 - `fab/constitution.md` — project principles and constraints
+- `fab/docs/index.md` — documentation landscape (which domains and docs exist)
 
 **Change context** (loaded by skills operating on an active change):
 - `.status.yaml` — current stage, progress
 - All completed artifacts in the active change folder (e.g., `proposal.md`, `spec.md`, `plan.md`)
 
-**Centralized doc lookup** (loaded when writing or validating specs):
-- Read `fab/docs/index.md` to understand the doc landscape
-- Read the specific centralized doc(s) referenced by the proposal's "Affected Docs" section
-- This ensures specs are written against the *actual* current state, not assumptions
+**Centralized doc lookup** (loaded by skills operating on an active change):
+- Read the proposal's "Affected Docs" section to identify relevant domains
+- Read domain indexes (`fab/docs/{domain}/index.md`) for each relevant domain
+- Read the specific centralized doc(s) referenced by the Affected Docs entries
+- If a referenced doc doesn't exist yet (listed under New Docs), note this and proceed — it will be created by `/fab:archive`
+- This grounds all artifact generation (specs, plans, tasks, reviews) in the real current state, not assumptions
 
 **Source code** (loaded during implementation and review):
 - Read relevant source files referenced in the plan's "File Changes" section or the task descriptions
@@ -52,7 +55,8 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 | After | Stage reached | Next line |
 |-------|---------------|-----------|
-| `/fab:init` | initialized | `Next: /fab:new <description>` |
+| `/fab:init` | initialized | `Next: /fab:new <description> or /fab:hydrate <sources>` |
+| `/fab:hydrate` | docs hydrated | `Next: /fab:new <description> or /fab:hydrate <more-sources>` |
 | `/fab:new` | proposal done | `Next: /fab:continue or /fab:ff (fast-forward all planning)` |
 | `/fab:continue` → specs | specs done | `Next: /fab:continue (plan) or /fab:ff (fast-forward) or /fab:clarify (refine spec)` |
 | `/fab:continue` → plan | plan done | `Next: /fab:continue (tasks) or /fab:clarify (refine plan)` |
@@ -66,17 +70,13 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 ---
 
-## `/fab:init [sources...]`
+## `/fab:init`
 
-**Purpose**: Bootstrap `fab/` in an existing project and/or hydrate docs from external sources. Safe to run repeatedly — structural artifacts are created once, symlinks are repaired if broken, and sources are ingested into `fab/docs/`.
+**Purpose**: Bootstrap `fab/` in an existing project. Safe to run repeatedly — structural artifacts are created once and symlinks are repaired if broken.
 
 **Prerequisite**: `fab/.kit/` must exist. If missing, abort with: *"fab/.kit/ not found. Copy the kit directory into fab/.kit/ first — see the Getting Started guide."*
 
-**Arguments**:
-- `[sources...]` *(optional)* — one or more URLs or local paths containing documentation to ingest into `fab/docs/`. Supported source types:
-  - **Notion URLs** — pages or databases (fetched via Notion MCP or API)
-  - **Linear URLs** — issues or projects (fetched via Linear MCP or API)
-  - **Local files/directories** — markdown, text, or directories of docs (read from filesystem)
+**Arguments**: None. If arguments are provided, abort with: *"Did you mean /fab:hydrate? /fab:init no longer accepts source arguments."*
 
 **Creates** (first run only — skipped if already present):
 - `fab/config.yaml` — project configuration (prompts for name, tech stack, conventions)
@@ -93,27 +93,20 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 → "What's the project name?"
 → "Describe the tech stack and conventions..."
 → "fab/ initialized with config, constitution, and empty docs."
+→ "Next: /fab:new <description> or /fab:hydrate <sources>"
 
-# Re-run without sources — structural health check
+# Re-run — structural health check
 /fab:init
 → "fab/ already initialized. Verified structure, repaired 1 missing symlink."
 
-# Hydrate docs from a Notion page
+# Arguments are redirected
 /fab:init https://notion.so/myteam/API-Spec-abc123
-→ "Fetched: API Spec (Notion)"
-→ "Created: fab/docs/api/endpoints.md, fab/docs/api/authentication.md"
-→ "Updated: fab/docs/index.md"
-
-# Hydrate from multiple sources at once
-/fab:init https://notion.so/myteam/Auth-Design-xyz ./legacy-docs/payments/
-→ "Fetched: Auth Design (Notion), 3 files from ./legacy-docs/payments/"
-→ "Created: fab/docs/auth/oauth.md, fab/docs/payments/checkout.md, fab/docs/payments/refunds.md"
-→ "Updated: fab/docs/index.md"
+→ "Did you mean /fab:hydrate? /fab:init no longer accepts source arguments."
 ```
 
 **Behavior**:
 
-1. **Pre-flight check**: Verify `fab/.kit/` exists (abort with guidance if not)
+1. **Pre-flight check**: Verify `fab/.kit/` exists (abort with guidance if not). If arguments are provided, abort with redirect to `/fab:hydrate`.
 2. **Structural bootstrap** (idempotent — each step skips if artifact already exists):
    a. `fab/config.yaml` — if missing, prompt for project name, description, tech stack and generate
    b. `fab/constitution.md` — if missing, generate from project context (README, existing docs, conversation)
@@ -121,16 +114,58 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
    d. `fab/changes/` — if missing, create empty directory
    e. `.claude/skills/` symlinks — create missing ones, repair broken ones
    f. `.gitignore` — append `fab/current` if not already present
-3. **Source hydration** (only when `[sources...]` are provided):
-   a. Fetch/read each source:
-      - Notion URLs → fetch page content via Notion MCP or API
-      - Linear URLs → fetch issue/project content via Linear MCP or API
-      - Local paths → read files; if directory, read all markdown files recursively
-   b. Analyze fetched content to identify domains and topics
-   c. For each identified topic, either create a new doc in `fab/docs/{domain}/` or merge into an existing doc — following the [Centralized Doc Format](TEMPLATES.md#centralized-doc-format-fabdocs) and [Hydration Rules](TEMPLATES.md#hydration-rules)
-   d. Create domain folders and domain index files as needed
-   e. Update `fab/docs/index.md` with new domains/docs
-   f. Report what was created and updated
+
+---
+
+## `/fab:hydrate [sources...]`
+
+**Purpose**: Ingest external documentation into `fab/docs/` with domain mapping and index maintenance. Safe to run repeatedly — content is merged into existing docs without duplication.
+
+**Prerequisite**: `fab/docs/` must exist (run `/fab:init` first). If missing, abort with: *"fab/docs/ not found. Run /fab:init first to create the docs directory."*
+
+**Arguments**:
+- `[sources...]` *(required)* — one or more URLs or local paths containing documentation to ingest. Supported source types:
+  - **Notion URLs** — pages or databases (fetched via Notion MCP or API)
+  - **Linear URLs** — issues or projects (fetched via Linear MCP or API)
+  - **Local files/directories** — markdown, text, or directories of docs (read from filesystem)
+
+**Creates/Updates**:
+- `fab/docs/{domain}/{topic}.md` — centralized doc files (created or merged)
+- `fab/docs/{domain}/index.md` — domain indexes (created or updated)
+- `fab/docs/index.md` — top-level index (updated with new domains/docs)
+
+**Examples**:
+```
+# Hydrate docs from a Notion page
+/fab:hydrate https://notion.so/myteam/API-Spec-abc123
+→ "Fetched: API Spec (Notion)"
+→ "Created: fab/docs/api/endpoints.md, fab/docs/api/authentication.md"
+→ "Updated: fab/docs/index.md"
+
+# Ingest local legacy docs
+/fab:hydrate ./legacy-docs/payments/
+→ "Fetched: 3 files from ./legacy-docs/payments/"
+→ "Created: fab/docs/payments/checkout.md, fab/docs/payments/refunds.md"
+
+# Multiple sources at once
+/fab:hydrate https://notion.so/myteam/Auth-xyz ./legacy-docs/payments/
+→ "Fetched: Auth Design (Notion), 3 files from ./legacy-docs/payments/"
+→ "Created: fab/docs/auth/oauth.md, fab/docs/payments/checkout.md"
+→ "Updated: fab/docs/index.md"
+```
+
+**Behavior**:
+
+1. **Pre-flight check**: Verify `fab/docs/` and `fab/docs/index.md` exist (abort with guidance if not). If no sources are provided, abort with usage message.
+2. **Fetch/read** each source:
+   - Notion URLs → fetch page content via Notion MCP or API
+   - Linear URLs → fetch issue/project content via Linear MCP or API
+   - Local paths → read files; if directory, read all markdown files recursively
+3. **Analyze** fetched content to identify domains and topics
+4. **Create or merge** docs — for each identified topic, either create a new doc in `fab/docs/{domain}/` or merge into an existing doc. Follow the [Centralized Doc Format](TEMPLATES.md#centralized-doc-format-fabdocs) and [Hydration Rules](TEMPLATES.md#hydration-rules).
+5. **Update domain indexes** — create or update `fab/docs/{domain}/index.md` for each affected domain
+6. **Update top-level index** — update `fab/docs/index.md` with new domains and expanded doc lists
+7. **Report** what was created and updated
 
 ---
 
