@@ -1,3 +1,8 @@
+---
+name: fab-switch
+description: "Switch the active change to a different one. Lists available changes when called with no argument."
+---
+
 # /fab:switch [change-name]
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.

@@ -1,3 +1,8 @@
+---
+name: fab-ff
+description: "Fast-forward through all remaining planning stages in one pass to reach implementation quickly."
+---
+
 # /fab:ff
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.

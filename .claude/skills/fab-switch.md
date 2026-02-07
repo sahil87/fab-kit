@@ -1,1 +1,0 @@
-../../fab/.kit/skills/fab-switch.md

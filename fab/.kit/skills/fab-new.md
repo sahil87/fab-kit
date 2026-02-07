@@ -1,3 +1,8 @@
+---
+name: fab-new
+description: "Start a new change from a natural language description. Creates the change folder, sets it active, and generates the proposal."
+---
+
 # /fab:new <description> [--branch <name>]
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.

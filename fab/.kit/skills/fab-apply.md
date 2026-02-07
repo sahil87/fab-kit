@@ -1,3 +1,8 @@
+---
+name: fab-apply
+description: "Execute implementation tasks from tasks.md in dependency order, running tests after each. Resumable."
+---
+
 # /fab:apply
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.

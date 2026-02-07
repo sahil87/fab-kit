@@ -1,3 +1,8 @@
+---
+name: fab-continue
+description: "Advance to the next planning stage and generate its artifact, or reset to a given stage."
+---
+
 # /fab:continue [<stage>]
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.

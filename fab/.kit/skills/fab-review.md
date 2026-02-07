@@ -1,3 +1,8 @@
+---
+name: fab-review
+description: "Validate implementation against specs and checklists. On pass, advances to archive. On failure, presents rework options."
+---
+
 # /fab:review
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.

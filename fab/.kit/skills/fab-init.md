@@ -1,3 +1,8 @@
+---
+name: fab-init
+description: "Bootstrap fab/ directory and optionally hydrate docs from external sources. Safe to re-run."
+---
+
 # /fab:init [sources...]
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.

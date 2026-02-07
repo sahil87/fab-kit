@@ -1,3 +1,8 @@
+---
+name: fab-archive
+description: "Complete a change — validate review passed, hydrate learnings into centralized docs, and move to archive."
+---
+
 # /fab:archive
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.

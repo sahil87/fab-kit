@@ -1,3 +1,8 @@
+---
+name: fab-clarify
+description: "Refine the current stage artifact — resolve gaps, ambiguities, or [NEEDS CLARIFICATION] markers without advancing."
+---
+
 # /fab:clarify
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
