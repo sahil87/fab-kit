@@ -11,5 +11,16 @@
 - [x] [pn18] 2026-02-07: fab-init needs to be sync with the setup script. Or else the directory strucutres for both these commands will go out of sync
 - [x] [waup] 2026-02-07: Understand the spec from doc/fab-spec/* . Then look at current implementation in fab/* . Our task: Standardize the scripts names (in fab/.kit/scripts/) : add a fab- prefix, Create a fab-help.sh script, and make /fab-help skill call the fab-help.sh script internally.
 - [ ] [9iyu] 2026-02-07: Understand the spec from doc/fab-spec/* . Separate our docs (fab/docs/) hydartion from fab:init - these two can be made separate (vai a new fab:hydrate command). Right now I think fab:init had this dual responsibility. That should no longer be the case. Now that we have a proper documentation in place at fab/docs/ after running fab:hydrate the following change should be safe: ensure the relevant context is always loaded smartly (from fab/docs) before any fab: command. (And hence) the documentation in fab/docs should be properly indexed (contain proper index.md files referencing other files) so its easy agents to get to and load the relevant sections to context fast. 
-- [ ] [ny4x] 2026-02-07: In the user prompts we are referring to fab commands as fab:xxx instead of fab-xxxx. This needs to be updated.
-
+- [ ] [ny4x] 2026-02-07: In the next command suggestion we are giving, all fab commands are listed as fab:xxx instead of fab-xxxx. This needs to be updated.
+- [ ] [twpd] 2026-02-07:   Add a fab-preflight.sh script that consolidates the repeated pre-flight context loading that 
+  every skill performs at invocation. Currently, every skill (ff, apply, review, archive)
+  independently reads fab/current, .status.yaml, config.yaml, constitution.md, and
+  fab/docs/index.md — 5 file reads as boilerplate before any real work starts. The script should
+  read fab/current, validate the change directory and .status.yaml exist, and output structured
+  YAML with the change name, stage, progress map, checklist counts, and branch name. Skills can
+  consume this output instead of each re-reading and re-validating independently. Additionally, add
+   a fab-grep-all.sh <pattern> utility that searches all fab-managed file locations
+  (fab/.kit/skills/, fab/.kit/scripts/, doc/fab-spec/) so that consistency/verification tasks have
+  a single reliable search scope instead of ad-hoc greps that miss locations (as happened when
+  fab-help.sh was missed during the hydrate change).
+- [ ] [g3nm] 2026-02-07: Add a "generate" mode to fab-hydrate alongside the existing "ingest" mode. Currently fab-hydrate only handles external source ingestion (Notion URLs, Linear URLs, local files). The new mode should scan the codebase, identify undocumented areas (APIs, modules, patterns, architecture), and generate docs from code analysis into fab/docs/ with proper indexing. For large codebases with many undocumented sections, it should offer interactive scoping — presenting discovered gaps and letting the user prioritize what to document first (similar to Codex's "/init" command).
