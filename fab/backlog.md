@@ -9,3 +9,4 @@
 - [x] [2t3g] 2026-02-07: Create a setup.sh in the .kit folder, so one can run fab/.kit/setup.sh to setup all the symlinks required properly
 - [x] [88gc] 2026-02-07: add a fab-help skill also
 - [x] [pn18] 2026-02-07: fab-init needs to be sync with the setup script. Or else the directory strucutres for both these commands will go out of sync
+- [ ] [waup] 2026-02-07: Standardize scripts (add a fab- prefix) and make /fab-help call the fab-help.sh script.
