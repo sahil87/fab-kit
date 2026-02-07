@@ -173,7 +173,7 @@ If `fab/changes/` **already exists**: report "changes/ already exists — skippi
 
 #### 1e. `.claude/skills/` Symlinks
 
-Create or repair symlinks in `.claude/skills/` pointing into `fab/.kit/skills/`. There are **10 skill symlinks** (all skills except `_context.md`, which is internal to the kit):
+Create or repair symlinks in `.claude/skills/` pointing into `fab/.kit/skills/`. There are **11 skill symlinks** (all skills except `_context.md`, which is internal to the kit):
 
 | Symlink | Target |
 |---------|--------|
@@ -187,6 +187,7 @@ Create or repair symlinks in `.claude/skills/` pointing into `fab/.kit/skills/`.
 | `.claude/skills/fab-archive.md` | `../../fab/.kit/skills/fab-archive.md` |
 | `.claude/skills/fab-switch.md` | `../../fab/.kit/skills/fab-switch.md` |
 | `.claude/skills/fab-status.md` | `../../fab/.kit/skills/fab-status.md` |
+| `.claude/skills/fab-help.md` | `../../fab/.kit/skills/fab-help.md` |
 
 For each symlink:
 
@@ -270,7 +271,7 @@ Created: fab/config.yaml
 Created: fab/constitution.md
 Created: fab/docs/index.md
 Created: fab/changes/
-Created: 10 symlinks in .claude/skills/
+Created: 11 symlinks in .claude/skills/
 Updated: .gitignore (added fab/current)
 fab/ initialized successfully.
 ```
@@ -283,7 +284,7 @@ config.yaml — OK
 constitution.md — OK
 docs/index.md — OK
 changes/ — OK
-Symlinks: 10/10 valid (repaired 1)
+Symlinks: 11/11 valid (repaired 1)
 .gitignore: fab/current present
 fab/ structure verified.
 ```
