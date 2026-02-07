@@ -1,1 +1,0 @@
-- [ ] [3lmp] 2026-02-07: Create a setup.sh in the .kit folder, so one can run fab/.kit/setup.sh to setup all the symlinks required properly
