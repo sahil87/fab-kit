@@ -4,4 +4,4 @@
 
 | Domain | Description | Docs |
 |--------|-------------|------|
-| [fab-workflow](fab-workflow/index.md) | Fab kit workflow skills — init, hydrate, context loading conventions | hydrate, init, context-loading |
+| [fab-workflow](fab-workflow/index.md) | Fab kit workflow skills — init, hydrate, context loading conventions | hydrate, hydrate-generate, init, context-loading |

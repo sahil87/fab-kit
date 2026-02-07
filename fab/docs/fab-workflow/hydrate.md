@@ -4,21 +4,41 @@
 
 ## Overview
 
-`/fab:hydrate [sources...]` is a standalone skill that ingests external documentation into `fab/docs/`. It handles fetching content from URLs or reading local files, analyzing and mapping content to domains, creating or merging doc files, and maintaining both top-level and domain-level indexes. It requires `fab/docs/` to exist (created by `/fab:init`).
+`/fab:hydrate [sources...|folders...]` is a standalone skill that operates in two modes: **ingest mode** (fetching URLs or reading `.md` files into `fab/docs/`) and **generate mode** (scanning the codebase for undocumented areas and producing structured docs). Mode is determined automatically by argument type — no flags needed. It requires `fab/docs/` to exist (created by `/fab:init`). See [hydrate-generate](hydrate-generate.md) for full generate mode requirements.
 
 ## Requirements
 
 ### Standalone Hydrate Skill
 
-The system provides `/fab:hydrate [sources...]` as an independent skill containing all source hydration logic. It is defined in `fab/.kit/skills/fab-hydrate.md` and is auto-discovered by `fab-setup.sh`'s `fab-*.md` glob pattern.
+The system provides `/fab:hydrate [sources...|folders...]` as an independent skill containing hydration and generation logic. It is defined in `fab/.kit/skills/fab-hydrate.md` and is auto-discovered by `fab-setup.sh`'s `fab-*.md` glob pattern.
 
-- Accepts one or more sources (URLs, local paths)
+### Argument-Driven Mode Selection
+
+The skill determines its operating mode from argument type:
+
+| Argument type | Detection rule | Mode |
+|---|---|---|
+| No arguments | Argument list is empty | Generate (scan from project root) |
+| URL | Matches `notion.so`, `notion.site`, `linear.app`, or `http(s)://` | Ingest |
+| Markdown file | Path ends with `.md` | Ingest |
+| Folder | Path resolves to an existing directory | Generate |
+
+Mixed-mode invocations (e.g., a URL and a folder) SHALL be rejected with an error.
+
+### Ingest Mode Behavior
+
+When arguments route to ingest mode:
+
 - Fetches/reads each source independently
 - Analyzes content and maps to domains
 - Creates or merges doc files in `fab/docs/{domain}/`
 - Creates/updates domain indexes (`fab/docs/{domain}/index.md`)
 - Updates top-level index (`fab/docs/index.md`)
 - Multiple sources are processed in a single pass; indexes updated once at the end
+
+### Generate Mode Behavior
+
+When arguments route to generate mode (no arguments or folder paths), the skill scans the codebase for undocumented areas, presents an interactive gap report, and generates structured docs. See [hydrate-generate](hydrate-generate.md) for full requirements.
 
 ### Prerequisite
 
@@ -64,4 +84,5 @@ Every hydration operation maintains navigable indexes:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260207-k5od-hydrate-generate-mode | 2026-02-07 | Added generate mode — unified argument routing, dual-mode overview, cross-reference to hydrate-generate doc |
 | 260207-q7m3-separate-hydrate-smart-context | 2026-02-07 | Created hydrate doc — extracted `/fab:hydrate` as standalone skill from `/fab:init` Phase 2 |

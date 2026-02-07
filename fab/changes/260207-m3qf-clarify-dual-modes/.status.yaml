@@ -1,0 +1,17 @@
+name: 260207-m3qf-clarify-dual-modes
+created: 2026-02-07T18:00:00+05:30
+stage: proposal
+progress:
+  proposal: done
+  specs: pending
+  plan: pending
+  tasks: pending
+  apply: pending
+  review: pending
+  archive: pending
+checklist:
+  generated: false
+  path: checklists/quality.md
+  completed: 0
+  total: 0
+last_updated: 2026-02-07T18:00:00+05:30
