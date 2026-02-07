@@ -32,7 +32,7 @@ project/
 │   │   └── scripts/                # Lightweight shell utilities
 │   │       ├── fab-help.sh         # Print Fab Kit help overview
 │   │       ├── fab-setup.sh        # Structural bootstrap for fab
-│   │       ├── fab-status.sh       # Quick-check active change from terminal
+│   │       ├── fab-status.sh       # Full status display (version, progress, next command)
 │   │       └── fab-update-claude-settings.sh  # Copy settings.local.json to worktree-init
 │   ├── config.yaml                 # Project-specific configuration
 │   ├── constitution.md             # Project principles & constraints
@@ -114,8 +114,8 @@ active=$(cat fab/current)
 **Quick check from terminal**: For instant identification when switching between VS Code windows:
 ```bash
 fab/.kit/scripts/fab-status.sh
-→ "Active: 260115-a7k2-add-oauth (stage: plan)"
 ```
+The script outputs a formatted status block with version, change name, branch, stage progress, checklist counts, and suggested next command. See the script source for the full output format.
 
 **Why a pointer file (not a symlink)?**
 - **Cross-platform** — symlinks on Windows require Developer Mode or admin privileges. A plain text file works everywhere.
@@ -123,34 +123,7 @@ fab/.kit/scripts/fab-status.sh
 - **Simpler operations** — any language/tool can read and write a plain text file. No `ln -sf` semantics.
 - **Git-friendly** — add `fab/current` to `.gitignore` since it's local working state.
 
-**`fab/.kit/scripts/fab-status.sh`**:
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-current_file="$(dirname "$0")/../../current"
-
-if [ ! -f "$current_file" ]; then
-  echo "No active change"
-  exit 0
-fi
-
-name=$(cat "$current_file")
-status_file="$(dirname "$0")/../../changes/$name/.status.yaml"
-
-if [ ! -f "$status_file" ]; then
-  echo "Active: $name (missing — run /fab:switch or /fab:new)"
-  exit 1
-fi
-
-stage=$(grep '^stage:' "$status_file" | cut -d' ' -f2)
-branch=$(grep '^branch:' "$status_file" | cut -d' ' -f2 || true)
-if [ -n "$branch" ]; then
-  echo "Active: $name (stage: $stage, branch: $branch)"
-else
-  echo "Active: $name (stage: $stage)"
-fi
-```
+**`fab/.kit/scripts/fab-status.sh`**: Reads `fab/current` and `.status.yaml`, renders a formatted status block with version header, progress table (using `✓ ● ○ — ✗` symbols), checklist counts, and next command suggestion. Handles all error cases (no active change, missing files, missing fields). See the script source for full implementation.
 
 ---
 
@@ -330,7 +303,16 @@ The constitution is the **architectural DNA** of a Fab project. It defines immut
 
 ## Git Integration (Optional)
 
-Fab works without git. When git is available, Fab offers lightweight branch coordination — just enough to keep the mapping between change folders and branches without taking over your git workflow.
+Fab works without git. Change folders are the unit of identity, not branches — the same change can be worked on across multiple branches, worktrees, or even repos. When git is available, Fab offers a lightweight convenience link, but this is strictly informational. Fab never couples its state to git state.
+
+### Why Decoupled
+
+A change folder captures *what* is being built (proposal, spec, plan, tasks). Where that work happens in git is a separate concern:
+- A developer might work on the same change across multiple worktrees
+- A change might span multiple branches (feature branch + hotfix backport)
+- A change might start on one branch and move to another after a rebase
+
+Fab stays out of this. The `branch:` field in `.status.yaml` is a convenience bookmark, not a coupling.
 
 ### How It Works
 

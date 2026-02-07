@@ -50,7 +50,7 @@ The structural bootstrap script. Creates directories, symlinks, `docs/index.md`,
 
 #### `fab-status.sh`
 
-Quick terminal check for the active change. Reads `fab/current` and `.status.yaml` to display the active change name, stage, and branch. Useful for instant identification when switching between VS Code windows.
+Full status display for the active change. Reads `fab/.kit/VERSION`, `fab/current`, and `.status.yaml` to render a formatted status block with version header, change name, branch, stage number, progress table (using `✓ ● ○ — ✗` symbols), checklist counts, and next command suggestion. Handles all error cases. The `/fab:status` skill delegates to this script — all mechanical logic lives here.
 
 #### `fab-help.sh`
 

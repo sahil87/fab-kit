@@ -79,7 +79,9 @@ The `plan` stage MAY be skipped for straightforward changes. When skipped, its s
 
 ### Git Integration (Optional)
 
-Fab works without git. When git is available, `/fab:new` offers lightweight branch coordination:
+Fab works without git. Change folders are the unit of identity, not branches — the same change can be worked on across multiple branches, worktrees, or even repos. When git is available, `/fab:new` offers a lightweight convenience link, but this is strictly informational. Fab never couples its state to git state.
+
+**Why decoupled**: A developer might work on the same change across multiple worktrees, a change might span multiple branches, or a change might move between branches after a rebase. The `branch:` field in `.status.yaml` is a convenience bookmark, not a coupling.
 
 | Option | When to use | What happens |
 |--------|-------------|--------------|
@@ -102,7 +104,7 @@ There is no `/fab:abandon` skill — this is a manual operation. To preserve con
 
 `/fab:status` shows the current change state at a glance: name, branch, current stage, progress through all stages, checklist status, and suggested next command.
 
-The shell script `fab/.kit/scripts/fab-status.sh` provides the same quick check from the terminal without invoking an agent.
+All mechanical work (file reading, YAML parsing, progress symbol mapping, next command logic) lives in `fab/.kit/scripts/fab-status.sh`. The skill prompt invokes the script and presents its output. The same script can be run directly from the terminal without invoking an agent.
 
 ### `/fab:switch <change-name>`
 

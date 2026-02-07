@@ -28,7 +28,7 @@ Always know where you are. Each change folder has a `.status.yaml` manifest that
 Use skills (not rigid commands) for better agent interoperability. Skills are more naturally invocable by AI agents.
 
 ### 6. Git-Optional
-Fab tracks changes in directories, not branches. But when git is available, `/fab:new` offers to create or adopt a branch and records it in `.status.yaml` for traceability. Commits, pushes, and PRs remain your responsibility — Fab just keeps the link.
+Fab tracks changes in directories, not branches. A change folder is the unit of identity — the same change can be worked on across multiple branches, worktrees, or even repos. When git is available, `/fab:new` offers to create or adopt a branch and records it in `.status.yaml` as a convenience link, but this is informational only. Commits, pushes, and PRs remain your responsibility — Fab never couples its state to git state.
 
 ---
 
