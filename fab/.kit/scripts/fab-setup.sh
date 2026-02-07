@@ -3,7 +3,7 @@ set -euo pipefail
 
 # fab/.kit/scripts/fab-setup.sh — Structural bootstrap for fab
 #
-# Sets up directories, symlinks, and .gitignore entries that /fab:init
+# Sets up directories, symlinks, and .gitignore entries that /fab-init
 # would create (Phase 1 only — no config.yaml or constitution.md generation).
 #
 # Run from anywhere: fab/.kit/scripts/fab-setup.sh
@@ -40,7 +40,7 @@ if [ ! -f "$fab_dir/docs/index.md" ]; then
   cat > "$fab_dir/docs/index.md" << 'EOF'
 # Documentation Index
 
-<!-- This index is maintained by /fab:archive when changes are completed. -->
+<!-- This index is maintained by /fab-archive when changes are completed. -->
 <!-- Each domain gets a row linking to its docs. -->
 
 | Domain | Description | Docs |

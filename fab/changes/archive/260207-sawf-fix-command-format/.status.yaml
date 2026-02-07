@@ -1,0 +1,18 @@
+name: 260207-sawf-fix-command-format
+created: 2026-02-07T00:00:00Z
+branch: 260207-sawf-fix-command-format
+stage: archive
+progress:
+  proposal: done
+  specs: done
+  plan: skipped
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklists/quality.md
+  completed: 13
+  total: 13
+last_updated: 2026-02-07T00:30:00Z

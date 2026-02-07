@@ -19,8 +19,8 @@ Fab Kit v${version} — Specification-Driven Development
 
 WORKFLOW
 
-  /fab:new ─→ /fab:continue (or /fab:ff) ─→ /fab:apply ─→ /fab:review ─→ /fab:archive
-               ↕ /fab:clarify
+  /fab-new ─→ /fab-continue (or /fab-ff) ─→ /fab-apply ─→ /fab-review ─→ /fab-archive
+               ↕ /fab-clarify
 
   Planning stages: proposal → specs → plan (optional) → tasks
   Execution stages: apply → review → archive
@@ -28,29 +28,29 @@ WORKFLOW
 COMMANDS
 
   Start & Navigate
-    /fab:new <desc>         Start a new change from a description
-    /fab:switch [name]      Switch active change (lists all if no name)
-    /fab:status             Show current change state at a glance
+    /fab-new <desc>         Start a new change from a description
+    /fab-switch [name]      Switch active change (lists all if no name)
+    /fab-status             Show current change state at a glance
 
   Planning
-    /fab:continue [stage]   Advance to the next planning stage (or reset to stage)
-    /fab:ff                 Fast-forward through all remaining planning stages
-    /fab:clarify            Refine the current stage artifact without advancing
+    /fab-continue [stage]   Advance to the next planning stage (or reset to stage)
+    /fab-ff                 Fast-forward through all remaining planning stages
+    /fab-clarify            Refine the current stage artifact without advancing
 
   Execution
-    /fab:apply              Implement tasks from tasks.md in dependency order
-    /fab:review             Validate implementation against specs and checklists
+    /fab-apply              Implement tasks from tasks.md in dependency order
+    /fab-review             Validate implementation against specs and checklists
 
   Completion
-    /fab:archive            Complete change — hydrate docs, move to archive
+    /fab-archive            Complete change — hydrate docs, move to archive
 
   Setup
-    /fab:init               Bootstrap fab/ directory structure (safe to re-run)
-    /fab:hydrate <sources>  Ingest external docs into fab/docs/
-    /fab:help               Show this help
+    /fab-init               Bootstrap fab/ directory structure (safe to re-run)
+    /fab-hydrate <sources>  Ingest external docs into fab/docs/
+    /fab-help               Show this help
 
 TYPICAL FLOW
 
-  Quick change:  /fab:new → /fab:ff → /fab:apply → /fab:review → /fab:archive
-  Careful change: /fab:new → /fab:continue (repeat) → /fab:apply → /fab:review → /fab:archive
+  Quick change:  /fab-new → /fab-ff → /fab-apply → /fab-review → /fab-archive
+  Careful change: /fab-new → /fab-continue (repeat) → /fab-apply → /fab-review → /fab-archive
 EOF

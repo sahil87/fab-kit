@@ -3,10 +3,10 @@ name: fab-init
 description: "Bootstrap fab/ directory structure. Safe to re-run."
 ---
 
-# /fab:init
+# /fab-init
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
-> **Exception**: `/fab:init` skips the "Always Load" context layer (config and constitution don't exist yet on first run). Load them only if they already exist (re-run scenario).
+> **Exception**: `/fab-init` skips the "Always Load" context layer (config and constitution don't exist yet on first run). Load them only if they already exist (re-run scenario).
 
 ---
 
@@ -31,7 +31,7 @@ Do NOT create partial structure. Do NOT create `fab/config.yaml`, `fab/constitut
 
 **If arguments are provided** (e.g., URLs or file paths), STOP and output:
 
-> `Did you mean /fab:hydrate? /fab:init no longer accepts source arguments.`
+> `Did you mean /fab-hydrate? /fab-init no longer accepts source arguments.`
 
 Do NOT proceed with structural bootstrap when arguments are passed — this prevents confusion with the old interface.
 
@@ -148,7 +148,7 @@ If `fab/docs/index.md` does **not** exist:
 ```markdown
 # Documentation Index
 
-<!-- This index is maintained by /fab:archive when changes are completed. -->
+<!-- This index is maintained by /fab-archive when changes are completed. -->
 <!-- Each domain gets a row linking to its docs. -->
 
 | Domain | Description | Docs |
@@ -214,7 +214,7 @@ Created: 11 symlinks in .claude/skills/
 Updated: .gitignore (added fab/current)
 fab/ initialized successfully.
 
-Next: /fab:new <description> or /fab:hydrate <sources>
+Next: /fab-new <description> or /fab-hydrate <sources>
 ```
 
 ### Re-run (structural health check)
@@ -250,9 +250,9 @@ This skill is safe to run any number of times:
 |-----------|--------|
 | `fab/.kit/` missing | Abort immediately with guidance message. Do NOT create any files. |
 | `fab/.kit/VERSION` unreadable | Abort with: "fab/.kit/VERSION not found or unreadable — kit may be corrupted." |
-| Arguments provided | Abort with: "Did you mean /fab:hydrate? /fab:init no longer accepts source arguments." |
+| Arguments provided | Abort with: "Did you mean /fab-hydrate? /fab-init no longer accepts source arguments." |
 | Symlink target missing | Report which skill file is missing in `fab/.kit/skills/` — do NOT create a broken symlink |
 
 ---
 
-Next: `/fab:new <description>` or `/fab:hydrate <sources>`
+Next: `/fab-new <description>` or `/fab-hydrate <sources>`

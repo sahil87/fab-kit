@@ -3,7 +3,7 @@ name: fab-status
 description: "Show current change state at a glance — name, branch, stage, checklist status, and suggested next command."
 ---
 
-# /fab:status
+# /fab-status
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 

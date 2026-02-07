@@ -4,13 +4,13 @@
 
 ## Overview
 
-The execution skills (`/fab:apply`, `/fab:review`, `/fab:archive`) handle the implementation, validation, and completion stages of the Fab workflow. They execute tasks from the planning phase, validate the result against specs and checklists, and hydrate learnings into centralized docs on completion.
+The execution skills (`/fab-apply`, `/fab-review`, `/fab-archive`) handle the implementation, validation, and completion stages of the Fab workflow. They execute tasks from the planning phase, validate the result against specs and checklists, and hydrate learnings into centralized docs on completion.
 
 ## Requirements
 
-### `/fab:apply`
+### `/fab-apply`
 
-`/fab:apply` executes tasks from `tasks.md` in dependency order, running tests after each completed task.
+`/fab-apply` executes tasks from `tasks.md` in dependency order, running tests after each completed task.
 
 #### Task Execution
 
@@ -23,15 +23,15 @@ The execution skills (`/fab:apply`, `/fab:review`, `/fab:archive`) handle the im
 
 #### Resumability
 
-`/fab:apply` is inherently resumable. If the agent is interrupted mid-run, re-invoking `/fab:apply` picks up from the first unchecked item. The markdown checklist *is* the progress state — no separate tracking needed.
+`/fab-apply` is inherently resumable. If the agent is interrupted mid-run, re-invoking `/fab-apply` picks up from the first unchecked item. The markdown checklist *is* the progress state — no separate tracking needed.
 
 #### Context
 
 Loads: config, constitution, `tasks.md`, `spec.md`, `plan.md` (if exists), relevant source code (files referenced in tasks).
 
-### `/fab:review`
+### `/fab-review`
 
-`/fab:review` validates implementation against specs and checklists. On pass, it advances to archive readiness. On failure, it presents rework options.
+`/fab-review` validates implementation against specs and checklists. On pass, it advances to archive readiness. On failure, it presents rework options.
 
 #### Validation Checks
 
@@ -50,10 +50,10 @@ All checks succeed → stage advances to review done.
 
 The agent presents options and the user chooses where to loop back:
 
-- **Fix code** → `/fab:apply` — Implementation bug. The agent identifies which tasks need rework, unchecks them in `tasks.md` (marks `- [ ]` with a `<!-- rework: reason -->` comment), and re-runs `/fab:apply`
-- **Revise tasks** → edit `tasks.md`, then `/fab:apply` — Missing or wrong tasks. New tasks get next sequential ID. Completed unaffected tasks stay `[x]`
-- **Revise plan** → `/fab:continue plan` — Architecture was wrong. Resets to plan stage, updates `plan.md` in place, invalidates downstream (tasks reset, checklist regenerated)
-- **Revise specs** → `/fab:continue specs` — Requirements were wrong or incomplete. Resets to specs stage, updates `spec.md`. Plan and tasks subsequently regenerated
+- **Fix code** → `/fab-apply` — Implementation bug. The agent identifies which tasks need rework, unchecks them in `tasks.md` (marks `- [ ]` with a `<!-- rework: reason -->` comment), and re-runs `/fab-apply`
+- **Revise tasks** → edit `tasks.md`, then `/fab-apply` — Missing or wrong tasks. New tasks get next sequential ID. Completed unaffected tasks stay `[x]`
+- **Revise plan** → `/fab-continue plan` — Architecture was wrong. Resets to plan stage, updates `plan.md` in place, invalidates downstream (tasks reset, checklist regenerated)
+- **Revise specs** → `/fab-continue specs` — Requirements were wrong or incomplete. Resets to specs stage, updates `spec.md`. Plan and tasks subsequently regenerated
 
 The general rule: **artifacts at and after the re-entry point are regenerated or updated; artifacts before it are preserved.**
 
@@ -61,14 +61,14 @@ The general rule: **artifacts at and after the re-entry point are regenerated or
 
 Loads: config, constitution, `tasks.md`, `checklists/quality.md`, `spec.md`, target centralized doc(s) from `fab/docs/`, relevant source code (files touched by the change).
 
-### `/fab:archive`
+### `/fab-archive`
 
-`/fab:archive` completes a change: validates review passed, hydrates learnings into centralized docs, and moves the change to archive.
+`/fab-archive` completes a change: validates review passed, hydrates learnings into centralized docs, and moves the change to archive.
 
 #### Behavior
 
 1. **Final validation** — review MUST have passed (all tasks `[x]`, all checklist items `[x]` including N/A items)
-2. **Concurrent change check** — scan `fab/changes/` for other active changes whose specs reference the same centralized doc files. If found, warn: "Change {name} also modifies {doc}. After this archive, that change's spec was written against a now-stale base. Re-review with `/fab:review` after switching to it."
+2. **Concurrent change check** — scan `fab/changes/` for other active changes whose specs reference the same centralized doc files. If found, warn: "Change {name} also modifies {doc}. After this archive, that change's spec was written against a now-stale base. Re-review with `/fab-review` after switching to it."
 3. **Hydrate into `fab/docs/`**:
    - From `spec.md` → integrate new/changed requirements and scenarios into the Requirements section. Remove requirements the spec explicitly deprecates
    - From `plan.md` → extract durable design decisions into Design Decisions section. Skip tactical details (file paths, setup steps, library install commands)
@@ -80,7 +80,7 @@ Loads: config, constitution, `tasks.md`, `checklists/quality.md`, `spec.md`, tar
 
 #### Fail-Safe Order of Operations
 
-Steps 3–6 are ordered to fail safely. Status is updated *before* the folder move, so if the move is interrupted, the change is marked archived but still in `changes/` — the agent can detect and complete the move on next invocation. The pointer is cleared last so mid-archive, `/fab:status` still reports the active change.
+Steps 3–6 are ordered to fail safely. Status is updated *before* the folder move, so if the move is interrupted, the change is marked archived but still in `changes/` — the agent can detect and complete the move on next invocation. The pointer is cleared last so mid-archive, `/fab-status` still reports the active change.
 
 #### Recovery
 
@@ -94,7 +94,7 @@ Loads: `spec.md`, `plan.md` (if exists), target centralized doc(s) from `fab/doc
 
 ### Checklist Tests Implementation Fidelity, Not Spec Quality
 **Decision**: The quality checklist validates "does the code match the spec?" rather than "is the spec well-written?"
-**Why**: Fab has explicit spec review during the specs stage (via `/fab:clarify`). A separate requirement-quality checklist is redundant. The checklist focuses on what matters at review time: implementation correctness.
+**Why**: Fab has explicit spec review during the specs stage (via `/fab-clarify`). A separate requirement-quality checklist is redundant. The checklist focuses on what matters at review time: implementation correctness.
 **Rejected**: SpecKit-style requirement-quality checklist — duplicates work already done during planning stages.
 *Source*: doc/fab-spec/TEMPLATES.md
 
@@ -120,4 +120,5 @@ Loads: `spec.md`, `plan.md` (if exists), target centralized doc(s) from `fab/doc
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab:xxx` colon format to `/fab-xxx` hyphen format |
 | — | 2026-02-07 | Generated from doc/fab-spec/ (SKILLS.md, TEMPLATES.md) |

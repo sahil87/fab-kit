@@ -4,13 +4,13 @@
 
 ## Overview
 
-`/fab:hydrate [sources...|folders...]` is a standalone skill that operates in two modes: **ingest mode** (fetching URLs or reading `.md` files into `fab/docs/`) and **generate mode** (scanning the codebase for undocumented areas and producing structured docs). Mode is determined automatically by argument type — no flags needed. It requires `fab/docs/` to exist (created by `/fab:init`). See [hydrate-generate](hydrate-generate.md) for full generate mode requirements.
+`/fab-hydrate [sources...|folders...]` is a standalone skill that operates in two modes: **ingest mode** (fetching URLs or reading `.md` files into `fab/docs/`) and **generate mode** (scanning the codebase for undocumented areas and producing structured docs). Mode is determined automatically by argument type — no flags needed. It requires `fab/docs/` to exist (created by `/fab-init`). See [hydrate-generate](hydrate-generate.md) for full generate mode requirements.
 
 ## Requirements
 
 ### Standalone Hydrate Skill
 
-The system provides `/fab:hydrate [sources...|folders...]` as an independent skill containing hydration and generation logic. It is defined in `fab/.kit/skills/fab-hydrate.md` and is auto-discovered by `fab-setup.sh`'s `fab-*.md` glob pattern.
+The system provides `/fab-hydrate [sources...|folders...]` as an independent skill containing hydration and generation logic. It is defined in `fab/.kit/skills/fab-hydrate.md` and is auto-discovered by `fab-setup.sh`'s `fab-*.md` glob pattern.
 
 ### Argument-Driven Mode Selection
 
@@ -42,7 +42,7 @@ When arguments route to generate mode (no arguments or folder paths), the skill 
 
 ### Prerequisite
 
-`/fab:hydrate` requires `fab/docs/` to exist. If missing, it aborts with: "fab/docs/ not found. Run /fab:init first to create the docs directory."
+`/fab-hydrate` requires `fab/docs/` to exist. If missing, it aborts with: "fab/docs/ not found. Run /fab-init first to create the docs directory."
 
 ### Idempotent Hydration
 
@@ -69,7 +69,7 @@ Every hydration operation maintains navigable indexes:
 *Introduced by*: 260207-q7m3-separate-hydrate-smart-context
 
 ### Hydrate Requires fab/docs/ to Exist
-**Decision**: `/fab:hydrate` checks for `fab/docs/` and aborts if missing, directing user to run `/fab:init` first.
+**Decision**: `/fab-hydrate` checks for `fab/docs/` and aborts if missing, directing user to run `/fab-init` first.
 **Why**: Keeps the dependency clear — init creates structure, hydrate populates it.
 **Rejected**: Auto-creating `fab/docs/` in hydrate — would blur the separation of concerns.
 *Introduced by*: 260207-q7m3-separate-hydrate-smart-context
@@ -84,5 +84,6 @@ Every hydration operation maintains navigable indexes:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab:xxx` colon format to `/fab-xxx` hyphen format |
 | 260207-k5od-hydrate-generate-mode | 2026-02-07 | Added generate mode — unified argument routing, dual-mode overview, cross-reference to hydrate-generate doc |
-| 260207-q7m3-separate-hydrate-smart-context | 2026-02-07 | Created hydrate doc — extracted `/fab:hydrate` as standalone skill from `/fab:init` Phase 2 |
+| 260207-q7m3-separate-hydrate-smart-context | 2026-02-07 | Created hydrate doc — extracted `/fab-hydrate` as standalone skill from `/fab-init` Phase 2 |

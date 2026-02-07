@@ -3,7 +3,7 @@ name: fab-ff
 description: "Fast-forward through all remaining planning stages in one pass to reach implementation quickly."
 ---
 
-# /fab:ff
+# /fab-ff
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -15,8 +15,8 @@ Fast-forward through all remaining planning stages in one pass. Generates specs,
 
 Two modes:
 
-- **Default** (`/fab:ff`) — interleaves auto-clarify; stops if blocking issues are found that the agent cannot resolve autonomously. Resumable.
-- **Full-auto** (`/fab:ff --auto`) — same pipeline but never stops; makes best-guess decisions on blockers and marks them with `<!-- auto-guess: ... -->` markers.
+- **Default** (`/fab-ff`) — interleaves auto-clarify; stops if blocking issues are found that the agent cannot resolve autonomously. Resumable.
+- **Full-auto** (`/fab-ff --auto`) — same pipeline but never stops; makes best-guess decisions on blockers and marks them with `<!-- auto-guess: ... -->` markers.
 
 ---
 
@@ -34,7 +34,7 @@ Then verify the stage-specific precondition using the preflight output:
 
 **If `progress.proposal` is not `done`, STOP.** Output:
 
-> `Proposal is not complete. Finish the proposal first with /fab:new or /fab:continue, then run /fab:ff.`
+> `Proposal is not complete. Finish the proposal first with /fab-new or /fab-continue, then run /fab-ff.`
 
 ---
 
@@ -60,7 +60,7 @@ On invocation, check the `progress` map from preflight output. **Skip stages alr
 - If `progress.plan` is already `done` or `skipped`, skip Step 3 (plan decision) and its auto-clarify
 - If `progress.tasks` is already `done`, skip Step 4 (task generation) and its auto-clarify
 
-This makes `/fab:ff` resumable after a bail — re-running picks up from the first incomplete stage.
+This makes `/fab-ff` resumable after a bail — re-running picks up from the first incomplete stage.
 
 ### Step 1: Frontload All Questions
 
@@ -112,7 +112,7 @@ Run auto-clarify on the generated spec (invoke `fab-clarify` in **auto mode** wi
   > `Auto-clarify found {N} blocking issue(s) in spec.md that cannot be resolved autonomously:`
   > `- {description of each blocking issue}`
   >
-  > `Run /fab:clarify to resolve these interactively, then /fab:ff to resume.`
+  > `Run /fab-clarify to resolve these interactively, then /fab-ff to resume.`
   >
   > Leave `.status.yaml` with `specs: done`, `plan: pending`, `tasks: pending`.
 - **`blocking > 0` (--auto mode)** → make best-guess decisions. For each blocking issue, resolve it in the artifact and mark the resolution with `<!-- auto-guess: {description} -->`. Record the guess for the output warning. Continue to Step 3.
@@ -121,7 +121,7 @@ Run auto-clarify on the generated spec (invoke `fab-clarify` in **auto mode** wi
 
 *(Skip if `progress.plan` is already `done` or `skipped`.)*
 
-Evaluate whether a `plan.md` is warranted. **Unlike `/fab:continue`, this decision is made autonomously** — do NOT ask the user. The fast-forward flow should not be interrupted.
+Evaluate whether a `plan.md` is warranted. **Unlike `/fab-continue`, this decision is made autonomously** — do NOT ask the user. The fast-forward flow should not be interrupted.
 
 **Criteria for skipping the plan:**
 - The change is small in scope (touches few files)
@@ -254,7 +254,7 @@ Generated checklists/quality.md with {N} items.
 
 Fast-forward complete — specs, {plan/no plan}, tasks, and checklist generated.
 
-Next: /fab:apply
+Next: /fab-apply
 ```
 
 ### Default Mode — Bail on Blocking Issue
@@ -272,7 +272,7 @@ Auto-clarify: spec — {resolved: 2, blocking: 1, non_blocking: 0}
 ⚠ Auto-clarify found 1 blocking issue in spec.md:
 - The spec references "external auth provider" but available context doesn't specify which provider to use.
 
-Run /fab:clarify to resolve this interactively, then /fab:ff to resume.
+Run /fab-clarify to resolve this interactively, then /fab-ff to resume.
 ```
 
 ### Default Mode — Resume After Bail
@@ -300,7 +300,7 @@ Generated checklists/quality.md with {N} items.
 
 Fast-forward complete — specs, {plan/no plan}, tasks, and checklist generated.
 
-Next: /fab:apply
+Next: /fab-apply
 ```
 
 ### Full-Auto Mode (`--auto`) — With Auto-Guesses
@@ -339,9 +339,9 @@ Fast-forward complete — specs, plan, tasks, and checklist generated.
 ⚠ Auto-guesses made (review these before implementation):
 1. Assumed OAuth2 for auth provider (in spec.md)
 
-Run /fab:clarify to review and confirm auto-guesses, or proceed with /fab:apply.
+Run /fab-clarify to review and confirm auto-guesses, or proceed with /fab-apply.
 
-Next: /fab:apply
+Next: /fab-apply
 ```
 
 ### Full-Auto Mode — No Issues
@@ -353,7 +353,7 @@ Fast-forwarding from proposal (full-auto)...
 
 No auto-guesses were necessary — all artifacts are clean.
 
-Next: /fab:apply
+Next: /fab-apply
 ```
 
 ### Ambiguous Proposal (questions first, then pipeline)
@@ -380,7 +380,7 @@ Auto-clarify: spec — {resolved: N, blocking: 0, non_blocking: N}
 
 Fast-forward complete — specs, {plan/no plan}, tasks, and checklist generated.
 
-Next: /fab:apply
+Next: /fab-apply
 ```
 
 ---
@@ -390,20 +390,20 @@ Next: /fab:apply
 | Condition | Action |
 |-----------|--------|
 | Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
-| `progress.proposal` is not `done` | Abort with: "Proposal is not complete. Finish the proposal first with /fab:new or /fab:continue, then run /fab:ff." |
+| `progress.proposal` is not `done` | Abort with: "Proposal is not complete. Finish the proposal first with /fab-new or /fab-continue, then run /fab-ff." |
 | Template file missing | Abort with: "Template not found at fab/.kit/templates/{file} — kit may be corrupted." |
 | Specs already done (stage is `specs` or later) | Resume from current position — skip completed stages |
-| Auto-clarify returns blocking issues (default mode) | Bail — stop pipeline, report issues, suggest `/fab:clarify` then `/fab:ff` |
+| Auto-clarify returns blocking issues (default mode) | Bail — stop pipeline, report issues, suggest `/fab-clarify` then `/fab-ff` |
 | Auto-clarify returns blocking issues (`--auto` mode) | Best-guess — resolve with `<!-- auto-guess: ... -->` markers, warn in output |
 
 ---
 
-## Key Difference from `/fab:continue`
+## Key Difference from `/fab-continue`
 
-| Behavior | `/fab:continue` | `/fab:ff` | `/fab:ff --auto` |
+| Behavior | `/fab-continue` | `/fab-ff` | `/fab-ff --auto` |
 |----------|-----------------|-----------|-------------------|
 | Questions | Asked per-stage as needed | Frontloaded: one batch upfront | Same as default |
-| Auto-clarify | None (manual `/fab:clarify`) | Between each stage; bails on blockers | Between each stage; guesses on blockers |
+| Auto-clarify | None (manual `/fab-clarify`) | Between each stage; bails on blockers | Between each stage; guesses on blockers |
 | Plan decision | Proposes skip to user, waits for confirmation | Decides autonomously | Decides autonomously |
 | Stages per invocation | One stage at a time | All remaining (may bail mid-way) | All remaining (never bails) |
 | Resumable? | N/A (one stage) | Yes — re-invoke after bail | N/A (never bails) |
@@ -413,10 +413,10 @@ Next: /fab:apply
 
 ## Next Steps Reference
 
-After `/fab:ff` completes:
+After `/fab-ff` completes:
 
-`Next: /fab:apply`
+`Next: /fab-apply`
 
-After `/fab:ff --auto` completes:
+After `/fab-ff --auto` completes:
 
-`Next: /fab:apply`
+`Next: /fab-apply`

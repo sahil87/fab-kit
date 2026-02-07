@@ -3,7 +3,7 @@ name: fab-apply
 description: "Execute implementation tasks from tasks.md in dependency order, running tests after each. Resumable."
 ---
 
-# /fab:apply
+# /fab-apply
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -30,11 +30,11 @@ Then verify stage-specific preconditions using the preflight output:
 
 **If `progress.tasks` is not `done`, STOP.** Output:
 
-> `Tasks stage is not complete. Run /fab:continue or /fab:ff to generate tasks first.`
+> `Tasks stage is not complete. Run /fab-continue or /fab-ff to generate tasks first.`
 
 **If `tasks.md` does not exist, STOP.** Output:
 
-> `No tasks.md found for this change. Run /fab:continue or /fab:ff to generate tasks first.`
+> `No tasks.md found for this change. Run /fab-continue or /fab-ff to generate tasks first.`
 
 ---
 
@@ -72,7 +72,7 @@ Build a task list:
 
 > `All tasks are already complete. Nothing to do.`
 >
-> `Next: /fab:review`
+> `Next: /fab-review`
 
 And update `.status.yaml`:
 - Set `stage` to `apply`
@@ -90,7 +90,7 @@ Tasks execute in the order they appear in `tasks.md`, with these rules:
 3. **Within a phase, `[P]` tasks are parallelizable**: Tasks marked `[P]` within the same phase can be executed in any order or simultaneously, as they touch different files and have no dependencies on each other.
 4. **The Execution Order section** at the bottom of `tasks.md` documents non-obvious dependencies. Respect any explicit dependency constraints listed there (e.g., "T004 blocks T005").
 
-**Resumability**: Start from the **first unchecked item** (`- [ ]`). All checked items are assumed complete. This means re-invoking `/fab:apply` after an interruption picks up exactly where it left off.
+**Resumability**: Start from the **first unchecked item** (`- [ ]`). All checked items are assumed complete. This means re-invoking `/fab-apply` after an interruption picks up exactly where it left off.
 
 ### Step 3: Execute Each Task
 
@@ -188,7 +188,7 @@ Executing T{NNN}: {description}...
 
 All {N} tasks complete. Implementation finished.
 
-Next: /fab:review
+Next: /fab-review
 ```
 
 ### Resuming (some tasks already done)
@@ -203,7 +203,7 @@ Executing T005: {description}...
 
 All {N} tasks complete. Implementation finished.
 
-Next: /fab:review
+Next: /fab-review
 ```
 
 ### Test Failure During Task
@@ -224,7 +224,7 @@ Re-running tests...
 ```
 All tasks are already complete. Nothing to do.
 
-Next: /fab:review
+Next: /fab-review
 ```
 
 ---
@@ -234,8 +234,8 @@ Next: /fab:review
 | Condition | Action |
 |-----------|--------|
 | Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
-| `progress.tasks` is not `done` | Abort with: "Tasks stage is not complete. Run /fab:continue or /fab:ff to generate tasks first." |
-| `tasks.md` missing | Abort with: "No tasks.md found. Run /fab:continue or /fab:ff to generate tasks first." |
+| `progress.tasks` is not `done` | Abort with: "Tasks stage is not complete. Run /fab-continue or /fab-ff to generate tasks first." |
+| `tasks.md` missing | Abort with: "No tasks.md found. Run /fab-continue or /fab-ff to generate tasks first." |
 | Template/spec file missing during implementation | Report which file is missing; do not guess content |
 | Test failure | Fix implementation, re-run tests, repeat until passing |
 | All tasks already `[x]` | Report completion, set progress.apply to done, output Next line |
@@ -257,6 +257,6 @@ Next: /fab:review
 
 ## Next Steps Reference
 
-After `/fab:apply` completes:
+After `/fab-apply` completes:
 
-`Next: /fab:review`
+`Next: /fab-review`

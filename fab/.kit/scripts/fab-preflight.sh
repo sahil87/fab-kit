@@ -5,20 +5,20 @@ fab_root="$(dirname "$0")/../.."
 
 # 1. Project initialization validation
 if [ ! -f "$fab_root/config.yaml" ] || [ ! -f "$fab_root/constitution.md" ]; then
-  echo "fab/ is not initialized. Run /fab:init first." >&2
+  echo "fab/ is not initialized. Run /fab-init first." >&2
   exit 1
 fi
 
 # 2. fab/current validation
 current_file="$fab_root/current"
 if [ ! -f "$current_file" ]; then
-  echo "No active change. Run /fab:new to start one." >&2
+  echo "No active change. Run /fab-new to start one." >&2
   exit 1
 fi
 
 name=$(tr -d '[:space:]' < "$current_file")
 if [ -z "$name" ]; then
-  echo "No active change. Run /fab:new to start one." >&2
+  echo "No active change. Run /fab-new to start one." >&2
   exit 1
 fi
 
