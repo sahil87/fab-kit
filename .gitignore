@@ -1,1 +1,6 @@
 fab/current
+
+# Ralph runtime logs and temp files
+.ralph/activity.log
+.ralph/errors.log
+.ralph/.tmp/
