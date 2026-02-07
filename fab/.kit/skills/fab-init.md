@@ -157,7 +157,34 @@ If `fab/docs/index.md` does **not** exist:
 
 If `fab/docs/index.md` **already exists**: report "docs/index.md already exists — skipping" and move on.
 
-#### 1d. `fab/changes/`
+#### 1d. `fab/specs/index.md`
+
+If `fab/specs/index.md` does **not** exist:
+
+1. Create `fab/specs/` directory if needed
+2. Create `fab/specs/index.md` with an empty index:
+
+```markdown
+# Specifications Index
+
+> **Specs are pre-implementation artifacts** — what you *planned*. They capture conceptual design
+> intent, high-level decisions, and the "why" behind features. Specs are human-curated,
+> flat in structure, and deliberately size-controlled for quick reading.
+>
+> Contrast with [`fab/docs/index.md`](../docs/index.md): docs are *post-implementation* —
+> what actually happened. Docs are the authoritative source of truth for system behavior,
+> maintained by `/fab-archive` hydration.
+>
+> **Ownership**: Specs are written and maintained by humans. No automated tooling creates or
+> enforces structure here — organize files however makes sense for your project.
+
+| Spec | Description |
+|------|-------------|
+```
+
+If `fab/specs/index.md` **already exists**: report "specs/index.md already exists — skipping" and move on.
+
+#### 1e. `fab/changes/`
 
 If `fab/changes/` directory does **not** exist:
 
@@ -166,7 +193,7 @@ If `fab/changes/` directory does **not** exist:
 
 If `fab/changes/` **already exists**: report "changes/ already exists — skipping" and move on.
 
-#### 1e. `.claude/skills/` Symlinks
+#### 1f. `.claude/skills/` Symlinks
 
 Run `fab/.kit/scripts/fab-setup.sh` to create or repair all skill symlinks and directories. This script is the **single source of truth** for the structural bootstrap — it handles directories, symlinks, docs index, and `.gitignore`.
 
@@ -189,7 +216,7 @@ If the script cannot be executed (e.g., Windows without bash), perform the equiv
 
 Report how many symlinks were created, repaired, or already valid.
 
-#### 1f. `.gitignore` — append `fab/current`
+#### 1g. `.gitignore` — append `fab/current`
 
 1. Read `.gitignore` at the project root (create it if it doesn't exist)
 2. Check if `fab/current` is already listed (exact line match or with trailing whitespace/comment)
@@ -209,6 +236,7 @@ Found fab/.kit/ (v{VERSION}). Initializing project...
 Created: fab/config.yaml
 Created: fab/constitution.md
 Created: fab/docs/index.md
+Created: fab/specs/index.md
 Created: fab/changes/
 Created: 11 symlinks in .claude/skills/
 Updated: .gitignore (added fab/current)
@@ -224,6 +252,7 @@ Found fab/.kit/ (v{VERSION}). Verifying structure...
 config.yaml — OK
 constitution.md — OK
 docs/index.md — OK
+specs/index.md — OK
 changes/ — OK
 Symlinks: 11/11 valid (repaired 1)
 .gitignore: fab/current present
@@ -238,6 +267,7 @@ This skill is safe to run any number of times:
 
 - **Config and constitution**: Created once, never overwritten on re-run
 - **Docs index**: Created once, never touched on re-run
+- **Specs index**: Created once, never touched on re-run
 - **Changes directory**: Created once, never touched on re-run
 - **Symlinks**: Verified and repaired on every run — broken symlinks are fixed, valid ones are left alone
 - **`.gitignore`**: Entry is appended only if not already present

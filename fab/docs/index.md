@@ -1,7 +1,12 @@
 # Documentation Index
 
-> Source of truth for system behavior and design. Updated by `/fab-archive` hydration.
+> **Docs are post-implementation artifacts** — what actually *happened*. They are the
+> authoritative source of truth for system behavior and design decisions, maintained by
+> `/fab-archive` hydration after each change is completed.
+>
+> Contrast with [`fab/specs/index.md`](../specs/index.md): specs are *pre-implementation* —
+> what you planned. Specs capture conceptual design intent and are human-curated.
 
 | Domain | Description | Docs |
 |--------|-------------|------|
-| [fab-workflow](fab-workflow/index.md) | Fab kit workflow — skills, architecture, templates, configuration, change lifecycle | hydrate, hydrate-generate, init, context-loading, planning-skills, clarify, execution-skills, change-lifecycle, templates, kit-architecture, configuration, preflight |
+| [fab-workflow](fab-workflow/index.md) | Fab kit workflow — skills, architecture, templates, configuration, change lifecycle | hydrate, hydrate-generate, init, context-loading, planning-skills, clarify, execution-skills, change-lifecycle, templates, kit-architecture, configuration, preflight, specs-index |

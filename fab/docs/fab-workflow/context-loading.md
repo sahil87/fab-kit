@@ -10,13 +10,14 @@ The context loading convention defines how fab skills load project context befor
 
 ### Always Load Layer
 
-Every skill (except `/fab-init`, `/fab-switch`, `/fab-status`, `/fab-hydrate`) reads three files as baseline context:
+Every skill (except `/fab-init`, `/fab-switch`, `/fab-status`, `/fab-hydrate`) reads four files as baseline context:
 
 1. `fab/config.yaml` — project configuration, tech stack, naming conventions
 2. `fab/constitution.md` — project principles and constraints (MUST/SHOULD/MUST NOT rules)
 3. `fab/docs/index.md` — documentation landscape (which domains and docs exist)
+4. `fab/specs/index.md` — specifications landscape (pre-implementation design intent, human-curated)
 
-This gives the agent awareness of project configuration, constraints, and the documentation landscape before generating any artifact.
+This gives the agent awareness of project configuration, constraints, the documentation landscape, and the specifications landscape before generating any artifact.
 
 ### Preflight Script for Change Context
 
@@ -54,6 +55,12 @@ The following skills skip the standard context loading layers:
 **Rejected**: Per-skill opt-in — too much maintenance overhead and easy to miss new skills.
 *Introduced by*: 260207-q7m3-separate-hydrate-smart-context
 
+### Always Load fab/specs/index.md
+**Decision**: Added `fab/specs/index.md` to the "Always Load" layer as a 4th baseline file.
+**Why**: Gives every skill awareness of the specifications landscape (pre-implementation design intent) alongside the documentation landscape. The index is lightweight and human-curated, so context cost is minimal.
+**Rejected**: Loading specs index only when relevant — same inconsistency risk as with docs/index.md.
+*Introduced by*: 260207-bb1q-add-specs-index
+
 ### Always Load fab/docs/index.md
 **Decision**: Added `fab/docs/index.md` to the "Always Load" layer alongside config.yaml and constitution.md.
 **Why**: Gives every skill baseline awareness of the documentation landscape. The index is lightweight (a table of domains), so the context cost is minimal.
@@ -66,4 +73,5 @@ The following skills skip the standard context loading layers:
 |--------|------|---------|
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab:xxx` colon format to `/fab-xxx` hyphen format |
 | 260207-5mjv-preflight-grep-scripts | 2026-02-07 | Added preflight script integration — Change Context layer now uses `fab-preflight.sh` for validation and state resolution |
+| 260207-bb1q-add-specs-index | 2026-02-07 | Added `fab/specs/index.md` as 4th file in Always Load layer |
 | 260207-q7m3-separate-hydrate-smart-context | 2026-02-07 | Added `fab/docs/index.md` to always-load, expanded selective loading to all skills on active changes |

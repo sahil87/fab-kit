@@ -14,3 +14,4 @@
 | [kit-architecture](kit-architecture.md) | `.kit/` structure, scripts, agent integration, distribution, versioning, monorepos | 2026-02-07 |
 | [configuration](configuration.md) | `config.yaml` schema, `constitution.md` governance, stage graph definition | 2026-02-07 |
 | [preflight](preflight.md) | `fab-preflight.sh` script — validation, structured YAML output, skill integration | 2026-02-07 |
+| [specs-index](specs-index.md) | `fab/specs/` directory — pre-implementation specs, distinction from docs, bootstrap and context integration | 2026-02-07 |

@@ -16,6 +16,7 @@ Read these files first — they define the project's identity, constraints, and 
 - **`fab/config.yaml`** — project configuration, tech stack, naming conventions, stage configuration
 - **`fab/constitution.md`** — project principles and constraints (MUST/SHOULD/MUST NOT rules)
 - **`fab/docs/index.md`** — documentation landscape (which domains and docs exist)
+- **`fab/specs/index.md`** — specifications landscape (pre-implementation design intent, human-curated)
 
 > **Note**: If the skill runs `fab-preflight.sh` (Section 2 above), the init check (config.yaml and constitution.md existence) is already covered by the script. Skills using preflight don't need separate existence checks for these files — they only need to read them for content.
 

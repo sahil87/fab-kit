@@ -4,7 +4,7 @@
 
 ## Overview
 
-`/fab-init` is the structural bootstrap skill that creates the `fab/` directory layout. It sets up `config.yaml`, `constitution.md`, `docs/index.md`, the `changes/` directory, skill symlinks, and `.gitignore`. It does not handle doc hydration — that responsibility belongs to `/fab-hydrate`.
+`/fab-init` is the structural bootstrap skill that creates the `fab/` directory layout. It sets up `config.yaml`, `constitution.md`, `docs/index.md`, `specs/index.md`, the `changes/` directory, skill symlinks, and `.gitignore`. It does not handle doc hydration — that responsibility belongs to `/fab-hydrate`.
 
 ## Requirements
 
@@ -15,6 +15,7 @@
 - Creates `fab/config.yaml` (project configuration)
 - Creates `fab/constitution.md` (project principles)
 - Creates `fab/docs/index.md` (documentation index skeleton)
+- Creates `fab/specs/index.md` (specifications index skeleton — pre-implementation, human-curated)
 - Creates `fab/changes/` directory
 - Creates skill symlinks via `fab-setup.sh` glob pattern
 - Creates `.gitignore` entries
@@ -54,4 +55,5 @@ First-run output lists only structural artifacts created. Next step suggests `/f
 | Change | Date | Summary |
 |--------|------|---------|
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab:xxx` colon format to `/fab-xxx` hyphen format |
+| 260207-bb1q-add-specs-index | 2026-02-07 | Added `fab/specs/index.md` creation as step 1d in bootstrap sequence |
 | 260207-q7m3-separate-hydrate-smart-context | 2026-02-07 | Simplified to structural bootstrap only — removed Phase 2 source hydration, added argument redirect |

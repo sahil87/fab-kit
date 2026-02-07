@@ -1,0 +1,18 @@
+name: 260207-bb1q-add-specs-index
+created: 2026-02-07T12:00:00+00:00
+branch: 260207-bb1q-add-specs-index
+stage: archive
+progress:
+  proposal: done
+  specs: done
+  plan: skipped
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklists/quality.md
+  completed: 17
+  total: 17
+last_updated: 2026-02-07T12:06:00+00:00
