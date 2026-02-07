@@ -9,4 +9,7 @@
 - [x] [2t3g] 2026-02-07: Create a setup.sh in the .kit folder, so one can run fab/.kit/setup.sh to setup all the symlinks required properly
 - [x] [88gc] 2026-02-07: add a fab-help skill also
 - [x] [pn18] 2026-02-07: fab-init needs to be sync with the setup script. Or else the directory strucutres for both these commands will go out of sync
-- [ ] [waup] 2026-02-07: Standardize scripts (add a fab- prefix) and make /fab-help call the fab-help.sh script.
+- [x] [waup] 2026-02-07: Understand the spec from doc/fab-spec/* . Then look at current implementation in fab/* . Our task: Standardize the scripts names (in fab/.kit/scripts/) : add a fab- prefix, Create a fab-help.sh script, and make /fab-help skill call the fab-help.sh script internally.
+- [ ] [9iyu] 2026-02-07: Understand the spec from doc/fab-spec/* . Separate our docs (fab/docs/) hydartion from fab:init - these two can be made separate (vai a new fab:hydrate command). Right now I think fab:init had this dual responsibility. That should no longer be the case. Now that we have a proper documentation in place at fab/docs/ after running fab:hydrate the following change should be safe: ensure the relevant context is always loaded smartly (from fab/docs) before any fab: command. (And hence) the documentation in fab/docs should be properly indexed (contain proper index.md files referencing other files) so its easy agents to get to and load the relevant sections to context fast. 
+- [ ] [ny4x] 2026-02-07: In the user prompts we are referring to fab commands as fab:xxx instead of fab-xxxx. This needs to be updated.
+
