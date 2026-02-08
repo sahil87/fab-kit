@@ -6,12 +6,12 @@ Were there manual steps repeated 2+ times that could become a script or shell al
 - Suggested script name and what it would do
 
 ## 2. Skill & Prompt Quality
-Did any `/fab:*` or other skill produce output that needed significant correction, re-runs, or manual fixup?
+Did any `/fab-*` or other skill produce output that needed significant correction, re-runs, or manual fixup?
 - Which skill misfired and what went wrong (ambiguous prompt, missing context, wrong assumptions)
 - Concrete suggestion: what should change in the skill prompt to prevent this
 
 ## 3. Context & Documentation Gaps
-Did the agent make wrong assumptions because information was missing from `fab/docs/`, `_context.md`, `CLAUDE.md`, or `constitution.md`?
+Did the agent make wrong assumptions because information was missing from `fab/docs/`, `fab/specs/`, `_context.md`, `CLAUDE.md`, or `constitution.md`?
 - What was assumed vs. what was actually true
 - Where should this knowledge live so future sessions don't re-learn it
 
