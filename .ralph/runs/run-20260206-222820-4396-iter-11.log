@@ -1,8 +1,0 @@
-Clean working tree. All tasks complete. US-011 is fully implemented and verified.
-
-**Summary of what was done:**
-- Created `fab/.kit/skills/fab-review.md` — comprehensive agent-agnostic markdown skill (~290 lines) covering all acceptance criteria
-- Created `.claude/skills/fab-review.md` symlink pointing to `../../fab/.kit/skills/fab-review.md`
-- All applicable quality gates pass; gates that fail are for stories not yet implemented (US-012, US-013, US-014, US-015)
-
-<promise>COMPLETE</promise>

@@ -1,8 +1,0 @@
-**US-001 Summary:**
-- Created `fab/.kit/` with `templates/`, `skills/`, `scripts/` subdirectories
-- Created `fab/.kit/VERSION` containing exactly `0.1.0` (verified via hex dump — no v prefix, no extra text)
-- All acceptance criteria verified and passing
-- Committed as `520f08c` with progress log update in `ea41b21`
-- Working tree is clean
-
-<promise>COMPLETE</promise>

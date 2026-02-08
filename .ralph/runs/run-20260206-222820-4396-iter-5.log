@@ -1,9 +1,0 @@
-Clean working tree. US-005 is complete.
-
-**Summary:**
-- Created `fab/.kit/skills/fab-init.md` (329 lines) — comprehensive agent-agnostic markdown skill for bootstrapping `fab/` in any project
-- All acceptance criteria met: _context.md preamble reference, pre-flight check, idempotent structural bootstrap, source hydration, symlink creation for all 10 skills, idempotency guarantees, error handling, output examples, and `Next: /fab:new <description>` ending
-- Committed as `96ef6fa` + progress log update as `8b16c81`
-- Working tree is clean
-
-<promise>COMPLETE</promise>

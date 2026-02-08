@@ -1,9 +1,0 @@
-US-008 is complete. All tasks done:
-
-1. **Created `fab/.kit/skills/fab-ff.md`** (282 lines) — comprehensive agent-agnostic markdown skill covering: _context.md preamble, pre-flight checks (active change, completed proposal, config), upfront context loading, frontloaded questions (one Q&A round max), spec generation, autonomous plan decision (key diff from /fab:continue), tasks generation, auto-checklist, .status.yaml update to tasks:done, Next: /fab:apply
-2. **Created `.claude/skills/fab-ff.md` symlink** → `../../fab/.kit/skills/fab-ff.md`
-3. **All quality gates pass**: core files, templates, shared preamble, status.sh, symlink valid
-4. **Committed**: `4375c72 feat(fab): create fab-ff.md skill prompt (US-008)` + `3a8a304 docs(ralph): update progress log`
-5. **Progress log updated**
-
-<promise>COMPLETE</promise>

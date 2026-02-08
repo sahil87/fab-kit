@@ -4,3 +4,9 @@ fab/current
 .ralph/activity.log
 .ralph/errors.log
 .ralph/.tmp/
+
+/.claude/
+/.codex/
+/.ralph/
+/.agents/
+/ToBeDeleted/
