@@ -166,8 +166,6 @@ confidence:
 last_updated: {ISO 8601 timestamp}
 ```
 
-Note: no `branch:` field — git integration is deferred to `/fab-switch` or `/fab-new`.
-
 6. Generate `proposal.md` from the template at `fab/.kit/templates/proposal.md`, incorporating all discussion outcomes:
    - Fill in all sections: Why, What Changes, Affected Docs, Impact, Open Questions
    - Mark any remaining Tentative decisions with `<!-- assumed: {description} -->`

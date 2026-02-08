@@ -1,23 +1,23 @@
 name: 260208-q8v3-branch-to-switch
 created: 2026-02-08T22:00:00Z
-stage: proposal
+stage: archive
 progress:
   proposal: done
-  specs: pending
-  plan: pending
-  tasks: pending
-  apply: pending
-  review: pending
-  archive: pending
+  specs: done
+  plan: skipped
+  tasks: done
+  apply: done
+  review: done
+  archive: done
 checklist:
-  generated: false
+  generated: true
   path: checklists/quality.md
-  completed: 0
-  total: 0
+  completed: 23
+  total: 23
 confidence:
   certain: 4
   confident: 5
   tentative: 0
   unresolved: 0
   score: 4.5
-last_updated: 2026-02-08T22:00:00Z
+last_updated: 2026-02-09T10:15:00Z

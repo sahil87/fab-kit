@@ -3,7 +3,7 @@ name: fab-new
 description: "Start a new change from a natural language description. Creates the change folder, sets it active, and generates the proposal."
 ---
 
-# /fab-new <description> [--branch <name>]
+# /fab-new <description>
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -11,7 +11,7 @@ description: "Start a new change from a natural language description. Creates th
 
 ## Purpose
 
-Start a new change from a natural language description. Creates the change folder, sets it as the active change, optionally integrates with git, initializes the status manifest, and generates the proposal artifact.
+Start a new change from a natural language description. Creates the change folder, initializes the status manifest, generates the proposal artifact, and calls `/fab-switch` internally to activate the change (including branch integration).
 
 ---
 
@@ -33,7 +33,6 @@ Do NOT create partial structure. The project must be initialized before starting
 ## Arguments
 
 - **`<description>`** *(required)* — natural language description of the change (e.g., "Add OAuth2 support for Google and GitHub sign-in")
-- **`--branch <name>`** *(optional)* — explicit branch name to use. Skips the branch prompt and uses this name directly. Useful for Linear-linked branches, team conventions, or pre-existing branches.
 
 If no description is provided, ask the user: *"What change do you want to make?"*
 
@@ -68,54 +67,13 @@ Generate a unique folder name using the format `{YYMMDD}-{XXXX}-{slug}`:
 2. Create the subdirectory: `fab/changes/{name}/checklists/` (pre-created so downstream skills don't need a separate `mkdir`)
 3. If a change folder with the same name already exists (extremely unlikely given the random component), append an additional random character to `{XXXX}` and retry
 
-### Step 3: Set Active Change
-
-Write the change folder name (just the name, not the full path) to `fab/current`:
-
-```
-echo "{name}" > fab/current
-```
-
-This sets the new change as the active change. Any previously active change is replaced — the user can switch back with `/fab-switch`.
-
-### Step 4: Git Integration
-
-**Skip this step entirely if**:
-- `git.enabled` is `false` in `fab/config.yaml`, OR
-- The project is not inside a git repository
-
-**If `--branch <name>` was provided**:
-1. Use the provided name directly
-2. If a git branch with that name already exists, adopt it (check it out if not already on it)
-3. If it doesn't exist, create it: `git checkout -b <name>`
-4. Record the branch name in `.status.yaml` as `branch: <name>`
-5. Skip the interactive prompt below
-
-**If no `--branch` argument** (interactive flow):
-
-Detect the current branch and offer options:
-
-- **If on `main` or `master`**: Auto-create a branch without prompting
-  - Branch name: `{branch_prefix}{change-name}` (using `git.branch_prefix` from config, which may be empty)
-  - Run `git checkout -b {branch-name}` and record in `.status.yaml`
-  - This is a low-value prompt removed per SRAD scoring (high R, high A, high D — Certain grade)
-
-- **If on a feature branch** (not main/master): **Present these options to the user (do NOT auto-select)**:
-  - Show current branch name
-  - Note: `wt/*` branches are worktree base branches — default to **Create new branch** instead of Adopt for these.
-  - Options: **Adopt this branch** (default), **Create new branch**, **Skip**
-  - If user chooses "Adopt": record the current branch name as-is in `.status.yaml`
-  - If user chooses "Create new branch": create a new branch as above
-  - If user chooses "Skip": no `branch:` field in `.status.yaml`
-
-### Step 5: Initialize `.status.yaml`
+### Step 3: Initialize `.status.yaml`
 
 Create `fab/changes/{name}/.status.yaml` with this content:
 
 ```yaml
 name: {name}
 created: {ISO 8601 timestamp}
-branch: {branch-name}  # Only include if branch was set in Step 4
 stage: proposal
 progress:
   proposal: active
@@ -142,11 +100,10 @@ last_updated: {ISO 8601 timestamp}
 **Key points**:
 - `stage` is set to `proposal`
 - `proposal` progress is `active` — all other stages are `pending`
-- `branch` field is only present if the user chose a branch in Step 4
-- `confidence` block is initialized with defaults — Step 8 overwrites with actual counts after proposal generation
+- `confidence` block is initialized with defaults — Step 7 overwrites with actual counts after proposal generation
 - Both `created` and `last_updated` use the same timestamp (current time in ISO 8601 format with timezone)
 
-### Step 6: Generate `proposal.md`
+### Step 4: Generate `proposal.md`
 
 Load context before generating:
 - Read `fab/config.yaml` — project name, tech stack, conventions
@@ -164,10 +121,10 @@ Generate `fab/changes/{name}/proposal.md` using the template at `fab/.kit/templa
 4. Fill in the **What Changes** section — be specific about new capabilities, modifications, or removals
 5. Fill in the **Affected Docs** section — identify which centralized docs (in `fab/docs/`) will be new, modified, or removed by this change. Use `fab/docs/index.md` to understand what exists.
 6. Fill in the **Impact** section — identify affected code areas, APIs, dependencies
-7. Fill in the **Open Questions** section (see Step 7 below)
+7. Fill in the **Open Questions** section (see Step 5 below)
 8. After all sections are filled, append an **`## Assumptions`** section to the artifact listing all Confident and Tentative assumptions made during generation (see Assumptions Summary Block format in `_context.md`)
 
-### Step 7: SRAD-Based Question Selection
+### Step 5: SRAD-Based Question Selection
 
 Apply the SRAD framework (defined in `_context.md`) to all decision points encountered during proposal generation:
 
@@ -186,7 +143,7 @@ Apply the SRAD framework (defined in `_context.md`) to all decision points encou
 
 If SRAD evaluation finds no Unresolved decisions, skip questions entirely — generate the proposal without asking.
 
-### Step 8: Compute Confidence Score
+### Step 6: Compute Confidence Score
 
 After generating the proposal, compute the initial confidence score:
 
@@ -198,15 +155,23 @@ After generating the proposal, compute the initial confidence score:
 2. Apply the confidence formula (see `_context.md` Confidence Scoring section)
 3. Write the `confidence` block to `.status.yaml`
 
-### Step 9: Mark Proposal Complete
+### Step 7: Mark Proposal Complete
 
 Once the user is satisfied with the proposal (questions answered, scope agreed):
 
 1. Update `.status.yaml`:
    - Change `progress.proposal` from `active` to `done`
-   - Write the computed `confidence` block (from Step 8)
+   - Write the computed `confidence` block (from Step 6)
    - Update `last_updated` to current timestamp
 2. The proposal status field in the proposal.md itself can remain as-is (the `.status.yaml` is the source of truth)
+
+### Step 8: Activate Change via `/fab-switch`
+
+Invoke the `/fab-switch` flow internally to activate the change:
+
+1. Call `/fab-switch {name}` — this writes the change name to `fab/current` and performs branch integration (if `git.enabled`)
+2. From the user's perspective, `/fab-new` still results in an active change with a branch — the internal delegation is transparent
+3. If `/fab-switch` branch integration fails, the change is still activated (fab/current is written) — only the branch creation is affected
 
 ---
 
@@ -267,23 +232,6 @@ Proposal complete.
 Next: /fab-continue or /fab-ff (fast-forward all planning)
 ```
 
-### With `--branch`
-
-```
-/fab-new --branch feature/dev-907-oauth Add OAuth2 support
-
-Created fab/changes/260206-x7k2-add-oauth/
-Branch: feature/dev-907-oauth (adopted)
-
-## Proposal: Add OAuth2 Support
-
-{filled proposal content}
-
-Proposal complete.
-
-Next: /fab-continue or /fab-ff (fast-forward all planning)
-```
-
 ### No Git Integration
 
 ```
@@ -309,8 +257,6 @@ Next: /fab-continue or /fab-ff (fast-forward all planning)
 | No description provided | Ask: "What change do you want to make?" |
 | `fab/.kit/templates/proposal.md` missing | Abort with: "Proposal template not found at fab/.kit/templates/proposal.md — kit may be corrupted." |
 | `fab/changes/{name}/` already exists | Regenerate the random component (`XXXX`) and retry |
-| Git branch creation fails | Report the error, skip branch integration, continue without `branch:` in `.status.yaml` |
-| `--branch` name invalid for git | Report the error, skip branch integration, continue without `branch:` in `.status.yaml` |
 
 ---
 

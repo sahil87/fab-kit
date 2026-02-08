@@ -39,7 +39,6 @@ fi
 # --- All validations passed — emit structured YAML to stdout ---
 
 stage=$(grep '^stage:' "$status_file" | sed 's/^stage: *//')
-branch=$(grep '^branch:' "$status_file" | sed 's/^branch: *//' || true)
 
 # Extract progress fields
 p_proposal=$(grep '^ *proposal:' "$status_file" | sed 's/^ *proposal: *//')
@@ -66,7 +65,6 @@ cat <<EOF
 name: $name
 change_dir: changes/$name
 stage: $stage
-branch: "${branch:-}"
 progress:
   proposal: $p_proposal
   specs: $p_specs

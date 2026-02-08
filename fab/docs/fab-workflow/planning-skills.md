@@ -8,9 +8,9 @@ The planning skills (`/fab-new`, `/fab-discuss`, `/fab-continue`, `/fab-ff`, `/f
 
 ## Requirements
 
-### `/fab-new <description> [--branch <name>]`
+### `/fab-new <description>`
 
-`/fab-new` starts a new change from a natural language description. It creates the change folder, initializes status tracking, and generates a proposal.
+`/fab-new` starts a new change from a natural language description. It creates the change folder, initializes status tracking, generates a proposal, and calls `/fab-switch` internally to activate the change (including branch integration).
 
 #### Folder Name Generation
 
@@ -20,21 +20,13 @@ The agent SHALL generate a folder name in the format `{YYMMDD}-{XXXX}-{slug}` wh
 
 The skill SHALL:
 1. Create `fab/changes/{name}/`
-2. Write the change name to `fab/current` (sets active change)
-3. Initialize `.status.yaml` with `stage: proposal`
-4. Generate `proposal.md` from the template, loading `fab/constitution.md` and `fab/config.yaml` as context
-5. Apply SRAD scoring to identify up to 3 Unresolved questions; assume all Confident/Tentative decisions
-6. Mark proposal complete once the user is satisfied
+2. Initialize `.status.yaml` with `stage: proposal`
+3. Generate `proposal.md` from the template, loading `fab/constitution.md` and `fab/config.yaml` as context
+4. Apply SRAD scoring to identify up to 3 Unresolved questions; assume all Confident/Tentative decisions
+5. Mark proposal complete once the user is satisfied
+6. Call `/fab-switch` internally to activate the change (writes `fab/current`, performs branch integration)
 
-#### Branch Integration
-
-When `git.enabled` in config and the project is a git repo:
-- If `--branch <name>` is provided → use that name directly (create if new, adopt if existing)
-- If on `main`/`master` → auto-create a branch named `{prefix}{change-name}` (no prompt)
-- If on a feature branch → offer to adopt it (record current branch name as-is)
-- If user declines → skip; no `branch:` field in `.status.yaml`
-
-The `--branch` flag is useful for Linear-linked branches, team conventions, or pre-existing branches.
+Note: `/fab-new` no longer handles branch integration directly — this is delegated to `/fab-switch`, which provides consistent branch handling for both `/fab-new` and `/fab-discuss` entry points.
 
 #### Confidence Scoring
 
@@ -91,8 +83,8 @@ When the confidence score crosses 3.0, `/fab-discuss` proactively suggests wrapp
 | **Purpose** | Explore & develop proposal through conversation | Capture clear description as proposal |
 | **Gap analysis** | Yes — "is this change even needed?" | No — assumes the change is needed |
 | **Interaction style** | Free-form conversation, unlimited questions | One-shot generation, max 3 SRAD questions |
-| **Sets active change** | No — must `/fab-switch` | Yes |
-| **Git integration** | None | Yes (branch create/adopt) |
+| **Sets active change** | No — must `/fab-switch` | Yes (via internal `/fab-switch` call) |
+| **Git integration** | None — deferred to `/fab-switch` | Yes (via internal `/fab-switch` call) |
 | **Confidence goal** | Drive score high for `/fab-fff` | Compute initial score |
 
 #### Context
@@ -298,6 +290,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260208-q8v3-branch-to-switch | 2026-02-09 | Moved branch integration from `/fab-new` to `/fab-switch`, removed `--branch` flag from `/fab-new`, `/fab-new` now calls `/fab-switch` internally |
 | 260208-lgd7-fab-discuss-command | 2026-02-08 | Added `/fab-discuss` conversational proposal skill, `/fab-new` confidence scoring, context-driven mode selection design decisions |
 | 260208-k3m7-add-fab-fff | 2026-02-08 | Added `/fab-fff` full pipeline skill, confidence recomputation in `/fab-continue`, removed `/fab-ff --auto` mode, updated design decisions |
 | 260207-09sj-autonomy-framework | 2026-02-08 | Added SRAD autonomy framework, confidence grades, assumptions summaries, branch auto-create on main, soft gate on fab-apply |

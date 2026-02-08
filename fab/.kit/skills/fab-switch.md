@@ -1,9 +1,9 @@
 ---
 name: fab-switch
-description: "Switch the active change to a different one. Lists available changes when called with no argument."
+description: "Switch the active change to a different one. Lists available changes when called with no argument. Handles branch integration."
 ---
 
-# /fab-switch [change-name]
+# /fab-switch [change-name] [--branch <name>]
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -11,7 +11,7 @@ description: "Switch the active change to a different one. Lists available chang
 
 ## Purpose
 
-Switch the active change to a different one. Accepts a full or partial change name, matches it against existing change folders in `fab/changes/`, and updates `fab/current` to point to the selected change. When invoked with no argument, lists all available changes and asks the user to pick one.
+Switch the active change to a different one. Accepts a full or partial change name, matches it against existing change folders in `fab/changes/`, updates `fab/current` to point to the selected change, and handles git branch integration. When invoked with no argument, lists all available changes and asks the user to pick one.
 
 ---
 
@@ -21,6 +21,7 @@ Switch the active change to a different one. Accepts a full or partial change na
   - Full folder name: `260202-m3x1-fix-checkout-bug`
   - Partial slug match: `fix-checkout`
   - Any substring: `checkout`
+- **`--branch <name>`** *(optional)* — explicit branch name to use. Creates if new, checks out if existing. Skips the interactive branch prompt.
 
 If no argument is provided, list all active changes and ask the user to pick one (see **No Argument Flow** below).
 
@@ -28,11 +29,13 @@ If no argument is provided, list all active changes and ask the user to pick one
 
 ## Context Loading
 
-This skill uses **minimal context** — it does not need to load `fab/config.yaml` or `fab/constitution.md` (as noted in `_context.md`, switch is exempt from the "Always Load" requirement).
+This skill loads **minimal context plus config**:
 
-The only context needed is:
-1. The contents of `fab/changes/` directory (folder names)
-2. The `.status.yaml` of the matched change (to display status after switching)
+1. `fab/config.yaml` — for `git.enabled` and `git.branch_prefix` (needed for branch integration)
+2. The contents of `fab/changes/` directory (folder names)
+3. The `.status.yaml` of the matched change (to display status after switching)
+
+It does NOT load `fab/constitution.md`, `fab/docs/index.md`, or `fab/specs/index.md`.
 
 ---
 
@@ -123,30 +126,30 @@ Once a single change is identified:
    - Write just the folder name (not the full path) to `fab/current`
    - This overwrites any previous content in `fab/current`
 
-2. **Read the change's `.status.yaml`** to get:
+2. **Branch Integration** (see Branch Integration section below)
+
+3. **Read the change's `.status.yaml`** to get:
    - `stage` — current stage
-   - `branch` — associated git branch (if set)
    - `progress` — stage progress map
 
-3. **Display confirmation** with status summary:
+4. **Display confirmation** with status summary:
 
    ```
    fab/current now points to 260202-m3x1-fix-checkout-bug
 
    Stage:  apply (5/7)
-   Branch: fix/checkout-bug
+   Branch: fix/checkout-bug (created)
    ```
 
-   If no branch is set:
+   If branch integration was skipped:
 
    ```
    fab/current now points to 260202-m3x1-fix-checkout-bug
 
    Stage:  apply (5/7)
-   Branch: (none)
    ```
 
-4. **Suggest next command** based on the change's current stage:
+5. **Suggest next command** based on the change's current stage:
 
    | Stage | Suggested next |
    |-------|---------------|
@@ -158,6 +161,44 @@ Once a single change is identified:
    | `apply` (done) | `Next: /fab-review` |
    | `review` (done) | `Next: /fab-archive` |
    | `review` (failed) | `Next: /fab-review (re-review after fixes)` |
+
+---
+
+## Branch Integration
+
+**Skip this step entirely if**:
+- `git.enabled` is `false` in `fab/config.yaml`, OR
+- The working directory is not inside a git repository
+
+**If `--branch <name>` was provided**:
+1. Use the provided name directly
+2. If a git branch with that name already exists, check it out (if not already on it)
+3. If it doesn't exist, create it: `git checkout -b <name>`
+4. Skip the interactive prompt below
+
+**If no `--branch` argument** (interactive flow):
+
+Detect the current branch and offer options:
+
+- **If on `main` or `master`**: Auto-create a branch without prompting
+  - Branch name: `{branch_prefix}{change-name}` (using `git.branch_prefix` from config, which may be empty)
+  - Run `git checkout -b {branch-name}`
+  - This is a low-value prompt removed per SRAD scoring (high R, high A, high D — Certain grade)
+
+- **If on a `wt/*` branch** (worktree base branch): **Present these options to the user (do NOT auto-select)**:
+  - Show current branch name
+  - Note: `wt/*` branches are worktree base branches — default to **Create new branch**
+  - Options: **Create new branch** (default), **Adopt this branch**, **Skip**
+  - If user chooses "Create new branch": create a new branch as above
+  - If user chooses "Adopt": no git operation needed (already on the branch)
+  - If user chooses "Skip": no branch change
+
+- **If on a feature branch** (not main/master, not wt/*): **Present these options to the user (do NOT auto-select)**:
+  - Show current branch name
+  - Options: **Adopt this branch** (default), **Create new branch**, **Skip**
+  - If user chooses "Adopt": no git operation needed (already on the branch)
+  - If user chooses "Create new branch": create a new branch as above
+  - If user chooses "Skip": no branch change
 
 ---
 
@@ -179,13 +220,34 @@ Map stages to their numeric position for the `(N/7)` display:
 
 ## Output
 
-### Successful Switch
+### Successful Switch (with branch)
 
 ```
 fab/current now points to 260202-m3x1-fix-checkout-bug
 
 Stage:  apply (5/7)
-Branch: fix/checkout-bug
+Branch: 260202-m3x1-fix-checkout-bug (created)
+
+Next: /fab-review
+```
+
+### Successful Switch (branch adopted)
+
+```
+fab/current now points to 260202-m3x1-fix-checkout-bug
+
+Stage:  apply (5/7)
+Branch: feature/checkout-fix (adopted)
+
+Next: /fab-review
+```
+
+### Successful Switch (no branch)
+
+```
+fab/current now points to 260202-m3x1-fix-checkout-bug
+
+Stage:  apply (5/7)
 
 Next: /fab-review
 ```
@@ -232,6 +294,9 @@ Run /fab-switch <name> with a matching name, or pick from the list above (1-2).
 | Matched change folder missing `.status.yaml` | Switch anyway but warn: "Warning: .status.yaml not found for {name} — change may be corrupted." |
 | `fab/changes/` directory does not exist | Output: "fab/changes/ not found. Run /fab-init to set up the project." |
 | `fab/current` cannot be written | Report error with details |
+| `fab/config.yaml` not found | Skip branch integration (git settings unknown) |
+| Git branch creation fails | Report the error, continue without branch change. The switch itself still completes (fab/current is written, status is displayed). |
+| `--branch` name invalid for git | Report the error, continue without branch change |
 
 ---
 
@@ -240,11 +305,12 @@ Run /fab-switch <name> with a matching name, or pick from the list above (1-2).
 | Property | Value |
 |----------|-------|
 | Advances stage? | **No** — switch only changes the active pointer, does not modify any change's stage |
-| Idempotent? | **Yes** — switching to the same change multiple times has no side effects |
+| Idempotent? | **Yes** — switching to the same change multiple times has no side effects (branch integration is skipped if already on the target branch) |
 | Modifies `fab/current`? | **Yes** — writes the selected change name |
 | Modifies `.status.yaml`? | **No** — read-only access to display status |
 | Modifies source code? | **No** |
-| Requires config/constitution? | **No** — operates only on `fab/changes/` and `fab/current` |
+| Modifies git state? | **Yes** — may create or check out a branch |
+| Requires config/constitution? | **Config only** — reads `git.enabled` and `git.branch_prefix` from `fab/config.yaml` |
 
 ---
 

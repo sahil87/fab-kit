@@ -31,8 +31,9 @@ bash fab/.kit/scripts/fab-status.sh
 
 The script handles all validation, parsing, and formatting:
 
-- Reads `fab/.kit/VERSION`, `fab/current`, and `fab/changes/{name}/.status.yaml`
-- Renders the full status block: version header, change name, branch, stage number, progress table with symbols (`✓` done, `●` active, `○` pending, `—` skipped, `✗` failed), checklist counts, and next command suggestion
+- Reads `fab/.kit/VERSION`, `fab/current`, `fab/changes/{name}/.status.yaml`, and `fab/config.yaml` (for `git.enabled`)
+- Queries live branch via `git branch --show-current` when git is enabled (instead of reading a static `branch:` field from `.status.yaml`)
+- Renders the full status block: version header, change name, branch (when git enabled), stage number, progress table with symbols (`✓` done, `●` active, `○` pending, `—` skipped, `✗` failed), checklist counts, and next command suggestion
 - Handles all error cases (no active change, missing `.status.yaml`, missing fields)
 - Defaults missing progress fields to `○` (pending) and missing checklist to "not yet generated"
 

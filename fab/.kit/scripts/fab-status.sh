@@ -40,7 +40,21 @@ get_field() { grep "^$1:" "$status_file" | sed "s/^$1: *//" || true; }
 get_nested() { grep "^ *$1:" "$status_file" | sed "s/^ *$1: *//" || true; }
 
 stage=$(get_field "stage")
-branch=$(get_field "branch")
+
+# Live git branch (replaces .status.yaml branch field)
+git_enabled="false"
+if [ -f "$fab_root/config.yaml" ]; then
+  git_enabled_val=$(grep '^ *enabled:' "$fab_root/config.yaml" | sed 's/^ *enabled: *//' || true)
+  if [ "$git_enabled_val" = "true" ]; then
+    git_enabled="true"
+  fi
+fi
+branch=""
+show_branch="false"
+if [ "$git_enabled" = "true" ] && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  branch=$(git branch --show-current 2>/dev/null || true)
+  show_branch="true"
+fi
 
 # Progress (default to pending for missing fields)
 p_proposal=$(get_nested "proposal"); p_proposal=${p_proposal:-pending}
@@ -109,10 +123,12 @@ esac
 echo "$header"
 echo ""
 echo "Change:  $name"
-if [ -n "$branch" ]; then
-  echo "Branch:  $branch"
-else
-  echo "Branch:  (none)"
+if [ "$show_branch" = "true" ]; then
+  if [ -n "$branch" ]; then
+    echo "Branch:  $branch"
+  else
+    echo "Branch:  (detached)"
+  fi
 fi
 echo "Stage:   $stage ($stage_num/7)"
 echo ""

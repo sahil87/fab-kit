@@ -9,7 +9,7 @@
 
 Before generating or validating any artifact, load the relevant context layers below. This ensures output is grounded in the actual project state, not assumptions.
 
-### 1. Always Load (every skill except `/fab-init`, `/fab-switch`, `/fab-status`, `/fab-hydrate`)
+### 1. Always Load (every skill except `/fab-init`, `/fab-status`, `/fab-hydrate`; `/fab-switch` loads only `config.yaml`)
 
 Read these files first — they define the project's identity, constraints, and documentation landscape:
 
@@ -26,7 +26,7 @@ Resolve the active change and load its state by running the preflight script:
 
 1. **Run preflight**: Execute `fab/.kit/scripts/fab-preflight.sh` via Bash
 2. **Check exit code**: If the script exits non-zero, STOP and surface the stderr message to the user (it contains the specific error and suggested fix)
-3. **Parse stdout YAML**: On success, parse the YAML output for `name`, `change_dir`, `stage`, `branch`, `progress`, and `checklist` fields — use these for all subsequent change context instead of re-reading `.status.yaml`
+3. **Parse stdout YAML**: On success, parse the YAML output for `name`, `change_dir`, `stage`, `progress`, `checklist`, and `confidence` fields — use these for all subsequent change context instead of re-reading `.status.yaml`
 4. Load all completed artifacts in the change folder (e.g., `proposal.md`, `spec.md`, `plan.md`, `tasks.md`) — read each file that exists so you have full context of what has been decided so far
 
 > **What the script validates internally** (for reference — agents do not need to duplicate these checks):
@@ -119,7 +119,7 @@ Each decision produces an assumption graded on a 4-level scale:
 | Aspect | fab-discuss (explore) | fab-new (capture) | fab-continue (deliberate) | fab-ff (speed) | fab-fff (full pipeline) |
 |--------|----------------------|-------------------|---------------------------|----------------|-------------------------|
 | **Posture** | Free-form conversation, gap analysis, no question cap | Assume confident+tentative, ask top ~3 unresolved | Surface tentative, ask top ~3 unresolved | Batch all unresolved upfront, then go | Same as fab-ff; gated on confidence >= 3.0 |
-| **Interruption budget** | Unlimited — conversational by design | 0 for branch-on-main; max 3 for unresolved questions | 1-2 per stage | 0-1 batch at start | Same as fab-ff (frontloaded) |
+| **Interruption budget** | Unlimited — conversational by design | Max 3 for unresolved questions | 1-2 per stage | 0-1 batch at start | Same as fab-ff (frontloaded) |
 | **Output** | Proposal + confidence score + "/fab-switch to make active" | Assumptions summary + "Run /fab-clarify to review" | Key Decisions block + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary | Same as fab-ff + apply/review/archive output |
 | **Escape valve** | User ends early at any time | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` (bails on blockers or review failure) |
 | **Recomputes confidence?** | Yes | Yes | Yes | No | No |

@@ -45,7 +45,6 @@ Every change folder SHALL contain a `.status.yaml` manifest with these fields:
 
 - `name` — the full change folder name
 - `created` — ISO 8601 datetime
-- `branch` — optional, present only when user created or adopted a branch. Omit entirely (not `null`) when git integration was skipped
 - `stage` — current stage (single source of truth for where the change is)
 - `progress` — map of all stages to their state
 - `checklist` — generation status, path, completion counts
@@ -85,17 +84,19 @@ The `plan` stage MAY be skipped for straightforward changes. When skipped, its s
 
 ### Git Integration (Optional)
 
-Fab works without git. Change folders are the unit of identity, not branches — the same change can be worked on across multiple branches, worktrees, or even repos. When git is available, `/fab-new` offers a lightweight convenience link, but this is strictly informational. Fab never couples its state to git state.
+Fab works without git. Change folders are the unit of identity, not branches — the same change can be worked on across multiple branches, worktrees, or even repos. Git branch integration is handled by `/fab-switch` (which is called internally by `/fab-new`). Fab never couples its state to git state — no `branch:` field is stored in `.status.yaml`.
 
-**Why decoupled**: A developer might work on the same change across multiple worktrees, a change might span multiple branches, or a change might move between branches after a rebase. The `branch:` field in `.status.yaml` is a convenience bookmark, not a coupling.
+**Why decoupled**: A developer might work on the same change across multiple worktrees, a change might span multiple branches, or a change might move between branches after a rebase. Storing a static `branch:` field would go stale; instead, `/fab-status` uses `git branch --show-current` for live display.
 
 | Option | When to use | What happens |
 |--------|-------------|--------------|
-| **Create branch** | Starting fresh on `main` | Creates branch named after the change folder |
-| **Adopt current branch** | Already on a feature branch | Records current branch name in `.status.yaml` |
-| **Skip** | Non-git or manual control | No `branch:` field in `.status.yaml` |
+| **Create branch** | On `main`/`master` when switching to a change | Auto-creates branch named `{prefix}{change-name}` |
+| **Adopt current branch** | Already on a feature branch | No git operation (already on the branch) |
+| **Create new** | On a `wt/*` or feature branch, user chooses | Creates new branch from current HEAD |
+| **Skip** | Non-git, git disabled, or manual control | No branch operation |
+| **`--branch <name>`** | Explicit branch name | Creates if new, checks out if existing |
 
-Branch name is stored in `.status.yaml` as `branch:` and displayed by `/fab-status`. Fab never commits, pushes, merges, or deletes branches — that remains the user's responsibility.
+Branch integration is handled by `/fab-switch` and displayed live by `/fab-status` via `git branch --show-current`. Fab never commits, pushes, merges, or deletes branches — that remains the user's responsibility.
 
 ### Abandoning a Change
 
@@ -108,19 +109,20 @@ There is no `/fab-abandon` skill — this is a manual operation. To preserve con
 
 ### `/fab-status`
 
-`/fab-status` shows the current change state at a glance: name, branch, current stage, progress through all stages, checklist status, and suggested next command.
+`/fab-status` shows the current change state at a glance: name, live git branch (when `git.enabled`), current stage, progress through all stages, checklist status, and suggested next command.
 
-All mechanical work (file reading, YAML parsing, progress symbol mapping, next command logic) lives in `fab/.kit/scripts/fab-status.sh`. The skill prompt invokes the script and presents its output. The same script can be run directly from the terminal without invoking an agent.
+All mechanical work (file reading, YAML parsing, git branch query, progress symbol mapping, next command logic) lives in `fab/.kit/scripts/fab-status.sh`. The script reads `fab/config.yaml` for `git.enabled` and uses `git branch --show-current` for live branch display. The skill prompt invokes the script and presents its output. The same script can be run directly from the terminal without invoking an agent.
 
-### `/fab-switch <change-name>`
+### `/fab-switch [change-name] [--branch <name>]`
 
-`/fab-switch` changes the active change when multiple changes exist.
+`/fab-switch` changes the active change and handles git branch integration. It reads `fab/config.yaml` for `git.enabled` and `git.branch_prefix`.
 
 1. Match `change-name` against `fab/changes/` (supports partial/slug match)
 2. **Ambiguous match** — if multiple changes match, list them and ask the user to pick. Never guess
 3. **No match** — list available changes and ask
 4. Write the full change name to `fab/current`
-5. Display the switched change's status summary
+5. **Branch integration** (if `git.enabled`): auto-create on main/master, prompt on feature/wt branches, or use `--branch <name>` for explicit branch
+6. Display the switched change's status summary
 
 ## Design Decisions
 
@@ -142,6 +144,12 @@ All mechanical work (file reading, YAML parsing, progress symbol mapping, next c
 **Rejected**: Free-form state strings — inconsistent across skills, harder to parse programmatically.
 *Source*: doc/fab-spec/TEMPLATES.md
 
+### Branch Integration in `/fab-switch`, Not `/fab-new`
+**Decision**: Git branch integration is consolidated in `/fab-switch`, not `/fab-new`. `/fab-new` calls `/fab-switch` internally after proposal generation. The `branch:` field was removed from `.status.yaml`; `/fab-status` uses `git branch --show-current` for live display.
+**Why**: Both `/fab-new` and `/fab-discuss` create changes, but only `/fab-new` had branch integration. Consolidating in `/fab-switch` (the "I'm committing to work on this" moment) gives both entry points consistent branch support through a shared path. The `branch:` field in `.status.yaml` was purely ceremonial — no skill used it for logic, and it went stale on manual branch switches.
+**Rejected**: Keeping branch in `/fab-new` — inconsistent with `/fab-discuss` path. Storing branch in `.status.yaml` — goes stale, no skill needs it.
+*Introduced by*: 260208-q8v3-branch-to-switch
+
 ### No Dedicated Abandon Skill
 **Decision**: Abandoning a change is a manual operation (delete folder, clear pointer).
 **Why**: Abandonment is rare and destructive enough to warrant deliberate manual action. A skill would make it too easy to accidentally discard work.
@@ -152,6 +160,7 @@ All mechanical work (file reading, YAML parsing, progress symbol mapping, next c
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260208-q8v3-branch-to-switch | 2026-02-09 | Moved branch integration from `/fab-new` to `/fab-switch`, removed `branch:` field from `.status.yaml`, `/fab-status` uses live git query, added `--branch` flag to `/fab-switch` |
 | 260208-lgd7-fab-discuss-command | 2026-02-08 | Added `/fab-discuss` to `fab/current` lifecycle (reads but does not write), added discuss → switch → fff alternative entry path |
 | 260208-k3m7-add-fab-fff | 2026-02-08 | Added `confidence` field to `.status.yaml` schema, added full pipeline path via `/fab-fff` |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab:xxx` colon format to `/fab-xxx` hyphen format |

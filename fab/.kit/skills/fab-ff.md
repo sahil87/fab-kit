@@ -23,7 +23,7 @@ Before doing anything else, run the preflight script:
 
 1. Execute `fab/.kit/scripts/fab-preflight.sh` via Bash
 2. If the script exits non-zero, **STOP** and surface the stderr message to the user
-3. Parse the stdout YAML to get `name`, `change_dir`, `stage`, `branch`, `progress`, and `checklist`
+3. Parse the stdout YAML to get `name`, `change_dir`, `stage`, `progress`, `checklist`, and `confidence`
 
 Then verify the stage-specific precondition using the preflight output:
 

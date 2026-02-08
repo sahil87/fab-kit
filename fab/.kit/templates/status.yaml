@@ -1,6 +1,5 @@
 name: {NAME}
 created: {CREATED}
-branch: {BRANCH}
 stage: proposal
 progress:
   proposal: active
