@@ -173,7 +173,7 @@ Before generating a plan, evaluate whether one is warranted:
 When generating tasks (regardless of whether plan was skipped), also generate the quality checklist:
 
 1. Read the template from `fab/.kit/templates/checklist.md`
-2. Create the directory `fab/changes/{name}/checklists/` if it doesn't exist
+2. The `fab/changes/{name}/checklists/` directory is created by `/fab-new` and should already exist. If it doesn't, create it.
 3. Generate `fab/changes/{name}/checklists/quality.md` with:
    - `{CHANGE_NAME}`: From the proposal
    - `{YYMMDD-XXXX-slug}`: The change folder name

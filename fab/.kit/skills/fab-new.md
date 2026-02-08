@@ -65,7 +65,8 @@ Generate a unique folder name using the format `{YYMMDD}-{XXXX}-{slug}`:
 ### Step 2: Create Change Directory
 
 1. Create the directory: `fab/changes/{name}/`
-2. If a change folder with the same name already exists (extremely unlikely given the random component), append an additional random character to `{XXXX}` and retry
+2. Create the subdirectory: `fab/changes/{name}/checklists/` (pre-created so downstream skills don't need a separate `mkdir`)
+3. If a change folder with the same name already exists (extremely unlikely given the random component), append an additional random character to `{XXXX}` and retry
 
 ### Step 3: Set Active Change
 

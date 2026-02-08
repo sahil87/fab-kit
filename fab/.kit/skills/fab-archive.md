@@ -216,11 +216,10 @@ Update `fab/changes/{name}/.status.yaml`:
 
 ### Step 5: Move Change Folder to Archive
 
-1. Create `fab/changes/archive/` directory if it does not exist
-2. Move the entire change folder: `fab/changes/{name}/` → `fab/changes/archive/{name}/`
-3. Do NOT rename the folder — the date is already in the folder name
-4. **Use relative paths** in all Bash commands — never expand to absolute paths (they break permission allow-patterns and are harder to review).
-5. **Run `mkdir` and `mv` as separate Bash calls**, not chained with `&&`. Chained commands may not match the user's individual allow-patterns (e.g., `Bash(mv *)`).
+1. Move the entire change folder: `fab/changes/{name}/` → `fab/changes/archive/{name}/`
+   - The `fab/changes/archive/` directory is created by `/fab-init` and should already exist. If it doesn't, create it first.
+2. Do NOT rename the folder — the date is already in the folder name
+3. **Use relative paths** in all Bash commands — never expand to absolute paths (they break permission allow-patterns and are harder to review).
 
 ### Step 6: Clear Pointer
 

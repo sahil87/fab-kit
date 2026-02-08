@@ -189,9 +189,10 @@ If `fab/specs/index.md` **already exists**: report "specs/index.md already exist
 If `fab/changes/` directory does **not** exist:
 
 1. Create `fab/changes/` directory
-2. Create `fab/changes/.gitkeep` to ensure git tracks the empty directory
+2. Create `fab/changes/archive/` subdirectory (pre-created so `/fab-archive` doesn't need a separate `mkdir`)
+3. Create `fab/changes/.gitkeep` to ensure git tracks the empty directory
 
-If `fab/changes/` **already exists**: report "changes/ already exists — skipping" and move on.
+If `fab/changes/` **already exists**: ensure `fab/changes/archive/` exists (create if missing), then report "changes/ already exists — skipping" and move on.
 
 #### 1f. `.claude/skills/` Symlinks
 

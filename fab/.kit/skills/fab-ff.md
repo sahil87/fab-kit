@@ -191,7 +191,7 @@ Run auto-clarify on the generated tasks (invoke `fab-clarify` in **auto mode** w
 ### Step 5: Auto-generate Quality Checklist
 
 1. Read the template from `fab/.kit/templates/checklist.md`
-2. Create the directory `fab/changes/{name}/checklists/` if it doesn't exist
+2. The `fab/changes/{name}/checklists/` directory is created by `/fab-new` and should already exist. If it doesn't, create it.
 3. Generate `fab/changes/{name}/checklists/quality.md` with:
    - `{CHANGE_NAME}`: From the proposal
    - `{YYMMDD-XXXX-slug}`: The change folder name

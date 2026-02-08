@@ -94,14 +94,14 @@ For each fetched source:
 For each identified topic:
 
 1. If `fab/docs/{domain}/` directory does not exist, create it
-2. If `fab/docs/{domain}/index.md` does not exist, create a domain index following the [Domain Index format](../../doc/fab-spec/TEMPLATES.md#domain-index-fabdocsdomainindexmd):
+2. If `fab/docs/{domain}/index.md` does not exist, create a domain index following the [Domain Index format](../../specs/templates.md#domain-index-fabdocsdomainindexmd):
    ```markdown
    # {Domain} Documentation
 
    | Doc | Description | Last Updated |
    |-----|-------------|-------------|
    ```
-3. If the target doc file does not exist, create it with the analyzed content, structured as a [Centralized Doc](../../doc/fab-spec/TEMPLATES.md#individual-doc-fabdomainnamemd) (with Overview, Requirements sections, Design Decisions, Changelog)
+3. If the target doc file does not exist, create it with the analyzed content, structured as a [Centralized Doc](../../specs/templates.md#individual-doc-fabdomainnamemd) (with Overview, Requirements sections, Design Decisions, Changelog)
 4. If the target doc file already exists, **merge** the new content into the existing doc — add new requirements, update existing ones, do not remove existing content. Preserve any manually-added content.
 
 ### Step 4: Update Domain Indexes
@@ -121,7 +121,7 @@ After all sources are processed:
 2. Add rows for any new domains that were created: `| [{domain}]({domain}/index.md) | {description} | {doc-list} |`
 3. Update the doc-list column for existing domains that had new docs added (comma-separated list of all docs in the domain)
 4. Do not remove existing entries
-5. Use relative links (not absolute paths) — see [Top-Level Index format](../../doc/fab-spec/TEMPLATES.md#top-level-index-fabdocsindexmd)
+5. Use relative links (not absolute paths) — see [Top-Level Index format](../../specs/templates.md#top-level-index-fabdocsindexmd)
 
 Report what was created and updated:
 ```
