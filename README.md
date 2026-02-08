@@ -3,6 +3,16 @@ SDD Research
 
 Research and documentation on Specification-Driven Development (SDD) tools and methodologies.
 
+## Get Started
+
+Copy the fab/.kit folder to your repo, and run:
+
+```bash
+fab-setup.sh #this should already by in your PATH because of .envrc
+#Or else, run
+fab/.kit/scripts/fab-setup.sh
+```
+
 ## Repository Structure
 
 ```
