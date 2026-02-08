@@ -1,0 +1,24 @@
+name: 260208-lgd7-fab-discuss-command
+created: 2026-02-08T20:50:00Z
+branch: 260208-lgd7-fab-discuss-command
+stage: archive
+progress:
+  proposal: done
+  specs: done
+  plan: skipped
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklists/quality.md
+  completed: 26
+  total: 26
+confidence:
+  certain: 6
+  confident: 7
+  tentative: 0
+  unresolved: 0
+  score: 4.3
+last_updated: 2026-02-08T21:45:00Z

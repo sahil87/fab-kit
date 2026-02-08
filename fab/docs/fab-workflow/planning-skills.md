@@ -4,7 +4,7 @@
 
 ## Overview
 
-The planning skills (`/fab-new`, `/fab-continue`, `/fab-ff`, `/fab-clarify`) handle the first four stages of the Fab workflow: proposal, specs, plan, and tasks. They produce the artifacts that define *what* changes and *how*, before any code is written.
+The planning skills (`/fab-new`, `/fab-discuss`, `/fab-continue`, `/fab-ff`, `/fab-clarify`) handle the first four stages of the Fab workflow: proposal, specs, plan, and tasks. They produce the artifacts that define *what* changes and *how*, before any code is written.
 
 ## Requirements
 
@@ -36,9 +36,68 @@ When `git.enabled` in config and the project is a git repo:
 
 The `--branch` flag is useful for Linear-linked branches, team conventions, or pre-existing branches.
 
+#### Confidence Scoring
+
+After generating the proposal, `/fab-new` computes the SRAD confidence score and writes the `confidence` block to `.status.yaml` with actual counts (overwriting the template defaults of all zeros). This ensures proposals created via `/fab-new` have a valid score for the `/fab-fff` gate.
+
 #### Context
 
 Loads: config, constitution, `fab/docs/index.md` (to understand the existing doc landscape).
+
+### `/fab-discuss [description]`
+
+`/fab-discuss` develops proposals through free-form conversation. Unlike `/fab-new` (one-shot capture with max 3 questions), `/fab-discuss` is a back-and-forth exploration — it helps figure out if a change is even needed, walks through clarifying questions, and outputs a solid `proposal.md` with a high confidence score.
+
+#### Context-Driven Mode Selection
+
+`/fab-discuss` determines its mode from the active change state (`fab/current`):
+
+1. If `fab/current` exists and points to a valid change, `/fab-discuss` defaults to **Refine mode** — working on the active change's proposal
+2. If the user's description is significantly different from the active change's scope, `/fab-discuss` confirms whether this is a new change or related to the current one
+3. If `fab/current` does not exist or is empty, `/fab-discuss` enters **New change mode** — starts from scratch
+
+#### Gap Analysis (New Change Mode Only)
+
+Before committing to a proposal, `/fab-discuss` evaluates whether the change is needed:
+
+1. Checks for existing mechanisms in the current workflow, codebase, or docs
+2. Evaluates scope — is the idea too broad (should be split) or too narrow (part of something larger)?
+3. Considers alternatives — simpler approaches, extending existing skills
+
+If an existing mechanism covers the idea, the skill presents its findings and lets the user decide whether to proceed. If no change folder is created, no `Next:` line is shown.
+
+#### Conversational Proposal Development
+
+The skill develops the proposal through back-and-forth conversation with no fixed question cap. Each question builds on previous answers, starting with the highest-impact decisions (lowest Reversibility + lowest Agent Competence). SRAD grades are tracked for each decision point throughout the conversation.
+
+#### Conversation Termination
+
+The discussion ends when both conditions are met:
+1. The confidence score is >= 3.0
+2. The user signals satisfaction (e.g., "looks good", "done")
+
+When the confidence score crosses 3.0, `/fab-discuss` proactively suggests wrapping up. The user may also end the discussion early at any time regardless of the current score.
+
+#### Proposal Output
+
+**New change mode**: Creates the change folder, `checklists/` subdirectory, `.status.yaml` (without `branch:` field — no git integration), and `proposal.md`. Sets `progress.proposal` to `done`. Does NOT write to `fab/current` — the user must `/fab-switch` to it.
+
+**Refine mode**: Updates the existing `proposal.md` in place, recomputes the confidence score, and updates `.status.yaml`.
+
+#### Key Differences from `/fab-new`
+
+| Aspect | fab-discuss | fab-new |
+|--------|-------------|---------|
+| **Purpose** | Explore & develop proposal through conversation | Capture clear description as proposal |
+| **Gap analysis** | Yes — "is this change even needed?" | No — assumes the change is needed |
+| **Interaction style** | Free-form conversation, unlimited questions | One-shot generation, max 3 SRAD questions |
+| **Sets active change** | No — must `/fab-switch` | Yes |
+| **Git integration** | None | Yes (branch create/adopt) |
+| **Confidence goal** | Drive score high for `/fab-fff` | Compute initial score |
+
+#### Context
+
+Loads: config, constitution, `fab/docs/index.md`, `fab/specs/index.md`. In refine mode, also loads the active change's `proposal.md` and `.status.yaml`.
 
 ### `/fab-continue [<stage>]`
 
@@ -217,6 +276,18 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 **Rejected**: No clarify in ff (gaps compound). Full user-interactive clarify in ff (defeats fast-forward flow). Full-auto mode with `<!-- auto-guess -->` markers (defers interaction rather than eliminating it — replaced by confidence-gated `/fab-fff`).
 *Introduced by*: 260207-m3qf-clarify-dual-modes; *Updated by*: 260208-k3m7-add-fab-fff (removed `--auto` mode)
 
+### Conversational Entry Point via `/fab-discuss`
+**Decision**: Add `/fab-discuss` as a separate skill for conversational proposal development, distinct from `/fab-new` (one-shot capture) and `/fab-clarify` (structured artifact refinement).
+**Why**: `/fab-new` is optimized for clear ideas (one-shot, max 3 questions). `/fab-clarify` refines existing artifacts. Neither serves the "I have a vague idea, let's figure it out" use case. `/fab-discuss` fills this gap with free-form conversation, gap analysis, and unlimited questions.
+**Rejected**: Extending `/fab-new` with a conversation mode — would bloat a focused skill. Using only `/fab-clarify` — it's scoped to artifact gaps, not idea exploration.
+*Introduced by*: 260208-lgd7-fab-discuss-command
+
+### Context-Driven Mode Selection for `/fab-discuss`
+**Decision**: `/fab-discuss` determines its mode (new vs. refine) from the active change state (`fab/current`), not from argument-based auto-detection.
+**Why**: Natural UX — if you're working on something, discussing relates to it by default. If the description diverges significantly, the skill confirms. No special arguments needed.
+**Rejected**: Argument-based detection (matching against `fab/changes/` folder names) — brittle, confusing syntax.
+*Introduced by*: 260208-lgd7-fab-discuss-command
+
 ### Reset via `/fab-continue <stage>`
 **Decision**: Reset to an earlier planning stage by passing the stage name as an argument to `/fab-continue`. Downstream artifacts are invalidated and regenerated.
 **Why**: Provides a clean re-entry point after `/fab-review` identifies upstream issues. Reuses the existing skill rather than adding a separate `/fab-reset` command.
@@ -227,6 +298,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260208-lgd7-fab-discuss-command | 2026-02-08 | Added `/fab-discuss` conversational proposal skill, `/fab-new` confidence scoring, context-driven mode selection design decisions |
 | 260208-k3m7-add-fab-fff | 2026-02-08 | Added `/fab-fff` full pipeline skill, confidence recomputation in `/fab-continue`, removed `/fab-ff --auto` mode, updated design decisions |
 | 260207-09sj-autonomy-framework | 2026-02-08 | Added SRAD autonomy framework, confidence grades, assumptions summaries, branch auto-create on main, soft gate on fab-apply |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab:xxx` colon format to `/fab-xxx` hyphen format |

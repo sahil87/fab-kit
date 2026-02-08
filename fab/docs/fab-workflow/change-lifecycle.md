@@ -27,7 +27,8 @@ All components MUST be lowercase — avoids collisions on case-insensitive files
 **Lifecycle**:
 - **Created** by `/fab-new` — written with the newly created change folder name
 - **Updated** by `/fab-new` or `/fab-switch` — overwritten with the new change name
-- **Read** by every other skill — `/fab-continue`, `/fab-clarify`, `/fab-apply`, `/fab-review`, `/fab-status` all resolve the active change via `current`
+- **Read** by every other skill — `/fab-continue`, `/fab-clarify`, `/fab-discuss`, `/fab-apply`, `/fab-review`, `/fab-status` all resolve the active change via `current`
+- **Not written** by `/fab-discuss` — creates a change folder but does NOT update `fab/current` (the user must `/fab-switch` to make it active). This keeps the current work context undisturbed while exploring new ideas.
 - **Cleared** by `/fab-archive` — file is deleted after archiving (no active change)
 
 **Resolution pattern** (used by all skills):
@@ -79,6 +80,8 @@ The stages split into three phases:
 The `plan` stage MAY be skipped for straightforward changes. When skipped, its status is recorded as `skipped` and the flow proceeds directly from `specs` to `tasks`.
 
 **Full pipeline path**: `/fab-fff` chains the entire flow (planning → apply → review → archive) in a single invocation, gated on confidence score >= 3.0. This is the fastest path from proposal to archived change.
+
+**Alternative entry point**: `/fab-discuss` can create a change with a high-confidence proposal through conversation, then the user can `/fab-switch` to it and run `/fab-fff` for full autonomous execution. The discuss → switch → fff path is ideal for vague ideas that need exploration before committing to implementation.
 
 ### Git Integration (Optional)
 
@@ -149,6 +152,7 @@ All mechanical work (file reading, YAML parsing, progress symbol mapping, next c
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260208-lgd7-fab-discuss-command | 2026-02-08 | Added `/fab-discuss` to `fab/current` lifecycle (reads but does not write), added discuss → switch → fff alternative entry path |
 | 260208-k3m7-add-fab-fff | 2026-02-08 | Added `confidence` field to `.status.yaml` schema, added full pipeline path via `/fab-fff` |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab:xxx` colon format to `/fab-xxx` hyphen format |
 | — | 2026-02-07 | Generated from doc/fab-spec/ (ARCHITECTURE.md, SKILLS.md, TEMPLATES.md) |

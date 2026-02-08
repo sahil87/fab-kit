@@ -130,6 +130,12 @@ checklist:
   path: checklists/quality.md
   completed: 0
   total: 0
+confidence:
+  certain: 0
+  confident: 0
+  tentative: 0
+  unresolved: 0
+  score: 5.0
 last_updated: {ISO 8601 timestamp}
 ```
 
@@ -137,6 +143,7 @@ last_updated: {ISO 8601 timestamp}
 - `stage` is set to `proposal`
 - `proposal` progress is `active` — all other stages are `pending`
 - `branch` field is only present if the user chose a branch in Step 4
+- `confidence` block is initialized with defaults — Step 8 overwrites with actual counts after proposal generation
 - Both `created` and `last_updated` use the same timestamp (current time in ISO 8601 format with timezone)
 
 ### Step 6: Generate `proposal.md`
