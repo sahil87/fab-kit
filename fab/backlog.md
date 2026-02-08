@@ -26,7 +26,7 @@
 - [x] [ny4x] 2026-02-07: In the next command suggestion we are giving, all fab commands are listed as fab:xxx instead of fab-xxxx. This needs to be updated.
 - [x] [hwnz] 2026-02-07: Separate out docs and specs. Specs: Maching generated, how everything works. Docs: much shorted, for humans. Need to undergo review before mergin
 - [ ] [90g5] 2026-02-07: Add a constitution command the creates the constitution - base on SpecKit's constitution
-- [ ] [e1fp] 2026-02-07: architecture review AND checking all commands for simplification, and then autonomy - be more biased towards asking qns
+- [x] [e1fp] 2026-02-07: architecture review AND checking all commands for simplification, and then autonomy - be more biased towards asking qns
 - [ ] [sflf] 2026-02-07: create a fab-fff command that takes you all the way, given a proposal, to archive, this should absorb the fab-ff --auto mode (we no longer need it after this). This should be allowed only if the level of ambiguity is low - we should be able to determine this from the ambiguity score in .status.yaml 
 - [ ] [jgt6] 2026-02-07: hydrate should distinguish between specs and docs. Ingestion = specs. Generation = docs
 - [ ] [n4j0] 2026-02-08: Add a fab update script that updates the fab/dotkit folder from a central repo. 
