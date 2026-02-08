@@ -28,7 +28,11 @@ The skill SHALL perform a systematic scan of the current artifact for gaps, ambi
 - **Plan**: assumption verification, research completeness, decision rationale, risk identification, file change coverage
 - **Tasks**: task completeness, granularity, dependency ordering, file path accuracy, parallel markers
 
-The scan also detects `<!-- auto-guess: ... -->` markers left by `/fab-ff --auto`.
+The scan also detects:
+- `<!-- auto-guess: ... -->` markers left by `/fab-ff --auto` — Unresolved decisions to resolve interactively
+- `<!-- assumed: ... -->` markers left by any planning skill — Tentative assumptions to confirm or override
+
+When presenting questions from `<!-- assumed: ... -->` markers, the current assumption is framed as the recommended option with alternatives offered.
 
 #### Structured Question Format
 
@@ -66,7 +70,7 @@ At the end of each session, the skill SHALL display a coverage summary with four
 
 #### Autonomous Resolution
 
-In auto mode, the skill SHALL resolve gaps using available context (config, constitution, centralized docs, completed artifacts). It classifies each gap as resolvable, blocking, or non-blocking.
+In auto mode, the skill SHALL resolve gaps using available context (config, constitution, centralized docs, completed artifacts). It classifies each gap as resolvable, blocking, or non-blocking. The scan includes `<!-- assumed: ... -->` markers — those confirmable from context are resolved (marker removed), others are classified as blocking or non-blocking.
 
 #### Machine-Readable Result
 
@@ -106,4 +110,5 @@ The skill SHALL only operate on planning stages (`proposal`, `specs`, `plan`, `t
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260207-09sj-autonomy-framework | 2026-02-08 | Added `<!-- assumed: ... -->` marker scanning to both suggest and auto modes; assumed markers framed as recommendations with alternatives |
 | 260207-m3qf-clarify-dual-modes | 2026-02-07 | Initial doc — dual-mode clarify skill (suggest + auto), taxonomy scan, structured questions, coverage reports, audit trail |

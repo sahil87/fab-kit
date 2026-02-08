@@ -64,19 +64,23 @@ This makes `/fab-ff` resumable after a bail — re-running picks up from the fir
 
 ### Step 1: Frontload All Questions
 
-Scan the proposal for ambiguities across **all** planning stages (specs, plan, tasks). Consider:
+**In `--auto` mode: skip this step entirely.** The "hard zero interruptions" contract means no questions are asked under any circumstances. All Unresolved decisions are auto-guessed with `<!-- auto-guess: {description} -->` markers during artifact generation. Proceed directly to Step 2.
+
+**In default mode:**
+
+Apply SRAD scoring across the proposal for ambiguities spanning **all** planning stages (specs, plan, tasks). Consider:
 
 - **Spec ambiguities**: Are any requirements vague? Multiple interpretations? Missing acceptance criteria? Edge cases unaddressed?
 - **Plan ambiguities**: Are there architectural choices not yet decided? Unknown dependencies? Technology selection needed?
 - **Task ambiguities**: Is the scope unclear enough that task breakdown would require guessing?
 
-Collect everything that needs user input into a **single batch of questions**. Ask once, then proceed without further interruption.
+Collect all **Unresolved** decisions (SRAD grade) into a **single batch of questions**. Ask once, then proceed without further interruption. Confident and Tentative decisions are assumed (tracked for the cumulative Assumptions summary).
 
 **If there are questions:**
 
 Present them all in a single numbered list. Wait for the user to answer all of them. Then proceed to Step 2 without asking anything else.
 
-**If the proposal is clear and unambiguous:**
+**If SRAD evaluation finds no Unresolved decisions:**
 
 Skip questions entirely and proceed directly to Step 2.
 
@@ -97,7 +101,8 @@ Skip questions entirely and proceed directly to Step 2.
    - At least one GIVEN/WHEN/THEN scenario per requirement
 4. Include a **Deprecated Requirements** section if the change removes existing requirements
 5. Incorporate answers from Step 1 to resolve any ambiguities — the spec should have no `[NEEDS CLARIFICATION]` markers
-6. Write the completed spec to `fab/changes/{name}/spec.md`
+6. Append an `## Assumptions` section listing all Confident and Tentative assumptions made during spec generation (see Assumptions Summary Block in `_context.md`). In `--auto` mode, also include auto-guessed decisions.
+7. Write the completed spec to `fab/changes/{name}/spec.md`
 
 Update `.status.yaml`:
 - Set `progress.specs` to `done`
@@ -130,6 +135,8 @@ Evaluate whether a `plan.md` is warranted. **Unlike `/fab-continue`, this decisi
 - No research or library evaluation is required
 - It's a single-file change, straightforward CRUD, or a well-known pattern
 
+**Output**: Include a brief rationale explaining the decision: `Plan {skipped|generated} — {one-sentence reason}.` For example: `Plan skipped — change touches only skill files with clear requirements from the spec.`
+
 **If the plan is NOT warranted (skip):**
 1. Record `progress.plan` as `skipped` in `.status.yaml`
 2. Do NOT create a `plan.md` file
@@ -150,8 +157,9 @@ Evaluate whether a `plan.md` is warranted. **Unlike `/fab-continue`, this decisi
    - **Decisions**: Key design decisions with rationale and rejected alternatives
    - **Risks / Trade-offs**: Known risks with mitigation strategies
    - **File Changes**: Concrete list of new, modified, and deleted files
-4. Write the completed plan to `fab/changes/{name}/plan.md`
-5. Update `.status.yaml`:
+4. Append an `## Assumptions` section listing all Confident and Tentative assumptions made during plan generation
+5. Write the completed plan to `fab/changes/{name}/plan.md`
+6. Update `.status.yaml`:
    - Set `progress.plan` to `done`
    - Update `last_updated`
 
@@ -235,8 +243,10 @@ Auto-clarify: spec — {resolved: N, blocking: 0, non_blocking: N}
 
 ## Plan Decision
 
-{Plan skipped — change is straightforward.}
+Plan skipped — {one-sentence rationale}.
 OR
+Plan generated — {one-sentence rationale}.
+
 {plan content}
 
 Plan created.
@@ -253,6 +263,16 @@ Auto-clarify: tasks — {resolved: N, blocking: 0, non_blocking: N}
 Generated checklists/quality.md with {N} items.
 
 Fast-forward complete — specs, {plan/no plan}, tasks, and checklist generated.
+
+## Assumptions (cumulative)
+
+| # | Grade | Decision | Rationale | Artifact |
+|---|-------|----------|-----------|----------|
+| 1 | Confident | {decision} | {rationale} | spec.md |
+| 2 | Tentative | {decision} | {rationale} | spec.md |
+| 3 | Tentative | {decision} | {rationale} | tasks.md |
+
+{N} assumptions made ({C} confident, {T} tentative). Run /fab-clarify to review.
 
 Next: /fab-apply
 ```
@@ -335,6 +355,15 @@ Auto-clarify: tasks — {resolved: 0, blocking: 0, non_blocking: 1}
 Generated checklists/quality.md with {N} items.
 
 Fast-forward complete — specs, plan, tasks, and checklist generated.
+
+## Assumptions (cumulative)
+
+| # | Grade | Decision | Rationale | Artifact |
+|---|-------|----------|-----------|----------|
+| 1 | Confident | {decision} | {rationale} | spec.md |
+| 2 | Tentative | {decision} | {rationale} | plan.md |
+
+{N} assumptions made ({C} confident, {T} tentative).
 
 ⚠ Auto-guesses made (review these before implementation):
 1. Assumed OAuth2 for auth provider (in spec.md)

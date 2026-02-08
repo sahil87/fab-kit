@@ -145,7 +145,11 @@ Perform a systematic scan of the artifact for gaps, ambiguities, and `[NEEDS CLA
 - File path accuracy — does each task reference exact file paths?
 - Parallel markers — are independent tasks marked `[P]`?
 
-Also scan for `<!-- auto-guess: {description} -->` markers (left by `/fab-ff --auto`) — these are gaps to resolve interactively.
+Also scan for:
+- `<!-- auto-guess: {description} -->` markers (left by `/fab-ff --auto`) — these are Unresolved decisions to resolve interactively
+- `<!-- assumed: {description} -->` markers (left by any planning skill) — these are Tentative assumptions to confirm or override
+
+When presenting a question derived from an `<!-- assumed: ... -->` marker, frame the current assumption as the **recommended option** and offer alternatives. For example, if the marker says `<!-- assumed: supplement existing auth rather than replace -->`, the recommendation should be "Supplement existing auth" with alternatives like "Replace existing auth" or "Both — configurable".
 
 After scanning, build a **prioritized question queue** (highest-impact gaps first). Cap at **5 questions maximum** per invocation.
 
@@ -205,6 +209,7 @@ After the user responds:
 2. **Immediately update the artifact in place** to reflect the resolution:
    - Replace `[NEEDS CLARIFICATION]` markers with concrete content
    - Replace `<!-- auto-guess: ... -->` markers with the confirmed resolution
+   - Replace `<!-- assumed: ... -->` markers with confirmed content (if user accepts) or updated content (if user overrides)
    - Add `<!-- clarified: {description} -->` HTML comment next to significant changes
 3. Present the next question (return to Step 3)
 4. After the 5th answer (or when the queue is exhausted), proceed to Step 5
@@ -267,9 +272,9 @@ Same as Suggest Mode Step 1 — determine the artifact file from the current sta
 
 ### Step 2: Autonomous Gap Analysis
 
-Perform the same stage-scoped taxonomy scan as Suggest Mode Step 2. For each gap found, attempt autonomous resolution:
+Perform the same stage-scoped taxonomy scan as Suggest Mode Step 2, including scanning for `<!-- assumed: ... -->` and `<!-- auto-guess: ... -->` markers. For each gap found, attempt autonomous resolution:
 
-1. **Resolvable** — the gap can be resolved using available context (config, constitution, centralized docs, completed artifacts). Resolve it in place with a `<!-- clarified: {description} -->` marker.
+1. **Resolvable** — the gap can be resolved using available context (config, constitution, centralized docs, completed artifacts). Resolve it in place with a `<!-- clarified: {description} -->` marker. For `<!-- assumed: ... -->` markers that can be confirmed from context, remove the marker (assumption confirmed).
 2. **Blocking** — the gap cannot be resolved from available context. It requires user input or external information that the agent does not have. Leave the gap in place with a `<!-- blocking: {description} -->` marker.
 3. **Non-blocking** — a minor gap that does not materially affect downstream artifacts. Leave as-is with no marker.
 

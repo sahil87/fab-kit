@@ -1,0 +1,17 @@
+name: 260207-09sj-autonomy-framework
+created: 2026-02-07T18:00:00+00:00
+stage: archive
+progress:
+  proposal: done
+  specs: done
+  plan: skipped
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklists/quality.md
+  completed: 41
+  total: 41
+last_updated: 2026-02-08T01:15:00+00:00

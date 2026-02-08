@@ -25,6 +25,10 @@ The execution skills (`/fab-apply`, `/fab-review`, `/fab-archive`) handle the im
 
 `/fab-apply` is inherently resumable. If the agent is interrupted mid-run, re-invoking `/fab-apply` picks up from the first unchecked item. The markdown checklist *is* the progress state — no separate tracking needed.
 
+#### Auto-Guess Soft Gate
+
+Before beginning implementation, `/fab-apply` SHALL scan `tasks.md` for `<!-- auto-guess: ... -->` markers. If any are found, the skill warns with a count, lists each auto-guess description, and prompts `Continue with implementation? (y/n)`. If the user declines, the skill aborts with a suggestion to run `/fab-clarify` first. If no markers are found, the gate is skipped entirely.
+
 #### Context
 
 Loads: config, constitution, `tasks.md`, `spec.md`, `plan.md` (if exists), relevant source code (files referenced in tasks).
@@ -120,5 +124,6 @@ Loads: `spec.md`, `plan.md` (if exists), target centralized doc(s) from `fab/doc
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260207-09sj-autonomy-framework | 2026-02-08 | Added auto-guess soft gate to `/fab-apply` — warns and prompts before implementing when `<!-- auto-guess: ... -->` markers exist |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab:xxx` colon format to `/fab-xxx` hyphen format |
 | — | 2026-02-07 | Generated from doc/fab-spec/ (SKILLS.md, TEMPLATES.md) |
