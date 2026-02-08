@@ -23,14 +23,14 @@ The skill SHALL:
 2. Write the change name to `fab/current` (sets active change)
 3. Initialize `.status.yaml` with `stage: proposal`
 4. Generate `proposal.md` from the template, loading `fab/constitution.md` and `fab/config.yaml` as context
-5. Ask clarifying questions if intent is ambiguous
+5. Apply SRAD scoring to identify up to 3 Unresolved questions; assume all Confident/Tentative decisions
 6. Mark proposal complete once the user is satisfied
 
 #### Branch Integration
 
 When `git.enabled` in config and the project is a git repo:
 - If `--branch <name>` is provided → use that name directly (create if new, adopt if existing)
-- If on `main`/`master` → offer to create a branch named `{prefix}{change-name}`
+- If on `main`/`master` → auto-create a branch named `{prefix}{change-name}` (no prompt)
 - If on a feature branch → offer to adopt it (record current branch name as-is)
 - If user declines → skip; no `branch:` field in `.status.yaml`
 
@@ -154,11 +154,17 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 ## Design Decisions
 
-### Proposal-First with Capped Blocking Questions
-**Decision**: Every change starts with a proposal that may include up to 3 [BLOCKING] questions. The agent makes informed guesses for ambiguities beyond the cap.
-**Why**: Prevents question-paralysis while still catching showstopper ambiguities. Forces the agent to be opinionated rather than deferring everything to the user.
-**Rejected**: Unlimited clarification rounds — too many back-and-forth exchanges before any artifact is produced.
-*Source*: doc/fab-spec/TEMPLATES.md, doc/fab-spec/README.md
+### SRAD Autonomy Framework
+**Decision**: All planning skills use the SRAD framework (Signal Strength, Reversibility, Agent Competence, Disambiguation Type) to evaluate decision points and assign confidence grades (Certain, Confident, Tentative, Unresolved). Each skill has a defined autonomy level and interruption budget.
+**Why**: Replaces ad-hoc question selection with a principled, consistent framework. Ensures high-blast-radius decisions are always surfaced while low-value prompts are eliminated. The four-dimension scoring prevents both over-asking and silent high-risk assumptions.
+**Rejected**: Ad-hoc question selection — inconsistent, no way to predict agent behavior. Full autonomy — too risky for Unresolved decisions with cascading consequences.
+*Introduced by*: 260207-09sj-autonomy-framework
+
+### Proposal-First with SRAD-Based Questions
+**Decision**: Every change starts with a proposal. The agent applies SRAD scoring to identify up to 3 Unresolved decisions with the highest blast radius and asks those. All other decisions are assumed at their assessed confidence grade and surfaced in the Assumptions summary.
+**Why**: Prevents question-paralysis while catching the decisions that actually matter. SRAD scoring replaces gut-feel question selection with a repeatable evaluation method.
+**Rejected**: Unlimited clarification rounds — too many back-and-forth exchanges. Fixed 3-question cap without SRAD — may ask the wrong 3 questions.
+*Source*: doc/fab-spec/TEMPLATES.md, doc/fab-spec/README.md; *Updated by*: 260207-09sj-autonomy-framework
 
 ### Plan Stage is Optional
 **Decision**: `/fab-continue` may propose skipping the plan for straightforward changes. `/fab-ff` skips autonomously. Status records `plan: skipped`.
@@ -200,6 +206,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260207-09sj-autonomy-framework | 2026-02-08 | Added SRAD autonomy framework, confidence grades, assumptions summaries, branch auto-create on main, soft gate on fab-apply |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab:xxx` colon format to `/fab-xxx` hyphen format |
 | 260207-m3qf-clarify-dual-modes | 2026-02-07 | Updated `/fab-clarify` to dual-mode (suggest + auto), `/fab-ff` with interleaved auto-clarify and `--auto` flag |
 | — | 2026-02-07 | Generated from doc/fab-spec/ (README.md, SKILLS.md, TEMPLATES.md) |

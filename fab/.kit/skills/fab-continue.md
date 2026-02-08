@@ -80,6 +80,16 @@ Load everything from the specs context above, plus:
 Load everything from the plan context above, plus:
 - `fab/changes/{name}/plan.md` — the completed plan (if it exists; skip if plan was marked `skipped`)
 
+### Step 2b: SRAD-Based Question Selection
+
+Before generating the artifact, apply the SRAD framework (defined in `_context.md`) to decision points for the current stage:
+
+1. **Evaluate each decision point** against the four SRAD dimensions
+2. **Assign confidence grades** (Certain, Confident, Tentative, Unresolved)
+3. **Ask up to 3 Unresolved questions** — prioritize those with the lowest Reversibility + lowest Agent Competence (Critical Rule). Interruption budget is 1-2 per stage for typical changes, up to 3 for highly ambiguous ones.
+4. **Assume Confident and Tentative decisions** — Tentative decisions get `<!-- assumed: ... -->` markers in the artifact
+5. Track all assumptions for the Assumptions summary (see Step 5)
+
 ### Step 3: Generate Artifact
 
 Based on the target stage, generate the appropriate artifact:
@@ -97,7 +107,8 @@ Based on the target stage, generate the appropriate artifact:
    - At least one GIVEN/WHEN/THEN scenario per requirement
 4. Include a **Deprecated Requirements** section if the change removes existing requirements
 5. Mark any unresolved ambiguities with `[NEEDS CLARIFICATION]` inline
-6. Write the completed spec to `fab/changes/{name}/spec.md`
+6. Append an `## Assumptions` section listing all Confident and Tentative assumptions (see Assumptions Summary Block in `_context.md`)
+7. Write the completed spec to `fab/changes/{name}/spec.md`
 
 #### Plan Decision (specs → plan transition)
 
@@ -133,7 +144,8 @@ Before generating a plan, evaluate whether one is warranted:
    - **Decisions**: Key design decisions with rationale and rejected alternatives
    - **Risks / Trade-offs**: Known risks with mitigation strategies
    - **File Changes**: Concrete list of new, modified, and deleted files
-4. Write the completed plan to `fab/changes/{name}/plan.md`
+4. Append an `## Assumptions` section listing all Confident and Tentative assumptions
+5. Write the completed plan to `fab/changes/{name}/plan.md`
 
 #### Generating `tasks.md`
 
@@ -283,7 +295,15 @@ Stage: proposal (done). Creating spec.md...
 
 {spec content}
 
-Spec created.
+Spec created. {N} [NEEDS CLARIFICATION] markers in spec.md. Run /fab-clarify to resolve.
+
+## Assumptions
+
+| # | Grade | Decision | Rationale |
+|---|-------|----------|-----------|
+| 1 | Confident | {decision} | {rationale} |
+
+{N} assumptions made ({C} confident, {T} tentative). Run /fab-clarify to review.
 
 Next: /fab-continue (plan) or /fab-ff (fast-forward) or /fab-clarify (refine spec)
 ```
@@ -322,6 +342,20 @@ Stage: specs (done). Creating plan.md...
 {plan content}
 
 Plan created.
+
+## Key Decisions
+
+| # | Decision | Rationale | Rejected |
+|---|----------|-----------|----------|
+| 1 | {choice made} | {why} | {alternative not chosen} |
+
+## Assumptions
+
+| # | Grade | Decision | Rationale |
+|---|-------|----------|-----------|
+| 1 | Tentative | {decision} | {rationale} |
+
+{N} assumptions made ({C} confident, {T} tentative). Run /fab-clarify to review tentative assumptions.
 
 Next: /fab-continue (tasks) or /fab-clarify (refine plan)
 ```

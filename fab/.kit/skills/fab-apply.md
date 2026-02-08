@@ -36,6 +36,18 @@ Then verify stage-specific preconditions using the preflight output:
 
 > `No tasks.md found for this change. Run /fab-continue or /fab-ff to generate tasks first.`
 
+### Auto-Guess Soft Gate
+
+After verifying `tasks.md` exists, scan it for `<!-- auto-guess: {description} -->` markers. If any are found:
+
+1. Print: `⚠ {N} auto-guess marker(s) found in tasks.md.`
+2. List each auto-guess description (extracted from the marker content)
+3. Prompt: `Continue with implementation? (y/n)`
+4. If the user answers `n` or `no` (case-insensitive): STOP with `Run /fab-clarify to resolve auto-guesses first.`
+5. If the user answers `y` or `yes` (case-insensitive): proceed to Context Loading
+
+If no `<!-- auto-guess: ... -->` markers are found, skip this gate entirely.
+
 ---
 
 ## Context Loading

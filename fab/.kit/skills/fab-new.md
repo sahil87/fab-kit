@@ -94,11 +94,10 @@ This sets the new change as the active change. Any previously active change is r
 
 Detect the current branch and offer options:
 
-- **If on `main` or `master`**: Offer to create a new branch
-  - Suggest branch name: `{branch_prefix}{change-name}` (using `git.branch_prefix` from config, which may be empty)
-  - Options: **Create branch** (default), **Skip** (no branch tracking)
-  - If user chooses "Create branch": `git checkout -b {branch-name}` and record in `.status.yaml`
-  - If user chooses "Skip": no `branch:` field in `.status.yaml`
+- **If on `main` or `master`**: Auto-create a branch without prompting
+  - Branch name: `{branch_prefix}{change-name}` (using `git.branch_prefix` from config, which may be empty)
+  - Run `git checkout -b {branch-name}` and record in `.status.yaml`
+  - This is a low-value prompt removed per SRAD scoring (high R, high A, high D — Certain grade)
 
 - **If on a feature branch** (not main/master): **Present these options to the user (do NOT auto-select)**:
   - Show current branch name
@@ -158,28 +157,26 @@ Generate `fab/changes/{name}/proposal.md` using the template at `fab/.kit/templa
 5. Fill in the **Affected Docs** section — identify which centralized docs (in `fab/docs/`) will be new, modified, or removed by this change. Use `fab/docs/index.md` to understand what exists.
 6. Fill in the **Impact** section — identify affected code areas, APIs, dependencies
 7. Fill in the **Open Questions** section (see Step 7 below)
+8. After all sections are filled, append an **`## Assumptions`** section to the artifact listing all Confident and Tentative assumptions made during generation (see Assumptions Summary Block format in `_context.md`)
 
-### Step 7: Clarifying Questions
+### Step 7: SRAD-Based Question Selection
 
-If the user's description is ambiguous or leaves significant questions unanswered:
+Apply the SRAD framework (defined in `_context.md`) to all decision points encountered during proposal generation:
 
-1. Identify up to 3 questions that **must** be resolved before specs can be written
-2. Mark these as `[BLOCKING]` in the proposal's Open Questions section
-3. Ask the user these questions directly
-4. **Maximum 3 blocking questions** — for anything else, make an informed guess and note it as `[DEFERRED]`
+1. **Evaluate each decision point** against the four SRAD dimensions (Signal Strength, Reversibility, Agent Competence, Disambiguation Type)
+2. **Assign a confidence grade** (Certain, Confident, Tentative, or Unresolved)
+3. **For Certain and Confident decisions**: Assume silently. Confident decisions go in the Assumptions summary.
+4. **For Tentative decisions**: Assume and mark with `<!-- assumed: {description} -->` in the artifact. Include in Assumptions summary.
+5. **For Unresolved decisions**: Identify the top ~3 with the highest blast radius (lowest Reversibility + lowest Agent Competence). Ask these as blocking questions. Mark remaining Unresolved as `[DEFERRED]` in the Open Questions section.
 
-**What counts as ambiguous**:
-- Scope unclear (e.g., "improve auth" — which aspect?)
-- Multiple valid approaches with different tradeoffs
-- Missing technical context the agent can't infer from the codebase
-- Conflicting signals in the description
+**Maximum 3 questions** — the Critical Rule (see `_context.md`) requires that Unresolved decisions with low R + low A are always asked. Beyond 3, make a best guess and mark as Tentative.
 
-**What does NOT need clarification**:
+**What does NOT need SRAD evaluation**:
 - Implementation details (those belong in the plan)
 - Testing strategy (that belongs in tasks)
-- Anything the agent can reasonably infer from config, constitution, or existing docs
+- Anything deterministically answered by config, constitution, or template rules (grade: Certain)
 
-If the description is clear and unambiguous, skip this step — generate the proposal without questions.
+If SRAD evaluation finds no Unresolved decisions, skip questions entirely — generate the proposal without asking.
 
 ### Step 8: Mark Proposal Complete
 
@@ -206,6 +203,15 @@ Branch: 260206-x7k2-add-oauth (created)
 
 Proposal complete.
 
+## Assumptions
+
+| # | Grade | Decision | Rationale |
+|---|-------|----------|-----------|
+| 1 | Confident | OAuth2 over SAML | Config shows REST API stack |
+| 2 | Tentative | Google + GitHub providers | Most common OSS combination |
+
+2 assumptions made (1 confident, 1 tentative). Run /fab-clarify to review.
+
 Next: /fab-continue or /fab-ff (fast-forward all planning)
 ```
 
@@ -219,15 +225,23 @@ Branch: 260206-x7k2-add-oauth (created)
 
 {partially filled proposal content}
 
-Before finalizing the proposal, I need to clarify:
-1. [BLOCKING] Which OAuth providers should be supported — Google only, or also GitHub/Apple?
-2. [BLOCKING] Should this replace the existing password auth or supplement it?
+Before finalizing the proposal, I need to resolve 2 unresolved decisions (SRAD: low R + low A):
+1. Which OAuth providers should be supported — Google only, or also GitHub/Apple?
+2. Should this replace the existing password auth or supplement it?
 
 {user answers}
 
 {updated proposal content}
 
 Proposal complete.
+
+## Assumptions
+
+| # | Grade | Decision | Rationale |
+|---|-------|----------|-----------|
+| 1 | Confident | OAuth2 over SAML | Config shows REST API stack |
+
+1 assumption made (1 confident, 0 tentative).
 
 Next: /fab-continue or /fab-ff (fast-forward all planning)
 ```
