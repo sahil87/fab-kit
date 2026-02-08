@@ -27,5 +27,8 @@
 - [x] [hwnz] 2026-02-07: Separate out docs and specs. Specs: Maching generated, how everything works. Docs: much shorted, for humans. Need to undergo review before mergin
 - [ ] [90g5] 2026-02-07: Add a constitution command the creates the constitution - base on SpecKit's constitution
 - [ ] [e1fp] 2026-02-07: architecture review AND checking all commands for simplification, and then autonomy - be more biased towards asking qns
-- [ ] [sflf] 2026-02-07: create a fab-fff command that takes you all the way from plan to archive
+- [ ] [sflf] 2026-02-07: create a fab-fff command that takes you all the way from plan to archive, this should absorb the fab-ff --auto mode 
 - [ ] [jgt6] 2026-02-07: hydrate should distinguish between specs and docs. Ingestion = specs. Generation = docs
+- [ ] [n4j0] 2026-02-08: Add a fab update script that updates the fab/dotkit folder from a central repo. 
+- [ ] [eb7z] 2026-02-08: Using SRAD we should be able to come up with a level of ambiguity for every single proposal. If the level of ambiguity is high, then don't allow the user to run the FFF command. If it is low, then that command can be suggested. 
+- [ ] [spcy] 2026-02-08: add a command fab-discuss that helps us come up with a solid proposal.md - like fab-new, with the differences being that fab-discuss doesn't switch to the change (you need to fab-switch to it) and it walks you through making a solid proposal, asking clarifying questions. 
