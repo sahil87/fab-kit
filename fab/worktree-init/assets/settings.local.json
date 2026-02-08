@@ -76,6 +76,7 @@
       "Bash(file *)",
       "Bash(tee *)",
       "Bash(yes *)",
+      "Bash(rm fab/*)",
       "Bash(fab/.kit/scripts/fab-setup.sh *)",
       "Bash(bash *)"
     ]
