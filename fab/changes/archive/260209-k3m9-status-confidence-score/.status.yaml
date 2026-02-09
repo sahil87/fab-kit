@@ -1,0 +1,23 @@
+name: 260209-k3m9-status-confidence-score
+created: 2026-02-09T00:00:00Z
+stage: archive
+progress:
+  proposal: done
+  specs: done
+  plan: skipped
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklists/quality.md
+  completed: 11
+  total: 11
+confidence:
+  certain: 2
+  confident: 2
+  tentative: 0
+  unresolved: 0
+  score: 4.8
+last_updated: 2026-02-09T00:00:00Z

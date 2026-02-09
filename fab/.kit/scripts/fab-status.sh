@@ -70,6 +70,13 @@ chk_generated=$(get_nested "generated"); chk_generated=${chk_generated:-false}
 chk_completed=$(get_nested "completed"); chk_completed=${chk_completed:-0}
 chk_total=$(get_nested "total");         chk_total=${chk_total:-0}
 
+# Confidence
+conf_score=$(get_nested "score")
+conf_certain=$(get_nested "certain")
+conf_confident=$(get_nested "confident")
+conf_tentative=$(get_nested "tentative")
+conf_unresolved=$(get_nested "unresolved")
+
 # --- Stage number ---
 case "${stage:-}" in
   proposal) stage_num=1 ;; specs) stage_num=2 ;; plan)    stage_num=3 ;;
@@ -145,6 +152,16 @@ if [ "$chk_generated" = "true" ]; then
   echo "Checklist: $chk_completed/$chk_total items"
 else
   echo "Checklist: not yet generated"
+fi
+if [ -n "$conf_score" ]; then
+  conf_line="Confidence: $conf_score/5.0 (${conf_certain:-0} certain, ${conf_confident:-0} confident, ${conf_tentative:-0} tentative"
+  if [ "${conf_unresolved:-0}" != "0" ]; then
+    conf_line="$conf_line, $conf_unresolved unresolved"
+  fi
+  conf_line="$conf_line)"
+  echo "$conf_line"
+else
+  echo "Confidence: not yet scored"
 fi
 echo ""
 echo "Next: $next"
