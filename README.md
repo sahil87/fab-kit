@@ -24,17 +24,18 @@ sddr/
 └── README.md
 ```
 
-## Documentation
+## Structure
 
-### [doc/speckit/](doc/speckit/)
+The documentation and specs for this repo reside in `fab/specs` and `fab/docs`.
+
+The `references/` folder contains docs from other libraries and projects, included purely for reference.
+
+### [references/speckit/](references/speckit/)
 Comprehensive analysis of **Spec-Kit** (https://github.com/github/spec-kit) - GitHub's SDD toolkit.
-- Start with [README.md](doc/speckit/README.md) for overview
+- Start with [README.md](references/speckit/README.md) for overview
 - Key docs: philosophy, workflow, commands, templates, agents
 
-### [doc/openspec/](doc/openspec/)
+### [references/openspec/](references/openspec/)
 In-depth analysis of **OpenSpec** (https://github.com/Fission-AI/OpenSpec) - an AI-native spec-driven framework.
-- Start with [README.md](doc/openspec/README.md) for overview
+- Start with [README.md](references/openspec/README.md) for overview
 - Key docs: overview, philosophy, cli-architecture, agent-integration
-
-### [doc/findings/](doc/findings/)
-Cross-project research findings, comparisons, and synthesis.
