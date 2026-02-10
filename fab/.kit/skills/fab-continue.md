@@ -49,13 +49,16 @@ proposal → specs → plan → tasks → apply → review → archive
 
 Find the current stage from `.status.yaml`'s `stage` field. The **next** stage is the one to generate.
 
-**Guard**: If the current stage is `tasks` (done) or later, this skill does not apply. Output:
+**Guard**: Check both the `stage` field and the `progress` map value to determine whether to allow continuation:
 
-> `Planning is complete. Run /fab-apply to begin implementation.`
+- **If the current stage is a planning stage** (`proposal`, `specs`, `plan`, or `tasks`):
+  - Check `progress.{stage}` value from preflight output
+  - If `progress.{stage} == 'done'` AND stage is `tasks` → block with "Planning is complete. Run /fab-apply to begin implementation."
+  - If `progress.{stage} == 'active'` → allow generation to resume (interrupted mid-way)
+  - If `progress.{stage} == 'pending'` → allow generation to start
 
-If the current stage is `apply` or later:
-
-> `Implementation is underway. Use /fab-apply, /fab-review, or /fab-archive as appropriate.`
+- **If the current stage is `apply` or later**:
+  - Block regardless of progress value → "Implementation is underway. Use /fab-apply, /fab-review, or /fab-archive as appropriate."
 
 ### Step 2: Load Context
 

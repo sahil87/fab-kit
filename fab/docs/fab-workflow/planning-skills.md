@@ -98,12 +98,15 @@ Loads: config, constitution, `fab/docs/index.md`, `fab/specs/index.md`. In refin
 #### Normal Forward Flow (no argument)
 
 1. Read `.status.yaml` to determine current stage
-2. Identify next artifact to create
-3. Load relevant template + context (including `fab/constitution.md` for principles)
-4. Generate artifact (with clarification/research as needed)
-5. Recompute confidence score (re-count SRAD grades across all artifacts, apply formula, update `.status.yaml`)
-6. Auto-generate checklist when creating tasks
-7. Update `.status.yaml`
+2. **Stage guard**: Check both `stage` field and `progress.{stage}` value from preflight output:
+   - For planning stages (proposal, specs, plan, tasks): if `progress.{stage} == 'done'` AND stage is `tasks`, block (planning complete). If `progress.{stage} == 'active'`, allow generation to resume (interrupted mid-way). If `progress.{stage} == 'pending'`, allow generation to start.
+   - For apply/review/archive stages: block regardless of progress value (use stage-specific skill instead).
+3. Identify next artifact to create
+4. Load relevant template + context (including `fab/constitution.md` for principles)
+5. Generate artifact (with clarification/research as needed)
+6. Recompute confidence score (re-count SRAD grades across all artifacts, apply formula, update `.status.yaml`)
+7. Auto-generate checklist when creating tasks
+8. Update `.status.yaml`
 
 #### Plan Decision
 
@@ -291,6 +294,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 | Change | Date | Summary |
 |--------|------|---------|
 | 260210-nan4-define-auto-mode-signaling | 2026-02-10 | Defined explicit `[AUTO-MODE]` prefix protocol for skill-to-skill invocation in `_context.md`; updated `/fab-ff` auto-clarify invocations and "Clarify Mode Selection" design decision |
+| 260210-0p4e-fix-stage-guard-progress-check | 2026-02-10 | `/fab-continue` stage guard now checks `progress.{stage}` value to distinguish done/active/pending states, allowing resumption of interrupted stage generations |
 | 260210-zr1f-discuss-auto-activate-when-no-current | 2026-02-10 | `/fab-discuss` conditionally offers activation when `fab/current` is empty; updated proposal output, key differences table |
 | 260209-r4w8-archive-index-longer-slugs | 2026-02-09 | Expanded slug word count from 2-4 to 2-6 words in `/fab-new` folder name generation |
 | 260208-q8v3-branch-to-switch | 2026-02-09 | Moved branch integration from `/fab-new` to `/fab-switch`, removed `--branch` flag from `/fab-new`, `/fab-new` now calls `/fab-switch` internally |
