@@ -17,7 +17,7 @@ Two modes:
 - **New change** (from scratch): gap analysis → clarifying questions → solid proposal
 - **Refine existing** (on active change): load current proposal → discuss → improve → drive confidence up
 
-Key difference from `/fab-new`: does NOT switch the active change. Key difference from `/fab-clarify`: not bounded to a fixed question cap, operates at the idea level rather than artifact gaps, and includes gap analysis.
+Key difference from `/fab-new`: only offers to switch the active change when `fab/current` is empty (preserves current work context when another change is active). Key difference from `/fab-clarify`: not bounded to a fixed question cap, operates at the idea level rather than artifact gaps, and includes gap analysis.
 
 ---
 
@@ -136,8 +136,8 @@ The user may also end the discussion early at any time (e.g., "done", "looks goo
 
 1. Generate a folder name using the format `{YYMMDD}-{XXXX}-{slug}` (same rules as `/fab-new`)
 2. Create `fab/changes/{name}/` and `fab/changes/{name}/checklists/`
-3. **Do NOT write to `fab/current`** — the active change pointer stays unchanged
-4. **Do NOT create or adopt a git branch** — no git operations
+3. **Do NOT write to `fab/current` yet** — activation is offered after the summary (see Step 8)
+4. **Do NOT create or adopt a git branch yet** — branch integration is handled via `/fab-switch` if the user accepts activation
 5. Initialize `fab/changes/{name}/.status.yaml`:
 
 ```yaml
@@ -200,14 +200,70 @@ After finalizing, display:
 - If score >= 3.0: note that `/fab-fff` is available for full autonomous pipeline
 - If score < 3.0: note the score and suggest `/fab-clarify` or another `/fab-discuss` session to raise it
 
+### Step 9: Offer Activation (New Change Mode Only)
+
+**This step only applies in new change mode.** Skip entirely in refine mode.
+
+After displaying the summary, check whether `fab/current` exists and is non-empty:
+
+**If `fab/current` does not exist or is empty:**
+
+Prompt the user:
+
+> "{name} — no active change. Set as active?"
+
+- **If the user accepts**: Call `/fab-switch` internally — write `fab/current` with the new change name and handle git branch integration (same pattern as `/fab-new`). Then show the "Next:" line without the `/fab-switch` step:
+  > `Next: /fab-continue or /fab-ff (fast-forward all planning)`
+
+- **If the user declines**: Leave `fab/current` untouched. Show the standard "Next:" line:
+  > `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-ff`
+
+**If `fab/current` exists and points to a valid (different) change:**
+
+Do NOT prompt for activation — the user's current work context is preserved. Show the standard "Next:" line:
+> `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-ff`
+
+**If `/fab-switch` fails** (e.g., git branch creation error):
+
+The proposal is already saved. Report the error and suggest manual activation:
+> "Activation failed: {error}. Run `/fab-switch {name}` manually."
+
 ---
 
 ## Output
 
-### New Change Mode
+### New Change Mode (Activated)
 
 ```
-Created fab/changes/260208-x7k2-better-errors/ (not set as active)
+Created fab/changes/260208-x7k2-better-errors/
+
+## Proposal: Better Error Handling
+
+{filled proposal content}
+
+## Assumptions
+
+| # | Grade | Decision | Rationale |
+|---|-------|----------|-----------|
+| 1 | Confident | JSON error format | Config shows REST API stack |
+
+1 assumption made (1 confident, 0 tentative).
+
+Confidence: 4.8/5.0 — ready for /fab-fff.
+
+260208-x7k2-better-errors — no active change. Set as active?
+
+{user accepts}
+
+Active change set to 260208-x7k2-better-errors on branch 260208-x7k2-better-errors.
+
+Next: /fab-continue or /fab-ff (fast-forward all planning)
+```
+
+### New Change Mode (Not Activated)
+
+```
+Created fab/changes/260208-x7k2-better-errors/
 
 ## Proposal: Better Error Handling
 
@@ -298,6 +354,7 @@ No change created. The existing mechanism covers this use case.
 | Active change's `proposal.md` missing (refine mode) | Note the absence; offer to create a proposal from scratch for this change or start a new change |
 | Gap analysis finds the idea is already covered | Present findings; let the user decide whether to proceed |
 | User ends discussion with zero decisions made | Do not create a change folder; output "No change created." |
+| `/fab-switch` fails during activation | Proposal is already saved; report error and suggest manual `/fab-switch` |
 
 ---
 
@@ -306,8 +363,8 @@ No change created. The existing mechanism covers this use case.
 | Property | Value |
 |----------|-------|
 | Advances stage? | **Yes** — sets `progress.proposal` to `done` when finalizing |
-| Switches active change? | **No** — never writes to `fab/current` |
-| Creates git branch? | **No** — no git operations |
+| Switches active change? | **Conditionally** — offers when `fab/current` is empty (calls `/fab-switch` internally) |
+| Creates git branch? | **Conditionally** — via internal `/fab-switch` when activation is accepted |
 | Idempotent? | **Yes** — safe to call multiple times; refine mode updates in place |
 | Modifies artifact? | **Yes** — creates or updates `proposal.md` |
 | Creates new files? | **Yes** (new change mode) — change folder, `.status.yaml`, `proposal.md` |
@@ -324,9 +381,9 @@ No change created. The existing mechanism covers this use case.
 | **Input** | Vague idea or existing proposal | Clear change description | Existing artifact with gaps |
 | **Gap analysis** | Yes — "is this change even needed?" | No — assumes the change is needed | No — assumes the artifact exists |
 | **Interaction style** | Free-form conversation, unlimited questions | One-shot generation, max 3 SRAD questions | Structured Q&A, max 5 per session |
-| **Sets active change** | No — must `/fab-switch` | Yes | N/A (operates on active change) |
+| **Sets active change** | Conditionally — offers when no active change | Yes | N/A (operates on active change) |
 | **Creates change folder** | Yes (new change mode) | Yes | No |
-| **Git integration** | None | Yes (branch create/adopt) | None |
+| **Git integration** | Conditionally — via internal `/fab-switch` when activation accepted | Yes (branch create/adopt) | None |
 | **Confidence goal** | Drive score high for `/fab-fff` | Compute initial score | Recompute after refinements |
 
 ---
@@ -335,6 +392,7 @@ No change created. The existing mechanism covers this use case.
 
 After `/fab-discuss` completes:
 
-- New change created: `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-ff`
+- New change created (activated): `Next: /fab-continue or /fab-ff (fast-forward all planning)`
+- New change created (not activated): `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-ff`
 - Existing proposal refined: `Next: /fab-continue or /fab-ff (fast-forward all planning)`
 - No change created (gap analysis): no Next line

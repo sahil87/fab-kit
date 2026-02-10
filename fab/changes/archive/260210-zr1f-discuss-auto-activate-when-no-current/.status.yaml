@@ -1,0 +1,23 @@
+name: 260210-zr1f-discuss-auto-activate-when-no-current
+created: 2026-02-10T12:00:00Z
+stage: archive
+progress:
+  proposal: done
+  specs: done
+  plan: skipped
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklists/quality.md
+  completed: 17
+  total: 17
+confidence:
+  certain: 3
+  confident: 3
+  tentative: 0
+  unresolved: 0
+  score: 4.7
+last_updated: 2026-02-10T12:01:00Z

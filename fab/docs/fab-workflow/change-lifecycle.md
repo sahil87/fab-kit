@@ -28,7 +28,7 @@ All components MUST be lowercase — avoids collisions on case-insensitive files
 - **Created** by `/fab-new` — written with the newly created change folder name
 - **Updated** by `/fab-new` or `/fab-switch` — overwritten with the new change name
 - **Read** by every other skill — `/fab-continue`, `/fab-clarify`, `/fab-discuss`, `/fab-apply`, `/fab-review`, `/fab-status` all resolve the active change via `current`
-- **Not written** by `/fab-discuss` — creates a change folder but does NOT update `fab/current` (the user must `/fab-switch` to make it active). This keeps the current work context undisturbed while exploring new ideas.
+- **Conditionally written** by `/fab-discuss` — after creating a change folder and displaying the summary, `/fab-discuss` checks whether `fab/current` is empty. If empty, it offers to activate the new change (calling `/fab-switch` internally for both pointer update and branch integration). If `fab/current` already points to a different change, no offer is made — the current work context is preserved.
 - **Cleared** by `/fab-archive` — file is deleted after archiving (no active change)
 
 **Resolution pattern** (used by all skills):
@@ -80,7 +80,7 @@ The `plan` stage MAY be skipped for straightforward changes. When skipped, its s
 
 **Full pipeline path**: `/fab-fff` chains the entire flow (planning → apply → review → archive) in a single invocation, gated on confidence score >= 3.0. This is the fastest path from proposal to archived change.
 
-**Alternative entry point**: `/fab-discuss` can create a change with a high-confidence proposal through conversation, then the user can `/fab-switch` to it and run `/fab-fff` for full autonomous execution. The discuss → switch → fff path is ideal for vague ideas that need exploration before committing to implementation.
+**Alternative entry point**: `/fab-discuss` can create a change with a high-confidence proposal through conversation. When no active change exists, `/fab-discuss` offers to activate the new change immediately (via internal `/fab-switch`), enabling a direct discuss → fff path. When another change is active, the user must `/fab-switch` manually. Either way, the discuss path is ideal for vague ideas that need exploration before committing to implementation.
 
 ### Git Integration (Optional)
 
@@ -160,6 +160,7 @@ All mechanical work (file reading, YAML parsing, git branch query, progress symb
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260210-zr1f-discuss-auto-activate-when-no-current | 2026-02-10 | `/fab-discuss` conditionally offers activation when `fab/current` is empty, calls `/fab-switch` internally on accept |
 | 260209-k3m9-status-confidence-score | 2026-02-09 | Added confidence score display to `/fab-status` output (score, breakdown, and "not yet scored" fallback) |
 | 260209-r4w8-archive-index-longer-slugs | 2026-02-09 | Expanded slug word count from 2-4 to 2-6 words for more descriptive folder names |
 | 260208-q8v3-branch-to-switch | 2026-02-09 | Moved branch integration from `/fab-new` to `/fab-switch`, removed `branch:` field from `.status.yaml`, `/fab-status` uses live git query, added `--branch` flag to `/fab-switch` |

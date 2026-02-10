@@ -68,7 +68,8 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 | `/fab-init` | initialized | `Next: /fab-new <description>, /fab-discuss <idea>, or /fab-hydrate <sources>` |
 | `/fab-hydrate` | docs hydrated | `Next: /fab-new <description>, /fab-discuss <idea>, or /fab-hydrate <more-sources>` |
 | `/fab-new` | proposal done | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
-| `/fab-discuss` (new change) | proposal done | `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-ff` |
+| `/fab-discuss` (new, activated) | proposal done | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
+| `/fab-discuss` (new, not activated) | proposal done | `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-ff` |
 | `/fab-discuss` (refined) | proposal updated | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
 | `/fab-continue` → specs | specs done | `Next: /fab-continue (plan) or /fab-ff (fast-forward) or /fab-clarify (refine spec)` |
 | `/fab-continue` → plan | plan done | `Next: /fab-continue (tasks) or /fab-clarify (refine plan)` |

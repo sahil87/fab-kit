@@ -1,5 +1,6 @@
 # Archive Index
 
+- **260210-zr1f-discuss-auto-activate-when-no-current** — `/fab-discuss` creates a change folder but never activates it, requiring a manual `/fab-switch` even when no other change is active. This adds the conditional offer to set the new change as active (via internal `/fab-switch`) when `fab/current` is empty, eliminating unnecessary friction while preserving the safety net when another change is in progress.
 - **260210-m3k7-multi-agent-support** — `fab-setup.sh` only created Claude Code symlinks despite the architecture being designed for multi-agent portability. This change extends the setup script to always create integrations for OpenCode (commands) and Codex (skills) alongside Claude Code, closing the gap between design intent and implementation.
 - **260209-h3v7-fab-backfill** — Fab's data flow is one-directional (specs → changes → docs) with no mechanism to detect where docs have outgrown specs. `/fab-backfill` identifies structural gaps and proposes concise additions back to specs with interactive per-gap confirmation.
 - **260209-r4w8-archive-index-longer-slugs** — As archived changes accumulate, there's no way to search or browse what was done without opening each folder individually. Expanding the slug length from 2-4 words to 2-6 words improves self-documentation across the archive, git branches, and file listings.

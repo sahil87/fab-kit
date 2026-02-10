@@ -72,7 +72,7 @@ When the confidence score crosses 3.0, `/fab-discuss` proactively suggests wrapp
 
 #### Proposal Output
 
-**New change mode**: Creates the change folder, `checklists/` subdirectory, `.status.yaml` (without `branch:` field — no git integration), and `proposal.md`. Sets `progress.proposal` to `done`. Does NOT write to `fab/current` — the user must `/fab-switch` to it.
+**New change mode**: Creates the change folder, `checklists/` subdirectory, `.status.yaml` (without `branch:` field — no git integration), and `proposal.md`. Sets `progress.proposal` to `done`. After displaying the summary, checks whether `fab/current` is empty — if so, offers to activate the new change via internal `/fab-switch` (writes `fab/current` and handles branch integration). If `fab/current` already points to another change, no offer is made.
 
 **Refine mode**: Updates the existing `proposal.md` in place, recomputes the confidence score, and updates `.status.yaml`.
 
@@ -83,8 +83,8 @@ When the confidence score crosses 3.0, `/fab-discuss` proactively suggests wrapp
 | **Purpose** | Explore & develop proposal through conversation | Capture clear description as proposal |
 | **Gap analysis** | Yes — "is this change even needed?" | No — assumes the change is needed |
 | **Interaction style** | Free-form conversation, unlimited questions | One-shot generation, max 3 SRAD questions |
-| **Sets active change** | No — must `/fab-switch` | Yes (via internal `/fab-switch` call) |
-| **Git integration** | None — deferred to `/fab-switch` | Yes (via internal `/fab-switch` call) |
+| **Sets active change** | Conditionally — offers when no active change | Yes (via internal `/fab-switch` call) |
+| **Git integration** | Conditionally — via internal `/fab-switch` when activation accepted | Yes (via internal `/fab-switch` call) |
 | **Confidence goal** | Drive score high for `/fab-fff` | Compute initial score |
 
 #### Context
@@ -290,6 +290,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260210-zr1f-discuss-auto-activate-when-no-current | 2026-02-10 | `/fab-discuss` conditionally offers activation when `fab/current` is empty; updated proposal output, key differences table |
 | 260209-r4w8-archive-index-longer-slugs | 2026-02-09 | Expanded slug word count from 2-4 to 2-6 words in `/fab-new` folder name generation |
 | 260208-q8v3-branch-to-switch | 2026-02-09 | Moved branch integration from `/fab-new` to `/fab-switch`, removed `--branch` flag from `/fab-new`, `/fab-new` now calls `/fab-switch` internally |
 | 260208-lgd7-fab-discuss-command | 2026-02-08 | Added `/fab-discuss` conversational proposal skill, `/fab-new` confidence scoring, context-driven mode selection design decisions |
