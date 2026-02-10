@@ -11,4 +11,4 @@
 
 | Domain | Description | Docs |
 |--------|-------------|------|
-| [fab-workflow](fab-workflow/index.md) | Fab kit workflow — skills, architecture, templates, configuration, change lifecycle | hydrate, hydrate-generate, init, context-loading, planning-skills, clarify, execution-skills, change-lifecycle, templates, kit-architecture, configuration, preflight, backfill, specs-index |
+| [fab-workflow](fab-workflow/index.md) | Fab kit workflow — skills, architecture, templates, configuration, change lifecycle | hydrate, hydrate-generate, init, context-loading, planning-skills, clarify, execution-skills, change-lifecycle, templates, kit-architecture, configuration, preflight, backfill, specs-index, distribution |

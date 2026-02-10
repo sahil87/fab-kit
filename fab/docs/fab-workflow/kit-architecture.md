@@ -39,6 +39,8 @@ fab/.kit/
     ├── fab-setup.sh        # Structural bootstrap
     ├── fab-help.sh         # Print help overview
     ├── fab-status.sh       # Quick terminal status check
+    ├── fab-update.sh       # Update .kit/ from GitHub Releases
+    ├── fab-release.sh      # Package and release .kit/ to GitHub
     └── fab-update-claude-settings.sh
 ```
 
@@ -55,6 +57,14 @@ Full status display for the active change. Reads `fab/.kit/VERSION`, `fab/curren
 #### `fab-help.sh`
 
 Prints the Fab Kit help overview and skill catalog. MUST be updated when skills are added or removed.
+
+#### `fab-update.sh`
+
+Downloads the latest `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/` (extract to temp dir, verify, swap), displays the version change, and re-runs `fab-setup.sh` to repair symlinks. Requires `gh` CLI. Preserves all project files outside `.kit/`. Handles errors: gh CLI missing, network failure, extraction verification failure, already-up-to-date.
+
+#### `fab-release.sh`
+
+Packages `fab/.kit/` into `kit.tar.gz`, bumps VERSION (accepts `[patch|minor|major]` argument, defaults to `patch`), commits the version change, and creates a GitHub Release with the archive as an asset. Infers the target repo from `git remote get-url origin`. Requires clean working tree and `gh` CLI.
 
 #### `fab-update-claude-settings.sh`
 
@@ -90,17 +100,28 @@ Agent-specific skill files SHALL be symlinks pointing into `fab/.kit/skills/`. T
 
 #### Bootstrap Sequence
 
-1. User obtains `.kit/` → `cp -r /path/to/fab-kit fab/.kit`
-2. User runs `fab/.kit/scripts/fab-setup.sh` → creates directories, symlinks, docs skeleton
-3. User runs `/fab-init` → generates `config.yaml`, `constitution.md`
-4. User optionally runs `/fab-hydrate` → ingests external docs
-5. User runs `/fab-new` → first change created
+**Option A — One-liner bootstrap** (recommended):
+```
+mkdir -p fab
+curl -sL https://github.com/wvrdz/fab-kit/releases/latest/download/kit.tar.gz | tar xz -C fab/
+```
 
-Step 1 is manual. Step 2 is a shell script. Steps 3-5 are skill-driven.
+**Option B — Manual copy** (from a local clone):
+```
+cp -r /path/to/fab-kit/fab/.kit fab/.kit
+```
+
+Then in either case:
+1. User runs `fab/.kit/scripts/fab-setup.sh` → creates directories, symlinks, docs skeleton
+2. User runs `/fab-init` → generates `config.yaml`, `constitution.md`
+3. User optionally runs `/fab-hydrate` → ingests external docs
+4. User runs `/fab-new` → first change created
+
+Step 1 is a shell script. Steps 2-4 are skill-driven.
 
 #### Why Two Phases
 
-`/fab-init` is itself a skill defined inside `.kit/`. It cannot run until `.kit/` exists. Rather than solving this chicken-and-egg with a bootstrap script (which would violate "no system installation"), Fab splits setup into a manual directory copy followed by skill-driven generation.
+`/fab-init` is itself a skill defined inside `.kit/`. It cannot run until `.kit/` exists. Rather than solving this chicken-and-egg with a bootstrap script (which would violate "no system installation"), Fab splits setup into obtaining `.kit/` (via curl or cp) followed by skill-driven generation.
 
 ### Version Tracking
 
@@ -111,10 +132,12 @@ Step 1 is manual. Step 2 is a shell script. Steps 3-5 are skill-driven.
 
 ### Updating `.kit/`
 
-To update the workflow framework, replace `fab/.kit/` contents with the latest version. Symlinks in `.claude/skills/`, `.opencode/commands/`, and `.agents/skills/` automatically resolve to the new files.
+Run `fab/.kit/scripts/fab-update.sh` to update to the latest release. The script downloads `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/`, and re-runs `fab-setup.sh` to repair symlinks. Requires the `gh` CLI.
 
-**Preserved** (lives outside `.kit/`): `config.yaml`, `constitution.md`, `docs/`, `changes/`, `current`
-**Replaced** (lives inside `.kit/`): `templates/`, `skills/`, `scripts/`
+Symlinks in `.claude/skills/`, `.opencode/commands/`, and `.agents/skills/` automatically resolve to the new files after the update.
+
+**Preserved** (lives outside `.kit/`): `config.yaml`, `constitution.md`, `docs/`, `specs/`, `changes/`, `current`
+**Replaced** (lives inside `.kit/`): `templates/`, `skills/`, `scripts/`, `VERSION`
 
 ### Portability
 
@@ -156,6 +179,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260210-h7r3-kit-distribution-update | 2026-02-10 | Added `fab-update.sh` and `fab-release.sh` script descriptions, bootstrap one-liner (Option A), atomic update mechanism, version-based update flow |
 | 260210-m3k7-multi-agent-support | 2026-02-10 | Added OpenCode commands and Codex skills symlink creation to `fab-setup.sh`; documented all three agent integration paths |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | — | 2026-02-07 | Generated from doc/fab-spec/ (ARCHITECTURE.md, README.md) |

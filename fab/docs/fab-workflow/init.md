@@ -29,6 +29,16 @@ When arguments are passed, init outputs a redirect message: "Did you mean /fab-h
 
 First-run output lists only structural artifacts created. Next step suggests `/fab-new <description>` or `/fab-hydrate <sources>` to populate docs. The "With Sources" output section has been removed.
 
+### Bootstrap Alternative
+
+As an alternative to manual `cp -r`, new projects can use the one-liner bootstrap:
+
+```
+curl -sL https://github.com/wvrdz/fab-kit/releases/latest/download/kit.tar.gz | tar xz -C fab/
+```
+
+After extraction, run `fab/.kit/scripts/fab-setup.sh` then `/fab-init` as usual.
+
 ## Design Decisions
 
 ### Init as Pure Structural Bootstrap
@@ -54,6 +64,7 @@ First-run output lists only structural artifacts created. Next step suggests `/f
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260210-h7r3-kit-distribution-update | 2026-02-10 | Added Bootstrap Alternative section with curl one-liner as alternative to manual `cp -r` |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | 260207-bb1q-add-specs-index | 2026-02-07 | Added `fab/specs/index.md` creation as step 1d in bootstrap sequence |
 | 260207-q7m3-separate-hydrate-smart-context | 2026-02-07 | Simplified to structural bootstrap only — removed Phase 2 source hydration, added argument redirect |
