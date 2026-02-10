@@ -49,13 +49,14 @@ Load all context needed for review:
 
 1. **`fab/config.yaml`** — project config, tech stack, conventions
 2. **`fab/constitution.md`** — project principles and constraints
-3. **`fab/changes/{name}/tasks.md`** — the task list (all should be `[x]`)
-4. **`fab/changes/{name}/checklists/quality.md`** — the quality checklist to verify
-5. **`fab/changes/{name}/spec.md`** — requirements and scenarios (the "what" to validate against)
-6. **`fab/changes/{name}/plan.md`** — technical approach (if it exists; skip if plan was `skipped`)
-7. **`fab/changes/{name}/proposal.md`** — original intent (for reference)
-8. **Centralized docs** — read `fab/docs/index.md` and the specific docs referenced by the proposal's Affected Docs section, to check for doc drift
-9. **Relevant source code** — read files touched by the change (referenced in tasks, plan's File Changes, or task descriptions). Scope to files actually modified — do not load the entire codebase.
+3. **`fab/specs/index.md`** — specifications landscape (pre-implementation design intent, human-curated)
+4. **`fab/changes/{name}/tasks.md`** — the task list (all should be `[x]`)
+5. **`fab/changes/{name}/checklists/quality.md`** — the quality checklist to verify
+6. **`fab/changes/{name}/spec.md`** — requirements and scenarios (the "what" to validate against)
+7. **`fab/changes/{name}/plan.md`** — technical approach (if it exists; skip if plan was `skipped`)
+8. **`fab/changes/{name}/proposal.md`** — original intent (for reference)
+9. **Centralized docs** — read `fab/docs/index.md` and the specific docs referenced by the proposal's Affected Docs section, to check for doc drift
+10. **Relevant source code** — read files touched by the change (referenced in tasks, plan's File Changes, or task descriptions). Scope to files actually modified — do not load the entire codebase.
 
 ---
 

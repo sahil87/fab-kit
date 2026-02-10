@@ -49,11 +49,12 @@ Load all context needed for archiving:
 
 1. **`fab/config.yaml`** — project config, tech stack, conventions
 2. **`fab/constitution.md`** — project principles and constraints
-3. **`fab/changes/{name}/spec.md`** — requirements and scenarios to hydrate into centralized docs
-4. **`fab/changes/{name}/plan.md`** — design decisions to extract (if it exists; skip if plan was `skipped`)
-5. **`fab/changes/{name}/proposal.md`** — original intent, including Affected Docs section listing target centralized docs
-6. **`fab/docs/index.md`** — top-level documentation index
-7. **Target centralized doc(s)** — read the specific docs referenced by the proposal's Affected Docs section (New, Modified, Removed entries). For each doc path listed, read `fab/docs/{domain}/{name}.md` if it exists. Also read the domain index `fab/docs/{domain}/index.md` if it exists.
+3. **`fab/specs/index.md`** — specifications landscape (pre-implementation design intent, human-curated)
+4. **`fab/changes/{name}/spec.md`** — requirements and scenarios to hydrate into centralized docs
+5. **`fab/changes/{name}/plan.md`** — design decisions to extract (if it exists; skip if plan was `skipped`)
+6. **`fab/changes/{name}/proposal.md`** — original intent, including Affected Docs section listing target centralized docs
+7. **`fab/docs/index.md`** — top-level documentation index
+8. **Target centralized doc(s)** — read the specific docs referenced by the proposal's Affected Docs section (New, Modified, Removed entries). For each doc path listed, read `fab/docs/{domain}/{name}.md` if it exists. Also read the domain index `fab/docs/{domain}/index.md` if it exists.
 
 ---
 
