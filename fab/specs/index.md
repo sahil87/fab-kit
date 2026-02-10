@@ -11,6 +11,8 @@
 > **Ownership**: Specs are written and maintained by humans. No automated tooling creates or
 > enforces structure here — organize files however makes sense for your project.
 
+> **New here?** See the [Documentation Map](../../README.md#documentation-map) for recommended reading order. For terminology, see the [Glossary](glossary.md).
+
 | Spec | Description |
 |------|-------------|
 | [overview](overview.md) | Fab workflow specification — design principles, 7 stages, quick reference |

@@ -47,6 +47,7 @@
 - [x] [gqs1] 2026-02-08: Fix broken links in README.md and fab/specs/overview.md
 - [x] [74eh] 2026-02-08: Standardize skill invocation syntax in specs and docs — `/fab-xxx` dash syntax
 - [x] [xeti] 2026-02-08: Reduce overly broad permissions in `.claude/settings.local.json`
+- [x] [wr10] 2026-02-10: Add Documentation Map to README with audience-specific reading paths, grouped inventory, glossary links, and index file orientation notes
 
 ## Backlog
 
@@ -63,8 +64,6 @@
 
 - [ ] [qurg] 2026-02-08: Document the SRAD framework. SRAD is referenced by fab-fff confidence gating and backlog item `[eb7z]` as implemented, but the framework itself — what the acronym stands for, how ambiguity scores are calculated, what thresholds gate fab-fff, how scores are stored in `.status.yaml` — is defined nowhere in the codebase. Without this, the confidence gating logic is opaque to anyone who didn't build it. Add a section to `fab/specs/skills.md` or a standalone `fab/specs/srad.md` covering: the acronym expansion, the scoring dimensions, how each dimension is evaluated, the threshold that gates fab-fff, and an example of a high-ambiguity vs low-ambiguity proposal.
 - [ ] [wr01] 2026-02-08: Write an end-to-end "Your First Change" tutorial. Currently there is no guided path from clone to completed archive entry. Create a doc (e.g. fab/docs/fab-workflow/tutorial.md) that walks a new user through: cloning the repo, running worktree-init scripts, running fab-new with a simple example change, progressing through each stage (proposal → spec → plan → tasks → apply → review → archive), and verifying the result. Reference archived changes as "what good looks like". Should be readable in under 10 minutes and result in one complete archived change. Index it from fab/docs/index.md and the README.
-- [ ] [wr10] 2026-02-08: Add a reading order guide and improve information architecture across all docs. Currently a newcomer faces ~20+ documentation files with no guidance on sequence. Add a "Documentation Map" (e.g. in README or doc/reading-order.md) that provides: a recommended reading path for different audiences (new user, contributor, spec reader), a brief description of what each document covers, and explicit prerequisite relationships ("read X before Y"). Ensure every document defines terms before using them or links to the glossary (see [wr03]). Consider grouping docs by audience: "Getting Started", "Concepts", "Reference", "Internals".
-
 ### Cleanup & Hardening
 
 - [ ] [wr04] 2026-02-08: Harden all shell scripts in fab/worktree-init/ with proper error handling and safe variable expansion. Currently 1-direnv.sh, 2-claude-settings.sh, and 3-fab-setup.sh lack `set -euo pipefail`, have unquoted variable expansions vulnerable to word splitting on paths with spaces, and silently continue on failure. For each script: add `set -euo pipefail` at the top, quote all variable expansions (`"$var"` not `$var`), add meaningful error messages on failure, validate prerequisites exist before operating on them. Also audit any other .sh files under fab/.kit/scripts/ for the same issues.

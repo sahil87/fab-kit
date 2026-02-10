@@ -1,0 +1,23 @@
+name: 260210-q7m3-reading-order-doc-map
+created: 2026-02-10T12:00:00+00:00
+stage: archive
+progress:
+  proposal: done
+  specs: done
+  plan: skipped
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklists/quality.md
+  completed: 14
+  total: 14
+confidence:
+  certain: 2
+  confident: 2
+  tentative: 0
+  unresolved: 0
+  score: 4.8
+last_updated: 2026-02-10T12:07:00+00:00
