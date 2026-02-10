@@ -35,7 +35,22 @@ if [ ! -f "$fab_dir/changes/.gitkeep" ]; then
   touch "$fab_dir/changes/.gitkeep"
 fi
 
-# ── 2. Docs index ──────────────────────────────────────────────────
+# ── 2. .envrc ─────────────────────────────────────────────────────
+envrc_link="$repo_root/.envrc"
+envrc_target="fab/.kit/envrc"
+
+if [ -L "$envrc_link" ] && [ -e "$envrc_link" ]; then
+  echo ".envrc: OK (symlink)"
+elif [ -e "$envrc_link" ]; then
+  rm "$envrc_link"
+  ln -s "$envrc_target" "$envrc_link"
+  echo ".envrc: replaced file with symlink → $envrc_target"
+else
+  ln -s "$envrc_target" "$envrc_link"
+  echo ".envrc: created symlink → $envrc_target"
+fi
+
+# ── 3. Docs index ──────────────────────────────────────────────────
 if [ ! -f "$fab_dir/docs/index.md" ]; then
   cat > "$fab_dir/docs/index.md" << 'EOF'
 # Documentation Index
@@ -49,7 +64,7 @@ EOF
   echo "Created: fab/docs/index.md"
 fi
 
-# ── 3. Skill symlinks ──────────────────────────────────────────────
+# ── 4. Skill symlinks ──────────────────────────────────────────────
 # Canonical list: every *.md in .kit/skills/ except _context.md
 skills=()
 for f in "$kit_dir"/skills/*.md; do
@@ -117,7 +132,7 @@ create_agent_symlinks "OpenCode" "$repo_root/.opencode/commands" "flat" "../../"
 # Codex: .agents/skills/<name>/SKILL.md (directory-based)
 create_agent_symlinks "Codex" "$repo_root/.agents/skills" "directory" "../../../"
 
-# ── 4. .gitignore ──────────────────────────────────────────────────
+# ── 5. .gitignore ──────────────────────────────────────────────────
 gitignore="$repo_root/.gitignore"
 
 if [ ! -f "$gitignore" ]; then
