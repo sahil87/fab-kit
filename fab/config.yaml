@@ -1,22 +1,77 @@
 # fab/config.yaml
+#
+# Project configuration for the Fab workflow. This file is loaded by nearly
+# every /fab:* skill as grounding context. It is generated once by /fab:init
+# and then hand-maintained.
+#
+# Companion files (not configured here):
+#   fab/constitution.md  — project principles & constraints (MUST/SHOULD rules)
+#   fab/docs/index.md    — centralized documentation index
+#
+# ─────────────────────────────────────────────────────────────────────────────
 
+# project — Identity and description of this project.
+# Consumed by: all artifact-generating skills (context grounding in proposals,
+#   specs, plans, tasks, reviews, and archive hydration).
 project:
+  # name — Short project identifier. Used in generated artifact headers.
   name: "sddr"
+  # description — One-liner explaining what this project is.
   description: "Specification-Driven Development Resources — research, documentation, and tooling for SDD methodologies"
 
+# context — Free-form project context: tech stack, conventions, architecture.
+# Consumed by: all artifact-generating skills. This is the primary way skills
+#   understand your codebase without reading every file.
+#
+# Tips:
+#   - Be specific about languages, frameworks, and patterns.
+#   - For monorepos, use labeled sections so skills scope to the relevant part:
+#       ## packages/frontend
+#       React, TypeScript, Next.js, Tailwind CSS
+#       ## packages/backend
+#       Python, FastAPI, SQLAlchemy, PostgreSQL
 context: |
-  Tech stack: Markdown specs, shell scripts (Bash), Claude Code skills, Ralph agent
+  Tech stack: Markdown specs, shell scripts (Bash), Claude Code skills
   Content: Research analyses of SpecKit and OpenSpec, cross-cutting findings
   Workflow: Fab kit for specification-driven change management
   Structure: Monorepo with doc/, fab/ directories
 
+# naming — Controls how change folders are named under fab/changes/.
+# Consumed by: /fab:new, /fab:discuss (folder name generation).
 naming:
+  # format — Pattern for change folder names. All components are lowercase.
+  #   {YYMMDD} — date (agent fills from today's date)
+  #   {XXXX}   — 4 random lowercase alphanumeric chars (uniqueness)
+  #   {slug}   — 2-4 word slug derived from the change description
+  # Example output: 260115-a7k2-add-oauth
   format: "{YYMMDD}-{XXXX}-{slug}"
 
+# git — Optional git integration. Fab never commits, pushes, or merges —
+#   this only controls branch prompts and status display.
+# Consumed by: /fab:new (branch creation/adoption prompt), /fab:switch
+#   (branch checkout), /fab:status (current branch display).
 git:
+  # enabled — Set false to suppress all branch prompts and git operations.
+  # Valid values: true | false
   enabled: true
+  # branch_prefix — Optional prefix prepended to branch names.
+  #   "" (empty)  → branch name matches folder name: 260115-a7k2-add-oauth
+  #   "feat/"     → feat/260115-a7k2-add-oauth
+  #   "fix/"      → fix/260115-a7k2-add-oauth
   branch_prefix: ""
 
+# stages — The 7-stage pipeline definition. Controls stage ordering,
+#   prerequisites, which artifacts are generated, and skip logic.
+# Consumed by: /fab:new (initializes .status.yaml), /fab:continue (stage
+#   traversal and prerequisite validation), /fab:ff (determines which
+#   stages to fast-forward through).
+#
+# Each stage entry supports:
+#   id             — Stage identifier (used in .status.yaml progress keys)
+#   generates      — Filename this stage produces (e.g., spec.md)
+#   requires       — List of prerequisite stage ids that must be done first
+#   required       — Whether this stage can be skipped (false = optional)
+#   auto_checklist — Generate checklists/quality.md when this stage completes
 stages:
   - id: proposal
     generates: proposal.md
@@ -28,11 +83,17 @@ stages:
   - id: plan
     generates: plan.md
     requires: [specs]
+    # Set false for optional stages. /fab:ff and /fab:continue will offer to
+    # skip this stage for small, straightforward changes. Skipped stages are
+    # recorded as "plan: skipped" in .status.yaml (not "pending").
     required: false
   - id: tasks
     generates: tasks.md
     requires: [specs]
     required: true
+    # auto_checklist — When true, generating tasks.md also auto-generates
+    # checklists/quality.md with items derived from spec.md, plan decisions,
+    # and constitution principles.
     auto_checklist: true
   - id: apply
     requires: [tasks]
@@ -41,11 +102,27 @@ stages:
   - id: archive
     requires: [review]
 
+# checklist — Configuration for the auto-generated quality checklist.
+# Consumed by: /fab:continue (tasks stage), /fab:ff (tasks stage).
+#
+# Default categories (always included):
+#   functional_completeness, behavioral_correctness, scenario_coverage,
+#   edge_cases, security
 checklist:
+  # extra_categories — Project-specific categories appended to the defaults.
+  # Each entry becomes a section heading in checklists/quality.md with items
+  # derived from the spec. Common additions: performance, ux, accessibility,
+  # api_compatibility.
   extra_categories:
     - documentation_accuracy
     - cross_references
 
+# rules — Per-stage behavioral constraints for artifact generation.
+# Consumed by: all artifact-generating skills. Rules for a given stage are
+#   loaded when that stage's artifact is being generated or reviewed.
+#
+# Format: dictionary keyed by stage id, each containing a list of rule strings.
+# These act as additional instructions the agent follows during generation.
 rules:
   plan:
     - Document impacts on existing research docs

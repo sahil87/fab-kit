@@ -1,0 +1,23 @@
+name: 260210-h7r3-kit-distribution-update
+created: 2026-02-10T19:25:00+00:00
+stage: proposal
+progress:
+  proposal: done
+  specs: pending
+  plan: pending
+  tasks: pending
+  apply: pending
+  review: pending
+  archive: pending
+checklist:
+  generated: false
+  path: checklists/quality.md
+  completed: 0
+  total: 0
+confidence:
+  certain: 5
+  confident: 2
+  tentative: 0
+  unresolved: 0
+  score: 4.8
+last_updated: 2026-02-10T19:26:00+00:00

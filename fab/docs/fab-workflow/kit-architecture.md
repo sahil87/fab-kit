@@ -157,5 +157,5 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 | Change | Date | Summary |
 |--------|------|---------|
 | 260210-m3k7-multi-agent-support | 2026-02-10 | Added OpenCode commands and Codex skills symlink creation to `fab-setup.sh`; documented all three agent integration paths |
-| 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab:xxx` colon format to `/fab-xxx` hyphen format |
+| 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | — | 2026-02-07 | Generated from doc/fab-spec/ (ARCHITECTURE.md, README.md) |

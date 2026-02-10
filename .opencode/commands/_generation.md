@@ -1,0 +1,1 @@
+../../fab/.kit/skills/_generation.md

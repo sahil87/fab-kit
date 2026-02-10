@@ -92,10 +92,10 @@ project/
 `fab/current` is a plain text file containing the name of the active change folder (e.g. `260115-a7k2-add-oauth`). It removes the need to scan `changes/` or remember folder names.
 
 **Lifecycle**:
-- **Created** by `/fab:new` — written with the newly created change folder name
-- **Updated** by `/fab:new` or `/fab:switch` — overwritten with the new change name
-- **Read** by every other skill — `/fab:continue`, `/fab:clarify`, `/fab:apply`, `/fab:review`, `/fab:status` all resolve the active change via `current` rather than requiring a name argument
-- **Cleared** by `/fab:archive` — file is deleted after archiving (no active change)
+- **Created** by `/fab-new` — written with the newly created change folder name
+- **Updated** by `/fab-new` or `/fab-switch` — overwritten with the new change name
+- **Read** by every other skill — `/fab-continue`, `/fab-clarify`, `/fab-apply`, `/fab-review`, `/fab-status` all resolve the active change via `current` rather than requiring a name argument
+- **Cleared** by `/fab-archive` — file is deleted after archiving (no active change)
 
 **Resolution pattern** (used by all skills):
 ```
@@ -105,11 +105,11 @@ active=$(cat fab/current)
 
 **Switching between changes**: If multiple change folders exist and you want to switch context:
 ```
-/fab:switch add-oauth
+/fab-switch add-oauth
 → "fab/current now points to 260115-a7k2-add-oauth"
 ```
 
-`/fab:switch` accepts partial matches — the slug portion is enough to identify the change unambiguously.
+`/fab-switch` accepts partial matches — the slug portion is enough to identify the change unambiguously.
 
 **Quick check from terminal**: For instant identification when switching between VS Code windows:
 ```bash
@@ -135,7 +135,7 @@ To discard a change that won't be completed:
 2. Clear the pointer (if it's the active change): `rm fab/current`
 3. Optionally delete the associated git branch: `git branch -d {branch}`
 
-There is no `/fab:abandon` skill — this is a manual operation. If you want to preserve context about *why* the change was dropped, move the folder to `archive/` instead of deleting it and set `stage: abandoned` in `.status.yaml`.
+There is no `/fab-abandon` skill — this is a manual operation. If you want to preserve context about *why* the change was dropped, move the folder to `archive/` instead of deleting it and set `stage: abandoned` in `.status.yaml`.
 
 ---
 
@@ -287,9 +287,9 @@ The constitution is the **architectural DNA** of a Fab project. It defines immut
 ```
 
 **How skills use it**:
-- `/fab:init` generates it from project context (README, existing docs, conversation with user)
-- `/fab:continue` and `/fab:ff` load it as context when generating **plan**, **tasks**, and **checklist** artifacts
-- `/fab:review` checks implementation against constitutional principles (not just the spec)
+- `/fab-init` generates it from project context (README, existing docs, conversation with user)
+- `/fab-continue` and `/fab-ff` load it as context when generating **plan**, **tasks**, and **checklist** artifacts
+- `/fab-review` checks implementation against constitutional principles (not just the spec)
 - Constitution violations found during review are flagged as high-severity issues
 
 **Relationship to `config.yaml`**:
@@ -316,7 +316,7 @@ Fab stays out of this. The `branch:` field in `.status.yaml` is a convenience bo
 
 ### How It Works
 
-`/fab:new` detects whether the project is a git repo. If so, it offers three options:
+`/fab-new` detects whether the project is a git repo. If so, it offers three options:
 
 | Option | When to use | What happens |
 |--------|-------------|--------------|
@@ -324,7 +324,7 @@ Fab stays out of this. The `branch:` field in `.status.yaml` is a convenience bo
 | **Adopt current branch** | Already on a feature branch | Records the current branch name in `.status.yaml` — no rename |
 | **Skip** | Non-git repo, or user prefers manual control | No branch field in `.status.yaml` |
 
-The branch name is stored in `.status.yaml` as `branch:` and displayed by `/fab:status`. That's the full extent of git integration — Fab never commits, pushes, merges, or deletes branches.
+The branch name is stored in `.status.yaml` as `branch:` and displayed by `/fab-status`. That's the full extent of git integration — Fab never commits, pushes, merges, or deletes branches.
 
 ### Branch Naming
 
@@ -355,7 +355,7 @@ Agent-specific skill files are **symlinks** pointing into `fab/.kit/skills/`. Th
 
 ### Claude Code (`.claude/skills/`)
 
-`/fab:init` (or `fab/.kit/scripts/fab-setup.sh`) creates skill subdirectories with symlinks:
+`/fab-init` (or `fab/.kit/scripts/fab-setup.sh`) creates skill subdirectories with symlinks:
 ```
 .claude/skills/
 ├── fab-init/
@@ -389,23 +389,23 @@ Same pattern — symlinks from the agent's convention directory into `fab/.kit/s
 
 ## Distribution & Bootstrapping
 
-`.kit/` is the only piece a new project needs from outside. Everything else is generated by `/fab:init`. This section explains how `.kit/` reaches a project and what happens on first use.
+`.kit/` is the only piece a new project needs from outside. Everything else is generated by `/fab-init`. This section explains how `.kit/` reaches a project and what happens on first use.
 
 ### The Bootstrap Sequence
 
 ```
 1. User obtains .kit/  →  cp -r /path/to/fab-kit fab/.kit
 2. User runs fab/.kit/scripts/fab-setup.sh  →  creates directories, symlinks, docs/index.md, .gitignore entry
-3. User runs /fab:init  →  generates config.yaml, constitution.md (structural bootstrap)
-4. User optionally runs /fab:hydrate  →  ingests external docs into fab/docs/
-5. User runs /fab:new  →  first change is created
+3. User runs /fab-init  →  generates config.yaml, constitution.md (structural bootstrap)
+4. User optionally runs /fab-hydrate  →  ingests external docs into fab/docs/
+5. User runs /fab-new  →  first change is created
 ```
 
 Step 1 is manual. Step 2 is a shell script. Steps 3–5 are skill-driven.
 
-`fab/.kit/scripts/fab-setup.sh` handles all structural setup (directories, symlinks, `.gitignore`) and is the single source of truth for that structure. `/fab:init` delegates to it (step 1e) and adds the interactive parts (config, constitution). `fab/.kit/scripts/fab-help.sh` mirrors the skill catalog — it must be updated when skills are added or removed.
+`fab/.kit/scripts/fab-setup.sh` handles all structural setup (directories, symlinks, `.gitignore`) and is the single source of truth for that structure. `/fab-init` delegates to it (step 1e) and adds the interactive parts (config, constitution). `fab/.kit/scripts/fab-help.sh` mirrors the skill catalog — it must be updated when skills are added or removed.
 
-**Re-running `/fab:init`**: Init is idempotent — safe to call at any time. On subsequent runs it verifies structure and repairs broken symlinks. To ingest external documentation into `fab/docs/`, use `/fab:hydrate` — see [Skills Reference](SKILLS.md#fabhydrate-sources) for details.
+**Re-running `/fab-init`**: Init is idempotent — safe to call at any time. On subsequent runs it verifies structure and repairs broken symlinks. To ingest external documentation into `fab/docs/`, use `/fab-hydrate` — see [Skills Reference](SKILLS.md#fabhydrate-sources) for details.
 
 ### How to Obtain `.kit/`
 
@@ -421,17 +421,17 @@ Step 1 is manual. Step 2 is a shell script. Steps 3–5 are skill-driven.
 
 ### Why Two Phases?
 
-`/fab:init` is itself a skill defined inside `fab/.kit/skills/fab-init.md`. It cannot run until `.kit/` exists. Rather than solving this chicken-and-egg with a bootstrap script (which would violate "no system installation"), Fab splits setup into:
+`/fab-init` is itself a skill defined inside `fab/.kit/skills/fab-init.md`. It cannot run until `.kit/` exists. Rather than solving this chicken-and-egg with a bootstrap script (which would violate "no system installation"), Fab splits setup into:
 
 1. **Manual step**: Get `.kit/` into the project (a directory copy)
-2. **Skill step**: `/fab:init` generates everything project-specific (idempotent — re-runs skip existing artifacts and repair symlinks). Optionally, `/fab:hydrate` ingests external docs.
+2. **Skill step**: `/fab-init` generates everything project-specific (idempotent — re-runs skip existing artifacts and repair symlinks). Optionally, `/fab-hydrate` ingests external docs.
 
 This keeps the workflow entirely prompt-driven after the one-time directory copy.
 
 ### Version Tracking
 
 `.kit/` contains a `VERSION` file with a semver string (e.g., `0.1.0`). This enables:
-- `/fab:status` to display the engine version
+- `/fab-status` to display the engine version
 - Users to check whether they need to update
 - The update process to compare versions before replacing
 
