@@ -67,3 +67,7 @@
 ### Cleanup & Hardening
 
 - [ ] [wr04] 2026-02-08: Harden all shell scripts in fab/worktree-init/ with proper error handling and safe variable expansion. Currently 1-direnv.sh, 2-claude-settings.sh, and 3-fab-setup.sh lack `set -euo pipefail`, have unquoted variable expansions vulnerable to word splitting on paths with spaces, and silently continue on failure. For each script: add `set -euo pipefail` at the top, quote all variable expansions (`"$var"` not `$var`), add meaningful error messages on failure, validate prerequisites exist before operating on them. Also audit any other .sh files under fab/.kit/scripts/ for the same issues.
+- [ ] [alat] 2026-02-10: Scores don't change after clarify - clarification should ideally increase state
+- [ ] [29xv] 2026-02-10: Scoring formula needs to be relooked at - scores are generaly too high
+- [ ] [6j7w] 2026-02-10: Go over the proposal -> specs -> plan -> tasks" "thinking" workflow. Do we need these many? Any rewording? Should state names change?
+- [ ] [gs42] 2026-02-10: Add attribution / owner for every change - in .status.yaml

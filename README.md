@@ -183,5 +183,19 @@ These are the structural indexes for navigating within each documentation area:
 
 The `references/` folder contains docs from other projects, included for reference:
 
-- [references/speckit/](references/speckit/) — Analysis of GitHub's Spec-Kit
-- [references/openspec/](references/openspec/) — Analysis of Fission AI's OpenSpec
+### [references/speckit/](references/speckit/)
+Comprehensive analysis of **Spec-Kit** (https://github.com/github/spec-kit) - GitHub's SDD toolkit.
+- Start with [README.md](references/speckit/README.md) for overview
+- Key docs: philosophy, workflow, commands, templates, agents
+
+### [references/openspec/](references/openspec/)
+In-depth analysis of **OpenSpec** (https://github.com/Fission-AI/OpenSpec) - an AI-native spec-driven framework.
+- Start with [README.md](references/openspec/README.md) for overview
+- Key docs: overview, philosophy, cli-architecture, agent-integration
+
+### Advantages
+
+- Resumability from any stage
+- Everyone remembers that there is a spec stage, a planning stage, and a task stage. And they don't get skipped. 
+- FF is cool
+- Determinism is calculated
