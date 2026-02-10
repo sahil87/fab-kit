@@ -1,0 +1,23 @@
+name: 260210-k7p2-document-srad-framework
+created: 2026-02-10T12:00:00-05:00
+stage: archive
+progress:
+  proposal: done
+  specs: done
+  plan: skipped
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklists/quality.md
+  completed: 27
+  total: 27
+confidence:
+  certain: 14
+  confident: 3
+  tentative: 0
+  unresolved: 0
+  score: 4.7
+last_updated: 2026-02-10T12:06:00-05:00
