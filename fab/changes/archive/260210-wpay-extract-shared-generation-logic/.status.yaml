@@ -1,0 +1,23 @@
+name: 260210-wpay-extract-shared-generation-logic
+created: 2026-02-10T12:00:00+00:00
+stage: archive
+progress:
+  proposal: done
+  specs: done
+  plan: skipped
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklists/quality.md
+  completed: 16
+  total: 16
+confidence:
+  certain: 5
+  confident: 1
+  tentative: 0
+  unresolved: 0
+  score: 4.9
+last_updated: 2026-02-10T19:30:00+00:00

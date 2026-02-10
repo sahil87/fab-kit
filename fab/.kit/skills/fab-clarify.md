@@ -22,12 +22,16 @@ Safe to call multiple times — each invocation refines further.
 
 ## Mode Selection
 
-Mode is determined by **call context**, not flags. There are no `--suggest` or `--auto` flags.
+Mode is determined by the **`[AUTO-MODE]` prefix** defined in the Skill Invocation Protocol section of `_context.md`. There are no `--suggest` or `--auto` flags.
 
-| Context | Mode |
-|---------|------|
-| User invokes `/fab-clarify` directly | **Suggest** — interactive, one question at a time |
-| `fab-ff` calls clarify internally between stages | **Auto** — autonomous, returns structured result |
+**Detection logic**: Check the first line of the invocation context for the `[AUTO-MODE]` prefix.
+
+| Invocation context | Mode |
+|--------------------|------|
+| `[AUTO-MODE]` prefix **present** (e.g., `/fab-ff` invoking internally) | **Auto** — autonomous, returns structured result |
+| `[AUTO-MODE]` prefix **absent** (e.g., user invokes `/fab-clarify` directly) | **Suggest** — interactive, one question at a time |
+
+See `_context.md` > Skill Invocation Protocol for the full protocol definition.
 
 ---
 

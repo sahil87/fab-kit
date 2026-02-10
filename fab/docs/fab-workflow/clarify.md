@@ -10,10 +10,10 @@ The `/fab-clarify` skill deepens and refines the current stage artifact without 
 
 ### Dual-Mode Operation
 
-`/fab-clarify` SHALL support two modes, determined by call context (not flags):
+`/fab-clarify` SHALL support two modes, determined by the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (`_context.md`):
 
-- **Suggest mode**: Activated when the user invokes `/fab-clarify` directly. Interactive, presents structured questions one at a time with recommendations and options.
-- **Auto mode**: Activated when `fab-ff` calls clarify internally between stage generations. Autonomous, resolves gaps without user interaction and returns a machine-readable result.
+- **Suggest mode**: Activated when the `[AUTO-MODE]` prefix is **absent** (e.g., user invokes `/fab-clarify` directly). Interactive, presents structured questions one at a time with recommendations and options.
+- **Auto mode**: Activated when the `[AUTO-MODE]` prefix is **present** (e.g., `/fab-ff` invokes clarify internally between stage generations). Autonomous, resolves gaps without user interaction and returns a machine-readable result.
 
 There SHALL be no `--suggest` or `--auto` flags on the clarify skill.
 
@@ -89,10 +89,11 @@ The skill SHALL only operate on planning stages (`proposal`, `specs`, `plan`, `t
 
 ## Design Decisions
 
-### Mode Selection by Call Context
-**Decision**: Mode is determined by how the skill is invoked (user = suggest, fab-ff internal = auto), not by flags.
-**Why**: Avoids a confusing `--suggest`/`--auto` flag pair with no clear use case for user-invoked auto mode. The call context naturally maps to the right behavior.
-**Rejected**: Flag-based mode selection — adds complexity, no user scenario requires it.
+### Mode Selection by `[AUTO-MODE]` Prefix
+**Decision**: Mode is determined by the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (`_context.md`). Prefix present = auto mode; absent = suggest mode. No flags.
+**Why**: Makes the contract explicit and testable rather than relying on implicit call-context interpretation. Avoids a confusing `--suggest`/`--auto` flag pair with no clear use case for user-invoked auto mode.
+**Rejected**: Flag-based mode selection — adds complexity, no user scenario requires it. Implicit call-context detection — unreliable, not testable.
+*Updated by*: 260210-nan4-define-auto-mode-signaling
 
 ### Max 5 Questions Per Invocation
 **Decision**: Cap suggest mode at 5 questions per invocation. Re-run for more.
@@ -113,6 +114,7 @@ The skill SHALL only operate on planning stages (`proposal`, `specs`, `plan`, `t
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260210-nan4-define-auto-mode-signaling | 2026-02-10 | Updated dual-mode operation to use explicit `[AUTO-MODE]` prefix protocol; updated "Mode Selection" design decision |
 | 260208-k3m7-add-fab-fff | 2026-02-08 | Added confidence recomputation after suggest-mode sessions, removed `<!-- auto-guess -->` scanning references |
 | 260207-09sj-autonomy-framework | 2026-02-08 | Added `<!-- assumed: ... -->` marker scanning to both suggest and auto modes; assumed markers framed as recommendations with alternatives |
 | 260207-m3qf-clarify-dual-modes | 2026-02-07 | Initial doc — dual-mode clarify skill (suggest + auto), taxonomy scan, structured questions, coverage reports, audit trail |

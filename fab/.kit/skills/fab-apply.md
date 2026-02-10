@@ -44,11 +44,12 @@ Load all context needed for implementation:
 
 1. **`fab/config.yaml`** — project config, tech stack, conventions
 2. **`fab/constitution.md`** — project principles and constraints
-3. **`fab/changes/{name}/tasks.md`** — the task list to execute
-4. **`fab/changes/{name}/spec.md`** — requirements and scenarios (the "what" and "why")
-5. **`fab/changes/{name}/plan.md`** — technical approach and file changes (if it exists; skip if plan was `skipped`)
-6. **`fab/changes/{name}/proposal.md`** — original intent (for reference)
-7. **Relevant source code** — read files referenced in task descriptions and the plan's File Changes section. Scope to files actually touched — do not load the entire codebase.
+3. **`fab/specs/index.md`** — specifications landscape (pre-implementation design intent, human-curated)
+4. **`fab/changes/{name}/tasks.md`** — the task list to execute
+5. **`fab/changes/{name}/spec.md`** — requirements and scenarios (the "what" and "why")
+6. **`fab/changes/{name}/plan.md`** — technical approach and file changes (if it exists; skip if plan was `skipped`)
+7. **`fab/changes/{name}/proposal.md`** — original intent (for reference)
+8. **Relevant source code** — read files referenced in task descriptions and the plan's File Changes section. Scope to files actually touched — do not load the entire codebase.
 
 ---
 

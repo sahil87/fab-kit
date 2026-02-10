@@ -6,6 +6,18 @@
 
 The planning skills (`/fab-new`, `/fab-discuss`, `/fab-continue`, `/fab-ff`, `/fab-clarify`) handle the first four stages of the Fab workflow: proposal, specs, plan, and tasks. They produce the artifacts that define *what* changes and *how*, before any code is written.
 
+## Shared Generation Partial
+
+The artifact generation logic (spec, plan, tasks, checklist) is defined in a single shared partial: `fab/.kit/skills/_generation.md`. Both `/fab-continue` and `/fab-ff` reference this partial for the mechanics of producing each artifact, rather than inlining the generation steps.
+
+The partial contains four procedures:
+- **Spec Generation Procedure** — template loading, metadata, RFC 2119 requirements, GIVEN/WHEN/THEN scenarios, Assumptions section
+- **Plan Generation Procedure** — template loading, metadata, summary, goals/non-goals, technical context, decisions, file changes
+- **Tasks Generation Procedure** — template loading, metadata, phased task breakdown, task format, execution order
+- **Checklist Generation Procedure** — template loading, category population, sequential CHK IDs, `.status.yaml` updates
+
+Each skill retains its own orchestration logic (stage guards, question handling, plan decisions, auto-clarify, resumability). Only the generation mechanics are shared.
+
 ## Requirements
 
 ### `/fab-new <description>`
@@ -98,12 +110,15 @@ Loads: config, constitution, `fab/docs/index.md`, `fab/specs/index.md`. In refin
 #### Normal Forward Flow (no argument)
 
 1. Read `.status.yaml` to determine current stage
-2. Identify next artifact to create
-3. Load relevant template + context (including `fab/constitution.md` for principles)
-4. Generate artifact (with clarification/research as needed)
-5. Recompute confidence score (re-count SRAD grades across all artifacts, apply formula, update `.status.yaml`)
-6. Auto-generate checklist when creating tasks
-7. Update `.status.yaml`
+2. **Stage guard**: Check both `stage` field and `progress.{stage}` value from preflight output:
+   - For planning stages (proposal, specs, plan, tasks): if `progress.{stage} == 'done'` AND stage is `tasks`, block (planning complete). If `progress.{stage} == 'active'`, allow generation to resume (interrupted mid-way). If `progress.{stage} == 'pending'`, allow generation to start.
+   - For apply/review/archive stages: block regardless of progress value (use stage-specific skill instead).
+3. Identify next artifact to create
+4. Load relevant template + context (including `fab/constitution.md` for principles)
+5. Generate artifact using the shared generation procedures from `_generation.md` (with clarification/research as needed)
+6. Recompute confidence score (re-count SRAD grades across all artifacts, apply formula, update `.status.yaml`)
+7. Auto-generate checklist when creating tasks (using `_generation.md` Checklist Generation Procedure)
+8. Update `.status.yaml`
 
 #### Plan Decision
 
@@ -136,7 +151,7 @@ The skill SHALL scan the proposal for ambiguities across *all* planning stages (
 
 #### Interleaved Auto-Clarify
 
-The `/fab-ff` pipeline interleaves auto-clarify between stage generations: `spec → auto-clarify → plan-decision → auto-clarify → tasks → auto-clarify`. This catches gaps before they compound downstream.
+The `/fab-ff` pipeline interleaves auto-clarify between stage generations: `spec → auto-clarify → plan-decision → auto-clarify → tasks → auto-clarify`. Each auto-clarify invocation uses the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (`_context.md`) to signal `/fab-clarify` to operate autonomously. This catches gaps before they compound downstream.
 
 - If auto-clarify finds **blocking issues** (cannot resolve autonomously), the pipeline **bails** — stops, reports the issues, and suggests `Run /fab-clarify to resolve these, then /fab-ff to resume.`
 - The pipeline is **resumable** — re-running `/fab-ff` after a bail skips stages already marked `done` and continues from the first incomplete stage.
@@ -257,10 +272,10 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 *Source*: doc/fab-spec/SKILLS.md
 
 ### Clarify Mode Selection by Call Context
-**Decision**: `/fab-clarify` mode is determined by how it is invoked (user = suggest mode, `fab-ff` internal = auto mode), not by `--suggest`/`--auto` flags.
-**Why**: Avoids a confusing flag pair with no clear use case for user-invoked auto mode. The call context naturally maps to the right behavior.
-**Rejected**: Flag-based mode selection — adds complexity, no user scenario requires it.
-*Introduced by*: 260207-m3qf-clarify-dual-modes
+**Decision**: `/fab-clarify` mode is determined by the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (`_context.md`). When the prefix is present (e.g., `/fab-ff` invoking internally), `/fab-clarify` enters auto mode. When absent (user invocation), it enters suggest mode. No `--suggest`/`--auto` flags.
+**Why**: Avoids a confusing flag pair with no clear use case for user-invoked auto mode. The explicit prefix protocol makes the contract testable rather than relying on implicit call-context interpretation.
+**Rejected**: Flag-based mode selection — adds complexity, no user scenario requires it. Implicit call-context detection — unreliable, not testable.
+*Introduced by*: 260207-m3qf-clarify-dual-modes; *Updated by*: 260210-nan4-define-auto-mode-signaling (explicit `[AUTO-MODE]` protocol)
 
 ### Fast-Forward Interleaves Auto-Clarify
 **Decision**: `/fab-ff` interleaves auto-clarify between stage generations (`spec → auto-clarify → plan → auto-clarify → tasks → auto-clarify`). Bails on blocking issues that cannot be resolved autonomously.
@@ -280,6 +295,12 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 **Rejected**: Argument-based detection (matching against `fab/changes/` folder names) — brittle, confusing syntax.
 *Introduced by*: 260208-lgd7-fab-discuss-command
 
+### Shared Generation Partial
+**Decision**: Extract duplicated artifact generation logic from `/fab-continue` and `/fab-ff` into a shared `_generation.md` partial. Both skills reference the partial for spec, plan, tasks, and checklist generation mechanics; each retains its own orchestration logic.
+**Why**: Generation steps were nearly identical in both skills, requiring every fix or behavior change to be applied in two places. Centralizing eliminates drift and makes generation behavior authoritative in one location.
+**Rejected**: Keeping inline duplication — inevitable drift between the two copies.
+*Introduced by*: 260210-wpay-extract-shared-generation-logic
+
 ### Reset via `/fab-continue <stage>`
 **Decision**: Reset to an earlier planning stage by passing the stage name as an argument to `/fab-continue`. Downstream artifacts are invalidated and regenerated.
 **Why**: Provides a clean re-entry point after `/fab-review` identifies upstream issues. Reuses the existing skill rather than adding a separate `/fab-reset` command.
@@ -290,6 +311,9 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260210-wpay-extract-shared-generation-logic | 2026-02-10 | Extracted shared generation logic (spec, plan, tasks, checklist) into `_generation.md` partial; both `/fab-continue` and `/fab-ff` now reference it |
+| 260210-nan4-define-auto-mode-signaling | 2026-02-10 | Defined explicit `[AUTO-MODE]` prefix protocol for skill-to-skill invocation in `_context.md`; updated `/fab-ff` auto-clarify invocations and "Clarify Mode Selection" design decision |
+| 260210-0p4e-fix-stage-guard-progress-check | 2026-02-10 | `/fab-continue` stage guard now checks `progress.{stage}` value to distinguish done/active/pending states, allowing resumption of interrupted stage generations |
 | 260210-zr1f-discuss-auto-activate-when-no-current | 2026-02-10 | `/fab-discuss` conditionally offers activation when `fab/current` is empty; updated proposal output, key differences table |
 | 260209-r4w8-archive-index-longer-slugs | 2026-02-09 | Expanded slug word count from 2-4 to 2-6 words in `/fab-new` folder name generation |
 | 260208-q8v3-branch-to-switch | 2026-02-09 | Moved branch integration from `/fab-new` to `/fab-switch`, removed `--branch` flag from `/fab-new`, `/fab-new` now calls `/fab-switch` internally |

@@ -1,0 +1,23 @@
+name: 260210-3uej-fix-collision-handling-regenerate
+created: 2026-02-10T12:04:00+00:00
+stage: archive
+progress:
+  proposal: done
+  specs: done
+  plan: skipped
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklists/quality.md
+  completed: 10
+  total: 10
+confidence:
+  certain: 5
+  confident: 1
+  tentative: 0
+  unresolved: 0
+  score: 4.9
+last_updated: 2026-02-10T12:32:17+00:00

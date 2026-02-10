@@ -63,9 +63,9 @@
 
 ## Bugs
 
-- [ ] [k3wf] (BUG) 2026-02-07: fab-continue and fab-ff duplicate spec/plan/tasks/checklist generation logic nearly verbatim — extract to a shared `_generation.md` partial
+- [x] [k3wf] (BUG) 2026-02-07: fab-continue and fab-ff duplicate spec/plan/tasks/checklist generation logic nearly verbatim — extract to a shared `_generation.md` partial
 - [ ] [r8tn] (BUG) 2026-02-07: fab-ff invokes fab-clarify in auto mode but no mechanism (flag, context variable) is defined for how one skill signals mode to another
 - [ ] [p2xe] (BUG) 2026-02-07: fab-continue stage guard checks stage name not progress value — if `stage: tasks` but `progress.tasks: active` (interrupted), the guard incorrectly blocks resumption
 - [ ] [j5bh] (BUG) 2026-02-07: fab-apply, fab-review, fab-archive omit `fab/specs/index.md` from context loading, deviating from `_context.md` always-load protocol
 - [ ] [m1gc] (BUG) 2026-02-07: fab-new collision handling says "append an additional random character" (making 5 chars) instead of "regenerate the 4-character component"
-- [ ] [oa32] 2026-02-10: make prompt pantry opencode compatible
+- [x] [oa32] 2026-02-10: make prompt pantry opencode compatible

@@ -83,19 +83,9 @@ Skip questions entirely and proceed directly to Step 2.
 
 *(Skip if `progress.specs` is already `done`.)*
 
-1. Read the template from `fab/.kit/templates/spec.md`
-2. Fill in metadata fields:
-   - `{CHANGE_NAME}`: The human-readable name from the proposal
-   - `{YYMMDD-XXXX-slug}`: The change folder name from `.status.yaml`
-   - `{DATE}`: Today's date
-   - `{domain}` and `{doc-name}`: From the proposal's Affected Docs section
-3. For each domain/topic affected by this change, create a section with:
-   - Requirements using RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
-   - At least one GIVEN/WHEN/THEN scenario per requirement
-4. Include a **Deprecated Requirements** section if the change removes existing requirements
-5. Incorporate answers from Step 1 to resolve any ambiguities — the spec should have no `[NEEDS CLARIFICATION]` markers
-6. Append an `## Assumptions` section listing all Confident and Tentative assumptions made during spec generation (see Assumptions Summary Block in `_context.md`).
-7. Write the completed spec to `fab/changes/{name}/spec.md`
+Follow the **Spec Generation Procedure** defined in `fab/.kit/skills/_generation.md`.
+
+Additionally: incorporate answers from Step 1 to resolve any ambiguities — the spec should have no `[NEEDS CLARIFICATION]` markers (unlike `/fab-continue`, which may leave markers for `/fab-clarify`).
 
 Update `.status.yaml`:
 - Set `progress.specs` to `done`
@@ -103,7 +93,7 @@ Update `.status.yaml`:
 
 #### Auto-Clarify: Spec
 
-Run auto-clarify on the generated spec (invoke `fab-clarify` in **auto mode** with stage context set to `specs`). Interpret the result:
+Run auto-clarify on the generated spec: invoke `/fab-clarify` with the `[AUTO-MODE]` prefix (per the Skill Invocation Protocol in `_context.md`), with stage context set to `specs`. Interpret the result:
 
 - **`blocking: 0`** → continue to Step 3
 - **`blocking > 0`** → **BAIL**. Stop the pipeline, report blocking issues, and output:
@@ -136,75 +126,31 @@ Evaluate whether a `plan.md` is warranted. **Unlike `/fab-continue`, this decisi
 
 **If the plan IS warranted (generate):**
 
-1. Read the template from `fab/.kit/templates/plan.md`
-2. Fill in metadata fields:
-   - `{CHANGE_NAME}`: From the proposal
-   - `{YYMMDD-XXXX-slug}`: The change folder name
-   - `{DATE}`: Today's date
-3. Fill in sections:
-   - **Summary**: 1-2 sentences on what the change does and the chosen approach
-   - **Goals / Non-Goals**: Derived from the spec requirements
-   - **Technical Context**: From `fab/config.yaml` context, scoped to what this change touches
-   - **Research**: Technical investigation findings (skip for straightforward changes)
-   - **Decisions**: Key design decisions with rationale and rejected alternatives
-   - **Risks / Trade-offs**: Known risks with mitigation strategies
-   - **File Changes**: Concrete list of new, modified, and deleted files
-4. Append an `## Assumptions` section listing all Confident and Tentative assumptions made during plan generation
-5. Write the completed plan to `fab/changes/{name}/plan.md`
-6. Update `.status.yaml`:
-   - Set `progress.plan` to `done`
-   - Update `last_updated`
+Follow the **Plan Generation Procedure** defined in `fab/.kit/skills/_generation.md`.
+
+Update `.status.yaml`:
+- Set `progress.plan` to `done`
+- Update `last_updated`
 
 #### Auto-Clarify: Plan
 
 *(Skip if plan was skipped.)*
 
-Run auto-clarify on the generated plan (invoke `fab-clarify` in **auto mode** with stage context set to `plan`). Interpret the result using the same bail logic as the spec auto-clarify above.
+Run auto-clarify on the generated plan: invoke `/fab-clarify` with the `[AUTO-MODE]` prefix (per the Skill Invocation Protocol in `_context.md`), with stage context set to `plan`. Interpret the result using the same bail logic as the spec auto-clarify above.
 
 ### Step 4: Generate `tasks.md`
 
 *(Skip if `progress.tasks` is already `done`.)*
 
-1. Read the template from `fab/.kit/templates/tasks.md`
-2. Fill in metadata fields:
-   - `{CHANGE_NAME}`: From the proposal
-   - `{YYMMDD-XXXX-slug}`: The change folder name
-   - If plan exists: reference `plan.md` in the header
-   - If plan was skipped: omit the Plan line, include `proposal.md` reference for traceability
-3. Break implementation into phased tasks:
-   - **Phase 1: Setup** — scaffolding, dependencies, configuration
-   - **Phase 2: Core Implementation** — primary functionality, ordered by dependency
-   - **Phase 3: Integration & Edge Cases** — wiring, error states, validation
-   - **Phase 4: Polish** — documentation, cleanup (only if warranted)
-4. Each task follows the format: `- [ ] T{NNN} [{markers}] {description with file paths}`
-   - IDs are sequential: T001, T002, ...
-   - Mark parallelizable tasks with `[P]`
-   - Include exact file paths in descriptions
-   - Each task should be completable in one focused session
-5. Include an **Execution Order** section for non-obvious dependencies
-6. Write the completed tasks to `fab/changes/{name}/tasks.md`
+Follow the **Tasks Generation Procedure** defined in `fab/.kit/skills/_generation.md`.
 
 #### Auto-Clarify: Tasks
 
-Run auto-clarify on the generated tasks (invoke `fab-clarify` in **auto mode** with stage context set to `tasks`). Interpret the result using the same bail/guess logic as above.
+Run auto-clarify on the generated tasks: invoke `/fab-clarify` with the `[AUTO-MODE]` prefix (per the Skill Invocation Protocol in `_context.md`), with stage context set to `tasks`. Interpret the result using the same bail/guess logic as above.
 
 ### Step 5: Auto-generate Quality Checklist
 
-1. Read the template from `fab/.kit/templates/checklist.md`
-2. The `fab/changes/{name}/checklists/` directory is created by `/fab-new` and should already exist. If it doesn't, create it.
-3. Generate `fab/changes/{name}/checklists/quality.md` with:
-   - `{CHANGE_NAME}`: From the proposal
-   - `{YYMMDD-XXXX-slug}`: The change folder name
-   - `{DATE}`: Today's date
-4. Populate checklist items derived from:
-   - `spec.md` — every requirement should have a corresponding CHK item under **Functional Completeness**
-   - Changed requirements → **Behavioral Correctness** items
-   - Deprecated requirements → **Removal Verification** items
-   - Key scenarios from spec → **Scenario Coverage** items
-   - Edge cases identified in spec/plan → **Edge Cases & Error Handling** items
-   - Security-relevant changes → **Security** items (only if applicable)
-   - Additional categories from `fab/config.yaml` `checklist.extra_categories` (if any)
-5. Use sequential IDs: CHK-001, CHK-002, ...
+Follow the **Checklist Generation Procedure** defined in `fab/.kit/skills/_generation.md`.
 
 ### Step 6: Update `.status.yaml`
 

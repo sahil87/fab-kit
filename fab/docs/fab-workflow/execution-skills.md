@@ -27,7 +27,7 @@ The execution skills (`/fab-apply`, `/fab-review`, `/fab-archive`) handle the im
 
 #### Context
 
-Loads: config, constitution, `tasks.md`, `spec.md`, `plan.md` (if exists), relevant source code (files referenced in tasks).
+Loads: config, constitution, `specs/index.md`, `tasks.md`, `spec.md`, `plan.md` (if exists), relevant source code (files referenced in tasks).
 
 ### `/fab-review`
 
@@ -59,7 +59,7 @@ The general rule: **artifacts at and after the re-entry point are regenerated or
 
 #### Context
 
-Loads: config, constitution, `tasks.md`, `checklists/quality.md`, `spec.md`, target centralized doc(s) from `fab/docs/`, relevant source code (files touched by the change).
+Loads: config, constitution, `specs/index.md`, `tasks.md`, `checklists/quality.md`, `spec.md`, target centralized doc(s) from `fab/docs/`, relevant source code (files touched by the change).
 
 ### `/fab-archive`
 
@@ -89,7 +89,7 @@ Hydration modifies centralized docs in-place. If the merge goes wrong, the only 
 
 #### Context
 
-Loads: `spec.md`, `plan.md` (if exists), target centralized doc(s) from `fab/docs/`, `fab/docs/index.md` and relevant domain indexes.
+Loads: config, constitution, `specs/index.md`, `spec.md`, `plan.md` (if exists), target centralized doc(s) from `fab/docs/`, `fab/docs/index.md` and relevant domain indexes.
 
 ## Design Decisions
 
@@ -121,6 +121,7 @@ Loads: `spec.md`, `plan.md` (if exists), target centralized doc(s) from `fab/doc
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260210-7wxx-add-specs-index-context-loading | 2026-02-10 | Added `fab/specs/index.md` to context loading for all three execution skills, aligning with the always-load protocol in `_context.md` |
 | 260209-r4w8-archive-index-longer-slugs | 2026-02-09 | Added archive index maintenance step to `/fab-archive` — creates/updates `fab/changes/archive/index.md` with searchable change summaries |
 | 260208-k3m7-add-fab-fff | 2026-02-08 | Removed auto-guess soft gate from `/fab-apply` — replaced by confidence gating on `/fab-fff` |
 | 260207-09sj-autonomy-framework | 2026-02-08 | Added auto-guess soft gate to `/fab-apply` (subsequently removed by 260208-k3m7-add-fab-fff) |
