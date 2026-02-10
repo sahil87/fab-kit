@@ -1,3 +1,3 @@
 export IDEAS_FILE=fab/backlog.md
-export WORKTREE_INIT_SCRIPT=fab/.kit/scripts/fab-worktree-init.sh
+export WORKTREE_INIT_SCRIPT=fab/.kit/worktree-init.sh
 PATH_add fab/.kit/scripts
