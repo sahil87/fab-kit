@@ -85,6 +85,34 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 ---
 
+## Skill Invocation Protocol
+
+When one skill invokes another internally (e.g., `/fab-ff` invoking `/fab-clarify` between stages), the calling skill MUST signal the invocation mode explicitly using an instruction prefix. This makes the contract between skills explicit and testable rather than relying on implicit "call context" interpretation.
+
+### Protocol
+
+1. **Prefix**: `[AUTO-MODE]`
+2. **Placement**: The calling skill includes `[AUTO-MODE]` as the **first line** of the invocation prompt / instruction to the called skill.
+3. **Detection**: The called skill checks for the `[AUTO-MODE]` prefix at the start of its invocation context.
+   - **If present**: Enter autonomous mode (no user interaction, machine-readable result).
+   - **If absent**: Enter default/interactive mode (user-facing, structured questions).
+4. **Transitivity**: When skills chain (e.g., `/fab-fff` → `/fab-ff` → `/fab-clarify`), each link in the chain applies the prefix independently. `/fab-ff` adds `[AUTO-MODE]` when it invokes `/fab-clarify`, regardless of whether `/fab-ff` itself was invoked by `/fab-fff` or by the user.
+
+### Currently Applicable
+
+| Calling skill | Called skill | Mode signaled |
+|---------------|-------------|---------------|
+| `/fab-ff` | `/fab-clarify` | `[AUTO-MODE]` → auto mode (autonomous gap resolution) |
+| `/fab-fff` (via `/fab-ff`) | `/fab-clarify` | `[AUTO-MODE]` → auto mode (transitive through `/fab-ff`) |
+
+User-invoked skills never carry the `[AUTO-MODE]` prefix, so called skills default to interactive mode.
+
+### Extending the Protocol
+
+If future skills need additional mode signals, define new bracketed prefixes (e.g., `[BATCH-MODE]`) in this section. The pattern is: one prefix per mode, first-line placement, absence means default.
+
+---
+
 ## SRAD Autonomy Framework
 
 When generating artifacts, planning skills encounter decision points not explicitly addressed by user input. The SRAD framework provides a principled method for deciding when to ask, when to assume, and when to surface assumptions.

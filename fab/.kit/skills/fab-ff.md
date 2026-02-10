@@ -103,7 +103,7 @@ Update `.status.yaml`:
 
 #### Auto-Clarify: Spec
 
-Run auto-clarify on the generated spec (invoke `fab-clarify` in **auto mode** with stage context set to `specs`). Interpret the result:
+Run auto-clarify on the generated spec: invoke `/fab-clarify` with the `[AUTO-MODE]` prefix (per the Skill Invocation Protocol in `_context.md`), with stage context set to `specs`. Interpret the result:
 
 - **`blocking: 0`** → continue to Step 3
 - **`blocking > 0`** → **BAIL**. Stop the pipeline, report blocking issues, and output:
@@ -159,7 +159,7 @@ Evaluate whether a `plan.md` is warranted. **Unlike `/fab-continue`, this decisi
 
 *(Skip if plan was skipped.)*
 
-Run auto-clarify on the generated plan (invoke `fab-clarify` in **auto mode** with stage context set to `plan`). Interpret the result using the same bail logic as the spec auto-clarify above.
+Run auto-clarify on the generated plan: invoke `/fab-clarify` with the `[AUTO-MODE]` prefix (per the Skill Invocation Protocol in `_context.md`), with stage context set to `plan`. Interpret the result using the same bail logic as the spec auto-clarify above.
 
 ### Step 4: Generate `tasks.md`
 
@@ -186,7 +186,7 @@ Run auto-clarify on the generated plan (invoke `fab-clarify` in **auto mode** wi
 
 #### Auto-Clarify: Tasks
 
-Run auto-clarify on the generated tasks (invoke `fab-clarify` in **auto mode** with stage context set to `tasks`). Interpret the result using the same bail/guess logic as above.
+Run auto-clarify on the generated tasks: invoke `/fab-clarify` with the `[AUTO-MODE]` prefix (per the Skill Invocation Protocol in `_context.md`), with stage context set to `tasks`. Interpret the result using the same bail/guess logic as above.
 
 ### Step 5: Auto-generate Quality Checklist
 

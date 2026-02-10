@@ -1,23 +1,23 @@
 name: 260210-nan4-define-auto-mode-signaling
 created: 2026-02-10T12:01:00+00:00
-stage: proposal
+stage: archive
 progress:
   proposal: done
-  specs: pending
-  plan: pending
-  tasks: pending
-  apply: pending
-  review: pending
-  archive: pending
+  specs: done
+  plan: skipped
+  tasks: done
+  apply: done
+  review: done
+  archive: done
 checklist:
-  generated: false
+  generated: true
   path: checklists/quality.md
-  completed: 0
-  total: 0
+  completed: 13
+  total: 13
 confidence:
   certain: 4
   confident: 2
   tentative: 0
   unresolved: 0
   score: 4.8
-last_updated: 2026-02-10T12:01:00+00:00
+last_updated: 2026-02-10T18:20:00+00:00

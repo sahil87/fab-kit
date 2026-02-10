@@ -136,7 +136,7 @@ The skill SHALL scan the proposal for ambiguities across *all* planning stages (
 
 #### Interleaved Auto-Clarify
 
-The `/fab-ff` pipeline interleaves auto-clarify between stage generations: `spec → auto-clarify → plan-decision → auto-clarify → tasks → auto-clarify`. This catches gaps before they compound downstream.
+The `/fab-ff` pipeline interleaves auto-clarify between stage generations: `spec → auto-clarify → plan-decision → auto-clarify → tasks → auto-clarify`. Each auto-clarify invocation uses the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (`_context.md`) to signal `/fab-clarify` to operate autonomously. This catches gaps before they compound downstream.
 
 - If auto-clarify finds **blocking issues** (cannot resolve autonomously), the pipeline **bails** — stops, reports the issues, and suggests `Run /fab-clarify to resolve these, then /fab-ff to resume.`
 - The pipeline is **resumable** — re-running `/fab-ff` after a bail skips stages already marked `done` and continues from the first incomplete stage.
@@ -257,10 +257,10 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 *Source*: doc/fab-spec/SKILLS.md
 
 ### Clarify Mode Selection by Call Context
-**Decision**: `/fab-clarify` mode is determined by how it is invoked (user = suggest mode, `fab-ff` internal = auto mode), not by `--suggest`/`--auto` flags.
-**Why**: Avoids a confusing flag pair with no clear use case for user-invoked auto mode. The call context naturally maps to the right behavior.
-**Rejected**: Flag-based mode selection — adds complexity, no user scenario requires it.
-*Introduced by*: 260207-m3qf-clarify-dual-modes
+**Decision**: `/fab-clarify` mode is determined by the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (`_context.md`). When the prefix is present (e.g., `/fab-ff` invoking internally), `/fab-clarify` enters auto mode. When absent (user invocation), it enters suggest mode. No `--suggest`/`--auto` flags.
+**Why**: Avoids a confusing flag pair with no clear use case for user-invoked auto mode. The explicit prefix protocol makes the contract testable rather than relying on implicit call-context interpretation.
+**Rejected**: Flag-based mode selection — adds complexity, no user scenario requires it. Implicit call-context detection — unreliable, not testable.
+*Introduced by*: 260207-m3qf-clarify-dual-modes; *Updated by*: 260210-nan4-define-auto-mode-signaling (explicit `[AUTO-MODE]` protocol)
 
 ### Fast-Forward Interleaves Auto-Clarify
 **Decision**: `/fab-ff` interleaves auto-clarify between stage generations (`spec → auto-clarify → plan → auto-clarify → tasks → auto-clarify`). Bails on blocking issues that cannot be resolved autonomously.
@@ -290,6 +290,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260210-nan4-define-auto-mode-signaling | 2026-02-10 | Defined explicit `[AUTO-MODE]` prefix protocol for skill-to-skill invocation in `_context.md`; updated `/fab-ff` auto-clarify invocations and "Clarify Mode Selection" design decision |
 | 260210-zr1f-discuss-auto-activate-when-no-current | 2026-02-10 | `/fab-discuss` conditionally offers activation when `fab/current` is empty; updated proposal output, key differences table |
 | 260209-r4w8-archive-index-longer-slugs | 2026-02-09 | Expanded slug word count from 2-4 to 2-6 words in `/fab-new` folder name generation |
 | 260208-q8v3-branch-to-switch | 2026-02-09 | Moved branch integration from `/fab-new` to `/fab-switch`, removed `--branch` flag from `/fab-new`, `/fab-new` now calls `/fab-switch` internally |
