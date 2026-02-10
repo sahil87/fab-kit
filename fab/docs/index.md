@@ -7,6 +7,8 @@
 > Contrast with [`fab/specs/index.md`](../specs/index.md): specs are *pre-implementation* —
 > what you planned. Specs capture conceptual design intent and are human-curated.
 
+> **New here?** See the [Documentation Map](../../README.md#documentation-map) for recommended reading order. For terminology, see the [Glossary](../specs/glossary.md).
+
 | Domain | Description | Docs |
 |--------|-------------|------|
 | [fab-workflow](fab-workflow/index.md) | Fab kit workflow — skills, architecture, templates, configuration, change lifecycle | hydrate, hydrate-generate, init, context-loading, planning-skills, clarify, execution-skills, change-lifecycle, templates, kit-architecture, configuration, preflight, backfill, specs-index |
