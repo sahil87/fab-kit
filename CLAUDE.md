@@ -1,2 +1,3 @@
 # Bash permissions
-When chaining multiple commands with &&, ;, or |, always wrap them in `bash -c '...'` so they match the allowed `Bash(bash *)` permission pattern.
+Chained commands (&&, ;, |) will prompt for approval individually — this is intentional.
+Only pre-approved commands: git, gh, fab scripts, ls, rm fab/current, wc, direnv allow.

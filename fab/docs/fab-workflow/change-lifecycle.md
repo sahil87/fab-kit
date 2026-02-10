@@ -166,5 +166,5 @@ All mechanical work (file reading, YAML parsing, git branch query, progress symb
 | 260208-q8v3-branch-to-switch | 2026-02-09 | Moved branch integration from `/fab-new` to `/fab-switch`, removed `branch:` field from `.status.yaml`, `/fab-status` uses live git query, added `--branch` flag to `/fab-switch` |
 | 260208-lgd7-fab-discuss-command | 2026-02-08 | Added `/fab-discuss` to `fab/current` lifecycle (reads but does not write), added discuss → switch → fff alternative entry path |
 | 260208-k3m7-add-fab-fff | 2026-02-08 | Added `confidence` field to `.status.yaml` schema, added full pipeline path via `/fab-fff` |
-| 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab:xxx` colon format to `/fab-xxx` hyphen format |
+| 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | — | 2026-02-07 | Generated from doc/fab-spec/ (ARCHITECTURE.md, SKILLS.md, TEMPLATES.md) |

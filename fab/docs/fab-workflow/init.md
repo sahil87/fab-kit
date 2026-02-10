@@ -54,6 +54,6 @@ First-run output lists only structural artifacts created. Next step suggests `/f
 
 | Change | Date | Summary |
 |--------|------|---------|
-| 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab:xxx` colon format to `/fab-xxx` hyphen format |
+| 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | 260207-bb1q-add-specs-index | 2026-02-07 | Added `fab/specs/index.md` creation as step 1d in bootstrap sequence |
 | 260207-q7m3-separate-hydrate-smart-context | 2026-02-07 | Simplified to structural bootstrap only — removed Phase 2 source hydration, added argument redirect |

@@ -125,5 +125,5 @@ When `/fab-archive` hydrates into centralized docs:
 
 | Change | Date | Summary |
 |--------|------|---------|
-| 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab:xxx` colon format to `/fab-xxx` hyphen format |
+| 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | — | 2026-02-07 | Generated from doc/fab-spec/ (TEMPLATES.md, SKILLS.md) |

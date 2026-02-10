@@ -19,3 +19,4 @@
 | [templates](templates.md) | Artifact templates — status, proposal, spec, plan, tasks, checklist, centralized docs |
 | [user-flow](user-flow.md) | Visual diagrams — how development works today, with Fab commands, full command map |
 | [proposal](proposal.md) | Original inspiration — SpecKit vs OPSX comparison and design rationale |
+| [glossary](glossary.md) | All Fab terminology — core concepts, stages, skills, files, SRAD, conventions |

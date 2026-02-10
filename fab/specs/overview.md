@@ -28,7 +28,7 @@ Always know where you are. Each change folder has a `.status.yaml` manifest that
 Use skills (not rigid commands) for better agent interoperability. Skills are more naturally invocable by AI agents.
 
 ### 6. Git-Optional
-Fab tracks changes in directories, not branches. A change folder is the unit of identity — the same change can be worked on across multiple branches, worktrees, or even repos. When git is available, `/fab:new` offers to create or adopt a branch and records it in `.status.yaml` as a convenience link, but this is informational only. Commits, pushes, and PRs remain your responsibility — Fab never couples its state to git state.
+Fab tracks changes in directories, not branches. A change folder is the unit of identity — the same change can be worked on across multiple branches, worktrees, or even repos. When git is available, `/fab-new` offers to create or adopt a branch and records it in `.status.yaml` as a convenience link, but this is informational only. Commits, pushes, and PRs remain your responsibility — Fab never couples its state to git state.
 
 ---
 
@@ -52,15 +52,15 @@ mkdir -p fab
 cp -r /path/to/fab-kit fab/.kit
 ```
 
-> `.kit/` is distributed as a standalone directory. See [Distribution](ARCHITECTURE.md#distribution--bootstrapping) for sourcing options. When `.kit/` gets its own repository, this becomes a single clone or download.
+> `.kit/` is distributed as a standalone directory. See [Distribution](architecture.md#distribution--bootstrapping) for sourcing options. When `.kit/` gets its own repository, this becomes a single clone or download.
 
-**Phase 2: Run `/fab:init`**
+**Phase 2: Run `/fab-init`**
 
 ```bash
-/fab:init
+/fab-init
 ```
 
-This generates everything else: `config.yaml`, `constitution.md`, `docs/`, `changes/`, and skill symlinks. See [Skills Reference](SKILLS.md#fabinit) for full behavior.
+This generates everything else: `config.yaml`, `constitution.md`, `docs/`, `changes/`, and skill symlinks. See [Skills Reference](skills.md#fabinit) for full behavior.
 
 ### Verify
 
@@ -69,24 +69,24 @@ fab/.kit/scripts/fab-status.sh
 → "No active change"
 ```
 
-You're ready. Start your first change with `/fab:new <description>`.
+You're ready. Start your first change with `/fab-new <description>`.
 
 ### Hydrating Docs from Existing Sources
 
-After the initial bootstrap, use `/fab:hydrate` to ingest existing documentation into `fab/docs/`:
+After the initial bootstrap, use `/fab-hydrate` to ingest existing documentation into `fab/docs/`:
 
 ```bash
 # Pull in API docs from Notion
-/fab:hydrate https://notion.so/myteam/API-Spec-abc123
+/fab-hydrate https://notion.so/myteam/API-Spec-abc123
 
 # Ingest local legacy docs
-/fab:hydrate ./docs/legacy/
+/fab-hydrate ./docs/legacy/
 
 # Multiple sources at once
-/fab:hydrate https://notion.so/myteam/Auth-xyz https://linear.app/myteam/project/payments-abc ./specs/
+/fab-hydrate https://notion.so/myteam/Auth-xyz https://linear.app/myteam/project/payments-abc ./specs/
 ```
 
-Supported sources: **Notion URLs**, **Linear URLs**, **local files/directories**. Each run analyzes the content, maps it to domains, and creates or merges into `fab/docs/`. See [Skills Reference](SKILLS.md#fabhydrate-sources) for details.
+Supported sources: **Notion URLs**, **Linear URLs**, **local files/directories**. Each run analyzes the content, maps it to domains, and creates or merges into `fab/docs/`. See [Skills Reference](skills.md#fabhydrate-sources) for details.
 
 ---
 
@@ -130,16 +130,16 @@ flowchart TD
 
 ### User Flow
 
-The 7 stages are internal. From the user's perspective, the main workflow is 5 skill invocations — planning stages (2–4) after proposal are collapsed into a single step via `/fab:ff` or stepped through with `/fab:continue`. `/fab:clarify` is available at any planning stage to deepen the current artifact before moving on:
+The 7 stages are internal. From the user's perspective, the main workflow is 5 skill invocations — planning stages (2–4) after proposal are collapsed into a single step via `/fab-ff` or stepped through with `/fab-continue`. `/fab-clarify` is available at any planning stage to deepen the current artifact before moving on:
 
 ```mermaid
 flowchart TD
-    NEW["/fab:new"]
-    THINK["/fab:continue or ff"]
-    APPLY["/fab:apply"]
-    REVIEW["/fab:review"]
-    ARCHIVE["/fab:archive"]
-    THINK ~~~ CLARIFY["/fab:clarify"]
+    NEW["/fab-new"]
+    THINK["/fab-continue or ff"]
+    APPLY["/fab-apply"]
+    REVIEW["/fab-review"]
+    ARCHIVE["/fab-archive"]
+    THINK ~~~ CLARIFY["/fab-clarify"]
 
     NEW -->|proposal| THINK
     THINK -->|spec + plan? + tasks| APPLY
@@ -163,17 +163,17 @@ flowchart TD
 
 | Skill | Purpose | Creates |
 |-------|---------|---------|
-| `/fab:init` | Bootstrap fab/ structure | `config.yaml`, `constitution.md`, `docs/`, skill symlinks (idempotent) |
-| `/fab:hydrate [sources...]` | Ingest external docs into fab/docs/ | Updated `fab/docs/` with indexes |
-| `/fab:new` | Start change (optionally with `--branch`) | `proposal.md`, `.status.yaml`, branch (optional) |
-| `/fab:continue [<stage>]` | Next artifact (or reset to stage) | Next stage artifact |
-| `/fab:ff` | Fast forward remaining planning | spec.md + plan (if needed) + tasks + checklist |
-| `/fab:clarify` | Deepen current artifact | Refined artifact (in place) |
-| `/fab:apply` | Implement | Code changes |
-| `/fab:review` | Validate | Validation report |
-| `/fab:archive` | Complete & hydrate | Archive entry, updated docs |
-| `/fab:switch` | Change active change | Updated pointer file |
-| `/fab:status` | Check progress | Status display |
+| `/fab-init` | Bootstrap fab/ structure | `config.yaml`, `constitution.md`, `docs/`, skill symlinks (idempotent) |
+| `/fab-hydrate [sources...]` | Ingest external docs into fab/docs/ | Updated `fab/docs/` with indexes |
+| `/fab-new` | Start change (optionally with `--branch`) | `proposal.md`, `.status.yaml`, branch (optional) |
+| `/fab-continue [<stage>]` | Next artifact (or reset to stage) | Next stage artifact |
+| `/fab-ff` | Fast forward remaining planning | spec.md + plan (if needed) + tasks + checklist |
+| `/fab-clarify` | Deepen current artifact | Refined artifact (in place) |
+| `/fab-apply` | Implement | Code changes |
+| `/fab-review` | Validate | Validation report |
+| `/fab-archive` | Complete & hydrate | Archive entry, updated docs |
+| `/fab-switch` | Change active change | Updated pointer file |
+| `/fab-status` | Check progress | Status display |
 
 ---
 
@@ -182,53 +182,53 @@ flowchart TD
 ### Standard Flow
 ```bash
 # 1. Start new change
-/fab:new Add dark mode support with system preference detection
+/fab-new Add dark mode support with system preference detection
 
 # 2. Proposal generated with clarifying questions
 # (answer questions, refine if needed)
 
 # 3. Continue to specs
-/fab:continue
+/fab-continue
 # → Creates spec.md with requirements for this change
 # → Asks clarifying questions about ambiguities
 
 # 4. Continue to plan
-/fab:continue
+/fab-continue
 # → Creates plan.md
 # → Does technical research inline
 
 # 5. Continue to tasks
-/fab:continue
+/fab-continue
 # → Creates tasks.md with implementation checklist
 # → Auto-generates checklists/quality.md
 
 # 6. Implement
-/fab:apply
+/fab-apply
 # → Executes tasks, marks completed
 
 # 7. Review
-/fab:review
+/fab-review
 # → Validates implementation, checks checklist
 
 # 8. Archive
-/fab:archive
+/fab-archive
 # → Hydrates docs/, moves to archive/
 ```
 
 ### Fast Track (small changes)
 ```bash
-/fab:new Add loading spinner to submit button
-/fab:ff
-/fab:apply
-/fab:review
-/fab:archive
+/fab-new Add loading spinner to submit button
+/fab-ff
+/fab-apply
+/fab-review
+/fab-archive
 ```
 
 ---
 
 ## Further Reading
 
-- [Architecture](ARCHITECTURE.md) — directory structure, config, conventions
-- [Skills Reference](SKILLS.md) — detailed behavior for each `/fab:*` skill
-- [Templates](TEMPLATES.md) — artifact formats and checklist generation
+- [Architecture](architecture.md) — directory structure, config, conventions
+- [Skills Reference](skills.md) — detailed behavior for each `/fab:*` skill
+- [Templates](templates.md) — artifact formats and checklist generation
 

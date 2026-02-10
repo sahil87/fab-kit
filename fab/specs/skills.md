@@ -10,7 +10,7 @@ Fab uses two distinct terms to avoid confusion:
 
 | Term | Location | Meaning |
 |------|----------|---------|
-| **Centralized docs** | `fab/docs/` | Source-of-truth documentation for the system. Contains both requirements (what) and durable design decisions (why). Updated by `/fab:hydrate` (from external sources) and `/fab:archive` (from change artifacts). |
+| **Centralized docs** | `fab/docs/` | Source-of-truth documentation for the system. Contains both requirements (what) and durable design decisions (why). Updated by `/fab-hydrate` (from external sources) and `/fab-archive` (from change artifacts). |
 | **spec.md** | `fab/changes/{name}/spec.md` | Change-level specification. Describes the requirements relevant to this change. |
 
 The stage named "specs" refers to the *activity* of writing the specification — its output is `spec.md` in the change folder.
@@ -21,7 +21,7 @@ The stage named "specs" refers to the *activity* of writing the specification �
 
 Every skill that generates or validates artifacts MUST load relevant context before proceeding. This ensures agents produce accurate, grounded output rather than hallucinating requirements or ignoring existing patterns.
 
-**Always loaded** (by every skill except `/fab:init`, `/fab:switch`, `/fab:status`, `/fab:hydrate`):
+**Always loaded** (by every skill except `/fab-init`, `/fab-switch`, `/fab-status`, `/fab-hydrate`):
 - `fab/config.yaml` — project configuration, tech stack, conventions
 - `fab/constitution.md` — project principles and constraints
 - `fab/docs/index.md` — documentation landscape (which domains and docs exist)
@@ -34,7 +34,7 @@ Every skill that generates or validates artifacts MUST load relevant context bef
 - Read the proposal's "Affected Docs" section to identify relevant domains
 - Read domain indexes (`fab/docs/{domain}/index.md`) for each relevant domain
 - Read the specific centralized doc(s) referenced by the Affected Docs entries
-- If a referenced doc doesn't exist yet (listed under New Docs), note this and proceed — it will be created by `/fab:archive`
+- If a referenced doc doesn't exist yet (listed under New Docs), note this and proceed — it will be created by `/fab-archive`
 - This grounds all artifact generation (specs, plans, tasks, reviews) in the real current state, not assumptions
 
 **Source code** (loaded during implementation and review):
@@ -49,34 +49,34 @@ Each skill section below lists its specific context requirements under a **Conte
 
 Every skill MUST end its output with a `Next:` line suggesting the available follow-up commands. This keeps the user oriented in the workflow without needing to memorize the stage graph.
 
-**Format**: `Next: /fab:command` or `Next: /fab:commandA or /fab:commandB (description)`
+**Format**: `Next: /fab-command` or `Next: /fab-commandA or /fab-commandB (description)`
 
 **Lookup table**:
 
 | After | Stage reached | Next line |
 |-------|---------------|-----------|
-| `/fab:init` | initialized | `Next: /fab:new <description> or /fab:hydrate <sources>` |
-| `/fab:hydrate` | docs hydrated | `Next: /fab:new <description> or /fab:hydrate <more-sources>` |
-| `/fab:new` | proposal done | `Next: /fab:continue or /fab:ff (fast-forward all planning)` |
-| `/fab:continue` → specs | specs done | `Next: /fab:continue (plan) or /fab:ff (fast-forward) or /fab:clarify (refine spec)` |
-| `/fab:continue` → plan | plan done | `Next: /fab:continue (tasks) or /fab:clarify (refine plan)` |
-| `/fab:continue` → tasks | tasks done | `Next: /fab:apply` |
-| `/fab:ff` | tasks done | `Next: /fab:apply` |
-| `/fab:clarify` | same stage | `Next: /fab:clarify (refine further) or /fab:continue or /fab:ff` |
-| `/fab:apply` | apply done | `Next: /fab:review` |
-| `/fab:review` (pass) | review done | `Next: /fab:archive` |
-| `/fab:review` (fail) | review failed | *(contextual — see [/fab:review](#fabreview) for fix options)* |
-| `/fab:archive` | archived | `Next: /fab:new <description> (start next change)` |
+| `/fab-init` | initialized | `Next: /fab-new <description> or /fab-hydrate <sources>` |
+| `/fab-hydrate` | docs hydrated | `Next: /fab-new <description> or /fab-hydrate <more-sources>` |
+| `/fab-new` | proposal done | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
+| `/fab-continue` → specs | specs done | `Next: /fab-continue (plan) or /fab-ff (fast-forward) or /fab-clarify (refine spec)` |
+| `/fab-continue` → plan | plan done | `Next: /fab-continue (tasks) or /fab-clarify (refine plan)` |
+| `/fab-continue` → tasks | tasks done | `Next: /fab-apply` |
+| `/fab-ff` | tasks done | `Next: /fab-apply` |
+| `/fab-clarify` | same stage | `Next: /fab-clarify (refine further) or /fab-continue or /fab-ff` |
+| `/fab-apply` | apply done | `Next: /fab-review` |
+| `/fab-review` (pass) | review done | `Next: /fab-archive` |
+| `/fab-review` (fail) | review failed | *(contextual — see [/fab-review](#fabreview) for fix options)* |
+| `/fab-archive` | archived | `Next: /fab-new <description> (start next change)` |
 
 ---
 
-## `/fab:init`
+## `/fab-init`
 
 **Purpose**: Bootstrap `fab/` in an existing project. Safe to run repeatedly — structural artifacts are created once and symlinks are repaired if broken.
 
 **Prerequisite**: `fab/.kit/` must exist. If missing, abort with: *"fab/.kit/ not found. Copy the kit directory into fab/.kit/ first — see the Getting Started guide."*
 
-**Arguments**: None. If arguments are provided, abort with: *"Did you mean /fab:hydrate? /fab:init no longer accepts source arguments."*
+**Arguments**: None. If arguments are provided, abort with: *"Did you mean /fab-hydrate? /fab-init no longer accepts source arguments."*
 
 **Creates** (first run only — skipped if already present):
 - `fab/config.yaml` — project configuration (prompts for name, tech stack, conventions)
@@ -88,25 +88,25 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 **Examples**:
 ```
 # First run — full bootstrap
-/fab:init
+/fab-init
 → "Found fab/.kit/ (v0.1.0). Initializing project..."
 → "What's the project name?"
 → "Describe the tech stack and conventions..."
 → "fab/ initialized with config, constitution, and empty docs."
-→ "Next: /fab:new <description> or /fab:hydrate <sources>"
+→ "Next: /fab-new <description> or /fab-hydrate <sources>"
 
 # Re-run — structural health check
-/fab:init
+/fab-init
 → "fab/ already initialized. Verified structure, repaired 1 missing symlink."
 
 # Arguments are redirected
-/fab:init https://notion.so/myteam/API-Spec-abc123
-→ "Did you mean /fab:hydrate? /fab:init no longer accepts source arguments."
+/fab-init https://notion.so/myteam/API-Spec-abc123
+→ "Did you mean /fab-hydrate? /fab-init no longer accepts source arguments."
 ```
 
 **Behavior**:
 
-1. **Pre-flight check**: Verify `fab/.kit/` exists (abort with guidance if not). If arguments are provided, abort with redirect to `/fab:hydrate`.
+1. **Pre-flight check**: Verify `fab/.kit/` exists (abort with guidance if not). If arguments are provided, abort with redirect to `/fab-hydrate`.
 2. **Structural bootstrap** (idempotent — each step skips if artifact already exists):
    a. `fab/config.yaml` — if missing, prompt for project name, description, tech stack and generate
    b. `fab/constitution.md` — if missing, generate from project context (README, existing docs, conversation)
@@ -117,11 +117,11 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 ---
 
-## `/fab:hydrate [sources...]`
+## `/fab-hydrate [sources...]`
 
 **Purpose**: Ingest external documentation into `fab/docs/` with domain mapping and index maintenance. Safe to run repeatedly — content is merged into existing docs without duplication.
 
-**Prerequisite**: `fab/docs/` must exist (run `/fab:init` first). If missing, abort with: *"fab/docs/ not found. Run /fab:init first to create the docs directory."*
+**Prerequisite**: `fab/docs/` must exist (run `/fab-init` first). If missing, abort with: *"fab/docs/ not found. Run /fab-init first to create the docs directory."*
 
 **Arguments**:
 - `[sources...]` *(required)* — one or more URLs or local paths containing documentation to ingest. Supported source types:
@@ -137,18 +137,18 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 **Examples**:
 ```
 # Hydrate docs from a Notion page
-/fab:hydrate https://notion.so/myteam/API-Spec-abc123
+/fab-hydrate https://notion.so/myteam/API-Spec-abc123
 → "Fetched: API Spec (Notion)"
 → "Created: fab/docs/api/endpoints.md, fab/docs/api/authentication.md"
 → "Updated: fab/docs/index.md"
 
 # Ingest local legacy docs
-/fab:hydrate ./legacy-docs/payments/
+/fab-hydrate ./legacy-docs/payments/
 → "Fetched: 3 files from ./legacy-docs/payments/"
 → "Created: fab/docs/payments/checkout.md, fab/docs/payments/refunds.md"
 
 # Multiple sources at once
-/fab:hydrate https://notion.so/myteam/Auth-xyz ./legacy-docs/payments/
+/fab-hydrate https://notion.so/myteam/Auth-xyz ./legacy-docs/payments/
 → "Fetched: Auth Design (Notion), 3 files from ./legacy-docs/payments/"
 → "Created: fab/docs/auth/oauth.md, fab/docs/payments/checkout.md"
 → "Updated: fab/docs/index.md"
@@ -169,7 +169,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 ---
 
-## `/fab:new <description> [--branch <name>]`
+## `/fab-new <description> [--branch <name>]`
 
 **Purpose**: Start a new change from a natural language description.
 
@@ -186,11 +186,11 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **Examples**:
 ```
-/fab:new Add OAuth2 support for Google and GitHub sign-in
+/fab-new Add OAuth2 support for Google and GitHub sign-in
 → Created fab/changes/260115-a7k2-add-oauth/
 → Branch: 260115-a7k2-add-oauth (created)
 
-/fab:new --branch feature/dev-907-oauth Add OAuth2 support
+/fab-new --branch feature/dev-907-oauth Add OAuth2 support
 → Created fab/changes/260115-a7k2-add-oauth/
 → Branch: feature/dev-907-oauth (adopted)
 ```
@@ -212,12 +212,12 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 ---
 
-## `/fab:continue [<stage>]`
+## `/fab-continue [<stage>]`
 
 **Purpose**: Create the next artifact in sequence — or, when called with a stage argument, reset to that stage and regenerate from there.
 
 **Arguments**:
-- `<stage>` *(optional)* — target stage to reset to (`specs`, `plan`, or `tasks`). Used after `/fab:review` identifies issues upstream. When provided, resets `.status.yaml` to this stage and regenerates artifacts from that point forward.
+- `<stage>` *(optional)* — target stage to reset to (`specs`, `plan`, or `tasks`). Used after `/fab-review` identifies issues upstream. When provided, resets `.status.yaml` to this stage and regenerates artifacts from that point forward.
 
 **Context** (varies by target stage):
 - **Specs stage**: config, constitution, `proposal.md`, target centralized doc(s) from `fab/docs/`
@@ -226,12 +226,12 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **Examples**:
 ```
-/fab:continue
+/fab-continue
 → "Stage: proposal (done). Next: Create spec.md."
 
-/fab:continue plan
+/fab-continue plan
 → "Resetting to plan stage. Regenerating plan.md..."
-→ "Plan updated. Run /fab:continue to generate tasks, or /fab:ff to fast-forward."
+→ "Plan updated. Run /fab-continue to generate tasks, or /fab-ff to fast-forward."
 ```
 
 **Behavior** (no argument — normal forward flow):
@@ -244,7 +244,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 7. Update `.status.yaml`
 
 **Behavior** (with stage argument — reset and regenerate):
-1. **Guard**: target stage must be `specs`, `plan`, or `tasks`. Cannot reset to `proposal` (use `/fab:new`) or `apply`/`review`/`archive`.
+1. **Guard**: target stage must be `specs`, `plan`, or `tasks`. Cannot reset to `proposal` (use `/fab-new`) or `apply`/`review`/`archive`.
 2. Reset `.status.yaml` stage to the target. Mark all stages from target onward as `pending`.
 3. Regenerate the target stage's artifact in place (update, not recreate from scratch — preserve what's still valid).
 4. Downstream artifacts are invalidated: tasks are reset to `- [ ]`, checklist is regenerated. Plan is regenerated if the target is `specs`.
@@ -252,9 +252,9 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 ---
 
-## `/fab:ff` (Fast Forward)
+## `/fab-ff` (Fast Forward)
 
-**Purpose**: Fast-forward through remaining planning stages in one pass. Requires an active change with a completed proposal (run `/fab:new` first).
+**Purpose**: Fast-forward through remaining planning stages in one pass. Requires an active change with a completed proposal (run `/fab-new` first).
 
 **Context**: config, constitution, `proposal.md`, target centralized doc(s) from `fab/docs/` (all loaded upfront since ff traverses all planning stages)
 
@@ -267,8 +267,8 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **Example**:
 ```
-/fab:new Add a logout button to the navbar that clears session
-/fab:ff
+/fab-new Add a logout button to the navbar that clears session
+/fab-ff
 ```
 
 **Behavior**:
@@ -280,11 +280,11 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 6. Auto-generate quality checklist
 7. Update status to `tasks: done`
 
-**Plan decision**: The agent skips `plan.md` when the change is small and the implementation approach is obvious — e.g., single-file changes, straightforward CRUD, or well-known patterns. When skipped, `.status.yaml` records `plan: skipped`. Unlike `/fab:continue`, `/fab:ff` does **not** confirm with the user before skipping — it decides autonomously to maintain the fast-forward flow.
+**Plan decision**: The agent skips `plan.md` when the change is small and the implementation approach is obvious — e.g., single-file changes, straightforward CRUD, or well-known patterns. When skipped, `.status.yaml` records `plan: skipped`. Unlike `/fab-continue`, `/fab-ff` does **not** confirm with the user before skipping — it decides autonomously to maintain the fast-forward flow.
 
 ---
 
-## `/fab:clarify`
+## `/fab-clarify`
 
 **Purpose**: Deepen and refine the current stage artifact without advancing to the next stage.
 
@@ -296,7 +296,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **Example**:
 ```
-/fab:clarify
+/fab-clarify
 → "Stage: specs (active). Reviewing spec.md for gaps..."
 → "Found 2 [NEEDS CLARIFICATION] markers. Resolving..."
 → "Added 3 missing scenarios to spec.md"
@@ -310,7 +310,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **Behavior**:
 1. Read `.status.yaml` to determine current stage
-2. **Guard**: stage must be `proposal`, `specs`, `plan`, or `tasks`. If stage is `apply` or later, suggest `/fab:review` instead
+2. **Guard**: stage must be `proposal`, `specs`, `plan`, or `tasks`. If stage is `apply` or later, suggest `/fab-review` instead
 3. Load the current stage's artifact + relevant context
 4. Analyze the artifact for gaps, ambiguities, and opportunities to deepen:
    - **Proposal**: Unresolved [BLOCKING] questions, vague scope, missing impact analysis
@@ -321,11 +321,11 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 6. Report what was clarified/refined
 7. Do **not** advance the stage or update `.status.yaml` stage field
 
-**Key property**: Idempotent and non-advancing. Calling `/fab:clarify` multiple times is safe — it refines further each time. It never transitions to the next stage. Use `/fab:continue` when satisfied.
+**Key property**: Idempotent and non-advancing. Calling `/fab-clarify` multiple times is safe — it refines further each time. It never transitions to the next stage. Use `/fab-continue` when satisfied.
 
 ---
 
-## `/fab:apply`
+## `/fab-apply`
 
 **Purpose**: Execute tasks from `tasks.md`.
 
@@ -333,7 +333,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **Example**:
 ```
-/fab:apply
+/fab-apply
 → "Starting implementation. 12 tasks remaining."
 ```
 
@@ -345,11 +345,11 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 5. Mark each task `[x]` immediately upon completion (not batched at the end)
 6. Update `.status.yaml` progress after each task
 
-**Resumability**: `/fab:apply` is inherently resumable. If the agent is interrupted mid-run, re-invoking `/fab:apply` picks up from the first unchecked item. The markdown checklist *is* the progress state — no separate tracking needed.
+**Resumability**: `/fab-apply` is inherently resumable. If the agent is interrupted mid-run, re-invoking `/fab-apply` picks up from the first unchecked item. The markdown checklist *is* the progress state — no separate tracking needed.
 
 ---
 
-## `/fab:review`
+## `/fab-review`
 
 **Purpose**: Validate implementation against specs and checklists.
 
@@ -357,7 +357,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **Example**:
 ```
-/fab:review
+/fab-review
 → "✓ 12/12 tasks complete"
 → "✓ 10/12 checklist items passed"
 → "✗ 2 items need attention: [CHK-007, CHK-011]"
@@ -372,23 +372,23 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **On failure**, the agent presents the options and the user chooses where to loop back:
 
-- **Fix code** → `/fab:apply`
-  Implementation bug. The agent identifies which tasks need rework, unchecks them in `tasks.md` (marks `- [ ]` again with a `<!-- rework: reason -->` comment), and re-runs `/fab:apply` which picks up the unchecked items.
+- **Fix code** → `/fab-apply`
+  Implementation bug. The agent identifies which tasks need rework, unchecks them in `tasks.md` (marks `- [ ]` again with a `<!-- rework: reason -->` comment), and re-runs `/fab-apply` which picks up the unchecked items.
 
-- **Revise tasks** → edit `tasks.md`, then `/fab:apply`
+- **Revise tasks** → edit `tasks.md`, then `/fab-apply`
   Missing or wrong tasks. The agent adds/modifies tasks in `tasks.md` (new tasks get the next sequential ID). Completed tasks that are unaffected stay `[x]`. Only new or revised tasks are executed.
 
-- **Revise plan** → `/fab:continue plan`
+- **Revise plan** → `/fab-continue plan`
   Architecture was wrong. Resets to plan stage, updates `plan.md` in place, and invalidates downstream artifacts — `tasks.md` is reset to `- [ ]` and the checklist is regenerated.
 
-- **Revise specs** → `/fab:continue specs`
+- **Revise specs** → `/fab-continue specs`
   Requirements were wrong or incomplete. Resets to specs stage, updates `spec.md` in place. Plan (if it exists) and tasks are subsequently regenerated. All downstream artifacts are reset.
 
 The `.status.yaml` stage is reset to the chosen re-entry point. The general rule: **artifacts at and after the re-entry point are regenerated or updated; artifacts before it are preserved.**
 
 ---
 
-## `/fab:archive`
+## `/fab-archive`
 
 **Purpose**: Complete the change and hydrate into centralized docs.
 
@@ -396,14 +396,14 @@ The `.status.yaml` stage is reset to the chosen re-entry point. The general rule
 
 **Example**:
 ```
-/fab:archive
+/fab-archive
 → "Archived to fab/changes/archive/260115-a7k2-add-oauth/"
 → "Hydrated docs: fab/docs/auth/authentication.md"
 ```
 
 **Behavior**:
 1. **Final validation** — review must pass (all tasks `[x]`, all checklist items `[x]` including N/A items)
-2. **Concurrent change check** — scan `fab/changes/` for other active changes whose specs reference the same centralized doc files. If found, warn the user: *"Change {name} also modifies {doc}. After this archive, that change's spec was written against a now-stale base. Re-review with `/fab:review` after switching to it."*
+2. **Concurrent change check** — scan `fab/changes/` for other active changes whose specs reference the same centralized doc files. If found, warn the user: *"Change {name} also modifies {doc}. After this archive, that change's spec was written against a now-stale base. Re-review with `/fab-review` after switching to it."*
 3. **Hydrate into `fab/docs/`**:
    The agent reads `spec.md`, `plan.md` (if it exists), and the current centralized doc, then rewrites the centralized doc to incorporate the changes:
    - **From spec.md** → integrate new/changed requirements and scenarios into the Requirements section. Remove requirements that the spec explicitly deprecates.
@@ -413,32 +413,32 @@ The `.status.yaml` stage is reset to the chosen re-entry point. The general rule
 5. **Move change folder** to `archive/` (no rename — date is already in the folder name)
 6. **Clear pointer** — delete `fab/current` (no active change)
 
-**Order of operations**: Steps 3–6 are ordered to fail safely. Status is updated *before* the folder move, so if the move is interrupted, the change is marked archived but still in `changes/` — the agent can detect and complete the move on next invocation. The pointer is cleared last so that mid-archive, `/fab:status` still reports the active change rather than "no active change" with a half-hydrated spec.
+**Order of operations**: Steps 3–6 are ordered to fail safely. Status is updated *before* the folder move, so if the move is interrupted, the change is marked archived but still in `changes/` — the agent can detect and complete the move on next invocation. The pointer is cleared last so that mid-archive, `/fab-status` still reports the active change rather than "no active change" with a half-hydrated spec.
 
 **Recovery**: Hydration modifies centralized docs in-place. If the merge goes wrong (garbled text, incorrect removals), the only recovery is `git checkout` on the affected doc files. Commit (or at least review the diff) before pushing after an archive.
 
 ---
 
-## `/fab:switch <change-name>`
+## `/fab-switch <change-name>`
 
 **Purpose**: Switch the active change when multiple changes exist.
 
 **Example**:
 ```
-/fab:switch fix-checkout
+/fab-switch fix-checkout
 → "fab/current now points to 260202-m3x1-fix-checkout-bug"
 ```
 
 **Behavior**:
 1. Match `change-name` against `fab/changes/` (supports partial/slug match)
-2. **Ambiguous match** — if multiple changes match the input (e.g., `/fab:switch add` matches both `260115-a7k2-add-oauth` and `260202-m3x1-add-dark-mode`), list the matches and ask the user to pick one. Never guess.
+2. **Ambiguous match** — if multiple changes match the input (e.g., `/fab-switch add` matches both `260115-a7k2-add-oauth` and `260202-m3x1-add-dark-mode`), list the matches and ask the user to pick one. Never guess.
 3. **No match** — if nothing matches, list available changes and ask
 4. Write the full change name to `fab/current`
 5. Display the switched change's status summary
 
 ---
 
-## `/fab:status`
+## `/fab-status`
 
 **Purpose**: Show current change state at a glance.
 
@@ -459,12 +459,12 @@ Progress:
 
 Checklist: not yet generated (created at tasks stage)
 
-Next: Complete plan.md, then /fab:continue
+Next: Complete plan.md, then /fab-continue
 ```
 
 ---
 
-## `/fab:backfill [domain]`
+## `/fab-backfill [domain]`
 
 **Purpose**: Identify structural gaps between `fab/docs/` and `fab/specs/` and propose concise additions back to specs with interactive confirmation.
 
@@ -475,7 +475,7 @@ Next: Complete plan.md, then /fab:continue
 
 **Example**:
 ```
-/fab:backfill
+/fab-backfill
 → "Found 5 structural gaps (showing top 3):"
 → Gap 1: Preflight Script — Source: preflight.md, Target: architecture.md
 → Shows exact markdown preview, asks: "Add this? (yes / no / done)"

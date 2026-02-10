@@ -127,5 +127,5 @@ Generate mode SHALL be safe to re-run:
 
 | Change | Date | Summary |
 |--------|------|---------|
-| 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab:xxx` colon format to `/fab-xxx` hyphen format |
+| 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | 260207-k5od-hydrate-generate-mode | 2026-02-07 | Created — generate mode requirements and design decisions for `/fab-hydrate` |
