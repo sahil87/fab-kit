@@ -1,0 +1,23 @@
+name: 260210-0p4e-fix-stage-guard-progress-check
+created: 2026-02-10T12:02:00+00:00
+stage: archive
+progress:
+  proposal: done
+  specs: done
+  plan: skipped
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklists/quality.md
+  completed: 14
+  total: 14
+confidence:
+  certain: 5
+  confident: 3
+  tentative: 0
+  unresolved: 0
+  score: 4.7
+last_updated: 2026-02-10T12:33:27+00:00
