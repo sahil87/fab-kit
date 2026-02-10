@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# fab/.kit/scripts/fab-worktree-init.sh — Bootstrap a new worktree
+# fab/.kit/worktree-init.sh — Bootstrap a new worktree
 #
 # Runs common init scripts from .kit, then any project-specific
 # scripts from fab/worktree-init/ if that directory exists.
 
-scripts_dir="$(cd "$(dirname "$0")" && pwd)"
-kit_dir="$(dirname "$scripts_dir")"
+kit_dir="$(cd "$(dirname "$0")" && pwd)"
 fab_dir="$(dirname "$kit_dir")"
 repo_root="$(dirname "$fab_dir")"
 
