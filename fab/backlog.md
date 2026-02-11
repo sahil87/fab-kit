@@ -88,3 +88,4 @@
 
 ### Make fab/backlog.md personal and worktree-safe
 - [ ] [gs42] 2026-02-11: `fab/backlog.md` is committed to git but is a personal scratchpad — not suitable for shared repos. Fix: (1) add `fab/backlog.md` to `.gitignore`, (2) move the canonical file to the main worktree, (3) update `worktree-init.sh` to symlink `fab/backlog.md` → main worktree's copy (same pattern as `.envrc`), (4) update `/retrospect` skill to work with the symlinked file. Need to `git rm --cached fab/backlog.md` to stop tracking it without deleting the file.
+- [ ] [rbgm] 2026-02-11: Modify fab-ff. fab-ff takes you all the way to archive - but can stop at clarifications. fab-fff takes you to archive, but with auto clarification (doens't stop, a bit unsafe)
