@@ -58,7 +58,7 @@ Every hydration operation maintains navigable indexes:
 - **Top-level** (`fab/docs/index.md`): `| [domain](domain/index.md) | description | doc-list |`
 - **Domain-level** (`fab/docs/{domain}/index.md`): `| [doc-name](doc-name.md) | description | last-updated |`
 - All links are relative (not absolute paths)
-- Formats follow `fab/specs/templates.md`
+- Formats follow `fab/design/templates.md`
 
 ## Design Decisions
 
@@ -84,7 +84,7 @@ Every hydration operation maintains navigable indexes:
 
 | Change | Date | Summary |
 |--------|------|---------|
-| 260208-4wg3-fix-hydrate-links | 2026-02-08 | Fixed stale `doc/fab-spec/TEMPLATES.md` reference in Index Maintenance to `fab/specs/templates.md` |
+| 260208-4wg3-fix-hydrate-links | 2026-02-08 | Fixed stale `doc/fab-spec/TEMPLATES.md` reference in Index Maintenance to `fab/design/templates.md` |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | 260207-k5od-hydrate-generate-mode | 2026-02-07 | Added generate mode — unified argument routing, dual-mode overview, cross-reference to hydrate-generate doc |
 | 260207-q7m3-separate-hydrate-smart-context | 2026-02-07 | Created hydrate doc — extracted `/fab-hydrate` as standalone skill from `/fab-init` Phase 2 |

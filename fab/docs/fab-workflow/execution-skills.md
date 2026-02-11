@@ -27,7 +27,7 @@ The execution skills (`/fab-apply`, `/fab-review`, `/fab-archive`) handle the im
 
 #### Context
 
-Loads: config, constitution, `specs/index.md`, `tasks.md`, `spec.md`, `plan.md` (if exists), relevant source code (files referenced in tasks).
+Loads: config, constitution, `design/index.md`, `tasks.md`, `spec.md`, relevant source code (files referenced in tasks).
 
 ### `/fab-review`
 
@@ -52,14 +52,13 @@ The agent presents options and the user chooses where to loop back:
 
 - **Fix code** → `/fab-apply` — Implementation bug. The agent identifies which tasks need rework, unchecks them in `tasks.md` (marks `- [ ]` with a `<!-- rework: reason -->` comment), and re-runs `/fab-apply`
 - **Revise tasks** → edit `tasks.md`, then `/fab-apply` — Missing or wrong tasks. New tasks get next sequential ID. Completed unaffected tasks stay `[x]`
-- **Revise plan** → `/fab-continue plan` — Architecture was wrong. Resets to plan stage, updates `plan.md` in place, invalidates downstream (tasks reset, checklist regenerated)
-- **Revise specs** → `/fab-continue specs` — Requirements were wrong or incomplete. Resets to specs stage, updates `spec.md`. Plan and tasks subsequently regenerated
+- **Revise spec** → `/fab-continue spec` — Requirements were wrong or incomplete. Resets to spec stage, updates `spec.md`. Tasks subsequently regenerated
 
 The general rule: **artifacts at and after the re-entry point are regenerated or updated; artifacts before it are preserved.**
 
 #### Context
 
-Loads: config, constitution, `specs/index.md`, `tasks.md`, `checklists/quality.md`, `spec.md`, target centralized doc(s) from `fab/docs/`, relevant source code (files touched by the change).
+Loads: config, constitution, `design/index.md`, `tasks.md`, `checklists/quality.md`, `spec.md`, target centralized doc(s) from `fab/docs/`, relevant source code (files touched by the change).
 
 ### `/fab-archive`
 
@@ -70,13 +69,12 @@ Loads: config, constitution, `specs/index.md`, `tasks.md`, `checklists/quality.m
 1. **Final validation** — review MUST have passed (all tasks `[x]`, all checklist items `[x]` including N/A items)
 2. **Concurrent change check** — scan `fab/changes/` for other active changes whose specs reference the same centralized doc files. If found, warn: "Change {name} also modifies {doc}. After this archive, that change's spec was written against a now-stale base. Re-review with `/fab-review` after switching to it."
 3. **Hydrate into `fab/docs/`**:
-   - From `spec.md` → integrate new/changed requirements and scenarios into the Requirements section. Remove requirements the spec explicitly deprecates
-   - From `plan.md` → extract durable design decisions into Design Decisions section. Skip tactical details (file paths, setup steps, library install commands)
+   - From `spec.md` → integrate new/changed requirements and scenarios into the Requirements section. Remove requirements the spec explicitly deprecates. Extract durable design decisions into Design Decisions section
    - Compare against existing doc to determine what's new vs changed vs removed — no explicit delta markers needed
    - Minimize edits to unchanged sections to prevent drift
 4. **Update status** to `archive: done` in `.status.yaml`
 5. **Move change folder** to `archive/` (no rename — date already in folder name)
-6. **Update archive index** — append an entry to `fab/changes/archive/index.md` (create with backfill of all existing entries if it doesn't exist). Entry format: `- **{folder-name}** — {1-2 sentence description from proposal Why section}`. Most-recent-first ordering.
+6. **Update archive index** — append an entry to `fab/changes/archive/index.md` (create with backfill of all existing entries if it doesn't exist). Entry format: `- **{folder-name}** — {1-2 sentence description from brief Why section}`. Most-recent-first ordering.
 7. **Clear pointer** — delete `fab/current` (no active change)
 
 #### Fail-Safe Order of Operations
@@ -89,20 +87,20 @@ Hydration modifies centralized docs in-place. If the merge goes wrong, the only 
 
 #### Context
 
-Loads: config, constitution, `specs/index.md`, `spec.md`, `plan.md` (if exists), target centralized doc(s) from `fab/docs/`, `fab/docs/index.md` and relevant domain indexes.
+Loads: config, constitution, `design/index.md`, `spec.md`, target centralized doc(s) from `fab/docs/`, `fab/docs/index.md` and relevant domain indexes.
 
 ## Design Decisions
 
 ### Checklist Tests Implementation Fidelity, Not Spec Quality
 **Decision**: The quality checklist validates "does the code match the spec?" rather than "is the spec well-written?"
-**Why**: Fab has explicit spec review during the specs stage (via `/fab-clarify`). A separate requirement-quality checklist is redundant. The checklist focuses on what matters at review time: implementation correctness.
+**Why**: Fab has explicit spec review during the spec stage (via `/fab-clarify`). A separate requirement-quality checklist is redundant. The checklist focuses on what matters at review time: implementation correctness.
 **Rejected**: SpecKit-style requirement-quality checklist — duplicates work already done during planning stages.
 *Source*: doc/fab-spec/TEMPLATES.md
 
 ### Review Failure Offers Multiple Re-Entry Points
-**Decision**: On review failure, the agent presents four options (fix code, revise tasks, revise plan, revise specs) and the user chooses where to loop back.
+**Decision**: On review failure, the agent presents three options (fix code, revise tasks, revise spec) and the user chooses where to loop back.
 **Why**: Not all review failures are implementation bugs. Some require revisiting upstream artifacts. Giving the user explicit choice prevents the agent from guessing wrong about where the problem originated.
-**Rejected**: Always looping back to apply — misses cases where the spec or plan was wrong.
+**Rejected**: Always looping back to apply — misses cases where the spec was wrong.
 *Source*: doc/fab-spec/SKILLS.md
 
 ### Archive Hydrates Semantically, Not by Delta Markers
@@ -121,8 +119,9 @@ Loads: config, constitution, `specs/index.md`, `spec.md`, `plan.md` (if exists),
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated stage references from proposal/specs to brief/spec |
 | 260211-endg-add-created-by-field | 2026-02-11 | `fab-status.sh` now displays `Created by:` line when `created_by` field is present in `.status.yaml` |
-| 260210-7wxx-add-specs-index-context-loading | 2026-02-10 | Added `fab/specs/index.md` to context loading for all three execution skills, aligning with the always-load protocol in `_context.md` |
+| 260210-7wxx-add-specs-index-context-loading | 2026-02-10 | Added `fab/design/index.md` to context loading for all three execution skills, aligning with the always-load protocol in `_context.md` |
 | 260209-r4w8-archive-index-longer-slugs | 2026-02-09 | Added archive index maintenance step to `/fab-archive` — creates/updates `fab/changes/archive/index.md` with searchable change summaries |
 | 260208-k3m7-add-fab-fff | 2026-02-08 | Removed auto-guess soft gate from `/fab-apply` — replaced by confidence gating on `/fab-fff` |
 | 260207-09sj-autonomy-framework | 2026-02-08 | Added auto-guess soft gate to `/fab-apply` (subsequently removed by 260208-k3m7-add-fab-fff) |

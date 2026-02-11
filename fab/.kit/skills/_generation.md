@@ -22,28 +22,9 @@
    - At least one GIVEN/WHEN/THEN scenario per requirement
 4. Include a **Deprecated Requirements** section if the change removes existing requirements
 5. Mark any unresolved ambiguities with `[NEEDS CLARIFICATION]` inline
+5b. **Design Decisions** (optional): If the change involves architectural choices, technology selection, or non-obvious approaches, include a `## Design Decisions` section after the domain requirement sections. Each decision entry SHALL include: decision summary, rationale (why this choice), and rejected alternatives. Omit this section for straightforward changes.
 6. Append an `## Assumptions` section listing all Confident and Tentative assumptions (see Assumptions Summary Block in `_context.md`)
 7. Write the completed spec to `fab/changes/{name}/spec.md`
-
----
-
-## Plan Generation Procedure
-
-1. Read the template from `fab/.kit/templates/plan.md`
-2. Fill in metadata fields:
-   - `{CHANGE_NAME}`: From the proposal
-   - `{YYMMDD-XXXX-slug}`: The change folder name
-   - `{DATE}`: Today's date
-3. Fill in sections:
-   - **Summary**: 1-2 sentences on what the change does and the chosen approach
-   - **Goals / Non-Goals**: Derived from the spec requirements
-   - **Technical Context**: From `fab/config.yaml` context, scoped to what this change touches
-   - **Research**: Technical investigation findings (skip for straightforward changes)
-   - **Decisions**: Key design decisions with rationale and rejected alternatives
-   - **Risks / Trade-offs**: Known risks with mitigation strategies
-   - **File Changes**: Concrete list of new, modified, and deleted files
-4. Append an `## Assumptions` section listing all Confident and Tentative assumptions
-5. Write the completed plan to `fab/changes/{name}/plan.md`
 
 ---
 
@@ -53,8 +34,7 @@
 2. Fill in metadata fields:
    - `{CHANGE_NAME}`: From the proposal
    - `{YYMMDD-XXXX-slug}`: The change folder name
-   - If plan exists: reference `plan.md` in the header
-   - If plan was skipped: omit the Plan line, include `proposal.md` reference for traceability
+   - Include `brief.md` reference for traceability
 3. Break implementation into phased tasks:
    - **Phase 1: Setup** — scaffolding, dependencies, configuration
    - **Phase 2: Core Implementation** — primary functionality, ordered by dependency

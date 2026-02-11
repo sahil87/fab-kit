@@ -1,9 +1,8 @@
 # Tasks: {CHANGE_NAME}
 
 **Change**: {YYMMDD-XXXX-slug}
-**Plan**: `plan.md` <!-- Omit this line if plan was skipped -->
 **Spec**: `spec.md`
-**Proposal**: `proposal.md` <!-- Include when plan was skipped, for traceability -->
+**Brief**: `brief.md`
 
 <!--
   TASK FORMAT: - [ ] {ID} [{markers}] {Description with file paths}

@@ -34,7 +34,7 @@ All components MUST be lowercase — avoids collisions on case-insensitive files
 **Resolution pattern** (used by all skills):
 ```
 active=$(cat fab/current)
-# then access: fab/changes/$active/.status.yaml, fab/changes/$active/proposal.md, etc.
+# then access: fab/changes/$active/.status.yaml, fab/changes/$active/brief.md, etc.
 ```
 
 `fab/current` SHOULD be added to `.gitignore` since it is local working state (each developer has their own active change).
@@ -58,29 +58,26 @@ Every change folder SHALL contain a `.status.yaml` manifest with these fields:
 | `pending` | Not yet started | All stages |
 | `active` | Currently being worked on | All stages |
 | `done` | Completed successfully | All stages |
-| `skipped` | Intentionally bypassed | plan |
 | `failed` | Completed with failures requiring rework | review |
 
-**Stage field values**: `proposal` | `specs` | `plan` | `tasks` | `apply` | `review` | `archive`
+**Stage field values**: `brief` | `spec` | `tasks` | `apply` | `review` | `archive`
 
-### The 7 Stages
+### The 6 Stages
 
-Changes progress through 7 stages in a defined graph:
+Changes progress through 6 stages in a defined graph:
 
 ```
-proposal → specs → plan (optional) → tasks → apply → review → archive
+brief → spec → tasks → apply → review → archive
 ```
 
 The stages split into three phases:
-- **Planning** (1-4): proposal, specs, plan, tasks
-- **Execution** (5-6): apply, review
-- **Completion** (7): archive (hydrates into centralized docs)
+- **Planning** (1-3): brief, spec, tasks
+- **Execution** (4-5): apply, review
+- **Completion** (6): archive (hydrates into centralized docs)
 
-The `plan` stage MAY be skipped for straightforward changes. When skipped, its status is recorded as `skipped` and the flow proceeds directly from `specs` to `tasks`.
+**Full pipeline path**: `/fab-fff` chains the entire flow (planning → apply → review → archive) in a single invocation, gated on confidence score >= 3.0. This is the fastest path from brief to archived change.
 
-**Full pipeline path**: `/fab-fff` chains the entire flow (planning → apply → review → archive) in a single invocation, gated on confidence score >= 3.0. This is the fastest path from proposal to archived change.
-
-**Alternative entry point**: `/fab-discuss` can create a change with a high-confidence proposal through conversation. When no active change exists, `/fab-discuss` offers to activate the new change immediately (via internal `/fab-switch`), enabling a direct discuss → fff path. When another change is active, the user must `/fab-switch` manually. Either way, the discuss path is ideal for vague ideas that need exploration before committing to implementation.
+**Alternative entry point**: `/fab-discuss` can create a change with a high-confidence brief and spec through conversation. When no active change exists, `/fab-discuss` offers to activate the new change immediately (via internal `/fab-switch`), enabling a direct discuss → fff path. When another change is active, the user must `/fab-switch` manually. Either way, the discuss path is ideal for vague ideas that need exploration before committing to implementation.
 
 ### Git Integration (Optional)
 
@@ -139,13 +136,13 @@ All mechanical work (file reading, YAML parsing, git branch query, progress symb
 *Source*: doc/fab-spec/ARCHITECTURE.md
 
 ### Fixed State Vocabulary
-**Decision**: All `.status.yaml` progress fields draw from a fixed set of states (`pending`, `active`, `done`, `skipped`, `failed`).
+**Decision**: All `.status.yaml` progress fields draw from a fixed set of states (`pending`, `active`, `done`, `failed`).
 **Why**: Prevents ad-hoc state names from creeping in across skills. Makes status parsing predictable.
 **Rejected**: Free-form state strings — inconsistent across skills, harder to parse programmatically.
 *Source*: doc/fab-spec/TEMPLATES.md
 
 ### Branch Integration in `/fab-switch`, Not `/fab-new`
-**Decision**: Git branch integration is consolidated in `/fab-switch`, not `/fab-new`. `/fab-new` calls `/fab-switch` internally after proposal generation. The `branch:` field was removed from `.status.yaml`; `/fab-status` uses `git branch --show-current` for live display.
+**Decision**: Git branch integration is consolidated in `/fab-switch`, not `/fab-new`. `/fab-new` calls `/fab-switch` internally after brief generation. The `branch:` field was removed from `.status.yaml`; `/fab-status` uses `git branch --show-current` for live display.
 **Why**: Both `/fab-new` and `/fab-discuss` create changes, but only `/fab-new` had branch integration. Consolidating in `/fab-switch` (the "I'm committing to work on this" moment) gives both entry points consistent branch support through a shared path. The `branch:` field in `.status.yaml` was purely ceremonial — no skill used it for logic, and it went stale on manual branch switches.
 **Rejected**: Keeping branch in `/fab-new` — inconsistent with `/fab-discuss` path. Storing branch in `.status.yaml` — goes stale, no skill needs it.
 *Introduced by*: 260208-q8v3-branch-to-switch
@@ -160,6 +157,7 @@ All mechanical work (file reading, YAML parsing, git branch query, progress symb
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260211-r3k8-simplify-planning-stages | 2026-02-11 | 6-stage pipeline, removed plan/skipped states, updated stage field values and progress keys |
 | 260210-zr1f-discuss-auto-activate-when-no-current | 2026-02-10 | `/fab-discuss` conditionally offers activation when `fab/current` is empty, calls `/fab-switch` internally on accept |
 | 260209-k3m9-status-confidence-score | 2026-02-09 | Added confidence score display to `/fab-status` output (score, breakdown, and "not yet scored" fallback) |
 | 260209-r4w8-archive-index-longer-slugs | 2026-02-09 | Expanded slug word count from 2-4 to 2-6 words for more descriptive folder names |

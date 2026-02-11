@@ -1,11 +1,10 @@
 name: {NAME}
 created: {CREATED}
 created_by: {CREATED_BY}
-stage: proposal
+stage: brief
 progress:
-  proposal: active
-  specs: pending
-  plan: pending
+  brief: active
+  spec: pending
   tasks: pending
   apply: pending
   review: pending

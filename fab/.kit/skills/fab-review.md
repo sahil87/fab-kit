@@ -49,14 +49,13 @@ Load all context needed for review:
 
 1. **`fab/config.yaml`** — project config, tech stack, conventions
 2. **`fab/constitution.md`** — project principles and constraints
-3. **`fab/specs/index.md`** — specifications landscape (pre-implementation design intent, human-curated)
+3. **`fab/design/index.md`** — specifications landscape (pre-implementation design intent, human-curated)
 4. **`fab/changes/{name}/tasks.md`** — the task list (all should be `[x]`)
 5. **`fab/changes/{name}/checklists/quality.md`** — the quality checklist to verify
 6. **`fab/changes/{name}/spec.md`** — requirements and scenarios (the "what" to validate against)
-7. **`fab/changes/{name}/plan.md`** — technical approach (if it exists; skip if plan was `skipped`)
-8. **`fab/changes/{name}/proposal.md`** — original intent (for reference)
-9. **Centralized docs** — read `fab/docs/index.md` and the specific docs referenced by the proposal's Affected Docs section, to check for doc drift
-10. **Relevant source code** — read files touched by the change (referenced in tasks, plan's File Changes, or task descriptions). Scope to files actually modified — do not load the entire codebase.
+7. **`fab/changes/{name}/brief.md`** — original intent (for reference)
+8. **Centralized docs** — read `fab/docs/index.md` and the specific docs referenced by the brief's Affected Docs section, to check for doc drift
+9. **Relevant source code** — read files touched by the change (referenced in tasks or task descriptions). Scope to files actually modified — do not load the entire codebase.
 
 ---
 
@@ -133,9 +132,9 @@ or:
 
 ### Step 5: Check for Doc Drift
 
-Compare the implementation against centralized docs referenced in the proposal:
+Compare the implementation against centralized docs referenced in the brief:
 
-1. Read the centralized docs listed in the proposal's **Affected Docs** section
+1. Read the centralized docs listed in the brief's **Affected Docs** section
 2. Verify the implementation doesn't contradict what those docs describe
 3. Note any docs that will need updating during `/fab-archive` (this is informational, not a failure — `/fab-archive` handles the hydration)
 4. Report:
@@ -217,31 +216,18 @@ Present all applicable options and let the user choose:
 **Output**:
 > `Option 2: Revise tasks — add/modify tasks in tasks.md, then run /fab-apply`
 
-### Option 3: Revise Plan → `/fab-continue plan`
-
-**When to use**: The architecture or technical approach was wrong.
-
-**What happens**:
-1. Resets to plan stage via `/fab-continue plan`
-2. `plan.md` is updated in place
-3. Downstream artifacts are invalidated — `tasks.md` is reset to `- [ ]` and the checklist is regenerated
-4. After plan revision, the user runs `/fab-continue` (for tasks) then `/fab-apply`
-
-**Output**:
-> `Option 3: Revise plan — run /fab-continue plan to reset and regenerate downstream`
-
-### Option 4: Revise Specs → `/fab-continue specs`
+### Option 3: Revise Spec → `/fab-continue spec`
 
 **When to use**: Requirements were wrong or incomplete.
 
 **What happens**:
-1. Resets to specs stage via `/fab-continue specs`
+1. Resets to spec stage via `/fab-continue spec`
 2. `spec.md` is updated in place
-3. Plan (if it exists) and tasks are subsequently regenerated — all downstream artifacts are reset
+3. Tasks are subsequently regenerated — all downstream artifacts are reset
 4. After spec revision, the user works through `/fab-continue` stages again
 
 **Output**:
-> `Option 4: Revise specs — run /fab-continue specs to reset and regenerate all downstream`
+> `Option 3: Revise spec — run /fab-continue spec to reset and regenerate all downstream`
 
 ---
 
@@ -281,10 +267,9 @@ Review FAILED. {N} issue(s) found.
 Rework options:
   1. Fix code — uncheck {N} tasks for rework, then /fab-apply
   2. Revise tasks — add/modify tasks in tasks.md, then /fab-apply
-  3. Revise plan — /fab-continue plan (resets downstream)
-  4. Revise specs — /fab-continue specs (resets all downstream)
+  3. Revise spec — /fab-continue spec (resets all downstream)
 
-Which option? (1-4)
+Which option? (1-3)
 ```
 
 ### Apply Not Complete

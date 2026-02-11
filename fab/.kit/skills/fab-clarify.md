@@ -51,14 +51,13 @@ Use the `stage` field from preflight output for the Stage Guard below (do not re
 
 The current stage must be one of:
 
-- `proposal`
-- `specs`
-- `plan`
+- `brief`
+- `spec`
 - `tasks`
 
 **If the stage is `apply`, `review`, or `archive`, STOP.** Output:
 
-> `Stage is "{stage}" — clarify applies to planning artifacts only (proposal, specs, plan, tasks). Use /fab-review to validate implementation instead.`
+> `Stage is "{stage}" — clarify applies to planning artifacts only (brief, spec, tasks). Use /fab-review to validate implementation instead.`
 
 ---
 
@@ -66,30 +65,24 @@ The current stage must be one of:
 
 Context varies by the current stage. Load only what is relevant:
 
-### Proposal stage
+### Brief stage
 
 - `fab/config.yaml` — project config, tech stack
 - `fab/constitution.md` — project principles and constraints
-- `fab/changes/{name}/proposal.md` — the artifact to refine
+- `fab/changes/{name}/brief.md` — the artifact to refine
 
-### Specs stage
+### Spec stage
 
-- Everything from proposal context above, plus:
-- `fab/changes/{name}/proposal.md` — the completed proposal (for reference)
+- Everything from brief context above, plus:
+- `fab/changes/{name}/brief.md` — the completed brief (for reference)
 - `fab/changes/{name}/spec.md` — the artifact to refine
 - `fab/docs/index.md` — documentation landscape
-- Specific centralized docs referenced by the proposal's **Affected Docs** section
-
-### Plan stage
-
-- Everything from specs context above, plus:
-- `fab/changes/{name}/spec.md` — the completed spec (for reference)
-- `fab/changes/{name}/plan.md` — the artifact to refine
+- Specific centralized docs referenced by the brief's **Affected Docs** section
 
 ### Tasks stage
 
-- Everything from plan context above, plus:
-- `fab/changes/{name}/plan.md` — the completed plan (for reference, if it exists; skip if plan was `skipped`)
+- Everything from spec context above, plus:
+- `fab/changes/{name}/spec.md` — the completed spec (for reference)
 - `fab/changes/{name}/tasks.md` — the artifact to refine
 
 ---
@@ -104,9 +97,8 @@ Based on the current stage, determine which artifact file to refine:
 
 | Stage | Artifact file |
 |-------|--------------|
-| `proposal` | `proposal.md` |
-| `specs` | `spec.md` |
-| `plan` | `plan.md` |
+| `brief` | `brief.md` |
+| `spec` | `spec.md` |
 | `tasks` | `tasks.md` |
 
 Read the artifact file. If it does not exist, STOP with:
@@ -117,7 +109,7 @@ Read the artifact file. If it does not exist, STOP with:
 
 Perform a systematic scan of the artifact for gaps, ambiguities, and `[NEEDS CLARIFICATION]` markers. The scan categories vary by stage — there is no fixed universal list.
 
-#### Proposal categories
+#### Brief categories
 
 - Scope boundaries — are boundaries concrete or vague?
 - Affected areas — are all impacted components identified?
@@ -125,7 +117,7 @@ Perform a systematic scan of the artifact for gaps, ambiguities, and `[NEEDS CLA
 - Impact completeness — does the Impact section cover all areas?
 - Affected docs coverage — are all relevant docs listed under Affected Docs?
 
-#### Specs categories
+#### Spec categories
 
 - Requirement precision — do requirements use RFC 2119 keywords with specific expected behaviors?
 - Scenario coverage — does every requirement have at least one GIVEN/WHEN/THEN scenario?
@@ -133,17 +125,9 @@ Perform a systematic scan of the artifact for gaps, ambiguities, and `[NEEDS CLA
 - Deprecated requirements — if behavior is removed, is it captured?
 - Cross-references — do references to centralized docs match reality?
 
-#### Plan categories
-
-- Assumption verification — are codebase/library/API assumptions validated?
-- Research completeness — are referenced technologies confirmed suitable?
-- Decision rationale — does each decision have a compelling "Why" and rejected alternative?
-- Risk identification — are risks and mitigations captured?
-- File change coverage — do listed file changes cover all spec requirements?
-
 #### Tasks categories
 
-- Task completeness — does every file and feature from the plan/spec have a task?
+- Task completeness — does every file and feature from the spec have a task?
 - Granularity — is each task completable in one focused session?
 - Dependency ordering — are non-obvious dependencies in the Execution Order section?
 - File path accuracy — does each task reference exact file paths?
@@ -260,7 +244,7 @@ Next: /fab-clarify (refine further) or /fab-continue or /fab-ff
 
 After resolving questions, recompute the confidence score:
 
-1. Re-count SRAD grades across **all** artifacts in the change (proposal, spec, plan, tasks — whichever exist)
+1. Re-count SRAD grades across **all** artifacts in the change (brief, spec, tasks — whichever exist)
 2. Apply the confidence formula (see `_context.md` Confidence Scoring section)
 3. Write the updated `confidence` block to `.status.yaml`
 
@@ -320,7 +304,7 @@ Same as Suggest Mode — auto mode is non-advancing. Only update `last_updated` 
 ### Suggest Mode — Gaps Found
 
 ```
-Stage: specs (active). Reviewing spec.md for gaps...
+Stage: spec (active). Reviewing spec.md for gaps...
 
 Found 3 gaps across 5 categories scanned.
 
@@ -340,7 +324,7 @@ Reply with a number, "yes"/"recommended" to accept, or your own answer.
 ### Suggest Mode — No Gaps
 
 ```
-Stage: plan (active). Reviewing plan.md for gaps...
+Stage: spec (active). Reviewing spec.md for gaps...
 
 No gaps found — artifact looks solid. Ready to proceed.
 

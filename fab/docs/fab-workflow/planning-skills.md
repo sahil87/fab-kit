@@ -4,25 +4,24 @@
 
 ## Overview
 
-The planning skills (`/fab-new`, `/fab-discuss`, `/fab-continue`, `/fab-ff`, `/fab-clarify`) handle the first four stages of the Fab workflow: proposal, specs, plan, and tasks. They produce the artifacts that define *what* changes and *how*, before any code is written.
+The planning skills (`/fab-new`, `/fab-discuss`, `/fab-continue`, `/fab-ff`, `/fab-clarify`) handle the first three stages of the Fab workflow: brief, spec, and tasks. They produce the artifacts that define *what* changes and *how*, before any code is written.
 
 ## Shared Generation Partial
 
-The artifact generation logic (spec, plan, tasks, checklist) is defined in a single shared partial: `fab/.kit/skills/_generation.md`. Both `/fab-continue` and `/fab-ff` reference this partial for the mechanics of producing each artifact, rather than inlining the generation steps.
+The artifact generation logic (spec, tasks, checklist) is defined in a single shared partial: `fab/.kit/skills/_generation.md`. Both `/fab-continue` and `/fab-ff` reference this partial for the mechanics of producing each artifact, rather than inlining the generation steps.
 
-The partial contains four procedures:
+The partial contains three procedures:
 - **Spec Generation Procedure** — template loading, metadata, RFC 2119 requirements, GIVEN/WHEN/THEN scenarios, Assumptions section
-- **Plan Generation Procedure** — template loading, metadata, summary, goals/non-goals, technical context, decisions, file changes
 - **Tasks Generation Procedure** — template loading, metadata, phased task breakdown, task format, execution order
 - **Checklist Generation Procedure** — template loading, category population, sequential CHK IDs, `.status.yaml` updates
 
-Each skill retains its own orchestration logic (stage guards, question handling, plan decisions, auto-clarify, resumability). Only the generation mechanics are shared.
+Each skill retains its own orchestration logic (stage guards, question handling, auto-clarify, resumability). Only the generation mechanics are shared.
 
 ## Requirements
 
 ### `/fab-new <description>`
 
-`/fab-new` starts a new change from a natural language description. It creates the change folder, initializes status tracking, generates a proposal, and calls `/fab-switch` internally to activate the change (including branch integration).
+`/fab-new` starts a new change from a natural language description. It creates the change folder, initializes status tracking, generates a brief, and calls `/fab-switch` internally to activate the change (including branch integration).
 
 #### Folder Name Generation
 
@@ -32,17 +31,17 @@ The agent SHALL generate a folder name in the format `{YYMMDD}-{XXXX}-{slug}` wh
 
 The skill SHALL:
 1. Create `fab/changes/{name}/`
-2. Initialize `.status.yaml` with `stage: proposal` and `created_by` set to the output of `git config user.name` (fallback: `"unknown"`)
-3. Generate `proposal.md` from the template, loading `fab/constitution.md` and `fab/config.yaml` as context
+2. Initialize `.status.yaml` with `stage: brief` and `created_by` set to the output of `git config user.name` (fallback: `"unknown"`)
+3. Generate `brief.md` from the template, loading `fab/constitution.md` and `fab/config.yaml` as context
 4. Apply SRAD scoring to identify up to 3 Unresolved questions; assume all Confident/Tentative decisions
-5. Mark proposal complete once the user is satisfied
+5. Mark brief complete once the user is satisfied
 6. Call `/fab-switch` internally to activate the change (writes `fab/current`, performs branch integration)
 
 Note: `/fab-new` no longer handles branch integration directly — this is delegated to `/fab-switch`, which provides consistent branch handling for both `/fab-new` and `/fab-discuss` entry points.
 
 #### Confidence Scoring
 
-After generating the proposal, `/fab-new` computes the SRAD confidence score and writes the `confidence` block to `.status.yaml` with actual counts (overwriting the template defaults of all zeros). This ensures proposals created via `/fab-new` have a valid score for the `/fab-fff` gate.
+After generating the brief, `/fab-new` computes the SRAD confidence score and writes the `confidence` block to `.status.yaml` with actual counts (overwriting the template defaults of all zeros). This ensures briefs created via `/fab-new` have a valid score for the `/fab-fff` gate.
 
 #### Context
 
@@ -50,19 +49,19 @@ Loads: config, constitution, `fab/docs/index.md` (to understand the existing doc
 
 ### `/fab-discuss [description]`
 
-`/fab-discuss` develops proposals through free-form conversation. Unlike `/fab-new` (one-shot capture with max 3 questions), `/fab-discuss` is a back-and-forth exploration — it helps figure out if a change is even needed, walks through clarifying questions, and outputs a solid `proposal.md` with a high confidence score.
+`/fab-discuss` develops briefs through free-form conversation. Unlike `/fab-new` (one-shot capture with max 3 questions), `/fab-discuss` is a back-and-forth exploration — it helps figure out if a change is even needed, walks through clarifying questions, and outputs a solid `brief.md` with a high confidence score. In new change mode, `/fab-discuss` produces dual artifacts: a `brief.md` capturing the proposal and a `spec.md` with requirements derived from the conversation.
 
 #### Context-Driven Mode Selection
 
 `/fab-discuss` determines its mode from the active change state (`fab/current`):
 
-1. If `fab/current` exists and points to a valid change, `/fab-discuss` defaults to **Refine mode** — working on the active change's proposal
+1. If `fab/current` exists and points to a valid change, `/fab-discuss` defaults to **Refine mode** — working on the active change's brief
 2. If the user's description is significantly different from the active change's scope, `/fab-discuss` confirms whether this is a new change or related to the current one
 3. If `fab/current` does not exist or is empty, `/fab-discuss` enters **New change mode** — starts from scratch
 
 #### Gap Analysis (New Change Mode Only)
 
-Before committing to a proposal, `/fab-discuss` evaluates whether the change is needed:
+Before committing to a brief, `/fab-discuss` evaluates whether the change is needed:
 
 1. Checks for existing mechanisms in the current workflow, codebase, or docs
 2. Evaluates scope — is the idea too broad (should be split) or too narrow (part of something larger)?
@@ -70,9 +69,9 @@ Before committing to a proposal, `/fab-discuss` evaluates whether the change is 
 
 If an existing mechanism covers the idea, the skill presents its findings and lets the user decide whether to proceed. If no change folder is created, no `Next:` line is shown.
 
-#### Conversational Proposal Development
+#### Conversational Brief Development
 
-The skill develops the proposal through back-and-forth conversation with no fixed question cap. Each question builds on previous answers, starting with the highest-impact decisions (lowest Reversibility + lowest Agent Competence). SRAD grades are tracked for each decision point throughout the conversation.
+The skill develops the brief through back-and-forth conversation with no fixed question cap. Each question builds on previous answers, starting with the highest-impact decisions (lowest Reversibility + lowest Agent Competence). SRAD grades are tracked for each decision point throughout the conversation.
 
 #### Conversation Termination
 
@@ -82,17 +81,18 @@ The discussion ends when both conditions are met:
 
 When the confidence score crosses 3.0, `/fab-discuss` proactively suggests wrapping up. The user may also end the discussion early at any time regardless of the current score.
 
-#### Proposal Output
+#### Dual Artifact Output
 
-**New change mode**: Creates the change folder, `checklists/` subdirectory, `.status.yaml` (with `created_by` from `git config user.name`, without `branch:` field — no git integration), and `proposal.md`. Sets `progress.proposal` to `done`. After displaying the summary, checks whether `fab/current` is empty — if so, offers to activate the new change via internal `/fab-switch` (writes `fab/current` and handles branch integration). If `fab/current` already points to another change, no offer is made.
+**New change mode**: Creates the change folder, `checklists/` subdirectory, `.status.yaml` (with `created_by` from `git config user.name`, without `branch:` field — no git integration), `brief.md`, and `spec.md`. The brief captures intent and scope; the spec captures requirements derived from the conversation. Sets `progress.brief` and `progress.spec` to `done`. After displaying the summary, checks whether `fab/current` is empty — if so, offers to activate the new change via internal `/fab-switch` (writes `fab/current` and handles branch integration). If `fab/current` already points to another change, no offer is made.
 
-**Refine mode**: Updates the existing `proposal.md` in place, recomputes the confidence score, and updates `.status.yaml`.
+**Refine mode**: Updates the existing `brief.md` in place, recomputes the confidence score, and updates `.status.yaml`.
 
 #### Key Differences from `/fab-new`
 
 | Aspect | fab-discuss | fab-new |
 |--------|-------------|---------|
-| **Purpose** | Explore & develop proposal through conversation | Capture clear description as proposal |
+| **Purpose** | Explore & develop brief + spec through conversation | Capture clear description as brief |
+| **Artifacts** | Dual: `brief.md` + `spec.md` (new change mode) | Single: `brief.md` |
 | **Gap analysis** | Yes — "is this change even needed?" | No — assumes the change is needed |
 | **Interaction style** | Free-form conversation, unlimited questions | One-shot generation, max 3 SRAD questions |
 | **Sets active change** | Conditionally — offers when no active change | Yes (via internal `/fab-switch` call) |
@@ -101,17 +101,17 @@ When the confidence score crosses 3.0, `/fab-discuss` proactively suggests wrapp
 
 #### Context
 
-Loads: config, constitution, `fab/docs/index.md`, `fab/specs/index.md`. In refine mode, also loads the active change's `proposal.md` and `.status.yaml`.
+Loads: config, constitution, `fab/docs/index.md`, `fab/design/index.md`. In refine mode, also loads the active change's `brief.md` and `.status.yaml`.
 
 ### `/fab-continue [<stage>]`
 
-`/fab-continue` advances to the next planning stage and generates its artifact. When called with a stage argument, it resets to that stage and regenerates from there.
+`/fab-continue` advances to the next planning stage and generates its artifact. When called with a stage argument, it resets to that stage and regenerates from there. The pipeline flows from spec directly to tasks.
 
 #### Normal Forward Flow (no argument)
 
 1. Read `.status.yaml` to determine current stage
 2. **Stage guard**: Check both `stage` field and `progress.{stage}` value from preflight output:
-   - For planning stages (proposal, specs, plan, tasks): if `progress.{stage} == 'done'` AND stage is `tasks`, block (planning complete). If `progress.{stage} == 'active'`, allow generation to resume (interrupted mid-way). If `progress.{stage} == 'pending'`, allow generation to start.
+   - For planning stages (brief, spec, tasks): if `progress.{stage} == 'done'` AND stage is `tasks`, block (planning complete). If `progress.{stage} == 'active'`, allow generation to resume (interrupted mid-way). If `progress.{stage} == 'pending'`, allow generation to start.
    - For apply/review/archive stages: block regardless of progress value (use stage-specific skill instead).
 3. Identify next artifact to create
 4. Load relevant template + context (including `fab/constitution.md` for principles)
@@ -120,51 +120,45 @@ Loads: config, constitution, `fab/docs/index.md`, `fab/specs/index.md`. In refin
 7. Auto-generate checklist when creating tasks (using `_generation.md` Checklist Generation Procedure)
 8. Update `.status.yaml`
 
-#### Plan Decision
-
-When transitioning from specs to plan, the agent SHALL evaluate whether a plan is warranted. If the change is small and the approach is obvious, propose skipping: "This change is straightforward — skip plan and go directly to tasks?" If user agrees, record `plan: skipped` in `.status.yaml` and proceed to tasks.
-
 #### Reset Behavior (with stage argument)
 
-When called as `/fab-continue <stage>` (e.g., `/fab-continue specs`):
-1. Target stage MUST be `specs`, `plan`, or `tasks`. Cannot reset to `proposal` (use `/fab-new`) or `apply`/`review`/`archive`
+When called as `/fab-continue <stage>` (e.g., `/fab-continue spec`):
+1. Target stage MUST be `spec` or `tasks`. Cannot reset to `brief` (use `/fab-new`) or `apply`/`review`/`archive`
 2. Reset `.status.yaml` stage to the target; mark all stages from target onward as `pending`
 3. Regenerate the target stage's artifact in place (update, not recreate from scratch — preserve what's still valid)
-4. Downstream artifacts are invalidated: tasks reset to `- [ ]`, checklist regenerated. Plan regenerated if target is `specs`
+4. Downstream artifacts are invalidated: tasks reset to `- [ ]`, checklist regenerated
 5. Update `.status.yaml` and report what was reset
 
 Reset is primarily used after `/fab-review` identifies issues upstream.
 
 #### Context (varies by target stage)
 
-- **Specs**: config, constitution, `proposal.md`, target centralized doc(s) from `fab/docs/`
-- **Plan**: above + completed `spec.md`
-- **Tasks**: above + `plan.md` (if not skipped)
+- **Spec**: config, constitution, `brief.md`, target centralized doc(s) from `fab/docs/`
+- **Tasks**: above + completed `spec.md`
 
 ### `/fab-ff` (Fast Forward)
 
-`/fab-ff` fast-forwards through all remaining planning stages in one pass to reach implementation quickly. It requires an active change with a completed proposal. Frontloads questions, interleaves auto-clarify, and bails on blockers.
+`/fab-ff` fast-forwards through all remaining planning stages in one pass to reach implementation quickly. It requires an active change with a completed brief. Frontloads questions, interleaves auto-clarify, and bails on blockers. The pipeline flows from spec directly to tasks.
 
 #### Frontloaded Questions
 
-The skill SHALL scan the proposal for ambiguities across *all* planning stages (specs, plan, tasks), collect everything that needs user input into a single batch, and ask once. The goal: one Q&A round, then heads-down generation.
+The skill SHALL scan the brief for ambiguities across *all* planning stages (spec, tasks), collect everything that needs user input into a single batch, and ask once. The goal: one Q&A round, then heads-down generation.
 
 #### Interleaved Auto-Clarify
 
-The `/fab-ff` pipeline interleaves auto-clarify between stage generations: `spec → auto-clarify → plan-decision → auto-clarify → tasks → auto-clarify`. Each auto-clarify invocation uses the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (`_context.md`) to signal `/fab-clarify` to operate autonomously. This catches gaps before they compound downstream.
+The `/fab-ff` pipeline interleaves auto-clarify between stage generations: `spec → auto-clarify → tasks → auto-clarify`. Each auto-clarify invocation uses the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (`_context.md`) to signal `/fab-clarify` to operate autonomously. This catches gaps before they compound downstream.
 
 - If auto-clarify finds **blocking issues** (cannot resolve autonomously), the pipeline **bails** — stops, reports the issues, and suggests `Run /fab-clarify to resolve these, then /fab-ff to resume.`
 - The pipeline is **resumable** — re-running `/fab-ff` after a bail skips stages already marked `done` and continues from the first incomplete stage.
 
 #### Generation Flow
 
-1. Read `fab/current` to resolve the active change; verify proposal is complete
+1. Read `fab/current` to resolve the active change; verify brief is complete
 2. Frontload questions (single batch)
 3. Generate `spec.md` (incorporating answers) → run auto-clarify on spec
-4. Evaluate whether a plan is warranted. Unlike `/fab-continue`, `/fab-ff` does **not** confirm with the user before skipping — it decides autonomously to maintain fast-forward flow → run auto-clarify on plan (if generated)
-5. Produce task breakdown (referencing plan if it exists, otherwise referencing spec and proposal directly) → run auto-clarify on tasks
-6. Auto-generate quality checklist
-7. Update status to `tasks: done`
+4. Produce task breakdown (referencing spec and brief) → run auto-clarify on tasks
+5. Auto-generate quality checklist
+6. Update status to `tasks: done`
 
 #### When to Use
 
@@ -198,7 +192,7 @@ Each stage uses the same behavior as its standalone invocation. If `/fab-ff` bai
 
 #### Context
 
-Loads all planning context upfront: config, constitution, `proposal.md`, target centralized doc(s) from `fab/docs/`.
+Loads all planning context upfront: config, constitution, `brief.md`, target centralized doc(s) from `fab/docs/`.
 
 ### `/fab-clarify`
 
@@ -209,7 +203,7 @@ Loads all planning context upfront: config, constitution, `proposal.md`, target 
 When the user invokes `/fab-clarify` directly:
 
 1. Read `.status.yaml` to determine current stage
-2. Stage MUST be `proposal`, `specs`, `plan`, or `tasks`. If `apply` or later, suggest `/fab-review` instead
+2. Stage MUST be `brief`, `spec`, or `tasks`. If `apply` or later, suggest `/fab-review` instead
 3. Load current artifact + relevant context
 4. Perform a **stage-scoped taxonomy scan** for gaps, ambiguities, and `[NEEDS CLARIFICATION]` markers (categories vary by stage)
 5. Present structured questions **one at a time** (max 5 per invocation), each with a recommendation and options table or suggested answer
@@ -234,10 +228,9 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 #### Context (varies by current stage)
 
-- **Proposal**: config, constitution, `proposal.md`
-- **Specs**: above + target centralized doc(s) from `fab/docs/`
-- **Plan**: above + `spec.md`, `plan.md`
-- **Tasks**: above + `plan.md` (if not skipped), `tasks.md`
+- **Brief**: config, constitution, `brief.md`
+- **Spec**: above + target centralized doc(s) from `fab/docs/`
+- **Tasks**: above + `spec.md`, `tasks.md`
 
 ## Design Decisions
 
@@ -247,17 +240,11 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 **Rejected**: Ad-hoc question selection — inconsistent, no way to predict agent behavior. Full autonomy — too risky for Unresolved decisions with cascading consequences.
 *Introduced by*: 260207-09sj-autonomy-framework
 
-### Proposal-First with SRAD-Based Questions
-**Decision**: Every change starts with a proposal. The agent applies SRAD scoring to identify up to 3 Unresolved decisions with the highest blast radius and asks those. All other decisions are assumed at their assessed confidence grade and surfaced in the Assumptions summary.
+### Brief-First with SRAD-Based Questions
+**Decision**: Every change starts with a brief. The agent applies SRAD scoring to identify up to 3 Unresolved decisions with the highest blast radius and asks those. All other decisions are assumed at their assessed confidence grade and surfaced in the Assumptions summary.
 **Why**: Prevents question-paralysis while catching the decisions that actually matter. SRAD scoring replaces gut-feel question selection with a repeatable evaluation method.
 **Rejected**: Unlimited clarification rounds — too many back-and-forth exchanges. Fixed 3-question cap without SRAD — may ask the wrong 3 questions.
 *Source*: doc/fab-spec/TEMPLATES.md, doc/fab-spec/README.md; *Updated by*: 260207-09sj-autonomy-framework
-
-### Plan Stage is Optional
-**Decision**: `/fab-continue` may propose skipping the plan for straightforward changes. `/fab-ff` skips autonomously. Status records `plan: skipped`.
-**Why**: Many changes are small and well-understood. Forcing a plan adds overhead without value. The spec and proposal provide enough context for task generation.
-**Rejected**: Always requiring a plan — adds friction to simple changes. Never having a plan — misses architectural decisions for complex changes.
-*Source*: doc/fab-spec/SKILLS.md
 
 ### Fast-Forward Frontloads All Questions
 **Decision**: `/fab-ff` collects questions across all planning stages into a single batch before generating any artifacts.
@@ -278,13 +265,13 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 *Introduced by*: 260207-m3qf-clarify-dual-modes; *Updated by*: 260210-nan4-define-auto-mode-signaling (explicit `[AUTO-MODE]` protocol)
 
 ### Fast-Forward Interleaves Auto-Clarify
-**Decision**: `/fab-ff` interleaves auto-clarify between stage generations (`spec → auto-clarify → plan → auto-clarify → tasks → auto-clarify`). Bails on blocking issues that cannot be resolved autonomously.
+**Decision**: `/fab-ff` interleaves auto-clarify between stage generations (`spec → auto-clarify → tasks → auto-clarify`). Bails on blocking issues that cannot be resolved autonomously.
 **Why**: Gaps in one stage compound downstream. Catching them between stages prevents tasks built on unverified assumptions.
 **Rejected**: No clarify in ff (gaps compound). Full user-interactive clarify in ff (defeats fast-forward flow). Full-auto mode with `<!-- auto-guess -->` markers (defers interaction rather than eliminating it — replaced by confidence-gated `/fab-fff`).
 *Introduced by*: 260207-m3qf-clarify-dual-modes; *Updated by*: 260208-k3m7-add-fab-fff (removed `--auto` mode)
 
 ### Conversational Entry Point via `/fab-discuss`
-**Decision**: Add `/fab-discuss` as a separate skill for conversational proposal development, distinct from `/fab-new` (one-shot capture) and `/fab-clarify` (structured artifact refinement).
+**Decision**: Add `/fab-discuss` as a separate skill for conversational brief development, distinct from `/fab-new` (one-shot capture) and `/fab-clarify` (structured artifact refinement).
 **Why**: `/fab-new` is optimized for clear ideas (one-shot, max 3 questions). `/fab-clarify` refines existing artifacts. Neither serves the "I have a vague idea, let's figure it out" use case. `/fab-discuss` fills this gap with free-form conversation, gap analysis, and unlimited questions.
 **Rejected**: Extending `/fab-new` with a conversation mode — would bloat a focused skill. Using only `/fab-clarify` — it's scoped to artifact gaps, not idea exploration.
 *Introduced by*: 260208-lgd7-fab-discuss-command
@@ -296,7 +283,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 *Introduced by*: 260208-lgd7-fab-discuss-command
 
 ### Shared Generation Partial
-**Decision**: Extract duplicated artifact generation logic from `/fab-continue` and `/fab-ff` into a shared `_generation.md` partial. Both skills reference the partial for spec, plan, tasks, and checklist generation mechanics; each retains its own orchestration logic.
+**Decision**: Extract duplicated artifact generation logic from `/fab-continue` and `/fab-ff` into a shared `_generation.md` partial. Both skills reference the partial for spec, tasks, and checklist generation mechanics; each retains its own orchestration logic.
 **Why**: Generation steps were nearly identical in both skills, requiring every fix or behavior change to be applied in two places. Centralizing eliminates drift and makes generation behavior authoritative in one location.
 **Rejected**: Keeping inline duplication — inevitable drift between the two copies.
 *Introduced by*: 260210-wpay-extract-shared-generation-logic
@@ -311,14 +298,15 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260211-r3k8-simplify-planning-stages | 2026-02-11 | 6-stage pipeline (brief → spec → tasks), removed plan stage, /fab-discuss dual output, /fab-ff generates spec → tasks directly |
 | 260211-endg-add-created-by-field | 2026-02-11 | `/fab-new` and `/fab-discuss` now populate `created_by` in `.status.yaml` from `git config user.name` at change creation |
-| 260210-wpay-extract-shared-generation-logic | 2026-02-10 | Extracted shared generation logic (spec, plan, tasks, checklist) into `_generation.md` partial; both `/fab-continue` and `/fab-ff` now reference it |
+| 260210-wpay-extract-shared-generation-logic | 2026-02-10 | Extracted shared generation logic (spec, tasks, checklist) into `_generation.md` partial; both `/fab-continue` and `/fab-ff` now reference it |
 | 260210-nan4-define-auto-mode-signaling | 2026-02-10 | Defined explicit `[AUTO-MODE]` prefix protocol for skill-to-skill invocation in `_context.md`; updated `/fab-ff` auto-clarify invocations and "Clarify Mode Selection" design decision |
 | 260210-0p4e-fix-stage-guard-progress-check | 2026-02-10 | `/fab-continue` stage guard now checks `progress.{stage}` value to distinguish done/active/pending states, allowing resumption of interrupted stage generations |
 | 260210-zr1f-discuss-auto-activate-when-no-current | 2026-02-10 | `/fab-discuss` conditionally offers activation when `fab/current` is empty; updated proposal output, key differences table |
 | 260209-r4w8-archive-index-longer-slugs | 2026-02-09 | Expanded slug word count from 2-4 to 2-6 words in `/fab-new` folder name generation |
 | 260208-q8v3-branch-to-switch | 2026-02-09 | Moved branch integration from `/fab-new` to `/fab-switch`, removed `--branch` flag from `/fab-new`, `/fab-new` now calls `/fab-switch` internally |
-| 260208-lgd7-fab-discuss-command | 2026-02-08 | Added `/fab-discuss` conversational proposal skill, `/fab-new` confidence scoring, context-driven mode selection design decisions |
+| 260208-lgd7-fab-discuss-command | 2026-02-08 | Added `/fab-discuss` conversational brief skill, `/fab-new` confidence scoring, context-driven mode selection design decisions |
 | 260208-k3m7-add-fab-fff | 2026-02-08 | Added `/fab-fff` full pipeline skill, confidence recomputation in `/fab-continue`, removed `/fab-ff --auto` mode, updated design decisions |
 | 260207-09sj-autonomy-framework | 2026-02-08 | Added SRAD autonomy framework, confidence grades, assumptions summaries, branch auto-create on main, soft gate on fab-apply |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |

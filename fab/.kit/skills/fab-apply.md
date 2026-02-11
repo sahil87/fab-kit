@@ -44,12 +44,11 @@ Load all context needed for implementation:
 
 1. **`fab/config.yaml`** — project config, tech stack, conventions
 2. **`fab/constitution.md`** — project principles and constraints
-3. **`fab/specs/index.md`** — specifications landscape (pre-implementation design intent, human-curated)
+3. **`fab/design/index.md`** — specifications landscape (pre-implementation design intent, human-curated)
 4. **`fab/changes/{name}/tasks.md`** — the task list to execute
 5. **`fab/changes/{name}/spec.md`** — requirements and scenarios (the "what" and "why")
-6. **`fab/changes/{name}/plan.md`** — technical approach and file changes (if it exists; skip if plan was `skipped`)
-7. **`fab/changes/{name}/proposal.md`** — original intent (for reference)
-8. **Relevant source code** — read files referenced in task descriptions and the plan's File Changes section. Scope to files actually touched — do not load the entire codebase.
+6. **`fab/changes/{name}/brief.md`** — original intent (for reference)
+7. **Relevant source code** — read files referenced in task descriptions. Scope to files actually touched — do not load the entire codebase.
 
 ---
 
@@ -108,7 +107,6 @@ Parse the task line to extract:
 
 Before implementing, read the source files referenced in the task description. Also consult:
 - `spec.md` for the relevant requirements and scenarios
-- `plan.md` (if exists) for the technical approach and design decisions
 - Any existing code in files being modified
 
 **Do not guess** — read the actual code before making changes.
@@ -118,7 +116,6 @@ Before implementing, read the source files referenced in the task description. A
 Execute the implementation described in the task. Follow these principles:
 
 - **Follow the spec**: Implement exactly what the requirements describe. Refer to GIVEN/WHEN/THEN scenarios for expected behavior.
-- **Follow the plan**: If a plan exists, follow its technical approach, file change list, and design decisions. If the plan was skipped, derive the approach from the spec and proposal.
 - **Follow the constitution**: Respect project principles and constraints from `fab/constitution.md`.
 - **Follow existing patterns**: Match the codebase's existing style, conventions, and patterns.
 - **Be precise**: Create, modify, or delete exactly the files described. Do not make unrelated changes.

@@ -28,10 +28,10 @@ Free-form text describing the tech stack, conventions, and domain context. Skill
 
 #### `stages`
 Ordered list of stage definitions. Each stage:
-- `id` — Stage identifier (proposal, specs, plan, tasks, apply, review, archive)
-- `generates` — Artifact filename (e.g., `proposal.md`, `spec.md`)
+- `id` — Stage identifier (brief, spec, tasks, apply, review, archive)
+- `generates` — Artifact filename (e.g., `brief.md`, `spec.md`)
 - `requires` — List of prerequisite stage IDs
-- `required` — Whether this stage is mandatory (boolean). `plan` is typically `false`
+- `required` — Whether this stage is mandatory (boolean)
 - `auto_checklist` — Whether to auto-generate a quality checklist at this stage (boolean, used by `tasks`)
 
 #### `checklist`
@@ -41,9 +41,7 @@ Ordered list of stage definitions. Each stage:
 Per-stage rules that customize artifact generation. Keys are stage IDs, values are lists of instruction strings. Example:
 ```yaml
 rules:
-  plan:
-    - Document impacts on existing research docs
-  specs:
+  spec:
     - Use GIVEN/WHEN/THEN for scenarios
     - Mark ambiguities with [NEEDS CLARIFICATION]
 ```
@@ -78,7 +76,7 @@ The constitution is the architectural DNA of a Fab project. It defines immutable
 #### How Skills Use It
 
 - `/fab-init` generates it from project context (README, existing docs, conversation)
-- `/fab-continue` and `/fab-ff` load it when generating plan, tasks, and checklist artifacts
+- `/fab-continue` and `/fab-ff` load it when generating spec, tasks, and checklist artifacts
 - `/fab-review` checks implementation against constitutional principles (not just the spec)
 - Constitution violations found during review are flagged as high-severity issues
 
@@ -116,5 +114,6 @@ Semantic versioning — MAJOR for principle removals, MINOR for additions, PATCH
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated stage IDs to brief/spec/tasks/apply/review/archive, removed plan stage entry |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | — | 2026-02-07 | Generated from doc/fab-spec/ (ARCHITECTURE.md, TEMPLATES.md, README.md) |

@@ -11,7 +11,7 @@ description: "Fast-forward through all remaining planning stages in one pass to 
 
 ## Purpose
 
-Fast-forward through all remaining planning stages in one pass. Generates specs, optionally a plan, and tasks (with quality checklist) — all in a single invocation. Interleaves auto-clarify between stage generations to catch and resolve gaps before they compound downstream.
+Fast-forward through all remaining planning stages in one pass. Generates spec and tasks (with quality checklist) — all in a single invocation. Interleaves auto-clarify between stage generations to catch and resolve gaps before they compound downstream.
 
 Interleaves auto-clarify between stage generations; stops if blocking issues are found that the agent cannot resolve autonomously. Resumable — re-running after a bail picks up from the first incomplete stage.
 
@@ -27,11 +27,11 @@ Before doing anything else, run the preflight script:
 
 Then verify the stage-specific precondition using the preflight output:
 
-4. Verify that `progress.proposal` is `done`
+4. Verify that `progress.brief` is `done`
 
-**If `progress.proposal` is not `done`, STOP.** Output:
+**If `progress.brief` is not `done`, STOP.** Output:
 
-> `Proposal is not complete. Finish the proposal first with /fab-new or /fab-continue, then run /fab-ff.`
+> `Brief is not complete. Finish the brief first with /fab-new or /fab-continue, then run /fab-ff.`
 
 ---
 
@@ -41,9 +41,9 @@ Load all context upfront since fast-forward traverses all planning stages:
 
 1. `fab/config.yaml` — project config, tech stack
 2. `fab/constitution.md` — project principles and constraints
-3. `fab/changes/{name}/proposal.md` — the completed proposal
+3. `fab/changes/{name}/brief.md` — the completed brief
 4. `fab/docs/index.md` — documentation landscape
-5. Specific centralized docs referenced by the proposal's **Affected Docs** section (read each `fab/docs/{domain}/{doc}.md` listed under New, Modified, or Removed)
+5. Specific centralized docs referenced by the brief's **Affected Docs** section (read each `fab/docs/{domain}/{doc}.md` listed under New, Modified, or Removed)
 
 ---
 
@@ -51,20 +51,18 @@ Load all context upfront since fast-forward traverses all planning stages:
 
 ### Resumability
 
-On invocation, check the `progress` map from preflight output. **Skip stages already marked `done` or `skipped`**. This means:
+On invocation, check the `progress` map from preflight output. **Skip stages already marked `done`**. This means:
 
-- If `progress.specs` is already `done`, skip Step 1 (questions) and Step 2 (spec generation) and their auto-clarify
-- If `progress.plan` is already `done` or `skipped`, skip Step 3 (plan decision) and its auto-clarify
-- If `progress.tasks` is already `done`, skip Step 4 (task generation) and its auto-clarify
+- If `progress.spec` is already `done`, skip Step 1 (questions) and Step 2 (spec generation) and their auto-clarify
+- If `progress.tasks` is already `done`, skip Step 3 (task generation) and its auto-clarify
 
 This makes `/fab-ff` resumable after a bail — re-running picks up from the first incomplete stage.
 
 ### Step 1: Frontload All Questions
 
-Apply SRAD scoring across the proposal for ambiguities spanning **all** planning stages (specs, plan, tasks). Consider:
+Apply SRAD scoring across the brief for ambiguities spanning **all** planning stages (spec, tasks). Consider:
 
 - **Spec ambiguities**: Are any requirements vague? Multiple interpretations? Missing acceptance criteria? Edge cases unaddressed?
-- **Plan ambiguities**: Are there architectural choices not yet decided? Unknown dependencies? Technology selection needed?
 - **Task ambiguities**: Is the scope unclear enough that task breakdown would require guessing?
 
 Collect all **Unresolved** decisions (SRAD grade) into a **single batch of questions**. Ask once, then proceed without further interruption. Confident and Tentative decisions are assumed (tracked for the cumulative Assumptions summary).
@@ -81,19 +79,19 @@ Skip questions entirely and proceed directly to Step 2.
 
 ### Step 2: Generate `spec.md`
 
-*(Skip if `progress.specs` is already `done`.)*
+*(Skip if `progress.spec` is already `done`.)*
 
 Follow the **Spec Generation Procedure** defined in `fab/.kit/skills/_generation.md`.
 
 Additionally: incorporate answers from Step 1 to resolve any ambiguities — the spec should have no `[NEEDS CLARIFICATION]` markers (unlike `/fab-continue`, which may leave markers for `/fab-clarify`).
 
 Update `.status.yaml`:
-- Set `progress.specs` to `done`
+- Set `progress.spec` to `done`
 - Update `last_updated`
 
 #### Auto-Clarify: Spec
 
-Run auto-clarify on the generated spec: invoke `/fab-clarify` with the `[AUTO-MODE]` prefix (per the Skill Invocation Protocol in `_context.md`), with stage context set to `specs`. Interpret the result:
+Run auto-clarify on the generated spec: invoke `/fab-clarify` with the `[AUTO-MODE]` prefix (per the Skill Invocation Protocol in `_context.md`), with stage context set to `spec`. Interpret the result:
 
 - **`blocking: 0`** → continue to Step 3
 - **`blocking > 0`** → **BAIL**. Stop the pipeline, report blocking issues, and output:
@@ -102,43 +100,9 @@ Run auto-clarify on the generated spec: invoke `/fab-clarify` with the `[AUTO-MO
   >
   > `Run /fab-clarify to resolve these interactively, then /fab-ff to resume.`
   >
-  > Leave `.status.yaml` with `specs: done`, `plan: pending`, `tasks: pending`.
+  > Leave `.status.yaml` with `spec: done`, `tasks: pending`.
 
-### Step 3: Plan Decision (Autonomous)
-
-*(Skip if `progress.plan` is already `done` or `skipped`.)*
-
-Evaluate whether a `plan.md` is warranted. **Unlike `/fab-continue`, this decision is made autonomously** — do NOT ask the user. The fast-forward flow should not be interrupted.
-
-**Criteria for skipping the plan:**
-- The change is small in scope (touches few files)
-- The technical approach is obvious from the spec
-- No significant architectural decisions are needed
-- No research or library evaluation is required
-- It's a single-file change, straightforward CRUD, or a well-known pattern
-
-**Output**: Include a brief rationale explaining the decision: `Plan {skipped|generated} — {one-sentence reason}.` For example: `Plan skipped — change touches only skill files with clear requirements from the spec.`
-
-**If the plan is NOT warranted (skip):**
-1. Record `progress.plan` as `skipped` in `.status.yaml`
-2. Do NOT create a `plan.md` file
-3. Proceed directly to Step 4
-
-**If the plan IS warranted (generate):**
-
-Follow the **Plan Generation Procedure** defined in `fab/.kit/skills/_generation.md`.
-
-Update `.status.yaml`:
-- Set `progress.plan` to `done`
-- Update `last_updated`
-
-#### Auto-Clarify: Plan
-
-*(Skip if plan was skipped.)*
-
-Run auto-clarify on the generated plan: invoke `/fab-clarify` with the `[AUTO-MODE]` prefix (per the Skill Invocation Protocol in `_context.md`), with stage context set to `plan`. Interpret the result using the same bail logic as the spec auto-clarify above.
-
-### Step 4: Generate `tasks.md`
+### Step 3: Generate `tasks.md`
 
 *(Skip if `progress.tasks` is already `done`.)*
 
@@ -148,11 +112,11 @@ Follow the **Tasks Generation Procedure** defined in `fab/.kit/skills/_generatio
 
 Run auto-clarify on the generated tasks: invoke `/fab-clarify` with the `[AUTO-MODE]` prefix (per the Skill Invocation Protocol in `_context.md`), with stage context set to `tasks`. Interpret the result using the same bail/guess logic as above.
 
-### Step 5: Auto-generate Quality Checklist
+### Step 4: Auto-generate Quality Checklist
 
 Follow the **Checklist Generation Procedure** defined in `fab/.kit/skills/_generation.md`.
 
-### Step 6: Update `.status.yaml`
+### Step 5: Update `.status.yaml`
 
 After all artifacts are generated:
 
@@ -170,7 +134,7 @@ After all artifacts are generated:
 ### Default Mode — Clean Fast-Forward (no questions, no blockers)
 
 ```
-Fast-forwarding from proposal...
+Fast-forwarding from brief...
 
 ## Spec: {Change Name}
 
@@ -178,17 +142,6 @@ Fast-forwarding from proposal...
 
 Spec created.
 Auto-clarify: spec — {resolved: N, blocking: 0, non_blocking: N}
-
-## Plan Decision
-
-Plan skipped — {one-sentence rationale}.
-OR
-Plan generated — {one-sentence rationale}.
-
-{plan content}
-
-Plan created.
-Auto-clarify: plan — {resolved: N, blocking: 0, non_blocking: N}
 
 ## Tasks: {Change Name}
 
@@ -200,7 +153,7 @@ Auto-clarify: tasks — {resolved: N, blocking: 0, non_blocking: N}
 
 Generated checklists/quality.md with {N} items.
 
-Fast-forward complete — specs, {plan/no plan}, tasks, and checklist generated.
+Fast-forward complete — spec, tasks, and checklist generated.
 
 ## Assumptions (cumulative)
 
@@ -218,7 +171,7 @@ Next: /fab-apply
 ### Default Mode — Bail on Blocking Issue
 
 ```
-Fast-forwarding from proposal...
+Fast-forwarding from brief...
 
 ## Spec: {Change Name}
 
@@ -236,15 +189,9 @@ Run /fab-clarify to resolve this interactively, then /fab-ff to resume.
 ### Default Mode — Resume After Bail
 
 ```
-Fast-forwarding from specs (resuming)...
+Fast-forwarding from spec (resuming)...
 
 Skipping spec — already done.
-
-## Plan Decision
-
-{decision and output}
-
-Auto-clarify: plan — {resolved: 0, blocking: 0, non_blocking: 0}
 
 ## Tasks: {Change Name}
 
@@ -256,15 +203,15 @@ Auto-clarify: tasks — {resolved: 1, blocking: 0, non_blocking: 0}
 
 Generated checklists/quality.md with {N} items.
 
-Fast-forward complete — specs, {plan/no plan}, tasks, and checklist generated.
+Fast-forward complete — spec, tasks, and checklist generated.
 
 Next: /fab-apply
 ```
 
-### Ambiguous Proposal (questions first, then pipeline)
+### Ambiguous Brief (questions first, then pipeline)
 
 ```
-Fast-forwarding from proposal...
+Fast-forwarding from brief...
 
 Before I can generate all planning artifacts, I need to resolve a few ambiguities:
 
@@ -283,7 +230,7 @@ Auto-clarify: spec — {resolved: N, blocking: 0, non_blocking: N}
 
 {... remainder of pipeline ...}
 
-Fast-forward complete — specs, {plan/no plan}, tasks, and checklist generated.
+Fast-forward complete — spec, tasks, and checklist generated.
 
 Next: /fab-apply
 ```
@@ -295,9 +242,9 @@ Next: /fab-apply
 | Condition | Action |
 |-----------|--------|
 | Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
-| `progress.proposal` is not `done` | Abort with: "Proposal is not complete. Finish the proposal first with /fab-new or /fab-continue, then run /fab-ff." |
+| `progress.brief` is not `done` | Abort with: "Brief is not complete. Finish the brief first with /fab-new or /fab-continue, then run /fab-ff." |
 | Template file missing | Abort with: "Template not found at fab/.kit/templates/{file} — kit may be corrupted." |
-| Specs already done (stage is `specs` or later) | Resume from current position — skip completed stages |
+| Spec already done (stage is `spec` or later) | Resume from current position — skip completed stages |
 | Auto-clarify returns blocking issues | Bail — stop pipeline, report issues, suggest `/fab-clarify` then `/fab-ff` |
 
 ---
@@ -308,7 +255,6 @@ Next: /fab-apply
 |----------|-----------------|-----------|-----------|
 | Questions | Asked per-stage as needed | Frontloaded: one batch upfront | Same as fab-ff (frontloaded) |
 | Auto-clarify | None (manual `/fab-clarify`) | Between each stage; bails on blockers | Same as fab-ff |
-| Plan decision | Proposes skip to user, waits for confirmation | Decides autonomously | Same as fab-ff |
 | Stages per invocation | One planning stage | All planning stages (may bail mid-way) | Full pipeline: planning + apply + review + archive |
 | Resumable? | N/A (one stage) | Yes — re-invoke after bail | Yes — skips completed stages |
 | Confidence gate | None | None | Requires score >= 3.0 |

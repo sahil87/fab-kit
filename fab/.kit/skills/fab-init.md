@@ -72,20 +72,16 @@ git:
   branch_prefix: ""
 
 stages:
-  - id: proposal
-    generates: proposal.md
+  - id: brief
+    generates: brief.md
     required: true
-  - id: specs
+  - id: spec
     generates: spec.md
-    requires: [proposal]
+    requires: [brief]
     required: true
-  - id: plan
-    generates: plan.md
-    requires: [specs]
-    required: false
   - id: tasks
     generates: tasks.md
-    requires: [specs]
+    requires: [spec]
     required: true
     auto_checklist: true
   - id: apply
@@ -99,8 +95,7 @@ checklist:
   extra_categories: []
 
 rules:
-  plan: []
-  specs:
+  spec:
     - Use GIVEN/WHEN/THEN for scenarios
     - "Mark ambiguities with [NEEDS CLARIFICATION]"
 ```
@@ -157,12 +152,12 @@ If `fab/docs/index.md` does **not** exist:
 
 If `fab/docs/index.md` **already exists**: report "docs/index.md already exists — skipping" and move on.
 
-#### 1d. `fab/specs/index.md`
+#### 1d. `fab/design/index.md`
 
-If `fab/specs/index.md` does **not** exist:
+If `fab/design/index.md` does **not** exist:
 
-1. Create `fab/specs/` directory if needed
-2. Create `fab/specs/index.md` with an empty index:
+1. Create `fab/design/` directory if needed
+2. Create `fab/design/index.md` with an empty index:
 
 ```markdown
 # Specifications Index
@@ -182,7 +177,7 @@ If `fab/specs/index.md` does **not** exist:
 |------|-------------|
 ```
 
-If `fab/specs/index.md` **already exists**: report "specs/index.md already exists — skipping" and move on.
+If `fab/design/index.md` **already exists**: report "design/index.md already exists — skipping" and move on.
 
 #### 1e. `fab/changes/`
 
@@ -237,7 +232,7 @@ Found fab/.kit/ (v{VERSION}). Initializing project...
 Created: fab/config.yaml
 Created: fab/constitution.md
 Created: fab/docs/index.md
-Created: fab/specs/index.md
+Created: fab/design/index.md
 Created: fab/changes/
 Created: 11 symlinks in .claude/skills/
 Updated: .gitignore (added fab/current)
@@ -253,7 +248,7 @@ Found fab/.kit/ (v{VERSION}). Verifying structure...
 config.yaml — OK
 constitution.md — OK
 docs/index.md — OK
-specs/index.md — OK
+design/index.md — OK
 changes/ — OK
 Symlinks: 11/11 valid (repaired 1)
 .gitignore: fab/current present
@@ -268,7 +263,7 @@ This skill is safe to run any number of times:
 
 - **Config and constitution**: Created once, never overwritten on re-run
 - **Docs index**: Created once, never touched on re-run
-- **Specs index**: Created once, never touched on re-run
+- **Design index**: Created once, never touched on re-run
 - **Changes directory**: Created once, never touched on re-run
 - **Symlinks**: Verified and repaired on every run — broken symlinks are fixed, valid ones are left alone
 - **`.gitignore`**: Entry is appended only if not already present

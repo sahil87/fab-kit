@@ -16,4 +16,4 @@
 | [configuration](configuration.md) | `config.yaml` schema, `constitution.md` governance, stage graph definition | 2026-02-07 |
 | [preflight](preflight.md) | `fab-preflight.sh` script — validation, structured YAML output, skill integration | 2026-02-07 |
 | [backfill](backfill.md) | `/fab-backfill` skill — structural gap detection between docs and specs, interactive propose-then-apply | 2026-02-09 |
-| [specs-index](specs-index.md) | `fab/specs/` directory — pre-implementation specs, distinction from docs, bootstrap and context integration | 2026-02-09 |
+| [design-index](design-index.md) | `fab/design/` directory — pre-implementation design, distinction from docs, bootstrap and context integration | 2026-02-09 |

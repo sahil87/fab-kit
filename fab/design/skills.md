@@ -13,7 +13,7 @@ Fab uses two distinct terms to avoid confusion:
 | **Centralized docs** | `fab/docs/` | Source-of-truth documentation for the system. Contains both requirements (what) and durable design decisions (why). Updated by `/fab-hydrate` (from external sources) and `/fab-archive` (from change artifacts). |
 | **spec.md** | `fab/changes/{name}/spec.md` | Change-level specification. Describes the requirements relevant to this change. |
 
-The stage named "specs" refers to the *activity* of writing the specification — its output is `spec.md` in the change folder.
+The stage named "spec" refers to the *activity* of writing the specification — its output is `spec.md` in the change folder.
 
 ---
 
@@ -28,17 +28,17 @@ Every skill that generates or validates artifacts MUST load relevant context bef
 
 **Change context** (loaded by skills operating on an active change):
 - `.status.yaml` — current stage, progress
-- All completed artifacts in the active change folder (e.g., `proposal.md`, `spec.md`, `plan.md`)
+- All completed artifacts in the active change folder (e.g., `brief.md`, `spec.md`)
 
 **Centralized doc lookup** (loaded by skills operating on an active change):
-- Read the proposal's "Affected Docs" section to identify relevant domains
+- Read the brief's "Affected Docs" section to identify relevant domains
 - Read domain indexes (`fab/docs/{domain}/index.md`) for each relevant domain
 - Read the specific centralized doc(s) referenced by the Affected Docs entries
 - If a referenced doc doesn't exist yet (listed under New Docs), note this and proceed — it will be created by `/fab-archive`
-- This grounds all artifact generation (specs, plans, tasks, reviews) in the real current state, not assumptions
+- This grounds all artifact generation (spec, tasks, reviews) in the real current state, not assumptions
 
 **Source code** (loaded during implementation and review):
-- Read relevant source files referenced in the plan's "File Changes" section or the task descriptions
+- Read relevant source files referenced in the task descriptions
 - Scope to files actually touched by the change — don't load the entire codebase
 
 Each skill section below lists its specific context requirements under a **Context** field.
@@ -57,9 +57,8 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 |-------|---------------|-----------|
 | `/fab-init` | initialized | `Next: /fab-new <description> or /fab-hydrate <sources>` |
 | `/fab-hydrate` | docs hydrated | `Next: /fab-new <description> or /fab-hydrate <more-sources>` |
-| `/fab-new` | proposal done | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
-| `/fab-continue` → specs | specs done | `Next: /fab-continue (plan) or /fab-ff (fast-forward) or /fab-clarify (refine spec)` |
-| `/fab-continue` → plan | plan done | `Next: /fab-continue (tasks) or /fab-clarify (refine plan)` |
+| `/fab-new` | brief done | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
+| `/fab-continue` → spec | spec done | `Next: /fab-continue (tasks) or /fab-ff (fast-forward) or /fab-clarify (refine spec)` |
 | `/fab-continue` → tasks | tasks done | `Next: /fab-apply` |
 | `/fab-ff` | tasks done | `Next: /fab-apply` |
 | `/fab-clarify` | same stage | `Next: /fab-clarify (refine further) or /fab-continue or /fab-ff` |
@@ -178,7 +177,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 **Creates**:
 - Change folder named `{YYMMDD}-{XXXX}-{slug}`
 - `.status.yaml` manifest
-- `proposal.md` from template (with clarifying questions if ambiguous)
+- `brief.md` from template (with clarifying questions if ambiguous)
 
 **Arguments**:
 - `<description>` — natural language description of the change (required)
@@ -205,10 +204,10 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
    - Else if on a feature branch → offer to adopt it (record current branch name as-is)
    - If user declines → skip, no `branch:` field in `.status.yaml`
    - Record chosen branch name in `.status.yaml` as `branch:`
-5. Initialize `.status.yaml` with stage: proposal (and `branch:` if set)
-6. Generate `proposal.md` using template (loading `fab/constitution.md` and `fab/config.yaml` as context)
+5. Initialize `.status.yaml` with stage: brief (and `branch:` if set)
+6. Generate `brief.md` using template (loading `fab/constitution.md` and `fab/config.yaml` as context)
 7. Ask clarifying questions if intent is ambiguous
-8. Mark proposal complete once the user is satisfied
+8. Mark brief complete once the user is satisfied
 
 ---
 
@@ -217,21 +216,20 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 **Purpose**: Create the next artifact in sequence — or, when called with a stage argument, reset to that stage and regenerate from there.
 
 **Arguments**:
-- `<stage>` *(optional)* — target stage to reset to (`specs`, `plan`, or `tasks`). Used after `/fab-review` identifies issues upstream. When provided, resets `.status.yaml` to this stage and regenerates artifacts from that point forward.
+- `<stage>` *(optional)* — target stage to reset to (`spec` or `tasks`). Used after `/fab-review` identifies issues upstream. When provided, resets `.status.yaml` to this stage and regenerates artifacts from that point forward.
 
 **Context** (varies by target stage):
-- **Specs stage**: config, constitution, `proposal.md`, target centralized doc(s) from `fab/docs/`
-- **Plan stage**: above + completed `spec.md`
-- **Tasks stage**: above + `plan.md` (if not skipped)
+- **Spec stage**: config, constitution, `brief.md`, target centralized doc(s) from `fab/docs/`
+- **Tasks stage**: above + completed `spec.md`
 
 **Examples**:
 ```
 /fab-continue
-→ "Stage: proposal (done). Next: Create spec.md."
+→ "Stage: brief (done). Next: Create spec.md."
 
-/fab-continue plan
-→ "Resetting to plan stage. Regenerating plan.md..."
-→ "Plan updated. Run /fab-continue to generate tasks, or /fab-ff to fast-forward."
+/fab-continue spec
+→ "Resetting to spec stage. Regenerating spec.md..."
+→ "Spec updated. Run /fab-continue to generate tasks, or /fab-ff to fast-forward."
 ```
 
 **Behavior** (no argument — normal forward flow):
@@ -239,26 +237,25 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 2. Identify next artifact to create
 3. Load relevant template + context (including `fab/constitution.md` for project principles)
 4. Generate artifact (with clarification/research as needed)
-5. **Plan decision** (when transitioning from specs to plan): evaluate whether a plan is warranted. If the change is small and the approach is obvious, propose skipping to the user: *"This change is straightforward — skip plan and go directly to tasks?"* If the user agrees, record `plan: skipped` in `.status.yaml` and proceed to tasks. If the user wants a plan, generate it normally.
-6. Auto-generate checklist when creating tasks
+5. Auto-generate checklist when creating tasks
 7. Update `.status.yaml`
 
 **Behavior** (with stage argument — reset and regenerate):
-1. **Guard**: target stage must be `specs`, `plan`, or `tasks`. Cannot reset to `proposal` (use `/fab-new`) or `apply`/`review`/`archive`.
+1. **Guard**: target stage must be `spec` or `tasks`. Cannot reset to `brief` (use `/fab-new`) or `apply`/`review`/`archive`.
 2. Reset `.status.yaml` stage to the target. Mark all stages from target onward as `pending`.
 3. Regenerate the target stage's artifact in place (update, not recreate from scratch — preserve what's still valid).
-4. Downstream artifacts are invalidated: tasks are reset to `- [ ]`, checklist is regenerated. Plan is regenerated if the target is `specs`.
+4. Downstream artifacts are invalidated: tasks are reset to `- [ ]`, checklist is regenerated.
 5. Update `.status.yaml` and report what was reset.
 
 ---
 
 ## `/fab-ff` (Fast Forward)
 
-**Purpose**: Fast-forward through remaining planning stages in one pass. Requires an active change with a completed proposal (run `/fab-new` first).
+**Purpose**: Fast-forward through remaining planning stages in one pass. Requires an active change with a completed brief (run `/fab-new` first).
 
-**Context**: config, constitution, `proposal.md`, target centralized doc(s) from `fab/docs/` (all loaded upfront since ff traverses all planning stages)
+**Context**: config, constitution, `brief.md`, target centralized doc(s) from `fab/docs/` (all loaded upfront since ff traverses all planning stages)
 
-**Flow**: specs → plan (if warranted) → tasks (+ checklist)
+**Flow**: spec → tasks (+ checklist)
 
 **When to use**:
 - Small, well-understood changes
@@ -272,15 +269,12 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 ```
 
 **Behavior**:
-1. Read `fab/current` to resolve the active change; verify proposal is complete
-2. **Frontload questions** — scan the proposal for ambiguities across *all* planning stages (specs, plan, tasks). Collect everything that needs user input into a single batch of questions. Ask once, then proceed without further interruption. The goal: one Q&A round, then heads-down generation.
+1. Read `fab/current` to resolve the active change; verify brief is complete
+2. **Frontload questions** — scan the brief for ambiguities across *all* planning stages (spec, tasks). Collect everything that needs user input into a single batch of questions. Ask once, then proceed without further interruption. The goal: one Q&A round, then heads-down generation.
 3. Generate `spec.md` (incorporating answers from step 2)
-4. Evaluate whether a plan is warranted (see "Plan decision" below). If yes, draft plan with inline research. If no, skip directly to tasks
-5. Produce task breakdown (referencing plan if it exists, otherwise referencing spec and proposal directly)
-6. Auto-generate quality checklist
-7. Update status to `tasks: done`
-
-**Plan decision**: The agent skips `plan.md` when the change is small and the implementation approach is obvious — e.g., single-file changes, straightforward CRUD, or well-known patterns. When skipped, `.status.yaml` records `plan: skipped`. Unlike `/fab-continue`, `/fab-ff` does **not** confirm with the user before skipping — it decides autonomously to maintain the fast-forward flow.
+4. Produce task breakdown (referencing spec and brief)
+5. Auto-generate quality checklist
+6. Update status to `tasks: done`
 
 ---
 
@@ -289,33 +283,31 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 **Purpose**: Deepen and refine the current stage artifact without advancing to the next stage.
 
 **Context** (varies by current stage):
-- **Proposal**: config, constitution, `proposal.md`
-- **Specs**: above + target centralized doc(s) from `fab/docs/`
-- **Plan**: above + `spec.md`, `plan.md`
-- **Tasks**: above + `plan.md` (if not skipped), `tasks.md`
+- **Brief**: config, constitution, `brief.md`
+- **Spec**: above + target centralized doc(s) from `fab/docs/`
+- **Tasks**: above + `spec.md`, `tasks.md`
 
 **Example**:
 ```
 /fab-clarify
-→ "Stage: specs (active). Reviewing spec.md for gaps..."
+→ "Stage: spec (active). Reviewing spec.md for gaps..."
 → "Found 2 [NEEDS CLARIFICATION] markers. Resolving..."
 → "Added 3 missing scenarios to spec.md"
 ```
 
 **When to use**:
 - Current artifact has unresolved ambiguities or [NEEDS CLARIFICATION] markers
-- You want deeper technical research before committing to a plan
+- You want deeper technical research before moving to tasks
 - Task breakdown feels incomplete or wrong-grained
-- Proposal scope needs sharpening before moving to specs
+- Brief scope needs sharpening before moving to spec
 
 **Behavior**:
 1. Read `.status.yaml` to determine current stage
-2. **Guard**: stage must be `proposal`, `specs`, `plan`, or `tasks`. If stage is `apply` or later, suggest `/fab-review` instead
+2. **Guard**: stage must be `brief`, `spec`, or `tasks`. If stage is `apply` or later, suggest `/fab-review` instead
 3. Load the current stage's artifact + relevant context
 4. Analyze the artifact for gaps, ambiguities, and opportunities to deepen:
-   - **Proposal**: Unresolved [BLOCKING] questions, vague scope, missing impact analysis
-   - **Specs**: [NEEDS CLARIFICATION] markers, missing scenarios, underspecified requirements
-   - **Plan**: Untested assumptions, missing research, weak decision rationale
+   - **Brief**: Unresolved [BLOCKING] questions, vague scope, missing impact analysis
+   - **Spec**: [NEEDS CLARIFICATION] markers, missing scenarios, underspecified requirements
    - **Tasks**: Missing tasks, wrong granularity, unclear dependencies, missing file paths
 5. Refine the artifact **in place** — edit the existing file, don't regenerate from scratch
 6. Report what was clarified/refined
@@ -329,7 +321,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **Purpose**: Execute tasks from `tasks.md`.
 
-**Context**: config, constitution, `tasks.md`, `spec.md`, `plan.md` (if exists), relevant source code (files referenced in tasks)
+**Context**: config, constitution, `tasks.md`, `spec.md`, relevant source code (files referenced in tasks)
 
 **Example**:
 ```
@@ -351,7 +343,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 ## `/fab-review`
 
-**Purpose**: Validate implementation against specs and checklists.
+**Purpose**: Validate implementation against spec and checklists.
 
 **Context**: config, constitution, `tasks.md`, `checklists/quality.md`, `spec.md`, target centralized doc(s) from `fab/docs/`, relevant source code (files touched by the change)
 
@@ -378,11 +370,8 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 - **Revise tasks** → edit `tasks.md`, then `/fab-apply`
   Missing or wrong tasks. The agent adds/modifies tasks in `tasks.md` (new tasks get the next sequential ID). Completed tasks that are unaffected stay `[x]`. Only new or revised tasks are executed.
 
-- **Revise plan** → `/fab-continue plan`
-  Architecture was wrong. Resets to plan stage, updates `plan.md` in place, and invalidates downstream artifacts — `tasks.md` is reset to `- [ ]` and the checklist is regenerated.
-
-- **Revise specs** → `/fab-continue specs`
-  Requirements were wrong or incomplete. Resets to specs stage, updates `spec.md` in place. Plan (if it exists) and tasks are subsequently regenerated. All downstream artifacts are reset.
+- **Revise spec** → `/fab-continue spec`
+  Requirements were wrong or incomplete. Resets to spec stage, updates `spec.md` in place. Tasks are subsequently regenerated. All downstream artifacts are reset.
 
 The `.status.yaml` stage is reset to the chosen re-entry point. The general rule: **artifacts at and after the re-entry point are regenerated or updated; artifacts before it are preserved.**
 
@@ -392,7 +381,7 @@ The `.status.yaml` stage is reset to the chosen re-entry point. The general rule
 
 **Purpose**: Complete the change and hydrate into centralized docs.
 
-**Context**: `spec.md`, `plan.md` (if exists), target centralized doc(s) from `fab/docs/`, `fab/docs/index.md` and relevant domain indexes
+**Context**: `spec.md`, target centralized doc(s) from `fab/docs/`, `fab/docs/index.md` and relevant domain indexes
 
 **Example**:
 ```
@@ -405,9 +394,8 @@ The `.status.yaml` stage is reset to the chosen re-entry point. The general rule
 1. **Final validation** — review must pass (all tasks `[x]`, all checklist items `[x]` including N/A items)
 2. **Concurrent change check** — scan `fab/changes/` for other active changes whose specs reference the same centralized doc files. If found, warn the user: *"Change {name} also modifies {doc}. After this archive, that change's spec was written against a now-stale base. Re-review with `/fab-review` after switching to it."*
 3. **Hydrate into `fab/docs/`**:
-   The agent reads `spec.md`, `plan.md` (if it exists), and the current centralized doc, then rewrites the centralized doc to incorporate the changes:
+   The agent reads `spec.md` and the current centralized doc, then rewrites the centralized doc to incorporate the changes:
    - **From spec.md** → integrate new/changed requirements and scenarios into the Requirements section. Remove requirements that the spec explicitly deprecates.
-   - **From plan.md** → extract durable design decisions (from the Decisions section) into the Design Decisions section of the centralized doc. Skip tactical details (file paths, setup steps, library install commands).
    The agent compares against the existing doc to determine what's new vs changed vs removed — no explicit delta markers needed. Minimize edits to unchanged sections to prevent drift over successive archives.
 4. **Update status** to `archive: done` in `.status.yaml`
 5. **Move change folder** to `archive/` (no rename — date is already in the folder name)
@@ -446,12 +434,11 @@ The `.status.yaml` stage is reset to the chosen re-entry point. The general rule
 ```
 Change: 260115-a7k2-add-oauth
 Branch: 260115-a7k2-add-oauth
-Stage:  plan (3/7)
+Stage:  spec (2/6)
 
 Progress:
-  ✓ proposal    done
-  ✓ specs       done
-  ◉ plan        active
+  ✓ brief       done
+  ◉ spec        active
   ○ tasks       pending
   ○ apply       pending
   ○ review      pending
@@ -459,16 +446,16 @@ Progress:
 
 Checklist: not yet generated (created at tasks stage)
 
-Next: Complete plan.md, then /fab-continue
+Next: Complete spec.md, then /fab-continue
 ```
 
 ---
 
 ## `/fab-backfill [domain]`
 
-**Purpose**: Identify structural gaps between `fab/docs/` and `fab/specs/` and propose concise additions back to specs with interactive confirmation.
+**Purpose**: Identify structural gaps between `fab/docs/` and `fab/design/` and propose concise additions back to design specs with interactive confirmation.
 
-**Context**: `fab/docs/index.md`, `fab/specs/index.md`, all doc files, all spec files
+**Context**: `fab/docs/index.md`, `fab/design/index.md`, all doc files, all design spec files
 
 **Arguments**:
 - `[domain]` *(optional)* — scope to a single doc domain. Scans all domains if omitted.

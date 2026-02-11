@@ -30,9 +30,8 @@ fab/.kit/
 │   ├── fab-status.md
 │   └── fab-help.md
 ├── templates/              # Artifact templates
-│   ├── proposal.md
+│   ├── brief.md
 │   ├── spec.md
-│   ├── plan.md
 │   ├── tasks.md
 │   └── checklist.md
 └── scripts/                # Shell utilities
@@ -136,7 +135,7 @@ Run `fab/.kit/scripts/fab-update.sh` to update to the latest release. The script
 
 Symlinks in `.claude/skills/`, `.opencode/commands/`, and `.agents/skills/` automatically resolve to the new files after the update.
 
-**Preserved** (lives outside `.kit/`): `config.yaml`, `constitution.md`, `docs/`, `specs/`, `changes/`, `current`
+**Preserved** (lives outside `.kit/`): `config.yaml`, `constitution.md`, `docs/`, `design/`, `changes/`, `current`
 **Replaced** (lives inside `.kit/`): `templates/`, `skills/`, `scripts/`, `VERSION`
 
 ### Portability
@@ -148,7 +147,7 @@ The `.kit/` directory MUST work in any project via `cp -r`. It SHALL have no ass
 A monorepo is one Fab project. Place a single `fab/` at the repository root — do not create per-package `fab/` directories.
 
 **Why one `fab/`**:
-- Changes naturally span packages — one change folder, one spec, one plan
+- Changes naturally span packages — one change folder, one spec
 - Docs are domain-based, not package-based — `fab/docs/auth/` describes auth regardless of which package implements it
 - One developer, one change at a time — `fab/current` points to a single active change
 - Simplicity — multiple `fab/` directories means multiple constitutions, doc trees, and symlink conflicts
@@ -179,6 +178,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated directory listing: brief.md replaces proposal.md, plan.md removed, fab/design/ replaces fab/specs/ |
 | 260210-h7r3-kit-distribution-update | 2026-02-10 | Added `fab-update.sh` and `fab-release.sh` script descriptions, bootstrap one-liner (Option A), atomic update mechanism, version-based update flow |
 | 260210-m3k7-multi-agent-support | 2026-02-10 | Added OpenCode commands and Codex skills symlink creation to `fab-setup.sh`; documented all three agent integration paths |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
