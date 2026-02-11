@@ -15,10 +15,10 @@ All status fields draw from a fixed set of states. This prevents ad-hoc state na
 | `pending` | Not yet started | All stages |
 | `active` | Currently being worked on | All stages |
 | `done` | Completed successfully | All stages |
-| `skipped` | Intentionally bypassed | plan |
+| `skipped` | Intentionally bypassed | *(reserved)* |
 | `failed` | Completed with failures requiring rework | review |
 
-**`stage` field values**: `proposal` | `specs` | `plan` | `tasks` | `apply` | `review` | `archive`
+**`stage` field values**: `brief` | `spec` | `tasks` | `apply` | `review` | `archive`
 
 The `stage` field tracks *where* the change is. The `progress` map tracks *how* each stage went. Both use the same key names.
 
@@ -31,11 +31,10 @@ name: {YYMMDD-XXXX-slug}
 created: {ISO_8601_DATETIME}       # e.g., 2026-01-15T14:30:00Z
 created_by: {GIT_USER_NAME}        # Auto-detected from git config user.name; fallback "unknown"
 branch: {BRANCH_NAME}              # Optional — omitted if user skipped git integration
-stage: proposal                     # Current stage (see stage field values above)
+stage: brief                        # Current stage (see stage field values above)
 progress:
-  proposal: active                  # pending | active | done
-  specs: pending                    # pending | active | done
-  plan: pending                     # pending | active | done | skipped
+  brief: active                     # pending | active | done
+  spec: pending                     # pending | active | done
   tasks: pending                    # pending | active | done
   apply: pending                    # pending | active | done
   review: pending                    # pending | active | done | failed
@@ -52,17 +51,16 @@ last_updated: {ISO_8601_DATETIME}
 - `created_by` is write-once — set at change creation time by `/fab-new` or `/fab-discuss`, never modified afterward. Auto-detected from `git config user.name`; falls back to `"unknown"` if git config is unset. Skills reading this field must tolerate its absence (older changes won't have it).
 - `branch` is optional — present only when the user created or adopted a branch via `/fab-new`. Omit the field entirely (not `branch: null`) when git integration was skipped.
 - `stage` is the single source of truth for where the change is. All skills read this first.
-- `plan: skipped` is set when `/fab-continue` or `/fab-ff` determines a plan isn't needed.
 - `review: failed` is set when `/fab-review` finds issues. The stage remains `review` so `/fab-status` shows the failure.
 - `checklist.completed` / `checklist.total` are updated by `/fab-review` as it checks items.
 - `last_updated` is refreshed on every status change.
 
 ---
 
-## proposal.md
+## brief.md
 
 ```markdown
-# Proposal: {CHANGE_NAME}
+# Brief: {CHANGE_NAME}
 
 **Change**: {YYMMDD-XXXX-slug}
 **Created**: {DATE}
@@ -92,12 +90,12 @@ last_updated: {ISO_8601_DATETIME}
 
 ## Impact
 
-<!-- Affected code areas, APIs, dependencies, systems. Helps scope the plan. -->
+<!-- Affected code areas, APIs, dependencies, systems. Helps scope the spec. -->
 
 ## Open Questions
 
 <!-- Clarifying questions the agent couldn't resolve from context alone.
-     Mark each with priority: [BLOCKING] must resolve before specs, [DEFERRED] can resolve during plan.
+     Mark each with priority: [BLOCKING] must resolve before spec, [DEFERRED] can resolve during spec.
      Maximum 3 [BLOCKING] questions — make informed guesses for the rest. -->
 
 - [BLOCKING] {question}
@@ -206,82 +204,14 @@ The system SHALL support sessions from multiple auth sources. Sessions MAY origi
 
 ---
 
-## plan.md
-
-```markdown
-# Plan: {CHANGE_NAME}
-
-**Change**: {YYMMDD-XXXX-slug}
-**Created**: {DATE}
-**Proposal**: `proposal.md`
-**Spec**: `spec.md`
-
-## Summary
-
-<!-- 1-2 sentences: what this change does + the chosen technical approach. -->
-
-## Goals / Non-Goals
-
-**Goals:**
-<!-- What this implementation aims to achieve. Derived from spec.md. -->
-
-**Non-Goals:**
-<!-- What is explicitly out of scope. Prevents scope creep during apply. -->
-
-## Technical Context
-
-<!-- Fill from project config.yaml context + research. Only include relevant fields. -->
-
-- **Relevant stack**: {subset of tech stack that this change touches}
-- **Key dependencies**: {libraries, services, APIs involved}
-- **Constraints**: {performance, compatibility, security constraints}
-
-## Research
-
-<!-- Findings from technical investigation needed for this change.
-     Skip this section for straightforward changes where the approach is obvious.
-     Include: library evaluations, API docs consulted, architecture patterns considered. -->
-
-## Decisions
-
-<!-- Key design decisions with rationale. Format: "Decision: X. Why: Y. Alternatives rejected: Z."
-     This section is the most valuable part of the plan — it captures WHY, not just WHAT. -->
-
-1. **{Decision}**: {chosen approach}
-   - *Why*: {rationale}
-   - *Rejected*: {alternative and why it was worse}
-
-## Risks / Trade-offs
-
-<!-- Known risks with mitigation strategies. Known trade-offs and why they're acceptable. -->
-
-## File Changes
-
-<!-- Which files will be created, modified, or deleted. Gives a concrete scope for tasks. -->
-
-### New Files
-- `{path}`: {purpose}
-
-### Modified Files
-- `{path}`: {what changes}
-
-### Deleted Files
-- `{path}`: {why}
-```
-
-**Design rationale**: OpenSpec's Goals/Non-Goals + Decisions/Risks structure for architectural clarity. SpecKit's research phase for unknowns. The File Changes section bridges plan to tasks — it makes the scope concrete and reviewable before task generation. Unlike SpecKit's explicit "Constitution Check" gate in the plan template, Fab handles this by loading `fab/constitution.md` as context when generating the plan. The agent is expected to respect constitutional principles implicitly — violations are caught during `/fab-review`, not gated at plan time.
-
----
-
 ## tasks.md
 
 ```markdown
 # Tasks: {CHANGE_NAME}
 
 **Change**: {YYMMDD-XXXX-slug}
-**Plan**: `plan.md` <!-- Omit this line if plan was skipped -->
 **Spec**: `spec.md`
-**Proposal**: `proposal.md` <!-- Include when plan was skipped, for traceability -->
+**Brief**: `brief.md`
 
 <!--
   TASK FORMAT: - [ ] {ID} [{markers}] {Description with file paths}
@@ -405,13 +335,13 @@ For larger changes that span multiple user stories, the agent should adapt by sp
 - If an item is not applicable, mark checked and prefix with **N/A**: `- [x] CHK-008 **N/A**: {reason}`
 ```
 
-**Design rationale**: Unlike SpecKit's checklist (which tests requirement *quality* — "are the specs well-written?"), Fab's checklist tests *implementation fidelity* — "does the code match the spec?" This is because Fab has explicit spec review during the specs stage, making a separate requirement-quality checklist redundant. The categories cover completeness, correctness, cleanup, and cross-cutting concerns.
+**Design rationale**: Unlike SpecKit's checklist (which tests requirement *quality* — "are the specs well-written?"), Fab's checklist tests *implementation fidelity* — "does the code match the spec?" This is because Fab has explicit spec review during the spec stage, making a separate requirement-quality checklist redundant. The categories cover completeness, correctness, cleanup, and cross-cutting concerns.
 
 ### Checklist Generation
 
 When `/fab-continue` or `/fab-ff` creates `tasks.md`, it also generates `checklists/quality.md`. Generation is contextual — items are derived from:
 - `spec.md` (requirements for this change)
-- The plan (technical decisions)
+- The spec (requirements and technical decisions)
 - Project constitution (quality standards)
 
 ### Example: Filled Quality Checklist
@@ -461,7 +391,7 @@ When `/fab-continue` or `/fab-ff` creates `tasks.md`, it also generates `checkli
 
 ## Centralized Doc Format (`fab/docs/`)
 
-Centralized docs are the **source of truth** for what the system does and why it works the way it does. They combine requirements (from `spec.md`) and durable design decisions (from `plan.md`), organized hierarchically with index files for navigation.
+Centralized docs are the **source of truth** for what the system does and why it works the way it does. They contain requirements (from `spec.md`), organized hierarchically with index files for navigation.
 
 ### Directory Structure
 
@@ -537,8 +467,7 @@ fab/docs/
 
 ## Design Decisions
 
-<!-- Durable architectural decisions extracted from plan.md during hydration.
-     Only decisions with lasting relevance — skip tactical implementation details. -->
+<!-- Durable architectural decisions. Only decisions with lasting relevance — skip tactical implementation details. -->
 
 ### {Decision Title}
 **Decision**: {chosen approach}
@@ -555,7 +484,7 @@ fab/docs/
 | {change-name} | {DATE} | {one-line summary of what changed} |
 ```
 
-**Design rationale**: The index-based hierarchy solves discoverability — agents and humans can navigate from top-level down to any requirement without scanning folders. The Design Decisions section captures durable "why" context from plans, so developers don't need to dig through archived changes to understand architectural choices. The Changelog table provides traceability back to the change that introduced each modification. Domain indexes include "Last Updated" so stale docs are visible at a glance.
+**Design rationale**: The index-based hierarchy solves discoverability — agents and humans can navigate from top-level down to any requirement without scanning folders. The Design Decisions section captures durable "why" context, so developers don't need to dig through archived changes to understand architectural choices. The Changelog table provides traceability back to the change that introduced each modification. Domain indexes include "Last Updated" so stale docs are visible at a glance.
 
 ### Initial Docs (created by `/fab-init`)
 
@@ -581,10 +510,9 @@ fab/docs/
 
 ### Hydration Rules
 
-When `/fab-archive` hydrates `spec.md` and `plan.md` into centralized docs:
+When `/fab-archive` hydrates `spec.md` into centralized docs:
 
 1. **New doc file**: If the spec references a doc that doesn't exist yet, create it from the individual doc template and add it to the domain index. If the domain doesn't exist, create the domain folder and add it to the top-level index.
 2. **Existing doc file**: Compare `spec.md` requirements against the current doc to determine what's new, changed, or removed. Update the Requirements section semantically. Minimize edits to unchanged sections.
-3. **Design decisions**: Extract durable decisions from `plan.md`'s Decisions section. Skip tactical details (file paths, library install steps, setup commands). Add to the Design Decisions section with the change name for traceability.
-4. **Index updates**: Update domain index "Last Updated" column. Add new entries if new docs were created.
-5. **Changelog row**: Append a row to the doc's Changelog table with the change name, date, and one-line summary.
+3. **Index updates**: Update domain index "Last Updated" column. Add new entries if new docs were created.
+4. **Changelog row**: Append a row to the doc's Changelog table with the change name, date, and one-line summary.

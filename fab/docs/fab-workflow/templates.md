@@ -4,23 +4,25 @@
 
 ## Overview
 
-Fab ships artifact templates in `fab/.kit/templates/` that skills fill with concrete content during planning stages. Each template is a markdown scaffold with guidance comments (`<!-- -->`) that instruct the agent — comments are not preserved in output. This doc covers the five artifact templates (proposal, spec, plan, tasks, checklist) and the centralized doc format used in `fab/docs/`.
+Fab ships artifact templates in `fab/.kit/templates/` that skills fill with concrete content during planning stages. Each template is a markdown scaffold with guidance comments (`<!-- -->`) that instruct the agent — comments are not preserved in output. This doc covers the four artifact templates (brief, spec, tasks, checklist) and the centralized doc format used in `fab/docs/`.
 
 ## Requirements
 
-### `proposal.md`
+### `brief.md`
 
-The proposal captures intent, scope, approach, and open questions. Structure:
+The brief captures intent, scope, approach, and open questions. Structure:
 
 - **Why** — Motivation, 1-3 sentences
 - **What Changes** — Specific capabilities added, modified, or removed
 - **Affected Docs** — Which centralized docs will be created, modified, or removed (kebab-case identifiers matching `fab/docs/` paths)
 - **Impact** — Affected code areas, APIs, dependencies
-- **Open Questions** — Marked with `[BLOCKING]` (must resolve before specs, max 3) or `[DEFERRED]` (can resolve during plan)
+- **Open Questions** — Marked with `[BLOCKING]` (must resolve before spec, max 3) or `[DEFERRED]` (can resolve during spec)
 
 The max 3 `[BLOCKING]` questions constraint forces the agent to make informed guesses rather than deferring everything to the user.
 
 ### `spec.md` (Change Specification)
+
+> **Note**: The spec MAY include an optional `## Design Decisions` section for capturing key design decisions with rationale and rejected alternatives. When present, these decisions are extracted into centralized docs during archive hydration.
 
 The spec describes requirements relevant to this change using RFC 2119 keywords (MUST/SHALL/SHOULD/MAY). Structure:
 
@@ -33,20 +35,6 @@ The spec describes requirements relevant to this change using RFC 2119 keywords 
 The spec reads as a straightforward requirements document with no delta markers. The agent infers what's new vs changed by comparing against existing centralized docs during archive hydration.
 
 Unresolved ambiguities SHALL be marked inline with `[NEEDS CLARIFICATION]`. `/fab-clarify` resolves these.
-
-### `plan.md`
-
-The plan describes the technical approach. It is optional — skipped for straightforward changes. Structure:
-
-- **Summary** — 1-2 sentences: what + chosen approach
-- **Goals / Non-Goals** — Derived from spec, prevents scope creep
-- **Technical Context** — Relevant subset of tech stack, dependencies, constraints
-- **Research** — Findings from technical investigation (skip for obvious approaches)
-- **Decisions** — Key design decisions with rationale and rejected alternatives. This is the most valuable section — captures *why*, not just *what*
-- **Risks / Trade-offs** — Known risks with mitigations
-- **File Changes** — New, modified, deleted files. Bridges plan to tasks with concrete scope
-
-Design decisions from the plan's Decisions section are extracted into centralized docs during archive hydration.
 
 ### `tasks.md`
 
@@ -75,7 +63,7 @@ The quality checklist validates that implementation matches the spec. Auto-gener
 
 Items use `CHK-{NNN}` IDs. All items MUST pass before `/fab-archive`. Items not applicable are marked `- [x] CHK-NNN **N/A**: {reason}`. Project-specific categories from `config.yaml`'s `checklist.extra_categories` are added to the defaults.
 
-Generation is contextual — items derived from `spec.md` (requirements), the plan (technical decisions), and the project constitution (quality standards).
+Generation is contextual — items derived from `spec.md` (requirements, design decisions), and the project constitution (quality standards).
 
 ### Centralized Doc Format (`fab/docs/`)
 
@@ -83,7 +71,7 @@ Centralized docs are the source of truth for system behavior and design decision
 
 - **Overview** — 1-2 sentences describing what the doc covers
 - **Requirements** — Using RFC 2119 keywords, with GIVEN/WHEN/THEN scenarios
-- **Design Decisions** — Durable architectural decisions extracted from plans during hydration. Each includes decision, rationale, rejected alternatives, and the introducing change name
+- **Design Decisions** — Durable architectural decisions extracted from specs during hydration. Each includes decision, rationale, rejected alternatives, and the introducing change name
 - **Changelog** — Auto-maintained by `/fab-archive`, most recent first
 
 #### Index Hierarchy
@@ -97,7 +85,7 @@ Centralized docs are the source of truth for system behavior and design decision
 When `/fab-archive` hydrates into centralized docs:
 1. **New doc**: Create from template, add to domain index. If domain is new, create domain folder and add to top-level index
 2. **Existing doc**: Compare spec requirements against current doc. Update Requirements section semantically. Minimize edits to unchanged sections
-3. **Design decisions**: Extract durable decisions from plan. Skip tactical details. Add with change name for traceability
+3. **Design decisions**: Extract durable decisions from spec. Skip tactical details. Add with change name for traceability
 4. **Index updates**: Update "Last Updated" column. Add entries for new docs
 5. **Changelog row**: Append to doc's Changelog with change name, date, summary
 
@@ -117,7 +105,7 @@ When `/fab-archive` hydrates into centralized docs:
 
 ### Checklist Validates Implementation, Not Spec Quality
 **Decision**: Quality checklist tests "does the code match the spec?" not "is the spec well-written?"
-**Why**: Spec quality is addressed during the specs stage via `/fab-clarify`. The checklist focuses on what matters at review time.
+**Why**: Spec quality is addressed during the spec stage via `/fab-clarify`. The checklist focuses on what matters at review time.
 **Rejected**: SpecKit-style requirement-quality checklist — duplicates planning-stage work.
 *Source*: doc/fab-spec/TEMPLATES.md
 
@@ -125,6 +113,7 @@ When `/fab-archive` hydrates into centralized docs:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260211-r3k8-simplify-planning-stages | 2026-02-11 | Renamed proposal.md → brief.md, removed plan.md template section |
 | 260211-endg-add-created-by-field | 2026-02-11 | Added `created_by` field to `.status.yaml` template — auto-detected from `git config user.name`, write-once, with `"unknown"` fallback |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | — | 2026-02-07 | Generated from doc/fab-spec/ (TEMPLATES.md, SKILLS.md) |

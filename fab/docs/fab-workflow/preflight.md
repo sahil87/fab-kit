@@ -16,7 +16,7 @@ The preflight script (`fab/.kit/scripts/fab-preflight.sh`) validates the active 
 - `change_dir` — path to `fab/changes/{name}/`, relative to `fab/`
 - `stage` — current stage (from `.status.yaml`)
 - `branch` — branch name (from `.status.yaml`, empty string if unset)
-- `progress` — full progress map (all 7 stages with their status)
+- `progress` — full progress map (all 6 stages with their status)
 - `checklist.generated` — boolean
 - `checklist.completed` — integer
 - `checklist.total` — integer
@@ -60,4 +60,5 @@ Skills exempt from preflight: `init`, `switch`, `status`, `hydrate`, `help`, `ne
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated progress map to 6 stages |
 | 260207-5mjv-preflight-grep-scripts | 2026-02-07 | Created preflight doc — script purpose, output format, validation order, skill integration |

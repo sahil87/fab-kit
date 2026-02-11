@@ -13,7 +13,7 @@ description: "Full pipeline — confidence gate, then fab-ff → fab-apply → f
 
 Run the entire Fab pipeline from planning through archive in a single invocation. A thin wrapper that chains `/fab-ff` → `/fab-apply` → `/fab-review` → `/fab-archive`, gated on confidence score >= 3.0. Each stage uses the same behavior as its standalone invocation.
 
-Use this when confidence is high and you want to go from proposal to archived change without manual intervention.
+Use this when confidence is high and you want to go from brief to archived change without manual intervention.
 
 ---
 
@@ -27,11 +27,11 @@ Before doing anything else, run the preflight script:
 
 Then verify preconditions:
 
-4. Verify that `progress.proposal` is `done`
+4. Verify that `progress.brief` is `done`
 
-**If `progress.proposal` is not `done`, STOP.** Output:
+**If `progress.brief` is not `done`, STOP.** Output:
 
-> `Proposal is not complete. Finish the proposal first with /fab-new or /fab-continue, then run /fab-fff.`
+> `Brief is not complete. Finish the brief first with /fab-new or /fab-continue, then run /fab-fff.`
 
 ### Confidence Gate
 
@@ -53,9 +53,9 @@ Same as `/fab-ff` — load all context upfront:
 
 1. `fab/config.yaml` — project config, tech stack
 2. `fab/constitution.md` — project principles and constraints
-3. `fab/changes/{name}/proposal.md` — the completed proposal
+3. `fab/changes/{name}/brief.md` — the completed brief
 4. `fab/docs/index.md` — documentation landscape
-5. Specific centralized docs referenced by the proposal's **Affected Docs** section
+5. Specific centralized docs referenced by the brief's **Affected Docs** section
 
 ---
 
@@ -73,9 +73,9 @@ This makes `/fab-fff` resumable after interruption or failure — re-running pic
 
 ### Step 1: Planning (fab-ff)
 
-*(Skip if all planning stages — specs, plan, tasks — are `done` or `skipped`.)*
+*(Skip if all planning stages — spec, tasks — are `done` or `skipped`.)*
 
-Execute `/fab-ff` behavior (default mode — frontload questions, interleaved auto-clarify, bail on blockers). This generates specs, optionally a plan, and tasks with quality checklist.
+Execute `/fab-ff` behavior (default mode — frontload questions, interleaved auto-clarify, bail on blockers). This generates spec and tasks with quality checklist.
 
 **If fab-ff bails on blocking issues**, the `/fab-fff` pipeline stops. Output:
 
@@ -201,7 +201,7 @@ Next: /fab-new <description> (start next change)
 | Condition | Action |
 |-----------|--------|
 | Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
-| `progress.proposal` is not `done` | Abort with: "Proposal is not complete." |
+| `progress.brief` is not `done` | Abort with: "Brief is not complete." |
 | `confidence.score < 3.0` | Abort with: "Confidence is {score} (need >= 3.0)." |
 | `confidence` block missing | Treat as score 0, abort with confidence message |
 | fab-ff bails on blocking issues | Stop pipeline, report blocking issues |

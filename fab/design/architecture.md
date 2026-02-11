@@ -12,9 +12,8 @@ project/
 │   ├── .kit/                       # Engine — replaceable upstream, rarely touched
 │   │   ├── VERSION                 # Engine version (semver, e.g. "0.1.0")
 │   │   ├── templates/
-│   │   │   ├── proposal.md
+│   │   │   ├── brief.md
 │   │   │   ├── spec.md
-│   │   │   ├── plan.md
 │   │   │   ├── tasks.md
 │   │   │   └── checklist.md
 │   │   ├── skills/                 # Skill definitions (markdown prompts)
@@ -49,9 +48,8 @@ project/
 │   └── changes/
 │       ├── 260115-a7k2-add-oauth/  # Active change
 │       │   ├── .status.yaml        # Stage tracking
-│       │   ├── proposal.md
+│       │   ├── brief.md
 │       │   ├── spec.md              # What's changing (requirements)
-│       │   ├── plan.md
 │       │   ├── tasks.md
 │       │   └── checklists/
 │       │       └── quality.md      # Auto-generated
@@ -100,7 +98,7 @@ project/
 **Resolution pattern** (used by all skills):
 ```
 active=$(cat fab/current)
-# then access: fab/changes/$active/.status.yaml, fab/changes/$active/proposal.md, etc.
+# then access: fab/changes/$active/.status.yaml, fab/changes/$active/brief.md, etc.
 ```
 
 **Switching between changes**: If multiple change folders exist and you want to switch context:
@@ -143,17 +141,16 @@ There is no `/fab-abandon` skill — this is a manual operation. If you want to 
 
 Every change folder contains a `.status.yaml` manifest:
 
-**Example — plan stage** (checklist not yet generated):
+**Example — spec stage** (checklist not yet generated):
 
 ```yaml
 name: 260115-a7k2-add-oauth
 created: 2026-01-15T14:30:00Z
 branch: 260115-a7k2-add-oauth  # Optional — omitted if user skipped git integration
-stage: plan                     # Current stage
+stage: spec                     # Current stage
 progress:
-  proposal: done
-  specs: done
-  plan: active
+  brief: done
+  spec: active
   tasks: pending
   apply: pending
   review: pending
@@ -174,9 +171,8 @@ created: 2026-01-15T14:30:00Z
 branch: 260115-a7k2-add-oauth
 stage: review
 progress:
-  proposal: done
-  specs: done
-  plan: done
+  brief: done
+  spec: done
   tasks: done
   apply: done
   review: active
@@ -213,20 +209,16 @@ git:
   branch_prefix: ""                    # Optional prefix, e.g., "feat/" → "feat/260115-a7k2-add-oauth"
 
 stages:
-  - id: proposal
-    generates: proposal.md
+  - id: brief
+    generates: brief.md
     required: true
-  - id: specs
+  - id: spec
     generates: spec.md
-    requires: [proposal]
+    requires: [brief]
     required: true
-  - id: plan
-    generates: plan.md
-    requires: [specs]
-    required: false              # Optional for small changes
   - id: tasks
     generates: tasks.md
-    requires: [specs]
+    requires: [spec]
     required: true
     auto_checklist: true         # Generate checklist automatically
   - id: apply
@@ -246,12 +238,10 @@ checklist:
     - ux
 
 rules:
-  plan:
-    - Include data flow diagrams for API changes
-    - Document breaking changes explicitly
-  specs:
+  spec:
     - Use GIVEN/WHEN/THEN for scenarios
     - Mark ambiguities with [NEEDS CLARIFICATION]
+    - Document breaking changes explicitly
 ```
 
 ---
@@ -288,7 +278,7 @@ The constitution is the **architectural DNA** of a Fab project. It defines immut
 
 **How skills use it**:
 - `/fab-init` generates it from project context (README, existing docs, conversation with user)
-- `/fab-continue` and `/fab-ff` load it as context when generating **plan**, **tasks**, and **checklist** artifacts
+- `/fab-continue` and `/fab-ff` load it as context when generating **spec**, **tasks**, and **checklist** artifacts
 - `/fab-review` checks implementation against constitutional principles (not just the spec)
 - Constitution violations found during review are flagged as high-severity issues
 
@@ -307,7 +297,7 @@ Fab works without git. Change folders are the unit of identity, not branches —
 
 ### Why Decoupled
 
-A change folder captures *what* is being built (proposal, spec, plan, tasks). Where that work happens in git is a separate concern:
+A change folder captures *what* is being built (brief, spec, tasks). Where that work happens in git is a separate concern:
 - A developer might work on the same change across multiple worktrees
 - A change might span multiple branches (feature branch + hotfix backport)
 - A change might start on one branch and move to another after a rebase
@@ -342,7 +332,7 @@ fab/current          # Local working state — each developer has their own acti
 
 **What to commit** (shared with team):
 - `fab/config.yaml`, `fab/constitution.md`, `fab/docs/`, `fab/.kit/` — project configuration and docs
-- `fab/changes/` — change artifacts (proposals, specs, plans, tasks)
+- `fab/changes/` — change artifacts (briefs, specs, tasks)
 
 **What to ignore** (local state):
 - `fab/current` — active change pointer (per-developer)
@@ -466,7 +456,7 @@ A monorepo is one Fab project. Place a single `fab/` at the repository root — 
 
 ### Why One `fab/`
 
-- **Changes naturally span packages.** "Add user avatars" touches the API, the frontend, and shared types. One change folder, one spec, one plan — that's exactly how Fab works.
+- **Changes naturally span packages.** "Add user avatars" touches the API, the frontend, and shared types. One change folder, one spec — that's exactly how Fab works.
 - **Docs are domain-based, not package-based.** `fab/docs/auth/` describes authentication regardless of which package implements it. This is already the right abstraction for cross-cutting concerns.
 - **One developer, one change at a time.** `fab/current` points to a single active change. In practice, AI-assisted development is sequential — you finish one change before starting the next.
 - **Simplicity.** Multiple `fab/` directories means multiple constitutions, multiple doc trees, symlink conflicts in `.claude/skills/`, and no natural home for cross-package changes.

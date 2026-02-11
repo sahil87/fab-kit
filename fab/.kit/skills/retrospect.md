@@ -11,7 +11,7 @@ Did any `/fab-*` or other skill produce output that needed significant correctio
 - Concrete suggestion: what should change in the skill prompt to prevent this
 
 ## 3. Context & Documentation Gaps
-Did the agent make wrong assumptions because information was missing from `fab/docs/`, `fab/specs/`, `_context.md`, `CLAUDE.md`, or `constitution.md`?
+Did the agent make wrong assumptions because information was missing from `fab/docs/`, `fab/design/`, `_context.md`, `CLAUDE.md`, or `constitution.md`?
 - What was assumed vs. what was actually true
 - Where should this knowledge live so future sessions don't re-learn it
 

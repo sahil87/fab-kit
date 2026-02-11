@@ -1,6 +1,6 @@
 ---
 name: fab-new
-description: "Start a new change from a natural language description. Creates the change folder, sets it active, and generates the proposal."
+description: "Start a new change from a natural language description. Creates the change folder, sets it active, and generates the brief."
 ---
 
 # /fab-new <description>
@@ -11,7 +11,7 @@ description: "Start a new change from a natural language description. Creates th
 
 ## Purpose
 
-Start a new change from a natural language description. Creates the change folder, initializes the status manifest, generates the proposal artifact, and calls `/fab-switch` internally to activate the change (including branch integration).
+Start a new change from a natural language description. Creates the change folder, initializes the status manifest, generates the brief artifact, and calls `/fab-switch` internally to activate the change (including branch integration).
 
 ---
 
@@ -75,11 +75,10 @@ Create `fab/changes/{name}/.status.yaml` with this content:
 name: {name}
 created: {ISO 8601 timestamp}
 created_by: {git config user.name, or "unknown" if unset}
-stage: proposal
+stage: brief
 progress:
-  proposal: active
-  specs: pending
-  plan: pending
+  brief: active
+  spec: pending
   tasks: pending
   apply: pending
   review: pending
@@ -100,21 +99,21 @@ last_updated: {ISO 8601 timestamp}
 
 **Key points**:
 - `created_by` is populated from `git config user.name`. If the command returns empty or exits non-zero, use `"unknown"` as the fallback. This field is write-once — set here and never modified by subsequent skills.
-- `stage` is set to `proposal`
-- `proposal` progress is `active` — all other stages are `pending`
-- `confidence` block is initialized with defaults — Step 7 overwrites with actual counts after proposal generation
+- `stage` is set to `brief`
+- `brief` progress is `active` — all other stages are `pending`
+- `confidence` block is initialized with defaults — Step 7 overwrites with actual counts after brief generation
 - Both `created` and `last_updated` use the same timestamp (current time in ISO 8601 format with timezone)
 
-### Step 4: Generate `proposal.md`
+### Step 4: Generate `brief.md`
 
 Load context before generating:
 - Read `fab/config.yaml` — project name, tech stack, conventions
 - Read `fab/constitution.md` — project principles and constraints
 - Read `fab/docs/index.md` — understand the existing documentation landscape
 
-Generate `fab/changes/{name}/proposal.md` using the template at `fab/.kit/templates/proposal.md`:
+Generate `fab/changes/{name}/brief.md` using the template at `fab/.kit/templates/brief.md`:
 
-1. Read the template from `fab/.kit/templates/proposal.md`
+1. Read the template from `fab/.kit/templates/brief.md`
 2. Fill in the metadata fields:
    - `{CHANGE_NAME}`: The human-readable description provided by the user
    - `{YYMMDD-XXXX-slug}`: The generated change folder name
@@ -128,7 +127,7 @@ Generate `fab/changes/{name}/proposal.md` using the template at `fab/.kit/templa
 
 ### Step 5: SRAD-Based Question Selection
 
-Apply the SRAD framework (defined in `_context.md`) to all decision points encountered during proposal generation:
+Apply the SRAD framework (defined in `_context.md`) to all decision points encountered during brief generation:
 
 1. **Evaluate each decision point** against the four SRAD dimensions (Signal Strength, Reversibility, Agent Competence, Disambiguation Type)
 2. **Assign a confidence grade** (Certain, Confident, Tentative, or Unresolved)
@@ -143,13 +142,13 @@ Apply the SRAD framework (defined in `_context.md`) to all decision points encou
 - Testing strategy (that belongs in tasks)
 - Anything deterministically answered by config, constitution, or template rules (grade: Certain)
 
-If SRAD evaluation finds no Unresolved decisions, skip questions entirely — generate the proposal without asking.
+If SRAD evaluation finds no Unresolved decisions, skip questions entirely — generate the brief without asking.
 
 ### Step 6: Compute Confidence Score
 
-After generating the proposal, compute the initial confidence score:
+After generating the brief, compute the initial confidence score:
 
-1. Count SRAD grades across the proposal:
+1. Count SRAD grades across the brief:
    - **Certain**: decisions deterministically answered by config/constitution/template rules
    - **Confident**: decisions with strong signal and one obvious interpretation
    - **Tentative**: decisions marked with `<!-- assumed: ... -->` in the artifact
@@ -157,15 +156,15 @@ After generating the proposal, compute the initial confidence score:
 2. Apply the confidence formula (see `_context.md` Confidence Scoring section)
 3. Write the `confidence` block to `.status.yaml`
 
-### Step 7: Mark Proposal Complete
+### Step 7: Mark Brief Complete
 
-Once the user is satisfied with the proposal (questions answered, scope agreed):
+Once the user is satisfied with the brief (questions answered, scope agreed):
 
 1. Update `.status.yaml`:
-   - Change `progress.proposal` from `active` to `done`
+   - Change `progress.brief` from `active` to `done`
    - Write the computed `confidence` block (from Step 6)
    - Update `last_updated` to current timestamp
-2. The proposal status field in the proposal.md itself can remain as-is (the `.status.yaml` is the source of truth)
+2. The brief status field in the brief.md itself can remain as-is (the `.status.yaml` is the source of truth)
 
 ### Step 8: Activate Change via `/fab-switch`
 
@@ -185,11 +184,11 @@ Invoke the `/fab-switch` flow internally to activate the change:
 Created fab/changes/260206-x7k2-add-oauth/
 Branch: 260206-x7k2-add-oauth (created)
 
-## Proposal: Add OAuth2 Support
+## Brief: Add OAuth2 Support
 
-{filled proposal content}
+{filled brief content}
 
-Proposal complete.
+Brief complete.
 
 ## Assumptions
 
@@ -209,19 +208,19 @@ Next: /fab-continue or /fab-ff (fast-forward all planning)
 Created fab/changes/260206-x7k2-add-oauth/
 Branch: 260206-x7k2-add-oauth (created)
 
-## Proposal: Add OAuth2 Support (Draft)
+## Brief: Add OAuth2 Support (Draft)
 
-{partially filled proposal content}
+{partially filled brief content}
 
-Before finalizing the proposal, I need to resolve 2 unresolved decisions (SRAD: low R + low A):
+Before finalizing the brief, I need to resolve 2 unresolved decisions (SRAD: low R + low A):
 1. Which OAuth providers should be supported — Google only, or also GitHub/Apple?
 2. Should this replace the existing password auth or supplement it?
 
 {user answers}
 
-{updated proposal content}
+{updated brief content}
 
-Proposal complete.
+Brief complete.
 
 ## Assumptions
 
@@ -239,11 +238,11 @@ Next: /fab-continue or /fab-ff (fast-forward all planning)
 ```
 Created fab/changes/260206-x7k2-add-oauth/
 
-## Proposal: Add OAuth2 Support
+## Brief: Add OAuth2 Support
 
-{filled proposal content}
+{filled brief content}
 
-Proposal complete.
+Brief complete.
 
 Next: /fab-continue or /fab-ff (fast-forward all planning)
 ```
@@ -257,7 +256,7 @@ Next: /fab-continue or /fab-ff (fast-forward all planning)
 | `fab/config.yaml` missing | Abort with: "fab/ is not initialized. Run /fab-init first to bootstrap the project." |
 | `fab/constitution.md` missing | Abort with same message as above |
 | No description provided | Ask: "What change do you want to make?" |
-| `fab/.kit/templates/proposal.md` missing | Abort with: "Proposal template not found at fab/.kit/templates/proposal.md — kit may be corrupted." |
+| `fab/.kit/templates/brief.md` missing | Abort with: "Brief template not found at fab/.kit/templates/brief.md — kit may be corrupted." |
 | `fab/changes/{name}/` already exists | Regenerate the random component (`XXXX`) and retry |
 
 ---

@@ -10,22 +10,19 @@ The stages every developer already follows — define what to build, design it, 
 
 ```mermaid
 flowchart TD
-    P[proposal] -->|"define requirements"| S[specs]
-    S -->|"design solution"| PL[plan]
-    S -->|"simple enough, just do it"| T[tasks]
-    PL -->|"break down work"| T[tasks]
+    B[brief] -->|"define requirements"| S[spec]
+    S -->|"break down work"| T[tasks]
     T -->|"write code"| A[apply]
     A -->|"validate"| R[review]
     R -->|"document & close"| AR[archive]
 
     %% Rework
     R -.->|"fix issues"| A
-    R -.->|"rethink approach"| REWORK["specs / plan / tasks"]
+    R -.->|"rethink approach"| REWORK["spec / tasks"]
 
     %% Styles
-    style P fill:#e8f4f8,stroke:#2196F3
+    style B fill:#e8f4f8,stroke:#2196F3
     style S fill:#e8f4f8,stroke:#2196F3
-    style PL fill:#e8f4f8,stroke:#2196F3
     style T fill:#e8f4f8,stroke:#2196F3
     style A fill:#fff3e0,stroke:#FF9800
     style R fill:#fff3e0,stroke:#FF9800
@@ -40,26 +37,23 @@ Each transition is now a `/fab-*` command. Shortcuts (`/fab-ff`, `/fab-fff`) let
 
 ```mermaid
 flowchart TD
-    P[proposal] -->|"/fab-continue"| S[specs]
-    S -->|"/fab-continue"| PL[plan]
-    PL -->|"/fab-continue"| T[tasks]
+    B[brief] -->|"/fab-continue"| S[spec]
+    S -->|"/fab-continue"| T[tasks]
     T -->|"/fab-apply"| A[apply]
     A -->|"/fab-review"| R[review]
     R -->|"/fab-archive"| AR[archive]
 
     %% Shortcuts
-    S -->|"skip plan"| T
-    P -->|"/fab-ff"| T
-    P -->|"/fab-fff"| AR
+    B -->|"/fab-ff"| T
+    B -->|"/fab-fff"| AR
 
     %% Rework from review
     R -.->|"fix code"| A
-    R -.->|"revise"| REWORK["spec / plan / tasks"]
+    R -.->|"revise"| REWORK["spec / tasks"]
 
     %% Styles
-    style P fill:#e8f4f8,stroke:#2196F3
+    style B fill:#e8f4f8,stroke:#2196F3
     style S fill:#e8f4f8,stroke:#2196F3
-    style PL fill:#e8f4f8,stroke:#2196F3
     style T fill:#e8f4f8,stroke:#2196F3
     style A fill:#fff3e0,stroke:#FF9800
     style R fill:#fff3e0,stroke:#FF9800
@@ -86,11 +80,9 @@ flowchart TD
 
         subgraph continue ["fab-continue (one stage at a time)"]
             direction TB
-            CONT_S["/fab-continue → specs"]
-            CONT_P["/fab-continue → plan"]
+            CONT_S["/fab-continue → spec"]
             CONT_T["/fab-continue → tasks"]
-            CONT_S --> CONT_P --> CONT_T
-            CONT_S -->|"skip plan"| CONT_T
+            CONT_S --> CONT_T
         end
 
         FF["/fab-ff"]
@@ -113,7 +105,7 @@ flowchart TD
         SWITCH["/fab-switch"]
         HELP["/fab-help"]
         BACKFILL["/fab-backfill
-        (docs → specs gap detection)"]
+        (docs → design gap detection)"]
     end
 
     %% Setup
@@ -121,12 +113,12 @@ flowchart TD
     INIT -->|"or skip hydrate"| NEW
     HYDRATE --> NEW
 
-    %% Proposal fans out to three planning paths
+    %% Brief fans out to three planning paths
     NEW --> CONT_S
     NEW --> FF
     NEW --> FFF
 
-    %% Discuss creates a proposal, then needs /fab-switch
+    %% Discuss creates a brief, then needs /fab-switch
     DISCUSS -->|"/fab-switch"| CONT_S
     DISCUSS -->|"/fab-switch"| FF
     DISCUSS -->|"/fab-switch"| FFF

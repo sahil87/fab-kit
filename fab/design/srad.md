@@ -145,8 +145,8 @@ When the user runs `/fab-fff`:
 
 | Event | Skill | Action |
 |-------|-------|--------|
-| Initial computation | `/fab-new` | Count SRAD grades across proposal, compute score, write to `.status.yaml` |
-| Initial computation | `/fab-discuss` | Count SRAD grades across proposal, compute score, write to `.status.yaml` |
+| Initial computation | `/fab-new` | Count SRAD grades across brief, compute score, write to `.status.yaml` |
+| Initial computation | `/fab-discuss` | Count SRAD grades across brief, compute score, write to `.status.yaml` |
 | Recomputation | `/fab-continue` | Re-count across all artifacts after generating each one, update `.status.yaml` |
 | Recomputation | `/fab-clarify` | Re-count after each suggest-mode session, update `.status.yaml` |
 | No recomputation | `/fab-ff`, `/fab-fff` | Autonomous skills do not update the score — gate check uses score from last manual step |
@@ -168,7 +168,7 @@ The existence of `/fab-clarify` as an escape valve does **not** justify silently
 
 ## Worked Examples
 
-### Example 1: High-Ambiguity Proposal
+### Example 1: High-Ambiguity Brief
 
 > **Input**: "Add auth."
 
@@ -186,7 +186,7 @@ Two words, no detail on mechanism, scope, or integration.
 
 **Outcome**: `/fab-fff` gate blocks (0.0 < 3.0). The user must answer the Unresolved questions or use `/fab-clarify` to resolve Tentative assumptions before the autonomous pipeline can run.
 
-### Example 2: Low-Ambiguity Proposal
+### Example 2: Low-Ambiguity Brief
 
 > **Input**: "Add a loading spinner to the submit button on the checkout page. Use the existing `Spinner` component from the design system. Show it while the payment API call is in-flight and disable the button to prevent double-submission."
 
@@ -214,6 +214,6 @@ SRAD manifests differently depending on which skill is running. Skills closer to
 |--------|---------------|------------|-----------------|-----------|-----------|
 | **Posture** | Free-form conversation, gap analysis, no question cap | Assume confident+tentative, ask top ~3 unresolved | Surface tentative, ask top ~3 unresolved | Batch all unresolved upfront, then go | Same as `/fab-ff`; gated on confidence >= 3.0 |
 | **Interruption budget** | Unlimited — conversational by design | Max 3 for unresolved questions | 1–2 per stage | 0–1 batch at start | Same as `/fab-ff` (frontloaded) |
-| **Output** | Proposal + confidence score | Assumptions summary + "/fab-clarify to review" | Key Decisions + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary | Same as `/fab-ff` + apply/review/archive output |
+| **Output** | Brief + confidence score | Assumptions summary + "/fab-clarify to review" | Key Decisions + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary | Same as `/fab-ff` + apply/review/archive output |
 | **Escape valve** | User ends early at any time | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` (bails on blockers or review failure) |
 | **Recomputes confidence?** | Yes | Yes | Yes | No | No |

@@ -19,7 +19,7 @@ No system installation required. All workflow logic lives in `fab/.kit/` as mark
 Code serves documentation, not the other way around. The centralized docs (`fab/docs/`) are the source of truth for what the system does and why it works the way it does.
 
 ### 3. Change Folder First
-All work happens in change folders. Each change captures its requirements (`spec.md`) and technical decisions (`plan.md`), which get hydrated into the centralized docs on completion.
+All work happens in change folders. Each change captures its requirements (`spec.md`), which get hydrated into the centralized docs on completion.
 
 ### 4. Stage Visibility
 Always know where you are. Each change folder has a `.status.yaml` manifest that tracks current stage and progress. A `current` pointer file (`fab/current` contains the active change name) provides instant access to whichever change is in flight — no scanning or guessing required. Run `fab/.kit/scripts/fab-status.sh` for a quick terminal check.
@@ -90,22 +90,21 @@ Supported sources: **Notion URLs**, **Linear URLs**, **local files/directories**
 
 ---
 
-## The 7 Stages
+## The 6 Stages
 
 ```mermaid
 flowchart TD
     subgraph planning ["Planning"]
         direction LR
-        P["1 PROPOSAL"] --> S["2 SPECS"] --> PL["3 PLAN (optional)"] --> T["4 TASKS"]
-        S --> T
+        B["1 BRIEF"] --> S["2 SPEC"] --> T["3 TASKS"]
     end
     subgraph execution ["Execution"]
         direction LR
-        A["5 APPLY"] --> V["6 REVIEW"]
+        A["4 APPLY"] --> V["5 REVIEW"]
     end
     subgraph completion ["Completion"]
         direction LR
-        AR["7 ARCHIVE"] --> H[/"Hydrate into docs"/]
+        AR["6 ARCHIVE"] --> H[/"Hydrate into docs"/]
     end
 
     T --> A
@@ -120,17 +119,16 @@ flowchart TD
 
 | # | Stage | Purpose | Artifact | Includes |
 |---|-------|---------|----------|----------|
-| 1 | **Proposal** | Intent, scope, approach | `proposal.md` | Initial clarification questions |
-| 2 | **Specs** | What's changing | `spec.md` | Clarification of ambiguities, [NEEDS CLARIFICATION] markers |
-| 3 | **Plan** *(optional)* | How to implement | `plan.md` | Technical research, architecture decisions, dependency analysis |
-| 4 | **Tasks** | Implementation checklist | `tasks.md` | Auto-generated quality checklist (`checklists/quality.md`) |
-| 5 | **Apply** | Execute tasks | code changes | Run tests per task, progress tracking |
-| 6 | **Review** | Validate against spec | validation report | Checklist completion, spec drift detection |
-| 7 | **Archive** | Complete & hydrate | archive entry | Hydrate spec + plan into centralized docs |
+| 1 | **Brief** | Intent, scope, approach | `brief.md` | Initial clarification questions |
+| 2 | **Spec** | What's changing | `spec.md` | Clarification of ambiguities, [NEEDS CLARIFICATION] markers |
+| 3 | **Tasks** | Implementation checklist | `tasks.md` | Auto-generated quality checklist (`checklists/quality.md`) |
+| 4 | **Apply** | Execute tasks | code changes | Run tests per task, progress tracking |
+| 5 | **Review** | Validate against spec | validation report | Checklist completion, spec drift detection |
+| 6 | **Archive** | Complete & hydrate | archive entry | Hydrate spec into centralized docs |
 
 ### User Flow
 
-The 7 stages are internal. From the user's perspective, the main workflow is 5 skill invocations — planning stages (2–4) after proposal are collapsed into a single step via `/fab-ff` or stepped through with `/fab-continue`. `/fab-clarify` is available at any planning stage to deepen the current artifact before moving on:
+The 6 stages are internal. From the user's perspective, the main workflow is 5 skill invocations — planning stages (2–3) after brief are collapsed into a single step via `/fab-ff` or stepped through with `/fab-continue`. `/fab-clarify` is available at any planning stage to deepen the current artifact before moving on:
 
 ```mermaid
 flowchart TD
@@ -141,12 +139,12 @@ flowchart TD
     ARCHIVE["/fab-archive"]
     THINK ~~~ CLARIFY["/fab-clarify"]
 
-    NEW -->|proposal| THINK
-    THINK -->|spec + plan? + tasks| APPLY
+    NEW -->|brief| THINK
+    THINK -->|spec + tasks| APPLY
     APPLY -->|code changes| REVIEW
     REVIEW -->|passed| ARCHIVE
     REVIEW -->|fix code| APPLY
-    REVIEW -.->|revise spec/plan/tasks| THINK
+    REVIEW -.->|revise spec/tasks| THINK
     THINK <-.-> CLARIFY
 
     style NEW fill:#e8f4f8,stroke:#2196F3
@@ -165,9 +163,9 @@ flowchart TD
 |-------|---------|---------|
 | `/fab-init` | Bootstrap fab/ structure | `config.yaml`, `constitution.md`, `docs/`, skill symlinks (idempotent) |
 | `/fab-hydrate [sources...]` | Ingest external docs into fab/docs/ | Updated `fab/docs/` with indexes |
-| `/fab-new` | Start change (optionally with `--branch`) | `proposal.md`, `.status.yaml`, branch (optional) |
+| `/fab-new` | Start change (optionally with `--branch`) | `brief.md`, `.status.yaml`, branch (optional) |
 | `/fab-continue [<stage>]` | Next artifact (or reset to stage) | Next stage artifact |
-| `/fab-ff` | Fast forward remaining planning | spec.md + plan (if needed) + tasks + checklist |
+| `/fab-ff` | Fast forward remaining planning | spec.md + tasks + checklist |
 | `/fab-clarify` | Deepen current artifact | Refined artifact (in place) |
 | `/fab-apply` | Implement | Code changes |
 | `/fab-review` | Validate | Validation report |
@@ -184,33 +182,28 @@ flowchart TD
 # 1. Start new change
 /fab-new Add dark mode support with system preference detection
 
-# 2. Proposal generated with clarifying questions
+# 2. Brief generated with clarifying questions
 # (answer questions, refine if needed)
 
-# 3. Continue to specs
+# 3. Continue to spec
 /fab-continue
 # → Creates spec.md with requirements for this change
 # → Asks clarifying questions about ambiguities
 
-# 4. Continue to plan
-/fab-continue
-# → Creates plan.md
-# → Does technical research inline
-
-# 5. Continue to tasks
+# 4. Continue to tasks
 /fab-continue
 # → Creates tasks.md with implementation checklist
 # → Auto-generates checklists/quality.md
 
-# 6. Implement
+# 5. Implement
 /fab-apply
 # → Executes tasks, marks completed
 
-# 7. Review
+# 6. Review
 /fab-review
 # → Validates implementation, checks checklist
 
-# 8. Archive
+# 7. Archive
 /fab-archive
 # → Hydrates docs/, moves to archive/
 ```

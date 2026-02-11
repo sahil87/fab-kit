@@ -16,7 +16,7 @@ Read these files first — they define the project's identity, constraints, and 
 - **`fab/config.yaml`** — project configuration, tech stack, naming conventions, stage configuration
 - **`fab/constitution.md`** — project principles and constraints (MUST/SHOULD/MUST NOT rules)
 - **`fab/docs/index.md`** — documentation landscape (which domains and docs exist)
-- **`fab/specs/index.md`** — specifications landscape (pre-implementation design intent, human-curated)
+- **`fab/design/index.md`** — specifications landscape (pre-implementation design intent, human-curated)
 
 > **Note**: If the skill runs `fab-preflight.sh` (Section 2 above), the init check (config.yaml and constitution.md existence) is already covered by the script. Skills using preflight don't need separate existence checks for these files — they only need to read them for content.
 
@@ -27,7 +27,7 @@ Resolve the active change and load its state by running the preflight script:
 1. **Run preflight**: Execute `fab/.kit/scripts/fab-preflight.sh` via Bash
 2. **Check exit code**: If the script exits non-zero, STOP and surface the stderr message to the user (it contains the specific error and suggested fix)
 3. **Parse stdout YAML**: On success, parse the YAML output for `name`, `change_dir`, `stage`, `progress`, `checklist`, and `confidence` fields — use these for all subsequent change context instead of re-reading `.status.yaml`
-4. Load all completed artifacts in the change folder (e.g., `proposal.md`, `spec.md`, `plan.md`, `tasks.md`) — read each file that exists so you have full context of what has been decided so far
+4. Load all completed artifacts in the change folder (e.g., `brief.md`, `spec.md`, `tasks.md`) — read each file that exists so you have full context of what has been decided so far
 
 > **What the script validates internally** (for reference — agents do not need to duplicate these checks):
 > 1. `fab/config.yaml` and `fab/constitution.md` exist (project initialized)
@@ -39,11 +39,11 @@ Resolve the active change and load its state by running the preflight script:
 
 Selectively load relevant domain docs based on the change's scope:
 
-1. Read the proposal's **Affected Docs** section (or spec's **Affected docs** metadata) to identify which domains are relevant
+1. Read the brief's **Affected Docs** section (or spec's **Affected docs** metadata) to identify which domains are relevant
 2. For each referenced domain, read `fab/docs/{domain}/index.md` to understand the domain's docs
 3. Read the specific centralized doc(s) referenced by the Affected Docs entries (the New, Modified, and Removed entries) — read `fab/docs/{domain}/{name}.md` for each listed doc that exists
 4. If a referenced doc or domain does not exist yet (e.g., listed under New Docs), note this and proceed without error — it will be created by `/fab-archive`
-5. Use this context to ground all artifact generation (specs, plans, tasks, reviews) in the real current state, not assumptions
+5. Use this context to ground all artifact generation (spec, plans, tasks, reviews) in the real current state, not assumptions
 
 ### 4. Source Code Loading (during implementation and review)
 
@@ -67,12 +67,11 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 |-------------|---------------|-----------|
 | `/fab-init` | initialized | `Next: /fab-new <description>, /fab-discuss <idea>, or /fab-hydrate <sources>` |
 | `/fab-hydrate` | docs hydrated | `Next: /fab-new <description>, /fab-discuss <idea>, or /fab-hydrate <more-sources>` |
-| `/fab-new` | proposal done | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
-| `/fab-discuss` (new, activated) | proposal done | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
-| `/fab-discuss` (new, not activated) | proposal done | `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-ff` |
-| `/fab-discuss` (refined) | proposal updated | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
-| `/fab-continue` → specs | specs done | `Next: /fab-continue (plan) or /fab-ff (fast-forward) or /fab-clarify (refine spec)` |
-| `/fab-continue` → plan | plan done | `Next: /fab-continue (tasks) or /fab-clarify (refine plan)` |
+| `/fab-new` | brief done | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
+| `/fab-discuss` (new, activated) | brief done | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
+| `/fab-discuss` (new, not activated) | brief done | `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-ff` |
+| `/fab-discuss` (refined) | brief updated | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
+| `/fab-continue` → spec | spec done | `Next: /fab-continue (plan) or /fab-ff (fast-forward) or /fab-clarify (refine spec)` |
 | `/fab-continue` → tasks | tasks done | `Next: /fab-apply` |
 | `/fab-ff` | tasks done | `Next: /fab-apply` |
 | `/fab-clarify` | same stage | `Next: /fab-clarify (refine further) or /fab-continue or /fab-ff` |
@@ -149,7 +148,7 @@ Each decision produces an assumption graded on a 4-level scale:
 |--------|----------------------|-------------------|---------------------------|----------------|-------------------------|
 | **Posture** | Free-form conversation, gap analysis, no question cap | Assume confident+tentative, ask top ~3 unresolved | Surface tentative, ask top ~3 unresolved | Batch all unresolved upfront, then go | Same as fab-ff; gated on confidence >= 3.0 |
 | **Interruption budget** | Unlimited — conversational by design | Max 3 for unresolved questions | 1-2 per stage | 0-1 batch at start | Same as fab-ff (frontloaded) |
-| **Output** | Proposal + confidence score + "/fab-switch to make active" | Assumptions summary + "Run /fab-clarify to review" | Key Decisions block + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary | Same as fab-ff + apply/review/archive output |
+| **Output** | Brief + confidence score + "/fab-switch to make active" | Assumptions summary + "Run /fab-clarify to review" | Key Decisions block + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary | Same as fab-ff + apply/review/archive output |
 | **Escape valve** | User ends early at any time | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` (bails on blockers or review failure) |
 | **Recomputes confidence?** | Yes | Yes | Yes | No | No |
 
@@ -277,7 +276,7 @@ else:
 
 | Event | Skill | Action |
 |-------|-------|--------|
-| Initial computation | `/fab-new` | Count SRAD grades across proposal, compute score, write to `.status.yaml` |
+| Initial computation | `/fab-new` | Count SRAD grades across brief, compute score, write to `.status.yaml` |
 | Recomputation | `/fab-continue` | Re-count across all artifacts after generating each one, update `.status.yaml` |
 | Recomputation | `/fab-clarify` | Re-count after each suggest-mode session, update `.status.yaml` |
 | No recomputation | `/fab-ff`, `/fab-fff` | Autonomous skills do not update the score — gate check uses score from last manual step |

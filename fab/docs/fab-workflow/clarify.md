@@ -23,9 +23,8 @@ There SHALL be no `--suggest` or `--auto` flags on the clarify skill.
 
 The skill SHALL perform a systematic scan of the current artifact for gaps, ambiguities, and `[NEEDS CLARIFICATION]` markers. Scan categories vary by stage:
 
-- **Proposal**: scope boundaries, affected areas, blocking questions, impact completeness, affected docs coverage
-- **Specs**: requirement precision, scenario coverage, edge cases, deprecated requirements, cross-references
-- **Plan**: assumption verification, research completeness, decision rationale, risk identification, file change coverage
+- **Brief**: scope boundaries, affected areas, blocking questions, impact completeness, affected docs coverage
+- **Spec**: requirement precision, scenario coverage, edge cases, deprecated requirements, cross-references
 - **Tasks**: task completeness, granularity, dependency ordering, file path accuracy, parallel markers
 
 The scan also detects:
@@ -85,7 +84,7 @@ The clarify skill SHALL never advance the stage in `.status.yaml`. It only updat
 
 ### Stage Guard
 
-The skill SHALL only operate on planning stages (`proposal`, `specs`, `plan`, `tasks`). If the stage is `apply`, `review`, or `archive`, the skill aborts with a suggestion to use `/fab-review` instead.
+The skill SHALL only operate on planning stages (`brief`, `spec`, `tasks`). If the stage is `apply`, `review`, or `archive`, the skill aborts with a suggestion to use `/fab-review` instead.
 
 ## Design Decisions
 
@@ -114,6 +113,7 @@ The skill SHALL only operate on planning stages (`proposal`, `specs`, `plan`, `t
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated stage names to brief/spec/tasks in guard logic and output examples |
 | 260210-nan4-define-auto-mode-signaling | 2026-02-10 | Updated dual-mode operation to use explicit `[AUTO-MODE]` prefix protocol; updated "Mode Selection" design decision |
 | 260208-k3m7-add-fab-fff | 2026-02-08 | Added confidence recomputation after suggest-mode sessions, removed `<!-- auto-guess -->` scanning references |
 | 260207-09sj-autonomy-framework | 2026-02-08 | Added `<!-- assumed: ... -->` marker scanning to both suggest and auto modes; assumed markers framed as recommendations with alternatives |

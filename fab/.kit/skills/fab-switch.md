@@ -35,7 +35,7 @@ This skill loads **minimal context plus config**:
 2. The contents of `fab/changes/` directory (folder names)
 3. The `.status.yaml` of the matched change (to display status after switching)
 
-It does NOT load `fab/constitution.md`, `fab/docs/index.md`, or `fab/specs/index.md`.
+It does NOT load `fab/constitution.md`, `fab/docs/index.md`, or `fab/design/index.md`.
 
 ---
 
@@ -60,8 +60,8 @@ When invoked as `/fab-switch` with no argument:
    ```
    Active changes:
      1. 260202-m3x1-fix-checkout-bug (stage: apply)
-     2. 260205-k9p2-add-oauth (stage: specs)
-     3. 260206-r4t7-refactor-auth (stage: proposal)
+     2. 260205-k9p2-add-oauth (stage: spec)
+     3. 260206-r4t7-refactor-auth (stage: brief)
 
    Which change? (1-3)
    ```
@@ -94,8 +94,8 @@ When the argument matches multiple change folders:
 
 ```
 Multiple changes match "add":
-  1. 260205-k9p2-add-oauth (stage: specs)
-  2. 260206-a1b2-add-spinner (stage: proposal)
+  1. 260205-k9p2-add-oauth (stage: spec)
+  2. 260206-a1b2-add-spinner (stage: brief)
 
 Which change? (1-2)
 ```
@@ -111,7 +111,7 @@ No change matches "xyz".
 
 Active changes:
   1. 260202-m3x1-fix-checkout-bug (stage: apply)
-  2. 260205-k9p2-add-oauth (stage: specs)
+  2. 260205-k9p2-add-oauth (stage: spec)
 
 Run /fab-switch <name> with a matching name, or pick from the list above (1-2).
 ```
@@ -137,7 +137,7 @@ Once a single change is identified:
    ```
    fab/current now points to 260202-m3x1-fix-checkout-bug
 
-   Stage:  apply (5/7)
+   Stage:  apply (4/6)
    Branch: fix/checkout-bug (created)
    ```
 
@@ -146,17 +146,16 @@ Once a single change is identified:
    ```
    fab/current now points to 260202-m3x1-fix-checkout-bug
 
-   Stage:  apply (5/7)
+   Stage:  apply (4/6)
    ```
 
 5. **Suggest next command** based on the change's current stage:
 
    | Stage | Suggested next |
    |-------|---------------|
-   | `proposal` (active) | `Next: /fab-continue or /fab-ff` |
-   | `proposal` (done) | `Next: /fab-continue or /fab-ff` |
-   | `specs` (done) | `Next: /fab-continue (plan) or /fab-ff or /fab-clarify` |
-   | `plan` (done) | `Next: /fab-continue (tasks) or /fab-clarify` |
+   | `brief` (active) | `Next: /fab-continue or /fab-ff` |
+   | `brief` (done) | `Next: /fab-continue or /fab-ff` |
+   | `spec` (done) | `Next: /fab-continue (tasks) or /fab-ff or /fab-clarify` |
    | `tasks` (done) | `Next: /fab-apply` |
    | `apply` (done) | `Next: /fab-review` |
    | `review` (done) | `Next: /fab-archive` |
@@ -204,17 +203,16 @@ Detect the current branch and offer options:
 
 ## Stage Number Mapping
 
-Map stages to their numeric position for the `(N/7)` display:
+Map stages to their numeric position for the `(N/6)` display:
 
 | Stage | Number |
 |-------|--------|
-| `proposal` | 1 |
-| `specs` | 2 |
-| `plan` | 3 |
-| `tasks` | 4 |
-| `apply` | 5 |
-| `review` | 6 |
-| `archive` | 7 |
+| `brief` | 1 |
+| `spec` | 2 |
+| `tasks` | 3 |
+| `apply` | 4 |
+| `review` | 5 |
+| `archive` | 6 |
 
 ---
 
@@ -225,7 +223,7 @@ Map stages to their numeric position for the `(N/7)` display:
 ```
 fab/current now points to 260202-m3x1-fix-checkout-bug
 
-Stage:  apply (5/7)
+Stage:  apply (4/6)
 Branch: 260202-m3x1-fix-checkout-bug (created)
 
 Next: /fab-review
@@ -236,7 +234,7 @@ Next: /fab-review
 ```
 fab/current now points to 260202-m3x1-fix-checkout-bug
 
-Stage:  apply (5/7)
+Stage:  apply (4/6)
 Branch: feature/checkout-fix (adopted)
 
 Next: /fab-review
@@ -247,7 +245,7 @@ Next: /fab-review
 ```
 fab/current now points to 260202-m3x1-fix-checkout-bug
 
-Stage:  apply (5/7)
+Stage:  apply (4/6)
 
 Next: /fab-review
 ```
@@ -262,8 +260,8 @@ No active changes found. Run /fab-new <description> to start one.
 
 ```
 Multiple changes match "add":
-  1. 260205-k9p2-add-oauth (stage: specs)
-  2. 260206-a1b2-add-spinner (stage: proposal)
+  1. 260205-k9p2-add-oauth (stage: spec)
+  2. 260206-a1b2-add-spinner (stage: brief)
 
 Which change? (1-2)
 ```
@@ -275,7 +273,7 @@ No change matches "xyz".
 
 Active changes:
   1. 260202-m3x1-fix-checkout-bug (stage: apply)
-  2. 260205-k9p2-add-oauth (stage: specs)
+  2. 260205-k9p2-add-oauth (stage: spec)
 
 Run /fab-switch <name> with a matching name, or pick from the list above (1-2).
 ```

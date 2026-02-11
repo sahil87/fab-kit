@@ -58,9 +58,8 @@ if [ "$git_enabled" = "true" ] && git rev-parse --is-inside-work-tree >/dev/null
 fi
 
 # Progress (default to pending for missing fields)
-p_proposal=$(get_nested "proposal"); p_proposal=${p_proposal:-pending}
-p_specs=$(get_nested "specs");       p_specs=${p_specs:-pending}
-p_plan=$(get_nested "plan");         p_plan=${p_plan:-pending}
+p_brief=$(get_nested "brief");       p_brief=${p_brief:-pending}
+p_spec=$(get_nested "spec");         p_spec=${p_spec:-pending}
 p_tasks=$(get_nested "tasks");       p_tasks=${p_tasks:-pending}
 p_apply=$(get_nested "apply");       p_apply=${p_apply:-pending}
 p_review=$(get_nested "review");     p_review=${p_review:-pending}
@@ -80,9 +79,9 @@ conf_unresolved=$(get_nested "unresolved")
 
 # --- Stage number ---
 case "${stage:-}" in
-  proposal) stage_num=1 ;; specs) stage_num=2 ;; plan)    stage_num=3 ;;
-  tasks)    stage_num=4 ;; apply) stage_num=5 ;; review)  stage_num=6 ;;
-  archive)  stage_num=7 ;; *)     stage_num="?" ;;
+  brief)   stage_num=1 ;; spec)  stage_num=2 ;; tasks)   stage_num=3 ;;
+  apply)   stage_num=4 ;; review) stage_num=5 ;; archive) stage_num=6 ;;
+  *)       stage_num="?" ;;
 esac
 
 # --- Progress symbols ---
@@ -103,28 +102,24 @@ progress_line() {
 # --- Next command ---
 current_progress=""
 case "${stage:-}" in
-  proposal) current_progress="$p_proposal" ;; specs)   current_progress="$p_specs" ;;
-  plan)     current_progress="$p_plan" ;;     tasks)   current_progress="$p_tasks" ;;
-  apply)    current_progress="$p_apply" ;;    review)  current_progress="$p_review" ;;
-  archive)  current_progress="$p_archive" ;;
+  brief)   current_progress="$p_brief" ;;   spec)    current_progress="$p_spec" ;;
+  tasks)   current_progress="$p_tasks" ;;   apply)   current_progress="$p_apply" ;;
+  review)  current_progress="$p_review" ;;  archive) current_progress="$p_archive" ;;
 esac
 
 next="/fab-status"
 case "${stage:-}:${current_progress:-}" in
-  proposal:active|proposal:done) next="/fab-continue or /fab-ff" ;;
-  specs:active)                  next="/fab-continue" ;;
-  specs:done)                    next="/fab-continue (plan) or /fab-ff or /fab-clarify" ;;
-  plan:active)                   next="/fab-continue" ;;
-  plan:done)                     next="/fab-continue (tasks) or /fab-clarify" ;;
-  plan:skipped)                  next="/fab-continue (tasks)" ;;
-  tasks:active)                  next="/fab-continue" ;;
-  tasks:done)                    next="/fab-apply" ;;
-  apply:active)                  next="/fab-apply" ;;
-  apply:done)                    next="/fab-review" ;;
-  review:active)                 next="/fab-review" ;;
-  review:done)                   next="/fab-archive" ;;
-  review:failed)                 next="/fab-review (re-review after fixes)" ;;
-  archive:done)                  next="/fab-new <description>" ;;
+  brief:active|brief:done) next="/fab-continue or /fab-ff" ;;
+  spec:active)             next="/fab-continue" ;;
+  spec:done)               next="/fab-continue (tasks) or /fab-ff or /fab-clarify" ;;
+  tasks:active)            next="/fab-continue" ;;
+  tasks:done)              next="/fab-apply" ;;
+  apply:active)            next="/fab-apply" ;;
+  apply:done)              next="/fab-review" ;;
+  review:active)           next="/fab-review" ;;
+  review:done)             next="/fab-archive" ;;
+  review:failed)           next="/fab-review (re-review after fixes)" ;;
+  archive:done)            next="/fab-new <description>" ;;
 esac
 
 # --- Output ---
@@ -141,12 +136,11 @@ if [ "$show_branch" = "true" ]; then
     echo "Branch:  (detached)"
   fi
 fi
-echo "Stage:   $stage ($stage_num/7)"
+echo "Stage:   $stage ($stage_num/6)"
 echo ""
 echo "Progress:"
-progress_line "proposal" "$p_proposal"
-progress_line "specs"    "$p_specs"
-progress_line "plan"     "$p_plan"
+progress_line "brief"    "$p_brief"
+progress_line "spec"     "$p_spec"
 progress_line "tasks"    "$p_tasks"
 progress_line "apply"    "$p_apply"
 progress_line "review"   "$p_review"

@@ -4,7 +4,7 @@
 
 ## Overview
 
-`/fab-init` is the structural bootstrap skill that creates the `fab/` directory layout. It sets up `config.yaml`, `constitution.md`, `docs/index.md`, `specs/index.md`, the `changes/` directory, skill symlinks, and `.gitignore`. It does not handle doc hydration — that responsibility belongs to `/fab-hydrate`.
+`/fab-init` is the structural bootstrap skill that creates the `fab/` directory layout. It sets up `config.yaml`, `constitution.md`, `docs/index.md`, `design/index.md`, the `changes/` directory, skill symlinks, and `.gitignore`. It does not handle doc hydration — that responsibility belongs to `/fab-hydrate`.
 
 ## Requirements
 
@@ -15,7 +15,7 @@
 - Creates `fab/config.yaml` (project configuration)
 - Creates `fab/constitution.md` (project principles)
 - Creates `fab/docs/index.md` (documentation index skeleton)
-- Creates `fab/specs/index.md` (specifications index skeleton — pre-implementation, human-curated)
+- Creates `fab/design/index.md` (specifications index skeleton — pre-implementation, human-curated)
 - Creates `fab/changes/` directory
 - Creates skill symlinks via `fab-setup.sh` glob pattern
 - Creates `.gitignore` entries
@@ -66,5 +66,5 @@ After extraction, run `fab/.kit/scripts/fab-setup.sh` then `/fab-init` as usual.
 |--------|------|---------|
 | 260210-h7r3-kit-distribution-update | 2026-02-10 | Added Bootstrap Alternative section with curl one-liner as alternative to manual `cp -r` |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
-| 260207-bb1q-add-specs-index | 2026-02-07 | Added `fab/specs/index.md` creation as step 1d in bootstrap sequence |
+| 260207-bb1q-add-specs-index | 2026-02-07 | Added `fab/design/index.md` creation as step 1d in bootstrap sequence |
 | 260207-q7m3-separate-hydrate-smart-context | 2026-02-07 | Simplified to structural bootstrap only — removed Phase 2 source hydration, added argument redirect |

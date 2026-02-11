@@ -1,6 +1,6 @@
 ---
 name: fab-discuss
-description: "Discuss an idea or refine an existing proposal through conversation. Drives toward a solid, low-ambiguity proposal ready for /fab-fff."
+description: "Discuss an idea or refine an existing brief through conversation. Drives toward a solid, low-ambiguity brief ready for /fab-fff."
 ---
 
 # /fab-discuss [description]
@@ -11,13 +11,13 @@ description: "Discuss an idea or refine an existing proposal through conversatio
 
 ## Purpose
 
-Develop a proposal through free-form conversation. Unlike `/fab-new` (one-shot capture with max 3 questions), `/fab-discuss` is a back-and-forth exploration — it helps you figure out if a change is even needed, walks you through clarifying questions, and outputs a solid `proposal.md` with a high confidence score.
+Develop a brief through free-form conversation. Unlike `/fab-new` (one-shot capture with max 3 questions), `/fab-discuss` is a back-and-forth exploration — it helps you figure out if a change is even needed, walks you through clarifying questions, and outputs a solid `brief.md` (plus `spec.md` for new changes) with a high confidence score.
 
 Two modes:
-- **New change** (from scratch): gap analysis → clarifying questions → solid proposal
-- **Refine existing** (on active change): load current proposal → discuss → improve → drive confidence up
+- **New change** (from scratch): gap analysis → clarifying questions → solid brief + spec
+- **Refine existing** (on active change): load current brief → discuss → improve → drive confidence up
 
-Key difference from `/fab-new`: only offers to switch the active change when `fab/current` is empty (preserves current work context when another change is active). Key difference from `/fab-clarify`: not bounded to a fixed question cap, operates at the idea level rather than artifact gaps, and includes gap analysis.
+Key difference from `/fab-new`: only offers to switch the active change when `fab/current` is empty (preserves current work context when another change is active). Key difference from `/fab-clarify`: not bounded to a fixed question cap, operates at the idea level rather than artifact gaps, and includes gap analysis. In new change mode, generates both `brief.md` and `spec.md` in one pass.
 
 ---
 
@@ -50,9 +50,9 @@ Check whether `fab/current` exists and points to a valid change:
 
 **If `fab/current` exists and points to a valid change:**
 
-1. Read the active change's `proposal.md` (if it exists) and `.status.yaml`
+1. Read the active change's `brief.md` (if it exists) and `.status.yaml`
 2. Compare the user's description (if provided) against the active change's scope
-3. **If the description is related** to the active change (or no description was provided): enter **Refine mode** — work on the active change's proposal
+3. **If the description is related** to the active change (or no description was provided): enter **Refine mode** — work on the active change's brief
 4. **If the description is significantly different** from the active change's scope: ask the user:
    > "You're currently working on {change-name} ({brief summary}). Is this about that change, or a new idea?"
    - If about the current change → **Refine mode**
@@ -68,15 +68,15 @@ Read these files for grounding (regardless of mode):
 - `fab/config.yaml` — project name, tech stack, conventions
 - `fab/constitution.md` — project principles and constraints
 - `fab/docs/index.md` — understand the existing documentation landscape
-- `fab/specs/index.md` — understand existing specs
+- `fab/design/index.md` — understand existing specs
 
 **For Refine mode**, also load:
-- `fab/changes/{name}/proposal.md` — the proposal to refine
+- `fab/changes/{name}/brief.md` — the brief to refine
 - `fab/changes/{name}/.status.yaml` — current confidence score and stage
 
 ### Step 3: Gap Analysis (New Change Mode Only)
 
-Before committing to a proposal, evaluate whether the change is needed:
+Before committing to a brief, evaluate whether the change is needed:
 
 1. **Check for existing mechanisms**: Does the current workflow, codebase, or docs already address what the user describes? Search centralized docs (`fab/docs/`) and skill definitions for relevant functionality.
 2. **Evaluate scope**: Is the idea too broad (should be split)? Too narrow (could be part of something larger)?
@@ -85,22 +85,22 @@ Before committing to a proposal, evaluate whether the change is needed:
 Present your findings conversationally:
 
 - If an existing mechanism covers the idea: explain what exists, ask if they still want to proceed or if the existing solution is sufficient
-- If a gap is confirmed: acknowledge it and proceed to proposal development
+- If a gap is confirmed: acknowledge it and proceed to brief development
 - If the scope seems off: suggest adjustments and discuss
 
 **This phase is conversational, not a checklist.** The goal is to help the user think through whether and how to proceed.
 
 **Skip this step in Refine mode** — the change is already established; the user wants to improve it, not re-evaluate its existence.
 
-### Step 4: Conversational Proposal Development
+### Step 4: Conversational Brief Development
 
-Develop the proposal through back-and-forth conversation. There is **no fixed question cap** — ask as many clarifying questions as needed to build a solid proposal.
+Develop the brief through back-and-forth conversation. There is **no fixed question cap** — ask as many clarifying questions as needed to build a solid brief.
 
 **For each discussion round:**
 
-1. Identify the most important unresolved aspect of the proposal
+1. Identify the most important unresolved aspect of the brief
 2. Ask a focused question about it, providing your recommendation and reasoning
-3. Incorporate the user's answer into your evolving mental model of the proposal
+3. Incorporate the user's answer into your evolving mental model of the brief
 4. Track SRAD grades for each decision point as you go:
    - Decisions the user explicitly answers → **Certain** (user signal is definitive)
    - Decisions clearly implied by the user's answers → **Confident**
@@ -114,7 +114,7 @@ Develop the proposal through back-and-forth conversation. There is **no fixed qu
 - Offer recommendations with reasoning, not just open-ended questions
 - After resolving a major ambiguity, briefly summarize your updated understanding
 
-**For Refine mode:** Start by reviewing the existing proposal and identifying its weakest areas (Tentative assumptions, vague sections, gaps). Present these to the user and discuss.
+**For Refine mode:** Start by reviewing the existing brief and identifying its weakest areas (Tentative assumptions, vague sections, gaps). Present these to the user and discuss.
 
 ### Step 5: Monitor Confidence Score
 
@@ -123,14 +123,14 @@ Throughout the conversation, maintain a running count of SRAD grades:
 - **After each answer**, mentally update the counts (certain, confident, tentative, unresolved)
 - **When the computed score crosses 3.0** (the `/fab-fff` gate threshold), proactively inform the user:
 
-> "Confidence is now {score}/5.0 — high enough for `/fab-fff`. Want to finalize the proposal, or keep refining?"
+> "Confidence is now {score}/5.0 — high enough for `/fab-fff`. Want to finalize the brief, or keep refining?"
 
 - **If the user wants to continue**, keep going — there's no upper limit
 - **If the user wants to finalize**, proceed to Step 6
 
 The user may also end the discussion early at any time (e.g., "done", "looks good", "that's enough") regardless of the current score.
 
-### Step 6: Generate or Update Proposal
+### Step 6: Generate or Update Brief
 
 **New change mode:**
 
@@ -144,11 +144,10 @@ The user may also end the discussion early at any time (e.g., "done", "looks goo
 name: {name}
 created: {ISO 8601 timestamp}
 created_by: {git config user.name, or "unknown" if unset}
-stage: proposal
+stage: spec
 progress:
-  proposal: done
-  specs: pending
-  plan: pending
+  brief: done
+  spec: done
   tasks: pending
   apply: pending
   review: pending
@@ -167,22 +166,23 @@ confidence:
 last_updated: {ISO 8601 timestamp}
 ```
 
-6. Generate `proposal.md` from the template at `fab/.kit/templates/proposal.md`, incorporating all discussion outcomes:
-   - Fill in all sections: Why, What Changes, Affected Docs, Impact, Open Questions
-   - Mark any remaining Tentative decisions with `<!-- assumed: {description} -->`
-   - Append the `## Assumptions` section
-7. Set `progress.proposal` to `done`
+6. Generate **both** artifacts from the discussion outcomes:
+   - **`brief.md`** from the template at `fab/.kit/templates/brief.md` — a summary snapshot of the conversation capturing the what and why
+   - **`spec.md`** from the template at `fab/.kit/templates/spec.md` — the full structured requirements incorporating all discussion outcomes
+   - Fill in all sections; mark any remaining Tentative decisions with `<!-- assumed: {description} -->`
+   - Append the `## Assumptions` section to both artifacts
+7. Set `progress.brief` and `progress.spec` to `done`; set `stage: spec`
 
 **Refine mode:**
 
-1. Update the existing `proposal.md` in place — incorporate discussion outcomes, resolve `<!-- assumed: ... -->` markers, update sections
+1. Update the existing `brief.md` in place — incorporate discussion outcomes, resolve `<!-- assumed: ... -->` markers, update sections
 2. Recompute the confidence score
 3. Update `.status.yaml`: confidence block + `last_updated`
 4. Do NOT change the `stage` or any `progress` fields beyond what's already set
 
 ### Step 7: Compute Confidence Score
 
-Count SRAD grades across the final proposal:
+Count SRAD grades across the final brief:
 
 1. **Certain**: decisions explicitly answered by the user or deterministically answered by config/constitution
 2. **Confident**: decisions with strong signal and one obvious interpretation
@@ -226,7 +226,7 @@ Do NOT prompt for activation — the user's current work context is preserved. S
 
 **If `/fab-switch` fails** (e.g., git branch creation error):
 
-The proposal is already saved. Report the error and suggest manual activation:
+The artifacts are already saved. Report the error and suggest manual activation:
 > "Activation failed: {error}. Run `/fab-switch {name}` manually."
 
 ---
@@ -238,9 +238,13 @@ The proposal is already saved. Report the error and suggest manual activation:
 ```
 Created fab/changes/260208-x7k2-better-errors/
 
-## Proposal: Better Error Handling
+## Brief: Better Error Handling
 
-{filled proposal content}
+{filled brief content}
+
+## Spec: Better Error Handling
+
+{filled spec content}
 
 ## Assumptions
 
@@ -266,9 +270,13 @@ Next: /fab-continue or /fab-ff (fast-forward all planning)
 ```
 Created fab/changes/260208-x7k2-better-errors/
 
-## Proposal: Better Error Handling
+## Brief: Better Error Handling
 
-{filled proposal content}
+{filled brief content}
+
+## Spec: Better Error Handling
+
+{filled spec content}
 
 ## Assumptions
 
@@ -286,9 +294,9 @@ Next: /fab-switch 260208-x7k2-better-errors to make it active, then /fab-continu
 ### Refine Mode
 
 ```
-## Proposal: Add OAuth2 Support (Updated)
+## Brief: Add OAuth2 Support (Updated)
 
-{updated proposal content}
+{updated brief content}
 
 ## Assumptions
 
@@ -308,9 +316,13 @@ Next: /fab-continue or /fab-ff (fast-forward all planning)
 ```
 Created fab/changes/260208-x7k2-payment-flow/ (not set as active)
 
-## Proposal: Payment Flow Redesign (Draft)
+## Brief: Payment Flow Redesign (Draft)
 
-{partially filled proposal content}
+{partially filled brief content}
+
+## Spec: Payment Flow Redesign (Draft)
+
+{partially filled spec content}
 
 ## Assumptions
 
@@ -350,12 +362,12 @@ No change created. The existing mechanism covers this use case.
 | `fab/config.yaml` missing | Abort with: "fab/ is not initialized. Run /fab-init first to bootstrap the project." |
 | `fab/constitution.md` missing | Abort with same message as above |
 | No description provided | Ask: "What would you like to discuss?" |
-| `fab/.kit/templates/proposal.md` missing | Abort with: "Proposal template not found at fab/.kit/templates/proposal.md — kit may be corrupted." |
+| `fab/.kit/templates/brief.md` missing | Abort with: "Brief template not found at fab/.kit/templates/brief.md — kit may be corrupted." |
 | `fab/changes/{name}/` already exists (new change) | Regenerate the random component (`XXXX`) and retry |
-| Active change's `proposal.md` missing (refine mode) | Note the absence; offer to create a proposal from scratch for this change or start a new change |
+| Active change's `brief.md` missing (refine mode) | Note the absence; offer to create a brief from scratch for this change or start a new change |
 | Gap analysis finds the idea is already covered | Present findings; let the user decide whether to proceed |
 | User ends discussion with zero decisions made | Do not create a change folder; output "No change created." |
-| `/fab-switch` fails during activation | Proposal is already saved; report error and suggest manual `/fab-switch` |
+| `/fab-switch` fails during activation | Artifacts are already saved; report error and suggest manual `/fab-switch` |
 
 ---
 
@@ -363,12 +375,12 @@ No change created. The existing mechanism covers this use case.
 
 | Property | Value |
 |----------|-------|
-| Advances stage? | **Yes** — sets `progress.proposal` to `done` when finalizing |
+| Advances stage? | **Yes** — sets `progress.brief` (and `progress.spec` in new change mode) to `done` when finalizing |
 | Switches active change? | **Conditionally** — offers when `fab/current` is empty (calls `/fab-switch` internally) |
 | Creates git branch? | **Conditionally** — via internal `/fab-switch` when activation is accepted |
 | Idempotent? | **Yes** — safe to call multiple times; refine mode updates in place |
-| Modifies artifact? | **Yes** — creates or updates `proposal.md` |
-| Creates new files? | **Yes** (new change mode) — change folder, `.status.yaml`, `proposal.md` |
+| Modifies artifact? | **Yes** — creates or updates `brief.md` (and `spec.md` in new change mode) |
+| Creates new files? | **Yes** (new change mode) — change folder, `.status.yaml`, `brief.md`, `spec.md` |
 | Updates `.status.yaml`? | **Yes** — progress, confidence, and `last_updated` |
 | Question cap? | **None** — conversational by design |
 
@@ -378,8 +390,8 @@ No change created. The existing mechanism covers this use case.
 
 | Aspect | fab-discuss | fab-new | fab-clarify |
 |--------|-------------|---------|-------------|
-| **Purpose** | Explore & develop proposal through conversation | Capture clear description as proposal | Refine existing artifact's gaps |
-| **Input** | Vague idea or existing proposal | Clear change description | Existing artifact with gaps |
+| **Purpose** | Explore & develop brief through conversation | Capture clear description as brief | Refine existing artifact's gaps |
+| **Input** | Vague idea or existing brief | Clear change description | Existing artifact with gaps |
 | **Gap analysis** | Yes — "is this change even needed?" | No — assumes the change is needed | No — assumes the artifact exists |
 | **Interaction style** | Free-form conversation, unlimited questions | One-shot generation, max 3 SRAD questions | Structured Q&A, max 5 per session |
 | **Sets active change** | Conditionally — offers when no active change | Yes | N/A (operates on active change) |
@@ -395,5 +407,5 @@ After `/fab-discuss` completes:
 
 - New change created (activated): `Next: /fab-continue or /fab-ff (fast-forward all planning)`
 - New change created (not activated): `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-ff`
-- Existing proposal refined: `Next: /fab-continue or /fab-ff (fast-forward all planning)`
+- Existing brief refined: `Next: /fab-continue or /fab-ff (fast-forward all planning)`
 - No change created (gap analysis): no Next line

@@ -11,7 +11,7 @@ description: "Complete a change — validate review passed, hydrate learnings in
 
 ## Purpose
 
-Complete a change and hydrate its learnings into centralized docs. Performs a final validation that review has passed, checks for concurrent changes touching the same docs, hydrates `spec.md` and `plan.md` into `fab/docs/`, updates status, moves the change folder to the archive, and clears the active change pointer. After archiving, the project's centralized documentation reflects all new requirements and design decisions from the change.
+Complete a change and hydrate its learnings into centralized docs. Performs a final validation that review has passed, checks for concurrent changes touching the same docs, hydrates `spec.md` into `fab/docs/`, updates status, moves the change folder to the archive, and clears the active change pointer. After archiving, the project's centralized documentation reflects all new requirements and design decisions from the change.
 
 ---
 
@@ -49,12 +49,11 @@ Load all context needed for archiving:
 
 1. **`fab/config.yaml`** — project config, tech stack, conventions
 2. **`fab/constitution.md`** — project principles and constraints
-3. **`fab/specs/index.md`** — specifications landscape (pre-implementation design intent, human-curated)
+3. **`fab/design/index.md`** — specifications landscape (pre-implementation design intent, human-curated)
 4. **`fab/changes/{name}/spec.md`** — requirements and scenarios to hydrate into centralized docs
-5. **`fab/changes/{name}/plan.md`** — design decisions to extract (if it exists; skip if plan was `skipped`)
-6. **`fab/changes/{name}/proposal.md`** — original intent, including Affected Docs section listing target centralized docs
+5. **`fab/changes/{name}/brief.md`** — original intent, including Affected Docs section listing target centralized docs
 7. **`fab/docs/index.md`** — top-level documentation index
-8. **Target centralized doc(s)** — read the specific docs referenced by the proposal's Affected Docs section (New, Modified, Removed entries). For each doc path listed, read `fab/docs/{domain}/{name}.md` if it exists. Also read the domain index `fab/docs/{domain}/index.md` if it exists.
+8. **Target centralized doc(s)** — read the specific docs referenced by the brief's Affected Docs section (New, Modified, Removed entries). For each doc path listed, read `fab/docs/{domain}/{name}.md` if it exists. Also read the domain index `fab/docs/{domain}/index.md` if it exists.
 
 ---
 
@@ -78,7 +77,7 @@ Report:
 Scan `fab/changes/` for **other** active change folders (exclude the current change and the `archive/` subfolder). For each active change found:
 
 1. Read its `spec.md` (if it exists)
-2. Check if it references any of the same centralized doc paths listed in the current change's proposal Affected Docs section
+2. Check if it references any of the same centralized doc paths listed in the current change's brief Affected Docs section
 3. If overlap is found, warn the user:
 
 > `⚠ Change "{other-name}" also modifies {doc-path}. After this archive, that change's spec was written against a now-stale base. Re-review with /fab-review after switching to it.`
@@ -91,9 +90,9 @@ This is a **warning only** — it does not block archiving. Proceed to Step 3 re
 
 ### Step 3: Hydrate into `fab/docs/`
 
-Read `spec.md`, `plan.md` (if it exists), and the current centralized doc(s), then rewrite the centralized docs to incorporate the changes.
+Read `spec.md` and the current centralized doc(s), then rewrite the centralized docs to incorporate the changes.
 
-For **each** centralized doc referenced in the proposal's Affected Docs section:
+For **each** centralized doc referenced in the brief's Affected Docs section:
 
 #### 3a. Determine if Doc Exists
 
@@ -135,7 +134,7 @@ If the centralized doc does not exist yet:
 
      ## Design Decisions
 
-     <!-- Durable architectural decisions extracted from plan.md during hydration. -->
+     <!-- Durable architectural decisions extracted from spec.md during hydration. -->
 
      ## Changelog
 
@@ -144,7 +143,7 @@ If the centralized doc does not exist yet:
      ```
    - Populate the **Overview** section from the spec's context
    - Populate the **Requirements** section with requirements and scenarios from `spec.md` relevant to this doc
-   - Populate the **Design Decisions** section with durable decisions from `plan.md` (if it exists) — see Step 3d
+   - Populate the **Design Decisions** section with durable decisions from `spec.md` — see Step 3d
    - Add the first **Changelog** row — see Step 3e
 
 3. **Update domain index** — add a row to `fab/docs/{domain}/index.md`:
@@ -160,7 +159,7 @@ If the centralized doc already exists:
 
 1. **Read the current doc** in full
 2. **Update the Requirements section** semantically:
-   - **From spec.md** → integrate new/changed requirements and scenarios into the Requirements section
+   - **From `spec.md`** → integrate new/changed requirements and scenarios into the Requirements section
    - Compare each requirement in `spec.md` against the existing doc to determine what's **new** (not present in current doc), **changed** (present but different), or **removed** (explicitly deprecated in spec's Deprecated Requirements section)
    - Add new requirements with their scenarios
    - Update changed requirements in place — modify the text and scenarios to reflect the new behavior
@@ -171,11 +170,9 @@ If the centralized doc already exists:
 5. **Update domain index** — update the "Last Updated" column for this doc in `fab/docs/{domain}/index.md`
 6. **Update top-level index** — update the doc-list column in `fab/docs/index.md` for this domain to reflect the current set of docs (in case a new doc was added to the domain by this archive)
 
-#### 3d. Extract Design Decisions (from `plan.md`)
+#### 3d. Extract Design Decisions (from `spec.md`)
 
-If `plan.md` exists (i.e., the plan was not `skipped`):
-
-1. Read the **Decisions** section of `plan.md`
+1. Read the **Decisions** section of `spec.md` (if it exists)
 2. For each decision, evaluate whether it is **durable** (will remain relevant beyond this change):
    - **Include**: Architectural choices, API contracts, data model decisions, pattern selections, security boundaries
    - **Skip**: Tactical details (specific file paths, library install commands, setup steps, one-time migration scripts)
@@ -201,7 +198,7 @@ The summary should describe what this change added/modified/removed for this spe
 
 #### 3f. Handle Removed Docs
 
-If the proposal's Affected Docs lists docs under **Removed Docs**:
+If the brief's Affected Docs lists docs under **Removed Docs**:
 
 1. Do NOT delete the file — deprecation is handled via the spec's Deprecated Requirements section
 2. Add a Changelog row noting the deprecation
@@ -231,9 +228,9 @@ Maintain `fab/changes/archive/index.md` — a searchable summary of all archived
 1. Create the file with a `# Archive Index` heading followed by a blank line
 2. **Backfill** all existing archived change folders (sorted most-recent-first by folder name):
    - For each folder in `fab/changes/archive/` (excluding `index.md`):
-     - Read `fab/changes/archive/{folder}/proposal.md`
+     - Read `fab/changes/archive/{folder}/brief.md`
      - Extract the first 1-2 sentences from the **Why** section as the description
-     - If `proposal.md` does not exist, use the slug portion of the folder name as a fallback description
+     - If `brief.md` does not exist, use the slug portion of the folder name as a fallback description
    - Write all entries as a bullet list, most-recent-first
 3. The newly archived change is included in the backfill (it was moved in Step 5)
 
@@ -246,7 +243,7 @@ Maintain `fab/changes/archive/index.md` — a searchable summary of all archived
 **Entry format:**
 
 ```markdown
-- **{folder-name}** — {1-2 sentence description from proposal Why section}
+- **{folder-name}** — {1-2 sentence description from brief Why section}
 ```
 
 ### Step 7: Clear Pointer
@@ -333,10 +330,10 @@ Review has not passed. Run /fab-review to validate implementation first.
 | Concurrent change references same doc | Warn but proceed — not blocking |
 | Target centralized doc does not exist | Create from template (new doc flow) |
 | Target domain folder does not exist | Create folder + domain index (new domain flow) |
-| Plan was skipped | Skip Design Decisions extraction — hydrate only from spec.md |
+| No Decisions section in spec.md | Skip Design Decisions extraction — hydrate only requirements |
 | `archive/` directory does not exist | Create it before moving |
 | `archive/index.md` does not exist | Create with backfill of all existing archived changes |
-| Archived change missing `proposal.md` during backfill | Use folder slug as fallback description |
+| Archived change missing `brief.md` during backfill | Use folder slug as fallback description |
 | Interrupted mid-archive (status=done but not moved) | Complete the move, update index, and clear pointer |
 | Hydration produces garbled output | Recovery: `git checkout` on affected doc files. Recommend reviewing diff before pushing. |
 | All checks pass | Complete archive, output Next line |

@@ -23,7 +23,7 @@ After extraction, the user MUST run `fab/.kit/scripts/fab-setup.sh` to create di
 
 **Scenarios**:
 - Bootstrap a new project (no `fab/` directory) — creates `fab/.kit/` with all skills, templates, scripts, and VERSION file; no other `fab/` files created
-- Bootstrap with existing `fab/` directory — creates or replaces `fab/.kit/`; existing files outside `.kit/` (config.yaml, constitution.md, docs/, specs/, changes/) are NOT affected
+- Bootstrap with existing `fab/` directory — creates or replaces `fab/.kit/`; existing files outside `.kit/` (config.yaml, constitution.md, docs/, design/, changes/) are NOT affected
 
 #### Manual Copy Still Works
 
@@ -44,7 +44,7 @@ The existing `cp -r` distribution method SHALL continue to work. The bootstrap o
 
 #### Update Preserves Project Files
 
-`fab-update.sh` MUST NOT modify any files outside of `fab/.kit/`. Preserved: `fab/config.yaml`, `fab/constitution.md`, `fab/docs/`, `fab/specs/`, `fab/changes/`, `fab/current`.
+`fab-update.sh` MUST NOT modify any files outside of `fab/.kit/`. Preserved: `fab/config.yaml`, `fab/constitution.md`, `fab/docs/`, `fab/design/`, `fab/changes/`, `fab/current`.
 
 #### gh CLI as Primary Download Tool
 
@@ -83,7 +83,7 @@ The script infers the target GitHub repository from `git remote get-url origin`.
 
 #### Release Archive Contents
 
-`kit.tar.gz` SHALL contain only the `fab/.kit/` directory contents. All paths are rooted at `.kit/` (e.g., `.kit/VERSION`, `.kit/skills/fab-new.md`). No project-specific files (config.yaml, constitution.md, docs/, specs/, changes/) are included.
+`kit.tar.gz` SHALL contain only the `fab/.kit/` directory contents. All paths are rooted at `.kit/` (e.g., `.kit/VERSION`, `.kit/skills/fab-new.md`). No project-specific files (config.yaml, constitution.md, docs/, design/, changes/) are included.
 
 ### Repo Rename
 
@@ -95,7 +95,7 @@ The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its rol
 
 ## Design Decisions
 
-<!-- Plan was skipped for this change — no design decisions to extract. -->
+<!-- No design decisions to document for this change. -->
 
 ## Changelog
 

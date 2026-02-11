@@ -41,9 +41,8 @@ fi
 stage=$(grep '^stage:' "$status_file" | sed 's/^stage: *//')
 
 # Extract progress fields
-p_proposal=$(grep '^ *proposal:' "$status_file" | sed 's/^ *proposal: *//')
-p_specs=$(grep '^ *specs:' "$status_file" | sed 's/^ *specs: *//')
-p_plan=$(grep '^ *plan:' "$status_file" | sed 's/^ *plan: *//')
+p_brief=$(grep '^ *brief:' "$status_file" | sed 's/^ *brief: *//')
+p_spec=$(grep '^ *spec:' "$status_file" | sed 's/^ *spec: *//')
 p_tasks=$(grep '^ *tasks:' "$status_file" | sed 's/^ *tasks: *//')
 p_apply=$(grep '^ *apply:' "$status_file" | sed 's/^ *apply: *//')
 p_review=$(grep '^ *review:' "$status_file" | sed 's/^ *review: *//')
@@ -66,9 +65,8 @@ name: $name
 change_dir: changes/$name
 stage: $stage
 progress:
-  proposal: $p_proposal
-  specs: $p_specs
-  plan: $p_plan
+  brief: $p_brief
+  spec: $p_spec
   tasks: $p_tasks
   apply: $p_apply
   review: $p_review
