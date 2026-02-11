@@ -1,5 +1,6 @@
 name: {NAME}
 created: {CREATED}
+created_by: {CREATED_BY}
 stage: proposal
 progress:
   proposal: active

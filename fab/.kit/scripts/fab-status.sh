@@ -40,6 +40,7 @@ get_field() { grep "^$1:" "$status_file" | sed "s/^$1: *//" || true; }
 get_nested() { grep "^ *$1:" "$status_file" | sed "s/^ *$1: *//" || true; }
 
 stage=$(get_field "stage")
+created_by=$(get_field "created_by")
 
 # Live git branch (replaces .status.yaml branch field)
 git_enabled="false"
@@ -130,6 +131,9 @@ esac
 echo "$header"
 echo ""
 echo "Change:  $name"
+if [ -n "$created_by" ]; then
+  echo "Created by: $created_by"
+fi
 if [ "$show_branch" = "true" ]; then
   if [ -n "$branch" ]; then
     echo "Branch:  $branch"

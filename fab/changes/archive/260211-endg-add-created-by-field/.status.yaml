@@ -1,0 +1,24 @@
+name: 260211-endg-add-created-by-field
+created: 2026-02-11T00:00:00Z
+created_by: Sahil Ahuja
+stage: archive
+progress:
+  proposal: done
+  specs: done
+  plan: skipped
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklists/quality.md
+  completed: 13
+  total: 13
+confidence:
+  certain: 4
+  confident: 4
+  tentative: 0
+  unresolved: 0
+  score: 4.6
+last_updated: 2026-02-11T00:05:00Z
