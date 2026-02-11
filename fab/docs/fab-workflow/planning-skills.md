@@ -32,7 +32,7 @@ The agent SHALL generate a folder name in the format `{YYMMDD}-{XXXX}-{slug}` wh
 
 The skill SHALL:
 1. Create `fab/changes/{name}/`
-2. Initialize `.status.yaml` with `stage: proposal`
+2. Initialize `.status.yaml` with `stage: proposal` and `created_by` set to the output of `git config user.name` (fallback: `"unknown"`)
 3. Generate `proposal.md` from the template, loading `fab/constitution.md` and `fab/config.yaml` as context
 4. Apply SRAD scoring to identify up to 3 Unresolved questions; assume all Confident/Tentative decisions
 5. Mark proposal complete once the user is satisfied
@@ -84,7 +84,7 @@ When the confidence score crosses 3.0, `/fab-discuss` proactively suggests wrapp
 
 #### Proposal Output
 
-**New change mode**: Creates the change folder, `checklists/` subdirectory, `.status.yaml` (without `branch:` field — no git integration), and `proposal.md`. Sets `progress.proposal` to `done`. After displaying the summary, checks whether `fab/current` is empty — if so, offers to activate the new change via internal `/fab-switch` (writes `fab/current` and handles branch integration). If `fab/current` already points to another change, no offer is made.
+**New change mode**: Creates the change folder, `checklists/` subdirectory, `.status.yaml` (with `created_by` from `git config user.name`, without `branch:` field — no git integration), and `proposal.md`. Sets `progress.proposal` to `done`. After displaying the summary, checks whether `fab/current` is empty — if so, offers to activate the new change via internal `/fab-switch` (writes `fab/current` and handles branch integration). If `fab/current` already points to another change, no offer is made.
 
 **Refine mode**: Updates the existing `proposal.md` in place, recomputes the confidence score, and updates `.status.yaml`.
 
@@ -311,6 +311,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260211-endg-add-created-by-field | 2026-02-11 | `/fab-new` and `/fab-discuss` now populate `created_by` in `.status.yaml` from `git config user.name` at change creation |
 | 260210-wpay-extract-shared-generation-logic | 2026-02-10 | Extracted shared generation logic (spec, plan, tasks, checklist) into `_generation.md` partial; both `/fab-continue` and `/fab-ff` now reference it |
 | 260210-nan4-define-auto-mode-signaling | 2026-02-10 | Defined explicit `[AUTO-MODE]` prefix protocol for skill-to-skill invocation in `_context.md`; updated `/fab-ff` auto-clarify invocations and "Clarify Mode Selection" design decision |
 | 260210-0p4e-fix-stage-guard-progress-check | 2026-02-10 | `/fab-continue` stage guard now checks `progress.{stage}` value to distinguish done/active/pending states, allowing resumption of interrupted stage generations |

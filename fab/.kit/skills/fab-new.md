@@ -74,6 +74,7 @@ Create `fab/changes/{name}/.status.yaml` with this content:
 ```yaml
 name: {name}
 created: {ISO 8601 timestamp}
+created_by: {git config user.name, or "unknown" if unset}
 stage: proposal
 progress:
   proposal: active
@@ -98,6 +99,7 @@ last_updated: {ISO 8601 timestamp}
 ```
 
 **Key points**:
+- `created_by` is populated from `git config user.name`. If the command returns empty or exits non-zero, use `"unknown"` as the fallback. This field is write-once — set here and never modified by subsequent skills.
 - `stage` is set to `proposal`
 - `proposal` progress is `active` — all other stages are `pending`
 - `confidence` block is initialized with defaults — Step 7 overwrites with actual counts after proposal generation

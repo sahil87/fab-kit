@@ -29,6 +29,7 @@ The `stage` field tracks *where* the change is. The `progress` map tracks *how* 
 
 name: {YYMMDD-XXXX-slug}
 created: {ISO_8601_DATETIME}       # e.g., 2026-01-15T14:30:00Z
+created_by: {GIT_USER_NAME}        # Auto-detected from git config user.name; fallback "unknown"
 branch: {BRANCH_NAME}              # Optional — omitted if user skipped git integration
 stage: proposal                     # Current stage (see stage field values above)
 progress:
@@ -48,6 +49,7 @@ last_updated: {ISO_8601_DATETIME}
 ```
 
 **Field notes**:
+- `created_by` is write-once — set at change creation time by `/fab-new` or `/fab-discuss`, never modified afterward. Auto-detected from `git config user.name`; falls back to `"unknown"` if git config is unset. Skills reading this field must tolerate its absence (older changes won't have it).
 - `branch` is optional — present only when the user created or adopted a branch via `/fab-new`. Omit the field entirely (not `branch: null`) when git integration was skipped.
 - `stage` is the single source of truth for where the change is. All skills read this first.
 - `plan: skipped` is set when `/fab-continue` or `/fab-ff` determines a plan isn't needed.

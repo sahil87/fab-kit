@@ -143,6 +143,7 @@ The user may also end the discussion early at any time (e.g., "done", "looks goo
 ```yaml
 name: {name}
 created: {ISO 8601 timestamp}
+created_by: {git config user.name, or "unknown" if unset}
 stage: proposal
 progress:
   proposal: done
