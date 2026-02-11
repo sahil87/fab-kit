@@ -138,7 +138,7 @@ Apply the SRAD framework (defined in `_context.md`) to all decision points encou
 **Maximum 3 questions** — the Critical Rule (see `_context.md`) requires that Unresolved decisions with low R + low A are always asked. Beyond 3, make a best guess and mark as Tentative.
 
 **What does NOT need SRAD evaluation**:
-- Implementation details (those belong in the plan)
+- Implementation details (those belong in the spec or tasks)
 - Testing strategy (that belongs in tasks)
 - Anything deterministically answered by config, constitution, or template rules (grade: Certain)
 

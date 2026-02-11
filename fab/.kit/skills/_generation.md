@@ -4,7 +4,7 @@
 > Each skill references these procedures instead of inlining them, ensuring generation behavior
 > is authoritative in one location.
 >
-> **Orchestration** (stage guards, question handling, plan decisions, auto-clarify, resumability)
+> **Orchestration** (stage guards, question handling, design decisions, auto-clarify, resumability)
 > remains in each skill's own file. This partial covers only the mechanics of producing each artifact.
 
 ---
@@ -63,7 +63,7 @@
    - Changed requirements → **Behavioral Correctness** items
    - Deprecated requirements → **Removal Verification** items
    - Key scenarios from spec → **Scenario Coverage** items
-   - Edge cases identified in spec/plan → **Edge Cases & Error Handling** items
+   - Edge cases identified in spec → **Edge Cases & Error Handling** items
    - Security-relevant changes → **Security** items (only if applicable)
    - Additional categories from `fab/config.yaml` `checklist.extra_categories` (if any)
 5. Use sequential IDs: CHK-001, CHK-002, ...

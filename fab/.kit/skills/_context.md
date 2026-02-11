@@ -43,13 +43,13 @@ Selectively load relevant domain docs based on the change's scope:
 2. For each referenced domain, read `fab/docs/{domain}/index.md` to understand the domain's docs
 3. Read the specific centralized doc(s) referenced by the Affected Docs entries (the New, Modified, and Removed entries) — read `fab/docs/{domain}/{name}.md` for each listed doc that exists
 4. If a referenced doc or domain does not exist yet (e.g., listed under New Docs), note this and proceed without error — it will be created by `/fab-archive`
-5. Use this context to ground all artifact generation (spec, plans, tasks, reviews) in the real current state, not assumptions
+5. Use this context to ground all artifact generation (spec, tasks, reviews) in the real current state, not assumptions
 
 ### 4. Source Code Loading (during implementation and review)
 
 Load only the source files relevant to the current work:
 
-1. Read the relevant source files referenced in the plan's **File Changes** section (New, Modified, Deleted) or in the task descriptions
+1. Read the relevant source files referenced in the task descriptions or spec's affected areas
 2. Scope to files actually touched by the change — do not load the entire codebase
 3. This applies primarily to `/fab-apply` and `/fab-review`
 
@@ -71,7 +71,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 | `/fab-discuss` (new, activated) | brief done | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
 | `/fab-discuss` (new, not activated) | brief done | `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-ff` |
 | `/fab-discuss` (refined) | brief updated | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
-| `/fab-continue` → spec | spec done | `Next: /fab-continue (plan) or /fab-ff (fast-forward) or /fab-clarify (refine spec)` |
+| `/fab-continue` → spec | spec done | `Next: /fab-continue (tasks) or /fab-ff (fast-forward) or /fab-clarify (refine spec)` |
 | `/fab-continue` → tasks | tasks done | `Next: /fab-apply` |
 | `/fab-ff` | tasks done | `Next: /fab-apply` |
 | `/fab-clarify` | same stage | `Next: /fab-clarify (refine further) or /fab-continue or /fab-ff` |

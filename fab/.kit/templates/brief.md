@@ -28,12 +28,12 @@
 
 ## Impact
 
-<!-- Affected code areas, APIs, dependencies, systems. Helps scope the plan. -->
+<!-- Affected code areas, APIs, dependencies, systems. Helps scope the spec. -->
 
 ## Open Questions
 
 <!-- Clarifying questions the agent couldn't resolve from context alone.
-     Mark each with priority: [BLOCKING] must resolve before specs, [DEFERRED] can resolve during plan.
+     Mark each with priority: [BLOCKING] must resolve before specs, [DEFERRED] can resolve before tasks.
      Maximum 3 [BLOCKING] questions — make informed guesses for the rest. -->
 
 - [BLOCKING] {question}
