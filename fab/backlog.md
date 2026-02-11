@@ -70,4 +70,21 @@
 - [ ] [alat] 2026-02-10: Scores don't change after clarify - clarification should ideally increase state
 - [ ] [29xv] 2026-02-10: Scoring formula needs to be relooked at - scores are generaly too high
 - [ ] [6j7w] 2026-02-10: Go over the proposal -> specs -> plan -> tasks" "thinking" workflow. Do we need these many? Any rewording? Should state names change?
-- [ ] [gs42] 2026-02-10: Add attribution / owner for every change - in .status.yaml
+- [x] [gs42] 2026-02-10: Add attribution / owner for every change - in .status.yaml
+
+## 2026-02-11
+
+### fab-status has no centralized doc section
+- [ ] [gs42] 2026-02-11: `execution-skills.md` covers `/fab-apply`, `/fab-review`, `/fab-archive` but not `/fab-status`. Status display behavior is only documented in the skill file and script. Future changes to `/fab-status` have no centralized doc section to hydrate into. Either add a `/fab-status` section to `execution-skills.md` or create a separate `informational-skills.md` doc.
+
+### fab-status.md skill description enumerates fields that drift
+- [ ] [gs42] 2026-02-11: `fab-status.md` behavior section lists rendered fields ("version header, change name, branch, stage number, progress table, checklist counts, confidence score") but this list drifts as fields are added — it already doesn't mention `created_by`. Either maintain the enumeration or generalize to "renders all `.status.yaml` fields."
+
+### fab-discuss missing Key Points section for .status.yaml
+- [ ] [gs42] 2026-02-11: `/fab-new` has a "Key points" section after its `.status.yaml` yaml block explaining field semantics (e.g. `created_by` population, fallback behavior). `/fab-discuss` has no equivalent — just the bare yaml block. Add a matching "Key points" section so field-level instructions have a home when new fields are added.
+
+### Backlog items not closed by fab-archive
+- [ ] [gs42] 2026-02-11: No skill in the pipeline checks or closes backlog items. When a change completes that matches a backlog entry, `/fab-archive` (or `/fab-fff`) should scan `fab/backlog.md` for related items and offer to mark them done. Currently this is manual and easy to forget.
+
+### Make fab/backlog.md personal and worktree-safe
+- [ ] [gs42] 2026-02-11: `fab/backlog.md` is committed to git but is a personal scratchpad — not suitable for shared repos. Fix: (1) add `fab/backlog.md` to `.gitignore`, (2) move the canonical file to the main worktree, (3) update `worktree-init.sh` to symlink `fab/backlog.md` → main worktree's copy (same pattern as `.envrc`), (4) update `/retrospect` skill to work with the symlinked file. Need to `git rm --cached fab/backlog.md` to stop tracking it without deleting the file.
