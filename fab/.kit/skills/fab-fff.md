@@ -1,6 +1,6 @@
 ---
 name: fab-fff
-description: "Full pipeline — confidence gate, then fab-ff → fab-apply → fab-review → fab-archive in one shot."
+description: "Full autonomous pipeline — confidence gate, then planning → apply → review → archive with no interactive stops."
 ---
 
 # /fab-fff
@@ -11,7 +11,7 @@ description: "Full pipeline — confidence gate, then fab-ff → fab-apply → f
 
 ## Purpose
 
-Run the entire Fab pipeline from planning through archive in a single invocation. A thin wrapper that chains `/fab-ff` → `/fab-apply` → `/fab-review` → `/fab-archive`, gated on confidence score >= 3.0. Each stage uses the same behavior as its standalone invocation.
+Run the entire Fab pipeline from planning through archive in a single invocation, gated on confidence score >= 3.0. Each stage uses the same behavior as its standalone invocation. Unlike `/fab-ff`, which also runs the full pipeline but stops for interactive clarification, `/fab-fff` never stops — it bails immediately on review failure and auto-clarifies without user input.
 
 Use this when confidence is high and you want to go from brief to archived change without manual intervention.
 
@@ -75,7 +75,7 @@ This makes `/fab-fff` resumable after interruption or failure — re-running pic
 
 *(Skip if all planning stages — spec, tasks — are `done` or `skipped`.)*
 
-Execute `/fab-ff` behavior (default mode — frontload questions, interleaved auto-clarify, bail on blockers). This generates spec and tasks with quality checklist.
+Execute `/fab-ff` planning behavior (Steps 1-5: frontload questions, interleaved auto-clarify, bail on blockers). This generates spec and tasks with quality checklist. Only the planning portion of fab-ff is used here — fab-fff handles apply/review/archive in its own subsequent steps.
 
 **If fab-ff bails on blocking issues**, the `/fab-fff` pipeline stops. Output:
 
@@ -222,14 +222,15 @@ Next: /fab-new <description> (start next change)
 
 ---
 
-## Key Difference from Individual Skills
+## Key Difference from `/fab-ff` and Individual Skills
 
-| Behavior | Individual skills | `/fab-fff` |
-|----------|-------------------|-----------|
-| Invocations | One per stage | Single invocation for entire pipeline |
-| Confidence gate | None | Requires score >= 3.0 |
-| Review failure | Interactive rework menu | Immediate bail |
-| User interaction | Per-skill (questions, confirmations) | Minimal — fab-ff frontloads questions; rest is autonomous |
+| Behavior | Individual skills | `/fab-ff` | `/fab-fff` |
+|----------|-------------------|-----------|-----------|
+| Invocations | One per stage | Single invocation, full pipeline | Single invocation, full pipeline |
+| On review failure | Interactive rework menu | Interactive rework menu | Immediate bail |
+| Confidence gate | None | None | Requires score >= 3.0 |
+| User interaction | Per-skill | Interactive stops when needed | Minimal — frontloads questions, rest is autonomous |
+| Best for | Step-by-step control | Fast pipeline with safety net | High-confidence, full autonomy |
 
 ---
 

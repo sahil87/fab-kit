@@ -6,6 +6,8 @@
 
 The execution skills (`/fab-apply`, `/fab-review`, `/fab-archive`) handle the implementation, validation, and completion stages of the Fab workflow. They execute tasks from the planning phase, validate the result against specs and checklists, and hydrate learnings into centralized docs on completion.
 
+**Pipeline invocation**: Both `/fab-ff` and `/fab-fff` invoke these execution skills internally as part of their full-pipeline behavior. `/fab-ff` presents interactive rework options on review failure; `/fab-fff` bails immediately. The standalone execution skills remain the same — the pipeline commands reuse their behavior without modification.
+
 ## Requirements
 
 ### `/fab-apply`
@@ -119,6 +121,7 @@ Loads: config, constitution, `design/index.md`, `spec.md`, target centralized do
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260212-bk1n-rework-fab-ff-archive | 2026-02-12 | Added note that `/fab-ff` and `/fab-fff` invoke execution skills internally as part of their full-pipeline behavior |
 | 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated stage references from proposal/specs to brief/spec |
 | 260211-endg-add-created-by-field | 2026-02-11 | `fab-status.sh` now displays `Created by:` line when `created_by` field is present in `.status.yaml` |
 | 260210-7wxx-add-specs-index-context-loading | 2026-02-10 | Added `fab/design/index.md` to context loading for all three execution skills, aligning with the always-load protocol in `_context.md` |

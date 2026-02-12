@@ -1,0 +1,22 @@
+name: 260212-bk1n-rework-fab-ff-archive
+created: 2026-02-12T00:00:00Z
+created_by: sahil-weaver
+progress:
+  brief: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklists/quality.md
+  completed: 20
+  total: 20
+confidence:
+  certain: 10
+  confident: 6
+  tentative: 0
+  unresolved: 0
+  score: 4.4
+last_updated: 2026-02-12T13:30:00Z
