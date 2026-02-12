@@ -83,6 +83,9 @@ echo "Created kit.tar.gz ($(wc -c < "$repo_root/kit.tar.gz") bytes)"
 
 # ── Commit and release ───────────────────────────────────────────────
 
+# Capture previous tag before committing
+previous_tag=$(git -C "$repo_root" describe --tags --abbrev=0 2>/dev/null || echo "")
+
 echo "Committing VERSION bump..."
 
 git -C "$repo_root" add "$kit_dir/VERSION"
@@ -91,10 +94,24 @@ git -C "$repo_root" push git@github.com:"$repo".git HEAD:main
 
 echo "Creating GitHub Release $tag on $repo..."
 
+# Generate release notes with changelog
+if [ -n "$previous_tag" ]; then
+  changelog=$(git -C "$repo_root" log "$previous_tag..HEAD" --oneline --no-decorate | sed 's/^/- /')
+  notes="Fab Kit release $new_version
+
+## Changes since $previous_tag
+
+$changelog"
+else
+  notes="Fab Kit release $new_version
+
+Initial release of Fab Kit."
+fi
+
 gh release create "$tag" \
   --repo "$repo" \
   --title "Fab Kit $tag" \
-  --notes "Fab Kit release $new_version" \
+  --notes "$notes" \
   "$repo_root/kit.tar.gz"
 
 # Clean up the tar.gz from the repo root
