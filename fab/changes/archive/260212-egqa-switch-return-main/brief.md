@@ -55,4 +55,4 @@ None - the requirement is clear from the Linear description and backlog entry.
 | # | Grade | Decision | Rationale |
 |---|-------|----------|-----------|
 | 1 | Confident | Clearing fab/current and checking out main is sufficient; no need to pull latest | Safer to leave the user in control of pulling updates. Reversibility is high. |
-| 2 | Tentative | Command syntax is `/fab-switch main` | Most natural and consistent with git conventions. Alternative syntaxes like `--main` or `-` are possible but less intuitive. <!-- assumed: using 'main' as the argument --> |
+| 2 | Certain | Command syntax is `/fab-switch --blank` | Resolved via clarification — `--blank` flag separates fab state from git branch concerns. <!-- clarified: Changed from keyword to flag-based design --> |
