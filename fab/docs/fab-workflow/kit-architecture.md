@@ -15,6 +15,7 @@ The `.kit/` directory SHALL contain:
 ```
 fab/.kit/
 ├── VERSION                 # Semver string (e.g., "0.1.0")
+├── model-tiers.yaml        # Provider-agnostic tier → model mapping
 ├── skills/                 # Skill definitions (markdown prompts)
 │   ├── _context.md         # Shared context loading convention
 │   ├── fab-init.md
@@ -92,6 +93,22 @@ Agent-specific skill files SHALL be symlinks pointing into `fab/.kit/skills/`. T
 .agents/skills/fab-new/
 └── SKILL.md → ../../../fab/.kit/skills/fab-new.md
 ```
+
+### Model Tier Agent Files (Dual Deployment)
+
+Skills classified as `fast` tier (via `model_tier: fast` in frontmatter) get **both** a skill symlink and a generated agent file. This dual deployment gives fast-tier skills user invocation (via skill) and model-optimized pipeline invocation (via agent).
+
+**Claude Code** — generated agent files:
+```
+.claude/agents/fab-help.md    # Generated with model: haiku
+.claude/agents/fab-init.md
+.claude/agents/fab-status.md
+.claude/agents/fab-switch.md
+```
+
+Agent files are self-contained (not symlinks) because they need a translated `model:` field. `fab-setup.sh` regenerates them on each run, so they stay in sync with `.kit/` updates.
+
+Capable-tier skills (the default) get symlinks only — no agent files. See [model-tiers.md](model-tiers.md) for the full tier system documentation.
 
 ### Distribution & Bootstrapping
 
