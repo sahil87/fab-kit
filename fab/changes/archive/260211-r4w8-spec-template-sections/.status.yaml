@@ -1,23 +1,23 @@
 name: 260211-r4w8-spec-template-sections
 created: 2026-02-11T00:00:00Z
 created_by: Sahil Ahuja
-stage: spec
+stage: archive
 progress:
   brief: done
   spec: done
-  tasks: pending
-  apply: pending
-  review: pending
-  archive: pending
+  tasks: done
+  apply: done
+  review: done
+  archive: done
 checklist:
-  generated: false
+  generated: true
   path: checklists/quality.md
-  completed: 0
-  total: 0
+  completed: 18
+  total: 18
 confidence:
   certain: 4
-  confident: 5
+  confident: 9
   tentative: 0
   unresolved: 0
-  score: 4.5
-last_updated: 2026-02-11T00:00:00Z
+  score: 4.1
+last_updated: 2026-02-12T13:00:00Z
