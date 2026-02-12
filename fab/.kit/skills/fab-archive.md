@@ -246,7 +246,29 @@ Maintain `fab/changes/archive/index.md` — a searchable summary of all archived
 - **{folder-name}** — {1-2 sentence description from brief Why section}
 ```
 
-### Step 7: Clear Pointer
+### Step 7: Mark Backlog Item Done
+
+If the brief contains a backlog ID reference, mark it as done in `fab/backlog.md`:
+
+1. Read `fab/changes/{name}/brief.md` (or from archive if already moved)
+2. Extract the backlog ID from the Origin section — look for the line `**Backlog**: [ID]` (e.g., `[0r8e]`, `[emcb]`)
+3. If no backlog ID is found, skip this step
+4. If a backlog ID is found:
+   - Read `fab/backlog.md`
+   - Search for a line in the **Backlog** section (unchecked items) that starts with `- [ ] [ID]` where ID matches the extracted backlog ID
+   - If found:
+     - Mark the item as done by changing `[ ]` to `[x]`
+     - Move the entire line to the **Done** section (prepend it at the top of the Done list, most-recent-first ordering)
+   - If not found in Backlog section, check if it's already in the Done section (already marked). If so, no action needed.
+   - If not found in either section, skip silently (backlog ID may reference a deleted or external item)
+
+Report:
+
+> `✓ Backlog item [ID] marked done` (if found and updated)
+> `✓ Backlog item [ID] already done` (if already in Done section)
+> `— No backlog ID to update` (if brief contains no backlog reference)
+
+### Step 8: Clear Pointer
 
 Delete `fab/current` to indicate there is no active change.
 
@@ -254,12 +276,13 @@ Delete `fab/current` to indicate there is no active change.
 
 ## Order of Operations (Fail-Safe)
 
-Steps 4–7 are executed in this specific order for safety:
+Steps 4–8 are executed in this specific order for safety:
 
 1. **Status update first** (Step 4) — if the process is interrupted after this point, the change is marked archived but still in `changes/`. The agent can detect this state and complete the remaining steps on next invocation.
 2. **Folder move second** (Step 5) — moves the change to the archive directory.
 3. **Index update third** (Step 6) — updates the archive index after the folder is in place.
-4. **Pointer clear last** (Step 7) — `fab/current` is deleted only after the folder is safely archived and indexed. This means that during the archive process, `/fab-status` still reports the active change rather than "no active change" with a half-hydrated state.
+4. **Backlog update fourth** (Step 7) — marks the corresponding backlog item as done. Non-blocking — if this fails, the archive still succeeds.
+5. **Pointer clear last** (Step 8) — `fab/current` is deleted only after the folder is safely archived and indexed. This means that during the archive process, `/fab-status` still reports the active change rather than "no active change" with a half-hydrated state.
 
 **Recovery from interruption**: If the agent detects that `.status.yaml` has `progress.archive: done` but the folder is still in `fab/changes/` (not in `archive/`), it should complete the move, update the index, and clear the pointer.
 
@@ -282,6 +305,7 @@ Hydrated docs:
 Status:   ✓ archive: done
 Archived: ✓ fab/changes/archive/{name}/
 Index:    ✓ fab/changes/archive/index.md updated
+Backlog:  ✓ [ID] marked done (or — No backlog ID to update)
 Pointer:  ✓ fab/current cleared
 
 Archive complete.
@@ -304,6 +328,8 @@ Hydrated docs:
 Status:   ✓ archive: done
 Archived: ✓ fab/changes/archive/{name}/
 Index:    ✓ fab/changes/archive/index.md updated
+Backlog:  ⚠ 1 conflict(s) noted above (if concurrent warnings exist)
+Backlog:  ✓ [ID] marked done (or — No backlog ID to update)
 Pointer:  ✓ fab/current cleared
 
 Archive complete.
@@ -335,6 +361,9 @@ Review has not passed. Run /fab-review to validate implementation first.
 | `archive/index.md` does not exist | Create with backfill of all existing archived changes |
 | Archived change missing `brief.md` during backfill | Use folder slug as fallback description |
 | Interrupted mid-archive (status=done but not moved) | Complete the move, update index, and clear pointer |
+| No backlog ID in brief | Skip backlog update step — report "No backlog ID to update" |
+| Backlog ID not found in backlog file | Skip silently — may be deleted or external reference |
+| Backlog ID already in Done section | Skip update — report "Backlog item [ID] already done" |
 | Hydration produces garbled output | Recovery: `git checkout` on affected doc files. Recommend reviewing diff before pushing. |
 | All checks pass | Complete archive, output Next line |
 
@@ -352,6 +381,7 @@ Review has not passed. Run /fab-review to validate implementation first.
 | Updates `.status.yaml`? | **Yes** — sets stage to `archive`, progress to `done`, updates last_updated |
 | Moves change folder? | **Yes** — from `fab/changes/{name}/` to `fab/changes/archive/{name}/` |
 | Updates archive index? | **Yes** — creates or updates `fab/changes/archive/index.md` with entry for the archived change |
+| Updates backlog? | **Yes** — marks the corresponding backlog item as done if backlog ID is present in brief |
 | Clears `fab/current`? | **Yes** — deletes the pointer file |
 
 ---

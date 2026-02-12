@@ -7,7 +7,25 @@
       "Bash(ls *)",
       "Bash(rm fab/current)",
       "Bash(wc *)",
-      "Bash(direnv allow)"
+      "Bash(direnv allow)",
+      "mcp__claude_ai_Linear__list_projects",
+      "mcp__claude_ai_Linear__create_milestone",
+      "mcp__claude_ai_Linear__list_teams",
+      "mcp__claude_ai_Linear__list_issue_statuses",
+      "mcp__claude_ai_Linear__create_issue",
+      "mcp__claude_ai_Linear__update_issue",
+      "mcp__claude_ai_Linear__update_milestone",
+      "Bash(idea list:*)",
+      "mcp__claude_ai_Linear__create_comment",
+      "Bash(chmod:*)",
+      "Bash(gh pr create:*)",
+      "mcp__claude_ai_Linear__list_issues",
+      "mcp__claude_ai_Linear__list_milestones",
+      "Bash(gh release edit:*)",
+      "Bash(gh release download --help:*)",
+      "Bash(gh release list:*)",
+      "Bash(gh release download:*)",
+      "Bash(gh api:*)"
     ]
   }
 }

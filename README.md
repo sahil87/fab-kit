@@ -8,15 +8,24 @@ The core engine lives in `fab/.kit/` as markdown skill files, templates, and she
 
 ### Bootstrap a new project
 
+**For private repository access** (requires [gh CLI](https://cli.github.com/) with authentication):
+
 ```bash
 mkdir -p fab
-curl -sL https://github.com/wvrdz/fab-kit/releases/latest/download/kit.tar.gz | tar xz -C fab/
+gh release download --repo wvrdz/fab-kit --pattern 'kit.tar.gz' --output - | tar xz -C fab/
+```
+
+Alternatively, if you have a local clone:
+
+```bash
+cp -r /path/to/fab-kit/fab/.kit ./fab/
 ```
 
 Then run setup and init:
 
 ```bash
 fab/.kit/scripts/fab-setup.sh   # creates directories, symlinks, .gitignore
+direnv allow # To approve .envrc content, used to add scripts to path
 ```
 
 Once setup completes, use your AI agent to run:
@@ -26,15 +35,6 @@ Once setup completes, use your AI agent to run:
 /fab-new      # starts your first change
 ```
 
-### Alternative: manual copy
-
-If you have a local clone of this repo:
-
-```bash
-cp -r fab/.kit /path/to/your-project/fab/.kit
-```
-
-Then run `fab-setup.sh` and `/fab-init` as above.
 
 ## Updating
 
