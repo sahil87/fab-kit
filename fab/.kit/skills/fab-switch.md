@@ -4,7 +4,7 @@ description: "Switch the active change to a different one. Lists available chang
 model_tier: fast
 ---
 
-# /fab-switch [change-name] [--branch <name>] [--no-branch-change]
+# /fab-switch [change-name] [--blank] [--branch <name>] [--no-branch-change]
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -12,7 +12,7 @@ model_tier: fast
 
 ## Purpose
 
-Switch the active change to a different one. Accepts a full or partial change name, matches it against existing change folders in `fab/changes/`, updates `fab/current` to point to the selected change, and handles git branch integration. When invoked with no argument, lists all available changes and asks the user to pick one.
+Switch the active change to a different one, or deactivate all changes with `--blank`. Accepts a full or partial change name, matches it against existing change folders in `fab/changes/`, updates `fab/current` to point to the selected change, and handles git branch integration. When invoked with `--blank`, deletes `fab/current` to deactivate the current change. When invoked with no argument, lists all available changes and asks the user to pick one.
 
 ---
 
@@ -22,10 +22,11 @@ Switch the active change to a different one. Accepts a full or partial change na
   - Full folder name: `260202-m3x1-fix-checkout-bug`
   - Partial slug match: `fix-checkout`
   - Any substring: `checkout`
-- **`--branch <name>`** *(optional)* — explicit branch name to use. Creates if new, checks out if existing. Skips the interactive branch prompt.
+- **`--blank`** *(optional)* — deactivate the current change by deleting `fab/current`. Does not perform any git operations on its own. Can be combined with `--branch` to also switch branches (e.g., `--blank --branch main`). Mutually exclusive with `<change-name>`.
+- **`--branch <name>`** *(optional)* — explicit branch name to use. Creates if new, checks out if existing. Skips the interactive branch prompt. Can be combined with `--blank`.
 - **`--no-branch-change`** *(optional)* — skip all branch integration (no branch creation, checkout, or prompts). Use when the branch is already correctly set up.
 
-If no argument is provided, list all active changes and ask the user to pick one (see **No Argument Flow** below).
+If no argument is provided (and `--blank` is not set), list all active changes and ask the user to pick one (see **No Argument Flow** below).
 
 ---
 
@@ -119,6 +120,55 @@ Run /fab-switch <name> with a matching name, or pick from the list above (1-2).
 ```
 
 Wait for user selection or let the user re-invoke with a different argument.
+
+### Deactivation Flow
+
+When invoked as `/fab-switch --blank`:
+
+1. **Delete `fab/current`** — remove the file entirely (do not truncate or empty it). This is consistent with the pattern used by `/fab-archive`.
+   - If `fab/current` does not exist, this is a no-op (already deactivated).
+
+2. **Branch integration** (only if `--branch` is also provided):
+   - If `--branch <name>` was given alongside `--blank`, handle the branch checkout using the existing `--branch` behavior (see Branch Integration section).
+   - If the checkout fails (worktree conflict, branch doesn't exist, dirty tree), remain on the current branch and report the reason. The deactivation (`fab/current` deletion) still succeeds.
+   - If `--branch` was NOT provided, perform no git operations. `--blank` alone only affects the fab change pointer.
+   - Note: `--no-branch-change` is redundant with `--blank` (since `--blank` alone performs no git operations) but is accepted without error.
+
+3. **Display confirmation**:
+
+   When deactivating (no branch change):
+
+   ```
+   No active change.
+
+   Next: /fab-new <description> or /fab-switch <change-name>
+   ```
+
+   When deactivating with branch change (`--blank --branch main`):
+
+   ```
+   No active change.
+   Branch: main (checked out)
+
+   Next: /fab-new <description> or /fab-switch <change-name>
+   ```
+
+   When deactivating but branch checkout failed:
+
+   ```
+   No active change.
+   Branch: stayed on {current-branch} ({reason})
+
+   Next: /fab-new <description> or /fab-switch <change-name>
+   ```
+
+   When already deactivated (no `fab/current` file):
+
+   ```
+   No active change (already blank).
+
+   Next: /fab-new <description> or /fab-switch <change-name>
+   ```
 
 ### Switch Flow
 
@@ -253,6 +303,40 @@ Stage:  apply (4/6)
 Next: /fab-review
 ```
 
+### Deactivated (no branch)
+
+```
+No active change.
+
+Next: /fab-new <description> or /fab-switch <change-name>
+```
+
+### Deactivated (with branch)
+
+```
+No active change.
+Branch: main (checked out)
+
+Next: /fab-new <description> or /fab-switch <change-name>
+```
+
+### Deactivated (branch checkout failed)
+
+```
+No active change.
+Branch: stayed on 260212-egqa-switch-return-main (main is checked out in another worktree)
+
+Next: /fab-new <description> or /fab-switch <change-name>
+```
+
+### Deactivated (already blank)
+
+```
+No active change (already blank).
+
+Next: /fab-new <description> or /fab-switch <change-name>
+```
+
 ### No Changes Exist
 
 ```
@@ -298,6 +382,9 @@ Run /fab-switch <name> with a matching name, or pick from the list above (1-2).
 | `fab/config.yaml` not found | Skip branch integration (git settings unknown) |
 | Git branch creation fails | Report the error, continue without branch change. The switch itself still completes (fab/current is written, status is displayed). |
 | `--branch` name invalid for git | Report the error, continue without branch change |
+| `--blank` with `fab/current` already absent | Output: "No active change (already blank)." — no error |
+| `--blank --branch` and checkout fails | Delete `fab/current` (deactivation succeeds), report git error, remain on current branch |
+| `--blank` combined with `<change-name>` | These are mutually exclusive. If both provided, prefer `--blank` (deactivation intent) |
 
 ---
 
@@ -307,7 +394,7 @@ Run /fab-switch <name> with a matching name, or pick from the list above (1-2).
 |----------|-------|
 | Advances stage? | **No** — switch only changes the active pointer, does not modify any change's stage |
 | Idempotent? | **Yes** — switching to the same change multiple times has no side effects (branch integration is skipped if already on the target branch) |
-| Modifies `fab/current`? | **Yes** — writes the selected change name |
+| Modifies `fab/current`? | **Yes** — writes the selected change name, or **deletes** the file when `--blank` is used |
 | Modifies `.status.yaml`? | **No** — read-only access to display status |
 | Modifies source code? | **No** |
 | Modifies git state? | **Yes** — may create or check out a branch |

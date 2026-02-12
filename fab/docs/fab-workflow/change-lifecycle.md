@@ -29,6 +29,7 @@ All components MUST be lowercase — avoids collisions on case-insensitive files
 - **Updated** by `/fab-switch` — overwritten with the new change name
 - **Conditionally created** by `/fab-new` — only written if `--switch` flag is used or switching intent is detected in the description; otherwise `/fab-new` does not modify `fab/current`
 - **Read** by every other skill — `/fab-continue`, `/fab-clarify`, `/fab-apply`, `/fab-review`, `/fab-status` all resolve the active change via `current`
+- **Cleared** by `/fab-switch --blank` — file is deleted to deactivate the current change (no active change). Can be combined with `--branch` to also switch git branches (e.g., `--blank --branch main`)
 - **Cleared** by `/fab-archive` — file is deleted after archiving (no active change)
 
 **Resolution pattern** (used by all skills):
@@ -113,16 +114,22 @@ There is no `/fab-abandon` skill — this is a manual operation. To preserve con
 
 All mechanical work (file reading, YAML parsing, git branch query, progress symbol mapping, next command logic) lives in `fab/.kit/scripts/fab-status.sh`. The script reads `fab/config.yaml` for `git.enabled` and uses `git branch --show-current` for live branch display. The skill prompt invokes the script and presents its output. The same script can be run directly from the terminal without invoking an agent.
 
-### `/fab-switch [change-name] [--branch <name>]`
+### `/fab-switch [change-name] [--blank] [--branch <name>]`
 
 `/fab-switch` changes the active change and handles git branch integration. It reads `fab/config.yaml` for `git.enabled` and `git.branch_prefix`.
 
+**Switching to a change:**
 1. Match `change-name` against `fab/changes/` (supports partial/slug match)
 2. **Ambiguous match** — if multiple changes match, list them and ask the user to pick. Never guess
 3. **No match** — list available changes and ask
 4. Write the full change name to `fab/current`
 5. **Branch integration** (if `git.enabled`): auto-create on main/master, prompt on feature/wt branches, or use `--branch <name>` for explicit branch
 6. Display the switched change's status summary
+
+**Deactivating (`--blank`):**
+1. Delete `fab/current` — deactivates the current change. Idempotent (no error if already blank)
+2. No git operations unless `--branch` is also provided (e.g., `--blank --branch main` to deactivate and checkout main)
+3. If combined with `--branch` and the checkout fails (worktree conflict, missing branch), the deactivation still succeeds — only the branch change is skipped
 
 ## Migration Note (Old-Format `.status.yaml`)
 
@@ -176,6 +183,7 @@ Skills will tolerate old-format files — the preflight script infers `brief: do
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260212-egqa-switch-return-main | 2026-02-12 | Added `--blank` flag to `/fab-switch` for deactivating the current change (deletes `fab/current`). Composable with `--branch` for git operations. Updated fab/current lifecycle and /fab-switch section. |
 | 260212-ipoe-checklist-folder-location | 2026-02-12 | Updated `.status.yaml` `checklist.path` default from `checklists/quality.md` to `checklist.md` at change root |
 | 260212-v5p2-brief-pipeline-stage | 2026-02-12 | Restored brief as formal pipeline stage, updated migration note to keep brief: entry |
 | — | 2026-02-12 | Updated `/fab-new` default behavior: no longer auto-switches. Updated `fab/current` lifecycle, git integration description, and Branch Integration design decision |

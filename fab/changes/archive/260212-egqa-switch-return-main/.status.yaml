@@ -1,0 +1,22 @@
+name: 260212-egqa-switch-return-main
+created: 2026-02-12T12:00:00Z
+created_by: sahil-weaver
+progress:
+  brief: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklist.md
+  completed: 19
+  total: 19
+confidence:
+  certain: 7
+  confident: 1
+  tentative: 0
+  unresolved: 0
+  score: 4.7
+last_updated: 2026-02-12T19:35:00Z
