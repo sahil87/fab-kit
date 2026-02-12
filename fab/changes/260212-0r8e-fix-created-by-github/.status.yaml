@@ -1,8 +1,9 @@
-name: 260212-k7p3-fix-created-by-github
+name: 260212-0r8e-fix-created-by-github
 created: 2026-02-12T12:00:00Z
 created_by: Sahil Ahuja
 progress:
-  spec: active
+  brief: active
+  spec: pending
   tasks: pending
   apply: pending
   review: pending

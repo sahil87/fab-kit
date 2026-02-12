@@ -1,8 +1,9 @@
-name: 260212-ulxn-clarify-fab-setup
+name: 260212-emcb-clarify-fab-setup
 created: 2026-02-12T06:00:11+00:00
 created_by: Sahil Ahuja
 progress:
-  spec: active
+  brief: active
+  spec: pending
   tasks: pending
   apply: pending
   review: pending
