@@ -93,15 +93,6 @@ The `fab-ff` skill prompt SHALL include the same awareness of Non-Goals and Desi
 - **WHEN** fab-ff generates spec content
 - **THEN** it follows the same rules as fab-continue for including or omitting optional sections
 
-### Requirement: fab-discuss spec generation awareness
-
-The `fab-discuss` skill prompt SHALL populate Non-Goals and Design Decisions in the generated spec based on discussion outcomes.
-
-#### Scenario: fab-discuss generates spec in new change mode
-- **GIVEN** a discussion that resulted in design decisions and scope exclusions
-- **WHEN** fab-discuss generates the spec artifact
-- **THEN** the spec includes both Non-Goals and Design Decisions sections populated from discussion
-
 ## Design Decisions
 
 1. **Non-Goals before requirements, Design Decisions after**: Reading flow goes scope boundaries -> requirements -> rationale
@@ -120,5 +111,5 @@ The `fab-discuss` skill prompt SHALL populate Non-Goals and Design Decisions in 
 
 | # | Grade | Decision | Rationale |
 |---|-------|----------|-----------|
-| 1 | Confident | fab-continue, fab-ff, fab-discuss are the skills to update | These are the three skills that generate spec content |
+| 1 | Confident | fab-continue and fab-ff are the skills to update | These are the two skills that generate spec content via `_generation.md` |
 | 2 | Confident | Guidance via HTML comments in template | Consistent with existing template patterns |

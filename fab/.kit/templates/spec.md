@@ -17,6 +17,18 @@
   Mark unresolved ambiguities with [NEEDS CLARIFICATION] inline. /fab-clarify resolves these.
 -->
 
+## Non-Goals
+
+<!--
+  OPTIONAL — include when the change has meaningful scope exclusions.
+  Omit this section entirely for straightforward changes (no empty headings).
+
+  Each non-goal is a bullet explaining what is explicitly out of scope:
+    - {what is excluded} — {brief reason, if not obvious}
+-->
+
+- {what is excluded} — {brief reason, if not obvious}
+
 ## {Domain}: {Topic}
 
 ### Requirement: {Requirement Name}
@@ -40,6 +52,24 @@
 - **GIVEN** {precondition}
 - **WHEN** {action}
 - **THEN** {outcome}
+
+## Design Decisions
+
+<!--
+  OPTIONAL — include when the change involves non-trivial choices, architectural
+  decisions, or technology selection. Omit entirely for trivial changes.
+
+  Each entry uses the format:
+    1. **{Decision}**: {chosen approach}
+       - *Why*: {rationale}
+       - *Rejected*: {alternative and why it was worse}
+
+  The *Rejected* line MAY be omitted if there were no meaningful alternatives.
+-->
+
+1. **{Decision}**: {chosen approach}
+   - *Why*: {rationale}
+   - *Rejected*: {alternative and why it was worse}
 
 ## Deprecated Requirements
 

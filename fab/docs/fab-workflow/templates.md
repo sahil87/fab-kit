@@ -23,14 +23,14 @@ The max 3 `[BLOCKING]` questions constraint forces the agent to make informed gu
 
 ### `spec.md` (Change Specification)
 
-> **Note**: The spec MAY include an optional `## Design Decisions` section for capturing key design decisions with rationale and rejected alternatives. When present, these decisions are extracted into centralized docs during archive hydration.
-
 The spec describes requirements relevant to this change using RFC 2119 keywords (MUST/SHALL/SHOULD/MAY). Structure:
 
 - **Metadata** — Change name, date, affected docs paths
+- **Non-Goals** *(optional)* — Explicit scope exclusions, placed after metadata and before domain sections. Each entry is a bullet: `- {what is excluded} — {brief reason}`. Omit entirely for straightforward changes with no meaningful exclusions
 - **Domain sections** — Organized by domain when the change touches multiple domains
 - **Requirements** — Each with descriptive name and RFC 2119 text
 - **Scenarios** — GIVEN/WHEN/THEN format, at least one per requirement
+- **Design Decisions** *(optional)* — Key design choices with rationale and rejected alternatives, placed after domain sections and before Deprecated Requirements. Each entry: `1. **{Decision}**: {approach}` with `*Why*` and `*Rejected*` sub-items. Omit entirely for trivial changes. When present, decisions are extracted into centralized docs during archive hydration
 - **Deprecated Requirements** — Only if this change removes existing requirements, with reason and migration path
 
 The spec reads as a straightforward requirements document with no delta markers. The agent infers what's new vs changed by comparing against existing centralized docs during archive hydration.
@@ -130,11 +130,24 @@ When `/fab-archive` hydrates into centralized docs:
 **Rejected**: SpecKit-style requirement-quality checklist — duplicates planning-stage work.
 *Source*: doc/fab-spec/TEMPLATES.md
 
+### Non-Goals Before Requirements, Design Decisions After
+**Decision**: In the spec template, Non-Goals is placed after metadata and before domain sections; Design Decisions is placed after domain sections and before Deprecated Requirements.
+**Why**: A reader needs to know what's excluded before reading what's included; rationale makes more sense after seeing the requirements it justifies.
+**Rejected**: Both sections at the end — loses the scoping benefit of Non-Goals appearing early.
+*Introduced by*: 260211-r4w8-spec-template-sections
+
+### Optional Sections Omitted Rather Than Empty
+**Decision**: Non-Goals and Design Decisions are omitted entirely when not needed, rather than included with "N/A" or empty content.
+**Why**: Empty sections add noise; omission is cleaner and consistent with how Deprecated Requirements already works.
+**Rejected**: Always include with "N/A" — adds boilerplate to simple changes.
+*Introduced by*: 260211-r4w8-spec-template-sections
+
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
 | 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Updated .status.yaml template (removed stage: field and brief: from progress, spec: active as initial), documented brief template Origin section |
+| 260211-r4w8-spec-template-sections | 2026-02-12 | Added optional Non-Goals and Design Decisions sections to spec.md template |
 | 260211-r3k8-simplify-planning-stages | 2026-02-11 | Renamed proposal.md → brief.md, removed plan.md template section |
 | 260211-endg-add-created-by-field | 2026-02-11 | Added `created_by` field to `.status.yaml` template — auto-detected from `git config user.name`, write-once, with `"unknown"` fallback |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
