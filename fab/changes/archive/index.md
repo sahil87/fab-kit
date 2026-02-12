@@ -1,5 +1,6 @@
 # Archive Index
 
+- **260212-r7k3-add-no-switch-flag** — `/fab-new` always activates the newly created change via `/fab-switch`. Added a `--no-switch` flag that skips activation, allowing change creation without disrupting the current active context.
 - **260212-v5p2-simplify-stages-entry-paths** — Simplifies the Fab pipeline from 6 to 5 stages by removing "brief" as a formal stage, consolidates /fab-new and /fab-discuss into a single adaptive /fab-new with SRAD-driven questioning and gap analysis, removes /fab-discuss entirely, and introduces the `active` marker in the progress map as the single source of truth for current stage (replacing the redundant `stage:` field).
 - **260211-endg-add-created-by-field** — `.status.yaml` tracks when a change was created but not by whom. This adds a `created_by` field auto-detected from `git config user.name` at change creation time, displayed by `/fab-status`, with backward-compatible handling for older changes.
 - **260210-k7p2-document-srad-framework** — SRAD is referenced by fab-fff confidence gating and the backlog as implemented, but the framework itself — what the acronym stands for, how scores are calculated, what thresholds gate fab-fff — is defined nowhere in the specs. This change creates a standalone `fab/specs/srad.md` covering the full framework and updates the specs index.

@@ -3,7 +3,7 @@ name: fab-new
 description: "Start a new change from a natural language description. Creates the change folder, sets it active, and generates the brief."
 ---
 
-# /fab-new <description>
+# /fab-new <description> [--no-switch]
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -33,6 +33,7 @@ Do NOT create partial structure. The project must be initialized before starting
 ## Arguments
 
 - **`<description>`** *(required)* — natural language description of the change (e.g., "Add OAuth2 support for Google and GitHub sign-in")
+- **`--no-switch`** *(optional)* — skip Step 9 (the internal `/fab-switch` invocation). The change folder, `.status.yaml`, and `brief.md` are created as normal, but `fab/current` is NOT written and no branch is created or checked out. Use this when batching multiple change captures or when you want to stay focused on the current active change.
 
 If no description is provided, ask the user: *"What change do you want to make?"*
 
@@ -182,6 +183,10 @@ Once the user is satisfied with the brief (questions answered, scope agreed):
 
 ### Step 9: Activate Change via `/fab-switch`
 
+**If `--no-switch` was provided, skip this step entirely.** The change folder, `.status.yaml`, and `brief.md` have already been created. `fab/current` is NOT modified and no branch is created or checked out. Proceed directly to output.
+
+**Otherwise (default behavior):**
+
 Invoke the `/fab-switch` flow internally to activate the change:
 
 1. Call `/fab-switch {name}` — this writes the change name to `fab/current` and performs branch integration (if `git.enabled`)
@@ -261,6 +266,28 @@ Brief complete.
 Next: /fab-continue or /fab-ff (fast-forward all planning)
 ```
 
+### With `--no-switch` Flag
+
+```
+Created fab/changes/260206-x7k2-add-oauth/
+
+## Brief: Add OAuth2 Support
+
+{filled brief content}
+
+Brief complete.
+
+## Assumptions
+
+| # | Grade | Decision | Rationale |
+|---|-------|----------|-----------|
+| 1 | Confident | OAuth2 over SAML | Config shows REST API stack |
+
+1 assumption made (1 confident, 0 tentative). Run /fab-clarify to review.
+
+Next: /fab-switch 260206-x7k2-add-oauth to make it active, then /fab-continue or /fab-ff
+```
+
 ---
 
 ## Error Handling
@@ -275,4 +302,6 @@ Next: /fab-continue or /fab-ff (fast-forward all planning)
 
 ---
 
-Next: `/fab-continue or /fab-ff (fast-forward all planning)`
+Next (default): `/fab-continue or /fab-ff (fast-forward all planning)`
+
+Next (with `--no-switch`): `/fab-switch {name} to make it active, then /fab-continue or /fab-ff`

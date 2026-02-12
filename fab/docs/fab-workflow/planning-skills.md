@@ -21,7 +21,7 @@ Each skill retains its own orchestration logic (stage guards, question handling,
 
 ### `/fab-new <description>`
 
-`/fab-new` starts a new change from a natural language description. It is adaptive: clear inputs get a quick brief, vague inputs trigger conversational exploration. It creates the change folder, initializes status tracking, generates a brief (with Origin section), and calls `/fab-switch` internally to activate the change (including branch integration). Output is always a single artifact: `brief.md`.
+`/fab-new` starts a new change from a natural language description. It is adaptive: clear inputs get a quick brief, vague inputs trigger conversational exploration. It creates the change folder, initializes status tracking, generates a brief (with Origin section), and calls `/fab-switch` internally to activate the change (including branch integration). Accepts an optional `--no-switch` flag to skip activation. Output is always a single artifact: `brief.md`.
 
 #### Folder Name Generation
 
@@ -54,6 +54,10 @@ The skill SHALL:
 5. Call `/fab-switch` internally to activate the change (writes `fab/current`, performs branch integration)
 
 Note: `/fab-new` no longer handles branch integration directly — this is delegated to `/fab-switch`, which provides consistent branch handling.
+
+#### `--no-switch` Flag
+
+When `--no-switch` is provided, `/fab-new` skips the internal `/fab-switch` invocation entirely. The change folder, `.status.yaml`, and `brief.md` are created as normal, but `fab/current` is NOT modified and no branch is created or checked out. The output omits the `Branch:` line and uses a contextual `Next:` line: `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-ff`. Use this when batching multiple change captures or staying focused on the current active change.
 
 #### Brief-Only Output
 
@@ -255,6 +259,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260212-r7k3-add-no-switch-flag | 2026-02-12 | Added `--no-switch` flag to `/fab-new` — skips activation and branch integration when batching change captures |
 | 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Removed /fab-discuss section, rewrote /fab-new for adaptive SRAD-driven behavior with gap analysis and conversational mode |
 | 260211-r3k8-simplify-planning-stages | 2026-02-11 | 6-stage pipeline (brief → spec → tasks), removed plan stage, /fab-discuss dual output, /fab-ff generates spec → tasks directly |
 | 260211-endg-add-created-by-field | 2026-02-11 | `/fab-new` and `/fab-discuss` now populate `created_by` in `.status.yaml` from `git config user.name` at change creation |
