@@ -70,6 +70,11 @@ All `/fab-*` commands and how they tie together. Solid arrows are the primary fl
 flowchart TD
     subgraph setup ["Setup (once per project)"]
         INIT["/fab-init"]
+        subgraph init_cmds ["Init subcommands"]
+            CONFIG["/fab-init-config"]
+            CONST["/fab-init-constitution"]
+            VALIDATE["/fab-init-validate"]
+        end
         HYDRATE["/fab-hydrate"]
     end
 
@@ -78,13 +83,16 @@ flowchart TD
 
         subgraph continue ["fab-continue (one stage at a time)"]
             direction TB
-            CONT_S["/fab-continue → spec (from brief)"]
-            CONT_T["/fab-continue → tasks (from spec)"]
+            CONT_S["/fab-continue → spec"]
+            CONT_T["/fab-continue → tasks"]
             CONT_S --> CONT_T
         end
 
-        FF["/fab-ff"]
-        FFF["/fab-fff"]
+        FF["/fab-ff
+        (full pipeline, interactive stops)"]
+        FFF["/fab-fff
+        (full pipeline, autonomous)
+        confidence ≥ 3.0 required"]
         CLARIFY["/fab-clarify
         (refine any planning artifact)"]
     end
@@ -107,11 +115,15 @@ flowchart TD
     end
 
     %% Setup
-    INIT --> HYDRATE
+    INIT --> CONFIG
+    INIT --> CONST
+    VALIDATE -.->|"check"| INIT
+    CONFIG --> HYDRATE
+    CONST --> HYDRATE
     INIT -->|"or skip hydrate"| NEW
     HYDRATE --> NEW
 
-    %% Brief fans out to three planning paths
+    %% Brief fans out to three paths
     NEW --> CONT_S
     NEW --> FF
     NEW --> FFF
@@ -121,21 +133,23 @@ flowchart TD
 
     %% Into execution
     CONT_T --> APPLY
-    FF --> APPLY
-    FFF --> APPLY
+
+    %% Shortcuts run the full pipeline
+    FF -->|"spec → … → archive"| ARCHIVE
+    FFF -->|"gate → spec → … → archive"| ARCHIVE
 
     %% Execution
     APPLY --> REVIEW
-    FFF -.->|"auto"| REVIEW
 
     %% Review outcomes
     REVIEW -->|"pass"| ARCHIVE
-    FFF -.->|"auto"| ARCHIVE
     REVIEW -.->|"fix code"| APPLY
-    REVIEW -.->|"revise"| continue
+    REVIEW -.->|"revise tasks"| CONT_T
+    REVIEW -.->|"revise spec"| CONT_S
 
     %% Styles
     style setup fill:#f0f0f0,stroke:#999
+    style init_cmds fill:#f5f5f5,stroke:#bbb
     style planning fill:#e8f4f8,stroke:#2196F3
     style continue fill:#d6eaf8,stroke:#2196F3
     style execution fill:#fff3e0,stroke:#FF9800
@@ -143,26 +157,29 @@ flowchart TD
     style utility fill:#fce4ec,stroke:#e91e63
     style BACKFILL fill:#fff,stroke:#999,stroke-dasharray: 5 5
     style CLARIFY fill:#fff,stroke:#999,stroke-dasharray: 5 5
+    style VALIDATE fill:#fff,stroke:#999,stroke-dasharray: 5 5
 ```
 
 ---
 
-## 4. Change State Diagram (ROUGH - NOT FINAL)
+## 4. Change State Diagram
 
 The complete state machine showing how a change progresses through all stages. Each stage can be in one of four states: `pending`, `active`, `done`, or `failed` (review only). The diagram shows normal forward flow, shortcuts, rework paths, and the commands that cause each transition.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> brief: /fab-new <description>
+    direction TB
+
+    [*] --> brief: /fab-new
 
     brief --> spec: /fab-continue
-    brief --> tasks: /fab-ff (skip spec)
-    brief --> archive: /fab-fff (full pipeline)
+    brief --> archive: /fab-ff (full pipeline, interactive)
+    brief --> archive: /fab-fff (full pipeline, autonomous, confidence ≥ 3.0)
 
-    spec --> spec: /fab-clarify (refine)
+    state "/fab-clarify (refine spec or tasks in-place)" as clarify
+
     spec --> tasks: /fab-continue
 
-    tasks --> tasks: /fab-clarify (refine)
     tasks --> apply: /fab-continue
 
     apply --> review: /fab-continue
@@ -175,58 +192,21 @@ stateDiagram-v2
     archive --> [*]: /fab-continue (hydrate & complete)
 
     note right of brief
-        First pipeline stage
+        Created by /fab-new
         Contains: requirements,
         goals, constraints
-        Created by /fab-new
-        State: active → done
-    end note
-
-    note right of spec
-        Stage states:
-        • pending (not started)
-        • active (in progress)
-        • done (complete)
-
-        Commands:
-        • /fab-continue (advance)
-        • /fab-clarify (refine)
-    end note
-
-    note right of tasks
-        Stage states:
-        • pending
-        • active
-        • done
-
-        Checklist auto-generated
-        when tasks complete
     end note
 
     note right of apply
-        Execution phase
-        • Tasks run in order
-        • Tests after each task
-        • Resumable (markdown ✓)
+        Tasks run in order
+        Tests after each task
+        Resumable (markdown ✓)
     end note
 
     note right of review
-        Stage states:
-        • pending
-        • active
-        • done
-        • failed (triggers rework)
-
         Validates: tasks ✓,
         checklist ✓, tests ✓,
         spec match ✓
-    end note
-
-    note right of archive
-        Completion phase
-        • Hydrates to fab/docs/
-        • Moves to archive/
-        • Clears fab/current
     end note
 
     %% Styles
@@ -234,9 +214,11 @@ stateDiagram-v2
     classDef execution fill:#fff3e0,stroke:#FF9800,stroke-width:2px
     classDef completion fill:#e8f5e9,stroke:#4CAF50,stroke-width:2px
     classDef input fill:#f3e5f5,stroke:#9C27B0,stroke-width:2px
+    classDef refinement fill:#fff,stroke:#999,stroke-width:1px,stroke-dasharray: 5 5
 
     class brief input
     class spec,tasks planning
     class apply,review execution
     class archive completion
+    class clarify refinement
 ```
