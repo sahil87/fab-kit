@@ -1,5 +1,6 @@
 # Archive Index
 
+- **260212-0r8e-fix-created-by-github** — The current `.status.yaml` format captures `created_by` using `git config user.name`, which returns inconsistent values across configurations. Using GitHub IDs via `gh api user --jq .login` provides a stable, globally unique identifier with graceful fallback.
 - **260212-r7k3-add-no-switch-flag** — `/fab-new` always activates the newly created change via `/fab-switch`. Added a `--no-switch` flag that skips activation, allowing change creation without disrupting the current active context.
 - **260212-v5p2-simplify-stages-entry-paths** — Simplifies the Fab pipeline from 6 to 5 stages by removing "brief" as a formal stage, consolidates /fab-new and /fab-discuss into a single adaptive /fab-new with SRAD-driven questioning and gap analysis, removes /fab-discuss entirely, and introduces the `active` marker in the progress map as the single source of truth for current stage (replacing the redundant `stage:` field).
 - **260211-r4w8-spec-template-sections** — When the plan stage was absorbed into the spec stage, two valuable sections were lost: Non-Goals (explicit scope boundaries) and Design Decisions (rationale and rejected alternatives). This adds both as optional sections to the spec template, with generation procedure updates and documentation.

@@ -130,7 +130,7 @@ Create `fab/changes/{name}/.status.yaml` using the template at `fab/.kit/templat
 ```yaml
 name: {name}
 created: {ISO 8601 timestamp}
-created_by: {git config user.name, or "unknown" if unset}
+created_by: {gh api user --jq .login, or git config user.name fallback, or "unknown"}
 progress:
   spec: active
   tasks: pending
@@ -152,7 +152,7 @@ last_updated: {ISO 8601 timestamp}
 ```
 
 **Key points**:
-- `created_by` is populated from `git config user.name`. If the command returns empty or exits non-zero, use `"unknown"` as the fallback. This field is write-once — set here and never modified by subsequent skills.
+- `created_by` is populated using a fallback chain: first try `gh api user --jq .login` (GitHub username). If the `gh` command is not installed, not authenticated, or the API call fails (non-zero exit or empty output), fall back to `git config user.name`. If that also returns empty or exits non-zero, use `"unknown"`. No error or warning is displayed to the user on fallback. This field is write-once — set here and never modified by subsequent skills.
 - No `stage:` field — the current stage is derived from the `active` entry in the progress map
 - `spec` is `active` (first pipeline stage) — all other stages are `pending`
 - `confidence` block is initialized with defaults — Step 8 overwrites with actual counts after brief generation
