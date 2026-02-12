@@ -44,15 +44,16 @@ When called without arguments, advance to the next artifact in sequence.
 Determine the current stage from the preflight output's `stage` field (derived from the `active` entry in the progress map). The stage progression is:
 
 ```
-spec → tasks → apply → review → archive
+brief → spec → tasks → apply → review → archive
 ```
 
 **Guard**: Check the `active` entry to determine whether to allow continuation:
 
 | `active` entry | Action |
 |---------------|--------|
-| `spec` | Generate `spec.md` → set `spec: done`, `tasks: active` |
-| `tasks` | Generate `tasks.md` + checklist → set `tasks: done`, `apply: active` |
+| `brief` | Generate `spec.md` → set `brief: done`, `spec: active` |
+| `spec` | Generate `tasks.md` + checklist → set `spec: done`, `tasks: active` |
+| `tasks` | Block: "Planning is complete. Run /fab-apply to begin implementation." |
 | `apply` | Block: "Planning is complete. Run /fab-apply to begin implementation." |
 | `review` or `archive` | Block: "Use /fab-review or /fab-archive as appropriate." |
 | No `active` entry (all `done`) | Block: "Change is complete." |
@@ -63,7 +64,7 @@ If `progress.{active_stage}` is `done` and the stage is `tasks`, block with "Pla
 
 Context loading varies by the target stage being generated:
 
-#### Generating `spec.md` (spec: active)
+#### Generating `spec.md` (brief: active)
 
 Load:
 - `fab/config.yaml` — project config, tech stack
@@ -72,7 +73,7 @@ Load:
 - `fab/docs/index.md` — documentation landscape
 - Specific centralized docs referenced by the brief's **Affected Docs** section (read each `fab/docs/{domain}/{doc}.md` listed under New, Modified, or Removed)
 
-#### Generating `tasks.md` (tasks: active)
+#### Generating `tasks.md` (spec: active)
 
 Load everything from the spec context above, plus:
 - `fab/changes/{name}/spec.md` — the completed spec
@@ -128,8 +129,8 @@ After successfully generating the artifact:
 
 | Active entry | Generated artifact | Progress updates |
 |---|---|---|
-| `spec` (active) | `spec.md` | `spec: done`, `tasks: active` |
-| `tasks` (active) | `tasks.md` | `tasks: done`, `apply: active` |
+| `brief` (active) | `spec.md` | `brief: done`, `spec: active` |
+| `spec` (active) | `tasks.md` | `spec: done`, `tasks: active` |
 
 ### Step 5: Output
 
@@ -143,18 +144,22 @@ When called with a stage argument (e.g., `/fab-continue spec`), reset to that st
 
 ### Step 1: Validate Target Stage
 
-The target stage must be one of: `spec` or `tasks`.
+The target stage must be one of: `brief`, `spec`, or `tasks`.
 
 **Rejected targets:**
-- `brief` → Output: `Cannot reset to brief — brief is not a pipeline stage. Edit brief.md directly or use /fab-clarify.`
 - `apply` → Output: `Cannot reset to apply. Use /fab-apply to re-run implementation.`
 - `review` → Output: `Cannot reset to review. Use /fab-review to re-run validation.`
 - `archive` → Output: `Cannot reset to archive. Use /fab-archive to complete the change.`
-- Any other value → Output: `Unknown stage "{value}". Valid reset targets: spec, tasks.`
+- Any other value → Output: `Unknown stage "{value}". Valid reset targets: brief, spec, tasks.`
 
 ### Step 2: Load Context
 
 Load context as described in the Normal Flow Step 2, for the target stage being regenerated.
+
+**Special case for brief reset**: When resetting to brief, regenerate brief.md using:
+- `fab/config.yaml` — project config, tech stack
+- `fab/constitution.md` — project principles and constraints
+- `fab/docs/index.md` — documentation landscape
 
 ### Step 3: Reset `.status.yaml`
 
@@ -166,6 +171,7 @@ Load context as described in the Normal Flow Step 2, for the target stage being 
 
 ```yaml
 progress:
+  brief: done         # preserved
   spec: active        # reset target
   tasks: pending      # invalidated
   apply: pending      # invalidated
@@ -299,7 +305,9 @@ After `/fab-continue` completes, output the appropriate next line:
 
 | Stage completed | Next line |
 |----------------|-----------|
+| brief | `Next: /fab-continue (spec) or /fab-clarify (refine brief)` |
 | spec | `Next: /fab-continue (tasks) or /fab-ff (fast-forward) or /fab-clarify (refine spec)` |
 | tasks | `Next: /fab-apply` |
+| reset to brief | `Next: /fab-continue (spec) or /fab-clarify (refine brief)` |
 | reset to spec | `Next: /fab-continue (tasks) or /fab-ff (fast-forward) or /fab-clarify (refine spec)` |
 | reset to tasks | `Next: /fab-apply` |

@@ -51,12 +51,13 @@ Use the `stage` field from preflight output for the Stage Guard below (do not re
 
 The current stage must be one of:
 
+- `brief`
 - `spec`
 - `tasks`
 
 **If the stage is `apply`, `review`, or `archive`, STOP.** Output:
 
-> `Stage is "{stage}" — clarify applies to planning artifacts only (spec, tasks). Use /fab-review to validate implementation instead.`
+> `Stage is "{stage}" — clarify applies to planning artifacts only (brief, spec, tasks). Use /fab-review to validate implementation instead.`
 
 ---
 
@@ -64,13 +65,17 @@ The current stage must be one of:
 
 Context varies by the current stage. Load only what is relevant:
 
-### Spec stage
+### Brief stage
 
 - `fab/config.yaml` — project config, tech stack
 - `fab/constitution.md` — project principles and constraints
-- `fab/changes/{name}/brief.md` — the brief (refine alongside spec using brief taxonomy)
-- `fab/changes/{name}/spec.md` — the spec (refine using spec taxonomy, if exists)
+- `fab/changes/{name}/brief.md` — the artifact to refine
 - `fab/docs/index.md` — documentation landscape
+
+### Spec stage
+
+- Everything from brief context above, plus:
+- `fab/changes/{name}/spec.md` — the artifact to refine (if exists)
 - Specific centralized docs referenced by the brief's **Affected Docs** section
 
 ### Tasks stage
@@ -91,7 +96,8 @@ Based on the current stage, determine which artifact file to refine:
 
 | Stage | Artifact file(s) |
 |-------|-----------------|
-| `spec` | `brief.md` (brief taxonomy) + `spec.md` (spec taxonomy, if exists) |
+| `brief` | `brief.md` |
+| `spec` | `spec.md` (also scans brief.md for cross-stage gaps) |
 | `tasks` | `tasks.md` |
 
 Read the artifact file. If it does not exist, STOP with:

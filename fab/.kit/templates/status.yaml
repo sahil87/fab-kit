@@ -2,7 +2,8 @@ name: {NAME}
 created: {CREATED}
 created_by: {CREATED_BY}
 progress:
-  spec: active
+  brief: active
+  spec: pending
   tasks: pending
   apply: pending
   review: pending

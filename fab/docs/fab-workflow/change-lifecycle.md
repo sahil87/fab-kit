@@ -65,20 +65,20 @@ Every change folder SHALL contain a `.status.yaml` manifest with these fields:
 
 **Review failure backward movement**: When `/fab-review` identifies issues requiring rework, it sets `review: failed` and moves the appropriate earlier stage back to `active` (e.g., `spec: active`). Stages between the target and review are reset to `pending`.
 
-### The 5 Stages
+### The 6 Stages
 
-Changes progress through 5 stages in a defined graph:
+Changes progress through 6 stages in a defined graph:
 
 ```
-spec → tasks → apply → review → archive
+brief → spec → tasks → apply → review → archive
 ```
 
-The brief (`brief.md`) is created by `/fab-new` before the pipeline begins — it is an input to the pipeline, not a stage within it.
+The brief (`brief.md`) is created by `/fab-new` and is the first pipeline stage. After creation, you can refine the brief with `/fab-clarify` before advancing to spec generation.
 
 The stages split into three phases:
-- **Planning** (1-2): spec, tasks
-- **Execution** (3-4): apply, review
-- **Completion** (5): archive (hydrates into centralized docs)
+- **Planning** (1-3): brief, spec, tasks
+- **Execution** (4-5): apply, review
+- **Completion** (6): archive (hydrates into centralized docs)
 
 **Full pipeline path**: `/fab-fff` chains the entire flow (planning → apply → review → archive) in a single invocation, gated on confidence score >= 3.0. This is the fastest path from brief to archived change.
 

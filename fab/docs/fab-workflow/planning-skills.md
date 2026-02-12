@@ -4,7 +4,7 @@
 
 ## Overview
 
-The planning skills (`/fab-new`, `/fab-continue`, `/fab-ff`, `/fab-clarify`) handle the first three stages of the 5-stage Fab pipeline: spec, tasks, and the brief that precedes them. They produce the artifacts that define *what* changes and *how*, before any code is written.
+The planning skills (`/fab-new`, `/fab-continue`, `/fab-ff`, `/fab-clarify`) handle the first three stages of the 6-stage Fab pipeline: brief, spec, and tasks. They produce the artifacts that define *what* changes and *how*, before any code is written.
 
 ## Shared Generation Partial
 
@@ -48,7 +48,7 @@ If an existing mechanism covers the idea, the skill presents its findings and le
 
 The skill SHALL:
 1. Create `fab/changes/{name}/`
-2. Initialize `.status.yaml` with `created_by` set to the output of `git config user.name` (fallback: `"unknown"`), `spec: active` as the initial progress state
+2. Initialize `.status.yaml` with `created_by` set to the output of `git config user.name` (fallback: `"unknown"`), `brief: active` as the initial progress state
 3. Generate `brief.md` from the template (including Origin section), loading `fab/constitution.md` and `fab/config.yaml` as context
 4. Mark brief complete once the user is satisfied
 5. Conditionally call `/fab-switch` to activate the change (writes `fab/current`, performs branch integration) — only if the `--switch` flag was provided OR switching intent is detected in the description (phrases like "and switch to it", "make it active", "activate it")
@@ -79,13 +79,13 @@ Loads: config, constitution, `fab/docs/index.md` (to understand the existing doc
 
 ### `/fab-continue [<stage>]`
 
-`/fab-continue` advances to the next planning stage and generates its artifact. When called with a stage argument, it resets to that stage and regenerates from there. The pipeline flows from spec directly to tasks.
+`/fab-continue` advances to the next planning stage and generates its artifact. When called with a stage argument, it resets to that stage and regenerates from there. The pipeline flows from brief → spec → tasks.
 
 #### Normal Forward Flow (no argument)
 
 1. Read `.status.yaml` to determine current stage (the stage with `active` in the progress map)
 2. **Stage guard**: Check `progress.{stage}` value from preflight output:
-   - For planning stages (spec, tasks): if `progress.{stage} == 'done'` AND stage is `tasks`, block (planning complete). If `progress.{stage} == 'active'`, allow generation to resume (interrupted mid-way). If `progress.{stage} == 'pending'`, allow generation to start.
+   - For planning stages (brief, spec, tasks): if `progress.{stage} == 'done'` AND stage is `tasks`, block (planning complete). If `progress.{stage} == 'active'`, allow generation to resume (interrupted mid-way). If `progress.{stage} == 'pending'`, allow generation to start.
    - For apply/review/archive stages: block regardless of progress value (use stage-specific skill instead).
 3. Identify next artifact to create
 4. Load relevant template + context (including `fab/constitution.md` for principles)
@@ -97,7 +97,7 @@ Loads: config, constitution, `fab/docs/index.md` (to understand the existing doc
 #### Reset Behavior (with stage argument)
 
 When called as `/fab-continue <stage>` (e.g., `/fab-continue spec`):
-1. Target stage MUST be `spec` or `tasks`. Cannot reset to `apply`/`review`/`archive`
+1. Target stage MUST be `brief`, `spec`, or `tasks`. Cannot reset to `apply`/`review`/`archive`
 2. Reset `.status.yaml` progress: set target stage to `active`; mark all stages after target as `pending`
 3. Regenerate the target stage's artifact in place (update, not recreate from scratch — preserve what's still valid)
 4. Downstream artifacts are invalidated: tasks reset to `- [ ]`, checklist regenerated
@@ -112,11 +112,11 @@ Reset is primarily used after `/fab-review` identifies issues upstream.
 
 ### `/fab-ff` (Fast Forward)
 
-`/fab-ff` fast-forwards through all remaining planning stages in one pass to reach implementation quickly. It requires an active change with a completed brief. Frontloads questions, interleaves auto-clarify, and bails on blockers. The pipeline flows from spec directly to tasks.
+`/fab-ff` fast-forwards through all remaining planning stages in one pass to reach implementation quickly. Can start from brief, spec, or tasks stage. Frontloads questions, interleaves auto-clarify, and bails on blockers.
 
 #### Frontloaded Questions
 
-The skill SHALL scan the brief for ambiguities across *all* planning stages (spec, tasks), collect everything that needs user input into a single batch, and ask once. The goal: one Q&A round, then heads-down generation.
+The skill SHALL scan the brief for ambiguities across *all* remaining planning stages (brief, spec, tasks), collect everything that needs user input into a single batch, and ask once. The goal: one Q&A round, then heads-down generation.
 
 #### Interleaved Auto-Clarify
 
@@ -177,7 +177,7 @@ Loads all planning context upfront: config, constitution, `brief.md`, target cen
 When the user invokes `/fab-clarify` directly:
 
 1. Read `.status.yaml` to determine current stage
-2. Stage MUST be `spec` or `tasks`. At `spec` stage, scans both `brief.md` and `spec.md` using per-artifact taxonomy. If `apply` or later, suggest `/fab-review` instead
+2. Stage MUST be `brief`, `spec`, or `tasks`. Each stage scans its corresponding artifact(s) using per-artifact taxonomy. If `apply` or later, suggest `/fab-review` instead
 3. Load current artifact + relevant context
 4. Perform a **stage-scoped taxonomy scan** for gaps, ambiguities, and `[NEEDS CLARIFICATION]` markers (categories vary by stage)
 5. Present structured questions **one at a time** (max 5 per invocation), each with a recommendation and options table or suggested answer

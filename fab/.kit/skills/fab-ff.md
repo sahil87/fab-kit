@@ -11,7 +11,7 @@ description: "Fast-forward through all remaining planning stages in one pass to 
 
 ## Purpose
 
-Fast-forward through all remaining planning stages in one pass. Generates spec and tasks (with quality checklist) — all in a single invocation. Interleaves auto-clarify between stage generations to catch and resolve gaps before they compound downstream.
+Fast-forward through all remaining planning stages in one pass. Generates spec and tasks (with quality checklist) — all in a single invocation. Can start from brief, spec, or tasks stage. Interleaves auto-clarify between stage generations to catch and resolve gaps before they compound downstream.
 
 Interleaves auto-clarify between stage generations; stops if blocking issues are found that the agent cannot resolve autonomously. Resumable — re-running after a bail picks up from the first incomplete stage.
 
@@ -60,7 +60,7 @@ This makes `/fab-ff` resumable after a bail — re-running picks up from the fir
 
 ### Step 1: Frontload All Questions
 
-Find the `active` entry in the progress map and start from there, skipping stages already `done`. The pipeline covers 2 planning stages: `spec` and `tasks`.
+Find the `active` entry in the progress map and start from there, skipping stages already `done`. The planning pipeline covers 3 stages: `brief`, `spec`, and `tasks`. Fast-forward can start from any of these stages based on the current `active` stage.
 
 Apply SRAD scoring across the brief for ambiguities spanning **all** planning stages (spec, tasks). Consider:
 

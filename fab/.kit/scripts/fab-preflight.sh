@@ -39,15 +39,23 @@ fi
 # --- All validations passed — emit structured YAML to stdout ---
 
 # Extract progress fields
+p_brief=$(grep '^ *brief:' "$status_file" | sed 's/^ *brief: *//')
 p_spec=$(grep '^ *spec:' "$status_file" | sed 's/^ *spec: *//')
 p_tasks=$(grep '^ *tasks:' "$status_file" | sed 's/^ *tasks: *//')
 p_apply=$(grep '^ *apply:' "$status_file" | sed 's/^ *apply: *//')
 p_review=$(grep '^ *review:' "$status_file" | sed 's/^ *review: *//')
 p_archive=$(grep '^ *archive:' "$status_file" | sed 's/^ *archive: *//')
 
+# Migration shim: if no brief field exists but spec is active, inject brief: done
+if [ -z "$p_brief" ] && [ "$p_spec" = "active" ]; then
+  # Auto-migrate: add brief: done to status file
+  sed -i '/^progress:/a\  brief: done' "$status_file"
+  p_brief="done"
+fi
+
 # Derive current stage from the active entry in the progress map
 stage=""
-for s in spec tasks apply review archive; do
+for s in brief spec tasks apply review archive; do
   eval val="\$p_$s"
   if [ "$val" = "active" ]; then
     stage="$s"
@@ -76,6 +84,7 @@ name: $name
 change_dir: changes/$name
 stage: $stage
 progress:
+  brief: $p_brief
   spec: $p_spec
   tasks: $p_tasks
   apply: $p_apply
