@@ -1,0 +1,23 @@
+name: 260212-r7k3-add-no-switch-flag
+created: 2026-02-12T12:00:00+00:00
+created_by: Sahil Ahuja
+stage: brief
+progress:
+  brief: done
+  spec: pending
+  tasks: pending
+  apply: pending
+  review: pending
+  archive: pending
+checklist:
+  generated: false
+  path: checklists/quality.md
+  completed: 0
+  total: 0
+confidence:
+  certain: 4
+  confident: 1
+  tentative: 0
+  unresolved: 0
+  score: 4.9
+last_updated: 2026-02-12T12:00:00+00:00
