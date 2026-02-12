@@ -40,6 +40,19 @@ Do NOT proceed with structural bootstrap when arguments are passed — this prev
 
 ## Behavior
 
+### Delegation Pattern
+
+`/fab-init` delegates structural setup to `fab/.kit/scripts/fab-setup.sh` (invoked in step 1f) and only adds interactive/configuration artifacts on top. This separation keeps the script automatable for CI and bootstrap workflows while the skill handles project-specific configuration that requires user input.
+
+| Responsibility | Owner | Why |
+|---|---|---|
+| Directories, skeleton files, symlinks, .gitignore, .envrc | `fab-setup.sh` | Scriptable, automatable, no user input needed |
+| `config.yaml` (interactive) | `/fab-init` | Requires project-specific user input |
+| `constitution.md` (interactive) | `/fab-init` | Requires understanding of project principles |
+| Invoking `fab-setup.sh` | `/fab-init` (step 1f) | Ensures structural setup runs as part of init |
+
+Steps 1c–1e below have idempotent guards (`if not exists`) so they gracefully skip when `fab-setup.sh` has already created the structural artifacts.
+
 ### Phase 1: Structural Bootstrap
 
 Each step is **idempotent** — skip if the artifact already exists and is valid. On re-run, verify and repair rather than recreate.

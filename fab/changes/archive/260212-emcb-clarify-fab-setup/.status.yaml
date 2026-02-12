@@ -1,0 +1,22 @@
+name: 260212-emcb-clarify-fab-setup
+created: 2026-02-12T06:00:11+00:00
+created_by: Sahil Ahuja
+progress:
+  brief: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklists/quality.md
+  completed: 14
+  total: 14
+confidence:
+  certain: 3
+  confident: 4
+  tentative: 0
+  unresolved: 0
+  score: 4.6
+last_updated: 2026-02-12T14:50:00+00:00
