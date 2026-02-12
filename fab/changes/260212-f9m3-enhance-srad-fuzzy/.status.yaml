@@ -10,7 +10,7 @@ progress:
   archive: pending
 checklist:
   generated: false
-  path: checklists/quality.md
+  path: checklists.md
   completed: 0
   total: 0
 confidence:
