@@ -2,7 +2,8 @@ name: 260212-akhp-rename-fab-backfill
 created: 2026-02-12T00:00:00Z
 created_by: sahil-weaver
 progress:
-  spec: active
+  brief: active
+  spec: pending
   tasks: pending
   apply: pending
   review: pending
