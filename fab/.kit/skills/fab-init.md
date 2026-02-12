@@ -1,6 +1,7 @@
 ---
 name: fab-init
 description: "Bootstrap fab/ directory structure. Safe to re-run."
+model_tier: fast
 ---
 
 # /fab-init

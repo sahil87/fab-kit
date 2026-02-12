@@ -1,6 +1,7 @@
 ---
 name: fab-switch
 description: "Switch the active change to a different one. Lists available changes when called with no argument. Handles branch integration."
+model_tier: fast
 ---
 
 # /fab-switch [change-name] [--branch <name>]
