@@ -85,10 +85,46 @@ fab/.kit/
 ├── VERSION          # Semver version string
 ├── skills/          # Markdown skill definitions for AI agents
 ├── templates/       # Artifact templates (proposal, spec, plan, tasks, checklist)
-└── scripts/         # Shell utilities (setup, status, update, release)
+├── scripts/         # Shell utilities (setup, status, update, release, stageman)
+└── schemas/         # Workflow schema and documentation
 ```
 
-The kit provides a 7-stage workflow: **proposal → specs → plan → tasks → apply → review → archive**. See [fab/specs/index.md](fab/specs/index.md) for the full specification.
+The kit provides a 6-stage workflow: **brief → spec → tasks → apply → review → archive**. See [fab/specs/index.md](fab/specs/index.md) for the full specification.
+
+### Stage Manager (`stageman.sh`)
+
+The kit includes **Stage Manager**, a bash utility for querying workflow stages and states:
+
+```bash
+# Query utility
+fab/.kit/scripts/stageman.sh --help     # Show all available functions
+fab/.kit/scripts/stageman.sh --version  # Show version
+fab/.kit/scripts/stageman.sh --test     # Run self-tests
+
+# Use in scripts
+source fab/.kit/scripts/stageman.sh
+get_all_stages                          # List stages
+get_stage_number "spec"                 # Get position (2)
+validate_status_file .status.yaml       # Validate change status
+```
+
+**Development & Testing:**
+
+```bash
+# Run basic tests
+src/stageman/test-simple.sh
+
+# View API documentation
+cat src/stageman/SPEC.md
+
+# See complete development guide
+cat src/stageman/README.md
+```
+
+For complete documentation, see:
+- [fab/.kit/schemas/README.md](fab/.kit/schemas/README.md) - Schema overview
+- [src/stageman/SPEC.md](src/stageman/SPEC.md) - Complete API reference
+- [src/stageman/README.md](src/stageman/README.md) - Development guide
 
 ## Documentation Map
 
@@ -114,6 +150,7 @@ The kit provides a 7-stage workflow: **proposal → specs → plan → tasks →
 5. **[fab/specs/skills.md](fab/specs/skills.md)** — detailed behavior for each `/fab-*` skill
 6. **[fab/docs/fab-workflow/kit-architecture.md](fab/docs/fab-workflow/kit-architecture.md)** — `.kit/` internals, scripts, distribution
 7. **[fab/specs/templates.md](fab/specs/templates.md)** — artifact template system
+8. **[src/stageman/README.md](src/stageman/README.md)** — Stage Manager development guide and testing
 
 #### Spec Reader — "I want to understand the design rationale"
 
