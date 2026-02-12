@@ -10,7 +10,7 @@ Fab uses two distinct terms to avoid confusion:
 
 | Term | Location | Meaning |
 |------|----------|---------|
-| **Centralized docs** | `fab/docs/` | Source-of-truth documentation for the system. Contains both requirements (what) and durable design decisions (why). Updated by `/fab-hydrate` (from external sources) and `/fab-archive` (from change artifacts). |
+| **Centralized docs** | `fab/docs/` | Source-of-truth documentation for the system. Contains both requirements (what) and durable design decisions (why). Updated by `/fab-hydrate` (from external sources) and `/fab-continue` (archive) (from change artifacts). |
 | **spec.md** | `fab/changes/{name}/spec.md` | Change-level specification. Describes the requirements relevant to this change. |
 
 The stage named "spec" refers to the *activity* of writing the specification — its output is `spec.md` in the change folder.
@@ -34,7 +34,7 @@ Every skill that generates or validates artifacts MUST load relevant context bef
 - Read the brief's "Affected Docs" section to identify relevant domains
 - Read domain indexes (`fab/docs/{domain}/index.md`) for each relevant domain
 - Read the specific centralized doc(s) referenced by the Affected Docs entries
-- If a referenced doc doesn't exist yet (listed under New Docs), note this and proceed — it will be created by `/fab-archive`
+- If a referenced doc doesn't exist yet (listed under New Docs), note this and proceed — it will be created by `/fab-continue` (archive)
 - This grounds all artifact generation (spec, tasks, reviews) in the real current state, not assumptions
 
 **Source code** (loaded during implementation and review):
@@ -59,13 +59,13 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 | `/fab-hydrate` | docs hydrated | `Next: /fab-new <description> or /fab-hydrate <more-sources>` |
 | `/fab-new` | brief done | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
 | `/fab-continue` → spec | spec done | `Next: /fab-continue (tasks) or /fab-ff (fast-forward) or /fab-clarify (refine spec)` |
-| `/fab-continue` → tasks | tasks done | `Next: /fab-apply` |
-| `/fab-ff` | tasks done | `Next: /fab-apply` |
+| `/fab-continue` → tasks | tasks done | `Next: /fab-continue (apply)` |
+| `/fab-ff` | tasks done | `Next: /fab-continue (apply)` |
 | `/fab-clarify` | same stage | `Next: /fab-clarify (refine further) or /fab-continue or /fab-ff` |
-| `/fab-apply` | apply done | `Next: /fab-review` |
-| `/fab-review` (pass) | review done | `Next: /fab-archive` |
-| `/fab-review` (fail) | review failed | *(contextual — see [/fab-review](#fabreview) for fix options)* |
-| `/fab-archive` | archived | `Next: /fab-new <description> (start next change)` |
+| `/fab-continue` → apply | apply done | `Next: /fab-continue (review)` |
+| `/fab-continue` → review (pass) | review done | `Next: /fab-continue (archive)` |
+| `/fab-continue` → review (fail) | review failed | *(contextual — see [Review Behavior](#review-behavior-via-fab-continue) for fix options)* |
+| `/fab-continue` → archive | archived | `Next: /fab-new <description> (start next change)` |
 
 ---
 
@@ -217,7 +217,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 **Purpose**: Create the next artifact in sequence — or, when called with a stage argument, reset to that stage and regenerate from there.
 
 **Arguments**:
-- `<stage>` *(optional)* — target stage to reset to (`spec` or `tasks`). Used after `/fab-review` identifies issues upstream. When provided, resets `.status.yaml` to this stage and regenerates artifacts from that point forward.
+- `<stage>` *(optional)* — target stage to reset to (`spec` or `tasks`). Used after `/fab-continue` (review) identifies issues upstream. When provided, resets `.status.yaml` to this stage and regenerates artifacts from that point forward.
 
 **Context** (varies by target stage):
 - **Spec stage**: config, constitution, `brief.md`, target centralized doc(s) from `fab/docs/`
@@ -303,7 +303,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **Behavior**:
 1. Read `.status.yaml` to determine current stage
-2. **Guard**: stage must be `spec` or `tasks`. If stage is `apply` or later, suggest `/fab-review` instead
+2. **Guard**: stage must be `spec` or `tasks`. If stage is `apply` or later, suggest `/fab-continue` (review) instead
 3. Load the current stage's artifact + relevant context
 4. Analyze the artifact for gaps, ambiguities, and opportunities to deepen:
    - **Spec**: [NEEDS CLARIFICATION] markers, missing scenarios, underspecified requirements
@@ -316,7 +316,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 ---
 
-## `/fab-apply`
+## Apply Behavior (via `/fab-continue`)
 
 **Purpose**: Execute tasks from `tasks.md`.
 
@@ -324,7 +324,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **Example**:
 ```
-/fab-apply
+/fab-continue
 → "Starting implementation. 12 tasks remaining."
 ```
 
@@ -336,11 +336,11 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 5. Mark each task `[x]` immediately upon completion (not batched at the end)
 6. Update `.status.yaml` progress after each task
 
-**Resumability**: `/fab-apply` is inherently resumable. If the agent is interrupted mid-run, re-invoking `/fab-apply` picks up from the first unchecked item. The markdown checklist *is* the progress state — no separate tracking needed.
+**Resumability**: `/fab-continue` (apply) is inherently resumable. If the agent is interrupted mid-run, re-invoking `/fab-continue` picks up from the first unchecked item. The markdown checklist *is* the progress state — no separate tracking needed.
 
 ---
 
-## `/fab-review`
+## Review Behavior (via `/fab-continue`)
 
 **Purpose**: Validate implementation against spec and checklists.
 
@@ -348,7 +348,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **Example**:
 ```
-/fab-review
+/fab-continue
 → "✓ 12/12 tasks complete"
 → "✓ 10/12 checklist items passed"
 → "✗ 2 items need attention: [CHK-007, CHK-011]"
@@ -363,10 +363,10 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **On failure**, the agent presents the options and the user chooses where to loop back:
 
-- **Fix code** → `/fab-apply`
-  Implementation bug. The agent identifies which tasks need rework, unchecks them in `tasks.md` (marks `- [ ]` again with a `<!-- rework: reason -->` comment), and re-runs `/fab-apply` which picks up the unchecked items.
+- **Fix code** → `/fab-continue` (apply)
+  Implementation bug. The agent identifies which tasks need rework, unchecks them in `tasks.md` (marks `- [ ]` again with a `<!-- rework: reason -->` comment), and re-runs `/fab-continue` which picks up the unchecked items.
 
-- **Revise tasks** → edit `tasks.md`, then `/fab-apply`
+- **Revise tasks** → edit `tasks.md`, then `/fab-continue` (apply)
   Missing or wrong tasks. The agent adds/modifies tasks in `tasks.md` (new tasks get the next sequential ID). Completed tasks that are unaffected stay `[x]`. Only new or revised tasks are executed.
 
 - **Revise spec** → `/fab-continue spec`
@@ -376,7 +376,7 @@ The `.status.yaml` stage is reset to the chosen re-entry point. The general rule
 
 ---
 
-## `/fab-archive`
+## Archive Behavior (via `/fab-continue`)
 
 **Purpose**: Complete the change and hydrate into centralized docs.
 
@@ -384,14 +384,14 @@ The `.status.yaml` stage is reset to the chosen re-entry point. The general rule
 
 **Example**:
 ```
-/fab-archive
+/fab-continue
 → "Archived to fab/changes/archive/260115-a7k2-add-oauth/"
 → "Hydrated docs: fab/docs/auth/authentication.md"
 ```
 
 **Behavior**:
 1. **Final validation** — review must pass (all tasks `[x]`, all checklist items `[x]` including N/A items)
-2. **Concurrent change check** — scan `fab/changes/` for other active changes whose specs reference the same centralized doc files. If found, warn the user: *"Change {name} also modifies {doc}. After this archive, that change's spec was written against a now-stale base. Re-review with `/fab-review` after switching to it."*
+2. **Concurrent change check** — scan `fab/changes/` for other active changes whose specs reference the same centralized doc files. If found, warn the user: *"Change {name} also modifies {doc}. After this archive, that change's spec was written against a now-stale base. Re-review with `/fab-continue` (review) after switching to it."*
 3. **Hydrate into `fab/docs/`**:
    The agent reads `spec.md` and the current centralized doc, then rewrites the centralized doc to incorporate the changes:
    - **From spec.md** → integrate new/changed requirements and scenarios into the Requirements section. Remove requirements that the spec explicitly deprecates.

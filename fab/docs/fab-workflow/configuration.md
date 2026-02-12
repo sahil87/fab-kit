@@ -77,7 +77,7 @@ The constitution is the architectural DNA of a Fab project. It defines immutable
 
 - `/fab-init` generates it from project context (README, existing docs, conversation)
 - `/fab-continue` and `/fab-ff` load it when generating spec, tasks, and checklist artifacts
-- `/fab-review` checks implementation against constitutional principles (not just the spec)
+- `/fab-continue` (review) checks implementation against constitutional principles (not just the spec)
 - Constitution violations found during review are flagged as high-severity issues
 
 #### Versioning
@@ -120,7 +120,7 @@ See [init family](init-family.md) for the complete command suite.
 *Source*: doc/fab-spec/ARCHITECTURE.md
 
 ### Constitution Loaded Implicitly, Not Gated
-**Decision**: Skills load `constitution.md` as context and are expected to respect principles implicitly. Constitutional violations are caught during `/fab-review`, not gated at plan time.
+**Decision**: Skills load `constitution.md` as context and are expected to respect principles implicitly. Constitutional violations are caught during `/fab-continue` (review), not gated at plan time.
 **Why**: Lightweight enforcement. A formal gate at every stage adds friction without proportional benefit — most violations are caught naturally by the agent.
 **Rejected**: Explicit "Constitution Check" gate in the plan template (SpecKit's approach) — too heavyweight for Fab's lightweight workflow.
 *Source*: doc/fab-spec/TEMPLATES.md

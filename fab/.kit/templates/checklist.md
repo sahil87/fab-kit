@@ -14,7 +14,7 @@
     3. Project constitution — project-wide quality standards
 
   Categories below are defaults. Add project-specific categories from config.yaml.
-  /fab-review checks all items. ALL must pass before /fab-archive.
+  /fab-continue (review) checks all items. ALL must pass before archiving.
 -->
 
 ## Functional Completeness
@@ -46,5 +46,5 @@
 ## Notes
 
 - Check items as you review: `- [x]`
-- All items must pass before `/fab-archive`
+- All items must pass before `/fab-continue` (archive)
 - If an item is not applicable, mark checked and prefix with **N/A**: `- [x] CHK-008 **N/A**: {reason}`

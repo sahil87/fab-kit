@@ -13,7 +13,7 @@ description: "Identify structural gaps between docs and specs, propose concise a
 
 Detect structural gaps between `fab/docs/` and `fab/design/` — topics that docs cover but specs don't mention at all — and propose concise additions back to specs. Presents the top 3 gaps ranked by impact, with exact markdown previews and per-gap user confirmation before writing anything.
 
-This is the reverse of `/fab-archive` hydration: where archive flows specs → docs, hydrate-design flows docs → specs.
+This is the reverse of archive hydration (in `/fab-continue`): where archive flows specs → docs, hydrate-design flows docs → specs.
 
 ---
 

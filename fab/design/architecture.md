@@ -23,9 +23,6 @@ project/
 │   │   │   ├── fab-continue.md
 │   │   │   ├── fab-ff.md
 │   │   │   ├── fab-clarify.md
-│   │   │   ├── fab-apply.md
-│   │   │   ├── fab-review.md
-│   │   │   ├── fab-archive.md
 │   │   │   ├── fab-switch.md
 │   │   │   └── fab-status.md
 │   │   └── scripts/                # Lightweight shell utilities
@@ -92,8 +89,8 @@ project/
 **Lifecycle**:
 - **Created** by `/fab-new` — written with the newly created change folder name
 - **Updated** by `/fab-new` or `/fab-switch` — overwritten with the new change name
-- **Read** by every other skill — `/fab-continue`, `/fab-clarify`, `/fab-apply`, `/fab-review`, `/fab-status` all resolve the active change via `current` rather than requiring a name argument
-- **Cleared** by `/fab-archive` — file is deleted after archiving (no active change)
+- **Read** by every other skill — `/fab-continue`, `/fab-clarify`, `/fab-status` all resolve the active change via `current` rather than requiring a name argument
+- **Cleared** by `/fab-continue` (archive) — file is deleted after archiving (no active change)
 
 **Resolution pattern** (used by all skills):
 ```
@@ -279,7 +276,7 @@ The constitution is the **architectural DNA** of a Fab project. It defines immut
 **How skills use it**:
 - `/fab-init` generates it from project context (README, existing docs, conversation with user)
 - `/fab-continue` and `/fab-ff` load it as context when generating **spec**, **tasks**, and **checklist** artifacts
-- `/fab-review` checks implementation against constitutional principles (not just the spec)
+- `/fab-continue` (review) checks implementation against constitutional principles (not just the spec)
 - Constitution violations found during review are flagged as high-severity issues
 
 **Relationship to `config.yaml`**:
@@ -360,12 +357,6 @@ Agent-specific skill files are **symlinks** pointing into `fab/.kit/skills/`. Th
 │   └── SKILL.md → ../../../fab/.kit/skills/fab-ff.md
 ├── fab-clarify/
 │   └── SKILL.md → ../../../fab/.kit/skills/fab-clarify.md
-├── fab-apply/
-│   └── SKILL.md → ../../../fab/.kit/skills/fab-apply.md
-├── fab-review/
-│   └── SKILL.md → ../../../fab/.kit/skills/fab-review.md
-├── fab-archive/
-│   └── SKILL.md → ../../../fab/.kit/skills/fab-archive.md
 ├── fab-switch/
 │   └── SKILL.md → ../../../fab/.kit/skills/fab-switch.md
 └── fab-status/

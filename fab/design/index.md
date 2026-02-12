@@ -6,7 +6,7 @@
 >
 > Contrast with [`fab/docs/index.md`](../docs/index.md): docs are *post-implementation* —
 > what actually happened. Docs are the authoritative source of truth for system behavior,
-> maintained by `/fab-archive` hydration.
+> maintained by `/fab-continue` (archive) hydration.
 >
 > **Ownership**: Design docs are written and maintained by humans. No automated tooling creates or
 > enforces structure here — organize files however makes sense for your project.

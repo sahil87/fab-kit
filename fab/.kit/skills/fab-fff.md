@@ -87,23 +87,23 @@ Do not proceed to fab-apply.
 
 *(Skip if `progress.apply` is `done`.)*
 
-Execute `/fab-apply` behavior — parse unchecked tasks, execute in dependency order, run tests after each, mark tasks complete.
+Execute apply behavior — parse unchecked tasks, execute in dependency order, run tests after each, mark tasks complete.
 
 ### Step 3: Review (fab-review)
 
 *(Skip if `progress.review` is `done`.)*
 
-Execute `/fab-review` behavior — validate implementation against specs and checklists.
+Execute review behavior — validate implementation against specs and checklists.
 
-**If review fails**, the `/fab-fff` pipeline stops immediately. Do NOT offer the interactive rework menu that standalone `/fab-review` provides. Output the review failure details and:
+**If review fails**, the `/fab-fff` pipeline stops immediately. Do NOT offer the interactive rework menu. Output the review failure details and:
 
-> `Review failed. Run /fab-review to see rework options, or /fab-clarify to refine artifacts.`
+> `Review failed. Run /fab-continue to see rework options, or /fab-clarify to refine artifacts.`
 
 ### Step 4: Archive (fab-archive)
 
 *(Skip if `progress.archive` is `done`.)*
 
-Execute `/fab-archive` behavior — validate review passed, hydrate learnings into centralized docs, move change to archive, clear pointer.
+Execute archive behavior — validate review passed, hydrate learnings into centralized docs, move change to archive, clear pointer.
 
 ---
 
@@ -118,17 +118,17 @@ Execute `/fab-archive` behavior — validate review passed, hydrate learnings in
 
 {fab-ff output}
 
---- Implementation (fab-apply) ---
+--- Implementation ---
 
-{fab-apply output}
+{apply output}
 
---- Review (fab-review) ---
+--- Review ---
 
-{fab-review output}
+{review output}
 
---- Archive (fab-archive) ---
+--- Archive ---
 
-{fab-archive output}
+{archive output}
 
 Pipeline complete. Change archived.
 
@@ -162,15 +162,15 @@ fab-ff bailed on blocking issues. Run /fab-clarify to resolve these, then /fab-f
 
 {fab-ff output}
 
---- Implementation (fab-apply) ---
+--- Implementation ---
 
-{fab-apply output}
+{apply output}
 
---- Review (fab-review) ---
+--- Review ---
 
 {review failure details}
 
-Review failed. Run /fab-review to see rework options, or /fab-clarify to refine artifacts.
+Review failed. Run /fab-continue to see rework options, or /fab-clarify to refine artifacts.
 ```
 
 ### Resume After Interruption
@@ -181,13 +181,13 @@ Review failed. Run /fab-review to see rework options, or /fab-clarify to refine 
 Skipping planning — all stages done.
 Skipping implementation — already done.
 
---- Review (fab-review) ---
+--- Review ---
 
-{fab-review output}
+{review output}
 
---- Archive (fab-archive) ---
+--- Archive ---
 
-{fab-archive output}
+{archive output}
 
 Pipeline complete. Change archived.
 
@@ -205,7 +205,7 @@ Next: /fab-new <description> (start next change)
 | `confidence.score < 3.0` | Abort with: "Confidence is {score} (need >= 3.0)." |
 | `confidence` block missing | Treat as score 0, abort with confidence message |
 | fab-ff bails on blocking issues | Stop pipeline, report blocking issues |
-| fab-review fails | Stop pipeline, report failure details |
+| Review fails | Stop pipeline, report failure details |
 | Any stage already `done` | Skip it and continue to next stage |
 
 ---
@@ -224,13 +224,13 @@ Next: /fab-new <description> (start next change)
 
 ## Key Difference from `/fab-ff` and Individual Skills
 
-| Behavior | Individual skills | `/fab-ff` | `/fab-fff` |
-|----------|-------------------|-----------|-----------|
-| Invocations | One per stage | Single invocation, full pipeline | Single invocation, full pipeline |
-| On review failure | Interactive rework menu | Interactive rework menu | Immediate bail |
+| Behavior | `/fab-continue` | `/fab-ff` | `/fab-fff` |
+|----------|-----------------|-----------|-----------|
+| Invocations | One stage per invocation | Single invocation, full pipeline | Single invocation, full pipeline |
+| On review failure | Rework options | Interactive rework menu | Immediate bail |
 | Confidence gate | None | None | Requires score >= 3.0 |
-| User interaction | Per-skill | Interactive stops when needed | Minimal — frontloads questions, rest is autonomous |
-| Best for | Step-by-step control | Fast pipeline with safety net | High-confidence, full autonomy |
+| User interaction | Per-stage | Interactive stops when needed | Minimal — frontloads questions, rest is autonomous |
+| Best for | Step-by-step progression | Fast pipeline with safety net | High-confidence, full autonomy |
 
 ---
 

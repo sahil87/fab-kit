@@ -39,9 +39,9 @@ Each transition is now a `/fab-*` command. Shortcuts (`/fab-ff`, `/fab-fff`) let
 flowchart TD
     B[brief] -->|"/fab-continue"| S[spec]
     S -->|"/fab-continue"| T[tasks]
-    T -->|"/fab-apply"| A[apply]
-    A -->|"/fab-review"| R[review]
-    R -->|"/fab-archive"| AR[archive]
+    T -->|"/fab-continue"| A[apply]
+    A -->|"/fab-continue"| R[review]
+    R -->|"/fab-continue"| AR[archive]
 
     %% Shortcuts
     B -->|"/fab-ff"| T
@@ -89,13 +89,13 @@ flowchart TD
         (refine any planning artifact)"]
     end
 
-    subgraph execution ["Execution"]
-        APPLY["/fab-apply"]
-        REVIEW["/fab-review"]
+    subgraph execution ["Execution (via /fab-continue)"]
+        APPLY["/fab-continue → apply"]
+        REVIEW["/fab-continue → review"]
     end
 
-    subgraph completion ["Completion"]
-        ARCHIVE["/fab-archive"]
+    subgraph completion ["Completion (via /fab-continue)"]
+        ARCHIVE["/fab-continue → archive"]
     end
 
     subgraph utility ["Utility (anytime)"]
@@ -163,16 +163,16 @@ stateDiagram-v2
     spec --> tasks: /fab-continue
 
     tasks --> tasks: /fab-clarify (refine)
-    tasks --> apply: /fab-apply
+    tasks --> apply: /fab-continue
 
-    apply --> review: /fab-review
+    apply --> review: /fab-continue
 
     review --> archive: pass (all checks ✓)
     review --> apply: fail → fix code
     review --> tasks: fail → revise tasks
     review --> spec: fail → revise spec
 
-    archive --> [*]: /fab-archive (hydrate & complete)
+    archive --> [*]: /fab-continue (hydrate & complete)
 
     note right of brief
         First pipeline stage

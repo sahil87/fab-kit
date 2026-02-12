@@ -49,8 +49,8 @@ last_updated: {ISO_8601_DATETIME}
 - `created_by` is write-once — set at change creation time by `/fab-new`, never modified afterward. Auto-detected from `git config user.name`; falls back to `"unknown"` if git config is unset. Skills reading this field must tolerate its absence (older changes won't have it).
 - `branch` is optional — present only when the user created or adopted a branch via `/fab-new`. Omit the field entirely (not `branch: null`) when git integration was skipped.
 - The current stage is derived from the `progress` map — the entry marked `active` is the current stage. All skills read this first.
-- `review: failed` is set when `/fab-review` finds issues. The review entry remains `failed` so `/fab-status` shows the failure.
-- `checklist.completed` / `checklist.total` are updated by `/fab-review` as it checks items.
+- `review: failed` is set when `/fab-continue` (review) finds issues. The review entry remains `failed` so `/fab-status` shows the failure.
+- `checklist.completed` / `checklist.total` are updated by `/fab-continue` (review) as it checks items.
 - `last_updated` is refreshed on every status change.
 
 ---
@@ -304,7 +304,7 @@ For larger changes that span multiple user stories, the agent should adapt by sp
     3. Project constitution — project-wide quality standards
 
   Categories below are defaults. Add project-specific categories from config.yaml.
-  /fab-review checks all items. ALL must pass before /fab-archive.
+  /fab-continue (review) checks all items. ALL must pass before archiving.
 -->
 
 ## Functional Completeness
@@ -336,7 +336,7 @@ For larger changes that span multiple user stories, the agent should adapt by sp
 ## Notes
 
 - Check items as you review: `- [x]`
-- All items must pass before `/fab-archive`
+- All items must pass before `/fab-continue` (archive)
 - If an item is not applicable, mark checked and prefix with **N/A**: `- [x] CHK-008 **N/A**: {reason}`
 ```
 
@@ -388,7 +388,7 @@ When `/fab-continue` or `/fab-ff` creates `tasks.md`, it also generates `checkli
 
 ## Notes
 - Check items as you review: `- [x]`
-- All items must pass before `/fab-archive`
+- All items must pass before `/fab-continue` (archive)
 - If an item is not applicable, mark checked and prefix with **N/A**: `- [x] CHK-008 **N/A**: {reason}`
 ```
 
@@ -421,7 +421,7 @@ fab/docs/
 ```markdown
 # Documentation Index
 
-> Source of truth for system behavior and design. Updated by `/fab-archive` hydration.
+> Source of truth for system behavior and design. Updated by `/fab-continue` (archive) hydration.
 
 | Domain | Description | Docs |
 |--------|-------------|------|
@@ -482,7 +482,7 @@ fab/docs/
 
 ## Changelog
 
-<!-- Auto-maintained by /fab-archive. Most recent first. -->
+<!-- Auto-maintained by /fab-continue (archive). Most recent first. -->
 
 | Change | Date | Summary |
 |--------|------|---------|
@@ -493,7 +493,7 @@ fab/docs/
 
 ### Initial Docs (created by `/fab-init`)
 
-A fresh project starts with a single index file. The first `/fab-archive` populates domains and docs:
+A fresh project starts with a single index file. The first `/fab-continue` (archive) populates domains and docs:
 
 ```
 fab/docs/
@@ -503,9 +503,9 @@ fab/docs/
 ```markdown
 # Documentation Index
 
-> Source of truth for system behavior and design. Updated by `/fab-archive` hydration.
+> Source of truth for system behavior and design. Updated by `/fab-continue` (archive) hydration.
 
-<!-- No domains yet. /fab-archive will create domain folders and populate this table. -->
+<!-- No domains yet. /fab-continue (archive) will create domain folders and populate this table. -->
 
 | Domain | Description | Docs |
 |--------|-------------|------|
@@ -515,10 +515,10 @@ fab/docs/
 
 ### Hydration Rules
 
-When `/fab-archive` hydrates `spec.md` into centralized docs:
+When `/fab-continue` (archive) hydrates `spec.md` into centralized docs:
 
 1. **New doc file**: If the spec references a doc that doesn't exist yet, create it from the individual doc template and add it to the domain index. If the domain doesn't exist, create the domain folder and add it to the top-level index.
 2. **Existing doc file**: Compare `spec.md` requirements against the current doc to determine what's new, changed, or removed. Update the Requirements section semantically. Minimize edits to unchanged sections.
 3. **Index updates**: Update domain index "Last Updated" column. Add new entries if new docs were created.
 4. **Changelog row**: Append a row to the doc's Changelog table with the change name, date, and one-line summary.
-5. **Archive index**: Maintain `fab/changes/archive/index.md` listing all completed changes. Each entry includes the change folder name, date, and a one-line summary. `/fab-archive` appends a row when moving a change to the archive directory.
+5. **Archive index**: Maintain `fab/changes/archive/index.md` listing all completed changes. Each entry includes the change folder name, date, and a one-line summary. `/fab-continue` (archive) appends a row when moving a change to the archive directory.

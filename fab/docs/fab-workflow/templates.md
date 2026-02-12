@@ -62,7 +62,7 @@ The quality checklist validates that implementation matches the spec. Co-located
 - **Edge Cases & Error Handling** — Error states, boundary conditions
 - **Security** — Only if the change has security surface
 
-Items use `CHK-{NNN}` IDs. All items MUST pass before `/fab-archive`. Items not applicable are marked `- [x] CHK-NNN **N/A**: {reason}`. Project-specific categories from `config.yaml`'s `checklist.extra_categories` are added to the defaults.
+Items use `CHK-{NNN}` IDs. All items MUST pass before `/fab-continue` (archive). Items not applicable are marked `- [x] CHK-NNN **N/A**: {reason}`. Project-specific categories from `config.yaml`'s `checklist.extra_categories` are added to the defaults.
 
 Generation is contextual — items derived from `spec.md` (requirements, design decisions), and the project constitution (quality standards).
 
@@ -103,7 +103,7 @@ Centralized docs are the source of truth for system behavior and design decision
 - **Overview** — 1-2 sentences describing what the doc covers
 - **Requirements** — Using RFC 2119 keywords, with GIVEN/WHEN/THEN scenarios
 - **Design Decisions** — Durable architectural decisions extracted from specs during hydration. Each includes decision, rationale, rejected alternatives, and the introducing change name
-- **Changelog** — Auto-maintained by `/fab-archive`, most recent first
+- **Changelog** — Auto-maintained by `/fab-continue` (archive), most recent first
 
 #### Index Hierarchy
 
@@ -113,7 +113,7 @@ Centralized docs are the source of truth for system behavior and design decision
 
 #### Hydration Rules
 
-When `/fab-archive` hydrates into centralized docs:
+When `/fab-continue` (archive) hydrates into centralized docs:
 1. **New doc**: Create from template, add to domain index. If domain is new, create domain folder and add to top-level index
 2. **Existing doc**: Compare spec requirements against current doc. Update Requirements section semantically. Minimize edits to unchanged sections
 3. **Design decisions**: Extract durable decisions from spec. Skip tactical details. Add with change name for traceability

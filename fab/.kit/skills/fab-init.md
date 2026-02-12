@@ -83,7 +83,7 @@ If `fab/docs/index.md` does **not** exist:
 ```markdown
 # Documentation Index
 
-<!-- This index is maintained by /fab-archive when changes are completed. -->
+<!-- This index is maintained by /fab-continue (archive) when changes are completed. -->
 <!-- Each domain gets a row linking to its docs. -->
 
 | Domain | Description | Docs |
@@ -108,7 +108,7 @@ If `fab/design/index.md` does **not** exist:
 >
 > Contrast with [`fab/docs/index.md`](../docs/index.md): docs are *post-implementation* —
 > what actually happened. Docs are the authoritative source of truth for system behavior,
-> maintained by `/fab-archive` hydration.
+> maintained by `/fab-continue` (archive) hydration.
 >
 > **Ownership**: Specs are written and maintained by humans. No automated tooling creates or
 > enforces structure here — organize files however makes sense for your project.
@@ -124,7 +124,7 @@ If `fab/design/index.md` **already exists**: report "design/index.md already exi
 If `fab/changes/` directory does **not** exist:
 
 1. Create `fab/changes/` directory
-2. Create `fab/changes/archive/` subdirectory (pre-created so `/fab-archive` doesn't need a separate `mkdir`)
+2. Create `fab/changes/archive/` subdirectory (pre-created so archive behavior doesn't need a separate `mkdir`)
 3. Create `fab/changes/.gitkeep` to ensure git tracks the empty directory
 
 If `fab/changes/` **already exists**: ensure `fab/changes/archive/` exists (create if missing), then report "changes/ already exists — skipping" and move on.

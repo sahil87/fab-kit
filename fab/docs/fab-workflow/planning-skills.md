@@ -81,14 +81,14 @@ Loads: config, constitution, `fab/docs/index.md` (to understand the existing doc
 
 ### `/fab-continue [<stage>]`
 
-`/fab-continue` advances to the next planning stage and generates its artifact. When called with a stage argument, it resets to that stage and regenerates from there. The pipeline flows from brief → spec → tasks.
+`/fab-continue` advances to the next pipeline stage — planning, implementation, review, or archive — and either generates the artifact or executes the stage's behavior. When called with a stage argument, it resets to that stage. The pipeline flows brief → spec → tasks → apply → review → archive.
 
 #### Normal Forward Flow (no argument)
 
 1. Read `.status.yaml` to determine current stage (the stage with `active` in the progress map)
 2. **Stage guard**: Check `progress.{stage}` value from preflight output:
-   - For planning stages (brief, spec, tasks): if `progress.{stage} == 'done'` AND stage is `tasks`, block (planning complete). If `progress.{stage} == 'active'`, allow generation to resume (interrupted mid-way). If `progress.{stage} == 'pending'`, allow generation to start.
-   - For apply/review/archive stages: block regardless of progress value (use stage-specific skill instead).
+   - For planning stages (brief, spec, tasks): if `progress.{stage} == 'done'` AND stage is `tasks`, transition to apply. If `progress.{stage} == 'active'`, allow generation to resume. If `progress.{stage} == 'pending'`, allow generation to start.
+   - For execution stages (apply, review, archive): dispatch to the stage's behavior (apply executes tasks, review validates implementation, archive completes the change).
 3. Identify next artifact to create
 4. Load relevant template + context (including `fab/constitution.md` for principles)
 5. Generate artifact using the shared generation procedures from `_generation.md` (with clarification/research as needed)
@@ -99,13 +99,13 @@ Loads: config, constitution, `fab/docs/index.md` (to understand the existing doc
 #### Reset Behavior (with stage argument)
 
 When called as `/fab-continue <stage>` (e.g., `/fab-continue spec`):
-1. Target stage MUST be `brief`, `spec`, or `tasks`. Cannot reset to `apply`/`review`/`archive`
+1. Target stage can be any of the 6 stages: `brief`, `spec`, `tasks`, `apply`, `review`, `archive`
 2. Reset `.status.yaml` progress: set target stage to `active`; mark all stages after target as `pending`
 3. Regenerate the target stage's artifact in place (update, not recreate from scratch — preserve what's still valid)
 4. Downstream artifacts are invalidated: tasks reset to `- [ ]`, checklist regenerated
 5. Update `.status.yaml` and report what was reset
 
-Reset is primarily used after `/fab-review` identifies issues upstream.
+Reset is primarily used after review identifies issues upstream.
 
 #### Context (varies by target stage)
 
@@ -140,7 +140,7 @@ The `/fab-ff` pipeline interleaves auto-clarify between planning stage generatio
 
 #### Interactive Review Failure
 
-Unlike `/fab-fff` which bails immediately on review failure, `/fab-ff` presents the same interactive rework menu as standalone `/fab-review`. This is the key behavioral difference: `/fab-ff` is "fast but interactive" while `/fab-fff` is "fully autonomous."
+Unlike `/fab-fff` which bails immediately on review failure, `/fab-ff` presents an interactive rework menu on review failure. This is the key behavioral difference: `/fab-ff` is "fast but interactive" while `/fab-fff` is "fully autonomous."
 
 #### When to Use
 
@@ -158,7 +158,7 @@ Before proceeding, `/fab-fff` reads `confidence.score` from `.status.yaml`. If t
 
 #### Pipeline Behavior
 
-Each stage uses the same behavior as its standalone invocation. If planning bails on blocking issues or `/fab-review` fails, the pipeline stops immediately. Unlike `/fab-ff` (which offers interactive rework on review failure), `/fab-fff` bails with an actionable message and no interactive menu.
+Each stage uses the same behavior as its standalone invocation. If planning bails on blocking issues or review fails, the pipeline stops immediately. Unlike `/fab-ff` (which offers interactive rework on review failure), `/fab-fff` bails with an actionable message and no interactive menu.
 
 #### Resumability
 
@@ -186,7 +186,7 @@ Loads all planning context upfront: config, constitution, `brief.md`, target cen
 When the user invokes `/fab-clarify` directly:
 
 1. Read `.status.yaml` to determine current stage
-2. Stage MUST be `brief`, `spec`, or `tasks`. Each stage scans its corresponding artifact(s) using per-artifact taxonomy. If `apply` or later, suggest `/fab-review` instead
+2. Stage MUST be `brief`, `spec`, or `tasks`. Each stage scans its corresponding artifact(s) using per-artifact taxonomy. If `apply` or later, suggest `/fab-continue` instead
 3. Load current artifact + relevant context
 4. Perform a **stage-scoped taxonomy scan** for gaps, ambiguities, and `[NEEDS CLARIFICATION]` markers (categories vary by stage)
 5. Present structured questions **one at a time** (max 5 per invocation), each with a recommendation and options table or suggested answer
@@ -264,16 +264,29 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 **Rejected**: Keeping inline duplication — inevitable drift between the two copies.
 *Introduced by*: 260210-wpay-extract-shared-generation-logic
 
+### Unified Command: `/fab-continue` Absorbs Execution Stages
+**Decision**: `/fab-continue` handles all 6 pipeline stages (brief → spec → tasks → apply → review → archive). Apply, review, and archive behaviors are described as dedicated sections within `fab-continue.md`, not extracted into a shared partial.
+**Why**: Reduces developer command surface from 4+ commands to 2 (`/fab-continue` + `/fab-clarify`). Execution stages are orchestration-heavy with distinct flows (task execution, validation with rework, hydration with folder moves) — inlining keeps each stage's behavior in one readable location.
+**Rejected**: Keeping standalone `/fab-apply`, `/fab-review`, `/fab-archive` — command fragmentation. Extracting to `_execution.md` partial — low reuse value since only fab-continue calls these.
+*Introduced by*: 260212-a4bd-unify-fab-continue
+
+### `/fab-ff` and `/fab-fff` Keep Behavioral Descriptions
+**Decision**: `/fab-ff` and `/fab-fff` describe execution behavior inline within their own orchestration context, rather than literally invoking `/fab-continue` as a sub-skill.
+**Why**: These skills have fundamentally different orchestration: frontloaded questions, auto-clarify interleaving, bail behavior, resumability across all stages. Literal sub-skill invocation would add complexity (nested preflight checks, status conflicts) without benefit.
+**Rejected**: Literal `/fab-continue` invocation from fab-ff/fff — orchestration mismatch, nested state management issues.
+*Introduced by*: 260212-a4bd-unify-fab-continue
+
 ### Reset via `/fab-continue <stage>`
-**Decision**: Reset to an earlier planning stage by passing the stage name as an argument to `/fab-continue`. Downstream artifacts are invalidated and regenerated.
-**Why**: Provides a clean re-entry point after `/fab-review` identifies upstream issues. Reuses the existing skill rather than adding a separate `/fab-reset` command.
+**Decision**: Reset to any pipeline stage by passing the stage name as an argument to `/fab-continue`. For planning stages, downstream artifacts are invalidated and regenerated. For execution stages, the stage behavior is re-run without resetting task checkboxes.
+**Why**: Provides a clean re-entry point after review identifies upstream issues. Reuses the existing skill rather than adding a separate `/fab-reset` command. Covers all 6 stages (brief, spec, tasks, apply, review, archive).
 **Rejected**: Separate reset skill — unnecessary proliferation of skills for a rare operation.
-*Source*: doc/fab-spec/SKILLS.md
+*Source*: doc/fab-spec/SKILLS.md; *Updated by*: 260212-a4bd-unify-fab-continue (extended to all 6 stages)
 
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260212-a4bd-unify-fab-continue | 2026-02-12 | Unified `/fab-apply`, `/fab-review`, `/fab-archive` into `/fab-continue`. Updated stage guard, reset behavior, and cross-references to reflect unified command |
 | 260212-ipoe-checklist-folder-location | 2026-02-12 | Updated checklist generation and validation paths from `checklists/quality.md` to `checklist.md` in `/fab-continue`, `/fab-ff`, and shared generation partial |
 | 260212-bk1n-rework-fab-ff-archive | 2026-02-12 | Extended `/fab-ff` from planning-only to full pipeline (planning → apply → review → archive). Updated `/fab-fff` description and comparison table to reflect new differentiation. `/fab-ff` now offers interactive rework on review failure; `/fab-fff` remains fully autonomous with confidence gate |
 | 260212-29xv-scoring-formula | 2026-02-12 | Increased Confident penalty from 0.1 to 0.3 in confidence formula; `/fab-clarify` now reclassifies resolved assumptions (Tentative/Confident → Certain) so scores increase after clarification |

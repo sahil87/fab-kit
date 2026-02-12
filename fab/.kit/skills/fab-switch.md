@@ -125,7 +125,7 @@ Wait for user selection or let the user re-invoke with a different argument.
 
 When invoked as `/fab-switch --blank`:
 
-1. **Delete `fab/current`** — remove the file entirely (do not truncate or empty it). This is consistent with the pattern used by `/fab-archive`.
+1. **Delete `fab/current`** — remove the file entirely (do not truncate or empty it). This is consistent with the pattern used by archive behavior in `/fab-continue`.
    - If `fab/current` does not exist, this is a no-op (already deactivated).
 
 2. **Branch integration** (only if `--branch` is also provided):
@@ -208,10 +208,10 @@ Once a single change is identified:
    | `brief` (active) | `Next: /fab-continue or /fab-clarify` |
    | `spec` (active) | `Next: /fab-continue or /fab-ff` |
    | `spec` (done) | `Next: /fab-continue (tasks) or /fab-ff or /fab-clarify` |
-   | `tasks` (done) | `Next: /fab-apply` |
-   | `apply` (done) | `Next: /fab-review` |
-   | `review` (done) | `Next: /fab-archive` |
-   | `review` (failed) | `Next: /fab-review (re-review after fixes)` |
+   | `tasks` (done) | `Next: /fab-continue` |
+   | `apply` (done) | `Next: /fab-continue` |
+   | `review` (done) | `Next: /fab-continue` |
+   | `review` (failed) | `Next: /fab-continue (re-review after fixes)` |
 
 ---
 
@@ -279,7 +279,7 @@ fab/current now points to 260202-m3x1-fix-checkout-bug
 Stage:  apply (4/6)
 Branch: 260202-m3x1-fix-checkout-bug (created)
 
-Next: /fab-review
+Next: /fab-continue
 ```
 
 ### Successful Switch (branch adopted)
@@ -290,7 +290,7 @@ fab/current now points to 260202-m3x1-fix-checkout-bug
 Stage:  apply (4/6)
 Branch: feature/checkout-fix (adopted)
 
-Next: /fab-review
+Next: /fab-continue
 ```
 
 ### Successful Switch (no branch)
@@ -300,7 +300,7 @@ fab/current now points to 260202-m3x1-fix-checkout-bug
 
 Stage:  apply (4/6)
 
-Next: /fab-review
+Next: /fab-continue
 ```
 
 ### Deactivated (no branch)

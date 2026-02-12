@@ -89,7 +89,7 @@ The clarify skill SHALL never advance the stage in `.status.yaml`. It only updat
 
 ### Stage Guard
 
-The skill SHALL only operate on planning stages (`spec`, `tasks`). If the stage is `apply`, `review`, or `archive`, the skill aborts with a suggestion to use `/fab-review` instead.
+The skill SHALL only operate on planning stages (`spec`, `tasks`). If the stage is `apply`, `review`, or `archive`, the skill aborts with a suggestion to use `/fab-continue` instead.
 
 ## Design Decisions
 

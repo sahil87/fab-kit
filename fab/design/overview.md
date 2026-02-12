@@ -136,9 +136,9 @@ From the user's perspective, the main workflow is `/fab-new` followed by the 5 p
 flowchart TD
     NEW["/fab-new"]
     THINK["/fab-continue or ff"]
-    APPLY["/fab-apply"]
-    REVIEW["/fab-review"]
-    ARCHIVE["/fab-archive"]
+    APPLY["/fab-continue"]
+    REVIEW["/fab-continue"]
+    ARCHIVE["/fab-continue"]
     THINK ~~~ CLARIFY["/fab-clarify"]
 
     NEW -->|brief| THINK
@@ -169,9 +169,9 @@ flowchart TD
 | `/fab-continue [<stage>]` | Next artifact (or reset to stage) | Next stage artifact |
 | `/fab-ff` | Fast forward remaining planning | spec.md + tasks + checklist |
 | `/fab-clarify` | Deepen current artifact | Refined artifact (in place) |
-| `/fab-apply` | Implement | Code changes |
-| `/fab-review` | Validate | Validation report |
-| `/fab-archive` | Complete & hydrate | Archive entry, updated docs |
+| `/fab-continue` → apply | Implement | Code changes |
+| `/fab-continue` → review | Validate | Validation report |
+| `/fab-continue` → archive | Complete & hydrate | Archive entry, updated docs |
 | `/fab-switch` | Change active change | Updated pointer file |
 | `/fab-status` | Check progress | Status display |
 
@@ -198,15 +198,15 @@ flowchart TD
 # → Auto-generates checklists/quality.md
 
 # 5. Implement
-/fab-apply
+/fab-continue
 # → Executes tasks, marks completed
 
 # 6. Review
-/fab-review
+/fab-continue
 # → Validates implementation, checks checklist
 
 # 7. Archive
-/fab-archive
+/fab-continue
 # → Hydrates docs/, moves to archive/
 ```
 
@@ -214,9 +214,9 @@ flowchart TD
 ```bash
 /fab-new Add loading spinner to submit button
 /fab-ff
-/fab-apply
-/fab-review
-/fab-archive
+/fab-continue
+/fab-continue
+/fab-continue
 ```
 
 ---

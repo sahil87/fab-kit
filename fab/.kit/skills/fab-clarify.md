@@ -57,7 +57,7 @@ The current stage must be one of:
 
 **If the stage is `apply`, `review`, or `archive`, STOP.** Output:
 
-> `Stage is "{stage}" — clarify applies to planning artifacts only (brief, spec, tasks). Use /fab-review to validate implementation instead.`
+> `Stage is "{stage}" — clarify applies to planning artifacts only (brief, spec, tasks). Use /fab-continue to validate implementation instead.`
 
 ---
 
@@ -376,7 +376,7 @@ Next: /fab-clarify (refine further) or /fab-continue or /fab-ff
 | Condition | Action |
 |-----------|--------|
 | Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
-| Stage is `apply`, `review`, or `archive` | Abort with: "Stage is {stage} — clarify applies to planning artifacts only. Use /fab-review instead." |
+| Stage is `apply`, `review`, or `archive` | Abort with: "Stage is {stage} — clarify applies to planning artifacts only. Use /fab-continue instead." |
 | Artifact file missing for current stage | Abort with: "No {artifact} found. Run /fab-continue to generate it first." |
 | Taxonomy scan finds zero gaps (suggest mode) | Output "No gaps found" message and stop |
 | Early termination after 0 answered questions | Display coverage summary with 0 resolved, all deferred |

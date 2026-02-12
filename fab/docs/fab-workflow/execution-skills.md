@@ -4,15 +4,15 @@
 
 ## Overview
 
-The execution skills (`/fab-apply`, `/fab-review`, `/fab-archive`) handle the implementation, validation, and completion stages of the Fab workflow. They execute tasks from the planning phase, validate the result against specs and checklists, and hydrate learnings into centralized docs on completion.
+Execution behavior (apply, review, archive) is accessed via `/fab-continue`, which dispatches to the appropriate behavior based on the active stage. The standalone skills `/fab-apply`, `/fab-review`, and `/fab-archive` no longer exist as separate commands.
 
-**Pipeline invocation**: Both `/fab-ff` and `/fab-fff` invoke these execution skills internally as part of their full-pipeline behavior. `/fab-ff` presents interactive rework options on review failure; `/fab-fff` bails immediately. The standalone execution skills remain the same — the pipeline commands reuse their behavior without modification.
+**Pipeline invocation**: Both `/fab-ff` and `/fab-fff` use the same execution behavior internally as part of their full-pipeline runs. `/fab-ff` presents interactive rework options on review failure; `/fab-fff` bails immediately.
 
 ## Requirements
 
-### `/fab-apply`
+### Apply Behavior (via `/fab-continue`)
 
-`/fab-apply` executes tasks from `tasks.md` in dependency order, running tests after each completed task.
+`/fab-continue` dispatches to apply behavior when the active stage is `tasks` or `apply`. It executes tasks from `tasks.md` in dependency order, running tests after each completed task.
 
 #### Task Execution
 
@@ -25,15 +25,15 @@ The execution skills (`/fab-apply`, `/fab-review`, `/fab-archive`) handle the im
 
 #### Resumability
 
-`/fab-apply` is inherently resumable. If the agent is interrupted mid-run, re-invoking `/fab-apply` picks up from the first unchecked item. The markdown checklist *is* the progress state — no separate tracking needed.
+Apply behavior is inherently resumable. If the agent is interrupted mid-run, re-invoking `/fab-continue` picks up from the first unchecked item. The markdown checklist *is* the progress state — no separate tracking needed.
 
 #### Context
 
 Loads: config, constitution, `design/index.md`, `tasks.md`, `spec.md`, relevant source code (files referenced in tasks).
 
-### `/fab-review`
+### Review Behavior (via `/fab-continue`)
 
-`/fab-review` validates implementation against specs and checklists. On pass, it advances to archive readiness. On failure, it presents rework options.
+`/fab-continue` dispatches to review behavior after apply completes. It validates implementation against specs and checklists. On pass, it advances to archive readiness. On failure, it presents rework options.
 
 #### Validation Checks
 
@@ -52,8 +52,8 @@ All checks succeed → stage advances to review done.
 
 The agent presents options and the user chooses where to loop back:
 
-- **Fix code** → `/fab-apply` — Implementation bug. The agent identifies which tasks need rework, unchecks them in `tasks.md` (marks `- [ ]` with a `<!-- rework: reason -->` comment), and re-runs `/fab-apply`
-- **Revise tasks** → edit `tasks.md`, then `/fab-apply` — Missing or wrong tasks. New tasks get next sequential ID. Completed unaffected tasks stay `[x]`
+- **Fix code** → `/fab-continue` — Implementation bug. The agent identifies which tasks need rework, unchecks them in `tasks.md` (marks `- [ ]` with a `<!-- rework: reason -->` comment), and re-runs `/fab-continue`
+- **Revise tasks** → edit `tasks.md`, then `/fab-continue` — Missing or wrong tasks. New tasks get next sequential ID. Completed unaffected tasks stay `[x]`
 - **Revise spec** → `/fab-continue spec` — Requirements were wrong or incomplete. Resets to spec stage, updates `spec.md`. Tasks subsequently regenerated
 
 The general rule: **artifacts at and after the re-entry point are regenerated or updated; artifacts before it are preserved.**
@@ -62,14 +62,14 @@ The general rule: **artifacts at and after the re-entry point are regenerated or
 
 Loads: config, constitution, `design/index.md`, `tasks.md`, `checklist.md`, `spec.md`, target centralized doc(s) from `fab/docs/`, relevant source code (files touched by the change).
 
-### `/fab-archive`
+### Archive Behavior (via `/fab-continue`)
 
-`/fab-archive` completes a change: validates review passed, hydrates learnings into centralized docs, and moves the change to archive.
+`/fab-continue` dispatches to archive behavior after review passes. It completes a change: validates review passed, hydrates learnings into centralized docs, and moves the change to archive.
 
 #### Behavior
 
 1. **Final validation** — review MUST have passed (all tasks `[x]`, all checklist items `[x]` including N/A items)
-2. **Concurrent change check** — scan `fab/changes/` for other active changes whose specs reference the same centralized doc files. If found, warn: "Change {name} also modifies {doc}. After this archive, that change's spec was written against a now-stale base. Re-review with `/fab-review` after switching to it."
+2. **Concurrent change check** — scan `fab/changes/` for other active changes whose specs reference the same centralized doc files. If found, warn: "Change {name} also modifies {doc}. After this archive, that change's spec was written against a now-stale base. Re-review with `/fab-continue` after switching to it."
 3. **Hydrate into `fab/docs/`**:
    - From `spec.md` → integrate new/changed requirements and scenarios into the Requirements section. Remove requirements the spec explicitly deprecates. Extract durable design decisions into Design Decisions section
    - Compare against existing doc to determine what's new vs changed vs removed — no explicit delta markers needed
@@ -117,10 +117,23 @@ Loads: config, constitution, `design/index.md`, `spec.md`, target centralized do
 **Rejected**: Blocking archive if concurrent changes exist — too restrictive, especially for independent changes that happen to touch the same domain.
 *Source*: doc/fab-spec/SKILLS.md
 
+### Execution Stage Reset Preserves Task Checkboxes
+**Decision**: `/fab-continue apply` re-runs apply behavior starting from the first unchecked task. It does NOT uncheck all tasks.
+**Why**: Task checkboxes reflect actual implementation progress. Silently unchecking them would discard valid work. Review rework (Option 1: "Fix code") handles targeted unchecking with `<!-- rework: reason -->` annotations.
+**Rejected**: Resetting all checkboxes on apply reset — too destructive, discards completed work.
+*Introduced by*: 260212-a4bd-unify-fab-continue
+
+### Review Active Triggers Forward Progression
+**Decision**: When the active stage is `review`, `/fab-continue` runs the review behavior (advancing toward archive), not re-review. Re-review is available via `/fab-continue review` reset.
+**Why**: The normal flow always advances. `review: active` means "review needs to run"; `review: done` means "review passed, archive is next." This avoids ambiguity about whether the command should redo or advance.
+**Rejected**: Having review active trigger re-review — conflicts with the forward-progression model.
+*Introduced by*: 260212-a4bd-unify-fab-continue
+
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260212-a4bd-unify-fab-continue | 2026-02-12 | Restructured: apply, review, and archive behavior now accessed via `/fab-continue` instead of standalone skills. Updated all section headings, requirements, and cross-references |
 | 260212-ipoe-checklist-folder-location | 2026-02-12 | Updated checklist path references from `checklists/quality.md` to `checklist.md` in `/fab-review` and `/fab-archive` |
 | 260212-bk1n-rework-fab-ff-archive | 2026-02-12 | Added note that `/fab-ff` and `/fab-fff` invoke execution skills internally as part of their full-pipeline behavior |
 | 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated stage references from proposal/specs to brief/spec |

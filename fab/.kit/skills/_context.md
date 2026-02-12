@@ -42,7 +42,7 @@ Selectively load relevant domain docs based on the change's scope:
 1. Read the brief's **Affected Docs** section (or spec's **Affected docs** metadata) to identify which domains are relevant
 2. For each referenced domain, read `fab/docs/{domain}/index.md` to understand the domain's docs
 3. Read the specific centralized doc(s) referenced by the Affected Docs entries (the New, Modified, and Removed entries) — read `fab/docs/{domain}/{name}.md` for each listed doc that exists
-4. If a referenced doc or domain does not exist yet (e.g., listed under New Docs), note this and proceed without error — it will be created by `/fab-archive`
+4. If a referenced doc or domain does not exist yet (e.g., listed under New Docs), note this and proceed without error — it will be created during archive (via `/fab-continue` or `/fab-ff`)
 5. Use this context to ground all artifact generation (spec, tasks, reviews) in the real current state, not assumptions
 
 ### 4. Source Code Loading (during implementation and review)
@@ -51,7 +51,7 @@ Load only the source files relevant to the current work:
 
 1. Read the relevant source files referenced in the task descriptions or spec's affected areas
 2. Scope to files actually touched by the change — do not load the entire codebase
-3. This applies primarily to `/fab-apply` and `/fab-review`
+3. This applies primarily to apply and review behavior in `/fab-continue`
 
 ---
 
@@ -68,17 +68,17 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 | `/fab-init` | initialized | `Next: /fab-new <description> or /fab-hydrate <sources>` |
 | `/fab-hydrate` | docs hydrated | `Next: /fab-new <description> or /fab-hydrate <more-sources>` |
 | `/fab-new` | brief done | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
-| `/fab-continue` → spec | spec done | `Next: /fab-continue (tasks) or /fab-ff (fast-forward) or /fab-clarify (refine spec)` |
-| `/fab-continue` → tasks | tasks done | `Next: /fab-apply` |
-| `/fab-ff` | archived | `Next: /fab-new <description> (start next change)` |
+| `/fab-continue` → spec | spec done | `Next: /fab-continue or /fab-ff or /fab-clarify` |
+| `/fab-continue` → tasks | tasks done | `Next: /fab-continue or /fab-ff` |
+| `/fab-continue` → apply | apply done | `Next: /fab-continue` |
+| `/fab-continue` → review (pass) | review done | `Next: /fab-continue` |
+| `/fab-continue` → review (fail) | review failed | *(contextual rework options)* |
+| `/fab-continue` → archive | archived | `Next: /fab-new <description>` |
+| `/fab-ff` | archived | `Next: /fab-new <description>` |
 | `/fab-ff` (bail) | varies | *(contextual — see /fab-ff for bail/failure messages)* |
-| `/fab-clarify` | same stage | `Next: /fab-clarify (refine further) or /fab-continue or /fab-ff` |
-| `/fab-apply` | apply done | `Next: /fab-review` |
-| `/fab-review` (pass) | review done | `Next: /fab-archive` |
-| `/fab-review` (fail) | review failed | *(contextual — see /fab-review for fix options)* |
-| `/fab-fff` | archived | `Next: /fab-new <description> (start next change)` |
+| `/fab-clarify` | same stage | `Next: /fab-clarify or /fab-continue or /fab-ff` |
+| `/fab-fff` | archived | `Next: /fab-new <description>` |
 | `/fab-fff` (bail) | varies | *(contextual — see /fab-fff for bail messages)* |
-| `/fab-archive` | archived | `Next: /fab-new <description> (start next change)` |
 
 ---
 

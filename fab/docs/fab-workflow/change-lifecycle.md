@@ -28,9 +28,9 @@ All components MUST be lowercase — avoids collisions on case-insensitive files
 - **Created** by `/fab-switch` — written with the newly activated change folder name
 - **Updated** by `/fab-switch` — overwritten with the new change name
 - **Conditionally created** by `/fab-new` — only written if `--switch` flag is used or switching intent is detected in the description; otherwise `/fab-new` does not modify `fab/current`
-- **Read** by every other skill — `/fab-continue`, `/fab-clarify`, `/fab-apply`, `/fab-review`, `/fab-status` all resolve the active change via `current`
+- **Read** by every other skill — `/fab-continue`, `/fab-clarify`, `/fab-status` all resolve the active change via `current`
 - **Cleared** by `/fab-switch --blank` — file is deleted to deactivate the current change (no active change). Can be combined with `--branch` to also switch git branches (e.g., `--blank --branch main`)
-- **Cleared** by `/fab-archive` — file is deleted after archiving (no active change)
+- **Cleared** by `/fab-continue` (archive) — file is deleted after archiving (no active change)
 
 **Resolution pattern** (used by all skills):
 ```
@@ -64,7 +64,7 @@ Every change folder SHALL contain a `.status.yaml` manifest with these fields:
 
 **Two-write transitions**: Moving from one stage to the next requires two writes: (1) set the current stage to `done`, (2) set the next stage to `active`. Both writes MUST happen atomically in a single `.status.yaml` update.
 
-**Review failure backward movement**: When `/fab-review` identifies issues requiring rework, it sets `review: failed` and moves the appropriate earlier stage back to `active` (e.g., `spec: active`). Stages between the target and review are reset to `pending`.
+**Review failure backward movement**: When `/fab-continue` review behavior identifies issues requiring rework, it sets `review: failed` and moves the appropriate earlier stage back to `active` (e.g., `spec: active`). Stages between the target and review are reset to `pending`.
 
 ### The 6 Stages
 
@@ -183,6 +183,7 @@ Skills will tolerate old-format files — the preflight script infers `brief: do
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260212-a4bd-unify-fab-continue | 2026-02-12 | Updated `fab/current` lifecycle and review failure references to use `/fab-continue` instead of removed standalone skills |
 | 260212-egqa-switch-return-main | 2026-02-12 | Added `--blank` flag to `/fab-switch` for deactivating the current change (deletes `fab/current`). Composable with `--branch` for git operations. Updated fab/current lifecycle and /fab-switch section. |
 | 260212-ipoe-checklist-folder-location | 2026-02-12 | Updated `.status.yaml` `checklist.path` default from `checklists/quality.md` to `checklist.md` at change root |
 | 260212-v5p2-brief-pipeline-stage | 2026-02-12 | Restored brief as formal pipeline stage, updated migration note to keep brief: entry |

@@ -138,7 +138,7 @@ After all planning artifacts are generated:
 
 *(Skip if `progress.apply` is already `done`.)*
 
-Execute `/fab-apply` behavior — parse unchecked tasks from `tasks.md`, execute in dependency order, run tests after each completed task, mark tasks `[x]` on completion, update `.status.yaml` progress after each task.
+Execute apply behavior — parse unchecked tasks from `tasks.md`, execute in dependency order, run tests after each completed task, mark tasks `[x]` on completion, update `.status.yaml` progress after each task.
 
 **If a task fails and cannot be resolved by the agent**, **STOP** the pipeline. Report which task failed and why, and output:
 
@@ -155,7 +155,7 @@ On successful completion of all tasks, update `.status.yaml`:
 
 *(Skip if `progress.review` is already `done`.)*
 
-Execute `/fab-review` behavior — validate implementation against specs and checklists:
+Execute review behavior — validate implementation against specs and checklists:
 
 1. All tasks in `tasks.md` marked `[x]`
 2. All checklist items in `checklist.md` verified and checked off
@@ -169,7 +169,7 @@ Execute `/fab-review` behavior — validate implementation against specs and che
 - Update `last_updated`
 - Proceed to Step 8.
 
-**If review fails**: Present the interactive rework menu (same as standalone `/fab-review`):
+**If review fails**: Present the interactive rework menu:
 
 - **Fix code** → identify affected tasks, uncheck them in `tasks.md` (with `<!-- rework: reason -->` comment), re-run apply behavior from Step 6
 - **Revise tasks** → user edits `tasks.md`, re-run apply behavior from Step 6
@@ -181,7 +181,7 @@ The user selects a rework option and the pipeline handles it accordingly. This i
 
 *(Skip if `progress.archive` is already `done`.)*
 
-Execute `/fab-archive` behavior:
+Execute archive behavior:
 
 1. Final validation — review must have passed
 2. Concurrent change check — warn about other active changes modifying the same docs
@@ -227,17 +227,17 @@ Generated checklist.md with {N} items.
 
 {N} assumptions made ({C} confident, {T} tentative). Run /fab-clarify to review.
 
---- Implementation (fab-apply) ---
+--- Implementation ---
 
-{fab-apply output — task execution details}
+{apply output — task execution details}
 
---- Review (fab-review) ---
+--- Review ---
 
-{fab-review output — validation results}
+{review output — validation results}
 
---- Archive (fab-archive) ---
+--- Archive ---
 
-{fab-archive output — hydration and move details}
+{archive output — hydration and move details}
 
 Pipeline complete. Change archived.
 
@@ -272,13 +272,13 @@ Fast-forwarding (resuming)...
 Skipping planning — all stages done.
 Skipping implementation — already done.
 
---- Review (fab-review) ---
+--- Review ---
 
-{fab-review output}
+{review output}
 
---- Archive (fab-archive) ---
+--- Archive ---
 
-{fab-archive output}
+{archive output}
 
 Pipeline complete. Change archived.
 
@@ -294,11 +294,11 @@ Fast-forwarding from brief...
 
 {planning output}
 
---- Implementation (fab-apply) ---
+--- Implementation ---
 
-{fab-apply output}
+{apply output}
 
---- Review (fab-review) ---
+--- Review ---
 
 Review found {N} issue(s):
 - {issue description}
@@ -337,7 +337,7 @@ Fast-forwarding from brief...
 
 {planning output}
 
---- Implementation (fab-apply) ---
+--- Implementation ---
 
 {partial apply output}
 
@@ -369,11 +369,11 @@ Investigate the failure and re-run /fab-ff to resume from here.
 |----------|-----------------|-----------|-----------|
 | Questions | Asked per-stage as needed | Frontloaded: one batch upfront | Same as fab-ff (frontloaded) |
 | Auto-clarify | None (manual `/fab-clarify`) | Between each planning stage; bails on blockers | Same as fab-ff |
-| Stages per invocation | One planning stage | Full pipeline: planning + apply + review + archive | Full pipeline: planning + apply + review + archive |
-| On review failure | N/A (single stage) | Interactive rework menu | Immediate bail |
-| Resumable? | N/A (one stage) | Yes — re-invoke after bail or failure | Yes — skips completed stages |
+| Stages per invocation | One stage | Full pipeline: planning + apply + review + archive | Full pipeline: planning + apply + review + archive |
+| On review failure | Rework options | Interactive rework menu | Immediate bail |
+| Resumable? | Yes — re-invoke to resume current stage | Yes — re-invoke after bail or failure | Yes — skips completed stages |
 | Confidence gate | None | None | Requires score >= 3.0 |
-| Best for | Deliberate, step-by-step planning | Fast full pipeline with interactive safety net | High-confidence changes, full autonomy |
+| Best for | Step-by-step progression | Fast full pipeline with interactive safety net | High-confidence changes, full autonomy |
 
 ---
 
