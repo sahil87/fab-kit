@@ -78,3 +78,4 @@
 - [ ] [maqp] 2026-02-12: the two different modes of fab-discuss is confusing. Should have just one way of functioning.
 - [ ] [a4bd] 2026-02-12: rename a few more commands to fab-continue. fab-continue should be able to take it to the end (archive)
 - [ ] [ipoe] 2026-02-12: Whats the point of saving checklists - and only checklists - in a separate folder in the changes folder
+- [ ] [egqa] 2026-02-12: Add a fab-switch variant takes you back to the main branch - no active change
