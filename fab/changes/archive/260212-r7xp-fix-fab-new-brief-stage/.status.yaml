@@ -1,0 +1,22 @@
+name: 260212-r7xp-fix-fab-new-brief-stage
+created: 2026-02-12T15:08:03Z
+created_by: sahil-weaver
+progress:
+  brief: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  archive: active
+checklist:
+  generated: true
+  path: checklist.md
+  completed: 15
+  total: 15
+confidence:
+  certain: 5
+  confident: 3
+  tentative: 0
+  unresolved: 0
+  score: 4.1
+last_updated: 2026-02-12T15:45:00Z

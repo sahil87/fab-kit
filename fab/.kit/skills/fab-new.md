@@ -203,16 +203,7 @@ After generating the brief, compute the initial confidence score:
 2. Apply the confidence formula (see `_context.md` Confidence Scoring section)
 3. Write the `confidence` block to `.status.yaml`
 
-### Step 8: Mark Brief Complete
-
-Once the user is satisfied with the brief (questions answered, scope agreed):
-
-1. Update `.status.yaml`:
-   - Write the computed `confidence` block (from Step 7)
-   - Update `last_updated` to current timestamp
-2. Set `progress.brief` to `done` and `progress.spec` to `active` (two-write transition — brief generation is complete, spec is next)
-
-### Step 9: Activate Change via `/fab-switch` (Conditional)
+### Step 8: Activate Change via `/fab-switch` (Conditional)
 
 **Default behavior: Skip this step** — the change folder, `.status.yaml`, and `brief.md` have been created, but `fab/current` is NOT modified and no branch is created or checked out. Proceed directly to output.
 

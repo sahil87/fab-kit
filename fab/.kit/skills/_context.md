@@ -67,7 +67,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 |-------------|---------------|-----------|
 | `/fab-init` | initialized | `Next: /fab-new <description> or /fab-hydrate <sources>` |
 | `/fab-hydrate` | docs hydrated | `Next: /fab-new <description> or /fab-hydrate <more-sources>` |
-| `/fab-new` | brief done | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
+| `/fab-new` | brief active | `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-ff` |
 | `/fab-continue` → spec | spec done | `Next: /fab-continue or /fab-ff or /fab-clarify` |
 | `/fab-continue` → tasks | tasks done | `Next: /fab-continue or /fab-ff` |
 | `/fab-continue` → apply | apply done | `Next: /fab-continue` |
