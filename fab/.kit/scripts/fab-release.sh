@@ -90,7 +90,8 @@ echo "Committing VERSION bump..."
 
 git -C "$repo_root" add "$kit_dir/VERSION"
 git -C "$repo_root" commit -m "release: $tag"
-git -C "$repo_root" push git@github.com:"$repo".git HEAD:main
+git -C "$repo_root" tag "$tag"
+git -C "$repo_root" push git@github.com:"$repo".git HEAD:main "$tag"
 
 echo "Creating GitHub Release $tag on $repo..."
 
