@@ -47,8 +47,8 @@ Do NOT proceed with structural bootstrap when arguments are passed — this prev
 | Responsibility | Owner | Why |
 |---|---|---|
 | Directories, skeleton files, symlinks, .gitignore, .envrc | `fab-setup.sh` | Scriptable, automatable, no user input needed |
-| `config.yaml` (interactive) | `/fab-init` | Requires project-specific user input |
-| `constitution.md` (interactive) | `/fab-init` | Requires understanding of project principles |
+| `config.yaml` (interactive) | `/fab-init-config` (delegated by `/fab-init`) | Single source of truth for config generation and updates |
+| `constitution.md` (interactive) | `/fab-init-constitution` (delegated by `/fab-init`) | Single source of truth for constitution generation and amendments |
 | Invoking `fab-setup.sh` | `/fab-init` (step 1f) | Ensures structural setup runs as part of init |
 
 Steps 1c–1e below have idempotent guards (`if not exists`) so they gracefully skip when `fab-setup.sh` has already created the structural artifacts.
@@ -61,62 +61,7 @@ Each step is **idempotent** — skip if the artifact already exists and is valid
 
 If `fab/config.yaml` does **not** exist:
 
-1. Read the project's README, package.json, or other root-level files to gather context
-2. Ask the user:
-   - **Project name** — short identifier (e.g., `my-app`)
-   - **Description** — one-line summary of the project
-   - **Tech stack and conventions** — languages, frameworks, API style, testing approach, etc.
-   - **Source paths** — which directories contain the implementation code? (e.g., `src/`, `lib/`, `cmd/` + `pkg/`). This tells skills where "the code" lives, as opposed to design specs and docs which are always under `fab/`.
-3. Generate `fab/config.yaml` with this structure:
-
-```yaml
-# fab/config.yaml
-
-project:
-  name: "{PROJECT_NAME}"
-  description: "{PROJECT_DESCRIPTION}"
-
-context: |
-  {TECH_STACK_AND_CONVENTIONS}
-
-naming:
-  format: "{YYMMDD}-{XXXX}-{slug}"
-
-git:
-  enabled: true
-  branch_prefix: ""
-
-stages:
-  - id: brief
-    generates: brief.md
-    required: true
-  - id: spec
-    generates: spec.md
-    requires: [brief]
-    required: true
-  - id: tasks
-    generates: tasks.md
-    requires: [spec]
-    required: true
-    auto_checklist: true
-  - id: apply
-    requires: [tasks]
-  - id: review
-    requires: [apply]
-  - id: archive
-    requires: [review]
-
-source_paths:
-  - {SOURCE_PATHS}
-
-checklist:
-  extra_categories: []
-
-rules:
-  spec:
-    - Use GIVEN/WHEN/THEN for scenarios
-    - "Mark ambiguities with [NEEDS CLARIFICATION]"
-```
+**Delegate to `/fab-init-config`** in create mode. This ensures a single source of truth for config generation logic — see `/fab-init-config` for the full interactive flow and template.
 
 If `fab/config.yaml` **already exists**: report "config.yaml already exists — skipping" and move on.
 
@@ -124,30 +69,7 @@ If `fab/config.yaml` **already exists**: report "config.yaml already exists — 
 
 If `fab/constitution.md` does **not** exist:
 
-1. Load `fab/config.yaml` (just created or already present)
-2. Examine the project context: README, existing documentation, codebase structure, and conversation history
-3. Generate `fab/constitution.md` with principles derived from the project's actual patterns and constraints. Use this structure:
-
-```markdown
-# {Project Name} Constitution
-
-## Core Principles
-
-### I. {Principle Name}
-{Description using MUST/SHALL/SHOULD keywords. Include rationale.}
-
-### II. {Principle Name}
-{Description}
-
-<!-- Add 3-7 principles based on the project's actual patterns, tech stack, and constraints -->
-
-## Additional Constraints
-<!-- Project-specific: security, performance, testing, etc. -->
-
-## Governance
-
-**Version**: 1.0.0 | **Ratified**: {TODAY'S DATE} | **Last Amended**: {TODAY'S DATE}
-```
+**Delegate to `/fab-init-constitution`** in create mode. This ensures a single source of truth for constitution generation logic — see `/fab-init-constitution` for the full interactive flow and template.
 
 If `fab/constitution.md` **already exists**: report "constitution.md already exists — skipping" and move on.
 
@@ -296,6 +218,16 @@ This skill is safe to run any number of times:
 | `fab/.kit/VERSION` unreadable | Abort with: "fab/.kit/VERSION not found or unreadable — kit may be corrupted." |
 | Arguments provided | Abort with: "Did you mean /fab-hydrate? /fab-init no longer accepts source arguments." |
 | Symlink target missing | Report which skill file is missing in `fab/.kit/skills/` — do NOT create a broken symlink |
+
+---
+
+## Related Commands
+
+| Command | Description |
+|---------|-------------|
+| `/fab-init-constitution` | Create or amend the project constitution with semantic versioning |
+| `/fab-init-config` | Create or update config.yaml interactively, preserving comments |
+| `/fab-init-validate` | Validate config.yaml and constitution.md structural correctness |
 
 ---
 

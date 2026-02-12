@@ -14,7 +14,10 @@
 | [distribution](distribution.md) | How `fab/.kit/` is distributed — bootstrap, update, release workflow | 2026-02-12 |
 | [kit-architecture](kit-architecture.md) | `.kit/` structure, scripts, agent integration, distribution, versioning, monorepos | 2026-02-12 |
 | [model-tiers](model-tiers.md) | Provider-agnostic model tier system — tier naming, selection criteria, skill audit, mapping, dual deployment | 2026-02-12 |
-| [configuration](configuration.md) | `config.yaml` schema, `constitution.md` governance, stage graph definition | 2026-02-07 |
+| [init-family](init-family.md) | Init command family — `/fab-init-constitution`, `/fab-init-config`, `/fab-init-validate`, delegation from `/fab-init` | 2026-02-12 |
+| [config-management](config-management.md) | Maintaining `config.yaml` over project lifecycle — interactive updates, validation, comment preservation | 2026-02-12 |
+| [constitution-governance](constitution-governance.md) | Constitutional amendment workflow — semantic versioning, structural rules, audit trail | 2026-02-12 |
+| [configuration](configuration.md) | `config.yaml` schema, `constitution.md` governance, stage graph definition, lifecycle management | 2026-02-12 |
 | [preflight](preflight.md) | `fab-preflight.sh` script — validation, structured YAML output, skill integration | 2026-02-07 |
 | [hydrate-design](hydrate-design.md) | `/fab-hydrate-design` skill — structural gap detection between docs and design, interactive propose-then-apply | 2026-02-09 |
 | [design-index](design-index.md) | `fab/design/` directory — pre-implementation design, distinction from docs, bootstrap and context integration | 2026-02-09 |

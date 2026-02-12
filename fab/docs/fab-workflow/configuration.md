@@ -90,6 +90,27 @@ Semantic versioning — MAJOR for principle removals, MINOR for additions, PATCH
 - `constitution.md` holds **principles and constraints** (MUST/SHOULD/MUST NOT rules)
 - Both are loaded by the "Always Load" context layer (see [context-loading](context-loading.md))
 
+## Lifecycle Management
+
+### Updating Config
+
+Use `/fab-init-config` for guided, interactive updates. Supports direct section access (e.g., `/fab-init-config context`) and preserves YAML comments through targeted string replacement. See [config management](config-management.md) for details.
+
+### Amending Constitution
+
+Use `/fab-init-constitution` for governed amendments with semantic versioning (MAJOR/MINOR/PATCH). Supports multiple amendments per session with highest-precedence version bump. See [constitution governance](constitution-governance.md) for the full workflow.
+
+### Validation
+
+Use `/fab-init-validate` to check structural correctness of both files:
+
+- `config.yaml`: 8 checks (YAML syntax, required fields, stage dependencies, circular deps)
+- `constitution.md`: 6 checks (structure, headings, governance section, version format)
+
+Every failure includes an actionable fix suggestion. Useful after manual edits or as a pre-commit check.
+
+See [init family](init-family.md) for the complete command suite.
+
 ## Design Decisions
 
 ### Config for Facts, Constitution for Principles
@@ -118,4 +139,5 @@ Semantic versioning — MAJOR for principle removals, MINOR for additions, PATCH
 | 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Updated stages pipeline from 6 to 5, removed brief entry from config documentation |
 | 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated stage IDs to brief/spec/tasks/apply/review/archive, removed plan stage entry |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
+| 260212-h9k3-fab-init-family | 2026-02-12 | Added Lifecycle Management section — validation, config updates, constitution amendments |
 | — | 2026-02-07 | Generated from doc/fab-spec/ (ARCHITECTURE.md, TEMPLATES.md, README.md) |
