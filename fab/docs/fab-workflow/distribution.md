@@ -19,10 +19,10 @@ mkdir -p fab
 curl -sL https://github.com/wvrdz/fab-kit/releases/latest/download/kit.tar.gz | tar xz -C fab/
 ```
 
-After extraction, the user MUST run `fab/.kit/scripts/fab-setup.sh` to create directories, symlinks, and skeleton files. The bootstrap only provides `.kit/` — no `config.yaml`, `constitution.md`, or other project files.
+After extraction, the user MUST run `fab/.kit/scripts/fab-setup.sh` to create directories (`changes/`, `docs/`, `design/`), skeleton files (`docs/index.md`, `design/index.md`), symlinks, `.envrc`, and `.gitignore` entries. The bootstrap only provides `.kit/` — no `config.yaml`, `constitution.md`, or other project files.
 
 **Scenarios**:
-- Bootstrap a new project (no `fab/` directory) — creates `fab/.kit/` with all skills, templates, scripts, and VERSION file; no other `fab/` files created
+- Bootstrap a new project (no `fab/` directory) — creates `fab/.kit/` with all skills, templates, scripts, and VERSION file; running `fab-setup.sh` then creates `changes/`, `docs/index.md`, `design/index.md`, symlinks, `.envrc`, and `.gitignore` entry
 - Bootstrap with existing `fab/` directory — creates or replaces `fab/.kit/`; existing files outside `.kit/` (config.yaml, constitution.md, docs/, design/, changes/) are NOT affected
 
 #### Manual Copy Still Works
@@ -101,4 +101,5 @@ The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its rol
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260212-emcb-clarify-fab-setup | 2026-02-12 | Updated bootstrap description to include `fab/design/` directory and `design/index.md` in `fab-setup.sh` output |
 | 260210-h7r3-kit-distribution-update | 2026-02-10 | Initial creation — bootstrap, update, release, and repo rename requirements |

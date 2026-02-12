@@ -70,7 +70,7 @@ yaml_value() {
 }
 
 # ── 1. Directories ──────────────────────────────────────────────────
-for dir in "$fab_dir/changes" "$fab_dir/docs"; do
+for dir in "$fab_dir/changes" "$fab_dir/docs" "$fab_dir/design"; do
   if [ ! -d "$dir" ]; then
     mkdir -p "$dir"
     echo "Created: ${dir#"$repo_root"/}"
@@ -110,7 +110,29 @@ EOF
   echo "Created: fab/docs/index.md"
 fi
 
-# ── 4. Skill symlinks ──────────────────────────────────────────────
+# ── 4. Design index ───────────────────────────────────────────────
+if [ ! -f "$fab_dir/design/index.md" ]; then
+  cat > "$fab_dir/design/index.md" << 'EOF'
+# Specifications Index
+
+> **Specs are pre-implementation artifacts** — what you *planned*. They capture conceptual design
+> intent, high-level decisions, and the "why" behind features. Specs are human-curated,
+> flat in structure, and deliberately size-controlled for quick reading.
+>
+> Contrast with [`fab/docs/index.md`](../docs/index.md): docs are *post-implementation* —
+> what actually happened. Docs are the authoritative source of truth for system behavior,
+> maintained by `/fab-archive` hydration.
+>
+> **Ownership**: Specs are written and maintained by humans. No automated tooling creates or
+> enforces structure here — organize files however makes sense for your project.
+
+| Spec | Description |
+|------|-------------|
+EOF
+  echo "Created: fab/design/index.md"
+fi
+
+# ── 5. Skill symlinks ──────────────────────────────────────────────
 # Canonical list: every *.md in .kit/skills/ except _context.md
 skills=()
 for f in "$kit_dir"/skills/*.md; do
@@ -206,7 +228,7 @@ create_agent_symlinks "OpenCode" "$repo_root/.opencode/commands" "flat" "../../"
 # Codex: .agents/skills/<name>/SKILL.md (directory-based)
 create_agent_symlinks "Codex" "$repo_root/.agents/skills" "directory" "../../../"
 
-# ── 5. Model tier agent files ────────────────────────────────────────
+# ── 6. Model tier agent files ────────────────────────────────────────
 # Fast-tier skills get generated agent files (in addition to skill symlinks)
 # so pipeline operations can invoke them with cost-appropriate models.
 
@@ -257,7 +279,7 @@ if [ ${#fast_skills[@]} -gt 0 ]; then
     "Agents:" "$total" "${#fast_skills[@]}" "$created" "$updated" "$ok"
 fi
 
-# ── 6. .gitignore ──────────────────────────────────────────────────
+# ── 7. .gitignore ──────────────────────────────────────────────────
 gitignore="$repo_root/.gitignore"
 
 if [ ! -f "$gitignore" ]; then

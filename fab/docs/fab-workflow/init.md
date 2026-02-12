@@ -39,6 +39,24 @@ curl -sL https://github.com/wvrdz/fab-kit/releases/latest/download/kit.tar.gz | 
 
 After extraction, run `fab/.kit/scripts/fab-setup.sh` then `/fab-init` as usual.
 
+## Delegation Pattern
+
+`/fab-init` delegates structural setup to `fab/.kit/scripts/fab-setup.sh` and adds interactive configuration on top. This means `fab-setup.sh` can be run independently (e.g., in CI or after a bootstrap download) without requiring `/fab-init`.
+
+| Responsibility | Owner | Notes |
+|---|---|---|
+| Directories (`changes/`, `docs/`, `design/`) | `fab-setup.sh` | Non-interactive, scriptable |
+| Skeleton files (`docs/index.md`, `design/index.md`) | `fab-setup.sh` | Idempotent — skips if file exists |
+| Skill symlinks (Claude Code, OpenCode, Codex) | `fab-setup.sh` | Discovers skills via glob pattern |
+| `.envrc` symlink | `fab-setup.sh` | Links to `fab/.kit/envrc` |
+| `.gitignore` (`fab/current` entry) | `fab-setup.sh` | Appends if not present |
+| `config.yaml` | `/fab-init` | Interactive — requires user input for project name, stack, source paths |
+| `constitution.md` | `/fab-init` | Interactive — requires understanding of project principles |
+
+`/fab-init` invokes `fab-setup.sh` as step 1f of its bootstrap sequence. Steps 1c–1e in `/fab-init` have idempotent guards so they gracefully skip artifacts already created by `fab-setup.sh`.
+
+**Bootstrap path** (without `/fab-init`): After downloading `fab/.kit/` via curl or `cp -r`, running `fab-setup.sh` alone creates a complete structural scaffold. `/fab-init` is only needed to generate `config.yaml` and `constitution.md`.
+
 ## Design Decisions
 
 ### Init as Pure Structural Bootstrap
@@ -64,6 +82,7 @@ After extraction, run `fab/.kit/scripts/fab-setup.sh` then `/fab-init` as usual.
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260212-emcb-clarify-fab-setup | 2026-02-12 | Added Delegation Pattern section documenting responsibility split between `/fab-init` and `fab-setup.sh` |
 | 260210-h7r3-kit-distribution-update | 2026-02-10 | Added Bootstrap Alternative section with curl one-liner as alternative to manual `cp -r` |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | 260207-bb1q-add-specs-index | 2026-02-07 | Added `fab/design/index.md` creation as step 1d in bootstrap sequence |
