@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# fab-batch-discuss.sh — Per backlog ID: create a worktree, open a byobu tab
-# in it, and start a Claude Code session prefilled with /fab-discuss <description>.
+# fab-batch-new.sh — Per backlog ID: create a worktree, open a tmux tab
+# in it, and start a Claude Code session that runs /fab-new <description>.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KIT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -11,19 +11,19 @@ BACKLOG_FILE="${FAB_DIR}/backlog.md"
 
 usage() {
   cat <<'EOF'
-Usage: fab-batch-discuss <backlog-id> [<backlog-id>...]
+Usage: fab-batch-new <backlog-id> [<backlog-id>...]
 
 Per backlog ID: creates a git worktree (named after the ID), opens a new
-byobu/tmux tab in that worktree, and starts a Claude Code session
-prefilled with /fab-discuss and the item's description.
+tmux tab in that worktree, and starts a Claude Code session that runs
+/fab-new with the item's description.
 
 Options:
   --list    Show pending backlog items and their IDs
   --all     Open tabs for all pending backlog items
 
 Examples:
-  fab-batch-discuss 90g5 jgt6
-  fab-batch-discuss --all
+  fab-batch-new 90g5 jgt6
+  fab-batch-new --all
 EOF
 }
 
@@ -86,7 +86,7 @@ if [[ ! -f "$BACKLOG_FILE" ]]; then
 fi
 
 if [[ -z "${TMUX:-}" ]]; then
-  echo "Error: not inside a byobu/tmux session" >&2
+  echo "Error: not inside a tmux session" >&2
   exit 1
 fi
 
@@ -141,5 +141,5 @@ for id in "${ids[@]}"; do
   safe="${content//"'"/"'\''"}"
 
   tmux new-window -n "fab-$id" -c "$wt_path" \
-    "claude '/fab-discuss ${safe}'"
+    "claude --dangerously-skip-permissions '/fab-new ${safe}'"
 done
