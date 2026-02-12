@@ -8,6 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KIT_DIR="$(dirname "$SCRIPT_DIR")"
 FAB_DIR="$(dirname "$KIT_DIR")"
 CHANGES_DIR="${FAB_DIR}/changes"
+CONFIG_FILE="${FAB_DIR}/config.yaml"
 
 usage() {
   cat <<'EOF'
@@ -51,6 +52,17 @@ all_change_names() {
     [[ "$name" == "archive" ]] && continue
     printf '%s\n' "$name"
   done
+}
+
+get_branch_prefix() {
+  # Extract branch_prefix from fab/config.yaml
+  # Looks for: branch_prefix: "value" or branch_prefix: ""
+  if [[ -f "$CONFIG_FILE" ]]; then
+    grep -E '^\s*branch_prefix:' "$CONFIG_FILE" | \
+      sed -E 's/^\s*branch_prefix:\s*"?([^"]*)"?.*/\1/' || echo ""
+  else
+    echo ""
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -123,8 +135,12 @@ for change in "${changes[@]}"; do
 
   printf "  %s\n" "$match"
 
-  # Create a worktree named after the change (last line = path)
-  wt_path=$(wt-create --non-interactive --worktree-name "$match" | tail -1) || {
+  # Get branch prefix from config and construct the branch name fab-switch would use
+  branch_prefix=$(get_branch_prefix)
+  branch_name="${branch_prefix}${match}"
+
+  # Create worktree with the exact branch name fab-switch expects
+  wt_path=$(wt-create --non-interactive --worktree-name "$match" "$branch_name" | tail -1) || {
     echo "Error: failed to create worktree for '$match', skipping" >&2
     continue
   }
@@ -132,6 +148,7 @@ for change in "${changes[@]}"; do
   # Escape single quotes for the nested shell: ' → '\''
   safe="${match//"'"/"'\''"}"
 
+  # Call fab-switch with --no-branch-change since the branch is already set up
   tmux new-window -n "fab-${match}" -c "$wt_path" \
-    "claude --dangerously-skip-permissions '/fab-switch ${safe}'"
+    "claude --dangerously-skip-permissions '/fab-switch ${safe} --no-branch-change'"
 done

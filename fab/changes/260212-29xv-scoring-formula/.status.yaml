@@ -1,5 +1,5 @@
-name: 260212-bk1n-rework-fab-ff-archive
-created: 2026-02-12T00:00:00Z
+name: 260212-29xv-scoring-formula
+created: 2026-02-12T10:40:29+00:00
 created_by: sahil-weaver
 progress:
   brief: active
@@ -14,9 +14,9 @@ checklist:
   completed: 0
   total: 0
 confidence:
-  certain: 4
-  confident: 3
-  tentative: 0
+  certain: 1
+  confident: 2
+  tentative: 2
   unresolved: 0
-  score: 4.7
-last_updated: 2026-02-12T00:00:00Z
+  score: 2.8
+last_updated: 2026-02-12T10:40:29+00:00

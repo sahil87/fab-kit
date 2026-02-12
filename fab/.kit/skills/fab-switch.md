@@ -4,7 +4,7 @@ description: "Switch the active change to a different one. Lists available chang
 model_tier: fast
 ---
 
-# /fab-switch [change-name] [--branch <name>]
+# /fab-switch [change-name] [--branch <name>] [--no-branch-change]
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -23,6 +23,7 @@ Switch the active change to a different one. Accepts a full or partial change na
   - Partial slug match: `fix-checkout`
   - Any substring: `checkout`
 - **`--branch <name>`** *(optional)* — explicit branch name to use. Creates if new, checks out if existing. Skips the interactive branch prompt.
+- **`--no-branch-change`** *(optional)* — skip all branch integration (no branch creation, checkout, or prompts). Use when the branch is already correctly set up.
 
 If no argument is provided, list all active changes and ask the user to pick one (see **No Argument Flow** below).
 
@@ -166,6 +167,7 @@ Once a single change is identified:
 ## Branch Integration
 
 **Skip this step entirely if**:
+- `--no-branch-change` flag was provided, OR
 - `git.enabled` is `false` in `fab/config.yaml`, OR
 - The working directory is not inside a git repository
 
