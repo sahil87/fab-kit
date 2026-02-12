@@ -70,7 +70,7 @@ git:
   #   "fix/"      → fix/260115-a7k2-add-oauth
   branch_prefix: ""
 
-# stages — The 5-stage pipeline definition. Controls stage ordering,
+# stages — The 6-stage pipeline definition. Controls stage ordering,
 #   prerequisites, which artifacts are generated, and skip logic.
 # Consumed by: /fab:new (initializes .status.yaml), /fab:continue (stage
 #   traversal and prerequisite validation), /fab:ff (determines which
@@ -83,8 +83,12 @@ git:
 #   required       — Whether this stage can be skipped (false = optional)
 #   auto_checklist — Generate checklists/quality.md when this stage completes
 stages:
+  - id: brief
+    generates: brief.md
+    required: true
   - id: spec
     generates: spec.md
+    requires: [brief]
     required: true
   - id: tasks
     generates: tasks.md

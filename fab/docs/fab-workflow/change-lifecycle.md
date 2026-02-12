@@ -126,13 +126,13 @@ All mechanical work (file reading, YAML parsing, git branch query, progress symb
 
 ## Migration Note (Old-Format `.status.yaml`)
 
-Existing `.status.yaml` files created before v5p2 may contain a `stage:` field and a `brief:` entry in the progress map. To migrate:
+Existing `.status.yaml` files created before v5p2 may contain a `stage:` field. To migrate:
 
 1. **Remove the `stage:` line** — current stage is now derived from the `active` entry in the progress map
-2. **Remove `brief:` from the progress map** — brief is no longer a pipeline stage
+2. **Ensure `brief:` is present in the progress map** — brief is a formal pipeline stage. If missing, add `brief: done` (the preflight script also infers this automatically)
 3. **Set the appropriate stage to `active`** — e.g., if the old `stage:` was `spec`, set `spec: active` in the progress map
 
-Skills will tolerate old-format files but may produce warnings. Manual migration is recommended for in-flight changes.
+Skills will tolerate old-format files — the preflight script infers `brief: done` when the entry is missing.
 
 ## Design Decisions
 
@@ -176,6 +176,7 @@ Skills will tolerate old-format files but may produce warnings. Manual migration
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260212-v5p2-brief-pipeline-stage | 2026-02-12 | Restored brief as formal pipeline stage, updated migration note to keep brief: entry |
 | — | 2026-02-12 | Updated `/fab-new` default behavior: no longer auto-switches. Updated `fab/current` lifecycle, git integration description, and Branch Integration design decision |
 | 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Updated to 5-stage pipeline, documented state machine with active marker as single source of truth, added migration note |
 | 260211-r3k8-simplify-planning-stages | 2026-02-11 | 6-stage pipeline, removed plan/skipped states, updated stage field values and progress keys |

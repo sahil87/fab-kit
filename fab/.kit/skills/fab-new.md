@@ -125,38 +125,18 @@ Before creating the change folder, perform gap analysis to avoid redundant or ov
 
 ### Step 4: Initialize `.status.yaml`
 
-Create `fab/changes/{name}/.status.yaml` using the template at `fab/.kit/templates/status.yaml`:
+Create `fab/changes/{name}/.status.yaml` using the template at `fab/.kit/templates/status.yaml`. Fill in the placeholder fields:
 
-```yaml
-name: {name}
-created: {ISO 8601 timestamp}
-created_by: {gh api user --jq .login, or git config user.name fallback, or "unknown"}
-progress:
-  spec: active
-  tasks: pending
-  apply: pending
-  review: pending
-  archive: pending
-checklist:
-  generated: false
-  path: checklists/quality.md
-  completed: 0
-  total: 0
-confidence:
-  certain: 0
-  confident: 0
-  tentative: 0
-  unresolved: 0
-  score: 5.0
-last_updated: {ISO 8601 timestamp}
-```
+- `{NAME}` → the generated folder name
+- `{CREATED}` → current ISO 8601 timestamp with timezone
+- `{CREATED_BY}` → populated using a fallback chain: first try `gh api user --jq .login` (GitHub username). If the `gh` command is not installed, not authenticated, or the API call fails (non-zero exit or empty output), fall back to `git config user.name`. If that also returns empty or exits non-zero, use `"unknown"`. No error or warning is displayed to the user on fallback.
 
 **Key points**:
-- `created_by` is populated using a fallback chain: first try `gh api user --jq .login` (GitHub username). If the `gh` command is not installed, not authenticated, or the API call fails (non-zero exit or empty output), fall back to `git config user.name`. If that also returns empty or exits non-zero, use `"unknown"`. No error or warning is displayed to the user on fallback. This field is write-once — set here and never modified by subsequent skills.
+- `created_by` is write-once — set here and never modified by subsequent skills
 - No `stage:` field — the current stage is derived from the `active` entry in the progress map
-- `spec` is `active` (first pipeline stage) — all other stages are `pending`
-- `confidence` block is initialized with defaults — Step 8 overwrites with actual counts after brief generation
-- Both `created` and `last_updated` use the same timestamp (current time in ISO 8601 format with timezone)
+- `brief` is `active` (first pipeline stage) — all other stages are `pending`
+- `confidence` block is initialized with template defaults — Step 7 overwrites with actual counts after brief generation
+- Both `created` and `last_updated` use the same timestamp
 
 ### Step 5: Generate `brief.md`
 
@@ -231,7 +211,7 @@ Once the user is satisfied with the brief (questions answered, scope agreed):
 1. Update `.status.yaml`:
    - Write the computed `confidence` block (from Step 7)
    - Update `last_updated` to current timestamp
-2. The brief is an input artifact, not a pipeline stage — `.status.yaml` progress remains as initialized (`spec: active`)
+2. Set `progress.brief` to `done` and `progress.spec` to `active` (two-write transition — brief generation is complete, spec is next)
 
 ### Step 9: Activate Change via `/fab-switch` (Conditional)
 

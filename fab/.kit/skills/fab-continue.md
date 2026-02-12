@@ -293,7 +293,6 @@ Next: /fab-apply
 |-----------|--------|
 | Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
 | Current stage is `apply` or later (normal flow) | Abort with guidance to use `/fab-apply`, `/fab-review`, or `/fab-archive` |
-| Reset target is `brief` | Abort with: "Cannot reset to brief — brief is not a pipeline stage. Edit brief.md directly or use /fab-clarify." |
 | Reset target is `apply`, `review`, or `archive` | Abort with: "Cannot reset to {stage}. Use /fab-{stage} directly." |
 | Template file missing | Abort with: "Template not found at fab/.kit/templates/{file} — kit may be corrupted." |
 

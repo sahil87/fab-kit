@@ -139,7 +139,7 @@ Once a single change is identified:
    ```
    fab/current now points to 260202-m3x1-fix-checkout-bug
 
-   Stage:  apply (3/5)
+   Stage:  apply (4/6)
    Branch: fix/checkout-bug (created)
    ```
 
@@ -148,13 +148,14 @@ Once a single change is identified:
    ```
    fab/current now points to 260202-m3x1-fix-checkout-bug
 
-   Stage:  apply (3/5)
+   Stage:  apply (4/6)
    ```
 
 5. **Suggest next command** based on the change's current stage:
 
    | Stage | Suggested next |
    |-------|---------------|
+   | `brief` (active) | `Next: /fab-continue or /fab-clarify` |
    | `spec` (active) | `Next: /fab-continue or /fab-ff` |
    | `spec` (done) | `Next: /fab-continue (tasks) or /fab-ff or /fab-clarify` |
    | `tasks` (done) | `Next: /fab-apply` |
@@ -205,15 +206,16 @@ Detect the current branch and offer options:
 
 ## Stage Number Mapping
 
-Map stages to their numeric position for the `(N/5)` display:
+Map stages to their numeric position for the `(N/6)` display:
 
 | Stage | Number |
 |-------|--------|
-| `spec` | 1 |
-| `tasks` | 2 |
-| `apply` | 3 |
-| `review` | 4 |
-| `archive` | 5 |
+| `brief` | 1 |
+| `spec` | 2 |
+| `tasks` | 3 |
+| `apply` | 4 |
+| `review` | 5 |
+| `archive` | 6 |
 
 ---
 
@@ -224,7 +226,7 @@ Map stages to their numeric position for the `(N/5)` display:
 ```
 fab/current now points to 260202-m3x1-fix-checkout-bug
 
-Stage:  apply (3/5)
+Stage:  apply (4/6)
 Branch: 260202-m3x1-fix-checkout-bug (created)
 
 Next: /fab-review
@@ -235,7 +237,7 @@ Next: /fab-review
 ```
 fab/current now points to 260202-m3x1-fix-checkout-bug
 
-Stage:  apply (3/5)
+Stage:  apply (4/6)
 Branch: feature/checkout-fix (adopted)
 
 Next: /fab-review
@@ -246,7 +248,7 @@ Next: /fab-review
 ```
 fab/current now points to 260202-m3x1-fix-checkout-bug
 
-Stage:  apply (3/5)
+Stage:  apply (4/6)
 
 Next: /fab-review
 ```
