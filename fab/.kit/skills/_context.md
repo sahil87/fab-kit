@@ -70,7 +70,8 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 | `/fab-new` | brief done | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
 | `/fab-continue` → spec | spec done | `Next: /fab-continue (tasks) or /fab-ff (fast-forward) or /fab-clarify (refine spec)` |
 | `/fab-continue` → tasks | tasks done | `Next: /fab-apply` |
-| `/fab-ff` | tasks done | `Next: /fab-apply` |
+| `/fab-ff` | archived | `Next: /fab-new <description> (start next change)` |
+| `/fab-ff` (bail) | varies | *(contextual — see /fab-ff for bail/failure messages)* |
 | `/fab-clarify` | same stage | `Next: /fab-clarify (refine further) or /fab-continue or /fab-ff` |
 | `/fab-apply` | apply done | `Next: /fab-review` |
 | `/fab-review` (pass) | review done | `Next: /fab-archive` |

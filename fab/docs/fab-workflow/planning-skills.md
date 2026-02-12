@@ -4,7 +4,9 @@
 
 ## Overview
 
-The planning skills (`/fab-new`, `/fab-continue`, `/fab-ff`, `/fab-clarify`) handle the first three stages of the 6-stage Fab pipeline: brief, spec, and tasks. They produce the artifacts that define *what* changes and *how*, before any code is written.
+The planning skills (`/fab-new`, `/fab-continue`, `/fab-clarify`) handle the first three stages of the 6-stage Fab pipeline: brief, spec, and tasks. They produce the artifacts that define *what* changes and *how*, before any code is written.
+
+`/fab-ff` is also documented here because its planning behavior (frontloaded questions, auto-clarify) originated as a planning skill. However, `/fab-ff` is now a **full-pipeline command** that continues through apply, review, and archive after planning completes. See the `/fab-ff` section below for details.
 
 ## Shared Generation Partial
 
@@ -110,9 +112,9 @@ Reset is primarily used after `/fab-review` identifies issues upstream.
 - **Spec**: config, constitution, `brief.md`, target centralized doc(s) from `fab/docs/`
 - **Tasks**: above + completed `spec.md`
 
-### `/fab-ff` (Fast Forward)
+### `/fab-ff` (Fast Forward — Full Pipeline)
 
-`/fab-ff` fast-forwards through all remaining planning stages in one pass to reach implementation quickly. Can start from brief, spec, or tasks stage. Frontloads questions, interleaves auto-clarify, and bails on blockers.
+`/fab-ff` runs the entire Fab pipeline in a single invocation: planning (spec, tasks) → apply → review → archive. It frontloads questions, interleaves auto-clarify between planning stages, and stops for interactive resolution when blocking issues arise at any phase. No confidence gate.
 
 #### Frontloaded Questions
 
@@ -120,28 +122,35 @@ The skill SHALL scan the brief for ambiguities across *all* remaining planning s
 
 #### Interleaved Auto-Clarify
 
-The `/fab-ff` pipeline interleaves auto-clarify between stage generations: `spec → auto-clarify → tasks → auto-clarify`. Each auto-clarify invocation uses the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (`_context.md`) to signal `/fab-clarify` to operate autonomously. This catches gaps before they compound downstream.
+The `/fab-ff` pipeline interleaves auto-clarify between planning stage generations: `spec → auto-clarify → tasks → auto-clarify`. Each auto-clarify invocation uses the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (`_context.md`) to signal `/fab-clarify` to operate autonomously. This catches gaps before they compound downstream.
 
 - If auto-clarify finds **blocking issues** (cannot resolve autonomously), the pipeline **bails** — stops, reports the issues, and suggests `Run /fab-clarify to resolve these, then /fab-ff to resume.`
 - The pipeline is **resumable** — re-running `/fab-ff` after a bail skips stages already marked `done` and continues from the first incomplete stage.
 
-#### Generation Flow
+#### Pipeline Flow
 
 1. Read `fab/current` to resolve the active change; verify brief is complete
 2. Frontload questions (single batch)
 3. Generate `spec.md` (incorporating answers) → run auto-clarify on spec
 4. Produce task breakdown (referencing spec and brief) → run auto-clarify on tasks
 5. Auto-generate quality checklist
-6. Update status to `tasks: done`
+6. Execute tasks via apply behavior
+7. Validate implementation via review behavior — on failure, presents interactive rework menu (fix code, revise tasks, revise spec)
+8. Hydrate docs and archive the change
+
+#### Interactive Review Failure
+
+Unlike `/fab-fff` which bails immediately on review failure, `/fab-ff` presents the same interactive rework menu as standalone `/fab-review`. This is the key behavioral difference: `/fab-ff` is "fast but interactive" while `/fab-fff` is "fully autonomous."
 
 #### When to Use
 
-- Clear requirements upfront, want to reach implementation quickly
-- Changes needing quality gates — auto-clarify catches issues between stages
+- Want the full pipeline in one command but with the ability to intervene
+- Clear requirements upfront, want to reach archive quickly with safety nets
+- Changes needing quality gates — auto-clarify catches issues between planning stages
 
-### `/fab-fff` (Full Pipeline)
+### `/fab-fff` (Full Autonomous Pipeline)
 
-`/fab-fff` chains the full pipeline in a single invocation: `/fab-ff` → `/fab-apply` → `/fab-review` → `/fab-archive`. Gated on confidence score >= 3.0.
+`/fab-fff` runs the entire Fab pipeline autonomously in a single invocation, gated on confidence score >= 3.0. Unlike `/fab-ff`, which stops for interactive clarification, `/fab-fff` never stops for user input — it bails immediately on review failure and auto-clarifies without user interaction.
 
 #### Confidence Gate
 
@@ -149,7 +158,7 @@ Before proceeding, `/fab-fff` reads `confidence.score` from `.status.yaml`. If t
 
 #### Pipeline Behavior
 
-Each stage uses the same behavior as its standalone invocation. If `/fab-ff` bails on blocking issues or `/fab-review` fails, the pipeline stops immediately. Unlike standalone `/fab-review`, the review failure does NOT offer an interactive rework menu — it bails with an actionable message.
+Each stage uses the same behavior as its standalone invocation. If planning bails on blocking issues or `/fab-review` fails, the pipeline stops immediately. Unlike `/fab-ff` (which offers interactive rework on review failure), `/fab-fff` bails with an actionable message and no interactive menu.
 
 #### Resumability
 
@@ -265,6 +274,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260212-bk1n-rework-fab-ff-archive | 2026-02-12 | Extended `/fab-ff` from planning-only to full pipeline (planning → apply → review → archive). Updated `/fab-fff` description and comparison table to reflect new differentiation. `/fab-ff` now offers interactive rework on review failure; `/fab-fff` remains fully autonomous with confidence gate |
 | 260212-29xv-scoring-formula | 2026-02-12 | Increased Confident penalty from 0.1 to 0.3 in confidence formula; `/fab-clarify` now reclassifies resolved assumptions (Tentative/Confident → Certain) so scores increase after clarification |
 | 260212-k7m3-fix-consistency-drift | 2026-02-12 | Clarified confidence score template default phrasing ("zero counts and score 5.0" instead of "all zeros") |
 | 260212-0r8e-fix-created-by-github | 2026-02-12 | `/fab-new` now uses `gh api user --jq .login` as primary source for `created_by`, with `git config user.name` as fallback |

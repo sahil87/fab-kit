@@ -1,6 +1,6 @@
 ---
 name: fab-ff
-description: "Fast-forward through all remaining planning stages in one pass to reach implementation quickly."
+description: "Fast-forward through the entire pipeline — planning, implementation, review, and archive — with interactive clarification stops."
 ---
 
 # /fab-ff
@@ -11,9 +11,11 @@ description: "Fast-forward through all remaining planning stages in one pass to 
 
 ## Purpose
 
-Fast-forward through all remaining planning stages in one pass. Generates spec and tasks (with quality checklist) — all in a single invocation. Can start from brief, spec, or tasks stage. Interleaves auto-clarify between stage generations to catch and resolve gaps before they compound downstream.
+Fast-forward through the entire Fab pipeline in a single invocation: planning (spec, tasks) → apply → review → archive. Interleaves auto-clarify between planning stage generations and stops for interactive resolution when blocking issues arise at any phase.
 
-Interleaves auto-clarify between stage generations; stops if blocking issues are found that the agent cannot resolve autonomously. Resumable — re-running after a bail picks up from the first incomplete stage.
+Unlike `/fab-fff`, which requires a confidence gate and bails immediately on review failure, `/fab-ff` has no confidence gate and presents interactive rework options when review fails. This makes `/fab-ff` the "fast but interactive" pipeline and `/fab-fff` the "fully autonomous" pipeline.
+
+Resumable — re-running after a bail or failure picks up from the first incomplete stage.
 
 ---
 
@@ -37,7 +39,7 @@ Then verify the stage-specific precondition using the preflight output:
 
 ## Context Loading
 
-Load all context upfront since fast-forward traverses all planning stages:
+Load all context upfront since fast-forward traverses all stages:
 
 1. `fab/config.yaml` — project config, tech stack
 2. `fab/constitution.md` — project principles and constraints
@@ -55,8 +57,11 @@ On invocation, check the `progress` map from preflight output. **Skip stages alr
 
 - If `progress.spec` is already `done`, skip Step 1 (questions) and Step 2 (spec generation) and their auto-clarify
 - If `progress.tasks` is already `done`, skip Step 3 (task generation) and its auto-clarify
+- If `progress.apply` is already `done`, skip Step 6 (implementation)
+- If `progress.review` is already `done`, skip Step 7 (review)
+- If `progress.archive` is already `done`, skip Step 8 (archive) — pipeline is complete
 
-This makes `/fab-ff` resumable after a bail — re-running picks up from the first incomplete stage.
+This makes `/fab-ff` resumable after a bail, failure, or interruption — re-running picks up from the first incomplete stage.
 
 ### Step 1: Frontload All Questions
 
@@ -118,9 +123,9 @@ Run auto-clarify on the generated tasks: invoke `/fab-clarify` with the `[AUTO-M
 
 Follow the **Checklist Generation Procedure** defined in `fab/.kit/skills/_generation.md`.
 
-### Step 5: Update `.status.yaml`
+### Step 5: Update `.status.yaml` (Planning Complete)
 
-After all artifacts are generated:
+After all planning artifacts are generated:
 
 1. Set `progress.tasks` to `done`
 2. Set `progress.apply` to `active` (two-write transition)
@@ -129,14 +134,73 @@ After all artifacts are generated:
 5. Set `checklist.completed` to `0`
 6. Update `last_updated` to the current ISO 8601 timestamp
 
+### Step 6: Implementation (fab-apply)
+
+*(Skip if `progress.apply` is already `done`.)*
+
+Execute `/fab-apply` behavior — parse unchecked tasks from `tasks.md`, execute in dependency order, run tests after each completed task, mark tasks `[x]` on completion, update `.status.yaml` progress after each task.
+
+**If a task fails and cannot be resolved by the agent**, **STOP** the pipeline. Report which task failed and why, and output:
+
+> `Task {ID} failed during apply: {reason}`
+>
+> `Investigate the failure and re-run /fab-ff to resume from here.`
+
+On successful completion of all tasks, update `.status.yaml`:
+- Set `progress.apply` to `done`
+- Set `progress.review` to `active`
+- Update `last_updated`
+
+### Step 7: Review (fab-review)
+
+*(Skip if `progress.review` is already `done`.)*
+
+Execute `/fab-review` behavior — validate implementation against specs and checklists:
+
+1. All tasks in `tasks.md` marked `[x]`
+2. All checklist items in `checklists/quality.md` verified and checked off
+3. Run tests affected by the change
+4. Features match spec requirements (spot-check key scenarios)
+5. No doc drift detected
+
+**If review passes**: Update `.status.yaml`:
+- Set `progress.review` to `done`
+- Set `progress.archive` to `active`
+- Update `last_updated`
+- Proceed to Step 8.
+
+**If review fails**: Present the interactive rework menu (same as standalone `/fab-review`):
+
+- **Fix code** → identify affected tasks, uncheck them in `tasks.md` (with `<!-- rework: reason -->` comment), re-run apply behavior from Step 6
+- **Revise tasks** → user edits `tasks.md`, re-run apply behavior from Step 6
+- **Revise spec** → reset to spec stage via `/fab-continue spec`, then the user can re-run `/fab-ff` to resume
+
+The user selects a rework option and the pipeline handles it accordingly. This interactive stop is the key behavioral difference from `/fab-fff`, which bails immediately.
+
+### Step 8: Archive (fab-archive)
+
+*(Skip if `progress.archive` is already `done`.)*
+
+Execute `/fab-archive` behavior:
+
+1. Final validation — review must have passed
+2. Concurrent change check — warn about other active changes modifying the same docs
+3. Hydrate into `fab/docs/` — integrate new/changed requirements from `spec.md`
+4. Update `.status.yaml` to `archive: done`
+5. Move change folder to `archive/`
+6. Update archive index (`fab/changes/archive/index.md`)
+7. Clear `fab/current`
+
 ---
 
 ## Output
 
-### Default Mode — Clean Fast-Forward (no questions, no blockers)
+### Clean Full Pipeline (no questions, no blockers)
 
 ```
 Fast-forwarding from brief...
+
+--- Planning ---
 
 ## Spec: {Change Name}
 
@@ -155,25 +219,37 @@ Auto-clarify: tasks — {resolved: N, blocking: 0, non_blocking: N}
 
 Generated checklists/quality.md with {N} items.
 
-Fast-forward complete — spec, tasks, and checklist generated.
-
 ## Assumptions (cumulative)
 
 | # | Grade | Decision | Rationale | Artifact |
 |---|-------|----------|-----------|----------|
 | 1 | Confident | {decision} | {rationale} | spec.md |
-| 2 | Tentative | {decision} | {rationale} | spec.md |
-| 3 | Tentative | {decision} | {rationale} | tasks.md |
 
 {N} assumptions made ({C} confident, {T} tentative). Run /fab-clarify to review.
 
-Next: /fab-apply
+--- Implementation (fab-apply) ---
+
+{fab-apply output — task execution details}
+
+--- Review (fab-review) ---
+
+{fab-review output — validation results}
+
+--- Archive (fab-archive) ---
+
+{fab-archive output — hydration and move details}
+
+Pipeline complete. Change archived.
+
+Next: /fab-new <description> (start next change)
 ```
 
-### Default Mode — Bail on Blocking Issue
+### Bail on Blocking Issue (Planning)
 
 ```
 Fast-forwarding from brief...
+
+--- Planning ---
 
 ## Spec: {Change Name}
 
@@ -188,26 +264,51 @@ Auto-clarify: spec — {resolved: 2, blocking: 1, non_blocking: 0}
 Run /fab-clarify to resolve this interactively, then /fab-ff to resume.
 ```
 
-### Default Mode — Resume After Bail
+### Resume After Bail or Failure
 
 ```
-Fast-forwarding from spec (resuming)...
+Fast-forwarding (resuming)...
 
-Skipping spec — already done.
+Skipping planning — all stages done.
+Skipping implementation — already done.
 
-## Tasks: {Change Name}
+--- Review (fab-review) ---
 
-{tasks content}
+{fab-review output}
 
-Auto-clarify: tasks — {resolved: 1, blocking: 0, non_blocking: 0}
+--- Archive (fab-archive) ---
 
-## Quality Checklist
+{fab-archive output}
 
-Generated checklists/quality.md with {N} items.
+Pipeline complete. Change archived.
 
-Fast-forward complete — spec, tasks, and checklist generated.
+Next: /fab-new <description> (start next change)
+```
 
-Next: /fab-apply
+### Review Failure with Interactive Rework
+
+```
+Fast-forwarding from brief...
+
+--- Planning ---
+
+{planning output}
+
+--- Implementation (fab-apply) ---
+
+{fab-apply output}
+
+--- Review (fab-review) ---
+
+Review found {N} issue(s):
+- {issue description}
+
+Rework options:
+1. **Fix code** — uncheck affected tasks, re-run apply
+2. **Revise tasks** — edit tasks.md, re-run apply
+3. **Revise spec** — reset to spec stage via /fab-continue spec
+
+Which option? (1-3)
 ```
 
 ### Ambiguous Brief (questions first, then pipeline)
@@ -219,22 +320,30 @@ Before I can generate all planning artifacts, I need to resolve a few ambiguitie
 
 1. {question about spec scope}
 2. {question about technical approach}
-3. {question about edge case}
 
 {user answers}
 
-## Spec: {Change Name}
+--- Planning ---
 
-{spec content incorporating answers}
+{... pipeline continues ...}
+```
 
-Spec created.
-Auto-clarify: spec — {resolved: N, blocking: 0, non_blocking: N}
+### Apply Failure
 
-{... remainder of pipeline ...}
+```
+Fast-forwarding from brief...
 
-Fast-forward complete — spec, tasks, and checklist generated.
+--- Planning ---
 
-Next: /fab-apply
+{planning output}
+
+--- Implementation (fab-apply) ---
+
+{partial apply output}
+
+Task {ID} failed during apply: {reason}
+
+Investigate the failure and re-run /fab-ff to resume from here.
 ```
 
 ---
@@ -248,6 +357,9 @@ Next: /fab-apply
 | Template file missing | Abort with: "Template not found at fab/.kit/templates/{file} — kit may be corrupted." |
 | Spec already done (stage is `spec` or later) | Resume from current position — skip completed stages |
 | Auto-clarify returns blocking issues | Bail — stop pipeline, report issues, suggest `/fab-clarify` then `/fab-ff` |
+| Task fails during apply | Stop pipeline, report which task failed and why, suggest re-running `/fab-ff` |
+| Review fails | Present interactive rework menu (fix code, revise tasks, revise spec) |
+| Archive fails | Report error with details |
 
 ---
 
@@ -256,16 +368,25 @@ Next: /fab-apply
 | Behavior | `/fab-continue` | `/fab-ff` | `/fab-fff` |
 |----------|-----------------|-----------|-----------|
 | Questions | Asked per-stage as needed | Frontloaded: one batch upfront | Same as fab-ff (frontloaded) |
-| Auto-clarify | None (manual `/fab-clarify`) | Between each stage; bails on blockers | Same as fab-ff |
-| Stages per invocation | One planning stage | All planning stages (may bail mid-way) | Full pipeline: planning + apply + review + archive |
-| Resumable? | N/A (one stage) | Yes — re-invoke after bail | Yes — skips completed stages |
+| Auto-clarify | None (manual `/fab-clarify`) | Between each planning stage; bails on blockers | Same as fab-ff |
+| Stages per invocation | One planning stage | Full pipeline: planning + apply + review + archive | Full pipeline: planning + apply + review + archive |
+| On review failure | N/A (single stage) | Interactive rework menu | Immediate bail |
+| Resumable? | N/A (one stage) | Yes — re-invoke after bail or failure | Yes — skips completed stages |
 | Confidence gate | None | None | Requires score >= 3.0 |
-| Best for | Deliberate, step-by-step planning | Fast planning with quality gates | High-confidence changes, full autonomy |
+| Best for | Deliberate, step-by-step planning | Fast full pipeline with interactive safety net | High-confidence changes, full autonomy |
 
 ---
 
 ## Next Steps Reference
 
-After `/fab-ff` completes:
+After `/fab-ff` completes (archive):
 
-`Next: /fab-apply`
+`Next: /fab-new <description> (start next change)`
+
+After `/fab-ff` bails (planning):
+
+`Next: /fab-clarify (resolve issues) then /fab-ff (resume)`
+
+After `/fab-ff` stops (apply failure):
+
+`Next: Investigate failure, then /fab-ff (resume)`
