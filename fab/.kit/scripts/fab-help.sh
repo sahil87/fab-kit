@@ -22,7 +22,7 @@ WORKFLOW
   /fab-new ─→ /fab-continue (or /fab-ff) ─→ /fab-apply ─→ /fab-review ─→ /fab-archive
                ↕ /fab-clarify
 
-  Planning stages: brief → spec → tasks
+  Planning stages: spec → tasks
   Execution stages: apply → review → archive
 
 COMMANDS

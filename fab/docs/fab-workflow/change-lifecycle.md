@@ -27,8 +27,7 @@ All components MUST be lowercase — avoids collisions on case-insensitive files
 **Lifecycle**:
 - **Created** by `/fab-new` — written with the newly created change folder name
 - **Updated** by `/fab-new` or `/fab-switch` — overwritten with the new change name
-- **Read** by every other skill — `/fab-continue`, `/fab-clarify`, `/fab-discuss`, `/fab-apply`, `/fab-review`, `/fab-status` all resolve the active change via `current`
-- **Conditionally written** by `/fab-discuss` — after creating a change folder and displaying the summary, `/fab-discuss` checks whether `fab/current` is empty. If empty, it offers to activate the new change (calling `/fab-switch` internally for both pointer update and branch integration). If `fab/current` already points to a different change, no offer is made — the current work context is preserved.
+- **Read** by every other skill — `/fab-continue`, `/fab-clarify`, `/fab-apply`, `/fab-review`, `/fab-status` all resolve the active change via `current`
 - **Cleared** by `/fab-archive` — file is deleted after archiving (no active change)
 
 **Resolution pattern** (used by all skills):
@@ -45,39 +44,42 @@ Every change folder SHALL contain a `.status.yaml` manifest with these fields:
 
 - `name` — the full change folder name
 - `created` — ISO 8601 datetime
-- `stage` — current stage (single source of truth for where the change is)
-- `progress` — map of all stages to their state
+- `progress` — map of all stages to their state. The stage marked `active` is the current stage (single source of truth for where the change is). There is no separate `stage:` field — current stage is derived from the `active` entry in the progress map.
 - `checklist` — generation status, path, completion counts
 - `confidence` — SRAD confidence scoring: `certain`, `confident`, `tentative`, `unresolved` counts and derived `score` (0.0-5.0). Computed by `/fab-new`, recomputed by `/fab-continue` and `/fab-clarify`. Used as a gate by `/fab-fff` (requires score >= 3.0)
 - `last_updated` — refreshed on every status change
 
-**State vocabulary** (all status fields draw from this fixed set):
+**State vocabulary** (all progress fields draw from this fixed set):
 
 | State | Meaning | Used by |
 |-------|---------|---------|
 | `pending` | Not yet started | All stages |
-| `active` | Currently being worked on | All stages |
+| `active` | Currently being worked on | Exactly one stage at a time |
 | `done` | Completed successfully | All stages |
 | `failed` | Completed with failures requiring rework | review |
 
-**Stage field values**: `brief` | `spec` | `tasks` | `apply` | `review` | `archive`
+**Deriving current stage**: Read the `progress` map and find the entry with value `active`. Exactly one stage SHALL be `active` at any time. Skills use this to determine where the change is in the pipeline.
 
-### The 6 Stages
+**Two-write transitions**: Moving from one stage to the next requires two writes: (1) set the current stage to `done`, (2) set the next stage to `active`. Both writes MUST happen atomically in a single `.status.yaml` update.
 
-Changes progress through 6 stages in a defined graph:
+**Review failure backward movement**: When `/fab-review` identifies issues requiring rework, it sets `review: failed` and moves the appropriate earlier stage back to `active` (e.g., `spec: active`). Stages between the target and review are reset to `pending`.
+
+### The 5 Stages
+
+Changes progress through 5 stages in a defined graph:
 
 ```
-brief → spec → tasks → apply → review → archive
+spec → tasks → apply → review → archive
 ```
+
+The brief (`brief.md`) is created by `/fab-new` before the pipeline begins — it is an input to the pipeline, not a stage within it.
 
 The stages split into three phases:
-- **Planning** (1-3): brief, spec, tasks
-- **Execution** (4-5): apply, review
-- **Completion** (6): archive (hydrates into centralized docs)
+- **Planning** (1-2): spec, tasks
+- **Execution** (3-4): apply, review
+- **Completion** (5): archive (hydrates into centralized docs)
 
 **Full pipeline path**: `/fab-fff` chains the entire flow (planning → apply → review → archive) in a single invocation, gated on confidence score >= 3.0. This is the fastest path from brief to archived change.
-
-**Alternative entry point**: `/fab-discuss` can create a change with a high-confidence brief and spec through conversation. When no active change exists, `/fab-discuss` offers to activate the new change immediately (via internal `/fab-switch`), enabling a direct discuss → fff path. When another change is active, the user must `/fab-switch` manually. Either way, the discuss path is ideal for vague ideas that need exploration before committing to implementation.
 
 ### Git Integration (Optional)
 
@@ -102,7 +104,7 @@ To discard a change that won't be completed:
 2. Clear the pointer (if active): `rm fab/current`
 3. Optionally delete the git branch: `git branch -d {branch}`
 
-There is no `/fab-abandon` skill — this is a manual operation. To preserve context about why a change was dropped, move the folder to `archive/` instead and set `stage: abandoned` in `.status.yaml`.
+There is no `/fab-abandon` skill — this is a manual operation. To preserve context about why a change was dropped, move the folder to `archive/` instead.
 
 ### `/fab-status`
 
@@ -120,6 +122,16 @@ All mechanical work (file reading, YAML parsing, git branch query, progress symb
 4. Write the full change name to `fab/current`
 5. **Branch integration** (if `git.enabled`): auto-create on main/master, prompt on feature/wt branches, or use `--branch <name>` for explicit branch
 6. Display the switched change's status summary
+
+## Migration Note (Old-Format `.status.yaml`)
+
+Existing `.status.yaml` files created before v5p2 may contain a `stage:` field and a `brief:` entry in the progress map. To migrate:
+
+1. **Remove the `stage:` line** — current stage is now derived from the `active` entry in the progress map
+2. **Remove `brief:` from the progress map** — brief is no longer a pipeline stage
+3. **Set the appropriate stage to `active`** — e.g., if the old `stage:` was `spec`, set `spec: active` in the progress map
+
+Skills will tolerate old-format files but may produce warnings. Manual migration is recommended for in-flight changes.
 
 ## Design Decisions
 
@@ -143,9 +155,15 @@ All mechanical work (file reading, YAML parsing, git branch query, progress symb
 
 ### Branch Integration in `/fab-switch`, Not `/fab-new`
 **Decision**: Git branch integration is consolidated in `/fab-switch`, not `/fab-new`. `/fab-new` calls `/fab-switch` internally after brief generation. The `branch:` field was removed from `.status.yaml`; `/fab-status` uses `git branch --show-current` for live display.
-**Why**: Both `/fab-new` and `/fab-discuss` create changes, but only `/fab-new` had branch integration. Consolidating in `/fab-switch` (the "I'm committing to work on this" moment) gives both entry points consistent branch support through a shared path. The `branch:` field in `.status.yaml` was purely ceremonial — no skill used it for logic, and it went stale on manual branch switches.
-**Rejected**: Keeping branch in `/fab-new` — inconsistent with `/fab-discuss` path. Storing branch in `.status.yaml` — goes stale, no skill needs it.
+**Why**: Consolidating in `/fab-switch` (the "I'm committing to work on this" moment) gives a single, consistent branch integration path. The `branch:` field in `.status.yaml` was purely ceremonial — no skill used it for logic, and it went stale on manual branch switches.
+**Rejected**: Keeping branch in `/fab-new` — couples two concerns. Storing branch in `.status.yaml` — goes stale, no skill needs it.
 *Introduced by*: 260208-q8v3-branch-to-switch
+
+### Single Source of Truth: Progress Map with `active` Marker
+**Decision**: Remove the `stage:` field from `.status.yaml`. The current stage is determined by finding the `active` entry in the progress map. State vocabulary: `pending`, `active`, `done`, `failed`.
+**Why**: The old model had two sources of truth — `stage: spec` AND `progress.spec: pending` — forcing skills to cross-reference both. The `active` marker serves as an explicit "you are here" pointer supporting both forward progression and backward movement (e.g., review failure → back to apply).
+**Rejected**: Keeping `stage:` with simplified progress (still two sources of truth). Using "first pending" derivation (cannot express backward movement after review failure).
+*Introduced by*: 260212-v5p2-simplify-stages-entry-paths
 
 ### No Dedicated Abandon Skill
 **Decision**: Abandoning a change is a manual operation (delete folder, clear pointer).
@@ -157,6 +175,7 @@ All mechanical work (file reading, YAML parsing, git branch query, progress symb
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Updated to 5-stage pipeline, documented state machine with active marker as single source of truth, added migration note |
 | 260211-r3k8-simplify-planning-stages | 2026-02-11 | 6-stage pipeline, removed plan/skipped states, updated stage field values and progress keys |
 | 260210-zr1f-discuss-auto-activate-when-no-current | 2026-02-10 | `/fab-discuss` conditionally offers activation when `fab/current` is empty, calls `/fab-switch` internally on accept |
 | 260209-k3m9-status-confidence-score | 2026-02-09 | Added confidence score display to `/fab-status` output (score, breakdown, and "not yet scored" fallback) |

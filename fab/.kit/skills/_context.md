@@ -65,12 +65,9 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 | After skill | Stage reached | Next line |
 |-------------|---------------|-----------|
-| `/fab-init` | initialized | `Next: /fab-new <description>, /fab-discuss <idea>, or /fab-hydrate <sources>` |
-| `/fab-hydrate` | docs hydrated | `Next: /fab-new <description>, /fab-discuss <idea>, or /fab-hydrate <more-sources>` |
+| `/fab-init` | initialized | `Next: /fab-new <description> or /fab-hydrate <sources>` |
+| `/fab-hydrate` | docs hydrated | `Next: /fab-new <description> or /fab-hydrate <more-sources>` |
 | `/fab-new` | brief done | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
-| `/fab-discuss` (new, activated) | brief done | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
-| `/fab-discuss` (new, not activated) | brief done | `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-ff` |
-| `/fab-discuss` (refined) | brief updated | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
 | `/fab-continue` → spec | spec done | `Next: /fab-continue (tasks) or /fab-ff (fast-forward) or /fab-clarify (refine spec)` |
 | `/fab-continue` → tasks | tasks done | `Next: /fab-apply` |
 | `/fab-ff` | tasks done | `Next: /fab-apply` |
@@ -144,13 +141,13 @@ Each decision produces an assumption graded on a 4-level scale:
 
 ### Skill-Specific Autonomy Levels
 
-| Aspect | fab-discuss (explore) | fab-new (capture) | fab-continue (deliberate) | fab-ff (speed) | fab-fff (full pipeline) |
-|--------|----------------------|-------------------|---------------------------|----------------|-------------------------|
-| **Posture** | Free-form conversation, gap analysis, no question cap | Assume confident+tentative, ask top ~3 unresolved | Surface tentative, ask top ~3 unresolved | Batch all unresolved upfront, then go | Same as fab-ff; gated on confidence >= 3.0 |
-| **Interruption budget** | Unlimited — conversational by design | Max 3 for unresolved questions | 1-2 per stage | 0-1 batch at start | Same as fab-ff (frontloaded) |
-| **Output** | Brief + confidence score + "/fab-switch to make active" | Assumptions summary + "Run /fab-clarify to review" | Key Decisions block + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary | Same as fab-ff + apply/review/archive output |
-| **Escape valve** | User ends early at any time | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` (bails on blockers or review failure) |
-| **Recomputes confidence?** | Yes | Yes | Yes | No | No |
+| Aspect | fab-new (adaptive) | fab-continue (deliberate) | fab-ff (speed) | fab-fff (full pipeline) |
+|--------|-------------------|---------------------------|----------------|-------------------------|
+| **Posture** | SRAD-driven: 0 questions for clear inputs, conversational for vague; gap analysis before folder creation | Surface tentative, ask top ~3 unresolved | Batch all unresolved upfront, then go | Same as fab-ff; gated on confidence >= 3.0 |
+| **Interruption budget** | SRAD-driven (no fixed cap); conversational mode for vague inputs | 1-2 per stage | 0-1 batch at start | Same as fab-ff (frontloaded) |
+| **Output** | Assumptions summary + "Run /fab-clarify to review" | Key Decisions block + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary | Same as fab-ff + apply/review/archive output |
+| **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` (bails on blockers or review failure) |
+| **Recomputes confidence?** | Yes | Yes | No | No |
 
 ### Worked Examples
 

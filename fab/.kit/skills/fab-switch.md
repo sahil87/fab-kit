@@ -61,7 +61,7 @@ When invoked as `/fab-switch` with no argument:
    Active changes:
      1. 260202-m3x1-fix-checkout-bug (stage: apply)
      2. 260205-k9p2-add-oauth (stage: spec)
-     3. 260206-r4t7-refactor-auth (stage: brief)
+     3. 260206-r4t7-refactor-auth (stage: spec)
 
    Which change? (1-3)
    ```
@@ -95,7 +95,7 @@ When the argument matches multiple change folders:
 ```
 Multiple changes match "add":
   1. 260205-k9p2-add-oauth (stage: spec)
-  2. 260206-a1b2-add-spinner (stage: brief)
+  2. 260206-a1b2-add-spinner (stage: spec)
 
 Which change? (1-2)
 ```
@@ -137,7 +137,7 @@ Once a single change is identified:
    ```
    fab/current now points to 260202-m3x1-fix-checkout-bug
 
-   Stage:  apply (4/6)
+   Stage:  apply (3/5)
    Branch: fix/checkout-bug (created)
    ```
 
@@ -146,15 +146,14 @@ Once a single change is identified:
    ```
    fab/current now points to 260202-m3x1-fix-checkout-bug
 
-   Stage:  apply (4/6)
+   Stage:  apply (3/5)
    ```
 
 5. **Suggest next command** based on the change's current stage:
 
    | Stage | Suggested next |
    |-------|---------------|
-   | `brief` (active) | `Next: /fab-continue or /fab-ff` |
-   | `brief` (done) | `Next: /fab-continue or /fab-ff` |
+   | `spec` (active) | `Next: /fab-continue or /fab-ff` |
    | `spec` (done) | `Next: /fab-continue (tasks) or /fab-ff or /fab-clarify` |
    | `tasks` (done) | `Next: /fab-apply` |
    | `apply` (done) | `Next: /fab-review` |
@@ -203,16 +202,15 @@ Detect the current branch and offer options:
 
 ## Stage Number Mapping
 
-Map stages to their numeric position for the `(N/6)` display:
+Map stages to their numeric position for the `(N/5)` display:
 
 | Stage | Number |
 |-------|--------|
-| `brief` | 1 |
-| `spec` | 2 |
-| `tasks` | 3 |
-| `apply` | 4 |
-| `review` | 5 |
-| `archive` | 6 |
+| `spec` | 1 |
+| `tasks` | 2 |
+| `apply` | 3 |
+| `review` | 4 |
+| `archive` | 5 |
 
 ---
 
@@ -223,7 +221,7 @@ Map stages to their numeric position for the `(N/6)` display:
 ```
 fab/current now points to 260202-m3x1-fix-checkout-bug
 
-Stage:  apply (4/6)
+Stage:  apply (3/5)
 Branch: 260202-m3x1-fix-checkout-bug (created)
 
 Next: /fab-review
@@ -234,7 +232,7 @@ Next: /fab-review
 ```
 fab/current now points to 260202-m3x1-fix-checkout-bug
 
-Stage:  apply (4/6)
+Stage:  apply (3/5)
 Branch: feature/checkout-fix (adopted)
 
 Next: /fab-review
@@ -245,7 +243,7 @@ Next: /fab-review
 ```
 fab/current now points to 260202-m3x1-fix-checkout-bug
 
-Stage:  apply (4/6)
+Stage:  apply (3/5)
 
 Next: /fab-review
 ```
@@ -261,7 +259,7 @@ No active changes found. Run /fab-new <description> to start one.
 ```
 Multiple changes match "add":
   1. 260205-k9p2-add-oauth (stage: spec)
-  2. 260206-a1b2-add-spinner (stage: brief)
+  2. 260206-a1b2-add-spinner (stage: spec)
 
 Which change? (1-2)
 ```

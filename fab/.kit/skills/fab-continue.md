@@ -41,30 +41,29 @@ When called without arguments, advance to the next artifact in sequence.
 
 ### Step 1: Determine Current Stage
 
-Read `.status.yaml` and identify the current stage. The stage progression is:
+Determine the current stage from the preflight output's `stage` field (derived from the `active` entry in the progress map). The stage progression is:
 
 ```
-brief → spec → tasks → apply → review → archive
+spec → tasks → apply → review → archive
 ```
 
-Find the current stage from `.status.yaml`'s `stage` field. The **next** stage is the one to generate.
+**Guard**: Check the `active` entry to determine whether to allow continuation:
 
-**Guard**: Check both the `stage` field and the `progress` map value to determine whether to allow continuation:
+| `active` entry | Action |
+|---------------|--------|
+| `spec` | Generate `spec.md` → set `spec: done`, `tasks: active` |
+| `tasks` | Generate `tasks.md` + checklist → set `tasks: done`, `apply: active` |
+| `apply` | Block: "Planning is complete. Run /fab-apply to begin implementation." |
+| `review` or `archive` | Block: "Use /fab-review or /fab-archive as appropriate." |
+| No `active` entry (all `done`) | Block: "Change is complete." |
 
-- **If the current stage is a planning stage** (`brief`, `spec`, or `tasks`):
-  - Check `progress.{stage}` value from preflight output
-  - If `progress.{stage} == 'done'` AND stage is `tasks` → block with "Planning is complete. Run /fab-apply to begin implementation."
-  - If `progress.{stage} == 'active'` → allow generation to resume (interrupted mid-way)
-  - If `progress.{stage} == 'pending'` → allow generation to start
-
-- **If the current stage is `apply` or later**:
-  - Block regardless of progress value → "Implementation is underway. Use /fab-apply, /fab-review, or /fab-archive as appropriate."
+If `progress.{active_stage}` is `done` and the stage is `tasks`, block with "Planning is complete. Run /fab-apply to begin implementation."
 
 ### Step 2: Load Context
 
 Context loading varies by the target stage being generated:
 
-#### Generating `spec.md` (brief → spec)
+#### Generating `spec.md` (spec: active)
 
 Load:
 - `fab/config.yaml` — project config, tech stack
@@ -73,7 +72,7 @@ Load:
 - `fab/docs/index.md` — documentation landscape
 - Specific centralized docs referenced by the brief's **Affected Docs** section (read each `fab/docs/{domain}/{doc}.md` listed under New, Modified, or Removed)
 
-#### Generating `tasks.md` (spec → tasks)
+#### Generating `tasks.md` (tasks: active)
 
 Load everything from the spec context above, plus:
 - `fab/changes/{name}/spec.md` — the completed spec
@@ -120,18 +119,17 @@ This ensures the score reflects any new assumptions introduced by the generated 
 
 After successfully generating the artifact:
 
-1. Set `stage` to the stage just completed (e.g., `spec` or `tasks`)
-2. Set `progress.{completed_stage}` to `done`
-3. If advancing past the completed stage, set `progress.{next_stage}` to `active` (only if there is a next planning stage)
-4. Write the recomputed `confidence` block (from Step 3b)
-5. Update `last_updated` to the current ISO 8601 timestamp
+1. Set `progress.{completed_stage}` to `done`
+2. Set `progress.{next_stage}` to `active` (two-write transition: current → done, next → active)
+3. Write the recomputed `confidence` block (from Step 3b)
+4. Update `last_updated` to the current ISO 8601 timestamp
 
 **Examples of stage transitions:**
 
-| Previous stage | Generated artifact | New `stage` | Progress updates |
-|---|---|---|---|
-| `brief` (done) | `spec.md` | `spec` | `spec: done` |
-| `spec` (done) | `tasks.md` | `tasks` | `tasks: done` |
+| Active entry | Generated artifact | Progress updates |
+|---|---|---|
+| `spec` (active) | `spec.md` | `spec: done`, `tasks: active` |
+| `tasks` (active) | `tasks.md` | `tasks: done`, `apply: active` |
 
 ### Step 5: Output
 
@@ -148,7 +146,7 @@ When called with a stage argument (e.g., `/fab-continue spec`), reset to that st
 The target stage must be one of: `spec` or `tasks`.
 
 **Rejected targets:**
-- `brief` → Output: `Cannot reset to brief. Run /fab-new to start a new change instead.`
+- `brief` → Output: `Cannot reset to brief — brief is not a pipeline stage. Edit brief.md directly or use /fab-clarify.`
 - `apply` → Output: `Cannot reset to apply. Use /fab-apply to re-run implementation.`
 - `review` → Output: `Cannot reset to review. Use /fab-review to re-run validation.`
 - `archive` → Output: `Cannot reset to archive. Use /fab-archive to complete the change.`
@@ -160,17 +158,14 @@ Load context as described in the Normal Flow Step 2, for the target stage being 
 
 ### Step 3: Reset `.status.yaml`
 
-1. Set `stage` to the target stage (with `active` progress)
-2. Mark the target stage's progress as `active`
-3. Mark all stages **after** the target as `pending`
-4. Preserve all stages **before** the target as-is (they remain `done`)
+1. Mark the target stage's progress as `active`
+2. Mark all stages **after** the target as `pending`
+3. Preserve all stages **before** the target as-is (they remain `done`)
 
 **Example**: Resetting to `spec` when current stage is `tasks`:
 
 ```yaml
-stage: spec
 progress:
-  brief: done         # preserved
   spec: active        # reset target
   tasks: pending      # invalidated
   apply: pending      # invalidated
@@ -210,7 +205,7 @@ After regenerating the target, invalidate all downstream artifacts:
 ### Normal Flow — Spec Generated
 
 ```
-Stage: brief (done). Creating spec.md...
+Stage: spec (active). Creating spec.md...
 
 ## Spec: {Change Name}
 
@@ -292,7 +287,7 @@ Next: /fab-apply
 |-----------|--------|
 | Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
 | Current stage is `apply` or later (normal flow) | Abort with guidance to use `/fab-apply`, `/fab-review`, or `/fab-archive` |
-| Reset target is `brief` | Abort with: "Cannot reset to brief. Run /fab-new to start a new change instead." |
+| Reset target is `brief` | Abort with: "Cannot reset to brief — brief is not a pipeline stage. Edit brief.md directly or use /fab-clarify." |
 | Reset target is `apply`, `review`, or `archive` | Abort with: "Cannot reset to {stage}. Use /fab-{stage} directly." |
 | Template file missing | Abort with: "Template not found at fab/.kit/templates/{file} — kit may be corrupted." |
 

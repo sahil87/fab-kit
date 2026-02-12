@@ -39,7 +39,6 @@ fi
 get_field() { grep "^$1:" "$status_file" | sed "s/^$1: *//" || true; }
 get_nested() { grep "^ *$1:" "$status_file" | sed "s/^ *$1: *//" || true; }
 
-stage=$(get_field "stage")
 created_by=$(get_field "created_by")
 
 # Live git branch (replaces .status.yaml branch field)
@@ -58,12 +57,24 @@ if [ "$git_enabled" = "true" ] && git rev-parse --is-inside-work-tree >/dev/null
 fi
 
 # Progress (default to pending for missing fields)
-p_brief=$(get_nested "brief");       p_brief=${p_brief:-pending}
 p_spec=$(get_nested "spec");         p_spec=${p_spec:-pending}
 p_tasks=$(get_nested "tasks");       p_tasks=${p_tasks:-pending}
 p_apply=$(get_nested "apply");       p_apply=${p_apply:-pending}
 p_review=$(get_nested "review");     p_review=${p_review:-pending}
 p_archive=$(get_nested "archive");   p_archive=${p_archive:-pending}
+
+# Derive current stage from the active entry in the progress map
+stage=""
+for s in spec tasks apply review archive; do
+  eval val="\$p_$s"
+  if [ "$val" = "active" ]; then
+    stage="$s"
+    break
+  fi
+done
+if [ -z "$stage" ]; then
+  stage="archive"
+fi
 
 # Checklist
 chk_generated=$(get_nested "generated"); chk_generated=${chk_generated:-false}
@@ -79,8 +90,8 @@ conf_unresolved=$(get_nested "unresolved")
 
 # --- Stage number ---
 case "${stage:-}" in
-  brief)   stage_num=1 ;; spec)  stage_num=2 ;; tasks)   stage_num=3 ;;
-  apply)   stage_num=4 ;; review) stage_num=5 ;; archive) stage_num=6 ;;
+  spec)    stage_num=1 ;; tasks)   stage_num=2 ;; apply)   stage_num=3 ;;
+  review)  stage_num=4 ;; archive) stage_num=5 ;;
   *)       stage_num="?" ;;
 esac
 
@@ -102,14 +113,13 @@ progress_line() {
 # --- Next command ---
 current_progress=""
 case "${stage:-}" in
-  brief)   current_progress="$p_brief" ;;   spec)    current_progress="$p_spec" ;;
+  spec)    current_progress="$p_spec" ;;
   tasks)   current_progress="$p_tasks" ;;   apply)   current_progress="$p_apply" ;;
   review)  current_progress="$p_review" ;;  archive) current_progress="$p_archive" ;;
 esac
 
 next="/fab-status"
 case "${stage:-}:${current_progress:-}" in
-  brief:active|brief:done) next="/fab-continue or /fab-ff" ;;
   spec:active)             next="/fab-continue" ;;
   spec:done)               next="/fab-continue (tasks) or /fab-ff or /fab-clarify" ;;
   tasks:active)            next="/fab-continue" ;;
@@ -136,10 +146,9 @@ if [ "$show_branch" = "true" ]; then
     echo "Branch:  (detached)"
   fi
 fi
-echo "Stage:   $stage ($stage_num/6)"
+echo "Stage:   $stage ($stage_num/5)"
 echo ""
 echo "Progress:"
-progress_line "brief"    "$p_brief"
 progress_line "spec"     "$p_spec"
 progress_line "tasks"    "$p_tasks"
 progress_line "apply"    "$p_apply"

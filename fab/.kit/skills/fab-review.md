@@ -163,8 +163,8 @@ All of these must be true:
 - No blocking issues found
 
 **On pass**, update `.status.yaml`:
-- Set `stage` to `review`
 - Set `progress.review` to `done`
+- Set `progress.archive` to `active` (two-write transition: review → done, archive → active)
 - Update `checklist.completed` to match the count of checked items
 - Update `last_updated` to the current ISO 8601 timestamp
 
@@ -177,8 +177,8 @@ Output the full review report, then:
 Any checklist item unchecked, tests failing, or spec drift detected.
 
 **On failure**, update `.status.yaml`:
-- Set `stage` to `review`
 - Set `progress.review` to `failed`
+- Set `progress.apply` to `active` (backward movement: review → failed, apply → active)
 - Update `checklist.completed` to match the current count of checked items
 - Update `last_updated` to the current ISO 8601 timestamp
 
@@ -293,8 +293,8 @@ Apply stage is not complete. Run /fab-apply to finish implementation first.
 | Tests fail | Record failure; include in final report |
 | Spec drift detected | Record mismatch; include in final report |
 | Doc drift detected | Report as warning (not blocking) — handled by /fab-archive |
-| All checks pass | Set review: done, output Next: /fab-archive |
-| Any check fails | Set review: failed, present rework options |
+| All checks pass | Set `review: done`, `archive: active`, output Next: /fab-archive |
+| Any check fails | Set `review: failed`, `apply: active`, present rework options |
 
 ---
 
@@ -302,12 +302,12 @@ Apply stage is not complete. Run /fab-apply to finish implementation first.
 
 | Property | Value |
 |----------|-------|
-| Advances stage? | **Yes** — sets `stage` to `review`, progresses to `done` on pass or `failed` on failure |
+| Advances stage? | **Yes** — sets `progress.review` to `done` on pass (with `archive: active`) or `failed` on failure (with `apply: active`) |
 | Idempotent? | **Yes** — safe to re-invoke; re-evaluates all checks from scratch |
 | Modifies tasks.md? | **Only on rework** — unchecks tasks and adds `<!-- rework: reason -->` comments when user chooses Option 1 |
 | Modifies checklists/quality.md? | **Yes** — marks checklist items `[x]` as they pass verification |
 | Modifies source code? | **No** — review only reads and validates, does not change implementation |
-| Updates `.status.yaml`? | **Yes** — sets stage, progress (done/failed), checklist counts, and last_updated |
+| Updates `.status.yaml`? | **Yes** — sets progress (done/failed), checklist counts, and last_updated |
 
 ---
 

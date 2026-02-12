@@ -12,6 +12,7 @@ Fab ships artifact templates in `fab/.kit/templates/` that skills fill with conc
 
 The brief captures intent, scope, approach, and open questions. Structure:
 
+- **Origin** — How the change was initiated: description text, interaction mode (one-shot vs. conversational), key decisions from the conversation. Provides traceability for how the brief was developed
 - **Why** — Motivation, 1-3 sentences
 - **What Changes** — Specific capabilities added, modified, or removed
 - **Affected Docs** — Which centralized docs will be created, modified, or removed (kebab-case identifiers matching `fab/docs/` paths)
@@ -65,6 +66,26 @@ Items use `CHK-{NNN}` IDs. All items MUST pass before `/fab-archive`. Items not 
 
 Generation is contextual — items derived from `spec.md` (requirements, design decisions), and the project constitution (quality standards).
 
+### `.status.yaml` (Initial State)
+
+The `.status.yaml` template initializes a new change with the following structure:
+
+- **No `stage:` field** — current stage is derived from the `active` entry in the progress map
+- **No `brief:` in progress** — brief is not a pipeline stage; it is an input created by `/fab-new`
+- **`spec: active`** as the initial progress state — the first pipeline stage starts active
+
+Initial progress map:
+```yaml
+progress:
+  spec: active
+  tasks: pending
+  apply: pending
+  review: pending
+  archive: pending
+```
+
+See [change-lifecycle.md](change-lifecycle.md) for the full `.status.yaml` field reference and state vocabulary.
+
 ### Centralized Doc Format (`fab/docs/`)
 
 Centralized docs are the source of truth for system behavior and design decisions. Structure:
@@ -113,6 +134,7 @@ When `/fab-archive` hydrates into centralized docs:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Updated .status.yaml template (removed stage: field and brief: from progress, spec: active as initial), documented brief template Origin section |
 | 260211-r3k8-simplify-planning-stages | 2026-02-11 | Renamed proposal.md → brief.md, removed plan.md template section |
 | 260211-endg-add-created-by-field | 2026-02-11 | Added `created_by` field to `.status.yaml` template — auto-detected from `git config user.name`, write-once, with `"unknown"` fallback |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |

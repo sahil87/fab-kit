@@ -90,21 +90,23 @@ Supported sources: **Notion URLs**, **Linear URLs**, **local files/directories**
 
 ---
 
-## The 6 Stages
+## The 5 Stages
+
+The brief (`brief.md`) is an input artifact produced by `/fab-new` before the pipeline begins. The 5 pipeline stages are:
 
 ```mermaid
 flowchart TD
     subgraph planning ["Planning"]
         direction LR
-        B["1 BRIEF"] --> S["2 SPEC"] --> T["3 TASKS"]
+        S["1 SPEC"] --> T["2 TASKS"]
     end
     subgraph execution ["Execution"]
         direction LR
-        A["4 APPLY"] --> V["5 REVIEW"]
+        A["3 APPLY"] --> V["4 REVIEW"]
     end
     subgraph completion ["Completion"]
         direction LR
-        AR["6 ARCHIVE"] --> H[/"Hydrate into docs"/]
+        AR["5 ARCHIVE"] --> H[/"Hydrate into docs"/]
     end
 
     T --> A
@@ -119,16 +121,16 @@ flowchart TD
 
 | # | Stage | Purpose | Artifact | Includes |
 |---|-------|---------|----------|----------|
-| 1 | **Brief** | Intent, scope, approach | `brief.md` | Initial clarification questions |
-| 2 | **Spec** | What's changing | `spec.md` | Clarification of ambiguities, [NEEDS CLARIFICATION] markers |
-| 3 | **Tasks** | Implementation checklist | `tasks.md` | Auto-generated quality checklist (`checklists/quality.md`) |
-| 4 | **Apply** | Execute tasks | code changes | Run tests per task, progress tracking |
-| 5 | **Review** | Validate against spec | validation report | Checklist completion, spec drift detection |
-| 6 | **Archive** | Complete & hydrate | archive entry | Hydrate spec into centralized docs |
+| — | **Brief** *(input)* | Intent, scope, approach | `brief.md` | Created by `/fab-new` with adaptive SRAD-driven questioning |
+| 1 | **Spec** | What's changing | `spec.md` | Clarification of ambiguities, [NEEDS CLARIFICATION] markers |
+| 2 | **Tasks** | Implementation checklist | `tasks.md` | Auto-generated quality checklist (`checklists/quality.md`) |
+| 3 | **Apply** | Execute tasks | code changes | Run tests per task, progress tracking |
+| 4 | **Review** | Validate against spec | validation report | Checklist completion, spec drift detection |
+| 5 | **Archive** | Complete & hydrate | archive entry | Hydrate spec into centralized docs |
 
 ### User Flow
 
-The 6 stages are internal. From the user's perspective, the main workflow is 5 skill invocations — planning stages (2–3) after brief are collapsed into a single step via `/fab-ff` or stepped through with `/fab-continue`. `/fab-clarify` is available at any planning stage to deepen the current artifact before moving on:
+From the user's perspective, the main workflow is `/fab-new` followed by the 5 pipeline stages — planning stages (spec, tasks) are collapsed into a single step via `/fab-ff` or stepped through with `/fab-continue`. `/fab-clarify` is available at any planning stage to deepen the current artifact before moving on:
 
 ```mermaid
 flowchart TD

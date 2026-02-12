@@ -61,24 +61,36 @@ Generate a unique folder name using the format `{YYMMDD}-{XXXX}-{slug}`:
 - "Fix checkout bug in payment flow" → `fix-checkout-bug`
 - "Refactor authentication middleware" → `refactor-auth-middleware`
 
-### Step 2: Create Change Directory
+### Step 2: Gap Analysis
+
+Before creating the change folder, perform gap analysis to avoid redundant or overlapping changes:
+
+1. **Check existing mechanisms** — search the workflow, codebase, and centralized docs for features or mechanisms that already cover the user's idea
+2. **Evaluate scope** — is the idea too broad (should be split into multiple changes) or too narrow (part of a larger ongoing change)?
+3. **Consider alternatives** — simpler approaches, extending existing skills, or configuration changes that solve the problem without new code
+
+**If an existing mechanism covers the idea**, present findings to the user and let them decide whether to proceed:
+- If the user chooses to cancel, output a brief explanation and stop — no folder created, no `Next:` line
+- If the user chooses to proceed, continue to Step 3
+
+**If no existing mechanism covers the idea**, proceed directly to Step 3.
+
+### Step 3: Create Change Directory
 
 1. Create the directory: `fab/changes/{name}/`
 2. Create the subdirectory: `fab/changes/{name}/checklists/` (pre-created so downstream skills don't need a separate `mkdir`)
 3. If a change folder with the same name already exists (extremely unlikely given the random component), regenerate the 4-character random component (`{XXXX}`) and retry
 
-### Step 3: Initialize `.status.yaml`
+### Step 4: Initialize `.status.yaml`
 
-Create `fab/changes/{name}/.status.yaml` with this content:
+Create `fab/changes/{name}/.status.yaml` using the template at `fab/.kit/templates/status.yaml`:
 
 ```yaml
 name: {name}
 created: {ISO 8601 timestamp}
 created_by: {git config user.name, or "unknown" if unset}
-stage: brief
 progress:
-  brief: active
-  spec: pending
+  spec: active
   tasks: pending
   apply: pending
   review: pending
@@ -99,12 +111,12 @@ last_updated: {ISO 8601 timestamp}
 
 **Key points**:
 - `created_by` is populated from `git config user.name`. If the command returns empty or exits non-zero, use `"unknown"` as the fallback. This field is write-once — set here and never modified by subsequent skills.
-- `stage` is set to `brief`
-- `brief` progress is `active` — all other stages are `pending`
-- `confidence` block is initialized with defaults — Step 7 overwrites with actual counts after brief generation
+- No `stage:` field — the current stage is derived from the `active` entry in the progress map
+- `spec` is `active` (first pipeline stage) — all other stages are `pending`
+- `confidence` block is initialized with defaults — Step 8 overwrites with actual counts after brief generation
 - Both `created` and `last_updated` use the same timestamp (current time in ISO 8601 format with timezone)
 
-### Step 4: Generate `brief.md`
+### Step 5: Generate `brief.md`
 
 Load context before generating:
 - Read `fab/config.yaml` — project name, tech stack, conventions
@@ -118,14 +130,15 @@ Generate `fab/changes/{name}/brief.md` using the template at `fab/.kit/templates
    - `{CHANGE_NAME}`: The human-readable description provided by the user
    - `{YYMMDD-XXXX-slug}`: The generated change folder name
    - `{DATE}`: Today's date
-3. Fill in the **Why** section — explain the motivation based on the user's description
-4. Fill in the **What Changes** section — be specific about new capabilities, modifications, or removals
-5. Fill in the **Affected Docs** section — identify which centralized docs (in `fab/docs/`) will be new, modified, or removed by this change. Use `fab/docs/index.md` to understand what exists.
-6. Fill in the **Impact** section — identify affected code areas, APIs, dependencies
-7. Fill in the **Open Questions** section (see Step 5 below)
-8. After all sections are filled, append an **`## Assumptions`** section to the artifact listing all Confident and Tentative assumptions made during generation (see Assumptions Summary Block format in `_context.md`)
+3. Fill in the **Origin** section — capture the user's raw input/prompt verbatim. If conversational mode was used (Step 6), also include a summary of key decisions from the conversation (not the full transcript).
+4. Fill in the **Why** section — explain the motivation based on the user's description
+5. Fill in the **What Changes** section — be specific about new capabilities, modifications, or removals
+6. Fill in the **Affected Docs** section — identify which centralized docs (in `fab/docs/`) will be new, modified, or removed by this change. Use `fab/docs/index.md` to understand what exists.
+7. Fill in the **Impact** section — identify affected code areas, APIs, dependencies
+8. Fill in the **Open Questions** section (see Step 6 below)
+9. After all sections are filled, append an **`## Assumptions`** section to the artifact listing all Confident and Tentative assumptions made during generation (see Assumptions Summary Block format in `_context.md`)
 
-### Step 5: SRAD-Based Question Selection
+### Step 6: SRAD-Based Question Selection
 
 Apply the SRAD framework (defined in `_context.md`) to all decision points encountered during brief generation:
 
@@ -133,9 +146,11 @@ Apply the SRAD framework (defined in `_context.md`) to all decision points encou
 2. **Assign a confidence grade** (Certain, Confident, Tentative, or Unresolved)
 3. **For Certain and Confident decisions**: Assume silently. Confident decisions go in the Assumptions summary.
 4. **For Tentative decisions**: Assume and mark with `<!-- assumed: {description} -->` in the artifact. Include in Assumptions summary.
-5. **For Unresolved decisions**: Identify the top ~3 with the highest blast radius (lowest Reversibility + lowest Agent Competence). Ask these as blocking questions. Mark remaining Unresolved as `[DEFERRED]` in the Open Questions section.
+5. **For Unresolved decisions**: Ask as questions, prioritized by lowest Reversibility + lowest Agent Competence (Critical Rule).
 
-**Maximum 3 questions** — the Critical Rule (see `_context.md`) requires that Unresolved decisions with low R + low A are always asked. Beyond 3, make a best guess and mark as Tentative.
+**No fixed question cap** — SRAD scoring determines how many questions to ask. When all decisions score Confident or Certain, generate the brief in one shot with no questions. When Unresolved decisions exist, ask questions for each.
+
+**Conversational mode**: When the user's description has low Signal Strength across many decision points (5+ Unresolved), enter conversational mode — ask questions one at a time, each building on the previous answer. The conversation continues until all Unresolved decisions are resolved or the user signals satisfaction (e.g., "good", "done", "that's enough").
 
 **What does NOT need SRAD evaluation**:
 - Implementation details (those belong in the spec or tasks)
@@ -144,7 +159,7 @@ Apply the SRAD framework (defined in `_context.md`) to all decision points encou
 
 If SRAD evaluation finds no Unresolved decisions, skip questions entirely — generate the brief without asking.
 
-### Step 6: Compute Confidence Score
+### Step 7: Compute Confidence Score
 
 After generating the brief, compute the initial confidence score:
 
@@ -156,17 +171,16 @@ After generating the brief, compute the initial confidence score:
 2. Apply the confidence formula (see `_context.md` Confidence Scoring section)
 3. Write the `confidence` block to `.status.yaml`
 
-### Step 7: Mark Brief Complete
+### Step 8: Mark Brief Complete
 
 Once the user is satisfied with the brief (questions answered, scope agreed):
 
 1. Update `.status.yaml`:
-   - Change `progress.brief` from `active` to `done`
-   - Write the computed `confidence` block (from Step 6)
+   - Write the computed `confidence` block (from Step 7)
    - Update `last_updated` to current timestamp
-2. The brief status field in the brief.md itself can remain as-is (the `.status.yaml` is the source of truth)
+2. The brief is an input artifact, not a pipeline stage — `.status.yaml` progress remains as initialized (`spec: active`)
 
-### Step 8: Activate Change via `/fab-switch`
+### Step 9: Activate Change via `/fab-switch`
 
 Invoke the `/fab-switch` flow internally to activate the change:
 

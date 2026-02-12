@@ -21,10 +21,11 @@ There SHALL be no `--suggest` or `--auto` flags on the clarify skill.
 
 #### Stage-Scoped Taxonomy Scan
 
-The skill SHALL perform a systematic scan of the current artifact for gaps, ambiguities, and `[NEEDS CLARIFICATION]` markers. Scan categories vary by stage:
+The skill SHALL perform a systematic scan of the current stage's artifacts for gaps, ambiguities, and `[NEEDS CLARIFICATION]` markers. Scan categories vary by stage, using per-artifact taxonomy:
 
-- **Brief**: scope boundaries, affected areas, blocking questions, impact completeness, affected docs coverage
-- **Spec**: requirement precision, scenario coverage, edge cases, deprecated requirements, cross-references
+- **Spec** (scans both `brief.md` and `spec.md`):
+  - *Brief refinement*: scope boundaries, affected areas, blocking questions, impact completeness, affected docs coverage, Origin section completeness
+  - *Spec refinement*: requirement precision, scenario coverage, edge cases, deprecated requirements, cross-references
 - **Tasks**: task completeness, granularity, dependency ordering, file path accuracy, parallel markers
 
 The scan also detects:
@@ -84,7 +85,7 @@ The clarify skill SHALL never advance the stage in `.status.yaml`. It only updat
 
 ### Stage Guard
 
-The skill SHALL only operate on planning stages (`brief`, `spec`, `tasks`). If the stage is `apply`, `review`, or `archive`, the skill aborts with a suggestion to use `/fab-review` instead.
+The skill SHALL only operate on planning stages (`spec`, `tasks`). If the stage is `apply`, `review`, or `archive`, the skill aborts with a suggestion to use `/fab-review` instead.
 
 ## Design Decisions
 
@@ -113,6 +114,7 @@ The skill SHALL only operate on planning stages (`brief`, `spec`, `tasks`). If t
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Added brief refinement capability at spec stage with per-artifact taxonomy, removed brief from valid stages |
 | 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated stage names to brief/spec/tasks in guard logic and output examples |
 | 260210-nan4-define-auto-mode-signaling | 2026-02-10 | Updated dual-mode operation to use explicit `[AUTO-MODE]` prefix protocol; updated "Mode Selection" design decision |
 | 260208-k3m7-add-fab-fff | 2026-02-08 | Added confidence recomputation after suggest-mode sessions, removed `<!-- auto-guess -->` scanning references |

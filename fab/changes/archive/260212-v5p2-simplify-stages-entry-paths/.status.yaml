@@ -1,0 +1,23 @@
+name: 260212-v5p2-simplify-stages-entry-paths
+created: 2026-02-12T12:00:00+00:00
+created_by: Sahil Ahuja
+stage: archive
+progress:
+  brief: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklists/quality.md
+  completed: 40
+  total: 40
+confidence:
+  certain: 8
+  confident: 9
+  tentative: 0
+  unresolved: 0
+  score: 4.1
+last_updated: 2026-02-12T23:30:00+00:00

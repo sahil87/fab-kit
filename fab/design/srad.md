@@ -146,7 +146,6 @@ When the user runs `/fab-fff`:
 | Event | Skill | Action |
 |-------|-------|--------|
 | Initial computation | `/fab-new` | Count SRAD grades across brief, compute score, write to `.status.yaml` |
-| Initial computation | `/fab-discuss` | Count SRAD grades across brief, compute score, write to `.status.yaml` |
 | Recomputation | `/fab-continue` | Re-count across all artifacts after generating each one, update `.status.yaml` |
 | Recomputation | `/fab-clarify` | Re-count after each suggest-mode session, update `.status.yaml` |
 | No recomputation | `/fab-ff`, `/fab-fff` | Autonomous skills do not update the score — gate check uses score from last manual step |
@@ -210,10 +209,10 @@ Detailed description specifying the component, location, trigger, and behavior.
 
 SRAD manifests differently depending on which skill is running. Skills closer to the "explore" end ask freely; skills closer to the "autonomous" end minimize interruption:
 
-| Aspect | `/fab-discuss` | `/fab-new` | `/fab-continue` | `/fab-ff` | `/fab-fff` |
-|--------|---------------|------------|-----------------|-----------|-----------|
-| **Posture** | Free-form conversation, gap analysis, no question cap | Assume confident+tentative, ask top ~3 unresolved | Surface tentative, ask top ~3 unresolved | Batch all unresolved upfront, then go | Same as `/fab-ff`; gated on confidence >= 3.0 |
-| **Interruption budget** | Unlimited — conversational by design | Max 3 for unresolved questions | 1–2 per stage | 0–1 batch at start | Same as `/fab-ff` (frontloaded) |
-| **Output** | Brief + confidence score | Assumptions summary + "/fab-clarify to review" | Key Decisions + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary | Same as `/fab-ff` + apply/review/archive output |
-| **Escape valve** | User ends early at any time | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` (bails on blockers or review failure) |
-| **Recomputes confidence?** | Yes | Yes | Yes | No | No |
+| Aspect | `/fab-new` | `/fab-continue` | `/fab-ff` | `/fab-fff` |
+|--------|------------|-----------------|-----------|-----------|
+| **Posture** | SRAD-driven adaptive questioning, gap analysis, conversational mode, brief-only output | Surface tentative, ask top ~3 unresolved | Batch all unresolved upfront, then go | Same as `/fab-ff`; gated on confidence >= 3.0 |
+| **Interruption budget** | Adaptive — SRAD-driven (no fixed cap) | 1–2 per stage | 0–1 batch at start | Same as `/fab-ff` (frontloaded) |
+| **Output** | Brief + confidence score + assumptions summary | Key Decisions + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary | Same as `/fab-ff` + apply/review/archive output |
+| **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` (bails on blockers or review failure) |
+| **Recomputes confidence?** | Yes | Yes | No | No |

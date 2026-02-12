@@ -204,10 +204,11 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
    - Else if on a feature branch → offer to adopt it (record current branch name as-is)
    - If user declines → skip, no `branch:` field in `.status.yaml`
    - Record chosen branch name in `.status.yaml` as `branch:`
-5. Initialize `.status.yaml` with stage: brief (and `branch:` if set)
+5. Initialize `.status.yaml` with `progress.spec: active` (and `branch:` if set)
 6. Generate `brief.md` using template (loading `fab/constitution.md` and `fab/config.yaml` as context)
-7. Ask clarifying questions if intent is ambiguous
-8. Mark brief complete once the user is satisfied
+7. Perform gap analysis — check whether the change is already covered by existing mechanisms
+8. Use SRAD-driven adaptive questioning (no fixed cap) to resolve ambiguities conversationally
+9. Mark brief complete once the user is satisfied
 
 ---
 
@@ -283,8 +284,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 **Purpose**: Deepen and refine the current stage artifact without advancing to the next stage.
 
 **Context** (varies by current stage):
-- **Brief**: config, constitution, `brief.md`
-- **Spec**: above + target centralized doc(s) from `fab/docs/`
+- **Spec**: config, constitution, `brief.md`, target centralized doc(s) from `fab/docs/`
 - **Tasks**: above + `spec.md`, `tasks.md`
 
 **Example**:
@@ -303,10 +303,9 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **Behavior**:
 1. Read `.status.yaml` to determine current stage
-2. **Guard**: stage must be `brief`, `spec`, or `tasks`. If stage is `apply` or later, suggest `/fab-review` instead
+2. **Guard**: stage must be `spec` or `tasks`. If stage is `apply` or later, suggest `/fab-review` instead
 3. Load the current stage's artifact + relevant context
 4. Analyze the artifact for gaps, ambiguities, and opportunities to deepen:
-   - **Brief**: Unresolved [BLOCKING] questions, vague scope, missing impact analysis
    - **Spec**: [NEEDS CLARIFICATION] markers, missing scenarios, underspecified requirements
    - **Tasks**: Missing tasks, wrong granularity, unclear dependencies, missing file paths
 5. Refine the artifact **in place** — edit the existing file, don't regenerate from scratch
@@ -434,10 +433,9 @@ The `.status.yaml` stage is reset to the chosen re-entry point. The general rule
 ```
 Change: 260115-a7k2-add-oauth
 Branch: 260115-a7k2-add-oauth
-Stage:  spec (2/6)
+Stage:  spec (1/5)
 
 Progress:
-  ✓ brief       done
   ◉ spec        active
   ○ tasks       pending
   ○ apply       pending

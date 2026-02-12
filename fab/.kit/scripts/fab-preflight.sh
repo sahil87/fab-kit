@@ -38,15 +38,26 @@ fi
 
 # --- All validations passed — emit structured YAML to stdout ---
 
-stage=$(grep '^stage:' "$status_file" | sed 's/^stage: *//')
-
 # Extract progress fields
-p_brief=$(grep '^ *brief:' "$status_file" | sed 's/^ *brief: *//')
 p_spec=$(grep '^ *spec:' "$status_file" | sed 's/^ *spec: *//')
 p_tasks=$(grep '^ *tasks:' "$status_file" | sed 's/^ *tasks: *//')
 p_apply=$(grep '^ *apply:' "$status_file" | sed 's/^ *apply: *//')
 p_review=$(grep '^ *review:' "$status_file" | sed 's/^ *review: *//')
 p_archive=$(grep '^ *archive:' "$status_file" | sed 's/^ *archive: *//')
+
+# Derive current stage from the active entry in the progress map
+stage=""
+for s in spec tasks apply review archive; do
+  eval val="\$p_$s"
+  if [ "$val" = "active" ]; then
+    stage="$s"
+    break
+  fi
+done
+# Fallback: if no active entry, check if all are done (completed change)
+if [ -z "$stage" ]; then
+  stage="archive"
+fi
 
 # Extract checklist fields
 chk_generated=$(grep '^ *generated:' "$status_file" | sed 's/^ *generated: *//')
@@ -65,7 +76,6 @@ name: $name
 change_dir: changes/$name
 stage: $stage
 progress:
-  brief: $p_brief
   spec: $p_spec
   tasks: $p_tasks
   apply: $p_apply

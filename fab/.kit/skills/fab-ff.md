@@ -27,11 +27,11 @@ Before doing anything else, run the preflight script:
 
 Then verify the stage-specific precondition using the preflight output:
 
-4. Verify that `progress.brief` is `done`
+4. Verify that `brief.md` exists in the change directory (`fab/changes/{name}/brief.md`)
 
-**If `progress.brief` is not `done`, STOP.** Output:
+**If `brief.md` does not exist, STOP.** Output:
 
-> `Brief is not complete. Finish the brief first with /fab-new or /fab-continue, then run /fab-ff.`
+> `Brief not found. Run /fab-new to create the brief first, then run /fab-ff.`
 
 ---
 
@@ -59,6 +59,8 @@ On invocation, check the `progress` map from preflight output. **Skip stages alr
 This makes `/fab-ff` resumable after a bail — re-running picks up from the first incomplete stage.
 
 ### Step 1: Frontload All Questions
+
+Find the `active` entry in the progress map and start from there, skipping stages already `done`. The pipeline covers 2 planning stages: `spec` and `tasks`.
 
 Apply SRAD scoring across the brief for ambiguities spanning **all** planning stages (spec, tasks). Consider:
 
@@ -120,8 +122,8 @@ Follow the **Checklist Generation Procedure** defined in `fab/.kit/skills/_gener
 
 After all artifacts are generated:
 
-1. Set `stage` to `tasks`
-2. Set `progress.tasks` to `done`
+1. Set `progress.tasks` to `done`
+2. Set `progress.apply` to `active` (two-write transition)
 3. Set `checklist.generated` to `true`
 4. Set `checklist.total` to the number of checklist items generated
 5. Set `checklist.completed` to `0`
@@ -242,7 +244,7 @@ Next: /fab-apply
 | Condition | Action |
 |-----------|--------|
 | Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
-| `progress.brief` is not `done` | Abort with: "Brief is not complete. Finish the brief first with /fab-new or /fab-continue, then run /fab-ff." |
+| `brief.md` does not exist | Abort with: "Brief not found. Run /fab-new to create the brief first, then run /fab-ff." |
 | Template file missing | Abort with: "Template not found at fab/.kit/templates/{file} — kit may be corrupted." |
 | Spec already done (stage is `spec` or later) | Resume from current position — skip completed stages |
 | Auto-clarify returns blocking issues | Bail — stop pipeline, report issues, suggest `/fab-clarify` then `/fab-ff` |

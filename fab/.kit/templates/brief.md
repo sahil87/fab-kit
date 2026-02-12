@@ -4,6 +4,13 @@
 **Created**: {DATE}
 **Status**: Draft
 
+## Origin
+
+<!-- The user's raw input/prompt that initiated this change. Preserves original language
+     and intent for downstream spec generation. -->
+
+> {USER_INPUT}
+
 ## Why
 
 <!-- Explain the motivation. What problem does this solve? Why now? 1-3 sentences. -->

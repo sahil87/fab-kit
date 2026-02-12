@@ -18,9 +18,9 @@ All status fields draw from a fixed set of states. This prevents ad-hoc state na
 | `skipped` | Intentionally bypassed | *(reserved)* |
 | `failed` | Completed with failures requiring rework | review |
 
-**`stage` field values**: `brief` | `spec` | `tasks` | `apply` | `review` | `archive`
+**`progress` map keys**: `spec` | `tasks` | `apply` | `review` | `archive`
 
-The `stage` field tracks *where* the change is. The `progress` map tracks *how* each stage went. Both use the same key names.
+The current stage is derived from the `progress` map — the entry marked `active` is the current stage. There is no separate `stage:` field.
 
 ### Template
 
@@ -31,10 +31,8 @@ name: {YYMMDD-XXXX-slug}
 created: {ISO_8601_DATETIME}       # e.g., 2026-01-15T14:30:00Z
 created_by: {GIT_USER_NAME}        # Auto-detected from git config user.name; fallback "unknown"
 branch: {BRANCH_NAME}              # Optional — omitted if user skipped git integration
-stage: brief                        # Current stage (see stage field values above)
 progress:
-  brief: active                     # pending | active | done
-  spec: pending                     # pending | active | done
+  spec: active                      # pending | active | done
   tasks: pending                    # pending | active | done
   apply: pending                    # pending | active | done
   review: pending                    # pending | active | done | failed
@@ -48,10 +46,10 @@ last_updated: {ISO_8601_DATETIME}
 ```
 
 **Field notes**:
-- `created_by` is write-once — set at change creation time by `/fab-new` or `/fab-discuss`, never modified afterward. Auto-detected from `git config user.name`; falls back to `"unknown"` if git config is unset. Skills reading this field must tolerate its absence (older changes won't have it).
+- `created_by` is write-once — set at change creation time by `/fab-new`, never modified afterward. Auto-detected from `git config user.name`; falls back to `"unknown"` if git config is unset. Skills reading this field must tolerate its absence (older changes won't have it).
 - `branch` is optional — present only when the user created or adopted a branch via `/fab-new`. Omit the field entirely (not `branch: null`) when git integration was skipped.
-- `stage` is the single source of truth for where the change is. All skills read this first.
-- `review: failed` is set when `/fab-review` finds issues. The stage remains `review` so `/fab-status` shows the failure.
+- The current stage is derived from the `progress` map — the entry marked `active` is the current stage. All skills read this first.
+- `review: failed` is set when `/fab-review` finds issues. The review entry remains `failed` so `/fab-status` shows the failure.
 - `checklist.completed` / `checklist.total` are updated by `/fab-review` as it checks items.
 - `last_updated` is refreshed on every status change.
 

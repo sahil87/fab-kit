@@ -27,11 +27,11 @@ Before doing anything else, run the preflight script:
 
 Then verify preconditions:
 
-4. Verify that `progress.brief` is `done`
+4. Verify that `brief.md` exists in the change directory (`fab/changes/{name}/brief.md`)
 
-**If `progress.brief` is not `done`, STOP.** Output:
+**If `brief.md` does not exist, STOP.** Output:
 
-> `Brief is not complete. Finish the brief first with /fab-new or /fab-continue, then run /fab-fff.`
+> `Brief not found. Run /fab-new to create the brief first, then run /fab-fff.`
 
 ### Confidence Gate
 
@@ -201,7 +201,7 @@ Next: /fab-new <description> (start next change)
 | Condition | Action |
 |-----------|--------|
 | Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
-| `progress.brief` is not `done` | Abort with: "Brief is not complete." |
+| `brief.md` does not exist | Abort with: "Brief not found. Run /fab-new first." |
 | `confidence.score < 3.0` | Abort with: "Confidence is {score} (need >= 3.0)." |
 | `confidence` block missing | Treat as score 0, abort with confidence message |
 | fab-ff bails on blocking issues | Stop pipeline, report blocking issues |

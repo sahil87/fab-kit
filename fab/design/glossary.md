@@ -20,7 +20,7 @@
 | **Skill** | A markdown prompt file in `fab/.kit/skills/` that defines behavior for an AI agent. Skills are the primary interface to Fab — invoked as `/fab-*` commands. |
 | **Design specs** | Human-curated, pre-implementation design documents in `fab/design/`. Capture architectural intent, design rationale, and the "why" behind the system. Not managed by Fab tooling — organized however makes sense for the project. Contrast with **centralized docs** (post-implementation, AI-maintained via hydration). |
 | **spec.md** | A change-level specification file inside a change folder. Describes requirements relevant to that specific change using RFC 2119 keywords and GIVEN/WHEN/THEN scenarios. Not to be confused with **design specs** (the project-wide design documents in `fab/design/`). |
-| **Stage** | One of the 6 sequential phases a change passes through: brief, spec, tasks, apply, review, archive. Tracked in `.status.yaml`. |
+| **Stage** | One of the 5 sequential phases a change passes through: spec, tasks, apply, review, archive. Tracked in `.status.yaml` via the `progress` map (the entry marked `active` is the current stage). |
 
 ---
 
@@ -28,12 +28,12 @@
 
 | Term | Definition |
 |------|-----------|
-| **Brief** | Stage 1. Captures intent, scope, and approach for a change. Output: `brief.md`. Created by `/fab-new` or `/fab-discuss`. |
-| **Spec** | Stage 2. Defines requirements for the change using RFC 2119 keywords and scenarios. Output: `spec.md`. |
-| **Tasks** | Stage 3. Breaks the spec into an actionable checklist with phased execution order. Output: `tasks.md` + `checklists/quality.md`. |
-| **Apply** | Stage 4. Executes tasks from `tasks.md`, marking each complete. Runs tests after each task. |
-| **Review** | Stage 5. Validates implementation against spec, checklist, and constitution. Can loop back to earlier stages on failure. |
-| **Archive** | Stage 6. Hydrates change artifacts into centralized docs, moves the change folder to `archive/`, and clears the pointer. |
+| **Brief** | An input artifact that captures intent, scope, and approach for a change. Output: `brief.md`. Created by `/fab-new`. Not a pipeline stage — it is produced as part of change creation before the pipeline begins. |
+| **Spec** | Stage 1. Defines requirements for the change using RFC 2119 keywords and scenarios. Output: `spec.md`. |
+| **Tasks** | Stage 2. Breaks the spec into an actionable checklist with phased execution order. Output: `tasks.md` + `checklists/quality.md`. |
+| **Apply** | Stage 3. Executes tasks from `tasks.md`, marking each complete. Runs tests after each task. |
+| **Review** | Stage 4. Validates implementation against spec, checklist, and constitution. Can loop back to earlier stages on failure. |
+| **Archive** | Stage 5. Hydrates change artifacts into centralized docs, moves the change folder to `archive/`, and clears the pointer. |
 
 ---
 
@@ -43,8 +43,7 @@
 |------|-----------|
 | `/fab-init` | Bootstraps the `fab/` structure in a project. Generates `config.yaml`, `constitution.md`, `docs/`, skill symlinks. Idempotent. |
 | `/fab-hydrate` | Ingests external documentation (Notion, Linear, local files) into `fab/docs/` with domain mapping. |
-| `/fab-new` | Starts a new change from a description. Creates the change folder, `.status.yaml`, and `brief.md`. One-shot capture with max ~3 questions. |
-| `/fab-discuss` | Explores and develops a brief through free-form conversation. No question cap. Includes gap analysis. Outputs a brief with a confidence score. |
+| `/fab-new` | Starts a new change from a description. Creates the change folder, `.status.yaml`, and `brief.md`. Adaptive SRAD-driven questioning with gap analysis and conversational mode. |
 | `/fab-continue` | Advances to the next stage, or resets to a given stage and regenerates from there. The step-by-step progression skill. |
 | `/fab-ff` | Fast-forward — generates all remaining planning artifacts (spec, tasks) in one pass. Frontloads questions, then runs autonomously. |
 | `/fab-fff` | Full pipeline — chains `/fab-ff` → `/fab-apply` → `/fab-review` → `/fab-archive`. Gated on confidence score >= 3.0. Resumable. |
@@ -102,7 +101,7 @@
 | **Context loading** | The convention that every skill loads relevant project files (config, constitution, docs index, change artifacts) before generating output. Defined in `_context.md`. |
 | **Fast-forward** | Generating all remaining planning artifacts in one pass (`/fab-ff`). Frontloads questions, then proceeds without interruption. |
 | **Full pipeline** | Running the entire lifecycle — planning through archive — in one invocation (`/fab-fff`). Gated on confidence. |
-| **Gap analysis** | Evaluation performed by `/fab-discuss` before creating a brief. Checks whether the change is already covered by existing mechanisms. |
+| **Gap analysis** | Evaluation performed by `/fab-new` before creating a brief. Checks whether the change is already covered by existing mechanisms. |
 | **Next steps convention** | The rule that every skill must end output with a `Next:` line suggesting follow-up commands. Keeps users oriented in the workflow. |
 | **Preflight** | Validation performed by `fab-preflight.sh` before skill execution. Checks project initialization, active change existence, and status file integrity. |
 | **Resumability** | The property that `/fab-apply` and `/fab-fff` can be interrupted and re-invoked, picking up from the first incomplete item. The markdown checklist is the progress state. |

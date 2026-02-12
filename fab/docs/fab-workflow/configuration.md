@@ -27,8 +27,8 @@ Free-form text describing the tech stack, conventions, and domain context. Skill
 - `branch_prefix` — Optional prefix for created branches (e.g., `"feat/"` → `"feat/260115-a7k2-add-oauth"`)
 
 #### `stages`
-Ordered list of stage definitions. Each stage:
-- `id` — Stage identifier (brief, spec, tasks, apply, review, archive)
+Ordered list of stage definitions (5 stages). Each stage:
+- `id` — Stage identifier (spec, tasks, apply, review, archive)
 - `generates` — Artifact filename (e.g., `brief.md`, `spec.md`)
 - `requires` — List of prerequisite stage IDs
 - `required` — Whether this stage is mandatory (boolean)
@@ -114,6 +114,7 @@ Semantic versioning — MAJOR for principle removals, MINOR for additions, PATCH
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Updated stages pipeline from 6 to 5, removed brief entry from config documentation |
 | 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated stage IDs to brief/spec/tasks/apply/review/archive, removed plan stage entry |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | — | 2026-02-07 | Generated from doc/fab-spec/ (ARCHITECTURE.md, TEMPLATES.md, README.md) |
