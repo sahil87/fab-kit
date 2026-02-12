@@ -4,10 +4,11 @@
 # Comprehensive test suite for stageman.sh
 # Run: ./test.sh
 
-set -euo pipefail
+set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/stageman.sh"
+set +e  # stageman.sh enables -e; disable it for test assertions
 
 # Test colors
 RED='\033[0;31m'

@@ -32,15 +32,7 @@ echo "Current version: $current_version"
 
 # ── Determine repo ───────────────────────────────────────────────────
 
-# Infer repo from git remote origin
-repo_root="$(dirname "$fab_dir")"
-if ! repo_url=$(git -C "$repo_root" remote get-url origin 2>/dev/null); then
-  echo "ERROR: No origin remote found. Cannot determine source repository."
-  exit 1
-fi
-
-# Parse owner/repo from URL (handles both SSH and HTTPS)
-repo=$(echo "$repo_url" | sed -E 's|.*github\.com[:/]||; s|\.git$||')
+repo="wvrdz/fab-kit"
 
 # ── Download ─────────────────────────────────────────────────────────
 
