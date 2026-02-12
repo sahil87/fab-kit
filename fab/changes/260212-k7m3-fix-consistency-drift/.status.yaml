@@ -1,0 +1,21 @@
+name: 260212-k7m3-fix-consistency-drift
+created: 2026-02-12T12:00:00+00:00
+created_by: Sahil Ahuja
+progress:
+  spec: active
+  tasks: pending
+  apply: pending
+  review: pending
+  archive: pending
+checklist:
+  generated: false
+  path: checklists/quality.md
+  completed: 0
+  total: 0
+confidence:
+  certain: 11
+  confident: 0
+  tentative: 0
+  unresolved: 0
+  score: 5.0
+last_updated: 2026-02-12T12:00:00+00:00
