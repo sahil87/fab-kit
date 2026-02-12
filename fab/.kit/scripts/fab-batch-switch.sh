@@ -115,7 +115,6 @@ for change in "${changes[@]}"; do
   else
     for dir in "$CHANGES_DIR"/*/; do
       [[ -d "$dir" ]] || continue
-      local name
       name=$(basename "$dir")
       if [[ "$name" == *"${change}"* ]]; then
         if [[ -n "$match" ]]; then

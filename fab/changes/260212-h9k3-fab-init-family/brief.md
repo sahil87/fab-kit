@@ -74,8 +74,13 @@ Additionally: Document the relationship between fab-update.sh (script) and poten
 
 ## Open Questions
 
-- [BLOCKING] **fab-update architecture**: Should we have both `fab-update.sh` (script) and `/fab-update` (agent command), or just the script? What are the distinct use cases for each?
-  - Script use case: Automated kit updates in CI, quick repairs of symlinks
-  - Agent command use case: Interactive migration with validation, config schema updates, explaining what changed
-  - If both: How do they divide responsibilities?
-  - If one: Which one, and why?
+None — all decisions resolved.
+
+## Assumptions
+
+| # | Grade | Decision | Rationale |
+|---|-------|----------|-----------|
+| 1 | Confident | fab-init-constitution includes versioning and amendment workflow | References/speckit/constitution.md shows this pattern; aligns with governance model |
+| 2 | Confident | fab-init-config covers main sections (context, stages, rules, source_paths, checklist) | These are the most frequently updated sections based on project evolution patterns |
+| 3 | Confident | fab-init-validate checks structural correctness only, not semantic validity | Structural validation (YAML syntax, required fields) is deterministic; semantic validation (e.g., "are these the right stages?") requires human judgment |
+| 4 | Certain | fab-update remains script-only (fab-update.sh), no agent command | User decision: script is sufficient for kit updates and symlink repairs |

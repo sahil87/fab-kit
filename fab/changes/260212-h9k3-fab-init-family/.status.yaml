@@ -13,9 +13,9 @@ checklist:
   completed: 0
   total: 0
 confidence:
-  certain: 0
-  confident: 0
+  certain: 1
+  confident: 3
   tentative: 0
   unresolved: 0
-  score: 5.0
-last_updated: 2026-02-12T16:30:00-05:00
+  score: 8.5
+last_updated: 2026-02-12T16:35:00-05:00
