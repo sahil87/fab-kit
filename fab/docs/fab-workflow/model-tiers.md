@@ -47,13 +47,10 @@ A skill matching ANY `capable` criterion is classified as `capable`, regardless 
 |-------|-----------|
 | `fab-new` | Brief generation, SRAD evaluation |
 | `fab-hydrate` | Content analysis, doc generation/merging |
-| `fab-continue` | Artifact generation (spec/tasks), SRAD |
+| `fab-continue` | Artifact generation (spec/tasks), code implementation, review validation, documentation hydration |
 | `fab-ff` | Multi-stage pipeline orchestration |
 | `fab-fff` | Full pipeline with confidence gating |
 | `fab-clarify` | Gap resolution, deep reasoning |
-| `fab-apply` | Code implementation, test execution |
-| `fab-review` | Multi-dimensional validation |
-| `fab-archive` | Documentation hydration |
 | `fab-hydrate-design` | Structural gap analysis, spec modification |
 | `internal-consistency-check` | Cross-layer drift detection |
 | `internal-retrospect` | Retrospective analysis |

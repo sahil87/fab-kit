@@ -24,9 +24,6 @@ fab/.kit/
 │   ├── fab-continue.md
 │   ├── fab-ff.md
 │   ├── fab-clarify.md
-│   ├── fab-apply.md
-│   ├── fab-review.md
-│   ├── fab-archive.md
 │   ├── fab-switch.md
 │   ├── fab-status.md
 │   └── fab-help.md

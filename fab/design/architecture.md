@@ -18,18 +18,21 @@ project/
 │   │   │   └── checklist.md
 │   │   ├── skills/                 # Skill definitions (markdown prompts)
 │   │   │   ├── fab-init.md
+│   │   │   ├── fab-init-config.md
+│   │   │   ├── fab-init-constitution.md
+│   │   │   ├── fab-init-validate.md
 │   │   │   ├── fab-hydrate.md
 │   │   │   ├── fab-new.md
 │   │   │   ├── fab-continue.md
 │   │   │   ├── fab-ff.md
+│   │   │   ├── fab-fff.md
 │   │   │   ├── fab-clarify.md
 │   │   │   ├── fab-switch.md
 │   │   │   └── fab-status.md
 │   │   └── scripts/                # Lightweight shell utilities
 │   │       ├── fab-help.sh         # Print Fab Kit help overview
 │   │       ├── fab-setup.sh        # Structural bootstrap for fab
-│   │       ├── fab-status.sh       # Full status display (version, progress, next command)
-│   │       └── fab-update-claude-settings.sh  # Copy settings.local.json to worktree-init
+│   │       └── fab-status.sh       # Full status display (version, progress, next command)
 │   ├── config.yaml                 # Project-specific configuration
 │   ├── constitution.md             # Project principles & constraints
 │   ├── current                     # Pointer file (contains active change name)
@@ -48,8 +51,7 @@ project/
 │       │   ├── brief.md
 │       │   ├── spec.md              # What's changing (requirements)
 │       │   ├── tasks.md
-│       │   └── checklists/
-│       │       └── quality.md      # Auto-generated
+│       │   └── checklist.md        # Auto-generated
 │       └── archive/                # Completed changes
 │           └── 250920-m3x1-add-2fa/
 └── .claude/                        # Agent-specific skill exports
@@ -87,8 +89,8 @@ project/
 `fab/current` is a plain text file containing the name of the active change folder (e.g. `260115-a7k2-add-oauth`). It removes the need to scan `changes/` or remember folder names.
 
 **Lifecycle**:
-- **Created** by `/fab-new` — written with the newly created change folder name
-- **Updated** by `/fab-new` or `/fab-switch` — overwritten with the new change name
+- **Created** by `/fab-switch` — written with the change folder name when a change is activated
+- **Updated** by `/fab-switch` — overwritten with the new change name
 - **Read** by every other skill — `/fab-continue`, `/fab-clarify`, `/fab-status` all resolve the active change via `current` rather than requiring a name argument
 - **Cleared** by `/fab-continue` (archive) — file is deleted after archiving (no active change)
 
@@ -144,7 +146,6 @@ Every change folder contains a `.status.yaml` manifest:
 name: 260115-a7k2-add-oauth
 created: 2026-01-15T14:30:00Z
 created_by: Jane Smith
-branch: 260115-a7k2-add-oauth  # Optional — omitted if user skipped git integration
 progress:
   brief: done
   spec: active
@@ -154,7 +155,7 @@ progress:
   archive: pending
 checklist:
   generated: false
-  path: checklists/quality.md
+  path: checklist.md
   completed: 0
   total: 0
 last_updated: 2026-01-16T09:15:00Z
@@ -166,7 +167,6 @@ last_updated: 2026-01-16T09:15:00Z
 name: 260115-a7k2-add-oauth
 created: 2026-01-15T14:30:00Z
 created_by: Jane Smith
-branch: 260115-a7k2-add-oauth
 progress:
   brief: done
   spec: done
@@ -176,7 +176,7 @@ progress:
   archive: pending
 checklist:
   generated: true
-  path: checklists/quality.md
+  path: checklist.md
   completed: 10
   total: 12
 last_updated: 2026-01-18T11:00:00Z
@@ -299,7 +299,7 @@ A change folder captures *what* is being built (brief, spec, tasks). Where that 
 - A change might span multiple branches (feature branch + hotfix backport)
 - A change might start on one branch and move to another after a rebase
 
-Fab stays out of this. The `branch:` field in `.status.yaml` is a convenience bookmark, not a coupling.
+Fab stays out of this. No branch information is stored in `.status.yaml` — `/fab-status` uses `git branch --show-current` for live display.
 
 ### How It Works
 
@@ -308,10 +308,10 @@ Fab stays out of this. The `branch:` field in `.status.yaml` is a convenience bo
 | Option | When to use | What happens |
 |--------|-------------|--------------|
 | **Create branch** | On `main`/`master` (auto) or `wt/*` (prompted) | Creates branch named after the change folder (e.g., `260115-a7k2-add-oauth`) |
-| **Adopt current branch** | Already on a feature branch | Records the current branch name in `.status.yaml` — no rename |
-| **Skip** | Non-git repo, or user prefers manual control | No branch field in `.status.yaml` |
+| **Adopt current branch** | Already on a feature branch | Checks out the current branch — no rename |
+| **Skip** | Non-git repo, or user prefers manual control | No branch operation |
 
-`/fab-new` delegates branch integration to `/fab-switch` — it does not handle branches directly. The branch name is stored in `.status.yaml` as `branch:` and displayed by `/fab-status`. That's the full extent of git integration — Fab never commits, pushes, merges, or deletes branches.
+`/fab-new` delegates branch integration to `/fab-switch` — it does not handle branches directly. `/fab-status` displays the current branch via `git branch --show-current`. That's the full extent of git integration — Fab never commits, pushes, merges, or deletes branches.
 
 ### Branch Naming
 

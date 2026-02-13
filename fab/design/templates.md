@@ -18,7 +18,7 @@ All status fields draw from a fixed set of states. This prevents ad-hoc state na
 | `skipped` | Intentionally bypassed | *(reserved)* |
 | `failed` | Completed with failures requiring rework | review |
 
-**`progress` map keys**: `spec` | `tasks` | `apply` | `review` | `archive`
+**`progress` map keys**: `brief` | `spec` | `tasks` | `apply` | `review` | `archive`
 
 The current stage is derived from the `progress` map — the entry marked `active` is the current stage. There is no separate `stage:` field.
 
@@ -30,16 +30,16 @@ The current stage is derived from the `progress` map — the entry marked `activ
 name: {YYMMDD-XXXX-slug}
 created: {ISO_8601_DATETIME}       # e.g., 2026-01-15T14:30:00Z
 created_by: {GIT_USER_NAME}        # Auto-detected from git config user.name; fallback "unknown"
-branch: {BRANCH_NAME}              # Optional — omitted if user skipped git integration
 progress:
-  spec: active                      # pending | active | done
+  brief: active                     # pending | active | done
+  spec: pending                     # pending | active | done
   tasks: pending                    # pending | active | done
   apply: pending                    # pending | active | done
-  review: pending                    # pending | active | done | failed
+  review: pending                   # pending | active | done | failed
   archive: pending                  # pending | active | done
 checklist:
   generated: false
-  path: checklists/quality.md
+  path: checklist.md
   completed: 0
   total: 0
 last_updated: {ISO_8601_DATETIME}
@@ -47,7 +47,6 @@ last_updated: {ISO_8601_DATETIME}
 
 **Field notes**:
 - `created_by` is write-once — set at change creation time by `/fab-new`, never modified afterward. Auto-detected from `git config user.name`; falls back to `"unknown"` if git config is unset. Skills reading this field must tolerate its absence (older changes won't have it).
-- `branch` is optional — present only when the user created or adopted a branch via `/fab-new`. Omit the field entirely (not `branch: null`) when git integration was skipped.
 - The current stage is derived from the `progress` map — the entry marked `active` is the current stage. All skills read this first.
 - `review: failed` is set when `/fab-continue` (review) finds issues. The review entry remains `failed` so `/fab-status` shows the failure.
 - `checklist.completed` / `checklist.total` are updated by `/fab-continue` (review) as it checks items.
@@ -344,7 +343,7 @@ For larger changes that span multiple user stories, the agent should adapt by sp
 
 ### Checklist Generation
 
-When `/fab-continue` or `/fab-ff` creates `tasks.md`, it also generates `checklists/quality.md`. Generation is contextual — items are derived from:
+When `/fab-continue` or `/fab-ff` creates `tasks.md`, it also generates `checklist.md`. Generation is contextual — items are derived from:
 - `spec.md` (requirements for this change)
 - The spec (requirements and technical decisions)
 - Project constitution (quality standards)

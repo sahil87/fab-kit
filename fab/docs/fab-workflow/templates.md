@@ -71,13 +71,14 @@ Generation is contextual — items derived from `spec.md` (requirements, design 
 The `.status.yaml` template initializes a new change with the following structure:
 
 - **No `stage:` field** — current stage is derived from the `active` entry in the progress map
-- **No `brief:` in progress** — brief is not a pipeline stage; it is an input created by `/fab-new`
-- **`spec: active`** as the initial progress state — the first pipeline stage starts active
+- **`brief: active`** as the initial progress state — brief is the first pipeline stage
+- All other stages start as `pending`
 
 Initial progress map:
 ```yaml
 progress:
-  spec: active
+  brief: active
+  spec: pending
   tasks: pending
   apply: pending
   review: pending

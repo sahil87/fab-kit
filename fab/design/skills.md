@@ -116,6 +116,41 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 ---
 
+## `/fab-init-config [section]`
+
+**Purpose**: Create or update `fab/config.yaml` interactively. Preserves YAML comments and formatting through targeted string replacement.
+
+**Arguments**:
+- `[section]` *(optional)* — name of the config section to edit directly. Valid values: `project`, `context`, `source_paths`, `stages`, `rules`, `checklist`, `git`, `naming`. If omitted, shows a section menu.
+
+**Behavior**:
+- **Create mode** (when `config.yaml` doesn't exist): Prompts for project name, description, tech stack, source paths. Generates a complete config.
+- **Update mode** (when `config.yaml` exists): Displays section menu or edits the specified section directly. Validates structural correctness after each edit. Offers revert on validation failure.
+
+---
+
+## `/fab-init-constitution`
+
+**Purpose**: Create or amend `fab/constitution.md` with semantic versioning.
+
+**Behavior**:
+- **Create mode**: Generates a constitution from project context (config, README, codebase). Starts at version 1.0.0.
+- **Update mode**: Guided amendment — add/modify/remove principles, update constraints or governance metadata. Applies semantic version bump (MAJOR for removals, MINOR for additions, PATCH for clarifications).
+
+---
+
+## `/fab-init-validate`
+
+**Purpose**: Validate structural correctness of `fab/config.yaml` and `fab/constitution.md`. Read-only — no modifications.
+
+**Checks** (config): YAML parseable, required keys present, `project.name`/`description` non-empty, stages list valid, stage `requires` references valid, no circular dependencies.
+
+**Checks** (constitution): Non-empty, level-1 heading, Core Principles section, Roman numeral headings, Governance section, version format.
+
+Reports pass/fail for each check with actionable fix suggestions.
+
+---
+
 ## `/fab-hydrate [sources...]`
 
 **Purpose**: Ingest external documentation into `fab/docs/` with domain mapping and index maintenance. Safe to run repeatedly — content is merged into existing docs without duplication.
@@ -168,7 +203,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 ---
 
-## `/fab-new <description> [--branch <name>]`
+## `/fab-new <description> [--switch]`
 
 **Purpose**: Start a new change from a natural language description.
 
@@ -180,35 +215,28 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 - `brief.md` from template (with clarifying questions if ambiguous)
 
 **Arguments**:
-- `<description>` — natural language description of the change (required)
-- `--branch <name>` — explicit branch name to use (optional). Skips the branch prompt and uses this name directly. Useful for Linear-linked branches, team conventions, or pre-existing branches.
+- `<description>` — natural language description of the change, Linear ticket ID (e.g., `DEV-988`), or backlog ID (e.g., `90g5`) (required)
+- `--switch` — automatically switch to the new change after creation (calls `/fab-switch` internally to write `fab/current` and handle branch integration). Also detected from natural language (e.g., "and switch to it", "make it active").
 
 **Examples**:
 ```
 /fab-new Add OAuth2 support for Google and GitHub sign-in
 → Created fab/changes/260115-a7k2-add-oauth/
-→ Branch: 260115-a7k2-add-oauth (created)
 
-/fab-new --branch feature/dev-907-oauth Add OAuth2 support
+/fab-new --switch Add OAuth2 support
 → Created fab/changes/260115-a7k2-add-oauth/
-→ Branch: feature/dev-907-oauth (adopted)
+→ Switched to 260115-a7k2-add-oauth (branch created)
 ```
 
 **Behavior**:
 1. Generate folder name: today's date (`YYMMDD`) + 4 random alphanumeric chars + 2-6 word slug from description
 2. Create `fab/changes/{name}/`
-3. Write change name to `fab/current` (sets this as the active change)
-4. **Branch integration** (if `git.enabled` in config and inside a git repo):
-   - If `--branch <name>` was provided → use that name directly (create if it doesn't exist, adopt if it does)
-   - Else if on `main`/`master` → offer to create a new branch named `{prefix}{change-name}`
-   - Else if on a feature branch → offer to adopt it (record current branch name as-is)
-   - If user declines → skip, no `branch:` field in `.status.yaml`
-   - Record chosen branch name in `.status.yaml` as `branch:`
-5. Initialize `.status.yaml` with `progress.spec: active` (and `branch:` if set)
-6. Generate `brief.md` using template (loading `fab/constitution.md` and `fab/config.yaml` as context)
-7. Perform gap analysis — check whether the change is already covered by existing mechanisms
-8. Use SRAD-driven adaptive questioning (no fixed cap) to resolve ambiguities conversationally
-9. Mark brief complete once the user is satisfied
+3. Initialize `.status.yaml` with `progress.brief: active`
+4. Generate `brief.md` using template (loading `fab/constitution.md` and `fab/config.yaml` as context)
+5. Perform gap analysis — check whether the change is already covered by existing mechanisms
+6. Use SRAD-driven adaptive questioning (no fixed cap) to resolve ambiguities conversationally
+7. Leave brief as `active` — `/fab-continue` handles the brief → spec transition
+8. **Switch** (if `--switch` flag or switching intent detected): call `/fab-switch` to write `fab/current` and handle branch integration. Default: skip this step.
 
 ---
 
@@ -279,6 +307,41 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 ---
 
+## `/fab-fff` (Full Autonomous Pipeline)
+
+**Purpose**: Run the entire Fab pipeline from planning through archive in a single invocation, gated on confidence score >= 3.0. Unlike `/fab-ff` (which stops for interactive clarification), `/fab-fff` never stops — it bails immediately on review failure and auto-clarifies without user input.
+
+**Prerequisite**: Active change with completed `brief.md` and `confidence.score >= 3.0`.
+
+**Context**: Same as `/fab-ff` — all context loaded upfront (config, constitution, brief, docs index, affected centralized docs).
+
+**Example**:
+```
+/fab-fff
+→ "Confidence 4.2, gate passed."
+→ --- Planning (fab-ff) ---
+→ ... (spec + tasks generated)
+→ --- Implementation ---
+→ ... (tasks executed)
+→ --- Review ---
+→ ... (validation passed)
+→ --- Archive ---
+→ ... (docs hydrated, change archived)
+→ "Pipeline complete. Change archived."
+```
+
+**Behavior**:
+1. **Confidence gate**: Read `confidence.score` from `.status.yaml`. If < 3.0, refuse to run with: *"Confidence is {score} (need >= 3.0). Run /fab-clarify to resolve tentative/unresolved decisions, then retry."*
+2. **Resumability**: Check `progress` map — skip any stage already marked `done` or `skipped`. Re-invoking after interruption picks up from the first incomplete stage.
+3. **Step 1 — Planning (fab-ff)**: Generate spec + tasks with checklist. Bails on blocking issues.
+4. **Step 2 — Implementation (fab-apply)**: Execute tasks in dependency order, run tests after each.
+5. **Step 3 — Review (fab-review)**: Validate implementation. On failure, stop immediately — do NOT offer the interactive rework menu. Output failure details.
+6. **Step 4 — Archive (fab-archive)**: Hydrate into centralized docs, move to archive, clear pointer.
+
+**Key difference from `/fab-ff`**: `/fab-fff` includes the execution stages (apply, review, archive) and gates on confidence. `/fab-ff` only handles planning stages with interactive stops.
+
+---
+
 ## `/fab-clarify`
 
 **Purpose**: Deepen and refine the current stage artifact without advancing to the next stage.
@@ -344,7 +407,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **Purpose**: Validate implementation against spec and checklists.
 
-**Context**: config, constitution, `tasks.md`, `checklists/quality.md`, `spec.md`, target centralized doc(s) from `fab/docs/`, relevant source code (files touched by the change)
+**Context**: config, constitution, `tasks.md`, `checklist.md`, `spec.md`, target centralized doc(s) from `fab/docs/`, relevant source code (files touched by the change)
 
 **Example**:
 ```
@@ -356,7 +419,8 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **Checks** (the agent performs all of these):
 1. All tasks in `tasks.md` marked `[x]`
-2. All checklist items in `checklists/quality.md` verified and checked off — the agent re-reads each `CHK-*` item, inspects the relevant code/tests, and marks `[x]` or reports failure
+
+2. All checklist items in `checklist.md` verified and checked off — the agent re-reads each `CHK-*` item, inspects the relevant code/tests, and marks `[x]` or reports failure
 3. Run tests affected by the change (scoped to modules touched, not the full suite)
 4. Features match spec requirements (spot-check key scenarios from `spec.md`)
 5. No doc drift detected (implementation doesn't contradict centralized docs)
@@ -433,10 +497,11 @@ The `.status.yaml` stage is reset to the chosen re-entry point. The general rule
 ```
 Change: 260115-a7k2-add-oauth
 Branch: 260115-a7k2-add-oauth
-Stage:  spec (1/5)
+Stage:  brief (1/6)
 
 Progress:
-  ◉ spec        active
+  ◉ brief       active
+  ○ spec        pending
   ○ tasks       pending
   ○ apply       pending
   ○ review      pending
@@ -444,7 +509,7 @@ Progress:
 
 Checklist: not yet generated (created at tasks stage)
 
-Next: Complete spec.md, then /fab-continue
+Next: Complete brief.md, then /fab-continue
 ```
 
 ---

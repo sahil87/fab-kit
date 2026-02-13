@@ -15,7 +15,7 @@ The preflight script (`fab/.kit/scripts/fab-preflight.sh`) validates the active 
 - `name` — the change folder name (from `fab/current`)
 - `change_dir` — path to `fab/changes/{name}/`, relative to `fab/`
 - `stage` — current stage (derived from the `active` entry in the progress map)
-- `progress` — full progress map (all 5 stages with their status)
+- `progress` — full progress map (all 6 stages with their status)
 - `checklist.generated` — boolean
 - `checklist.completed` — integer
 - `checklist.total` — integer

@@ -28,7 +28,7 @@ Always know where you are. Each change folder has a `.status.yaml` manifest that
 Use skills (not rigid commands) for better agent interoperability. Skills are more naturally invocable by AI agents.
 
 ### 6. Git-Optional
-Fab tracks changes in directories, not branches. A change folder is the unit of identity — the same change can be worked on across multiple branches, worktrees, or even repos. When git is available, `/fab-new` offers to create or adopt a branch and records it in `.status.yaml` as a convenience link, but this is informational only. Commits, pushes, and PRs remain your responsibility — Fab never couples its state to git state.
+Fab tracks changes in directories, not branches. A change folder is the unit of identity — the same change can be worked on across multiple branches, worktrees, or even repos. When git is available, `/fab-switch` offers to create or adopt a branch, but no branch information is stored in `.status.yaml`. Commits, pushes, and PRs remain your responsibility — Fab never couples its state to git state.
 
 ---
 
@@ -90,23 +90,23 @@ Supported sources: **Notion URLs**, **Linear URLs**, **local files/directories**
 
 ---
 
-## The 5 Stages
+## The 6 Stages
 
-The brief (`brief.md`) is an input artifact produced by `/fab-new` before the pipeline begins. The 5 pipeline stages are:
+Changes progress through 6 stages:
 
 ```mermaid
 flowchart TD
     subgraph planning ["Planning"]
         direction LR
-        S["1 SPEC"] --> T["2 TASKS"]
+        B["1 BRIEF"] --> S["2 SPEC"] --> T["3 TASKS"]
     end
     subgraph execution ["Execution"]
         direction LR
-        A["3 APPLY"] --> V["4 REVIEW"]
+        A["4 APPLY"] --> V["5 REVIEW"]
     end
     subgraph completion ["Completion"]
         direction LR
-        AR["5 ARCHIVE"] --> H[/"Hydrate into docs"/]
+        AR["6 ARCHIVE"] --> H[/"Hydrate into docs"/]
     end
 
     T --> A
@@ -121,16 +121,16 @@ flowchart TD
 
 | # | Stage | Purpose | Artifact | Includes |
 |---|-------|---------|----------|----------|
-| — | **Brief** *(input)* | Intent, scope, approach | `brief.md` | Created by `/fab-new` with adaptive SRAD-driven questioning |
-| 1 | **Spec** | What's changing | `spec.md` | Clarification of ambiguities, [NEEDS CLARIFICATION] markers |
-| 2 | **Tasks** | Implementation checklist | `tasks.md` | Auto-generated quality checklist (`checklists/quality.md`) |
-| 3 | **Apply** | Execute tasks | code changes | Run tests per task, progress tracking |
-| 4 | **Review** | Validate against spec | validation report | Checklist completion, spec drift detection |
-| 5 | **Archive** | Complete & hydrate | archive entry | Hydrate spec into centralized docs |
+| 1 | **Brief** | Intent, scope, approach | `brief.md` | Created by `/fab-new` with adaptive SRAD-driven questioning |
+| 2 | **Spec** | What's changing | `spec.md` | Clarification of ambiguities, [NEEDS CLARIFICATION] markers |
+| 3 | **Tasks** | Implementation checklist | `tasks.md` | Auto-generated quality checklist (`checklist.md`) |
+| 4 | **Apply** | Execute tasks | code changes | Run tests per task, progress tracking |
+| 5 | **Review** | Validate against spec | validation report | Checklist completion, spec drift detection |
+| 6 | **Archive** | Complete & hydrate | archive entry | Hydrate spec into centralized docs |
 
 ### User Flow
 
-From the user's perspective, the main workflow is `/fab-new` followed by the 5 pipeline stages — planning stages (spec, tasks) are collapsed into a single step via `/fab-ff` or stepped through with `/fab-continue`. `/fab-clarify` is available at any planning stage to deepen the current artifact before moving on:
+From the user's perspective, the main workflow is `/fab-new` followed by `/fab-continue` (or `/fab-ff` to fast-forward planning). `/fab-clarify` is available at any planning stage to deepen the current artifact before moving on:
 
 ```mermaid
 flowchart TD
@@ -165,7 +165,7 @@ flowchart TD
 |-------|---------|---------|
 | `/fab-init` | Bootstrap fab/ structure | `config.yaml`, `constitution.md`, `docs/`, skill symlinks (idempotent) |
 | `/fab-hydrate [sources...]` | Ingest external docs into fab/docs/ | Updated `fab/docs/` with indexes |
-| `/fab-new` | Start change (optionally with `--branch`) | `brief.md`, `.status.yaml`, branch (optional) |
+| `/fab-new` | Start change (optionally with `--switch`) | `brief.md`, `.status.yaml` |
 | `/fab-continue [<stage>]` | Next artifact (or reset to stage) | Next stage artifact |
 | `/fab-ff` | Fast forward remaining planning | spec.md + tasks + checklist |
 | `/fab-clarify` | Deepen current artifact | Refined artifact (in place) |
@@ -195,7 +195,7 @@ flowchart TD
 # 4. Continue to tasks
 /fab-continue
 # → Creates tasks.md with implementation checklist
-# → Auto-generates checklists/quality.md
+# → Auto-generates checklist.md
 
 # 5. Implement
 /fab-continue
