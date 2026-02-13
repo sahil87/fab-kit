@@ -14,7 +14,7 @@
 | [distribution](distribution.md) | How `fab/.kit/` is distributed — bootstrap, update, release workflow | 2026-02-12 |
 | [kit-architecture](kit-architecture.md) | `.kit/` structure, scripts, agent integration, distribution, versioning, monorepos | 2026-02-12 |
 | [model-tiers](model-tiers.md) | Provider-agnostic model tier system — tier naming, selection criteria, skill audit, mapping, dual deployment | 2026-02-12 |
-| [init-family](init-family.md) | Init command family — `/fab-init-constitution`, `/fab-init-config`, `/fab-init-validate`, delegation from `/fab-init` | 2026-02-12 |
+| [init-family](init-family.md) | Init command family — `/fab-init constitution`, `/fab-init config`, `/fab-init validate`, subcommands of `/fab-init` | 2026-02-12 |
 | [config-management](config-management.md) | Maintaining `config.yaml` over project lifecycle — interactive updates, validation, comment preservation | 2026-02-12 |
 | [constitution-governance](constitution-governance.md) | Constitutional amendment workflow — semantic versioning, structural rules, audit trail | 2026-02-12 |
 | [configuration](configuration.md) | `config.yaml` schema, `constitution.md` governance, stage graph definition, lifecycle management | 2026-02-12 |

@@ -101,15 +101,15 @@ Semantic versioning — MAJOR for principle removals, MINOR for additions, PATCH
 
 ### Updating Config
 
-Use `/fab-init-config` for guided, interactive updates. Supports direct section access (e.g., `/fab-init-config context`) and preserves YAML comments through targeted string replacement. See [config management](config-management.md) for details.
+Use `/fab-init config` for guided, interactive updates. Supports direct section access (e.g., `/fab-init config context`) and preserves YAML comments through targeted string replacement. See [config management](config-management.md) for details.
 
 ### Amending Constitution
 
-Use `/fab-init-constitution` for governed amendments with semantic versioning (MAJOR/MINOR/PATCH). Supports multiple amendments per session with highest-precedence version bump. See [constitution governance](constitution-governance.md) for the full workflow.
+Use `/fab-init constitution` for governed amendments with semantic versioning (MAJOR/MINOR/PATCH). Supports multiple amendments per session with highest-precedence version bump. See [constitution governance](constitution-governance.md) for the full workflow.
 
 ### Validation
 
-Use `/fab-init-validate` to check structural correctness of both files:
+Use `/fab-init validate` to check structural correctness of both files:
 
 - `config.yaml`: 8 checks (YAML syntax, required fields, stage dependencies, circular deps)
 - `constitution.md`: 6 checks (structure, headings, governance section, version format)
