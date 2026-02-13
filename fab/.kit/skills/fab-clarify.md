@@ -3,7 +3,7 @@ name: fab-clarify
 description: "Refine the current stage artifact — resolve gaps, ambiguities, or [NEEDS CLARIFICATION] markers without advancing."
 ---
 
-# /fab-clarify [<change-name>]
+# /fab-clarify [<change-name>] [<target-artifact>]
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -38,8 +38,11 @@ See `_context.md` > Skill Invocation Protocol for the full protocol definition.
 ## Arguments
 
 - **`<change-name>`** *(optional)* — target a specific change instead of the active one in `fab/current`. Supports full folder names, partial slug matches, or 4-char IDs (e.g., `r3m7`). When provided, passed to the preflight script as `$1` for transient resolution — `fab/current` is **not** modified.
+- **`<target-artifact>`** *(optional)* — one of `brief`, `spec`, or `tasks`. Targets a specific planning artifact instead of the current stage's default. **Required** when the current stage is `apply`, `review`, or `archive`. At planning stages, defaults to the current stage's artifact but can be overridden.
 
-If no argument is provided, the skill operates on the active change in `fab/current`.
+Argument disambiguation: if the argument matches a stage name (`brief`, `spec`, `tasks`), it is treated as a target artifact. Otherwise it is treated as a change name. Both can be provided (e.g., `/fab-clarify spec` or `/fab-clarify r3m7 spec`).
+
+If no arguments are provided, the skill operates on the active change and the current stage's artifact.
 
 ---
 
@@ -57,36 +60,43 @@ Use the `stage` field from preflight output for the Stage Guard below (do not re
 
 ## Stage Guard
 
-The current stage must be one of:
+fab-clarify operates on planning artifacts (`brief.md`, `spec.md`, `tasks.md`) and can run from **any stage**.
 
-- `brief`
-- `spec`
-- `tasks`
+- **Planning stages** (`brief`, `spec`, `tasks`) — defaults to the current stage's artifact. A `<target-artifact>` argument overrides this default (useful when the current stage's artifact doesn't exist yet, e.g., after a reset).
+- **Post-planning stages** (`apply`, `review`, `archive`) — requires an explicit `<target-artifact>` argument. If none was provided, prompt:
 
-**If the stage is `apply`, `review`, or `archive`, STOP.** Output:
+> `Stage is "{stage}" — which planning artifact do you want to clarify?`
+>
+> | # | Artifact | Description |
+> |---|----------|-------------|
+> | 1 | `spec` | Refine requirements and assumptions |
+> | 2 | `tasks` | Refine implementation breakdown |
+> | 3 | `brief` | Refine high-level intent |
+>
+> Reply with a number or artifact name.
 
-> `Stage is "{stage}" — clarify applies to planning artifacts only (brief, spec, tasks). Use /fab-continue to validate implementation instead.`
+Use the selected artifact for all subsequent steps (Context Loading, Step 1, etc.).
 
 ---
 
 ## Context Loading
 
-Context varies by the current stage. Load only what is relevant:
+Context varies by the **target artifact** (which equals the current stage for planning stages, or the explicitly selected artifact for post-planning stages). Load only what is relevant:
 
-### Brief stage
+### Brief artifact
 
 - `fab/config.yaml` — project config, tech stack
 - `fab/constitution.md` — project principles and constraints
 - `fab/changes/{name}/brief.md` — the artifact to refine
 - `fab/docs/index.md` — documentation landscape
 
-### Spec stage
+### Spec artifact
 
 - Everything from brief context above, plus:
 - `fab/changes/{name}/spec.md` — the artifact to refine (if exists)
 - Specific centralized docs referenced by the brief's **Affected Docs** section
 
-### Tasks stage
+### Tasks artifact
 
 - Everything from spec context above, plus:
 - `fab/changes/{name}/spec.md` — the completed spec (for reference)
@@ -98,19 +108,19 @@ Context varies by the current stage. Load only what is relevant:
 
 When the user invokes `/fab-clarify` directly, follow this flow.
 
-### Step 1: Identify the Current Artifact
+### Step 1: Identify the Target Artifact
 
-Based on the current stage, determine which artifact file to refine:
+Determine which artifact file to refine. At planning stages, this is the current stage's artifact. At post-planning stages, this is the artifact selected via the `<target-artifact>` argument or the Stage Guard prompt.
 
-| Stage | Artifact file(s) |
-|-------|-----------------|
+| Target | Artifact file(s) |
+|--------|-----------------|
 | `brief` | `brief.md` |
 | `spec` | `spec.md` (also scans brief.md for cross-stage gaps) |
 | `tasks` | `tasks.md` |
 
 Read the artifact file. If it does not exist, STOP with:
 
-> `No {artifact} found for this stage. Run /fab-continue to generate it first.`
+> `No {artifact} found. Run /fab-continue to generate it first.`
 
 ### Step 2: Stage-Scoped Taxonomy Scan
 
@@ -384,8 +394,8 @@ Next: /fab-clarify (refine further) or /fab-continue or /fab-ff
 | Condition | Action |
 |-----------|--------|
 | Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
-| Stage is `apply`, `review`, or `archive` | Abort with: "Stage is {stage} — clarify applies to planning artifacts only. Use /fab-continue instead." |
-| Artifact file missing for current stage | Abort with: "No {artifact} found. Run /fab-continue to generate it first." |
+| Stage is `apply`, `review`, or `archive` and no `<target-artifact>` provided | Prompt for artifact selection (see Stage Guard) |
+| Artifact file missing for target | Abort with: "No {artifact} found. Run /fab-continue to generate it first." |
 | Taxonomy scan finds zero gaps (suggest mode) | Output "No gaps found" message and stop |
 | Early termination after 0 answered questions | Display coverage summary with 0 resolved, all deferred |
 | Multiple `/fab-clarify` sessions | Audit trail entries accumulate — new session appended, previous sessions preserved |
