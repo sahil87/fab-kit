@@ -32,6 +32,11 @@ fab/.kit/
 │   ├── spec.md
 │   ├── tasks.md
 │   └── checklist.md
+├── scaffold/               # Bootstrap content (read by _fab-scaffold.sh)
+│   ├── envrc               # .envrc symlink target
+│   ├── gitignore-entries   # .gitignore entries (one per line)
+│   ├── docs-index.md       # Initial fab/docs/index.md content
+│   └── design-index.md     # Initial fab/design/index.md content
 ├── schemas/                # Workflow schema
 │   └── workflow.yaml       # Canonical stage/state definitions
 └── scripts/                # Shell utilities
@@ -49,7 +54,7 @@ fab/.kit/
 
 #### `_fab-scaffold.sh`
 
-The structural bootstrap script. Creates directories, symlinks, `docs/index.md`, and `.gitignore` entries. It is the single source of truth for structural setup. `/fab-init` delegates to it and adds the interactive parts (config, constitution).
+The structural bootstrap script. Creates directories, symlinks, `docs/index.md`, and `.gitignore` entries. Reads bootstrap content from `scaffold/` files (index templates, envrc, gitignore entries) rather than hardcoding them. It is the single source of truth for structural setup. `/fab-init` delegates to it and adds the interactive parts (config, constitution).
 
 #### `fab-status.sh`
 
@@ -195,6 +200,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-3njv-scaffold-dir | 2026-02-13 | Added `scaffold/` directory to tree listing; `_fab-scaffold.sh` now reads bootstrap content from scaffold files instead of hardcoded heredocs |
 | 260213-iq2l-rename-setup-scripts | 2026-02-13 | Renamed `fab-setup.sh` → `_fab-scaffold.sh` and `fab-update.sh` → `fab-upgrade.sh`; updated directory listing and all script references |
 | 260213-v8r3-remove-dead-fab-help-agent | 2026-02-13 | Removed `.claude/agents/fab-help.md` from agent files listing — agent was never spawned; skill + script pair covers all usage |
 | 260212-4tw0-migrate-scripts-stageman | 2026-02-12 | Migrated fab-status.sh and fab-preflight.sh to source stageman.sh; added stageman.sh, fab-preflight.sh, and schemas/ to directory listing |

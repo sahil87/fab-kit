@@ -83,10 +83,15 @@ fi
 
 # ── 2. .envrc ─────────────────────────────────────────────────────
 envrc_link="$repo_root/.envrc"
-envrc_target="fab/.kit/envrc"
+envrc_target="fab/.kit/scaffold/envrc"
 
 if [ -L "$envrc_link" ] && [ -e "$envrc_link" ]; then
   echo ".envrc: OK (symlink)"
+elif [ -L "$envrc_link" ]; then
+  # Broken symlink — remove and recreate
+  rm "$envrc_link"
+  ln -s "$envrc_target" "$envrc_link"
+  echo ".envrc: repaired broken symlink → $envrc_target"
 elif [ -e "$envrc_link" ]; then
   rm "$envrc_link"
   ln -s "$envrc_target" "$envrc_link"
@@ -98,37 +103,13 @@ fi
 
 # ── 3. Docs index ──────────────────────────────────────────────────
 if [ ! -f "$fab_dir/docs/index.md" ]; then
-  cat > "$fab_dir/docs/index.md" << 'EOF'
-# Documentation Index
-
-<!-- This index is maintained by /fab-archive when changes are completed. -->
-<!-- Each domain gets a row linking to its docs. -->
-
-| Domain | Description | Docs |
-|--------|-------------|------|
-EOF
+  cp "$kit_dir/scaffold/docs-index.md" "$fab_dir/docs/index.md"
   echo "Created: fab/docs/index.md"
 fi
 
 # ── 4. Design index ───────────────────────────────────────────────
 if [ ! -f "$fab_dir/design/index.md" ]; then
-  cat > "$fab_dir/design/index.md" << 'EOF'
-# Specifications Index
-
-> **Specs are pre-implementation artifacts** — what you *planned*. They capture conceptual design
-> intent, high-level decisions, and the "why" behind features. Specs are human-curated,
-> flat in structure, and deliberately size-controlled for quick reading.
->
-> Contrast with [`fab/docs/index.md`](../docs/index.md): docs are *post-implementation* —
-> what actually happened. Docs are the authoritative source of truth for system behavior,
-> maintained by `/fab-archive` hydration.
->
-> **Ownership**: Specs are written and maintained by humans. No automated tooling creates or
-> enforces structure here — organize files however makes sense for your project.
-
-| Spec | Description |
-|------|-------------|
-EOF
+  cp "$kit_dir/scaffold/design-index.md" "$fab_dir/design/index.md"
   echo "Created: fab/design/index.md"
 fi
 
@@ -281,14 +262,33 @@ fi
 
 # ── 7. .gitignore ──────────────────────────────────────────────────
 gitignore="$repo_root/.gitignore"
+gitignore_entries="$kit_dir/scaffold/gitignore-entries"
 
-if [ ! -f "$gitignore" ]; then
-  echo "fab/current" > "$gitignore"
-  echo "Created: .gitignore (added fab/current)"
-elif ! grep -qx 'fab/current' "$gitignore"; then
-  echo "" >> "$gitignore"
-  echo "fab/current" >> "$gitignore"
-  echo "Updated: .gitignore (added fab/current)"
+if [ -f "$gitignore_entries" ]; then
+  gitignore_existed=false
+  [ -f "$gitignore" ] && gitignore_existed=true
+  added=()
+
+  while IFS= read -r entry || [ -n "$entry" ]; do
+    # Skip comments and empty lines
+    [[ -z "$entry" || "$entry" == \#* ]] && continue
+    if [ ! -f "$gitignore" ]; then
+      echo "$entry" > "$gitignore"
+      added+=("$entry")
+    elif ! grep -qxF "$entry" "$gitignore"; then
+      echo "" >> "$gitignore"
+      echo "$entry" >> "$gitignore"
+      added+=("$entry")
+    fi
+  done < "$gitignore_entries"
+
+  if [ ${#added[@]} -gt 0 ]; then
+    if [ "$gitignore_existed" = false ]; then
+      echo "Created: .gitignore (added ${added[*]})"
+    else
+      echo "Updated: .gitignore (added ${added[*]})"
+    fi
+  fi
 fi
 
 echo "Done."
