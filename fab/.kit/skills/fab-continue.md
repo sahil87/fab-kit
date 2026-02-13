@@ -336,9 +336,34 @@ Move `fab/changes/{name}/` → `fab/changes/archive/{name}/`. Create `archive/` 
 
 Maintain `fab/changes/archive/index.md`. If it doesn't exist, create with backfill. Prepend new entry (most-recent-first): `- **{folder-name}** — {1-2 sentence description from brief Why section}`.
 
-#### Step 7: Mark Backlog Item Done
+#### Step 7: Mark Backlog Items Done
 
-If the brief contains a backlog ID (in Origin section), find and mark it done in `fab/backlog.md`. Move from Backlog section to Done section.
+##### Step 7a: Exact-ID Check
+
+If the brief contains a backlog ID (in Origin section), find and mark it done in `fab/backlog.md`. Move from Backlog section to Done section. This is the existing behavior and runs in all modes (interactive and auto).
+
+##### Step 7b: Keyword Scan (Interactive Mode Only)
+
+After the exact-ID check, perform a secondary keyword scan to surface related backlog items. **Skip this step entirely in auto mode** (when archive runs via `/fab-ff` or `/fab-fff`).
+
+1. **Extract keywords**: Parse the brief's title (`# Brief: {title}` heading) and Why section content. Filter out common stop words (articles, prepositions, conjunctions, common verbs: "is", "are", "has", "should", "must", "the", "a", "an", "in", "of", "to", "for", "and", "or", "with", "from", "by", "on", "at", "this", "that", "it", "be", "not", "no"). Normalize remaining words to lowercase.
+2. **Match candidates**: Compare extracted keywords against each unchecked (`- [ ]`) backlog item's description text (case-insensitive). A backlog item is a candidate when at least **2 significant keywords** overlap with the item's description. Exclude any item already marked done by the exact-ID check in Step 7a.
+3. **No candidates**: If no items meet the 2-keyword threshold, proceed silently (no output for this sub-step).
+
+##### Step 7c: Interactive Confirmation (Interactive Mode Only)
+
+If Step 7b produced candidate matches, present them to the user:
+
+```
+Backlog matches found:
+  1. [ID] {description (truncated to ~80 chars)}
+  2. [ID] {description (truncated to ~80 chars)}
+
+Mark as done? (comma-separated numbers, or "none")
+```
+
+- **User responds with numbers** (e.g., "1" or "1,3"): Mark the selected items done — change checkbox from `- [ ]` to `- [x]`, move from Backlog section to Done section (prepend, most-recent-first)
+- **User responds with "none"**: No items are marked done, archive proceeds normally
 
 #### Step 8: Clear Pointer
 
@@ -521,6 +546,7 @@ Status:   ✓ archive: done
 Archived: ✓ fab/changes/archive/{name}/
 Index:    ✓ fab/changes/archive/index.md updated
 Backlog:  ✓ [ID] marked done
+Scan:     ✓ {N} candidates found, {M} marked done | no matches | skipped (auto mode)
 Pointer:  ✓ fab/current cleared
 
 Archive complete.
@@ -579,6 +605,9 @@ Next: /fab-continue
 | Template file missing (planning stages) | Abort with: "Template not found at fab/.kit/templates/{file} — kit may be corrupted." |
 | Test failure during apply | Fix implementation, re-run tests, repeat until passing |
 | All tasks already `[x]` during apply | Set apply: done, output "All tasks already complete." |
+| `fab/backlog.md` missing during archive Step 7 | Skip keyword scan silently (exact-ID check also skips if no file) |
+| Keyword scan finds no matches | Proceed silently — no output for this sub-step |
+| User declines all keyword scan candidates | Proceed normally — no items marked done |
 
 ---
 

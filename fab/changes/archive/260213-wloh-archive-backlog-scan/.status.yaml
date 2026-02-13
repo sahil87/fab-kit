@@ -1,0 +1,22 @@
+name: 260213-wloh-archive-backlog-scan
+created: 2026-02-13T12:00:00+00:00
+created_by: sahil-weaver
+progress:
+  brief: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklist.md
+  completed: 16
+  total: 16
+confidence:
+  certain: 7
+  confident: 5
+  tentative: 0
+  unresolved: 0
+  score: 3.5
+last_updated: 2026-02-13T19:55:00+00:00

@@ -79,7 +79,9 @@ The brief (`brief.md`) is created by `/fab-new` and is the first pipeline stage.
 The stages split into three phases:
 - **Planning** (1-3): brief, spec, tasks
 - **Execution** (4-5): apply, review
-- **Completion** (6): archive (hydrates into centralized docs)
+- **Completion** (6): archive (hydrates into centralized docs, closes backlog items)
+
+During archive, Step 7 closes related backlog items in two passes: (a) an exact-ID check that auto-marks items when the brief contains a backlog ID, and (b) a keyword scan that surfaces candidate matches based on keyword overlap between the brief's title/Why section and unchecked backlog items (2-keyword minimum threshold). The keyword scan is interactive-only — it is skipped in auto mode (`/fab-ff`, `/fab-fff`) to avoid false-positive closures.
 
 **Full pipeline path**: `/fab-fff` chains the entire flow (planning → apply → review → archive) in a single invocation, gated on confidence score >= 3.0. This is the fastest path from brief to archived change.
 
@@ -173,6 +175,12 @@ Skills will tolerate old-format files — the preflight script infers `brief: do
 **Rejected**: Keeping `stage:` with simplified progress (still two sources of truth). Using "first pending" derivation (cannot express backward movement after review failure).
 *Introduced by*: 260212-v5p2-simplify-stages-entry-paths
 
+### Keyword Scan Interactive-Only (Archive Step 7)
+**Decision**: The keyword-based backlog scan runs only in interactive mode (`/fab-continue`). Auto-mode pipelines (`/fab-ff`, `/fab-fff`) skip the keyword scan and only run the exact-ID check.
+**Why**: Keyword matches are heuristic — false positives are possible. Auto-closing without user confirmation contradicts the principle that keyword matches require approval. The exact-ID check is deterministic and safe for auto mode.
+**Rejected**: Running keyword scan in auto mode with auto-close — risks false-positive backlog closures. Logging candidates without closing in auto mode — adds complexity for marginal benefit.
+*Introduced by*: 260213-wloh-archive-backlog-scan
+
 ### No Dedicated Abandon Skill
 **Decision**: Abandoning a change is a manual operation (delete folder, clear pointer).
 **Why**: Abandonment is rare and destructive enough to warrant deliberate manual action. A skill would make it too easy to accidentally discard work.
@@ -183,6 +191,7 @@ Skills will tolerate old-format files — the preflight script infers `brief: do
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-wloh-archive-backlog-scan | 2026-02-13 | Added keyword-based backlog scanning to archive Step 7 — surfaces candidate matches from brief title/Why section, interactive confirmation, skipped in auto mode. Added Keyword Scan Interactive-Only design decision. |
 | 260212-a4bd-unify-fab-continue | 2026-02-12 | Updated `fab/current` lifecycle and review failure references to use `/fab-continue` instead of removed standalone skills |
 | 260212-egqa-switch-return-main | 2026-02-12 | Added `--blank` flag to `/fab-switch` for deactivating the current change (deletes `fab/current`). Composable with `--branch` for git operations. Updated fab/current lifecycle and /fab-switch section. |
 | 260212-ipoe-checklist-folder-location | 2026-02-12 | Updated `.status.yaml` `checklist.path` default from `checklists/quality.md` to `checklist.md` at change root |
