@@ -1,0 +1,22 @@
+name: 260213-3njv-scaffold-dir
+created: 2026-02-13T10:42:23+0000
+created_by: sahil-weaver
+progress:
+  brief: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklist.md
+  completed: 20
+  total: 20
+confidence:
+  certain: 6
+  confident: 6
+  tentative: 0
+  unresolved: 0
+  score: 3.2
+last_updated: 2026-02-13T11:40:00+0000

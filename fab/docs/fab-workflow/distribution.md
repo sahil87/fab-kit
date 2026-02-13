@@ -19,7 +19,7 @@ mkdir -p fab
 curl -sL https://github.com/wvrdz/fab-kit/releases/latest/download/kit.tar.gz | tar xz -C fab/
 ```
 
-After extraction, the user MUST run `fab/.kit/scripts/_fab-scaffold.sh` to create directories (`changes/`, `docs/`, `design/`), skeleton files (`docs/index.md`, `design/index.md`), symlinks, `.envrc`, and `.gitignore` entries. The bootstrap only provides `.kit/` — no `config.yaml`, `constitution.md`, or other project files.
+After extraction, the user MUST run `fab/.kit/scripts/_fab-scaffold.sh` to create directories (`changes/`, `docs/`, `design/`), skeleton files (copied from `scaffold/docs-index.md` and `scaffold/design-index.md`), symlinks, `.envrc` (symlink to `scaffold/envrc`), and `.gitignore` entries (from `scaffold/gitignore-entries`). The bootstrap only provides `.kit/` — no `config.yaml`, `constitution.md`, or other project files.
 
 **Scenarios**:
 - Bootstrap a new project (no `fab/` directory) — creates `fab/.kit/` with all skills, templates, scripts, and VERSION file; running `_fab-scaffold.sh` then creates `changes/`, `docs/index.md`, `design/index.md`, symlinks, `.envrc`, and `.gitignore` entry
@@ -101,6 +101,7 @@ The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its rol
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-3njv-scaffold-dir | 2026-02-13 | Updated bootstrap description to mention `_fab-scaffold.sh` reads from `scaffold/` files for index templates, envrc, and gitignore entries |
 | 260213-iq2l-rename-setup-scripts | 2026-02-13 | Renamed script references: `fab-setup.sh` → `_fab-scaffold.sh`, `fab-update.sh` → `fab-upgrade.sh` |
 | 260212-emcb-clarify-fab-setup | 2026-02-12 | Updated bootstrap description to include `fab/design/` directory and `design/index.md` in `_fab-scaffold.sh` output |
 | 260210-h7r3-kit-distribution-update | 2026-02-10 | Initial creation — bootstrap, update, release, and repo rename requirements |

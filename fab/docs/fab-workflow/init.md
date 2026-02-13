@@ -58,10 +58,10 @@ For post-initialization management of config and constitution files, see the [in
 | Responsibility | Owner | Notes |
 |---|---|---|
 | Directories (`changes/`, `docs/`, `design/`) | `_fab-scaffold.sh` | Non-interactive, scriptable |
-| Skeleton files (`docs/index.md`, `design/index.md`) | `_fab-scaffold.sh` | Idempotent — skips if file exists |
+| Skeleton files (`docs/index.md`, `design/index.md`) | `_fab-scaffold.sh` | Copies from `scaffold/docs-index.md` and `scaffold/design-index.md`; idempotent — skips if file exists |
 | Skill symlinks (Claude Code, OpenCode, Codex) | `_fab-scaffold.sh` | Discovers skills via glob pattern |
-| `.envrc` symlink | `_fab-scaffold.sh` | Links to `fab/.kit/envrc` |
-| `.gitignore` (`fab/current` entry) | `_fab-scaffold.sh` | Appends if not present |
+| `.envrc` symlink | `_fab-scaffold.sh` | Links to `fab/.kit/scaffold/envrc` |
+| `.gitignore` entries | `_fab-scaffold.sh` | Appends entries from `scaffold/gitignore-entries` if not present |
 | `config.yaml` | `/fab-init config` (delegated by `/fab-init`) | Single source of truth for config generation and updates |
 | `constitution.md` | `/fab-init constitution` (delegated by `/fab-init`) | Single source of truth for constitution generation and amendments |
 
@@ -94,6 +94,7 @@ For post-initialization management of config and constitution files, see the [in
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-3njv-scaffold-dir | 2026-02-13 | Updated delegation table: `.envrc` → `scaffold/envrc`, `.gitignore` → `scaffold/gitignore-entries`, skeleton files → scaffold sources |
 | 260213-3tyk-merge-fab-init-subcommands | 2026-02-13 | Consolidated init family into subcommands — `/fab-init config`, `/fab-init constitution`, `/fab-init validate` are now subcommands of `/fab-init` |
 | 260213-iq2l-rename-setup-scripts | 2026-02-13 | Renamed `fab-setup.sh` → `_fab-scaffold.sh` in delegation pattern and all references |
 | 260212-h9k3-fab-init-family | 2026-02-12 | Added Related Commands section, updated Delegation Pattern to reflect `/fab-init` delegating to `/fab-init config` and `/fab-init constitution` |
