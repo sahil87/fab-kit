@@ -193,7 +193,7 @@ For complete documentation, see:
 | [fab/memory/fab-workflow/planning-skills.md](fab/memory/fab-workflow/planning-skills.md) | `/fab-new`, `/fab-discuss`, `/fab-continue`, `/fab-ff`, `/fab-clarify` — the planning pipeline |
 | [fab/memory/fab-workflow/clarify.md](fab/memory/fab-workflow/clarify.md) | `/fab-clarify` — dual modes (suggest/auto), taxonomy scan, structured questions |
 | [fab/memory/fab-workflow/execution-skills.md](fab/memory/fab-workflow/execution-skills.md) | Apply, review, archive behavior — accessed via '/fab-continue' |
-| [fab/memory/fab-workflow/hydrate-design.md](fab/memory/fab-workflow/hydrate-design.md) | `/fab-hydrate-design` — structural gap detection between docs and design |
+| [fab/memory/fab-workflow/hydrate-specs.md](fab/memory/fab-workflow/hydrate-specs.md) | `/fab-hydrate-specs` — structural gap detection between docs and specs |
 | [fab/specs/templates.md](fab/specs/templates.md) | Artifact templates — proposal, spec, plan, tasks, checklist |
 | [fab/memory/fab-workflow/templates.md](fab/memory/fab-workflow/templates.md) | Template implementation details and centralized doc format |
 

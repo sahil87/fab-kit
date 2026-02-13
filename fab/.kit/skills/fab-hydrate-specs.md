@@ -1,9 +1,9 @@
 ---
-name: fab-hydrate-design
+name: fab-hydrate-specs
 description: "Identify structural gaps between docs and specs, propose concise additions back to specs with interactive confirmation."
 ---
 
-# /fab-hydrate-design
+# /fab-hydrate-specs
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -13,7 +13,7 @@ description: "Identify structural gaps between docs and specs, propose concise a
 
 Detect structural gaps between `fab/memory/` and `fab/specs/` — topics that docs cover but specs don't mention at all — and propose concise additions back to specs. Presents the top 3 gaps ranked by impact, with exact markdown previews and per-gap user confirmation before writing anything.
 
-This is the reverse of hydrate behavior (in `/fab-continue`): where hydrate flows specs → docs, hydrate-design flows docs → specs.
+This is the reverse of hydrate behavior (in `/fab-continue`): where hydrate flows specs → docs, hydrate-specs flows docs → specs.
 
 ---
 
@@ -140,7 +140,7 @@ When inserting:
 After all gaps have been presented (or user stopped early):
 
 ```
-Hydrate-design complete: {N} of {M} gaps applied to specs.
+Hydrate-specs complete: {N} of {M} gaps applied to specs.
 {K} additional gaps not shown.
 ```
 

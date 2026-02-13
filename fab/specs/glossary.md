@@ -53,7 +53,7 @@
 | `/fab-continue` (archive) | Completes the change — hydrates artifacts into centralized docs, moves to archive, clears pointer. |
 | `/fab-switch` | Changes the active change by updating `fab/current`. Supports partial/slug matching. |
 | `/fab-status` | Displays current change state — stage progress, checklist counts, suggested next command. |
-| `/fab-hydrate-design` | Identifies gaps between `fab/memory/` and `fab/specs/`, proposes additions with interactive confirmation. No active change required. |
+| `/fab-hydrate-specs` | Identifies gaps between `fab/memory/` and `fab/specs/`, proposes additions with interactive confirmation. No active change required. |
 | `/fab-help` | Prints an overview of available Fab skills and their purposes. |
 
 ---

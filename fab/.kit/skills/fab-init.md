@@ -136,7 +136,7 @@ If `fab/specs/index.md` does **not** exist:
 |------|-------------|
 ```
 
-If `fab/specs/index.md` **already exists**: report "design/index.md already exists — skipping" and move on.
+If `fab/specs/index.md` **already exists**: report "specs/index.md already exists — skipping" and move on.
 
 #### 1e. `fab/changes/`
 
@@ -205,7 +205,7 @@ Found fab/.kit/ (v{VERSION}). Verifying structure...
 config.yaml — OK
 constitution.md — OK
 docs/index.md — OK
-design/index.md — OK
+specs/index.md — OK
 changes/ — OK
 Symlinks: 11/11 valid (repaired 1)
 .gitignore: fab/current present
@@ -756,7 +756,7 @@ This skill is safe to run any number of times:
 
 - **Config and constitution**: Created once, never overwritten on re-run (bootstrap path)
 - **Docs index**: Created once, never touched on re-run
-- **Design index**: Created once, never touched on re-run
+- **Specs index**: Created once, never touched on re-run
 - **Changes directory**: Created once, never touched on re-run
 - **Symlinks**: Verified and repaired on every run — broken symlinks are fixed, valid ones are left alone
 - **`.gitignore`**: Entry is appended only if not already present

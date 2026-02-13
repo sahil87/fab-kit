@@ -51,7 +51,7 @@ A skill matching ANY `capable` criterion is classified as `capable`, regardless 
 | `fab-ff` | Multi-stage pipeline orchestration |
 | `fab-fff` | Full pipeline with confidence gating |
 | `fab-clarify` | Gap resolution, deep reasoning |
-| `fab-hydrate-design` | Structural gap analysis, spec modification |
+| `fab-hydrate-specs` | Structural gap analysis, spec modification |
 | `internal-consistency-check` | Cross-layer drift detection |
 | `internal-retrospect` | Retrospective analysis |
 

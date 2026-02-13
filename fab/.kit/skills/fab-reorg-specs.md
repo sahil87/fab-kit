@@ -1,15 +1,15 @@
 ---
-name: fab-reorg-design
-description: "Analyze design docs for themes and suggest reorganization. Read-only unless user approves changes."
+name: fab-reorg-specs
+description: "Analyze spec files for themes and suggest reorganization. Read-only unless user approves changes."
 ---
 
-# /fab-reorg-design
+# /fab-reorg-specs
 
 ---
 
 ## Purpose
 
-Read all design documents in `fab/specs/`, identify the main themes (up to 10), and propose a reorganization plan. Read-only by default — files are only moved or rewritten with explicit user approval.
+Read all spec files in `fab/specs/`, identify the main themes (up to 10), and propose a reorganization plan. Read-only by default — files are only moved or rewritten with explicit user approval.
 
 ---
 
@@ -26,7 +26,7 @@ Before doing anything else:
 
 or
 
-> `No design docs found in fab/specs/ besides index.md. Nothing to reorganize.`
+> `No spec files found in fab/specs/ besides index.md. Nothing to reorganize.`
 
 ---
 
@@ -43,7 +43,7 @@ This skill does **not** require `fab/current`, `fab/config.yaml`, or `fab/consti
 
 ## Behavior
 
-### Step 1: Read All Design Docs
+### Step 1: Read All Spec Files
 
 1. Read `fab/specs/index.md` to get the current file list and descriptions
 2. Read every `.md` file in `fab/specs/` (excluding `index.md`)
@@ -141,7 +141,7 @@ If the user approves (fully or partially):
 ### Analysis Complete (before confirmation)
 
 ```
-Scanned {N} design docs ({L} total lines).
+Scanned {N} spec files ({L} total lines).
 
 ## Themes Found
 (theme table)
@@ -165,7 +165,7 @@ Updated fab/specs/index.md.
 ### No Changes Needed
 
 ```
-Scanned {N} design docs ({L} total lines).
+Scanned {N} spec files ({L} total lines).
 
 Current structure is well-organized — no reorganization needed.
 (optional: minor suggestions as bullets)
@@ -178,7 +178,7 @@ Current structure is well-organized — no reorganization needed.
 | Condition | Action |
 |-----------|--------|
 | `fab/specs/index.md` missing | Abort: "fab/specs/index.md not found. Run /fab-init first." |
-| No `.md` files besides index | Abort: "No design docs found in fab/specs/ besides index.md." |
+| No `.md` files besides index | Abort: "No spec files found in fab/specs/ besides index.md." |
 | File write fails during apply | Report error, roll back that migration, continue to next |
 | Content verification fails (heading lost) | Warn user, show which heading is missing, ask whether to proceed |
 
@@ -189,11 +189,11 @@ Current structure is well-organized — no reorganization needed.
 | Property | Value |
 |----------|-------|
 | Advances stage? | **No** — not part of the change lifecycle |
-| Requires active change? | **No** — operates on project-level design docs |
+| Requires active change? | **No** — operates on project-level spec files |
 | Idempotent? | **Yes** — safe to run multiple times; re-analyzes each time |
 | Modifies `fab/current`? | **No** |
 | Modifies `.status.yaml`? | **No** |
 | Modifies source code? | **No** |
-| Modifies design docs? | **Yes** — only with explicit user confirmation |
+| Modifies spec files? | **Yes** — only with explicit user confirmation |
 | Creates git branch? | **No** |
 | Requires config/constitution? | **No** |

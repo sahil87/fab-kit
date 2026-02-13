@@ -19,6 +19,6 @@
 | [constitution-governance](constitution-governance.md) | Constitutional amendment workflow — semantic versioning, structural rules, audit trail | 2026-02-12 |
 | [configuration](configuration.md) | `config.yaml` schema, `constitution.md` governance, stage graph definition, lifecycle management | 2026-02-12 |
 | [preflight](preflight.md) | `fab-preflight.sh` script — validation, structured YAML output, skill integration | 2026-02-07 |
-| [hydrate-design](hydrate-design.md) | `/fab-hydrate-design` skill — structural gap detection between docs and design, interactive propose-then-apply | 2026-02-09 |
-| [design-index](design-index.md) | `fab/specs/` directory — pre-implementation design, distinction from docs, bootstrap and context integration | 2026-02-09 |
+| [hydrate-specs](hydrate-specs.md) | `/fab-hydrate-specs` skill — structural gap detection between docs and specs, interactive propose-then-apply | 2026-02-09 |
+| [specs-index](specs-index.md) | `fab/specs/` directory — pre-implementation specs, distinction from docs, bootstrap and context integration | 2026-02-09 |
 | [schemas](schemas.md) | `workflow.yaml` schema — stages, states, transitions, validation rules, design principles | 2026-02-12 |
