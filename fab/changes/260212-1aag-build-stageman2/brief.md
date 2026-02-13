@@ -14,7 +14,7 @@
 
 ## What Changes
 
-- New `fab/.kit/scripts/stageman2.sh` utility with dual-mode interface (CLI + sourced library)
+- New `fab/.kit/scripts/_stageman2.sh` utility with dual-mode interface (CLI + sourced library)
 - CLI commands for reads (`get progress`, `get stage`, `get checklist`, `get confidence`, `dump`, `validate`) and writes (`init`, `set progress`, `advance`, `reset`, `set confidence`, `set checklist.*`)
 - Library functions with `sm2_` prefix for namespace-safe coexistence with v1
 - `set progress` accepts multiple `stage:state` pairs as a transaction — validates net result before applying, rejects invalid states atomically
@@ -38,7 +38,7 @@
 
 ## Impact
 
-- **fab/.kit/scripts/**: New stageman2.sh alongside existing stageman.sh
+- **fab/.kit/scripts/**: New _stageman2.sh alongside existing _stageman.sh
 - **src/stageman/**: New symlink and test file alongside existing ones
 - **No existing files modified** — purely additive deployment
 - **Future migration** (out of scope for this change): fab-status.sh, fab-preflight.sh, and all skill .md files will switch from direct .status.yaml access to stageman2 API calls

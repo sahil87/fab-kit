@@ -84,6 +84,19 @@ project/
 
 ---
 
+## Script Naming Convention
+
+Scripts in `fab/.kit/scripts/` follow a prefix convention to distinguish entry points from internal libraries:
+
+| Prefix | Role | Invoked by | Example |
+|--------|------|------------|---------|
+| `fab-` | Entry point — invoked by skills or users | Skills, `fab-setup.sh` via terminal | `fab-preflight.sh`, `fab-status.sh` |
+| `_` | Internal library — sourced by other scripts | Other scripts via `source` | `_stageman.sh`, `_resolve-change.sh` |
+
+**Why?** When `.kit/` is distributed via `cp -r`, the `_` prefix makes it immediately clear which scripts are internal plumbing vs. which are callable entry points. This matters for discoverability and prevents accidental direct invocation of library scripts that expect to be sourced.
+
+---
+
 ## Active Change Tracking (`fab/current`)
 
 `fab/current` is a plain text file containing the name of the active change folder (e.g. `260115-a7k2-add-oauth`). It removes the need to scan `changes/` or remember folder names.
