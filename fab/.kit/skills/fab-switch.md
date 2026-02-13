@@ -125,7 +125,7 @@ Wait for user selection or let the user re-invoke with a different argument.
 
 When invoked as `/fab-switch --blank`:
 
-1. **Delete `fab/current`** — remove the file entirely (do not truncate or empty it). This is consistent with the pattern used by archive behavior in `/fab-continue`.
+1. **Delete `fab/current`** — remove the file entirely (do not truncate or empty it). This is consistent with the pattern used by `/fab-archive`.
    - If `fab/current` does not exist, this is a no-op (already deactivated).
 
 2. **Branch integration** (only if `--branch` is also provided):
@@ -265,7 +265,7 @@ Map stages to their numeric position for the `(N/6)` display:
 | `tasks` | 3 |
 | `apply` | 4 |
 | `review` | 5 |
-| `archive` | 6 |
+| `hydrate` | 6 |
 
 ---
 

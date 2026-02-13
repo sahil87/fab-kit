@@ -152,7 +152,7 @@ if [ -z "$stage" ]; then
   fi
   # Final fallback: all done (workflow complete)
   if [ -z "$stage" ]; then
-    stage="archive"
+    stage="hydrate"
   fi
 fi
 
@@ -199,9 +199,10 @@ case "${stage:-}:${current_progress:-}" in
   apply:done)              next="/fab-review" ;;
   review:pending)          next="/fab-continue" ;;
   review:active)           next="/fab-review" ;;
-  review:done)             next="/fab-archive" ;;
+  review:done)             next="/fab-continue" ;;
   review:failed)           next="/fab-review (re-review after fixes)" ;;
-  archive:done)            next="/fab-new <description>" ;;
+  hydrate:active)          next="/fab-continue" ;;
+  hydrate:done)            next="/fab-archive" ;;
 esac
 
 # --- Output ---

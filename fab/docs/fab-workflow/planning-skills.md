@@ -6,7 +6,7 @@
 
 The planning skills (`/fab-new`, `/fab-continue`, `/fab-clarify`) handle the first three stages of the 6-stage Fab pipeline: brief, spec, and tasks. They produce the artifacts that define *what* changes and *how*, before any code is written.
 
-`/fab-ff` is also documented here because its planning behavior (frontloaded questions, auto-clarify) originated as a planning skill. However, `/fab-ff` is now a **full-pipeline command** that continues through apply, review, and archive after planning completes. See the `/fab-ff` section below for details.
+`/fab-ff` is also documented here because its planning behavior (frontloaded questions, auto-clarify) originated as a planning skill. However, `/fab-ff` is now a **full-pipeline command** that continues through apply, review, and hydrate after planning completes. See the `/fab-ff` section below for details.
 
 ## Shared Generation Partial
 
@@ -80,14 +80,14 @@ Loads: config, constitution, `fab/docs/index.md` (to understand the existing doc
 
 ### `/fab-continue [<change-name>] [<stage>]`
 
-`/fab-continue` advances to the next pipeline stage — planning, implementation, review, or archive — and either generates the artifact or executes the stage's behavior. When called with a stage argument, it resets to that stage. When called with a change-name argument, it targets that change instead of the active one in `fab/current` (transient — `fab/current` is not modified). Both arguments can coexist; stage names are disambiguated first (fixed set of 6), all other arguments are treated as change-name overrides. The pipeline flows brief → spec → tasks → apply → review → archive.
+`/fab-continue` advances to the next pipeline stage — planning, implementation, review, or hydrate — and either generates the artifact or executes the stage's behavior. When called with a stage argument, it resets to that stage. When called with a change-name argument, it targets that change instead of the active one in `fab/current` (transient — `fab/current` is not modified). Both arguments can coexist; stage names are disambiguated first (fixed set of 6), all other arguments are treated as change-name overrides. The pipeline flows brief → spec → tasks → apply → review → hydrate.
 
 #### Normal Forward Flow (no argument)
 
 1. Read `.status.yaml` to determine current stage (the stage with `active` in the progress map)
 2. **Stage guard**: Check `progress.{stage}` value from preflight output:
    - For planning stages (brief, spec, tasks): if `progress.{stage} == 'done'` AND stage is `tasks`, transition to apply. If `progress.{stage} == 'active'`, allow generation to resume. If `progress.{stage} == 'pending'`, allow generation to start.
-   - For execution stages (apply, review, archive): dispatch to the stage's behavior (apply executes tasks, review validates implementation, archive completes the change).
+   - For execution stages (apply, review, hydrate): dispatch to the stage's behavior (apply executes tasks, review validates implementation, hydrate completes the change).
 3. Identify next artifact to create
 4. Load relevant template + context (including `fab/constitution.md` for principles)
 5. Generate artifact using the shared generation procedures from `_generation.md` (with clarification/research as needed)
@@ -98,7 +98,7 @@ Loads: config, constitution, `fab/docs/index.md` (to understand the existing doc
 #### Reset Behavior (with stage argument)
 
 When called as `/fab-continue <stage>` (e.g., `/fab-continue spec`):
-1. Target stage can be any of the 6 stages: `brief`, `spec`, `tasks`, `apply`, `review`, `archive`
+1. Target stage can be any of the 6 stages: `brief`, `spec`, `tasks`, `apply`, `review`, `hydrate`
 2. Reset `.status.yaml` progress: set target stage to `active`; mark all stages after target as `pending`
 3. Regenerate the target stage's artifact in place (update, not recreate from scratch — preserve what's still valid)
 4. Downstream artifacts are invalidated: tasks reset to `- [ ]`, checklist regenerated
@@ -113,7 +113,7 @@ Reset is primarily used after review identifies issues upstream.
 
 ### `/fab-ff [<change-name>]` (Fast Forward — Full Pipeline)
 
-`/fab-ff` runs the entire Fab pipeline in a single invocation: planning (spec, tasks) → apply → review → archive. It frontloads questions, interleaves auto-clarify between planning stages, and stops for interactive resolution when blocking issues arise at any phase. No confidence gate. Accepts an optional change-name argument to target a specific change instead of the active one in `fab/current`.
+`/fab-ff` runs the entire Fab pipeline in a single invocation: planning (spec, tasks) → apply → review → hydrate. It frontloads questions, interleaves auto-clarify between planning stages, and stops for interactive resolution when blocking issues arise at any phase. No confidence gate. Accepts an optional change-name argument to target a specific change instead of the active one in `fab/current`.
 
 #### Frontloaded Questions
 
@@ -135,7 +135,7 @@ The `/fab-ff` pipeline interleaves auto-clarify between planning stage generatio
 5. Auto-generate quality checklist
 6. Execute tasks via apply behavior
 7. Validate implementation via review behavior — on failure, presents interactive rework menu (fix code, revise tasks, revise spec)
-8. Hydrate docs and archive the change
+8. Hydrate docs into centralized docs
 
 #### Interactive Review Failure
 
@@ -144,7 +144,7 @@ Unlike `/fab-fff` which bails immediately on review failure, `/fab-ff` presents 
 #### When to Use
 
 - Want the full pipeline in one command but with the ability to intervene
-- Clear requirements upfront, want to reach archive quickly with safety nets
+- Clear requirements upfront, want to reach hydrate quickly with safety nets
 - Changes needing quality gates — auto-clarify catches issues between planning stages
 
 ### `/fab-fff [<change-name>]` (Full Autonomous Pipeline)
@@ -169,7 +169,7 @@ Each stage uses the same behavior as its standalone invocation. If planning bail
 
 #### When to Use
 
-- High-confidence changes where you want full autonomy from planning to archive
+- High-confidence changes where you want full autonomy from planning to hydrate
 - After raising confidence via `/fab-clarify` to meet the >= 3.0 threshold
 
 #### Context
@@ -264,9 +264,9 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 *Introduced by*: 260210-wpay-extract-shared-generation-logic
 
 ### Unified Command: `/fab-continue` Absorbs Execution Stages
-**Decision**: `/fab-continue` handles all 6 pipeline stages (brief → spec → tasks → apply → review → archive). Apply, review, and archive behaviors are described as dedicated sections within `fab-continue.md`, not extracted into a shared partial.
-**Why**: Reduces developer command surface from 4+ commands to 2 (`/fab-continue` + `/fab-clarify`). Execution stages are orchestration-heavy with distinct flows (task execution, validation with rework, hydration with folder moves) — inlining keeps each stage's behavior in one readable location.
-**Rejected**: Keeping standalone `/fab-apply`, `/fab-review`, `/fab-archive` — command fragmentation. Extracting to `_execution.md` partial — low reuse value since only fab-continue calls these.
+**Decision**: `/fab-continue` handles all 6 pipeline stages (brief → spec → tasks → apply → review → hydrate). Apply, review, and hydrate behaviors are described as dedicated sections within `fab-continue.md`, not extracted into a shared partial. `/fab-archive` exists as a standalone housekeeping skill (not a pipeline stage) for post-hydrate cleanup.
+**Why**: Reduces developer command surface from 4+ commands to 2 (`/fab-continue` + `/fab-clarify`). Execution stages are orchestration-heavy with distinct flows (task execution, validation with rework, doc hydration) — inlining keeps each stage's behavior in one readable location.
+**Rejected**: Keeping standalone `/fab-apply`, `/fab-review` — command fragmentation. Extracting to `_execution.md` partial — low reuse value since only fab-continue calls these.
 *Introduced by*: 260212-a4bd-unify-fab-continue
 
 ### `/fab-ff` and `/fab-fff` Keep Behavioral Descriptions
@@ -277,7 +277,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 ### Reset via `/fab-continue <stage>`
 **Decision**: Reset to any pipeline stage by passing the stage name as an argument to `/fab-continue`. For planning stages, downstream artifacts are invalidated and regenerated. For execution stages, the stage behavior is re-run without resetting task checkboxes.
-**Why**: Provides a clean re-entry point after review identifies upstream issues. Reuses the existing skill rather than adding a separate `/fab-reset` command. Covers all 6 stages (brief, spec, tasks, apply, review, archive).
+**Why**: Provides a clean re-entry point after review identifies upstream issues. Reuses the existing skill rather than adding a separate `/fab-reset` command. Covers all 6 stages (brief, spec, tasks, apply, review, hydrate).
 **Rejected**: Separate reset skill — unnecessary proliferation of skills for a rare operation.
 *Source*: doc/fab-spec/SKILLS.md; *Updated by*: 260212-a4bd-unify-fab-continue (extended to all 6 stages)
 
@@ -285,6 +285,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-jc0u-split-archive-hydrate | 2026-02-13 | Updated all pipeline references from `archive` to `hydrate` as terminal stage. Updated `/fab-continue` and `/fab-ff`/`/fab-fff` descriptions. Updated unified command design decision to reflect `/fab-archive` as standalone housekeeping skill. |
 | 260213-w4k9-explicit-change-targeting | 2026-02-13 | All workflow skills (`/fab-continue`, `/fab-ff`, `/fab-fff`, `/fab-clarify`) now accept optional `[change-name]` argument for targeting non-active changes. `/fab-continue` disambiguates stage names vs change names. Preflight handles matching centrally |
 | 260212-r7xp-fix-fab-new-brief-stage | 2026-02-12 | `/fab-new` no longer marks brief complete — removed Step 8 ("Mark Brief Complete"), renumbered Step 9 → Step 8. Brief stays `active` after `/fab-new`; `/fab-continue` handles the brief → spec transition. Updated Change Initialization list and `_context.md` Next Steps table |
 | 260212-a4bd-unify-fab-continue | 2026-02-12 | Unified `/fab-apply`, `/fab-review`, `/fab-archive` into `/fab-continue`. Updated stage guard, reset behavior, and cross-references to reflect unified command |

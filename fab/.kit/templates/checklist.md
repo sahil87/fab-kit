@@ -46,5 +46,5 @@
 ## Notes
 
 - Check items as you review: `- [x]`
-- All items must pass before `/fab-continue` (archive)
+- All items must pass before `/fab-continue` (hydrate)
 - If an item is not applicable, mark checked and prefix with **N/A**: `- [x] CHK-008 **N/A**: {reason}`

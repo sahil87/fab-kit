@@ -38,7 +38,7 @@ When operating on an active change, skills selectively load relevant domain docs
 1. Read the brief's Affected Docs section (or spec's Affected docs metadata) to identify relevant domains
 2. For each referenced domain, read `fab/docs/{domain}/index.md`
 3. For each specific doc referenced, read `fab/docs/{domain}/{name}.md`
-4. If a referenced domain or doc doesn't exist yet, note this and proceed without error (it will be created by archive)
+4. If a referenced domain or doc doesn't exist yet, note this and proceed without error (it will be created during hydrate)
 5. Do not load unrelated domains — keeps context focused and efficient
 
 This applies to all skills operating on an active change, not just spec-writing skills.

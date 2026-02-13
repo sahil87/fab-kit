@@ -22,9 +22,9 @@
    - Conditions specify when transitions are allowed
 
 4. **Progression** — How to navigate the workflow
-   - Current stage detection: first `active` stage, or `archive` if all done
+   - Current stage detection: first `active` stage, or `hydrate` if all done
    - Next stage calculation: first `pending` stage with satisfied dependencies
-   - Completion check: `archive` is `done`
+   - Completion check: `hydrate` is `done`
 
 5. **Validation** — Rules for `.status.yaml` correctness
    - Exactly 0-1 active stages
@@ -70,4 +70,5 @@ For the complete API reference, see `src/stageman/README.md`.
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-jc0u-split-archive-hydrate | 2026-02-13 | Updated progression references: terminal stage from `archive` to `hydrate` |
 | 260212-4tw0-migrate-scripts-stageman | 2026-02-12 | Moved from `fab/.kit/schemas/README.md`, trimmed stageman API duplication |

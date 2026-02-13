@@ -1,6 +1,6 @@
 ---
 name: fab-fff
-description: "Full autonomous pipeline — confidence gate, then planning → apply → review → archive with no interactive stops."
+description: "Full autonomous pipeline — confidence gate, then planning → apply → review → hydrate with no interactive stops."
 ---
 
 # /fab-fff [<change-name>]
@@ -11,9 +11,9 @@ description: "Full autonomous pipeline — confidence gate, then planning → ap
 
 ## Purpose
 
-Run the entire Fab pipeline from planning through archive in a single invocation, gated on confidence score >= 3.0. Each stage uses the same behavior as its standalone invocation. Unlike `/fab-ff`, which also runs the full pipeline but stops for interactive clarification, `/fab-fff` never stops — it bails immediately on review failure and auto-clarifies without user input.
+Run the entire Fab pipeline from planning through hydrate in a single invocation, gated on confidence score >= 3.0. Each stage uses the same behavior as its standalone invocation. Unlike `/fab-ff`, which also runs the full pipeline but stops for interactive clarification, `/fab-fff` never stops — it bails immediately on review failure and auto-clarifies without user input.
 
-Use this when confidence is high and you want to go from brief to archived change without manual intervention.
+Use this when confidence is high and you want to go from brief to hydrated change without manual intervention.
 
 ---
 
@@ -75,7 +75,7 @@ On invocation, check the `progress` map from preflight output. **Skip stages alr
 
 - If all planning stages are `done` → skip fab-ff, start at fab-apply
 - If `progress.apply` is `done` → skip fab-apply, start at fab-review
-- If `progress.review` is `done` → skip fab-review, start at fab-archive
+- If `progress.review` is `done` → skip fab-review, start at fab-hydrate
 
 This makes `/fab-fff` resumable after interruption or failure — re-running picks up from the first incomplete stage.
 
@@ -83,7 +83,7 @@ This makes `/fab-fff` resumable after interruption or failure — re-running pic
 
 *(Skip if all planning stages — spec, tasks — are `done` or `skipped`.)*
 
-Execute `/fab-ff` planning behavior (Steps 1-5: frontload questions, interleaved auto-clarify, bail on blockers). This generates spec and tasks with quality checklist. Only the planning portion of fab-ff is used here — fab-fff handles apply/review/archive in its own subsequent steps.
+Execute `/fab-ff` planning behavior (Steps 1-5: frontload questions, interleaved auto-clarify, bail on blockers). This generates spec and tasks with quality checklist. Only the planning portion of fab-ff is used here — fab-fff handles apply/review/hydrate in its own subsequent steps.
 
 **If fab-ff bails on blocking issues**, the `/fab-fff` pipeline stops. Output:
 
@@ -107,11 +107,11 @@ Execute review behavior — validate implementation against specs and checklists
 
 > `Review failed. Run /fab-continue to see rework options, or /fab-clarify to refine artifacts.`
 
-### Step 4: Archive (fab-archive)
+### Step 4: Hydrate
 
-*(Skip if `progress.archive` is `done`.)*
+*(Skip if `progress.hydrate` is `done`.)*
 
-Execute archive behavior — validate review passed, hydrate learnings into centralized docs, move change to archive, clear pointer.
+Execute hydrate behavior — validate review passed, hydrate learnings into centralized docs, update `.status.yaml` to `hydrate: done`.
 
 ---
 
@@ -134,13 +134,13 @@ Execute archive behavior — validate review passed, hydrate learnings into cent
 
 {review output}
 
---- Archive ---
+--- Hydrate ---
 
-{archive output}
+{hydrate output}
 
-Pipeline complete. Change archived.
+Pipeline complete. Change hydrated.
 
-Next: /fab-new <description> (start next change)
+Next: /fab-archive (archive change)
 ```
 
 ### Confidence Gate Failure
@@ -193,13 +193,13 @@ Skipping implementation — already done.
 
 {review output}
 
---- Archive ---
+--- Hydrate ---
 
-{archive output}
+{hydrate output}
 
-Pipeline complete. Change archived.
+Pipeline complete. Change hydrated.
 
-Next: /fab-new <description> (start next change)
+Next: /fab-archive (archive change)
 ```
 
 ---
@@ -222,7 +222,7 @@ Next: /fab-new <description> (start next change)
 
 | Property | Value |
 |----------|-------|
-| Advances stage? | **Yes** — progresses through all stages to `archive: done` |
+| Advances stage? | **Yes** — progresses through all stages to `hydrate: done` |
 | Idempotent? | **Yes** — safe to re-invoke; skips completed stages |
 | Modifies artifacts? | **Yes** — generates planning artifacts, implements tasks, hydrates docs |
 | Updates `.status.yaml`? | **Yes** — each sub-skill updates as it completes |
@@ -246,7 +246,7 @@ Next: /fab-new <description> (start next change)
 
 After `/fab-fff` completes:
 
-`Next: /fab-new <description> (start next change)`
+`Next: /fab-archive (archive change)`
 
 After `/fab-fff` bails:
 

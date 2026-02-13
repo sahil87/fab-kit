@@ -35,7 +35,7 @@ Optional section for project-wide workflow conventions. All keys are optional st
 
 #### `stages`
 Ordered list of stage definitions (6 stages). Each stage:
-- `id` — Stage identifier (brief, spec, tasks, apply, review, archive)
+- `id` — Stage identifier (brief, spec, tasks, apply, review, hydrate)
 - `generates` — Artifact filename (e.g., `brief.md`, `spec.md`)
 - `requires` — List of prerequisite stage IDs
 - `required` — Whether this stage is mandatory (boolean)
@@ -142,6 +142,7 @@ See [init family](init-family.md) for the complete command suite.
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-jc0u-split-archive-hydrate | 2026-02-13 | Updated terminal stage ID from `archive` to `hydrate` in stages list |
 | 260213-r3m7-add-conventions-section | 2026-02-13 | Added optional `conventions` section to config.yaml schema — branch_naming, pr_title, backlog keys |
 | 260212-v5p2-brief-pipeline-stage | 2026-02-12 | Restored brief as formal pipeline stage — 6 stages, added brief to stage IDs |
 | 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Updated stages pipeline from 6 to 5, removed brief entry from config documentation |

@@ -1,6 +1,6 @@
 ---
 name: fab-continue
-description: "Advance to the next pipeline stage — planning, implementation, review, or archive — or reset to a given stage."
+description: "Advance to the next pipeline stage — planning, implementation, review, or hydrate — or reset to a given stage."
 ---
 
 # /fab-continue [<change-name>] [<stage>]
@@ -11,7 +11,7 @@ description: "Advance to the next pipeline stage — planning, implementation, r
 
 ## Purpose
 
-Advance through the entire 6-stage Fab pipeline one step at a time. Each invocation handles the current stage's work and transitions to the next. Covers planning (brief → spec → tasks), execution (apply), validation (review), and completion (archive). When called with a stage argument, resets to that stage and re-runs from there.
+Advance through the entire 6-stage Fab pipeline one step at a time. Each invocation handles the current stage's work and transitions to the next. Covers planning (brief → spec → tasks), execution (apply), validation (review), and completion (hydrate). When called with a stage argument, resets to that stage and re-runs from there.
 
 This is the primary command for moving through the Fab workflow. Developers primarily need two commands: `/fab-continue` (advance) and `/fab-clarify` (refine).
 
@@ -20,7 +20,7 @@ This is the primary command for moving through the Fab workflow. Developers prim
 ## Arguments
 
 - **`<change-name>`** *(optional)* — target a specific change instead of the active one in `fab/current`. Supports full folder names, partial slug matches, or 4-char IDs (e.g., `r3m7`). When provided, the change-name is passed to the preflight script as `$1` for transient resolution — `fab/current` is **not** modified. Uses case-insensitive substring matching consistent with `/fab-switch`.
-- **`<stage>`** *(optional)* — target stage to reset to. Accepted values: `brief`, `spec`, `tasks`, `apply`, `review`, `archive`. When provided, resets `.status.yaml` to this stage and re-runs from there. Used after review identifies issues upstream, or to re-run any stage.
+- **`<stage>`** *(optional)* — target stage to reset to. Accepted values: `brief`, `spec`, `tasks`, `apply`, `review`, `hydrate`. When provided, resets `.status.yaml` to this stage and re-runs from there. Used after review identifies issues upstream, or to re-run any stage.
 
 Both arguments MAY be provided together in any order (e.g., `/fab-continue r3m7 spec`). **Disambiguation**: arguments matching one of the 6 stage names are treated as stage reset targets; all other arguments are treated as change-name overrides.
 
@@ -32,7 +32,7 @@ If no argument is provided, the skill advances to the **next** stage of the acti
 
 Before doing anything else, run the preflight script:
 
-1. Parse arguments: classify each as a stage name (`brief`, `spec`, `tasks`, `apply`, `review`, `archive`) or a change-name override. Stage names take priority.
+1. Parse arguments: classify each as a stage name (`brief`, `spec`, `tasks`, `apply`, `review`, `hydrate`) or a change-name override. Stage names take priority.
 2. Execute `fab/.kit/scripts/fab-preflight.sh [change-name]` via Bash — pass the change-name argument if one was provided
 3. If the script exits non-zero, **STOP** and surface the stderr message to the user
 4. Parse the stdout YAML to get `name`, `change_dir`, `stage`, `progress`, `checklist`, and `confidence`
@@ -47,10 +47,10 @@ When called without arguments, advance to the next stage in sequence.
 
 ### Step 1: Determine Current Stage
 
-Determine the current stage from the preflight output's `stage` field. The preflight derives the stage using a three-tier fallback: (1) first stage with `active` state, (2) first `pending` stage after the last `done` stage, (3) `archive` if all stages are `done`. The stage progression is:
+Determine the current stage from the preflight output's `stage` field. The preflight derives the stage using a three-tier fallback: (1) first stage with `active` state, (2) first `pending` stage after the last `done` stage, (3) `hydrate` if all stages are `done`. The stage progression is:
 
 ```
-brief → spec → tasks → apply → review → archive
+brief → spec → tasks → apply → review → hydrate
 ```
 
 **Pre-guard activation**: If the derived stage's progress is `pending` (no `active` entry exists), set it to `active` in `.status.yaml` before dispatching. This handles the post-reset state where the target stage was marked `done` but the next stage was left `pending`.
@@ -63,9 +63,9 @@ brief → spec → tasks → apply → review → archive
 | `spec` | Generate `tasks.md` + checklist → set `spec: done`, `tasks: active` |
 | `tasks` | Execute apply behavior → set `tasks: done`, `apply: active` → on completion set `apply: done`, `review: active` |
 | `apply` | Resume apply behavior → on completion set `apply: done`, `review: active` |
-| `review` | Execute review behavior → on pass: `review: done`, `archive: active`. On fail: `review: failed`, `apply: active` |
-| `archive` | Execute archive behavior → `archive: done` |
-| `archive` (all `done`) | Block: "Change is complete." |
+| `review` | Execute review behavior → on pass: `review: done`, `hydrate: active`. On fail: `review: failed`, `apply: active` |
+| `hydrate` | Execute hydrate behavior → `hydrate: done` |
+| `hydrate` (all `done`) | Block: "Change is complete." |
 
 ### Step 2: Load Context
 
@@ -105,7 +105,7 @@ Load everything from the execution context above, plus:
 - **Centralized docs** — read `fab/docs/index.md` and the specific docs referenced by the brief's Affected Docs section, to check for doc drift
 - **Relevant source code** — read files touched by the change
 
-#### Archive Stage
+#### Hydrate Stage
 
 Load:
 - `fab/config.yaml` — project config, tech stack, conventions
@@ -148,9 +148,9 @@ See [Apply Behavior](#apply-behavior) section below.
 
 See [Review Behavior](#review-behavior) section below.
 
-#### Completion: Archive Behavior
+#### Completion: Hydrate Behavior
 
-See [Archive Behavior](#archive-behavior) section below.
+See [Hydrate Behavior](#hydrate-behavior) section below.
 
 ### Step 3b: Recompute Confidence Score (Planning Stages Only)
 
@@ -179,9 +179,9 @@ After successfully completing the stage:
 | `spec` (active) | `tasks.md` generated | `spec: done`, `tasks: active` |
 | `tasks` (active) | All tasks executed | `tasks: done`, `apply: done`, `review: active` |
 | `apply` (active) | Remaining tasks executed | `apply: done`, `review: active` |
-| `review` (active) | Validation passed | `review: done`, `archive: active` |
+| `review` (active) | Validation passed | `review: done`, `hydrate: active` |
 | `review` (active) | Validation failed | `review: failed`, `apply: active` |
-| `archive` (active) | Docs hydrated, change moved | `archive: done` |
+| `hydrate` (active) | Docs hydrated | `hydrate: done` |
 
 ### Step 5: Output
 
@@ -264,12 +264,12 @@ Compare implementation against key requirements from `spec.md`. Verify GIVEN/WHE
 
 #### Step 5: Check for Doc Drift
 
-Compare implementation against centralized docs referenced in the brief. Doc drift is a **warning** (not failure) — signals work for archive.
+Compare implementation against centralized docs referenced in the brief. Doc drift is a **warning** (not failure) — signals work for hydrate.
 
 ### Review Verdict
 
 **Pass** — all tasks `[x]`, all checklist items `[x]`, tests pass, spec matches:
-- Set `review: done`, `archive: active`
+- Set `review: done`, `hydrate: active`
 - Update `checklist.completed` count
 - Output review report, then: `Next: /fab-continue`
 
@@ -297,9 +297,9 @@ Present all options and let the user choose:
 
 ---
 
-## Archive Behavior
+## Hydrate Behavior
 
-When the active stage is `review` (with `review: done`) or `archive`, complete the change and hydrate learnings.
+When the active stage is `review` (with `review: done`) or `hydrate`, complete the pipeline by hydrating learnings into centralized docs.
 
 ### Preconditions
 
@@ -328,52 +328,7 @@ For each centralized doc referenced in the brief's Affected Docs:
 
 #### Step 4: Update `.status.yaml`
 
-Set `progress.archive` to `done`. Update `last_updated`.
-
-#### Step 5: Move Change Folder to Archive
-
-Move `fab/changes/{name}/` → `fab/changes/archive/{name}/`. Create `archive/` if needed. Do NOT rename.
-
-#### Step 6: Update Archive Index
-
-Maintain `fab/changes/archive/index.md`. If it doesn't exist, create with backfill. Prepend new entry (most-recent-first): `- **{folder-name}** — {1-2 sentence description from brief Why section}`.
-
-#### Step 7: Mark Backlog Items Done
-
-##### Step 7a: Exact-ID Check
-
-If the brief contains a backlog ID (in Origin section), find and mark it done in `fab/backlog.md`. Move from Backlog section to Done section. This is the existing behavior and runs in all modes (interactive and auto).
-
-##### Step 7b: Keyword Scan (Interactive Mode Only)
-
-After the exact-ID check, perform a secondary keyword scan to surface related backlog items. **Skip this step entirely in auto mode** (when archive runs via `/fab-ff` or `/fab-fff`).
-
-1. **Extract keywords**: Parse the brief's title (`# Brief: {title}` heading) and Why section content. Filter out common stop words (articles, prepositions, conjunctions, common verbs: "is", "are", "has", "should", "must", "the", "a", "an", "in", "of", "to", "for", "and", "or", "with", "from", "by", "on", "at", "this", "that", "it", "be", "not", "no"). Normalize remaining words to lowercase.
-2. **Match candidates**: Compare extracted keywords against each unchecked (`- [ ]`) backlog item's description text (case-insensitive). A backlog item is a candidate when at least **2 significant keywords** overlap with the item's description. Exclude any item already marked done by the exact-ID check in Step 7a.
-3. **No candidates**: If no items meet the 2-keyword threshold, proceed silently (no output for this sub-step).
-
-##### Step 7c: Interactive Confirmation (Interactive Mode Only)
-
-If Step 7b produced candidate matches, present them to the user:
-
-```
-Backlog matches found:
-  1. [ID] {description (truncated to ~80 chars)}
-  2. [ID] {description (truncated to ~80 chars)}
-
-Mark as done? (comma-separated numbers, or "none")
-```
-
-- **User responds with numbers** (e.g., "1" or "1,3"): Mark the selected items done — change checkbox from `- [ ]` to `- [x]`, move from Backlog section to Done section (prepend, most-recent-first)
-- **User responds with "none"**: No items are marked done, archive proceeds normally
-
-#### Step 8: Clear Pointer
-
-Delete `fab/current`.
-
-### Order of Operations (Fail-Safe)
-
-Steps 4-8 execute in this order for safety: status first (recoverable if interrupted), folder move second, index third, backlog fourth, pointer last.
+Set `progress.hydrate` to `done`. Update `last_updated`.
 
 ---
 
@@ -383,9 +338,9 @@ When called with a stage argument (e.g., `/fab-continue spec`), reset to that st
 
 ### Step 1: Validate Target Stage
 
-The target stage must be one of: `brief`, `spec`, `tasks`, `apply`, `review`, `archive`.
+The target stage must be one of: `brief`, `spec`, `tasks`, `apply`, `review`, `hydrate`.
 
-Any other value → Output: `Unknown stage "{value}". Valid reset targets: brief, spec, tasks, apply, review, archive.`
+Any other value → Output: `Unknown stage "{value}". Valid reset targets: brief, spec, tasks, apply, review, hydrate.`
 
 ### Step 2: Load Context
 
@@ -411,14 +366,14 @@ progress:
   tasks: pending      # invalidated
   apply: pending      # invalidated
   review: pending     # invalidated
-  archive: pending    # invalidated
+  hydrate: pending    # invalidated
 ```
 
 ### Step 4: Execute Target Stage
 
 **For planning stages** (brief, spec, tasks): Regenerate the artifact **in place** — update the existing file, preserving what's still valid.
 
-**For execution stages** (apply, review, archive): Re-run the stage's behavior (apply resumes from first unchecked task, review re-validates, archive re-hydrates). Task checkboxes are NOT reset — they reflect real implementation progress.
+**For execution stages** (apply, review, hydrate): Re-run the stage's behavior (apply resumes from first unchecked task, review re-validates, hydrate re-hydrates). Task checkboxes are NOT reset — they reflect real implementation progress.
 
 ### Step 5: Invalidate Downstream Artifacts (Planning Resets Only)
 
@@ -447,7 +402,7 @@ progress:
   tasks: pending      # NOT set to active — user runs /fab-continue to advance
   apply: pending      # invalidated
   review: pending     # invalidated
-  archive: pending    # invalidated
+  hydrate: pending    # invalidated
 ```
 
 The user then runs `/fab-continue` (no argument) to advance into `tasks`. The preflight's three-tier fallback derives `tasks` as the current stage (first pending after last done), the pre-guard activation sets it to `active`, and normal flow proceeds.
@@ -549,10 +504,10 @@ Rework options:
 Which option? (1-3)
 ```
 
-### Normal Flow — Archive Complete
+### Normal Flow — Hydrate Complete
 
 ```
-Archive: {change name}
+Hydrate: {change name}
 
 Validation: ✓ All tasks and checklist items complete
 Concurrent: ✓ No conflicts
@@ -560,16 +515,11 @@ Concurrent: ✓ No conflicts
 Hydrated docs:
   - fab/docs/{domain}/{name}.md (updated)
 
-Status:   ✓ archive: done
-Archived: ✓ fab/changes/archive/{name}/
-Index:    ✓ fab/changes/archive/index.md updated
-Backlog:  ✓ [ID] marked done
-Scan:     ✓ {N} candidates found, {M} marked done | no matches | skipped (auto mode)
-Pointer:  ✓ fab/current cleared
+Status:   ✓ hydrate: done
 
-Archive complete.
+Hydrate complete.
 
-Next: /fab-new <description> (start next change)
+Next: /fab-archive
 ```
 
 ### Reset Flow — Planning Reset
@@ -598,7 +548,7 @@ Next: /fab-continue or /fab-ff or /fab-clarify
 Resetting to apply stage...
 - apply: active
 - review: pending
-- archive: pending
+- hydrate: pending
 
 Resuming implementation. {M} of {N} tasks already complete, {R} remaining.
 
@@ -618,14 +568,11 @@ Next: /fab-continue
 | `tasks.md` missing when apply needed | Abort with: "No tasks.md found. Run /fab-continue to generate tasks first." |
 | `checklist.md` missing when review needed | Abort with: "No checklist found. Run /fab-continue to generate the checklist first." |
 | Unchecked tasks when review attempted | Abort with: "{N} of {total} tasks are incomplete. Run /fab-continue to finish implementation first." |
-| Review not passed when archive attempted | Abort with: "Review has not passed. Run /fab-continue to validate implementation first." |
-| Unknown reset target | Abort with: "Unknown stage \"{value}\". Valid reset targets: brief, spec, tasks, apply, review, archive." |
+| Review not passed when hydrate attempted | Abort with: "Review has not passed. Run /fab-continue to validate implementation first." |
+| Unknown reset target | Abort with: "Unknown stage \"{value}\". Valid reset targets: brief, spec, tasks, apply, review, hydrate." |
 | Template file missing (planning stages) | Abort with: "Template not found at fab/.kit/templates/{file} — kit may be corrupted." |
 | Test failure during apply | Fix implementation, re-run tests, repeat until passing |
 | All tasks already `[x]` during apply | Set apply: done, output "All tasks already complete." |
-| `fab/backlog.md` missing during archive Step 7 | Skip keyword scan silently (exact-ID check also skips if no file) |
-| Keyword scan finds no matches | Proceed silently — no output for this sub-step |
-| User declines all keyword scan candidates | Proceed normally — no items marked done |
 
 ---
 
@@ -634,15 +581,15 @@ Next: /fab-continue
 | Property | Value |
 |----------|-------|
 | Advances stage? | **Yes** — progresses through all 6 stages |
-| Idempotent? | **Yes** — safe to re-invoke; planning regenerates, apply resumes from first unchecked task, review re-validates, archive recovers from interruption |
+| Idempotent? | **Yes** — safe to re-invoke; planning regenerates, apply resumes from first unchecked task, review re-validates, hydrate recovers from interruption |
 | Modifies planning artifacts? | **Yes** — generates spec.md, tasks.md, checklist.md |
 | Modifies tasks.md? | **Yes** — marks tasks `[x]` during apply; unchecks during review rework |
 | Modifies checklist.md? | **Yes** — marks items `[x]` during review |
 | Modifies source code? | **Yes** — during apply behavior |
-| Modifies `fab/docs/`? | **Yes** — during archive behavior (hydration) |
+| Modifies `fab/docs/`? | **Yes** — during hydrate behavior (hydration) |
 | Updates `.status.yaml`? | **Yes** — after each stage completion |
-| Moves change folder? | **Yes** — during archive (to `fab/changes/archive/`) |
-| Clears `fab/current`? | **Yes** — during archive |
+| Moves change folder? | **No** — hydrate leaves folder in `fab/changes/`. Use `/fab-archive` to move to archive. |
+| Clears `fab/current`? | **No** — hydrate does not clear the pointer. Use `/fab-archive` to clear. |
 
 ---
 
@@ -657,10 +604,10 @@ After `/fab-continue` completes, output the appropriate next line:
 | apply | `Next: /fab-continue` |
 | review (pass) | `Next: /fab-continue` |
 | review (fail) | *(contextual rework options)* |
-| archive | `Next: /fab-new <description> (start next change)` |
+| hydrate | `Next: /fab-archive` |
 | reset to brief | `Next: /fab-continue or /fab-clarify` |
 | reset to spec | `Next: /fab-continue or /fab-ff or /fab-clarify` |
 | reset to tasks | `Next: /fab-continue or /fab-ff` |
 | reset to apply | `Next: /fab-continue` |
 | reset to review | `Next: /fab-continue` |
-| reset to archive | `Next: /fab-new <description> (start next change)` |
+| reset to hydrate | `Next: /fab-archive` |
