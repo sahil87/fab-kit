@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# fab/.kit/scripts/fab-setup.sh — Structural bootstrap for fab
+# fab/.kit/scripts/_fab-scaffold.sh — Structural bootstrap for fab
 #
 # Sets up directories, symlinks, and .gitignore entries that /fab-init
 # would create (Phase 1 only — no config.yaml or constitution.md generation).
 #
-# Run from anywhere: fab/.kit/scripts/fab-setup.sh
+# Run from anywhere: fab/.kit/scripts/_fab-scaffold.sh
 # Safe to re-run (idempotent).
 
 scripts_dir="$(cd "$(dirname "$0")" && pwd)"

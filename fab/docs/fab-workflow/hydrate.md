@@ -10,7 +10,7 @@
 
 ### Standalone Hydrate Skill
 
-The system provides `/fab-hydrate [sources...|folders...]` as an independent skill containing hydration and generation logic. It is defined in `fab/.kit/skills/fab-hydrate.md` and is auto-discovered by `fab-setup.sh`'s `fab-*.md` glob pattern.
+The system provides `/fab-hydrate [sources...|folders...]` as an independent skill containing hydration and generation logic. It is defined in `fab/.kit/skills/fab-hydrate.md` and is auto-discovered by `_fab-scaffold.sh`'s `fab-*.md` glob pattern.
 
 ### Argument-Driven Mode Selection
 

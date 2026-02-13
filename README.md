@@ -24,7 +24,7 @@ cp -r /path/to/fab-kit/fab/.kit ./fab/
 Then run setup and init:
 
 ```bash
-fab/.kit/scripts/fab-setup.sh   # creates directories, symlinks, .gitignore
+fab/.kit/scripts/_fab-scaffold.sh   # creates directories, symlinks, .gitignore
 direnv allow # To approve .envrc content, used to add scripts to path
 # Once setup completes, use your AI agent to run:
 #> /fab-init     # generates config.yaml and constitution.md
@@ -45,15 +45,15 @@ From there, the agent will inform you the following instructions.
 To update `fab/.kit/` to the latest release:
 
 ```bash
-fab-update.sh 
-# bash fab/.kit/scripts/fab-update.sh
+fab-upgrade.sh
+# bash fab/.kit/scripts/fab-upgrade.sh
 ```
 
 This will:
 1. Download the latest `kit.tar.gz` from GitHub Releases
 2. Atomically replace `fab/.kit/` (your `config.yaml`, `docs/`, `changes/`, etc. are never touched)
 3. Display the version change (e.g., "0.1.0 → 0.2.0")
-4. Re-run `fab-setup.sh` to repair symlinks
+4. Re-run `_fab-scaffold.sh` to repair symlinks
 
 **Requires**: [gh CLI](https://cli.github.com/) installed and authenticated.
 

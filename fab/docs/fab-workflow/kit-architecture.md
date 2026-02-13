@@ -35,19 +35,19 @@ fab/.kit/
 ├── schemas/                # Workflow schema
 │   └── workflow.yaml       # Canonical stage/state definitions
 └── scripts/                # Shell utilities
-    ├── fab-setup.sh        # Structural bootstrap
+    ├── _fab-scaffold.sh    # Structural bootstrap
     ├── fab-help.sh         # Print help overview
     ├── fab-preflight.sh    # Pre-flight validation (sources stageman)
     ├── fab-status.sh       # Quick terminal status check (sources stageman)
     ├── stageman.sh         # Stage Manager — schema query utility
-    ├── fab-update.sh       # Update .kit/ from GitHub Releases
+    ├── fab-upgrade.sh      # Update .kit/ from GitHub Releases
     ├── fab-release.sh      # Package and release .kit/ to GitHub
     └── fab-update-claude-settings.sh
 ```
 
 ### Shell Scripts
 
-#### `fab-setup.sh`
+#### `_fab-scaffold.sh`
 
 The structural bootstrap script. Creates directories, symlinks, `docs/index.md`, and `.gitignore` entries. It is the single source of truth for structural setup. `/fab-init` delegates to it and adds the interactive parts (config, constitution).
 
@@ -59,9 +59,9 @@ Full status display for the active change. Sources `stageman.sh` for schema-driv
 
 Prints the Fab Kit help overview and skill catalog. MUST be updated when skills are added or removed.
 
-#### `fab-update.sh`
+#### `fab-upgrade.sh`
 
-Downloads the latest `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/` (extract to temp dir, verify, swap), displays the version change, and re-runs `fab-setup.sh` to repair symlinks. Requires `gh` CLI. Preserves all project files outside `.kit/`. Handles errors: gh CLI missing, network failure, extraction verification failure, already-up-to-date.
+Downloads the latest `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/` (extract to temp dir, verify, swap), displays the version change, and re-runs `_fab-scaffold.sh` to repair symlinks. Requires `gh` CLI. Preserves all project files outside `.kit/`. Handles errors: gh CLI missing, network failure, extraction verification failure, already-up-to-date.
 
 #### `fab-release.sh`
 
@@ -75,7 +75,7 @@ Copies `settings.local.json` to the worktree-init assets directory for worktree 
 
 Agent-specific skill files SHALL be symlinks pointing into `fab/.kit/skills/`. This means updating `.kit/` automatically updates all agent integrations — no re-export step needed.
 
-`fab-setup.sh` creates symlinks for all three supported agents unconditionally. The skill prompt files are agent-agnostic markdown; only the symlink locations and formats differ per agent.
+`_fab-scaffold.sh` creates symlinks for all three supported agents unconditionally. The skill prompt files are agent-agnostic markdown; only the symlink locations and formats differ per agent.
 
 **Claude Code** — directory-based skills:
 ```
@@ -106,7 +106,7 @@ Skills classified as `fast` tier (via `model_tier: fast` in frontmatter) get **b
 .claude/agents/fab-switch.md
 ```
 
-Agent files are self-contained (not symlinks) because they need a translated `model:` field. `fab-setup.sh` regenerates them on each run, so they stay in sync with `.kit/` updates.
+Agent files are self-contained (not symlinks) because they need a translated `model:` field. `_fab-scaffold.sh` regenerates them on each run, so they stay in sync with `.kit/` updates.
 
 Capable-tier skills (the default) get symlinks only — no agent files. See [model-tiers.md](model-tiers.md) for the full tier system documentation.
 
@@ -128,7 +128,7 @@ cp -r /path/to/fab-kit/fab/.kit fab/.kit
 ```
 
 Then in either case:
-1. User runs `fab/.kit/scripts/fab-setup.sh` → creates directories, symlinks, docs skeleton
+1. User runs `fab/.kit/scripts/_fab-scaffold.sh` → creates directories, symlinks, docs skeleton
 2. User runs `/fab-init` → generates `config.yaml`, `constitution.md`
 3. User optionally runs `/fab-hydrate` → ingests external docs
 4. User runs `/fab-new` → first change created
@@ -148,7 +148,7 @@ Step 1 is a shell script. Steps 2-4 are skill-driven.
 
 ### Updating `.kit/`
 
-Run `fab/.kit/scripts/fab-update.sh` to update to the latest release. The script downloads `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/`, and re-runs `fab-setup.sh` to repair symlinks. Requires the `gh` CLI.
+Run `fab/.kit/scripts/fab-upgrade.sh` to update to the latest release. The script downloads `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/`, and re-runs `_fab-scaffold.sh` to repair symlinks. Requires the `gh` CLI.
 
 Symlinks in `.claude/skills/`, `.opencode/commands/`, and `.agents/skills/` automatically resolve to the new files after the update.
 
@@ -195,11 +195,12 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-iq2l-rename-setup-scripts | 2026-02-13 | Renamed `fab-setup.sh` → `_fab-scaffold.sh` and `fab-update.sh` → `fab-upgrade.sh`; updated directory listing and all script references |
 | 260213-v8r3-remove-dead-fab-help-agent | 2026-02-13 | Removed `.claude/agents/fab-help.md` from agent files listing — agent was never spawned; skill + script pair covers all usage |
 | 260212-4tw0-migrate-scripts-stageman | 2026-02-12 | Migrated fab-status.sh and fab-preflight.sh to source stageman.sh; added stageman.sh, fab-preflight.sh, and schemas/ to directory listing |
 | 260212-ipoe-checklist-folder-location | 2026-02-12 | Template listing already shows `checklist.md` — no structural change needed; changelog entry for traceability |
 | 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated directory listing: brief.md replaces proposal.md, plan.md removed, fab/design/ replaces fab/specs/ |
-| 260210-h7r3-kit-distribution-update | 2026-02-10 | Added `fab-update.sh` and `fab-release.sh` script descriptions, bootstrap one-liner (Option A), atomic update mechanism, version-based update flow |
-| 260210-m3k7-multi-agent-support | 2026-02-10 | Added OpenCode commands and Codex skills symlink creation to `fab-setup.sh`; documented all three agent integration paths |
+| 260210-h7r3-kit-distribution-update | 2026-02-10 | Added `fab-upgrade.sh` and `fab-release.sh` script descriptions, bootstrap one-liner (Option A), atomic update mechanism, version-based update flow |
+| 260210-m3k7-multi-agent-support | 2026-02-10 | Added OpenCode commands and Codex skills symlink creation to `_fab-scaffold.sh`; documented all three agent integration paths |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | — | 2026-02-07 | Generated from doc/fab-spec/ (ARCHITECTURE.md, README.md) |

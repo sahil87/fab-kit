@@ -72,7 +72,7 @@
 | `fab/design/` | Human-curated pre-implementation design specifications. Flat structure, not managed by Fab tooling. |
 | `fab/.kit/` | The Fab engine directory — templates, skills, scripts. Replaceable upstream without affecting project-specific files. |
 | `fab/.kit/templates/` | Markdown scaffolds that skills fill with concrete content. Includes templates for all artifact types. |
-| `fab/.kit/scripts/` | Shell utilities — `fab-setup.sh` (structural bootstrap), `fab-status.sh` (terminal status), `fab-preflight.sh` (pre-skill validation), `fab-help.sh` (skill catalog). |
+| `fab/.kit/scripts/` | Shell utilities — `_fab-scaffold.sh` (structural bootstrap), `fab-status.sh` (terminal status), `fab-preflight.sh` (pre-skill validation), `fab-help.sh` (skill catalog). |
 
 ---
 

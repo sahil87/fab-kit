@@ -1,0 +1,22 @@
+name: 260213-iq2l-rename-setup-scripts
+created: 2026-02-13T12:00:00+00:00
+created_by: sahil-weaver
+progress:
+  brief: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklist.md
+  completed: 20
+  total: 20
+confidence:
+  certain: 9
+  confident: 1
+  tentative: 0
+  unresolved: 0
+  score: 4.7
+last_updated: 2026-02-13T19:00:00+00:00

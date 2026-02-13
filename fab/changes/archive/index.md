@@ -1,5 +1,6 @@
 # Archive Index
 
+- **260213-iq2l-rename-setup-scripts** — Renamed `fab-setup.sh` → `_fab-scaffold.sh` (underscore prefix signals internal plumbing) and `fab-update.sh` → `fab-upgrade.sh` (matches developer vocabulary). Updated all callers, skills, docs, design files, and README. Reduces user-facing concepts from 3 to 2 (init + upgrade).
 - **260213-r3m7-add-conventions-section** — Added an optional `conventions:` section to `config.yaml` for project-wide workflow conventions (branch naming, PR title format, backlog location). All keys are optional strings. Updated `fab/docs/fab-workflow/configuration.md` with section documentation.
 - **260213-v4rx-simplify-templates** — Simplified brief and spec templates: flattened Affected Docs from 3 subsections to a single list with inline `(new)`/`(modify)`/`(remove)` markers, removed BLOCKING/DEFERRED labels from Open Questions (SRAD handles prioritization), replaced spec optional section placeholders with a single guidance comment. Updated `_context.md` wording and centralized templates doc.
 - **260213-v8r3-remove-dead-fab-help-agent** — Removed the dead `.claude/agents/fab-help.md` agent file that was never spawned by any skill or pipeline. Updated kit-architecture.md to remove the stale entry from the agent files listing.

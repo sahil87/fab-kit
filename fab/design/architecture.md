@@ -31,7 +31,7 @@ project/
 │   │   │   └── fab-status.md
 │   │   └── scripts/                # Lightweight shell utilities
 │   │       ├── fab-help.sh         # Print Fab Kit help overview
-│   │       ├── fab-setup.sh        # Structural bootstrap for fab
+│   │       ├── _fab-scaffold.sh        # Structural bootstrap for fab
 │   │       └── fab-status.sh       # Full status display (version, progress, next command)
 │   ├── config.yaml                 # Project-specific configuration
 │   ├── constitution.md             # Project principles & constraints
@@ -342,7 +342,7 @@ Agent-specific skill files are **symlinks** pointing into `fab/.kit/skills/`. Th
 
 ### Claude Code (`.claude/skills/`)
 
-`/fab-init` (or `fab/.kit/scripts/fab-setup.sh`) creates skill subdirectories with symlinks:
+`/fab-init` (or `fab/.kit/scripts/_fab-scaffold.sh`) creates skill subdirectories with symlinks:
 ```
 .claude/skills/
 ├── fab-init/
@@ -376,7 +376,7 @@ Same pattern — symlinks from the agent's convention directory into `fab/.kit/s
 
 ```
 1. User obtains .kit/  →  cp -r /path/to/fab-kit fab/.kit
-2. User runs fab/.kit/scripts/fab-setup.sh  →  creates directories, symlinks, docs/index.md, .gitignore entry
+2. User runs fab/.kit/scripts/_fab-scaffold.sh  →  creates directories, symlinks, docs/index.md, .gitignore entry
 3. User runs /fab-init  →  generates config.yaml, constitution.md (structural bootstrap)
 4. User optionally runs /fab-hydrate  →  ingests external docs into fab/docs/
 5. User runs /fab-new  →  first change is created
@@ -384,7 +384,7 @@ Same pattern — symlinks from the agent's convention directory into `fab/.kit/s
 
 Step 1 is manual. Step 2 is a shell script. Steps 3–5 are skill-driven.
 
-`fab/.kit/scripts/fab-setup.sh` handles all structural setup (directories, symlinks, `.gitignore`) and is the single source of truth for that structure. `/fab-init` delegates to it (step 1e) and adds the interactive parts (config, constitution). `fab/.kit/scripts/fab-help.sh` mirrors the skill catalog — it must be updated when skills are added or removed.
+`fab/.kit/scripts/_fab-scaffold.sh` handles all structural setup (directories, symlinks, `.gitignore`) and is the single source of truth for that structure. `/fab-init` delegates to it (step 1e) and adds the interactive parts (config, constitution). `fab/.kit/scripts/fab-help.sh` mirrors the skill catalog — it must be updated when skills are added or removed.
 
 **Re-running `/fab-init`**: Init is idempotent — safe to call at any time. On subsequent runs it verifies structure and repairs broken symlinks. To ingest external documentation into `fab/docs/`, use `/fab-hydrate` — see [Skills Reference](SKILLS.md#fabhydrate-sources) for details.
 

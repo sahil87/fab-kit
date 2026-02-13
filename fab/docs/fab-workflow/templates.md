@@ -94,7 +94,7 @@ Skill files in `fab/.kit/skills/` use YAML frontmatter with these fields:
 - **`description`** *(required)* — short description shown in skill listings
 - **`model_tier`** *(optional)* — provider-agnostic model tier. Valid values: `fast`. Omission means `capable` (the default — use the platform's most capable model)
 
-The `model_tier` field is used by `fab-setup.sh` during deployment to generate agent files with provider-specific `model:` fields. See [model-tiers.md](model-tiers.md) for tier selection criteria and the full mapping system.
+The `model_tier` field is used by `_fab-scaffold.sh` during deployment to generate agent files with provider-specific `model:` fields. See [model-tiers.md](model-tiers.md) for tier selection criteria and the full mapping system.
 
 ### Centralized Doc Format (`fab/docs/`)
 

@@ -19,10 +19,10 @@ mkdir -p fab
 curl -sL https://github.com/wvrdz/fab-kit/releases/latest/download/kit.tar.gz | tar xz -C fab/
 ```
 
-After extraction, the user MUST run `fab/.kit/scripts/fab-setup.sh` to create directories (`changes/`, `docs/`, `design/`), skeleton files (`docs/index.md`, `design/index.md`), symlinks, `.envrc`, and `.gitignore` entries. The bootstrap only provides `.kit/` — no `config.yaml`, `constitution.md`, or other project files.
+After extraction, the user MUST run `fab/.kit/scripts/_fab-scaffold.sh` to create directories (`changes/`, `docs/`, `design/`), skeleton files (`docs/index.md`, `design/index.md`), symlinks, `.envrc`, and `.gitignore` entries. The bootstrap only provides `.kit/` — no `config.yaml`, `constitution.md`, or other project files.
 
 **Scenarios**:
-- Bootstrap a new project (no `fab/` directory) — creates `fab/.kit/` with all skills, templates, scripts, and VERSION file; running `fab-setup.sh` then creates `changes/`, `docs/index.md`, `design/index.md`, symlinks, `.envrc`, and `.gitignore` entry
+- Bootstrap a new project (no `fab/` directory) — creates `fab/.kit/` with all skills, templates, scripts, and VERSION file; running `_fab-scaffold.sh` then creates `changes/`, `docs/index.md`, `design/index.md`, symlinks, `.envrc`, and `.gitignore` entry
 - Bootstrap with existing `fab/` directory — creates or replaces `fab/.kit/`; existing files outside `.kit/` (config.yaml, constitution.md, docs/, design/, changes/) are NOT affected
 
 #### Manual Copy Still Works
@@ -33,26 +33,26 @@ The existing `cp -r` distribution method SHALL continue to work. The bootstrap o
 
 ### Update
 
-#### Update Script (`fab-update.sh`)
+#### Update Script (`fab-upgrade.sh`)
 
-`fab/.kit/scripts/fab-update.sh` SHALL download the latest `kit.tar.gz` from GitHub Releases, extract it to replace the current `fab/.kit/` contents, display the version change, and re-run `fab-setup.sh` to repair symlinks.
+`fab/.kit/scripts/fab-upgrade.sh` SHALL download the latest `kit.tar.gz` from GitHub Releases, extract it to replace the current `fab/.kit/` contents, display the version change, and re-run `_fab-scaffold.sh` to repair symlinks.
 
 **Scenarios**:
-- Update to a newer version — replaces `.kit/` contents, displays version change (e.g., "0.1.0 → 0.2.0"), re-runs `fab-setup.sh`, preserves all files outside `.kit/`
+- Update to a newer version — replaces `.kit/` contents, displays version change (e.g., "0.1.0 → 0.2.0"), re-runs `_fab-scaffold.sh`, preserves all files outside `.kit/`
 - Already up to date — informs user, no files modified
 - No network access — exits non-zero with error message, existing `.kit/` unchanged
 
 #### Update Preserves Project Files
 
-`fab-update.sh` MUST NOT modify any files outside of `fab/.kit/`. Preserved: `fab/config.yaml`, `fab/constitution.md`, `fab/docs/`, `fab/design/`, `fab/changes/`, `fab/current`.
+`fab-upgrade.sh` MUST NOT modify any files outside of `fab/.kit/`. Preserved: `fab/config.yaml`, `fab/constitution.md`, `fab/docs/`, `fab/design/`, `fab/changes/`, `fab/current`.
 
 #### gh CLI as Primary Download Tool
 
-`fab-update.sh` SHALL use `gh release download` as the primary method to download the release asset. If `gh` is not installed, the script exits with an error directing the user to install it. Curl fallback is deferred to a future enhancement.
+`fab-upgrade.sh` SHALL use `gh release download` as the primary method to download the release asset. If `gh` is not installed, the script exits with an error directing the user to install it. Curl fallback is deferred to a future enhancement.
 
 #### Atomic Update
 
-`fab-update.sh` SHALL use an atomic update strategy: extract `kit.tar.gz` to a temporary directory, verify the extraction succeeded (checks for VERSION file), then replace the existing `fab/.kit/` via `rm -rf` and `mv`. This prevents corruption if interrupted mid-extraction.
+`fab-upgrade.sh` SHALL use an atomic update strategy: extract `kit.tar.gz` to a temporary directory, verify the extraction succeeded (checks for VERSION file), then replace the existing `fab/.kit/` via `rm -rf` and `mv`. This prevents corruption if interrupted mid-extraction.
 
 **Scenarios**:
 - Interrupted during download — existing `.kit/` unchanged
@@ -61,7 +61,7 @@ The existing `cp -r` distribution method SHALL continue to work. The bootstrap o
 
 #### Symlink Repair After Update
 
-After extracting the new `.kit/` contents, `fab-update.sh` SHALL re-run `fab-setup.sh` to ensure all agent symlinks (`.claude/skills/`, `.opencode/commands/`, `.agents/skills/`) point to the updated skill files.
+After extracting the new `.kit/` contents, `fab-upgrade.sh` SHALL re-run `_fab-scaffold.sh` to ensure all agent symlinks (`.claude/skills/`, `.opencode/commands/`, `.agents/skills/`) point to the updated skill files.
 
 ### Release
 
@@ -101,5 +101,6 @@ The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its rol
 
 | Change | Date | Summary |
 |--------|------|---------|
-| 260212-emcb-clarify-fab-setup | 2026-02-12 | Updated bootstrap description to include `fab/design/` directory and `design/index.md` in `fab-setup.sh` output |
+| 260213-iq2l-rename-setup-scripts | 2026-02-13 | Renamed script references: `fab-setup.sh` → `_fab-scaffold.sh`, `fab-update.sh` → `fab-upgrade.sh` |
+| 260212-emcb-clarify-fab-setup | 2026-02-12 | Updated bootstrap description to include `fab/design/` directory and `design/index.md` in `_fab-scaffold.sh` output |
 | 260210-h7r3-kit-distribution-update | 2026-02-10 | Initial creation — bootstrap, update, release, and repo rename requirements |

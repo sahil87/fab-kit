@@ -39,7 +39,7 @@ A skill matching ANY `capable` criterion is classified as `capable`, regardless 
 | `fab-help` | Delegates to `fab-help.sh` |
 | `fab-status` | Delegates to `fab-status.sh` |
 | `fab-switch` | State lookup, branch operations, no artifact generation |
-| `fab-init` | Structural bootstrap, delegates to `fab-setup.sh` |
+| `fab-init` | Structural bootstrap, delegates to `_fab-scaffold.sh` |
 
 **Capable tier** (no `model_tier` field):
 
@@ -83,7 +83,7 @@ Config entries replace (not merge with) the corresponding `.kit/` entries. If no
 
 ### Deployment: Dual Strategy
 
-`fab-setup.sh` deploys fast-tier skills to both skill and agent directories:
+`_fab-scaffold.sh` deploys fast-tier skills to both skill and agent directories:
 
 - **Skill directory** (`.claude/skills/`): Symlink as usual — for user invocation via `/fab-help`
 - **Agent directory** (`.claude/agents/`): Generated file with translated `model:` field — for pipeline invocation via Task tool
@@ -93,7 +93,7 @@ Capable skills get symlinks only (no agent files). This is because Claude Code s
 ### Adding a New Provider
 
 1. Add the platform key under each tier in `fab/.kit/model-tiers.yaml`
-2. Update `fab-setup.sh` to generate agent files for the new platform
+2. Update `_fab-scaffold.sh` to generate agent files for the new platform
 3. Add the symlink/agent creation call in the appropriate section
 
 ### Selecting a Tier for New Skills

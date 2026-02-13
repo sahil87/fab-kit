@@ -17,7 +17,7 @@
 - Creates `fab/docs/index.md` (documentation index skeleton)
 - Creates `fab/design/index.md` (specifications index skeleton — pre-implementation, human-curated)
 - Creates `fab/changes/` directory
-- Creates skill symlinks via `fab-setup.sh` glob pattern
+- Creates skill symlinks via `_fab-scaffold.sh` glob pattern
 - Creates `.gitignore` entries
 - Safe to re-run (idempotent — skips existing files)
 
@@ -37,7 +37,7 @@ As an alternative to manual `cp -r`, new projects can use the one-liner bootstra
 curl -sL https://github.com/wvrdz/fab-kit/releases/latest/download/kit.tar.gz | tar xz -C fab/
 ```
 
-After extraction, run `fab/.kit/scripts/fab-setup.sh` then `/fab-init` as usual.
+After extraction, run `fab/.kit/scripts/_fab-scaffold.sh` then `/fab-init` as usual.
 
 ## Related Commands
 
@@ -49,21 +49,21 @@ For post-initialization management of config and constitution files, see the [in
 
 ## Delegation Pattern
 
-`/fab-init` delegates structural setup to `fab/.kit/scripts/fab-setup.sh` and adds interactive configuration on top. This means `fab-setup.sh` can be run independently (e.g., in CI or after a bootstrap download) without requiring `/fab-init`.
+`/fab-init` delegates structural setup to `fab/.kit/scripts/_fab-scaffold.sh` and adds interactive configuration on top. This means `_fab-scaffold.sh` can be run independently (e.g., in CI or after a bootstrap download) without requiring `/fab-init`.
 
 | Responsibility | Owner | Notes |
 |---|---|---|
-| Directories (`changes/`, `docs/`, `design/`) | `fab-setup.sh` | Non-interactive, scriptable |
-| Skeleton files (`docs/index.md`, `design/index.md`) | `fab-setup.sh` | Idempotent — skips if file exists |
-| Skill symlinks (Claude Code, OpenCode, Codex) | `fab-setup.sh` | Discovers skills via glob pattern |
-| `.envrc` symlink | `fab-setup.sh` | Links to `fab/.kit/envrc` |
-| `.gitignore` (`fab/current` entry) | `fab-setup.sh` | Appends if not present |
+| Directories (`changes/`, `docs/`, `design/`) | `_fab-scaffold.sh` | Non-interactive, scriptable |
+| Skeleton files (`docs/index.md`, `design/index.md`) | `_fab-scaffold.sh` | Idempotent — skips if file exists |
+| Skill symlinks (Claude Code, OpenCode, Codex) | `_fab-scaffold.sh` | Discovers skills via glob pattern |
+| `.envrc` symlink | `_fab-scaffold.sh` | Links to `fab/.kit/envrc` |
+| `.gitignore` (`fab/current` entry) | `_fab-scaffold.sh` | Appends if not present |
 | `config.yaml` | `/fab-init-config` (delegated by `/fab-init`) | Single source of truth for config generation and updates |
 | `constitution.md` | `/fab-init-constitution` (delegated by `/fab-init`) | Single source of truth for constitution generation and amendments |
 
-`/fab-init` invokes `fab-setup.sh` as step 1f of its bootstrap sequence. Steps 1c–1e in `/fab-init` have idempotent guards so they gracefully skip artifacts already created by `fab-setup.sh`.
+`/fab-init` invokes `_fab-scaffold.sh` as step 1f of its bootstrap sequence. Steps 1c–1e in `/fab-init` have idempotent guards so they gracefully skip artifacts already created by `_fab-scaffold.sh`.
 
-**Bootstrap path** (without `/fab-init`): After downloading `fab/.kit/` via curl or `cp -r`, running `fab-setup.sh` alone creates a complete structural scaffold. `/fab-init` is only needed to generate `config.yaml` and `constitution.md`.
+**Bootstrap path** (without `/fab-init`): After downloading `fab/.kit/` via curl or `cp -r`, running `_fab-scaffold.sh` alone creates a complete structural scaffold. `/fab-init` is only needed to generate `config.yaml` and `constitution.md`.
 
 ## Design Decisions
 
@@ -90,8 +90,9 @@ For post-initialization management of config and constitution files, see the [in
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-iq2l-rename-setup-scripts | 2026-02-13 | Renamed `fab-setup.sh` → `_fab-scaffold.sh` in delegation pattern and all references |
 | 260212-h9k3-fab-init-family | 2026-02-12 | Added Related Commands section, updated Delegation Pattern to reflect `/fab-init` delegating to `/fab-init-config` and `/fab-init-constitution` |
-| 260212-emcb-clarify-fab-setup | 2026-02-12 | Added Delegation Pattern section documenting responsibility split between `/fab-init` and `fab-setup.sh` |
+| 260212-emcb-clarify-fab-setup | 2026-02-12 | Added Delegation Pattern section documenting responsibility split between `/fab-init` and `_fab-scaffold.sh` |
 | 260210-h7r3-kit-distribution-update | 2026-02-10 | Added Bootstrap Alternative section with curl one-liner as alternative to manual `cp -r` |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | 260207-bb1q-add-specs-index | 2026-02-07 | Added `fab/design/index.md` creation as step 1d in bootstrap sequence |

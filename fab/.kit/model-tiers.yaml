@@ -1,7 +1,7 @@
 # fab/.kit/model-tiers.yaml
 #
 # Maps provider-agnostic tier names to provider-specific model identifiers.
-# Used by fab-setup.sh when deploying skills to agent directories.
+# Used by _fab-scaffold.sh when deploying skills to agent directories.
 #
 # Tiers:
 #   fast    — simple skills (script delegation, lookups, formatted output)

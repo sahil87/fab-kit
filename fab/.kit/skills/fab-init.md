@@ -42,16 +42,16 @@ Do NOT proceed with structural bootstrap when arguments are passed — this prev
 
 ### Delegation Pattern
 
-`/fab-init` delegates structural setup to `fab/.kit/scripts/fab-setup.sh` (invoked in step 1f) and only adds interactive/configuration artifacts on top. This separation keeps the script automatable for CI and bootstrap workflows while the skill handles project-specific configuration that requires user input.
+`/fab-init` delegates structural setup to `fab/.kit/scripts/_fab-scaffold.sh` (invoked in step 1f) and only adds interactive/configuration artifacts on top. This separation keeps the script automatable for CI and bootstrap workflows while the skill handles project-specific configuration that requires user input.
 
 | Responsibility | Owner | Why |
 |---|---|---|
-| Directories, skeleton files, symlinks, .gitignore, .envrc | `fab-setup.sh` | Scriptable, automatable, no user input needed |
+| Directories, skeleton files, symlinks, .gitignore, .envrc | `_fab-scaffold.sh` | Scriptable, automatable, no user input needed |
 | `config.yaml` (interactive) | `/fab-init-config` (delegated by `/fab-init`) | Single source of truth for config generation and updates |
 | `constitution.md` (interactive) | `/fab-init-constitution` (delegated by `/fab-init`) | Single source of truth for constitution generation and amendments |
-| Invoking `fab-setup.sh` | `/fab-init` (step 1f) | Ensures structural setup runs as part of init |
+| Invoking `_fab-scaffold.sh` | `/fab-init` (step 1f) | Ensures structural setup runs as part of init |
 
-Steps 1c–1e below have idempotent guards (`if not exists`) so they gracefully skip when `fab-setup.sh` has already created the structural artifacts.
+Steps 1c–1e below have idempotent guards (`if not exists`) so they gracefully skip when `_fab-scaffold.sh` has already created the structural artifacts.
 
 ### Phase 1: Structural Bootstrap
 
@@ -131,7 +131,7 @@ If `fab/changes/` **already exists**: ensure `fab/changes/archive/` exists (crea
 
 #### 1f. `.claude/skills/` Symlinks
 
-Run `fab/.kit/scripts/fab-setup.sh` to create or repair all skill symlinks and directories. This script is the **single source of truth** for the structural bootstrap — it handles directories, symlinks, docs index, and `.gitignore`.
+Run `fab/.kit/scripts/_fab-scaffold.sh` to create or repair all skill symlinks and directories. This script is the **single source of truth** for the structural bootstrap — it handles directories, symlinks, docs index, and `.gitignore`.
 
 The script discovers skills dynamically by globbing `fab/.kit/skills/fab-*.md` — no hardcoded list to maintain. Each discovered skill gets a subdirectory symlink:
 
