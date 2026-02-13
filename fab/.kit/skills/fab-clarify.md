@@ -3,7 +3,7 @@ name: fab-clarify
 description: "Refine the current stage artifact — resolve gaps, ambiguities, or [NEEDS CLARIFICATION] markers without advancing."
 ---
 
-# /fab-clarify
+# /fab-clarify [<change-name>]
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -35,11 +35,19 @@ See `_context.md` > Skill Invocation Protocol for the full protocol definition.
 
 ---
 
+## Arguments
+
+- **`<change-name>`** *(optional)* — target a specific change instead of the active one in `fab/current`. Supports full folder names, partial slug matches, or 4-char IDs (e.g., `r3m7`). When provided, passed to the preflight script as `$1` for transient resolution — `fab/current` is **not** modified.
+
+If no argument is provided, the skill operates on the active change in `fab/current`.
+
+---
+
 ## Pre-flight Check
 
 Before doing anything else, run the preflight script:
 
-1. Execute `fab/.kit/scripts/fab-preflight.sh` via Bash
+1. Execute `fab/.kit/scripts/fab-preflight.sh [change-name]` via Bash — pass the change-name argument if one was provided
 2. If the script exits non-zero, **STOP** and surface the stderr message to the user
 3. Parse the stdout YAML to get `name`, `change_dir`, `stage`, `progress`, `checklist`, and `confidence`
 

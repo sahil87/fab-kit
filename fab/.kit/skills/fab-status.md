@@ -4,7 +4,7 @@ description: "Show current change state at a glance — name, branch, stage, che
 model_tier: fast
 ---
 
-# /fab-status
+# /fab-status [<change-name>]
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -13,6 +13,14 @@ model_tier: fast
 ## Purpose
 
 Show the current change state at a glance — change name, branch, stage progress, checklist status, kit version, and suggested next command. Provides a quick orientation for where you are in the workflow without modifying anything.
+
+---
+
+## Arguments
+
+- **`<change-name>`** *(optional)* — target a specific change instead of the active one in `fab/current`. Supports full folder names, partial slug matches, or 4-char IDs (e.g., `r3m7`). When provided, passed to the status script as `$1` for transient resolution — `fab/current` is **not** modified.
+
+If no argument is provided, the skill displays status for the active change in `fab/current`.
 
 ---
 
@@ -27,7 +35,7 @@ This skill uses **minimal context** — it does not need to load `fab/config.yam
 Run the shell script and present its output:
 
 ```bash
-bash fab/.kit/scripts/fab-status.sh
+bash fab/.kit/scripts/fab-status.sh [change-name]
 ```
 
 The script handles all validation, parsing, and formatting:

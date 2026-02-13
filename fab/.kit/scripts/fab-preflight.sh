@@ -13,17 +13,73 @@ if [ ! -f "$fab_root/config.yaml" ] || [ ! -f "$fab_root/constitution.md" ]; the
   exit 1
 fi
 
-# 2. fab/current validation
-current_file="$fab_root/current"
-if [ ! -f "$current_file" ]; then
-  echo "No active change. Run /fab-new to start one." >&2
-  exit 1
-fi
+# 2. Resolve change name — from $1 override or fab/current
+override="${1:-}"
 
-name=$(tr -d '[:space:]' < "$current_file")
-if [ -z "$name" ]; then
-  echo "No active change. Run /fab-new to start one." >&2
-  exit 1
+if [ -n "$override" ]; then
+  # --- Override mode: match $1 against fab/changes/ folders ---
+  changes_dir="$fab_root/changes"
+  if [ ! -d "$changes_dir" ]; then
+    echo "fab/changes/ not found. Run /fab-init to set up the project." >&2
+    exit 1
+  fi
+
+  # Collect non-archive folder names
+  mapfile -t folders < <(
+    for d in "$changes_dir"/*/; do
+      [ -d "$d" ] || continue
+      base="$(basename "$d")"
+      [ "$base" = "archive" ] && continue
+      echo "$base"
+    done
+  )
+
+  if [ ${#folders[@]} -eq 0 ]; then
+    echo "No active changes found. Run /fab-new to start one." >&2
+    exit 1
+  fi
+
+  # Case-insensitive matching
+  override_lower=$(echo "$override" | tr '[:upper:]' '[:lower:]')
+  exact_match=""
+  partial_matches=()
+
+  for folder in "${folders[@]}"; do
+    folder_lower=$(echo "$folder" | tr '[:upper:]' '[:lower:]')
+    if [ "$folder_lower" = "$override_lower" ]; then
+      exact_match="$folder"
+      break
+    elif [[ "$folder_lower" == *"$override_lower"* ]]; then
+      partial_matches+=("$folder")
+    fi
+  done
+
+  if [ -n "$exact_match" ]; then
+    name="$exact_match"
+  elif [ ${#partial_matches[@]} -eq 1 ]; then
+    name="${partial_matches[0]}"
+  elif [ ${#partial_matches[@]} -gt 1 ]; then
+    matches_list=$(printf ', %s' "${partial_matches[@]}")
+    matches_list="${matches_list:2}"  # trim leading ', '
+    echo "Multiple changes match \"$override\": $matches_list. Provide a more specific name." >&2
+    exit 1
+  else
+    echo "No change matches \"$override\"." >&2
+    exit 1
+  fi
+else
+  # --- Default mode: read fab/current ---
+  current_file="$fab_root/current"
+  if [ ! -f "$current_file" ]; then
+    echo "No active change. Run /fab-new to start one." >&2
+    exit 1
+  fi
+
+  name=$(tr -d '[:space:]' < "$current_file")
+  if [ -z "$name" ]; then
+    echo "No active change. Run /fab-new to start one." >&2
+    exit 1
+  fi
 fi
 
 # 3. Change directory validation

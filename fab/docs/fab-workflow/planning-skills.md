@@ -78,9 +78,9 @@ After generating the brief, `/fab-new` computes the SRAD confidence score and wr
 
 Loads: config, constitution, `fab/docs/index.md` (to understand the existing doc landscape).
 
-### `/fab-continue [<stage>]`
+### `/fab-continue [<change-name>] [<stage>]`
 
-`/fab-continue` advances to the next pipeline stage — planning, implementation, review, or archive — and either generates the artifact or executes the stage's behavior. When called with a stage argument, it resets to that stage. The pipeline flows brief → spec → tasks → apply → review → archive.
+`/fab-continue` advances to the next pipeline stage — planning, implementation, review, or archive — and either generates the artifact or executes the stage's behavior. When called with a stage argument, it resets to that stage. When called with a change-name argument, it targets that change instead of the active one in `fab/current` (transient — `fab/current` is not modified). Both arguments can coexist; stage names are disambiguated first (fixed set of 6), all other arguments are treated as change-name overrides. The pipeline flows brief → spec → tasks → apply → review → archive.
 
 #### Normal Forward Flow (no argument)
 
@@ -111,9 +111,9 @@ Reset is primarily used after review identifies issues upstream.
 - **Spec**: config, constitution, `brief.md`, target centralized doc(s) from `fab/docs/`
 - **Tasks**: above + completed `spec.md`
 
-### `/fab-ff` (Fast Forward — Full Pipeline)
+### `/fab-ff [<change-name>]` (Fast Forward — Full Pipeline)
 
-`/fab-ff` runs the entire Fab pipeline in a single invocation: planning (spec, tasks) → apply → review → archive. It frontloads questions, interleaves auto-clarify between planning stages, and stops for interactive resolution when blocking issues arise at any phase. No confidence gate.
+`/fab-ff` runs the entire Fab pipeline in a single invocation: planning (spec, tasks) → apply → review → archive. It frontloads questions, interleaves auto-clarify between planning stages, and stops for interactive resolution when blocking issues arise at any phase. No confidence gate. Accepts an optional change-name argument to target a specific change instead of the active one in `fab/current`.
 
 #### Frontloaded Questions
 
@@ -147,9 +147,9 @@ Unlike `/fab-fff` which bails immediately on review failure, `/fab-ff` presents 
 - Clear requirements upfront, want to reach archive quickly with safety nets
 - Changes needing quality gates — auto-clarify catches issues between planning stages
 
-### `/fab-fff` (Full Autonomous Pipeline)
+### `/fab-fff [<change-name>]` (Full Autonomous Pipeline)
 
-`/fab-fff` runs the entire Fab pipeline autonomously in a single invocation, gated on confidence score >= 3.0. Unlike `/fab-ff`, which stops for interactive clarification, `/fab-fff` never stops for user input — it bails immediately on review failure and auto-clarifies without user interaction.
+`/fab-fff` runs the entire Fab pipeline autonomously in a single invocation, gated on confidence score >= 3.0. Unlike `/fab-ff`, which stops for interactive clarification, `/fab-fff` never stops for user input — it bails immediately on review failure and auto-clarifies without user interaction. Accepts an optional change-name argument to target a specific change instead of the active one in `fab/current`.
 
 #### Confidence Gate
 
@@ -176,9 +176,9 @@ Each stage uses the same behavior as its standalone invocation. If planning bail
 
 Loads all planning context upfront: config, constitution, `brief.md`, target centralized doc(s) from `fab/docs/`.
 
-### `/fab-clarify`
+### `/fab-clarify [<change-name>]`
 
-`/fab-clarify` deepens and refines the current stage artifact without advancing to the next stage. It operates in two modes depending on call context: **suggest mode** (user invocation) and **auto mode** (internal `fab-ff` call). It is idempotent and non-advancing. See [clarify.md](clarify.md) for the detailed dual-mode specification.
+`/fab-clarify` deepens and refines the current stage artifact without advancing to the next stage. It operates in two modes depending on call context: **suggest mode** (user invocation) and **auto mode** (internal `fab-ff` call). It is idempotent and non-advancing. Accepts an optional change-name argument to target a specific change instead of the active one in `fab/current`. See [clarify.md](clarify.md) for the detailed dual-mode specification.
 
 #### Suggest Mode (User Invocation)
 
@@ -285,6 +285,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-w4k9-explicit-change-targeting | 2026-02-13 | All workflow skills (`/fab-continue`, `/fab-ff`, `/fab-fff`, `/fab-clarify`) now accept optional `[change-name]` argument for targeting non-active changes. `/fab-continue` disambiguates stage names vs change names. Preflight handles matching centrally |
 | 260212-r7xp-fix-fab-new-brief-stage | 2026-02-12 | `/fab-new` no longer marks brief complete — removed Step 8 ("Mark Brief Complete"), renumbered Step 9 → Step 8. Brief stays `active` after `/fab-new`; `/fab-continue` handles the brief → spec transition. Updated Change Initialization list and `_context.md` Next Steps table |
 | 260212-a4bd-unify-fab-continue | 2026-02-12 | Unified `/fab-apply`, `/fab-review`, `/fab-archive` into `/fab-continue`. Updated stage guard, reset behavior, and cross-references to reflect unified command |
 | 260212-ipoe-checklist-folder-location | 2026-02-12 | Updated checklist generation and validation paths from `checklists/quality.md` to `checklist.md` in `/fab-continue`, `/fab-ff`, and shared generation partial |

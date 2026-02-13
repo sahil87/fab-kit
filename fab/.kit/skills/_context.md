@@ -24,14 +24,16 @@ Read these files first — they define the project's identity, constraints, and 
 
 Resolve the active change and load its state by running the preflight script:
 
-1. **Run preflight**: Execute `fab/.kit/scripts/fab-preflight.sh` via Bash
+1. **Run preflight**: Execute `fab/.kit/scripts/fab-preflight.sh [change-name]` via Bash — pass the optional change-name argument if the skill received one
 2. **Check exit code**: If the script exits non-zero, STOP and surface the stderr message to the user (it contains the specific error and suggested fix)
 3. **Parse stdout YAML**: On success, parse the YAML output for `name`, `change_dir`, `stage`, `progress`, `checklist`, and `confidence` fields — use these for all subsequent change context instead of re-reading `.status.yaml`
 4. Load all completed artifacts in the change folder (e.g., `brief.md`, `spec.md`, `tasks.md`) — read each file that exists so you have full context of what has been decided so far
 
+> **Change-name override**: When a `[change-name]` argument is passed to the preflight script, it resolves the change using case-insensitive substring matching against `fab/changes/` folder names (excluding `archive/`) instead of reading `fab/current`. The override is **transient** — `fab/current` is never modified. This enables parallel workflows where multiple tabs target different changes concurrently. Supports full folder names, partial slugs, or 4-char IDs (e.g., `r3m7`).
+
 > **What the script validates internally** (for reference — agents do not need to duplicate these checks):
 > 1. `fab/config.yaml` and `fab/constitution.md` exist (project initialized)
-> 2. `fab/current` exists and is non-empty (active change set)
+> 2. `fab/current` exists and is non-empty (active change set) — OR `$1` override resolves to a valid change
 > 3. Change directory `fab/changes/{name}/` exists
 > 4. `.status.yaml` exists within the change directory
 

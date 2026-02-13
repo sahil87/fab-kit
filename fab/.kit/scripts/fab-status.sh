@@ -17,17 +17,73 @@ fi
 
 header="Fab Kit v$version"
 
-# --- Active change ---
-current_file="$fab_root/current"
-if [ ! -f "$current_file" ]; then
-  printf '%s\n\nNo active change. Run /fab-new to start one.\n' "$header"
-  exit 0
-fi
+# --- Resolve change name — from $1 override or fab/current ---
+override="${1:-}"
 
-name=$(tr -d '[:space:]' < "$current_file")
-if [ -z "$name" ]; then
-  printf '%s\n\nNo active change. Run /fab-new to start one.\n' "$header"
-  exit 0
+if [ -n "$override" ]; then
+  # Override mode: match $1 against fab/changes/ folders
+  changes_dir="$fab_root/changes"
+  if [ ! -d "$changes_dir" ]; then
+    printf '%s\n\nfab/changes/ not found. Run /fab-init to set up the project.\n' "$header"
+    exit 1
+  fi
+
+  # Collect non-archive folder names
+  mapfile -t folders < <(
+    for d in "$changes_dir"/*/; do
+      [ -d "$d" ] || continue
+      base="$(basename "$d")"
+      [ "$base" = "archive" ] && continue
+      echo "$base"
+    done
+  )
+
+  if [ ${#folders[@]} -eq 0 ]; then
+    printf '%s\n\nNo active changes found. Run /fab-new to start one.\n' "$header"
+    exit 0
+  fi
+
+  # Case-insensitive matching
+  override_lower=$(echo "$override" | tr '[:upper:]' '[:lower:]')
+  exact_match=""
+  partial_matches=()
+
+  for folder in "${folders[@]}"; do
+    folder_lower=$(echo "$folder" | tr '[:upper:]' '[:lower:]')
+    if [ "$folder_lower" = "$override_lower" ]; then
+      exact_match="$folder"
+      break
+    elif [[ "$folder_lower" == *"$override_lower"* ]]; then
+      partial_matches+=("$folder")
+    fi
+  done
+
+  if [ -n "$exact_match" ]; then
+    name="$exact_match"
+  elif [ ${#partial_matches[@]} -eq 1 ]; then
+    name="${partial_matches[0]}"
+  elif [ ${#partial_matches[@]} -gt 1 ]; then
+    matches_list=$(printf ', %s' "${partial_matches[@]}")
+    matches_list="${matches_list:2}"
+    printf '%s\n\nMultiple changes match "%s": %s. Provide a more specific name.\n' "$header" "$override" "$matches_list"
+    exit 1
+  else
+    printf '%s\n\nNo change matches "%s".\n' "$header" "$override"
+    exit 1
+  fi
+else
+  # Default mode: read fab/current
+  current_file="$fab_root/current"
+  if [ ! -f "$current_file" ]; then
+    printf '%s\n\nNo active change. Run /fab-new to start one.\n' "$header"
+    exit 0
+  fi
+
+  name=$(tr -d '[:space:]' < "$current_file")
+  if [ -z "$name" ]; then
+    printf '%s\n\nNo active change. Run /fab-new to start one.\n' "$header"
+    exit 0
+  fi
 fi
 
 # --- .status.yaml ---

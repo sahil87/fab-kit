@@ -21,7 +21,11 @@ This gives the agent awareness of project configuration, constraints, the docume
 
 ### Preflight Script for Change Context
 
-Skills that operate on an active change resolve the change context by running `fab/.kit/scripts/fab-preflight.sh` via Bash. The script validates project initialization, `fab/current`, the change directory, and `.status.yaml`, then outputs structured YAML with name, stage, branch, progress, and checklist fields. On non-zero exit, the agent stops and surfaces the stderr error message. On success, the agent uses the stdout YAML instead of re-reading `.status.yaml`.
+Skills that operate on an active change resolve the change context by running `fab/.kit/scripts/fab-preflight.sh [change-name]` via Bash. The script accepts an optional first positional argument as a change name override. When provided, the script resolves the change using case-insensitive substring matching against folder names in `fab/changes/` (excluding `archive/`) instead of reading `fab/current`. The override is transient — `fab/current` is never modified. When no argument is provided, the script falls back to reading `fab/current` (backward compatible).
+
+The matching supports full folder names, partial slug matches, and 4-char random IDs (e.g., `r3m7`). Exact match takes priority; single partial match resolves directly; multiple matches or no match produce a non-zero exit with a descriptive error.
+
+The script validates project initialization, the change directory, and `.status.yaml`, then outputs structured YAML with name, stage, branch, progress, and checklist fields. On non-zero exit, the agent stops and surfaces the stderr error message. On success, the agent uses the stdout YAML instead of re-reading `.status.yaml`.
 
 Since the preflight script validates `config.yaml` and `constitution.md` existence, skills using preflight don't need separate existence checks for these files — they only need to read them for content.
 
@@ -82,6 +86,7 @@ The following skills skip the standard context loading layers:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-w4k9-explicit-change-targeting | 2026-02-13 | Preflight script now accepts optional `$1` change-name override with case-insensitive substring matching; `fab/current` is not modified when override is used |
 | 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated fab/design/index.md reference, removed plan.md from artifact loading |
 | 260208-k3m7-add-fab-fff | 2026-02-08 | Fixed stale `auto-guess` marker reference in SRAD Protocol section — replaced with `clarified` marker per updated `_context.md` |
 | 260207-09sj-autonomy-framework | 2026-02-08 | Added SRAD protocol section — framework is loaded via `_context.md` as part of Always Load layer |

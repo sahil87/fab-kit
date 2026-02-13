@@ -1,0 +1,22 @@
+name: 260213-w4k9-explicit-change-targeting
+created: 2026-02-13T05:16:21+0000
+created_by: sahil-weaver
+progress:
+  brief: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklist.md
+  completed: 21
+  total: 21
+confidence:
+  certain: 7
+  confident: 7
+  tentative: 0
+  unresolved: 0
+  score: 2.9
+last_updated: 2026-02-13T06:30:00+0000

@@ -3,7 +3,7 @@ name: fab-continue
 description: "Advance to the next pipeline stage — planning, implementation, review, or archive — or reset to a given stage."
 ---
 
-# /fab-continue [<stage>]
+# /fab-continue [<change-name>] [<stage>]
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -19,9 +19,12 @@ This is the primary command for moving through the Fab workflow. Developers prim
 
 ## Arguments
 
+- **`<change-name>`** *(optional)* — target a specific change instead of the active one in `fab/current`. Supports full folder names, partial slug matches, or 4-char IDs (e.g., `r3m7`). When provided, the change-name is passed to the preflight script as `$1` for transient resolution — `fab/current` is **not** modified. Uses case-insensitive substring matching consistent with `/fab-switch`.
 - **`<stage>`** *(optional)* — target stage to reset to. Accepted values: `brief`, `spec`, `tasks`, `apply`, `review`, `archive`. When provided, resets `.status.yaml` to this stage and re-runs from there. Used after review identifies issues upstream, or to re-run any stage.
 
-If no argument is provided, the skill advances to the **next** stage in sequence.
+Both arguments MAY be provided together in any order (e.g., `/fab-continue r3m7 spec`). **Disambiguation**: arguments matching one of the 6 stage names are treated as stage reset targets; all other arguments are treated as change-name overrides.
+
+If no argument is provided, the skill advances to the **next** stage of the active change in `fab/current`.
 
 ---
 
@@ -29,9 +32,10 @@ If no argument is provided, the skill advances to the **next** stage in sequence
 
 Before doing anything else, run the preflight script:
 
-1. Execute `fab/.kit/scripts/fab-preflight.sh` via Bash
-2. If the script exits non-zero, **STOP** and surface the stderr message to the user
-3. Parse the stdout YAML to get `name`, `change_dir`, `stage`, `progress`, `checklist`, and `confidence`
+1. Parse arguments: classify each as a stage name (`brief`, `spec`, `tasks`, `apply`, `review`, `archive`) or a change-name override. Stage names take priority.
+2. Execute `fab/.kit/scripts/fab-preflight.sh [change-name]` via Bash — pass the change-name argument if one was provided
+3. If the script exits non-zero, **STOP** and surface the stderr message to the user
+4. Parse the stdout YAML to get `name`, `change_dir`, `stage`, `progress`, `checklist`, and `confidence`
 
 Use the `stage` and `progress` fields from preflight output for all subsequent stage guard logic (do not re-read `.status.yaml`).
 

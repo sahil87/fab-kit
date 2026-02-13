@@ -4,9 +4,9 @@
 
 ## Overview
 
-Execution behavior (apply, review, archive) is accessed via `/fab-continue`, which dispatches to the appropriate behavior based on the active stage. The standalone skills `/fab-apply`, `/fab-review`, and `/fab-archive` no longer exist as separate commands.
+Execution behavior (apply, review, archive) is accessed via `/fab-continue`, which dispatches to the appropriate behavior based on the active stage. The standalone skills `/fab-apply`, `/fab-review`, and `/fab-archive` no longer exist as separate commands. All execution skills inherit the optional `[change-name]` argument from `/fab-continue`, which is passed to the preflight script for transient change resolution without modifying `fab/current`.
 
-**Pipeline invocation**: Both `/fab-ff` and `/fab-fff` use the same execution behavior internally as part of their full-pipeline runs. `/fab-ff` presents interactive rework options on review failure; `/fab-fff` bails immediately.
+**Pipeline invocation**: Both `/fab-ff` and `/fab-fff` use the same execution behavior internally as part of their full-pipeline runs. `/fab-ff` presents interactive rework options on review failure; `/fab-fff` bails immediately. Both accept an optional `[change-name]` argument.
 
 ## Requirements
 
@@ -133,6 +133,7 @@ Loads: config, constitution, `design/index.md`, `spec.md`, target centralized do
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-w4k9-explicit-change-targeting | 2026-02-13 | Execution skills now inherit optional `[change-name]` argument via `/fab-continue` preflight override; `fab-status.sh` also accepts change-name override directly |
 | 260212-a4bd-unify-fab-continue | 2026-02-12 | Restructured: apply, review, and archive behavior now accessed via `/fab-continue` instead of standalone skills. Updated all section headings, requirements, and cross-references |
 | 260212-ipoe-checklist-folder-location | 2026-02-12 | Updated checklist path references from `checklists/quality.md` to `checklist.md` in `/fab-review` and `/fab-archive` |
 | 260212-bk1n-rework-fab-ff-archive | 2026-02-12 | Added note that `/fab-ff` and `/fab-fff` invoke execution skills internally as part of their full-pipeline behavior |
