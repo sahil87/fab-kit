@@ -4,7 +4,7 @@
 
 ## Overview
 
-Execution behavior (apply, review, archive) is accessed via `/fab-continue`, which dispatches to the appropriate behavior based on the active stage. The standalone skills `/fab-apply`, `/fab-review`, and `/fab-archive` no longer exist as separate commands. All execution skills inherit the optional `[change-name]` argument from `/fab-continue`, which is passed to the preflight script for transient change resolution without modifying `fab/current`.
+Execution behavior (apply, review, hydrate) is accessed via `/fab-continue`, which dispatches to the appropriate behavior based on the active stage. The standalone skills `/fab-apply` and `/fab-review` no longer exist as separate commands — their behavior is consolidated into `/fab-continue`. `/fab-archive` exists as a standalone housekeeping skill (not a pipeline stage) for moving completed changes to the archive. All execution behaviors in `/fab-continue` inherit the optional `[change-name]` argument, which is passed to the preflight script for transient change resolution without modifying `fab/current`.
 
 **Pipeline invocation**: Both `/fab-ff` and `/fab-fff` use the same execution behavior internally as part of their full-pipeline runs. `/fab-ff` presents interactive rework options on review failure; `/fab-fff` bails immediately. Both accept an optional `[change-name]` argument.
 
@@ -33,7 +33,7 @@ Loads: config, constitution, `design/index.md`, `tasks.md`, `spec.md`, relevant 
 
 ### Review Behavior (via `/fab-continue`)
 
-`/fab-continue` dispatches to review behavior after apply completes. It validates implementation against specs and checklists. On pass, it advances to archive readiness. On failure, it presents rework options.
+`/fab-continue` dispatches to review behavior after apply completes. It validates implementation against specs and checklists. On pass, it advances to hydrate readiness. On failure, it presents rework options.
 
 #### Validation Checks
 
@@ -62,34 +62,52 @@ The general rule: **artifacts at and after the re-entry point are regenerated or
 
 Loads: config, constitution, `design/index.md`, `tasks.md`, `checklist.md`, `spec.md`, target centralized doc(s) from `fab/docs/`, relevant source code (files touched by the change).
 
-### Archive Behavior (via `/fab-continue`)
+### Hydrate Behavior (via `/fab-continue`)
 
-`/fab-continue` dispatches to archive behavior after review passes. It completes a change: validates review passed, hydrates learnings into centralized docs, and moves the change to archive.
+`/fab-continue` dispatches to hydrate behavior after review passes. It completes the pipeline: validates review passed and hydrates learnings into centralized docs. The change folder remains in `fab/changes/` after hydrate — archiving is a separate step via `/fab-archive`.
 
 #### Behavior
 
 1. **Final validation** — review MUST have passed (all tasks `[x]`, all checklist items `[x]` including N/A items)
-2. **Concurrent change check** — scan `fab/changes/` for other active changes whose specs reference the same centralized doc files. If found, warn: "Change {name} also modifies {doc}. After this archive, that change's spec was written against a now-stale base. Re-review with `/fab-continue` after switching to it."
+2. **Concurrent change check** — scan `fab/changes/` for other active changes whose specs reference the same centralized doc files. If found, warn: "Change {name} also modifies {doc}. After this hydrate, that change's spec was written against a now-stale base. Re-review with `/fab-continue` after switching to it."
 3. **Hydrate into `fab/docs/`**:
    - From `spec.md` → integrate new/changed requirements and scenarios into the Requirements section. Remove requirements the spec explicitly deprecates. Extract durable design decisions into Design Decisions section
    - Compare against existing doc to determine what's new vs changed vs removed — no explicit delta markers needed
    - Minimize edits to unchanged sections to prevent drift
-4. **Update status** to `archive: done` in `.status.yaml`
-5. **Move change folder** to `archive/` (no rename — date already in folder name)
-6. **Update archive index** — append an entry to `fab/changes/archive/index.md` (create with backfill of all existing entries if it doesn't exist). Entry format: `- **{folder-name}** — {1-2 sentence description from brief Why section}`. Most-recent-first ordering.
-7. **Clear pointer** — delete `fab/current` (no active change)
-
-#### Fail-Safe Order of Operations
-
-Steps 3–7 are ordered to fail safely. Status is updated *before* the folder move, so if the move is interrupted, the change is marked archived but still in `changes/` — the agent can detect and complete the move on next invocation. The index is updated after the folder is in place but before the pointer is cleared, so mid-archive, `/fab-status` still reports the active change.
+4. **Update status** to `hydrate: done` in `.status.yaml`
 
 #### Recovery
 
-Hydration modifies centralized docs in-place. If the merge goes wrong, the only recovery is `git checkout` on the affected doc files. Commit (or at least review the diff) before pushing after an archive.
+Hydration modifies centralized docs in-place. If the merge goes wrong, the only recovery is `git checkout` on the affected doc files. Commit (or at least review the diff) before pushing after hydrate.
 
 #### Context
 
-Loads: config, constitution, `design/index.md`, `spec.md`, target centralized doc(s) from `fab/docs/`, `fab/docs/index.md` and relevant domain indexes.
+Loads: config, constitution, `design/index.md`, `spec.md`, `brief.md`, target centralized doc(s) from `fab/docs/`, `fab/docs/index.md` and relevant domain indexes.
+
+### `/fab-archive` (Standalone Skill)
+
+`/fab-archive` is a standalone housekeeping command — not a pipeline stage. It handles the post-hydrate cleanup: moving the change folder to archive, updating the archive index, marking backlog items done, and conditionally clearing the active change pointer.
+
+#### Precondition
+
+Requires `hydrate: done` in `.status.yaml`. If hydrate is not done, it stops with: "Hydrate has not completed. Run /fab-continue to hydrate docs first."
+
+#### Behavior
+
+1. **Move change folder** — `fab/changes/{name}/` → `fab/changes/archive/{name}/`. Create `archive/` if needed. No rename.
+2. **Update archive index** — prepend entry to `fab/changes/archive/index.md` (create with backfill if missing). Format: `- **{folder-name}** — {1-2 sentence description}`. Most-recent-first.
+3. **Mark backlog items done** — exact-ID check (always), then keyword scan with interactive confirmation
+4. **Clear pointer** — delete `fab/current` only if the archived change is the active one
+
+#### Fail-Safe Order of Operations
+
+Steps 1–4 execute in this order for safety. Folder move first (recoverable if interrupted — re-run detects folder already in archive and completes remaining steps). Index after folder is in place. Backlog marking after index. Pointer last.
+
+#### Key Properties
+
+- Does NOT modify `.status.yaml` progress (no `archive` entry added; may update `last_updated`)
+- Accepts optional `[change-name]` argument for targeting a specific change
+- Conditional pointer clearing — only clears `fab/current` when the archived change is the active one
 
 ## Design Decisions
 
@@ -105,17 +123,29 @@ Loads: config, constitution, `design/index.md`, `spec.md`, target centralized do
 **Rejected**: Always looping back to apply — misses cases where the spec was wrong.
 *Source*: doc/fab-spec/SKILLS.md
 
-### Archive Hydrates Semantically, Not by Delta Markers
+### Hydrate Semantically, Not by Delta Markers
 **Decision**: The agent compares `spec.md` against existing centralized docs to determine what's new, changed, or removed. No ADDED/MODIFIED/REMOVED markers in the spec.
 **Why**: The spec reads as a straightforward requirements document. Delta markers would clutter the spec and couple it to the hydration mechanism.
 **Rejected**: Explicit delta markers — clutters specs, requires discipline to maintain, fragile to editing.
 *Source*: doc/fab-spec/TEMPLATES.md
 
-### Concurrent Change Warning on Archive
+### Concurrent Change Warning on Hydrate
 **Decision**: Before hydrating, scan for other active changes that reference the same docs and warn the user.
 **Why**: Hydration updates the centralized docs, which may invalidate assumptions in other active changes. The warning prompts re-review rather than allowing silent drift.
-**Rejected**: Blocking archive if concurrent changes exist — too restrictive, especially for independent changes that happen to touch the same domain.
+**Rejected**: Blocking hydrate if concurrent changes exist — too restrictive, especially for independent changes that happen to touch the same domain.
 *Source*: doc/fab-spec/SKILLS.md
+
+### Hydrate is a Pipeline Stage, Archive is Not
+**Decision**: Doc hydration (`hydrate`) is a tracked pipeline stage; folder housekeeping (`/fab-archive`) is a standalone skill.
+**Why**: Doc hydration is the logical completion of the agent's work — it closes the feedback loop from implementation back to centralized docs. Folder housekeeping is a user-triggered cleanup action with no bearing on artifact quality.
+**Rejected**: Both as pipeline stages — would add a 7th stage for marginal benefit. Neither as pipeline stages — would lose the doc hydration automation.
+*Introduced by*: 260213-jc0u-split-archive-hydrate
+
+### fab-archive Clears Pointer Conditionally
+**Decision**: `/fab-archive` only clears `fab/current` when the archived change is the active one.
+**Why**: If archiving a non-active change (via change-name argument), clearing the pointer would disrupt the user's active work context.
+**Rejected**: Always clear — would lose active change context when archiving a different change. Never clear — would leave stale pointer after archiving the active change.
+*Introduced by*: 260213-jc0u-split-archive-hydrate
 
 ### Execution Stage Reset Preserves Task Checkboxes
 **Decision**: `/fab-continue apply` re-runs apply behavior starting from the first unchecked task. It does NOT uncheck all tasks.
@@ -124,8 +154,8 @@ Loads: config, constitution, `design/index.md`, `spec.md`, target centralized do
 *Introduced by*: 260212-a4bd-unify-fab-continue
 
 ### Review Active Triggers Forward Progression
-**Decision**: When the active stage is `review`, `/fab-continue` runs the review behavior (advancing toward archive), not re-review. Re-review is available via `/fab-continue review` reset.
-**Why**: The normal flow always advances. `review: active` means "review needs to run"; `review: done` means "review passed, archive is next." This avoids ambiguity about whether the command should redo or advance.
+**Decision**: When the active stage is `review`, `/fab-continue` runs the review behavior (advancing toward hydrate), not re-review. Re-review is available via `/fab-continue review` reset.
+**Why**: The normal flow always advances. `review: active` means "review needs to run"; `review: done` means "review passed, hydrate is next." This avoids ambiguity about whether the command should redo or advance.
 **Rejected**: Having review active trigger re-review — conflicts with the forward-progression model.
 *Introduced by*: 260212-a4bd-unify-fab-continue
 
@@ -133,6 +163,7 @@ Loads: config, constitution, `design/index.md`, `spec.md`, target centralized do
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-jc0u-split-archive-hydrate | 2026-02-13 | Replaced Archive Behavior with Hydrate Behavior (steps 1-4 only, change folder stays). Added `/fab-archive` as standalone housekeeping skill. Updated overview, design decisions. |
 | 260213-w4k9-explicit-change-targeting | 2026-02-13 | Execution skills now inherit optional `[change-name]` argument via `/fab-continue` preflight override; `fab-status.sh` also accepts change-name override directly |
 | 260212-a4bd-unify-fab-continue | 2026-02-12 | Restructured: apply, review, and archive behavior now accessed via `/fab-continue` instead of standalone skills. Updated all section headings, requirements, and cross-references |
 | 260212-ipoe-checklist-folder-location | 2026-02-12 | Updated checklist path references from `checklists/quality.md` to `checklist.md` in `/fab-review` and `/fab-archive` |

@@ -2,7 +2,7 @@
 
 > **Docs are post-implementation artifacts** — what actually *happened*. They are the
 > authoritative source of truth for system behavior and design decisions, maintained by
-> `/fab-continue` (archive) hydration after each change is completed.
+> `/fab-continue` (hydrate) and `/fab-archive` after each change is completed.
 >
 > Contrast with [`fab/design/index.md`](../design/index.md): design files are *pre-implementation* —
 > what you planned. Design files capture conceptual design intent and are human-curated.

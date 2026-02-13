@@ -19,11 +19,11 @@ Fab Kit v${version} — Specification-Driven Development
 
 WORKFLOW
 
-  /fab-new ─→ /fab-continue (or /fab-ff) ─→ /fab-apply ─→ /fab-review ─→ /fab-archive
+  /fab-new ─→ /fab-continue (or /fab-ff) ─→ /fab-archive
                ↕ /fab-clarify
 
   Planning stages: spec → tasks
-  Execution stages: apply → review → archive
+  Execution stages: apply → review → hydrate
 
 COMMANDS
 
@@ -42,7 +42,7 @@ COMMANDS
     /fab-review             Validate implementation against specs and checklists
 
   Completion
-    /fab-archive            Complete change — hydrate docs, move to archive
+    /fab-archive            Archive change — move to archive, mark backlog done
 
   Maintenance
     /fab-hydrate-design [domain]  Identify doc→design gaps and propose additions
@@ -54,6 +54,6 @@ COMMANDS
 
 TYPICAL FLOW
 
-  Quick change:  /fab-new → /fab-ff → /fab-apply → /fab-review → /fab-archive
-  Careful change: /fab-new → /fab-continue (repeat) → /fab-apply → /fab-review → /fab-archive
+  Quick change:  /fab-new → /fab-ff → /fab-archive
+  Careful change: /fab-new → /fab-continue (repeat) → /fab-archive
 EOF

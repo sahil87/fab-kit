@@ -141,7 +141,7 @@ if [ -z "$stage" ]; then
   fi
   # Final fallback: all done (workflow complete)
   if [ -z "$stage" ]; then
-    stage="archive"
+    stage="hydrate"
   fi
 fi
 

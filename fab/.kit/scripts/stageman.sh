@@ -247,7 +247,7 @@ get_current_stage() {
   fi
 
   # Final fallback: all done (workflow complete)
-  echo "archive"
+  echo "hydrate"
 }
 
 # get_next_stage <current_stage> — Return the next stage in sequence

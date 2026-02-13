@@ -44,7 +44,7 @@ Selectively load relevant domain docs based on the change's scope:
 1. Read the brief's **Affected Docs** section (or spec's **Affected docs** metadata) to identify which domains are relevant
 2. For each referenced domain, read `fab/docs/{domain}/index.md` to understand the domain's docs
 3. Read the specific centralized doc(s) referenced by the Affected Docs entries (those marked `(new)`, `(modify)`, or `(remove)`) — read `fab/docs/{domain}/{name}.md` for each listed doc that exists
-4. If a referenced doc or domain does not exist yet (e.g., listed under New Docs), note this and proceed without error — it will be created during archive (via `/fab-continue` or `/fab-ff`)
+4. If a referenced doc or domain does not exist yet (e.g., listed under New Docs), note this and proceed without error — it will be created during hydrate (via `/fab-continue` or `/fab-ff`)
 5. Use this context to ground all artifact generation (spec, tasks, reviews) in the real current state, not assumptions
 
 ### 4. Source Code Loading (during implementation and review)
@@ -75,12 +75,13 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 | `/fab-continue` → apply | apply done | `Next: /fab-continue` |
 | `/fab-continue` → review (pass) | review done | `Next: /fab-continue` |
 | `/fab-continue` → review (fail) | review failed | *(contextual rework options)* |
-| `/fab-continue` → archive | archived | `Next: /fab-new <description>` |
-| `/fab-ff` | archived | `Next: /fab-new <description>` |
+| `/fab-continue` → hydrate | hydrated | `Next: /fab-archive` |
+| `/fab-ff` | hydrated | `Next: /fab-archive` |
 | `/fab-ff` (bail) | varies | *(contextual — see /fab-ff for bail/failure messages)* |
 | `/fab-clarify` | same stage | `Next: /fab-clarify or /fab-continue or /fab-ff` |
-| `/fab-fff` | archived | `Next: /fab-new <description>` |
+| `/fab-fff` | hydrated | `Next: /fab-archive` |
 | `/fab-fff` (bail) | varies | *(contextual — see /fab-fff for bail messages)* |
+| `/fab-archive` | archived | `Next: /fab-new <description>` |
 
 ---
 
@@ -148,7 +149,7 @@ Each decision produces an assumption graded on a 4-level scale:
 |--------|-------------------|---------------------------|----------------|-------------------------|
 | **Posture** | SRAD-driven: 0 questions for clear inputs, conversational for vague; gap analysis before folder creation | Surface tentative, ask top ~3 unresolved | Batch all unresolved upfront, then go | Same as fab-ff; gated on confidence >= 3.0 |
 | **Interruption budget** | SRAD-driven (no fixed cap); conversational mode for vague inputs | 1-2 per stage | 0-1 batch at start | Same as fab-ff (frontloaded) |
-| **Output** | Assumptions summary + "Run /fab-clarify to review" | Key Decisions block + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary | Same as fab-ff + apply/review/archive output |
+| **Output** | Assumptions summary + "Run /fab-clarify to review" | Key Decisions block + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary | Same as fab-ff + apply/review/hydrate output |
 | **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` (bails on blockers or review failure) |
 | **Recomputes confidence?** | Yes | Yes | No | No |
 

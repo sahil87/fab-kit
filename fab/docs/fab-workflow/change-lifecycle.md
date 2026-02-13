@@ -30,7 +30,7 @@ All components MUST be lowercase — avoids collisions on case-insensitive files
 - **Conditionally created** by `/fab-new` — only written if `--switch` flag is used or switching intent is detected in the description; otherwise `/fab-new` does not modify `fab/current`
 - **Read** by every other skill — `/fab-continue`, `/fab-clarify`, `/fab-status` all resolve the active change via `current`
 - **Cleared** by `/fab-switch --blank` — file is deleted to deactivate the current change (no active change). Can be combined with `--branch` to also switch git branches (e.g., `--blank --branch main`)
-- **Cleared** by `/fab-continue` (archive) — file is deleted after archiving (no active change)
+- **Cleared** by `/fab-archive` — file is deleted after archiving the active change (no active change). Only cleared when the archived change is the one `fab/current` points to
 
 **Resolution pattern** (used by all skills):
 ```
@@ -60,7 +60,7 @@ Every change folder SHALL contain a `.status.yaml` manifest with these fields:
 | `done` | Completed successfully | All stages |
 | `failed` | Completed with failures requiring rework | review |
 
-**Deriving current stage**: Use a three-tier fallback: (1) find the first stage with `active` state, (2) if no active entry, find the first `pending` stage after the last `done` stage, (3) if all stages are `done`, return `archive`. The second tier handles the post-reset state where the target stage was marked `done` but the next stage was left `pending`. Zero or one stage SHALL be `active` at any time.
+**Deriving current stage**: Use a three-tier fallback: (1) find the first stage with `active` state, (2) if no active entry, find the first `pending` stage after the last `done` stage, (3) if all stages are `done`, return `hydrate`. The second tier handles the post-reset state where the target stage was marked `done` but the next stage was left `pending`. Zero or one stage SHALL be `active` at any time.
 
 **Two-write transitions**: Moving from one stage to the next (in normal forward flow) requires two writes: (1) set the current stage to `done`, (2) set the next stage to `active`. Both writes MUST happen atomically in a single `.status.yaml` update. **Exception**: Reset flow sets only the target stage to `done` — downstream stages remain `pending` (no auto-advance). The user runs `/fab-continue` to advance explicitly.
 
@@ -71,7 +71,7 @@ Every change folder SHALL contain a `.status.yaml` manifest with these fields:
 Changes progress through 6 stages in a defined graph:
 
 ```
-brief → spec → tasks → apply → review → archive
+brief → spec → tasks → apply → review → hydrate
 ```
 
 The brief (`brief.md`) is created by `/fab-new` and is the first pipeline stage. After creation, you can refine the brief with `/fab-clarify` before advancing to spec generation.
@@ -79,11 +79,11 @@ The brief (`brief.md`) is created by `/fab-new` and is the first pipeline stage.
 The stages split into three phases:
 - **Planning** (1-3): brief, spec, tasks
 - **Execution** (4-5): apply, review
-- **Completion** (6): archive (hydrates into centralized docs, closes backlog items)
+- **Completion** (6): hydrate (hydrates into centralized docs, completes the pipeline)
 
-During archive, Step 7 closes related backlog items in two passes: (a) an exact-ID check that auto-marks items when the brief contains a backlog ID, and (b) a keyword scan that surfaces candidate matches based on keyword overlap between the brief's title/Why section and unchecked backlog items (2-keyword minimum threshold). The keyword scan is interactive-only — it is skipped in auto mode (`/fab-ff`, `/fab-fff`) to avoid false-positive closures.
+After hydrate completes, the change folder remains in `fab/changes/`. To move it to the archive, run `/fab-archive` — a standalone housekeeping command (not a pipeline stage). `/fab-archive` moves the folder to `fab/changes/archive/`, updates the archive index, marks backlog items done (exact-ID check always; keyword scan with interactive confirmation), and conditionally clears `fab/current`.
 
-**Full pipeline path**: `/fab-fff` chains the entire flow (planning → apply → review → archive) in a single invocation, gated on confidence score >= 3.0. This is the fastest path from brief to archived change.
+**Full pipeline path**: `/fab-fff` chains the entire flow (planning → apply → review → hydrate) in a single invocation, gated on confidence score >= 3.0. After the pipeline completes, run `/fab-archive` to move the change to archive.
 
 ### Git Integration (Optional)
 
@@ -170,7 +170,7 @@ Skills will tolerate old-format files — the preflight script infers `brief: do
 *Introduced by*: 260208-q8v3-branch-to-switch; *Updated*: 2026-02-12 (reversed default to no-switch)
 
 ### Single Source of Truth: Progress Map with `active` Marker
-**Decision**: Remove the `stage:` field from `.status.yaml`. The current stage is determined by a three-tier fallback: (1) first `active` entry, (2) first `pending` after last `done`, (3) `archive` if all done. State vocabulary: `pending`, `active`, `done`, `failed`.
+**Decision**: Remove the `stage:` field from `.status.yaml`. The current stage is determined by a three-tier fallback: (1) first `active` entry, (2) first `pending` after last `done`, (3) `hydrate` if all done. State vocabulary: `pending`, `active`, `done`, `failed`.
 **Why**: The old model had two sources of truth — `stage: spec` AND `progress.spec: pending` — forcing skills to cross-reference both. The `active` marker serves as an explicit "you are here" pointer supporting both forward progression and backward movement (e.g., review failure → back to apply). The pending-after-done fallback handles the post-reset state where no stage is `active`.
 **Rejected**: Keeping `stage:` with simplified progress (still two sources of truth). Adding a `next_stage:` field (second source of truth, stale risk). Adding a `ready` state (expands vocabulary for narrow edge case).
 *Introduced by*: 260212-v5p2-simplify-stages-entry-paths; *Updated by*: 260213-wo9v-fix-reset-auto-advance (three-tier fallback)
@@ -181,11 +181,11 @@ Skills will tolerate old-format files — the preflight script infers `brief: do
 **Rejected**: Leaving target as `active` (confusing — artifact is fresh but stage says "in progress"). Auto-advancing to next stage (the bug this decision fixes).
 *Introduced by*: 260213-wo9v-fix-reset-auto-advance
 
-### Keyword Scan Interactive-Only (Archive Step 7)
-**Decision**: The keyword-based backlog scan runs only in interactive mode (`/fab-continue`). Auto-mode pipelines (`/fab-ff`, `/fab-fff`) skip the keyword scan and only run the exact-ID check.
-**Why**: Keyword matches are heuristic — false positives are possible. Auto-closing without user confirmation contradicts the principle that keyword matches require approval. The exact-ID check is deterministic and safe for auto mode.
-**Rejected**: Running keyword scan in auto mode with auto-close — risks false-positive backlog closures. Logging candidates without closing in auto mode — adds complexity for marginal benefit.
-*Introduced by*: 260213-wloh-archive-backlog-scan
+### Keyword Scan Interactive-Only (`/fab-archive`)
+**Decision**: The keyword-based backlog scan in `/fab-archive` always runs interactively with user confirmation. `/fab-archive` is always user-invoked (never called by auto-mode pipelines), so the interactive confirmation is natural.
+**Why**: Keyword matches are heuristic — false positives are possible. Requiring user confirmation for keyword-matched candidates prevents accidental backlog closures. The exact-ID check is deterministic and runs automatically.
+**Rejected**: Running keyword scan in auto mode with auto-close — risks false-positive backlog closures.
+*Introduced by*: 260213-wloh-archive-backlog-scan; *Updated*: 260213-jc0u-split-archive-hydrate (backlog marking moved from pipeline archive stage to standalone `/fab-archive`)
 
 ### No Dedicated Abandon Skill
 **Decision**: Abandoning a change is a manual operation (delete folder, clear pointer).
@@ -197,7 +197,8 @@ Skills will tolerate old-format files — the preflight script infers `brief: do
 
 | Change | Date | Summary |
 |--------|------|---------|
-| 260213-wo9v-fix-reset-auto-advance | 2026-02-13 | Fixed stage derivation fallback to use three-tier logic (active → first pending after done → archive). Reset flow now stops at target stage without auto-advancing. Updated preflight, status, stageman scripts, workflow schema, and fab-continue skill. Added pending cases to status next-command display. |
+| 260213-jc0u-split-archive-hydrate | 2026-02-13 | Terminal pipeline stage renamed from `archive` to `hydrate`. Change folder stays in `fab/changes/` after hydrate. Archiving (folder move, index, backlog, pointer) moved to standalone `/fab-archive` skill. Updated fab/current lifecycle, pipeline diagram, stage phases, and keyword scan design decision. |
+| 260213-wo9v-fix-reset-auto-advance | 2026-02-13 | Fixed stage derivation fallback to use three-tier logic (active → first pending after done → hydrate). Reset flow now stops at target stage without auto-advancing. Updated preflight, status, stageman scripts, workflow schema, and fab-continue skill. Added pending cases to status next-command display. |
 | 260213-wloh-archive-backlog-scan | 2026-02-13 | Added keyword-based backlog scanning to archive Step 7 — surfaces candidate matches from brief title/Why section, interactive confirmation, skipped in auto mode. Added Keyword Scan Interactive-Only design decision. |
 | 260212-a4bd-unify-fab-continue | 2026-02-12 | Updated `fab/current` lifecycle and review failure references to use `/fab-continue` instead of removed standalone skills |
 | 260212-egqa-switch-return-main | 2026-02-12 | Added `--blank` flag to `/fab-switch` for deactivating the current change (deletes `fab/current`). Composable with `--branch` for git operations. Updated fab/current lifecycle and /fab-switch section. |

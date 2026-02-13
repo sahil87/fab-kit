@@ -117,7 +117,7 @@ stages:
     requires: [tasks]
   - id: review
     requires: [apply]
-  - id: archive
+  - id: hydrate
     requires: [review]
 
 # checklist — Configuration for the auto-generated quality checklist.

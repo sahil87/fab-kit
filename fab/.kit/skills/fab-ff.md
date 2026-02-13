@@ -1,6 +1,6 @@
 ---
 name: fab-ff
-description: "Fast-forward through the entire pipeline — planning, implementation, review, and archive — with interactive clarification stops."
+description: "Fast-forward through the entire pipeline — planning, implementation, review, and hydrate — with interactive clarification stops."
 ---
 
 # /fab-ff [<change-name>]
@@ -11,7 +11,7 @@ description: "Fast-forward through the entire pipeline — planning, implementat
 
 ## Purpose
 
-Fast-forward through the entire Fab pipeline in a single invocation: planning (spec, tasks) → apply → review → archive. Interleaves auto-clarify between planning stage generations and stops for interactive resolution when blocking issues arise at any phase.
+Fast-forward through the entire Fab pipeline in a single invocation: planning (spec, tasks) → apply → review → hydrate. Interleaves auto-clarify between planning stage generations and stops for interactive resolution when blocking issues arise at any phase.
 
 Unlike `/fab-fff`, which requires a confidence gate and bails immediately on review failure, `/fab-ff` has no confidence gate and presents interactive rework options when review fails. This makes `/fab-ff` the "fast but interactive" pipeline and `/fab-fff` the "fully autonomous" pipeline.
 
@@ -67,7 +67,7 @@ On invocation, check the `progress` map from preflight output. **Skip stages alr
 - If `progress.tasks` is already `done`, skip Step 3 (task generation) and its auto-clarify
 - If `progress.apply` is already `done`, skip Step 6 (implementation)
 - If `progress.review` is already `done`, skip Step 7 (review)
-- If `progress.archive` is already `done`, skip Step 8 (archive) — pipeline is complete
+- If `progress.hydrate` is already `done`, skip Step 8 (hydrate) — pipeline is complete
 
 This makes `/fab-ff` resumable after a bail, failure, or interruption — re-running picks up from the first incomplete stage.
 
@@ -173,7 +173,7 @@ Execute review behavior — validate implementation against specs and checklists
 
 **If review passes**: Update `.status.yaml`:
 - Set `progress.review` to `done`
-- Set `progress.archive` to `active`
+- Set `progress.hydrate` to `active`
 - Update `last_updated`
 - Proceed to Step 8.
 
@@ -185,19 +185,16 @@ Execute review behavior — validate implementation against specs and checklists
 
 The user selects a rework option and the pipeline handles it accordingly. This interactive stop is the key behavioral difference from `/fab-fff`, which bails immediately.
 
-### Step 8: Archive (fab-archive)
+### Step 8: Hydrate
 
-*(Skip if `progress.archive` is already `done`.)*
+*(Skip if `progress.hydrate` is already `done`.)*
 
-Execute archive behavior:
+Execute hydrate behavior:
 
 1. Final validation — review must have passed
 2. Concurrent change check — warn about other active changes modifying the same docs
 3. Hydrate into `fab/docs/` — integrate new/changed requirements from `spec.md`
-4. Update `.status.yaml` to `archive: done`
-5. Move change folder to `archive/`
-6. Update archive index (`fab/changes/archive/index.md`)
-7. Clear `fab/current`
+4. Update `.status.yaml` to `hydrate: done`
 
 ---
 
@@ -243,13 +240,13 @@ Generated checklist.md with {N} items.
 
 {review output — validation results}
 
---- Archive ---
+--- Hydrate ---
 
-{archive output — hydration and move details}
+{hydrate output — validation and doc hydration}
 
-Pipeline complete. Change archived.
+Pipeline complete. Change hydrated.
 
-Next: /fab-new <description> (start next change)
+Next: /fab-archive (archive change)
 ```
 
 ### Bail on Blocking Issue (Planning)
@@ -284,13 +281,13 @@ Skipping implementation — already done.
 
 {review output}
 
---- Archive ---
+--- Hydrate ---
 
-{archive output}
+{hydrate output}
 
-Pipeline complete. Change archived.
+Pipeline complete. Change hydrated.
 
-Next: /fab-new <description> (start next change)
+Next: /fab-archive (archive change)
 ```
 
 ### Review Failure with Interactive Rework
@@ -367,7 +364,7 @@ Investigate the failure and re-run /fab-ff to resume from here.
 | Auto-clarify returns blocking issues | Bail — stop pipeline, report issues, suggest `/fab-clarify` then `/fab-ff` |
 | Task fails during apply | Stop pipeline, report which task failed and why, suggest re-running `/fab-ff` |
 | Review fails | Present interactive rework menu (fix code, revise tasks, revise spec) |
-| Archive fails | Report error with details |
+| Hydrate fails | Report error with details |
 
 ---
 
@@ -377,7 +374,7 @@ Investigate the failure and re-run /fab-ff to resume from here.
 |----------|-----------------|-----------|-----------|
 | Questions | Asked per-stage as needed | Frontloaded: one batch upfront | Same as fab-ff (frontloaded) |
 | Auto-clarify | None (manual `/fab-clarify`) | Between each planning stage; bails on blockers | Same as fab-ff |
-| Stages per invocation | One stage | Full pipeline: planning + apply + review + archive | Full pipeline: planning + apply + review + archive |
+| Stages per invocation | One stage | Full pipeline: planning + apply + review + hydrate | Full pipeline: planning + apply + review + hydrate |
 | On review failure | Rework options | Interactive rework menu | Immediate bail |
 | Resumable? | Yes — re-invoke to resume current stage | Yes — re-invoke after bail or failure | Yes — skips completed stages |
 | Confidence gate | None | None | Requires score >= 3.0 |
@@ -387,9 +384,9 @@ Investigate the failure and re-run /fab-ff to resume from here.
 
 ## Next Steps Reference
 
-After `/fab-ff` completes (archive):
+After `/fab-ff` completes (hydrate):
 
-`Next: /fab-new <description> (start next change)`
+`Next: /fab-archive (archive change)`
 
 After `/fab-ff` bails (planning):
 

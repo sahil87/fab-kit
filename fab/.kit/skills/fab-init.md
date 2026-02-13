@@ -102,7 +102,7 @@ If `fab/docs/index.md` does **not** exist:
 ```markdown
 # Documentation Index
 
-<!-- This index is maintained by /fab-continue (archive) when changes are completed. -->
+<!-- This index is maintained by /fab-archive when changes are completed. -->
 <!-- Each domain gets a row linking to its docs. -->
 
 | Domain | Description | Docs |
@@ -127,7 +127,7 @@ If `fab/design/index.md` does **not** exist:
 >
 > Contrast with [`fab/docs/index.md`](../docs/index.md): docs are *post-implementation* —
 > what actually happened. Docs are the authoritative source of truth for system behavior,
-> maintained by `/fab-continue` (archive) hydration.
+> maintained by `/fab-continue` (hydrate) and `/fab-archive`.
 >
 > **Ownership**: Specs are written and maintained by humans. No automated tooling creates or
 > enforces structure here — organize files however makes sense for your project.
@@ -293,7 +293,7 @@ stages:
     requires: [tasks]
   - id: review
     requires: [apply]
-  - id: archive
+  - id: hydrate
     requires: [review]
 
 source_paths:
@@ -605,7 +605,7 @@ If `fab/config.yaml` exists, run all 8 structural checks in order:
 | 2 | Required top-level keys | `project`, `context`, `stages`, `source_paths` all present | "FAIL: Missing required key '{key}'" | "Add `{key}:` as a top-level section" |
 | 3 | `project.name` non-empty | String, length > 0 | "FAIL: project.name is missing or empty" | "Add `name: \"your-project\"` under the `project:` section" |
 | 4 | `project.description` non-empty | String, length > 0 | "FAIL: project.description is missing or empty" | "Add `description: \"...\"` under the `project:` section" |
-| 5 | `stages` non-empty list | Array with at least 1 entry | "FAIL: stages list is empty" | "Add at least the default stages (brief, spec, tasks, apply, review, archive)" |
+| 5 | `stages` non-empty list | Array with at least 1 entry | "FAIL: stages list is empty" | "Add at least the default stages (brief, spec, tasks, apply, review, hydrate)" |
 | 6 | Stage `id` fields present | Every stage entry has an `id` string | "FAIL: Stage at index {N} is missing `id` field" | "Add `id: {suggested_id}` to the stage entry" |
 | 7 | Stage `requires` valid | Every `requires` entry references an existing stage ID | "FAIL: Stage '{id}' requires non-existent stage '{ref}'" | "Check the `requires` list — valid stage IDs are: {list}" |
 | 8 | No circular dependencies | No cycles in the stage dependency graph | "FAIL: Circular dependency detected: {cycle path}" | "Remove one of the `requires` entries to break the cycle" |

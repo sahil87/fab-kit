@@ -38,7 +38,7 @@ See `_context.md` > Skill Invocation Protocol for the full protocol definition.
 ## Arguments
 
 - **`<change-name>`** *(optional)* — target a specific change instead of the active one in `fab/current`. Supports full folder names, partial slug matches, or 4-char IDs (e.g., `r3m7`). When provided, passed to the preflight script as `$1` for transient resolution — `fab/current` is **not** modified.
-- **`<target-artifact>`** *(optional)* — one of `brief`, `spec`, or `tasks`. Targets a specific planning artifact instead of the current stage's default. **Required** when the current stage is `apply`, `review`, or `archive`. At planning stages, defaults to the current stage's artifact but can be overridden.
+- **`<target-artifact>`** *(optional)* — one of `brief`, `spec`, or `tasks`. Targets a specific planning artifact instead of the current stage's default. **Required** when the current stage is `apply`, `review`, or `hydrate`. At planning stages, defaults to the current stage's artifact but can be overridden.
 
 Argument disambiguation: if the argument matches a stage name (`brief`, `spec`, `tasks`), it is treated as a target artifact. Otherwise it is treated as a change name. Both can be provided (e.g., `/fab-clarify spec` or `/fab-clarify r3m7 spec`).
 
@@ -63,7 +63,7 @@ Use the `stage` field from preflight output for the Stage Guard below (do not re
 fab-clarify operates on planning artifacts (`brief.md`, `spec.md`, `tasks.md`) and can run from **any stage**.
 
 - **Planning stages** (`brief`, `spec`, `tasks`) — defaults to the current stage's artifact. A `<target-artifact>` argument overrides this default (useful when the current stage's artifact doesn't exist yet, e.g., after a reset).
-- **Post-planning stages** (`apply`, `review`, `archive`) — requires an explicit `<target-artifact>` argument. If none was provided, prompt:
+- **Post-planning stages** (`apply`, `review`, `hydrate`) — requires an explicit `<target-artifact>` argument. If none was provided, prompt:
 
 > `Stage is "{stage}" — which planning artifact do you want to clarify?`
 >
@@ -394,7 +394,7 @@ Next: /fab-clarify (refine further) or /fab-continue or /fab-ff
 | Condition | Action |
 |-----------|--------|
 | Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
-| Stage is `apply`, `review`, or `archive` and no `<target-artifact>` provided | Prompt for artifact selection (see Stage Guard) |
+| Stage is `apply`, `review`, or `hydrate` and no `<target-artifact>` provided | Prompt for artifact selection (see Stage Guard) |
 | Artifact file missing for target | Abort with: "No {artifact} found. Run /fab-continue to generate it first." |
 | Taxonomy scan finds zero gaps (suggest mode) | Output "No gaps found" message and stop |
 | Early termination after 0 answered questions | Display coverage summary with 0 resolved, all deferred |

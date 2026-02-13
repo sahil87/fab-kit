@@ -29,10 +29,10 @@ The spec describes requirements relevant to this change using RFC 2119 keywords 
 - **Scenarios** — GIVEN/WHEN/THEN format, at least one per requirement
 - **Optional sections** — Added only when needed, omitted entirely otherwise:
   - **Non-Goals** — Explicit scope exclusions after metadata, before domain sections. Each entry: `- {what} — {reason}`
-  - **Design Decisions** — Key design choices after domain sections. Each entry: `1. **{Decision}**: {approach}` with `*Why*` and `*Rejected*` sub-items. Extracted into centralized docs during archive hydration
+  - **Design Decisions** — Key design choices after domain sections. Each entry: `1. **{Decision}**: {approach}` with `*Why*` and `*Rejected*` sub-items. Extracted into centralized docs during hydrate
   - **Deprecated Requirements** — Only when removing existing requirements, with Reason and Migration fields
 
-The spec reads as a straightforward requirements document with no delta markers. The agent infers what's new vs changed by comparing against existing centralized docs during archive hydration.
+The spec reads as a straightforward requirements document with no delta markers. The agent infers what's new vs changed by comparing against existing centralized docs during hydrate.
 
 Unresolved ambiguities SHALL be marked inline with `[NEEDS CLARIFICATION]`. `/fab-clarify` resolves these.
 
@@ -61,7 +61,7 @@ The quality checklist validates that implementation matches the spec. Co-located
 - **Edge Cases & Error Handling** — Error states, boundary conditions
 - **Security** — Only if the change has security surface
 
-Items use `CHK-{NNN}` IDs. All items MUST pass before `/fab-continue` (archive). Items not applicable are marked `- [x] CHK-NNN **N/A**: {reason}`. Project-specific categories from `config.yaml`'s `checklist.extra_categories` are added to the defaults.
+Items use `CHK-{NNN}` IDs. All items MUST pass before `/fab-continue` (hydrate). Items not applicable are marked `- [x] CHK-NNN **N/A**: {reason}`. Project-specific categories from `config.yaml`'s `checklist.extra_categories` are added to the defaults.
 
 Generation is contextual — items derived from `spec.md` (requirements, design decisions), and the project constitution (quality standards).
 
@@ -81,7 +81,7 @@ progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending
+  hydrate: pending
 ```
 
 See [change-lifecycle.md](change-lifecycle.md) for the full `.status.yaml` field reference and state vocabulary.
@@ -103,7 +103,7 @@ Centralized docs are the source of truth for system behavior and design decision
 - **Overview** — 1-2 sentences describing what the doc covers
 - **Requirements** — Using RFC 2119 keywords, with GIVEN/WHEN/THEN scenarios
 - **Design Decisions** — Durable architectural decisions extracted from specs during hydration. Each includes decision, rationale, rejected alternatives, and the introducing change name
-- **Changelog** — Auto-maintained by `/fab-continue` (archive), most recent first
+- **Changelog** — Auto-maintained by `/fab-continue` (hydrate), most recent first
 
 #### Index Hierarchy
 
@@ -113,7 +113,7 @@ Centralized docs are the source of truth for system behavior and design decision
 
 #### Hydration Rules
 
-When `/fab-continue` (archive) hydrates into centralized docs:
+When `/fab-continue` (hydrate) hydrates into centralized docs:
 1. **New doc**: Create from template, add to domain index. If domain is new, create domain folder and add to top-level index
 2. **Existing doc**: Compare spec requirements against current doc. Update Requirements section semantically. Minimize edits to unchanged sections
 3. **Design decisions**: Extract durable decisions from spec. Skip tactical details. Add with change name for traceability
@@ -180,6 +180,7 @@ When `/fab-continue` (archive) hydrates into centralized docs:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-jc0u-split-archive-hydrate | 2026-02-13 | Updated `.status.yaml` template example (`archive: pending` → `hydrate: pending`), hydration rule references, and checklist gate references to use `hydrate` instead of `archive` |
 | 260213-v4rx-simplify-templates | 2026-02-13 | Flattened brief Affected Docs to inline markers, removed BLOCKING/DEFERRED from Open Questions, replaced spec optional section placeholders with guidance comment |
 | 260212-ipoe-checklist-folder-location | 2026-02-12 | Moved checklist from `checklists/quality.md` to `checklist.md` at change root; updated .status.yaml template `checklist.path` default |
 | 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Updated .status.yaml template (removed stage: field and brief: from progress, spec: active as initial), documented brief template Origin section |
