@@ -26,6 +26,13 @@ Free-form text describing the tech stack, conventions, and domain context. Skill
 - `enabled` — Whether to prompt for branch integration (boolean). Set `false` to suppress branch prompts
 - `branch_prefix` — Optional prefix for created branches (e.g., `"feat/"` → `"feat/260115-a7k2-add-oauth"`)
 
+#### `conventions`
+Optional section for project-wide workflow conventions. All keys are optional strings; omitting the section entirely is valid. Unlike `naming` (which controls folder name format) and `git` (which controls integration toggles), `conventions` captures human/workflow conventions as informational strings that skills can reference programmatically.
+
+- `branch_naming` — Pattern or description of branch naming convention (string)
+- `pr_title` — PR title format pattern (string)
+- `backlog` — URL or location of the project backlog (string)
+
 #### `stages`
 Ordered list of stage definitions (6 stages). Each stage:
 - `id` — Stage identifier (brief, spec, tasks, apply, review, archive)
@@ -135,6 +142,7 @@ See [init family](init-family.md) for the complete command suite.
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-r3m7-add-conventions-section | 2026-02-13 | Added optional `conventions` section to config.yaml schema — branch_naming, pr_title, backlog keys |
 | 260212-v5p2-brief-pipeline-stage | 2026-02-12 | Restored brief as formal pipeline stage — 6 stages, added brief to stage IDs |
 | 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Updated stages pipeline from 6 to 5, removed brief entry from config documentation |
 | 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated stage IDs to brief/spec/tasks/apply/review/archive, removed plan stage entry |
