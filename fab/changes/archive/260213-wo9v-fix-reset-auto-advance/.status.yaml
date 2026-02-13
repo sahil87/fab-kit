@@ -1,0 +1,22 @@
+name: 260213-wo9v-fix-reset-auto-advance
+created: 2026-02-13T21:00:00Z
+created_by: sahil-weaver
+progress:
+  brief: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklist.md
+  completed: 21
+  total: 21
+confidence:
+  certain: 8
+  confident: 2
+  tentative: 0
+  unresolved: 0
+  score: 4.4
+last_updated: 2026-02-13T22:50:00Z

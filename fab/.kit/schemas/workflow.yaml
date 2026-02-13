@@ -149,7 +149,7 @@ transitions:
 progression:
   # current_stage — How to identify which stage is currently active
   current_stage:
-    rule: "First stage with state=active, or last stage if all done"
+    rule: "First stage with state=active; if no active, first pending stage after last done; if all done, archive"
     fallback: archive
 
   # next_stage — How to determine which stage comes next

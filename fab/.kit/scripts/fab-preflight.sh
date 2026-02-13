@@ -119,9 +119,30 @@ for s in $(get_all_stages); do
     break
   fi
 done
-# Fallback: if no active entry, check if all are done (completed change)
+# Fallback: if no active entry, find first pending stage after last done
 if [ -z "$stage" ]; then
-  stage="archive"
+  last_done=""
+  for s in $(get_all_stages); do
+    if [ "${progress[$s]}" = "done" ]; then
+      last_done="$s"
+    fi
+  done
+  if [ -n "$last_done" ]; then
+    found_last=false
+    for s in $(get_all_stages); do
+      if [ "$found_last" = "true" ] && [ "${progress[$s]}" = "pending" ]; then
+        stage="$s"
+        break
+      fi
+      if [ "$s" = "$last_done" ]; then
+        found_last=true
+      fi
+    done
+  fi
+  # Final fallback: all done (workflow complete)
+  if [ -z "$stage" ]; then
+    stage="archive"
+  fi
 fi
 
 # Extract checklist fields (handle missing block gracefully)

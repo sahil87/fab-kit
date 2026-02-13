@@ -222,7 +222,31 @@ get_current_stage() {
     fi
   done
 
-  # Fallback: archive (all done)
+  # Fallback: if no active entry, find first pending stage after last done
+  local last_done=""
+  for stage in $(get_all_stages); do
+    local state
+    state=$(grep "^ *${stage}:" "$status_file" | sed 's/^ *[a-z]*: *//')
+    if [ "$state" = "done" ]; then
+      last_done="$stage"
+    fi
+  done
+  if [ -n "$last_done" ]; then
+    local found_last=false
+    for stage in $(get_all_stages); do
+      local state
+      state=$(grep "^ *${stage}:" "$status_file" | sed 's/^ *[a-z]*: *//')
+      if [ "$found_last" = "true" ] && [ "$state" = "pending" ]; then
+        echo "$stage"
+        return 0
+      fi
+      if [ "$stage" = "$last_done" ]; then
+        found_last=true
+      fi
+    done
+  fi
+
+  # Final fallback: all done (workflow complete)
   echo "archive"
 }
 

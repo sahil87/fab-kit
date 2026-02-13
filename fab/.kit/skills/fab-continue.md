@@ -47,15 +47,17 @@ When called without arguments, advance to the next stage in sequence.
 
 ### Step 1: Determine Current Stage
 
-Determine the current stage from the preflight output's `stage` field (derived from the `active` entry in the progress map). The stage progression is:
+Determine the current stage from the preflight output's `stage` field. The preflight derives the stage using a three-tier fallback: (1) first stage with `active` state, (2) first `pending` stage after the last `done` stage, (3) `archive` if all stages are `done`. The stage progression is:
 
 ```
 brief → spec → tasks → apply → review → archive
 ```
 
-**Guard**: Check the `active` entry to determine which behavior to dispatch:
+**Pre-guard activation**: If the derived stage's progress is `pending` (no `active` entry exists), set it to `active` in `.status.yaml` before dispatching. This handles the post-reset state where the target stage was marked `done` but the next stage was left `pending`.
 
-| `active` entry | Action |
+**Guard**: Dispatch on the preflight's derived `stage` field:
+
+| Derived stage | Action |
 |---------------|--------|
 | `brief` | Generate `spec.md` → set `brief: done`, `spec: active` |
 | `spec` | Generate `tasks.md` + checklist → set `spec: done`, `tasks: active` |
@@ -63,7 +65,7 @@ brief → spec → tasks → apply → review → archive
 | `apply` | Resume apply behavior → on completion set `apply: done`, `review: active` |
 | `review` | Execute review behavior → on pass: `review: done`, `archive: active`. On fail: `review: failed`, `apply: active` |
 | `archive` | Execute archive behavior → `archive: done` |
-| No `active` entry (all `done`) | Block: "Change is complete." |
+| `archive` (all `done`) | Block: "Change is complete." |
 
 ### Step 2: Load Context
 
@@ -394,18 +396,18 @@ Load context as described in the Normal Flow Step 2, for the target stage.
 - `fab/constitution.md` — project principles and constraints
 - `fab/docs/index.md` — documentation landscape
 
-### Step 3: Reset `.status.yaml`
+### Step 3: Reset `.status.yaml` (Pre-Execution)
 
 1. Mark the target stage's progress as `active`
 2. Mark all stages **after** the target as `pending`
 3. Preserve all stages **before** the target as-is (they remain `done`)
 
-**Example**: Resetting to `spec` when current stage is `apply`:
+**Example**: Resetting to `spec` when current stage is `apply` (pre-execution state):
 
 ```yaml
 progress:
   brief: done         # preserved
-  spec: active        # reset target
+  spec: active        # reset target (will be set to active for execution)
   tasks: pending      # invalidated
   apply: pending      # invalidated
   review: pending     # invalidated
@@ -427,12 +429,28 @@ progress:
   - Regenerate the checklist at `fab/changes/{name}/checklist.md`
   - Reset `checklist.completed` to `0` in `.status.yaml`
 
-### Step 6: Update `.status.yaml` and Report
+### Step 6: Update `.status.yaml` and Report (Post-Execution — Stop at Target)
 
-1. For planning resets: set `progress.{target}` to `done` after regeneration
-2. For execution resets: the stage behavior handles its own status updates
+After completing the target stage:
+
+1. **For planning resets**: set `progress.{target}` to `done`. Do **NOT** set the next stage to `active`. Downstream stages remain `pending`. This prevents auto-advancing past the regenerated artifact into a stage with stale or invalidated content.
+2. **For execution resets**: the stage behavior handles its own status updates (normal two-write transitions apply within execution)
 3. Update `last_updated`
 4. Report what was reset and what downstream artifacts were invalidated
+
+**Example**: After resetting to `spec` and regenerating spec.md (post-execution state):
+
+```yaml
+progress:
+  brief: done         # preserved
+  spec: done          # target completed — stops here
+  tasks: pending      # NOT set to active — user runs /fab-continue to advance
+  apply: pending      # invalidated
+  review: pending     # invalidated
+  archive: pending    # invalidated
+```
+
+The user then runs `/fab-continue` (no argument) to advance into `tasks`. The preflight's three-tier fallback derives `tasks` as the current stage (first pending after last done), the pre-guard activation sets it to `active`, and normal flow proceeds.
 
 ---
 

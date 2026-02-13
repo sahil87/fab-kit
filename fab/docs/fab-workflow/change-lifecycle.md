@@ -60,9 +60,9 @@ Every change folder SHALL contain a `.status.yaml` manifest with these fields:
 | `done` | Completed successfully | All stages |
 | `failed` | Completed with failures requiring rework | review |
 
-**Deriving current stage**: Read the `progress` map and find the entry with value `active`. Exactly one stage SHALL be `active` at any time. Skills use this to determine where the change is in the pipeline.
+**Deriving current stage**: Use a three-tier fallback: (1) find the first stage with `active` state, (2) if no active entry, find the first `pending` stage after the last `done` stage, (3) if all stages are `done`, return `archive`. The second tier handles the post-reset state where the target stage was marked `done` but the next stage was left `pending`. Zero or one stage SHALL be `active` at any time.
 
-**Two-write transitions**: Moving from one stage to the next requires two writes: (1) set the current stage to `done`, (2) set the next stage to `active`. Both writes MUST happen atomically in a single `.status.yaml` update.
+**Two-write transitions**: Moving from one stage to the next (in normal forward flow) requires two writes: (1) set the current stage to `done`, (2) set the next stage to `active`. Both writes MUST happen atomically in a single `.status.yaml` update. **Exception**: Reset flow sets only the target stage to `done` — downstream stages remain `pending` (no auto-advance). The user runs `/fab-continue` to advance explicitly.
 
 **Review failure backward movement**: When `/fab-continue` review behavior identifies issues requiring rework, it sets `review: failed` and moves the appropriate earlier stage back to `active` (e.g., `spec: active`). Stages between the target and review are reset to `pending`.
 
@@ -170,10 +170,16 @@ Skills will tolerate old-format files — the preflight script infers `brief: do
 *Introduced by*: 260208-q8v3-branch-to-switch; *Updated*: 2026-02-12 (reversed default to no-switch)
 
 ### Single Source of Truth: Progress Map with `active` Marker
-**Decision**: Remove the `stage:` field from `.status.yaml`. The current stage is determined by finding the `active` entry in the progress map. State vocabulary: `pending`, `active`, `done`, `failed`.
-**Why**: The old model had two sources of truth — `stage: spec` AND `progress.spec: pending` — forcing skills to cross-reference both. The `active` marker serves as an explicit "you are here" pointer supporting both forward progression and backward movement (e.g., review failure → back to apply).
-**Rejected**: Keeping `stage:` with simplified progress (still two sources of truth). Using "first pending" derivation (cannot express backward movement after review failure).
-*Introduced by*: 260212-v5p2-simplify-stages-entry-paths
+**Decision**: Remove the `stage:` field from `.status.yaml`. The current stage is determined by a three-tier fallback: (1) first `active` entry, (2) first `pending` after last `done`, (3) `archive` if all done. State vocabulary: `pending`, `active`, `done`, `failed`.
+**Why**: The old model had two sources of truth — `stage: spec` AND `progress.spec: pending` — forcing skills to cross-reference both. The `active` marker serves as an explicit "you are here" pointer supporting both forward progression and backward movement (e.g., review failure → back to apply). The pending-after-done fallback handles the post-reset state where no stage is `active`.
+**Rejected**: Keeping `stage:` with simplified progress (still two sources of truth). Adding a `next_stage:` field (second source of truth, stale risk). Adding a `ready` state (expands vocabulary for narrow edge case).
+*Introduced by*: 260212-v5p2-simplify-stages-entry-paths; *Updated by*: 260213-wo9v-fix-reset-auto-advance (three-tier fallback)
+
+### Reset Flow Stops at Target Stage
+**Decision**: When `/fab-continue` resets to a planning stage, the target stage is marked `done` after regeneration. The next stage is NOT set to `active` — it remains `pending`. The user runs `/fab-continue` again to advance.
+**Why**: Auto-advancing past the regenerated stage leaves the next stage `active` with a stale or invalidated artifact. Example: `fab-continue spec` regenerates spec.md, but if it also sets `tasks: active`, the user is stranded at tasks with an invalidated `tasks.md`.
+**Rejected**: Leaving target as `active` (confusing — artifact is fresh but stage says "in progress"). Auto-advancing to next stage (the bug this decision fixes).
+*Introduced by*: 260213-wo9v-fix-reset-auto-advance
 
 ### Keyword Scan Interactive-Only (Archive Step 7)
 **Decision**: The keyword-based backlog scan runs only in interactive mode (`/fab-continue`). Auto-mode pipelines (`/fab-ff`, `/fab-fff`) skip the keyword scan and only run the exact-ID check.
@@ -191,6 +197,7 @@ Skills will tolerate old-format files — the preflight script infers `brief: do
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-wo9v-fix-reset-auto-advance | 2026-02-13 | Fixed stage derivation fallback to use three-tier logic (active → first pending after done → archive). Reset flow now stops at target stage without auto-advancing. Updated preflight, status, stageman scripts, workflow schema, and fab-continue skill. Added pending cases to status next-command display. |
 | 260213-wloh-archive-backlog-scan | 2026-02-13 | Added keyword-based backlog scanning to archive Step 7 — surfaces candidate matches from brief title/Why section, interactive confirmation, skipped in auto mode. Added Keyword Scan Interactive-Only design decision. |
 | 260212-a4bd-unify-fab-continue | 2026-02-12 | Updated `fab/current` lifecycle and review failure references to use `/fab-continue` instead of removed standalone skills |
 | 260212-egqa-switch-return-main | 2026-02-12 | Added `--blank` flag to `/fab-switch` for deactivating the current change (deletes `fab/current`). Composable with `--branch` for git operations. Updated fab/current lifecycle and /fab-switch section. |

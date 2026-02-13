@@ -130,8 +130,30 @@ for s in $(get_all_stages); do
     break
   fi
 done
+# Fallback: if no active entry, find first pending stage after last done
 if [ -z "$stage" ]; then
-  stage="archive"
+  last_done=""
+  for s in $(get_all_stages); do
+    if [ "${progress[$s]}" = "done" ]; then
+      last_done="$s"
+    fi
+  done
+  if [ -n "$last_done" ]; then
+    found_last=false
+    for s in $(get_all_stages); do
+      if [ "$found_last" = "true" ] && [ "${progress[$s]}" = "pending" ]; then
+        stage="$s"
+        break
+      fi
+      if [ "$s" = "$last_done" ]; then
+        found_last=true
+      fi
+    done
+  fi
+  # Final fallback: all done (workflow complete)
+  if [ -z "$stage" ]; then
+    stage="archive"
+  fi
 fi
 
 # Checklist
@@ -163,14 +185,19 @@ current_progress="${progress[$stage]:-}"
 
 next="/fab-status"
 case "${stage:-}:${current_progress:-}" in
+  brief:pending)           next="/fab-continue or /fab-clarify" ;;
   brief:active)            next="/fab-continue or /fab-clarify" ;;
   brief:done)              next="/fab-continue (spec) or /fab-clarify" ;;
+  spec:pending)            next="/fab-continue or /fab-clarify" ;;
   spec:active)             next="/fab-continue or /fab-clarify" ;;
   spec:done)               next="/fab-continue (tasks) or /fab-ff or /fab-clarify" ;;
+  tasks:pending)           next="/fab-continue" ;;
   tasks:active)            next="/fab-continue or /fab-clarify" ;;
   tasks:done)              next="/fab-apply" ;;
+  apply:pending)           next="/fab-continue" ;;
   apply:active)            next="/fab-apply" ;;
   apply:done)              next="/fab-review" ;;
+  review:pending)          next="/fab-continue" ;;
   review:active)           next="/fab-review" ;;
   review:done)             next="/fab-archive" ;;
   review:failed)           next="/fab-review (re-review after fixes)" ;;
