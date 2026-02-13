@@ -70,6 +70,24 @@ git:
   #   "fix/"      → fix/260115-a7k2-add-oauth
   branch_prefix: ""
 
+# conventions — Project-wide workflow conventions that skills can reference.
+# Unlike `naming` (folder name format) and `git` (integration toggles), this
+# section captures human/workflow conventions as informational strings.
+# All keys are optional. Omitting the section entirely is valid.
+# Consumed by: any skill that needs project conventions (e.g., PR creation,
+#   branch naming guidance, backlog references).
+#
+# conventions:
+#   # branch_naming — Pattern or description of branch naming convention.
+#   # Example: "feat/<ticket-id>-<short-description>"
+#   branch_naming: "feat/<ticket-id>-<short-description>"
+#   # pr_title — PR title format pattern.
+#   # Example: "[<ticket-id>] <imperative description>"
+#   pr_title: "[<ticket-id>] <imperative description>"
+#   # backlog — URL or location of the project backlog.
+#   # Example: "https://linear.app/myteam/backlog"
+#   backlog: "https://linear.app/myteam/backlog"
+
 # stages — The 6-stage pipeline definition. Controls stage ordering,
 #   prerequisites, which artifacts are generated, and skip logic.
 # Consumed by: /fab:new (initializes .status.yaml), /fab:continue (stage

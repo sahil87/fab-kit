@@ -3,20 +3,20 @@ created: 2026-02-13T12:00:00Z
 created_by: sahil-weaver
 progress:
   brief: done
-  spec: active
-  tasks: pending
-  apply: pending
-  review: pending
-  archive: pending
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  archive: done
 checklist:
-  generated: false
+  generated: true
   path: checklist.md
-  completed: 0
-  total: 0
+  completed: 12
+  total: 12
 confidence:
   certain: 5
   confident: 6
   tentative: 0
   unresolved: 0
   score: 3.2
-last_updated: 2026-02-13T19:00:00Z
+last_updated: 2026-02-13T19:30:00Z
