@@ -40,7 +40,7 @@ The agent SHALL generate a folder name in the format `{YYMMDD}-{XXXX}-{slug}` wh
 
 Before committing to a brief, `/fab-new` evaluates whether the change is needed:
 
-1. Checks for existing mechanisms in the current workflow, codebase, or docs
+1. Checks for existing mechanisms in the current workflow, codebase, or memory
 2. Evaluates scope — is the idea too broad (should be split) or too narrow (part of something larger)?
 3. Considers alternatives — simpler approaches, extending existing skills
 
@@ -76,7 +76,7 @@ After generating the brief, `/fab-new` computes the SRAD confidence score and wr
 
 #### Context
 
-Loads: config, constitution, `fab/memory/index.md` (to understand the existing doc landscape).
+Loads: config, constitution, `fab/memory/index.md` (to understand the existing memory landscape).
 
 ### `/fab-continue [<change-name>] [<stage>]`
 
@@ -108,7 +108,7 @@ Reset is primarily used after review identifies issues upstream.
 
 #### Context (varies by target stage)
 
-- **Spec**: config, constitution, `brief.md`, target centralized doc(s) from `fab/memory/`
+- **Spec**: config, constitution, `brief.md`, target memory file(s) from `fab/memory/`
 - **Tasks**: above + completed `spec.md`
 
 ### `/fab-ff [<change-name>]` (Fast Forward — Full Pipeline)
@@ -135,7 +135,7 @@ The `/fab-ff` pipeline interleaves auto-clarify between planning stage generatio
 5. Auto-generate quality checklist
 6. Execute tasks via apply behavior
 7. Validate implementation via review behavior — on failure, presents interactive rework menu (fix code, revise tasks, revise spec)
-8. Hydrate docs into centralized docs
+8. Hydrate into memory files
 
 #### Interactive Review Failure
 
@@ -174,7 +174,7 @@ Each stage uses the same behavior as its standalone invocation. If planning bail
 
 #### Context
 
-Loads all planning context upfront: config, constitution, `brief.md`, target centralized doc(s) from `fab/memory/`.
+Loads all planning context upfront: config, constitution, `brief.md`, target memory file(s) from `fab/memory/`.
 
 ### `/fab-clarify [<change-name>]`
 
@@ -210,7 +210,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 #### Context (varies by current stage)
 
-- **Spec**: config, constitution, `brief.md`, target centralized doc(s) from `fab/memory/`
+- **Spec**: config, constitution, `brief.md`, target memory file(s) from `fab/memory/`
 - **Tasks**: above + `spec.md`, `tasks.md`
 
 ## Design Decisions
@@ -265,7 +265,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 ### Unified Command: `/fab-continue` Absorbs Execution Stages
 **Decision**: `/fab-continue` handles all 6 pipeline stages (brief → spec → tasks → apply → review → hydrate). Apply, review, and hydrate behaviors are described as dedicated sections within `fab-continue.md`, not extracted into a shared partial. `/fab-archive` exists as a standalone housekeeping skill (not a pipeline stage) for post-hydrate cleanup.
-**Why**: Reduces developer command surface from 4+ commands to 2 (`/fab-continue` + `/fab-clarify`). Execution stages are orchestration-heavy with distinct flows (task execution, validation with rework, doc hydration) — inlining keeps each stage's behavior in one readable location.
+**Why**: Reduces developer command surface from 4+ commands to 2 (`/fab-continue` + `/fab-clarify`). Execution stages are orchestration-heavy with distinct flows (task execution, validation with rework, memory hydration) — inlining keeps each stage's behavior in one readable location.
 **Rejected**: Keeping standalone `/fab-apply`, `/fab-review` — command fragmentation. Extracting to `_execution.md` partial — low reuse value since only fab-continue calls these.
 *Introduced by*: 260212-a4bd-unify-fab-continue
 

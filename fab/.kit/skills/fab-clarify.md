@@ -88,13 +88,13 @@ Context varies by the **target artifact** (which equals the current stage for pl
 - `fab/config.yaml` — project config, tech stack
 - `fab/constitution.md` — project principles and constraints
 - `fab/changes/{name}/brief.md` — the artifact to refine
-- `fab/memory/index.md` — documentation landscape
+- `fab/memory/index.md` — memory landscape
 
 ### Spec artifact
 
 - Everything from brief context above, plus:
 - `fab/changes/{name}/spec.md` — the artifact to refine (if exists)
-- Specific centralized docs referenced by the brief's **Affected Docs** section
+- Specific memory files referenced by the brief's **Affected Memory** section
 
 ### Tasks artifact
 
@@ -132,7 +132,7 @@ Perform a systematic scan of the artifact for gaps, ambiguities, and `[NEEDS CLA
 - Affected areas — are all impacted components identified?
 - Blocking questions — any unresolved `[BLOCKING]` items?
 - Impact completeness — does the Impact section cover all areas?
-- Affected docs coverage — are all relevant docs listed under Affected Docs?
+- Affected memory coverage — are all relevant memory files listed under Affected Memory?
 
 #### Spec categories
 
@@ -140,7 +140,7 @@ Perform a systematic scan of the artifact for gaps, ambiguities, and `[NEEDS CLA
 - Scenario coverage — does every requirement have at least one GIVEN/WHEN/THEN scenario?
 - Edge cases — are error states, boundary conditions, and exceptional paths covered?
 - Deprecated requirements — if behavior is removed, is it captured?
-- Cross-references — do references to centralized docs match reality?
+- Cross-references — do references to memory files match reality?
 
 #### Tasks categories
 
@@ -288,7 +288,7 @@ Same as Suggest Mode Step 1 — determine the artifact file from the current sta
 
 Perform the same stage-scoped taxonomy scan as Suggest Mode Step 2, including scanning for `<!-- assumed: ... -->` markers. For each gap found, attempt autonomous resolution:
 
-1. **Resolvable** — the gap can be resolved using available context (config, constitution, centralized docs, completed artifacts). Resolve it in place with a `<!-- clarified: {description} -->` marker. For `<!-- assumed: ... -->` markers that can be confirmed from context, remove the marker (assumption confirmed).
+1. **Resolvable** — the gap can be resolved using available context (config, constitution, memory files, completed artifacts). Resolve it in place with a `<!-- clarified: {description} -->` marker. For `<!-- assumed: ... -->` markers that can be confirmed from context, remove the marker (assumption confirmed).
 2. **Blocking** — the gap cannot be resolved from available context. It requires user input or external information that the agent does not have. Leave the gap in place with a `<!-- blocking: {description} -->` marker.
 3. **Non-blocking** — a minor gap that does not materially affect downstream artifacts. Leave as-is with no marker.
 

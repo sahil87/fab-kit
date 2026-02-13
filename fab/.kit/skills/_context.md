@@ -15,7 +15,7 @@ Read these files first — they define the project's identity, constraints, and 
 
 - **`fab/config.yaml`** — project configuration, tech stack, naming conventions, stage configuration
 - **`fab/constitution.md`** — project principles and constraints (MUST/SHOULD/MUST NOT rules)
-- **`fab/memory/index.md`** — documentation landscape (which domains and docs exist)
+- **`fab/memory/index.md`** — memory landscape (which domains and memory files exist)
 - **`fab/specs/index.md`** — specifications landscape (pre-implementation design intent, human-curated)
 
 > **Note**: If the skill runs `fab-preflight.sh` (Section 2 above), the init check (config.yaml and constitution.md existence) is already covered by the script. Skills using preflight don't need separate existence checks for these files — they only need to read them for content.
@@ -37,14 +37,14 @@ Resolve the active change and load its state by running the preflight script:
 > 3. Change directory `fab/changes/{name}/` exists
 > 4. `.status.yaml` exists within the change directory
 
-### 3. Centralized Doc Lookup (when operating on an active change)
+### 3. Memory File Lookup (when operating on an active change)
 
-Selectively load relevant domain docs based on the change's scope:
+Selectively load relevant memory files based on the change's scope:
 
-1. Read the brief's **Affected Docs** section (or spec's **Affected docs** metadata) to identify which domains are relevant
-2. For each referenced domain, read `fab/memory/{domain}/index.md` to understand the domain's docs
-3. Read the specific centralized doc(s) referenced by the Affected Docs entries (those marked `(new)`, `(modify)`, or `(remove)`) — read `fab/memory/{domain}/{name}.md` for each listed doc that exists
-4. If a referenced doc or domain does not exist yet (e.g., listed under New Docs), note this and proceed without error — it will be created during hydrate (via `/fab-continue` or `/fab-ff`)
+1. Read the brief's **Affected Memory** section (or spec's **Affected memory** metadata) to identify which domains are relevant
+2. For each referenced domain, read `fab/memory/{domain}/index.md` to understand the domain's memory files
+3. Read the specific memory file(s) referenced by the Affected Memory entries (those marked `(new)`, `(modify)`, or `(remove)`) — read `fab/memory/{domain}/{name}.md` for each listed file that exists
+4. If a referenced file or domain does not exist yet (e.g., listed as `(new)`), note this and proceed without error — it will be created during hydrate (via `/fab-continue` or `/fab-ff`)
 5. Use this context to ground all artifact generation (spec, tasks, reviews) in the real current state, not assumptions
 
 ### 4. Source Code Loading (during implementation and review)
@@ -68,7 +68,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 | After skill | Stage reached | Next line |
 |-------------|---------------|-----------|
 | `/fab-init` | initialized | `Next: /fab-new <description> or /fab-hydrate <sources>` |
-| `/fab-hydrate` | docs hydrated | `Next: /fab-new <description> or /fab-hydrate <more-sources>` |
+| `/fab-hydrate` | memory hydrated | `Next: /fab-new <description> or /fab-hydrate <more-sources>` |
 | `/fab-new` | brief active | `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-ff` |
 | `/fab-continue` → spec | spec done | `Next: /fab-continue or /fab-ff or /fab-clarify` |
 | `/fab-continue` → tasks | tasks done | `Next: /fab-continue or /fab-ff` |

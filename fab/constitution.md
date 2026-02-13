@@ -6,7 +6,7 @@
 All workflow logic MUST live in markdown skill files and shell scripts. There SHALL be no system dependencies, no package managers, no CLI binaries, and no build steps. Any AI agent that can read markdown and execute shell commands can drive the workflow.
 
 ### II. Docs Are Source of Truth
-Centralized documentation in `fab/memory/` SHALL be the authoritative source for system behavior and design decisions. Specifications and plans are transient artifacts within changes; the hydrated docs are permanent. All agents MUST consult centralized docs before generating specs or plans.
+Centralized documentation in `fab/memory/` SHALL be the authoritative source for system behavior and design decisions. Specifications and plans are transient artifacts within changes; the hydrated memory is permanent. All agents MUST consult memory files before generating specs or plans.
 
 ### III. Idempotent Operations
 All skills MUST be safe to re-run without side effects. Running a skill twice with the same inputs SHALL produce the same result. Skills MUST NOT corrupt or lose data on repeated invocation. This enables fearless experimentation and recovery from interruptions.

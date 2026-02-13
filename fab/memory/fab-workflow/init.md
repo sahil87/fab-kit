@@ -4,7 +4,7 @@
 
 ## Overview
 
-`/fab-init` is the structural bootstrap skill that creates the `fab/` directory layout. It also provides subcommands for managing `config.yaml` and `constitution.md`, and for validating their structure. It does not handle doc hydration — that responsibility belongs to `/fab-hydrate`.
+`/fab-init` is the structural bootstrap skill that creates the `fab/` directory layout. It also provides subcommands for managing `config.yaml` and `constitution.md`, and for validating their structure. It does not handle memory hydration — that responsibility belongs to `/fab-hydrate`.
 
 ## Requirements
 
@@ -14,7 +14,7 @@
 
 - Creates `fab/config.yaml` (project configuration)
 - Creates `fab/constitution.md` (project principles)
-- Creates `fab/memory/index.md` (documentation index skeleton)
+- Creates `fab/memory/index.md` (memory index skeleton)
 - Creates `fab/specs/index.md` (specifications index skeleton — pre-implementation, human-curated)
 - Creates `fab/changes/` directory
 - Creates skill symlinks via `_fab-scaffold.sh` glob pattern
@@ -31,7 +31,7 @@ When arguments other than recognized subcommands are passed, init outputs a redi
 
 ### Output
 
-First-run output lists only structural artifacts created. Next step suggests `/fab-new <description>` or `/fab-hydrate <sources>` to populate docs. The "With Sources" output section has been removed.
+First-run output lists only structural artifacts created. Next step suggests `/fab-new <description>` or `/fab-hydrate <sources>` to populate memory. The "With Sources" output section has been removed.
 
 ### Bootstrap Alternative
 
@@ -57,8 +57,8 @@ For post-initialization management of config and constitution files, see the [in
 
 | Responsibility | Owner | Notes |
 |---|---|---|
-| Directories (`changes/`, `docs/`, `design/`) | `_fab-scaffold.sh` | Non-interactive, scriptable |
-| Skeleton files (`docs/index.md`, `design/index.md`) | `_fab-scaffold.sh` | Copies from `scaffold/docs-index.md` and `scaffold/design-index.md`; idempotent — skips if file exists |
+| Directories (`changes/`, `memory/`, `specs/`) | `_fab-scaffold.sh` | Non-interactive, scriptable |
+| Skeleton files (`memory/index.md`, `specs/index.md`) | `_fab-scaffold.sh` | Copies from `scaffold/memory-index.md` and `scaffold/specs-index.md`; idempotent — skips if file exists |
 | Skill symlinks (Claude Code, OpenCode, Codex) | `_fab-scaffold.sh` | Discovers skills via glob pattern |
 | `.envrc` symlink | `_fab-scaffold.sh` | Links to `fab/.kit/scaffold/envrc` |
 | `.gitignore` entries | `_fab-scaffold.sh` | Appends entries from `scaffold/gitignore-entries` if not present |

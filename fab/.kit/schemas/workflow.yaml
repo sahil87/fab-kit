@@ -102,7 +102,7 @@ stages:
   - id: hydrate
     name: "Hydrate"
     generates: null
-    description: "Validate, hydrate learnings into centralized docs"
+    description: "Validate, hydrate learnings into memory"
     requires: [review]
     required: true
     initial_state: pending

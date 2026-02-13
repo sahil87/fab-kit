@@ -8,12 +8,12 @@
 
 ## Requirements
 
-### Specs vs Docs Distinction
+### Specs vs Memory Distinction
 
-Spec files are pre-implementation artifacts — what you planned. They capture conceptual design intent, high-level decisions, and the "why" behind features. Docs are post-implementation artifacts — what actually happened, the authoritative source of truth for system behavior.
+Spec files are pre-implementation artifacts — what you planned. They capture conceptual design intent, high-level decisions, and the "why" behind features. Memory files are post-implementation artifacts — what actually happened, the authoritative source of truth for system behavior.
 
 - `fab/specs/index.md` boilerplate clearly states spec files are pre-implementation / planning artifacts
-- `fab/memory/index.md` boilerplate clearly states docs are post-implementation / authoritative truth
+- `fab/memory/index.md` boilerplate clearly states memory files are post-implementation / authoritative truth
 - Both index files cross-reference each other with relative links
 
 ### Flat Structure
@@ -22,11 +22,11 @@ The specs index does not prescribe a domain-based directory hierarchy. Spec file
 
 ### Human-Curated Ownership
 
-Spec files are written and maintained by humans. No automated tooling creates or enforces structure in `fab/specs/`. `/fab-hydrate-specs` provides assisted reverse-hydration — it identifies structural gaps between docs and specs and proposes concise additions, but every insertion requires explicit user confirmation. Spec files remain human-curated.
+Spec files are written and maintained by humans. No automated tooling creates or enforces structure in `fab/specs/`. `/fab-hydrate-specs` provides assisted reverse-hydration — it identifies structural gaps between memory and specs and proposes concise additions, but every insertion requires explicit user confirmation. Spec files remain human-curated.
 
 ### Bootstrap Integration
 
-`/fab-init` creates `fab/specs/index.md` during structural bootstrap (after docs/index.md). The creation is idempotent — if the file already exists, init skips it with a status message.
+`/fab-init` creates `fab/specs/index.md` during structural bootstrap (after memory/index.md). The creation is idempotent — if the file already exists, init skips it with a status message.
 
 ### Context Loading Integration
 

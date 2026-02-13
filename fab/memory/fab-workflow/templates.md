@@ -4,7 +4,7 @@
 
 ## Overview
 
-Fab ships artifact templates in `fab/.kit/templates/` that skills fill with concrete content during planning stages. Each template is a markdown scaffold with guidance comments (`<!-- -->`) that instruct the agent — comments are not preserved in output. This doc covers the four artifact templates (brief, spec, tasks, checklist) and the centralized doc format used in `fab/memory/`.
+Fab ships artifact templates in `fab/.kit/templates/` that skills fill with concrete content during planning stages. Each template is a markdown scaffold with guidance comments (`<!-- -->`) that instruct the agent — comments are not preserved in output. This doc covers the four artifact templates (brief, spec, tasks, checklist) and the memory file format used in `fab/memory/`.
 
 ## Requirements
 
@@ -15,7 +15,7 @@ The brief captures intent, scope, approach, and open questions. Structure:
 - **Origin** — How the change was initiated: description text, interaction mode (one-shot vs. conversational), key decisions from the conversation. Provides traceability for how the brief was developed
 - **Why** — Motivation, 1-3 sentences
 - **What Changes** — Specific capabilities added, modified, or removed
-- **Affected Docs** — Flat list of centralized docs affected by this change, each with an inline marker: `(new)`, `(modify)`, or `(remove)`. Kebab-case identifiers matching `fab/memory/` paths
+- **Affected Memory** — Flat list of memory files affected by this change, each with an inline marker: `(new)`, `(modify)`, or `(remove)`. Kebab-case identifiers matching `fab/memory/` paths
 - **Impact** — Affected code areas, APIs, dependencies
 - **Open Questions** — Plain list of questions the agent couldn't resolve from context. SRAD handles prioritization at spec generation time — no explicit blocking/deferred labels needed
 
@@ -23,16 +23,16 @@ The brief captures intent, scope, approach, and open questions. Structure:
 
 The spec describes requirements relevant to this change using RFC 2119 keywords (MUST/SHALL/SHOULD/MAY). Structure:
 
-- **Metadata** — Change name, date, affected docs paths
+- **Metadata** — Change name, date, affected memory paths
 - **Domain sections** — Organized by domain when the change touches multiple domains
 - **Requirements** — Each with descriptive name and RFC 2119 text
 - **Scenarios** — GIVEN/WHEN/THEN format, at least one per requirement
 - **Optional sections** — Added only when needed, omitted entirely otherwise:
   - **Non-Goals** — Explicit scope exclusions after metadata, before domain sections. Each entry: `- {what} — {reason}`
-  - **Design Decisions** — Key design choices after domain sections. Each entry: `1. **{Decision}**: {approach}` with `*Why*` and `*Rejected*` sub-items. Extracted into centralized docs during hydrate
+  - **Design Decisions** — Key design choices after domain sections. Each entry: `1. **{Decision}**: {approach}` with `*Why*` and `*Rejected*` sub-items. Extracted into memory during hydrate
   - **Deprecated Requirements** — Only when removing existing requirements, with Reason and Migration fields
 
-The spec reads as a straightforward requirements document with no delta markers. The agent infers what's new vs changed by comparing against existing centralized docs during hydrate.
+The spec reads as a straightforward requirements document with no delta markers. The agent infers what's new vs changed by comparing against existing memory files during hydrate.
 
 Unresolved ambiguities SHALL be marked inline with `[NEEDS CLARIFICATION]`. `/fab-clarify` resolves these.
 
@@ -96,34 +96,34 @@ Skill files in `fab/.kit/skills/` use YAML frontmatter with these fields:
 
 The `model_tier` field is used by `_fab-scaffold.sh` during deployment to generate agent files with provider-specific `model:` fields. See [model-tiers.md](model-tiers.md) for tier selection criteria and the full mapping system.
 
-### Centralized Doc Format (`fab/memory/`)
+### Memory File Format (`fab/memory/`)
 
-Centralized docs are the source of truth for system behavior and design decisions. Structure:
+Memory files are the source of truth for system behavior and design decisions. Structure:
 
-- **Overview** — 1-2 sentences describing what the doc covers
+- **Overview** — 1-2 sentences describing what the file covers
 - **Requirements** — Using RFC 2119 keywords, with GIVEN/WHEN/THEN scenarios
 - **Design Decisions** — Durable architectural decisions extracted from specs during hydration. Each includes decision, rationale, rejected alternatives, and the introducing change name
 - **Changelog** — Auto-maintained by `/fab-continue` (hydrate), most recent first
 
 #### Index Hierarchy
 
-- **Top-level** (`fab/memory/index.md`): `| [domain](domain/index.md) | description | doc-list |`
-- **Domain-level** (`fab/memory/{domain}/index.md`): `| [doc-name](doc-name.md) | description | last-updated |`
+- **Top-level** (`fab/memory/index.md`): `| [domain](domain/index.md) | description | file-list |`
+- **Domain-level** (`fab/memory/{domain}/index.md`): `| [file-name](file-name.md) | description | last-updated |`
 - All links SHALL be relative
 
 #### Hydration Rules
 
-When `/fab-continue` (hydrate) hydrates into centralized docs:
-1. **New doc**: Create from template, add to domain index. If domain is new, create domain folder and add to top-level index
-2. **Existing doc**: Compare spec requirements against current doc. Update Requirements section semantically. Minimize edits to unchanged sections
+When `/fab-continue` (hydrate) hydrates into memory files:
+1. **New file**: Create from template, add to domain index. If domain is new, create domain folder and add to top-level index
+2. **Existing file**: Compare spec requirements against current file. Update Requirements section semantically. Minimize edits to unchanged sections
 3. **Design decisions**: Extract durable decisions from spec. Skip tactical details. Add with change name for traceability
-4. **Index updates**: Update "Last Updated" column. Add entries for new docs
-5. **Changelog row**: Append to doc's Changelog with change name, date, summary
+4. **Index updates**: Update "Last Updated" column. Add entries for new files
+5. **Changelog row**: Append to file's Changelog with change name, date, summary
 
 ## Design Decisions
 
 ### Single spec.md Without Delta Markers
-**Decision**: The spec is a straightforward requirements document with no ADDED/MODIFIED/REMOVED markers. The agent infers deltas by comparing against centralized docs during hydration.
+**Decision**: The spec is a straightforward requirements document with no ADDED/MODIFIED/REMOVED markers. The agent infers deltas by comparing against memory files during hydration.
 **Why**: Reads naturally. No coupling between the spec format and the hydration mechanism.
 **Rejected**: Explicit delta markers — clutter specs, require discipline, fragile to editing.
 *Source*: doc/fab-spec/TEMPLATES.md
@@ -158,10 +158,10 @@ When `/fab-continue` (hydrate) hydrates into centralized docs:
 **Rejected**: Always include with "N/A" — adds boilerplate to simple changes.
 *Introduced by*: 260211-r4w8-spec-template-sections
 
-### Flat Affected Docs With Inline Markers
-**Decision**: The brief template's Affected Docs section uses a single flat list with `(new)`, `(modify)`, `(remove)` inline markers instead of three headed subsections.
-**Why**: Most changes touch 1-2 docs, leaving empty subsection headings. A flat list is more compact and eliminates structural overhead for the common case.
-**Rejected**: Keep three subsections (New Docs / Modified Docs / Removed Docs) — empty headings add noise for typical changes.
+### Flat Affected Memory With Inline Markers
+**Decision**: The brief template's Affected Memory section uses a single flat list with `(new)`, `(modify)`, `(remove)` inline markers instead of three headed subsections.
+**Why**: Most changes touch 1-2 files, leaving empty subsection headings. A flat list is more compact and eliminates structural overhead for the common case.
+**Rejected**: Keep three subsections (New Files / Modified Files / Removed Files) — empty headings add noise for typical changes.
 *Introduced by*: 260213-v4rx-simplify-templates
 
 ### SRAD-Driven Open Questions (No BLOCKING/DEFERRED Labels)
@@ -181,7 +181,7 @@ When `/fab-continue` (hydrate) hydrates into centralized docs:
 | Change | Date | Summary |
 |--------|------|---------|
 | 260213-jc0u-split-archive-hydrate | 2026-02-13 | Updated `.status.yaml` template example (`archive: pending` → `hydrate: pending`), hydration rule references, and checklist gate references to use `hydrate` instead of `archive` |
-| 260213-v4rx-simplify-templates | 2026-02-13 | Flattened brief Affected Docs to inline markers, removed BLOCKING/DEFERRED from Open Questions, replaced spec optional section placeholders with guidance comment |
+| 260213-v4rx-simplify-templates | 2026-02-13 | Flattened brief Affected Memory to inline markers, removed BLOCKING/DEFERRED from Open Questions, replaced spec optional section placeholders with guidance comment |
 | 260212-ipoe-checklist-folder-location | 2026-02-12 | Moved checklist from `checklists/quality.md` to `checklist.md` at change root; updated .status.yaml template `checklist.path` default |
 | 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Updated .status.yaml template (removed stage: field and brief: from progress, spec: active as initial), documented brief template Origin section |
 | 260211-r4w8-spec-template-sections | 2026-02-12 | Added optional Non-Goals and Design Decisions sections to spec.md template |

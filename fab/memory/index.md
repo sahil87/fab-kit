@@ -9,6 +9,6 @@
 
 > **New here?** See the [Documentation Map](../../README.md#documentation-map) for recommended reading order. For terminology, see the [Glossary](../specs/glossary.md).
 
-| Domain | Description | Docs |
-|--------|-------------|------|
+| Domain | Description | Memory Files |
+|--------|-------------|--------------|
 | [fab-workflow](fab-workflow/index.md) | Fab kit workflow — skills, architecture, templates, configuration, change lifecycle | hydrate, hydrate-generate, init, context-loading, planning-skills, clarify, execution-skills, change-lifecycle, templates, kit-architecture, model-tiers, configuration, preflight, hydrate-design, design-index, distribution |

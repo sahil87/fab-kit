@@ -6,7 +6,7 @@
 
 A hybrid SDD workflow that combines:
 - **SpecKit's** intuitive structure, folder customization, and pure-prompt approach
-- **OpenSpec's** fast-forward workflow and centralized doc hydration
+- **OpenSpec's** fast-forward workflow and memory hydration
 
 ---
 
@@ -15,11 +15,11 @@ A hybrid SDD workflow that combines:
 ### 1. Pure Prompt Play
 No system installation required. All workflow logic lives in `fab/.kit/` as markdown templates and skill definitions that any AI agent can execute.
 
-### 2. Docs Are the Source of Truth
-Code serves documentation, not the other way around. The centralized docs (`fab/memory/`) are the source of truth for what the system does and why it works the way it does.
+### 2. Memory Is the Source of Truth
+Code serves documentation, not the other way around. The memory files (`fab/memory/`) are the source of truth for what the system does and why it works the way it does.
 
 ### 3. Change Folder First
-All work happens in change folders. Each change captures its requirements (`spec.md`), which get hydrated into the centralized docs on completion.
+All work happens in change folders. Each change captures its requirements (`spec.md`), which get hydrated into memory files on completion.
 
 ### 4. Stage Visibility
 Always know where you are. Each change folder has a `.status.yaml` manifest that tracks current stage and progress. A `current` pointer file (`fab/current` contains the active change name) provides instant access to whichever change is in flight — no scanning or guessing required. Run `fab/.kit/scripts/fab-status.sh` for a quick terminal check.
@@ -60,7 +60,7 @@ cp -r /path/to/fab-kit fab/.kit
 /fab-init
 ```
 
-This generates everything else: `config.yaml`, `constitution.md`, `docs/`, `changes/`, and skill symlinks. See [Skills Reference](skills.md#fabinit) for full behavior.
+This generates everything else: `config.yaml`, `constitution.md`, `memory/`, `changes/`, and skill symlinks. See [Skills Reference](skills.md#fabinit) for full behavior.
 
 ### Verify
 
@@ -71,7 +71,7 @@ fab/.kit/scripts/fab-status.sh
 
 You're ready. Start your first change with `/fab-new <description>`.
 
-### Hydrating Docs from Existing Sources
+### Hydrating Memory from Existing Sources
 
 After the initial bootstrap, use `/fab-hydrate` to ingest existing documentation into `fab/memory/`:
 
@@ -106,7 +106,7 @@ flowchart TD
     end
     subgraph completion ["Completion"]
         direction LR
-        AR["6 ARCHIVE"] --> H[/"Hydrate into docs"/]
+        AR["6 ARCHIVE"] --> H[/"Hydrate into memory"/]
     end
 
     T --> A
@@ -126,7 +126,7 @@ flowchart TD
 | 3 | **Tasks** | Implementation checklist | `tasks.md` | Auto-generated quality checklist (`checklist.md`) |
 | 4 | **Apply** | Execute tasks | code changes | Run tests per task, progress tracking |
 | 5 | **Review** | Validate against spec | validation report | Checklist completion, spec drift detection |
-| 6 | **Archive** | Complete & hydrate | archive entry | Hydrate spec into centralized docs |
+| 6 | **Archive** | Complete & hydrate | archive entry | Hydrate spec into memory files |
 
 ### User Flow
 
@@ -163,15 +163,15 @@ flowchart TD
 
 | Skill | Purpose | Creates |
 |-------|---------|---------|
-| `/fab-init` | Bootstrap fab/ structure | `config.yaml`, `constitution.md`, `docs/`, skill symlinks (idempotent) |
-| `/fab-hydrate [sources...]` | Ingest external docs into fab/memory/ | Updated `fab/memory/` with indexes |
+| `/fab-init` | Bootstrap fab/ structure | `config.yaml`, `constitution.md`, `memory/`, skill symlinks (idempotent) |
+| `/fab-hydrate [sources...]` | Ingest external sources into fab/memory/ | Updated `fab/memory/` with indexes |
 | `/fab-new` | Start change (optionally with `--switch`) | `brief.md`, `.status.yaml` |
 | `/fab-continue [<stage>]` | Next artifact (or reset to stage) | Next stage artifact |
 | `/fab-ff` | Fast forward remaining planning | spec.md + tasks + checklist |
 | `/fab-clarify` | Deepen current artifact | Refined artifact (in place) |
 | `/fab-continue` → apply | Implement | Code changes |
 | `/fab-continue` → review | Validate | Validation report |
-| `/fab-continue` → archive | Complete & hydrate | Archive entry, updated docs |
+| `/fab-continue` → archive | Complete & hydrate | Archive entry, updated memory |
 | `/fab-switch` | Change active change | Updated pointer file |
 | `/fab-status` | Check progress | Status display |
 
@@ -207,7 +207,7 @@ flowchart TD
 
 # 7. Archive
 /fab-continue
-# → Hydrates docs/, moves to archive/
+# → Hydrates memory/, moves to archive/
 ```
 
 ### Fast Track (small changes)

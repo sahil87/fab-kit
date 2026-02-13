@@ -105,7 +105,7 @@ Generate a unique folder name using the format `{YYMMDD}-{XXXX}-{slug}`:
 
 Before creating the change folder, perform gap analysis to avoid redundant or overlapping changes:
 
-1. **Check existing mechanisms** — search the workflow, codebase, and centralized docs for features or mechanisms that already cover the user's idea
+1. **Check existing mechanisms** — search the workflow, codebase, and memory files for features or mechanisms that already cover the user's idea
 2. **Evaluate scope** — is the idea too broad (should be split into multiple changes) or too narrow (part of a larger ongoing change)?
 3. **Consider alternatives** — simpler approaches, extending existing skills, or configuration changes that solve the problem without new code
 
@@ -142,7 +142,7 @@ Create `fab/changes/{name}/.status.yaml` using the template at `fab/.kit/templat
 Load context before generating:
 - Read `fab/config.yaml` — project name, tech stack, conventions
 - Read `fab/constitution.md` — project principles and constraints
-- Read `fab/memory/index.md` — understand the existing documentation landscape
+- Read `fab/memory/index.md` — understand the existing memory landscape
 
 Generate `fab/changes/{name}/brief.md` using the template at `fab/.kit/templates/brief.md`:
 
@@ -162,7 +162,7 @@ Generate `fab/changes/{name}/brief.md` using the template at `fab/.kit/templates
 5. Fill in the **What Changes** section:
    - Be specific about new capabilities, modifications, or removals
    - If Linear description includes acceptance criteria, incorporate them here
-6. Fill in the **Affected Docs** section — identify which centralized docs (in `fab/memory/`) will be new, modified, or removed by this change. Use `fab/memory/index.md` to understand what exists.
+6. Fill in the **Affected Memory** section — identify which memory files (in `fab/memory/`) will be new, modified, or removed by this change. Use `fab/memory/index.md` to understand what exists.
 7. Fill in the **Impact** section:
    - Identify affected code areas, APIs, dependencies
    - If Linear issue has related/blocking issues, mention them here

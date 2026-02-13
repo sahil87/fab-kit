@@ -16,7 +16,7 @@
    - `{CHANGE_NAME}`: The human-readable name from the brief
    - `{YYMMDD-XXXX-slug}`: The change folder name from `.status.yaml`
    - `{DATE}`: Today's date
-   - `{domain}` and `{doc-name}`: From the brief's Affected Docs section
+   - `{domain}` and `{file-name}`: From the brief's Affected Memory section
 2b. **Non-Goals** (optional): If the change has meaningful scope exclusions, include a `## Non-Goals` section after the metadata block and before the first domain section. Each non-goal is a bullet: `- {what is excluded} — {brief reason, if not obvious}`. Derive non-goals from the brief's scope boundaries and any explicit exclusions discussed. Omit this section entirely for straightforward changes with no meaningful exclusions.
 3. For each domain/topic affected by this change, create a section with:
    - Requirements using RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)

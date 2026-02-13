@@ -2,12 +2,12 @@
 
 **Change**: {YYMMDD-XXXX-slug}
 **Created**: {DATE}
-**Affected docs**: `fab/memory/{domain}/{doc-name}.md`
+**Affected memory**: `fab/memory/{domain}/{file-name}.md`
 
 <!--
   CHANGE SPECIFICATION
   Describes the requirements relevant to this change. No delta markers needed —
-  the agent compares against existing centralized docs during hydration to
+  the agent compares against existing memory files during hydration to
   determine what's new, changed, or removed.
 
   Requirements use RFC 2119 keywords: MUST/SHALL (mandatory), SHOULD (recommended), MAY (optional).

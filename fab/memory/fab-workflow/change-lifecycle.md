@@ -79,7 +79,7 @@ The brief (`brief.md`) is created by `/fab-new` and is the first pipeline stage.
 The stages split into three phases:
 - **Planning** (1-3): brief, spec, tasks
 - **Execution** (4-5): apply, review
-- **Completion** (6): hydrate (hydrates into centralized docs, completes the pipeline)
+- **Completion** (6): hydrate (hydrates into memory files, completes the pipeline)
 
 After hydrate completes, the change folder remains in `fab/changes/`. To move it to the archive, run `/fab-archive` — a standalone housekeeping command (not a pipeline stage). `/fab-archive` moves the folder to `fab/changes/archive/`, updates the archive index, marks backlog items done (exact-ID check always; keyword scan with interactive confirmation), and conditionally clears `fab/current`.
 

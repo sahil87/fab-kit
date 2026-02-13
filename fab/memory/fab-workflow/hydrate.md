@@ -4,7 +4,7 @@
 
 ## Overview
 
-`/fab-hydrate [sources...|folders...]` is a standalone skill that operates in two modes: **ingest mode** (fetching URLs or reading `.md` files into `fab/memory/`) and **generate mode** (scanning the codebase for undocumented areas and producing structured docs). Mode is determined automatically by argument type — no flags needed. It requires `fab/memory/` to exist (created by `/fab-init`). See [hydrate-generate](hydrate-generate.md) for full generate mode requirements.
+`/fab-hydrate [sources...|folders...]` is a standalone skill that operates in two modes: **ingest mode** (fetching URLs or reading `.md` files into `fab/memory/`) and **generate mode** (scanning the codebase for undocumented areas and producing structured memory files). Mode is determined automatically by argument type — no flags needed. It requires `fab/memory/` to exist (created by `/fab-init`). See [hydrate-generate](hydrate-generate.md) for full generate mode requirements.
 
 ## Requirements
 
@@ -31,32 +31,32 @@ When arguments route to ingest mode:
 
 - Fetches/reads each source independently
 - Analyzes content and maps to domains
-- Creates or merges doc files in `fab/memory/{domain}/`
+- Creates or merges memory files in `fab/memory/{domain}/`
 - Creates/updates domain indexes (`fab/memory/{domain}/index.md`)
 - Updates top-level index (`fab/memory/index.md`)
 - Multiple sources are processed in a single pass; indexes updated once at the end
 
 ### Generate Mode Behavior
 
-When arguments route to generate mode (no arguments or folder paths), the skill scans the codebase for undocumented areas, presents an interactive gap report, and generates structured docs. See [hydrate-generate](hydrate-generate.md) for full requirements.
+When arguments route to generate mode (no arguments or folder paths), the skill scans the codebase for undocumented areas, presents an interactive gap report, and generates structured memory files. See [hydrate-generate](hydrate-generate.md) for full requirements.
 
 ### Prerequisite
 
-`/fab-hydrate` requires `fab/memory/` to exist. If missing, it aborts with: "fab/memory/ not found. Run /fab-init first to create the docs directory."
+`/fab-hydrate` requires `fab/memory/` to exist. If missing, it aborts with: "fab/memory/ not found. Run /fab-init first to create the memory directory."
 
 ### Idempotent Hydration
 
 Safe to run repeatedly with the same sources:
 - New requirements from the source are added
 - Existing requirements are updated if source content changed
-- Manually-added content in docs is preserved
+- Manually-added content in memory files is preserved
 - No duplication of requirements on re-hydration
 
 ### Index Maintenance
 
 Every hydration operation maintains navigable indexes:
-- **Top-level** (`fab/memory/index.md`): `| [domain](domain/index.md) | description | doc-list |`
-- **Domain-level** (`fab/memory/{domain}/index.md`): `| [doc-name](doc-name.md) | description | last-updated |`
+- **Top-level** (`fab/memory/index.md`): `| [domain](domain/index.md) | description | file-list |`
+- **Domain-level** (`fab/memory/{domain}/index.md`): `| [file-name](file-name.md) | description | last-updated |`
 - All links are relative (not absolute paths)
 - Formats follow `fab/specs/templates.md`
 

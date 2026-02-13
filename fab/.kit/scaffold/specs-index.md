@@ -4,8 +4,8 @@
 > intent, high-level decisions, and the "why" behind features. Specs are human-curated,
 > flat in structure, and deliberately size-controlled for quick reading.
 >
-> Contrast with [`fab/memory/index.md`](../memory/index.md): docs are *post-implementation* —
-> what actually happened. Docs are the authoritative source of truth for system behavior,
+> Contrast with [`fab/memory/index.md`](../memory/index.md): memory files are *post-implementation* —
+> what actually happened. Memory files are the authoritative source of truth for system behavior,
 > maintained by `/fab-archive` hydration.
 >
 > **Ownership**: Specs are written and maintained by humans. No automated tooling creates or

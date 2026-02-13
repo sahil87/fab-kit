@@ -78,19 +78,19 @@ last_updated: {ISO_8601_DATETIME}
 
 <!-- Be specific about new capabilities, modifications, or removals. Use bullets. -->
 
-## Affected Docs
+## Affected Memory
 
-### New Docs
-<!-- Docs being introduced. Use kebab-case identifiers matching the centralized doc path. -->
-- `{domain}/{doc-name}`: {brief description}
+### New Files
+<!-- Memory files being introduced. Use kebab-case identifiers matching the memory file path. -->
+- `{domain}/{file-name}`: {brief description}
 
-### Modified Docs
-<!-- Existing docs whose requirements are changing. Reference by path in fab/memory/.
+### Modified Files
+<!-- Existing memory files whose requirements are changing. Reference by path in fab/memory/.
      Only list if spec-level behavior changes — implementation-only changes don't need spec updates. -->
-- `{domain}/{doc-name}`: {what requirement is changing}
+- `{domain}/{file-name}`: {what requirement is changing}
 
-### Removed Docs
-<!-- Docs being fully deprecated/removed. Rare — usually individual requirements are removed via spec. -->
+### Removed Files
+<!-- Memory files being fully deprecated/removed. Rare — usually individual requirements are removed via spec. -->
 
 ## Impact
 
@@ -106,7 +106,7 @@ last_updated: {ISO_8601_DATETIME}
 - [DEFERRED] {question}
 ```
 
-**Design rationale**: OpenSpec's concise Why/What/Impact structure, plus explicit doc mapping (which centralized docs will be affected). SpecKit's capped clarification markers prevent question-paralysis — max 3 blocking questions forces the agent to make informed guesses.
+**Design rationale**: OpenSpec's concise Why/What/Impact structure, plus explicit memory mapping (which memory files will be affected). SpecKit's capped clarification markers prevent question-paralysis — max 3 blocking questions forces the agent to make informed guesses.
 
 ---
 
@@ -117,12 +117,12 @@ last_updated: {ISO_8601_DATETIME}
 
 **Change**: {YYMMDD-XXXX-slug}
 **Created**: {DATE}
-**Affected docs**: `fab/memory/{domain}/{doc-name}.md`
+**Affected memory**: `fab/memory/{domain}/{file-name}.md`
 
 <!--
   CHANGE SPECIFICATION
   Describes the requirements relevant to this change. No delta markers needed —
-  the agent compares against existing centralized docs during hydration to
+  the agent compares against existing memory files during hydration to
   determine what's new, changed, or removed.
 
   Requirements use RFC 2119 keywords: MUST/SHALL (mandatory), SHOULD (recommended), MAY (optional).
@@ -165,7 +165,7 @@ last_updated: {ISO_8601_DATETIME}
 **Migration**: {What replaces it, or "N/A" if simply deprecated}
 ```
 
-**Design rationale**: A single `spec.md` replaces the previous multi-file delta format. Without ADDED/MODIFIED/REMOVED markers, the spec reads as a straightforward requirements document — the agent infers what's new vs changed by comparing against the existing centralized docs during hydration. SpecKit's GIVEN/WHEN/THEN scenarios and RFC 2119 keywords provide precision. Domain sections within the file keep multi-domain changes organized without requiring a directory structure.
+**Design rationale**: A single `spec.md` replaces the previous multi-file delta format. Without ADDED/MODIFIED/REMOVED markers, the spec reads as a straightforward requirements document — the agent infers what's new vs changed by comparing against existing memory files during hydration. SpecKit's GIVEN/WHEN/THEN scenarios and RFC 2119 keywords provide precision. Domain sections within the file keep multi-domain changes organized without requiring a directory structure.
 
 ### Example: Filled Spec
 
@@ -174,7 +174,7 @@ last_updated: {ISO_8601_DATETIME}
 
 **Change**: 260115-a7k2-add-oauth
 **Created**: 2026-01-15
-**Affected docs**: `fab/memory/auth/authentication.md`
+**Affected memory**: `fab/memory/auth/authentication.md`
 
 ## Auth: OAuth2 Support
 
@@ -393,9 +393,9 @@ When `/fab-continue` or `/fab-ff` creates `tasks.md`, it also generates `checkli
 
 ---
 
-## Centralized Doc Format (`fab/memory/`)
+## Memory File Format (`fab/memory/`)
 
-Centralized docs are the **source of truth** for what the system does and why it works the way it does. They contain requirements (from `spec.md`), organized hierarchically with index files for navigation.
+Memory files are the **source of truth** for what the system does and why it works the way it does. They contain requirements (from `spec.md`), organized hierarchically with index files for navigation.
 
 ### Directory Structure
 
@@ -403,8 +403,8 @@ Centralized docs are the **source of truth** for what the system does and why it
 fab/memory/
 ├── index.md                    # Top-level index: lists all domains
 ├── auth/
-│   ├── index.md                # Domain index: lists all docs in auth/
-│   ├── authentication.md       # Individual doc
+│   ├── index.md                # Domain index: lists all files in auth/
+│   ├── authentication.md       # Individual memory file
 │   └── authorization.md
 ├── payments/
 │   ├── index.md
@@ -418,12 +418,12 @@ fab/memory/
 ### Top-Level Index (`fab/memory/index.md`)
 
 ```markdown
-# Documentation Index
+# Memory Index
 
 > Source of truth for system behavior and design. Updated by `/fab-continue` (archive) hydration.
 
-| Domain | Description | Docs |
-|--------|-------------|------|
+| Domain | Description | Memory Files |
+|--------|-------------|--------------|
 | [auth](auth/index.md) | Authentication and authorization | authentication, authorization |
 | [payments](payments/index.md) | Payment processing and billing | checkout, refunds |
 | [users](users/index.md) | User management | registration |
@@ -434,22 +434,22 @@ fab/memory/
 ```markdown
 # {Domain} Documentation
 
-| Doc | Description | Last Updated |
-|-----|-------------|-------------|
+| File | Description | Last Updated |
+|------|-------------|-------------|
 | [authentication](authentication.md) | User login, session management, OAuth | {DATE} |
 | [authorization](authorization.md) | Roles, permissions, access control | {DATE} |
 ```
 
-### Individual Doc (`fab/memory/{domain}/{name}.md`)
+### Individual File (`fab/memory/{domain}/{name}.md`)
 
 ```markdown
-# {Doc Name}
+# {File Name}
 
 **Domain**: {domain}
 
 ## Overview
 
-<!-- 1-2 sentences describing what this doc covers. -->
+<!-- 1-2 sentences describing what this file covers. -->
 
 ## Requirements
 
@@ -488,11 +488,11 @@ fab/memory/
 | {change-name} | {DATE} | {one-line summary of what changed} |
 ```
 
-**Design rationale**: The index-based hierarchy solves discoverability — agents and humans can navigate from top-level down to any requirement without scanning folders. The Design Decisions section captures durable "why" context, so developers don't need to dig through archived changes to understand architectural choices. The Changelog table provides traceability back to the change that introduced each modification. Domain indexes include "Last Updated" so stale docs are visible at a glance.
+**Design rationale**: The index-based hierarchy solves discoverability — agents and humans can navigate from top-level down to any requirement without scanning folders. The Design Decisions section captures durable "why" context, so developers don't need to dig through archived changes to understand architectural choices. The Changelog table provides traceability back to the change that introduced each modification. Domain indexes include "Last Updated" so stale files are visible at a glance.
 
-### Initial Docs (created by `/fab-init`)
+### Initial Memory (created by `/fab-init`)
 
-A fresh project starts with a single index file. The first `/fab-continue` (archive) populates domains and docs:
+A fresh project starts with a single index file. The first `/fab-continue` (archive) populates domains and files:
 
 ```
 fab/memory/
@@ -514,10 +514,10 @@ fab/memory/
 
 ### Hydration Rules
 
-When `/fab-continue` (archive) hydrates `spec.md` into centralized docs:
+When `/fab-continue` (archive) hydrates `spec.md` into memory:
 
-1. **New doc file**: If the spec references a doc that doesn't exist yet, create it from the individual doc template and add it to the domain index. If the domain doesn't exist, create the domain folder and add it to the top-level index.
-2. **Existing doc file**: Compare `spec.md` requirements against the current doc to determine what's new, changed, or removed. Update the Requirements section semantically. Minimize edits to unchanged sections.
-3. **Index updates**: Update domain index "Last Updated" column. Add new entries if new docs were created.
-4. **Changelog row**: Append a row to the doc's Changelog table with the change name, date, and one-line summary.
+1. **New memory file**: If the spec references a file that doesn't exist yet, create it from the individual memory file template and add it to the domain index. If the domain doesn't exist, create the domain folder and add it to the top-level index.
+2. **Existing memory file**: Compare `spec.md` requirements against the current file to determine what's new, changed, or removed. Update the Requirements section semantically. Minimize edits to unchanged sections.
+3. **Index updates**: Update domain index "Last Updated" column. Add new entries if new files were created.
+4. **Changelog row**: Append a row to the memory file's Changelog table with the change name, date, and one-line summary.
 5. **Archive index**: Maintain `fab/changes/archive/index.md` listing all completed changes. Each entry includes the change folder name, date, and a one-line summary. `/fab-continue` (archive) appends a row when moving a change to the archive directory.

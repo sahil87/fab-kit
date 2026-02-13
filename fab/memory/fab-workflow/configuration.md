@@ -82,7 +82,7 @@ The constitution is the architectural DNA of a Fab project. It defines immutable
 
 #### How Skills Use It
 
-- `/fab-init` generates it from project context (README, existing docs, conversation)
+- `/fab-init` generates it from project context (README, existing memory, conversation)
 - `/fab-continue` and `/fab-ff` load it when generating spec, tasks, and checklist artifacts
 - `/fab-continue` (review) checks implementation against constitutional principles (not just the spec)
 - Constitution violations found during review are flagged as high-severity issues

@@ -100,16 +100,16 @@ If `fab/memory/index.md` does **not** exist:
 2. Create `fab/memory/index.md` with an empty index:
 
 ```markdown
-# Documentation Index
+# Memory Index
 
 <!-- This index is maintained by /fab-archive when changes are completed. -->
-<!-- Each domain gets a row linking to its docs. -->
+<!-- Each domain gets a row linking to its memory files. -->
 
-| Domain | Description | Docs |
-|--------|-------------|------|
+| Domain | Description | Memory Files |
+|--------|-------------|--------------|
 ```
 
-If `fab/memory/index.md` **already exists**: report "docs/index.md already exists — skipping" and move on.
+If `fab/memory/index.md` **already exists**: report "memory/index.md already exists — skipping" and move on.
 
 #### 1d. `fab/specs/index.md`
 
@@ -125,8 +125,8 @@ If `fab/specs/index.md` does **not** exist:
 > intent, high-level decisions, and the "why" behind features. Specs are human-curated,
 > flat in structure, and deliberately size-controlled for quick reading.
 >
-> Contrast with [`fab/memory/index.md`](../memory/index.md): docs are *post-implementation* —
-> what actually happened. Docs are the authoritative source of truth for system behavior,
+> Contrast with [`fab/memory/index.md`](../memory/index.md): memory files are *post-implementation* —
+> what actually happened. Memory files are the authoritative source of truth for system behavior,
 > maintained by `/fab-continue` (hydrate) and `/fab-archive`.
 >
 > **Ownership**: Specs are written and maintained by humans. No automated tooling creates or
@@ -150,7 +150,7 @@ If `fab/changes/` **already exists**: ensure `fab/changes/archive/` exists (crea
 
 #### 1f. `.claude/skills/` Symlinks
 
-Run `fab/.kit/scripts/_fab-scaffold.sh` to create or repair all skill symlinks and directories. This script is the **single source of truth** for the structural bootstrap — it handles directories, symlinks, docs index, and `.gitignore`.
+Run `fab/.kit/scripts/_fab-scaffold.sh` to create or repair all skill symlinks and directories. This script is the **single source of truth** for the structural bootstrap — it handles directories, symlinks, memory index, and `.gitignore`.
 
 The script discovers skills dynamically by globbing `fab/.kit/skills/fab-*.md` — no hardcoded list to maintain. Each discovered skill gets a subdirectory symlink:
 
@@ -204,7 +204,7 @@ Next: /fab-new <description> or /fab-hydrate <sources>
 Found fab/.kit/ (v{VERSION}). Verifying structure...
 config.yaml — OK
 constitution.md — OK
-docs/index.md — OK
+memory/index.md — OK
 specs/index.md — OK
 changes/ — OK
 Symlinks: 11/11 valid (repaired 1)
@@ -755,7 +755,7 @@ No files to validate. Run /fab-init to bootstrap the project.
 This skill is safe to run any number of times:
 
 - **Config and constitution**: Created once, never overwritten on re-run (bootstrap path)
-- **Docs index**: Created once, never touched on re-run
+- **Memory index**: Created once, never touched on re-run
 - **Specs index**: Created once, never touched on re-run
 - **Changes directory**: Created once, never touched on re-run
 - **Symlinks**: Verified and repaired on every run — broken symlinks are fixed, valid ones are left alone

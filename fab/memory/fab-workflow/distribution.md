@@ -19,11 +19,11 @@ mkdir -p fab
 curl -sL https://github.com/wvrdz/fab-kit/releases/latest/download/kit.tar.gz | tar xz -C fab/
 ```
 
-After extraction, the user MUST run `fab/.kit/scripts/_fab-scaffold.sh` to create directories (`changes/`, `docs/`, `design/`), skeleton files (copied from `scaffold/docs-index.md` and `scaffold/design-index.md`), symlinks, `.envrc` (symlink to `scaffold/envrc`), and `.gitignore` entries (from `scaffold/gitignore-entries`). The bootstrap only provides `.kit/` — no `config.yaml`, `constitution.md`, or other project files.
+After extraction, the user MUST run `fab/.kit/scripts/_fab-scaffold.sh` to create directories (`changes/`, `memory/`, `specs/`), skeleton files (copied from `scaffold/memory-index.md` and `scaffold/specs-index.md`), symlinks, `.envrc` (symlink to `scaffold/envrc`), and `.gitignore` entries (from `scaffold/gitignore-entries`). The bootstrap only provides `.kit/` — no `config.yaml`, `constitution.md`, or other project files.
 
 **Scenarios**:
-- Bootstrap a new project (no `fab/` directory) — creates `fab/.kit/` with all skills, templates, scripts, and VERSION file; running `_fab-scaffold.sh` then creates `changes/`, `docs/index.md`, `design/index.md`, symlinks, `.envrc`, and `.gitignore` entry
-- Bootstrap with existing `fab/` directory — creates or replaces `fab/.kit/`; existing files outside `.kit/` (config.yaml, constitution.md, docs/, design/, changes/) are NOT affected
+- Bootstrap a new project (no `fab/` directory) — creates `fab/.kit/` with all skills, templates, scripts, and VERSION file; running `_fab-scaffold.sh` then creates `changes/`, `memory/index.md`, `specs/index.md`, symlinks, `.envrc`, and `.gitignore` entry
+- Bootstrap with existing `fab/` directory — creates or replaces `fab/.kit/`; existing files outside `.kit/` (config.yaml, constitution.md, memory/, specs/, changes/) are NOT affected
 
 #### Manual Copy Still Works
 
@@ -83,7 +83,7 @@ The script infers the target GitHub repository from `git remote get-url origin`.
 
 #### Release Archive Contents
 
-`kit.tar.gz` SHALL contain only the `fab/.kit/` directory contents. All paths are rooted at `.kit/` (e.g., `.kit/VERSION`, `.kit/skills/fab-new.md`). No project-specific files (config.yaml, constitution.md, docs/, design/, changes/) are included.
+`kit.tar.gz` SHALL contain only the `fab/.kit/` directory contents. All paths are rooted at `.kit/` (e.g., `.kit/VERSION`, `.kit/skills/fab-new.md`). No project-specific files (config.yaml, constitution.md, memory/, specs/, changes/) are included.
 
 ### Repo Rename
 

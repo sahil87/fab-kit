@@ -49,7 +49,7 @@ COMMANDS
 
   Setup
     /fab-init               Bootstrap fab/ directory structure (safe to re-run)
-    /fab-hydrate <sources>  Ingest external docs into fab/memory/
+    /fab-hydrate <sources>  Ingest external sources into fab/memory/
     /fab-help               Show this help
 
 TYPICAL FLOW

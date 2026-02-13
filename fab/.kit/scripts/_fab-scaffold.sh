@@ -70,7 +70,7 @@ yaml_value() {
 }
 
 # ── 1. Directories ──────────────────────────────────────────────────
-for dir in "$fab_dir/changes" "$fab_dir/docs" "$fab_dir/design"; do
+for dir in "$fab_dir/changes" "$fab_dir/memory" "$fab_dir/specs"; do
   if [ ! -d "$dir" ]; then
     mkdir -p "$dir"
     echo "Created: ${dir#"$repo_root"/}"
@@ -101,13 +101,13 @@ else
   echo ".envrc: created symlink → $envrc_target"
 fi
 
-# ── 3. Docs index ──────────────────────────────────────────────────
+# ── 3. Memory index ────────────────────────────────────────────────
 if [ ! -f "$fab_dir/memory/index.md" ]; then
   cp "$kit_dir/scaffold/memory-index.md" "$fab_dir/memory/index.md"
   echo "Created: fab/memory/index.md"
 fi
 
-# ── 4. Design index ───────────────────────────────────────────────
+# ── 4. Specs index ────────────────────────────────────────────────
 if [ ! -f "$fab_dir/specs/index.md" ]; then
   cp "$kit_dir/scaffold/specs-index.md" "$fab_dir/specs/index.md"
   echo "Created: fab/specs/index.md"

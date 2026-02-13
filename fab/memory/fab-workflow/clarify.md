@@ -24,7 +24,7 @@ There SHALL be no `--suggest` or `--auto` flags on the clarify skill.
 The skill SHALL perform a systematic scan of the current stage's artifacts for gaps, ambiguities, and `[NEEDS CLARIFICATION]` markers. Scan categories vary by stage, using per-artifact taxonomy:
 
 - **Spec** (scans both `brief.md` and `spec.md`):
-  - *Brief refinement*: scope boundaries, affected areas, blocking questions, impact completeness, affected docs coverage, Origin section completeness
+  - *Brief refinement*: scope boundaries, affected areas, blocking questions, impact completeness, affected memory coverage, Origin section completeness
   - *Spec refinement*: requirement precision, scenario coverage, edge cases, deprecated requirements, cross-references
 - **Tasks**: task completeness, granularity, dependency ordering, file path accuracy, parallel markers
 
@@ -69,7 +69,7 @@ At the end of each session, the skill SHALL display a coverage summary with four
 
 #### Autonomous Resolution
 
-In auto mode, the skill SHALL resolve gaps using available context (config, constitution, centralized docs, completed artifacts). It classifies each gap as resolvable, blocking, or non-blocking. The scan includes `<!-- assumed: ... -->` markers — those confirmable from context are resolved (marker removed), others are classified as blocking or non-blocking.
+In auto mode, the skill SHALL resolve gaps using available context (config, constitution, memory files, completed artifacts). It classifies each gap as resolvable, blocking, or non-blocking. The scan includes `<!-- assumed: ... -->` markers — those confirmable from context are resolved (marker removed), others are classified as blocking or non-blocking.
 
 #### Grade Reclassification
 

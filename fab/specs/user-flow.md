@@ -111,7 +111,7 @@ flowchart TD
         SWITCH["/fab-switch"]
         HELP["/fab-help"]
         BACKFILL["/fab-hydrate-specs
-        (docs → specs gap detection)"]
+        (memory → specs gap detection)"]
     end
 
     %% Setup

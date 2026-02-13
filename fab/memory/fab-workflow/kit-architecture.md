@@ -35,8 +35,8 @@ fab/.kit/
 ├── scaffold/               # Bootstrap content (read by _fab-scaffold.sh)
 │   ├── envrc               # .envrc symlink target
 │   ├── gitignore-entries   # .gitignore entries (one per line)
-│   ├── docs-index.md       # Initial fab/memory/index.md content
-│   └── design-index.md     # Initial fab/specs/index.md content
+│   ├── memory-index.md     # Initial fab/memory/index.md content
+│   └── specs-index.md      # Initial fab/specs/index.md content
 ├── schemas/                # Workflow schema
 │   └── workflow.yaml       # Canonical stage/state definitions
 └── scripts/                # Shell utilities
@@ -54,7 +54,7 @@ fab/.kit/
 
 #### `_fab-scaffold.sh`
 
-The structural bootstrap script. Creates directories, symlinks, `docs/index.md`, and `.gitignore` entries. Reads bootstrap content from `scaffold/` files (index templates, envrc, gitignore entries) rather than hardcoding them. It is the single source of truth for structural setup. `/fab-init` delegates to it and adds the interactive parts (config, constitution).
+The structural bootstrap script. Creates directories, symlinks, `memory/index.md`, and `.gitignore` entries. Reads bootstrap content from `scaffold/` files (index templates, envrc, gitignore entries) rather than hardcoding them. It is the single source of truth for structural setup. `/fab-init` delegates to it and adds the interactive parts (config, constitution).
 
 #### `fab-status.sh`
 
@@ -133,9 +133,9 @@ cp -r /path/to/fab-kit/fab/.kit fab/.kit
 ```
 
 Then in either case:
-1. User runs `fab/.kit/scripts/_fab-scaffold.sh` → creates directories, symlinks, docs skeleton
+1. User runs `fab/.kit/scripts/_fab-scaffold.sh` → creates directories, symlinks, memory skeleton
 2. User runs `/fab-init` → generates `config.yaml`, `constitution.md`
-3. User optionally runs `/fab-hydrate` → ingests external docs
+3. User optionally runs `/fab-hydrate` → ingests external sources
 4. User runs `/fab-new` → first change created
 
 Step 1 is a shell script. Steps 2-4 are skill-driven.
@@ -157,7 +157,7 @@ Run `fab/.kit/scripts/fab-upgrade.sh` to update to the latest release. The scrip
 
 Symlinks in `.claude/skills/`, `.opencode/commands/`, and `.agents/skills/` automatically resolve to the new files after the update.
 
-**Preserved** (lives outside `.kit/`): `config.yaml`, `constitution.md`, `docs/`, `design/`, `changes/`, `current`
+**Preserved** (lives outside `.kit/`): `config.yaml`, `constitution.md`, `memory/`, `specs/`, `changes/`, `current`
 **Replaced** (lives inside `.kit/`): `templates/`, `skills/`, `scripts/`, `VERSION`
 
 ### Portability
@@ -170,9 +170,9 @@ A monorepo is one Fab project. Place a single `fab/` at the repository root — 
 
 **Why one `fab/`**:
 - Changes naturally span packages — one change folder, one spec
-- Docs are domain-based, not package-based — `fab/memory/auth/` describes auth regardless of which package implements it
+- Memory is domain-based, not package-based — `fab/memory/auth/` describes auth regardless of which package implements it
 - One developer, one change at a time — `fab/current` points to a single active change
-- Simplicity — multiple `fab/` directories means multiple constitutions, doc trees, and symlink conflicts
+- Simplicity — multiple `fab/` directories means multiple constitutions, memory trees, and symlink conflicts
 
 For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field so skills can load relevant context per package.
 
@@ -192,8 +192,8 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 ### Single fab/ Per Repository
 **Decision**: Even in monorepos, use one `fab/` at the repo root.
-**Why**: Changes span packages, docs are domain-based, and `fab/current` assumes a single active change. Per-package `fab/` directories would fragment the system.
-**Rejected**: Per-package `fab/` directories — conflicting constitutions, fragmented doc trees, symlink conflicts.
+**Why**: Changes span packages, memory is domain-based, and `fab/current` assumes a single active change. Per-package `fab/` directories would fragment the system.
+**Rejected**: Per-package `fab/` directories — conflicting constitutions, fragmented memory trees, symlink conflicts.
 *Source*: doc/fab-spec/ARCHITECTURE.md
 
 ## Changelog

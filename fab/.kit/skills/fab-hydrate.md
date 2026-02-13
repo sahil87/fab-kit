@@ -1,6 +1,6 @@
 ---
 name: fab-hydrate
-description: "Hydrate docs from external sources or generate from codebase analysis. Safe to re-run."
+description: "Hydrate memory from external sources or generate from codebase analysis. Safe to re-run."
 ---
 
 # /fab-hydrate [sources...|folders...]
@@ -13,10 +13,10 @@ description: "Hydrate docs from external sources or generate from codebase analy
 
 Hydrate `fab/memory/` from external sources or from codebase analysis.
 
-- **Ingest mode** (URLs, `.md` files): Fetches or reads the provided sources, analyzes content to identify domains and topics, creates or merges documentation files, and maintains indexes.
-- **Generate mode** (folders, no arguments): Scans the codebase for undocumented areas, presents an interactive gap report, lets the user select which gaps to document, and generates structured docs into `fab/memory/`.
+- **Ingest mode** (URLs, `.md` files): Fetches or reads the provided sources, analyzes content to identify domains and topics, creates or merges memory files, and maintains indexes.
+- **Generate mode** (folders, no arguments): Scans the codebase for undocumented areas, presents an interactive gap report, lets the user select which gaps to document, and generates structured memory files into `fab/memory/`.
 
-Mode is determined automatically by argument type — no flags needed. Safe to run repeatedly — content is merged into existing docs without duplication or overwriting manually-added content.
+Mode is determined automatically by argument type — no flags needed. Safe to run repeatedly — content is merged into existing memory files without duplication or overwriting manually-added content.
 
 ---
 
@@ -29,7 +29,7 @@ Before doing anything else:
 
 **If either check fails, STOP immediately.** Output this message and do nothing else:
 
-> `fab/memory/ not found. Run /fab-init first to create the docs directory.`
+> `fab/memory/ not found. Run /fab-init first to create the memory directory.`
 
 Do NOT create `fab/memory/` or `fab/memory/index.md`. The structural bootstrap (`/fab-init`) must have run first.
 
@@ -89,28 +89,28 @@ For each fetched source:
 2. Identify individual **topics** within each domain (e.g., `authentication`, `authorization` within `auth`)
 3. Map each topic to a target file: `fab/memory/{domain}/{topic}.md`
 
-### Step 3: Create or Merge Documentation
+### Step 3: Create or Merge Memory Files
 
 For each identified topic:
 
 1. If `fab/memory/{domain}/` directory does not exist, create it
-2. If `fab/memory/{domain}/index.md` does not exist, create a domain index following the [Domain Index format](../../specs/templates.md#domain-index-fabdocsdomainindexmd):
+2. If `fab/memory/{domain}/index.md` does not exist, create a domain index following the [Domain Index format](../../specs/templates.md#domain-index-fabmemorydomainindexmd):
    ```markdown
-   # {Domain} Documentation
+   # {Domain} Memory
 
-   | Doc | Description | Last Updated |
-   |-----|-------------|-------------|
+   | File | Description | Last Updated |
+   |------|-------------|-------------|
    ```
-3. If the target doc file does not exist, create it with the analyzed content, structured as a [Centralized Doc](../../specs/templates.md#individual-doc-fabdomainnamemd) (with Overview, Requirements sections, Design Decisions, Changelog)
-4. If the target doc file already exists, **merge** the new content into the existing doc — add new requirements, update existing ones, do not remove existing content. Preserve any manually-added content.
+3. If the target memory file does not exist, create it with the analyzed content, structured as a [Memory File](../../specs/templates.md#individual-file-fabmemorydomainnamemd) (with Overview, Requirements sections, Design Decisions, Changelog)
+4. If the target memory file already exists, **merge** the new content into the existing file — add new requirements, update existing ones, do not remove existing content. Preserve any manually-added content.
 
 ### Step 4: Update Domain Indexes
 
-For each domain that was created or had docs added:
+For each domain that was created or had files added:
 
 1. Read `fab/memory/{domain}/index.md`
-2. Add rows for any new docs that were created in this domain
-3. Update "Last Updated" column for any docs that were modified
+2. Add rows for any new files that were created in this domain
+3. Update "Last Updated" column for any files that were modified
 4. Use relative links: `| [{name}]({name}.md) | {description} | {DATE} |`
 
 ### Step 5: Update Top-Level Index
@@ -118,10 +118,10 @@ For each domain that was created or had docs added:
 After all sources are processed:
 
 1. Read the current `fab/memory/index.md`
-2. Add rows for any new domains that were created: `| [{domain}]({domain}/index.md) | {description} | {doc-list} |`
-3. Update the doc-list column for existing domains that had new docs added (comma-separated list of all docs in the domain)
+2. Add rows for any new domains that were created: `| [{domain}]({domain}/index.md) | {description} | {file-list} |`
+3. Update the file-list column for existing domains that had new files added (comma-separated list of all files in the domain)
 4. Do not remove existing entries
-5. Use relative links (not absolute paths) — see [Top-Level Index format](../../specs/templates.md#top-level-index-fabdocsindexmd)
+5. Use relative links (not absolute paths) — see [Top-Level Index format](../../specs/templates.md#top-level-index-fabmemoryindexmd)
 
 Report what was created and updated:
 ```
@@ -152,16 +152,16 @@ Scan for gaps in five categories, using the following heuristics:
 
 2. **APIs**: Grep for route definitions, endpoint handlers, CLI command registrations, and exported public interfaces. Look for patterns like `app.get(`, `@route`, `export function`, `def command`, etc. Cross-reference against existing `fab/memory/` entries. Undocumented endpoints/exports → API gap.
 
-3. **Patterns**: Identify recurring structural patterns across the codebase — middleware chains, plugin directories, event handler registrations, factory functions, decorator usage. If a pattern appears 3+ times and has no corresponding doc in `fab/memory/`, flag it as a Pattern gap.
+3. **Patterns**: Identify recurring structural patterns across the codebase — middleware chains, plugin directories, event handler registrations, factory functions, decorator usage. If a pattern appears 3+ times and has no corresponding file in `fab/memory/`, flag it as a Pattern gap.
 
 4. **Configuration**: Glob for config files (`.env*`, `*.config.*`, `config/`, `settings.*`) and grep for environment variable references (`process.env`, `os.environ`, `ENV[]`). Undocumented config → Configuration gap.
 
 5. **Conventions**: Analyze file naming patterns, directory structure conventions, common prefixes/suffixes. These are lowest priority and only flagged when the pattern is clear and consistent.
 
-#### Cross-Reference Against Existing Docs
+#### Cross-Reference Against Existing Memory
 
-For each potential gap found, check `fab/memory/` domains and their doc entries:
-- If the area is already covered by an existing doc → **exclude** it from the gap report (or deprioritize it)
+For each potential gap found, check `fab/memory/` domains and their entries:
+- If the area is already covered by an existing memory file → **exclude** it from the gap report (or deprioritize it)
 - If the area is partially covered → include it with a note about what's missing
 
 ### Step 2: Gap Report & Interactive Scoping
@@ -170,16 +170,16 @@ For each potential gap found, check `fab/memory/` domains and their doc entries:
 
 If the scan finds no undocumented areas, output:
 
-> `No documentation gaps found. fab/memory/ is up to date.`
+> `No memory gaps found. fab/memory/ is up to date.`
 
-Then stop — do not present the selection UI or proceed to doc generation.
+Then stop — do not present the selection UI or proceed to memory file generation.
 
 #### Gap Report Format
 
 Present a numbered gap report, grouped by category with priorities. Format:
 
 ```
-## Documentation Gap Report
+## Memory Gap Report
 
 ### Modules
 1. [High] auth module — src/auth/
@@ -213,7 +213,7 @@ After presenting the gap report, use AskUserQuestion with these 4 strategy optio
 3. **"Select by number"** — User types gap numbers in the Other text input (e.g., "1, 3, 5")
 4. **"Select by category"** — User types category names in the Other text input (e.g., "Modules, APIs")
 
-Parse the user's selection and proceed to doc generation with only the selected gaps.
+Parse the user's selection and proceed to memory file generation with only the selected gaps.
 
 #### Small Number of Gaps (1-3)
 
@@ -221,19 +221,19 @@ If 1-3 gaps are found, skip the AskUserQuestion UI. Instead, confirm:
 
 > `Found {N} undocumented area(s). Document all?`
 
-On confirmation, proceed to doc generation for all of them.
+On confirmation, proceed to memory file generation for all of them.
 
-### Step 3: Doc Generation
+### Step 3: Memory File Generation
 
-For each selected gap, generate a documentation file.
+For each selected gap, generate a memory file.
 
 #### Reading Source Code
 
-Before generating a doc, read **all source files** within the gap's scope (directory, file set, or pattern matches). Synthesize the content into **one doc per gap** — not one doc per file. For example, a module gap covering `src/auth/` produces a single doc that covers the entire auth module, not separate docs for each file in the directory.
+Before generating a memory file, read **all source files** within the gap's scope (directory, file set, or pattern matches). Synthesize the content into **one memory file per gap** — not one file per source file. For example, a module gap covering `src/auth/` produces a single memory file that covers the entire auth module, not separate files for each source file in the directory.
 
-#### Doc Format
+#### Memory File Format
 
-Write each generated doc to `fab/memory/{domain}/{topic}.md` using the centralized doc format:
+Write each generated memory file to `fab/memory/{domain}/{topic}.md` using this format:
 
 ```markdown
 # {Topic}
@@ -268,10 +268,10 @@ Place markers close to the relevant requirement, not in a separate section. Incl
 
 ### Step 4: Index Maintenance
 
-After generating docs, maintain indexes using the **same logic as ingest mode Steps 4-5**:
+After generating memory files, maintain indexes using the **same logic as ingest mode Steps 4-5**:
 
 1. Create or update `fab/memory/{domain}/index.md` for each domain touched
-2. Update `fab/memory/index.md` with new domains and doc lists
+2. Update `fab/memory/index.md` with new domains and file lists
 3. All links SHALL be relative
 4. Existing entries SHALL NOT be removed
 
@@ -284,20 +284,20 @@ This step is shared between ingest and generate modes.
 ### Successful Hydration
 
 ```
-Hydrating docs from {N} source(s)...
+Hydrating memory from {N} source(s)...
 Fetched: {title} ({source type})
 Fetched: {N} files from {directory path}
 Created: fab/memory/{domain}/{topic}.md
 Created: fab/memory/{domain}/{topic}.md
 Updated: fab/memory/{domain}/index.md
 Updated: fab/memory/index.md
-Hydration complete — {N} docs created, {M} updated.
+Hydration complete — {N} files created, {M} updated.
 ```
 
 ### Multiple Sources
 
 ```
-Hydrating docs from 3 source(s)...
+Hydrating memory from 3 source(s)...
 Fetched: API Spec (Notion)
 Fetched: Auth Design (Notion)
 Fetched: 3 files from ./legacy-docs/payments/
@@ -308,27 +308,27 @@ Created: fab/memory/payments/refunds.md
 Updated: fab/memory/api/index.md
 Updated: fab/memory/payments/index.md
 Updated: fab/memory/index.md
-Hydration complete — 4 docs created, 0 updated.
+Hydration complete — 4 files created, 0 updated.
 ```
 
 ### Re-hydration (same source)
 
 ```
-Hydrating docs from 1 source(s)...
+Hydrating memory from 1 source(s)...
 Fetched: API Spec (Notion)
 Updated: fab/memory/api/endpoints.md (merged new content)
 Updated: fab/memory/api/index.md
 Updated: fab/memory/index.md
-Hydration complete — 0 docs created, 1 updated.
+Hydration complete — 0 files created, 1 updated.
 ```
 
 ### Successful Generation
 
 ```
-Scanning codebase for documentation gaps...
+Scanning codebase for memory gaps...
 Scanned 12 directories, 47 files.
 
-## Documentation Gap Report
+## Memory Gap Report
 
 ### Modules
 1. [High] auth module — src/auth/
@@ -337,17 +337,17 @@ Scanned 12 directories, 47 files.
 ### APIs
 3. [High] REST API endpoints — src/api/routes/
 
-Found 3 documentation gaps.
+Found 3 memory gaps.
 
 User selects: "All"
 
-Generating docs...
+Generating memory files...
 Created: fab/memory/auth/index.md
 Created: fab/memory/auth/auth-module.md
 Created: fab/memory/api/endpoints.md
 Updated: fab/memory/api/index.md
 Updated: fab/memory/index.md
-Generation complete — 2 docs created, 1 domain index created, top-level index updated.
+Generation complete — 2 files created, 1 domain index created, top-level index updated.
 ```
 
 ### Zero Gaps Found
@@ -356,36 +356,36 @@ Generation complete — 2 docs created, 1 domain index created, top-level index 
 Scanning codebase for documentation gaps...
 Scanned 12 directories, 47 files.
 
-No documentation gaps found. fab/memory/ is up to date.
+No memory gaps found. fab/memory/ is up to date.
 ```
 
 ### Re-generation (idempotent merge)
 
 ```
-Scanning codebase for documentation gaps...
+Scanning codebase for memory gaps...
 Scanned 12 directories, 47 files.
 
-## Documentation Gap Report
+## Memory Gap Report
 
 ### APIs
 1. [High] New webhook endpoints — src/api/webhooks/
 
 Found 1 undocumented area. Document it?
 
-Generating docs...
+Generating memory files...
 Updated: fab/memory/api/endpoints.md (merged new content)
 Updated: fab/memory/api/index.md
 Updated: fab/memory/index.md
-Generation complete — 0 docs created, 1 updated.
+Generation complete — 0 files created, 1 updated.
 ```
 
 ### Scoped Scan (folder argument)
 
 ```
-Scanning src/api/ for documentation gaps...
+Scanning src/api/ for memory gaps...
 Scanned 3 directories, 15 files.
 
-## Documentation Gap Report
+## Memory Gap Report
 
 ### APIs
 1. [High] REST API endpoints — src/api/routes/
@@ -393,12 +393,12 @@ Scanned 3 directories, 15 files.
 
 Found 2 undocumented areas. Document both?
 
-Generating docs...
+Generating memory files...
 Created: fab/memory/api/endpoints.md
 Created: fab/memory/api/middleware.md
 Updated: fab/memory/api/index.md
 Updated: fab/memory/index.md
-Generation complete — 2 docs created.
+Generation complete — 2 files created.
 ```
 
 ---
@@ -409,18 +409,18 @@ This skill is safe to run any number of times with the same inputs.
 
 ### Ingest Mode
 
-- **New docs**: Created on first hydration, merged on subsequent runs
-- **Existing docs**: New requirements are added, existing requirements are updated if the source content changed, manually-added content is preserved
+- **New files**: Created on first hydration, merged on subsequent runs
+- **Existing files**: New requirements are added, existing requirements are updated if the source content changed, manually-added content is preserved
 - **Domain indexes**: Updated with new entries, existing entries preserved
-- **Top-level index**: Updated with new domains and expanded doc lists, existing entries preserved
-- **No deletions**: Hydration never removes existing content from docs or indexes
+- **Top-level index**: Updated with new domains and expanded file lists, existing entries preserved
+- **No deletions**: Hydration never removes existing content from memory files or indexes
 
 ### Generate Mode
 
-- **Re-scan merges**: Running generate mode again merges new findings into existing generated docs — does not overwrite
-- **Manual edits preserved**: If a user edits a generated doc (e.g., removes `[INFERRED]` markers, adds details), those edits are preserved on re-generation
+- **Re-scan merges**: Running generate mode again merges new findings into existing generated memory files — does not overwrite
+- **Manual edits preserved**: If a user edits a generated memory file (e.g., removes `[INFERRED]` markers, adds details), those edits are preserved on re-generation
 - **New gaps appear**: Gaps introduced since the last run (new code, new modules) appear in the gap report
-- **Documented areas excluded**: Previously documented areas do not appear as gaps (or appear with reduced priority)
+- **Covered areas excluded**: Previously covered areas do not appear as gaps (or appear with reduced priority)
 
 ---
 
@@ -428,16 +428,16 @@ This skill is safe to run any number of times with the same inputs.
 
 | Condition | Action |
 |-----------|--------|
-| `fab/memory/` missing | Abort with: "fab/memory/ not found. Run /fab-init first to create the docs directory." |
+| `fab/memory/` missing | Abort with: "fab/memory/ not found. Run /fab-init first to create the memory directory." |
 | `fab/memory/index.md` missing | Abort with same message (structural bootstrap incomplete) |
 | No sources provided | Enter generate mode (scan from project root) |
 | Mixed-mode arguments | Reject with: "Cannot mix ingest sources (URLs, .md files) with generate targets (folders). Run separately." |
 | Folder path doesn't exist | Report error: "Folder not found: {path}" and abort |
-| Zero gaps found | Report "No documentation gaps found. fab/memory/ is up to date." and exit cleanly |
+| Zero gaps found | Report "No memory gaps found. fab/memory/ is up to date." and exit cleanly |
 | Source URL unreachable | Report the error for that source, continue with remaining sources |
 | Source content unreadable | Report the error, skip that source, continue |
 | Domain folder already exists | Use it (do not recreate) |
-| Doc file already exists | Merge new content into existing doc |
+| Memory file already exists | Merge new content into existing memory file |
 | Domain index already exists | Update with new/modified entries |
 
 ---

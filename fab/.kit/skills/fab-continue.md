@@ -79,8 +79,8 @@ Load:
 - `fab/config.yaml` — project config, tech stack
 - `fab/constitution.md` — project principles and constraints
 - `fab/changes/{name}/brief.md` — the completed brief
-- `fab/memory/index.md` — documentation landscape
-- Specific centralized docs referenced by the brief's **Affected Docs** section (read each `fab/memory/{domain}/{doc}.md` listed under New, Modified, or Removed)
+- `fab/memory/index.md` — memory landscape
+- Specific memory files referenced by the brief's **Affected Memory** section (read each `fab/memory/{domain}/{file}.md` listed as new, modify, or remove)
 
 ##### Generating `tasks.md` (spec: active)
 
@@ -102,7 +102,7 @@ Load:
 
 Load everything from the execution context above, plus:
 - `fab/changes/{name}/checklist.md` — the quality checklist to verify
-- **Centralized docs** — read `fab/memory/index.md` and the specific docs referenced by the brief's Affected Docs section, to check for doc drift
+- **Memory files** — read `fab/memory/index.md` and the specific memory files referenced by the brief's Affected Memory section, to check for memory drift
 - **Relevant source code** — read files touched by the change
 
 #### Hydrate Stage
@@ -112,9 +112,9 @@ Load:
 - `fab/constitution.md` — project principles and constraints
 - `fab/specs/index.md` — specifications landscape
 - `fab/changes/{name}/spec.md` — requirements and scenarios to hydrate
-- `fab/changes/{name}/brief.md` — original intent, Affected Docs section
-- `fab/memory/index.md` — top-level documentation index
-- **Target centralized doc(s)** — read the specific docs referenced by the brief's Affected Docs section. For each doc path listed, read `fab/memory/{domain}/{name}.md` if it exists. Also read the domain index `fab/memory/{domain}/index.md`.
+- `fab/changes/{name}/brief.md` — original intent, Affected Memory section
+- `fab/memory/index.md` — top-level memory index
+- **Target memory file(s)** — read the specific files referenced by the brief's Affected Memory section. For each path listed, read `fab/memory/{domain}/{name}.md` if it exists. Also read the domain index `fab/memory/{domain}/index.md`.
 
 ### Step 2b: SRAD-Based Question Selection (Planning Stages Only)
 
@@ -181,7 +181,7 @@ After successfully completing the stage:
 | `apply` (active) | Remaining tasks executed | `apply: done`, `review: active` |
 | `review` (active) | Validation passed | `review: done`, `hydrate: active` |
 | `review` (active) | Validation failed | `review: failed`, `apply: active` |
-| `hydrate` (active) | Docs hydrated | `hydrate: done` |
+| `hydrate` (active) | Memory hydrated | `hydrate: done` |
 
 ### Step 5: Output
 
@@ -262,9 +262,9 @@ Run tests scoped to modules/files touched by the change (not the full suite unle
 
 Compare implementation against key requirements from `spec.md`. Verify GIVEN/WHEN/THEN scenarios are handled.
 
-#### Step 5: Check for Doc Drift
+#### Step 5: Check for Memory Drift
 
-Compare implementation against centralized docs referenced in the brief. Doc drift is a **warning** (not failure) — signals work for hydrate.
+Compare implementation against memory files referenced in the brief. Memory drift is a **warning** (not failure) — signals work for hydrate.
 
 ### Review Verdict
 
@@ -299,7 +299,7 @@ Present all options and let the user choose:
 
 ## Hydrate Behavior
 
-When the active stage is `review` (with `review: done`) or `hydrate`, complete the pipeline by hydrating learnings into centralized docs.
+When the active stage is `review` (with `review: done`) or `hydrate`, complete the pipeline by hydrating learnings into memory.
 
 ### Preconditions
 
@@ -315,16 +315,16 @@ Verify all tasks `[x]` and all checklist items `[x]`. Report: "Final validation 
 
 #### Step 2: Concurrent Change Check
 
-Scan `fab/changes/` for other active change folders (exclude current and `archive/`). For each, check if its `spec.md` references the same centralized doc paths. If overlap: warn (not block).
+Scan `fab/changes/` for other active change folders (exclude current and `archive/`). For each, check if its `spec.md` references the same memory file paths. If overlap: warn (not block).
 
 #### Step 3: Hydrate into `fab/memory/`
 
-For each centralized doc referenced in the brief's Affected Docs:
+For each memory file referenced in the brief's Affected Memory:
 
-- **New doc**: Create domain folder if needed, create doc from template, populate from `spec.md`, update domain index and top-level index
-- **Existing doc**: Update Requirements section (add new, update changed, remove deprecated), update Design Decisions, add Changelog row, update indexes
+- **New file**: Create domain folder if needed, create memory file from template, populate from `spec.md`, update domain index and top-level index
+- **Existing file**: Update Requirements section (add new, update changed, remove deprecated), update Design Decisions, add Changelog row, update indexes
 - **Extract Design Decisions**: From `spec.md` Decisions section, include durable decisions (architectural, API, data model). Skip tactical details.
-- **Changelog rows**: Most-recent-first, one-line summary of what changed for this specific doc
+- **Changelog rows**: Most-recent-first, one-line summary of what changed for this specific file
 
 #### Step 4: Update `.status.yaml`
 
@@ -475,7 +475,7 @@ Tasks:     ✓ {total}/{total} complete
 Checklist: ✓ {total}/{total} passed
 Tests:     ✓ Passed
 Spec:      ✓ Requirements verified
-Docs:      ✓ No drift detected
+Memory:    ✓ No drift detected
 
 Review PASSED. All checks green.
 
@@ -492,7 +492,7 @@ Checklist: ✗ {passed}/{total} passed
   - CHK-007: {failure reason}
 Tests:     ✓ Passed
 Spec:      ✓ Requirements verified
-Docs:      ✓ No drift detected
+Memory:    ✓ No drift detected
 
 Review FAILED. {N} issue(s) found.
 
@@ -512,7 +512,7 @@ Hydrate: {change name}
 Validation: ✓ All tasks and checklist items complete
 Concurrent: ✓ No conflicts
 
-Hydrated docs:
+Hydrated memory:
   - fab/memory/{domain}/{name}.md (updated)
 
 Status:   ✓ hydrate: done

@@ -19,13 +19,13 @@
 
 <!-- Be specific about new capabilities, modifications, or removals. Use bullets. -->
 
-## Affected Docs
+## Affected Memory
 
-<!-- Which centralized docs will be created, modified, or removed by this change.
+<!-- Which memory files will be created, modified, or removed by this change.
      Use kebab-case identifiers matching fab/memory/ paths. Mark each with (new), (modify), or (remove).
-     Only list if spec-level behavior changes — implementation-only changes don't need spec updates. -->
+     Only list if spec-level behavior changes — implementation-only changes don't need memory updates. -->
 
-- `{domain}/{doc-name}`: ({new|modify|remove}) {brief description}
+- `{domain}/{file-name}`: ({new|modify|remove}) {brief description}
 
 ## Impact
 

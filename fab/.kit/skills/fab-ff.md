@@ -52,8 +52,8 @@ Load all context upfront since fast-forward traverses all stages:
 1. `fab/config.yaml` — project config, tech stack
 2. `fab/constitution.md` — project principles and constraints
 3. `fab/changes/{name}/brief.md` — the completed brief
-4. `fab/memory/index.md` — documentation landscape
-5. Specific centralized docs referenced by the brief's **Affected Docs** section (read each `fab/memory/{domain}/{doc}.md` listed under New, Modified, or Removed)
+4. `fab/memory/index.md` — memory landscape
+5. Specific memory files referenced by the brief's **Affected Memory** section (read each `fab/memory/{domain}/{file}.md` listed as new, modify, or remove)
 
 ---
 
@@ -169,7 +169,7 @@ Execute review behavior — validate implementation against specs and checklists
 2. All checklist items in `checklist.md` verified and checked off
 3. Run tests affected by the change
 4. Features match spec requirements (spot-check key scenarios)
-5. No doc drift detected
+5. No memory drift detected
 
 **If review passes**: Update `.status.yaml`:
 - Set `progress.review` to `done`
@@ -192,7 +192,7 @@ The user selects a rework option and the pipeline handles it accordingly. This i
 Execute hydrate behavior:
 
 1. Final validation — review must have passed
-2. Concurrent change check — warn about other active changes modifying the same docs
+2. Concurrent change check — warn about other active changes modifying the same memory files
 3. Hydrate into `fab/memory/` — integrate new/changed requirements from `spec.md`
 4. Update `.status.yaml` to `hydrate: done`
 
@@ -242,7 +242,7 @@ Generated checklist.md with {N} items.
 
 --- Hydrate ---
 
-{hydrate output — validation and doc hydration}
+{hydrate output — validation and memory hydration}
 
 Pipeline complete. Change hydrated.
 

@@ -4,13 +4,13 @@
 
 ---
 
-## Terminology: "spec" vs "docs"
+## Terminology: "spec" vs "memory"
 
 Fab uses two distinct terms to avoid confusion:
 
 | Term | Location | Meaning |
 |------|----------|---------|
-| **Centralized docs** | `fab/memory/` | Source-of-truth documentation for the system. Contains both requirements (what) and durable design decisions (why). Updated by `/fab-hydrate` (from external sources) and `/fab-continue` (archive) (from change artifacts). |
+| **Memory files** | `fab/memory/` | Source-of-truth documentation for the system. Contains both requirements (what) and durable design decisions (why). Updated by `/fab-hydrate` (from external sources) and `/fab-continue` (archive) (from change artifacts). |
 | **spec.md** | `fab/changes/{name}/spec.md` | Change-level specification. Describes the requirements relevant to this change. |
 
 The stage named "spec" refers to the *activity* of writing the specification — its output is `spec.md` in the change folder.
@@ -24,17 +24,17 @@ Every skill that generates or validates artifacts MUST load relevant context bef
 **Always loaded** (by every skill except `/fab-init`, `/fab-switch`, `/fab-status`, `/fab-hydrate`):
 - `fab/config.yaml` — project configuration, tech stack, conventions
 - `fab/constitution.md` — project principles and constraints
-- `fab/memory/index.md` — documentation landscape (which domains and docs exist)
+- `fab/memory/index.md` — memory landscape (which domains and memory files exist)
 
 **Change context** (loaded by skills operating on an active change):
 - `.status.yaml` — current stage, progress
 - All completed artifacts in the active change folder (e.g., `brief.md`, `spec.md`)
 
-**Centralized doc lookup** (loaded by skills operating on an active change):
-- Read the brief's "Affected Docs" section to identify relevant domains
+**Memory file lookup** (loaded by skills operating on an active change):
+- Read the brief's "Affected Memory" section to identify relevant domains
 - Read domain indexes (`fab/memory/{domain}/index.md`) for each relevant domain
-- Read the specific centralized doc(s) referenced by the Affected Docs entries
-- If a referenced doc doesn't exist yet (listed under New Docs), note this and proceed — it will be created by `/fab-continue` (archive)
+- Read the specific memory file(s) referenced by the Affected Memory entries
+- If a referenced file doesn't exist yet (listed under New Files), note this and proceed — it will be created by `/fab-continue` (archive)
 - This grounds all artifact generation (spec, tasks, reviews) in the real current state, not assumptions
 
 **Source code** (loaded during implementation and review):
@@ -56,7 +56,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 | After | Stage reached | Next line |
 |-------|---------------|-----------|
 | `/fab-init` | initialized | `Next: /fab-new <description> or /fab-hydrate <sources>` |
-| `/fab-hydrate` | docs hydrated | `Next: /fab-new <description> or /fab-hydrate <more-sources>` |
+| `/fab-hydrate` | memory hydrated | `Next: /fab-new <description> or /fab-hydrate <more-sources>` |
 | `/fab-new` | brief done | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
 | `/fab-continue` → spec | spec done | `Next: /fab-continue (tasks) or /fab-ff (fast-forward) or /fab-clarify (refine spec)` |
 | `/fab-continue` → tasks | tasks done | `Next: /fab-continue (apply)` |
@@ -79,8 +79,8 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **Creates** (first run only — skipped if already present):
 - `fab/config.yaml` — project configuration (prompts for name, tech stack, conventions)
-- `fab/constitution.md` — project principles and constraints (generated from conversation or existing docs)
-- `fab/memory/index.md` — initial docs index
+- `fab/constitution.md` — project principles and constraints (generated from conversation or existing documentation)
+- `fab/memory/index.md` — initial memory index
 - `fab/changes/` — empty, ready for change folders
 - `.claude/skills/` — symlinks pointing into `fab/.kit/skills/`
 
@@ -91,7 +91,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 → "Found fab/.kit/ (v0.1.0). Initializing project..."
 → "What's the project name?"
 → "Describe the tech stack and conventions..."
-→ "fab/ initialized with config, constitution, and empty docs."
+→ "fab/ initialized with config, constitution, and empty memory index."
 → "Next: /fab-new <description> or /fab-hydrate <sources>"
 
 # Re-run — structural health check
@@ -108,7 +108,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 1. **Pre-flight check**: Verify `fab/.kit/` exists (abort with guidance if not). If arguments are provided, abort with redirect to `/fab-hydrate`.
 2. **Structural bootstrap** (idempotent — each step skips if artifact already exists):
    a. `fab/config.yaml` — if missing, prompt for project name, description, tech stack and generate
-   b. `fab/constitution.md` — if missing, generate from project context (README, existing docs, conversation)
+   b. `fab/constitution.md` — if missing, generate from project context (README, existing documentation, conversation)
    c. `fab/memory/index.md` — if missing, create empty index
    d. `fab/changes/` — if missing, create empty directory
    e. `.claude/skills/` symlinks — create missing ones, repair broken ones
@@ -153,30 +153,30 @@ Reports pass/fail for each check with actionable fix suggestions.
 
 ## `/fab-hydrate [sources...]`
 
-**Purpose**: Ingest external documentation into `fab/memory/` with domain mapping and index maintenance. Safe to run repeatedly — content is merged into existing docs without duplication.
+**Purpose**: Ingest external sources into `fab/memory/` with domain mapping and index maintenance. Safe to run repeatedly — content is merged into existing memory files without duplication.
 
-**Prerequisite**: `fab/memory/` must exist (run `/fab-init` first). If missing, abort with: *"fab/memory/ not found. Run /fab-init first to create the docs directory."*
+**Prerequisite**: `fab/memory/` must exist (run `/fab-init` first). If missing, abort with: *"fab/memory/ not found. Run /fab-init first to create the memory directory."*
 
 **Arguments**:
 - `[sources...]` *(required)* — one or more URLs or local paths containing documentation to ingest. Supported source types:
   - **Notion URLs** — pages or databases (fetched via Notion MCP or API)
   - **Linear URLs** — issues or projects (fetched via Linear MCP or API)
-  - **Local files/directories** — markdown, text, or directories of docs (read from filesystem)
+  - **Local files/directories** — markdown, text, or directories of files (read from filesystem)
 
 **Creates/Updates**:
-- `fab/memory/{domain}/{topic}.md` — centralized doc files (created or merged)
+- `fab/memory/{domain}/{topic}.md` — memory files (created or merged)
 - `fab/memory/{domain}/index.md` — domain indexes (created or updated)
-- `fab/memory/index.md` — top-level index (updated with new domains/docs)
+- `fab/memory/index.md` — top-level index (updated with new domains/files)
 
 **Examples**:
 ```
-# Hydrate docs from a Notion page
+# Hydrate memory from a Notion page
 /fab-hydrate https://notion.so/myteam/API-Spec-abc123
 → "Fetched: API Spec (Notion)"
 → "Created: fab/memory/api/endpoints.md, fab/memory/api/authentication.md"
 → "Updated: fab/memory/index.md"
 
-# Ingest local legacy docs
+# Ingest local legacy documentation
 /fab-hydrate ./legacy-docs/payments/
 → "Fetched: 3 files from ./legacy-docs/payments/"
 → "Created: fab/memory/payments/checkout.md, fab/memory/payments/refunds.md"
@@ -196,9 +196,9 @@ Reports pass/fail for each check with actionable fix suggestions.
    - Linear URLs → fetch issue/project content via Linear MCP or API
    - Local paths → read files; if directory, read all markdown files recursively
 3. **Analyze** fetched content to identify domains and topics
-4. **Create or merge** docs — for each identified topic, either create a new doc in `fab/memory/{domain}/` or merge into an existing doc. Follow the [Centralized Doc Format](TEMPLATES.md#centralized-doc-format-fabdocs) and [Hydration Rules](TEMPLATES.md#hydration-rules).
+4. **Create or merge** memory files — for each identified topic, either create a new file in `fab/memory/{domain}/` or merge into an existing file. Follow the [Memory File Format](TEMPLATES.md#memory-file-format-fabmemory) and [Hydration Rules](TEMPLATES.md#hydration-rules).
 5. **Update domain indexes** — create or update `fab/memory/{domain}/index.md` for each affected domain
-6. **Update top-level index** — update `fab/memory/index.md` with new domains and expanded doc lists
+6. **Update top-level index** — update `fab/memory/index.md` with new domains and expanded file lists
 7. **Report** what was created and updated
 
 ---
@@ -207,7 +207,7 @@ Reports pass/fail for each check with actionable fix suggestions.
 
 **Purpose**: Start a new change from a natural language description.
 
-**Context**: config, constitution, `fab/memory/index.md` (to understand existing doc landscape)
+**Context**: config, constitution, `fab/memory/index.md` (to understand existing memory landscape)
 
 **Creates**:
 - Change folder named `{YYMMDD}-{XXXX}-{slug}`
@@ -248,7 +248,7 @@ Reports pass/fail for each check with actionable fix suggestions.
 - `<stage>` *(optional)* — target stage to reset to (`spec` or `tasks`). Used after `/fab-continue` (review) identifies issues upstream. When provided, resets `.status.yaml` to this stage and regenerates artifacts from that point forward.
 
 **Context** (varies by target stage):
-- **Spec stage**: config, constitution, `brief.md`, target centralized doc(s) from `fab/memory/`
+- **Spec stage**: config, constitution, `brief.md`, target memory file(s) from `fab/memory/`
 - **Tasks stage**: above + completed `spec.md`
 
 **Examples**:
@@ -282,7 +282,7 @@ Reports pass/fail for each check with actionable fix suggestions.
 
 **Purpose**: Fast-forward through remaining planning stages in one pass. Requires an active change with a completed brief (run `/fab-new` first).
 
-**Context**: config, constitution, `brief.md`, target centralized doc(s) from `fab/memory/` (all loaded upfront since ff traverses all planning stages)
+**Context**: config, constitution, `brief.md`, target memory file(s) from `fab/memory/` (all loaded upfront since ff traverses all planning stages)
 
 **Flow**: spec → tasks (+ checklist)
 
@@ -313,7 +313,7 @@ Reports pass/fail for each check with actionable fix suggestions.
 
 **Prerequisite**: Active change with completed `brief.md` and `confidence.score >= 3.0`.
 
-**Context**: Same as `/fab-ff` — all context loaded upfront (config, constitution, brief, docs index, affected centralized docs).
+**Context**: Same as `/fab-ff` — all context loaded upfront (config, constitution, brief, memory index, affected memory files).
 
 **Example**:
 ```
@@ -326,7 +326,7 @@ Reports pass/fail for each check with actionable fix suggestions.
 → --- Review ---
 → ... (validation passed)
 → --- Archive ---
-→ ... (docs hydrated, change archived)
+→ ... (memory hydrated, change archived)
 → "Pipeline complete. Change archived."
 ```
 
@@ -336,7 +336,7 @@ Reports pass/fail for each check with actionable fix suggestions.
 3. **Step 1 — Planning (fab-ff)**: Generate spec + tasks with checklist. Bails on blocking issues.
 4. **Step 2 — Implementation (fab-apply)**: Execute tasks in dependency order, run tests after each.
 5. **Step 3 — Review (fab-review)**: Validate implementation. On failure, stop immediately — do NOT offer the interactive rework menu. Output failure details.
-6. **Step 4 — Archive (fab-archive)**: Hydrate into centralized docs, move to archive, clear pointer.
+6. **Step 4 — Archive (fab-archive)**: Hydrate into memory, move to archive, clear pointer.
 
 **Key difference from `/fab-ff`**: `/fab-fff` includes the execution stages (apply, review, archive) and gates on confidence. `/fab-ff` only handles planning stages with interactive stops.
 
@@ -347,7 +347,7 @@ Reports pass/fail for each check with actionable fix suggestions.
 **Purpose**: Deepen and refine the current stage artifact without advancing to the next stage.
 
 **Context** (varies by current stage):
-- **Spec**: config, constitution, `brief.md`, target centralized doc(s) from `fab/memory/`
+- **Spec**: config, constitution, `brief.md`, target memory file(s) from `fab/memory/`
 - **Tasks**: above + `spec.md`, `tasks.md`
 
 **Example**:
@@ -407,7 +407,7 @@ Reports pass/fail for each check with actionable fix suggestions.
 
 **Purpose**: Validate implementation against spec and checklists.
 
-**Context**: config, constitution, `tasks.md`, `checklist.md`, `spec.md`, target centralized doc(s) from `fab/memory/`, relevant source code (files touched by the change)
+**Context**: config, constitution, `tasks.md`, `checklist.md`, `spec.md`, target memory file(s) from `fab/memory/`, relevant source code (files touched by the change)
 
 **Example**:
 ```
@@ -423,7 +423,7 @@ Reports pass/fail for each check with actionable fix suggestions.
 2. All checklist items in `checklist.md` verified and checked off — the agent re-reads each `CHK-*` item, inspects the relevant code/tests, and marks `[x]` or reports failure
 3. Run tests affected by the change (scoped to modules touched, not the full suite)
 4. Features match spec requirements (spot-check key scenarios from `spec.md`)
-5. No doc drift detected (implementation doesn't contradict centralized docs)
+5. No memory drift detected (implementation doesn't contradict memory files)
 
 **On failure**, the agent presents the options and the user chooses where to loop back:
 
@@ -442,31 +442,31 @@ The `.status.yaml` stage is reset to the chosen re-entry point. The general rule
 
 ## Archive Behavior (via `/fab-continue`)
 
-**Purpose**: Complete the change and hydrate into centralized docs.
+**Purpose**: Complete the change and hydrate into memory.
 
-**Context**: `spec.md`, target centralized doc(s) from `fab/memory/`, `fab/memory/index.md` and relevant domain indexes
+**Context**: `spec.md`, target memory file(s) from `fab/memory/`, `fab/memory/index.md` and relevant domain indexes
 
 **Example**:
 ```
 /fab-continue
 → "Archived to fab/changes/archive/260115-a7k2-add-oauth/"
-→ "Hydrated docs: fab/memory/auth/authentication.md"
+→ "Hydrated memory: fab/memory/auth/authentication.md"
 ```
 
 **Behavior**:
 1. **Final validation** — review must pass (all tasks `[x]`, all checklist items `[x]` including N/A items)
-2. **Concurrent change check** — scan `fab/changes/` for other active changes whose specs reference the same centralized doc files. If found, warn the user: *"Change {name} also modifies {doc}. After this archive, that change's spec was written against a now-stale base. Re-review with `/fab-continue` (review) after switching to it."*
+2. **Concurrent change check** — scan `fab/changes/` for other active changes whose specs reference the same memory files. If found, warn the user: *"Change {name} also modifies {file}. After this archive, that change's spec was written against a now-stale base. Re-review with `/fab-continue` (review) after switching to it."*
 3. **Hydrate into `fab/memory/`**:
-   The agent reads `spec.md` and the current centralized doc, then rewrites the centralized doc to incorporate the changes:
+   The agent reads `spec.md` and the current memory file, then rewrites the memory file to incorporate the changes:
    - **From spec.md** → integrate new/changed requirements and scenarios into the Requirements section. Remove requirements that the spec explicitly deprecates.
-   The agent compares against the existing doc to determine what's new vs changed vs removed — no explicit delta markers needed. Minimize edits to unchanged sections to prevent drift over successive archives.
+   The agent compares against the existing memory file to determine what's new vs changed vs removed — no explicit delta markers needed. Minimize edits to unchanged sections to prevent drift over successive archives.
 4. **Update status** to `archive: done` in `.status.yaml`
 5. **Move change folder** to `archive/` (no rename — date is already in the folder name)
 6. **Clear pointer** — delete `fab/current` (no active change)
 
 **Order of operations**: Steps 3–6 are ordered to fail safely. Status is updated *before* the folder move, so if the move is interrupted, the change is marked archived but still in `changes/` — the agent can detect and complete the move on next invocation. The pointer is cleared last so that mid-archive, `/fab-status` still reports the active change rather than "no active change" with a half-hydrated spec.
 
-**Recovery**: Hydration modifies centralized docs in-place. If the merge goes wrong (garbled text, incorrect removals), the only recovery is `git checkout` on the affected doc files. Commit (or at least review the diff) before pushing after an archive.
+**Recovery**: Hydration modifies memory files in-place. If the merge goes wrong (garbled text, incorrect removals), the only recovery is `git checkout` on the affected memory files. Commit (or at least review the diff) before pushing after an archive.
 
 ---
 
@@ -518,10 +518,10 @@ Next: Complete brief.md, then /fab-continue
 
 **Purpose**: Identify structural gaps between `fab/memory/` and `fab/specs/` and propose concise additions back to specs with interactive confirmation.
 
-**Context**: `fab/memory/index.md`, `fab/specs/index.md`, all doc files, all spec files
+**Context**: `fab/memory/index.md`, `fab/specs/index.md`, all memory files, all spec files
 
 **Arguments**:
-- `[domain]` *(optional)* — scope to a single doc domain. Scans all domains if omitted.
+- `[domain]` *(optional)* — scope to a single memory domain. Scans all domains if omitted.
 
 **Example**:
 ```
@@ -532,9 +532,9 @@ Next: Complete brief.md, then /fab-continue
 ```
 
 **Behavior**:
-1. Read all doc files to build a topic inventory (headings + summaries)
+1. Read all memory files to build a topic inventory (headings + summaries)
 2. Read all spec files to build a coverage inventory (headings + inline mentions)
-3. Cross-reference at section level — a gap is a doc topic with no spec coverage at all
+3. Cross-reference at section level — a gap is a memory topic with no spec coverage at all
 4. Rank by impact (core behaviors > supporting concepts > implementation detail)
 5. Present top 3 with exact markdown previews
 6. Per-gap interactive confirm: yes (write), no (skip), done (stop)

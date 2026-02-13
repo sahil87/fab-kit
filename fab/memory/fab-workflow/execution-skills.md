@@ -29,7 +29,7 @@ Apply behavior is inherently resumable. If the agent is interrupted mid-run, re-
 
 #### Context
 
-Loads: config, constitution, `design/index.md`, `tasks.md`, `spec.md`, relevant source code (files referenced in tasks).
+Loads: config, constitution, `specs/index.md`, `tasks.md`, `spec.md`, relevant source code (files referenced in tasks).
 
 ### Review Behavior (via `/fab-continue`)
 
@@ -42,7 +42,7 @@ The agent SHALL perform all of these checks:
 2. All checklist items in `checklist.md` verified and checked off — the agent re-reads each `CHK-*` item, inspects relevant code/tests, and marks `[x]` or reports failure
 3. Run tests affected by the change (scoped to modules touched, not the full suite)
 4. Features match spec requirements (spot-check key scenarios from `spec.md`)
-5. No doc drift detected (implementation doesn't contradict centralized docs)
+5. No memory drift detected (implementation doesn't contradict memory files)
 
 #### On Pass
 
@@ -60,29 +60,29 @@ The general rule: **artifacts at and after the re-entry point are regenerated or
 
 #### Context
 
-Loads: config, constitution, `design/index.md`, `tasks.md`, `checklist.md`, `spec.md`, target centralized doc(s) from `fab/memory/`, relevant source code (files touched by the change).
+Loads: config, constitution, `specs/index.md`, `tasks.md`, `checklist.md`, `spec.md`, target memory file(s) from `fab/memory/`, relevant source code (files touched by the change).
 
 ### Hydrate Behavior (via `/fab-continue`)
 
-`/fab-continue` dispatches to hydrate behavior after review passes. It completes the pipeline: validates review passed and hydrates learnings into centralized docs. The change folder remains in `fab/changes/` after hydrate — archiving is a separate step via `/fab-archive`.
+`/fab-continue` dispatches to hydrate behavior after review passes. It completes the pipeline: validates review passed and hydrates learnings into memory files. The change folder remains in `fab/changes/` after hydrate — archiving is a separate step via `/fab-archive`.
 
 #### Behavior
 
 1. **Final validation** — review MUST have passed (all tasks `[x]`, all checklist items `[x]` including N/A items)
-2. **Concurrent change check** — scan `fab/changes/` for other active changes whose specs reference the same centralized doc files. If found, warn: "Change {name} also modifies {doc}. After this hydrate, that change's spec was written against a now-stale base. Re-review with `/fab-continue` after switching to it."
+2. **Concurrent change check** — scan `fab/changes/` for other active changes whose specs reference the same memory files. If found, warn: "Change {name} also modifies {file}. After this hydrate, that change's spec was written against a now-stale base. Re-review with `/fab-continue` after switching to it."
 3. **Hydrate into `fab/memory/`**:
    - From `spec.md` → integrate new/changed requirements and scenarios into the Requirements section. Remove requirements the spec explicitly deprecates. Extract durable design decisions into Design Decisions section
-   - Compare against existing doc to determine what's new vs changed vs removed — no explicit delta markers needed
+   - Compare against existing memory file to determine what's new vs changed vs removed — no explicit delta markers needed
    - Minimize edits to unchanged sections to prevent drift
 4. **Update status** to `hydrate: done` in `.status.yaml`
 
 #### Recovery
 
-Hydration modifies centralized docs in-place. If the merge goes wrong, the only recovery is `git checkout` on the affected doc files. Commit (or at least review the diff) before pushing after hydrate.
+Hydration modifies memory files in-place. If the merge goes wrong, the only recovery is `git checkout` on the affected memory files. Commit (or at least review the diff) before pushing after hydrate.
 
 #### Context
 
-Loads: config, constitution, `design/index.md`, `spec.md`, `brief.md`, target centralized doc(s) from `fab/memory/`, `fab/memory/index.md` and relevant domain indexes.
+Loads: config, constitution, `specs/index.md`, `spec.md`, `brief.md`, target memory file(s) from `fab/memory/`, `fab/memory/index.md` and relevant domain indexes.
 
 ### `/fab-archive` (Standalone Skill)
 
@@ -90,7 +90,7 @@ Loads: config, constitution, `design/index.md`, `spec.md`, `brief.md`, target ce
 
 #### Precondition
 
-Requires `hydrate: done` in `.status.yaml`. If hydrate is not done, it stops with: "Hydrate has not completed. Run /fab-continue to hydrate docs first."
+Requires `hydrate: done` in `.status.yaml`. If hydrate is not done, it stops with: "Hydrate has not completed. Run /fab-continue to hydrate memory first."
 
 #### Behavior
 
@@ -124,21 +124,21 @@ Steps 1–4 execute in this order for safety. Folder move first (recoverable if 
 *Source*: doc/fab-spec/SKILLS.md
 
 ### Hydrate Semantically, Not by Delta Markers
-**Decision**: The agent compares `spec.md` against existing centralized docs to determine what's new, changed, or removed. No ADDED/MODIFIED/REMOVED markers in the spec.
+**Decision**: The agent compares `spec.md` against existing memory files to determine what's new, changed, or removed. No ADDED/MODIFIED/REMOVED markers in the spec.
 **Why**: The spec reads as a straightforward requirements document. Delta markers would clutter the spec and couple it to the hydration mechanism.
 **Rejected**: Explicit delta markers — clutters specs, requires discipline to maintain, fragile to editing.
 *Source*: doc/fab-spec/TEMPLATES.md
 
 ### Concurrent Change Warning on Hydrate
-**Decision**: Before hydrating, scan for other active changes that reference the same docs and warn the user.
-**Why**: Hydration updates the centralized docs, which may invalidate assumptions in other active changes. The warning prompts re-review rather than allowing silent drift.
+**Decision**: Before hydrating, scan for other active changes that reference the same memory files and warn the user.
+**Why**: Hydration updates the memory files, which may invalidate assumptions in other active changes. The warning prompts re-review rather than allowing silent drift.
 **Rejected**: Blocking hydrate if concurrent changes exist — too restrictive, especially for independent changes that happen to touch the same domain.
 *Source*: doc/fab-spec/SKILLS.md
 
 ### Hydrate is a Pipeline Stage, Archive is Not
-**Decision**: Doc hydration (`hydrate`) is a tracked pipeline stage; folder housekeeping (`/fab-archive`) is a standalone skill.
-**Why**: Doc hydration is the logical completion of the agent's work — it closes the feedback loop from implementation back to centralized docs. Folder housekeeping is a user-triggered cleanup action with no bearing on artifact quality.
-**Rejected**: Both as pipeline stages — would add a 7th stage for marginal benefit. Neither as pipeline stages — would lose the doc hydration automation.
+**Decision**: Memory hydration (`hydrate`) is a tracked pipeline stage; folder housekeeping (`/fab-archive`) is a standalone skill.
+**Why**: Memory hydration is the logical completion of the agent's work — it closes the feedback loop from implementation back to memory files. Folder housekeeping is a user-triggered cleanup action with no bearing on artifact quality.
+**Rejected**: Both as pipeline stages — would add a 7th stage for marginal benefit. Neither as pipeline stages — would lose the memory hydration automation.
 *Introduced by*: 260213-jc0u-split-archive-hydrate
 
 ### fab-archive Clears Pointer Conditionally

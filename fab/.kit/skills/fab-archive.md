@@ -39,7 +39,7 @@ Check `progress.hydrate` from the preflight output.
 
 **If `progress.hydrate` is not `done`, STOP.** Output:
 
-> `Hydrate has not completed. Run /fab-continue to hydrate docs first.`
+> `Hydrate has not completed. Run /fab-continue to hydrate memory first.`
 
 ---
 
@@ -191,7 +191,7 @@ Next: /fab-new <description> (start next change)
 ### Guard Failure
 
 ```
-Hydrate has not completed. Run /fab-continue to hydrate docs first.
+Hydrate has not completed. Run /fab-continue to hydrate memory first.
 ```
 
 ---
@@ -201,7 +201,7 @@ Hydrate has not completed. Run /fab-continue to hydrate docs first.
 | Condition | Action |
 |-----------|--------|
 | Preflight script exits non-zero | Abort with the stderr message from `fab-preflight.sh` |
-| `progress.hydrate` is not `done` | Abort with: "Hydrate has not completed. Run /fab-continue to hydrate docs first." |
+| `progress.hydrate` is not `done` | Abort with: "Hydrate has not completed. Run /fab-continue to hydrate memory first." |
 | Change folder already in `fab/changes/archive/` | Resume — skip move, complete remaining steps |
 | `fab/changes/archive/` doesn't exist | Create it before moving |
 | `fab/changes/archive/index.md` doesn't exist | Create with header and backfill |

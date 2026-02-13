@@ -63,16 +63,16 @@ After presenting the gap report, the skill SHALL offer batch selection via AskUs
 
 If only 1-3 gaps are found, the skill MAY skip the interactive prompt and proceed with a brief confirmation. If zero gaps are found, the skill SHALL report "No documentation gaps found" and exit cleanly.
 
-### Structured Doc Output
+### Structured Memory Output
 
-For each selected gap, the skill SHALL generate a doc in `fab/memory/{domain}/{topic}.md` following the centralized doc format (Overview, Requirements with RFC 2119 keywords, Design Decisions, Changelog). Generated docs SHALL synthesize one doc per gap (not per file). When behavior is ambiguous, docs SHOULD include `[INFERRED]` markers inline with explanations.
+For each selected gap, the skill SHALL generate a memory file in `fab/memory/{domain}/{topic}.md` following the memory file format (Overview, Requirements with RFC 2119 keywords, Design Decisions, Changelog). Generated files SHALL synthesize one file per gap (not per source file). When behavior is ambiguous, files SHOULD include `[INFERRED]` markers inline with explanations.
 
 ### Index Maintenance
 
 Generate mode SHALL reuse the same index maintenance logic as ingest mode:
 
 1. Create or update `fab/memory/{domain}/index.md` for each domain touched
-2. Update `fab/memory/index.md` with new domains and doc lists
+2. Update `fab/memory/index.md` with new domains and file lists
 3. All links SHALL be relative
 4. Existing entries SHALL NOT be removed
 
@@ -80,7 +80,7 @@ Generate mode SHALL reuse the same index maintenance logic as ingest mode:
 
 Generate mode SHALL be safe to re-run:
 
-- Existing generated docs SHALL be updated (merged), not overwritten
+- Existing generated files SHALL be updated (merged), not overwritten
 - Manually-added content SHALL be preserved
 - New gaps discovered since last run SHALL appear in the gap report
 - Previously documented areas SHALL NOT appear as gaps (or appear with lower priority)
@@ -105,15 +105,15 @@ Generate mode SHALL be safe to re-run:
 **Rejected**: Listing individual gaps as AskUserQuestion options (tool limited to 4). Multi-step wizard (too many round-trips).
 *Introduced by*: 260207-k5od-hydrate-generate-mode
 
-### Doc Generation: One Doc Per Gap
-**Decision**: Synthesize one doc per gap (e.g., one doc for an entire module), not one doc per file.
-**Why**: Matches how humans think about documentation — by domain, not by file. Prevents fragmentation into dozens of small docs.
-**Rejected**: Per-file doc generation — would fragment knowledge and be hard to navigate.
+### Memory Generation: One File Per Gap
+**Decision**: Synthesize one memory file per gap (e.g., one file for an entire module), not one file per source file.
+**Why**: Matches how humans think about documentation — by domain, not by file. Prevents fragmentation into dozens of small files.
+**Rejected**: Per-source-file generation — would fragment knowledge and be hard to navigate.
 *Introduced by*: 260207-k5od-hydrate-generate-mode
 
 ### `[INFERRED]` Markers on Uncertain Behaviors
 **Decision**: Mark ambiguous or uncertain behaviors with `[INFERRED]` tags inline, close to the relevant requirement, with explanations suggesting verification.
-**Why**: Generated docs are the agent's best understanding, not verified specs. Inline markers give clear signals about what to verify.
+**Why**: Generated files are the agent's best understanding, not verified specs. Inline markers give clear signals about what to verify.
 **Rejected**: No markers (too risky). Separate "uncertainties" section (disconnects marker from content).
 *Introduced by*: 260207-k5od-hydrate-generate-mode
 

@@ -7,7 +7,7 @@ set -euo pipefail
 # the version change, and re-runs _fab-scaffold.sh to repair symlinks.
 #
 # Requires: gh CLI (https://cli.github.com/)
-# Safe to re-run. Existing project files (config.yaml, docs/, etc.) are never touched.
+# Safe to re-run. Existing project files (config.yaml, memory/, etc.) are never touched.
 
 scripts_dir="$(cd "$(dirname "$0")" && pwd)"
 kit_dir="$(dirname "$scripts_dir")"

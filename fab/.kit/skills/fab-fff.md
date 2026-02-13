@@ -62,8 +62,8 @@ Same as `/fab-ff` — load all context upfront:
 1. `fab/config.yaml` — project config, tech stack
 2. `fab/constitution.md` — project principles and constraints
 3. `fab/changes/{name}/brief.md` — the completed brief
-4. `fab/memory/index.md` — documentation landscape
-5. Specific centralized docs referenced by the brief's **Affected Docs** section
+4. `fab/memory/index.md` — memory landscape
+5. Specific memory files referenced by the brief's **Affected Memory** section
 
 ---
 
@@ -111,7 +111,7 @@ Execute review behavior — validate implementation against specs and checklists
 
 *(Skip if `progress.hydrate` is `done`.)*
 
-Execute hydrate behavior — validate review passed, hydrate learnings into centralized docs, update `.status.yaml` to `hydrate: done`.
+Execute hydrate behavior — validate review passed, hydrate learnings into memory, update `.status.yaml` to `hydrate: done`.
 
 ---
 
@@ -224,7 +224,7 @@ Next: /fab-archive (archive change)
 |----------|-------|
 | Advances stage? | **Yes** — progresses through all stages to `hydrate: done` |
 | Idempotent? | **Yes** — safe to re-invoke; skips completed stages |
-| Modifies artifacts? | **Yes** — generates planning artifacts, implements tasks, hydrates docs |
+| Modifies artifacts? | **Yes** — generates planning artifacts, implements tasks, hydrates memory |
 | Updates `.status.yaml`? | **Yes** — each sub-skill updates as it completes |
 | Recomputes confidence? | **No** — reads the score but does not update it |
 

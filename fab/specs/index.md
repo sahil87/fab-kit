@@ -18,7 +18,7 @@
 | [overview](overview.md) | Fab workflow specification — design principles, 6 stages, quick reference |
 | [architecture](architecture.md) | Directory structure, config, naming conventions, git integration, agent integration |
 | [skills](skills.md) | Detailed behavior for each `/fab-*` skill |
-| [templates](templates.md) | Artifact templates — status, brief, spec, tasks, checklist, centralized docs |
+| [templates](templates.md) | Artifact templates — status, brief, spec, tasks, checklist, memory files |
 | [user-flow](user-flow.md) | Visual diagrams — how development works today, with Fab commands, full command map |
 | [proposal](proposal.md) | Original inspiration — SpecKit vs OPSX comparison and design rationale |
 | [srad](srad.md) | SRAD autonomy framework — scoring dimensions, confidence grades, confidence scoring, gating, worked examples |

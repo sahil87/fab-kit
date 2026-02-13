@@ -4,7 +4,7 @@
 
 ## Overview
 
-The context loading convention defines how fab skills load project context before execution. It is implemented in `fab/.kit/skills/_context.md` as a shared preamble read by all skills. The convention uses a layered approach: always-load essentials, change-specific artifacts, and selective domain doc loading.
+The context loading convention defines how fab skills load project context before execution. It is implemented in `fab/.kit/skills/_context.md` as a shared preamble read by all skills. The convention uses a layered approach: always-load essentials, change-specific artifacts, and selective domain memory loading.
 
 ## Requirements
 
@@ -14,7 +14,7 @@ Every skill (except `/fab-init`, `/fab-switch`, `/fab-status`, `/fab-hydrate`) r
 
 1. `fab/config.yaml` — project configuration, tech stack, naming conventions
 2. `fab/constitution.md` — project principles and constraints (MUST/SHOULD/MUST NOT rules)
-3. `fab/memory/index.md` — documentation landscape (which domains and docs exist)
+3. `fab/memory/index.md` — documentation landscape (which domains and memory files exist)
 4. `fab/specs/index.md` — specifications landscape (pre-implementation design intent, human-curated)
 
 This gives the agent awareness of project configuration, constraints, the documentation landscape, and the specifications landscape before generating any artifact.
@@ -33,12 +33,12 @@ The existing 4-step inline validation sequence (check current, check directory, 
 
 ### Selective Domain Loading
 
-When operating on an active change, skills selectively load relevant domain docs based on the change's scope:
+When operating on an active change, skills selectively load relevant memory files based on the change's scope:
 
-1. Read the brief's Affected Docs section (or spec's Affected docs metadata) to identify relevant domains
+1. Read the brief's Affected Memory section (or spec's Affected memory metadata) to identify relevant domains
 2. For each referenced domain, read `fab/memory/{domain}/index.md`
-3. For each specific doc referenced, read `fab/memory/{domain}/{name}.md`
-4. If a referenced domain or doc doesn't exist yet, note this and proceed without error (it will be created during hydrate)
+3. For each specific file referenced, read `fab/memory/{domain}/{name}.md`
+4. If a referenced domain or file doesn't exist yet, note this and proceed without error (it will be created during hydrate)
 5. Do not load unrelated domains — keeps context focused and efficient
 
 This applies to all skills operating on an active change, not just spec-writing skills.
@@ -57,15 +57,15 @@ This protocol is loaded as part of the "Always Load" layer via `_context.md` and
 ### Exception Skills
 
 The following skills skip the standard context loading layers:
-- `/fab-init` — bootstraps structure, doesn't need project docs
+- `/fab-init` — bootstraps structure, doesn't need project memory
 - `/fab-switch` — navigation only
 - `/fab-status` — read-only status display
-- `/fab-hydrate` — ingests docs, doesn't need to load them first
+- `/fab-hydrate` — ingests sources, doesn't need to load them first
 
 ## Design Decisions
 
 ### Smart Loading for All Skills on Active Changes
-**Decision**: Expanded "Centralized Doc Lookup" from spec-writing-only to all skills operating on an active change.
+**Decision**: Expanded "Memory Lookup" from spec-writing-only to all skills operating on an active change.
 **Why**: Agents need domain awareness for planning, implementation, and review — not just spec writing.
 **Rejected**: Per-skill opt-in — too much maintenance overhead and easy to miss new skills.
 *Introduced by*: 260207-q7m3-separate-hydrate-smart-context
@@ -73,7 +73,7 @@ The following skills skip the standard context loading layers:
 ### Always Load fab/specs/index.md
 **Decision**: Added `fab/specs/index.md` to the "Always Load" layer as a 4th baseline file.
 **Why**: Gives every skill awareness of the specifications landscape (pre-implementation design intent) alongside the documentation landscape. The index is lightweight and human-curated, so context cost is minimal.
-**Rejected**: Loading design index only when relevant — same inconsistency risk as with docs/index.md.
+**Rejected**: Loading design index only when relevant — same inconsistency risk as with memory/index.md.
 *Introduced by*: 260207-bb1q-add-specs-index
 
 ### Always Load fab/memory/index.md
