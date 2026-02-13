@@ -1,0 +1,22 @@
+name: 260213-3tyk-merge-fab-init-subcommands
+created: 2026-02-13T05:12:11+0000
+created_by: sahil-weaver
+progress:
+  brief: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  archive: done
+checklist:
+  generated: true
+  path: checklist.md
+  completed: 23
+  total: 23
+confidence:
+  certain: 13
+  confident: 1
+  tentative: 0
+  unresolved: 0
+  score: 4.7
+last_updated: 2026-02-13T06:45:00+0000

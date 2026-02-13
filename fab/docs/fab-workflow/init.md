@@ -4,7 +4,7 @@
 
 ## Overview
 
-`/fab-init` is the structural bootstrap skill that creates the `fab/` directory layout. It sets up `config.yaml`, `constitution.md`, `docs/index.md`, `design/index.md`, the `changes/` directory, skill symlinks, and `.gitignore`. It does not handle doc hydration — that responsibility belongs to `/fab-hydrate`.
+`/fab-init` is the structural bootstrap skill that creates the `fab/` directory layout. It also provides subcommands for managing `config.yaml` and `constitution.md`, and for validating their structure. It does not handle doc hydration — that responsibility belongs to `/fab-hydrate`.
 
 ## Requirements
 
@@ -21,9 +21,13 @@
 - Creates `.gitignore` entries
 - Safe to re-run (idempotent — skips existing files)
 
-### Arguments Rejected
+### Subcommands
 
-When arguments are passed, init outputs a redirect message: "Did you mean /fab-hydrate? /fab-init no longer accepts source arguments." No hydration occurs.
+`/fab-init` accepts three subcommands: `config [section]`, `constitution`, and `validate`. These provide ongoing management of initialization artifacts without requiring separate commands.
+
+### Unrecognized Arguments Rejected
+
+When arguments other than recognized subcommands are passed, init outputs a redirect message: "Did you mean /fab-hydrate? /fab-init no longer accepts source arguments." No hydration occurs.
 
 ### Output
 
@@ -43,9 +47,9 @@ After extraction, run `fab/.kit/scripts/_fab-scaffold.sh` then `/fab-init` as us
 
 For post-initialization management of config and constitution files, see the [init family](init-family.md):
 
-- `/fab-init-constitution` — create or amend the constitution with semantic versioning (see [constitution governance](constitution-governance.md))
-- `/fab-init-config` — interactive config.yaml updates preserving comments (see [config management](config-management.md))
-- `/fab-init-validate` — structural validation for both files
+- `/fab-init constitution` — create or amend the constitution with semantic versioning (see [constitution governance](constitution-governance.md))
+- `/fab-init config` — interactive config.yaml updates preserving comments (see [config management](config-management.md))
+- `/fab-init validate` — structural validation for both files
 
 ## Delegation Pattern
 
@@ -58,8 +62,8 @@ For post-initialization management of config and constitution files, see the [in
 | Skill symlinks (Claude Code, OpenCode, Codex) | `_fab-scaffold.sh` | Discovers skills via glob pattern |
 | `.envrc` symlink | `_fab-scaffold.sh` | Links to `fab/.kit/envrc` |
 | `.gitignore` (`fab/current` entry) | `_fab-scaffold.sh` | Appends if not present |
-| `config.yaml` | `/fab-init-config` (delegated by `/fab-init`) | Single source of truth for config generation and updates |
-| `constitution.md` | `/fab-init-constitution` (delegated by `/fab-init`) | Single source of truth for constitution generation and amendments |
+| `config.yaml` | `/fab-init config` (delegated by `/fab-init`) | Single source of truth for config generation and updates |
+| `constitution.md` | `/fab-init constitution` (delegated by `/fab-init`) | Single source of truth for constitution generation and amendments |
 
 `/fab-init` invokes `_fab-scaffold.sh` as step 1f of its bootstrap sequence. Steps 1c–1e in `/fab-init` have idempotent guards so they gracefully skip artifacts already created by `_fab-scaffold.sh`.
 
@@ -90,8 +94,9 @@ For post-initialization management of config and constitution files, see the [in
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-3tyk-merge-fab-init-subcommands | 2026-02-13 | Consolidated init family into subcommands — `/fab-init config`, `/fab-init constitution`, `/fab-init validate` are now subcommands of `/fab-init` |
 | 260213-iq2l-rename-setup-scripts | 2026-02-13 | Renamed `fab-setup.sh` → `_fab-scaffold.sh` in delegation pattern and all references |
-| 260212-h9k3-fab-init-family | 2026-02-12 | Added Related Commands section, updated Delegation Pattern to reflect `/fab-init` delegating to `/fab-init-config` and `/fab-init-constitution` |
+| 260212-h9k3-fab-init-family | 2026-02-12 | Added Related Commands section, updated Delegation Pattern to reflect `/fab-init` delegating to `/fab-init config` and `/fab-init constitution` |
 | 260212-emcb-clarify-fab-setup | 2026-02-12 | Added Delegation Pattern section documenting responsibility split between `/fab-init` and `_fab-scaffold.sh` |
 | 260210-h7r3-kit-distribution-update | 2026-02-10 | Added Bootstrap Alternative section with curl one-liner as alternative to manual `cp -r` |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |

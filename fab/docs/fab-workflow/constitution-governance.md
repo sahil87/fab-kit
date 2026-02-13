@@ -4,17 +4,17 @@
 
 ## Overview
 
-`fab/constitution.md` holds the project's principles and constraints — the architectural DNA that governs how specifications become code. This doc covers the amendment workflow and versioning model managed by `/fab-init-constitution`.
+`fab/constitution.md` holds the project's principles and constraints — the architectural DNA that governs how specifications become code. This doc covers the amendment workflow and versioning model managed by `/fab-init constitution`.
 
 ## Amendment Workflow
 
 ### Creating a Constitution
 
-On first run (or when `constitution.md` doesn't exist), `/fab-init-constitution` generates a constitution from project context: `config.yaml`, README, codebase patterns, and conversation.
+On first run (or when `constitution.md` doesn't exist), `/fab-init constitution` generates a constitution from project context: `config.yaml`, README, codebase patterns, and conversation.
 
 ### Amending an Existing Constitution
 
-Run `/fab-init-constitution` when the file exists to enter update mode:
+Run `/fab-init constitution` when the file exists to enter update mode:
 
 1. Current constitution is displayed
 2. Amendment menu offers: add principle, modify principle, remove principle, add/modify constraint, update governance
@@ -52,4 +52,5 @@ Amendment summaries are included in the command output. The constitution file it
 
 | Change | Date | Summary |
 |--------|------|---------|
-| 260212-h9k3-fab-init-family | 2026-02-12 | Initial creation — constitutional amendment workflow with `/fab-init-constitution` |
+| 260213-3tyk-merge-fab-init-subcommands | 2026-02-13 | Updated command references — `/fab-init constitution` is now a subcommand of `/fab-init` |
+| 260212-h9k3-fab-init-family | 2026-02-12 | Initial creation — constitutional amendment workflow with `/fab-init constitution` |
