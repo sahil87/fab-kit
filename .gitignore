@@ -1,4 +1,5 @@
 fab/current
+fab/backlog.md
 
 # Ralph runtime logs and temp files
 .ralph/activity.log
