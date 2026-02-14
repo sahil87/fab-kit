@@ -182,7 +182,7 @@ For complete documentation, see:
 | [fab/constitution.md](fab/constitution.md) | Project principles and constraints — the MUST/SHOULD rules that govern all skills |
 | [fab/memory/fab-workflow/change-lifecycle.md](fab/memory/fab-workflow/change-lifecycle.md) | Change folders, `.status.yaml`, naming conventions, git integration, `/fab-status`, `/fab-switch` |
 | [fab/memory/fab-workflow/context-loading.md](fab/memory/fab-workflow/context-loading.md) | How skills load project context — always-load layer, selective domain loading, SRAD protocol |
-| [fab/memory/fab-workflow/hydrate.md](fab/memory/fab-workflow/hydrate.md) | `/fab-hydrate` — dual-mode: ingest external sources or generate docs from codebase scanning |
+| [fab/memory/fab-workflow/hydrate.md](fab/memory/fab-workflow/hydrate.md) | `/docs-hydrate-memory` — dual-mode: ingest external sources or generate docs from codebase scanning |
 | [fab/memory/fab-workflow/specs-index.md](fab/memory/fab-workflow/specs-index.md) | `fab/specs/` directory — pre-implementation specs, distinction from docs |
 
 #### Reference
@@ -193,7 +193,7 @@ For complete documentation, see:
 | [fab/memory/fab-workflow/planning-skills.md](fab/memory/fab-workflow/planning-skills.md) | `/fab-new`, `/fab-discuss`, `/fab-continue`, `/fab-ff`, `/fab-clarify` — the planning pipeline |
 | [fab/memory/fab-workflow/clarify.md](fab/memory/fab-workflow/clarify.md) | `/fab-clarify` — dual modes (suggest/auto), taxonomy scan, structured questions |
 | [fab/memory/fab-workflow/execution-skills.md](fab/memory/fab-workflow/execution-skills.md) | Apply, review, archive behavior — accessed via '/fab-continue' |
-| [fab/memory/fab-workflow/hydrate-specs.md](fab/memory/fab-workflow/hydrate-specs.md) | `/fab-hydrate-specs` — structural gap detection between docs and specs |
+| [fab/memory/fab-workflow/hydrate-specs.md](fab/memory/fab-workflow/hydrate-specs.md) | `/docs-hydrate-specs` — structural gap detection between memory and specs |
 | [fab/specs/templates.md](fab/specs/templates.md) | Artifact templates — proposal, spec, plan, tasks, checklist |
 | [fab/memory/fab-workflow/templates.md](fab/memory/fab-workflow/templates.md) | Template implementation details and centralized doc format |
 
@@ -204,7 +204,7 @@ For complete documentation, see:
 | [fab/specs/architecture.md](fab/specs/architecture.md) | Directory structure, config schema, naming conventions, agent integration |
 | [fab/memory/fab-workflow/kit-architecture.md](fab/memory/fab-workflow/kit-architecture.md) | `.kit/` directory structure, shell scripts, agent integration, distribution |
 | [fab/memory/fab-workflow/preflight.md](fab/memory/fab-workflow/preflight.md) | `fab-preflight.sh` — validation script, structured YAML output, skill integration |
-| [fab/memory/fab-workflow/hydrate-generate.md](fab/memory/fab-workflow/hydrate-generate.md) | `/fab-hydrate` generate mode — codebase scanning, gap detection, doc generation |
+| [fab/memory/fab-workflow/hydrate-generate.md](fab/memory/fab-workflow/hydrate-generate.md) | `/docs-hydrate-memory` generate mode — codebase scanning, gap detection, doc generation |
 | [fab/specs/proposal.md](fab/specs/proposal.md) | Original SpecKit vs OpenSpec comparison and design rationale |
 
 ### Index Files

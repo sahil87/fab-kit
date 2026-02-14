@@ -53,7 +53,7 @@
 | `/fab-continue` (archive) | Completes the change — hydrates artifacts into memory files, moves to archive, clears pointer. |
 | `/fab-switch` | Changes the active change by updating `fab/current`. Supports partial/slug matching. |
 | `/fab-status` | Displays current change state — stage progress, checklist counts, suggested next command. |
-| `/fab-hydrate-specs` | Identifies gaps between `fab/memory/` and `fab/specs/`, proposes additions with interactive confirmation. No active change required. |
+| `/docs-hydrate-specs` | Identifies gaps between `fab/memory/` and `fab/specs/`, proposes additions with interactive confirmation. No active change required. |
 | `/fab-help` | Prints an overview of available Fab skills and their purposes. |
 
 ---
@@ -72,7 +72,7 @@
 | `fab/specs/` | Human-curated pre-implementation design specifications. Flat structure, not managed by Fab tooling. |
 | `fab/.kit/` | The Fab engine directory — templates, skills, scripts. Replaceable upstream without affecting project-specific files. |
 | `fab/.kit/templates/` | Markdown scaffolds that skills fill with concrete content. Includes templates for all artifact types. |
-| `fab/.kit/scripts/` | Shell utilities — `_fab-scaffold.sh` (structural bootstrap), `fab-status.sh` (terminal status), `fab-preflight.sh` (pre-skill validation), `fab-help.sh` (skill catalog). |
+| `fab/.kit/scripts/` | Shell utilities — `_fab-scaffold.sh` (structural bootstrap), `fab-preflight.sh` (pre-skill validation), `fab-help.sh` (skill catalog). |
 
 ---
 

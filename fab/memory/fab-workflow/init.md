@@ -4,7 +4,7 @@
 
 ## Overview
 
-`/fab-init` is the structural bootstrap skill that creates the `fab/` directory layout. It also provides subcommands for managing `config.yaml` and `constitution.md`, and for validating their structure. It does not handle memory hydration — that responsibility belongs to `/fab-hydrate`.
+`/fab-init` is the structural bootstrap skill that creates the `fab/` directory layout. It also provides subcommands for managing `config.yaml` and `constitution.md`, and for validating their structure. It does not handle memory hydration — that responsibility belongs to `/docs-hydrate-memory`.
 
 ## Requirements
 
@@ -72,13 +72,13 @@ For post-initialization management of config and constitution files, see the [in
 ## Design Decisions
 
 ### Init as Pure Structural Bootstrap
-**Decision**: `/fab-init` only creates directory structure and configuration files. Source hydration is delegated to `/fab-hydrate`.
+**Decision**: `/fab-init` only creates directory structure and configuration files. Source hydration is delegated to `/docs-hydrate-memory`.
 **Why**: Clean separation of concerns — bootstrap runs once per project, hydration runs whenever new sources need ingesting. Using "init" for repeated hydration was confusing.
 **Rejected**: Keeping hydration in init with an optional flag — muddled the interface and made init's help text complex.
 *Introduced by*: 260207-q7m3-separate-hydrate-smart-context
 
 ### Redirect Message for Old Interface
-**Decision**: When arguments are passed to `/fab-init`, show a helpful redirect to `/fab-hydrate` instead of silently ignoring.
+**Decision**: When arguments are passed to `/fab-init`, show a helpful redirect to `/docs-hydrate-memory` instead of silently ignoring.
 **Why**: Better UX — users who remember the old interface get guided to the new one.
 **Rejected**: Silently ignoring arguments — confusing, user would think hydration happened.
 *Introduced by*: 260207-q7m3-separate-hydrate-smart-context
@@ -87,7 +87,7 @@ For post-initialization management of config and constitution files, see the [in
 
 ### Source Hydration (Phase 2)
 **Deprecated by**: 260207-q7m3-separate-hydrate-smart-context (2026-02-07)
-**Reason**: Source hydration extracted to dedicated `/fab-hydrate` skill for better separation of concerns.
+**Reason**: Source hydration extracted to dedicated `/docs-hydrate-memory` skill for better separation of concerns.
 **Migration**: Use `/fab-hydrate [sources...]` instead of `/fab-init [sources...]`.
 
 ## Changelog

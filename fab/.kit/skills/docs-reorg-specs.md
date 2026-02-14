@@ -1,9 +1,9 @@
 ---
-name: fab-reorg-specs
+name: docs-reorg-specs
 description: "Analyze spec files for themes and suggest reorganization. Read-only unless user approves changes."
 ---
 
-# /fab-reorg-specs
+# /docs-reorg-specs
 
 ---
 

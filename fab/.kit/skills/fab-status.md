@@ -32,13 +32,13 @@ This skill uses **minimal context** — it does not need to load `fab/config.yam
 
 ## Behavior
 
-Run the shell script and present its output:
+Run the preflight script to resolve the change, then render the status display:
 
 ```bash
-bash fab/.kit/scripts/fab-status.sh [change-name]
+bash fab/.kit/scripts/fab-preflight.sh [change-name]
 ```
 
-The script handles all validation, parsing, and formatting:
+Use `fab-preflight.sh` and `stageman.sh` for validation and data retrieval. The skill handles formatting and presentation:
 
 - Reads `fab/.kit/VERSION`, `fab/current`, `fab/changes/{name}/.status.yaml`, and `fab/config.yaml` (for `git.enabled`)
 - Queries live branch via `git branch --show-current` when git is enabled (instead of reading a static `branch:` field from `.status.yaml`)
@@ -46,10 +46,6 @@ The script handles all validation, parsing, and formatting:
 - Handles all error cases (no active change, missing `.status.yaml`, missing fields)
 - Defaults missing progress fields to `○` (pending), missing checklist to "not yet generated", and missing confidence to "not yet scored"
 - Confidence display: `Confidence: {score}/5.0 ({N} certain, {N} confident, {N} tentative)` — appends `, {N} unresolved` only when unresolved > 0; shows `Confidence: not yet scored` when the confidence block is absent
-
-**On exit 0**: Present the stdout output to the user as-is (it is pre-formatted).
-
-**On non-zero exit**: Present the stdout output — it contains the user-facing error message.
 
 ---
 

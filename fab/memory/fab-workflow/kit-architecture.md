@@ -19,7 +19,10 @@ fab/.kit/
 ├── skills/                 # Skill definitions (markdown prompts)
 │   ├── _context.md         # Shared context loading convention
 │   ├── fab-init.md
-│   ├── fab-hydrate.md
+│   ├── docs-hydrate-memory.md
+│   ├── docs-hydrate-specs.md
+│   ├── docs-reorg-memory.md
+│   ├── docs-reorg-specs.md
 │   ├── fab-new.md
 │   ├── fab-continue.md
 │   ├── fab-ff.md
@@ -46,7 +49,6 @@ fab/.kit/
     ├── batch-switch-change.sh   # Batch switch to changes via tmux + Claude
     ├── fab-help.sh         # Print help overview
     ├── fab-preflight.sh    # Pre-flight validation (sources stageman)
-    ├── fab-status.sh       # Quick terminal status check (sources stageman)
     ├── stageman.sh         # Stage Manager — schema query utility
     ├── fab-upgrade.sh      # Update .kit/ from GitHub Releases
     ├── fab-release.sh      # Package and release .kit/ to GitHub
@@ -58,10 +60,6 @@ fab/.kit/
 #### `_fab-scaffold.sh`
 
 The structural bootstrap script. Creates directories, symlinks, `memory/index.md`, and `.gitignore` entries. Reads bootstrap content from `scaffold/` files (index templates, envrc, gitignore entries) rather than hardcoding them. It is the single source of truth for structural setup. `/fab-init` delegates to it and adds the interactive parts (config, constitution).
-
-#### `fab-status.sh`
-
-Full status display for the active change. Sources `stageman.sh` for schema-driven stage/state queries. Reads `fab/.kit/VERSION`, `fab/current`, and `.status.yaml` to render a formatted status block with version header, change name, branch, stage number, progress table (using symbols from the workflow schema), checklist counts, and next command suggestion. All stage names, numbers, and state symbols are derived dynamically from the schema — no hardcoded stage knowledge. Handles all error cases. The `/fab-status` skill delegates to this script — all mechanical logic lives here.
 
 #### `fab-help.sh`
 
@@ -211,6 +209,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260214-r8kv-docs-skills-housekeeping | 2026-02-14 | Removed `fab-status.sh` from scripts listing. Renamed doc skills: `fab-hydrate.md` → `docs-hydrate-memory.md`, `fab-hydrate-specs.md` → `docs-hydrate-specs.md`, `fab-reorg-specs.md` → `docs-reorg-specs.md`. Added `docs-reorg-memory.md` to skills listing. |
 | 260213-v3rn-batch-commands | 2026-02-14 | Renamed `fab-batch-new.sh` → `batch-new-backlog.sh`, `fab-batch-switch.sh` → `batch-switch-change.sh`; added `batch-archive-change.sh`; added batch scripts section to Shell Scripts docs |
 | 260213-3njv-scaffold-dir | 2026-02-13 | Added `scaffold/` directory to tree listing; `_fab-scaffold.sh` now reads bootstrap content from scaffold files instead of hardcoded heredocs |
 | 260213-iq2l-rename-setup-scripts | 2026-02-13 | Renamed `fab-setup.sh` → `_fab-scaffold.sh` and `fab-update.sh` → `fab-upgrade.sh`; updated directory listing and all script references |

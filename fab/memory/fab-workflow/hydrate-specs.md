@@ -4,7 +4,7 @@
 
 ## Overview
 
-`/fab-hydrate-specs` detects structural gaps between `fab/memory/` and `fab/specs/` — topics that memory covers but specs don't mention at all — and proposes concise additions back to specs with interactive per-gap confirmation.
+`/docs-hydrate-specs` detects structural gaps between `fab/memory/` and `fab/specs/` — topics that memory covers but specs don't mention at all — and proposes concise additions back to specs with interactive per-gap confirmation.
 
 ## Requirements
 
@@ -46,5 +46,5 @@ The skill SHALL verify `fab/memory/index.md` and `fab/specs/index.md` exist befo
 
 | Change | Date | Summary |
 |--------|------|---------|
-| 260209-h3v7-fab-backfill | 2026-02-09 | Initial creation — `/fab-hydrate-specs` skill for detecting and hydrating structural gaps from memory to specs |
-| 260212-akhp-rename-fab-backfill | 2026-02-12 | Renamed from `/fab-backfill` to `/fab-hydrate-specs` for semantic consistency with `/fab-hydrate` |
+| 260209-h3v7-fab-backfill | 2026-02-09 | Initial creation — `/docs-hydrate-specs` skill for detecting and hydrating structural gaps from memory to specs |
+| 260212-akhp-rename-fab-backfill | 2026-02-12 | Renamed from `/fab-backfill` to `/docs-hydrate-specs` for semantic consistency with `/fab-hydrate` |

@@ -10,7 +10,7 @@ The context loading convention defines how fab skills load project context befor
 
 ### Always Load Layer
 
-Every skill (except `/fab-init`, `/fab-switch`, `/fab-status`, `/fab-hydrate`) reads four files as baseline context:
+Every skill (except `/fab-init`, `/fab-switch`, `/fab-status`, `/docs-hydrate-memory`) reads four files as baseline context:
 
 1. `fab/config.yaml` — project configuration, tech stack, naming conventions
 2. `fab/constitution.md` — project principles and constraints (MUST/SHOULD/MUST NOT rules)
@@ -60,7 +60,7 @@ The following skills skip the standard context loading layers:
 - `/fab-init` — bootstraps structure, doesn't need project memory
 - `/fab-switch` — navigation only
 - `/fab-status` — read-only status display
-- `/fab-hydrate` — ingests sources, doesn't need to load them first
+- `/docs-hydrate-memory` — ingests sources, doesn't need to load them first
 
 ## Design Decisions
 

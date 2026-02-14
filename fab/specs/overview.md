@@ -22,7 +22,7 @@ Code serves documentation, not the other way around. The memory files (`fab/memo
 All work happens in change folders. Each change captures its requirements (`spec.md`), which get hydrated into memory files on completion.
 
 ### 4. Stage Visibility
-Always know where you are. Each change folder has a `.status.yaml` manifest that tracks current stage and progress. A `current` pointer file (`fab/current` contains the active change name) provides instant access to whichever change is in flight — no scanning or guessing required. Run `fab/.kit/scripts/fab-status.sh` for a quick terminal check.
+Always know where you are. Each change folder has a `.status.yaml` manifest that tracks current stage and progress. A `current` pointer file (`fab/current` contains the active change name) provides instant access to whichever change is in flight — no scanning or guessing required. Run `/fab-status` for a quick check.
 
 ### 5. Skill-Based Interface
 Use skills (not rigid commands) for better agent interoperability. Skills are more naturally invocable by AI agents.
@@ -64,12 +64,7 @@ This generates everything else: `config.yaml`, `constitution.md`, `memory/`, `ch
 
 ### Verify
 
-```bash
-fab/.kit/scripts/fab-status.sh
-→ "No active change"
-```
-
-You're ready. Start your first change with `/fab-new <description>`.
+Run `/fab-status` — it should show "No active change". You're ready. Start your first change with `/fab-new <description>`.
 
 ### Hydrating Memory from Existing Sources
 
