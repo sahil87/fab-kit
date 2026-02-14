@@ -149,7 +149,7 @@ Unlike `/fab-fff` which bails immediately on review failure, `/fab-ff` presents 
 
 #### Confidence Gate
 
-Before proceeding, `/fab-fff` reads `confidence.score` from `.status.yaml`. If the score is below 3.0, the skill aborts with a message suggesting `/fab-clarify` to raise confidence.
+Before proceeding, `/fab-fff` reads `confidence.score` from `.status.yaml` and checks it against a **dynamic threshold** that varies by change type: bugfix=2.0, feature/refactor=3.0, architecture=4.0 (default: 3.0 when `change_type` is absent). The gate check is performed by `calc-score.sh --check-gate`. If the score is below the threshold, the skill aborts with a message suggesting `/fab-clarify` to raise confidence.
 
 #### Pipeline Behavior
 
@@ -212,10 +212,10 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 ## Design Decisions
 
 ### SRAD Autonomy Framework
-**Decision**: All planning skills use the SRAD framework (Signal Strength, Reversibility, Agent Competence, Disambiguation Type) to evaluate decision points and assign confidence grades (Certain, Confident, Tentative, Unresolved). Each skill has a defined autonomy level and interruption budget.
-**Why**: Replaces ad-hoc question selection with a principled, consistent framework. Ensures high-blast-radius decisions are always surfaced while low-value prompts are eliminated. The four-dimension scoring prevents both over-asking and silent high-risk assumptions.
-**Rejected**: Ad-hoc question selection — inconsistent, no way to predict agent behavior. Full autonomy — too risky for Unresolved decisions with cascading consequences.
-*Introduced by*: 260207-09sj-autonomy-framework
+**Decision**: All planning skills use the SRAD framework (Signal Strength, Reversibility, Agent Competence, Disambiguation Type) to evaluate decision points and assign confidence grades (Certain, Confident, Tentative, Unresolved). Each skill has a defined autonomy level and interruption budget. Dimensions are evaluated on a continuous 0–100 scale, aggregated via weighted mean (w_S=0.25, w_R=0.30, w_A=0.25, w_D=0.20), and mapped to grades via trapezoidal thresholds (Certain: 85–100, Confident: 60–84, Tentative: 30–59, Unresolved: 0–29). A Critical Rule override forces Unresolved when R < 25 AND A < 25.
+**Why**: Replaces ad-hoc question selection with a principled, consistent framework. Ensures high-blast-radius decisions are always surfaced while low-value prompts are eliminated. The four-dimension scoring prevents both over-asking and silent high-risk assumptions. The R-biased weighting (0.30) encodes the Critical Rule's intent at the formula level.
+**Rejected**: Ad-hoc question selection — inconsistent, no way to predict agent behavior. Full autonomy — too risky for Unresolved decisions with cascading consequences. Binary high/low dimension classification — lost nuance in the mid-range.
+*Introduced by*: 260207-09sj-autonomy-framework; *Updated by*: 260212-f9m3-enhance-srad-fuzzy (fuzzy 0–100 dimensions, weighted mean aggregation, dynamic gate thresholds)
 
 ### Brief-First with SRAD-Based Questions
 **Decision**: Every change starts with a brief. The agent applies SRAD scoring to identify up to 3 Unresolved decisions with the highest blast radius and asks those. All other decisions are assumed at their assessed confidence grade and surfaced in the Assumptions summary.
@@ -281,6 +281,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260212-f9m3-enhance-srad-fuzzy | 2026-02-14 | SRAD framework updated to fuzzy 0–100 dimension scoring with weighted mean aggregation; `/fab-fff` confidence gate now uses dynamic per-type thresholds (bugfix=2.0, feature/refactor=3.0, architecture=4.0) via `calc-score.sh --check-gate`; optional Scores column in Assumptions tables for per-dimension data |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_stageman.sh` → `lib/stageman.sh` and `_calc-score.sh` → `lib/calc-score.sh` in all references; updated shared generation partial `lib/stageman.sh set-checklist` references |
 | 260214-w3r8-stageman-write-api | 2026-02-14 | Skill prompts (`fab-continue.md`, `fab-ff.md`, `fab-fff.md`, `_generation.md`) now reference `lib/stageman.sh` CLI commands for all `.status.yaml` mutations instead of ad-hoc editing |
 | 260214-lptw-score-init-display | 2026-02-14 | Changed `/fab-fff` confidence gate and output header display format from `{score}` to `{score} of 5.0`. Updated `_context.md` template description from "score 5.0" to "score 0.0". |

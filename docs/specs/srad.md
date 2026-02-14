@@ -17,14 +17,59 @@ SRAD also produces a **confidence score** — a numeric measure of how well-reso
 
 ### Evaluation Criteria
 
-Each dimension is evaluated as high (safe to assume) or low (consider asking):
+Each dimension is evaluated on a **continuous 0–100 scale** (100 = fully safe to assume, 0 = must ask). The following rubric provides guidance for scoring:
 
-| Dimension | High (safe to assume) | Low (consider asking) |
-|-----------|----------------------|----------------------|
-| **S — Signal Strength** | Detailed description, multiple sentences, clear intent | One-liner, vague phrase, ambiguous scope |
-| **R — Reversibility** | Easily changed later via `/fab-clarify` or stage reset | Cascades through multiple artifacts, expensive to undo |
-| **A — Agent Competence** | Config, constitution, codebase give clear answer | Business priorities, user preferences, political context |
-| **D — Disambiguation Type** | One obvious default interpretation | Multiple valid interpretations with different tradeoffs |
+| Dimension | High (75–100) | Medium (40–74) | Low (0–39) |
+|-----------|--------------|----------------|------------|
+| **S — Signal Strength** | Detailed description, multiple sentences, clear intent | Moderate detail, some gaps, partially specified | One-liner, vague phrase, ambiguous scope |
+| **R — Reversibility** | Easily changed later via `/fab-clarify` or stage reset | Moderate rework — touches a few files/artifacts | Cascades through multiple artifacts, expensive to undo |
+| **A — Agent Competence** | Config, constitution, codebase give clear answer | Partial codebase signals, some inference needed | Business priorities, user preferences, political context |
+| **D — Disambiguation Type** | One obvious default interpretation | 2–3 options with a clear front-runner | Multiple valid interpretations with different tradeoffs |
+
+### Fuzzy-to-Grade Mapping
+
+The four per-dimension scores are aggregated into a single **composite score** using a weighted mean, then mapped to a confidence grade via trapezoidal thresholds.
+
+**Aggregation formula**:
+
+```
+composite = 0.25 * S + 0.30 * R + 0.25 * A + 0.20 * D
+```
+
+The higher weight on Reversibility (0.30 vs 0.25 for others) encodes the Critical Rule's intent: low-R decisions have disproportionate blast radius.
+
+**Grade thresholds**:
+
+| Grade | Composite Range | Interpretation |
+|-------|----------------|----------------|
+| **Certain** | 85–100 | All dimensions strongly favor assumption |
+| **Confident** | 60–84 | Most dimensions favor assumption; minor gaps |
+| **Tentative** | 30–59 | Mixed signals; reasonable guess but alternatives exist |
+| **Unresolved** | 0–29 | Too ambiguous to assume safely |
+
+**Critical Rule override**: Regardless of composite score, if R < 25 AND A < 25, the grade MUST be Unresolved.
+
+### Dimension Score Persistence
+
+When planning skills use fuzzy evaluation, per-decision scores are recorded in the Assumptions table's optional `Scores` column:
+
+```markdown
+| # | Grade | Scores | Decision | Rationale |
+|---|-------|--------|----------|-----------|
+| 1 | Confident | S:75 R:80 A:65 D:70 | Use OAuth2 | Config shows REST API |
+```
+
+Aggregate dimension statistics are stored in `.status.yaml`:
+
+```yaml
+confidence:
+  fuzzy: true
+  dimensions:
+    signal: 78.5
+    reversibility: 82.0
+    competence: 71.2
+    disambiguation: 85.0
+```
 
 ---
 
@@ -119,7 +164,16 @@ confidence:
 
 ## Gate Threshold
 
-`/fab-fff` requires `confidence.score >= 3.0` before executing the autonomous pipeline.
+`/fab-fff` requires `confidence.score >= threshold` before executing the autonomous pipeline. The threshold varies by **change type**:
+
+| Change Type | Gate Threshold | Rationale |
+|-------------|---------------|-----------|
+| **bugfix** | 2.0 | Low risk, narrow scope — more tolerance for assumptions |
+| **feature** | 3.0 | Default — balanced risk tolerance |
+| **refactor** | 3.0 | Behavioral preservation important, moderate tolerance |
+| **architecture** | 4.0 | High blast radius — demand near-certainty |
+
+Change type is stored as `change_type:` in `.status.yaml` (default: `feature`). The gate check is performed by `calc-score.sh --check-gate`.
 
 ### What 3.0 Allows
 
@@ -174,17 +228,17 @@ The existence of `/fab-clarify` as an escape valve does **not** justify silently
 
 Two words, no detail on mechanism, scope, or integration.
 
-| Decision point | S | R | A | D | Grade |
-|---------------|---|---|---|---|-------|
-| Auth mechanism (OAuth2 vs SAML vs API keys) | Low — no detail | Low — cascades into DB schema, middleware, API contracts | Low — business relationship with identity providers | Low — all three valid with different tradeoffs | **Unresolved** |
-| Replace or supplement existing auth | Low — no indication | Low — fundamental architectural choice | Low — depends on business requirements | Low — both valid | **Unresolved** |
-| Session storage (JWT vs server-side) | Low — not mentioned | Medium — refactorable but touches many endpoints | Medium — config shows REST API | Medium — JWT is common default for REST | **Tentative** |
+| Decision point | S | R | A | D | Composite | Grade |
+|---------------|---|---|---|---|-----------|-------|
+| Auth mechanism (OAuth2 vs SAML vs API keys) | 10 | 15 | 10 | 15 | 12.5 | **Unresolved** (12.5 < 30) |
+| Replace or supplement existing auth | 15 | 10 | 20 | 20 | 15.5 | **Unresolved** (R=10 < 25, A=20 < 25 → Critical Rule) |
+| Session storage (JWT vs server-side) | 20 | 50 | 55 | 45 | 42.0 | **Tentative** (30 ≤ 42.0 < 60) |
 
 **Confidence counts**: Certain: 2, Confident: 1, Tentative: 1, Unresolved: 2
 
 **Score**: `0.0` — any Unresolved decision produces a hard zero.
 
-**Outcome**: `/fab-fff` gate blocks (0.0 < 3.0). The user must answer the Unresolved questions or use `/fab-clarify` to resolve Tentative assumptions before the autonomous pipeline can run.
+**Outcome**: `/fab-fff` gate blocks (0.0 < 3.0 feature threshold). The user must answer the Unresolved questions or use `/fab-clarify` to resolve Tentative assumptions before the autonomous pipeline can run.
 
 ### Example 2: Low-Ambiguity Brief
 
@@ -192,17 +246,17 @@ Two words, no detail on mechanism, scope, or integration.
 
 Detailed description specifying the component, location, trigger, and behavior.
 
-| Decision point | S | R | A | D | Grade |
-|---------------|---|---|---|---|-------|
-| Which spinner component | High — explicitly named | High — trivially swappable | High — design system documented in codebase | High — user specified it | **Certain** |
-| When to show/hide spinner | High — "while API call is in-flight" | High — UI state, easily changed | High — standard loading pattern | High — one obvious interpretation | **Certain** |
-| Double-submission prevention | High — "disable the button" | High — single attribute change | High — standard pattern | High — user specified the approach | **Certain** |
+| Decision point | S | R | A | D | Composite | Grade |
+|---------------|---|---|---|---|-----------|-------|
+| Which spinner component | 95 | 90 | 95 | 100 | 94.5 | **Certain** (94.5 ≥ 85) |
+| When to show/hide spinner | 90 | 92 | 88 | 95 | 91.1 | **Certain** (91.1 ≥ 85) |
+| Double-submission prevention | 95 | 95 | 90 | 98 | 94.3 | **Certain** (94.3 ≥ 85) |
 
 **Confidence counts**: Certain: 8, Confident: 2, Tentative: 0, Unresolved: 0
 
 **Score**: `max(0.0, 5.0 - 0.6 - 0.0) = 4.4`
 
-**Outcome**: `/fab-fff` gate passes (4.4 >= 3.0). The autonomous pipeline can run with high confidence.
+**Outcome**: `/fab-fff` gate passes (4.4 >= 3.0 feature threshold). The autonomous pipeline can run with high confidence.
 
 ---
 

@@ -547,6 +547,82 @@ set_confidence_block() {
   mv "$tmpfile" "$status_file"
 }
 
+# set_confidence_block_fuzzy <status_file> <certain> <confident> <tentative> <unresolved> <score> <mean_s> <mean_r> <mean_a> <mean_d>
+# Replace the entire confidence block in .status.yaml, including fuzzy dimension data.
+# Extends set_confidence_block with fuzzy: true flag and dimensions sub-block.
+set_confidence_block_fuzzy() {
+  local status_file="$1"
+  local certain="$2"
+  local confident="$3"
+  local tentative="$4"
+  local unresolved="$5"
+  local score="$6"
+  local mean_s="$7"
+  local mean_r="$8"
+  local mean_a="$9"
+  local mean_d="${10}"
+
+  if [ ! -f "$status_file" ]; then
+    echo "ERROR: Status file not found: $status_file" >&2
+    return 1
+  fi
+
+  # Validate counts are non-negative integers
+  local count_name count_val
+  for count_name in certain confident tentative unresolved; do
+    eval count_val=\$$count_name
+    if ! [[ "$count_val" =~ ^[0-9]+$ ]]; then
+      echo "ERROR: Invalid value '$count_val' for '$count_name' (expected non-negative integer)" >&2
+      return 1
+    fi
+  done
+
+  # Validate score is a non-negative float
+  if ! [[ "$score" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+    echo "ERROR: Invalid score '$score' (expected non-negative float)" >&2
+    return 1
+  fi
+
+  local now
+  now=$(date -Iseconds)
+  local tmpfile
+  tmpfile=$(mktemp "$(dirname "$status_file")/.status.yaml.XXXXXX")
+
+  awk -v certain="$certain" \
+      -v confident="$confident" \
+      -v tentative="$tentative" \
+      -v unresolved="$unresolved" \
+      -v score="$score" \
+      -v mean_s="$mean_s" \
+      -v mean_r="$mean_r" \
+      -v mean_a="$mean_a" \
+      -v mean_d="$mean_d" \
+      -v ts="$now" '
+    /^confidence:/ {
+      in_block = 1
+      print "confidence:"
+      print "  certain: " certain
+      print "  confident: " confident
+      print "  tentative: " tentative
+      print "  unresolved: " unresolved
+      print "  score: " score
+      print "  fuzzy: true"
+      print "  dimensions:"
+      print "    signal: " mean_s
+      print "    reversibility: " mean_r
+      print "    competence: " mean_a
+      print "    disambiguation: " mean_d
+      next
+    }
+    in_block && /^[^ ]/ { in_block = 0 }
+    in_block { next }
+    /^last_updated:/ { print "last_updated: " ts; next }
+    { print }
+  ' "$status_file" > "$tmpfile"
+
+  mv "$tmpfile" "$status_file"
+}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Display Helpers
 # ─────────────────────────────────────────────────────────────────────────────
