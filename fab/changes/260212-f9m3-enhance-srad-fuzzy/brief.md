@@ -22,11 +22,12 @@ This enhancement preserves SRAD's strengths (domain-specific design, interpretab
 ## What Changes
 
 - **Add per-dimension fuzzy scoring** (0-100 continuous scale) instead of binary high/low classification for S, R, A, D dimensions
-- **Validate penalty weights** (currently 0.3 for Confident, 1.0 for Tentative) via sensitivity analysis on historical change data from `fab/changes/**/.status.yaml`
+- **Validate penalty weights** (currently 0.3 for Confident, 1.0 for Tentative) via sensitivity analysis on historical change data from `fab/changes/**/.status.yaml` (scoring computed by `fab/.kit/scripts/lib/calc-score.sh`)
 - **Test threshold calibration** by correlating the 3.0 threshold with actual human intervention needs across completed changes
 - **Introduce dynamic thresholds** based on change type categorization (bugfix, feature, refactor, architecture)
 - **Preserve linear formula structure** and existing 4-dimension framework (no architectural changes)
-- **Document research findings** and methodology in `fab/design/srad.md` with academic references
+- **Document research findings** and methodology in `docs/specs/srad.md` with academic references
+- **Write comprehensive SRAD scoring test cases** in `src/lib/calc-score/test.sh` covering fuzzy dimension scoring, dynamic thresholds, weight sensitivity, and edge cases (existing suite covers the current binary formula but not the proposed enhancements)
 - **Provide backward compatibility** through optional feature flag or gradual rollout strategy
 
 ## Affected Docs
@@ -35,9 +36,9 @@ This enhancement preserves SRAD's strengths (domain-specific design, interpretab
 None — this enhances an existing framework rather than introducing a new one.
 
 ### Modified Docs
-- `fab-workflow/planning-skills`: Update SRAD dimension evaluation from binary to fuzzy scoring (0-100 scale)
-- `fab/design/srad.md`: Add research findings section, fuzzy scoring methodology, sensitivity analysis results, dynamic threshold tables, and academic references (PMC4544539, ScienceDirect S266618882600016X, supervised autonomy frameworks)
-- `fab-workflow/context-loading`: Note the enhanced SRAD scoring in the `_context.md` section
+- `docs/specs/skills.md`: Update SRAD dimension evaluation from binary to fuzzy scoring (0-100 scale)
+- `docs/specs/srad.md`: Add research findings section, fuzzy scoring methodology, sensitivity analysis results, dynamic threshold tables, and academic references (PMC4544539, ScienceDirect S266618882600016X, supervised autonomy frameworks)
+- `fab/.kit/skills/_context.md`: Note the enhanced SRAD scoring in the context-loading section
 
 ### Removed Docs
 None
@@ -45,13 +46,15 @@ None
 ## Impact
 
 **Affected Files**:
+- `docs/specs/srad.md` — Primary SRAD specification (formula, scoring, worked examples)
+- `fab/.kit/scripts/lib/calc-score.sh` — Scoring computation (formula, grade counting, `.status.yaml` writes)
 - `fab/.kit/skills/_context.md` — SRAD framework definition (dimension evaluation methodology)
-- `fab/design/srad.md` — Primary SRAD specification (formula, scoring, worked examples)
+- `src/lib/calc-score/test.sh` — Comprehensive test suite (needs new cases for fuzzy scoring, dynamic thresholds, weight sensitivity)
 - `fab/.kit/skills/fab-new.md`, `fab/.kit/skills/fab-continue.md` — Planning skills that apply SRAD
 - Historical `.status.yaml` files — Data source for validation (read-only, used for analysis)
 
 **Affected Systems**:
-- Confidence scoring computation in all planning skills
+- `calc-score.sh` — the shell script that implements the scoring formula, parses Assumptions tables, and writes the confidence block to `.status.yaml`; fuzzy scoring and dynamic thresholds would require changes here
 - `/fab-fff` gate threshold logic (potentially context-sensitive)
 - `.status.yaml` schema (may need additional fields for fuzzy dimension scores)
 
