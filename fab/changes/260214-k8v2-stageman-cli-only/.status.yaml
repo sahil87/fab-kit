@@ -1,0 +1,23 @@
+name: 260214-k8v2-stageman-cli-only
+created: 2026-02-14T00:00:00+05:30
+created_by: sahil-weaver
+change_type: feature
+progress:
+  brief: active
+  spec: pending
+  tasks: pending
+  apply: pending
+  review: pending
+  hydrate: pending
+checklist:
+  generated: false
+  path: checklist.md
+  completed: 0
+  total: 0
+confidence:
+  certain: 0
+  confident: 0
+  tentative: 0
+  unresolved: 0
+  score: 0.0
+last_updated: 2026-02-14T00:00:00+05:30
