@@ -9,15 +9,16 @@ source "$(dirname "$(readlink -f "$0")")/stageman.sh"
 # Internal library script invoked by /fab-continue (spec stage) and
 # /fab-clarify (suggest mode). Not called directly by users.
 #
-# Usage: calc-score.sh <change-dir>
+# Usage: calc-score.sh <change-dir> [trigger]
 # Output: YAML confidence block to stdout
 # Side effect: Updates confidence block in .status.yaml
 # Exit: 0 on success, 1 on error (message to stderr)
 
 change_dir="${1:-}"
+trigger="${2:-calc-score}"
 
 if [ -z "$change_dir" ]; then
-  echo "Usage: calc-score.sh <change-dir>" >&2
+  echo "Usage: calc-score.sh <change-dir> [trigger]" >&2
   exit 1
 fi
 
@@ -81,10 +82,12 @@ done <<< "$all_grades"
 prev_certain=0
 prev_score="0.0"
 if [ -f "$status_file" ]; then
-  prev_certain=$(grep '^ *certain:' "$status_file" | sed 's/^ *certain: *//' || true)
-  prev_certain=${prev_certain:-0}
-  prev_score=$(grep '^ *score:' "$status_file" | sed 's/^ *score: *//' || true)
-  prev_score=${prev_score:-0.0}
+  while IFS=: read -r key val; do
+    case "$key" in
+      certain) prev_certain="${val:-0}" ;;
+      score) prev_score="${val:-0.0}" ;;
+    esac
+  done < <(get_confidence "$status_file")
 fi
 
 # Implicit = previous total - explicit Certain found in tables
@@ -120,6 +123,7 @@ delta=$(awk "BEGIN {
 # --- Write to .status.yaml ---
 if [ -f "$status_file" ]; then
   set_confidence_block "$status_file" "$total_certain" "$table_confident" "$table_tentative" "$unresolved" "$score"
+  log_confidence "$status_file" "$score" "$delta" "$trigger"
 fi
 
 # --- Emit YAML to stdout ---

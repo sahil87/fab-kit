@@ -54,9 +54,10 @@ Once a single change is identified:
 
 1. **Write** folder name to `fab/current` (overwrites previous)
 2. **Branch Integration** (see below)
-3. **Read `.status.yaml`** for stage and progress
-4. **Display confirmation** with stage number (brief=1, spec=2, tasks=3, apply=4, review=5, hydrate=6)
-5. **Suggest next command** based on stage:
+3. **Command Logging**: append `.history.jsonl` event via `lib/stageman.sh log-command <file> fab-switch <args> success` (or `error` on failure)
+4. **Read `.status.yaml`** for stage and progress
+5. **Display confirmation** with stage number (brief=1, spec=2, tasks=3, apply=4, review=5, hydrate=6)
+6. **Suggest next command** based on stage:
 
 | Stage | Suggested next |
 |-------|---------------|

@@ -70,5 +70,12 @@ else
   exit 1
 fi
 
+if grep -q '"event":"confidence"' "$TEST_DIR/.history.jsonl"; then
+  echo "✓ Confidence history event logged"
+else
+  echo "✗ Confidence history event missing"
+  exit 1
+fi
+
 echo ""
 echo "✓ All smoke tests passed"

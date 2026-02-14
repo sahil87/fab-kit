@@ -71,15 +71,16 @@ The structural bootstrap script. Creates directories, symlinks, `docs/memory/ind
 
 #### `lib/stageman.sh`
 
-Stage Manager — the schema query utility, `.status.yaml` accessor library, and write API. Sourced by `lib/preflight.sh`, `lib/calc-score.sh`, and test files. Also executable directly as a CLI for write operations. Provides:
+Stage Manager — the schema query utility, `.status.yaml` accessor library, and write API. Sourced by `lib/preflight.sh`, `lib/calc-score.sh`, and test files. Also executable directly as a CLI for write operations. Status reads/writes are `yq`-backed (Mike Farah v4 required). Provides:
 
 - **Schema queries**: `get_all_stages`, `get_all_states`, `validate_stage`, `validate_state`, `get_stage_number`, `get_stage_name`, `get_stage_artifact`, `get_allowed_states`, `get_initial_state`, `has_auto_checklist`, `get_state_symbol`, `is_terminal_state`, `get_next_stage`
-- **`.status.yaml` accessors**: `get_progress_map` (stage→state pairs), `get_checklist` (generated/completed/total), `get_confidence` (certain/confident/tentative/unresolved/score), `get_current_stage` (active stage with fallback logic)
-- **Write functions**: `set_stage_state` (single stage mutation), `transition_stages` (atomic two-write forward transition with adjacency enforcement), `set_checklist_field` (individual checklist field update), `set_confidence_block` (full confidence block replacement). All write functions validate inputs before writing, use temp-file-then-mv for atomicity, and refresh `last_updated`
-- **CLI write commands**: `lib/stageman.sh set-state|transition|set-checklist|set-confidence` — when executed directly (not sourced), dispatches to the corresponding write function. Used by skill prompts via Bash tool instead of ad-hoc `.status.yaml` editing
+- **`.status.yaml` accessors**: `get_progress_map` (stage→state pairs), `get_checklist` (generated/completed/total), `get_confidence` (certain/confident/tentative/unresolved/score), `get_stage_metrics`, `get_current_stage` (active stage with fallback logic)
+- **Write functions**: `set_stage_state` (single stage mutation), `transition_stages` (atomic two-write forward transition with adjacency enforcement), `set_checklist_field` (individual checklist field update), `set_confidence_block` (full confidence block replacement), `set_stage_metric`
+- **History log helpers**: `log_command`, `log_confidence`, `log_review` append `.history.jsonl` events in the change directory
+- **CLI write commands**: `lib/stageman.sh set-state|transition|set-checklist|set-confidence|set-stage-metric|log-command|log-confidence|log-review` — when executed directly (not sourced), dispatches to the corresponding write/log function. Used by skill prompts via Bash tool instead of ad-hoc `.status.yaml` editing
 - **Validation**: `validate_status_file` (schema conformance check)
 
-Accessor functions use a line-oriented output pattern (`key:value` per line) — consumers parse with `while IFS=: read -r key val`. Lives in `scripts/lib/` to indicate it is internal plumbing, though it also serves as a CLI entry point for write operations.
+Accessor functions use a line-oriented output pattern (`key:value` per line) — consumers parse with `while IFS=: read -r key val`. `set-state`/`transition` now apply `stage_metrics` side-effects automatically (`started_at`, `completed_at`, `driver`, `iterations`). Lives in `scripts/lib/` to indicate it is internal plumbing, though it also serves as a CLI entry point for write operations.
 
 #### `lib/resolve-change.sh`
 
@@ -87,7 +88,7 @@ Change name resolution library. Sourced by `lib/preflight.sh`. Provides `resolve
 
 #### `lib/calc-score.sh`
 
-Internal library script for confidence score computation. Scans `## Assumptions` tables in `brief.md` and `spec.md`, counts SRAD grades (case-insensitive), preserves implicit Certain counts via carry-forward from `.status.yaml`, applies the confidence formula, delegates the `.status.yaml` write to `set_confidence_block` from `lib/stageman.sh` (sources it at startup), and emits YAML with delta to stdout. Invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). Not called directly by users. Dev folder: `src/lib/calc-score/` (symlink, README, smoke test, comprehensive test suite).
+Internal library script for confidence score computation. Scans `## Assumptions` tables in `brief.md` and `spec.md`, counts SRAD grades (case-insensitive), preserves implicit Certain counts via carry-forward from `.status.yaml`, applies the confidence formula, delegates the `.status.yaml` write to `set_confidence_block` from `lib/stageman.sh` (sources it at startup), appends confidence history via `log_confidence`, and emits YAML with delta to stdout. Invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). Not called directly by users. Dev folder: `src/lib/calc-score/` (symlink, README, smoke test, comprehensive test suite).
 
 #### `fab-help.sh`
 
@@ -218,8 +219,8 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 ## Design Decisions
 
 ### All Logic in Markdown and Shell
-**Decision**: Workflow logic lives in markdown skill files and shell scripts. No system dependencies, no package managers, no CLI binaries, no build steps.
-**Why**: Constitution I (Pure Prompt Play). Any AI agent that can read markdown and execute shell commands can drive the workflow.
+**Decision**: Workflow logic lives in markdown skill files and shell scripts. No package-manager dependencies and no build steps. Single-binary runtime tools are allowed when directly invoked by scripts and documented.
+**Why**: Constitution I (Pure Prompt Play) now allows lightweight runtime binaries (`yq`, `git`, `gh`) while preserving portability and zero build/setup burden.
 **Rejected**: CLI tool, npm package, or Python script — all introduce system dependencies.
 *Source*: doc/fab-spec/README.md, fab/constitution.md
 
@@ -244,6 +245,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260214-r7k3-stageman-yq-metrics | 2026-02-14 | Migrated `lib/stageman.sh` status access/write/validation to Mike Farah `yq` v4; added strict yq runtime detection + Linuxbrew fallback path support; added `stage_metrics` APIs and automatic side-effects; added `.history.jsonl` helpers (`log_command`, `log_confidence`, `log_review`); updated `lib/calc-score.sh` to append confidence history |
 | 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Relocated `memory/` and `specs/` from `fab/` to `docs/`; updated `_init_scaffold.sh` to create `docs/memory/` and `docs/specs/`; updated preserved files list; added migration file `0.2.0-to-0.3.0.md` |
 | 260213-k7m2-kit-version-migrations | 2026-02-14 | Added `fab/.kit/migrations/` directory and `fab-update.md` skill to directory listing; updated version tracking to dual-version model; updated `_init_scaffold.sh` description (fab/VERSION creation); updated `fab-upgrade.sh` (drift reminder) and `fab-release.sh` (migration chain validation) descriptions; updated preserved/replaced lists |
 | 260214-w3r8-stageman-write-api | 2026-02-14 | Added write functions + CLI to `_stageman.sh` (`set_stage_state`, `transition_stages`, `set_checklist_field`, `set_confidence_block`); refactored `_calc-score.sh` to source `_stageman.sh` and delegate writes to `set_confidence_block` |

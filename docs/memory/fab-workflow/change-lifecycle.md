@@ -50,7 +50,9 @@ Every change folder SHALL contain a `.status.yaml` manifest with these fields:
 - `progress` — map of all stages to their state. The stage marked `active` is the current stage (single source of truth for where the change is). There is no separate `stage:` field — current stage is derived from the `active` entry in the progress map.
 - `checklist` — generation status, path (default: `checklist.md` at change root), completion counts
 - `confidence` — SRAD confidence scoring: `certain`, `confident`, `tentative`, `unresolved` counts and derived `score` (0.0-5.0). Initialized to 0.0 (no assessed confidence). Computed by `lib/calc-score.sh`, invoked at spec stage by `/fab-continue` and by `/fab-clarify`. Used as a gate by `/fab-fff` (requires score >= 3.0). Displayed as `{score} of 5.0` to make the scale self-documenting
+- `stage_metrics` — per-stage operational metrics (`started_at`, `completed_at`, `driver`, `iterations`) populated automatically by `lib/stageman.sh` when stages enter `active` or `done`
 - `last_updated` — refreshed on every status change. All `.status.yaml` mutations SHOULD go through `lib/stageman.sh` write functions (or CLI commands), which handle validation and `last_updated` refresh automatically
+- `.history.jsonl` (sibling file) — append-only event log with `command`, `confidence`, and `review` events. Event records include timestamp and outcome metadata for operational traceability.
 
 **State vocabulary** (all progress fields draw from this fixed set):
 
@@ -209,6 +211,7 @@ Skills will tolerate old-format files — the preflight script infers `brief: do
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260214-r7k3-stageman-yq-metrics | 2026-02-14 | Added `stage_metrics` and `.history.jsonl` lifecycle tracking; documented command/confidence/review event model and per-stage metrics side-effects from `lib/stageman.sh` |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_calc-score.sh` → `lib/calc-score.sh`, `_stageman.sh` → `lib/stageman.sh`, `_preflight.sh` → `lib/preflight.sh` in field descriptions, transition examples, and `/fab-status` reference |
 | 260214-w3r8-stageman-write-api | 2026-02-14 | All `.status.yaml` mutations now go through `_stageman.sh` write API — documented `transition` for two-write transitions and `set-state` for reset flows; noted `last_updated` auto-refresh |
 | 260214-lptw-score-init-display | 2026-02-14 | Updated confidence field description: initial score is 0.0 (not 5.0), display format is `{score} of 5.0`. Updated `/fab-status` description to note "of 5.0" display convention. |

@@ -7,7 +7,7 @@ Bash utility for querying workflow stages and states from the canonical schema (
 - **Schema**: `fab/.kit/schemas/workflow.yaml` — canonical workflow definition
 - **Implementation**: `fab/.kit/scripts/lib/stageman.sh` — main file (distributed with kit)
 - **Dev symlink**: `src/lib/stageman/stageman.sh` → `../../../fab/.kit/scripts/lib/stageman.sh`
-- **Schema docs**: `fab/docs/fab-workflow/schemas.md` — what the schema defines and design principles
+- **Schema docs**: `docs/memory/fab-workflow/schemas.md` — what the schema defines and design principles
 
 ## Usage
 
@@ -63,6 +63,7 @@ stageman.sh --test      # Run self-tests
 | `get_progress_map <file>` | .status.yaml path | `stage:state` pairs, one per line | 0 |
 | `get_checklist <file>` | .status.yaml path | `generated:{val}`, `completed:{val}`, `total:{val}` | 0 |
 | `get_confidence <file>` | .status.yaml path | `certain:{val}`, `confident:{val}`, `tentative:{val}`, `unresolved:{val}`, `score:{val}` | 0 |
+| `get_stage_metrics <file> [stage]` | .status.yaml path (+ optional stage) | stage metrics as key:value lines | 0 |
 
 ### Progression
 
@@ -84,6 +85,19 @@ stageman.sh --test      # Run self-tests
 |----------|-------|--------|------|
 | `format_state <state>` | state ID | symbol + suffix | 0 |
 
+### Write + History
+
+| Function | Input | Output | Exit |
+|----------|-------|--------|------|
+| `set_stage_state <file> <stage> <state> [driver]` | status path + state update | in-place status update | 0 success, 1 validation error |
+| `transition_stages <file> <from> <to> [driver]` | forward transition | in-place status update | 0/1 |
+| `set_checklist_field <file> <field> <value>` | checklist mutation | in-place status update | 0/1 |
+| `set_confidence_block <file> <c> <cf> <t> <u> <s>` | confidence replacement | in-place status update | 0/1 |
+| `set_stage_metric <file> <stage> <field> <value>` | stage metric mutation | in-place status update | 0/1 |
+| `log_command <file> <cmd> [args] [outcome]` | command metadata | append JSON event | 0/1 |
+| `log_confidence <file> <score> <delta> <trigger>` | confidence metadata | append JSON event | 0/1 |
+| `log_review <file> <passed\|failed> [rework]` | review metadata | append JSON event | 0/1 |
+
 ## CLI Interface
 
 | Command | Description |
@@ -97,7 +111,7 @@ stageman.sh --test      # Run self-tests
 
 - Bash 4.0+
 - GNU coreutils (grep, sed, awk)
-- No external YAML parsers required
+- Mike Farah `yq` v4.x (status read/write and validation operations)
 - Works on macOS and Linux
 
 ## Testing
@@ -111,6 +125,14 @@ fab/.kit/scripts/lib/stageman.sh --test
 ```
 
 ## Changelog
+
+### 2.0.0 (2026-02-14)
+
+- Migrated status accessors, validation, and write functions from line parsing to `yq` v4
+- Added stage metrics API: `get_stage_metrics`, `set_stage_metric`
+- Added history event API: `log_command`, `log_confidence`, `log_review`
+- Added automatic `stage_metrics` side-effects on stage activation/completion
+- Added strict runtime detection for Mike Farah `yq` v4 with install guidance
 
 ### 1.1.0 (2026-02-14)
 

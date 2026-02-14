@@ -1,6 +1,6 @@
 # Confidence Score Calculator (calc-score.sh)
 
-Computes confidence scores from `## Assumptions` tables in `brief.md` and `spec.md`. Scans for SRAD grade counts (Certain, Confident, Tentative), applies the confidence formula, writes the updated confidence block to `.status.yaml`, and emits YAML with delta to stdout.
+Computes confidence scores from `## Assumptions` tables in `brief.md` and `spec.md`. Scans for SRAD grade counts (Certain, Confident, Tentative), applies the confidence formula, writes the updated confidence block to `.status.yaml`, appends a confidence event to `.history.jsonl`, and emits YAML with delta to stdout.
 
 ## Sources of Truth
 
@@ -10,7 +10,7 @@ Computes confidence scores from `## Assumptions` tables in `brief.md` and `spec.
 ## Usage
 
 ```bash
-calc-score.sh <change-dir>
+calc-score.sh <change-dir> [trigger]
 ```
 
 Where `<change-dir>` is the path to a change directory (e.g., `fab/changes/260214-mgh5-calc-score-dev-setup`).
@@ -21,9 +21,9 @@ The directory MUST contain `spec.md`. `brief.md` is optional — if present, its
 
 | Field | Value |
 |-------|-------|
-| **Arguments** | `<change-dir>` — path to change directory (required) |
+| **Arguments** | `<change-dir>` (required), `[trigger]` (optional confidence event source, default: `calc-score`) |
 | **Output** | YAML confidence block to stdout (see format below) |
-| **Side effects** | Replaces `confidence:` block in `<change-dir>/.status.yaml` |
+| **Side effects** | Replaces `confidence:` block in `<change-dir>/.status.yaml`; appends `confidence` event to `<change-dir>/.history.jsonl` |
 | **Exit 0** | Success — score computed and written |
 | **Exit 1** | Error — message to stderr |
 
@@ -43,7 +43,7 @@ confidence:
 
 | Condition | stderr message |
 |-----------|---------------|
-| No arguments | `Usage: calc-score.sh <change-dir>` |
+| No arguments | `Usage: calc-score.sh <change-dir> [trigger]` |
 | Directory not found | `Change directory not found: <path>` |
 | No `spec.md` | `spec.md required for scoring` |
 
@@ -64,7 +64,7 @@ Implicit Certain counts are preserved from the previous `.status.yaml`. If the p
 
 - Bash 4.0+
 - GNU coreutils (grep, sed, awk)
-- No external YAML parsers required
+- Mike Farah `yq` v4.x (through sourced `stageman.sh`)
 
 ## Testing
 

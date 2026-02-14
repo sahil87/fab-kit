@@ -50,6 +50,7 @@ Create `fab/changes/{name}/`. Backlog ID collision → abort with redirect to ex
 ### Step 4: Initialize `.status.yaml`
 
 Create from `fab/.kit/templates/status.yaml`. Fill `{NAME}` (folder name), `{CREATED}` (ISO 8601 with tz), `{CREATED_BY}` (`gh api user --jq .login` → `git config user.name` → `"unknown"`, silent fallback).
+Then append invocation history via `lib/stageman.sh log-command <file> fab-new <args> success` (or `error` if creation fails).
 
 ### Step 5: Generate `brief.md`
 

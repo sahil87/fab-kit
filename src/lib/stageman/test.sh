@@ -363,7 +363,7 @@ progress:
 EOF
 no_conf_output=$(get_confidence "$TEST_DIR/no-confidence.yaml")
 assert_contains "certain:0" "$no_conf_output" "get_confidence defaults certain to 0"
-assert_contains "score:5.0" "$no_conf_output" "get_confidence defaults score to 5.0"
+assert_contains "score:0.0" "$no_conf_output" "get_confidence defaults score to 0.0"
 
 # get_current_stage (refactored to use get_progress_map)
 current=$(get_current_stage "$TEST_DIR/full-status.yaml")
@@ -424,7 +424,7 @@ echo "  set_stage_state:"
 make_write_fixture
 set_stage_state "$TEST_DIR/write-status.yaml" "review" "active" 2>/dev/null
 assert_success "    valid state change succeeds"
-result=$(grep "^  review:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
+result=$(yq eval '.progress.review' "$TEST_DIR/write-status.yaml")
 assert_equal "active" "$result" "    review is now active"
 
 # Verify last_updated was refreshed
@@ -432,7 +432,7 @@ ts=$(grep "^last_updated:" "$TEST_DIR/write-status.yaml" | sed 's/last_updated: 
 assert_contains "T" "$ts" "    last_updated refreshed with ISO 8601 timestamp"
 
 # Other stages unchanged
-result=$(grep "^  apply:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
+result=$(yq eval '.progress.apply' "$TEST_DIR/write-status.yaml")
 assert_equal "active" "$result" "    unrelated stages unchanged"
 
 # Validation failures
@@ -462,8 +462,8 @@ echo "  transition_stages:"
 make_write_fixture
 transition_stages "$TEST_DIR/write-status.yaml" "apply" "review" 2>/dev/null
 assert_success "    valid forward transition succeeds"
-from_state=$(grep "^  apply:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
-to_state=$(grep "^  review:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
+from_state=$(yq eval '.progress.apply' "$TEST_DIR/write-status.yaml")
+to_state=$(yq eval '.progress.review' "$TEST_DIR/write-status.yaml")
 assert_equal "done" "$from_state" "    from_stage set to done"
 assert_equal "active" "$to_state" "    to_stage set to active"
 
@@ -554,7 +554,7 @@ ts=$(grep "^last_updated:" "$TEST_DIR/write-status.yaml" | sed 's/last_updated: 
 assert_contains "T" "$ts" "    last_updated refreshed"
 
 # Verify other blocks preserved
-result=$(grep "^  apply:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
+result=$(yq eval '.progress.apply' "$TEST_DIR/write-status.yaml")
 assert_equal "active" "$result" "    progress block preserved"
 result=$(grep "^  total:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
 assert_equal "10" "$result" "    checklist block preserved"
@@ -583,6 +583,48 @@ assert_equal "$before" "$after" "    file unchanged on negative score"
 
 set_confidence_block "/nonexistent/path/.status.yaml" "10" "3" "1" "0" "4.1" 2>/dev/null
 assert_failure "    rejects nonexistent file"
+
+echo ""
+
+# --- stage_metrics side-effects + history logging ---
+
+echo "  stage_metrics and history:"
+
+make_write_fixture
+set_stage_state "$TEST_DIR/write-status.yaml" "review" "active" "fab-continue" 2>/dev/null
+assert_success "    set-state(active) records stage_metrics"
+metrics=$(get_stage_metrics "$TEST_DIR/write-status.yaml" "review")
+assert_contains "driver:fab-continue" "$metrics" "    stage_metrics driver recorded"
+assert_contains "iterations:1" "$metrics" "    stage_metrics iterations initialized"
+assert_contains "started_at:" "$metrics" "    stage_metrics started_at set"
+
+make_write_fixture
+transition_stages "$TEST_DIR/write-status.yaml" "apply" "review" "fab-ff" 2>/dev/null
+assert_success "    transition records completion/start side-effects"
+from_metrics=$(get_stage_metrics "$TEST_DIR/write-status.yaml" "apply")
+to_metrics=$(get_stage_metrics "$TEST_DIR/write-status.yaml" "review")
+assert_contains "completed_at:" "$from_metrics" "    from stage completed_at set"
+assert_contains "driver:fab-ff" "$to_metrics" "    to stage driver recorded"
+assert_contains "iterations:1" "$to_metrics" "    to stage iterations incremented"
+
+rm -f "$TEST_DIR/.history.jsonl"
+log_command "$TEST_DIR/write-status.yaml" "fab-continue" "--stage spec" "success" 2>/dev/null
+assert_success "    log_command appends event"
+hist=$(cat "$TEST_DIR/.history.jsonl")
+assert_contains "\"event\":\"command\"" "$hist" "    history contains command event"
+assert_contains "\"outcome\":\"success\"" "$hist" "    history contains outcome"
+
+log_confidence "$TEST_DIR/write-status.yaml" "3.8" "-0.6" "fab-continue/spec" 2>/dev/null
+assert_success "    log_confidence appends event"
+hist=$(cat "$TEST_DIR/.history.jsonl")
+assert_contains "\"event\":\"confidence\"" "$hist" "    history contains confidence event"
+assert_contains "\"trigger\":\"fab-continue/spec\"" "$hist" "    confidence trigger recorded"
+
+log_review "$TEST_DIR/write-status.yaml" "failed" "revise-spec" 2>/dev/null
+assert_success "    log_review appends event"
+hist=$(tail -n 1 "$TEST_DIR/.history.jsonl")
+assert_contains "\"event\":\"review\"" "$hist" "    history contains review event"
+assert_contains "\"rework\":\"revise-spec\"" "$hist" "    review rework recorded"
 
 echo ""
 

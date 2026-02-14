@@ -92,7 +92,7 @@ None — all design decisions were resolved during planning:
 | 2 | Confident | Full migration of all stageman functions (not incremental) | Avoids mixed awk/yq maintenance; consistent codebase |
 | 3 | Confident | JSONL for .history.jsonl instead of YAML | Append-only data is JSONL's sweet spot; YAML array appends with any tool are fragile |
 | 4 | Confident | Freeform driver strings, not a fixed enum | Enum would need updates with every new skill; freeform is forward-compatible |
-| 5 | Tentative | yq dependency acceptable under constitution's "no CLI binaries" rule | Constitution targets package managers and build steps; yq is a single binary like gh/git. May need constitution amendment or explicit exemption. |
-<!-- assumed: yq dependency acceptable — constitution says "no CLI binaries" but project already uses gh, git, awk; yq is comparable -->
+| 5 | Certain | Constitution will be amended to explicitly allow single-binary runtime tooling (including yq) for kit scripts | Clarified during `/fab-clarify` (2026-02-14), eliminating policy ambiguity before implementation. |
+<!-- clarified: constitution amendment accepted to allow yq-class runtime tooling for kit scripts -->
 
-5 assumptions made (4 confident, 1 tentative). Run /fab-clarify to review.
+5 assumptions made (4 confident, 0 tentative). Run /fab-clarify to review.

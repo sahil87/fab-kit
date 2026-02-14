@@ -32,6 +32,7 @@ Disambiguation: matches `brief`/`spec`/`tasks` → target artifact; anything els
 ## Pre-flight & Stage Guard
 
 Run preflight per `_context.md` §2.
+Append command history entry at invocation start via `lib/stageman.sh log-command <file> fab-clarify <args> success` (or `error` on bail/failure paths).
 
 - **Planning stages** (`brief`, `spec`, `tasks`) — defaults to current stage's artifact; `<target-artifact>` overrides.
 - **Post-planning** (`apply`, `review`, `hydrate`) — requires `<target-artifact>`. If missing, prompt: "Which planning artifact to clarify? (1) spec, (2) tasks, (3) brief"

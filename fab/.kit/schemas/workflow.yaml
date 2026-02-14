@@ -190,8 +190,23 @@ validation:
   terminal_states:
     rule: "done/skipped stages can only transition back to active via explicit reset"
 
+# status_extensions — Additional runtime structures in .status.yaml.
+status_extensions:
+  stage_metrics:
+    description: "Per-stage operational metrics populated by stageman side-effects."
+    shape:
+      started_at: "ISO 8601 timestamp (set when stage enters active)"
+      completed_at: "ISO 8601 timestamp (set when stage enters done)"
+      driver: "Skill or command that activated the stage"
+      iterations: "Positive integer incremented each time stage enters active"
+  history:
+    file: ".history.jsonl"
+    description: "Append-only event log stored alongside .status.yaml"
+    required_event_fields: [ts, event]
+    supported_events: [command, confidence, review]
+
 # metadata — Schema versioning and compatibility.
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   compatible_with: "fab-kit >= 0.1.0"
-  last_updated: "2026-02-12"
+  last_updated: "2026-02-14"

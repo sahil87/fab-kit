@@ -360,6 +360,11 @@ assert_contains "confident: 1" "$status_content" "Status updated: confident coun
 assert_contains "tentative: 1" "$status_content" "Status updated: tentative count"
 assert_contains "score: 3.7" "$status_content" "Status updated: score"
 
+# Check confidence history event was appended
+history_content=$(cat "$d/.history.jsonl")
+assert_contains "\"event\":\"confidence\"" "$history_content" "History updated: confidence event appended"
+assert_contains "\"trigger\":\"calc-score\"" "$history_content" "History updated: trigger recorded"
+
 # Check other fields preserved
 assert_contains "name: test-change" "$status_content" "Status preserved: name field"
 assert_contains "brief: done" "$status_content" "Status preserved: progress fields"

@@ -8,6 +8,8 @@ The planning skills (`/fab-new`, `/fab-continue`, `/fab-clarify`) handle the fir
 
 `/fab-ff` is also documented here because its planning behavior (frontloaded questions, auto-clarify) originated as a planning skill. However, `/fab-ff` is now a **full-pipeline command** that continues through apply, review, and hydrate after planning completes. See the `/fab-ff` section below for details.
 
+**Operational telemetry**: Planning orchestrators append command invocation events to `.history.jsonl` through `lib/stageman.sh log-command`. Stage transitions and state updates include a driver argument (e.g., `fab-continue`, `fab-ff`) so `stage_metrics.<stage>.driver` and iteration metadata are populated consistently.
+
 ## Shared Generation Partial
 
 The artifact generation logic (spec, tasks, checklist) is defined in a single shared partial: `fab/.kit/skills/_generation.md`. Both `/fab-continue` and `/fab-ff` reference this partial for the mechanics of producing each artifact, rather than inlining the generation steps.
@@ -281,6 +283,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260214-r7k3-stageman-yq-metrics | 2026-02-14 | Added planning-stage telemetry notes for command history logging (`log-command`) and driver-tagged stage transitions that populate `stage_metrics` |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_stageman.sh` → `lib/stageman.sh` and `_calc-score.sh` → `lib/calc-score.sh` in all references; updated shared generation partial `lib/stageman.sh set-checklist` references |
 | 260214-w3r8-stageman-write-api | 2026-02-14 | Skill prompts (`fab-continue.md`, `fab-ff.md`, `fab-fff.md`, `_generation.md`) now reference `lib/stageman.sh` CLI commands for all `.status.yaml` mutations instead of ad-hoc editing |
 | 260214-lptw-score-init-display | 2026-02-14 | Changed `/fab-fff` confidence gate and output header display format from `{score}` to `{score} of 5.0`. Updated `_context.md` template description from "score 5.0" to "score 0.0". |

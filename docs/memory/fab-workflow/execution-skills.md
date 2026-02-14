@@ -6,7 +6,9 @@
 
 Execution behavior (apply, review, hydrate) is accessed via `/fab-continue`, which dispatches to the appropriate behavior based on the active stage. The standalone skills `/fab-apply` and `/fab-review` no longer exist as separate commands — their behavior is consolidated into `/fab-continue`. `/fab-archive` exists as a standalone housekeeping skill (not a pipeline stage) for moving completed changes to the archive. All execution behaviors in `/fab-continue` inherit the optional `[change-name]` argument, which is passed to the preflight script for transient change resolution without modifying `fab/current`.
 
-**Status mutations**: All `.status.yaml` progress transitions, checklist updates, and confidence writes use `lib/stageman.sh` CLI commands (`transition`, `set-state`, `set-checklist`, `set-confidence`) via the Bash tool, rather than direct file editing. This centralizes validation and ensures atomic writes with `last_updated` refresh.
+**Status mutations**: All `.status.yaml` progress transitions, checklist updates, confidence writes, and stage metric updates use `lib/stageman.sh` CLI commands (`transition`, `set-state`, `set-checklist`, `set-confidence`, `set-stage-metric`) via the Bash tool, rather than direct file editing. This centralizes validation and ensures atomic writes with `last_updated` refresh.
+
+**Execution telemetry**: Execution orchestrators append `.history.jsonl` events through stageman logging helpers (`log-command`, `log-confidence`, `log-review`). Driver-tagged transitions populate `stage_metrics` (`started_at`, `completed_at`, `driver`, `iterations`) as stages activate and complete.
 
 **Pipeline invocation**: Both `/fab-ff` and `/fab-fff` use the same execution behavior internally as part of their full-pipeline runs. `/fab-ff` presents interactive rework options on review failure; `/fab-fff` bails immediately. Both accept an optional `[change-name]` argument.
 
@@ -191,8 +193,9 @@ Steps execute 1→3 for safety. If interrupted, re-run detects folder already in
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260214-r7k3-stageman-yq-metrics | 2026-02-14 | Added execution telemetry coverage for `.history.jsonl` (`log-command`, `log-confidence`, `log-review`) and driver-populated `stage_metrics` side-effects on transitions |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_stageman.sh` → `lib/stageman.sh` in status mutations overview |
-| 260214-w3r8-stageman-write-api | 2026-02-14 | All execution-stage `.status.yaml` transitions now use `_stageman.sh` CLI commands instead of direct file edits |
+| 260214-w3r8-stageman-write-api | 2026-02-14 | All execution-stage `.status.yaml` transitions now use `lib/stageman.sh` CLI commands instead of direct file edits |
 | 260214-eikh-consistency-fixes | 2026-02-14 | Verified cf13 (contradictory fab-status.sh/stageman.sh changelog entries) — already resolved by prior changes. No behavioral modifications. |
 | 260214-r8kv-docs-skills-housekeeping | 2026-02-14 | Removed `fab-status.sh` references from changelog entries (updated to reference `/fab-status` skill instead) |
 | 260214-v7k3-archive-restore-mode | 2026-02-14 | Added restore mode to `/fab-archive` — moves archived changes back to active, removes index entry, optional `--switch` flag. Idempotent and resumable. Added Restore as Subcommand design decision. |

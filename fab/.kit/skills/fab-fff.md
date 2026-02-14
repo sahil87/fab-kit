@@ -37,7 +37,7 @@ Load per `_context.md` layers 1-3.
 
 ## Behavior
 
-> **Note**: All `.status.yaml` transitions in this skill use `lib/stageman.sh` CLI commands (`transition`, `set-state`, `set-checklist`, `set-confidence`) rather than direct file edits. See `/fab-continue` and `/fab-ff` for specific invocations per step.
+> **Note**: All `.status.yaml` transitions in this skill use `lib/stageman.sh` CLI commands (`transition`, `set-state`, `set-checklist`, `set-confidence`) with driver identity `fab-fff`, and invocation history is logged via `lib/stageman.sh log-command`. See `/fab-continue` and `/fab-ff` for specific invocations per step.
 
 ### Resumability
 
