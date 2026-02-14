@@ -1,6 +1,6 @@
 # Change Resolver (_resolve-change.sh)
 
-Bash library for resolving change names from an override argument or `fab/current`. Sourced by `fab-preflight.sh` and `fab-status.sh`.
+Bash library for resolving change names from an override argument or `fab/current`. Sourced by `_preflight.sh` and `fab-status.sh`.
 
 ## Sources of Truth
 
@@ -71,6 +71,6 @@ src/resolve-change/test.sh
 
 ### 1.0.0 (2026-02-14)
 
-- Extracted from `fab-preflight.sh` and `fab-status.sh`
+- Extracted from `_preflight.sh` and `fab-status.sh`
 - `resolve_change` function with `RESOLVED_CHANGE_NAME` variable-setting pattern
 - Handles: exact match, case-insensitive substring, multiple matches, no match, no fab/current, missing changes dir

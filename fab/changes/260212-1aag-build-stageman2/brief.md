@@ -41,7 +41,7 @@
 - **fab/.kit/scripts/**: New _stageman2.sh alongside existing _stageman.sh
 - **src/stageman/**: New symlink and test file alongside existing ones
 - **No existing files modified** — purely additive deployment
-- **Future migration** (out of scope for this change): fab-status.sh, fab-preflight.sh, and all skill .md files will switch from direct .status.yaml access to stageman2 API calls
+- **Future migration** (out of scope for this change): fab-status.sh, _preflight.sh, and all skill .md files will switch from direct .status.yaml access to stageman2 API calls
 
 ## Open Questions
 
@@ -53,6 +53,6 @@
 |---|-------|----------|-----------|
 | 1 | Confident | Reimplement only the schema query subset needed for status management (stage list, valid states, allowed states per stage), not the full v1 display API (symbols, suffixes, names) | "Independent of v1" directive + minimalism — display helpers are v1's domain, not needed for file management |
 | 2 | Confident | Follow existing test.sh pattern (assert_equal/assert_success/assert_failure, temp files, self-contained) | Strong existing convention in src/stageman/test.sh; no reason to deviate |
-| 3 | Confident | Preflight structural validation (config.yaml, constitution.md, change dir existence) stays in fab-preflight.sh; stageman2 only manages .status.yaml | Plan explicitly scoped stageman2 as a file manager, not a workflow engine; separation of concerns |
+| 3 | Confident | Preflight structural validation (config.yaml, constitution.md, change dir existence) stays in _preflight.sh; stageman2 only manages .status.yaml | Plan explicitly scoped stageman2 as a file manager, not a workflow engine; separation of concerns |
 
 3 assumptions made (3 confident, 0 tentative). Run /fab-clarify to review.

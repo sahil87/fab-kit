@@ -45,7 +45,7 @@ Before doing anything else, verify the kit exists:
 
 ## Bootstrap Behavior
 
-When invoked with no arguments, perform the full structural bootstrap. `/fab-init` delegates directory/symlink/skeleton creation to `fab/.kit/scripts/_fab-scaffold.sh` (step 1f) while handling interactive config/constitution generation itself.
+When invoked with no arguments, perform the full structural bootstrap. `/fab-init` delegates directory/symlink/skeleton creation to `fab/.kit/scripts/_init_scaffold.sh` (step 1f) while handling interactive config/constitution generation itself.
 
 ### Phase 1: Structural Bootstrap
 
@@ -108,7 +108,7 @@ If exists: ensure `fab/changes/archive/` exists, then skip.
 
 #### 1f. `.claude/skills/` Symlinks
 
-Run `fab/.kit/scripts/_fab-scaffold.sh` to create or repair all skill symlinks and directories. The script discovers skills by globbing `fab/.kit/skills/fab-*.md` and creates:
+Run `fab/.kit/scripts/_init_scaffold.sh` to create or repair all skill symlinks and directories. The script discovers skills by globbing `fab/.kit/skills/fab-*.md` and creates:
 
 ```
 .claude/skills/fab-{name}/SKILL.md → ../../../fab/.kit/skills/fab-{name}.md

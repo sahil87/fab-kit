@@ -31,7 +31,7 @@ project/
 │   │   │   └── fab-status.md
 │   │   └── scripts/                # Lightweight shell utilities
 │   │       ├── fab-help.sh         # Print Fab Kit help overview
-│   │       └── _fab-scaffold.sh        # Structural bootstrap for fab
+│   │       └── _init_scaffold.sh        # Structural bootstrap for fab
 │   ├── config.yaml                 # Project-specific configuration
 │   ├── constitution.md             # Project principles & constraints
 │   ├── current                     # Pointer file (contains active change name)
@@ -89,10 +89,11 @@ Scripts in `fab/.kit/scripts/` follow a prefix convention to distinguish entry p
 
 | Prefix | Role | Invoked by | Example |
 |--------|------|------------|---------|
-| `fab-` | Entry point — invoked by skills or users | Skills, `fab-setup.sh` via terminal | `fab-preflight.sh`, `fab-help.sh` |
-| `_` | Internal library — sourced by other scripts | Other scripts via `source` | `_stageman.sh`, `_resolve-change.sh` |
+| `fab-` | User-facing entry point | Users via terminal | `fab-help.sh`, `fab-upgrade.sh` |
+| `_` | Internal — sourced libraries or plumbing scripts | Skills, other scripts | `_stageman.sh`, `_preflight.sh`, `_init_scaffold.sh` |
+| `batch-` | Batch orchestration | Users via terminal | `batch-new-backlog.sh` |
 
-**Why?** When `.kit/` is distributed via `cp -r`, the `_` prefix makes it immediately clear which scripts are internal plumbing vs. which are callable entry points. This matters for discoverability and prevents accidental direct invocation of library scripts that expect to be sourced.
+**Why?** When `.kit/` is distributed via `cp -r`, the `_` prefix makes it immediately clear which scripts are internal plumbing vs. which are user-facing entry points. This matters for discoverability and prevents users from invoking internal scripts directly.
 
 ---
 
@@ -352,7 +353,7 @@ Agent-specific skill files are **symlinks** pointing into `fab/.kit/skills/`. Th
 
 ### Claude Code (`.claude/skills/`)
 
-`/fab-init` (or `fab/.kit/scripts/_fab-scaffold.sh`) creates skill subdirectories with symlinks:
+`/fab-init` (or `fab/.kit/scripts/_init_scaffold.sh`) creates skill subdirectories with symlinks:
 ```
 .claude/skills/
 ├── fab-init/
@@ -386,7 +387,7 @@ Same pattern — symlinks from the agent's convention directory into `fab/.kit/s
 
 ```
 1. User obtains .kit/  →  cp -r /path/to/fab-kit fab/.kit
-2. User runs fab/.kit/scripts/_fab-scaffold.sh  →  creates directories, symlinks, memory/index.md, .gitignore entry
+2. User runs fab/.kit/scripts/_init_scaffold.sh  →  creates directories, symlinks, memory/index.md, .gitignore entry
 3. User runs /fab-init  →  generates config.yaml, constitution.md (structural bootstrap)
 4. User optionally runs /fab-hydrate  →  ingests external sources into fab/memory/
 5. User runs /fab-new  →  first change is created
@@ -394,7 +395,7 @@ Same pattern — symlinks from the agent's convention directory into `fab/.kit/s
 
 Step 1 is manual. Step 2 is a shell script. Steps 3–5 are skill-driven.
 
-`fab/.kit/scripts/_fab-scaffold.sh` handles all structural setup (directories, symlinks, `.gitignore`) and is the single source of truth for that structure. `/fab-init` delegates to it (step 1e) and adds the interactive parts (config, constitution). `fab/.kit/scripts/fab-help.sh` mirrors the skill catalog — it must be updated when skills are added or removed.
+`fab/.kit/scripts/_init_scaffold.sh` handles all structural setup (directories, symlinks, `.gitignore`) and is the single source of truth for that structure. `/fab-init` delegates to it (step 1e) and adds the interactive parts (config, constitution). `fab/.kit/scripts/fab-help.sh` mirrors the skill catalog — it must be updated when skills are added or removed.
 
 **Re-running `/fab-init`**: Init is idempotent — safe to call at any time. On subsequent runs it verifies structure and repairs broken symlinks. To ingest external documentation into `fab/memory/`, use `/fab-hydrate` — see [Skills Reference](SKILLS.md#fabhydrate-sources) for details.
 

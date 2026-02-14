@@ -44,7 +44,7 @@ for stage in $(get_all_stages); do ...; done
 
 **In skills (Claude prompts)**: Reference the schema directly or use bash scripts that source `stageman.sh`:
 ```markdown
-Run `fab/.kit/scripts/fab-preflight.sh` to get validated stage information.
+Run `fab/.kit/scripts/_preflight.sh` to get validated stage information.
 The script uses `stageman.sh` internally.
 ```
 

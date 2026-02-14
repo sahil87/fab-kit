@@ -4,8 +4,8 @@ Pre-execution validator for fab workflow commands. Checks the health of the curr
 
 ## Sources of Truth
 
-- **Implementation**: `fab/.kit/scripts/fab-preflight.sh` — main file (distributed with kit)
-- **Dev symlink**: `src/preflight/fab-preflight.sh` → `../../fab/.kit/scripts/fab-preflight.sh`
+- **Implementation**: `fab/.kit/scripts/_preflight.sh` — main file (distributed with kit)
+- **Dev symlink**: `src/preflight/_preflight.sh` → `../../fab/.kit/scripts/_preflight.sh`
 - **Dependencies**: `fab/.kit/scripts/stageman.sh` (sourced for schema-driven validation)
 - **Schema**: `fab/.kit/schemas/workflow.yaml` — canonical workflow definition
 
@@ -13,10 +13,10 @@ Pre-execution validator for fab workflow commands. Checks the health of the curr
 
 ```bash
 # Check the current active change (reads fab/current)
-fab/.kit/scripts/fab-preflight.sh
+fab/.kit/scripts/_preflight.sh
 
 # Check a specific change by name (fuzzy, case-insensitive)
-fab/.kit/scripts/fab-preflight.sh my-feature
+fab/.kit/scripts/_preflight.sh my-feature
 ```
 
 ## Validation Pipeline

@@ -72,7 +72,7 @@
 | `fab/specs/` | Human-curated pre-implementation design specifications. Flat structure, not managed by Fab tooling. |
 | `fab/.kit/` | The Fab engine directory — templates, skills, scripts. Replaceable upstream without affecting project-specific files. |
 | `fab/.kit/templates/` | Markdown scaffolds that skills fill with concrete content. Includes templates for all artifact types. |
-| `fab/.kit/scripts/` | Shell utilities — `_fab-scaffold.sh` (structural bootstrap), `fab-preflight.sh` (pre-skill validation), `fab-help.sh` (skill catalog). |
+| `fab/.kit/scripts/` | Shell utilities — `_init_scaffold.sh` (structural bootstrap), `_preflight.sh` (pre-skill validation), `fab-help.sh` (skill catalog). |
 
 ---
 
@@ -103,7 +103,7 @@
 | **Full pipeline** | Running the entire lifecycle — planning through archive — in one invocation (`/fab-fff`). Gated on confidence. |
 | **Gap analysis** | Evaluation performed by `/fab-new` before creating a brief. Checks whether the change is already covered by existing mechanisms. |
 | **Next steps convention** | The rule that every skill must end output with a `Next:` line suggesting follow-up commands. Keeps users oriented in the workflow. |
-| **Preflight** | Validation performed by `fab-preflight.sh` before skill execution. Checks project initialization, active change existence, and status file integrity. |
+| **Preflight** | Validation performed by `_preflight.sh` before skill execution. Checks project initialization, active change existence, and status file integrity. |
 | **Resumability** | The property that `/fab-continue` and `/fab-fff` can be interrupted and re-invoked, picking up from the first incomplete item. The markdown checklist is the progress state. |
 | **Rework loop** | The review-to-earlier-stage feedback cycle. `/fab-continue` (review) can loop back to apply (fix code), tasks (revise tasks), or spec (revise requirements). |
 

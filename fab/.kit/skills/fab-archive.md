@@ -33,7 +33,7 @@ Archive a completed change after hydrate, or restore an archived change back to 
 
 ## Pre-flight
 
-1. Run `fab/.kit/scripts/fab-preflight.sh [change-name]` per `_context.md`
+1. Run `fab/.kit/scripts/_preflight.sh [change-name]` per `_context.md`
 2. **Hydrate Guard**: If `progress.hydrate` is not `done`, STOP: `Hydrate has not completed. Run /fab-continue to hydrate memory first.`
 
 ---

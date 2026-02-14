@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # src/preflight/test.sh
 #
-# Comprehensive test suite for fab-preflight.sh
+# Comprehensive test suite for _preflight.sh
 # Run: ./test.sh
 
 set -uo pipefail
@@ -113,10 +113,11 @@ setup_env() {
   mkdir -p "$fab/.kit/scripts" "$fab/.kit/schemas" "$fab/changes"
 
   # Copy real scripts and schema
-  cp "$PROJECT_ROOT/fab/.kit/scripts/fab-preflight.sh" "$fab/.kit/scripts/"
-  cp "$PROJECT_ROOT/fab/.kit/scripts/stageman.sh" "$fab/.kit/scripts/"
+  cp "$PROJECT_ROOT/fab/.kit/scripts/_preflight.sh" "$fab/.kit/scripts/"
+  cp "$PROJECT_ROOT/fab/.kit/scripts/_stageman.sh" "$fab/.kit/scripts/"
+  cp "$PROJECT_ROOT/fab/.kit/scripts/_resolve-change.sh" "$fab/.kit/scripts/"
   cp "$PROJECT_ROOT/fab/.kit/schemas/workflow.yaml" "$fab/.kit/schemas/"
-  chmod +x "$fab/.kit/scripts/fab-preflight.sh"
+  chmod +x "$fab/.kit/scripts/_preflight.sh"
 
   # Create required init files
   echo "version: 1" > "$fab/config.yaml"
@@ -145,7 +146,7 @@ set_current() {
 # Helper: run preflight and capture output + exit code
 run_preflight() {
   local output
-  output=$("$TEST_DIR/fab/.kit/scripts/fab-preflight.sh" "$@" 2>&1)
+  output=$("$TEST_DIR/fab/.kit/scripts/_preflight.sh" "$@" 2>&1)
   local code=$?
   echo "$output"
   return $code
@@ -156,7 +157,7 @@ run_preflight_split() {
   local stdout_file stderr_file
   stdout_file=$(mktemp)
   stderr_file=$(mktemp)
-  "$TEST_DIR/fab/.kit/scripts/fab-preflight.sh" "$@" >"$stdout_file" 2>"$stderr_file"
+  "$TEST_DIR/fab/.kit/scripts/_preflight.sh" "$@" >"$stdout_file" 2>"$stderr_file"
   local code=$?
   LAST_STDOUT=$(cat "$stdout_file")
   LAST_STDERR=$(cat "$stderr_file")
@@ -184,7 +185,7 @@ create_change "test-change" "progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending"
+  hydrate: pending"
 run_preflight >/dev/null 2>&1
 assert_exit_code 1 $? "rejects when config.yaml missing"
 teardown_env
@@ -199,7 +200,7 @@ create_change "test-change" "progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending"
+  hydrate: pending"
 run_preflight >/dev/null 2>&1
 assert_exit_code 1 $? "rejects when constitution.md missing"
 teardown_env
@@ -228,7 +229,7 @@ create_change "test-change" "progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending"
+  hydrate: pending"
 # Don't set fab/current
 run_preflight >/dev/null 2>&1
 assert_exit_code 1 $? "rejects when fab/current missing"
@@ -242,7 +243,7 @@ create_change "test-change" "progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending"
+  hydrate: pending"
 echo "" > "$TEST_DIR/fab/current"
 run_preflight >/dev/null 2>&1
 assert_exit_code 1 $? "rejects when fab/current is empty"
@@ -256,7 +257,7 @@ create_change "my-feature" "progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending"
+  hydrate: pending"
 set_current "my-feature"
 run_preflight_split
 assert_exit_code 0 $? "accepts valid fab/current"
@@ -271,7 +272,7 @@ create_change "trim-test" "progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending"
+  hydrate: pending"
 printf "trim-test  \n" > "$TEST_DIR/fab/current"
 run_preflight_split
 assert_exit_code 0 $? "handles whitespace in fab/current"
@@ -295,7 +296,7 @@ create_change "alpha-feature" "progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending"
+  hydrate: pending"
 run_preflight_split "alpha-feature"
 assert_exit_code 0 $? "override: exact match works"
 assert_contains "name: alpha-feature" "$LAST_STDOUT" "override: output has correct name"
@@ -309,7 +310,7 @@ create_change "Alpha-Feature" "progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending"
+  hydrate: pending"
 run_preflight_split "alpha-feature"
 assert_exit_code 0 $? "override: case-insensitive exact match"
 assert_contains "name: Alpha-Feature" "$LAST_STDOUT" "override: preserves original casing"
@@ -323,14 +324,14 @@ create_change "big-refactor-auth" "progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending"
+  hydrate: pending"
 create_change "small-ui-fix" "progress:
   brief: active
   spec: pending
   tasks: pending
   apply: pending
   review: pending
-  archive: pending"
+  hydrate: pending"
 run_preflight_split "refactor"
 assert_exit_code 0 $? "override: single partial match works"
 assert_contains "name: big-refactor-auth" "$LAST_STDOUT" "override: partial match resolves correctly"
@@ -344,14 +345,14 @@ create_change "auth-login" "progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending"
+  hydrate: pending"
 create_change "auth-signup" "progress:
   brief: active
   spec: pending
   tasks: pending
   apply: pending
   review: pending
-  archive: pending"
+  hydrate: pending"
 run_preflight_split "auth"
 assert_exit_code 1 $? "override: rejects ambiguous partial match"
 assert_contains "Multiple changes match" "$LAST_STDERR" "override: reports ambiguity"
@@ -365,7 +366,7 @@ create_change "some-feature" "progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending"
+  hydrate: pending"
 run_preflight_split "nonexistent"
 assert_exit_code 1 $? "override: rejects when no match"
 assert_contains "No change matches" "$LAST_STDERR" "override: reports no match"
@@ -418,7 +419,7 @@ create_change "bad-status" "progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending"
+  hydrate: pending"
 set_current "bad-status"
 run_preflight >/dev/null 2>&1
 assert_exit_code 1 $? "rejects invalid state in .status.yaml"
@@ -432,7 +433,7 @@ create_change "multi-active" "progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending"
+  hydrate: pending"
 set_current "multi-active"
 run_preflight >/dev/null 2>&1
 assert_exit_code 1 $? "rejects multiple active stages"
@@ -446,7 +447,7 @@ create_change "bad-allowed" "progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending"
+  hydrate: pending"
 set_current "bad-allowed"
 run_preflight >/dev/null 2>&1
 assert_exit_code 1 $? "rejects state not in allowed_states for stage"
@@ -469,7 +470,7 @@ create_change "feature-x" "progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending"
+  hydrate: pending"
 set_current "feature-x"
 run_preflight_split
 assert_exit_code 0 $? "valid change produces YAML output"
@@ -489,7 +490,7 @@ create_change "new-change" "progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending"
+  hydrate: pending"
 set_current "new-change"
 run_preflight_split
 assert_exit_code 0 $? "brief-active change accepted"
@@ -504,14 +505,14 @@ create_change "mid-change" "progress:
   tasks: done
   apply: active
   review: pending
-  archive: pending"
+  hydrate: pending"
 set_current "mid-change"
 run_preflight_split
 assert_exit_code 0 $? "apply-active change accepted"
 assert_contains "stage: apply" "$LAST_STDOUT" "output: detects apply as current stage"
 teardown_env
 
-# Stage detection — all done → archive fallback
+# Stage detection — all done → hydrate fallback
 setup_env
 create_change "done-change" "progress:
   brief: done
@@ -519,11 +520,11 @@ create_change "done-change" "progress:
   tasks: done
   apply: done
   review: done
-  archive: done"
+  hydrate: done"
 set_current "done-change"
 run_preflight_split
 assert_exit_code 0 $? "all-done change accepted"
-assert_contains "stage: archive" "$LAST_STDOUT" "output: falls back to archive when all done"
+assert_contains "stage: hydrate" "$LAST_STDOUT" "output: falls back to hydrate when all done"
 teardown_env
 
 # Stage detection — review:failed (non-terminal state unique to review)
@@ -534,11 +535,11 @@ create_change "failed-review" "progress:
   tasks: done
   apply: done
   review: failed
-  archive: pending"
+  hydrate: pending"
 set_current "failed-review"
 run_preflight_split
 assert_exit_code 0 $? "review:failed accepted (valid per schema)"
-assert_contains "stage: archive" "$LAST_STDOUT" "output: no active stage falls back to archive"
+assert_contains "stage: hydrate" "$LAST_STDOUT" "output: no active stage falls back to hydrate"
 assert_contains "review: failed" "$LAST_STDOUT" "output: preserves failed state"
 teardown_env
 
@@ -559,7 +560,7 @@ create_change "bare-change" "progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending"
+  hydrate: pending"
 set_current "bare-change"
 run_preflight_split
 assert_exit_code 0 $? "bare change (no checklist/confidence) accepted"
@@ -577,7 +578,7 @@ create_change "rich-change" "progress:
   tasks: active
   apply: pending
   review: pending
-  archive: pending
+  hydrate: pending
 checklist:
   generated: true
   completed: 5

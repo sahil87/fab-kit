@@ -35,7 +35,7 @@ fab/.kit/
 │   ├── spec.md
 │   ├── tasks.md
 │   └── checklist.md
-├── scaffold/               # Bootstrap content (read by _fab-scaffold.sh)
+├── scaffold/               # Bootstrap content (read by _init_scaffold.sh)
 │   ├── envrc               # .envrc symlink target
 │   ├── gitignore-entries   # .gitignore entries (one per line)
 │   ├── memory-index.md     # Initial fab/memory/index.md content
@@ -43,15 +43,15 @@ fab/.kit/
 ├── schemas/                # Workflow schema
 │   └── workflow.yaml       # Canonical stage/state definitions
 └── scripts/                # Shell utilities
-    ├── _fab-scaffold.sh    # Structural bootstrap
-    ├── _fab-score.sh       # Confidence score computation (internal)
+    ├── _init_scaffold.sh    # Structural bootstrap
+    ├── _calc-score.sh       # Confidence score computation (internal)
     ├── batch-archive-change.sh  # Batch archive completed changes via tmux + Claude
     ├── batch-new-backlog.sh     # Batch create changes from backlog via tmux + Claude
     ├── batch-switch-change.sh   # Batch switch to changes via tmux + Claude
     ├── fab-help.sh         # Print help overview
     ├── _resolve-change.sh  # Change name resolution library (sourced)
     ├── _stageman.sh        # Stage Manager — schema query + .status.yaml accessors (sourced)
-    ├── fab-preflight.sh    # Pre-flight validation (sources _stageman, _resolve-change)
+    ├── _preflight.sh      # Pre-flight validation (sources _stageman, _resolve-change)
     ├── fab-upgrade.sh      # Update .kit/ from GitHub Releases
     ├── fab-release.sh      # Package and release .kit/ to GitHub
     └── fab-update-claude-settings.sh
@@ -59,13 +59,13 @@ fab/.kit/
 
 ### Shell Scripts
 
-#### `_fab-scaffold.sh`
+#### `_init_scaffold.sh`
 
 The structural bootstrap script. Creates directories, symlinks, `memory/index.md`, and `.gitignore` entries. Reads bootstrap content from `scaffold/` files (index templates, envrc, gitignore entries) rather than hardcoding them. It is the single source of truth for structural setup. `/fab-init` delegates to it and adds the interactive parts (config, constitution).
 
 #### `_stageman.sh`
 
-Stage Manager — the schema query utility and `.status.yaml` accessor library. Sourced (not executed) by `fab-preflight.sh` and test files. Provides:
+Stage Manager — the schema query utility and `.status.yaml` accessor library. Sourced (not executed) by `_preflight.sh` and test files. Provides:
 
 - **Schema queries**: `get_all_stages`, `get_all_states`, `validate_stage`, `validate_state`, `get_stage_number`, `get_stage_name`, `get_stage_artifact`, `get_allowed_states`, `get_initial_state`, `has_auto_checklist`, `get_state_symbol`, `is_terminal_state`, `get_next_stage`
 - **`.status.yaml` accessors**: `get_progress_map` (stage→state pairs), `get_checklist` (generated/completed/total), `get_confidence` (certain/confident/tentative/unresolved/score), `get_current_stage` (active stage with fallback logic)
@@ -75,9 +75,9 @@ Accessor functions use a line-oriented output pattern (`key:value` per line) —
 
 #### `_resolve-change.sh`
 
-Change name resolution library. Sourced by `fab-preflight.sh`. Provides `resolve_change(fab_root, override)` which sets `RESOLVED_CHANGE_NAME` on success. Handles: exact match, case-insensitive substring (single/multiple), no match, missing `fab/current`, missing `fab/changes/` directory, archive folder exclusion. Error messages are generic — callers add their own context-appropriate guidance.
+Change name resolution library. Sourced by `_preflight.sh`. Provides `resolve_change(fab_root, override)` which sets `RESOLVED_CHANGE_NAME` on success. Handles: exact match, case-insensitive substring (single/multiple), no match, missing `fab/current`, missing `fab/changes/` directory, archive folder exclusion. Error messages are generic — callers add their own context-appropriate guidance.
 
-#### `_fab-score.sh`
+#### `_calc-score.sh`
 
 Internal library script for confidence score computation. Scans `## Assumptions` tables in `brief.md` and `spec.md`, counts SRAD grades (case-insensitive), preserves implicit Certain counts via carry-forward from `.status.yaml`, applies the confidence formula, writes the updated confidence block to `.status.yaml`, and emits YAML with delta to stdout. Invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). Not called directly by users.
 #### `fab-help.sh`
@@ -86,7 +86,7 @@ Prints the Fab Kit help overview and skill catalog. MUST be updated when skills 
 
 #### `fab-upgrade.sh`
 
-Downloads the latest `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/` (extract to temp dir, verify, swap), displays the version change, and re-runs `_fab-scaffold.sh` to repair symlinks. Requires `gh` CLI. Preserves all project files outside `.kit/`. Handles errors: gh CLI missing, network failure, extraction verification failure, already-up-to-date.
+Downloads the latest `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/` (extract to temp dir, verify, swap), displays the version change, and re-runs `_init_scaffold.sh` to repair symlinks. Requires `gh` CLI. Preserves all project files outside `.kit/`. Handles errors: gh CLI missing, network failure, extraction verification failure, already-up-to-date.
 
 #### `fab-release.sh`
 
@@ -108,7 +108,7 @@ Batch scripts follow the `batch-{verb}-{entity}.sh` naming pattern. Each creates
 
 Agent-specific skill files SHALL be symlinks pointing into `fab/.kit/skills/`. This means updating `.kit/` automatically updates all agent integrations — no re-export step needed.
 
-`_fab-scaffold.sh` creates symlinks for all three supported agents unconditionally. The skill prompt files are agent-agnostic markdown; only the symlink locations and formats differ per agent.
+`_init_scaffold.sh` creates symlinks for all three supported agents unconditionally. The skill prompt files are agent-agnostic markdown; only the symlink locations and formats differ per agent.
 
 **Claude Code** — directory-based skills:
 ```
@@ -139,7 +139,7 @@ Skills classified as `fast` tier (via `model_tier: fast` in frontmatter) get **b
 .claude/agents/fab-switch.md
 ```
 
-Agent files are self-contained (not symlinks) because they need a translated `model:` field. `_fab-scaffold.sh` regenerates them on each run, so they stay in sync with `.kit/` updates.
+Agent files are self-contained (not symlinks) because they need a translated `model:` field. `_init_scaffold.sh` regenerates them on each run, so they stay in sync with `.kit/` updates.
 
 Capable-tier skills (the default) get symlinks only — no agent files. See [model-tiers.md](model-tiers.md) for the full tier system documentation.
 
@@ -161,7 +161,7 @@ cp -r /path/to/fab-kit/fab/.kit fab/.kit
 ```
 
 Then in either case:
-1. User runs `fab/.kit/scripts/_fab-scaffold.sh` → creates directories, symlinks, memory skeleton
+1. User runs `fab/.kit/scripts/_init_scaffold.sh` → creates directories, symlinks, memory skeleton
 2. User runs `/fab-init` → generates `config.yaml`, `constitution.md`
 3. User optionally runs `/fab-hydrate` → ingests external sources
 4. User runs `/fab-new` → first change created
@@ -181,7 +181,7 @@ Step 1 is a shell script. Steps 2-4 are skill-driven.
 
 ### Updating `.kit/`
 
-Run `fab/.kit/scripts/fab-upgrade.sh` to update to the latest release. The script downloads `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/`, and re-runs `_fab-scaffold.sh` to repair symlinks. Requires the `gh` CLI.
+Run `fab/.kit/scripts/fab-upgrade.sh` to update to the latest release. The script downloads `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/`, and re-runs `_init_scaffold.sh` to repair symlinks. Requires the `gh` CLI.
 
 Symlinks in `.claude/skills/`, `.opencode/commands/`, and `.agents/skills/` automatically resolve to the new files after the update.
 
@@ -218,10 +218,10 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 **Rejected**: Copies of skill files per agent — stale copies after `.kit/` updates, maintenance burden.
 *Source*: doc/fab-spec/ARCHITECTURE.md
 
-### Underscore Prefix for Sourced Libraries
-**Decision**: Shell libraries intended to be sourced (not executed directly) use underscore prefix: `_stageman.sh`, `_resolve-change.sh`, `_fab-scaffold.sh`. Entry-point scripts use `fab-` prefix: `fab-preflight.sh`, `fab-status.sh`.
-**Why**: Clear visual distinction between libraries and entry points. Matches common shell convention. Prevents accidental direct execution of libraries.
-**Rejected**: No prefix convention — ambiguous whether a script is standalone or must be sourced.
+### Underscore Prefix for Internal Scripts
+**Decision**: Internal scripts use underscore prefix: `_stageman.sh`, `_resolve-change.sh` (sourced libraries), `_init_scaffold.sh`, `_preflight.sh` (internal executables). User-facing scripts use `fab-` prefix: `fab-help.sh`, `fab-upgrade.sh`.
+**Why**: Clear visual distinction between internal plumbing and user-facing entry points. When `.kit/` is distributed via `cp -r`, the prefix makes it immediately clear which scripts are safe to invoke directly.
+**Rejected**: No prefix convention — ambiguous whether a script is internal or user-facing.
 
 ### Single fab/ Per Repository
 **Decision**: Even in monorepos, use one `fab/` at the repo root.
@@ -234,16 +234,16 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 | Change | Date | Summary |
 |--------|------|---------|
 | 260214-r8kv-docs-skills-housekeeping | 2026-02-14 | Removed `fab-status.sh` from scripts listing. Renamed doc skills: `fab-hydrate.md` → `docs-hydrate-memory.md`, `fab-hydrate-specs.md` → `docs-hydrate-specs.md`, `fab-reorg-specs.md` → `docs-reorg-specs.md`. Added `docs-reorg-memory.md` to skills listing. |
-| 260213-w8p3-extract-fab-score | 2026-02-14 | Added `_fab-score.sh` to scripts directory listing and Shell Scripts section — internal confidence scoring script |
+| 260213-w8p3-extract-fab-score | 2026-02-14 | Added `_calc-score.sh` to scripts directory listing and Shell Scripts section — internal confidence scoring script |
 | 260213-puow-consolidate-status-reads | 2026-02-14 | Renamed `stageman.sh` → `_stageman.sh`; added `.status.yaml` accessor API (`get_progress_map`, `get_checklist`, `get_confidence`); refactored `get_current_stage` to use accessors; extracted `_resolve-change.sh` change resolution library; documented underscore prefix convention |
 | 260213-v3rn-batch-commands | 2026-02-14 | Renamed `fab-batch-new.sh` → `batch-new-backlog.sh`, `fab-batch-switch.sh` → `batch-switch-change.sh`; added `batch-archive-change.sh`; added batch scripts section to Shell Scripts docs |
-| 260213-3njv-scaffold-dir | 2026-02-13 | Added `scaffold/` directory to tree listing; `_fab-scaffold.sh` now reads bootstrap content from scaffold files instead of hardcoded heredocs |
-| 260213-iq2l-rename-setup-scripts | 2026-02-13 | Renamed `fab-setup.sh` → `_fab-scaffold.sh` and `fab-update.sh` → `fab-upgrade.sh`; updated directory listing and all script references |
+| 260213-3njv-scaffold-dir | 2026-02-13 | Added `scaffold/` directory to tree listing; `_init_scaffold.sh` now reads bootstrap content from scaffold files instead of hardcoded heredocs |
+| 260213-iq2l-rename-setup-scripts | 2026-02-13 | Renamed `fab-setup.sh` → `_init_scaffold.sh` and `fab-update.sh` → `fab-upgrade.sh`; updated directory listing and all script references |
 | 260213-v8r3-remove-dead-fab-help-agent | 2026-02-13 | Removed `.claude/agents/fab-help.md` from agent files listing — agent was never spawned; skill + script pair covers all usage |
-| 260212-4tw0-migrate-scripts-stageman | 2026-02-12 | Migrated fab-status.sh and fab-preflight.sh to source stageman.sh; added stageman.sh, fab-preflight.sh, and schemas/ to directory listing |
+| 260212-4tw0-migrate-scripts-stageman | 2026-02-12 | Migrated fab-status.sh and _preflight.sh to source stageman.sh; added stageman.sh, _preflight.sh, and schemas/ to directory listing |
 | 260212-ipoe-checklist-folder-location | 2026-02-12 | Template listing already shows `checklist.md` — no structural change needed; changelog entry for traceability |
 | 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated directory listing: brief.md replaces proposal.md, plan.md removed, fab/specs/ replaces fab/specs/ |
 | 260210-h7r3-kit-distribution-update | 2026-02-10 | Added `fab-upgrade.sh` and `fab-release.sh` script descriptions, bootstrap one-liner (Option A), atomic update mechanism, version-based update flow |
-| 260210-m3k7-multi-agent-support | 2026-02-10 | Added OpenCode commands and Codex skills symlink creation to `_fab-scaffold.sh`; documented all three agent integration paths |
+| 260210-m3k7-multi-agent-support | 2026-02-10 | Added OpenCode commands and Codex skills symlink creation to `_init_scaffold.sh`; documented all three agent integration paths |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | — | 2026-02-07 | Generated from doc/fab-spec/ (ARCHITECTURE.md, README.md) |

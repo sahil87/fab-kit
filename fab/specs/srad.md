@@ -148,8 +148,8 @@ When the user runs `/fab-fff`:
 
 | Event | Trigger | Action |
 |-------|---------|--------|
-| Computation | `/fab-continue` (spec stage) | `_fab-score.sh` scans brief + spec, writes to `.status.yaml` |
-| Recomputation | `/fab-clarify` (suggest mode) | `_fab-score.sh` re-scans after resolved assumptions |
+| Computation | `/fab-continue` (spec stage) | `_calc-score.sh` scans brief + spec, writes to `.status.yaml` |
+| Recomputation | `/fab-clarify` (suggest mode) | `_calc-score.sh` re-scans after resolved assumptions |
 | Gate check | `/fab-fff` | Reads score from `.status.yaml` (no recomputation) |
 
 ---

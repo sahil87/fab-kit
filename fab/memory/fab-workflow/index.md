@@ -4,7 +4,7 @@
 |-----|-------------|-------------|
 | [hydrate](hydrate.md) | `/docs-hydrate-memory` skill — argument routing, dual-mode (ingest + generate), hydration rules, index maintenance | 2026-02-08 |
 | [hydrate-generate](hydrate-generate.md) | `/docs-hydrate-memory` generate mode — codebase scanning, gap detection, interactive scoping, memory file generation | 2026-02-07 |
-| [init](init.md) | `/fab-init` skill — structural bootstrap only, no source hydration, delegation pattern with `_fab-scaffold.sh` | 2026-02-12 |
+| [init](init.md) | `/fab-init` skill — structural bootstrap only, no source hydration, delegation pattern with `_init_scaffold.sh` | 2026-02-12 |
 | [context-loading](context-loading.md) | Smart context loading convention — always-load layer, selective domain loading, SRAD protocol | 2026-02-08 |
 | [planning-skills](planning-skills.md) | `/fab-new`, `/fab-continue`, `/fab-ff`, `/fab-clarify` — the planning pipeline from brief through tasks, shared `_generation.md` partial | 2026-02-12 |
 | [clarify](clarify.md) | `/fab-clarify` skill — dual modes (suggest/auto), taxonomy scan, structured questions, coverage reports, audit trail, grade reclassification | 2026-02-12 |
@@ -18,7 +18,7 @@
 | [config-management](config-management.md) | Maintaining `config.yaml` over project lifecycle — interactive updates, validation, comment preservation | 2026-02-12 |
 | [constitution-governance](constitution-governance.md) | Constitutional amendment workflow — semantic versioning, structural rules, audit trail | 2026-02-12 |
 | [configuration](configuration.md) | `config.yaml` schema, `constitution.md` governance, stage graph definition, lifecycle management | 2026-02-12 |
-| [preflight](preflight.md) | `fab-preflight.sh` script — validation, accessor-based architecture, structured YAML output, skill integration | 2026-02-14 |
+| [preflight](preflight.md) | `_preflight.sh` script — validation, accessor-based architecture, structured YAML output, skill integration | 2026-02-14 |
 | [hydrate-specs](hydrate-specs.md) | `/docs-hydrate-specs` skill — structural gap detection between memory and specs, interactive propose-then-apply | 2026-02-09 |
 | [specs-index](specs-index.md) | `fab/specs/` directory — pre-implementation specs, distinction from memory, bootstrap and context integration | 2026-02-09 |
 | [schemas](schemas.md) | `workflow.yaml` schema — stages, states, transitions, validation rules, design principles | 2026-02-12 |

@@ -35,10 +35,10 @@ This skill uses **minimal context** — it does not need to load `fab/config.yam
 Run the preflight script to resolve the change, then render the status display:
 
 ```bash
-bash fab/.kit/scripts/fab-preflight.sh [change-name]
+bash fab/.kit/scripts/_preflight.sh [change-name]
 ```
 
-Use `fab-preflight.sh` and `stageman.sh` for validation and data retrieval. The skill handles formatting and presentation:
+Use `_preflight.sh` and `stageman.sh` for validation and data retrieval. The skill handles formatting and presentation:
 
 - Reads `fab/.kit/VERSION`, `fab/current`, `fab/changes/{name}/.status.yaml`, and `fab/config.yaml` (for `git.enabled`)
 - Queries live branch via `git branch --show-current` when git is enabled (instead of reading a static `branch:` field from `.status.yaml`)

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# _fab-score.sh — Compute confidence score from Assumptions tables
+# _calc-score.sh — Compute confidence score from Assumptions tables
 #
 # Internal library script invoked by /fab-continue (spec stage) and
 # /fab-clarify (suggest mode). Not called directly by users.
 #
-# Usage: _fab-score.sh <change-dir>
+# Usage: _calc-score.sh <change-dir>
 # Output: YAML confidence block to stdout
 # Side effect: Updates confidence block in .status.yaml
 # Exit: 0 on success, 1 on error (message to stderr)
@@ -14,7 +14,7 @@ set -euo pipefail
 change_dir="${1:-}"
 
 if [ -z "$change_dir" ]; then
-  echo "Usage: _fab-score.sh <change-dir>" >&2
+  echo "Usage: _calc-score.sh <change-dir>" >&2
   exit 1
 fi
 

@@ -4,13 +4,13 @@
 
 ## Overview
 
-The preflight script (`fab/.kit/scripts/fab-preflight.sh`) validates the active change's state and outputs structured YAML for agent consumption. It consolidates repeated validation logic from individual skills into a single reusable script.
+The preflight script (`fab/.kit/scripts/_preflight.sh`) validates the active change's state and outputs structured YAML for agent consumption. It consolidates repeated validation logic from individual skills into a single reusable script.
 
 ## Requirements
 
 ### Structured YAML Output
 
-`fab-preflight.sh` outputs a YAML document to stdout containing the active change's resolved state. Fields include:
+`_preflight.sh` outputs a YAML document to stdout containing the active change's resolved state. Fields include:
 
 - `name` — the change folder name (resolved via `_resolve-change.sh`)
 - `change_dir` — path to `fab/changes/{name}/`, relative to `fab/`
@@ -66,19 +66,19 @@ All internal paths resolve relative to the script's own location via `$(dirname 
 
 ### Skill Integration
 
-Skills that perform pre-flight checks (ff, apply, review, archive, continue, clarify) reference `fab-preflight.sh` instead of inline validation. On non-zero exit, the agent stops and surfaces the stderr message. On success, the agent uses the stdout YAML for change context.
+Skills that perform pre-flight checks (ff, apply, review, archive, continue, clarify) reference `_preflight.sh` instead of inline validation. On non-zero exit, the agent stops and surfaces the stderr message. On success, the agent uses the stdout YAML for change context.
 
 Skills exempt from preflight: `init`, `switch`, `status`, `hydrate`, `help`, `new`.
 
 ## Design Decisions
 
 ### Accessor Functions Over Inline Parsing
-**Decision**: `fab-preflight.sh` delegates all `.status.yaml` field extraction to `_stageman.sh` accessor functions (`get_progress_map`, `get_checklist`, `get_confidence`, `get_current_stage`) instead of inline `grep | sed`.
+**Decision**: `_preflight.sh` delegates all `.status.yaml` field extraction to `_stageman.sh` accessor functions (`get_progress_map`, `get_checklist`, `get_confidence`, `get_current_stage`) instead of inline `grep | sed`.
 **Why**: Eliminates duplicated parsing logic across scripts. Stageman is the single owner of `.status.yaml` read semantics — field defaults, missing-block handling, and format normalization live in one place.
 **Rejected**: Keeping inline extraction — maintained two copies of parsing logic (preflight + status) that could drift.
 
 ### Shared Change Resolution Library
-**Decision**: Change name resolution (fuzzy matching against `fab/changes/`) extracted to `_resolve-change.sh`, sourced by both `fab-preflight.sh` and `fab-status.sh`.
+**Decision**: Change name resolution (fuzzy matching against `fab/changes/`) extracted to `_resolve-change.sh`, sourced by both `_preflight.sh` and `fab-status.sh`.
 **Why**: Both scripts had ~65 identical lines of resolution logic. The library uses a variable-setting pattern (`RESOLVED_CHANGE_NAME`) for clean exit code handling, and keeps error messages generic so callers add their own context.
 **Rejected**: Consolidating into `_stageman.sh` — change resolution is pure filesystem/string matching with no stage awareness; mixing concerns would violate stageman's schema-query focus.
 

@@ -64,7 +64,7 @@ Load per `_context.md` layers. Stage-specific additions: planning stages load br
 | review | [Review Behavior](#review-behavior) |
 | hydrate | [Hydrate Behavior](#hydrate-behavior) |
 
-**Spec stage only**: After spec generation, invoke `fab/.kit/scripts/_fab-score.sh $change_dir` to compute the confidence score. No scoring at other stages.
+**Spec stage only**: After spec generation, invoke `fab/.kit/scripts/_calc-score.sh $change_dir` to compute the confidence score. No scoring at other stages.
 
 ### Step 4: Update `.status.yaml`
 

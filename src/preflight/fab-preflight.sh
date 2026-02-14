@@ -1,1 +1,0 @@
-../../fab/.kit/scripts/fab-preflight.sh

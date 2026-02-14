@@ -21,7 +21,7 @@ This gives the agent awareness of project configuration, constraints, the docume
 
 ### Preflight Script for Change Context
 
-Skills that operate on an active change resolve the change context by running `fab/.kit/scripts/fab-preflight.sh [change-name]` via Bash. The script accepts an optional first positional argument as a change name override. When provided, the script resolves the change using case-insensitive substring matching against folder names in `fab/changes/` (excluding `archive/`) instead of reading `fab/current`. The override is transient — `fab/current` is never modified. When no argument is provided, the script falls back to reading `fab/current` (backward compatible).
+Skills that operate on an active change resolve the change context by running `fab/.kit/scripts/_preflight.sh [change-name]` via Bash. The script accepts an optional first positional argument as a change name override. When provided, the script resolves the change using case-insensitive substring matching against folder names in `fab/changes/` (excluding `archive/`) instead of reading `fab/current`. The override is transient — `fab/current` is never modified. When no argument is provided, the script falls back to reading `fab/current` (backward compatible).
 
 The matching supports full folder names, partial slug matches, and 4-char random IDs (e.g., `r3m7`). Exact match takes priority; single partial match resolves directly; multiple matches or no match produce a non-zero exit with a descriptive error.
 
@@ -91,6 +91,6 @@ The following skills skip the standard context loading layers:
 | 260208-k3m7-add-fab-fff | 2026-02-08 | Fixed stale `auto-guess` marker reference in SRAD Protocol section — replaced with `clarified` marker per updated `_context.md` |
 | 260207-09sj-autonomy-framework | 2026-02-08 | Added SRAD protocol section — framework is loaded via `_context.md` as part of Always Load layer |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
-| 260207-5mjv-preflight-grep-scripts | 2026-02-07 | Added preflight script integration — Change Context layer now uses `fab-preflight.sh` for validation and state resolution |
+| 260207-5mjv-preflight-grep-scripts | 2026-02-07 | Added preflight script integration — Change Context layer now uses `_preflight.sh` for validation and state resolution |
 | 260207-bb1q-add-specs-index | 2026-02-07 | Added `fab/specs/index.md` as 4th file in Always Load layer |
 | 260207-q7m3-separate-hydrate-smart-context | 2026-02-07 | Added `fab/memory/index.md` to always-load, expanded selective loading to all skills on active changes |
