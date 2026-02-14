@@ -117,14 +117,18 @@ When generating artifacts, planning skills encounter decision points not explici
 
 ### SRAD Scoring
 
-For each decision point, evaluate four dimensions:
+For each decision point, evaluate four dimensions on a **continuous 0–100 scale** (100 = fully safe to assume, 0 = must ask):
 
-| Dimension | High (safe to assume) | Low (consider asking) |
-|-----------|----------------------|----------------------|
-| **S — Signal Strength** | Detailed description, multiple sentences, clear intent | One-liner, vague phrase, ambiguous scope |
-| **R — Reversibility** | Easily changed later via `/fab-clarify` or stage reset | Cascades through multiple artifacts, expensive to undo |
-| **A — Agent Competence** | Config, constitution, codebase give clear answer | Business priorities, user preferences, political context |
-| **D — Disambiguation Type** | One obvious default interpretation | Multiple valid interpretations with different tradeoffs |
+| Dimension | High (75–100) | Medium (40–74) | Low (0–39) |
+|-----------|--------------|----------------|------------|
+| **S — Signal Strength** | Detailed description, multiple sentences, clear intent | Moderate detail, some gaps | One-liner, vague phrase, ambiguous scope |
+| **R — Reversibility** | Easily changed later via `/fab-clarify` or stage reset | Moderate rework, a few files | Cascades through multiple artifacts, expensive to undo |
+| **A — Agent Competence** | Config, constitution, codebase give clear answer | Partial signals, some inference | Business priorities, user preferences, political context |
+| **D — Disambiguation Type** | One obvious default interpretation | 2–3 options, clear front-runner | Multiple valid interpretations with different tradeoffs |
+
+**Aggregation**: Compute a composite score via weighted mean: `composite = 0.25*S + 0.30*R + 0.25*A + 0.20*D`. Map to grade using thresholds: Certain (85–100), Confident (60–84), Tentative (30–59), Unresolved (0–29). Critical Rule override: R < 25 AND A < 25 → always Unresolved.
+
+When using fuzzy scoring, record per-dimension scores in the Assumptions table's optional `Scores` column (e.g., `S:75 R:80 A:65 D:70`). `calc-score.sh` parses these and writes aggregate dimension statistics to `.status.yaml`.
 
 ### Confidence Grades
 

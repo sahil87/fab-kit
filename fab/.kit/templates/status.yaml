@@ -1,6 +1,7 @@
 name: {NAME}
 created: {CREATED}
 created_by: {CREATED_BY}
+change_type: feature
 progress:
   brief: active
   spec: pending

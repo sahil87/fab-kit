@@ -46,11 +46,16 @@ This applies to all skills operating on an active change, not just spec-writing 
 ### SRAD Protocol
 
 The shared context preamble (`_context.md`) includes the SRAD autonomy framework, which all planning skills reference during artifact generation. The framework defines:
-- **SRAD scoring table** — four dimensions for evaluating decision points
+- **SRAD scoring table** — four dimensions evaluated on a continuous 0–100 scale per decision point
+- **Fuzzy-to-grade mapping** — composite score via weighted mean (w_S=0.25, w_R=0.30, w_A=0.25, w_D=0.20), mapped to grades via trapezoidal thresholds (Certain: 85–100, Confident: 60–84, Tentative: 30–59, Unresolved: 0–29)
+- **Critical Rule override** — R < 25 AND A < 25 forces Unresolved regardless of composite
 - **Confidence grades** — Certain, Confident, Tentative, Unresolved with corresponding artifact markers
-- **Worked examples** — demonstrating how dimensions interact to produce grades
+- **Worked examples** — demonstrating how numeric dimension scores interact to produce grades
 - **Artifact markers** — `<!-- assumed: ... -->` for Tentative, `<!-- clarified: ... -->` for resolved assumptions
-- **Assumptions Summary Block** — standard format for output and artifact persistence
+- **Assumptions Summary Block** — standard format with optional `Scores` column for per-dimension data
+- **Dynamic gate thresholds** — `/fab-fff` threshold varies by change type (bugfix=2.0, feature/refactor=3.0, architecture=4.0)
+
+When fuzzy scoring is active, `calc-score.sh` parses per-dimension scores from the optional `Scores` column in Assumptions tables and writes aggregate dimension statistics (`fuzzy: true`, `dimensions:` block) to `.status.yaml`.
 
 This protocol is loaded as part of the "Always Load" layer via `_context.md` and does not require separate file loading.
 
@@ -86,6 +91,7 @@ The following skills skip the standard context loading layers:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260212-f9m3-enhance-srad-fuzzy | 2026-02-14 | SRAD protocol updated to fuzzy 0–100 dimension scoring with weighted mean aggregation, trapezoidal grade thresholds, optional Scores column, dynamic gate thresholds by change type |
 | 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Updated always-load paths to `docs/memory/index.md` and `docs/specs/index.md`; updated selective domain loading to `docs/memory/{domain}/` |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_preflight.sh` → `lib/preflight.sh` in preflight script reference |
 | 260213-w4k9-explicit-change-targeting | 2026-02-13 | Preflight script now accepts optional `$1` change-name override with case-insensitive substring matching; `fab/current` is not modified when override is used |
