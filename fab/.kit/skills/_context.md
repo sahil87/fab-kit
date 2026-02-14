@@ -117,14 +117,16 @@ When generating artifacts, planning skills encounter decision points not explici
 
 ### SRAD Scoring
 
-For each decision point, evaluate four dimensions:
+For each decision point, evaluate four dimensions on a `0-100` scale:
 
-| Dimension | High (safe to assume) | Low (consider asking) |
-|-----------|----------------------|----------------------|
+| Dimension | High signal band (80-100) | Low signal band (0-40) |
+|-----------|---------------------------|------------------------|
 | **S — Signal Strength** | Detailed description, multiple sentences, clear intent | One-liner, vague phrase, ambiguous scope |
 | **R — Reversibility** | Easily changed later via `/fab-clarify` or stage reset | Cascades through multiple artifacts, expensive to undo |
 | **A — Agent Competence** | Config, constitution, codebase give clear answer | Business priorities, user preferences, political context |
 | **D — Disambiguation Type** | One obvious default interpretation | Multiple valid interpretations with different tradeoffs |
+
+Scores in the middle range (41-79) are handled through fuzzy memberships (partial confident/tentative contributions).
 
 ### Confidence Grades
 
@@ -145,7 +147,7 @@ Each decision produces an assumption graded on a 4-level scale:
 
 | Aspect | fab-new (adaptive) | fab-continue (deliberate) | fab-ff (speed) | fab-fff (full pipeline) |
 |--------|-------------------|---------------------------|----------------|-------------------------|
-| **Posture** | SRAD-driven: 0 questions for clear inputs, conversational for vague; gap analysis before folder creation | Surface tentative, ask top ~3 unresolved | Batch all unresolved upfront, then go | Same as fab-ff; gated on confidence >= 3.0 |
+| **Posture** | SRAD-driven: 0 questions for clear inputs, conversational for vague; gap analysis before folder creation | Surface tentative, ask top ~3 unresolved | Batch all unresolved upfront, then go | Same as fab-ff; gated on confidence >= mode/type threshold |
 | **Interruption budget** | SRAD-driven (no fixed cap); conversational mode for vague inputs | 1-2 per stage | 0-1 batch at start | Same as fab-ff (frontloaded) |
 | **Output** | Assumptions summary + "Run /fab-clarify to review" | Key Decisions block + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary | Same as fab-ff + apply/review/hydrate output |
 | **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` (bails on blockers or review failure) |
@@ -238,14 +240,24 @@ confidence:
 if unresolved > 0:
   score = 0.0
 else:
-  score = max(0.0, 5.0 - 0.3 * confident - 1.0 * tentative)
+  score = max(0.0, 5.0 - weight_confident * effective_confident - weight_tentative * effective_tentative)
 ```
 
-Range: 0.0 (any Unresolved, or 5+ Tentative) to 5.0 (all Certain). Penalties: Certain 0, Confident 0.3, Tentative 1.0, Unresolved → hard zero.
+Default (baseline) weights are `weight_confident=0.3` and `weight_tentative=1.0`. In fuzzy mode, effective penalties may be fractional and are derived from weighted SRAD composites (`S/R/A/D = 0.2/0.3/0.3/0.2`).
+
+Range: 0.0 (any Unresolved, or high effective penalty accumulation) to 5.0 (all Certain).
 
 ### Gate Threshold
 
-`/fab-fff` requires `confidence.score >= 3.0`. This allows at most 2 Tentative decisions, or up to 6 Confident decisions with no Tentative.
+`/fab-fff` thresholds depend on mode and change type:
+- legacy mode: `3.0` (fixed)
+- fuzzy mode:
+  - `bugfix`: `2.7`
+  - `refactor`: `3.0`
+  - `feature`: `3.3`
+  - `architecture`: `3.6`
+
+Unknown change types default to `feature`.
 
 ### Invocation
 

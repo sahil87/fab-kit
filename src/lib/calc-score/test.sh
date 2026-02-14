@@ -269,6 +269,122 @@ EOF
 
 output=$("$CALC_SCORE" "$d")
 assert_contains "score: 4.1" "$output" "Score: 5.0 - 0.3*3 = 4.1"
+assert_contains "mode: legacy" "$output" "Default mode is legacy (backward compatibility)"
+assert_contains "threshold: 3.0" "$output" "Legacy mode uses fixed 3.0 threshold"
+
+echo ""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Fuzzy Mode & Threshold Tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+echo "Testing Fuzzy Mode & Thresholds..."
+echo ""
+
+# Test: Weighted composite uses S/R/A/D = 0.2/0.3/0.3/0.2
+d="$TEST_DIR/fuzzy-weighted-composite"
+mkdir -p "$d"
+make_status "$d"
+cat > "$d/spec.md" <<'EOF'
+# Spec
+
+## Assumptions
+
+| # | Grade | Decision | Rationale |
+|---|-------|----------|-----------|
+| 1 | Confident | Weighted test S=0,R=100,A=100,D=0 | Composite should be 60 |
+EOF
+
+output=$(FAB_SCORE_MODE=fuzzy "$CALC_SCORE" "$d")
+assert_contains "mode: fuzzy" "$output" "Fuzzy mode enabled"
+assert_contains "score: 4.7" "$output" "Weighted composite yields expected score (composite 60 => confident membership 1.0)"
+assert_contains "effective_confident: 1.00" "$output" "Fuzzy effective confident contribution computed"
+assert_contains "effective_tentative: 0.00" "$output" "Fuzzy effective tentative contribution computed"
+
+# Test: Mid-range composite produces partial memberships
+d="$TEST_DIR/fuzzy-partial-membership"
+mkdir -p "$d"
+make_status "$d"
+cat > "$d/spec.md" <<'EOF'
+# Spec
+
+## Assumptions
+
+| # | Grade | Decision | Rationale |
+|---|-------|----------|-----------|
+| 1 | Confident | Partial membership S=50,R=50,A=50,D=50 | Composite should be 50 |
+EOF
+
+output=$(FAB_SCORE_MODE=fuzzy "$CALC_SCORE" "$d")
+assert_contains "effective_confident: 0.67" "$output" "Partial confident membership captured"
+assert_contains "effective_tentative: 0.33" "$output" "Partial tentative membership captured"
+assert_contains "score: 4.5" "$output" "Partial memberships affect score continuously"
+
+# Test: Dynamic threshold mapping by change type (fuzzy mode)
+d="$TEST_DIR/fuzzy-threshold-types"
+mkdir -p "$d"
+make_status "$d"
+cat > "$d/spec.md" <<'EOF'
+# Spec
+
+## Assumptions
+
+| # | Grade | Decision | Rationale |
+|---|-------|----------|-----------|
+| 1 | Confident | A | R |
+EOF
+
+output=$(FAB_SCORE_MODE=fuzzy FAB_CHANGE_TYPE=bugfix "$CALC_SCORE" "$d")
+assert_contains "change_type: bugfix" "$output" "Bugfix type propagated"
+assert_contains "threshold: 2.7" "$output" "Bugfix threshold is 2.7"
+
+output=$(FAB_SCORE_MODE=fuzzy FAB_CHANGE_TYPE=architecture "$CALC_SCORE" "$d")
+assert_contains "change_type: architecture" "$output" "Architecture type propagated"
+assert_contains "threshold: 3.6" "$output" "Architecture threshold is 3.6"
+
+# Test: Unknown change type defaults to feature threshold
+output=$(FAB_SCORE_MODE=fuzzy FAB_CHANGE_TYPE=unknown "$CALC_SCORE" "$d")
+assert_contains "change_type: feature" "$output" "Unknown type defaults to feature"
+assert_contains "threshold: 3.3" "$output" "Feature default threshold is 3.3"
+assert_contains "change_type_inferred: true" "$output" "Defaulting unknown type marked as inferred"
+
+# Test: Sparse history fallback keeps baseline weights
+d="$TEST_DIR/fuzzy-sparse-fallback"
+mkdir -p "$d"
+make_status "$d"
+cat > "$d/spec.md" <<'EOF'
+# Spec
+
+## Assumptions
+
+| # | Grade | Decision | Rationale |
+|---|-------|----------|-----------|
+| 1 | Confident | Sparse fallback check | R |
+EOF
+
+output=$(FAB_SCORE_MODE=fuzzy FAB_WEIGHT_CONFIDENT=0.1 FAB_WEIGHT_TENTATIVE=0.4 "$CALC_SCORE" "$d")
+assert_contains "weights_source: baseline" "$output" "Sparse history prevents calibrated weights"
+assert_contains "weight_confident: 0.30" "$output" "Baseline confident weight retained"
+assert_contains "weight_tentative: 1.00" "$output" "Baseline tentative weight retained"
+assert_contains "sparse_fallback: true" "$output" "Sparse fallback is reported"
+
+# Test: Malformed SRAD metadata falls back safely
+d="$TEST_DIR/fuzzy-malformed-metadata"
+mkdir -p "$d"
+make_status "$d"
+cat > "$d/spec.md" <<'EOF'
+# Spec
+
+## Assumptions
+
+| # | Grade | Decision | Rationale |
+|---|-------|----------|-----------|
+| 1 | Confident | Malformed S=abc,R=50,A=200,D=-1 | Should fallback to grade defaults |
+EOF
+
+output=$(FAB_SCORE_MODE=fuzzy "$CALC_SCORE" "$d")
+assert_contains "score: 4.7" "$output" "Malformed metadata does not crash and falls back to grade defaults"
+assert_contains "effective_confident: 1.00" "$output" "Fallback keeps expected confident contribution"
 
 echo ""
 

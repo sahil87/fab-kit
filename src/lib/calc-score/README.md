@@ -1,6 +1,10 @@
 # Confidence Score Calculator (calc-score.sh)
 
-Computes confidence scores from `## Assumptions` tables in `brief.md` and `spec.md`. Scans for SRAD grade counts (Certain, Confident, Tentative), applies the confidence formula, writes the updated confidence block to `.status.yaml`, and emits YAML with delta to stdout.
+Computes confidence scores from `## Assumptions` tables in `brief.md` and `spec.md`. Supports two scoring modes:
+- `legacy` (default): classic integer penalty counts
+- `fuzzy`: weighted SRAD composite + fuzzy memberships for effective penalties
+
+The script writes the updated `confidence` block to `.status.yaml` and emits score, scoring metadata, and gate metadata to stdout.
 
 ## Sources of Truth
 
@@ -37,6 +41,20 @@ confidence:
   unresolved: 0
   score: 3.4
   delta: -1.6
+scoring:
+  mode: legacy
+  effective_confident: 2.00
+  effective_tentative: 1.00
+  weight_confident: 0.30
+  weight_tentative: 1.00
+  weights_source: baseline
+  historical_samples: 18
+  sparse_fallback: false
+gate:
+  change_type: feature
+  threshold: 3.0
+  passes_fff: true
+  change_type_inferred: true
 ```
 
 ### Error Conditions
@@ -53,12 +71,54 @@ confidence:
 if unresolved > 0:
   score = 0.0
 else:
-  score = max(0.0, 5.0 - 0.3 * confident - 1.0 * tentative)
+  score = max(0.0, 5.0 - weight_confident * effective_confident - weight_tentative * effective_tentative)
 ```
+
+Default weights are `0.3` and `1.0`. In fuzzy mode, custom calibrated weights are honored only when historical sample count is not sparse.
+
+### Modes
+
+- **legacy**: `effective_confident = confident`, `effective_tentative = tentative`
+- **fuzzy**: each assumption can contribute fractional effective penalties via fuzzy memberships
+
+For fuzzy mode, the script reads optional SRAD metadata in assumption row text:
+- `S=<0-100>, R=<0-100>, A=<0-100>, D=<0-100>`
+
+If metadata is missing, grade-based defaults are used:
+- `Confident -> composite 60`
+- `Tentative -> composite 30`
+- `Certain -> composite 90` (zero penalty contribution)
+
+Composite formula (confirmed SRAD weighting):
+
+```
+composite = 0.2*S + 0.3*R + 0.3*A + 0.2*D
+```
+
+### Gate Metadata
+
+The script emits type-aware threshold metadata for `/fab-fff` consumers:
+
+- legacy mode threshold: `3.0`
+- fuzzy mode thresholds:
+  - `bugfix`: `2.7`
+  - `refactor`: `3.0`
+  - `feature`: `3.3`
+  - `architecture`: `3.6`
+
+Unknown change types default to `feature`.
 
 ### Carry-Forward
 
 Implicit Certain counts are preserved from the previous `.status.yaml`. If the previous `certain` count was 5 and 0 Certain grades appear in Assumptions tables, all 5 are carried forward.
+
+### Optional Environment Variables
+
+- `FAB_SCORE_MODE` — `legacy` or `fuzzy`
+- `FAB_CHANGE_TYPE` — `bugfix`, `feature`, `refactor`, `architecture`
+- `FAB_WEIGHT_CONFIDENT` — non-negative float (fuzzy mode only, non-sparse history)
+- `FAB_WEIGHT_TENTATIVE` — non-negative float (fuzzy mode only, non-sparse history)
+- `FAB_CALIBRATION_MIN_SAMPLES` — minimum archived sample count to allow calibrated weights (default `20`)
 
 ## Requirements
 
@@ -77,6 +137,14 @@ src/lib/calc-score/test.sh
 ```
 
 ## Changelog
+
+### 1.1.0 (2026-02-14)
+
+- Added scoring modes (`legacy`, `fuzzy`)
+- Added weighted SRAD composite support (`S/R/A/D = 0.2/0.3/0.3/0.2`)
+- Added fuzzy effective penalty metadata output
+- Added type-aware gate threshold metadata output with legacy fallback
+- Added sparse-history fallback for calibrated weights
 
 ### 1.0.0 (2026-02-14)
 

@@ -15,16 +15,18 @@ SRAD also produces a **confidence score** — a numeric measure of how well-reso
 - **A — Agent Competence**: How well the agent can answer this from available context (config, constitution, codebase).
 - **D — Disambiguation Type**: How many valid interpretations exist for this decision.
 
-### Evaluation Criteria
+### Evaluation Criteria (0-100)
 
-Each dimension is evaluated as high (safe to assume) or low (consider asking):
+Each dimension is scored on a continuous `0-100` scale. Binary "high/low" language remains as interpretation guidance, not storage format.
 
-| Dimension | High (safe to assume) | Low (consider asking) |
-|-----------|----------------------|----------------------|
+| Dimension | High signal band (80-100) | Low signal band (0-40) |
+|-----------|---------------------------|------------------------|
 | **S — Signal Strength** | Detailed description, multiple sentences, clear intent | One-liner, vague phrase, ambiguous scope |
 | **R — Reversibility** | Easily changed later via `/fab-clarify` or stage reset | Cascades through multiple artifacts, expensive to undo |
 | **A — Agent Competence** | Config, constitution, codebase give clear answer | Business priorities, user preferences, political context |
 | **D — Disambiguation Type** | One obvious default interpretation | Multiple valid interpretations with different tradeoffs |
+
+Scores in the middle bands (41-79) represent partial confidence and are handled by fuzzy memberships during score computation.
 
 ---
 
@@ -82,22 +84,39 @@ Certain grades are omitted (not worth mentioning). Unresolved grades are asked a
 if unresolved > 0:
   score = 0.0
 else:
-  score = max(0.0, 5.0 - 0.3 * confident - 1.0 * tentative)
+  score = max(0.0, 5.0 - weight_confident * effective_confident - weight_tentative * effective_tentative)
 ```
+
+### Effective Penalties (Fuzzy Mode)
+
+In fuzzy mode, each assumption can contribute fractional penalties:
+
+1. Compute weighted composite SRAD value:
+   - `composite = 0.2*S + 0.3*R + 0.3*A + 0.2*D`
+2. Convert composite into fuzzy memberships:
+   - `confident_membership` in `[0.0, 1.0]`
+   - `tentative_membership` in `[0.0, 1.0]`
+3. Aggregate across assumptions:
+   - `effective_confident = sum(confident_membership)`
+   - `effective_tentative = sum(tentative_membership)`
+
+Legacy mode remains available and uses integer counts directly (`effective_confident = confident`, `effective_tentative = tentative`).
 
 ### Penalty Weights
 
 | Grade | Penalty | Rationale |
 |-------|---------|-----------|
 | **Certain** | 0.0 | Deterministic — no ambiguity whatsoever |
-| **Confident** | 0.3 | Moderate — strong signal but still an assumption; accumulates meaningfully |
-| **Tentative** | 1.0 | Meaningful — reasonable guess but multiple valid options; could be wrong |
+| **Confident** | `weight_confident` (baseline 0.3) | Moderate — strong signal but still an assumption; accumulates meaningfully |
+| **Tentative** | `weight_tentative` (baseline 1.0) | Meaningful — reasonable guess but multiple valid options; could be wrong |
 | **Unresolved** | Hard zero | Cannot run autonomously with unresolved decisions; any single Unresolved sets score to 0.0 |
+
+When historical data is sparse, baseline weights `0.3` and `1.0` are used.
 
 ### Range
 
 - **5.0**: All decisions are Certain — maximum confidence, zero ambiguity
-- **3.0**: The `/fab-fff` gate threshold (see below) — allows at most 2 Tentative decisions
+- **3.0**: The legacy `/fab-fff` gate threshold (see below)
 - **0.0**: Any Unresolved decision exists, OR 5+ Tentative decisions accumulate enough penalty
 
 The `max(0.0, ...)` floor clamps the score — if penalties exceed 5.0 (e.g., 6 Tentative decisions: `5.0 - 6.0 = -1.0`), the score is 0.0, not negative.
@@ -119,28 +138,25 @@ confidence:
 
 ## Gate Threshold
 
-`/fab-fff` requires `confidence.score >= 3.0` before executing the autonomous pipeline.
+`/fab-fff` uses type-aware thresholds in fuzzy mode and a fixed threshold in legacy mode.
 
-### What 3.0 Allows
+### Threshold Table
 
-With the formula `5.0 - 0.3 * confident - 1.0 * tentative`:
+| Mode | Change type | Threshold |
+|------|-------------|-----------|
+| legacy | any | 3.0 |
+| fuzzy | bugfix | 2.7 |
+| fuzzy | refactor | 3.0 |
+| fuzzy | feature | 3.3 |
+| fuzzy | architecture | 3.6 |
 
-- **0 Tentative, up to 6 Confident**: score = 5.0 – 1.8 = 3.2 (passes)
-- **0 Tentative, 7 Confident**: score = 5.0 – 2.1 = 2.9 (fails)
-- **1 Tentative, up to 3 Confident**: score = 5.0 – 1.0 – 0.9 = 3.1 (passes)
-- **1 Tentative, 4 Confident**: score = 5.0 – 1.0 – 1.2 = 2.8 (fails)
-- **2 Tentative, 0 Confident**: score = 5.0 – 2.0 = 3.0 (passes, barely)
-- **2 Tentative, 1+ Confident**: score < 3.0 (fails)
-- **3+ Tentative**: score ≤ 2.0 (fails — too many guesses)
-- **Any Unresolved**: score = 0.0 (always fails)
-
-In practice: at most 6 Confident decisions (with no Tentative), or 2 Tentative with very few Confident.
+If change type cannot be classified, it defaults to `feature`.
 
 ### Gate Behavior
 
 When the user runs `/fab-fff`:
-- **Score >= 3.0**: Pipeline proceeds autonomously through planning, apply, review, and archive
-- **Score < 3.0**: Pipeline refuses to execute and reports the score, suggesting `/fab-clarify` to resolve Tentative assumptions or answer Unresolved questions before retrying
+- **Score >= threshold(mode, change_type)**: Pipeline proceeds autonomously through planning, apply, review, and hydrate
+- **Score < threshold(mode, change_type)**: Pipeline refuses to execute and reports score + threshold, suggesting `/fab-clarify`
 
 ---
 
@@ -148,8 +164,8 @@ When the user runs `/fab-fff`:
 
 | Event | Trigger | Action |
 |-------|---------|--------|
-| Computation | `/fab-continue` (spec stage) | `_calc-score.sh` scans brief + spec, writes to `.status.yaml` |
-| Recomputation | `/fab-clarify` (suggest mode) | `_calc-score.sh` re-scans after resolved assumptions |
+| Computation | `/fab-continue` (spec stage) | `lib/calc-score.sh` scans brief + spec, writes to `.status.yaml` |
+| Recomputation | `/fab-clarify` (suggest mode) | `lib/calc-score.sh` re-scans after resolved assumptions |
 | Gate check | `/fab-fff` | Reads score from `.status.yaml` (no recomputation) |
 
 ---
@@ -184,7 +200,7 @@ Two words, no detail on mechanism, scope, or integration.
 
 **Score**: `0.0` — any Unresolved decision produces a hard zero.
 
-**Outcome**: `/fab-fff` gate blocks (0.0 < 3.0). The user must answer the Unresolved questions or use `/fab-clarify` to resolve Tentative assumptions before the autonomous pipeline can run.
+**Outcome**: `/fab-fff` gate blocks (0.0 below any threshold). The user must answer the Unresolved questions or use `/fab-clarify` to resolve Tentative assumptions before the autonomous pipeline can run.
 
 ### Example 2: Low-Ambiguity Brief
 
@@ -202,7 +218,7 @@ Detailed description specifying the component, location, trigger, and behavior.
 
 **Score**: `max(0.0, 5.0 - 0.6 - 0.0) = 4.4`
 
-**Outcome**: `/fab-fff` gate passes (4.4 >= 3.0). The autonomous pipeline can run with high confidence.
+**Outcome**: `/fab-fff` gate passes (4.4 >= threshold for the change type). The autonomous pipeline can run with high confidence.
 
 ---
 
@@ -212,8 +228,8 @@ SRAD manifests differently depending on which skill is running. Skills closer to
 
 | Aspect | `/fab-new` | `/fab-continue` | `/fab-ff` | `/fab-fff` |
 |--------|------------|-----------------|-----------|-----------|
-| **Posture** | SRAD-driven adaptive questioning, gap analysis, conversational mode, brief-only output | Surface tentative, ask top ~3 unresolved | Batch all unresolved upfront, then go | Same as `/fab-ff`; gated on confidence >= 3.0 |
+| **Posture** | SRAD-driven adaptive questioning, gap analysis, conversational mode, brief-only output | Surface tentative, ask top ~3 unresolved | Batch all unresolved upfront, then go | Same as `/fab-ff`; gated on confidence >= mode/type threshold |
 | **Interruption budget** | Adaptive — SRAD-driven (no fixed cap) | 1–2 per stage | 0–1 batch at start | Same as `/fab-ff` (frontloaded) |
-| **Output** | Brief + confidence score + assumptions summary | Key Decisions + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary | Same as `/fab-ff` + apply/review/archive output |
+| **Output** | Brief + confidence score + assumptions summary | Key Decisions + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary | Same as `/fab-ff` + apply/review/hydrate output |
 | **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` (bails on blockers or review failure) |
 | **Recomputes confidence?** | No | Spec stage only | No | No |

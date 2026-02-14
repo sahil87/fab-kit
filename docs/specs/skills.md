@@ -274,9 +274,9 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 ## `/fab-fff` (Full Autonomous Pipeline)
 
-**Purpose**: Run the entire Fab pipeline from planning through archive in a single invocation, gated on confidence score >= 3.0. Unlike `/fab-ff` (which stops for interactive clarification), `/fab-fff` never stops — it bails immediately on review failure and auto-clarifies without user input.
+**Purpose**: Run the entire Fab pipeline from planning through archive in a single invocation, gated on confidence score against the active threshold policy (legacy fixed threshold or fuzzy type-aware thresholds). Unlike `/fab-ff` (which stops for interactive clarification), `/fab-fff` never stops — it bails immediately on review failure and auto-clarifies without user input.
 
-**Prerequisite**: Active change with completed `brief.md` and `confidence.score >= 3.0`.
+**Prerequisite**: Active change with completed `brief.md` and `confidence.score >= threshold(mode, change_type)`.
 
 **Context**: Same as `/fab-ff` — all context loaded upfront (config, constitution, brief, memory index, affected memory files).
 
@@ -298,7 +298,15 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 ```
 
 **Behavior**:
-1. **Confidence gate**: Read `confidence.score` from `.status.yaml`. If < 3.0, refuse to run with: *"Confidence is {score} (need >= 3.0). Run /fab-clarify to resolve tentative/unresolved decisions, then retry."*
+1. **Confidence gate**: Read `confidence.score` from `.status.yaml`, determine threshold, then compare.
+   - **legacy mode**: threshold = `3.0`
+   - **fuzzy mode**:
+     - `bugfix`: `2.7`
+     - `refactor`: `3.0`
+     - `feature`: `3.3`
+     - `architecture`: `3.6`
+   - unknown type defaults to `feature`
+   If score is below threshold, refuse to run with: *"Confidence is {score} (need >= {threshold} for {change_type}). Run /fab-clarify to resolve tentative/unresolved decisions, then retry."*
 2. **Resumability**: Check `progress` map — skip any stage already marked `done` or `skipped`. Re-invoking after interruption picks up from the first incomplete stage.
 3. **Step 1 — Planning (fab-ff)**: Generate spec + tasks with checklist. Bails on blocking issues.
 4. **Step 2 — Implementation (fab-continue)**: Execute tasks in dependency order, run tests after each.

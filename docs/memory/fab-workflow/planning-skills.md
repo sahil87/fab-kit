@@ -145,11 +145,20 @@ Unlike `/fab-fff` which bails immediately on review failure, `/fab-ff` presents 
 
 ### `/fab-fff [<change-name>]` (Full Autonomous Pipeline)
 
-`/fab-fff` runs the entire Fab pipeline autonomously in a single invocation, gated on confidence score >= 3.0. Unlike `/fab-ff`, which stops for interactive clarification, `/fab-fff` never stops for user input — it bails immediately on review failure and auto-clarifies without user interaction. Accepts an optional change-name argument to target a specific change instead of the active one in `fab/current`.
+`/fab-fff` runs the entire Fab pipeline autonomously in a single invocation, gated on confidence score against mode/type threshold policy. Unlike `/fab-ff`, which stops for interactive clarification, `/fab-fff` never stops for user input — it bails immediately on review failure and auto-clarifies without user interaction. Accepts an optional change-name argument to target a specific change instead of the active one in `fab/current`.
 
 #### Confidence Gate
 
-Before proceeding, `/fab-fff` reads `confidence.score` from `.status.yaml`. If the score is below 3.0, the skill aborts with a message suggesting `/fab-clarify` to raise confidence.
+Before proceeding, `/fab-fff` reads `confidence.score`, scoring mode, and change type metadata. Threshold policy:
+- legacy mode: `3.0`
+- fuzzy mode:
+  - `bugfix`: `2.7`
+  - `refactor`: `3.0`
+  - `feature`: `3.3`
+  - `architecture`: `3.6`
+- unknown change type defaults to `feature`
+
+If score is below threshold, the skill aborts with a message suggesting `/fab-clarify` to raise confidence.
 
 #### Pipeline Behavior
 
@@ -166,7 +175,7 @@ Each stage uses the same behavior as its standalone invocation. If planning bail
 #### When to Use
 
 - High-confidence changes where you want full autonomy from planning to hydrate
-- After raising confidence via `/fab-clarify` to meet the >= 3.0 threshold
+- After raising confidence via `/fab-clarify` to meet the active mode/type threshold
 
 #### Context
 
@@ -281,6 +290,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260212-f9m3-enhance-srad-fuzzy | 2026-02-14 | Updated `/fab-fff` gate semantics from fixed `>= 3.0` to mode/type-aware thresholds (legacy 3.0; fuzzy: bugfix 2.7, refactor 3.0, feature 3.3, architecture 3.6) with unknown-type fallback to feature |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_stageman.sh` → `lib/stageman.sh` and `_calc-score.sh` → `lib/calc-score.sh` in all references; updated shared generation partial `lib/stageman.sh set-checklist` references |
 | 260214-w3r8-stageman-write-api | 2026-02-14 | Skill prompts (`fab-continue.md`, `fab-ff.md`, `fab-fff.md`, `_generation.md`) now reference `lib/stageman.sh` CLI commands for all `.status.yaml` mutations instead of ad-hoc editing |
 | 260214-lptw-score-init-display | 2026-02-14 | Changed `/fab-fff` confidence gate and output header display format from `{score}` to `{score} of 5.0`. Updated `_context.md` template description from "score 5.0" to "score 0.0". |

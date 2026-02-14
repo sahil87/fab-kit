@@ -46,11 +46,12 @@ This applies to all skills operating on an active change, not just spec-writing 
 ### SRAD Protocol
 
 The shared context preamble (`_context.md`) includes the SRAD autonomy framework, which all planning skills reference during artifact generation. The framework defines:
-- **SRAD scoring table** — four dimensions for evaluating decision points
+- **SRAD scoring table** — four dimensions for evaluating decision points on a 0-100 scale
 - **Confidence grades** — Certain, Confident, Tentative, Unresolved with corresponding artifact markers
 - **Worked examples** — demonstrating how dimensions interact to produce grades
 - **Artifact markers** — `<!-- assumed: ... -->` for Tentative, `<!-- clarified: ... -->` for resolved assumptions
 - **Assumptions Summary Block** — standard format for output and artifact persistence
+- **Confidence gates** — legacy fixed threshold (3.0) and fuzzy type-aware thresholds (`2.7/3.0/3.3/3.6`)
 
 This protocol is loaded as part of the "Always Load" layer via `_context.md` and does not require separate file loading.
 
@@ -86,6 +87,7 @@ The following skills skip the standard context loading layers:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260212-f9m3-enhance-srad-fuzzy | 2026-02-14 | Updated SRAD Protocol summary to reflect 0-100 dimension scoring and mode/type-aware confidence gating semantics |
 | 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Updated always-load paths to `docs/memory/index.md` and `docs/specs/index.md`; updated selective domain loading to `docs/memory/{domain}/` |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_preflight.sh` → `lib/preflight.sh` in preflight script reference |
 | 260213-w4k9-explicit-change-targeting | 2026-02-13 | Preflight script now accepts optional `$1` change-name override with case-insensitive substring matching; `fab/current` is not modified when override is used |

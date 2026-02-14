@@ -11,7 +11,7 @@ description: "Full autonomous pipeline — confidence gate, then planning → ap
 
 ## Purpose
 
-Run the entire Fab pipeline from planning through hydrate in a single invocation, gated on confidence >= 3.0. Unlike `/fab-ff`, never stops for interaction — bails immediately on review failure and auto-clarifies without user input.
+Run the entire Fab pipeline from planning through hydrate in a single invocation, gated on confidence against mode/type threshold policy. Unlike `/fab-ff`, never stops for interaction — bails immediately on review failure and auto-clarifies without user input.
 
 ---
 
@@ -25,7 +25,15 @@ Run the entire Fab pipeline from planning through hydrate in a single invocation
 
 1. Run preflight per `_context.md` §2
 2. Verify `brief.md` exists. If not, STOP: `Brief not found. Run /fab-new first.`
-3. **Confidence gate**: Read `confidence.score`. If < 3.0 or missing → STOP: `Confidence is {score} of 5.0 (need >= 3.0). Run /fab-clarify to resolve, then retry.`
+3. **Confidence gate**: Read `confidence.score`, scoring mode, and change type.
+   - legacy mode threshold: `3.0`
+   - fuzzy mode thresholds:
+     - `bugfix`: `2.7`
+     - `refactor`: `3.0`
+     - `feature`: `3.3`
+     - `architecture`: `3.6`
+   - unknown change type defaults to `feature`
+   If score is below threshold or score is missing → STOP: `Confidence is {score} of 5.0 (need >= {threshold} for {change_type}). Run /fab-clarify to resolve, then retry.`
 
 ---
 
