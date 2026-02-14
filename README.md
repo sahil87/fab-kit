@@ -112,7 +112,7 @@ fab/.kit/
 └── schemas/         # Workflow schema and documentation
 ```
 
-The kit provides a 6-stage workflow: **brief → spec → tasks → apply → review → archive**. See [fab/specs/index.md](fab/specs/index.md) for the full specification.
+The kit provides a 6-stage workflow: **brief → spec → tasks → apply → review → hydrate**. See [fab/specs/index.md](fab/specs/index.md) for the full specification.
 
 ### Stage Manager (`stageman.sh`)
 
@@ -249,9 +249,9 @@ In-depth analysis of **OpenSpec** (https://github.com/Fission-AI/OpenSpec) - an 
 - Start with [README.md](references/openspec/README.md) for overview
 - Key docs: overview, philosophy, cli-architecture, agent-integration
 
-### Advantages
+### Why Fab Kit?
 
-- Resumability from any stage
-- Everyone remembers that there is a spec stage, a planning stage, and a task stage. And they don't get skipped. 
-- FF is cool
-- Determinism is calculated
+- **Resumable by design** — Every stage produces a persistent artifact. Walk away mid-change, come back tomorrow, and pick up exactly where you left off.
+- **Stages that don't get skipped** — Brief, spec, plan, tasks, apply, review, hydrate. The pipeline encodes the discipline so the agent (and you) can't quietly skip straight to code.
+- **Fast-forward when confidence is high** — `/fab-ff` and `/fab-fff` let you blast through multiple stages in one shot when the change is well-understood, without sacrificing the structure when it isn't.
+- **Deterministic progress tracking** — `.status.yaml` and stage checklists give you a single source of truth for where a change stands — no guessing, no stale mental models.
