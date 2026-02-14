@@ -6,26 +6,40 @@ set -euo pipefail
 # Packages fab/.kit/ into kit.tar.gz, bumps VERSION, commits, and creates
 # a GitHub Release with the archive as an asset.
 #
-# Usage: fab-release.sh [patch|minor|major]
-#   patch (default) — 0.1.0 → 0.1.1
-#   minor           — 0.1.0 → 0.2.0
-#   major           — 0.1.0 → 1.0.0
+# Usage: fab-release.sh <patch|minor|major>
+#   patch — 0.1.0 → 0.1.1
+#   minor — 0.1.0 → 0.2.0
+#   major — 0.1.0 → 1.0.0
 #
 # Requires: gh CLI (https://cli.github.com/)
+
+usage() {
+  echo "Usage: fab-release.sh <patch|minor|major>"
+  echo ""
+  echo "  patch — bump patch version (e.g. 0.1.0 → 0.1.1)"
+  echo "  minor — bump minor version (e.g. 0.1.0 → 0.2.0)"
+  echo "  major — bump major version (e.g. 0.1.0 → 1.0.0)"
+}
 
 scripts_dir="$(cd "$(dirname "$0")" && pwd)"
 kit_dir="$(dirname "$scripts_dir")"
 fab_dir="$(dirname "$kit_dir")"
 repo_root="$(dirname "$fab_dir")"
 
-bump_type="${1:-patch}"
+bump_type="${1:-}"
 
 # ── Validate arguments ───────────────────────────────────────────────
 
 case "$bump_type" in
   patch|minor|major) ;;
+  -h|--help|"")
+    usage
+    exit 0
+    ;;
   *)
     echo "ERROR: Invalid bump type '$bump_type'. Use: patch, minor, or major."
+    echo ""
+    usage
     exit 1
     ;;
 esac
