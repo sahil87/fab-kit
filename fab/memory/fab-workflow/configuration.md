@@ -101,22 +101,75 @@ Semantic versioning — MAJOR for principle removals, MINOR for additions, PATCH
 
 ### Updating Config
 
-Use `/fab-init config` for guided, interactive updates. Supports direct section access (e.g., `/fab-init config context`) and preserves YAML comments through targeted string replacement. See [config management](config-management.md) for details.
+Run `/fab-init config` to see all editable sections:
+
+1. `project` — name and description
+2. `context` — tech stack and conventions
+3. `source_paths` — implementation code directories
+4. `stages` — pipeline stage definitions
+5. `rules` — per-stage generation rules
+6. `checklist` — extra quality categories
+7. `git` — branch integration settings
+8. `naming` — change folder naming format
+
+Skip the menu with `/fab-init config <section>` (e.g., `/fab-init config context`).
+
+Updates use targeted string replacement on the specific section being edited. Comments and formatting in other sections are preserved. This is important because `config.yaml` relies on inline comments for self-documentation.
+
+| Scenario | Command |
+|----------|---------|
+| Add a new tech to the stack | `/fab-init config context` |
+| Add a new source directory | `/fab-init config source_paths` |
+| Add a custom checklist category | `/fab-init config checklist` |
+| Change branch naming | `/fab-init config git` |
+| Verify config after manual edit | `/fab-init validate` |
 
 ### Amending Constitution
 
-Use `/fab-init constitution` for governed amendments with semantic versioning (MAJOR/MINOR/PATCH). Supports multiple amendments per session with highest-precedence version bump. See [constitution governance](constitution-governance.md) for the full workflow.
+Run `/fab-init constitution` when `constitution.md` exists to enter amendment mode:
+
+1. Current constitution is displayed
+2. Amendment menu offers: add principle, modify principle, remove principle, add/modify constraint, update governance
+3. Multiple amendments can be made per session
+4. Version is bumped automatically based on change severity
+
+When `constitution.md` doesn't exist, `/fab-init constitution` generates one from project context: `config.yaml`, README, codebase patterns, and conversation.
+
+#### Semantic Versioning
+
+Constitution versions follow `MAJOR.MINOR.PATCH`:
+
+| Change type | Bump | Example |
+|-------------|------|---------|
+| Remove or fundamentally change a principle | MAJOR | `1.2.0 → 2.0.0` |
+| Add a new principle or constraint | MINOR | `1.2.0 → 1.3.0` |
+| Clarify wording without changing meaning | PATCH | `1.2.0 → 1.2.1` |
+
+When multiple amendments are made in one session, the highest-severity bump takes precedence (MAJOR > MINOR > PATCH).
+
+#### Structural Rules
+
+The constitution maintains a consistent structure:
+
+- Level-1 heading: `# {Project Name} Constitution`
+- `## Core Principles` with Roman numeral headings (`### I.`, `### II.`, etc.)
+- `## Additional Constraints`
+- `## Governance` with version, ratified date, and last amended date
+
+When principles are removed, remaining principles are re-numbered sequentially.
+
+Amendment summaries are included in the command output. The constitution file itself does not contain a changelog — git history serves as the authoritative record, and the version number provides semantic signal.
 
 ### Validation
 
-Use `/fab-init validate` to check structural correctness of both files:
+Run `/fab-init validate` to check structural correctness of both files:
 
 - `config.yaml`: 8 checks (YAML syntax, required fields, stage dependencies, circular deps)
 - `constitution.md`: 6 checks (structure, headings, governance section, version format)
 
-Every failure includes an actionable fix suggestion. Useful after manual edits or as a pre-commit check.
+Every failure includes an actionable fix suggestion. Useful after manual edits or as a pre-commit check. `/fab-init config` also validates automatically after each edit, offering to revert invalid changes.
 
-See [init family](init-family.md) for the complete command suite.
+See [init](init.md) for the complete command suite.
 
 ## Design Decisions
 
@@ -142,6 +195,7 @@ See [init family](init-family.md) for the complete command suite.
 
 | Change | Date | Summary |
 |--------|------|---------|
+| — | 2026-02-14 | Absorbed config-management.md and constitution-governance.md into Lifecycle Management section (memory reorganization) |
 | 260213-jc0u-split-archive-hydrate | 2026-02-13 | Updated terminal stage ID from `archive` to `hydrate` in stages list |
 | 260213-r3m7-add-conventions-section | 2026-02-13 | Added optional `conventions` section to config.yaml schema — branch_naming, pr_title, backlog keys |
 | 260212-v5p2-brief-pipeline-stage | 2026-02-12 | Restored brief as formal pipeline stage — 6 stages, added brief to stage IDs |

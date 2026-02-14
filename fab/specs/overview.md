@@ -10,6 +10,18 @@ A hybrid SDD workflow that combines:
 
 ---
 
+## Background
+
+Fab combines ideas from two specification-driven workflows — SpecKit and OPSX — taking the best of each:
+
+**From SpecKit**: Intuitive commands, great file locations, obvious stages, easy customization, modifiable folder naming, and a pure-prompt approach with no system installation required.
+
+**From OPSX**: The `fast-forward` command, post-work archiving with centralized spec hydration, separate changes and specs, and skill-based (not command-based) interfaces for better agent interoperability.
+
+**Pain points addressed**: SpecKit lacked centralized specs. OPSX made it hard to see current status, had rigid commands, and offered less control over folder naming.
+
+---
+
 ## Design Principles
 
 ### 1. Pure Prompt Play

@@ -44,13 +44,27 @@ curl -sL https://github.com/wvrdz/fab-kit/releases/latest/download/kit.tar.gz | 
 
 After extraction, run `fab/.kit/scripts/_init_scaffold.sh` then `/fab-init` as usual.
 
-## Related Commands
+## Subcommand Architecture
 
-For post-initialization management of config and constitution files, see the [init family](init-family.md):
+The three subcommands manage the lifecycle of Fab's initialization artifacts:
 
-- `/fab-init constitution` — create or amend the constitution with semantic versioning (see [constitution governance](constitution-governance.md))
-- `/fab-init config` — interactive config.yaml updates preserving comments (see [config management](config-management.md))
-- `/fab-init validate` — structural validation for both files
+| Subcommand | Purpose |
+|---------|---------|
+| `/fab-init constitution` | Create or amend `constitution.md` with semantic versioning (see [configuration](configuration.md#amending-constitution)) |
+| `/fab-init config` | Create or update `config.yaml` interactively, preserving comments (see [configuration](configuration.md#updating-config)) |
+| `/fab-init validate` | Validate structural correctness of both files (see [configuration](configuration.md#validation)) |
+
+`/fab-init` delegates artifact creation to the subcommands:
+
+- Step 1a: If `config.yaml` doesn't exist → invokes `/fab-init config` in create mode
+- Step 1b: If `constitution.md` doesn't exist → invokes `/fab-init constitution` in create mode
+
+This ensures each subcommand is the single source of truth for its artifact's generation logic. `/fab-init` retains ownership of structural orchestration (directories, symlinks, `.gitignore`).
+
+Each subcommand operates independently — they can be invoked directly without going through `/fab-init`. This supports two workflows:
+
+1. **Initial setup**: `/fab-init` orchestrates everything (delegates to subcommands internally)
+2. **Ongoing management**: User invokes subcommands directly as project evolves
 
 ## Delegation Pattern
 
@@ -85,6 +99,18 @@ For post-initialization management of config and constitution files, see the [in
 **Rejected**: Silently ignoring arguments — confusing, user would think hydration happened.
 *Introduced by*: 260207-q7m3-separate-hydrate-smart-context
 
+### Consolidated Skill with Subcommands
+**Decision**: All three commands are subcommands within a single `fab-init.md` skill file. Each subcommand has its own behavior section, sharing the same `model_tier` and frontmatter.
+*Introduced by*: 260213-3tyk-merge-fab-init-subcommands
+
+### Config Updates Use String Replacement
+**Decision**: `/fab-init config` uses targeted string replacement rather than full YAML parse-and-rewrite. This preserves the heavily-commented `config.yaml` format at the cost of slightly less structural safety.
+*Introduced by*: 260212-h9k3-fab-init-family
+
+### Validate Is Read-Only
+**Decision**: `/fab-init validate` only checks and reports — it never modifies files. Fix suggestions are provided but the user applies them (directly or via the other subcommands).
+*Introduced by*: 260212-h9k3-fab-init-family
+
 ## Deprecated Requirements
 
 ### Source Hydration (Phase 2)
@@ -96,6 +122,7 @@ For post-initialization management of config and constitution files, see the [in
 
 | Change | Date | Summary |
 |--------|------|---------|
+| — | 2026-02-14 | Absorbed init-family.md — subcommand architecture, delegation details, and design decisions (memory reorganization) |
 | 260213-k7m2-kit-version-migrations | 2026-02-14 | Added `fab/VERSION` to bootstrap steps and delegation table; updated step numbering (1e = VERSION, 1f = changes, 1g = symlinks, 1h = gitignore) |
 | 260213-3njv-scaffold-dir | 2026-02-13 | Updated delegation table: `.envrc` → `scaffold/envrc`, `.gitignore` → `scaffold/gitignore-entries`, skeleton files → scaffold sources |
 | 260213-3tyk-merge-fab-init-subcommands | 2026-02-13 | Consolidated init family into subcommands — `/fab-init config`, `/fab-init constitution`, `/fab-init validate` are now subcommands of `/fab-init` |
