@@ -10,6 +10,8 @@ FAB_DIR="$(dirname "$KIT_DIR")"
 CHANGES_DIR="${FAB_DIR}/changes"
 CONFIG_FILE="${FAB_DIR}/config.yaml"
 
+source "${SCRIPT_DIR}/_resolve-change.sh"
+
 usage() {
   cat <<'EOF'
 Usage: batch-switch-change <change> [<change>...]
@@ -108,29 +110,10 @@ esac
 # ---------------------------------------------------------------------------
 
 for change in "${changes[@]}"; do
-  # Resolve: exact match first, then substring match (e.g. "r7k3")
-  match=""
-  if [[ -d "${CHANGES_DIR}/${change}" ]]; then
-    match="$change"
-  else
-    for dir in "$CHANGES_DIR"/*/; do
-      [[ -d "$dir" ]] || continue
-      name=$(basename "$dir")
-      if [[ "$name" == *"${change}"* ]]; then
-        if [[ -n "$match" ]]; then
-          echo "Warning: '$change' matches multiple changes, skipping (be more specific)" >&2
-          match=""
-          break
-        fi
-        match="$name"
-      fi
-    done
-  fi
-
-  if [[ -z "$match" ]]; then
-    echo "Warning: '$change' not found in changes, skipping" >&2
+  if ! resolve_change "$FAB_DIR" "$change"; then
     continue
   fi
+  match="$RESOLVED_CHANGE_NAME"
 
   printf "  %s\n" "$match"
 

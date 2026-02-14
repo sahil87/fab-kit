@@ -1,25 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# batch-archive-change.sh — Per completed change: open a tmux tab in its
-# worktree and start a Claude Code session that runs /fab-archive <change>.
+# batch-archive-change.sh — Run /fab-archive on multiple completed changes
+# sequentially in a single Claude Code session.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KIT_DIR="$(dirname "$SCRIPT_DIR")"
 FAB_DIR="$(dirname "$KIT_DIR")"
 CHANGES_DIR="${FAB_DIR}/changes"
-CONFIG_FILE="${FAB_DIR}/config.yaml"
+
+source "${SCRIPT_DIR}/_resolve-change.sh"
 
 usage() {
   cat <<'EOF'
 Usage: batch-archive-change <change> [<change>...]
 
-Per completed change (hydrate:done): opens a new tmux tab in its worktree
-and starts a Claude Code session that runs /fab-archive <change>.
+Archives multiple completed changes (hydrate:done) by running
+/fab-archive for each one sequentially.
 
 Options:
   --list    Show archivable changes (hydrate:done)
-  --all     Open tabs for all archivable changes
+  --all     Archive all archivable changes
 
 Examples:
   batch-archive-change v3rn
@@ -69,26 +70,12 @@ all_archivable_names() {
   done
 }
 
-get_branch_prefix() {
-  if [[ -f "$CONFIG_FILE" ]]; then
-    grep -E '^\s*branch_prefix:' "$CONFIG_FILE" | \
-      sed -E 's/^\s*branch_prefix:\s*"?([^"]*)"?.*/\1/' || echo ""
-  else
-    echo ""
-  fi
-}
-
 # ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
 
 if [[ ! -d "$CHANGES_DIR" ]]; then
   echo "Error: changes directory not found at $CHANGES_DIR" >&2
-  exit 1
-fi
-
-if [[ -z "${TMUX:-}" ]]; then
-  echo "Error: not inside a tmux session" >&2
   exit 1
 fi
 
@@ -110,64 +97,39 @@ case "$1" in
       echo "No archivable changes found." >&2
       exit 1
     fi
-    echo "Opening ${#changes[@]} tabs for all archivable changes..."
+    echo "Archiving ${#changes[@]} changes..."
     ;;
   -h|--help) usage; exit 0 ;;
   *)         changes=("$@") ;;
 esac
 
 # ---------------------------------------------------------------------------
-# Open tabs
+# Build the comma-separated prompt for a single Claude session
 # ---------------------------------------------------------------------------
 
+resolved=()
 for change in "${changes[@]}"; do
-  # Resolve: exact match first, then substring match (e.g. "v3rn")
-  match=""
-  if [[ -d "${CHANGES_DIR}/${change}" ]]; then
-    match="$change"
-  else
-    for dir in "$CHANGES_DIR"/*/; do
-      [[ -d "$dir" ]] || continue
-      name=$(basename "$dir")
-      [[ "$name" == "archive" ]] && continue
-      if [[ "$name" == *"${change}"* ]]; then
-        if [[ -n "$match" ]]; then
-          echo "Warning: '$change' matches multiple changes, skipping (be more specific)" >&2
-          match=""
-          break
-        fi
-        match="$name"
-      fi
-    done
-  fi
-
-  if [[ -z "$match" ]]; then
-    echo "Warning: '$change' not found in changes, skipping" >&2
+  if ! resolve_change "$FAB_DIR" "$change"; then
     continue
   fi
+  match="$RESOLVED_CHANGE_NAME"
 
-  # Verify hydrate:done
   local_status="${CHANGES_DIR}/${match}/.status.yaml"
   if ! is_hydrate_done "$local_status"; then
     echo "Warning: '$match' not ready for archive (hydrate not done), skipping" >&2
     continue
   fi
 
-  printf "  %s\n" "$match"
-
-  # Get branch prefix from config and construct the branch name
-  branch_prefix=$(get_branch_prefix)
-  branch_name="${branch_prefix}${match}"
-
-  # Create worktree with the branch name
-  wt_path=$(wt-create --non-interactive --worktree-name "$match" "$branch_name" | tail -1) || {
-    echo "Error: failed to create worktree for '$match', skipping" >&2
-    continue
-  }
-
-  # Escape single quotes for the nested shell: ' → '\''
-  safe="${match//"'"/"'\''"}"
-
-  tmux new-window -n "fab-${match}" -c "$wt_path" \
-    "claude --dangerously-skip-permissions '/fab-archive ${safe}'"
+  resolved+=("$match")
 done
+
+if [[ ${#resolved[@]} -eq 0 ]]; then
+  echo "No valid changes to archive." >&2
+  exit 1
+fi
+
+# Build prompt: archive each change sequentially
+prompt="Run /fab-archive for each of these changes, one at a time: ${resolved[*]}"
+
+echo "Archiving: ${resolved[*]}"
+exec claude --dangerously-skip-permissions "$prompt"

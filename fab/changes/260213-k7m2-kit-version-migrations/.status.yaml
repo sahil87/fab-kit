@@ -7,7 +7,7 @@ progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending
+  hydrate: pending
 checklist:
   generated: false
   path: checklist.md
