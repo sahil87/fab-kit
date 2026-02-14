@@ -45,6 +45,7 @@ context: |
 #   /internal-consistency-check (implementation layer scanning).
 source_paths:
   - fab/.kit/
+  - src/
 
 # naming — Controls how change folders are named under fab/changes/.
 # Consumed by: /fab:new, /fab:discuss (folder name generation).
