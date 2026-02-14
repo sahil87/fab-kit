@@ -3,7 +3,7 @@
 ## Core Principles
 
 ### I. Pure Prompt Play
-All workflow logic MUST live in markdown skill files and shell scripts. There SHALL be no system dependencies, no package managers, no CLI binaries, and no build steps. Any AI agent that can read markdown and execute shell commands can drive the workflow.
+All workflow logic MUST live in markdown skill files and shell scripts. There SHALL be no package managers, no build steps, and no runtime frameworks. External tool dependencies MUST be limited to single-binary utilities (e.g., `yq`, `gh`) that require no runtime or library installation. Any AI agent that can read markdown and execute shell commands can drive the workflow.
 
 ### II. Docs Are Source of Truth
 Centralized documentation in `docs/memory/` SHALL be the authoritative source for system behavior and design decisions. Specifications and plans are transient artifacts within changes; the hydrated memory is permanent. All agents MUST consult memory files before generating specs or plans.
@@ -28,4 +28,4 @@ Specifications in `docs/specs/` are human-curated, pre-implementation artifacts 
 
 ## Governance
 
-**Version**: 1.0.0 | **Ratified**: 2026-02-06 | **Last Amended**: 2026-02-06
+**Version**: 1.1.0 | **Ratified**: 2026-02-06 | **Last Amended**: 2026-02-14

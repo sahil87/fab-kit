@@ -28,7 +28,8 @@ Both may be provided in any order. Stage names are treated as reset targets; all
 
 1. Classify arguments: stage name vs. change-name override (stage names take priority)
 2. Run preflight per `_context.md` §2
-3. Use preflight's `stage` and `progress` fields for all subsequent logic
+3. Log invocation: `lib/stageman.sh log-command <change_dir> "fab-continue" "<stage-arg-if-any>"`
+4. Use preflight's `stage` and `progress` fields for all subsequent logic
 
 ---
 
@@ -68,9 +69,9 @@ Load per `_context.md` layers. Stage-specific additions: planning stages load br
 
 ### Step 4: Update `.status.yaml`
 
-Two-write transition via CLI: `lib/stageman.sh transition <file> <completed-stage> <next-stage>`. This atomically sets `{completed}` → `done`, `{next}` → `active`, and refreshes `last_updated`.
+Two-write transition via CLI: `lib/stageman.sh transition <file> <completed-stage> <next-stage> fab-continue`. This atomically sets `{completed}` → `done`, `{next}` → `active`, refreshes `last_updated`, and updates `stage_metrics`.
 
-For single-state changes, use: `lib/stageman.sh set-state <file> <stage> <state>`.
+For single-state changes, use: `lib/stageman.sh set-state <file> <stage> <state> [fab-continue]` (driver required when state is `active`).
 
 ### Step 5: Output
 
@@ -83,15 +84,15 @@ Display summary. Include Assumptions summary for planning stages. End with `Next
 ### Preconditions
 
 - `tasks.md` MUST exist
-- If stage is `tasks`: run `lib/stageman.sh transition <file> tasks apply` before starting
+- If stage is `tasks`: run `lib/stageman.sh transition <file> tasks apply fab-continue` before starting
 
 ### Task Execution
 
 1. Parse tasks: `- [ ]` = remaining, `- [x]` = skip
-2. If all checked: run `lib/stageman.sh transition <file> apply review`. Stop.
+2. If all checked: run `lib/stageman.sh transition <file> apply review fab-continue`. Stop.
 3. Execute in phase order; within phases, non-`[P]` sequential, `[P]` parallelizable. Respect Execution Order constraints.
 4. For each unchecked task: read source, implement per spec/constitution/patterns, run tests, fix failures, mark `[x]` immediately
-5. On completion: run `lib/stageman.sh transition <file> apply review`
+5. On completion: run `lib/stageman.sh transition <file> apply review fab-continue`
 
 ### Resumability
 
@@ -116,9 +117,9 @@ Starts from first unchecked item. Checked items assumed complete.
 
 ### Verdict
 
-**Pass**: Run `lib/stageman.sh transition <file> review hydrate`. Update checklist via `lib/stageman.sh set-checklist <file> completed <N>`. Output report + `Next: /fab-continue`
+**Pass**: Run `lib/stageman.sh transition <file> review hydrate fab-continue`. Run `lib/stageman.sh log-review <change_dir> "passed"`. Update checklist via `lib/stageman.sh set-checklist <file> completed <N>`. Output report + `Next: /fab-continue`
 
-**Fail**: Run `lib/stageman.sh set-state <file> review failed` then `lib/stageman.sh set-state <file> apply active`. Update checklist via `lib/stageman.sh set-checklist <file> completed <N>`. Output failure details + rework options:
+**Fail**: Run `lib/stageman.sh set-state <file> review failed` then `lib/stageman.sh set-state <file> apply active fab-continue`. Run `lib/stageman.sh log-review <change_dir> "failed" "<rework-option>"` after user selects rework. Update checklist via `lib/stageman.sh set-checklist <file> completed <N>`. Output failure details + rework options:
 
 | Option | When | Action |
 |--------|------|--------|
@@ -148,7 +149,7 @@ Starts from first unchecked item. Checked items assumed complete.
 
 1. **Validate**: Must be one of the 6 stage names
 2. **Load context** for the target stage
-3. **Reset `.status.yaml`**: Use `lib/stageman.sh set-state <file> <stage> <state>` for each stage — target → `active`, all after → `pending`, all before → preserved
+3. **Reset `.status.yaml`**: Use `lib/stageman.sh set-state <file> <stage> <state> [driver]` for each stage — target → `active` (with driver `fab-continue`), all after → `pending`, all before → preserved
 4. **Execute**: Planning stages regenerate artifact. Execution stages re-run (task checkboxes NOT reset).
 5. **Invalidate downstream** (planning resets only): brief reset → all downstream pending; spec reset → tasks pending; tasks reset → reset all `[x]` → `[ ]`, regenerate checklist
 6. **Post-execution**: Planning resets set target to `done` but do NOT advance next to `active` (prevents auto-advancing into stale content). Execution resets use normal transitions.

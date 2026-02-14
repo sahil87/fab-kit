@@ -180,9 +180,10 @@ fi
 prev_certain=0
 prev_score="0.0"
 if [ -f "$status_file" ]; then
-  prev_certain=$(grep '^ *certain:' "$status_file" | sed 's/^ *certain: *//' || true)
+  confidence_data=$(get_confidence "$status_file")
+  prev_certain=$(echo "$confidence_data" | grep '^certain:' | cut -d: -f2)
   prev_certain=${prev_certain:-0}
-  prev_score=$(grep '^ *score:' "$status_file" | sed 's/^ *score: *//' || true)
+  prev_score=$(echo "$confidence_data" | grep '^score:' | cut -d: -f2)
   prev_score=${prev_score:-0.0}
 fi
 
@@ -223,6 +224,7 @@ if [ -f "$status_file" ]; then
   else
     set_confidence_block "$status_file" "$total_certain" "$table_confident" "$table_tentative" "$unresolved" "$score"
   fi
+  log_confidence "$change_dir" "$score" "$delta" "calc-score"
 fi
 
 # --- Emit YAML to stdout ---

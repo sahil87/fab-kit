@@ -2,21 +2,25 @@ name: 260214-r7k3-stageman-yq-metrics
 created: 2026-02-14T16:15:36+05:30
 created_by: sahil-weaver
 progress:
-  brief: active
-  spec: pending
-  tasks: pending
-  apply: pending
-  review: pending
-  hydrate: pending
+  brief: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
 checklist:
-  generated: false
+  generated: true
   path: checklist.md
-  completed: 0
-  total: 0
+  completed: 39
+  total: 39
 confidence:
-  certain: 0
-  confident: 0
-  tentative: 0
+  certain: 1
+  confident: 10
+  tentative: 1
   unresolved: 0
-  score: 0.0
-last_updated: 2026-02-14T16:15:36+05:30
+  score: 1.0
+last_updated: "2026-02-14T17:53:04+05:30"
+stage_metrics:
+  apply: {completed_at: "2026-02-14T17:47:29+05:30"}
+  review: {started_at: "2026-02-14T17:47:29+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-14T17:48:35+05:30"}
+  hydrate: {started_at: "2026-02-14T17:48:35+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-14T17:53:04+05:30"}

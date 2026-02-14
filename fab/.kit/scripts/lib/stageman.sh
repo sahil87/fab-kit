@@ -32,6 +32,12 @@ if [ ! -f "$WORKFLOW_SCHEMA" ]; then
   return 1 2>/dev/null || exit 1
 fi
 
+# Require yq (Mike Farah's Go v4) for .status.yaml operations
+if ! command -v yq &>/dev/null; then
+  echo "ERROR: yq (v4) is required but not found. Install: https://github.com/mikefarah/yq" >&2
+  return 1 2>/dev/null || exit 1
+fi
+
 # ─────────────────────────────────────────────────────────────────────────────
 # State Queries
 # ─────────────────────────────────────────────────────────────────────────────
@@ -214,8 +220,8 @@ get_progress_map() {
   local status_file="$1"
   local stage val
   for stage in $(get_all_stages); do
-    val=$(grep "^ *${stage}:" "$status_file" | sed 's/^ *[a-z]*: *//' || echo "")
-    echo "${stage}:${val:-pending}"
+    val=$(yq ".progress.${stage} // \"pending\"" "$status_file")
+    echo "${stage}:${val}"
   done
 }
 
@@ -223,30 +229,105 @@ get_progress_map() {
 # Outputs: generated:{val}, completed:{val}, total:{val}
 get_checklist() {
   local status_file="$1"
-  local generated completed total
-  generated=$(grep '^ *generated:' "$status_file" | sed 's/^ *generated: *//' || true)
-  completed=$(grep '^ *completed:' "$status_file" | sed 's/^ *completed: *//' || true)
-  total=$(grep '^ *total:' "$status_file" | sed 's/^ *total: *//' || true)
-  echo "generated:${generated:-false}"
-  echo "completed:${completed:-0}"
-  echo "total:${total:-0}"
+  echo "generated:$(yq '.checklist.generated // "false"' "$status_file")"
+  echo "completed:$(yq '.checklist.completed // 0' "$status_file")"
+  echo "total:$(yq '.checklist.total // 0' "$status_file")"
 }
 
 # get_confidence <status_file> — Extract confidence fields
 # Outputs: certain:{val}, confident:{val}, tentative:{val}, unresolved:{val}, score:{val}
 get_confidence() {
   local status_file="$1"
-  local certain confident tentative unresolved score
-  certain=$(grep '^ *certain:' "$status_file" | sed 's/^ *certain: *//' || true)
-  confident=$(grep '^ *confident:' "$status_file" | sed 's/^ *confident: *//' || true)
-  tentative=$(grep '^ *tentative:' "$status_file" | sed 's/^ *tentative: *//' || true)
-  unresolved=$(grep '^ *unresolved:' "$status_file" | sed 's/^ *unresolved: *//' || true)
-  score=$(grep '^ *score:' "$status_file" | sed 's/^ *score: *//' || true)
-  echo "certain:${certain:-0}"
-  echo "confident:${confident:-0}"
-  echo "tentative:${tentative:-0}"
-  echo "unresolved:${unresolved:-0}"
-  echo "score:${score:-5.0}"
+  echo "certain:$(yq '.confidence.certain // 0' "$status_file")"
+  echo "confident:$(yq '.confidence.confident // 0' "$status_file")"
+  echo "tentative:$(yq '.confidence.tentative // 0' "$status_file")"
+  echo "unresolved:$(yq '.confidence.unresolved // 0' "$status_file")"
+  echo "score:$(yq '.confidence.score // "5.0"' "$status_file")"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage Metrics Accessors
+# ─────────────────────────────────────────────────────────────────────────────
+
+# get_stage_metrics <status_file> [stage] — Extract stage_metrics data
+# Without stage: output all as "stage:{flow-yaml}" per line.
+# With stage: output single stage's fields as "field:value" per line.
+# Returns empty (exit 0) if stage_metrics is missing or empty.
+get_stage_metrics() {
+  local status_file="$1"
+  local stage="${2:-}"
+
+  if [ -n "$stage" ]; then
+    local exists
+    exists=$(yq ".stage_metrics.${stage} // \"\"" "$status_file")
+    [ -z "$exists" ] && return 0
+    yq -o=props ".stage_metrics.${stage}" "$status_file" | sed 's/ = /:/; s/^//'
+  else
+    local keys
+    keys=$(yq '.stage_metrics | keys | .[]' "$status_file" 2>/dev/null) || return 0
+    [ -z "$keys" ] && return 0
+    local key
+    while IFS= read -r key; do
+      local flow
+      flow=$(yq -o=json -I=0 ".stage_metrics.${key}" "$status_file")
+      echo "${key}:${flow}"
+    done <<< "$keys"
+  fi
+}
+
+# set_stage_metric <status_file> <stage> <field> <value>
+# Set an individual metric field for a stage. Creates stage_metrics map and
+# stage entry if absent. Ensures flow style for the stage entry.
+set_stage_metric() {
+  local status_file="$1"
+  local stage="$2"
+  local field="$3"
+  local value="$4"
+
+  if [ ! -f "$status_file" ]; then
+    echo "ERROR: Status file not found: $status_file" >&2
+    return 1
+  fi
+
+  local now
+  now=$(date -Iseconds)
+  local tmpfile
+  tmpfile=$(mktemp "$(dirname "$status_file")/.status.yaml.XXXXXX")
+
+  cp "$status_file" "$tmpfile"
+  yq -i ".stage_metrics.${stage}.${field} = ${value} | .last_updated = \"${now}\"" "$tmpfile"
+  yq -i "(.stage_metrics.${stage}) style=\"flow\"" "$tmpfile"
+  mv "$tmpfile" "$status_file"
+}
+
+# _apply_metrics_side_effect <tmpfile> <stage> <state> [driver]
+# Internal helper: apply stage_metrics side-effects for a state change.
+# Operates on tmpfile (caller handles atomicity).
+_apply_metrics_side_effect() {
+  local tmpfile="$1"
+  local stage="$2"
+  local state="$3"
+  local driver="${4:-}"
+  local now
+  now=$(date -Iseconds)
+
+  case "$state" in
+    active)
+      local iterations
+      iterations=$(yq ".stage_metrics.${stage}.iterations // 0" "$tmpfile")
+      iterations=$((iterations + 1))
+      yq -i ".stage_metrics.${stage} = {\"started_at\": \"${now}\", \"driver\": \"${driver}\", \"iterations\": ${iterations}}" "$tmpfile"
+      yq -i "(.stage_metrics.${stage}) style=\"flow\"" "$tmpfile"
+      ;;
+    done)
+      yq -i ".stage_metrics.${stage}.completed_at = \"${now}\"" "$tmpfile"
+      yq -i "(.stage_metrics.${stage}) style=\"flow\"" "$tmpfile"
+      ;;
+    pending)
+      yq -i "del(.stage_metrics.${stage})" "$tmpfile"
+      ;;
+    # failed: no metrics change
+  esac
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -316,14 +397,17 @@ get_next_stage() {
 # Write Functions
 # ─────────────────────────────────────────────────────────────────────────────
 
-# set_stage_state <status_file> <stage> <state>
+# set_stage_state <status_file> <stage> <state> [driver]
 # Set a single stage's progress value in .status.yaml.
+# driver is required when state is "active", ignored otherwise.
 # Validates inputs, writes atomically (temp-file-then-mv), updates last_updated.
+# Applies stage_metrics side-effects via _apply_metrics_side_effect.
 # Returns 0 on success, 1 on validation failure (diagnostic to stderr).
 set_stage_state() {
   local status_file="$1"
   local stage="$2"
   local state="$3"
+  local driver="${4:-}"
 
   if [ ! -f "$status_file" ]; then
     echo "ERROR: Status file not found: $status_file" >&2
@@ -340,34 +424,36 @@ set_stage_state() {
     return 1
   fi
 
+  if [ "$state" = "active" ] && [ -z "$driver" ]; then
+    echo "ERROR: driver required when setting state to 'active'" >&2
+    return 1
+  fi
+
   local now
   now=$(date -Iseconds)
   local tmpfile
   tmpfile=$(mktemp "$(dirname "$status_file")/.status.yaml.XXXXXX")
 
-  awk -v stage="$stage" -v state="$state" -v ts="$now" '
-    /^last_updated:/ { print "last_updated: " ts; next }
-    /^  [a-z]+:/ {
-      split($0, parts, ": ")
-      gsub(/^ */, "", parts[1])
-      if (parts[1] == stage) {
-        sub(/: .*/, ": " state)
-      }
-    }
-    { print }
-  ' "$status_file" > "$tmpfile"
+  cp "$status_file" "$tmpfile"
+  yq -i ".progress.${stage} = \"${state}\" | .last_updated = \"${now}\"" "$tmpfile"
+
+  # Apply stage_metrics side-effects
+  _apply_metrics_side_effect "$tmpfile" "$stage" "$state" "$driver"
 
   mv "$tmpfile" "$status_file"
 }
 
-# transition_stages <status_file> <from_stage> <to_stage>
+# transition_stages <status_file> <from_stage> <to_stage> [driver]
 # Two-write transition: set from_stage to done and to_stage to active atomically.
+# driver is required (applied to to_stage's active side-effect).
 # Validates adjacency and that from_stage is currently active.
+# Applies stage_metrics side-effects for both stages.
 # Returns 0 on success, 1 on validation failure.
 transition_stages() {
   local status_file="$1"
   local from_stage="$2"
   local to_stage="$3"
+  local driver="${4:-}"
 
   if [ ! -f "$status_file" ]; then
     echo "ERROR: Status file not found: $status_file" >&2
@@ -394,9 +480,14 @@ transition_stages() {
     return 1
   fi
 
+  if [ -z "$driver" ]; then
+    echo "ERROR: driver required for transition" >&2
+    return 1
+  fi
+
   # Verify from_stage is currently active
   local current_state
-  current_state=$(grep "^ *${from_stage}:" "$status_file" | sed 's/^ *[a-z]*: *//')
+  current_state=$(yq ".progress.${from_stage}" "$status_file")
   if [ "$current_state" != "active" ]; then
     echo "ERROR: Stage '$from_stage' is '$current_state', expected 'active'" >&2
     return 1
@@ -415,19 +506,12 @@ transition_stages() {
   local tmpfile
   tmpfile=$(mktemp "$(dirname "$status_file")/.status.yaml.XXXXXX")
 
-  awk -v from="$from_stage" -v to="$to_stage" -v ts="$now" '
-    /^last_updated:/ { print "last_updated: " ts; next }
-    /^  [a-z]+:/ {
-      split($0, parts, ": ")
-      gsub(/^ */, "", parts[1])
-      if (parts[1] == from) {
-        sub(/: .*/, ": done")
-      } else if (parts[1] == to) {
-        sub(/: .*/, ": active")
-      }
-    }
-    { print }
-  ' "$status_file" > "$tmpfile"
+  cp "$status_file" "$tmpfile"
+  yq -i ".progress.${from_stage} = \"done\" | .progress.${to_stage} = \"active\" | .last_updated = \"${now}\"" "$tmpfile"
+
+  # Apply stage_metrics side-effects: from→done, to→active
+  _apply_metrics_side_effect "$tmpfile" "$from_stage" "done"
+  _apply_metrics_side_effect "$tmpfile" "$to_stage" "active" "$driver"
 
   mv "$tmpfile" "$status_file"
 }
@@ -470,16 +554,8 @@ set_checklist_field() {
   local tmpfile
   tmpfile=$(mktemp "$(dirname "$status_file")/.status.yaml.XXXXXX")
 
-  awk -v field="$field" -v value="$value" -v ts="$now" '
-    /^checklist:/ { in_checklist = 1 }
-    in_checklist && /^[a-z]/ && !/^checklist:/ { in_checklist = 0 }
-    in_checklist && $0 ~ "^  " field ":" {
-      print "  " field ": " value
-      next
-    }
-    /^last_updated:/ { print "last_updated: " ts; next }
-    { print }
-  ' "$status_file" > "$tmpfile"
+  cp "$status_file" "$tmpfile"
+  yq -i ".checklist.${field} = ${value} | .last_updated = \"${now}\"" "$tmpfile"
 
   mv "$tmpfile" "$status_file"
 }
@@ -522,27 +598,15 @@ set_confidence_block() {
   local tmpfile
   tmpfile=$(mktemp "$(dirname "$status_file")/.status.yaml.XXXXXX")
 
-  awk -v certain="$certain" \
-      -v confident="$confident" \
-      -v tentative="$tentative" \
-      -v unresolved="$unresolved" \
-      -v score="$score" \
-      -v ts="$now" '
-    /^confidence:/ {
-      in_block = 1
-      print "confidence:"
-      print "  certain: " certain
-      print "  confident: " confident
-      print "  tentative: " tentative
-      print "  unresolved: " unresolved
-      print "  score: " score
-      next
-    }
-    in_block && /^[^ ]/ { in_block = 0 }
-    in_block { next }
-    /^last_updated:/ { print "last_updated: " ts; next }
-    { print }
-  ' "$status_file" > "$tmpfile"
+  cp "$status_file" "$tmpfile"
+  yq -i "
+    .confidence.certain = ${certain} |
+    .confidence.confident = ${confident} |
+    .confidence.tentative = ${tentative} |
+    .confidence.unresolved = ${unresolved} |
+    .confidence.score = ${score} |
+    .last_updated = \"${now}\"
+  " "$tmpfile"
 
   mv "$tmpfile" "$status_file"
 }
@@ -648,10 +712,11 @@ validate_status_file() {
   local status_file="$1"
   local errors=0
 
-  # Check each stage has valid state
+  # Check each stage has valid state (via yq, skips stage_metrics)
+  local active_count=0
   for stage in $(get_all_stages); do
     local state
-    state=$(grep "^ *${stage}:" "$status_file" | sed 's/^ *[a-z]*: *//' || echo "")
+    state=$(yq ".progress.${stage} // \"\"" "$status_file")
 
     if [ -z "$state" ]; then
       echo "ERROR: Missing progress.$stage in $status_file" >&2
@@ -669,17 +734,72 @@ validate_status_file() {
       echo "ERROR: State '$state' not allowed for stage $stage" >&2
       ((errors++))
     fi
+
+    if [ "$state" = "active" ]; then
+      ((active_count++))
+    fi
   done
 
   # Check active count (0 or 1)
-  local active_count
-  active_count=$(grep '^ *[a-z]*: active$' "$status_file" | wc -l)
   if [ "$active_count" -gt 1 ]; then
     echo "ERROR: Multiple stages are active (expected 0 or 1)" >&2
     ((errors++))
   fi
 
   [ $errors -eq 0 ]
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# History Logging
+# ─────────────────────────────────────────────────────────────────────────────
+
+# log_command <change_dir> <cmd> [args]
+# Append a "command" event to <change_dir>/.history.jsonl.
+log_command() {
+  local change_dir="$1"
+  local cmd="$2"
+  local args="${3:-}"
+  local now
+  now=$(date -Iseconds)
+
+  local json="{\"ts\":\"${now}\",\"event\":\"command\",\"cmd\":\"${cmd}\""
+  if [ -n "$args" ]; then
+    json="${json},\"args\":\"${args}\""
+  fi
+  json="${json}}"
+
+  echo "$json" >> "${change_dir}/.history.jsonl"
+}
+
+# log_confidence <change_dir> <score> <delta> <trigger>
+# Append a "confidence" event to <change_dir>/.history.jsonl.
+log_confidence() {
+  local change_dir="$1"
+  local score="$2"
+  local delta="$3"
+  local trigger="$4"
+  local now
+  now=$(date -Iseconds)
+
+  echo "{\"ts\":\"${now}\",\"event\":\"confidence\",\"score\":${score},\"delta\":\"${delta}\",\"trigger\":\"${trigger}\"}" >> "${change_dir}/.history.jsonl"
+}
+
+# log_review <change_dir> <result> [rework]
+# Append a "review" event to <change_dir>/.history.jsonl.
+log_review() {
+  local change_dir="$1"
+  local result="$2"
+  local rework="${3:-}"
+  local now
+  now=$(date -Iseconds)
+
+  local json="{\"ts\":\"${now}\",\"event\":\"review\",\"result\":\"${result}\""
+  if [ -n "$rework" ]; then
+    json="${json},\"rework\":\"${rework}\""
+  fi
+  json="${json}}"
+
+  echo "$json" >> "${change_dir}/.history.jsonl"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -702,10 +822,15 @@ USAGE:
     stageman.sh --version   Show version
 
   Write commands:
-    stageman.sh set-state <file> <stage> <state>
-    stageman.sh transition <file> <from-stage> <to-stage>
+    stageman.sh set-state <file> <stage> <state> [driver]
+    stageman.sh transition <file> <from-stage> <to-stage> [driver]
     stageman.sh set-checklist <file> <field> <value>
     stageman.sh set-confidence <file> <certain> <confident> <tentative> <unresolved> <score>
+
+  History commands:
+    stageman.sh log-command <change_dir> <cmd> [args]
+    stageman.sh log-confidence <change_dir> <score> <delta> <trigger>
+    stageman.sh log-review <change_dir> <result> [rework]
 
 AVAILABLE FUNCTIONS:
   State queries:
@@ -838,18 +963,18 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
       run_tests
       ;;
     set-state)
-      if [ $# -ne 4 ]; then
-        echo "Usage: stageman.sh set-state <file> <stage> <state>" >&2
+      if [ $# -lt 4 ] || [ $# -gt 5 ]; then
+        echo "Usage: stageman.sh set-state <file> <stage> <state> [driver]" >&2
         exit 1
       fi
-      set_stage_state "$2" "$3" "$4"
+      set_stage_state "$2" "$3" "$4" "${5:-}"
       ;;
     transition)
-      if [ $# -ne 4 ]; then
-        echo "Usage: stageman.sh transition <file> <from-stage> <to-stage>" >&2
+      if [ $# -lt 4 ] || [ $# -gt 5 ]; then
+        echo "Usage: stageman.sh transition <file> <from-stage> <to-stage> [driver]" >&2
         exit 1
       fi
-      transition_stages "$2" "$3" "$4"
+      transition_stages "$2" "$3" "$4" "${5:-}"
       ;;
     set-checklist)
       if [ $# -ne 4 ]; then
@@ -864,6 +989,27 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
         exit 1
       fi
       set_confidence_block "$2" "$3" "$4" "$5" "$6" "$7"
+      ;;
+    log-command)
+      if [ $# -lt 3 ] || [ $# -gt 4 ]; then
+        echo "Usage: stageman.sh log-command <change_dir> <cmd> [args]" >&2
+        exit 1
+      fi
+      log_command "$2" "$3" "${4:-}"
+      ;;
+    log-confidence)
+      if [ $# -ne 5 ]; then
+        echo "Usage: stageman.sh log-confidence <change_dir> <score> <delta> <trigger>" >&2
+        exit 1
+      fi
+      log_confidence "$2" "$3" "$4" "$5"
+      ;;
+    log-review)
+      if [ $# -lt 3 ] || [ $# -gt 4 ]; then
+        echo "Usage: stageman.sh log-review <change_dir> <result> [rework]" >&2
+        exit 1
+      fi
+      log_review "$2" "$3" "${4:-}"
       ;;
     *)
       echo "Unknown option: $1" >&2

@@ -20,4 +20,5 @@ confidence:
   tentative: 0
   unresolved: 0
   score: 0.0
+stage_metrics: {}
 last_updated: {CREATED}

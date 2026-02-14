@@ -26,6 +26,7 @@ Run the entire Fab pipeline from planning through hydrate in a single invocation
 1. Run preflight per `_context.md` §2
 2. Verify `brief.md` exists. If not, STOP: `Brief not found. Run /fab-new first.`
 3. **Confidence gate**: Read `confidence.score`. If < 3.0 or missing → STOP: `Confidence is {score} of 5.0 (need >= 3.0). Run /fab-clarify to resolve, then retry.`
+4. Log invocation: `lib/stageman.sh log-command <change_dir> "fab-fff"`
 
 ---
 
@@ -37,7 +38,7 @@ Load per `_context.md` layers 1-3.
 
 ## Behavior
 
-> **Note**: All `.status.yaml` transitions in this skill use `lib/stageman.sh` CLI commands (`transition`, `set-state`, `set-checklist`, `set-confidence`) rather than direct file edits. See `/fab-continue` and `/fab-ff` for specific invocations per step.
+> **Note**: All `.status.yaml` transitions in this skill use `lib/stageman.sh` CLI commands (`transition`, `set-state`, `set-checklist`, `set-confidence`) rather than direct file edits. All `transition` calls pass `fab-fff` as the driver. All `set-state` calls pass `fab-fff` when setting state to `active`. See `/fab-continue` and `/fab-ff` for specific invocations per step.
 
 ### Resumability
 

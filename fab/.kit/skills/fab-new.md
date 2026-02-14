@@ -51,6 +51,8 @@ Create `fab/changes/{name}/`. Backlog ID collision → abort with redirect to ex
 
 Create from `fab/.kit/templates/status.yaml`. Fill `{NAME}` (folder name), `{CREATED}` (ISO 8601 with tz), `{CREATED_BY}` (`gh api user --jq .login` → `git config user.name` → `"unknown"`, silent fallback).
 
+After creation, run `lib/stageman.sh set-state <file> brief active fab-new` to activate brief stage with metrics tracking, then run `lib/stageman.sh log-command <change_dir> "fab-new" "<description>"`.
+
 ### Step 5: Generate `brief.md`
 
 Load context per `_context.md` Layer 1. Generate from `fab/.kit/templates/brief.md`:

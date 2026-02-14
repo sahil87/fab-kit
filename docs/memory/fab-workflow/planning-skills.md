@@ -17,6 +17,8 @@ The partial contains three procedures:
 - **Tasks Generation Procedure** — template loading, metadata, phased task breakdown, task format, execution order
 - **Checklist Generation Procedure** — template loading, category population, sequential CHK IDs, `.status.yaml` updates via `lib/stageman.sh set-checklist` CLI commands
 
+All pipeline skills (`/fab-new`, `/fab-continue`, `/fab-ff`, `/fab-fff`, `/fab-clarify`) call `lib/stageman.sh log-command` after preflight to record the invocation in `.history.jsonl`. All stage transitions pass a `driver` parameter identifying the invoking skill (e.g., `fab-continue`, `fab-ff`).
+
 Each skill retains its own orchestration logic (stage guards, question handling, auto-clarify, resumability). Only the generation mechanics are shared.
 
 ## Requirements
@@ -281,6 +283,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260214-r7k3-stageman-yq-metrics | 2026-02-14 | All skill prompts now call `log-command` after preflight and pass `driver` on all `set-state`/`transition` calls. `/fab-new` calls `set-state brief active fab-new`. `/fab-clarify` calls `log-command` after preflight. `/fab-ff` and `/fab-fff` pass driver on all transitions. Added shared generation partial note about `log-command` and driver conventions |
 | 260212-f9m3-enhance-srad-fuzzy | 2026-02-14 | SRAD framework updated to fuzzy 0–100 dimension scoring with weighted mean aggregation; `/fab-fff` confidence gate now uses dynamic per-type thresholds (bugfix=2.0, feature/refactor=3.0, architecture=4.0) via `calc-score.sh --check-gate`; optional Scores column in Assumptions tables for per-dimension data |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_stageman.sh` → `lib/stageman.sh` and `_calc-score.sh` → `lib/calc-score.sh` in all references; updated shared generation partial `lib/stageman.sh set-checklist` references |
 | 260214-w3r8-stageman-write-api | 2026-02-14 | Skill prompts (`fab-continue.md`, `fab-ff.md`, `fab-fff.md`, `_generation.md`) now reference `lib/stageman.sh` CLI commands for all `.status.yaml` mutations instead of ad-hoc editing |

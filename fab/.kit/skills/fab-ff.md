@@ -25,6 +25,7 @@ Fast-forward through the entire Fab pipeline: planning (spec, tasks) → apply �
 
 1. Run preflight per `_context.md` Section 2. Pass `<change-name>` if provided.
 2. Verify `brief.md` exists. If not, STOP: `Brief not found. Run /fab-new to create the brief first, then run /fab-ff.`
+3. Log invocation: `lib/stageman.sh log-command <change_dir> "fab-ff"`
 
 ---
 
@@ -69,7 +70,7 @@ Follow **Checklist Generation Procedure** (`_generation.md`).
 
 ### Step 5: Update `.status.yaml` (Planning Complete)
 
-Run `lib/stageman.sh transition <file> tasks apply`. Then set checklist fields via `lib/stageman.sh set-checklist <file> generated true`, `lib/stageman.sh set-checklist <file> total <count>`, `lib/stageman.sh set-checklist <file> completed 0`.
+Run `lib/stageman.sh transition <file> tasks apply fab-ff`. Then set checklist fields via `lib/stageman.sh set-checklist <file> generated true`, `lib/stageman.sh set-checklist <file> total <count>`, `lib/stageman.sh set-checklist <file> completed 0`.
 
 ### Step 6: Implementation
 
@@ -79,7 +80,7 @@ Execute apply behavior per `/fab-continue` — parse unchecked tasks, execute in
 
 **If task fails**: STOP with `Task {ID} failed: {reason}. Investigate and re-run /fab-ff.`
 
-On success: run `lib/stageman.sh transition <file> apply review`.
+On success: run `lib/stageman.sh transition <file> apply review fab-ff`.
 
 ### Step 7: Review
 
@@ -87,7 +88,7 @@ On success: run `lib/stageman.sh transition <file> apply review`.
 
 Execute review behavior per `/fab-continue` — validate tasks, checklist, tests, spec match, memory drift.
 
-**Pass**: run `lib/stageman.sh transition <file> review hydrate`. Proceed to Step 8.
+**Pass**: run `lib/stageman.sh transition <file> review hydrate fab-ff`. Run `lib/stageman.sh log-review <change_dir> "passed"`. Proceed to Step 8.
 
 **Fail**: Present interactive rework menu: fix code (uncheck tasks with `<!-- rework: reason -->`), revise tasks, or revise spec (reset via `/fab-continue spec`).
 

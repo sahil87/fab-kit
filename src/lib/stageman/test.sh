@@ -236,6 +236,7 @@ progress:
   apply: pending
   review: pending
   hydrate: pending
+stage_metrics: {}
 EOF
 
 validate_status_file "$TEST_DIR/valid.yaml" 2>&1
@@ -413,6 +414,7 @@ confidence:
   tentative: 1
   unresolved: 0
   score: 3.4
+stage_metrics: {}
 last_updated: 2026-01-01T00:00:00+00:00
 EOF
 }
@@ -422,23 +424,36 @@ EOF
 echo "  set_stage_state:"
 
 make_write_fixture
-set_stage_state "$TEST_DIR/write-status.yaml" "review" "active" 2>/dev/null
+set_stage_state "$TEST_DIR/write-status.yaml" "review" "active" "test-driver" 2>/dev/null
 assert_success "    valid state change succeeds"
-result=$(grep "^  review:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
+result=$(yq '.progress.review' "$TEST_DIR/write-status.yaml")
 assert_equal "active" "$result" "    review is now active"
 
 # Verify last_updated was refreshed
-ts=$(grep "^last_updated:" "$TEST_DIR/write-status.yaml" | sed 's/last_updated: //')
+ts=$(yq '.last_updated' "$TEST_DIR/write-status.yaml")
 assert_contains "T" "$ts" "    last_updated refreshed with ISO 8601 timestamp"
 
 # Other stages unchanged
-result=$(grep "^  apply:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
+result=$(yq '.progress.apply' "$TEST_DIR/write-status.yaml")
 assert_equal "active" "$result" "    unrelated stages unchanged"
+
+# active requires driver
+make_write_fixture
+before=$(cat "$TEST_DIR/write-status.yaml")
+set_stage_state "$TEST_DIR/write-status.yaml" "review" "active" 2>/dev/null
+assert_failure "    rejects active without driver"
+after=$(cat "$TEST_DIR/write-status.yaml")
+assert_equal "$before" "$after" "    file unchanged when driver missing"
+
+# done does not require driver
+make_write_fixture
+set_stage_state "$TEST_DIR/write-status.yaml" "apply" "done" 2>/dev/null
+assert_success "    done without driver succeeds"
 
 # Validation failures
 make_write_fixture
 before=$(cat "$TEST_DIR/write-status.yaml")
-set_stage_state "$TEST_DIR/write-status.yaml" "invalid_stage" "active" 2>/dev/null
+set_stage_state "$TEST_DIR/write-status.yaml" "invalid_stage" "active" "test" 2>/dev/null
 assert_failure "    rejects invalid stage"
 after=$(cat "$TEST_DIR/write-status.yaml")
 assert_equal "$before" "$after" "    file unchanged on invalid stage"
@@ -460,17 +475,25 @@ echo ""
 echo "  transition_stages:"
 
 make_write_fixture
-transition_stages "$TEST_DIR/write-status.yaml" "apply" "review" 2>/dev/null
+transition_stages "$TEST_DIR/write-status.yaml" "apply" "review" "test-driver" 2>/dev/null
 assert_success "    valid forward transition succeeds"
-from_state=$(grep "^  apply:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
-to_state=$(grep "^  review:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
+from_state=$(yq '.progress.apply' "$TEST_DIR/write-status.yaml")
+to_state=$(yq '.progress.review' "$TEST_DIR/write-status.yaml")
 assert_equal "done" "$from_state" "    from_stage set to done"
 assert_equal "active" "$to_state" "    to_stage set to active"
+
+# transition requires driver
+make_write_fixture
+before=$(cat "$TEST_DIR/write-status.yaml")
+transition_stages "$TEST_DIR/write-status.yaml" "apply" "review" 2>/dev/null
+assert_failure "    rejects transition without driver"
+after=$(cat "$TEST_DIR/write-status.yaml")
+assert_equal "$before" "$after" "    file unchanged without driver"
 
 # Non-adjacent stages
 make_write_fixture
 before=$(cat "$TEST_DIR/write-status.yaml")
-transition_stages "$TEST_DIR/write-status.yaml" "apply" "hydrate" 2>/dev/null
+transition_stages "$TEST_DIR/write-status.yaml" "apply" "hydrate" "test-driver" 2>/dev/null
 assert_failure "    rejects non-adjacent stages"
 after=$(cat "$TEST_DIR/write-status.yaml")
 assert_equal "$before" "$after" "    file unchanged on non-adjacent"
@@ -478,12 +501,12 @@ assert_equal "$before" "$after" "    file unchanged on non-adjacent"
 # from_stage not active
 make_write_fixture
 before=$(cat "$TEST_DIR/write-status.yaml")
-transition_stages "$TEST_DIR/write-status.yaml" "spec" "tasks" 2>/dev/null
+transition_stages "$TEST_DIR/write-status.yaml" "spec" "tasks" "test-driver" 2>/dev/null
 assert_failure "    rejects when from_stage is not active"
 after=$(cat "$TEST_DIR/write-status.yaml")
 assert_equal "$before" "$after" "    file unchanged when from_stage not active"
 
-transition_stages "/nonexistent/path/.status.yaml" "apply" "review" 2>/dev/null
+transition_stages "/nonexistent/path/.status.yaml" "apply" "review" "test-driver" 2>/dev/null
 assert_failure "    rejects nonexistent file"
 
 echo ""
@@ -583,6 +606,134 @@ assert_equal "$before" "$after" "    file unchanged on negative score"
 
 set_confidence_block "/nonexistent/path/.status.yaml" "10" "3" "1" "0" "4.1" 2>/dev/null
 assert_failure "    rejects nonexistent file"
+
+echo ""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage Metrics Tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+echo "Testing Stage Metrics..."
+echo ""
+
+# get_stage_metrics on empty block
+make_write_fixture
+metrics_output=$(get_stage_metrics "$TEST_DIR/write-status.yaml")
+assert_equal "" "$metrics_output" "get_stage_metrics returns empty on empty block"
+
+# set_stage_state active creates metrics
+make_write_fixture
+set_stage_state "$TEST_DIR/write-status.yaml" "review" "active" "fab-continue" 2>/dev/null
+driver=$(yq '.stage_metrics.review.driver' "$TEST_DIR/write-status.yaml")
+assert_equal "fab-continue" "$driver" "set_stage_state active sets driver metric"
+iter=$(yq '.stage_metrics.review.iterations' "$TEST_DIR/write-status.yaml")
+assert_equal "1" "$iter" "set_stage_state active sets iterations=1"
+started=$(yq '.stage_metrics.review.started_at' "$TEST_DIR/write-status.yaml")
+assert_contains "T" "$started" "set_stage_state active sets started_at"
+
+# set_stage_state done sets completed_at
+set_stage_state "$TEST_DIR/write-status.yaml" "review" "done" 2>/dev/null
+completed=$(yq '.stage_metrics.review.completed_at' "$TEST_DIR/write-status.yaml")
+assert_contains "T" "$completed" "set_stage_state done sets completed_at"
+# Other fields preserved
+driver=$(yq '.stage_metrics.review.driver' "$TEST_DIR/write-status.yaml")
+assert_equal "fab-continue" "$driver" "set_stage_state done preserves driver"
+
+# Rework: re-activation increments iterations
+set_stage_state "$TEST_DIR/write-status.yaml" "review" "active" "fab-continue" 2>/dev/null
+iter=$(yq '.stage_metrics.review.iterations' "$TEST_DIR/write-status.yaml")
+assert_equal "2" "$iter" "rework re-activation increments iterations to 2"
+
+# pending clears metrics entry
+make_write_fixture
+set_stage_state "$TEST_DIR/write-status.yaml" "apply" "done" 2>/dev/null
+set_stage_state "$TEST_DIR/write-status.yaml" "review" "active" "fab-continue" 2>/dev/null
+set_stage_state "$TEST_DIR/write-status.yaml" "review" "pending" 2>/dev/null
+result=$(yq '.stage_metrics.review' "$TEST_DIR/write-status.yaml")
+assert_equal "null" "$result" "pending clears stage metrics entry"
+
+# transition sets metrics for both stages
+make_write_fixture
+transition_stages "$TEST_DIR/write-status.yaml" "apply" "review" "fab-ff" 2>/dev/null
+from_completed=$(yq '.stage_metrics.apply.completed_at' "$TEST_DIR/write-status.yaml")
+assert_contains "T" "$from_completed" "transition sets from→done completed_at"
+to_driver=$(yq '.stage_metrics.review.driver' "$TEST_DIR/write-status.yaml")
+assert_equal "fab-ff" "$to_driver" "transition sets to→active driver"
+to_iter=$(yq '.stage_metrics.review.iterations' "$TEST_DIR/write-status.yaml")
+assert_equal "1" "$to_iter" "transition sets to→active iterations=1"
+
+# get_stage_metrics single stage
+metrics_single=$(get_stage_metrics "$TEST_DIR/write-status.yaml" "review")
+assert_contains "driver" "$metrics_single" "get_stage_metrics single stage returns fields"
+
+# get_stage_metrics all stages
+metrics_all=$(get_stage_metrics "$TEST_DIR/write-status.yaml")
+line_count=$(echo "$metrics_all" | wc -l | tr -d ' ')
+assert_equal "2" "$line_count" "get_stage_metrics all returns 2 entries"
+
+# get_stage_metrics with missing block entirely
+cat > "$TEST_DIR/no-metrics.yaml" <<EOF
+progress:
+  brief: active
+last_updated: now
+EOF
+no_metrics=$(get_stage_metrics "$TEST_DIR/no-metrics.yaml")
+assert_equal "" "$no_metrics" "get_stage_metrics handles missing block"
+
+# validate_status_file ignores stage_metrics
+make_write_fixture
+yq -i '.stage_metrics.brief = {"started_at": "now", "driver": "test", "iterations": 1}' "$TEST_DIR/write-status.yaml"
+validate_status_file "$TEST_DIR/write-status.yaml" 2>&1
+assert_success "validate_status_file ignores stage_metrics content"
+
+echo ""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# History Logging Tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+echo "Testing History Logging..."
+echo ""
+
+HISTORY_DIR=$(mktemp -d)
+
+log_command "$HISTORY_DIR" "fab-continue" ""
+line=$(head -1 "$HISTORY_DIR/.history.jsonl")
+echo "$line" | grep -q '"event":"command"' 2>/dev/null
+assert_success "log_command creates command event"
+echo "$line" | grep -q '"cmd":"fab-continue"' 2>/dev/null
+assert_success "log_command includes cmd field"
+echo "$line" | grep -q '"args"' 2>/dev/null
+assert_failure "log_command omits empty args"
+
+log_command "$HISTORY_DIR" "fab-ff" "spec"
+line=$(tail -1 "$HISTORY_DIR/.history.jsonl")
+echo "$line" | grep -q '"args":"spec"' 2>/dev/null
+assert_success "log_command includes non-empty args"
+
+log_confidence "$HISTORY_DIR" 4.1 "+4.1" "calc-score"
+line=$(tail -1 "$HISTORY_DIR/.history.jsonl")
+echo "$line" | grep -q '"event":"confidence"' 2>/dev/null
+assert_success "log_confidence creates confidence event"
+echo "$line" | grep -q '"score":4.1' 2>/dev/null
+assert_success "log_confidence includes score"
+
+log_review "$HISTORY_DIR" "passed"
+line=$(tail -1 "$HISTORY_DIR/.history.jsonl")
+echo "$line" | grep -q '"result":"passed"' 2>/dev/null
+assert_success "log_review creates passed event"
+echo "$line" | grep -q '"rework"' 2>/dev/null
+assert_failure "log_review omits empty rework"
+
+log_review "$HISTORY_DIR" "failed" "revise-tasks"
+line=$(tail -1 "$HISTORY_DIR/.history.jsonl")
+echo "$line" | grep -q '"rework":"revise-tasks"' 2>/dev/null
+assert_success "log_review includes rework when provided"
+
+event_count=$(wc -l < "$HISTORY_DIR/.history.jsonl" | tr -d ' ')
+assert_equal "5" "$event_count" "history file has 5 events"
+
+rm -rf "$HISTORY_DIR"
 
 echo ""
 
