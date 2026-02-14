@@ -33,7 +33,7 @@ flowchart TD
 
 ## 2. The Same Flow, With Fab
 
-Each transition is now a `/fab-*` command. Shortcuts (`/fab-ff`, `/fab-fff`) let you skip ahead when the change is straightforward.
+Each transition is now a `/fab-*` command. Shortcuts (`/fab-ff`, `/fab-fff`) run the full pipeline in one invocation. `/fab-archive` is a separate housekeeping step after the pipeline completes.
 
 ```mermaid
 flowchart TD
@@ -41,15 +41,20 @@ flowchart TD
     S -->|"/fab-continue"| T[tasks]
     T -->|"/fab-continue"| A[apply]
     A -->|"/fab-continue"| R[review]
-    R -->|"/fab-continue"| AR[archive]
+    R -->|"/fab-continue"| H[hydrate]
 
-    %% Shortcuts
-    B -->|"/fab-ff"| T
-    B -->|"/fab-fff"| AR
+    %% Post-pipeline housekeeping
+    H -->|"/fab-archive"| AR[archive]
 
-    %% Rework from review
-    R -.->|"fix code"| A
-    R -.->|"revise"| REWORK["spec / tasks"]
+    %% Shortcuts (full pipeline, from spec onward)
+    S -->|"/fab-ff
+    (interactive stops)"| H
+    S -->|"/fab-fff
+    (autonomous, confidence ≥ 3.0)"| H
+
+    %% Rework (reset to any earlier stage)
+    H -.->|"Revise anytime using
+    /fab-continue &lt;stage&gt;"| REWORK["spec / tasks / apply / review"]
 
     %% Styles
     style B fill:#e8f4f8,stroke:#2196F3
@@ -57,7 +62,8 @@ flowchart TD
     style T fill:#e8f4f8,stroke:#2196F3
     style A fill:#fff3e0,stroke:#FF9800
     style R fill:#fff3e0,stroke:#FF9800
-    style AR fill:#e8f5e9,stroke:#4CAF50
+    style H fill:#e8f5e9,stroke:#4CAF50
+    style AR fill:#f0f0f0,stroke:#999
 ```
 
 ---
@@ -73,37 +79,45 @@ flowchart TD
         HYDRATE["/docs-hydrate-memory"]
     end
 
-    subgraph planning ["Planning"]
+    subgraph creation ["Creation (once per change)"]
         NEW["/fab-new &lt;desc&gt;"]
+    end
 
-        subgraph continue ["fab-continue (one stage at a time)"]
+    subgraph change_exec ["Change Execution"]
+        SWITCH["/fab-switch &lt;change-id&gt;"]
+
+        CONT_S["/fab-continue → spec"]
+
+        subgraph execution ["Execution"]
             direction TB
-            CONT_S["/fab-continue → spec"]
             CONT_T["/fab-continue → tasks"]
-            CONT_S --> CONT_T
+            APPLY["/fab-continue → apply"]
+            REVIEW["/fab-continue → review"]
+            HYD["/fab-continue → hydrate"]
+            CONT_T --> APPLY
         end
 
-        FF["/fab-ff
-        (full pipeline, interactive stops)"]
-        FFF["/fab-fff
-        (full pipeline, autonomous)
-        confidence ≥ 3.0 required"]
+        subgraph auto ["Auto (full pipeline)"]
+            FF["/fab-ff
+            (interactive stops)"]
+            FFF["/fab-fff
+            (autonomous, confidence ≥ 3.0)"]
+        end
+
         CLARIFY["/fab-clarify
         (refine any planning artifact)"]
+
+        RESET["To revise any stage:
+        /fab-continue &lt;stage&gt;"]
     end
 
-    subgraph execution ["Execution (via /fab-continue)"]
-        APPLY["/fab-continue → apply"]
-        REVIEW["/fab-continue → review"]
-    end
-
-    subgraph completion ["Completion (via /fab-continue)"]
-        ARCHIVE["/fab-continue → archive"]
+    subgraph completion ["Completion"]
+        FAB_ARCHIVE["/fab-archive
+        (housekeeping)"]
     end
 
     subgraph utility ["Utility (anytime)"]
         STATUS["/fab-status"]
-        SWITCH["/fab-switch"]
         HELP["/fab-help"]
         BACKFILL["/docs-hydrate-specs
         (memory → specs gap detection)"]
@@ -114,39 +128,42 @@ flowchart TD
     INIT -->|"or skip hydrate"| NEW
     HYDRATE --> NEW
 
-    %% Brief fans out to three paths
-    NEW --> CONT_S
-    NEW --> FF
-    NEW --> FFF
+    %% Creation → Activation → Spec
+    NEW --> SWITCH
+    SWITCH --> CONT_S
 
-    %% Clarify connects to the continue block
-    CLARIFY -.->|"refine, then resume"| continue
+    %% Auto alternatives
+    CONT_S -.-> auto
+    execution -.-> auto
 
-    %% Into execution
-    CONT_T --> APPLY
+    %% Clarify connects to the execution block
+    CLARIFY -.->|"refine, then resume"| execution
 
-    %% Shortcuts run the full pipeline
-    FF -->|"spec → … → archive"| ARCHIVE
-    FFF -->|"gate → spec → … → archive"| ARCHIVE
+    %% Spec into execution
+    CONT_S --> CONT_T
 
-    %% Execution
+    %% Execution flow
     APPLY --> REVIEW
 
+    %% Shortcuts complete at hydrate
+    auto --> HYD
+
     %% Review outcomes
-    REVIEW -->|"pass"| ARCHIVE
-    REVIEW -.->|"fix code"| APPLY
-    REVIEW -.->|"revise tasks"| CONT_T
-    REVIEW -.->|"revise spec"| CONT_S
+    REVIEW -->|"pass"| HYD
+    HYD -->|"move to archive"| FAB_ARCHIVE
 
     %% Styles
     style setup fill:#f0f0f0,stroke:#999
-    style planning fill:#e8f4f8,stroke:#2196F3
-    style continue fill:#d6eaf8,stroke:#2196F3
-    style execution fill:#fff3e0,stroke:#FF9800
+    style creation fill:#f3e5f5,stroke:#9C27B0
+    style change_exec fill:#fff3e0,stroke:#FF9800
+    style execution fill:#d6eaf8,stroke:#2196F3
+    style auto fill:#d6eaf8,stroke:#2196F3
     style completion fill:#e8f5e9,stroke:#4CAF50
     style utility fill:#fce4ec,stroke:#e91e63
+    style FAB_ARCHIVE fill:#f0f0f0,stroke:#999
     style BACKFILL fill:#fff,stroke:#999,stroke-dasharray: 5 5
     style CLARIFY fill:#fff,stroke:#999,stroke-dasharray: 5 5
+    style RESET fill:#fff,stroke:#999,stroke-dasharray: 5 5
 ```
 
 ---
@@ -162,23 +179,21 @@ stateDiagram-v2
     [*] --> brief: /fab-new
 
     brief --> spec: /fab-continue
-    brief --> archive: /fab-ff (full pipeline, interactive)
-    brief --> archive: /fab-fff (full pipeline, autonomous, confidence ≥ 3.0)
-
-    state "/fab-clarify (refine spec or tasks in-place)" as clarify
 
     spec --> tasks: /fab-continue
+    spec --> hydrate: /fab-ff (interactive)
+    spec --> hydrate: /fab-fff (autonomous, confidence ≥ 3.0)
 
     tasks --> apply: /fab-continue
 
     apply --> review: /fab-continue
 
-    review --> archive: pass (all checks ✓)
-    review --> apply: fail → fix code
-    review --> tasks: fail → revise tasks
-    review --> spec: fail → revise spec
+    review --> hydrate: pass (all checks ✓)
+    review --> earlier_stage: /fab-continue &lt;stage&gt;
 
-    archive --> [*]: /fab-continue (hydrate & complete)
+    state "spec / tasks / apply" as earlier_stage
+
+    hydrate --> [*]: /fab-archive
 
     note right of brief
         Created by /fab-new
@@ -203,11 +218,9 @@ stateDiagram-v2
     classDef execution fill:#fff3e0,stroke:#FF9800,stroke-width:2px
     classDef completion fill:#e8f5e9,stroke:#4CAF50,stroke-width:2px
     classDef input fill:#f3e5f5,stroke:#9C27B0,stroke-width:2px
-    classDef refinement fill:#fff,stroke:#999,stroke-width:1px,stroke-dasharray: 5 5
 
     class brief input
     class spec,tasks planning
     class apply,review execution
-    class archive completion
-    class clarify refinement
+    class hydrate completion
 ```
