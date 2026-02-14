@@ -42,7 +42,9 @@ From there, the agent will inform you the following instructions.
 
 ## Updating
 
-To update `fab/.kit/` to the latest release:
+Upgrading is a two-step process: first update the engine (`fab/.kit/`), then apply any migrations to your project files.
+
+### Step 1: Upgrade the engine
 
 ```bash
 fab-upgrade.sh
@@ -57,10 +59,26 @@ This will:
 
 **Requires**: [gh CLI](https://cli.github.com/) installed and authenticated.
 
-### Check your version
+### Step 2: Apply migrations
+
+If `fab-upgrade.sh` reports that `fab/VERSION` is behind the engine version, run:
 
 ```bash
-cat fab/.kit/VERSION
+#> /fab-update
+```
+
+This will:
+1. Compare `fab/VERSION` (your project version) to `fab/.kit/VERSION` (engine version)
+2. Apply any migration scripts found in `fab/.kit/migrations/` sequentially
+3. Update `fab/VERSION` to match the engine
+
+Safe to re-run — it only applies migrations that haven't been applied yet.
+
+### Check your versions
+
+```bash
+cat fab/.kit/VERSION   # engine version
+cat fab/VERSION        # project version (should match after /fab-update)
 ```
 
 ## Creating a Release

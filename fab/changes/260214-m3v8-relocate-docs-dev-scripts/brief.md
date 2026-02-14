@@ -1,4 +1,4 @@
-# Brief: Reorganize docs, lib, and dev scripts
+# Brief: Relocate memory and specs to docs/
 
 **Change**: 260214-m3v8-relocate-docs-dev-scripts
 **Created**: 2026-02-14
@@ -6,29 +6,24 @@
 
 ## Origin
 
-> Move memory/ and specs/ from fab/ to docs/, and move fab-release.sh from fab/.kit/scripts/ to src/scripts/. See plan at .claude/plans/merry-roaming-anchor.md for full details.
+> Move memory/ and specs/ from fab/ to docs/. Split from a larger refactor — src/ reorganization is tracked separately.
 
 ## Why
 
-`fab/` currently conflates three concerns: shipped kit (`.kit/`), workflow state (changes, config, constitution), and reference documentation (memory, specs). Moving memory and specs to `docs/` makes `fab/` focused on workflow machinery and puts documentation at a standard, discoverable location. Separately, dev-only scripts like `fab-release.sh` ship in the tarball even though end users never need them.
+`fab/` currently conflates three concerns: shipped kit (`.kit/`), workflow state (changes, config, constitution), and reference documentation (memory, specs). Moving memory and specs to `docs/` makes `fab/` focused on workflow machinery and puts documentation at a standard, discoverable location.
 
 ## What Changes
 
 - Move `fab/memory/` to `docs/memory/`
 - Move `fab/specs/` to `docs/specs/`
-- Move `fab/.kit/scripts/fab-release.sh` to `src/scripts/fab-release.sh`
-- Move `src/{calc-score,preflight,resolve-change,stageman}/` to `src/lib/{calc-score,preflight,resolve-change,stageman}/`
-- Update `justfile` test glob from `src/*/test.sh` to `src/lib/*/test.sh`
-- Update symlinks inside each `src/lib/*/` directory (they point to `../../fab/.kit/scripts/` — depth changes to `../../../fab/.kit/scripts/`)
 - Update all path references across skills, templates, scaffold, scripts, config, constitution, README, and memory/specs files themselves
-- Add `src/scripts` to the repo `.envrc` PATH (not the scaffold `.envrc` that ships)
+- Update `_init_scaffold.sh` to create `docs/` structure instead of `fab/memory/` and `fab/specs/`
 - Add a migration entry for existing users
 - Archived changes (68 folders) are frozen records and will NOT be updated
 
 ## Affected Memory
 
 - `fab-workflow/kit-architecture`: (modify) directory structure changes — docs/ is a new top-level directory
-- `fab-workflow/distribution`: (modify) tarball no longer includes fab-release.sh, docs live outside fab/
 - `fab-workflow/init`: (modify) _init_scaffold.sh creates docs/ instead of fab/memory/ and fab/specs/
 - `fab-workflow/context-loading`: (modify) context loading paths change from fab/memory/ to docs/memory/
 - `fab-workflow/specs-index`: (modify) path references update
@@ -43,9 +38,7 @@
 - **Scaffold**: _init_scaffold.sh must create `docs/` structure instead of `fab/memory/` and `fab/specs/`
 - **Cross-links preserved**: Both directories move together under `docs/`, so relative links between memory and specs (e.g., `../memory/index.md`) remain valid
 - **Constitution**: Principle II and VI reference `fab/memory/` and `fab/specs/` explicitly
-- **Justfile**: test glob changes from `src/*/test.sh` to `src/lib/*/test.sh`
-- **Symlinks**: each `src/lib/*/` script symlink needs depth adjustment (one extra `../`)
 
 ## Open Questions
 
-None — all decisions were resolved during planning discussion (docs/ over doc/, src/scripts/ for dev scripts, batch scripts stay in .kit/scripts/).
+None — all decisions were resolved during planning discussion (docs/ over doc/).
