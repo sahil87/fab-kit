@@ -15,8 +15,8 @@
 - Creates `fab/config.yaml` (project configuration)
 - Creates `fab/constitution.md` (project principles)
 - Creates `fab/VERSION` (local project version — via `_init_scaffold.sh`)
-- Creates `fab/memory/index.md` (memory index skeleton)
-- Creates `fab/specs/index.md` (specifications index skeleton — pre-implementation, human-curated)
+- Creates `docs/memory/index.md` (memory index skeleton)
+- Creates `docs/specs/index.md` (specifications index skeleton — pre-implementation, human-curated)
 - Creates `fab/changes/` directory
 - Creates skill symlinks via `_init_scaffold.sh` glob pattern
 - Creates `.gitignore` entries
@@ -122,6 +122,7 @@ Each subcommand operates independently — they can be invoked directly without 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Updated `_init_scaffold.sh` delegation to create `docs/memory/` and `docs/specs/` instead of `fab/memory/` and `fab/specs/` |
 | — | 2026-02-14 | Absorbed init-family.md — subcommand architecture, delegation details, and design decisions (memory reorganization) |
 | 260213-k7m2-kit-version-migrations | 2026-02-14 | Added `fab/VERSION` to bootstrap steps and delegation table; updated step numbering (1e = VERSION, 1f = changes, 1g = symlinks, 1h = gitignore) |
 | 260213-3njv-scaffold-dir | 2026-02-13 | Updated delegation table: `.envrc` → `scaffold/envrc`, `.gitignore` → `scaffold/gitignore-entries`, skeleton files → scaffold sources |
@@ -131,5 +132,5 @@ Each subcommand operates independently — they can be invoked directly without 
 | 260212-emcb-clarify-fab-setup | 2026-02-12 | Added Delegation Pattern section documenting responsibility split between `/fab-init` and `_init_scaffold.sh` |
 | 260210-h7r3-kit-distribution-update | 2026-02-10 | Added Bootstrap Alternative section with curl one-liner as alternative to manual `cp -r` |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
-| 260207-bb1q-add-specs-index | 2026-02-07 | Added `fab/specs/index.md` creation as step 1d in bootstrap sequence |
+| 260207-bb1q-add-specs-index | 2026-02-07 | Added `docs/specs/index.md` creation as step 1d in bootstrap sequence |
 | 260207-q7m3-separate-hydrate-smart-context | 2026-02-07 | Simplified to structural bootstrap only — removed Phase 2 source hydration, added argument redirect |

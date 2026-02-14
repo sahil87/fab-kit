@@ -72,7 +72,7 @@ When switching occurs (via flag or detection), the output includes the `Branch:`
 
 #### Context
 
-Loads: config, constitution, `fab/memory/index.md` (to understand the existing memory landscape).
+Loads: config, constitution, `docs/memory/index.md` (to understand the existing memory landscape).
 
 ### `/fab-continue [<change-name>] [<stage>]`
 
@@ -104,7 +104,7 @@ Reset is primarily used after review identifies issues upstream.
 
 #### Context (varies by target stage)
 
-- **Spec**: config, constitution, `brief.md`, target memory file(s) from `fab/memory/`
+- **Spec**: config, constitution, `brief.md`, target memory file(s) from `docs/memory/`
 - **Tasks**: above + completed `spec.md`
 
 ### `/fab-ff [<change-name>]` (Fast Forward — Full Pipeline)
@@ -170,7 +170,7 @@ Each stage uses the same behavior as its standalone invocation. If planning bail
 
 #### Context
 
-Loads all planning context upfront: config, constitution, `brief.md`, target memory file(s) from `fab/memory/`.
+Loads all planning context upfront: config, constitution, `brief.md`, target memory file(s) from `docs/memory/`.
 
 ### `/fab-clarify [<change-name>]`
 
@@ -206,7 +206,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 #### Context (varies by current stage)
 
-- **Spec**: config, constitution, `brief.md`, target memory file(s) from `fab/memory/`
+- **Spec**: config, constitution, `brief.md`, target memory file(s) from `docs/memory/`
 - **Tasks**: above + `spec.md`, `tasks.md`
 
 ## Design Decisions

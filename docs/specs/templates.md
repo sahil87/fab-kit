@@ -85,7 +85,7 @@ last_updated: {ISO_8601_DATETIME}
 - `{domain}/{file-name}`: {brief description}
 
 ### Modified Files
-<!-- Existing memory files whose requirements are changing. Reference by path in fab/memory/.
+<!-- Existing memory files whose requirements are changing. Reference by path in docs/memory/.
      Only list if spec-level behavior changes — implementation-only changes don't need spec updates. -->
 - `{domain}/{file-name}`: {what requirement is changing}
 
@@ -117,7 +117,7 @@ last_updated: {ISO_8601_DATETIME}
 
 **Change**: {YYMMDD-XXXX-slug}
 **Created**: {DATE}
-**Affected memory**: `fab/memory/{domain}/{file-name}.md`
+**Affected memory**: `docs/memory/{domain}/{file-name}.md`
 
 <!--
   CHANGE SPECIFICATION
@@ -174,7 +174,7 @@ last_updated: {ISO_8601_DATETIME}
 
 **Change**: 260115-a7k2-add-oauth
 **Created**: 2026-01-15
-**Affected memory**: `fab/memory/auth/authentication.md`
+**Affected memory**: `docs/memory/auth/authentication.md`
 
 ## Auth: OAuth2 Support
 
@@ -393,14 +393,14 @@ When `/fab-continue` or `/fab-ff` creates `tasks.md`, it also generates `checkli
 
 ---
 
-## Memory File Format (`fab/memory/`)
+## Memory File Format (`docs/memory/`)
 
 Memory files are the **source of truth** for what the system does and why it works the way it does. They contain requirements (from `spec.md`), organized hierarchically with index files for navigation.
 
 ### Directory Structure
 
 ```
-fab/memory/
+docs/memory/
 ├── index.md                    # Top-level index: lists all domains
 ├── auth/
 │   ├── index.md                # Domain index: lists all files in auth/
@@ -415,7 +415,7 @@ fab/memory/
     └── registration.md
 ```
 
-### Top-Level Index (`fab/memory/index.md`)
+### Top-Level Index (`docs/memory/index.md`)
 
 ```markdown
 # Memory Index
@@ -429,7 +429,7 @@ fab/memory/
 | [users](users/index.md) | User management | registration |
 ```
 
-### Domain Index (`fab/memory/{domain}/index.md`)
+### Domain Index (`docs/memory/{domain}/index.md`)
 
 ```markdown
 # {Domain} Documentation
@@ -440,7 +440,7 @@ fab/memory/
 | [authorization](authorization.md) | Roles, permissions, access control | {DATE} |
 ```
 
-### Individual File (`fab/memory/{domain}/{name}.md`)
+### Individual File (`docs/memory/{domain}/{name}.md`)
 
 ```markdown
 # {File Name}
@@ -495,7 +495,7 @@ fab/memory/
 A fresh project starts with a single index file. The first `/fab-continue` (archive) populates domains and files:
 
 ```
-fab/memory/
+docs/memory/
 └── index.md
 ```
 

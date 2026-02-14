@@ -139,7 +139,7 @@ Starts from first unchecked item. Checked items assumed complete.
 
 1. Final validation: all tasks and checklist `[x]`
 2. Concurrent change check: warn on overlap with other changes referencing same memory paths
-3. Hydrate `fab/memory/`: create new files/domains, update existing (Requirements, Design Decisions, Changelog), update indexes
+3. Hydrate `docs/memory/`: create new files/domains, update existing (Requirements, Design Decisions, Changelog), update indexes
 4. Run `_stageman.sh set-state <file> hydrate done`
 
 ---
@@ -174,5 +174,5 @@ Starts from first unchecked item. Checked items assumed complete.
 |----------|-------|
 | Idempotent? | Yes — planning regenerates, apply resumes, review re-validates |
 | Modifies source code? | Yes — during apply |
-| Modifies `fab/memory/`? | Yes — during hydrate |
+| Modifies `docs/memory/`? | Yes — during hydrate |
 | Moves change folder / clears `fab/current`? | No — use `/fab-archive` |

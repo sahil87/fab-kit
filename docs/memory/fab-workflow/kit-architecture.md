@@ -44,8 +44,8 @@ fab/.kit/
 ├── scaffold/               # Bootstrap content (read by _init_scaffold.sh)
 │   ├── envrc               # .envrc symlink target
 │   ├── gitignore-entries   # .gitignore entries (one per line)
-│   ├── memory-index.md     # Initial fab/memory/index.md content
-│   └── specs-index.md      # Initial fab/specs/index.md content
+│   ├── memory-index.md     # Initial docs/memory/index.md content
+│   └── specs-index.md      # Initial docs/specs/index.md content
 ├── schemas/                # Workflow schema
 │   └── workflow.yaml       # Canonical stage/state definitions
 └── scripts/                # Shell utilities
@@ -67,7 +67,7 @@ fab/.kit/
 
 #### `_init_scaffold.sh`
 
-The structural bootstrap script. Creates directories, symlinks, `memory/index.md`, `fab/VERSION`, and `.gitignore` entries. Reads bootstrap content from `scaffold/` files (index templates, envrc, gitignore entries) rather than hardcoding them. Creates `fab/VERSION` using the dual-version model: new projects get the engine version, existing projects (detected via `config.yaml` presence) get `0.1.0` base version, existing `fab/VERSION` is preserved. It is the single source of truth for structural setup. `/fab-init` delegates to it and adds the interactive parts (config, constitution).
+The structural bootstrap script. Creates directories, symlinks, `docs/memory/index.md`, `docs/specs/index.md`, `fab/VERSION`, and `.gitignore` entries. Reads bootstrap content from `scaffold/` files (index templates, envrc, gitignore entries) rather than hardcoding them. Creates `fab/VERSION` using the dual-version model: new projects get the engine version, existing projects (detected via `config.yaml` presence) get `0.1.0` base version, existing `fab/VERSION` is preserved. It is the single source of truth for structural setup. `/fab-init` delegates to it and adds the interactive parts (config, constitution).
 
 #### `_stageman.sh`
 
@@ -196,7 +196,7 @@ Run `fab/.kit/scripts/fab-upgrade.sh` to update to the latest release. The scrip
 
 Symlinks in `.claude/skills/`, `.opencode/commands/`, and `.agents/skills/` automatically resolve to the new files after the update.
 
-**Preserved** (lives outside `.kit/`): `config.yaml`, `constitution.md`, `memory/`, `specs/`, `changes/`, `current`, `VERSION`
+**Preserved** (lives outside `.kit/`): `config.yaml`, `constitution.md`, `docs/memory/`, `docs/specs/`, `changes/`, `current`, `VERSION`
 **Replaced** (lives inside `.kit/`): `templates/`, `skills/`, `scripts/`, `migrations/`, `VERSION`
 
 ### Portability
@@ -209,7 +209,7 @@ A monorepo is one Fab project. Place a single `fab/` at the repository root — 
 
 **Why one `fab/`**:
 - Changes naturally span packages — one change folder, one spec
-- Memory is domain-based, not package-based — `fab/memory/auth/` describes auth regardless of which package implements it
+- Memory is domain-based, not package-based — `docs/memory/auth/` describes auth regardless of which package implements it
 - One developer, one change at a time — `fab/current` points to a single active change
 - Simplicity — multiple `fab/` directories means multiple constitutions, memory trees, and symlink conflicts
 
@@ -244,6 +244,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Relocated `memory/` and `specs/` from `fab/` to `docs/`; updated `_init_scaffold.sh` to create `docs/memory/` and `docs/specs/`; updated preserved files list; added migration file `0.2.0-to-0.3.0.md` |
 | 260213-k7m2-kit-version-migrations | 2026-02-14 | Added `fab/.kit/migrations/` directory and `fab-update.md` skill to directory listing; updated version tracking to dual-version model; updated `_init_scaffold.sh` description (fab/VERSION creation); updated `fab-upgrade.sh` (drift reminder) and `fab-release.sh` (migration chain validation) descriptions; updated preserved/replaced lists |
 | 260214-w3r8-stageman-write-api | 2026-02-14 | Added write functions + CLI to `_stageman.sh` (`set_stage_state`, `transition_stages`, `set_checklist_field`, `set_confidence_block`); refactored `_calc-score.sh` to source `_stageman.sh` and delegate writes to `set_confidence_block` |
 | 260214-eikh-consistency-fixes | 2026-02-14 | Added internal skills (`internal-consistency-check.md`, `internal-retrospect.md`, `internal-skill-optimize.md`) to `.kit/skills/` directory listing |
@@ -257,7 +258,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 | 260213-v8r3-remove-dead-fab-help-agent | 2026-02-13 | Removed `.claude/agents/fab-help.md` from agent files listing — agent was never spawned; skill + script pair covers all usage |
 | 260212-4tw0-migrate-scripts-stageman | 2026-02-12 | Migrated fab-status.sh and _preflight.sh to source stageman.sh; added stageman.sh, _preflight.sh, and schemas/ to directory listing |
 | 260212-ipoe-checklist-folder-location | 2026-02-12 | Template listing already shows `checklist.md` — no structural change needed; changelog entry for traceability |
-| 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated directory listing: brief.md replaces proposal.md, plan.md removed, fab/specs/ replaces fab/specs/ |
+| 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated directory listing: brief.md replaces proposal.md, plan.md removed, docs/specs/ replaces docs/specs/ |
 | 260210-h7r3-kit-distribution-update | 2026-02-10 | Added `fab-upgrade.sh` and `fab-release.sh` script descriptions, bootstrap one-liner (Option A), atomic update mechanism, version-based update flow |
 | 260210-m3k7-multi-agent-support | 2026-02-10 | Added OpenCode commands and Codex skills symlink creation to `_init_scaffold.sh`; documented all three agent integration paths |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |

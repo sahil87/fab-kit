@@ -11,7 +11,7 @@ description: "Hydrate memory from external sources or generate from codebase ana
 
 ## Purpose
 
-Hydrate `fab/memory/` from external sources or from codebase analysis.
+Hydrate `docs/memory/` from external sources or from codebase analysis.
 
 - **Ingest mode** (URLs, `.md` files): Fetches/reads sources, identifies domains and topics, creates or merges memory files, maintains indexes.
 - **Generate mode** (folders, no arguments): Scans codebase for undocumented areas, presents interactive gap report, generates memory files.
@@ -22,10 +22,10 @@ Mode is determined automatically by argument type. Safe to run repeatedly — co
 
 ## Pre-flight Check
 
-1. `fab/memory/` directory must exist
-2. `fab/memory/index.md` must exist and be readable
+1. `docs/memory/` directory must exist
+2. `docs/memory/index.md` must exist and be readable
 
-**If either fails, STOP**: `fab/memory/ not found. Run /fab-init first to create the memory directory.` Do NOT create these.
+**If either fails, STOP**: `docs/memory/ not found. Run /fab-init first to create the memory directory.` Do NOT create these.
 
 ---
 
@@ -60,20 +60,20 @@ Report: `Fetched: {title or filename} ({source type})`
 
 ### Step 2: Analyze and Map to Domains
 
-For each source: identify **domains** (logical topic areas) and **topics** within each. Map to target files: `fab/memory/{domain}/{topic}.md`.
+For each source: identify **domains** (logical topic areas) and **topics** within each. Map to target files: `docs/memory/{domain}/{topic}.md`.
 
 ### Step 3: Create or Merge Memory Files
 
 For each topic:
-1. Create `fab/memory/{domain}/` if needed
-2. Create `fab/memory/{domain}/index.md` if needed (domain index with table header)
+1. Create `docs/memory/{domain}/` if needed
+2. Create `docs/memory/{domain}/index.md` if needed (domain index with table header)
 3. If target file doesn't exist → create with Overview, Requirements, Design Decisions, Changelog sections
 4. If target file exists → **merge** new content, preserve existing/manually-added content
 
 ### Step 4: Update Indexes
 
-1. Update `fab/memory/{domain}/index.md` — add rows for new files, update "Last Updated" for modified files
-2. Update `fab/memory/index.md` — add rows for new domains, update file-list for modified domains
+1. Update `docs/memory/{domain}/index.md` — add rows for new files, update "Last Updated" for modified files
+2. Update `docs/memory/index.md` — add rows for new domains, update file-list for modified domains
 3. Use relative links, never remove existing entries
 
 ---
@@ -86,7 +86,7 @@ Scan target scope (project root if no args, specified folders otherwise). Exclud
 
 Detect gaps in five categories:
 
-1. **Modules**: Top-level source dirs without matching `fab/memory/` domains
+1. **Modules**: Top-level source dirs without matching `docs/memory/` domains
 2. **APIs**: Route definitions, endpoint handlers, CLI commands, exported interfaces not in memory
 3. **Patterns**: Recurring structural patterns (3+ occurrences) without memory coverage
 4. **Configuration**: Config files and env var references not documented
@@ -96,7 +96,7 @@ Cross-reference against existing memory — exclude already-covered areas.
 
 ### Step 2: Gap Report & Interactive Scoping
 
-**Zero gaps**: Output `No memory gaps found. fab/memory/ is up to date.` and stop.
+**Zero gaps**: Output `No memory gaps found. docs/memory/ is up to date.` and stop.
 
 **Gap report format** (grouped by category with priorities):
 
@@ -152,9 +152,9 @@ Canonical format (ingest mode):
 ```
 Hydrating memory from {N} source(s)...
 Fetched: {title} ({source type})
-Created: fab/memory/{domain}/{topic}.md
-Updated: fab/memory/{domain}/index.md
-Updated: fab/memory/index.md
+Created: docs/memory/{domain}/{topic}.md
+Updated: docs/memory/{domain}/index.md
+Updated: docs/memory/index.md
 Hydration complete — {N} files created, {M} updated.
 ```
 
@@ -172,7 +172,7 @@ Safe to re-run. New files created on first run, merged on subsequent. Existing c
 
 | Condition | Action |
 |-----------|--------|
-| `fab/memory/` or `fab/memory/index.md` missing | Abort with init guidance |
+| `docs/memory/` or `docs/memory/index.md` missing | Abort with init guidance |
 | Mixed-mode arguments | Reject with explanation |
 | Folder path doesn't exist | Abort: "Folder not found: {path}" |
 | Source URL unreachable / content unreadable | Report error, continue with remaining |

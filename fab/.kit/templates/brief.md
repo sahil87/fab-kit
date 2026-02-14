@@ -22,7 +22,7 @@
 ## Affected Memory
 
 <!-- Which memory files will be created, modified, or removed by this change.
-     Use kebab-case identifiers matching fab/memory/ paths. Mark each with (new), (modify), or (remove).
+     Use kebab-case identifiers matching docs/memory/ paths. Mark each with (new), (modify), or (remove).
      Only list if spec-level behavior changes — implementation-only changes don't need memory updates. -->
 
 - `{domain}/{file-name}`: ({new|modify|remove}) {brief description}

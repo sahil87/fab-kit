@@ -67,7 +67,7 @@ Execute review behavior. **If fails**: STOP immediately (no interactive rework m
 
 *(Skip if `progress.hydrate` is `done`.)*
 
-Execute hydrate behavior — validate review passed, hydrate into `fab/memory/`, set `hydrate: done`.
+Execute hydrate behavior — validate review passed, hydrate into `docs/memory/`, set `hydrate: done`.
 
 ---
 

@@ -354,7 +354,7 @@ fab/current          # Local working state — each developer has their own acti
 ```
 
 **What to commit** (shared with team):
-- `fab/config.yaml`, `fab/constitution.md`, `fab/memory/`, `fab/.kit/` — project configuration and memory
+- `fab/config.yaml`, `fab/constitution.md`, `docs/memory/`, `fab/.kit/` — project configuration and memory
 - `fab/changes/` — change artifacts (briefs, specs, tasks)
 
 **What to ignore** (local state):
@@ -404,7 +404,7 @@ Same pattern — symlinks from the agent's convention directory into `fab/.kit/s
 1. User obtains .kit/  →  cp -r /path/to/fab-kit fab/.kit
 2. User runs fab/.kit/scripts/_init_scaffold.sh  →  creates directories, symlinks, memory/index.md, .gitignore entry
 3. User runs /fab-init  →  generates config.yaml, constitution.md (structural bootstrap)
-4. User optionally runs /docs-hydrate-memory  →  ingests external sources into fab/memory/
+4. User optionally runs /docs-hydrate-memory  →  ingests external sources into docs/memory/
 5. User runs /fab-new  →  first change is created
 ```
 
@@ -412,7 +412,7 @@ Step 1 is manual. Step 2 is a shell script. Steps 3–5 are skill-driven.
 
 `fab/.kit/scripts/_init_scaffold.sh` handles all structural setup (directories, symlinks, `.gitignore`) and is the single source of truth for that structure. `/fab-init` delegates to it (step 1e) and adds the interactive parts (config, constitution). `fab/.kit/scripts/fab-help.sh` mirrors the skill catalog — it must be updated when skills are added or removed.
 
-**Re-running `/fab-init`**: Init is idempotent — safe to call at any time. On subsequent runs it verifies structure and repairs broken symlinks. To ingest external documentation into `fab/memory/`, use `/docs-hydrate-memory` — see [Skills Reference](skills.md#docs-hydrate-memory-sources) for details.
+**Re-running `/fab-init`**: Init is idempotent — safe to call at any time. On subsequent runs it verifies structure and repairs broken symlinks. To ingest external documentation into `docs/memory/`, use `/docs-hydrate-memory` — see [Skills Reference](skills.md#docs-hydrate-memory-sources) for details.
 
 ### How to Obtain `.kit/`
 
@@ -454,7 +454,7 @@ This keeps the workflow entirely prompt-driven after the one-time directory copy
 **What's preserved** (lives outside `.kit/`, never touched by updates):
 - `fab/config.yaml` — project configuration
 - `fab/constitution.md` — project principles and constraints
-- `fab/memory/` — memory files (post-implementation truth)
+- `docs/memory/` — memory files (post-implementation truth)
 - `fab/changes/` — active and archived changes
 - `fab/current` — active change pointer
 
@@ -474,7 +474,7 @@ A monorepo is one Fab project. Place a single `fab/` at the repository root — 
 ### Why One `fab/`
 
 - **Changes naturally span packages.** "Add user avatars" touches the API, the frontend, and shared types. One change folder, one spec — that's exactly how Fab works.
-- **Memory is domain-based, not package-based.** `fab/memory/auth/` describes authentication regardless of which package implements it. This is already the right abstraction for cross-cutting concerns.
+- **Memory is domain-based, not package-based.** `docs/memory/auth/` describes authentication regardless of which package implements it. This is already the right abstraction for cross-cutting concerns.
 - **One developer, one change at a time.** `fab/current` points to a single active change. In practice, AI-assisted development is sequential — you finish one change before starting the next.
 - **Simplicity.** Multiple `fab/` directories means multiple constitutions, multiple memory trees, symlink conflicts in `.claude/skills/`, and no natural home for cross-package changes.
 
@@ -509,7 +509,7 @@ Skills loading context will naturally scope to the relevant section based on wha
 |---------|--------|
 | `fab/current` (single pointer) | Fine — one change at a time |
 | `fab/changes/` (flat) | Fine — changes reference affected packages in their spec |
-| `fab/memory/` (domain-based) | Already monorepo-friendly |
+| `docs/memory/` (domain-based) | Already monorepo-friendly |
 | `fab/constitution.md` | Shared principles apply repo-wide; use sections for package-specific conventions if needed |
 | `.claude/skills/` | One skill set per repo — correct for a single `fab/` |
 | Git branches | Repo-wide by nature — matches single `fab/` model |

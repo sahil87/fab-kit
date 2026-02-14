@@ -11,7 +11,7 @@ description: "Identify structural gaps between memory and specs, propose concise
 
 ## Purpose
 
-Detect structural gaps between `fab/memory/` and `fab/specs/` — topics memory covers but specs don't — and propose concise additions back to specs. Top 3 gaps ranked by impact, with exact markdown previews and per-gap user confirmation.
+Detect structural gaps between `docs/memory/` and `docs/specs/` — topics memory covers but specs don't — and propose concise additions back to specs. Top 3 gaps ranked by impact, with exact markdown previews and per-gap user confirmation.
 
 This is the reverse of hydrate (specs → memory): hydrate-specs flows memory → specs.
 
@@ -25,14 +25,14 @@ This is the reverse of hydrate (specs → memory): hydrate-specs flows memory �
 
 ## Pre-flight
 
-1. `fab/memory/index.md` must exist. If not: STOP with `fab/memory/index.md not found. Run /fab-init first.`
-2. `fab/specs/index.md` must exist. If not: STOP with `fab/specs/index.md not found. Run /fab-init first.`
+1. `docs/memory/index.md` must exist. If not: STOP with `docs/memory/index.md not found. Run /fab-init first.`
+2. `docs/specs/index.md` must exist. If not: STOP with `docs/specs/index.md not found. Run /fab-init first.`
 
 ---
 
 ## Context Loading
 
-Loads `fab/memory/index.md`, `fab/specs/index.md`, all memory files (or scoped domain), and all spec files. Does NOT require `fab/current`, config, or constitution.
+Loads `docs/memory/index.md`, `docs/specs/index.md`, all memory files (or scoped domain), and all spec files. Does NOT require `fab/current`, config, or constitution.
 
 ---
 
@@ -86,10 +86,10 @@ Add this to `{spec_file}`? (yes / no / done)
 
 | Condition | Action |
 |-----------|--------|
-| `fab/memory/index.md` missing | Abort with init guidance |
-| `fab/specs/index.md` missing | Abort with init guidance |
+| `docs/memory/index.md` missing | Abort with init guidance |
+| `docs/specs/index.md` missing | Abort with init guidance |
 | No memory domains found | "No memory domains found. Run /docs-hydrate-memory first." |
-| No spec files found | "No spec files found in fab/specs/index.md." |
+| No spec files found | "No spec files found in docs/specs/index.md." |
 | Domain argument unmatched | "Domain '{name}' not found. Available: {list}" |
 | Spec file write fails | Report error, continue to next gap |
 

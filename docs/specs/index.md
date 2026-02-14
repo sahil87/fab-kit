@@ -4,7 +4,7 @@
 > design intent, high-level decisions, and the "why" behind features. Specs are human-curated,
 > flat in structure, and deliberately size-controlled for quick reading.
 >
-> Contrast with [`fab/memory/index.md`](../memory/index.md): memory files are *post-implementation* —
+> Contrast with [`docs/memory/index.md`](../memory/index.md): memory files are *post-implementation* —
 > what actually happened. Memory is the authoritative source of truth for system behavior,
 > maintained by `/fab-continue` (archive) hydration.
 >

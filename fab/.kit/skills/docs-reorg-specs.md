@@ -9,14 +9,14 @@ description: "Analyze spec files for themes and suggest reorganization. Read-onl
 
 ## Purpose
 
-Read all spec files in `fab/specs/`, identify themes (up to 10), and propose a reorganization plan. Read-only by default — files only moved/rewritten with explicit user approval.
+Read all spec files in `docs/specs/`, identify themes (up to 10), and propose a reorganization plan. Read-only by default — files only moved/rewritten with explicit user approval.
 
 ---
 
 ## Pre-flight
 
-1. `fab/specs/index.md` must exist and be readable
-2. `fab/specs/` must contain at least one `.md` file besides `index.md`
+1. `docs/specs/index.md` must exist and be readable
+2. `docs/specs/` must contain at least one `.md` file besides `index.md`
 
 If either fails, STOP with appropriate message.
 
@@ -24,7 +24,7 @@ If either fails, STOP with appropriate message.
 
 ## Context Loading
 
-Loads `fab/specs/index.md` and every `.md` file in `fab/specs/`. Does NOT require `fab/current`, config, or constitution.
+Loads `docs/specs/index.md` and every `.md` file in `docs/specs/`. Does NOT require `fab/current`, config, or constitution.
 
 ---
 
@@ -32,7 +32,7 @@ Loads `fab/specs/index.md` and every `.md` file in `fab/specs/`. Does NOT requir
 
 ### Step 1: Read All Spec Files
 
-Read `fab/specs/index.md` and every `.md` file. For each: extract `##`/`###` headings, brief section summaries, and approximate line count.
+Read `docs/specs/index.md` and every `.md` file. For each: extract `##`/`###` headings, brief section summaries, and approximate line count.
 
 ### Step 2: Identify Themes (up to 10)
 
@@ -72,7 +72,7 @@ Constraints: prefer fewer files, preserve existing names, keep files under ~300 
 
 Options: **Apply all**, **Cherry-pick** (select specific migrations), **Skip** (keep analysis only).
 
-On approval: execute migrations, rewrite `fab/specs/index.md`, verify no headings lost, present change summary.
+On approval: execute migrations, rewrite `docs/specs/index.md`, verify no headings lost, present change summary.
 
 ---
 
@@ -98,7 +98,7 @@ If no changes needed: `Current structure is well-organized — no reorganization
 
 | Condition | Action |
 |-----------|--------|
-| `fab/specs/index.md` missing | Abort: "Run /fab-init first." |
+| `docs/specs/index.md` missing | Abort: "Run /fab-init first." |
 | No spec files besides index | Abort: "Nothing to reorganize." |
 | File write fails during apply | Report error, roll back that migration, continue |
 | Content verification fails | Warn, show missing heading, ask to proceed |

@@ -62,7 +62,7 @@ The general rule: **artifacts at and after the re-entry point are regenerated or
 
 #### Context
 
-Loads: config, constitution, `specs/index.md`, `tasks.md`, `checklist.md`, `spec.md`, target memory file(s) from `fab/memory/`, relevant source code (files touched by the change).
+Loads: config, constitution, `specs/index.md`, `tasks.md`, `checklist.md`, `spec.md`, target memory file(s) from `docs/memory/`, relevant source code (files touched by the change).
 
 ### Hydrate Behavior (via `/fab-continue`)
 
@@ -72,7 +72,7 @@ Loads: config, constitution, `specs/index.md`, `tasks.md`, `checklist.md`, `spec
 
 1. **Final validation** — review MUST have passed (all tasks `[x]`, all checklist items `[x]` including N/A items)
 2. **Concurrent change check** — scan `fab/changes/` for other active changes whose specs reference the same memory files. If found, warn: "Change {name} also modifies {file}. After this hydrate, that change's spec was written against a now-stale base. Re-review with `/fab-continue` after switching to it."
-3. **Hydrate into `fab/memory/`**:
+3. **Hydrate into `docs/memory/`**:
    - From `spec.md` → integrate new/changed requirements and scenarios into the Requirements section. Remove requirements the spec explicitly deprecates. Extract durable design decisions into Design Decisions section
    - Compare against existing memory file to determine what's new vs changed vs removed — no explicit delta markers needed
    - Minimize edits to unchanged sections to prevent drift
@@ -84,7 +84,7 @@ Hydration modifies memory files in-place. If the merge goes wrong, the only reco
 
 #### Context
 
-Loads: config, constitution, `specs/index.md`, `spec.md`, `brief.md`, target memory file(s) from `fab/memory/`, `fab/memory/index.md` and relevant domain indexes.
+Loads: config, constitution, `specs/index.md`, `spec.md`, `brief.md`, target memory file(s) from `docs/memory/`, `docs/memory/index.md` and relevant domain indexes.
 
 ### `/fab-archive` (Standalone Skill)
 
@@ -202,7 +202,7 @@ Steps execute 1→3 for safety. If interrupted, re-run detects folder already in
 | 260212-bk1n-rework-fab-ff-archive | 2026-02-12 | Added note that `/fab-ff` and `/fab-fff` invoke execution skills internally as part of their full-pipeline behavior |
 | 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated stage references from proposal/specs to brief/spec |
 | 260211-endg-add-created-by-field | 2026-02-11 | `/fab-status` now displays `Created by:` line when `created_by` field is present in `.status.yaml` |
-| 260210-7wxx-add-specs-index-context-loading | 2026-02-10 | Added `fab/specs/index.md` to context loading for all three execution skills, aligning with the always-load protocol in `_context.md` |
+| 260210-7wxx-add-specs-index-context-loading | 2026-02-10 | Added `docs/specs/index.md` to context loading for all three execution skills, aligning with the always-load protocol in `_context.md` |
 | 260209-r4w8-archive-index-longer-slugs | 2026-02-09 | Added archive index maintenance step to `/fab-archive` — creates/updates `fab/changes/archive/index.md` with searchable change summaries |
 | 260208-k3m7-add-fab-fff | 2026-02-08 | Removed auto-guess soft gate from `/fab-apply` — replaced by confidence gating on `/fab-fff` |
 | 260207-09sj-autonomy-framework | 2026-02-08 | Added auto-guess soft gate to `/fab-apply` (subsequently removed by 260208-k3m7-add-fab-fff) |

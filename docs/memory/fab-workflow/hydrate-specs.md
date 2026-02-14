@@ -4,7 +4,7 @@
 
 ## Overview
 
-`/docs-hydrate-specs` detects structural gaps between `fab/memory/` and `fab/specs/` — topics that memory covers but specs don't mention at all — and proposes concise additions back to specs with interactive per-gap confirmation.
+`/docs-hydrate-specs` detects structural gaps between `docs/memory/` and `docs/specs/` — topics that memory covers but specs don't mention at all — and proposes concise additions back to specs with interactive per-gap confirmation.
 
 ## Requirements
 
@@ -22,11 +22,11 @@ Each gap SHALL show the exact markdown that would be inserted, the source memory
 
 ### Requirement: No Active Change Required
 
-The skill operates on project-level `fab/memory/` and `fab/specs/` directories. It does not require `fab/current`, does not modify `.status.yaml`, and does not create git branches.
+The skill operates on project-level `docs/memory/` and `docs/specs/` directories. It does not require `fab/current`, does not modify `.status.yaml`, and does not create git branches.
 
 ### Requirement: Pre-flight Checks
 
-The skill SHALL verify `fab/memory/index.md` and `fab/specs/index.md` exist before proceeding. Missing indexes abort with guidance to run `/fab-init`.
+The skill SHALL verify `docs/memory/index.md` and `docs/specs/index.md` exist before proceeding. Missing indexes abort with guidance to run `/fab-init`.
 
 ## Design Decisions
 
@@ -46,5 +46,6 @@ The skill SHALL verify `fab/memory/index.md` and `fab/specs/index.md` exist befo
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Updated path references from `fab/memory/` and `fab/specs/` to `docs/memory/` and `docs/specs/` |
 | 260209-h3v7-fab-backfill | 2026-02-09 | Initial creation — `/docs-hydrate-specs` skill for detecting and hydrating structural gaps from memory to specs |
 | 260212-akhp-rename-fab-backfill | 2026-02-12 | Renamed from `/fab-backfill` to `/docs-hydrate-specs` for semantic consistency with `/fab-hydrate` |

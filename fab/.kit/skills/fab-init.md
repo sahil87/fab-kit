@@ -61,9 +61,9 @@ If exists: report "config.yaml already exists — skipping".
 If missing: execute **Constitution Behavior** (below) in create mode.
 If exists: report "constitution.md already exists — skipping".
 
-#### 1c. `fab/memory/index.md`
+#### 1c. `docs/memory/index.md`
 
-If missing, create `fab/memory/` directory and `fab/memory/index.md`:
+If missing, create `docs/memory/` directory and `docs/memory/index.md`:
 
 ```markdown
 # Memory Index
@@ -77,9 +77,9 @@ If missing, create `fab/memory/` directory and `fab/memory/index.md`:
 
 If exists: skip.
 
-#### 1d. `fab/specs/index.md`
+#### 1d. `docs/specs/index.md`
 
-If missing, create `fab/specs/` directory and `fab/specs/index.md`:
+If missing, create `docs/specs/` directory and `docs/specs/index.md`:
 
 ```markdown
 # Specifications Index
@@ -88,7 +88,7 @@ If missing, create `fab/specs/` directory and `fab/specs/index.md`:
 > intent, high-level decisions, and the "why" behind features. Specs are human-curated,
 > flat in structure, and deliberately size-controlled for quick reading.
 >
-> Contrast with [`fab/memory/index.md`](../memory/index.md): memory files are *post-implementation* —
+> Contrast with [`docs/memory/index.md`](../memory/index.md): memory files are *post-implementation* —
 > what actually happened. Memory files are the authoritative source of truth for system behavior,
 > maintained by `/fab-continue` (hydrate) and `/fab-archive`.
 >
@@ -148,8 +148,8 @@ Found fab/.kit/ (v{VERSION}). Initializing project...
 Created: fab/config.yaml
 Created: fab/constitution.md
 Created: fab/VERSION ({version})
-Created: fab/memory/index.md
-Created: fab/specs/index.md
+Created: docs/memory/index.md
+Created: docs/specs/index.md
 Created: fab/changes/
 Created: 11 symlinks in .claude/skills/
 Updated: .gitignore (added fab/current)
