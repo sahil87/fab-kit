@@ -14,6 +14,7 @@
 
 - Creates `fab/config.yaml` (project configuration)
 - Creates `fab/constitution.md` (project principles)
+- Creates `fab/VERSION` (local project version — via `_init_scaffold.sh`)
 - Creates `fab/memory/index.md` (memory index skeleton)
 - Creates `fab/specs/index.md` (specifications index skeleton — pre-implementation, human-curated)
 - Creates `fab/changes/` directory
@@ -58,6 +59,7 @@ For post-initialization management of config and constitution files, see the [in
 | Responsibility | Owner | Notes |
 |---|---|---|
 | Directories (`changes/`, `memory/`, `specs/`) | `_init_scaffold.sh` | Non-interactive, scriptable |
+| `fab/VERSION` | `_init_scaffold.sh` | New project → engine version; existing project (has `config.yaml`) → `0.1.0`; existing file → preserved |
 | Skeleton files (`memory/index.md`, `specs/index.md`) | `_init_scaffold.sh` | Copies from `scaffold/memory-index.md` and `scaffold/specs-index.md`; idempotent — skips if file exists |
 | Skill symlinks (Claude Code, OpenCode, Codex) | `_init_scaffold.sh` | Discovers skills via glob pattern |
 | `.envrc` symlink | `_init_scaffold.sh` | Links to `fab/.kit/scaffold/envrc` |
@@ -65,7 +67,7 @@ For post-initialization management of config and constitution files, see the [in
 | `config.yaml` | `/fab-init config` (delegated by `/fab-init`) | Single source of truth for config generation and updates |
 | `constitution.md` | `/fab-init constitution` (delegated by `/fab-init`) | Single source of truth for constitution generation and amendments |
 
-`/fab-init` invokes `_init_scaffold.sh` as step 1f of its bootstrap sequence. Steps 1c–1e in `/fab-init` have idempotent guards so they gracefully skip artifacts already created by `_init_scaffold.sh`.
+`/fab-init` invokes `_init_scaffold.sh` as step 1g of its bootstrap sequence. Steps 1c–1f in `/fab-init` have idempotent guards so they gracefully skip artifacts already created by `_init_scaffold.sh`.
 
 **Bootstrap path** (without `/fab-init`): After downloading `fab/.kit/` via curl or `cp -r`, running `_init_scaffold.sh` alone creates a complete structural scaffold. `/fab-init` is only needed to generate `config.yaml` and `constitution.md`.
 
@@ -94,6 +96,7 @@ For post-initialization management of config and constitution files, see the [in
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-k7m2-kit-version-migrations | 2026-02-14 | Added `fab/VERSION` to bootstrap steps and delegation table; updated step numbering (1e = VERSION, 1f = changes, 1g = symlinks, 1h = gitignore) |
 | 260213-3njv-scaffold-dir | 2026-02-13 | Updated delegation table: `.envrc` → `scaffold/envrc`, `.gitignore` → `scaffold/gitignore-entries`, skeleton files → scaffold sources |
 | 260213-3tyk-merge-fab-init-subcommands | 2026-02-13 | Consolidated init family into subcommands — `/fab-init config`, `/fab-init constitution`, `/fab-init validate` are now subcommands of `/fab-init` |
 | 260213-iq2l-rename-setup-scripts | 2026-02-13 | Renamed `fab-setup.sh` → `_init_scaffold.sh` in delegation pattern and all references |

@@ -101,14 +101,27 @@ If missing, create `fab/specs/` directory and `fab/specs/index.md`:
 
 If exists: skip.
 
-#### 1e. `fab/changes/`
+#### 1e. `fab/VERSION`
+
+Handled by `_init_scaffold.sh` (step 1f). The scaffold script creates `fab/VERSION` with version logic based on project state:
+
+- **New project** (no `fab/config.yaml`): copies `fab/.kit/VERSION` value (engine version)
+- **Existing project** (has `fab/config.yaml`, no `fab/VERSION`): writes `0.1.0` (base version, run `/fab-update` to migrate)
+- **Already exists**: preserves existing `fab/VERSION` — no overwrite
+
+On bootstrap output:
+- New project: `Created: fab/VERSION ({engine_version})`
+- Existing project: `Created: fab/VERSION (0.1.0 — existing project, run /fab-update to migrate)`
+- Re-run: `fab/VERSION` reported as part of scaffold output (no modification)
+
+#### 1f. `fab/changes/`
 
 If missing: create `fab/changes/`, `fab/changes/archive/`, and `fab/changes/.gitkeep`.
 If exists: ensure `fab/changes/archive/` exists, then skip.
 
-#### 1f. `.claude/skills/` Symlinks
+#### 1g. `.claude/skills/` Symlinks
 
-Run `fab/.kit/scripts/_init_scaffold.sh` to create or repair all skill symlinks and directories. The script discovers skills by globbing `fab/.kit/skills/fab-*.md` and creates:
+Run `fab/.kit/scripts/_init_scaffold.sh` to create or repair all skill symlinks, directories, and `fab/VERSION`. The script discovers skills by globbing `fab/.kit/skills/fab-*.md` and creates:
 
 ```
 .claude/skills/fab-{name}/SKILL.md → ../../../fab/.kit/skills/fab-{name}.md
@@ -122,7 +135,7 @@ If the script cannot execute, perform the equivalent manually:
 
 Report how many symlinks were created, repaired, or already valid.
 
-#### 1g. `.gitignore` — append `fab/current`
+#### 1h. `.gitignore` — append `fab/current`
 
 Read `.gitignore` (create if missing). If `fab/current` is not listed, append it.
 
@@ -134,6 +147,7 @@ Found fab/.kit/ (v{VERSION}). Initializing project...
 {constitution.md generation}
 Created: fab/config.yaml
 Created: fab/constitution.md
+Created: fab/VERSION ({version})
 Created: fab/memory/index.md
 Created: fab/specs/index.md
 Created: fab/changes/

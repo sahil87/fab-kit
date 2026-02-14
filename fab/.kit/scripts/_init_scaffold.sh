@@ -81,6 +81,22 @@ if [ ! -f "$fab_dir/changes/.gitkeep" ]; then
   touch "$fab_dir/changes/.gitkeep"
 fi
 
+# ── 1b. fab/VERSION ──────────────────────────────────────────────────
+# Track the local project's kit version. New projects get the engine version;
+# existing projects (have config.yaml) get the base version 0.1.0 so
+# /fab-update runs all needed migrations.
+if [ -f "$fab_dir/VERSION" ]; then
+  echo "fab/VERSION: OK ($(cat "$fab_dir/VERSION"))"
+elif [ -f "$fab_dir/config.yaml" ]; then
+  # Existing project: set base version so /fab-update applies migrations
+  echo "0.1.0" > "$fab_dir/VERSION"
+  echo "Created: fab/VERSION (0.1.0 — existing project, run /fab-update to migrate)"
+else
+  # New project: match engine version
+  cp "$kit_dir/VERSION" "$fab_dir/VERSION"
+  echo "Created: fab/VERSION ($version)"
+fi
+
 # ── 2. .envrc ─────────────────────────────────────────────────────
 envrc_link="$repo_root/.envrc"
 envrc_target="fab/.kit/scaffold/envrc"

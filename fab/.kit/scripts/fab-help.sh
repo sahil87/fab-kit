@@ -45,6 +45,7 @@ COMMANDS
     /fab-archive            Archive change — move to archive, mark backlog done
 
   Maintenance
+    /fab-update                   Apply version migrations after a kit upgrade
     /docs-hydrate-specs [domain]  Identify memory→spec gaps and propose additions
     /docs-reorg-specs             Analyze spec files for themes and suggest reorganization
     /docs-reorg-memory            Analyze memory files for themes and suggest reorganization

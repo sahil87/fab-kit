@@ -38,13 +38,15 @@ The existing `cp -r` distribution method SHALL continue to work. The bootstrap o
 `fab/.kit/scripts/fab-upgrade.sh` SHALL download the latest `kit.tar.gz` from GitHub Releases, extract it to replace the current `fab/.kit/` contents, display the version change, and re-run `_init_scaffold.sh` to repair symlinks.
 
 **Scenarios**:
-- Update to a newer version — replaces `.kit/` contents, displays version change (e.g., "0.1.0 → 0.2.0"), re-runs `_init_scaffold.sh`, preserves all files outside `.kit/`
+- Update to a newer version — replaces `.kit/` contents, displays version change (e.g., "0.1.0 → 0.2.0"), re-runs `_init_scaffold.sh`, checks for version drift and prints `/fab-update` reminder if needed, preserves all files outside `.kit/`
 - Already up to date — informs user, no files modified
 - No network access — exits non-zero with error message, existing `.kit/` unchanged
+- `fab/VERSION` missing after upgrade — prints guidance to run `/fab-init` then `/fab-update`
+- `fab/VERSION` behind new engine version — prints reminder to run `/fab-update` to apply migrations
 
 #### Update Preserves Project Files
 
-`fab-upgrade.sh` MUST NOT modify any files outside of `fab/.kit/`. Preserved: `fab/config.yaml`, `fab/constitution.md`, `fab/memory/`, `fab/specs/`, `fab/changes/`, `fab/current`.
+`fab-upgrade.sh` MUST NOT modify any files outside of `fab/.kit/`. Preserved: `fab/config.yaml`, `fab/constitution.md`, `fab/VERSION`, `fab/memory/`, `fab/specs/`, `fab/changes/`, `fab/current`.
 
 #### gh CLI as Primary Download Tool
 
@@ -71,7 +73,7 @@ After extracting the new `.kit/` contents, `fab-upgrade.sh` SHALL re-run `_init_
 
 The script accepts an optional argument specifying the bump type: `patch` (default), `minor`, or `major`.
 
-The script infers the target GitHub repository from `git remote get-url origin`. It does not hardcode any repository name, ensuring it works for forks and renamed repos.
+After bumping VERSION, the script validates the migration chain: warns if no migration file targets the new version (reminder for release authors), and warns if overlapping migration ranges are detected. These are warnings only — they do not block the release.
 
 **Scenarios**:
 - Default patch release — bumps patch version (e.g., "0.1.0" → "0.1.1"), creates `kit.tar.gz`, commits VERSION bump, creates GitHub Release
@@ -101,6 +103,7 @@ The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its rol
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-k7m2-kit-version-migrations | 2026-02-14 | Added version drift scenarios to update section; added `fab/VERSION` to preserved files list; added migration chain validation to release section |
 | 260213-3njv-scaffold-dir | 2026-02-13 | Updated bootstrap description to mention `_init_scaffold.sh` reads from `scaffold/` files for index templates, envrc, and gitignore entries |
 | 260213-iq2l-rename-setup-scripts | 2026-02-13 | Renamed script references: `fab-setup.sh` → `_init_scaffold.sh`, `fab-update.sh` → `fab-upgrade.sh` |
 | 260212-emcb-clarify-fab-setup | 2026-02-12 | Updated bootstrap description to include `fab/specs/` directory and `design/index.md` in `_init_scaffold.sh` output |

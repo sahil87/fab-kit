@@ -29,10 +29,13 @@ fab/.kit/
 │   ├── fab-clarify.md
 │   ├── fab-switch.md
 │   ├── fab-status.md
+│   ├── fab-update.md
 │   ├── fab-help.md
 │   ├── internal-consistency-check.md
 │   ├── internal-retrospect.md
 │   └── internal-skill-optimize.md
+├── migrations/             # Version migration instructions (markdown)
+│   └── .gitkeep            # Ships even if empty
 ├── templates/              # Artifact templates
 │   ├── brief.md
 │   ├── spec.md
@@ -64,7 +67,7 @@ fab/.kit/
 
 #### `_init_scaffold.sh`
 
-The structural bootstrap script. Creates directories, symlinks, `memory/index.md`, and `.gitignore` entries. Reads bootstrap content from `scaffold/` files (index templates, envrc, gitignore entries) rather than hardcoding them. It is the single source of truth for structural setup. `/fab-init` delegates to it and adds the interactive parts (config, constitution).
+The structural bootstrap script. Creates directories, symlinks, `memory/index.md`, `fab/VERSION`, and `.gitignore` entries. Reads bootstrap content from `scaffold/` files (index templates, envrc, gitignore entries) rather than hardcoding them. Creates `fab/VERSION` using the dual-version model: new projects get the engine version, existing projects (detected via `config.yaml` presence) get `0.1.0` base version, existing `fab/VERSION` is preserved. It is the single source of truth for structural setup. `/fab-init` delegates to it and adds the interactive parts (config, constitution).
 
 #### `_stageman.sh`
 
@@ -90,11 +93,11 @@ Prints the Fab Kit help overview and skill catalog. MUST be updated when skills 
 
 #### `fab-upgrade.sh`
 
-Downloads the latest `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/` (extract to temp dir, verify, swap), displays the version change, and re-runs `_init_scaffold.sh` to repair symlinks. Requires `gh` CLI. Preserves all project files outside `.kit/`. Handles errors: gh CLI missing, network failure, extraction verification failure, already-up-to-date.
+Downloads the latest `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/` (extract to temp dir, verify, swap), displays the version change, and re-runs `_init_scaffold.sh` to repair symlinks. After upgrade, checks for version drift between `fab/VERSION` and the new `fab/.kit/VERSION` — prints a reminder to run `/fab-update` if behind, or init guidance if `fab/VERSION` is missing. Requires `gh` CLI. Preserves all project files outside `.kit/`. Handles errors: gh CLI missing, network failure, extraction verification failure, already-up-to-date.
 
 #### `fab-release.sh`
 
-Packages `fab/.kit/` into `kit.tar.gz`, bumps VERSION (accepts `[patch|minor|major]` argument, defaults to `patch`), commits the version change, and creates a GitHub Release with the archive as an asset. Infers the target repo from `git remote get-url origin`. Requires clean working tree and `gh` CLI.
+Packages `fab/.kit/` into `kit.tar.gz`, bumps VERSION (accepts `[patch|minor|major]` argument, defaults to `patch`), validates the migration chain (warns if no migration targets the new version, warns on overlapping migration ranges), commits the version change, and creates a GitHub Release with the archive as an asset. Requires clean working tree and `gh` CLI.
 
 #### `fab-update-claude-settings.sh`
 
@@ -176,21 +179,23 @@ Step 1 is a shell script. Steps 2-4 are skill-driven.
 
 `/fab-init` is itself a skill defined inside `.kit/`. It cannot run until `.kit/` exists. Rather than solving this chicken-and-egg with a bootstrap script (which would violate "no system installation"), Fab splits setup into obtaining `.kit/` (via curl or cp) followed by skill-driven generation.
 
-### Version Tracking
+### Version Tracking (Dual-Version Model)
 
-`.kit/` SHALL contain a `VERSION` file with a semver string. This enables:
-- `/fab-status` to display the engine version
-- Users to check whether they need to update
-- The update process to compare versions before replacing
+Two VERSION files track the relationship between the installed engine and the project's file format:
+
+- **`fab/.kit/VERSION`** (engine version) — ships inside `.kit/`, replaced on each `fab-upgrade.sh` run. Enables version display, update comparison, and migration targeting.
+- **`fab/VERSION`** (local project version) — lives outside `.kit/`, NOT replaced on upgrades. Tracks the version the project's `config.yaml`, `.status.yaml`, and conventions were written for. Created by `_init_scaffold.sh`.
+
+Both contain a bare semver string (`MAJOR.MINOR.PATCH`). See [migrations.md](migrations.md) for the full migration system.
 
 ### Updating `.kit/`
 
-Run `fab/.kit/scripts/fab-upgrade.sh` to update to the latest release. The script downloads `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/`, and re-runs `_init_scaffold.sh` to repair symlinks. Requires the `gh` CLI.
+Run `fab/.kit/scripts/fab-upgrade.sh` to update to the latest release. The script downloads `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/`, and re-runs `_init_scaffold.sh` to repair symlinks. After the upgrade, if `fab/VERSION` is behind the new engine version, the script prints a reminder to run `/fab-update` to apply migrations. Requires the `gh` CLI.
 
 Symlinks in `.claude/skills/`, `.opencode/commands/`, and `.agents/skills/` automatically resolve to the new files after the update.
 
-**Preserved** (lives outside `.kit/`): `config.yaml`, `constitution.md`, `memory/`, `specs/`, `changes/`, `current`
-**Replaced** (lives inside `.kit/`): `templates/`, `skills/`, `scripts/`, `VERSION`
+**Preserved** (lives outside `.kit/`): `config.yaml`, `constitution.md`, `memory/`, `specs/`, `changes/`, `current`, `VERSION`
+**Replaced** (lives inside `.kit/`): `templates/`, `skills/`, `scripts/`, `migrations/`, `VERSION`
 
 ### Portability
 
@@ -237,6 +242,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-k7m2-kit-version-migrations | 2026-02-14 | Added `fab/.kit/migrations/` directory and `fab-update.md` skill to directory listing; updated version tracking to dual-version model; updated `_init_scaffold.sh` description (fab/VERSION creation); updated `fab-upgrade.sh` (drift reminder) and `fab-release.sh` (migration chain validation) descriptions; updated preserved/replaced lists |
 | 260214-eikh-consistency-fixes | 2026-02-14 | Added internal skills (`internal-consistency-check.md`, `internal-retrospect.md`, `internal-skill-optimize.md`) to `.kit/skills/` directory listing |
 | 260214-mgh5-calc-score-dev-setup | 2026-02-14 | Added `src/calc-score/` dev folder for `_calc-score.sh` — symlink, README, smoke test, comprehensive test suite (30 tests) |
 | 260214-r8kv-docs-skills-housekeeping | 2026-02-14 | Removed `fab-status.sh` from scripts listing. Renamed doc skills: `fab-hydrate.md` → `docs-hydrate-memory.md`, `fab-hydrate-specs.md` → `docs-hydrate-specs.md`, `fab-reorg-specs.md` → `docs-reorg-specs.md`. Added `docs-reorg-memory.md` to skills listing. |

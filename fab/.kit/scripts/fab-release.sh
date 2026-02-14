@@ -72,6 +72,50 @@ echo "Bumping version: $current_version → $new_version ($bump_type)"
 # Write new version
 echo "$new_version" > "$kit_dir/VERSION"
 
+# ── Migration chain validation ───────────────────────────────────────
+
+migrations_dir="$kit_dir/migrations"
+if [ -d "$migrations_dir" ]; then
+  # Check if any migration targets the new version
+  has_target=false
+  migration_files=()
+  for mfile in "$migrations_dir"/*.md; do
+    [ -f "$mfile" ] || continue
+    mbase="$(basename "$mfile" .md)"
+    migration_files+=("$mbase")
+    # Extract TO version (everything after "-to-")
+    mto="${mbase##*-to-}"
+    if [ "$mto" = "$new_version" ]; then
+      has_target=true
+    fi
+  done
+
+  if [ ${#migration_files[@]} -gt 0 ] && [ "$has_target" = false ]; then
+    echo "Note: No migration targets version $new_version. If this release changes project-level files, consider adding a migration."
+  fi
+
+  # Check for overlapping ranges
+  overlap_found=false
+  for ((i=0; i<${#migration_files[@]}; i++)); do
+    a="${migration_files[$i]}"
+    a_from="${a%%-to-*}"
+    a_to="${a##*-to-}"
+    for ((j=i+1; j<${#migration_files[@]}; j++)); do
+      b="${migration_files[$j]}"
+      b_from="${b%%-to-*}"
+      b_to="${b##*-to-}"
+      # Overlap check using string comparison (works for dotted semver)
+      # A overlaps B if A.FROM < B.TO AND B.FROM < A.TO
+      # Use sort -V for proper semver comparison
+      if [ "$(printf '%s\n%s' "$a_from" "$b_to" | sort -V | head -1)" = "$a_from" ] && [ "$a_from" != "$b_to" ] && \
+         [ "$(printf '%s\n%s' "$b_from" "$a_to" | sort -V | head -1)" = "$b_from" ] && [ "$b_from" != "$a_to" ]; then
+        echo "Warning: Overlapping migration ranges detected: ${a}.md and ${b}.md — this will cause /fab-update to error."
+        overlap_found=true
+      fi
+    done
+  done
+fi
+
 # ── Package kit.tar.gz ───────────────────────────────────────────────
 
 echo "Packaging kit.tar.gz..."

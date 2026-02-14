@@ -96,5 +96,18 @@ echo ""
 echo "Running _init_scaffold.sh to repair symlinks..."
 bash "$kit_dir/scripts/_init_scaffold.sh"
 
+# ── Version drift check ──────────────────────────────────────────────
+
+if [ -f "$fab_dir/VERSION" ]; then
+  local_version=$(cat "$fab_dir/VERSION" | tr -d '[:space:]')
+  if [ "$local_version" != "$new_version" ]; then
+    echo ""
+    echo "Note: fab/VERSION ($local_version) is behind engine ($new_version). Run /fab-update to apply migrations."
+  fi
+else
+  echo ""
+  echo "Note: fab/VERSION not found. Run /fab-init to create it, then /fab-update for migrations."
+fi
+
 echo ""
 echo "Update complete: $current_version → $new_version"

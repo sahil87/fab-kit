@@ -2,21 +2,21 @@ name: 260213-k7m2-kit-version-migrations
 created: 2026-02-13T00:00:00+00:00
 created_by: sahil-weaver
 progress:
-  brief: active
-  spec: pending
-  tasks: pending
-  apply: pending
-  review: pending
-  hydrate: pending
+  brief: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
 checklist:
-  generated: false
+  generated: true
   path: checklist.md
-  completed: 0
-  total: 0
+  completed: 34
+  total: 34
 confidence:
   certain: 5
-  confident: 2
+  confident: 6
   tentative: 1
   unresolved: 0
-  score: 3.4
-last_updated: 2026-02-13T00:00:00+00:00
+  score: 2.2
+last_updated: 2026-02-14T00:00:00+00:00
