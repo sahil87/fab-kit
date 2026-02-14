@@ -79,7 +79,8 @@ Change name resolution library. Sourced by `_preflight.sh`. Provides `resolve_ch
 
 #### `_calc-score.sh`
 
-Internal library script for confidence score computation. Scans `## Assumptions` tables in `brief.md` and `spec.md`, counts SRAD grades (case-insensitive), preserves implicit Certain counts via carry-forward from `.status.yaml`, applies the confidence formula, writes the updated confidence block to `.status.yaml`, and emits YAML with delta to stdout. Invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). Not called directly by users.
+Internal library script for confidence score computation. Scans `## Assumptions` tables in `brief.md` and `spec.md`, counts SRAD grades (case-insensitive), preserves implicit Certain counts via carry-forward from `.status.yaml`, applies the confidence formula, writes the updated confidence block to `.status.yaml`, and emits YAML with delta to stdout. Invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). Not called directly by users. Dev folder: `src/calc-score/` (symlink, README, smoke test, comprehensive test suite).
+
 #### `fab-help.sh`
 
 Prints the Fab Kit help overview and skill catalog. MUST be updated when skills are added or removed.
@@ -233,6 +234,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260214-mgh5-calc-score-dev-setup | 2026-02-14 | Added `src/calc-score/` dev folder for `_calc-score.sh` — symlink, README, smoke test, comprehensive test suite (30 tests) |
 | 260214-r8kv-docs-skills-housekeeping | 2026-02-14 | Removed `fab-status.sh` from scripts listing. Renamed doc skills: `fab-hydrate.md` → `docs-hydrate-memory.md`, `fab-hydrate-specs.md` → `docs-hydrate-specs.md`, `fab-reorg-specs.md` → `docs-reorg-specs.md`. Added `docs-reorg-memory.md` to skills listing. |
 | 260213-w8p3-extract-fab-score | 2026-02-14 | Added `_calc-score.sh` to scripts directory listing and Shell Scripts section — internal confidence scoring script |
 | 260213-puow-consolidate-status-reads | 2026-02-14 | Renamed `stageman.sh` → `_stageman.sh`; added `.status.yaml` accessor API (`get_progress_map`, `get_checklist`, `get_confidence`); refactored `get_current_stage` to use accessors; extracted `_resolve-change.sh` change resolution library; documented underscore prefix convention |
