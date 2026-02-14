@@ -71,13 +71,15 @@ The structural bootstrap script. Creates directories, symlinks, `memory/index.md
 
 #### `_stageman.sh`
 
-Stage Manager — the schema query utility and `.status.yaml` accessor library. Sourced (not executed) by `_preflight.sh` and test files. Provides:
+Stage Manager — the schema query utility, `.status.yaml` accessor library, and write API. Sourced by `_preflight.sh`, `_calc-score.sh`, and test files. Also executable directly as a CLI for write operations. Provides:
 
 - **Schema queries**: `get_all_stages`, `get_all_states`, `validate_stage`, `validate_state`, `get_stage_number`, `get_stage_name`, `get_stage_artifact`, `get_allowed_states`, `get_initial_state`, `has_auto_checklist`, `get_state_symbol`, `is_terminal_state`, `get_next_stage`
 - **`.status.yaml` accessors**: `get_progress_map` (stage→state pairs), `get_checklist` (generated/completed/total), `get_confidence` (certain/confident/tentative/unresolved/score), `get_current_stage` (active stage with fallback logic)
+- **Write functions**: `set_stage_state` (single stage mutation), `transition_stages` (atomic two-write forward transition with adjacency enforcement), `set_checklist_field` (individual checklist field update), `set_confidence_block` (full confidence block replacement). All write functions validate inputs before writing, use temp-file-then-mv for atomicity, and refresh `last_updated`
+- **CLI write commands**: `_stageman.sh set-state|transition|set-checklist|set-confidence` — when executed directly (not sourced), dispatches to the corresponding write function. Used by skill prompts via Bash tool instead of ad-hoc `.status.yaml` editing
 - **Validation**: `validate_status_file` (schema conformance check)
 
-Accessor functions use a line-oriented output pattern (`key:value` per line) — consumers parse with `while IFS=: read -r key val`. The underscore prefix marks it as an internal sourced library (not a standalone entry point).
+Accessor functions use a line-oriented output pattern (`key:value` per line) — consumers parse with `while IFS=: read -r key val`. The underscore prefix marks it as an internal sourced library, though it also serves as a CLI entry point for write operations.
 
 #### `_resolve-change.sh`
 
@@ -85,7 +87,7 @@ Change name resolution library. Sourced by `_preflight.sh`. Provides `resolve_ch
 
 #### `_calc-score.sh`
 
-Internal library script for confidence score computation. Scans `## Assumptions` tables in `brief.md` and `spec.md`, counts SRAD grades (case-insensitive), preserves implicit Certain counts via carry-forward from `.status.yaml`, applies the confidence formula, writes the updated confidence block to `.status.yaml`, and emits YAML with delta to stdout. Invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). Not called directly by users. Dev folder: `src/calc-score/` (symlink, README, smoke test, comprehensive test suite).
+Internal library script for confidence score computation. Scans `## Assumptions` tables in `brief.md` and `spec.md`, counts SRAD grades (case-insensitive), preserves implicit Certain counts via carry-forward from `.status.yaml`, applies the confidence formula, delegates the `.status.yaml` write to `set_confidence_block` from `_stageman.sh` (sources it at startup), and emits YAML with delta to stdout. Invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). Not called directly by users. Dev folder: `src/calc-score/` (symlink, README, smoke test, comprehensive test suite).
 
 #### `fab-help.sh`
 
@@ -243,6 +245,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 | Change | Date | Summary |
 |--------|------|---------|
 | 260213-k7m2-kit-version-migrations | 2026-02-14 | Added `fab/.kit/migrations/` directory and `fab-update.md` skill to directory listing; updated version tracking to dual-version model; updated `_init_scaffold.sh` description (fab/VERSION creation); updated `fab-upgrade.sh` (drift reminder) and `fab-release.sh` (migration chain validation) descriptions; updated preserved/replaced lists |
+| 260214-w3r8-stageman-write-api | 2026-02-14 | Added write functions + CLI to `_stageman.sh` (`set_stage_state`, `transition_stages`, `set_checklist_field`, `set_confidence_block`); refactored `_calc-score.sh` to source `_stageman.sh` and delegate writes to `set_confidence_block` |
 | 260214-eikh-consistency-fixes | 2026-02-14 | Added internal skills (`internal-consistency-check.md`, `internal-retrospect.md`, `internal-skill-optimize.md`) to `.kit/skills/` directory listing |
 | 260214-mgh5-calc-score-dev-setup | 2026-02-14 | Added `src/calc-score/` dev folder for `_calc-score.sh` — symlink, README, smoke test, comprehensive test suite (30 tests) |
 | 260214-r8kv-docs-skills-housekeeping | 2026-02-14 | Removed `fab-status.sh` from scripts listing. Renamed doc skills: `fab-hydrate.md` → `docs-hydrate-memory.md`, `fab-hydrate-specs.md` → `docs-hydrate-specs.md`, `fab-reorg-specs.md` → `docs-reorg-specs.md`. Added `docs-reorg-memory.md` to skills listing. |

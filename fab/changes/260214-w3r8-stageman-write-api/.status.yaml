@@ -2,21 +2,21 @@ name: 260214-w3r8-stageman-write-api
 created: 2026-02-14T08:30:08+05:30
 created_by: Sahil Ahuja
 progress:
-  brief: active
-  spec: pending
-  tasks: pending
-  apply: pending
-  review: pending
-  hydrate: pending
+  brief: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
 checklist:
-  generated: false
+  generated: true
   path: checklist.md
-  completed: 0
-  total: 0
+  completed: 32
+  total: 32
 confidence:
-  certain: 0
-  confident: 0
+  certain: 1
+  confident: 6
   tentative: 0
   unresolved: 0
-  score: 5.0
-last_updated: 2026-02-14T08:30:08+05:30
+  score: 3.2
+last_updated: 2026-02-14T12:12:37+05:30

@@ -37,6 +37,8 @@ Load per `_context.md` layers 1-3.
 
 ## Behavior
 
+> **Note**: All `.status.yaml` transitions in this skill use `_stageman.sh` CLI commands (`transition`, `set-state`, `set-checklist`, `set-confidence`) rather than direct file edits. See `/fab-continue` and `/fab-ff` for specific invocations per step.
+
 ### Resumability
 
 Skip stages already `done` or `skipped`. Re-running picks up from first incomplete stage.

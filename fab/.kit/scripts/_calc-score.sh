@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck source=_stageman.sh
+source "$(dirname "$(readlink -f "$0")")/_stageman.sh"
+
 # _calc-score.sh — Compute confidence score from Assumptions tables
 #
 # Internal library script invoked by /fab-continue (spec stage) and
@@ -116,28 +119,7 @@ delta=$(awk "BEGIN {
 
 # --- Write to .status.yaml ---
 if [ -f "$status_file" ]; then
-  # Replace the confidence block using awk
-  # Match from "confidence:" to the next top-level key (non-indented line) or EOF
-  tmpfile=$(mktemp)
-  awk -v certain="$total_certain" \
-      -v confident="$table_confident" \
-      -v tentative="$table_tentative" \
-      -v unresolved="$unresolved" \
-      -v score="$score" '
-    /^confidence:/ { in_block = 1; skip = 1
-      print "confidence:"
-      print "  certain: " certain
-      print "  confident: " confident
-      print "  tentative: " tentative
-      print "  unresolved: " unresolved
-      print "  score: " score
-      next
-    }
-    in_block && /^[^ ]/ { in_block = 0; skip = 0 }
-    in_block { next }
-    { print }
-  ' "$status_file" > "$tmpfile"
-  mv "$tmpfile" "$status_file"
+  set_confidence_block "$status_file" "$total_certain" "$table_confident" "$table_tentative" "$unresolved" "$score"
 fi
 
 # --- Emit YAML to stdout ---

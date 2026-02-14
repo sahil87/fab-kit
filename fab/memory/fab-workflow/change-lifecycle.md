@@ -50,7 +50,7 @@ Every change folder SHALL contain a `.status.yaml` manifest with these fields:
 - `progress` — map of all stages to their state. The stage marked `active` is the current stage (single source of truth for where the change is). There is no separate `stage:` field — current stage is derived from the `active` entry in the progress map.
 - `checklist` — generation status, path (default: `checklist.md` at change root), completion counts
 - `confidence` — SRAD confidence scoring: `certain`, `confident`, `tentative`, `unresolved` counts and derived `score` (0.0-5.0). Initialized to 0.0 (no assessed confidence). Computed by `_calc-score.sh`, invoked at spec stage by `/fab-continue` and by `/fab-clarify`. Used as a gate by `/fab-fff` (requires score >= 3.0). Displayed as `{score} of 5.0` to make the scale self-documenting
-- `last_updated` — refreshed on every status change
+- `last_updated` — refreshed on every status change. All `.status.yaml` mutations SHOULD go through `_stageman.sh` write functions (or CLI commands), which handle validation and `last_updated` refresh automatically
 
 **State vocabulary** (all progress fields draw from this fixed set):
 
@@ -63,7 +63,7 @@ Every change folder SHALL contain a `.status.yaml` manifest with these fields:
 
 **Deriving current stage**: Use a three-tier fallback: (1) find the first stage with `active` state, (2) if no active entry, find the first `pending` stage after the last `done` stage, (3) if all stages are `done`, return `hydrate`. The second tier handles the post-reset state where the target stage was marked `done` but the next stage was left `pending`. Zero or one stage SHALL be `active` at any time.
 
-**Two-write transitions**: Moving from one stage to the next (in normal forward flow) requires two writes: (1) set the current stage to `done`, (2) set the next stage to `active`. Both writes MUST happen atomically in a single `.status.yaml` update. **Exception**: Reset flow sets only the target stage to `done` — downstream stages remain `pending` (no auto-advance). The user runs `/fab-continue` to advance explicitly.
+**Two-write transitions**: Moving from one stage to the next (in normal forward flow) requires two writes: (1) set the current stage to `done`, (2) set the next stage to `active`. Both writes MUST happen atomically in a single `.status.yaml` update. Use `_stageman.sh transition <file> <from> <to>` for forward transitions (validates adjacency and that from_stage is active). **Exception**: Reset flow sets only the target stage to `done` — downstream stages remain `pending` (no auto-advance). Use `_stageman.sh set-state <file> <stage> <state>` for individual state changes in reset flows.
 
 **Review failure backward movement**: When `/fab-continue` review behavior identifies issues requiring rework, it sets `review: failed` and moves the appropriate earlier stage back to `active` (e.g., `spec: active`). Stages between the target and review are reset to `pending`.
 
@@ -209,6 +209,7 @@ Skills will tolerate old-format files — the preflight script infers `brief: do
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260214-w3r8-stageman-write-api | 2026-02-14 | All `.status.yaml` mutations now go through `_stageman.sh` write API — documented `transition` for two-write transitions and `set-state` for reset flows; noted `last_updated` auto-refresh |
 | 260214-lptw-score-init-display | 2026-02-14 | Updated confidence field description: initial score is 0.0 (not 5.0), display format is `{score} of 5.0`. Updated `/fab-status` description to note "of 5.0" display convention. |
 | 260214-v7k3-archive-restore-mode | 2026-02-14 | Added restore mode to `/fab-archive` as `archived → active` lifecycle transition. Updated fab/current lifecycle (optionally written by restore --switch). Added Restoring an Archived Change section. Updated pipeline description with restore path. |
 | 260213-w8p3-extract-fab-score | 2026-02-14 | Updated confidence field description: now computed by `_calc-score.sh` (invoked at spec stage by `/fab-continue` and by `/fab-clarify`), replacing inline computation by `/fab-new`/`/fab-continue`/`/fab-clarify`. |

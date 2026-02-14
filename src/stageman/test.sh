@@ -385,6 +385,208 @@ assert_equal "spec" "$fallback" "get_current_stage fallback finds first pending 
 echo ""
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Write Function Tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+echo "Testing Write Functions..."
+echo ""
+
+# Create a fresh status file for write tests
+make_write_fixture() {
+  cat > "$TEST_DIR/write-status.yaml" <<EOF
+name: test-write
+progress:
+  brief: done
+  spec: done
+  tasks: done
+  apply: active
+  review: pending
+  hydrate: pending
+checklist:
+  generated: true
+  path: checklist.md
+  completed: 3
+  total: 10
+confidence:
+  certain: 5
+  confident: 2
+  tentative: 1
+  unresolved: 0
+  score: 3.4
+last_updated: 2026-01-01T00:00:00+00:00
+EOF
+}
+
+# --- set_stage_state ---
+
+echo "  set_stage_state:"
+
+make_write_fixture
+set_stage_state "$TEST_DIR/write-status.yaml" "review" "active" 2>/dev/null
+assert_success "    valid state change succeeds"
+result=$(grep "^  review:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
+assert_equal "active" "$result" "    review is now active"
+
+# Verify last_updated was refreshed
+ts=$(grep "^last_updated:" "$TEST_DIR/write-status.yaml" | sed 's/last_updated: //')
+assert_contains "T" "$ts" "    last_updated refreshed with ISO 8601 timestamp"
+
+# Other stages unchanged
+result=$(grep "^  apply:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
+assert_equal "active" "$result" "    unrelated stages unchanged"
+
+# Validation failures
+make_write_fixture
+before=$(cat "$TEST_DIR/write-status.yaml")
+set_stage_state "$TEST_DIR/write-status.yaml" "invalid_stage" "active" 2>/dev/null
+assert_failure "    rejects invalid stage"
+after=$(cat "$TEST_DIR/write-status.yaml")
+assert_equal "$before" "$after" "    file unchanged on invalid stage"
+
+make_write_fixture
+before=$(cat "$TEST_DIR/write-status.yaml")
+set_stage_state "$TEST_DIR/write-status.yaml" "brief" "failed" 2>/dev/null
+assert_failure "    rejects state not allowed for stage"
+after=$(cat "$TEST_DIR/write-status.yaml")
+assert_equal "$before" "$after" "    file unchanged on invalid state"
+
+set_stage_state "/nonexistent/path/.status.yaml" "spec" "done" 2>/dev/null
+assert_failure "    rejects nonexistent file"
+
+echo ""
+
+# --- transition_stages ---
+
+echo "  transition_stages:"
+
+make_write_fixture
+transition_stages "$TEST_DIR/write-status.yaml" "apply" "review" 2>/dev/null
+assert_success "    valid forward transition succeeds"
+from_state=$(grep "^  apply:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
+to_state=$(grep "^  review:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
+assert_equal "done" "$from_state" "    from_stage set to done"
+assert_equal "active" "$to_state" "    to_stage set to active"
+
+# Non-adjacent stages
+make_write_fixture
+before=$(cat "$TEST_DIR/write-status.yaml")
+transition_stages "$TEST_DIR/write-status.yaml" "apply" "hydrate" 2>/dev/null
+assert_failure "    rejects non-adjacent stages"
+after=$(cat "$TEST_DIR/write-status.yaml")
+assert_equal "$before" "$after" "    file unchanged on non-adjacent"
+
+# from_stage not active
+make_write_fixture
+before=$(cat "$TEST_DIR/write-status.yaml")
+transition_stages "$TEST_DIR/write-status.yaml" "spec" "tasks" 2>/dev/null
+assert_failure "    rejects when from_stage is not active"
+after=$(cat "$TEST_DIR/write-status.yaml")
+assert_equal "$before" "$after" "    file unchanged when from_stage not active"
+
+transition_stages "/nonexistent/path/.status.yaml" "apply" "review" 2>/dev/null
+assert_failure "    rejects nonexistent file"
+
+echo ""
+
+# --- set_checklist_field ---
+
+echo "  set_checklist_field:"
+
+make_write_fixture
+set_checklist_field "$TEST_DIR/write-status.yaml" "completed" "7" 2>/dev/null
+assert_success "    valid completed update succeeds"
+result=$(grep "^  completed:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
+assert_equal "7" "$result" "    completed is now 7"
+
+make_write_fixture
+set_checklist_field "$TEST_DIR/write-status.yaml" "generated" "false" 2>/dev/null
+assert_success "    valid generated update succeeds"
+result=$(grep "^  generated:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
+assert_equal "false" "$result" "    generated is now false"
+
+make_write_fixture
+set_checklist_field "$TEST_DIR/write-status.yaml" "total" "25" 2>/dev/null
+assert_success "    valid total update succeeds"
+result=$(grep "^  total:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
+assert_equal "25" "$result" "    total is now 25"
+
+# Validation failures
+make_write_fixture
+before=$(cat "$TEST_DIR/write-status.yaml")
+set_checklist_field "$TEST_DIR/write-status.yaml" "invalid_field" "5" 2>/dev/null
+assert_failure "    rejects invalid field name"
+after=$(cat "$TEST_DIR/write-status.yaml")
+assert_equal "$before" "$after" "    file unchanged on invalid field"
+
+make_write_fixture
+before=$(cat "$TEST_DIR/write-status.yaml")
+set_checklist_field "$TEST_DIR/write-status.yaml" "completed" "-3" 2>/dev/null
+assert_failure "    rejects negative integer"
+after=$(cat "$TEST_DIR/write-status.yaml")
+assert_equal "$before" "$after" "    file unchanged on negative value"
+
+make_write_fixture
+before=$(cat "$TEST_DIR/write-status.yaml")
+set_checklist_field "$TEST_DIR/write-status.yaml" "generated" "yes" 2>/dev/null
+assert_failure "    rejects non-bool for generated"
+after=$(cat "$TEST_DIR/write-status.yaml")
+assert_equal "$before" "$after" "    file unchanged on wrong type"
+
+set_checklist_field "/nonexistent/path/.status.yaml" "completed" "5" 2>/dev/null
+assert_failure "    rejects nonexistent file"
+
+echo ""
+
+# --- set_confidence_block ---
+
+echo "  set_confidence_block:"
+
+make_write_fixture
+set_confidence_block "$TEST_DIR/write-status.yaml" "10" "3" "1" "0" "4.1" 2>/dev/null
+assert_success "    valid confidence block replacement succeeds"
+result=$(grep "^  certain:" "$TEST_DIR/write-status.yaml" | sed 's/.*: *//')
+assert_equal "10" "$result" "    certain updated to 10"
+result=$(grep "^  score:" "$TEST_DIR/write-status.yaml" | sed 's/.*: *//')
+assert_equal "4.1" "$result" "    score updated to 4.1"
+
+# Verify last_updated refreshed
+ts=$(grep "^last_updated:" "$TEST_DIR/write-status.yaml" | sed 's/last_updated: //')
+assert_contains "T" "$ts" "    last_updated refreshed"
+
+# Verify other blocks preserved
+result=$(grep "^  apply:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
+assert_equal "active" "$result" "    progress block preserved"
+result=$(grep "^  total:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
+assert_equal "10" "$result" "    checklist block preserved"
+
+# Validation failures
+make_write_fixture
+before=$(cat "$TEST_DIR/write-status.yaml")
+set_confidence_block "$TEST_DIR/write-status.yaml" "-1" "3" "1" "0" "4.1" 2>/dev/null
+assert_failure "    rejects negative count"
+after=$(cat "$TEST_DIR/write-status.yaml")
+assert_equal "$before" "$after" "    file unchanged on negative count"
+
+make_write_fixture
+before=$(cat "$TEST_DIR/write-status.yaml")
+set_confidence_block "$TEST_DIR/write-status.yaml" "10" "3" "1" "0" "abc" 2>/dev/null
+assert_failure "    rejects non-numeric score"
+after=$(cat "$TEST_DIR/write-status.yaml")
+assert_equal "$before" "$after" "    file unchanged on non-numeric score"
+
+make_write_fixture
+before=$(cat "$TEST_DIR/write-status.yaml")
+set_confidence_block "$TEST_DIR/write-status.yaml" "10" "3" "1" "0" "-2.5" 2>/dev/null
+assert_failure "    rejects negative score"
+after=$(cat "$TEST_DIR/write-status.yaml")
+assert_equal "$before" "$after" "    file unchanged on negative score"
+
+set_confidence_block "/nonexistent/path/.status.yaml" "10" "3" "1" "0" "4.1" 2>/dev/null
+assert_failure "    rejects nonexistent file"
+
+echo ""
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────────────────
 

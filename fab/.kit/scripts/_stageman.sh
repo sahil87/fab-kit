@@ -313,6 +313,241 @@ get_next_stage() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Write Functions
+# ─────────────────────────────────────────────────────────────────────────────
+
+# set_stage_state <status_file> <stage> <state>
+# Set a single stage's progress value in .status.yaml.
+# Validates inputs, writes atomically (temp-file-then-mv), updates last_updated.
+# Returns 0 on success, 1 on validation failure (diagnostic to stderr).
+set_stage_state() {
+  local status_file="$1"
+  local stage="$2"
+  local state="$3"
+
+  if [ ! -f "$status_file" ]; then
+    echo "ERROR: Status file not found: $status_file" >&2
+    return 1
+  fi
+
+  if ! validate_stage "$stage"; then
+    echo "ERROR: Invalid stage '$stage'" >&2
+    return 1
+  fi
+
+  if ! validate_stage_state "$stage" "$state"; then
+    echo "ERROR: State '$state' not allowed for stage '$stage'" >&2
+    return 1
+  fi
+
+  local now
+  now=$(date -Iseconds)
+  local tmpfile
+  tmpfile=$(mktemp "$(dirname "$status_file")/.status.yaml.XXXXXX")
+
+  awk -v stage="$stage" -v state="$state" -v ts="$now" '
+    /^last_updated:/ { print "last_updated: " ts; next }
+    /^  [a-z]+:/ {
+      split($0, parts, ": ")
+      gsub(/^ */, "", parts[1])
+      if (parts[1] == stage) {
+        sub(/: .*/, ": " state)
+      }
+    }
+    { print }
+  ' "$status_file" > "$tmpfile"
+
+  mv "$tmpfile" "$status_file"
+}
+
+# transition_stages <status_file> <from_stage> <to_stage>
+# Two-write transition: set from_stage to done and to_stage to active atomically.
+# Validates adjacency and that from_stage is currently active.
+# Returns 0 on success, 1 on validation failure.
+transition_stages() {
+  local status_file="$1"
+  local from_stage="$2"
+  local to_stage="$3"
+
+  if [ ! -f "$status_file" ]; then
+    echo "ERROR: Status file not found: $status_file" >&2
+    return 1
+  fi
+
+  if ! validate_stage "$from_stage"; then
+    echo "ERROR: Invalid stage '$from_stage'" >&2
+    return 1
+  fi
+
+  if ! validate_stage "$to_stage"; then
+    echo "ERROR: Invalid stage '$to_stage'" >&2
+    return 1
+  fi
+
+  if ! validate_stage_state "$from_stage" "done"; then
+    echo "ERROR: State 'done' not allowed for stage '$from_stage'" >&2
+    return 1
+  fi
+
+  if ! validate_stage_state "$to_stage" "active"; then
+    echo "ERROR: State 'active' not allowed for stage '$to_stage'" >&2
+    return 1
+  fi
+
+  # Verify from_stage is currently active
+  local current_state
+  current_state=$(grep "^ *${from_stage}:" "$status_file" | sed 's/^ *[a-z]*: *//')
+  if [ "$current_state" != "active" ]; then
+    echo "ERROR: Stage '$from_stage' is '$current_state', expected 'active'" >&2
+    return 1
+  fi
+
+  # Verify adjacency
+  local expected_next
+  expected_next=$(get_next_stage "$from_stage") || true
+  if [ "$expected_next" != "$to_stage" ]; then
+    echo "ERROR: '$to_stage' is not adjacent to '$from_stage' (expected '$expected_next')" >&2
+    return 1
+  fi
+
+  local now
+  now=$(date -Iseconds)
+  local tmpfile
+  tmpfile=$(mktemp "$(dirname "$status_file")/.status.yaml.XXXXXX")
+
+  awk -v from="$from_stage" -v to="$to_stage" -v ts="$now" '
+    /^last_updated:/ { print "last_updated: " ts; next }
+    /^  [a-z]+:/ {
+      split($0, parts, ": ")
+      gsub(/^ */, "", parts[1])
+      if (parts[1] == from) {
+        sub(/: .*/, ": done")
+      } else if (parts[1] == to) {
+        sub(/: .*/, ": active")
+      }
+    }
+    { print }
+  ' "$status_file" > "$tmpfile"
+
+  mv "$tmpfile" "$status_file"
+}
+
+# set_checklist_field <status_file> <field> <value>
+# Update a single field in the checklist block of .status.yaml.
+# Valid fields: generated (true/false), completed (non-negative int), total (non-negative int).
+# Returns 0 on success, 1 on validation failure.
+set_checklist_field() {
+  local status_file="$1"
+  local field="$2"
+  local value="$3"
+
+  if [ ! -f "$status_file" ]; then
+    echo "ERROR: Status file not found: $status_file" >&2
+    return 1
+  fi
+
+  case "$field" in
+    generated)
+      if [ "$value" != "true" ] && [ "$value" != "false" ]; then
+        echo "ERROR: Invalid value '$value' for field 'generated' (expected true/false)" >&2
+        return 1
+      fi
+      ;;
+    completed|total)
+      if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: Invalid value '$value' for field '$field' (expected non-negative integer)" >&2
+        return 1
+      fi
+      ;;
+    *)
+      echo "ERROR: Invalid checklist field '$field' (expected: generated, completed, total)" >&2
+      return 1
+      ;;
+  esac
+
+  local now
+  now=$(date -Iseconds)
+  local tmpfile
+  tmpfile=$(mktemp "$(dirname "$status_file")/.status.yaml.XXXXXX")
+
+  awk -v field="$field" -v value="$value" -v ts="$now" '
+    /^checklist:/ { in_checklist = 1 }
+    in_checklist && /^[a-z]/ && !/^checklist:/ { in_checklist = 0 }
+    in_checklist && $0 ~ "^  " field ":" {
+      print "  " field ": " value
+      next
+    }
+    /^last_updated:/ { print "last_updated: " ts; next }
+    { print }
+  ' "$status_file" > "$tmpfile"
+
+  mv "$tmpfile" "$status_file"
+}
+
+# set_confidence_block <status_file> <certain> <confident> <tentative> <unresolved> <score>
+# Replace the entire confidence block in .status.yaml.
+# Validates counts are non-negative integers and score is a non-negative float.
+# Returns 0 on success, 1 on validation failure.
+set_confidence_block() {
+  local status_file="$1"
+  local certain="$2"
+  local confident="$3"
+  local tentative="$4"
+  local unresolved="$5"
+  local score="$6"
+
+  if [ ! -f "$status_file" ]; then
+    echo "ERROR: Status file not found: $status_file" >&2
+    return 1
+  fi
+
+  # Validate counts are non-negative integers
+  local count_name count_val
+  for count_name in certain confident tentative unresolved; do
+    eval count_val=\$$count_name
+    if ! [[ "$count_val" =~ ^[0-9]+$ ]]; then
+      echo "ERROR: Invalid value '$count_val' for '$count_name' (expected non-negative integer)" >&2
+      return 1
+    fi
+  done
+
+  # Validate score is a non-negative float
+  if ! [[ "$score" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+    echo "ERROR: Invalid score '$score' (expected non-negative float)" >&2
+    return 1
+  fi
+
+  local now
+  now=$(date -Iseconds)
+  local tmpfile
+  tmpfile=$(mktemp "$(dirname "$status_file")/.status.yaml.XXXXXX")
+
+  awk -v certain="$certain" \
+      -v confident="$confident" \
+      -v tentative="$tentative" \
+      -v unresolved="$unresolved" \
+      -v score="$score" \
+      -v ts="$now" '
+    /^confidence:/ {
+      in_block = 1
+      print "confidence:"
+      print "  certain: " certain
+      print "  confident: " confident
+      print "  tentative: " tentative
+      print "  unresolved: " unresolved
+      print "  score: " score
+      next
+    }
+    in_block && /^[^ ]/ { in_block = 0 }
+    in_block { next }
+    /^last_updated:/ { print "last_updated: " ts; next }
+    { print }
+  ' "$status_file" > "$tmpfile"
+
+  mv "$tmpfile" "$status_file"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Display Helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -385,10 +620,16 @@ USAGE:
     get_all_stages
     get_state_symbol "active"
 
-  As command:
+  As command (read-only):
     _stageman.sh --help      Show this help
     _stageman.sh --test      Run self-tests
     _stageman.sh --version   Show version
+
+  Write commands:
+    _stageman.sh set-state <file> <stage> <state>
+    _stageman.sh transition <file> <from-stage> <to-stage>
+    _stageman.sh set-checklist <file> <field> <value>
+    _stageman.sh set-confidence <file> <certain> <confident> <tentative> <unresolved> <score>
 
 AVAILABLE FUNCTIONS:
   State queries:
@@ -417,6 +658,12 @@ AVAILABLE FUNCTIONS:
   Progression:
     get_current_stage <file>    Detect active stage from .status.yaml
     get_next_stage <stage>      Get next stage in sequence
+
+  Write:
+    set_stage_state <file> <stage> <state>    Set a stage's state
+    transition_stages <file> <from> <to>      Two-write forward transition
+    set_checklist_field <file> <field> <val>  Update checklist field
+    set_confidence_block <file> <c> <cf> <t> <u> <s>  Replace confidence block
 
   Validation:
     validate_status_file <file> Validate .status.yaml against schema
@@ -513,6 +760,34 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
     "")
       # Default: run tests for backward compatibility
       run_tests
+      ;;
+    set-state)
+      if [ $# -ne 4 ]; then
+        echo "Usage: _stageman.sh set-state <file> <stage> <state>" >&2
+        exit 1
+      fi
+      set_stage_state "$2" "$3" "$4"
+      ;;
+    transition)
+      if [ $# -ne 4 ]; then
+        echo "Usage: _stageman.sh transition <file> <from-stage> <to-stage>" >&2
+        exit 1
+      fi
+      transition_stages "$2" "$3" "$4"
+      ;;
+    set-checklist)
+      if [ $# -ne 4 ]; then
+        echo "Usage: _stageman.sh set-checklist <file> <field> <value>" >&2
+        exit 1
+      fi
+      set_checklist_field "$2" "$3" "$4"
+      ;;
+    set-confidence)
+      if [ $# -ne 7 ]; then
+        echo "Usage: _stageman.sh set-confidence <file> <certain> <confident> <tentative> <unresolved> <score>" >&2
+        exit 1
+      fi
+      set_confidence_block "$2" "$3" "$4" "$5" "$6" "$7"
       ;;
     *)
       echo "Unknown option: $1" >&2
