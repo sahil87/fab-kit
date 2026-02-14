@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# fab/.kit/scripts/_resolve-change.sh
+# fab/.kit/scripts/lib/resolve-change.sh
 #
 # Change Resolution Library — resolves a change name from an override argument
-# or fab/current. Sourced by _preflight.sh and fab-status.sh.
+# or fab/current. Sourced by preflight.sh and fab-status.sh.
 #
 # Usage:
-#   source "$(dirname "$0")/_resolve-change.sh"
+#   source "$(dirname "$0")/resolve-change.sh"
 #   resolve_change "$fab_root" "$override"
 #   echo "$RESOLVED_CHANGE_NAME"
 #

@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
-# src/preflight/test-simple.sh
+# src/lib/preflight/test-simple.sh
 #
-# Quick smoke test for _preflight.sh
+# Quick smoke test for preflight.sh
 # Run: ./test-simple.sh
 
 set -uo pipefail
 
-PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 
 # Set up minimal test environment
 TEST_DIR=$(mktemp -d)
 trap "rm -rf $TEST_DIR" EXIT
 
 FAB="$TEST_DIR/fab"
-mkdir -p "$FAB/.kit/scripts" "$FAB/.kit/schemas" "$FAB/changes/smoke-test"
-cp "$PROJECT_ROOT/fab/.kit/scripts/_preflight.sh" "$FAB/.kit/scripts/"
-cp "$PROJECT_ROOT/fab/.kit/scripts/_stageman.sh" "$FAB/.kit/scripts/"
-cp "$PROJECT_ROOT/fab/.kit/scripts/_resolve-change.sh" "$FAB/.kit/scripts/"
+mkdir -p "$FAB/.kit/scripts/lib" "$FAB/.kit/schemas" "$FAB/changes/smoke-test"
+cp "$PROJECT_ROOT/fab/.kit/scripts/lib/preflight.sh" "$FAB/.kit/scripts/lib/"
+cp "$PROJECT_ROOT/fab/.kit/scripts/lib/stageman.sh" "$FAB/.kit/scripts/lib/"
+cp "$PROJECT_ROOT/fab/.kit/scripts/lib/resolve-change.sh" "$FAB/.kit/scripts/lib/"
 cp "$PROJECT_ROOT/fab/.kit/schemas/workflow.yaml" "$FAB/.kit/schemas/"
-chmod +x "$FAB/.kit/scripts/_preflight.sh"
+chmod +x "$FAB/.kit/scripts/lib/preflight.sh"
 
 echo "version: 1" > "$FAB/config.yaml"
 echo "# Constitution" > "$FAB/constitution.md"
@@ -33,9 +33,9 @@ progress:
   hydrate: pending
 EOF
 
-echo "Testing _preflight.sh smoke test..."
+echo "Testing preflight.sh smoke test..."
 
-output=$("$FAB/.kit/scripts/_preflight.sh" 2>&1)
+output=$("$FAB/.kit/scripts/lib/preflight.sh" 2>&1)
 code=$?
 
 if [ $code -ne 0 ]; then

@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# shellcheck source=_stageman.sh
-source "$(dirname "$(readlink -f "$0")")/_stageman.sh"
+# shellcheck source=stageman.sh
+source "$(dirname "$(readlink -f "$0")")/stageman.sh"
 
-# _calc-score.sh — Compute confidence score from Assumptions tables
+# calc-score.sh — Compute confidence score from Assumptions tables
 #
 # Internal library script invoked by /fab-continue (spec stage) and
 # /fab-clarify (suggest mode). Not called directly by users.
 #
-# Usage: _calc-score.sh <change-dir>
+# Usage: calc-score.sh <change-dir>
 # Output: YAML confidence block to stdout
 # Side effect: Updates confidence block in .status.yaml
 # Exit: 0 on success, 1 on error (message to stderr)
@@ -17,7 +17,7 @@ source "$(dirname "$(readlink -f "$0")")/_stageman.sh"
 change_dir="${1:-}"
 
 if [ -z "$change_dir" ]; then
-  echo "Usage: _calc-score.sh <change-dir>" >&2
+  echo "Usage: calc-score.sh <change-dir>" >&2
   exit 1
 fi
 

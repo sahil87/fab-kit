@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# fab/.kit/scripts/_stageman.sh
+# fab/.kit/scripts/lib/stageman.sh
 #
 # Stage Manager - Query utility for workflow stages and states.
 # Reads the canonical workflow schema and provides typed accessors.
 #
 # Usage as library:
-#   source "$(dirname "$0")/_stageman.sh"
+#   source "$(dirname "$0")/stageman.sh"
 #   validate_state "done" || echo "Invalid state"
 #   get_stage_number "spec"  # returns 2
 #   get_state_symbol "active"  # returns ●
 #
 # Usage as command:
-#   _stageman.sh --help    # Show usage
-#   _stageman.sh --test    # Run self-tests
-#   _stageman.sh --version # Show version
+#   stageman.sh --help    # Show usage
+#   stageman.sh --test    # Run self-tests
+#   stageman.sh --version # Show version
 
 set -euo pipefail
 
@@ -24,7 +24,7 @@ else
   # Fallback when sourced in a way that doesn't set BASH_SOURCE
   STAGEMAN_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 fi
-WORKFLOW_SCHEMA="$STAGEMAN_DIR/../schemas/workflow.yaml"
+WORKFLOW_SCHEMA="$STAGEMAN_DIR/../../schemas/workflow.yaml"
 
 if [ ! -f "$WORKFLOW_SCHEMA" ]; then
   echo "ERROR: workflow.yaml not found at $WORKFLOW_SCHEMA" >&2
@@ -612,24 +612,24 @@ validate_status_file() {
 
 show_help() {
   cat <<'EOF'
-_stageman.sh - Stage Manager (workflow schema query utility)
+stageman.sh - Stage Manager (workflow schema query utility)
 
 USAGE:
   As library (source in scripts):
-    source _stageman.sh
+    source stageman.sh
     get_all_stages
     get_state_symbol "active"
 
   As command (read-only):
-    _stageman.sh --help      Show this help
-    _stageman.sh --test      Run self-tests
-    _stageman.sh --version   Show version
+    stageman.sh --help      Show this help
+    stageman.sh --test      Run self-tests
+    stageman.sh --version   Show version
 
   Write commands:
-    _stageman.sh set-state <file> <stage> <state>
-    _stageman.sh transition <file> <from-stage> <to-stage>
-    _stageman.sh set-checklist <file> <field> <value>
-    _stageman.sh set-confidence <file> <certain> <confident> <tentative> <unresolved> <score>
+    stageman.sh set-state <file> <stage> <state>
+    stageman.sh transition <file> <from-stage> <to-stage>
+    stageman.sh set-checklist <file> <field> <value>
+    stageman.sh set-confidence <file> <certain> <confident> <tentative> <unresolved> <score>
 
 AVAILABLE FUNCTIONS:
   State queries:
@@ -763,35 +763,35 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
       ;;
     set-state)
       if [ $# -ne 4 ]; then
-        echo "Usage: _stageman.sh set-state <file> <stage> <state>" >&2
+        echo "Usage: stageman.sh set-state <file> <stage> <state>" >&2
         exit 1
       fi
       set_stage_state "$2" "$3" "$4"
       ;;
     transition)
       if [ $# -ne 4 ]; then
-        echo "Usage: _stageman.sh transition <file> <from-stage> <to-stage>" >&2
+        echo "Usage: stageman.sh transition <file> <from-stage> <to-stage>" >&2
         exit 1
       fi
       transition_stages "$2" "$3" "$4"
       ;;
     set-checklist)
       if [ $# -ne 4 ]; then
-        echo "Usage: _stageman.sh set-checklist <file> <field> <value>" >&2
+        echo "Usage: stageman.sh set-checklist <file> <field> <value>" >&2
         exit 1
       fi
       set_checklist_field "$2" "$3" "$4"
       ;;
     set-confidence)
       if [ $# -ne 7 ]; then
-        echo "Usage: _stageman.sh set-confidence <file> <certain> <confident> <tentative> <unresolved> <score>" >&2
+        echo "Usage: stageman.sh set-confidence <file> <certain> <confident> <tentative> <unresolved> <score>" >&2
         exit 1
       fi
       set_confidence_block "$2" "$3" "$4" "$5" "$6" "$7"
       ;;
     *)
       echo "Unknown option: $1" >&2
-      echo "Try: _stageman.sh --help" >&2
+      echo "Try: stageman.sh --help" >&2
       exit 1
       ;;
   esac

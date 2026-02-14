@@ -21,7 +21,7 @@ This gives the agent awareness of project configuration, constraints, the docume
 
 ### Preflight Script for Change Context
 
-Skills that operate on an active change resolve the change context by running `fab/.kit/scripts/_preflight.sh [change-name]` via Bash. The script accepts an optional first positional argument as a change name override. When provided, the script resolves the change using case-insensitive substring matching against folder names in `fab/changes/` (excluding `archive/`) instead of reading `fab/current`. The override is transient — `fab/current` is never modified. When no argument is provided, the script falls back to reading `fab/current` (backward compatible).
+Skills that operate on an active change resolve the change context by running `fab/.kit/scripts/lib/preflight.sh [change-name]` via Bash. The script accepts an optional first positional argument as a change name override. When provided, the script resolves the change using case-insensitive substring matching against folder names in `fab/changes/` (excluding `archive/`) instead of reading `fab/current`. The override is transient — `fab/current` is never modified. When no argument is provided, the script falls back to reading `fab/current` (backward compatible).
 
 The matching supports full folder names, partial slug matches, and 4-char random IDs (e.g., `r3m7`). Exact match takes priority; single partial match resolves directly; multiple matches or no match produce a non-zero exit with a descriptive error.
 
@@ -87,6 +87,7 @@ The following skills skip the standard context loading layers:
 | Change | Date | Summary |
 |--------|------|---------|
 | 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Updated always-load paths to `docs/memory/index.md` and `docs/specs/index.md`; updated selective domain loading to `docs/memory/{domain}/` |
+| 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_preflight.sh` → `lib/preflight.sh` in preflight script reference |
 | 260213-w4k9-explicit-change-targeting | 2026-02-13 | Preflight script now accepts optional `$1` change-name override with case-insensitive substring matching; `fab/current` is not modified when override is used |
 | 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated docs/specs/index.md reference, removed plan.md from artifact loading |
 | 260208-k3m7-add-fab-fff | 2026-02-08 | Fixed stale `auto-guess` marker reference in SRAD Protocol section — replaced with `clarified` marker per updated `_context.md` |

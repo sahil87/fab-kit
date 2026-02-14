@@ -10,7 +10,7 @@ FAB_DIR="$(dirname "$KIT_DIR")"
 CHANGES_DIR="${FAB_DIR}/changes"
 CONFIG_FILE="${FAB_DIR}/config.yaml"
 
-source "${SCRIPT_DIR}/_resolve-change.sh"
+source "${SCRIPT_DIR}/lib/resolve-change.sh"
 
 usage() {
   cat <<'EOF'

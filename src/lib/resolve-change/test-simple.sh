@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# src/resolve-change/test-simple.sh
+# src/lib/resolve-change/test-simple.sh
 #
-# Quick smoke test for _resolve-change.sh
+# Quick smoke test for resolve-change.sh
 # Run: ./test-simple.sh
 
 set -euo pipefail
 
-source "$(dirname "$0")/_resolve-change.sh"
+source "$(dirname "$0")/resolve-change.sh"
 
 TEST_DIR=$(mktemp -d)
 trap "rm -rf $TEST_DIR" EXIT

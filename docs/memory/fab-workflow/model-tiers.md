@@ -37,9 +37,9 @@ A skill matching ANY `capable` criterion is classified as `capable`, regardless 
 | Skill | Rationale |
 |-------|-----------|
 | `fab-help` | Delegates to `fab-help.sh` |
-| `fab-status` | Delegates to `_preflight.sh` + `stageman.sh` |
+| `fab-status` | Delegates to `lib/preflight.sh` + `lib/stageman.sh` |
 | `fab-switch` | State lookup, branch operations, no artifact generation |
-| `fab-init` | Structural bootstrap, delegates to `_init_scaffold.sh` |
+| `fab-init` | Structural bootstrap, delegates to `lib/init-scaffold.sh` |
 
 **Capable tier** (no `model_tier` field):
 
@@ -85,7 +85,7 @@ Config entries replace (not merge with) the corresponding `.kit/` entries. If no
 
 ### Deployment: Dual Strategy
 
-`_init_scaffold.sh` deploys fast-tier skills to both skill and agent directories:
+`lib/init-scaffold.sh` deploys fast-tier skills to both skill and agent directories:
 
 - **Skill directory** (`.claude/skills/`): Symlink as usual — for user invocation via `/fab-help`
 - **Agent directory** (`.claude/agents/`): Generated file with translated `model:` field — for pipeline invocation via Task tool
@@ -95,7 +95,7 @@ Capable skills get symlinks only (no agent files). This is because Claude Code s
 ### Adding a New Provider
 
 1. Add the platform key under each tier in `fab/.kit/model-tiers.yaml`
-2. Update `_init_scaffold.sh` to generate agent files for the new platform
+2. Update `lib/init-scaffold.sh` to generate agent files for the new platform
 3. Add the symlink/agent creation call in the appropriate section
 
 ### Selecting a Tier for New Skills
@@ -141,4 +141,5 @@ If in doubt, use **capable** (the default — just omit `model_tier`).
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_preflight.sh` → `lib/preflight.sh` and `_init_scaffold.sh` → `lib/init-scaffold.sh` in skill classification and deployment references |
 | 260212-k8m3-skill-model-tiers | 2026-02-12 | Initial creation — two-tier system, skill classification audit, mapping file, dual deployment, config override |

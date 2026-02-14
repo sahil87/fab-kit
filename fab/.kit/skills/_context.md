@@ -18,13 +18,13 @@ Read these files first — they define the project's identity, constraints, and 
 - **`docs/memory/index.md`** — memory landscape (which domains and memory files exist)
 - **`docs/specs/index.md`** — specifications landscape (pre-implementation design intent, human-curated)
 
-> **Note**: If the skill runs `_preflight.sh` (Section 2 above), the init check (config.yaml and constitution.md existence) is already covered by the script. Skills using preflight don't need separate existence checks for these files — they only need to read them for content.
+> **Note**: If the skill runs `lib/preflight.sh` (Section 2 above), the init check (config.yaml and constitution.md existence) is already covered by the script. Skills using preflight don't need separate existence checks for these files — they only need to read them for content.
 
 ### 2. Change Context (when operating on an active change)
 
 Resolve the active change and load its state by running the preflight script:
 
-1. **Run preflight**: Execute `fab/.kit/scripts/_preflight.sh [change-name]` via Bash — pass the optional change-name argument if the skill received one
+1. **Run preflight**: Execute `fab/.kit/scripts/lib/preflight.sh [change-name]` via Bash — pass the optional change-name argument if the skill received one
 2. **Check exit code**: If the script exits non-zero, STOP and surface the stderr message to the user (it contains the specific error and suggested fix)
 3. **Parse stdout YAML**: On success, parse the YAML output for `name`, `change_dir`, `stage`, `progress`, `checklist`, and `confidence` fields — use these for all subsequent change context instead of re-reading `.status.yaml`
 4. Load all completed artifacts in the change folder (e.g., `brief.md`, `spec.md`, `tasks.md`) — read each file that exists so you have full context of what has been decided so far
@@ -249,8 +249,8 @@ Range: 0.0 (any Unresolved, or 5+ Tentative) to 5.0 (all Certain). Penalties: Ce
 
 ### Invocation
 
-Confidence is computed by `fab/.kit/scripts/_calc-score.sh`, invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). Autonomous skills (`/fab-ff`, `/fab-fff`) do not recompute — the gate check uses the score from the last manual step.
+Confidence is computed by `fab/.kit/scripts/lib/calc-score.sh`, invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). Autonomous skills (`/fab-ff`, `/fab-fff`) do not recompute — the gate check uses the score from the last manual step.
 
 ### Template
 
-`fab/.kit/templates/status.yaml` includes the confidence block initialized to zero counts and score 0.0. Template defaults persist until `/fab-continue` generates the spec and invokes `_calc-score.sh`.
+`fab/.kit/templates/status.yaml` includes the confidence block initialized to zero counts and score 0.0. Template defaults persist until `/fab-continue` generates the spec and invokes `lib/calc-score.sh`.

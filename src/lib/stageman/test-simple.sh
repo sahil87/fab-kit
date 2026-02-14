@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source "$(dirname "$0")/_stageman.sh"
+source "$(dirname "$0")/stageman.sh"
 
 echo "Testing get_all_states..."
 states=$(get_all_states)

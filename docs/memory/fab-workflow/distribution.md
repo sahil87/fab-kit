@@ -19,10 +19,10 @@ mkdir -p fab
 curl -sL https://github.com/wvrdz/fab-kit/releases/latest/download/kit.tar.gz | tar xz -C fab/
 ```
 
-After extraction, the user MUST run `fab/.kit/scripts/_init_scaffold.sh` to create directories (`changes/`, `memory/`, `specs/`), skeleton files (copied from `scaffold/memory-index.md` and `scaffold/specs-index.md`), symlinks, `.envrc` (symlink to `scaffold/envrc`), and `.gitignore` entries (from `scaffold/gitignore-entries`). The bootstrap only provides `.kit/` — no `config.yaml`, `constitution.md`, or other project files.
+After extraction, the user MUST run `fab/.kit/scripts/lib/init-scaffold.sh` to create directories (`changes/`, `memory/`, `specs/`), skeleton files (copied from `scaffold/memory-index.md` and `scaffold/specs-index.md`), symlinks, `.envrc` (symlink to `scaffold/envrc`), and `.gitignore` entries (from `scaffold/gitignore-entries`). The bootstrap only provides `.kit/` — no `config.yaml`, `constitution.md`, or other project files.
 
 **Scenarios**:
-- Bootstrap a new project (no `fab/` directory) — creates `fab/.kit/` with all skills, templates, scripts, and VERSION file; running `_init_scaffold.sh` then creates `changes/`, `memory/index.md`, `specs/index.md`, symlinks, `.envrc`, and `.gitignore` entry
+- Bootstrap a new project (no `fab/` directory) — creates `fab/.kit/` with all skills, templates, scripts, and VERSION file; running `lib/init-scaffold.sh` then creates `changes/`, `memory/index.md`, `specs/index.md`, symlinks, `.envrc`, and `.gitignore` entry
 - Bootstrap with existing `fab/` directory — creates or replaces `fab/.kit/`; existing files outside `.kit/` (config.yaml, constitution.md, memory/, specs/, changes/) are NOT affected
 
 #### Manual Copy Still Works
@@ -35,10 +35,10 @@ The existing `cp -r` distribution method SHALL continue to work. The bootstrap o
 
 #### Update Script (`fab-upgrade.sh`)
 
-`fab/.kit/scripts/fab-upgrade.sh` SHALL download the latest `kit.tar.gz` from GitHub Releases, extract it to replace the current `fab/.kit/` contents, display the version change, and re-run `_init_scaffold.sh` to repair symlinks.
+`fab/.kit/scripts/fab-upgrade.sh` SHALL download the latest `kit.tar.gz` from GitHub Releases, extract it to replace the current `fab/.kit/` contents, display the version change, and re-run `lib/init-scaffold.sh` to repair symlinks.
 
 **Scenarios**:
-- Update to a newer version — replaces `.kit/` contents, displays version change (e.g., "0.1.0 → 0.2.0"), re-runs `_init_scaffold.sh`, checks for version drift and prints `/fab-update` reminder if needed, preserves all files outside `.kit/`
+- Update to a newer version — replaces `.kit/` contents, displays version change (e.g., "0.1.0 → 0.2.0"), re-runs `lib/init-scaffold.sh`, checks for version drift and prints `/fab-update` reminder if needed, preserves all files outside `.kit/`
 - Already up to date — informs user, no files modified
 - No network access — exits non-zero with error message, existing `.kit/` unchanged
 - `fab/VERSION` missing after upgrade — prints guidance to run `/fab-init` then `/fab-update`
@@ -63,13 +63,13 @@ The existing `cp -r` distribution method SHALL continue to work. The bootstrap o
 
 #### Symlink Repair After Update
 
-After extracting the new `.kit/` contents, `fab-upgrade.sh` SHALL re-run `_init_scaffold.sh` to ensure all agent symlinks (`.claude/skills/`, `.opencode/commands/`, `.agents/skills/`) point to the updated skill files.
+After extracting the new `.kit/` contents, `fab-upgrade.sh` SHALL re-run `lib/init-scaffold.sh` to ensure all agent symlinks (`.claude/skills/`, `.opencode/commands/`, `.agents/skills/`) point to the updated skill files.
 
 ### Release
 
 #### Release Script (`fab-release.sh`)
 
-`fab/.kit/scripts/fab-release.sh` SHALL package `fab/.kit/` into a `kit.tar.gz` archive, bump the VERSION file, commit the version change, and create a GitHub Release with `kit.tar.gz` as an attached asset.
+`src/scripts/fab-release.sh` SHALL package `fab/.kit/` into a `kit.tar.gz` archive, bump the VERSION file, commit the version change, and create a GitHub Release with `kit.tar.gz` as an attached asset.
 
 The script accepts an optional argument specifying the bump type: `patch` (default), `minor`, or `major`.
 
@@ -104,7 +104,8 @@ The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its rol
 | Change | Date | Summary |
 |--------|------|---------|
 | 260213-k7m2-kit-version-migrations | 2026-02-14 | Added version drift scenarios to update section; added `fab/VERSION` to preserved files list; added migration chain validation to release section |
-| 260213-3njv-scaffold-dir | 2026-02-13 | Updated bootstrap description to mention `_init_scaffold.sh` reads from `scaffold/` files for index templates, envrc, and gitignore entries |
+| 260213-3njv-scaffold-dir | 2026-02-13 | Updated bootstrap description to mention `lib/init-scaffold.sh` reads from `scaffold/` files for index templates, envrc, and gitignore entries |
+| 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_init_scaffold.sh` → `lib/init-scaffold.sh` throughout; moved `fab-release.sh` from `fab/.kit/scripts/` to `src/scripts/` (dev-only, not shipped in kit) |
 | 260213-iq2l-rename-setup-scripts | 2026-02-13 | Renamed script references: `fab-setup.sh` → `_init_scaffold.sh`, `fab-update.sh` → `fab-upgrade.sh` |
-| 260212-emcb-clarify-fab-setup | 2026-02-12 | Updated bootstrap description to include `docs/specs/` directory and `design/index.md` in `_init_scaffold.sh` output |
+| 260212-emcb-clarify-fab-setup | 2026-02-12 | Updated bootstrap description to include `docs/specs/` directory and `design/index.md` in `lib/init-scaffold.sh` output |
 | 260210-h7r3-kit-distribution-update | 2026-02-10 | Initial creation — bootstrap, update, release, and repo rename requirements |

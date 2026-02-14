@@ -53,7 +53,7 @@ At most one Q&A round.
 
 *(Skip if `progress.spec` is `done`.)*
 
-Follow **Spec Generation Procedure** (`_generation.md`). Incorporate answers from Step 1 — no `[NEEDS CLARIFICATION]` markers. Update `.status.yaml` via `_stageman.sh set-state <file> spec done`.
+Follow **Spec Generation Procedure** (`_generation.md`). Incorporate answers from Step 1 — no `[NEEDS CLARIFICATION]` markers. Update `.status.yaml` via `lib/stageman.sh set-state <file> spec done`.
 
 **Auto-Clarify**: Invoke `/fab-clarify` with `[AUTO-MODE]` prefix. If `blocking: 0` → continue. If `blocking > 0` → **BAIL**: report issues, suggest `/fab-clarify` then `/fab-ff`.
 
@@ -69,7 +69,7 @@ Follow **Checklist Generation Procedure** (`_generation.md`).
 
 ### Step 5: Update `.status.yaml` (Planning Complete)
 
-Run `_stageman.sh transition <file> tasks apply`. Then set checklist fields via `_stageman.sh set-checklist <file> generated true`, `_stageman.sh set-checklist <file> total <count>`, `_stageman.sh set-checklist <file> completed 0`.
+Run `lib/stageman.sh transition <file> tasks apply`. Then set checklist fields via `lib/stageman.sh set-checklist <file> generated true`, `lib/stageman.sh set-checklist <file> total <count>`, `lib/stageman.sh set-checklist <file> completed 0`.
 
 ### Step 6: Implementation
 
@@ -79,7 +79,7 @@ Execute apply behavior per `/fab-continue` — parse unchecked tasks, execute in
 
 **If task fails**: STOP with `Task {ID} failed: {reason}. Investigate and re-run /fab-ff.`
 
-On success: run `_stageman.sh transition <file> apply review`.
+On success: run `lib/stageman.sh transition <file> apply review`.
 
 ### Step 7: Review
 
@@ -87,7 +87,7 @@ On success: run `_stageman.sh transition <file> apply review`.
 
 Execute review behavior per `/fab-continue` — validate tasks, checklist, tests, spec match, memory drift.
 
-**Pass**: run `_stageman.sh transition <file> review hydrate`. Proceed to Step 8.
+**Pass**: run `lib/stageman.sh transition <file> review hydrate`. Proceed to Step 8.
 
 **Fail**: Present interactive rework menu: fix code (uncheck tasks with `<!-- rework: reason -->`), revise tasks, or revise spec (reset via `/fab-continue spec`).
 
@@ -95,7 +95,7 @@ Execute review behavior per `/fab-continue` — validate tasks, checklist, tests
 
 *(Skip if `progress.hydrate` is `done`.)*
 
-Execute hydrate behavior per `/fab-continue` — validate review passed, hydrate into `docs/memory/`, run `_stageman.sh set-state <file> hydrate done`.
+Execute hydrate behavior per `/fab-continue` — validate review passed, hydrate into `docs/memory/`, run `lib/stageman.sh set-state <file> hydrate done`.
 
 ---
 

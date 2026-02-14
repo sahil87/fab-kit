@@ -1,0 +1,1 @@
+../../../fab/.kit/scripts/lib/resolve-change.sh

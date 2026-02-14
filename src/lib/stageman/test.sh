@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# src/stageman/test.sh
+# src/lib/stageman/test.sh
 #
-# Comprehensive test suite for _stageman.sh
+# Comprehensive test suite for stageman.sh
 # Run: ./test.sh
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/_stageman.sh"
-set +e  # _stageman.sh enables -e; disable it for test assertions
+source "$SCRIPT_DIR/stageman.sh"
+set +e  # stageman.sh enables -e; disable it for test assertions
 
 # Test colors
 RED='\033[0;31m'

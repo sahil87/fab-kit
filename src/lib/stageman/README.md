@@ -5,8 +5,8 @@ Bash utility for querying workflow stages and states from the canonical schema (
 ## Sources of Truth
 
 - **Schema**: `fab/.kit/schemas/workflow.yaml` — canonical workflow definition
-- **Implementation**: `fab/.kit/scripts/_stageman.sh` — main file (distributed with kit)
-- **Dev symlink**: `src/stageman/_stageman.sh` → `../../fab/.kit/scripts/_stageman.sh`
+- **Implementation**: `fab/.kit/scripts/lib/stageman.sh` — main file (distributed with kit)
+- **Dev symlink**: `src/lib/stageman/stageman.sh` → `../../../fab/.kit/scripts/lib/stageman.sh`
 - **Schema docs**: `fab/docs/fab-workflow/schemas.md` — what the schema defines and design principles
 
 ## Usage
@@ -14,7 +14,7 @@ Bash utility for querying workflow stages and states from the canonical schema (
 ### As Library
 
 ```bash
-source "$(dirname "$0")/_stageman.sh"
+source "$(dirname "$0")/stageman.sh"
 
 get_all_stages              # List all stage IDs in order
 get_stage_number "spec"     # Get 1-indexed position (2)
@@ -25,9 +25,9 @@ validate_status_file path   # Validate .status.yaml against schema
 ### As Command
 
 ```bash
-_stageman.sh --help      # Show usage and function reference
-_stageman.sh --version   # Show library and schema version
-_stageman.sh --test      # Run self-tests
+stageman.sh --help      # Show usage and function reference
+stageman.sh --version   # Show library and schema version
+stageman.sh --test      # Run self-tests
 ```
 
 ## API Reference
@@ -104,24 +104,24 @@ _stageman.sh --test      # Run self-tests
 
 ```bash
 # Quick smoke test
-src/stageman/test-simple.sh
+src/lib/stageman/test-simple.sh
 
 # Self-test from main file
-fab/.kit/scripts/_stageman.sh --test
+fab/.kit/scripts/lib/stageman.sh --test
 ```
 
 ## Changelog
 
 ### 1.1.0 (2026-02-14)
 
-- Renamed from `stageman.sh` to `_stageman.sh` (underscore prefix for internal libraries)
+- Renamed from `stageman.sh` to `_stageman.sh` (underscore prefix for internal libraries), later renamed back to `stageman.sh`
 - Added `.status.yaml` accessor functions: `get_progress_map`, `get_checklist`, `get_confidence`
 - Refactored `get_current_stage` to use `get_progress_map` internally
 
 ### 1.0.0 (2026-02-12)
 
 - Renamed from `workflow-lib.sh` to `stageman.sh`
-- Reversed directory structure: main file in `fab/.kit/scripts/`, dev symlink in `src/stageman/`
+- Reversed directory structure: main file in `fab/.kit/scripts/lib/`, dev symlink in `src/lib/stageman/`
 - All state/stage query functions (20+)
 - Validation functions (`validate_status_file`, `validate_stage_state`)
 - CLI interface (`--help`, `--version`, `--test`)

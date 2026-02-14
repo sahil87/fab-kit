@@ -4,19 +4,19 @@ Pre-execution validator for fab workflow commands. Checks the health of the curr
 
 ## Sources of Truth
 
-- **Implementation**: `fab/.kit/scripts/_preflight.sh` — main file (distributed with kit)
-- **Dev symlink**: `src/preflight/_preflight.sh` → `../../fab/.kit/scripts/_preflight.sh`
-- **Dependencies**: `fab/.kit/scripts/stageman.sh` (sourced for schema-driven validation)
+- **Implementation**: `fab/.kit/scripts/lib/preflight.sh` — main file (distributed with kit)
+- **Dev symlink**: `src/lib/preflight/preflight.sh` → `../../../fab/.kit/scripts/lib/preflight.sh`
+- **Dependencies**: `fab/.kit/scripts/lib/stageman.sh` (sourced for schema-driven validation)
 - **Schema**: `fab/.kit/schemas/workflow.yaml` — canonical workflow definition
 
 ## Usage
 
 ```bash
 # Check the current active change (reads fab/current)
-fab/.kit/scripts/_preflight.sh
+fab/.kit/scripts/lib/preflight.sh
 
 # Check a specific change by name (fuzzy, case-insensitive)
-fab/.kit/scripts/_preflight.sh my-feature
+fab/.kit/scripts/lib/preflight.sh my-feature
 ```
 
 ## Validation Pipeline
@@ -91,15 +91,15 @@ confidence:
 
 - Bash 4.0+
 - GNU coreutils (grep, sed, awk)
-- `_stageman.sh` accessible at `$(dirname "$0")/_stageman.sh`
-- `_resolve-change.sh` accessible at `$(dirname "$0")/_resolve-change.sh`
+- `stageman.sh` accessible at `$(dirname "$0")/stageman.sh`
+- `resolve-change.sh` accessible at `$(dirname "$0")/resolve-change.sh`
 
 ## Testing
 
 ```bash
 # Quick smoke test
-src/preflight/test-simple.sh
+src/lib/preflight/test-simple.sh
 
 # Full test suite
-src/preflight/test.sh
+src/lib/preflight/test.sh
 ```

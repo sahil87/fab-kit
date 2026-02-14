@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# src/preflight/test.sh
+# src/lib/preflight/test.sh
 #
-# Comprehensive test suite for _preflight.sh
+# Comprehensive test suite for preflight.sh
 # Run: ./test.sh
 
 set -uo pipefail
 
-PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 
 # Test colors
 RED='\033[0;31m'
@@ -110,14 +110,14 @@ setup_env() {
 
   # Mirror the fab/ directory structure
   local fab="$TEST_DIR/fab"
-  mkdir -p "$fab/.kit/scripts" "$fab/.kit/schemas" "$fab/changes"
+  mkdir -p "$fab/.kit/scripts/lib" "$fab/.kit/schemas" "$fab/changes"
 
   # Copy real scripts and schema
-  cp "$PROJECT_ROOT/fab/.kit/scripts/_preflight.sh" "$fab/.kit/scripts/"
-  cp "$PROJECT_ROOT/fab/.kit/scripts/_stageman.sh" "$fab/.kit/scripts/"
-  cp "$PROJECT_ROOT/fab/.kit/scripts/_resolve-change.sh" "$fab/.kit/scripts/"
+  cp "$PROJECT_ROOT/fab/.kit/scripts/lib/preflight.sh" "$fab/.kit/scripts/lib/"
+  cp "$PROJECT_ROOT/fab/.kit/scripts/lib/stageman.sh" "$fab/.kit/scripts/lib/"
+  cp "$PROJECT_ROOT/fab/.kit/scripts/lib/resolve-change.sh" "$fab/.kit/scripts/lib/"
   cp "$PROJECT_ROOT/fab/.kit/schemas/workflow.yaml" "$fab/.kit/schemas/"
-  chmod +x "$fab/.kit/scripts/_preflight.sh"
+  chmod +x "$fab/.kit/scripts/lib/preflight.sh"
 
   # Create required init files
   echo "version: 1" > "$fab/config.yaml"
@@ -146,7 +146,7 @@ set_current() {
 # Helper: run preflight and capture output + exit code
 run_preflight() {
   local output
-  output=$("$TEST_DIR/fab/.kit/scripts/_preflight.sh" "$@" 2>&1)
+  output=$("$TEST_DIR/fab/.kit/scripts/lib/preflight.sh" "$@" 2>&1)
   local code=$?
   echo "$output"
   return $code
@@ -157,7 +157,7 @@ run_preflight_split() {
   local stdout_file stderr_file
   stdout_file=$(mktemp)
   stderr_file=$(mktemp)
-  "$TEST_DIR/fab/.kit/scripts/_preflight.sh" "$@" >"$stdout_file" 2>"$stderr_file"
+  "$TEST_DIR/fab/.kit/scripts/lib/preflight.sh" "$@" >"$stdout_file" 2>"$stderr_file"
   local code=$?
   LAST_STDOUT=$(cat "$stdout_file")
   LAST_STDERR=$(cat "$stderr_file")

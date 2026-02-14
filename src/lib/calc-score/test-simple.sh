@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# src/calc-score/test-simple.sh
+# src/lib/calc-score/test-simple.sh
 #
-# Quick smoke test for _calc-score.sh
+# Quick smoke test for calc-score.sh
 # Run: ./test-simple.sh
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CALC_SCORE="$SCRIPT_DIR/_calc-score.sh"
+CALC_SCORE="$SCRIPT_DIR/calc-score.sh"
 
 TEST_DIR=$(mktemp -d)
 trap "rm -rf $TEST_DIR" EXIT
@@ -44,7 +44,7 @@ cat > "$TEST_DIR/spec.md" <<'EOF'
 | 1 | Confident | Test decision | Smoke test |
 EOF
 
-echo "Testing _calc-score.sh basic invocation..."
+echo "Testing calc-score.sh basic invocation..."
 output=$("$CALC_SCORE" "$TEST_DIR")
 if echo "$output" | grep -q "confident: 1"; then
   echo "✓ Grade counting works"

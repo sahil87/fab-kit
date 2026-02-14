@@ -1,16 +1,16 @@
-# Confidence Score Calculator (_calc-score.sh)
+# Confidence Score Calculator (calc-score.sh)
 
 Computes confidence scores from `## Assumptions` tables in `brief.md` and `spec.md`. Scans for SRAD grade counts (Certain, Confident, Tentative), applies the confidence formula, writes the updated confidence block to `.status.yaml`, and emits YAML with delta to stdout.
 
 ## Sources of Truth
 
-- **Implementation**: `fab/.kit/scripts/_calc-score.sh` — main file (distributed with kit)
-- **Dev symlink**: `src/calc-score/_calc-score.sh` → `../../fab/.kit/scripts/_calc-score.sh`
+- **Implementation**: `fab/.kit/scripts/lib/calc-score.sh` — main file (distributed with kit)
+- **Dev symlink**: `src/lib/calc-score/calc-score.sh` → `../../../fab/.kit/scripts/lib/calc-score.sh`
 
 ## Usage
 
 ```bash
-_calc-score.sh <change-dir>
+calc-score.sh <change-dir>
 ```
 
 Where `<change-dir>` is the path to a change directory (e.g., `fab/changes/260214-mgh5-calc-score-dev-setup`).
@@ -43,7 +43,7 @@ confidence:
 
 | Condition | stderr message |
 |-----------|---------------|
-| No arguments | `Usage: _calc-score.sh <change-dir>` |
+| No arguments | `Usage: calc-score.sh <change-dir>` |
 | Directory not found | `Change directory not found: <path>` |
 | No `spec.md` | `spec.md required for scoring` |
 
@@ -70,10 +70,10 @@ Implicit Certain counts are preserved from the previous `.status.yaml`. If the p
 
 ```bash
 # Quick smoke test
-src/calc-score/test-simple.sh
+src/lib/calc-score/test-simple.sh
 
 # Comprehensive suite
-src/calc-score/test.sh
+src/lib/calc-score/test.sh
 ```
 
 ## Changelog
@@ -81,5 +81,5 @@ src/calc-score/test.sh
 ### 1.0.0 (2026-02-14)
 
 - Initial dev folder setup
-- Symlink to `fab/.kit/scripts/_calc-score.sh`
+- Symlink to `fab/.kit/scripts/lib/calc-score.sh`
 - Smoke test (`test-simple.sh`) and comprehensive test suite (`test.sh`)

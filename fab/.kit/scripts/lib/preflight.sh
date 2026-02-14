@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-fab_root="$(dirname "$0")/../.."
-scripts_dir="$(cd "$(dirname "$0")" && pwd)"
+fab_root="$(dirname "$0")/../../.."
+scripts_dir="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Source libraries
-source "$scripts_dir/_stageman.sh"
-source "$scripts_dir/_resolve-change.sh"
+source "$scripts_dir/lib/stageman.sh"
+source "$scripts_dir/lib/resolve-change.sh"
 
 # 1. Project initialization validation
 if [ ! -f "$fab_root/config.yaml" ] || [ ! -f "$fab_root/constitution.md" ]; then

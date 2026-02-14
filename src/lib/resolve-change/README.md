@@ -1,16 +1,16 @@
-# Change Resolver (_resolve-change.sh)
+# Change Resolver (resolve-change.sh)
 
-Bash library for resolving change names from an override argument or `fab/current`. Sourced by `_preflight.sh` and `fab-status.sh`.
+Bash library for resolving change names from an override argument or `fab/current`. Sourced by `preflight.sh` and `fab-status.sh`.
 
 ## Sources of Truth
 
-- **Implementation**: `fab/.kit/scripts/_resolve-change.sh` — main file (distributed with kit)
-- **Dev symlink**: `src/resolve-change/_resolve-change.sh` → `../../fab/.kit/scripts/_resolve-change.sh`
+- **Implementation**: `fab/.kit/scripts/lib/resolve-change.sh` — main file (distributed with kit)
+- **Dev symlink**: `src/lib/resolve-change/resolve-change.sh` → `../../../fab/.kit/scripts/lib/resolve-change.sh`
 
 ## Usage
 
 ```bash
-source "$(dirname "$0")/_resolve-change.sh"
+source "$(dirname "$0")/resolve-change.sh"
 
 # Resolve from fab/current
 resolve_change "$fab_root" ""
@@ -61,16 +61,16 @@ Callers add their own context-appropriate guidance (e.g., "Run /fab-new to start
 
 ```bash
 # Quick smoke test
-src/resolve-change/test-simple.sh
+src/lib/resolve-change/test-simple.sh
 
 # Comprehensive suite
-src/resolve-change/test.sh
+src/lib/resolve-change/test.sh
 ```
 
 ## Changelog
 
 ### 1.0.0 (2026-02-14)
 
-- Extracted from `_preflight.sh` and `fab-status.sh`
+- Extracted from `preflight.sh` and `fab-status.sh`
 - `resolve_change` function with `RESOLVED_CHANGE_NAME` variable-setting pattern
 - Handles: exact match, case-insensitive substring, multiple matches, no match, no fab/current, missing changes dir

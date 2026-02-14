@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# src/resolve-change/test.sh
+# src/lib/resolve-change/test.sh
 #
-# Comprehensive test suite for _resolve-change.sh
+# Comprehensive test suite for resolve-change.sh
 # Run: ./test.sh
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/_resolve-change.sh"
+source "$SCRIPT_DIR/resolve-change.sh"
 set +e
 
 # Test colors

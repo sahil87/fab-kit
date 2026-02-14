@@ -2,21 +2,21 @@ name: 260214-q7f2-reorganize-src
 created: 2026-02-14T12:00:00+00:00
 created_by: sahil-weaver
 progress:
-  brief: active
-  spec: pending
-  tasks: pending
-  apply: pending
-  review: pending
-  hydrate: pending
+  brief: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
 checklist:
-  generated: false
+  generated: true
   path: checklist.md
-  completed: 0
-  total: 0
+  completed: 29
+  total: 29
 confidence:
   certain: 0
-  confident: 0
+  confident: 3
   tentative: 0
   unresolved: 0
-  score: 0.0
-last_updated: 2026-02-14T12:00:00+00:00
+  score: 4.1
+last_updated: 2026-02-14T13:25:39+05:30

@@ -24,7 +24,7 @@ cp -r /path/to/fab-kit/fab/.kit ./fab/
 Then run setup and init:
 
 ```bash
-fab/.kit/scripts/_init_scaffold.sh   # creates directories, symlinks, .gitignore
+fab/.kit/scripts/lib/init-scaffold.sh   # creates directories, symlinks, .gitignore
 direnv allow # To approve .envrc content, used to add scripts to path
 # Once setup completes, use your AI agent to run:
 #> /fab-init     # generates config.yaml and constitution.md
@@ -55,7 +55,7 @@ This will:
 1. Download the latest `kit.tar.gz` from GitHub Releases
 2. Atomically replace `fab/.kit/` (your `config.yaml`, `docs/`, `changes/`, etc. are never touched)
 3. Display the version change (e.g., "0.1.0 → 0.2.0")
-4. Re-run `_init_scaffold.sh` to repair symlinks
+4. Re-run `lib/init-scaffold.sh` to repair symlinks
 
 **Requires**: [gh CLI](https://cli.github.com/) installed and authenticated.
 
@@ -120,12 +120,12 @@ The kit includes **Stage Manager**, a bash utility for querying workflow stages 
 
 ```bash
 # Query utility
-fab/.kit/scripts/stageman.sh --help     # Show all available functions
-fab/.kit/scripts/stageman.sh --version  # Show version
-fab/.kit/scripts/stageman.sh --test     # Run self-tests
+fab/.kit/scripts/lib/stageman.sh --help     # Show all available functions
+fab/.kit/scripts/lib/stageman.sh --version  # Show version
+fab/.kit/scripts/lib/stageman.sh --test     # Run self-tests
 
 # Use in scripts
-source fab/.kit/scripts/stageman.sh
+source fab/.kit/scripts/lib/stageman.sh
 get_all_stages                          # List stages
 get_stage_number "spec"                 # Get position (2)
 validate_status_file .status.yaml       # Validate change status
@@ -135,15 +135,15 @@ validate_status_file .status.yaml       # Validate change status
 
 ```bash
 # Run basic tests
-src/stageman/test-simple.sh
+src/lib/stageman/test-simple.sh
 
 # View API documentation and development guide
-cat src/stageman/README.md
+cat src/lib/stageman/README.md
 ```
 
 For complete documentation, see:
 - [docs/memory/fab-workflow/schemas.md](docs/memory/fab-workflow/schemas.md) - Schema overview
-- [src/stageman/README.md](src/stageman/README.md) - API reference and development guide
+- [src/lib/stageman/README.md](src/lib/stageman/README.md) - API reference and development guide
 
 ## Documentation Map
 
@@ -169,7 +169,7 @@ For complete documentation, see:
 5. **[docs/specs/skills.md](docs/specs/skills.md)** — detailed behavior for each `/fab-*` skill
 6. **[docs/memory/fab-workflow/kit-architecture.md](docs/memory/fab-workflow/kit-architecture.md)** — `.kit/` internals, scripts, distribution
 7. **[docs/specs/templates.md](docs/specs/templates.md)** — artifact template system
-8. **[src/stageman/README.md](src/stageman/README.md)** — Stage Manager development guide and testing
+8. **[src/lib/stageman/README.md](src/lib/stageman/README.md)** — Stage Manager development guide and testing
 
 #### Spec Reader — "I want to understand the design rationale"
 
@@ -221,7 +221,7 @@ For complete documentation, see:
 |----------|-------------|
 | [docs/specs/architecture.md](docs/specs/architecture.md) | Directory structure, config schema, naming conventions, agent integration |
 | [docs/memory/fab-workflow/kit-architecture.md](docs/memory/fab-workflow/kit-architecture.md) | `.kit/` directory structure, shell scripts, agent integration, distribution |
-| [docs/memory/fab-workflow/preflight.md](docs/memory/fab-workflow/preflight.md) | `_preflight.sh` — validation script, structured YAML output, skill integration |
+| [docs/memory/fab-workflow/preflight.md](docs/memory/fab-workflow/preflight.md) | `preflight.sh` — validation script, structured YAML output, skill integration |
 | [docs/memory/fab-workflow/hydrate-generate.md](docs/memory/fab-workflow/hydrate-generate.md) | `/docs-hydrate-memory` generate mode — codebase scanning, gap detection, doc generation |
 | [docs/specs/proposal.md](docs/specs/proposal.md) | Original SpecKit vs OpenSpec comparison and design rationale |
 

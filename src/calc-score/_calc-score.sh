@@ -1,1 +1,0 @@
-../../fab/.kit/scripts/_calc-score.sh

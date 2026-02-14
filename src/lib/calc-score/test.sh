@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# src/calc-score/test.sh
+# src/lib/calc-score/test.sh
 #
-# Comprehensive test suite for _calc-score.sh
+# Comprehensive test suite for calc-score.sh
 # Run: ./test.sh
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CALC_SCORE="$SCRIPT_DIR/_calc-score.sh"
+CALC_SCORE="$SCRIPT_DIR/calc-score.sh"
 
 # Test colors
 RED='\033[0;31m'
