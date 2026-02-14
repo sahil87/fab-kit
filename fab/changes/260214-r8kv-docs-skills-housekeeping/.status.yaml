@@ -2,21 +2,21 @@ name: 260214-r8kv-docs-skills-housekeeping
 created: 2026-02-14T00:00:00+00:00
 created_by: sahil-weaver
 progress:
-  brief: active
-  spec: pending
-  tasks: pending
-  apply: pending
-  review: pending
-  hydrate: pending
+  brief: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
 checklist:
-  generated: false
+  generated: true
   path: checklist.md
-  completed: 0
-  total: 0
+  completed: 20
+  total: 20
 confidence:
-  certain: 4
-  confident: 1
+  certain: 8
+  confident: 4
   tentative: 0
   unresolved: 0
-  score: 4.7
+  score: 3.8
 last_updated: 2026-02-14T00:00:00+00:00

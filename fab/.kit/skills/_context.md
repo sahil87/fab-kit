@@ -9,7 +9,7 @@
 
 Before generating or validating any artifact, load the relevant context layers below. This ensures output is grounded in the actual project state, not assumptions.
 
-### 1. Always Load (every skill except `/fab-init`, `/fab-status`, `/fab-hydrate`; `/fab-switch` loads only `config.yaml`)
+### 1. Always Load (every skill except `/fab-init`, `/fab-status`, `/docs-hydrate-memory`; `/fab-switch` loads only `config.yaml`)
 
 Read these files first — they define the project's identity, constraints, and documentation landscape:
 
@@ -67,8 +67,8 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 | After skill | Stage reached | Next line |
 |-------------|---------------|-----------|
-| `/fab-init` | initialized | `Next: /fab-new <description> or /fab-hydrate <sources>` |
-| `/fab-hydrate` | memory hydrated | `Next: /fab-new <description> or /fab-hydrate <more-sources>` |
+| `/fab-init` | initialized | `Next: /fab-new <description> or /docs-hydrate-memory <sources>` |
+| `/docs-hydrate-memory` | memory hydrated | `Next: /fab-new <description> or /docs-hydrate-memory <more-sources>` |
 | `/fab-new` | brief active | `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-ff` |
 | `/fab-continue` → spec | spec done | `Next: /fab-continue or /fab-ff or /fab-clarify` |
 | `/fab-continue` → tasks | tasks done | `Next: /fab-continue or /fab-ff` |

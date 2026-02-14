@@ -18,7 +18,7 @@ model_tier: fast
 - **`constitution`** — create or amend `fab/constitution.md` with semantic versioning
 - **`validate`** — validate structural correctness of `fab/config.yaml` and `fab/constitution.md`
 
-Any unrecognized argument triggers: "Did you mean /fab-hydrate? /fab-init no longer accepts source arguments."
+Any unrecognized argument triggers: "Did you mean /docs-hydrate-memory? /fab-init no longer accepts source arguments."
 
 ---
 
@@ -141,7 +141,7 @@ Created: 11 symlinks in .claude/skills/
 Updated: .gitignore (added fab/current)
 fab/ initialized successfully.
 
-Next: /fab-new <description> or /fab-hydrate <sources>
+Next: /fab-new <description> or /docs-hydrate-memory <sources>
 ```
 
 On re-run, report each artifact as OK/repaired instead of Created, ending with `fab/ structure verified.`
@@ -456,7 +456,7 @@ All paths are safe to re-run. Structural artifacts are created once (skipped on 
 
 ## Next Steps Reference
 
-- After bootstrap: `/fab-new <description>` or `/fab-hydrate <sources>`
+- After bootstrap: `/fab-new <description>` or `/docs-hydrate-memory <sources>`
 - After config create: `/fab-new <description>`
 - After config/constitution update: `/fab-init validate`
 - After constitution create: `/fab-init validate` or `/fab-new <description>`

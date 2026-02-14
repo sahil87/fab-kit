@@ -126,7 +126,7 @@ There is no `/fab-abandon` skill — this is a manual operation. To preserve con
 
 `/fab-status` shows the current change state at a glance: name, live git branch (when `git.enabled`), current stage, progress through all stages, checklist status, confidence score, and suggested next command.
 
-All mechanical work (file reading, YAML parsing, git branch query, progress symbol mapping, next command logic) lives in `fab/.kit/scripts/fab-status.sh`. The script reads `fab/config.yaml` for `git.enabled` and uses `git branch --show-current` for live branch display. The skill prompt invokes the script and presents its output. The same script can be run directly from the terminal without invoking an agent.
+The skill uses `fab-preflight.sh` and `stageman.sh` for data retrieval, then formats the output. It reads `fab/config.yaml` for `git.enabled` and uses `git branch --show-current` for live branch display.
 
 ### `/fab-switch [change-name] [--blank] [--branch <name>]`
 

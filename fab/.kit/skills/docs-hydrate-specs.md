@@ -1,9 +1,9 @@
 ---
-name: fab-hydrate-specs
+name: docs-hydrate-specs
 description: "Identify structural gaps between memory and specs, propose concise additions back to specs with interactive confirmation."
 ---
 
-# /fab-hydrate-specs
+# /docs-hydrate-specs
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -88,7 +88,7 @@ Add this to `{spec_file}`? (yes / no / done)
 |-----------|--------|
 | `fab/memory/index.md` missing | Abort with init guidance |
 | `fab/specs/index.md` missing | Abort with init guidance |
-| No memory domains found | "No memory domains found. Run /fab-hydrate first." |
+| No memory domains found | "No memory domains found. Run /docs-hydrate-memory first." |
 | No spec files found | "No spec files found in fab/specs/index.md." |
 | Domain argument unmatched | "Domain '{name}' not found. Available: {list}" |
 | Spec file write fails | Report error, continue to next gap |

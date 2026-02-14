@@ -31,8 +31,7 @@ project/
 │   │   │   └── fab-status.md
 │   │   └── scripts/                # Lightweight shell utilities
 │   │       ├── fab-help.sh         # Print Fab Kit help overview
-│   │       ├── _fab-scaffold.sh        # Structural bootstrap for fab
-│   │       └── fab-status.sh       # Full status display (version, progress, next command)
+│   │       └── _fab-scaffold.sh        # Structural bootstrap for fab
 │   ├── config.yaml                 # Project-specific configuration
 │   ├── constitution.md             # Project principles & constraints
 │   ├── current                     # Pointer file (contains active change name)
@@ -90,7 +89,7 @@ Scripts in `fab/.kit/scripts/` follow a prefix convention to distinguish entry p
 
 | Prefix | Role | Invoked by | Example |
 |--------|------|------------|---------|
-| `fab-` | Entry point — invoked by skills or users | Skills, `fab-setup.sh` via terminal | `fab-preflight.sh`, `fab-status.sh` |
+| `fab-` | Entry point — invoked by skills or users | Skills, `fab-setup.sh` via terminal | `fab-preflight.sh`, `fab-help.sh` |
 | `_` | Internal library — sourced by other scripts | Other scripts via `source` | `_stageman.sh`, `_resolve-change.sh` |
 
 **Why?** When `.kit/` is distributed via `cp -r`, the `_` prefix makes it immediately clear which scripts are internal plumbing vs. which are callable entry points. This matters for discoverability and prevents accidental direct invocation of library scripts that expect to be sourced.
@@ -123,17 +122,15 @@ active=$(cat fab/current)
 
 **Quick check from terminal**: For instant identification when switching between VS Code windows:
 ```bash
-fab/.kit/scripts/fab-status.sh
+/fab-status
 ```
-The script outputs a formatted status block with version, change name, branch, stage progress, checklist counts, and suggested next command. See the script source for the full output format.
+The skill outputs a formatted status block with version, change name, branch, stage progress, checklist counts, and suggested next command.
 
 **Why a pointer file (not a symlink)?**
 - **Cross-platform** — symlinks on Windows require Developer Mode or admin privileges. A plain text file works everywhere.
 - **Cleaner errors** — if the target change is deleted, reading a stale name is easy to detect and report clearly, vs. a dangling symlink producing confusing errors.
 - **Simpler operations** — any language/tool can read and write a plain text file. No `ln -sf` semantics.
 - **Git-friendly** — add `fab/current` to `.gitignore` since it's local working state.
-
-**`fab/.kit/scripts/fab-status.sh`**: Reads `fab/current` and `.status.yaml`, renders a formatted status block with version header, progress table (using `✓ ● ○ — ✗` symbols), checklist counts, and next command suggestion. Handles all error cases (no active change, missing files, missing fields). See the script source for full implementation.
 
 ---
 

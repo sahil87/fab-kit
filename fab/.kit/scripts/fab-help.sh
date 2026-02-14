@@ -45,15 +45,18 @@ COMMANDS
     /fab-archive            Archive change — move to archive, mark backlog done
 
   Maintenance
-    /fab-hydrate-specs [domain]   Identify doc→spec gaps and propose additions
+    /docs-hydrate-specs [domain]  Identify memory→spec gaps and propose additions
+    /docs-reorg-specs             Analyze spec files for themes and suggest reorganization
+    /docs-reorg-memory            Analyze memory files for themes and suggest reorganization
 
   Setup
     /fab-init               Bootstrap fab/ directory structure (safe to re-run)
-    /fab-hydrate <sources>  Ingest external sources into fab/memory/
+    /docs-hydrate-memory <sources>  Ingest external sources into fab/memory/
     /fab-help               Show this help
 
 TYPICAL FLOW
 
   Quick change:  /fab-new → /fab-ff → /fab-archive
   Careful change: /fab-new → /fab-continue (repeat) → /fab-archive
+  Maintain docs:  /docs-hydrate-memory, /docs-hydrate-specs, /docs-reorg-specs, /docs-reorg-memory
 EOF

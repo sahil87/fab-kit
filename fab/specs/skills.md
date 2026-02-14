@@ -514,7 +514,7 @@ Next: Complete brief.md, then /fab-continue
 
 ---
 
-## `/fab-hydrate-specs [domain]`
+## `/docs-hydrate-specs [domain]`
 
 **Purpose**: Identify structural gaps between `fab/memory/` and `fab/specs/` and propose concise additions back to specs with interactive confirmation.
 
@@ -525,7 +525,7 @@ Next: Complete brief.md, then /fab-continue
 
 **Example**:
 ```
-/fab-hydrate-specs
+/docs-hydrate-specs
 → "Found 5 structural gaps (showing top 3):"
 → Gap 1: Preflight Script — Source: preflight.md, Target: architecture.md
 → Shows exact markdown preview, asks: "Add this? (yes / no / done)"

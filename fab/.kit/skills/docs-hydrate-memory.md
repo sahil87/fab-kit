@@ -1,9 +1,9 @@
 ---
-name: fab-hydrate
+name: docs-hydrate-memory
 description: "Hydrate memory from external sources or generate from codebase analysis. Safe to re-run."
 ---
 
-# /fab-hydrate [sources...|folders...]
+# /docs-hydrate-memory [sources...|folders...]
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -180,4 +180,4 @@ Safe to re-run. New files created on first run, merged on subsequent. Existing c
 
 ---
 
-Next: `/fab-new <description>`, `/fab-hydrate <more-sources>`, or `/fab-hydrate` (generate mode)
+Next: `/fab-new <description>`, `/docs-hydrate-memory <more-sources>`, or `/docs-hydrate-memory` (generate mode)

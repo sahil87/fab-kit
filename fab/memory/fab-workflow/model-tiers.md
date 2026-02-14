@@ -37,7 +37,7 @@ A skill matching ANY `capable` criterion is classified as `capable`, regardless 
 | Skill | Rationale |
 |-------|-----------|
 | `fab-help` | Delegates to `fab-help.sh` |
-| `fab-status` | Delegates to `fab-status.sh` |
+| `fab-status` | Delegates to `fab-preflight.sh` + `stageman.sh` |
 | `fab-switch` | State lookup, branch operations, no artifact generation |
 | `fab-init` | Structural bootstrap, delegates to `_fab-scaffold.sh` |
 
@@ -46,12 +46,14 @@ A skill matching ANY `capable` criterion is classified as `capable`, regardless 
 | Skill | Rationale |
 |-------|-----------|
 | `fab-new` | Brief generation, SRAD evaluation |
-| `fab-hydrate` | Content analysis, memory generation/merging |
+| `docs-hydrate-memory` | Content analysis, memory generation/merging |
 | `fab-continue` | Artifact generation (spec/tasks), code implementation, review validation, memory hydration |
 | `fab-ff` | Multi-stage pipeline orchestration |
 | `fab-fff` | Full pipeline with confidence gating |
 | `fab-clarify` | Gap resolution, deep reasoning |
-| `fab-hydrate-specs` | Structural gap analysis, spec modification |
+| `docs-hydrate-specs` | Structural gap analysis, spec modification |
+| `docs-reorg-specs` | Spec file theme analysis and reorganization |
+| `docs-reorg-memory` | Memory file theme analysis and reorganization |
 | `internal-consistency-check` | Cross-layer drift detection |
 | `internal-retrospect` | Retrospective analysis |
 
