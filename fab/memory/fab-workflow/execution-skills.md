@@ -86,28 +86,48 @@ Loads: config, constitution, `specs/index.md`, `spec.md`, `brief.md`, target mem
 
 ### `/fab-archive` (Standalone Skill)
 
-`/fab-archive` is a standalone housekeeping command — not a pipeline stage. It handles the post-hydrate cleanup: moving the change folder to archive, updating the archive index, marking backlog items done, and conditionally clearing the active change pointer.
+`/fab-archive` is a standalone housekeeping command — not a pipeline stage. It supports two modes: **archive** (default) moves completed changes to the archive; **restore** moves archived changes back to active.
 
-#### Precondition
+#### Archive Mode
+
+##### Precondition
 
 Requires `hydrate: done` in `.status.yaml`. If hydrate is not done, it stops with: "Hydrate has not completed. Run /fab-continue to hydrate memory first."
 
-#### Behavior
+##### Behavior
 
 1. **Move change folder** — `fab/changes/{name}/` → `fab/changes/archive/{name}/`. Create `archive/` if needed. No rename.
 2. **Update archive index** — prepend entry to `fab/changes/archive/index.md` (create with backfill if missing). Format: `- **{folder-name}** — {1-2 sentence description}`. Most-recent-first.
 3. **Mark backlog items done** — exact-ID check (always), then keyword scan with interactive confirmation
 4. **Clear pointer** — delete `fab/current` only if the archived change is the active one
 
-#### Fail-Safe Order of Operations
+##### Fail-Safe Order of Operations
 
 Steps 1–4 execute in this order for safety. Folder move first (recoverable if interrupted — re-run detects folder already in archive and completes remaining steps). Index after folder is in place. Backlog marking after index. Pointer last.
 
+#### Restore Mode (`/fab-archive restore <change-name> [--switch]`)
+
+Restores an archived change back to `fab/changes/`. Inverse of the archive operation. Preserves all artifacts and `.status.yaml` without modification — no status reset, no artifact regeneration.
+
+##### Precondition
+
+`<change-name>` is required. Resolved via case-insensitive substring matching against folder names in `fab/changes/archive/`. Supports exact/single/ambiguous/no-match flows (same pattern as `/fab-switch`).
+
+##### Behavior
+
+1. **Move change folder** — `fab/changes/archive/{name}/` → `fab/changes/{name}/`. No rename. All artifacts preserved.
+2. **Remove archive index entry** — remove the entry for `{name}` from `fab/changes/archive/index.md`. Preserve empty index file.
+3. **Update pointer** (conditional) — if `--switch` flag provided, write `{name}` to `fab/current`. Otherwise no-op.
+
+Steps execute 1→3 for safety. If interrupted, re-run detects folder already in `fab/changes/` and completes remaining steps (index cleanup, optional pointer update).
+
 #### Key Properties
 
-- Does NOT modify `.status.yaml` progress (no `archive` entry added; may update `last_updated`)
-- Accepts optional `[change-name]` argument for targeting a specific change
-- Conditional pointer clearing — only clears `fab/current` when the archived change is the active one
+- Does NOT modify `.status.yaml` progress (may update `last_updated`)
+- Accepts optional `[change-name]` argument for targeting a specific change (archive mode)
+- Conditional pointer clearing in archive mode — only clears `fab/current` when the archived change is the active one
+- Restore mode requires explicit `<change-name>` — no "restore most recent" convenience
+- Restore mode optionally activates via `--switch` flag
 
 ## Design Decisions
 
@@ -141,6 +161,12 @@ Steps 1–4 execute in this order for safety. Folder move first (recoverable if 
 **Rejected**: Both as pipeline stages — would add a 7th stage for marginal benefit. Neither as pipeline stages — would lose the memory hydration automation.
 *Introduced by*: 260213-jc0u-split-archive-hydrate
 
+### Restore as Subcommand, Not Separate Skill
+**Decision**: Archive restore is a subcommand of `/fab-archive` (`/fab-archive restore <name>`), not a separate `/fab-restore` skill.
+**Why**: Archive and restore are paired inverse operations. Grouping them under the same skill maintains conceptual cohesion and avoids skill proliferation. Users naturally look for restore under the archive command.
+**Rejected**: Separate `/fab-restore` skill — adds a new top-level command for a narrow, complementary operation.
+*Introduced by*: 260214-v7k3-archive-restore-mode
+
 ### fab-archive Clears Pointer Conditionally
 **Decision**: `/fab-archive` only clears `fab/current` when the archived change is the active one.
 **Why**: If archiving a non-active change (via change-name argument), clearing the pointer would disrupt the user's active work context.
@@ -163,6 +189,7 @@ Steps 1–4 execute in this order for safety. Folder move first (recoverable if 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260214-v7k3-archive-restore-mode | 2026-02-14 | Added restore mode to `/fab-archive` — moves archived changes back to active, removes index entry, optional `--switch` flag. Idempotent and resumable. Added Restore as Subcommand design decision. |
 | 260213-jc0u-split-archive-hydrate | 2026-02-13 | Replaced Archive Behavior with Hydrate Behavior (steps 1-4 only, change folder stays). Added `/fab-archive` as standalone housekeeping skill. Updated overview, design decisions. |
 | 260213-w4k9-explicit-change-targeting | 2026-02-13 | Execution skills now inherit optional `[change-name]` argument via `/fab-continue` preflight override; `fab-status.sh` also accepts change-name override directly |
 | 260212-a4bd-unify-fab-continue | 2026-02-12 | Restructured: apply, review, and archive behavior now accessed via `/fab-continue` instead of standalone skills. Updated all section headings, requirements, and cross-references |

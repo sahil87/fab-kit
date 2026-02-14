@@ -31,6 +31,7 @@ All components MUST be lowercase — avoids collisions on case-insensitive files
 - **Read** by every other skill — `/fab-continue`, `/fab-clarify`, `/fab-status` all resolve the active change via `current`
 - **Cleared** by `/fab-switch --blank` — file is deleted to deactivate the current change (no active change). Can be combined with `--branch` to also switch git branches (e.g., `--blank --branch main`)
 - **Cleared** by `/fab-archive` — file is deleted after archiving the active change (no active change). Only cleared when the archived change is the one `fab/current` points to
+- **Optionally written** by `/fab-archive restore --switch` — written with the restored change name when `--switch` flag is used
 
 **Resolution pattern** (used by all skills):
 ```
@@ -81,7 +82,7 @@ The stages split into three phases:
 - **Execution** (4-5): apply, review
 - **Completion** (6): hydrate (hydrates into memory files, completes the pipeline)
 
-After hydrate completes, the change folder remains in `fab/changes/`. To move it to the archive, run `/fab-archive` — a standalone housekeeping command (not a pipeline stage). `/fab-archive` moves the folder to `fab/changes/archive/`, updates the archive index, marks backlog items done (exact-ID check always; keyword scan with interactive confirmation), and conditionally clears `fab/current`.
+After hydrate completes, the change folder remains in `fab/changes/`. To move it to the archive, run `/fab-archive` — a standalone housekeeping command (not a pipeline stage). `/fab-archive` moves the folder to `fab/changes/archive/`, updates the archive index, marks backlog items done (exact-ID check always; keyword scan with interactive confirmation), and conditionally clears `fab/current`. To restore an archived change, run `/fab-archive restore <change-name>` — this moves the folder back to `fab/changes/`, removes the index entry, and optionally activates via `--switch`.
 
 **Full pipeline path**: `/fab-fff` chains the entire flow (planning → apply → review → hydrate) in a single invocation, gated on confidence score >= 3.0. After the pipeline completes, run `/fab-archive` to move the change to archive.
 
@@ -100,6 +101,17 @@ Fab works without git. Change folders are the unit of identity, not branches —
 | **`--branch <name>`** | Explicit branch name | Creates if new, checks out if existing |
 
 Branch integration is handled by `/fab-switch` and displayed live by `/fab-status` via `git branch --show-current`. Fab never commits, pushes, merges, or deletes branches — that remains the user's responsibility.
+
+### Restoring an Archived Change
+
+To bring an archived change back to active:
+1. Run `/fab-archive restore <change-name>` — moves `fab/changes/archive/{name}/` back to `fab/changes/{name}/`
+2. The archive index entry is removed from `fab/changes/archive/index.md`
+3. All artifacts (`.status.yaml`, `brief.md`, `spec.md`, etc.) are preserved without modification
+4. Optionally use `--switch` to activate the restored change (writes to `fab/current`)
+5. Without `--switch`, run `/fab-switch {name}` to activate manually
+
+The restore operation is idempotent — if the folder already exists in `fab/changes/`, the move is skipped and remaining steps (index cleanup, optional pointer update) complete normally.
 
 ### Abandoning a Change
 
@@ -197,6 +209,7 @@ Skills will tolerate old-format files — the preflight script infers `brief: do
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260214-v7k3-archive-restore-mode | 2026-02-14 | Added restore mode to `/fab-archive` as `archived → active` lifecycle transition. Updated fab/current lifecycle (optionally written by restore --switch). Added Restoring an Archived Change section. Updated pipeline description with restore path. |
 | 260213-jc0u-split-archive-hydrate | 2026-02-13 | Terminal pipeline stage renamed from `archive` to `hydrate`. Change folder stays in `fab/changes/` after hydrate. Archiving (folder move, index, backlog, pointer) moved to standalone `/fab-archive` skill. Updated fab/current lifecycle, pipeline diagram, stage phases, and keyword scan design decision. |
 | 260213-wo9v-fix-reset-auto-advance | 2026-02-13 | Fixed stage derivation fallback to use three-tier logic (active → first pending after done → hydrate). Reset flow now stops at target stage without auto-advancing. Updated preflight, status, stageman scripts, workflow schema, and fab-continue skill. Added pending cases to status next-command display. |
 | 260213-wloh-archive-backlog-scan | 2026-02-13 | Added keyword-based backlog scanning to archive Step 7 — surfaces candidate matches from brief title/Why section, interactive confirmation, skipped in auto mode. Added Keyword Scan Interactive-Only design decision. |
