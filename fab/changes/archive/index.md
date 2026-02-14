@@ -1,5 +1,8 @@
 # Archive Index
 
+- **260214-w3r8-stageman-write-api** — Added write functions to stageman (set_stage_state, transition_stages, set_checklist_field, set_confidence_block), refactored calc-score to use the new write API, and simplified skill prompts to use Bash calls instead of ad-hoc YAML editing.
+- **260214-q7f2-reorganize-src** — Reorganized src/ to separate test infrastructure (lib/) from dev-only scripts (scripts/), moved fab-release.sh out of the shipped kit, and relocated internal kit library scripts from _ prefix convention to a lib/ subfolder.
+- **260214-m3v8-relocate-docs-dev-scripts** — Moved memory/ and specs/ from fab/ to docs/, updated all path references across skills, templates, scripts, config, and constitution, and added a migration entry for existing users.
 - **260214-mgh5-calc-score-dev-setup** — Added `src/calc-score/` development folder with symlink, README, smoke test, and comprehensive test suite for `_calc-score.sh`, matching the established pattern used by stageman, resolve-change, and preflight.
 - **260214-lptw-score-init-display** — Changed confidence score initial value from 5.0 to 0.0 so new changes don't appear fully confident, and updated display format from `{score}/5.0` to `{score} of 5.0` for self-documenting scale clarity.
 - **260214-eikh-consistency-fixes** — Fixed spec-to-implementation drift from a 260214 audit: replaced stale stage/command references (archive→hydrate, fab-hydrate→docs-hydrate-memory, fab-apply/fab-review→fab-continue), added missing skill documentation, removed orphaned entries, and aligned glossary terminology across specs, schemas, and memory files.

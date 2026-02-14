@@ -50,7 +50,7 @@ list_archivable() {
     [[ "$name" == "archive" ]] && continue
     if is_hydrate_done "${dir}.status.yaml"; then
       printf "  %s\n" "$name"
-      ((count++))
+      count=$((count + 1))
     fi
   done
   if [[ $count -eq 0 ]]; then
