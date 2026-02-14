@@ -2,21 +2,21 @@ name: 260214-mgh5-calc-score-dev-setup
 created: 2026-02-14T07:11:18+05:30
 created_by: sahil-weaver
 progress:
-  brief: active
-  spec: pending
-  tasks: pending
-  apply: pending
-  review: pending
-  hydrate: pending
+  brief: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
 checklist:
-  generated: false
+  generated: true
   path: checklist.md
-  completed: 0
-  total: 0
+  completed: 19
+  total: 19
 confidence:
   certain: 0
   confident: 0
   tentative: 0
   unresolved: 0
   score: 5.0
-last_updated: 2026-02-14T07:11:18+05:30
+last_updated: 2026-02-14
