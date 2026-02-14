@@ -6,7 +6,7 @@
 #
 # Companion files (not configured here):
 #   fab/constitution.md  — project principles & constraints (MUST/SHOULD rules)
-#   fab/memory/index.md    — centralized documentation index
+#   docs/memory/index.md   — centralized documentation index
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -39,7 +39,7 @@ context: |
 # source_paths — Directories containing the project's implementation code.
 # Used by skills that need to distinguish "implementation" from design and docs
 # (e.g., /internal-consistency-check, /fab-review, /fab-apply).
-# Paths are relative to the project root. fab/memory/ and fab/specs/ are always
+# Paths are relative to the project root. docs/memory/ and docs/specs/ are always
 # known — this field answers "where is the code that actually runs?"
 # Consumed by: /fab-apply (source code loading), /fab-review (code inspection),
 #   /internal-consistency-check (implementation layer scanning).
