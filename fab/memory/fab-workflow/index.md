@@ -18,7 +18,7 @@
 | [config-management](config-management.md) | Maintaining `config.yaml` over project lifecycle — interactive updates, validation, comment preservation | 2026-02-12 |
 | [constitution-governance](constitution-governance.md) | Constitutional amendment workflow — semantic versioning, structural rules, audit trail | 2026-02-12 |
 | [configuration](configuration.md) | `config.yaml` schema, `constitution.md` governance, stage graph definition, lifecycle management | 2026-02-12 |
-| [preflight](preflight.md) | `fab-preflight.sh` script — validation, structured YAML output, skill integration | 2026-02-07 |
+| [preflight](preflight.md) | `fab-preflight.sh` script — validation, accessor-based architecture, structured YAML output, skill integration | 2026-02-14 |
 | [hydrate-specs](hydrate-specs.md) | `/docs-hydrate-specs` skill — structural gap detection between memory and specs, interactive propose-then-apply | 2026-02-09 |
 | [specs-index](specs-index.md) | `fab/specs/` directory — pre-implementation specs, distinction from memory, bootstrap and context integration | 2026-02-09 |
 | [schemas](schemas.md) | `workflow.yaml` schema — stages, states, transitions, validation rules, design principles | 2026-02-12 |

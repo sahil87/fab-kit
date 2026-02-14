@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# fab/.kit/scripts/stageman.sh
+# fab/.kit/scripts/_stageman.sh
 #
 # Stage Manager - Query utility for workflow stages and states.
 # Reads the canonical workflow schema and provides typed accessors.
 #
 # Usage as library:
-#   source "$(dirname "$0")/stageman.sh"
+#   source "$(dirname "$0")/_stageman.sh"
 #   validate_state "done" || echo "Invalid state"
 #   get_stage_number "spec"  # returns 2
 #   get_state_symbol "active"  # returns ●
 #
 # Usage as command:
-#   stageman.sh --help    # Show usage
-#   stageman.sh --test    # Run self-tests
-#   stageman.sh --version # Show version
+#   _stageman.sh --help    # Show usage
+#   _stageman.sh --test    # Run self-tests
+#   _stageman.sh --version # Show version
 
 set -euo pipefail
 
@@ -205,37 +205,80 @@ has_auto_checklist() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
+# .status.yaml Accessors
+# ─────────────────────────────────────────────────────────────────────────────
+
+# get_progress_map <status_file> — Extract all stage→state pairs
+# Outputs one "stage:state" pair per line. Missing stages default to "pending".
+get_progress_map() {
+  local status_file="$1"
+  local stage val
+  for stage in $(get_all_stages); do
+    val=$(grep "^ *${stage}:" "$status_file" | sed 's/^ *[a-z]*: *//' || echo "")
+    echo "${stage}:${val:-pending}"
+  done
+}
+
+# get_checklist <status_file> — Extract checklist fields
+# Outputs: generated:{val}, completed:{val}, total:{val}
+get_checklist() {
+  local status_file="$1"
+  local generated completed total
+  generated=$(grep '^ *generated:' "$status_file" | sed 's/^ *generated: *//' || true)
+  completed=$(grep '^ *completed:' "$status_file" | sed 's/^ *completed: *//' || true)
+  total=$(grep '^ *total:' "$status_file" | sed 's/^ *total: *//' || true)
+  echo "generated:${generated:-false}"
+  echo "completed:${completed:-0}"
+  echo "total:${total:-0}"
+}
+
+# get_confidence <status_file> — Extract confidence fields
+# Outputs: certain:{val}, confident:{val}, tentative:{val}, unresolved:{val}, score:{val}
+get_confidence() {
+  local status_file="$1"
+  local certain confident tentative unresolved score
+  certain=$(grep '^ *certain:' "$status_file" | sed 's/^ *certain: *//' || true)
+  confident=$(grep '^ *confident:' "$status_file" | sed 's/^ *confident: *//' || true)
+  tentative=$(grep '^ *tentative:' "$status_file" | sed 's/^ *tentative: *//' || true)
+  unresolved=$(grep '^ *unresolved:' "$status_file" | sed 's/^ *unresolved: *//' || true)
+  score=$(grep '^ *score:' "$status_file" | sed 's/^ *score: *//' || true)
+  echo "certain:${certain:-0}"
+  echo "confident:${confident:-0}"
+  echo "tentative:${tentative:-0}"
+  echo "unresolved:${unresolved:-0}"
+  echo "score:${score:-5.0}"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Progression Queries
 # ─────────────────────────────────────────────────────────────────────────────
 
 # get_current_stage <status_file> — Determine active stage from .status.yaml
 get_current_stage() {
   local status_file="$1"
+  local stage state last_done="" found_last=false
+
+  # Parse progress map once
+  local progress_lines
+  progress_lines=$(get_progress_map "$status_file")
 
   # Find first active stage
-  for stage in $(get_all_stages); do
-    local state
-    state=$(grep "^ *${stage}:" "$status_file" | sed 's/^ *[a-z]*: *//')
+  while IFS=: read -r stage state; do
     if [ "$state" = "active" ]; then
       echo "$stage"
       return 0
     fi
-  done
+  done <<< "$progress_lines"
 
-  # Fallback: if no active entry, find first pending stage after last done
-  local last_done=""
-  for stage in $(get_all_stages); do
-    local state
-    state=$(grep "^ *${stage}:" "$status_file" | sed 's/^ *[a-z]*: *//')
+  # Fallback: find first pending stage after last done
+  while IFS=: read -r stage state; do
     if [ "$state" = "done" ]; then
       last_done="$stage"
     fi
-  done
+  done <<< "$progress_lines"
+
   if [ -n "$last_done" ]; then
-    local found_last=false
-    for stage in $(get_all_stages); do
-      local state
-      state=$(grep "^ *${stage}:" "$status_file" | sed 's/^ *[a-z]*: *//')
+    while IFS=: read -r stage state; do
       if [ "$found_last" = "true" ] && [ "$state" = "pending" ]; then
         echo "$stage"
         return 0
@@ -243,7 +286,7 @@ get_current_stage() {
       if [ "$stage" = "$last_done" ]; then
         found_last=true
       fi
-    done
+    done <<< "$progress_lines"
   fi
 
   # Final fallback: all done (workflow complete)
@@ -334,18 +377,18 @@ validate_status_file() {
 
 show_help() {
   cat <<'EOF'
-stageman.sh - Stage Manager (workflow schema query utility)
+_stageman.sh - Stage Manager (workflow schema query utility)
 
 USAGE:
   As library (source in scripts):
-    source stageman.sh
+    source _stageman.sh
     get_all_stages
     get_state_symbol "active"
 
   As command:
-    stageman.sh --help      Show this help
-    stageman.sh --test      Run self-tests
-    stageman.sh --version   Show version
+    _stageman.sh --help      Show this help
+    _stageman.sh --test      Run self-tests
+    _stageman.sh --version   Show version
 
 AVAILABLE FUNCTIONS:
   State queries:
@@ -365,6 +408,11 @@ AVAILABLE FUNCTIONS:
     get_initial_state <stage>   Get default state
     is_required_stage <stage>   Check if stage is required
     has_auto_checklist <stage>  Check if stage generates checklist
+
+  .status.yaml Accessors:
+    get_progress_map <file>     Extract stage:state pairs (one per line)
+    get_checklist <file>        Extract checklist fields (key:value lines)
+    get_confidence <file>       Extract confidence fields (key:value lines)
 
   Progression:
     get_current_stage <file>    Detect active stage from .status.yaml
@@ -468,7 +516,7 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
       ;;
     *)
       echo "Unknown option: $1" >&2
-      echo "Try: stageman.sh --help" >&2
+      echo "Try: _stageman.sh --help" >&2
       exit 1
       ;;
   esac

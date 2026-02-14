@@ -49,8 +49,9 @@ fab/.kit/
     ├── batch-new-backlog.sh     # Batch create changes from backlog via tmux + Claude
     ├── batch-switch-change.sh   # Batch switch to changes via tmux + Claude
     ├── fab-help.sh         # Print help overview
-    ├── fab-preflight.sh    # Pre-flight validation (sources stageman)
-    ├── stageman.sh         # Stage Manager — schema query utility
+    ├── _resolve-change.sh  # Change name resolution library (sourced)
+    ├── _stageman.sh        # Stage Manager — schema query + .status.yaml accessors (sourced)
+    ├── fab-preflight.sh    # Pre-flight validation (sources _stageman, _resolve-change)
     ├── fab-upgrade.sh      # Update .kit/ from GitHub Releases
     ├── fab-release.sh      # Package and release .kit/ to GitHub
     └── fab-update-claude-settings.sh
@@ -61,6 +62,20 @@ fab/.kit/
 #### `_fab-scaffold.sh`
 
 The structural bootstrap script. Creates directories, symlinks, `memory/index.md`, and `.gitignore` entries. Reads bootstrap content from `scaffold/` files (index templates, envrc, gitignore entries) rather than hardcoding them. It is the single source of truth for structural setup. `/fab-init` delegates to it and adds the interactive parts (config, constitution).
+
+#### `_stageman.sh`
+
+Stage Manager — the schema query utility and `.status.yaml` accessor library. Sourced (not executed) by `fab-preflight.sh` and test files. Provides:
+
+- **Schema queries**: `get_all_stages`, `get_all_states`, `validate_stage`, `validate_state`, `get_stage_number`, `get_stage_name`, `get_stage_artifact`, `get_allowed_states`, `get_initial_state`, `has_auto_checklist`, `get_state_symbol`, `is_terminal_state`, `get_next_stage`
+- **`.status.yaml` accessors**: `get_progress_map` (stage→state pairs), `get_checklist` (generated/completed/total), `get_confidence` (certain/confident/tentative/unresolved/score), `get_current_stage` (active stage with fallback logic)
+- **Validation**: `validate_status_file` (schema conformance check)
+
+Accessor functions use a line-oriented output pattern (`key:value` per line) — consumers parse with `while IFS=: read -r key val`. The underscore prefix marks it as an internal sourced library (not a standalone entry point).
+
+#### `_resolve-change.sh`
+
+Change name resolution library. Sourced by `fab-preflight.sh`. Provides `resolve_change(fab_root, override)` which sets `RESOLVED_CHANGE_NAME` on success. Handles: exact match, case-insensitive substring (single/multiple), no match, missing `fab/current`, missing `fab/changes/` directory, archive folder exclusion. Error messages are generic — callers add their own context-appropriate guidance.
 
 #### `_fab-score.sh`
 
@@ -203,6 +218,11 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 **Rejected**: Copies of skill files per agent — stale copies after `.kit/` updates, maintenance burden.
 *Source*: doc/fab-spec/ARCHITECTURE.md
 
+### Underscore Prefix for Sourced Libraries
+**Decision**: Shell libraries intended to be sourced (not executed directly) use underscore prefix: `_stageman.sh`, `_resolve-change.sh`, `_fab-scaffold.sh`. Entry-point scripts use `fab-` prefix: `fab-preflight.sh`, `fab-status.sh`.
+**Why**: Clear visual distinction between libraries and entry points. Matches common shell convention. Prevents accidental direct execution of libraries.
+**Rejected**: No prefix convention — ambiguous whether a script is standalone or must be sourced.
+
 ### Single fab/ Per Repository
 **Decision**: Even in monorepos, use one `fab/` at the repo root.
 **Why**: Changes span packages, memory is domain-based, and `fab/current` assumes a single active change. Per-package `fab/` directories would fragment the system.
@@ -215,6 +235,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 |--------|------|---------|
 | 260214-r8kv-docs-skills-housekeeping | 2026-02-14 | Removed `fab-status.sh` from scripts listing. Renamed doc skills: `fab-hydrate.md` → `docs-hydrate-memory.md`, `fab-hydrate-specs.md` → `docs-hydrate-specs.md`, `fab-reorg-specs.md` → `docs-reorg-specs.md`. Added `docs-reorg-memory.md` to skills listing. |
 | 260213-w8p3-extract-fab-score | 2026-02-14 | Added `_fab-score.sh` to scripts directory listing and Shell Scripts section — internal confidence scoring script |
+| 260213-puow-consolidate-status-reads | 2026-02-14 | Renamed `stageman.sh` → `_stageman.sh`; added `.status.yaml` accessor API (`get_progress_map`, `get_checklist`, `get_confidence`); refactored `get_current_stage` to use accessors; extracted `_resolve-change.sh` change resolution library; documented underscore prefix convention |
 | 260213-v3rn-batch-commands | 2026-02-14 | Renamed `fab-batch-new.sh` → `batch-new-backlog.sh`, `fab-batch-switch.sh` → `batch-switch-change.sh`; added `batch-archive-change.sh`; added batch scripts section to Shell Scripts docs |
 | 260213-3njv-scaffold-dir | 2026-02-13 | Added `scaffold/` directory to tree listing; `_fab-scaffold.sh` now reads bootstrap content from scaffold files instead of hardcoded heredocs |
 | 260213-iq2l-rename-setup-scripts | 2026-02-13 | Renamed `fab-setup.sh` → `_fab-scaffold.sh` and `fab-update.sh` → `fab-upgrade.sh`; updated directory listing and all script references |

@@ -2,21 +2,21 @@ name: 260213-puow-consolidate-status-reads
 created: 2026-02-13T09:34:48Z
 created_by: sahil-weaver
 progress:
-  brief: active
-  spec: pending
-  tasks: pending
-  apply: pending
-  review: pending
-  archive: pending
+  brief: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
 checklist:
-  generated: false
+  generated: true
   path: checklist.md
-  completed: 0
-  total: 0
+  completed: 29
+  total: 29
 confidence:
-  certain: 5
-  confident: 4
+  certain: 6
+  confident: 8
   tentative: 0
   unresolved: 0
-  score: 3.8
-last_updated: 2026-02-13T09:34:48Z
+  score: 2.6
+last_updated: 2026-02-14T00:15:00Z

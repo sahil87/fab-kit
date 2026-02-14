@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # src/stageman/test.sh
 #
-# Comprehensive test suite for stageman.sh
+# Comprehensive test suite for _stageman.sh
 # Run: ./test.sh
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/stageman.sh"
-set +e  # stageman.sh enables -e; disable it for test assertions
+source "$SCRIPT_DIR/_stageman.sh"
+set +e  # _stageman.sh enables -e; disable it for test assertions
 
 # Test colors
 RED='\033[0;31m'
@@ -145,7 +145,7 @@ assert_contains "spec" "$all_stages" "get_all_stages includes spec"
 assert_contains "tasks" "$all_stages" "get_all_stages includes tasks"
 assert_contains "apply" "$all_stages" "get_all_stages includes apply"
 assert_contains "review" "$all_stages" "get_all_stages includes review"
-assert_contains "archive" "$all_stages" "get_all_stages includes archive"
+assert_contains "hydrate" "$all_stages" "get_all_stages includes hydrate"
 
 # Stage count
 stage_count=$(get_all_stages | wc -l)
@@ -162,8 +162,8 @@ assert_failure "validate_stage rejects 'invalid'"
 num=$(get_stage_number "spec")
 assert_equal "2" "$num" "get_stage_number returns 2 for spec"
 
-num=$(get_stage_number "archive")
-assert_equal "6" "$num" "get_stage_number returns 6 for archive"
+num=$(get_stage_number "hydrate")
+assert_equal "6" "$num" "get_stage_number returns 6 for hydrate"
 
 # get_stage_name
 name=$(get_stage_name "spec")
@@ -212,8 +212,8 @@ next=$(get_next_stage "brief")
 assert_equal "spec" "$next" "get_next_stage after brief is spec"
 
 # Last stage has no next
-get_next_stage "archive" >/dev/null 2>&1
-assert_failure "get_next_stage returns error for archive"
+get_next_stage "hydrate" >/dev/null 2>&1
+assert_failure "get_next_stage returns error for hydrate"
 
 echo ""
 
@@ -235,7 +235,7 @@ progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending
+  hydrate: pending
 EOF
 
 validate_status_file "$TEST_DIR/valid.yaml" 2>&1
@@ -248,7 +248,7 @@ progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending
+  hydrate: pending
 EOF
 
 validate_status_file "$TEST_DIR/invalid-state.yaml" >/dev/null 2>&1
@@ -261,7 +261,7 @@ progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending
+  hydrate: pending
 EOF
 
 validate_status_file "$TEST_DIR/multiple-active.yaml" >/dev/null 2>&1
@@ -274,11 +274,113 @@ progress:
   tasks: pending
   apply: pending
   review: pending
-  archive: pending
+  hydrate: pending
 EOF
 
 validate_status_file "$TEST_DIR/wrong-allowed-state.yaml" >/dev/null 2>&1
 assert_failure "validate_status_file rejects state not in allowed_states"
+
+echo ""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# .status.yaml Accessor Tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+echo "Testing .status.yaml Accessors..."
+echo ""
+
+# Full status file for accessor tests
+cat > "$TEST_DIR/full-status.yaml" <<EOF
+name: test-change
+progress:
+  brief: done
+  spec: active
+  tasks: pending
+  apply: pending
+  review: pending
+  hydrate: pending
+checklist:
+  generated: true
+  completed: 3
+  total: 10
+confidence:
+  certain: 5
+  confident: 2
+  tentative: 1
+  unresolved: 0
+  score: 3.4
+EOF
+
+# get_progress_map
+progress_output=$(get_progress_map "$TEST_DIR/full-status.yaml")
+assert_contains "brief:done" "$progress_output" "get_progress_map extracts brief:done"
+assert_contains "spec:active" "$progress_output" "get_progress_map extracts spec:active"
+assert_contains "hydrate:pending" "$progress_output" "get_progress_map extracts hydrate:pending"
+
+line_count=$(echo "$progress_output" | wc -l | tr -d ' ')
+assert_equal "6" "$line_count" "get_progress_map returns exactly 6 lines"
+
+# get_progress_map with missing stage (defaults to pending)
+cat > "$TEST_DIR/missing-stage.yaml" <<EOF
+progress:
+  brief: done
+  spec: active
+  apply: pending
+  review: pending
+  hydrate: pending
+EOF
+missing_output=$(get_progress_map "$TEST_DIR/missing-stage.yaml")
+assert_contains "tasks:pending" "$missing_output" "get_progress_map defaults missing stage to pending"
+
+# get_checklist
+checklist_output=$(get_checklist "$TEST_DIR/full-status.yaml")
+assert_contains "generated:true" "$checklist_output" "get_checklist extracts generated"
+assert_contains "completed:3" "$checklist_output" "get_checklist extracts completed"
+assert_contains "total:10" "$checklist_output" "get_checklist extracts total"
+
+# get_checklist with missing block (defaults)
+cat > "$TEST_DIR/no-checklist.yaml" <<EOF
+progress:
+  brief: active
+EOF
+no_chk_output=$(get_checklist "$TEST_DIR/no-checklist.yaml")
+assert_contains "generated:false" "$no_chk_output" "get_checklist defaults generated to false"
+assert_contains "completed:0" "$no_chk_output" "get_checklist defaults completed to 0"
+assert_contains "total:0" "$no_chk_output" "get_checklist defaults total to 0"
+
+# get_confidence
+confidence_output=$(get_confidence "$TEST_DIR/full-status.yaml")
+assert_contains "certain:5" "$confidence_output" "get_confidence extracts certain"
+assert_contains "confident:2" "$confidence_output" "get_confidence extracts confident"
+assert_contains "tentative:1" "$confidence_output" "get_confidence extracts tentative"
+assert_contains "unresolved:0" "$confidence_output" "get_confidence extracts unresolved"
+assert_contains "score:3.4" "$confidence_output" "get_confidence extracts score"
+
+# get_confidence with missing block (defaults)
+cat > "$TEST_DIR/no-confidence.yaml" <<EOF
+progress:
+  brief: active
+EOF
+no_conf_output=$(get_confidence "$TEST_DIR/no-confidence.yaml")
+assert_contains "certain:0" "$no_conf_output" "get_confidence defaults certain to 0"
+assert_contains "score:5.0" "$no_conf_output" "get_confidence defaults score to 5.0"
+
+# get_current_stage (refactored to use get_progress_map)
+current=$(get_current_stage "$TEST_DIR/full-status.yaml")
+assert_equal "spec" "$current" "get_current_stage finds active stage via accessor"
+
+# get_current_stage fallback (no active, first pending after last done)
+cat > "$TEST_DIR/no-active.yaml" <<EOF
+progress:
+  brief: done
+  spec: pending
+  tasks: pending
+  apply: pending
+  review: pending
+  hydrate: pending
+EOF
+fallback=$(get_current_stage "$TEST_DIR/no-active.yaml")
+assert_equal "spec" "$fallback" "get_current_stage fallback finds first pending after last done"
 
 echo ""
 

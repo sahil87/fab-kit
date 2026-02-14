@@ -5,8 +5,8 @@ Bash utility for querying workflow stages and states from the canonical schema (
 ## Sources of Truth
 
 - **Schema**: `fab/.kit/schemas/workflow.yaml` — canonical workflow definition
-- **Implementation**: `fab/.kit/scripts/stageman.sh` — main file (distributed with kit)
-- **Dev symlink**: `src/stageman/stageman.sh` → `../../fab/.kit/scripts/stageman.sh`
+- **Implementation**: `fab/.kit/scripts/_stageman.sh` — main file (distributed with kit)
+- **Dev symlink**: `src/stageman/_stageman.sh` → `../../fab/.kit/scripts/_stageman.sh`
 - **Schema docs**: `fab/docs/fab-workflow/schemas.md` — what the schema defines and design principles
 
 ## Usage
@@ -14,7 +14,7 @@ Bash utility for querying workflow stages and states from the canonical schema (
 ### As Library
 
 ```bash
-source "$(dirname "$0")/stageman.sh"
+source "$(dirname "$0")/_stageman.sh"
 
 get_all_stages              # List all stage IDs in order
 get_stage_number "spec"     # Get 1-indexed position (2)
@@ -25,9 +25,9 @@ validate_status_file path   # Validate .status.yaml against schema
 ### As Command
 
 ```bash
-stageman.sh --help      # Show usage and function reference
-stageman.sh --version   # Show library and schema version
-stageman.sh --test      # Run self-tests
+_stageman.sh --help      # Show usage and function reference
+_stageman.sh --version   # Show library and schema version
+_stageman.sh --test      # Run self-tests
 ```
 
 ## API Reference
@@ -55,6 +55,14 @@ stageman.sh --test      # Run self-tests
 | `get_initial_state <stage>` | stage ID | default state | 0 |
 | `is_required_stage <stage>` | stage ID | — | 0 required, 1 optional |
 | `has_auto_checklist <stage>` | stage ID | — | 0 yes, 1 no |
+
+### .status.yaml Accessors
+
+| Function | Input | Output | Exit |
+|----------|-------|--------|------|
+| `get_progress_map <file>` | .status.yaml path | `stage:state` pairs, one per line | 0 |
+| `get_checklist <file>` | .status.yaml path | `generated:{val}`, `completed:{val}`, `total:{val}` | 0 |
+| `get_confidence <file>` | .status.yaml path | `certain:{val}`, `confident:{val}`, `tentative:{val}`, `unresolved:{val}`, `score:{val}` | 0 |
 
 ### Progression
 
@@ -99,10 +107,16 @@ stageman.sh --test      # Run self-tests
 src/stageman/test-simple.sh
 
 # Self-test from main file
-fab/.kit/scripts/stageman.sh --test
+fab/.kit/scripts/_stageman.sh --test
 ```
 
 ## Changelog
+
+### 1.1.0 (2026-02-14)
+
+- Renamed from `stageman.sh` to `_stageman.sh` (underscore prefix for internal libraries)
+- Added `.status.yaml` accessor functions: `get_progress_map`, `get_checklist`, `get_confidence`
+- Refactored `get_current_stage` to use `get_progress_map` internally
 
 ### 1.0.0 (2026-02-12)
 
