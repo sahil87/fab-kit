@@ -56,27 +56,20 @@ For `<!-- assumed: ... -->` markers, frame current assumption as recommended opt
 
 Build **prioritized question queue** (max 5). If zero gaps: "No gaps found — artifact looks solid." with Next line, stop.
 
-### Step 3: Present Questions One at a Time
+### Step 3: Ask Questions One at a Time
 
-```
-**Question {N} of {total}**: {question text}
+For each question, present:
+- The question text with its position in the queue (e.g., 1 of 3)
+- A recommended option with brief reasoning
+- Alternatives (if applicable)
 
-Recommendation: {option} — {reasoning}
-
-| # | Option | Description |
-|---|--------|-------------|
-
-Reply with a number, "yes"/"recommended" to accept, or your own answer.
-```
-
-Short-answer variant uses `Suggested answer:` instead of table.
+Allow the user to accept the recommendation, pick an alternative, provide a free-text answer, or stop early. Use whatever interaction method is natural for your environment.
 
 ### Step 4: Process Answer and Update
 
-1. Interpret: `yes`/`y`/`recommended` → accept; number → select; `done`/`good`/`no more` → early termination; free text → custom
-2. Update artifact in place: replace markers with resolved content, add `<!-- clarified: ... -->` for significant changes
-3. Reclassify resolved entry to `Certain` in `## Assumptions` table
-4. Present next question or proceed to Step 5 after queue exhaustion / 5th answer
+1. Update artifact in place: replace markers with resolved content, add `<!-- clarified: ... -->` for significant changes
+2. Reclassify resolved entry to `Certain` in `## Assumptions` table
+3. Present next question or proceed to Step 5 after queue exhaustion / 5th answer / early termination
 
 ### Step 5: Audit Trail
 

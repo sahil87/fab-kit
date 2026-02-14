@@ -46,54 +46,11 @@ Fab tracks changes in directories, not branches. A change folder is the unit of 
 
 ## Getting Started
 
-### Prerequisites
+For installation and setup, see the [Quick Start in the README](../../README.md#quick-start).
 
-- An existing project directory (git repo recommended but not required)
-- An AI agent that supports skill definitions (e.g., Claude Code, Cursor, Windsurf)
+**Prerequisites**: An existing project directory (git repo recommended but not required) and an AI agent that supports skill definitions (e.g., Claude Code, Cursor, Windsurf).
 
-### Bootstrap
-
-Fab's workflow logic lives in `fab/.kit/` — but `.kit/` doesn't exist until you put it there. This is a deliberate two-phase setup:
-
-**Phase 1: Obtain `.kit/`**
-
-Copy the `.kit/` directory into your project:
-
-```bash
-mkdir -p fab
-cp -r /path/to/fab-kit fab/.kit
-```
-
-> `.kit/` is distributed as a standalone directory. See [Distribution](architecture.md#distribution--bootstrapping) for sourcing options. When `.kit/` gets its own repository, this becomes a single clone or download.
-
-**Phase 2: Run `/fab-init`**
-
-```bash
-/fab-init
-```
-
-This generates everything else: `config.yaml`, `constitution.md`, `memory/`, `changes/`, and skill symlinks. See [Skills Reference](skills.md#fabinit) for full behavior.
-
-### Verify
-
-Run `/fab-status` — it should show "No active change". You're ready. Start your first change with `/fab-new <description>`.
-
-### Hydrating Memory from Existing Sources
-
-After the initial bootstrap, use `/docs-hydrate-memory` to ingest existing documentation into `docs/memory/`:
-
-```bash
-# Pull in API docs from Notion
-/docs-hydrate-memory https://notion.so/myteam/API-Spec-abc123
-
-# Ingest local legacy docs
-/docs-hydrate-memory ./docs/legacy/
-
-# Multiple sources at once
-/docs-hydrate-memory https://notion.so/myteam/Auth-xyz https://linear.app/myteam/project/payments-abc ./specs/
-```
-
-Supported sources: **Notion URLs**, **Linear URLs**, **local files/directories**. Each run analyzes the content, maps it to domains, and creates or merges into `docs/memory/`. See [Skills Reference](skills.md#docs-hydrate-memory-sources) for details.
+After bootstrapping, use `/docs-hydrate-memory` to ingest existing documentation (Notion URLs, Linear URLs, local files) into `docs/memory/`. See [Skills Reference](skills.md#docs-hydrate-memory-sources) for details.
 
 ---
 

@@ -7,7 +7,7 @@
 > Contrast with [`docs/specs/index.md`](../specs/index.md): specs are *pre-implementation* —
 > what you planned. Specs capture conceptual design intent and are human-curated.
 
-> **New here?** See the [Documentation Map](../../README.md#documentation-map) for recommended reading order. For terminology, see the [Glossary](../specs/glossary.md).
+> **New here?** Start with the [README](../../README.md) for setup and a walkthrough. For terminology, see the [Glossary](../specs/glossary.md).
 
 | Domain | Description | Memory Files |
 |--------|-------------|--------------|
