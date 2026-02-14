@@ -59,7 +59,7 @@ Load context per `_context.md` Layer 1. Generate from `fab/.kit/templates/brief.
 2. **Origin**: Raw input + Linear/backlog ID if applicable; key decisions from Step 6 if conversational
 3. **Why**: Linear description or motivation from description
 4. **What Changes**: Capabilities added/modified/removed; Linear acceptance criteria if present
-5. **Affected Memory**: Which `fab/memory/` files will be new/modified/removed
+5. **Affected Memory**: Which `docs/memory/` files will be new/modified/removed
 6. **Impact**: Affected code areas, APIs, dependencies
 7. **Open Questions**: From Step 6
 8. Append `## Assumptions` section (see `_context.md`)

@@ -70,7 +70,8 @@ yaml_value() {
 }
 
 # ── 1. Directories ──────────────────────────────────────────────────
-for dir in "$fab_dir/changes" "$fab_dir/memory" "$fab_dir/specs"; do
+docs_dir="$repo_root/docs"
+for dir in "$fab_dir/changes" "$docs_dir/memory" "$docs_dir/specs"; do
   if [ ! -d "$dir" ]; then
     mkdir -p "$dir"
     echo "Created: ${dir#"$repo_root"/}"
@@ -118,15 +119,15 @@ else
 fi
 
 # ── 3. Memory index ────────────────────────────────────────────────
-if [ ! -f "$fab_dir/memory/index.md" ]; then
-  cp "$kit_dir/scaffold/memory-index.md" "$fab_dir/memory/index.md"
-  echo "Created: fab/memory/index.md"
+if [ ! -f "$docs_dir/memory/index.md" ]; then
+  cp "$kit_dir/scaffold/memory-index.md" "$docs_dir/memory/index.md"
+  echo "Created: docs/memory/index.md"
 fi
 
 # ── 4. Specs index ────────────────────────────────────────────────
-if [ ! -f "$fab_dir/specs/index.md" ]; then
-  cp "$kit_dir/scaffold/specs-index.md" "$fab_dir/specs/index.md"
-  echo "Created: fab/specs/index.md"
+if [ ! -f "$docs_dir/specs/index.md" ]; then
+  cp "$kit_dir/scaffold/specs-index.md" "$docs_dir/specs/index.md"
+  echo "Created: docs/specs/index.md"
 fi
 
 # ── 5. Skill symlinks ──────────────────────────────────────────────

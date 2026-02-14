@@ -4,7 +4,7 @@
 
 ## Overview
 
-Fab ships artifact templates in `fab/.kit/templates/` that skills fill with concrete content during planning stages. Each template is a markdown scaffold with guidance comments (`<!-- -->`) that instruct the agent — comments are not preserved in output. This doc covers the four artifact templates (brief, spec, tasks, checklist) and the memory file format used in `fab/memory/`.
+Fab ships artifact templates in `fab/.kit/templates/` that skills fill with concrete content during planning stages. Each template is a markdown scaffold with guidance comments (`<!-- -->`) that instruct the agent — comments are not preserved in output. This doc covers the four artifact templates (brief, spec, tasks, checklist) and the memory file format used in `docs/memory/`.
 
 ## Requirements
 
@@ -15,7 +15,7 @@ The brief captures intent, scope, approach, and open questions. Structure:
 - **Origin** — How the change was initiated: description text, interaction mode (one-shot vs. conversational), key decisions from the conversation. Provides traceability for how the brief was developed
 - **Why** — Motivation, 1-3 sentences
 - **What Changes** — Specific capabilities added, modified, or removed
-- **Affected Memory** — Flat list of memory files affected by this change, each with an inline marker: `(new)`, `(modify)`, or `(remove)`. Kebab-case identifiers matching `fab/memory/` paths
+- **Affected Memory** — Flat list of memory files affected by this change, each with an inline marker: `(new)`, `(modify)`, or `(remove)`. Kebab-case identifiers matching `docs/memory/` paths
 - **Impact** — Affected code areas, APIs, dependencies
 - **Open Questions** — Plain list of questions the agent couldn't resolve from context. SRAD handles prioritization at spec generation time — no explicit blocking/deferred labels needed
 
@@ -98,7 +98,7 @@ Skill files in `fab/.kit/skills/` use YAML frontmatter with these fields:
 
 The `model_tier` field is used by `_init_scaffold.sh` during deployment to generate agent files with provider-specific `model:` fields. See [model-tiers.md](model-tiers.md) for tier selection criteria and the full mapping system.
 
-### Memory File Format (`fab/memory/`)
+### Memory File Format (`docs/memory/`)
 
 Memory files are the source of truth for system behavior and design decisions. Structure:
 
@@ -109,8 +109,8 @@ Memory files are the source of truth for system behavior and design decisions. S
 
 #### Index Hierarchy
 
-- **Top-level** (`fab/memory/index.md`): `| [domain](domain/index.md) | description | file-list |`
-- **Domain-level** (`fab/memory/{domain}/index.md`): `| [file-name](file-name.md) | description | last-updated |`
+- **Top-level** (`docs/memory/index.md`): `| [domain](domain/index.md) | description | file-list |`
+- **Domain-level** (`docs/memory/{domain}/index.md`): `| [file-name](file-name.md) | description | last-updated |`
 - All links SHALL be relative
 
 #### Hydration Rules

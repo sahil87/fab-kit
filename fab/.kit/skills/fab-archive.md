@@ -114,7 +114,7 @@ Next: /fab-new <description>
 | Idempotent? | Yes — detects already-moved folders |
 | Modifies `.status.yaml`? | No (may update `last_updated`) |
 | Modifies `fab/current`? | Yes — conditionally clears |
-| Modifies `fab/memory/`? | No |
+| Modifies `docs/memory/`? | No |
 | Requires hydrate done? | Yes |
 
 ---
@@ -211,5 +211,5 @@ Next: /fab-switch {name}
 | Idempotent? | Yes — detects already-restored folders |
 | Modifies `.status.yaml`? | No |
 | Modifies `fab/current`? | Only with `--switch` flag |
-| Modifies `fab/memory/`? | No |
+| Modifies `docs/memory/`? | No |
 | Requires hydrate done? | No — restores any archived change regardless of state |

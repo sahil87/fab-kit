@@ -112,7 +112,7 @@ fab/.kit/
 └── schemas/         # Workflow schema and documentation
 ```
 
-The kit provides a 6-stage workflow: **brief → spec → tasks → apply → review → archive**. See [fab/specs/index.md](fab/specs/index.md) for the full specification.
+The kit provides a 6-stage workflow: **brief → spec → tasks → apply → review → hydrate**. See [docs/specs/index.md](docs/specs/index.md) for the full specification.
 
 ### Stage Manager (`stageman.sh`)
 
@@ -142,44 +142,44 @@ cat src/stageman/README.md
 ```
 
 For complete documentation, see:
-- [fab/memory/fab-workflow/schemas.md](fab/memory/fab-workflow/schemas.md) - Schema overview
+- [docs/memory/fab-workflow/schemas.md](docs/memory/fab-workflow/schemas.md) - Schema overview
 - [src/stageman/README.md](src/stageman/README.md) - API reference and development guide
 
 ## Documentation Map
 
-> **New to Fab Kit?** Start with the reading path for your role below, then use the inventory to find specific docs. For terminology, see the **[Glossary](fab/specs/glossary.md)**.
+> **New to Fab Kit?** Start with the reading path for your role below, then use the inventory to find specific docs. For terminology, see the **[Glossary](docs/specs/glossary.md)**.
 
 ### Reading Paths
 
 #### New User — "I want to use Fab Kit in my project"
 
 1. **[This README](#what-is-fab-kit)** — what Fab Kit is, core ideas, setup
-2. **[fab/specs/overview.md](fab/specs/overview.md)** — the 7-stage workflow, design principles, quick command reference
-3. **[fab/specs/user-flow.md](fab/specs/user-flow.md)** — visual diagrams of how commands connect
-4. **[fab/specs/glossary.md](fab/specs/glossary.md)** — all terminology defined in one place
-5. **[fab/memory/fab-workflow/init.md](fab/memory/fab-workflow/init.md)** — how `/fab-init` bootstraps your project
-6. **[fab/memory/fab-workflow/change-lifecycle.md](fab/memory/fab-workflow/change-lifecycle.md)** — how changes work: folders, naming, status tracking
+2. **[docs/specs/overview.md](docs/specs/overview.md)** — the 7-stage workflow, design principles, quick command reference
+3. **[docs/specs/user-flow.md](docs/specs/user-flow.md)** — visual diagrams of how commands connect
+4. **[docs/specs/glossary.md](docs/specs/glossary.md)** — all terminology defined in one place
+5. **[docs/memory/fab-workflow/init.md](docs/memory/fab-workflow/init.md)** — how `/fab-init` bootstraps your project
+6. **[docs/memory/fab-workflow/change-lifecycle.md](docs/memory/fab-workflow/change-lifecycle.md)** — how changes work: folders, naming, status tracking
 
 #### Contributor — "I want to modify or extend Fab Kit"
 
-1. **[fab/specs/overview.md](fab/specs/overview.md)** — workflow design and principles (prerequisite for everything)
-2. **[fab/specs/glossary.md](fab/specs/glossary.md)** — terminology you'll see everywhere
+1. **[docs/specs/overview.md](docs/specs/overview.md)** — workflow design and principles (prerequisite for everything)
+2. **[docs/specs/glossary.md](docs/specs/glossary.md)** — terminology you'll see everywhere
 3. **[fab/constitution.md](fab/constitution.md)** — immutable project principles (MUST/SHOULD rules)
-4. **[fab/specs/architecture.md](fab/specs/architecture.md)** — directory structure, config, naming, agent integration
-5. **[fab/specs/skills.md](fab/specs/skills.md)** — detailed behavior for each `/fab-*` skill
-6. **[fab/memory/fab-workflow/kit-architecture.md](fab/memory/fab-workflow/kit-architecture.md)** — `.kit/` internals, scripts, distribution
-7. **[fab/specs/templates.md](fab/specs/templates.md)** — artifact template system
+4. **[docs/specs/architecture.md](docs/specs/architecture.md)** — directory structure, config, naming, agent integration
+5. **[docs/specs/skills.md](docs/specs/skills.md)** — detailed behavior for each `/fab-*` skill
+6. **[docs/memory/fab-workflow/kit-architecture.md](docs/memory/fab-workflow/kit-architecture.md)** — `.kit/` internals, scripts, distribution
+7. **[docs/specs/templates.md](docs/specs/templates.md)** — artifact template system
 8. **[src/stageman/README.md](src/stageman/README.md)** — Stage Manager development guide and testing
 
 #### Spec Reader — "I want to understand the design rationale"
 
-1. **[fab/specs/glossary.md](fab/specs/glossary.md)** — read this first to understand the vocabulary
-2. **[fab/specs/overview.md](fab/specs/overview.md)** — high-level design, principles, stage definitions
-3. **[fab/specs/proposal.md](fab/specs/proposal.md)** — original SpecKit vs OpenSpec comparison and design rationale
-4. **[fab/specs/architecture.md](fab/specs/architecture.md)** — structural decisions and conventions
-5. **[fab/specs/skills.md](fab/specs/skills.md)** — skill-by-skill behavioral specification
-6. **[fab/specs/templates.md](fab/specs/templates.md)** — template design and field semantics
-7. **[fab/specs/user-flow.md](fab/specs/user-flow.md)** — visual command flow diagrams
+1. **[docs/specs/glossary.md](docs/specs/glossary.md)** — read this first to understand the vocabulary
+2. **[docs/specs/overview.md](docs/specs/overview.md)** — high-level design, principles, stage definitions
+3. **[docs/specs/proposal.md](docs/specs/proposal.md)** — original SpecKit vs OpenSpec comparison and design rationale
+4. **[docs/specs/architecture.md](docs/specs/architecture.md)** — structural decisions and conventions
+5. **[docs/specs/skills.md](docs/specs/skills.md)** — skill-by-skill behavioral specification
+6. **[docs/specs/templates.md](docs/specs/templates.md)** — template design and field semantics
+7. **[docs/specs/user-flow.md](docs/specs/user-flow.md)** — visual command flow diagrams
 
 ### Document Inventory
 
@@ -187,43 +187,43 @@ For complete documentation, see:
 
 | Document | Description |
 |----------|-------------|
-| [fab/specs/overview.md](fab/specs/overview.md) | The Fab workflow specification — design principles, 7 stages, quick command reference |
-| [fab/specs/user-flow.md](fab/specs/user-flow.md) | Visual diagrams showing how commands connect and how a typical development session flows |
-| [fab/specs/glossary.md](fab/specs/glossary.md) | All Fab terminology — core concepts, stages, skills, files, SRAD, conventions |
-| [fab/memory/fab-workflow/init.md](fab/memory/fab-workflow/init.md) | `/fab-init` — structural bootstrap: creates config.yaml, constitution.md, directories |
-| [fab/memory/fab-workflow/configuration.md](fab/memory/fab-workflow/configuration.md) | `config.yaml` schema and `constitution.md` governance |
+| [docs/specs/overview.md](docs/specs/overview.md) | The Fab workflow specification — design principles, 7 stages, quick command reference |
+| [docs/specs/user-flow.md](docs/specs/user-flow.md) | Visual diagrams showing how commands connect and how a typical development session flows |
+| [docs/specs/glossary.md](docs/specs/glossary.md) | All Fab terminology — core concepts, stages, skills, files, SRAD, conventions |
+| [docs/memory/fab-workflow/init.md](docs/memory/fab-workflow/init.md) | `/fab-init` — structural bootstrap: creates config.yaml, constitution.md, directories |
+| [docs/memory/fab-workflow/configuration.md](docs/memory/fab-workflow/configuration.md) | `config.yaml` schema and `constitution.md` governance |
 
 #### Concepts
 
 | Document | Description |
 |----------|-------------|
 | [fab/constitution.md](fab/constitution.md) | Project principles and constraints — the MUST/SHOULD rules that govern all skills |
-| [fab/memory/fab-workflow/change-lifecycle.md](fab/memory/fab-workflow/change-lifecycle.md) | Change folders, `.status.yaml`, naming conventions, git integration, `/fab-status`, `/fab-switch` |
-| [fab/memory/fab-workflow/context-loading.md](fab/memory/fab-workflow/context-loading.md) | How skills load project context — always-load layer, selective domain loading, SRAD protocol |
-| [fab/memory/fab-workflow/hydrate.md](fab/memory/fab-workflow/hydrate.md) | `/docs-hydrate-memory` — dual-mode: ingest external sources or generate docs from codebase scanning |
-| [fab/memory/fab-workflow/specs-index.md](fab/memory/fab-workflow/specs-index.md) | `fab/specs/` directory — pre-implementation specs, distinction from docs |
+| [docs/memory/fab-workflow/change-lifecycle.md](docs/memory/fab-workflow/change-lifecycle.md) | Change folders, `.status.yaml`, naming conventions, git integration, `/fab-status`, `/fab-switch` |
+| [docs/memory/fab-workflow/context-loading.md](docs/memory/fab-workflow/context-loading.md) | How skills load project context — always-load layer, selective domain loading, SRAD protocol |
+| [docs/memory/fab-workflow/hydrate.md](docs/memory/fab-workflow/hydrate.md) | `/docs-hydrate-memory` — dual-mode: ingest external sources or generate docs from codebase scanning |
+| [docs/memory/fab-workflow/specs-index.md](docs/memory/fab-workflow/specs-index.md) | `docs/specs/` directory — pre-implementation specs, distinction from docs |
 
 #### Reference
 
 | Document | Description |
 |----------|-------------|
-| [fab/specs/skills.md](fab/specs/skills.md) | Detailed behavioral specification for each `/fab-*` skill |
-| [fab/memory/fab-workflow/planning-skills.md](fab/memory/fab-workflow/planning-skills.md) | `/fab-new`, `/fab-discuss`, `/fab-continue`, `/fab-ff`, `/fab-clarify` — the planning pipeline |
-| [fab/memory/fab-workflow/clarify.md](fab/memory/fab-workflow/clarify.md) | `/fab-clarify` — dual modes (suggest/auto), taxonomy scan, structured questions |
-| [fab/memory/fab-workflow/execution-skills.md](fab/memory/fab-workflow/execution-skills.md) | Apply, review, archive behavior — accessed via '/fab-continue' |
-| [fab/memory/fab-workflow/hydrate-specs.md](fab/memory/fab-workflow/hydrate-specs.md) | `/docs-hydrate-specs` — structural gap detection between memory and specs |
-| [fab/specs/templates.md](fab/specs/templates.md) | Artifact templates — proposal, spec, plan, tasks, checklist |
-| [fab/memory/fab-workflow/templates.md](fab/memory/fab-workflow/templates.md) | Template implementation details and centralized doc format |
+| [docs/specs/skills.md](docs/specs/skills.md) | Detailed behavioral specification for each `/fab-*` skill |
+| [docs/memory/fab-workflow/planning-skills.md](docs/memory/fab-workflow/planning-skills.md) | `/fab-new`, `/fab-discuss`, `/fab-continue`, `/fab-ff`, `/fab-clarify` — the planning pipeline |
+| [docs/memory/fab-workflow/clarify.md](docs/memory/fab-workflow/clarify.md) | `/fab-clarify` — dual modes (suggest/auto), taxonomy scan, structured questions |
+| [docs/memory/fab-workflow/execution-skills.md](docs/memory/fab-workflow/execution-skills.md) | Apply, review, archive behavior — accessed via '/fab-continue' |
+| [docs/memory/fab-workflow/hydrate-specs.md](docs/memory/fab-workflow/hydrate-specs.md) | `/docs-hydrate-specs` — structural gap detection between memory and specs |
+| [docs/specs/templates.md](docs/specs/templates.md) | Artifact templates — proposal, spec, plan, tasks, checklist |
+| [docs/memory/fab-workflow/templates.md](docs/memory/fab-workflow/templates.md) | Template implementation details and centralized doc format |
 
 #### Internals
 
 | Document | Description |
 |----------|-------------|
-| [fab/specs/architecture.md](fab/specs/architecture.md) | Directory structure, config schema, naming conventions, agent integration |
-| [fab/memory/fab-workflow/kit-architecture.md](fab/memory/fab-workflow/kit-architecture.md) | `.kit/` directory structure, shell scripts, agent integration, distribution |
-| [fab/memory/fab-workflow/preflight.md](fab/memory/fab-workflow/preflight.md) | `_preflight.sh` — validation script, structured YAML output, skill integration |
-| [fab/memory/fab-workflow/hydrate-generate.md](fab/memory/fab-workflow/hydrate-generate.md) | `/docs-hydrate-memory` generate mode — codebase scanning, gap detection, doc generation |
-| [fab/specs/proposal.md](fab/specs/proposal.md) | Original SpecKit vs OpenSpec comparison and design rationale |
+| [docs/specs/architecture.md](docs/specs/architecture.md) | Directory structure, config schema, naming conventions, agent integration |
+| [docs/memory/fab-workflow/kit-architecture.md](docs/memory/fab-workflow/kit-architecture.md) | `.kit/` directory structure, shell scripts, agent integration, distribution |
+| [docs/memory/fab-workflow/preflight.md](docs/memory/fab-workflow/preflight.md) | `_preflight.sh` — validation script, structured YAML output, skill integration |
+| [docs/memory/fab-workflow/hydrate-generate.md](docs/memory/fab-workflow/hydrate-generate.md) | `/docs-hydrate-memory` generate mode — codebase scanning, gap detection, doc generation |
+| [docs/specs/proposal.md](docs/specs/proposal.md) | Original SpecKit vs OpenSpec comparison and design rationale |
 
 ### Index Files
 
@@ -231,9 +231,9 @@ These are the structural indexes for navigating within each documentation area:
 
 | Index | What it covers |
 |-------|---------------|
-| [fab/specs/index.md](fab/specs/index.md) | Pre-implementation specifications (design intent) |
-| [fab/memory/index.md](fab/memory/index.md) | Post-implementation centralized docs (what actually shipped) |
-| [fab/memory/fab-workflow/index.md](fab/memory/fab-workflow/index.md) | All fab-workflow domain docs with last-updated dates |
+| [docs/specs/index.md](docs/specs/index.md) | Pre-implementation specifications (design intent) |
+| [docs/memory/index.md](docs/memory/index.md) | Post-implementation centralized docs (what actually shipped) |
+| [docs/memory/fab-workflow/index.md](docs/memory/fab-workflow/index.md) | All fab-workflow domain docs with last-updated dates |
 
 ## References
 
@@ -249,9 +249,9 @@ In-depth analysis of **OpenSpec** (https://github.com/Fission-AI/OpenSpec) - an 
 - Start with [README.md](references/openspec/README.md) for overview
 - Key docs: overview, philosophy, cli-architecture, agent-integration
 
-### Advantages
+### Why Fab Kit?
 
-- Resumability from any stage
-- Everyone remembers that there is a spec stage, a planning stage, and a task stage. And they don't get skipped. 
-- FF is cool
-- Determinism is calculated
+- **Resumable by design** — Every stage produces a persistent artifact. Walk away mid-change, come back tomorrow, and pick up exactly where you left off.
+- **Stages that don't get skipped** — Brief, spec, plan, tasks, apply, review, hydrate. The pipeline encodes the discipline so the agent (and you) can't quietly skip straight to code.
+- **Fast-forward when confidence is high** — `/fab-ff` and `/fab-fff` let you blast through multiple stages in one shot when the change is well-understood, without sacrificing the structure when it isn't.
+- **Deterministic progress tracking** — `.status.yaml` and stage checklists give you a single source of truth for where a change stands — no guessing, no stale mental models.

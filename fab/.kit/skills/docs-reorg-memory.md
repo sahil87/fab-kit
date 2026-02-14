@@ -9,14 +9,14 @@ description: "Analyze memory files for themes and suggest reorganization. Read-o
 
 ## Purpose
 
-Read all memory files across all domains in `fab/memory/`, identify themes (up to 10), and propose a reorganization plan. Read-only by default — files only moved/rewritten with explicit user approval.
+Read all memory files across all domains in `docs/memory/`, identify themes (up to 10), and propose a reorganization plan. Read-only by default — files only moved/rewritten with explicit user approval.
 
 ---
 
 ## Pre-flight
 
-1. `fab/memory/index.md` must exist and be readable
-2. `fab/memory/` must contain at least one domain directory with `.md` files besides `index.md`
+1. `docs/memory/index.md` must exist and be readable
+2. `docs/memory/` must contain at least one domain directory with `.md` files besides `index.md`
 
 If either fails, STOP with appropriate message.
 
@@ -24,7 +24,7 @@ If either fails, STOP with appropriate message.
 
 ## Context Loading
 
-Loads `fab/memory/index.md`, all domain `index.md` files, and every `.md` file in each domain. Does NOT require `fab/current`, config, or constitution.
+Loads `docs/memory/index.md`, all domain `index.md` files, and every `.md` file in each domain. Does NOT require `fab/current`, config, or constitution.
 
 ---
 
@@ -32,7 +32,7 @@ Loads `fab/memory/index.md`, all domain `index.md` files, and every `.md` file i
 
 ### Step 1: Read All Memory Files
 
-Read `fab/memory/index.md` and every domain directory. For each memory file: extract `##`/`###` headings, brief section summaries, and approximate line count.
+Read `docs/memory/index.md` and every domain directory. For each memory file: extract `##`/`###` headings, brief section summaries, and approximate line count.
 
 ### Step 2: Identify Themes (up to 10)
 
@@ -98,7 +98,7 @@ If no changes needed: `Current structure is well-organized — no reorganization
 
 | Condition | Action |
 |-----------|--------|
-| `fab/memory/index.md` missing | Abort: "Run /fab-init first." |
+| `docs/memory/index.md` missing | Abort: "Run /fab-init first." |
 | No memory domains or files besides indexes | Abort: "Nothing to reorganize." |
 | File write fails during apply | Report error, roll back that migration, continue |
 | Content verification fails | Warn, show missing heading, ask to proceed |

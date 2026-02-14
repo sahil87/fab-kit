@@ -1,0 +1,42 @@
+# Specs Index
+
+**Domain**: fab-workflow
+
+## Overview
+
+`docs/specs/index.md` is the centralized index for pre-implementation specifications. It complements `docs/memory/index.md` (post-implementation truth) by providing a persistent home for design intent — what was planned, the "why" behind features.
+
+## Requirements
+
+### Specs vs Memory Distinction
+
+Spec files are pre-implementation artifacts — what you planned. They capture conceptual design intent, high-level decisions, and the "why" behind features. Memory files are post-implementation artifacts — what actually happened, the authoritative source of truth for system behavior.
+
+- `docs/specs/index.md` boilerplate clearly states spec files are pre-implementation / planning artifacts
+- `docs/memory/index.md` boilerplate clearly states memory files are post-implementation / authoritative truth
+- Both index files cross-reference each other with relative links
+
+### Flat Structure
+
+The specs index does not prescribe a domain-based directory hierarchy. Spec files may be organized by the human in any structure they choose. The index simply lists what exists.
+
+### Human-Curated Ownership
+
+Spec files are written and maintained by humans. No automated tooling creates or enforces structure in `docs/specs/`. `/docs-hydrate-specs` provides assisted reverse-hydration — it identifies structural gaps between memory and specs and proposes concise additions, but every insertion requires explicit user confirmation. Spec files remain human-curated.
+
+### Bootstrap Integration
+
+`/fab-init` creates `docs/specs/index.md` during structural bootstrap (after memory/index.md). The creation is idempotent — if the file already exists, init skips it with a status message.
+
+### Context Loading Integration
+
+`docs/specs/index.md` is included in the "Always Load" context layer in `_context.md`, alongside `config.yaml`, `constitution.md`, and `docs/memory/index.md`. This gives every skill baseline awareness of the specs landscape.
+
+## Changelog
+
+| Change | Date | Summary |
+|--------|------|---------|
+| 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Updated all path references from `fab/specs/` to `docs/specs/` |
+| 260211-r3k8-simplify-planning-stages | 2026-02-11 | Consistent design terminology, updated from specs-index references |
+| 260209-h3v7-fab-backfill | 2026-02-09 | Updated Human-Curated Ownership section to reference `/docs-hydrate-specs` as assisted reverse-hydration |
+| 260207-bb1q-add-specs-index | 2026-02-07 | Initial creation — added `docs/specs/` directory, design index with boilerplate, bootstrap and context loading integration |

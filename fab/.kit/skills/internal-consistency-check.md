@@ -3,8 +3,8 @@
 Scan for inconsistencies between the three sources of truth:
 
 - **Implementation** — source code (paths from `source_paths` in `fab/config.yaml`)
-- **Memory** (`fab/memory/`) — centralized memory (generated/hydrated)
-- **Specs** (`fab/specs/`) — human-curated specifications
+- **Memory** (`docs/memory/`) — centralized memory (generated/hydrated)
+- **Specs** (`docs/specs/`) — human-curated specifications
 
 ---
 
@@ -21,15 +21,15 @@ Spawn **three parallel agents** (Task tool, subagent_type: `Explore`, thoroughne
 
 ### Agent 1: Specs ↔ Implementation
 
-Audit `fab/specs/` against implementation directories. Report: missing implementations, undocumented implementations, naming mismatches, behavioral contradictions, stale references. Cite specific files and lines.
+Audit `docs/specs/` against implementation directories. Report: missing implementations, undocumented implementations, naming mismatches, behavioral contradictions, stale references. Cite specific files and lines.
 
 ### Agent 2: Memory ↔ Implementation
 
-Audit `fab/memory/` against implementation directories. Report: stale memory, missing memory, wrong paths/names, contradicted behavior, orphaned memory. Cite specific files and lines.
+Audit `docs/memory/` against implementation directories. Report: stale memory, missing memory, wrong paths/names, contradicted behavior, orphaned memory. Cite specific files and lines.
 
 ### Agent 3: Specs ↔ Memory
 
-Audit `fab/specs/` against `fab/memory/`. Report: terminology drift, coverage gaps, contradictions, stale cross-references, glossary drift. Cite specific files and lines.
+Audit `docs/specs/` against `docs/memory/`. Report: terminology drift, coverage gaps, contradictions, stale cross-references, glossary drift. Cite specific files and lines.
 
 ---
 

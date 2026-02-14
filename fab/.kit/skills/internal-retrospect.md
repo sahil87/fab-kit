@@ -11,7 +11,7 @@ Did any `/fab-*` or other skill produce output that needed significant correctio
 - Concrete suggestion: what should change in the skill prompt to prevent this
 
 ## 3. Context & Documentation Gaps
-Did the agent make wrong assumptions because information was missing from `fab/memory/`, `fab/specs/`, `_context.md`, `CLAUDE.md`, or `constitution.md`?
+Did the agent make wrong assumptions because information was missing from `docs/memory/`, `docs/specs/`, `_context.md`, `CLAUDE.md`, or `constitution.md`?
 - What was assumed vs. what was actually true
 - Where should this knowledge live so future sessions don't re-learn it
 
@@ -31,7 +31,7 @@ For each area, output one of:
 End with a **Suggested Actions** section listing concrete next steps, e.g.:
 - `Run /meta:scriptify` to extract {X}
 - `Run /meta:review {skill-file}` to fix {Y}
-- `Add {Z} to fab/memory/{domain}/{name}.md`
+- `Add {Z} to docs/memory/{domain}/{name}.md`
 - `Add {W} to CLAUDE.md`
 
 If there are no findings in any area, just say "Clean session — no actions needed."

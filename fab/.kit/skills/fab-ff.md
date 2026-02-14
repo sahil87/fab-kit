@@ -95,7 +95,7 @@ Execute review behavior per `/fab-continue` — validate tasks, checklist, tests
 
 *(Skip if `progress.hydrate` is `done`.)*
 
-Execute hydrate behavior per `/fab-continue` — validate review passed, hydrate into `fab/memory/`, run `_stageman.sh set-state <file> hydrate done`.
+Execute hydrate behavior per `/fab-continue` — validate review passed, hydrate into `docs/memory/`, run `_stageman.sh set-state <file> hydrate done`.
 
 ---
 

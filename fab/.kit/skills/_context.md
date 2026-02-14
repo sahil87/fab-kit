@@ -15,8 +15,8 @@ Read these files first — they define the project's identity, constraints, and 
 
 - **`fab/config.yaml`** — project configuration, tech stack, naming conventions, stage configuration
 - **`fab/constitution.md`** — project principles and constraints (MUST/SHOULD/MUST NOT rules)
-- **`fab/memory/index.md`** — memory landscape (which domains and memory files exist)
-- **`fab/specs/index.md`** — specifications landscape (pre-implementation design intent, human-curated)
+- **`docs/memory/index.md`** — memory landscape (which domains and memory files exist)
+- **`docs/specs/index.md`** — specifications landscape (pre-implementation design intent, human-curated)
 
 > **Note**: If the skill runs `_preflight.sh` (Section 2 above), the init check (config.yaml and constitution.md existence) is already covered by the script. Skills using preflight don't need separate existence checks for these files — they only need to read them for content.
 
@@ -42,8 +42,8 @@ Resolve the active change and load its state by running the preflight script:
 Selectively load relevant memory files based on the change's scope:
 
 1. Read the brief's **Affected Memory** section (or spec's **Affected memory** metadata) to identify which domains are relevant
-2. For each referenced domain, read `fab/memory/{domain}/index.md` to understand the domain's memory files
-3. Read the specific memory file(s) referenced by the Affected Memory entries (those marked `(new)`, `(modify)`, or `(remove)`) — read `fab/memory/{domain}/{name}.md` for each listed file that exists
+2. For each referenced domain, read `docs/memory/{domain}/index.md` to understand the domain's memory files
+3. Read the specific memory file(s) referenced by the Affected Memory entries (those marked `(new)`, `(modify)`, or `(remove)`) — read `docs/memory/{domain}/{name}.md` for each listed file that exists
 4. If a referenced file or domain does not exist yet (e.g., listed as `(new)`), note this and proceed without error — it will be created during hydrate (via `/fab-continue` or `/fab-ff`)
 5. Use this context to ground all artifact generation (spec, tasks, reviews) in the real current state, not assumptions
 

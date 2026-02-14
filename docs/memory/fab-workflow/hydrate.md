@@ -4,7 +4,7 @@
 
 ## Overview
 
-`/docs-hydrate-memory [sources...|folders...]` is a standalone skill that operates in two modes: **ingest mode** (fetching URLs or reading `.md` files into `fab/memory/`) and **generate mode** (scanning the codebase for undocumented areas and producing structured memory files). Mode is determined automatically by argument type — no flags needed. It requires `fab/memory/` to exist (created by `/fab-init`). See [hydrate-generate](hydrate-generate.md) for full generate mode requirements.
+`/docs-hydrate-memory [sources...|folders...]` is a standalone skill that operates in two modes: **ingest mode** (fetching URLs or reading `.md` files into `docs/memory/`) and **generate mode** (scanning the codebase for undocumented areas and producing structured memory files). Mode is determined automatically by argument type — no flags needed. It requires `docs/memory/` to exist (created by `/fab-init`). See [hydrate-generate](hydrate-generate.md) for full generate mode requirements.
 
 ## Requirements
 
@@ -31,9 +31,9 @@ When arguments route to ingest mode:
 
 - Fetches/reads each source independently
 - Analyzes content and maps to domains
-- Creates or merges memory files in `fab/memory/{domain}/`
-- Creates/updates domain indexes (`fab/memory/{domain}/index.md`)
-- Updates top-level index (`fab/memory/index.md`)
+- Creates or merges memory files in `docs/memory/{domain}/`
+- Creates/updates domain indexes (`docs/memory/{domain}/index.md`)
+- Updates top-level index (`docs/memory/index.md`)
 - Multiple sources are processed in a single pass; indexes updated once at the end
 
 ### Generate Mode Behavior
@@ -42,7 +42,7 @@ When arguments route to generate mode (no arguments or folder paths), the skill 
 
 ### Prerequisite
 
-`/docs-hydrate-memory` requires `fab/memory/` to exist. If missing, it aborts with: "fab/memory/ not found. Run /fab-init first to create the memory directory."
+`/docs-hydrate-memory` requires `docs/memory/` to exist. If missing, it aborts with: "docs/memory/ not found. Run /fab-init first to create the memory directory."
 
 ### Idempotent Hydration
 
@@ -55,10 +55,10 @@ Safe to run repeatedly with the same sources:
 ### Index Maintenance
 
 Every hydration operation maintains navigable indexes:
-- **Top-level** (`fab/memory/index.md`): `| [domain](domain/index.md) | description | file-list |`
-- **Domain-level** (`fab/memory/{domain}/index.md`): `| [file-name](file-name.md) | description | last-updated |`
+- **Top-level** (`docs/memory/index.md`): `| [domain](domain/index.md) | description | file-list |`
+- **Domain-level** (`docs/memory/{domain}/index.md`): `| [file-name](file-name.md) | description | last-updated |`
 - All links are relative (not absolute paths)
-- Formats follow `fab/specs/templates.md`
+- Formats follow `docs/specs/templates.md`
 
 ## Design Decisions
 
@@ -68,10 +68,10 @@ Every hydration operation maintains navigable indexes:
 **Rejected**: Rewriting hydration from scratch in the new skill — risks introducing bugs and inconsistencies.
 *Introduced by*: 260207-q7m3-separate-hydrate-smart-context
 
-### Hydrate Requires fab/memory/ to Exist
-**Decision**: `/docs-hydrate-memory` checks for `fab/memory/` and aborts if missing, directing user to run `/fab-init` first.
+### Hydrate Requires docs/memory/ to Exist
+**Decision**: `/docs-hydrate-memory` checks for `docs/memory/` and aborts if missing, directing user to run `/fab-init` first.
 **Why**: Keeps the dependency clear — init creates structure, hydrate populates it.
-**Rejected**: Auto-creating `fab/memory/` in hydrate — would blur the separation of concerns.
+**Rejected**: Auto-creating `docs/memory/` in hydrate — would blur the separation of concerns.
 *Introduced by*: 260207-q7m3-separate-hydrate-smart-context
 
 ### Index Maintenance Embedded in Skill Instructions
@@ -84,8 +84,9 @@ Every hydration operation maintains navigable indexes:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Updated hydration target paths from `fab/memory/` to `docs/memory/` |
 | 260214-r8kv-docs-skills-housekeeping | 2026-02-14 | Renamed skill from `/fab-hydrate` to `/docs-hydrate-memory`; updated skill file path, glob pattern reference, and all cross-references |
-| 260208-4wg3-fix-hydrate-links | 2026-02-08 | Fixed stale `doc/fab-spec/TEMPLATES.md` reference in Index Maintenance to `fab/specs/templates.md` |
+| 260208-4wg3-fix-hydrate-links | 2026-02-08 | Fixed stale `doc/fab-spec/TEMPLATES.md` reference in Index Maintenance to `docs/specs/templates.md` |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | 260207-k5od-hydrate-generate-mode | 2026-02-07 | Added generate mode — unified argument routing, dual-mode overview, cross-reference to hydrate-generate doc |
 | 260207-q7m3-separate-hydrate-smart-context | 2026-02-07 | Created hydrate doc — extracted `/docs-hydrate-memory` as standalone skill from `/fab-init` Phase 2 |

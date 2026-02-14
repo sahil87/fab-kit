@@ -28,7 +28,7 @@ Fab combines ideas from two specification-driven workflows — SpecKit and OPSX 
 No system installation required. All workflow logic lives in `fab/.kit/` as markdown templates and skill definitions that any AI agent can execute.
 
 ### 2. Memory Is the Source of Truth
-Code serves documentation, not the other way around. The memory files (`fab/memory/`) are the source of truth for what the system does and why it works the way it does.
+Code serves documentation, not the other way around. The memory files (`docs/memory/`) are the source of truth for what the system does and why it works the way it does.
 
 ### 3. Change Folder First
 All work happens in change folders. Each change captures its requirements (`spec.md`), which get hydrated into memory files on completion.
@@ -80,7 +80,7 @@ Run `/fab-status` — it should show "No active change". You're ready. Start you
 
 ### Hydrating Memory from Existing Sources
 
-After the initial bootstrap, use `/docs-hydrate-memory` to ingest existing documentation into `fab/memory/`:
+After the initial bootstrap, use `/docs-hydrate-memory` to ingest existing documentation into `docs/memory/`:
 
 ```bash
 # Pull in API docs from Notion
@@ -93,7 +93,7 @@ After the initial bootstrap, use `/docs-hydrate-memory` to ingest existing docum
 /docs-hydrate-memory https://notion.so/myteam/Auth-xyz https://linear.app/myteam/project/payments-abc ./specs/
 ```
 
-Supported sources: **Notion URLs**, **Linear URLs**, **local files/directories**. Each run analyzes the content, maps it to domains, and creates or merges into `fab/memory/`. See [Skills Reference](skills.md#docs-hydrate-memory-sources) for details.
+Supported sources: **Notion URLs**, **Linear URLs**, **local files/directories**. Each run analyzes the content, maps it to domains, and creates or merges into `docs/memory/`. See [Skills Reference](skills.md#docs-hydrate-memory-sources) for details.
 
 ---
 
@@ -171,7 +171,7 @@ flowchart TD
 | Skill | Purpose | Creates |
 |-------|---------|---------|
 | `/fab-init` | Bootstrap fab/ structure | `config.yaml`, `constitution.md`, `memory/`, skill symlinks (idempotent) |
-| `/docs-hydrate-memory [sources...]` | Ingest external sources into fab/memory/ | Updated `fab/memory/` with indexes |
+| `/docs-hydrate-memory [sources...]` | Ingest external sources into docs/memory/ | Updated `docs/memory/` with indexes |
 | `/fab-new` | Start change (optionally with `--switch`) | `brief.md`, `.status.yaml` |
 | `/fab-continue [<stage>]` | Next artifact (or reset to stage) | Next stage artifact |
 | `/fab-ff` | Fast forward remaining planning | spec.md + tasks + checklist |
