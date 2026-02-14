@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# fab/.kit/scripts/fab-release.sh — Create a GitHub Release for fab/.kit/
+# src/scripts/fab-release.sh — Create a GitHub Release for fab/.kit/
 #
 # Packages fab/.kit/ into kit.tar.gz, bumps VERSION, commits, and creates
 # a GitHub Release with the archive as an asset.
@@ -21,10 +21,8 @@ usage() {
   echo "  major — bump major version (e.g. 0.1.0 → 1.0.0)"
 }
 
-scripts_dir="$(cd "$(dirname "$0")" && pwd)"
-kit_dir="$(dirname "$scripts_dir")"
-fab_dir="$(dirname "$kit_dir")"
-repo_root="$(dirname "$fab_dir")"
+repo_root="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+kit_dir="$repo_root/fab/.kit"
 
 bump_type="${1:-}"
 
@@ -135,7 +133,7 @@ fi
 echo "Packaging kit.tar.gz..."
 
 # Create archive rooted at .kit/ so `tar xz -C fab/` produces fab/.kit/
-tar czf "$repo_root/kit.tar.gz" -C "$fab_dir" .kit
+tar czf "$repo_root/kit.tar.gz" -C "$repo_root/fab" .kit
 
 echo "Created kit.tar.gz ($(wc -c < "$repo_root/kit.tar.gz") bytes)"
 
