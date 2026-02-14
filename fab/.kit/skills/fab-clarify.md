@@ -99,7 +99,7 @@ Next: /fab-clarify or /fab-continue or /fab-ff
 
 ### Step 7: Recompute Confidence
 
-Recompute per `_context.md` § Confidence Scoring across all artifacts' `## Assumptions` tables. Update `.status.yaml` confidence block.
+Run `fab/.kit/scripts/_fab-score.sh $change_dir` if `spec.md` exists in the change directory. Skip this step if at brief stage (no spec yet). Auto mode does not invoke this script.
 
 ### Step 8: Do NOT Advance Stage
 

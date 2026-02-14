@@ -146,13 +146,11 @@ When the user runs `/fab-fff`:
 
 ## Confidence Lifecycle
 
-| Event | Skill | Action |
-|-------|-------|--------|
-| Initial computation | `/fab-new` | Count SRAD grades across brief, compute score, write to `.status.yaml` |
-| Recomputation | `/fab-continue` | Re-count across all artifacts after generating each one, update `.status.yaml` |
-| Recomputation | `/fab-clarify` | Re-count after each suggest-mode session, update `.status.yaml` |
-| No recomputation | `/fab-ff`, `/fab-fff` | Autonomous skills do not update the score — gate check uses score from last manual step |
-| Consumption | `/fab-fff` | Reads score as pre-flight gate check before starting the pipeline |
+| Event | Trigger | Action |
+|-------|---------|--------|
+| Computation | `/fab-continue` (spec stage) | `_fab-score.sh` scans brief + spec, writes to `.status.yaml` |
+| Recomputation | `/fab-clarify` (suggest mode) | `_fab-score.sh` re-scans after resolved assumptions |
+| Gate check | `/fab-fff` | Reads score from `.status.yaml` (no recomputation) |
 
 ---
 
@@ -218,4 +216,4 @@ SRAD manifests differently depending on which skill is running. Skills closer to
 | **Interruption budget** | Adaptive — SRAD-driven (no fixed cap) | 1–2 per stage | 0–1 batch at start | Same as `/fab-ff` (frontloaded) |
 | **Output** | Brief + confidence score + assumptions summary | Key Decisions + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary | Same as `/fab-ff` + apply/review/archive output |
 | **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` (bails on blockers or review failure) |
-| **Recomputes confidence?** | Yes | Yes | No | No |
+| **Recomputes confidence?** | No | Spec stage only | No | No |

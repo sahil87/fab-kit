@@ -149,7 +149,7 @@ Each decision produces an assumption graded on a 4-level scale:
 | **Interruption budget** | SRAD-driven (no fixed cap); conversational mode for vague inputs | 1-2 per stage | 0-1 batch at start | Same as fab-ff (frontloaded) |
 | **Output** | Assumptions summary + "Run /fab-clarify to review" | Key Decisions block + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary | Same as fab-ff + apply/review/hydrate output |
 | **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` (bails on blockers or review failure) |
-| **Recomputes confidence?** | Yes | Yes | No | No |
+| **Recomputes confidence?** | No | Spec stage only | No | No |
 
 ### Worked Examples
 
@@ -247,16 +247,10 @@ Range: 0.0 (any Unresolved, or 5+ Tentative) to 5.0 (all Certain). Penalties: Ce
 
 `/fab-fff` requires `confidence.score >= 3.0`. This allows at most 2 Tentative decisions, or up to 6 Confident decisions with no Tentative.
 
-### Lifecycle
+### Invocation
 
-| Event | Skill | Action |
-|-------|-------|--------|
-| Initial computation | `/fab-new` | Count SRAD grades across brief, compute score, write to `.status.yaml` |
-| Recomputation | `/fab-continue` | Re-count across all artifacts after generating each one, update `.status.yaml` |
-| Recomputation | `/fab-clarify` | Re-count after each suggest-mode session, update `.status.yaml` |
-| No recomputation | `/fab-ff`, `/fab-fff` | Autonomous skills do not update the score — gate check uses score from last manual step |
-| Consumption | `/fab-fff` | Reads score as pre-flight gate check |
+Confidence is computed by `fab/.kit/scripts/_fab-score.sh`, invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). Autonomous skills (`/fab-ff`, `/fab-fff`) do not recompute — the gate check uses the score from the last manual step.
 
 ### Template
 
-`fab/.kit/templates/status.yaml` includes the confidence block initialized to zero counts and score 5.0. `/fab-new` uses this template when creating new changes.
+`fab/.kit/templates/status.yaml` includes the confidence block initialized to zero counts and score 5.0. Template defaults persist until `/fab-continue` generates the spec and invokes `_fab-score.sh`.

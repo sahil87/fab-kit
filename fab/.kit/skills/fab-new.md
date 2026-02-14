@@ -68,11 +68,7 @@ Load context per `_context.md` Layer 1. Generate from `fab/.kit/templates/brief.
 
 Apply SRAD (`_context.md`). No fixed question cap — SRAD scoring determines count. Zero questions for clear inputs. **Conversational mode**: when 5+ Unresolved, ask one at a time until resolved or user signals done.
 
-### Step 7: Compute Confidence Score
-
-Count SRAD grades, apply formula (`_context.md` § Confidence Scoring), write to `.status.yaml`.
-
-### Step 8: Activate Change (Conditional)
+### Step 7: Activate Change (Conditional)
 
 Default: skip. Switch if `--switch` or intent detected. Calls `/fab-switch {name}` transparently.
 

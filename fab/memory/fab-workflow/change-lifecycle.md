@@ -49,7 +49,7 @@ Every change folder SHALL contain a `.status.yaml` manifest with these fields:
 - `created` — ISO 8601 datetime
 - `progress` — map of all stages to their state. The stage marked `active` is the current stage (single source of truth for where the change is). There is no separate `stage:` field — current stage is derived from the `active` entry in the progress map.
 - `checklist` — generation status, path (default: `checklist.md` at change root), completion counts
-- `confidence` — SRAD confidence scoring: `certain`, `confident`, `tentative`, `unresolved` counts and derived `score` (0.0-5.0). Computed by `/fab-new`, recomputed by `/fab-continue` and `/fab-clarify`. Used as a gate by `/fab-fff` (requires score >= 3.0)
+- `confidence` — SRAD confidence scoring: `certain`, `confident`, `tentative`, `unresolved` counts and derived `score` (0.0-5.0). Computed by `_fab-score.sh`, invoked at spec stage by `/fab-continue` and by `/fab-clarify`. Used as a gate by `/fab-fff` (requires score >= 3.0)
 - `last_updated` — refreshed on every status change
 
 **State vocabulary** (all progress fields draw from this fixed set):
@@ -210,6 +210,7 @@ Skills will tolerate old-format files — the preflight script infers `brief: do
 | Change | Date | Summary |
 |--------|------|---------|
 | 260214-v7k3-archive-restore-mode | 2026-02-14 | Added restore mode to `/fab-archive` as `archived → active` lifecycle transition. Updated fab/current lifecycle (optionally written by restore --switch). Added Restoring an Archived Change section. Updated pipeline description with restore path. |
+| 260213-w8p3-extract-fab-score | 2026-02-14 | Updated confidence field description: now computed by `_fab-score.sh` (invoked at spec stage by `/fab-continue` and by `/fab-clarify`), replacing inline computation by `/fab-new`/`/fab-continue`/`/fab-clarify`. |
 | 260213-jc0u-split-archive-hydrate | 2026-02-13 | Terminal pipeline stage renamed from `archive` to `hydrate`. Change folder stays in `fab/changes/` after hydrate. Archiving (folder move, index, backlog, pointer) moved to standalone `/fab-archive` skill. Updated fab/current lifecycle, pipeline diagram, stage phases, and keyword scan design decision. |
 | 260213-wo9v-fix-reset-auto-advance | 2026-02-13 | Fixed stage derivation fallback to use three-tier logic (active → first pending after done → hydrate). Reset flow now stops at target stage without auto-advancing. Updated preflight, status, stageman scripts, workflow schema, and fab-continue skill. Added pending cases to status next-command display. |
 | 260213-wloh-archive-backlog-scan | 2026-02-13 | Added keyword-based backlog scanning to archive Step 7 — surfaces candidate matches from brief title/Why section, interactive confirmation, skipped in auto mode. Added Keyword Scan Interactive-Only design decision. |

@@ -70,10 +70,6 @@ When switching occurs (via flag or detection), the output includes the `Branch:`
 
 `/fab-new` produces a single artifact: `brief.md`. It does not generate `spec.md` or any other downstream artifacts. The brief includes an **Origin** section recording how the change was initiated (description text, conversational vs. one-shot mode, key decisions from the conversation).
 
-#### Confidence Scoring
-
-After generating the brief, `/fab-new` computes the SRAD confidence score and writes the `confidence` block to `.status.yaml` with actual counts (overwriting the template defaults of zero counts and score 5.0). This ensures briefs created via `/fab-new` have a valid score for the `/fab-fff` gate.
-
 #### Context
 
 Loads: config, constitution, `fab/memory/index.md` (to understand the existing memory landscape).
@@ -91,7 +87,7 @@ Loads: config, constitution, `fab/memory/index.md` (to understand the existing m
 3. Identify next artifact to create
 4. Load relevant template + context (including `fab/constitution.md` for principles)
 5. Generate artifact using the shared generation procedures from `_generation.md` (with clarification/research as needed)
-6. Recompute confidence score (re-count SRAD grades across all artifacts, apply formula, update `.status.yaml`)
+6. Run `_fab-score.sh` (spec stage only — computes confidence from brief + spec Assumptions tables)
 7. Auto-generate checklist when creating tasks (using `_generation.md` Checklist Generation Procedure)
 8. Update `.status.yaml`
 
@@ -165,7 +161,7 @@ Each stage uses the same behavior as its standalone invocation. If planning bail
 
 #### Confidence Recomputation
 
-`/fab-fff` does NOT recompute the confidence score during execution. The gate check uses the score from the last manual step (`/fab-new`, `/fab-continue`, or `/fab-clarify`).
+`/fab-fff` does NOT recompute the confidence score during execution. The gate check uses the score from the last manual step (`/fab-continue` at spec stage, or `/fab-clarify`).
 
 #### When to Use
 
@@ -285,6 +281,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260213-w8p3-extract-fab-score | 2026-02-14 | Extracted confidence scoring into `_fab-score.sh` script. Removed inline scoring from `/fab-new` (Step 7 deleted), `/fab-continue` (Step 3b replaced with script invocation at spec stage only), `/fab-clarify` (Step 7 replaced with script invocation in suggest mode). Updated `/fab-fff` confidence recomputation note. |
 | 260213-jc0u-split-archive-hydrate | 2026-02-13 | Updated all pipeline references from `archive` to `hydrate` as terminal stage. Updated `/fab-continue` and `/fab-ff`/`/fab-fff` descriptions. Updated unified command design decision to reflect `/fab-archive` as standalone housekeeping skill. |
 | 260213-w4k9-explicit-change-targeting | 2026-02-13 | All workflow skills (`/fab-continue`, `/fab-ff`, `/fab-fff`, `/fab-clarify`) now accept optional `[change-name]` argument for targeting non-active changes. `/fab-continue` disambiguates stage names vs change names. Preflight handles matching centrally |
 | 260212-r7xp-fix-fab-new-brief-stage | 2026-02-12 | `/fab-new` no longer marks brief complete — removed Step 8 ("Mark Brief Complete"), renumbered Step 9 → Step 8. Brief stays `active` after `/fab-new`; `/fab-continue` handles the brief → spec transition. Updated Change Initialization list and `_context.md` Next Steps table |

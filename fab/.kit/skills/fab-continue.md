@@ -64,11 +64,11 @@ Load per `_context.md` layers. Stage-specific additions: planning stages load br
 | review | [Review Behavior](#review-behavior) |
 | hydrate | [Hydrate Behavior](#hydrate-behavior) |
 
-**Planning stages only**: After generation, recompute confidence score (`_context.md` § Confidence Scoring) and write to `.status.yaml`.
+**Spec stage only**: After spec generation, invoke `fab/.kit/scripts/_fab-score.sh $change_dir` to compute the confidence score. No scoring at other stages.
 
 ### Step 4: Update `.status.yaml`
 
-Two-write transition: `progress.{completed}` → `done`, `progress.{next}` → `active`. Update `last_updated`. Planning stages include recomputed `confidence` block.
+Two-write transition: `progress.{completed}` → `done`, `progress.{next}` → `active`. Update `last_updated`.
 
 ### Step 5: Output
 

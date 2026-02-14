@@ -44,6 +44,7 @@ fab/.kit/
 │   └── workflow.yaml       # Canonical stage/state definitions
 └── scripts/                # Shell utilities
     ├── _fab-scaffold.sh    # Structural bootstrap
+    ├── _fab-score.sh       # Confidence score computation (internal)
     ├── batch-archive-change.sh  # Batch archive completed changes via tmux + Claude
     ├── batch-new-backlog.sh     # Batch create changes from backlog via tmux + Claude
     ├── batch-switch-change.sh   # Batch switch to changes via tmux + Claude
@@ -61,6 +62,9 @@ fab/.kit/
 
 The structural bootstrap script. Creates directories, symlinks, `memory/index.md`, and `.gitignore` entries. Reads bootstrap content from `scaffold/` files (index templates, envrc, gitignore entries) rather than hardcoding them. It is the single source of truth for structural setup. `/fab-init` delegates to it and adds the interactive parts (config, constitution).
 
+#### `_fab-score.sh`
+
+Internal library script for confidence score computation. Scans `## Assumptions` tables in `brief.md` and `spec.md`, counts SRAD grades (case-insensitive), preserves implicit Certain counts via carry-forward from `.status.yaml`, applies the confidence formula, writes the updated confidence block to `.status.yaml`, and emits YAML with delta to stdout. Invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). Not called directly by users.
 #### `fab-help.sh`
 
 Prints the Fab Kit help overview and skill catalog. MUST be updated when skills are added or removed.
@@ -210,6 +214,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 | Change | Date | Summary |
 |--------|------|---------|
 | 260214-r8kv-docs-skills-housekeeping | 2026-02-14 | Removed `fab-status.sh` from scripts listing. Renamed doc skills: `fab-hydrate.md` → `docs-hydrate-memory.md`, `fab-hydrate-specs.md` → `docs-hydrate-specs.md`, `fab-reorg-specs.md` → `docs-reorg-specs.md`. Added `docs-reorg-memory.md` to skills listing. |
+| 260213-w8p3-extract-fab-score | 2026-02-14 | Added `_fab-score.sh` to scripts directory listing and Shell Scripts section — internal confidence scoring script |
 | 260213-v3rn-batch-commands | 2026-02-14 | Renamed `fab-batch-new.sh` → `batch-new-backlog.sh`, `fab-batch-switch.sh` → `batch-switch-change.sh`; added `batch-archive-change.sh`; added batch scripts section to Shell Scripts docs |
 | 260213-3njv-scaffold-dir | 2026-02-13 | Added `scaffold/` directory to tree listing; `_fab-scaffold.sh` now reads bootstrap content from scaffold files instead of hardcoded heredocs |
 | 260213-iq2l-rename-setup-scripts | 2026-02-13 | Renamed `fab-setup.sh` → `_fab-scaffold.sh` and `fab-update.sh` → `fab-upgrade.sh`; updated directory listing and all script references |
