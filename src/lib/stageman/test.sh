@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 # src/lib/stageman/test.sh
 #
-# Comprehensive test suite for stageman.sh
+# Comprehensive test suite for stageman.sh (CLI-only contract tests)
 # Run: ./test.sh
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/stageman.sh"
-set +e  # stageman.sh enables -e; disable it for test assertions
+STAGEMAN="$SCRIPT_DIR/stageman.sh"
 
 # Test colors
 RED='\033[0;31m'
@@ -100,34 +99,34 @@ assert_contains() {
 echo "Testing State Queries..."
 echo ""
 
-# get_all_states
-all_states=$(get_all_states)
-assert_contains "pending" "$all_states" "get_all_states includes pending"
-assert_contains "active" "$all_states" "get_all_states includes active"
-assert_contains "done" "$all_states" "get_all_states includes done"
-assert_contains "skipped" "$all_states" "get_all_states includes skipped"
-assert_contains "failed" "$all_states" "get_all_states includes failed"
+# all-states
+all_states=$("$STAGEMAN" all-states)
+assert_contains "pending" "$all_states" "all-states includes pending"
+assert_contains "active" "$all_states" "all-states includes active"
+assert_contains "done" "$all_states" "all-states includes done"
+assert_contains "skipped" "$all_states" "all-states includes skipped"
+assert_contains "failed" "$all_states" "all-states includes failed"
 
-# validate_state
-validate_state "done"
-assert_success "validate_state accepts 'done'"
+# validate-state
+"$STAGEMAN" validate-state "done"
+assert_success "validate-state accepts 'done'"
 
-validate_state "invalid" 2>/dev/null
-assert_failure "validate_state rejects 'invalid'"
+"$STAGEMAN" validate-state "invalid" 2>/dev/null
+assert_failure "validate-state rejects 'invalid'"
 
-# get_state_symbol
-symbol=$(get_state_symbol "active")
-assert_equal "●" "$symbol" "get_state_symbol returns correct symbol for active"
+# state-symbol
+symbol=$("$STAGEMAN" state-symbol "active")
+assert_equal "●" "$symbol" "state-symbol returns correct symbol for active"
 
-symbol=$(get_state_symbol "done")
-assert_equal "✓" "$symbol" "get_state_symbol returns correct symbol for done"
+symbol=$("$STAGEMAN" state-symbol "done")
+assert_equal "✓" "$symbol" "state-symbol returns correct symbol for done"
 
-# is_terminal_state
-is_terminal_state "done"
-assert_success "is_terminal_state returns true for done"
+# is-terminal
+"$STAGEMAN" is-terminal "done"
+assert_success "is-terminal returns true for done"
 
-is_terminal_state "active"
-assert_failure "is_terminal_state returns false for active"
+"$STAGEMAN" is-terminal "active"
+assert_failure "is-terminal returns false for active"
 
 echo ""
 
@@ -138,62 +137,62 @@ echo ""
 echo "Testing Stage Queries..."
 echo ""
 
-# get_all_stages
-all_stages=$(get_all_stages)
-assert_contains "brief" "$all_stages" "get_all_stages includes brief"
-assert_contains "spec" "$all_stages" "get_all_stages includes spec"
-assert_contains "tasks" "$all_stages" "get_all_stages includes tasks"
-assert_contains "apply" "$all_stages" "get_all_stages includes apply"
-assert_contains "review" "$all_stages" "get_all_stages includes review"
-assert_contains "hydrate" "$all_stages" "get_all_stages includes hydrate"
+# all-stages
+all_stages=$("$STAGEMAN" all-stages)
+assert_contains "brief" "$all_stages" "all-stages includes brief"
+assert_contains "spec" "$all_stages" "all-stages includes spec"
+assert_contains "tasks" "$all_stages" "all-stages includes tasks"
+assert_contains "apply" "$all_stages" "all-stages includes apply"
+assert_contains "review" "$all_stages" "all-stages includes review"
+assert_contains "hydrate" "$all_stages" "all-stages includes hydrate"
 
 # Stage count
-stage_count=$(get_all_stages | wc -l)
-assert_equal "6" "$stage_count" "get_all_stages returns exactly 6 stages"
+stage_count=$("$STAGEMAN" all-stages | wc -l)
+assert_equal "6" "$stage_count" "all-stages returns exactly 6 stages"
 
-# validate_stage
-validate_stage "spec"
-assert_success "validate_stage accepts 'spec'"
+# validate-stage
+"$STAGEMAN" validate-stage "spec"
+assert_success "validate-stage accepts 'spec'"
 
-validate_stage "invalid" 2>/dev/null
-assert_failure "validate_stage rejects 'invalid'"
+"$STAGEMAN" validate-stage "invalid" 2>/dev/null
+assert_failure "validate-stage rejects 'invalid'"
 
-# get_stage_number
-num=$(get_stage_number "spec")
-assert_equal "2" "$num" "get_stage_number returns 2 for spec"
+# stage-number
+num=$("$STAGEMAN" stage-number "spec")
+assert_equal "2" "$num" "stage-number returns 2 for spec"
 
-num=$(get_stage_number "hydrate")
-assert_equal "6" "$num" "get_stage_number returns 6 for hydrate"
+num=$("$STAGEMAN" stage-number "hydrate")
+assert_equal "6" "$num" "stage-number returns 6 for hydrate"
 
-# get_stage_name
-name=$(get_stage_name "spec")
-assert_equal "Specification" "$name" "get_stage_name returns display name"
+# stage-name
+name=$("$STAGEMAN" stage-name "spec")
+assert_equal "Specification" "$name" "stage-name returns display name"
 
-# get_stage_artifact
-artifact=$(get_stage_artifact "spec")
-assert_equal "spec.md" "$artifact" "get_stage_artifact returns correct filename"
+# stage-artifact
+artifact=$("$STAGEMAN" stage-artifact "spec")
+assert_equal "spec.md" "$artifact" "stage-artifact returns correct filename"
 
-artifact=$(get_stage_artifact "apply")
-assert_equal "" "$artifact" "get_stage_artifact returns empty for non-generating stage"
+artifact=$("$STAGEMAN" stage-artifact "apply")
+assert_equal "" "$artifact" "stage-artifact returns empty for non-generating stage"
 
-# get_allowed_states
-allowed=$(get_allowed_states "review")
-assert_contains "failed" "$allowed" "get_allowed_states for review includes failed"
-assert_contains "done" "$allowed" "get_allowed_states for review includes done"
+# allowed-states
+allowed=$("$STAGEMAN" allowed-states "review")
+assert_contains "failed" "$allowed" "allowed-states for review includes failed"
+assert_contains "done" "$allowed" "allowed-states for review includes done"
 
-# get_initial_state
-initial=$(get_initial_state "brief")
-assert_equal "active" "$initial" "get_initial_state for brief is active"
+# initial-state
+initial=$("$STAGEMAN" initial-state "brief")
+assert_equal "active" "$initial" "initial-state for brief is active"
 
-initial=$(get_initial_state "spec")
-assert_equal "pending" "$initial" "get_initial_state for spec is pending"
+initial=$("$STAGEMAN" initial-state "spec")
+assert_equal "pending" "$initial" "initial-state for spec is pending"
 
-# has_auto_checklist
-has_auto_checklist "tasks"
-assert_success "has_auto_checklist returns true for tasks"
+# has-auto-checklist
+"$STAGEMAN" has-auto-checklist "tasks"
+assert_success "has-auto-checklist returns true for tasks"
 
-has_auto_checklist "spec"
-assert_failure "has_auto_checklist returns false for spec"
+"$STAGEMAN" has-auto-checklist "spec"
+assert_failure "has-auto-checklist returns false for spec"
 
 echo ""
 
@@ -204,16 +203,16 @@ echo ""
 echo "Testing Progression..."
 echo ""
 
-# get_next_stage
-next=$(get_next_stage "spec")
-assert_equal "tasks" "$next" "get_next_stage after spec is tasks"
+# next-stage
+next=$("$STAGEMAN" next-stage "spec")
+assert_equal "tasks" "$next" "next-stage after spec is tasks"
 
-next=$(get_next_stage "brief")
-assert_equal "spec" "$next" "get_next_stage after brief is spec"
+next=$("$STAGEMAN" next-stage "brief")
+assert_equal "spec" "$next" "next-stage after brief is spec"
 
 # Last stage has no next
-get_next_stage "hydrate" >/dev/null 2>&1
-assert_failure "get_next_stage returns error for hydrate"
+"$STAGEMAN" next-stage "hydrate" >/dev/null 2>&1
+assert_failure "next-stage returns error for hydrate"
 
 echo ""
 
@@ -239,8 +238,8 @@ progress:
 stage_metrics: {}
 EOF
 
-validate_status_file "$TEST_DIR/valid.yaml" 2>&1
-assert_success "validate_status_file accepts valid status"
+"$STAGEMAN" validate-status-file "$TEST_DIR/valid.yaml" 2>&1
+assert_success "validate-status-file accepts valid status"
 
 cat > "$TEST_DIR/invalid-state.yaml" <<EOF
 progress:
@@ -252,8 +251,8 @@ progress:
   hydrate: pending
 EOF
 
-validate_status_file "$TEST_DIR/invalid-state.yaml" >/dev/null 2>&1
-assert_failure "validate_status_file rejects invalid state"
+"$STAGEMAN" validate-status-file "$TEST_DIR/invalid-state.yaml" >/dev/null 2>&1
+assert_failure "validate-status-file rejects invalid state"
 
 cat > "$TEST_DIR/multiple-active.yaml" <<EOF
 progress:
@@ -265,8 +264,8 @@ progress:
   hydrate: pending
 EOF
 
-validate_status_file "$TEST_DIR/multiple-active.yaml" >/dev/null 2>&1
-assert_failure "validate_status_file rejects multiple active stages"
+"$STAGEMAN" validate-status-file "$TEST_DIR/multiple-active.yaml" >/dev/null 2>&1
+assert_failure "validate-status-file rejects multiple active stages"
 
 cat > "$TEST_DIR/wrong-allowed-state.yaml" <<EOF
 progress:
@@ -278,8 +277,8 @@ progress:
   hydrate: pending
 EOF
 
-validate_status_file "$TEST_DIR/wrong-allowed-state.yaml" >/dev/null 2>&1
-assert_failure "validate_status_file rejects state not in allowed_states"
+"$STAGEMAN" validate-status-file "$TEST_DIR/wrong-allowed-state.yaml" >/dev/null 2>&1
+assert_failure "validate-status-file rejects state not in allowed_states"
 
 echo ""
 
@@ -312,16 +311,16 @@ confidence:
   score: 3.4
 EOF
 
-# get_progress_map
-progress_output=$(get_progress_map "$TEST_DIR/full-status.yaml")
-assert_contains "brief:done" "$progress_output" "get_progress_map extracts brief:done"
-assert_contains "spec:active" "$progress_output" "get_progress_map extracts spec:active"
-assert_contains "hydrate:pending" "$progress_output" "get_progress_map extracts hydrate:pending"
+# progress-map
+progress_output=$("$STAGEMAN" progress-map "$TEST_DIR/full-status.yaml")
+assert_contains "brief:done" "$progress_output" "progress-map extracts brief:done"
+assert_contains "spec:active" "$progress_output" "progress-map extracts spec:active"
+assert_contains "hydrate:pending" "$progress_output" "progress-map extracts hydrate:pending"
 
 line_count=$(echo "$progress_output" | wc -l | tr -d ' ')
-assert_equal "6" "$line_count" "get_progress_map returns exactly 6 lines"
+assert_equal "6" "$line_count" "progress-map returns exactly 6 lines"
 
-# get_progress_map with missing stage (defaults to pending)
+# progress-map with missing stage (defaults to pending)
 cat > "$TEST_DIR/missing-stage.yaml" <<EOF
 progress:
   brief: done
@@ -330,47 +329,47 @@ progress:
   review: pending
   hydrate: pending
 EOF
-missing_output=$(get_progress_map "$TEST_DIR/missing-stage.yaml")
-assert_contains "tasks:pending" "$missing_output" "get_progress_map defaults missing stage to pending"
+missing_output=$("$STAGEMAN" progress-map "$TEST_DIR/missing-stage.yaml")
+assert_contains "tasks:pending" "$missing_output" "progress-map defaults missing stage to pending"
 
-# get_checklist
-checklist_output=$(get_checklist "$TEST_DIR/full-status.yaml")
-assert_contains "generated:true" "$checklist_output" "get_checklist extracts generated"
-assert_contains "completed:3" "$checklist_output" "get_checklist extracts completed"
-assert_contains "total:10" "$checklist_output" "get_checklist extracts total"
+# checklist
+checklist_output=$("$STAGEMAN" checklist "$TEST_DIR/full-status.yaml")
+assert_contains "generated:true" "$checklist_output" "checklist extracts generated"
+assert_contains "completed:3" "$checklist_output" "checklist extracts completed"
+assert_contains "total:10" "$checklist_output" "checklist extracts total"
 
-# get_checklist with missing block (defaults)
+# checklist with missing block (defaults)
 cat > "$TEST_DIR/no-checklist.yaml" <<EOF
 progress:
   brief: active
 EOF
-no_chk_output=$(get_checklist "$TEST_DIR/no-checklist.yaml")
-assert_contains "generated:false" "$no_chk_output" "get_checklist defaults generated to false"
-assert_contains "completed:0" "$no_chk_output" "get_checklist defaults completed to 0"
-assert_contains "total:0" "$no_chk_output" "get_checklist defaults total to 0"
+no_chk_output=$("$STAGEMAN" checklist "$TEST_DIR/no-checklist.yaml")
+assert_contains "generated:false" "$no_chk_output" "checklist defaults generated to false"
+assert_contains "completed:0" "$no_chk_output" "checklist defaults completed to 0"
+assert_contains "total:0" "$no_chk_output" "checklist defaults total to 0"
 
-# get_confidence
-confidence_output=$(get_confidence "$TEST_DIR/full-status.yaml")
-assert_contains "certain:5" "$confidence_output" "get_confidence extracts certain"
-assert_contains "confident:2" "$confidence_output" "get_confidence extracts confident"
-assert_contains "tentative:1" "$confidence_output" "get_confidence extracts tentative"
-assert_contains "unresolved:0" "$confidence_output" "get_confidence extracts unresolved"
-assert_contains "score:3.4" "$confidence_output" "get_confidence extracts score"
+# confidence
+confidence_output=$("$STAGEMAN" confidence "$TEST_DIR/full-status.yaml")
+assert_contains "certain:5" "$confidence_output" "confidence extracts certain"
+assert_contains "confident:2" "$confidence_output" "confidence extracts confident"
+assert_contains "tentative:1" "$confidence_output" "confidence extracts tentative"
+assert_contains "unresolved:0" "$confidence_output" "confidence extracts unresolved"
+assert_contains "score:3.4" "$confidence_output" "confidence extracts score"
 
-# get_confidence with missing block (defaults)
+# confidence with missing block (defaults)
 cat > "$TEST_DIR/no-confidence.yaml" <<EOF
 progress:
   brief: active
 EOF
-no_conf_output=$(get_confidence "$TEST_DIR/no-confidence.yaml")
-assert_contains "certain:0" "$no_conf_output" "get_confidence defaults certain to 0"
-assert_contains "score:5.0" "$no_conf_output" "get_confidence defaults score to 5.0"
+no_conf_output=$("$STAGEMAN" confidence "$TEST_DIR/no-confidence.yaml")
+assert_contains "certain:0" "$no_conf_output" "confidence defaults certain to 0"
+assert_contains "score:5.0" "$no_conf_output" "confidence defaults score to 5.0"
 
-# get_current_stage (refactored to use get_progress_map)
-current=$(get_current_stage "$TEST_DIR/full-status.yaml")
-assert_equal "spec" "$current" "get_current_stage finds active stage via accessor"
+# current-stage
+current=$("$STAGEMAN" current-stage "$TEST_DIR/full-status.yaml")
+assert_equal "spec" "$current" "current-stage finds active stage via CLI"
 
-# get_current_stage fallback (no active, first pending after last done)
+# current-stage fallback (no active, first pending after last done)
 cat > "$TEST_DIR/no-active.yaml" <<EOF
 progress:
   brief: done
@@ -380,8 +379,8 @@ progress:
   review: pending
   hydrate: pending
 EOF
-fallback=$(get_current_stage "$TEST_DIR/no-active.yaml")
-assert_equal "spec" "$fallback" "get_current_stage fallback finds first pending after last done"
+fallback=$("$STAGEMAN" current-stage "$TEST_DIR/no-active.yaml")
+assert_equal "spec" "$fallback" "current-stage fallback finds first pending after last done"
 
 echo ""
 
@@ -419,12 +418,12 @@ last_updated: 2026-01-01T00:00:00+00:00
 EOF
 }
 
-# --- set_stage_state ---
+# --- set-state ---
 
-echo "  set_stage_state:"
+echo "  set-state:"
 
 make_write_fixture
-set_stage_state "$TEST_DIR/write-status.yaml" "review" "active" "test-driver" 2>/dev/null
+"$STAGEMAN" set-state "$TEST_DIR/write-status.yaml" "review" "active" "test-driver" 2>/dev/null
 assert_success "    valid state change succeeds"
 result=$(yq '.progress.review' "$TEST_DIR/write-status.yaml")
 assert_equal "active" "$result" "    review is now active"
@@ -440,42 +439,42 @@ assert_equal "active" "$result" "    unrelated stages unchanged"
 # active requires driver
 make_write_fixture
 before=$(cat "$TEST_DIR/write-status.yaml")
-set_stage_state "$TEST_DIR/write-status.yaml" "review" "active" 2>/dev/null
+"$STAGEMAN" set-state "$TEST_DIR/write-status.yaml" "review" "active" 2>/dev/null
 assert_failure "    rejects active without driver"
 after=$(cat "$TEST_DIR/write-status.yaml")
 assert_equal "$before" "$after" "    file unchanged when driver missing"
 
 # done does not require driver
 make_write_fixture
-set_stage_state "$TEST_DIR/write-status.yaml" "apply" "done" 2>/dev/null
+"$STAGEMAN" set-state "$TEST_DIR/write-status.yaml" "apply" "done" 2>/dev/null
 assert_success "    done without driver succeeds"
 
 # Validation failures
 make_write_fixture
 before=$(cat "$TEST_DIR/write-status.yaml")
-set_stage_state "$TEST_DIR/write-status.yaml" "invalid_stage" "active" "test" 2>/dev/null
+"$STAGEMAN" set-state "$TEST_DIR/write-status.yaml" "invalid_stage" "active" "test" 2>/dev/null
 assert_failure "    rejects invalid stage"
 after=$(cat "$TEST_DIR/write-status.yaml")
 assert_equal "$before" "$after" "    file unchanged on invalid stage"
 
 make_write_fixture
 before=$(cat "$TEST_DIR/write-status.yaml")
-set_stage_state "$TEST_DIR/write-status.yaml" "brief" "failed" 2>/dev/null
+"$STAGEMAN" set-state "$TEST_DIR/write-status.yaml" "brief" "failed" 2>/dev/null
 assert_failure "    rejects state not allowed for stage"
 after=$(cat "$TEST_DIR/write-status.yaml")
 assert_equal "$before" "$after" "    file unchanged on invalid state"
 
-set_stage_state "/nonexistent/path/.status.yaml" "spec" "done" 2>/dev/null
+"$STAGEMAN" set-state "/nonexistent/path/.status.yaml" "spec" "done" 2>/dev/null
 assert_failure "    rejects nonexistent file"
 
 echo ""
 
-# --- transition_stages ---
+# --- transition ---
 
-echo "  transition_stages:"
+echo "  transition:"
 
 make_write_fixture
-transition_stages "$TEST_DIR/write-status.yaml" "apply" "review" "test-driver" 2>/dev/null
+"$STAGEMAN" transition "$TEST_DIR/write-status.yaml" "apply" "review" "test-driver" 2>/dev/null
 assert_success "    valid forward transition succeeds"
 from_state=$(yq '.progress.apply' "$TEST_DIR/write-status.yaml")
 to_state=$(yq '.progress.review' "$TEST_DIR/write-status.yaml")
@@ -485,7 +484,7 @@ assert_equal "active" "$to_state" "    to_stage set to active"
 # transition requires driver
 make_write_fixture
 before=$(cat "$TEST_DIR/write-status.yaml")
-transition_stages "$TEST_DIR/write-status.yaml" "apply" "review" 2>/dev/null
+"$STAGEMAN" transition "$TEST_DIR/write-status.yaml" "apply" "review" 2>/dev/null
 assert_failure "    rejects transition without driver"
 after=$(cat "$TEST_DIR/write-status.yaml")
 assert_equal "$before" "$after" "    file unchanged without driver"
@@ -493,7 +492,7 @@ assert_equal "$before" "$after" "    file unchanged without driver"
 # Non-adjacent stages
 make_write_fixture
 before=$(cat "$TEST_DIR/write-status.yaml")
-transition_stages "$TEST_DIR/write-status.yaml" "apply" "hydrate" "test-driver" 2>/dev/null
+"$STAGEMAN" transition "$TEST_DIR/write-status.yaml" "apply" "hydrate" "test-driver" 2>/dev/null
 assert_failure "    rejects non-adjacent stages"
 after=$(cat "$TEST_DIR/write-status.yaml")
 assert_equal "$before" "$after" "    file unchanged on non-adjacent"
@@ -501,34 +500,34 @@ assert_equal "$before" "$after" "    file unchanged on non-adjacent"
 # from_stage not active
 make_write_fixture
 before=$(cat "$TEST_DIR/write-status.yaml")
-transition_stages "$TEST_DIR/write-status.yaml" "spec" "tasks" "test-driver" 2>/dev/null
+"$STAGEMAN" transition "$TEST_DIR/write-status.yaml" "spec" "tasks" "test-driver" 2>/dev/null
 assert_failure "    rejects when from_stage is not active"
 after=$(cat "$TEST_DIR/write-status.yaml")
 assert_equal "$before" "$after" "    file unchanged when from_stage not active"
 
-transition_stages "/nonexistent/path/.status.yaml" "apply" "review" "test-driver" 2>/dev/null
+"$STAGEMAN" transition "/nonexistent/path/.status.yaml" "apply" "review" "test-driver" 2>/dev/null
 assert_failure "    rejects nonexistent file"
 
 echo ""
 
-# --- set_checklist_field ---
+# --- set-checklist ---
 
-echo "  set_checklist_field:"
+echo "  set-checklist:"
 
 make_write_fixture
-set_checklist_field "$TEST_DIR/write-status.yaml" "completed" "7" 2>/dev/null
+"$STAGEMAN" set-checklist "$TEST_DIR/write-status.yaml" "completed" "7" 2>/dev/null
 assert_success "    valid completed update succeeds"
 result=$(grep "^  completed:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
 assert_equal "7" "$result" "    completed is now 7"
 
 make_write_fixture
-set_checklist_field "$TEST_DIR/write-status.yaml" "generated" "false" 2>/dev/null
+"$STAGEMAN" set-checklist "$TEST_DIR/write-status.yaml" "generated" "false" 2>/dev/null
 assert_success "    valid generated update succeeds"
 result=$(grep "^  generated:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
 assert_equal "false" "$result" "    generated is now false"
 
 make_write_fixture
-set_checklist_field "$TEST_DIR/write-status.yaml" "total" "25" 2>/dev/null
+"$STAGEMAN" set-checklist "$TEST_DIR/write-status.yaml" "total" "25" 2>/dev/null
 assert_success "    valid total update succeeds"
 result=$(grep "^  total:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
 assert_equal "25" "$result" "    total is now 25"
@@ -536,36 +535,36 @@ assert_equal "25" "$result" "    total is now 25"
 # Validation failures
 make_write_fixture
 before=$(cat "$TEST_DIR/write-status.yaml")
-set_checklist_field "$TEST_DIR/write-status.yaml" "invalid_field" "5" 2>/dev/null
+"$STAGEMAN" set-checklist "$TEST_DIR/write-status.yaml" "invalid_field" "5" 2>/dev/null
 assert_failure "    rejects invalid field name"
 after=$(cat "$TEST_DIR/write-status.yaml")
 assert_equal "$before" "$after" "    file unchanged on invalid field"
 
 make_write_fixture
 before=$(cat "$TEST_DIR/write-status.yaml")
-set_checklist_field "$TEST_DIR/write-status.yaml" "completed" "-3" 2>/dev/null
+"$STAGEMAN" set-checklist "$TEST_DIR/write-status.yaml" "completed" "-3" 2>/dev/null
 assert_failure "    rejects negative integer"
 after=$(cat "$TEST_DIR/write-status.yaml")
 assert_equal "$before" "$after" "    file unchanged on negative value"
 
 make_write_fixture
 before=$(cat "$TEST_DIR/write-status.yaml")
-set_checklist_field "$TEST_DIR/write-status.yaml" "generated" "yes" 2>/dev/null
+"$STAGEMAN" set-checklist "$TEST_DIR/write-status.yaml" "generated" "yes" 2>/dev/null
 assert_failure "    rejects non-bool for generated"
 after=$(cat "$TEST_DIR/write-status.yaml")
 assert_equal "$before" "$after" "    file unchanged on wrong type"
 
-set_checklist_field "/nonexistent/path/.status.yaml" "completed" "5" 2>/dev/null
+"$STAGEMAN" set-checklist "/nonexistent/path/.status.yaml" "completed" "5" 2>/dev/null
 assert_failure "    rejects nonexistent file"
 
 echo ""
 
-# --- set_confidence_block ---
+# --- set-confidence ---
 
-echo "  set_confidence_block:"
+echo "  set-confidence:"
 
 make_write_fixture
-set_confidence_block "$TEST_DIR/write-status.yaml" "10" "3" "1" "0" "4.1" 2>/dev/null
+"$STAGEMAN" set-confidence "$TEST_DIR/write-status.yaml" "10" "3" "1" "0" "4.1" 2>/dev/null
 assert_success "    valid confidence block replacement succeeds"
 result=$(grep "^  certain:" "$TEST_DIR/write-status.yaml" | sed 's/.*: *//')
 assert_equal "10" "$result" "    certain updated to 10"
@@ -585,26 +584,26 @@ assert_equal "10" "$result" "    checklist block preserved"
 # Validation failures
 make_write_fixture
 before=$(cat "$TEST_DIR/write-status.yaml")
-set_confidence_block "$TEST_DIR/write-status.yaml" "-1" "3" "1" "0" "4.1" 2>/dev/null
+"$STAGEMAN" set-confidence "$TEST_DIR/write-status.yaml" "-1" "3" "1" "0" "4.1" 2>/dev/null
 assert_failure "    rejects negative count"
 after=$(cat "$TEST_DIR/write-status.yaml")
 assert_equal "$before" "$after" "    file unchanged on negative count"
 
 make_write_fixture
 before=$(cat "$TEST_DIR/write-status.yaml")
-set_confidence_block "$TEST_DIR/write-status.yaml" "10" "3" "1" "0" "abc" 2>/dev/null
+"$STAGEMAN" set-confidence "$TEST_DIR/write-status.yaml" "10" "3" "1" "0" "abc" 2>/dev/null
 assert_failure "    rejects non-numeric score"
 after=$(cat "$TEST_DIR/write-status.yaml")
 assert_equal "$before" "$after" "    file unchanged on non-numeric score"
 
 make_write_fixture
 before=$(cat "$TEST_DIR/write-status.yaml")
-set_confidence_block "$TEST_DIR/write-status.yaml" "10" "3" "1" "0" "-2.5" 2>/dev/null
+"$STAGEMAN" set-confidence "$TEST_DIR/write-status.yaml" "10" "3" "1" "0" "-2.5" 2>/dev/null
 assert_failure "    rejects negative score"
 after=$(cat "$TEST_DIR/write-status.yaml")
 assert_equal "$before" "$after" "    file unchanged on negative score"
 
-set_confidence_block "/nonexistent/path/.status.yaml" "10" "3" "1" "0" "4.1" 2>/dev/null
+"$STAGEMAN" set-confidence "/nonexistent/path/.status.yaml" "10" "3" "1" "0" "4.1" 2>/dev/null
 assert_failure "    rejects nonexistent file"
 
 echo ""
@@ -616,45 +615,45 @@ echo ""
 echo "Testing Stage Metrics..."
 echo ""
 
-# get_stage_metrics on empty block
+# stage-metrics on empty block
 make_write_fixture
-metrics_output=$(get_stage_metrics "$TEST_DIR/write-status.yaml")
-assert_equal "" "$metrics_output" "get_stage_metrics returns empty on empty block"
+metrics_output=$("$STAGEMAN" stage-metrics "$TEST_DIR/write-status.yaml")
+assert_equal "" "$metrics_output" "stage-metrics returns empty on empty block"
 
-# set_stage_state active creates metrics
+# set-state active creates metrics
 make_write_fixture
-set_stage_state "$TEST_DIR/write-status.yaml" "review" "active" "fab-continue" 2>/dev/null
+"$STAGEMAN" set-state "$TEST_DIR/write-status.yaml" "review" "active" "fab-continue" 2>/dev/null
 driver=$(yq '.stage_metrics.review.driver' "$TEST_DIR/write-status.yaml")
-assert_equal "fab-continue" "$driver" "set_stage_state active sets driver metric"
+assert_equal "fab-continue" "$driver" "set-state active sets driver metric"
 iter=$(yq '.stage_metrics.review.iterations' "$TEST_DIR/write-status.yaml")
-assert_equal "1" "$iter" "set_stage_state active sets iterations=1"
+assert_equal "1" "$iter" "set-state active sets iterations=1"
 started=$(yq '.stage_metrics.review.started_at' "$TEST_DIR/write-status.yaml")
-assert_contains "T" "$started" "set_stage_state active sets started_at"
+assert_contains "T" "$started" "set-state active sets started_at"
 
-# set_stage_state done sets completed_at
-set_stage_state "$TEST_DIR/write-status.yaml" "review" "done" 2>/dev/null
+# set-state done sets completed_at
+"$STAGEMAN" set-state "$TEST_DIR/write-status.yaml" "review" "done" 2>/dev/null
 completed=$(yq '.stage_metrics.review.completed_at' "$TEST_DIR/write-status.yaml")
-assert_contains "T" "$completed" "set_stage_state done sets completed_at"
+assert_contains "T" "$completed" "set-state done sets completed_at"
 # Other fields preserved
 driver=$(yq '.stage_metrics.review.driver' "$TEST_DIR/write-status.yaml")
-assert_equal "fab-continue" "$driver" "set_stage_state done preserves driver"
+assert_equal "fab-continue" "$driver" "set-state done preserves driver"
 
 # Rework: re-activation increments iterations
-set_stage_state "$TEST_DIR/write-status.yaml" "review" "active" "fab-continue" 2>/dev/null
+"$STAGEMAN" set-state "$TEST_DIR/write-status.yaml" "review" "active" "fab-continue" 2>/dev/null
 iter=$(yq '.stage_metrics.review.iterations' "$TEST_DIR/write-status.yaml")
 assert_equal "2" "$iter" "rework re-activation increments iterations to 2"
 
 # pending clears metrics entry
 make_write_fixture
-set_stage_state "$TEST_DIR/write-status.yaml" "apply" "done" 2>/dev/null
-set_stage_state "$TEST_DIR/write-status.yaml" "review" "active" "fab-continue" 2>/dev/null
-set_stage_state "$TEST_DIR/write-status.yaml" "review" "pending" 2>/dev/null
+"$STAGEMAN" set-state "$TEST_DIR/write-status.yaml" "apply" "done" 2>/dev/null
+"$STAGEMAN" set-state "$TEST_DIR/write-status.yaml" "review" "active" "fab-continue" 2>/dev/null
+"$STAGEMAN" set-state "$TEST_DIR/write-status.yaml" "review" "pending" 2>/dev/null
 result=$(yq '.stage_metrics.review' "$TEST_DIR/write-status.yaml")
 assert_equal "null" "$result" "pending clears stage metrics entry"
 
 # transition sets metrics for both stages
 make_write_fixture
-transition_stages "$TEST_DIR/write-status.yaml" "apply" "review" "fab-ff" 2>/dev/null
+"$STAGEMAN" transition "$TEST_DIR/write-status.yaml" "apply" "review" "fab-ff" 2>/dev/null
 from_completed=$(yq '.stage_metrics.apply.completed_at' "$TEST_DIR/write-status.yaml")
 assert_contains "T" "$from_completed" "transition sets from→done completed_at"
 to_driver=$(yq '.stage_metrics.review.driver' "$TEST_DIR/write-status.yaml")
@@ -662,29 +661,29 @@ assert_equal "fab-ff" "$to_driver" "transition sets to→active driver"
 to_iter=$(yq '.stage_metrics.review.iterations' "$TEST_DIR/write-status.yaml")
 assert_equal "1" "$to_iter" "transition sets to→active iterations=1"
 
-# get_stage_metrics single stage
-metrics_single=$(get_stage_metrics "$TEST_DIR/write-status.yaml" "review")
-assert_contains "driver" "$metrics_single" "get_stage_metrics single stage returns fields"
+# stage-metrics single stage
+metrics_single=$("$STAGEMAN" stage-metrics "$TEST_DIR/write-status.yaml" "review")
+assert_contains "driver" "$metrics_single" "stage-metrics single stage returns fields"
 
-# get_stage_metrics all stages
-metrics_all=$(get_stage_metrics "$TEST_DIR/write-status.yaml")
+# stage-metrics all stages
+metrics_all=$("$STAGEMAN" stage-metrics "$TEST_DIR/write-status.yaml")
 line_count=$(echo "$metrics_all" | wc -l | tr -d ' ')
-assert_equal "2" "$line_count" "get_stage_metrics all returns 2 entries"
+assert_equal "2" "$line_count" "stage-metrics all returns 2 entries"
 
-# get_stage_metrics with missing block entirely
+# stage-metrics with missing block entirely
 cat > "$TEST_DIR/no-metrics.yaml" <<EOF
 progress:
   brief: active
 last_updated: now
 EOF
-no_metrics=$(get_stage_metrics "$TEST_DIR/no-metrics.yaml")
-assert_equal "" "$no_metrics" "get_stage_metrics handles missing block"
+no_metrics=$("$STAGEMAN" stage-metrics "$TEST_DIR/no-metrics.yaml")
+assert_equal "" "$no_metrics" "stage-metrics handles missing block"
 
-# validate_status_file ignores stage_metrics
+# validate-status-file ignores stage_metrics
 make_write_fixture
 yq -i '.stage_metrics.brief = {"started_at": "now", "driver": "test", "iterations": 1}' "$TEST_DIR/write-status.yaml"
-validate_status_file "$TEST_DIR/write-status.yaml" 2>&1
-assert_success "validate_status_file ignores stage_metrics content"
+"$STAGEMAN" validate-status-file "$TEST_DIR/write-status.yaml" 2>&1
+assert_success "validate-status-file ignores stage_metrics content"
 
 echo ""
 
@@ -697,38 +696,38 @@ echo ""
 
 HISTORY_DIR=$(mktemp -d)
 
-log_command "$HISTORY_DIR" "fab-continue" ""
+"$STAGEMAN" log-command "$HISTORY_DIR" "fab-continue" ""
 line=$(head -1 "$HISTORY_DIR/.history.jsonl")
 echo "$line" | grep -q '"event":"command"' 2>/dev/null
-assert_success "log_command creates command event"
+assert_success "log-command creates command event"
 echo "$line" | grep -q '"cmd":"fab-continue"' 2>/dev/null
-assert_success "log_command includes cmd field"
+assert_success "log-command includes cmd field"
 echo "$line" | grep -q '"args"' 2>/dev/null
-assert_failure "log_command omits empty args"
+assert_failure "log-command omits empty args"
 
-log_command "$HISTORY_DIR" "fab-ff" "spec"
+"$STAGEMAN" log-command "$HISTORY_DIR" "fab-ff" "spec"
 line=$(tail -1 "$HISTORY_DIR/.history.jsonl")
 echo "$line" | grep -q '"args":"spec"' 2>/dev/null
-assert_success "log_command includes non-empty args"
+assert_success "log-command includes non-empty args"
 
-log_confidence "$HISTORY_DIR" 4.1 "+4.1" "calc-score"
+"$STAGEMAN" log-confidence "$HISTORY_DIR" 4.1 "+4.1" "calc-score"
 line=$(tail -1 "$HISTORY_DIR/.history.jsonl")
 echo "$line" | grep -q '"event":"confidence"' 2>/dev/null
-assert_success "log_confidence creates confidence event"
+assert_success "log-confidence creates confidence event"
 echo "$line" | grep -q '"score":4.1' 2>/dev/null
-assert_success "log_confidence includes score"
+assert_success "log-confidence includes score"
 
-log_review "$HISTORY_DIR" "passed"
+"$STAGEMAN" log-review "$HISTORY_DIR" "passed"
 line=$(tail -1 "$HISTORY_DIR/.history.jsonl")
 echo "$line" | grep -q '"result":"passed"' 2>/dev/null
-assert_success "log_review creates passed event"
+assert_success "log-review creates passed event"
 echo "$line" | grep -q '"rework"' 2>/dev/null
-assert_failure "log_review omits empty rework"
+assert_failure "log-review omits empty rework"
 
-log_review "$HISTORY_DIR" "failed" "revise-tasks"
+"$STAGEMAN" log-review "$HISTORY_DIR" "failed" "revise-tasks"
 line=$(tail -1 "$HISTORY_DIR/.history.jsonl")
 echo "$line" | grep -q '"rework":"revise-tasks"' 2>/dev/null
-assert_success "log_review includes rework when provided"
+assert_success "log-review includes rework when provided"
 
 event_count=$(wc -l < "$HISTORY_DIR/.history.jsonl" | tr -d ' ')
 assert_equal "5" "$event_count" "history file has 5 events"

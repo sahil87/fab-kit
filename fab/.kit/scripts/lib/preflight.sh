@@ -4,8 +4,10 @@ set -euo pipefail
 fab_root="$(dirname "$0")/../../.."
 scripts_dir="$(cd "$(dirname "$0")/.." && pwd)"
 
-# Source libraries
-source "$scripts_dir/lib/stageman.sh"
+# CLI entry point for stageman (subprocess calls, not sourced)
+STAGEMAN="$scripts_dir/lib/stageman.sh"
+
+# resolve-change.sh must be sourced — it sets RESOLVED_CHANGE_NAME via variable
 source "$scripts_dir/lib/resolve-change.sh"
 
 # 1. Project initialization validation
@@ -43,33 +45,33 @@ if [ ! -f "$status_file" ]; then
 fi
 
 # 5. Schema validation — catch state/stage violations early
-if ! validate_status_file "$status_file"; then
+if ! "$STAGEMAN" validate-status-file "$status_file"; then
   echo "Status file validation failed for \"$name\". Fix .status.yaml or run /fab-new." >&2
   exit 1
 fi
 
 # --- All validations passed — emit structured YAML to stdout ---
 
-# Extract progress via stageman accessor
+# Extract progress via stageman CLI
 declare -A progress
 while IFS=: read -r s val; do
   progress[$s]="$val"
-done < <(get_progress_map "$status_file")
+done < <("$STAGEMAN" progress-map "$status_file")
 
-# Derive current stage via stageman
-stage=$(get_current_stage "$status_file")
+# Derive current stage via stageman CLI
+stage=$("$STAGEMAN" current-stage "$status_file")
 
-# Extract checklist via stageman accessor
+# Extract checklist via stageman CLI
 declare -A checklist
 while IFS=: read -r key val; do
   checklist[$key]="$val"
-done < <(get_checklist "$status_file")
+done < <("$STAGEMAN" checklist "$status_file")
 
-# Extract confidence via stageman accessor
+# Extract confidence via stageman CLI
 declare -A confidence
 while IFS=: read -r key val; do
   confidence[$key]="$val"
-done < <(get_confidence "$status_file")
+done < <("$STAGEMAN" confidence "$status_file")
 
 # Emit YAML output with dynamic stage progress
 cat <<EOF
@@ -77,7 +79,7 @@ name: $name
 change_dir: changes/$name
 stage: $stage
 progress:
-$(for s in $(get_all_stages); do echo "  $s: ${progress[$s]}"; done)
+$(for s in $("$STAGEMAN" all-stages); do echo "  $s: ${progress[$s]}"; done)
 checklist:
   generated: ${checklist[generated]}
   completed: ${checklist[completed]}

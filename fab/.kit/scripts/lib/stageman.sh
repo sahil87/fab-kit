@@ -1,41 +1,32 @@
 #!/usr/bin/env bash
 # fab/.kit/scripts/lib/stageman.sh
 #
-# Stage Manager - Query utility for workflow stages and states.
-# Reads the canonical workflow schema and provides typed accessors.
+# Stage Manager — CLI utility for workflow stages, states, and .status.yaml.
+# Reads the canonical workflow schema and provides typed subcommands.
 #
-# Usage as library:
-#   source "$(dirname "$0")/stageman.sh"
-#   validate_state "done" || echo "Invalid state"
-#   get_stage_number "spec"  # returns 2
-#   get_state_symbol "active"  # returns ●
-#
-# Usage as command:
-#   stageman.sh --help    # Show usage
-#   stageman.sh --test    # Run self-tests
-#   stageman.sh --version # Show version
+# Usage:
+#   stageman.sh --help               Show usage
+#   stageman.sh all-stages           List all stage IDs
+#   stageman.sh validate-state done  Check if state is valid
+#   stageman.sh progress-map <file>  Extract stage:state pairs
+#   stageman.sh set-state <file> <stage> <state> [driver]
 
 set -euo pipefail
 
-# Locate workflow schema (works from both .kit/scripts/ and src/stageman/ symlink)
-if [ -n "${BASH_SOURCE[0]:-}" ]; then
-  STAGEMAN_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-else
-  # Fallback when sourced in a way that doesn't set BASH_SOURCE
-  STAGEMAN_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
-fi
+# Locate workflow schema (works from both .kit/scripts/lib/ and src/lib/stageman/ symlink)
+STAGEMAN_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 WORKFLOW_SCHEMA="$STAGEMAN_DIR/../../schemas/workflow.yaml"
 
 if [ ! -f "$WORKFLOW_SCHEMA" ]; then
   echo "ERROR: workflow.yaml not found at $WORKFLOW_SCHEMA" >&2
   echo "       STAGEMAN_DIR=$STAGEMAN_DIR" >&2
-  return 1 2>/dev/null || exit 1
+  exit 1
 fi
 
 # Require yq (Mike Farah's Go v4) for .status.yaml operations
 if ! command -v yq &>/dev/null; then
   echo "ERROR: yq (v4) is required but not found. Install: https://github.com/mikefarah/yq" >&2
-  return 1 2>/dev/null || exit 1
+  exit 1
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -720,30 +711,30 @@ validate_status_file() {
 
     if [ -z "$state" ]; then
       echo "ERROR: Missing progress.$stage in $status_file" >&2
-      ((errors++))
+      errors=$((errors + 1))
       continue
     fi
 
     if ! validate_state "$state"; then
       echo "ERROR: Invalid state '$state' for stage $stage" >&2
-      ((errors++))
+      errors=$((errors + 1))
       continue
     fi
 
     if ! validate_stage_state "$stage" "$state"; then
       echo "ERROR: State '$state' not allowed for stage $stage" >&2
-      ((errors++))
+      errors=$((errors + 1))
     fi
 
     if [ "$state" = "active" ]; then
-      ((active_count++))
+      active_count=$((active_count + 1))
     fi
   done
 
   # Check active count (0 or 1)
   if [ "$active_count" -gt 1 ]; then
     echo "ERROR: Multiple stages are active (expected 0 or 1)" >&2
-    ((errors++))
+    errors=$((errors + 1))
   fi
 
   [ $errors -eq 0 ]
@@ -808,92 +799,73 @@ log_review() {
 
 show_help() {
   cat <<'EOF'
-stageman.sh - Stage Manager (workflow schema query utility)
+stageman.sh - Stage Manager CLI
 
 USAGE:
-  As library (source in scripts):
-    source stageman.sh
-    get_all_stages
-    get_state_symbol "active"
+  stageman.sh <subcommand> [args...]
+  stageman.sh --help | --test | --version
 
-  As command (read-only):
-    stageman.sh --help      Show this help
-    stageman.sh --test      Run self-tests
-    stageman.sh --version   Show version
-
-  Write commands:
-    stageman.sh set-state <file> <stage> <state> [driver]
-    stageman.sh transition <file> <from-stage> <to-stage> [driver]
-    stageman.sh set-checklist <file> <field> <value>
-    stageman.sh set-confidence <file> <certain> <confident> <tentative> <unresolved> <score>
-
-  History commands:
-    stageman.sh log-command <change_dir> <cmd> [args]
-    stageman.sh log-confidence <change_dir> <score> <delta> <trigger>
-    stageman.sh log-review <change_dir> <result> [rework]
-
-AVAILABLE FUNCTIONS:
+SUBCOMMANDS:
   State queries:
-    get_all_states              List all valid states
-    validate_state <state>      Check if state is valid
-    get_state_symbol <state>    Get display symbol (●, ✓, etc)
-    get_state_suffix <state>    Get display suffix (e.g., " (skipped)")
-    is_terminal_state <state>   Check if state is terminal
+    all-states                         List all valid states
+    validate-state <state>             Check if state is valid (exit 0/1)
+    state-symbol <state>               Get display symbol (e.g. ✓)
+    state-suffix <state>               Get display suffix (e.g. " (skipped)")
+    is-terminal <state>                Check if state is terminal (exit 0/1)
 
   Stage queries:
-    get_all_stages              List all stages in order
-    validate_stage <stage>      Check if stage exists
-    get_stage_number <stage>    Get position (1-6)
-    get_stage_name <stage>      Get display name
-    get_stage_artifact <stage>  Get generated filename
-    get_allowed_states <stage>  List allowed states for stage
-    get_initial_state <stage>   Get default state
-    is_required_stage <stage>   Check if stage is required
-    has_auto_checklist <stage>  Check if stage generates checklist
+    all-stages                         List all stages in order
+    validate-stage <stage>             Check if stage exists (exit 0/1)
+    stage-number <stage>               Get position (1-6)
+    stage-name <stage>                 Get display name
+    stage-artifact <stage>             Get generated filename
+    allowed-states <stage>             List allowed states for stage
+    initial-state <stage>              Get default state
+    is-required <stage>                Check if stage is required (exit 0/1)
+    has-auto-checklist <stage>         Check if stage generates checklist (exit 0/1)
+    validate-stage-state <stage> <st>  Check if state is valid for stage (exit 0/1)
 
-  .status.yaml Accessors:
-    get_progress_map <file>     Extract stage:state pairs (one per line)
-    get_checklist <file>        Extract checklist fields (key:value lines)
-    get_confidence <file>       Extract confidence fields (key:value lines)
+  .status.yaml accessors:
+    progress-map <file>                Extract stage:state pairs (one per line)
+    checklist <file>                   Extract checklist fields (key:value lines)
+    confidence <file>                  Extract confidence fields (key:value lines)
+
+  Stage metrics:
+    stage-metrics <file> [stage]       Get stage metrics (all or one stage)
+    set-stage-metric <file> <stage> <field> <value>  Set a stage metric field
 
   Progression:
-    get_current_stage <file>    Detect active stage from .status.yaml
-    get_next_stage <stage>      Get next stage in sequence
-
-  Write:
-    set_stage_state <file> <stage> <state>    Set a stage's state
-    transition_stages <file> <from> <to>      Two-write forward transition
-    set_checklist_field <file> <field> <val>  Update checklist field
-    set_confidence_block <file> <c> <cf> <t> <u> <s>  Replace confidence block
+    current-stage <file>               Detect active stage from .status.yaml
+    next-stage <stage>                 Get next stage in sequence
 
   Validation:
-    validate_status_file <file> Validate .status.yaml against schema
+    validate-status-file <file>        Validate .status.yaml against schema
 
   Display:
-    format_state <state>        Format state for display (symbol + suffix)
+    format-state <state>               Format state for display (symbol + suffix)
 
-SCHEMA LOCATION:
-  $WORKFLOW_SCHEMA
+  Write commands:
+    set-state <file> <stage> <state> [driver]   Set a stage's state
+    transition <file> <from> <to> [driver]      Two-write forward transition
+    set-checklist <file> <field> <value>        Update checklist field
+    set-confidence <file> <certain> <confident> <tentative> <unresolved> <score>
+    set-confidence-fuzzy <file> <certain> <confident> <tentative> <unresolved> <score> <mean_s> <mean_r> <mean_a> <mean_d>
+
+  History:
+    log-command <change_dir> <cmd> [args]              Log a command invocation
+    log-confidence <change_dir> <score> <delta> <trigger>  Log confidence change
+    log-review <change_dir> <result> [rework]          Log review outcome
 
 EXAMPLES:
-  # Check if a state is valid
-  if validate_state "done"; then echo "Valid"; fi
-
-  # Iterate over all stages
-  for stage in $(get_all_stages); do
-    echo "$stage: $(get_stage_number "$stage")"
-  done
-
-  # Display progress
-  for stage in $(get_all_stages); do
-    state=$(grep "^ *${stage}:" .status.yaml | sed 's/.*: //')
-    echo "$(format_state "$state") $stage"
-  done
+  stageman.sh all-stages
+  stageman.sh validate-state done && echo "Valid"
+  stageman.sh progress-map .status.yaml
+  stageman.sh set-state .status.yaml spec done fab-continue
+  stageman.sh transition .status.yaml spec tasks fab-continue
 
 SEE ALSO:
-  src/stageman/README.md - API reference and development guide
+  src/lib/stageman/README.md - API reference and development guide
   fab/.kit/schemas/workflow.yaml - Schema definition
-  docs/memory/fab-workflow/schemas.md - Schema overview and design principles
 EOF
 }
 
@@ -944,77 +916,260 @@ run_tests() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Main (when executed directly)
+# CLI Dispatch
 # ─────────────────────────────────────────────────────────────────────────────
 
-if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
-  case "${1:-}" in
-    --help|-h)
-      show_help
-      ;;
-    --version|-v)
-      show_version
-      ;;
-    --test|-t)
-      run_tests
-      ;;
-    "")
-      # Default: run tests for backward compatibility
-      run_tests
-      ;;
-    set-state)
-      if [ $# -lt 4 ] || [ $# -gt 5 ]; then
-        echo "Usage: stageman.sh set-state <file> <stage> <state> [driver]" >&2
-        exit 1
-      fi
-      set_stage_state "$2" "$3" "$4" "${5:-}"
-      ;;
-    transition)
-      if [ $# -lt 4 ] || [ $# -gt 5 ]; then
-        echo "Usage: stageman.sh transition <file> <from-stage> <to-stage> [driver]" >&2
-        exit 1
-      fi
-      transition_stages "$2" "$3" "$4" "${5:-}"
-      ;;
-    set-checklist)
-      if [ $# -ne 4 ]; then
-        echo "Usage: stageman.sh set-checklist <file> <field> <value>" >&2
-        exit 1
-      fi
-      set_checklist_field "$2" "$3" "$4"
-      ;;
-    set-confidence)
-      if [ $# -ne 7 ]; then
-        echo "Usage: stageman.sh set-confidence <file> <certain> <confident> <tentative> <unresolved> <score>" >&2
-        exit 1
-      fi
-      set_confidence_block "$2" "$3" "$4" "$5" "$6" "$7"
-      ;;
-    log-command)
-      if [ $# -lt 3 ] || [ $# -gt 4 ]; then
-        echo "Usage: stageman.sh log-command <change_dir> <cmd> [args]" >&2
-        exit 1
-      fi
-      log_command "$2" "$3" "${4:-}"
-      ;;
-    log-confidence)
-      if [ $# -ne 5 ]; then
-        echo "Usage: stageman.sh log-confidence <change_dir> <score> <delta> <trigger>" >&2
-        exit 1
-      fi
-      log_confidence "$2" "$3" "$4" "$5"
-      ;;
-    log-review)
-      if [ $# -lt 3 ] || [ $# -gt 4 ]; then
-        echo "Usage: stageman.sh log-review <change_dir> <result> [rework]" >&2
-        exit 1
-      fi
-      log_review "$2" "$3" "${4:-}"
-      ;;
-    *)
-      echo "Unknown option: $1" >&2
-      echo "Try: stageman.sh --help" >&2
+case "${1:-}" in
+  --help|-h)
+    show_help
+    ;;
+  --version|-v)
+    show_version
+    ;;
+  --test|-t)
+    run_tests
+    ;;
+  "")
+    # Default: run tests for backward compatibility
+    run_tests
+    ;;
+
+  # ── State Queries ──────────────────────────────────────────────────────
+  all-states)
+    get_all_states
+    ;;
+  validate-state)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh validate-state <state>" >&2
       exit 1
-      ;;
-  esac
-fi
+    fi
+    validate_state "$2"
+    ;;
+  state-symbol)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh state-symbol <state>" >&2
+      exit 1
+    fi
+    get_state_symbol "$2"
+    ;;
+  state-suffix)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh state-suffix <state>" >&2
+      exit 1
+    fi
+    get_state_suffix "$2"
+    ;;
+  is-terminal)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh is-terminal <state>" >&2
+      exit 1
+    fi
+    is_terminal_state "$2"
+    ;;
+
+  # ── Stage Queries ──────────────────────────────────────────────────────
+  all-stages)
+    get_all_stages
+    ;;
+  validate-stage)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh validate-stage <stage>" >&2
+      exit 1
+    fi
+    validate_stage "$2"
+    ;;
+  stage-number)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh stage-number <stage>" >&2
+      exit 1
+    fi
+    get_stage_number "$2"
+    ;;
+  stage-name)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh stage-name <stage>" >&2
+      exit 1
+    fi
+    get_stage_name "$2"
+    ;;
+  stage-artifact)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh stage-artifact <stage>" >&2
+      exit 1
+    fi
+    get_stage_artifact "$2"
+    ;;
+  allowed-states)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh allowed-states <stage>" >&2
+      exit 1
+    fi
+    get_allowed_states "$2"
+    ;;
+  initial-state)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh initial-state <stage>" >&2
+      exit 1
+    fi
+    get_initial_state "$2"
+    ;;
+  is-required)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh is-required <stage>" >&2
+      exit 1
+    fi
+    is_required_stage "$2"
+    ;;
+  has-auto-checklist)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh has-auto-checklist <stage>" >&2
+      exit 1
+    fi
+    has_auto_checklist "$2"
+    ;;
+  validate-stage-state)
+    if [ $# -ne 3 ]; then
+      echo "Usage: stageman.sh validate-stage-state <stage> <state>" >&2
+      exit 1
+    fi
+    validate_stage_state "$2" "$3"
+    ;;
+
+  # ── .status.yaml Accessors ─────────────────────────────────────────────
+  progress-map)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh progress-map <file>" >&2
+      exit 1
+    fi
+    get_progress_map "$2"
+    ;;
+  checklist)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh checklist <file>" >&2
+      exit 1
+    fi
+    get_checklist "$2"
+    ;;
+  confidence)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh confidence <file>" >&2
+      exit 1
+    fi
+    get_confidence "$2"
+    ;;
+
+  # ── Stage Metrics ──────────────────────────────────────────────────────
+  stage-metrics)
+    if [ $# -lt 2 ] || [ $# -gt 3 ]; then
+      echo "Usage: stageman.sh stage-metrics <file> [stage]" >&2
+      exit 1
+    fi
+    get_stage_metrics "$2" "${3:-}"
+    ;;
+  set-stage-metric)
+    if [ $# -ne 5 ]; then
+      echo "Usage: stageman.sh set-stage-metric <file> <stage> <field> <value>" >&2
+      exit 1
+    fi
+    set_stage_metric "$2" "$3" "$4" "$5"
+    ;;
+
+  # ── Progression ────────────────────────────────────────────────────────
+  current-stage)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh current-stage <file>" >&2
+      exit 1
+    fi
+    get_current_stage "$2"
+    ;;
+  next-stage)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh next-stage <stage>" >&2
+      exit 1
+    fi
+    get_next_stage "$2"
+    ;;
+
+  # ── Validation ─────────────────────────────────────────────────────────
+  validate-status-file)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh validate-status-file <file>" >&2
+      exit 1
+    fi
+    validate_status_file "$2"
+    ;;
+
+  # ── Display ────────────────────────────────────────────────────────────
+  format-state)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh format-state <state>" >&2
+      exit 1
+    fi
+    format_state "$2"
+    ;;
+
+  # ── Write Commands ─────────────────────────────────────────────────────
+  set-state)
+    if [ $# -lt 4 ] || [ $# -gt 5 ]; then
+      echo "Usage: stageman.sh set-state <file> <stage> <state> [driver]" >&2
+      exit 1
+    fi
+    set_stage_state "$2" "$3" "$4" "${5:-}"
+    ;;
+  transition)
+    if [ $# -lt 4 ] || [ $# -gt 5 ]; then
+      echo "Usage: stageman.sh transition <file> <from-stage> <to-stage> [driver]" >&2
+      exit 1
+    fi
+    transition_stages "$2" "$3" "$4" "${5:-}"
+    ;;
+  set-checklist)
+    if [ $# -ne 4 ]; then
+      echo "Usage: stageman.sh set-checklist <file> <field> <value>" >&2
+      exit 1
+    fi
+    set_checklist_field "$2" "$3" "$4"
+    ;;
+  set-confidence)
+    if [ $# -ne 7 ]; then
+      echo "Usage: stageman.sh set-confidence <file> <certain> <confident> <tentative> <unresolved> <score>" >&2
+      exit 1
+    fi
+    set_confidence_block "$2" "$3" "$4" "$5" "$6" "$7"
+    ;;
+  set-confidence-fuzzy)
+    if [ $# -ne 11 ]; then
+      echo "Usage: stageman.sh set-confidence-fuzzy <file> <certain> <confident> <tentative> <unresolved> <score> <mean_s> <mean_r> <mean_a> <mean_d>" >&2
+      exit 1
+    fi
+    set_confidence_block_fuzzy "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}" "${11}"
+    ;;
+
+  # ── History Commands ───────────────────────────────────────────────────
+  log-command)
+    if [ $# -lt 3 ] || [ $# -gt 4 ]; then
+      echo "Usage: stageman.sh log-command <change_dir> <cmd> [args]" >&2
+      exit 1
+    fi
+    log_command "$2" "$3" "${4:-}"
+    ;;
+  log-confidence)
+    if [ $# -ne 5 ]; then
+      echo "Usage: stageman.sh log-confidence <change_dir> <score> <delta> <trigger>" >&2
+      exit 1
+    fi
+    log_confidence "$2" "$3" "$4" "$5"
+    ;;
+  log-review)
+    if [ $# -lt 3 ] || [ $# -gt 4 ]; then
+      echo "Usage: stageman.sh log-review <change_dir> <result> [rework]" >&2
+      exit 1
+    fi
+    log_review "$2" "$3" "${4:-}"
+    ;;
+  *)
+    echo "Unknown option: $1" >&2
+    echo "Try: stageman.sh --help" >&2
+    exit 1
+    ;;
+esac

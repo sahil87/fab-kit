@@ -36,16 +36,16 @@
 
 ## Referencing from Scripts vs Skills
 
-**In bash scripts**: Source `stageman.sh` and use its query functions:
+**In bash scripts**: Invoke `stageman.sh` via CLI subprocess calls:
 ```bash
-source "$(dirname "$0")/stageman.sh"
-for stage in $(get_all_stages); do ...; done
+STAGEMAN="$(dirname "$(readlink -f "$0")")/stageman.sh"
+for stage in $("$STAGEMAN" all-stages); do ...; done
 ```
 
-**In skills (Claude prompts)**: Reference the schema directly or use bash scripts that source `stageman.sh`:
+**In skills (Claude prompts)**: Reference the schema directly or use bash scripts that call `stageman.sh`:
 ```markdown
 Run `fab/.kit/scripts/lib/preflight.sh` to get validated stage information.
-The script uses `stageman.sh` internally.
+The script uses `stageman.sh` CLI subcommands internally.
 ```
 
 For the complete API reference, see `src/lib/stageman/README.md`.
@@ -70,6 +70,7 @@ For the complete API reference, see `src/lib/stageman/README.md`.
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260215-lqm5-stageman-cli-only | 2026-02-15 | Updated script example from `source stageman.sh` to CLI subprocess pattern (`$STAGEMAN <subcommand>`) |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_preflight.sh` → `lib/preflight.sh` in skill example; updated `src/stageman/README.md` → `src/lib/stageman/README.md` |
 | 260213-jc0u-split-archive-hydrate | 2026-02-13 | Updated progression references: terminal stage from `archive` to `hydrate` |
 | 260212-4tw0-migrate-scripts-stageman | 2026-02-12 | Moved from `fab/.kit/schemas/README.md`, trimmed stageman API duplication |

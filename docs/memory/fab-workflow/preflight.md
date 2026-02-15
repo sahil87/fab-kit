@@ -41,20 +41,20 @@ Each failure exits with code 1 and prints a diagnostic message to stderr.
 
 ### Accessor-Based Architecture
 
-The script sources `lib/stageman.sh` and `lib/resolve-change.sh`, delegating all `.status.yaml` parsing to stageman accessor functions:
+The script sources `lib/resolve-change.sh` (variable-setting pattern) and invokes `lib/stageman.sh` via CLI subprocess calls (`$STAGEMAN <subcommand>`), delegating all `.status.yaml` parsing to stageman subcommands:
 
-- **Change resolution**: `resolve_change` from `lib/resolve-change.sh` handles both default mode (reads `fab/current`) and override mode (fuzzy matching against `fab/changes/`)
-- **Progress extraction**: `get_progress_map` returns `stage:state` pairs, consumed via `while IFS=: read -r`
-- **Stage derivation**: `get_current_stage` (which itself uses `get_progress_map` internally)
-- **Checklist fields**: `get_checklist` returns `generated`, `completed`, `total` with defaults
-- **Confidence fields**: `get_confidence` returns `certain`, `confident`, `tentative`, `unresolved`, `score` with defaults
-- **Schema validation**: `validate_status_file` for structural correctness
+- **Change resolution**: `resolve_change` from `lib/resolve-change.sh` (still sourced — uses variable-setting pattern incompatible with subprocess invocation) handles both default mode (reads `fab/current`) and override mode (fuzzy matching against `fab/changes/`)
+- **Progress extraction**: `$STAGEMAN progress-map` returns `stage:state` pairs, consumed via `while IFS=: read -r`
+- **Stage derivation**: `$STAGEMAN current-stage` (which itself uses `progress-map` internally)
+- **Checklist fields**: `$STAGEMAN checklist` returns `generated`, `completed`, `total` with defaults
+- **Confidence fields**: `$STAGEMAN confidence` returns `certain`, `confident`, `tentative`, `unresolved`, `score` with defaults
+- **Schema validation**: `$STAGEMAN validate-status-file` for structural correctness
 
-No inline `grep | sed` parsing of `.status.yaml` — all field extraction goes through stageman accessors.
+No inline `grep | sed` parsing of `.status.yaml` — all field extraction goes through stageman CLI subcommands.
 
 ### No External Dependencies
 
-The script uses only POSIX-standard tools (`grep`, `sed`, `tr`, `cat`), Bash builtins, `lib/stageman.sh`, and `lib/resolve-change.sh` (which themselves use only POSIX tools). No `yq`, `jq`, Python, or other non-standard tools required.
+The script uses only POSIX-standard tools (`grep`, `sed`, `tr`, `cat`), Bash builtins, and `lib/resolve-change.sh` (sourced). It invokes `lib/stageman.sh` as a CLI subprocess — stageman requires `yq` v4, but preflight itself has no direct `yq` dependency.
 
 ### Idempotent and Read-Only
 
@@ -72,10 +72,11 @@ Skills exempt from preflight: `init`, `switch`, `status`, `hydrate`, `help`, `ne
 
 ## Design Decisions
 
-### Accessor Functions Over Inline Parsing
-**Decision**: `lib/preflight.sh` delegates all `.status.yaml` field extraction to `lib/stageman.sh` accessor functions (`get_progress_map`, `get_checklist`, `get_confidence`, `get_current_stage`) instead of inline `grep | sed`.
-**Why**: Eliminates duplicated parsing logic across scripts. Stageman is the single owner of `.status.yaml` read semantics — field defaults, missing-block handling, and format normalization live in one place.
-**Rejected**: Keeping inline extraction — maintained two copies of parsing logic (preflight + status) that could drift.
+### CLI Subprocess Over Source Import
+**Decision**: `lib/preflight.sh` invokes `lib/stageman.sh` via CLI subprocess calls (`$STAGEMAN progress-map`, `$STAGEMAN checklist`, etc.) instead of sourcing it.
+**Why**: Decouples preflight from stageman's internal function signatures. Enables future replacement of `stageman.sh` with a compiled binary (e.g., Rust) without modifying callers. The CLI interface is the stable contract.
+**Rejected**: Continuing to source `stageman.sh` — tight coupling to internal function names; not compatible with a binary replacement.
+*Updated by*: 260215-lqm5-stageman-cli-only (previously "Accessor Functions Over Inline Parsing")
 
 ### lib/ Subfolder for Internal Scripts
 **Decision**: All internal scripts (`preflight.sh`, `stageman.sh`, `resolve-change.sh`, `calc-score.sh`, `init-scaffold.sh`) live in `fab/.kit/scripts/lib/` without underscore prefix, replacing the previous `_`-prefixed convention in the parent `scripts/` directory.
@@ -92,6 +93,7 @@ Skills exempt from preflight: `init`, `switch`, `status`, `hydrate`, `help`, `ne
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260215-lqm5-stageman-cli-only | 2026-02-15 | Migrated from `source stageman.sh` to `$STAGEMAN <subcommand>` CLI subprocess calls; `resolve-change.sh` remains sourced (variable-setting pattern); updated design decision from "Accessor Functions" to "CLI Subprocess" |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Moved from `_preflight.sh` to `lib/preflight.sh`; updated all internal references from `_stageman.sh`/`_resolve-change.sh` to `lib/stageman.sh`/`lib/resolve-change.sh`; updated path resolution from `../../` to `../../..`; added lib/ subfolder design decision |
 | 260213-puow-consolidate-status-reads | 2026-02-14 | Replaced inline `grep \| sed` parsing with stageman accessor calls (`get_progress_map`, `get_checklist`, `get_confidence`); delegated change resolution to `_resolve-change.sh`; added confidence fields to output; renamed `stageman.sh` → `_stageman.sh` |
 | 260212-4tw0-migrate-scripts-stageman | 2026-02-12 | Migrated to source stageman.sh: dynamic stage iteration, schema validation via validate_status_file |

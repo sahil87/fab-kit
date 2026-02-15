@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# shellcheck source=stageman.sh
-source "$(dirname "$(readlink -f "$0")")/stageman.sh"
+# CLI entry point for stageman (subprocess calls, not sourced)
+STAGEMAN="$(dirname "$(readlink -f "$0")")/stageman.sh"
 
 # calc-score.sh — Compute confidence score from spec.md Assumptions table
 #
@@ -175,7 +175,7 @@ fi
 # --- Read previous score for delta computation ---
 prev_score="0.0"
 if [ -f "$status_file" ]; then
-  confidence_data=$(get_confidence "$status_file")
+  confidence_data=$("$STAGEMAN" confidence "$status_file")
   prev_score=$(echo "$confidence_data" | grep '^score:' | cut -d: -f2)
   prev_score=${prev_score:-0.0}
 fi
@@ -202,11 +202,11 @@ delta=$(awk "BEGIN {
 # --- Write to .status.yaml ---
 if [ -f "$status_file" ]; then
   if [ "$has_fuzzy" = true ]; then
-    set_confidence_block_fuzzy "$status_file" "$table_certain" "$table_confident" "$table_tentative" "$table_unresolved" "$score" "$mean_s" "$mean_r" "$mean_a" "$mean_d"
+    "$STAGEMAN" set-confidence-fuzzy "$status_file" "$table_certain" "$table_confident" "$table_tentative" "$table_unresolved" "$score" "$mean_s" "$mean_r" "$mean_a" "$mean_d"
   else
-    set_confidence_block "$status_file" "$table_certain" "$table_confident" "$table_tentative" "$table_unresolved" "$score"
+    "$STAGEMAN" set-confidence "$status_file" "$table_certain" "$table_confident" "$table_tentative" "$table_unresolved" "$score"
   fi
-  log_confidence "$change_dir" "$score" "$delta" "calc-score"
+  "$STAGEMAN" log-confidence "$change_dir" "$score" "$delta" "calc-score"
 fi
 
 # --- Emit YAML to stdout ---
