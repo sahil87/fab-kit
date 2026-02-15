@@ -37,7 +37,10 @@ Detect input type (check in order):
 
 ### Step 1: Generate Folder Name
 
-Format: `{YYMMDD}-{XXXX}-{slug}` — date (6 digits), backlog ID or 4 random `[a-z0-9]`, 2-6 word slug (lowercase, hyphen-joined, no articles/prepositions).
+Format: `{YYMMDD}-{XXXX}-[{ISSUE}-]{slug}` — date (6 digits), backlog ID or 4 random `[a-z0-9]`, optional uppercase Linear issue ID (e.g., `DEV-988`), 2-6 word slug (lowercase, hyphen-joined, no articles/prepositions).
+
+- **With Linear ID** (parsed in Step 0 from ticket or backlog entry): insert the uppercase issue ID between `{XXXX}` and `{slug}` — e.g., `260115-a7k2-DEV-988-add-oauth`
+- **Without Linear ID**: format stays `{YYMMDD}-{XXXX}-{slug}` — e.g., `260115-a7k2-add-oauth`
 
 ### Step 2: Gap Analysis
 

@@ -20,18 +20,11 @@ Fab uses two complementary configuration files: `fab/config.yaml` for factual pr
 Free-form text describing the tech stack, conventions, and domain context. Skills load this to understand the project landscape. For monorepos, use labeled sections per package.
 
 #### `naming`
-- `format` — Change folder naming format. Default: `"{YYMMDD}-{XXXX}-{slug}"`
+- `format` — Change folder naming format. Default: `"{YYMMDD}-{XXXX}-[{ISSUE}-]{slug}"`. The `{ISSUE}` component is an optional uppercase Linear issue ID (e.g., `DEV-988`) included when the change originates from a Linear ticket. When absent, the format collapses to `{YYMMDD}-{XXXX}-{slug}`
 
 #### `git`
 - `enabled` — Whether to prompt for branch integration (boolean). Set `false` to suppress branch prompts
 - `branch_prefix` — Optional prefix for created branches (e.g., `"feat/"` → `"feat/260115-a7k2-add-oauth"`)
-
-#### `conventions`
-Optional section for project-wide workflow conventions. All keys are optional strings; omitting the section entirely is valid. Unlike `naming` (which controls folder name format) and `git` (which controls integration toggles), `conventions` captures human/workflow conventions as informational strings that skills can reference programmatically.
-
-- `branch_naming` — Pattern or description of branch naming convention (string)
-- `pr_title` — PR title format pattern (string)
-- `backlog` — URL or location of the project backlog (string)
 
 #### `stages`
 Ordered list of stage definitions (6 stages). Each stage:
@@ -195,6 +188,7 @@ See [init](init.md) for the complete command suite.
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260215-w3n8-naming-linear-id-drop-conventions | 2026-02-15 | Updated `naming.format` to `{YYMMDD}-{XXXX}-[{ISSUE}-]{slug}` with optional Linear ID. Removed `conventions` section from config schema (never consumed by any skill) |
 | — | 2026-02-14 | Absorbed config-management.md and constitution-governance.md into Lifecycle Management section (memory reorganization) |
 | 260213-jc0u-split-archive-hydrate | 2026-02-13 | Updated terminal stage ID from `archive` to `hydrate` in stages list |
 | 260213-r3m7-add-conventions-section | 2026-02-13 | Added optional `conventions` section to config.yaml schema — branch_naming, pr_title, backlog keys |

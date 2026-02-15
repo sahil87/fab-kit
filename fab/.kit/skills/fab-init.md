@@ -196,7 +196,7 @@ context: |
   {TECH_STACK_AND_CONVENTIONS}
 
 naming:
-  format: "{YYMMDD}-{XXXX}-{slug}"
+  format: "{YYMMDD}-{XXXX}-[{ISSUE}-]{slug}"
 
 git:
   enabled: true
