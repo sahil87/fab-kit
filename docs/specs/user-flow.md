@@ -189,7 +189,7 @@ stateDiagram-v2
     apply --> review: /fab-continue
 
     review --> hydrate: pass (all checks ✓)
-    review --> earlier_stage: /fab-continue &lt;stage&gt;
+    review --> earlier_stage: /fab-continue ‹stage›
 
     state "spec / tasks / apply" as earlier_stage
 
