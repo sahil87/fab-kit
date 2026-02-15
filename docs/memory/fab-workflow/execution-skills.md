@@ -98,7 +98,7 @@ Hydration modifies memory files in-place. If the merge goes wrong, the only reco
 
 #### Context
 
-Loads: config, constitution, `specs/index.md`, `spec.md`, `brief.md`, target memory file(s) from `docs/memory/`, `docs/memory/index.md` and relevant domain indexes.
+Loads: config, constitution, `specs/index.md`, `spec.md`, `intake.md`, target memory file(s) from `docs/memory/`, `docs/memory/index.md` and relevant domain indexes.
 
 ### `/fab-archive` (Standalone Skill)
 
@@ -206,6 +206,7 @@ Steps execute 1→3 for safety. If interrupted, re-run detects folder already in
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |
 | 260215-r8k3-DEV-1024-code-quality-layer | 2026-02-15 | Added Pattern Extraction to Apply (naming, error handling, structure, utilities), expanded per-task guidance to 7-step sequence, added code quality check as Review step 6, added optional pattern capture to Hydrate step 5, updated "Checklist Tests Implementation Fidelity" design decision to include code quality |
 | 260214-r7k3-stageman-yq-metrics | 2026-02-14 | Added `driver` parameter requirement to status mutations overview. Added `log-review` calls to review pass/fail behavior. Stage metrics side-effects documented as automatic |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_stageman.sh` → `lib/stageman.sh` in status mutations overview |
@@ -218,7 +219,7 @@ Steps execute 1→3 for safety. If interrupted, re-run detects folder already in
 | 260212-a4bd-unify-fab-continue | 2026-02-12 | Restructured: apply, review, and archive behavior now accessed via `/fab-continue` instead of standalone skills. Updated all section headings, requirements, and cross-references |
 | 260212-ipoe-checklist-folder-location | 2026-02-12 | Updated checklist path references from `checklists/quality.md` to `checklist.md` in `/fab-review` and `/fab-archive` |
 | 260212-bk1n-rework-fab-ff-archive | 2026-02-12 | Added note that `/fab-ff` and `/fab-fff` invoke execution skills internally as part of their full-pipeline behavior |
-| 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated stage references from proposal/specs to brief/spec |
+| 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated stage references from proposal/specs to intake/spec |
 | 260211-endg-add-created-by-field | 2026-02-11 | `/fab-status` now displays `Created by:` line when `created_by` field is present in `.status.yaml` |
 | 260210-7wxx-add-specs-index-context-loading | 2026-02-10 | Added `docs/specs/index.md` to context loading for all three execution skills, aligning with the always-load protocol in `_context.md` |
 | 260209-r4w8-archive-index-longer-slugs | 2026-02-09 | Added archive index maintenance step to `/fab-archive` — creates/updates `fab/changes/archive/index.md` with searchable change summaries |

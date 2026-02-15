@@ -27,7 +27,7 @@ Resolve the active change and load its state by running the preflight script:
 1. **Run preflight**: Execute `fab/.kit/scripts/lib/preflight.sh [change-name]` via Bash — pass the optional change-name argument if the skill received one
 2. **Check exit code**: If the script exits non-zero, STOP and surface the stderr message to the user (it contains the specific error and suggested fix)
 3. **Parse stdout YAML**: On success, parse the YAML output for `name`, `change_dir`, `stage`, `progress`, `checklist`, and `confidence` fields — use these for all subsequent change context instead of re-reading `.status.yaml`
-4. Load all completed artifacts in the change folder (e.g., `brief.md`, `spec.md`, `tasks.md`) — read each file that exists so you have full context of what has been decided so far
+4. Load all completed artifacts in the change folder (e.g., `intake.md`, `spec.md`, `tasks.md`) — read each file that exists so you have full context of what has been decided so far
 
 > **Change-name override**: When a `[change-name]` argument is passed to the preflight script, it resolves the change using case-insensitive substring matching against `fab/changes/` folder names (excluding `archive/`) instead of reading `fab/current`. The override is **transient** — `fab/current` is never modified. This enables parallel workflows where multiple tabs target different changes concurrently. Supports full folder names, partial slugs, or 4-char IDs (e.g., `r3m7`).
 
@@ -41,7 +41,7 @@ Resolve the active change and load its state by running the preflight script:
 
 Selectively load relevant memory files based on the change's scope:
 
-1. Read the brief's **Affected Memory** section (or spec's **Affected memory** metadata) to identify which domains are relevant
+1. Read the intake's **Affected Memory** section (or spec's **Affected memory** metadata) to identify which domains are relevant
 2. For each referenced domain, read `docs/memory/{domain}/index.md` to understand the domain's memory files
 3. Read the specific memory file(s) referenced by the Affected Memory entries (those marked `(new)`, `(modify)`, or `(remove)`) — read `docs/memory/{domain}/{name}.md` for each listed file that exists
 4. If a referenced file or domain does not exist yet (e.g., listed as `(new)`), note this and proceed without error — it will be created during hydrate (via `/fab-continue` or `/fab-ff`)
@@ -71,7 +71,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 |-------------|---------------|-----------|
 | `/fab-init` | initialized | `Next: /fab-new <description> or /docs-hydrate-memory <sources>` |
 | `/docs-hydrate-memory` | memory hydrated | `Next: /fab-new <description> or /docs-hydrate-memory <more-sources>` |
-| `/fab-new` | brief active | `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-ff` |
+| `/fab-new` | intake active | `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-ff` |
 | `/fab-continue` → spec | spec done | `Next: /fab-continue or /fab-ff or /fab-clarify` |
 | `/fab-continue` → tasks | tasks done | `Next: /fab-continue or /fab-ff` |
 | `/fab-continue` → apply | apply done | `Next: /fab-continue` |

@@ -12,7 +12,7 @@ project/
 │   ├── .kit/                       # Engine — replaceable upstream, rarely touched
 │   │   ├── VERSION                 # Engine version (semver, e.g. "0.1.0")
 │   │   ├── templates/
-│   │   │   ├── brief.md
+│   │   │   ├── intake.md
 │   │   │   ├── spec.md
 │   │   │   ├── tasks.md
 │   │   │   └── checklist.md
@@ -50,7 +50,7 @@ project/
 │   └── changes/
 │       ├── 260115-a7k2-add-oauth/  # Active change
 │       │   ├── .status.yaml        # Stage tracking
-│       │   ├── brief.md
+│       │   ├── intake.md
 │       │   ├── spec.md              # What's changing (requirements)
 │       │   ├── tasks.md
 │       │   └── checklist.md        # Auto-generated
@@ -125,7 +125,7 @@ All three support `--list` (show targets), `--all` (process all), and direct ID/
 **Resolution pattern** (used by all skills):
 ```
 active=$(cat fab/current)
-# then access: fab/changes/$active/.status.yaml, fab/changes/$active/brief.md, etc.
+# then access: fab/changes/$active/.status.yaml, fab/changes/$active/intake.md, etc.
 ```
 
 **Switching between changes**: If multiple change folders exist and you want to switch context:
@@ -173,7 +173,7 @@ name: 260115-a7k2-add-oauth
 created: 2026-01-15T14:30:00Z
 created_by: Jane Smith
 progress:
-  brief: done
+  intake: done
   spec: active
   tasks: pending
   apply: pending
@@ -194,7 +194,7 @@ name: 260115-a7k2-add-oauth
 created: 2026-01-15T14:30:00Z
 created_by: Jane Smith
 progress:
-  brief: done
+  intake: done
   spec: done
   tasks: done
   apply: done
@@ -232,12 +232,12 @@ git:
   branch_prefix: ""                    # Optional prefix, e.g., "feat/" → "feat/260115-a7k2-add-oauth"
 
 stages:
-  - id: brief
-    generates: brief.md
+  - id: intake
+    generates: intake.md
     required: true
   - id: spec
     generates: spec.md
-    requires: [brief]
+    requires: [intake]
     required: true
   - id: tasks
     generates: tasks.md
@@ -320,7 +320,7 @@ Fab works without git. Change folders are the unit of identity, not branches —
 
 ### Why Decoupled
 
-A change folder captures *what* is being built (brief, spec, tasks). Where that work happens in git is a separate concern:
+A change folder captures *what* is being built (intake, spec, tasks). Where that work happens in git is a separate concern:
 - A developer might work on the same change across multiple worktrees
 - A change might span multiple branches (feature branch + hotfix backport)
 - A change might start on one branch and move to another after a rebase

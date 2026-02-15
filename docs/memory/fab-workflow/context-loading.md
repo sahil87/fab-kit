@@ -35,7 +35,7 @@ The existing 4-step inline validation sequence (check current, check directory, 
 
 When operating on an active change, skills selectively load relevant memory files based on the change's scope:
 
-1. Read the brief's Affected Memory section (or spec's Affected memory metadata) to identify relevant domains
+1. Read the intake's Affected Memory section (or spec's Affected memory metadata) to identify relevant domains
 2. For each referenced domain, read `docs/memory/{domain}/index.md`
 3. For each specific file referenced, read `docs/memory/{domain}/{name}.md`
 4. If a referenced domain or file doesn't exist yet, note this and proceed without error (it will be created during hydrate)
@@ -91,6 +91,7 @@ The following skills skip the standard context loading layers:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |
 | 260212-f9m3-enhance-srad-fuzzy | 2026-02-14 | SRAD protocol updated to fuzzy 0–100 dimension scoring with weighted mean aggregation, trapezoidal grade thresholds, optional Scores column, dynamic gate thresholds by change type |
 | 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Updated always-load paths to `docs/memory/index.md` and `docs/specs/index.md`; updated selective domain loading to `docs/memory/{domain}/` |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_preflight.sh` → `lib/preflight.sh` in preflight script reference |

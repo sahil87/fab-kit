@@ -203,12 +203,12 @@ git:
   branch_prefix: ""
 
 stages:
-  - id: brief
-    generates: brief.md
+  - id: intake
+    generates: intake.md
     required: true
   - id: spec
     generates: spec.md
-    requires: [brief]
+    requires: [intake]
     required: true
   - id: tasks
     generates: tasks.md

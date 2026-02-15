@@ -202,7 +202,7 @@ When the user runs `/fab-fff`:
 
 | Event | Trigger | Action |
 |-------|---------|--------|
-| Computation | `/fab-continue` (spec stage) | `_calc-score.sh` scans brief + spec, writes to `.status.yaml` |
+| Computation | `/fab-continue` (spec stage) | `_calc-score.sh` scans intake + spec, writes to `.status.yaml` |
 | Recomputation | `/fab-clarify` (suggest mode) | `_calc-score.sh` re-scans after resolved assumptions |
 | Gate check | `/fab-fff` | Reads score from `.status.yaml` (no recomputation) |
 
@@ -222,7 +222,7 @@ The existence of `/fab-clarify` as an escape valve does **not** justify silently
 
 ## Worked Examples
 
-### Example 1: High-Ambiguity Brief
+### Example 1: High-Ambiguity Intake
 
 > **Input**: "Add auth."
 
@@ -240,7 +240,7 @@ Two words, no detail on mechanism, scope, or integration.
 
 **Outcome**: `/fab-fff` gate blocks (0.0 < 3.0 feature threshold). The user must answer the Unresolved questions or use `/fab-clarify` to resolve Tentative assumptions before the autonomous pipeline can run.
 
-### Example 2: Low-Ambiguity Brief
+### Example 2: Low-Ambiguity Intake
 
 > **Input**: "Add a loading spinner to the submit button on the checkout page. Use the existing `Spinner` component from the design system. Show it while the payment API call is in-flight and disable the button to prevent double-submission."
 
@@ -266,8 +266,8 @@ SRAD manifests differently depending on which skill is running. Skills closer to
 
 | Aspect | `/fab-new` | `/fab-continue` | `/fab-ff` | `/fab-fff` |
 |--------|------------|-----------------|-----------|-----------|
-| **Posture** | SRAD-driven adaptive questioning, gap analysis, conversational mode, brief-only output | Surface tentative, ask top ~3 unresolved | Batch all unresolved upfront, then go | Same as `/fab-ff`; gated on confidence >= 3.0 |
+| **Posture** | SRAD-driven adaptive questioning, gap analysis, conversational mode, intake-only output | Surface tentative, ask top ~3 unresolved | Batch all unresolved upfront, then go | Same as `/fab-ff`; gated on confidence >= 3.0 |
 | **Interruption budget** | Adaptive — SRAD-driven (no fixed cap) | 1–2 per stage | 0–1 batch at start | Same as `/fab-ff` (frontloaded) |
-| **Output** | Brief + confidence score + assumptions summary | Key Decisions + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary | Same as `/fab-ff` + apply/review/archive output |
+| **Output** | Intake + confidence score + assumptions summary | Key Decisions + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary | Same as `/fab-ff` + apply/review/archive output |
 | **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` (bails on blockers or review failure) |
 | **Recomputes confidence?** | No | Spec stage only | No | No |

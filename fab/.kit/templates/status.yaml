@@ -3,7 +3,7 @@ created: {CREATED}
 created_by: {CREATED_BY}
 change_type: feature
 progress:
-  brief: active
+  intake: active
   spec: pending
   tasks: pending
   apply: pending

@@ -28,8 +28,8 @@ Free-form text describing the tech stack, conventions, and domain context. Skill
 
 #### `stages`
 Ordered list of stage definitions (6 stages). Each stage:
-- `id` — Stage identifier (brief, spec, tasks, apply, review, hydrate)
-- `generates` — Artifact filename (e.g., `brief.md`, `spec.md`)
+- `id` — Stage identifier (intake, spec, tasks, apply, review, hydrate)
+- `generates` — Artifact filename (e.g., `intake.md`, `spec.md`)
 - `requires` — List of prerequisite stage IDs
 - `required` — Whether this stage is mandatory (boolean)
 - `auto_checklist` — Whether to auto-generate a quality checklist at this stage (boolean, used by `tasks`)
@@ -195,14 +195,15 @@ See [init](init.md) for the complete command suite.
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |
 | 260215-r8k3-DEV-1024-code-quality-layer | 2026-02-15 | Added optional `code_quality` section to config.yaml schema (principles, anti_patterns, test_strategy). Added code_quality to default checklist categories, Lifecycle Management menu, and valid sections list |
 | 260215-w3n8-naming-linear-id-drop-conventions | 2026-02-15 | Updated `naming.format` to `{YYMMDD}-{XXXX}-[{ISSUE}-]{slug}` with optional Linear ID. Removed `conventions` section from config schema (never consumed by any skill) |
 | — | 2026-02-14 | Absorbed config-management.md and constitution-governance.md into Lifecycle Management section (memory reorganization) |
 | 260213-jc0u-split-archive-hydrate | 2026-02-13 | Updated terminal stage ID from `archive` to `hydrate` in stages list |
 | 260213-r3m7-add-conventions-section | 2026-02-13 | Added optional `conventions` section to config.yaml schema — branch_naming, pr_title, backlog keys |
-| 260212-v5p2-brief-pipeline-stage | 2026-02-12 | Restored brief as formal pipeline stage — 6 stages, added brief to stage IDs |
-| 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Updated stages pipeline from 6 to 5, removed brief entry from config documentation |
-| 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated stage IDs to brief/spec/tasks/apply/review/archive, removed plan stage entry |
+| 260212-v5p2-intake-pipeline-stage | 2026-02-12 | Restored intake as formal pipeline stage — 6 stages, added intake to stage IDs |
+| 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Updated stages pipeline from 6 to 5, removed intake entry from config documentation |
+| 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated stage IDs to intake/spec/tasks/apply/review/archive, removed plan stage entry |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | 260212-h9k3-fab-init-family | 2026-02-12 | Added Lifecycle Management section — validation, config updates, constitution amendments |
 | — | 2026-02-07 | Generated from doc/fab-spec/ (ARCHITECTURE.md, TEMPLATES.md, README.md) |

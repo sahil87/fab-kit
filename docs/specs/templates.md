@@ -18,7 +18,7 @@ All status fields draw from a fixed set of states. This prevents ad-hoc state na
 | `skipped` | Intentionally bypassed | *(reserved)* |
 | `failed` | Completed with failures requiring rework | review |
 
-**`progress` map keys**: `brief` | `spec` | `tasks` | `apply` | `review` | `archive`
+**`progress` map keys**: `intake` | `spec` | `tasks` | `apply` | `review` | `archive`
 
 The current stage is derived from the `progress` map — the entry marked `active` is the current stage. There is no separate `stage:` field.
 
@@ -31,7 +31,7 @@ name: {YYMMDD-XXXX-slug}
 created: {ISO_8601_DATETIME}       # e.g., 2026-01-15T14:30:00Z
 created_by: {GIT_USER_NAME}        # Auto-detected from git config user.name; fallback "unknown"
 progress:
-  brief: active                     # pending | active | done
+  intake: active                    # pending | active | done
   spec: pending                     # pending | active | done
   tasks: pending                    # pending | active | done
   apply: pending                    # pending | active | done
@@ -54,10 +54,10 @@ last_updated: {ISO_8601_DATETIME}
 
 ---
 
-## brief.md
+## intake.md
 
 ```markdown
-# Brief: {CHANGE_NAME}
+# Intake: {CHANGE_NAME}
 
 **Change**: {YYMMDD-XXXX-slug}
 **Created**: {DATE}
@@ -215,7 +215,7 @@ The system SHALL support sessions from multiple auth sources. Sessions MAY origi
 
 **Change**: {YYMMDD-XXXX-slug}
 **Spec**: `spec.md`
-**Brief**: `brief.md`
+**Intake**: `intake.md`
 
 <!--
   TASK FORMAT: - [ ] {ID} [{markers}] {Description with file paths}

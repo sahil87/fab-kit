@@ -62,7 +62,7 @@ Changes progress through 6 stages:
 flowchart TD
     subgraph planning ["Planning"]
         direction LR
-        B["1 BRIEF"] --> S["2 SPEC"] --> T["3 TASKS"]
+        B["1 INTAKE"] --> S["2 SPEC"] --> T["3 TASKS"]
     end
     subgraph execution ["Execution"]
         direction LR
@@ -85,7 +85,7 @@ flowchart TD
 
 | # | Stage | Purpose | Artifact | Includes |
 |---|-------|---------|----------|----------|
-| 1 | **Brief** | Intent, scope, approach | `brief.md` | Created by `/fab-new` with adaptive SRAD-driven questioning |
+| 1 | **Intake** | Intent, scope, approach | `intake.md` | Created by `/fab-new` with adaptive SRAD-driven questioning |
 | 2 | **Spec** | What's changing | `spec.md` | Clarification of ambiguities, [NEEDS CLARIFICATION] markers |
 | 3 | **Tasks** | Implementation checklist | `tasks.md` | Auto-generated quality checklist (`checklist.md`) |
 | 4 | **Apply** | Execute tasks | code changes | Run tests per task, progress tracking |
@@ -105,7 +105,7 @@ flowchart TD
     ARCHIVE["/fab-continue"]
     THINK ~~~ CLARIFY["/fab-clarify"]
 
-    NEW -->|brief| THINK
+    NEW -->|intake| THINK
     THINK -->|spec + tasks| APPLY
     APPLY -->|code changes| REVIEW
     REVIEW -->|passed| ARCHIVE
@@ -129,7 +129,7 @@ flowchart TD
 |-------|---------|---------|
 | `/fab-init` | Bootstrap fab/ structure | `config.yaml`, `constitution.md`, `memory/`, skill symlinks (idempotent) |
 | `/docs-hydrate-memory [sources...]` | Ingest external sources into docs/memory/ | Updated `docs/memory/` with indexes |
-| `/fab-new` | Start change (optionally with `--switch`) | `brief.md`, `.status.yaml` |
+| `/fab-new` | Start change (optionally with `--switch`) | `intake.md`, `.status.yaml` |
 | `/fab-continue [<stage>]` | Next artifact (or reset to stage) | Next stage artifact |
 | `/fab-ff` | Fast forward remaining planning | spec.md + tasks + checklist |
 | `/fab-clarify` | Deepen current artifact | Refined artifact (in place) |
@@ -149,7 +149,7 @@ flowchart TD
 # 1. Start new change
 /fab-new Add dark mode support with system preference detection
 
-# 2. Brief generated with clarifying questions
+# 2. Intake generated with clarifying questions
 # (answer questions, refine if needed)
 
 # 3. Continue to spec

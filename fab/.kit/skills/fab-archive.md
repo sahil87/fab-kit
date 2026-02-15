@@ -40,7 +40,7 @@ Archive a completed change after hydrate, or restore an archived change back to 
 
 ## Context Loading
 
-Minimal: `brief.md` (for backlog ID + keywords), `.status.yaml`, `fab/backlog.md` (if exists), `fab/current`.
+Minimal: `intake.md` (for backlog ID + keywords), `.status.yaml`, `fab/backlog.md` (if exists), `fab/current`.
 
 ---
 
@@ -60,15 +60,15 @@ Maintain `fab/changes/archive/index.md`:
 - Doesn't exist → create with header, backfill all existing archived folders
 - Exists → prepend entry (most-recent-first)
 
-Entry format: `- **{folder-name}** — {1-2 sentence description from brief Why}`
+Entry format: `- **{folder-name}** — {1-2 sentence description from intake Why}`
 
 ### Step 3: Mark Backlog Items Done
 
 Skip silently if `fab/backlog.md` doesn't exist.
 
-**3a — Exact-ID**: If brief has backlog ID, find and mark done (`- [ ]` → `- [x]`), move to Done section.
+**3a — Exact-ID**: If intake has backlog ID, find and mark done (`- [ ]` → `- [x]`), move to Done section.
 
-**3b — Keyword Scan**: Extract keywords from brief title/Why (filter stop words). Match against unchecked items — candidate when ≥2 significant keywords overlap (exclude 3a matches). No candidates → proceed silently.
+**3b — Keyword Scan**: Extract keywords from intake title/Why (filter stop words). Match against unchecked items — candidate when ≥2 significant keywords overlap (exclude 3a matches). No candidates → proceed silently.
 
 **3c — Interactive Confirmation** (if 3b found candidates):
 
@@ -160,7 +160,7 @@ If the folder already exists at `fab/changes/{name}/` (not in archive), skip the
 
 ### Step 1: Move Change Folder
 
-`fab/changes/archive/{name}/` → `fab/changes/{name}/`. Do NOT rename. All artifacts (`.status.yaml`, `brief.md`, `spec.md`, `tasks.md`, `checklist.md`, etc.) are preserved without modification.
+`fab/changes/archive/{name}/` → `fab/changes/{name}/`. Do NOT rename. All artifacts (`.status.yaml`, `intake.md`, `spec.md`, `tasks.md`, `checklist.md`, etc.) are preserved without modification.
 
 ### Step 2: Remove Archive Index Entry
 

@@ -45,7 +45,7 @@ A skill matching ANY `capable` criterion is classified as `capable`, regardless 
 
 | Skill | Rationale |
 |-------|-----------|
-| `fab-new` | Brief generation, SRAD evaluation |
+| `fab-new` | Intake generation, SRAD evaluation |
 | `docs-hydrate-memory` | Content analysis, memory generation/merging |
 | `fab-continue` | Artifact generation (spec/tasks), code implementation, review validation, memory hydration |
 | `fab-ff` | Multi-stage pipeline orchestration |
@@ -141,5 +141,6 @@ If in doubt, use **capable** (the default — just omit `model_tier`).
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_preflight.sh` → `lib/preflight.sh` and `_init_scaffold.sh` → `lib/init-scaffold.sh` in skill classification and deployment references |
 | 260212-k8m3-skill-model-tiers | 2026-02-12 | Initial creation — two-tier system, skill classification audit, mapping file, dual deployment, config override |

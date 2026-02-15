@@ -4,15 +4,15 @@
 
 ## Overview
 
-Fab ships artifact templates in `fab/.kit/templates/` that skills fill with concrete content during planning stages. Each template is a markdown scaffold with guidance comments (`<!-- -->`) that instruct the agent — comments are not preserved in output. This doc covers the four artifact templates (brief, spec, tasks, checklist) and the memory file format used in `docs/memory/`.
+Fab ships artifact templates in `fab/.kit/templates/` that skills fill with concrete content during planning stages. Each template is a markdown scaffold with guidance comments (`<!-- -->`) that instruct the agent — comments are not preserved in output. This doc covers the four artifact templates (intake, spec, tasks, checklist) and the memory file format used in `docs/memory/`.
 
 ## Requirements
 
-### `brief.md`
+### `intake.md`
 
-The brief captures intent, scope, approach, and open questions. Structure:
+The intake captures intent, scope, approach, and open questions. Structure:
 
-- **Origin** — How the change was initiated: description text, interaction mode (one-shot vs. conversational), key decisions from the conversation. Provides traceability for how the brief was developed
+- **Origin** — How the change was initiated: description text, interaction mode (one-shot vs. conversational), key decisions from the conversation. Provides traceability for how the intake was developed
 - **Why** — Motivation, 1-3 sentences
 - **What Changes** — Specific capabilities added, modified, or removed
 - **Affected Memory** — Flat list of memory files affected by this change, each with an inline marker: `(new)`, `(modify)`, or `(remove)`. Kebab-case identifiers matching `docs/memory/` paths
@@ -71,13 +71,13 @@ Generation is contextual — items derived from `spec.md` (requirements, design 
 The `.status.yaml` template initializes a new change with the following structure:
 
 - **No `stage:` field** — current stage is derived from the `active` entry in the progress map
-- **`brief: active`** as the initial progress state — brief is the first pipeline stage
+- **`intake: active`** as the initial progress state — intake is the first pipeline stage
 - All other stages start as `pending`
 
 Initial progress map:
 ```yaml
 progress:
-  brief: active
+  intake: active
   spec: pending
   tasks: pending
   apply: pending
@@ -151,7 +151,7 @@ When `/fab-continue` (hydrate) hydrates into memory files:
 
 ### Checklist Co-located at Change Root
 **Decision**: The checklist lives at `fab/changes/{name}/checklist.md` alongside other artifacts, not in a `checklists/` subdirectory. Renamed from `quality.md` to `checklist.md`.
-**Why**: All other artifacts (brief.md, spec.md, tasks.md, .status.yaml) live at the change root. A subdirectory for a single file violates YAGNI. `checklist.md` is more general and matches the template filename.
+**Why**: All other artifacts (intake.md, spec.md, tasks.md, .status.yaml) live at the change root. A subdirectory for a single file violates YAGNI. `checklist.md` is more general and matches the template filename.
 **Rejected**: Keep `checklists/` subfolder — no evidence of multiple checklist types. Keep `quality.md` name — too narrow.
 *Introduced by*: 260212-ipoe-checklist-folder-location
 
@@ -162,13 +162,13 @@ When `/fab-continue` (hydrate) hydrates into memory files:
 *Introduced by*: 260211-r4w8-spec-template-sections
 
 ### Flat Affected Memory With Inline Markers
-**Decision**: The brief template's Affected Memory section uses a single flat list with `(new)`, `(modify)`, `(remove)` inline markers instead of three headed subsections.
+**Decision**: The intake template's Affected Memory section uses a single flat list with `(new)`, `(modify)`, `(remove)` inline markers instead of three headed subsections.
 **Why**: Most changes touch 1-2 files, leaving empty subsection headings. A flat list is more compact and eliminates structural overhead for the common case.
 **Rejected**: Keep three subsections (New Files / Modified Files / Removed Files) — empty headings add noise for typical changes.
 *Introduced by*: 260213-v4rx-simplify-templates
 
 ### SRAD-Driven Open Questions (No BLOCKING/DEFERRED Labels)
-**Decision**: The brief's Open Questions section uses a plain list without explicit priority markers. SRAD handles prioritization at spec generation time.
+**Decision**: The intake's Open Questions section uses a plain list without explicit priority markers. SRAD handles prioritization at spec generation time.
 **Why**: The BLOCKING/DEFERRED labels duplicated SRAD's prioritization work. SRAD already evaluates reversibility and agent competence to decide what to ask vs. assume.
 **Rejected**: Keep BLOCKING/DEFERRED markers — redundant with SRAD framework, adds template complexity.
 *Introduced by*: 260213-v4rx-simplify-templates
@@ -183,15 +183,16 @@ When `/fab-continue` (hydrate) hydrates into memory files:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed template `brief.md` → `intake.md`. Strengthened template comments (What Changes, Origin, Why sections). Updated all artifact references from brief to intake |
 | 260215-r8k3-DEV-1024-code-quality-layer | 2026-02-15 | Added Code Quality to checklist categories (always included, two baseline items). Updated generation derivation sources to include `code_quality` config |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_calc-score.sh` → `lib/calc-score.sh` and `_init_scaffold.sh` → `lib/init-scaffold.sh` in references |
 | 260214-lptw-score-init-display | 2026-02-14 | Added confidence block initial state note: score 0.0 (no assessed confidence). Updated template default from 5.0 to 0.0. |
 | 260213-jc0u-split-archive-hydrate | 2026-02-13 | Updated `.status.yaml` template example (`archive: pending` → `hydrate: pending`), hydration rule references, and checklist gate references to use `hydrate` instead of `archive` |
-| 260213-v4rx-simplify-templates | 2026-02-13 | Flattened brief Affected Memory to inline markers, removed BLOCKING/DEFERRED from Open Questions, replaced spec optional section placeholders with guidance comment |
+| 260213-v4rx-simplify-templates | 2026-02-13 | Flattened intake Affected Memory to inline markers, removed BLOCKING/DEFERRED from Open Questions, replaced spec optional section placeholders with guidance comment |
 | 260212-ipoe-checklist-folder-location | 2026-02-12 | Moved checklist from `checklists/quality.md` to `checklist.md` at change root; updated .status.yaml template `checklist.path` default |
-| 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Updated .status.yaml template (removed stage: field and brief: from progress, spec: active as initial), documented brief template Origin section |
+| 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Updated .status.yaml template (removed stage: field and intake: from progress, spec: active as initial), documented intake template Origin section |
 | 260211-r4w8-spec-template-sections | 2026-02-12 | Added optional Non-Goals and Design Decisions sections to spec.md template |
-| 260211-r3k8-simplify-planning-stages | 2026-02-11 | Renamed proposal.md → brief.md, removed plan.md template section |
+| 260211-r3k8-simplify-planning-stages | 2026-02-11 | Renamed proposal.md → intake.md, removed plan.md template section |
 | 260211-endg-add-created-by-field | 2026-02-11 | Added `created_by` field to `.status.yaml` template — auto-detected from `git config user.name`, write-once, with `"unknown"` fallback |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | — | 2026-02-07 | Generated from doc/fab-spec/ (TEMPLATES.md, SKILLS.md) |

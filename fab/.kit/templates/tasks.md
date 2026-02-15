@@ -2,7 +2,7 @@
 
 **Change**: {YYMMDD-XXXX-slug}
 **Spec**: `spec.md`
-**Brief**: `brief.md`
+**Intake**: `intake.md`
 
 <!--
   TASK FORMAT: - [ ] {ID} [{markers}] {Description with file paths}

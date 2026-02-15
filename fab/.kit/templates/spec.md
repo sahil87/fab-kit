@@ -63,11 +63,11 @@
 
 ## Assumptions
 
-<!-- SCORING SOURCE: calc-score.sh reads only this table — brief.md assumptions are
+<!-- SCORING SOURCE: calc-score.sh reads only this table — intake.md assumptions are
      state transfer, not scored. This is the authoritative decision record for confidence
      scoring.
 
-     The spec-stage agent reads brief.md's Assumptions as a starting point, then
+     The spec-stage agent reads intake.md's Assumptions as a starting point, then
      confirms, upgrades, or overrides each assumption based on spec-level analysis.
      New assumptions discovered during spec generation are added here.
 

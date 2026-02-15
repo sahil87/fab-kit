@@ -1,6 +1,6 @@
 ---
 name: fab-new
-description: "Start a new change from a natural language description. Creates the change folder, sets it active, and generates the brief."
+description: "Start a new change from a natural language description. Creates the change folder, sets it active, and generates the intake."
 ---
 
 # /fab-new <description> [--switch]
@@ -54,20 +54,11 @@ Create `fab/changes/{name}/`. Backlog ID collision → abort with redirect to ex
 
 Create from `fab/.kit/templates/status.yaml`. Fill `{NAME}` (folder name), `{CREATED}` (ISO 8601 with tz), `{CREATED_BY}` (`gh api user --jq .login` → `git config user.name` → `"unknown"`, silent fallback).
 
-After creation, run `lib/stageman.sh set-state <file> brief active fab-new` to activate brief stage with metrics tracking, then run `lib/stageman.sh log-command <change_dir> "fab-new" "<description>"`.
+After creation, run `lib/stageman.sh set-state <file> intake active fab-new` to activate intake stage with metrics tracking, then run `lib/stageman.sh log-command <change_dir> "fab-new" "<description>"`.
 
-### Step 5: Generate `brief.md`
+### Step 5: Generate `intake.md`
 
-Load context per `_context.md` Layer 1. Generate from `fab/.kit/templates/brief.md`:
-
-1. Fill metadata: `{CHANGE_NAME}`, `{YYMMDD-XXXX-slug}`, `{DATE}`
-2. **Origin**: Raw input + Linear/backlog ID if applicable; key decisions from Step 6 if conversational
-3. **Why**: Linear description or motivation from description
-4. **What Changes**: Capabilities added/modified/removed; Linear acceptance criteria if present
-5. **Affected Memory**: Which `docs/memory/` files will be new/modified/removed
-6. **Impact**: Affected code areas, APIs, dependencies
-7. **Open Questions**: From Step 6
-8. Append `## Assumptions` section per `_context.md` — include all four SRAD grades (Certain, Confident, Tentative, Unresolved) with required Scores column (`S:nn R:nn A:nn D:nn`) for every row. Unresolved rows must include status context in Rationale (`Asked — {outcome}` or `Deferred — {reason}`). The brief is the sole context for downstream stages — every section must be substantive, not placeholder text
+Follow the **Intake Generation Procedure** (`_generation.md`). Load context per `_context.md` Layer 1 and generate from `fab/.kit/templates/intake.md`.
 
 ### Step 6: SRAD-Based Question Selection
 
@@ -87,11 +78,11 @@ Default: skip. Switch if `--switch` or intent detected. Calls `/fab-switch {name
 Created fab/changes/{name}/
 {if switched: "Branch: {name} (created)\n"}
 
-## Brief: {Change Name}
+## Intake: {Change Name}
 
-{brief content}
+{intake content}
 
-Brief complete.
+Intake complete.
 
 {if assumptions: "## Assumptions\n\n| # | Grade | Decision | Rationale |\n..."}
 
@@ -106,7 +97,7 @@ Next: {per _context.md Next Steps table}
 |-----------|--------|
 | Config/constitution missing | Abort: "Run /fab-init first." |
 | No description | Ask for one |
-| Brief template missing | Abort: "Kit may be corrupted." |
+| Intake template missing | Abort: "Kit may be corrupted." |
 | Backlog ID collision | Abort: redirect to existing change |
 | Random ID collision | Regenerate and retry |
 | Linear ticket not found / API error | Warn, treat as natural language |

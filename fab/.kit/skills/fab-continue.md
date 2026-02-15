@@ -18,7 +18,7 @@ Advance through the 6-stage Fab pipeline one step at a time. Each invocation han
 ## Arguments
 
 - **`<change-name>`** *(optional)* — target a specific change instead of `fab/current`. Passed to preflight as `$1` (see `_context.md` §2).
-- **`<stage>`** *(optional)* — reset target: `brief`, `spec`, `tasks`, `apply`, `review`, `hydrate`.
+- **`<stage>`** *(optional)* — reset target: `intake`, `spec`, `tasks`, `apply`, `review`, `hydrate`.
 
 Both may be provided in any order. Stage names are treated as reset targets; all others as change-name overrides.
 
@@ -41,7 +41,7 @@ Dispatch on preflight's derived `stage`. If progress is `pending`, set to `activ
 
 | Derived stage | Action |
 |---------------|--------|
-| `brief` | Generate `spec.md` → `brief: done`, `spec: active` |
+| `intake` | Generate `spec.md` → `intake: done`, `spec: active` |
 | `spec` | Generate `tasks.md` + checklist → `spec: done`, `tasks: active` |
 | `tasks` | Execute apply → `tasks: done`, `apply: active` → on completion `apply: done`, `review: active` |
 | `apply` | Resume apply → on completion `apply: done`, `review: active` |
@@ -51,7 +51,7 @@ Dispatch on preflight's derived `stage`. If progress is `pending`, set to `activ
 
 ### Step 2: Load Context
 
-Load per `_context.md` layers. Stage-specific additions: planning stages load brief + memory files; apply loads spec + tasks + source code; review adds checklist + memory; hydrate loads memory index + target files.
+Load per `_context.md` layers. Stage-specific additions: planning stages load intake + memory files; apply loads spec + tasks + source code; review adds checklist + memory; hydrate loads memory index + target files.
 
 ### Step 3: SRAD + Generation
 
@@ -182,7 +182,7 @@ Starts from first unchecked item. Checked items assumed complete.
 2. **Load context** for the target stage
 3. **Reset `.status.yaml`**: Use `lib/stageman.sh set-state <file> <stage> <state> [driver]` for each stage — target → `active` (with driver `fab-continue`), all after → `pending`, all before → preserved
 4. **Execute**: Planning stages regenerate artifact. Execution stages re-run (task checkboxes NOT reset).
-5. **Invalidate downstream** (planning resets only): brief reset → all downstream pending; spec reset → tasks pending; tasks reset → reset all `[x]` → `[ ]`, regenerate checklist
+5. **Invalidate downstream** (planning resets only): intake reset → all downstream pending; spec reset → tasks pending; tasks reset → reset all `[x]` → `[ ]`, regenerate checklist
 6. **Post-execution**: Planning resets set target to `done` but do NOT advance next to `active` (prevents auto-advancing into stale content). Execution resets use normal transitions.
 
 ---
@@ -195,7 +195,7 @@ Starts from first unchecked item. Checked items assumed complete.
 | `checklist.md` missing for review | "No checklist found. Run /fab-continue to generate it first." |
 | Incomplete tasks for review | "{N} of {total} tasks incomplete." |
 | Review not passed for hydrate | "Review has not passed." |
-| Unknown reset target | "Unknown stage. Valid: brief, spec, tasks, apply, review, hydrate." |
+| Unknown reset target | "Unknown stage. Valid: intake, spec, tasks, apply, review, hydrate." |
 | Template file missing | "Template not found — kit may be corrupted." |
 
 ---

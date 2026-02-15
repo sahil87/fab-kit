@@ -10,7 +10,7 @@ The stages every developer already follows — define what to build, design it, 
 
 ```mermaid
 flowchart TD
-    B[brief] -->|"define requirements"| S[spec]
+    B[intake] -->|"define requirements"| S[spec]
     S -->|"break down work"| T[tasks]
     T -->|"write code"| A[apply]
     A -->|"validate"| R[review]
@@ -37,7 +37,7 @@ Each transition is now a `/fab-*` command. Shortcuts (`/fab-ff`, `/fab-fff`) run
 
 ```mermaid
 flowchart TD
-    B[brief] -->|"/fab-continue"| S[spec]
+    B[intake] -->|"/fab-continue"| S[spec]
     S -->|"/fab-continue"| T[tasks]
     T -->|"/fab-continue"| A[apply]
     A -->|"/fab-continue"| R[review]
@@ -176,9 +176,9 @@ The complete state machine showing how a change progresses through all stages. E
 stateDiagram-v2
     direction TB
 
-    [*] --> brief: /fab-new
+    [*] --> intake: /fab-new
 
-    brief --> spec: /fab-continue
+    intake --> spec: /fab-continue
 
     spec --> tasks: /fab-continue
     spec --> hydrate: /fab-ff (interactive)
@@ -195,7 +195,7 @@ stateDiagram-v2
 
     hydrate --> [*]: /fab-archive
 
-    note right of brief
+    note right of intake
         Created by /fab-new
         Contains: requirements,
         goals, constraints
@@ -219,7 +219,7 @@ stateDiagram-v2
     classDef completion fill:#e8f5e9,stroke:#4CAF50,stroke-width:2px
     classDef input fill:#f3e5f5,stroke:#9C27B0,stroke-width:2px
 
-    class brief input
+    class intake input
     class spec,tasks planning
     class apply,review execution
     class hydrate completion

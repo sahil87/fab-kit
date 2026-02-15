@@ -55,12 +55,12 @@ Once a single change is identified:
 1. **Write** folder name to `fab/current` (overwrites previous)
 2. **Branch Integration** (see below)
 3. **Read `.status.yaml`** for stage and progress
-4. **Display confirmation** with stage number (brief=1, spec=2, tasks=3, apply=4, review=5, hydrate=6)
+4. **Display confirmation** with stage number (intake=1, spec=2, tasks=3, apply=4, review=5, hydrate=6)
 5. **Suggest next command** based on stage:
 
 | Stage | Suggested next |
 |-------|---------------|
-| `brief` (active) | `/fab-continue or /fab-clarify` |
+| `intake` (active) | `/fab-continue or /fab-clarify` |
 | `spec` (active/done) | `/fab-continue or /fab-ff or /fab-clarify` |
 | `tasks` (done) | `/fab-continue` |
 | `apply` (done) | `/fab-continue` |

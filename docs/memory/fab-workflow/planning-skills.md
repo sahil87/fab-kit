@@ -4,7 +4,7 @@
 
 ## Overview
 
-The planning skills (`/fab-new`, `/fab-continue`, `/fab-clarify`) handle the first three stages of the 6-stage Fab pipeline: brief, spec, and tasks. They produce the artifacts that define *what* changes and *how*, before any code is written.
+The planning skills (`/fab-new`, `/fab-continue`, `/fab-clarify`) handle the first three stages of the 6-stage Fab pipeline: intake, spec, and tasks. They produce the artifacts that define *what* changes and *how*, before any code is written.
 
 `/fab-ff` is also documented here because its planning behavior (frontloaded questions, auto-clarify) originated as a planning skill. However, `/fab-ff` is now a **full-pipeline command** that continues through apply, review, and hydrate after planning completes. See the `/fab-ff` section below for details.
 
@@ -13,7 +13,7 @@ The planning skills (`/fab-new`, `/fab-continue`, `/fab-clarify`) handle the fir
 The artifact generation logic (spec, tasks, checklist) is defined in a single shared partial: `fab/.kit/skills/_generation.md`. Both `/fab-continue` and `/fab-ff` reference this partial for the mechanics of producing each artifact, rather than inlining the generation steps.
 
 The partial contains three procedures:
-- **Spec Generation Procedure** — template loading, metadata, RFC 2119 requirements, GIVEN/WHEN/THEN scenarios, Assumptions section (reads brief assumptions as starting point, confirms/upgrades/overrides each)
+- **Spec Generation Procedure** — template loading, metadata, RFC 2119 requirements, GIVEN/WHEN/THEN scenarios, Assumptions section (reads intake assumptions as starting point, confirms/upgrades/overrides each)
 - **Tasks Generation Procedure** — template loading, metadata, phased task breakdown, task format, execution order
 - **Checklist Generation Procedure** — template loading, category population, sequential CHK IDs, `.status.yaml` updates via `lib/stageman.sh set-checklist` CLI commands
 
@@ -25,7 +25,7 @@ Each skill retains its own orchestration logic (stage guards, question handling,
 
 ### `/fab-new <description>`
 
-`/fab-new` starts a new change from a natural language description. It is adaptive: clear inputs get a quick brief, vague inputs trigger conversational exploration. It creates the change folder, initializes status tracking, and generates a brief (with Origin section). By default, the change is NOT activated (no write to `fab/current`, no branch integration). Accepts an optional `--switch` flag or detects switching intent from natural language to call `/fab-switch` internally and activate the change. Output is always a single artifact: `brief.md`.
+`/fab-new` starts a new change from a natural language description. It is adaptive: clear inputs get a quick intake, vague inputs trigger conversational exploration. It creates the change folder, initializes status tracking, and generates an intake (with Origin section). By default, the change is NOT activated (no write to `fab/current`, no branch integration). Accepts an optional `--switch` flag or detects switching intent from natural language to call `/fab-switch` internally and activate the change. Output is always a single artifact: `intake.md`.
 
 #### Folder Name Generation
 
@@ -35,12 +35,12 @@ The agent SHALL generate a folder name in the format `{YYMMDD}-{XXXX}-[{ISSUE}-]
 
 `/fab-new` adapts its interaction style based on the input clarity:
 
-1. **Clear input** — SRAD scoring identifies few or no Unresolved decisions. The skill generates the brief with up to 3 targeted questions (highest blast radius), assumes all Confident/Tentative decisions, and completes quickly.
+1. **Clear input** — SRAD scoring identifies few or no Unresolved decisions. The skill generates the intake with up to 3 targeted questions (highest blast radius), assumes all Confident/Tentative decisions, and completes quickly.
 2. **Vague input** — SRAD scoring identifies many Unresolved decisions. The skill enters **conversational mode**: back-and-forth exploration with no fixed question cap, starting with the highest-impact decisions (lowest Reversibility + lowest Agent Competence). Each question builds on previous answers. The conversation ends when the confidence score reaches >= 3.0 and the user signals satisfaction, or the user terminates early.
 
 #### Gap Analysis
 
-Before committing to a brief, `/fab-new` evaluates whether the change is needed:
+Before committing to an intake, `/fab-new` evaluates whether the change is needed:
 
 1. Checks for existing mechanisms in the current workflow, codebase, or memory
 2. Evaluates scope — is the idea too broad (should be split) or too narrow (part of something larger)?
@@ -52,8 +52,8 @@ If an existing mechanism covers the idea, the skill presents its findings and le
 
 The skill SHALL:
 1. Create `fab/changes/{name}/`
-2. Initialize `.status.yaml` with `created_by` set using a fallback chain: `gh api user --jq .login` (primary), then `git config user.name`, then `"unknown"`. No error or warning on fallback. `brief: active` as the initial progress state
-3. Generate `brief.md` from the template (including Origin section), loading `fab/constitution.md` and `fab/config.yaml` as context
+2. Initialize `.status.yaml` with `created_by` set using a fallback chain: `gh api user --jq .login` (primary), then `git config user.name`, then `"unknown"`. No error or warning on fallback. `intake: active` as the initial progress state
+3. Generate `intake.md` from the template (including Origin section), loading `fab/constitution.md` and `fab/config.yaml` as context
 4. Conditionally call `/fab-switch` to activate the change (writes `fab/current`, performs branch integration) — only if the `--switch` flag was provided OR switching intent is detected in the description (phrases like "and switch to it", "make it active", "activate it")
 
 Note: `/fab-new` does not activate changes by default — this reduces disruption when capturing change ideas. Branch integration is delegated to `/fab-switch`, which provides consistent branch handling.
@@ -68,9 +68,9 @@ To activate the change automatically, either:
 
 When switching occurs (via flag or detection), the output includes the `Branch:` line and uses: `Next: /fab-continue or /fab-ff (fast-forward all planning)`.
 
-#### Brief-Only Output
+#### Intake-Only Output
 
-`/fab-new` produces a single artifact: `brief.md`. It does not generate `spec.md` or any other downstream artifacts. The brief includes an **Origin** section recording how the change was initiated (description text, conversational vs. one-shot mode, key decisions from the conversation).
+`/fab-new` produces a single artifact: `intake.md`. It does not generate `spec.md` or any other downstream artifacts. The intake includes an **Origin** section recording how the change was initiated (description text, conversational vs. one-shot mode, key decisions from the conversation).
 
 #### Context
 
@@ -78,13 +78,13 @@ Loads: config, constitution, `docs/memory/index.md` (to understand the existing 
 
 ### `/fab-continue [<change-name>] [<stage>]`
 
-`/fab-continue` advances to the next pipeline stage — planning, implementation, review, or hydrate — and either generates the artifact or executes the stage's behavior. When called with a stage argument, it resets to that stage. When called with a change-name argument, it targets that change instead of the active one in `fab/current` (transient — `fab/current` is not modified). Both arguments can coexist; stage names are disambiguated first (fixed set of 6), all other arguments are treated as change-name overrides. The pipeline flows brief → spec → tasks → apply → review → hydrate.
+`/fab-continue` advances to the next pipeline stage — planning, implementation, review, or hydrate — and either generates the artifact or executes the stage's behavior. When called with a stage argument, it resets to that stage. When called with a change-name argument, it targets that change instead of the active one in `fab/current` (transient — `fab/current` is not modified). Both arguments can coexist; stage names are disambiguated first (fixed set of 6), all other arguments are treated as change-name overrides. The pipeline flows intake → spec → tasks → apply → review → hydrate.
 
 #### Normal Forward Flow (no argument)
 
 1. Read `.status.yaml` to determine current stage (the stage with `active` in the progress map)
 2. **Stage guard**: Check `progress.{stage}` value from preflight output:
-   - For planning stages (brief, spec, tasks): if `progress.{stage} == 'done'` AND stage is `tasks`, transition to apply. If `progress.{stage} == 'active'`, allow generation to resume. If `progress.{stage} == 'pending'`, allow generation to start.
+   - For planning stages (intake, spec, tasks): if `progress.{stage} == 'done'` AND stage is `tasks`, transition to apply. If `progress.{stage} == 'active'`, allow generation to resume. If `progress.{stage} == 'pending'`, allow generation to start.
    - For execution stages (apply, review, hydrate): dispatch to the stage's behavior (apply executes tasks, review validates implementation, hydrate completes the change).
 3. Identify next artifact to create
 4. Load relevant template + context (including `fab/constitution.md` for principles)
@@ -96,7 +96,7 @@ Loads: config, constitution, `docs/memory/index.md` (to understand the existing 
 #### Reset Behavior (with stage argument)
 
 When called as `/fab-continue <stage>` (e.g., `/fab-continue spec`):
-1. Target stage can be any of the 6 stages: `brief`, `spec`, `tasks`, `apply`, `review`, `hydrate`
+1. Target stage can be any of the 6 stages: `intake`, `spec`, `tasks`, `apply`, `review`, `hydrate`
 2. Reset `.status.yaml` progress: set target stage to `active`; mark all stages after target as `pending`
 3. Regenerate the target stage's artifact in place (update, not recreate from scratch — preserve what's still valid)
 4. Downstream artifacts are invalidated: tasks reset to `- [ ]`, checklist regenerated
@@ -106,7 +106,7 @@ Reset is primarily used after review identifies issues upstream.
 
 #### Context (varies by target stage)
 
-- **Spec**: config, constitution, `brief.md`, target memory file(s) from `docs/memory/`
+- **Spec**: config, constitution, `intake.md`, target memory file(s) from `docs/memory/`
 - **Tasks**: above + completed `spec.md`
 
 ### `/fab-ff [<change-name>]` (Fast Forward — Full Pipeline)
@@ -115,7 +115,7 @@ Reset is primarily used after review identifies issues upstream.
 
 #### Frontloaded Questions
 
-The skill SHALL scan the brief for ambiguities across *all* remaining planning stages (brief, spec, tasks), collect everything that needs user input into a single batch, and ask once. The goal: one Q&A round, then heads-down generation.
+The skill SHALL scan the intake for ambiguities across *all* remaining planning stages (intake, spec, tasks), collect everything that needs user input into a single batch, and ask once. The goal: one Q&A round, then heads-down generation.
 
 #### Interleaved Auto-Clarify
 
@@ -126,10 +126,10 @@ The `/fab-ff` pipeline interleaves auto-clarify between planning stage generatio
 
 #### Pipeline Flow
 
-1. Read `fab/current` to resolve the active change; verify brief is complete
+1. Read `fab/current` to resolve the active change; verify intake is complete
 2. Frontload questions (single batch)
 3. Generate `spec.md` (incorporating answers) → run auto-clarify on spec
-4. Produce task breakdown (referencing spec and brief) → run auto-clarify on tasks
+4. Produce task breakdown (referencing spec and intake) → run auto-clarify on tasks
 5. Auto-generate quality checklist
 6. Execute tasks via apply behavior
 7. Validate implementation via review behavior — on failure, presents interactive rework menu (fix code, revise tasks, revise spec)
@@ -172,7 +172,7 @@ Each stage uses the same behavior as its standalone invocation. If planning bail
 
 #### Context
 
-Loads all planning context upfront: config, constitution, `brief.md`, target memory file(s) from `docs/memory/`.
+Loads all planning context upfront: config, constitution, `intake.md`, target memory file(s) from `docs/memory/`.
 
 ### `/fab-clarify [<change-name>]`
 
@@ -183,7 +183,7 @@ Loads all planning context upfront: config, constitution, `brief.md`, target mem
 When the user invokes `/fab-clarify` directly:
 
 1. Read `.status.yaml` to determine current stage
-2. Stage MUST be `brief`, `spec`, or `tasks`. Each stage scans its corresponding artifact(s) using per-artifact taxonomy. If `apply` or later, suggest `/fab-continue` instead
+2. Stage MUST be `intake`, `spec`, or `tasks`. Each stage scans its corresponding artifact(s) using per-artifact taxonomy. If `apply` or later, suggest `/fab-continue` instead
 3. Load current artifact + relevant context
 4. Perform a **stage-scoped taxonomy scan** for gaps, ambiguities, and `[NEEDS CLARIFICATION]` markers (categories vary by stage)
 5. Present structured questions **one at a time** (max 5 per invocation), each with a recommendation and options table or suggested answer
@@ -208,7 +208,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 #### Context (varies by current stage)
 
-- **Spec**: config, constitution, `brief.md`, target memory file(s) from `docs/memory/`
+- **Spec**: config, constitution, `intake.md`, target memory file(s) from `docs/memory/`
 - **Tasks**: above + `spec.md`, `tasks.md`
 
 ## Design Decisions
@@ -219,8 +219,8 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 **Rejected**: Ad-hoc question selection — inconsistent, no way to predict agent behavior. Full autonomy — too risky for Unresolved decisions with cascading consequences. Binary high/low dimension classification — lost nuance in the mid-range.
 *Introduced by*: 260207-09sj-autonomy-framework; *Updated by*: 260212-f9m3-enhance-srad-fuzzy (fuzzy 0–100 dimensions, weighted mean aggregation, dynamic gate thresholds)
 
-### Brief-First with SRAD-Based Questions
-**Decision**: Every change starts with a brief. The agent applies SRAD scoring to identify up to 3 Unresolved decisions with the highest blast radius and asks those. All other decisions are assumed at their assessed confidence grade and surfaced in the Assumptions summary.
+### Intake-First with SRAD-Based Questions
+**Decision**: Every change starts with an intake. The agent applies SRAD scoring to identify up to 3 Unresolved decisions with the highest blast radius and asks those. All other decisions are assumed at their assessed confidence grade and surfaced in the Assumptions summary.
 **Why**: Prevents question-paralysis while catching the decisions that actually matter. SRAD scoring replaces gut-feel question selection with a repeatable evaluation method.
 **Rejected**: Unlimited clarification rounds — too many back-and-forth exchanges. Fixed 3-question cap without SRAD — may ask the wrong 3 questions.
 *Source*: doc/fab-spec/TEMPLATES.md, doc/fab-spec/README.md; *Updated by*: 260207-09sj-autonomy-framework
@@ -255,14 +255,20 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 **Rejected**: Keeping both skills with clearer differentiation.
 *Introduced by*: 260212-v5p2-simplify-stages-entry-paths
 
+### Stage Rename: "brief" → "intake"
+**Decision**: The first pipeline stage is named `intake` (not `brief`). The artifact is `intake.md`. The Intake Generation Procedure lives in `_generation.md` alongside spec/tasks/checklist procedures, with an explicit generation rule emphasizing the intake is a state transfer document.
+**Why**: "Brief" in English means short/concise, which triggered summarization instincts in LLMs — agents consistently produced thin briefs despite template instructions. "Intake" signals thorough initial collection in professional contexts (legal, medical, project management). The generation rule in `_generation.md` provides defense in depth alongside the name change.
+**Rejected**: `handoff` — could describe any stage boundary. `charter` — too formal. Generation rule only without rename — doesn't fix the misleading name.
+*Introduced by*: 260215-v4n7-DEV-1025-rename-brief-to-intake
+
 ### Shared Generation Partial
-**Decision**: Extract duplicated artifact generation logic from `/fab-continue` and `/fab-ff` into a shared `_generation.md` partial. Both skills reference the partial for spec, tasks, and checklist generation mechanics; each retains its own orchestration logic.
+**Decision**: Extract duplicated artifact generation logic from `/fab-continue` and `/fab-ff` into a shared `_generation.md` partial. Both skills reference the partial for spec, tasks, checklist, and intake generation mechanics; each retains its own orchestration logic.
 **Why**: Generation steps were nearly identical in both skills, requiring every fix or behavior change to be applied in two places. Centralizing eliminates drift and makes generation behavior authoritative in one location.
 **Rejected**: Keeping inline duplication — inevitable drift between the two copies.
 *Introduced by*: 260210-wpay-extract-shared-generation-logic
 
 ### Unified Command: `/fab-continue` Absorbs Execution Stages
-**Decision**: `/fab-continue` handles all 6 pipeline stages (brief → spec → tasks → apply → review → hydrate). Apply, review, and hydrate behaviors are described as dedicated sections within `fab-continue.md`, not extracted into a shared partial. `/fab-archive` exists as a standalone housekeeping skill (not a pipeline stage) for post-hydrate cleanup.
+**Decision**: `/fab-continue` handles all 6 pipeline stages (intake → spec → tasks → apply → review → hydrate). Apply, review, and hydrate behaviors are described as dedicated sections within `fab-continue.md`, not extracted into a shared partial. `/fab-archive` exists as a standalone housekeeping skill (not a pipeline stage) for post-hydrate cleanup.
 **Why**: Reduces developer command surface from 4+ commands to 2 (`/fab-continue` + `/fab-clarify`). Execution stages are orchestration-heavy with distinct flows (task execution, validation with rework, memory hydration) — inlining keeps each stage's behavior in one readable location.
 **Rejected**: Keeping standalone `/fab-apply`, `/fab-review` — command fragmentation. Extracting to `_execution.md` partial — low reuse value since only fab-continue calls these.
 *Introduced by*: 260212-a4bd-unify-fab-continue
@@ -275,7 +281,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 ### Reset via `/fab-continue <stage>`
 **Decision**: Reset to any pipeline stage by passing the stage name as an argument to `/fab-continue`. For planning stages, downstream artifacts are invalidated and regenerated. For execution stages, the stage behavior is re-run without resetting task checkboxes.
-**Why**: Provides a clean re-entry point after review identifies upstream issues. Reuses the existing skill rather than adding a separate `/fab-reset` command. Covers all 6 stages (brief, spec, tasks, apply, review, hydrate).
+**Why**: Provides a clean re-entry point after review identifies upstream issues. Reuses the existing skill rather than adding a separate `/fab-reset` command. Covers all 6 stages (intake, spec, tasks, apply, review, hydrate).
 **Rejected**: Separate reset skill — unnecessary proliferation of skills for a rare operation.
 *Source*: doc/fab-spec/SKILLS.md; *Updated by*: 260212-a4bd-unify-fab-continue (extended to all 6 stages)
 
@@ -283,9 +289,10 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` → `intake` throughout. Added Intake Generation Procedure to `_generation.md`. Updated `/fab-new` to reference procedure instead of inlining. Renamed "Brief-First" design decision to "Intake-First" |
 | 260215-w3n8-naming-linear-id-drop-conventions | 2026-02-15 | Updated `/fab-new` folder name generation format to `{YYMMDD}-{XXXX}-[{ISSUE}-]{slug}` with optional uppercase Linear issue ID |
-| 260214-m3w7-formalize-assumptions-scoring | 2026-02-14 | Formalized Assumptions tables: all four SRAD grades recorded (not just Confident/Tentative), Scores column required, Unresolved rows include status context. `calc-score.sh` reads only spec.md (not brief+spec), fixed AWK cols[6], removed has_scores detection and Certain carry-forward, parses Unresolved grade. Spec generation reads brief assumptions as starting point (confirm/upgrade/override). Templates include formalized `## Assumptions` sections. Summary line uses 4-grade format. |
-| 260214-r7k3-stageman-yq-metrics | 2026-02-14 | All skill prompts now call `log-command` after preflight and pass `driver` on all `set-state`/`transition` calls. `/fab-new` calls `set-state brief active fab-new`. `/fab-clarify` calls `log-command` after preflight. `/fab-ff` and `/fab-fff` pass driver on all transitions. Added shared generation partial note about `log-command` and driver conventions |
+| 260214-m3w7-formalize-assumptions-scoring | 2026-02-14 | Formalized Assumptions tables: all four SRAD grades recorded (not just Confident/Tentative), Scores column required, Unresolved rows include status context. `calc-score.sh` reads only spec.md (not intake+spec), fixed AWK cols[6], removed has_scores detection and Certain carry-forward, parses Unresolved grade. Spec generation reads intake assumptions as starting point (confirm/upgrade/override). Templates include formalized `## Assumptions` sections. Summary line uses 4-grade format. |
+| 260214-r7k3-stageman-yq-metrics | 2026-02-14 | All skill prompts now call `log-command` after preflight and pass `driver` on all `set-state`/`transition` calls. `/fab-new` calls `set-state intake active fab-new`. `/fab-clarify` calls `log-command` after preflight. `/fab-ff` and `/fab-fff` pass driver on all transitions. Added shared generation partial note about `log-command` and driver conventions |
 | 260212-f9m3-enhance-srad-fuzzy | 2026-02-14 | SRAD framework updated to fuzzy 0–100 dimension scoring with weighted mean aggregation; `/fab-fff` confidence gate now uses dynamic per-type thresholds (bugfix=2.0, feature/refactor=3.0, architecture=4.0) via `calc-score.sh --check-gate`; optional Scores column in Assumptions tables for per-dimension data |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_stageman.sh` → `lib/stageman.sh` and `_calc-score.sh` → `lib/calc-score.sh` in all references; updated shared generation partial `lib/stageman.sh set-checklist` references |
 | 260214-w3r8-stageman-write-api | 2026-02-14 | Skill prompts (`fab-continue.md`, `fab-ff.md`, `fab-fff.md`, `_generation.md`) now reference `lib/stageman.sh` CLI commands for all `.status.yaml` mutations instead of ad-hoc editing |
@@ -293,7 +300,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 | 260213-w8p3-extract-fab-score | 2026-02-14 | Extracted confidence scoring into `lib/calc-score.sh` script. Removed inline scoring from `/fab-new` (Step 7 deleted), `/fab-continue` (Step 3b replaced with script invocation at spec stage only), `/fab-clarify` (Step 7 replaced with script invocation in suggest mode). Updated `/fab-fff` confidence recomputation note. |
 | 260213-jc0u-split-archive-hydrate | 2026-02-13 | Updated all pipeline references from `archive` to `hydrate` as terminal stage. Updated `/fab-continue` and `/fab-ff`/`/fab-fff` descriptions. Updated unified command design decision to reflect `/fab-archive` as standalone housekeeping skill. |
 | 260213-w4k9-explicit-change-targeting | 2026-02-13 | All workflow skills (`/fab-continue`, `/fab-ff`, `/fab-fff`, `/fab-clarify`) now accept optional `[change-name]` argument for targeting non-active changes. `/fab-continue` disambiguates stage names vs change names. Preflight handles matching centrally |
-| 260212-r7xp-fix-fab-new-brief-stage | 2026-02-12 | `/fab-new` no longer marks brief complete — removed Step 8 ("Mark Brief Complete"), renumbered Step 9 → Step 8. Brief stays `active` after `/fab-new`; `/fab-continue` handles the brief → spec transition. Updated Change Initialization list and `_context.md` Next Steps table |
+| 260212-r7xp-fix-fab-new-intake-stage | 2026-02-12 | `/fab-new` no longer marks intake complete — removed Step 8 ("Mark Intake Complete"), renumbered Step 9 → Step 8. Intake stays `active` after `/fab-new`; `/fab-continue` handles the intake → spec transition. Updated Change Initialization list and `_context.md` Next Steps table |
 | 260212-a4bd-unify-fab-continue | 2026-02-12 | Unified `/fab-apply`, `/fab-review`, `/fab-archive` into `/fab-continue`. Updated stage guard, reset behavior, and cross-references to reflect unified command |
 | 260212-ipoe-checklist-folder-location | 2026-02-12 | Updated checklist generation and validation paths from `checklists/quality.md` to `checklist.md` in `/fab-continue`, `/fab-ff`, and shared generation partial |
 | 260212-bk1n-rework-fab-ff-archive | 2026-02-12 | Extended `/fab-ff` from planning-only to full pipeline (planning → apply → review → archive). Updated `/fab-fff` description and comparison table to reflect new differentiation. `/fab-ff` now offers interactive rework on review failure; `/fab-fff` remains fully autonomous with confidence gate |
@@ -303,7 +310,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 | — | 2026-02-12 | Reversed `/fab-new` default behavior: no longer auto-switches to new changes. Replaced `--no-switch` with `--switch` flag, added natural language switching detection. Default output now suggests `/fab-switch {name}` command |
 | 260212-r7k3-add-no-switch-flag | 2026-02-12 | Added `--no-switch` flag to `/fab-new` — skips activation and branch integration when batching change captures |
 | 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Removed /fab-discuss section, rewrote /fab-new for adaptive SRAD-driven behavior with gap analysis and conversational mode |
-| 260211-r3k8-simplify-planning-stages | 2026-02-11 | 6-stage pipeline (brief → spec → tasks), removed plan stage, /fab-discuss dual output, /fab-ff generates spec → tasks directly |
+| 260211-r3k8-simplify-planning-stages | 2026-02-11 | 6-stage pipeline (intake → spec → tasks), removed plan stage, /fab-discuss dual output, /fab-ff generates spec → tasks directly |
 | 260211-endg-add-created-by-field | 2026-02-11 | `/fab-new` and `/fab-discuss` now populate `created_by` in `.status.yaml` from `git config user.name` at change creation |
 | 260210-wpay-extract-shared-generation-logic | 2026-02-10 | Extracted shared generation logic (spec, tasks, checklist) into `_generation.md` partial; both `/fab-continue` and `/fab-ff` now reference it |
 | 260210-nan4-define-auto-mode-signaling | 2026-02-10 | Defined explicit `[AUTO-MODE]` prefix protocol for skill-to-skill invocation in `_context.md`; updated `/fab-ff` auto-clarify invocations and "Clarify Mode Selection" design decision |
@@ -311,7 +318,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 | 260210-zr1f-discuss-auto-activate-when-no-current | 2026-02-10 | `/fab-discuss` conditionally offers activation when `fab/current` is empty; updated proposal output, key differences table |
 | 260209-r4w8-archive-index-longer-slugs | 2026-02-09 | Expanded slug word count from 2-4 to 2-6 words in `/fab-new` folder name generation |
 | 260208-q8v3-branch-to-switch | 2026-02-09 | Moved branch integration from `/fab-new` to `/fab-switch`, removed `--branch` flag from `/fab-new`, `/fab-new` now calls `/fab-switch` internally |
-| 260208-lgd7-fab-discuss-command | 2026-02-08 | Added `/fab-discuss` conversational brief skill, `/fab-new` confidence scoring, context-driven mode selection design decisions |
+| 260208-lgd7-fab-discuss-command | 2026-02-08 | Added `/fab-discuss` conversational intake skill, `/fab-new` confidence scoring, context-driven mode selection design decisions |
 | 260208-k3m7-add-fab-fff | 2026-02-08 | Added `/fab-fff` full pipeline skill, confidence recomputation in `/fab-continue`, removed `/fab-ff --auto` mode, updated design decisions |
 | 260207-09sj-autonomy-framework | 2026-02-08 | Added SRAD autonomy framework, confidence grades, assumptions summaries, branch auto-create on main, soft gate on fab-apply |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |

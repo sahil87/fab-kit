@@ -89,12 +89,12 @@ git:
 #   required       — Whether this stage can be skipped (false = optional)
 #   auto_checklist — Generate checklists/quality.md when this stage completes
 stages:
-  - id: brief
-    generates: brief.md
+  - id: intake
+    generates: intake.md
     required: true
   - id: spec
     generates: spec.md
-    requires: [brief]
+    requires: [intake]
     required: true
   - id: tasks
     generates: tasks.md

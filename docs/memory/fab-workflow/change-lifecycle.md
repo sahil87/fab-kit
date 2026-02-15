@@ -43,7 +43,7 @@ All components MUST be lowercase EXCEPT `{ISSUE}` which stays uppercase (`[A-Z]+
 **Resolution pattern** (used by all skills):
 ```
 active=$(cat fab/current)
-# then access: fab/changes/$active/.status.yaml, fab/changes/$active/brief.md, etc.
+# then access: fab/changes/$active/.status.yaml, fab/changes/$active/intake.md, etc.
 ```
 
 `fab/current` SHOULD be added to `.gitignore` since it is local working state (each developer has their own active change).
@@ -56,7 +56,7 @@ Every change folder SHALL contain a `.status.yaml` manifest with these fields:
 - `created` — ISO 8601 datetime
 - `progress` — map of all stages to their state. The stage marked `active` is the current stage (single source of truth for where the change is). There is no separate `stage:` field — current stage is derived from the `active` entry in the progress map.
 - `checklist` — generation status, path (default: `checklist.md` at change root), completion counts
-- `confidence` — SRAD confidence scoring: `certain`, `confident`, `tentative`, `unresolved` counts and derived `score` (0.0-5.0). Initialized to 0.0 (no assessed confidence). Computed by `lib/calc-score.sh` from `spec.md` Assumptions table only (not brief.md — brief assumptions are state transfer, not scored). Invoked at spec stage by `/fab-continue` and by `/fab-clarify`. Used as a gate by `/fab-fff` (requires score >= 3.0). Displayed as `{score} of 5.0` to make the scale self-documenting
+- `confidence` — SRAD confidence scoring: `certain`, `confident`, `tentative`, `unresolved` counts and derived `score` (0.0-5.0). Initialized to 0.0 (no assessed confidence). Computed by `lib/calc-score.sh` from `spec.md` Assumptions table only (not intake.md — intake assumptions are state transfer, not scored). Invoked at spec stage by `/fab-continue` and by `/fab-clarify`. Used as a gate by `/fab-fff` (requires score >= 3.0). Displayed as `{score} of 5.0` to make the scale self-documenting
 - `stage_metrics` — per-stage operational data map. Each stage that has been activated gets an entry with flow-style YAML: `{started_at, driver, iterations, completed_at}`. Automatically managed by `set_stage_state` and `transition_stages` via `_apply_metrics_side_effect`. On activation (`active`): creates entry with `started_at`, `driver`, `iterations` (incremented, not reset — tracks rework cycles). On completion (`done`): sets `completed_at`. On reset (`pending`): removes entry entirely. On failure (`failed`): no-op (preserves timing data). Initialized as empty `stage_metrics: {}` in the template
 - `last_updated` — refreshed on every status change. All `.status.yaml` mutations SHOULD go through `lib/stageman.sh` write functions (or CLI commands), which handle validation and `last_updated` refresh automatically
 
@@ -90,13 +90,13 @@ Skills call `lib/stageman.sh log-command|log-confidence|log-review` to append ev
 Changes progress through 6 stages in a defined graph:
 
 ```
-brief → spec → tasks → apply → review → hydrate
+intake → spec → tasks → apply → review → hydrate
 ```
 
-The brief (`brief.md`) is created by `/fab-new` and is the first pipeline stage. After creation, you can refine the brief with `/fab-clarify` before advancing to spec generation.
+The intake (`intake.md`) is created by `/fab-new` and is the first pipeline stage. After creation, you can refine the intake with `/fab-clarify` before advancing to spec generation.
 
 The stages split into three phases:
-- **Planning** (1-3): brief, spec, tasks
+- **Planning** (1-3): intake, spec, tasks
 - **Execution** (4-5): apply, review
 - **Completion** (6): hydrate (hydrates into memory files, completes the pipeline)
 
@@ -125,7 +125,7 @@ Branch integration is handled by `/fab-switch` and displayed live by `/fab-statu
 To bring an archived change back to active:
 1. Run `/fab-archive restore <change-name>` — moves `fab/changes/archive/{name}/` back to `fab/changes/{name}/`
 2. The archive index entry is removed from `fab/changes/archive/index.md`
-3. All artifacts (`.status.yaml`, `brief.md`, `spec.md`, etc.) are preserved without modification
+3. All artifacts (`.status.yaml`, `intake.md`, `spec.md`, etc.) are preserved without modification
 4. Optionally use `--switch` to activate the restored change (writes to `fab/current`)
 5. Without `--switch`, run `/fab-switch {name}` to activate manually
 
@@ -168,10 +168,10 @@ The skill uses `lib/preflight.sh` and `lib/stageman.sh` for data retrieval, then
 Existing `.status.yaml` files created before v5p2 may contain a `stage:` field. To migrate:
 
 1. **Remove the `stage:` line** — current stage is now derived from the `active` entry in the progress map
-2. **Ensure `brief:` is present in the progress map** — brief is a formal pipeline stage. If missing, add `brief: done` (the preflight script also infers this automatically)
+2. **Ensure `intake:` is present in the progress map** — intake is a formal pipeline stage. If missing, add `intake: done` (the preflight script also infers this automatically)
 3. **Set the appropriate stage to `active`** — e.g., if the old `stage:` was `spec`, set `spec: active` in the progress map
 
-Skills will tolerate old-format files — the preflight script infers `brief: done` when the entry is missing.
+Skills will tolerate old-format files — the preflight script infers `intake: done` when the entry is missing.
 
 ## Design Decisions
 
@@ -227,8 +227,9 @@ Skills will tolerate old-format files — the preflight script infers `brief: do
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |
 | 260215-w3n8-naming-linear-id-drop-conventions | 2026-02-15 | Extended folder naming convention to `{YYMMDD}-{XXXX}-[{ISSUE}-]{slug}` with optional uppercase Linear issue ID. Added `{ISSUE}` component to naming table, examples, and casing exception note |
-| 260214-m3w7-formalize-assumptions-scoring | 2026-02-14 | Updated confidence field: computed from spec.md Assumptions table only (not brief+spec), eliminating double-counting. All four SRAD grades now recorded in Assumptions tables. |
+| 260214-m3w7-formalize-assumptions-scoring | 2026-02-14 | Updated confidence field: computed from spec.md Assumptions table only (not intake+spec), eliminating double-counting. All four SRAD grades now recorded in Assumptions tables. |
 | 260214-r7k3-stageman-yq-metrics | 2026-02-14 | Added `stage_metrics` block to `.status.yaml` schema (per-stage operational data: started_at, driver, iterations, completed_at). Added `driver` parameter to `transition` and `set-state` CLI commands. Added `.history.jsonl` event history documentation. All stageman.sh accessors/writes now use yq v4 |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_calc-score.sh` → `lib/calc-score.sh`, `_stageman.sh` → `lib/stageman.sh`, `_preflight.sh` → `lib/preflight.sh` in field descriptions, transition examples, and `/fab-status` reference |
 | 260214-w3r8-stageman-write-api | 2026-02-14 | All `.status.yaml` mutations now go through `_stageman.sh` write API — documented `transition` for two-write transitions and `set-state` for reset flows; noted `last_updated` auto-refresh |
@@ -237,11 +238,11 @@ Skills will tolerate old-format files — the preflight script infers `brief: do
 | 260213-w8p3-extract-fab-score | 2026-02-14 | Updated confidence field description: now computed by `_calc-score.sh` (invoked at spec stage by `/fab-continue` and by `/fab-clarify`), replacing inline computation by `/fab-new`/`/fab-continue`/`/fab-clarify`. |
 | 260213-jc0u-split-archive-hydrate | 2026-02-13 | Terminal pipeline stage renamed from `archive` to `hydrate`. Change folder stays in `fab/changes/` after hydrate. Archiving (folder move, index, backlog, pointer) moved to standalone `/fab-archive` skill. Updated fab/current lifecycle, pipeline diagram, stage phases, and keyword scan design decision. |
 | 260213-wo9v-fix-reset-auto-advance | 2026-02-13 | Fixed stage derivation fallback to use three-tier logic (active → first pending after done → hydrate). Reset flow now stops at target stage without auto-advancing. Updated preflight, status, stageman scripts, workflow schema, and fab-continue skill. Added pending cases to status next-command display. |
-| 260213-wloh-archive-backlog-scan | 2026-02-13 | Added keyword-based backlog scanning to archive Step 7 — surfaces candidate matches from brief title/Why section, interactive confirmation, skipped in auto mode. Added Keyword Scan Interactive-Only design decision. |
+| 260213-wloh-archive-backlog-scan | 2026-02-13 | Added keyword-based backlog scanning to archive Step 7 — surfaces candidate matches from intake title/Why section, interactive confirmation, skipped in auto mode. Added Keyword Scan Interactive-Only design decision. |
 | 260212-a4bd-unify-fab-continue | 2026-02-12 | Updated `fab/current` lifecycle and review failure references to use `/fab-continue` instead of removed standalone skills |
 | 260212-egqa-switch-return-main | 2026-02-12 | Added `--blank` flag to `/fab-switch` for deactivating the current change (deletes `fab/current`). Composable with `--branch` for git operations. Updated fab/current lifecycle and /fab-switch section. |
 | 260212-ipoe-checklist-folder-location | 2026-02-12 | Updated `.status.yaml` `checklist.path` default from `checklists/quality.md` to `checklist.md` at change root |
-| 260212-v5p2-brief-pipeline-stage | 2026-02-12 | Restored brief as formal pipeline stage, updated migration note to keep brief: entry |
+| 260212-v5p2-intake-pipeline-stage | 2026-02-12 | Restored intake as formal pipeline stage, updated migration note to keep intake: entry |
 | — | 2026-02-12 | Updated `/fab-new` default behavior: no longer auto-switches. Updated `fab/current` lifecycle, git integration description, and Branch Integration design decision |
 | 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Updated to 5-stage pipeline, documented state machine with active marker as single source of truth, added migration note |
 | 260211-r3k8-simplify-planning-stages | 2026-02-11 | 6-stage pipeline, removed plan/skipped states, updated stage field values and progress keys |

@@ -24,7 +24,7 @@ Run the entire Fab pipeline from planning through hydrate in a single invocation
 ## Pre-flight
 
 1. Run preflight per `_context.md` §2
-2. Verify `brief.md` exists. If not, STOP: `Brief not found. Run /fab-new first.`
+2. Verify `intake.md` exists. If not, STOP: `Intake not found. Run /fab-new first.`
 3. **Confidence gate**: Read `confidence.score`. If < 3.0 or missing → STOP: `Confidence is {score} of 5.0 (need >= 3.0). Run /fab-clarify to resolve, then retry.`
 4. Log invocation: `lib/stageman.sh log-command <change_dir> "fab-fff"`
 
@@ -103,7 +103,7 @@ Skipped stages show `Skipping {stage} — already done.` Failures end at the fai
 | Condition | Action |
 |-----------|--------|
 | Preflight fails | Abort with stderr message |
-| `brief.md` missing | Abort: "Run /fab-new first." |
+| `intake.md` missing | Abort: "Run /fab-new first." |
 | Confidence < 3.0 or missing | Abort with score and guidance |
 | fab-ff bails | Stop, report blocking issues |
 | Review fails | Stop, report failure details |

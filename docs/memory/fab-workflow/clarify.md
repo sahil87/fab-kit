@@ -23,8 +23,8 @@ There SHALL be no `--suggest` or `--auto` flags on the clarify skill.
 
 The skill SHALL perform a systematic scan of the current stage's artifacts for gaps, ambiguities, and `[NEEDS CLARIFICATION]` markers. Scan categories vary by stage, using per-artifact taxonomy:
 
-- **Spec** (scans both `brief.md` and `spec.md`):
-  - *Brief refinement*: scope boundaries, affected areas, blocking questions, impact completeness, affected memory coverage, Origin section completeness
+- **Spec** (scans both `intake.md` and `spec.md`):
+  - *Intake refinement*: scope boundaries, affected areas, blocking questions, impact completeness, affected memory coverage, Origin section completeness
   - *Spec refinement*: requirement precision, scenario coverage, edge cases, deprecated requirements, cross-references
 - **Tasks**: task completeness, granularity, dependency ordering, file path accuracy, parallel markers
 
@@ -124,9 +124,10 @@ The skill SHALL only operate on planning stages (`spec`, `tasks`). If the stage 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |
 | 260212-29xv-scoring-formula | 2026-02-12 | Added grade reclassification: resolved Tentative/Confident assumptions become Certain in Assumptions table before confidence recomputation, so scores increase after clarification |
-| 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Added brief refinement capability at spec stage with per-artifact taxonomy, removed brief from valid stages |
-| 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated stage names to brief/spec/tasks in guard logic and output examples |
+| 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Added intake refinement capability at spec stage with per-artifact taxonomy, removed intake from valid stages |
+| 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated stage names to intake/spec/tasks in guard logic and output examples |
 | 260210-nan4-define-auto-mode-signaling | 2026-02-10 | Updated dual-mode operation to use explicit `[AUTO-MODE]` prefix protocol; updated "Mode Selection" design decision |
 | 260208-k3m7-add-fab-fff | 2026-02-08 | Added confidence recomputation after suggest-mode sessions, removed `<!-- auto-guess -->` scanning references |
 | 260207-09sj-autonomy-framework | 2026-02-08 | Added `<!-- assumed: ... -->` marker scanning to both suggest and auto modes; assumed markers framed as recommendations with alternatives |

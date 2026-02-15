@@ -23,9 +23,9 @@ Mode determined by `[AUTO-MODE]` prefix (see `_context.md` > Skill Invocation Pr
 ## Arguments
 
 - **`<change-name>`** *(optional)* — target a specific change (see `_context.md` > Change-name override). `fab/current` unchanged.
-- **`<target-artifact>`** *(optional)* — `brief`, `spec`, or `tasks`. **Required** at post-planning stages. Defaults to current stage's artifact at planning stages.
+- **`<target-artifact>`** *(optional)* — `intake`, `spec`, or `tasks`. **Required** at post-planning stages. Defaults to current stage's artifact at planning stages.
 
-Disambiguation: matches `brief`/`spec`/`tasks` → target artifact; anything else → change name. Both can be provided.
+Disambiguation: matches `intake`/`spec`/`tasks` → target artifact; anything else → change name. Both can be provided.
 
 ---
 
@@ -33,8 +33,8 @@ Disambiguation: matches `brief`/`spec`/`tasks` → target artifact; anything els
 
 Run preflight per `_context.md` §2. Log invocation: `lib/stageman.sh log-command <change_dir> "fab-clarify" "<target-artifact-if-any>"`.
 
-- **Planning stages** (`brief`, `spec`, `tasks`) — defaults to current stage's artifact; `<target-artifact>` overrides.
-- **Post-planning** (`apply`, `review`, `hydrate`) — requires `<target-artifact>`. If missing, prompt: "Which planning artifact to clarify? (1) spec, (2) tasks, (3) brief"
+- **Planning stages** (`intake`, `spec`, `tasks`) — defaults to current stage's artifact; `<target-artifact>` overrides.
+- **Post-planning** (`apply`, `review`, `hydrate`) — requires `<target-artifact>`. If missing, prompt: "Which planning artifact to clarify? (1) spec, (2) tasks, (3) intake"
 
 ---
 
@@ -42,13 +42,13 @@ Run preflight per `_context.md` §2. Log invocation: `lib/stageman.sh log-comman
 
 ### Step 1: Read Target Artifact
 
-Resolve file (`brief.md`, `spec.md`, or `tasks.md`). If missing: STOP with "No {artifact} found. Run /fab-continue to generate it first."
+Resolve file (`intake.md`, `spec.md`, or `tasks.md`). If missing: STOP with "No {artifact} found. Run /fab-continue to generate it first."
 
 ### Step 2: Taxonomy Scan
 
 Scan for gaps, `[NEEDS CLARIFICATION]`, and `<!-- assumed: ... -->` markers. Categories by target:
 
-- **Brief**: scope boundaries, affected areas, blocking questions, impact, memory coverage
+- **Intake**: scope boundaries, affected areas, blocking questions, impact, memory coverage
 - **Spec**: requirement precision (RFC 2119), scenario coverage (GIVEN/WHEN/THEN), edge cases, deprecated requirements, memory cross-references
 - **Tasks**: completeness vs spec, granularity, dependencies, file paths, `[P]` markers
 
@@ -92,7 +92,7 @@ Next: /fab-clarify or /fab-continue or /fab-ff
 
 ### Step 7: Recompute Confidence
 
-Run `fab/.kit/scripts/lib/calc-score.sh $change_dir` if `spec.md` exists in the change directory. Skip this step if at brief stage (no spec yet). Auto mode does not invoke this script.
+Run `fab/.kit/scripts/lib/calc-score.sh $change_dir` if `spec.md` exists in the change directory. Skip this step if at intake stage (no spec yet). Auto mode does not invoke this script.
 
 ### Step 8: Do NOT Advance Stage
 

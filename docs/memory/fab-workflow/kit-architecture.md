@@ -37,7 +37,7 @@ fab/.kit/
 ├── migrations/             # Version migration instructions (markdown)
 │   └── .gitkeep            # Ships even if empty
 ├── templates/              # Artifact templates
-│   ├── brief.md
+│   ├── intake.md
 │   ├── spec.md
 │   ├── tasks.md
 │   ├── checklist.md
@@ -91,7 +91,7 @@ Change name resolution library. Sourced by `lib/preflight.sh`. Provides `resolve
 
 #### `lib/calc-score.sh`
 
-Internal library script for confidence score computation. Scans the `## Assumptions` table in `spec.md` only (not brief.md — brief assumptions are state transfer, not scored), counts all four SRAD grades (Certain, Confident, Tentative, Unresolved; case-insensitive), extracts dimension scores from the required `Scores` column (`cols[6]`), applies the confidence formula, delegates the `.status.yaml` write to `$STAGEMAN set-confidence` / `$STAGEMAN set-confidence-fuzzy` (CLI subprocess calls), calls `$STAGEMAN log-confidence` to record the score change in `.history.jsonl`, and emits YAML with delta to stdout. Invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). Not called directly by users. Dev folder: `src/lib/calc-score/` (symlink, README, smoke test, comprehensive test suite).
+Internal library script for confidence score computation. Scans the `## Assumptions` table in `spec.md` only (not intake.md — intake assumptions are state transfer, not scored), counts all four SRAD grades (Certain, Confident, Tentative, Unresolved; case-insensitive), extracts dimension scores from the required `Scores` column (`cols[6]`), applies the confidence formula, delegates the `.status.yaml` write to `$STAGEMAN set-confidence` / `$STAGEMAN set-confidence-fuzzy` (CLI subprocess calls), calls `$STAGEMAN log-confidence` to record the score change in `.history.jsonl`, and emits YAML with delta to stdout. Invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). Not called directly by users. Dev folder: `src/lib/calc-score/` (symlink, README, smoke test, comprehensive test suite).
 
 #### `fab-help.sh`
 
@@ -248,6 +248,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Updated directory listing: `brief.md` → `intake.md` in templates. Updated script references from brief to intake |
 | 260215-lqm5-stageman-cli-only | 2026-02-15 | Migrated `stageman.sh` to CLI-only interface: added ~25 read/query subcommands, added `set-confidence-fuzzy` write subcommand, removed dual-mode (`source`/CLI) scaffolding (`BASH_SOURCE` guard, `return \|\| exit` patterns). Migrated `preflight.sh` and `calc-score.sh` from `source stageman.sh` to `$STAGEMAN <subcommand>` subprocess calls. `resolve-change.sh` remains source-only (variable-setting pattern). Test suites (131 tests) converted to CLI invocation pattern as contract tests for future Rust rewrite. |
 | 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Relocated `memory/` and `specs/` from `fab/` to `docs/`; updated `_init_scaffold.sh` to create `docs/memory/` and `docs/specs/`; updated preserved files list; added migration file `0.2.0-to-0.3.0.md` |
 | 260213-k7m2-kit-version-migrations | 2026-02-14 | Added `fab/.kit/migrations/` directory and `fab-update.md` skill to directory listing; updated version tracking to dual-version model; updated `_init_scaffold.sh` description (fab/VERSION creation); updated `fab-upgrade.sh` (drift reminder) and `fab-release.sh` (migration chain validation) descriptions; updated preserved/replaced lists |
@@ -265,7 +266,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 | 260213-v8r3-remove-dead-fab-help-agent | 2026-02-13 | Removed `.claude/agents/fab-help.md` from agent files listing — agent was never spawned; skill + script pair covers all usage |
 | 260212-4tw0-migrate-scripts-stageman | 2026-02-12 | Migrated fab-status.sh and _preflight.sh to source stageman.sh; added stageman.sh, _preflight.sh, and schemas/ to directory listing |
 | 260212-ipoe-checklist-folder-location | 2026-02-12 | Template listing already shows `checklist.md` — no structural change needed; changelog entry for traceability |
-| 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated directory listing: brief.md replaces proposal.md, plan.md removed, docs/specs/ replaces docs/specs/ |
+| 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated directory listing: intake.md replaces proposal.md, plan.md removed, docs/specs/ replaces docs/specs/ |
 | 260210-h7r3-kit-distribution-update | 2026-02-10 | Added `fab-upgrade.sh` and `fab-release.sh` script descriptions, bootstrap one-liner (Option A), atomic update mechanism, version-based update flow |
 | 260210-m3k7-multi-agent-support | 2026-02-10 | Added OpenCode commands and Codex skills symlink creation to `_init_scaffold.sh`; documented all three agent integration paths |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |

@@ -48,9 +48,9 @@ states:
 #   - auto_checklist: Generate checklist.md when this stage completes
 #   - commands: Primary commands that operate on this stage
 stages:
-  - id: brief
-    name: "Brief"
-    generates: brief.md
+  - id: intake
+    name: "Intake"
+    generates: intake.md
     description: "High-level intent, context, and impact analysis"
     requires: []
     required: true
@@ -62,7 +62,7 @@ stages:
     name: "Specification"
     generates: spec.md
     description: "Detailed requirements, scenarios, and acceptance criteria"
-    requires: [brief]
+    requires: [intake]
     required: true
     initial_state: pending
     allowed_states: [pending, active, done]
@@ -163,7 +163,7 @@ progression:
 # stage_numbers — Display numbering for status output.
 # Maps stage ID to its position in the workflow (1-indexed).
 stage_numbers:
-  brief: 1
+  intake: 1
   spec: 2
   tasks: 3
   apply: 4

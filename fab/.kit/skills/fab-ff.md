@@ -24,14 +24,14 @@ Fast-forward through the entire Fab pipeline: planning (spec, tasks) â†’ apply â
 ## Pre-flight
 
 1. Run preflight per `_context.md` Section 2. Pass `<change-name>` if provided.
-2. Verify `brief.md` exists. If not, STOP: `Brief not found. Run /fab-new to create the brief first, then run /fab-ff.`
+2. Verify `intake.md` exists. If not, STOP: `Intake not found. Run /fab-new to create the intake first, then run /fab-ff.`
 3. Log invocation: `lib/stageman.sh log-command <change_dir> "fab-ff"`
 
 ---
 
 ## Context Loading
 
-Load per `_context.md` Sections 1-3 (config, constitution, brief, memory index, affected memory files, all completed artifacts).
+Load per `_context.md` Sections 1-3 (config, constitution, intake, memory index, affected memory files, all completed artifacts).
 
 ---
 
@@ -43,7 +43,7 @@ Check `progress` from preflight. Skip stages already `done`. If `hydrate: done`,
 
 ### Step 1: Frontload All Questions
 
-Apply SRAD across the brief for all planning stages. Collect **Unresolved** decisions into a single batch. All four grades (Certain, Confident, Tentative, Unresolved) are tracked in the cumulative Assumptions summary.
+Apply SRAD across the intake for all planning stages. Collect **Unresolved** decisions into a single batch. All four grades (Certain, Confident, Tentative, Unresolved) are tracked in the cumulative Assumptions summary.
 
 - **Unresolved exist**: Present as numbered list, wait for answers, then proceed.
 - **None**: Skip to Step 2.

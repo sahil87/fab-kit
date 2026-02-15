@@ -28,10 +28,10 @@ Every skill that generates or validates artifacts MUST load relevant context bef
 
 **Change context** (loaded by skills operating on an active change):
 - `.status.yaml` — current stage, progress
-- All completed artifacts in the active change folder (e.g., `brief.md`, `spec.md`)
+- All completed artifacts in the active change folder (e.g., `intake.md`, `spec.md`)
 
 **Memory file lookup** (loaded by skills operating on an active change):
-- Read the brief's "Affected Memory" section to identify relevant domains
+- Read the intake's "Affected Memory" section to identify relevant domains
 - Read domain indexes (`docs/memory/{domain}/index.md`) for each relevant domain
 - Read the specific memory file(s) referenced by the Affected Memory entries
 - If a referenced file doesn't exist yet (listed under New Files), note this and proceed — it will be created by `/fab-continue` (hydrate)
@@ -57,7 +57,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 |-------|---------------|-----------|
 | `/fab-init` | initialized | `Next: /fab-new <description> or /docs-hydrate-memory <sources>` |
 | `/docs-hydrate-memory` | memory hydrated | `Next: /fab-new <description> or /docs-hydrate-memory <more-sources>` |
-| `/fab-new` | brief done | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
+| `/fab-new` | intake done | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
 | `/fab-continue` → spec | spec done | `Next: /fab-continue (tasks) or /fab-ff (fast-forward) or /fab-clarify (refine spec)` |
 | `/fab-continue` → tasks | tasks done | `Next: /fab-continue (apply)` |
 | `/fab-ff` | tasks done | `Next: /fab-continue (apply)` |
@@ -177,7 +177,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 **Creates**:
 - Change folder named `{YYMMDD}-{XXXX}-{slug}`
 - `.status.yaml` manifest
-- `brief.md` from template (with clarifying questions if ambiguous)
+- `intake.md` from template (with clarifying questions if ambiguous)
 
 **Arguments**:
 - `<description>` — natural language description of the change, Linear ticket ID (e.g., `DEV-988`), or backlog ID (e.g., `90g5`) (required)
@@ -196,11 +196,11 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 **Behavior**:
 1. Generate folder name: today's date (`YYMMDD`) + 4 random alphanumeric chars + 2-6 word slug from description
 2. Create `fab/changes/{name}/`
-3. Initialize `.status.yaml` with `progress.brief: active`
-4. Generate `brief.md` using template (loading `fab/constitution.md` and `fab/config.yaml` as context)
+3. Initialize `.status.yaml` with `progress.intake: active`
+4. Generate `intake.md` using template (loading `fab/constitution.md` and `fab/config.yaml` as context)
 5. Perform gap analysis — check whether the change is already covered by existing mechanisms
 6. Use SRAD-driven adaptive questioning (no fixed cap) to resolve ambiguities conversationally
-7. Leave brief as `active` — `/fab-continue` handles the brief → spec transition
+7. Leave intake as `active` — `/fab-continue` handles the intake → spec transition
 8. **Switch** (if `--switch` flag or switching intent detected): call `/fab-switch` to write `fab/current` and handle branch integration. Default: skip this step.
 
 ---
@@ -213,13 +213,13 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 - `<stage>` *(optional)* — target stage to reset to (`spec` or `tasks`). Used after `/fab-continue` (review) identifies issues upstream. When provided, resets `.status.yaml` to this stage and regenerates artifacts from that point forward.
 
 **Context** (varies by target stage):
-- **Spec stage**: config, constitution, `brief.md`, target memory file(s) from `docs/memory/`
+- **Spec stage**: config, constitution, `intake.md`, target memory file(s) from `docs/memory/`
 - **Tasks stage**: above + completed `spec.md`
 
 **Examples**:
 ```
 /fab-continue
-→ "Stage: brief (done). Next: Create spec.md."
+→ "Stage: intake (done). Next: Create spec.md."
 
 /fab-continue spec
 → "Resetting to spec stage. Regenerating spec.md..."
@@ -235,7 +235,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 7. Update `.status.yaml`
 
 **Behavior** (with stage argument — reset and regenerate):
-1. **Guard**: target stage must be `spec` or `tasks`. Cannot reset to `brief` (use `/fab-new`) or `apply`/`review`/`hydrate`.
+1. **Guard**: target stage must be `spec` or `tasks`. Cannot reset to `intake` (use `/fab-new`) or `apply`/`review`/`hydrate`.
 2. Reset `.status.yaml` stage to the target. Mark all stages from target onward as `pending`.
 3. Regenerate the target stage's artifact in place (update, not recreate from scratch — preserve what's still valid).
 4. Downstream artifacts are invalidated: tasks are reset to `- [ ]`, checklist is regenerated.
@@ -245,9 +245,9 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 ## `/fab-ff` (Fast Forward)
 
-**Purpose**: Fast-forward through remaining planning stages in one pass. Requires an active change with a completed brief (run `/fab-new` first).
+**Purpose**: Fast-forward through remaining planning stages in one pass. Requires an active change with a completed intake (run `/fab-new` first).
 
-**Context**: config, constitution, `brief.md`, target memory file(s) from `docs/memory/` (all loaded upfront since ff traverses all planning stages)
+**Context**: config, constitution, `intake.md`, target memory file(s) from `docs/memory/` (all loaded upfront since ff traverses all planning stages)
 
 **Flow**: spec → tasks (+ checklist)
 
@@ -263,10 +263,10 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 ```
 
 **Behavior**:
-1. Read `fab/current` to resolve the active change; verify brief is complete
-2. **Frontload questions** — scan the brief for ambiguities across *all* planning stages (spec, tasks). Collect everything that needs user input into a single batch of questions. Ask once, then proceed without further interruption. The goal: one Q&A round, then heads-down generation.
+1. Read `fab/current` to resolve the active change; verify intake is complete
+2. **Frontload questions** — scan the intake for ambiguities across *all* planning stages (spec, tasks). Collect everything that needs user input into a single batch of questions. Ask once, then proceed without further interruption. The goal: one Q&A round, then heads-down generation.
 3. Generate `spec.md` (incorporating answers from step 2)
-4. Produce task breakdown (referencing spec and brief)
+4. Produce task breakdown (referencing spec and intake)
 5. Auto-generate quality checklist
 6. Update status to `tasks: done`
 
@@ -276,9 +276,9 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **Purpose**: Run the entire Fab pipeline from planning through archive in a single invocation, gated on confidence score >= 3.0. Unlike `/fab-ff` (which stops for interactive clarification), `/fab-fff` never stops — it bails immediately on review failure and auto-clarifies without user input.
 
-**Prerequisite**: Active change with completed `brief.md` and `confidence.score >= 3.0`.
+**Prerequisite**: Active change with completed `intake.md` and `confidence.score >= 3.0`.
 
-**Context**: Same as `/fab-ff` — all context loaded upfront (config, constitution, brief, memory index, affected memory files).
+**Context**: Same as `/fab-ff` — all context loaded upfront (config, constitution, intake, memory index, affected memory files).
 
 **Example**:
 ```
@@ -315,7 +315,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 **Purpose**: Deepen and refine the current stage artifact without advancing to the next stage.
 
 **Context** (varies by current stage):
-- **Spec**: config, constitution, `brief.md`, target memory file(s) from `docs/memory/`
+- **Spec**: config, constitution, `intake.md`, target memory file(s) from `docs/memory/`
 - **Tasks**: above + `spec.md`, `tasks.md`
 
 **Example**:
@@ -330,7 +330,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 - Current artifact has unresolved ambiguities or [NEEDS CLARIFICATION] markers
 - You want deeper technical research before moving to tasks
 - Task breakdown feels incomplete or wrong-grained
-- Brief scope needs sharpening before moving to spec
+- Intake scope needs sharpening before moving to spec
 
 **Behavior**:
 1. Read `.status.yaml` to determine current stage
@@ -412,7 +412,7 @@ The `.status.yaml` stage is reset to the chosen re-entry point. The general rule
 
 **Purpose**: Validate review passed and hydrate change artifacts into memory files. The change folder remains in `fab/changes/` after hydrate — archiving is a separate step via `/fab-archive`.
 
-**Context**: `spec.md`, `brief.md`, target memory file(s) from `docs/memory/`, `docs/memory/index.md` and relevant domain indexes
+**Context**: `spec.md`, `intake.md`, target memory file(s) from `docs/memory/`, `docs/memory/index.md` and relevant domain indexes
 
 **Example**:
 ```
@@ -489,10 +489,10 @@ The `.status.yaml` stage is reset to the chosen re-entry point. The general rule
 ```
 Change: 260115-a7k2-add-oauth
 Branch: 260115-a7k2-add-oauth
-Stage:  brief (1/6)
+Stage:  intake (1/6)
 
 Progress:
-  ◉ brief       active
+  ◉ intake      active
   ○ spec        pending
   ○ tasks       pending
   ○ apply       pending
@@ -501,7 +501,7 @@ Progress:
 
 Checklist: not yet generated (created at tasks stage)
 
-Next: Complete brief.md, then /fab-continue
+Next: Complete intake.md, then /fab-continue
 ```
 
 ---
