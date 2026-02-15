@@ -94,19 +94,19 @@ Scripts in `fab/.kit/scripts/` follow a prefix convention to distinguish entry p
 |--------|------|------------|---------|
 | `fab-` | User-facing entry point | Users via terminal | `fab-help.sh`, `fab-upgrade.sh` |
 | `_` | Internal — sourced libraries or plumbing scripts | Skills, other scripts | `_stageman.sh`, `_preflight.sh`, `_init_scaffold.sh` |
-| `batch-` | Batch orchestration | Users via terminal | `batch-new-backlog.sh` |
+| `batch-fab-` | Batch orchestration | Users via terminal | `batch-fab-new-backlog.sh` |
 
 **Why?** When `.kit/` is distributed via `cp -r`, the `_` prefix makes it immediately clear which scripts are internal plumbing vs. which are user-facing entry points. This matters for discoverability and prevents users from invoking internal scripts directly.
 
 ### Batch Scripts
 
-Batch scripts follow the `batch-{verb}-{entity}.sh` naming pattern. Each creates tmux tabs with Claude Code sessions running a specific skill, one per target entity.
+Batch scripts follow the `batch-fab-{verb}-{entity}.sh` naming pattern. Each creates tmux tabs with Claude Code sessions running a specific skill, one per target entity.
 
 | Script | Purpose | Creates per entity |
 |--------|---------|--------------------|
-| `batch-new-backlog.sh` | Create changes from backlog items | Worktree + tmux tab running `/fab-new <description>` |
-| `batch-switch-change.sh` | Switch to existing changes | Worktree + tmux tab running `/fab-switch <change> --no-branch-change` |
-| `batch-archive-change.sh` | Archive completed changes (`hydrate:done`) | Worktree + tmux tab running `/fab-archive <change>` |
+| `batch-fab-new-backlog.sh` | Create changes from backlog items | Worktree + tmux tab running `/fab-new <description>` |
+| `batch-fab-switch-change.sh` | Switch to existing changes | Worktree + tmux tab running `/fab-switch <change> --no-branch-change` |
+| `batch-fab-archive-change.sh` | Archive completed changes (`hydrate:done`) | Worktree + tmux tab running `/fab-archive <change>` |
 
 All three support `--list` (show targets), `--all` (process all), and direct ID/name arguments with substring matching.
 

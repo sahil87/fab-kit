@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# batch-switch-change.sh — Per change ID/name: open a tmux tab in its worktree
+# batch-fab-switch-change.sh — Per change ID/name: open a tmux tab in its worktree
 # and start a Claude Code session that runs /fab-switch <change>.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,7 +14,7 @@ source "${SCRIPT_DIR}/lib/resolve-change.sh"
 
 usage() {
   cat <<'EOF'
-Usage: batch-switch-change <change> [<change>...]
+Usage: batch-fab-switch-change <change> [<change>...]
 
 Per change ID or name: opens a new tmux tab in its worktree and starts a
 Claude Code session that runs /fab-switch <change>.
@@ -24,9 +24,9 @@ Options:
   --all     Open tabs for all changes
 
 Examples:
-  batch-switch-change r7k3
-  batch-switch-change r7k3 ab12
-  batch-switch-change --all
+  batch-fab-switch-change r7k3
+  batch-fab-switch-change r7k3 ab12
+  batch-fab-switch-change --all
 EOF
 }
 
@@ -82,8 +82,7 @@ if [[ -z "${TMUX:-}" ]]; then
 fi
 
 if [[ $# -eq 0 ]]; then
-  usage
-  exit 1
+  set -- --list
 fi
 
 # ---------------------------------------------------------------------------

@@ -50,9 +50,9 @@ fab/.kit/
 ├── schemas/                # Workflow schema
 │   └── workflow.yaml       # Canonical stage/state definitions
 └── scripts/                # Shell utilities
-    ├── batch-archive-change.sh  # Batch archive completed changes via tmux + Claude
-    ├── batch-new-backlog.sh     # Batch create changes from backlog via tmux + Claude
-    ├── batch-switch-change.sh   # Batch switch to changes via tmux + Claude
+    ├── batch-fab-archive-change.sh  # Batch archive completed changes via tmux + Claude
+    ├── batch-fab-new-backlog.sh     # Batch create changes from backlog via tmux + Claude
+    ├── batch-fab-switch-change.sh   # Batch switch to changes via tmux + Claude
     ├── fab-help.sh         # Print help overview
     ├── fab-upgrade.sh      # Update .kit/ from GitHub Releases
     ├── fab-update-claude-settings.sh
@@ -111,11 +111,11 @@ Copies `settings.local.json` to the worktree-init assets directory for worktree 
 
 #### Batch Scripts
 
-Batch scripts follow the `batch-{verb}-{entity}.sh` naming pattern. Each creates tmux tabs with Claude Code sessions running a specific skill, one per target entity.
+Batch scripts follow the `batch-fab-{verb}-{entity}.sh` naming pattern. Each creates tmux tabs with Claude Code sessions running a specific skill, one per target entity.
 
-- **`batch-new-backlog.sh`** — Per backlog ID: creates a worktree, opens a tmux tab, runs `/fab-new <description>`. Supports `--list` (show pending), `--all` (all pending), and direct ID arguments.
-- **`batch-switch-change.sh`** — Per change name/ID: creates a worktree with the expected branch, opens a tmux tab, runs `/fab-switch <change> --no-branch-change`. Supports `--list`, `--all`, substring matching.
-- **`batch-archive-change.sh`** — Per completed change (`hydrate:done`): creates a worktree, opens a tmux tab, runs `/fab-archive <change>`. Filters by reading `.status.yaml` for `hydrate: done`. Supports `--list`, `--all`, substring matching.
+- **`batch-fab-new-backlog.sh`** — Per backlog ID: creates a worktree, opens a tmux tab, runs `/fab-new <description>`. Supports `--list` (show pending), `--all` (all pending), and direct ID arguments.
+- **`batch-fab-switch-change.sh`** — Per change name/ID: creates a worktree with the expected branch, opens a tmux tab, runs `/fab-switch <change> --no-branch-change`. Supports `--list`, `--all`, substring matching.
+- **`batch-fab-archive-change.sh`** — Per completed change (`hydrate:done`): creates a worktree, opens a tmux tab, runs `/fab-archive <change>`. Filters by reading `.status.yaml` for `hydrate: done`. Supports `--list`, `--all`, substring matching.
 
 ### Agent Integration via Symlinks
 
@@ -248,6 +248,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260215-g4r2-DEV-1023-batch-rename-default-list | 2026-02-15 | Renamed batch scripts from `batch-{verb}-{entity}.sh` to `batch-fab-{verb}-{entity}.sh`; changed no-arg behavior from showing help to showing `--list` output; updated directory tree, naming pattern, and script descriptions |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Updated directory listing: `brief.md` → `intake.md` in templates. Updated script references from brief to intake |
 | 260215-lqm5-stageman-cli-only | 2026-02-15 | Migrated `stageman.sh` to CLI-only interface: added ~25 read/query subcommands, added `set-confidence-fuzzy` write subcommand, removed dual-mode (`source`/CLI) scaffolding (`BASH_SOURCE` guard, `return \|\| exit` patterns). Migrated `preflight.sh` and `calc-score.sh` from `source stageman.sh` to `$STAGEMAN <subcommand>` subprocess calls. `resolve-change.sh` remains source-only (variable-setting pattern). Test suites (131 tests) converted to CLI invocation pattern as contract tests for future Rust rewrite. |
 | 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Relocated `memory/` and `specs/` from `fab/` to `docs/`; updated `_init_scaffold.sh` to create `docs/memory/` and `docs/specs/`; updated preserved files list; added migration file `0.2.0-to-0.3.0.md` |

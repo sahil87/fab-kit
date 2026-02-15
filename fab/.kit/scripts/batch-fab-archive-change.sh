@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# batch-archive-change.sh — Run /fab-archive on multiple completed changes
+# batch-fab-archive-change.sh — Run /fab-archive on multiple completed changes
 # sequentially in a single Claude Code session.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -13,7 +13,7 @@ source "${SCRIPT_DIR}/lib/resolve-change.sh"
 
 usage() {
   cat <<'EOF'
-Usage: batch-archive-change <change> [<change>...]
+Usage: batch-fab-archive-change <change> [<change>...]
 
 Archives multiple completed changes (hydrate:done) by running
 /fab-archive for each one sequentially.
@@ -23,9 +23,9 @@ Options:
   --all     Archive all archivable changes
 
 Examples:
-  batch-archive-change v3rn
-  batch-archive-change v3rn ab12
-  batch-archive-change --all
+  batch-fab-archive-change v3rn
+  batch-fab-archive-change v3rn ab12
+  batch-fab-archive-change --all
 EOF
 }
 
@@ -80,8 +80,7 @@ if [[ ! -d "$CHANGES_DIR" ]]; then
 fi
 
 if [[ $# -eq 0 ]]; then
-  usage
-  exit 1
+  set -- --list
 fi
 
 # ---------------------------------------------------------------------------
