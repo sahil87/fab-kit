@@ -1,5 +1,7 @@
 # Archive Index
 
+- **260215-lqm5-stageman-cli-only** — Migrated stageman.sh to CLI-only interface, adding ~24 CLI subcommands for all read/query functions, migrating preflight.sh and calc-score.sh from source-pattern to subprocess invocations, and removing dual-mode scaffolding to prepare for an eventual Rust rewrite.
+- **260215-w3n8-naming-linear-id-drop-conventions** — Added optional Linear issue ID to change naming convention (`{YYMMDD}-{XXXX}-[{ISSUE}-]{slug}`) and removed unused `conventions` config section from `config.yaml` and memory docs.
 - **260214-m3w7-formalize-assumptions-scoring** — Formalized SRAD assumptions tables to include all four grades (Certain, Confident, Tentative, Unresolved) with required Scores column, fixed calc-score.sh to read only spec.md (eliminating double-counting), corrected AWK column index bug, and added formalized table structure to brief and spec templates.
 - **260214-r7k3-stageman-yq-metrics** — Migrated stageman from awk-based YAML parsing to yq, added per-stage operational metrics (timing, driver, iterations) to .status.yaml, and introduced .history.jsonl append-only event logging for command invocations, confidence changes, and review outcomes.
 - **260212-f9m3-enhance-srad-fuzzy** — Enhanced SRAD confidence scoring with fuzzy 0-100 dimension evaluation instead of binary high/low, validated penalty weights via sensitivity analysis, and introduced dynamic thresholds based on change type categorization.
