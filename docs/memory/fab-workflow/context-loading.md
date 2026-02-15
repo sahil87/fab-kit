@@ -52,10 +52,10 @@ The shared context preamble (`_context.md`) includes the SRAD autonomy framework
 - **Confidence grades** — Certain, Confident, Tentative, Unresolved with corresponding artifact markers
 - **Worked examples** — demonstrating how numeric dimension scores interact to produce grades
 - **Artifact markers** — `<!-- assumed: ... -->` for Tentative, `<!-- clarified: ... -->` for resolved assumptions
-- **Assumptions Summary Block** — standard format with optional `Scores` column for per-dimension data
+- **Assumptions Summary Block** — standard format with required `Scores` column for per-dimension data; all four grades (Certain, Confident, Tentative, Unresolved) recorded
 - **Dynamic gate thresholds** — `/fab-fff` threshold varies by change type (bugfix=2.0, feature/refactor=3.0, architecture=4.0)
 
-When fuzzy scoring is active, `calc-score.sh` parses per-dimension scores from the optional `Scores` column in Assumptions tables and writes aggregate dimension statistics (`fuzzy: true`, `dimensions:` block) to `.status.yaml`.
+`calc-score.sh` parses per-dimension scores from the required `Scores` column in the spec's Assumptions table and writes aggregate dimension statistics (`fuzzy: true`, `dimensions:` block) to `.status.yaml`.
 
 This protocol is loaded as part of the "Always Load" layer via `_context.md` and does not require separate file loading.
 

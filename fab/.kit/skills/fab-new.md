@@ -64,7 +64,7 @@ Load context per `_context.md` Layer 1. Generate from `fab/.kit/templates/brief.
 5. **Affected Memory**: Which `docs/memory/` files will be new/modified/removed
 6. **Impact**: Affected code areas, APIs, dependencies
 7. **Open Questions**: From Step 6
-8. Append `## Assumptions` section (see `_context.md`)
+8. Append `## Assumptions` section per `_context.md` — include all four SRAD grades (Certain, Confident, Tentative, Unresolved) with required Scores column (`S:nn R:nn A:nn D:nn`) for every row. Unresolved rows must include status context in Rationale (`Asked — {outcome}` or `Deferred — {reason}`). The brief is the sole context for downstream stages — every section must be substantive, not placeholder text
 
 ### Step 6: SRAD-Based Question Selection
 

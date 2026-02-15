@@ -3,21 +3,34 @@ created: 2026-02-14T00:00:00+05:30
 created_by: sahil-weaver
 change_type: refactor
 progress:
-  brief: active
-  spec: pending
-  tasks: pending
-  apply: pending
-  review: pending
-  hydrate: pending
+  brief: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
 checklist:
-  generated: false
+  generated: true
   path: checklist.md
-  completed: 0
-  total: 0
+  completed: 30
+  total: 30
 confidence:
-  certain: 0
-  confident: 0
+  certain: 10
+  confident: 1
   tentative: 0
   unresolved: 0
-  score: 0.0
-last_updated: 2026-02-14T00:00:00+05:30
+  score: 4.7
+  fuzzy: true
+  dimensions:
+    signal: 89.1
+    reversibility: 82.7
+    competence: 89.1
+    disambiguation: 85.9
+last_updated: "2026-02-14T20:39:35+05:30"
+stage_metrics:
+  brief: {completed_at: "2026-02-14T20:28:19+05:30"}
+  spec: {started_at: "2026-02-14T20:28:19+05:30", driver: fab-continue, iterations: 1, completed_at: "2026-02-14T20:31:56+05:30"}
+  tasks: {completed_at: "2026-02-14T20:33:11+05:30"}
+  apply: {started_at: "2026-02-14T20:33:21+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-14T20:36:38+05:30"}
+  review: {started_at: "2026-02-14T20:36:38+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-14T20:39:11+05:30"}
+  hydrate: {started_at: "2026-02-14T20:39:11+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-14T20:39:35+05:30"}

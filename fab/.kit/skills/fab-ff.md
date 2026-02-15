@@ -43,7 +43,7 @@ Check `progress` from preflight. Skip stages already `done`. If `hydrate: done`,
 
 ### Step 1: Frontload All Questions
 
-Apply SRAD across the brief for all planning stages. Collect **Unresolved** decisions into a single batch. Confident/Tentative decisions are assumed (tracked in cumulative Assumptions summary).
+Apply SRAD across the brief for all planning stages. Collect **Unresolved** decisions into a single batch. All four grades (Certain, Confident, Tentative, Unresolved) are tracked in the cumulative Assumptions summary.
 
 - **Unresolved exist**: Present as numbered list, wait for answers, then proceed.
 - **None**: Skip to Step 2.

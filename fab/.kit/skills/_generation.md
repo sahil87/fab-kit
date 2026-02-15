@@ -24,7 +24,7 @@
 4. Include a **Deprecated Requirements** section if the change removes existing requirements
 5. Mark any unresolved ambiguities with `[NEEDS CLARIFICATION]` inline
 5b. **Design Decisions** (optional): If the change involves architectural choices, technology selection, or non-obvious approaches, include a `## Design Decisions` section after the domain requirement sections. Each decision entry SHALL include: decision summary, rationale (why this choice), and rejected alternatives. Omit this section for straightforward changes.
-6. Append an `## Assumptions` section listing all Confident and Tentative assumptions (see Assumptions Summary Block in `_context.md`)
+6. Append an `## Assumptions` section. Read `brief.md`'s `## Assumptions` table as the starting point — confirm, upgrade, or override each brief assumption based on spec-level analysis (note the action in Rationale, e.g., "Confirmed from brief #1", "Upgraded from brief Tentative"). Add new assumptions discovered during spec generation. Include all four SRAD grades (Certain, Confident, Tentative, Unresolved) with required Scores column. The spec's Assumptions table is the sole scoring source for `calc-score.sh` (see Assumptions Summary Block in `_context.md`)
 7. Write the completed spec to `fab/changes/{name}/spec.md`
 
 ---

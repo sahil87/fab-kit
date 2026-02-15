@@ -90,7 +90,7 @@ Change name resolution library. Sourced by `lib/preflight.sh`. Provides `resolve
 
 #### `lib/calc-score.sh`
 
-Internal library script for confidence score computation. Scans `## Assumptions` tables in `brief.md` and `spec.md`, counts SRAD grades (case-insensitive), preserves implicit Certain counts via carry-forward from `.status.yaml` (read via `get_confidence` accessor), applies the confidence formula, delegates the `.status.yaml` write to `set_confidence_block` from `lib/stageman.sh` (sources it at startup), calls `log_confidence` to record the score change in `.history.jsonl`, and emits YAML with delta to stdout. Invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). Not called directly by users. Dev folder: `src/lib/calc-score/` (symlink, README, smoke test, comprehensive test suite).
+Internal library script for confidence score computation. Scans the `## Assumptions` table in `spec.md` only (not brief.md — brief assumptions are state transfer, not scored), counts all four SRAD grades (Certain, Confident, Tentative, Unresolved; case-insensitive), extracts dimension scores from the required `Scores` column (`cols[6]`), applies the confidence formula, delegates the `.status.yaml` write to `set_confidence_block` from `lib/stageman.sh` (sources it at startup), calls `log_confidence` to record the score change in `.history.jsonl`, and emits YAML with delta to stdout. Invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). Not called directly by users. Dev folder: `src/lib/calc-score/` (symlink, README, smoke test, comprehensive test suite).
 
 #### `fab-help.sh`
 

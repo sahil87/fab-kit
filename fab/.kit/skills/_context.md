@@ -128,7 +128,7 @@ For each decision point, evaluate four dimensions on a **continuous 0–100 scal
 
 **Aggregation**: Compute a composite score via weighted mean: `composite = 0.25*S + 0.30*R + 0.25*A + 0.20*D`. Map to grade using thresholds: Certain (85–100), Confident (60–84), Tentative (30–59), Unresolved (0–29). Critical Rule override: R < 25 AND A < 25 → always Unresolved.
 
-When using fuzzy scoring, record per-dimension scores in the Assumptions table's optional `Scores` column (e.g., `S:75 R:80 A:65 D:70`). `calc-score.sh` parses these and writes aggregate dimension statistics to `.status.yaml`.
+Record per-dimension scores in the Assumptions table's required `Scores` column (e.g., `S:75 R:80 A:65 D:70`). The Scores column is mandatory for every row. `calc-score.sh` parses these and writes aggregate dimension statistics to `.status.yaml`.
 
 ### Confidence Grades
 
@@ -136,10 +136,10 @@ Each decision produces an assumption graded on a 4-level scale:
 
 | Grade | Meaning | Artifact Marker | Output Visibility |
 |-------|---------|----------------|-------------------|
-| **Certain** | Determined by config/constitution/template rules | None | None — not worth mentioning |
+| **Certain** | Determined by config/constitution/template rules | None | Noted in Assumptions summary |
 | **Confident** | Strong signal, one obvious interpretation | None | Noted in Assumptions summary |
 | **Tentative** | Reasonable guess, multiple valid options | `<!-- assumed: {description} -->` | Noted in Assumptions summary, `/fab-clarify` suggested |
-| **Unresolved** | Cannot determine, incompatible interpretations | None — always asked or bailed | Asked as question (fab-new/continue), batched upfront (fab-ff/fab-fff) |
+| **Unresolved** | Cannot determine, incompatible interpretations | None — always asked or bailed | Asked as question AND noted in Assumptions summary |
 
 ### Critical Rule
 
@@ -197,25 +197,28 @@ The API SHALL return errors as JSON objects with `error`, `message`, and `code` 
 
 ### Assumptions Summary Block
 
-Every planning skill invocation that makes Confident or Tentative assumptions SHALL end its output with an Assumptions summary and persist it as a trailing `## Assumptions` section in the generated artifact.
+Every planning skill invocation SHALL end its output with an Assumptions summary and persist it as a trailing `## Assumptions` section in the generated artifact.
 
 **Output format** (displayed to user):
 
 ```
 ## Assumptions
 
-| # | Grade | Decision | Rationale |
-|---|-------|----------|-----------|
-| 1 | Confident | {decision summary} | {why this grade} |
-| 2 | Tentative | {decision summary} | {why this grade} |
+| # | Grade | Decision | Rationale | Scores |
+|---|-------|----------|-----------|--------|
+| 1 | Certain | {decision summary} | {why this grade} | S:nn R:nn A:nn D:nn |
+| 2 | Confident | {decision summary} | {why this grade} | S:nn R:nn A:nn D:nn |
+| 3 | Tentative | {decision summary} | {why this grade} | S:nn R:nn A:nn D:nn |
+| 4 | Unresolved | {decision summary} | {status context} | S:nn R:nn A:nn D:nn |
 
-{N} assumptions made ({C} confident, {T} tentative). Run /fab-clarify to review.
+{N} assumptions ({Ce} certain, {Co} confident, {T} tentative, {U} unresolved). Run /fab-clarify to review.
 ```
 
 **Artifact format** (persisted in the generated file): The same table is appended as the last section (`## Assumptions`) of the generated artifact. This ensures `/fab-clarify` can discover and scan assumptions from the artifact file.
 
 **Rules**:
-- Only include Confident and Tentative grades in the summary. Certain grades are omitted (not worth mentioning). Unresolved grades are asked as questions (not assumed).
+- Include all four grades (Certain, Confident, Tentative, Unresolved) in the summary. The Scores column (`S:nn R:nn A:nn D:nn`) is required for every row.
+- Unresolved rows MUST include status context in the Rationale column: `Asked — {outcome}` or `Deferred — {reason}`.
 - For `/fab-ff`, the output summary is **cumulative** across all generated stages. Each entry notes its source artifact (e.g., "in spec.md"). Per-artifact `## Assumptions` sections are persisted individually.
 - If 0 assumptions were made, omit the Assumptions summary entirely (no empty table).
 

@@ -1,0 +1,5 @@
+{"ts":"2026-02-14T20:25:29+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-14T20:28:09+05:30","event":"confidence","score":3.8,"delta":"+3.8","trigger":"calc-score"}
+{"ts":"2026-02-14T20:31:41+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-14T20:35:22+05:30","event":"confidence","score":4.7,"delta":"+0.9","trigger":"calc-score"}
+{"ts":"2026-02-14T20:39:13+05:30","event":"review","result":"passed"}

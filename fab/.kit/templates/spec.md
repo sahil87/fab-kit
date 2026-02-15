@@ -61,3 +61,23 @@
 - **WHEN** {action}
 - **THEN** {outcome}
 
+## Assumptions
+
+<!-- SCORING SOURCE: calc-score.sh reads only this table — brief.md assumptions are
+     state transfer, not scored. This is the authoritative decision record for confidence
+     scoring.
+
+     The spec-stage agent reads brief.md's Assumptions as a starting point, then
+     confirms, upgrades, or overrides each assumption based on spec-level analysis.
+     New assumptions discovered during spec generation are added here.
+
+     All four SRAD grades (Certain, Confident, Tentative, Unresolved) are recorded.
+     Scores column is required for every row.
+     Unresolved rows must include status context in Rationale (e.g., "Asked — user undecided"). -->
+
+| # | Grade | Decision | Rationale | Scores |
+|---|-------|----------|-----------|--------|
+| 1 | {Certain|Confident|Tentative|Unresolved} | {decision summary} | {why this grade} | S:nn R:nn A:nn D:nn |
+
+{N} assumptions ({Ce} certain, {Co} confident, {T} tentative, {U} unresolved).
+

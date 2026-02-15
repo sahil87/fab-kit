@@ -4,7 +4,7 @@ set -euo pipefail
 # shellcheck source=stageman.sh
 source "$(dirname "$(readlink -f "$0")")/stageman.sh"
 
-# calc-score.sh — Compute confidence score from Assumptions tables
+# calc-score.sh — Compute confidence score from spec.md Assumptions table
 #
 # Internal library script invoked by /fab-continue (spec stage) and
 # /fab-clarify (suggest mode). Not called directly by users.
@@ -69,7 +69,6 @@ EOF
 fi
 
 # --- Normal scoring mode ---
-brief_file="$change_dir/brief.md"
 spec_file="$change_dir/spec.md"
 
 if [ ! -f "$spec_file" ]; then
@@ -77,51 +76,47 @@ if [ ! -f "$spec_file" ]; then
   exit 1
 fi
 
-# --- Parse Assumptions tables ---
-# Extract Grade and optional Scores column values from ## Assumptions tables.
-# Detects whether a Scores column exists by checking the header row.
-# Outputs lines in format: "grade" or "grade|S:nn R:nn A:nn D:nn"
+# --- Parse Assumptions table ---
+# Extract Grade and Scores column values from ## Assumptions table in spec.md.
+# Scores column is required (column 6 after split by |).
+# Outputs lines in format: "grade|S:nn R:nn A:nn D:nn"
 parse_assumptions() {
   local file="$1"
   if [ ! -f "$file" ]; then
     return
   fi
   awk '
-    /^## Assumptions/ { in_section = 1; header_seen = 0; has_scores = 0; next }
+    /^## Assumptions/ { in_section = 1; header_seen = 0; next }
     in_section && /^## / { exit }
     in_section && /^\| *#/ {
       header_seen = 1
-      # Check if header contains "Scores" column
-      if ($0 ~ /[Ss]cores/) has_scores = 1
       next
     }
     in_section && /^\|[-| ]+\|/ { next }
     in_section && header_seen && /^\|/ {
       split($0, cols, "|")
-      # Grade is always column 3 (after leading empty and # columns)
+      # Grade is column 3, Scores is column 6
+      # Table: | # | Grade | Decision | Rationale | Scores |
+      # Split: [1]="" [2]="#" [3]="Grade" [4]="Decision" [5]="Rationale" [6]="Scores"
       grade = cols[3]
       gsub(/^[ \t]+|[ \t]+$/, "", grade)
 
-      if (has_scores) {
-        scores = cols[4]
-        gsub(/^[ \t]+|[ \t]+$/, "", scores)
-        print grade "|" scores
-      } else {
-        print grade
-      }
+      scores = cols[6]
+      gsub(/^[ \t]+|[ \t]+$/, "", scores)
+      print grade "|" scores
     }
   ' "$file"
 }
 
-# Collect all parsed lines from brief + spec
+# Collect all parsed lines from spec only
 all_parsed=""
-all_parsed+="$(parse_assumptions "$brief_file")"$'\n'
 all_parsed+="$(parse_assumptions "$spec_file")"
 
 # Count grades and collect dimension scores (case-insensitive)
 table_certain=0
 table_confident=0
 table_tentative=0
+table_unresolved=0
 has_fuzzy=false
 dim_count=0
 sum_s=0
@@ -141,9 +136,10 @@ while IFS= read -r line; do
 
   grade_lower=$(echo "$grade" | tr '[:upper:]' '[:lower:]')
   case "$grade_lower" in
-    certain)   table_certain=$((table_certain + 1)) ;;
-    confident) table_confident=$((table_confident + 1)) ;;
-    tentative) table_tentative=$((table_tentative + 1)) ;;
+    certain)    table_certain=$((table_certain + 1)) ;;
+    confident)  table_confident=$((table_confident + 1)) ;;
+    tentative)  table_tentative=$((table_tentative + 1)) ;;
+    unresolved) table_unresolved=$((table_unresolved + 1)) ;;
   esac
 
   # Parse dimension scores if present (format: S:nn R:nn A:nn D:nn)
@@ -176,33 +172,19 @@ if [ "$dim_count" -gt 0 ]; then
   mean_d=$(awk "BEGIN { printf \"%.1f\", $sum_d / $dim_count }")
 fi
 
-# --- Carry-forward implicit Certain counts ---
-prev_certain=0
+# --- Read previous score for delta computation ---
 prev_score="0.0"
 if [ -f "$status_file" ]; then
   confidence_data=$(get_confidence "$status_file")
-  prev_certain=$(echo "$confidence_data" | grep '^certain:' | cut -d: -f2)
-  prev_certain=${prev_certain:-0}
   prev_score=$(echo "$confidence_data" | grep '^score:' | cut -d: -f2)
   prev_score=${prev_score:-0.0}
 fi
 
-# Implicit = previous total - explicit Certain found in tables
-implicit_certain=$((prev_certain - table_certain))
-if [ "$implicit_certain" -lt 0 ]; then
-  implicit_certain=0
-fi
-total_certain=$((implicit_certain + table_certain))
-
 # --- Apply formula ---
-# Unresolved is always 0 (Unresolved decisions are asked interactively, never in tables)
-unresolved=0
-
-if [ "$unresolved" -gt 0 ]; then
+if [ "$table_unresolved" -gt 0 ]; then
   score="0.0"
 else
   # score = max(0.0, 5.0 - 0.3 * confident - 1.0 * tentative)
-  # Use awk for floating point arithmetic
   score=$(awk "BEGIN {
     s = 5.0 - 0.3 * $table_confident - 1.0 * $table_tentative
     if (s < 0.0) s = 0.0
@@ -220,9 +202,9 @@ delta=$(awk "BEGIN {
 # --- Write to .status.yaml ---
 if [ -f "$status_file" ]; then
   if [ "$has_fuzzy" = true ]; then
-    set_confidence_block_fuzzy "$status_file" "$total_certain" "$table_confident" "$table_tentative" "$unresolved" "$score" "$mean_s" "$mean_r" "$mean_a" "$mean_d"
+    set_confidence_block_fuzzy "$status_file" "$table_certain" "$table_confident" "$table_tentative" "$table_unresolved" "$score" "$mean_s" "$mean_r" "$mean_a" "$mean_d"
   else
-    set_confidence_block "$status_file" "$total_certain" "$table_confident" "$table_tentative" "$unresolved" "$score"
+    set_confidence_block "$status_file" "$table_certain" "$table_confident" "$table_tentative" "$table_unresolved" "$score"
   fi
   log_confidence "$change_dir" "$score" "$delta" "calc-score"
 fi
@@ -230,10 +212,10 @@ fi
 # --- Emit YAML to stdout ---
 cat <<EOF
 confidence:
-  certain: $total_certain
+  certain: $table_certain
   confident: $table_confident
   tentative: $table_tentative
-  unresolved: $unresolved
+  unresolved: $table_unresolved
   score: $score
   delta: $delta
 EOF

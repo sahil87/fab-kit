@@ -38,3 +38,20 @@
      blocking/deferred labels here. Just list the questions. -->
 
 - {question}
+
+## Assumptions
+
+<!-- STATE TRANSFER: This table is the sole continuity mechanism between the brief-stage
+     agent and the spec-stage agent. Pipeline stages may execute in separate agent contexts
+     with no shared memory — this table is what gives downstream agents visibility into
+     what was decided, assumed, or left open. Every row must be substantive.
+
+     All four SRAD grades (Certain, Confident, Tentative, Unresolved) are recorded.
+     Scores column is required for every row.
+     Unresolved rows must include status context in Rationale (e.g., "Asked — user undecided"). -->
+
+| # | Grade | Decision | Rationale | Scores |
+|---|-------|----------|-----------|--------|
+| 1 | {Certain|Confident|Tentative|Unresolved} | {decision summary} | {why this grade} | S:nn R:nn A:nn D:nn |
+
+{N} assumptions ({Ce} certain, {Co} confident, {T} tentative, {U} unresolved).
