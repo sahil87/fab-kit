@@ -3,7 +3,7 @@ created: 2026-02-15T00:00:00+05:30
 created_by: sahil-weaver
 change_type: feature
 progress:
-  brief: done
+  intake: done
   spec: done
   tasks: done
   apply: done
@@ -27,7 +27,7 @@ confidence:
     competence: 87.1
     disambiguation: 85.0
 stage_metrics:
-  brief: {started_at: "2026-02-15T17:40:03+05:30", driver: fab-new, iterations: 1, completed_at: "2026-02-15T18:49:22+05:30"}
+  intake: {started_at: "2026-02-15T17:40:03+05:30", driver: fab-new, iterations: 1, completed_at: "2026-02-15T18:49:22+05:30"}
   spec: {started_at: "2026-02-15T18:49:22+05:30", driver: fab-continue, iterations: 1, completed_at: "2026-02-15T18:54:46+05:30"}
   tasks: {started_at: "2026-02-15T18:55:38+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-15T18:55:43+05:30"}
   apply: {started_at: "2026-02-15T18:55:43+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-15T18:56:56+05:30"}

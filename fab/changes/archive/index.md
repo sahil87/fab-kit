@@ -1,5 +1,6 @@
 # Archive Index
 
+- **260215-v4n7-DEV-1025-rename-brief-to-intake** — Renamed the first pipeline stage from "brief" to "intake" across ~40 files, added an Intake Generation Procedure to `_generation.md` enforcing thorough state-transfer detail, and strengthened the intake template with structural cues.
 - **260215-r8k3-DEV-1024-code-quality-layer** — Added a code quality layer to the fab-kit pipeline: new `code_quality` config section, pattern extraction during apply, code quality checks during review, quality-focused checklist items, and optional pattern capture during hydrate.
 - **260215-lqm5-stageman-cli-only** — Migrated stageman.sh to CLI-only interface, adding ~24 CLI subcommands for all read/query functions, migrating preflight.sh and calc-score.sh from source-pattern to subprocess invocations, and removing dual-mode scaffolding to prepare for an eventual Rust rewrite.
 - **260215-w3n8-naming-linear-id-drop-conventions** — Added optional Linear issue ID to change naming convention (`{YYMMDD}-{XXXX}-[{ISSUE}-]{slug}`) and removed unused `conventions` config section from `config.yaml` and memory docs.

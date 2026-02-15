@@ -3,7 +3,7 @@ created: 2026-02-14T00:00:00+05:30
 created_by: sahil-weaver
 change_type: refactor
 progress:
-  brief: done
+  intake: done
   spec: done
   tasks: done
   apply: done
@@ -28,7 +28,7 @@ confidence:
     disambiguation: 85.9
 last_updated: "2026-02-14T20:39:35+05:30"
 stage_metrics:
-  brief: {completed_at: "2026-02-14T20:28:19+05:30"}
+  intake: {completed_at: "2026-02-14T20:28:19+05:30"}
   spec: {started_at: "2026-02-14T20:28:19+05:30", driver: fab-continue, iterations: 1, completed_at: "2026-02-14T20:31:56+05:30"}
   tasks: {completed_at: "2026-02-14T20:33:11+05:30"}
   apply: {started_at: "2026-02-14T20:33:21+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-14T20:36:38+05:30"}
