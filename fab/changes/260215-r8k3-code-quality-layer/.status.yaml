@@ -1,0 +1,25 @@
+name: 260215-r8k3-code-quality-layer
+created: 2026-02-15T12:00:00+00:00
+created_by: sahil-weaver
+change_type: feature
+progress:
+  brief: active
+  spec: pending
+  tasks: pending
+  apply: pending
+  review: pending
+  hydrate: pending
+checklist:
+  generated: false
+  path: checklist.md
+  completed: 0
+  total: 0
+confidence:
+  certain: 0
+  confident: 0
+  tentative: 0
+  unresolved: 0
+  score: 0.0
+stage_metrics:
+  brief: {started_at: "2026-02-15T18:55:33+05:30", driver: fab-new, iterations: 1}
+last_updated: "2026-02-15T18:55:33+05:30"

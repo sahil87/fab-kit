@@ -131,6 +131,6 @@ for change in "${changes[@]}"; do
   safe="${match//"'"/"'\''"}"
 
   # Call fab-switch with --no-branch-change since the branch is already set up
-  tmux new-window -n "fab-${match}" -c "$wt_path" \
+  tmux new-window -n "${match}" -c "$wt_path" \
     "claude --dangerously-skip-permissions '/fab-switch ${safe} --no-branch-change'"
 done
