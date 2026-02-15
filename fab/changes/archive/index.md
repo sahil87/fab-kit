@@ -1,5 +1,6 @@
 # Archive Index
 
+- **260214-m3w7-formalize-assumptions-scoring** — Formalized SRAD assumptions tables to include all four grades (Certain, Confident, Tentative, Unresolved) with required Scores column, fixed calc-score.sh to read only spec.md (eliminating double-counting), corrected AWK column index bug, and added formalized table structure to brief and spec templates.
 - **260214-r7k3-stageman-yq-metrics** — Migrated stageman from awk-based YAML parsing to yq, added per-stage operational metrics (timing, driver, iterations) to .status.yaml, and introduced .history.jsonl append-only event logging for command invocations, confidence changes, and review outcomes.
 - **260212-f9m3-enhance-srad-fuzzy** — Enhanced SRAD confidence scoring with fuzzy 0-100 dimension evaluation instead of binary high/low, validated penalty weights via sensitivity analysis, and introduced dynamic thresholds based on change type categorization.
 - **260214-w3r8-stageman-write-api** — Added write functions to stageman (set_stage_state, transition_stages, set_checklist_field, set_confidence_block), refactored calc-score to use the new write API, and simplified skill prompts to use Bash calls instead of ad-hoc YAML editing.
