@@ -1,6 +1,6 @@
 # Brief: Add Code Quality Layer
 
-**Change**: 260215-r8k3-code-quality-layer
+**Change**: 260215-r8k3-DEV-1024-code-quality-layer
 **Created**: 2026-02-15
 **Status**: Draft
 

@@ -1,6 +1,6 @@
 # Brief: Rename "brief" to "intake" + Add Intake Generation Rule
 
-**Change**: 260215-v4n7-rename-brief-to-intake
+**Change**: 260215-v4n7-DEV-1025-rename-brief-to-intake
 **Created**: 2026-02-15
 **Status**: Draft
 

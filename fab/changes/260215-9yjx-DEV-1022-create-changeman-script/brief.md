@@ -1,6 +1,6 @@
 # Brief: Create changeman.sh and Refactor fab-new Skill
 
-**Change**: 260215-9yjx-create-changeman-script
+**Change**: 260215-9yjx-DEV-1022-create-changeman-script
 **Created**: 2026-02-15
 **Status**: Draft
 

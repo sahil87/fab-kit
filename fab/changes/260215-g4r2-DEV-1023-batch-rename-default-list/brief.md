@@ -1,6 +1,6 @@
 # Brief: Batch Script Rename and Default List Behavior
 
-**Change**: 260215-g4r2-batch-rename-default-list
+**Change**: 260215-g4r2-DEV-1023-batch-rename-default-list
 **Created**: 2026-02-15
 **Status**: Draft
 
