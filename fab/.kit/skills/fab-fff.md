@@ -99,7 +99,7 @@ Execute review behavior per `/fab-continue` — validate tasks, checklist, tests
 - **Missing functionality, incomplete coverage, wrong task breakdown** → "Revise tasks" — add/modify tasks in `tasks.md`, re-run apply and review
 - **Spec drift, requirements mismatch, fundamental approach issues** → "Revise spec" — reset to spec stage, regenerate downstream, re-run apply and review
 
-Run `lib/stageman.sh log-review <change_dir> "failed" "<chosen-action>"` for each rework cycle.
+Run `lib/stageman.sh log-review <change_dir> "failed" "<rework-option>"` for each rework cycle.
 
 **Retry cap**: Maximum **3 rework cycles** (each cycle = one rework action + one re-review). After 3 failed cycles, **BAIL** with:
 

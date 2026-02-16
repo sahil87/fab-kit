@@ -276,35 +276,31 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **Purpose**: Run the entire Fab pipeline from planning through hydrate in a single invocation. No confidence gate. Frontloads questions, interleaves auto-clarify between planning stages, and autonomously reworks on review failure (3-cycle retry cap, escalation after 2 consecutive fix-code failures).
 
-**Prerequisite**: Active change with completed `intake.md` and `confidence.score >= 3.0`.
+**Prerequisite**: Active change with completed `intake.md`.
 
 **Context**: Same as `/fab-ff` — all context loaded upfront (config, constitution, intake, memory index, affected memory files).
 
 **Example**:
 ```
 /fab-fff
-→ "Confidence 4.2, gate passed."
-→ --- Planning (fab-ff) ---
-→ ... (spec + tasks generated)
+→ --- Planning ---
+→ ... (spec + tasks generated, with auto-clarify)
 → --- Implementation ---
 → ... (tasks executed)
 → --- Review ---
 → ... (validation passed)
 → --- Hydrate ---
 → ... (memory hydrated)
-→ --- Archive ---
-→ ... (change archived)
-→ "Pipeline complete. Change archived."
+→ "Pipeline complete. Change hydrated."
 ```
 
 **Behavior**:
-1. **Confidence gate**: Read `confidence.score` from `.status.yaml`. If < 3.0, refuse to run with: *"Confidence is {score} (need >= 3.0). Run /fab-clarify to resolve tentative/unresolved decisions, then retry."*
+1. **Frontload questions**: Scan intake for ambiguities across all planning stages. Collect Unresolved decisions into a single batch. Ask once, then proceed.
 2. **Resumability**: Check `progress` map — skip any stage already marked `done` or `skipped`. Re-invoking after interruption picks up from the first incomplete stage.
-3. **Step 1 — Planning (fab-ff)**: Generate spec + tasks with checklist. Bails on blocking issues.
-4. **Step 2 — Implementation (fab-continue)**: Execute tasks in dependency order, run tests after each.
-5. **Step 3 — Review (fab-continue)**: Validate implementation. On failure, autonomously select rework path (fix code, revise tasks, revise spec) and retry (max 3 cycles, escalation after 2 consecutive fix-code). Bail with summary after 3 failed cycles.
-6. **Step 4 — Hydrate (fab-continue)**: Hydrate into memory.
-7. **Step 5 — Archive (fab-archive)**: Move to archive, clear pointer.
+3. **Step 1 — Planning**: Generate spec + tasks with checklist. Interleave auto-clarify between stages. Bails on blocking issues.
+4. **Step 2 — Implementation**: Execute tasks in dependency order, run tests after each.
+5. **Step 3 — Review**: Validate implementation. On failure, autonomously select rework path (fix code, revise tasks, revise spec) and retry (max 3 cycles, escalation after 2 consecutive fix-code). Bail with summary after 3 failed cycles.
+6. **Step 4 — Hydrate**: Hydrate into memory.
 
 **Key difference from `/fab-ff`**: `/fab-fff` is the full pipeline (intake → hydrate) with autonomous rework and no confidence gate. `/fab-ff` is fast-forward from spec (spec → hydrate) with confidence gate and interactive rework on review failure.
 
