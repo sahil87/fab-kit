@@ -1,5 +1,6 @@
 # Archive Index
 
+- **260216-b1k9-DEV-1028-rename-scaffold-add-kit-tests** — Renamed `init-scaffold.sh` to `sync-workspace.sh` to reflect its idempotent convergence behavior, added bats-core test suites for `sync-workspace.sh` and `changeman.sh`, and restructured `just test` with a two-tier runner and per-suite pass/fail summary.
 - **260215-237b-DEV-1027-redefine-ff-fff-scope** — Redefined `/fab-ff` and `/fab-fff` scope: fab-fff becomes the full pipeline command (spec → hydrate) with no confidence gate, fab-ff becomes fast-forward-from-spec (tasks → hydrate) gated on confidence > 3, resolving the chicken-and-egg problem.
 - **260215-h7q4-DEV-1026-clean-stale-brief-scoring-refs** — Removed stale references to brief.md scanning in calc-score README, SRAD spec, and test suite — the script only scans spec.md by design.
 - **260215-g4r2-DEV-1023-batch-rename-default-list** — Renamed batch scripts from `batch-*` to `batch-fab-*` and changed default no-arg behavior to show `--list` output instead of help text.
