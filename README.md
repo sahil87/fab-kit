@@ -1,13 +1,108 @@
 # Fab Kit
 
-A Specification-Driven Development (SDD) workflow that runs entirely as AI agent prompts — no CLI, no system dependencies. Copy it into your project and go.
+A specification-driven development workflow for AI agents. You define what to build, AI specs, implements, and reviews it — then hydrates what it learned back into your project's shared memory. The more you ship, the smarter it gets.
 
-## Why Fab Kit?
+Fab Kit is a 6-stage pipeline that runs entirely as AI agent prompts. No CLI tools, no system dependencies. Copy it into your project and go.
 
-- **Resumable by design** — Every stage produces a persistent artifact. Walk away mid-change, come back tomorrow, and pick up exactly where you left off.
-- **Stages that don't get skipped** — Intake, spec, tasks, apply, review, hydrate. The pipeline encodes the discipline so the agent (and you) can't quietly skip straight to code.
-- **Fast-forward when confidence is high** — `/fab-ff` and `/fab-fff` let you blast through multiple stages when the change is well-understood, without sacrificing structure when it isn't.
-- **Deterministic progress tracking** — `.status.yaml` and stage checklists give you a single source of truth for where a change stands.
+## Parallel by Design
+
+Describe a change, wait while AI works, review, describe the next one. Half your day is waiting.
+
+Fab breaks this loop. Every change is a self-contained folder with its own spec, tasks, and status. Hand an entire batch to AI — each in its own git worktree — and start creating the next batch while it works. You're never waiting. AI is never idle.
+
+```
+  ██ = working    ░░ = idle
+
+              One at a time
+              ─────────────
+
+  You    ██░░░░░░░░██░░░░░░░░██░░░░░░░░██░░░░░░░░
+  AI     ░░████████░░████████░░████████░░████████░░
+
+  Create, wait, review. Create, wait, review.
+  More waiting than working.
+
+
+              Assembly line
+              ─────────────
+
+  You    ██████░░█████████░██░█████████░██░░░░░░░░
+  AI     ░░░░░░██████████░████████████░░████████░░
+
+  Create a batch, hand off, create the next batch.
+  Both always working.
+```
+
+Three properties make this possible — without any one, batching falls apart:
+
+- **Self-contained change folders** — Each change has its own spec, tasks, and [`.status.yaml`](fab/.kit/templates/status.yaml). No shared state means zero conflicts between parallel changes.
+- **Git worktree isolation** — Each change runs in its own worktree. Parallel AI sessions can't step on each other.
+- **Resumable pipeline** — Every [stage](#the-6-stages) produces a persistent artifact. Interrupt anything, `/fab-continue` picks up from the last checkpoint.
+
+And two properties keep it fast without cutting corners:
+
+- **Stages that don't get skipped** — Intake, spec, tasks, apply, review, hydrate. The pipeline encodes discipline so the agent can't skip straight to code.
+- **Fast-forward when confidence is high** — `/fab-ff` and `/fab-fff` compress the pipeline when the change is well-understood, without sacrificing structure when it isn't.
+
+[How the assembly line works →](docs/specs/assembly-line.md)
+
+## Shared Memory That Grows With Your Project
+
+Most AI tools give each agent (or each developer) a private memory file. It helps that one session, then disappears. Fab takes a different approach: every completed change hydrates what it learned into `docs/memory/` — a structured, domain-organized knowledge base that's committed to git and shared with the entire team.
+
+```
+  ┌──────────┐    hydrate     ┌──────────────┐
+  │ spec.md  │ ─────────────▶ │ docs/memory/ │
+  └──────────┘                └──────┬───────┘
+       ▲                             │
+       │       context for next      │
+       └──────── change ─────────────┘
+```
+
+This creates a flywheel:
+
+- **Every change makes the next one better** — The pipeline's final stage merges requirements and design decisions from `spec.md` into memory files. Future changes load those files as context, so the AI starts with real knowledge of your system instead of guessing.
+- **Team knowledge, not personal notes** — Memory files live in git. Every developer and every agent session reads the same source of truth. Onboarding a new teammate (human or AI) means cloning the repo.
+- **Seeded from anywhere, grown by working** — `/docs-hydrate-memory` ingests existing documentation (Notion, Linear, local files) to bootstrap the knowledge base. From there, the pipeline keeps it current automatically.
+- **Structured, not append-only** — Memory is organized by domain (`auth/`, `payments/`, `users/`) with navigable indexes. As it grows, `/docs-reorg-memory` can restructure it. `/docs-hydrate-specs` flows knowledge back into design specs.
+
+The assembly line makes you faster. Shared memory makes you smarter — and the effect compounds with every change you ship.
+
+## A Self-Correcting Pipeline
+
+The 6 stages aren't just sequential — the pipeline catches its own mistakes.
+
+Two mechanisms make this work:
+
+- **Project constitution** — `fab/constitution.md` defines your project's architectural principles using MUST/SHOULD/MUST NOT rules. Every spec, every task breakdown, and every review checks against the constitution — not just the change's requirements. This prevents the AI from solving the right problem the wrong way.
+
+- **Rework loops** — When review finds issues, it doesn't just report them. It loops back to the right stage:
+
+  | Review finds | Rework path | What happens |
+  |-------------|-------------|--------------|
+  | Implementation bug | → apply | Unchecks failed tasks, re-runs them |
+  | Missing/wrong tasks | → tasks | Adds or revises tasks, re-applies |
+  | Requirements were wrong | → spec | Updates spec, regenerates tasks |
+
+  `/fab-fff` handles this autonomously — up to 3 rework cycles before escalating to you.
+
+The result: the pipeline doesn't just validate at the end. It fixes what it finds, looping until the implementation actually matches the spec and the constitution.
+
+## Works With Any Agent
+
+Fab's workflow logic is markdown files — not a CLI binary, not an SDK, not a plugin tied to one vendor. The skill definitions in `fab/.kit/skills/` are plain prompts that any AI agent can execute. Claude Code, Codex, Cursor, Windsurf — if it can read a markdown prompt, it can run Fab.
+
+```
+fab/.kit/skills/fab-new.md          # The source — agent-agnostic markdown
+       │
+       ├──▶ .claude/skills/fab-new/SKILL.md     # Claude Code (symlink)
+       ├──▶ .codex/skills/fab-new/SKILL.md      # Codex (symlink)
+       └──▶ .cursor/skills/fab-new/SKILL.md     # Cursor (symlink)
+```
+
+One source, multiple agents. Updating `fab/.kit/` updates every agent integration at once — no re-export, no per-tool configuration. The invocation prefix differs (`/fab-new` in Claude Code, `$fab-new` in Codex), but the skill content is identical.
+
+This also means Fab is future-proof. When the next AI coding tool ships, you add symlinks and it works. No migration, no rewrite.
 
 ## Prerequisites
 
@@ -156,6 +251,7 @@ bash fab/.kit/scripts/fab-sync.sh
 
 ## Learn More
 
+- **[The Assembly Line](docs/specs/assembly-line.md)** — batch scripts, Gantt charts, and the full numbers behind parallel development
 - **[Design & Workflow Details](docs/specs/overview.md)** — principles, detailed stage descriptions, example workflows
 - **[User Flow Diagrams](docs/specs/user-flow.md)** — visual maps of the full pipeline, shortcuts, rework paths, and state machine
 - **[Full Command Reference](docs/specs/skills.md)** — detailed behavior for every `/fab-*` skill
