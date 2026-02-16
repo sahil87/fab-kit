@@ -43,46 +43,6 @@ EOF
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# State Tests
-# ─────────────────────────────────────────────────────────────────────────────
-
-@test "all-states includes all state values" {
-  run "$STAGEMAN" all-states
-  [[ "$output" == *"pending"* ]]
-  [[ "$output" == *"active"* ]]
-  [[ "$output" == *"done"* ]]
-  [[ "$output" == *"skipped"* ]]
-  [[ "$output" == *"failed"* ]]
-}
-
-@test "validate-state accepts done" {
-  run "$STAGEMAN" validate-state "done"
-  [ "$status" -eq 0 ]
-}
-
-@test "validate-state rejects invalid" {
-  run "$STAGEMAN" validate-state "invalid"
-  [ "$status" -ne 0 ]
-}
-
-@test "state-symbol returns correct symbols" {
-  run "$STAGEMAN" state-symbol "active"
-  [ "$output" = "●" ]
-  run "$STAGEMAN" state-symbol "done"
-  [ "$output" = "✓" ]
-}
-
-@test "is-terminal returns true for done" {
-  run "$STAGEMAN" is-terminal "done"
-  [ "$status" -eq 0 ]
-}
-
-@test "is-terminal returns false for active" {
-  run "$STAGEMAN" is-terminal "active"
-  [ "$status" -ne 0 ]
-}
-
-# ─────────────────────────────────────────────────────────────────────────────
 # Stage Tests
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -97,77 +57,6 @@ EOF
   local stage_count
   stage_count=$(echo "$output" | wc -l)
   [ "$stage_count" -eq 6 ]
-}
-
-@test "validate-stage accepts spec" {
-  run "$STAGEMAN" validate-stage "spec"
-  [ "$status" -eq 0 ]
-}
-
-@test "validate-stage rejects invalid" {
-  run "$STAGEMAN" validate-stage "invalid"
-  [ "$status" -ne 0 ]
-}
-
-@test "stage-number returns correct numbers" {
-  run "$STAGEMAN" stage-number "spec"
-  [ "$output" = "2" ]
-  run "$STAGEMAN" stage-number "hydrate"
-  [ "$output" = "6" ]
-}
-
-@test "stage-name returns display name" {
-  run "$STAGEMAN" stage-name "spec"
-  [ "$output" = "Specification" ]
-}
-
-@test "stage-artifact returns correct filename" {
-  run "$STAGEMAN" stage-artifact "spec"
-  [ "$output" = "spec.md" ]
-  run "$STAGEMAN" stage-artifact "apply"
-  [ "$output" = "" ]
-}
-
-@test "allowed-states for review includes failed and done" {
-  run "$STAGEMAN" allowed-states "review"
-  [[ "$output" == *"failed"* ]]
-  [[ "$output" == *"done"* ]]
-}
-
-@test "initial-state returns correct state" {
-  run "$STAGEMAN" initial-state "intake"
-  [ "$output" = "active" ]
-  run "$STAGEMAN" initial-state "spec"
-  [ "$output" = "pending" ]
-}
-
-@test "has-auto-checklist returns true for tasks" {
-  run "$STAGEMAN" has-auto-checklist "tasks"
-  [ "$status" -eq 0 ]
-}
-
-@test "has-auto-checklist returns false for spec" {
-  run "$STAGEMAN" has-auto-checklist "spec"
-  [ "$status" -ne 0 ]
-}
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Progression
-# ─────────────────────────────────────────────────────────────────────────────
-
-@test "next-stage after spec is tasks" {
-  run "$STAGEMAN" next-stage "spec"
-  [ "$output" = "tasks" ]
-}
-
-@test "next-stage after intake is spec" {
-  run "$STAGEMAN" next-stage "intake"
-  [ "$output" = "spec" ]
-}
-
-@test "next-stage returns error for hydrate" {
-  run "$STAGEMAN" next-stage "hydrate"
-  [ "$status" -ne 0 ]
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -664,12 +553,6 @@ EOF
 # Stage Metrics
 # ─────────────────────────────────────────────────────────────────────────────
 
-@test "stage-metrics: empty on empty block" {
-  make_write_fixture
-  run "$STAGEMAN" stage-metrics "$TEST_DIR/write-status.yaml"
-  [ "$output" = "" ]
-}
-
 @test "stage-metrics: set-state active creates metrics" {
   make_write_fixture
   "$STAGEMAN" set-state "$TEST_DIR/write-status.yaml" "review" "active" "fab-continue"
@@ -723,32 +606,6 @@ EOF
   [[ "$from_completed" == *"T"* ]]
   [ "$to_driver" = "fab-ff" ]
   [ "$to_iter" = "1" ]
-}
-
-@test "stage-metrics: single stage returns fields" {
-  make_write_fixture
-  "$STAGEMAN" transition "$TEST_DIR/write-status.yaml" "apply" "review" "fab-ff"
-  run "$STAGEMAN" stage-metrics "$TEST_DIR/write-status.yaml" "review"
-  [[ "$output" == *"driver"* ]]
-}
-
-@test "stage-metrics: all stages returns correct entry count" {
-  make_write_fixture
-  "$STAGEMAN" transition "$TEST_DIR/write-status.yaml" "apply" "review" "fab-ff"
-  run "$STAGEMAN" stage-metrics "$TEST_DIR/write-status.yaml"
-  local line_count
-  line_count=$(echo "$output" | wc -l | tr -d ' ')
-  [ "$line_count" -eq 2 ]
-}
-
-@test "stage-metrics: handles missing block" {
-  cat > "$TEST_DIR/no-metrics.yaml" <<EOF
-progress:
-  intake: active
-last_updated: now
-EOF
-  run "$STAGEMAN" stage-metrics "$TEST_DIR/no-metrics.yaml"
-  [ "$output" = "" ]
 }
 
 @test "validate-status-file ignores stage_metrics content" {

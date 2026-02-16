@@ -4,15 +4,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 STAGEMAN="$SCRIPT_DIR/stageman.sh"
 
-echo "Testing all-states..."
-states=$("$STAGEMAN" all-states)
-if [[ "$states" == *"pending"* ]]; then
-  echo "✓ all-states works"
-else
-  echo "✗ all-states failed"
-  exit 1
-fi
-
 echo "Testing all-stages..."
 stages=$("$STAGEMAN" all-stages)
 if [[ "$stages" == *"spec"* ]]; then
@@ -22,22 +13,13 @@ else
   exit 1
 fi
 
-echo "Testing stage-number..."
-num=$("$STAGEMAN" stage-number "spec")
-if [ "$num" = "2" ]; then
-  echo "✓ stage-number works"
-else
-  echo "✗ stage-number failed (got $num)"
-  exit 1
-fi
-
 # Test accessor subcommands
 echo "Testing progress-map..."
 TEST_DIR=$(mktemp -d)
 trap "rm -rf $TEST_DIR" EXIT
 cat > "$TEST_DIR/status.yaml" <<EOF
 progress:
-  brief: done
+  intake: done
   spec: active
   tasks: pending
   apply: pending
@@ -56,7 +38,7 @@ confidence:
 EOF
 
 progress=$("$STAGEMAN" progress-map "$TEST_DIR/status.yaml")
-if [[ "$progress" == *"brief:done"* ]] && [[ "$progress" == *"spec:active"* ]]; then
+if [[ "$progress" == *"intake:done"* ]] && [[ "$progress" == *"spec:active"* ]]; then
   echo "✓ progress-map works"
 else
   echo "✗ progress-map failed"
