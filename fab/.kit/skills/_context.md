@@ -152,9 +152,9 @@ Each decision produces an assumption graded on a 4-level scale:
 | Aspect | fab-new (adaptive) | fab-continue (deliberate) | fab-fff (full pipeline) | fab-ff (from-spec, gated) |
 |--------|-------------------|---------------------------|-------------------------|--------------------------|
 | **Posture** | SRAD-driven: 0 questions for clear inputs, conversational for vague; gap analysis before folder creation | Surface tentative, ask top ~3 unresolved | Batch all unresolved upfront, then go; no confidence gate | Gated on confidence > 3.0; no frontloaded questions |
-| **Interruption budget** | SRAD-driven (no fixed cap); conversational mode for vague inputs | 1-2 per stage | 0-1 batch at start | 0 (bail on failure) |
+| **Interruption budget** | SRAD-driven (no fixed cap); conversational mode for vague inputs | 1-2 per stage | 0-1 batch at start | 0 (interactive rework on failure) |
 | **Output** | Assumptions summary + "Run /fab-clarify to review" | Key Decisions block + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary + apply/review/hydrate output | Tasks + apply/review/hydrate output |
-| **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` (interactive rework on review failure) | `/fab-continue` (bail on review failure) |
+| **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-continue` (autonomous rework with retry cap, bail after 3 cycles) | `/fab-clarify` (interactive rework on review failure) |
 | **Recomputes confidence?** | No | Spec stage only | No | No |
 
 ### Worked Examples

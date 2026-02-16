@@ -1,6 +1,6 @@
 ---
 name: fab-fff
-description: "Full pipeline — planning, implementation, review, and hydrate — with frontloaded questions, auto-clarify, and interactive rework."
+description: "Full pipeline — planning, implementation, review, and hydrate — with frontloaded questions, auto-clarify, and autonomous rework with bounded retry."
 ---
 
 # /fab-fff [<change-name>]
@@ -11,7 +11,7 @@ description: "Full pipeline — planning, implementation, review, and hydrate �
 
 ## Purpose
 
-Run the entire Fab pipeline from the current stage through hydrate in a single invocation. Frontloads questions, interleaves auto-clarify between planning stages, and presents interactive rework options on review failure. No confidence gate. Resumable — re-running picks up from the first incomplete stage.
+Run the entire Fab pipeline from the current stage through hydrate in a single invocation. Frontloads questions, interleaves auto-clarify between planning stages, and autonomously reworks on review failure with bounded retry (3 cycles max, escalation after 2 consecutive fix-code failures). No confidence gate. Resumable — re-running picks up from the first incomplete stage.
 
 ---
 
@@ -92,7 +92,26 @@ Execute review behavior per `/fab-continue` — validate tasks, checklist, tests
 
 **Pass**: run `lib/stageman.sh transition <file> review hydrate fab-fff`. Run `lib/stageman.sh log-review <change_dir> "passed"`. Proceed to Step 8.
 
-**Fail**: Present interactive rework menu: fix code (uncheck tasks with `<!-- rework: reason -->`), revise tasks, or revise spec (reset via `/fab-continue spec`).
+**Fail**: Autonomous rework with bounded retry. Run `lib/stageman.sh set-state <file> review failed` then `lib/stageman.sh set-state <file> apply active fab-fff`. The agent autonomously selects the rework path — no user interaction.
+
+**Decision heuristics**:
+- **Test failures, code quality issues, pattern violations** → "Fix code" — uncheck affected tasks with `<!-- rework: reason -->`, re-run apply and review
+- **Missing functionality, incomplete coverage, wrong task breakdown** → "Revise tasks" — add/modify tasks in `tasks.md`, re-run apply and review
+- **Spec drift, requirements mismatch, fundamental approach issues** → "Revise spec" — reset to spec stage, regenerate downstream, re-run apply and review
+
+Run `lib/stageman.sh log-review <change_dir> "failed" "<chosen-action>"` for each rework cycle.
+
+**Retry cap**: Maximum **3 rework cycles** (each cycle = one rework action + one re-review). After 3 failed cycles, **BAIL** with:
+
+```
+Review failed after 3 rework attempts. Summary:
+  Cycle 1: {action} — {what was done}
+  Cycle 2: {action} — {what was done}
+  Cycle 3: {action} — {what was done}
+Run /fab-continue for manual rework options.
+```
+
+**Escalation rule**: If the agent chooses "Fix code" and the subsequent review fails again on the same or similar issues, the agent MUST escalate to "Revise tasks" or "Revise spec" after **2 consecutive "fix code" attempts**. This is a hard rule — the agent SHALL NOT choose "Fix code" a third time in a row, even if it believes another code fix would work. Non-fix-code actions (revise tasks, revise spec) reset the consecutive counter.
 
 ### Step 8: Hydrate
 
@@ -139,4 +158,4 @@ Resuming shows `(resuming)...` header and `Skipping {stage} — already done.` f
 | `intake.md` missing | Abort: "Run /fab-new first." |
 | Auto-clarify bails | Stop, report blocking issues, suggest `/fab-clarify` then `/fab-fff` |
 | Task fails | Stop: "Task {ID} failed: {reason}. Investigate and re-run /fab-fff." |
-| Review fails | Present interactive rework menu (fix code, revise tasks, revise spec) |
+| Review fails | Autonomous rework: agent selects path, 3-cycle retry cap, escalation after 2 consecutive fix-code. Bail after 3 cycles with summary. |

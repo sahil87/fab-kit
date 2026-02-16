@@ -111,7 +111,7 @@ Reset is primarily used after review identifies issues upstream.
 
 ### `/fab-fff [<change-name>]` (Full Pipeline)
 
-`/fab-fff` runs the entire Fab pipeline in a single invocation: planning (spec, tasks) → apply → review → hydrate. No confidence gate. It frontloads questions, interleaves auto-clarify between planning stages, and presents interactive rework options on review failure. Accepts an optional change-name argument to target a specific change instead of the active one in `fab/current`.
+`/fab-fff` runs the entire Fab pipeline in a single invocation: planning (spec, tasks) → apply → review → hydrate. No confidence gate. It frontloads questions, interleaves auto-clarify between planning stages, and autonomously reworks on review failure with bounded retry (3 cycles max, escalation after 2 consecutive fix-code failures). Accepts an optional change-name argument to target a specific change instead of the active one in `fab/current`.
 
 #### Minimum Prerequisite
 
@@ -136,12 +136,12 @@ The `/fab-fff` pipeline interleaves auto-clarify between planning stage generati
 4. Produce task breakdown (referencing spec and intake) → run auto-clarify on tasks
 5. Auto-generate quality checklist
 6. Execute tasks via apply behavior
-7. Validate implementation via review behavior — on failure, presents interactive rework menu (fix code, revise tasks, revise spec)
+7. Validate implementation via review behavior — on failure, autonomously selects rework path (fix code, revise tasks, revise spec) and retries (max 3 cycles)
 8. Hydrate into memory files
 
-#### Interactive Review Failure
+#### Autonomous Review Rework
 
-Unlike `/fab-ff` which bails immediately on review failure, `/fab-fff` presents an interactive rework menu. This is the key behavioral difference: `/fab-fff` is "full pipeline with course correction" while `/fab-ff` is "gated and fast."
+On review failure, `/fab-fff` autonomously selects the rework path based on failure analysis (test failures → fix code, missing functionality → revise tasks, spec drift → revise spec). Maximum 3 rework cycles. Escalation rule: after 2 consecutive "fix code" failures, the agent must escalate to "revise tasks" or "revise spec." After 3 failed cycles, bails with a per-cycle summary and suggests `/fab-continue` for manual rework.
 
 #### When to Use
 
@@ -155,7 +155,7 @@ Loads all planning context upfront: config, constitution, `intake.md`, target me
 
 ### `/fab-ff [<change-name>]` (Fast-Forward from Spec, Gated)
 
-`/fab-ff` runs the pipeline from the current stage through hydrate, starting from spec or later. Gated on confidence score via `calc-score.sh --check-gate` (dynamic per-type thresholds: bugfix=2.0, feature/refactor=3.0, architecture=4.0; default 3.0). Minimal auto-clarify (tasks only). Bails immediately on review failure. Accepts an optional change-name argument.
+`/fab-ff` runs the pipeline from the current stage through hydrate, starting from spec or later. Gated on confidence score via `calc-score.sh --check-gate` (dynamic per-type thresholds: bugfix=2.0, feature/refactor=3.0, architecture=4.0; default 3.0). Minimal auto-clarify (tasks only). Interactive rework on review failure — presents the user with the same 3 rework options as `/fab-continue`. Accepts an optional change-name argument.
 
 #### Minimum Prerequisite
 
@@ -179,12 +179,12 @@ Since the spec already exists when `/fab-ff` is invoked, there is no frontloaded
 2. Generate `tasks.md` if needed → run auto-clarify on tasks
 3. Auto-generate quality checklist
 4. Execute tasks via apply behavior
-5. Validate implementation via review behavior — on failure, bails immediately
+5. Validate implementation via review behavior — on failure, presents interactive rework menu (fix code, revise tasks, revise spec)
 6. Hydrate into memory files
 
-#### Bail on Review Failure
+#### Interactive Review Rework
 
-Unlike `/fab-fff` which presents interactive rework, `/fab-ff` bails immediately on review failure with an actionable message: `Review failed. Run /fab-continue for rework options.`
+On review failure, `/fab-ff` presents the user with the same 3 rework options as `/fab-continue`: fix code (uncheck affected tasks), revise tasks, or revise spec (reset downstream). The user chooses, the pipeline re-runs from the chosen point, and review runs again. No retry cap — the user is in the loop.
 
 #### Resumability
 
@@ -310,10 +310,10 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 *Introduced by*: 260212-a4bd-unify-fab-continue
 
 ### Scope Differentiation: fab-fff (Full Pipeline) vs fab-ff (From-Spec, Gated)
-**Decision**: `/fab-fff` is the full pipeline command (intake → hydrate) with no confidence gate, frontloaded questions, interleaved auto-clarify, and interactive rework on review failure. `/fab-ff` is the fast-forward-from-spec command (spec → hydrate) gated on confidence score, with no frontloaded questions, minimal auto-clarify, and bail on review failure.
-**Why**: The chicken-and-egg problem — confidence scores only exist after spec generation, so gating a command that generates the spec is paradoxical. Moving the gate to the post-spec command resolves this naturally. The longer pipeline (`/fab-fff`) gets interactive rework because the user invested more time; the gated pipeline (`/fab-ff`) bails because high confidence implies failure is unexpected.
-**Rejected**: Keeping the gate on `/fab-fff` — perpetuates the chicken-and-egg problem. Both bail on failure — loses course-correction value for long pipelines. Both interactive — makes `/fab-ff` too similar to `/fab-fff`.
-*Introduced by*: 260215-237b-DEV-1027-redefine-ff-fff-scope
+**Decision**: `/fab-fff` is the full pipeline command (intake → hydrate) with no confidence gate, frontloaded questions, interleaved auto-clarify, and autonomous rework on review failure (3-cycle retry cap, escalation after 2 consecutive fix-code failures). `/fab-ff` is the fast-forward-from-spec command (spec → hydrate) gated on confidence score, with no frontloaded questions, minimal auto-clarify, and interactive rework on review failure (same 3 options as `/fab-continue`, no retry cap).
+**Why**: The naming intuition: `fff` (three f's) = "maximum autonomy, don't bother me" — autonomous rework is the natural completion of that contract. `ff` (two f's) = "fast but I'm watching" — interactive rework lets the user steer correction when the confidence gate passed but review still failed. The confidence gate on `/fab-ff` means the user asserted trust in spec quality; when failure occurs despite high confidence, user steering is more valuable than autonomous guessing.
+**Rejected**: Previous design had it backwards: `/fab-fff` (interactive rework) interrupted the user in the most autonomous command, `/fab-ff` (bail) gave the user the least control over recovery. Both autonomous — makes `/fab-ff` too similar to `/fab-fff`. Both interactive — same issue.
+*Introduced by*: 260215-237b-DEV-1027-redefine-ff-fff-scope; *Updated by*: 260216-knmw-DEV-1030-swap-ff-fff-review-rework (swapped review failure behavior)
 
 ### Reset via `/fab-continue <stage>`
 **Decision**: Reset to any pipeline stage by passing the stage name as an argument to `/fab-continue`. For planning stages, downstream artifacts are invalidated and regenerated. For execution stages, the stage behavior is re-run without resetting task checkboxes.
@@ -325,6 +325,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260216-knmw-DEV-1030-swap-ff-fff-review-rework | 2026-02-16 | Swapped review failure behavior: `/fab-ff` now presents interactive rework menu (3 options, no retry cap); `/fab-fff` now uses autonomous rework (agent selects path, 3-cycle retry cap, escalation after 2 consecutive fix-code). Updated overview paragraphs, pipeline flow steps, rework sections, and Scope Differentiation design decision. |
 | 260215-237b-DEV-1027-redefine-ff-fff-scope | 2026-02-16 | Redefined `/fab-ff` and `/fab-fff` scope. `/fab-fff` is now the full pipeline command (intake → hydrate, no gate, frontloaded questions, interactive rework). `/fab-ff` is now the fast-forward-from-spec command (spec → hydrate, confidence-gated, no frontloaded questions, bail on failure). Updated overview, requirement sections, and design decisions. Added Scope Differentiation design decision. |
 | 260215-9yjx-DEV-1022-create-changeman-script | 2026-02-15 | Refactored `/fab-new`: "Folder Name Generation" → "Slug Generation and Change Creation" (delegated to `lib/changeman.sh`). Change Initialization steps consolidated — steps 1-2 of old init (mkdir, .status.yaml, created_by, stageman calls) replaced by single `changeman.sh new` call. Skill now focuses on AI tasks (slug generation, gap analysis, intake writing). Error table simplified. |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` → `intake` throughout. Added Intake Generation Procedure to `_generation.md`. Updated `/fab-new` to reference procedure instead of inlining. Renamed "Brief-First" design decision to "Intake-First" |

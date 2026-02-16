@@ -1,6 +1,6 @@
 ---
 name: fab-ff
-description: "Fast-forward from spec — confidence-gated pipeline from current stage through hydrate, with bail on review failure."
+description: "Fast-forward from spec — confidence-gated pipeline from current stage through hydrate, with interactive rework on review failure."
 ---
 
 # /fab-ff [<change-name>]
@@ -11,7 +11,7 @@ description: "Fast-forward from spec — confidence-gated pipeline from current 
 
 ## Purpose
 
-Fast-forward from spec through hydrate: tasks → apply → review → hydrate. Gated on confidence score (dynamic per-type thresholds via `calc-score.sh --check-gate`). Minimal auto-clarify (tasks only). Bails immediately on review failure. Resumable — re-running picks up from the first incomplete stage.
+Fast-forward from spec through hydrate: tasks → apply → review → hydrate. Gated on confidence score (dynamic per-type thresholds via `calc-score.sh --check-gate`). Minimal auto-clarify (tasks only). Interactive rework on review failure — presents the user with the same 3 rework options as `/fab-continue`. Resumable — re-running picks up from the first incomplete stage.
 
 ---
 
@@ -80,7 +80,13 @@ Execute review behavior per `/fab-continue` — validate tasks, checklist, tests
 
 **Pass**: run `lib/stageman.sh transition <file> review hydrate fab-ff`. Run `lib/stageman.sh log-review <change_dir> "passed"`. Proceed to Step 6.
 
-**Fail**: STOP immediately. `Review failed. Run /fab-continue for rework options.` Run `lib/stageman.sh log-review <change_dir> "failed"`. No interactive rework menu.
+**Fail**: Present interactive rework menu. Run `lib/stageman.sh set-state <file> review failed` then `lib/stageman.sh set-state <file> apply active fab-ff`. The user chooses one of three options:
+
+- **Fix code** — the agent identifies affected tasks, unchecks them in `tasks.md` with `<!-- rework: reason -->` annotations, re-runs apply behavior for unchecked tasks, then re-runs review
+- **Revise tasks** — the user edits `tasks.md` (add/modify tasks), then the agent re-runs apply for unchecked tasks and re-runs review
+- **Revise spec** — resets to spec stage (sets `spec: active`, all stages after spec → `pending`), regenerates `spec.md`, invalidates and regenerates downstream artifacts (tasks, checklist), then re-runs apply and review
+
+Run `lib/stageman.sh log-review <change_dir> "failed" "<rework-option>"` after the user selects a rework option. If review fails again after rework, present the menu again (no retry cap — the user is in the loop).
 
 ### Step 6: Hydrate
 
@@ -125,4 +131,4 @@ Resuming shows `(resuming)...` header and `Skipping {stage} — already done.` f
 | Confidence below threshold | Abort with score, threshold, and guidance |
 | Auto-clarify bails | Stop, report blocking issues, suggest `/fab-clarify` then `/fab-ff` |
 | Task fails | Stop: "Task {ID} failed: {reason}. Investigate and re-run /fab-ff." |
-| Review fails | Stop: "Review failed. Run /fab-continue for rework options." |
+| Review fails | Present interactive rework menu (fix code, revise tasks, revise spec). No retry cap. |

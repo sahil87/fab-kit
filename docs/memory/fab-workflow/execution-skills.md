@@ -8,7 +8,7 @@ Execution behavior (apply, review, hydrate) is accessed via `/fab-continue`, whi
 
 **Status mutations**: All `.status.yaml` progress transitions, checklist updates, and confidence writes use `lib/stageman.sh` CLI commands (`transition`, `set-state`, `set-checklist`, `set-confidence`) via the Bash tool, rather than direct file editing. This centralizes validation and ensures atomic writes with `last_updated` refresh. All `transition` calls require a `driver` parameter (the invoking skill name); `set-state` requires `driver` when setting to `active`. Stage metrics (started_at, completed_at, driver, iterations) are updated automatically as side-effects.
 
-**Pipeline invocation**: Both `/fab-fff` and `/fab-ff` use the same execution behavior internally as part of their pipeline runs. `/fab-fff` presents interactive rework options on review failure; `/fab-ff` bails immediately. Both accept an optional `[change-name]` argument.
+**Pipeline invocation**: Both `/fab-fff` and `/fab-ff` use the same execution behavior internally as part of their pipeline runs. `/fab-ff` presents interactive rework options on review failure (same 3 options as `/fab-continue`, no retry cap); `/fab-fff` uses autonomous rework with bounded retry (agent selects path, 3-cycle cap, escalation after 2 consecutive fix-code failures). Both accept an optional `[change-name]` argument.
 
 ## Requirements
 
@@ -206,6 +206,7 @@ Steps execute 1→3 for safety. If interrupted, re-run detects folder already in
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260216-knmw-DEV-1030-swap-ff-fff-review-rework | 2026-02-16 | Swapped pipeline invocation note: `/fab-ff` now presents interactive rework on review failure; `/fab-fff` now uses autonomous rework with bounded retry (3-cycle cap, escalation after 2 consecutive fix-code) |
 | 260215-237b-DEV-1027-redefine-ff-fff-scope | 2026-02-16 | Updated pipeline invocation note: `/fab-fff` now presents interactive rework on review failure, `/fab-ff` now bails immediately (swapped from previous behavior) |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |
 | 260215-r8k3-DEV-1024-code-quality-layer | 2026-02-15 | Added Pattern Extraction to Apply (naming, error handling, structure, utilities), expanded per-task guidance to 7-step sequence, added code quality check as Review step 6, added optional pattern capture to Hydrate step 5, updated "Checklist Tests Implementation Fidelity" design decision to include code quality |

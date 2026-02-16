@@ -48,9 +48,9 @@ flowchart TD
 
     %% Shortcuts (full pipeline, from spec onward)
     S -->|"/fab-ff
-    (confidence-gated, bail on failure)"| H
+    (confidence-gated, interactive rework)"| H
     B -->|"/fab-fff
-    (full pipeline, interactive rework)"| H
+    (full pipeline, autonomous rework)"| H
 
     %% Rework (reset to any earlier stage)
     H -.->|"Revise anytime using
@@ -194,8 +194,8 @@ stateDiagram-v2
     intake --> spec: /fab-continue
 
     spec --> tasks: /fab-continue
-    spec --> hydrate: /fab-ff (confidence-gated, bail on failure)
-    intake --> hydrate: /fab-fff (full pipeline, interactive rework)
+    spec --> hydrate: /fab-ff (confidence-gated, interactive rework)
+    intake --> hydrate: /fab-fff (full pipeline, autonomous rework)
 
     tasks --> apply: /fab-continue
 
