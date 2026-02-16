@@ -84,7 +84,7 @@ Stage Manager — CLI-only utility for workflow schema queries, `.status.yaml` a
 - **Validation subcommand**: `validate-status-file` (schema conformance check, skips stage_metrics validation)
 - **Display subcommand**: `format-state` (symbol + suffix for a state)
 
-Accessor subcommands use a line-oriented output pattern (`key:value` per line) — consumers parse with `while IFS=: read -r key val`. Boolean subcommands use exit codes (0=true, 1=false) with no stdout. Lives in `scripts/lib/` to indicate it is internal plumbing. The comprehensive test suite (`src/lib/stageman/test.sh`, 131 tests) serves as a contract test for any future reimplementation (e.g., Rust binary).
+Accessor subcommands use a line-oriented output pattern (`key:value` per line) — consumers parse with `while IFS=: read -r key val`. Boolean subcommands use exit codes (0=true, 1=false) with no stdout. Lives in `scripts/lib/` to indicate it is internal plumbing. The comprehensive test suite (`src/lib/stageman/test.bats`, 75 tests) serves as a contract test for any future reimplementation (e.g., Rust binary).
 
 #### `lib/resolve-change.sh`
 
@@ -253,6 +253,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260216-f88c-DEV-1029-migrate-existing-tests-to-bats | 2026-02-16 | Migrated 4 legacy `test.sh` suites (preflight, resolve-change, stageman, calc-score) to bats-core `test.bats` format. Deleted all legacy test.sh files. Simplified justfile `test-bash` recipe to bats-only runner. Fixed stale `brief` → `intake` stage name in test fixtures. Fixed legacy bugs: incorrect carry-forward assumption in calc-score tests, wrong fuzzy column order. Total: 6 bats suites, 152 tests. Updated stageman section test reference. |
 | 260216-b1k9-DEV-1028-rename-scaffold-add-kit-tests | 2026-02-16 | Renamed `init-scaffold.sh` → `sync-workspace.sh` throughout (directory tree, section heading, script description, design decisions). Updated `scaffold/` comment, agent integration references, bootstrap sequence, version tracking, and updating sections. Added `changeman.sh` and `sync-workspace.sh` to dev test directory listing (`src/lib/`) |
 | 260215-9yjx-DEV-1022-create-changeman-script | 2026-02-15 | Added `changeman.sh` to `lib/` directory listing and Shell Scripts section. New script handles change creation lifecycle (folder name construction, collision detection, directory creation, created_by detection, .status.yaml initialization, stageman integration). Called by `/fab-new` Step 3. |
 | 260215-g4r2-DEV-1023-batch-rename-default-list | 2026-02-15 | Renamed batch scripts from `batch-{verb}-{entity}.sh` to `batch-fab-{verb}-{entity}.sh`; changed no-arg behavior from showing help to showing `--list` output; updated directory tree, naming pattern, and script descriptions |

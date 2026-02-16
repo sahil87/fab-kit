@@ -5,7 +5,7 @@ test:
     just test-bash
     # just test-rust  # uncomment when Rust libs exist
 
-# Run bash tests: bats (.bats) + legacy (test.sh)
+# Run bash tests (bats)
 test-bash:
     #!/usr/bin/env bash
     set -uo pipefail
@@ -14,27 +14,12 @@ test-bash:
     passed_suites=()
     total=0
 
-    # Run bats test suites
     for t in src/lib/*/test.bats; do
         [ -f "$t" ] || continue
         suite=$(basename "$(dirname "$t")")
         total=$((total + 1))
-        echo "── ${suite} (bats) ──"
+        echo "── ${suite} ──"
         if bats "$t"; then
-            passed_suites+=("$suite")
-        else
-            failed_suites+=("$suite")
-        fi
-        echo ""
-    done
-
-    # Run legacy test.sh suites
-    for t in src/lib/*/test.sh; do
-        [ -f "$t" ] || continue
-        suite=$(basename "$(dirname "$t")")
-        total=$((total + 1))
-        echo "── ${suite} (legacy) ──"
-        if bash "$t"; then
             passed_suites+=("$suite")
         else
             failed_suites+=("$suite")

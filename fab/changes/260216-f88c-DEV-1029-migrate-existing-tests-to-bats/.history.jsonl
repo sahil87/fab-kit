@@ -1,1 +1,5 @@
 {"ts":"2026-02-16T11:36:54+05:30","event":"command","cmd":"fab-new","args":"Migrate existing hand-rolled test suites (preflight, resolve-change, stageman, calc-score) to bats-core format"}
+{"ts":"2026-02-16T12:40:42+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-16T12:42:31+05:30","event":"confidence","score":4.4,"delta":"+4.4","trigger":"calc-score"}
+{"ts":"2026-02-16T12:47:11+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-16T13:05:06+05:30","event":"review","result":"passed"}
