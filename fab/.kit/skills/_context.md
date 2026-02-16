@@ -71,8 +71,8 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 |-------------|---------------|-----------|
 | `/fab-init` | initialized | `Next: /fab-new <description> or /docs-hydrate-memory <sources>` |
 | `/docs-hydrate-memory` | memory hydrated | `Next: /fab-new <description> or /docs-hydrate-memory <more-sources>` |
-| `/fab-new` | intake active | `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-ff` |
-| `/fab-continue` → spec | spec done | `Next: /fab-continue or /fab-ff or /fab-clarify` |
+| `/fab-new` | intake active | `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-fff` |
+| `/fab-continue` → spec | spec done | `Next: /fab-continue or /fab-ff or /fab-fff or /fab-clarify` |
 | `/fab-continue` → tasks | tasks done | `Next: /fab-continue or /fab-ff` |
 | `/fab-continue` → apply | apply done | `Next: /fab-continue` |
 | `/fab-continue` → review (pass) | review done | `Next: /fab-continue` |
@@ -80,7 +80,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 | `/fab-continue` → hydrate | hydrated | `Next: /fab-archive` |
 | `/fab-ff` | hydrated | `Next: /fab-archive` |
 | `/fab-ff` (bail) | varies | *(contextual — see /fab-ff for bail/failure messages)* |
-| `/fab-clarify` | same stage | `Next: /fab-clarify or /fab-continue or /fab-ff` |
+| `/fab-clarify` | same stage | `Next: /fab-clarify or /fab-continue or /fab-ff or /fab-fff` |
 | `/fab-fff` | hydrated | `Next: /fab-archive` |
 | `/fab-fff` (bail) | varies | *(contextual — see /fab-fff for bail messages)* |
 | `/fab-archive` | archived | `Next: /fab-new <description>` |
@@ -98,14 +98,14 @@ When one skill invokes another internally (e.g., `/fab-ff` invoking `/fab-clarif
 3. **Detection**: The called skill checks for the `[AUTO-MODE]` prefix at the start of its invocation context.
    - **If present**: Enter autonomous mode (no user interaction, machine-readable result).
    - **If absent**: Enter default/interactive mode (user-facing, structured questions).
-4. **Transitivity**: When skills chain (e.g., `/fab-fff` → `/fab-ff` → `/fab-clarify`), each link in the chain applies the prefix independently. `/fab-ff` adds `[AUTO-MODE]` when it invokes `/fab-clarify`, regardless of whether `/fab-ff` itself was invoked by `/fab-fff` or by the user.
+4. **Transitivity**: When skills chain, each link applies the prefix independently.
 
 ### Currently Applicable
 
 | Calling skill | Called skill | Mode signaled |
 |---------------|-------------|---------------|
-| `/fab-ff` | `/fab-clarify` | `[AUTO-MODE]` → auto mode (autonomous gap resolution) |
-| `/fab-fff` (via `/fab-ff`) | `/fab-clarify` | `[AUTO-MODE]` → auto mode (transitive through `/fab-ff`) |
+| `/fab-fff` | `/fab-clarify` | `[AUTO-MODE]` → auto mode (autonomous gap resolution between planning stages) |
+| `/fab-ff` | `/fab-clarify` | `[AUTO-MODE]` → auto mode (autonomous gap resolution after tasks generation) |
 
 User-invoked skills never carry the `[AUTO-MODE]` prefix, so called skills default to interactive mode.
 
@@ -149,12 +149,12 @@ Each decision produces an assumption graded on a 4-level scale:
 
 ### Skill-Specific Autonomy Levels
 
-| Aspect | fab-new (adaptive) | fab-continue (deliberate) | fab-ff (speed) | fab-fff (full pipeline) |
-|--------|-------------------|---------------------------|----------------|-------------------------|
-| **Posture** | SRAD-driven: 0 questions for clear inputs, conversational for vague; gap analysis before folder creation | Surface tentative, ask top ~3 unresolved | Batch all unresolved upfront, then go | Same as fab-ff; gated on confidence >= 3.0 |
-| **Interruption budget** | SRAD-driven (no fixed cap); conversational mode for vague inputs | 1-2 per stage | 0-1 batch at start | Same as fab-ff (frontloaded) |
-| **Output** | Assumptions summary + "Run /fab-clarify to review" | Key Decisions block + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary | Same as fab-ff + apply/review/hydrate output |
-| **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` (bails on blockers or review failure) |
+| Aspect | fab-new (adaptive) | fab-continue (deliberate) | fab-fff (full pipeline) | fab-ff (from-spec, gated) |
+|--------|-------------------|---------------------------|-------------------------|--------------------------|
+| **Posture** | SRAD-driven: 0 questions for clear inputs, conversational for vague; gap analysis before folder creation | Surface tentative, ask top ~3 unresolved | Batch all unresolved upfront, then go; no confidence gate | Gated on confidence > 3.0; no frontloaded questions |
+| **Interruption budget** | SRAD-driven (no fixed cap); conversational mode for vague inputs | 1-2 per stage | 0-1 batch at start | 0 (bail on failure) |
+| **Output** | Assumptions summary + "Run /fab-clarify to review" | Key Decisions block + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary + apply/review/hydrate output | Tasks + apply/review/hydrate output |
+| **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` (interactive rework on review failure) | `/fab-continue` (bail on review failure) |
 | **Recomputes confidence?** | No | Spec stage only | No | No |
 
 ### Worked Examples
@@ -228,7 +228,7 @@ Every planning skill invocation SHALL end its output with an Assumptions summary
 
 ## Confidence Scoring
 
-Confidence scoring provides a numeric measure of how well-resolved a change's decisions are, used as a gate for autonomous pipeline execution via `/fab-fff`.
+Confidence scoring provides a numeric measure of how well-resolved a change's decisions are, used as a gate for fast-forward pipeline execution via `/fab-ff`.
 
 ### Schema (in `.status.yaml`)
 
@@ -254,11 +254,11 @@ Range: 0.0 (any Unresolved, or 5+ Tentative) to 5.0 (all Certain). Penalties: Ce
 
 ### Gate Threshold
 
-`/fab-fff` requires `confidence.score >= 3.0`. This allows at most 2 Tentative decisions, or up to 6 Confident decisions with no Tentative.
+`/fab-ff` requires `confidence.score > 3.0` (dynamic per-type thresholds: bugfix=2.0, feature/refactor=3.0, architecture=4.0). `/fab-fff` has no confidence gate.
 
 ### Invocation
 
-Confidence is computed by `fab/.kit/scripts/lib/calc-score.sh`, invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). Autonomous skills (`/fab-ff`, `/fab-fff`) do not recompute — the gate check uses the score from the last manual step.
+Confidence is computed by `fab/.kit/scripts/lib/calc-score.sh`, invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). `/fab-ff` gates on the existing score via `calc-score.sh --check-gate` but does not recompute. `/fab-fff` does not gate or recompute.
 
 ### Template
 

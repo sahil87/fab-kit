@@ -56,7 +56,7 @@ Every change folder SHALL contain a `.status.yaml` manifest with these fields:
 - `created` — ISO 8601 datetime
 - `progress` — map of all stages to their state. The stage marked `active` is the current stage (single source of truth for where the change is). There is no separate `stage:` field — current stage is derived from the `active` entry in the progress map.
 - `checklist` — generation status, path (default: `checklist.md` at change root), completion counts
-- `confidence` — SRAD confidence scoring: `certain`, `confident`, `tentative`, `unresolved` counts and derived `score` (0.0-5.0). Initialized to 0.0 (no assessed confidence). Computed by `lib/calc-score.sh` from `spec.md` Assumptions table only (not intake.md — intake assumptions are state transfer, not scored). Invoked at spec stage by `/fab-continue` and by `/fab-clarify`. Used as a gate by `/fab-fff` (requires score >= 3.0). Displayed as `{score} of 5.0` to make the scale self-documenting
+- `confidence` — SRAD confidence scoring: `certain`, `confident`, `tentative`, `unresolved` counts and derived `score` (0.0-5.0). Initialized to 0.0 (no assessed confidence). Computed by `lib/calc-score.sh` from `spec.md` Assumptions table only (not intake.md — intake assumptions are state transfer, not scored). Invoked at spec stage by `/fab-continue` and by `/fab-clarify`. Used as a gate by `/fab-ff` (dynamic per-type thresholds via `calc-score.sh --check-gate`). Displayed as `{score} of 5.0` to make the scale self-documenting
 - `stage_metrics` — per-stage operational data map. Each stage that has been activated gets an entry with flow-style YAML: `{started_at, driver, iterations, completed_at}`. Automatically managed by `set_stage_state` and `transition_stages` via `_apply_metrics_side_effect`. On activation (`active`): creates entry with `started_at`, `driver`, `iterations` (incremented, not reset — tracks rework cycles). On completion (`done`): sets `completed_at`. On reset (`pending`): removes entry entirely. On failure (`failed`): no-op (preserves timing data). Initialized as empty `stage_metrics: {}` in the template
 - `last_updated` — refreshed on every status change. All `.status.yaml` mutations SHOULD go through `lib/stageman.sh` write functions (or CLI commands), which handle validation and `last_updated` refresh automatically
 
@@ -102,7 +102,7 @@ The stages split into three phases:
 
 After hydrate completes, the change folder remains in `fab/changes/`. To move it to the archive, run `/fab-archive` — a standalone housekeeping command (not a pipeline stage). `/fab-archive` moves the folder to `fab/changes/archive/`, updates the archive index, marks backlog items done (exact-ID check always; keyword scan with interactive confirmation), and conditionally clears `fab/current`. To restore an archived change, run `/fab-archive restore <change-name>` — this moves the folder back to `fab/changes/`, removes the index entry, and optionally activates via `--switch`.
 
-**Full pipeline path**: `/fab-fff` chains the entire flow (planning → apply → review → hydrate) in a single invocation, gated on confidence score >= 3.0. After the pipeline completes, run `/fab-archive` to move the change to archive.
+**Full pipeline path**: `/fab-fff` chains the entire flow (planning → apply → review → hydrate) in a single invocation with no confidence gate, frontloaded questions, and interactive rework on review failure. `/fab-ff` fast-forwards from spec through hydrate, gated on confidence score (dynamic per-type thresholds via `calc-score.sh --check-gate`), and bails on review failure. After either pipeline completes, run `/fab-archive` to move the change to archive.
 
 ### Git Integration (Optional)
 
@@ -227,6 +227,7 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260215-237b-DEV-1027-redefine-ff-fff-scope | 2026-02-16 | Redefined full pipeline path: `/fab-fff` is now ungated full pipeline (intake → hydrate, interactive rework), `/fab-ff` is now confidence-gated from-spec pipeline (spec → hydrate, bail on failure) |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |
 | 260215-w3n8-naming-linear-id-drop-conventions | 2026-02-15 | Extended folder naming convention to `{YYMMDD}-{XXXX}-[{ISSUE}-]{slug}` with optional uppercase Linear issue ID. Added `{ISSUE}` component to naming table, examples, and casing exception note |
 | 260214-m3w7-formalize-assumptions-scoring | 2026-02-14 | Updated confidence field: computed from spec.md Assumptions table only (not intake+spec), eliminating double-counting. All four SRAD grades now recorded in Assumptions tables. |

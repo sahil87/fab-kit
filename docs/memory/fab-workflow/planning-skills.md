@@ -6,7 +6,7 @@
 
 The planning skills (`/fab-new`, `/fab-continue`, `/fab-clarify`) handle the first three stages of the 6-stage Fab pipeline: intake, spec, and tasks. They produce the artifacts that define *what* changes and *how*, before any code is written.
 
-`/fab-ff` is also documented here because its planning behavior (frontloaded questions, auto-clarify) originated as a planning skill. However, `/fab-ff` is now a **full-pipeline command** that continues through apply, review, and hydrate after planning completes. See the `/fab-ff` section below for details.
+`/fab-fff` and `/fab-ff` are also documented here because their planning behavior originated as planning skills. `/fab-fff` is the **full-pipeline command** (intake → hydrate, no confidence gate, frontloaded questions, interactive rework). `/fab-ff` is the **fast-forward-from-spec command** (spec → hydrate, confidence-gated, no frontloaded questions, bail on failure). See sections below for details.
 
 ## Shared Generation Partial
 
@@ -109,24 +109,28 @@ Reset is primarily used after review identifies issues upstream.
 - **Spec**: config, constitution, `intake.md`, target memory file(s) from `docs/memory/`
 - **Tasks**: above + completed `spec.md`
 
-### `/fab-ff [<change-name>]` (Fast Forward — Full Pipeline)
+### `/fab-fff [<change-name>]` (Full Pipeline)
 
-`/fab-ff` runs the entire Fab pipeline in a single invocation: planning (spec, tasks) → apply → review → hydrate. It frontloads questions, interleaves auto-clarify between planning stages, and stops for interactive resolution when blocking issues arise at any phase. No confidence gate. Accepts an optional change-name argument to target a specific change instead of the active one in `fab/current`.
+`/fab-fff` runs the entire Fab pipeline in a single invocation: planning (spec, tasks) → apply → review → hydrate. No confidence gate. It frontloads questions, interleaves auto-clarify between planning stages, and presents interactive rework options on review failure. Accepts an optional change-name argument to target a specific change instead of the active one in `fab/current`.
+
+#### Minimum Prerequisite
+
+`intake.md` must exist (spec pending or later). `/fab-fff` is callable from any stage at or after intake — it picks up from the current stage and runs forward, skipping stages already `done`.
 
 #### Frontloaded Questions
 
-The skill SHALL scan the intake for ambiguities across *all* remaining planning stages (intake, spec, tasks), collect everything that needs user input into a single batch, and ask once. The goal: one Q&A round, then heads-down generation.
+The skill SHALL scan the intake for ambiguities across *all* remaining planning stages, collect Unresolved decisions into a single batch, and ask once. The goal: one Q&A round, then heads-down generation.
 
 #### Interleaved Auto-Clarify
 
-The `/fab-ff` pipeline interleaves auto-clarify between planning stage generations: `spec → auto-clarify → tasks → auto-clarify`. Each auto-clarify invocation uses the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (`_context.md`) to signal `/fab-clarify` to operate autonomously. This catches gaps before they compound downstream.
+The `/fab-fff` pipeline interleaves auto-clarify between planning stage generations: `spec → auto-clarify → tasks → auto-clarify`. Each auto-clarify invocation uses the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (`_context.md`) to signal `/fab-clarify` to operate autonomously. This catches gaps before they compound downstream.
 
-- If auto-clarify finds **blocking issues** (cannot resolve autonomously), the pipeline **bails** — stops, reports the issues, and suggests `Run /fab-clarify to resolve these, then /fab-ff to resume.`
-- The pipeline is **resumable** — re-running `/fab-ff` after a bail skips stages already marked `done` and continues from the first incomplete stage.
+- If auto-clarify finds **blocking issues** (cannot resolve autonomously), the pipeline **bails** — stops, reports the issues, and suggests `Run /fab-clarify to resolve these, then /fab-fff to resume.`
+- The pipeline is **resumable** — re-running `/fab-fff` after a bail skips stages already marked `done` and continues from the first incomplete stage.
 
 #### Pipeline Flow
 
-1. Read `fab/current` to resolve the active change; verify intake is complete
+1. Read `fab/current` to resolve the active change; verify intake exists
 2. Frontload questions (single batch)
 3. Generate `spec.md` (incorporating answers) → run auto-clarify on spec
 4. Produce task breakdown (referencing spec and intake) → run auto-clarify on tasks
@@ -137,42 +141,68 @@ The `/fab-ff` pipeline interleaves auto-clarify between planning stage generatio
 
 #### Interactive Review Failure
 
-Unlike `/fab-fff` which bails immediately on review failure, `/fab-ff` presents an interactive rework menu on review failure. This is the key behavioral difference: `/fab-ff` is "fast but interactive" while `/fab-fff` is "fully autonomous."
+Unlike `/fab-ff` which bails immediately on review failure, `/fab-fff` presents an interactive rework menu. This is the key behavioral difference: `/fab-fff` is "full pipeline with course correction" while `/fab-ff` is "gated and fast."
 
 #### When to Use
 
-- Want the full pipeline in one command but with the ability to intervene
+- Want the full pipeline from intake through hydrate in one command
 - Clear requirements upfront, want to reach hydrate quickly with safety nets
 - Changes needing quality gates — auto-clarify catches issues between planning stages
-
-### `/fab-fff [<change-name>]` (Full Autonomous Pipeline)
-
-`/fab-fff` runs the entire Fab pipeline autonomously in a single invocation, gated on confidence score >= 3.0. Unlike `/fab-ff`, which stops for interactive clarification, `/fab-fff` never stops for user input — it bails immediately on review failure and auto-clarifies without user interaction. Accepts an optional change-name argument to target a specific change instead of the active one in `fab/current`.
-
-#### Confidence Gate
-
-Before proceeding, `/fab-fff` reads `confidence.score` from `.status.yaml` and checks it against a **dynamic threshold** that varies by change type: bugfix=2.0, feature/refactor=3.0, architecture=4.0 (default: 3.0 when `change_type` is absent). The gate check is performed by `calc-score.sh --check-gate`. If the score is below the threshold, the skill aborts with a message suggesting `/fab-clarify` to raise confidence.
-
-#### Pipeline Behavior
-
-Each stage uses the same behavior as its standalone invocation. If planning bails on blocking issues or review fails, the pipeline stops immediately. Unlike `/fab-ff` (which offers interactive rework on review failure), `/fab-fff` bails with an actionable message and no interactive menu.
-
-#### Resumability
-
-`/fab-fff` is resumable — re-invoking skips stages already marked `done` and continues from the first incomplete stage.
-
-#### Confidence Recomputation
-
-`/fab-fff` does NOT recompute the confidence score during execution. The gate check uses the score from the last manual step (`/fab-continue` at spec stage, or `/fab-clarify`).
-
-#### When to Use
-
-- High-confidence changes where you want full autonomy from planning to hydrate
-- After raising confidence via `/fab-clarify` to meet the >= 3.0 threshold
 
 #### Context
 
 Loads all planning context upfront: config, constitution, `intake.md`, target memory file(s) from `docs/memory/`.
+
+### `/fab-ff [<change-name>]` (Fast-Forward from Spec, Gated)
+
+`/fab-ff` runs the pipeline from the current stage through hydrate, starting from spec or later. Gated on confidence score via `calc-score.sh --check-gate` (dynamic per-type thresholds: bugfix=2.0, feature/refactor=3.0, architecture=4.0; default 3.0). Minimal auto-clarify (tasks only). Bails immediately on review failure. Accepts an optional change-name argument.
+
+#### Minimum Prerequisite
+
+Spec must be `active` or later (spec.md and confidence score already exist). If spec is `pending`, the skill aborts with a message suggesting `/fab-continue` or `/fab-fff`.
+
+#### Confidence Gate
+
+Before proceeding, `/fab-ff` runs `calc-score.sh --check-gate <change_dir>` to check the confidence score against a **dynamic threshold** that varies by change type: bugfix=2.0, feature/refactor=3.0, architecture=4.0 (default: 3.0 when `change_type` is absent). If the score is below the threshold, the skill aborts with a message suggesting `/fab-clarify` to raise confidence.
+
+#### No Frontloaded Questions
+
+Since the spec already exists when `/fab-ff` is invoked, there is no frontloaded question batch. Tasks generation proceeds directly.
+
+#### Minimal Auto-Clarify
+
+`/fab-ff` interleaves auto-clarify only if tasks generation occurs (tasks not yet `done`). If the pipeline starts at apply or later, no auto-clarify runs. Auto-clarify uses `[AUTO-MODE]` prefix and bails on blocking issues.
+
+#### Pipeline Flow
+
+1. Read `fab/current` to resolve the active change; verify spec exists and confidence gate passes
+2. Generate `tasks.md` if needed → run auto-clarify on tasks
+3. Auto-generate quality checklist
+4. Execute tasks via apply behavior
+5. Validate implementation via review behavior — on failure, bails immediately
+6. Hydrate into memory files
+
+#### Bail on Review Failure
+
+Unlike `/fab-fff` which presents interactive rework, `/fab-ff` bails immediately on review failure with an actionable message: `Review failed. Run /fab-continue for rework options.`
+
+#### Resumability
+
+`/fab-ff` is resumable — re-invoking skips stages already marked `done` and continues from the first incomplete stage.
+
+#### Confidence Recomputation
+
+`/fab-ff` does NOT recompute the confidence score during execution. The gate check uses the score from the last manual step (`/fab-continue` at spec stage, or `/fab-clarify`).
+
+#### When to Use
+
+- Spec is already done and confidence is high — want to fast-forward the rest
+- After raising confidence via `/fab-clarify` to meet the threshold
+- Want autonomous execution with clear abort on unexpected issues
+
+#### Context
+
+Loads all planning context upfront: config, constitution, `intake.md`, `spec.md`, target memory file(s) from `docs/memory/`.
 
 ### `/fab-clarify [<change-name>]`
 
@@ -225,11 +255,11 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 **Rejected**: Unlimited clarification rounds — too many back-and-forth exchanges. Fixed 3-question cap without SRAD — may ask the wrong 3 questions.
 *Source*: doc/fab-spec/TEMPLATES.md, doc/fab-spec/README.md; *Updated by*: 260207-09sj-autonomy-framework
 
-### Fast-Forward Frontloads All Questions
-**Decision**: `/fab-ff` collects questions across all planning stages into a single batch before generating any artifacts.
-**Why**: Maintains the fast-forward promise — one Q&A round, then heads-down generation. Multiple interruptions would defeat the purpose.
-**Rejected**: Per-stage questions during ff (defeats fast-forward flow). No questions at all (too risky for ambiguous proposals).
-*Source*: doc/fab-spec/SKILLS.md
+### Full-Pipeline Frontloads All Questions
+**Decision**: `/fab-fff` collects questions across all planning stages into a single batch before generating any artifacts.
+**Why**: Maintains the full-pipeline promise — one Q&A round, then heads-down generation. Multiple interruptions would defeat the purpose. `/fab-ff` does not frontload questions since the spec already exists when it's invoked.
+**Rejected**: Per-stage questions during fff (defeats full-pipeline flow). No questions at all (too risky for ambiguous proposals).
+*Source*: doc/fab-spec/SKILLS.md; *Updated by*: 260215-237b-DEV-1027-redefine-ff-fff-scope (moved from fab-ff to fab-fff)
 
 ### Clarify is Non-Advancing
 **Decision**: `/fab-clarify` never transitions to the next stage. It refines in place.
@@ -243,11 +273,11 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 **Rejected**: Flag-based mode selection — adds complexity, no user scenario requires it. Implicit call-context detection — unreliable, not testable.
 *Introduced by*: 260207-m3qf-clarify-dual-modes; *Updated by*: 260210-nan4-define-auto-mode-signaling (explicit `[AUTO-MODE]` protocol)
 
-### Fast-Forward Interleaves Auto-Clarify
-**Decision**: `/fab-ff` interleaves auto-clarify between stage generations (`spec → auto-clarify → tasks → auto-clarify`). Bails on blocking issues that cannot be resolved autonomously.
+### Pipeline Skills Interleave Auto-Clarify
+**Decision**: `/fab-fff` interleaves auto-clarify between stage generations (`spec → auto-clarify → tasks → auto-clarify`). `/fab-ff` does minimal auto-clarify (tasks only, since spec is already done). Both bail on blocking issues that cannot be resolved autonomously.
 **Why**: Gaps in one stage compound downstream. Catching them between stages prevents tasks built on unverified assumptions.
-**Rejected**: No clarify in ff (gaps compound). Full user-interactive clarify in ff (defeats fast-forward flow). Full-auto mode with `<!-- auto-guess -->` markers (defers interaction rather than eliminating it — replaced by confidence-gated `/fab-fff`).
-*Introduced by*: 260207-m3qf-clarify-dual-modes; *Updated by*: 260208-k3m7-add-fab-fff (removed `--auto` mode)
+**Rejected**: No clarify in pipeline (gaps compound). Full user-interactive clarify in pipeline (defeats fast-forward flow). Full-auto mode with `<!-- auto-guess -->` markers (defers interaction rather than eliminating it).
+*Introduced by*: 260207-m3qf-clarify-dual-modes; *Updated by*: 260208-k3m7-add-fab-fff (removed `--auto` mode); 260215-237b-DEV-1027-redefine-ff-fff-scope (split behavior between fab-fff and fab-ff)
 
 ### /fab-new as Single Adaptive Entry Point
 **Decision**: Consolidate `/fab-new` and `/fab-discuss` into a single `/fab-new` that adapts via SRAD scoring.
@@ -279,6 +309,12 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 **Rejected**: Literal `/fab-continue` invocation from fab-ff/fff — orchestration mismatch, nested state management issues.
 *Introduced by*: 260212-a4bd-unify-fab-continue
 
+### Scope Differentiation: fab-fff (Full Pipeline) vs fab-ff (From-Spec, Gated)
+**Decision**: `/fab-fff` is the full pipeline command (intake → hydrate) with no confidence gate, frontloaded questions, interleaved auto-clarify, and interactive rework on review failure. `/fab-ff` is the fast-forward-from-spec command (spec → hydrate) gated on confidence score, with no frontloaded questions, minimal auto-clarify, and bail on review failure.
+**Why**: The chicken-and-egg problem — confidence scores only exist after spec generation, so gating a command that generates the spec is paradoxical. Moving the gate to the post-spec command resolves this naturally. The longer pipeline (`/fab-fff`) gets interactive rework because the user invested more time; the gated pipeline (`/fab-ff`) bails because high confidence implies failure is unexpected.
+**Rejected**: Keeping the gate on `/fab-fff` — perpetuates the chicken-and-egg problem. Both bail on failure — loses course-correction value for long pipelines. Both interactive — makes `/fab-ff` too similar to `/fab-fff`.
+*Introduced by*: 260215-237b-DEV-1027-redefine-ff-fff-scope
+
 ### Reset via `/fab-continue <stage>`
 **Decision**: Reset to any pipeline stage by passing the stage name as an argument to `/fab-continue`. For planning stages, downstream artifacts are invalidated and regenerated. For execution stages, the stage behavior is re-run without resetting task checkboxes.
 **Why**: Provides a clean re-entry point after review identifies upstream issues. Reuses the existing skill rather than adding a separate `/fab-reset` command. Covers all 6 stages (intake, spec, tasks, apply, review, hydrate).
@@ -289,6 +325,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260215-237b-DEV-1027-redefine-ff-fff-scope | 2026-02-16 | Redefined `/fab-ff` and `/fab-fff` scope. `/fab-fff` is now the full pipeline command (intake → hydrate, no gate, frontloaded questions, interactive rework). `/fab-ff` is now the fast-forward-from-spec command (spec → hydrate, confidence-gated, no frontloaded questions, bail on failure). Updated overview, requirement sections, and design decisions. Added Scope Differentiation design decision. |
 | 260215-9yjx-DEV-1022-create-changeman-script | 2026-02-15 | Refactored `/fab-new`: "Folder Name Generation" → "Slug Generation and Change Creation" (delegated to `lib/changeman.sh`). Change Initialization steps consolidated — steps 1-2 of old init (mkdir, .status.yaml, created_by, stageman calls) replaced by single `changeman.sh new` call. Skill now focuses on AI tasks (slug generation, gap analysis, intake writing). Error table simplified. |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` → `intake` throughout. Added Intake Generation Procedure to `_generation.md`. Updated `/fab-new` to reference procedure instead of inlining. Renamed "Brief-First" design decision to "Intake-First" |
 | 260215-w3n8-naming-linear-id-drop-conventions | 2026-02-15 | Updated `/fab-new` folder name generation format to `{YYMMDD}-{XXXX}-[{ISSUE}-]{slug}` with optional uppercase Linear issue ID |
