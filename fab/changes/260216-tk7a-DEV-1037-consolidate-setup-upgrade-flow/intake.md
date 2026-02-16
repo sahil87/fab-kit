@@ -145,6 +145,9 @@ Document the simplified flow prominently:
 - `.claude/agents/fab-init.md` → `.claude/agents/fab-setup.md` (regenerated)
 - Same pattern for OpenCode and Codex paths
 
+**Testing infrastructure**:
+- `src/lib/sync-workspace/` — rename to `src/lib/fab-sync/` (test directory tracks script name). Update symlink, README, and test files to reference `fab-sync.sh` at its new path.
+
 **Documentation** (specs, memory, README):
 - 5 memory files modified, 1 renamed
 - ~4 spec files modified
