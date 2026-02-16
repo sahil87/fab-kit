@@ -23,7 +23,7 @@ If no argument (and no `--blank`): list all active changes and ask user to pick.
 
 ## Context Loading
 
-Loads `fab/config.yaml` (for `git.enabled`, `git.branch_prefix`), `fab/changes/` folder names, and matched change's `.status.yaml`. Does NOT load constitution, memory, or specs.
+Loads `fab/config.yaml` (for `git.enabled`, `git.branch_prefix`), matched change's `.status.yaml`, and `fab/.kit/scripts/lib/resolve-change.sh` (for name resolution when `<change-name>` is provided). Does NOT load constitution, memory, or specs.
 
 ---
 
@@ -37,10 +37,16 @@ Loads `fab/config.yaml` (for `git.enabled`, `git.branch_prefix`), `fab/changes/`
 
 ### Argument Flow
 
-Match `<change-name>` against folder names (case-insensitive substring):
-- **Exact/single match** → use that folder
-- **Multiple matches** → list matches with stages, ask user to pick
-- **No match** → list all available changes, inform user
+Delegate name resolution to `fab/.kit/scripts/lib/resolve-change.sh` via Bash:
+
+```bash
+source fab/.kit/scripts/lib/resolve-change.sh && resolve_change "fab" "<change-name>" && echo "$RESOLVED_CHANGE_NAME"
+```
+
+Handle the result based on exit code:
+- **Exit 0** → use `$RESOLVED_CHANGE_NAME` (exact or single partial match)
+- **Exit 1, stderr contains "Multiple changes match"** → parse the comma-separated folder names from stderr, list them with stages as numbered options, ask user to pick
+- **Exit 1, stderr contains "No change matches"** → list all available changes, inform user
 
 ### Deactivation Flow (`--blank`)
 

@@ -1,2 +1,6 @@
 {"ts":"2026-02-16T17:29:14+05:30","event":"command","cmd":"fab-new","args":"Delegate fab-switch name resolution to resolve-change.sh shell script instead of LLM string matching"}
 {"ts":"2026-02-16T17:34:20+05:30","event":"command","cmd":"changeman-rename","args":"--folder 260216-jmy4-switch-shell-name-resolution --slug DEV-1044-switch-shell-name-resolution"}
+{"ts":"2026-02-16T17:36:48+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-16T17:37:56+05:30","event":"confidence","score":4.7,"delta":"+4.7","trigger":"calc-score"}
+{"ts":"2026-02-16T17:38:24+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-16T17:41:11+05:30","event":"review","result":"passed"}
