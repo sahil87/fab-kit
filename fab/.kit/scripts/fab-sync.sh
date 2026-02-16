@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# fab/.kit/scripts/lib/sync-workspace.sh — Structural bootstrap for fab
+# fab/.kit/scripts/fab-sync.sh — Structural bootstrap for fab
 #
 # Syncs kit assets (directories, skill links/copies, agent files, .gitignore
 # entries) into the workspace. Idempotent — safe to re-run at any time.
 #
-# Run from anywhere: fab/.kit/scripts/lib/sync-workspace.sh
+# Run from anywhere: fab/.kit/scripts/fab-sync.sh
 # Safe to re-run (idempotent).
 
-lib_dir="$(cd "$(dirname "$0")" && pwd)"
-scripts_dir="$(dirname "$lib_dir")"
+scripts_dir="$(cd "$(dirname "$0")" && pwd)"
 kit_dir="$(dirname "$scripts_dir")"
 fab_dir="$(dirname "$kit_dir")"
 repo_root="$(dirname "$fab_dir")"
@@ -86,13 +85,13 @@ fi
 # ── 1b. fab/VERSION ──────────────────────────────────────────────────
 # Track the local project's kit version. New projects get the engine version;
 # existing projects (have config.yaml) get the base version 0.1.0 so
-# /fab-update runs all needed migrations.
+# /fab-setup migrations runs all needed migrations.
 if [ -f "$fab_dir/VERSION" ]; then
   echo "fab/VERSION: OK ($(cat "$fab_dir/VERSION"))"
 elif [ -f "$fab_dir/config.yaml" ]; then
-  # Existing project: set base version so /fab-update applies migrations
+  # Existing project: set base version so /fab-setup migrations applies migrations
   echo "0.1.0" > "$fab_dir/VERSION"
-  echo "Created: fab/VERSION (0.1.0 — existing project, run /fab-update to migrate)"
+  echo "Created: fab/VERSION (0.1.0 — existing project, run /fab-setup migrations to migrate)"
 else
   # New project: match engine version
   cp "$kit_dir/VERSION" "$fab_dir/VERSION"
@@ -229,14 +228,68 @@ sync_agent_skills() {
     "${agent_label}:" "$total" "${#skills[@]}" "$created" "$repaired" "$ok"
 }
 
+# clean_stale_skills <base_dir> <format>
+#   Removes skill entries in base_dir that are NOT in the skills[] array.
+#   format: "directory" → remove <base>/<name>/ dirs, "flat" → remove <base>/<name>.md files
+clean_stale_skills() {
+  local base_dir="$1"
+  local format="$2"
+  local removed=0
+
+  [ -d "$base_dir" ] || return 0
+
+  if [ "$format" = "directory" ]; then
+    for entry in "$base_dir"/*/; do
+      [ -d "$entry" ] || continue
+      local name
+      name="$(basename "$entry")"
+      local found=false
+      for skill in "${skills[@]}"; do
+        if [ "$skill" = "$name" ]; then
+          found=true
+          break
+        fi
+      done
+      if [ "$found" = false ]; then
+        rm -rf "$entry"
+        removed=$((removed + 1))
+      fi
+    done
+  else
+    for entry in "$base_dir"/*.md; do
+      [ -f "$entry" ] || [ -L "$entry" ] || continue
+      local name
+      name="$(basename "$entry" .md)"
+      local found=false
+      for skill in "${skills[@]}"; do
+        if [ "$skill" = "$name" ]; then
+          found=true
+          break
+        fi
+      done
+      if [ "$found" = false ]; then
+        rm -f "$entry"
+        removed=$((removed + 1))
+      fi
+    done
+  fi
+
+  if [ "$removed" -gt 0 ]; then
+    echo "Cleaned: $removed stale entries from ${base_dir#"$repo_root"/}"
+  fi
+}
+
 # Claude Code: .claude/skills/<name>/SKILL.md (directory-based, symlinks)
 sync_agent_skills "Claude Code" "$repo_root/.claude/skills" "directory" "symlink" "../../../"
+clean_stale_skills "$repo_root/.claude/skills" "directory"
 
 # OpenCode: .opencode/commands/<name>.md (flat file, symlinks)
 sync_agent_skills "OpenCode" "$repo_root/.opencode/commands" "flat" "symlink" "../../"
+clean_stale_skills "$repo_root/.opencode/commands" "flat"
 
 # Codex: .agents/skills/<name>/SKILL.md (directory-based, copies — Codex ignores symlinks)
 sync_agent_skills "Codex" "$repo_root/.agents/skills" "directory" "copy"
+clean_stale_skills "$repo_root/.agents/skills" "directory"
 
 # ── 6. Model tier agent files ────────────────────────────────────────
 # Fast-tier skills get generated agent files (in addition to skill symlinks)
@@ -287,6 +340,33 @@ if [ ${#fast_skills[@]} -gt 0 ]; then
   total=$((created + updated + ok))
   printf "%-12s %d/%d (created %d, updated %d, already valid %d)\n" \
     "Agents:" "$total" "${#fast_skills[@]}" "$created" "$updated" "$ok"
+
+  # Clean stale agent files: remove agents for skills no longer in fast_skills[]
+  # Only remove files whose basename (without .md) matches a known skill name pattern
+  # (i.e., exists or once existed in .kit/skills/). Preserve user-created agents.
+  stale_agents=0
+  for agent_file in "$claude_agents_dir"/*.md; do
+    [ -f "$agent_file" ] || continue
+    local_name="$(basename "$agent_file" .md)"
+    found=false
+    for skill in "${fast_skills[@]}"; do
+      if [ "$skill" = "$local_name" ]; then
+        found=true
+        break
+      fi
+    done
+    if [ "$found" = false ]; then
+      # Only remove if a corresponding skill once existed (name matches skill naming pattern)
+      # but is no longer in .kit/skills/ — this preserves truly user-created agents
+      if [ ! -f "$kit_dir/skills/${local_name}.md" ]; then
+        rm -f "$agent_file"
+        stale_agents=$((stale_agents + 1))
+      fi
+    fi
+  done
+  if [ "$stale_agents" -gt 0 ]; then
+    echo "Cleaned: $stale_agents stale agent files from .claude/agents/"
+  fi
 fi
 
 # ── 7. .gitignore ──────────────────────────────────────────────────

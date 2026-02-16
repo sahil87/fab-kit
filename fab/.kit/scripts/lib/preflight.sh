@@ -12,7 +12,7 @@ source "$scripts_dir/lib/resolve-change.sh"
 
 # 1. Project initialization validation
 if [ ! -f "$fab_root/config.yaml" ] || [ ! -f "$fab_root/constitution.md" ]; then
-  echo "fab/ is not initialized. Run /fab-init first." >&2
+  echo "fab/ is not initialized. Run /fab-setup first." >&2
   exit 1
 fi
 

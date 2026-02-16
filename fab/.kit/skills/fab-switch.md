@@ -106,7 +106,7 @@ Branch line omitted if skipped. Deactivation shows `No active change.` with opti
 |-----------|--------|
 | No changes exist | "No active changes found. Run /fab-new." |
 | Matched folder missing `.status.yaml` | Switch anyway, warn: "Warning: .status.yaml not found — change may be corrupted." |
-| `fab/changes/` doesn't exist | "fab/changes/ not found. Run /fab-init." |
+| `fab/changes/` doesn't exist | "fab/changes/ not found. Run /fab-setup." |
 | `fab/config.yaml` not found | Skip branch integration |
 | Git branch creation/checkout fails | Report error, continue without branch change. Switch still completes. |
 

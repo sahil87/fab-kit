@@ -1,21 +1,21 @@
-# Workspace Sync (sync-workspace)
+# Workspace Sync (fab-sync)
 
-Structural bootstrap script that syncs kit assets into the workspace. Creates directories, skill symlinks, agent files, skeleton docs, `.envrc`, `fab/VERSION`, and `.gitignore` entries. Idempotent — safe to re-run.
+Structural bootstrap script that syncs kit assets into the workspace. Creates directories, skill symlinks, agent files, skeleton docs, `.envrc`, `fab/VERSION`, and `.gitignore` entries. Cleans up stale artifacts from deleted skills. Idempotent — safe to re-run.
 
 ## Sources of Truth
 
-- **Implementation**: `fab/.kit/scripts/lib/sync-workspace.sh` — main file (distributed with kit)
-- **Dev symlink**: `src/lib/sync-workspace/sync-workspace.sh` → `../../../fab/.kit/scripts/lib/sync-workspace.sh`
+- **Implementation**: `fab/.kit/scripts/fab-sync.sh` — main file (distributed with kit)
+- **Dev symlink**: `src/lib/fab-sync/fab-sync.sh` → `../../../fab/.kit/scripts/fab-sync.sh`
 - **Architecture docs**: `docs/memory/fab-workflow/kit-architecture.md` — directory structure, script descriptions
 
 ## Usage
 
 ```bash
 # Run directly (from anywhere in the repo)
-fab/.kit/scripts/lib/sync-workspace.sh
+fab/.kit/scripts/fab-sync.sh
 
 # Or via dev symlink
-src/lib/sync-workspace/sync-workspace.sh
+src/lib/fab-sync/fab-sync.sh
 ```
 
 No arguments. No flags. The script resolves paths relative to its own location.
@@ -53,6 +53,8 @@ Discovers skills by globbing `fab/.kit/skills/*.md` (excluding `_*.md` partials)
 - **OpenCode**: `.opencode/commands/<name>.md` → symlink to `../../fab/.kit/skills/<name>.md`
 - **Codex**: `.agents/skills/<name>/SKILL.md` → file copy (Codex ignores symlinks)
 
+After syncing each platform, removes stale entries (skill directories/files not in the current skills list).
+
 Reports created/repaired/valid counts per platform.
 
 ### 6. Model-Tier Agent Generation
@@ -62,6 +64,7 @@ Identifies `fast`-tier skills (via `model_tier: fast` in YAML frontmatter). For 
 - Reads the Claude model mapping from `fab/.kit/model-tiers.yaml` (with optional `fab/config.yaml` override)
 - Generates `.claude/agents/<name>.md` with `model_tier:` replaced by `model:` platform-specific value
 - Updates existing agent files if content changed
+- Removes stale agent files for skills that no longer exist in `.kit/skills/`
 
 ### 7. .gitignore Management
 
@@ -77,5 +80,5 @@ Reads entries from `fab/.kit/scaffold/gitignore-entries`. For each entry: create
 
 ```bash
 # Run bats test suite
-bats src/lib/sync-workspace/test.bats
+bats src/lib/fab-sync/test.bats
 ```

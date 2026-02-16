@@ -25,8 +25,8 @@ This is the reverse of hydrate (specs â†’ memory): hydrate-specs flows memory â†
 
 ## Pre-flight
 
-1. `docs/memory/index.md` must exist. If not: STOP with `docs/memory/index.md not found. Run /fab-init first.`
-2. `docs/specs/index.md` must exist. If not: STOP with `docs/specs/index.md not found. Run /fab-init first.`
+1. `docs/memory/index.md` must exist. If not: STOP with `docs/memory/index.md not found. Run /fab-setup first.`
+2. `docs/specs/index.md` must exist. If not: STOP with `docs/specs/index.md not found. Run /fab-setup first.`
 
 ---
 

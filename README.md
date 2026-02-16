@@ -46,15 +46,15 @@ cp -r /path/to/fab-kit/fab/.kit ./fab/
 ### 2. Initialize
 
 ```bash
-fab/.kit/scripts/lib/sync-workspace.sh   # creates directories, symlinks, .gitignore
+fab/.kit/scripts/fab-sync.sh            # creates directories, symlinks, .gitignore
 direnv allow                            # approve .envrc (adds scripts to PATH)
 ```
 
 Then open your AI agent and run:
 
 ```
-/fab-init     # Claude Code
-$fab-init     # Codex
+/fab-setup    # Claude Code
+$fab-setup    # Codex
 ```
 
 ### 3. Your first change
@@ -116,7 +116,7 @@ flowchart TD
 
 | Command | Purpose |
 |---------|---------|
-| `/fab-init` | Bootstrap fab/ structure (idempotent) |
+| `/fab-setup` | Bootstrap fab/ structure, manage config/constitution, apply migrations |
 | `/fab-new <description>` | Start a new change |
 | `/fab-continue` | Advance to next stage |
 | `/fab-ff` | Fast-forward all planning stages |
@@ -146,12 +146,12 @@ The kit provides the 6-stage workflow above. See [docs/specs/index.md](docs/spec
 fab-upgrade.sh       # downloads latest kit, replaces fab/.kit/, repairs symlinks
 ```
 
-If the upgrade reports a version mismatch, run `/fab-update` in your AI agent to apply migrations. Safe to re-run.
+If the upgrade reports a version mismatch, run `/fab-setup migrations` in your AI agent to apply migrations. Safe to re-run.
 
 To repair symlinks and scaffold structure without downloading a new release (useful when developing fab-kit itself):
 
 ```bash
-bash fab/.kit/scripts/lib/sync-workspace.sh
+bash fab/.kit/scripts/fab-sync.sh
 ```
 
 ## Learn More

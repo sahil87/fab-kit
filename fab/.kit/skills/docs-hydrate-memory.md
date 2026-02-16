@@ -25,7 +25,7 @@ Mode is determined automatically by argument type. Safe to run repeatedly — co
 1. `docs/memory/` directory must exist
 2. `docs/memory/index.md` must exist and be readable
 
-**If either fails, STOP**: `docs/memory/ not found. Run /fab-init first to create the memory directory.` Do NOT create these.
+**If either fails, STOP**: `docs/memory/ not found. Run /fab-setup first to create the memory directory.` Do NOT create these.
 
 ---
 

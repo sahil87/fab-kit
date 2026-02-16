@@ -1,1 +1,7 @@
 {"ts":"2026-02-16T12:56:30+05:30","event":"command","cmd":"fab-new","args":"Simplify setup/update/upgrade flow: replace fab-init + fab-update + sync-workspace.sh with fab-setup + fab-upgrade.sh + fab-sync.sh"}
+{"ts":"2026-02-16T13:21:48+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-16T13:24:35+05:30","event":"confidence","score":3.8,"delta":"+3.8","trigger":"calc-score"}
+{"ts":"2026-02-16T13:25:57+05:30","event":"command","cmd":"fab-clarify"}
+{"ts":"2026-02-16T13:32:42+05:30","event":"confidence","score":4.1,"delta":"+0.3","trigger":"calc-score"}
+{"ts":"2026-02-16T13:39:46+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-16T13:57:00+05:30","event":"review","result":"passed"}

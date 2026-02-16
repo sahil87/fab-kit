@@ -1,7 +1,7 @@
 # fab/config.yaml
 #
 # Project configuration for the Fab workflow. This file is loaded by nearly
-# every /fab:* skill as grounding context. It is generated once by /fab:init
+# every /fab-* skill as grounding context. It is generated once by /fab-setup
 # and then hand-maintained.
 #
 # Companion files (not configured here):

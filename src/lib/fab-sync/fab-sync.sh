@@ -1,0 +1,1 @@
+../../../fab/.kit/scripts/fab-sync.sh

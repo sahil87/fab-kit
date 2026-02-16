@@ -12,7 +12,7 @@ description: "Start a new change from a natural language description. Creates th
 ## Pre-flight
 
 1. Verify `fab/config.yaml` and `fab/constitution.md` exist
-2. **If either missing, STOP**: `fab/ is not initialized. Run /fab-init first to bootstrap the project.`
+2. **If either missing, STOP**: `fab/ is not initialized. Run /fab-setup first to bootstrap the project.`
 
 ---
 
@@ -91,7 +91,7 @@ Next: {per _context.md Next Steps table}
 
 | Condition | Action |
 |-----------|--------|
-| Config/constitution missing | Abort: "Run /fab-init first." |
+| Config/constitution missing | Abort: "Run /fab-setup first." |
 | No description | Ask for one |
 | Intake template missing | Abort: "Kit may be corrupted." |
 | `changeman.sh` failure | Surface stderr output to user and stop |

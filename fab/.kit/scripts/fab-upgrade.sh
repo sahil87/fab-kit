@@ -4,7 +4,7 @@ set -euo pipefail
 # fab/.kit/scripts/fab-upgrade.sh — Update fab/.kit/ from GitHub Releases
 #
 # Downloads the latest kit.tar.gz, atomically replaces fab/.kit/, displays
-# the version change, and re-runs lib/sync-workspace.sh to repair symlinks.
+# the version change, and re-runs fab-sync.sh to repair symlinks.
 #
 # Requires: gh CLI (https://cli.github.com/)
 # Safe to re-run. Existing project files (config.yaml, memory/, etc.) are never touched.
@@ -93,8 +93,8 @@ echo "fab/.kit/ updated successfully."
 # ── Re-run setup ─────────────────────────────────────────────────────
 
 echo ""
-echo "Running lib/sync-workspace.sh to repair symlinks..."
-bash "$kit_dir/scripts/lib/sync-workspace.sh"
+echo "Running fab-sync.sh to repair symlinks..."
+bash "$kit_dir/scripts/fab-sync.sh"
 
 # ── Version drift check ──────────────────────────────────────────────
 
@@ -102,11 +102,11 @@ if [ -f "$fab_dir/VERSION" ]; then
   local_version=$(cat "$fab_dir/VERSION" | tr -d '[:space:]')
   if [ "$local_version" != "$new_version" ]; then
     echo ""
-    echo "Note: fab/VERSION ($local_version) is behind engine ($new_version). Run /fab-update to apply migrations."
+    echo "Note: fab/VERSION ($local_version) is behind engine ($new_version). Run /fab-setup migrations to apply migrations."
   fi
 else
   echo ""
-  echo "Note: fab/VERSION not found. Run /fab-init to create it, then /fab-update for migrations."
+  echo "Note: fab/VERSION not found. Run /fab-setup to create it, then /fab-setup migrations for migrations."
 fi
 
 echo ""

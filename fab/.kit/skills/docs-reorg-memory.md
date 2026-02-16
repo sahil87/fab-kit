@@ -98,7 +98,7 @@ If no changes needed: `Current structure is well-organized — no reorganization
 
 | Condition | Action |
 |-----------|--------|
-| `docs/memory/index.md` missing | Abort: "Run /fab-init first." |
+| `docs/memory/index.md` missing | Abort: "Run /fab-setup first." |
 | No memory domains or files besides indexes | Abort: "Nothing to reorganize." |
 | File write fails during apply | Report error, roll back that migration, continue |
 | Content verification fails | Warn, show missing heading, ask to proceed |

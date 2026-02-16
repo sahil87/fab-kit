@@ -11,4 +11,4 @@
 
 | Domain | Description | Memory Files |
 |--------|-------------|--------------|
-| [fab-workflow](fab-workflow/index.md) | Fab kit workflow — skills, architecture, templates, configuration, change lifecycle | hydrate, hydrate-generate, hydrate-specs, init, context-loading, planning-skills, clarify, execution-skills, change-lifecycle, templates, kit-architecture, model-tiers, configuration, preflight, distribution, migrations, schemas, specs-index |
+| [fab-workflow](fab-workflow/index.md) | Fab kit workflow — skills, architecture, templates, configuration, change lifecycle | hydrate, hydrate-generate, hydrate-specs, setup, context-loading, planning-skills, clarify, execution-skills, change-lifecycle, templates, kit-architecture, model-tiers, configuration, preflight, distribution, migrations, schemas, specs-index |

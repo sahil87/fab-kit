@@ -98,7 +98,7 @@ If no changes needed: `Current structure is well-organized — no reorganization
 
 | Condition | Action |
 |-----------|--------|
-| `docs/specs/index.md` missing | Abort: "Run /fab-init first." |
+| `docs/specs/index.md` missing | Abort: "Run /fab-setup first." |
 | No spec files besides index | Abort: "Nothing to reorganize." |
 | File write fails during apply | Report error, roll back that migration, continue |
 | Content verification fails | Warn, show missing heading, ask to proceed |

@@ -45,13 +45,13 @@ COMMANDS
     /fab-archive            Archive change — move to archive, mark backlog done
 
   Maintenance
-    /fab-update                   Apply version migrations after a kit upgrade
     /docs-hydrate-specs [domain]  Identify memory→spec gaps and propose additions
     /docs-reorg-specs             Analyze spec files for themes and suggest reorganization
     /docs-reorg-memory            Analyze memory files for themes and suggest reorganization
 
   Setup
-    /fab-init               Bootstrap fab/ directory structure (safe to re-run)
+    /fab-setup              Bootstrap fab/ structure, manage config/constitution, apply migrations
+    fab-sync.sh             Repair directories, symlinks, and agents (no LLM needed)
     /docs-hydrate-memory <sources>  Ingest external sources into docs/memory/
     /fab-help               Show this help
 

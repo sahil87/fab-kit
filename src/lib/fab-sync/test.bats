@@ -1,11 +1,11 @@
 #!/usr/bin/env bats
 
-# Test suite for sync-workspace.sh
+# Test suite for fab-sync.sh
 # Covers: directory creation, VERSION logic, .envrc, index seeding,
 #         skill sync, model-tier agent generation, .gitignore, idempotency
 
 SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
-SYNC_WORKSPACE="$(readlink -f "$SCRIPT_DIR/sync-workspace.sh")"
+FAB_SYNC="$(readlink -f "$SCRIPT_DIR/fab-sync.sh")"
 
 setup() {
   # Create isolated temp workspace
@@ -86,9 +86,9 @@ MD
 This is a partial — should not be deployed as a skill.
 MD
 
-  # Copy the actual sync-workspace.sh into the kit
-  cp "$SYNC_WORKSPACE" "$KIT/scripts/lib/sync-workspace.sh"
-  chmod +x "$KIT/scripts/lib/sync-workspace.sh"
+  # Copy the actual fab-sync.sh into the kit
+  cp "$FAB_SYNC" "$KIT/scripts/fab-sync.sh"
+  chmod +x "$KIT/scripts/fab-sync.sh"
 }
 
 teardown() {
@@ -98,32 +98,32 @@ teardown() {
 # ── Directory Creation ──────────────────────────────────────────────
 
 @test "creates fab/changes directory when missing" {
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [ -d "$REPO_ROOT/fab/changes" ]
 }
 
 @test "creates docs/memory directory when missing" {
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [ -d "$REPO_ROOT/docs/memory" ]
 }
 
 @test "creates docs/specs directory when missing" {
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [ -d "$REPO_ROOT/docs/specs" ]
 }
 
 @test "creates fab/changes/.gitkeep" {
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [ -f "$REPO_ROOT/fab/changes/.gitkeep" ]
 }
 
 @test "skips directory creation when directories exist" {
   mkdir -p "$REPO_ROOT/fab/changes" "$REPO_ROOT/docs/memory" "$REPO_ROOT/docs/specs"
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   # Verify no error about existing dirs
   [[ "$output" != *"ERROR"* ]]
@@ -132,7 +132,7 @@ teardown() {
 # ── VERSION File Logic ──────────────────────────────────────────────
 
 @test "new project gets engine version in fab/VERSION" {
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [ -f "$REPO_ROOT/fab/VERSION" ]
   [ "$(cat "$REPO_ROOT/fab/VERSION")" = "1.2.3" ]
@@ -144,14 +144,14 @@ teardown() {
 project:
   name: test
 YAML
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [ "$(cat "$REPO_ROOT/fab/VERSION")" = "0.1.0" ]
 }
 
 @test "existing fab/VERSION is preserved" {
   echo "0.5.0" > "$REPO_ROOT/fab/VERSION"
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [ "$(cat "$REPO_ROOT/fab/VERSION")" = "0.5.0" ]
 }
@@ -159,7 +159,7 @@ YAML
 # ── .envrc Symlink ──────────────────────────────────────────────────
 
 @test "creates .envrc symlink" {
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [ -L "$REPO_ROOT/.envrc" ]
   [ -e "$REPO_ROOT/.envrc" ]
@@ -167,7 +167,7 @@ YAML
 
 @test "repairs broken .envrc symlink" {
   ln -s "nonexistent/path" "$REPO_ROOT/.envrc"
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [ -L "$REPO_ROOT/.envrc" ]
   [ -e "$REPO_ROOT/.envrc" ]
@@ -175,7 +175,7 @@ YAML
 
 @test "replaces regular .envrc file with symlink" {
   echo "old content" > "$REPO_ROOT/.envrc"
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [ -L "$REPO_ROOT/.envrc" ]
 }
@@ -183,14 +183,14 @@ YAML
 # ── Memory/Specs Index Seeding ──────────────────────────────────────
 
 @test "creates docs/memory/index.md from scaffold" {
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [ -f "$REPO_ROOT/docs/memory/index.md" ]
   [[ "$(cat "$REPO_ROOT/docs/memory/index.md")" == *"Memory Index"* ]]
 }
 
 @test "creates docs/specs/index.md from scaffold" {
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [ -f "$REPO_ROOT/docs/specs/index.md" ]
   [[ "$(cat "$REPO_ROOT/docs/specs/index.md")" == *"Specs Index"* ]]
@@ -199,7 +199,7 @@ YAML
 @test "does not overwrite existing memory index" {
   mkdir -p "$REPO_ROOT/docs/memory"
   echo "# Custom Index" > "$REPO_ROOT/docs/memory/index.md"
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [ "$(cat "$REPO_ROOT/docs/memory/index.md")" = "# Custom Index" ]
 }
@@ -207,7 +207,7 @@ YAML
 # ── Skill Sync ──────────────────────────────────────────────────────
 
 @test "creates Claude Code skill symlinks (directory-based)" {
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [ -L "$REPO_ROOT/.claude/skills/fab-continue/SKILL.md" ]
   [ -e "$REPO_ROOT/.claude/skills/fab-continue/SKILL.md" ]
@@ -215,14 +215,14 @@ YAML
 }
 
 @test "creates OpenCode command symlinks (flat)" {
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [ -L "$REPO_ROOT/.opencode/commands/fab-continue.md" ]
   [ -e "$REPO_ROOT/.opencode/commands/fab-continue.md" ]
 }
 
 @test "creates Codex skill copies (not symlinks)" {
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [ -f "$REPO_ROOT/.agents/skills/fab-continue/SKILL.md" ]
   # Codex files should NOT be symlinks
@@ -230,7 +230,7 @@ YAML
 }
 
 @test "skips _context.md partial (not deployed as skill)" {
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [ ! -e "$REPO_ROOT/.claude/skills/_context" ]
   [ ! -e "$REPO_ROOT/.claude/skills/_context.md" ]
@@ -239,13 +239,13 @@ YAML
 # ── Model-Tier Agent Generation ─────────────────────────────────────
 
 @test "generates agent file for fast-tier skill" {
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [ -f "$REPO_ROOT/.claude/agents/fab-status.md" ]
 }
 
 @test "fast-tier agent file has model: instead of model_tier:" {
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   local agent_content
   agent_content="$(cat "$REPO_ROOT/.claude/agents/fab-status.md")"
@@ -254,7 +254,7 @@ YAML
 }
 
 @test "does not generate agent file for capable-tier skill" {
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [ ! -f "$REPO_ROOT/.claude/agents/fab-continue.md" ]
 }
@@ -262,7 +262,7 @@ YAML
 # ── .gitignore Management ───────────────────────────────────────────
 
 @test "creates .gitignore with fab/current entry" {
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [ -f "$REPO_ROOT/.gitignore" ]
   grep -qxF "fab/current" "$REPO_ROOT/.gitignore"
@@ -270,7 +270,7 @@ YAML
 
 @test "appends fab/current to existing .gitignore" {
   echo "node_modules/" > "$REPO_ROOT/.gitignore"
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   grep -qxF "node_modules/" "$REPO_ROOT/.gitignore"
   grep -qxF "fab/current" "$REPO_ROOT/.gitignore"
@@ -278,7 +278,7 @@ YAML
 
 @test "does not duplicate existing .gitignore entry" {
   echo "fab/current" > "$REPO_ROOT/.gitignore"
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   local count
   count=$(grep -cxF "fab/current" "$REPO_ROOT/.gitignore")
@@ -288,18 +288,18 @@ YAML
 # ── Idempotency ─────────────────────────────────────────────────────
 
 @test "running twice produces no errors" {
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
   [[ "$output" != *"ERROR"* ]]
 }
 
 @test "running twice produces same file structure" {
-  bash "$KIT/scripts/lib/sync-workspace.sh" >/dev/null 2>&1
+  bash "$KIT/scripts/fab-sync.sh" >/dev/null 2>&1
   local first_tree
   first_tree="$(find "$REPO_ROOT" -type f -o -type l | sort)"
-  bash "$KIT/scripts/lib/sync-workspace.sh" >/dev/null 2>&1
+  bash "$KIT/scripts/fab-sync.sh" >/dev/null 2>&1
   local second_tree
   second_tree="$(find "$REPO_ROOT" -type f -o -type l | sort)"
   [ "$first_tree" = "$second_tree" ]
@@ -309,14 +309,14 @@ YAML
 
 @test "fails when VERSION file is missing" {
   rm "$KIT/VERSION"
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -ne 0 ]
   [[ "$output" == *"VERSION not found"* ]]
 }
 
 @test "fails when model-tiers.yaml is missing" {
   rm "$KIT/model-tiers.yaml"
-  run bash "$KIT/scripts/lib/sync-workspace.sh"
+  run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -ne 0 ]
   [[ "$output" == *"model-tiers.yaml not found"* ]]
 }

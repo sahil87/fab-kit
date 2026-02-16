@@ -49,11 +49,11 @@ Migration files are pure markdown instructions (Constitution I — Pure Prompt P
 
 Migration ranges are determined by the release author, not by version bump type. Any release (patch, minor, or major) can ship a migration file if it changes project-level files. Wide-range migrations (e.g., `0.2.0-to-0.4.0.md`) cover multiple intermediate releases.
 
-Migration file ranges MUST NOT overlap. `/fab-update` validates this before applying.
+Migration file ranges MUST NOT overlap. `/fab-setup migrations` validates this before applying.
 
-### `/fab-update` Skill
+### `/fab-setup migrations` Subcommand
 
-The migration runner skill at `fab/.kit/skills/fab-update.md`. It:
+The migration runner, now a subcommand of `/fab-setup` (previously the standalone `/fab-update` skill). It:
 
 1. Compares `fab/VERSION` to `fab/.kit/VERSION`
 2. Scans `fab/.kit/migrations/` for applicable files
@@ -66,11 +66,11 @@ The migration runner skill at `fab/.kit/skills/fab-update.md`. It:
 2. If no match but a later migration exists with `FROM > current` → skip to that FROM (log skip)
 3. If no match and no later migrations → set `fab/VERSION` to engine version
 
-**Failure handling**: stops immediately on failure, `fab/VERSION` reflects last successful migration, suggests re-running `/fab-update`.
+**Failure handling**: stops immediately on failure, `fab/VERSION` reflects last successful migration, suggests re-running `/fab-setup migrations`.
 
 ### Two-Step Update Flow
 
-`fab-upgrade.sh` handles the mechanical `.kit/` swap. `/fab-update` (skill) handles intelligent migration execution. They are separate operations — the shell script doesn't need an LLM, the skill does.
+`fab-upgrade.sh` handles the mechanical `.kit/` swap. `/fab-setup migrations` (subcommand) handles intelligent migration execution. They are separate operations — the shell script doesn't need an LLM, the skill does.
 
 ### Version Drift Detection
 
@@ -80,10 +80,10 @@ The migration runner skill at `fab/.kit/skills/fab-update.md`. It:
 
 ### `fab/VERSION` Creation
 
-Handled by `lib/sync-workspace.sh` during structural bootstrap:
+Handled by `fab-sync.sh` during structural bootstrap:
 
 - **New project** (no `config.yaml`): copies engine version from `fab/.kit/VERSION`
-- **Existing project** (has `config.yaml`, no `fab/VERSION`): writes `0.1.0` (base version) so `/fab-update` runs all migrations
+- **Existing project** (has `config.yaml`, no `fab/VERSION`): writes `0.1.0` (base version) so `/fab-setup migrations` runs all migrations
 - **Already exists**: preserves existing value
 
 ## Design Decisions
@@ -94,7 +94,7 @@ Handled by `lib/sync-workspace.sh` during structural bootstrap:
 **Rejected**: Minor-only stepping (forced empty migration files), exact-version chaining (unbroken linked list, maintenance burden).
 
 ### Two-Step Update Flow
-**Decision**: `fab-upgrade.sh` (script) handles mechanical swap; `/fab-update` (skill) handles intelligent migration.
+**Decision**: `fab-upgrade.sh` (script) handles mechanical swap; `/fab-setup migrations` (subcommand) handles intelligent migration.
 **Why**: Migrations are LLM instruction files. The shell script handles download/swap (no LLM needed); the skill handles reading and applying instructions (LLM needed). Preserves Constitution I.
 **Rejected**: Single combined script — would require embedding LLM invocation in shell or making migration files executable (violates pure prompt play).
 
@@ -104,7 +104,7 @@ Handled by `lib/sync-workspace.sh` during structural bootstrap:
 **Rejected**: Hard block — too restrictive.
 
 ### Existing Projects Get Base Version
-**Decision**: `lib/sync-workspace.sh` assigns `0.1.0` to existing projects (detected via `config.yaml` presence) so `/fab-update` applies all needed migrations from the beginning.
+**Decision**: `fab-sync.sh` assigns `0.1.0` to existing projects (detected via `config.yaml` presence) so `/fab-setup migrations` applies all needed migrations from the beginning.
 **Why**: Existing projects predate the migration system. Starting from `0.1.0` ensures the full migration chain runs. New projects get the engine version since their config is freshly generated.
 **Rejected**: Assigning engine version to all — would skip needed migrations for existing projects.
 
@@ -112,5 +112,6 @@ Handled by `lib/sync-workspace.sh` during structural bootstrap:
 
 | Change | Date | Summary |
 |--------|------|---------|
-| 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_init_scaffold.sh` → `lib/sync-workspace.sh` in VERSION creation and design decision references |
-| 260213-k7m2-kit-version-migrations | 2026-02-14 | Initial creation — migration system, dual-version model, `/fab-update` skill, version drift detection, `fab/VERSION` creation |
+| 260216-tk7a-DEV-1037-consolidate-setup-upgrade-flow | 2026-02-16 | `/fab-update` absorbed into `/fab-setup migrations` subcommand; `lib/sync-workspace.sh` → `fab-sync.sh`; updated design decision wording |
+| 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_init_scaffold.sh` → `fab-sync.sh` in VERSION creation and design decision references |
+| 260213-k7m2-kit-version-migrations | 2026-02-14 | Initial creation — migration system, dual-version model, `/fab-setup migrations` skill, version drift detection, `fab/VERSION` creation |
