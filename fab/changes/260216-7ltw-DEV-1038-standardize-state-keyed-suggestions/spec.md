@@ -86,7 +86,7 @@ Next: /fab-switch {name} to make it active, then {default}, {other commands}
 ```
 
 This applies to:
-- `/fab-new` (always — change is never auto-activated after this change)
+- `/fab-new` (always — change is never auto-activated by this command)
 - `/fab-archive restore` without `--switch`
 
 When `/fab-archive restore --switch` is used, the change is activated and the `Next:` line is derived directly from the restored change's state.
