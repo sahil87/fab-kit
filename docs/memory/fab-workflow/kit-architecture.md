@@ -42,7 +42,7 @@ fab/.kit/
 │   ├── tasks.md
 │   ├── checklist.md
 │   └── status.yaml         # .status.yaml template (includes stage_metrics: {})
-├── scaffold/               # Bootstrap content (read by lib/init-scaffold.sh)
+├── scaffold/               # Bootstrap content (read by lib/sync-workspace.sh)
 │   ├── envrc               # .envrc template (shipped)
 │   ├── gitignore-entries   # .gitignore entries (one per line)
 │   ├── memory-index.md     # Initial docs/memory/index.md content
@@ -59,7 +59,7 @@ fab/.kit/
     └── lib/                # Internal scripts (not user-facing)
         ├── calc-score.sh       # Confidence score computation
         ├── changeman.sh        # Change Manager — change lifecycle operations (new)
-        ├── init-scaffold.sh    # Structural bootstrap
+        ├── sync-workspace.sh   # Structural bootstrap
         ├── preflight.sh        # Pre-flight validation (calls stageman CLI, sources resolve-change)
         ├── resolve-change.sh   # Change name resolution library (sourced)
         └── stageman.sh         # Stage Manager — schema query + .status.yaml accessors
@@ -67,9 +67,9 @@ fab/.kit/
 
 ### Shell Scripts
 
-#### `lib/init-scaffold.sh`
+#### `lib/sync-workspace.sh`
 
-The structural bootstrap script. Creates directories, symlinks, `docs/memory/index.md`, `docs/specs/index.md`, `fab/VERSION`, and `.gitignore` entries. Reads bootstrap content from `scaffold/` files (index templates, envrc, gitignore entries) rather than hardcoding them. Creates `fab/VERSION` using the dual-version model: new projects get the engine version, existing projects (detected via `config.yaml` presence) get `0.1.0` base version, existing `fab/VERSION` is preserved. It is the single source of truth for structural setup. `/fab-init` delegates to it and adds the interactive parts (config, constitution).
+The workspace sync script. Syncs kit assets (directories, symlinks, agent files, `.gitignore` entries) into the workspace. Creates `docs/memory/index.md`, `docs/specs/index.md`, `fab/VERSION`, and `.gitignore` entries. Reads bootstrap content from `scaffold/` files (index templates, envrc, gitignore entries) rather than hardcoding them. Creates `fab/VERSION` using the dual-version model: new projects get the engine version, existing projects (detected via `config.yaml` presence) get `0.1.0` base version, existing `fab/VERSION` is preserved. It is the single source of truth for structural setup. `/fab-init` delegates to it and adds the interactive parts (config, constitution).
 
 #### `lib/stageman.sh`
 
@@ -104,7 +104,7 @@ Prints the Fab Kit help overview and skill catalog. MUST be updated when skills 
 
 #### `fab-upgrade.sh`
 
-Downloads the latest `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/` (extract to temp dir, verify, swap), displays the version change, and re-runs `lib/init-scaffold.sh` to repair symlinks. After upgrade, checks for version drift between `fab/VERSION` and the new `fab/.kit/VERSION` — prints a reminder to run `/fab-update` if behind, or init guidance if `fab/VERSION` is missing. Requires `gh` CLI. Preserves all project files outside `.kit/`. Handles errors: gh CLI missing, network failure, extraction verification failure, already-up-to-date.
+Downloads the latest `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/` (extract to temp dir, verify, swap), displays the version change, and re-runs `lib/sync-workspace.sh` to repair symlinks. After upgrade, checks for version drift between `fab/VERSION` and the new `fab/.kit/VERSION` — prints a reminder to run `/fab-update` if behind, or init guidance if `fab/VERSION` is missing. Requires `gh` CLI. Preserves all project files outside `.kit/`. Handles errors: gh CLI missing, network failure, extraction verification failure, already-up-to-date.
 
 #### `fab-release.sh` (dev-only, at `src/scripts/fab-release.sh`)
 
@@ -126,7 +126,7 @@ Batch scripts follow the `batch-fab-{verb}-{entity}.sh` naming pattern. Each cre
 
 Agent-specific skill files SHALL be symlinks pointing into `fab/.kit/skills/`. This means updating `.kit/` automatically updates all agent integrations — no re-export step needed.
 
-`lib/init-scaffold.sh` creates symlinks for all three supported agents unconditionally. The skill prompt files are agent-agnostic markdown; only the symlink locations and formats differ per agent.
+`lib/sync-workspace.sh` creates symlinks for all three supported agents unconditionally. The skill prompt files are agent-agnostic markdown; only the symlink locations and formats differ per agent.
 
 **Claude Code** — directory-based skills:
 ```
@@ -157,7 +157,7 @@ Skills classified as `fast` tier (via `model_tier: fast` in frontmatter) get **b
 .claude/agents/fab-switch.md
 ```
 
-Agent files are self-contained (not symlinks) because they need a translated `model:` field. `lib/init-scaffold.sh` regenerates them on each run, so they stay in sync with `.kit/` updates.
+Agent files are self-contained (not symlinks) because they need a translated `model:` field. `lib/sync-workspace.sh` regenerates them on each run, so they stay in sync with `.kit/` updates.
 
 Capable-tier skills (the default) get symlinks only — no agent files. See [model-tiers.md](model-tiers.md) for the full tier system documentation.
 
@@ -179,7 +179,7 @@ cp -r /path/to/fab-kit/fab/.kit fab/.kit
 ```
 
 Then in either case:
-1. User runs `fab/.kit/scripts/lib/init-scaffold.sh` → creates directories, symlinks, memory skeleton
+1. User runs `fab/.kit/scripts/lib/sync-workspace.sh` → creates directories, symlinks, memory skeleton
 2. User runs `/fab-init` → generates `config.yaml`, `constitution.md`
 3. User optionally runs `/fab-hydrate` → ingests external sources
 4. User runs `/fab-new` → first change created
@@ -195,13 +195,13 @@ Step 1 is a shell script. Steps 2-4 are skill-driven.
 Two VERSION files track the relationship between the installed engine and the project's file format:
 
 - **`fab/.kit/VERSION`** (engine version) — ships inside `.kit/`, replaced on each `fab-upgrade.sh` run. Enables version display, update comparison, and migration targeting.
-- **`fab/VERSION`** (local project version) — lives outside `.kit/`, NOT replaced on upgrades. Tracks the version the project's `config.yaml`, `.status.yaml`, and conventions were written for. Created by `lib/init-scaffold.sh`.
+- **`fab/VERSION`** (local project version) — lives outside `.kit/`, NOT replaced on upgrades. Tracks the version the project's `config.yaml`, `.status.yaml`, and conventions were written for. Created by `lib/sync-workspace.sh`.
 
 Both contain a bare semver string (`MAJOR.MINOR.PATCH`). See [migrations.md](migrations.md) for the full migration system.
 
 ### Updating `.kit/`
 
-Run `fab/.kit/scripts/fab-upgrade.sh` to update to the latest release. The script downloads `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/`, and re-runs `lib/init-scaffold.sh` to repair symlinks. After the upgrade, if `fab/VERSION` is behind the new engine version, the script prints a reminder to run `/fab-update` to apply migrations. Requires the `gh` CLI.
+Run `fab/.kit/scripts/fab-upgrade.sh` to update to the latest release. The script downloads `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/`, and re-runs `lib/sync-workspace.sh` to repair symlinks. After the upgrade, if `fab/VERSION` is behind the new engine version, the script prints a reminder to run `/fab-update` to apply migrations. Requires the `gh` CLI.
 
 Symlinks in `.claude/skills/`, `.opencode/commands/`, and `.agents/skills/` automatically resolve to the new files after the update.
 
@@ -239,7 +239,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 *Source*: doc/fab-spec/ARCHITECTURE.md
 
 ### lib/ Subfolder for Internal Scripts
-**Decision**: Internal scripts (`stageman.sh`, `resolve-change.sh`, `calc-score.sh`, `init-scaffold.sh`, `preflight.sh`) live in `fab/.kit/scripts/lib/` without underscore prefix. User-facing scripts (`fab-help.sh`, `fab-upgrade.sh`, batch scripts) remain in the parent `scripts/` directory.
+**Decision**: Internal scripts (`stageman.sh`, `resolve-change.sh`, `calc-score.sh`, `sync-workspace.sh`, `preflight.sh`) live in `fab/.kit/scripts/lib/` without underscore prefix. User-facing scripts (`fab-help.sh`, `fab-upgrade.sh`, batch scripts) remain in the parent `scripts/` directory.
 **Why**: The `lib/` subfolder provides a clearer structural boundary between internal plumbing and user-facing entry points than naming conventions alone. All internal scripts are co-located, making the dependency graph explicit. The directory structure is more discoverable than prefix conventions.
 **Rejected**: Underscore prefix convention (previous approach) — naming conventions are less discoverable than directory structure; the prefix was inconsistent (`_init_scaffold.sh` used underscore+name while others used underscore only).
 
@@ -253,6 +253,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260216-b1k9-DEV-1028-rename-scaffold-add-kit-tests | 2026-02-16 | Renamed `init-scaffold.sh` → `sync-workspace.sh` throughout (directory tree, section heading, script description, design decisions). Updated `scaffold/` comment, agent integration references, bootstrap sequence, version tracking, and updating sections. Added `changeman.sh` and `sync-workspace.sh` to dev test directory listing (`src/lib/`) |
 | 260215-9yjx-DEV-1022-create-changeman-script | 2026-02-15 | Added `changeman.sh` to `lib/` directory listing and Shell Scripts section. New script handles change creation lifecycle (folder name construction, collision detection, directory creation, created_by detection, .status.yaml initialization, stageman integration). Called by `/fab-new` Step 3. |
 | 260215-g4r2-DEV-1023-batch-rename-default-list | 2026-02-15 | Renamed batch scripts from `batch-{verb}-{entity}.sh` to `batch-fab-{verb}-{entity}.sh`; changed no-arg behavior from showing help to showing `--list` output; updated directory tree, naming pattern, and script descriptions |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Updated directory listing: `brief.md` → `intake.md` in templates. Updated script references from brief to intake |

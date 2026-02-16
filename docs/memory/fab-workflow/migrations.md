@@ -80,7 +80,7 @@ The migration runner skill at `fab/.kit/skills/fab-update.md`. It:
 
 ### `fab/VERSION` Creation
 
-Handled by `lib/init-scaffold.sh` during structural bootstrap:
+Handled by `lib/sync-workspace.sh` during structural bootstrap:
 
 - **New project** (no `config.yaml`): copies engine version from `fab/.kit/VERSION`
 - **Existing project** (has `config.yaml`, no `fab/VERSION`): writes `0.1.0` (base version) so `/fab-update` runs all migrations
@@ -104,7 +104,7 @@ Handled by `lib/init-scaffold.sh` during structural bootstrap:
 **Rejected**: Hard block — too restrictive.
 
 ### Existing Projects Get Base Version
-**Decision**: `lib/init-scaffold.sh` assigns `0.1.0` to existing projects (detected via `config.yaml` presence) so `/fab-update` applies all needed migrations from the beginning.
+**Decision**: `lib/sync-workspace.sh` assigns `0.1.0` to existing projects (detected via `config.yaml` presence) so `/fab-update` applies all needed migrations from the beginning.
 **Why**: Existing projects predate the migration system. Starting from `0.1.0` ensures the full migration chain runs. New projects get the engine version since their config is freshly generated.
 **Rejected**: Assigning engine version to all — would skip needed migrations for existing projects.
 
@@ -112,5 +112,5 @@ Handled by `lib/init-scaffold.sh` during structural bootstrap:
 
 | Change | Date | Summary |
 |--------|------|---------|
-| 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_init_scaffold.sh` → `lib/init-scaffold.sh` in VERSION creation and design decision references |
+| 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_init_scaffold.sh` → `lib/sync-workspace.sh` in VERSION creation and design decision references |
 | 260213-k7m2-kit-version-migrations | 2026-02-14 | Initial creation — migration system, dual-version model, `/fab-update` skill, version drift detection, `fab/VERSION` creation |

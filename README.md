@@ -29,7 +29,7 @@ cp -r /path/to/fab-kit/fab/.kit ./fab/
 ### 2. Initialize
 
 ```bash
-fab/.kit/scripts/lib/init-scaffold.sh   # creates directories, symlinks, .gitignore
+fab/.kit/scripts/lib/sync-workspace.sh   # creates directories, symlinks, .gitignore
 direnv allow                            # approve .envrc (adds scripts to PATH)
 ```
 
@@ -134,7 +134,7 @@ If the upgrade reports a version mismatch, run `/fab-update` in your AI agent to
 To repair symlinks and scaffold structure without downloading a new release (useful when developing fab-kit itself):
 
 ```bash
-bash fab/.kit/scripts/lib/init-scaffold.sh
+bash fab/.kit/scripts/lib/sync-workspace.sh
 ```
 
 ## Learn More

@@ -4,7 +4,7 @@
 |-----|-------------|-------------|
 | [hydrate](hydrate.md) | `/docs-hydrate-memory` skill — argument routing, dual-mode (ingest + generate), hydration rules, index maintenance | 2026-02-14 |
 | [hydrate-generate](hydrate-generate.md) | `/docs-hydrate-memory` generate mode — codebase scanning, gap detection, interactive scoping, memory file generation | 2026-02-07 |
-| [init](init.md) | `/fab-init` skill — structural bootstrap, subcommand architecture (config, constitution, validate), delegation pattern with `lib/init-scaffold.sh` | 2026-02-14 |
+| [init](init.md) | `/fab-init` skill — structural bootstrap, subcommand architecture (config, constitution, validate), delegation pattern with `lib/sync-workspace.sh` | 2026-02-14 |
 | [context-loading](context-loading.md) | Smart context loading convention — always-load layer, selective domain loading, SRAD protocol | 2026-02-14 |
 | [planning-skills](planning-skills.md) | `/fab-new`, `/fab-continue`, `/fab-ff`, `/fab-clarify` — the planning pipeline from intake through tasks, shared `_generation.md` partial | 2026-02-14 |
 | [clarify](clarify.md) | `/fab-clarify` skill — dual modes (suggest/auto), taxonomy scan, structured questions, coverage reports, audit trail, grade reclassification | 2026-02-12 |

@@ -14,11 +14,11 @@
 
 - Creates `fab/config.yaml` (project configuration)
 - Creates `fab/constitution.md` (project principles)
-- Creates `fab/VERSION` (local project version — via `lib/init-scaffold.sh`)
+- Creates `fab/VERSION` (local project version — via `lib/sync-workspace.sh`)
 - Creates `docs/memory/index.md` (memory index skeleton)
 - Creates `docs/specs/index.md` (specifications index skeleton — pre-implementation, human-curated)
 - Creates `fab/changes/` directory
-- Creates skill symlinks via `lib/init-scaffold.sh` glob pattern
+- Creates skill symlinks via `lib/sync-workspace.sh` glob pattern
 - Creates `.gitignore` entries
 - Safe to re-run (idempotent — skips existing files)
 
@@ -42,7 +42,7 @@ As an alternative to manual `cp -r`, new projects can use the one-liner bootstra
 curl -sL https://github.com/wvrdz/fab-kit/releases/latest/download/kit.tar.gz | tar xz -C fab/
 ```
 
-After extraction, run `fab/.kit/scripts/lib/init-scaffold.sh` then `/fab-init` as usual.
+After extraction, run `fab/.kit/scripts/lib/sync-workspace.sh` then `/fab-init` as usual.
 
 ## Subcommand Architecture
 
@@ -68,22 +68,22 @@ Each subcommand operates independently — they can be invoked directly without 
 
 ## Delegation Pattern
 
-`/fab-init` delegates structural setup to `fab/.kit/scripts/lib/init-scaffold.sh` and adds interactive configuration on top. This means `lib/init-scaffold.sh` can be run independently (e.g., in CI or after a bootstrap download) without requiring `/fab-init`.
+`/fab-init` delegates structural setup to `fab/.kit/scripts/lib/sync-workspace.sh` and adds interactive configuration on top. This means `lib/sync-workspace.sh` can be run independently (e.g., in CI or after a bootstrap download) without requiring `/fab-init`.
 
 | Responsibility | Owner | Notes |
 |---|---|---|
-| Directories (`changes/`, `memory/`, `specs/`) | `lib/init-scaffold.sh` | Non-interactive, scriptable |
-| `fab/VERSION` | `lib/init-scaffold.sh` | New project → engine version; existing project (has `config.yaml`) → `0.1.0`; existing file → preserved |
-| Skeleton files (`memory/index.md`, `specs/index.md`) | `lib/init-scaffold.sh` | Copies from `scaffold/memory-index.md` and `scaffold/specs-index.md`; idempotent — skips if file exists |
-| Skill symlinks (Claude Code, OpenCode, Codex) | `lib/init-scaffold.sh` | Discovers skills via glob pattern |
-| `.envrc` symlink | `lib/init-scaffold.sh` | Links to `fab/.kit/scaffold/envrc` |
-| `.gitignore` entries | `lib/init-scaffold.sh` | Appends entries from `scaffold/gitignore-entries` if not present |
+| Directories (`changes/`, `memory/`, `specs/`) | `lib/sync-workspace.sh` | Non-interactive, scriptable |
+| `fab/VERSION` | `lib/sync-workspace.sh` | New project → engine version; existing project (has `config.yaml`) → `0.1.0`; existing file → preserved |
+| Skeleton files (`memory/index.md`, `specs/index.md`) | `lib/sync-workspace.sh` | Copies from `scaffold/memory-index.md` and `scaffold/specs-index.md`; idempotent — skips if file exists |
+| Skill symlinks (Claude Code, OpenCode, Codex) | `lib/sync-workspace.sh` | Discovers skills via glob pattern |
+| `.envrc` symlink | `lib/sync-workspace.sh` | Links to `fab/.kit/scaffold/envrc` |
+| `.gitignore` entries | `lib/sync-workspace.sh` | Appends entries from `scaffold/gitignore-entries` if not present |
 | `config.yaml` | `/fab-init config` (delegated by `/fab-init`) | Single source of truth for config generation and updates |
 | `constitution.md` | `/fab-init constitution` (delegated by `/fab-init`) | Single source of truth for constitution generation and amendments |
 
-`/fab-init` invokes `lib/init-scaffold.sh` as step 1g of its bootstrap sequence. Steps 1c–1f in `/fab-init` have idempotent guards so they gracefully skip artifacts already created by `lib/init-scaffold.sh`.
+`/fab-init` invokes `lib/sync-workspace.sh` as step 1g of its bootstrap sequence. Steps 1c–1f in `/fab-init` have idempotent guards so they gracefully skip artifacts already created by `lib/sync-workspace.sh`.
 
-**Bootstrap path** (without `/fab-init`): After downloading `fab/.kit/` via curl or `cp -r`, running `lib/init-scaffold.sh` alone creates a complete structural scaffold. `/fab-init` is only needed to generate `config.yaml` and `constitution.md`.
+**Bootstrap path** (without `/fab-init`): After downloading `fab/.kit/` via curl or `cp -r`, running `lib/sync-workspace.sh` alone creates a complete structural scaffold. `/fab-init` is only needed to generate `config.yaml` and `constitution.md`.
 
 ## Design Decisions
 
@@ -122,15 +122,15 @@ Each subcommand operates independently — they can be invoked directly without 
 
 | Change | Date | Summary |
 |--------|------|---------|
-| 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Updated `lib/init-scaffold.sh` delegation to create `docs/memory/` and `docs/specs/` instead of `fab/memory/` and `fab/specs/` |
-| 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_init_scaffold.sh` → `lib/init-scaffold.sh` throughout (directory structure, delegation table, bootstrap references, design decisions, changelog entries) |
+| 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Updated `lib/sync-workspace.sh` delegation to create `docs/memory/` and `docs/specs/` instead of `fab/memory/` and `fab/specs/` |
+| 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_init_scaffold.sh` → `lib/sync-workspace.sh` throughout (directory structure, delegation table, bootstrap references, design decisions, changelog entries) |
 | — | 2026-02-14 | Absorbed init-family.md — subcommand architecture, delegation details, and design decisions (memory reorganization) |
 | 260213-k7m2-kit-version-migrations | 2026-02-14 | Added `fab/VERSION` to bootstrap steps and delegation table; updated step numbering (1e = VERSION, 1f = changes, 1g = symlinks, 1h = gitignore) |
 | 260213-3njv-scaffold-dir | 2026-02-13 | Updated delegation table: `.envrc` → `scaffold/envrc`, `.gitignore` → `scaffold/gitignore-entries`, skeleton files → scaffold sources |
 | 260213-3tyk-merge-fab-init-subcommands | 2026-02-13 | Consolidated init family into subcommands — `/fab-init config`, `/fab-init constitution`, `/fab-init validate` are now subcommands of `/fab-init` |
-| 260213-iq2l-rename-setup-scripts | 2026-02-13 | Renamed `fab-setup.sh` → `lib/init-scaffold.sh` in delegation pattern and all references |
+| 260213-iq2l-rename-setup-scripts | 2026-02-13 | Renamed `fab-setup.sh` → `lib/sync-workspace.sh` in delegation pattern and all references |
 | 260212-h9k3-fab-init-family | 2026-02-12 | Added Related Commands section, updated Delegation Pattern to reflect `/fab-init` delegating to `/fab-init config` and `/fab-init constitution` |
-| 260212-emcb-clarify-fab-setup | 2026-02-12 | Added Delegation Pattern section documenting responsibility split between `/fab-init` and `lib/init-scaffold.sh` |
+| 260212-emcb-clarify-fab-setup | 2026-02-12 | Added Delegation Pattern section documenting responsibility split between `/fab-init` and `lib/sync-workspace.sh` |
 | 260210-h7r3-kit-distribution-update | 2026-02-10 | Added Bootstrap Alternative section with curl one-liner as alternative to manual `cp -r` |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | 260207-bb1q-add-specs-index | 2026-02-07 | Added `docs/specs/index.md` creation as step 1d in bootstrap sequence |

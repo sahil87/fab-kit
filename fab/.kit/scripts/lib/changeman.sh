@@ -125,7 +125,7 @@ cmd_new() {
     folder_name="${date_prefix}-${change_id}-${slug}"
   fi
 
-  # Create directory (plain mkdir — parent guaranteed by init-scaffold.sh)
+  # Create directory (plain mkdir — parent guaranteed by sync-workspace.sh)
   mkdir "$changes_dir/$folder_name"
 
   # Detect created_by

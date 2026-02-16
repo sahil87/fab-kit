@@ -45,7 +45,7 @@ Before doing anything else, verify the kit exists:
 
 ## Bootstrap Behavior
 
-When invoked with no arguments, perform the full structural bootstrap. `/fab-init` delegates directory/symlink/skeleton creation to `fab/.kit/scripts/lib/init-scaffold.sh` (step 1f) while handling interactive config/constitution generation itself.
+When invoked with no arguments, perform the full structural bootstrap. `/fab-init` delegates directory/symlink/skeleton creation to `fab/.kit/scripts/lib/sync-workspace.sh` (step 1f) while handling interactive config/constitution generation itself.
 
 ### Phase 1: Structural Bootstrap
 
@@ -103,7 +103,7 @@ If exists: skip.
 
 #### 1e. `fab/VERSION`
 
-Handled by `lib/init-scaffold.sh` (step 1f). The scaffold script creates `fab/VERSION` with version logic based on project state:
+Handled by `lib/sync-workspace.sh` (step 1f). The scaffold script creates `fab/VERSION` with version logic based on project state:
 
 - **New project** (no `fab/config.yaml`): copies `fab/.kit/VERSION` value (engine version)
 - **Existing project** (has `fab/config.yaml`, no `fab/VERSION`): writes `0.1.0` (base version, run `/fab-update` to migrate)
@@ -121,7 +121,7 @@ If exists: ensure `fab/changes/archive/` exists, then skip.
 
 #### 1g. `.claude/skills/` Symlinks
 
-Run `fab/.kit/scripts/lib/init-scaffold.sh` to create or repair all skill symlinks, directories, and `fab/VERSION`. The script discovers skills by globbing `fab/.kit/skills/fab-*.md` and creates:
+Run `fab/.kit/scripts/lib/sync-workspace.sh` to create or repair all skill symlinks, directories, and `fab/VERSION`. The script discovers skills by globbing `fab/.kit/skills/fab-*.md` and creates:
 
 ```
 .claude/skills/fab-{name}/SKILL.md → ../../../fab/.kit/skills/fab-{name}.md

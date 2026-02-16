@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# fab/.kit/scripts/lib/init-scaffold.sh — Structural bootstrap for fab
+# fab/.kit/scripts/lib/sync-workspace.sh — Structural bootstrap for fab
 #
-# Sets up directories, skill links/copies, and .gitignore entries that /fab-init
-# would create (Phase 1 only — no config.yaml or constitution.md generation).
+# Syncs kit assets (directories, skill links/copies, agent files, .gitignore
+# entries) into the workspace. Idempotent — safe to re-run at any time.
 #
-# Run from anywhere: fab/.kit/scripts/lib/init-scaffold.sh
+# Run from anywhere: fab/.kit/scripts/lib/sync-workspace.sh
 # Safe to re-run (idempotent).
 
 lib_dir="$(cd "$(dirname "$0")" && pwd)"

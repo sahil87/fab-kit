@@ -97,7 +97,7 @@ Skill files in `fab/.kit/skills/` use YAML frontmatter with these fields:
 - **`description`** *(required)* — short description shown in skill listings
 - **`model_tier`** *(optional)* — provider-agnostic model tier. Valid values: `fast`. Omission means `capable` (the default — use the platform's most capable model)
 
-The `model_tier` field is used by `lib/init-scaffold.sh` during deployment to generate agent files with provider-specific `model:` fields. See [model-tiers.md](model-tiers.md) for tier selection criteria and the full mapping system.
+The `model_tier` field is used by `lib/sync-workspace.sh` during deployment to generate agent files with provider-specific `model:` fields. See [model-tiers.md](model-tiers.md) for tier selection criteria and the full mapping system.
 
 ### Memory File Format (`docs/memory/`)
 
@@ -185,7 +185,7 @@ When `/fab-continue` (hydrate) hydrates into memory files:
 |--------|------|---------|
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed template `brief.md` → `intake.md`. Strengthened template comments (What Changes, Origin, Why sections). Updated all artifact references from brief to intake |
 | 260215-r8k3-DEV-1024-code-quality-layer | 2026-02-15 | Added Code Quality to checklist categories (always included, two baseline items). Updated generation derivation sources to include `code_quality` config |
-| 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_calc-score.sh` → `lib/calc-score.sh` and `_init_scaffold.sh` → `lib/init-scaffold.sh` in references |
+| 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_calc-score.sh` → `lib/calc-score.sh` and `_init_scaffold.sh` → `lib/sync-workspace.sh` in references |
 | 260214-lptw-score-init-display | 2026-02-14 | Added confidence block initial state note: score 0.0 (no assessed confidence). Updated template default from 5.0 to 0.0. |
 | 260213-jc0u-split-archive-hydrate | 2026-02-13 | Updated `.status.yaml` template example (`archive: pending` → `hydrate: pending`), hydration rule references, and checklist gate references to use `hydrate` instead of `archive` |
 | 260213-v4rx-simplify-templates | 2026-02-13 | Flattened intake Affected Memory to inline markers, removed BLOCKING/DEFERRED from Open Questions, replaced spec optional section placeholders with guidance comment |

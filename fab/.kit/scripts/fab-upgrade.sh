@@ -4,7 +4,7 @@ set -euo pipefail
 # fab/.kit/scripts/fab-upgrade.sh — Update fab/.kit/ from GitHub Releases
 #
 # Downloads the latest kit.tar.gz, atomically replaces fab/.kit/, displays
-# the version change, and re-runs lib/init-scaffold.sh to repair symlinks.
+# the version change, and re-runs lib/sync-workspace.sh to repair symlinks.
 #
 # Requires: gh CLI (https://cli.github.com/)
 # Safe to re-run. Existing project files (config.yaml, memory/, etc.) are never touched.
@@ -93,8 +93,8 @@ echo "fab/.kit/ updated successfully."
 # ── Re-run setup ─────────────────────────────────────────────────────
 
 echo ""
-echo "Running lib/init-scaffold.sh to repair symlinks..."
-bash "$kit_dir/scripts/lib/init-scaffold.sh"
+echo "Running lib/sync-workspace.sh to repair symlinks..."
+bash "$kit_dir/scripts/lib/sync-workspace.sh"
 
 # ── Version drift check ──────────────────────────────────────────────
 

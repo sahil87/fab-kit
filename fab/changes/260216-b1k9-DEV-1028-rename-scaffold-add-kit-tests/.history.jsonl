@@ -1,1 +1,5 @@
 {"ts":"2026-02-16T11:26:38+05:30","event":"command","cmd":"fab-new","args":"Rename init-scaffold.sh to sync-workspace.sh; add tests and SPEC files for sync-workspace.sh and changeman.sh; improve test runner summary output"}
+{"ts":"2026-02-16T11:44:14+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-16T11:46:40+05:30","event":"confidence","score":4.1,"delta":"+4.1","trigger":"calc-score"}
+{"ts":"2026-02-16T11:53:32+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-16T12:02:37+05:30","event":"review","result":"passed"}

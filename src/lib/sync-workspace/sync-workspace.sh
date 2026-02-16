@@ -1,0 +1,1 @@
+../../../fab/.kit/scripts/lib/sync-workspace.sh
