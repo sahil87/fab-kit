@@ -160,7 +160,7 @@ The escalation resets the consecutive fix-code counter. A "Revise tasks" or "Rev
 
 ### Requirement: Logging for Autonomous Rework
 
-`/fab-fff` SHALL call `lib/stageman.sh log-review <change_dir> "failed" "<chosen-action>"` for each autonomous rework cycle, recording the action the agent selected. On final bail, the review log SHALL also be written.
+`/fab-fff` SHALL call `lib/stageman.sh log-review <change_dir> "failed" "<rework-option>"` for each autonomous rework cycle, recording the action the agent selected. On final bail, the review log SHALL also be written.
 
 #### Scenario: Review log records autonomous choice
 
