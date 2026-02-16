@@ -1,1 +1,5 @@
 {"ts":"2026-02-16T13:25:59+05:30","event":"command","cmd":"fab-new","args":"Standardize next-step suggestions across all fab skills using a single state-keyed table"}
+{"ts":"2026-02-16T14:19:26+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-16T14:26:04+05:30","event":"confidence","score":3.2,"delta":"+3.2","trigger":"calc-score"}
+{"ts":"2026-02-16T14:29:53+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-16T14:37:55+05:30","event":"review","result":"passed"}

@@ -56,16 +56,7 @@ Once a single change is identified:
 2. **Branch Integration** (see below)
 3. **Read `.status.yaml`** for stage and progress
 4. **Display confirmation** with stage number (intake=1, spec=2, tasks=3, apply=4, review=5, hydrate=6)
-5. **Suggest next command** based on stage:
-
-| Stage | Suggested next |
-|-------|---------------|
-| `intake` (active) | `/fab-continue or /fab-clarify` |
-| `spec` (active/done) | `/fab-continue or /fab-ff or /fab-clarify` |
-| `tasks` (done) | `/fab-continue` |
-| `apply` (done) | `/fab-continue` |
-| `review` (done) | `/fab-continue` |
-| `review` (failed) | `/fab-continue (re-review after fixes)` |
+5. **Suggest next command** per state table in `_context.md` — derive from the change's current state
 
 ---
 
@@ -93,7 +84,7 @@ fab/current now points to {name}
 Stage:  {stage} ({N}/6)
 Branch: {name} (created|adopted)
 
-Next: /fab-continue
+Next: {per state table}
 ```
 
 Branch line omitted if skipped. Deactivation shows `No active change.` with optional `Branch:` line. Already-blank shows `No active change (already blank).`

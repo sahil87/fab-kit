@@ -61,29 +61,47 @@ Load only the source files relevant to the current work:
 
 ## Next Steps Convention
 
-Every skill MUST end its output with a `Next:` line suggesting the available follow-up commands. This keeps the user oriented in the workflow without needing to memorize the stage graph.
+Every skill MUST end its output with a `Next:` line derived from the State Table below. Look up the state reached (not the skill name) and list the available commands. The default command SHOULD be listed first.
 
-**Format**: `Next: /fab-command` or `Next: /fab-commandA or /fab-commandB (description)`
+**Format**: `Next: /fab-command` or `Next: /fab-commandA, /fab-commandB, or /fab-commandC`
 
-### Lookup Table
+### State Table
 
-| After skill | Stage reached | Next line |
-|-------------|---------------|-----------|
-| `/fab-setup` | initialized | `Next: /fab-new <description> or /docs-hydrate-memory <sources>` |
-| `/docs-hydrate-memory` | memory hydrated | `Next: /fab-new <description> or /docs-hydrate-memory <more-sources>` |
-| `/fab-new` | intake active | `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-fff` |
-| `/fab-continue` → spec | spec done | `Next: /fab-continue or /fab-ff or /fab-fff or /fab-clarify` |
-| `/fab-continue` → tasks | tasks done | `Next: /fab-continue or /fab-ff` |
-| `/fab-continue` → apply | apply done | `Next: /fab-continue` |
-| `/fab-continue` → review (pass) | review done | `Next: /fab-continue` |
-| `/fab-continue` → review (fail) | review failed | *(contextual rework options)* |
-| `/fab-continue` → hydrate | hydrated | `Next: /fab-archive` |
-| `/fab-ff` | hydrated | `Next: /fab-archive` |
-| `/fab-ff` (bail) | varies | *(contextual — see /fab-ff for bail/failure messages)* |
-| `/fab-clarify` | same stage | `Next: /fab-clarify or /fab-continue or /fab-ff or /fab-fff` |
-| `/fab-fff` | hydrated | `Next: /fab-archive` |
-| `/fab-fff` (bail) | varies | *(contextual — see /fab-fff for bail messages)* |
-| `/fab-archive` | archived | `Next: /fab-new <description>` |
+| State | Available commands | Default |
+|-------|-------------------|---------|
+| (none) | /fab-setup | /fab-setup |
+| initialized | /fab-new, /docs-hydrate-memory | /fab-new |
+| intake | /fab-continue, /fab-fff, /fab-clarify | /fab-continue |
+| spec | /fab-continue, /fab-ff, /fab-clarify | /fab-continue |
+| tasks | /fab-continue, /fab-ff, /fab-clarify | /fab-continue |
+| apply | /fab-continue | /fab-continue |
+| review (pass) | /fab-continue | /fab-continue |
+| review (fail) | *(rework menu)* | — |
+| hydrate | /fab-archive | /fab-archive |
+
+**State derivation**:
+- **(none)**: `fab/config.yaml` does not exist
+- **initialized**: `fab/config.yaml` exists AND no active change (`fab/current` absent or empty)
+- **intake** through **apply**: Derived from the active change's `.status.yaml` progress map (the stage with `active` state)
+- **review (pass)**: `progress.review == done`
+- **review (fail)**: `progress.review == failed`
+- **hydrate**: `progress.hydrate == done`
+
+### Lookup Procedure
+
+1. Determine the state reached after the skill's action
+2. Look up that state in the State Table
+3. Output `Next:` with the default command listed first, followed by other available commands
+
+### Activation Preamble
+
+When a skill creates or restores a change without activating it (no write to `fab/current`), the `Next:` line SHALL include a switch instruction followed by the state-derived commands:
+
+```
+Next: /fab-switch {name} to make it active, then {default}, {other commands}
+```
+
+This applies to `/fab-new` (always) and `/fab-archive restore` (without `--switch`).
 
 ---
 

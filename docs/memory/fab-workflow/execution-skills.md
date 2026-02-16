@@ -206,6 +206,7 @@ Steps execute 1→3 for safety. If interrupted, re-run detects folder already in
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260216-7ltw-DEV-1038-standardize-state-keyed-suggestions | 2026-02-16 | All `Next:` lines in execution skills (`/fab-continue`, `/fab-archive`) now derived from canonical state table in `_context.md`. Removed hardcoded suggestions from review pass verdict and archive mode output. `/fab-archive` restore without `--switch` now uses activation preamble before state-derived commands. |
 | 260216-knmw-DEV-1030-swap-ff-fff-review-rework | 2026-02-16 | Swapped pipeline invocation note: `/fab-ff` now presents interactive rework on review failure; `/fab-fff` now uses autonomous rework with bounded retry (3-cycle cap, escalation after 2 consecutive fix-code) |
 | 260215-237b-DEV-1027-redefine-ff-fff-scope | 2026-02-16 | Updated pipeline invocation note: `/fab-fff` now presents interactive rework on review failure, `/fab-ff` now bails immediately (swapped from previous behavior) |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |

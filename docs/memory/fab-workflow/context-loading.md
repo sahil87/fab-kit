@@ -59,6 +59,17 @@ The shared context preamble (`_context.md`) includes the SRAD autonomy framework
 
 This protocol is loaded as part of the "Always Load" layer via `_context.md` and does not require separate file loading.
 
+### Next Steps Convention (State Table)
+
+The `_context.md` preamble defines a **state-keyed Next Steps Convention** that all skills use to derive their `Next:` output lines. The convention includes:
+
+1. **State Table** — 9 states (none, initialized, intake, spec, tasks, apply, review pass, review fail, hydrate) each mapping to available commands and a default
+2. **State derivation rules** — how to determine the current state from `config.yaml` existence, `fab/current`, and `.status.yaml` progress map
+3. **Lookup procedure** — determine state, look up in table, output default first
+4. **Activation preamble** — when a skill creates/restores a change without activating it (e.g., `/fab-new`, `/fab-archive restore` without `--switch`), the `Next:` line includes a `/fab-switch {name}` instruction before state-derived commands
+
+No skill duplicates or maintains its own suggestion logic — all derive from this single canonical table.
+
 ### Exception Skills
 
 The following skills skip the standard context loading layers:
@@ -91,6 +102,7 @@ The following skills skip the standard context loading layers:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260216-7ltw-DEV-1038-standardize-state-keyed-suggestions | 2026-02-16 | Added Next Steps Convention (State Table) section — documents the state-keyed suggestion derivation convention in `_context.md` replacing the old skill-keyed lookup table |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |
 | 260212-f9m3-enhance-srad-fuzzy | 2026-02-14 | SRAD protocol updated to fuzzy 0–100 dimension scoring with weighted mean aggregation, trapezoidal grade thresholds, optional Scores column, dynamic gate thresholds by change type |
 | 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Updated always-load paths to `docs/memory/index.md` and `docs/specs/index.md`; updated selective domain loading to `docs/memory/{domain}/` |

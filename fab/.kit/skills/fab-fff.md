@@ -143,10 +143,10 @@ Execute hydrate behavior per `/fab-continue` — validate review passed, hydrate
 
 Pipeline complete. Change hydrated.
 
-Next: /fab-archive
+Next: {per state table}
 ```
 
-Resuming shows `(resuming)...` header and `Skipping {stage} — already done.` for completed stages. Bail/failure stops at the relevant stage with contextual Next line.
+Resuming shows `(resuming)...` header and `Skipping {stage} — already done.` for completed stages. Bail/failure stops at the relevant stage with `Next:` derived from the state reached per state table in `_context.md`.
 
 ---
 

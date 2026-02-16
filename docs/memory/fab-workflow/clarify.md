@@ -89,7 +89,7 @@ The clarify skill SHALL never advance the stage in `.status.yaml`. It only updat
 
 ### Stage Guard
 
-The skill SHALL only operate on planning stages (`spec`, `tasks`). If the stage is `apply`, `review`, or `hydrate`, the skill aborts with a suggestion to use `/fab-continue` instead.
+The skill SHALL only operate on planning stages (`intake`, `spec`, `tasks`). At the `intake` stage, the taxonomy scan covers intake artifact refinement (scope boundaries, affected areas, blocking questions, impact, memory coverage). If the stage is `apply`, `review`, or `hydrate`, the skill aborts with a suggestion to use `/fab-continue` instead.
 
 ## Design Decisions
 
@@ -124,6 +124,7 @@ The skill SHALL only operate on planning stages (`spec`, `tasks`). If the stage 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260216-7ltw-DEV-1038-standardize-state-keyed-suggestions | 2026-02-16 | Extended stage guard to include `intake` as valid planning stage. Added intake taxonomy scan categories (scope boundaries, affected areas, blocking questions, impact, memory coverage). All `Next:` lines now derived from canonical state table in `_context.md`. |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |
 | 260212-29xv-scoring-formula | 2026-02-12 | Added grade reclassification: resolved Tentative/Confident assumptions become Certain in Assumptions table before confidence recomputation, so scores increase after clarification |
 | 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Added intake refinement capability at spec stage with per-artifact taxonomy, removed intake from valid stages |

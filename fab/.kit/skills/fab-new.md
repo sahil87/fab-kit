@@ -1,9 +1,9 @@
 ---
 name: fab-new
-description: "Start a new change from a natural language description. Creates the change folder, sets it active, and generates the intake."
+description: "Start a new change from a natural language description. Creates the change folder and generates the intake."
 ---
 
-# /fab-new <description> [--switch]
+# /fab-new <description>
 
 > Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
 
@@ -19,7 +19,6 @@ description: "Start a new change from a natural language description. Creates th
 ## Arguments
 
 - **`<description>`** *(required)* — natural language, Linear ticket ID (`DEV-988`), or backlog ID (`90g5`)
-- **`--switch`** *(optional)* — activate after creation (calls `/fab-switch` internally). Also triggered by intent: "and switch to it", "make it active", "activate it"
 
 If no description: ask *"What change do you want to make?"*
 
@@ -60,10 +59,6 @@ Follow the **Intake Generation Procedure** (`_generation.md`). Load context per 
 
 Apply SRAD (`_context.md`). No fixed question cap — SRAD scoring determines count. Zero questions for clear inputs. **Conversational mode**: when 5+ Unresolved, ask one at a time until resolved or user signals done.
 
-### Step 6: Activate Change (Conditional)
-
-Default: skip. Switch if `--switch` or intent detected. Calls `/fab-switch {name}` transparently.
-
 ---
 
 ## Output
@@ -72,7 +67,6 @@ Default: skip. Switch if `--switch` or intent detected. Calls `/fab-switch {name
 {if Linear: "Fetching Linear issue DEV-988...\n"}
 {if backlog: "Reading fab/backlog.md for [90g5]...\nFound: DEV-988 ...\n"}
 Created fab/changes/{name}/
-{if switched: "Branch: {name} (created)\n"}
 
 ## Intake: {Change Name}
 
@@ -82,7 +76,7 @@ Intake complete.
 
 {if assumptions: "## Assumptions\n\n| # | Grade | Decision | Rationale |\n..."}
 
-Next: {per _context.md Next Steps table}
+Next: {per state table — activation preamble + intake state}
 ```
 
 ---
@@ -101,6 +95,4 @@ Next: {per _context.md Next Steps table}
 
 ---
 
-Next (default): `/fab-switch {name} to make it active, then /fab-continue or /fab-ff`
-
-Next (with `--switch`): `/fab-continue or /fab-ff`
+Next: `/fab-switch {name} to make it active, then /fab-continue or /fab-fff or /fab-clarify`

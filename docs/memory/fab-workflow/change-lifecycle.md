@@ -34,7 +34,7 @@ All components MUST be lowercase EXCEPT `{ISSUE}` which stays uppercase (`[A-Z]+
 **Lifecycle**:
 - **Created** by `/fab-switch` — written with the newly activated change folder name
 - **Updated** by `/fab-switch` — overwritten with the new change name
-- **Conditionally created** by `/fab-new` — only written if `--switch` flag is used or switching intent is detected in the description; otherwise `/fab-new` does not modify `fab/current`
+- **Not modified** by `/fab-new` — `/fab-new` never writes to `fab/current`; the user activates via `/fab-switch` after creation
 - **Read** by every other skill — `/fab-continue`, `/fab-clarify`, `/fab-status` all resolve the active change via `current`
 - **Cleared** by `/fab-switch --blank` — file is deleted to deactivate the current change (no active change). Can be combined with `--branch` to also switch git branches (e.g., `--blank --branch main`)
 - **Cleared** by `/fab-archive` — file is deleted after archiving the active change (no active change). Only cleared when the archived change is the one `fab/current` points to
@@ -106,7 +106,7 @@ After hydrate completes, the change folder remains in `fab/changes/`. To move it
 
 ### Git Integration (Optional)
 
-Fab works without git. Change folders are the unit of identity, not branches — the same change can be worked on across multiple branches, worktrees, or even repos. Git branch integration is handled by `/fab-switch` (which can be called explicitly or conditionally by `/fab-new` when `--switch` is used). Fab never couples its state to git state — no `branch:` field is stored in `.status.yaml`.
+Fab works without git. Change folders are the unit of identity, not branches — the same change can be worked on across multiple branches, worktrees, or even repos. Git branch integration is handled exclusively by `/fab-switch`. Fab never couples its state to git state — no `branch:` field is stored in `.status.yaml`.
 
 **Why decoupled**: A developer might work on the same change across multiple worktrees, a change might span multiple branches, or a change might move between branches after a rebase. Storing a static `branch:` field would go stale; instead, `/fab-status` uses `git branch --show-current` for live display.
 
@@ -203,10 +203,10 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 *Source*: doc/fab-spec/TEMPLATES.md
 
 ### Branch Integration in `/fab-switch`, Not `/fab-new`
-**Decision**: Git branch integration is consolidated in `/fab-switch`, not `/fab-new`. By default, `/fab-new` does NOT activate changes or call `/fab-switch`. Users must explicitly use `--switch` flag or include switching intent in their description to activate. The `branch:` field was removed from `.status.yaml`; `/fab-status` uses `git branch --show-current` for live display.
+**Decision**: Git branch integration is consolidated in `/fab-switch`, not `/fab-new`. `/fab-new` never activates changes — no write to `fab/current`, no branch integration. The user activates via `/fab-switch` after creation. The `branch:` field was removed from `.status.yaml`; `/fab-status` uses `git branch --show-current` for live display.
 **Why**: Consolidating in `/fab-switch` (the "I'm committing to work on this" moment) gives a single, consistent branch integration path. Not auto-switching reduces disruption when capturing change ideas. The `branch:` field in `.status.yaml` was purely ceremonial — no skill used it for logic, and it went stale on manual branch switches.
 **Rejected**: Keeping branch in `/fab-new` — couples two concerns. Storing branch in `.status.yaml` — goes stale, no skill needs it. Auto-switching by default — disruptive when batching ideas.
-*Introduced by*: 260208-q8v3-branch-to-switch; *Updated*: 2026-02-12 (reversed default to no-switch)
+*Introduced by*: 260208-q8v3-branch-to-switch; *Updated*: 260216-7ltw-DEV-1038 (removed `--switch` flag entirely)
 
 ### Single Source of Truth: Progress Map with `active` Marker
 **Decision**: Remove the `stage:` field from `.status.yaml`. The current stage is determined by a three-tier fallback: (1) first `active` entry, (2) first `pending` after last `done`, (3) `hydrate` if all done. State vocabulary: `pending`, `active`, `done`, `failed`.
@@ -236,6 +236,7 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260216-7ltw-DEV-1038-standardize-state-keyed-suggestions | 2026-02-16 | Removed `--switch` flag from `/fab-new` — change is never activated by `/fab-new`. Updated `fab/current` lifecycle, git integration, and Branch Integration design decision. All suggestion derivation now from canonical state table in `_context.md`. |
 | 260216-u6d5-DEV-1039-add-changeman-rename | 2026-02-16 | Added rename capability: `changeman.sh rename` atomically renames slug, updates `.status.yaml` name, conditionally updates `fab/current`. Added "Renaming a Change" section. Updated naming convention note (prefix immutable, slug changeable). Updated "Name Stable Across Lifecycle" design decision. |
 | 260215-237b-DEV-1027-redefine-ff-fff-scope | 2026-02-16 | Redefined full pipeline path: `/fab-fff` is now ungated full pipeline (intake → hydrate, interactive rework), `/fab-ff` is now confidence-gated from-spec pipeline (spec → hydrate, bail on failure) |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |

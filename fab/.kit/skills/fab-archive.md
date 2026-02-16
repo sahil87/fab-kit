@@ -101,7 +101,7 @@ Pointer:  ✓ fab/current cleared                 (or: — skipped, not active)
 
 Archive complete.
 
-Next: /fab-new <description>
+Next: {per state table — initialized}
 ```
 
 ---
@@ -185,7 +185,7 @@ Pointer:  ✓ fab/current updated                  (or: — not requested)
 
 Restore complete.
 
-Next: /fab-switch {name}
+Next: {per state table — if --switch: restored change's state; otherwise: activation preamble + restored change's state}
 ```
 
 ---

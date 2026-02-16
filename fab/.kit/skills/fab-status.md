@@ -43,7 +43,7 @@ Use `lib/preflight.sh` and `lib/stageman.sh` for validation and data retrieval. 
 - Reads `fab/.kit/VERSION`, `fab/VERSION` (if exists), `fab/current`, `fab/changes/{name}/.status.yaml`, and `fab/config.yaml` (for `git.enabled`)
 - Queries live branch via `git branch --show-current` when git is enabled (instead of reading a static `branch:` field from `.status.yaml`)
 - **Version drift check**: if `fab/VERSION` exists and its value is less than `fab/.kit/VERSION`, display a warning: `⚠ Version drift: local {local}, engine {engine} — run /fab-setup migrations`. If versions match, no warning. If `fab/VERSION` doesn't exist, no warning (handled by `/fab-setup`)
-- Renders the full status block: version header, change name, branch (when git enabled), stage number, progress table with symbols (`✓` done, `●` active, `○` pending, `—` skipped, `✗` failed), checklist counts, confidence score, version drift warning (if applicable), and next command suggestion
+- Renders the full status block: version header, change name, branch (when git enabled), stage number, progress table with symbols (`✓` done, `●` active, `○` pending, `—` skipped, `✗` failed), checklist counts, confidence score, version drift warning (if applicable), and next command suggestion (derived from the state table in `_context.md`)
 - Handles all error cases (no active change, missing `.status.yaml`, missing fields)
 - Defaults missing progress fields to `○` (pending), missing checklist to "not yet generated", and missing confidence to "not yet scored"
 - Confidence display: `Confidence: {score} of 5.0 ({N} certain, {N} confident, {N} tentative)` — appends `, {N} unresolved` only when unresolved > 0; shows `Confidence: not yet scored` when the confidence block is absent

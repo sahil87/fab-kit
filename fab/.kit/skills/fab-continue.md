@@ -75,7 +75,7 @@ For single-state changes, use: `lib/stageman.sh set-state <file> <stage> <state>
 
 ### Step 5: Output
 
-Display summary. Include Assumptions summary for planning stages. End with `Next:` per `_context.md` lookup table.
+Display summary. Include Assumptions summary for planning stages. End with `Next:` per state table in `_context.md`.
 
 ---
 
@@ -147,7 +147,7 @@ Starts from first unchecked item. Checked items assumed complete.
 
 ### Verdict
 
-**Pass**: Run `lib/stageman.sh transition <file> review hydrate fab-continue`. Run `lib/stageman.sh log-review <change_dir> "passed"`. Update checklist via `lib/stageman.sh set-checklist <file> completed <N>`. Output report + `Next: /fab-continue`
+**Pass**: Run `lib/stageman.sh transition <file> review hydrate fab-continue`. Run `lib/stageman.sh log-review <change_dir> "passed"`. Update checklist via `lib/stageman.sh set-checklist <file> completed <N>`. Output report + `Next: {per state table}`
 
 **Fail**: Run `lib/stageman.sh set-state <file> review failed` then `lib/stageman.sh set-state <file> apply active fab-continue`. Run `lib/stageman.sh log-review <change_dir> "failed" "<rework-option>"` after user selects rework. Update checklist via `lib/stageman.sh set-checklist <file> completed <N>`. Output failure details + rework options:
 

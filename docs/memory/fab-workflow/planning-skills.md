@@ -25,7 +25,7 @@ Each skill retains its own orchestration logic (stage guards, question handling,
 
 ### `/fab-new <description>`
 
-`/fab-new` starts a new change from a natural language description. It is adaptive: clear inputs get a quick intake, vague inputs trigger conversational exploration. It creates the change folder, initializes status tracking, and generates an intake (with Origin section). By default, the change is NOT activated (no write to `fab/current`, no branch integration). Accepts an optional `--switch` flag or detects switching intent from natural language to call `/fab-switch` internally and activate the change. Output is always a single artifact: `intake.md`.
+`/fab-new` starts a new change from a natural language description. It is adaptive: clear inputs get a quick intake, vague inputs trigger conversational exploration. It creates the change folder, initializes status tracking, and generates an intake (with Origin section). The change is NOT activated — no write to `fab/current`, no branch integration. The user activates via `/fab-switch` after creation. Output is always a single artifact: `intake.md`.
 
 #### Slug Generation and Change Creation
 
@@ -54,19 +54,8 @@ The skill SHALL:
 1. Generate the slug (AI task: word selection, article removal, issue ID prefixing)
 2. Call `lib/changeman.sh new` with `--slug`, optional `--change-id` (backlog ID), and `--log-args` (description). The script handles: directory creation, `created_by` detection (`gh api user` → `git config user.name` → `"unknown"`, silent fallback), `.status.yaml` initialization from template via `sed`, and stageman integration (`set-state intake active fab-new`, `log-command`)
 3. Generate `intake.md` from the template (including Origin section), loading `fab/constitution.md` and `fab/config.yaml` as context
-4. Conditionally call `/fab-switch` to activate the change (writes `fab/current`, performs branch integration) — only if the `--switch` flag was provided OR switching intent is detected in the description (phrases like "and switch to it", "make it active", "activate it")
 
-Note: `/fab-new` does not activate changes by default — this reduces disruption when capturing change ideas. Branch integration is delegated to `/fab-switch`, which provides consistent branch handling.
-
-#### `--switch` Flag and Natural Language Detection
-
-By default, `/fab-new` does NOT activate the newly created change — `fab/current` is not modified and no branch is created or checked out. The output omits the `Branch:` line and suggests: `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-ff`.
-
-To activate the change automatically, either:
-1. **Use the `--switch` flag**: `/fab-new "description" --switch`
-2. **Include switching intent in the description**: Phrases like "and switch to it", "make it active", "activate it", "switch to it", "set as active", or "and activate" will be detected (case-insensitive)
-
-When switching occurs (via flag or detection), the output includes the `Branch:` line and uses: `Next: /fab-continue or /fab-ff (fast-forward all planning)`.
+`/fab-new` never activates changes — this reduces disruption when capturing change ideas. The user activates via `/fab-switch` after creation. Branch integration is delegated to `/fab-switch`, which provides consistent branch handling.
 
 #### Intake-Only Output
 
@@ -325,6 +314,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260216-7ltw-DEV-1038-standardize-state-keyed-suggestions | 2026-02-16 | Replaced skill-keyed suggestion lookup with state-keyed table in `_context.md`. Removed `--switch` flag and natural language switching detection from `/fab-new` — change is never activated by `/fab-new`. All skills now derive `Next:` lines from canonical state table. Extended `/fab-clarify` stage guard to include `intake`. |
 | 260216-knmw-DEV-1030-swap-ff-fff-review-rework | 2026-02-16 | Swapped review failure behavior: `/fab-ff` now presents interactive rework menu (3 options, no retry cap); `/fab-fff` now uses autonomous rework (agent selects path, 3-cycle retry cap, escalation after 2 consecutive fix-code). Updated overview paragraphs, pipeline flow steps, rework sections, and Scope Differentiation design decision. |
 | 260215-237b-DEV-1027-redefine-ff-fff-scope | 2026-02-16 | Redefined `/fab-ff` and `/fab-fff` scope. `/fab-fff` is now the full pipeline command (intake → hydrate, no gate, frontloaded questions, interactive rework). `/fab-ff` is now the fast-forward-from-spec command (spec → hydrate, confidence-gated, no frontloaded questions, bail on failure). Updated overview, requirement sections, and design decisions. Added Scope Differentiation design decision. |
 | 260215-9yjx-DEV-1022-create-changeman-script | 2026-02-15 | Refactored `/fab-new`: "Folder Name Generation" → "Slug Generation and Change Creation" (delegated to `lib/changeman.sh`). Change Initialization steps consolidated — steps 1-2 of old init (mkdir, .status.yaml, created_by, stageman calls) replaced by single `changeman.sh new` call. Skill now focuses on AI tasks (slug generation, gap analysis, intake writing). Error table simplified. |

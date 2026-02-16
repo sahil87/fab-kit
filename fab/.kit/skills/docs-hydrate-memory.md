@@ -180,4 +180,4 @@ Safe to re-run. New files created on first run, merged on subsequent. Existing c
 
 ---
 
-Next: `/fab-new <description>`, `/docs-hydrate-memory <more-sources>`, or `/docs-hydrate-memory` (generate mode)
+Next: {per state table — initialized}

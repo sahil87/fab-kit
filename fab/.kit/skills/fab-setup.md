@@ -159,7 +159,7 @@ Created: 11 symlinks in .claude/skills/
 Updated: .gitignore (added fab/current)
 fab/ initialized successfully.
 
-Next: /fab-new <description> or /docs-hydrate-memory <sources>
+Next: {per state table — initialized}
 ```
 
 On re-run, report each artifact as OK/repaired instead of Created, ending with `fab/ structure verified.`
@@ -572,8 +572,10 @@ All paths are safe to re-run. Structural artifacts are created once (skipped on 
 
 ## Next Steps Reference
 
-- After bootstrap: `/fab-new <description>` or `/docs-hydrate-memory <sources>`
-- After config create: `/fab-new <description>`
+All `Next:` lines are derived from the state table in `_context.md`:
+
+- After bootstrap: state = `initialized` → `/fab-new <description> or /docs-hydrate-memory <sources>`
+- After config create: state = `initialized` → `/fab-new <description> or /docs-hydrate-memory <sources>`
 - After config/constitution update: (no further action needed — validation is automatic)
-- After constitution create: `/fab-new <description>`
-- After migrations: `/fab-new` or `/fab-status`
+- After constitution create: state = `initialized` → `/fab-new <description> or /docs-hydrate-memory <sources>`
+- After migrations: state = `initialized` → `/fab-new <description> or /docs-hydrate-memory <sources>`
