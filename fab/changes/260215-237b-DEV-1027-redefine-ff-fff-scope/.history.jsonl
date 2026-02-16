@@ -1,1 +1,5 @@
 {"ts":"2026-02-15T23:01:59+05:30","event":"command","cmd":"fab-new","args":"redefine fab-ff and fab-fff: fff becomes full pipeline from intake with no gate, ff becomes spec-onward with confidence gate > 3"}
+{"ts":"2026-02-16T11:19:04+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-16T11:21:24+05:30","event":"confidence","score":5.0,"delta":"+5.0","trigger":"calc-score"}
+{"ts":"2026-02-16T11:22:15+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-16T11:31:12+05:30","event":"review","result":"passed"}

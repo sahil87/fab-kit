@@ -1,6 +1,6 @@
 ---
 name: fab-fff
-description: "Full autonomous pipeline — confidence gate, then planning → apply → review → hydrate with no interactive stops."
+description: "Full pipeline — planning, implementation, review, and hydrate — with frontloaded questions, auto-clarify, and interactive rework."
 ---
 
 # /fab-fff [<change-name>]
@@ -11,74 +11,107 @@ description: "Full autonomous pipeline — confidence gate, then planning → ap
 
 ## Purpose
 
-Run the entire Fab pipeline from planning through hydrate in a single invocation, gated on confidence >= 3.0. Unlike `/fab-ff`, never stops for interaction — bails immediately on review failure and auto-clarifies without user input.
+Run the entire Fab pipeline from the current stage through hydrate in a single invocation. Frontloads questions, interleaves auto-clarify between planning stages, and presents interactive rework options on review failure. No confidence gate. Resumable — re-running picks up from the first incomplete stage.
 
 ---
 
 ## Arguments
 
-- **`<change-name>`** *(optional)* — resolves per `_context.md` §2 (transient override). Defaults to active change.
+- **`<change-name>`** *(optional)* — target a specific change instead of `fab/current`. Resolution per `_context.md` (Change-name override).
 
 ---
 
 ## Pre-flight
 
-1. Run preflight per `_context.md` §2
-2. Verify `intake.md` exists. If not, STOP: `Intake not found. Run /fab-new first.`
-3. **Confidence gate**: Read `confidence.score`. If < 3.0 or missing → STOP: `Confidence is {score} of 5.0 (need >= 3.0). Run /fab-clarify to resolve, then retry.`
-4. Log invocation: `lib/stageman.sh log-command <change_dir> "fab-fff"`
+1. Run preflight per `_context.md` Section 2. Pass `<change-name>` if provided.
+2. Verify `intake.md` exists. If not, STOP: `Intake not found. Run /fab-new to create the intake first, then run /fab-fff.`
+3. Log invocation: `lib/stageman.sh log-command <change_dir> "fab-fff"`
 
 ---
 
 ## Context Loading
 
-Load per `_context.md` layers 1-3.
+Load per `_context.md` Sections 1-3 (config, constitution, intake, memory index, affected memory files, all completed artifacts).
 
 ---
 
 ## Behavior
 
-> **Note**: All `.status.yaml` transitions in this skill use `lib/stageman.sh` CLI commands (`transition`, `set-state`, `set-checklist`, `set-confidence`) rather than direct file edits. All `transition` calls pass `fab-fff` as the driver. All `set-state` calls pass `fab-fff` when setting state to `active`. See `/fab-continue` and `/fab-ff` for specific invocations per step.
+> **Note**: All `.status.yaml` transitions in this skill use `lib/stageman.sh` CLI commands (`transition`, `set-state`, `set-checklist`) rather than direct file edits. All `transition` calls pass `fab-fff` as the driver. All `set-state` calls pass `fab-fff` when setting state to `active`.
 
 ### Resumability
 
-Skip stages already `done` or `skipped`. Re-running picks up from first incomplete stage.
+Check `progress` from preflight. Skip stages already `done`. If `hydrate: done`, pipeline is already complete.
 
-### Step 1: Planning (fab-ff)
+### Step 1: Frontload All Questions
 
-*(Skip if spec and tasks are `done`/`skipped`.)*
+Apply SRAD across the intake for all planning stages. Collect **Unresolved** decisions into a single batch. All four grades (Certain, Confident, Tentative, Unresolved) are tracked in the cumulative Assumptions summary.
 
-Execute `/fab-ff` planning behavior (Steps 1-5: frontload questions, interleaved auto-clarify, bail on blockers).
+- **Unresolved exist**: Present as numbered list, wait for answers, then proceed.
+- **None**: Skip to Step 2.
 
-**If fab-ff bails**: STOP. `fab-ff bailed on blocking issues. Run /fab-clarify then /fab-fff.`
+At most one Q&A round.
 
-### Step 2: Implementation
+### Step 2: Generate `spec.md`
+
+*(Skip if `progress.spec` is `done`.)*
+
+Follow **Spec Generation Procedure** (`_generation.md`). Incorporate answers from Step 1 — no `[NEEDS CLARIFICATION]` markers. Update `.status.yaml` via `lib/stageman.sh set-state <file> spec done`.
+
+**Auto-Clarify**: Invoke `/fab-clarify` with `[AUTO-MODE]` prefix. If `blocking: 0` → continue. If `blocking > 0` → **BAIL**: report issues, suggest `/fab-clarify` then `/fab-fff`.
+
+### Step 3: Generate `tasks.md`
+
+*(Skip if `progress.tasks` is `done`.)*
+
+Follow **Tasks Generation Procedure** (`_generation.md`). Auto-clarify with same bail logic.
+
+### Step 4: Generate Quality Checklist
+
+Follow **Checklist Generation Procedure** (`_generation.md`).
+
+### Step 5: Update `.status.yaml` (Planning Complete)
+
+Run `lib/stageman.sh transition <file> tasks apply fab-fff`. Then set checklist fields via `lib/stageman.sh set-checklist <file> generated true`, `lib/stageman.sh set-checklist <file> total <count>`, `lib/stageman.sh set-checklist <file> completed 0`.
+
+### Step 6: Implementation
 
 *(Skip if `progress.apply` is `done`.)*
 
-Execute apply behavior — parse unchecked tasks, execute in dependency order, run tests, mark complete.
+Execute apply behavior per `/fab-continue` — parse unchecked tasks, execute in dependency order, run tests, mark `[x]` on completion.
 
-### Step 3: Review
+**If task fails**: STOP with `Task {ID} failed: {reason}. Investigate and re-run /fab-fff.`
+
+On success: run `lib/stageman.sh transition <file> apply review fab-fff`.
+
+### Step 7: Review
 
 *(Skip if `progress.review` is `done`.)*
 
-Execute review behavior. **If fails**: STOP immediately (no interactive rework menu). `Review failed. Run /fab-continue for rework options.`
+Execute review behavior per `/fab-continue` — validate tasks, checklist, tests, spec match, memory drift.
 
-### Step 4: Hydrate
+**Pass**: run `lib/stageman.sh transition <file> review hydrate fab-fff`. Run `lib/stageman.sh log-review <change_dir> "passed"`. Proceed to Step 8.
+
+**Fail**: Present interactive rework menu: fix code (uncheck tasks with `<!-- rework: reason -->`), revise tasks, or revise spec (reset via `/fab-continue spec`).
+
+### Step 8: Hydrate
 
 *(Skip if `progress.hydrate` is `done`.)*
 
-Execute hydrate behavior — validate review passed, hydrate into `docs/memory/`, set `hydrate: done`.
+Execute hydrate behavior per `/fab-continue` — validate review passed, hydrate into `docs/memory/`, run `lib/stageman.sh set-state <file> hydrate done`.
 
 ---
 
 ## Output
 
 ```
-/fab-fff — confidence {score} of 5.0, gate passed.
+/fab-fff — full pipeline, no gate.
 
---- Planning (fab-ff) ---
-{fab-ff output}
+--- Planning ---
+{spec + tasks + checklist output, with auto-clarify results}
+
+## Assumptions (cumulative)
+{table with Artifact column}
 
 --- Implementation ---
 {apply output}
@@ -94,7 +127,7 @@ Pipeline complete. Change hydrated.
 Next: /fab-archive
 ```
 
-Skipped stages show `Skipping {stage} — already done.` Failures end at the failing stage with bail/failure message.
+Resuming shows `(resuming)...` header and `Skipping {stage} — already done.` for completed stages. Bail/failure stops at the relevant stage with contextual Next line.
 
 ---
 
@@ -104,6 +137,6 @@ Skipped stages show `Skipping {stage} — already done.` Failures end at the fai
 |-----------|--------|
 | Preflight fails | Abort with stderr message |
 | `intake.md` missing | Abort: "Run /fab-new first." |
-| Confidence < 3.0 or missing | Abort with score and guidance |
-| fab-ff bails | Stop, report blocking issues |
-| Review fails | Stop, report failure details |
+| Auto-clarify bails | Stop, report blocking issues, suggest `/fab-clarify` then `/fab-fff` |
+| Task fails | Stop: "Task {ID} failed: {reason}. Investigate and re-run /fab-fff." |
+| Review fails | Present interactive rework menu (fix code, revise tasks, revise spec) |
