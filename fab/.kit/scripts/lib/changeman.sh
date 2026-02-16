@@ -2,10 +2,11 @@
 # fab/.kit/scripts/lib/changeman.sh
 #
 # Change Manager — CLI utility for change lifecycle operations.
-# Currently supports the `new` subcommand for creating change directories.
+# Supports `new` (create) and `rename` (rename slug) subcommands.
 #
 # Usage:
 #   changeman.sh new --slug <slug> [--change-id <4char>] [--log-args <description>]
+#   changeman.sh rename --folder <current-folder> --slug <new-slug>
 #   changeman.sh --help
 
 set -euo pipefail
@@ -155,6 +156,93 @@ cmd_new() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
+# rename subcommand
+# ─────────────────────────────────────────────────────────────────────────────
+
+cmd_rename() {
+  local folder="" slug=""
+
+  # Parse arguments
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --folder)
+        [ $# -lt 2 ] && { echo "ERROR: --folder requires a value" >&2; exit 1; }
+        folder="$2"; shift 2 ;;
+      --slug)
+        [ $# -lt 2 ] && { echo "ERROR: --slug requires a value" >&2; exit 1; }
+        slug="$2"; shift 2 ;;
+      *)
+        echo "ERROR: Unknown flag '$1'" >&2; exit 1 ;;
+    esac
+  done
+
+  # Validate required flags
+  if [ -z "$folder" ]; then
+    echo "ERROR: --folder is required" >&2
+    exit 1
+  fi
+  if [ -z "$slug" ]; then
+    echo "ERROR: --slug is required" >&2
+    exit 1
+  fi
+
+  # Validate slug format (same regex as new)
+  if ! [[ "$slug" =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$ ]]; then
+    echo "ERROR: Invalid slug format '${slug}' (expected alphanumeric and hyphens, no leading/trailing hyphen)" >&2
+    exit 1
+  fi
+
+  local changes_dir="$FAB_ROOT/changes"
+
+  # Verify source folder exists
+  if [ ! -d "$changes_dir/$folder" ]; then
+    echo "ERROR: Change folder '${folder}' not found" >&2
+    exit 1
+  fi
+
+  # Extract {YYMMDD}-{XXXX} prefix (first two hyphen-separated segments)
+  local prefix
+  prefix=$(echo "$folder" | cut -d'-' -f1-2)
+
+  # Construct new folder name
+  local new_name="${prefix}-${slug}"
+
+  # Check same-name
+  if [ "$new_name" = "$folder" ]; then
+    echo "ERROR: New name is the same as current name" >&2
+    exit 1
+  fi
+
+  # Check destination collision
+  if [ -d "$changes_dir/$new_name" ]; then
+    echo "ERROR: Folder '${new_name}' already exists" >&2
+    exit 1
+  fi
+
+  # Rename folder
+  mv "$changes_dir/$folder" "$changes_dir/$new_name"
+
+  # Update .status.yaml name field
+  sed -i "s|^name: .*|name: ${new_name}|" "$changes_dir/$new_name/.status.yaml"
+
+  # Update fab/current if it points to the old folder
+  local current_file="$FAB_ROOT/current"
+  if [ -f "$current_file" ]; then
+    local current_val
+    current_val=$(cat "$current_file")
+    if [ "$current_val" = "$folder" ]; then
+      printf '%s' "$new_name" > "$current_file"
+    fi
+  fi
+
+  # Log the rename
+  "$STAGEMAN" log-command "$changes_dir/$new_name" "changeman-rename" "--folder $folder --slug $slug"
+
+  # Output: new folder name
+  echo "$new_name"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Help
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -164,15 +252,21 @@ changeman.sh - Change Manager CLI
 
 USAGE:
   changeman.sh new --slug <slug> [--change-id <4char>] [--log-args <description>]
+  changeman.sh rename --folder <current-folder> --slug <new-slug>
   changeman.sh --help
 
 SUBCOMMANDS:
-  new     Create a new change directory with initialized .status.yaml
+  new      Create a new change directory with initialized .status.yaml
+  rename   Rename an existing change folder's slug (preserves date-ID prefix)
 
 FLAGS (for new):
   --slug <slug>            Required. Folder name suffix (e.g., "add-oauth" or "DEV-988-add-oauth")
   --change-id <4char>      Optional. Explicit 4-char alphanumeric ID. Random if omitted.
   --log-args <description> Optional. Description logged via stageman log-command.
+
+FLAGS (for rename):
+  --folder <current-folder> Required. Full current change folder name.
+  --slug <new-slug>         Required. New slug to replace the current slug portion.
 
 OUTPUT:
   On success: prints folder name to stdout (one line).
@@ -181,6 +275,7 @@ OUTPUT:
 EXAMPLES:
   changeman.sh new --slug add-oauth
   changeman.sh new --slug DEV-988-add-oauth --change-id a7k2 --log-args "Add OAuth"
+  changeman.sh rename --folder 260216-u6d5-old-slug --slug new-slug
 EOF
 }
 
@@ -195,6 +290,10 @@ case "${1:-}" in
   new)
     shift
     cmd_new "$@"
+    ;;
+  rename)
+    shift
+    cmd_rename "$@"
     ;;
   "")
     echo "ERROR: No subcommand provided. Try: changeman.sh --help" >&2

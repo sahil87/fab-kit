@@ -1,1 +1,5 @@
 {"ts":"2026-02-16T13:33:29+05:30","event":"command","cmd":"fab-new","args":"Add a rename option to changeman.sh, also add relevant test cases"}
+{"ts":"2026-02-16T14:18:39+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-16T14:20:18+05:30","event":"confidence","score":4.4,"delta":"+4.4","trigger":"calc-score"}
+{"ts":"2026-02-16T14:24:18+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-16T14:28:28+05:30","event":"review","result":"passed"}

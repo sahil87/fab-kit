@@ -3,7 +3,8 @@
 # Test suite for changeman.sh
 # Covers: new happy path, slug validation, change-id validation,
 #         random ID generation, collision detection, --help, error cases,
-#         detect_created_by fallback, stageman integration
+#         detect_created_by fallback, stageman integration,
+#         rename happy path, rename validation, rename error cases
 
 SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
 CHANGEMAN="$(readlink -f "$SCRIPT_DIR/changeman.sh")"
@@ -268,4 +269,132 @@ STUB
   [ "$status" -eq 0 ]
   local folder="$output"
   grep -q "unknown" "$FAB_ROOT/changes/$folder/.status.yaml"
+}
+
+# ── rename: happy path ────────────────────────────────────────────
+
+@test "rename changes folder name and outputs new name" {
+  mkdir -p "$FAB_ROOT/changes/260216-u6d5-old-slug"
+  echo 'name: 260216-u6d5-old-slug' > "$FAB_ROOT/changes/260216-u6d5-old-slug/.status.yaml"
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" rename --folder 260216-u6d5-old-slug --slug new-slug
+  [ "$status" -eq 0 ]
+  [ "$output" = "260216-u6d5-new-slug" ]
+  [ -d "$FAB_ROOT/changes/260216-u6d5-new-slug" ]
+  [ ! -d "$FAB_ROOT/changes/260216-u6d5-old-slug" ]
+}
+
+@test "rename updates .status.yaml name field" {
+  mkdir -p "$FAB_ROOT/changes/260216-u6d5-old-slug"
+  echo 'name: 260216-u6d5-old-slug' > "$FAB_ROOT/changes/260216-u6d5-old-slug/.status.yaml"
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" rename --folder 260216-u6d5-old-slug --slug new-slug
+  [ "$status" -eq 0 ]
+  grep -q "name: 260216-u6d5-new-slug" "$FAB_ROOT/changes/260216-u6d5-new-slug/.status.yaml"
+}
+
+@test "rename updates fab/current when it points to old folder" {
+  mkdir -p "$FAB_ROOT/changes/260216-u6d5-old-slug"
+  echo 'name: 260216-u6d5-old-slug' > "$FAB_ROOT/changes/260216-u6d5-old-slug/.status.yaml"
+  printf '260216-u6d5-old-slug' > "$FAB_ROOT/current"
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" rename --folder 260216-u6d5-old-slug --slug new-slug
+  [ "$status" -eq 0 ]
+  [ "$(cat "$FAB_ROOT/current")" = "260216-u6d5-new-slug" ]
+}
+
+@test "rename does not modify fab/current when it points to different change" {
+  mkdir -p "$FAB_ROOT/changes/260216-u6d5-old-slug"
+  echo 'name: 260216-u6d5-old-slug' > "$FAB_ROOT/changes/260216-u6d5-old-slug/.status.yaml"
+  printf '260216-abcd-other-change' > "$FAB_ROOT/current"
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" rename --folder 260216-u6d5-old-slug --slug new-slug
+  [ "$status" -eq 0 ]
+  [ "$(cat "$FAB_ROOT/current")" = "260216-abcd-other-change" ]
+}
+
+@test "rename does not create fab/current when absent" {
+  mkdir -p "$FAB_ROOT/changes/260216-u6d5-old-slug"
+  echo 'name: 260216-u6d5-old-slug' > "$FAB_ROOT/changes/260216-u6d5-old-slug/.status.yaml"
+  rm -f "$FAB_ROOT/current"
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" rename --folder 260216-u6d5-old-slug --slug new-slug
+  [ "$status" -eq 0 ]
+  [ ! -f "$FAB_ROOT/current" ]
+}
+
+# ── rename: slug validation ───────────────────────────────────────
+
+@test "rename rejects slug with leading hyphen" {
+  mkdir -p "$FAB_ROOT/changes/260216-u6d5-old-slug"
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" rename --folder 260216-u6d5-old-slug --slug "-bad-slug"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Invalid slug format"* ]]
+}
+
+@test "rename rejects slug with trailing hyphen" {
+  mkdir -p "$FAB_ROOT/changes/260216-u6d5-old-slug"
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" rename --folder 260216-u6d5-old-slug --slug "bad-slug-"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Invalid slug format"* ]]
+}
+
+@test "rename accepts slug with uppercase (Linear issue IDs)" {
+  mkdir -p "$FAB_ROOT/changes/260216-u6d5-old-slug"
+  echo 'name: 260216-u6d5-old-slug' > "$FAB_ROOT/changes/260216-u6d5-old-slug/.status.yaml"
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" rename --folder 260216-u6d5-old-slug --slug DEV-1039-new-name
+  [ "$status" -eq 0 ]
+  [ "$output" = "260216-u6d5-DEV-1039-new-name" ]
+}
+
+# ── rename: error cases ───────────────────────────────────────────
+
+@test "rename errors when source folder does not exist" {
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" rename --folder 260216-xxxx-nonexistent --slug new-slug
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Change folder '260216-xxxx-nonexistent' not found"* ]]
+}
+
+@test "rename errors when destination folder already exists" {
+  mkdir -p "$FAB_ROOT/changes/260216-u6d5-old-name"
+  mkdir -p "$FAB_ROOT/changes/260216-u6d5-new-name"
+  echo 'name: 260216-u6d5-old-name' > "$FAB_ROOT/changes/260216-u6d5-old-name/.status.yaml"
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" rename --folder 260216-u6d5-old-name --slug new-name
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Folder '260216-u6d5-new-name' already exists"* ]]
+}
+
+@test "rename errors when new name is the same as current name" {
+  mkdir -p "$FAB_ROOT/changes/260216-u6d5-same-slug"
+  echo 'name: 260216-u6d5-same-slug' > "$FAB_ROOT/changes/260216-u6d5-same-slug/.status.yaml"
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" rename --folder 260216-u6d5-same-slug --slug same-slug
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"New name is the same as current name"* ]]
+}
+
+@test "rename errors when --folder is missing" {
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" rename --slug new-slug
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"--folder is required"* ]]
+}
+
+@test "rename errors when --slug is missing" {
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" rename --folder 260216-u6d5-old-slug
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"--slug is required"* ]]
+}
+
+# ── rename: stageman logging ──────────────────────────────────────
+
+@test "rename calls stageman log-command" {
+  mkdir -p "$FAB_ROOT/changes/260216-u6d5-old-slug"
+  echo 'name: 260216-u6d5-old-slug' > "$FAB_ROOT/changes/260216-u6d5-old-slug/.status.yaml"
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" rename --folder 260216-u6d5-old-slug --slug new-slug
+  [ "$status" -eq 0 ]
+  grep -q "log-command" "$STAGEMAN_LOG"
+  grep -q "changeman-rename" "$STAGEMAN_LOG"
 }

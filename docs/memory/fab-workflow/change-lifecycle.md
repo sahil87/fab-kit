@@ -21,7 +21,7 @@ Change folders SHALL use the format `{YYMMDD}-{XXXX}-[{ISSUE}-]{slug}`:
 
 The `{ISSUE}` component is optional — included only when the change originates from a Linear ticket (via `/fab-new` with a ticket ID or backlog entry referencing one). When absent, the format collapses to `{YYMMDD}-{XXXX}-{slug}`.
 
-All components MUST be lowercase EXCEPT `{ISSUE}` which stays uppercase (`[A-Z]+-\d+`). The uppercase pattern is distinct from the lowercase random token and slug, making regex parsing unambiguous. The name is unique by construction (date + random token), requires no collision scanning, sorts chronologically in `ls`, and remains stable from creation through archive (no rename).
+All components MUST be lowercase EXCEPT `{ISSUE}` which stays uppercase (`[A-Z]+-\d+`). The uppercase pattern is distinct from the lowercase random token and slug, making regex parsing unambiguous. The name is unique by construction (date + random token), requires no collision scanning, and sorts chronologically in `ls`. The `{YYMMDD}-{XXXX}` prefix is immutable — only the slug can be changed via `changeman.sh rename`.
 
 **Examples**:
 - Without Linear ID: `260115-a7k2-add-oauth`
@@ -131,6 +131,15 @@ To bring an archived change back to active:
 
 The restore operation is idempotent — if the folder already exists in `fab/changes/`, the move is skipped and remaining steps (index cleanup, optional pointer update) complete normally.
 
+### Renaming a Change
+
+To rename a change's slug (e.g., if the scope evolved or a typo was made):
+```
+changeman.sh rename --folder <current-folder> --slug <new-slug>
+```
+
+This atomically: renames the folder, updates `.status.yaml` `name` field, updates `fab/current` if it points to the renamed change, and logs the operation. The `{YYMMDD}-{XXXX}` prefix is preserved — only the slug portion changes. Git branch rename is not included (manual if needed).
+
 ### Abandoning a Change
 
 To discard a change that won't be completed:
@@ -182,10 +191,10 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 *Source*: doc/fab-spec/ARCHITECTURE.md
 
 ### Name Stable Across Lifecycle
-**Decision**: Change folders keep the same name from creation through archive. No rename on archive.
-**Why**: Simplifies references — specs, changelogs, and design decisions can reference the change by name without tracking renames. Date is already in the name for chronological context.
-**Rejected**: Renaming with archive prefix — adds complexity, breaks back-references.
-*Source*: doc/fab-spec/ARCHITECTURE.md
+**Decision**: Change folders keep the same `{YYMMDD}-{XXXX}` prefix from creation through archive. No automatic rename on archive. The slug portion can be explicitly renamed via `changeman.sh rename`, which atomically updates the folder, `.status.yaml`, and `fab/current`.
+**Why**: The immutable prefix simplifies references — specs, changelogs, and design decisions can reference the change by date-ID without tracking renames. Explicit slug rename is supported for scope evolution and typo correction, but the date-ID prefix ensures continuity.
+**Rejected**: Renaming with archive prefix — adds complexity, breaks back-references. Auto-rename — would silently break references.
+*Source*: doc/fab-spec/ARCHITECTURE.md; *Updated by*: 260216-u6d5-DEV-1039-add-changeman-rename
 
 ### Fixed State Vocabulary
 **Decision**: All `.status.yaml` progress fields draw from a fixed set of states (`pending`, `active`, `done`, `failed`).
@@ -227,6 +236,7 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260216-u6d5-DEV-1039-add-changeman-rename | 2026-02-16 | Added rename capability: `changeman.sh rename` atomically renames slug, updates `.status.yaml` name, conditionally updates `fab/current`. Added "Renaming a Change" section. Updated naming convention note (prefix immutable, slug changeable). Updated "Name Stable Across Lifecycle" design decision. |
 | 260215-237b-DEV-1027-redefine-ff-fff-scope | 2026-02-16 | Redefined full pipeline path: `/fab-fff` is now ungated full pipeline (intake → hydrate, interactive rework), `/fab-ff` is now confidence-gated from-spec pipeline (spec → hydrate, bail on failure) |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |
 | 260215-w3n8-naming-linear-id-drop-conventions | 2026-02-15 | Extended folder naming convention to `{YYMMDD}-{XXXX}-[{ISSUE}-]{slug}` with optional uppercase Linear issue ID. Added `{ISSUE}` component to naming table, examples, and casing exception note |
