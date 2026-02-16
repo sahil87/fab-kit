@@ -98,7 +98,7 @@ cp -r /path/to/fab-kit/fab/.kit ./fab/
 **In your terminal:**
 
 ```bash
-fab/.kit/scripts/fab-sync.sh            # creates directories, symlinks, .gitignore
+fab/.kit/scripts/fab-sync.sh            # creates directories, symlinks, docs/memory/, .gitignore
 direnv allow                            # approve .envrc (adds scripts to PATH)
 # No direnv? export PATH="$PWD/fab/.kit/scripts:$PATH"
 ```
@@ -110,7 +110,7 @@ direnv allow                            # approve .envrc (adds scripts to PATH)
 $fab-setup    # Codex
 ```
 
-This generates `fab/config.yaml`, `fab/constitution.md` (your project's architectural rules), and `docs/memory/`.
+This generates `fab/config.yaml` and `fab/constitution.md` (your project's architectural rules).
 
 ### 3. Your first change
 
@@ -154,7 +154,7 @@ Each change is a self-contained folder — multiple AI sessions run in parallel 
 ### Troubleshooting
 
 - `direnv allow` doesn't work — reload your shell or run `eval "$(direnv export zsh)"`
-- `/fab-setup` not recognized — verify `.claude/skills/` has symlinks to `fab/.kit/skills/`
+- `/fab-setup` not recognized — re-run `fab/.kit/scripts/fab-sync.sh` to repair symlinks
 
 ## Why Fab Kit
 
@@ -267,7 +267,7 @@ AI writes code fast. Without structure, it also skips requirements, ignores arch
 ## Updating
 
 ```bash
-fab-upgrade.sh       # downloads latest kit, replaces fab/.kit/, repairs symlinks
+fab-upgrade.sh       # downloads latest kit, replaces fab/.kit/, auto-runs fab-sync.sh
 ```
 
 If the upgrade reports a version mismatch, run `/fab-setup migrations` in your AI agent to apply migrations. Safe to re-run.
