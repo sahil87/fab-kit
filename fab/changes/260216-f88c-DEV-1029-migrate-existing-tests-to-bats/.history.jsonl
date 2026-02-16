@@ -1,0 +1,1 @@
+{"ts":"2026-02-16T11:36:54+05:30","event":"command","cmd":"fab-new","args":"Migrate existing hand-rolled test suites (preflight, resolve-change, stageman, calc-score) to bats-core format"}
