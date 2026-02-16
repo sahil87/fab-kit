@@ -85,14 +85,15 @@ Skills exempt from preflight: `init`, `switch`, `status`, `hydrate`, `help`, `ne
 *Introduced by*: 260214-q7f2-reorganize-src
 
 ### Shared Change Resolution Library
-**Decision**: Change name resolution (fuzzy matching against `fab/changes/`) extracted to `lib/resolve-change.sh`, sourced by both `lib/preflight.sh` and `fab-status.sh`.
-**Why**: Both scripts had ~65 identical lines of resolution logic. The library uses a variable-setting pattern (`RESOLVED_CHANGE_NAME`) for clean exit code handling, and keeps error messages generic so callers add their own context.
+**Decision**: Change name resolution (fuzzy matching against `fab/changes/`) extracted to `lib/resolve-change.sh`, sourced by `lib/preflight.sh`, `fab-status.sh`, and the `/fab-switch` skill (via Bash invocation in the Argument Flow).
+**Why**: Multiple callers had identical resolution logic. The library uses a variable-setting pattern (`RESOLVED_CHANGE_NAME`) for clean exit code handling, and keeps error messages generic so callers add their own context. `/fab-switch` delegates to the shell script rather than performing in-prompt string matching, making resolution deterministic regardless of model tier.
 **Rejected**: Consolidating into `lib/stageman.sh` — change resolution is pure filesystem/string matching with no stage awareness; mixing concerns would violate stageman's schema-query focus.
 
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260216-jmy4-DEV-1044-switch-shell-name-resolution | 2026-02-16 | Updated Shared Change Resolution Library decision: `/fab-switch` now sources `resolve-change.sh` for name resolution in its Argument Flow (previously only `preflight.sh` and `fab-status.sh` sourced it) |
 | 260215-lqm5-stageman-cli-only | 2026-02-15 | Migrated from `source stageman.sh` to `$STAGEMAN <subcommand>` CLI subprocess calls; `resolve-change.sh` remains sourced (variable-setting pattern); updated design decision from "Accessor Functions" to "CLI Subprocess" |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Moved from `_preflight.sh` to `lib/preflight.sh`; updated all internal references from `_stageman.sh`/`_resolve-change.sh` to `lib/stageman.sh`/`lib/resolve-change.sh`; updated path resolution from `../../` to `../../..`; added lib/ subfolder design decision |
 | 260213-puow-consolidate-status-reads | 2026-02-14 | Replaced inline `grep \| sed` parsing with stageman accessor calls (`get_progress_map`, `get_checklist`, `get_confidence`); delegated change resolution to `_resolve-change.sh`; added confidence fields to output; renamed `stageman.sh` → `_stageman.sh` |
