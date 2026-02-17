@@ -73,7 +73,7 @@ done < <("$STAGEMAN" confidence "$status_file")
 # Emit YAML output with dynamic stage progress
 cat <<EOF
 name: $name
-change_dir: changes/$name
+change_dir: fab/changes/$name
 stage: $stage
 progress:
 $(for s in $("$STAGEMAN" all-stages); do echo "  $s: ${progress[$s]}"; done)
