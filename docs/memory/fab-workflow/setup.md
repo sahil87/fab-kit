@@ -78,8 +78,8 @@ Each subcommand operates independently — they can be invoked directly without 
 | Skill symlinks (Claude Code, OpenCode, Codex) | `fab-sync.sh` | Discovers skills via glob pattern |
 | `.envrc` symlink | `fab-sync.sh` | Links to `fab/.kit/scaffold/envrc` |
 | `.gitignore` entries | `fab-sync.sh` | Appends entries from `scaffold/gitignore-entries` if not present |
-| `config.yaml` | `/fab-setup config` (delegated by `/fab-setup`) | Single source of truth for config generation and updates |
-| `constitution.md` | `/fab-setup constitution` (delegated by `/fab-setup`) | Single source of truth for constitution generation and amendments |
+| `config.yaml` | `/fab-setup config` (delegated by `/fab-setup`) | Reads `scaffold/config.yaml` template, substitutes placeholders with user-provided values |
+| `constitution.md` | `/fab-setup constitution` (delegated by `/fab-setup`) | Reads `scaffold/constitution.md` skeleton, generates principles from project context |
 
 `/fab-setup` invokes `fab-sync.sh` as step 1g of its bootstrap sequence. Steps 1c–1f in `/fab-setup` have idempotent guards so they gracefully skip artifacts already created by `fab-sync.sh`.
 
@@ -113,6 +113,12 @@ Each subcommand operates independently — they can be invoked directly without 
 *Introduced by*: 260212-h9k3-fab-init-family
 *Deprecated by*: 260216-tk7a-DEV-1037-consolidate-setup-upgrade-flow
 
+### Templates in Scaffold Files
+**Decision**: `config.yaml` and `constitution.md` templates live as standalone files in `fab/.kit/scaffold/` rather than as inline code blocks in `fab-setup.md`. `/fab-setup` reads from these files and substitutes placeholders. Index templates (`memory-index.md`, `specs-index.md`) are also referenced from scaffold files, eliminating duplicated inline copies.
+**Why**: Prevents drift between inline templates and actual schema expectations. Aligns with Constitution V (Portability) — `.kit/` owns its templates as inspectable, diffable files. Single source of truth for both `fab-sync.sh` and `/fab-setup`.
+**Rejected**: Keeping inline templates — two sources of truth that can diverge when the config schema evolves.
+*Introduced by*: 260217-17pe-DEV-1046-scaffold-setup-templates
+
 ### Absorbed /fab-update into /fab-setup migrations
 **Decision**: `/fab-update` functionality is now available as `/fab-setup migrations`. Version migrations live under the same command namespace as the rest of project setup.
 **Why**: Reduces the dropped-ball two-step flow where users had to remember a separate `/fab-update` command after upgrading the kit. Makes migrations discoverable from the same command namespace as config and constitution management.
@@ -140,6 +146,7 @@ Each subcommand operates independently — they can be invoked directly without 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260217-17pe-DEV-1046-scaffold-setup-templates | 2026-02-17 | Extracted inline config.yaml and constitution.md templates from `fab-setup.md` into `scaffold/config.yaml` and `scaffold/constitution.md`. Replaced inline memory-index and specs-index templates with scaffold file references. Updated delegation table notes. Added "Templates in Scaffold Files" design decision. |
 | 260216-tk7a-DEV-1037-consolidate-setup-upgrade-flow | 2026-02-16 | Renamed `/fab-init` → `/fab-setup`; absorbed `/fab-update` as `migrations` subcommand; promoted `lib/sync-workspace.sh` → `fab-sync.sh`; validate subcommand folded into config/constitution flows; file renamed from init.md to setup.md |
 | 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Updated `fab-sync.sh` delegation to create `docs/memory/` and `docs/specs/` instead of `fab/memory/` and `fab/specs/` |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_init_scaffold.sh` → `fab-sync.sh` throughout (directory structure, delegation table, bootstrap references, design decisions, changelog entries) |

@@ -1,1 +1,5 @@
 {"ts":"2026-02-17T07:44:28+05:30","event":"command","cmd":"fab-new","args":"Move inline templates from fab-setup.md into scaffold files (config.yaml, constitution.md) and deduplicate memory-index/specs-index references so fab-setup reads from scaffold instead of maintaining inline copies"}
+{"ts":"2026-02-17T08:10:11+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-17T08:12:30+05:30","event":"confidence","score":4.4,"delta":"+0.0","trigger":"calc-score"}
+{"ts":"2026-02-17T08:13:55+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-17T08:19:26+05:30","event":"review","result":"passed"}

@@ -67,41 +67,13 @@ If exists: report "constitution.md already exists — skipping".
 
 #### 1c. `docs/memory/index.md`
 
-If missing, create `docs/memory/` directory and `docs/memory/index.md`:
-
-```markdown
-# Memory Index
-
-<!-- This index is maintained by /fab-archive when changes are completed. -->
-<!-- Each domain gets a row linking to its memory files. -->
-
-| Domain | Description | Memory Files |
-|--------|-------------|--------------|
-```
+If missing, create `docs/memory/` directory and copy `fab/.kit/scaffold/memory-index.md` to `docs/memory/index.md`.
 
 If exists: skip.
 
 #### 1d. `docs/specs/index.md`
 
-If missing, create `docs/specs/` directory and `docs/specs/index.md`:
-
-```markdown
-# Specifications Index
-
-> **Specs are pre-implementation artifacts** — what you *planned*. They capture conceptual design
-> intent, high-level decisions, and the "why" behind features. Specs are human-curated,
-> flat in structure, and deliberately size-controlled for quick reading.
->
-> Contrast with [`docs/memory/index.md`](../memory/index.md): memory files are *post-implementation* —
-> what actually happened. Memory files are the authoritative source of truth for system behavior,
-> maintained by `/fab-continue` (hydrate) and `/fab-archive`.
->
-> **Ownership**: Specs are written and maintained by humans. No automated tooling creates or
-> enforces structure here — organize files however makes sense for your project.
-
-| Spec | Description |
-|------|-------------|
-```
+If missing, create `docs/specs/` directory and copy `fab/.kit/scaffold/specs-index.md` to `docs/specs/index.md`.
 
 If exists: skip.
 
@@ -187,78 +159,10 @@ When `fab/config.yaml` does not exist:
 
 1. Read the project's README, package.json, or other root-level files for context
 2. Ask the user: project name, description, tech stack/conventions, source paths
-3. Generate `fab/config.yaml`:
-
-```yaml
-# fab/config.yaml
-
-project:
-  name: "{PROJECT_NAME}"
-  description: "{PROJECT_DESCRIPTION}"
-
-context: |
-  {TECH_STACK_AND_CONVENTIONS}
-
-naming:
-  format: "{YYMMDD}-{XXXX}-[{ISSUE}-]{slug}"
-
-git:
-  enabled: true
-  branch_prefix: ""
-
-stages:
-  - id: intake
-    generates: intake.md
-    required: true
-  - id: spec
-    generates: spec.md
-    requires: [intake]
-    required: true
-  - id: tasks
-    generates: tasks.md
-    requires: [spec]
-    required: true
-    auto_checklist: true
-  - id: apply
-    requires: [tasks]
-  - id: review
-    requires: [apply]
-  - id: hydrate
-    requires: [review]
-
-source_paths:
-  - {SOURCE_PATHS}
-
-checklist:
-  extra_categories: []
-
-rules:
-  spec:
-    - Use GIVEN/WHEN/THEN for scenarios
-    - "Mark ambiguities with [NEEDS CLARIFICATION]"
-
-# code_quality — Optional coding standards consumed during apply and review.
-#   Projects opt in by uncommenting. All fields are independently optional.
-#
-# code_quality:
-#   # principles — Positive coding standards to follow during implementation.
-#   principles:
-#     - "Readability and maintainability over cleverness"
-#     - "Follow existing project patterns unless there's compelling reason to deviate"
-#     - "Prefer composition over inheritance"
-#
-#   # anti_patterns — Patterns to avoid. Flagged during review.
-#   anti_patterns:
-#     - "God functions (>50 lines without clear reason)"
-#     - "Duplicating existing utilities instead of reusing them"
-#     - "Magic strings or numbers without named constants"
-#
-#   # test_strategy — How tests relate to implementation.
-#   # Values: test-alongside (default) | test-after | tdd
-#   test_strategy: "test-alongside"
-```
-
-4. Output: `Created fab/config.yaml`
+3. Read `fab/.kit/scaffold/config.yaml` as the starting template
+4. Substitute placeholders with user-provided values: `{PROJECT_NAME}`, `{PROJECT_DESCRIPTION}`, `{TECH_STACK_AND_CONVENTIONS}`, `{SOURCE_PATHS}`
+5. Write the result to `fab/config.yaml`
+6. Output: `Created fab/config.yaml`
 
 ### Config Update Mode — Menu Flow
 
@@ -332,30 +236,10 @@ Create a new project constitution or amend an existing one with semantic version
 When `fab/constitution.md` does not exist:
 
 1. Read project context from `fab/config.yaml` + README, existing docs, codebase structure
-2. Generate `fab/constitution.md`:
-
-```markdown
-# {Project Name} Constitution
-
-## Core Principles
-
-### I. {Principle Name}
-{Description using MUST/SHALL/SHOULD keywords. Include rationale.}
-
-### II. {Principle Name}
-{Description}
-
-<!-- Generate 3-7 principles based on the project's actual patterns, tech stack, and constraints -->
-
-## Additional Constraints
-<!-- Project-specific: security, performance, testing, etc. -->
-
-## Governance
-
-**Version**: 1.0.0 | **Ratified**: {TODAY'S DATE} | **Last Amended**: {TODAY'S DATE}
-```
-
-3. Output: `Created fab/constitution.md (version 1.0.0) with {N} principles.`
+2. Read `fab/.kit/scaffold/constitution.md` as the starting skeleton
+3. Generate principles based on the project's actual patterns, tech stack, and constraints — fill in the skeleton structure (replace `{Project Name}`, `{Principle Name}`, `{DATE}` placeholders; generate 3-7 principles with MUST/SHALL/SHOULD keywords)
+4. Write the result to `fab/constitution.md`
+5. Output: `Created fab/constitution.md (version 1.0.0) with {N} principles.`
 
 ### Constitution Update Mode
 

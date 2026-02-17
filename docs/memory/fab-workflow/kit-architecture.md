@@ -41,7 +41,9 @@ fab/.kit/
 │   ├── tasks.md
 │   ├── checklist.md
 │   └── status.yaml         # .status.yaml template (includes stage_metrics: {})
-├── scaffold/               # Bootstrap content (read by fab-sync.sh)
+├── scaffold/               # Bootstrap content (read by fab-sync.sh and /fab-setup)
+│   ├── config.yaml         # Default config.yaml template with placeholders (read by /fab-setup config)
+│   ├── constitution.md     # Constitution skeleton with placeholders (read by /fab-setup constitution)
 │   ├── envrc               # .envrc required entries (line-ensuring)
 │   ├── gitignore-entries   # .gitignore entries (one per line)
 │   ├── memory-index.md     # Initial docs/memory/index.md content
@@ -249,6 +251,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260217-17pe-DEV-1046-scaffold-setup-templates | 2026-02-17 | Added `config.yaml` and `constitution.md` to scaffold directory listing. Updated scaffold comment from "read by fab-sync.sh" to "read by fab-sync.sh and /fab-setup" |
 | 260216-ymvx-DEV-1043-envrc-line-sync | 2026-02-16 | Replaced `.envrc` symlink management with line-ensuring sync in `fab-sync.sh` section 2. Scaffold `envrc` comment updated from "template (shipped)" to "required entries (line-ensuring)". `fab-sync.sh` description updated to reflect `.envrc` line-ensuring and symlink migration. |
 | 260216-pr1u-DEV-1017-add-archive-gitkeep | 2026-02-16 | Added `fab/changes/archive/` to `fab-sync.sh` directory creation loop and `fab/changes/archive/.gitkeep` conditional touch. Updated fab-sync.sh description to enumerate created directories and .gitkeep files. |
 | 260216-gcw7-DEV-1041-consolidate-script-signatures | 2026-02-16 | Consolidated `stageman.sh` CLI surface area: removed 12 dead functions and 6 internal-only CLI dispatch entries, reducing from ~35 to 14 externally-used subcommands. Removed `--test`, `--version` flags and self-test infrastructure. Internal helper functions retained for write/validation. Updated test suite (75 → 53 tests). Fixed pre-existing `brief` → `intake` bug in `test-simple.sh`. |

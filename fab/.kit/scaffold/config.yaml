@@ -1,0 +1,149 @@
+# fab/config.yaml
+#
+# Project configuration for the Fab workflow. This file is loaded by nearly
+# every /fab-* skill as grounding context. It is generated once by /fab-setup
+# and then hand-maintained.
+#
+# Companion files (not configured here):
+#   fab/constitution.md  — project principles & constraints (MUST/SHOULD rules)
+#   docs/memory/index.md   — centralized documentation index
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+# project — Identity and description of this project.
+# Consumed by: all artifact-generating skills (context grounding in proposals,
+#   specs, plans, tasks, reviews, and archive hydration).
+project:
+  # name — Short project identifier. Used in generated artifact headers.
+  name: "{PROJECT_NAME}"
+  # description — One-liner explaining what this project is.
+  description: "{PROJECT_DESCRIPTION}"
+
+# context — Free-form project context: tech stack, conventions, architecture.
+# Consumed by: all artifact-generating skills. This is the primary way skills
+#   understand your codebase without reading every file.
+#
+# Tips:
+#   - Be specific about languages, frameworks, and patterns.
+#   - For monorepos, use labeled sections so skills scope to the relevant part:
+#       ## packages/frontend
+#       React, TypeScript, Next.js, Tailwind CSS
+#       ## packages/backend
+#       Python, FastAPI, SQLAlchemy, PostgreSQL
+context: |
+  {TECH_STACK_AND_CONVENTIONS}
+
+# source_paths — Directories containing the project's implementation code.
+# Used by skills that need to distinguish "implementation" from design and docs
+# (e.g., /internal-consistency-check, /fab-review, /fab-apply).
+# Paths are relative to the project root. docs/memory/ and docs/specs/ are always
+# known — this field answers "where is the code that actually runs?"
+# Consumed by: /fab-apply (source code loading), /fab-review (code inspection),
+#   /internal-consistency-check (implementation layer scanning).
+source_paths:
+  - {SOURCE_PATHS}
+
+# naming — Controls how change folders are named under fab/changes/.
+# Consumed by: /fab-new (folder name generation).
+naming:
+  # format — Pattern for change folder names.
+  #   {YYMMDD}  — date (agent fills from today's date)
+  #   {XXXX}    — 4 random lowercase alphanumeric chars (uniqueness)
+  #   {ISSUE}   — optional uppercase Linear issue ID (e.g., DEV-988).
+  #              Included when change originates from a Linear ticket.
+  #   {slug}    — 2-6 word slug derived from the change description
+  # All components are lowercase EXCEPT {ISSUE} which stays uppercase
+  # for unambiguous parsing ([A-Z]+-\d+ is distinct from slug/token).
+  # Example without Linear ID: 260115-a7k2-add-oauth
+  # Example with Linear ID:    260115-a7k2-DEV-988-add-oauth
+  format: "{YYMMDD}-{XXXX}-[{ISSUE}-]{slug}"
+
+# git — Optional git integration. Fab never commits, pushes, or merges —
+#   this only controls branch prompts and status display.
+# Consumed by: /fab:new (branch creation/adoption prompt), /fab:switch
+#   (branch checkout), /fab:status (current branch display).
+git:
+  # enabled — Set false to suppress all branch prompts and git operations.
+  # Valid values: true | false
+  enabled: true
+  # branch_prefix — Optional prefix prepended to branch names.
+  #   "" (empty)  → branch name matches folder name: 260115-a7k2-add-oauth
+  #   "feat/"     → feat/260115-a7k2-add-oauth
+  #   "fix/"      → fix/260115-a7k2-add-oauth
+  branch_prefix: ""
+
+# stages — The 6-stage pipeline definition. Controls stage ordering,
+#   prerequisites, which artifacts are generated, and skip logic.
+# Consumed by: /fab:new (initializes .status.yaml), /fab:continue (stage
+#   traversal and prerequisite validation), /fab:ff (determines which
+#   stages to fast-forward through).
+#
+# Each stage entry supports:
+#   id             — Stage identifier (used in .status.yaml progress keys)
+#   generates      — Filename this stage produces (e.g., spec.md)
+#   requires       — List of prerequisite stage ids that must be done first
+#   required       — Whether this stage can be skipped (false = optional)
+#   auto_checklist — Generate checklists/quality.md when this stage completes
+stages:
+  - id: intake
+    generates: intake.md
+    required: true
+  - id: spec
+    generates: spec.md
+    requires: [intake]
+    required: true
+  - id: tasks
+    generates: tasks.md
+    requires: [spec]
+    required: true
+    auto_checklist: true
+  - id: apply
+    requires: [tasks]
+  - id: review
+    requires: [apply]
+  - id: hydrate
+    requires: [review]
+
+# checklist — Configuration for the auto-generated quality checklist.
+# Consumed by: /fab:continue (tasks stage), /fab:ff (tasks stage).
+#
+# Default categories (always included):
+#   functional_completeness, behavioral_correctness, scenario_coverage,
+#   edge_cases, security
+checklist:
+  # extra_categories — Project-specific categories appended to the defaults.
+  # Each entry becomes a section heading in checklists/quality.md with items
+  # derived from the spec. Common additions: performance, ux, accessibility,
+  # api_compatibility.
+  extra_categories: []
+
+# rules — Per-stage behavioral constraints for artifact generation.
+# Consumed by: all artifact-generating skills. Rules for a given stage are
+#   loaded when that stage's artifact is being generated or reviewed.
+#
+# Format: dictionary keyed by stage id, each containing a list of rule strings.
+# These act as additional instructions the agent follows during generation.
+rules:
+  spec:
+    - Use GIVEN/WHEN/THEN for scenarios
+    - "Mark ambiguities with [NEEDS CLARIFICATION]"
+
+# code_quality — Optional coding standards consumed during apply and review.
+#   Projects opt in by uncommenting. All fields are independently optional.
+#
+# code_quality:
+#   # principles — Positive coding standards to follow during implementation.
+#   principles:
+#     - "Readability and maintainability over cleverness"
+#     - "Follow existing project patterns unless there's compelling reason to deviate"
+#     - "Prefer composition over inheritance"
+#
+#   # anti_patterns — Patterns to avoid. Flagged during review.
+#   anti_patterns:
+#     - "God functions (>50 lines without clear reason)"
+#     - "Duplicating existing utilities instead of reusing them"
+#     - "Magic strings or numbers without named constants"
+#
+#   # test_strategy — How tests relate to implementation.
+#   # Values: test-alongside (default) | test-after | tdd
+#   test_strategy: "test-alongside"
