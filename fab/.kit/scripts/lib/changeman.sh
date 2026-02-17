@@ -197,6 +197,9 @@ cmd_switch() {
     local val
     val=$(yq '.git.enabled // "true"' "$config_file" 2>/dev/null) && git_enabled="$val"
     val=$(yq '.git.branch_prefix // ""' "$config_file" 2>/dev/null) && branch_prefix="$val"
+  elif [ -f "$config_file" ]; then
+    echo "Warning: config.yaml exists but yq is not installed; skipping git integration." >&2
+    git_enabled=false
   fi
 
   # 4. Git branch integration
@@ -209,19 +212,20 @@ cmd_switch() {
   fi
 
   if [ "$git_enabled" = "true" ] && [ "$in_git_repo" = true ]; then
+    local git_err
     if git show-ref --verify --quiet "refs/heads/$branch_name" 2>/dev/null; then
-      if git checkout "$branch_name" 2>/dev/null; then
+      if git_err=$(git checkout "$branch_name" 2>&1); then
         branch_status="checked out"
       else
         branch_status="checkout failed"
-        echo "Warning: git checkout '$branch_name' failed" >&2
+        echo "Warning: git checkout '$branch_name' failed: $git_err" >&2
       fi
     else
-      if git checkout -b "$branch_name" 2>/dev/null; then
+      if git_err=$(git checkout -b "$branch_name" 2>&1); then
         branch_status="created"
       else
         branch_status="creation failed"
-        echo "Warning: git checkout -b '$branch_name' failed" >&2
+        echo "Warning: git checkout -b '$branch_name' failed: $git_err" >&2
       fi
     fi
   fi
@@ -483,7 +487,7 @@ ARGS (for switch):
 
 OUTPUT:
   On success: prints result to stdout.
-  On error: prints ERROR: message to stderr, exits non-zero.
+  On error: prints diagnostic message to stderr, exits non-zero.
 
 EXAMPLES:
   changeman.sh new --slug add-oauth

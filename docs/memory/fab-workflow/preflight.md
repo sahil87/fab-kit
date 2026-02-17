@@ -79,7 +79,7 @@ Skills exempt from preflight: `init`, `switch`, `status`, `hydrate`, `help`, `ne
 *Updated by*: 260215-lqm5-stageman-cli-only (previously "Accessor Functions Over Inline Parsing")
 
 ### lib/ Subfolder for Internal Scripts
-**Decision**: All internal scripts (`preflight.sh`, `stageman.sh`, `resolve-change.sh`, `calc-score.sh`, `sync-workspace.sh`) live in `fab/.kit/scripts/lib/` without underscore prefix, replacing the previous `_`-prefixed convention in the parent `scripts/` directory.
+**Decision**: All internal scripts (`preflight.sh`, `stageman.sh`, `changeman.sh`, `calc-score.sh`, `sync-workspace.sh`) live in `fab/.kit/scripts/lib/` without underscore prefix, replacing the previous `_`-prefixed convention in the parent `scripts/` directory.
 **Why**: The `lib/` subfolder provides a clearer structural boundary between internal plumbing and user-facing scripts than naming conventions alone. All internal scripts are co-located, making the dependency graph explicit.
 **Rejected**: Retaining underscore prefix — naming conventions are less discoverable than directory structure.
 *Introduced by*: 260214-q7f2-reorganize-src
