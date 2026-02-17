@@ -548,6 +548,7 @@ YAML
   cat > "$FAB_ROOT/.kit/scripts/lib/stageman.sh" <<STUB
 #!/usr/bin/env bash
 if [ "\$1" = "current-stage" ]; then echo "spec"; exit 0; fi
+if [ "\$1" = "display-stage" ]; then echo "spec:active"; exit 0; fi
 echo "\$@" >> "$STAGEMAN_LOG"
 STUB
   chmod +x "$FAB_ROOT/.kit/scripts/lib/stageman.sh"
@@ -555,7 +556,7 @@ STUB
   run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" switch "a7k2"
   [ "$status" -eq 0 ]
   [[ "$output" == *"fab/current → 260216-a7k2-add-oauth"* ]]
-  [[ "$output" == *"Stage:  spec (2/6)"* ]]
+  [[ "$output" == *"Stage:  spec (2/6) — active"* ]]
   [[ "$output" == *"Next:"* ]]
 }
 

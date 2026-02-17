@@ -312,7 +312,7 @@ run_preflight_combined() {
   run "$PREFLIGHT"
   [ "$status" -eq 0 ]
   [[ "$output" == *"name: feature-x"* ]]
-  [[ "$output" == *"change_dir: changes/feature-x"* ]]
+  [[ "$output" == *"change_dir: fab/changes/feature-x"* ]]
   [[ "$output" == *"stage: spec"* ]]
   [[ "$output" == *"intake: done"* ]]
   [[ "$output" == *"spec: active"* ]]

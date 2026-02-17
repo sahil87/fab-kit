@@ -1,21 +1,21 @@
-# Workspace Sync (fab-sync)
+# Workspace Sync (3-sync-workspace)
 
 Structural bootstrap script that syncs kit assets into the workspace. Creates directories, skill symlinks, agent files, skeleton docs, `.envrc`, `fab/VERSION`, and `.gitignore` entries. Cleans up stale artifacts from deleted skills. Idempotent — safe to re-run.
 
 ## Sources of Truth
 
-- **Implementation**: `fab/.kit/scripts/fab-sync.sh` — main file (distributed with kit)
-- **Dev symlink**: `src/lib/fab-sync/fab-sync.sh` → `../../../fab/.kit/scripts/fab-sync.sh`
+- **Implementation**: `fab/.kit/sync/3-sync-workspace.sh` — main file (distributed with kit)
+- **Runner**: `fab/.kit/scripts/fab-sync.sh` — orchestrator that runs all `fab/.kit/sync/*.sh` scripts in order
 - **Architecture docs**: `docs/memory/fab-workflow/kit-architecture.md` — directory structure, script descriptions
 
 ## Usage
 
 ```bash
-# Run directly (from anywhere in the repo)
+# Run via the fab-sync orchestrator (runs all sync scripts)
 fab/.kit/scripts/fab-sync.sh
 
-# Or via dev symlink
-src/lib/fab-sync/fab-sync.sh
+# Run this script directly
+fab/.kit/sync/3-sync-workspace.sh
 ```
 
 No arguments. No flags. The script resolves paths relative to its own location.
@@ -36,9 +36,9 @@ Creates `fab/changes/`, `fab/changes/archive/`, `docs/memory/`, `docs/specs/` (w
 - **Existing project** (has `config.yaml`, no `fab/VERSION`): writes `0.1.0`
 - **Already exists**: preserves existing file
 
-### 3. .envrc Symlink
+### 3. .envrc Management
 
-Creates symlink `.envrc` → `fab/.kit/scaffold/envrc`. Repairs broken symlinks. Replaces regular files with symlinks.
+Reads entries from `fab/.kit/scaffold/envrc`. Creates `.envrc` if missing, appends missing entries to existing file. Migrates symlink `.envrc` to regular file. Skips comments and empty lines.
 
 ### 4. Memory/Specs Index Seeding
 
@@ -79,5 +79,5 @@ Reads entries from `fab/.kit/scaffold/gitignore-entries`. For each entry: create
 
 ```bash
 # Run bats test suite
-bats src/lib/fab-sync/test.bats
+bats src/lib/sync-workspace/test.bats
 ```
