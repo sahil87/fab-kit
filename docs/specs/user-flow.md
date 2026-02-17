@@ -48,9 +48,13 @@ flowchart TD
 
     %% Shortcuts (full pipeline, from spec onward)
     S -->|"/fab-ff
-    (confidence-gated, interactive rework)"| H
+    (confidence-gated, auto-rework loop)"| H
     B -->|"/fab-fff
     (full pipeline, autonomous rework)"| H
+
+    %% Apply-review loop (sub-agent review with auto-rework)
+    R -.->|"sub-agent review
+    auto-rework (fab-ff, fab-fff)"| A
 
     %% Rework (reset to any earlier stage)
     H -.->|"Revise anytime using
@@ -128,7 +132,7 @@ flowchart TD
         end
 
         FF["/fab-ff
-        (confidence-gated, interactive rework)"]
+        (confidence-gated, auto-rework loop)"]
         FFF["/fab-fff
         (full pipeline, autonomous rework)"]
 
@@ -165,8 +169,10 @@ flowchart TD
     %% Execution flow
     APPLY --> REVIEW
 
-    %% Review outcomes
+    %% Review outcomes (sub-agent review with prioritized findings)
     REVIEW -->|"pass"| HYD
+    REVIEW -.->|"fail → auto-rework
+    (sub-agent, fab-ff/fab-fff)"| APPLY
     HYD -->|"move to archive"| FAB_ARCHIVE
 
     %% Styles
@@ -194,7 +200,7 @@ stateDiagram-v2
     intake --> spec: /fab-continue
 
     spec --> tasks: /fab-continue
-    spec --> hydrate: /fab-ff (confidence-gated, interactive rework)
+    spec --> hydrate: /fab-ff (confidence-gated, auto-rework loop)
     intake --> hydrate: /fab-fff (full pipeline, autonomous rework)
 
     tasks --> apply: /fab-continue
@@ -202,7 +208,8 @@ stateDiagram-v2
     apply --> review: /fab-continue
 
     review --> hydrate: pass (all checks ✓)
-    review --> earlier_stage: /fab-continue ‹stage›
+    review --> apply: auto-rework (sub-agent, fab-ff/fab-fff)
+    review --> earlier_stage: /fab-continue ‹stage› (manual)
 
     state "spec / tasks / apply" as earlier_stage
 
@@ -226,9 +233,12 @@ stateDiagram-v2
     end note
 
     note right of review
-        Validates: tasks ✓,
-        checklist ✓, tests ✓,
-        spec match ✓
+        Sub-agent review:
+        prioritized findings
+        (must-fix / should-fix /
+        nice-to-have).
+        Auto-rework loop in
+        fab-ff and fab-fff.
     end note
 
     %% Styles

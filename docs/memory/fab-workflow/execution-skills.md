@@ -8,7 +8,7 @@ Execution behavior (apply, review, hydrate) is accessed via `/fab-continue`, whi
 
 **Status mutations**: All `.status.yaml` progress transitions, checklist updates, and confidence writes use `lib/stageman.sh` CLI commands (`transition`, `set-state`, `set-checklist`, `set-confidence`) via the Bash tool, rather than direct file editing. This centralizes validation and ensures atomic writes with `last_updated` refresh. All `transition` calls require a `driver` parameter (the invoking skill name); `set-state` requires `driver` when setting to `active`. Stage metrics (started_at, completed_at, driver, iterations) are updated automatically as side-effects.
 
-**Pipeline invocation**: Both `/fab-fff` and `/fab-ff` use the same execution behavior internally as part of their pipeline runs. `/fab-ff` presents interactive rework options on review failure (same 3 options as `/fab-continue`, no retry cap); `/fab-fff` uses autonomous rework with bounded retry (agent selects path, 3-cycle cap, escalation after 2 consecutive fix-code failures). Both accept an optional `[change-name]` argument.
+**Pipeline invocation**: Both `/fab-fff` and `/fab-ff` use the same execution behavior internally as part of their pipeline runs. All three pipeline skills (`/fab-continue`, `/fab-ff`, `/fab-fff`) dispatch review to a sub-agent in a separate execution context, producing structured findings with three-tier priority (must-fix / should-fix / nice-to-have). `/fab-continue` preserves manual rework on failure; `/fab-ff` auto-loops between apply and review (up to 3 cycles) with interactive fallback on exhaustion; `/fab-fff` uses autonomous rework with bounded retry (3-cycle cap, escalation after 2 consecutive fix-code failures, bail on exhaustion). Both `/fab-ff` and `/fab-fff` accept an optional `[change-name]` argument.
 
 ## Requirements
 
@@ -45,17 +45,31 @@ Loads: config, constitution, `specs/index.md`, `tasks.md`, `spec.md`, relevant s
 
 ### Review Behavior (via `/fab-continue`)
 
-`/fab-continue` dispatches to review behavior after apply completes. It validates implementation against specs and checklists. On pass, it advances to hydrate readiness. On failure, it presents rework options.
+`/fab-continue` dispatches to review behavior after apply completes. Review validation is dispatched to a **sub-agent running in a separate execution context**. The sub-agent provides a fresh perspective — it has no shared context with the applying agent beyond the explicitly provided artifacts.
+
+The orchestrating LLM MAY use any review agent available in its environment (e.g., a `code-review` skill, a general-purpose sub-agent with review instructions, or any equivalent). The skill files do not hardcode a specific agent name or tool.
+
+The review sub-agent performs capable-tier work: deep reasoning, code analysis, spec comparison, and checklist validation.
 
 #### Validation Checks
 
-The agent SHALL perform all of these checks:
+The sub-agent performs all of these checks:
 1. All tasks in `tasks.md` marked `[x]`
-2. All checklist items in `checklist.md` verified and checked off — the agent re-reads each `CHK-*` item, inspects relevant code/tests, and marks `[x]` or reports failure
+2. All checklist items in `checklist.md` verified and checked off — inspects relevant code/tests per `CHK-*` item, marks `[x]` or reports failure
 3. Run tests affected by the change (scoped to modules touched, not the full suite)
 4. Features match spec requirements (spot-check key scenarios from `spec.md`)
 5. No memory drift detected (implementation doesn't contradict memory files)
 6. Code quality check — for each file modified during apply: naming conventions consistent with surrounding code, functions focused and appropriately sized, error handling consistent with codebase style, existing utilities reused. If `config.yaml` defines `code_quality.principles`, check each applicable principle. If `code_quality.anti_patterns` defined, check for violations. Code quality issues are review failures with specific file:line references (same rework flow as spec mismatches)
+
+#### Structured Review Output
+
+The sub-agent returns structured findings with a three-tier priority scheme:
+
+- **Must-fix**: Spec mismatches, failing tests, checklist violations — always addressed during rework
+- **Should-fix**: Code quality issues, pattern inconsistencies — addressed when clear and low-effort
+- **Nice-to-have**: Style suggestions, minor improvements — may be skipped
+
+Each finding includes: severity tier, description, and file:line reference where applicable. Pass/fail determination: if any must-fix findings exist, the review fails. If only should-fix and/or nice-to-have remain, the review MAY pass.
 
 #### On Pass
 
@@ -63,13 +77,21 @@ All checks succeed → stage advances to review done. The skill calls `lib/stage
 
 #### On Failure
 
-The skill calls `lib/stageman.sh log-review <change_dir> "failed" "<rework-option>"` to record the review outcome before presenting rework options.
+The skill calls `lib/stageman.sh log-review <change_dir> "failed" "<rework-option>"` to record the review outcome. Rework behavior differs by invoking skill:
 
-The agent presents options and the user chooses where to loop back:
+**`/fab-continue` (manual rework)**: Presents the sub-agent's prioritized findings to the user, then offers three rework options:
 
-- **Fix code** → `/fab-continue` — Implementation bug. The agent identifies which tasks need rework, unchecks them in `tasks.md` (marks `- [ ]` with a `<!-- rework: reason -->` comment), and re-runs `/fab-continue`
-- **Revise tasks** → edit `tasks.md`, then `/fab-continue` — Missing or wrong tasks. New tasks get next sequential ID. Completed unaffected tasks stay `[x]`
-- **Revise spec** → `/fab-continue spec` — Requirements were wrong or incomplete. Resets to spec stage, updates `spec.md`. Tasks subsequently regenerated
+- **Fix code** — the agent identifies affected tasks, unchecks them in `tasks.md` with `<!-- rework: reason -->` annotations, re-runs apply, then spawns a fresh sub-agent for re-review
+- **Revise tasks** — the user edits `tasks.md` (add/modify tasks), then the agent re-runs apply for unchecked tasks and spawns a fresh sub-agent for re-review
+- **Revise spec** → `/fab-continue spec` — resets to spec stage, regenerates downstream, re-runs apply, then spawns a fresh sub-agent for re-review
+
+**`/fab-ff` (auto-loop + interactive fallback)**: The agent triages the sub-agent's prioritized findings and autonomously selects the rework path (up to 3 cycles). Each cycle = one rework action + one re-review by a fresh sub-agent. On exhaustion, falls back to interactive rework (same 3 options presented to the user, no further retry cap).
+
+**`/fab-fff` (auto-loop + bail)**: Same autonomous triage and rework as `/fab-ff`, but on exhaustion after 3 cycles, bails with a cycle summary instead of falling back to interactive.
+
+**Escalation rule** (applies to `/fab-ff` and `/fab-fff` auto-loops): After 2 consecutive "fix code" attempts, the agent MUST escalate to "revise tasks" or "revise spec". Non-fix-code actions reset the consecutive counter.
+
+**Comment triage**: The applying agent triages review comments by priority — not all comments need to be implemented. Must-fix items are always addressed. Should-fix items are addressed when clear and low-effort. Nice-to-have items may be acknowledged but deferred.
 
 The general rule: **artifacts at and after the re-entry point are regenerated or updated; artifacts before it are preserved.**
 
@@ -154,6 +176,24 @@ Steps execute 1→3 for safety. If interrupted, re-run detects folder already in
 *Source*: doc/fab-spec/TEMPLATES.md
 *Updated by*: 260215-r8k3-DEV-1024-code-quality-layer
 
+### Sub-Agent Over Inline Review
+**Decision**: Review validation is dispatched to a sub-agent in a separate execution context, replacing inline review by the applying agent.
+**Why**: Same-context review is fundamentally limited by shared cognitive biases. The sub-agent provides a fresh perspective — it has no shared context with the applying agent beyond the explicitly provided artifacts.
+**Rejected**: Multiple inline review passes (still shares context), external review tool integration (too prescriptive, not portable).
+*Introduced by*: 260216-gqpp-DEV-1040-code-review-loop
+
+### Priority-Based Comment Triage
+**Decision**: The applying agent triages review comments by severity (must-fix / should-fix / nice-to-have) rather than implementing all of them.
+**Why**: Prevents infinite rework loops over diminishing-return suggestions. Must-fix items ensure correctness; nice-to-have items allow pragmatic completion.
+**Rejected**: Fix all comments (leads to infinite loops on style disagreements), ignore all non-critical (misses genuine should-fix quality issues).
+*Introduced by*: 260216-gqpp-DEV-1040-code-review-loop
+
+### fab-ff Gains Auto-Loop with Interactive Fallback
+**Decision**: `/fab-ff` auto-loops between apply and review (up to 3 cycles) before falling back to interactive rework. Previously, fab-ff always presented interactive rework immediately on failure.
+**Why**: Sub-agent review enables tighter automated feedback cycles. The interactive fallback preserves fab-ff's semi-interactive character — the user is never locked out of control.
+**Rejected**: Keep fab-ff fully interactive (wastes the fresh-context benefit on simple fixes), make fab-ff fully autonomous like fab-fff (loses the semi-interactive identity).
+*Introduced by*: 260216-gqpp-DEV-1040-code-review-loop
+
 ### Review Failure Offers Multiple Re-Entry Points
 **Decision**: On review failure, the agent presents three options (fix code, revise tasks, revise spec) and the user chooses where to loop back.
 **Why**: Not all review failures are implementation bugs. Some require revisiting upstream artifacts. Giving the user explicit choice prevents the agent from guessing wrong about where the problem originated.
@@ -207,6 +247,7 @@ Steps execute 1→3 for safety. If interrupted, re-run detects folder already in
 | Change | Date | Summary |
 |--------|------|---------|
 | 260216-7ltw-DEV-1038-standardize-state-keyed-suggestions | 2026-02-16 | All `Next:` lines in execution skills (`/fab-continue`, `/fab-archive`) now derived from canonical state table in `_context.md`. Removed hardcoded suggestions from review pass verdict and archive mode output. `/fab-archive` restore without `--switch` now uses activation preamble before state-derived commands. |
+| 260216-gqpp-DEV-1040-code-review-loop | 2026-02-16 | Review dispatched to sub-agent in separate execution context for all three pipeline skills. Structured findings with three-tier priority (must-fix / should-fix / nice-to-have). `/fab-ff` gains auto-loop (3 cycles) with interactive fallback; `/fab-fff` retains auto-loop with bail. Comment triage by applying agent. Escalation rule after 2 consecutive fix-code. |
 | 260216-knmw-DEV-1030-swap-ff-fff-review-rework | 2026-02-16 | Swapped pipeline invocation note: `/fab-ff` now presents interactive rework on review failure; `/fab-fff` now uses autonomous rework with bounded retry (3-cycle cap, escalation after 2 consecutive fix-code) |
 | 260215-237b-DEV-1027-redefine-ff-fff-scope | 2026-02-16 | Updated pipeline invocation note: `/fab-fff` now presents interactive rework on review failure, `/fab-ff` now bails immediately (swapped from previous behavior) |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |

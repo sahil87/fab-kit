@@ -41,12 +41,12 @@ flowchart TD
 | 2 | **Spec** | Define requirements | `spec.md` |
 | 3 | **Tasks** | Break into implementation checklist | `tasks.md` + `checklist.md` |
 | 4 | **Apply** | Execute the tasks | Code changes |
-| 5 | **Review** | Validate against spec and constitution | Validation report |
+| 5 | **Review** | Sub-agent validates against spec and constitution | Prioritized findings report |
 | 6 | **Hydrate** | Save learnings into project memory | Memory updates |
 
 Each stage produces a persistent artifact. Interrupt anything — `/fab-continue` picks up from the last checkpoint.
 
-Review validates against both your spec and [project constitution](#code-quality-as-a-guardrail) — when it finds issues, it loops back for automatic rework rather than just reporting failures.
+Review is performed by a **sub-agent** running in a separate context — a fresh perspective that validates against both your spec and [project constitution](#code-quality-as-a-guardrail). Findings are prioritized (must-fix, should-fix, nice-to-have) and the agent triages them, looping back for automatic rework on the issues that matter most.
 
 A change folder looks like this:
 
@@ -134,7 +134,7 @@ This generates `fab/config.yaml` and `fab/constitution.md` (your project's archi
 
 At any point, run `/fab-status` to see where you are.
 
-For small changes, `/fab-ff` (fast-forward) skips intermediate planning stages — gated by a [confidence score](#structured-autonomy-not-guesswork) that ensures ambiguity is low enough for safe execution. For trivial changes, `/fab-fff` (full fast-forward) runs the entire pipeline autonomously.
+For small changes, `/fab-ff` (fast-forward) skips intermediate planning stages — gated by a [confidence score](#structured-autonomy-not-guesswork) that ensures ambiguity is low enough for safe execution. Both `/fab-ff` and `/fab-fff` (full fast-forward) auto-loop between apply and sub-agent review, fixing issues automatically before escalating to you.
 
 ### 4. Going parallel
 
@@ -224,24 +224,27 @@ AI writes code fast. Without structure, it also skips requirements, ignores arch
          │  MUST · SHOULD · MUST NOT │
          └─────────────┬─────────────┘
                        │
-  intake → spec → tasks → apply → review → hydrate
-             ↑       ↑       ↑        │
-             └───────┴───────┴────────┘
-                rework until spec +
-                constitution pass
+  intake → spec → tasks → apply ⇄ review → hydrate
+             ↑       ↑       ↑    ↗    │
+             └───────┴───────┴────┘    │
+                sub-agent review        │
+                with prioritized        │
+                findings                │
 ```
 
 - **Stages that can't be skipped** — The pipeline requires intake, spec, and tasks before any code is written. The AI can't jump straight to implementation. Before code is written, the [SRAD framework](#structured-autonomy-not-guesswork) ensures planning decisions are grounded in context — not silently guessed.
 - **Project constitution** — `fab/constitution.md` defines your architectural rules using MUST/SHOULD/MUST NOT. Every spec, task breakdown, and review checks against it — not just the change's requirements.
-- **Review that fixes, not just flags** — When review finds problems, it loops back to the right stage:
+- **Review that fixes, not just flags** — A **sub-agent** reviews in a fresh context, returning prioritized findings. The applying agent triages by severity and loops back to the right stage:
 
-| Review finds | Loops back to | What happens |
-|-------------|---------------|--------------|
-| Implementation bug | → apply | Unchecks failed tasks, re-runs them |
-| Missing/wrong tasks | → tasks | Revises tasks, re-applies |
-| Requirements were wrong | → spec | Updates spec, regenerates tasks |
+| Review finds | Priority | Loops back to | What happens |
+|-------------|----------|---------------|--------------|
+| Spec mismatch, failing tests | Must-fix | → apply | Unchecks failed tasks, re-runs them |
+| Missing/wrong tasks | Must-fix | → tasks | Revises tasks, re-applies |
+| Requirements were wrong | Must-fix | → spec | Updates spec, regenerates tasks |
+| Code quality issue | Should-fix | → apply | Addressed when clear and low-effort |
+| Style suggestion | Nice-to-have | — | May be skipped |
 
-`/fab-fff` (full fast-forward) handles rework autonomously — up to 3 cycles before escalating to you.
+`/fab-fff` and `/fab-ff` auto-loop between apply and review (up to 3 cycles) — each re-review uses a fresh sub-agent. `/fab-ff` falls back to interactive rework after exhausting auto-retries.
 
 ### Structured Autonomy, Not Guesswork
 
@@ -269,8 +272,8 @@ Grades aggregate into a **confidence score** that gates `/fab-ff`. If ambiguity 
 | `/fab-setup` | Bootstrap fab/ structure, manage config/constitution, apply migrations |
 | `/fab-new <description>` | Start a new change |
 | `/fab-continue` | Advance to next stage |
-| `/fab-ff` | Fast-forward planning stages |
-| `/fab-fff` | Full autonomous pipeline with rework |
+| `/fab-ff` | Fast-forward from spec with auto-rework loop |
+| `/fab-fff` | Full autonomous pipeline with sub-agent rework |
 | `/fab-clarify` | Deepen current artifact before moving on |
 | `/fab-status` | Check current progress |
 | `/fab-switch` | Switch active change |

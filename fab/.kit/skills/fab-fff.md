@@ -1,6 +1,6 @@
 ---
 name: fab-fff
-description: "Full pipeline — planning, implementation, review, and hydrate — with frontloaded questions, auto-clarify, and autonomous rework with bounded retry."
+description: "Full pipeline — planning, implementation, sub-agent review, and hydrate — with frontloaded questions, auto-clarify, and autonomous rework with bounded retry."
 ---
 
 # /fab-fff [<change-name>]
@@ -88,20 +88,20 @@ On success: run `lib/stageman.sh transition <file> apply review fab-fff`.
 
 *(Skip if `progress.review` is `done`.)*
 
-Execute review behavior per `/fab-continue` — validate tasks, checklist, tests, spec match, memory drift.
+Dispatch review to a **sub-agent** per `/fab-continue` Review Behavior — the sub-agent runs in a separate execution context, performs all validation checks, and returns structured findings with three-tier priority (must-fix / should-fix / nice-to-have).
 
 **Pass**: run `lib/stageman.sh transition <file> review hydrate fab-fff`. Run `lib/stageman.sh log-review <change_dir> "passed"`. Proceed to Step 8.
 
-**Fail**: Autonomous rework with bounded retry. Run `lib/stageman.sh set-state <file> review failed` then `lib/stageman.sh set-state <file> apply active fab-fff`. The agent autonomously selects the rework path — no user interaction.
+**Fail**: Autonomous rework with bounded retry. Run `lib/stageman.sh set-state <file> review failed` then `lib/stageman.sh set-state <file> apply active fab-fff`. The agent triages the sub-agent's prioritized findings and autonomously selects the rework path — no user interaction. Must-fix items are always addressed; should-fix items when clear and low-effort; nice-to-have items may be skipped.
 
-**Decision heuristics**:
-- **Test failures, code quality issues, pattern violations** → "Fix code" — uncheck affected tasks with `<!-- rework: reason -->`, re-run apply and review
-- **Missing functionality, incomplete coverage, wrong task breakdown** → "Revise tasks" — add/modify tasks in `tasks.md`, re-run apply and review
-- **Spec drift, requirements mismatch, fundamental approach issues** → "Revise spec" — reset to spec stage, regenerate downstream, re-run apply and review
+**Decision heuristics** (applied to prioritized findings):
+- **Must-fix: test failures, spec mismatches, checklist violations** → "Fix code" — uncheck affected tasks with `<!-- rework: reason -->`, re-run apply, then spawn a **fresh sub-agent** for re-review
+- **Must-fix: missing functionality, incomplete coverage, wrong task breakdown** → "Revise tasks" — add/modify tasks in `tasks.md`, re-run apply, then spawn a fresh sub-agent for re-review
+- **Must-fix: spec drift, requirements mismatch, fundamental approach issues** → "Revise spec" — reset to spec stage, regenerate downstream, re-run apply, then spawn a fresh sub-agent for re-review
 
 Run `lib/stageman.sh log-review <change_dir> "failed" "<rework-option>"` for each rework cycle.
 
-**Retry cap**: Maximum **3 rework cycles** (each cycle = one rework action + one re-review). After 3 failed cycles, **BAIL** with:
+**Retry cap**: Maximum **3 rework cycles** (each cycle = one rework action + one re-review by a fresh sub-agent). After 3 failed cycles, **BAIL** with:
 
 ```
 Review failed after 3 rework attempts. Summary:
@@ -111,7 +111,7 @@ Review failed after 3 rework attempts. Summary:
 Run /fab-continue for manual rework options.
 ```
 
-**Escalation rule**: If the agent chooses "Fix code" and the subsequent review fails again on the same or similar issues, the agent MUST escalate to "Revise tasks" or "Revise spec" after **2 consecutive "fix code" attempts**. This is a hard rule — the agent SHALL NOT choose "Fix code" a third time in a row, even if it believes another code fix would work. Non-fix-code actions (revise tasks, revise spec) reset the consecutive counter.
+**Escalation rule**: If the agent chooses "Fix code" and the subsequent sub-agent review fails again on the same or similar issues, the agent MUST escalate to "Revise tasks" or "Revise spec" after **2 consecutive "fix code" attempts**. This is a hard rule — the agent SHALL NOT choose "Fix code" a third time in a row, even if it believes another code fix would work. Non-fix-code actions (revise tasks, revise spec) reset the consecutive counter.
 
 ### Step 8: Hydrate
 
@@ -158,4 +158,4 @@ Resuming shows `(resuming)...` header and `Skipping {stage} — already done.` f
 | `intake.md` missing | Abort: "Run /fab-new first." |
 | Auto-clarify bails | Stop, report blocking issues, suggest `/fab-clarify` then `/fab-fff` |
 | Task fails | Stop: "Task {ID} failed: {reason}. Investigate and re-run /fab-fff." |
-| Review fails | Autonomous rework: agent selects path, 3-cycle retry cap, escalation after 2 consecutive fix-code. Bail after 3 cycles with summary. |
+| Review fails | Autonomous rework: agent triages sub-agent's prioritized findings, selects path, 3-cycle retry cap (each re-review by fresh sub-agent), escalation after 2 consecutive fix-code. Bail after 3 cycles with summary. |
