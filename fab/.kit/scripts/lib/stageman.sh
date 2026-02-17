@@ -204,6 +204,43 @@ get_current_stage() {
   echo "hydrate"
 }
 
+# get_display_stage <status_file> — Determine "where you are" stage for display
+# Returns stage:state (e.g., "spec:active", "intake:done", "intake:pending")
+# Fallback: (1) first active, (2) last done, (3) first stage with pending
+get_display_stage() {
+  local status_file="$1"
+  local stage state last_done=""
+
+  # Parse progress map once
+  local progress_lines
+  progress_lines=$(get_progress_map "$status_file")
+
+  # Tier 1: first active stage
+  while IFS=: read -r stage state; do
+    if [ "$state" = "active" ]; then
+      echo "${stage}:active"
+      return 0
+    fi
+  done <<< "$progress_lines"
+
+  # Tier 2: last done stage
+  while IFS=: read -r stage state; do
+    if [ "$state" = "done" ]; then
+      last_done="$stage"
+    fi
+  done <<< "$progress_lines"
+
+  if [ -n "$last_done" ]; then
+    echo "${last_done}:done"
+    return 0
+  fi
+
+  # Tier 3: nothing active or done — return first stage with pending
+  local first_stage
+  first_stage=$(get_all_stages | head -1)
+  echo "${first_stage}:pending"
+}
+
 # get_next_stage <current_stage> — Return the next stage in sequence
 get_next_stage() {
   local current="$1"
@@ -658,6 +695,7 @@ SUBCOMMANDS:
 
   Progression:
     current-stage <file>               Detect active stage from .status.yaml
+    display-stage <file>               Display stage (where you are) as stage:state
 
   Validation:
     validate-status-file <file>        Validate .status.yaml against schema
@@ -733,6 +771,17 @@ case "${1:-}" in
       exit 1
     fi
     get_current_stage "$2"
+    ;;
+  display-stage)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh display-stage <file>" >&2
+      exit 1
+    fi
+    if [ ! -f "$2" ]; then
+      echo "ERROR: Status file not found: $2" >&2
+      exit 1
+    fi
+    get_display_stage "$2"
     ;;
 
   # ── Validation ─────────────────────────────────────────────────────────

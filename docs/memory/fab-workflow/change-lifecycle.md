@@ -69,7 +69,9 @@ Every change folder SHALL contain a `.status.yaml` manifest with these fields:
 | `done` | Completed successfully | All stages |
 | `failed` | Completed with failures requiring rework | review |
 
-**Deriving current stage**: Use a three-tier fallback: (1) find the first stage with `active` state, (2) if no active entry, find the first `pending` stage after the last `done` stage, (3) if all stages are `done`, return `hydrate`. The second tier handles the post-reset state where the target stage was marked `done` but the next stage was left `pending`. Zero or one stage SHALL be `active` at any time.
+**Deriving current stage (routing)**: Use a three-tier fallback: (1) find the first stage with `active` state, (2) if no active entry, find the first `pending` stage after the last `done` stage, (3) if all stages are `done`, return `hydrate`. The second tier handles the post-reset state where the target stage was marked `done` but the next stage was left `pending`. Zero or one stage SHALL be `active` at any time. Used by `/fab-continue` for dispatch and preflight's `stage` field.
+
+**Deriving display stage**: A separate derivation for user-facing display: (1) first `active` stage, (2) last `done` stage, (3) first stage with `pending` if nothing started. Returns both the stage name and its state. Used by `/fab-status` and `/fab-switch` for the "Stage:" line, and by preflight's `display_stage`/`display_state` fields. The distinction ensures users see "where you are" (display stage) separately from "what's next" (routing stage).
 
 **Two-write transitions**: Moving from one stage to the next (in normal forward flow) requires two writes: (1) set the current stage to `done`, (2) set the next stage to `active`. Both writes MUST happen atomically in a single `.status.yaml` update. Use `lib/stageman.sh transition <file> <from> <to> <driver>` for forward transitions (validates adjacency and that from_stage is active; `driver` is required — identifies which skill triggered the transition). **Exception**: Reset flow sets only the target stage to `done` — downstream stages remain `pending` (no auto-advance). Use `lib/stageman.sh set-state <file> <stage> <state> [driver]` for individual state changes in reset flows (`driver` is required when setting to `active`).
 
@@ -151,9 +153,9 @@ There is no `/fab-abandon` skill — this is a manual operation. To preserve con
 
 ### `/fab-status`
 
-`/fab-status` shows the current change state at a glance: name, live git branch (when `git.enabled`), current stage, progress through all stages, checklist status, confidence score, and suggested next command.
+`/fab-status` shows the current change state at a glance: name, live git branch (when `git.enabled`), display stage with state qualifier, next action, progress through all stages, checklist status, confidence score, and version drift warning.
 
-The skill uses `lib/preflight.sh` and `lib/stageman.sh` for data retrieval, then formats the output. It reads `fab/config.yaml` for `git.enabled` and uses `git branch --show-current` for live branch display.
+The skill uses `lib/preflight.sh` for data retrieval (including `display_stage` and `display_state` fields), then formats the output. The "Stage:" line shows the display stage (where you are) with a state qualifier (e.g., `Stage: intake (1/6) — done`). The "Next:" line shows the routing stage with the default command (e.g., `Next: spec (via /fab-continue)`). It reads `fab/config.yaml` for `git.enabled` and uses `git branch --show-current` for live branch display.
 
 ### `/fab-switch [change-name] [--blank] [--branch <name>]`
 
@@ -165,7 +167,7 @@ The skill uses `lib/preflight.sh` and `lib/stageman.sh` for data retrieval, then
 3. **No match** — list available changes and ask
 4. Write the full change name to `fab/current`
 5. **Branch integration** (if `git.enabled`): auto-create on main/master, prompt on feature/wt branches, or use `--branch <name>` for explicit branch
-6. Display the switched change's status summary
+6. Display the switched change's status summary (two-line format: `Stage: {display_stage} ({N}/6) — {state}` + `Next: {routing_stage} (via {default_command})`)
 
 **Deactivating (`--blank`):**
 1. Delete `fab/current` — deactivates the current change. Idempotent (no error if already blank)
@@ -236,6 +238,7 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260218-95xn-split-stage-display-from-routing | 2026-02-18 | Split stage display from routing: added `get_display_stage` to stageman.sh (returns "where you are" vs `get_current_stage` for "what's next"). Preflight emits `display_stage`/`display_state` fields. `/fab-switch` and `/fab-status` now show two-line format: `Stage: {display_stage} — {state}` + `Next: {routing_stage} (via {command})`. |
 | 260216-7ltw-DEV-1038-standardize-state-keyed-suggestions | 2026-02-16 | Removed `--switch` flag from `/fab-new` — change is never activated by `/fab-new`. Updated `fab/current` lifecycle, git integration, and Branch Integration design decision. All suggestion derivation now from canonical state table in `_context.md`. |
 | 260216-u6d5-DEV-1039-add-changeman-rename | 2026-02-16 | Added rename capability: `changeman.sh rename` atomically renames slug, updates `.status.yaml` name, conditionally updates `fab/current`. Added "Renaming a Change" section. Updated naming convention note (prefix immutable, slug changeable). Updated "Name Stable Across Lifecycle" design decision. |
 | 260215-237b-DEV-1027-redefine-ff-fff-scope | 2026-02-16 | Redefined full pipeline path: `/fab-fff` is now ungated full pipeline (intake → hydrate, interactive rework), `/fab-ff` is now confidence-gated from-spec pipeline (spec → hydrate, bail on failure) |

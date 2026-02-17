@@ -14,7 +14,9 @@ The preflight script (`fab/.kit/scripts/lib/preflight.sh`) validates the active 
 
 - `name` — the change folder name (resolved via `lib/changeman.sh resolve`)
 - `change_dir` — path to `fab/changes/{name}/`, relative to `fab/`
-- `stage` — current stage (derived via `get_current_stage` from `lib/stageman.sh`)
+- `stage` — routing stage: what `/fab-continue` will produce next (derived via `get_current_stage` from `lib/stageman.sh`)
+- `display_stage` — display stage: "where you are" in the pipeline (derived via `get_display_stage` from `lib/stageman.sh`). Returns first `active` stage, or last `done` stage, or `intake` if nothing started
+- `display_state` — the state of the display stage (`active`, `done`, or `pending`)
 - `progress` — full progress map (all 6 stages with their status, via `get_progress_map`)
 - `checklist.generated` — boolean (via `get_checklist`)
 - `checklist.completed` — integer
@@ -45,7 +47,8 @@ The script invokes `lib/changeman.sh` and `lib/stageman.sh` via CLI subprocess c
 
 - **Change resolution**: `$CHANGEMAN resolve [override]` handles both default mode (reads `fab/current`) and override mode (case-insensitive substring matching against `fab/changes/`). Returns resolved folder name to stdout; errors to stderr.
 - **Progress extraction**: `$STAGEMAN progress-map` returns `stage:state` pairs, consumed via `while IFS=: read -r`
-- **Stage derivation**: `$STAGEMAN current-stage` (which itself uses `progress-map` internally)
+- **Stage derivation (routing)**: `$STAGEMAN current-stage` — returns the next stage to work on (three-tier fallback: first active, first pending after last done, hydrate)
+- **Stage derivation (display)**: `$STAGEMAN display-stage` — returns `stage:state` for "where you are" (first active, or last done, or first stage with pending). Used for user-facing display in `/fab-status` and `/fab-switch`
 - **Checklist fields**: `$STAGEMAN checklist` returns `generated`, `completed`, `total` with defaults
 - **Confidence fields**: `$STAGEMAN confidence` returns `certain`, `confident`, `tentative`, `unresolved`, `score` with defaults
 - **Schema validation**: `$STAGEMAN validate-status-file` for structural correctness
@@ -94,6 +97,7 @@ Skills exempt from preflight: `init`, `switch`, `status`, `hydrate`, `help`, `ne
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260218-95xn-split-stage-display-from-routing | 2026-02-18 | Added `display_stage` and `display_state` fields to YAML output via `$STAGEMAN display-stage`. Documented routing vs display stage distinction in Structured YAML Output and Accessor-Based Architecture sections. |
 | 260216-oinh-DEV-1045-fold-resolve-into-changeman | 2026-02-17 | Replaced `source resolve-change.sh` / `$RESOLVED_CHANGE_NAME` with `$CHANGEMAN resolve` CLI subprocess call. Updated all references from resolve-change.sh to changeman.sh resolve. Rewrote "Shared Change Resolution Library" → "Change Resolution via changeman CLI" design decision. Updated No External Dependencies section. |
 | 260216-jmy4-DEV-1044-switch-shell-name-resolution | 2026-02-16 | Updated Shared Change Resolution Library decision: `/fab-switch` now sources `resolve-change.sh` for name resolution in its Argument Flow (previously only `preflight.sh` and `fab-status.sh` sourced it) |
 | 260215-lqm5-stageman-cli-only | 2026-02-15 | Migrated from `source stageman.sh` to `$STAGEMAN <subcommand>` CLI subprocess calls; `resolve-change.sh` remains sourced (variable-setting pattern); updated design decision from "Accessor Functions" to "CLI Subprocess" |

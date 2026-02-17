@@ -86,11 +86,12 @@ Output is passthrough from `changeman.sh switch`. Canonical format:
 ```
 fab/current → {name}
 
-Stage:  {stage} ({N}/6)
+Stage:  {display_stage} ({N}/6) — {state}
 Branch: {name} (created|checked out)
-
-Next: {per state table}
+Next:   {routing_stage} (via {default_command})
 ```
+
+Where `{display_stage}` is "where you are" (last active or last done stage) and `{routing_stage}` is "what's next" (what `/fab-continue` will produce). The `{state}` qualifier is `done`, `active`, or `pending`. When all stages are done, `Next:` shows only `/fab-archive`.
 
 Branch line omitted if git disabled or not in a repo. Deactivation shows `No active change.`. Already-blank shows `No active change (already blank).`
 

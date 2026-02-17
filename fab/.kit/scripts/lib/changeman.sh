@@ -141,12 +141,12 @@ stage_number() {
   esac
 }
 
-# next_command — derive suggested next command from stage
-next_command() {
+# default_command — derive the default command for a routing stage
+default_command() {
   case "$1" in
-    intake)  echo "/fab-continue, /fab-fff, or /fab-clarify" ;;
-    spec)    echo "/fab-continue, /fab-ff, or /fab-clarify" ;;
-    tasks)   echo "/fab-continue, /fab-ff, or /fab-clarify" ;;
+    intake)  echo "/fab-continue" ;;
+    spec)    echo "/fab-continue" ;;
+    tasks)   echo "/fab-continue" ;;
     apply)   echo "/fab-continue" ;;
     review)  echo "/fab-continue" ;;
     hydrate) echo "/fab-archive" ;;
@@ -230,25 +230,34 @@ cmd_switch() {
     fi
   fi
 
-  # 5. Derive current stage
-  local stage="unknown"
+  # 5. Derive display stage and routing stage
+  local display_stage="unknown" display_state="pending" routing_stage="unknown"
   local status_file="$FAB_ROOT/changes/$resolved/.status.yaml"
   if [ -f "$status_file" ]; then
-    stage=$("$STAGEMAN" current-stage "$status_file" 2>/dev/null) || stage="unknown"
+    local display_output
+    display_output=$("$STAGEMAN" display-stage "$status_file" 2>/dev/null) || display_output="unknown:pending"
+    display_stage="${display_output%%:*}"
+    display_state="${display_output#*:}"
+    routing_stage=$("$STAGEMAN" current-stage "$status_file" 2>/dev/null) || routing_stage="unknown"
   fi
 
-  local snum
-  snum=$(stage_number "$stage")
+  local dnum
+  dnum=$(stage_number "$display_stage")
 
   # 6. Output summary
   echo "fab/current → $resolved"
   echo ""
-  echo "Stage:  $stage ($snum/6)"
+  echo "Stage:  $display_stage ($dnum/6) — $display_state"
   if [ -n "$branch_status" ]; then
     echo "Branch: $branch_name ($branch_status)"
   fi
-  echo ""
-  echo "Next: $(next_command "$stage")"
+  local cmd
+  cmd=$(default_command "$routing_stage")
+  if [ "$routing_stage" = "hydrate" ] && [ "$display_stage" = "hydrate" ] && [ "$display_state" = "done" ]; then
+    echo "Next:   $cmd"
+  else
+    echo "Next:   $routing_stage (via $cmd)"
+  fi
 }
 
 # ─────────────────────────────────────────────────────────────────────────────

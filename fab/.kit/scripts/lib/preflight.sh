@@ -58,6 +58,11 @@ done < <("$STAGEMAN" progress-map "$status_file")
 # Derive current stage via stageman CLI
 stage=$("$STAGEMAN" current-stage "$status_file")
 
+# Derive display stage via stageman CLI
+display_output=$("$STAGEMAN" display-stage "$status_file")
+display_stage="${display_output%%:*}"
+display_state="${display_output#*:}"
+
 # Extract checklist via stageman CLI
 declare -A checklist
 while IFS=: read -r key val; do
@@ -75,6 +80,8 @@ cat <<EOF
 name: $name
 change_dir: fab/changes/$name
 stage: $stage
+display_stage: $display_stage
+display_state: $display_state
 progress:
 $(for s in $("$STAGEMAN" all-stages); do echo "  $s: ${progress[$s]}"; done)
 checklist:
