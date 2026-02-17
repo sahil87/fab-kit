@@ -1,2 +1,6 @@
 {"ts":"2026-02-18T02:13:51+05:30","event":"command","cmd":"fab-new","args":"Consolidate worktree-init into fab-sync"}
 {"ts":"2026-02-18T02:14:43+05:30","event":"command","cmd":"fab-new","args":"Consolidate worktree-init into fab-sync"}
+{"ts":"2026-02-18T02:24:25+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-18T02:26:27+05:30","event":"confidence","score":4.4,"delta":"+4.4","trigger":"calc-score"}
+{"ts":"2026-02-18T02:29:16+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-18T02:36:15+05:30","event":"review","result":"passed"}
