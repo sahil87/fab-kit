@@ -1,6 +1,6 @@
 ---
 name: fab-ff
-description: "Fast-forward from spec — confidence-gated pipeline from current stage through hydrate, with interactive rework on review failure."
+description: "Fast-forward from spec — confidence-gated pipeline from current stage through hydrate, with sub-agent review, auto-rework loop, and interactive fallback."
 ---
 
 # /fab-ff [<change-name>]
@@ -11,7 +11,7 @@ description: "Fast-forward from spec — confidence-gated pipeline from current 
 
 ## Purpose
 
-Fast-forward from spec through hydrate: tasks → apply → review → hydrate. Gated on confidence score (dynamic per-type thresholds via `calc-score.sh --check-gate`). Minimal auto-clarify (tasks only). Interactive rework on review failure — presents the user with the same 3 rework options as `/fab-continue`. Resumable — re-running picks up from the first incomplete stage.
+Fast-forward from spec through hydrate: tasks → apply → review → hydrate. Gated on confidence score (dynamic per-type thresholds via `calc-score.sh --check-gate`). Minimal auto-clarify (tasks only). On review failure, auto-loops between apply and review (sub-agent review, prioritized findings, comment triage) for up to 3 cycles, then falls back to interactive rework options. Resumable — re-running picks up from the first incomplete stage.
 
 ---
 
@@ -76,17 +76,34 @@ On success: run `lib/stageman.sh transition <file> apply review fab-ff`.
 
 *(Skip if `progress.review` is `done`.)*
 
-Execute review behavior per `/fab-continue` — validate tasks, checklist, tests, spec match, memory drift.
+Dispatch review to a **sub-agent** per `/fab-continue` Review Behavior — the sub-agent runs in a separate execution context, performs all validation checks, and returns structured findings with three-tier priority (must-fix / should-fix / nice-to-have).
 
 **Pass**: run `lib/stageman.sh transition <file> review hydrate fab-ff`. Run `lib/stageman.sh log-review <change_dir> "passed"`. Proceed to Step 6.
 
-**Fail**: Present interactive rework menu. Run `lib/stageman.sh set-state <file> review failed` then `lib/stageman.sh set-state <file> apply active fab-ff`. The user chooses one of three options:
+**Fail**: Auto-rework loop with bounded retry, then interactive fallback. Run `lib/stageman.sh set-state <file> review failed` then `lib/stageman.sh set-state <file> apply active fab-ff`.
 
-- **Fix code** — the agent identifies affected tasks, unchecks them in `tasks.md` with `<!-- rework: reason -->` annotations, re-runs apply behavior for unchecked tasks, then re-runs review
-- **Revise tasks** — the user edits `tasks.md` (add/modify tasks), then the agent re-runs apply for unchecked tasks and re-runs review
-- **Revise spec** — resets to spec stage (sets `spec: active`, all stages after spec → `pending`), regenerates `spec.md`, invalidates and regenerates downstream artifacts (tasks, checklist), then re-runs apply and review
+#### Auto-Rework Loop (up to 3 cycles)
 
-Run `lib/stageman.sh log-review <change_dir> "failed" "<rework-option>"` after the user selects a rework option. If review fails again after rework, present the menu again (no retry cap — the user is in the loop).
+The agent triages the sub-agent's prioritized findings and autonomously selects the rework path — no user interaction. Must-fix items are always addressed; should-fix items when clear and low-effort; nice-to-have items may be skipped.
+
+**Decision heuristics** (applied to prioritized findings):
+- **Must-fix: test failures, spec mismatches, checklist violations** → "Fix code" — uncheck affected tasks with `<!-- rework: reason -->`, re-run apply, then spawn a **fresh sub-agent** for re-review
+- **Must-fix: missing functionality, incomplete coverage, wrong task breakdown** → "Revise tasks" — add/modify tasks in `tasks.md`, re-run apply, then spawn a fresh sub-agent for re-review
+- **Must-fix: spec drift, requirements mismatch, fundamental approach issues** → "Revise spec" — reset to spec stage, regenerate downstream, re-run apply, then spawn a fresh sub-agent for re-review
+
+Run `lib/stageman.sh log-review <change_dir> "failed" "<rework-option>"` for each rework cycle.
+
+**Escalation rule**: If the agent chooses "Fix code" and the subsequent sub-agent review fails again on the same or similar issues, the agent MUST escalate to "Revise tasks" or "Revise spec" after **2 consecutive "fix code" attempts**. This is a hard rule — the agent SHALL NOT choose "Fix code" a third time in a row, even if it believes another code fix would work. Non-fix-code actions (revise tasks, revise spec) reset the consecutive counter.
+
+#### Interactive Fallback (after 3 failed cycles)
+
+After 3 auto-rework cycles fail, fall back to interactive rework — present the user with the same 3 rework options as `/fab-continue`:
+
+- **Fix code** — the agent identifies affected tasks, unchecks them in `tasks.md` with `<!-- rework: reason -->` annotations, re-runs apply for unchecked tasks, then spawns a fresh sub-agent for re-review
+- **Revise tasks** — the user edits `tasks.md` (add/modify tasks), then the agent re-runs apply for unchecked tasks and spawns a fresh sub-agent for re-review
+- **Revise spec** — resets to spec stage, regenerates downstream, re-runs apply, then spawns a fresh sub-agent for re-review
+
+Once in interactive fallback, there is no further retry cap — the user is in the loop. If review fails again after user-directed rework, present the interactive menu again.
 
 ### Step 6: Hydrate
 
@@ -131,4 +148,4 @@ Resuming shows `(resuming)...` header and `Skipping {stage} — already done.` f
 | Confidence below threshold | Abort with score, threshold, and guidance |
 | Auto-clarify bails | Stop, report blocking issues, suggest `/fab-clarify` then `/fab-ff` |
 | Task fails | Stop: "Task {ID} failed: {reason}. Investigate and re-run /fab-ff." |
-| Review fails | Present interactive rework menu (fix code, revise tasks, revise spec). No retry cap. |
+| Review fails | Auto-rework loop: agent triages sub-agent's prioritized findings, selects path, up to 3 cycles (each re-review by fresh sub-agent), escalation after 2 consecutive fix-code. Falls back to interactive rework after 3 cycles. |

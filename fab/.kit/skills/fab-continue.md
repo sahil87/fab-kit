@@ -129,7 +129,19 @@ Starts from first unchecked item. Checked items assumed complete.
 - `tasks.md` and `checklist.md` MUST exist
 - All tasks MUST be `[x]`. If not: STOP with "{N} of {total} tasks are incomplete."
 
+### Sub-Agent Dispatch
+
+Review validation SHALL be dispatched to a **sub-agent running in a separate execution context**. The sub-agent provides a fresh perspective — it has no shared context with the applying agent beyond the explicitly provided artifacts.
+
+The orchestrating LLM MAY use any review agent available in its environment (e.g., a `code-review` skill, a general-purpose sub-agent with review instructions, or any equivalent). The skill files SHALL NOT hardcode a specific agent name or tool.
+
+The review sub-agent performs capable-tier work: deep reasoning, code analysis, spec comparison, and checklist validation.
+
+**Context provided to the sub-agent**: `spec.md`, `tasks.md`, `checklist.md`, relevant source files (files touched by the change), target memory file(s) from `docs/memory/`, `config.yaml` (for `code_quality` if present), and `fab/constitution.md`.
+
 ### Validation Steps
+
+The sub-agent performs all of these checks:
 
 1. **Tasks complete**: All `[x]` in `tasks.md`
 2. **Quality checklist**: Inspect code/tests per CHK item. Mark `[x]` if met, `[x] **N/A**: {reason}` if N/A, leave `[ ]` with reason if not met
@@ -143,19 +155,32 @@ Starts from first unchecked item. Checked items assumed complete.
    - Existing utilities reused where applicable
    - If `config.yaml` defines `code_quality.principles`, check each applicable principle
    - If `config.yaml` defines `code_quality.anti_patterns`, check for violations
-   - Code quality issues are review failures with specific file:line references (same rework flow as spec mismatches)
+
+### Structured Review Output
+
+The sub-agent SHALL return structured findings with a **three-tier priority scheme**:
+
+- **Must-fix**: Spec mismatches, failing tests, checklist violations — always addressed during rework
+- **Should-fix**: Code quality issues, pattern inconsistencies — addressed when clear and low-effort
+- **Nice-to-have**: Style suggestions, minor improvements — may be skipped
+
+Each finding includes: severity tier, description, and file:line reference where applicable.
+
+**Pass/fail determination**: If any must-fix findings exist, the review fails. If only should-fix and/or nice-to-have findings remain, the review MAY be considered a pass.
 
 ### Verdict
 
 **Pass**: Run `lib/stageman.sh transition <file> review hydrate fab-continue`. Run `lib/stageman.sh log-review <change_dir> "passed"`. Update checklist via `lib/stageman.sh set-checklist <file> completed <N>`. Output report + `Next: {per state table}`
 
-**Fail**: Run `lib/stageman.sh set-state <file> review failed` then `lib/stageman.sh set-state <file> apply active fab-continue`. Run `lib/stageman.sh log-review <change_dir> "failed" "<rework-option>"` after user selects rework. Update checklist via `lib/stageman.sh set-checklist <file> completed <N>`. Output failure details + rework options:
+**Fail** (manual rework — `/fab-continue` only): Run `lib/stageman.sh set-state <file> review failed` then `lib/stageman.sh set-state <file> apply active fab-continue`. Run `lib/stageman.sh log-review <change_dir> "failed" "<rework-option>"` after user selects rework. Update checklist via `lib/stageman.sh set-checklist <file> completed <N>`. Present findings with priority annotations, then offer rework options:
 
 | Option | When | Action |
 |--------|------|--------|
-| Fix code | Implementation bug | Uncheck affected tasks with `<!-- rework: {reason} -->`, run `/fab-continue` |
+| Fix code | Implementation bug (must-fix / should-fix items) | Uncheck affected tasks with `<!-- rework: {reason} -->`, run `/fab-continue` |
 | Revise tasks | Missing/wrong tasks | Add/modify tasks, run `/fab-continue` |
 | Revise spec | Requirements wrong | Run `/fab-continue spec` to reset downstream |
+
+The applying agent triages review comments by priority — not all comments need to be implemented. Must-fix items are always addressed. Should-fix items are addressed when clear and low-effort. Nice-to-have items may be acknowledged but deferred.
 
 ---
 

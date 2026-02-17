@@ -57,6 +57,8 @@ A skill matching ANY `capable` criterion is classified as `capable`, regardless 
 | `internal-consistency-check` | Cross-layer drift detection |
 | `internal-retrospect` | Retrospective analysis |
 
+Additionally, **review sub-agents** spawned during pipeline execution (by `/fab-continue`, `/fab-ff`, `/fab-fff`) use the capable tier — review requires deep reasoning, code analysis, spec comparison, and checklist validation.
+
 Shared partials (`_context.md`, `_generation.md`) are not deployable and have no tier.
 
 ### Mapping File
@@ -141,6 +143,7 @@ If in doubt, use **capable** (the default — just omit `model_tier`).
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260216-gqpp-DEV-1040-code-review-loop | 2026-02-16 | Added review sub-agent classification as capable tier — spawned during pipeline execution by `/fab-continue`, `/fab-ff`, `/fab-fff` |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_preflight.sh` → `lib/preflight.sh` and `_init_scaffold.sh` → `lib/sync-workspace.sh` in skill classification and deployment references |
 | 260212-k8m3-skill-model-tiers | 2026-02-12 | Initial creation — two-tier system, skill classification audit, mapping file, dual deployment, config override |

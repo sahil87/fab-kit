@@ -89,7 +89,7 @@ flowchart TD
 | 2 | **Spec** | What's changing | `spec.md` | Clarification of ambiguities, [NEEDS CLARIFICATION] markers |
 | 3 | **Tasks** | Implementation checklist | `tasks.md` | Auto-generated quality checklist (`checklist.md`) |
 | 4 | **Apply** | Execute tasks | code changes | Run tests per task, progress tracking |
-| 5 | **Review** | Validate against spec | validation report | Checklist completion, spec drift detection |
+| 5 | **Review** | Validate via sub-agent | validation report | Sub-agent review with prioritized findings (must-fix / should-fix / nice-to-have) |
 | 6 | **Hydrate** | Complete & hydrate | memory updates | Hydrate spec into memory files |
 
 ### User Flow
@@ -106,10 +106,11 @@ For detailed visual maps of how commands connect — including shortcuts, rework
 | `/docs-hydrate-memory [sources...]` | Ingest external sources into docs/memory/ | Updated `docs/memory/` with indexes |
 | `/fab-new` | Start change (optionally with `--switch`) | `intake.md`, `.status.yaml` |
 | `/fab-continue [<stage>]` | Next artifact (or reset to stage) | Next stage artifact |
-| `/fab-ff` | Fast forward remaining planning | spec.md + tasks + checklist |
+| `/fab-ff` | Fast forward from spec with auto-rework loop | tasks + checklist + apply + sub-agent review + hydrate (updated memory) |
+| `/fab-fff` | Full autonomous pipeline with sub-agent rework | All artifacts through hydrate |
 | `/fab-clarify` | Deepen current artifact | Refined artifact (in place) |
 | `/fab-continue` → apply | Implement | Code changes |
-| `/fab-continue` → review | Validate | Validation report |
+| `/fab-continue` → review | Validate (sub-agent) | Prioritized findings report |
 | `/fab-continue` → hydrate | Complete & hydrate | Updated memory |
 | `/fab-archive` | Archive completed change | Folder moved to archive/ |
 | `/fab-switch` | Change active change | Updated pointer file |

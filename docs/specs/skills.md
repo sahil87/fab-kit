@@ -245,11 +245,11 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 ## `/fab-ff` (Fast Forward)
 
-**Purpose**: Fast-forward through remaining planning stages in one pass. Requires an active change with a completed intake (run `/fab-new` first).
+**Purpose**: Fast-forward from spec through hydrate. Confidence-gated, with sub-agent review, auto-rework loop (up to 3 cycles with prioritized findings), and interactive fallback on retry cap exhaustion. Requires an active change with a completed spec.
 
-**Context**: config, constitution, `intake.md`, target memory file(s) from `docs/memory/` (all loaded upfront since ff traverses all planning stages)
+**Context**: config, constitution, `intake.md`, target memory file(s) from `docs/memory/` (loaded once for the spec → hydrate run)
 
-**Flow**: spec → tasks (+ checklist)
+**Flow**: spec → tasks (+ checklist) → apply → review → hydrate
 
 **When to use**:
 - Small, well-understood changes
@@ -259,22 +259,26 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 **Example**:
 ```
 /fab-new Add a logout button to the navbar that clears session
-/fab-ff
+/fab-continue   # generate spec
+/fab-ff         # fast-forward: tasks → apply → review → hydrate
 ```
 
 **Behavior**:
-1. Read `fab/current` to resolve the active change; verify intake is complete
-2. **Frontload questions** — scan the intake for ambiguities across *all* planning stages (spec, tasks). Collect everything that needs user input into a single batch of questions. Ask once, then proceed without further interruption. The goal: one Q&A round, then heads-down generation.
-3. Generate `spec.md` (incorporating answers from step 2)
-4. Produce task breakdown (referencing spec and intake)
-5. Auto-generate quality checklist
-6. Update status to `tasks: done`
+1. Check confidence gate (dynamic threshold per change type). Abort if below threshold.
+2. Generate `tasks.md` (referencing spec and intake)
+3. Auto-generate quality checklist
+4. Execute tasks in dependency order, run tests after each
+5. **Review** — dispatch to sub-agent (fresh context). Sub-agent returns prioritized findings (must-fix / should-fix / nice-to-have)
+6. **On pass** — advance to hydrate
+7. **On fail** — auto-rework loop (up to 3 cycles): triage findings by priority, autonomously select rework path (fix code, revise tasks, revise spec), re-apply, spawn fresh sub-agent for re-review. Escalation after 2 consecutive fix-code attempts
+8. **Interactive fallback** — after 3 failed auto-rework cycles, present the user with the same 3 rework options as `/fab-continue`. No further retry cap (user is in the loop)
+9. Hydrate into `docs/memory/`
 
 ---
 
 ## `/fab-fff` (Full Autonomous Pipeline)
 
-**Purpose**: Run the entire Fab pipeline from planning through hydrate in a single invocation. No confidence gate. Frontloads questions, interleaves auto-clarify between planning stages, and autonomously reworks on review failure (3-cycle retry cap, escalation after 2 consecutive fix-code failures).
+**Purpose**: Run the entire Fab pipeline from planning through hydrate in a single invocation. No confidence gate. Frontloads questions, interleaves auto-clarify between planning stages, and autonomously reworks on review failure using sub-agent review with prioritized findings (3-cycle retry cap, escalation after 2 consecutive fix-code failures).
 
 **Prerequisite**: Active change with completed `intake.md`.
 
@@ -299,10 +303,10 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 2. **Resumability**: Check `progress` map — skip any stage already marked `done` or `skipped`. Re-invoking after interruption picks up from the first incomplete stage.
 3. **Step 1 — Planning**: Generate spec + tasks with checklist. Interleave auto-clarify between stages. Bails on blocking issues.
 4. **Step 2 — Implementation**: Execute tasks in dependency order, run tests after each.
-5. **Step 3 — Review**: Validate implementation. On failure, autonomously select rework path (fix code, revise tasks, revise spec) and retry (max 3 cycles, escalation after 2 consecutive fix-code). Bail with summary after 3 failed cycles.
+5. **Step 3 — Review**: Dispatch to review sub-agent (fresh context, prioritized findings). On failure, triage findings by priority and autonomously select rework path (fix code, revise tasks, revise spec). Re-review via fresh sub-agent. Retry up to 3 cycles (escalation after 2 consecutive fix-code). Bail with summary after 3 failed cycles.
 6. **Step 4 — Hydrate**: Hydrate into memory.
 
-**Key difference from `/fab-ff`**: `/fab-fff` is the full pipeline (intake → hydrate) with autonomous rework and no confidence gate. `/fab-ff` is fast-forward from spec (spec → hydrate) with confidence gate and interactive rework on review failure.
+**Key difference from `/fab-ff`**: `/fab-fff` is the full pipeline (intake → hydrate) with autonomous rework and no confidence gate. `/fab-ff` is fast-forward from spec (spec → hydrate) with confidence gate, auto-rework loop (up to 3 cycles), and interactive fallback on retry cap exhaustion. Both use sub-agent review with prioritized findings.
 
 ---
 
@@ -369,27 +373,39 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 ## Review Behavior (via `/fab-continue`)
 
-**Purpose**: Validate implementation against spec and checklists.
+**Purpose**: Validate implementation against spec and checklists using a **review sub-agent** running in a separate execution context.
 
 **Context**: config, constitution, `tasks.md`, `checklist.md`, `spec.md`, target memory file(s) from `docs/memory/`, relevant source code (files touched by the change)
+
+**Sub-agent dispatch**: Review validation is dispatched to a sub-agent that runs in a fresh context — no shared state with the applying agent beyond the explicitly provided artifacts. The orchestrating LLM may use any review agent available (a `code-review` skill, a general-purpose sub-agent with review instructions, or any equivalent). No specific agent is prescribed.
 
 **Example**:
 ```
 /fab-continue
+→ "Dispatching review to sub-agent..."
 → "✓ 12/12 tasks complete"
 → "✓ 10/12 checklist items passed"
 → "✗ 2 items need attention: [CHK-007, CHK-011]"
+→ "  must-fix: CHK-007 — missing error handling (src/api.ts:42)"
+→ "  should-fix: CHK-011 — inconsistent naming (src/utils.ts:15)"
 ```
 
-**Checks** (the agent performs all of these):
+**Checks** (the sub-agent performs all of these):
 1. All tasks in `tasks.md` marked `[x]`
-
-2. All checklist items in `checklist.md` verified and checked off — the agent re-reads each `CHK-*` item, inspects the relevant code/tests, and marks `[x]` or reports failure
+2. All checklist items in `checklist.md` verified and checked off — the sub-agent re-reads each `CHK-*` item, inspects the relevant code/tests, and marks `[x]` or reports failure
 3. Run tests affected by the change (scoped to modules touched, not the full suite)
 4. Features match spec requirements (spot-check key scenarios from `spec.md`)
 5. No memory drift detected (implementation doesn't contradict memory files)
+6. Code quality check — naming consistency, function size, error handling, utility reuse
 
-**On failure**, the agent presents the options and the user chooses where to loop back:
+**Structured output**: The sub-agent returns prioritized findings using a three-tier scheme:
+- **Must-fix**: Spec mismatches, failing tests, checklist violations — always addressed
+- **Should-fix**: Code quality issues, pattern inconsistencies — addressed when clear and low-effort
+- **Nice-to-have**: Style suggestions, minor improvements — may be skipped
+
+**Pass/fail**: If any must-fix findings exist, the review fails. If only should-fix/nice-to-have remain, the review may pass.
+
+**On failure** (manual rework in `/fab-continue`), the findings are presented with priority annotations and the user chooses where to loop back:
 
 - **Fix code** → `/fab-continue` (apply)
   Implementation bug. The agent identifies which tasks need rework, unchecks them in `tasks.md` (marks `- [ ]` again with a `<!-- rework: reason -->` comment), and re-runs `/fab-continue` which picks up the unchecked items.
@@ -400,7 +416,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 - **Revise spec** → `/fab-continue spec`
   Requirements were wrong or incomplete. Resets to spec stage, updates `spec.md` in place. Tasks are subsequently regenerated. All downstream artifacts are reset.
 
-The `.status.yaml` stage is reset to the chosen re-entry point. The general rule: **artifacts at and after the re-entry point are regenerated or updated; artifacts before it are preserved.**
+The applying agent triages review comments by priority — not all comments need to be implemented. The `.status.yaml` stage is reset to the chosen re-entry point. The general rule: **artifacts at and after the re-entry point are regenerated or updated; artifacts before it are preserved.**
 
 ---
 
