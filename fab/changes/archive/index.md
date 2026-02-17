@@ -1,5 +1,7 @@
 # Archive Index
 
+- **260218-bx4d-consolidate-worktree-init-into-sync** — Consolidated worktree-init.sh into fab-sync.sh as a single bootstrap entry point, eliminating the circular call chain and reducing two entry points to one.
+- **260217-eywl-fix-stageman-skill-path-refs** — Fixed all `lib/stageman.sh` references in skill markdown files to use repo-root-relative paths (`fab/.kit/scripts/lib/stageman.sh`), consistent with the preflight.sh convention in _context.md.
 - **260217-elxh-fix-continue-single-dispatch** — Added single-dispatch rule to fab-continue Normal Flow to prevent auto-advancing through multiple stages in one invocation, scoped to avoid breaking fab-ff/fab-fff pipeline behavior.
 - **260217-17pe-DEV-1046-scaffold-setup-templates** — Extracted inline config.yaml and constitution.md templates from fab-setup.md into scaffold files, eliminating template duplication and drift risk between skill prose and scaffold directory.
 - **260216-oinh-DEV-1045-fold-resolve-into-changeman** — Folded resolve-change.sh into changeman.sh as `resolve` and `switch` subcommands, simplifying /fab-switch to a single bash call and eliminating the only remaining sourced library script.

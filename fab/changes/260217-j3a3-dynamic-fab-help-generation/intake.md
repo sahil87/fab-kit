@@ -6,7 +6,7 @@
 
 ## Origin
 
-> Rewrite fab-help.sh to dynamically generate command list from skill file frontmatter instead of hardcoding it. Delete the redundant .claude/agents/fab-help.md agent file. The skill files in fab/.kit/skills/ already have name and description in YAML frontmatter — use frontmatter_field() (from fab-sync.sh) to read them at runtime. This eliminates the main duplication point: fab-help.sh will always reflect the actual skill files. Keep the workflow diagram and grouping structure, just derive the command names and descriptions dynamically.
+> Rewrite fab-help.sh to dynamically generate command list from skill file frontmatter instead of hardcoding it. Delete the redundant .claude/agents/fab-help.md agent file. The skill files in fab/.kit/skills/ already have name and description in YAML frontmatter — use frontmatter_field() (from 2-sync-workspace.sh) to read them at runtime. This eliminates the main duplication point: fab-help.sh will always reflect the actual skill files. Keep the workflow diagram and grouping structure, just derive the command names and descriptions dynamically.
 
 Preceded by a discussion identifying that the complete command list is duplicated across ~6 locations. The help script is the designated "single source of truth" for runtime help, but it hardcodes every command name and description. The skill files themselves already carry canonical `name` and `description` in YAML frontmatter — the help script should read from them instead of maintaining a parallel copy.
 
@@ -18,7 +18,7 @@ Additionally, `.claude/agents/fab-help.md` is a near-identical duplicate of `fab
 
 2. **Consequence**: Users see stale or incorrect help output. The "single source of truth" claim is undermined when the help content is itself a stale copy. Adding a new skill requires updating ~6 files, of which `fab-help.sh` is the most likely to be forgotten.
 
-3. **Approach**: The skill files already have structured frontmatter with `name` and `description`. The `frontmatter_field()` function already exists in `fab-sync.sh` for parsing this format. Rather than maintaining a parallel list, `fab-help.sh` should scan skill files at runtime and extract names/descriptions dynamically. The workflow diagram and group headings remain hardcoded (they're layout, not data), but the command entries within each group come from the skill files.
+3. **Approach**: The skill files already have structured frontmatter with `name` and `description`. The `frontmatter_field()` function already exists in `fab/.kit/sync/2-sync-workspace.sh` for parsing this format. Rather than maintaining a parallel list, `fab-help.sh` should scan skill files at runtime and extract names/descriptions dynamically. The workflow diagram and group headings remain hardcoded (they're layout, not data), but the command entries within each group come from the skill files.
 
 ## What Changes
 
@@ -34,7 +34,7 @@ Replace the hardcoded `cat <<EOF` block with dynamic generation:
 
 ### 2. Extract `frontmatter_field()` to shared lib
 
-Move `frontmatter_field()` from `fab-sync.sh` to a new shared file `fab/.kit/scripts/lib/frontmatter.sh` that both `fab-sync.sh` and `fab-help.sh` can source. This avoids duplicating the function. `fab-sync.sh` replaces its inline copy with `source "$scripts_dir/lib/frontmatter.sh"`.
+Move `frontmatter_field()` from `fab/.kit/sync/2-sync-workspace.sh` to a new shared file `fab/.kit/scripts/lib/frontmatter.sh` that both `2-sync-workspace.sh` and `fab-help.sh` can source. This avoids duplicating the function. `2-sync-workspace.sh` replaces its inline copy with `source "$scripts_dir/lib/frontmatter.sh"`.
 
 ### 3. Delete `.claude/agents/fab-help.md`
 
@@ -47,7 +47,7 @@ Remove the redundant agent file. The skill at `fab/.kit/skills/fab-help.md` alre
 ## Impact
 
 - **`fab/.kit/scripts/fab-help.sh`** — complete rewrite of command listing logic
-- **`fab/.kit/scripts/fab-sync.sh`** — refactor to source `frontmatter_field()` from shared lib instead of inlining it
+- **`fab/.kit/sync/2-sync-workspace.sh`** — refactor to source `frontmatter_field()` from shared lib instead of inlining it
 - **`fab/.kit/scripts/lib/frontmatter.sh`** — new shared library file
 - **`.claude/agents/fab-help.md`** — deleted
 - **No changes to skill files** — frontmatter format is already correct and sufficient
@@ -63,7 +63,7 @@ Remove the redundant agent file. The skill at `fab/.kit/skills/fab-help.md` alre
 | 1 | Certain | Exclude `_*` and `internal-*` prefixed skill files from help output | Convention is clear: `_` = shared partial, `internal-` = internal tooling. Neither is user-invocable | S:70 R:95 A:90 D:85 |
 | 2 | Certain | Delete `.claude/agents/fab-help.md` | Explicitly requested. Duplicate of skill file with outdated frontmatter | S:95 R:90 A:90 D:95 |
 | 3 | Confident | Keep group headings hardcoded in the script, not in skill frontmatter | Groups are a display concern. Adding a `group` field to every skill file would be over-engineering for a static layout that rarely changes | S:60 R:90 A:70 D:50 |
-| 4 | Confident | Extract `frontmatter_field()` to `lib/frontmatter.sh` rather than duplicating it | Constitution principle I (Pure Prompt Play) favors shared utilities. `fab-sync.sh` already has the function; both scripts need it | S:50 R:95 A:80 D:60 |
+| 4 | Confident | Extract `frontmatter_field()` to `lib/frontmatter.sh` rather than duplicating it | Constitution principle I (Pure Prompt Play) favors shared utilities. `2-sync-workspace.sh` already has the function; both scripts need it | S:50 R:95 A:80 D:60 |
 | 5 | Confident | Keep `fab-sync.sh` as a hardcoded line in help (it's not a skill) | No frontmatter to read. It's a shell script, not a skill. One hardcoded entry is simpler than creating a pseudo-skill file | S:40 R:90 A:75 D:60 |
 
 5 assumptions (2 certain, 3 confident, 0 tentative, 0 unresolved).
