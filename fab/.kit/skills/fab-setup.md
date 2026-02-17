@@ -16,7 +16,7 @@ model_tier: fast
 ## Arguments
 
 - **No arguments** — full structural bootstrap (default behavior)
-- **`config [section]`** — create or update `fab/config.yaml` interactively. Optional `[section]` skips the menu and edits that section directly. Valid sections: `project`, `context`, `source_paths`, `stages`, `rules`, `checklist`, `git`, `naming`, `code_quality`.
+- **`config [section]`** — create or update `fab/config.yaml` interactively. Optional `[section]` skips the menu and edits that section directly. Valid sections: `project`, `source_paths`, `rules`, `checklist`, `git`, `naming`, `model_tiers`.
 - **`constitution`** — create or amend `fab/constitution.md` with semantic versioning
 - **`migrations [file]`** — apply version migrations to bring project files in sync with the installed kit version (absorbed from fab-update)
 - **`validate`** — redirect message: "Validation is built into `/fab-setup config` and `/fab-setup constitution` — each validates after every edit."
@@ -64,6 +64,16 @@ If exists: report "config.yaml already exists — skipping".
 
 If missing: execute **Constitution Behavior** (below) in create mode.
 If exists: report "constitution.md already exists — skipping".
+
+#### 1b2. `fab/context.md`
+
+If missing: copy `fab/.kit/scaffold/context.md` to `fab/context.md`. Report "Created: fab/context.md".
+If exists: skip.
+
+#### 1b3. `fab/code-quality.md`
+
+If missing: copy `fab/.kit/scaffold/code-quality.md` to `fab/code-quality.md`. Report "Created: fab/code-quality.md".
+If exists: skip.
 
 #### 1c. `docs/memory/index.md`
 
@@ -123,6 +133,8 @@ Found fab/.kit/ (v{VERSION}). Initializing project...
 {constitution.md generation}
 Created: fab/config.yaml
 Created: fab/constitution.md
+Created: fab/context.md
+Created: fab/code-quality.md
 Created: fab/VERSION ({version})
 Created: docs/memory/index.md
 Created: docs/specs/index.md
@@ -146,7 +158,7 @@ Create a new `fab/config.yaml` interactively or update specific sections. Preser
 
 ### Config Arguments
 
-- **`[section]`** *(optional)* — section to edit directly, skipping the menu. Valid values: `project`, `context`, `source_paths`, `stages`, `rules`, `checklist`, `git`, `naming`.
+- **`[section]`** *(optional)* — section to edit directly, skipping the menu. Valid values: `project`, `source_paths`, `rules`, `checklist`, `git`, `naming`, `model_tiers`.
 
 ### Config Pre-flight
 
@@ -158,9 +170,9 @@ Create a new `fab/config.yaml` interactively or update specific sections. Preser
 When `fab/config.yaml` does not exist:
 
 1. Read the project's README, package.json, or other root-level files for context
-2. Ask the user: project name, description, tech stack/conventions, source paths
+2. Ask the user: project name, description, source paths
 3. Read `fab/.kit/scaffold/config.yaml` as the starting template
-4. Substitute placeholders with user-provided values: `{PROJECT_NAME}`, `{PROJECT_DESCRIPTION}`, `{TECH_STACK_AND_CONVENTIONS}`, `{SOURCE_PATHS}`
+4. Substitute placeholders with user-provided values: `{PROJECT_NAME}`, `{PROJECT_DESCRIPTION}`, `{SOURCE_PATHS}`
 5. Write the result to `fab/config.yaml`
 6. Output: `Created fab/config.yaml`
 
@@ -172,22 +184,20 @@ When invoked without a section argument:
 
 ```
 fab/config.yaml sections:
-1. project     — name and description
-2. context     — tech stack and conventions
-3. source_paths — implementation code directories
-4. stages      — pipeline stage definitions
-5. rules       — per-stage generation rules
-6. checklist   — extra quality categories
-7. git         — branch integration settings
-8. naming      — change folder naming format
-9. code_quality — coding standards for apply/review
-10. Done
+1. project      — name and description
+2. source_paths — implementation code directories
+3. rules        — per-stage generation rules
+4. checklist    — extra quality categories
+5. git          — branch integration settings
+6. naming       — change folder naming format
+7. model_tiers  — model tier mappings for skill deployment
+8. Done
 
-Which section to update? (1-10)
+Which section to update? (1-8)
 ```
 
 2. Process selection -> **Edit Section Flow**
-3. After editing: "Update another section? (1-9 or 'done')"
+3. After editing: "Update another section? (1-7 or 'done')"
 4. Loop until Done
 
 When invoked with a section argument: validate against valid sections (error if invalid), go directly to **Edit Section Flow**, then offer to update another section.
@@ -197,7 +207,7 @@ When invoked with a section argument: validate against valid sections (error if 
 1. **Display current value** of the section
 2. **Accept new value** — inline for simple values, block for multi-line
 3. **Apply via string replacement** — targeted match, NOT full YAML rewrite (preserves comments)
-4. **Validate** — YAML parseable, required fields present (`project.name`, `project.description`, `stages`), stage `requires` references valid
+4. **Validate** — YAML parseable, required fields present (`project.name`, `project.description`)
 5. Pass -> confirm: `Updated {section}.` Fail -> report error, offer revert.
 
 If no changes made, output: `No changes made. config.yaml unchanged.`
@@ -214,7 +224,6 @@ Show `Created fab/config.yaml` (create mode), `{N} sections updated in fab/confi
 | Invalid section argument | Output valid section names |
 | YAML parse failure after edit | Report error, offer revert |
 | Missing required field after edit | Report which field, offer revert |
-| Broken stage reference after edit | Report which stage and reference, offer revert |
 | String replacement target not found | Warn about manual reformatting, fall back to section insert |
 
 ---

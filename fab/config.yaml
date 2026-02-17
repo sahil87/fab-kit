@@ -5,7 +5,9 @@
 # and then hand-maintained.
 #
 # Companion files (not configured here):
-#   fab/constitution.md  — project principles & constraints (MUST/SHOULD rules)
+#   fab/constitution.md    — project principles & constraints (MUST/SHOULD rules)
+#   fab/context.md         — free-form project context (tech stack, conventions)
+#   fab/code-quality.md    — coding standards for apply/review (optional)
 #   docs/memory/index.md   — centralized documentation index
 #
 # ─────────────────────────────────────────────────────────────────────────────
@@ -18,23 +20,6 @@ project:
   name: "sddr"
   # description — One-liner explaining what this project is.
   description: "Specification-Driven Development Resources — research, documentation, and tooling for SDD methodologies"
-
-# context — Free-form project context: tech stack, conventions, architecture.
-# Consumed by: all artifact-generating skills. This is the primary way skills
-#   understand your codebase without reading every file.
-#
-# Tips:
-#   - Be specific about languages, frameworks, and patterns.
-#   - For monorepos, use labeled sections so skills scope to the relevant part:
-#       ## packages/frontend
-#       React, TypeScript, Next.js, Tailwind CSS
-#       ## packages/backend
-#       Python, FastAPI, SQLAlchemy, PostgreSQL
-context: |
-  Tech stack: Markdown specs, shell scripts (Bash), Claude Code skills
-  Content: Research analyses of SpecKit and OpenSpec, cross-cutting findings
-  Workflow: Fab kit for specification-driven change management
-  Structure: Monorepo with doc/, fab/ directories
 
 # source_paths — Directories containing the project's implementation code.
 # Used by skills that need to distinguish "implementation" from design and docs
@@ -76,38 +61,6 @@ git:
   #   "fix/"      → fix/260115-a7k2-add-oauth
   branch_prefix: ""
 
-# stages — The 6-stage pipeline definition. Controls stage ordering,
-#   prerequisites, which artifacts are generated, and skip logic.
-# Consumed by: /fab:new (initializes .status.yaml), /fab:continue (stage
-#   traversal and prerequisite validation), /fab:ff (determines which
-#   stages to fast-forward through).
-#
-# Each stage entry supports:
-#   id             — Stage identifier (used in .status.yaml progress keys)
-#   generates      — Filename this stage produces (e.g., spec.md)
-#   requires       — List of prerequisite stage ids that must be done first
-#   required       — Whether this stage can be skipped (false = optional)
-#   auto_checklist — Generate checklists/quality.md when this stage completes
-stages:
-  - id: intake
-    generates: intake.md
-    required: true
-  - id: spec
-    generates: spec.md
-    requires: [intake]
-    required: true
-  - id: tasks
-    generates: tasks.md
-    requires: [spec]
-    required: true
-    auto_checklist: true
-  - id: apply
-    requires: [tasks]
-  - id: review
-    requires: [apply]
-  - id: hydrate
-    requires: [review]
-
 # checklist — Configuration for the auto-generated quality checklist.
 # Consumed by: /fab:continue (tasks stage), /fab:ff (tasks stage).
 #
@@ -135,3 +88,18 @@ rules:
     - Mark ambiguities with [NEEDS CLARIFICATION]
     - Document impacts on existing research docs
     - Note any methodology comparisons or synthesis
+
+# model_tiers — Maps provider-agnostic tier names to provider-specific model
+#   identifiers. Used by fab-sync.sh when deploying skills to agent directories.
+# Consumed by: fab/.kit/sync/2-sync-workspace.sh (agent file generation).
+#
+# Tiers:
+#   fast    — simple skills (script delegation, lookups, formatted output)
+#   capable — complex skills (artifact generation, reasoning, code analysis)
+#
+# null = use platform default (no model: override in generated agent file).
+model_tiers:
+  fast:
+    claude: haiku
+  capable:
+    claude: null    # null = use platform default

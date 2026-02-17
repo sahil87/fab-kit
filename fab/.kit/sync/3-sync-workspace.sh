@@ -17,11 +17,6 @@ if [ ! -f "$kit_dir/VERSION" ]; then
   exit 1
 fi
 
-if [ ! -f "$kit_dir/model-tiers.yaml" ]; then
-  echo "ERROR: fab/.kit/model-tiers.yaml not found — kit may be corrupted." >&2
-  exit 1
-fi
-
 version=$(cat "$kit_dir/VERSION")
 echo "Found fab/.kit/ (v${version}). Setting up structure..."
 
@@ -48,7 +43,7 @@ frontmatter_field() {
 
 # Extract a value from a 3-level nested YAML structure.
 # Usage: yaml_value <file> <root_key> <second_key> <third_key>
-# Example: yaml_value model-tiers.yaml tiers fast claude → "haiku"
+# Example: yaml_value config.yaml model_tiers fast claude → "haiku"
 # Returns the value or empty string if path not found.
 yaml_value() {
   local file="$1" root="$2" second="$3" third="$4"
@@ -319,19 +314,15 @@ clean_stale_skills "$repo_root/.agents/skills" "directory"
 # so pipeline operations can invoke them with cost-appropriate models.
 
 if [ ${#fast_skills[@]} -gt 0 ]; then
-  # Resolve Claude model for "fast" tier: config.yaml overrides .kit/ defaults
-  claude_fast_model=$(yaml_value "$kit_dir/model-tiers.yaml" "tiers" "fast" "claude")
-
+  # Resolve Claude model for "fast" tier from config.yaml, with hardcoded fallback
+  claude_fast_model=""
   if [ -f "$fab_dir/config.yaml" ]; then
-    override=$(yaml_value "$fab_dir/config.yaml" "model_tiers" "fast" "claude")
-    if [ -n "$override" ]; then
-      claude_fast_model="$override"
-    fi
+    claude_fast_model=$(yaml_value "$fab_dir/config.yaml" "model_tiers" "fast" "claude")
   fi
 
+  # Fallback: use haiku if config.yaml has no model_tiers or doesn't exist
   if [ -z "$claude_fast_model" ]; then
-    echo "ERROR: No mapping for tier \"fast\" on platform \"claude\" in model-tiers.yaml" >&2
-    exit 1
+    claude_fast_model="haiku"
   fi
 
   # Generate Claude Code agent files: .claude/agents/<name>.md

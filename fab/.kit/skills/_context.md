@@ -13,8 +13,10 @@ Before generating or validating any artifact, load the relevant context layers b
 
 Read these files first — they define the project's identity, constraints, and documentation landscape:
 
-- **`fab/config.yaml`** — project configuration, tech stack, naming conventions, stage configuration
+- **`fab/config.yaml`** — project configuration, naming conventions, model tiers
 - **`fab/constitution.md`** — project principles and constraints (MUST/SHOULD/MUST NOT rules)
+- **`fab/context.md`** — free-form project context: tech stack, conventions, architecture *(optional — no error if missing)*
+- **`fab/code-quality.md`** — coding standards for apply/review: principles, anti-patterns, test strategy *(optional — no error if missing)*
 - **`docs/memory/index.md`** — memory landscape (which domains and memory files exist)
 - **`docs/specs/index.md`** — specifications landscape (pre-implementation design intent, human-curated)
 

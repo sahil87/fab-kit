@@ -87,7 +87,7 @@
    - Deprecated requirements → **Removal Verification** items
    - Key scenarios from spec → **Scenario Coverage** items
    - Edge cases identified in spec → **Edge Cases & Error Handling** items
-   - `code_quality` from `fab/config.yaml` → **Code Quality** items. If `code_quality` section exists: one item per relevant `principle`, one per relevant `anti_pattern` that applies to the change's scope, plus the two baseline items. If no `code_quality` section: include the two baseline items only (pattern consistency, no unnecessary duplication)
+   - `fab/code-quality.md` → **Code Quality** items. If `fab/code-quality.md` exists: one item per relevant principle from `## Principles`, one per relevant anti-pattern from `## Anti-Patterns` that applies to the change's scope, plus the two baseline items. If no `fab/code-quality.md`: include the two baseline items only (pattern consistency, no unnecessary duplication)
    - Security-relevant changes → **Security** items (only if applicable)
    - Additional categories from `fab/config.yaml` `checklist.extra_categories` (if any)
 5. Use sequential IDs: CHK-001, CHK-002, ...

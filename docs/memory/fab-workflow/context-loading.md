@@ -10,14 +10,16 @@ The context loading convention defines how fab skills load project context befor
 
 ### Always Load Layer
 
-Every skill (except `/fab-init`, `/fab-switch`, `/fab-status`, `/docs-hydrate-memory`) reads four files as baseline context:
+Every skill (except `/fab-init`, `/fab-switch`, `/fab-status`, `/docs-hydrate-memory`) reads six files as baseline context:
 
-1. `fab/config.yaml` — project configuration, tech stack, naming conventions
+1. `fab/config.yaml` — project configuration, naming conventions, model tiers
 2. `fab/constitution.md` — project principles and constraints (MUST/SHOULD/MUST NOT rules)
-3. `docs/memory/index.md` — documentation landscape (which domains and memory files exist)
-4. `docs/specs/index.md` — specifications landscape (pre-implementation design intent, human-curated)
+3. `fab/context.md` — free-form project context: tech stack, conventions, architecture *(optional — no error if missing)*
+4. `fab/code-quality.md` — coding standards for apply/review: principles, anti-patterns, test strategy *(optional — no error if missing)*
+5. `docs/memory/index.md` — documentation landscape (which domains and memory files exist)
+6. `docs/specs/index.md` — specifications landscape (pre-implementation design intent, human-curated)
 
-This gives the agent awareness of project configuration, constraints, the documentation landscape, and the specifications landscape before generating any artifact.
+This gives the agent awareness of project settings, constraints, project context, coding standards, the documentation landscape, and the specifications landscape before generating any artifact.
 
 ### Preflight Script for Change Context
 
@@ -102,6 +104,7 @@ The following skills skip the standard context loading layers:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260218-bb93-restructure-config-yaml | 2026-02-18 | Expanded Always Load layer from 4 to 6 files — added `fab/context.md` (optional, free-form project context) and `fab/code-quality.md` (optional, coding standards) |
 | 260216-7ltw-DEV-1038-standardize-state-keyed-suggestions | 2026-02-16 | Added Next Steps Convention (State Table) section — documents the state-keyed suggestion derivation convention in `_context.md` replacing the old skill-keyed lookup table |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |
 | 260212-f9m3-enhance-srad-fuzzy | 2026-02-14 | SRAD protocol updated to fuzzy 0–100 dimension scoring with weighted mean aggregation, trapezoidal grade thresholds, optional Scores column, dynamic gate thresholds by change type |

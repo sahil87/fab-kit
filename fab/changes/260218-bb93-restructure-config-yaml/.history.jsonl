@@ -1,2 +1,9 @@
 {"ts":"2026-02-18T02:09:52+05:30","event":"command","cmd":"fab-new","args":"Restructure config.yaml: extract code_quality to code-quality.md, extract context to context.md, delete dead stages section, merge model-tiers.yaml into config.yaml"}
 {"ts":"2026-02-18T02:11:04+05:30","event":"command","cmd":"fab-new","args":"Restructure config.yaml"}
+{"ts":"2026-02-18T02:53:12+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-18T02:55:48+05:30","event":"confidence","score":3.1,"delta":"+3.1","trigger":"calc-score"}
+{"ts":"2026-02-18T02:57:59+05:30","event":"command","cmd":"fab-clarify","args":"spec"}
+{"ts":"2026-02-18T03:05:37+05:30","event":"confidence","score":4.1,"delta":"+1.0","trigger":"calc-score"}
+{"ts":"2026-02-18T03:06:03+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-18T03:16:29+05:30","event":"review","result":"failed","rework":"fix-code"}
+{"ts":"2026-02-18T03:20:27+05:30","event":"review","result":"passed"}

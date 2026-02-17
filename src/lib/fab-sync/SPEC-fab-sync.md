@@ -25,7 +25,6 @@ No arguments. No flags. The script resolves paths relative to its own location.
 ### Pre-flight
 
 - Checks `fab/.kit/VERSION` exists (exits with error if missing)
-- Checks `fab/.kit/model-tiers.yaml` exists (exits with error if missing)
 
 ### 1. Directory Creation
 
@@ -61,7 +60,7 @@ Reports created/repaired/valid counts per platform.
 
 Identifies `fast`-tier skills (via `model_tier: fast` in YAML frontmatter). For each:
 
-- Reads the Claude model mapping from `fab/.kit/model-tiers.yaml` (with optional `fab/config.yaml` override)
+- Reads the Claude model mapping from `fab/config.yaml` `model_tiers.fast.claude` (falls back to `haiku` if absent or no config.yaml)
 - Generates `.claude/agents/<name>.md` with `model_tier:` replaced by `model:` platform-specific value
 - Updates existing agent files if content changed
 - Removes stale agent files for skills that no longer exist in `.kit/skills/`

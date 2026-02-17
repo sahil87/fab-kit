@@ -2,7 +2,8 @@
 
 # Test suite for fab-sync.sh
 # Covers: directory creation, VERSION logic, .envrc, index seeding,
-#         skill sync, model-tier agent generation, .gitignore, idempotency
+#         skill sync, model-tier agent generation (config.yaml source),
+#         .gitignore, idempotency
 
 SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
 FAB_SYNC="$(readlink -f "$SCRIPT_DIR/fab-sync.sh")"
@@ -19,15 +20,6 @@ setup() {
 
   # VERSION file
   echo "1.2.3" > "$KIT/VERSION"
-
-  # model-tiers.yaml (minimal)
-  cat > "$KIT/model-tiers.yaml" <<'YAML'
-tiers:
-  fast:
-    claude: haiku
-  capable:
-    claude: null
-YAML
 
   # Scaffold files
   echo "# Memory Index" > "$KIT/scaffold/memory-index.md"
@@ -324,9 +316,27 @@ YAML
   [[ "$output" == *"VERSION not found"* ]]
 }
 
-@test "fails when model-tiers.yaml is missing" {
-  rm "$KIT/model-tiers.yaml"
+@test "uses haiku fallback when config.yaml has no model_tiers" {
+  # No config.yaml at all — should fall back to haiku
   run bash "$KIT/scripts/fab-sync.sh"
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"model-tiers.yaml not found"* ]]
+  [ "$status" -eq 0 ]
+  [ -f "$REPO_ROOT/.claude/agents/fab-status.md" ]
+  local agent_content
+  agent_content="$(cat "$REPO_ROOT/.claude/agents/fab-status.md")"
+  [[ "$agent_content" == *"model: haiku"* ]]
+}
+
+@test "reads model_tiers from config.yaml when present" {
+  cat > "$REPO_ROOT/fab/config.yaml" <<'YAML'
+project:
+  name: test
+model_tiers:
+  fast:
+    claude: sonnet
+YAML
+  run bash "$KIT/scripts/fab-sync.sh"
+  [ "$status" -eq 0 ]
+  local agent_content
+  agent_content="$(cat "$REPO_ROOT/.claude/agents/fab-status.md")"
+  [[ "$agent_content" == *"model: sonnet"* ]]
 }

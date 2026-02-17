@@ -61,29 +61,17 @@ Additionally, **review sub-agents** spawned during pipeline execution (by `/fab-
 
 Shared partials (`_context.md`, `_generation.md`) are not deployable and have no tier.
 
-### Mapping File
+### Model Tier Configuration
 
-`fab/.kit/model-tiers.yaml` defines the translation from tier names to provider-specific model identifiers:
-
-```yaml
-tiers:
-  fast:
-    claude: haiku
-  capable:
-    claude: null    # null = platform default
-```
-
-### Per-Project Override
-
-`fab/config.yaml` can optionally override `.kit/` defaults:
+Model tier mappings live in `fab/config.yaml` under the `model_tiers:` section:
 
 ```yaml
 model_tiers:
   fast:
-    claude: sonnet   # use sonnet instead of haiku
+    claude: haiku   # or sonnet, etc.
 ```
 
-Config entries replace (not merge with) the corresponding `.kit/` entries. If no `model_tiers:` section exists, defaults apply.
+When `config.yaml` has no `model_tiers:` section (or doesn't exist), `fab-sync.sh` falls back to `haiku` for the fast tier. There is no separate mapping file — the former `fab/.kit/model-tiers.yaml` was deleted in v0.8.0, consolidating all configuration into `config.yaml`.
 
 ### Deployment: Dual Strategy
 
@@ -96,8 +84,8 @@ Capable skills get symlinks only (no agent files). This is because Claude Code s
 
 ### Adding a New Provider
 
-1. Add the platform key under each tier in `fab/.kit/model-tiers.yaml`
-2. Update `lib/sync-workspace.sh` to generate agent files for the new platform
+1. Add the platform key under the relevant tier in `fab/config.yaml` `model_tiers:` (and in `fab/.kit/scaffold/config.yaml` for new projects)
+2. Update `fab-sync.sh` to read the new platform key and generate agent files
 3. Add the symlink/agent creation call in the appropriate section
 
 ### Selecting a Tier for New Skills
@@ -133,16 +121,17 @@ If in doubt, use **capable** (the default — just omit `model_tier`).
 **Rejected**: Generated skill files (model: ignored in skill context). Agent-only (breaks user invocation).
 *Introduced by*: 260212-k8m3-skill-model-tiers
 
-### Defaults in .kit/, Overridable via config.yaml
-**Decision**: `model-tiers.yaml` provides defaults; `config.yaml` can override per-project.
-**Why**: Most users won't customize, but power users may need project-specific model selection.
-**Rejected**: Fixed .kit/-only mapping — forces forking for any customization.
-*Introduced by*: 260212-k8m3-skill-model-tiers
+### Single Source in config.yaml with Hardcoded Fallback
+**Decision**: Model tier mappings live exclusively in `config.yaml`. When absent, `fab-sync.sh` uses a hardcoded `haiku` fallback. The former `fab/.kit/model-tiers.yaml` was deleted.
+**Why**: Two-file resolution (kit defaults + config override) added complexity for a setting that almost never changes. A hardcoded fallback with config override is simpler and sufficient.
+**Superseded**: Previous design used `model-tiers.yaml` as kit defaults with config.yaml override.
+*Introduced by*: 260218-bb93-restructure-config-yaml
 
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260218-bb93-restructure-config-yaml | 2026-02-18 | Deleted `fab/.kit/model-tiers.yaml`, consolidated into `config.yaml` `model_tiers:` section with hardcoded `haiku` fallback. Updated mapping file section, provider instructions, and design decisions |
 | 260216-gqpp-DEV-1040-code-review-loop | 2026-02-16 | Added review sub-agent classification as capable tier — spawned during pipeline execution by `/fab-continue`, `/fab-ff`, `/fab-fff` |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_preflight.sh` → `lib/preflight.sh` and `_init_scaffold.sh` → `lib/sync-workspace.sh` in skill classification and deployment references |

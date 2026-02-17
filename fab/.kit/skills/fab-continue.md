@@ -99,7 +99,7 @@ Before executing the first unchecked task, read existing source files in the are
 
 Hold these patterns as context for all subsequent task execution within the same apply run.
 
-If `config.yaml` defines a `code_quality` section, load its `principles` as additional implementation constraints alongside extracted patterns. If `code_quality.test_strategy` is defined, it governs test timing (default: `test-alongside`).
+If `fab/code-quality.md` exists, load its `## Principles` as additional implementation constraints alongside extracted patterns. If a `## Test Strategy` section is defined, it governs test timing (default: `test-alongside`).
 
 **Skip on resume**: When resuming mid-apply (some tasks already `[x]`), pattern extraction is skipped — patterns are re-derived implicitly from reading task-relevant source files.
 
@@ -113,7 +113,7 @@ If `config.yaml` defines a `code_quality` section, load its `principles` as addi
    2. Implement per spec, constitution, and extracted patterns
    3. Prefer reusing existing utilities over creating new ones
    4. Keep functions focused — if implementation exceeds the codebase's typical function size, consider extracting
-   5. Write tests per `code_quality.test_strategy` (default: `test-alongside`)
+   5. Write tests per `fab/code-quality.md` test strategy (default: `test-alongside`)
    6. Run tests, fix failures
    7. Mark `[x]` immediately
 5. On completion: run `fab/.kit/scripts/lib/stageman.sh transition <file> apply review fab-continue`.
@@ -139,7 +139,7 @@ The orchestrating LLM MAY use any review agent available in its environment (e.g
 
 The review sub-agent performs capable-tier work: deep reasoning, code analysis, spec comparison, and checklist validation.
 
-**Context provided to the sub-agent**: `spec.md`, `tasks.md`, `checklist.md`, relevant source files (files touched by the change), target memory file(s) from `docs/memory/`, `config.yaml` (for `code_quality` if present), and `fab/constitution.md`.
+**Context provided to the sub-agent**: `spec.md`, `tasks.md`, `checklist.md`, relevant source files (files touched by the change), target memory file(s) from `docs/memory/`, `fab/code-quality.md` (if present), and `fab/constitution.md`.
 
 ### Validation Steps
 
@@ -155,8 +155,8 @@ The sub-agent performs all of these checks:
    - Functions focused and appropriately sized
    - Error handling consistent with codebase style
    - Existing utilities reused where applicable
-   - If `config.yaml` defines `code_quality.principles`, check each applicable principle
-   - If `config.yaml` defines `code_quality.anti_patterns`, check for violations
+   - If `fab/code-quality.md` exists, check each applicable principle from `## Principles`
+   - If `fab/code-quality.md` exists, check for violations listed in `## Anti-Patterns`
 
 ### Structured Review Output
 
