@@ -65,6 +65,7 @@ fab/.kit/
     └── lib/                # Internal scripts (not user-facing)
         ├── calc-score.sh       # Confidence score computation
         ├── changeman.sh        # Change Manager — change lifecycle operations (new, rename, resolve, switch)
+        ├── frontmatter.sh      # Shared YAML frontmatter parser (sourced by fab-help.sh, 3-sync-workspace.sh)
         ├── preflight.sh        # Pre-flight validation (calls stageman + changeman CLI)
         └── stageman.sh         # Stage Manager — schema query + .status.yaml accessors
 ```
@@ -118,7 +119,11 @@ All subcommands print results to stdout; errors to stderr. Designed CLI-first fo
 
 #### `fab-help.sh`
 
-Prints the Fab Kit help overview and skill catalog. MUST be updated when skills are added or removed.
+Prints the Fab Kit help overview and skill catalog. Dynamically reads skill names and descriptions from YAML frontmatter in `fab/.kit/skills/` at runtime via the shared `lib/frontmatter.sh` library. Excludes `_*` (partials) and `internal-*` (internal tooling) prefixed files. Maintains a hardcoded group mapping (associative array) for display organization — skills not in any group appear under an "Other" catch-all at the end. Computes column alignment dynamically from the longest command name. Includes `fab-sync.sh` as a hardcoded non-skill entry in the "Setup" group. Adding a new skill file to `fab/.kit/skills/` with valid frontmatter automatically includes it in help output — no script edit required.
+
+#### `lib/frontmatter.sh`
+
+Shared sourceable shell library defining `frontmatter_field()` — extracts a field value from YAML frontmatter delimited by `---` markers. Returns the unquoted value or empty string if not found. Uses `sed` for parsing (no `yq` dependency). Sourced by `fab-help.sh` and `sync/3-sync-workspace.sh`. No shebang or `set -euo pipefail` — designed to be sourced, not executed directly.
 
 #### `fab-upgrade.sh`
 
@@ -272,6 +277,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260217-j3a3-dynamic-fab-help-generation | 2026-02-18 | Rewrote `fab-help.sh` for dynamic command listing — reads skill names/descriptions from YAML frontmatter at runtime instead of hardcoding. Extracted `frontmatter_field()` to `lib/frontmatter.sh` (shared by `fab-help.sh` and `3-sync-workspace.sh`). Deleted stale hand-authored `.claude/agents/fab-help.md` (sync regenerates correctly from `model_tier: fast`). Added `frontmatter.sh` to `lib/` directory tree. Updated `fab-help.sh` description to reflect dynamic generation. |
 | 260217-zkah-readme-quickstart-prereqs-check | 2026-02-18 | Added `sync/1-prerequisites.sh` (validates yq, jq, gh, direnv, bats before sync). Renumbered `1-direnv.sh` → `2-direnv.sh`, `2-sync-workspace.sh` → `3-sync-workspace.sh`. Updated directory tree, script section headings, and all sync filename references. |
 | 260218-bx4d-consolidate-worktree-init-into-sync | 2026-02-18 | Consolidated worktree bootstrap into single entry point. Rewrote `fab-sync.sh` as thin orchestrator iterating `fab/.kit/sync/*.sh` then `fab/sync/*.sh`. Moved sync logic to `sync/2-sync-workspace.sh` (path resolution: `sync_dir` → `kit_dir`). Added `sync/1-direnv.sh` (moved from `worktree-init-common/`). Added `scaffold/sync-readme.md` and section 9 (fab/sync/README.md scaffolding) to 2-sync-workspace.sh. Renamed `fab/worktree-init/` → `fab/sync/` (deleted `1-claude-settings.sh` + `assets/`, renumbered `2-symlink-backlog.sh` → `1-symlink-backlog.sh`). Deleted `worktree-init.sh` and `worktree-init-common/`. Updated `scaffold/envrc` (`WORKTREE_INIT_SCRIPT` → `fab/.kit/scripts/fab-sync.sh`). Removed `fab-update-claude-settings.sh` (script no longer exists). Added "Single Entry Point" design decision. |
 | 260216-oinh-DEV-1045-fold-resolve-into-changeman | 2026-02-17 | Folded `resolve-change.sh` into `changeman.sh` as `resolve` and `switch` subcommands. Removed `resolve-change.sh` from lib/ directory listing. Updated changeman description (4 subcommands, yq dependency for switch). Updated preflight description (calls changeman CLI instead of sourcing resolve-change). Migrated all callers (preflight, batch scripts) from source+variable pattern to CLI subprocess. Updated lib/ design decision script list. |
