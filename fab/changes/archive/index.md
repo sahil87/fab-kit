@@ -1,5 +1,8 @@
 # Archive Index
 
+- **260217-17pe-DEV-1046-scaffold-setup-templates** — Extracted inline config.yaml and constitution.md templates from fab-setup.md into scaffold files, eliminating template duplication and drift risk between skill prose and scaffold directory.
+- **260216-oinh-DEV-1045-fold-resolve-into-changeman** — Folded resolve-change.sh into changeman.sh as `resolve` and `switch` subcommands, simplifying /fab-switch to a single bash call and eliminating the only remaining sourced library script.
+- **260216-gqpp-DEV-1040-code-review-loop** — Introduced a review sub-agent for fresh-context code review with an apply-review loop, prioritized review comments (must-fix/should-fix/nice-to-have), and bounded retry in fab-ff and fab-fff.
 - **260216-ymvx-DEV-1043-envrc-line-sync** — Replaced .envrc symlink with line-ensuring sync in fab-sync.sh, allowing projects to add their own .envrc lines alongside fab's required entries.
 - **260216-pr1u-DEV-1017-add-archive-gitkeep** — Added .gitkeep to fab/changes/archive/ in fab-sync.sh so Git tracks the empty archive folder on fresh projects.
 - **260216-jmy4-DEV-1044-switch-shell-name-resolution** — Delegated fab-switch name resolution from in-prompt LLM string matching to the existing resolve-change.sh shell script, fixing false negatives on long hyphenated folder names.
