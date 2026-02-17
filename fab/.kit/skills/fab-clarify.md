@@ -33,7 +33,7 @@ Disambiguation: matches `intake`/`spec`/`tasks` → target artifact; anything el
 
 Run preflight per `_context.md` §2. Log invocation: `fab/.kit/scripts/lib/stageman.sh log-command <change_dir> "fab-clarify" "<target-artifact-if-any>"`.
 
-- **Planning stages** (`intake`, `spec`, `tasks`) — defaults to current stage's artifact; `<target-artifact>` overrides. At the `intake` stage, the taxonomy scan covers intake artifact refinement (scope boundaries, affected areas, blocking questions, impact, memory coverage).
+- **Planning stages** (`intake`, `spec`, `tasks`) — defaults to current stage's artifact if it exists; if the current stage is `pending` (no artifact yet), fall back to the previous `done` stage's artifact. `<target-artifact>` overrides either default. At the `intake` stage, the taxonomy scan covers intake artifact refinement (scope boundaries, affected areas, blocking questions, impact, memory coverage).
 - **Post-planning** (`apply`, `review`, `hydrate`) — requires `<target-artifact>`. If missing, prompt: "Which planning artifact to clarify? (1) spec, (2) tasks, (3) intake"
 
 ---
@@ -42,7 +42,7 @@ Run preflight per `_context.md` §2. Log invocation: `fab/.kit/scripts/lib/stage
 
 ### Step 1: Read Target Artifact
 
-Resolve file (`intake.md`, `spec.md`, or `tasks.md`). If missing: STOP with "No {artifact} found. Run /fab-continue to generate it first."
+Resolve file (`intake.md`, `spec.md`, or `tasks.md`). If the resolved artifact is missing and the target was defaulted (not user-specified), fall back to the previous `done` stage's artifact. If still missing or the target was explicitly specified: STOP with "No {artifact} found. Run /fab-continue to generate it first."
 
 ### Step 2: Taxonomy Scan
 
