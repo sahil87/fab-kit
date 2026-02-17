@@ -6,7 +6,7 @@ Fab Kit is a 6-stage pipeline defined entirely in markdown prompts — no SDK, n
 
 > **[Try it now](#quick-start)** | **[Understand the concepts](#why-fab-kit)**
 
-**Contents:** [The 6 Stages](#the-6-stages) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start) · [Why Fab Kit](#why-fab-kit) · [Commands](#command-quick-reference) · [Updating](#updating) · [Learn More](#learn-more)
+**Contents:** [The 6 Stages](#the-6-stages) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start) · [Why Fab Kit](#why-fab-kit) · [Commands](#command-quick-reference) · [Learn More](#learn-more)
 
 ## The 6 Stages
 
@@ -81,6 +81,8 @@ After installing `gh`, authenticate with `gh auth login`.
 
 ### 1. Install
 
+#### New project
+
 **From GitHub releases** (requires [gh CLI](https://cli.github.com/) with authentication):
 
 ```bash
@@ -88,13 +90,13 @@ mkdir -p fab
 gh release download --repo wvrdz/fab-kit --pattern 'kit.tar.gz' --output - | tar xz -C fab/
 ```
 
-Or from a local clone:
+#### From a local clone
 
 ```bash
 cp -r /path/to/fab-kit/fab/.kit ./fab/
 ```
 
-### 2. Initialize
+#### Initialize
 
 **In your terminal:**
 
@@ -113,7 +115,21 @@ $fab-setup    # Codex
 
 This generates `fab/config.yaml` and `fab/constitution.md` (your project's architectural rules).
 
-### 3. Your first change
+#### Updating from a previous version
+
+```bash
+fab-upgrade.sh       # downloads latest kit, replaces fab/.kit/, auto-runs fab-sync.sh
+```
+
+If the upgrade reports a version mismatch, run `/fab-setup migrations` in your AI agent to apply migrations. Safe to re-run.
+
+To repair symlinks and scaffold structure without downloading a new release (useful when developing fab-kit itself):
+
+```bash
+bash fab/.kit/scripts/fab-sync.sh
+```
+
+### 2. Your first change
 
 ```bash
 # In your AI agent:
@@ -137,7 +153,7 @@ At any point, run `/fab-status` to see where you are.
 
 For small changes, `/fab-ff` (fast-forward) skips intermediate planning stages — gated by a [confidence score](#structured-autonomy-not-guesswork) that ensures ambiguity is low enough for safe execution. Both `/fab-ff` and `/fab-fff` (full fast-forward) auto-loop between apply and sub-agent review, fixing issues automatically before escalating to you.
 
-### 4. Going parallel
+### 3. Going parallel
 
 While AI works on one change, start another in a separate [git worktree](https://git-scm.com/docs/git-worktree) (an isolated copy of your repo):
 
@@ -280,20 +296,6 @@ Grades aggregate into a **confidence score** that gates `/fab-ff`. If ambiguity 
 | `/fab-switch` | Switch active change |
 | `/fab-archive` | Archive a completed change |
 | `/docs-hydrate-memory [sources...]` | Ingest external docs into memory |
-
-## Updating
-
-```bash
-fab-upgrade.sh       # downloads latest kit, replaces fab/.kit/, auto-runs fab-sync.sh
-```
-
-If the upgrade reports a version mismatch, run `/fab-setup migrations` in your AI agent to apply migrations. Safe to re-run.
-
-To repair symlinks and scaffold structure without downloading a new release (useful when developing fab-kit itself):
-
-```bash
-bash fab/.kit/scripts/fab-sync.sh
-```
 
 ## Learn More
 

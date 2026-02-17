@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# fab/.kit/sync/2-sync-workspace.sh — Structural bootstrap for fab
+# fab/.kit/sync/3-sync-workspace.sh — Structural bootstrap for fab
 #
 # Syncs kit assets (directories, skill links/copies, agent files, .gitignore
 # entries) into the workspace. Idempotent — safe to re-run at any time.

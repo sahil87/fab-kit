@@ -52,8 +52,9 @@ fab/.kit/
 ├── schemas/                # Workflow schema
 │   └── workflow.yaml       # Canonical stage/state definitions
 ├── sync/                   # Kit-level sync scripts (iterated by fab-sync.sh)
-│   ├── 1-direnv.sh         # Run direnv allow (idempotent)
-│   └── 2-sync-workspace.sh # Workspace sync logic (directories, symlinks, agents, .envrc, .gitignore, settings)
+│   ├── 1-prerequisites.sh  # Validate required tools (yq, jq, gh, direnv, bats) — fatal on missing
+│   ├── 2-direnv.sh         # Run direnv allow (idempotent)
+│   └── 3-sync-workspace.sh # Workspace sync logic (directories, symlinks, agents, .envrc, .gitignore, settings)
 └── scripts/                # Shell utilities
     ├── batch-fab-archive-change.sh  # Batch archive completed changes via tmux + Claude
     ├── batch-fab-new-backlog.sh     # Batch create changes from backlog via tmux + Claude
@@ -76,13 +77,17 @@ Single entry point for workspace sync — a thin orchestrator (~30 lines) that i
 
 Replaces the previous three-step chain (`worktree-init.sh` → `2-rerun-sync-workspace.sh` → `fab-sync.sh`) with a direct iteration model. The `$WORKTREE_INIT_SCRIPT` env var in `.envrc` points to this script, making it the entry point for both new worktree setup and workspace re-sync.
 
-#### `sync/1-direnv.sh`
+#### `sync/1-prerequisites.sh`
+
+Kit-level sync script. Validates that all required tools are available: `yq`, `jq`, `gh`, `direnv`, `bats`. Uses `command -v` for POSIX-portable detection. Collects all missing tools before reporting (not fail-fast on first missing). Exits 1 with an actionable error listing missing tools and pointing to the README Prerequisites section. Fatal — no subsequent sync steps execute if any tool is missing.
+
+#### `sync/2-direnv.sh`
 
 Kit-level sync script. Runs `direnv allow` (idempotent, no guard needed). Executes on every sync.
 
-#### `sync/2-sync-workspace.sh`
+#### `sync/3-sync-workspace.sh`
 
-Kit-level sync script containing the full workspace sync logic. Syncs kit assets (directories, symlinks, agent files, `.envrc` entries, `.gitignore` entries) into the workspace. Cleans up stale artifacts from previous kit versions. Creates directories (`fab/changes/`, `fab/changes/archive/`, `docs/memory/`, `docs/specs/`) with `.gitkeep` files in `fab/changes/` and `fab/changes/archive/`. Creates `docs/memory/index.md`, `docs/specs/index.md`, `fab/VERSION`, `.envrc` entries, and `.gitignore` entries. Reads bootstrap content from `scaffold/` files (index templates, envrc, gitignore entries) rather than hardcoding them. Both `.envrc` and `.gitignore` use additive line-ensuring: read required lines from scaffold, append any that are missing. Existing symlinks from `.envrc` to `scaffold/envrc` (previous approach) are automatically migrated to real files. Creates `fab/VERSION` using the dual-version model: new projects get the engine version, existing projects (detected via `config.yaml` presence) get `0.1.0` base version, existing `fab/VERSION` is preserved. Scaffolds `fab/sync/README.md` from `scaffold/sync-readme.md` if the directory exists and the file does not. It is the single source of truth for structural setup. `/fab-setup` delegates to `fab-sync.sh` (the orchestrator) and adds the interactive parts (config, constitution).
+Kit-level sync script (the largest sync step) containing the full workspace sync logic. Syncs kit assets (directories, symlinks, agent files, `.envrc` entries, `.gitignore` entries) into the workspace. Cleans up stale artifacts from previous kit versions. Creates directories (`fab/changes/`, `fab/changes/archive/`, `docs/memory/`, `docs/specs/`) with `.gitkeep` files in `fab/changes/` and `fab/changes/archive/`. Creates `docs/memory/index.md`, `docs/specs/index.md`, `fab/VERSION`, `.envrc` entries, and `.gitignore` entries. Reads bootstrap content from `scaffold/` files (index templates, envrc, gitignore entries) rather than hardcoding them. Both `.envrc` and `.gitignore` use additive line-ensuring: read required lines from scaffold, append any that are missing. Existing symlinks from `.envrc` to `scaffold/envrc` (previous approach) are automatically migrated to real files. Creates `fab/VERSION` using the dual-version model: new projects get the engine version, existing projects (detected via `config.yaml` presence) get `0.1.0` base version, existing `fab/VERSION` is preserved. Scaffolds `fab/sync/README.md` from `scaffold/sync-readme.md` if the directory exists and the file does not. It is the single source of truth for structural setup. `/fab-setup` delegates to `fab-sync.sh` (the orchestrator) and adds the interactive parts (config, constitution).
 
 #### `lib/stageman.sh`
 
@@ -135,7 +140,7 @@ Batch scripts follow the `batch-fab-{verb}-{entity}.sh` naming pattern. Each cre
 
 Agent-specific skill files SHALL be symlinks pointing into `fab/.kit/skills/`. This means updating `.kit/` automatically updates all agent integrations — no re-export step needed.
 
-`sync/2-sync-workspace.sh` creates symlinks for all three supported agents unconditionally. The skill prompt files are agent-agnostic markdown; only the symlink locations and formats differ per agent.
+`sync/3-sync-workspace.sh` creates symlinks for all three supported agents unconditionally. The skill prompt files are agent-agnostic markdown; only the symlink locations and formats differ per agent.
 
 **Claude Code** — directory-based skills:
 ```
@@ -166,7 +171,7 @@ Skills classified as `fast` tier (via `model_tier: fast` in frontmatter) get **b
 .claude/agents/fab-switch.md
 ```
 
-Agent files are self-contained (not symlinks) because they need a translated `model:` field. `sync/2-sync-workspace.sh` regenerates them on each run, so they stay in sync with `.kit/` updates.
+Agent files are self-contained (not symlinks) because they need a translated `model:` field. `sync/3-sync-workspace.sh` regenerates them on each run, so they stay in sync with `.kit/` updates.
 
 Capable-tier skills (the default) get symlinks only — no agent files. See [model-tiers.md](model-tiers.md) for the full tier system documentation.
 
@@ -204,7 +209,7 @@ Step 1 is a shell script. Steps 2-4 are skill-driven.
 Two VERSION files track the relationship between the installed engine and the project's file format:
 
 - **`fab/.kit/VERSION`** (engine version) — ships inside `.kit/`, replaced on each `fab-upgrade.sh` run. Enables version display, update comparison, and migration targeting.
-- **`fab/VERSION`** (local project version) — lives outside `.kit/`, NOT replaced on upgrades. Tracks the version the project's `config.yaml`, `.status.yaml`, and conventions were written for. Created by `sync/2-sync-workspace.sh`.
+- **`fab/VERSION`** (local project version) — lives outside `.kit/`, NOT replaced on upgrades. Tracks the version the project's `config.yaml`, `.status.yaml`, and conventions were written for. Created by `sync/3-sync-workspace.sh`.
 
 Both contain a bare semver string (`MAJOR.MINOR.PATCH`). See [migrations.md](migrations.md) for the full migration system.
 
@@ -267,6 +272,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260217-zkah-readme-quickstart-prereqs-check | 2026-02-18 | Added `sync/1-prerequisites.sh` (validates yq, jq, gh, direnv, bats before sync). Renumbered `1-direnv.sh` → `2-direnv.sh`, `2-sync-workspace.sh` → `3-sync-workspace.sh`. Updated directory tree, script section headings, and all sync filename references. |
 | 260218-bx4d-consolidate-worktree-init-into-sync | 2026-02-18 | Consolidated worktree bootstrap into single entry point. Rewrote `fab-sync.sh` as thin orchestrator iterating `fab/.kit/sync/*.sh` then `fab/sync/*.sh`. Moved sync logic to `sync/2-sync-workspace.sh` (path resolution: `sync_dir` → `kit_dir`). Added `sync/1-direnv.sh` (moved from `worktree-init-common/`). Added `scaffold/sync-readme.md` and section 9 (fab/sync/README.md scaffolding) to 2-sync-workspace.sh. Renamed `fab/worktree-init/` → `fab/sync/` (deleted `1-claude-settings.sh` + `assets/`, renumbered `2-symlink-backlog.sh` → `1-symlink-backlog.sh`). Deleted `worktree-init.sh` and `worktree-init-common/`. Updated `scaffold/envrc` (`WORKTREE_INIT_SCRIPT` → `fab/.kit/scripts/fab-sync.sh`). Removed `fab-update-claude-settings.sh` (script no longer exists). Added "Single Entry Point" design decision. |
 | 260216-oinh-DEV-1045-fold-resolve-into-changeman | 2026-02-17 | Folded `resolve-change.sh` into `changeman.sh` as `resolve` and `switch` subcommands. Removed `resolve-change.sh` from lib/ directory listing. Updated changeman description (4 subcommands, yq dependency for switch). Updated preflight description (calls changeman CLI instead of sourcing resolve-change). Migrated all callers (preflight, batch scripts) from source+variable pattern to CLI subprocess. Updated lib/ design decision script list. |
 | 260217-17pe-DEV-1046-scaffold-setup-templates | 2026-02-17 | Added `config.yaml` and `constitution.md` to scaffold directory listing. Updated scaffold comment from "read by fab-sync.sh" to "read by fab-sync.sh and /fab-setup" |
