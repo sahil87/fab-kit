@@ -9,8 +9,7 @@ KIT_DIR="$(dirname "$SCRIPT_DIR")"
 FAB_DIR="$(dirname "$KIT_DIR")"
 CHANGES_DIR="${FAB_DIR}/changes"
 CONFIG_FILE="${FAB_DIR}/config.yaml"
-
-source "${SCRIPT_DIR}/lib/resolve-change.sh"
+CHANGEMAN="${SCRIPT_DIR}/lib/changeman.sh"
 
 usage() {
   cat <<'EOF'
@@ -109,10 +108,9 @@ esac
 # ---------------------------------------------------------------------------
 
 for change in "${changes[@]}"; do
-  if ! resolve_change "$FAB_DIR" "$change"; then
+  if ! match=$("$CHANGEMAN" resolve "$change"); then
     continue
   fi
-  match="$RESOLVED_CHANGE_NAME"
 
   printf "  %s\n" "$match"
 

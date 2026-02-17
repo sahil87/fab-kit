@@ -23,7 +23,7 @@ If no argument (and no `--blank`): list all active changes and ask user to pick.
 
 ## Context Loading
 
-Loads `fab/config.yaml` (for `git.enabled`, `git.branch_prefix`), matched change's `.status.yaml`, and `fab/.kit/scripts/lib/resolve-change.sh` (for name resolution when `<change-name>` is provided). Does NOT load constitution, memory, or specs.
+Loads `fab/config.yaml` (for `git.enabled`, `git.branch_prefix`) and matched change's `.status.yaml`. Name resolution and switch logic are delegated to `fab/.kit/scripts/lib/changeman.sh`. Does NOT load constitution, memory, or specs.
 
 ---
 
@@ -37,32 +37,31 @@ Loads `fab/config.yaml` (for `git.enabled`, `git.branch_prefix`), matched change
 
 ### Argument Flow
 
-Delegate name resolution to `fab/.kit/scripts/lib/resolve-change.sh` via Bash:
+Delegate to `changeman.sh switch` via a single Bash call:
 
 ```bash
-source fab/.kit/scripts/lib/resolve-change.sh && resolve_change "fab" "<change-name>" && echo "$RESOLVED_CHANGE_NAME"
+bash fab/.kit/scripts/lib/changeman.sh switch "<change-name>"
 ```
 
-Handle the result based on exit code:
-- **Exit 0** → use `$RESOLVED_CHANGE_NAME` (exact or single partial match)
-- **Exit 1, stderr contains "Multiple changes match"** → parse the comma-separated folder names from stderr, list them with stages as numbered options, ask user to pick
-- **Exit 1, stderr contains "No change matches"** → list all available changes, inform user
+If changeman exits 0: display the stdout output (contains name, stage, branch, next command).
+
+If changeman exits 1 and stderr contains "Multiple changes match": parse the comma-separated folder names from stderr, list them with stages as numbered options, ask user to pick. After selection, run `changeman.sh switch "<selected>"`.
+
+If changeman exits 1 and stderr contains "No change matches": list all available changes, inform user.
 
 ### Deactivation Flow (`--blank`)
 
-1. Delete `fab/current` (no-op if already absent)
-2. If `--branch` also provided: attempt checkout (deactivation succeeds regardless of checkout result)
-3. Display confirmation
+Run `changeman.sh switch --blank`. If `--branch` also provided: attempt checkout after deactivation (deactivation succeeds regardless of checkout result). Display changeman's stdout output.
 
 ### Switch Flow
 
-Once a single change is identified:
+`changeman.sh switch` handles the full flow internally:
+1. Resolves the change name
+2. Writes `fab/current`
+3. Performs git branch integration (respecting `config.yaml`)
+4. Outputs structured summary with stage and next command
 
-1. **Write** folder name to `fab/current` (overwrites previous)
-2. **Branch Integration** (see below)
-3. **Read `.status.yaml`** for stage and progress
-4. **Display confirmation** with stage number (intake=1, spec=2, tasks=3, apply=4, review=5, hydrate=6)
-5. **Suggest next command** per state table in `_context.md` — derive from the change's current state
+The skill displays changeman's stdout directly.
 
 ---
 
@@ -82,18 +81,18 @@ Once a single change is identified:
 
 ## Output
 
-Canonical format:
+Output is passthrough from `changeman.sh switch`. Canonical format:
 
 ```
-fab/current now points to {name}
+fab/current → {name}
 
 Stage:  {stage} ({N}/6)
-Branch: {name} (created|adopted)
+Branch: {name} (created|checked out)
 
 Next: {per state table}
 ```
 
-Branch line omitted if skipped. Deactivation shows `No active change.` with optional `Branch:` line. Already-blank shows `No active change (already blank).`
+Branch line omitted if git disabled or not in a repo. Deactivation shows `No active change.`. Already-blank shows `No active change (already blank).`
 
 ---
 

@@ -1,2 +1,6 @@
 {"ts":"2026-02-16T20:25:35+05:30","event":"command","cmd":"fab-new","args":"Fold resolve-change.sh into changeman.sh and add switch subcommand"}
 {"ts":"2026-02-16T20:36:45+05:30","event":"command","cmd":"changeman-rename","args":"--folder 260216-oinh-fold-resolve-into-changeman --slug DEV-1045-fold-resolve-into-changeman"}
+{"ts":"2026-02-17T08:15:14+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-17T08:16:51+05:30","event":"confidence","score":3.8,"delta":"+3.8","trigger":"calc-score"}
+{"ts":"2026-02-17T08:25:51+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-17T08:35:45+05:30","event":"review","result":"passed"}

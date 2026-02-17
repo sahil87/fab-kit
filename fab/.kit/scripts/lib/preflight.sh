@@ -4,11 +4,9 @@ set -euo pipefail
 fab_root="$(dirname "$0")/../../.."
 scripts_dir="$(cd "$(dirname "$0")/.." && pwd)"
 
-# CLI entry point for stageman (subprocess calls, not sourced)
+# CLI entry points (subprocess calls, not sourced)
 STAGEMAN="$scripts_dir/lib/stageman.sh"
-
-# resolve-change.sh must be sourced — it sets RESOLVED_CHANGE_NAME via variable
-source "$scripts_dir/lib/resolve-change.sh"
+CHANGEMAN="$scripts_dir/lib/changeman.sh"
 
 # 1. Project initialization validation
 if [ ! -f "$fab_root/config.yaml" ] || [ ! -f "$fab_root/constitution.md" ]; then
@@ -19,8 +17,8 @@ fi
 # 2. Resolve change name — from $1 override or fab/current
 override="${1:-}"
 
-if ! resolve_change "$fab_root" "$override"; then
-  # Add context-appropriate guidance to the library's generic error
+if ! name=$("$CHANGEMAN" resolve "$override"); then
+  # Add context-appropriate guidance to changeman's generic error
   if [ -n "$override" ]; then
     echo "Provide a more specific name." >&2
   else
@@ -28,7 +26,6 @@ if ! resolve_change "$fab_root" "$override"; then
   fi
   exit 1
 fi
-name="$RESOLVED_CHANGE_NAME"
 
 # 3. Change directory validation
 change_dir="$fab_root/changes/$name"

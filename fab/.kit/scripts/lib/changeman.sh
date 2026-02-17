@@ -2,11 +2,13 @@
 # fab/.kit/scripts/lib/changeman.sh
 #
 # Change Manager — CLI utility for change lifecycle operations.
-# Supports `new` (create) and `rename` (rename slug) subcommands.
+# Supports `new`, `rename`, `resolve`, and `switch` subcommands.
 #
 # Usage:
 #   changeman.sh new --slug <slug> [--change-id <4char>] [--log-args <description>]
 #   changeman.sh rename --folder <current-folder> --slug <new-slug>
+#   changeman.sh resolve [<override>]
+#   changeman.sh switch <name> | --blank
 #   changeman.sh --help
 
 set -euo pipefail
@@ -44,6 +46,209 @@ has_id_collision() {
     [ -d "$dir" ] && return 0
   done
   return 1
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# resolve subcommand
+# ─────────────────────────────────────────────────────────────────────────────
+
+cmd_resolve() {
+  local override="${1:-}"
+
+  if [ -n "$override" ]; then
+    # --- Override mode: match against fab/changes/ folders ---
+    local changes_dir="$FAB_ROOT/changes"
+    if [ ! -d "$changes_dir" ]; then
+      echo "fab/changes/ not found." >&2
+      return 1
+    fi
+
+    # Collect non-archive folder names
+    local folders=()
+    local d base
+    for d in "$changes_dir"/*/; do
+      [ -d "$d" ] || continue
+      base="$(basename "$d")"
+      [ "$base" = "archive" ] && continue
+      folders+=("$base")
+    done
+
+    if [ ${#folders[@]} -eq 0 ]; then
+      echo "No active changes found." >&2
+      return 1
+    fi
+
+    # Case-insensitive matching
+    local override_lower
+    override_lower=$(echo "$override" | tr '[:upper:]' '[:lower:]')
+    local exact_match=""
+    local partial_matches=()
+
+    local folder folder_lower
+    for folder in "${folders[@]}"; do
+      folder_lower=$(echo "$folder" | tr '[:upper:]' '[:lower:]')
+      if [ "$folder_lower" = "$override_lower" ]; then
+        exact_match="$folder"
+        break
+      elif [[ "$folder_lower" == *"$override_lower"* ]]; then
+        partial_matches+=("$folder")
+      fi
+    done
+
+    if [ -n "$exact_match" ]; then
+      echo "$exact_match"
+    elif [ ${#partial_matches[@]} -eq 1 ]; then
+      echo "${partial_matches[0]}"
+    elif [ ${#partial_matches[@]} -gt 1 ]; then
+      local matches_list
+      matches_list=$(printf ', %s' "${partial_matches[@]}")
+      matches_list="${matches_list:2}"  # trim leading ', '
+      echo "Multiple changes match \"$override\": $matches_list." >&2
+      return 1
+    else
+      echo "No change matches \"$override\"." >&2
+      return 1
+    fi
+  else
+    # --- Default mode: read fab/current ---
+    local current_file="$FAB_ROOT/current"
+    if [ ! -f "$current_file" ]; then
+      echo "No active change." >&2
+      return 1
+    fi
+
+    local name
+    name=$(tr -d '[:space:]' < "$current_file")
+    if [ -z "$name" ]; then
+      echo "No active change." >&2
+      return 1
+    fi
+
+    echo "$name"
+  fi
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# switch subcommand
+# ─────────────────────────────────────────────────────────────────────────────
+
+# stage_number — map stage name to position (1-6)
+stage_number() {
+  case "$1" in
+    intake) echo 1 ;; spec) echo 2 ;; tasks) echo 3 ;;
+    apply) echo 4 ;; review) echo 5 ;; hydrate) echo 6 ;;
+    *) echo "?" ;;
+  esac
+}
+
+# next_command — derive suggested next command from stage
+next_command() {
+  case "$1" in
+    intake)  echo "/fab-continue, /fab-fff, or /fab-clarify" ;;
+    spec)    echo "/fab-continue, /fab-ff, or /fab-clarify" ;;
+    tasks)   echo "/fab-continue, /fab-ff, or /fab-clarify" ;;
+    apply)   echo "/fab-continue" ;;
+    review)  echo "/fab-continue" ;;
+    hydrate) echo "/fab-archive" ;;
+    *)       echo "/fab-status" ;;
+  esac
+}
+
+cmd_switch() {
+  local name="" blank=false
+
+  # Parse arguments
+  if [ $# -eq 0 ]; then
+    echo "ERROR: switch requires <name> or --blank" >&2
+    exit 1
+  fi
+
+  case "$1" in
+    --blank) blank=true ;;
+    *)       name="$1" ;;
+  esac
+
+  # --- Deactivation flow ---
+  if [ "$blank" = true ]; then
+    local current_file="$FAB_ROOT/current"
+    if [ ! -f "$current_file" ]; then
+      echo "No active change (already blank)."
+    else
+      rm "$current_file"
+      echo "No active change."
+    fi
+    return 0
+  fi
+
+  # --- Normal switch flow ---
+
+  # 1. Resolve change name
+  local resolved
+  resolved=$(cmd_resolve "$name") || exit 1
+
+  # 2. Write fab/current
+  printf '%s' "$resolved" > "$FAB_ROOT/current"
+
+  # 3. Read config for git settings
+  local git_enabled=true
+  local branch_prefix=""
+  local config_file="$FAB_ROOT/config.yaml"
+  if [ -f "$config_file" ] && command -v yq >/dev/null 2>&1; then
+    local val
+    val=$(yq '.git.enabled // "true"' "$config_file" 2>/dev/null) && git_enabled="$val"
+    val=$(yq '.git.branch_prefix // ""' "$config_file" 2>/dev/null) && branch_prefix="$val"
+  elif [ -f "$config_file" ]; then
+    echo "Warning: config.yaml exists but yq is not installed; skipping git integration." >&2
+    git_enabled=false
+  fi
+
+  # 4. Git branch integration
+  local branch_status=""
+  local branch_name="${branch_prefix}${resolved}"
+  local in_git_repo=false
+
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    in_git_repo=true
+  fi
+
+  if [ "$git_enabled" = "true" ] && [ "$in_git_repo" = true ]; then
+    local git_err
+    if git show-ref --verify --quiet "refs/heads/$branch_name" 2>/dev/null; then
+      if git_err=$(git checkout "$branch_name" 2>&1); then
+        branch_status="checked out"
+      else
+        branch_status="checkout failed"
+        echo "Warning: git checkout '$branch_name' failed: $git_err" >&2
+      fi
+    else
+      if git_err=$(git checkout -b "$branch_name" 2>&1); then
+        branch_status="created"
+      else
+        branch_status="creation failed"
+        echo "Warning: git checkout -b '$branch_name' failed: $git_err" >&2
+      fi
+    fi
+  fi
+
+  # 5. Derive current stage
+  local stage="unknown"
+  local status_file="$FAB_ROOT/changes/$resolved/.status.yaml"
+  if [ -f "$status_file" ]; then
+    stage=$("$STAGEMAN" current-stage "$status_file" 2>/dev/null) || stage="unknown"
+  fi
+
+  local snum
+  snum=$(stage_number "$stage")
+
+  # 6. Output summary
+  echo "fab/current → $resolved"
+  echo ""
+  echo "Stage:  $stage ($snum/6)"
+  if [ -n "$branch_status" ]; then
+    echo "Branch: $branch_name ($branch_status)"
+  fi
+  echo ""
+  echo "Next: $(next_command "$stage")"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -253,11 +458,15 @@ changeman.sh - Change Manager CLI
 USAGE:
   changeman.sh new --slug <slug> [--change-id <4char>] [--log-args <description>]
   changeman.sh rename --folder <current-folder> --slug <new-slug>
+  changeman.sh resolve [<override>]
+  changeman.sh switch <name> | --blank
   changeman.sh --help
 
 SUBCOMMANDS:
   new      Create a new change directory with initialized .status.yaml
   rename   Rename an existing change folder's slug (preserves date-ID prefix)
+  resolve  Resolve a change name from override or fab/current
+  switch   Switch the active change (resolve + write pointer + git branch)
 
 FLAGS (for new):
   --slug <slug>            Required. Folder name suffix (e.g., "add-oauth" or "DEV-988-add-oauth")
@@ -268,14 +477,26 @@ FLAGS (for rename):
   --folder <current-folder> Required. Full current change folder name.
   --slug <new-slug>         Required. New slug to replace the current slug portion.
 
+ARGS (for resolve):
+  <override>  Optional. Full or partial change name (case-insensitive substring).
+              If omitted, reads fab/current.
+
+ARGS (for switch):
+  <name>      Change name or partial match to switch to.
+  --blank     Deactivate the current change (delete fab/current).
+
 OUTPUT:
-  On success: prints folder name to stdout (one line).
-  On error: prints ERROR: message to stderr, exits non-zero.
+  On success: prints result to stdout.
+  On error: prints diagnostic message to stderr, exits non-zero.
 
 EXAMPLES:
   changeman.sh new --slug add-oauth
   changeman.sh new --slug DEV-988-add-oauth --change-id a7k2 --log-args "Add OAuth"
   changeman.sh rename --folder 260216-u6d5-old-slug --slug new-slug
+  changeman.sh resolve a7k2
+  changeman.sh resolve
+  changeman.sh switch a7k2
+  changeman.sh switch --blank
 EOF
 }
 
@@ -294,6 +515,14 @@ case "${1:-}" in
   rename)
     shift
     cmd_rename "$@"
+    ;;
+  resolve)
+    shift
+    cmd_resolve "$@"
+    ;;
+  switch)
+    shift
+    cmd_switch "$@"
     ;;
   "")
     echo "ERROR: No subcommand provided. Try: changeman.sh --help" >&2

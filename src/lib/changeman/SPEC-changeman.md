@@ -1,6 +1,6 @@
 # Change Manager (changeman)
 
-CLI utility for change lifecycle operations. Supports the `new` subcommand for creating change directories and the `rename` subcommand for renaming an existing change folder's slug.
+CLI utility for change lifecycle operations. Supports `new`, `rename`, `resolve`, and `switch` subcommands.
 
 ## Sources of Truth
 
@@ -20,6 +20,14 @@ CHANGEMAN="path/to/changeman.sh"
 # Rename an existing change
 "$CHANGEMAN" rename --folder 260216-u6d5-old-slug --slug new-slug
 
+# Resolve a change name
+"$CHANGEMAN" resolve a7k2
+"$CHANGEMAN" resolve          # reads fab/current
+
+# Switch active change
+"$CHANGEMAN" switch a7k2
+"$CHANGEMAN" switch --blank   # deactivate
+
 # Help
 "$CHANGEMAN" --help
 ```
@@ -32,6 +40,8 @@ CHANGEMAN="path/to/changeman.sh"
 |------------|-------|--------|------|
 | `new --slug <slug> [--change-id <4char>] [--log-args <desc>]` | slug (required), optional id and log args | folder name to stdout | 0 success, 1 error |
 | `rename --folder <current-folder> --slug <new-slug>` | folder (required), slug (required) | new folder name to stdout | 0 success, 1 error |
+| `resolve [<override>]` | optional name/substring | resolved folder name to stdout | 0 success, 1 error |
+| `switch <name> \| --blank` | name or --blank | structured summary to stdout | 0 success, 1 error |
 | `--help` | — | usage text | 0 |
 
 ### `new` Subcommand
@@ -92,18 +102,66 @@ CHANGEMAN="path/to/changeman.sh"
 - New name same as current → `ERROR: New name is the same as current name`
 - Unknown flags → error
 
+### `resolve` Subcommand
+
+**Arguments:**
+- `<override>` (optional) — Full or partial change name. Case-insensitive substring matching against `fab/changes/` folders (excluding `archive/`). If omitted, reads `fab/current`.
+
+**Behavior:**
+- **No override**: reads `fab/current`, strips whitespace, prints folder name to stdout
+- **With override**: exact match wins; single partial match resolves; multiple → error listing matches; no match → error
+
+**Error cases:**
+- Missing `fab/current` (no override) → `No active change.`
+- Empty `fab/current` (no override) → `No active change.`
+- `fab/changes/` missing (override mode) → `fab/changes/ not found.`
+- No active changes → `No active changes found.`
+- Multiple matches → `Multiple changes match "X": a, b.`
+- No match → `No change matches "X".`
+
+Error messages are generic — callers add context-appropriate guidance.
+
+### `switch` Subcommand
+
+**Arguments:**
+- `<name>` — Change name or partial match to switch to.
+- `--blank` — Deactivate the current change (delete `fab/current`).
+
+**Behavior (normal):**
+1. Resolves change name via internal `resolve` logic
+2. Writes folder name to `fab/current`
+3. Reads `config.yaml` via `yq` for `git.enabled` and `git.branch_prefix` (defaults: true, "")
+4. Git branch integration: checkout if exists, create if not. Non-fatal on failure.
+5. Derives current stage via `$STAGEMAN current-stage`
+6. Outputs structured summary (name, stage, branch, next command)
+
+**Behavior (deactivation):**
+1. Deletes `fab/current` (no-op if absent)
+2. Outputs confirmation
+
+**Output format:**
+```
+fab/current → {name}
+
+Stage:  {stage} ({N}/6)
+Branch: {branch} ({created|checked out})
+
+Next: {suggested command}
+```
+
 ## Requirements
 
 - Bash 4.0+
+- `yq` v4 (Mike Farah Go binary) — for config.yaml parsing in `switch`
 - `fab/.kit/scripts/lib/stageman.sh` on the same relative path
 - `fab/.kit/templates/status.yaml` for template
 - `fab/changes/` directory must exist
-- GNU coreutils (sed, head, mkdir, date)
-- Optional: `gh` CLI, `git` (for `detect_created_by`)
+- GNU coreutils (sed, head, mkdir, date, tr)
+- Optional: `gh` CLI, `git` (for `detect_created_by` and branch integration)
 
 ## Testing
 
 ```bash
-# Run bats test suite
+# Run bats test suite (57 tests)
 bats src/lib/changeman/test.bats
 ```

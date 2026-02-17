@@ -60,9 +60,8 @@ fab/.kit/
     ├── fab-update-claude-settings.sh
     └── lib/                # Internal scripts (not user-facing)
         ├── calc-score.sh       # Confidence score computation
-        ├── changeman.sh        # Change Manager — change lifecycle operations (new, rename)
-        ├── preflight.sh        # Pre-flight validation (calls stageman CLI, sources resolve-change)
-        ├── resolve-change.sh   # Change name resolution library (sourced)
+        ├── changeman.sh        # Change Manager — change lifecycle operations (new, rename, resolve, switch)
+        ├── preflight.sh        # Pre-flight validation (calls stageman + changeman CLI)
         └── stageman.sh         # Stage Manager — schema query + .status.yaml accessors
 ```
 
@@ -84,17 +83,20 @@ Internal helper functions (`validate_state`, `validate_stage`, `get_allowed_stat
 
 Accessor subcommands use a line-oriented output pattern (`key:value` per line) — consumers parse with `while IFS=: read -r key val`. Lives in `scripts/lib/` to indicate it is internal plumbing. The comprehensive test suite (`src/lib/stageman/test.bats`, 53 tests) serves as a contract test for any future reimplementation (e.g., Rust binary).
 
-#### `lib/resolve-change.sh`
-
-Change name resolution library. Sourced by `lib/preflight.sh`. Provides `resolve_change(fab_root, override)` which sets `RESOLVED_CHANGE_NAME` on success. Handles: exact match, case-insensitive substring (single/multiple), no match, missing `fab/current`, missing `fab/changes/` directory, archive folder exclusion. Error messages are generic — callers add their own context-appropriate guidance.
-
 #### `lib/calc-score.sh`
 
 Internal library script for confidence score computation. Scans the `## Assumptions` table in `spec.md` only (not intake.md — intake assumptions are state transfer, not scored), counts all four SRAD grades (Certain, Confident, Tentative, Unresolved; case-insensitive), extracts dimension scores from the required `Scores` column (`cols[6]`), applies the confidence formula, delegates the `.status.yaml` write to `$STAGEMAN set-confidence` / `$STAGEMAN set-confidence-fuzzy` (CLI subprocess calls), calls `$STAGEMAN log-confidence` to record the score change in `.history.jsonl`, and emits YAML with delta to stdout. Invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). Not called directly by users. Dev folder: `src/lib/calc-score/` (symlink, README, smoke test, comprehensive test suite).
 
 #### `lib/changeman.sh`
 
-Change Manager — CLI-only utility for change lifecycle operations. Supports the `new` subcommand for creating change directories and the `rename` subcommand for renaming an existing change folder's slug. Does NOT require `yq` (uses `sed` for template filling and name field updates). All stageman interactions are via CLI subprocess calls (`$STAGEMAN <subcommand>`). Interface: `changeman.sh new --slug <slug> [--change-id <4char>] [--log-args <description>]` and `changeman.sh rename --folder <current-folder> --slug <new-slug>`. The `new` subcommand performs: argument parsing/validation, date generation (`YYMMDD`), random or provided 4-char ID generation, slug format validation (alphanumeric + hyphens), folder name construction (`{YYMMDD}-{XXXX}-{slug}`), collision detection (fatal for provided IDs, retry for random, up to 10 attempts), directory creation (`mkdir`, not `-p`), `created_by` detection (`gh api user` → `git config user.name` → `"unknown"`, silent fallback), `.status.yaml` template filling via `sed`, and stageman integration (`set-state intake active fab-new`, conditional `log-command`). The `rename` subcommand performs: argument parsing/validation, source folder existence check, `{YYMMDD}-{XXXX}` prefix extraction (first two segments), new name construction, same-name and destination collision detection, folder rename via `mv`, `.status.yaml` `name` field update via `sed`, conditional `fab/current` update, and stageman logging (`log-command`). Both subcommands print the folder name to stdout; errors to stderr. Called by `/fab-new` (Step 3). Designed CLI-first for eventual Rust rewrite parity with stageman.
+Change Manager — CLI-only utility for change lifecycle operations. Supports `new`, `rename`, `resolve`, and `switch` subcommands. Requires `yq` v4 for `switch` (config.yaml parsing); other subcommands use `sed` only. All stageman interactions are via CLI subprocess calls (`$STAGEMAN <subcommand>`).
+
+- **`new --slug <slug> [--change-id <4char>] [--log-args <description>]`** — Creates a change directory. Performs: argument parsing/validation, date generation (`YYMMDD`), random or provided 4-char ID generation, slug format validation (alphanumeric + hyphens), folder name construction (`{YYMMDD}-{XXXX}-{slug}`), collision detection (fatal for provided IDs, retry for random, up to 10 attempts), directory creation (`mkdir`, not `-p`), `created_by` detection (`gh api user` → `git config user.name` → `"unknown"`, silent fallback), `.status.yaml` template filling via `sed`, and stageman integration (`set-state intake active fab-new`, conditional `log-command`). Called by `/fab-new` (Step 3).
+- **`rename --folder <current-folder> --slug <new-slug>`** — Renames an existing change folder's slug while preserving date-ID prefix. Performs: source folder existence check, `{YYMMDD}-{XXXX}` prefix extraction, same-name and destination collision detection, folder rename via `mv`, `.status.yaml` `name` field update via `sed`, conditional `fab/current` update, and stageman logging.
+- **`resolve [<override>]`** — Resolves a change name. No-arg mode reads `fab/current` (strips whitespace). Override mode does case-insensitive substring matching against `fab/changes/` (excludes `archive/`). Exact match wins; single partial match resolves; multiple → error listing matches; no match → error. Outputs resolved folder name to stdout; errors to stderr. Error messages are generic — callers add context-appropriate guidance.
+- **`switch <name> | --blank`** — Switches the active change. Composes: resolve name via internal `resolve` logic, write `fab/current`, read `config.yaml` via `yq` for `git.enabled`/`git.branch_prefix` (defaults: true, ""), git branch checkout/create (non-fatal on failure), derive stage via `$STAGEMAN current-stage`, output structured summary. `--blank` deactivates by deleting `fab/current`. Called by `/fab-switch`.
+
+All subcommands print results to stdout; errors to stderr. Designed CLI-first for eventual Rust rewrite parity with stageman.
 
 #### `fab-help.sh`
 
@@ -237,7 +239,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 *Source*: doc/fab-spec/ARCHITECTURE.md
 
 ### lib/ Subfolder for Internal Scripts
-**Decision**: Internal scripts (`stageman.sh`, `resolve-change.sh`, `calc-score.sh`, `preflight.sh`) live in `fab/.kit/scripts/lib/` without underscore prefix. User-facing scripts (`fab-help.sh`, `fab-sync.sh`, `fab-upgrade.sh`, batch scripts) remain in the parent `scripts/` directory.
+**Decision**: Internal scripts (`stageman.sh`, `changeman.sh`, `calc-score.sh`, `preflight.sh`) live in `fab/.kit/scripts/lib/` without underscore prefix. User-facing scripts (`fab-help.sh`, `fab-sync.sh`, `fab-upgrade.sh`, batch scripts) remain in the parent `scripts/` directory.
 **Why**: The `lib/` subfolder provides a clearer structural boundary between internal plumbing and user-facing entry points than naming conventions alone. All internal scripts are co-located, making the dependency graph explicit. The directory structure is more discoverable than prefix conventions.
 **Rejected**: Underscore prefix convention (previous approach) — naming conventions are less discoverable than directory structure; the prefix was inconsistent (`_init_scaffold.sh` used underscore+name while others used underscore only).
 
@@ -251,6 +253,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260216-oinh-DEV-1045-fold-resolve-into-changeman | 2026-02-17 | Folded `resolve-change.sh` into `changeman.sh` as `resolve` and `switch` subcommands. Removed `resolve-change.sh` from lib/ directory listing. Updated changeman description (4 subcommands, yq dependency for switch). Updated preflight description (calls changeman CLI instead of sourcing resolve-change). Migrated all callers (preflight, batch scripts) from source+variable pattern to CLI subprocess. Updated lib/ design decision script list. |
 | 260217-17pe-DEV-1046-scaffold-setup-templates | 2026-02-17 | Added `config.yaml` and `constitution.md` to scaffold directory listing. Updated scaffold comment from "read by fab-sync.sh" to "read by fab-sync.sh and /fab-setup" |
 | 260216-ymvx-DEV-1043-envrc-line-sync | 2026-02-16 | Replaced `.envrc` symlink management with line-ensuring sync in `fab-sync.sh` section 2. Scaffold `envrc` comment updated from "template (shipped)" to "required entries (line-ensuring)". `fab-sync.sh` description updated to reflect `.envrc` line-ensuring and symlink migration. |
 | 260216-pr1u-DEV-1017-add-archive-gitkeep | 2026-02-16 | Added `fab/changes/archive/` to `fab-sync.sh` directory creation loop and `fab/changes/archive/.gitkeep` conditional touch. Updated fab-sync.sh description to enumerate created directories and .gitkeep files. |
@@ -262,7 +265,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 | 260215-9yjx-DEV-1022-create-changeman-script | 2026-02-15 | Added `changeman.sh` to `lib/` directory listing and Shell Scripts section. New script handles change creation lifecycle (folder name construction, collision detection, directory creation, created_by detection, .status.yaml initialization, stageman integration). Called by `/fab-new` Step 3. |
 | 260215-g4r2-DEV-1023-batch-rename-default-list | 2026-02-15 | Renamed batch scripts from `batch-{verb}-{entity}.sh` to `batch-fab-{verb}-{entity}.sh`; changed no-arg behavior from showing help to showing `--list` output; updated directory tree, naming pattern, and script descriptions |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Updated directory listing: `brief.md` → `intake.md` in templates. Updated script references from brief to intake |
-| 260215-lqm5-stageman-cli-only | 2026-02-15 | Migrated `stageman.sh` to CLI-only interface: added ~25 read/query subcommands, added `set-confidence-fuzzy` write subcommand, removed dual-mode (`source`/CLI) scaffolding (`BASH_SOURCE` guard, `return \|\| exit` patterns). Migrated `preflight.sh` and `calc-score.sh` from `source stageman.sh` to `$STAGEMAN <subcommand>` subprocess calls. `resolve-change.sh` remains source-only (variable-setting pattern). Test suites (131 tests) converted to CLI invocation pattern as contract tests for future Rust rewrite. |
+| 260215-lqm5-stageman-cli-only | 2026-02-15 | Migrated `stageman.sh` to CLI-only interface: added ~25 read/query subcommands, added `set-confidence-fuzzy` write subcommand, removed dual-mode (`source`/CLI) scaffolding (`BASH_SOURCE` guard, `return \|\| exit` patterns). Migrated `preflight.sh` and `calc-score.sh` from `source stageman.sh` to `$STAGEMAN <subcommand>` subprocess calls. Test suites (131 tests) converted to CLI invocation pattern as contract tests for future Rust rewrite. |
 | 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Relocated `memory/` and `specs/` from `fab/` to `docs/`; updated `_init_scaffold.sh` to create `docs/memory/` and `docs/specs/`; updated preserved files list; added migration file `0.2.0-to-0.3.0.md` |
 | 260213-k7m2-kit-version-migrations | 2026-02-14 | Added `fab/.kit/migrations/` directory and `fab-update.md` skill to directory listing; updated version tracking to dual-version model; updated `_init_scaffold.sh` description (fab/VERSION creation); updated `fab-upgrade.sh` (drift reminder) and `fab-release.sh` (migration chain validation) descriptions; updated preserved/replaced lists |
 | 260214-w3r8-stageman-write-api | 2026-02-14 | Added write functions + CLI to `_stageman.sh` (`set_stage_state`, `transition_stages`, `set_checklist_field`, `set_confidence_block`); refactored `_calc-score.sh` to source `_stageman.sh` and delegate writes to `set_confidence_block` |

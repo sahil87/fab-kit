@@ -12,7 +12,7 @@ The preflight script (`fab/.kit/scripts/lib/preflight.sh`) validates the active 
 
 `lib/preflight.sh` outputs a YAML document to stdout containing the active change's resolved state. Fields include:
 
-- `name` — the change folder name (resolved via `lib/resolve-change.sh`)
+- `name` — the change folder name (resolved via `lib/changeman.sh resolve`)
 - `change_dir` — path to `fab/changes/{name}/`, relative to `fab/`
 - `stage` — current stage (derived via `get_current_stage` from `lib/stageman.sh`)
 - `progress` — full progress map (all 6 stages with their status, via `get_progress_map`)
@@ -32,7 +32,7 @@ Agents consume this output by running the script via Bash and parsing the stdout
 The script validates in this order, stopping at the first failure:
 
 1. `fab/config.yaml` and `fab/constitution.md` exist (project initialized)
-2. Change name resolves (via `lib/resolve-change.sh` — from `$1` override or `fab/current`)
+2. Change name resolves (via `lib/changeman.sh resolve` — from `$1` override or `fab/current`)
 3. Change directory `fab/changes/{name}/` exists
 4. `.status.yaml` exists within the change directory
 5. `.status.yaml` passes schema validation via `validate_status_file()` from `lib/stageman.sh` (catches invalid states, missing stages, multiple active stages)
@@ -41,9 +41,9 @@ Each failure exits with code 1 and prints a diagnostic message to stderr.
 
 ### Accessor-Based Architecture
 
-The script sources `lib/resolve-change.sh` (variable-setting pattern) and invokes `lib/stageman.sh` via CLI subprocess calls (`$STAGEMAN <subcommand>`), delegating all `.status.yaml` parsing to stageman subcommands:
+The script invokes `lib/changeman.sh` and `lib/stageman.sh` via CLI subprocess calls, delegating all resolution and `.status.yaml` parsing to their respective subcommands:
 
-- **Change resolution**: `resolve_change` from `lib/resolve-change.sh` (still sourced — uses variable-setting pattern incompatible with subprocess invocation) handles both default mode (reads `fab/current`) and override mode (fuzzy matching against `fab/changes/`)
+- **Change resolution**: `$CHANGEMAN resolve [override]` handles both default mode (reads `fab/current`) and override mode (case-insensitive substring matching against `fab/changes/`). Returns resolved folder name to stdout; errors to stderr.
 - **Progress extraction**: `$STAGEMAN progress-map` returns `stage:state` pairs, consumed via `while IFS=: read -r`
 - **Stage derivation**: `$STAGEMAN current-stage` (which itself uses `progress-map` internally)
 - **Checklist fields**: `$STAGEMAN checklist` returns `generated`, `completed`, `total` with defaults
@@ -54,7 +54,7 @@ No inline `grep | sed` parsing of `.status.yaml` — all field extraction goes t
 
 ### No External Dependencies
 
-The script uses only POSIX-standard tools (`grep`, `sed`, `tr`, `cat`), Bash builtins, and `lib/resolve-change.sh` (sourced). It invokes `lib/stageman.sh` as a CLI subprocess — stageman requires `yq` v4, but preflight itself has no direct `yq` dependency.
+The script uses only POSIX-standard tools (`grep`, `sed`, `tr`, `cat`) and Bash builtins. It invokes `lib/changeman.sh` and `lib/stageman.sh` as CLI subprocesses — both require `yq` v4, but preflight itself has no direct `yq` dependency.
 
 ### Idempotent and Read-Only
 
@@ -79,20 +79,22 @@ Skills exempt from preflight: `init`, `switch`, `status`, `hydrate`, `help`, `ne
 *Updated by*: 260215-lqm5-stageman-cli-only (previously "Accessor Functions Over Inline Parsing")
 
 ### lib/ Subfolder for Internal Scripts
-**Decision**: All internal scripts (`preflight.sh`, `stageman.sh`, `resolve-change.sh`, `calc-score.sh`, `sync-workspace.sh`) live in `fab/.kit/scripts/lib/` without underscore prefix, replacing the previous `_`-prefixed convention in the parent `scripts/` directory.
+**Decision**: All internal scripts (`preflight.sh`, `stageman.sh`, `changeman.sh`, `calc-score.sh`, `sync-workspace.sh`) live in `fab/.kit/scripts/lib/` without underscore prefix, replacing the previous `_`-prefixed convention in the parent `scripts/` directory.
 **Why**: The `lib/` subfolder provides a clearer structural boundary between internal plumbing and user-facing scripts than naming conventions alone. All internal scripts are co-located, making the dependency graph explicit.
 **Rejected**: Retaining underscore prefix — naming conventions are less discoverable than directory structure.
 *Introduced by*: 260214-q7f2-reorganize-src
 
-### Shared Change Resolution Library
-**Decision**: Change name resolution (fuzzy matching against `fab/changes/`) extracted to `lib/resolve-change.sh`, sourced by `lib/preflight.sh`, `fab-status.sh`, and the `/fab-switch` skill (via Bash invocation in the Argument Flow).
-**Why**: Multiple callers had identical resolution logic. The library uses a variable-setting pattern (`RESOLVED_CHANGE_NAME`) for clean exit code handling, and keeps error messages generic so callers add their own context. `/fab-switch` delegates to the shell script rather than performing in-prompt string matching, making resolution deterministic regardless of model tier.
-**Rejected**: Consolidating into `lib/stageman.sh` — change resolution is pure filesystem/string matching with no stage awareness; mixing concerns would violate stageman's schema-query focus.
+### Change Resolution via changeman CLI
+**Decision**: Change name resolution (fuzzy matching against `fab/changes/`) is a `resolve` subcommand of `lib/changeman.sh`, invoked as a CLI subprocess by `lib/preflight.sh`, batch scripts, and `/fab-switch` (via `changeman.sh switch` which calls `resolve` internally).
+**Why**: Resolution is a change lifecycle operation — it belongs with other change operations in changeman rather than as a standalone sourced library. The CLI subprocess pattern (`$CHANGEMAN resolve <override>`) is consistent with stageman's interface and enables future Rust rewrite. Error messages remain generic — callers add context-appropriate guidance.
+**Rejected**: Keeping as a standalone sourced library (`resolve-change.sh`) — the variable-setting pattern (`RESOLVED_CHANGE_NAME`) was inconsistent with the CLI subprocess convention used by all other lib/ scripts. Consolidating into stageman — change resolution is filesystem/string matching with no stage awareness.
+*Updated by*: 260216-oinh-DEV-1045-fold-resolve-into-changeman (previously "Shared Change Resolution Library" using `resolve-change.sh`)
 
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260216-oinh-DEV-1045-fold-resolve-into-changeman | 2026-02-17 | Replaced `source resolve-change.sh` / `$RESOLVED_CHANGE_NAME` with `$CHANGEMAN resolve` CLI subprocess call. Updated all references from resolve-change.sh to changeman.sh resolve. Rewrote "Shared Change Resolution Library" → "Change Resolution via changeman CLI" design decision. Updated No External Dependencies section. |
 | 260216-jmy4-DEV-1044-switch-shell-name-resolution | 2026-02-16 | Updated Shared Change Resolution Library decision: `/fab-switch` now sources `resolve-change.sh` for name resolution in its Argument Flow (previously only `preflight.sh` and `fab-status.sh` sourced it) |
 | 260215-lqm5-stageman-cli-only | 2026-02-15 | Migrated from `source stageman.sh` to `$STAGEMAN <subcommand>` CLI subprocess calls; `resolve-change.sh` remains sourced (variable-setting pattern); updated design decision from "Accessor Functions" to "CLI Subprocess" |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Moved from `_preflight.sh` to `lib/preflight.sh`; updated all internal references from `_stageman.sh`/`_resolve-change.sh` to `lib/stageman.sh`/`lib/resolve-change.sh`; updated path resolution from `../../` to `../../..`; added lib/ subfolder design decision |

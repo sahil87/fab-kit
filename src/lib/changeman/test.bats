@@ -1,10 +1,7 @@
 #!/usr/bin/env bats
 
 # Test suite for changeman.sh
-# Covers: new happy path, slug validation, change-id validation,
-#         random ID generation, collision detection, --help, error cases,
-#         detect_created_by fallback, stageman integration,
-#         rename happy path, rename validation, rename error cases
+# Covers: new, rename, resolve, switch subcommands
 
 SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
 CHANGEMAN="$(readlink -f "$SCRIPT_DIR/changeman.sh")"
@@ -397,4 +394,201 @@ STUB
   [ "$status" -eq 0 ]
   grep -q "log-command" "$STAGEMAN_LOG"
   grep -q "changeman-rename" "$STAGEMAN_LOG"
+}
+
+# ── resolve: exact match ─────────────────────────────────────────
+
+@test "resolve: exact match resolves" {
+  mkdir -p "$FAB_ROOT/changes/260213-puow-consolidate-status-reads"
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" resolve "260213-puow-consolidate-status-reads"
+  [ "$status" -eq 0 ]
+  [ "$output" = "260213-puow-consolidate-status-reads" ]
+}
+
+# ── resolve: substring match ─────────────────────────────────────
+
+@test "resolve: single substring match resolves" {
+  mkdir -p "$FAB_ROOT/changes/260213-puow-consolidate-status-reads"
+  mkdir -p "$FAB_ROOT/changes/260213-k7m2-kit-version-migrations"
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" resolve "puow"
+  [ "$status" -eq 0 ]
+  [ "$output" = "260213-puow-consolidate-status-reads" ]
+}
+
+@test "resolve: 4-char ID match resolves" {
+  mkdir -p "$FAB_ROOT/changes/260212-f9m3-enhance-srad-fuzzy"
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" resolve "f9m3"
+  [ "$status" -eq 0 ]
+  [ "$output" = "260212-f9m3-enhance-srad-fuzzy" ]
+}
+
+# ── resolve: case insensitive ────────────────────────────────────
+
+@test "resolve: uppercase substring resolves" {
+  mkdir -p "$FAB_ROOT/changes/260213-puow-consolidate-status-reads"
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" resolve "PUOW"
+  [ "$status" -eq 0 ]
+  [ "$output" = "260213-puow-consolidate-status-reads" ]
+}
+
+# ── resolve: multiple match ──────────────────────────────────────
+
+@test "resolve: multiple matches returns error" {
+  mkdir -p "$FAB_ROOT/changes/260213-puow-consolidate-status-reads"
+  mkdir -p "$FAB_ROOT/changes/260213-k7m2-kit-version-migrations"
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" resolve "260213"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Multiple changes match"* ]]
+}
+
+# ── resolve: no match ────────────────────────────────────────────
+
+@test "resolve: no match returns error" {
+  mkdir -p "$FAB_ROOT/changes/260213-puow-consolidate-status-reads"
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" resolve "nonexistent"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"No change matches"* ]]
+}
+
+# ── resolve: fab/current ─────────────────────────────────────────
+
+@test "resolve: reads fab/current when no override" {
+  mkdir -p "$FAB_ROOT/changes/260213-puow-consolidate-status-reads"
+  echo "260213-puow-consolidate-status-reads" > "$FAB_ROOT/current"
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" resolve
+  [ "$status" -eq 0 ]
+  [ "$output" = "260213-puow-consolidate-status-reads" ]
+}
+
+@test "resolve: fab/current with trailing whitespace resolves" {
+  printf "260213-puow-consolidate-status-reads\n  " > "$FAB_ROOT/current"
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" resolve
+  [ "$status" -eq 0 ]
+  [ "$output" = "260213-puow-consolidate-status-reads" ]
+}
+
+# ── resolve: no active change ────────────────────────────────────
+
+@test "resolve: missing fab/current returns error" {
+  rm -f "$FAB_ROOT/current"
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" resolve
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"No active change"* ]]
+}
+
+@test "resolve: empty fab/current returns error" {
+  echo "" > "$FAB_ROOT/current"
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" resolve
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"No active change"* ]]
+}
+
+# ── resolve: missing changes directory ───────────────────────────
+
+@test "resolve: missing changes directory returns error" {
+  rm -rf "$FAB_ROOT/changes"
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" resolve "something"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"fab/changes/ not found"* ]]
+}
+
+# ── resolve: archive exclusion ───────────────────────────────────
+
+@test "resolve: archive folder excluded from matches" {
+  mkdir -p "$FAB_ROOT/changes/archive"
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" resolve "archive"
+  [ "$status" -ne 0 ]
+}
+
+@test "resolve: error message does not contain command suggestions" {
+  rm -f "$FAB_ROOT/current"
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" resolve
+  [[ "$output" != *"Run /fab"* ]]
+}
+
+# ── switch: normal flow ──────────────────────────────────────────
+
+@test "switch: writes fab/current" {
+  mkdir -p "$FAB_ROOT/changes/260216-a7k2-add-oauth"
+  cat > "$FAB_ROOT/changes/260216-a7k2-add-oauth/.status.yaml" <<'YAML'
+progress:
+  intake: active
+  spec: pending
+  tasks: pending
+  apply: pending
+  review: pending
+  hydrate: pending
+YAML
+
+  # Make stageman stub return a stage
+  cat > "$FAB_ROOT/.kit/scripts/lib/stageman.sh" <<STUB
+#!/usr/bin/env bash
+if [ "\$1" = "current-stage" ]; then echo "intake"; exit 0; fi
+echo "\$@" >> "$STAGEMAN_LOG"
+STUB
+  chmod +x "$FAB_ROOT/.kit/scripts/lib/stageman.sh"
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" switch "a7k2"
+  [ "$status" -eq 0 ]
+  [ "$(cat "$FAB_ROOT/current")" = "260216-a7k2-add-oauth" ]
+}
+
+@test "switch: output includes stage and next command" {
+  mkdir -p "$FAB_ROOT/changes/260216-a7k2-add-oauth"
+  cat > "$FAB_ROOT/changes/260216-a7k2-add-oauth/.status.yaml" <<'YAML'
+progress:
+  intake: done
+  spec: active
+  tasks: pending
+  apply: pending
+  review: pending
+  hydrate: pending
+YAML
+
+  cat > "$FAB_ROOT/.kit/scripts/lib/stageman.sh" <<STUB
+#!/usr/bin/env bash
+if [ "\$1" = "current-stage" ]; then echo "spec"; exit 0; fi
+echo "\$@" >> "$STAGEMAN_LOG"
+STUB
+  chmod +x "$FAB_ROOT/.kit/scripts/lib/stageman.sh"
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" switch "a7k2"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"fab/current → 260216-a7k2-add-oauth"* ]]
+  [[ "$output" == *"Stage:  spec (2/6)"* ]]
+  [[ "$output" == *"Next:"* ]]
+}
+
+# ── switch: deactivation ─────────────────────────────────────────
+
+@test "switch --blank: deletes fab/current" {
+  printf 'some-change' > "$FAB_ROOT/current"
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" switch --blank
+  [ "$status" -eq 0 ]
+  [ ! -f "$FAB_ROOT/current" ]
+  [[ "$output" == *"No active change."* ]]
+}
+
+@test "switch --blank: already blank" {
+  rm -f "$FAB_ROOT/current"
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" switch --blank
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"already blank"* ]]
+}
+
+# ── switch: no argument ──────────────────────────────────────────
+
+@test "switch: no argument produces error" {
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" switch
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"requires"* ]]
+}
+
+# ── help includes resolve and switch ─────────────────────────────
+
+@test "--help includes resolve and switch" {
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" --help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"resolve"* ]]
+  [[ "$output" == *"switch"* ]]
 }

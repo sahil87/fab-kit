@@ -92,7 +92,7 @@ confidence:
 - Bash 4.0+
 - GNU coreutils (grep, sed, awk)
 - `stageman.sh` accessible at `$(dirname "$0")/stageman.sh`
-- `resolve-change.sh` accessible at `$(dirname "$0")/resolve-change.sh`
+- `changeman.sh` accessible at `$(dirname "$0")/changeman.sh`
 
 ## Testing
 
