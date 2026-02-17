@@ -571,10 +571,14 @@ validate_status_file() {
 
 # resolve_change_dir <change_dir>
 # If change_dir is relative, resolve it against the git repo root.
+# Falls back to deriving root from this script's location when outside a git repo.
 resolve_change_dir() {
   local dir="$1"
   if [[ "$dir" != /* ]]; then
-    dir="$(git rev-parse --show-toplevel)/$dir"
+    local root
+    root="$(git rev-parse --show-toplevel 2>/dev/null)" \
+      || root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"/../../.. && pwd)"
+    dir="$root/$dir"
   fi
   echo "$dir"
 }

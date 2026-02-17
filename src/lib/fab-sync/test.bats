@@ -162,28 +162,32 @@ YAML
   [ "$(cat "$REPO_ROOT/fab/VERSION")" = "0.5.0" ]
 }
 
-# ── .envrc Symlink ──────────────────────────────────────────────────
+# ── .envrc File ─────────────────────────────────────────────────────
 
-@test "creates .envrc symlink" {
+@test "creates .envrc file with scaffold entries" {
   run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
-  [ -L "$REPO_ROOT/.envrc" ]
-  [ -e "$REPO_ROOT/.envrc" ]
+  [ -f "$REPO_ROOT/.envrc" ]
+  ! [ -L "$REPO_ROOT/.envrc" ]
+  grep -qxF "layout_variable" "$REPO_ROOT/.envrc"
 }
 
-@test "repairs broken .envrc symlink" {
+@test "migrates .envrc symlink to regular file" {
   ln -s "nonexistent/path" "$REPO_ROOT/.envrc"
   run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
-  [ -L "$REPO_ROOT/.envrc" ]
-  [ -e "$REPO_ROOT/.envrc" ]
+  [ -f "$REPO_ROOT/.envrc" ]
+  ! [ -L "$REPO_ROOT/.envrc" ]
+  grep -qxF "layout_variable" "$REPO_ROOT/.envrc"
 }
 
-@test "replaces regular .envrc file with symlink" {
+@test "preserves existing .envrc and appends missing entries" {
   echo "old content" > "$REPO_ROOT/.envrc"
   run bash "$KIT/scripts/fab-sync.sh"
   [ "$status" -eq 0 ]
-  [ -L "$REPO_ROOT/.envrc" ]
+  ! [ -L "$REPO_ROOT/.envrc" ]
+  grep -qxF "old content" "$REPO_ROOT/.envrc"
+  grep -qxF "layout_variable" "$REPO_ROOT/.envrc"
 }
 
 # ── Memory/Specs Index Seeding ──────────────────────────────────────
