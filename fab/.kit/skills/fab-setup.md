@@ -57,38 +57,38 @@ Each step is **idempotent** — skip if the artifact already exists and is valid
 
 #### 1a. `fab/config.yaml`
 
-If missing: execute **Config Behavior** (below) in create mode.
-If exists: report "config.yaml already exists — skipping".
+If missing or raw template (contains `{PROJECT_NAME}`): execute **Config Behavior** (below) in create mode.
+If exists and not a raw template: report "config.yaml already exists — skipping".
 
 #### 1b. `fab/constitution.md`
 
-If missing: execute **Constitution Behavior** (below) in create mode.
-If exists: report "constitution.md already exists — skipping".
+If missing or raw template (contains `{Project Name}`): execute **Constitution Behavior** (below) in create mode.
+If exists and not a raw template: report "constitution.md already exists — skipping".
 
 #### 1b2. `fab/context.md`
 
-If missing: copy `fab/.kit/scaffold/context.md` to `fab/context.md`. Report "Created: fab/context.md".
+If missing: copy `fab/.kit/scaffold/fab/context.md` to `fab/context.md`. Report "Created: fab/context.md".
 If exists: skip.
 
 #### 1b3. `fab/code-quality.md`
 
-If missing: copy `fab/.kit/scaffold/code-quality.md` to `fab/code-quality.md`. Report "Created: fab/code-quality.md".
+If missing: copy `fab/.kit/scaffold/fab/code-quality.md` to `fab/code-quality.md`. Report "Created: fab/code-quality.md".
 If exists: skip.
 
 #### 1b4. `fab/code-review.md`
 
-If missing: copy `fab/.kit/scaffold/code-review.md` to `fab/code-review.md`. Report "Created: fab/code-review.md".
+If missing: copy `fab/.kit/scaffold/fab/code-review.md` to `fab/code-review.md`. Report "Created: fab/code-review.md".
 If exists: skip.
 
 #### 1c. `docs/memory/index.md`
 
-If missing, create `docs/memory/` directory and copy `fab/.kit/scaffold/memory-index.md` to `docs/memory/index.md`.
+If missing, create `docs/memory/` directory and copy `fab/.kit/scaffold/docs/memory/index.md` to `docs/memory/index.md`.
 
 If exists: skip.
 
 #### 1d. `docs/specs/index.md`
 
-If missing, create `docs/specs/` directory and copy `fab/.kit/scaffold/specs-index.md` to `docs/specs/index.md`.
+If missing, create `docs/specs/` directory and copy `fab/.kit/scaffold/docs/specs/index.md` to `docs/specs/index.md`.
 
 If exists: skip.
 
@@ -177,7 +177,7 @@ When `fab/config.yaml` does not exist:
 
 1. Read the project's README, package.json, or other root-level files for context
 2. Ask the user: project name, description, source paths
-3. Read `fab/.kit/scaffold/config.yaml` as the starting template
+3. Read `fab/.kit/scaffold/fab/config.yaml` as the starting template
 4. Substitute placeholders with user-provided values: `{PROJECT_NAME}`, `{PROJECT_DESCRIPTION}`, `{SOURCE_PATHS}`
 5. Write the result to `fab/config.yaml`
 6. Output: `Created fab/config.yaml`
@@ -254,7 +254,7 @@ Create a new project constitution or amend an existing one with semantic version
 When `fab/constitution.md` does not exist:
 
 1. Read project context from `fab/config.yaml` + README, existing docs, codebase structure
-2. Read `fab/.kit/scaffold/constitution.md` as the starting skeleton
+2. Read `fab/.kit/scaffold/fab/constitution.md` as the starting skeleton
 3. Generate principles based on the project's actual patterns, tech stack, and constraints — fill in the skeleton structure (replace `{Project Name}`, `{Principle Name}`, `{DATE}` placeholders; generate 3-7 principles with MUST/SHALL/SHOULD keywords)
 4. Write the result to `fab/constitution.md`
 5. Output: `Created fab/constitution.md (version 1.0.0) with {N} principles.`

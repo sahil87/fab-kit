@@ -41,14 +41,21 @@ fab/.kit/
 │   ├── tasks.md
 │   ├── checklist.md
 │   └── status.yaml         # .status.yaml template (includes stage_metrics: {})
-├── scaffold/               # Bootstrap content (read by fab-sync.sh and /fab-setup)
-│   ├── config.yaml         # Default config.yaml template with placeholders (read by /fab-setup config)
-│   ├── constitution.md     # Constitution skeleton with placeholders (read by /fab-setup constitution)
-│   ├── envrc               # .envrc required entries (line-ensuring)
-│   ├── gitignore-entries   # .gitignore entries (one per line)
-│   ├── memory-index.md     # Initial docs/memory/index.md content
-│   ├── specs-index.md      # Initial docs/specs/index.md content
-│   └── sync-readme.md      # README template for fab/sync/ (project-specific sync scripts)
+├── scaffold/               # Overlay tree — paths mirror repo root destinations
+│   ├── fragment-.envrc     # .envrc required entries (line-ensuring merge)
+│   ├── fragment-.gitignore # .gitignore entries (line-ensuring merge)
+│   ├── .claude/
+│   │   └── fragment-settings.local.json  # Baseline permissions (JSON merge)
+│   ├── docs/
+│   │   ├── memory/index.md # Initial docs/memory/index.md (copy-if-absent)
+│   │   └── specs/index.md  # Initial docs/specs/index.md (copy-if-absent)
+│   └── fab/
+│       ├── config.yaml     # Default config.yaml template (copy-if-absent, /fab-setup detects)
+│       ├── constitution.md # Constitution skeleton (copy-if-absent, /fab-setup detects)
+│       ├── context.md      # Project context template (copy-if-absent)
+│       ├── code-quality.md # Code quality defaults (copy-if-absent)
+│       ├── code-review.md  # Review policy defaults (copy-if-absent)
+│       └── sync/README.md  # README template for fab/sync/ (copy-if-absent)
 ├── packages/               # Distributable CLI tools (idea, wt)
 │   ├── idea/bin/idea       # Per-repo idea backlog manager
 │   └── wt/                 # Git worktree management
@@ -94,7 +101,9 @@ Kit-level sync script. Runs `direnv allow` (idempotent, no guard needed). Execut
 
 #### `sync/3-sync-workspace.sh`
 
-Kit-level sync script (the largest sync step) containing the full workspace sync logic. Syncs kit assets (directories, symlinks, agent files, `.envrc` entries, `.gitignore` entries) into the workspace. Cleans up stale artifacts from previous kit versions. Creates directories (`fab/changes/`, `fab/changes/archive/`, `docs/memory/`, `docs/specs/`) with `.gitkeep` files in `fab/changes/` and `fab/changes/archive/`. Creates `docs/memory/index.md`, `docs/specs/index.md`, `fab/VERSION`, `.envrc` entries, and `.gitignore` entries. Reads bootstrap content from `scaffold/` files (index templates, envrc, gitignore entries) rather than hardcoding them. Both `.envrc` and `.gitignore` use additive line-ensuring: read required lines from scaffold, append any that are missing. Existing symlinks from `.envrc` to `scaffold/envrc` (previous approach) are automatically migrated to real files. Creates `fab/VERSION` using the dual-version model: new projects get the engine version, existing projects (detected via `config.yaml` presence) get `0.1.0` base version, existing `fab/VERSION` is preserved. Scaffolds `fab/sync/README.md` from `scaffold/sync-readme.md` if the directory exists and the file does not. It is the single source of truth for structural setup. `/fab-setup` delegates to `fab-sync.sh` (the orchestrator) and adds the interactive parts (config, constitution).
+Kit-level sync script (the largest sync step) containing the full workspace sync logic. Organized into 4 sections: (1) directories, (1b) fab/VERSION, (2) scaffold tree-walk, (3+3b+4) skill symlinks and agent files. Cleans up stale artifacts from previous kit versions. Creates directories (`fab/changes/`, `fab/changes/archive/`, `docs/memory/`, `docs/specs/`) with `.gitkeep` files in `fab/changes/` and `fab/changes/archive/`. Creates `fab/VERSION` using the dual-version model: new projects get the engine version, existing projects (detected via `config.yaml` presence) get `0.1.0` base version, existing `fab/VERSION` is preserved.
+
+The scaffold tree-walk (section 2) generically processes all files under `scaffold/` using the overlay tree convention: each file's path relative to `scaffold/` mirrors its destination relative to the repo root. Strategy dispatch is based on the `fragment-` filename prefix: `fragment-` + `.json` → `json_merge_permissions` (merge `permissions.allow` arrays via jq), `fragment-` + other → `line_ensure_merge` (append non-duplicate, non-comment lines), no prefix → copy-if-absent. Both merge helpers are defined in the same file. `line_ensure_merge` absorbs the legacy `.envrc` symlink-to-file migration (resolves symlink targets before line-ensuring). Template files (`config.yaml`, `constitution.md`) are copied by the tree-walk via copy-if-absent; `/fab-setup` detects raw templates at runtime by checking for placeholder strings (`{PROJECT_NAME}`, `{Project Name}`) and overwrites them interactively. It is the single source of truth for structural setup. `/fab-setup` delegates to `fab-sync.sh` (the orchestrator) and adds the interactive parts (config, constitution).
 
 #### `lib/stageman.sh`
 
@@ -272,6 +281,12 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 **Why**: The `lib/` subfolder provides a clearer structural boundary between internal plumbing and user-facing entry points than naming conventions alone. All internal scripts are co-located, making the dependency graph explicit. The directory structure is more discoverable than prefix conventions.
 **Rejected**: Underscore prefix convention (previous approach) — naming conventions are less discoverable than directory structure; the prefix was inconsistent (`_init_scaffold.sh` used underscore+name while others used underscore only).
 
+### Scaffold Overlay Tree with Fragment Prefix
+**Decision**: `scaffold/` is structured as a repo-root overlay tree where file paths mirror their destinations. Files requiring merge strategies use a `fragment-` filename prefix. Template files (config.yaml, constitution.md) are detected at runtime by `/fab-setup` via placeholder string checks rather than being excluded from the tree-walk via a skip-list.
+**Why**: Implicit mapping — a file's path IS its destination, no lookup table needed. Adding a new scaffold file only requires dropping it in the right location. The `fragment-` prefix is self-describing (only 3 of 11 files need it), avoids a coordination manifest file, and enables generic strategy dispatch. Template detection in fab-setup (rather than a skip-list in the tree-walk) keeps the tree-walk fully generic with zero special cases.
+**Rejected**: Flat scaffold directory with bespoke sync sections — required a new code block per file, hardcoded path mappings. Also rejected: `.merge-rules` manifest file — adds a coordination file when the prefix convention is simpler. Also rejected: skip-list in tree-walk for fab-setup files — couples sync to fab-setup ownership, and would incorrectly skip `scaffold/fab/sync/README.md` if using subtree exclusion.
+*Source*: 260218-09fa-scaffold-overlay-tree
+
 ### Single Entry Point for Workspace Sync
 **Decision**: `fab-sync.sh` is a thin orchestrator that iterates `fab/.kit/sync/*.sh` then `fab/sync/*.sh`. All sync logic lives in the iterated scripts, not in the orchestrator.
 **Why**: Eliminates the previous circular chain (`worktree-init.sh` → `2-rerun-sync-workspace.sh` → `fab-sync.sh`). Single entry point serves both new worktree setup and re-sync. Scripts self-locate via `$0` — the orchestrator passes no context.
@@ -299,6 +314,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260218-09fa-scaffold-overlay-tree | 2026-02-18 | Restructured `scaffold/` from flat directory to repo-root overlay tree. Files now mirror destination paths; 3 merge files use `fragment-` prefix (`.envrc`, `.gitignore`, `settings.local.json`), 8 others use copy-if-absent. Replaced 6 bespoke sections (2, 3, 4, 7, 8, 9) in `3-sync-workspace.sh` with generic tree-walk dispatching on `fragment-` prefix and file extension. Extracted `line_ensure_merge` and `json_merge_permissions` helper functions (absorbing legacy `.envrc` symlink migration). Updated `fab-setup.md`: 7 scaffold path references, template detection for `config.yaml`/`constitution.md` (placeholder check instead of existence check). Updated `0.7.0-to-0.8.0.md` scaffold path. Renumbered sync script sections (1, 1b, 2, 3, 3b, 4). Added "Scaffold Overlay Tree" design decision. |
 | 260218-e0tj-document-wt-idea-packages | 2026-02-18 | Added static PACKAGES footer section to `fab-help.sh` listing wt commands (wt-create, wt-list, wt-open, wt-delete, wt-init, wt-pr) and idea with one-liner descriptions. Created `docs/specs/packages.md` covering both packages at concept/workflow level (overview, wt section with assembly-line integration, idea section with backlog→fab-new flow, package architecture). Added packages.md entry to `docs/specs/index.md`. Updated `fab-help.sh` description to mention PACKAGES section. |
 | 260218-qcqx-harden-wt-resilience | 2026-02-18 | Added resilience patterns to wt package: LIFO rollback stack with EXIT trap (`wt_register_rollback`, `wt_rollback`, `wt_disarm_rollback`), signal handling (`wt_cleanup_on_signal` for INT/TERM), hash-based stash (`wt_stash_create`/`wt_stash_apply` using `git stash create`+`store`), branch name validation (`wt_validate_branch_name`). Integrated into wt-create (rollback, traps, validation, dirty-state check) and wt-delete (hash-based stash migration, signal traps, stash rollback registration). Added `wt-pr` command for PR-based worktree creation via `gh` CLI. Moved shared worktree creation functions from wt-create to wt-common.sh. Updated bin listing to include wt-pr. Added 2 design decisions (rollback stack, hash-based stash). |
 | 260218-cif4-eliminate-symlinks-distribute-packages | 2026-02-18 | Eliminated 5 test-to-production symlinks in `src/lib/` — tests now use repo-root-relative paths. Moved package production code (idea, wt) from `src/packages/` to `fab/.kit/packages/` for distribution via `kit.tar.gz`. Added `env-packages.sh` script (sourced by `.envrc` and `rc-init.sh`) for centralized PATH setup. Added `packages/` to directory tree, `env-packages.sh` to scripts section. Updated `fab-upgrade.sh` description (symlinks → directories and agents). Updated calc-score.sh dev folder description (removed symlink reference). Updated "Replaced" list to include `packages/`. |
