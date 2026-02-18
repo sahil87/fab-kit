@@ -1,0 +1,122 @@
+# Packages
+
+Fab Kit ships two standalone CLI packages alongside the skill-based pipeline. Unlike skills (which are Claude Code prompts invoked via `/`), packages are plain shell scripts that run directly in the terminal — no AI agent required.
+
+Both packages live inside `fab/.kit/packages/` and are added to PATH via `env-packages.sh` during workspace setup. They complement the fab pipeline: **wt** provides the worktree isolation that enables parallel changes, and **idea** provides the backlog that feeds `/fab-new`.
+
+---
+
+## wt (Worktree Management)
+
+Git worktrees let you have multiple checkouts of the same repository side by side. The wt package wraps `git worktree` with opinionated defaults for the fab workflow: worktrees are created as siblings in `<repo>-worktrees/`, names are memorable random words, and each worktree can run its own fab change independently.
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `wt-create` | Create a git worktree for parallel development |
+| `wt-list` | List all git worktrees for the current repository |
+| `wt-open` | Open a git worktree in an editor, terminal, or file manager |
+| `wt-delete` | Delete a git worktree with optional branch cleanup |
+| `wt-init` | Run the init script for the current worktree |
+| `wt-pr` | Create a git worktree for reviewing a GitHub pull request |
+
+Run `<command> help` for full usage details.
+
+### Integration with Fab
+
+The wt package is the foundation of the [assembly-line pattern](assembly-line.md). Each fab change gets its own worktree, enabling parallel AI sessions — one tmux tab per change, zero conflicts between them.
+
+The batch scripts orchestrate this at scale:
+
+- **`batch-fab-new-backlog`** — Creates a worktree per backlog item, opens tmux tabs, runs `/fab-new` in each
+- **`batch-fab-switch-change`** — Creates a worktree per existing change, opens tmux tabs with Claude sessions
+- **`batch-fab-archive-change`** — Archives completed changes across worktrees
+
+### Common Workflows
+
+**Start a new change in isolation:**
+```bash
+wt-create                    # Creates a worktree with a random name
+cd ../repo-worktrees/name/   # Enter the worktree
+# Work on your change — main repo is untouched
+```
+
+**Review a pull request:**
+```bash
+wt-pr 42                     # Creates a worktree checked out to PR #42's branch
+# Review, test, comment — then wt-delete to clean up
+```
+
+**Clean up when done:**
+```bash
+wt-delete                    # Removes the worktree and optionally its branch
+```
+
+---
+
+## idea (Backlog Management)
+
+The idea command manages a per-repo backlog stored in `fab/backlog.md`. It's a lightweight CRUD tool for capturing, triaging, and tracking ideas before they become fab changes.
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `idea "text"` | Add a new idea to the backlog |
+| `idea list` | List open (uncompleted) ideas |
+| `idea show <query>` | Show a single idea matching the query |
+| `idea done <query>` | Mark an idea as done |
+| `idea reopen <query>` | Reopen a completed idea |
+| `idea edit <query> "text"` | Modify an idea's text |
+| `idea rm <query>` | Delete an idea |
+
+Each idea gets a short 4-character ID (e.g., `[a7k2]`) and a timestamp. Queries match against IDs or text (substring, case-insensitive).
+
+### Integration with Fab
+
+The idea → fab pipeline:
+
+1. **Capture**: `idea "add retry logic to API client"` — appends to `fab/backlog.md`
+2. **Triage**: `idea list` — review open ideas, decide what to build next
+3. **Start work**: `/fab-new` can accept a backlog ID to create a change from an idea, pulling the description directly from the backlog
+4. **Close**: `idea done a7k2` — marks the idea as completed after the change ships
+
+The `batch-fab-new-backlog` script automates step 3 at scale — it reads all open backlog items and creates a worktree + Claude session per item.
+
+### Common Workflows
+
+**Capture ideas throughout the day:**
+```bash
+idea "refactor auth middleware to use JWT"
+idea "add rate limiting to public endpoints"
+idea "update README with new setup instructions"
+```
+
+**Triage and start work:**
+```bash
+idea list                     # Review what's pending
+# Pick the ones to work on next
+batch-fab-new-backlog --all   # Create changes from all open ideas
+```
+
+---
+
+## Package Architecture
+
+Packages live inside `fab/.kit/packages/`, which means they ship with `kit.tar.gz` and are replaced on `fab-upgrade.sh` runs — same lifecycle as skills and templates.
+
+```
+fab/.kit/packages/
+├── idea/
+│   └── bin/idea              # Single executable
+└── wt/
+    ├── bin/                  # Executables (wt-create, wt-list, wt-open, wt-delete, wt-init, wt-pr)
+    └── lib/wt-common.sh      # Shared library (sourced by bin/ scripts)
+```
+
+**Convention**: Each package has a `bin/` directory containing executable commands. Packages with shared logic use a `lib/` directory for sourceable libraries. Commands in `bin/` are the public interface; `lib/` is internal.
+
+**PATH setup**: `fab/.kit/scripts/env-packages.sh` iterates all `fab/.kit/packages/*/bin` directories and adds them to PATH. This script is sourced by `.envrc` (for direnv-based projects) and can be sourced from shell rc files.
+
+**Distribution**: Packages are part of the kit archive — `fab-release.sh` packages them into `kit.tar.gz`, and `fab-upgrade.sh` replaces them atomically alongside skills and templates. No separate installation step.
