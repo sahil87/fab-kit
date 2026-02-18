@@ -10,6 +10,10 @@ setup_suite() {
     # Add fixtures directory to PATH so mock apps are found first
     export PATH="$BATS_TEST_DIRNAME/fixtures:$PATH"
 
+    # Add wt bin directory to PATH (production code lives in fab/.kit/packages/)
+    REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../../.." && pwd)"
+    export PATH="$REPO_ROOT/fab/.kit/packages/wt/bin:$PATH"
+
     # Create a temporary directory for test artifacts
     export BATS_SUITE_TMPDIR="${BATS_TEST_DIRNAME}/../.tmp"
     mkdir -p "$BATS_SUITE_TMPDIR"

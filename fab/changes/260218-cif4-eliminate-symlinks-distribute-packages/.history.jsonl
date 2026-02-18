@@ -1,1 +1,6 @@
 {"ts":"2026-02-18T13:34:48+05:30","event":"command","cmd":"fab-new","args":"Restructure fab-kit: eliminate symlinks from src/lib, move package production code into fab/.kit/packages for distribution"}
+{"ts":"2026-02-18T13:41:34+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-18T13:43:24+05:30","event":"confidence","score":4.7,"delta":"+4.7","trigger":"calc-score"}
+{"ts":"2026-02-18T13:44:01+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-18T13:52:35+05:30","event":"review","result":"failed","rework":"fix-code"}
+{"ts":"2026-02-18T13:55:40+05:30","event":"review","result":"passed"}

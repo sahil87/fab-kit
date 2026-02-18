@@ -3,8 +3,8 @@
 # Test suite for changeman.sh
 # Covers: new, rename, resolve, switch subcommands
 
-SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
-CHANGEMAN="$(readlink -f "$SCRIPT_DIR/changeman.sh")"
+REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../.." && pwd)"
+CHANGEMAN="$REPO_ROOT/fab/.kit/scripts/lib/changeman.sh"
 
 setup() {
   TEST_DIR="$(mktemp -d)"

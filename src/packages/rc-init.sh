@@ -10,9 +10,5 @@ else
   return 1 2>/dev/null || exit 1
 fi
 
-# Add all packages/*/bin directories to PATH
-for pkg_bin in "$SCRIPT_DIR"/*/bin; do
-  if [ -d "$pkg_bin" ]; then
-    export PATH="$pkg_bin:$PATH"
-  fi
-done
+# Delegate to the kit's env-packages.sh for PATH setup
+source "$SCRIPT_DIR/../../fab/.kit/scripts/env-packages.sh"

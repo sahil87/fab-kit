@@ -4,8 +4,8 @@
 # Covers: state queries, stage queries, progression, validation,
 #         .status.yaml accessors, write functions, stage metrics, history logging
 
-SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
-STAGEMAN="$(readlink -f "$SCRIPT_DIR/stageman.sh")"
+REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../.." && pwd)"
+STAGEMAN="$REPO_ROOT/fab/.kit/scripts/lib/stageman.sh"
 
 setup() {
   TEST_DIR="$(mktemp -d)"

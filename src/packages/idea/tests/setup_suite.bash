@@ -7,8 +7,9 @@ setup_suite() {
     # Save original PATH
     export ORIGINAL_PATH="$PATH"
 
-    # Add idea bin directory to PATH
-    export PATH="${BATS_TEST_DIRNAME}/../bin:$PATH"
+    # Add idea bin directory to PATH (production code lives in fab/.kit/packages/)
+    REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../../.." && pwd)"
+    export PATH="$REPO_ROOT/fab/.kit/packages/idea/bin:$PATH"
 
     # Create a temporary directory for test artifacts
     export BATS_SUITE_TMPDIR="${BATS_TEST_DIRNAME}/../.tmp"

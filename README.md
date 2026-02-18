@@ -299,7 +299,7 @@ Grades aggregate into a **confidence score** that gates `/fab-ff`. If ambiguity 
 
 ## Packages
 
-Fab Kit ships standalone shell CLI tools in `src/packages/`. These are general-purpose developer workflow utilities — independent of the fab pipeline.
+Fab Kit ships standalone shell CLI tools in `fab/.kit/packages/`. These are general-purpose developer workflow utilities — independent of the fab pipeline — and are distributed automatically via `kit.tar.gz`.
 
 | Package | Purpose |
 |---------|---------|
@@ -314,7 +314,7 @@ Add to your `~/.zshrc` (or `~/.bashrc`):
 source /path/to/fab-kit/src/packages/rc-init.sh
 ```
 
-This puts all package `bin/` directories on your PATH.
+This delegates to `fab/.kit/scripts/env-packages.sh`, which puts all package `bin/` directories on your PATH. Projects using direnv get this automatically via `.envrc`.
 
 ### Development
 

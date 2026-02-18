@@ -135,7 +135,7 @@ for group in "${group_order[@]}"; do
 
   # Render hardcoded non-skill entries for Setup group
   if [ "$group" = "Setup" ]; then
-    format_entry "fab-sync.sh" "Repair directories, symlinks, and agents (no LLM needed)"
+    format_entry "fab-sync.sh" "Repair directories and agents (no LLM needed)"
   fi
 done
 

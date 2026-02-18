@@ -5,8 +5,8 @@
 #         delta computation, error cases, fuzzy dimension parsing, gate check,
 #         backward compatibility, edge cases, fuzzy status write
 
-SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
-CALC_SCORE="$(readlink -f "$SCRIPT_DIR/calc-score.sh")"
+REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../.." && pwd)"
+CALC_SCORE="$REPO_ROOT/fab/.kit/scripts/lib/calc-score.sh"
 
 setup() {
   TEST_DIR="$(mktemp -d)"

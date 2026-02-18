@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-# Path resolution (works from both .kit/scripts/lib/ and symlinks)
+# Path resolution
 LIB_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 FAB_ROOT="$(cd "$LIB_DIR/../../.." && pwd)"
 STAGEMAN="$LIB_DIR/stageman.sh"

@@ -4,7 +4,7 @@ set -euo pipefail
 # fab/.kit/scripts/fab-upgrade.sh — Update fab/.kit/ from GitHub Releases
 #
 # Downloads the latest kit.tar.gz, atomically replaces fab/.kit/, displays
-# the version change, and re-runs fab-sync.sh to repair symlinks.
+# the version change, and re-runs fab-sync.sh to repair directories and agents.
 #
 # Requires: gh CLI (https://cli.github.com/)
 # Safe to re-run. Existing project files (config.yaml, memory/, etc.) are never touched.
@@ -93,7 +93,7 @@ echo "fab/.kit/ updated successfully."
 # ── Re-run setup ─────────────────────────────────────────────────────
 
 echo ""
-echo "Running fab-sync.sh to repair symlinks..."
+echo "Running fab-sync.sh to repair directories and agents..."
 bash "$kit_dir/scripts/fab-sync.sh"
 
 # ── Version drift check ──────────────────────────────────────────────

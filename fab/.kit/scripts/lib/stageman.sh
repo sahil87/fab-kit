@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-# Locate workflow schema (works from both .kit/scripts/lib/ and src/lib/stageman/ symlink)
+# Locate workflow schema relative to this script
 STAGEMAN_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 WORKFLOW_SCHEMA="$STAGEMAN_DIR/../../schemas/workflow.yaml"
 
