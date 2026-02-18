@@ -1,5 +1,6 @@
 # Archive Index
 
+- **260217-j3a3-dynamic-fab-help-generation** — Rewrote fab-help.sh to dynamically generate command list from skill file frontmatter instead of hardcoding it, extracted frontmatter_field() to a shared lib, and deleted the redundant .claude/agents/fab-help.md agent file.
 - **260218-hpzb-fix-calc-score-path-refs** — Fixed short-form `calc-score.sh` path references in skill files to use repo-root-relative `fab/.kit/scripts/lib/calc-score.sh`, matching the convention from the stageman path fix.
 - **260218-bb93-restructure-config-yaml** — Extracted context and code_quality sections from config.yaml to companion markdown files, deleted dead stages: section, and merged model-tiers.yaml into config.yaml.
 - **260218-95xn-split-stage-display-from-routing** — Split stage display from routing in stageman/preflight/changeman so users see "where you are" vs "what's next" instead of a single misleading stage indicator.
