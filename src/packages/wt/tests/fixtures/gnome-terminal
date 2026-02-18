@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Mock gnome-terminal executable for testing
+
+if [[ -n "${MOCK_LOG:-}" ]]; then
+    echo "gnome-terminal $*" >> "$MOCK_LOG"
+fi
+
+exit 0

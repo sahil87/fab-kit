@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Mock VS Code executable for testing
+
+if [[ -n "${MOCK_LOG:-}" ]]; then
+    echo "code $*" >> "$MOCK_LOG"
+fi
+
+exit 0

@@ -297,6 +297,34 @@ Grades aggregate into a **confidence score** that gates `/fab-ff`. If ambiguity 
 | `/fab-archive` | Archive a completed change |
 | `/docs-hydrate-memory [sources...]` | Ingest external docs into memory |
 
+## Packages
+
+Fab Kit ships standalone shell CLI tools in `src/packages/`. These are general-purpose developer workflow utilities — independent of the fab pipeline.
+
+| Package | Purpose |
+|---------|---------|
+| **idea** | Per-repo idea backlog in `fab/backlog.md` — add, list, edit, complete, remove |
+| **wt** | Git worktree management — create, open, list, delete worktrees with random naming |
+
+### Setup
+
+Add to your `~/.zshrc` (or `~/.bashrc`):
+
+```bash
+source /path/to/fab-kit/src/packages/rc-init.sh
+```
+
+This puts all package `bin/` directories on your PATH.
+
+### Development
+
+After cloning, initialize shared test dependencies:
+
+```bash
+bash src/packages/setup.sh    # clones bats submodules
+just test-packages             # run all package tests
+```
+
 ## Learn More
 
 - **[The Assembly Line](docs/specs/assembly-line.md)** — batch scripts, Gantt charts, and the full numbers behind parallel development

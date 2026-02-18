@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+#
+# wt-list - List all git worktrees
+#
+# Usage: wt-list
+#        wt-list help
+
+set -euo pipefail
+
+# ============================================================================
+# Initialization
+# ============================================================================
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../lib/wt-common.sh"
+
+# ============================================================================
+# List Worktrees
+# ============================================================================
+
+wt_list_worktrees_formatted() {
+    wt_get_repo_context
+    local current_path
+    current_path=$(pwd)
+
+    echo "Worktrees for: ${WT_BOLD}$WT_REPO_NAME${WT_RESET}"
+    echo "Location: $WT_WORKTREES_DIR"
+    echo ""
+
+    local count=0
+    while IFS=$'\t' read -r path branch; do
+        local name marker=""
+
+        if [[ "$path" == "$current_path" ]]; then
+            marker="${WT_GREEN}*${WT_RESET} "
+        else
+            marker="  "
+        fi
+
+        if [[ "$path" == "$WT_REPO_ROOT" ]]; then
+            name="${WT_BOLD}(main)${WT_RESET}"
+        else
+            name=$(basename "$path")
+        fi
+
+        printf "%s%-14s %-22s %s\n" "$marker" "$name" "$branch" "$path"
+        count=$((count + 1))
+    done < <(wt_list_worktrees)
+
+    echo ""
+    echo "Total: $count worktree(s)"
+}
+
+# ============================================================================
+# Help
+# ============================================================================
+
+wt_show_help() {
+    cat <<EOF
+Usage: wt-list
+
+Lists all git worktrees for the current repository.
+
+The current worktree is marked with an asterisk (*).
+
+Options:
+  help    Show this help message
+
+Examples:
+  wt-list    # List all worktrees
+EOF
+}
+
+# ============================================================================
+# Main Entry Point
+# ============================================================================
+
+main() {
+    if [[ "${1:-}" == "help" || "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+        wt_show_help
+        exit "$WT_EXIT_SUCCESS"
+    fi
+
+    wt_validate_git_repo
+    wt_list_worktrees_formatted
+}
+
+main "$@"

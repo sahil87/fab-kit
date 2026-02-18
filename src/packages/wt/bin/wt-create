@@ -1,0 +1,386 @@
+#!/usr/bin/env bash
+#
+# wt-create - Git worktree creation with memorable random names
+#
+# Usage: wt-create [OPTIONS] [BRANCH]
+#        wt-create help
+#
+# Creates git worktrees as siblings to the main repository in <repo>-worktrees/
+#
+# Environment variables:
+#   WT_CREATE_RETRIES - Max attempts for unique name generation (default: 10)
+#   WORKTREE_INIT_SCRIPT - Worktree init script path (default: fab/.kit/worktree-init.sh)
+
+set -euo pipefail
+
+# ============================================================================
+# Initialization
+# ============================================================================
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../lib/wt-common.sh"
+
+WT_CREATE_RETRIES="${WT_CREATE_RETRIES:-$WT_DEFAULT_RETRIES}"
+
+# ============================================================================
+# Core Git Operations
+# ============================================================================
+
+# Ensure worktrees directory exists
+wt_ensure_worktrees_dir() {
+    if [[ ! -d "$WT_WORKTREES_DIR" ]]; then
+        mkdir -p "$WT_WORKTREES_DIR" || {
+            wt_error_with_code "$WT_EXIT_GENERAL_ERROR" \
+                "Cannot create worktrees directory" \
+                "Failed to create directory at $WT_WORKTREES_DIR" \
+                "Check permissions on $(dirname "$WT_WORKTREES_DIR")"
+        }
+    fi
+}
+
+# Create a new worktree
+# Args: $1 = worktree path, $2 = branch name, $3 = "new" if creating new branch
+wt_create_worktree() {
+    local wt_path="$1"
+    local branch="$2"
+    local mode="${3:-existing}"
+
+    if [[ "$mode" == "new" ]]; then
+        local default_branch
+        default_branch=$(wt_get_default_branch)
+        git worktree add -b "$branch" "$wt_path" "$default_branch" 2>/dev/null || {
+            wt_error_with_code "$WT_EXIT_GIT_ERROR" \
+                "Failed to create worktree" \
+                "git worktree add failed for branch '$branch' at '$wt_path'" \
+                "Check if the branch already exists or if there are permission issues"
+        }
+    else
+        git worktree add "$wt_path" "$branch" 2>/dev/null || {
+            wt_error_with_code "$WT_EXIT_GIT_ERROR" \
+                "Failed to create worktree" \
+                "git worktree add failed for branch '$branch' at '$wt_path'" \
+                "The branch may already be checked out in another worktree"
+        }
+    fi
+}
+
+# Fetch a remote branch and set up tracking
+wt_fetch_remote_branch() {
+    local branch="$1"
+    git fetch origin "$branch:$branch" 2>/dev/null || {
+        wt_error_with_code "$WT_EXIT_GIT_ERROR" \
+            "Failed to fetch remote branch '$branch'" \
+            "git fetch origin $branch failed" \
+            "Verify the branch exists on origin with 'git ls-remote origin $branch'"
+    }
+}
+
+# ============================================================================
+# Name Generation and Collision Detection
+# ============================================================================
+
+# Check if worktree name would collide with existing worktree
+wt_check_name_collision() {
+    local name="$1"
+    local wt_path="$WT_WORKTREES_DIR/$name"
+    [[ -d "$wt_path" ]]
+}
+
+# Generate a unique random name with retry logic
+wt_generate_unique_name() {
+    local attempt=0
+    local name
+
+    while ((attempt < WT_CREATE_RETRIES)); do
+        name=$(wt_generate_random_name)
+        if ! wt_check_name_collision "$name"; then
+            echo "$name"
+            return 0
+        fi
+        ((attempt++))
+    done
+
+    wt_error_with_code "$WT_EXIT_RETRY_EXHAUSTED" \
+        "Could not find unique worktree name" \
+        "All $WT_CREATE_RETRIES random name attempts collided with existing worktrees" \
+        "Remove some worktrees from $WT_WORKTREES_DIR or increase WT_CREATE_RETRIES"
+}
+
+# ============================================================================
+# Worktree Setup
+# ============================================================================
+
+# Run init script in the newly created worktree if it exists
+# Args: $1 = worktree path, $2 = mode ("force" to skip prompt, "" to prompt)
+wt_run_worktree_setup() {
+    local wt_path="$1"
+    local mode="${2:-}"
+    local init_script="$wt_path/$WORKTREE_INIT_SCRIPT"
+
+    if [[ -f "$init_script" ]]; then
+        if [[ "$mode" == "force" ]]; then
+            echo "Running worktree init..."
+            (cd "$wt_path" && bash "$init_script")
+            echo "Worktree init complete."
+        else
+            echo ""
+            printf "Initialize worktree? [Y/n] "
+            read -r answer
+
+            if [[ -z "$answer" || "$answer" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+                echo "Running worktree init..."
+                (cd "$wt_path" && bash "$init_script")
+                echo "Worktree init complete."
+            fi
+        fi
+    fi
+}
+
+# ============================================================================
+# Worktree Creation
+# ============================================================================
+
+# Print success message
+wt_print_success() {
+    local name="$1"
+    local path="$2"
+    local branch="$3"
+
+    echo "Created worktree: $name"
+    echo "Path: $path"
+    echo "Branch: $branch"
+}
+
+# Create an exploratory worktree with given name
+wt_create_exploratory_worktree() {
+    local name="$1"
+
+    wt_ensure_worktrees_dir
+
+    local wt_path="$WT_WORKTREES_DIR/$name"
+    local branch="wt/$name"
+
+    wt_create_worktree "$wt_path" "$branch" "new"
+    wt_print_success "$name" "$wt_path" "$branch"
+
+    WT_PATH="$wt_path"
+}
+
+# Create worktree for a specified branch
+wt_create_branch_worktree() {
+    local branch="$1"
+    local name="$2"
+
+    wt_ensure_worktrees_dir
+
+    local wt_path="$WT_WORKTREES_DIR/$name"
+
+    if wt_branch_exists_locally "$branch"; then
+        wt_create_worktree "$wt_path" "$branch" "existing"
+    elif wt_branch_exists_remotely "$branch"; then
+        wt_fetch_remote_branch "$branch"
+        wt_create_worktree "$wt_path" "$branch" "existing"
+    else
+        wt_create_worktree "$wt_path" "$branch" "new"
+    fi
+
+    wt_print_success "$name" "$wt_path" "$branch"
+
+    WT_PATH="$wt_path"
+}
+
+# ============================================================================
+# Help
+# ============================================================================
+
+wt_show_help() {
+    local worktrees_path="<repo>-worktrees/"
+    if git rev-parse --git-common-dir &>/dev/null; then
+        local git_common_dir repo_root repo_name
+        git_common_dir=$(git rev-parse --git-common-dir)
+        repo_root="${git_common_dir%/.git}"
+        repo_name=$(basename "$repo_root")
+        worktrees_path="$(dirname "$repo_root")/${repo_name}-worktrees/"
+    fi
+
+    cat <<EOF
+Usage: wt-create [OPTIONS] [BRANCH]
+
+Creates a git worktree for parallel development.
+
+Arguments:
+  BRANCH    Branch to checkout (optional)
+            If omitted, creates wt/<random-name> branch
+
+Worktrees created at: $worktrees_path
+
+Options:
+  --worktree-name <name>   Set worktree name (skips name prompt)
+  --worktree-init <bool>   Run worktree init script: true (default) or false
+  --worktree-open <app>    Open in app after creation, or 'skip' to not open
+                           Apps: code, cursor, ghostty, tmux_window, byobu_tab
+                           Default: app menu (interactive), skip (non-interactive)
+  --non-interactive        Use defaults for all options, no prompts
+  help                     Show this help message
+
+Environment:
+  WT_CREATE_RETRIES        Max attempts for unique name (default: 10)
+  WORKTREE_INIT_SCRIPT     Worktree init script (default: fab/.kit/worktree-init.sh)
+
+Examples:
+  wt-create                                    # Interactive: prompts for name, runs init
+  wt-create feature/auth                       # Worktree for existing branch
+  wt-create --worktree-name my-wt              # Use specific name, no prompt
+  wt-create --worktree-open code               # Create and open in VSCode
+  wt-create --worktree-init false              # Skip init script
+  wt-create --non-interactive                  # Fully automated with defaults
+  wt-create --non-interactive --worktree-open cursor  # Automated, open in Cursor
+EOF
+}
+
+# ============================================================================
+# Main Entry Point
+# ============================================================================
+
+main() {
+    local branch_arg=""
+    local non_interactive=""
+    local worktree_name=""
+    local worktree_init=""
+    local worktree_open=""
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            help|--help|-h)
+                wt_show_help
+                exit "$WT_EXIT_SUCCESS"
+                ;;
+            --non-interactive)
+                non_interactive="true"
+                shift
+                ;;
+            --worktree-name)
+                if [[ -z "${2:-}" ]]; then
+                    wt_error_with_code "$WT_EXIT_INVALID_ARGS" \
+                        "Missing worktree name" \
+                        "--worktree-name requires an argument" \
+                        "Example: wt-create --worktree-name my-feature"
+                fi
+                worktree_name="$2"
+                shift 2
+                ;;
+            --worktree-init)
+                if [[ -z "${2:-}" ]]; then
+                    wt_error_with_code "$WT_EXIT_INVALID_ARGS" \
+                        "Missing value for --worktree-init" \
+                        "--worktree-init requires 'true' or 'false'" \
+                        "Example: wt-create --worktree-init false"
+                fi
+                if [[ "$2" != "true" && "$2" != "false" ]]; then
+                    wt_error_with_code "$WT_EXIT_INVALID_ARGS" \
+                        "Invalid value for --worktree-init: $2" \
+                        "--worktree-init accepts 'true' or 'false'" \
+                        "Example: wt-create --worktree-init false"
+                fi
+                worktree_init="$2"
+                shift 2
+                ;;
+            --worktree-open)
+                if [[ -z "${2:-}" ]]; then
+                    wt_error_with_code "$WT_EXIT_INVALID_ARGS" \
+                        "Missing value for --worktree-open" \
+                        "--worktree-open requires an app name or 'skip'" \
+                        "Example: wt-create --worktree-open code"
+                fi
+                worktree_open="$2"
+                shift 2
+                ;;
+            -*)
+                wt_error_with_code "$WT_EXIT_INVALID_ARGS" \
+                    "Unknown option: $1" \
+                    "This option is not recognized" \
+                    "Run 'wt-create help' for usage information"
+                ;;
+            *)
+                if [[ -z "$branch_arg" ]]; then
+                    branch_arg="$1"
+                else
+                    wt_error_with_code "$WT_EXIT_INVALID_ARGS" \
+                        "Too many arguments" \
+                        "Only one branch name can be specified" \
+                        "Run 'wt-create help' for usage information"
+                fi
+                shift
+                ;;
+        esac
+    done
+
+    # Apply defaults
+    worktree_init="${worktree_init:-true}"
+    if [[ -z "$worktree_open" ]]; then
+        if [[ "$non_interactive" == "true" ]]; then
+            worktree_open="skip"
+        else
+            worktree_open="prompt"
+        fi
+    fi
+
+    wt_validate_git_repo
+    wt_get_repo_context
+
+    # Determine suggested name
+    local suggested_name
+    if [[ -z "$branch_arg" ]]; then
+        suggested_name=$(wt_generate_unique_name)
+    else
+        suggested_name=$(wt_derive_worktree_name "$branch_arg")
+    fi
+
+    # Resolve final name
+    local final_name
+    if [[ -n "$worktree_name" ]]; then
+        final_name="$worktree_name"
+    elif [[ "$non_interactive" == "true" ]]; then
+        final_name="$suggested_name"
+    else
+        read -p "Worktree name [$suggested_name]: " final_name
+        final_name="${final_name:-$suggested_name}"
+    fi
+
+    # Check collision
+    if wt_check_name_collision "$final_name"; then
+        wt_error_with_code "$WT_EXIT_GENERAL_ERROR" \
+            "Worktree '$final_name' already exists" \
+            "A worktree with this name already exists at $WT_WORKTREES_DIR/$final_name" \
+            "Remove the existing worktree or use a different branch name"
+    fi
+
+    # Create worktree
+    if [[ -z "$branch_arg" ]]; then
+        wt_create_exploratory_worktree "$final_name"
+    else
+        wt_create_branch_worktree "$branch_arg" "$final_name"
+    fi
+
+    # Setup
+    if [[ "$worktree_init" == "true" ]]; then
+        if [[ "$non_interactive" == "true" || -z "$branch_arg" ]]; then
+            wt_run_worktree_setup "$WT_PATH" "force"
+        else
+            wt_run_worktree_setup "$WT_PATH"
+        fi
+    fi
+
+    # Open
+    if [[ "$worktree_open" == "prompt" ]]; then
+        "$SCRIPT_DIR/wt-open" "$WT_PATH"
+    elif [[ "$worktree_open" != "skip" ]]; then
+        "$SCRIPT_DIR/wt-open" --app "$worktree_open" "$WT_PATH"
+    fi
+
+    # Always output the full path as the last line
+    echo "$WT_PATH"
+}
+
+main "$@"

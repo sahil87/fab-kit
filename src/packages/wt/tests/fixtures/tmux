@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Mock tmux executable for testing
+
+if [[ -n "${MOCK_LOG:-}" ]]; then
+    echo "tmux $*" >> "$MOCK_LOG"
+fi
+
+exit 0
