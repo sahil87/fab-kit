@@ -1,1 +1,6 @@
 {"ts":"2026-02-18T16:49:03+05:30","event":"command","cmd":"fab-new","args":"Restructure fab/.kit/scaffold/ as a repo-root overlay tree with fragment- prefix convention"}
+{"ts":"2026-02-18T16:54:22+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-18T16:58:20+05:30","event":"confidence","score":3.8,"delta":"+3.8","trigger":"calc-score"}
+{"ts":"2026-02-18T17:08:41+05:30","event":"confidence","score":4.1,"delta":"+0.3","trigger":"calc-score"}
+{"ts":"2026-02-18T17:10:09+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-18T17:19:26+05:30","event":"review","result":"passed"}

@@ -51,6 +51,93 @@ yaml_value() {
   " "$file"
 }
 
+# line_ensure_merge <source> <target> <label>
+#   Read non-empty, non-comment lines from <source>. Append to <target> if missing.
+#   Creates <target> if absent. Resolves symlinks to real files (legacy migration).
+#   Prints Created/Updated/OK status using <label> for display.
+line_ensure_merge() {
+  local source="$1" target="$2" label="$3"
+
+  # Legacy migration: if target is a symlink, resolve to real file
+  if [ -L "$target" ]; then
+    local resolved
+    resolved="$(cat "$target" 2>/dev/null || true)"
+    rm "$target"
+    if [ -n "$resolved" ]; then
+      printf '%s\n' "$resolved" > "$target"
+    fi
+    echo "$label: migrated from symlink to file"
+  fi
+
+  local existed=false
+  [ -f "$target" ] && existed=true
+  local added=()
+
+  while IFS= read -r entry || [ -n "$entry" ]; do
+    [[ -z "$entry" || "$entry" == \#* ]] && continue
+    if [ ! -f "$target" ]; then
+      echo "$entry" > "$target"
+      added+=("$entry")
+    elif ! grep -qxF "$entry" "$target"; then
+      echo "" >> "$target"
+      echo "$entry" >> "$target"
+      added+=("$entry")
+    fi
+  done < "$source"
+
+  if [ ${#added[@]} -gt 0 ]; then
+    if [ "$existed" = false ]; then
+      echo "Created: $label (added ${added[*]})"
+    else
+      echo "Updated: $label (added ${added[*]})"
+    fi
+  else
+    echo "$label: OK"
+  fi
+}
+
+# json_merge_permissions <source> <target> <label>
+#   If <target> absent, copy <source>. If present, merge permissions.allow arrays via jq.
+#   Warns and skips if jq is not available.
+json_merge_permissions() {
+  local source="$1" target="$2" label="$3"
+
+  mkdir -p "$(dirname "$target")"
+
+  if [ ! -f "$target" ]; then
+    cp "$source" "$target"
+    local count
+    count=$(jq '.permissions.allow | length' "$target" 2>/dev/null || echo "?")
+    echo "Created: $label ($count permission rules)"
+  elif ! command -v jq >/dev/null 2>&1; then
+    echo "WARN: jq not found — skipping $label merge"
+  else
+    local merged
+    merged=$(jq -s '
+      (.[0].permissions.allow // []) as $scaffold |
+      (.[1] // {}) as $existing |
+      ($existing.permissions.allow // []) as $current |
+      ($scaffold | map(select(. as $s | $current | index($s) | not))) as $new |
+      if ($new | length) > 0 then
+        $existing | .permissions.allow = ($current + $new)
+      else
+        $existing
+      end
+    ' "$source" "$target")
+    local new_count
+    new_count=$(echo "$merged" | jq '
+      (input.permissions.allow // [] | length) as $before |
+      (.permissions.allow | length) - $before
+    ' - "$target")
+    if [ "$new_count" -gt 0 ]; then
+      printf '%s\n' "$merged" > "$target"
+      echo "Updated: $label (added $new_count permission rules)"
+    else
+      echo "$label: OK"
+    fi
+  fi
+}
+
 # ── 1. Directories ──────────────────────────────────────────────────
 docs_dir="$repo_root/docs"
 for dir in "$fab_dir/changes" "$fab_dir/changes/archive" "$docs_dir/memory" "$docs_dir/specs"; do
@@ -84,61 +171,56 @@ else
   echo "Created: fab/VERSION ($version)"
 fi
 
-# ── 2. .envrc (line-ensuring, same pattern as .gitignore) ─────────
-envrc_file="$repo_root/.envrc"
-envrc_entries="$kit_dir/scaffold/envrc"
+# ── 2. Scaffold tree-walk ─────────────────────────────────────────
+# Walk scaffold/ recursively. Dispatch based on fragment- prefix:
+#   fragment- + .json → json_merge_permissions
+#   fragment- + other → line_ensure_merge
+#   no prefix         → copy-if-absent
+scaffold_dir="$kit_dir/scaffold"
 
-if [ -f "$envrc_entries" ]; then
-  # Migrate: if .envrc is a symlink, replace with real file
-  if [ -L "$envrc_file" ]; then
-    resolved="$(cat "$envrc_file" 2>/dev/null || true)"
-    rm "$envrc_file"
-    if [ -n "$resolved" ]; then
-      printf '%s\n' "$resolved" > "$envrc_file"
+if [ -d "$scaffold_dir" ]; then
+  while IFS= read -r scaffold_file; do
+    # Compute path relative to scaffold/
+    rel_path="${scaffold_file#"$scaffold_dir"/}"
+    dir_part="$(dirname "$rel_path")"
+    file_name="$(basename "$rel_path")"
+
+    # Strip fragment- prefix if present
+    is_fragment=false
+    if [[ "$file_name" == fragment-* ]]; then
+      is_fragment=true
+      file_name="${file_name#fragment-}"
     fi
-    echo ".envrc: migrated from symlink to file"
-  fi
 
-  envrc_existed=false
-  [ -f "$envrc_file" ] && envrc_existed=true
-  added=()
-
-  while IFS= read -r entry || [ -n "$entry" ]; do
-    [[ -z "$entry" || "$entry" == \#* ]] && continue
-    if [ ! -f "$envrc_file" ]; then
-      echo "$entry" > "$envrc_file"
-      added+=("$entry")
-    elif ! grep -qxF "$entry" "$envrc_file"; then
-      echo "" >> "$envrc_file"
-      echo "$entry" >> "$envrc_file"
-      added+=("$entry")
-    fi
-  done < "$envrc_entries"
-
-  if [ ${#added[@]} -gt 0 ]; then
-    if [ "$envrc_existed" = false ]; then
-      echo "Created: .envrc (added ${added[*]})"
+    # Compute destination path
+    if [ "$dir_part" = "." ]; then
+      dest_path="$file_name"
     else
-      echo "Updated: .envrc (added ${added[*]})"
+      dest_path="$dir_part/$file_name"
     fi
-  else
-    echo ".envrc: OK"
-  fi
+
+    dest="$repo_root/$dest_path"
+
+    # Ensure parent directory exists
+    mkdir -p "$(dirname "$dest")"
+
+    # Dispatch strategy
+    if [ "$is_fragment" = true ]; then
+      case "$file_name" in
+        *.json) json_merge_permissions "$scaffold_file" "$dest" "$dest_path" ;;
+        *)      line_ensure_merge "$scaffold_file" "$dest" "$dest_path" ;;
+      esac
+    else
+      # copy-if-absent
+      if [ ! -f "$dest" ]; then
+        cp "$scaffold_file" "$dest"
+        echo "Created: $dest_path"
+      fi
+    fi
+  done < <(find "$scaffold_dir" -type f | sort)
 fi
 
-# ── 3. Memory index ────────────────────────────────────────────────
-if [ ! -f "$docs_dir/memory/index.md" ]; then
-  cp "$kit_dir/scaffold/memory-index.md" "$docs_dir/memory/index.md"
-  echo "Created: docs/memory/index.md"
-fi
-
-# ── 4. Specs index ────────────────────────────────────────────────
-if [ ! -f "$docs_dir/specs/index.md" ]; then
-  cp "$kit_dir/scaffold/specs-index.md" "$docs_dir/specs/index.md"
-  echo "Created: docs/specs/index.md"
-fi
-
-# ── 5. Skill symlinks ──────────────────────────────────────────────
+# ── 3. Skill symlinks ──────────────────────────────────────────────
 # Canonical list: every *.md in .kit/skills/ except _context.md
 skills=()
 for f in "$kit_dir"/skills/*.md; do
@@ -147,7 +229,7 @@ for f in "$kit_dir"/skills/*.md; do
   skills+=("$(basename "$f" .md)")
 done
 
-# ── 4b. Classify skills by model tier ─────────────────────────────────
+# ── 3b. Classify skills by model tier ─────────────────────────────────
 fast_skills=()
 for skill in "${skills[@]}"; do
   skill_file="$kit_dir/skills/${skill}.md"
@@ -299,7 +381,7 @@ clean_stale_skills "$repo_root/.opencode/commands" "flat"
 sync_agent_skills "Codex" "$repo_root/.agents/skills" "directory" "copy"
 clean_stale_skills "$repo_root/.agents/skills" "directory"
 
-# ── 6. Model tier agent files ────────────────────────────────────────
+# ── 4. Model tier agent files ────────────────────────────────────────
 # Fast-tier skills get generated agent files (in addition to skill symlinks)
 # so pipeline operations can invoke them with cost-appropriate models.
 
@@ -370,89 +452,6 @@ if [ ${#fast_skills[@]} -gt 0 ]; then
   done
   if [ "$stale_agents" -gt 0 ]; then
     echo "Cleaned: $stale_agents stale agent files from .claude/agents/"
-  fi
-fi
-
-# ── 7. .gitignore ──────────────────────────────────────────────────
-gitignore="$repo_root/.gitignore"
-gitignore_entries="$kit_dir/scaffold/gitignore-entries"
-
-if [ -f "$gitignore_entries" ]; then
-  gitignore_existed=false
-  [ -f "$gitignore" ] && gitignore_existed=true
-  added=()
-
-  while IFS= read -r entry || [ -n "$entry" ]; do
-    # Skip comments and empty lines
-    [[ -z "$entry" || "$entry" == \#* ]] && continue
-    if [ ! -f "$gitignore" ]; then
-      echo "$entry" > "$gitignore"
-      added+=("$entry")
-    elif ! grep -qxF "$entry" "$gitignore"; then
-      echo "" >> "$gitignore"
-      echo "$entry" >> "$gitignore"
-      added+=("$entry")
-    fi
-  done < "$gitignore_entries"
-
-  if [ ${#added[@]} -gt 0 ]; then
-    if [ "$gitignore_existed" = false ]; then
-      echo "Created: .gitignore (added ${added[*]})"
-    else
-      echo "Updated: .gitignore (added ${added[*]})"
-    fi
-  fi
-fi
-
-# ── 8. .claude/settings.local.json (JSON merge) ─────────────────────
-# Scaffold provides baseline permissions for fab-kit scripts, git, gh, etc.
-# If the file exists, merge scaffold entries into existing allow list.
-# If it doesn't exist, copy the scaffold as-is.
-settings_scaffold="$kit_dir/scaffold/settings.local.json"
-settings_target="$repo_root/.claude/settings.local.json"
-
-if [ -f "$settings_scaffold" ]; then
-  mkdir -p "$repo_root/.claude"
-
-  if [ ! -f "$settings_target" ]; then
-    cp "$settings_scaffold" "$settings_target"
-    count=$(jq '.permissions.allow | length' "$settings_target")
-    echo "Created: .claude/settings.local.json ($count permission rules)"
-  elif command -v jq >/dev/null 2>&1; then
-    merged=$(jq -s '
-      (.[0].permissions.allow // []) as $scaffold |
-      (.[1] // {}) as $existing |
-      ($existing.permissions.allow // []) as $current |
-      ($scaffold | map(select(. as $s | $current | index($s) | not))) as $new |
-      if ($new | length) > 0 then
-        $existing | .permissions.allow = ($current + $new)
-      else
-        $existing
-      end
-    ' "$settings_scaffold" "$settings_target")
-    new_count=$(echo "$merged" | jq '
-      (input.permissions.allow // [] | length) as $before |
-      (.permissions.allow | length) - $before
-    ' - "$settings_target")
-    if [ "$new_count" -gt 0 ]; then
-      printf '%s\n' "$merged" > "$settings_target"
-      echo "Updated: .claude/settings.local.json (added $new_count permission rules)"
-    else
-      echo ".claude/settings.local.json: OK"
-    fi
-  else
-    echo "WARN: jq not found — skipping .claude/settings.local.json merge"
-  fi
-fi
-
-# ── 9. fab/sync/ README scaffold ────────────────────────────────────
-sync_readme_scaffold="$kit_dir/scaffold/sync-readme.md"
-sync_readme_target="$fab_dir/sync/README.md"
-
-if [ -f "$sync_readme_scaffold" ] && [ -d "$fab_dir/sync" ]; then
-  if [ ! -f "$sync_readme_target" ]; then
-    cp "$sync_readme_scaffold" "$sync_readme_target"
-    echo "Created: fab/sync/README.md"
   fi
 fi
 
