@@ -52,7 +52,7 @@ fab/.kit/
 ├── packages/               # Distributable CLI tools (idea, wt)
 │   ├── idea/bin/idea       # Per-repo idea backlog manager
 │   └── wt/                 # Git worktree management
-│       ├── bin/            # wt-create, wt-delete, wt-init, wt-list, wt-open
+│       ├── bin/            # wt-create, wt-delete, wt-init, wt-list, wt-open, wt-pr
 │       └── lib/wt-common.sh
 ├── schemas/                # Workflow schema
 │   └── workflow.yaml       # Canonical stage/state definitions
@@ -283,10 +283,23 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 **Rejected**: Per-package `fab/` directories — conflicting constitutions, fragmented memory trees, symlink conflicts.
 *Source*: doc/fab-spec/ARCHITECTURE.md
 
+### LIFO Rollback Stack with EXIT Trap
+**Decision**: Multi-step wt commands (wt-create, wt-pr) use a LIFO rollback stack (`WT_ROLLBACK_STACK` array in wt-common.sh) with `trap wt_rollback EXIT`. Commands register undo operations after each successful step. On success, `wt_disarm_rollback` clears the stack. `wt_rollback` disables `set -e` during execution so individual rollback failures don't prevent subsequent cleanup. INT/TERM signals fire `wt_cleanup_on_signal` (rollback + exit 130).
+**Why**: Git worktree creation involves multiple coupled steps (worktree add, branch create). A partial failure must undo completed steps. EXIT traps catch all exit paths (including `set -e` failures). LIFO ordering ensures dependent resources are cleaned up before their prerequisites.
+**Rejected**: Manual cleanup in error handlers at each callsite — fragile, easy to miss paths. Temp directory approach — doesn't apply to git branch/worktree state.
+*Source*: 260218-qcqx-harden-wt-resilience
+
+### Hash-Based Stash over Index-Based
+**Decision**: wt-delete uses `git stash create` + `git stash store` (hash-based) instead of `git stash push`/`git stash pop` (index-based). Stash hashes are registered with the rollback stack.
+**Why**: Index-based stash (`stash@{0}`) is a global counter vulnerable to race conditions in concurrent worktree operations. Hash-based stash returns a stable SHA that uniquely identifies the stash regardless of concurrent `git stash` activity. `git stash store` writes the hash to the reflog for discoverability via `git stash list`.
+**Rejected**: Index-based `git stash push`/`git stash pop` — unsafe with concurrent worktree deletions; another worktree's stash could shift indices.
+*Source*: 260218-qcqx-harden-wt-resilience
+
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260218-qcqx-harden-wt-resilience | 2026-02-18 | Added resilience patterns to wt package: LIFO rollback stack with EXIT trap (`wt_register_rollback`, `wt_rollback`, `wt_disarm_rollback`), signal handling (`wt_cleanup_on_signal` for INT/TERM), hash-based stash (`wt_stash_create`/`wt_stash_apply` using `git stash create`+`store`), branch name validation (`wt_validate_branch_name`). Integrated into wt-create (rollback, traps, validation, dirty-state check) and wt-delete (hash-based stash migration, signal traps, stash rollback registration). Added `wt-pr` command for PR-based worktree creation via `gh` CLI. Moved shared worktree creation functions from wt-create to wt-common.sh. Updated bin listing to include wt-pr. Added 2 design decisions (rollback stack, hash-based stash). |
 | 260218-cif4-eliminate-symlinks-distribute-packages | 2026-02-18 | Eliminated 5 test-to-production symlinks in `src/lib/` — tests now use repo-root-relative paths. Moved package production code (idea, wt) from `src/packages/` to `fab/.kit/packages/` for distribution via `kit.tar.gz`. Added `env-packages.sh` script (sourced by `.envrc` and `rc-init.sh`) for centralized PATH setup. Added `packages/` to directory tree, `env-packages.sh` to scripts section. Updated `fab-upgrade.sh` description (symlinks → directories and agents). Updated calc-score.sh dev folder description (removed symlink reference). Updated "Replaced" list to include `packages/`. |
 | 260217-j3a3-dynamic-fab-help-generation | 2026-02-18 | Rewrote `fab-help.sh` for dynamic command listing — reads skill names/descriptions from YAML frontmatter at runtime instead of hardcoding. Extracted `frontmatter_field()` to `lib/frontmatter.sh` (shared by `fab-help.sh` and `3-sync-workspace.sh`). Deleted stale hand-authored `.claude/agents/fab-help.md` (sync regenerates correctly from `model_tier: fast`). Added `frontmatter.sh` to `lib/` directory tree. Updated `fab-help.sh` description to reflect dynamic generation. |
 | 260217-zkah-readme-quickstart-prereqs-check | 2026-02-18 | Added `sync/1-prerequisites.sh` (validates yq, jq, gh, direnv, bats before sync). Renumbered `1-direnv.sh` → `2-direnv.sh`, `2-sync-workspace.sh` → `3-sync-workspace.sh`. Updated directory tree, script section headings, and all sync filename references. |

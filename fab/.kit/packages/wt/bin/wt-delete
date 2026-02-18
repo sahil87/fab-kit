@@ -105,23 +105,6 @@ wt_handle_remote_branch_deletion() {
 }
 
 # ============================================================================
-# Stash Operations
-# ============================================================================
-
-# Stash changes with descriptive message
-wt_stash_changes() {
-    local wt_name="$1"
-    local date_str
-    date_str=$(date +%Y-%m-%d)
-
-    if wt_has_untracked_files; then
-        git stash push -u -m "wt-delete: saved from worktree '$wt_name' on $date_str"
-    else
-        git stash push -m "wt-delete: saved from worktree '$wt_name' on $date_str"
-    fi
-}
-
-# ============================================================================
 # Worktree Operations
 # ============================================================================
 
@@ -152,10 +135,17 @@ wt_handle_uncommitted_changes() {
     local stash_flag="${2:-}"
     local non_interactive="${3:-}"
 
+    local date_str
+    date_str=$(date +%Y-%m-%d)
+
     if [[ "$stash_flag" == "stash" ]]; then
         echo "Stashing changes..."
-        wt_stash_changes "$wt_name"
-        echo "Changes stashed. You can recover them with 'git stash list'"
+        local hash
+        hash=$(wt_stash_create "wt-delete: saved from worktree '$wt_name' on $date_str")
+        if [[ -n "$hash" ]]; then
+            echo "Changes stashed (hash: $hash). Recover with 'git stash list' or 'git stash apply $hash'"
+            wt_register_rollback "cd '$(pwd)' && git stash apply '$hash' 2>/dev/null"
+        fi
         return 0
     fi
 
@@ -175,8 +165,12 @@ wt_handle_uncommitted_changes() {
     case "$WT_MENU_CHOICE" in
         1)
             echo "Stashing changes..."
-            wt_stash_changes "$wt_name"
-            echo "Changes stashed. You can recover them with 'git stash list'"
+            local hash
+            hash=$(wt_stash_create "wt-delete: saved from worktree '$wt_name' on $date_str")
+            if [[ -n "$hash" ]]; then
+                echo "Changes stashed (hash: $hash). Recover with 'git stash list' or 'git stash apply $hash'"
+                wt_register_rollback "cd '$(pwd)' && git stash apply '$hash' 2>/dev/null"
+            fi
             return 0
             ;;
         2)
@@ -361,10 +355,13 @@ wt_delete_worktree_by_name() {
             : # No changes to stash
         else
             echo "Stashing changes..."
-            local date_str
+            local date_str hash
             date_str=$(date +%Y-%m-%d)
-            (cd "$wt_path" && git stash push -u -m "wt-delete: saved from worktree '$name' on $date_str")
-            echo "Changes stashed. You can recover them with 'git stash list'"
+            hash=$(cd "$wt_path" && wt_stash_create "wt-delete: saved from worktree '$name' on $date_str")
+            if [[ -n "$hash" ]]; then
+                echo "Changes stashed (hash: $hash). Recover with 'git stash list' or 'git stash apply $hash'"
+                wt_register_rollback "cd '$wt_path' && git stash apply '$hash' 2>/dev/null"
+            fi
         fi
     fi
 
@@ -646,6 +643,9 @@ main() {
     delete_branch="${delete_branch:-true}"
 
     wt_validate_git_repo
+
+    # Set up signal traps for cleanup on interruption
+    trap wt_cleanup_on_signal INT TERM
 
     # Handle --delete-all
     if [[ "$delete_all" == "true" ]]; then

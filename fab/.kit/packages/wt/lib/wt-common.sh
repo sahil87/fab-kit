@@ -95,6 +95,100 @@ wt_error_with_code() {
 }
 
 # ============================================================================
+# Rollback Stack
+# ============================================================================
+
+# LIFO rollback stack for multi-step operations.
+# Commands are pushed with wt_register_rollback and executed in reverse order
+# by wt_rollback. Call wt_disarm_rollback on success to prevent cleanup.
+WT_ROLLBACK_STACK=()
+
+# Push a rollback command onto the stack
+# Usage: wt_register_rollback "git worktree remove --force /path"
+wt_register_rollback() { WT_ROLLBACK_STACK+=("$1"); }
+
+# Execute all rollback commands in reverse order (LIFO).
+# Disables set -e so that individual command failures do not prevent
+# subsequent rollback entries from executing.
+wt_rollback() {
+    local old_e
+    old_e=$(set +o | grep errexit)
+    set +e
+    for ((i=${#WT_ROLLBACK_STACK[@]}-1; i>=0; i--)); do
+        eval "${WT_ROLLBACK_STACK[$i]}" 2>/dev/null
+    done
+    eval "$old_e"
+}
+
+# Clear the rollback stack (call on successful completion)
+wt_disarm_rollback() { WT_ROLLBACK_STACK=(); }
+
+# ============================================================================
+# Signal Handling
+# ============================================================================
+
+# Signal handler for INT/TERM — runs rollback and exits with code 130.
+# Commands with multi-step destructive operations should set:
+#   trap wt_cleanup_on_signal INT TERM
+wt_cleanup_on_signal() {
+    echo "" # newline after ^C
+    wt_rollback
+    exit 130
+}
+
+# ============================================================================
+# Hash-Based Stash
+# ============================================================================
+
+# Create a stash commit and return its hash. Uses git stash create (hash-based)
+# instead of git stash push (index-based) for concurrency safety.
+# The hash is stored in the reflog for recovery via `git stash list`.
+# Args: $1 = descriptive message
+# Stdout: stash hash (empty if no changes)
+wt_stash_create() {
+    local msg="${1:-wt: stash}"
+    git add -A >/dev/null 2>&1
+    local hash
+    hash=$(git stash create "$msg")
+    if [[ -n "$hash" ]]; then
+        git stash store "$hash" -m "$msg" 2>/dev/null
+        git reset --hard HEAD >/dev/null 2>&1
+        git clean -fd >/dev/null 2>&1
+        echo "$hash"
+    fi
+}
+
+# Apply a stash by hash. No-op if hash is empty.
+# Args: $1 = stash hash
+wt_stash_apply() {
+    local hash="$1"
+    if [[ -n "$hash" ]]; then
+        git stash apply "$hash" 2>/dev/null
+    fi
+}
+
+# ============================================================================
+# Branch Name Validation
+# ============================================================================
+
+# Validate a branch name against git ref naming rules.
+# Returns 0 if valid, 1 if invalid.
+# Args: $1 = branch name
+wt_validate_branch_name() {
+    local branch="$1"
+    [[ -z "$branch" ]] && return 1
+    # Reject invalid git ref characters and patterns
+    if [[ "$branch" =~ [[:space:]~^:?*\[] ]] || \
+       [[ "$branch" == *".."* ]] || \
+       [[ "$branch" == *".lock" ]] || \
+       [[ "$branch" == "."* ]] || \
+       [[ "$branch" == *"/."* ]]; then
+        return 1
+    fi
+    return 0
+}
+
+# ============================================================================
 # Menu Helper
 # ============================================================================
 
@@ -330,6 +424,127 @@ wt_derive_worktree_name() {
     local name="${branch##*/}"
     name="${name//[^a-zA-Z0-9_-]/-}"
     echo "$name"
+}
+
+# ============================================================================
+# Worktree Operations
+# ============================================================================
+
+# Ensure worktrees directory exists
+wt_ensure_worktrees_dir() {
+    if [[ ! -d "$WT_WORKTREES_DIR" ]]; then
+        mkdir -p "$WT_WORKTREES_DIR" || {
+            wt_error_with_code "$WT_EXIT_GENERAL_ERROR" \
+                "Cannot create worktrees directory" \
+                "Failed to create directory at $WT_WORKTREES_DIR" \
+                "Check permissions on $(dirname "$WT_WORKTREES_DIR")"
+        }
+    fi
+}
+
+# Check if worktree name would collide with existing worktree
+wt_check_name_collision() {
+    local name="$1"
+    local wt_path="$WT_WORKTREES_DIR/$name"
+    [[ -d "$wt_path" ]]
+}
+
+# Create a new worktree with rollback registration
+# Args: $1 = worktree path, $2 = branch name, $3 = "new" if creating new branch
+wt_create_worktree() {
+    local wt_path="$1"
+    local branch="$2"
+    local mode="${3:-existing}"
+
+    if [[ "$mode" == "new" ]]; then
+        git worktree add -b "$branch" "$wt_path" 2>/dev/null || {
+            wt_error_with_code "$WT_EXIT_GIT_ERROR" \
+                "Failed to create worktree" \
+                "git worktree add failed for branch '$branch' at '$wt_path'" \
+                "Check if the branch already exists or if there are permission issues"
+        }
+        wt_register_rollback "git worktree remove --force '$wt_path'"
+        wt_register_rollback "git branch -D '$branch'"
+    else
+        git worktree add "$wt_path" "$branch" 2>/dev/null || {
+            wt_error_with_code "$WT_EXIT_GIT_ERROR" \
+                "Failed to create worktree" \
+                "git worktree add failed for branch '$branch' at '$wt_path'" \
+                "The branch may already be checked out in another worktree"
+        }
+        wt_register_rollback "git worktree remove --force '$wt_path'"
+    fi
+}
+
+# Fetch a remote branch and set up tracking
+wt_fetch_remote_branch() {
+    local branch="$1"
+    git fetch origin "$branch:$branch" 2>/dev/null || {
+        wt_error_with_code "$WT_EXIT_GIT_ERROR" \
+            "Failed to fetch remote branch '$branch'" \
+            "git fetch origin $branch failed" \
+            "Verify the branch exists on origin with 'git ls-remote origin $branch'"
+    }
+}
+
+# Print worktree creation success message
+wt_print_success() {
+    local name="$1"
+    local path="$2"
+    local branch="$3"
+
+    echo "Created worktree: $name"
+    echo "Path: $path"
+    echo "Branch: $branch"
+}
+
+# Create worktree for a specified branch (local, remote, or new)
+wt_create_branch_worktree() {
+    local branch="$1"
+    local name="$2"
+
+    wt_ensure_worktrees_dir
+
+    local wt_path="$WT_WORKTREES_DIR/$name"
+
+    if wt_branch_exists_locally "$branch"; then
+        wt_create_worktree "$wt_path" "$branch" "existing"
+    elif wt_branch_exists_remotely "$branch"; then
+        wt_fetch_remote_branch "$branch"
+        wt_create_worktree "$wt_path" "$branch" "existing"
+    else
+        wt_create_worktree "$wt_path" "$branch" "new"
+    fi
+
+    wt_print_success "$name" "$wt_path" "$branch"
+
+    WT_PATH="$wt_path"
+}
+
+# Run init script in the newly created worktree if it exists
+# Args: $1 = worktree path, $2 = mode ("force" to skip prompt, "" to prompt)
+wt_run_worktree_setup() {
+    local wt_path="$1"
+    local mode="${2:-}"
+    local init_script="$wt_path/$WORKTREE_INIT_SCRIPT"
+
+    if [[ -f "$init_script" ]]; then
+        if [[ "$mode" == "force" ]]; then
+            echo "Running worktree init..."
+            (cd "$wt_path" && bash "$init_script")
+            echo "Worktree init complete."
+        else
+            echo ""
+            printf "Initialize worktree? [Y/n] "
+            read -r answer
+
+            if [[ -z "$answer" || "$answer" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+                echo "Running worktree init..."
+                (cd "$wt_path" && bash "$init_script")
+                echo "Worktree init complete."
+            fi
+        fi
+    fi
 }
 
 # ============================================================================

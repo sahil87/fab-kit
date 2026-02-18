@@ -1,1 +1,9 @@
 {"ts":"2026-02-18T15:49:24+05:30","event":"command","cmd":"fab-new","args":"Harden wt package: add wt-pr command, atomic rollback, SIGINT trap handlers, hash-based stash, branch name validation, dirty-state check"}
+{"ts":"2026-02-18T15:56:45+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-18T15:58:53+05:30","event":"confidence","score":2.8,"delta":"+2.8","trigger":"calc-score"}
+{"ts":"2026-02-18T16:00:16+05:30","event":"command","cmd":"fab-clarify"}
+{"ts":"2026-02-18T16:03:19+05:30","event":"confidence","score":2.8,"delta":"+0.0","trigger":"calc-score"}
+{"ts":"2026-02-18T16:04:40+05:30","event":"confidence","score":3.8,"delta":"+1.0","trigger":"calc-score"}
+{"ts":"2026-02-18T16:04:50+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-18T16:24:37+05:30","event":"review","result":"failed","rework":"Fix code"}
+{"ts":"2026-02-18T16:28:10+05:30","event":"review","result":"passed"}
