@@ -128,20 +128,25 @@ bash fab/.kit/scripts/fab-sync.sh
 
 ```bash
 # In your AI agent:
+
+# Creation — creates change folder, writes intake.md, asks clarifying questions
 /fab-new Add a loading spinner to the submit button
-  # Creation — creates change folder, writes intake.md, asks clarifying questions
+
+# Switch to the change (make it active via fab/current)
+/fab-switch
+# Planning — generates spec.md (structured requirements)
 /fab-continue
-  # Planning — generates spec.md (structured requirements)
+# Planning — generates tasks.md (implementation checklist)
 /fab-continue
-  # Planning — generates tasks.md (implementation checklist)
+# Execution — implements the code, checking off tasks as it goes
 /fab-continue
-  # Execution — implements the code, checking off tasks as it goes
+# Execution — reviews implementation against spec + constitution
 /fab-continue
-  # Execution — reviews implementation against spec + constitution
+# Completion — saves learnings into docs/memory/
 /fab-continue
-  # Completion — saves learnings into docs/memory/
+
+# Completion — archives the change folder
 /fab-archive
-  # Completion — archives the change folder
 ```
 
 At any point, run `/fab-status` to see where you are.
