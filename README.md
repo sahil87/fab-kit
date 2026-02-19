@@ -90,12 +90,6 @@ mkdir -p fab
 gh release download --repo wvrdz/fab-kit --pattern 'kit.tar.gz' --output - | tar xz -C fab/
 ```
 
-#### From a local clone
-
-```bash
-cp -r /path/to/fab-kit/fab/.kit ./fab/
-```
-
 #### Initialize
 
 **In your terminal:**
