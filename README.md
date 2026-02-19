@@ -69,6 +69,9 @@ Install with [Homebrew](https://brew.sh/) (macOS and Linux):
 brew install yq jq gh bats-core direnv
 ```
 
+* After installing `gh`, authenticate with `gh auth login`.
+* After installing `direnv`, add the hook [to your shell](https://direnv.net/docs/hook.html)
+
 | Tool | Purpose |
 |------|---------|
 | [yq](https://github.com/mikefarah/yq) | YAML processing for status files and schemas |
@@ -76,8 +79,6 @@ brew install yq jq gh bats-core direnv
 | [gh](https://cli.github.com/) | GitHub CLI — used for installation and releases |
 | [bats-core](https://github.com/bats-core/bats-core) | Bash test runner for kit validation |
 | [direnv](https://direnv.net/) | Auto-loads `.envrc` to put fab scripts on PATH |
-
-After installing `gh`, authenticate with `gh auth login`.
 
 ### 1. Install
 
