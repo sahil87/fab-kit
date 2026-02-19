@@ -59,7 +59,9 @@ fab/current/add-spinner/
 └── .status.yaml     # Pipeline state
 ```
 
-## Prerequisites
+## Quick Start
+
+### Prerequisites
 
 Install with [Homebrew](https://brew.sh/) (macOS and Linux):
 
@@ -76,8 +78,6 @@ brew install yq jq gh bats-core direnv
 | [direnv](https://direnv.net/) | Auto-loads `.envrc` to put fab scripts on PATH |
 
 After installing `gh`, authenticate with `gh auth login`.
-
-## Quick Start
 
 ### 1. Install
 
