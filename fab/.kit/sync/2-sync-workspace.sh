@@ -158,14 +158,14 @@ fi
 # ── 1b. fab/project/VERSION ───────────────────────────────────────────
 # Track the local project's kit version. New projects get the engine version;
 # existing projects (have config.yaml) get the base version 0.1.0 so
-# /fab-setup migrations runs all needed migrations.
+# `/fab-setup migrations` runs all needed migrations.
 if [ -f "$fab_dir/project/VERSION" ]; then
   echo "fab/project/VERSION: OK ($(cat "$fab_dir/project/VERSION"))"
 elif [ -f "$fab_dir/project/config.yaml" ]; then
-  # Existing project: set base version so /fab-setup migrations applies migrations
+  # Existing project: set base version so `/fab-setup migrations` applies migrations
   mkdir -p "$fab_dir/project"
   echo "0.1.0" > "$fab_dir/project/VERSION"
-  echo "Created: fab/project/VERSION (0.1.0 — existing project, run /fab-setup migrations to migrate)"
+  echo "Created: fab/project/VERSION (0.1.0 — existing project, run \`/fab-setup migrations\` to migrate)"
 else
   # New project: match engine version
   mkdir -p "$fab_dir/project"

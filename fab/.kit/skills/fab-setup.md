@@ -102,7 +102,7 @@ Handled by `fab-sync.sh` (step 1f). The scaffold script creates `fab/project/VER
 
 On bootstrap output:
 - New project: `Created: fab/project/VERSION ({engine_version})`
-- Existing project: `Created: fab/project/VERSION (0.1.0 — existing project, run /fab-setup migrations to migrate)`
+- Existing project: `Created: fab/project/VERSION (0.1.0 — existing project, run "/fab-setup migrations" to migrate)`
 - Re-run: `fab/project/VERSION` reported as part of scaffold output (no modification)
 
 #### 1f. `fab/changes/`
