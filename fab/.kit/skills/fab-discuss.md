@@ -1,7 +1,6 @@
 ---
 name: fab-discuss
 description: "Prime the agent with project context for a discussion session — loads the always-load layer and orients to the repo landscape."
-model_tier: capable
 ---
 
 # /fab-discuss
