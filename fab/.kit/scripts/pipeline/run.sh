@@ -69,7 +69,7 @@ STAGEMAN="$KIT_DIR/scripts/lib/stageman.sh"
 # Configurable timeouts (seconds)
 PIPELINE_FF_TIMEOUT="${PIPELINE_FF_TIMEOUT:-1800}"   # 30 minutes
 PIPELINE_SHIP_TIMEOUT="${PIPELINE_SHIP_TIMEOUT:-300}" # 5 minutes
-PIPELINE_SHIP_DELAY="${PIPELINE_SHIP_DELAY:-8}"      # delay before sending ship command
+PIPELINE_SHIP_DELAY="${PIPELINE_SHIP_DELAY:-8}"      # wait after hydrate:done before sending ship
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -373,7 +373,12 @@ poll_change() {
             log "fab-ff complete: $resolved_id — waiting for Claude to finish turn..."
             sleep "$PIPELINE_SHIP_DELAY"
             log "Sending /changes:ship pr"
-            tmux send-keys -t "$pane_id" "/changes:ship pr" 2>/dev/null || true
+            tmux send-keys -t "$pane_id" "/changes:ship pr" 2>/dev/null || {
+              printf "\n"
+              log "Failed: $resolved_id — tmux send-keys failed for ship command"
+              write_stage "$manifest_id" "failed" "$MANIFEST"
+              return 0
+            }
             sleep 0.5
             tmux send-keys -t "$pane_id" Enter 2>/dev/null || true
             state="shipping"
