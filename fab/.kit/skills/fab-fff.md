@@ -5,7 +5,7 @@ description: "Full pipeline — planning, implementation, sub-agent review, and 
 
 # /fab-fff [<change-name>]
 
-> Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
+> Read and follow the instructions in `fab/.kit/skills/_preamble.md` before proceeding.
 
 ---
 
@@ -17,13 +17,13 @@ Run the entire Fab pipeline from the current stage through hydrate in a single i
 
 ## Arguments
 
-- **`<change-name>`** *(optional)* — target a specific change instead of `fab/current`. Resolution per `_context.md` (Change-name override).
+- **`<change-name>`** *(optional)* — target a specific change instead of `fab/current`. Resolution per `_preamble.md` (Change-name override).
 
 ---
 
 ## Pre-flight
 
-1. Run preflight per `_context.md` Section 2. Pass `<change-name>` if provided.
+1. Run preflight per `_preamble.md` Section 2. Pass `<change-name>` if provided.
 2. Verify `intake.md` exists. If not, STOP: `Intake not found. Run /fab-new to create the intake first, then run /fab-fff.`
 3. Log invocation: `fab/.kit/scripts/lib/stageman.sh log-command <change_dir> "fab-fff"`
 
@@ -31,7 +31,7 @@ Run the entire Fab pipeline from the current stage through hydrate in a single i
 
 ## Context Loading
 
-Load per `_context.md` Sections 1-3 (config, constitution, intake, memory index, affected memory files, all completed artifacts).
+Load per `_preamble.md` Sections 1-3 (config, constitution, intake, memory index, affected memory files, all completed artifacts).
 
 ---
 
@@ -146,7 +146,7 @@ Pipeline complete. Change hydrated.
 Next: {per state table}
 ```
 
-Resuming shows `(resuming)...` header and `Skipping {stage} — already done.` for completed stages. Bail/failure stops at the relevant stage with `Next:` derived from the state reached per state table in `_context.md`.
+Resuming shows `(resuming)...` header and `Skipping {stage} — already done.` for completed stages. Bail/failure stops at the relevant stage with `Next:` derived from the state reached per state table in `_preamble.md`.
 
 ---
 

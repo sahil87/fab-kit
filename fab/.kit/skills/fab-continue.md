@@ -5,7 +5,7 @@ description: "Advance to the next pipeline stage — planning, implementation, r
 
 # /fab-continue [<change-name>] [<stage>]
 
-> Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
+> Read and follow the instructions in `fab/.kit/skills/_preamble.md` before proceeding.
 
 ---
 
@@ -17,7 +17,7 @@ Advance through the 6-stage Fab pipeline one step at a time. Each invocation han
 
 ## Arguments
 
-- **`<change-name>`** *(optional)* — target a specific change instead of `fab/current`. Passed to preflight as `$1` (see `_context.md` §2).
+- **`<change-name>`** *(optional)* — target a specific change instead of `fab/current`. Passed to preflight as `$1` (see `_preamble.md` §2).
 - **`<stage>`** *(optional)* — reset target: `intake`, `spec`, `tasks`, `apply`, `review`, `hydrate`.
 
 Both may be provided in any order. Stage names are treated as reset targets; all others as change-name overrides.
@@ -27,7 +27,7 @@ Both may be provided in any order. Stage names are treated as reset targets; all
 ## Pre-flight
 
 1. Classify arguments: stage name vs. change-name override (stage names take priority)
-2. Run preflight per `_context.md` §2
+2. Run preflight per `_preamble.md` §2
 3. Log invocation: `fab/.kit/scripts/lib/stageman.sh log-command <change_dir> "fab-continue" "<stage-arg-if-any>"`
 4. Use preflight's `stage` and `progress` fields for all subsequent logic
 
@@ -53,11 +53,11 @@ Dispatch on preflight's derived `stage`. If progress is `pending`, set to `activ
 
 ### Step 2: Load Context
 
-Load per `_context.md` layers. Stage-specific additions: planning stages load intake + memory files; apply loads spec + tasks + source code; review adds checklist + memory; hydrate loads memory index + target files.
+Load per `_preamble.md` layers. Stage-specific additions: planning stages load intake + memory files; apply loads spec + tasks + source code; review adds checklist + memory; hydrate loads memory index + target files.
 
 ### Step 3: SRAD + Generation
 
-**Planning stages only**: Apply SRAD (`_context.md`) before generating. Budget: 1-2 unresolved questions per stage. Tentative decisions get `<!-- assumed: ... -->` markers.
+**Planning stages only**: Apply SRAD (`_preamble.md`) before generating. Budget: 1-2 unresolved questions per stage. Tentative decisions get `<!-- assumed: ... -->` markers.
 
 | Stage | Procedure |
 |-------|-----------|
@@ -77,7 +77,7 @@ For single-state changes, use: `fab/.kit/scripts/lib/stageman.sh set-state <file
 
 ### Step 5: Output
 
-Display summary. Include Assumptions summary for planning stages. End with `Next:` per state table in `_context.md`.
+Display summary. Include Assumptions summary for planning stages. End with `Next:` per state table in `_preamble.md`.
 
 ---
 

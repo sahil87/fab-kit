@@ -16,7 +16,7 @@ The `.kit/` directory SHALL contain:
 fab/.kit/
 ├── VERSION                 # Semver string (e.g., "0.1.0")
 ├── skills/                 # Skill definitions (markdown prompts)
-│   ├── _context.md         # Shared context loading convention
+│   ├── _preamble.md         # Shared context loading convention
 │   ├── fab-setup.md
 │   ├── docs-hydrate-memory.md
 │   ├── docs-hydrate-specs.md
@@ -322,6 +322,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260221-5tj7-rename-context-to-preamble | 2026-02-21 | Renamed `_context.md` → `_preamble.md` in skills directory tree listing. Updated `2-sync-workspace.sh` comment referencing excluded skill file. |
 | 260221-alng-batch-script-frontmatter | 2026-02-21 | Added `shell_frontmatter_field()` to `lib/frontmatter.sh` for parsing `# ---` delimited shell-comment frontmatter. Added `# ---` frontmatter blocks (name, description) to all 3 batch scripts, replacing old comment headers. Added batch script scan loop to `fab-help.sh` — globs `batch-*.sh`, extracts frontmatter via `shell_frontmatter_field`, renders under "Batch Operations" group with centralized `batch_to_group` mapping and no `/` prefix. Updated tree comment for `frontmatter.sh`. |
 | 260221-i0z6-move-env-packages-add-fab-pipeline | 2026-02-21 | Moved `env-packages.sh` from `scripts/` to `scripts/lib/` (off PATH). Updated `KIT_DIR` resolution (two levels up). Updated source references in `scaffold/fragment-.envrc` and `src/packages/rc-init.sh`. Added `batch-fab-pipeline.sh` entry point to `scripts/` with listing, partial name matching, and `exec` delegation. Added `pipeline/` directory to tree listing. Added `lib/env-packages.sh` description section. |
 | 260219-wq0e-move-5cs-to-project-folder | 2026-02-19 | Moved project identity files (5 Cs + VERSION) from `fab/` root into `fab/project/` subdirectory. Updated `fab/` directory tree (top-level now: `.kit/`, `project/`, `changes/`, `sync/`, `backlog.md`, `current`). Updated scaffold overlay tree (`fab/.kit/scaffold/fab/project/`). Updated all shell script path references (`preflight.sh`, `changeman.sh`, `fab-upgrade.sh`, `batch-fab-switch-change.sh`, `2-sync-workspace.sh`). Updated section comment in `2-sync-workspace.sh` (`fab/project/VERSION`). |

@@ -5,7 +5,7 @@ description: "Archive a completed change or restore an archived change — move 
 
 # /fab-archive [<change-name>] | restore <change-name> [--switch]
 
-> Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
+> Read and follow the instructions in `fab/.kit/skills/_preamble.md` before proceeding.
 
 ---
 
@@ -19,7 +19,7 @@ Archive a completed change after hydrate, or restore an archived change back to 
 
 ### Archive Mode (default)
 
-- **`<change-name>`** *(optional)* — target a specific change. Resolution per `_context.md` (Change-name override).
+- **`<change-name>`** *(optional)* — target a specific change. Resolution per `_preamble.md` (Change-name override).
 
 ### Restore Mode
 
@@ -33,7 +33,7 @@ Archive a completed change after hydrate, or restore an archived change back to 
 
 ## Pre-flight
 
-1. Run `fab/.kit/scripts/lib/preflight.sh [change-name]` per `_context.md`
+1. Run `fab/.kit/scripts/lib/preflight.sh [change-name]` per `_preamble.md`
 2. **Hydrate Guard**: If `progress.hydrate` is not `done`, STOP: `Hydrate has not completed. Run /fab-continue to hydrate memory first.`
 
 ---

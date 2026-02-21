@@ -5,15 +5,15 @@ change_type: feature
 progress:
   intake: done
   spec: done
-  tasks: active
-  apply: pending
-  review: pending
-  hydrate: pending
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
 checklist:
-  generated: false
+  generated: true
   path: checklist.md
-  completed: 0
-  total: 0
+  completed: 18
+  total: 18
 confidence:
   certain: 4
   confident: 1
@@ -29,5 +29,8 @@ confidence:
 stage_metrics:
   intake: {started_at: "2026-02-21T16:29:12+05:30", driver: fab-new, iterations: 1, completed_at: "2026-02-21T16:30:07+05:30"}
   spec: {started_at: "2026-02-21T16:30:07+05:30", driver: fab-new, iterations: 1, completed_at: "2026-02-21T16:31:27+05:30"}
-  tasks: {started_at: "2026-02-21T16:31:28+05:30", driver: fab-continue, iterations: 1}
-last_updated: "2026-02-21T16:31:27+05:30"
+  tasks: {started_at: "2026-02-21T16:31:28+05:30", driver: fab-continue, iterations: 1, completed_at: "2026-02-21T16:35:04+05:30"}
+  apply: {started_at: "2026-02-21T16:35:04+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-21T16:37:25+05:30"}
+  review: {started_at: "2026-02-21T16:37:25+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-21T16:39:17+05:30"}
+  hydrate: {started_at: "2026-02-21T16:39:17+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-21T16:39:57+05:30"}
+last_updated: "2026-02-21T16:39:57+05:30"

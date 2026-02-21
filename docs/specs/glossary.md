@@ -101,7 +101,7 @@
 | Term | Definition |
 |------|-----------|
 | **[AUTO-MODE]** | Prefix used when one skill invokes another internally (e.g., `/fab-ff` calling `/fab-clarify`). Signals autonomous mode — no user interaction, machine-readable result. |
-| **Context loading** | The convention that every skill loads relevant project files (config, constitution, memory index, change artifacts) before generating output. Defined in `_context.md`. |
+| **Context loading** | The convention that every skill loads relevant project files (config, constitution, memory index, change artifacts) before generating output. Defined in `_preamble.md`. |
 | **Fast-forward** | Generating all remaining planning artifacts in one pass (`/fab-ff`). Frontloads questions, then proceeds without interruption. |
 | **Full pipeline** | Running the entire lifecycle — planning through archive — in one invocation (`/fab-fff`). Gated on confidence. |
 | **Gap analysis** | Evaluation performed by `/fab-new` before creating an intake. Checks whether the change is already covered by existing mechanisms. |

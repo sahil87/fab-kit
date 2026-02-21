@@ -5,7 +5,7 @@ description: "Refine the current stage artifact — resolve gaps, ambiguities, o
 
 # /fab-clarify [<change-name>] [<target-artifact>]
 
-> Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
+> Read and follow the instructions in `fab/.kit/skills/_preamble.md` before proceeding.
 
 ---
 
@@ -16,13 +16,13 @@ Deepen and refine the current stage artifact without advancing. Two modes:
 - **Suggest mode** (user invocation) — interactive question flow with recommendations
 - **Auto mode** (internal `fab-ff` call) — autonomous resolution, returns machine-readable result
 
-Mode determined by `[AUTO-MODE]` prefix (see `_context.md` > Skill Invocation Protocol). Safe to call multiple times.
+Mode determined by `[AUTO-MODE]` prefix (see `_preamble.md` > Skill Invocation Protocol). Safe to call multiple times.
 
 ---
 
 ## Arguments
 
-- **`<change-name>`** *(optional)* — target a specific change (see `_context.md` > Change-name override). `fab/current` unchanged.
+- **`<change-name>`** *(optional)* — target a specific change (see `_preamble.md` > Change-name override). `fab/current` unchanged.
 - **`<target-artifact>`** *(optional)* — `intake`, `spec`, or `tasks`. **Required** at post-planning stages. Defaults to current stage's artifact at planning stages.
 
 Disambiguation: matches `intake`/`spec`/`tasks` → target artifact; anything else → change name. Both can be provided.
@@ -31,7 +31,7 @@ Disambiguation: matches `intake`/`spec`/`tasks` → target artifact; anything el
 
 ## Pre-flight & Stage Guard
 
-Run preflight per `_context.md` §2. Log invocation: `fab/.kit/scripts/lib/stageman.sh log-command <change_dir> "fab-clarify" "<target-artifact-if-any>"`.
+Run preflight per `_preamble.md` §2. Log invocation: `fab/.kit/scripts/lib/stageman.sh log-command <change_dir> "fab-clarify" "<target-artifact-if-any>"`.
 
 - **Planning stages** (`intake`, `spec`, `tasks`) — defaults to current stage's artifact if it exists; if the current stage is `pending` (no artifact yet), fall back to the previous `done` stage's artifact. `<target-artifact>` overrides either default. At the `intake` stage, the taxonomy scan covers intake artifact refinement (scope boundaries, affected areas, blocking questions, impact, memory coverage).
 - **Post-planning** (`apply`, `review`, `hydrate`) — requires `<target-artifact>`. If missing, prompt: "Which planning artifact to clarify? (1) spec, (2) tasks, (3) intake"

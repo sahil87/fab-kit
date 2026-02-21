@@ -59,7 +59,7 @@ A skill matching ANY `capable` criterion is classified as `capable`, regardless 
 
 Additionally, **review sub-agents** spawned during pipeline execution (by `/fab-continue`, `/fab-ff`, `/fab-fff`) use the capable tier — review requires deep reasoning, code analysis, spec comparison, and checklist validation.
 
-Shared partials (`_context.md`, `_generation.md`) are not deployable and have no tier.
+Shared partials (`_preamble.md`, `_generation.md`) are not deployable and have no tier.
 
 ### Model Tier Configuration
 

@@ -5,7 +5,7 @@ description: "Fast-forward from spec — confidence-gated pipeline from current 
 
 # /fab-ff [<change-name>]
 
-> Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
+> Read and follow the instructions in `fab/.kit/skills/_preamble.md` before proceeding.
 
 ---
 
@@ -17,13 +17,13 @@ Fast-forward from spec through hydrate: tasks → apply → review → hydrate. 
 
 ## Arguments
 
-- **`<change-name>`** *(optional)* — target a specific change instead of `fab/current`. Resolution per `_context.md` (Change-name override).
+- **`<change-name>`** *(optional)* — target a specific change instead of `fab/current`. Resolution per `_preamble.md` (Change-name override).
 
 ---
 
 ## Pre-flight
 
-1. Run preflight per `_context.md` Section 2. Pass `<change-name>` if provided.
+1. Run preflight per `_preamble.md` Section 2. Pass `<change-name>` if provided.
 2. **Spec prerequisite**: Check that spec is `active` or later (not `pending`). If `spec: pending`, STOP: `Spec not started. Run /fab-continue to generate the spec first, or use /fab-fff for the full pipeline.`
 3. **Confidence gate**: Run `fab/.kit/scripts/lib/calc-score.sh --check-gate <change_dir>`. If the gate fails → STOP: `Confidence is {score} of 5.0 (need > {threshold} for {change_type}). Run /fab-clarify to resolve, then retry.`
 4. Log invocation: `fab/.kit/scripts/lib/stageman.sh log-command <change_dir> "fab-ff"`
@@ -32,7 +32,7 @@ Fast-forward from spec through hydrate: tasks → apply → review → hydrate. 
 
 ## Context Loading
 
-Load per `_context.md` Sections 1-3 (config, constitution, intake, memory index, affected memory files, all completed artifacts).
+Load per `_preamble.md` Sections 1-3 (config, constitution, intake, memory index, affected memory files, all completed artifacts).
 
 ---
 
@@ -135,7 +135,7 @@ Pipeline complete. Change hydrated.
 Next: {per state table}
 ```
 
-Resuming shows `(resuming)...` header and `Skipping {stage} — already done.` for completed stages. Bail/failure stops at the relevant stage with `Next:` derived from the state reached per state table in `_context.md`.
+Resuming shows `(resuming)...` header and `Skipping {stage} — already done.` for completed stages. Bail/failure stops at the relevant stage with `Next:` derived from the state reached per state table in `_preamble.md`.
 
 ---
 

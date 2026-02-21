@@ -5,13 +5,13 @@ description: "Prime the agent with project context for a discussion session — 
 
 # /fab-discuss
 
-> Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
+> Read and follow the instructions in `fab/.kit/skills/_preamble.md` before proceeding.
 
 ---
 
 ## Purpose
 
-Prime the agent with project context for an exploratory discussion session. Loads the standard always-load layer (`_context.md` §1), presents an orientation summary of the project landscape, and signals readiness for open-ended conversation. No artifact generation, no stage advancement — purely read-only.
+Prime the agent with project context for an exploratory discussion session. Loads the standard always-load layer (`_preamble.md` §1), presents an orientation summary of the project landscape, and signals readiness for open-ended conversation. No artifact generation, no stage advancement — purely read-only.
 
 ---
 
@@ -23,7 +23,7 @@ None.
 
 ## Context Loading
 
-Load the **always-load layer** from `_context.md` §1 — the same 7 files every skill loads:
+Load the **always-load layer** from `_preamble.md` §1 — the same 7 files every skill loads:
 
 1. `fab/project/config.yaml` — **required**
 2. `fab/project/constitution.md` — **required**

@@ -10,7 +10,7 @@ The `/fab-clarify` skill deepens and refines the current stage artifact without 
 
 ### Dual-Mode Operation
 
-`/fab-clarify` SHALL support two modes, determined by the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (`_context.md`):
+`/fab-clarify` SHALL support two modes, determined by the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (`_preamble.md`):
 
 - **Suggest mode**: Activated when the `[AUTO-MODE]` prefix is **absent** (e.g., user invokes `/fab-clarify` directly). Interactive, presents structured questions one at a time with recommendations and options.
 - **Auto mode**: Activated when the `[AUTO-MODE]` prefix is **present** (e.g., `/fab-ff` invokes clarify internally between stage generations). Autonomous, resolves gaps without user interaction and returns a machine-readable result.
@@ -77,7 +77,7 @@ When a Tentative or Confident assumption is resolved or confirmed during a sugge
 
 #### Confidence Recomputation
 
-After each suggest-mode session, the skill SHALL recompute the confidence score by re-counting SRAD grades across all artifacts in the change (scanning the `## Assumptions` tables) and applying the formula (see `_context.md` Confidence Scoring section). The updated `confidence` block is written to `.status.yaml`. Because reclassified grades (Tentative/Confident → Certain) reduce the penalty count, the score increases after clarification.
+After each suggest-mode session, the skill SHALL recompute the confidence score by re-counting SRAD grades across all artifacts in the change (scanning the `## Assumptions` tables) and applying the formula (see `_preamble.md` Confidence Scoring section). The updated `confidence` block is written to `.status.yaml`. Because reclassified grades (Tentative/Confident → Certain) reduce the penalty count, the score increases after clarification.
 
 #### Machine-Readable Result
 
@@ -94,7 +94,7 @@ The skill SHALL only operate on planning stages (`intake`, `spec`, `tasks`). At 
 ## Design Decisions
 
 ### Mode Selection by `[AUTO-MODE]` Prefix
-**Decision**: Mode is determined by the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (`_context.md`). Prefix present = auto mode; absent = suggest mode. No flags.
+**Decision**: Mode is determined by the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (`_preamble.md`). Prefix present = auto mode; absent = suggest mode. No flags.
 **Why**: Makes the contract explicit and testable rather than relying on implicit call-context interpretation. Avoids a confusing `--suggest`/`--auto` flag pair with no clear use case for user-invoked auto mode.
 **Rejected**: Flag-based mode selection — adds complexity, no user scenario requires it. Implicit call-context detection — unreliable, not testable.
 *Updated by*: 260210-nan4-define-auto-mode-signaling
@@ -124,7 +124,8 @@ The skill SHALL only operate on planning stages (`intake`, `spec`, `tasks`). At 
 
 | Change | Date | Summary |
 |--------|------|---------|
-| 260216-7ltw-DEV-1038-standardize-state-keyed-suggestions | 2026-02-16 | Extended stage guard to include `intake` as valid planning stage. Added intake taxonomy scan categories (scope boundaries, affected areas, blocking questions, impact, memory coverage). All `Next:` lines now derived from canonical state table in `_context.md`. |
+| 260221-5tj7-rename-context-to-preamble | 2026-02-21 | Renamed shared skill preamble from `_context.md` to `_preamble.md`. Updated all references in dual-mode operation and design decisions sections. |
+| 260216-7ltw-DEV-1038-standardize-state-keyed-suggestions | 2026-02-16 | Extended stage guard to include `intake` as valid planning stage. Added intake taxonomy scan categories (scope boundaries, affected areas, blocking questions, impact, memory coverage). All `Next:` lines now derived from canonical state table in `_preamble.md`. |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |
 | 260212-29xv-scoring-formula | 2026-02-12 | Added grade reclassification: resolved Tentative/Confident assumptions become Certain in Assumptions table before confidence recomputation, so scores increase after clarification |
 | 260212-v5p2-simplify-stages-entry-paths | 2026-02-12 | Added intake refinement capability at spec stage with per-artifact taxonomy, removed intake from valid stages |

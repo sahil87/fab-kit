@@ -246,8 +246,9 @@ Steps execute 1→3 for safety. If interrupted, re-run detects folder already in
 
 | Change | Date | Summary |
 |--------|------|---------|
-| 260217-eywl-fix-stageman-skill-path-refs | 2026-02-18 | All `lib/stageman.sh` references in skill files updated to repo-root-relative `fab/.kit/scripts/lib/stageman.sh`. Also fixed 2 short-form `lib/preflight.sh` references in `_context.md` and `fab-status.md`. Memory file references updated to match. |
-| 260216-7ltw-DEV-1038-standardize-state-keyed-suggestions | 2026-02-16 | All `Next:` lines in execution skills (`/fab-continue`, `/fab-archive`) now derived from canonical state table in `_context.md`. Removed hardcoded suggestions from review pass verdict and archive mode output. `/fab-archive` restore without `--switch` now uses activation preamble before state-derived commands. |
+| 260221-5tj7-rename-context-to-preamble | 2026-02-21 | Renamed shared skill preamble from `_context.md` to `_preamble.md`. Updated references in status mutations overview and sub-agent context sections. |
+| 260217-eywl-fix-stageman-skill-path-refs | 2026-02-18 | All `lib/stageman.sh` references in skill files updated to repo-root-relative `fab/.kit/scripts/lib/stageman.sh`. Also fixed 2 short-form `lib/preflight.sh` references in `_preamble.md` and `fab-status.md`. Memory file references updated to match. |
+| 260216-7ltw-DEV-1038-standardize-state-keyed-suggestions | 2026-02-16 | All `Next:` lines in execution skills (`/fab-continue`, `/fab-archive`) now derived from canonical state table in `_preamble.md`. Removed hardcoded suggestions from review pass verdict and archive mode output. `/fab-archive` restore without `--switch` now uses activation preamble before state-derived commands. |
 | 260216-gqpp-DEV-1040-code-review-loop | 2026-02-16 | Review dispatched to sub-agent in separate execution context for all three pipeline skills. Structured findings with three-tier priority (must-fix / should-fix / nice-to-have). `/fab-ff` gains auto-loop (3 cycles) with interactive fallback; `/fab-fff` retains auto-loop with bail. Comment triage by applying agent. Escalation rule after 2 consecutive fix-code. |
 | 260216-knmw-DEV-1030-swap-ff-fff-review-rework | 2026-02-16 | Swapped pipeline invocation note: `/fab-ff` now presents interactive rework on review failure; `/fab-fff` now uses autonomous rework with bounded retry (3-cycle cap, escalation after 2 consecutive fix-code) |
 | 260215-237b-DEV-1027-redefine-ff-fff-scope | 2026-02-16 | Updated pipeline invocation note: `/fab-fff` now presents interactive rework on review failure, `/fab-ff` now bails immediately (swapped from previous behavior) |
@@ -266,7 +267,7 @@ Steps execute 1→3 for safety. If interrupted, re-run detects folder already in
 | 260212-bk1n-rework-fab-ff-archive | 2026-02-12 | Added note that `/fab-ff` and `/fab-fff` invoke execution skills internally as part of their full-pipeline behavior |
 | 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated stage references from proposal/specs to intake/spec |
 | 260211-endg-add-created-by-field | 2026-02-11 | `/fab-status` now displays `Created by:` line when `created_by` field is present in `.status.yaml` |
-| 260210-7wxx-add-specs-index-context-loading | 2026-02-10 | Added `docs/specs/index.md` to context loading for all three execution skills, aligning with the always-load protocol in `_context.md` |
+| 260210-7wxx-add-specs-index-context-loading | 2026-02-10 | Added `docs/specs/index.md` to context loading for all three execution skills, aligning with the always-load protocol in `_preamble.md` |
 | 260209-r4w8-archive-index-longer-slugs | 2026-02-09 | Added archive index maintenance step to `/fab-archive` — creates/updates `fab/changes/archive/index.md` with searchable change summaries |
 | 260208-k3m7-add-fab-fff | 2026-02-08 | Removed auto-guess soft gate from `/fab-apply` — replaced by confidence gating on `/fab-fff` |
 | 260207-09sj-autonomy-framework | 2026-02-08 | Added auto-guess soft gate to `/fab-apply` (subsequently removed by 260208-k3m7-add-fab-fff) |

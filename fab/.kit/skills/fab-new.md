@@ -5,7 +5,7 @@ description: "Start a new change from a natural language description. Creates th
 
 # /fab-new <description>
 
-> Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
+> Read and follow the instructions in `fab/.kit/skills/_preamble.md` before proceeding.
 
 ---
 
@@ -53,11 +53,11 @@ Capture the folder name from stdout. The script handles date generation, random 
 
 ### Step 4: Generate `intake.md`
 
-Follow the **Intake Generation Procedure** (`_generation.md`). Load context per `_context.md` Layer 1 and generate from `fab/.kit/templates/intake.md`.
+Follow the **Intake Generation Procedure** (`_generation.md`). Load context per `_preamble.md` Layer 1 and generate from `fab/.kit/templates/intake.md`.
 
 ### Step 5: SRAD-Based Question Selection
 
-Apply SRAD (`_context.md`). No fixed question cap — SRAD scoring determines count. Zero questions for clear inputs. **Conversational mode**: when 5+ Unresolved, ask one at a time until resolved or user signals done.
+Apply SRAD (`_preamble.md`). No fixed question cap — SRAD scoring determines count. Zero questions for clear inputs. **Conversational mode**: when 5+ Unresolved, ask one at a time until resolved or user signals done.
 
 ---
 

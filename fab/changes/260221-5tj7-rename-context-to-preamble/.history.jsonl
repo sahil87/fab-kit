@@ -1,3 +1,5 @@
 {"ts":"2026-02-21T16:29:12+05:30","event":"command","cmd":"fab-new","args":"Rename fab/.kit/skills/_context.md to _preamble.md — update all references across skill files to point to the new filename"}
 {"ts":"2026-02-21T16:30:40+05:30","event":"command","cmd":"fab-continue"}
 {"ts":"2026-02-21T16:31:26+05:30","event":"confidence","score":4.7,"delta":"+4.7","trigger":"calc-score"}
+{"ts":"2026-02-21T16:33:47+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-21T16:39:18+05:30","event":"review","result":"passed"}

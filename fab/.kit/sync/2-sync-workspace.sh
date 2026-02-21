@@ -223,7 +223,7 @@ if [ -d "$scaffold_dir" ]; then
 fi
 
 # ── 3. Skill deployment ────────────────────────────────────────────
-# Canonical list: every *.md in .kit/skills/ except _context.md
+# Canonical list: every *.md in .kit/skills/ except _preamble.md
 skills=()
 for f in "$kit_dir"/skills/*.md; do
   [ -f "$f" ] || continue

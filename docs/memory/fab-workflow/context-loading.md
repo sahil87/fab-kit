@@ -4,7 +4,7 @@
 
 ## Overview
 
-The context loading convention defines how fab skills load project context before execution. It is implemented in `fab/.kit/skills/_context.md` as a shared preamble read by all skills. The convention uses a layered approach: always-load essentials, change-specific artifacts, and selective domain memory loading.
+The context loading convention defines how fab skills load project context before execution. It is implemented in `fab/.kit/skills/_preamble.md` as a shared preamble read by all skills. The convention uses a layered approach: always-load essentials, change-specific artifacts, and selective domain memory loading.
 
 ## Requirements
 
@@ -32,7 +32,7 @@ The script validates project initialization, the change directory, and `.status.
 
 Since the preflight script validates `config.yaml` and `constitution.md` existence, skills using preflight don't need separate existence checks for these files — they only need to read them for content.
 
-The existing 4-step inline validation sequence (check current, check directory, check .status.yaml, check config/constitution) remains documented in `_context.md` as reference for what the script validates internally.
+The existing 4-step inline validation sequence (check current, check directory, check .status.yaml, check config/constitution) remains documented in `_preamble.md` as reference for what the script validates internally.
 
 ### Selective Domain Loading
 
@@ -48,7 +48,7 @@ This applies to all skills operating on an active change, not just spec-writing 
 
 ### SRAD Protocol
 
-The shared context preamble (`_context.md`) includes the SRAD autonomy framework, which all planning skills reference during artifact generation. The framework defines:
+The shared context preamble (`_preamble.md`) includes the SRAD autonomy framework, which all planning skills reference during artifact generation. The framework defines:
 - **SRAD scoring table** — four dimensions evaluated on a continuous 0–100 scale per decision point
 - **Fuzzy-to-grade mapping** — composite score via weighted mean (w_S=0.25, w_R=0.30, w_A=0.25, w_D=0.20), mapped to grades via trapezoidal thresholds (Certain: 85–100, Confident: 60–84, Tentative: 30–59, Unresolved: 0–29)
 - **Critical Rule override** — R < 25 AND A < 25 forces Unresolved regardless of composite
@@ -60,11 +60,11 @@ The shared context preamble (`_context.md`) includes the SRAD autonomy framework
 
 `calc-score.sh` parses per-dimension scores from the required `Scores` column in the spec's Assumptions table and writes aggregate dimension statistics (`fuzzy: true`, `dimensions:` block) to `.status.yaml`.
 
-This protocol is loaded as part of the "Always Load" layer via `_context.md` and does not require separate file loading.
+This protocol is loaded as part of the "Always Load" layer via `_preamble.md` and does not require separate file loading.
 
 ### Next Steps Convention (State Table)
 
-The `_context.md` preamble defines a **state-keyed Next Steps Convention** that all skills use to derive their `Next:` output lines. The convention includes:
+The `_preamble.md` preamble defines a **state-keyed Next Steps Convention** that all skills use to derive their `Next:` output lines. The convention includes:
 
 1. **State Table** — 9 states (none, initialized, intake, spec, tasks, apply, review pass, review fail, hydrate) each mapping to available commands and a default
 2. **State derivation rules** — how to determine the current state from `config.yaml` existence, `fab/current`, and `.status.yaml` progress map
@@ -107,19 +107,20 @@ The following skills skip the standard context loading layers:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260221-5tj7-rename-context-to-preamble | 2026-02-21 | Renamed shared skill preamble file from `_context.md` to `_preamble.md`. Updated all references throughout — Overview, SRAD Protocol, and Next Steps Convention sections now reference `_preamble.md` |
 | 260220-9ogw-add-fab-discuss | 2026-02-20 | Added `fab-discuss` special case note in Exception Skills section — the only skill whose primary output IS the always-load layer |
 | 260218-5isu-fix-docs-consistency-drift | 2026-02-18 | Replaced stale `/fab-init` → `/fab-setup` in exception list (2 occurrences) |
 | 260218-xkkc-add-code-review-5cs-quality | 2026-02-18 | Expanded Always Load layer from 6 to 7 files — added `fab/code-review.md` (optional, review policy) as item 5 after `code-quality.md`, grouping all `fab/` files before `docs/` files |
 | 260218-bb93-restructure-config-yaml | 2026-02-18 | Expanded Always Load layer from 4 to 6 files — added `fab/context.md` (optional, free-form project context) and `fab/code-quality.md` (optional, coding standards) |
-| 260216-7ltw-DEV-1038-standardize-state-keyed-suggestions | 2026-02-16 | Added Next Steps Convention (State Table) section — documents the state-keyed suggestion derivation convention in `_context.md` replacing the old skill-keyed lookup table |
+| 260216-7ltw-DEV-1038-standardize-state-keyed-suggestions | 2026-02-16 | Added Next Steps Convention (State Table) section — documents the state-keyed suggestion derivation convention in `_preamble.md` replacing the old skill-keyed lookup table |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |
 | 260212-f9m3-enhance-srad-fuzzy | 2026-02-14 | SRAD protocol updated to fuzzy 0–100 dimension scoring with weighted mean aggregation, trapezoidal grade thresholds, optional Scores column, dynamic gate thresholds by change type |
 | 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Updated always-load paths to `docs/memory/index.md` and `docs/specs/index.md`; updated selective domain loading to `docs/memory/{domain}/` |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_preflight.sh` → `lib/preflight.sh` in preflight script reference |
 | 260213-w4k9-explicit-change-targeting | 2026-02-13 | Preflight script now accepts optional `$1` change-name override with case-insensitive substring matching; `fab/current` is not modified when override is used |
 | 260211-r3k8-simplify-planning-stages | 2026-02-11 | Updated docs/specs/index.md reference, removed plan.md from artifact loading |
-| 260208-k3m7-add-fab-fff | 2026-02-08 | Fixed stale `auto-guess` marker reference in SRAD Protocol section — replaced with `clarified` marker per updated `_context.md` |
-| 260207-09sj-autonomy-framework | 2026-02-08 | Added SRAD protocol section — framework is loaded via `_context.md` as part of Always Load layer |
+| 260208-k3m7-add-fab-fff | 2026-02-08 | Fixed stale `auto-guess` marker reference in SRAD Protocol section — replaced with `clarified` marker per updated `_preamble.md` |
+| 260207-09sj-autonomy-framework | 2026-02-08 | Added SRAD protocol section — framework is loaded via `_preamble.md` as part of Always Load layer |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | 260207-5mjv-preflight-grep-scripts | 2026-02-07 | Added preflight script integration — Change Context layer now uses `_preflight.sh` for validation and state resolution |
 | 260207-bb1q-add-specs-index | 2026-02-07 | Added `docs/specs/index.md` as 4th file in Always Load layer |

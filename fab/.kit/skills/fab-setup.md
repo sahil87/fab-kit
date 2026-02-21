@@ -6,7 +6,7 @@ model_tier: fast
 
 # /fab-setup [subcommand]
 
-> Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
+> Read and follow the instructions in `fab/.kit/skills/_preamble.md` before proceeding.
 > **Exception**: `/fab-setup` has subcommand-specific context loading:
 > - **bare / config / constitution**: Skip the "Always Load" context layer if files don't exist (first-run). Load them only if they already exist (re-run scenario).
 > - **migrations**: Load `fab/project/config.yaml` (MUST exist). Skip Change Context loading — migrations operate on project-level files, not a specific change.
@@ -119,7 +119,7 @@ Run `fab/.kit/scripts/fab-sync.sh` to create or repair all skill symlinks, direc
 ```
 
 If the script cannot execute, perform the equivalent manually:
-1. For each `fab-*.md` in `fab/.kit/skills/`, create the symlink (skip `_context.md`)
+1. For each `fab-*.md` in `fab/.kit/skills/`, create the symlink (skip `_preamble.md`)
 2. If symlink resolves correctly, skip; if broken, remove and recreate
 3. Use **relative paths** — never absolute
 4. Do NOT modify existing content in `.claude/skills/`
@@ -474,7 +474,7 @@ All paths are safe to re-run. Structural artifacts are created once (skipped on 
 
 ## Next Steps Reference
 
-All `Next:` lines are derived from the state table in `_context.md`:
+All `Next:` lines are derived from the state table in `_preamble.md`:
 
 - After bootstrap: state = `initialized` → `/fab-new <description> or /docs-hydrate-memory <sources>`
 - After config create: state = `initialized` → `/fab-new <description> or /docs-hydrate-memory <sources>`

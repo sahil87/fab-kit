@@ -531,7 +531,7 @@ Next: Complete intake.md, then /fab-continue
 
 **Purpose**: Prime the agent with project context for a discussion session. Loads the standard always-load layer and presents an orientation summary of the project landscape — memory domains, specs, active change (if any). Session entry point for exploratory conversations, not a pipeline stage.
 
-**Context**: Same as always-load (`_context.md` §1) — `config.yaml`, `constitution.md`, `context.md` (optional), `code-quality.md` (optional), `code-review.md` (optional), `docs/memory/index.md`, `docs/specs/index.md`. Also reads `fab/current` + `.status.yaml` for active change awareness (light touch).
+**Context**: Same as always-load (`_preamble.md` §1) — `config.yaml`, `constitution.md`, `context.md` (optional), `code-quality.md` (optional), `code-review.md` (optional), `docs/memory/index.md`, `docs/specs/index.md`. Also reads `fab/current` + `.status.yaml` for active change awareness (light touch).
 
 **Key properties**:
 - No active change required — works without `fab/current`, without `fab/changes/`

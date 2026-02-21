@@ -6,7 +6,7 @@ model_tier: fast
 
 # /fab-status [<change-name>]
 
-> Read and follow the instructions in `fab/.kit/skills/_context.md` before proceeding.
+> Read and follow the instructions in `fab/.kit/skills/_preamble.md` before proceeding.
 
 ---
 
@@ -26,7 +26,7 @@ If no argument is provided, the skill displays status for the active change in `
 
 ## Context Loading
 
-This skill uses **minimal context** — it does not need to load `fab/project/config.yaml` or `fab/project/constitution.md` (as noted in `_context.md`, status is exempt from the "Always Load" requirement).
+This skill uses **minimal context** — it does not need to load `fab/project/config.yaml` or `fab/project/constitution.md` (as noted in `_preamble.md`, status is exempt from the "Always Load" requirement).
 
 ---
 

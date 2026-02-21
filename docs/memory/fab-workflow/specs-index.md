@@ -30,7 +30,7 @@ Spec files are written and maintained by humans. No automated tooling creates or
 
 ### Context Loading Integration
 
-`docs/specs/index.md` is included in the "Always Load" context layer in `_context.md`, alongside `config.yaml`, `constitution.md`, and `docs/memory/index.md`. This gives every skill baseline awareness of the specs landscape.
+`docs/specs/index.md` is included in the "Always Load" context layer in `_preamble.md`, alongside `config.yaml`, `constitution.md`, and `docs/memory/index.md`. This gives every skill baseline awareness of the specs landscape.
 
 ## Changelog
 

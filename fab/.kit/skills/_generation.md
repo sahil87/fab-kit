@@ -27,7 +27,7 @@
    - Include concrete examples: code blocks, YAML snippets, specific file paths, exact behavior
    - The "What Changes" section should be the most detailed — use subsections per change area
    - If a design includes specific values (config structure, template content, validation questions), reproduce them in full
-4. Append `## Assumptions` section per `_context.md` SRAD framework
+4. Append `## Assumptions` section per `_preamble.md` SRAD framework
 5. Write the completed intake to `fab/changes/{name}/intake.md`
 
 ---
@@ -47,7 +47,7 @@
 4. Include a **Deprecated Requirements** section if the change removes existing requirements
 5. Mark any unresolved ambiguities with `[NEEDS CLARIFICATION]` inline
 5b. **Design Decisions** (optional): If the change involves architectural choices, technology selection, or non-obvious approaches, include a `## Design Decisions` section after the domain requirement sections. Each decision entry SHALL include: decision summary, rationale (why this choice), and rejected alternatives. Omit this section for straightforward changes.
-6. Append an `## Assumptions` section. Read `intake.md`'s `## Assumptions` table as the starting point — confirm, upgrade, or override each intake assumption based on spec-level analysis (note the action in Rationale, e.g., "Confirmed from intake #1", "Upgraded from intake Tentative"). Add new assumptions discovered during spec generation. Include all four SRAD grades (Certain, Confident, Tentative, Unresolved) with required Scores column. The spec's Assumptions table is the sole scoring source for `fab/.kit/scripts/lib/calc-score.sh` (see Assumptions Summary Block in `_context.md`)
+6. Append an `## Assumptions` section. Read `intake.md`'s `## Assumptions` table as the starting point — confirm, upgrade, or override each intake assumption based on spec-level analysis (note the action in Rationale, e.g., "Confirmed from intake #1", "Upgraded from intake Tentative"). Add new assumptions discovered during spec generation. Include all four SRAD grades (Certain, Confident, Tentative, Unresolved) with required Scores column. The spec's Assumptions table is the sole scoring source for `fab/.kit/scripts/lib/calc-score.sh` (see Assumptions Summary Block in `_preamble.md`)
 7. Write the completed spec to `fab/changes/{name}/spec.md`
 
 ---

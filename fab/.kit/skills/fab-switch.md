@@ -6,7 +6,7 @@ model_tier: fast
 
 # /fab-switch [change-name] [--blank] [--branch <name>] [--no-branch-change]
 
-> Read `fab/.kit/skills/_context.md` first. Only after that Read completes, proceed with any Bash calls.
+> Read `fab/.kit/skills/_preamble.md` first. Only after that Read completes, proceed with any Bash calls.
 
 ---
 
