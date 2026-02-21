@@ -117,6 +117,6 @@ fab/.kit/packages/
 
 **Convention**: Each package has a `bin/` directory containing executable commands. Packages with shared logic use a `lib/` directory for sourceable libraries. Commands in `bin/` are the public interface; `lib/` is internal.
 
-**PATH setup**: `fab/.kit/scripts/env-packages.sh` iterates all `fab/.kit/packages/*/bin` directories and adds them to PATH. This script is sourced by `.envrc` (for direnv-based projects) and can be sourced from shell rc files.
+**PATH setup**: `fab/.kit/scripts/lib/env-packages.sh` iterates all `fab/.kit/packages/*/bin` directories and adds them to PATH. This script is sourced by `.envrc` (for direnv-based projects) and can be sourced from shell rc files.
 
 **Distribution**: Packages are part of the kit archive — `fab-release.sh` packages them into `kit.tar.gz`, and `fab-upgrade.sh` replaces them atomically alongside skills and templates. No separate installation step.

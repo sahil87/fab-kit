@@ -71,13 +71,17 @@ fab/.kit/
     ├── batch-fab-archive-change.sh  # Batch archive completed changes via tmux + Claude
     ├── batch-fab-new-backlog.sh     # Batch create changes from backlog via tmux + Claude
     ├── batch-fab-switch-change.sh   # Batch switch to changes via tmux + Claude
-    ├── env-packages.sh     # Add all package bin/ dirs to PATH (sourced by .envrc and rc-init.sh)
     ├── fab-help.sh         # Print help overview
+    ├── fab-pipeline.sh     # Entry point for the pipeline orchestrator (listing, matching, delegation)
     ├── fab-sync.sh         # Single entry point — thin orchestrator iterating sync/*.sh then fab/sync/*.sh
     ├── fab-upgrade.sh      # Update .kit/ from GitHub Releases
+    ├── pipeline/           # Pipeline orchestrator internals
+    │   ├── run.sh          # Main orchestrator loop
+    │   └── dispatch.sh     # Per-change dispatch
     └── lib/                # Internal scripts (not user-facing)
         ├── calc-score.sh       # Confidence score computation
         ├── changeman.sh        # Change Manager — change lifecycle operations (new, rename, resolve, switch)
+        ├── env-packages.sh     # Add all package bin/ dirs to PATH (sourced by .envrc and rc-init.sh)
         ├── frontmatter.sh      # Shared YAML frontmatter parser (sourced by fab-help.sh, 2-sync-workspace.sh)
         ├── preflight.sh        # Pre-flight validation (calls stageman + changeman CLI)
         └── stageman.sh         # Stage Manager — schema query + .status.yaml accessors
@@ -132,13 +136,17 @@ Change Manager — CLI-only utility for change lifecycle operations. Supports `n
 
 All subcommands print results to stdout; errors to stderr. Designed CLI-first for eventual Rust rewrite parity with stageman.
 
-#### `env-packages.sh`
+#### `fab-pipeline.sh`
 
-Sourceable script that adds all `fab/.kit/packages/*/bin` directories to PATH. Used by both `scaffold/envrc` (for direnv-based projects) and `src/packages/rc-init.sh` (for shell rc sourcing). Self-contained: resolves `KIT_DIR` relative to its own location, iterates package bin directories, exports each to PATH. Handles missing `packages/` directory gracefully (no error).
+User-facing entry point for the pipeline orchestrator. Owns all UX — argument parsing, help, listing, name resolution — and delegates to `pipeline/run.sh` via `exec` for the actual orchestration loop. When invoked with no arguments or `--list`, lists available pipeline manifests from `fab/pipelines/*.yaml` (excluding `example.yaml`). Supports `-h`/`--help` for usage. Positional arguments are resolved via case-insensitive substring matching against manifest basenames (sans `.yaml`); exact match wins, single partial match resolves, ambiguous or no match errors. Arguments containing `/` or ending with `.yaml` bypass matching and pass through to `run.sh` unchanged. Additional arguments after the manifest are forwarded via `"$@"`.
 
 #### `fab-help.sh`
 
 Prints the Fab Kit help overview and skill catalog. Dynamically reads skill names and descriptions from YAML frontmatter in `fab/.kit/skills/` at runtime via the shared `lib/frontmatter.sh` library. Excludes `_*` (partials) and `internal-*` (internal tooling) prefixed files. Maintains a hardcoded group mapping (associative array) for display organization — skills not in any group appear under an "Other" catch-all at the end. Computes column alignment dynamically from the longest command name. Includes `fab-sync.sh` as a hardcoded non-skill entry in the "Setup" group. Appends a static `PACKAGES` section after `TYPICAL FLOW` listing bundled packages (wt commands and idea) with one-liner descriptions — static because packages are stable and few, unlike skills which change frequently. Adding a new skill file to `fab/.kit/skills/` with valid frontmatter automatically includes it in help output — no script edit required.
+
+#### `lib/env-packages.sh`
+
+Sourceable script that adds all `fab/.kit/packages/*/bin` directories to PATH. Used by both `scaffold/fragment-.envrc` (for direnv-based projects) and `src/packages/rc-init.sh` (for shell rc sourcing). Self-contained: resolves `KIT_DIR` relative to its own location (two levels up from `scripts/lib/` to `.kit/`), iterates package bin directories, exports each to PATH. Handles missing `packages/` directory gracefully (no error). Lives in `lib/` because it is a sourceable helper, not a user-callable command — keeping it off PATH prevents it from appearing in tab completion.
 
 #### `lib/frontmatter.sh`
 
@@ -314,6 +322,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260221-i0z6-move-env-packages-add-fab-pipeline | 2026-02-21 | Moved `env-packages.sh` from `scripts/` to `scripts/lib/` (off PATH). Updated `KIT_DIR` resolution (two levels up). Updated source references in `scaffold/fragment-.envrc` and `src/packages/rc-init.sh`. Added `fab-pipeline.sh` entry point to `scripts/` with listing, partial name matching, and `exec` delegation. Added `pipeline/` directory to tree listing. Added `lib/env-packages.sh` description section. |
 | 260219-wq0e-move-5cs-to-project-folder | 2026-02-19 | Moved project identity files (5 Cs + VERSION) from `fab/` root into `fab/project/` subdirectory. Updated `fab/` directory tree (top-level now: `.kit/`, `project/`, `changes/`, `sync/`, `backlog.md`, `current`). Updated scaffold overlay tree (`fab/.kit/scaffold/fab/project/`). Updated all shell script path references (`preflight.sh`, `changeman.sh`, `fab-upgrade.sh`, `batch-fab-switch-change.sh`, `2-sync-workspace.sh`). Updated section comment in `2-sync-workspace.sh` (`fab/project/VERSION`). |
 | 260218-5isu-fix-docs-consistency-drift | 2026-02-18 | Removed deleted `model-tiers.yaml` from directory tree; added missing `fab-fff.md` after `fab-ff.md` in skills listing |
 | 260218-09fa-scaffold-overlay-tree | 2026-02-18 | Restructured `scaffold/` from flat directory to repo-root overlay tree. Files now mirror destination paths; 3 merge files use `fragment-` prefix (`.envrc`, `.gitignore`, `settings.local.json`), 8 others use copy-if-absent. Replaced 6 bespoke sections (2, 3, 4, 7, 8, 9) in `2-sync-workspace.sh` with generic tree-walk dispatching on `fragment-` prefix and file extension. Extracted `line_ensure_merge` and `json_merge_permissions` helper functions (absorbing legacy `.envrc` symlink migration). Updated `fab-setup.md`: 7 scaffold path references, template detection for `config.yaml`/`constitution.md` (placeholder check instead of existence check). Updated `0.7.0-to-0.8.0.md` scaffold path. Renumbered sync script sections (1, 1b, 2, 3, 3b, 4). Added "Scaffold Overlay Tree" design decision. |

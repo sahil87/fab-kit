@@ -16,6 +16,7 @@ KIT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 FAB_DIR="$(dirname "$KIT_DIR")"
 CONFIG_FILE="${FAB_DIR}/project/config.yaml"
 DISPATCH="$SCRIPT_DIR/dispatch.sh"
+CHANGEMAN="$KIT_DIR/scripts/lib/changeman.sh"
 POLL_INTERVAL="${PIPELINE_POLL_INTERVAL:-10}"
 
 # ---------------------------------------------------------------------------
@@ -273,12 +274,14 @@ get_parent_branch() {
         echo "$base"
       else
         dep=$(yq -r ".changes[$i].depends_on[0]" "$manifest")
-        # Parent's branch name = branch_prefix + dep id
+        # Resolve parent's manifest ID to full folder name for branch construction
+        local resolved_dep
+        resolved_dep=$(bash "$CHANGEMAN" resolve "$dep" 2>/dev/null) || resolved_dep="$dep"
         local prefix=""
         if [[ -f "$CONFIG_FILE" ]] && command -v yq &>/dev/null; then
           prefix=$(yq -r '.git.branch_prefix // ""' "$CONFIG_FILE")
         fi
-        echo "${prefix}${dep}"
+        echo "${prefix}${resolved_dep}"
       fi
       return 0
     fi
@@ -404,12 +407,23 @@ main() {
     if next_id=$(find_next_dispatchable "$MANIFEST"); then
       CURRENT_DISPATCH="$next_id"
 
+      # Resolve manifest ID to full change folder name via changeman
+      local resolved_id
+      if resolved_id=$(bash "$CHANGEMAN" resolve "$next_id" 2>/dev/null); then
+        log "Resolved: $next_id → $resolved_id"
+      else
+        log "Failed: $next_id — changeman resolve failed (no matching change folder)"
+        yq -i "(.changes[] | select(.id == \"$next_id\")).stage = \"invalid\"" "$MANIFEST"
+        CURRENT_DISPATCH=""
+        continue
+      fi
+
       local parent_branch
       parent_branch=$(get_parent_branch "$MANIFEST" "$next_id")
 
       # Dispatch — capture output for worktree path, exit code 1 = infra failure
       local dispatch_output
-      if dispatch_output=$(bash "$DISPATCH" "$next_id" "$parent_branch" "$MANIFEST" 2>&1 | tee /dev/stderr); then
+      if dispatch_output=$(bash "$DISPATCH" "$next_id" "$resolved_id" "$parent_branch" "$MANIFEST" 2>&1 | tee /dev/stderr); then
         : # success
       else
         log "Infrastructure failure during dispatch of $next_id — aborting"

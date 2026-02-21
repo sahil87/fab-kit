@@ -11,4 +11,4 @@ else
 fi
 
 # Delegate to the kit's env-packages.sh for PATH setup
-source "$SCRIPT_DIR/../../fab/.kit/scripts/env-packages.sh"
+source "$SCRIPT_DIR/../../fab/.kit/scripts/lib/env-packages.sh"
