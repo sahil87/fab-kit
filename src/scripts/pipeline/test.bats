@@ -551,7 +551,7 @@ YAML
   mkdir -p "$wt_path/fab/changes/test-change"
   echo "old intake" > "$wt_path/fab/changes/test-change/intake.md"
   # Backdate the stale file so cp -ru sees the source as newer
-  touch -t 202601010000 "$wt_path/fab/changes/test-change/intake.md"
+  touch -t 202001010000 "$wt_path/fab/changes/test-change/intake.md"
   mkdir -p "$TEST_DIR/fab/changes/test-change"
   echo "new intake" > "$TEST_DIR/fab/changes/test-change/intake.md"
   echo "spec content" > "$TEST_DIR/fab/changes/test-change/spec.md"
