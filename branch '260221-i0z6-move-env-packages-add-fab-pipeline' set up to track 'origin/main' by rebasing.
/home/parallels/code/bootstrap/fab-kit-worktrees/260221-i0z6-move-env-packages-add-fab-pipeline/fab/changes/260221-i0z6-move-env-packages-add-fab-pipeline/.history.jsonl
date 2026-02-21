@@ -1,4 +1,3 @@
 {"ts":"2026-02-21T13:25:36+05:30","event":"command","cmd":"fab-new","args":"Move env-packages.sh to lib/, add fab-pipeline.sh wrapper in scripts/"}
 {"ts":"2026-02-21T13:26:46+05:30","event":"command","cmd":"fab-continue"}
 {"ts":"2026-02-21T13:27:46+05:30","event":"confidence","score":4.4,"delta":"+4.4","trigger":"calc-score"}
-{"ts":"2026-02-21T13:42:19+05:30","event":"confidence","score":4.7,"delta":"+0.3","trigger":"calc-score"}
