@@ -71,7 +71,7 @@ base: main
 changes:
   - id: 2spf
     depends_on: []
-  
+
   - id: 6ljc
     depends_on: [2spf]
 
