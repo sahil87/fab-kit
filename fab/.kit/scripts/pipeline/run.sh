@@ -43,17 +43,8 @@ Example:
 EOF
 }
 
-if [[ $# -lt 1 ]]; then
-  usage >&2
-  exit 1
-fi
-
-MANIFEST="$1"
-
-if [[ ! -f "$MANIFEST" ]]; then
-  echo "Error: manifest not found: $MANIFEST" >&2
-  exit 1
-fi
+# Argument parsing is deferred to the source guard at the bottom of the file.
+# When sourced for testing, functions are available without requiring arguments.
 
 # ---------------------------------------------------------------------------
 # State tracking
@@ -501,13 +492,13 @@ on_sigint() {
   exit 130
 }
 
-trap on_sigint INT
-
 # ---------------------------------------------------------------------------
 # Main Loop
 # ---------------------------------------------------------------------------
 
 main() {
+  trap on_sigint INT
+
   local manifest_name
   manifest_name=$(basename "$MANIFEST" .yaml)
 
@@ -615,4 +606,18 @@ main() {
   done
 }
 
-main
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  if [[ $# -lt 1 ]]; then
+    usage >&2
+    exit 1
+  fi
+
+  MANIFEST="$1"
+
+  if [[ ! -f "$MANIFEST" ]]; then
+    echo "Error: manifest not found: $MANIFEST" >&2
+    exit 1
+  fi
+
+  main
+fi

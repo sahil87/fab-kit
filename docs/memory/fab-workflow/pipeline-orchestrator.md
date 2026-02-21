@@ -145,10 +145,32 @@ Each dispatched change gets its own tmux split pane (stacked vertically in the r
 **Why**: Infrastructure failures indicate a broken environment. Continuing would likely fail on subsequent changes.
 **Rejected**: Mark individual change failed and continue (masks environment issues).
 
+## Testing
+
+BATS test suite at `src/scripts/pipeline/test.bats` covers pure-logic functions from `run.sh` and `dispatch.sh`. Both scripts have source guards (`if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then main; fi`) enabling function-level testing without triggering `main()`.
+
+### Coverage
+
+**run.sh functions**: `validate_manifest` (7 scenarios: valid, missing base, empty changes, missing id, missing depends_on, dangling reference, multi-dependency), `detect_cycles` (4 scenarios: linear chain, direct cycle, indirect cycle, independent nodes), `is_terminal` (all stage values), `is_dispatchable` (4 scenarios), `find_next_dispatchable` (5 scenarios), `get_parent_branch` (root and dependent nodes).
+
+**dispatch.sh functions**: `provision_artifacts` (3 scenarios: first provision, re-provision stale, missing source), `validate_prerequisites` (3 scenarios: missing intake, missing spec, passing gate).
+
+### Not Covered (deferred)
+
+`poll_change()` state machine, `main()` loops in both scripts, `run_pipeline()`, `create_worktree()`, `batch-fab-pipeline.sh`. These require complex infrastructure mocking (tmux, Claude CLI, wt-create, sleep loops).
+
+### Test Patterns
+
+- External commands (`tmux`, `claude`, `gh`, `changeman.sh`, `stageman.sh`, `calc-score.sh`) are stubbed via executables in `$TEST_DIR/bin/` prepended to `$PATH`
+- YAML manifest fixtures created inline per test via `make_manifest` helper
+- Each test sources the script under test, then overrides computed globals (`CHANGEMAN`, `CONFIG_FILE`, `FAB_DIR`, etc.) before calling functions
+- `setup()` creates isolated `TEST_DIR`; `teardown()` removes it
+
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260221-8bs9-add-pipeline-orchestrator-tests | 2026-02-21 | Added BATS test suite (38 tests) for run.sh and dispatch.sh pure-logic functions. Added source guards to both scripts for testability. Moved `trap on_sigint INT` inside `main()` to prevent side effects when sourced. |
 | 260221-6ljc-fix-pipeline-ship-timing | 2026-02-21 | Added `PIPELINE_SHIP_DELAY` (default 8s) wait after `hydrate:done` before sending ship command. Split `tmux send-keys` into text + Enter with 0.5s gap. Added `2>/dev/null` error handling on send-keys calls for graceful pane-death during delay. |
 | 260221-h1l8-fix-orchestrator-false-fail-on-review | 2026-02-21 | Removed `:failed` catch-all from `poll_change()` — `review:failed` is a normal intermediate state in fab-ff's rework loop, not a terminal condition. Removed stale `[pipeline]` prefix from progress printf. |
 | 260221-2spf-fix-pipeline-dispatch-timing | 2026-02-21 | Replaced `claude -p` fab-switch with visible interactive execution. dispatch.sh now creates a bare Claude pane first, sends fab-switch via send-keys, polls `fab/current` for switch confirmation, then sends fab-ff via send-keys. Added configurable delays (`CLAUDE_STARTUP_DELAY`, `POST_SWITCH_DELAY`) and polling (`SWITCH_POLL_INTERVAL`, `SWITCH_POLL_TIMEOUT`). Updated "Hybrid Model" design decision to "All-Interactive Model". |

@@ -49,16 +49,9 @@ Exit code 1 = infrastructure failure (caller should abort).
 EOF
 }
 
-if [[ $# -lt 4 ]]; then
-  usage >&2
-  exit 1
-fi
-
-MANIFEST_ID="$1"
-CHANGE_ID="$2"
-PARENT_BRANCH="$3"
-MANIFEST="$4"
-LAST_PANE_ID="${5:-}"
+# Argument parsing is deferred to the source guard at the bottom of the file.
+# When sourced for testing, functions are available without requiring arguments.
+# Tests must set globals (MANIFEST_ID, CHANGE_ID, MANIFEST, FAB_DIR, etc.) before calling functions.
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -91,8 +84,8 @@ check_pane_alive() {
 # Worktree Creation
 # ---------------------------------------------------------------------------
 
-BRANCH_PREFIX="$(get_branch_prefix)"
-CHANGE_BRANCH="${BRANCH_PREFIX}${CHANGE_ID}"
+# BRANCH_PREFIX and CHANGE_BRANCH are set in the source guard when run directly.
+# Tests can set these globals manually.
 
 create_worktree() {
   local wt_path
@@ -319,4 +312,20 @@ main() {
   echo "$pane_id"
 }
 
-main
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  if [[ $# -lt 4 ]]; then
+    usage >&2
+    exit 1
+  fi
+
+  MANIFEST_ID="$1"
+  CHANGE_ID="$2"
+  PARENT_BRANCH="$3"
+  MANIFEST="$4"
+  LAST_PANE_ID="${5:-}"
+
+  BRANCH_PREFIX="$(get_branch_prefix)"
+  CHANGE_BRANCH="${BRANCH_PREFIX}${CHANGE_ID}"
+
+  main
+fi
