@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# ---
+# name: batch-fab-pipeline
+# description: "Run a pipeline manifest — dispatches fab changes in dependency order"
+# ---
 set -euo pipefail
 
 # batch-fab-pipeline.sh — Entry point for the pipeline orchestrator
