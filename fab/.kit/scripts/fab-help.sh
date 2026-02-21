@@ -29,6 +29,7 @@ declare -a group_order=(
   "Completion"
   "Maintenance"
   "Setup"
+  "Batch Operations"
 )
 
 declare -A skill_to_group=(
@@ -47,6 +48,12 @@ declare -A skill_to_group=(
   [fab-setup]="Setup"
   [fab-help]="Setup"
   [docs-hydrate-memory]="Setup"
+)
+
+declare -A batch_to_group=(
+  [batch-fab-switch-change]="Batch Operations"
+  [batch-fab-archive-change]="Batch Operations"
+  [batch-fab-new-backlog]="Batch Operations"
 )
 
 # ── Scan skill files ─────────────────────────────────────────────────
@@ -78,12 +85,38 @@ for f in "$kit_dir"/skills/*.md; do
   discovered_skills+=("$name")
 done
 
+# ── Scan batch scripts ───────────────────────────────────────────────
+# Collect name:description pairs from shell-comment frontmatter.
+declare -A batch_descs=()
+discovered_batches=()
+
+for f in "$kit_dir"/scripts/batch-*.sh; do
+  [ -f "$f" ] || continue
+
+  name=$(shell_frontmatter_field "$f" "name")
+  desc=$(shell_frontmatter_field "$f" "description")
+
+  [ -z "$name" ] && continue
+  [ -z "$desc" ] && continue
+
+  batch_descs[$name]="$desc"
+  discovered_batches+=("$name")
+done
+
 # ── Compute dynamic alignment ───────────────────────────────────────
 # Find the longest display name (including / prefix) across all entries.
 max_len=0
 for name in "${discovered_skills[@]}"; do
   display="/$name"
   len=${#display}
+  if [ "$len" -gt "$max_len" ]; then
+    max_len=$len
+  fi
+done
+
+# Also account for batch script display names (no / prefix)
+for name in "${discovered_batches[@]}"; do
+  len=${#name}
   if [ "$len" -gt "$max_len" ]; then
     max_len=$len
   fi
@@ -131,6 +164,13 @@ for group in "${group_order[@]}"; do
     if [ "${skill_to_group[$name]:-}" = "$group" ]; then
       format_entry "/$name" "${skill_descs[$name]}"
       rendered[$name]=1
+    fi
+  done
+
+  # Render batch scripts in this group (in discovery order, no / prefix)
+  for name in "${discovered_batches[@]}"; do
+    if [ "${batch_to_group[$name]:-}" = "$group" ]; then
+      format_entry "$name" "${batch_descs[$name]}"
     fi
   done
 

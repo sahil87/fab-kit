@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# name: batch-fab-switch-change
+# description: "Open tmux tabs in worktrees for one or more changes"
+# ---
 set -euo pipefail
-
-# batch-fab-switch-change.sh — Per change ID/name: open a tmux tab in its worktree
-# and start a Claude Code session that runs /fab-switch <change>.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KIT_DIR="$(dirname "$SCRIPT_DIR")"

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# name: batch-fab-archive-change
+# description: "Archive multiple completed changes in one session"
+# ---
 set -euo pipefail
-
-# batch-fab-archive-change.sh — Run /fab-archive on multiple completed changes
-# sequentially in a single Claude Code session.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KIT_DIR="$(dirname "$SCRIPT_DIR")"

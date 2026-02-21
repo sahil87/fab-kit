@@ -82,7 +82,7 @@ fab/.kit/
         ├── calc-score.sh       # Confidence score computation
         ├── changeman.sh        # Change Manager — change lifecycle operations (new, rename, resolve, switch)
         ├── env-packages.sh     # Add all package bin/ dirs to PATH (sourced by .envrc and rc-init.sh)
-        ├── frontmatter.sh      # Shared YAML frontmatter parser (sourced by fab-help.sh, 2-sync-workspace.sh)
+        ├── frontmatter.sh      # Shared frontmatter parser — YAML (frontmatter_field) and shell-comment (shell_frontmatter_field)
         ├── preflight.sh        # Pre-flight validation (calls stageman + changeman CLI)
         └── stageman.sh         # Stage Manager — schema query + .status.yaml accessors
 ```
@@ -142,7 +142,7 @@ User-facing entry point for the pipeline orchestrator. Owns all UX — argument 
 
 #### `fab-help.sh`
 
-Prints the Fab Kit help overview and skill catalog. Dynamically reads skill names and descriptions from YAML frontmatter in `fab/.kit/skills/` at runtime via the shared `lib/frontmatter.sh` library. Excludes `_*` (partials) and `internal-*` (internal tooling) prefixed files. Maintains a hardcoded group mapping (associative array) for display organization — skills not in any group appear under an "Other" catch-all at the end. Computes column alignment dynamically from the longest command name. Includes `fab-sync.sh` as a hardcoded non-skill entry in the "Setup" group. Appends a static `PACKAGES` section after `TYPICAL FLOW` listing bundled packages (wt commands and idea) with one-liner descriptions — static because packages are stable and few, unlike skills which change frequently. Adding a new skill file to `fab/.kit/skills/` with valid frontmatter automatically includes it in help output — no script edit required.
+Prints the Fab Kit help overview and skill catalog. Dynamically reads skill names and descriptions from YAML frontmatter in `fab/.kit/skills/` at runtime via the shared `lib/frontmatter.sh` library. Also scans `batch-*.sh` scripts for shell-comment frontmatter (`# ---` delimited) via `shell_frontmatter_field()`, rendering discovered batch scripts under a "Batch Operations" group without `/` prefix (they are shell commands, not slash-commands). Excludes `_*` (partials) and `internal-*` (internal tooling) prefixed skill files. Maintains centralized group mappings (associative arrays `skill_to_group` and `batch_to_group`) for display organization — skills not in any group appear under an "Other" catch-all at the end. Computes column alignment dynamically from the longest display name across both skills and batch scripts. Includes `fab-sync.sh` as a hardcoded non-skill entry in the "Setup" group. Appends a static `PACKAGES` section after `TYPICAL FLOW` listing bundled packages (wt commands and idea) with one-liner descriptions — static because packages are stable and few, unlike skills which change frequently. Adding a new skill file to `fab/.kit/skills/` with valid frontmatter, or a new `batch-*.sh` script with shell-comment frontmatter and a `batch_to_group` mapping, automatically includes it in help output.
 
 #### `lib/env-packages.sh`
 
@@ -150,7 +150,7 @@ Sourceable script that adds all `fab/.kit/packages/*/bin` directories to PATH. U
 
 #### `lib/frontmatter.sh`
 
-Shared sourceable shell library defining `frontmatter_field()` — extracts a field value from YAML frontmatter delimited by `---` markers. Returns the unquoted value or empty string if not found. Uses `sed` for parsing (no `yq` dependency). Sourced by `fab-help.sh` and `sync/2-sync-workspace.sh`. No shebang or `set -euo pipefail` — designed to be sourced, not executed directly.
+Shared sourceable shell library defining two parser functions. `frontmatter_field()` extracts a field value from YAML frontmatter delimited by `---` markers. `shell_frontmatter_field()` extracts a field value from shell-comment frontmatter delimited by `# ---` markers (strips leading `# ` before matching, handles quoted/unquoted values). Both return the unquoted value or empty string if not found. Uses `sed` for parsing (no `yq` dependency). Sourced by `fab-help.sh` and `sync/2-sync-workspace.sh`. No shebang or `set -euo pipefail` — designed to be sourced, not executed directly.
 
 #### `fab-upgrade.sh`
 
@@ -162,7 +162,7 @@ Packages `fab/.kit/` into `kit.tar.gz`, bumps VERSION (accepts `[patch|minor|maj
 
 #### Batch Scripts
 
-Batch scripts follow the `batch-fab-{verb}-{entity}.sh` naming pattern. Each creates tmux tabs with Claude Code sessions running a specific skill, one per target entity.
+Batch scripts follow the `batch-fab-{verb}-{entity}.sh` naming pattern. Each creates tmux tabs with Claude Code sessions running a specific skill, one per target entity. Each batch script includes a `# ---` shell-comment frontmatter block with `name` and `description` fields, enabling automatic discovery by `fab-help.sh`.
 
 - **`batch-fab-new-backlog.sh`** — Per backlog ID: creates a worktree, opens a tmux tab, runs `/fab-new <description>`. Supports `--list` (show pending), `--all` (all pending), and direct ID arguments.
 - **`batch-fab-switch-change.sh`** — Per change name/ID: creates a worktree with the expected branch, opens a tmux tab, runs `/fab-switch <change> --no-branch-change`. Supports `--list`, `--all`, substring matching.
@@ -322,6 +322,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260221-alng-batch-script-frontmatter | 2026-02-21 | Added `shell_frontmatter_field()` to `lib/frontmatter.sh` for parsing `# ---` delimited shell-comment frontmatter. Added `# ---` frontmatter blocks (name, description) to all 3 batch scripts, replacing old comment headers. Added batch script scan loop to `fab-help.sh` — globs `batch-*.sh`, extracts frontmatter via `shell_frontmatter_field`, renders under "Batch Operations" group with centralized `batch_to_group` mapping and no `/` prefix. Updated tree comment for `frontmatter.sh`. |
 | 260221-i0z6-move-env-packages-add-fab-pipeline | 2026-02-21 | Moved `env-packages.sh` from `scripts/` to `scripts/lib/` (off PATH). Updated `KIT_DIR` resolution (two levels up). Updated source references in `scaffold/fragment-.envrc` and `src/packages/rc-init.sh`. Added `batch-fab-pipeline.sh` entry point to `scripts/` with listing, partial name matching, and `exec` delegation. Added `pipeline/` directory to tree listing. Added `lib/env-packages.sh` description section. |
 | 260219-wq0e-move-5cs-to-project-folder | 2026-02-19 | Moved project identity files (5 Cs + VERSION) from `fab/` root into `fab/project/` subdirectory. Updated `fab/` directory tree (top-level now: `.kit/`, `project/`, `changes/`, `sync/`, `backlog.md`, `current`). Updated scaffold overlay tree (`fab/.kit/scaffold/fab/project/`). Updated all shell script path references (`preflight.sh`, `changeman.sh`, `fab-upgrade.sh`, `batch-fab-switch-change.sh`, `2-sync-workspace.sh`). Updated section comment in `2-sync-workspace.sh` (`fab/project/VERSION`). |
 | 260218-5isu-fix-docs-consistency-drift | 2026-02-18 | Removed deleted `model-tiers.yaml` from directory tree; added missing `fab-fff.md` after `fab-ff.md` in skills listing |

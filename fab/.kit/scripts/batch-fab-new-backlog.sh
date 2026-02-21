@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# name: batch-fab-new-backlog
+# description: "Create worktree tabs from backlog items"
+# ---
 set -euo pipefail
-
-# batch-fab-new-backlog.sh — Per backlog ID: create a worktree, open a tmux tab
-# in it, and start a Claude Code session that runs /fab-new <description>.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KIT_DIR="$(dirname "$SCRIPT_DIR")"

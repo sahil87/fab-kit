@@ -1,3 +1,6 @@
 {"ts":"2026-02-21T13:49:35+05:30","event":"command","cmd":"fab-new","args":"Add shell-comment frontmatter to batch-*.sh scripts so fab-help.sh can discover them"}
 {"ts":"2026-02-21T14:28:53+05:30","event":"command","cmd":"fab-continue"}
 {"ts":"2026-02-21T14:29:59+05:30","event":"confidence","score":4.4,"delta":"+4.4","trigger":"calc-score"}
+{"ts":"2026-02-21T14:43:08+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-21T14:54:13+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-21T14:56:56+05:30","event":"review","result":"passed"}

@@ -21,3 +21,22 @@ frontmatter_field() {
     }
   ' "$file"
 }
+
+# Extract a field value from shell-comment frontmatter (between # --- markers).
+# Usage: shell_frontmatter_field <file> <field_name>
+# Returns the value (unquoted) or empty string if not found.
+shell_frontmatter_field() {
+  local file="$1" field="$2"
+  sed -n '
+    /^# ---$/,/^# ---$/{
+      /^# ---$/d
+      /^# *'"$field"': */{
+        s/^# *'"$field"': *//
+        s/^"//; s/"$//
+        s/ *#.*//
+        p
+        q
+      }
+    }
+  ' "$file"
+}
