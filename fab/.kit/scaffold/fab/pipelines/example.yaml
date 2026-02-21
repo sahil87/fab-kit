@@ -1,0 +1,92 @@
+# Pipeline Manifest — Example
+#
+# This file is documentation-as-code. Copy and uncomment to create your own
+# pipeline manifest. Run with: fab/.kit/scripts/pipeline/run.sh <manifest>
+#
+# ─── How it works ───────────────────────────────────────────────────────────
+#
+# The orchestrator reads this file on every loop iteration. You can add new
+# entries while the orchestrator is running — it will discover and dispatch
+# them when their dependencies are met. This is the "live contract": you
+# stay ahead, the orchestrator catches up.
+#
+# The orchestrator only writes to the `stage` field. Your `id` and
+# `depends_on` fields are never modified.
+#
+# ─── Prerequisites ──────────────────────────────────────────────────────────
+#
+# Each change listed here MUST already have:
+#   1. A folder under fab/changes/<id>/
+#   2. intake.md and spec.md generated (human has done the thinking)
+#   3. A confidence score above the fab-ff gate threshold
+#      (spec stage computes this via calc-score.sh)
+#
+# Changes that don't meet prerequisites are marked stage: invalid.
+#
+# ─── Dependency rules ───────────────────────────────────────────────────────
+#
+# - depends_on: []           Root node — branches from `base`
+# - depends_on: [<id>]       Depends on one parent — branches from parent
+# - depends_on: [<a>, <b>]   NOT SUPPORTED in v1 — multi-parent dependencies
+#                             require merging parent branches manually first
+#
+# ─── Stage values ───────────────────────────────────────────────────────────
+#
+# The orchestrator writes these stage values as changes progress:
+#
+#   (absent)    Not started — eligible for dispatch when deps are done
+#   intake      Currently at intake stage (intermediate)
+#   spec        Currently at spec stage (intermediate)
+#   tasks       Currently at tasks stage (intermediate)
+#   apply       Currently at apply stage (intermediate)
+#   review      Currently at review stage (intermediate)
+#   hydrate     Currently at hydrate stage (intermediate)
+#   done        Hydrate complete + PR created — terminal
+#   failed      Pipeline failed for this change — terminal
+#   invalid     Prerequisites not met — terminal
+#
+# Terminal stages are never re-dispatched. Intermediate stages are
+# re-dispatched on orchestrator restart (idempotent resume).
+#
+# ─── Example: Linear chain (A → B → C) ─────────────────────────────────────
+#
+# base: main
+#
+# changes:
+#   - id: 260221-a7k2-user-model
+#     depends_on: []
+#     # stage: done          ← orchestrator writes this
+#
+#   - id: 260221-b3m1-auth-endpoints
+#     depends_on: [260221-a7k2-user-model]
+#     # stage: apply         ← orchestrator writes current stage
+#
+#   - id: 260221-c9p4-sessions
+#     depends_on: [260221-b3m1-auth-endpoints]
+#     # (no stage yet — not started)
+#
+# ─── Example: Fan-out (A → B, A → C) ───────────────────────────────────────
+#
+# base: main
+#
+# changes:
+#   - id: 260221-a7k2-user-model
+#     depends_on: []
+#
+#   - id: 260221-b3m1-auth-endpoints
+#     depends_on: [260221-a7k2-user-model]
+#
+#   - id: 260221-c9p4-sessions
+#     depends_on: [260221-a7k2-user-model]
+#
+# B and C both depend on A. The orchestrator dispatches them in list order
+# (B first, then C) since v1 is serial.
+#
+# ─── Stacked PRs ───────────────────────────────────────────────────────────
+#
+# Root nodes create PRs targeting `base` (e.g., main).
+# Dependent nodes create PRs targeting their parent's branch.
+# This produces a stacked PR chain — merge in topological order.
+#
+# Merging to main is YOUR responsibility. The orchestrator creates PRs
+# but never merges.
