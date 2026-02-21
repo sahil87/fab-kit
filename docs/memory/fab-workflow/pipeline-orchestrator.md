@@ -102,7 +102,7 @@ User-facing entry point on PATH. Owns all UX: no-args/`--list` lists available p
 
 ### Shipping
 
-After `hydrate:done` is detected, `run.sh` pushes `/changes:ship pr` to the interactive Claude session via `tmux send-keys`. The session retains full fab-ff conversation context, producing contextual commit messages and PR descriptions. Ship completion is detected by polling `gh pr view` from the worktree.
+After `hydrate:done` is detected, `run.sh` waits for Claude to finish its turn output before sending the ship command. The delay (`PIPELINE_SHIP_DELAY`, default 8s) prevents the Enter keystroke from being swallowed while Claude is still outputting its summary. The ship command is sent as two separate `tmux send-keys` calls — text first, 0.5s gap, then Enter — to prevent keystroke buffering issues. Both calls include `2>/dev/null` with error handling so that if the pane has died by the time a `send-keys` call runs, it fails gracefully; if the pane dies during the fixed delay, that failure is only discovered when sending begins. The session retains full fab-ff conversation context, producing contextual commit messages and PR descriptions. Ship completion is detected by polling `gh pr view` from the worktree.
 
 ### Pane Lifecycle
 
@@ -149,6 +149,7 @@ Each dispatched change gets its own tmux split pane (stacked vertically in the r
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260221-6ljc-fix-pipeline-ship-timing | 2026-02-21 | Added `PIPELINE_SHIP_DELAY` (default 8s) wait after `hydrate:done` before sending ship command. Split `tmux send-keys` into text + Enter with 0.5s gap. Added `2>/dev/null` error handling on send-keys calls for graceful pane-death during delay. |
 | 260221-h1l8-fix-orchestrator-false-fail-on-review | 2026-02-21 | Removed `:failed` catch-all from `poll_change()` — `review:failed` is a normal intermediate state in fab-ff's rework loop, not a terminal condition. Removed stale `[pipeline]` prefix from progress printf. |
 | 260221-2spf-fix-pipeline-dispatch-timing | 2026-02-21 | Replaced `claude -p` fab-switch with visible interactive execution. dispatch.sh now creates a bare Claude pane first, sends fab-switch via send-keys, polls `fab/current` for switch confirmation, then sends fab-ff via send-keys. Added configurable delays (`CLAUDE_STARTUP_DELAY`, `POST_SWITCH_DELAY`) and polling (`SWITCH_POLL_INTERVAL`, `SWITCH_POLL_TIMEOUT`). Updated "Hybrid Model" design decision to "All-Interactive Model". |
 | 260221-ay66-interactive-pipeline-pane | 2026-02-21 | Replaced passive `tail -f` log pane with interactive Claude sessions per dispatch. fab-ff now runs in interactive mode (not `claude -p`), shipping via `tmux send-keys` to the same session. Added unified polling loop in `run.sh` with progress-line rendering and state machine (polling_fab_ff → shipping → done/failed). Added `stageman.sh progress-line` command. Stacked vertical pane layout. Removed `ship()` from dispatch.sh. |
