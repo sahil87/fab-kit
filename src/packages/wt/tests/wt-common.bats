@@ -220,18 +220,27 @@ teardown() {
 # Menu Display (wt_show_menu)
 # ============================================================================
 
+# Helper: run wt_show_menu with piped input, stripping ANSI codes from output
+_run_menu() {
+    local input="$1"
+    shift
+    run bash -c "
+        source '$REPO_ROOT/fab/.kit/packages/wt/lib/wt-common.sh'
+        echo '$input' | wt_show_menu \"\$@\" | sed 's/\x1b\[[0-9;]*m//g'
+    " _ "$@"
+}
+
 @test "menu: empty default_choice does not create blank option" {
-    # Simulate choosing option 1
-    run bash -c 'echo "1" | wt_show_menu "Pick one:" "" "Alpha" "Beta"'
+    _run_menu "1" "Pick one:" "" "Alpha" "Beta"
 
     # Should show "1) Alpha" and "2) Beta" — not a blank "1)" followed by "2) Alpha"
     assert_output --partial "1) Alpha"
     assert_output --partial "2) Beta"
-    refute_output --regexp '^\s*1\)\s*$'
+    refute_output --partial "3)"
 }
 
 @test "menu: numeric default_choice is not rendered as an option" {
-    run bash -c 'echo "1" | wt_show_menu "Pick one:" 2 "Alpha" "Beta"'
+    _run_menu "1" "Pick one:" 2 "Alpha" "Beta"
 
     assert_output --partial "1) Alpha"
     assert_output --partial "2) Beta"
@@ -240,7 +249,7 @@ teardown() {
 }
 
 @test "menu: option count matches arguments when default_choice is empty" {
-    run bash -c 'echo "1" | wt_show_menu "Pick:" "" "A" "B" "C"'
+    _run_menu "1" "Pick:" "" "A" "B" "C"
 
     assert_output --partial "1) A"
     assert_output --partial "2) B"
@@ -249,7 +258,7 @@ teardown() {
 }
 
 @test "menu: option count matches arguments when default_choice is numeric" {
-    run bash -c 'echo "1" | wt_show_menu "Pick:" 1 "A" "B" "C"'
+    _run_menu "1" "Pick:" 1 "A" "B" "C"
 
     assert_output --partial "1) A"
     assert_output --partial "2) B"
