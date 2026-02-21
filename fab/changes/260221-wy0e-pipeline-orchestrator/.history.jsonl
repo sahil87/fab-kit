@@ -1,1 +1,13 @@
 {"ts":"2026-02-21T11:25:16+05:30","event":"command","cmd":"fab-new","args":"Add a pipeline orchestrator that reads a live YAML manifest and executes fab changes in dependency order"}
+{"ts":"2026-02-21T11:32:14+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-21T11:36:18+05:30","event":"confidence","score":1.5,"delta":"+1.5","trigger":"calc-score"}
+{"ts":"2026-02-21T11:38:07+05:30","event":"confidence","score":1.5,"delta":"+0.0","trigger":"calc-score"}
+{"ts":"2026-02-21T11:38:23+05:30","event":"command","cmd":"fab-clarify"}
+{"ts":"2026-02-21T11:47:15+05:30","event":"confidence","score":2.9,"delta":"+1.4","trigger":"calc-score"}
+{"ts":"2026-02-21T11:47:42+05:30","event":"command","cmd":"fab-clarify"}
+{"ts":"2026-02-21T11:53:20+05:30","event":"confidence","score":2.9,"delta":"+0.0","trigger":"calc-score"}
+{"ts":"2026-02-21T11:56:04+05:30","event":"confidence","score":4.4,"delta":"+1.5","trigger":"calc-score"}
+{"ts":"2026-02-21T12:00:44+05:30","event":"confidence","score":5.0,"delta":"+0.6","trigger":"calc-score"}
+{"ts":"2026-02-21T12:03:24+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-21T12:11:15+05:30","event":"review","result":"failed","rework":"fix-code"}
+{"ts":"2026-02-21T12:15:46+05:30","event":"review","result":"passed"}

@@ -20,3 +20,4 @@
 | [hydrate-specs](hydrate-specs.md) | `/docs-hydrate-specs` skill — structural gap detection between memory and specs, interactive propose-then-apply | 2026-02-14 |
 | [specs-index](specs-index.md) | `docs/specs/` directory — pre-implementation specs, distinction from memory, bootstrap and context integration | 2026-02-14 |
 | [schemas](schemas.md) | `workflow.yaml` schema — stages, states, transitions, validation rules, design principles | 2026-02-12 |
+| [pipeline-orchestrator](pipeline-orchestrator.md) | Pipeline orchestrator — YAML manifest format, serial dispatch loop, worktree isolation, Claude CLI execution, stacked PRs, SIGINT handling | 2026-02-21 |
