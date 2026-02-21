@@ -1,3 +1,5 @@
 {"ts":"2026-02-21T17:31:53+05:30","event":"command","cmd":"fab-new","args":"Fix orchestrator treating review:failed as terminal — should only fail on hydrate:done, pane death, or timeout"}
 {"ts":"2026-02-21T17:44:02+05:30","event":"command","cmd":"fab-continue"}
 {"ts":"2026-02-21T17:45:08+05:30","event":"confidence","score":5.0,"delta":"+5.0","trigger":"calc-score"}
+{"ts":"2026-02-21T17:47:35+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-21T17:51:03+05:30","event":"review","result":"passed"}

@@ -349,7 +349,7 @@ poll_change() {
     if [[ -f "$status_file" ]]; then
       progress_line=$(bash "$STAGEMAN" progress-line "$status_file" 2>/dev/null) || progress_line=""
     fi
-    printf "\r[pipeline] %s: %s (%dm %02ds)  " "$resolved_id" "$progress_line" "$mins" "$secs"
+    printf "\r%s: %s (%dm %02ds)  " "$resolved_id" "$progress_line" "$mins" "$secs"
 
     case "$state" in
       polling_fab_ff)
@@ -373,14 +373,6 @@ poll_change() {
             tmux send-keys -t "$pane_id" "/changes:ship pr" Enter
             state="shipping"
             ship_start_time=$SECONDS
-          # Check for any failed stage
-          elif echo "$progress_map" | grep -q ":failed$"; then
-            local failed_stage
-            failed_stage=$(echo "$progress_map" | grep ":failed$" | head -1)
-            printf "\n"
-            log "Failed: $resolved_id — $failed_stage"
-            write_stage "$manifest_id" "failed" "$MANIFEST"
-            return 0
           fi
         fi
         ;;

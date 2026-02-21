@@ -32,11 +32,11 @@ The `stage` field is written by the orchestrator. Valid values: `intake`, `spec`
 6. If nothing dispatchable: sleeps 30 seconds (configurable via `PIPELINE_POLL_INTERVAL`), re-reads. Uses `\r` in-place line update (no scrolling).
 
 **Unified polling loop** (`poll_change()`): Monitors the interactive Claude session via `.status.yaml` polling and pane-alive checks. State machine:
-- `polling_fab_ff` → detects `hydrate:done` (triggers ship) or `*:failed` (marks failed)
+- `polling_fab_ff` → detects `hydrate:done` (triggers ship)
 - `shipping` → pushes `/changes:ship pr` via `tmux send-keys`, polls `gh pr view` for PR creation
-- Terminal states: `done` (PR detected) or `failed` (timeout, pane death, pipeline failure)
+- Terminal states: `done` (PR detected) or `failed` (timeout, pane death)
 
-**Progress rendering**: Each poll iteration calls `stageman.sh progress-line` and renders in-place: `[pipeline] <id>: <progress> (<elapsed>)`.
+**Progress rendering**: Each poll iteration calls `stageman.sh progress-line` and renders in-place: `<id>: <progress> (<elapsed>)`.
 
 **Configurable timeouts**: `PIPELINE_FF_TIMEOUT` (default 1800s/30min), `PIPELINE_SHIP_TIMEOUT` (default 300s/5min).
 
@@ -47,7 +47,7 @@ The `stage` field is written by the orchestrator. Valid values: `intake`, `spec`
 
 On SIGINT: kills all tracked interactive panes, prints structured summary (Completed/Failed/Blocked/Skipped/Pending with worktree paths), exits 130.
 
-Output: `[pipeline]`-prefixed status lines, in-place progress updates per change.
+Output: in-place progress updates per change.
 
 ### Change Dispatch (dispatch.sh)
 
@@ -98,7 +98,7 @@ User-facing entry point on PATH. Owns all UX: no-args/`--list` lists available p
 
 ### Stage Detection
 
-`run.sh`'s polling loop uses `stageman progress-map` to scan for terminal states. `hydrate:done` triggers shipping; any `*:failed` marks the change failed. This replaced the previous `display-stage` approach (which does not surface failed states).
+`run.sh`'s polling loop uses `stageman progress-map` to detect `hydrate:done`, which triggers shipping. Intermediate states like `review:failed` are not treated as terminal — fab-ff manages its own rework lifecycle internally. The orchestrator relies on `hydrate:done` (success), pane death (failure), and timeout (failure) as the only terminal conditions.
 
 ### Shipping
 
@@ -149,6 +149,7 @@ Each dispatched change gets its own tmux split pane (stacked vertically in the r
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260221-h1l8-fix-orchestrator-false-fail-on-review | 2026-02-21 | Removed `:failed` catch-all from `poll_change()` — `review:failed` is a normal intermediate state in fab-ff's rework loop, not a terminal condition. Removed stale `[pipeline]` prefix from progress printf. |
 | 260221-2spf-fix-pipeline-dispatch-timing | 2026-02-21 | Replaced `claude -p` fab-switch with visible interactive execution. dispatch.sh now creates a bare Claude pane first, sends fab-switch via send-keys, polls `fab/current` for switch confirmation, then sends fab-ff via send-keys. Added configurable delays (`CLAUDE_STARTUP_DELAY`, `POST_SWITCH_DELAY`) and polling (`SWITCH_POLL_INTERVAL`, `SWITCH_POLL_TIMEOUT`). Updated "Hybrid Model" design decision to "All-Interactive Model". |
 | 260221-ay66-interactive-pipeline-pane | 2026-02-21 | Replaced passive `tail -f` log pane with interactive Claude sessions per dispatch. fab-ff now runs in interactive mode (not `claude -p`), shipping via `tmux send-keys` to the same session. Added unified polling loop in `run.sh` with progress-line rendering and state machine (polling_fab_ff → shipping → done/failed). Added `stageman.sh progress-line` command. Stacked vertical pane layout. Removed `ship()` from dispatch.sh. |
 | 260221-i0z6-move-env-packages-add-fab-pipeline | 2026-02-21 | Added `batch-fab-pipeline.sh` user-facing entry point with listing, partial name matching, help, and `exec` delegation. Added changeman resolve for manifest change IDs in `run.sh`. Added `--worktree-name` to `wt-create` call in `dispatch.sh`. Replaced raw yq hydrate check with stageman `display-stage` in `dispatch.sh`. |
