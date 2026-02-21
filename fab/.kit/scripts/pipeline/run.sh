@@ -517,6 +517,7 @@ main() {
   log "Poll interval: ${POLL_INTERVAL}s"
   log "Log file: $LOG_FILE"
   echo ""
+  local waiting_shown=false
 
   # Initial validation
   if ! validate_manifest "$MANIFEST"; then
@@ -536,7 +537,7 @@ main() {
     local next_id
     if next_id=$(find_next_dispatchable "$MANIFEST"); then
       CURRENT_DISPATCH="$next_id"
-      printf "\n"  # clear in-place waiting line before dispatch output
+      if $waiting_shown; then printf "\n"; fi  # clear in-place waiting line
 
       # Resolve manifest ID to full change folder name via changeman
       local resolved_id
@@ -604,7 +605,8 @@ main() {
       pending_count=$((total - completed_count - failed_count - invalid_count))
 
       # In-place update: overwrite the same line each poll cycle
-      printf "\r[pipeline] Waiting… %s done, %s pending — polling every %ss  " \
+      waiting_shown=true
+      printf "\rWaiting… %s done, %s pending — polling every %ss  " \
         "$completed_count" "$pending_count" "$POLL_INTERVAL"
       sleep "$POLL_INTERVAL"
     fi

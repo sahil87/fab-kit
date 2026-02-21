@@ -75,7 +75,7 @@ write_stage() {
 }
 
 log() {
-  echo "$*"
+  echo "$*" >&2
 }
 
 # check_pane_alive <pane_id> — verify tmux pane still exists
@@ -97,7 +97,7 @@ create_worktree() {
   # Reuse existing worktree if present (resuming a previous run)
   source "$KIT_DIR/packages/wt/lib/wt-common.sh"
   if wt_path=$(wt_get_worktree_path_by_name "$CHANGE_ID"); then
-    log "Reusing existing worktree: $wt_path" >&2
+    log "Reusing existing worktree: $wt_path"
     echo "$wt_path"
     return 0
   fi
@@ -234,7 +234,7 @@ main() {
     echo "Error: worktree creation failed for $CHANGE_ID" >&2
     exit 1
   }
-  log "Dispatching: $CHANGE_ID (worktree: $wt_path)" >&2
+  log "Dispatching: $CHANGE_ID (worktree: $wt_path)"
 
   # Provision artifacts — infrastructure failure if source missing
   provision_artifacts "$wt_path" || {
