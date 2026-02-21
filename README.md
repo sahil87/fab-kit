@@ -330,7 +330,7 @@ Add to your `~/.zshrc` (or `~/.bashrc`):
 source /path/to/fab-kit/src/packages/rc-init.sh
 ```
 
-This delegates to `fab/.kit/scripts/env-packages.sh`, which puts all package `bin/` directories on your PATH. Projects using direnv get this automatically via `.envrc`.
+This delegates to `fab/.kit/scripts/lib/env-packages.sh`, which puts all package `bin/` directories on your PATH. Projects using direnv get this automatically via `.envrc`.
 
 ### Development
 

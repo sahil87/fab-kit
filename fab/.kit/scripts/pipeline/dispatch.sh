@@ -3,7 +3,7 @@ set -euo pipefail
 
 # fab/.kit/scripts/pipeline/dispatch.sh — Dispatch a single change through the fab pipeline
 #
-# Usage: dispatch.sh <change-id> <parent-branch> <manifest-path>
+# Usage: dispatch.sh <manifest-id> <fs-change-id> <parent-branch> <manifest-path>
 #
 # Creates a worktree, provisions artifacts, validates prerequisites,
 # runs fab-ff via claude -p, ships (commit/push/PR), and writes the
@@ -26,12 +26,13 @@ CONFIG_FILE="${FAB_DIR}/project/config.yaml"
 
 usage() {
   cat <<'EOF'
-Usage: dispatch.sh <change-id> <parent-branch> <manifest-path>
+Usage: dispatch.sh <manifest-id> <fs-change-id> <parent-branch> <manifest-path>
 
 Dispatches a single change through the fab pipeline in an isolated worktree.
 
 Arguments:
-  change-id       Change folder name under fab/changes/
+  manifest-id     Original change ID as written in the manifest (for manifest writes)
+  fs-change-id    Resolved change folder name under fab/changes/ (for filesystem ops)
   parent-branch   Branch to base the worktree on (manifest's base for roots,
                   parent change's branch for dependents)
   manifest-path   Path to the pipeline manifest YAML file
@@ -44,14 +45,15 @@ Exit code 1 = infrastructure failure (caller should abort).
 EOF
 }
 
-if [[ $# -lt 3 ]]; then
+if [[ $# -lt 4 ]]; then
   usage >&2
   exit 1
 fi
 
-CHANGE_ID="$1"
-PARENT_BRANCH="$2"
-MANIFEST="$3"
+MANIFEST_ID="$1"
+CHANGE_ID="$2"
+PARENT_BRANCH="$3"
+MANIFEST="$4"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -95,7 +97,7 @@ create_worktree() {
     # If parent not on remote, wt-create will create from HEAD (root node)
   fi
 
-  wt_path=$(wt-create --non-interactive --worktree-open skip "$CHANGE_BRANCH" | tail -1)
+  wt_path=$(wt-create --non-interactive --worktree-open skip --worktree-name "$CHANGE_ID" "$CHANGE_BRANCH" | tail -1)
 
   if [[ -z "$wt_path" || ! -d "$wt_path" ]]; then
     echo "Error: wt-create failed — no worktree path returned" >&2
@@ -135,13 +137,13 @@ validate_prerequisites() {
 
   if [[ ! -f "$change_dir/intake.md" ]]; then
     log "Failed: $CHANGE_ID — prerequisite failed: intake.md not found"
-    write_stage "$CHANGE_ID" "invalid" "$MANIFEST"
+    write_stage "$MANIFEST_ID" "invalid" "$MANIFEST"
     return 2
   fi
 
   if [[ ! -f "$change_dir/spec.md" ]]; then
     log "Failed: $CHANGE_ID — prerequisite failed: spec.md not found"
-    write_stage "$CHANGE_ID" "invalid" "$MANIFEST"
+    write_stage "$MANIFEST_ID" "invalid" "$MANIFEST"
     return 2
   fi
 
@@ -161,7 +163,7 @@ validate_prerequisites() {
     score=$(echo "$gate_result" | grep "^score:" | sed 's/score: //')
     threshold=$(echo "$gate_result" | grep "^threshold:" | sed 's/threshold: //')
     log "Failed: $CHANGE_ID — prerequisite failed: confidence $score below gate $threshold"
-    write_stage "$CHANGE_ID" "invalid" "$MANIFEST"
+    write_stage "$MANIFEST_ID" "invalid" "$MANIFEST"
     return 2
   fi
 
@@ -178,30 +180,42 @@ run_pipeline() {
   # Activate the change
   if ! (cd "$wt_path" && claude -p --dangerously-skip-permissions "/fab-switch $CHANGE_ID --no-branch-change"); then
     log "Failed: $CHANGE_ID — fab-switch failed"
-    write_stage "$CHANGE_ID" "failed" "$MANIFEST"
+    write_stage "$MANIFEST_ID" "failed" "$MANIFEST"
     return 0  # not infra failure — change-level failure
   fi
 
-  # Run fab-ff
+  # Run fab-ff — capture exit code, then check stage unconditionally
+  local fab_ff_exit=0
   if ! (cd "$wt_path" && claude -p --dangerously-skip-permissions "/fab-ff"); then
-    log "Failed: $CHANGE_ID — fab-ff failed"
-    write_stage "$CHANGE_ID" "failed" "$MANIFEST"
-    return 0
+    fab_ff_exit=1
   fi
 
-  # Confirm terminal state
+  # Determine actual stage reached via stageman (regardless of fab-ff exit code)
   local status_file="$wt_path/fab/changes/$CHANGE_ID/.status.yaml"
   if [[ ! -f "$status_file" ]]; then
     log "Failed: $CHANGE_ID — .status.yaml not found after pipeline"
-    write_stage "$CHANGE_ID" "failed" "$MANIFEST"
+    write_stage "$MANIFEST_ID" "failed" "$MANIFEST"
     return 0
   fi
 
-  local hydrate_state
-  hydrate_state=$(yq -r '.progress.hydrate // "pending"' "$status_file")
-  if [[ "$hydrate_state" != "done" ]]; then
-    log "Failed: $CHANGE_ID — fab-ff exited 0 but hydrate not done (state: $hydrate_state)"
-    write_stage "$CHANGE_ID" "failed" "$MANIFEST"
+  local wt_stageman="$wt_path/fab/.kit/scripts/lib/stageman.sh"
+  if [[ ! -f "$wt_stageman" ]]; then
+    log "Failed: $CHANGE_ID — infrastructure failure: stageman.sh not found at $wt_stageman"
+    exit 1
+  fi
+
+  local display_stage
+  display_stage=$(bash "$wt_stageman" display-stage "$status_file" 2>/dev/null) || display_stage="unknown"
+
+  if [[ "$fab_ff_exit" -ne 0 ]]; then
+    log "Failed: $CHANGE_ID — fab-ff failed at $display_stage"
+    write_stage "$MANIFEST_ID" "failed" "$MANIFEST"
+    return 0
+  fi
+
+  if [[ "$display_stage" != "hydrate:done" ]]; then
+    log "Failed: $CHANGE_ID — fab-ff exited 0 but stage is $display_stage (expected hydrate:done)"
+    write_stage "$MANIFEST_ID" "failed" "$MANIFEST"
     return 0
   fi
 
@@ -219,7 +233,7 @@ ship() {
   if ! (cd "$wt_path" && claude -p --dangerously-skip-permissions \
     "Commit all changes and create a PR targeting '$target_branch'. Include a summary of what this change does based on the spec."); then
     log "Failed: $CHANGE_ID — shipping failed"
-    write_stage "$CHANGE_ID" "failed" "$MANIFEST"
+    write_stage "$MANIFEST_ID" "failed" "$MANIFEST"
     return 0
   fi
 
@@ -255,13 +269,13 @@ main() {
 
   # Ship if pipeline succeeded (check manifest for current stage)
   local current_stage
-  current_stage=$(yq -r "(.changes[] | select(.id == \"$CHANGE_ID\")).stage // \"\"" "$MANIFEST")
+  current_stage=$(yq -r "(.changes[] | select(.id == \"$MANIFEST_ID\")).stage // \"\"" "$MANIFEST")
   if [[ -z "$current_stage" || "$current_stage" == "null" ]]; then
     # Pipeline succeeded, ship it
     ship "$wt_path" "$PARENT_BRANCH"
 
     # Write done
-    write_stage "$CHANGE_ID" "done" "$MANIFEST"
+    write_stage "$MANIFEST_ID" "done" "$MANIFEST"
     log "Completed: $CHANGE_ID — done"
   fi
 }

@@ -2,3 +2,7 @@
 {"ts":"2026-02-21T13:26:46+05:30","event":"command","cmd":"fab-continue"}
 {"ts":"2026-02-21T13:27:46+05:30","event":"confidence","score":4.4,"delta":"+4.4","trigger":"calc-score"}
 {"ts":"2026-02-21T13:42:19+05:30","event":"confidence","score":4.7,"delta":"+0.3","trigger":"calc-score"}
+{"ts":"2026-02-21T13:45:01+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-21T13:54:14+05:30","event":"review","result":"failed","rework":"Fix code"}
+{"ts":"2026-02-21T13:57:15+05:30","event":"review","result":"failed","rework":"Fix code"}
+{"ts":"2026-02-21T13:58:30+05:30","event":"review","result":"passed"}

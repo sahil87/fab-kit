@@ -4,16 +4,16 @@ created_by: sahil-weaver
 change_type: feature
 progress:
   intake: done
-  spec: active
-  tasks: pending
-  apply: pending
-  review: pending
-  hydrate: pending
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
 checklist:
-  generated: false
+  generated: true
   path: checklist.md
   completed: 0
-  total: 0
+  total: 37
 confidence:
   certain: 9
   confident: 1
@@ -28,5 +28,9 @@ confidence:
     disambiguation: 89.0
 stage_metrics:
   intake: {started_at: "2026-02-21T13:25:36+05:30", driver: fab-new, iterations: 1, completed_at: "2026-02-21T13:27:47+05:30"}
-  spec: {started_at: "2026-02-21T13:27:47+05:30", driver: fab-continue, iterations: 1}
-last_updated: 2026-02-21T13:42:26+05:30
+  spec: {started_at: "2026-02-21T13:27:47+05:30", driver: fab-continue, iterations: 1, completed_at: "2026-02-21T13:45:23+05:30"}
+  tasks: {started_at: "2026-02-21T13:45:23+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-21T13:46:38+05:30"}
+  apply: {started_at: "2026-02-21T13:57:15+05:30", driver: fab-ff, iterations: 3, completed_at: "2026-02-21T13:57:37+05:30"}
+  review: {started_at: "2026-02-21T13:57:37+05:30", driver: fab-ff, iterations: 3, completed_at: "2026-02-21T13:58:30+05:30"}
+  hydrate: {started_at: "2026-02-21T13:58:30+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-21T13:58:52+05:30"}
+last_updated: "2026-02-21T13:58:52+05:30"
