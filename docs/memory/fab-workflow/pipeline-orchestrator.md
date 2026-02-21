@@ -51,16 +51,18 @@ Output: `[pipeline]`-prefixed status lines, in-place progress updates per change
 
 ### Change Dispatch (dispatch.sh)
 
-`dispatch.sh` handles a single change and returns immediately (no polling):
+`dispatch.sh` handles a single change — creates pane, sends commands, confirms switch, then returns:
 
 1. **Worktree creation** — branch name is `{branch_prefix}{change-id}`. Root nodes: `wt-create --non-interactive --worktree-open skip <change-branch>`. Dependent nodes: `git branch <change-branch> origin/<parent-branch>` first, then `wt-create`.
 2. **Artifact provisioning** — copies `fab/changes/<id>/` from source repo to worktree if not present
 3. **Prerequisite validation** — intake.md, spec.md, confidence gate. Writes `invalid` on failure.
-4. **fab-switch** — `claude -p --dangerously-skip-permissions` (print mode, no context needed)
-5. **Interactive pane creation** — launches `claude --dangerously-skip-permissions '/fab-ff'` in a tmux split pane. First dispatch: horizontal split (`-h`); subsequent: vertical split stacked below previous (`-v -t $LAST_PANE_ID`)
-6. **Output** — two stdout lines: worktree path + pane ID. `run.sh` captures both.
+4. **Interactive pane creation** — starts a bare `claude --dangerously-skip-permissions` session in a tmux split pane (no initial command). First dispatch: horizontal split (`-h`); subsequent: vertical split stacked below previous (`-v -t $LAST_PANE_ID`). The pane appears immediately, giving the user visual feedback.
+5. **fab-switch via send-keys** — after a startup delay (`CLAUDE_STARTUP_DELAY`, default 3s), sends `/fab-switch $CHANGE_ID --no-branch-change` to the pane via `tmux send-keys` (text, 0.5s gap, Enter).
+6. **fab/current polling** — polls `$wt_path/fab/current` until it matches `$CHANGE_ID` (interval: `SWITCH_POLL_INTERVAL` 2s, timeout: `SWITCH_POLL_TIMEOUT` 60s). Checks pane alive each iteration. Timeout or pane death marks the change `failed` in the manifest.
+7. **fab-ff via send-keys** — after a post-switch delay (`POST_SWITCH_DELAY`, default 5s), sends `/fab-ff` to the pane via `tmux send-keys` (text, 0.5s gap, Enter).
+8. **Output** — two stdout lines: worktree path + pane ID. `run.sh` captures both.
 
-`dispatch.sh` does NOT poll, wait, or ship. All completion detection and shipping is handled by `run.sh`'s polling loop.
+`dispatch.sh` polls `fab/current` to confirm switch completion but does NOT poll for fab-ff completion or shipping — `run.sh`'s polling loop handles that.
 
 Infrastructure failures (wt-create, claude, git) abort the orchestrator entirely.
 
@@ -118,10 +120,10 @@ Each dispatched change gets its own tmux split pane (stacked vertically in the r
 **Why**: Supports the live-contract model — the human stays ahead, adding entries at their pace. The orchestrator is a daemon-like process, not a batch job.
 **Rejected**: Exit when all changes done (prevents the human from adding more entries).
 
-### Hybrid Model: claude -p for Switch, Interactive for fab-ff + Ship
-**Decision**: fab-switch uses `claude -p` (print mode); fab-ff runs in an interactive Claude session; shipping is pushed to the same session via `tmux send-keys`.
-**Why**: fab-switch is trivial (no context benefit from interactivity). fab-ff produces rich conversation context that ship needs for contextual commit messages and PR descriptions. The interactive session preserves this context across the full pipeline.
-**Rejected**: All-`claude -p` (3 separate sessions, no shared context — produced generic shipping output), all-interactive (wasteful for fab-switch).
+### All-Interactive Model: Bare Pane + Send-Keys
+**Decision**: A bare interactive Claude session is created first, then fab-switch and fab-ff are both sent via `tmux send-keys`. Shipping is pushed to the same session.
+**Why**: The previous hybrid model (`claude -p` for fab-switch, interactive for fab-ff) ran fab-switch invisibly before the pane existed, leaving the user with no feedback for 5-15 seconds. Moving everything into the interactive pane provides immediate visual feedback. The send-keys approach gives sequencing control while keeping both commands visible. `fab/current` polling confirms switch completion before sending fab-ff.
+**Rejected**: `claude -p` for fab-switch (invisible, no user feedback), passing fab-switch as the initial tmux command (can't sequence fab-ff after switch completion).
 
 ### Polling in run.sh, Not dispatch.sh
 **Decision**: `dispatch.sh` spawns the interactive pane and exits immediately. `run.sh` owns all polling, progress rendering, and completion detection.
@@ -147,6 +149,7 @@ Each dispatched change gets its own tmux split pane (stacked vertically in the r
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260221-2spf-fix-pipeline-dispatch-timing | 2026-02-21 | Replaced `claude -p` fab-switch with visible interactive execution. dispatch.sh now creates a bare Claude pane first, sends fab-switch via send-keys, polls `fab/current` for switch confirmation, then sends fab-ff via send-keys. Added configurable delays (`CLAUDE_STARTUP_DELAY`, `POST_SWITCH_DELAY`) and polling (`SWITCH_POLL_INTERVAL`, `SWITCH_POLL_TIMEOUT`). Updated "Hybrid Model" design decision to "All-Interactive Model". |
 | 260221-ay66-interactive-pipeline-pane | 2026-02-21 | Replaced passive `tail -f` log pane with interactive Claude sessions per dispatch. fab-ff now runs in interactive mode (not `claude -p`), shipping via `tmux send-keys` to the same session. Added unified polling loop in `run.sh` with progress-line rendering and state machine (polling_fab_ff → shipping → done/failed). Added `stageman.sh progress-line` command. Stacked vertical pane layout. Removed `ship()` from dispatch.sh. |
 | 260221-i0z6-move-env-packages-add-fab-pipeline | 2026-02-21 | Added `batch-fab-pipeline.sh` user-facing entry point with listing, partial name matching, help, and `exec` delegation. Added changeman resolve for manifest change IDs in `run.sh`. Added `--worktree-name` to `wt-create` call in `dispatch.sh`. Replaced raw yq hydrate check with stageman `display-stage` in `dispatch.sh`. |
 | 260221-wy0e-pipeline-orchestrator | 2026-02-21 | Initial implementation — serial orchestrator with run.sh + dispatch.sh, YAML manifest format, wt-create integration, Claude CLI execution, stacked PRs, SIGINT handling, example scaffold |

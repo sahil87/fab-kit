@@ -6,8 +6,10 @@ set -euo pipefail
 # Usage: dispatch.sh <manifest-id> <fs-change-id> <parent-branch> <manifest-path> [last-pane-id]
 #
 # Creates a worktree, provisions artifacts, validates prerequisites,
-# launches fab-ff in an interactive Claude session (tmux pane), and returns
-# the pane ID. Does NOT poll or wait — run.sh handles polling and shipping.
+# launches an interactive Claude session (tmux pane), sends fab-switch
+# and fab-ff via send-keys, and returns the pane ID.
+# Polls fab/current to confirm switch completion. Does NOT poll for
+# fab-ff completion or shipping — run.sh handles that.
 #
 # Exit codes:
 #   0  — pane created (stdout: worktree path + pane ID)
@@ -39,7 +41,8 @@ Arguments:
   last-pane-id    Pane ID of the previous dispatch (empty for first dispatch)
 
 Outputs worktree path and pane ID on stdout (two lines).
-Does NOT poll or wait — run.sh handles that.
+Polls fab/current to confirm switch completion. Does NOT poll for
+fab-ff completion or shipping — run.sh handles that.
 
 Exit code 0 = pane created.
 Exit code 1 = infrastructure failure (caller should abort).
@@ -189,27 +192,25 @@ validate_prerequisites() {
 # Pipeline Execution — Interactive Pane
 # ---------------------------------------------------------------------------
 
+# Configurable delays and timeouts (seconds)
+CLAUDE_STARTUP_DELAY="${CLAUDE_STARTUP_DELAY:-3}"
+SWITCH_POLL_INTERVAL="${SWITCH_POLL_INTERVAL:-2}"
+SWITCH_POLL_TIMEOUT="${SWITCH_POLL_TIMEOUT:-60}"
+POST_SWITCH_DELAY="${POST_SWITCH_DELAY:-5}"
+
 run_pipeline() {
   local wt_path="$1"
 
-  # Activate the change (stays as claude -p — trivial, no context benefit)
-  # Redirect stdout to /dev/null to prevent leaking into pane ID capture
-  if ! (cd "$wt_path" && claude -p --dangerously-skip-permissions "/fab-switch $CHANGE_ID --no-branch-change" >/dev/null); then
-    log "Failed: $CHANGE_ID — fab-switch failed"
-    write_stage "$MANIFEST_ID" "failed" "$MANIFEST"
-    return 2
-  fi
-
-  # Launch fab-ff in an interactive Claude session in a tmux pane
+  # Step 1: Create bare interactive Claude session (no initial command)
   local pane_id
   if [[ -z "$LAST_PANE_ID" ]]; then
     # First dispatch — horizontal split from orchestrator pane
     pane_id=$(tmux split-window -h -d -P -F '#{pane_id}' -c "$wt_path" \
-      "claude --dangerously-skip-permissions '/fab-ff'")
+      "claude --dangerously-skip-permissions")
   else
     # Subsequent dispatch — vertical split stacked below previous session
     pane_id=$(tmux split-window -v -t "$LAST_PANE_ID" -d -P -F '#{pane_id}' -c "$wt_path" \
-      "claude --dangerously-skip-permissions '/fab-ff'")
+      "claude --dangerously-skip-permissions")
   fi
 
   if [[ -z "$pane_id" ]]; then
@@ -217,6 +218,52 @@ run_pipeline() {
     write_stage "$MANIFEST_ID" "failed" "$MANIFEST"
     return 2
   fi
+
+  # Step 2: Send fab-switch to the interactive pane via send-keys
+  sleep "$CLAUDE_STARTUP_DELAY"
+  tmux send-keys -t "$pane_id" "/fab-switch $CHANGE_ID --no-branch-change"
+  sleep 0.5
+  tmux send-keys -t "$pane_id" Enter
+
+  # Step 3: Poll fab/current until it matches the expected change ID
+  local fab_current_file="$wt_path/fab/current"
+  local elapsed=0
+  local switch_ok=false
+  while [[ "$elapsed" -lt "$SWITCH_POLL_TIMEOUT" ]]; do
+    sleep "$SWITCH_POLL_INTERVAL"
+    elapsed=$((elapsed + SWITCH_POLL_INTERVAL))
+
+    # Check pane still alive
+    if ! check_pane_alive "$pane_id"; then
+      log "Failed: $CHANGE_ID — interactive pane died during fab-switch"
+      write_stage "$MANIFEST_ID" "failed" "$MANIFEST"
+      echo "$pane_id"
+      return 0
+    fi
+
+    # Check fab/current content
+    if [[ -f "$fab_current_file" ]]; then
+      local current_content
+      current_content=$(tr -d '[:space:]' < "$fab_current_file" 2>/dev/null)
+      if [[ "$current_content" == "$CHANGE_ID" ]]; then
+        switch_ok=true
+        break
+      fi
+    fi
+  done
+
+  if ! "$switch_ok"; then
+    log "Failed: $CHANGE_ID — fab-switch polling timed out (${SWITCH_POLL_TIMEOUT}s)"
+    write_stage "$MANIFEST_ID" "failed" "$MANIFEST"
+    echo "$pane_id"
+    return 0
+  fi
+
+  # Step 4: Send fab-ff after switch completion
+  sleep "$POST_SWITCH_DELAY"
+  tmux send-keys -t "$pane_id" "/fab-ff"
+  sleep 0.5
+  tmux send-keys -t "$pane_id" Enter
 
   # Output pane ID — run.sh captures this
   echo "$pane_id"
