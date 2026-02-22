@@ -1,1 +1,4 @@
 {"ts":"2026-02-22T22:32:08+05:30","event":"command","cmd":"fab-new","args":"git-pr shipped sentinel file and second commit+push for .status.yaml"}
+{"ts":"2026-02-22T22:34:13+05:30","event":"confidence","score":4.1,"delta":"+4.1","trigger":"calc-score"}
+{"ts":"2026-02-22T22:35:09+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-22T22:41:25+05:30","event":"review","result":"passed"}

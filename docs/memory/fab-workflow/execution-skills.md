@@ -246,6 +246,7 @@ Steps execute 1→3 for safety. If interrupted, re-run detects folder already in
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260222-trdc-git-pr-shipped-sentinel-and-status-commit | 2026-02-22 | `/git-pr` now performs a second commit+push after recording shipped URL to `.status.yaml` (Step 4b), then writes a `.shipped` sentinel file as its final action (Step 4c). Step 4b guards for "nothing to commit" via `git diff --cached --quiet`. The "already shipped" early-exit path now includes Steps 4–4c. Sentinel is gitignored, written unconditionally. Pipeline orchestrator (`run.sh`) polls sentinel existence instead of `stageman is-shipped`. |
 | 260222-s90r-add-shipped-tracking | 2026-02-22 | Updated `/git-pr` skill to record PR URLs via `stageman.sh ship` after PR creation (graceful degradation when no active change). Updated `_preamble.md` state table: hydrate row now routes to `/git-pr` as default, `/fab-archive` as alternative. Updated `changeman.sh` `default_command` for hydrate from `/fab-archive` to `/git-pr`. |
 | 260221-5tj7-rename-context-to-preamble | 2026-02-21 | Renamed shared skill preamble from `_context.md` to `_preamble.md`. Updated references in status mutations overview and sub-agent context sections. |
 | 260217-eywl-fix-stageman-skill-path-refs | 2026-02-18 | All `lib/stageman.sh` references in skill files updated to repo-root-relative `fab/.kit/scripts/lib/stageman.sh`. Also fixed 2 short-form `lib/preflight.sh` references in `_preamble.md` and `fab-status.md`. Memory file references updated to match. |

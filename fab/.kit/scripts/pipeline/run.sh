@@ -403,8 +403,9 @@ poll_change() {
           return 0
         fi
 
-        # Check for shipped entries in .status.yaml
-        if bash "$STAGEMAN" is-shipped "$status_file" 2>/dev/null; then
+        # Sentinel replaces stageman is-shipped — avoids TOCTOU race with commit+push
+        local shipped_sentinel="$wt_path/fab/changes/$resolved_id/.shipped"
+        if [[ -f "$shipped_sentinel" ]]; then
           printf "\n"
           log "Done: $resolved_id — shipped"
           write_stage "$manifest_id" "done" "$MANIFEST"

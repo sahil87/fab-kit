@@ -1,6 +1,7 @@
 fab/current
 # fab/backlog.md
 fab/pipelines/.series-*.yaml
+fab/changes/**/.shipped
 
 # Ralph runtime logs and temp files
 .ralph/activity.log
