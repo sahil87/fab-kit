@@ -96,6 +96,7 @@ Options:
   --worktree-open <app>    Open in app after creation, or 'skip' to not open
                            Apps: code, cursor, ghostty, tmux_window, byobu_tab
                            Default: app menu (interactive), skip (non-interactive)
+  --reuse                  Reuse existing worktree if name collides (requires --worktree-name)
   --non-interactive        Use defaults for all options, no prompts
   help                     Show this help message
 
@@ -124,6 +125,7 @@ main() {
     local worktree_name=""
     local worktree_init=""
     local worktree_open=""
+    local reuse=""
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -134,6 +136,10 @@ main() {
                 ;;
             --non-interactive)
                 non_interactive="true"
+                shift
+                ;;
+            --reuse)
+                reuse="true"
                 shift
                 ;;
             --worktree-name)
@@ -202,6 +208,14 @@ main() {
         fi
     fi
 
+    # Validate --reuse requires --worktree-name
+    if [[ "$reuse" == "true" && -z "$worktree_name" ]]; then
+        wt_error_with_code "$WT_EXIT_INVALID_ARGS" \
+            "--reuse requires --worktree-name" \
+            "--reuse only works with an explicit worktree name" \
+            "Example: wt-create --reuse --worktree-name my-feature branch-name"
+    fi
+
     wt_validate_git_repo
     wt_get_repo_context
 
@@ -255,6 +269,13 @@ main() {
 
     # Check collision
     if wt_check_name_collision "$final_name"; then
+        if [[ "$reuse" == "true" ]]; then
+            # Reuse existing worktree — skip creation, init, and open
+            echo "Reusing existing worktree: $final_name" >&2
+            wt_disarm_rollback
+            echo "$WT_WORKTREES_DIR/$final_name"
+            return 0
+        fi
         wt_error_with_code "$WT_EXIT_GENERAL_ERROR" \
             "Worktree '$final_name' already exists" \
             "A worktree with this name already exists at $WT_WORKTREES_DIR/$final_name" \

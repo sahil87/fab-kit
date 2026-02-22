@@ -176,3 +176,21 @@ teardown() {
     assert_success
     assert_output --partial "No worktrees found"
 }
+
+# ============================================================================
+# --reuse Flag Edge Cases
+# ============================================================================
+
+@test "edge: --reuse with orphaned directory (not registered as git worktree)" {
+    # Create worktrees dir and an orphaned directory manually
+    local repo_name=$(basename "$TEST_REPO")
+    local worktrees_dir="$(dirname "$TEST_REPO")/${repo_name}-worktrees"
+    mkdir -p "$worktrees_dir/orphaned"
+
+    # --reuse should return the path blindly
+    run wt-create --non-interactive --reuse --worktree-name orphaned some-branch
+
+    assert_success
+    local last_line=$(echo "$output" | tail -n 1)
+    [ "$last_line" = "$worktrees_dir/orphaned" ]
+}

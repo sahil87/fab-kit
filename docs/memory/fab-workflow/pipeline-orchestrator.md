@@ -54,7 +54,7 @@ Output: in-place progress updates per change.
 
 `dispatch.sh` handles a single change — creates pane, sends commands, confirms switch, then returns:
 
-1. **Worktree creation** — branch name is `{branch_prefix}{change-id}`. Root nodes: `wt-create --non-interactive --worktree-open skip <change-branch>`. Dependent nodes: `git branch <change-branch> <parent-branch>` from local branch ref first, then `wt-create`.
+1. **Worktree creation** — branch name is `{branch_prefix}{change-id}`. Dependent nodes: `git branch <change-branch> <parent-branch>` from local branch ref first, then `wt-create --non-interactive --reuse --worktree-open skip --worktree-name <change-id> <change-branch>`. The `--reuse` flag makes worktree creation idempotent — if a worktree with that name already exists (from a previous interrupted run), it returns the existing path instead of erroring.
 2. **Artifact provisioning** — copies `fab/changes/<id>/` from source repo to worktree if not present
 3. **Prerequisite validation** — intake.md, spec.md, confidence gate. Writes `invalid` on failure.
 4. **Interactive pane creation** — starts a bare `claude --dangerously-skip-permissions` session in a tmux split pane (no initial command). First dispatch: horizontal split (`-h`); subsequent: vertical split stacked below previous (`-v -t $LAST_PANE_ID`). The pane appears immediately, giving the user visual feedback.
@@ -181,6 +181,7 @@ BATS test suite at `src/scripts/pipeline/test.bats` covers pure-logic functions 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260222-6ldg-wt-create-reuse-flag | 2026-02-22 | Added `--reuse` flag to `wt-create` — returns existing worktree path on name collision instead of erroring. `dispatch.sh` now passes `--reuse` (removed bespoke `wt_get_worktree_path_by_name` pre-check and `wt-common.sh` source import). `batch-fab-switch-change.sh` also passes `--reuse` for idempotent re-runs. |
 | 260222-bcfy-batch-pipeline-series-rename | 2026-02-22 | Renamed `batch-fab-pipeline.sh` → `batch-pipeline.sh`. Added `watch` manifest field and finite-exit default to `run.sh` (exits when all terminal; `watch: true` for infinite loop). Fixed `dispatch.sh` to use local branch refs instead of `origin/`. Added `batch-pipeline-series.sh` (sequential chain shorthand — generates temp manifest, delegates to run.sh). Added `.gitignore` pattern for generated series manifests. Added `all_terminal` function to run.sh. Test suite: 38→44 tests. |
 | 260222-n811-absorb-ship-command | 2026-02-22 | Replaced external `/changes:ship pr` (prompt-pantry) with native `/git-pr` skill. Updated `run.sh` ship command and log message. Added `git-pr` to `fab-help.sh` Completion group. |
 | 260221-8bs9-add-pipeline-orchestrator-tests | 2026-02-21 | Added BATS test suite (38 tests) for run.sh and dispatch.sh pure-logic functions. Added source guards to both scripts for testability. Moved `trap on_sigint INT` inside `main()` to prevent side effects when sourced. |

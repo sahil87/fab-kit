@@ -1,0 +1,5 @@
+{"ts":"2026-02-22T20:40:48+05:30","event":"command","cmd":"fab-new","args":"Add --reuse flag to wt-create that returns existing worktree path instead of erroring on name collision"}
+{"ts":"2026-02-22T20:44:40+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-22T20:45:40+05:30","event":"confidence","score":4.4,"delta":"+4.4","trigger":"calc-score"}
+{"ts":"2026-02-22T20:46:45+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-22T20:55:22+05:30","event":"review","result":"passed"}

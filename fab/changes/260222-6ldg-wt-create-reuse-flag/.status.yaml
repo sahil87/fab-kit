@@ -1,0 +1,37 @@
+name: 260222-6ldg-wt-create-reuse-flag
+created: 2026-02-22T20:40:48+05:30
+created_by: sahil-weaver
+change_type: feature
+progress:
+  intake: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
+checklist:
+  generated: true
+  path: checklist.md
+  completed: 24
+  total: 24
+confidence:
+  certain: 4
+  confident: 2
+  tentative: 0
+  unresolved: 0
+  score: 4.4
+  fuzzy: true
+  dimensions:
+    signal: 86.7
+    reversibility: 80.8
+    competence: 87.5
+    disambiguation: 89.2
+stage_metrics:
+  intake: {started_at: "2026-02-22T20:40:48+05:30", driver: fab-new, iterations: 1, completed_at: "2026-02-22T20:45:44+05:30"}
+  spec: {started_at: "2026-02-22T20:45:44+05:30", driver: fab-continue, iterations: 1, completed_at: "2026-02-22T20:47:33+05:30"}
+  tasks: {started_at: "2026-02-22T20:47:33+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-22T20:47:33+05:30"}
+  apply: {started_at: "2026-02-22T20:47:33+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-22T20:52:12+05:30"}
+  review: {started_at: "2026-02-22T20:52:12+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-22T20:55:22+05:30"}
+  hydrate: {started_at: "2026-02-22T20:55:22+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-22T20:56:12+05:30"}
+shipped: []
+last_updated: "2026-02-22T20:56:12+05:30"

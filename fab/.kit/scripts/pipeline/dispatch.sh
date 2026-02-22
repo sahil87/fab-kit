@@ -90,14 +90,6 @@ check_pane_alive() {
 create_worktree() {
   local wt_path
 
-  # Reuse existing worktree if present (resuming a previous run)
-  source "$KIT_DIR/packages/wt/lib/wt-common.sh"
-  if wt_path=$(wt_get_worktree_path_by_name "$CHANGE_ID"); then
-    log "Reusing existing worktree: $wt_path"
-    echo "$wt_path"
-    return 0
-  fi
-
   # For dependent nodes (PARENT_BRANCH is another change's branch, not base),
   # create the change branch from the parent's local branch
   if ! git show-ref --verify --quiet "refs/heads/$CHANGE_BRANCH" 2>/dev/null; then
@@ -109,7 +101,7 @@ create_worktree() {
     # If parent not local, wt-create will create from HEAD (root node)
   fi
 
-  wt_path=$(wt-create --non-interactive --worktree-open skip --worktree-name "$CHANGE_ID" "$CHANGE_BRANCH" | tail -1)
+  wt_path=$(wt-create --non-interactive --reuse --worktree-open skip --worktree-name "$CHANGE_ID" "$CHANGE_BRANCH" | tail -1)
 
   if [[ -z "$wt_path" || ! -d "$wt_path" ]]; then
     echo "Error: wt-create failed — no worktree path returned" >&2

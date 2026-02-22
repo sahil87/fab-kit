@@ -490,3 +490,68 @@ teardown() {
     assert_success
     assert_output --partial "immediate-list"
 }
+
+# ============================================================================
+# --reuse Flag Tests
+# ============================================================================
+
+@test "wt-create: --reuse returns existing worktree path on collision" {
+    # Create first worktree
+    local first_output
+    first_output=$(wt-create --non-interactive --worktree-name reuse-test 2>/dev/null)
+    local first_path=$(echo "$first_output" | tail -n 1)
+
+    # Try to create again with --reuse
+    run wt-create --non-interactive --reuse --worktree-name reuse-test
+
+    assert_success
+    local reuse_path=$(echo "$output" | tail -n 1)
+    [ "$reuse_path" = "$first_path" ]
+}
+
+@test "wt-create: --reuse creates normally when no collision" {
+    run wt-create --non-interactive --reuse --worktree-name reuse-fresh
+
+    assert_success
+    assert_worktree_exists "reuse-fresh"
+}
+
+@test "wt-create: --reuse skips init script on collision" {
+    create_test_init_script "$WORKTREE_INIT_SCRIPT"
+    git add "$WORKTREE_INIT_SCRIPT"
+    git commit -q -m "Add init script"
+
+    # Create first worktree (init runs)
+    local first_output
+    first_output=$(wt-create --non-interactive --worktree-name reuse-init-test 2>/dev/null)
+    local wt_path=$(echo "$first_output" | tail -n 1)
+    assert_file_exists "${wt_path}/.init-script-ran"
+
+    # Remove marker
+    rm "${wt_path}/.init-script-ran"
+
+    # Reuse — init should NOT run again
+    run wt-create --non-interactive --reuse --worktree-name reuse-init-test
+
+    assert_success
+    assert_file_not_exists "${wt_path}/.init-script-ran"
+}
+
+@test "wt-create: --reuse requires --worktree-name" {
+    run wt-create --non-interactive --reuse
+
+    assert_failure
+    assert_output --partial "--reuse requires --worktree-name"
+}
+
+@test "wt-create: --reuse prints path as last line on collision" {
+    # Create first worktree
+    wt-create --non-interactive --worktree-name reuse-lastline &>/dev/null
+
+    # Reuse
+    run wt-create --non-interactive --reuse --worktree-name reuse-lastline
+
+    assert_success
+    local last_line=$(echo "$output" | tail -n 1)
+    assert_dir_exists "$last_line"
+}
