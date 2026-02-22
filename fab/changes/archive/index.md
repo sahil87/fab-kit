@@ -1,5 +1,7 @@
 # Archive Index
 
+- **260222-trdc-git-pr-shipped-sentinel-and-status-commit** — Added a second commit+push to git-pr after recording the shipped URL so the PR contains its own metadata, and introduced a `.shipped` sentinel file for race-free ship-completion detection by the pipeline orchestrator.
+- **260222-s101-wt-create-stderr-wt-list-flags** — Fixed wt-create output contract so `--non-interactive` mode sends all human-friendly messages to stderr (sole stdout = worktree path), added `--path`, `--json`, and status column flags to wt-list, and simplified three batch callers by dropping `| tail -1`.
 - **260222-s90r-add-shipped-tracking** — Added shipped tracking to the fab pipeline via a side-band `shipped` array in .status.yaml, with stageman ship/is-shipped subcommands and git-pr integration to record PR URLs after creation.
 - **260222-bcfy-batch-pipeline-series-rename** — Renamed batch-fab-pipeline to batch-pipeline, added batch-pipeline-series.sh for inline sequential change chains, switched dispatch.sh to local branch refs, and made finite-exit the default run mode.
 - **260222-6ldg-wt-create-reuse-flag** — Added --reuse flag to wt-create that returns the existing worktree path instead of erroring on name collision, enabling idempotent worktree creation for batch scripts and pipeline dispatch.
