@@ -56,6 +56,7 @@ A skill matching ANY `capable` criterion is classified as `capable`, regardless 
 | `docs-reorg-memory` | Memory file theme analysis and reorganization |
 | `internal-consistency-check` | Cross-layer drift detection |
 | `internal-retrospect` | Retrospective analysis |
+| `git-pr` | Commit message generation requires reasoning about change scope; runs once per pipeline so cost is negligible |
 
 Additionally, **review sub-agents** spawned during pipeline execution (by `/fab-continue`, `/fab-ff`, `/fab-fff`) use the capable tier — review requires deep reasoning, code analysis, spec comparison, and checklist validation.
 
@@ -132,6 +133,7 @@ If in doubt, use **capable** (the default — just omit `model_tier`).
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260222-s101-wt-create-stderr-wt-list-flags | 2026-02-22 | Moved `git-pr` from fast to capable tier — removed `model_tier: fast` and preamble directive. Commit message generation needs reasoning; haiku's smaller context window caused limit hits when invoked late in pipeline sessions. |
 | 260219-d2y2-copy-template-skills-drop-agents | 2026-02-19 | Replaced dual deployment (symlinks + agent files) with copy-with-template: Claude Code skills deployed as copies with `model_tier:` → `model:` substitution. Removed agent file generation. Added transitional agent cleanup. Marked Dual Deployment design decision as superseded |
 | 260218-5isu-fix-docs-consistency-drift | 2026-02-18 | Replaced stale `fab-init` → `fab-setup` in skill classification and `lib/sync-workspace.sh` → correct paths (`fab-sync.sh`, `sync/2-sync-workspace.sh`) in deployment references |
 | 260218-bb93-restructure-config-yaml | 2026-02-18 | Deleted `fab/.kit/model-tiers.yaml`, consolidated into `config.yaml` `model_tiers:` section with hardcoded `haiku` fallback. Updated mapping file section, provider instructions, and design decisions |

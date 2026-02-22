@@ -1,13 +1,10 @@
 ---
 name: git-pr
 description: "Autonomously commit, push, and create a GitHub PR — no prompts, no questions."
-model_tier: fast
 allowed-tools: Bash(git:*), Bash(gh:*)
 ---
 
 # /git-pr
-
-> Read and follow the instructions in `fab/.kit/skills/_preamble.md` before proceeding.
 
 Autonomously ship local changes to a GitHub PR. No questions, no prompts — just execute.
 
