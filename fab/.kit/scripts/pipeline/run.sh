@@ -351,12 +351,18 @@ poll_change() {
       return 0
     fi
 
-    # Render progress (clear full line to prevent wrap artifacts)
+    # Render progress (truncate to terminal width to prevent wrap artifacts)
     local progress_line=""
     if [[ -f "$status_file" ]]; then
       progress_line=$(bash "$STAGEMAN" progress-line "$status_file" 2>/dev/null) || progress_line=""
     fi
-    printf "\r\033[2K%s: %s (%dm %02ds)" "$resolved_id" "$progress_line" "$mins" "$secs"
+    local full_line
+    full_line=$(printf "%s: %s (%dm %02ds)" "$resolved_id" "$progress_line" "$mins" "$secs")
+    local cols=${COLUMNS:-$(tput cols 2>/dev/null || echo 80)}
+    if (( ${#full_line} >= cols )); then
+      full_line="${full_line:0:$((cols - 1))}"
+    fi
+    printf "\r\033[2K%s" "$full_line"
 
     case "$state" in
       polling_fab_ff)
