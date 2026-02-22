@@ -51,11 +51,24 @@ Run `lib/changeman.sh new` with appropriate flags:
 
 Capture the folder name from stdout. The script handles date generation, random ID generation (if no `--change-id`), collision detection, directory creation, `created_by` detection, `.status.yaml` initialization, and `stageman.sh` integration.
 
-### Step 4: Generate `intake.md`
+### Step 4: Conversation Context Mining
 
-Follow the **Intake Generation Procedure** (`_generation.md`). Load context per `_preamble.md` Layer 1 and generate from `fab/.kit/templates/intake.md`.
+Before generating the intake, scan the current conversation for prior discussion of this change's topic — whether from `/fab-discuss`, free-form exploration, or any conversation that preceded this `/fab-new` invocation. Extract:
 
-### Step 5: SRAD-Based Question Selection
+- **Decisions made** — specific choices with rationale (e.g., "OAuth2 over SAML because no enterprise requirement")
+- **Alternatives rejected** — options considered and why they were ruled out
+- **Constraints identified** — boundaries or requirements surfaced during discussion
+- **Specific values agreed upon** — config structures, API shapes, exact behaviors
+
+Encode extracted decisions as Certain or Confident assumptions in the intake's Assumptions table with rationale referencing the discussion (e.g., "Discussed — user chose X over Y"). These feed directly into SRAD scoring and reduce downstream ambiguity.
+
+If no prior discussion exists in the conversation, skip this step — behavior is identical to a cold `/fab-new`.
+
+### Step 5: Generate `intake.md`
+
+Follow the **Intake Generation Procedure** (`_generation.md`). Load context per `_preamble.md` Layer 1 and generate from `fab/.kit/templates/intake.md`. Incorporate any decisions extracted in Step 4.
+
+### Step 6: SRAD-Based Question Selection
 
 Apply SRAD (`_preamble.md`). No fixed question cap — SRAD scoring determines count. Zero questions for clear inputs. **Conversational mode**: when 5+ Unresolved, ask one at a time until resolved or user signals done.
 
