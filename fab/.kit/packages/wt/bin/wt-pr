@@ -117,7 +117,8 @@ Options:
   --worktree-open <app>    Open in app after creation, or 'skip' to not open
                            Apps: code, cursor, ghostty, tmux_window, byobu_tab
                            Default: app menu (interactive), skip (non-interactive)
-  --non-interactive        Use defaults for all options, no prompts
+  --non-interactive        Use defaults, no prompts, porcelain output
+                           (only worktree path on stdout; messages on stderr)
   help                     Show this help message
 
 Examples:
@@ -270,13 +271,20 @@ main() {
     fi
 
     # Create worktree (delegates to shared function which handles fetch/local/new)
-    echo "Creating worktree for PR #$pr_number (branch: $branch)..."
-    wt_create_branch_worktree "$branch" "$final_name"
+    # In non-interactive mode, redirect human-readable messages to stderr
+    # so stdout contains only the worktree path (porcelain output contract)
+    if [[ "$non_interactive" == "true" ]]; then
+        echo "Creating worktree for PR #$pr_number (branch: $branch)..." >&2
+        wt_create_branch_worktree "$branch" "$final_name" >&2
+    else
+        echo "Creating worktree for PR #$pr_number (branch: $branch)..."
+        wt_create_branch_worktree "$branch" "$final_name"
+    fi
 
     # Setup
     if [[ "$worktree_init" == "true" ]]; then
         if [[ "$non_interactive" == "true" ]]; then
-            wt_run_worktree_setup "$WT_PATH" "force"
+            wt_run_worktree_setup "$WT_PATH" "force" >&2
         else
             wt_run_worktree_setup "$WT_PATH"
         fi

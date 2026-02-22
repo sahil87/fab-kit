@@ -101,7 +101,7 @@ create_worktree() {
     # If parent not local, wt-create will create from HEAD (root node)
   fi
 
-  wt_path=$(wt-create --non-interactive --reuse --worktree-open skip --worktree-name "$CHANGE_ID" "$CHANGE_BRANCH" | tail -1)
+  wt_path=$(wt-create --non-interactive --reuse --worktree-open skip --worktree-name "$CHANGE_ID" "$CHANGE_BRANCH")
 
   if [[ -z "$wt_path" || ! -d "$wt_path" ]]; then
     echo "Error: wt-create failed — no worktree path returned" >&2

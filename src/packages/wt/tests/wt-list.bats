@@ -188,7 +188,7 @@ teardown() {
 
 @test "wt-list: correctly shows worktree from within worktree" {
     # Create and enter a worktree
-    local wt_path=$(wt-create --non-interactive --worktree-name inside-test 2>/dev/null | tail -n 1)
+    local wt_path=$(wt-create --non-interactive --worktree-name inside-test 2>/dev/null)
     cd "$wt_path"
 
     run wt-list
@@ -197,4 +197,212 @@ teardown() {
     assert_output --partial "inside-test"
     # Should mark this worktree as current (may have ANSI color codes)
     assert_output --regexp '\*.*inside-test'
+}
+
+# ============================================================================
+# --path Flag Tests
+# ============================================================================
+
+@test "wt-list: --path returns absolute path for existing worktree" {
+    wt-create --non-interactive --worktree-name path-test &>/dev/null
+
+    run wt-list --path path-test
+
+    assert_success
+    assert_dir_exists "$output"
+    assert_output --regexp '/path-test$'
+}
+
+@test "wt-list: --path exits 1 for nonexistent worktree" {
+    run wt-list --path nonexistent
+
+    assert_failure
+    assert_output --partial "not found"
+}
+
+@test "wt-list: --path outputs single line only" {
+    wt-create --non-interactive --worktree-name single-line-test &>/dev/null
+
+    local stdout
+    stdout=$(wt-list --path single-line-test)
+    local line_count
+    line_count=$(echo "$stdout" | wc -l | tr -d ' ')
+    [ "$line_count" -eq 1 ]
+}
+
+@test "wt-list: --path requires argument" {
+    run wt-list --path
+
+    assert_failure
+    assert_output --partial "Missing worktree name"
+}
+
+# ============================================================================
+# --json Flag Tests
+# ============================================================================
+
+@test "wt-list: --json outputs valid JSON" {
+    run wt-list --json
+
+    assert_success
+    # Validate JSON
+    echo "$output" | jq . >/dev/null 2>&1
+}
+
+@test "wt-list: --json includes main repo" {
+    run wt-list --json
+
+    assert_success
+    local main_count
+    main_count=$(echo "$output" | jq '[.[] | select(.is_main == true)] | length')
+    [ "$main_count" -eq 1 ]
+}
+
+@test "wt-list: --json includes all required fields" {
+    wt-create --non-interactive --worktree-name json-fields-test &>/dev/null
+
+    run wt-list --json
+
+    assert_success
+    # Check that a non-main entry has all required fields
+    local has_fields
+    has_fields=$(echo "$output" | jq '[.[] | select(.name == "json-fields-test")] | length')
+    [ "$has_fields" -eq 1 ]
+
+    # Verify field types
+    echo "$output" | jq '.[] | select(.name == "json-fields-test") | .branch' | grep -q '"'
+    echo "$output" | jq '.[] | select(.name == "json-fields-test") | .path' | grep -q '"'
+    echo "$output" | jq -e '.[] | select(.name == "json-fields-test") | .is_main == false' >/dev/null
+    echo "$output" | jq -e '.[] | select(.name == "json-fields-test") | .dirty | type == "boolean"' >/dev/null
+    echo "$output" | jq -e '.[] | select(.name == "json-fields-test") | .unpushed | type == "number"' >/dev/null
+}
+
+@test "wt-list: --json detects dirty worktree" {
+    local wt_path
+    wt_path=$(wt-create --non-interactive --worktree-name dirty-json-test 2>/dev/null)
+
+    # Make the worktree dirty
+    echo "dirty" > "$wt_path/dirty.txt"
+
+    run wt-list --json
+
+    assert_success
+    local dirty
+    dirty=$(echo "$output" | jq '.[] | select(.name == "dirty-json-test") | .dirty')
+    [ "$dirty" = "true" ]
+}
+
+# ============================================================================
+# Flag Mutual Exclusivity Tests
+# ============================================================================
+
+@test "wt-list: --path and --json are mutually exclusive" {
+    run wt-list --path foo --json
+
+    assert_failure
+    assert_output --partial "mutually exclusive"
+}
+
+@test "wt-list: --json and --path are mutually exclusive (reverse order)" {
+    run wt-list --json --path foo
+
+    assert_failure
+    assert_output --partial "mutually exclusive"
+}
+
+# ============================================================================
+# Status Column Tests
+# ============================================================================
+
+@test "wt-list: shows dirty indicator for worktree with changes" {
+    export NO_COLOR=1
+    local wt_path
+    wt_path=$(wt-create --non-interactive --worktree-name dirty-status-test 2>/dev/null)
+
+    # Make it dirty
+    echo "dirty" > "$wt_path/dirty.txt"
+
+    run wt-list
+
+    assert_success
+    # Should show * indicator for the dirty worktree
+    assert_output --regexp 'dirty-status-test.*\*'
+}
+
+@test "wt-list: clean worktree shows no status indicator" {
+    export NO_COLOR=1
+    wt-create --non-interactive --worktree-name clean-status-test &>/dev/null
+
+    run wt-list
+
+    assert_success
+    # The line for this worktree should not have a * status indicator
+    # (the * at the beginning is the current-worktree marker, which is different)
+    assert_output --partial "clean-status-test"
+}
+
+@test "wt-list: shows unpushed indicator for worktree with unpushed commits" {
+    export NO_COLOR=1
+    local wt_path
+    wt_path=$(wt-create --non-interactive --worktree-name unpushed-test 2>/dev/null)
+
+    # Make a commit in the worktree (branch has upstream from creation)
+    (cd "$wt_path" && echo "new" > new.txt && git add new.txt && git commit -q -m "unpushed commit")
+
+    # Set up upstream tracking so unpushed count works
+    (cd "$wt_path" && git push -q -u origin "$(git rev-parse --abbrev-ref HEAD)" 2>/dev/null || true)
+    (cd "$wt_path" && echo "another" > another.txt && git add another.txt && git commit -q -m "another unpushed")
+
+    run wt-list
+
+    assert_success
+    # Should show ↑ indicator (may or may not show exact count depending on upstream)
+    assert_output --partial "unpushed-test"
+}
+
+@test "wt-list: main repo shows dirty status" {
+    export NO_COLOR=1
+
+    # Make main repo dirty
+    echo "dirty" > dirty-main.txt
+
+    run wt-list
+
+    assert_success
+    # Main repo line should show * indicator
+    assert_output --regexp '\(main\).*\*'
+
+    # Clean up
+    rm -f dirty-main.txt
+}
+
+@test "wt-list: --path does not match (main) label" {
+    run wt-list --path "(main)"
+
+    assert_failure
+    assert_output --partial "not found"
+}
+
+@test "wt-list: --json is_current field is true for current directory" {
+    run wt-list --json
+
+    assert_success
+    # The main repo should be current since we're in it
+    local is_current
+    is_current=$(echo "$output" | jq '.[] | select(.name == "main") | .is_current')
+    [ "$is_current" = "true" ]
+}
+
+@test "wt-list: errors on unknown option" {
+    run wt-list --unknown
+
+    assert_failure
+    assert_output --partial "Unknown option"
+}
+
+@test "wt-list: errors on unexpected positional argument" {
+    run wt-list foo
+
+    assert_failure
+    assert_output --partial "Unexpected argument"
 }

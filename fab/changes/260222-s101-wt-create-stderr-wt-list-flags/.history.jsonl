@@ -1,0 +1,6 @@
+{"ts":"2026-02-22T21:31:59+05:30","event":"command","cmd":"fab-new","args":"Fix wt-create output contract for script consumers: non-interactive implies porcelain (human messages to stderr). Add --path, --json, and status column to wt-list."}
+{"ts":"2026-02-22T21:34:41+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-22T21:35:48+05:30","event":"confidence","score":3.8,"delta":"+3.8","trigger":"calc-score"}
+{"ts":"2026-02-22T21:36:36+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-22T21:46:28+05:30","event":"review","result":"failed","rework":"fix-code"}
+{"ts":"2026-02-22T21:47:33+05:30","event":"review","result":"passed"}

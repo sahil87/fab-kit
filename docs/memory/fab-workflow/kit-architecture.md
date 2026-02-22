@@ -318,6 +318,12 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 **Rejected**: Manual cleanup in error handlers at each callsite — fragile, easy to miss paths. Temp directory approach — doesn't apply to git branch/worktree state.
 *Source*: 260218-qcqx-harden-wt-resilience
 
+### Non-Interactive Porcelain Output Contract
+**Decision**: wt-create and wt-pr `--non-interactive` mode redirects all human-readable messages to stderr and writes only the worktree path to stdout. Batch callers capture the path via `$(wt-create --non-interactive ...)` instead of `| tail -1`.
+**Why**: Three batch consumers (`batch-fab-new-backlog.sh`, `batch-fab-switch-change.sh`, `pipeline/dispatch.sh`) relied on `| tail -1` to extract the path — fragile against any output format change. The `--reuse` codepath already followed this pattern (messages to stderr). Making `--non-interactive` imply porcelain output unifies the contract without adding a separate flag.
+**Rejected**: Separate `--porcelain`/`--quiet` flag — `--non-interactive` already existed with the same audience. Fd-based output (fd 3) — non-standard, breaks simple `$(command)` capture. Env var — subshells can't export to parent.
+*Source*: 260222-s101-wt-create-stderr-wt-list-flags
+
 ### Hash-Based Stash over Index-Based
 **Decision**: wt-delete uses `git stash create` + `git stash store` (hash-based) instead of `git stash push`/`git stash pop` (index-based). Stash hashes are registered with the rollback stack.
 **Why**: Index-based stash (`stash@{0}`) is a global counter vulnerable to race conditions in concurrent worktree operations. Hash-based stash returns a stable SHA that uniquely identifies the stash regardless of concurrent `git stash` activity. `git stash store` writes the hash to the reflog for discoverability via `git stash list`.
@@ -328,6 +334,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260222-s101-wt-create-stderr-wt-list-flags | 2026-02-22 | wt-create and wt-pr `--non-interactive` now redirects human messages to stderr (porcelain output: only path on stdout). Removed `\| tail -1` from 3 batch callers. Added `--path <name>` (single worktree path lookup), `--json` (JSON array with dirty/unpushed fields), and status column (`*` dirty, `↑N` unpushed) to wt-list. Added mutual exclusivity check for `--path`/`--json`. Added "Non-Interactive Porcelain Output Contract" design decision. |
 | 260222-bcfy-batch-pipeline-series-rename | 2026-02-22 | Renamed `batch-fab-pipeline.sh` → `batch-pipeline.sh` in directory tree and section description. Added `batch-pipeline-series.sh` entry point and description. Updated batch scripts naming pattern note. Updated `batch_to_group` mapping in `fab-help.sh` description. |
 | 260222-s90r-add-shipped-tracking | 2026-02-22 | Added `shipped` tracking to fab pipeline. Extended `stageman.sh` with `ship` (append PR URL, idempotent, exact-match dedup) and `is-shipped` (exit-code query) subcommands (14→16 CLI subcommands). Added `shipped: []` to `status.yaml` template. Added `shipped` documentation section to `workflow.yaml` schema. Updated `/git-pr` skill to call `stageman.sh ship` after PR creation with graceful degradation when no active change. Updated `_preamble.md` state table: hydrate row now routes to `/git-pr` as default, `/fab-archive` as alternative. Updated `changeman.sh` `default_command` for hydrate. Test suite: 53→71 tests. |
 | 260222-n811-absorb-ship-command | 2026-02-22 | Added `git-pr.md` skill to skills directory listing. Added `git-pr` to `fab-help.sh` Completion group mapping. Native `/git-pr` replaces external `changes:ship` dependency for pipeline shipping. |

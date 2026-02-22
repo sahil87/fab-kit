@@ -555,3 +555,61 @@ teardown() {
     local last_line=$(echo "$output" | tail -n 1)
     assert_dir_exists "$last_line"
 }
+
+# ============================================================================
+# Non-Interactive Porcelain Output Tests
+# ============================================================================
+
+@test "wt-create: non-interactive stdout contains only the path" {
+    local stdout
+    stdout=$(wt-create --non-interactive --worktree-name porcelain-test 2>/dev/null)
+
+    # stdout should be exactly one line: the worktree path
+    local line_count
+    line_count=$(echo "$stdout" | wc -l | tr -d ' ')
+    [ "$line_count" -eq 1 ]
+
+    # That line should be a valid directory
+    assert_dir_exists "$stdout"
+}
+
+@test "wt-create: non-interactive stderr contains human-readable messages" {
+    local stderr_file="/tmp/wt-create-stderr-test-$$"
+
+    wt-create --non-interactive --worktree-name stderr-test 2>"$stderr_file"
+
+    # stderr should contain the success message
+    grep -q "Created worktree:" "$stderr_file"
+
+    rm -f "$stderr_file"
+}
+
+@test "wt-create: non-interactive with init script keeps init output on stderr" {
+    create_test_init_script "$WORKTREE_INIT_SCRIPT"
+    git add "$WORKTREE_INIT_SCRIPT"
+    git commit -q -m "Add init script"
+
+    local stdout stderr_file="/tmp/wt-create-init-stderr-$$"
+    stdout=$(wt-create --non-interactive --worktree-name init-stderr-test 2>"$stderr_file")
+
+    # stdout: just the path
+    local line_count
+    line_count=$(echo "$stdout" | wc -l | tr -d ' ')
+    [ "$line_count" -eq 1 ]
+    assert_dir_exists "$stdout"
+
+    # stderr: contains init messages
+    grep -q "Running worktree init" "$stderr_file"
+
+    rm -f "$stderr_file"
+}
+
+@test "wt-create: interactive mode still outputs everything to stdout" {
+    # Use --worktree-name to avoid interactive name prompt
+    # but don't use --non-interactive
+    run wt-create --worktree-name interactive-test --worktree-init false --worktree-open skip
+
+    assert_success
+    # Should contain human-readable messages on stdout (captured by run)
+    assert_output --partial "Created worktree: interactive-test"
+}
