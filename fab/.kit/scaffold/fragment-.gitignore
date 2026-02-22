@@ -1,5 +1,6 @@
 # Fab Specific
 fab/current
+fab/pipelines/.series-*.yaml
 
 # Optional - ignore agent specific folders
 .agents
