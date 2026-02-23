@@ -1,2 +1,3 @@
 - [ ] [ngaw] 2026-02-23: Quality gate - how to decide which PR has had deep thought vs just surface level?
 - [ ] [v34t] 2026-02-23: A timeline or user journey mermaid diagram showing which commands are typed in the main repo vs the worktree
+- [ ] [v1x2] 2026-02-23: In wt-create, have a an option to cd in the current shell session itself
