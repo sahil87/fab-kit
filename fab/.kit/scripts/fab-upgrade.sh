@@ -105,9 +105,9 @@ if [ -f "$fab_dir/project/VERSION" ]; then
   local_version=$(cat "$fab_dir/project/VERSION" | tr -d '[:space:]')
   if [ "$local_version" != "$new_version" ]; then
     echo ""
-    echo "⚠ Run /fab-setup migrations to update project files ($local_version → $new_version)"
+    echo "⚠ Run \`/fab-setup migrations\` to update project files ($local_version → $new_version)"
   fi
 else
   echo ""
-  echo "⚠ Run /fab-setup to initialize, then /fab-setup migrations"
+  echo "⚠ Run \`/fab-setup\` to initialize, then \`/fab-setup migrations\`"
 fi
