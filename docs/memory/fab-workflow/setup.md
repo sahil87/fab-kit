@@ -8,6 +8,10 @@
 
 ## Requirements
 
+### Prerequisite Check (Phase 0)
+
+`/fab-setup` (bare bootstrap only) runs `fab/.kit/scripts/fab-doctor.sh` as an early gate before creating any project artifacts. If doctor exits non-zero, setup stops immediately and surfaces the doctor output with fix hints. This gate does not apply to subcommands (`config`, `constitution`, `migrations`).
+
 ### Structural Bootstrap Only
 
 `/fab-setup` performs only Phase 1 (structural bootstrap). It does not accept `[sources...]` arguments and contains no source hydration logic.
@@ -146,6 +150,7 @@ Each subcommand operates independently — they can be invoked directly without 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260223-sr3u-add-fab-doctor | 2026-02-23 | Added Phase 0 prerequisite check: `/fab-setup` (bare bootstrap) runs `fab-doctor.sh` as early gate before creating any project artifacts. Non-zero exit stops bootstrap. Subcommands (config, constitution, migrations) skip this check. |
 | 260217-17pe-DEV-1046-scaffold-setup-templates | 2026-02-17 | Extracted inline config.yaml and constitution.md templates from `fab-setup.md` into `scaffold/config.yaml` and `scaffold/constitution.md`. Replaced inline memory-index and specs-index templates with scaffold file references. Updated delegation table notes. Added "Templates in Scaffold Files" design decision. |
 | 260216-tk7a-DEV-1037-consolidate-setup-upgrade-flow | 2026-02-16 | Renamed `/fab-init` → `/fab-setup`; absorbed `/fab-update` as `migrations` subcommand; promoted `lib/sync-workspace.sh` → `fab-sync.sh`; validate subcommand folded into config/constitution flows; file renamed from init.md to setup.md |
 | 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Updated `fab-sync.sh` delegation to create `docs/memory/` and `docs/specs/` instead of `fab/memory/` and `fab/specs/` |

@@ -1,3 +1,5 @@
 {"ts":"2026-02-23T16:01:53+05:30","event":"command","cmd":"fab-new","args":"Add fab-doctor.sh — prerequisite checker for fab-kit system requirements"}
 {"ts":"2026-02-23T16:10:04+05:30","event":"command","cmd":"fab-continue"}
 {"ts":"2026-02-23T16:11:57+05:30","event":"confidence","score":4.1,"delta":"+4.1","trigger":"calc-score"}
+{"ts":"2026-02-23T16:27:31+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-23T16:33:20+05:30","event":"review","result":"passed"}

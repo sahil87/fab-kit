@@ -51,6 +51,12 @@ Before doing anything else, verify the kit exists:
 
 When invoked with no arguments, perform the full structural bootstrap. `/fab-setup` delegates directory/symlink/skeleton creation to `fab/.kit/scripts/fab-sync.sh` (step 1f) while handling interactive config/constitution generation itself.
 
+### Phase 0: Prerequisite Check
+
+Run `fab/.kit/scripts/fab-doctor.sh` as the first step. If doctor exits non-zero, STOP immediately and surface the doctor output to the user. Do NOT create any project artifacts.
+
+This gate applies only to the bare bootstrap flow. Subcommands (`config`, `constitution`, `migrations`) skip this check.
+
 ### Phase 1: Structural Bootstrap
 
 Each step is **idempotent** — skip if the artifact already exists and is valid. On re-run, verify and repair rather than recreate.

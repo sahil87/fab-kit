@@ -72,6 +72,7 @@ fab/.kit/
     ├── batch-fab-archive-change.sh  # Batch archive completed changes via tmux + Claude
     ├── batch-fab-new-backlog.sh     # Batch create changes from backlog via tmux + Claude
     ├── batch-fab-switch-change.sh   # Batch switch to changes via tmux + Claude
+    ├── fab-doctor.sh       # Prerequisite checker (7 tools: git, bash, yq v4+, jq, gh, bats, direnv+hook)
     ├── fab-help.sh         # Print help overview
     ├── batch-pipeline.sh      # Entry point for the pipeline orchestrator (listing, matching, delegation)
     ├── batch-pipeline-series.sh # Sequential chain shorthand (generates manifest, delegates to orchestrator)
@@ -99,7 +100,7 @@ Replaces the previous three-step chain (`worktree-init.sh` → `2-rerun-sync-wor
 
 #### `sync/1-prerequisites.sh`
 
-Kit-level sync script. Validates that all required tools are available: `yq`, `jq`, `gh`, `direnv`, `bats`. Uses `command -v` for POSIX-portable detection. Collects all missing tools before reporting (not fail-fast on first missing). Exits 1 with an actionable error listing missing tools and pointing to the README Prerequisites section. Fatal — no subsequent sync steps execute if any tool is missing.
+Kit-level sync script. Thin delegate that `exec`s `fab/.kit/scripts/fab-doctor.sh`. Preserves the `fab-sync.sh` iteration model (`sync/*.sh` in sorted order) while delegating all tool checking to the standalone doctor script. Doctor's non-zero exit propagates directly (process replacement via `exec`), halting the sync pipeline. The script body is 3 lines: shebang, `set -euo pipefail`, and the `exec` call.
 
 #### `sync/3-direnv.sh`
 
@@ -146,6 +147,10 @@ User-facing entry point for the pipeline orchestrator. Owns all UX — argument 
 
 Shorthand for running a sequential chain of changes. Accepts change IDs as positional arguments (minimum 2) and an optional `--base <branch>` flag (defaults to current branch via `git branch --show-current`). Generates a temporary manifest at `fab/pipelines/.series-{epoch}.yaml` with a linear dependency chain — first change has `depends_on: []`, each subsequent depends on its predecessor. No `watch` field (finite mode by default). Delegates to `pipeline/run.sh` via `exec`. The generated manifest is not cleaned up (git-ignored via `fab/pipelines/.series-*.yaml` pattern).
 
+#### `fab-doctor.sh`
+
+Standalone prerequisite checker, sibling of `fab-help.sh`. Validates 7 required tools in order: `git`, `bash`, `yq` (v4+ gate), `jq`, `gh`, `bats`, `direnv` (binary + shell hook). Each check uses `command -v` for presence detection, tool-specific version extraction, and structured output (`✓`/`✗` with version or error + actionable fix hint). The yq check parses the major version and rejects v3 (Python) with a specific message. The direnv check has two parts: binary presence and shell hook integration — spawns an interactive subshell (`-i` flag) to source rc files, checking for `_direnv_hook` function (zsh) or `PROMPT_COMMAND` containing "direnv" (bash); unsupported shells pass with a "hook check skipped" note. All subshell output suppressed via `&>/dev/null`. Failures are accumulated (no early exit) — the script runs all 7 checks before reporting. Exit code equals the failure count (0 = all pass, 1-7 = number of failures). Output format: header line, per-tool result lines (indented), blank line, summary. Called by: `sync/1-prerequisites.sh` (exec delegate) and `/fab-setup` (Phase 0 early gate).
+
 #### `fab-help.sh`
 
 Prints the Fab Kit help overview and skill catalog. Dynamically reads skill names and descriptions from YAML frontmatter in `fab/.kit/skills/` at runtime via the shared `lib/frontmatter.sh` library. Also scans `batch-*.sh` scripts for shell-comment frontmatter (`# ---` delimited) via `shell_frontmatter_field()`, rendering discovered batch scripts under a "Batch Operations" group without `/` prefix (they are shell commands, not slash-commands). Excludes `_*` (partials) and `internal-*` (internal tooling) prefixed skill files. Maintains centralized group mappings (associative arrays `skill_to_group` and `batch_to_group`) for display organization — skills not in any group appear under an "Other" catch-all at the end. Computes column alignment dynamically from the longest display name across both skills and batch scripts. Includes `fab-sync.sh` as a hardcoded non-skill entry in the "Setup" group. Appends a static `PACKAGES` section after `TYPICAL FLOW` listing bundled packages (wt commands and idea) with one-liner descriptions — static because packages are stable and few, unlike skills which change frequently. Adding a new skill file to `fab/.kit/skills/` with valid frontmatter, or a new `batch-*.sh` script with shell-comment frontmatter and a `batch_to_group` mapping, automatically includes it in help output.
@@ -160,7 +165,7 @@ Shared sourceable shell library defining two parser functions. `frontmatter_fiel
 
 #### `fab-upgrade.sh`
 
-Downloads the latest `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/` (extract to temp dir, verify, swap), displays the version change, and re-runs `fab-sync.sh` to repair directories and agents. After upgrade, checks for version drift between `fab/project/VERSION` and the new `fab/.kit/VERSION` — prints a reminder to run `/fab-setup migrations` if behind, or init guidance if `fab/project/VERSION` is missing. Requires `gh` CLI. Preserves all project files outside `.kit/`. Handles errors: gh CLI missing, network failure, extraction verification failure, already-up-to-date.
+Downloads the latest `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/` (extract to temp dir, verify, swap), displays the version change, and re-runs `fab-sync.sh` to repair directories and agents. Prints "Update complete: {old} → {new}" first, then checks for version drift between `fab/project/VERSION` and the new `fab/.kit/VERSION` — prints a `⚠` warning as the last line if behind (with versions), or init guidance if `fab/project/VERSION` is missing. No warning when versions match. Requires `gh` CLI. Preserves all project files outside `.kit/`. Handles errors: gh CLI missing, network failure, extraction verification failure, already-up-to-date.
 
 #### `fab-release.sh` (dev-only, at `src/scripts/fab-release.sh`)
 
@@ -291,7 +296,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 *Source*: doc/fab-spec/ARCHITECTURE.md
 
 ### lib/ Subfolder for Internal Scripts
-**Decision**: Internal scripts (`stageman.sh`, `changeman.sh`, `calc-score.sh`, `preflight.sh`) live in `fab/.kit/scripts/lib/` without underscore prefix. User-facing scripts (`fab-help.sh`, `fab-sync.sh`, `fab-upgrade.sh`, batch scripts) remain in the parent `scripts/` directory.
+**Decision**: Internal scripts (`stageman.sh`, `changeman.sh`, `calc-score.sh`, `preflight.sh`) live in `fab/.kit/scripts/lib/` without underscore prefix. User-facing scripts (`fab-doctor.sh`, `fab-help.sh`, `fab-sync.sh`, `fab-upgrade.sh`, batch scripts) remain in the parent `scripts/` directory.
 **Why**: The `lib/` subfolder provides a clearer structural boundary between internal plumbing and user-facing entry points than naming conventions alone. All internal scripts are co-located, making the dependency graph explicit. The directory structure is more discoverable than prefix conventions.
 **Rejected**: Underscore prefix convention (previous approach) — naming conventions are less discoverable than directory structure; the prefix was inconsistent (`_init_scaffold.sh` used underscore+name while others used underscore only).
 
@@ -334,6 +339,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260223-sr3u-add-fab-doctor | 2026-02-23 | Added `fab-doctor.sh` standalone prerequisite checker (7 tools: git, bash, yq v4+, jq, gh, bats, direnv+hook). Rewrote `sync/1-prerequisites.sh` as thin `exec` delegate to doctor. Updated `fab-upgrade.sh` output: "Update complete" prints first, `⚠` migration warning prints last (or omitted when no drift). Added Phase 0 doctor gate to `fab-setup.md` (bare bootstrap only). Added `fab-doctor.sh` to directory tree, scripts section, and lib/ design decision user-facing scripts list. |
 | 260222-s101-wt-create-stderr-wt-list-flags | 2026-02-22 | wt-create and wt-pr `--non-interactive` now redirects human messages to stderr (porcelain output: only path on stdout). Removed `\| tail -1` from 3 batch callers. Added `--path <name>` (single worktree path lookup), `--json` (JSON array with dirty/unpushed fields), and status column (`*` dirty, `↑N` unpushed) to wt-list. Added mutual exclusivity check for `--path`/`--json`. Added "Non-Interactive Porcelain Output Contract" design decision. |
 | 260222-bcfy-batch-pipeline-series-rename | 2026-02-22 | Renamed `batch-fab-pipeline.sh` → `batch-pipeline.sh` in directory tree and section description. Added `batch-pipeline-series.sh` entry point and description. Updated batch scripts naming pattern note. Updated `batch_to_group` mapping in `fab-help.sh` description. |
 | 260222-s90r-add-shipped-tracking | 2026-02-22 | Added `shipped` tracking to fab pipeline. Extended `stageman.sh` with `ship` (append PR URL, idempotent, exact-match dedup) and `is-shipped` (exit-code query) subcommands (14→16 CLI subcommands). Added `shipped: []` to `status.yaml` template. Added `shipped` documentation section to `workflow.yaml` schema. Updated `/git-pr` skill to call `stageman.sh ship` after PR creation with graceful degradation when no active change. Updated `_preamble.md` state table: hydrate row now routes to `/git-pr` as default, `/fab-archive` as alternative. Updated `changeman.sh` `default_command` for hydrate. Test suite: 53→71 tests. |
