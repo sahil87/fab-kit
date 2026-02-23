@@ -4,6 +4,9 @@ fab/pipelines/.series-*.yaml
 fab/changes/**/.shipped
 
 # Optional - ignore agent specific folders
-.agents
-.claude
-.opencode
+/.agents
+/.claude
+/.cursor
+/.opencode
+/.codex
+/.ralph

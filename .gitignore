@@ -3,27 +3,13 @@ fab/current
 fab/pipelines/.series-*.yaml
 fab/changes/**/.shipped
 
-# Ralph runtime logs and temp files
-.ralph/activity.log
-.ralph/errors.log
-.ralph/.tmp/
+/.agents
+/.claude
+/.cursor
+/.opencode
+/.codex
+/.ralph
 
-/.claude/
-/.codex/
-/.ralph/
-/.agents/
 /ToBeDeleted/
 kit.tar.gz
-
-.claude/
-.opencode/
-.codex/
-.agents/
-
 .tmp
-
-.agents
-
-.claude
-
-.opencode

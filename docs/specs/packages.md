@@ -53,6 +53,35 @@ wt-pr 42                     # Creates a worktree checked out to PR #42's branch
 wt-delete                    # Removes the worktree and optionally its branch
 ```
 
+### Why wt-open Cannot cd in the Current Shell
+
+A frequently requested feature is a "cd here" option in `wt-open` that changes the calling shell's working directory to the worktree path. This is not possible due to a fundamental Unix process model constraint.
+
+**The constraint**: Every shell command (including `wt-open` and `wt-create`) runs as a **child process** of the calling shell. A child process has its own working directory that is independent of its parent. When the child exits, the parent's working directory is unchanged — there is no mechanism for a child process to modify its parent's environment.
+
+This is not a limitation of `wt-open` specifically — it applies to all executables on Unix systems. Only code that runs **within** the shell process itself (shell builtins like `cd`, and shell functions defined via `source` or `.`) can change the shell's working directory.
+
+**Workarounds**: Users who want to navigate to a worktree in their current shell can use:
+
+```bash
+# Option 1: Use command substitution with wt-create's stdout path
+cd "$(wt-create --non-interactive)"
+
+# Option 2: Copy path from wt-open's "Copy path" menu option, then paste
+cd <paste>
+
+# Option 3: Define a shell function in your .bashrc/.zshrc
+wt-cd() {
+    local path
+    path=$(wt-list --path "${1:?worktree name required}") || return $?
+    cd "$path" || return $?
+}
+```
+
+A shell function wrapper like Option 3 works because functions execute in the calling shell's process, not as a child. The function delegates path resolution to `wt-list --path` (which runs as a child) but executes `cd` in the parent shell's context.
+
+**Why we don't ship a shell function**: Shipping a `wt-cd` function would require users to `source` a file from their shell rc (`.bashrc`/`.zshrc`), which is a different distribution model than the current PATH-based approach. `env-packages.sh` adds `bin/` directories to PATH — it doesn't define shell functions. Mixing the two models adds complexity for a convenience that can be achieved with a 4-line function in the user's own rc file.
+
 ---
 
 ## idea (Backlog Management)

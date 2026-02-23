@@ -323,6 +323,12 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 **Rejected**: Manual cleanup in error handlers at each callsite — fragile, easy to miss paths. Temp directory approach — doesn't apply to git branch/worktree state.
 *Source*: 260218-qcqx-harden-wt-resilience
 
+### No cd-in-Current-Shell for wt-open
+**Decision**: `wt-open` does not and cannot offer a "cd here" option that changes the calling shell's working directory.
+**Why**: Unix process model constraint — child processes cannot modify the parent shell's environment. Every `wt-*` command runs as a child process of the calling shell. When the child exits, the parent's working directory is unchanged. Only shell builtins and shell functions (which run in the caller's process) can `cd`. A shell function wrapper (e.g., `wt-cd() { cd "$(wt-list --path "$1")"; }`) is the standard workaround but would require users to source a file from their rc, which is a different distribution model than the current PATH-based `env-packages.sh` approach. Users who want this can define a 4-line function in their own `.bashrc`/`.zshrc`.
+**Rejected**: Adding a `cd` app type to `wt-open` that prints the path for `eval` — adds complexity to `wt-open` for something `wt-list --path` already provides. Shipping a shell function in `env-packages.sh` — mixes PATH setup with function definitions, different sourcing semantics.
+*Source*: 260223-ufk6-wt-open-cd-current-shell (abandoned — documented as design constraint)
+
 ### Non-Interactive Porcelain Output Contract
 **Decision**: wt-create and wt-pr `--non-interactive` mode redirects all human-readable messages to stderr and writes only the worktree path to stdout. Batch callers capture the path via `$(wt-create --non-interactive ...)` instead of `| tail -1`.
 **Why**: Three batch consumers (`batch-fab-new-backlog.sh`, `batch-fab-switch-change.sh`, `pipeline/dispatch.sh`) relied on `| tail -1` to extract the path — fragile against any output format change. The `--reuse` codepath already followed this pattern (messages to stderr). Making `--non-interactive` imply porcelain output unifies the contract without adding a separate flag.

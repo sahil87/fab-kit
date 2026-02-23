@@ -1,5 +1,6 @@
 # Archive Index
 
+- **260223-ufk6-wt-open-cd-current-shell** — Abandoned at intake. Investigated adding a "cd here" option to wt-open; not feasible due to Unix process model constraint (child processes cannot modify parent shell's working directory). Documented as a design decision in specs and memory instead.
 - **260222-trdc-git-pr-shipped-sentinel-and-status-commit** — Added a second commit+push to git-pr after recording the shipped URL so the PR contains its own metadata, and introduced a `.shipped` sentinel file for race-free ship-completion detection by the pipeline orchestrator.
 - **260222-s101-wt-create-stderr-wt-list-flags** — Fixed wt-create output contract so `--non-interactive` mode sends all human-friendly messages to stderr (sole stdout = worktree path), added `--path`, `--json`, and status column flags to wt-list, and simplified three batch callers by dropping `| tail -1`.
 - **260222-s90r-add-shipped-tracking** — Added shipped tracking to the fab pipeline via a side-band `shipped` array in .status.yaml, with stageman ship/is-shipped subcommands and git-pr integration to record PR URLs after creation.
