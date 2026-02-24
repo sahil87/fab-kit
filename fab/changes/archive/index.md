@@ -1,5 +1,8 @@
 # Archive Index
 
+- **260224-vx4k-decouple-git-from-fab-switch** — Decoupled git branch operations from fab-switch into a standalone /git-branch command; fab-switch now only writes fab/current with no git side effects, and the --no-branch-change flag was removed.
+- **260223-xiuk-batch-pipeline-single-change-and-base-branch** — Relaxed batch-pipeline-series minimum from 2 changes to 1 and defaulted run.sh to the current branch when the manifest's base field is missing, removing the hardcoded main fallback.
+- **260223-sr3u-add-fab-doctor** — Added fab-doctor.sh standalone diagnostic that validates the full fab-kit toolchain (tools, versions, direnv hook), absorbed jq/bats checks from sync/1-prerequisites.sh (sunset), and redesigned fab-upgrade.sh post-upgrade output.
 - **260223-ufk6-wt-open-cd-current-shell** — Abandoned at intake. Investigated adding a "cd here" option to wt-open; not feasible due to Unix process model constraint (child processes cannot modify parent shell's working directory). Documented as a design decision in specs and memory instead.
 - **260222-trdc-git-pr-shipped-sentinel-and-status-commit** — Added a second commit+push to git-pr after recording the shipped URL so the PR contains its own metadata, and introduced a `.shipped` sentinel file for race-free ship-completion detection by the pipeline orchestrator.
 - **260222-s101-wt-create-stderr-wt-list-flags** — Fixed wt-create output contract so `--non-interactive` mode sends all human-friendly messages to stderr (sole stdout = worktree path), added `--path`, `--json`, and status column flags to wt-list, and simplified three batch callers by dropping `| tail -1`.
