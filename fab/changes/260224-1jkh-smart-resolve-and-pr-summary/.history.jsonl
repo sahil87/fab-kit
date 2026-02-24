@@ -1,0 +1,1 @@
+{"ts":"2026-02-24T22:12:21+05:30","event":"command","cmd":"fab-new","args":"Two workflow improvements: (1) changeman resolve guesses active change when fab/current missing, (2) git-pr generates better PR summaries from intake.md"}
