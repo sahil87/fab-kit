@@ -20,20 +20,24 @@ Determine the PR type before gathering state. The type controls the PR title pre
 
 **Resolution chain** (evaluated in order, first match wins):
 
-1. **Explicit argument**: If the user invoked `/git-pr {type}` where `{type}` is one of the 7 valid types (case-insensitive), use it. If the argument is not a valid type, ignore it and fall through to step 2.
+1. **Explicit argument**: If the user invoked `/git-pr {type}` where `{type}` is one of the 7 valid types (case-insensitive), normalize to lowercase and use it. If the argument is not a valid type, ignore it and fall through to step 2.
 
 2. **Infer from fab change intake**: Run `fab/.kit/scripts/lib/changeman.sh resolve 2>/dev/null`. If resolution fails or `changeman.sh` is not found, fall through to step 3. If resolution succeeds and `fab/changes/{name}/intake.md` exists, read the intake content and pattern-match (case-insensitive). Keyword lists are evaluated in order — first match wins:
    - Contains any of: "fix", "bug", "broken", "regression" → type = `fix`
    - Contains any of: "refactor", "restructure", "consolidate", "split", "rename" → type = `refactor`
    - Otherwise → type = `feat`
 
-3. **Infer from diff**: Run `git diff --name-only HEAD 2>/dev/null || git diff --name-only --cached 2>/dev/null || git diff --name-only @{u}..HEAD 2>/dev/null`. This covers uncommitted, staged, and committed-but-unpushed changes. Analyze the changed file paths:
+3. **Infer from diff**: Collect changed file paths by running each command and taking the first non-empty result: (a) `git diff --name-only HEAD`, (b) `git diff --name-only --cached`, (c) `git diff --name-only @{u}..HEAD` (only if upstream exists). This covers uncommitted, staged, and committed-but-unpushed changes.
+
+   If **no files** are returned (empty diff — clean working tree and no unpushed commits), default to `chore`.
+
+   Otherwise, analyze the changed file paths:
    - All files in `.github/` or CI config files → type = `ci`
    - All files in `docs/` or non-code `.md` files → type = `docs`
    - All files in test directories or test files → type = `test`
    - Otherwise → type = `chore`
 
-Store the resolved `type` and the resolution source (`explicit`, `intake`, `diff`) for use in Step 3c.
+Store the resolved `type` (always lowercase) and the resolution source (`explicit`, `intake`, `diff`) for use in Step 3c.
 
 This step MUST NOT ask questions or present options. If resolution is ambiguous, default to `chore`.
 
@@ -136,9 +140,11 @@ Print: `  ✓ push   — origin/<branch>`
 1. Verify `gh` is available: `command -v gh`
    - If missing → print `gh CLI not found — cannot create PR` and STOP
 
-2. **Derive PR title**: Format as `{type}: {title}` where:
-   - **Fab-linked** (type is `feat`, `fix`, or `refactor` AND intake exists): title = first `# ` heading from `intake.md`, stripping `Intake: ` prefix if present
-   - **Lightweight** (type is `docs`, `test`, `ci`, or `chore`, OR no intake): title = commit message subject line from `git log --oneline -1`
+2. **Derive PR title**: Compute `{pr_title}` as `{type}: {title}` where:
+   - **Fab-linked** (type is `feat`, `fix`, or `refactor` AND intake exists): `{title}` = first `# ` heading from `intake.md`, stripping `Intake: ` prefix if present
+   - **Lightweight** (type is `docs`, `test`, `ci`, or `chore`, OR no intake): `{title}` = commit message subject line from `git log -1 --format=%s`
+
+   The `{pr_title}` variable (already prefixed) is used as-is in step 4's `gh pr create --title`.
 
 3. **Generate PR body** using the template tier matching the resolved type:
 
@@ -166,7 +172,7 @@ Print: `  ✓ push   — origin/<branch>`
    | [Intake]({intake_url}) | [Spec]({spec_url}) |
    ```
 
-   If `spec.md` does not exist, the Context table row shows only the Intake link.
+   If `spec.md` does not exist, still emit a two-column row with the Spec cell empty: `| [Intake]({intake_url}) | |`.
 
    **Tier 2 — Lightweight** (type is `docs`, `test`, `ci`, or `chore`, OR no fab change, OR intake missing):
 
@@ -182,7 +188,7 @@ Print: `  ✓ push   — origin/<branch>`
    No design artifacts — housekeeping change.
    ```
 
-4. Create PR: `gh pr create --title "{type}: {title}" --body "<body>"`
+4. Create PR: `gh pr create --title "{pr_title}" --body "<body>"` (where `{pr_title}` is the already-prefixed title from step 2)
    - If PR creation fails → report the error and STOP
    - Fall back to `gh pr create --fill` if body generation fails for any reason (silent fallback)
 5. Get the PR URL: `gh pr view --json url -q '.url'`
