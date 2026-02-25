@@ -340,7 +340,7 @@ Fab stays out of this. No branch information is stored in `.status.yaml` — `/f
 
 | Option | When to use | What happens |
 |--------|-------------|--------------|
-| **Create branch** | On `main`/`master` (auto) or `wt/*` (prompted) | `/git-branch` creates branch named after the change folder (e.g., `260115-a7k2-add-oauth`) |
+| **Create branch** | On `main`/`master` (auto) or any non-target branch (prompted) | `/git-branch` creates branch named after the change folder (e.g., `260115-a7k2-add-oauth`) |
 | **Adopt current branch** | Already on a feature branch | No git operation — acknowledge the current branch |
 | **Skip** | Non-git repo, or user prefers manual control | No branch operation |
 
@@ -350,7 +350,7 @@ Fab stays out of this. No branch information is stored in `.status.yaml` — `/f
 
 When Fab creates a branch, it uses the change folder name directly: `260115-a7k2-add-oauth`. This gives you a 1:1 mapping between `fab/changes/` and `git branch`.
 
-When adopting an existing branch (e.g., `feature/dev-907-oauth` from Linear, or a `wt/*` worktree branch), Fab stores whatever name it finds — no rename.
+When adopting an existing branch (e.g., `feature/dev-907-oauth` from Linear, or an exploratory worktree branch), Fab stores whatever name it finds — no rename.
 
 ### `.gitignore` Guidance
 

@@ -202,5 +202,5 @@ EOF
 
     local last_line
     last_line=$(echo "$output" | tail -n 1)
-    [[ "$last_line" == *"-worktrees/"* ]]
+    [[ "$last_line" == *".worktrees/"* ]]
 }

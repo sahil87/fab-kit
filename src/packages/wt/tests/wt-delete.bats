@@ -114,7 +114,7 @@ teardown() {
     assert_success
 
     assert_worktree_not_exists "branch-test"
-    assert_branch_not_exists "wt/branch-test"
+    assert_branch_not_exists "branch-test"
 }
 
 @test "wt-delete: preserves branch when --delete-branch false" {
@@ -124,14 +124,14 @@ teardown() {
     assert_success
 
     assert_worktree_not_exists "keep-branch"
-    assert_branch_exists "wt/keep-branch"
+    assert_branch_exists "keep-branch"
 }
 
 @test "wt-delete: deletes remote branch by default" {
     # Create a branch and push it to remote
     wt-create --non-interactive --worktree-name remote-test &>/dev/null
-    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO")-worktrees/remote-test"
-    (cd "$wt_path" && echo "test" > test-file.txt && git add . && git commit -q -m "test" && git push -q -u origin "wt/remote-test" 2>/dev/null) || true
+    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO").worktrees/remote-test"
+    (cd "$wt_path" && echo "test" > test-file.txt && git add . && git commit -q -m "test" && git push -q -u origin "remote-test" 2>/dev/null) || true
 
     run wt-delete --non-interactive --worktree-name remote-test
     assert_success
@@ -140,28 +140,28 @@ teardown() {
 
 @test "wt-delete: preserves remote branch when --delete-remote false" {
     wt-create --non-interactive --worktree-name keep-remote &>/dev/null
-    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO")-worktrees/keep-remote"
-    (cd "$wt_path" && echo "test" > test-file.txt && git add . && git commit -q -m "test" && git push -q -u origin "wt/keep-remote" 2>/dev/null) || true
+    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO").worktrees/keep-remote"
+    (cd "$wt_path" && echo "test" > test-file.txt && git add . && git commit -q -m "test" && git push -q -u origin "keep-remote" 2>/dev/null) || true
 
     run wt-delete --non-interactive --worktree-name keep-remote --delete-remote false
     assert_success
 
     assert_worktree_not_exists "keep-remote"
     # Remote branch should still exist
-    assert_remote_branch_exists "wt/keep-remote"
+    assert_remote_branch_exists "keep-remote"
 }
 
-@test "wt-delete: cleans up associated wt/* branch" {
-    # Create worktree (creates wt/name branch)
+@test "wt-delete: cleans up associated branch" {
+    # Create worktree (creates unprefixed branch)
     wt-create --non-interactive --worktree-name wt-branch-cleanup &>/dev/null
 
-    # Verify wt/ branch was created
-    assert_branch_exists "wt/wt-branch-cleanup"
+    # Verify branch was created
+    assert_branch_exists "wt-branch-cleanup"
 
     run wt-delete --non-interactive --worktree-name wt-branch-cleanup --delete-branch true
     assert_success
 
-    assert_branch_not_exists "wt/wt-branch-cleanup"
+    assert_branch_not_exists "wt-branch-cleanup"
 }
 
 # ============================================================================
@@ -170,7 +170,7 @@ teardown() {
 
 @test "wt-delete: stashes changes with --stash flag" {
     wt-create --non-interactive --worktree-name stash-test &>/dev/null
-    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO")-worktrees/stash-test"
+    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO").worktrees/stash-test"
 
     # Create uncommitted changes
     echo "uncommitted" > "$wt_path/dirty-file.txt"
@@ -187,7 +187,7 @@ teardown() {
 
 @test "wt-delete: discards changes in non-interactive mode without --stash" {
     wt-create --non-interactive --worktree-name discard-test &>/dev/null
-    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO")-worktrees/discard-test"
+    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO").worktrees/discard-test"
 
     # Create uncommitted changes
     echo "will-be-discarded" > "$wt_path/dirty-file.txt"
@@ -201,7 +201,7 @@ teardown() {
 
 @test "wt-delete: --stash with -s shorthand" {
     wt-create --non-interactive --worktree-name stash-short &>/dev/null
-    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO")-worktrees/stash-short"
+    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO").worktrees/stash-short"
 
     echo "content" > "$wt_path/file.txt"
     (cd "$wt_path" && git add file.txt)
@@ -217,7 +217,7 @@ teardown() {
 
 @test "wt-delete: proceeds with unpushed commits in non-interactive mode" {
     wt-create --non-interactive --worktree-name unpushed-test &>/dev/null
-    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO")-worktrees/unpushed-test"
+    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO").worktrees/unpushed-test"
 
     # Create unpushed commits
     (cd "$wt_path" && echo "change" > new.txt && git add . && git commit -q -m "unpushed")
@@ -257,8 +257,8 @@ teardown() {
     run wt-delete --non-interactive --delete-all --delete-branch true
     assert_success
 
-    assert_branch_not_exists "wt/all-branch-1"
-    assert_branch_not_exists "wt/all-branch-2"
+    assert_branch_not_exists "all-branch-1"
+    assert_branch_not_exists "all-branch-2"
 }
 
 # ============================================================================
@@ -276,7 +276,7 @@ teardown() {
 
 @test "wt-delete: worktree directory is removed after deletion" {
     wt-create --non-interactive --worktree-name dir-check &>/dev/null
-    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO")-worktrees/dir-check"
+    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO").worktrees/dir-check"
 
     assert_dir_exists "$wt_path"
 
@@ -308,12 +308,12 @@ teardown() {
 
     assert_success
     assert_worktree_not_exists "full-delete-test"
-    assert_branch_not_exists "wt/full-delete-test"
+    assert_branch_not_exists "full-delete-test"
 }
 
 @test "wt-delete: create → make changes → stash → delete → verify cleanup" {
     wt-create --non-interactive --worktree-name lifecycle-test &>/dev/null
-    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO")-worktrees/lifecycle-test"
+    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO").worktrees/lifecycle-test"
 
     # Make uncommitted changes
     echo "important work" > "$wt_path/work.txt"

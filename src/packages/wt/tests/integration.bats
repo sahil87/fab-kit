@@ -106,9 +106,9 @@ teardown() {
     refute_output --partial "multi-3"
 
     # Verify branches cleaned up
-    assert_branch_not_exists "wt/multi-1"
-    assert_branch_not_exists "wt/multi-2"
-    assert_branch_not_exists "wt/multi-3"
+    assert_branch_not_exists "multi-1"
+    assert_branch_not_exists "multi-2"
+    assert_branch_not_exists "multi-3"
 }
 
 @test "integration: non-interactive automation workflow (no prompts)" {
@@ -147,11 +147,11 @@ teardown() {
     run wt-create --non-interactive --worktree-name branch-verify
     assert_success
 
-    assert_branch_exists "wt/branch-verify"
+    assert_branch_exists "branch-verify"
 
     # List should show the branch
     run wt-list
-    assert_output --partial "wt/branch-verify"
+    assert_output --partial "branch-verify"
 }
 
 @test "integration: branch-based worktree create → delete preserves other branches" {

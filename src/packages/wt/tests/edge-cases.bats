@@ -32,7 +32,7 @@ teardown() {
     assert_output --partial "orphaned"
 
     # Delete outside git
-    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO")-worktrees/orphaned"
+    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO").worktrees/orphaned"
     rm -rf "$wt_path"
 
     # Prune should clean it up
@@ -45,7 +45,7 @@ teardown() {
 @test "edge: wt-list works after external worktree deletion + prune" {
     wt-create --non-interactive --worktree-name ext-del &>/dev/null
 
-    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO")-worktrees/ext-del"
+    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO").worktrees/ext-del"
     rm -rf "$wt_path"
     git worktree prune
 
@@ -58,7 +58,7 @@ teardown() {
     wt-create --non-interactive --worktree-name already-gone &>/dev/null
 
     # Remove directory but don't prune
-    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO")-worktrees/already-gone"
+    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO").worktrees/already-gone"
     rm -rf "$wt_path"
 
     # wt-delete should handle this gracefully (may error or succeed with cleanup)
@@ -77,7 +77,7 @@ teardown() {
     assert_failure
 
     # Ensure no partial worktree directory was left behind
-    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO")-worktrees/bad-branch"
+    local wt_path="$(dirname "$TEST_REPO")/$(basename "$TEST_REPO").worktrees/bad-branch"
     assert_dir_not_exists "$wt_path"
 }
 
@@ -184,7 +184,7 @@ teardown() {
 @test "edge: --reuse with orphaned directory (not registered as git worktree)" {
     # Create worktrees dir and an orphaned directory manually
     local repo_name=$(basename "$TEST_REPO")
-    local worktrees_dir="$(dirname "$TEST_REPO")/${repo_name}-worktrees"
+    local worktrees_dir="$(dirname "$TEST_REPO")/${repo_name}.worktrees"
     mkdir -p "$worktrees_dir/orphaned"
 
     # --reuse should return the path blindly
