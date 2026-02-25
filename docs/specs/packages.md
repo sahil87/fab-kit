@@ -8,7 +8,7 @@ Both packages live inside `fab/.kit/packages/` and are added to PATH via `env-pa
 
 ## wt (Worktree Management)
 
-Git worktrees let you have multiple checkouts of the same repository side by side. The wt package wraps `git worktree` with opinionated defaults for the fab workflow: worktrees are created as siblings in `<repo>-worktrees/`, names are memorable random words, and each worktree can run its own fab change independently.
+Git worktrees let you have multiple checkouts of the same repository side by side. The wt package wraps `git worktree` with opinionated defaults for the fab workflow: worktrees are created as siblings in `<repo>.worktrees/`, names are memorable random words, and each worktree can run its own fab change independently.
 
 ### Commands
 
@@ -38,7 +38,7 @@ The batch scripts orchestrate this at scale:
 **Start a new change in isolation:**
 ```bash
 wt-create                    # Creates a worktree with a random name
-cd ../repo-worktrees/name/   # Enter the worktree
+cd ../repo.worktrees/name/   # Enter the worktree
 # Work on your change — main repo is untouched
 ```
 

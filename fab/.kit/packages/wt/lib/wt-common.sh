@@ -301,7 +301,7 @@ wt_get_repo_context() {
     # Derive main repo root by stripping /.git suffix
     WT_REPO_ROOT="${git_common_dir%/.git}"
     WT_REPO_NAME=$(basename "$WT_REPO_ROOT")
-    WT_WORKTREES_DIR="$(dirname "$WT_REPO_ROOT")/${WT_REPO_NAME}-worktrees"
+    WT_WORKTREES_DIR="$(dirname "$WT_REPO_ROOT")/${WT_REPO_NAME}.worktrees"
 }
 
 # Check if we're inside a worktree (not the main repo)

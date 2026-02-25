@@ -46,16 +46,16 @@ teardown() {
     assert_worktree_exists "$wt_name"
 }
 
-@test "wt-create: creates wt/<name> branch for exploratory worktree" {
+@test "wt-create: creates unprefixed branch for exploratory worktree" {
     run wt-create --non-interactive
 
     assert_success
 
     # Extract worktree name from output
     local wt_name=$(echo "$output" | grep "Created worktree:" | sed 's/Created worktree: //')
-    local expected_branch="wt/${wt_name}"
+    local expected_branch="${wt_name}"
 
-    # Verify branch was created
+    # Verify branch was created (no wt/ prefix)
     assert_branch_exists "$expected_branch"
 }
 
@@ -290,7 +290,7 @@ teardown() {
     assert_success
 
     # Verify mock was called
-    verify_mock_called "code" ".+-worktrees/[a-z]+-[a-z]+$"
+    verify_mock_called "code" ".+\.worktrees/[a-z]+-[a-z]+$"
 }
 
 @test "wt-create: opens in Cursor when --worktree-open cursor specified" {
@@ -298,7 +298,7 @@ teardown() {
 
     assert_success
 
-    verify_mock_called "cursor" ".+-worktrees/[a-z]+-[a-z]+$"
+    verify_mock_called "cursor" ".+\.worktrees/[a-z]+-[a-z]+$"
 }
 
 @test "wt-create: skips opening when --worktree-open skip specified" {
@@ -477,7 +477,7 @@ teardown() {
     assert_success
 
     local repo_name=$(basename "$TEST_REPO")
-    local expected_dir="$(dirname "$TEST_REPO")/${repo_name}-worktrees/test-structure"
+    local expected_dir="$(dirname "$TEST_REPO")/${repo_name}.worktrees/test-structure"
 
     assert_dir_exists "$expected_dir"
 }

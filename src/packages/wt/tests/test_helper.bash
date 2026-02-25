@@ -93,7 +93,7 @@ clear_mock_log() {
 assert_worktree_exists() {
     local name="$1"
     local repo_name=$(basename "$PWD")
-    local wt_path="$(dirname "$PWD")/${repo_name}-worktrees/${name}"
+    local wt_path="$(dirname "$PWD")/${repo_name}.worktrees/${name}"
 
     if [[ ! -d "$wt_path" ]]; then
         echo "Worktree directory does not exist: $wt_path" >&2
@@ -112,7 +112,7 @@ assert_worktree_exists() {
 assert_worktree_not_exists() {
     local name="$1"
     local repo_name=$(basename "$PWD")
-    local wt_path="$(dirname "$PWD")/${repo_name}-worktrees/${name}"
+    local wt_path="$(dirname "$PWD")/${repo_name}.worktrees/${name}"
 
     if [[ -d "$wt_path" ]]; then
         echo "Worktree directory still exists: $wt_path" >&2
@@ -309,7 +309,7 @@ cleanup_test_repo() {
     if [[ -d "$repo_path" ]]; then
         # Remove all worktrees first
         local repo_name=$(basename "$repo_path")
-        local worktrees_dir="$(dirname "$repo_path")/${repo_name}-worktrees"
+        local worktrees_dir="$(dirname "$repo_path")/${repo_name}.worktrees"
 
         if [[ -d "$worktrees_dir" ]]; then
             rm -rf "$worktrees_dir"

@@ -1,2 +1,8 @@
 {"ts":"2026-02-24T22:16:26+05:30","event":"command","cmd":"fab-new","args":"Remove wt/ prefix from branches and switch to .worktrees directory convention"}
 {"ts":"2026-02-24T22:17:25+05:30","event":"command","cmd":"fab-new","args":"Remove wt/ prefix from branches and switch to .worktrees directory convention"}
+{"ts":"2026-02-24T22:20:05+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-24T22:21:40+05:30","event":"confidence","score":3.4,"delta":"+3.4","trigger":"calc-score"}
+{"ts":"2026-02-25T07:43:56+05:30","event":"command","cmd":"fab-clarify"}
+{"ts":"2026-02-25T08:02:42+05:30","event":"confidence","score":4.4,"delta":"+1.0","trigger":"calc-score"}
+{"ts":"2026-02-25T08:03:26+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-25T08:09:45+05:30","event":"review","result":"passed"}

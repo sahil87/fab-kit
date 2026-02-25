@@ -91,10 +91,10 @@ STOP.
 git checkout -b "{branch_name}"
 ```
 
-**If on any other branch** (feature branch, `wt/*`, etc.): Present options:
+**If on any other branch**: Present options:
 
-1. **Create new branch** — `git checkout -b "{branch_name}"` (default for `wt/*` branches)
-2. **Adopt this branch** — no git operation, acknowledge the current branch as the working branch (default for other feature branches)
+1. **Create new branch** — `git checkout -b "{branch_name}"`
+2. **Adopt this branch** — no git operation, acknowledge the current branch as the working branch (default)
 3. **Skip** — cancel, no action taken
 
 ### Step 6: Report

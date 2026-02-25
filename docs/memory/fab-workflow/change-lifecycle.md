@@ -121,7 +121,7 @@ Fab works without git. Change folders are the unit of identity, not branches —
 |--------|-------------|--------------|
 | **Create branch** | On `main`/`master` (auto via `/git-branch`) | Creates branch named `{prefix}{change-name}` |
 | **Adopt current branch** | Already on a feature branch | No git operation — acknowledge the current branch |
-| **Create new** | On a `wt/*` or feature branch, user chooses | Creates new branch from current HEAD |
+| **Create new** | On any non-main, non-target branch, user chooses | Creates new branch from current HEAD |
 | **Skip** | Non-git, git disabled, or manual control | No branch operation |
 
 `/fab-switch` suggests `/git-branch` when `git.enabled` is true. `/fab-status` displays the current branch via `git branch --show-current`. `/git-pr` nudges when the current branch doesn't match the active change. Fab never commits, pushes, merges, or deletes branches — that remains the user's responsibility (or `/git-pr`'s for shipping).
@@ -255,6 +255,7 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260224-v40o-wt-drop-prefix-and-dotworktrees | 2026-02-25 | Removed `wt/*` branch pattern special-casing from `/git-branch` — all non-main, non-target branches now treated uniformly with "Adopt this branch" as default |
 | 260224-vx4k-decouple-git-from-fab-switch | 2026-02-24 | Decoupled git branch operations from `/fab-switch`. `/fab-switch` now only writes `fab/current` — no git commands, no `--branch`/`--no-branch-change` flags. New `/git-branch` command handles branch create/checkout with context-dependent prompts. `/fab-switch` shows `/git-branch` hint when `git.enabled` is true. `/git-pr` enhanced with branch mismatch nudge (Step 1b) and `/git-branch` suggestion in main branch guard. `dispatch.sh` updated to remove `--no-branch-change` from send-keys. Updated "Branch Integration" design decision. |
 | 260218-95xn-split-stage-display-from-routing | 2026-02-18 | Split stage display from routing: added `get_display_stage` to stageman.sh (returns "where you are" vs `get_current_stage` for "what's next"). Preflight emits `display_stage`/`display_state` fields. `/fab-switch` and `/fab-status` now show two-line format: `Stage: {display_stage} — {state}` + `Next: {routing_stage} (via {command})`. |
 | 260216-7ltw-DEV-1038-standardize-state-keyed-suggestions | 2026-02-16 | Removed `--switch` flag from `/fab-new` — change is never activated by `/fab-new`. Updated `fab/current` lifecycle, git integration, and Branch Integration design decision. All suggestion derivation now from canonical state table in `_preamble.md`. |

@@ -5,7 +5,7 @@
 # Usage: wt-create [OPTIONS] [BRANCH]
 #        wt-create help
 #
-# Creates git worktrees as siblings to the main repository in <repo>-worktrees/
+# Creates git worktrees as siblings to the main repository in <repo>.worktrees/
 #
 # Environment variables:
 #   WT_CREATE_RETRIES - Max attempts for unique name generation (default: 10)
@@ -57,7 +57,7 @@ wt_create_exploratory_worktree() {
     wt_ensure_worktrees_dir
 
     local wt_path="$WT_WORKTREES_DIR/$name"
-    local branch="wt/$name"
+    local branch="$name"
 
     wt_create_worktree "$wt_path" "$branch" "new"
     wt_print_success "$name" "$wt_path" "$branch"
@@ -70,13 +70,13 @@ wt_create_exploratory_worktree() {
 # ============================================================================
 
 wt_show_help() {
-    local worktrees_path="<repo>-worktrees/"
+    local worktrees_path="<repo>.worktrees/"
     if git rev-parse --git-common-dir &>/dev/null; then
         local git_common_dir repo_root repo_name
         git_common_dir=$(git rev-parse --git-common-dir)
         repo_root="${git_common_dir%/.git}"
         repo_name=$(basename "$repo_root")
-        worktrees_path="$(dirname "$repo_root")/${repo_name}-worktrees/"
+        worktrees_path="$(dirname "$repo_root")/${repo_name}.worktrees/"
     fi
 
     cat <<EOF
@@ -86,7 +86,7 @@ Creates a git worktree for parallel development.
 
 Arguments:
   BRANCH    Branch to checkout (optional)
-            If omitted, creates wt/<random-name> branch
+            If omitted, creates <random-name> branch
 
 Worktrees created at: $worktrees_path
 
