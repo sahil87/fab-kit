@@ -1,0 +1,38 @@
+name: 260225-jwa3-git-branch-standalone-fallback
+created: 2026-02-25T14:17:13+05:30
+created_by: sahil-weaver
+change_type: feature
+progress:
+  intake: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
+checklist:
+  generated: true
+  path: checklist.md
+  completed: 16
+  total: 16
+confidence:
+  certain: 6
+  confident: 2
+  tentative: 0
+  unresolved: 0
+  score: 4.4
+  fuzzy: true
+  dimensions:
+    signal: 88.1
+    reversibility: 87.5
+    competence: 88.1
+    disambiguation: 91.2
+stage_metrics:
+  intake: {started_at: "2026-02-25T14:17:13+05:30", driver: fab-new, iterations: 1, completed_at: "2026-02-25T14:17:59+05:30"}
+  spec: {started_at: "2026-02-25T14:18:20+05:30", driver: fab-continue, iterations: 1, completed_at: "2026-02-25T14:19:24+05:30"}
+  tasks: {started_at: "2026-02-25T14:19:24+05:30", driver: fab-continue, iterations: 1, completed_at: "2026-02-25T14:21:36+05:30"}
+  apply: {started_at: "2026-02-25T14:21:36+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-25T14:22:22+05:30"}
+  review: {started_at: "2026-02-25T14:22:22+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-25T14:26:30+05:30"}
+  hydrate: {started_at: "2026-02-25T14:26:30+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-25T14:27:04+05:30"}
+shipped:
+  - https://github.com/wvrdz/fab-kit/pull/155
+last_updated: "2026-02-25T14:29:05+05:30"

@@ -178,17 +178,18 @@ The skill uses `lib/preflight.sh` for data retrieval (including `display_stage` 
 
 ### `/git-branch [change-name]`
 
-`/git-branch` creates or checks out a git branch matching the active (or specified) change. Standalone command — does not modify fab state (`fab/current`, `.status.yaml`).
+`/git-branch` creates or checks out a git branch matching the active (or specified) change. When an explicit argument doesn't match any change, falls back to creating a standalone branch with the literal name. Standalone command — does not modify fab state (`fab/current`, `.status.yaml`).
 
 **Behavior:**
 1. Read `config.yaml` for `git.enabled` and `git.branch_prefix`
 2. If `git.enabled` is false → report and stop
-3. Resolve change name (from argument or `fab/current`)
-4. Derive branch name: `{branch_prefix}{change-name}`
+3. Resolve change name (from argument or `fab/current`). If resolution fails with an explicit argument, enter **standalone fallback** — use the raw argument as a literal branch name, print `No matching change found — using standalone branch '{name}'`. If no argument was provided, display changeman's error and stop.
+4. Derive branch name: `{branch_prefix}{change-name}` for change-resolved branches; raw argument as-is for standalone (no prefix applied)
 5. Context-dependent action:
+   - **Already on target** → no-op ("already active")
+   - **Target branch exists** → switch to it (`git checkout`)
    - **On `main`/`master`** → auto-create branch
    - **On other branch** → prompt: create new, adopt current, or skip
-   - **Already on target** → no-op ("already active")
 6. Report result
 
 ## Migration Note (Old-Format `.status.yaml`)
@@ -255,6 +256,7 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260225-jwa3-git-branch-standalone-fallback | 2026-02-25 | `/git-branch` gains standalone fallback: when an explicit argument doesn't match any fab change, the raw argument is used as a literal branch name (no prefix, no transformation). Change resolution still takes precedence. Existing branches are switched to instead of failing. Step 5 gains branch-existence check for both standalone and change-resolved paths. |
 | 260224-v40o-wt-drop-prefix-and-dotworktrees | 2026-02-25 | Removed `wt/*` branch pattern special-casing from `/git-branch` — all non-main, non-target branches now treated uniformly with "Adopt this branch" as default |
 | 260224-vx4k-decouple-git-from-fab-switch | 2026-02-24 | Decoupled git branch operations from `/fab-switch`. `/fab-switch` now only writes `fab/current` — no git commands, no `--branch`/`--no-branch-change` flags. New `/git-branch` command handles branch create/checkout with context-dependent prompts. `/fab-switch` shows `/git-branch` hint when `git.enabled` is true. `/git-pr` enhanced with branch mismatch nudge (Step 1b) and `/git-branch` suggestion in main branch guard. `dispatch.sh` updated to remove `--no-branch-change` from send-keys. Updated "Branch Integration" design decision. |
 | 260218-95xn-split-stage-display-from-routing | 2026-02-18 | Split stage display from routing: added `get_display_stage` to stageman.sh (returns "where you are" vs `get_current_stage` for "what's next"). Preflight emits `display_stage`/`display_state` fields. `/fab-switch` and `/fab-status` now show two-line format: `Stage: {display_stage} — {state}` + `Next: {routing_stage} (via {command})`. |

@@ -7,7 +7,7 @@ allowed-tools: Bash(git:*), Bash(yq:*)
 
 # /git-branch [change-name]
 
-Create or check out a git branch named `{branch_prefix}{change-name}` for the active or specified change. Does not modify fab state.
+Create or check out a git branch named `{branch_prefix}{change-name}` for the active or specified change. When an explicit argument doesn't match any change, falls back to creating a standalone branch with the literal name. Does not modify fab state.
 
 ---
 
@@ -61,9 +61,26 @@ If not provided, resolve from `fab/current`:
 bash fab/.kit/scripts/lib/changeman.sh resolve
 ```
 
-If resolution fails: display changeman's stderr and STOP.
+If resolution fails:
+
+- **If no argument was provided**: display changeman's stderr and STOP.
+- **If an explicit argument was provided**: enter **standalone fallback** — use the raw argument as a literal branch name. Print:
+
+```
+No matching change found — using standalone branch '{name}'
+```
+
+Set `standalone = true` and proceed to Step 4.
 
 ### Step 4: Derive Branch Name
+
+**If standalone**: use the raw argument as-is — no prefix, no transformation:
+
+```
+branch_name = {raw_argument}
+```
+
+**Otherwise** (change resolved): apply the configured prefix:
 
 ```
 branch_name = {git.branch_prefix}{resolved_change_name}
@@ -77,6 +94,12 @@ Get the current branch:
 git branch --show-current
 ```
 
+Check if the target branch already exists locally:
+
+```bash
+git rev-parse --verify "{branch_name}" >/dev/null 2>&1
+```
+
 **If already on the target branch**: No git operation.
 
 ```
@@ -85,7 +108,17 @@ Branch: {branch_name} (already active)
 
 STOP.
 
-**If on `main` or `master`**: Auto-create the change branch without prompting.
+**If the target branch exists but is not current**: Switch to it.
+
+```bash
+git checkout "{branch_name}"
+```
+
+Report: `Branch: {branch_name} (checked out)`
+
+STOP.
+
+**If on `main` or `master`**: Auto-create the branch without prompting.
 
 ```bash
 git checkout -b "{branch_name}"
@@ -121,7 +154,8 @@ Branch: {branch_name} (created|checked out|adopted|already active)
 |-----------|--------|
 | `git.enabled` is `false` | Report and stop |
 | Not in a git repo | Report and stop |
-| Change name resolution fails | Display changeman's error and stop |
+| Change name resolution fails (no argument) | Display changeman's error and stop |
+| Change name resolution fails (explicit argument) | Standalone fallback — use literal argument as branch name |
 | `git checkout` fails (e.g., uncommitted conflicts) | Report the git error. No fab state modified. |
 | `fab/project/config.yaml` not found | Assume `git.enabled: true`, `branch_prefix: ""` |
 
