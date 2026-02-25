@@ -1,7 +1,9 @@
 - [ ] [ngaw] 2026-02-23: Quality gate - how to decide which PR has had deep thought vs just surface level?
 - [ ] [v34t] 2026-02-23: A timeline or user journey mermaid diagram showing which commands are typed in the main repo vs the worktree
 - [x] [vx4k] 2026-02-24: Separate out git from fab commands. Right now fab switch is very deeply coupled with branch change. Try to see if we can separate it out.
-- [ ] [7k6b] 2026-02-24: git-pr should generate better summary for the PR. If possible reference the intake.md of the change for which we are submitting the PR.
-- [ ] [v40o] 2026-02-24: Remove the wt/ prefix from the branch created by wt-create
-- [ ] [w5ne] 2026-02-24: How do current commands resolve the change? They don't read fab/current directly (or at least should not). They call a changeman argument and that does it for them. We need to update this fn with 'guessing' ability of the current change (if there is only one active change in the change folder). Then upgrade git-branch to use this
+- [x] [7k6b] 2026-02-24: git-pr should generate better summary for the PR. If possible reference the intake.md of the change for which we are submitting the PR.
+- [x] [v40o] 2026-02-24: Remove the wt/ prefix from the branch created by wt-create
+- [x] [w5ne] 2026-02-24: How do current commands resolve the change? They don't read fab/current directly (or at least should not). They call a changeman argument and that does it for them. We need to update this fn with 'guessing' ability of the current change (if there is only one active change in the change folder). Then upgrade git-branch to use this
 - [x] [v9fb] 2026-02-25: Add a porcelain mode to fab-doctor.sh, that can be used during worktree creation - that only prints errors
+- [ ] [jwa3] 2026-02-25: git-pr should be able to create a branch, given that I pass an arugment to it, even though the arugment doesn't match an existing change
+- [ ] [54vl] 2026-02-25: Make git-pr smarter. There is a category of changes that does not Really require whole fab change folder to come in these are mostly Chores or housekeeping tasks.

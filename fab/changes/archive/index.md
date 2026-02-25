@@ -1,5 +1,7 @@
 # Archive Index
 
+- **260224-v40o-wt-drop-prefix-and-dotworktrees** — Dropped the `wt/` branch prefix from exploratory worktrees and switched the worktree home directory from `<repo>-worktrees` to `<repo>.worktrees` (GitLens convention).
+- **260224-1jkh-smart-resolve-and-pr-summary** — Added single-change guessing to changeman resolve (auto-resolves when exactly one active change exists) and made git-pr generate intake-aware PR descriptions with summary and artifact links.
 - **260224-vx4k-decouple-git-from-fab-switch** — Decoupled git branch operations from fab-switch into a standalone /git-branch command; fab-switch now only writes fab/current with no git side effects, and the --no-branch-change flag was removed.
 - **260223-xiuk-batch-pipeline-single-change-and-base-branch** — Relaxed batch-pipeline-series minimum from 2 changes to 1 and defaulted run.sh to the current branch when the manifest's base field is missing, removing the hardcoded main fallback.
 - **260223-sr3u-add-fab-doctor** — Added fab-doctor.sh standalone diagnostic that validates the full fab-kit toolchain (tools, versions, direnv hook), absorbed jq/bats checks from sync/1-prerequisites.sh (sunset), and redesigned fab-upgrade.sh post-upgrade output.
