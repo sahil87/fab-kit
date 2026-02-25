@@ -110,7 +110,27 @@ Print: `  ✓ push   — origin/<branch>`
 
 1. Verify `gh` is available: `command -v gh`
    - If missing → print `gh CLI not found — cannot create PR` and STOP
-2. Create PR: `gh pr create --fill`
+2. Attempt intake-aware PR creation:
+   1. Resolve active change: `fab/.kit/scripts/lib/changeman.sh resolve 2>/dev/null`
+   2. **If resolution succeeds** and `fab/changes/{name}/intake.md` exists:
+      - Read `intake.md`
+      - Derive PR title from the first `# ` heading, stripping `Intake: ` prefix if present
+      - Generate PR body:
+        ```
+        ## Summary
+        {1-3 sentences derived from intake's ## Why section}
+
+        ## Changes
+        {bulleted list of subsection headings from intake's ## What Changes section}
+
+        ## Context
+        - [Intake](fab/changes/{name}/intake.md)
+        - [Spec](fab/changes/{name}/spec.md)   ← only if spec.md exists
+        ```
+      - Create PR: `gh pr create --title "<title>" --body "<body>"`
+   3. **If resolution fails** or `intake.md` doesn't exist:
+      - Fall back to: `gh pr create --fill`
+   4. This resolution MUST NOT block the PR workflow — any error falls back to `--fill` silently
 3. If PR creation fails → report the error and STOP
 4. Get the PR URL: `gh pr view --json url -q '.url'`
 
