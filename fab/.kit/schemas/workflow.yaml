@@ -19,16 +19,15 @@ states:
     description: "Currently working on this stage"
     terminal: false
 
+  - id: ready
+    symbol: "◷"
+    description: "Stage work product exists, eligible for advancement or clarification"
+    terminal: false
+
   - id: done
     symbol: "✓"
     description: "Stage completed successfully"
     terminal: true
-
-  - id: skipped
-    symbol: "—"
-    description: "Stage intentionally skipped (optional stages only)"
-    terminal: true
-    suffix: " (skipped)"
 
   - id: failed
     symbol: "✗"
@@ -41,8 +40,8 @@ states:
 #   - name: Human-readable display name
 #   - generates: Artifact filename produced by this stage
 #   - description: One-line explanation of stage purpose
-#   - requires: List of prerequisite stage IDs that must be done/skipped first
-#   - required: Whether this stage can be skipped (false = optional)
+#   - requires: List of prerequisite stage IDs that must be done first
+#   - required: Whether this stage is required (false = optional)
 #   - initial_state: Default state when creating a new change
 #   - allowed_states: Which state values are valid for this stage
 #   - auto_checklist: Generate checklist.md when this stage completes
@@ -55,7 +54,7 @@ stages:
     requires: []
     required: true
     initial_state: active
-    allowed_states: [active, done]
+    allowed_states: [active, ready, done]
     commands: [fab-new, fab-continue, fab-clarify]
 
   - id: spec
@@ -65,7 +64,7 @@ stages:
     requires: [intake]
     required: true
     initial_state: pending
-    allowed_states: [pending, active, done]
+    allowed_states: [pending, active, ready, done]
     commands: [fab-continue, fab-clarify]
 
   - id: tasks
@@ -75,7 +74,7 @@ stages:
     requires: [spec]
     required: true
     initial_state: pending
-    allowed_states: [pending, active, done]
+    allowed_states: [pending, active, ready, done]
     auto_checklist: true
     commands: [fab-continue, fab-ff, fab-clarify]
 
@@ -86,7 +85,7 @@ stages:
     requires: [tasks]
     required: true
     initial_state: pending
-    allowed_states: [pending, active, done]
+    allowed_states: [pending, active, ready, done]
     commands: [fab-continue]
 
   - id: review
@@ -96,7 +95,7 @@ stages:
     requires: [apply]
     required: true
     initial_state: pending
-    allowed_states: [pending, active, done, failed]
+    allowed_states: [pending, active, ready, done, failed]
     commands: [fab-continue]
 
   - id: hydrate
@@ -106,7 +105,7 @@ stages:
     requires: [review]
     required: true
     initial_state: pending
-    allowed_states: [pending, active, done]
+    allowed_states: [pending, active, ready, done]
     commands: [fab-continue]
 
 # transitions — Valid state transitions for each stage.
@@ -119,8 +118,12 @@ transitions:
       condition: "Prerequisites met"
 
     - from: active
-      to: [done, skipped]
-      condition: "Stage completed or skipped"
+      to: [ready, done]
+      condition: "Stage work completed or advanced"
+
+    - from: ready
+      to: [done]
+      condition: "Stage advanced to next"
 
     - from: done
       to: [active]
@@ -133,8 +136,12 @@ transitions:
       condition: "Prerequisites met"
 
     - from: active
-      to: [done, failed]
-      condition: "Validation passed or failed"
+      to: [ready, done, failed]
+      condition: "Validation passed, ready, or failed"
+
+    - from: ready
+      to: [done]
+      condition: "Stage advanced to next"
 
     - from: failed
       to: [active]
@@ -149,12 +156,12 @@ transitions:
 progression:
   # current_stage — How to identify which stage is currently active
   current_stage:
-    rule: "First stage with state=active; if no active, first pending stage after last done; if all done, hydrate"
+    rule: "First stage with state=active or state=ready; if no active/ready, first pending stage after last done; if all done, hydrate"
     fallback: hydrate
 
   # next_stage — How to determine which stage comes next
   next_stage:
-    rule: "First stage in sequence where requires[] are all done/skipped and state=pending"
+    rule: "First stage in sequence where requires[] are all done and state=pending"
 
   # completion — When is the entire workflow complete?
   completion:
@@ -184,11 +191,11 @@ validation:
 
   # Prerequisites must be satisfied before advancing
   prerequisites:
-    rule: "Cannot set stage to active if requires[] stages are not done/skipped"
+    rule: "Cannot set stage to active if requires[] stages are not done"
 
   # Terminal states cannot transition without explicit reset
   terminal_states:
-    rule: "done/skipped stages can only transition back to active via explicit reset"
+    rule: "done stages can only transition back to active via explicit reset"
 
 # shipped — PR URL tracking (side-band, not a pipeline stage).
 # Managed exclusively by `stageman.sh ship` (append) and `stageman.sh is-shipped` (query).
@@ -203,4 +210,4 @@ shipped:
 metadata:
   version: "1.0.0"
   compatible_with: "fab-kit >= 0.1.0"
-  last_updated: "2026-02-12"
+  last_updated: "2026-02-26"

@@ -11,7 +11,7 @@ description: "Full pipeline — planning, implementation, sub-agent review, and 
 
 ## Purpose
 
-Run the entire Fab pipeline from the current stage through hydrate in a single invocation. Frontloads questions, interleaves auto-clarify between planning stages, and autonomously reworks on review failure with bounded retry (3 cycles max, escalation after 2 consecutive fix-code failures). No confidence gate. Resumable — re-running picks up from the first incomplete stage.
+Run the entire Fab pipeline from the current stage through hydrate in a single invocation. No confidence gates — forces through all stages regardless of scores. Frontloads questions, interleaves auto-clarify between planning stages, and autonomously reworks on review failure with bounded retry (3 cycles max, escalation after 2 consecutive fix-code failures). Resumable — re-running picks up from the first incomplete stage. Compare with `/fab-ff`, which has the same pipeline but with safety gates (intake score >= 3.0, spec confidence >= threshold, review 3-cycle stop).
 
 ---
 

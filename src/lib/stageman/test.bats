@@ -902,3 +902,102 @@ EOF
   event_count=$(wc -l < "$history_dir/.history.jsonl" | tr -d ' ')
   [ "$event_count" = "5" ]
 }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Ready State Tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+@test "progress-line: ready stage shown with symbol" {
+  cat > "$TEST_DIR/ready.yaml" <<EOF
+progress:
+  intake: done
+  spec: ready
+  tasks: pending
+  apply: pending
+  review: pending
+  hydrate: pending
+EOF
+  run "$STAGEMAN" progress-line "$TEST_DIR/ready.yaml"
+  [ "$status" -eq 0 ]
+  [ "$output" = "intake → spec ◷" ]
+}
+
+@test "current-stage: returns ready stage" {
+  cat > "$TEST_DIR/ready-stage.yaml" <<EOF
+progress:
+  intake: done
+  spec: ready
+  tasks: pending
+  apply: pending
+  review: pending
+  hydrate: pending
+EOF
+  run "$STAGEMAN" current-stage "$TEST_DIR/ready-stage.yaml"
+  [ "$status" -eq 0 ]
+  [ "$output" = "spec" ]
+}
+
+@test "display-stage: shows ready state" {
+  cat > "$TEST_DIR/display-ready.yaml" <<EOF
+progress:
+  intake: done
+  spec: ready
+  tasks: pending
+  apply: pending
+  review: pending
+  hydrate: pending
+EOF
+  run "$STAGEMAN" display-stage "$TEST_DIR/display-ready.yaml"
+  [ "$status" -eq 0 ]
+  [ "$output" = "spec:ready" ]
+}
+
+@test "set-state: ready succeeds without driver" {
+  make_write_fixture
+  run "$STAGEMAN" set-state "$TEST_DIR/write-status.yaml" "apply" "ready"
+  [ "$status" -eq 0 ]
+  local result
+  result=$(yq '.progress.apply' "$TEST_DIR/write-status.yaml")
+  [ "$result" = "ready" ]
+}
+
+@test "stage-metrics: set-state ready is no-op for metrics" {
+  make_write_fixture
+  "$STAGEMAN" set-state "$TEST_DIR/write-status.yaml" "review" "active" "fab-continue"
+  local started_before
+  started_before=$(yq '.stage_metrics.review.started_at' "$TEST_DIR/write-status.yaml")
+  "$STAGEMAN" set-state "$TEST_DIR/write-status.yaml" "review" "ready"
+  local started_after completed
+  started_after=$(yq '.stage_metrics.review.started_at' "$TEST_DIR/write-status.yaml")
+  completed=$(yq '.stage_metrics.review.completed_at' "$TEST_DIR/write-status.yaml")
+  [ "$started_after" = "$started_before" ]
+  [ "$completed" = "null" ]
+}
+
+@test "validate-status-file: one active and one ready is valid" {
+  cat > "$TEST_DIR/active-and-ready.yaml" <<EOF
+progress:
+  intake: done
+  spec: active
+  tasks: ready
+  apply: pending
+  review: pending
+  hydrate: pending
+EOF
+  run "$STAGEMAN" validate-status-file "$TEST_DIR/active-and-ready.yaml"
+  [ "$status" -eq 0 ]
+}
+
+@test "validate-status-file: ready state is valid for spec" {
+  cat > "$TEST_DIR/ready-valid.yaml" <<EOF
+progress:
+  intake: done
+  spec: ready
+  tasks: pending
+  apply: pending
+  review: pending
+  hydrate: pending
+EOF
+  run "$STAGEMAN" validate-status-file "$TEST_DIR/ready-valid.yaml"
+  [ "$status" -eq 0 ]
+}

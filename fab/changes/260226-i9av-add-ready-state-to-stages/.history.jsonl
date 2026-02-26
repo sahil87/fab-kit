@@ -1,2 +1,11 @@
 {"ts":"2026-02-26T18:20:57+05:30","event":"command","cmd":"fab-new","args":"Add ready state to stage lifecycle: pending → active → ready → done"}
 {"ts":"2026-02-26T19:01:15+05:30","event":"command","cmd":"fab-clarify"}
+{"ts":"2026-02-26T19:31:40+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-26T19:34:23+05:30","event":"confidence","score":3.5,"delta":"+3.5","trigger":"calc-score"}
+{"ts":"2026-02-26T19:34:34+05:30","event":"confidence","score":3.5,"delta":"+3.5","trigger":"calc-score"}
+{"ts":"2026-02-26T20:01:05+05:30","event":"confidence","score":3.5,"delta":"+0.0","trigger":"calc-score"}
+{"ts":"2026-02-26T20:02:28+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-26T20:31:58+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-26T20:47:43+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-26T20:55:20+05:30","event":"review","result":"failed","rework":"fix-code"}
+{"ts":"2026-02-26T20:55:20+05:30","event":"review","result":"passed"}

@@ -88,7 +88,7 @@ Every skill MUST end its output with a `Next:` line derived from the State Table
 |-------|-------------------|---------|
 | (none) | /fab-setup | /fab-setup |
 | initialized | /fab-new, /docs-hydrate-memory | /fab-new |
-| intake | /fab-continue, /fab-fff, /fab-clarify | /fab-continue |
+| intake | /fab-continue, /fab-ff, /fab-fff, /fab-clarify | /fab-continue |
 | spec | /fab-continue, /fab-ff, /fab-clarify | /fab-continue |
 | tasks | /fab-continue, /fab-ff, /fab-clarify | /fab-continue |
 | apply | /fab-continue | /fab-continue |
@@ -99,7 +99,7 @@ Every skill MUST end its output with a `Next:` line derived from the State Table
 **State derivation**:
 - **(none)**: `fab/project/config.yaml` does not exist
 - **initialized**: `fab/project/config.yaml` exists AND no active change (`fab/current` absent or empty)
-- **intake** through **apply**: Derived from the active change's `.status.yaml` progress map (the stage with `active` state)
+- **intake** through **apply**: Derived from the active change's `.status.yaml` progress map (the stage with `active` or `ready` state)
 - **review (pass)**: `progress.review == done`
 - **review (fail)**: `progress.review == failed`
 - **hydrate**: `progress.hydrate == done`
@@ -289,12 +289,16 @@ else:
 
 Where `total_decisions = certain + confident + tentative + unresolved` and `expected_min` is looked up by `{stage, change_type}` from embedded tables in `calc-score.sh`. The `cover` factor prevents thin specs from getting inflated scores. When `total_decisions >= expected_min`, `cover = 1.0` and the formula degenerates to the base penalty. Range: 0.0 to 5.0. See `docs/specs/change-types.md` for the full `expected_min` threshold tables.
 
-### Gate Threshold
+### Gate Thresholds
 
-`/fab-ff` requires `confidence.score >= threshold` (dynamic per-type thresholds). `/fab-fff` has no confidence gate.
+`/fab-ff` has two confidence gates. `/fab-fff` has no confidence gates.
 
-| Type | Gate Threshold |
-|------|---------------|
+**Intake gate** (fixed threshold): `/fab-ff` computes an indicative score from `intake.md` via `calc-score.sh --check-gate --stage intake`. Threshold: **3.0** (fixed, not per-type).
+
+**Spec gate** (dynamic per-type thresholds): `/fab-ff` checks the spec confidence score via `calc-score.sh --check-gate`.
+
+| Type | Spec Gate Threshold |
+|------|---------------------|
 | `fix` | 2.0 |
 | `feat` | 3.0 |
 | `refactor` | 3.0 |
@@ -304,7 +308,7 @@ See `docs/specs/change-types.md` for the full taxonomy.
 
 ### Invocation
 
-Confidence is computed by `fab/.kit/scripts/lib/calc-score.sh`, invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). `/fab-ff` gates on the existing score via `fab/.kit/scripts/lib/calc-score.sh --check-gate` but does not recompute. `/fab-fff` does not gate or recompute.
+Confidence is computed by `fab/.kit/scripts/lib/calc-score.sh`, invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). `/fab-ff` gates at two points: (1) intake gate via `calc-score.sh --check-gate --stage intake` before starting, and (2) spec gate via `calc-score.sh --check-gate` after spec generation. `/fab-fff` does not gate or recompute.
 
 ### Template
 

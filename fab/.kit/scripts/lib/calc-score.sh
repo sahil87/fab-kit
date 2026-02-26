@@ -96,42 +96,8 @@ read_change_type() {
   fi
 }
 
-# --- Gate check mode ---
-if [ "$CHECK_GATE" = true ]; then
-  if [ ! -f "$status_file" ]; then
-    echo "ERROR: .status.yaml not found in $change_dir" >&2
-    exit 1
-  fi
-
-  score=$(grep '^ *score:' "$status_file" | sed 's/^ *score: *//' || echo "0.0")
-  change_type=$(read_change_type "$status_file")
-  threshold=$(get_gate_threshold "$change_type")
-
-  # Compare score >= threshold
-  passes=$(awk "BEGIN { print ($score >= $threshold) ? \"pass\" : \"fail\" }")
-
-  cat <<EOF
-gate: $passes
-score: $score
-threshold: $threshold
-change_type: $change_type
-EOF
-  exit 0
-fi
-
-# --- Normal scoring mode ---
-spec_file="$change_dir/spec.md"
-
-if [ ! -f "$spec_file" ]; then
-  echo "spec.md required for scoring" >&2
-  exit 1
-fi
-
-change_type=$(read_change_type "$status_file")
-expected_min=$(get_expected_min "$SCORE_STAGE" "$change_type")
-
 # --- Parse Assumptions table ---
-# Extract Grade and Scores column values from ## Assumptions table in spec.md.
+# Extract Grade and Scores column values from ## Assumptions table.
 # Scores column is required (column 6 after split by |).
 # Outputs lines in format: "grade|S:nn R:nn A:nn D:nn"
 parse_assumptions() {
@@ -149,9 +115,6 @@ parse_assumptions() {
     in_section && /^\|[-| ]+\|/ { next }
     in_section && header_seen && /^\|/ {
       split($0, cols, "|")
-      # Grade is column 3, Scores is column 6
-      # Table: | # | Grade | Decision | Rationale | Scores |
-      # Split: [1]="" [2]="#" [3]="Grade" [4]="Decision" [5]="Rationale" [6]="Scores"
       grade = cols[3]
       gsub(/^[ \t]+|[ \t]+$/, "", grade)
 
@@ -162,9 +125,91 @@ parse_assumptions() {
   ' "$file"
 }
 
-# Collect all parsed lines from spec only
+# --- Gate check mode ---
+if [ "$CHECK_GATE" = true ]; then
+  if [ ! -f "$status_file" ]; then
+    echo "ERROR: .status.yaml not found in $change_dir" >&2
+    exit 1
+  fi
+
+  change_type=$(read_change_type "$status_file")
+
+  if [ "$SCORE_STAGE" = "intake" ]; then
+    # Intake gate: compute indicative score on the fly, fixed threshold 3.0
+    score_file="$change_dir/intake.md"
+    if [ ! -f "$score_file" ]; then
+      echo "ERROR: intake.md not found in $change_dir" >&2
+      exit 1
+    fi
+    expected_min=$(get_expected_min "intake" "$change_type")
+    # Parse and compute inline
+    local_certain=0 local_confident=0 local_tentative=0 local_unresolved=0
+    while IFS= read -r line; do
+      [ -z "$line" ] && continue
+      grade="${line%%|*}"
+      grade_lower=$(echo "$grade" | tr '[:upper:]' '[:lower:]')
+      case "$grade_lower" in
+        certain)    local_certain=$((local_certain + 1)) ;;
+        confident)  local_confident=$((local_confident + 1)) ;;
+        tentative)  local_tentative=$((local_tentative + 1)) ;;
+        unresolved) local_unresolved=$((local_unresolved + 1)) ;;
+      esac
+    done <<< "$(parse_assumptions "$score_file")"
+    local_total=$((local_certain + local_confident + local_tentative + local_unresolved))
+    if [ "$local_unresolved" -gt 0 ]; then
+      score="0.0"
+    else
+      score=$(awk -v confident="$local_confident" -v tentative="$local_tentative" \
+                  -v total="$local_total" -v exp_min="$expected_min" \
+        "BEGIN {
+          base = 5.0 - 0.3 * confident - 1.0 * tentative
+          if (base < 0.0) base = 0.0
+          if (exp_min > 0) cover = total / exp_min; else cover = 1.0
+          if (cover > 1.0) cover = 1.0
+          printf \"%.1f\", base * cover
+        }")
+    fi
+    threshold="3.0"
+  else
+    # Spec gate: read existing score from .status.yaml, dynamic per-type threshold
+    score=$(grep '^ *score:' "$status_file" | sed 's/^ *score: *//' || echo "0.0")
+    threshold=$(get_gate_threshold "$change_type")
+  fi
+
+  # Compare score >= threshold
+  passes=$(awk "BEGIN { print ($score >= $threshold) ? \"pass\" : \"fail\" }")
+
+  cat <<EOF
+gate: $passes
+score: $score
+threshold: $threshold
+change_type: $change_type
+EOF
+  exit 0
+fi
+
+# --- Normal scoring mode ---
+# Determine which artifact to read based on stage
+if [ "$SCORE_STAGE" = "intake" ]; then
+  score_file="$change_dir/intake.md"
+  if [ ! -f "$score_file" ]; then
+    echo "intake.md required for scoring at intake stage" >&2
+    exit 1
+  fi
+else
+  score_file="$change_dir/spec.md"
+  if [ ! -f "$score_file" ]; then
+    echo "spec.md required for scoring" >&2
+    exit 1
+  fi
+fi
+
+change_type=$(read_change_type "$status_file")
+expected_min=$(get_expected_min "$SCORE_STAGE" "$change_type")
+
+# Collect all parsed lines from the target artifact
 all_parsed=""
-all_parsed+="$(parse_assumptions "$spec_file")"
+all_parsed+="$(parse_assumptions "$score_file")"
 
 # Count grades and collect dimension scores (case-insensitive)
 table_certain=0

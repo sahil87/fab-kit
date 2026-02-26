@@ -8,9 +8,10 @@
 
 ## What workflow.yaml Defines
 
-1. **States** — All valid progress values (`pending`, `active`, `done`, `skipped`, `failed`)
+1. **States** — All valid progress values (`pending`, `active`, `ready`, `done`, `failed`)
    - Each state has: ID, display symbol, description, terminal flag
-   - Terminal states (`done`, `skipped`) cannot transition without explicit reset
+   - `ready` means "stage work product exists, eligible for advancement or clarification" (non-terminal)
+   - Terminal states (`done`) cannot transition without explicit reset
 
 2. **Stages** — The workflow pipeline in execution order
    - Each stage has: ID, name, artifact, description, requirements, initial state, allowed states, commands
@@ -22,7 +23,7 @@
    - Conditions specify when transitions are allowed
 
 4. **Progression** — How to navigate the workflow
-   - Current stage detection: first `active` stage, or `hydrate` if all done
+   - Current stage detection: first `active` or `ready` stage, or `hydrate` if all done
    - Next stage calculation: first `pending` stage with satisfied dependencies
    - Completion check: `hydrate` is `done`
 
@@ -73,4 +74,5 @@ For the complete API reference, see `src/lib/stageman/README.md`.
 | 260215-lqm5-stageman-cli-only | 2026-02-15 | Updated script example from `source stageman.sh` to CLI subprocess pattern (`$STAGEMAN <subcommand>`) |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_preflight.sh` → `lib/preflight.sh` in skill example; updated `src/stageman/README.md` → `src/lib/stageman/README.md` |
 | 260213-jc0u-split-archive-hydrate | 2026-02-13 | Updated progression references: terminal stage from `archive` to `hydrate` |
+| 260226-i9av-add-ready-state-to-stages | 2026-02-26 | Added `ready` state (artifact exists, eligible for advancement). Removed unused `skipped` state. Updated transitions (`active→ready`, `ready→done`), progression (current stage includes `ready`), and validation (terminal states: `done` only). |
 | 260212-4tw0-migrate-scripts-stageman | 2026-02-12 | Moved from `fab/.kit/schemas/README.md`, trimmed stageman API duplication |

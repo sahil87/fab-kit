@@ -37,19 +37,26 @@ Both may be provided in any order. Stage names are treated as reset targets; all
 
 ### Step 1: Determine Current Stage
 
-Dispatch on preflight's derived `stage`. If progress is `pending`, set to `active` before dispatching.
+Dispatch on preflight's derived `stage` and `display_state`. If progress is `pending`, set to `active` before dispatching.
 
-| Derived stage | Action |
-|---------------|--------|
-| `intake` | Generate `spec.md` → `intake: done`, `spec: active` |
-| `spec` | Generate `tasks.md` + checklist → `spec: done`, `tasks: active` |
-| `tasks` | Execute apply → `tasks: done`, `apply: active` → on completion `apply: done`, `review: active` |
-| `apply` | Resume apply → on completion `apply: done`, `review: active` |
-| `review` | Execute review → pass: `review: done`, `hydrate: active`. Fail: `review: failed`, `apply: active` |
-| `hydrate` | Execute hydrate → `hydrate: done` |
-| all `done` | Block: "Change is complete." |
+**State-based dispatch**: The `display_state` field distinguishes two actions per stage:
+- **`active`** → Generate the stage's artifact, then set stage to `ready`
+- **`ready`** → Advance to the next stage (set current to `done`, next to `active`)
 
-**Single-dispatch rule**: Execute exactly ONE stage per invocation. After the dispatched stage completes its work and transitions to the next stage (Step 4), proceed directly to Step 5 (Output) and STOP. Do NOT loop back to re-evaluate the new current stage — the user will run `/fab-continue` again to advance further.
+| Derived stage | State | Action |
+|---------------|-------|--------|
+| `intake` | `active` | `intake.md` exists from `/fab-new` — set `intake: ready` |
+| `intake` | `ready` | Advance: `intake: done`, `spec: active` |
+| `spec` | `active` | Generate `spec.md` → set `spec: ready` |
+| `spec` | `ready` | Advance: `spec: done`, `tasks: active` |
+| `tasks` | `active` | Generate `tasks.md` + checklist → set `tasks: ready` |
+| `tasks` | `ready` | Advance: `tasks: done`, `apply: active` |
+| `apply` | `active`/`ready` | Execute apply → on completion `apply: done`, `review: active` |
+| `review` | `active`/`ready` | Execute review → pass: `review: done`, `hydrate: active`. Fail: `review: failed`, `apply: active` |
+| `hydrate` | `active`/`ready` | Execute hydrate → `hydrate: done` |
+| all `done` | — | Block: "Change is complete." |
+
+**Single-dispatch rule**: Execute exactly ONE action per invocation — either generate (active → ready) OR advance (ready → done + next → active). The user runs `/fab-continue` again to proceed. Do NOT loop back to re-evaluate the new current stage.
 
 ### Step 2: Load Context
 

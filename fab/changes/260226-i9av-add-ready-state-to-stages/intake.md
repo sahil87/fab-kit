@@ -169,7 +169,7 @@ Tests needing updates or additions:
 - **`fab/.kit/scripts/lib/preflight.sh`**: Disambiguation logic using ready state, display_stage/display_state for `ready`
 - **`fab/.kit/scripts/lib/calc-score.sh`**: Add `--stage intake` support for `/fab-ff` intake gate
 - **`fab/.kit/skills/fab-continue.md`**: Split generate/advance dispatch, use `ready` intermediate
-- **`fab/.kit/skills/fab-ff.md`**: Full rewrite — new scope (intake start, 3 gates, autonomous rework)
+- **`fab/.kit/skills/fab-ff.md`**: Targeted edits (~30% changes) — new starting point (intake), insert spec generation + spec gate, swap review fallback from interactive to stop
 - **`fab/.kit/skills/fab-fff.md`**: Update contrast with `/fab-ff`, clarify "forces through" semantics
 - **`fab/.kit/skills/fab-clarify.md`**: Stage guard accepts `ready` (artifact exists) for scanning
 - **`fab/.kit/skills/_preamble.md`**: State table, confidence scoring, gate thresholds

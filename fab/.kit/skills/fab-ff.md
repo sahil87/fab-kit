@@ -1,6 +1,6 @@
 ---
 name: fab-ff
-description: "Fast-forward from spec — confidence-gated pipeline from current stage through hydrate, with sub-agent review, auto-rework loop, and interactive fallback."
+description: "Full pipeline with safety gates — confidence-gated pipeline from intake through hydrate, with sub-agent review, auto-rework loop, and stop on exhaustion."
 ---
 
 # /fab-ff [<change-name>]
@@ -11,7 +11,7 @@ description: "Fast-forward from spec — confidence-gated pipeline from current 
 
 ## Purpose
 
-Fast-forward from spec through hydrate: tasks → apply → review → hydrate. Gated on confidence score (dynamic per-type thresholds via `fab/.kit/scripts/lib/calc-score.sh --check-gate`). Minimal auto-clarify (tasks only). On review failure, auto-loops between apply and review (sub-agent review, prioritized findings, comment triage) for up to 3 cycles, then falls back to interactive rework options. Resumable — re-running picks up from the first incomplete stage.
+Full pipeline with safety gates: intake → spec → tasks → apply → review → hydrate. Three gates where execution can stop: (1) intake gate — indicative confidence >= 3.0, (2) spec gate — confidence >= per-type threshold via `fab/.kit/scripts/lib/calc-score.sh --check-gate`, (3) review gate — stops after 3 autonomous rework cycles. On any gate stop, the user can intervene then re-run. Resumable — re-running picks up from the first incomplete stage.
 
 ---
 
@@ -24,8 +24,8 @@ Fast-forward from spec through hydrate: tasks → apply → review → hydrate. 
 ## Pre-flight
 
 1. Run preflight per `_preamble.md` Section 2. Pass `<change-name>` if provided.
-2. **Spec prerequisite**: Check that spec is `active` or later (not `pending`). If `spec: pending`, STOP: `Spec not started. Run /fab-continue to generate the spec first, or use /fab-fff for the full pipeline.`
-3. **Confidence gate**: Run `fab/.kit/scripts/lib/calc-score.sh --check-gate <change_dir>`. If the gate fails → STOP: `Confidence is {score} of 5.0 (need > {threshold} for {change_type}). Run /fab-clarify to resolve, then retry.`
+2. **Intake prerequisite**: Verify `intake.md` exists. If not, STOP: `Intake not found. Run /fab-new to create the intake first.`
+3. **Intake gate**: Run `fab/.kit/scripts/lib/calc-score.sh --check-gate --stage intake <change_dir>`. If the gate fails → STOP: `Indicative confidence is {score} of 5.0 (need >= 3.0). Run /fab-clarify to resolve, then retry.`
 4. Log invocation: `fab/.kit/scripts/lib/stageman.sh log-command <change_dir> "fab-ff"`
 
 ---
@@ -44,25 +44,35 @@ Load per `_preamble.md` Sections 1-3 (config, constitution, intake, memory index
 
 Check `progress` from preflight. Skip stages already `done`. If `hydrate: done`, pipeline is already complete.
 
-### Step 1: Generate `tasks.md`
+### Step 1: Generate `spec.md`
+
+*(Skip if `progress.spec` is `done`.)*
+
+Follow **Spec Generation Procedure** (`_generation.md`). No frontloaded questions. Update `.status.yaml` via `fab/.kit/scripts/lib/stageman.sh transition <file> intake spec fab-ff`.
+
+**Spec gate**: After spec generation, run `fab/.kit/scripts/lib/calc-score.sh --check-gate <change_dir>`. If the gate fails → **STOP**: `Confidence is {score} of 5.0 (need > {threshold} for {change_type}). Run /fab-clarify to resolve, then retry /fab-ff.`
+
+**Auto-Clarify**: Invoke `/fab-clarify` with `[AUTO-MODE]` prefix on the generated spec. If `blocking: 0` → continue. If `blocking > 0` → **BAIL**: report issues, suggest `/fab-clarify` then `/fab-ff`.
+
+### Step 2: Generate `tasks.md`
 
 *(Skip if `progress.tasks` is `done`.)*
 
-Follow **Tasks Generation Procedure** (`_generation.md`). No frontloaded questions — spec is already done.
+Follow **Tasks Generation Procedure** (`_generation.md`).
 
 **Auto-Clarify**: Invoke `/fab-clarify` with `[AUTO-MODE]` prefix on the generated tasks. If `blocking: 0` → continue. If `blocking > 0` → **BAIL**: report issues, suggest `/fab-clarify` then `/fab-ff`.
 
-### Step 2: Generate Quality Checklist
+### Step 3: Generate Quality Checklist
 
 *(Skip if checklist already generated.)*
 
 Follow **Checklist Generation Procedure** (`_generation.md`).
 
-### Step 3: Update `.status.yaml` (Planning Complete)
+### Step 4: Update `.status.yaml` (Planning Complete)
 
 Run `fab/.kit/scripts/lib/stageman.sh transition <file> tasks apply fab-ff`. Then set checklist fields via `fab/.kit/scripts/lib/stageman.sh set-checklist <file> generated true`, `fab/.kit/scripts/lib/stageman.sh set-checklist <file> total <count>`, `fab/.kit/scripts/lib/stageman.sh set-checklist <file> completed 0`.
 
-### Step 4: Implementation
+### Step 5: Implementation
 
 *(Skip if `progress.apply` is `done`.)*
 
@@ -72,7 +82,7 @@ Execute apply behavior per `/fab-continue` — parse unchecked tasks, execute in
 
 On success: run `fab/.kit/scripts/lib/stageman.sh transition <file> apply review fab-ff`.
 
-### Step 5: Review
+### Step 6: Review
 
 *(Skip if `progress.review` is `done`.)*
 
@@ -95,17 +105,21 @@ Run `fab/.kit/scripts/lib/stageman.sh log-review <change_dir> "failed" "<rework-
 
 **Escalation rule**: If the agent chooses "Fix code" and the subsequent sub-agent review fails again on the same or similar issues, the agent MUST escalate to "Revise tasks" or "Revise spec" after **2 consecutive "fix code" attempts**. This is a hard rule — the agent SHALL NOT choose "Fix code" a third time in a row, even if it believes another code fix would work. Non-fix-code actions (revise tasks, revise spec) reset the consecutive counter.
 
-#### Interactive Fallback (after 3 failed cycles)
+#### Stop (after 3 failed cycles)
 
-After 3 auto-rework cycles fail, fall back to interactive rework — present the user with the same 3 rework options as `/fab-continue`:
+After 3 auto-rework cycles fail, **STOP** with a per-cycle summary:
 
-- **Fix code** — the agent identifies affected tasks, unchecks them in `tasks.md` with `<!-- rework: reason -->` annotations, re-runs apply for unchecked tasks, then spawns a fresh sub-agent for re-review
-- **Revise tasks** — the user edits `tasks.md` (add/modify tasks), then the agent re-runs apply for unchecked tasks and spawns a fresh sub-agent for re-review
-- **Revise spec** — resets to spec stage, regenerates downstream, re-runs apply, then spawns a fresh sub-agent for re-review
+```
+Review failed after 3 rework attempts. Summary:
+  Cycle 1: {action} — {what was done}
+  Cycle 2: {action} — {what was done}
+  Cycle 3: {action} — {what was done}
+Run /fab-continue for manual rework options.
+```
 
-Once in interactive fallback, there is no further retry cap — the user is in the loop. If review fails again after user-directed rework, present the interactive menu again.
+The user can run `/fab-continue` for interactive rework, or `/fab-clarify` to deepen the spec/tasks before re-running `/fab-ff`.
 
-### Step 6: Hydrate
+### Step 7: Hydrate
 
 *(Skip if `progress.hydrate` is `done`.)*
 
@@ -144,8 +158,9 @@ Resuming shows `(resuming)...` header and `Skipping {stage} — already done.` f
 | Condition | Action |
 |-----------|--------|
 | Preflight fails | Abort with stderr message |
-| Spec not started (`spec: pending`) | Abort: "Spec not started. Run /fab-continue or use /fab-fff." |
-| Confidence below threshold | Abort with score, threshold, and guidance |
+| `intake.md` missing | Abort: "Intake not found. Run /fab-new first." |
+| Intake gate fails (indicative < 3.0) | Stop with score and guidance |
+| Spec gate fails (confidence < threshold) | Stop with score, threshold, and guidance |
 | Auto-clarify bails | Stop, report blocking issues, suggest `/fab-clarify` then `/fab-ff` |
 | Task fails | Stop: "Task {ID} failed: {reason}. Investigate and re-run /fab-ff." |
-| Review fails | Auto-rework loop: agent triages sub-agent's prioritized findings, selects path, up to 3 cycles (each re-review by fresh sub-agent), escalation after 2 consecutive fix-code. Falls back to interactive rework after 3 cycles. |
+| Review fails | Auto-rework loop: 3 cycles (each re-review by fresh sub-agent), escalation after 2 consecutive fix-code. Stops after 3 cycles with summary. |

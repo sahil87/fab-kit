@@ -142,6 +142,7 @@ get_progress_line() {
     case "$state" in
       done)    parts+=("$stage") ;;
       active)  parts+=("$stage ⏳"); has_active=true ;;
+      ready)   parts+=("$stage ◷") ;;
       failed)  parts+=("$stage ✗") ;;
       pending) has_pending=true ;;
     esac
@@ -192,6 +193,7 @@ _apply_metrics_side_effect() {
     pending)
       yq -i "del(.stage_metrics.${stage})" "$tmpfile"
       ;;
+    # ready: no metrics change (preserve existing metrics from active phase)
     # failed: no metrics change
   esac
 }
@@ -209,9 +211,9 @@ get_current_stage() {
   local progress_lines
   progress_lines=$(get_progress_map "$status_file")
 
-  # Find first active stage
+  # Find first active or ready stage
   while IFS=: read -r stage state; do
-    if [ "$state" = "active" ]; then
+    if [ "$state" = "active" ] || [ "$state" = "ready" ]; then
       echo "$stage"
       return 0
     fi
@@ -241,8 +243,8 @@ get_current_stage() {
 }
 
 # get_display_stage <status_file> — Determine "where you are" stage for display
-# Returns stage:state (e.g., "spec:active", "intake:done", "intake:pending")
-# Fallback: (1) first active, (2) last done, (3) first stage with pending
+# Returns stage:state (e.g., "spec:active", "spec:ready", "intake:done", "intake:pending")
+# Fallback: (1) first active, (2) first ready, (3) last done, (4) first stage with pending
 get_display_stage() {
   local status_file="$1"
   local stage state last_done=""
@@ -259,7 +261,15 @@ get_display_stage() {
     fi
   done <<< "$progress_lines"
 
-  # Tier 2: last done stage
+  # Tier 2: first ready stage
+  while IFS=: read -r stage state; do
+    if [ "$state" = "ready" ]; then
+      echo "${stage}:ready"
+      return 0
+    fi
+  done <<< "$progress_lines"
+
+  # Tier 3: last done stage
   while IFS=: read -r stage state; do
     if [ "$state" = "done" ]; then
       last_done="$stage"
@@ -271,7 +281,7 @@ get_display_stage() {
     return 0
   fi
 
-  # Tier 3: nothing active or done — return first stage with pending
+  # Tier 4: nothing active, ready, or done — return first stage with pending
   local first_stage
   first_stage=$(get_all_stages | head -1)
   echo "${first_stage}:pending"
