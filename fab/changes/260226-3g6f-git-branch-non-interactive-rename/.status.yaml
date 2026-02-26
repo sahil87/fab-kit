@@ -1,0 +1,39 @@
+name: 260226-3g6f-git-branch-non-interactive-rename
+created: 2026-02-26T22:43:41+05:30
+created_by: sahil-weaver
+change_type: refactor
+issue_id: null
+progress:
+  intake: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
+checklist:
+  generated: true
+  path: checklist.md
+  completed: 18
+  total: 18
+confidence:
+  certain: 5
+  confident: 1
+  tentative: 0
+  unresolved: 0
+  score: 4.7
+  fuzzy: true
+  dimensions:
+    signal: 87.5
+    reversibility: 83.3
+    competence: 87.5
+    disambiguation: 90.0
+stage_metrics:
+  intake: {started_at: "2026-02-26T22:43:41+05:30", driver: fab-new, iterations: 1, completed_at: "2026-02-26T22:48:35+05:30"}
+  spec: {started_at: "2026-02-26T22:48:35+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-26T22:49:46+05:30"}
+  tasks: {started_at: "2026-02-26T22:49:46+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-26T22:50:21+05:30"}
+  apply: {started_at: "2026-02-26T22:50:22+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-26T22:52:02+05:30"}
+  review: {started_at: "2026-02-26T22:52:02+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-26T22:54:09+05:30"}
+  hydrate: {started_at: "2026-02-26T22:54:09+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-26T22:54:29+05:30"}
+shipped:
+  - https://github.com/wvrdz/fab-kit/pull/163
+last_updated: "2026-02-26T23:02:30+05:30"

@@ -517,9 +517,11 @@ The applying agent triages review comments by priority — not all comments need
 2. Resolve change name (from argument or `fab/current`)
 3. Derive branch name: `{change-name}` (no prefix)
 4. Context-dependent action:
-   - **On `main`/`master`** → auto-create branch
-   - **On other branch** → prompt: create new, adopt current, or skip
    - **Already on target** → no-op
+   - **Target branch exists** → switch to it (`git checkout`)
+   - **On `main`/`master`** → auto-create branch
+   - **On other branch, no upstream** → rename current branch (`git branch -m`)
+   - **On other branch, has upstream** → create new branch (leaving current intact)
 5. Report result
 
 **Key properties**:

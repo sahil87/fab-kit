@@ -112,26 +112,36 @@ STOP.
 git checkout -b "{branch_name}"
 ```
 
-**If on any other branch**: Present options:
+**If on any other branch**: Check upstream tracking to decide action:
 
-1. **Create new branch** — `git checkout -b "{branch_name}"`
-2. **Adopt this branch** — no git operation, acknowledge the current branch as the working branch (default)
-3. **Skip** — cancel, no action taken
+```bash
+upstream=$(git config "branch.$(git branch --show-current).remote" 2>/dev/null || true)
+```
+
+- **No upstream** (local-only branch) — rename the current branch:
+
+```bash
+git branch -m "{branch_name}"
+```
+
+- **Has upstream** (branch has been pushed) — create a new branch, leaving the current one intact:
+
+```bash
+git checkout -b "{branch_name}"
+```
 
 ### Step 5: Report
 
 ```
-Branch: {branch_name} (created|checked out|adopted|already active)
+Branch: {branch_name} (created|checked out|renamed from {old_branch}|created, leaving {old_branch} intact|already active)
 ```
-
-For "Skip": `No branch change.`
 
 ---
 
 ## Output
 
 ```
-Branch: {branch_name} (created|checked out|adopted|already active)
+Branch: {branch_name} (created|checked out|renamed from {old_branch}|created, leaving {old_branch} intact|already active)
 ```
 
 ---
@@ -155,5 +165,5 @@ Branch: {branch_name} (created|checked out|adopted|already active)
 | Idempotent? | Yes — checking out an already-active branch is a no-op |
 | Modifies `fab/current`? | No |
 | Modifies `.status.yaml`? | No |
-| Modifies git state? | Yes — may create or checkout a branch |
+| Modifies git state? | Yes — may create, checkout, or rename a branch |
 | Requires config/constitution? | No |

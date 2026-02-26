@@ -1,0 +1,6 @@
+{"ts":"2026-02-26T22:43:41+05:30","event":"command","cmd":"fab-new","args":"Make git-branch non-interactive by defaulting to rename for local-only branches"}
+{"ts":"2026-02-26T22:45:40+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-26T22:48:02+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-26T22:49:28+05:30","event":"confidence","score":4.7,"delta":"+4.7","trigger":"calc-score"}
+{"ts":"2026-02-26T22:49:34+05:30","event":"confidence","score":4.7,"delta":"+0.0","trigger":"calc-score"}
+{"ts":"2026-02-26T22:54:09+05:30","event":"review","result":"passed"}

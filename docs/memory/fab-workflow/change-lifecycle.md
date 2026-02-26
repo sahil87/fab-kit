@@ -113,12 +113,13 @@ Fab works without git. Change folders are the unit of identity, not branches —
 
 **Branch management** is handled by the standalone `/git-branch` command — separate from change activation. `/fab-switch` only writes `fab/current` and never executes git commands.
 
-| Option | When to use | What happens |
-|--------|-------------|--------------|
-| **Create branch** | On `main`/`master` (auto via `/git-branch`) | Creates branch named `{change-name}` |
-| **Adopt current branch** | Already on a feature branch | No git operation — acknowledge the current branch |
-| **Create new** | On any non-main, non-target branch, user chooses | Creates new branch from current HEAD |
-| **Skip** | Non-git, git disabled, or manual control | No branch operation |
+| Condition | Action | Report |
+|-----------|--------|--------|
+| **Already on target** | No git operation | `(already active)` |
+| **Target branch exists** | `git checkout` to it | `(checked out)` |
+| **On `main`/`master`** | `git checkout -b` (auto-create) | `(created)` |
+| **On other branch, no upstream** | `git branch -m` (rename) | `(renamed from {old})` |
+| **On other branch, has upstream** | `git checkout -b` (create new) | `(created, leaving {old} intact)` |
 
 `/fab-switch` suggests `/git-branch` after activation. `/fab-status` displays the current branch via `git branch --show-current`. `/git-pr` nudges when the current branch doesn't match the active change. Fab never commits, pushes, merges, or deletes branches — that remains the user's responsibility (or `/git-pr`'s for shipping).
 
@@ -191,7 +192,8 @@ The skill uses `lib/preflight.sh` for data retrieval (including `display_stage` 
    - **Already on target** → no-op ("already active")
    - **Target branch exists** → switch to it (`git checkout`)
    - **On `main`/`master`** → auto-create branch
-   - **On other branch** → prompt: create new, adopt current, or skip
+   - **On other branch, no upstream** → rename current branch (`git branch -m`)
+   - **On other branch, has upstream** → create new branch, leaving current intact
 4. Report result
 
 ## Migration Note (Old-Format `.status.yaml`)
@@ -258,6 +260,7 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260226-3g6f-git-branch-non-interactive-rename | 2026-02-26 | `/git-branch` non-interactive: replaced 3-option menu (Create/Adopt/Skip) with deterministic upstream-tracking logic. Local-only branches renamed via `git branch -m`; branches with upstream get new branch via `git checkout -b`. Removed "Adopt" concept entirely. New report verbs: `renamed from {old}`, `created, leaving {old} intact`. |
 | 260226-i9av-add-ready-state-to-stages | 2026-02-26 | Added `ready` state to lifecycle: `pending → active → ready → done`. Removed unused `skipped` state. Updated state vocabulary (5 states), routing (active or ready), display (ready as tier 2), stage_metrics (ready is no-op). Updated "Fixed State Vocabulary" and "Single Source of Truth" design decisions. |
 | 260226-w4fw-add-changeman-list-subcommand | 2026-02-26 | Added `changeman.sh list [--archive]` subcommand — enumerates changes with stage and state via `stageman.sh display-stage`. Outputs `name:display_stage:display_state` per line. Handles missing `.status.yaml` gracefully. Updated help text. Added "Listing Changes" section. |
 | 260226-jq7a-slim-config-decouple-naming | 2026-02-26 | Removed git config (always enabled, no prefix). Decoupled Linear issue ID from folder name — now stored as issue_id in .status.yaml. |
