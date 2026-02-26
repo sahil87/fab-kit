@@ -50,11 +50,15 @@ Minimal: `intake.md` (for backlog ID + keywords), `.status.yaml`, `fab/backlog.m
 
 If folder already at `fab/changes/archive/{name}/`, skip move and complete remaining steps.
 
-### Step 1: Move Change Folder
+### Step 1: Clean Temporary Files
+
+Delete `.shipped` from the change folder if it exists (gitignored temporary file from `/git-pr`). No error if absent.
+
+### Step 2: Move Change Folder
 
 `fab/changes/{name}/` → `fab/changes/archive/{name}/`. Create `archive/` if needed. Do NOT rename.
 
-### Step 2: Update Archive Index
+### Step 3: Update Archive Index
 
 Maintain `fab/changes/archive/index.md`:
 - Doesn't exist → create with header, backfill all existing archived folders
@@ -62,15 +66,15 @@ Maintain `fab/changes/archive/index.md`:
 
 Entry format: `- **{folder-name}** — {1-2 sentence description from intake Why}`
 
-### Step 3: Mark Backlog Items Done
+### Step 4: Mark Backlog Items Done
 
 Skip silently if `fab/backlog.md` doesn't exist.
 
-**3a — Exact-ID**: If intake has backlog ID, find and mark done (`- [ ]` → `- [x]`), move to Done section.
+**4a — Exact-ID**: If intake has backlog ID, find and mark done (`- [ ]` → `- [x]`), move to Done section.
 
-**3b — Keyword Scan**: Extract keywords from intake title/Why (filter stop words). Match against unchecked items — candidate when ≥2 significant keywords overlap (exclude 3a matches). No candidates → proceed silently.
+**4b — Keyword Scan**: Extract keywords from intake title/Why (filter stop words). Match against unchecked items — candidate when ≥2 significant keywords overlap (exclude 4a matches). No candidates → proceed silently.
 
-**3c — Interactive Confirmation** (if 3b found candidates):
+**4c — Interactive Confirmation** (if 4b found candidates):
 
 ```
 Backlog matches found:
@@ -80,11 +84,11 @@ Backlog matches found:
 Mark as done? (comma-separated numbers, or "none")
 ```
 
-### Step 4: Clear Pointer (Conditional)
+### Step 5: Clear Pointer (Conditional)
 
 If `fab/current` contains the archived change → delete `fab/current`. Otherwise no-op.
 
-Steps execute 1→4 for safety. If interrupted, re-run completes remaining.
+Steps execute 1→5 for safety. If interrupted, re-run completes remaining.
 
 ---
 
@@ -93,6 +97,7 @@ Steps execute 1→4 for safety. If interrupted, re-run completes remaining.
 ```
 Archive: {change name}
 
+Cleaned:  ✓ .shipped removed                    (or: — not present)
 Moved:    ✓ fab/changes/archive/{name}/        (or: ✓ already in archive)
 Index:    ✓ fab/changes/archive/index.md updated
 Backlog:  ✓ [ID] marked done                   (or: — no backlog file)
