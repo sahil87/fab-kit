@@ -22,12 +22,14 @@ Determine the PR type before gathering state. The type controls the PR title pre
 
 1. **Explicit argument**: If the user invoked `/git-pr {type}` where `{type}` is one of the 7 valid types (case-insensitive), normalize to lowercase and use it. If the argument is not a valid type, ignore it and fall through to step 2.
 
-2. **Infer from fab change intake**: Run `fab/.kit/scripts/lib/changeman.sh resolve 2>/dev/null`. If resolution fails or `changeman.sh` is not found, fall through to step 3. If resolution succeeds and `fab/changes/{name}/intake.md` exists, read the intake content and pattern-match (case-insensitive). Keyword lists are evaluated in order — first match wins:
+2. **Read from `.status.yaml`**: Run `fab/.kit/scripts/lib/changeman.sh resolve 2>/dev/null`. If resolution succeeds, read `change_type` from `fab/changes/{name}/.status.yaml`. If non-null and one of the 7 valid types (`feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`), use it. Fall through if resolution fails, `change_type` is null, or `change_type` is not a valid type.
+
+3. **Infer from fab change intake**: If `changeman.sh resolve` succeeded (from step 2) and `fab/changes/{name}/intake.md` exists, read the intake content and pattern-match (case-insensitive). Keyword lists are evaluated in order — first match wins:
    - Contains any of: "fix", "bug", "broken", "regression" → type = `fix`
    - Contains any of: "refactor", "restructure", "consolidate", "split", "rename" → type = `refactor`
    - Otherwise → type = `feat`
 
-3. **Infer from diff**: Collect changed file paths by running each command and taking the first non-empty result: (a) `git diff --name-only HEAD`, (b) `git diff --name-only --cached`, (c) `git diff --name-only @{u}..HEAD` (only if upstream exists). This covers uncommitted, staged, and committed-but-unpushed changes.
+4. **Infer from diff**: Collect changed file paths by running each command and taking the first non-empty result: (a) `git diff --name-only HEAD`, (b) `git diff --name-only --cached`, (c) `git diff --name-only @{u}..HEAD` (only if upstream exists). This covers uncommitted, staged, and committed-but-unpushed changes.
 
    If **no files** are returned (empty diff — clean working tree and no unpushed commits), default to `chore`.
 
@@ -37,7 +39,7 @@ Determine the PR type before gathering state. The type controls the PR title pre
    - All files in test directories or test files → type = `test`
    - Otherwise → type = `chore`
 
-Store the resolved `type` (always lowercase) and the resolution source (`explicit`, `intake`, `diff`) for use in Step 3c.
+Store the resolved `type` (always lowercase) and the resolution source (`explicit`, `status`, `intake`, `diff`) for use in Step 3c.
 
 This step MUST NOT ask questions or present options. If resolution is ambiguous, default to `chore`.
 

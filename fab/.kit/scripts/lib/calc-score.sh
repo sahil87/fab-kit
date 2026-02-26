@@ -9,24 +9,66 @@ STAGEMAN="$(dirname "$(readlink -f "$0")")/stageman.sh"
 # Internal library script invoked by /fab-continue (spec stage) and
 # /fab-clarify (suggest mode). Not called directly by users.
 #
-# Usage: calc-score.sh <change-dir>
+# Usage: calc-score.sh [--stage <stage>] <change-dir>
 #        calc-score.sh --check-gate <change-dir>
 # Output: YAML confidence block to stdout (or gate result for --check-gate)
 # Side effect: Updates confidence block in .status.yaml
 # Exit: 0 on success, 1 on error (message to stderr)
 
+# --- Expected minimum decisions by stage and change_type ---
+get_expected_min() {
+  local stage="$1" change_type="$2"
+  case "$stage" in
+    intake)
+      case "$change_type" in
+        fix) echo 2 ;; feat) echo 4 ;; refactor) echo 3 ;; *) echo 2 ;;
+      esac ;;
+    spec|*)
+      case "$change_type" in
+        fix) echo 4 ;; feat) echo 6 ;; refactor) echo 5 ;; *) echo 3 ;;
+      esac ;;
+  esac
+}
+
+# --- Gate thresholds by change type (7-type taxonomy) ---
+get_gate_threshold() {
+  local change_type="$1"
+  case "$change_type" in
+    fix)      echo "2.0" ;;
+    feat)     echo "3.0" ;;
+    refactor) echo "3.0" ;;
+    docs)     echo "2.0" ;;
+    test)     echo "2.0" ;;
+    ci)       echo "2.0" ;;
+    chore)    echo "2.0" ;;
+    *)        echo "3.0" ;;  # default to feat threshold
+  esac
+}
+
 # --- Argument parsing ---
 CHECK_GATE=false
+SCORE_STAGE="spec"
 
-if [ "${1:-}" = "--check-gate" ]; then
-  CHECK_GATE=true
-  shift
-fi
+while [ $# -gt 0 ]; do
+  case "${1:-}" in
+    --check-gate)
+      CHECK_GATE=true
+      shift
+      ;;
+    --stage)
+      SCORE_STAGE="${2:-spec}"
+      shift 2
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
 
 change_dir="${1:-}"
 
 if [ -z "$change_dir" ]; then
-  echo "Usage: calc-score.sh [--check-gate] <change-dir>" >&2
+  echo "Usage: calc-score.sh [--check-gate] [--stage <stage>] <change-dir>" >&2
   exit 1
 fi
 
@@ -37,6 +79,23 @@ fi
 
 status_file="$change_dir/.status.yaml"
 
+# --- Read change_type from .status.yaml (default: feat) ---
+read_change_type() {
+  local file="$1"
+  if [ ! -f "$file" ]; then
+    echo "feat"
+    return
+  fi
+  local ct
+  ct=$(grep '^ *change_type:' "$file" | sed 's/^ *change_type: *//' || echo "")
+  ct=$(echo "$ct" | tr -d '[:space:]')
+  if [ -z "$ct" ] || [ "$ct" = "null" ]; then
+    echo "feat"
+  else
+    echo "$ct"
+  fi
+}
+
 # --- Gate check mode ---
 if [ "$CHECK_GATE" = true ]; then
   if [ ! -f "$status_file" ]; then
@@ -45,16 +104,8 @@ if [ "$CHECK_GATE" = true ]; then
   fi
 
   score=$(grep '^ *score:' "$status_file" | sed 's/^ *score: *//' || echo "0.0")
-  change_type=$(grep '^ *change_type:' "$status_file" | sed 's/^ *change_type: *//' || echo "")
-
-  # Determine threshold based on change type
-  case "${change_type:-feature}" in
-    bugfix)       threshold="2.0" ;;
-    feature)      threshold="3.0" ;;
-    refactor)     threshold="3.0" ;;
-    architecture) threshold="4.0" ;;
-    *)            threshold="3.0" ;;
-  esac
+  change_type=$(read_change_type "$status_file")
+  threshold=$(get_gate_threshold "$change_type")
 
   # Compare score >= threshold
   passes=$(awk "BEGIN { print ($score >= $threshold) ? \"pass\" : \"fail\" }")
@@ -63,7 +114,7 @@ if [ "$CHECK_GATE" = true ]; then
 gate: $passes
 score: $score
 threshold: $threshold
-change_type: ${change_type:-feature}
+change_type: $change_type
 EOF
   exit 0
 fi
@@ -75,6 +126,9 @@ if [ ! -f "$spec_file" ]; then
   echo "spec.md required for scoring" >&2
   exit 1
 fi
+
+change_type=$(read_change_type "$status_file")
+expected_min=$(get_expected_min "$SCORE_STAGE" "$change_type")
 
 # --- Parse Assumptions table ---
 # Extract Grade and Scores column values from ## Assumptions table in spec.md.
@@ -180,16 +234,29 @@ if [ -f "$status_file" ]; then
   prev_score=${prev_score:-0.0}
 fi
 
-# --- Apply formula ---
+# --- Apply coverage-weighted formula ---
+total_decisions=$((table_certain + table_confident + table_tentative + table_unresolved))
+
 if [ "$table_unresolved" -gt 0 ]; then
   score="0.0"
 else
-  # score = max(0.0, 5.0 - 0.3 * confident - 1.0 * tentative)
-  score=$(awk "BEGIN {
-    s = 5.0 - 0.3 * $table_confident - 1.0 * $table_tentative
-    if (s < 0.0) s = 0.0
-    printf \"%.1f\", s
-  }")
+  # base = max(0.0, 5.0 - 0.3 * confident - 1.0 * tentative)
+  # cover = min(1.0, total_decisions / expected_min)
+  # score = base * cover
+  score=$(awk -v confident="$table_confident" \
+              -v tentative="$table_tentative" \
+              -v total="$total_decisions" \
+              -v exp_min="$expected_min" \
+    "BEGIN {
+      base = 5.0 - 0.3 * confident - 1.0 * tentative
+      if (base < 0.0) base = 0.0
+      if (exp_min > 0)
+        cover = total / exp_min
+      else
+        cover = 1.0
+      if (cover > 1.0) cover = 1.0
+      printf \"%.1f\", base * cover
+    }")
 fi
 
 # --- Compute delta ---
