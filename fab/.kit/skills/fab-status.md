@@ -40,11 +40,11 @@ bash fab/.kit/scripts/lib/preflight.sh [change-name]
 
 Use `fab/.kit/scripts/lib/preflight.sh` and `fab/.kit/scripts/lib/stageman.sh` for validation and data retrieval. The skill handles formatting and presentation:
 
-- Reads `fab/.kit/VERSION`, `fab/project/VERSION` (if exists), `fab/current`, `fab/changes/{name}/.status.yaml`, and `fab/project/config.yaml` (for `git.enabled`)
-- Queries live branch via `git branch --show-current` when git is enabled (instead of reading a static `branch:` field from `.status.yaml`)
+- Reads `fab/.kit/VERSION`, `fab/project/VERSION` (if exists), `fab/current`, and `fab/changes/{name}/.status.yaml`
+- Queries live branch via `git branch --show-current` (instead of reading a static `branch:` field from `.status.yaml`)
 - **Version drift check**: if `fab/project/VERSION` exists and its value is less than `fab/.kit/VERSION`, display a warning: `⚠ Version drift: local {local}, engine {engine} — run /fab-setup migrations`. If versions match, no warning. If `fab/project/VERSION` doesn't exist, no warning (handled by `/fab-setup`)
 - Uses `display_stage` and `display_state` from preflight output for the primary "Stage:" line, showing the stage with a state qualifier (e.g., `Stage: intake (1/6) — done`). The "Next:" line shows the routing stage with the default command (e.g., `Next: spec (via /fab-continue)`). When all stages are done, shows `Next: /fab-archive`
-- Renders the full status block: version header, change name, branch (when git enabled), stage with state qualifier, next action, progress table with symbols (`✓` done, `●` active, `○` pending, `—` skipped, `✗` failed), checklist counts, confidence score, version drift warning (if applicable)
+- Renders the full status block: version header, change name, branch, stage with state qualifier, next action, progress table with symbols (`✓` done, `●` active, `○` pending, `—` skipped, `✗` failed), checklist counts, confidence score, version drift warning (if applicable)
 - Handles all error cases (no active change, missing `.status.yaml`, missing fields)
 - Defaults missing progress fields to `○` (pending), missing checklist to "not yet generated", and missing confidence to "not yet scored"
 - Confidence display: `Confidence: {score} of 5.0 ({N} certain, {N} confident, {N} tentative)` — appends `, {N} unresolved` only when unresolved > 0; shows `Confidence: not yet scored` when the confidence block is absent

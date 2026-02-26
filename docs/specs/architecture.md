@@ -220,58 +220,38 @@ last_updated: 2026-01-18T11:00:00Z
 ## Configuration (config.yaml)
 
 ```yaml
-# fab/project/config.yaml
-
 project:
   name: "My App"
   description: "App description"
 
-context: |
-  Tech stack: TypeScript, React, Node.js, PostgreSQL
-  API style: REST with OpenAPI specs
-  Auth: JWT tokens with refresh rotation
+# Directories containing implementation code (relative to repo root).
+source_paths:
+  - src/
 
-naming:
-  format: "{YYMMDD}-{XXXX}-{slug}"   # e.g., 260115-a7k2-add-oauth
-
-git:
-  enabled: true                        # Set false to suppress branch prompts
-  branch_prefix: ""                    # Optional prefix, e.g., "feat/" → "feat/260115-a7k2-add-oauth"
-
-stages:
-  - id: intake
-    generates: intake.md
-    required: true
-  - id: spec
-    generates: spec.md
-    requires: [intake]
-    required: true
-  - id: tasks
-    generates: tasks.md
-    requires: [spec]
-    required: true
-    auto_checklist: true         # Generate checklist automatically
-  - id: apply
-    requires: [tasks]
-  - id: review
-    requires: [apply]
-  - id: hydrate
-    requires: [review]
-
+# Project-specific categories appended to default checklist categories.
 checklist:
-  # Default categories map to spec requirements + cross-cutting concerns:
-  #   functional_completeness, behavioral_correctness, scenario_coverage,
-  #   edge_cases, security
-  # Add project-specific categories below:
   extra_categories:
     - performance
     - ux
 
-rules:
+# Per-stage directives for artifact generation.
+stage_directives:
+  intake: []
   spec:
     - Use GIVEN/WHEN/THEN for scenarios
     - Mark ambiguities with [NEEDS CLARIFICATION]
     - Document breaking changes explicitly
+  tasks: []
+  apply: []
+  review: []
+  hydrate: []
+
+# Maps tier names to provider-specific model identifiers.
+model_tiers:
+  fast:
+    claude: haiku
+  capable:
+    claude: null
 ```
 
 ---
@@ -344,7 +324,7 @@ Fab stays out of this. No branch information is stored in `.status.yaml` — `/f
 | **Adopt current branch** | Already on a feature branch | No git operation — acknowledge the current branch |
 | **Skip** | Non-git repo, or user prefers manual control | No branch operation |
 
-`/fab-switch` suggests `/git-branch` when `git.enabled` is true. `/fab-new` does not handle branches. `/fab-status` displays the current branch via `git branch --show-current`. `/git-pr` nudges when the current branch doesn't match the active change. Fab never commits, pushes, merges, or deletes branches — that remains the user's responsibility (or `/git-pr`'s for shipping).
+`/fab-switch` suggests `/git-branch` after every switch. `/fab-new` does not handle branches. `/fab-status` always displays the current branch via `git branch --show-current`. `/git-pr` nudges when the current branch doesn't match the active change. Fab never commits, pushes, merges, or deletes branches — that remains the user's responsibility (or `/git-pr`'s for shipping).
 
 ### Branch Naming
 

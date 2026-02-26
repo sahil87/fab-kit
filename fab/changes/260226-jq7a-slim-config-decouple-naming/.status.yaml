@@ -1,0 +1,32 @@
+name: 260226-jq7a-slim-config-decouple-naming
+created: 2026-02-26T15:08:44+05:30
+created_by: Sahil Ahuja
+change_type: feature
+progress:
+  intake: active
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
+checklist:
+  generated: true
+  path: checklist.md
+  completed: 0
+  total: 27
+confidence:
+  certain: 0
+  confident: 0
+  tentative: 0
+  unresolved: 0
+  score: 0.0
+stage_metrics:
+  intake: {started_at: "2026-02-26T15:08:44+05:30", driver: fab-new, iterations: 1}
+  spec: {completed_at: "2026-02-26T15:14:53+05:30"}
+  tasks: {started_at: "2026-02-26T15:16:11+05:30", driver: fab-fff, iterations: 1, completed_at: "2026-02-26T15:16:11+05:30"}
+  apply: {started_at: "2026-02-26T15:16:17+05:30", driver: fab-fff, iterations: 1, completed_at: "2026-02-26T15:21:35+05:30"}
+  review: {started_at: "2026-02-26T15:21:35+05:30", driver: fab-fff, iterations: 1, completed_at: "2026-02-26T15:26:02+05:30"}
+  hydrate: {started_at: "2026-02-26T15:26:02+05:30", driver: fab-fff, iterations: 1, completed_at: "2026-02-26T15:26:25+05:30"}
+shipped:
+  - https://github.com/wvrdz/fab-kit/pull/158
+last_updated: "2026-02-26T16:13:06+05:30"

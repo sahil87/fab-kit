@@ -16,7 +16,7 @@ model_tier: fast
 ## Arguments
 
 - **No arguments** — full structural bootstrap (default behavior)
-- **`config [section]`** — create or update `fab/project/config.yaml` interactively. Optional `[section]` skips the menu and edits that section directly. Valid sections: `project`, `source_paths`, `rules`, `checklist`, `git`, `naming`, `model_tiers`.
+- **`config [section]`** — create or update `fab/project/config.yaml` interactively. Optional `[section]` skips the menu and edits that section directly. Valid sections: `project`, `source_paths`, `stage_directives`, `checklist`, `model_tiers`.
 - **`constitution`** — create or amend `fab/project/constitution.md` with semantic versioning
 - **`migrations [file]`** — apply version migrations to bring project files in sync with the installed kit version (absorbed from fab-update)
 - **`validate`** — redirect message: "Validation is built into `/fab-setup config` and `/fab-setup constitution` — each validates after every edit."
@@ -170,7 +170,7 @@ Create a new `fab/project/config.yaml` interactively or update specific sections
 
 ### Config Arguments
 
-- **`[section]`** *(optional)* — section to edit directly, skipping the menu. Valid values: `project`, `source_paths`, `rules`, `checklist`, `git`, `naming`, `model_tiers`, `context`, `code-quality`, `code-review`.
+- **`[section]`** *(optional)* — section to edit directly, skipping the menu. Valid values: `project`, `source_paths`, `stage_directives`, `checklist`, `model_tiers`, `context`, `code-quality`, `code-review`.
 
 ### Config Pre-flight
 
@@ -196,23 +196,21 @@ When invoked without a section argument:
 
 ```
 fab/project/config.yaml sections:
-1. project       — name and description
-2. source_paths  — implementation code directories
-3. rules         — per-stage generation rules
-4. checklist     — extra quality categories
-5. git           — branch integration settings
-6. naming        — change folder naming format
-7. model_tiers   — model tier mappings for skill deployment
-8. context.md    — free-form project context
-9. code-quality.md — coding standards for apply/review
-10. code-review.md — review policy for validation sub-agent
-11. Done
+1. project            — name and description
+2. source_paths       — implementation code directories
+3. stage_directives   — per-stage artifact generation directives
+4. checklist          — extra quality categories
+5. model_tiers        — model tier mappings for skill deployment
+6. context.md         — free-form project context
+7. code-quality.md    — coding standards for apply/review
+8. code-review.md     — review policy for validation sub-agent
+9. Done
 
-Which section to update? (1-11)
+Which section to update? (1-9)
 ```
 
 2. Process selection -> **Edit Section Flow**
-3. After editing: "Update another section? (1-10 or 'done')"
+3. After editing: "Update another section? (1-8 or 'done')"
 4. Loop until Done
 
 When invoked with a section argument: validate against valid sections (error if invalid), go directly to **Edit Section Flow**, then offer to update another section.

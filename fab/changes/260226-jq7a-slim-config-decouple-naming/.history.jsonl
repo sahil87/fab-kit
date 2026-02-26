@@ -1,0 +1,3 @@
+{"ts":"2026-02-26T15:08:44+05:30","event":"command","cmd":"fab-new","args":"Simplify config.yaml: remove git and naming sections, rename rules to stage_directives, add issue_id to status.yaml, reduce verbosity, create naming.md spec, update skills"}
+{"ts":"2026-02-26T15:12:48+05:30","event":"command","cmd":"fab-fff"}
+{"ts":"2026-02-26T15:26:02+05:30","event":"review","result":"passed"}

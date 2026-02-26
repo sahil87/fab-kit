@@ -21,7 +21,7 @@ If no argument (and no `--blank`): list all active changes and ask user to pick.
 
 ## Context Loading
 
-Loads `fab/project/config.yaml` (for `git.enabled` — used only for the hint line) and matched change's `.status.yaml`. Name resolution and switch logic are delegated to `fab/.kit/scripts/lib/changeman.sh`. Does NOT load constitution, memory, or specs.
+Loads matched change's `.status.yaml`. Name resolution and switch logic are delegated to `fab/.kit/scripts/lib/changeman.sh`. Does NOT load constitution, memory, or specs.
 
 ---
 
@@ -62,13 +62,11 @@ The skill displays changeman's stdout directly.
 
 ### Hint Line
 
-After displaying changeman's output, if `git.enabled` is `true` in `fab/project/config.yaml`, append:
+After displaying changeman's output, append (unless the operation was `--blank`):
 
 ```
 Tip: run /git-branch to create or switch to the matching branch
 ```
-
-Omit the hint when `git.enabled` is `false`, config is missing, or the operation was `--blank`.
 
 ---
 
@@ -86,7 +84,7 @@ Tip: run /git-branch to create or switch to the matching branch
 
 Where `{display_stage}` is "where you are" (last active or last done stage) and `{routing_stage}` is "what's next" (what `/fab-continue` will produce). The `{state}` qualifier is `done`, `active`, or `pending`. When all stages are done, `Next:` shows only `/fab-archive`.
 
-Tip line omitted if git disabled or config missing. Deactivation shows `No active change.`. Already-blank shows `No active change (already blank).`
+Tip line omitted for `--blank`. Deactivation shows `No active change.`. Already-blank shows `No active change (already blank).`
 
 ---
 
@@ -97,7 +95,7 @@ Tip line omitted if git disabled or config missing. Deactivation shows `No activ
 | No changes exist | "No active changes found. Run /fab-new." |
 | Matched folder missing `.status.yaml` | Switch anyway, warn: "Warning: .status.yaml not found — change may be corrupted." |
 | `fab/changes/` doesn't exist | "fab/changes/ not found. Run /fab-setup." |
-| `fab/project/config.yaml` not found | Skip hint line |
+| `fab/project/config.yaml` not found | No impact (config not required) |
 
 ---
 
@@ -110,4 +108,4 @@ Tip line omitted if git disabled or config missing. Deactivation shows `No activ
 | Modifies `fab/current`? | Yes (writes name, or deletes with `--blank`) |
 | Modifies `.status.yaml`? | No |
 | Modifies git state? | No |
-| Requires config/constitution? | Config only (for hint line) |
+| Requires config/constitution? | No |

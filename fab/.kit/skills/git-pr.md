@@ -53,17 +53,20 @@ git log --oneline @{u}..HEAD 2>/dev/null || echo "NO_UPSTREAM"
 gh pr view --json number,state,url 2>/dev/null || echo "NO_PR"
 ```
 
+If an active change is resolved (via `changeman.sh resolve`), read `issue_id` from `fab/changes/{name}/.status.yaml` (may be null or absent).
+
 Determine:
 - **branch** — current branch name
 - **has_uncommitted** — whether `git status --porcelain` has output
 - **has_unpushed** — whether there are commits ahead of upstream (or no upstream at all)
 - **has_pr** — whether a PR already exists
+- **issue_id** — the Linear issue identifier from `.status.yaml`, or null if absent/unset
 
 ### Step 1b: Branch Mismatch Nudge
 
-If there is an active change (resolve via `fab/.kit/scripts/lib/changeman.sh resolve 2>/dev/null`), compare the current branch against the expected branch name. Read `git.branch_prefix` from `fab/project/config.yaml` (default `""`). The expected name is `{branch_prefix}{change_name}`.
+If there is an active change (resolve via `fab/.kit/scripts/lib/changeman.sh resolve 2>/dev/null`), compare the current branch against the change name.
 
-A match is: (1) exact string equality between current branch and expected name, or (2) the change name appears as a substring of the current branch.
+A match is: (1) exact string equality between current branch and change name, or (2) the change name appears as a substring of the current branch.
 
 If there is **no match** and the current branch is **not** `main`/`master`, show a non-blocking nudge before proceeding:
 
@@ -140,9 +143,12 @@ Print: `  ✓ push   — origin/<branch>`
 1. Verify `gh` is available: `command -v gh`
    - If missing → print `gh CLI not found — cannot create PR` and STOP
 
-2. **Derive PR title**: Compute `{pr_title}` as `{type}: {title}` where:
+2. **Derive PR title**: Compute `{pr_title}` where:
    - **Fab-linked** (type is `feat`, `fix`, or `refactor` AND intake exists): `{title}` = first `# ` heading from `intake.md`, stripping `Intake: ` prefix if present
    - **Lightweight** (type is `docs`, `test`, `ci`, or `chore`, OR no intake): `{title}` = commit message subject line from `git log -1 --format=%s`
+
+   If `issue_id` (from Step 1) is non-null: `{pr_title}` = `{type}: {issue_id} {title}` (e.g., `feat: DEV-123 Add OAuth support`).
+   If `issue_id` is null: `{pr_title}` = `{type}: {title}`.
 
    The `{pr_title}` variable (already prefixed) is used as-is in step 4's `gh pr create --title`.
 

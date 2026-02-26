@@ -2,12 +2,12 @@
 name: git-branch
 description: "Create or switch to the git branch matching the active (or specified) change."
 model_tier: fast
-allowed-tools: Bash(git:*), Bash(yq:*)
+allowed-tools: Bash(git:*)
 ---
 
 # /git-branch [change-name]
 
-Create or check out a git branch named `{branch_prefix}{change-name}` for the active or specified change. When an explicit argument doesn't match any change, falls back to creating a standalone branch with the literal name. Does not modify fab state.
+Create or check out a git branch named `{change-name}` for the active or specified change. When an explicit argument doesn't match any change, falls back to creating a standalone branch with the literal name. Does not modify fab state.
 
 ---
 
@@ -19,19 +19,7 @@ Create or check out a git branch named `{branch_prefix}{change-name}` for the ac
 
 ## Behavior
 
-### Step 1: Read Config
-
-Read `fab/project/config.yaml` for `git.enabled` and `git.branch_prefix`.
-
-If `git.enabled` is `false`:
-
-```
-Git integration is disabled (git.enabled: false in config.yaml)
-```
-
-STOP — do not execute any git commands.
-
-### Step 2: Check Git Repo
+### Step 1: Check Git Repo
 
 Verify inside a git repository:
 
@@ -47,7 +35,7 @@ Not inside a git repository.
 
 STOP.
 
-### Step 3: Resolve Change Name
+### Step 2: Resolve Change Name
 
 If `<change-name>` provided:
 
@@ -70,9 +58,9 @@ If resolution fails:
 No matching change found — using standalone branch '{name}'
 ```
 
-Set `standalone = true` and proceed to Step 4.
+Set `standalone = true` and proceed to Step 3.
 
-### Step 4: Derive Branch Name
+### Step 3: Derive Branch Name
 
 **If standalone**: use the raw argument as-is — no prefix, no transformation:
 
@@ -80,13 +68,13 @@ Set `standalone = true` and proceed to Step 4.
 branch_name = {raw_argument}
 ```
 
-**Otherwise** (change resolved): apply the configured prefix:
+**Otherwise** (change resolved): use the change name directly:
 
 ```
-branch_name = {git.branch_prefix}{resolved_change_name}
+branch_name = {resolved_change_name}
 ```
 
-### Step 5: Context-Dependent Action
+### Step 4: Context-Dependent Action
 
 Get the current branch:
 
@@ -130,7 +118,7 @@ git checkout -b "{branch_name}"
 2. **Adopt this branch** — no git operation, acknowledge the current branch as the working branch (default)
 3. **Skip** — cancel, no action taken
 
-### Step 6: Report
+### Step 5: Report
 
 ```
 Branch: {branch_name} (created|checked out|adopted|already active)
@@ -152,12 +140,10 @@ Branch: {branch_name} (created|checked out|adopted|already active)
 
 | Condition | Action |
 |-----------|--------|
-| `git.enabled` is `false` | Report and stop |
 | Not in a git repo | Report and stop |
 | Change name resolution fails (no argument) | Display changeman's error and stop |
 | Change name resolution fails (explicit argument) | Standalone fallback — use literal argument as branch name |
 | `git checkout` fails (e.g., uncommitted conflicts) | Report the git error. No fab state modified. |
-| `fab/project/config.yaml` not found | Assume `git.enabled: true`, `branch_prefix: ""` |
 
 ---
 
@@ -170,4 +156,4 @@ Branch: {branch_name} (created|checked out|adopted|already active)
 | Modifies `fab/current`? | No |
 | Modifies `.status.yaml`? | No |
 | Modifies git state? | Yes — may create or checkout a branch |
-| Requires config/constitution? | Config only (`git.enabled`, `git.branch_prefix`) |
+| Requires config/constitution? | No |

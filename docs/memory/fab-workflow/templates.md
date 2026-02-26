@@ -72,6 +72,7 @@ The `.status.yaml` template initializes a new change with the following structur
 
 - **No `stage:` field** — current stage is derived from the `active` entry in the progress map
 - **`intake: active`** as the initial progress state — intake is the first pipeline stage
+- **`issue_id: null`** — placed after `change_type`. The `issue_id` field stores an optional external tracker ID (e.g., Linear issue `DEV-123`). Initialized to null; populated by `/fab-new` when created from a tracker ticket, or by any skill that discovers the ID later.
 - All other stages start as `pending`
 
 Initial progress map:
@@ -183,6 +184,7 @@ When `/fab-continue` (hydrate) hydrates into memory files:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260226-jq7a-slim-config-decouple-naming | 2026-02-26 | Added `issue_id: null` to .status.yaml template initial state. |
 | 260218-5isu-fix-docs-consistency-drift | 2026-02-18 | Replaced stale `lib/sync-workspace.sh` → `sync/2-sync-workspace.sh` in model tier deployment reference |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed template `brief.md` → `intake.md`. Strengthened template comments (What Changes, Origin, Why sections). Updated all artifact references from brief to intake |
 | 260215-r8k3-DEV-1024-code-quality-layer | 2026-02-15 | Added Code Quality to checklist categories (always included, two baseline items). Updated generation derivation sources to include `code_quality` config |

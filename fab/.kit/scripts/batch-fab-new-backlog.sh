@@ -42,8 +42,8 @@ extract_content() {
     if ! $found; then
       # Match a list item whose ID field is [<id>] (anchored to line start)
       if [[ "$line" =~ ^-\ \[[x\ ]\]\ \[$id\] ]]; then
-        # Strip the prefix:  - [x/ ] [ID] (BUG)? YYYY-MM-DD:
-        content=$(sed -E 's/^- \[[x ]\] \[[a-z0-9]{4}\] (\(BUG\) )?[0-9]{4}-[0-9]{2}-[0-9]{2}: //' <<< "$line")
+        # Strip the prefix:  - [x/ ] [ID] [ISSUE_ID]? (BUG)? YYYY-MM-DD:
+        content=$(sed -E 's/^- \[[x ]\] \[[a-z0-9]{4}\] (\[[A-Z]+-[0-9]+\] )?(\(BUG\) )?[0-9]{4}-[0-9]{2}-[0-9]{2}: //' <<< "$line")
         found=true
       fi
     else
@@ -68,7 +68,7 @@ list_pending() {
     local id
     id=$(sed -E 's/^- \[ \] \[([a-z0-9]{4})\].*$/\1/' <<< "$line")
     local desc
-    desc=$(sed -E 's/^- \[ \] \[[a-z0-9]{4}\] (\(BUG\) )?[0-9]{4}-[0-9]{2}-[0-9]{2}: //' <<< "$line")
+    desc=$(sed -E 's/^- \[ \] \[[a-z0-9]{4}\] (\[[A-Z]+-[0-9]+\] )?(\(BUG\) )?[0-9]{4}-[0-9]{2}-[0-9]{2}: //' <<< "$line")
     printf "  %-6s %s\n" "[$id]" "${desc:0:80}"
   done < <(grep -E '^\- \[ \] \[' "$BACKLOG_FILE")
 }

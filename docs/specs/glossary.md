@@ -66,7 +66,7 @@
 | Term | Definition |
 |------|-----------|
 | `.status.yaml` | The status manifest inside each change folder. Tracks progress of all stages, checklist counts, and confidence score. Current stage is derived from the `active` entry in the progress map. Single source of truth for where a change is. |
-| `config.yaml` | Project configuration at `fab/project/config.yaml`. Defines project identity, tech stack context, naming format, git settings, stage pipeline, checklist categories, and per-stage rules. |
+| `config.yaml` | Project configuration at `fab/project/config.yaml`. Defines project identity, source paths, checklist categories, stage directives, and model tiers. |
 | `checklist.md` | Auto-generated quality checklist inside a change folder. Items derived from spec and constitution. Verified by `/fab-continue` (review); all items must pass before hydrate. |
 | `fab/current` | Pointer file containing the active change name. Read by every skill; updated by `/fab-switch`; cleared by `/fab-archive`. |
 | `fab/changes/` | Directory holding all active change folders. Completed changes are moved to `fab/changes/archive/`. |

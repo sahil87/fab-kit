@@ -513,20 +513,19 @@ The applying agent triages review comments by priority — not all comments need
 ```
 
 **Behavior**:
-1. Read `config.yaml` for `git.enabled` and `git.branch_prefix`
-2. If `git.enabled` is `false` → report and stop
-3. Resolve change name (from argument or `fab/current`)
-4. Derive branch name: `{branch_prefix}{change-name}`
-5. Context-dependent action:
+1. Check inside a git repo (`git rev-parse --is-inside-work-tree`)
+2. Resolve change name (from argument or `fab/current`)
+3. Derive branch name: `{change-name}` (no prefix)
+4. Context-dependent action:
    - **On `main`/`master`** → auto-create branch
    - **On other branch** → prompt: create new, adopt current, or skip
    - **Already on target** → no-op
-6. Report result
+5. Report result
 
 **Key properties**:
 - Does not modify `fab/current` or `.status.yaml`
 - Idempotent — checking out an already-active branch is a no-op
-- Respects `git.enabled` gate
+- Always enabled if in a git repo
 
 ---
 

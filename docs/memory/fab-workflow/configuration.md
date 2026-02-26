@@ -16,13 +16,6 @@ Fab uses a set of complementary configuration files — the **5 Cs of Quality**:
 - `name` — Project name (string)
 - `description` — Project description (string)
 
-#### `naming`
-- `format` — Change folder naming format. Default: `"{YYMMDD}-{XXXX}-[{ISSUE}-]{slug}"`. The `{ISSUE}` component is an optional uppercase Linear issue ID (e.g., `DEV-988`) included when the change originates from a Linear ticket. When absent, the format collapses to `{YYMMDD}-{XXXX}-{slug}`
-
-#### `git`
-- `enabled` — Whether to prompt for branch integration (boolean). Set `false` to suppress branch prompts
-- `branch_prefix` — Optional prefix for created branches (e.g., `"feat/"` → `"feat/260115-a7k2-add-oauth"`)
-
 #### `model_tiers`
 Provider-specific model identifiers for the two-tier system. Replaces the former `fab/.kit/model-tiers.yaml` file. Structure:
 ```yaml
@@ -35,13 +28,15 @@ When absent, `fab-sync.sh` falls back to `haiku` for the fast tier. See [model-t
 #### `checklist`
 - `extra_categories` — Project-specific quality categories added to the default checklist categories (functional_completeness, behavioral_correctness, scenario_coverage, edge_cases, code_quality, security)
 
-#### `rules`
-Per-stage rules that customize artifact generation. Keys are stage IDs, values are lists of instruction strings. Example:
+#### `stage_directives`
+Per-stage directives that customize artifact generation. Keys are stage IDs (`intake`, `spec`, `tasks`, `apply`, `review`, `hydrate`), values are lists of instruction strings. Example:
 ```yaml
-rules:
+stage_directives:
   spec:
     - Use GIVEN/WHEN/THEN for scenarios
     - Mark ambiguities with [NEEDS CLARIFICATION]
+  review:
+    - Flag any function longer than 50 lines
 ```
 
 ### `context.md`
@@ -110,7 +105,7 @@ Semantic versioning — MAJOR for principle removals, MINOR for additions, PATCH
 
 ### Relationship Between Configuration Files
 
-- `config.yaml` holds **project settings** (naming, git, model tiers, checklist categories, rules)
+- `config.yaml` holds **project settings** (model tiers, checklist categories, stage_directives)
 - `constitution.md` holds **principles and constraints** (MUST/SHOULD/MUST NOT rules)
 - `context.md` holds **free-form project context** (tech stack, conventions, architecture)
 - `code-quality.md` holds **coding standards** (principles, anti-patterns, test strategy)
@@ -125,14 +120,12 @@ Run `/fab-setup config` to see all editable sections:
 
 1. `project` — name and description
 2. `source_paths` — implementation code directories
-3. `rules` — per-stage generation rules
+3. `stage_directives` — per-stage generation directives
 4. `checklist` — extra quality categories
-5. `git` — branch integration settings
-6. `naming` — change folder naming format
-7. `model_tiers` — provider-specific model identifiers
-8. `context.md` — free-form project context
-9. `code-quality.md` — coding standards for apply/review
-10. `code-review.md` — review policy for validation sub-agent
+5. `model_tiers` — provider-specific model identifiers
+6. `context.md` — free-form project context
+7. `code-quality.md` — coding standards for apply/review
+8. `code-review.md` — review policy for validation sub-agent
 
 Skip the menu with `/fab-setup config <section>` (e.g., `/fab-setup config context`).
 
@@ -143,7 +136,6 @@ Updates use targeted string replacement on the specific section being edited. Co
 | Add a new tech to the stack | Edit `fab/project/context.md` directly or `/fab-setup config context.md` |
 | Add a new source directory | `/fab-setup config source_paths` |
 | Add a custom checklist category | `/fab-setup config checklist` |
-| Change branch naming | `/fab-setup config git` |
 | Verify config after manual edit | `/fab-setup validate` |
 
 ### Amending Constitution
@@ -229,6 +221,7 @@ See [setup](setup.md) for the complete command suite.
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260226-jq7a-slim-config-decouple-naming | 2026-02-26 | Removed `git` and `naming` sections from config.yaml schema. Renamed `rules` → `stage_directives` with all 6 stage placeholders. Added `issue_id` to status.yaml. |
 | 260219-wq0e-move-5cs-to-project-folder | 2026-02-19 | Moved 5 Cs + VERSION from `fab/` to `fab/project/` subdirectory — creating clean top-level triad (`.kit/`, `project/`, `changes/`). Updated all path references across overview, requirements, companion files section, lifecycle menu, and design decisions. Migration `0.9.0-to-0.10.0.md` handles existing installations. |
 | 260218-xkkc-add-code-review-5cs-quality | 2026-02-18 | Added `code-review.md` as 5th configuration file (the "5 Cs of Quality"). Added to overview, requirements, relationship section, lifecycle menu (item 10), and design decisions. New scaffold at `fab/.kit/scaffold/code-review.md` |
 | 260218-bb93-restructure-config-yaml | 2026-02-18 | Extracted `context:` → `fab/context.md`, `code_quality:` → `fab/code-quality.md`, removed dead `stages:` section, merged `model-tiers.yaml` into config.yaml `model_tiers:` section. Updated schema, lifecycle menu, design decisions, and relationship section |
