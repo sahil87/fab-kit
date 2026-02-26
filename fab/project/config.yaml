@@ -1,6 +1,6 @@
 project:
-  name: "sddr"
-  description: "Specification-Driven Development Resources — research, documentation, and tooling for SDD methodologies"
+  name: "fab-kit"
+  description: "FAB Kit — Tooling for Specification-Driven Development"
 
 # Directories containing implementation code (relative to repo root).
 source_paths:
