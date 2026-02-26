@@ -1171,26 +1171,26 @@ EOF
   [[ "$line" == *'"rework":"revise-tasks"'* ]]
 }
 
-@test "log-command resolves relative path against fab root" {
-  # Derive fab root from stageman location (same logic as resolve_change_dir)
+@test "log-command resolves relative path against repo root" {
+  # Derive repo root from stageman location (same logic as resolve_change_dir)
   local stageman_dir
   stageman_dir="$(cd "$(dirname "$(readlink -f "$STAGEMAN")")" && pwd)"
-  local fab_root
-  fab_root="$(cd "$stageman_dir/../../.." && pwd)"
+  local repo_root
+  repo_root="$(cd "$stageman_dir/../../../.." && pwd)"
 
-  # Create a temp dir under fab root
+  # Create a temp dir under repo root
   local test_subdir=".test-resolve-$$"
-  mkdir -p "$fab_root/$test_subdir"
+  mkdir -p "$repo_root/$test_subdir"
 
   # Run log-command with a relative path from a different cwd
   (cd /tmp && "$STAGEMAN" log-command "$test_subdir" "test-resolve" "")
 
   # Verify file was written at the resolved absolute path, not relative to cwd
-  [ -f "$fab_root/$test_subdir/.history.jsonl" ]
-  [[ "$(head -1 "$fab_root/$test_subdir/.history.jsonl")" == *'"cmd":"test-resolve"'* ]]
+  [ -f "$repo_root/$test_subdir/.history.jsonl" ]
+  [[ "$(head -1 "$repo_root/$test_subdir/.history.jsonl")" == *'"cmd":"test-resolve"'* ]]
 
   # Clean up
-  rm -rf "$fab_root/$test_subdir"
+  rm -rf "$repo_root/$test_subdir"
 }
 
 @test "history file accumulates events" {

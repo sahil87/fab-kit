@@ -63,7 +63,7 @@ resolve_change_arg() {
 
   # Derive repo root from stageman location
   local repo_root
-  repo_root="$(cd "$STAGEMAN_DIR/../../.." && pwd)"
+  repo_root="$(cd "$STAGEMAN_DIR/../../../.." && pwd)"
   local status_file="$repo_root/fab/changes/${resolved}/.status.yaml"
 
   if [ ! -f "$status_file" ]; then
@@ -917,7 +917,7 @@ resolve_change_dir() {
   if [[ "$dir" != /* ]]; then
     local root
     root="$(git rev-parse --show-toplevel 2>/dev/null)" \
-      || root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"/../../.. && pwd)"
+      || root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../.." && pwd)"
     dir="$root/$dir"
   fi
   echo "$dir"
