@@ -282,14 +282,25 @@ confidence:
 if unresolved > 0:
   score = 0.0
 else:
-  score = max(0.0, 5.0 - 0.3 * confident - 1.0 * tentative)
+  base = max(0.0, 5.0 - 0.3 * confident - 1.0 * tentative)
+  cover = min(1.0, total_decisions / expected_min)
+  score = base * cover
 ```
 
-Range: 0.0 (any Unresolved, or 5+ Tentative) to 5.0 (all Certain). Penalties: Certain 0, Confident 0.3, Tentative 1.0, Unresolved → hard zero.
+Where `total_decisions = certain + confident + tentative + unresolved` and `expected_min` is looked up by `{stage, change_type}` from embedded tables in `calc-score.sh`. The `cover` factor prevents thin specs from getting inflated scores. When `total_decisions >= expected_min`, `cover = 1.0` and the formula degenerates to the base penalty. Range: 0.0 to 5.0. See `docs/specs/change-types.md` for the full `expected_min` threshold tables.
 
 ### Gate Threshold
 
-`/fab-ff` requires `confidence.score > 3.0` (dynamic per-type thresholds: bugfix=2.0, feature/refactor=3.0, architecture=4.0). `/fab-fff` has no confidence gate.
+`/fab-ff` requires `confidence.score >= threshold` (dynamic per-type thresholds). `/fab-fff` has no confidence gate.
+
+| Type | Gate Threshold |
+|------|---------------|
+| `fix` | 2.0 |
+| `feat` | 3.0 |
+| `refactor` | 3.0 |
+| `docs`, `test`, `ci`, `chore` | 2.0 |
+
+See `docs/specs/change-types.md` for the full taxonomy.
 
 ### Invocation
 

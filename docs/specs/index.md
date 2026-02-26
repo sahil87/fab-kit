@@ -21,6 +21,7 @@
 | [templates](templates.md) | Artifact templates — status, intake, spec, tasks, checklist, memory files |
 | [user-flow](user-flow.md) | Visual diagrams — how development works today, with Fab commands, full command map |
 | [srad](srad.md) | SRAD autonomy framework — scoring dimensions, confidence grades, confidence scoring, gating, worked examples |
+| [change-types](change-types.md) | Change type taxonomy — 7 types, expected_min thresholds, gate thresholds, PR tiers, keyword heuristics |
 | [packages](packages.md) | Bundled packages — wt (worktree management) and idea (backlog management) |
 | [naming](naming.md) | Naming conventions — change folders, branches, worktrees, PRs, backlog entries |
 | [glossary](glossary.md) | All Fab terminology — core concepts, stages, skills, files, SRAD, conventions |

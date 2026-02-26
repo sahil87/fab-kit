@@ -1,7 +1,7 @@
 name: {NAME}
 created: {CREATED}
 created_by: {CREATED_BY}
-change_type: feature
+change_type: feat
 issue_id: null
 progress:
   intake: active

@@ -5,23 +5,34 @@ change_type: feat
 issue_id: null
 progress:
   intake: done
-  spec: pending
-  tasks: pending
-  apply: pending
-  review: pending
-  hydrate: pending
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
 checklist:
-  generated: false
+  generated: true
   path: checklist.md
-  completed: 0
-  total: 0
+  completed: 31
+  total: 31
 confidence:
-  certain: 0
-  confident: 0
+  certain: 11
+  confident: 2
   tentative: 0
   unresolved: 0
-  score: 0.0
+  score: 4.4
+  fuzzy: true
+  dimensions:
+    signal: 91.2
+    reversibility: 87.3
+    competence: 90.4
+    disambiguation: 91.9
 stage_metrics:
   intake: {started_at: "2026-02-26T17:01:02+05:30", driver: fab-new, iterations: 1, completed_at: "2026-02-26T17:02:57+05:30"}
+  spec: {started_at: "2026-02-26T17:18:16+05:30", driver: fab-continue, iterations: 1, completed_at: "2026-02-26T17:22:28+05:30"}
+  tasks: {started_at: "2026-02-26T17:22:28+05:30", driver: fab-continue, iterations: 1, completed_at: "2026-02-26T17:25:04+05:30"}
+  apply: {started_at: "2026-02-26T17:25:04+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-26T17:29:53+05:30"}
+  review: {started_at: "2026-02-26T17:29:53+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-26T17:32:49+05:30"}
+  hydrate: {started_at: "2026-02-26T17:32:49+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-26T17:34:08+05:30"}
 shipped: []
-last_updated: "2026-02-26T17:02:57+05:30"
+last_updated: "2026-02-26T17:34:08+05:30"

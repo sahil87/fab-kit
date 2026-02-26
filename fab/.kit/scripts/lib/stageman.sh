@@ -419,6 +419,38 @@ transition_stages() {
   mv "$tmpfile" "$status_file"
 }
 
+# set_change_type <status_file> <type>
+# Set the change_type field in .status.yaml.
+# Validates type is one of the 7 canonical types. Writes atomically, updates last_updated.
+# Returns 0 on success, 1 on validation failure.
+set_change_type() {
+  local status_file="$1"
+  local change_type="$2"
+
+  if [ ! -f "$status_file" ]; then
+    echo "ERROR: Status file not found: $status_file" >&2
+    return 1
+  fi
+
+  case "$change_type" in
+    feat|fix|refactor|docs|test|ci|chore) ;;
+    *)
+      echo "ERROR: Invalid change type '$change_type' (valid: feat, fix, refactor, docs, test, ci, chore)" >&2
+      return 1
+      ;;
+  esac
+
+  local now
+  now=$(date -Iseconds)
+  local tmpfile
+  tmpfile=$(mktemp "$(dirname "$status_file")/.status.yaml.XXXXXX")
+
+  cp "$status_file" "$tmpfile"
+  yq -i ".change_type = \"${change_type}\" | .last_updated = \"${now}\"" "$tmpfile"
+
+  mv "$tmpfile" "$status_file"
+}
+
 # set_checklist_field <status_file> <field> <value>
 # Update a single field in the checklist block of .status.yaml.
 # Valid fields: generated (true/false), completed (non-negative int), total (non-negative int).
@@ -800,6 +832,7 @@ SUBCOMMANDS:
   Write commands:
     set-state <file> <stage> <state> [driver]   Set a stage's state
     transition <file> <from> <to> [driver]      Two-write forward transition
+    set-change-type <file> <type>              Set change_type (feat/fix/refactor/docs/test/ci/chore)
     set-checklist <file> <field> <value>        Update checklist field
     set-confidence <file> <certain> <confident> <tentative> <unresolved> <score>
     set-confidence-fuzzy <file> <certain> <confident> <tentative> <unresolved> <score> <mean_s> <mean_r> <mean_a> <mean_d>
@@ -916,6 +949,13 @@ case "${1:-}" in
       exit 1
     fi
     transition_stages "$2" "$3" "$4" "${5:-}"
+    ;;
+  set-change-type)
+    if [ $# -ne 3 ]; then
+      echo "Usage: stageman.sh set-change-type <file> <type>" >&2
+      exit 1
+    fi
+    set_change_type "$2" "$3"
     ;;
   set-checklist)
     if [ $# -ne 4 ]; then

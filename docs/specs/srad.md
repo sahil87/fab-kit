@@ -127,8 +127,12 @@ Certain grades are omitted (not worth mentioning). Unresolved grades are asked a
 if unresolved > 0:
   score = 0.0
 else:
-  score = max(0.0, 5.0 - 0.3 * confident - 1.0 * tentative)
+  base = max(0.0, 5.0 - 0.3 * confident - 1.0 * tentative)
+  cover = min(1.0, total_decisions / expected_min)
+  score = base * cover
 ```
+
+Where `total_decisions = certain + confident + tentative + unresolved` and `expected_min` is looked up by `{stage, change_type}` from embedded tables in `calc-score.sh`. See [change-types.md](change-types.md) for the full `expected_min` threshold tables.
 
 ### Penalty Weights
 
@@ -139,13 +143,19 @@ else:
 | **Tentative** | 1.0 | Meaningful — reasonable guess but multiple valid options; could be wrong |
 | **Unresolved** | Hard zero | Cannot run autonomously with unresolved decisions; any single Unresolved sets score to 0.0 |
 
+### Coverage Factor
+
+The `cover` component attenuates the score when the total number of decisions is less than the expected minimum for the change type and stage. This prevents thin specs (e.g., 2 decisions scoring 5.0) from getting inflated scores.
+
+When `total_decisions >= expected_min`, `cover = 1.0` and the formula degenerates to the base penalty only. When `total_decisions < expected_min`, the score is proportionally reduced.
+
 ### Range
 
-- **5.0**: All decisions are Certain — maximum confidence, zero ambiguity
-- **3.0**: The `/fab-ff` gate threshold (see below) — allows at most 2 Tentative decisions
-- **0.0**: Any Unresolved decision exists, OR 5+ Tentative decisions accumulate enough penalty
+- **5.0**: All decisions are Certain AND decision count meets or exceeds `expected_min`
+- **3.0**: The `/fab-ff` gate threshold for `feat`/`refactor` (see below)
+- **0.0**: Any Unresolved decision exists, OR penalties + low coverage reduce the score to zero
 
-The `max(0.0, ...)` floor clamps the score — if penalties exceed 5.0 (e.g., 6 Tentative decisions: `5.0 - 6.0 = -1.0`), the score is 0.0, not negative.
+The `max(0.0, ...)` floor clamps the base — if penalties exceed 5.0, the base is 0.0, not negative.
 
 ### Storage
 
@@ -164,31 +174,34 @@ confidence:
 
 ## Gate Threshold
 
-`/fab-ff` requires `confidence.score >= threshold` before executing the fast-forward pipeline. The threshold varies by **change type**:
+`/fab-ff` requires `confidence.score >= threshold` before executing the fast-forward pipeline. The threshold varies by **change type** (7 types from [Conventional Commits](change-types.md)):
 
 | Change Type | Gate Threshold | Rationale |
 |-------------|---------------|-----------|
-| **bugfix** | 2.0 | Low risk, narrow scope — more tolerance for assumptions |
-| **feature** | 3.0 | Default — balanced risk tolerance |
-| **refactor** | 3.0 | Behavioral preservation important, moderate tolerance |
-| **architecture** | 4.0 | High blast radius — demand near-certainty |
+| **`fix`** | 2.0 | Low risk, narrow scope — more tolerance for assumptions |
+| **`feat`** | 3.0 | Default — balanced risk tolerance |
+| **`refactor`** | 3.0 | Behavioral preservation important, moderate tolerance |
+| **`docs`** | 2.0 | Low blast radius, documentation-only |
+| **`test`** | 2.0 | Low blast radius, test-only |
+| **`ci`** | 2.0 | Low blast radius, infrastructure-only |
+| **`chore`** | 2.0 | Low blast radius, maintenance |
 
-Change type is stored as `change_type:` in `.status.yaml` (default: `feature`). The gate check is performed by `calc-score.sh --check-gate`.
+Change type is stored as `change_type:` in `.status.yaml` (default: `feat`). The gate check is performed by `calc-score.sh --check-gate`. See [change-types.md](change-types.md) for the full taxonomy.
 
 ### What 3.0 Allows
 
-With the formula `5.0 - 0.3 * confident - 1.0 * tentative`:
+With the formula `score = base * cover` where `base = 5.0 - 0.3 * confident - 1.0 * tentative`:
 
-- **0 Tentative, up to 6 Confident**: score = 5.0 – 1.8 = 3.2 (passes)
-- **0 Tentative, 7 Confident**: score = 5.0 – 2.1 = 2.9 (fails)
-- **1 Tentative, up to 3 Confident**: score = 5.0 – 1.0 – 0.9 = 3.1 (passes)
-- **1 Tentative, 4 Confident**: score = 5.0 – 1.0 – 1.2 = 2.8 (fails)
-- **2 Tentative, 0 Confident**: score = 5.0 – 2.0 = 3.0 (passes, barely)
-- **2 Tentative, 1+ Confident**: score < 3.0 (fails)
-- **3+ Tentative**: score ≤ 2.0 (fails — too many guesses)
+Assuming full coverage (`cover = 1.0`, i.e., `total_decisions >= expected_min`):
+
+- **0 Tentative, up to 6 Confident**: base = 5.0 – 1.8 = 3.2 (passes)
+- **0 Tentative, 7 Confident**: base = 5.0 – 2.1 = 2.9 (fails)
+- **1 Tentative, up to 3 Confident**: base = 5.0 – 1.0 – 0.9 = 3.1 (passes)
+- **2 Tentative, 0 Confident**: base = 5.0 – 2.0 = 3.0 (passes, barely)
+- **3+ Tentative**: base ≤ 2.0 (fails — too many guesses)
 - **Any Unresolved**: score = 0.0 (always fails)
 
-In practice: at most 6 Confident decisions (with no Tentative), or 2 Tentative with very few Confident.
+With low coverage (e.g., 2 of 6 expected decisions for `feat`): `cover = 0.33`, even a perfect base of 5.0 yields only 1.7. This prevents thin specs from passing the gate.
 
 ### Gate Behavior
 
@@ -238,7 +251,7 @@ Two words, no detail on mechanism, scope, or integration.
 
 **Score**: `0.0` — any Unresolved decision produces a hard zero.
 
-**Outcome**: `/fab-ff` gate blocks (0.0 < 3.0 feature threshold). The user must answer the Unresolved questions or use `/fab-clarify` to resolve Tentative assumptions before the fast-forward pipeline can run.
+**Outcome**: `/fab-ff` gate blocks (0.0 < 3.0 `feat` threshold). The user must answer the Unresolved questions or use `/fab-clarify` to resolve Tentative assumptions before the fast-forward pipeline can run.
 
 ### Example 2: Low-Ambiguity Intake
 
@@ -254,9 +267,9 @@ Detailed description specifying the component, location, trigger, and behavior.
 
 **Confidence counts**: Certain: 8, Confident: 2, Tentative: 0, Unresolved: 0
 
-**Score**: `max(0.0, 5.0 - 0.6 - 0.0) = 4.4`
+**Score**: `base = max(0.0, 5.0 - 0.6) = 4.4`, `cover = min(1.0, 10 / 6) = 1.0`, `score = 4.4 * 1.0 = 4.4`
 
-**Outcome**: `/fab-ff` gate passes (4.4 >= 3.0 feature threshold). The fast-forward pipeline can run with high confidence.
+**Outcome**: `/fab-ff` gate passes (4.4 >= 3.0 `feat` threshold). The fast-forward pipeline can run with high confidence.
 
 ---
 

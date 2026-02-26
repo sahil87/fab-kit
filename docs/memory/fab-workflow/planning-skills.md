@@ -57,6 +57,14 @@ The skill SHALL:
 
 `/fab-new` never activates changes — this reduces disruption when capturing change ideas. The user activates via `/fab-switch` after creation. Branch integration is delegated to `/fab-switch`, which provides consistent branch handling.
 
+#### Change Type Inference
+
+After generating `intake.md`, `/fab-new` infers the `change_type` from the intake content using keyword matching (case-insensitive, first match wins): fix/bug/broken/regression → `fix`, refactor/restructure/consolidate/split/rename → `refactor`, docs/document/readme/guide → `docs`, test/spec/coverage → `test`, ci/pipeline/deploy/build → `ci`, chore/cleanup/maintenance/housekeeping → `chore`, otherwise → `feat`. The inferred type is written to `.status.yaml` via `stageman.sh set-change-type`.
+
+#### Indicative Confidence
+
+After generating `intake.md` and inferring the change type, `/fab-new` computes and displays an indicative confidence score using the coverage-weighted formula with intake-stage `expected_min` thresholds. This is display-only — NOT written to `.status.yaml`. The authoritative score is computed at the spec stage by `calc-score.sh`. Output format: `Indicative confidence: {score} / 5.0 ({N} decisions, cover: {cover})`.
+
 #### Intake-Only Output
 
 `/fab-new` produces a single artifact: `intake.md`. It does not generate `spec.md` or any other downstream artifacts. The intake includes an **Origin** section recording how the change was initiated (description text, conversational vs. one-shot mode, key decisions from the conversation).
@@ -314,6 +322,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260226-tnr8-coverage-scoring-change-types | 2026-02-26 | `/fab-new` gains change type inference (keyword heuristic → `stageman.sh set-change-type`) and indicative confidence display (coverage-weighted formula, display-only, not persisted). Coverage-weighted confidence formula added to `_preamble.md` §Confidence Scoring. Gate thresholds updated from 4-type (`bugfix`/`feature`/`refactor`/`architecture`) to 7-type taxonomy (`feat`/`fix`/`refactor`/`docs`/`test`/`ci`/`chore`). |
 | 260221-5tj7-rename-context-to-preamble | 2026-02-21 | Renamed shared skill preamble from `_context.md` to `_preamble.md`. Updated all references in Shared Generation Partial section, SRAD design decision, and mode selection references. |
 | 260216-7ltw-DEV-1038-standardize-state-keyed-suggestions | 2026-02-16 | Replaced skill-keyed suggestion lookup with state-keyed table in `_preamble.md`. Removed `--switch` flag and natural language switching detection from `/fab-new` — change is never activated by `/fab-new`. All skills now derive `Next:` lines from canonical state table. Extended `/fab-clarify` stage guard to include `intake`. |
 | 260216-knmw-DEV-1030-swap-ff-fff-review-rework | 2026-02-16 | Swapped review failure behavior: `/fab-ff` now presents interactive rework menu (3 options, no retry cap); `/fab-fff` now uses autonomous rework (agent selects path, 3-cycle retry cap, escalation after 2 consecutive fix-code). Updated overview paragraphs, pipeline flow steps, rework sections, and Scope Differentiation design decision. |

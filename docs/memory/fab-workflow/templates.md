@@ -184,6 +184,7 @@ When `/fab-continue` (hydrate) hydrates into memory files:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260226-tnr8-coverage-scoring-change-types | 2026-02-26 | Changed `.status.yaml` template default `change_type` from `feature` to `feat`, aligning with the 7-type conventional commit prefix taxonomy. |
 | 260226-jq7a-slim-config-decouple-naming | 2026-02-26 | Added `issue_id: null` to .status.yaml template initial state. |
 | 260218-5isu-fix-docs-consistency-drift | 2026-02-18 | Replaced stale `lib/sync-workspace.sh` → `sync/2-sync-workspace.sh` in model tier deployment reference |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed template `brief.md` → `intake.md`. Strengthened template comments (What Changes, Origin, Why sections). Updated all artifact references from brief to intake |
