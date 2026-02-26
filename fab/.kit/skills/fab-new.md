@@ -31,7 +31,7 @@ If no description: ask *"What change do you want to make?"*
 Detect input type (check in order):
 
 1. **Linear ticket ID** (`[A-Z]+-\d+`) — fetch via `mcp__claude_ai_Linear__get_issue`; extract title, description, state, labels, branchName. On failure, fall back to natural language.
-2. **Backlog ID** (`[a-z0-9]{4}`) — read `fab/backlog.md`, search for `\[{id}\]`. Parse any Linear ID from the line; if found, fetch per #1. Store ID for folder name.
+2. **Backlog ID** (`[a-z0-9]{4}`) — read `fab/backlog.md`, search for `\[{id}\]`. Check for an optional `[ISSUE_ID]` bracket immediately after (e.g., `[ni3o] [DEV-1011]`); if found, extract and fetch per #1. Store backlog ID for folder name.
 3. **Natural language** — use as-is
 
 ### Step 1: Generate Slug

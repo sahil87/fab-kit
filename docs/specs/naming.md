@@ -61,11 +61,12 @@ The format for items in the local backlog (`fab/backlog.md`).
 
 | Field | Value |
 |-------|-------|
-| **Pattern** | `- [ ] [{ID}] {YYYY-MM-DD}: {description}` |
-| **Example** | `- [ ] [ngaw] 2026-02-23: Quality gate — how to decide which PR has had deep thought` |
+| **Pattern** | `- [ ] [{ID}] [{issue_id}] {YYYY-MM-DD}: {description}` (issue_id is optional) |
+| **Example** | `- [ ] [ni3o] [DEV-1011] 2026-02-12: Capture more metrics` or `- [ ] [ngaw] 2026-02-23: Quality gate` |
 | **Encoded in** | `idea` command (`fab/.kit/packages/wt/` — backlog management) |
 
 Components:
 - `[{ID}]` — 4-char alphanumeric backlog ID
+- `[{issue_id}]` — optional Linear issue ID in brackets (e.g., `[DEV-1011]`)
 - `{YYYY-MM-DD}` — ISO date when item was added
 - `{description}` — free-form description, may include tags
