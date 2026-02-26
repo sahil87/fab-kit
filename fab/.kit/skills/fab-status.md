@@ -1,7 +1,6 @@
 ---
 name: fab-status
 description: "Show current change state at a glance — name, branch, stage, checklist status, and suggested next command."
-model_tier: fast
 ---
 
 # /fab-status [<change-name>]

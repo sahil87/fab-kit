@@ -1,7 +1,6 @@
 ---
 name: git-branch
 description: "Create or switch to the git branch matching the active (or specified) change."
-model_tier: fast
 allowed-tools: Bash(git:*)
 ---
 

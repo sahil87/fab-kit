@@ -31,26 +31,6 @@ if [ ! -f "$frontmatter_lib" ]; then
 fi
 source "$frontmatter_lib"
 
-# Extract a value from a 3-level nested YAML structure.
-# Usage: yaml_value <file> <root_key> <second_key> <third_key>
-# Example: yaml_value config.yaml model_tiers fast claude → "haiku"
-# Returns the value or empty string if path not found.
-yaml_value() {
-  local file="$1" root="$2" second="$3" third="$4"
-  sed -n "
-    /^${root}:/,/^[^ ]/{
-      /^  ${second}:/,/^  [^ ]/{
-        /^    ${third}:/{
-          s/^    ${third}: *//
-          s/ *#.*//
-          p
-          q
-        }
-      }
-    }
-  " "$file"
-}
-
 # line_ensure_merge <source> <target> <label>
 #   Read non-empty, non-comment lines from <source>. Append to <target> if missing.
 #   Creates <target> if absent. Resolves symlinks to real files (legacy migration).
@@ -245,39 +225,10 @@ for f in "$kit_dir"/skills/*.md; do
   skills+=("$(basename "$f" .md)")
 done
 
-# ── 3b. Classify skills by model tier ─────────────────────────────────
-fast_skills=()
-for skill in "${skills[@]}"; do
-  skill_file="$kit_dir/skills/${skill}.md"
-  [ -f "$skill_file" ] || continue
-
-  # Skip files without frontmatter (e.g., internal skills)
-  if ! head -1 "$skill_file" | grep -q '^---$'; then
-    continue
-  fi
-
-  # Validate frontmatter has closing delimiter
-  fm_count=$(head -20 "$skill_file" | grep -c '^---$' || true)
-  if [ "$fm_count" -lt 2 ]; then
-    echo "ERROR: Cannot parse frontmatter in ${skill}.md" >&2
-    exit 1
-  fi
-
-  tier=$(frontmatter_field "$skill_file" "model_tier")
-  if [ -n "$tier" ]; then
-    if [ "$tier" != "fast" ]; then
-      echo "ERROR: Unrecognized model_tier \"$tier\" in ${skill}.md. Valid values: fast" >&2
-      exit 1
-    fi
-    fast_skills+=("$skill")
-  fi
-done
-
-# sync_agent_skills <agent_label> <base_dir> <format> <mode> [<5th_param>]
+# sync_agent_skills <agent_label> <base_dir> <format> <mode> [<rel_prefix>]
 #   format: "directory" → <base>/<name>/SKILL.md, "flat" → <base>/<name>.md
 #   mode: "symlink" (needs rel_prefix) or "copy" (copies file content)
-#   5th param: symlink mode → relative path from symlink location back to repo root
-#              copy mode → optional sed expression applied during copy (for model templating)
+#   rel_prefix: symlink mode → relative path from symlink location back to repo root
 sync_agent_skills() {
   local agent_label="$1"
   local base_dir="$2"
@@ -410,25 +361,8 @@ clean_stale_skills() {
   fi
 }
 
-# ── 3c. Resolve fast-tier model for Claude Code ───────────────────────
-# Used as sed expression during copy to replace model_tier: → model:
-claude_fast_model=""
-if [ ${#fast_skills[@]} -gt 0 ]; then
-  if [ -f "$fab_dir/project/config.yaml" ]; then
-    claude_fast_model=$(yaml_value "$fab_dir/project/config.yaml" "model_tiers" "fast" "claude")
-  fi
-  if [ -z "$claude_fast_model" ]; then
-    claude_fast_model="haiku"
-  fi
-fi
-
-# Claude Code: .claude/skills/<name>/SKILL.md (directory-based, copies with model templating)
-if [ -n "$claude_fast_model" ]; then
-  sync_agent_skills "Claude Code" "$repo_root/.claude/skills" "directory" "copy" \
-    "s/^model_tier: .*/model: $claude_fast_model/"
-else
-  sync_agent_skills "Claude Code" "$repo_root/.claude/skills" "directory" "copy"
-fi
+# Claude Code: .claude/skills/<name>/SKILL.md (directory-based, copies)
+sync_agent_skills "Claude Code" "$repo_root/.claude/skills" "directory" "copy"
 clean_stale_skills "$repo_root/.claude/skills" "directory"
 
 # OpenCode: .opencode/commands/<name>.md (flat file, symlinks)

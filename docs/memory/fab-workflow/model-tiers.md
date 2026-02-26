@@ -4,135 +4,61 @@
 
 ## Overview
 
-Fab uses a two-tier model classification system to match skill complexity with appropriate AI models. Simple skills that delegate to shell scripts run on cheaper, faster models; complex skills that generate artifacts or require deep reasoning use the platform's most capable model. The tier system is provider-agnostic — canonical skill files declare a generic tier, and the deployment script translates it to provider-specific model identifiers.
+All fab skills run on the session's default model — there is no model tier system. The former two-tier system (`fast` and `capable`) was eliminated because the `fast` tier caused mid-conversation context compaction in Claude Code when switching from a high-context model to Haiku's smaller context window.
 
 ## Requirements
 
-### Tier Naming Scheme
+### Single Tier: All Skills Use Platform Default
 
-Two tiers:
+No skill file in `fab/.kit/skills/` declares a `model_tier` field. All skills run on whatever model the user's session is using. There is no `model_tiers:` section in `config.yaml`, no tier resolution logic in `2-sync-workspace.sh`, and no model substitution during skill deployment.
 
-- **`fast`** — skills that delegate to shell scripts, display formatted output, or perform simple lookups without deep reasoning or artifact generation
-- **`capable`** (implicit default) — skills that require multi-step reasoning, artifact generation, SRAD evaluation, code analysis, or review
+### Deployment: Plain Copy
 
-A skill that omits the `model_tier` field is treated as `capable`. Only skills explicitly marked `model_tier: fast` use a cheaper/faster model.
+`sync/2-sync-workspace.sh` deploys skills to platform-specific directories:
 
-### Tier Selection Criteria
-
-| Criterion | fast | capable |
-|-----------|------|---------|
-| Delegates to shell script | Yes | — |
-| Generates markdown artifacts | — | Yes |
-| Applies SRAD framework | — | Yes |
-| Reads/modifies source code | — | Yes |
-| Requires multi-step reasoning | — | Yes |
-| Simple state lookup or display | Yes | — |
-
-A skill matching ANY `capable` criterion is classified as `capable`, regardless of other characteristics.
-
-### Skill Classification Audit
-
-**Fast tier** (`model_tier: fast`):
-
-| Skill | Rationale |
-|-------|-----------|
-| `fab-help` | Delegates to `fab-help.sh` |
-| `fab-status` | Delegates to `lib/preflight.sh` + `lib/stageman.sh` |
-| `fab-switch` | State lookup, branch operations, no artifact generation |
-| `fab-setup` | Structural bootstrap, delegates to `fab-sync.sh` |
-
-**Capable tier** (no `model_tier` field):
-
-| Skill | Rationale |
-|-------|-----------|
-| `fab-new` | Intake generation, SRAD evaluation |
-| `docs-hydrate-memory` | Content analysis, memory generation/merging |
-| `fab-continue` | Artifact generation (spec/tasks), code implementation, review validation, memory hydration |
-| `fab-ff` | Multi-stage pipeline orchestration |
-| `fab-fff` | Full pipeline with confidence gating |
-| `fab-clarify` | Gap resolution, deep reasoning |
-| `docs-hydrate-specs` | Structural gap analysis, spec modification |
-| `docs-reorg-specs` | Spec file theme analysis and reorganization |
-| `docs-reorg-memory` | Memory file theme analysis and reorganization |
-| `internal-consistency-check` | Cross-layer drift detection |
-| `internal-retrospect` | Retrospective analysis |
-| `git-pr` | Commit message generation requires reasoning about change scope; runs once per pipeline so cost is negligible |
-
-Additionally, **review sub-agents** spawned during pipeline execution (by `/fab-continue`, `/fab-ff`, `/fab-fff`) use the capable tier — review requires deep reasoning, code analysis, spec comparison, and checklist validation.
-
-Shared partials (`_preamble.md`, `_generation.md`) are not deployable and have no tier.
-
-### Model Tier Configuration
-
-Model tier mappings live in `fab/project/config.yaml` under the `model_tiers:` section:
-
-```yaml
-model_tiers:
-  fast:
-    claude: haiku   # or sonnet, etc.
-```
-
-When `config.yaml` has no `model_tiers:` section (or doesn't exist), `fab-sync.sh` falls back to `haiku` for the fast tier. There is no separate mapping file — the former `fab/.kit/model-tiers.yaml` was deleted in v0.8.0, consolidating all configuration into `config.yaml`.
-
-### Deployment: Copy-with-Template
-
-`sync/2-sync-workspace.sh` deploys skills to platform-specific directories using the appropriate mode:
-
-- **Claude Code** (`.claude/skills/`): Copies with model templating — `model_tier: fast` is replaced with `model: {resolved}` during copy. Capable skills are copied verbatim. The sed expression is applied during copy, and idempotency uses string comparison of templated content against the existing file.
+- **Claude Code** (`.claude/skills/`): Plain copies (byte-accurate)
 - **OpenCode** (`.opencode/commands/`): Symlinks to canonical skill files in `.kit/skills/`
 - **Codex** (`.agents/skills/`): Plain copies (Codex ignores symlinks)
 
-All skills are deployed to all platforms. The `model_tier:` → `model:` substitution is Claude Code-specific; other platforms receive the canonical file as-is.
-
-### Adding a New Provider
-
-1. Add the platform key under the relevant tier in `fab/project/config.yaml` `model_tiers:` (and in `fab/.kit/scaffold/config.yaml` for new projects)
-2. Update `2-sync-workspace.sh` to read the new platform key
-3. Add the sync call (copy or symlink) in the appropriate section, with a sed expression if the platform supports model frontmatter
-
-### Selecting a Tier for New Skills
-
-When creating a new fab skill, ask:
-
-1. Does it generate markdown artifacts? → **capable**
-2. Does it apply the SRAD framework? → **capable**
-3. Does it read or modify source code? → **capable**
-4. Does it require multi-step reasoning? → **capable**
-5. Does it mainly delegate to a shell script? → **fast**
-6. Is it a simple state lookup or display? → **fast**
-
-If in doubt, use **capable** (the default — just omit `model_tier`).
+All skills are deployed identically to all platforms — no per-skill model templating or substitution.
 
 ## Design Decisions
 
-### Two Tiers, Not Three
-**Decision**: Only `fast` and `capable`. No middle tier.
-**Why**: The gap between script delegation and artifact generation is clear-cut. A middle tier would create ambiguous classification decisions.
-**Rejected**: Three tiers (fast/standard/capable) — adds complexity without practical benefit.
+### ~~Two Tiers, Not Three~~ (Superseded)
+**Decision**: ~~Only `fast` and `capable`. No middle tier.~~
+**Superseded by**: Single tier — all skills use platform default. The fast tier caused context compaction.
 *Introduced by*: 260212-k8m3-skill-model-tiers
+*Superseded by*: 260226-85rg-drop-fast-model-tier
 
-### Omission = Capable
-**Decision**: Only `fast` is explicitly tagged. No `model_tier: capable` needed.
-**Why**: 12 of 16 skills are capable. Tagging only the 4 exceptions reduces noise.
-**Rejected**: Explicit `model_tier: capable` on all skills.
+### ~~Omission = Capable~~ (Superseded)
+**Decision**: ~~Only `fast` is explicitly tagged. No `model_tier: capable` needed.~~
+**Superseded by**: No tier tagging at all — the `model_tier` frontmatter field no longer exists.
 *Introduced by*: 260212-k8m3-skill-model-tiers
+*Superseded by*: 260226-85rg-drop-fast-model-tier
 
 ### ~~Dual Deployment for Fast-Tier~~ (Superseded)
 **Decision**: ~~Fast-tier skills get both a skill symlink and a generated agent file.~~
-**Superseded by**: Copy-with-template — Claude Code skills now support `model:` in frontmatter natively, so the dual deployment strategy is no longer needed. Skills are deployed as copies with `model_tier:` → `model:` substitution applied during copy. Agent files (`.claude/agents/`) are no longer generated; a transitional cleanup step removes stale agent files matching known skill names.
+**Superseded by**: Copy-with-template (260219), then eliminated entirely (260226) when the fast tier was removed.
 *Introduced by*: 260212-k8m3-skill-model-tiers
-*Superseded by*: 260219-d2y2-copy-template-skills-drop-agents
+*Superseded by*: 260219-d2y2-copy-template-skills-drop-agents, 260226-85rg-drop-fast-model-tier
 
-### Single Source in config.yaml with Hardcoded Fallback
-**Decision**: Model tier mappings live exclusively in `config.yaml`. When absent, `fab-sync.sh` uses a hardcoded `haiku` fallback. The former `fab/.kit/model-tiers.yaml` was deleted.
-**Why**: Two-file resolution (kit defaults + config override) added complexity for a setting that almost never changes. A hardcoded fallback with config override is simpler and sufficient.
-**Superseded**: Previous design used `model-tiers.yaml` as kit defaults with config.yaml override.
+### ~~Single Source in config.yaml with Hardcoded Fallback~~ (Superseded)
+**Decision**: ~~Model tier mappings live exclusively in `config.yaml`.~~
+**Superseded by**: No tier mappings anywhere — `model_tiers:` section removed from config and scaffold.
 *Introduced by*: 260218-bb93-restructure-config-yaml
+*Superseded by*: 260226-85rg-drop-fast-model-tier
+
+### Eliminate Fast Tier to Prevent Context Compaction
+**Decision**: Remove the fast tier entirely — all skills use the session's default model.
+**Why**: When Claude Code invoked a `model_tier: fast` skill, it switched to Haiku mid-conversation. Haiku's smaller context window forced conversation compaction, losing context and degrading the user experience. The cost savings from Haiku for lightweight skills were negligible compared to the disruption. The same problem had already led to `git-pr` being moved off the fast tier.
+**Rejected**: Fix only the most-affected skill (`fab-switch`) — the problem applied equally to all fast-tier skills. Keep the infrastructure "in case we need it later" — violates YAGNI.
+*Introduced by*: 260226-85rg-drop-fast-model-tier
 
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260226-85rg-drop-fast-model-tier | 2026-02-26 | Eliminated the fast tier entirely. Removed `model_tier: fast` from all 5 remaining skills, `model_tiers:` from config and scaffold, tier classification/resolution logic from sync script, `yaml_value` helper, and model-tier tests. All skills now use the session's default model. Added migration 0.21.0→0.22.0. Bumped kit to v0.22.0. |
 | 260222-s101-wt-create-stderr-wt-list-flags | 2026-02-22 | Moved `git-pr` from fast to capable tier — removed `model_tier: fast` and preamble directive. Commit message generation needs reasoning; haiku's smaller context window caused limit hits when invoked late in pipeline sessions. |
 | 260219-d2y2-copy-template-skills-drop-agents | 2026-02-19 | Replaced dual deployment (symlinks + agent files) with copy-with-template: Claude Code skills deployed as copies with `model_tier:` → `model:` substitution. Removed agent file generation. Added transitional agent cleanup. Marked Dual Deployment design decision as superseded |
 | 260218-5isu-fix-docs-consistency-drift | 2026-02-18 | Replaced stale `fab-init` → `fab-setup` in skill classification and `lib/sync-workspace.sh` → correct paths (`fab-sync.sh`, `sync/2-sync-workspace.sh`) in deployment references |

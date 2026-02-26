@@ -22,11 +22,3 @@ stage_directives:
   apply: []
   review: []
   hydrate: []
-
-# Maps tier names to provider-specific model identifiers.
-# Used by sync-workspace.sh when deploying skills to agent directories.
-model_tiers:
-  fast:
-    claude: haiku
-  capable:
-    claude: null    # null = use platform default

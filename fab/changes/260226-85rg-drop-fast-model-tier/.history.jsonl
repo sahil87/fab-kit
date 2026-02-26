@@ -1,0 +1,8 @@
+{"ts":"2026-02-26T22:32:18+05:30","event":"command","cmd":"fab-new","args":"fab-switch causes conversation compacting mid-conversation due to model tier switch from high context limit to lower context limit. Remove model_tier fast from skills."}
+{"ts":"2026-02-26T22:42:52+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-26T22:43:34+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-26T22:44:54+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-26T22:47:02+05:30","event":"confidence","score":4.7,"delta":"+4.7","trigger":"calc-score"}
+{"ts":"2026-02-26T22:47:56+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-26T22:54:12+05:30","event":"review","result":"failed","rework":"fix-code"}
+{"ts":"2026-02-26T22:56:21+05:30","event":"review","result":"passed"}

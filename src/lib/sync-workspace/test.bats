@@ -2,8 +2,7 @@
 
 # Test suite for 2-sync-workspace.sh
 # Covers: directory creation, VERSION logic, .envrc, index seeding,
-#         skill sync, model-tier agent generation (config.yaml source),
-#         .gitignore, idempotency
+#         skill sync, .gitignore, idempotency
 
 SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
 REPO_SRC_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
@@ -60,18 +59,17 @@ stage_metrics: {}
 last_updated: ""
 YAML
 
-  # Create a minimal capable skill (no frontmatter model_tier)
+  # Create a skill without frontmatter
   cat > "$KIT/skills/fab-continue.md" <<'MD'
 # /fab-continue
 Some skill content.
 MD
 
-  # Create a fast-tier skill (with frontmatter)
+  # Create a skill with frontmatter
   cat > "$KIT/skills/fab-status.md" <<'MD'
 ---
 name: fab-status
 description: "Show status"
-model_tier: fast
 ---
 # /fab-status
 Status skill content.
@@ -294,23 +292,13 @@ YAML
   [ ! -e "$REPO_ROOT/.claude/skills/_preamble.md" ]
 }
 
-# ── Model-Tier Templating ──────────────────────────────────────────
+# ── Skill Copy Verification ───────────────────────────────────────
 
-@test "fast-tier skill copy has model: instead of model_tier:" {
+@test "skill copies are byte-accurate (no templating)" {
   run bash "$KIT/sync/2-sync-workspace.sh"
   [ "$status" -eq 0 ]
-  local skill_content
-  skill_content="$(cat "$REPO_ROOT/.claude/skills/fab-status/SKILL.md")"
-  [[ "$skill_content" == *"model: haiku"* ]]
-  [[ "$skill_content" != *"model_tier: fast"* ]]
-}
-
-@test "capable-tier skill copy preserves content without model override" {
-  run bash "$KIT/sync/2-sync-workspace.sh"
-  [ "$status" -eq 0 ]
-  local skill_content
-  skill_content="$(cat "$REPO_ROOT/.claude/skills/fab-continue/SKILL.md")"
-  [[ "$skill_content" != *"model:"* ]]
+  cmp -s "$KIT/skills/fab-status.md" "$REPO_ROOT/.claude/skills/fab-status/SKILL.md"
+  cmp -s "$KIT/skills/fab-continue.md" "$REPO_ROOT/.claude/skills/fab-continue/SKILL.md"
 }
 
 @test "transitional cleanup removes stale agent files" {
@@ -377,27 +365,3 @@ YAML
   [[ "$output" == *"VERSION not found"* ]]
 }
 
-@test "uses haiku fallback when config.yaml has no model_tiers" {
-  # No config.yaml at all — should fall back to haiku
-  run bash "$KIT/sync/2-sync-workspace.sh"
-  [ "$status" -eq 0 ]
-  local skill_content
-  skill_content="$(cat "$REPO_ROOT/.claude/skills/fab-status/SKILL.md")"
-  [[ "$skill_content" == *"model: haiku"* ]]
-}
-
-@test "reads model_tiers from config.yaml when present" {
-  mkdir -p "$REPO_ROOT/fab/project"
-  cat > "$REPO_ROOT/fab/project/config.yaml" <<'YAML'
-project:
-  name: test
-model_tiers:
-  fast:
-    claude: sonnet
-YAML
-  run bash "$KIT/sync/2-sync-workspace.sh"
-  [ "$status" -eq 0 ]
-  local skill_content
-  skill_content="$(cat "$REPO_ROOT/.claude/skills/fab-status/SKILL.md")"
-  [[ "$skill_content" == *"model: sonnet"* ]]
-}

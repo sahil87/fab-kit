@@ -1,7 +1,6 @@
 ---
 name: fab-help
 description: "Show the fab workflow overview and a quick summary of all available commands."
-model_tier: fast
 ---
 
 # /fab-help

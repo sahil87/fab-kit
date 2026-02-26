@@ -43,7 +43,7 @@ For each skill file, read it fully and evaluate against these bloat signals:
 ## Optimization Rules
 
 1. **Never remove functionality** — every behavioral step, error case, and decision point must survive. The goal is fewer words for the same logic.
-2. **Preserve frontmatter exactly** — `name`, `description`, `model_tier` fields are untouched.
+2. **Preserve frontmatter exactly** — `name`, `description` fields are untouched.
 3. **Preserve the H1 heading and context reference** — `# /skill-name` and the `_preamble.md` blockquote stay.
 4. **Reference shared docs instead of re-explaining** — e.g., replace a 10-line SRAD re-explanation with "Apply the SRAD framework (see `_preamble.md`)."
 5. **Merge small sequential steps** — if Step N and Step N+1 are always done together and total <5 lines, combine them.

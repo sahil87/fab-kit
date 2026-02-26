@@ -203,21 +203,6 @@ Agent-specific skill files SHALL be symlinks pointing into `fab/.kit/skills/`. T
 └── SKILL.md → ../../../fab/.kit/skills/fab-new.md
 ```
 
-### Model Tier Agent Files (Dual Deployment)
-
-Skills classified as `fast` tier (via `model_tier: fast` in frontmatter) get **both** a skill symlink and a generated agent file. This dual deployment gives fast-tier skills user invocation (via skill) and model-optimized pipeline invocation (via agent).
-
-**Claude Code** — generated agent files:
-```
-.claude/agents/fab-setup.md
-.claude/agents/fab-status.md
-.claude/agents/fab-switch.md
-```
-
-Agent files are self-contained (not symlinks) because they need a translated `model:` field. `sync/2-sync-workspace.sh` regenerates them on each run, so they stay in sync with `.kit/` updates.
-
-Capable-tier skills (the default) get symlinks only — no agent files. See [model-tiers.md](model-tiers.md) for the full tier system documentation.
-
 ### Distribution & Bootstrapping
 
 `.kit/` is a standalone directory — no package manager, no CLI binary, no system install. This preserves the "pure prompt play" principle.
@@ -346,6 +331,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260226-85rg-drop-fast-model-tier | 2026-02-26 | Removed "Model Tier Agent Files (Dual Deployment)" section — the fast tier has been eliminated. All skills are now deployed as plain copies with no model templating. See `model-tiers.md` for full details. |
 | 260226-koj1-version-staleness-warning | 2026-02-26 | Added `fab/.kit-sync-version` (gitignored sync stamp) and `fab/.kit-migration-version` (renamed from `fab/project/VERSION`) to version tracking section. Updated preserved/replaced file lists. Added sync stamp to directory overview. |
 | 260223-sr3u-add-fab-doctor | 2026-02-23 | Added `fab-doctor.sh` standalone prerequisite checker (7 tools: git, bash, yq v4+, jq, gh, bats, direnv+hook). Rewrote `sync/1-prerequisites.sh` as thin `exec` delegate to doctor. Updated `fab-upgrade.sh` output: "Update complete" prints first, `⚠` migration warning prints last (or omitted when no drift). Added Phase 0 doctor gate to `fab-setup.md` (bare bootstrap only). Added `fab-doctor.sh` to directory tree, scripts section, and lib/ design decision user-facing scripts list. |
 | 260222-s101-wt-create-stderr-wt-list-flags | 2026-02-22 | wt-create and wt-pr `--non-interactive` now redirects human messages to stderr (porcelain output: only path on stdout). Removed `\| tail -1` from 3 batch callers. Added `--path <name>` (single worktree path lookup), `--json` (JSON array with dirty/unpushed fields), and status column (`*` dirty, `↑N` unpushed) to wt-list. Added mutual exclusivity check for `--path`/`--json`. Added "Non-Interactive Porcelain Output Contract" design decision. |

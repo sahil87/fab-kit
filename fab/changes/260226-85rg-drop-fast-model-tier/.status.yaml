@@ -1,0 +1,38 @@
+name: 260226-85rg-drop-fast-model-tier
+created: 2026-02-26T22:32:18+05:30
+created_by: sahil-weaver
+change_type: fix
+issue_id: null
+progress:
+  intake: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
+checklist:
+  generated: true
+  path: checklist.md
+  completed: 22
+  total: 22
+confidence:
+  certain: 7
+  confident: 1
+  tentative: 0
+  unresolved: 0
+  score: 4.7
+  fuzzy: true
+  dimensions:
+    signal: 77.5
+    reversibility: 91.9
+    competence: 87.5
+    disambiguation: 92.5
+stage_metrics:
+  intake: {started_at: "2026-02-26T22:32:18+05:30", driver: fab-new, iterations: 1, completed_at: "2026-02-26T22:43:49+05:30"}
+  spec: {started_at: "2026-02-26T22:43:49+05:30", driver: fab-continue, iterations: 1, completed_at: "2026-02-26T22:48:09+05:30"}
+  tasks: {started_at: "2026-02-26T22:48:09+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-26T22:48:46+05:30"}
+  apply: {started_at: "2026-02-26T22:54:12+05:30", driver: fab-ff, iterations: 2, completed_at: "2026-02-26T22:54:49+05:30"}
+  review: {started_at: "2026-02-26T22:54:49+05:30", driver: fab-ff, iterations: 2, completed_at: "2026-02-26T22:56:21+05:30"}
+  hydrate: {started_at: "2026-02-26T22:56:21+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-26T22:57:51+05:30"}
+shipped: []
+last_updated: "2026-02-26T22:57:51+05:30"
