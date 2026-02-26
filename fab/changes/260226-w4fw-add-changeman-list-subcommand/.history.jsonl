@@ -1,1 +1,5 @@
 {"ts":"2026-02-26T18:20:16+05:30","event":"command","cmd":"fab-new","args":"Add list subcommand to changeman.sh"}
+{"ts":"2026-02-26T19:01:18+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-26T19:02:35+05:30","event":"confidence","score":4.1,"delta":"+4.1","trigger":"calc-score"}
+{"ts":"2026-02-26T19:04:43+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-26T19:12:13+05:30","event":"review","result":"passed"}

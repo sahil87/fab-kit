@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 
 # Test suite for changeman.sh
-# Covers: new, rename, resolve, switch subcommands
+# Covers: list, new, rename, resolve, switch subcommands
 
 REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../.." && pwd)"
 CHANGEMAN="$REPO_ROOT/fab/.kit/scripts/lib/changeman.sh"
@@ -585,11 +585,192 @@ STUB
   [[ "$output" == *"requires"* ]]
 }
 
-# ── help includes resolve and switch ─────────────────────────────
+# ── list: happy path ──────────────────────────────────────────────
 
-@test "--help includes resolve and switch" {
+@test "list: outputs one line per active change" {
+  mkdir -p "$FAB_ROOT/changes/260226-a1b2-change-one"
+  cat > "$FAB_ROOT/changes/260226-a1b2-change-one/.status.yaml" <<'YAML'
+progress:
+  intake: done
+  spec: active
+  tasks: pending
+  apply: pending
+  review: pending
+  hydrate: pending
+YAML
+  mkdir -p "$FAB_ROOT/changes/260226-c3d4-change-two"
+  cat > "$FAB_ROOT/changes/260226-c3d4-change-two/.status.yaml" <<'YAML'
+progress:
+  intake: active
+  spec: pending
+  tasks: pending
+  apply: pending
+  review: pending
+  hydrate: pending
+YAML
+
+  cat > "$FAB_ROOT/.kit/scripts/lib/stageman.sh" <<STUB
+#!/usr/bin/env bash
+if [ "\$1" = "display-stage" ]; then
+  if grep -q "spec: active" "\$2" 2>/dev/null; then echo "spec:active"
+  elif grep -q "intake: active" "\$2" 2>/dev/null; then echo "intake:active"
+  else echo "unknown:unknown"
+  fi
+  exit 0
+fi
+echo "\$@" >> "$STAGEMAN_LOG"
+STUB
+  chmod +x "$FAB_ROOT/.kit/scripts/lib/stageman.sh"
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" list
+  [ "$status" -eq 0 ]
+  local line_count
+  line_count=$(echo "$output" | wc -l)
+  [ "$line_count" -eq 2 ]
+  [[ "$output" == *"260226-a1b2-change-one:spec:active"* ]]
+  [[ "$output" == *"260226-c3d4-change-two:intake:active"* ]]
+}
+
+@test "list: excludes archive directory" {
+  mkdir -p "$FAB_ROOT/changes/260226-a1b2-change-one"
+  cat > "$FAB_ROOT/changes/260226-a1b2-change-one/.status.yaml" <<'YAML'
+progress:
+  intake: active
+YAML
+  mkdir -p "$FAB_ROOT/changes/archive/260220-x1y2-old-change"
+
+  cat > "$FAB_ROOT/.kit/scripts/lib/stageman.sh" <<STUB
+#!/usr/bin/env bash
+if [ "\$1" = "display-stage" ]; then echo "intake:active"; exit 0; fi
+echo "\$@" >> "$STAGEMAN_LOG"
+STUB
+  chmod +x "$FAB_ROOT/.kit/scripts/lib/stageman.sh"
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" list
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"260226-a1b2-change-one:intake:active"* ]]
+  [[ "$output" != *"archive"* ]]
+  [[ "$output" != *"260220-x1y2-old-change"* ]]
+}
+
+# ── list: empty result ───────────────────────────────────────────
+
+@test "list: no changes returns empty output exit 0" {
+  mkdir -p "$FAB_ROOT/changes/archive"  # only archive exists
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" list
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "list: missing fab/changes/ returns error" {
+  rm -rf "$FAB_ROOT/changes"
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" list
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"fab/changes/ not found"* ]]
+}
+
+# ── list: missing .status.yaml ───────────────────────────────────
+
+@test "list: missing .status.yaml outputs unknown:unknown with warning" {
+  mkdir -p "$FAB_ROOT/changes/260226-c3d4-bad"
+  # No .status.yaml
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" list
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"260226-c3d4-bad:unknown:unknown"* ]]
+  [[ "$output" == *"Warning"* ]]
+}
+
+@test "list: mixed good and bad changes outputs both" {
+  mkdir -p "$FAB_ROOT/changes/260226-a1b2-good"
+  cat > "$FAB_ROOT/changes/260226-a1b2-good/.status.yaml" <<'YAML'
+progress:
+  intake: done
+  spec: active
+YAML
+  mkdir -p "$FAB_ROOT/changes/260226-c3d4-bad"
+  # No .status.yaml for bad
+
+  cat > "$FAB_ROOT/.kit/scripts/lib/stageman.sh" <<STUB
+#!/usr/bin/env bash
+if [ "\$1" = "display-stage" ]; then echo "spec:active"; exit 0; fi
+STUB
+  chmod +x "$FAB_ROOT/.kit/scripts/lib/stageman.sh"
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" list
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"260226-a1b2-good:spec:active"* ]]
+  [[ "$output" == *"260226-c3d4-bad:unknown:unknown"* ]]
+}
+
+@test "list: stageman display-stage failure falls back to unknown:unknown" {
+  mkdir -p "$FAB_ROOT/changes/260226-a1b2-broken"
+  cat > "$FAB_ROOT/changes/260226-a1b2-broken/.status.yaml" <<'YAML'
+progress:
+  corrupt: data
+YAML
+
+  cat > "$FAB_ROOT/.kit/scripts/lib/stageman.sh" <<STUB
+#!/usr/bin/env bash
+if [ "\$1" = "display-stage" ]; then exit 1; fi
+STUB
+  chmod +x "$FAB_ROOT/.kit/scripts/lib/stageman.sh"
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" list
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"260226-a1b2-broken:unknown:unknown"* ]]
+}
+
+# ── list: --archive flag ─────────────────────────────────────────
+
+@test "list --archive: lists archived changes" {
+  mkdir -p "$FAB_ROOT/changes/archive/260220-x1y2-old-change"
+  cat > "$FAB_ROOT/changes/archive/260220-x1y2-old-change/.status.yaml" <<'YAML'
+progress:
+  intake: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
+YAML
+
+  cat > "$FAB_ROOT/.kit/scripts/lib/stageman.sh" <<STUB
+#!/usr/bin/env bash
+if [ "\$1" = "display-stage" ]; then echo "hydrate:done"; exit 0; fi
+echo "\$@" >> "$STAGEMAN_LOG"
+STUB
+  chmod +x "$FAB_ROOT/.kit/scripts/lib/stageman.sh"
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" list --archive
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"260220-x1y2-old-change:hydrate:done"* ]]
+}
+
+@test "list --archive: empty archive returns empty output exit 0" {
+  mkdir -p "$FAB_ROOT/changes/archive"
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" list --archive
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "list --archive: missing archive directory returns empty output exit 0" {
+  rm -rf "$FAB_ROOT/changes/archive"
+
+  run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" list --archive
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+# ── help includes resolve, switch, and list ──────────────────────
+
+@test "--help includes resolve, switch, and list" {
   run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" --help
   [ "$status" -eq 0 ]
   [[ "$output" == *"resolve"* ]]
   [[ "$output" == *"switch"* ]]
+  [[ "$output" == *"list"* ]]
 }

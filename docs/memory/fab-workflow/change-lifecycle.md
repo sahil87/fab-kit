@@ -150,6 +150,14 @@ To discard a change that won't be completed:
 
 There is no `/fab-abandon` skill — this is a manual operation. To preserve context about why a change was dropped, move the folder to `archive/` instead.
 
+### Listing Changes
+
+`changeman.sh list [--archive]` enumerates changes with their stage and state, outputting one structured line per change to stdout in the format `name:display_stage:display_state`. By default it scans `fab/changes/` (excluding `archive/`). With `--archive`, it scans `fab/changes/archive/` instead.
+
+Stage and state are derived via `stageman.sh display-stage` for each change's `.status.yaml`. If a change directory lacks `.status.yaml`, the output is `name:unknown:unknown` with a warning to stderr. If no changes are found, the output is empty (exit 0). If `fab/changes/` does not exist, exit 1 with error to stderr. Missing archive directory with `--archive` is treated as empty (exit 0).
+
+Used by `/fab-switch` (no-argument flow) and `/fab-status` to enumerate changes without manual directory scanning.
+
 ### `/fab-status`
 
 `/fab-status` shows the current change state at a glance: name, live git branch, display stage with state qualifier, next action, progress through all stages, checklist status, confidence score, and version drift warning.
@@ -249,6 +257,7 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260226-w4fw-add-changeman-list-subcommand | 2026-02-26 | Added `changeman.sh list [--archive]` subcommand — enumerates changes with stage and state via `stageman.sh display-stage`. Outputs `name:display_stage:display_state` per line. Handles missing `.status.yaml` gracefully. Updated help text. Added "Listing Changes" section. |
 | 260226-jq7a-slim-config-decouple-naming | 2026-02-26 | Removed git config (always enabled, no prefix). Decoupled Linear issue ID from folder name — now stored as issue_id in .status.yaml. |
 | 260225-jwa3-git-branch-standalone-fallback | 2026-02-25 | `/git-branch` gains standalone fallback: when an explicit argument doesn't match any fab change, the raw argument is used as a literal branch name (no prefix, no transformation). Change resolution still takes precedence. Existing branches are switched to instead of failing. Step 5 gains branch-existence check for both standalone and change-resolved paths. |
 | 260224-v40o-wt-drop-prefix-and-dotworktrees | 2026-02-25 | Removed `wt/*` branch pattern special-casing from `/git-branch` — all non-main, non-target branches now treated uniformly with "Adopt this branch" as default |

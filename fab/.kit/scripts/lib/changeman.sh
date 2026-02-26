@@ -2,13 +2,14 @@
 # fab/.kit/scripts/lib/changeman.sh
 #
 # Change Manager — CLI utility for change lifecycle operations.
-# Supports `new`, `rename`, `resolve`, and `switch` subcommands.
+# Supports `list`, `new`, `rename`, `resolve`, and `switch` subcommands.
 #
 # Usage:
 #   changeman.sh new --slug <slug> [--change-id <4char>] [--log-args <description>]
 #   changeman.sh rename --folder <current-folder> --slug <new-slug>
 #   changeman.sh resolve [<override>]
 #   changeman.sh switch <name> | --blank
+#   changeman.sh list [--archive]
 #   changeman.sh --help
 
 set -euo pipefail
@@ -147,6 +148,61 @@ cmd_resolve() {
       return 1
     fi
   fi
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# list subcommand
+# ─────────────────────────────────────────────────────────────────────────────
+
+cmd_list() {
+  local archive=false
+
+  # Parse arguments
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --archive) archive=true; shift ;;
+      *) echo "ERROR: Unknown flag '$1'" >&2; exit 1 ;;
+    esac
+  done
+
+  # Determine scan directory
+  local scan_dir
+  if [ "$archive" = true ]; then
+    scan_dir="$FAB_ROOT/changes/archive"
+  else
+    scan_dir="$FAB_ROOT/changes"
+  fi
+
+  if [ ! -d "$scan_dir" ]; then
+    if [ "$archive" = true ]; then
+      # No archive directory is a valid empty state
+      return 0
+    else
+      echo "fab/changes/ not found." >&2
+      return 1
+    fi
+  fi
+
+  # Enumerate change directories
+  local d base status_file display_output display_stage display_state
+  for d in "$scan_dir"/*/; do
+    [ -d "$d" ] || continue
+    base="$(basename "$d")"
+    # Skip archive/ when listing active changes
+    [ "$archive" = false ] && [ "$base" = "archive" ] && continue
+
+    status_file="$d/.status.yaml"
+    if [ ! -f "$status_file" ]; then
+      echo "$base:unknown:unknown"
+      echo "Warning: .status.yaml not found for $base" >&2
+      continue
+    fi
+
+    display_output=$("$STAGEMAN" display-stage "$status_file" 2>/dev/null) || display_output="unknown:unknown"
+    display_stage="${display_output%%:*}"
+    display_state="${display_output#*:}"
+    echo "$base:$display_stage:$display_state"
+  done
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -446,6 +502,7 @@ USAGE:
   changeman.sh rename --folder <current-folder> --slug <new-slug>
   changeman.sh resolve [<override>]
   changeman.sh switch <name> | --blank
+  changeman.sh list [--archive]
   changeman.sh --help
 
 SUBCOMMANDS:
@@ -453,6 +510,7 @@ SUBCOMMANDS:
   rename   Rename an existing change folder's slug (preserves date-ID prefix)
   resolve  Resolve a change name from override or fab/current
   switch   Switch the active change (resolve + write pointer)
+  list     List active changes with stage and state (or archived with --archive)
 
 FLAGS (for new):
   --slug <slug>            Required. Folder name suffix (e.g., "add-oauth" or "DEV-988-add-oauth")
@@ -471,6 +529,9 @@ ARGS (for switch):
   <name>      Change name or partial match to switch to.
   --blank     Deactivate the current change (delete fab/current).
 
+FLAGS (for list):
+  --archive   List archived changes instead of active ones.
+
 OUTPUT:
   On success: prints result to stdout.
   On error: prints diagnostic message to stderr, exits non-zero.
@@ -481,6 +542,8 @@ EXAMPLES:
   changeman.sh rename --folder 260216-u6d5-old-slug --slug new-slug
   changeman.sh resolve a7k2
   changeman.sh resolve
+  changeman.sh list
+  changeman.sh list --archive
   changeman.sh switch a7k2
   changeman.sh switch --blank
 EOF
@@ -509,6 +572,10 @@ case "${1:-}" in
   switch)
     shift
     cmd_switch "$@"
+    ;;
+  list)
+    shift
+    cmd_list "$@"
     ;;
   "")
     echo "ERROR: No subcommand provided. Try: changeman.sh --help" >&2
