@@ -9,4 +9,4 @@
 - [x] [54vl] 2026-02-25: Make git-pr smarter. There is a category of changes that does not Really require whole fab change folder to come in these are mostly Chores or housekeeping tasks.
 - [x] [vilz] 2026-02-26: From the config.yaml remove the git section. Also add a migration for this. Reduce the verbosity of the config.yaml file.
 - [x] [z6lh] 2026-02-26: Add a mechanism to warn users that they on an older version of the skills. Maybe add a VERSION to the skills folder?
-- [ ] [v8hp] 2026-02-26: fab-switch causes a compacting of the conversation mid-conversation. My guess is this happens because of the model tier switch from a high context limit to a lower context limit. If it's causing such an issue, may be we should remove the model tier 'fast' from these commands.
+- [x] [v8hp] 2026-02-26: fab-switch causes a compacting of the conversation mid-conversation. My guess is this happens because of the model tier switch from a high context limit to a lower context limit. If it's causing such an issue, may be we should remove the model tier 'fast' from these commands.
