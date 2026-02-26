@@ -992,18 +992,18 @@ SUBCOMMANDS:
     all-stages                         List all stages in order
 
   .status.yaml accessors:
-    progress-map <file>                Extract stage:state pairs (one per line)
-    checklist <file>                   Extract checklist fields (key:value lines)
-    confidence <file>                  Extract confidence fields (key:value lines)
-    is-shipped <file>                  Check if change has been shipped (exit 0/1)
+    progress-map <change>              Extract stage:state pairs (one per line)
+    checklist <change>                 Extract checklist fields (key:value lines)
+    confidence <change>                Extract confidence fields (key:value lines)
+    is-shipped <change>                Check if change has been shipped (exit 0/1)
 
   Progression:
-    current-stage <file>               Detect active stage from .status.yaml
-    display-stage <file>               Display stage (where you are) as stage:state
-    progress-line <file>               Single-line visual progress (done → active ⏳)
+    current-stage <change>             Detect active stage from .status.yaml
+    display-stage <change>             Display stage (where you are) as stage:state
+    progress-line <change>             Single-line visual progress (done → active ⏳)
 
   Validation:
-    validate-status-file <file>        Validate .status.yaml against schema
+    validate-status-file <change>      Validate .status.yaml against schema
 
   Event commands:
     start <change> <stage> [driver]            {pending,failed} → active
@@ -1013,11 +1013,11 @@ SUBCOMMANDS:
     fail <change> <stage> [driver]             active → failed (review only)
 
   Write commands:
-    set-change-type <file> <type>              Set change_type (feat/fix/refactor/docs/test/ci/chore)
-    set-checklist <file> <field> <value>        Update checklist field
-    set-confidence <file> <certain> <confident> <tentative> <unresolved> <score>
-    set-confidence-fuzzy <file> <certain> <confident> <tentative> <unresolved> <score> <mean_s> <mean_r> <mean_a> <mean_d>
-    ship <file> <url>                  Append PR URL to shipped array (idempotent)
+    set-change-type <change> <type>            Set change_type (feat/fix/refactor/docs/test/ci/chore)
+    set-checklist <change> <field> <value>      Update checklist field
+    set-confidence <change> <certain> <confident> <tentative> <unresolved> <score>
+    set-confidence-fuzzy <change> <certain> <confident> <tentative> <unresolved> <score> <mean_s> <mean_r> <mean_a> <mean_d>
+    ship <change> <url>                Append PR URL to shipped array (idempotent)
 
   History:
     log-command <change_dir> <cmd> [args]              Log a command invocation

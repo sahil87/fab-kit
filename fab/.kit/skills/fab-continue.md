@@ -221,7 +221,7 @@ The applying agent triages review comments by priority — not all comments need
 3. **Reset `.status.yaml`**: Run `fab/.kit/scripts/lib/stageman.sh reset <change> <stage> fab-continue`. This atomically sets the target stage → `active` and cascades all downstream stages → `pending`. Stages before the target are preserved.
 4. **Execute**: Planning stages regenerate artifact. Execution stages re-run (task checkboxes NOT reset).
 5. **Invalidate downstream** (planning resets only): intake reset → all downstream pending; spec reset → tasks pending; tasks reset → reset all `[x]` → `[ ]`, regenerate checklist. The `reset` command handles the status cascading automatically.
-6. **Post-execution**: Planning resets set target to `done` but do NOT advance next to `active` (prevents auto-advancing into stale content). Use `fab/.kit/scripts/lib/stageman.sh advance <change> <stage>` then manually finish without auto-activate. Execution resets use normal `finish` commands.
+6. **Post-execution**: For **planning resets**, after regenerating the artifact, use `fab/.kit/scripts/lib/stageman.sh advance <change> <stage>` to move the target stage back to `ready` and stop there — **do not** run `finish`, to avoid auto-activating the next pending stage. For **execution resets**, use the normal `finish` commands, which will auto-activate the next pending stage.
 
 ---
 
