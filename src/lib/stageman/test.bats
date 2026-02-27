@@ -1316,99 +1316,165 @@ EOF
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Shipped Tracking
+# Issues & PRs
 # ─────────────────────────────────────────────────────────────────────────────
 
-@test "ship: appends URL to empty shipped array" {
+@test "add-pr: appends URL to empty prs array" {
   make_write_fixture
-  yq -i '.shipped = []' "$TEST_DIR/write-status.yaml"
-  run "$STAGEMAN" ship "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/42"
+  yq -i '.prs = []' "$TEST_DIR/write-status.yaml"
+  run "$STAGEMAN" add-pr "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/42"
   [ "$status" -eq 0 ]
   local result
-  result=$(yq '.shipped[0]' "$TEST_DIR/write-status.yaml")
+  result=$(yq '.prs[0]' "$TEST_DIR/write-status.yaml")
   [ "$result" = "https://github.com/org/repo/pull/42" ]
 }
 
-@test "ship: appends second URL" {
+@test "add-pr: appends second URL" {
   make_write_fixture
-  yq -i '.shipped = ["https://github.com/org/repo/pull/42"]' "$TEST_DIR/write-status.yaml"
-  "$STAGEMAN" ship "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/43"
+  yq -i '.prs = ["https://github.com/org/repo/pull/42"]' "$TEST_DIR/write-status.yaml"
+  "$STAGEMAN" add-pr "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/43"
   local count
-  count=$(yq '.shipped | length' "$TEST_DIR/write-status.yaml")
+  count=$(yq '.prs | length' "$TEST_DIR/write-status.yaml")
   [ "$count" = "2" ]
   local second
-  second=$(yq '.shipped[1]' "$TEST_DIR/write-status.yaml")
+  second=$(yq '.prs[1]' "$TEST_DIR/write-status.yaml")
   [ "$second" = "https://github.com/org/repo/pull/43" ]
 }
 
-@test "ship: deduplicates existing URL" {
+@test "add-pr: deduplicates existing URL" {
   make_write_fixture
-  yq -i '.shipped = ["https://github.com/org/repo/pull/42"]' "$TEST_DIR/write-status.yaml"
-  run "$STAGEMAN" ship "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/42"
+  yq -i '.prs = ["https://github.com/org/repo/pull/42"]' "$TEST_DIR/write-status.yaml"
+  run "$STAGEMAN" add-pr "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/42"
   [ "$status" -eq 0 ]
   local count
-  count=$(yq '.shipped | length' "$TEST_DIR/write-status.yaml")
+  count=$(yq '.prs | length' "$TEST_DIR/write-status.yaml")
   [ "$count" = "1" ]
 }
 
-@test "ship: does not treat substring as duplicate" {
+@test "add-pr: does not treat substring as duplicate" {
   make_write_fixture
-  yq -i '.shipped = ["https://github.com/org/repo/pull/42"]' "$TEST_DIR/write-status.yaml"
-  "$STAGEMAN" ship "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/4"
+  yq -i '.prs = ["https://github.com/org/repo/pull/42"]' "$TEST_DIR/write-status.yaml"
+  "$STAGEMAN" add-pr "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/4"
   local count
-  count=$(yq '.shipped | length' "$TEST_DIR/write-status.yaml")
+  count=$(yq '.prs | length' "$TEST_DIR/write-status.yaml")
   [ "$count" = "2" ]
 }
 
-@test "ship: creates shipped key when missing" {
+@test "add-pr: creates prs key when missing" {
   make_write_fixture
-  run "$STAGEMAN" ship "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/99"
+  run "$STAGEMAN" add-pr "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/99"
   [ "$status" -eq 0 ]
   local result
-  result=$(yq '.shipped[0]' "$TEST_DIR/write-status.yaml")
+  result=$(yq '.prs[0]' "$TEST_DIR/write-status.yaml")
   [ "$result" = "https://github.com/org/repo/pull/99" ]
 }
 
-@test "ship: refreshes last_updated" {
+@test "add-pr: refreshes last_updated" {
   make_write_fixture
-  yq -i '.shipped = []' "$TEST_DIR/write-status.yaml"
-  "$STAGEMAN" ship "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/42"
+  yq -i '.prs = []' "$TEST_DIR/write-status.yaml"
+  "$STAGEMAN" add-pr "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/42"
   local ts
   ts=$(yq '.last_updated' "$TEST_DIR/write-status.yaml")
   [[ "$ts" != "2026-01-01T00:00:00+00:00" ]]
 }
 
-@test "ship: rejects nonexistent file" {
-  run "$STAGEMAN" ship "/nonexistent/path/.status.yaml" "https://example.com"
+@test "add-pr: rejects nonexistent file" {
+  run "$STAGEMAN" add-pr "/nonexistent/path/.status.yaml" "https://example.com"
   [ "$status" -ne 0 ]
   [[ "$output" == *"Status file not found"* ]]
 }
 
-@test "is-shipped: returns 0 when shipped has entries" {
+@test "get-prs: returns URLs one per line" {
   make_write_fixture
-  yq -i '.shipped = ["https://github.com/org/repo/pull/42"]' "$TEST_DIR/write-status.yaml"
-  run "$STAGEMAN" is-shipped "$TEST_DIR/write-status.yaml"
+  yq -i '.prs = ["https://github.com/org/repo/pull/42", "https://github.com/org/repo/pull/43"]' "$TEST_DIR/write-status.yaml"
+  run "$STAGEMAN" get-prs "$TEST_DIR/write-status.yaml"
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | wc -l)" -eq 2 ]
+}
+
+@test "get-prs: returns empty for empty array" {
+  make_write_fixture
+  yq -i '.prs = []' "$TEST_DIR/write-status.yaml"
+  run "$STAGEMAN" get-prs "$TEST_DIR/write-status.yaml"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
 
-@test "is-shipped: returns 1 when shipped is empty" {
+@test "get-prs: returns empty when key missing" {
   make_write_fixture
-  yq -i '.shipped = []' "$TEST_DIR/write-status.yaml"
-  run "$STAGEMAN" is-shipped "$TEST_DIR/write-status.yaml"
-  [ "$status" -ne 0 ]
+  run "$STAGEMAN" get-prs "$TEST_DIR/write-status.yaml"
+  [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
 
-@test "is-shipped: returns 1 when shipped key missing" {
-  make_write_fixture
-  run "$STAGEMAN" is-shipped "$TEST_DIR/write-status.yaml"
+@test "get-prs: rejects nonexistent file" {
+  run "$STAGEMAN" get-prs "/nonexistent/path/.status.yaml"
   [ "$status" -ne 0 ]
+  [[ "$output" == *"Status file not found"* ]]
+}
+
+@test "add-issue: appends ID to empty issues array" {
+  make_write_fixture
+  yq -i '.issues = []' "$TEST_DIR/write-status.yaml"
+  run "$STAGEMAN" add-issue "$TEST_DIR/write-status.yaml" "DEV-123"
+  [ "$status" -eq 0 ]
+  local result
+  result=$(yq '.issues[0]' "$TEST_DIR/write-status.yaml")
+  [ "$result" = "DEV-123" ]
+}
+
+@test "add-issue: deduplicates existing ID" {
+  make_write_fixture
+  yq -i '.issues = ["DEV-123"]' "$TEST_DIR/write-status.yaml"
+  run "$STAGEMAN" add-issue "$TEST_DIR/write-status.yaml" "DEV-123"
+  [ "$status" -eq 0 ]
+  local count
+  count=$(yq '.issues | length' "$TEST_DIR/write-status.yaml")
+  [ "$count" = "1" ]
+}
+
+@test "add-issue: appends second ID" {
+  make_write_fixture
+  yq -i '.issues = ["DEV-123"]' "$TEST_DIR/write-status.yaml"
+  "$STAGEMAN" add-issue "$TEST_DIR/write-status.yaml" "DEV-456"
+  local count
+  count=$(yq '.issues | length' "$TEST_DIR/write-status.yaml")
+  [ "$count" = "2" ]
+}
+
+@test "add-issue: refreshes last_updated" {
+  make_write_fixture
+  yq -i '.issues = []' "$TEST_DIR/write-status.yaml"
+  "$STAGEMAN" add-issue "$TEST_DIR/write-status.yaml" "DEV-123"
+  local ts
+  ts=$(yq '.last_updated' "$TEST_DIR/write-status.yaml")
+  [[ "$ts" != "2026-01-01T00:00:00+00:00" ]]
+}
+
+@test "add-issue: rejects nonexistent file" {
+  run "$STAGEMAN" add-issue "/nonexistent/path/.status.yaml" "DEV-123"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Status file not found"* ]]
+}
+
+@test "get-issues: returns IDs one per line" {
+  make_write_fixture
+  yq -i '.issues = ["DEV-123", "DEV-456"]' "$TEST_DIR/write-status.yaml"
+  run "$STAGEMAN" get-issues "$TEST_DIR/write-status.yaml"
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | wc -l)" -eq 2 ]
+}
+
+@test "get-issues: returns empty for empty array" {
+  make_write_fixture
+  yq -i '.issues = []' "$TEST_DIR/write-status.yaml"
+  run "$STAGEMAN" get-issues "$TEST_DIR/write-status.yaml"
+  [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
 
-@test "is-shipped: rejects nonexistent file" {
-  run "$STAGEMAN" is-shipped "/nonexistent/path/.status.yaml"
+@test "get-issues: rejects nonexistent file" {
+  run "$STAGEMAN" get-issues "/nonexistent/path/.status.yaml"
   [ "$status" -ne 0 ]
   [[ "$output" == *"Status file not found"* ]]
 }

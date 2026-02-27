@@ -52,7 +52,7 @@ If folder already at `fab/changes/archive/{name}/`, skip move and complete remai
 
 ### Step 1: Clean Temporary Files
 
-Delete `.shipped` from the change folder if it exists (gitignored temporary file from `/git-pr`). No error if absent.
+Delete `.pr-done` from the change folder if it exists (gitignored temporary file from `/git-pr`). No error if absent.
 
 ### Step 2: Move Change Folder
 
@@ -97,7 +97,7 @@ Steps execute 1→5 for safety. If interrupted, re-run completes remaining.
 ```
 Archive: {change name}
 
-Cleaned:  ✓ .shipped removed                    (or: — not present)
+Cleaned:  ✓ .pr-done removed                    (or: — not present)
 Moved:    ✓ fab/changes/archive/{name}/        (or: ✓ already in archive)
 Index:    ✓ fab/changes/archive/index.md updated
 Backlog:  ✓ [ID] marked done                   (or: — no backlog file)

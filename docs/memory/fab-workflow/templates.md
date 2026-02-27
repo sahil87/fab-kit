@@ -72,7 +72,7 @@ The `.status.yaml` template initializes a new change with the following structur
 
 - **No `stage:` field** — current stage is derived from the `active` entry in the progress map
 - **`intake: active`** as the initial progress state — intake is the first pipeline stage
-- **`issue_id: null`** — placed after `change_type`. The `issue_id` field stores an optional external tracker ID (e.g., Linear issue `DEV-123`). Initialized to null; populated by `/fab-new` when created from a tracker ticket, or by any skill that discovers the ID later.
+- **`issues: []`** — placed after `change_type`. Array of external tracker IDs (e.g., `["DEV-123"]`). Managed exclusively via `stageman.sh add-issue` / `get-issues`. Populated by `/fab-new` when created from a tracker ticket.
 - All other stages start as `pending`
 
 Initial progress map:
@@ -184,6 +184,7 @@ When `/fab-continue` (hydrate) hydrates into memory files:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260227-gasp-consolidate-status-field-naming | 2026-02-27 | Renamed `issue_id: null` → `issues: []` (scalar to array), `shipped: []` → `prs: []`. All access via stageman `add-issue`/`get-issues`/`add-pr`/`get-prs`. |
 | 260226-tnr8-coverage-scoring-change-types | 2026-02-26 | Changed `.status.yaml` template default `change_type` from `feature` to `feat`, aligning with the 7-type conventional commit prefix taxonomy. |
 | 260226-jq7a-slim-config-decouple-naming | 2026-02-26 | Added `issue_id: null` to .status.yaml template initial state. |
 | 260218-5isu-fix-docs-consistency-drift | 2026-02-18 | Replaced stale `lib/sync-workspace.sh` → `sync/2-sync-workspace.sh` in model tier deployment reference |

@@ -18,7 +18,7 @@ Change folders SHALL use the format `{YYMMDD}-{XXXX}-{slug}`:
 | `XXXX` | Agent (4 random lowercase alphanumeric) | Uniqueness guarantee | `a7k2` |
 | `slug` | Agent (2-6 words from description) | Human readability | `add-oauth` |
 
-All components MUST be lowercase. The name is unique by construction (date + random token), requires no collision scanning, and sorts chronologically in `ls`. The `{YYMMDD}-{XXXX}` prefix is immutable — only the slug can be changed via `changeman.sh rename`. When the change originates from a Linear ticket, the issue ID is stored as `issue_id` in `.status.yaml` — not embedded in the folder name.
+All components MUST be lowercase. The name is unique by construction (date + random token), requires no collision scanning, and sorts chronologically in `ls`. The `{YYMMDD}-{XXXX}` prefix is immutable — only the slug can be changed via `changeman.sh rename`. When the change originates from a Linear ticket, issue IDs are stored in the `issues` array in `.status.yaml` (via `stageman.sh add-issue`) — not embedded in the folder name.
 
 **Example**: `260115-a7k2-add-oauth`
 
@@ -273,6 +273,7 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260227-gasp-consolidate-status-field-naming | 2026-02-27 | Renamed `issue_id` → `issues` (scalar to array) in `.status.yaml`. Issue IDs now stored via `stageman.sh add-issue`, not embedded in folder name. |
 | 260226-6boq-event-driven-stageman | 2026-02-26 | Replaced `set-state`/`transition` API with 5 event commands: `start`, `advance`, `finish`, `reset`, `fail`. Added state transition table. Updated two-write transitions to reference `finish` (atomic done+next) and `reset` (cascade downstream). Updated `stage_metrics` to reference event commands. Driver parameter now optional (skills always pass it). |
 | 260226-3g6f-git-branch-non-interactive-rename | 2026-02-26 | `/git-branch` non-interactive: replaced 3-option menu (Create/Adopt/Skip) with deterministic upstream-tracking logic. Local-only branches renamed via `git branch -m`; branches with upstream get new branch via `git checkout -b`. Removed "Adopt" concept entirely. New report verbs: `renamed from {old}`, `created, leaving {old} intact`. |
 | 260226-i9av-add-ready-state-to-stages | 2026-02-26 | Added `ready` state to lifecycle: `pending → active → ready → done`. Removed unused `skipped` state. Updated state vocabulary (5 states), routing (active or ready), display (ready as tier 2), stage_metrics (ready is no-op). Updated "Fixed State Vocabulary" and "Single Source of Truth" design decisions. |

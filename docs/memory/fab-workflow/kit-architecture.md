@@ -41,7 +41,7 @@ fab/.kit/
 │   ├── spec.md
 │   ├── tasks.md
 │   ├── checklist.md
-│   └── status.yaml         # .status.yaml template (includes stage_metrics: {}, shipped: [])
+│   └── status.yaml         # .status.yaml template (includes stage_metrics: {}, issues: [], prs: [])
 ├── scaffold/               # Overlay tree — paths mirror repo root destinations
 │   ├── fragment-.envrc     # .envrc required entries (line-ensuring merge)
 │   ├── fragment-.gitignore # .gitignore entries (line-ensuring merge)
@@ -119,12 +119,12 @@ The scaffold tree-walk (section 2) generically processes all files under `scaffo
 
 Stage Manager — CLI-only utility for workflow schema queries, `.status.yaml` accessors, and write operations. **Requires `yq` v4** (Mike Farah Go binary) on PATH; emits an error with install URL and exits if missing. All consumers invoke via subprocess (`$STAGEMAN <subcommand>`), not via `source`. Provides 16 CLI subcommands organized by category:
 
-- **Schema/accessor subcommands**: `all-stages` (awk-based), `progress-map`, `checklist`, `confidence`, `current-stage`, `is-shipped`, `validate-status-file` (yq-based)
+- **Schema/accessor subcommands**: `all-stages` (awk-based), `progress-map`, `checklist`, `confidence`, `current-stage`, `validate-status-file` (yq-based)
 - **Event subcommands** (yq-based): `start` ({pending,failed} → active), `advance` (active → ready), `finish` ({active,ready} → done, atomically activates next pending stage), `reset` ({done,ready} → active, cascades downstream to pending), `fail` (active → failed, review only). All accept `<change> <stage> [driver]` where `<change>` is a change identifier or file path (resolved via `resolve_change_arg`). Driver is always optional. All event commands validate via `lookup_transition` against workflow.yaml, use temp-file-then-mv for atomicity, refresh `last_updated`, and apply stage_metrics side-effects via `_apply_metrics_side_effect` (start/reset: create entry with started_at/driver/iterations++, finish: set completed_at, advance/fail: no-op)
-- **Write subcommands** (yq-based): `set-checklist` (individual checklist field update), `set-confidence` (full confidence block replacement), `set-confidence-fuzzy` (confidence block with SRAD dimension means), `set-change-type` (change type field), `ship` (append PR URL to `shipped` array — idempotent, exact-match dedup via `grep -qxF`). All write subcommands validate inputs before writing, use temp-file-then-mv for atomicity, and refresh `last_updated`
+- **Write subcommands** (yq-based): `set-checklist` (individual checklist field update), `set-confidence` (full confidence block replacement), `set-confidence-fuzzy` (confidence block with SRAD dimension means), `set-change-type` (change type field), `add-issue` (append issue ID to `issues` array — idempotent, exact-match dedup via `grep -qxF`), `add-pr` (append PR URL to `prs` array — idempotent, exact-match dedup), `get-issues` (list issue IDs, one per line), `get-prs` (list PR URLs, one per line). All write subcommands validate inputs before writing, use temp-file-then-mv for atomicity, and refresh `last_updated`
 - **History subcommands**: `log-command` (append command event to `.history.jsonl`), `log-confidence` (append confidence event with score/delta/trigger), `log-review` (append review event with result and optional rework reason). Each creates `.history.jsonl` on first event
 
-Internal helper functions (`validate_state`, `validate_stage`, `get_allowed_states`, `validate_stage_state`, `get_next_stage`, `get_all_states`, `ship_url`, `is_shipped`) are retained as implementation details used by write/validation functions but are not exposed via CLI.
+Internal helper functions (`validate_state`, `validate_stage`, `get_allowed_states`, `validate_stage_state`, `get_next_stage`, `get_all_states`, `_append_to_array`, `_get_array`) are retained as implementation details used by write/validation functions but are not exposed via CLI.
 
 Accessor subcommands use a line-oriented output pattern (`key:value` per line) — consumers parse with `while IFS=: read -r key val`. Lives in `scripts/lib/` to indicate it is internal plumbing. The comprehensive test suite (`src/lib/stageman/test.bats`, 71 tests) serves as a contract test for any future reimplementation (e.g., Rust binary).
 
@@ -335,6 +335,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260227-gasp-consolidate-status-field-naming | 2026-02-27 | Replaced `ship_url()`/`is_shipped()` with generic `_append_to_array`/`_get_array` helpers and 4 symmetric functions: `add_issue`/`get_issues`/`add_pr`/`get_prs`. CLI routes `ship`/`is-shipped` → `add-issue`/`get-issues`/`add-pr`/`get-prs`. Template fields `issue_id: null` → `issues: []`, `shipped: []` → `prs: []`. |
 | 260226-85rg-drop-fast-model-tier | 2026-02-26 | Removed "Model Tier Agent Files (Dual Deployment)" section — the fast tier has been eliminated. All skills are now deployed as plain copies with no model templating. See `model-tiers.md` for full details. |
 | 260226-koj1-version-staleness-warning | 2026-02-26 | Added `fab/.kit-sync-version` (gitignored sync stamp) and `fab/.kit-migration-version` (renamed from `fab/project/VERSION`) to version tracking section. Updated preserved/replaced file lists. Added sync stamp to directory overview. |
 | 260223-sr3u-add-fab-doctor | 2026-02-23 | Added `fab-doctor.sh` standalone prerequisite checker (7 tools: git, bash, yq v4+, jq, gh, bats, direnv+hook). Rewrote `sync/1-prerequisites.sh` as thin `exec` delegate to doctor. Updated `fab-upgrade.sh` output: "Update complete" prints first, `⚠` migration warning prints last (or omitted when no drift). Added Phase 0 doctor gate to `fab-setup.md` (bare bootstrap only). Added `fab-doctor.sh` to directory tree, scripts section, and lib/ design decision user-facing scripts list. |

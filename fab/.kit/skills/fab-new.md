@@ -51,8 +51,8 @@ Run `lib/changeman.sh new` with appropriate flags:
 
 Capture the folder name from stdout. The script handles date generation, random ID generation (if no `--change-id`), collision detection, directory creation, `created_by` detection, `.status.yaml` initialization, and `stageman.sh` integration.
 
-If a Linear ticket was detected in Step 0, write the issue ID to `.status.yaml`:
-`yq -i '.issue_id = "DEV-988"' fab/changes/{name}/.status.yaml` (using the actual detected ID).
+If a Linear ticket was detected in Step 0, record the issue ID via stageman:
+`fab/.kit/scripts/lib/stageman.sh add-issue fab/changes/{name}/.status.yaml DEV-988` (using the actual detected ID).
 
 ### Step 4: Conversation Context Mining
 

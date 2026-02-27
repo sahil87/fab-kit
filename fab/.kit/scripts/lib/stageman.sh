@@ -800,26 +800,25 @@ event_fail() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Shipped Tracking
+# Issues & PRs
 # ─────────────────────────────────────────────────────────────────────────────
 
-# ship_url <status_file> <url>
-# Append a PR URL to the shipped array in .status.yaml.
-# Creates the shipped key if missing. Skips silently if URL already exists (idempotent).
+# _append_to_array <status_file> <field> <value>
+# Generic helper: append a value to a YAML array field. Idempotent (dedup).
 # Uses atomic write pattern (temp file → mv). Updates last_updated.
-# Returns 0 on success, 1 on validation failure.
-ship_url() {
+_append_to_array() {
   local status_file="$1"
-  local url="$2"
+  local field="$2"
+  local value="$3"
 
   if [ ! -f "$status_file" ]; then
     echo "ERROR: Status file not found: $status_file" >&2
     return 1
   fi
 
-  # Check for exact duplicate (one URL per line via yq, grep -xF for exact match)
-  if yq '.shipped // [] | .[]' "$status_file" | grep -qxF "$url"; then
-    # URL already present — refresh last_updated only
+  # Check for exact duplicate (one value per line via yq, grep -xF for exact match)
+  if yq ".${field} // [] | .[]" "$status_file" | grep -qxF "$value"; then
+    # Value already present — refresh last_updated only
     local now
     now=$(date -Iseconds)
     local tmpfile
@@ -836,27 +835,40 @@ ship_url() {
   tmpfile=$(mktemp "$(dirname "$status_file")/.status.yaml.XXXXXX")
 
   cp "$status_file" "$tmpfile"
-  yq -i ".shipped += [\"${url}\"] | .last_updated = \"${now}\"" "$tmpfile"
+  yq -i ".${field} += [\"${value}\"] | .last_updated = \"${now}\"" "$tmpfile"
 
   mv "$tmpfile" "$status_file"
 }
 
-# is_shipped <status_file>
-# Query whether the change has been shipped (shipped array has >= 1 entry).
-# Exit 0 if shipped, exit 1 otherwise. No stdout output.
-# Treats missing shipped key as empty (exit 1).
-is_shipped() {
+# _get_array <status_file> <field>
+# Generic helper: emit array values one per line. Empty output for empty/missing array.
+_get_array() {
   local status_file="$1"
+  local field="$2"
 
   if [ ! -f "$status_file" ]; then
     echo "ERROR: Status file not found: $status_file" >&2
     return 1
   fi
 
-  local count
-  count=$(yq '(.shipped // []) | length' "$status_file")
-  [ "$count" -gt 0 ]
+  yq ".${field} // [] | .[]" "$status_file"
 }
+
+# add_issue <status_file> <id>
+# Append an issue ID to the issues array. Idempotent.
+add_issue() { _append_to_array "$1" "issues" "$2"; }
+
+# get_issues <status_file>
+# Emit issue IDs one per line. Empty output for empty/missing array.
+get_issues() { _get_array "$1" "issues"; }
+
+# add_pr <status_file> <url>
+# Append a PR URL to the prs array. Idempotent.
+add_pr() { _append_to_array "$1" "prs" "$2"; }
+
+# get_prs <status_file>
+# Emit PR URLs one per line. Empty output for empty/missing array.
+get_prs() { _get_array "$1" "prs"; }
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Validation
@@ -995,7 +1007,6 @@ SUBCOMMANDS:
     progress-map <change>              Extract stage:state pairs (one per line)
     checklist <change>                 Extract checklist fields (key:value lines)
     confidence <change>                Extract confidence fields (key:value lines)
-    is-shipped <change>                Check if change has been shipped (exit 0/1)
 
   Progression:
     current-stage <change>             Detect active stage from .status.yaml
@@ -1017,7 +1028,10 @@ SUBCOMMANDS:
     set-checklist <change> <field> <value>      Update checklist field
     set-confidence <change> <certain> <confident> <tentative> <unresolved> <score>
     set-confidence-fuzzy <change> <certain> <confident> <tentative> <unresolved> <score> <mean_s> <mean_r> <mean_a> <mean_d>
-    ship <change> <url>                Append PR URL to shipped array (idempotent)
+    add-issue <change> <id>            Append issue ID to issues array (idempotent)
+    get-issues <change>                List issue IDs (one per line)
+    add-pr <change> <url>              Append PR URL to prs array (idempotent)
+    get-prs <change>                   List PR URLs (one per line)
 
   History:
     log-command <change_dir> <cmd> [args]              Log a command invocation
@@ -1190,21 +1204,37 @@ case "${1:-}" in
     _resolved_file=$(resolve_change_arg "$2") || exit 1
     set_confidence_block_fuzzy "$_resolved_file" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}" "${11}"
     ;;
-  ship)
+  add-issue)
     if [ $# -ne 3 ]; then
-      echo "Usage: stageman.sh ship <change> <url>" >&2
+      echo "Usage: stageman.sh add-issue <change> <id>" >&2
       exit 1
     fi
     _resolved_file=$(resolve_change_arg "$2") || exit 1
-    ship_url "$_resolved_file" "$3"
+    add_issue "$_resolved_file" "$3"
     ;;
-  is-shipped)
+  get-issues)
     if [ $# -ne 2 ]; then
-      echo "Usage: stageman.sh is-shipped <change>" >&2
+      echo "Usage: stageman.sh get-issues <change>" >&2
       exit 1
     fi
     _resolved_file=$(resolve_change_arg "$2") || exit 1
-    is_shipped "$_resolved_file"
+    get_issues "$_resolved_file"
+    ;;
+  add-pr)
+    if [ $# -ne 3 ]; then
+      echo "Usage: stageman.sh add-pr <change> <url>" >&2
+      exit 1
+    fi
+    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    add_pr "$_resolved_file" "$3"
+    ;;
+  get-prs)
+    if [ $# -ne 2 ]; then
+      echo "Usage: stageman.sh get-prs <change>" >&2
+      exit 1
+    fi
+    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    get_prs "$_resolved_file"
     ;;
 
   # ── History Commands ───────────────────────────────────────────────────

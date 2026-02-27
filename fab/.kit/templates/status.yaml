@@ -2,7 +2,7 @@ name: {NAME}
 created: {CREATED}
 created_by: {CREATED_BY}
 change_type: feat
-issue_id: null
+issues: []
 progress:
   intake: active
   spec: pending
@@ -22,5 +22,5 @@ confidence:
   unresolved: 0
   score: 0.0
 stage_metrics: {}
-shipped: []
+prs: []
 last_updated: {CREATED}

@@ -1,0 +1,41 @@
+name: 260227-gasp-consolidate-status-field-naming
+created: 2026-02-27T07:55:37+05:30
+created_by: sahil-weaver
+change_type: refactor
+issue_id: null
+progress:
+  intake: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
+checklist:
+  generated: true
+  path: checklist.md
+  completed: 30
+  total: 30
+confidence:
+  certain: 8
+  confident: 2
+  tentative: 0
+  unresolved: 0
+  score: 4.4
+  fuzzy: true
+  dimensions:
+    signal: 87.0
+    reversibility: 87.0
+    competence: 88.5
+    disambiguation: 90.0
+stage_metrics:
+  intake: {completed_at: "2026-02-27T08:05:12+05:30"}
+  spec: {started_at: "2026-02-27T08:05:12+05:30", driver: fab-continue, iterations: 1, completed_at: "2026-02-27T08:08:10+05:30"}
+  tasks: {started_at: "2026-02-27T08:08:10+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-27T08:09:01+05:30"}
+  apply: {started_at: "2026-02-27T08:09:01+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-27T08:13:27+05:30"}
+  review: {started_at: "2026-02-27T08:13:27+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-27T08:17:48+05:30"}
+  hydrate: {started_at: "2026-02-27T08:17:48+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-27T08:20:50+05:30"}
+shipped: []
+last_updated: "2026-02-27T08:22:33+05:30"
+issues: []
+prs:
+  - https://github.com/wvrdz/fab-kit/pull/170

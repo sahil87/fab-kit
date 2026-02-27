@@ -55,14 +55,14 @@ git log --oneline @{u}..HEAD 2>/dev/null || echo "NO_UPSTREAM"
 gh pr view --json number,state,url 2>/dev/null || echo "NO_PR"
 ```
 
-If an active change is resolved (via `changeman.sh resolve`), read `issue_id` from `fab/changes/{name}/.status.yaml` (may be null or absent).
+If an active change is resolved (via `changeman.sh resolve`), read issues via `fab/.kit/scripts/lib/stageman.sh get-issues fab/changes/{name}/.status.yaml` and capture the output (one ID per line, may be empty).
 
 Determine:
 - **branch** — current branch name
 - **has_uncommitted** — whether `git status --porcelain` has output
 - **has_unpushed** — whether there are commits ahead of upstream (or no upstream at all)
 - **has_pr** — whether a PR already exists
-- **issue_id** — the Linear issue identifier from `.status.yaml`, or null if absent/unset
+- **issues** — the issue IDs from `stageman.sh get-issues` (space-joined), or empty if none
 
 ### Step 1b: Branch Mismatch Nudge
 
@@ -149,8 +149,8 @@ Print: `  ✓ push   — origin/<branch>`
    - **Fab-linked** (type is `feat`, `fix`, or `refactor` AND intake exists): `{title}` = first `# ` heading from `intake.md`, stripping `Intake: ` prefix if present
    - **Lightweight** (type is `docs`, `test`, `ci`, or `chore`, OR no intake): `{title}` = commit message subject line from `git log -1 --format=%s`
 
-   If `issue_id` (from Step 1) is non-null: `{pr_title}` = `{type}: {issue_id} {title}` (e.g., `feat: DEV-123 Add OAuth support`).
-   If `issue_id` is null: `{pr_title}` = `{type}: {title}`.
+   If `issues` (from Step 1) is non-empty: `{pr_title}` = `{type}: {issues} {title}` (e.g., `feat: DEV-123 DEV-456 Add OAuth support`), where `{issues}` is space-joined.
+   If `issues` is empty: `{pr_title}` = `{type}: {title}`.
 
    The `{pr_title}` variable (already prefixed) is used as-is in step 4's `gh pr create --title`.
 
@@ -205,35 +205,35 @@ Print: `  ✓ pr     — <PR URL>`
 
 **If PR already exists** (from Step 1), just print: `  ✓ pr     — <existing PR URL> (existing)`
 
-### Step 4: Record Shipped
+### Step 4: Record PR URL
 
 After the PR URL is known (from step 3c or from the existing PR in step 1), attempt to record it in the active change's `.status.yaml`:
 
 1. Resolve the active change: `fab/.kit/scripts/lib/changeman.sh resolve 2>/dev/null`
 2. If resolution succeeds (exit 0), derive the status file path: `fab/changes/{name}/.status.yaml`
-3. Call: `fab/.kit/scripts/lib/stageman.sh ship <status_file> <pr_url>`
+3. Call: `fab/.kit/scripts/lib/stageman.sh add-pr <status_file> <pr_url>`
 4. If resolution fails (exit non-zero) or `changeman.sh` is not found, skip silently — do not print any error or warning
 
 This step MUST NOT block or fail the PR workflow. Any error from changeman or stageman is silently ignored.
 
 ### Step 4b: Commit and Push Status Update
 
-If Step 4 successfully recorded a shipped URL (changeman resolved and stageman ship ran):
+If Step 4 successfully recorded a PR URL (changeman resolved and stageman add-pr ran):
 
 1. Stage the status file: `git add fab/changes/{name}/.status.yaml`
 2. Check for changes: `git diff --cached --quiet`
-3. If changes exist: commit (`git commit -m "Record shipped URL in .status.yaml"`) and push (`git push`). If commit or push fails → report the error and STOP.
+3. If changes exist: commit (`git commit -m "Record PR URL in .status.yaml"`) and push (`git push`). If commit or push fails → report the error and STOP.
 4. If no changes (already committed): skip commit+push silently
 
 Print (if committed): `  ✓ status — committed and pushed .status.yaml`
 
 If Step 4 was skipped (no active change, changeman not found), skip this step silently.
 
-### Step 4c: Write Shipped Sentinel
+### Step 4c: Write PR Sentinel
 
 If Step 4 successfully resolved the change directory:
 
-1. Write the sentinel: `echo "$PR_URL" > "$change_dir/.shipped"`
+1. Write the sentinel: `echo "$PR_URL" > "$change_dir/.pr-done"`
 
 This file is gitignored and never committed. It provides a race-free filesystem signal that all git operations are complete. Write is unconditional — happens in both orchestrated and manual flows.
 

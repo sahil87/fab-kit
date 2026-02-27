@@ -2,7 +2,7 @@
 fab/current
 fab/.kit-sync-version
 fab/pipelines/.series-*.yaml
-fab/changes/**/.shipped
+fab/changes/**/.pr-done
 
 # Optional - ignore agent specific folders
 /.agents

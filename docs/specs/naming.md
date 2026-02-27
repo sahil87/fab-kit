@@ -49,11 +49,11 @@ The title used when creating GitHub pull requests.
 
 | Field | Value |
 |-------|-------|
-| **Pattern** | `{type}: {title}` (or `{type}: {issue_id} {title}` when issue_id is set) |
-| **Example** | `feat: DEV-123 Add OAuth support` or `fix: Resolve concurrent access bug` |
+| **Pattern** | `{type}: {title}` (or `{type}: {issues} {title}` when issues exist) |
+| **Example** | `feat: DEV-123 DEV-456 Add OAuth support` or `fix: Resolve concurrent access bug` |
 | **Encoded in** | `/git-pr` skill (`fab/.kit/skills/git-pr.md`) |
 
-Type is inferred from intake keywords or diff analysis: `feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`. The `issue_id` (from `.status.yaml`) is included when non-null — this enables Linear auto-linking. Title is derived from the intake heading or the last commit message.
+Type is inferred from intake keywords or diff analysis: `feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`. Issue IDs (from `stageman.sh get-issues`) are included space-joined when non-empty — this enables Linear auto-linking. Title is derived from the intake heading or the last commit message.
 
 ## Backlog Entry
 
@@ -61,12 +61,12 @@ The format for items in the local backlog (`fab/backlog.md`).
 
 | Field | Value |
 |-------|-------|
-| **Pattern** | `- [ ] [{ID}] [{issue_id}] {YYYY-MM-DD}: {description}` (issue_id is optional) |
+| **Pattern** | `- [ ] [{ID}] [{issue_ids}] {YYYY-MM-DD}: {description}` (issue IDs are optional) |
 | **Example** | `- [ ] [ni3o] [DEV-1011] 2026-02-12: Capture more metrics` or `- [ ] [ngaw] 2026-02-23: Quality gate` |
 | **Encoded in** | `idea` command (`fab/.kit/packages/wt/` — backlog management) |
 
 Components:
 - `[{ID}]` — 4-char alphanumeric backlog ID
-- `[{issue_id}]` — optional Linear issue ID in brackets (e.g., `[DEV-1011]`)
+- `[{issue_ids}]` — optional Linear issue ID(s) in brackets (e.g., `[DEV-1011]`)
 - `{YYYY-MM-DD}` — ISO date when item was added
 - `{description}` — free-form description, may include tags

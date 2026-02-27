@@ -1,0 +1,6 @@
+{"ts":"2026-02-27T08:04:17+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-27T08:05:11+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-27T08:05:35+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-27T08:07:30+05:30","event":"confidence","score":4.4,"delta":"+4.4","trigger":"calc-score"}
+{"ts":"2026-02-27T08:08:06+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-27T08:17:48+05:30","event":"review","result":"passed"}

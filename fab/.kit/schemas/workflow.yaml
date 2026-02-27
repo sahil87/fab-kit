@@ -198,14 +198,23 @@ validation:
   terminal_states:
     rule: "done stages can only transition back to active via explicit reset"
 
-# shipped — PR URL tracking (side-band, not a pipeline stage).
-# Managed exclusively by `stageman.sh ship` (append) and `stageman.sh is-shipped` (query).
+# issues — External tracker ID tracking (side-band, not a pipeline stage).
+# Managed exclusively by `stageman.sh add-issue` (append) and `stageman.sh get-issues` (query).
 # Not part of the stage/state progression — exists alongside the progress map.
-shipped:
+issues:
+  type: "string[]"
+  description: "External tracker IDs associated with this change (e.g., DEV-123). Append-only."
+  initial_value: "[]"
+  managed_by: "stageman.sh add-issue / get-issues"
+
+# prs — PR URL tracking (side-band, not a pipeline stage).
+# Managed exclusively by `stageman.sh add-pr` (append) and `stageman.sh get-prs` (query).
+# Not part of the stage/state progression — exists alongside the progress map.
+prs:
   type: "string[]"
   description: "PR URLs associated with this change. Append-only list of bare URL strings."
   initial_value: "[]"
-  managed_by: "stageman.sh ship"
+  managed_by: "stageman.sh add-pr / get-prs"
 
 # metadata — Schema versioning and compatibility.
 metadata:

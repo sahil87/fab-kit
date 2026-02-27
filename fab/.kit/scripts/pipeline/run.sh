@@ -413,11 +413,11 @@ poll_change() {
           return 0
         fi
 
-        # Sentinel replaces stageman is-shipped — avoids TOCTOU race with commit+push
-        local shipped_sentinel="$wt_path/fab/changes/$resolved_id/.shipped"
-        if [[ -f "$shipped_sentinel" ]]; then
+        # Sentinel avoids TOCTOU race with commit+push
+        local pr_sentinel="$wt_path/fab/changes/$resolved_id/.pr-done"
+        if [[ -f "$pr_sentinel" ]]; then
           printf "\n"
-          log "Done: $resolved_id — shipped"
+          log "Done: $resolved_id — pr complete"
           write_stage "$manifest_id" "done" "$MANIFEST"
           return 0
         fi
