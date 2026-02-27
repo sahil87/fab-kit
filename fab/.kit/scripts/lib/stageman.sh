@@ -7,7 +7,7 @@
 # Usage:
 #   stageman.sh --help               Show usage
 #   stageman.sh all-stages           List all stage IDs
-#   stageman.sh progress-map <file>  Extract stage:state pairs
+#   stageman.sh progress-map <change>  Extract stage:state pairs
 #   stageman.sh start <change> <stage> [driver]
 #   stageman.sh finish <change> <stage> [driver]
 
@@ -921,25 +921,12 @@ validate_status_file() {
 # History Logging
 # ─────────────────────────────────────────────────────────────────────────────
 
-# resolve_change_dir <change_dir>
-# If change_dir is relative, resolve it against the git repo root.
-# Falls back to deriving root from this script's location when outside a git repo.
-resolve_change_dir() {
-  local dir="$1"
-  if [[ "$dir" != /* ]]; then
-    local root
-    root="$(git rev-parse --show-toplevel 2>/dev/null)" \
-      || root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../.." && pwd)"
-    dir="$root/$dir"
-  fi
-  echo "$dir"
-}
-
-# log_command <change_dir> <cmd> [args]
-# Append a "command" event to <change_dir>/.history.jsonl.
+# log_command <status_file> <cmd> [args]
+# Append a "command" event to the change's .history.jsonl.
+# Accepts a resolved .status.yaml path; derives change dir via dirname.
 log_command() {
   local change_dir
-  change_dir="$(resolve_change_dir "$1")"
+  change_dir="$(dirname "$1")"
   local cmd="$2"
   local args="${3:-}"
   local now
@@ -954,11 +941,12 @@ log_command() {
   echo "$json" >> "${change_dir}/.history.jsonl"
 }
 
-# log_confidence <change_dir> <score> <delta> <trigger>
-# Append a "confidence" event to <change_dir>/.history.jsonl.
+# log_confidence <status_file> <score> <delta> <trigger>
+# Append a "confidence" event to the change's .history.jsonl.
+# Accepts a resolved .status.yaml path; derives change dir via dirname.
 log_confidence() {
   local change_dir
-  change_dir="$(resolve_change_dir "$1")"
+  change_dir="$(dirname "$1")"
   local score="$2"
   local delta="$3"
   local trigger="$4"
@@ -968,11 +956,12 @@ log_confidence() {
   echo "{\"ts\":\"${now}\",\"event\":\"confidence\",\"score\":${score},\"delta\":\"${delta}\",\"trigger\":\"${trigger}\"}" >> "${change_dir}/.history.jsonl"
 }
 
-# log_review <change_dir> <result> [rework]
-# Append a "review" event to <change_dir>/.history.jsonl.
+# log_review <status_file> <result> [rework]
+# Append a "review" event to the change's .history.jsonl.
+# Accepts a resolved .status.yaml path; derives change dir via dirname.
 log_review() {
   local change_dir
-  change_dir="$(resolve_change_dir "$1")"
+  change_dir="$(dirname "$1")"
   local result="$2"
   local rework="${3:-}"
   local now
@@ -1034,15 +1023,16 @@ SUBCOMMANDS:
     get-prs <change>                   List PR URLs (one per line)
 
   History:
-    log-command <change_dir> <cmd> [args]              Log a command invocation
-    log-confidence <change_dir> <score> <delta> <trigger>  Log confidence change
-    log-review <change_dir> <result> [rework]          Log review outcome
+    log-command <change> <cmd> [args]              Log a command invocation
+    log-confidence <change> <score> <delta> <trigger>  Log confidence change
+    log-review <change> <result> [rework]          Log review outcome
 
 EXAMPLES:
   stageman.sh all-stages
-  stageman.sh progress-map .status.yaml
+  stageman.sh progress-map 6boq
   stageman.sh start 6boq spec fab-continue
   stageman.sh finish 6boq spec fab-continue
+  stageman.sh log-review 6boq "passed"
 
 SEE ALSO:
   src/lib/stageman/SPEC-stageman.md - API reference
@@ -1240,24 +1230,27 @@ case "${1:-}" in
   # ── History Commands ───────────────────────────────────────────────────
   log-command)
     if [ $# -lt 3 ] || [ $# -gt 4 ]; then
-      echo "Usage: stageman.sh log-command <change_dir> <cmd> [args]" >&2
+      echo "Usage: stageman.sh log-command <change> <cmd> [args]" >&2
       exit 1
     fi
-    log_command "$2" "$3" "${4:-}"
+    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    log_command "$_resolved_file" "$3" "${4:-}"
     ;;
   log-confidence)
     if [ $# -ne 5 ]; then
-      echo "Usage: stageman.sh log-confidence <change_dir> <score> <delta> <trigger>" >&2
+      echo "Usage: stageman.sh log-confidence <change> <score> <delta> <trigger>" >&2
       exit 1
     fi
-    log_confidence "$2" "$3" "$4" "$5"
+    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    log_confidence "$_resolved_file" "$3" "$4" "$5"
     ;;
   log-review)
     if [ $# -lt 3 ] || [ $# -gt 4 ]; then
-      echo "Usage: stageman.sh log-review <change_dir> <result> [rework]" >&2
+      echo "Usage: stageman.sh log-review <change> <result> [rework]" >&2
       exit 1
     fi
-    log_review "$2" "$3" "${4:-}"
+    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    log_review "$_resolved_file" "$3" "${4:-}"
     ;;
   *)
     echo "Unknown option: $1" >&2

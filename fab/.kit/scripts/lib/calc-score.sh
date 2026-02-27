@@ -171,13 +171,41 @@ if [ "$CHECK_GATE" = true ]; then
     fi
     threshold="3.0"
   else
-    # Spec gate: read existing score and counts from .status.yaml, dynamic per-type threshold
-    score=$(grep '^ *score:' "$status_file" | sed 's/^ *score: *//' || echo "0.0")
+    # Spec gate: compute score on the fly from spec.md, dynamic per-type threshold
+    score_file="$change_dir/spec.md"
+    if [ ! -f "$score_file" ]; then
+      echo "ERROR: spec.md not found in $change_dir" >&2
+      exit 1
+    fi
+    expected_min=$(get_expected_min "spec" "$change_type")
     threshold=$(get_gate_threshold "$change_type")
-    local_certain=$(grep '^ *certain:' "$status_file" | head -1 | sed 's/^ *certain: *//' || echo "0")
-    local_confident=$(grep '^ *confident:' "$status_file" | head -1 | sed 's/^ *confident: *//' || echo "0")
-    local_tentative=$(grep '^ *tentative:' "$status_file" | head -1 | sed 's/^ *tentative: *//' || echo "0")
-    local_unresolved=$(grep '^ *unresolved:' "$status_file" | head -1 | sed 's/^ *unresolved: *//' || echo "0")
+    # Parse and compute inline (same pattern as intake gate)
+    local_certain=0 local_confident=0 local_tentative=0 local_unresolved=0
+    while IFS= read -r line; do
+      [ -z "$line" ] && continue
+      grade="${line%%|*}"
+      grade_lower=$(echo "$grade" | tr '[:upper:]' '[:lower:]')
+      case "$grade_lower" in
+        certain)    local_certain=$((local_certain + 1)) ;;
+        confident)  local_confident=$((local_confident + 1)) ;;
+        tentative)  local_tentative=$((local_tentative + 1)) ;;
+        unresolved) local_unresolved=$((local_unresolved + 1)) ;;
+      esac
+    done <<< "$(parse_assumptions "$score_file")"
+    local_total=$((local_certain + local_confident + local_tentative + local_unresolved))
+    if [ "$local_unresolved" -gt 0 ]; then
+      score="0.0"
+    else
+      score=$(awk -v confident="$local_confident" -v tentative="$local_tentative" \
+                  -v total="$local_total" -v exp_min="$expected_min" \
+        "BEGIN {
+          base = 5.0 - 0.3 * confident - 1.0 * tentative
+          if (base < 0.0) base = 0.0
+          if (exp_min > 0) cover = total / exp_min; else cover = 1.0
+          if (cover > 1.0) cover = 1.0
+          printf \"%.1f\", base * cover
+        }")
+    fi
   fi
 
   # Compare score >= threshold
@@ -326,7 +354,7 @@ if [ -f "$status_file" ]; then
   else
     "$STAGEMAN" set-confidence "$status_file" "$table_certain" "$table_confident" "$table_tentative" "$table_unresolved" "$score"
   fi
-  "$STAGEMAN" log-confidence "$change_dir" "$score" "$delta" "calc-score"
+  "$STAGEMAN" log-confidence "$status_file" "$score" "$delta" "calc-score"
 fi
 
 # --- Emit YAML to stdout ---

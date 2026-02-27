@@ -1172,7 +1172,7 @@ EOF
 }
 
 @test "log-command resolves relative path against repo root" {
-  # Derive repo root from stageman location (same logic as resolve_change_dir)
+  # Derive repo root from stageman location (same logic as resolve_change_arg)
   local stageman_dir
   stageman_dir="$(cd "$(dirname "$(readlink -f "$STAGEMAN")")" && pwd)"
   local repo_root

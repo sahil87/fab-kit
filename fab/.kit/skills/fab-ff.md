@@ -25,8 +25,8 @@ Full pipeline with safety gates: intake → spec → tasks → apply → review 
 
 1. Run preflight per `_preamble.md` Section 2. Pass `<change-name>` if provided.
 2. **Intake prerequisite**: Verify `intake.md` exists. If not, STOP: `Intake not found. Run /fab-new to create the intake first.`
-3. **Intake gate**: Run `fab/.kit/scripts/lib/calc-score.sh --check-gate --stage intake <change_dir>`. If the gate fails → STOP: `Indicative confidence is {score} of 5.0 (need >= 3.0). Run /fab-clarify to resolve, then retry.`
-4. Log invocation: `fab/.kit/scripts/lib/stageman.sh log-command <change_dir> "fab-ff"`
+3. **Intake gate**: Run `fab/.kit/scripts/lib/calc-score.sh --check-gate --stage intake <change>`. If the gate fails → STOP: `Indicative confidence is {score} of 5.0 (need >= 3.0). Run /fab-clarify to resolve, then retry.`
+4. Log invocation: `fab/.kit/scripts/lib/stageman.sh log-command <change> "fab-ff"`
 
 ---
 
@@ -48,9 +48,9 @@ Check `progress` from preflight. Skip stages already `done`. If `hydrate: done`,
 
 *(Skip if `progress.spec` is `done`.)*
 
-Follow **Spec Generation Procedure** (`_generation.md`). No frontloaded questions. Update `.status.yaml` via `fab/.kit/scripts/lib/stageman.sh finish <change_dir> intake fab-ff`.
+Follow **Spec Generation Procedure** (`_generation.md`). No frontloaded questions. Update `.status.yaml` via `fab/.kit/scripts/lib/stageman.sh finish <change> intake fab-ff`.
 
-**Spec gate**: After spec generation, run `fab/.kit/scripts/lib/calc-score.sh --check-gate <change_dir>`. If the gate fails → **STOP**: `Confidence is {score} of 5.0 (need > {threshold} for {change_type}). Run /fab-clarify to resolve, then retry /fab-ff.`
+**Spec gate**: After spec generation, run `fab/.kit/scripts/lib/calc-score.sh --check-gate <change>`. If the gate fails → **STOP**: `Confidence is {score} of 5.0 (need > {threshold} for {change_type}). Run /fab-clarify to resolve, then retry /fab-ff.`
 
 **Auto-Clarify**: Invoke `/fab-clarify` with `[AUTO-MODE]` prefix on the generated spec. If `blocking: 0` → continue. If `blocking > 0` → **BAIL**: report issues, suggest `/fab-clarify` then `/fab-ff`.
 
@@ -70,7 +70,7 @@ Follow **Checklist Generation Procedure** (`_generation.md`).
 
 ### Step 4: Update `.status.yaml` (Planning Complete)
 
-Run `fab/.kit/scripts/lib/stageman.sh finish <change_dir> tasks fab-ff`. Then set checklist fields via `fab/.kit/scripts/lib/stageman.sh set-checklist <change_dir> generated true`, `fab/.kit/scripts/lib/stageman.sh set-checklist <change_dir> total <count>`, `fab/.kit/scripts/lib/stageman.sh set-checklist <change_dir> completed 0`.
+Run `fab/.kit/scripts/lib/stageman.sh finish <change> tasks fab-ff`. Then set checklist fields via `fab/.kit/scripts/lib/stageman.sh set-checklist <change> generated true`, `fab/.kit/scripts/lib/stageman.sh set-checklist <change> total <count>`, `fab/.kit/scripts/lib/stageman.sh set-checklist <change> completed 0`.
 
 ### Step 5: Implementation
 
@@ -80,7 +80,7 @@ Execute apply behavior per `/fab-continue` — parse unchecked tasks, execute in
 
 **If task fails**: STOP with `Task {ID} failed: {reason}. Investigate and re-run /fab-ff.`
 
-On success: run `fab/.kit/scripts/lib/stageman.sh finish <change_dir> apply fab-ff`.
+On success: run `fab/.kit/scripts/lib/stageman.sh finish <change> apply fab-ff`.
 
 ### Step 6: Review
 
@@ -88,9 +88,9 @@ On success: run `fab/.kit/scripts/lib/stageman.sh finish <change_dir> apply fab-
 
 Dispatch review to a **sub-agent** per `/fab-continue` Review Behavior — the sub-agent runs in a separate execution context, performs all validation checks, and returns structured findings with three-tier priority (must-fix / should-fix / nice-to-have).
 
-**Pass**: run `fab/.kit/scripts/lib/stageman.sh finish <change_dir> review fab-ff`. Run `fab/.kit/scripts/lib/stageman.sh log-review <change_dir> "passed"`. Proceed to Step 7.
+**Pass**: run `fab/.kit/scripts/lib/stageman.sh finish <change> review fab-ff`. Run `fab/.kit/scripts/lib/stageman.sh log-review <change> "passed"`. Proceed to Step 7.
 
-**Fail**: Auto-rework loop with bounded retry, then interactive fallback. Run `fab/.kit/scripts/lib/stageman.sh fail <change_dir> review` then `fab/.kit/scripts/lib/stageman.sh start <change_dir> apply fab-ff`.
+**Fail**: Auto-rework loop with bounded retry, then interactive fallback. Run `fab/.kit/scripts/lib/stageman.sh fail <change> review` then `fab/.kit/scripts/lib/stageman.sh start <change> apply fab-ff`.
 
 #### Auto-Rework Loop (up to 3 cycles)
 
@@ -101,7 +101,7 @@ The agent triages the sub-agent's prioritized findings and autonomously selects 
 - **Must-fix: missing functionality, incomplete coverage, wrong task breakdown** → "Revise tasks" — add/modify tasks in `tasks.md`, re-run apply, then spawn a fresh sub-agent for re-review
 - **Must-fix: spec drift, requirements mismatch, fundamental approach issues** → "Revise spec" — reset to spec stage, regenerate downstream, re-run apply, then spawn a fresh sub-agent for re-review
 
-Run `fab/.kit/scripts/lib/stageman.sh log-review <change_dir> "failed" "<rework-option>"` for each rework cycle.
+Run `fab/.kit/scripts/lib/stageman.sh log-review <change> "failed" "<rework-option>"` for each rework cycle.
 
 **Escalation rule**: If the agent chooses "Fix code" and the subsequent sub-agent review fails again on the same or similar issues, the agent MUST escalate to "Revise tasks" or "Revise spec" after **2 consecutive "fix code" attempts**. This is a hard rule — the agent SHALL NOT choose "Fix code" a third time in a row, even if it believes another code fix would work. Non-fix-code actions (revise tasks, revise spec) reset the consecutive counter.
 
@@ -123,7 +123,7 @@ The user can run `/fab-continue` for interactive rework, or `/fab-clarify` to de
 
 *(Skip if `progress.hydrate` is `done`.)*
 
-Execute hydrate behavior per `/fab-continue` — validate review passed, hydrate into `docs/memory/`, run `fab/.kit/scripts/lib/stageman.sh finish <change_dir> hydrate fab-ff`.
+Execute hydrate behavior per `/fab-continue` — validate review passed, hydrate into `docs/memory/`, run `fab/.kit/scripts/lib/stageman.sh finish <change> hydrate fab-ff`.
 
 ---
 

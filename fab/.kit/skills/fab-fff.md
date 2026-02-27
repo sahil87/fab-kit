@@ -25,7 +25,7 @@ Run the entire Fab pipeline from the current stage through hydrate in a single i
 
 1. Run preflight per `_preamble.md` Section 2. Pass `<change-name>` if provided.
 2. Verify `intake.md` exists. If not, STOP: `Intake not found. Run /fab-new to create the intake first, then run /fab-fff.`
-3. Log invocation: `fab/.kit/scripts/lib/stageman.sh log-command <change_dir> "fab-fff"`
+3. Log invocation: `fab/.kit/scripts/lib/stageman.sh log-command <change> "fab-fff"`
 
 ---
 
@@ -90,7 +90,7 @@ On success: run `fab/.kit/scripts/lib/stageman.sh finish <change> apply fab-fff`
 
 Dispatch review to a **sub-agent** per `/fab-continue` Review Behavior — the sub-agent runs in a separate execution context, performs all validation checks, and returns structured findings with three-tier priority (must-fix / should-fix / nice-to-have).
 
-**Pass**: run `fab/.kit/scripts/lib/stageman.sh finish <change> review fab-fff`. Run `fab/.kit/scripts/lib/stageman.sh log-review <change_dir> "passed"`. Proceed to Step 8.
+**Pass**: run `fab/.kit/scripts/lib/stageman.sh finish <change> review fab-fff`. Run `fab/.kit/scripts/lib/stageman.sh log-review <change> "passed"`. Proceed to Step 8.
 
 **Fail**: Autonomous rework with bounded retry. Run `fab/.kit/scripts/lib/stageman.sh fail <change> review` then `fab/.kit/scripts/lib/stageman.sh start <change> apply fab-fff`. The agent triages the sub-agent's prioritized findings and autonomously selects the rework path — no user interaction. Must-fix items are always addressed; should-fix items when clear and low-effort; nice-to-have items may be skipped.
 
@@ -99,7 +99,7 @@ Dispatch review to a **sub-agent** per `/fab-continue` Review Behavior — the s
 - **Must-fix: missing functionality, incomplete coverage, wrong task breakdown** → "Revise tasks" — add/modify tasks in `tasks.md`, re-run apply, then spawn a fresh sub-agent for re-review
 - **Must-fix: spec drift, requirements mismatch, fundamental approach issues** → "Revise spec" — reset to spec stage, regenerate downstream, re-run apply, then spawn a fresh sub-agent for re-review
 
-Run `fab/.kit/scripts/lib/stageman.sh log-review <change_dir> "failed" "<rework-option>"` for each rework cycle.
+Run `fab/.kit/scripts/lib/stageman.sh log-review <change> "failed" "<rework-option>"` for each rework cycle.
 
 **Retry cap**: Maximum **3 rework cycles** (each cycle = one rework action + one re-review by a fresh sub-agent). After 3 failed cycles, **BAIL** with:
 

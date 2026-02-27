@@ -28,7 +28,7 @@ Both may be provided in any order. Stage names are treated as reset targets; all
 
 1. Classify arguments: stage name vs. change-name override (stage names take priority)
 2. Run preflight per `_preamble.md` §2
-3. Log invocation: `fab/.kit/scripts/lib/stageman.sh log-command <change_dir> "fab-continue" "<stage-arg-if-any>"`
+3. Log invocation: `fab/.kit/scripts/lib/stageman.sh log-command <change> "fab-continue" "<stage-arg-if-any>"`
 4. Use preflight's `stage` and `progress` fields for all subsequent logic
 
 ---
@@ -182,9 +182,9 @@ Each finding includes: severity tier, description, and file:line reference where
 
 ### Verdict
 
-**Pass**: Run `fab/.kit/scripts/lib/stageman.sh finish <change> review fab-continue` (auto-activates hydrate). Run `fab/.kit/scripts/lib/stageman.sh log-review <change_dir> "passed"`. Update checklist via `fab/.kit/scripts/lib/stageman.sh set-checklist <file> completed <N>`. Output report + `Next: {per state table}`.
+**Pass**: Run `fab/.kit/scripts/lib/stageman.sh finish <change> review fab-continue` (auto-activates hydrate). Run `fab/.kit/scripts/lib/stageman.sh log-review <change> "passed"`. Update checklist via `fab/.kit/scripts/lib/stageman.sh set-checklist <change> completed <N>`. Output report + `Next: {per state table}`.
 
-**Fail** (manual rework — `/fab-continue` only): Run `fab/.kit/scripts/lib/stageman.sh fail <change> review` then `fab/.kit/scripts/lib/stageman.sh start <change> apply fab-continue`. Run `fab/.kit/scripts/lib/stageman.sh log-review <change_dir> "failed" "<rework-option>"` after user selects rework. Update checklist via `fab/.kit/scripts/lib/stageman.sh set-checklist <file> completed <N>`. Present findings with priority annotations, then offer rework options:
+**Fail** (manual rework — `/fab-continue` only): Run `fab/.kit/scripts/lib/stageman.sh fail <change> review` then `fab/.kit/scripts/lib/stageman.sh start <change> apply fab-continue`. Run `fab/.kit/scripts/lib/stageman.sh log-review <change> "failed" "<rework-option>"` after user selects rework. Update checklist via `fab/.kit/scripts/lib/stageman.sh set-checklist <change> completed <N>`. Present findings with priority annotations, then offer rework options:
 
 | Option | When | Action |
 |--------|------|--------|

@@ -1,0 +1,9 @@
+{"ts":"2026-02-27T21:50:03+05:30","event":"command","cmd":"fab-new","args":"Fix 5 retrospective findings: stageman log-review path bug, calc-score --check-gate self-contained, standardize stageman on change-dir, changeman rename command, fab-toolkit quick reference"}
+{"ts":"2026-02-27T22:01:41+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-02-27T22:03:16+05:30","event":"confidence","score":3.5,"delta":"+3.5","trigger":"calc-score"}
+{"ts":"2026-02-27T22:04:19+05:30","event":"command","cmd":"fab-clarify","args":"spec"}
+{"ts":"2026-02-28T04:13:05+05:30","event":"confidence","score":3.8,"delta":"+0.3","trigger":"calc-score"}
+{"ts":"2026-02-28T04:18:29+05:30","event":"command","cmd":"smoke-test","args":"verify migration"}
+{"ts":"2026-02-28T04:18:29+05:30","event":"review","result":"test-pass"}
+{"ts":"2026-02-28T04:18:29+05:30","event":"command","cmd":"smoke-test-2"}
+{"ts":"2026-02-28T04:22:13+05:30","event":"review","result":"passed"}
