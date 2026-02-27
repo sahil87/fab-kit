@@ -46,8 +46,8 @@ flowchart TD
     %% Post-pipeline housekeeping
     H -->|"/fab-archive"| AR[archive]
 
-    %% Shortcuts (full pipeline, from spec onward)
-    S -->|"/fab-ff
+    %% Shortcuts (full pipeline from intake onward)
+    B -->|"/fab-ff
     (confidence-gated, auto-rework loop)"| H
     B -->|"/fab-fff
     (full pipeline, autonomous rework)"| H
@@ -154,8 +154,8 @@ flowchart TD
     NEW --> SWITCH
     SWITCH --> CONT_S
 
-    %% Shortcut alternatives
-    CONT_S -.-> FF
+    %% Shortcut alternatives (both start from intake)
+    SWITCH -.-> FF
     SWITCH -.-> FFF
     FF --> HYD
     FFF --> HYD
@@ -189,7 +189,7 @@ flowchart TD
 
 ## 4. Change State Diagram
 
-The complete state machine showing how a change progresses through all stages. Each stage can be in one of four states: `pending`, `active`, `done`, or `failed` (review only). The diagram shows normal forward flow, shortcuts, rework paths, and the commands that cause each transition.
+The complete state machine showing how a change progresses through all stages. Each stage can be in one of five states: `pending`, `active`, `ready`, `done`, or `failed` (review only). The diagram shows normal forward flow, shortcuts, rework paths, and the commands that cause each transition.
 
 ```mermaid
 stateDiagram-v2
@@ -200,7 +200,7 @@ stateDiagram-v2
     intake --> spec: /fab-continue
 
     spec --> tasks: /fab-continue
-    spec --> hydrate: /fab-ff (confidence-gated, auto-rework loop)
+    intake --> hydrate: /fab-ff (confidence-gated, auto-rework loop)
     intake --> hydrate: /fab-fff (full pipeline, autonomous rework)
 
     tasks --> apply: /fab-continue
@@ -252,3 +252,83 @@ stateDiagram-v2
     class apply,review execution
     class hydrate completion
 ```
+
+---
+
+## 5. Per-Stage State Machine
+
+Section 4 shows which *stage* a change is at. This section shows how each individual stage transitions between *states*. Every stage tracks its own progress as one of: `pending`, `active`, `ready`, `done` (and `failed` for review). The events that drive transitions are issued by `stageman.sh`.
+
+### Default (intake, spec, tasks, apply, hydrate)
+
+```mermaid
+stateDiagram-v2
+    direction LR
+
+    [*] --> pending
+    pending --> active: start
+
+    active --> ready: advance
+    active --> done: finish
+
+    ready --> done: finish
+    ready --> active: reset
+
+    done --> active: reset
+    done --> [*]
+
+    note right of pending
+        Stage not yet started
+    end note
+
+    note right of active
+        Currently working
+    end note
+
+    note right of ready
+        Artifact exists, eligible
+        for advancement or clarify
+    end note
+
+    note right of done
+        Completed — finish also
+        activates next pending stage
+    end note
+```
+
+### Review (extends default with `failed` state)
+
+```mermaid
+stateDiagram-v2
+    direction LR
+
+    [*] --> pending
+    pending --> active: start
+
+    active --> ready: advance
+    active --> done: finish
+    active --> failed: fail
+
+    failed --> active: start
+
+    ready --> done: finish
+    ready --> active: reset
+
+    done --> active: reset
+    done --> [*]
+
+    note right of failed
+        Validation failed —
+        start re-enters active
+        for rework
+    end note
+```
+
+### Side-effects
+
+| Event | Side-effect |
+|-------|-------------|
+| **finish** | If the next stage in the pipeline is `pending`, it is automatically set to `active` |
+| **reset** | All downstream stages are cascaded to `pending` |
+
+Source of truth: [`fab/.kit/schemas/workflow.yaml`](../../fab/.kit/schemas/workflow.yaml)
