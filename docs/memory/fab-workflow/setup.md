@@ -18,7 +18,7 @@
 
 - Creates `fab/project/config.yaml` (project configuration)
 - Creates `fab/project/constitution.md` (project principles)
-- Creates `fab/project/VERSION` (local project version — via `fab-sync.sh`)
+- Creates `fab/.kit-migration-version` (migration version — via `fab-sync.sh`)
 - Creates `docs/memory/index.md` (memory index skeleton)
 - Creates `docs/specs/index.md` (specifications index skeleton — pre-implementation, human-curated)
 - Creates `fab/changes/` directory
@@ -77,7 +77,7 @@ Each subcommand operates independently — they can be invoked directly without 
 | Responsibility | Owner | Notes |
 |---|---|---|
 | Directories (`changes/`, `memory/`, `specs/`) | `fab-sync.sh` | Non-interactive, scriptable |
-| `fab/project/VERSION` | `fab-sync.sh` | New project → engine version; existing project (has `config.yaml`) → `0.1.0`; existing file → preserved |
+| `fab/.kit-migration-version` | `fab-sync.sh` | New project → engine version; existing project (has `config.yaml`) → `0.1.0`; existing file → preserved |
 | Skeleton files (`memory/index.md`, `specs/index.md`) | `fab-sync.sh` | Copies from `scaffold/memory-index.md` and `scaffold/specs-index.md`; idempotent — skips if file exists |
 | Skill symlinks (Claude Code, OpenCode, Codex) | `fab-sync.sh` | Discovers skills via glob pattern |
 | `.envrc` symlink | `fab-sync.sh` | Links to `fab/.kit/scaffold/envrc` |

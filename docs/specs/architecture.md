@@ -346,6 +346,8 @@ When adopting an existing branch (e.g., `feature/dev-907-oauth` from Linear, or 
 | `ci` | CI/CD and build system changes | No | Tier 2 — lightweight |
 | `chore` | Maintenance, cleanup, housekeeping | No | Tier 2 — lightweight |
 
+For the full taxonomy — confidence thresholds, expected decision counts, keyword heuristics, and lifecycle — see **[Change Types](change-types.md)**.
+
 **Consolidation from Conventional Commits**: `style` merged into `refactor` (formatting is restructuring), `perf` merged into `feat` or `refactor` (performance changes are capability or internal restructuring), `build` merged into `ci` (build config and CI config are the same concern).
 
 **Two tiers**: Tier 1 (fab-linked) PRs include Summary, Changes, and Context sections with working links to `intake.md` and `spec.md`. Tier 2 (lightweight) PRs include an auto-generated summary and explicitly note "No design artifacts — housekeeping change." This signals to reviewers what level of scrutiny to apply.

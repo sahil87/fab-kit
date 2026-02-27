@@ -46,7 +46,7 @@
 | `/fab-new` | Starts a new change from a description. Creates the change folder, `.status.yaml`, and `intake.md`. Adaptive SRAD-driven questioning with gap analysis and conversational mode. |
 | `/fab-continue` | Advances to the next stage, or resets to a given stage and regenerates from there. The step-by-step progression skill. |
 | `/fab-ff` | Fast-forward — generates all remaining planning artifacts (spec, tasks) in one pass. Frontloads questions, then runs autonomously. |
-| `/fab-fff` | Full pipeline — chains `/fab-ff` → `/fab-continue` (apply → review → archive). Gated on confidence score >= 3.0. Resumable. |
+| `/fab-fff` | Full pipeline — intake through hydrate in one pass. No confidence gate, frontloaded questions, autonomous rework with bounded retry. Resumable. |
 | `/fab-clarify` | Deepens and refines the current stage's artifact without advancing. Resolves `[NEEDS CLARIFICATION]` markers and `<!-- assumed: ... -->` comments. Idempotent and non-advancing. |
 | `/fab-continue` (apply) | Executes unchecked tasks from `tasks.md`. Resumable — re-invoking picks up from the first unchecked item. |
 | `/fab-continue` (review) | Validates implementation against spec, checklist, and constitution. On failure, offers rework options (fix code, revise tasks/spec). |
@@ -89,7 +89,7 @@
 | **Tentative** | SRAD grade. Reasonable guess but multiple valid options. Marked with `<!-- assumed: ... -->` in the artifact. Resolvable by `/fab-clarify`. |
 | **Unresolved** | SRAD grade. Cannot determine; incompatible interpretations. Must always be asked as a question — never silently assumed. |
 | **Confidence score** | A 0.0–5.0 numeric measure of how well-resolved a change's decisions are. Formula: `max(0.0, 5.0 - 0.3 * confident - 1.0 * tentative)` (0.0 if any unresolved). Stored in `.status.yaml`. |
-| **Confidence gate** | The requirement that `/fab-fff` checks: `confidence.score >= 3.0`. Ensures autonomous pipeline runs only when decisions are sufficiently resolved. |
+| **Confidence gate** | The requirement that `/fab-ff` checks: confidence score must meet a type-specific threshold (see [Change Types](change-types.md)). Ensures fast-forward pipeline runs only when decisions are sufficiently resolved. |
 | **Assumptions summary** | A table appended to artifacts listing all Confident and Tentative decisions with rationale. Enables `/fab-clarify` to discover and resolve assumptions. |
 | `<!-- assumed: ... -->` | Inline HTML comment marker placed after tentatively assumed content. Scanned by `/fab-clarify` for resolution. |
 | `<!-- clarified: ... -->` | Inline HTML comment marker replacing an assumed marker after `/fab-clarify` resolves it. Informational only. |
@@ -103,7 +103,7 @@
 | **[AUTO-MODE]** | Prefix used when one skill invokes another internally (e.g., `/fab-ff` calling `/fab-clarify`). Signals autonomous mode — no user interaction, machine-readable result. |
 | **Context loading** | The convention that every skill loads relevant project files (config, constitution, memory index, change artifacts) before generating output. Defined in `_preamble.md`. |
 | **Fast-forward** | Generating all remaining planning artifacts in one pass (`/fab-ff`). Frontloads questions, then proceeds without interruption. |
-| **Full pipeline** | Running the entire lifecycle — planning through archive — in one invocation (`/fab-fff`). Gated on confidence. |
+| **Full pipeline** | Running the entire lifecycle — planning through hydrate — in one invocation (`/fab-fff`). No confidence gate (contrast with `/fab-ff` which is gated). |
 | **Gap analysis** | Evaluation performed by `/fab-new` before creating an intake. Checks whether the change is already covered by existing mechanisms. |
 | **Next steps convention** | The rule that every skill must end output with a `Next:` line suggesting follow-up commands. Keeps users oriented in the workflow. |
 | **Preflight** | Validation performed by `_preflight.sh` before skill execution. Checks project initialization, active change existence, and status file integrity. |

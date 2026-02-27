@@ -116,6 +116,9 @@ For detailed visual maps of how commands connect — including shortcuts, rework
 | `/fab-switch` | Change active change | Updated pointer file |
 | `/fab-status` | Check progress | Status display |
 | `/fab-discuss` | Prime agent with project context for discussion | — (read-only) |
+| `batch-fab-new-backlog.sh` | Create changes from backlog items | Worktree + tmux tab per item |
+| `batch-fab-switch-change.sh` | Switch to existing changes | Worktree + tmux tab per change |
+| `batch-fab-archive-change.sh` | Archive completed changes | Worktree + tmux tab per change |
 
 ---
 

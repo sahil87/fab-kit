@@ -51,12 +51,15 @@ fab/.kit/
 │   │   ├── memory/index.md # Initial docs/memory/index.md (copy-if-absent)
 │   │   └── specs/index.md  # Initial docs/specs/index.md (copy-if-absent)
 │   └── fab/
-│       ├── config.yaml     # Default config.yaml template (copy-if-absent, /fab-setup detects)
-│       ├── constitution.md # Constitution skeleton (copy-if-absent, /fab-setup detects)
-│       ├── context.md      # Project context template (copy-if-absent)
-│       ├── code-quality.md # Code quality defaults (copy-if-absent)
-│       ├── code-review.md  # Review policy defaults (copy-if-absent)
-│       └── sync/README.md  # README template for fab/sync/ (copy-if-absent)
+│       ├── changes/archive/.gitkeep  # Archive directory marker
+│       ├── pipelines/example.yaml    # Example pipeline manifest
+│       ├── project/
+│       │   ├── config.yaml     # Default config.yaml template (copy-if-absent, /fab-setup detects)
+│       │   ├── constitution.md # Constitution skeleton (copy-if-absent, /fab-setup detects)
+│       │   ├── context.md      # Project context template (copy-if-absent)
+│       │   ├── code-quality.md # Code quality defaults (copy-if-absent)
+│       │   └── code-review.md  # Review policy defaults (copy-if-absent)
+│       └── sync/README.md     # README template for fab/sync/ (copy-if-absent)
 ├── packages/               # Distributable CLI tools (idea, wt)
 │   ├── idea/bin/idea       # Per-repo idea backlog manager
 │   └── wt/                 # Git worktree management
@@ -108,7 +111,7 @@ Kit-level sync script. Runs `direnv allow` (idempotent, no guard needed). Execut
 
 #### `sync/2-sync-workspace.sh`
 
-Kit-level sync script (the largest sync step) containing the full workspace sync logic. Organized into 4 sections: (1) directories, (1b) fab/project/VERSION, (2) scaffold tree-walk, (3+3b+4) skill symlinks and agent files. Cleans up stale artifacts from previous kit versions. Creates directories (`fab/changes/`, `fab/changes/archive/`, `docs/memory/`, `docs/specs/`) with `.gitkeep` files in `fab/changes/` and `fab/changes/archive/`. Creates `fab/project/VERSION` using the dual-version model: new projects get the engine version, existing projects (detected via `config.yaml` presence) get `0.1.0` base version, existing `fab/project/VERSION` is preserved.
+Kit-level sync script (the largest sync step) containing the full workspace sync logic. Organized into 4 sections: (1) directories, (1b) fab/.kit-migration-version, (2) scaffold tree-walk, (3+3b+4) skill symlinks and agent files. Cleans up stale artifacts from previous kit versions. Creates directories (`fab/changes/`, `fab/changes/archive/`, `docs/memory/`, `docs/specs/`) with `.gitkeep` files in `fab/changes/` and `fab/changes/archive/`. Creates `fab/.kit-migration-version` using the dual-version model: new projects get the engine version, existing projects (detected via `config.yaml` presence) get `0.1.0` base version, existing `fab/.kit-migration-version` is preserved.
 
 The scaffold tree-walk (section 2) generically processes all files under `scaffold/` using the overlay tree convention: each file's path relative to `scaffold/` mirrors its destination relative to the repo root. Strategy dispatch is based on the `fragment-` filename prefix: `fragment-` + `.json` → `json_merge_permissions` (merge `permissions.allow` arrays via jq), `fragment-` + other → `line_ensure_merge` (append non-duplicate, non-comment lines), no prefix → copy-if-absent. Both merge helpers are defined in the same file. `line_ensure_merge` absorbs the legacy `.envrc` symlink-to-file migration (resolves symlink targets before line-ensuring). Template files (`config.yaml`, `constitution.md`) are copied by the tree-walk via copy-if-absent; `/fab-setup` detects raw templates at runtime by checking for placeholder strings (`{PROJECT_NAME}`, `{Project Name}`) and overwrites them interactively. It is the single source of truth for structural setup. `/fab-setup` delegates to `fab-sync.sh` (the orchestrator) and adds the interactive parts (config, constitution).
 
@@ -166,7 +169,7 @@ Shared sourceable shell library defining two parser functions. `frontmatter_fiel
 
 #### `fab-upgrade.sh`
 
-Downloads the latest `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/` (extract to temp dir, verify, swap), displays the version change, and re-runs `fab-sync.sh` to repair directories and agents. Prints "Update complete: {old} → {new}" first, then checks for version drift between `fab/project/VERSION` and the new `fab/.kit/VERSION` — prints a `⚠` warning as the last line if behind (with versions), or init guidance if `fab/project/VERSION` is missing. No warning when versions match. Requires `gh` CLI. Preserves all project files outside `.kit/`. Handles errors: gh CLI missing, network failure, extraction verification failure, already-up-to-date.
+Downloads the latest `kit.tar.gz` from GitHub Releases, atomically replaces `fab/.kit/` (extract to temp dir, verify, swap), displays the version change, and re-runs `fab-sync.sh` to repair directories and agents. Prints "Update complete: {old} → {new}" first, then checks for version drift between `fab/.kit-migration-version` and the new `fab/.kit/VERSION` — prints a `⚠` warning as the last line if behind (with versions), or init guidance if `fab/.kit-migration-version` is missing. No warning when versions match. Requires `gh` CLI. Preserves all project files outside `.kit/`. Handles errors: gh CLI missing, network failure, extraction verification failure, already-up-to-date.
 
 #### `fab-release.sh` (dev-only, at `src/scripts/fab-release.sh`)
 

@@ -92,7 +92,7 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 **Creates** (first run only — skipped if already present):
 - `fab/project/config.yaml` — project configuration (via `/fab-setup config`)
 - `fab/project/constitution.md` — project principles and constraints (via `/fab-setup constitution`)
-- `fab/project/VERSION` — local project version (via `fab-sync.sh`)
+- `fab/.kit-migration-version` — migration version (via `fab-sync.sh`)
 - `docs/memory/index.md` — initial memory index (via `fab-sync.sh`)
 - `docs/specs/index.md` — specifications index (via `fab-sync.sh`)
 - `fab/changes/` — empty, ready for change folders (via `fab-sync.sh`)

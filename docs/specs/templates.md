@@ -30,7 +30,7 @@ The current stage is derived from the `progress` map — the entry marked `activ
 name: {YYMMDD-XXXX-slug}
 created: {ISO_8601_DATETIME}       # e.g., 2026-01-15T14:30:00Z
 created_by: {GIT_USER_NAME}        # Auto-detected from git config user.name; fallback "unknown"
-change_type: feature               # feature | bugfix | refactor | architecture
+change_type: feat                  # feat | fix | refactor | docs | test | ci | chore
 progress:
   intake: active                    # pending | active | done
   spec: pending                     # pending | active | done
@@ -55,7 +55,7 @@ last_updated: {ISO_8601_DATETIME}
 
 **Field notes**:
 - `created_by` is write-once — set at change creation time by `/fab-new`, never modified afterward. Auto-detected from `git config user.name`; falls back to `"unknown"` if git config is unset. Skills reading this field must tolerate its absence (older changes won't have it).
-- `change_type` classifies the change for dynamic confidence gate thresholds (bugfix=2.0, feature/refactor=3.0, architecture=4.0). Defaults to `feature`.
+- `change_type` classifies the change for dynamic confidence gate thresholds (see [Change Types](change-types.md) for per-type values). Defaults to `feat`.
 - The current stage is derived from the `progress` map — the entry marked `active` is the current stage. All skills read this first.
 - `review: failed` is set when `/fab-continue` (review) finds issues. The review entry remains `failed` so `/fab-status` shows the failure.
 - `checklist.completed` / `checklist.total` are updated by `/fab-continue` (review) as it checks items.
@@ -115,6 +115,23 @@ last_updated: {ISO_8601_DATETIME}
 
 - [BLOCKING] {question}
 - [DEFERRED] {question}
+
+## Assumptions
+
+<!-- STATE TRANSFER: This table is the sole continuity mechanism between the intake-stage
+     agent and the spec-stage agent. Pipeline stages may execute in separate agent contexts
+     with no shared memory — this table is what gives downstream agents visibility into
+     what was decided, assumed, or left open. Every row must be substantive.
+
+     All four SRAD grades (Certain, Confident, Tentative, Unresolved) are recorded.
+     Scores column is required for every row.
+     Unresolved rows must include status context in Rationale (e.g., "Asked — user undecided"). -->
+
+| # | Grade | Decision | Rationale | Scores |
+|---|-------|----------|-----------|--------|
+| 1 | {Certain|Confident|Tentative|Unresolved} | {decision summary} | {why this grade} | S:nn R:nn A:nn D:nn |
+
+{N} assumptions ({Ce} certain, {Co} confident, {T} tentative, {U} unresolved).
 ```
 
 **Design rationale**: OpenSpec's concise Why/What/Impact structure, plus explicit memory mapping (which memory files will be affected). SpecKit's capped clarification markers prevent question-paralysis — max 3 blocking questions forces the agent to make informed guesses.
