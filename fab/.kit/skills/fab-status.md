@@ -46,7 +46,10 @@ Use `fab/.kit/scripts/lib/preflight.sh` and `fab/.kit/scripts/lib/stageman.sh` f
 - Renders the full status block: version header, change name, branch, stage with state qualifier, next action, progress table with symbols (`✓` done, `●` active, `◷` ready, `○` pending, `✗` failed), checklist counts, confidence score, version drift warning (if applicable)
 - Handles all error cases (no active change, missing `.status.yaml`, missing fields)
 - Defaults missing progress fields to `○` (pending), missing checklist to "not yet generated", and missing confidence to "not yet scored"
-- Confidence display: `Confidence: {score} of 5.0 ({N} certain, {N} confident, {N} tentative)` — appends `, {N} unresolved` only when unresolved > 0; shows `Confidence: not yet scored` when the confidence block is absent
+- **Confidence display** — varies by stage:
+  - **Intake stage** (indicative, not persisted): Run `bash fab/.kit/scripts/lib/calc-score.sh --check-gate --stage intake <change-dir>` and display from its output: `Indicative confidence: {score} (fab-ff gate: {threshold}) — {total} assumptions ({N} certain, {N} confident, {N} tentative)` — appends `, {N} unresolved` only when unresolved > 0. This is a read-only computation; the script does not write to `.status.yaml` in `--check-gate` mode.
+  - **Spec stage or later** (persisted): Read the confidence block from `.status.yaml` and display: `Confidence: {score} of 5.0 ({N} certain, {N} confident, {N} tentative)` — appends `, {N} unresolved` only when unresolved > 0.
+  - **No confidence data**: Shows `Confidence: not yet scored` when the confidence block is absent and the stage is not intake.
 
 ---
 
