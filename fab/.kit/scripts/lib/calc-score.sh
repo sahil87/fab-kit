@@ -251,10 +251,10 @@ while IFS= read -r line; do
 
   # Parse dimension scores if present (format: S:nn R:nn A:nn D:nn)
   if [ -n "$scores_part" ]; then
-    s_val=$(echo "$scores_part" | grep -oP 'S:\K[0-9]+' || echo "")
-    r_val=$(echo "$scores_part" | grep -oP 'R:\K[0-9]+' || echo "")
-    a_val=$(echo "$scores_part" | grep -oP 'A:\K[0-9]+' || echo "")
-    d_val=$(echo "$scores_part" | grep -oP 'D:\K[0-9]+' || echo "")
+    s_val=$(echo "$scores_part" | sed -n 's/.*S:\([0-9][0-9]*\).*/\1/p')
+    r_val=$(echo "$scores_part" | sed -n 's/.*R:\([0-9][0-9]*\).*/\1/p')
+    a_val=$(echo "$scores_part" | sed -n 's/.*A:\([0-9][0-9]*\).*/\1/p')
+    d_val=$(echo "$scores_part" | sed -n 's/.*D:\([0-9][0-9]*\).*/\1/p')
 
     if [ -n "$s_val" ] && [ -n "$r_val" ] && [ -n "$a_val" ] && [ -n "$d_val" ]; then
       has_fuzzy=true
