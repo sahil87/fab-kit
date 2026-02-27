@@ -45,12 +45,13 @@ New dispatch table:
 | `intake` | `ready` | finish intake → start spec → generate `spec.md` → advance spec to `ready` |
 | `spec` | `ready` | finish spec → start tasks → generate `tasks.md` + checklist → advance tasks to `ready` |
 | `tasks` | `ready` | finish tasks → start apply → execute tasks → finish apply |
-| `apply` | `active` | execute tasks → finish apply |
-| `review` | `active` | run review → pass: finish / fail: rework |
-| `hydrate` | `active` | hydrate memory → finish hydrate |
+| `apply` | `active`/`ready` | execute tasks → finish apply |
+| `review` | `active`/`ready` | run review → pass: finish / fail: rework |
+| `hydrate` | `active`/`ready` | hydrate memory → finish hydrate |
 | `intake` | `active` | (backward compat) generate intake if missing, advance to `ready` |
 | `spec` | `active` | (backward compat) generate `spec.md`, advance to `ready` |
 | `tasks` | `active` | (backward compat) generate `tasks.md` + checklist, advance to `ready` |
+| all `done` | — | Block: "Change is complete." |
 
 **Files**: `fab/.kit/skills/fab-continue.md`
 
@@ -90,7 +91,7 @@ The spec files need to reflect the new dispatch model:
 /fab-continue  →  hydrate memory, hydrate: active → done
 ```
 
-One `/fab-new` + four `/fab-continue`. Each invocation does meaningful work. Users can run `/fab-clarify` at any `ready` checkpoint before continuing.
+One `/fab-new` + five `/fab-continue`. Each invocation does meaningful work. Users can run `/fab-clarify` at any `ready` checkpoint before continuing.
 
 ## Affected Memory
 
@@ -119,9 +120,9 @@ None — the design was fully resolved during the `/fab-discuss` session.
 | 2 | Certain | `/fab-continue` finishes previous `ready` stage + generates next artifact + leaves next at `ready` in one invocation | Discussed — user explicitly confirmed this is the desired behavior | S:95 R:80 A:90 D:95 |
 | 3 | Certain | `ready` state serves as refinement checkpoint for `/fab-clarify` | Discussed — user explicitly rejected `done` because it would require a reset to clarify | S:90 R:90 A:95 D:95 |
 | 4 | Certain | No changes to `workflow.yaml` or `stageman.sh` | The existing state machine already supports all needed transitions | S:90 R:95 A:95 D:90 |
-| 8 | Certain | Template initializes `intake: pending`, `changeman.sh start` transitions to `active` | Discussed — fixes pre-existing bug where `start` fails on `active` template default; clean layer separation | S:95 R:90 A:95 D:95 |
-| 5 | Certain | Apply, review, hydrate behavior unchanged | These already work correctly in single invocations | S:90 R:95 A:95 D:95 |
-| 6 | Confident | `active` rows in planning dispatch are backward-compat only | For changes interrupted mid-generation; normal path goes through `ready` | S:70 R:90 A:85 D:80 |
-| 7 | Certain | This is a `refactor` change type | Restructuring dispatch behavior, no new functionality | S:90 R:95 A:95 D:90 |
+| 5 | Certain | Template initializes `intake: pending`, `changeman.sh start` transitions to `active` | Discussed — fixes pre-existing bug where `start` fails on `active` template default; clean layer separation | S:95 R:90 A:95 D:95 |
+| 6 | Certain | Apply, review, hydrate behavior unchanged | These already work correctly in single invocations | S:90 R:95 A:95 D:95 |
+| 7 | Confident | `active` rows in planning dispatch are backward-compat only | For changes interrupted mid-generation; normal path goes through `ready` | S:70 R:90 A:85 D:80 |
+| 8 | Certain | This is a `refactor` change type | Restructuring dispatch behavior, no new functionality | S:90 R:95 A:95 D:90 |
 
 8 assumptions (7 certain, 1 confident, 0 tentative, 0 unresolved).
