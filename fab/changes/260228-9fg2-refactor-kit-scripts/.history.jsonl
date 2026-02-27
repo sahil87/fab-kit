@@ -1,0 +1,4 @@
+{"ts":"2026-02-28T04:51:39+05:30","event":"command","cmd":"fab-new","args":"Refactor internal kit scripts into atomic responsibility sets"}
+{"ts":"2026-02-28T04:57:21+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-02-28T05:00:26+05:30","event":"confidence","score":3.8,"delta":"+3.8","trigger":"calc-score"}
+{"ts":"2026-02-28T05:01:51+05:30","event":"command","cmd":"fab-ff"}
