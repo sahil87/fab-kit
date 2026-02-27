@@ -252,3 +252,83 @@ stateDiagram-v2
     class apply,review execution
     class hydrate completion
 ```
+
+---
+
+## 5. Per-Stage State Machine
+
+Section 4 shows which *stage* a change is at. This section shows how each individual stage transitions between *states*. Every stage tracks its own progress as one of: `pending`, `active`, `ready`, `done` (and `failed` for review). The events that drive transitions are issued by `stageman.sh`.
+
+### Default (intake, spec, tasks, apply, hydrate)
+
+```mermaid
+stateDiagram-v2
+    direction LR
+
+    [*] --> pending
+    pending --> active: start
+
+    active --> ready: advance
+    active --> done: finish
+
+    ready --> done: finish
+    ready --> active: reset
+
+    done --> active: reset
+    done --> [*]
+
+    note right of pending
+        Stage not yet started
+    end note
+
+    note right of active
+        Currently working
+    end note
+
+    note right of ready
+        Artifact exists, eligible
+        for advancement or clarify
+    end note
+
+    note right of done
+        Completed — finish also
+        activates next pending stage
+    end note
+```
+
+### Review (extends default with `failed` state)
+
+```mermaid
+stateDiagram-v2
+    direction LR
+
+    [*] --> pending
+    pending --> active: start
+
+    active --> ready: advance
+    active --> done: finish
+    active --> failed: fail
+
+    failed --> active: start
+
+    ready --> done: finish
+    ready --> active: reset
+
+    done --> active: reset
+    done --> [*]
+
+    note right of failed
+        Validation failed —
+        start re-enters active
+        for rework
+    end note
+```
+
+### Side-effects
+
+| Event | Side-effect |
+|-------|-------------|
+| **finish** | If the next stage in the pipeline is `pending`, it is automatically set to `active` |
+| **reset** | All downstream stages are cascaded to `pending` |
+
+Source of truth: [`fab/.kit/schemas/workflow.yaml`](../../fab/.kit/schemas/workflow.yaml)
