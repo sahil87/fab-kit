@@ -184,6 +184,10 @@ gate: $passes
 score: $score
 threshold: $threshold
 change_type: $change_type
+certain: ${local_certain:-0}
+confident: ${local_confident:-0}
+tentative: ${local_tentative:-0}
+unresolved: ${local_unresolved:-0}
 EOF
   exit 0
 fi
