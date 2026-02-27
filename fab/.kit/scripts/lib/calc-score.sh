@@ -171,9 +171,13 @@ if [ "$CHECK_GATE" = true ]; then
     fi
     threshold="3.0"
   else
-    # Spec gate: read existing score from .status.yaml, dynamic per-type threshold
+    # Spec gate: read existing score and counts from .status.yaml, dynamic per-type threshold
     score=$(grep '^ *score:' "$status_file" | sed 's/^ *score: *//' || echo "0.0")
     threshold=$(get_gate_threshold "$change_type")
+    local_certain=$(grep '^ *certain:' "$status_file" | head -1 | sed 's/^ *certain: *//' || echo "0")
+    local_confident=$(grep '^ *confident:' "$status_file" | head -1 | sed 's/^ *confident: *//' || echo "0")
+    local_tentative=$(grep '^ *tentative:' "$status_file" | head -1 | sed 's/^ *tentative: *//' || echo "0")
+    local_unresolved=$(grep '^ *unresolved:' "$status_file" | head -1 | sed 's/^ *unresolved: *//' || echo "0")
   fi
 
   # Compare score >= threshold
