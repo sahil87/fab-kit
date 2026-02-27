@@ -32,12 +32,12 @@ created: {ISO_8601_DATETIME}       # e.g., 2026-01-15T14:30:00Z
 created_by: {GIT_USER_NAME}        # Auto-detected from git config user.name; fallback "unknown"
 change_type: feat                  # feat | fix | refactor | docs | test | ci | chore
 progress:
-  intake: active                    # pending | active | done
-  spec: pending                     # pending | active | done
-  tasks: pending                    # pending | active | done
-  apply: pending                    # pending | active | done
-  review: pending                   # pending | active | done | failed
-  hydrate: pending                  # pending | active | done
+  intake: pending                    # pending | active | ready | done
+  spec: pending                     # pending | active | ready | done
+  tasks: pending                    # pending | active | ready | done
+  apply: pending                    # pending | active | ready | done
+  review: pending                   # pending | active | ready | done | failed
+  hydrate: pending                  # pending | active | ready | done
 checklist:
   generated: false
   path: checklist.md

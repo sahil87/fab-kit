@@ -109,6 +109,16 @@ This is **display-only** — NOT written to `.status.yaml`. The authoritative sc
 
 Apply SRAD (`_preamble.md`). No fixed question cap — SRAD scoring determines count. Zero questions for clear inputs. **Conversational mode**: when 5+ Unresolved, ask one at a time until resolved or user signals done.
 
+### Step 9: Advance Intake to Ready
+
+After all intake work is complete (generation, type inference, confidence, questions), advance intake to `ready`:
+
+```bash
+fab/.kit/scripts/lib/stageman.sh advance fab/changes/{name}/.status.yaml intake
+```
+
+This signals that the intake artifact exists and is open for `/fab-clarify` refinement. The user runs `/fab-continue` when ready to proceed to spec generation.
+
 ---
 
 ## Output

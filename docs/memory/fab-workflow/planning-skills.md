@@ -55,7 +55,7 @@ The skill SHALL:
 2. Call `lib/changeman.sh new` with `--slug`, optional `--change-id` (backlog ID), and `--log-args` (description). The script handles: directory creation, `created_by` detection (`gh api user` → `git config user.name` → `"unknown"`, silent fallback), `.status.yaml` initialization from template via `sed`, and stageman integration (`start intake fab-new`, `log-command`)
 3. Generate `intake.md` from the template (including Origin section), loading `fab/project/constitution.md` and `fab/project/config.yaml` as context
 
-`/fab-new` never activates changes — this reduces disruption when capturing change ideas. The user activates via `/fab-switch` after creation. Branch integration is delegated to `/fab-switch`, which provides consistent branch handling.
+`/fab-new` never activates changes — this reduces disruption when capturing change ideas. The user activates via `/fab-switch` after creation. Branch integration is delegated to `/fab-switch`, which provides consistent branch handling. After generating the intake, `/fab-new` advances intake to `ready` (not `active`) — signaling the artifact exists and is open for `/fab-clarify` refinement.
 
 #### Change Type Inference
 
@@ -79,16 +79,16 @@ Loads: config, constitution, `docs/memory/index.md` (to understand the existing 
 
 #### Normal Forward Flow (no argument)
 
-1. Read `.status.yaml` to determine current stage (the stage with `active` in the progress map)
-2. **Stage guard**: Check `progress.{stage}` value from preflight output:
-   - For planning stages (intake, spec, tasks): if `progress.{stage} == 'done'` AND stage is `tasks`, transition to apply. If `progress.{stage} == 'active'`, allow generation to resume. If `progress.{stage} == 'pending'`, allow generation to start.
-   - For execution stages (apply, review, hydrate): dispatch to the stage's behavior (apply executes tasks, review validates implementation, hydrate completes the change).
-3. Identify next artifact to create
-4. Load relevant template + context (including `fab/project/constitution.md` for principles)
-5. Generate artifact using the shared generation procedures from `_generation.md` (with clarification/research as needed)
-6. Run `lib/calc-score.sh` (spec stage only — computes confidence from spec Assumptions table)
-7. Auto-generate checklist when creating tasks (using `_generation.md` Checklist Generation Procedure)
-8. Update `.status.yaml`
+1. Read `.status.yaml` to determine current stage and state
+2. **Consolidated planning dispatch**: For planning stages, `/fab-continue` handles a full cycle in one invocation:
+   - **`ready` state**: Finish the current stage (`done`), start the next stage (`active`), generate its artifact, advance to `ready`
+   - **`active` state** (backward compat for interrupted generations): Generate the artifact, advance to `ready`
+   - For execution stages (apply, review, hydrate): dispatch to the stage's behavior (unchanged — these already work in single invocations)
+3. Load relevant template + context (including `fab/project/constitution.md` for principles)
+4. Generate artifact using the shared generation procedures from `_generation.md` (with clarification/research as needed)
+5. Run `lib/calc-score.sh` (spec stage only — computes confidence from spec Assumptions table)
+6. Auto-generate checklist when creating tasks (using `_generation.md` Checklist Generation Procedure)
+7. Update `.status.yaml`
 
 #### Reset Behavior (with stage argument)
 
@@ -97,7 +97,7 @@ When called as `/fab-continue <stage>` (e.g., `/fab-continue spec`):
 2. Reset `.status.yaml` progress: set target stage to `active`; mark all stages after target as `pending`
 3. Regenerate the target stage's artifact in place (update, not recreate from scratch — preserve what's still valid)
 4. Downstream artifacts are invalidated: tasks reset to `- [ ]`, checklist regenerated
-5. Update `.status.yaml` and report what was reset
+5. Advance the target stage to `ready` (not `done` — preserves `/fab-clarify` opportunity)
 
 Reset is primarily used after review identifies issues upstream.
 
@@ -322,6 +322,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260227-ijql-streamline-planning-dispatch | 2026-02-27 | Consolidated planning dispatch: `/fab-new` leaves intake as `ready` (Step 9 added). `/fab-continue` finishes previous `ready` stage + generates next artifact + advances to `ready` in one invocation. Single-dispatch rule removed. Reset flow uses `advance` (not `finish`) to preserve `/fab-clarify` checkpoint. |
 | 260226-6boq-event-driven-stageman | 2026-02-26 | Replaced `set-state`/`transition` references with event commands (`start`, `advance`, `finish`, `reset`, `fail`). Driver parameter now optional (skills always pass it). Updated `changeman.sh` integration (`start intake fab-new`). |
 | 260226-i9av-add-ready-state-to-stages | 2026-02-26 | `/fab-continue` gains state-based dispatch: `active` → generate artifact, `ready` → advance to next stage. `/fab-ff` redefined: starts from intake (was: spec-only), 3 safety gates (intake indicative >= 3.0, spec per-type threshold, review 3-cycle stop). `/fab-fff` unchanged except contrast text. `/fab-clarify` accepts `ready` state. `_preamble.md` State Table adds `/fab-ff` to intake row, state derivation includes `ready`. Dual gate thresholds documented (intake fixed 3.0, spec dynamic per-type). |
 | 260226-tnr8-coverage-scoring-change-types | 2026-02-26 | `/fab-new` gains change type inference (keyword heuristic → `stageman.sh set-change-type`) and indicative confidence display (coverage-weighted formula, display-only, not persisted). Coverage-weighted confidence formula added to `_preamble.md` §Confidence Scoring. Gate thresholds updated from 4-type (`bugfix`/`feature`/`refactor`/`architecture`) to 7-type taxonomy (`feat`/`fix`/`refactor`/`docs`/`test`/`ci`/`chore`). |

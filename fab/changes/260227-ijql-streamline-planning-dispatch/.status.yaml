@@ -1,0 +1,38 @@
+name: 260227-ijql-streamline-planning-dispatch
+created: 2026-02-27T08:31:08+05:30
+created_by: sahil-weaver
+change_type: refactor
+issues: []
+progress:
+  intake: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
+checklist:
+  generated: true
+  path: checklist.md
+  completed: 16
+  total: 16
+confidence:
+  certain: 7
+  confident: 1
+  tentative: 0
+  unresolved: 0
+  score: 4.7
+  fuzzy: true
+  dimensions:
+    signal: 89.4
+    reversibility: 88.8
+    competence: 93.1
+    disambiguation: 91.9
+stage_metrics:
+  intake: {completed_at: "2026-02-27T08:37:12+05:30"}
+  spec: {started_at: "2026-02-27T08:37:12+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-27T08:38:15+05:30"}
+  tasks: {started_at: "2026-02-27T08:38:15+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-27T08:38:50+05:30"}
+  apply: {started_at: "2026-02-27T08:38:50+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-27T08:42:15+05:30"}
+  review: {started_at: "2026-02-27T08:42:15+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-27T08:45:57+05:30"}
+  hydrate: {started_at: "2026-02-27T08:45:57+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-27T08:46:51+05:30"}
+prs: []
+last_updated: "2026-02-27T08:46:51+05:30"

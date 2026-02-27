@@ -39,24 +39,23 @@ Both may be provided in any order. Stage names are treated as reset targets; all
 
 Dispatch on preflight's derived `stage` and `display_state`. If progress is `pending`, run `fab/.kit/scripts/lib/stageman.sh start <change> <stage> fab-continue` before dispatching.
 
-**State-based dispatch**: The `display_state` field distinguishes two actions per stage:
-- **`active`** → Generate the stage's artifact, then run `advance` to move stage to `ready`
-- **`ready`** → Run `finish` to complete the stage (`done`) and auto-activate the next
+**State-based dispatch**: For planning stages, `/fab-continue` consolidates work into a single invocation:
+- **`ready`** (planning) → Finish the current stage, start the next, generate its artifact, and advance it to `ready`
+- **`active`** (planning) → Generate the stage's artifact and advance to `ready` (backward compat for interrupted generations)
+- **`active`/`ready`** (execution) → Execute the stage's behavior and finish it
 
 | Derived stage | State | Action |
 |---------------|-------|--------|
-| `intake` | `active` | `intake.md` exists from `/fab-new` — run `advance <change> intake` |
-| `intake` | `ready` | Finish: run `finish <change> intake fab-continue` (auto-activates spec) |
-| `spec` | `active` | Generate `spec.md` → run `advance <change> spec` |
-| `spec` | `ready` | Finish: run `finish <change> spec fab-continue` (auto-activates tasks) |
-| `tasks` | `active` | Generate `tasks.md` + checklist → run `advance <change> tasks` |
-| `tasks` | `ready` | Finish: run `finish <change> tasks fab-continue` (auto-activates apply) |
+| `intake` | `ready` | finish intake → start spec → generate `spec.md` → advance spec to `ready` |
+| `intake` | `active` | generate intake if missing → advance to `ready` |
+| `spec` | `ready` | finish spec → start tasks → generate `tasks.md` + checklist → advance tasks to `ready` |
+| `spec` | `active` | generate `spec.md` → advance to `ready` |
+| `tasks` | `ready` | finish tasks → start apply → execute tasks → finish apply |
+| `tasks` | `active` | generate `tasks.md` + checklist → advance to `ready` |
 | `apply` | `active`/`ready` | Execute apply → on completion run `finish <change> apply fab-continue` (auto-activates review) |
 | `review` | `active`/`ready` | Execute review → pass: run `finish <change> review fab-continue` (auto-activates hydrate). Fail: run `fail <change> review` then `start <change> apply fab-continue` |
 | `hydrate` | `active`/`ready` | Execute hydrate → run `finish <change> hydrate fab-continue` |
 | all `done` | — | Block: "Change is complete." |
-
-**Single-dispatch rule**: Execute exactly ONE action per invocation — either generate (active → ready) OR advance (ready → done + next → active). The user runs `/fab-continue` again to proceed. Do NOT loop back to re-evaluate the new current stage.
 
 ### Step 2: Load Context
 

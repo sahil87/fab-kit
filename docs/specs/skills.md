@@ -61,9 +61,9 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 |-------|---------------|-----------|
 | `/fab-setup` | initialized | `Next: /fab-new <description> or /docs-hydrate-memory <sources>` |
 | `/docs-hydrate-memory` | memory hydrated | `Next: /fab-new <description> or /docs-hydrate-memory <more-sources>` |
-| `/fab-new` | intake done | `Next: /fab-continue or /fab-ff (fast-forward all planning)` |
-| `/fab-continue` → spec | spec done | `Next: /fab-continue (tasks) or /fab-ff (fast-forward) or /fab-clarify (refine spec)` |
-| `/fab-continue` → tasks | tasks done | `Next: /fab-continue (apply)` |
+| `/fab-new` | intake ready | `Next: /fab-continue or /fab-clarify (refine intake) or /fab-ff` |
+| `/fab-continue` (from intake ready) | spec ready | `Next: /fab-continue (tasks) or /fab-clarify (refine spec) or /fab-ff` |
+| `/fab-continue` (from spec ready) | tasks ready | `Next: /fab-continue (apply) or /fab-clarify (refine tasks)` |
 | `/fab-ff` | tasks done | `Next: /fab-continue (apply)` |
 | `/fab-clarify` | same stage | `Next: /fab-clarify (refine further) or /fab-continue or /fab-ff` |
 | `/fab-continue` → apply | apply done | `Next: /fab-continue (review)` |
@@ -205,18 +205,18 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 **Behavior**:
 1. Generate folder name: today's date (`YYMMDD`) + 4 random alphanumeric chars + 2-6 word slug from description
 2. Create `fab/changes/{name}/`
-3. Initialize `.status.yaml` with `progress.intake: active`
+3. Initialize `.status.yaml` with all stages `pending`; `changeman.sh` calls `stageman.sh start intake` to activate
 4. Generate `intake.md` using template (loading `fab/project/constitution.md` and `fab/project/config.yaml` as context)
 5. Perform gap analysis — check whether the change is already covered by existing mechanisms
 6. Use SRAD-driven adaptive questioning (no fixed cap) to resolve ambiguities conversationally
-7. Leave intake as `active` — `/fab-continue` handles the intake → spec transition
+7. Advance intake to `ready` — the artifact exists and is open for `/fab-clarify` refinement
 8. **Switch** (if `--switch` flag or switching intent detected): call `/fab-switch` to write `fab/current` and handle branch integration. Default: skip this step.
 
 ---
 
 ## `/fab-continue [<stage>]`
 
-**Purpose**: Create the next artifact in sequence — or, when called with a stage argument, reset to that stage and regenerate from there.
+**Purpose**: Advance through the pipeline — finishing the current `ready` planning stage, generating the next artifact, and leaving it at `ready` for optional `/fab-clarify` refinement. Or, when called with a stage argument, reset to that stage and regenerate from there.
 
 **Arguments**:
 - `<stage>` *(optional)* — target stage to reset to (`spec` or `tasks`). Used after `/fab-continue` (review) identifies issues upstream. When provided, resets `.status.yaml` to this stage and regenerates artifacts from that point forward.
@@ -228,7 +228,10 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 **Examples**:
 ```
 /fab-continue
-→ "Stage: intake (done). Next: Create spec.md."
+→ (intake ready) Finishes intake, generates spec.md, spec is now ready.
+
+/fab-continue
+→ (spec ready) Finishes spec, generates tasks.md + checklist, tasks is now ready.
 
 /fab-continue spec
 → "Resetting to spec stage. Regenerating spec.md..."
@@ -236,11 +239,12 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 ```
 
 **Behavior** (no argument — normal forward flow):
-1. Read `.status.yaml` to determine current stage
-2. Identify next artifact to create
-3. Load relevant template + context (including `fab/project/constitution.md` for project principles)
-4. Generate artifact (with clarification/research as needed)
-5. Auto-generate checklist when creating tasks
+1. Read `.status.yaml` to determine current stage and state
+2. For planning stages in `ready` state: finish the current stage, start the next, generate its artifact, advance to `ready`
+3. For planning stages in `active` state (backward compat): generate the artifact, advance to `ready`
+4. For execution stages: execute the stage's behavior and finish it
+5. Load relevant template + context (including `fab/project/constitution.md` for project principles)
+6. Auto-generate checklist when creating tasks
 7. Update `.status.yaml`
 
 **Behavior** (with stage argument — reset and regenerate):
@@ -248,7 +252,7 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 2. Reset `.status.yaml` stage to the target. Mark all stages from target onward as `pending`.
 3. Regenerate the target stage's artifact in place (update, not recreate from scratch — preserve what's still valid).
 4. Downstream artifacts are invalidated: tasks are reset to `- [ ]`, checklist is regenerated.
-5. Update `.status.yaml` and report what was reset.
+5. Advance the target stage to `ready` (not `done` — preserves `/fab-clarify` opportunity).
 
 ---
 

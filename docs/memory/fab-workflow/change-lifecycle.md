@@ -107,7 +107,7 @@ Changes progress through 6 stages in a defined graph:
 intake → spec → tasks → apply → review → hydrate
 ```
 
-The intake (`intake.md`) is created by `/fab-new` and is the first pipeline stage. After creation, you can refine the intake with `/fab-clarify` before advancing to spec generation.
+The intake (`intake.md`) is created by `/fab-new`, which leaves the intake stage as `ready` (artifact exists, open for refinement). Each planning stage follows this pattern: generation leaves the stage at `ready`, and `/fab-continue` finishes it while generating the next artifact. Users can run `/fab-clarify` at any `ready` checkpoint before continuing.
 
 The stages split into three phases:
 - **Planning** (1-3): intake, spec, tasks
@@ -252,10 +252,10 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 *Introduced by*: 260212-v5p2-simplify-stages-entry-paths; *Updated by*: 260213-wo9v-fix-reset-auto-advance (three-tier fallback); *Updated by*: 260226-i9av-add-ready-state-to-stages (added `ready` state, reversed prior rejection)
 
 ### Reset Flow Stops at Target Stage
-**Decision**: When `/fab-continue` resets to a planning stage, the target stage is marked `done` after regeneration. The next stage is NOT set to `active` — it remains `pending`. The user runs `/fab-continue` again to advance.
-**Why**: Auto-advancing past the regenerated stage leaves the next stage `active` with a stale or invalidated artifact. Example: `fab-continue spec` regenerates spec.md, but if it also sets `tasks: active`, the user is stranded at tasks with an invalidated `tasks.md`.
-**Rejected**: Leaving target as `active` (confusing — artifact is fresh but stage says "in progress"). Auto-advancing to next stage (the bug this decision fixes).
-*Introduced by*: 260213-wo9v-fix-reset-auto-advance
+**Decision**: When `/fab-continue` resets to a planning stage, the target stage is advanced to `ready` after regeneration. The next stage is NOT set to `active` — it remains `pending`. The user can run `/fab-clarify` to refine or `/fab-continue` to proceed.
+**Why**: Auto-advancing past the regenerated stage leaves the next stage `active` with a stale or invalidated artifact. Example: `fab-continue spec` regenerates spec.md, but if it also sets `tasks: active`, the user is stranded at tasks with an invalidated `tasks.md`. The `ready` state signals the artifact exists and is open for refinement.
+**Rejected**: Leaving target as `active` (confusing — artifact is fresh but stage says "in progress"). Marking as `done` (skips the `/fab-clarify` checkpoint). Auto-advancing to next stage (the bug this decision fixes).
+*Introduced by*: 260213-wo9v-fix-reset-auto-advance; *Updated by*: 260227-ijql-streamline-planning-dispatch (changed from `done` to `ready`)
 
 ### Keyword Scan Interactive-Only (`/fab-archive`)
 **Decision**: The keyword-based backlog scan in `/fab-archive` always runs interactively with user confirmation. `/fab-archive` is always user-invoked (never called by auto-mode pipelines), so the interactive confirmation is natural.
@@ -273,6 +273,7 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260227-ijql-streamline-planning-dispatch | 2026-02-27 | Planning stages use `ready` as default post-generation state. `/fab-new` leaves intake `ready`. Updated "Reset Flow Stops at Target Stage" design decision: target stage advances to `ready` (was `done`). |
 | 260227-gasp-consolidate-status-field-naming | 2026-02-27 | Renamed `issue_id` → `issues` (scalar to array) in `.status.yaml`. Issue IDs now stored via `stageman.sh add-issue`, not embedded in folder name. |
 | 260226-6boq-event-driven-stageman | 2026-02-26 | Replaced `set-state`/`transition` API with 5 event commands: `start`, `advance`, `finish`, `reset`, `fail`. Added state transition table. Updated two-write transitions to reference `finish` (atomic done+next) and `reset` (cascade downstream). Updated `stage_metrics` to reference event commands. Driver parameter now optional (skills always pass it). |
 | 260226-3g6f-git-branch-non-interactive-rename | 2026-02-26 | `/git-branch` non-interactive: replaced 3-option menu (Create/Adopt/Skip) with deterministic upstream-tracking logic. Local-only branches renamed via `git branch -m`; branches with upstream get new branch via `git checkout -b`. Removed "Adopt" concept entirely. New report verbs: `renamed from {old}`, `created, leaving {old} intact`. |

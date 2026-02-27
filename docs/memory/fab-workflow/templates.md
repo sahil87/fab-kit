@@ -70,15 +70,14 @@ Generation is contextual — items derived from `spec.md` (requirements, design 
 
 The `.status.yaml` template initializes a new change with the following structure:
 
-- **No `stage:` field** — current stage is derived from the `active` entry in the progress map
-- **`intake: active`** as the initial progress state — intake is the first pipeline stage
+- **No `stage:` field** — current stage is derived from the `active` or `ready` entry in the progress map
+- **All stages start as `pending`** in the template — `changeman.sh` calls `stageman.sh start intake` to transition intake to `active` with proper `stage_metrics` tracking. `/fab-new` then advances intake to `ready` after generating the artifact.
 - **`issues: []`** — placed after `change_type`. Array of external tracker IDs (e.g., `["DEV-123"]`). Managed exclusively via `stageman.sh add-issue` / `get-issues`. Populated by `/fab-new` when created from a tracker ticket.
-- All other stages start as `pending`
 
-Initial progress map:
+Initial progress map (template):
 ```yaml
 progress:
-  intake: active
+  intake: pending
   spec: pending
   tasks: pending
   apply: pending
@@ -184,6 +183,7 @@ When `/fab-continue` (hydrate) hydrates into memory files:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260227-ijql-streamline-planning-dispatch | 2026-02-27 | Template `intake: active` → `intake: pending`. `changeman.sh start` transitions to `active` with metrics. `/fab-new` advances to `ready`. Clean layer separation: template (blank slate) → script (activate) → skill (generate + advance). |
 | 260227-gasp-consolidate-status-field-naming | 2026-02-27 | Renamed `issue_id: null` → `issues: []` (scalar to array), `shipped: []` → `prs: []`. All access via stageman `add-issue`/`get-issues`/`add-pr`/`get-prs`. |
 | 260226-tnr8-coverage-scoring-change-types | 2026-02-26 | Changed `.status.yaml` template default `change_type` from `feature` to `feat`, aligning with the 7-type conventional commit prefix taxonomy. |
 | 260226-jq7a-slim-config-decouple-naming | 2026-02-26 | Added `issue_id: null` to .status.yaml template initial state. |
