@@ -164,6 +164,10 @@ Print: `  ✓ push   — origin/<branch>`
    - Intake URL = `https://github.com/{owner_repo}/blob/{branch}/fab/changes/{name}/intake.md`
    - Spec URL = `https://github.com/{owner_repo}/blob/{branch}/fab/changes/{name}/spec.md` (only if `spec.md` exists)
 
+   Then read `.status.yaml` from the change directory to extract:
+   - `{confidence_score}` = `confidence.score` (e.g., `3.5`)
+   - `{pipeline_stages}` = stage names from `progress` map whose value is `done`, joined with ` → `, in fixed order: intake, spec, tasks, apply, review, hydrate
+
    Then generate the body:
    ```
    ## Summary
@@ -177,10 +181,13 @@ Print: `  ✓ push   — origin/<branch>`
    |---|---|
    | Type | {type} |
    | Change | `{change_name}` |
-   | [Intake]({intake_url}) | [Spec]({spec_url}) |
+   | Confidence | {confidence_score} / 5.0 |
+   | Pipeline | {pipeline_stages} |
+   | Intake | [{change_name}/intake.md]({intake_url}) |
+   | Spec | [{change_name}/spec.md]({spec_url}) |
    ```
 
-   If `spec.md` does not exist, still emit a two-column row with the Spec cell empty: `| [Intake]({intake_url}) | |`.
+   If `spec.md` does not exist, omit the Spec row entirely.
 
    **Tier 2 — Lightweight** (type is `docs`, `test`, `ci`, or `chore`, OR no fab change, OR intake missing):
 

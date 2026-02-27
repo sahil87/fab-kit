@@ -1,0 +1,38 @@
+name: 260227-8q33-richer-git-pr-output
+created: 2026-02-27T10:34:13+05:30
+created_by: sahil-weaver
+change_type: feat
+issues: []
+progress:
+  intake: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
+checklist:
+  generated: true
+  path: checklist.md
+  completed: 18
+  total: 18
+confidence:
+  certain: 3
+  confident: 4
+  tentative: 0
+  unresolved: 0
+  score: 3.8
+  fuzzy: true
+  dimensions:
+    signal: 77.1
+    reversibility: 92.9
+    competence: 84.3
+    disambiguation: 81.4
+stage_metrics:
+  intake: {started_at: "2026-02-27T10:34:13+05:30", driver: fab-new, iterations: 1, completed_at: "2026-02-27T10:45:14+05:30"}
+  spec: {started_at: "2026-02-27T10:45:14+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-27T10:46:00+05:30"}
+  tasks: {started_at: "2026-02-27T10:46:00+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-27T10:46:38+05:30"}
+  apply: {started_at: "2026-02-27T10:46:38+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-27T10:47:32+05:30"}
+  review: {started_at: "2026-02-27T10:47:32+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-27T10:49:31+05:30"}
+  hydrate: {started_at: "2026-02-27T10:49:31+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-27T10:50:00+05:30"}
+prs: []
+last_updated: "2026-02-27T10:50:00+05:30"
