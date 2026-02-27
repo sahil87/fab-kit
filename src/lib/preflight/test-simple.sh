@@ -15,8 +15,10 @@ trap "rm -rf $TEST_DIR" EXIT
 FAB="$TEST_DIR/fab"
 mkdir -p "$FAB/.kit/scripts/lib" "$FAB/.kit/schemas" "$FAB/changes/smoke-test"
 cp "$PROJECT_ROOT/fab/.kit/scripts/lib/preflight.sh" "$FAB/.kit/scripts/lib/"
-cp "$PROJECT_ROOT/fab/.kit/scripts/lib/stageman.sh" "$FAB/.kit/scripts/lib/"
+cp "$PROJECT_ROOT/fab/.kit/scripts/lib/statusman.sh" "$FAB/.kit/scripts/lib/"
 cp "$PROJECT_ROOT/fab/.kit/scripts/lib/changeman.sh" "$FAB/.kit/scripts/lib/"
+cp "$PROJECT_ROOT/fab/.kit/scripts/lib/resolve.sh" "$FAB/.kit/scripts/lib/"
+cp "$PROJECT_ROOT/fab/.kit/scripts/lib/logman.sh" "$FAB/.kit/scripts/lib/"
 cp "$PROJECT_ROOT/fab/.kit/schemas/workflow.yaml" "$FAB/.kit/schemas/"
 chmod +x "$FAB/.kit/scripts/lib/preflight.sh"
 

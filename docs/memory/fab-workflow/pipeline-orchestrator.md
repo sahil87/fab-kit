@@ -37,7 +37,7 @@ The `stage` field is written by the orchestrator. Valid values: `intake`, `spec`
 - `shipping` → pushes `/git-pr` via `tmux send-keys`, polls `gh pr view` for PR creation
 - Terminal states: `done` (PR detected) or `failed` (timeout, pane death)
 
-**Progress rendering**: Each poll iteration calls `stageman.sh progress-line` and renders in-place: `<id>: <progress> (<elapsed>)`.
+**Progress rendering**: Each poll iteration calls `statusman.sh progress-line` and renders in-place: `<id>: <progress> (<elapsed>)`.
 
 **Configurable timeouts**: `PIPELINE_FF_TIMEOUT` (default 1800s/30min), `PIPELINE_SHIP_TIMEOUT` (default 300s/5min).
 
@@ -100,11 +100,11 @@ Shorthand for running a sequential chain of changes. Accepts one or more change 
 
 ### Progress Rendering
 
-`stageman.sh progress-line` produces a single-line visual pipeline progress string for left-pane rendering. Done stages joined by ` → `, active stage + ` ⏳`, failed + ` ✗`, pending omitted. All-done appends ` ✓`. Examples: `spec → tasks → apply ⏳`, `intake → spec → tasks → apply → review ✗`.
+`statusman.sh progress-line` produces a single-line visual pipeline progress string for left-pane rendering. Done stages joined by ` → `, active stage + ` ⏳`, failed + ` ✗`, pending omitted. All-done appends ` ✓`. Examples: `spec → tasks → apply ⏳`, `intake → spec → tasks → apply → review ✗`.
 
 ### Stage Detection
 
-`run.sh`'s polling loop uses `stageman progress-map` to detect `hydrate:done`, which triggers shipping. Intermediate states like `review:failed` are not treated as terminal — fab-ff manages its own rework lifecycle internally. The orchestrator relies on `hydrate:done` (success), pane death (failure), and timeout (failure) as the only terminal conditions.
+`run.sh`'s polling loop uses `statusman progress-map` to detect `hydrate:done`, which triggers shipping. Intermediate states like `review:failed` are not treated as terminal — fab-ff manages its own rework lifecycle internally. The orchestrator relies on `hydrate:done` (success), pane death (failure), and timeout (failure) as the only terminal conditions.
 
 ### Shipping
 
@@ -174,7 +174,7 @@ BATS test suite at `src/scripts/pipeline/test.bats` covers pure-logic functions 
 
 ### Test Patterns
 
-- External commands (`tmux`, `claude`, `gh`, `changeman.sh`, `stageman.sh`, `calc-score.sh`) are stubbed via executables in `$TEST_DIR/bin/` prepended to `$PATH`
+- External commands (`tmux`, `claude`, `gh`, `changeman.sh`, `statusman.sh`, `calc-score.sh`) are stubbed via executables in `$TEST_DIR/bin/` prepended to `$PATH`
 - YAML manifest fixtures created inline per test via `make_manifest` helper
 - Each test sources the script under test, then overrides computed globals (`CHANGEMAN`, `CONFIG_FILE`, `FAB_DIR`, etc.) before calling functions
 - `setup()` creates isolated `TEST_DIR`; `teardown()` removes it
@@ -185,7 +185,7 @@ BATS test suite at `src/scripts/pipeline/test.bats` covers pure-logic functions 
 |--------|------|---------|
 | 260223-xiuk-batch-pipeline-single-change-and-base-branch | 2026-02-23 | `batch-pipeline-series.sh` now accepts a single change argument (minimum lowered from 2 to 1). `run.sh` `validate_manifest()` treats `base` as optional — resolves to current branch via `git branch --show-current` with `main` fallback, writes resolved value back to manifest. Fixed detached HEAD fallback in both scripts (explicit empty-check replaces `\|\|` pattern). Scaffold `example.yaml` synced with main copy. Test suite: 44→46 tests. |
 | 260227-gasp-consolidate-status-field-naming | 2026-02-27 | `.shipped` sentinel renamed to `.pr-done`. Pipeline runner updated accordingly. |
-| 260222-trdc-git-pr-shipped-sentinel-and-status-commit | 2026-02-22 | Ship completion detection now uses `.shipped` sentinel file (gitignored, written by `/git-pr` after all git ops) instead of `stageman is-shipped` polling. Eliminates TOCTOU race where `.status.yaml` update was visible before commit+push completed. `/git-pr` now performs a second commit+push of `.status.yaml` before writing the sentinel. |
+| 260222-trdc-git-pr-shipped-sentinel-and-status-commit | 2026-02-22 | Ship completion detection now uses `.shipped` sentinel file (gitignored, written by `/git-pr` after all git ops) instead of `statusman is-shipped` polling. Eliminates TOCTOU race where `.status.yaml` update was visible before commit+push completed. `/git-pr` now performs a second commit+push of `.status.yaml` before writing the sentinel. |
 | 260222-6ldg-wt-create-reuse-flag | 2026-02-22 | Added `--reuse` flag to `wt-create` — returns existing worktree path on name collision instead of erroring. `dispatch.sh` now passes `--reuse` (removed bespoke `wt_get_worktree_path_by_name` pre-check and `wt-common.sh` source import). `batch-fab-switch-change.sh` also passes `--reuse` for idempotent re-runs. |
 | 260222-bcfy-batch-pipeline-series-rename | 2026-02-22 | Renamed `batch-fab-pipeline.sh` → `batch-pipeline.sh`. Added `watch` manifest field and finite-exit default to `run.sh` (exits when all terminal; `watch: true` for infinite loop). Fixed `dispatch.sh` to use local branch refs instead of `origin/`. Added `batch-pipeline-series.sh` (sequential chain shorthand — generates temp manifest, delegates to run.sh). Added `.gitignore` pattern for generated series manifests. Added `all_terminal` function to run.sh. Test suite: 38→44 tests. |
 | 260222-n811-absorb-ship-command | 2026-02-22 | Replaced external `/changes:ship pr` (prompt-pantry) with native `/git-pr` skill. Updated `run.sh` ship command and log message. Added `git-pr` to `fab-help.sh` Completion group. |
@@ -193,6 +193,6 @@ BATS test suite at `src/scripts/pipeline/test.bats` covers pure-logic functions 
 | 260221-6ljc-fix-pipeline-ship-timing | 2026-02-21 | Added `PIPELINE_SHIP_DELAY` (default 8s) wait after `hydrate:done` before sending ship command. Split `tmux send-keys` into text + Enter with 0.5s gap. Added `2>/dev/null` error handling on send-keys calls for graceful pane-death during delay. |
 | 260221-h1l8-fix-orchestrator-false-fail-on-review | 2026-02-21 | Removed `:failed` catch-all from `poll_change()` — `review:failed` is a normal intermediate state in fab-ff's rework loop, not a terminal condition. Removed stale `[pipeline]` prefix from progress printf. |
 | 260221-2spf-fix-pipeline-dispatch-timing | 2026-02-21 | Replaced `claude -p` fab-switch with visible interactive execution. dispatch.sh now creates a bare Claude pane first, sends fab-switch via send-keys, polls `fab/current` for switch confirmation, then sends fab-ff via send-keys. Added configurable delays (`CLAUDE_STARTUP_DELAY`, `POST_SWITCH_DELAY`) and polling (`SWITCH_POLL_INTERVAL`, `SWITCH_POLL_TIMEOUT`). Updated "Hybrid Model" design decision to "All-Interactive Model". |
-| 260221-ay66-interactive-pipeline-pane | 2026-02-21 | Replaced passive `tail -f` log pane with interactive Claude sessions per dispatch. fab-ff now runs in interactive mode (not `claude -p`), shipping via `tmux send-keys` to the same session. Added unified polling loop in `run.sh` with progress-line rendering and state machine (polling_fab_ff → shipping → done/failed). Added `stageman.sh progress-line` command. Stacked vertical pane layout. Removed `ship()` from dispatch.sh. |
-| 260221-i0z6-move-env-packages-add-fab-pipeline | 2026-02-21 | Added `batch-fab-pipeline.sh` user-facing entry point with listing, partial name matching, help, and `exec` delegation. Added changeman resolve for manifest change IDs in `run.sh`. Added `--worktree-name` to `wt-create` call in `dispatch.sh`. Replaced raw yq hydrate check with stageman `display-stage` in `dispatch.sh`. |
+| 260221-ay66-interactive-pipeline-pane | 2026-02-21 | Replaced passive `tail -f` log pane with interactive Claude sessions per dispatch. fab-ff now runs in interactive mode (not `claude -p`), shipping via `tmux send-keys` to the same session. Added unified polling loop in `run.sh` with progress-line rendering and state machine (polling_fab_ff → shipping → done/failed). Added `statusman.sh progress-line` command. Stacked vertical pane layout. Removed `ship()` from dispatch.sh. |
+| 260221-i0z6-move-env-packages-add-fab-pipeline | 2026-02-21 | Added `batch-fab-pipeline.sh` user-facing entry point with listing, partial name matching, help, and `exec` delegation. Added changeman resolve for manifest change IDs in `run.sh`. Added `--worktree-name` to `wt-create` call in `dispatch.sh`. Replaced raw yq hydrate check with statusman `display-stage` in `dispatch.sh`. |
 | 260221-wy0e-pipeline-orchestrator | 2026-02-21 | Initial implementation — serial orchestrator with run.sh + dispatch.sh, YAML manifest format, wt-create integration, Claude CLI execution, stacked PRs, SIGINT handling, example scaffold |

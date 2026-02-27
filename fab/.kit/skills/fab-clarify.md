@@ -31,7 +31,7 @@ Disambiguation: matches `intake`/`spec`/`tasks` → target artifact; anything el
 
 ## Pre-flight & Stage Guard
 
-Run preflight per `_preamble.md` §2. Log invocation: `fab/.kit/scripts/lib/stageman.sh log-command <change> "fab-clarify" "<target-artifact-if-any>"`.
+Run preflight per `_preamble.md` §2.
 
 - **Planning stages** (`intake`, `spec`, `tasks`) with state `active` or `ready` — defaults to current stage's artifact if it exists; if the current stage is `pending` (no artifact yet), fall back to the previous `done` stage's artifact. `<target-artifact>` overrides either default. At the `intake` stage, the taxonomy scan covers intake artifact refinement (scope boundaries, affected areas, blocking questions, impact, memory coverage). When state is `ready`, the artifact exists — scanning proceeds normally and the stage stays `ready` throughout.
 - **Post-planning** (`apply`, `review`, `hydrate`) — requires `<target-artifact>`. If missing, prompt: "Which planning artifact to clarify? (1) spec, (2) tasks, (3) intake"

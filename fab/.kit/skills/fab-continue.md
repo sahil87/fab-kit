@@ -28,8 +28,7 @@ Both may be provided in any order. Stage names are treated as reset targets; all
 
 1. Classify arguments: stage name vs. change-name override (stage names take priority)
 2. Run preflight per `_preamble.md` §2
-3. Log invocation: `fab/.kit/scripts/lib/stageman.sh log-command <change> "fab-continue" "<stage-arg-if-any>"`
-4. Use preflight's `stage` and `progress` fields for all subsequent logic
+3. Use preflight's `stage` and `progress` fields for all subsequent logic
 
 ---
 
@@ -37,7 +36,7 @@ Both may be provided in any order. Stage names are treated as reset targets; all
 
 ### Step 1: Determine Current Stage
 
-Dispatch on preflight's derived `stage` and `display_state`. If progress is `pending`, run `fab/.kit/scripts/lib/stageman.sh start <change> <stage> fab-continue` before dispatching.
+Dispatch on preflight's derived `stage` and `display_state`. If progress is `pending`, run `fab/.kit/scripts/lib/statusman.sh start <change> <stage> fab-continue` before dispatching.
 
 **State-based dispatch**: For planning stages, `/fab-continue` consolidates work into a single invocation:
 - **`ready`** (planning) → Finish the current stage, start the next, generate its artifact, and advance it to `ready`
@@ -77,13 +76,13 @@ Load per `_preamble.md` layers. Stage-specific additions: planning stages load i
 
 ### Step 4: Update `.status.yaml`
 
-Use event commands via CLI to update `.status.yaml`. The `finish` command handles the two-write transition atomically: `fab/.kit/scripts/lib/stageman.sh finish <change> <completed-stage> fab-continue`. This sets `{completed}` → `done`, auto-activates the next pending stage, refreshes `last_updated`, and updates `stage_metrics`.
+Use event commands via CLI to update `.status.yaml`. The `finish` command handles the two-write transition atomically: `fab/.kit/scripts/lib/statusman.sh finish <change> <completed-stage> fab-continue`. This sets `{completed}` → `done`, auto-activates the next pending stage, refreshes `last_updated`, and updates `stage_metrics`.
 
 For other state changes, use the appropriate event command (driver is always optional):
-- `fab/.kit/scripts/lib/stageman.sh start <change> <stage> fab-continue` — pending/failed → active
-- `fab/.kit/scripts/lib/stageman.sh advance <change> <stage>` — active → ready
-- `fab/.kit/scripts/lib/stageman.sh fail <change> <stage>` — active → failed (review only)
-- `fab/.kit/scripts/lib/stageman.sh reset <change> <stage> fab-continue` — done/ready → active (cascades downstream to pending)
+- `fab/.kit/scripts/lib/statusman.sh start <change> <stage> fab-continue` — pending/failed → active
+- `fab/.kit/scripts/lib/statusman.sh advance <change> <stage>` — active → ready
+- `fab/.kit/scripts/lib/statusman.sh fail <change> <stage>` — active → failed (review only)
+- `fab/.kit/scripts/lib/statusman.sh reset <change> <stage> fab-continue` — done/ready → active (cascades downstream to pending)
 
 ### Step 5: Output
 
@@ -96,7 +95,7 @@ Display summary. Include Assumptions summary for planning stages. End with `Next
 ### Preconditions
 
 - `tasks.md` MUST exist
-- If stage is `tasks`: run `fab/.kit/scripts/lib/stageman.sh finish <change> tasks fab-continue` before starting (auto-activates apply)
+- If stage is `tasks`: run `fab/.kit/scripts/lib/statusman.sh finish <change> tasks fab-continue` before starting (auto-activates apply)
 
 ### Pattern Extraction
 
@@ -116,7 +115,7 @@ If `fab/project/code-quality.md` exists, load its `## Principles` as additional 
 ### Task Execution
 
 1. Parse tasks: `- [ ]` = remaining, `- [x]` = skip
-2. If all checked: run `fab/.kit/scripts/lib/stageman.sh finish <change> apply fab-continue` (auto-activates review). Stop.
+2. If all checked: run `fab/.kit/scripts/lib/statusman.sh finish <change> apply fab-continue` (auto-activates review). Stop.
 3. Execute in phase order; within phases, non-`[P]` sequential, `[P]` parallelizable. Respect Execution Order constraints.
 4. For each unchecked task:
    1. Read source files relevant to this task
@@ -126,7 +125,7 @@ If `fab/project/code-quality.md` exists, load its `## Principles` as additional 
    5. Write tests per `fab/project/code-quality.md` test strategy (default: `test-alongside`)
    6. Run tests, fix failures
    7. Mark `[x]` immediately
-5. On completion: run `fab/.kit/scripts/lib/stageman.sh finish <change> apply fab-continue` (auto-activates review).
+5. On completion: run `fab/.kit/scripts/lib/statusman.sh finish <change> apply fab-continue` (auto-activates review).
 
 ### Resumability
 
@@ -182,9 +181,9 @@ Each finding includes: severity tier, description, and file:line reference where
 
 ### Verdict
 
-**Pass**: Run `fab/.kit/scripts/lib/stageman.sh finish <change> review fab-continue` (auto-activates hydrate). Run `fab/.kit/scripts/lib/stageman.sh log-review <change> "passed"`. Update checklist via `fab/.kit/scripts/lib/stageman.sh set-checklist <change> completed <N>`. Output report + `Next: {per state table}`.
+**Pass**: Run `fab/.kit/scripts/lib/statusman.sh finish <change> review fab-continue` (auto-activates hydrate). Update checklist via `fab/.kit/scripts/lib/statusman.sh set-checklist <change> completed <N>`. Output report + `Next: {per state table}`.
 
-**Fail** (manual rework — `/fab-continue` only): Run `fab/.kit/scripts/lib/stageman.sh fail <change> review` then `fab/.kit/scripts/lib/stageman.sh start <change> apply fab-continue`. Run `fab/.kit/scripts/lib/stageman.sh log-review <change> "failed" "<rework-option>"` after user selects rework. Update checklist via `fab/.kit/scripts/lib/stageman.sh set-checklist <change> completed <N>`. Present findings with priority annotations, then offer rework options:
+**Fail** (manual rework — `/fab-continue` only): Run `fab/.kit/scripts/lib/statusman.sh fail <change> review` then `fab/.kit/scripts/lib/statusman.sh start <change> apply fab-continue`. Update checklist via `fab/.kit/scripts/lib/statusman.sh set-checklist <change> completed <N>`. Present findings with priority annotations, then offer rework options:
 
 | Option | When | Action |
 |--------|------|--------|
@@ -208,7 +207,7 @@ The applying agent triages review comments by priority — not all comments need
 1. Final validation: all tasks and checklist `[x]`
 2. Concurrent change check: warn on overlap with other changes referencing same memory paths
 3. Hydrate `docs/memory/`: create new files/domains, update existing (Requirements, Design Decisions, Changelog), update indexes
-4. Run `fab/.kit/scripts/lib/stageman.sh finish <change> hydrate fab-continue`
+4. Run `fab/.kit/scripts/lib/statusman.sh finish <change> hydrate fab-continue`
 5. **Pattern capture** *(optional)*: If the change introduced non-obvious implementation patterns that future changes should follow (e.g., a new error handling approach, a reusable abstraction), note them in the relevant memory file's Design Decisions section with the change name for traceability. Skip for implementations that follow existing patterns without introducing new ones
 
 ---
@@ -217,10 +216,10 @@ The applying agent triages review comments by priority — not all comments need
 
 1. **Validate**: Must be one of the 6 stage names
 2. **Load context** for the target stage
-3. **Reset `.status.yaml`**: Run `fab/.kit/scripts/lib/stageman.sh reset <change> <stage> fab-continue`. This atomically sets the target stage → `active` and cascades all downstream stages → `pending`. Stages before the target are preserved.
+3. **Reset `.status.yaml`**: Run `fab/.kit/scripts/lib/statusman.sh reset <change> <stage> fab-continue`. This atomically sets the target stage → `active` and cascades all downstream stages → `pending`. Stages before the target are preserved.
 4. **Execute**: Planning stages regenerate artifact. Execution stages re-run (task checkboxes NOT reset).
 5. **Invalidate downstream** (planning resets only): intake reset → all downstream pending; spec reset → tasks pending; tasks reset → reset all `[x]` → `[ ]`, regenerate checklist. The `reset` command handles the status cascading automatically.
-6. **Post-execution**: For **planning resets**, after regenerating the artifact, use `fab/.kit/scripts/lib/stageman.sh advance <change> <stage>` to move the target stage back to `ready` and stop there — **do not** run `finish`, to avoid auto-activating the next pending stage. For **execution resets**, use the normal `finish` commands, which will auto-activate the next pending stage.
+6. **Post-execution**: For **planning resets**, after regenerating the artifact, use `fab/.kit/scripts/lib/statusman.sh advance <change> <stage>` to move the target stage back to `ready` and stop there — **do not** run `finish`, to avoid auto-activating the next pending stage. For **execution resets**, use the normal `finish` commands, which will auto-activate the next pending stage.
 
 ---
 

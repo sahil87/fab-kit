@@ -55,7 +55,7 @@ declare -A PANE_IDS        # change-id → tmux pane ID
 CURRENT_DISPATCH=""        # change-id being dispatched (for SIGINT summary)
 LAST_PANE_ID=""            # last created pane (for stacking)
 LOG_FILE=""                # dispatch output log file path
-STAGEMAN="$KIT_DIR/scripts/lib/stageman.sh"
+STATUSMAN="$KIT_DIR/scripts/lib/statusman.sh"
 
 # Configurable timeouts (seconds)
 PIPELINE_FF_TIMEOUT="${PIPELINE_FF_TIMEOUT:-1800}"   # 30 minutes
@@ -358,7 +358,7 @@ poll_change() {
     # Render progress (truncate to terminal width to prevent wrap artifacts)
     local progress_line=""
     if [[ -f "$status_file" ]]; then
-      progress_line=$(bash "$STAGEMAN" progress-line "$status_file" 2>/dev/null) || progress_line=""
+      progress_line=$(bash "$STATUSMAN" progress-line "$status_file" 2>/dev/null) || progress_line=""
     fi
     local full_line
     full_line=$(printf "%s: %s (%dm %02ds)" "$resolved_id" "$progress_line" "$mins" "$secs")
@@ -381,7 +381,7 @@ poll_change() {
         if [[ -f "$status_file" ]]; then
           # Check progress-map for terminal states
           local progress_map
-          progress_map=$(bash "$STAGEMAN" progress-map "$status_file" 2>/dev/null) || progress_map=""
+          progress_map=$(bash "$STATUSMAN" progress-map "$status_file" 2>/dev/null) || progress_map=""
 
           # Check for hydrate:done (fab-ff complete)
           if echo "$progress_map" | grep -q "^hydrate:done$"; then

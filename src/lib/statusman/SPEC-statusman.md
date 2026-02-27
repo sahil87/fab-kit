@@ -1,30 +1,30 @@
-# Stage Manager (stageman)
+# Stage Manager (statusman)
 
 CLI utility for querying workflow stages and states from the canonical schema (`fab/.kit/schemas/workflow.yaml`). Invoke as a subprocess to replace hardcoded stage/state knowledge with schema-driven queries.
 
 ## Sources of Truth
 
 - **Schema**: `fab/.kit/schemas/workflow.yaml` — canonical workflow definition
-- **Implementation**: `fab/.kit/scripts/lib/stageman.sh` — main file (distributed with kit)
-- **Dev symlink**: `src/lib/stageman/stageman.sh` → `../../../fab/.kit/scripts/lib/stageman.sh`
+- **Implementation**: `fab/.kit/scripts/lib/statusman.sh` — main file (distributed with kit)
+- **Dev symlink**: `src/lib/statusman/statusman.sh` → `../../../fab/.kit/scripts/lib/statusman.sh`
 - **Schema docs**: `fab/docs/fab-workflow/schemas.md` — what the schema defines and design principles
 
 ## Usage
 
 ```bash
-STAGEMAN="path/to/stageman.sh"
+STATUSMAN="path/to/statusman.sh"
 
 # Query subcommands
-"$STAGEMAN" all-stages              # List all stage IDs in order
-"$STAGEMAN" progress-map .status.yaml  # Extract stage:state pairs
-"$STAGEMAN" current-stage .status.yaml # Detect active stage
+"$STATUSMAN" all-stages              # List all stage IDs in order
+"$STATUSMAN" progress-map .status.yaml  # Extract stage:state pairs
+"$STATUSMAN" current-stage .status.yaml # Detect active stage
 
 # Event subcommands
-"$STAGEMAN" start 6boq spec fab-continue
-"$STAGEMAN" finish 6boq spec fab-continue
+"$STATUSMAN" start 6boq spec fab-continue
+"$STATUSMAN" finish 6boq spec fab-continue
 
 # Flags
-"$STAGEMAN" --help      # Show usage and subcommand reference
+"$STATUSMAN" --help      # Show usage and subcommand reference
 ```
 
 ## API Reference
@@ -92,10 +92,10 @@ STAGEMAN="path/to/stageman.sh"
 
 ```bash
 # Full test suite (115 tests)
-bats src/lib/stageman/test.bats
+bats src/lib/statusman/test.bats
 
 # Quick smoke test
-src/lib/stageman/test-simple.sh
+src/lib/statusman/test-simple.sh
 ```
 
 ## Changelog
@@ -139,8 +139,8 @@ src/lib/stageman/test-simple.sh
 
 ### 1.0.0 (2026-02-12)
 
-- Renamed from `workflow-lib.sh` to `stageman.sh`
-- Reversed directory structure: main file in `fab/.kit/scripts/lib/`, dev symlink in `src/lib/stageman/`
+- Renamed from `workflow-lib.sh` to `statusman.sh`
+- Reversed directory structure: main file in `fab/.kit/scripts/lib/`, dev symlink in `src/lib/statusman/`
 - All state/stage query functions (20+)
 - Validation functions (`validate_status_file`, `validate_stage_state`)
 - CLI interface (`--help`, `--version`, `--test`)

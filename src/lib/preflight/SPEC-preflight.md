@@ -6,7 +6,7 @@ Pre-execution validator for fab workflow commands. Checks the health of the curr
 
 - **Implementation**: `fab/.kit/scripts/lib/preflight.sh` — main file (distributed with kit)
 - **Dev symlink**: `src/lib/preflight/preflight.sh` → `../../../fab/.kit/scripts/lib/preflight.sh`
-- **Dependencies**: `fab/.kit/scripts/lib/stageman.sh` (sourced for schema-driven validation)
+- **Dependencies**: `fab/.kit/scripts/lib/statusman.sh` (sourced for schema-driven validation)
 - **Schema**: `fab/.kit/schemas/workflow.yaml` — canonical workflow definition
 
 ## Usage
@@ -27,7 +27,7 @@ fab/.kit/scripts/lib/preflight.sh my-feature
 | 2 | Change name resolves (from `$1` or `fab/current`) | "No active change" / "No change matches" |
 | 3 | Change directory exists under `fab/changes/` | "Change directory not found" |
 | 4 | `.status.yaml` exists | "corrupted — .status.yaml not found" |
-| 5 | `.status.yaml` passes schema validation (via stageman) | "Status file validation failed" |
+| 5 | `.status.yaml` passes schema validation (via statusman) | "Status file validation failed" |
 
 ## Change Name Resolution
 
@@ -91,7 +91,7 @@ confidence:
 
 - Bash 4.0+
 - GNU coreutils (grep, sed, awk)
-- `stageman.sh` accessible at `$(dirname "$0")/stageman.sh`
+- `statusman.sh` accessible at `$(dirname "$0")/statusman.sh`
 - `changeman.sh` accessible at `$(dirname "$0")/changeman.sh`
 
 ## Testing

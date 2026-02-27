@@ -239,7 +239,7 @@ All existing subcommands not listed for removal SHALL remain with identical beha
 `calc-score.sh` SHALL extract two internal helper functions:
 
 1. **`count_grades <file>`** — parse the `## Assumptions` table from a markdown file. Output grade counts and dimension score sums in a parseable format.
-2. **`compute_score <confident> <tentative> <total> <expected_min>`** — compute the confidence score using the formula: `base = max(0.0, 5.0 - 0.3*confident - 1.0*tentative); cover = min(1.0, total/expected_min); score = base * cover` (or `0.0` if unresolved > 0). Return the score on stdout.
+2. **`compute_score <confident> <tentative> <unresolved> <total> <expected_min>`** — compute the confidence score: returns `0.0` if unresolved > 0, otherwise applies the formula `base = max(0.0, 5.0 - 0.3*confident - 1.0*tentative); cover = min(1.0, total/expected_min); score = base * cover`. Return the score on stdout.
 
 The grade counting loop and score formula SHALL each appear exactly once in the script.
 

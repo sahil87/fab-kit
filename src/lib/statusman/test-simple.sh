@@ -2,10 +2,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-STAGEMAN="$SCRIPT_DIR/stageman.sh"
+STATUSMAN="$SCRIPT_DIR/statusman.sh"
 
 echo "Testing all-stages..."
-stages=$("$STAGEMAN" all-stages)
+stages=$("$STATUSMAN" all-stages)
 if [[ "$stages" == *"spec"* ]]; then
   echo "✓ all-stages works"
 else
@@ -37,7 +37,7 @@ confidence:
   score: 3.4
 EOF
 
-progress=$("$STAGEMAN" progress-map "$TEST_DIR/status.yaml")
+progress=$("$STATUSMAN" progress-map "$TEST_DIR/status.yaml")
 if [[ "$progress" == *"intake:done"* ]] && [[ "$progress" == *"spec:active"* ]]; then
   echo "✓ progress-map works"
 else
@@ -46,7 +46,7 @@ else
 fi
 
 echo "Testing checklist..."
-checklist=$("$STAGEMAN" checklist "$TEST_DIR/status.yaml")
+checklist=$("$STATUSMAN" checklist "$TEST_DIR/status.yaml")
 if [[ "$checklist" == *"generated:true"* ]] && [[ "$checklist" == *"total:10"* ]]; then
   echo "✓ checklist works"
 else
@@ -55,7 +55,7 @@ else
 fi
 
 echo "Testing confidence..."
-confidence=$("$STAGEMAN" confidence "$TEST_DIR/status.yaml")
+confidence=$("$STATUSMAN" confidence "$TEST_DIR/status.yaml")
 if [[ "$confidence" == *"score:3.4"* ]] && [[ "$confidence" == *"certain:5"* ]]; then
   echo "✓ confidence works"
 else

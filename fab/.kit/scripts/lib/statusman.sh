@@ -1,25 +1,27 @@
 #!/usr/bin/env bash
-# fab/.kit/scripts/lib/stageman.sh
+# fab/.kit/scripts/lib/statusman.sh
 #
-# Stage Manager — CLI utility for workflow stages, states, and .status.yaml.
+# Status Manager — CLI utility for workflow stages, states, and .status.yaml.
 # Reads the canonical workflow schema and provides typed subcommands.
 #
 # Usage:
-#   stageman.sh --help               Show usage
-#   stageman.sh all-stages           List all stage IDs
-#   stageman.sh progress-map <change>  Extract stage:state pairs
-#   stageman.sh start <change> <stage> [driver]
-#   stageman.sh finish <change> <stage> [driver]
+#   statusman.sh --help               Show usage
+#   statusman.sh all-stages           List all stage IDs
+#   statusman.sh progress-map <change>  Extract stage:state pairs
+#   statusman.sh start <change> <stage> [driver]
+#   statusman.sh finish <change> <stage> [driver]
 
 set -euo pipefail
 
-# Locate workflow schema relative to this script
-STAGEMAN_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
-WORKFLOW_SCHEMA="$STAGEMAN_DIR/../../schemas/workflow.yaml"
+# Locate workflow schema and sibling scripts relative to this script
+STATUSMAN_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+WORKFLOW_SCHEMA="$STATUSMAN_DIR/../../schemas/workflow.yaml"
+RESOLVE="$STATUSMAN_DIR/resolve.sh"
+LOGMAN="$STATUSMAN_DIR/logman.sh"
 
 if [ ! -f "$WORKFLOW_SCHEMA" ]; then
   echo "ERROR: workflow.yaml not found at $WORKFLOW_SCHEMA" >&2
-  echo "       STAGEMAN_DIR=$STAGEMAN_DIR" >&2
+  echo "       STATUSMAN_DIR=$STATUSMAN_DIR" >&2
   exit 1
 fi
 
@@ -30,41 +32,27 @@ if ! command -v yq &>/dev/null; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Change Argument Resolution
+# Change Argument Resolution (via resolve.sh)
 # ─────────────────────────────────────────────────────────────────────────────
 
-# resolve_change_arg <arg> — Resolve a change argument to a .status.yaml path.
-# If <arg> is an existing file, use it directly.
-# Otherwise, resolve via changeman.sh and append /.status.yaml.
-# Returns the resolved path on stdout. Exits 1 on resolution failure.
-CHANGEMAN="$STAGEMAN_DIR/changeman.sh"
-
-resolve_change_arg() {
+# resolve_to_status <arg> — Resolve a change argument to a .status.yaml path.
+# If <arg> is an existing file, use it directly (backward compat).
+# Otherwise, delegate to resolve.sh --status.
+resolve_to_status() {
   local arg="$1"
 
+  # Direct file path (backward compat for internal callers like preflight)
   if [ -f "$arg" ]; then
     echo "$arg"
     return 0
   fi
 
-  # If the argument looks like a file path (contains / or ends with .yaml),
-  # treat it as a path that should exist — don't try changeman resolution.
-  if [[ "$arg" == */* ]] || [[ "$arg" == *.yaml ]]; then
-    echo "ERROR: Status file not found: $arg" >&2
-    return 1
-  fi
-
-  # Try changeman resolution for change identifiers
-  local resolved
-  if ! resolved=$("$CHANGEMAN" resolve "$arg" 2>&1); then
-    echo "ERROR: Cannot resolve change '$arg': $resolved" >&2
-    return 1
-  fi
-
-  # Derive repo root from stageman location
+  # Delegate to resolve.sh
   local repo_root
-  repo_root="$(cd "$STAGEMAN_DIR/../../../.." && pwd)"
-  local status_file="$repo_root/fab/changes/${resolved}/.status.yaml"
+  repo_root="$(cd "$STATUSMAN_DIR/../../../.." && pwd)"
+  local resolved
+  resolved=$("$RESOLVE" --status "$arg") || return 1
+  local status_file="$repo_root/$resolved"
 
   if [ ! -f "$status_file" ]; then
     echo "ERROR: Resolved status file not found: $status_file" >&2
@@ -670,6 +658,7 @@ event_advance() {
 
 # event_finish <status_file> <stage> [driver]
 # {active,ready} → done. Side-effect: if next stage is pending, activate it.
+# Auto-log: if stage is review, logs "passed" via logman.
 event_finish() {
   local status_file="$1"
   local stage="$2"
@@ -713,6 +702,15 @@ event_finish() {
   fi
 
   mv "$tmpfile" "$status_file"
+
+  # Auto-log review pass via logman
+  if [ "$stage" = "review" ]; then
+    local change_dir
+    change_dir="$(dirname "$status_file")"
+    local folder
+    folder="$(basename "$change_dir")"
+    "$LOGMAN" review "$folder" "passed" 2>/dev/null || true
+  fi
 }
 
 # event_reset <status_file> <stage> [driver]
@@ -763,12 +761,14 @@ event_reset() {
   mv "$tmpfile" "$status_file"
 }
 
-# event_fail <status_file> <stage> [driver]
+# event_fail <status_file> <stage> [driver] [rework]
 # active → failed. Review stage only. No metrics side-effect.
+# Auto-log: if stage is review, logs "failed" with optional rework via logman.
 event_fail() {
   local status_file="$1"
   local stage="$2"
   local driver="${3:-}"
+  local rework="${4:-}"
 
   if [ ! -f "$status_file" ]; then
     echo "ERROR: Status file not found: $status_file" >&2
@@ -797,6 +797,19 @@ event_fail() {
   # fail: no metrics side-effect (preserve timing data)
 
   mv "$tmpfile" "$status_file"
+
+  # Auto-log review failure via logman
+  if [ "$stage" = "review" ]; then
+    local change_dir
+    change_dir="$(dirname "$status_file")"
+    local folder
+    folder="$(basename "$change_dir")"
+    if [ -n "$rework" ]; then
+      "$LOGMAN" review "$folder" "failed" "$rework" 2>/dev/null || true
+    else
+      "$LOGMAN" review "$folder" "failed" 2>/dev/null || true
+    fi
+  fi
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -918,75 +931,16 @@ validate_status_file() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# History Logging
-# ─────────────────────────────────────────────────────────────────────────────
-
-# log_command <status_file> <cmd> [args]
-# Append a "command" event to the change's .history.jsonl.
-# Accepts a resolved .status.yaml path; derives change dir via dirname.
-log_command() {
-  local change_dir
-  change_dir="$(dirname "$1")"
-  local cmd="$2"
-  local args="${3:-}"
-  local now
-  now=$(date -Iseconds)
-
-  local json="{\"ts\":\"${now}\",\"event\":\"command\",\"cmd\":\"${cmd}\""
-  if [ -n "$args" ]; then
-    json="${json},\"args\":\"${args}\""
-  fi
-  json="${json}}"
-
-  echo "$json" >> "${change_dir}/.history.jsonl"
-}
-
-# log_confidence <status_file> <score> <delta> <trigger>
-# Append a "confidence" event to the change's .history.jsonl.
-# Accepts a resolved .status.yaml path; derives change dir via dirname.
-log_confidence() {
-  local change_dir
-  change_dir="$(dirname "$1")"
-  local score="$2"
-  local delta="$3"
-  local trigger="$4"
-  local now
-  now=$(date -Iseconds)
-
-  echo "{\"ts\":\"${now}\",\"event\":\"confidence\",\"score\":${score},\"delta\":\"${delta}\",\"trigger\":\"${trigger}\"}" >> "${change_dir}/.history.jsonl"
-}
-
-# log_review <status_file> <result> [rework]
-# Append a "review" event to the change's .history.jsonl.
-# Accepts a resolved .status.yaml path; derives change dir via dirname.
-log_review() {
-  local change_dir
-  change_dir="$(dirname "$1")"
-  local result="$2"
-  local rework="${3:-}"
-  local now
-  now=$(date -Iseconds)
-
-  local json="{\"ts\":\"${now}\",\"event\":\"review\",\"result\":\"${result}\""
-  if [ -n "$rework" ]; then
-    json="${json},\"rework\":\"${rework}\""
-  fi
-  json="${json}}"
-
-  echo "$json" >> "${change_dir}/.history.jsonl"
-}
-
-# ─────────────────────────────────────────────────────────────────────────────
 # CLI Interface
 # ─────────────────────────────────────────────────────────────────────────────
 
 show_help() {
   cat <<'EOF'
-stageman.sh - Stage Manager CLI
+statusman.sh - Status Manager CLI
 
 USAGE:
-  stageman.sh <subcommand> [args...]
-  stageman.sh --help
+  statusman.sh <subcommand> [args...]
+  statusman.sh --help
 
 SUBCOMMANDS:
   Stage queries:
@@ -1010,7 +964,7 @@ SUBCOMMANDS:
     advance <change> <stage> [driver]          active → ready
     finish <change> <stage> [driver]           {active,ready} → done (+next)
     reset <change> <stage> [driver]            {done,ready} → active (+cascade)
-    fail <change> <stage> [driver]             active → failed (review only)
+    fail <change> <stage> [driver] [rework]    active → failed (review only)
 
   Write commands:
     set-change-type <change> <type>            Set change_type (feat/fix/refactor/docs/test/ci/chore)
@@ -1022,20 +976,14 @@ SUBCOMMANDS:
     add-pr <change> <url>              Append PR URL to prs array (idempotent)
     get-prs <change>                   List PR URLs (one per line)
 
-  History:
-    log-command <change> <cmd> [args]              Log a command invocation
-    log-confidence <change> <score> <delta> <trigger>  Log confidence change
-    log-review <change> <result> [rework]          Log review outcome
-
 EXAMPLES:
-  stageman.sh all-stages
-  stageman.sh progress-map 6boq
-  stageman.sh start 6boq spec fab-continue
-  stageman.sh finish 6boq spec fab-continue
-  stageman.sh log-review 6boq "passed"
+  statusman.sh all-stages
+  statusman.sh progress-map 6boq
+  statusman.sh start 6boq spec fab-continue
+  statusman.sh finish 6boq spec fab-continue
 
 SEE ALSO:
-  src/lib/stageman/SPEC-stageman.md - API reference
+  src/lib/statusman/SPEC-statusman.md - API reference
   fab/.kit/schemas/workflow.yaml - Schema definition
 EOF
 }
@@ -1060,201 +1008,175 @@ case "${1:-}" in
   # ── .status.yaml Accessors ─────────────────────────────────────────────
   progress-map)
     if [ $# -ne 2 ]; then
-      echo "Usage: stageman.sh progress-map <change>" >&2
+      echo "Usage: statusman.sh progress-map <change>" >&2
       exit 1
     fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    _resolved_file=$(resolve_to_status "$2") || exit 1
     get_progress_map "$_resolved_file"
     ;;
   checklist)
     if [ $# -ne 2 ]; then
-      echo "Usage: stageman.sh checklist <change>" >&2
+      echo "Usage: statusman.sh checklist <change>" >&2
       exit 1
     fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    _resolved_file=$(resolve_to_status "$2") || exit 1
     get_checklist "$_resolved_file"
     ;;
   confidence)
     if [ $# -ne 2 ]; then
-      echo "Usage: stageman.sh confidence <change>" >&2
+      echo "Usage: statusman.sh confidence <change>" >&2
       exit 1
     fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    _resolved_file=$(resolve_to_status "$2") || exit 1
     get_confidence "$_resolved_file"
     ;;
 
   # ── Progression ────────────────────────────────────────────────────────
   current-stage)
     if [ $# -ne 2 ]; then
-      echo "Usage: stageman.sh current-stage <change>" >&2
+      echo "Usage: statusman.sh current-stage <change>" >&2
       exit 1
     fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    _resolved_file=$(resolve_to_status "$2") || exit 1
     get_current_stage "$_resolved_file"
     ;;
   display-stage)
     if [ $# -ne 2 ]; then
-      echo "Usage: stageman.sh display-stage <change>" >&2
+      echo "Usage: statusman.sh display-stage <change>" >&2
       exit 1
     fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    _resolved_file=$(resolve_to_status "$2") || exit 1
     get_display_stage "$_resolved_file"
     ;;
   progress-line)
     if [ $# -ne 2 ]; then
-      echo "Usage: stageman.sh progress-line <change>" >&2
+      echo "Usage: statusman.sh progress-line <change>" >&2
       exit 1
     fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    _resolved_file=$(resolve_to_status "$2") || exit 1
     get_progress_line "$_resolved_file"
     ;;
 
   # ── Validation ─────────────────────────────────────────────────────────
   validate-status-file)
     if [ $# -ne 2 ]; then
-      echo "Usage: stageman.sh validate-status-file <change>" >&2
+      echo "Usage: statusman.sh validate-status-file <change>" >&2
       exit 1
     fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    _resolved_file=$(resolve_to_status "$2") || exit 1
     validate_status_file "$_resolved_file"
     ;;
 
   # ── Event Commands ────────────────────────────────────────────────────
   start)
     if [ $# -lt 3 ] || [ $# -gt 4 ]; then
-      echo "Usage: stageman.sh start <change> <stage> [driver]" >&2
+      echo "Usage: statusman.sh start <change> <stage> [driver]" >&2
       exit 1
     fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    _resolved_file=$(resolve_to_status "$2") || exit 1
     event_start "$_resolved_file" "$3" "${4:-}"
     ;;
   advance)
     if [ $# -lt 3 ] || [ $# -gt 4 ]; then
-      echo "Usage: stageman.sh advance <change> <stage> [driver]" >&2
+      echo "Usage: statusman.sh advance <change> <stage> [driver]" >&2
       exit 1
     fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    _resolved_file=$(resolve_to_status "$2") || exit 1
     event_advance "$_resolved_file" "$3" "${4:-}"
     ;;
   finish)
     if [ $# -lt 3 ] || [ $# -gt 4 ]; then
-      echo "Usage: stageman.sh finish <change> <stage> [driver]" >&2
+      echo "Usage: statusman.sh finish <change> <stage> [driver]" >&2
       exit 1
     fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    _resolved_file=$(resolve_to_status "$2") || exit 1
     event_finish "$_resolved_file" "$3" "${4:-}"
     ;;
   reset)
     if [ $# -lt 3 ] || [ $# -gt 4 ]; then
-      echo "Usage: stageman.sh reset <change> <stage> [driver]" >&2
+      echo "Usage: statusman.sh reset <change> <stage> [driver]" >&2
       exit 1
     fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    _resolved_file=$(resolve_to_status "$2") || exit 1
     event_reset "$_resolved_file" "$3" "${4:-}"
     ;;
   fail)
-    if [ $# -lt 3 ] || [ $# -gt 4 ]; then
-      echo "Usage: stageman.sh fail <change> <stage> [driver]" >&2
+    if [ $# -lt 3 ] || [ $# -gt 5 ]; then
+      echo "Usage: statusman.sh fail <change> <stage> [driver] [rework]" >&2
       exit 1
     fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
-    event_fail "$_resolved_file" "$3" "${4:-}"
+    _resolved_file=$(resolve_to_status "$2") || exit 1
+    event_fail "$_resolved_file" "$3" "${4:-}" "${5:-}"
     ;;
 
   # ── Write Commands ─────────────────────────────────────────────────────
   set-change-type)
     if [ $# -ne 3 ]; then
-      echo "Usage: stageman.sh set-change-type <change> <type>" >&2
+      echo "Usage: statusman.sh set-change-type <change> <type>" >&2
       exit 1
     fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    _resolved_file=$(resolve_to_status "$2") || exit 1
     set_change_type "$_resolved_file" "$3"
     ;;
   set-checklist)
     if [ $# -ne 4 ]; then
-      echo "Usage: stageman.sh set-checklist <change> <field> <value>" >&2
+      echo "Usage: statusman.sh set-checklist <change> <field> <value>" >&2
       exit 1
     fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    _resolved_file=$(resolve_to_status "$2") || exit 1
     set_checklist_field "$_resolved_file" "$3" "$4"
     ;;
   set-confidence)
     if [ $# -ne 7 ]; then
-      echo "Usage: stageman.sh set-confidence <change> <certain> <confident> <tentative> <unresolved> <score>" >&2
+      echo "Usage: statusman.sh set-confidence <change> <certain> <confident> <tentative> <unresolved> <score>" >&2
       exit 1
     fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    _resolved_file=$(resolve_to_status "$2") || exit 1
     set_confidence_block "$_resolved_file" "$3" "$4" "$5" "$6" "$7"
     ;;
   set-confidence-fuzzy)
     if [ $# -ne 11 ]; then
-      echo "Usage: stageman.sh set-confidence-fuzzy <change> <certain> <confident> <tentative> <unresolved> <score> <mean_s> <mean_r> <mean_a> <mean_d>" >&2
+      echo "Usage: statusman.sh set-confidence-fuzzy <change> <certain> <confident> <tentative> <unresolved> <score> <mean_s> <mean_r> <mean_a> <mean_d>" >&2
       exit 1
     fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    _resolved_file=$(resolve_to_status "$2") || exit 1
     set_confidence_block_fuzzy "$_resolved_file" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}" "${11}"
     ;;
   add-issue)
     if [ $# -ne 3 ]; then
-      echo "Usage: stageman.sh add-issue <change> <id>" >&2
+      echo "Usage: statusman.sh add-issue <change> <id>" >&2
       exit 1
     fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    _resolved_file=$(resolve_to_status "$2") || exit 1
     add_issue "$_resolved_file" "$3"
     ;;
   get-issues)
     if [ $# -ne 2 ]; then
-      echo "Usage: stageman.sh get-issues <change>" >&2
+      echo "Usage: statusman.sh get-issues <change>" >&2
       exit 1
     fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    _resolved_file=$(resolve_to_status "$2") || exit 1
     get_issues "$_resolved_file"
     ;;
   add-pr)
     if [ $# -ne 3 ]; then
-      echo "Usage: stageman.sh add-pr <change> <url>" >&2
+      echo "Usage: statusman.sh add-pr <change> <url>" >&2
       exit 1
     fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    _resolved_file=$(resolve_to_status "$2") || exit 1
     add_pr "$_resolved_file" "$3"
     ;;
   get-prs)
     if [ $# -ne 2 ]; then
-      echo "Usage: stageman.sh get-prs <change>" >&2
+      echo "Usage: statusman.sh get-prs <change>" >&2
       exit 1
     fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
+    _resolved_file=$(resolve_to_status "$2") || exit 1
     get_prs "$_resolved_file"
-    ;;
-
-  # ── History Commands ───────────────────────────────────────────────────
-  log-command)
-    if [ $# -lt 3 ] || [ $# -gt 4 ]; then
-      echo "Usage: stageman.sh log-command <change> <cmd> [args]" >&2
-      exit 1
-    fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
-    log_command "$_resolved_file" "$3" "${4:-}"
-    ;;
-  log-confidence)
-    if [ $# -ne 5 ]; then
-      echo "Usage: stageman.sh log-confidence <change> <score> <delta> <trigger>" >&2
-      exit 1
-    fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
-    log_confidence "$_resolved_file" "$3" "$4" "$5"
-    ;;
-  log-review)
-    if [ $# -lt 3 ] || [ $# -gt 4 ]; then
-      echo "Usage: stageman.sh log-review <change> <result> [rework]" >&2
-      exit 1
-    fi
-    _resolved_file=$(resolve_change_arg "$2") || exit 1
-    log_review "$_resolved_file" "$3" "${4:-}"
     ;;
   *)
     echo "Unknown option: $1" >&2
-    echo "Try: stageman.sh --help" >&2
+    echo "Try: statusman.sh --help" >&2
     exit 1
     ;;
 esac

@@ -17,7 +17,9 @@ set -euo pipefail
 # Path resolution
 LIB_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 FAB_ROOT="$(cd "$LIB_DIR/../../.." && pwd)"
-STAGEMAN="$LIB_DIR/stageman.sh"
+STATUSMAN="$LIB_DIR/statusman.sh"
+RESOLVE="$LIB_DIR/resolve.sh"
+LOGMAN="$LIB_DIR/logman.sh"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -53,101 +55,9 @@ has_id_collision() {
 # resolve subcommand
 # ─────────────────────────────────────────────────────────────────────────────
 
+# cmd_resolve — passthrough to resolve.sh --folder for backward compatibility
 cmd_resolve() {
-  local override="${1:-}"
-
-  if [ -n "$override" ]; then
-    # --- Override mode: match against fab/changes/ folders ---
-    local changes_dir="$FAB_ROOT/changes"
-    if [ ! -d "$changes_dir" ]; then
-      echo "fab/changes/ not found." >&2
-      return 1
-    fi
-
-    # Collect non-archive folder names
-    local folders=()
-    local d base
-    for d in "$changes_dir"/*/; do
-      [ -d "$d" ] || continue
-      base="$(basename "$d")"
-      [ "$base" = "archive" ] && continue
-      folders+=("$base")
-    done
-
-    if [ ${#folders[@]} -eq 0 ]; then
-      echo "No active changes found." >&2
-      return 1
-    fi
-
-    # Case-insensitive matching
-    local override_lower
-    override_lower=$(echo "$override" | tr '[:upper:]' '[:lower:]')
-    local exact_match=""
-    local partial_matches=()
-
-    local folder folder_lower
-    for folder in "${folders[@]}"; do
-      folder_lower=$(echo "$folder" | tr '[:upper:]' '[:lower:]')
-      if [ "$folder_lower" = "$override_lower" ]; then
-        exact_match="$folder"
-        break
-      elif [[ "$folder_lower" == *"$override_lower"* ]]; then
-        partial_matches+=("$folder")
-      fi
-    done
-
-    if [ -n "$exact_match" ]; then
-      echo "$exact_match"
-    elif [ ${#partial_matches[@]} -eq 1 ]; then
-      echo "${partial_matches[0]}"
-    elif [ ${#partial_matches[@]} -gt 1 ]; then
-      local matches_list
-      matches_list=$(printf ', %s' "${partial_matches[@]}")
-      matches_list="${matches_list:2}"  # trim leading ', '
-      echo "Multiple changes match \"$override\": $matches_list." >&2
-      return 1
-    else
-      echo "No change matches \"$override\"." >&2
-      return 1
-    fi
-  else
-    # --- Default mode: read fab/current ---
-    local current_file="$FAB_ROOT/current"
-    local name=""
-    if [ -f "$current_file" ]; then
-      name=$(tr -d '[:space:]' < "$current_file")
-    fi
-
-    if [ -n "$name" ]; then
-      echo "$name"
-      return 0
-    fi
-
-    # fab/current missing or empty — attempt single-change guess
-    local changes_dir="$FAB_ROOT/changes"
-    local candidates=()
-    if [ -d "$changes_dir" ]; then
-      local d base
-      for d in "$changes_dir"/*/; do
-        [ -d "$d" ] || continue
-        base="$(basename "$d")"
-        [ "$base" = "archive" ] && continue
-        [ -f "$d/.status.yaml" ] || continue
-        candidates+=("$base")
-      done
-    fi
-
-    if [ ${#candidates[@]} -eq 1 ]; then
-      echo "(resolved from single active change)" >&2
-      echo "${candidates[0]}"
-    elif [ ${#candidates[@]} -eq 0 ]; then
-      echo "No active change." >&2
-      return 1
-    else
-      echo "No active change (multiple changes exist — use /fab-switch)." >&2
-      return 1
-    fi
-  fi
+  "$RESOLVE" --folder "$@"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -198,7 +108,7 @@ cmd_list() {
       continue
     fi
 
-    display_output=$("$STAGEMAN" display-stage "$status_file" 2>/dev/null) || display_output="unknown:unknown"
+    display_output=$("$STATUSMAN" display-stage "$status_file" 2>/dev/null) || display_output="unknown:unknown"
     display_stage="${display_output%%:*}"
     display_state="${display_output#*:}"
     echo "$base:$display_stage:$display_state"
@@ -271,10 +181,10 @@ cmd_switch() {
   local status_file="$FAB_ROOT/changes/$resolved/.status.yaml"
   if [ -f "$status_file" ]; then
     local display_output
-    display_output=$("$STAGEMAN" display-stage "$status_file" 2>/dev/null) || display_output="unknown:pending"
+    display_output=$("$STATUSMAN" display-stage "$status_file" 2>/dev/null) || display_output="unknown:pending"
     display_stage="${display_output%%:*}"
     display_state="${display_output#*:}"
-    routing_stage=$("$STAGEMAN" current-stage "$status_file" 2>/dev/null) || routing_stage="unknown"
+    routing_stage=$("$STATUSMAN" current-stage "$status_file" 2>/dev/null) || routing_stage="unknown"
   fi
 
   local dnum
@@ -391,11 +301,11 @@ cmd_new() {
       -e "s|{CREATED_BY}|${created_by}|g" \
       "$template" > "$status_file"
 
-  # Stageman integration
-  "$STAGEMAN" start "$status_file" intake fab-new
+  # Stage transition: start intake
+  "$STATUSMAN" start "$status_file" intake fab-new
 
   if [ -n "$log_args" ]; then
-    "$STAGEMAN" log-command "$folder_name" "fab-new" "$log_args"
+    "$LOGMAN" command "$folder_name" "fab-new" "$log_args"
   fi
 
   # Output: folder name only (one line to stdout)
@@ -483,7 +393,7 @@ cmd_rename() {
   fi
 
   # Log the rename
-  "$STAGEMAN" log-command "$new_name" "changeman-rename" "--folder $folder --slug $slug"
+  "$LOGMAN" command "$new_name" "changeman-rename" "--folder $folder --slug $slug"
 
   # Output: new folder name
   echo "$new_name"
@@ -515,7 +425,7 @@ SUBCOMMANDS:
 FLAGS (for new):
   --slug <slug>            Required. Folder name suffix (e.g., "add-oauth" or "DEV-988-add-oauth")
   --change-id <4char>      Optional. Explicit 4-char alphanumeric ID. Random if omitted.
-  --log-args <description> Optional. Description logged via stageman log-command.
+  --log-args <description> Optional. Description logged via logman command.
 
 FLAGS (for rename):
   --folder <current-folder> Required. Full current change folder name.

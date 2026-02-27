@@ -6,34 +6,46 @@
 
 | Script | Location | Purpose |
 |--------|----------|---------|
-| `stageman.sh` | `fab/.kit/scripts/lib/stageman.sh` | Stage management — state transitions, `.status.yaml` accessors, history logging |
-| `changeman.sh` | `fab/.kit/scripts/lib/changeman.sh` | Change management — create, rename, resolve, switch, list |
+| `resolve.sh` | `fab/.kit/scripts/lib/resolve.sh` | Pure change resolution — converts any change reference to canonical output (no side effects) |
+| `statusman.sh` | `fab/.kit/scripts/lib/statusman.sh` | Stage management — state transitions, `.status.yaml` accessors and metadata writes |
+| `logman.sh` | `fab/.kit/scripts/lib/logman.sh` | History logging — append-only JSON to `.history.jsonl` |
+| `changeman.sh` | `fab/.kit/scripts/lib/changeman.sh` | Change management — create, rename, resolve (passthrough), switch, list |
 | `calc-score.sh` | `fab/.kit/scripts/lib/calc-score.sh` | Confidence scoring — parse Assumptions tables, compute SRAD scores, gate checks |
-| `preflight.sh` | `fab/.kit/scripts/lib/preflight.sh` | Pre-flight validation — project init checks, change resolution, structured YAML output |
+| `preflight.sh` | `fab/.kit/scripts/lib/preflight.sh` | Pre-flight validation — project init checks, change resolution, auto-logging, structured YAML output |
+
+## Call Graph
+
+```
+resolve.sh     ← universal resolver (no side effects)
+   ↑
+changeman.sh   ← uses resolve.sh internally, calls logman.sh for new/rename
+statusman.sh   ← uses resolve.sh for CLI dispatch, calls logman.sh for review auto-log
+logman.sh      ← uses resolve.sh --dir for change resolution
+calc-score.sh  ← uses resolve.sh --dir, calls statusman.sh for writes, logman.sh for confidence log
+preflight.sh   ← uses changeman.sh resolve, statusman.sh for queries, logman.sh for --driver auto-log
+```
 
 ## Argument Resolution
 
-### `resolve_change_arg` (stageman.sh)
+### `resolve.sh` (standalone)
 
-Central resolution function used by all stageman commands. Accepts:
+Universal resolver called by every other script. Pure function — no file writes, no `.status.yaml` modifications, no logging.
 
-1. **Existing file path** — if `[ -f "$arg" ]`, returned directly
-2. **Change identifier** — if no `/` and no `.yaml` suffix, delegates to `changeman.sh resolve` for fuzzy matching, then appends `/.status.yaml`
-3. **Path-like non-file** — if contains `/` or ends with `.yaml` but file doesn't exist, errors with "Status file not found"
+**Input forms**: 4-char change ID, folder name substring (case-insensitive), full folder name, or no argument (reads `fab/current`, single-change guess fallback).
 
-Does NOT accept bare directory paths. Internal callers pass folder names (valid change identifiers) or `.status.yaml` paths.
+**Output flags** (mutually exclusive):
+- `--id` (default) — 4-char change ID
+- `--folder` — full folder name
+- `--dir` — repo-root-relative directory path (with trailing slash)
+- `--status` — repo-root-relative `.status.yaml` path
 
 ### `changeman.sh resolve`
 
-Fuzzy matching against `fab/changes/` folders (excludes `archive/`):
+Thin passthrough to `resolve.sh --folder` for backward compatibility.
 
-1. Exact match (case-insensitive) → return folder name
-2. Single substring match → return folder name
-3. Multiple matches → error with comma-separated list
-4. No match → error
-5. No argument → read `fab/current`, or single-change guess if `fab/current` is empty
+### `statusman.sh` resolution
 
-Always returns the full folder name (e.g., `260227-yobi-fix-kit-scripts`).
+CLI dispatch resolves `<change>` via `resolve.sh --status`. Also accepts direct file paths for backward compatibility (if `[ -f "$arg" ]`).
 
 ## Stage State Machine
 
@@ -51,15 +63,28 @@ Reset: `done`/`ready` → `active` (cascades downstream to `pending`)
 |---------|------|----|-------------|
 | `start` | pending, failed | active | None |
 | `advance` | active | ready | None |
-| `finish` | active, ready | done | Auto-activates next pending stage |
+| `finish` | active, ready | done | Auto-activates next pending stage; review stage auto-logs "passed" via logman |
 | `reset` | done, ready | active | Cascades all downstream stages to pending |
-| `fail` | active | failed | Review stage only |
+| `fail` | active | failed | Review stage only; auto-logs "failed" [rework] via logman |
 
 ### Auto-Activation Chain
 
 `finish` on any stage sets the next stage to `active`. The full chain: intake → spec → tasks → apply → review → hydrate.
 
 ## History Logging
+
+### Architecture
+
+`logman.sh` is the sole writer to `.history.jsonl`. It is never called directly by skills — all logging is triggered as side effects:
+
+| Caller | Trigger | Logman call |
+|--------|---------|-------------|
+| `preflight.sh --driver <skill>` | Skill invocation | `logman.sh command` |
+| `statusman.sh finish review` | Review pass | `logman.sh review "passed"` |
+| `statusman.sh fail review` | Review fail | `logman.sh review "failed" [rework]` |
+| `calc-score.sh` | Score computation | `logman.sh confidence` |
+| `changeman.sh new` | Change creation | `logman.sh command` |
+| `changeman.sh rename` | Change rename | `logman.sh command` |
 
 ### `.history.jsonl` Format
 
@@ -71,13 +96,13 @@ One JSON object per line, appended to `{change_dir}/.history.jsonl`.
 
 **Review event**: `{"ts":"ISO-8601","event":"review","result":"passed"}` or `{"ts":"ISO-8601","event":"review","result":"failed","rework":"fix-code"}`
 
-### Internal Function Signatures
+### `logman.sh` Subcommands
 
-All history functions accept a resolved `.status.yaml` path and derive the change directory via `dirname`:
+All resolve `<change>` via `resolve.sh --dir`:
 
-- `log_command(status_file, cmd, args?)` — logs command invocation
-- `log_confidence(status_file, score, delta, trigger)` — logs confidence change
-- `log_review(status_file, result, rework?)` — logs review outcome
+- `logman.sh command <change> <cmd> [args]` — logs command invocation
+- `logman.sh confidence <change> <score> <delta> <trigger>` — logs confidence change
+- `logman.sh review <change> <result> [rework]` — logs review outcome
 
 ## Confidence Scoring
 
@@ -93,24 +118,37 @@ else:
 
 Range: 0.0 to 5.0. `expected_min` varies by `{stage, change_type}`.
 
+### DRY Helpers
+
+`calc-score.sh` uses two internal helpers to avoid duplicating the formula:
+
+- `count_grades <file>` — parse Assumptions table, output grade counts and dimension sums
+- `compute_score <confident> <tentative> <unresolved> <total> <expected_min>` — apply the formula, return score
+
 ### Gate Check
 
 `--check-gate` parses the relevant artifact (intake.md or spec.md) and computes the score inline. Read-only — does not write to `.status.yaml`. Returns YAML with `gate: pass|fail`, `score`, `threshold`, `change_type`, and grade counts.
 
 ## Design Rationale
 
-### Unified `<change>` Convention
+### 5-Script Architecture
 
-All stageman commands route through `resolve_change_arg` for consistent argument handling. History commands were migrated from a separate `resolve_change_dir` function (which only handled directory paths) to the unified resolver. This ensures change IDs, folder names, and `.status.yaml` paths all work everywhere.
+Each script has exactly one responsibility with no overlap:
 
-### Separation of Concerns
-
+- **resolve.sh** owns change resolution (pure query, no side effects)
 - **changeman.sh** owns change identity (folders, naming, pointer)
-- **stageman.sh** owns stage state (.status.yaml) and history (.history.jsonl)
+- **statusman.sh** owns stage state (`.status.yaml` reads and writes)
+- **logman.sh** owns history logging (`.history.jsonl` append)
 - **calc-score.sh** owns confidence scoring (SRAD formula, gate checks)
 - **preflight.sh** owns validation (project init, change resolution, structured output)
 
-Each script accepts change identifiers at its boundary and resolves internally.
+### Auto-Logging over Explicit Logging
+
+`log-command` was previously called manually by every skill as boilerplate. `log-review` was always paired with `finish/fail review`. Making these implicit (via `preflight.sh --driver` and statusman auto-log) eliminates manual logging lines across skill files.
+
+### resolve.sh as Standalone Script
+
+`resolve.sh` is the universal dependency (~180 lines including help text). Every other script calls it first. Embedding it in changeman would force every script to load 400+ lines for a ~95-line resolution function.
 
 ---
 

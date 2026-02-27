@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# CLI entry point for stageman (subprocess calls, not sourced)
-STAGEMAN="$(dirname "$(readlink -f "$0")")/stageman.sh"
-
-# calc-score.sh — Compute confidence score from spec.md Assumptions table
+# calc-score.sh — Compute confidence score from Assumptions table
 #
 # Internal library script invoked by /fab-continue (spec stage) and
 # /fab-clarify (suggest mode). Not called directly by users.
 #
-# Usage: calc-score.sh [--stage <stage>] <change-dir>
-#        calc-score.sh --check-gate <change-dir>
+# Usage: calc-score.sh [--stage <stage>] <change>
+#        calc-score.sh --check-gate [--stage <stage>] <change>
 # Output: YAML confidence block to stdout (or gate result for --check-gate)
-# Side effect: Updates confidence block in .status.yaml
+# Side effect: Updates confidence block in .status.yaml (normal mode only)
 # Exit: 0 on success, 1 on error (message to stderr)
+
+LIB_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+STATUSMAN="$LIB_DIR/statusman.sh"
+LOGMAN="$LIB_DIR/logman.sh"
+RESOLVE="$LIB_DIR/resolve.sh"
 
 # --- Expected minimum decisions by stage and change_type ---
 get_expected_min() {
@@ -44,40 +46,6 @@ get_gate_threshold() {
     *)        echo "3.0" ;;  # default to feat threshold
   esac
 }
-
-# --- Argument parsing ---
-CHECK_GATE=false
-SCORE_STAGE="spec"
-
-while [ $# -gt 0 ]; do
-  case "${1:-}" in
-    --check-gate)
-      CHECK_GATE=true
-      shift
-      ;;
-    --stage)
-      SCORE_STAGE="${2:-spec}"
-      shift 2
-      ;;
-    *)
-      break
-      ;;
-  esac
-done
-
-change_dir="${1:-}"
-
-if [ -z "$change_dir" ]; then
-  echo "Usage: calc-score.sh [--check-gate] [--stage <stage>] <change-dir>" >&2
-  exit 1
-fi
-
-if [ ! -d "$change_dir" ]; then
-  echo "Change directory not found: $change_dir" >&2
-  exit 1
-fi
-
-status_file="$change_dir/.status.yaml"
 
 # --- Read change_type from .status.yaml (default: feat) ---
 read_change_type() {
@@ -125,7 +93,121 @@ parse_assumptions() {
   ' "$file"
 }
 
-# --- Gate check mode ---
+# ─────────────────────────────────────────────────────────────────────────────
+# DRY Helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+# count_grades <file> — Parse Assumptions table from markdown file.
+# Outputs: certain confident tentative unresolved has_fuzzy dim_count sum_s sum_r sum_a sum_d
+# (space-separated, single line)
+count_grades() {
+  local file="$1"
+  local g_certain=0 g_confident=0 g_tentative=0 g_unresolved=0
+  local has_fuzzy=false dim_count=0 sum_s=0 sum_r=0 sum_a=0 sum_d=0
+
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+
+    grade="${line%%|*}"
+    scores_part=""
+    if [[ "$line" == *"|"* ]]; then
+      scores_part="${line#*|}"
+    fi
+
+    grade_lower=$(echo "$grade" | tr '[:upper:]' '[:lower:]')
+    case "$grade_lower" in
+      certain)    g_certain=$((g_certain + 1)) ;;
+      confident)  g_confident=$((g_confident + 1)) ;;
+      tentative)  g_tentative=$((g_tentative + 1)) ;;
+      unresolved) g_unresolved=$((g_unresolved + 1)) ;;
+    esac
+
+    if [ -n "$scores_part" ]; then
+      s_val=$(echo "$scores_part" | sed -n 's/.*S:\([0-9][0-9]*\).*/\1/p')
+      r_val=$(echo "$scores_part" | sed -n 's/.*R:\([0-9][0-9]*\).*/\1/p')
+      a_val=$(echo "$scores_part" | sed -n 's/.*A:\([0-9][0-9]*\).*/\1/p')
+      d_val=$(echo "$scores_part" | sed -n 's/.*D:\([0-9][0-9]*\).*/\1/p')
+
+      if [ -n "$s_val" ] && [ -n "$r_val" ] && [ -n "$a_val" ] && [ -n "$d_val" ]; then
+        has_fuzzy=true
+        dim_count=$((dim_count + 1))
+        sum_s=$((sum_s + s_val))
+        sum_r=$((sum_r + r_val))
+        sum_a=$((sum_a + a_val))
+        sum_d=$((sum_d + d_val))
+      fi
+    fi
+  done <<< "$(parse_assumptions "$file")"
+
+  echo "$g_certain $g_confident $g_tentative $g_unresolved $has_fuzzy $dim_count $sum_s $sum_r $sum_a $sum_d"
+}
+
+# compute_score <confident> <tentative> <unresolved> <total> <expected_min>
+# Compute confidence score. Outputs score on stdout.
+compute_score() {
+  local confident="$1" tentative="$2" unresolved="$3" total="$4" expected_min="$5"
+
+  if [ "$unresolved" -gt 0 ]; then
+    echo "0.0"
+  else
+    awk -v confident="$confident" -v tentative="$tentative" \
+        -v total="$total" -v exp_min="$expected_min" \
+      "BEGIN {
+        base = 5.0 - 0.3 * confident - 1.0 * tentative
+        if (base < 0.0) base = 0.0
+        if (exp_min > 0) cover = total / exp_min; else cover = 1.0
+        if (cover > 1.0) cover = 1.0
+        printf \"%.1f\", base * cover
+      }"
+  fi
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Argument parsing
+# ─────────────────────────────────────────────────────────────────────────────
+
+CHECK_GATE=false
+SCORE_STAGE="spec"
+
+while [ $# -gt 0 ]; do
+  case "${1:-}" in
+    --check-gate)
+      CHECK_GATE=true
+      shift
+      ;;
+    --stage)
+      SCORE_STAGE="${2:-spec}"
+      shift 2
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+change_arg="${1:-}"
+
+if [ -z "$change_arg" ]; then
+  echo "Usage: calc-score.sh [--check-gate] [--stage <stage>] <change>" >&2
+  exit 1
+fi
+
+# Resolve change to directory via resolve.sh
+change_dir=$("$RESOLVE" --dir "$change_arg") || exit 1
+# Trim trailing slash
+change_dir="${change_dir%/}"
+
+if [ ! -d "$change_dir" ]; then
+  echo "Change directory not found: $change_dir" >&2
+  exit 1
+fi
+
+status_file="$change_dir/.status.yaml"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Gate check mode
+# ─────────────────────────────────────────────────────────────────────────────
+
 if [ "$CHECK_GATE" = true ]; then
   if [ ! -f "$status_file" ]; then
     echo "ERROR: .status.yaml not found in $change_dir" >&2
@@ -135,78 +217,24 @@ if [ "$CHECK_GATE" = true ]; then
   change_type=$(read_change_type "$status_file")
 
   if [ "$SCORE_STAGE" = "intake" ]; then
-    # Intake gate: compute indicative score on the fly, fixed threshold 3.0
     score_file="$change_dir/intake.md"
-    if [ ! -f "$score_file" ]; then
-      echo "ERROR: intake.md not found in $change_dir" >&2
-      exit 1
-    fi
-    expected_min=$(get_expected_min "intake" "$change_type")
-    # Parse and compute inline
-    local_certain=0 local_confident=0 local_tentative=0 local_unresolved=0
-    while IFS= read -r line; do
-      [ -z "$line" ] && continue
-      grade="${line%%|*}"
-      grade_lower=$(echo "$grade" | tr '[:upper:]' '[:lower:]')
-      case "$grade_lower" in
-        certain)    local_certain=$((local_certain + 1)) ;;
-        confident)  local_confident=$((local_confident + 1)) ;;
-        tentative)  local_tentative=$((local_tentative + 1)) ;;
-        unresolved) local_unresolved=$((local_unresolved + 1)) ;;
-      esac
-    done <<< "$(parse_assumptions "$score_file")"
-    local_total=$((local_certain + local_confident + local_tentative + local_unresolved))
-    if [ "$local_unresolved" -gt 0 ]; then
-      score="0.0"
-    else
-      score=$(awk -v confident="$local_confident" -v tentative="$local_tentative" \
-                  -v total="$local_total" -v exp_min="$expected_min" \
-        "BEGIN {
-          base = 5.0 - 0.3 * confident - 1.0 * tentative
-          if (base < 0.0) base = 0.0
-          if (exp_min > 0) cover = total / exp_min; else cover = 1.0
-          if (cover > 1.0) cover = 1.0
-          printf \"%.1f\", base * cover
-        }")
-    fi
     threshold="3.0"
   else
-    # Spec gate: compute score on the fly from spec.md, dynamic per-type threshold
     score_file="$change_dir/spec.md"
-    if [ ! -f "$score_file" ]; then
-      echo "ERROR: spec.md not found in $change_dir" >&2
-      exit 1
-    fi
-    expected_min=$(get_expected_min "spec" "$change_type")
     threshold=$(get_gate_threshold "$change_type")
-    # Parse and compute inline (same pattern as intake gate)
-    local_certain=0 local_confident=0 local_tentative=0 local_unresolved=0
-    while IFS= read -r line; do
-      [ -z "$line" ] && continue
-      grade="${line%%|*}"
-      grade_lower=$(echo "$grade" | tr '[:upper:]' '[:lower:]')
-      case "$grade_lower" in
-        certain)    local_certain=$((local_certain + 1)) ;;
-        confident)  local_confident=$((local_confident + 1)) ;;
-        tentative)  local_tentative=$((local_tentative + 1)) ;;
-        unresolved) local_unresolved=$((local_unresolved + 1)) ;;
-      esac
-    done <<< "$(parse_assumptions "$score_file")"
-    local_total=$((local_certain + local_confident + local_tentative + local_unresolved))
-    if [ "$local_unresolved" -gt 0 ]; then
-      score="0.0"
-    else
-      score=$(awk -v confident="$local_confident" -v tentative="$local_tentative" \
-                  -v total="$local_total" -v exp_min="$expected_min" \
-        "BEGIN {
-          base = 5.0 - 0.3 * confident - 1.0 * tentative
-          if (base < 0.0) base = 0.0
-          if (exp_min > 0) cover = total / exp_min; else cover = 1.0
-          if (cover > 1.0) cover = 1.0
-          printf \"%.1f\", base * cover
-        }")
-    fi
   fi
+
+  if [ ! -f "$score_file" ]; then
+    echo "ERROR: $(basename "$score_file") not found in $change_dir" >&2
+    exit 1
+  fi
+
+  expected_min=$(get_expected_min "$SCORE_STAGE" "$change_type")
+
+  # Count grades via shared helper
+  read -r g_certain g_confident g_tentative g_unresolved _ _ _ _ _ _ <<< "$(count_grades "$score_file")"
+  g_total=$((g_certain + g_confident + g_tentative + g_unresolved))
+  score=$(compute_score "$g_confident" "$g_tentative" "$g_unresolved" "$g_total" "$expected_min")
 
   # Compare score >= threshold
   passes=$(awk "BEGIN { print ($score >= $threshold) ? \"pass\" : \"fail\" }")
@@ -216,16 +244,18 @@ gate: $passes
 score: $score
 threshold: $threshold
 change_type: $change_type
-certain: ${local_certain:-0}
-confident: ${local_confident:-0}
-tentative: ${local_tentative:-0}
-unresolved: ${local_unresolved:-0}
+certain: $g_certain
+confident: $g_confident
+tentative: $g_tentative
+unresolved: $g_unresolved
 EOF
   exit 0
 fi
 
-# --- Normal scoring mode ---
-# Determine which artifact to read based on stage
+# ─────────────────────────────────────────────────────────────────────────────
+# Normal scoring mode
+# ─────────────────────────────────────────────────────────────────────────────
+
 if [ "$SCORE_STAGE" = "intake" ]; then
   score_file="$change_dir/intake.md"
   if [ ! -f "$score_file" ]; then
@@ -243,63 +273,14 @@ fi
 change_type=$(read_change_type "$status_file")
 expected_min=$(get_expected_min "$SCORE_STAGE" "$change_type")
 
-# Collect all parsed lines from the target artifact
-all_parsed=""
-all_parsed+="$(parse_assumptions "$score_file")"
+# Count grades and dimension scores via shared helper
+read -r table_certain table_confident table_tentative table_unresolved \
+       has_fuzzy dim_count sum_s sum_r sum_a sum_d <<< "$(count_grades "$score_file")"
 
-# Count grades and collect dimension scores (case-insensitive)
-table_certain=0
-table_confident=0
-table_tentative=0
-table_unresolved=0
-has_fuzzy=false
-dim_count=0
-sum_s=0
-sum_r=0
-sum_a=0
-sum_d=0
-
-while IFS= read -r line; do
-  [ -z "$line" ] && continue
-
-  # Split grade from optional scores
-  grade="${line%%|*}"
-  scores_part=""
-  if [[ "$line" == *"|"* ]]; then
-    scores_part="${line#*|}"
-  fi
-
-  grade_lower=$(echo "$grade" | tr '[:upper:]' '[:lower:]')
-  case "$grade_lower" in
-    certain)    table_certain=$((table_certain + 1)) ;;
-    confident)  table_confident=$((table_confident + 1)) ;;
-    tentative)  table_tentative=$((table_tentative + 1)) ;;
-    unresolved) table_unresolved=$((table_unresolved + 1)) ;;
-  esac
-
-  # Parse dimension scores if present (format: S:nn R:nn A:nn D:nn)
-  if [ -n "$scores_part" ]; then
-    s_val=$(echo "$scores_part" | sed -n 's/.*S:\([0-9][0-9]*\).*/\1/p')
-    r_val=$(echo "$scores_part" | sed -n 's/.*R:\([0-9][0-9]*\).*/\1/p')
-    a_val=$(echo "$scores_part" | sed -n 's/.*A:\([0-9][0-9]*\).*/\1/p')
-    d_val=$(echo "$scores_part" | sed -n 's/.*D:\([0-9][0-9]*\).*/\1/p')
-
-    if [ -n "$s_val" ] && [ -n "$r_val" ] && [ -n "$a_val" ] && [ -n "$d_val" ]; then
-      has_fuzzy=true
-      dim_count=$((dim_count + 1))
-      sum_s=$((sum_s + s_val))
-      sum_r=$((sum_r + r_val))
-      sum_a=$((sum_a + a_val))
-      sum_d=$((sum_d + d_val))
-    fi
-  fi
-done <<< "$all_parsed"
+total_decisions=$((table_certain + table_confident + table_tentative + table_unresolved))
 
 # Compute mean dimension scores
-mean_s="0.0"
-mean_r="0.0"
-mean_a="0.0"
-mean_d="0.0"
+mean_s="0.0" mean_r="0.0" mean_a="0.0" mean_d="0.0"
 if [ "$dim_count" -gt 0 ]; then
   mean_s=$(awk "BEGIN { printf \"%.1f\", $sum_s / $dim_count }")
   mean_r=$(awk "BEGIN { printf \"%.1f\", $sum_r / $dim_count }")
@@ -307,57 +288,36 @@ if [ "$dim_count" -gt 0 ]; then
   mean_d=$(awk "BEGIN { printf \"%.1f\", $sum_d / $dim_count }")
 fi
 
-# --- Read previous score for delta computation ---
+# Read previous score for delta computation
 prev_score="0.0"
 if [ -f "$status_file" ]; then
-  confidence_data=$("$STAGEMAN" confidence "$status_file")
+  confidence_data=$("$STATUSMAN" confidence "$status_file")
   prev_score=$(echo "$confidence_data" | grep '^score:' | cut -d: -f2)
   prev_score=${prev_score:-0.0}
 fi
 
-# --- Apply coverage-weighted formula ---
-total_decisions=$((table_certain + table_confident + table_tentative + table_unresolved))
+# Compute score via shared helper
+score=$(compute_score "$table_confident" "$table_tentative" "$table_unresolved" "$total_decisions" "$expected_min")
 
-if [ "$table_unresolved" -gt 0 ]; then
-  score="0.0"
-else
-  # base = max(0.0, 5.0 - 0.3 * confident - 1.0 * tentative)
-  # cover = min(1.0, total_decisions / expected_min)
-  # score = base * cover
-  score=$(awk -v confident="$table_confident" \
-              -v tentative="$table_tentative" \
-              -v total="$total_decisions" \
-              -v exp_min="$expected_min" \
-    "BEGIN {
-      base = 5.0 - 0.3 * confident - 1.0 * tentative
-      if (base < 0.0) base = 0.0
-      if (exp_min > 0)
-        cover = total / exp_min
-      else
-        cover = 1.0
-      if (cover > 1.0) cover = 1.0
-      printf \"%.1f\", base * cover
-    }")
-fi
-
-# --- Compute delta ---
+# Compute delta
 delta=$(awk "BEGIN {
   d = $score - $prev_score
   if (d >= 0) printf \"+%.1f\", d
   else printf \"%.1f\", d
 }")
 
-# --- Write to .status.yaml ---
+# Write to .status.yaml and log
 if [ -f "$status_file" ]; then
   if [ "$has_fuzzy" = true ]; then
-    "$STAGEMAN" set-confidence-fuzzy "$status_file" "$table_certain" "$table_confident" "$table_tentative" "$table_unresolved" "$score" "$mean_s" "$mean_r" "$mean_a" "$mean_d"
+    "$STATUSMAN" set-confidence-fuzzy "$status_file" "$table_certain" "$table_confident" "$table_tentative" "$table_unresolved" "$score" "$mean_s" "$mean_r" "$mean_a" "$mean_d"
   else
-    "$STAGEMAN" set-confidence "$status_file" "$table_certain" "$table_confident" "$table_tentative" "$table_unresolved" "$score"
+    "$STATUSMAN" set-confidence "$status_file" "$table_certain" "$table_confident" "$table_tentative" "$table_unresolved" "$score"
   fi
-  "$STAGEMAN" log-confidence "$status_file" "$score" "$delta" "calc-score"
+  change_folder=$(basename "$change_dir")
+  "$LOGMAN" confidence "$change_folder" "$score" "$delta" "calc-score"
 fi
 
-# --- Emit YAML to stdout ---
+# Emit YAML to stdout
 cat <<EOF
 confidence:
   certain: $table_certain
