@@ -265,6 +265,7 @@ stateDiagram-v2
 
     [*] --> pending
     pending --> active: start
+    pending --> skipped: skip ²
 
     active --> ready: advance
     active --> done: finish
@@ -278,9 +279,18 @@ stateDiagram-v2
     done --> active: reset
     done --> [*]
 
+    skipped --> active: reset
+    skipped --> [*]
+
     note right of failed
         ¹ Review stage only
     end note
+
+    note right of skipped
+        ² Cascades downstream.
+           Not available for intake.
+    end note
+
 ```
 
 ### Side-effects
@@ -289,5 +299,6 @@ stateDiagram-v2
 |-------|-------------|
 | **finish** | If the next stage in the pipeline is `pending`, it is automatically set to `active` |
 | **reset** | All downstream stages are cascaded to `pending` |
+| **skip** | All downstream `pending` stages are cascaded to `skipped` |
 
 Source of truth: [`fab/.kit/schemas/workflow.yaml`](../../fab/.kit/schemas/workflow.yaml)
