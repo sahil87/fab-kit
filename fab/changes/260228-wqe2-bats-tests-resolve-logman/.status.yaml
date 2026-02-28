@@ -4,24 +4,35 @@ created_by: sahil-weaver
 change_type: test
 issues: []
 progress:
-  intake: ready
-  spec: pending
-  tasks: pending
-  apply: pending
-  review: pending
-  hydrate: pending
+  intake: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
 checklist:
-  generated: false
+  generated: true
   path: checklist.md
-  completed: 0
-  total: 0
+  completed: 22
+  total: 22
 confidence:
-  certain: 0
+  certain: 4
   confident: 0
   tentative: 0
   unresolved: 0
-  score: 0.0
+  score: 5.0
+  fuzzy: true
+  dimensions:
+    signal: 90.0
+    reversibility: 92.5
+    competence: 92.5
+    disambiguation: 93.8
 stage_metrics:
-  intake: {started_at: "2026-02-28T05:44:33+05:30", driver: fab-new, iterations: 1}
+  intake: {started_at: "2026-02-28T05:44:33+05:30", driver: fab-new, iterations: 1, completed_at: "2026-02-28T05:51:48+05:30"}
+  spec: {started_at: "2026-02-28T05:51:48+05:30", driver: fab-continue, iterations: 1, completed_at: "2026-02-28T05:54:44+05:30"}
+  tasks: {started_at: "2026-02-28T05:54:44+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-28T05:55:12+05:30"}
+  apply: {started_at: "2026-02-28T06:00:38+05:30", driver: fab-ff, iterations: 2, completed_at: "2026-02-28T06:01:14+05:30"}
+  review: {started_at: "2026-02-28T06:01:14+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-28T06:02:39+05:30"}
+  hydrate: {started_at: "2026-02-28T06:02:39+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-28T06:02:43+05:30"}
 prs: []
-last_updated: "2026-02-28T05:45:03+05:30"
+last_updated: "2026-02-28T06:02:43+05:30"
