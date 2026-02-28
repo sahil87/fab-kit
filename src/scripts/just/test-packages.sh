@@ -8,18 +8,24 @@ total=0
 for pkg_tests in src/packages/*/tests; do
     [ -d "$pkg_tests" ] || continue
     suite=$(basename "$(dirname "$pkg_tests")")
+
+    # Collect all bats files for this package
+    files=()
     for t in "$pkg_tests"/*.bats; do
         [ -f "$t" ] || continue
-        total=$((total + 1))
-        test_name="${suite}/$(basename "$t" .bats)"
-        echo "── ${test_name} ──"
-        if bats --jobs 4 "$t"; then
-            passed_suites+=("$test_name")
-        else
-            failed_suites+=("$test_name")
-        fi
-        echo ""
+        files+=("$t")
     done
+    [ ${#files[@]} -eq 0 ] && continue
+
+    total=$((total + 1))
+    echo "── ${suite} (${#files[@]} files) ──"
+    # Run all files within a package in parallel
+    if bats --jobs 8 --no-parallelize-within-files "${files[@]}"; then
+        passed_suites+=("$suite")
+    else
+        failed_suites+=("$suite")
+    fi
+    echo ""
 done
 
 # Summary

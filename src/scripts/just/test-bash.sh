@@ -10,7 +10,7 @@ for t in src/lib/*/test.bats; do
     suite=$(basename "$(dirname "$t")")
     total=$((total + 1))
     echo "── ${suite} ──"
-    if bats --jobs 4 "$t"; then
+    if bats "$t"; then
         passed_suites+=("$suite")
     else
         failed_suites+=("$suite")

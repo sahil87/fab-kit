@@ -84,11 +84,10 @@ verify_mock_called() {
     fi
 }
 
-# Clear mock log
+# Clear mock log (creates per-test log to avoid parallel conflicts)
 clear_mock_log() {
-    if [[ -n "${MOCK_LOG:-}" ]]; then
-        > "$MOCK_LOG"
-    fi
+    export MOCK_LOG="/tmp/wt-mock-$$-${RANDOM}.log"
+    > "$MOCK_LOG"
 }
 
 # ============================================================================
@@ -330,4 +329,7 @@ cleanup_test_repo() {
             rm -rf "${repo_path}/../test-repo-remote-"*
         fi
     fi
+
+    # Remove per-test mock log
+    rm -f "${MOCK_LOG:-}" 2>/dev/null || true
 }
