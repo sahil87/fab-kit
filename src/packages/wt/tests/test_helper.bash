@@ -9,6 +9,8 @@
 
 # Create a test git repository with main branch and mock remote
 # Returns: path to test repo
+# Note: remote exists but main is NOT pushed (saves ~67ms per test).
+# Tests that need remote branches should call push_main_to_remote first.
 create_test_repo() {
     local test_dir="/tmp/test-repo-$$-${RANDOM}"
     mkdir -p "$test_dir"
@@ -30,16 +32,20 @@ create_test_repo() {
             git branch -m main
         fi
 
-        # Set up mock remote
+        # Set up mock remote (bare repo only — no push for speed)
         local remote_dir="${test_dir}/../test-repo-remote-$$-${RANDOM}"
         mkdir -p "$remote_dir"
         (cd "$remote_dir" && git init -q --bare)
         git remote add origin "$remote_dir"
-        git push -q -u origin main 2>/dev/null || true
     ) >&2
 
     # Resolve symlinks (macOS: /tmp → /private/tmp) to match git's canonical paths
     echo "$(cd "$test_dir" && pwd -P)"
+}
+
+# Push main branch to mock remote (call only when test needs remote tracking)
+push_main_to_remote() {
+    git push -q -u origin main 2>/dev/null || true
 }
 
 # Add a branch to the mock remote
