@@ -1,121 +1,28 @@
+scripts := "src/scripts/just"
+
 # Run all tests (bash + rust) with summary
 test:
-    #!/usr/bin/env bash
-    set -euo pipefail
+    just test-setup
     just test-bash
     just test-packages
     just test-scripts
     # just test-rust  # uncomment when Rust libs exist
 
+# Setup test dependencies
+test-setup:
+    {{scripts}}/test-setup.sh
+
 # Run bash tests (bats)
 test-bash:
-    #!/usr/bin/env bash
-    set -uo pipefail
-
-    failed_suites=()
-    passed_suites=()
-    total=0
-
-    for t in src/lib/*/test.bats; do
-        [ -f "$t" ] || continue
-        suite=$(basename "$(dirname "$t")")
-        total=$((total + 1))
-        echo "── ${suite} ──"
-        if bats "$t"; then
-            passed_suites+=("$suite")
-        else
-            failed_suites+=("$suite")
-        fi
-        echo ""
-    done
-
-    # Summary
-    passed=${#passed_suites[@]}
-    failed=${#failed_suites[@]}
-    echo "═══════════════════════════════════════════════════"
-    if [ "$failed" -eq 0 ]; then
-        echo "${passed}/${total} suites passed     PASS"
-    else
-        echo "${passed}/${total} suites passed, ${failed} failed ($(IFS=', '; echo "${failed_suites[*]}"))     FAIL"
-    fi
-
-    [ "$failed" -eq 0 ]
+    {{scripts}}/test-bash.sh
 
 # Run package tests (bats)
 test-packages:
-    #!/usr/bin/env bash
-    set -uo pipefail
-
-    failed_suites=()
-    passed_suites=()
-    total=0
-
-    for pkg_tests in src/packages/*/tests; do
-        [ -d "$pkg_tests" ] || continue
-        suite=$(basename "$(dirname "$pkg_tests")")
-        for t in "$pkg_tests"/*.bats; do
-            [ -f "$t" ] || continue
-            total=$((total + 1))
-            test_name="${suite}/$(basename "$t" .bats)"
-            echo "── ${test_name} ──"
-            if bats "$t"; then
-                passed_suites+=("$test_name")
-            else
-                failed_suites+=("$test_name")
-            fi
-            echo ""
-        done
-    done
-
-    # Summary
-    passed=${#passed_suites[@]}
-    failed=${#failed_suites[@]}
-    echo "═══════════════════════════════════════════════════"
-    if [ "$total" -eq 0 ]; then
-        echo "No package tests found."
-    elif [ "$failed" -eq 0 ]; then
-        echo "${passed}/${total} package tests passed     PASS"
-    else
-        echo "${passed}/${total} package tests passed, ${failed} failed ($(IFS=', '; echo "${failed_suites[*]}"))     FAIL"
-    fi
-
-    [ "$failed" -eq 0 ]
+    {{scripts}}/test-packages.sh
 
 # Run script tests (bats)
 test-scripts:
-    #!/usr/bin/env bash
-    set -uo pipefail
-
-    failed_suites=()
-    passed_suites=()
-    total=0
-
-    for t in src/scripts/*/test.bats; do
-        [ -f "$t" ] || continue
-        suite=$(basename "$(dirname "$t")")
-        total=$((total + 1))
-        echo "── ${suite} ──"
-        if bats "$t"; then
-            passed_suites+=("$suite")
-        else
-            failed_suites+=("$suite")
-        fi
-        echo ""
-    done
-
-    # Summary
-    passed=${#passed_suites[@]}
-    failed=${#failed_suites[@]}
-    echo "═══════════════════════════════════════════════════"
-    if [ "$total" -eq 0 ]; then
-        echo "No script tests found."
-    elif [ "$failed" -eq 0 ]; then
-        echo "${passed}/${total} script tests passed     PASS"
-    else
-        echo "${passed}/${total} script tests passed, ${failed} failed ($(IFS=', '; echo "${failed_suites[*]}"))     FAIL"
-    fi
-
-    [ "$total" -eq 0 ] || [ "$failed" -eq 0 ]
+    {{scripts}}/test-scripts.sh
 
 # Run Rust tests (placeholder)
 test-rust:

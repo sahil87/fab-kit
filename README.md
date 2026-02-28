@@ -337,7 +337,7 @@ This delegates to `fab/.kit/scripts/lib/env-packages.sh`, which puts all package
 After cloning, initialize shared test dependencies:
 
 ```bash
-bash src/packages/setup.sh    # clones bats submodules
+bash test-setup    # clones bats submodules
 just test-packages             # run all package tests
 ```
 
