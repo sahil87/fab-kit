@@ -15,6 +15,10 @@ setup() {
   cp "$CHANGEMAN" "$FAB_ROOT/.kit/scripts/lib/changeman.sh"
   chmod +x "$FAB_ROOT/.kit/scripts/lib/changeman.sh"
 
+  # Copy resolve.sh (changeman delegates resolve to it)
+  cp "$REPO_ROOT/fab/.kit/scripts/lib/resolve.sh" "$FAB_ROOT/.kit/scripts/lib/resolve.sh"
+  chmod +x "$FAB_ROOT/.kit/scripts/lib/resolve.sh"
+
   # Create a stub statusman.sh that records calls
   STATUSMAN_LOG="$TEST_DIR/statusman-calls.log"
   cat > "$FAB_ROOT/.kit/scripts/lib/statusman.sh" <<STUB
@@ -22,6 +26,14 @@ setup() {
 echo "\$@" >> "$STATUSMAN_LOG"
 STUB
   chmod +x "$FAB_ROOT/.kit/scripts/lib/statusman.sh"
+
+  # Create a stub logman.sh that records calls
+  LOGMAN_LOG="$TEST_DIR/logman-calls.log"
+  cat > "$FAB_ROOT/.kit/scripts/lib/logman.sh" <<STUB
+#!/usr/bin/env bash
+echo "\$@" >> "$LOGMAN_LOG"
+STUB
+  chmod +x "$FAB_ROOT/.kit/scripts/lib/logman.sh"
 
   # Create minimal status.yaml template
   cat > "$FAB_ROOT/.kit/templates/status.yaml" <<'YAML'
@@ -103,11 +115,11 @@ teardown() {
   [[ "$output" =~ ^[0-9]{6}-a7k2-my-change$ ]]
 }
 
-@test "new with --log-args calls statusman log-command" {
+@test "new with --log-args calls logman command" {
   run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" new --slug my-change --log-args "Test description"
   [ "$status" -eq 0 ]
-  grep -q "log-command" "$STATUSMAN_LOG"
-  grep -q "Test description" "$STATUSMAN_LOG"
+  grep -q "command" "$LOGMAN_LOG"
+  grep -q "Test description" "$LOGMAN_LOG"
 }
 
 @test "new calls statusman start intake fab-new" {
@@ -384,16 +396,16 @@ STUB
   [[ "$output" == *"--slug is required"* ]]
 }
 
-# ── rename: statusman logging ──────────────────────────────────────
+# ── rename: logman logging ──────────────────────────────────────
 
-@test "rename calls statusman log-command" {
+@test "rename calls logman command" {
   mkdir -p "$FAB_ROOT/changes/260216-u6d5-old-slug"
   echo 'name: 260216-u6d5-old-slug' > "$FAB_ROOT/changes/260216-u6d5-old-slug/.status.yaml"
 
   run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" rename --folder 260216-u6d5-old-slug --slug new-slug
   [ "$status" -eq 0 ]
-  grep -q "log-command" "$STATUSMAN_LOG"
-  grep -q "changeman-rename" "$STATUSMAN_LOG"
+  grep -q "command" "$LOGMAN_LOG"
+  grep -q "changeman-rename" "$LOGMAN_LOG"
 }
 
 # ── resolve: exact match ─────────────────────────────────────────
