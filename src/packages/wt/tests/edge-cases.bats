@@ -136,10 +136,12 @@ teardown() {
 @test "edge: creating multiple worktrees generates unique names" {
     local names=()
     for i in 1 2 3 4 5; do
-        local output
-        output=$(wt-create --non-interactive 2>/dev/null)
+        local wt_path
+        # --non-interactive sends human-readable output to stderr;
+        # stdout contains only the worktree path (porcelain contract)
+        wt_path=$(wt-create --non-interactive 2>/dev/null)
         local name
-        name=$(echo "$output" | grep "Created worktree:" | sed 's/Created worktree: //')
+        name=$(basename "$wt_path")
         names+=("$name")
     done
 
