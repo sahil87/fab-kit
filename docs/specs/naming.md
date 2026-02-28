@@ -53,7 +53,7 @@ The title used when creating GitHub pull requests.
 | **Example** | `feat: DEV-123 DEV-456 Add OAuth support` or `fix: Resolve concurrent access bug` |
 | **Encoded in** | `/git-pr` skill (`fab/.kit/skills/git-pr.md`) |
 
-Type is inferred from intake keywords or diff analysis: `feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`. Issue IDs (from `stageman.sh get-issues`) are included space-joined when non-empty — this enables Linear auto-linking. Title is derived from the intake heading or the last commit message.
+Type is inferred from intake keywords or diff analysis: `feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`. Issue IDs (from `statusman.sh get-issues`) are included space-joined when non-empty — this enables Linear auto-linking. Title is derived from the intake heading or the last commit message.
 
 ## Backlog Entry
 

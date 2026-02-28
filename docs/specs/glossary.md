@@ -75,7 +75,7 @@
 | `docs/specs/` | Human-curated pre-implementation design specifications. Flat structure, not managed by Fab tooling. |
 | `fab/.kit/` | The Fab engine directory — templates, skills, scripts. Replaceable upstream without affecting project-specific files. |
 | `fab/.kit/templates/` | Markdown scaffolds that skills fill with concrete content. Includes templates for all artifact types. |
-| `fab/.kit/scripts/` | Shell utilities — `fab-sync.sh` (workspace sync orchestrator), `fab-help.sh` (skill catalog), `fab-upgrade.sh` (kit updater), plus `lib/` for internal scripts (`stageman.sh`, `preflight.sh`, `calc-score.sh`, `changeman.sh`). |
+| `fab/.kit/scripts/` | Shell utilities — `fab-sync.sh` (workspace sync orchestrator), `fab-help.sh` (skill catalog), `fab-upgrade.sh` (kit updater), plus `lib/` for internal scripts (`resolve.sh`, `statusman.sh`, `logman.sh`, `changeman.sh`, `calc-score.sh`, `preflight.sh`). |
 
 ---
 

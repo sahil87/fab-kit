@@ -37,7 +37,9 @@ project/
 │   │       ├── fab-sync.sh         # Workspace sync orchestrator
 │   │       ├── fab-upgrade.sh      # Kit updater from GitHub Releases
 │   │       └── lib/                # Internal scripts
-│   │           ├── stageman.sh     # Stage Manager CLI
+│   │           ├── resolve.sh       # Change Resolver (pure query)
+│   │           ├── statusman.sh     # Status Manager CLI
+│   │           ├── logman.sh        # History Logger (append-only)
 │   │           ├── changeman.sh    # Change Manager CLI
 │   │           ├── preflight.sh    # Pre-flight validation
 │   │           └── calc-score.sh   # Confidence score computation
@@ -100,7 +102,7 @@ Scripts in `fab/.kit/scripts/` follow a prefix convention to distinguish entry p
 | Prefix | Role | Invoked by | Example |
 |--------|------|------------|---------|
 | `fab-` | User-facing entry point | Users via terminal | `fab-help.sh`, `fab-upgrade.sh` |
-| *(none — `lib/` subfolder)* | Internal scripts live in `scripts/lib/` | Skills, other scripts | `lib/stageman.sh`, `lib/preflight.sh`, `lib/changeman.sh` |
+| *(none — `lib/` subfolder)* | Internal scripts live in `scripts/lib/` | Skills, other scripts | `lib/resolve.sh`, `lib/statusman.sh`, `lib/logman.sh`, `lib/changeman.sh`, `lib/calc-score.sh`, `lib/preflight.sh` |
 | `batch-fab-` | Batch orchestration | Users via terminal | `batch-fab-new-backlog.sh` |
 
 **Why?** When `.kit/` is distributed via `cp -r`, the `_` prefix makes it immediately clear which scripts are internal plumbing vs. which are user-facing entry points. This matters for discoverability and prevents users from invoking internal scripts directly.

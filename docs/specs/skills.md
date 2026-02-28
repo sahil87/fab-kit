@@ -205,7 +205,7 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 **Behavior**:
 1. Generate folder name: today's date (`YYMMDD`) + 4 random alphanumeric chars + 2-6 word slug from description
 2. Create `fab/changes/{name}/`
-3. Initialize `.status.yaml` with all stages `pending`; `changeman.sh` calls `stageman.sh start intake` to activate
+3. Initialize `.status.yaml` with all stages `pending`; `changeman.sh` calls `statusman.sh start intake` to activate
 4. Generate `intake.md` using template (loading `fab/project/constitution.md` and `fab/project/config.yaml` as context)
 5. Perform gap analysis — check whether the change is already covered by existing mechanisms
 6. Use SRAD-driven adaptive questioning (no fixed cap) to resolve ambiguities conversationally

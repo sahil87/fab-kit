@@ -257,7 +257,7 @@ stateDiagram-v2
 
 ## 5. Per-Stage State Machine
 
-Section 4 shows which *stage* a change is at. This section shows how each individual stage transitions between *states*. Every stage tracks its own progress as one of: `pending`, `active`, `ready`, `done` (and `failed` for review). The events that drive transitions are issued by `stageman.sh`.
+Section 4 shows which *stage* a change is at. This section shows how each individual stage transitions between *states*. Every stage tracks its own progress as one of: `pending`, `active`, `ready`, `done` (and `failed` for review). The events that drive transitions are issued by `statusman.sh`.
 
 ```mermaid
 stateDiagram-v2

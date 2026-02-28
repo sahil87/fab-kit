@@ -49,7 +49,7 @@ confidence:
   tentative: 0                      # count of Tentative-graded decisions
   unresolved: 0                     # count of Unresolved-graded decisions
   score: 0.0                        # derived score (0.0–5.0)
-stage_metrics: {}                   # populated by stageman.sh as stages progress
+stage_metrics: {}                   # populated by statusman.sh as stages progress
 last_updated: {ISO_8601_DATETIME}
 ```
 
@@ -60,7 +60,7 @@ last_updated: {ISO_8601_DATETIME}
 - `review: failed` is set when `/fab-continue` (review) finds issues. The review entry remains `failed` so `/fab-status` shows the failure.
 - `checklist.completed` / `checklist.total` are updated by `/fab-continue` (review) as it checks items.
 - `confidence` block initializes to zero counts and score 0.0 — a new change has no assessed confidence. Computed by `lib/calc-score.sh` when `/fab-continue` generates the spec.
-- `stage_metrics` is populated by `lib/stageman.sh` as stages progress — tracks `started_at`, `completed_at`, `driver`, and `iterations` per stage.
+- `stage_metrics` is populated by `lib/statusman.sh` as stages progress — tracks `started_at`, `completed_at`, `driver`, and `iterations` per stage.
 - `last_updated` is refreshed on every status change.
 
 ---
