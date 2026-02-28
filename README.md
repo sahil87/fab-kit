@@ -66,7 +66,7 @@ fab/current/add-spinner/
 Install with [Homebrew](https://brew.sh/) (macOS and Linux):
 
 ```bash
-brew install yq jq gh bats-core direnv
+brew install yq jq gh bats-core direnv parallel
 ```
 
 * After installing `gh`, authenticate with `gh auth login`.
@@ -79,6 +79,7 @@ brew install yq jq gh bats-core direnv
 | [gh](https://cli.github.com/) | GitHub CLI — used for installation and releases |
 | [bats-core](https://github.com/bats-core/bats-core) | Bash test runner for kit validation |
 | [direnv](https://direnv.net/) | Auto-loads `.envrc` to put fab scripts on PATH |
+| [parallel](https://www.gnu.org/software/parallel/) | Parallel execution for test suites and batch operations |
 
 ### 1. Install
 
