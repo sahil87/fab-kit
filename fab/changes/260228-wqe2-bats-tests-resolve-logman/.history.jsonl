@@ -1,1 +1,4 @@
 {"ts":"2026-02-28T05:44:34+05:30","event":"command","cmd":"fab-new","args":"Add BATS test suites for resolve.sh and logman.sh"}
+{"ts":"2026-02-28T05:53:37+05:30","event":"confidence","score":5.0,"delta":"+5.0","trigger":"calc-score"}
+{"ts":"2026-02-28T06:00:34+05:30","event":"review","result":"failed"}
+{"ts":"2026-02-28T06:02:39+05:30","event":"review","result":"passed"}
