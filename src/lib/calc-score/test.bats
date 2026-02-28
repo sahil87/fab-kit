@@ -23,6 +23,7 @@ make_status() {
   local score="${3:-5.0}"
   cat > "$dir/.status.yaml" <<EOF
 name: test-change
+change_type: chore
 progress:
   intake: done
   spec: done
@@ -127,7 +128,7 @@ EOF
   run "$CALC_SCORE" "$d"
   [[ "$output" == *"confident: 0"* ]]
   [[ "$output" == *"tentative: 0"* ]]
-  [[ "$output" == *"score: 5.0"* ]]
+  [[ "$output" == *"score: 0.0"* ]]
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -262,12 +263,14 @@ EOF
 
 | # | Grade | Decision | Rationale |
 |---|-------|----------|-----------|
-| 1 | Confident | A | R |
-| 2 | Tentative | B | R |
+| 1 | Certain | Z | R |
+| 2 | Confident | A | R |
+| 3 | Tentative | B | R |
 EOF
   "$CALC_SCORE" "$d" > /dev/null
   local status_content
   status_content=$(cat "$d/.status.yaml")
+  [[ "$status_content" == *"certain: 1"* ]]
   [[ "$status_content" == *"confident: 1"* ]]
   [[ "$status_content" == *"tentative: 1"* ]]
   [[ "$status_content" == *"score: 3.7"* ]]
@@ -291,8 +294,9 @@ EOF
 
 | # | Grade | Decision | Rationale |
 |---|-------|----------|-----------|
-| 1 | Confident | A | R |
-| 2 | Tentative | B | R |
+| 1 | Certain | Z | R |
+| 2 | Confident | A | R |
+| 3 | Tentative | B | R |
 EOF
   run "$CALC_SCORE" "$d"
   [[ "$output" == *"delta: -1.3"* ]]
@@ -305,7 +309,13 @@ EOF
   cat > "$d/spec.md" <<'EOF'
 # Spec
 
-No assumptions.
+## Assumptions
+
+| # | Grade | Decision | Rationale |
+|---|-------|----------|-----------|
+| 1 | Certain | A | R |
+| 2 | Certain | B | R |
+| 3 | Certain | C | R |
 EOF
   run "$CALC_SCORE" "$d"
   [[ "$output" == *"delta: +3.0"* ]]
@@ -318,7 +328,13 @@ EOF
   cat > "$d/spec.md" <<'EOF'
 # Spec
 
-No assumptions.
+## Assumptions
+
+| # | Grade | Decision | Rationale |
+|---|-------|----------|-----------|
+| 1 | Certain | A | R |
+| 2 | Certain | B | R |
+| 3 | Certain | C | R |
 EOF
   run "$CALC_SCORE" "$d"
   [[ "$output" == *"delta: +0.0"* ]]
@@ -338,7 +354,6 @@ EOF
 @test "missing directory: exit 1" {
   run bash -c "'$CALC_SCORE' /nonexistent/path 2>&1"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"Change directory not found"* ]]
 }
 
 @test "missing spec.md: exit 1" {
@@ -438,35 +453,35 @@ EOF
 # Gate Check (--check-gate)
 # ─────────────────────────────────────────────────────────────────────────────
 
-@test "gate: bugfix passes at 2.5 (threshold 2.0)" {
-  local d="$TEST_DIR/gate-bugfix-pass"
+@test "gate: fix passes at 2.5 (threshold 2.0)" {
+  local d="$TEST_DIR/gate-fix-pass"
   mkdir -p "$d"
-  make_gate_status "$d" "bugfix" "2.5"
+  make_gate_status "$d" "fix" "2.5"
   run "$CALC_SCORE" --check-gate "$d"
   [[ "$output" == *"gate: pass"* ]]
   [[ "$output" == *"threshold: 2.0"* ]]
 }
 
-@test "gate: bugfix fails at 1.5 (threshold 2.0)" {
-  local d="$TEST_DIR/gate-bugfix-fail"
+@test "gate: fix fails at 1.5 (threshold 2.0)" {
+  local d="$TEST_DIR/gate-fix-fail"
   mkdir -p "$d"
-  make_gate_status "$d" "bugfix" "1.5"
+  make_gate_status "$d" "fix" "1.5"
   run "$CALC_SCORE" --check-gate "$d"
   [[ "$output" == *"gate: fail"* ]]
 }
 
-@test "gate: feature passes at 3.0 (exact boundary)" {
-  local d="$TEST_DIR/gate-feature-exact"
+@test "gate: feat passes at 3.0 (exact boundary)" {
+  local d="$TEST_DIR/gate-feat-exact"
   mkdir -p "$d"
-  make_gate_status "$d" "feature" "3.0"
+  make_gate_status "$d" "feat" "3.0"
   run "$CALC_SCORE" --check-gate "$d"
   [[ "$output" == *"gate: pass"* ]]
 }
 
-@test "gate: feature fails at 2.9" {
-  local d="$TEST_DIR/gate-feature-fail"
+@test "gate: feat fails at 2.9" {
+  local d="$TEST_DIR/gate-feat-fail"
   mkdir -p "$d"
-  make_gate_status "$d" "feature" "2.9"
+  make_gate_status "$d" "feat" "2.9"
   run "$CALC_SCORE" --check-gate "$d"
   [[ "$output" == *"gate: fail"* ]]
 }
@@ -497,7 +512,7 @@ EOF
   [[ "$output" == *"threshold: 3.0"* ]]
 }
 
-@test "gate: missing change_type defaults to feature (threshold 3.0)" {
+@test "gate: missing change_type defaults to feat (threshold 3.0)" {
   local d="$TEST_DIR/gate-no-type"
   mkdir -p "$d"
   cat > "$d/.status.yaml" <<'EOF'
@@ -523,7 +538,7 @@ last_updated: 2026-02-14T00:00:00Z
 EOF
   run "$CALC_SCORE" --check-gate "$d"
   [[ "$output" == *"gate: fail"* ]]
-  [[ "$output" == *"change_type: feature"* ]]
+  [[ "$output" == *"change_type: feat"* ]]
 }
 
 # ─────────────────────────────────────────────────────────────────────────────

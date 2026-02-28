@@ -17,8 +17,12 @@ setup() {
   cp "$PROJECT_ROOT/fab/.kit/scripts/lib/preflight.sh" "$fab/.kit/scripts/lib/"
   cp "$PROJECT_ROOT/fab/.kit/scripts/lib/statusman.sh" "$fab/.kit/scripts/lib/"
   cp "$PROJECT_ROOT/fab/.kit/scripts/lib/changeman.sh" "$fab/.kit/scripts/lib/"
+  cp "$PROJECT_ROOT/fab/.kit/scripts/lib/resolve.sh" "$fab/.kit/scripts/lib/"
+  cp "$PROJECT_ROOT/fab/.kit/scripts/lib/logman.sh" "$fab/.kit/scripts/lib/"
   cp "$PROJECT_ROOT/fab/.kit/schemas/workflow.yaml" "$fab/.kit/schemas/"
   chmod +x "$fab/.kit/scripts/lib/preflight.sh"
+  chmod +x "$fab/.kit/scripts/lib/resolve.sh"
+  chmod +x "$fab/.kit/scripts/lib/logman.sh"
 
   # Create required init files
   echo "version: 1" > "$fab/project/config.yaml"
@@ -93,7 +97,14 @@ run_preflight_combined() {
 # ─────────────────────────────────────────────────────────────────────────────
 
 @test "rejects when fab/current missing" {
-  create_change "test-change" "progress:
+  create_change "test-change-a" "progress:
+  intake: active
+  spec: pending
+  tasks: pending
+  apply: pending
+  review: pending
+  hydrate: pending"
+  create_change "test-change-b" "progress:
   intake: active
   spec: pending
   tasks: pending
@@ -105,7 +116,14 @@ run_preflight_combined() {
 }
 
 @test "rejects when fab/current is empty" {
-  create_change "test-change" "progress:
+  create_change "test-change-a" "progress:
+  intake: active
+  spec: pending
+  tasks: pending
+  apply: pending
+  review: pending
+  hydrate: pending"
+  create_change "test-change-b" "progress:
   intake: active
   spec: pending
   tasks: pending

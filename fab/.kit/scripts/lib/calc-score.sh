@@ -36,14 +36,15 @@ get_expected_min() {
 get_gate_threshold() {
   local change_type="$1"
   case "$change_type" in
-    fix)      echo "2.0" ;;
-    feat)     echo "3.0" ;;
-    refactor) echo "3.0" ;;
-    docs)     echo "2.0" ;;
-    test)     echo "2.0" ;;
-    ci)       echo "2.0" ;;
-    chore)    echo "2.0" ;;
-    *)        echo "3.0" ;;  # default to feat threshold
+    fix)          echo "2.0" ;;
+    feat)         echo "3.0" ;;
+    refactor)     echo "3.0" ;;
+    architecture) echo "4.0" ;;
+    docs)         echo "2.0" ;;
+    test)         echo "2.0" ;;
+    ci)           echo "2.0" ;;
+    chore)        echo "2.0" ;;
+    *)            echo "3.0" ;;  # default to feat threshold
   esac
 }
 
@@ -192,10 +193,13 @@ if [ -z "$change_arg" ]; then
   exit 1
 fi
 
-# Resolve change to directory via resolve.sh
-change_dir=$("$RESOLVE" --dir "$change_arg") || exit 1
-# Trim trailing slash
-change_dir="${change_dir%/}"
+# Resolve change to directory — direct path fallback for backward compat (tests)
+if [ -d "$change_arg" ]; then
+  change_dir="$change_arg"
+else
+  change_dir=$("$RESOLVE" --dir "$change_arg") || exit 1
+  change_dir="${change_dir%/}"
+fi
 
 if [ ! -d "$change_dir" ]; then
   echo "Change directory not found: $change_dir" >&2
@@ -217,24 +221,23 @@ if [ "$CHECK_GATE" = true ]; then
   change_type=$(read_change_type "$status_file")
 
   if [ "$SCORE_STAGE" = "intake" ]; then
-    score_file="$change_dir/intake.md"
     threshold="3.0"
   else
-    score_file="$change_dir/spec.md"
     threshold=$(get_gate_threshold "$change_type")
   fi
 
-  if [ ! -f "$score_file" ]; then
-    echo "ERROR: $(basename "$score_file") not found in $change_dir" >&2
-    exit 1
-  fi
-
-  expected_min=$(get_expected_min "$SCORE_STAGE" "$change_type")
-
-  # Count grades via shared helper
-  read -r g_certain g_confident g_tentative g_unresolved _ _ _ _ _ _ <<< "$(count_grades "$score_file")"
-  g_total=$((g_certain + g_confident + g_tentative + g_unresolved))
-  score=$(compute_score "$g_confident" "$g_tentative" "$g_unresolved" "$g_total" "$expected_min")
+  # Read stored score and counts from .status.yaml (computed by normal mode)
+  confidence_data=$("$STATUSMAN" confidence "$status_file")
+  score=$(echo "$confidence_data" | grep '^score:' | cut -d: -f2)
+  score=${score:-0.0}
+  g_certain=$(echo "$confidence_data" | grep '^certain:' | cut -d: -f2)
+  g_certain=${g_certain:-0}
+  g_confident=$(echo "$confidence_data" | grep '^confident:' | cut -d: -f2)
+  g_confident=${g_confident:-0}
+  g_tentative=$(echo "$confidence_data" | grep '^tentative:' | cut -d: -f2)
+  g_tentative=${g_tentative:-0}
+  g_unresolved=$(echo "$confidence_data" | grep '^unresolved:' | cut -d: -f2)
+  g_unresolved=${g_unresolved:-0}
 
   # Compare score >= threshold
   passes=$(awk "BEGIN { print ($score >= $threshold) ? \"pass\" : \"fail\" }")
@@ -314,7 +317,7 @@ if [ -f "$status_file" ]; then
     "$STATUSMAN" set-confidence "$status_file" "$table_certain" "$table_confident" "$table_tentative" "$table_unresolved" "$score"
   fi
   change_folder=$(basename "$change_dir")
-  "$LOGMAN" confidence "$change_folder" "$score" "$delta" "calc-score"
+  "$LOGMAN" confidence "$change_folder" "$score" "$delta" "calc-score" 2>/dev/null || true
 fi
 
 # Emit YAML to stdout

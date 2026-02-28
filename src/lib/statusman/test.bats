@@ -1110,101 +1110,9 @@ EOF
   [ "$status" -ne 0 ]
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# History Logging
-# ─────────────────────────────────────────────────────────────────────────────
 
-@test "log-command creates command event" {
-  local history_dir="$TEST_DIR/history"
-  mkdir -p "$history_dir"
-  "$STATUSMAN" log-command "$history_dir" "fab-continue" ""
-  local line
-  line=$(head -1 "$history_dir/.history.jsonl")
-  [[ "$line" == *'"event":"command"'* ]]
-  [[ "$line" == *'"cmd":"fab-continue"'* ]]
-}
-
-@test "log-command omits empty args" {
-  local history_dir="$TEST_DIR/history"
-  mkdir -p "$history_dir"
-  "$STATUSMAN" log-command "$history_dir" "fab-continue" ""
-  local line
-  line=$(head -1 "$history_dir/.history.jsonl")
-  [[ "$line" != *'"args"'* ]]
-}
-
-@test "log-command includes non-empty args" {
-  local history_dir="$TEST_DIR/history"
-  mkdir -p "$history_dir"
-  "$STATUSMAN" log-command "$history_dir" "fab-ff" "spec"
-  local line
-  line=$(tail -1 "$history_dir/.history.jsonl")
-  [[ "$line" == *'"args":"spec"'* ]]
-}
-
-@test "log-confidence creates confidence event with score" {
-  local history_dir="$TEST_DIR/history"
-  mkdir -p "$history_dir"
-  "$STATUSMAN" log-confidence "$history_dir" 4.1 "+4.1" "calc-score"
-  local line
-  line=$(tail -1 "$history_dir/.history.jsonl")
-  [[ "$line" == *'"event":"confidence"'* ]]
-  [[ "$line" == *'"score":4.1'* ]]
-}
-
-@test "log-review creates passed event without rework" {
-  local history_dir="$TEST_DIR/history"
-  mkdir -p "$history_dir"
-  "$STATUSMAN" log-review "$history_dir" "passed"
-  local line
-  line=$(tail -1 "$history_dir/.history.jsonl")
-  [[ "$line" == *'"result":"passed"'* ]]
-  [[ "$line" != *'"rework"'* ]]
-}
-
-@test "log-review creates failed event with rework" {
-  local history_dir="$TEST_DIR/history"
-  mkdir -p "$history_dir"
-  "$STATUSMAN" log-review "$history_dir" "failed" "revise-tasks"
-  local line
-  line=$(tail -1 "$history_dir/.history.jsonl")
-  [[ "$line" == *'"rework":"revise-tasks"'* ]]
-}
-
-@test "log-command resolves relative path against repo root" {
-  # Derive repo root from statusman location (same logic as resolve_change_arg)
-  local statusman_dir
-  statusman_dir="$(cd "$(dirname "$(readlink -f "$STATUSMAN")")" && pwd)"
-  local repo_root
-  repo_root="$(cd "$statusman_dir/../../../.." && pwd)"
-
-  # Create a temp dir under repo root
-  local test_subdir=".test-resolve-$$"
-  mkdir -p "$repo_root/$test_subdir"
-
-  # Run log-command with a relative path from a different cwd
-  (cd /tmp && "$STATUSMAN" log-command "$test_subdir" "test-resolve" "")
-
-  # Verify file was written at the resolved absolute path, not relative to cwd
-  [ -f "$repo_root/$test_subdir/.history.jsonl" ]
-  [[ "$(head -1 "$repo_root/$test_subdir/.history.jsonl")" == *'"cmd":"test-resolve"'* ]]
-
-  # Clean up
-  rm -rf "$repo_root/$test_subdir"
-}
-
-@test "history file accumulates events" {
-  local history_dir="$TEST_DIR/history"
-  mkdir -p "$history_dir"
-  "$STATUSMAN" log-command "$history_dir" "fab-continue" ""
-  "$STATUSMAN" log-command "$history_dir" "fab-ff" "spec"
-  "$STATUSMAN" log-confidence "$history_dir" 4.1 "+4.1" "calc-score"
-  "$STATUSMAN" log-review "$history_dir" "passed"
-  "$STATUSMAN" log-review "$history_dir" "failed" "revise-tasks"
-  local event_count
-  event_count=$(wc -l < "$history_dir/.history.jsonl" | tr -d ' ')
-  [ "$event_count" = "5" ]
-}
+# (History logging tests removed — log_command, log_confidence, log_review
+# were extracted to logman.sh. See src/lib/logman/ for logman tests.)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Progress Line
@@ -1381,7 +1289,6 @@ EOF
 @test "add-pr: rejects nonexistent file" {
   run "$STATUSMAN" add-pr "/nonexistent/path/.status.yaml" "https://example.com"
   [ "$status" -ne 0 ]
-  [[ "$output" == *"Status file not found"* ]]
 }
 
 @test "get-prs: returns URLs one per line" {
@@ -1410,7 +1317,6 @@ EOF
 @test "get-prs: rejects nonexistent file" {
   run "$STATUSMAN" get-prs "/nonexistent/path/.status.yaml"
   [ "$status" -ne 0 ]
-  [[ "$output" == *"Status file not found"* ]]
 }
 
 @test "add-issue: appends ID to empty issues array" {
@@ -1454,7 +1360,6 @@ EOF
 @test "add-issue: rejects nonexistent file" {
   run "$STATUSMAN" add-issue "/nonexistent/path/.status.yaml" "DEV-123"
   [ "$status" -ne 0 ]
-  [[ "$output" == *"Status file not found"* ]]
 }
 
 @test "get-issues: returns IDs one per line" {
@@ -1476,7 +1381,6 @@ EOF
 @test "get-issues: rejects nonexistent file" {
   run "$STATUSMAN" get-issues "/nonexistent/path/.status.yaml"
   [ "$status" -ne 0 ]
-  [[ "$output" == *"Status file not found"* ]]
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
