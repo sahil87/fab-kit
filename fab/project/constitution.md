@@ -20,6 +20,9 @@ The `fab/.kit/` directory MUST work in any project via `cp -r`. It SHALL have no
 ### VI. Specs Are Pre-Implementation Design Intent
 Specifications in `docs/specs/` are human-curated, pre-implementation artifacts that capture the *planned* design. They MUST NOT be auto-generated or overwritten by tooling. Specs record the "why" and conceptual intent behind features; `docs/memory/` records what actually shipped. Agents SHOULD consult specs for design rationale and architectural context when generating change artifacts.
 
+### VII. Test Integrity
+Tests MUST conform to the implementation spec — never the other way around. When tests fail, the fix SHALL either (a) update the tests to match the spec, or (b) update the implementation to match the spec. Modifying implementation code solely to accommodate test fixtures or test infrastructure is prohibited. Specs are the source of truth; tests verify conformance to specs.
+
 ## Additional Constraints
 
 - Research documentation SHOULD maintain clear attribution to source projects (SpecKit, OpenSpec)
@@ -28,4 +31,4 @@ Specifications in `docs/specs/` are human-curated, pre-implementation artifacts 
 
 ## Governance
 
-**Version**: 1.1.0 | **Ratified**: 2026-02-06 | **Last Amended**: 2026-02-14
+**Version**: 1.2.0 | **Ratified**: 2026-02-06 | **Last Amended**: 2026-02-28

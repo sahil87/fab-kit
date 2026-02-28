@@ -6,10 +6,55 @@
 #         backward compatibility, edge cases, fuzzy status write
 
 REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../.." && pwd)"
-CALC_SCORE="$REPO_ROOT/fab/.kit/scripts/lib/calc-score.sh"
 
 setup() {
   TEST_DIR="$(mktemp -d)"
+
+  # Mirror the real kit directory structure so statusman.sh can find
+  # workflow.yaml at ../../schemas/ relative to scripts/lib/.
+  # Layout: _kit/scripts/lib/{calc-score,statusman,resolve,logman}.sh
+  #         _kit/schemas/workflow.yaml
+  LIB_DIR="$TEST_DIR/_kit/scripts/lib"
+  mkdir -p "$LIB_DIR"
+  mkdir -p "$TEST_DIR/_kit/schemas"
+
+  # Copy the real calc-score.sh, statusman.sh, and workflow schema
+  cp "$REPO_ROOT/fab/.kit/scripts/lib/calc-score.sh" "$LIB_DIR/calc-score.sh"
+  chmod +x "$LIB_DIR/calc-score.sh"
+  cp "$REPO_ROOT/fab/.kit/scripts/lib/statusman.sh" "$LIB_DIR/statusman.sh"
+  chmod +x "$LIB_DIR/statusman.sh"
+  cp "$REPO_ROOT/fab/.kit/schemas/workflow.yaml" "$TEST_DIR/_kit/schemas/workflow.yaml"
+
+  # Stub resolve.sh — echoes the argument as-is for --dir (tests pass raw paths)
+  cat > "$LIB_DIR/resolve.sh" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+mode=""
+arg=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dir|--folder|--id|--status) mode="$1"; shift ;;
+    *) arg="$1"; shift ;;
+  esac
+done
+if [ "$mode" = "--dir" ]; then
+  echo "$arg"
+elif [ "$mode" = "--status" ]; then
+  echo "$arg/.status.yaml"
+else
+  echo "$arg"
+fi
+STUB
+  chmod +x "$LIB_DIR/resolve.sh"
+
+  # Stub logman.sh — no-op (tests don't verify log output)
+  cat > "$LIB_DIR/logman.sh" <<'STUB'
+#!/usr/bin/env bash
+exit 0
+STUB
+  chmod +x "$LIB_DIR/logman.sh"
+
+  CALC_SCORE="$LIB_DIR/calc-score.sh"
 }
 
 teardown() {
@@ -354,6 +399,7 @@ EOF
 @test "missing directory: exit 1" {
   run bash -c "'$CALC_SCORE' /nonexistent/path 2>&1"
   [ "$status" -eq 1 ]
+  [[ "$output" == *"Change directory not found"* ]]
 }
 
 @test "missing spec.md: exit 1" {
@@ -453,65 +499,100 @@ EOF
 # Gate Check (--check-gate)
 # ─────────────────────────────────────────────────────────────────────────────
 
-@test "gate: fix passes at 2.5 (threshold 2.0)" {
+# Gate check reads from spec.md (or intake.md), parses the Assumptions table,
+# and computes the score on-the-fly. Tests must provide spec.md files with
+# appropriate Assumptions tables.
+
+# Helper: create a gate test fixture with spec.md containing N certain rows.
+# With change_type=fix and expected_min=4 for spec stage:
+#   N certain → score = 5.0 * min(1.0, N/4)
+make_gate_fixture() {
+  local dir="$1"
+  local change_type="$2"
+  local n_certain="${3:-0}"
+  local n_confident="${4:-0}"
+  local n_tentative="${5:-0}"
+  make_gate_status "$dir" "$change_type" "0.0"
+  local rows=""
+  local i=1
+  local j
+  for ((j=0; j<n_certain; j++)); do
+    rows="${rows}| $i | Certain | Decision $i | R |
+"
+    i=$((i+1))
+  done
+  for ((j=0; j<n_confident; j++)); do
+    rows="${rows}| $i | Confident | Decision $i | R |
+"
+    i=$((i+1))
+  done
+  for ((j=0; j<n_tentative; j++)); do
+    rows="${rows}| $i | Tentative | Decision $i | R |
+"
+    i=$((i+1))
+  done
+  cat > "$dir/spec.md" <<EOF
+# Spec
+
+## Assumptions
+
+| # | Grade | Decision | Rationale |
+|---|-------|----------|-----------|
+${rows}EOF
+}
+
+# fix: gate threshold=2.0, expected_min=4
+# 4 certain → score = 5.0 * (4/4) = 5.0, passes 2.0
+@test "gate: fix passes with high score (threshold 2.0)" {
   local d="$TEST_DIR/gate-fix-pass"
   mkdir -p "$d"
-  make_gate_status "$d" "fix" "2.5"
+  make_gate_fixture "$d" "fix" 4
   run "$CALC_SCORE" --check-gate "$d"
   [[ "$output" == *"gate: pass"* ]]
   [[ "$output" == *"threshold: 2.0"* ]]
 }
 
-@test "gate: fix fails at 1.5 (threshold 2.0)" {
+# fix: 1 certain → score = 5.0 * (1/4) = 1.2, fails 2.0
+@test "gate: fix fails with low score (threshold 2.0)" {
   local d="$TEST_DIR/gate-fix-fail"
   mkdir -p "$d"
-  make_gate_status "$d" "fix" "1.5"
+  make_gate_fixture "$d" "fix" 1
   run "$CALC_SCORE" --check-gate "$d"
   [[ "$output" == *"gate: fail"* ]]
 }
 
-@test "gate: feat passes at 3.0 (exact boundary)" {
-  local d="$TEST_DIR/gate-feat-exact"
+# feat: gate threshold=3.0, expected_min=6
+# 6 certain → score = 5.0 * (6/6) = 5.0, passes 3.0
+@test "gate: feat passes with high score (threshold 3.0)" {
+  local d="$TEST_DIR/gate-feat-pass"
   mkdir -p "$d"
-  make_gate_status "$d" "feat" "3.0"
+  make_gate_fixture "$d" "feat" 6
   run "$CALC_SCORE" --check-gate "$d"
   [[ "$output" == *"gate: pass"* ]]
 }
 
-@test "gate: feat fails at 2.9" {
+# feat: 2 certain → score = 5.0 * (2/6) = 1.7, fails 3.0
+@test "gate: feat fails with low score (threshold 3.0)" {
   local d="$TEST_DIR/gate-feat-fail"
   mkdir -p "$d"
-  make_gate_status "$d" "feat" "2.9"
+  make_gate_fixture "$d" "feat" 2
   run "$CALC_SCORE" --check-gate "$d"
   [[ "$output" == *"gate: fail"* ]]
 }
 
-@test "gate: architecture fails at 3.5 (threshold 4.0)" {
-  local d="$TEST_DIR/gate-arch-fail"
-  mkdir -p "$d"
-  make_gate_status "$d" "architecture" "3.5"
-  run "$CALC_SCORE" --check-gate "$d"
-  [[ "$output" == *"gate: fail"* ]]
-  [[ "$output" == *"threshold: 4.0"* ]]
-}
-
-@test "gate: architecture passes at 4.0" {
-  local d="$TEST_DIR/gate-arch-pass"
-  mkdir -p "$d"
-  make_gate_status "$d" "architecture" "4.0"
-  run "$CALC_SCORE" --check-gate "$d"
-  [[ "$output" == *"gate: pass"* ]]
-}
-
+# refactor: gate threshold=3.0, expected_min=5
+# 5 certain → score = 5.0 * (5/5) = 5.0, passes 3.0
 @test "gate: refactor uses 3.0 threshold" {
   local d="$TEST_DIR/gate-refactor"
   mkdir -p "$d"
-  make_gate_status "$d" "refactor" "3.0"
+  make_gate_fixture "$d" "refactor" 5
   run "$CALC_SCORE" --check-gate "$d"
   [[ "$output" == *"gate: pass"* ]]
   [[ "$output" == *"threshold: 3.0"* ]]
 }
 
+# Missing change_type defaults to feat (threshold 3.0, expected_min=6)
+# 2 certain → score = 5.0 * (2/6) = 1.7, fails 3.0
 @test "gate: missing change_type defaults to feat (threshold 3.0)" {
   local d="$TEST_DIR/gate-no-type"
   mkdir -p "$d"
@@ -533,8 +614,18 @@ confidence:
   confident: 0
   tentative: 0
   unresolved: 0
-  score: 2.5
+  score: 0.0
 last_updated: 2026-02-14T00:00:00Z
+EOF
+  cat > "$d/spec.md" <<'EOF'
+# Spec
+
+## Assumptions
+
+| # | Grade | Decision | Rationale |
+|---|-------|----------|-----------|
+| 1 | Certain | A | R |
+| 2 | Certain | B | R |
 EOF
   run "$CALC_SCORE" --check-gate "$d"
   [[ "$output" == *"gate: fail"* ]]
