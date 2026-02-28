@@ -136,7 +136,7 @@ transitions:
       to: active
 
     - event: skip
-      from: [pending]
+      from: [pending, active]
       to: skipped
 
   # Stage-specific overrides (review adds fail event and start-from-failed)

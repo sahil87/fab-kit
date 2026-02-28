@@ -69,7 +69,7 @@ statusman.sh <subcommand> <change> [args...]
 | `start` | `start <change> <stage> [driver]` | pending/failed → active |
 | `advance` | `advance <change> <stage> [driver]` | active → ready |
 | `reset` | `reset <change> <stage> [driver]` | done/ready/skipped → active (cascades downstream to pending) |
-| `skip` | `skip <change> <stage> [driver]` | pending → skipped (cascades downstream pending to skipped) |
+| `skip` | `skip <change> <stage> [driver]` | {pending,active} → skipped (cascades downstream pending to skipped) |
 | `fail` | `fail <change> <stage> [driver] [rework]` | active → failed (review only). Review stage auto-logs "failed" |
 | `set-change-type` | `set-change-type <change> <type>` | Set change type |
 | `set-checklist` | `set-checklist <change> <field> <value>` | Update checklist field |

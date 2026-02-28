@@ -51,13 +51,13 @@ The `allowed_states` arrays SHALL be updated as follows:
 
 ## Workflow Schema: Skip Transition
 
-### Requirement: `skip` event transitions `pending` to `skipped`
+### Requirement: `skip` event transitions `pending` or `active` to `skipped`
 
 A new `skip` transition SHALL be added to the `transitions.default` section:
 
 ```yaml
 - event: skip
-  from: [pending]
+  from: [pending, active]
   to: skipped
 ```
 
@@ -69,11 +69,24 @@ The `skip` event SHALL NOT be added to the `transitions.review` override — the
 - **WHEN** `statusman.sh skip <change> spec` is executed
 - **THEN** `progress.spec` becomes `skipped`
 
-#### Scenario: Skip rejects non-pending stages
+#### Scenario: Skip an active stage
 
 - **GIVEN** a change with `progress.spec: active`
 - **WHEN** `statusman.sh skip <change> spec` is executed
-- **THEN** the command exits non-zero with an error: `"Cannot skip stage 'spec' — current state is 'active', no valid transition"`
+- **THEN** `progress.spec` becomes `skipped`
+- **AND** downstream pending stages cascade to `skipped`
+
+#### Scenario: Skip rejects non-pending/active stages
+
+- **GIVEN** a change with `progress.spec: ready`
+- **WHEN** `statusman.sh skip <change> spec` is executed
+- **THEN** the command exits non-zero with an error: `"Cannot skip stage 'spec' — current state is 'ready', no valid transition"`
+
+#### Scenario: Skip rejects done stages
+
+- **GIVEN** a change with `progress.intake: done`
+- **WHEN** `statusman.sh skip <change> intake` is executed
+- **THEN** the command exits non-zero (intake doesn't allow `skipped` in `allowed_states`)
 
 ### Requirement: `reset` transition accepts `skipped` as a source state
 
@@ -142,16 +155,16 @@ The `validation.prerequisites.rule` SHALL be updated to:
 
 ## Statusman: `event_skip` Function
 
-### Requirement: `event_skip` implements `pending` to `skipped` with forward cascade
+### Requirement: `event_skip` implements `{pending,active}` to `skipped` with forward cascade
 
 The `event_skip` function SHALL:
 
 1. Validate the status file exists and the stage is valid
 2. Look up the `skip` transition via `lookup_transition`
 3. Set the target stage to `skipped`
-4. **Forward cascade**: iterate all stages after the target in pipeline order; for each stage whose current state is `pending`, set it to `skipped`
-5. NOT auto-activate any next stage (unlike `event_finish`)
-6. NOT apply metrics side-effects for the skipped stage (unlike `event_start`)
+4. Call `_apply_metrics_side_effect` to clear metrics for the target stage
+5. **Forward cascade**: iterate all stages after the target in pipeline order; for each stage whose current state is `pending`, set it to `skipped`
+6. NOT auto-activate any next stage (unlike `event_finish`)
 7. Update `last_updated` timestamp
 8. Write atomically (tmpfile + mv pattern)
 
@@ -178,10 +191,17 @@ The function signature SHALL be: `event_skip <status_file> <stage> [driver]`
 - **AND** `progress.spec` remains `done`
 - **AND** `progress.tasks` remains `done`
 
+#### Scenario: Skip an active stage with cascade
+
+- **GIVEN** a change with `progress.intake: done`, `progress.spec: active`, `progress.tasks: pending`, `progress.apply: pending`, `progress.review: pending`, `progress.hydrate: pending`
+- **WHEN** `event_skip` is called for `spec`
+- **THEN** `progress.spec` becomes `skipped`
+- **AND** `progress.tasks` through `progress.hydrate` all become `skipped`
+
 #### Scenario: Skip does not cascade to non-pending downstream stages
 
 - **GIVEN** a change with stages in mixed states where some downstream stages are `done` or `active`
-- **WHEN** `event_skip` is called for a pending stage
+- **WHEN** `event_skip` is called for a pending or active stage
 - **THEN** only downstream stages with `pending` state become `skipped`
 - **AND** downstream stages with `done`, `active`, `ready`, or `failed` states are unchanged
 
@@ -204,7 +224,7 @@ The subcommand SHALL:
 The `--help` output SHALL include the new subcommand under "Event commands":
 
 ```
-skip <change> <stage> [driver]            pending → skipped (+cascade)
+skip <change> <stage> [driver]            {pending,active} → skipped (+cascade)
 ```
 
 #### Scenario: CLI invocation
@@ -293,7 +313,11 @@ skipped)
    - *Why*: Both represent resolved end states. A skipped stage is intentionally complete (by decision, not by work). Requiring explicit `reset` to un-skip prevents accidental re-activation.
    - *Rejected*: Non-terminal `skipped` — would allow implicit transitions, undermining the explicit intent signal.
 
-3. **No metrics for skipped stages**
+3. **Skip allowed from `active` but not `ready`**
+   - *Why*: `active` means "work in progress" — the user may realize mid-stage they don't need it. Without this, there's no clean path from `active` to `skipped` (no transition leads back to `pending`). `ready` means an artifact exists — discarding it should be a deliberate two-step (`reset` → `active` → `skip`) to acknowledge the thrown-away work.
+   - *Rejected*: Skip from all non-terminal states including `ready` — too easy to accidentally discard completed artifacts. Skip only from `pending` — leaves no escape from `active` to `skipped`.
+
+4. **No metrics for skipped stages**
    - *Why*: No work was performed — no `started_at`, no `completed_at`, no `driver`, no `iterations` to record. Deleting metrics (like `pending`) keeps the metrics block clean.
    - *Rejected*: Recording a `skipped_at` timestamp — adds complexity for minimal value; the `last_updated` on `.status.yaml` already captures when the skip happened.
 
@@ -301,7 +325,7 @@ skipped)
 
 | # | Grade | Decision | Rationale | Scores |
 |---|-------|----------|-----------|--------|
-| 1 | Certain | `skip` event only from `pending` state | Confirmed from intake #1 — you can't skip a stage already started | S:95 R:90 A:95 D:95 |
+| 1 | Certain | `skip` event from `pending` or `active` states | Revised from intake #1 — skipping an active stage is valid ("started but don't need it"); `ready` excluded (deliberate reset-then-skip) | S:90 R:85 A:90 D:85 |
 | 2 | Certain | Intake cannot be skipped | Confirmed from intake #2 — intake is the entry point, always required | S:95 R:85 A:95 D:95 |
 | 3 | Certain | `skip` cascades downstream pending stages to `skipped` | Confirmed from intake #3 — user agreed with cascade over per-stage | S:95 R:85 A:90 D:90 |
 | 4 | Certain | No auto-activate after skip | Confirmed from intake #4 — skip is terminal intent, not "move to next" | S:95 R:90 A:90 D:95 |

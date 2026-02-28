@@ -1023,7 +1023,7 @@ SUBCOMMANDS:
     advance <change> <stage> [driver]          active → ready
     finish <change> <stage> [driver]           {active,ready} → done (+next)
     reset <change> <stage> [driver]            {done,ready,skipped} → active (+cascade)
-    skip <change> <stage> [driver]            pending → skipped (+cascade)
+    skip <change> <stage> [driver]            {pending,active} → skipped (+cascade)
     fail <change> <stage> [driver] [rework]    active → failed (review only)
 
   Write commands:

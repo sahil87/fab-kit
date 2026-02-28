@@ -13,8 +13,8 @@ progress:
 checklist:
   generated: true
   path: checklist.md
-  completed: 35
-  total: 35
+  completed: 13
+  total: 13
 confidence:
   certain: 8
   confident: 3
@@ -23,17 +23,17 @@ confidence:
   score: 4.1
   fuzzy: true
   dimensions:
-    signal: 87.7
-    reversibility: 87.7
-    competence: 89.5
-    disambiguation: 88.6
+    signal: 87.3
+    reversibility: 87.3
+    competence: 89.1
+    disambiguation: 87.7
 stage_metrics:
   intake: {started_at: "2026-02-28T06:04:08+05:30", driver: fab-new, iterations: 1, completed_at: "2026-02-28T07:47:22+05:30"}
-  spec: {started_at: "2026-02-28T07:47:22+05:30", driver: fab-continue, iterations: 1, completed_at: "2026-02-28T07:58:36+05:30"}
-  tasks: {started_at: "2026-02-28T07:58:36+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-28T08:00:08+05:30"}
-  apply: {started_at: "2026-02-28T08:00:08+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-28T08:04:08+05:30"}
-  review: {started_at: "2026-02-28T08:04:08+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-28T08:06:50+05:30"}
-  hydrate: {started_at: "2026-02-28T08:06:50+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-28T08:08:04+05:30"}
+  spec: {started_at: "2026-02-28T09:14:50+05:30", driver: fab-continue, iterations: 2, completed_at: "2026-02-28T09:16:09+05:30"}
+  tasks: {started_at: "2026-02-28T09:16:09+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-28T09:16:48+05:30"}
+  apply: {started_at: "2026-02-28T09:16:48+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-28T09:18:13+05:30"}
+  review: {started_at: "2026-02-28T09:18:13+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-28T09:18:41+05:30"}
+  hydrate: {started_at: "2026-02-28T09:18:41+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-02-28T09:19:11+05:30"}
 prs:
   - https://github.com/wvrdz/fab-kit/pull/183
-last_updated: "2026-02-28T08:13:17+05:30"
+last_updated: "2026-02-28T09:19:11+05:30"

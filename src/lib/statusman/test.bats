@@ -1505,8 +1505,27 @@ EOF
   [ "$(yq '.progress.hydrate' "$TEST_DIR/skip-status.yaml")" = "skipped" ]
 }
 
-@test "skip: rejects active stage" {
+@test "skip: active -> skipped succeeds" {
   make_write_fixture
+  # apply is active in fixture
+  run "$STATUSMAN" skip "$TEST_DIR/write-status.yaml" "apply"
+  [ "$status" -eq 0 ]
+  local result
+  result=$(yq '.progress.apply' "$TEST_DIR/write-status.yaml")
+  [ "$result" = "skipped" ]
+}
+
+@test "skip: active -> skipped cascades downstream pending" {
+  make_write_fixture
+  # apply is active, review+hydrate are pending
+  "$STATUSMAN" skip "$TEST_DIR/write-status.yaml" "apply"
+  [ "$(yq '.progress.review' "$TEST_DIR/write-status.yaml")" = "skipped" ]
+  [ "$(yq '.progress.hydrate' "$TEST_DIR/write-status.yaml")" = "skipped" ]
+}
+
+@test "skip: rejects ready stage" {
+  make_write_fixture
+  "$STATUSMAN" advance "$TEST_DIR/write-status.yaml" "apply"
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
   run "$STATUSMAN" skip "$TEST_DIR/write-status.yaml" "apply"
@@ -1521,18 +1540,6 @@ EOF
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
   run "$STATUSMAN" skip "$TEST_DIR/write-status.yaml" "intake"
-  [ "$status" -ne 0 ]
-  local after
-  after=$(cat "$TEST_DIR/write-status.yaml")
-  [ "$before" = "$after" ]
-}
-
-@test "skip: rejects ready stage" {
-  make_write_fixture
-  "$STATUSMAN" advance "$TEST_DIR/write-status.yaml" "apply"
-  local before
-  before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STATUSMAN" skip "$TEST_DIR/write-status.yaml" "apply"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")

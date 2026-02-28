@@ -6,7 +6,7 @@
 
 ## Origin
 
-> Add "skipped" as a valid stage state. New skip event in statusman (pending→skipped) with cascade: all downstream pending stages become skipped. Add skipped to allowed_states for spec/tasks/apply/review/hydrate (not intake). Update get_current_stage, get_progress_line, get_display_stage, validate_stage_state, and _apply_metrics_side_effect to handle skipped. Update workflow.yaml schema with new state and transition. The skip event is the statusman call: `statusman.sh skip <change> <stage> [driver]`. Skipped stages satisfy prerequisites (treated like done). No auto-activate after skip. Resetting a skipped stage brings it to active with normal downstream cascade to pending.
+> Add "skipped" as a valid stage state. New skip event in statusman ({pending,active}→skipped) with cascade: all downstream pending stages become skipped. Add skipped to allowed_states for spec/tasks/apply/review/hydrate (not intake). Update get_current_stage, get_progress_line, get_display_stage, validate_stage_state, and _apply_metrics_side_effect to handle skipped. Update workflow.yaml schema with new state and transition. The skip event is the statusman call: `statusman.sh skip <change> <stage> [driver]`. Skipped stages satisfy prerequisites (treated like done). No auto-activate after skip. Resetting a skipped stage brings it to active with normal downstream cascade to pending.
 
 Conversational mode — decisions were made in a `/fab-discuss` session before this change was created. All core design choices are settled.
 
@@ -46,7 +46,7 @@ Add to the `transitions.default` section:
 
 ```yaml
 - event: skip
-  from: [pending]
+  from: [pending, active]
   to: skipped
 ```
 
@@ -72,8 +72,8 @@ And in the review-specific overrides:
 
 ```bash
 # event_skip <status_file> <stage> [driver]
-# pending → skipped. Cascade: all downstream pending stages → skipped.
-# No auto-activate of next stage. No metrics side-effect.
+# {pending,active} → skipped. Cascade: all downstream pending stages → skipped.
+# No auto-activate of next stage. Metrics cleared (same as pending).
 ```
 
 Side-effect: iterate all stages after the target; if state is `pending`, set to `skipped`. This mirrors the cascade pattern in `event_reset` but going forward instead of backward.
@@ -139,7 +139,7 @@ None — all design decisions were resolved in the discussion session.
 
 | # | Grade | Decision | Rationale | Scores |
 |---|-------|----------|-----------|--------|
-| 1 | Certain | `skip` event only from `pending` state | Discussed — you can't skip a stage already started | S:95 R:90 A:95 D:95 |
+| 1 | Certain | `skip` event from `pending` or `active` states | Revised — skipping an active stage is valid ("started but don't need it"); `ready` excluded (deliberate reset-then-skip for artifact discard) | S:90 R:85 A:90 D:85 |
 | 2 | Certain | Intake cannot be skipped | Discussed — intake is the entry point, always required | S:95 R:85 A:95 D:95 |
 | 3 | Certain | `skip` cascades downstream pending stages to `skipped` | Discussed — user agreed with cascade over per-stage | S:95 R:85 A:90 D:90 |
 | 4 | Certain | No auto-activate after skip | Discussed — skip is terminal intent, not "move to next" | S:95 R:90 A:90 D:95 |
