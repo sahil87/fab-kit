@@ -380,7 +380,7 @@ cmd_rename() {
   mv "$changes_dir/$folder" "$changes_dir/$new_name"
 
   # Update .status.yaml name field
-  sed -i "s|^name: .*|name: ${new_name}|" "$changes_dir/$new_name/.status.yaml"
+  yq -i ".name = \"${new_name}\"" "$changes_dir/$new_name/.status.yaml"
 
   # Update fab/current if it points to the old folder
   local current_file="$FAB_ROOT/current"
