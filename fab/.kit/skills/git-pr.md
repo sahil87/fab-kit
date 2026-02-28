@@ -55,14 +55,14 @@ git log --oneline @{u}..HEAD 2>/dev/null || echo "NO_UPSTREAM"
 gh pr view --json number,state,url 2>/dev/null || echo "NO_PR"
 ```
 
-If an active change is resolved (via `changeman.sh resolve`), read issues via `fab/.kit/scripts/lib/stageman.sh get-issues fab/changes/{name}/.status.yaml` and capture the output (one ID per line, may be empty).
+If an active change is resolved (via `changeman.sh resolve`), read issues via `fab/.kit/scripts/lib/statusman.sh get-issues fab/changes/{name}/.status.yaml` and capture the output (one ID per line, may be empty).
 
 Determine:
 - **branch** — current branch name
 - **has_uncommitted** — whether `git status --porcelain` has output
 - **has_unpushed** — whether there are commits ahead of upstream (or no upstream at all)
 - **has_pr** — whether a PR already exists
-- **issues** — the issue IDs from `stageman.sh get-issues` (space-joined), or empty if none
+- **issues** — the issue IDs from `statusman.sh get-issues` (space-joined), or empty if none
 
 ### Step 1b: Branch Mismatch Nudge
 
@@ -218,14 +218,14 @@ After the PR URL is known (from step 3c or from the existing PR in step 1), atte
 
 1. Resolve the active change: `fab/.kit/scripts/lib/changeman.sh resolve 2>/dev/null`
 2. If resolution succeeds (exit 0), derive the status file path: `fab/changes/{name}/.status.yaml`
-3. Call: `fab/.kit/scripts/lib/stageman.sh add-pr <status_file> <pr_url>`
+3. Call: `fab/.kit/scripts/lib/statusman.sh add-pr <status_file> <pr_url>`
 4. If resolution fails (exit non-zero) or `changeman.sh` is not found, skip silently — do not print any error or warning
 
-This step MUST NOT block or fail the PR workflow. Any error from changeman or stageman is silently ignored.
+This step MUST NOT block or fail the PR workflow. Any error from changeman or statusman is silently ignored.
 
 ### Step 4b: Commit and Push Status Update
 
-If Step 4 successfully recorded a PR URL (changeman resolved and stageman add-pr ran):
+If Step 4 successfully recorded a PR URL (changeman resolved and statusman add-pr ran):
 
 1. Stage the status file: `git add fab/changes/{name}/.status.yaml`
 2. Check for changes: `git diff --cached --quiet`

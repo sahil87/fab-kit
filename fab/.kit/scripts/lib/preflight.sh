@@ -5,8 +5,24 @@ fab_root="$(dirname "$0")/../../.."
 scripts_dir="$(cd "$(dirname "$0")/.." && pwd)"
 
 # CLI entry points (subprocess calls, not sourced)
-STAGEMAN="$scripts_dir/lib/stageman.sh"
+STATUSMAN="$scripts_dir/lib/statusman.sh"
 CHANGEMAN="$scripts_dir/lib/changeman.sh"
+LOGMAN="$scripts_dir/lib/logman.sh"
+
+# Parse --driver flag
+driver=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --driver)
+      [ $# -lt 2 ] && { echo "ERROR: --driver requires a skill name" >&2; exit 1; }
+      driver="$2"
+      shift 2
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
 
 # 1. Project initialization validation
 if [ ! -f "$fab_root/project/config.yaml" ] || [ ! -f "$fab_root/project/constitution.md" ]; then
@@ -56,38 +72,43 @@ if [ ! -f "$status_file" ]; then
 fi
 
 # 5. Schema validation — catch state/stage violations early
-if ! "$STAGEMAN" validate-status-file "$status_file"; then
+if ! "$STATUSMAN" validate-status-file "$status_file"; then
   echo "Status file validation failed for \"$name\". Fix .status.yaml or run /fab-new." >&2
   exit 1
 fi
 
+# 6. Auto-log command invocation via logman (if --driver specified)
+if [ -n "$driver" ]; then
+  "$LOGMAN" command "$name" "$driver" 2>/dev/null || true
+fi
+
 # --- All validations passed — emit structured YAML to stdout ---
 
-# Extract progress via stageman CLI
+# Extract progress via statusman CLI
 declare -A progress
 while IFS=: read -r s val; do
   progress[$s]="$val"
-done < <("$STAGEMAN" progress-map "$status_file")
+done < <("$STATUSMAN" progress-map "$status_file")
 
-# Derive current stage via stageman CLI
-stage=$("$STAGEMAN" current-stage "$status_file")
+# Derive current stage via statusman CLI
+stage=$("$STATUSMAN" current-stage "$status_file")
 
-# Derive display stage via stageman CLI
-display_output=$("$STAGEMAN" display-stage "$status_file")
+# Derive display stage via statusman CLI
+display_output=$("$STATUSMAN" display-stage "$status_file")
 display_stage="${display_output%%:*}"
 display_state="${display_output#*:}"
 
-# Extract checklist via stageman CLI
+# Extract checklist via statusman CLI
 declare -A checklist
 while IFS=: read -r key val; do
   checklist[$key]="$val"
-done < <("$STAGEMAN" checklist "$status_file")
+done < <("$STATUSMAN" checklist "$status_file")
 
-# Extract confidence via stageman CLI
+# Extract confidence via statusman CLI
 declare -A confidence
 while IFS=: read -r key val; do
   confidence[$key]="$val"
-done < <("$STAGEMAN" confidence "$status_file")
+done < <("$STATUSMAN" confidence "$status_file")
 
 # Emit YAML output with dynamic stage progress
 cat <<EOF
@@ -97,7 +118,7 @@ stage: $stage
 display_stage: $display_stage
 display_state: $display_state
 progress:
-$(for s in $("$STAGEMAN" all-stages); do echo "  $s: ${progress[$s]}"; done)
+$("$STATUSMAN" all-stages | while read -r s; do echo "  $s: ${progress[$s]}"; done)
 checklist:
   generated: ${checklist[generated]}
   completed: ${checklist[completed]}

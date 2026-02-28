@@ -49,10 +49,10 @@ Run `lib/changeman.sh new` with appropriate flags:
 - `--change-id <4char>` — only if a backlog ID was detected in Step 0 (the 4-char backlog ID becomes the change ID)
 - `--log-args <description>` — the original description text
 
-Capture the folder name from stdout. The script handles date generation, random ID generation (if no `--change-id`), collision detection, directory creation, `created_by` detection, `.status.yaml` initialization, and `stageman.sh` integration.
+Capture the folder name from stdout. The script handles date generation, random ID generation (if no `--change-id`), collision detection, directory creation, `created_by` detection, `.status.yaml` initialization, and `statusman.sh` integration.
 
-If a Linear ticket was detected in Step 0, record the issue ID via stageman:
-`fab/.kit/scripts/lib/stageman.sh add-issue fab/changes/{name}/.status.yaml DEV-988` (using the actual detected ID).
+If a Linear ticket was detected in Step 0, record the issue ID via statusman:
+`fab/.kit/scripts/lib/statusman.sh add-issue fab/changes/{name}/.status.yaml DEV-988` (using the actual detected ID).
 
 ### Step 4: Conversation Context Mining
 
@@ -85,7 +85,7 @@ After generating `intake.md`, infer the change type from the intake content usin
 
 Write the inferred type to `.status.yaml`:
 ```bash
-fab/.kit/scripts/lib/stageman.sh set-change-type fab/changes/{name}/.status.yaml <type>
+fab/.kit/scripts/lib/statusman.sh set-change-type fab/changes/{name}/.status.yaml <type>
 ```
 
 ### Step 7: Indicative Confidence
@@ -114,7 +114,7 @@ Apply SRAD (`_preamble.md`). No fixed question cap — SRAD scoring determines c
 After all intake work is complete (generation, type inference, confidence, questions), advance intake to `ready`:
 
 ```bash
-fab/.kit/scripts/lib/stageman.sh advance fab/changes/{name}/.status.yaml intake
+fab/.kit/scripts/lib/statusman.sh advance fab/changes/{name}/.status.yaml intake
 ```
 
 This signals that the intake artifact exists and is open for `/fab-clarify` refinement. The user runs `/fab-continue` when ready to proceed to spec generation.

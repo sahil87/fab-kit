@@ -67,7 +67,7 @@ source_run() {
   # Override globals computed by run.sh's top-level path resolution
   export CHANGEMAN="$TEST_DIR/bin/changeman.sh"
   export CONFIG_FILE="$TEST_DIR/config.yaml"
-  export STAGEMAN="$TEST_DIR/bin/stageman.sh"
+  export STATUSMAN="$TEST_DIR/bin/statusman.sh"
 }
 
 # ---------------------------------------------------------------------------

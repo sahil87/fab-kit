@@ -15,13 +15,13 @@ setup() {
   cp "$CHANGEMAN" "$FAB_ROOT/.kit/scripts/lib/changeman.sh"
   chmod +x "$FAB_ROOT/.kit/scripts/lib/changeman.sh"
 
-  # Create a stub stageman.sh that records calls
-  STAGEMAN_LOG="$TEST_DIR/stageman-calls.log"
-  cat > "$FAB_ROOT/.kit/scripts/lib/stageman.sh" <<STUB
+  # Create a stub statusman.sh that records calls
+  STATUSMAN_LOG="$TEST_DIR/statusman-calls.log"
+  cat > "$FAB_ROOT/.kit/scripts/lib/statusman.sh" <<STUB
 #!/usr/bin/env bash
-echo "\$@" >> "$STAGEMAN_LOG"
+echo "\$@" >> "$STATUSMAN_LOG"
 STUB
-  chmod +x "$FAB_ROOT/.kit/scripts/lib/stageman.sh"
+  chmod +x "$FAB_ROOT/.kit/scripts/lib/statusman.sh"
 
   # Create minimal status.yaml template
   cat > "$FAB_ROOT/.kit/templates/status.yaml" <<'YAML'
@@ -103,17 +103,17 @@ teardown() {
   [[ "$output" =~ ^[0-9]{6}-a7k2-my-change$ ]]
 }
 
-@test "new with --log-args calls stageman log-command" {
+@test "new with --log-args calls statusman log-command" {
   run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" new --slug my-change --log-args "Test description"
   [ "$status" -eq 0 ]
-  grep -q "log-command" "$STAGEMAN_LOG"
-  grep -q "Test description" "$STAGEMAN_LOG"
+  grep -q "log-command" "$STATUSMAN_LOG"
+  grep -q "Test description" "$STATUSMAN_LOG"
 }
 
-@test "new calls stageman start intake fab-new" {
+@test "new calls statusman start intake fab-new" {
   run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" new --slug my-change
   [ "$status" -eq 0 ]
-  grep -q "start.*intake fab-new" "$STAGEMAN_LOG"
+  grep -q "start.*intake fab-new" "$STATUSMAN_LOG"
 }
 
 @test "new detects created_by from git config fallback" {
@@ -384,16 +384,16 @@ STUB
   [[ "$output" == *"--slug is required"* ]]
 }
 
-# ── rename: stageman logging ──────────────────────────────────────
+# ── rename: statusman logging ──────────────────────────────────────
 
-@test "rename calls stageman log-command" {
+@test "rename calls statusman log-command" {
   mkdir -p "$FAB_ROOT/changes/260216-u6d5-old-slug"
   echo 'name: 260216-u6d5-old-slug' > "$FAB_ROOT/changes/260216-u6d5-old-slug/.status.yaml"
 
   run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" rename --folder 260216-u6d5-old-slug --slug new-slug
   [ "$status" -eq 0 ]
-  grep -q "log-command" "$STAGEMAN_LOG"
-  grep -q "changeman-rename" "$STAGEMAN_LOG"
+  grep -q "log-command" "$STATUSMAN_LOG"
+  grep -q "changeman-rename" "$STATUSMAN_LOG"
 }
 
 # ── resolve: exact match ─────────────────────────────────────────
@@ -520,13 +520,13 @@ progress:
   hydrate: pending
 YAML
 
-  # Make stageman stub return a stage
-  cat > "$FAB_ROOT/.kit/scripts/lib/stageman.sh" <<STUB
+  # Make statusman stub return a stage
+  cat > "$FAB_ROOT/.kit/scripts/lib/statusman.sh" <<STUB
 #!/usr/bin/env bash
 if [ "\$1" = "current-stage" ]; then echo "intake"; exit 0; fi
-echo "\$@" >> "$STAGEMAN_LOG"
+echo "\$@" >> "$STATUSMAN_LOG"
 STUB
-  chmod +x "$FAB_ROOT/.kit/scripts/lib/stageman.sh"
+  chmod +x "$FAB_ROOT/.kit/scripts/lib/statusman.sh"
 
   run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" switch "a7k2"
   [ "$status" -eq 0 ]
@@ -545,13 +545,13 @@ progress:
   hydrate: pending
 YAML
 
-  cat > "$FAB_ROOT/.kit/scripts/lib/stageman.sh" <<STUB
+  cat > "$FAB_ROOT/.kit/scripts/lib/statusman.sh" <<STUB
 #!/usr/bin/env bash
 if [ "\$1" = "current-stage" ]; then echo "spec"; exit 0; fi
 if [ "\$1" = "display-stage" ]; then echo "spec:active"; exit 0; fi
-echo "\$@" >> "$STAGEMAN_LOG"
+echo "\$@" >> "$STATUSMAN_LOG"
 STUB
-  chmod +x "$FAB_ROOT/.kit/scripts/lib/stageman.sh"
+  chmod +x "$FAB_ROOT/.kit/scripts/lib/statusman.sh"
 
   run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" switch "a7k2"
   [ "$status" -eq 0 ]
@@ -609,7 +609,7 @@ progress:
   hydrate: pending
 YAML
 
-  cat > "$FAB_ROOT/.kit/scripts/lib/stageman.sh" <<STUB
+  cat > "$FAB_ROOT/.kit/scripts/lib/statusman.sh" <<STUB
 #!/usr/bin/env bash
 if [ "\$1" = "display-stage" ]; then
   if grep -q "spec: active" "\$2" 2>/dev/null; then echo "spec:active"
@@ -618,9 +618,9 @@ if [ "\$1" = "display-stage" ]; then
   fi
   exit 0
 fi
-echo "\$@" >> "$STAGEMAN_LOG"
+echo "\$@" >> "$STATUSMAN_LOG"
 STUB
-  chmod +x "$FAB_ROOT/.kit/scripts/lib/stageman.sh"
+  chmod +x "$FAB_ROOT/.kit/scripts/lib/statusman.sh"
 
   run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" list
   [ "$status" -eq 0 ]
@@ -639,12 +639,12 @@ progress:
 YAML
   mkdir -p "$FAB_ROOT/changes/archive/260220-x1y2-old-change"
 
-  cat > "$FAB_ROOT/.kit/scripts/lib/stageman.sh" <<STUB
+  cat > "$FAB_ROOT/.kit/scripts/lib/statusman.sh" <<STUB
 #!/usr/bin/env bash
 if [ "\$1" = "display-stage" ]; then echo "intake:active"; exit 0; fi
-echo "\$@" >> "$STAGEMAN_LOG"
+echo "\$@" >> "$STATUSMAN_LOG"
 STUB
-  chmod +x "$FAB_ROOT/.kit/scripts/lib/stageman.sh"
+  chmod +x "$FAB_ROOT/.kit/scripts/lib/statusman.sh"
 
   run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" list
   [ "$status" -eq 0 ]
@@ -693,11 +693,11 @@ YAML
   mkdir -p "$FAB_ROOT/changes/260226-c3d4-bad"
   # No .status.yaml for bad
 
-  cat > "$FAB_ROOT/.kit/scripts/lib/stageman.sh" <<STUB
+  cat > "$FAB_ROOT/.kit/scripts/lib/statusman.sh" <<STUB
 #!/usr/bin/env bash
 if [ "\$1" = "display-stage" ]; then echo "spec:active"; exit 0; fi
 STUB
-  chmod +x "$FAB_ROOT/.kit/scripts/lib/stageman.sh"
+  chmod +x "$FAB_ROOT/.kit/scripts/lib/statusman.sh"
 
   run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" list
   [ "$status" -eq 0 ]
@@ -705,18 +705,18 @@ STUB
   [[ "$output" == *"260226-c3d4-bad:unknown:unknown"* ]]
 }
 
-@test "list: stageman display-stage failure falls back to unknown:unknown" {
+@test "list: statusman display-stage failure falls back to unknown:unknown" {
   mkdir -p "$FAB_ROOT/changes/260226-a1b2-broken"
   cat > "$FAB_ROOT/changes/260226-a1b2-broken/.status.yaml" <<'YAML'
 progress:
   corrupt: data
 YAML
 
-  cat > "$FAB_ROOT/.kit/scripts/lib/stageman.sh" <<STUB
+  cat > "$FAB_ROOT/.kit/scripts/lib/statusman.sh" <<STUB
 #!/usr/bin/env bash
 if [ "\$1" = "display-stage" ]; then exit 1; fi
 STUB
-  chmod +x "$FAB_ROOT/.kit/scripts/lib/stageman.sh"
+  chmod +x "$FAB_ROOT/.kit/scripts/lib/statusman.sh"
 
   run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" list
   [ "$status" -eq 0 ]
@@ -737,12 +737,12 @@ progress:
   hydrate: done
 YAML
 
-  cat > "$FAB_ROOT/.kit/scripts/lib/stageman.sh" <<STUB
+  cat > "$FAB_ROOT/.kit/scripts/lib/statusman.sh" <<STUB
 #!/usr/bin/env bash
 if [ "\$1" = "display-stage" ]; then echo "hydrate:done"; exit 0; fi
-echo "\$@" >> "$STAGEMAN_LOG"
+echo "\$@" >> "$STATUSMAN_LOG"
 STUB
-  chmod +x "$FAB_ROOT/.kit/scripts/lib/stageman.sh"
+  chmod +x "$FAB_ROOT/.kit/scripts/lib/statusman.sh"
 
   run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" list --archive
   [ "$status" -eq 0 ]

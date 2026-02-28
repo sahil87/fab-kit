@@ -1,11 +1,11 @@
 #!/usr/bin/env bats
 
-# Test suite for stageman.sh (CLI-only contract tests)
+# Test suite for statusman.sh (CLI-only contract tests)
 # Covers: stage queries, validation, .status.yaml accessors, event commands,
 #         stage metrics, finish side-effects, reset cascade, fail, history logging
 
 REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../.." && pwd)"
-STAGEMAN="$REPO_ROOT/fab/.kit/scripts/lib/stageman.sh"
+STATUSMAN="$REPO_ROOT/fab/.kit/scripts/lib/statusman.sh"
 
 setup() {
   TEST_DIR="$(mktemp -d)"
@@ -48,7 +48,7 @@ EOF
 # ─────────────────────────────────────────────────────────────────────────────
 
 @test "all-stages includes all 6 stages" {
-  run "$STAGEMAN" all-stages
+  run "$STATUSMAN" all-stages
   [[ "$output" == *"intake"* ]]
   [[ "$output" == *"spec"* ]]
   [[ "$output" == *"tasks"* ]]
@@ -75,7 +75,7 @@ progress:
   hydrate: pending
 stage_metrics: {}
 EOF
-  run "$STAGEMAN" validate-status-file "$TEST_DIR/valid.yaml"
+  run "$STATUSMAN" validate-status-file "$TEST_DIR/valid.yaml"
   [ "$status" -eq 0 ]
 }
 
@@ -89,7 +89,7 @@ progress:
   review: pending
   hydrate: pending
 EOF
-  run "$STAGEMAN" validate-status-file "$TEST_DIR/invalid-state.yaml"
+  run "$STATUSMAN" validate-status-file "$TEST_DIR/invalid-state.yaml"
   [ "$status" -ne 0 ]
 }
 
@@ -103,7 +103,7 @@ progress:
   review: pending
   hydrate: pending
 EOF
-  run "$STAGEMAN" validate-status-file "$TEST_DIR/multiple-active.yaml"
+  run "$STATUSMAN" validate-status-file "$TEST_DIR/multiple-active.yaml"
   [ "$status" -ne 0 ]
 }
 
@@ -117,14 +117,14 @@ progress:
   review: pending
   hydrate: pending
 EOF
-  run "$STAGEMAN" validate-status-file "$TEST_DIR/wrong-allowed-state.yaml"
+  run "$STATUSMAN" validate-status-file "$TEST_DIR/wrong-allowed-state.yaml"
   [ "$status" -ne 0 ]
 }
 
 @test "validate-status-file ignores stage_metrics content" {
   make_write_fixture
   yq -i '.stage_metrics.intake = {"started_at": "now", "driver": "test", "iterations": 1}' "$TEST_DIR/write-status.yaml"
-  run "$STAGEMAN" validate-status-file "$TEST_DIR/write-status.yaml"
+  run "$STATUSMAN" validate-status-file "$TEST_DIR/write-status.yaml"
   [ "$status" -eq 0 ]
 }
 
@@ -138,7 +138,7 @@ progress:
   review: pending
   hydrate: pending
 EOF
-  run "$STAGEMAN" validate-status-file "$TEST_DIR/active-and-ready.yaml"
+  run "$STATUSMAN" validate-status-file "$TEST_DIR/active-and-ready.yaml"
   [ "$status" -eq 0 ]
 }
 
@@ -152,7 +152,7 @@ progress:
   review: pending
   hydrate: pending
 EOF
-  run "$STAGEMAN" validate-status-file "$TEST_DIR/ready-valid.yaml"
+  run "$STATUSMAN" validate-status-file "$TEST_DIR/ready-valid.yaml"
   [ "$status" -eq 0 ]
 }
 
@@ -181,7 +181,7 @@ confidence:
   unresolved: 0
   score: 3.4
 EOF
-  run "$STAGEMAN" progress-map "$TEST_DIR/full-status.yaml"
+  run "$STATUSMAN" progress-map "$TEST_DIR/full-status.yaml"
   [[ "$output" == *"intake:done"* ]]
   [[ "$output" == *"spec:active"* ]]
   [[ "$output" == *"hydrate:pending"* ]]
@@ -199,7 +199,7 @@ progress:
   review: pending
   hydrate: pending
 EOF
-  run "$STAGEMAN" progress-map "$TEST_DIR/missing-stage.yaml"
+  run "$STATUSMAN" progress-map "$TEST_DIR/missing-stage.yaml"
   [[ "$output" == *"tasks:pending"* ]]
 }
 
@@ -224,7 +224,7 @@ confidence:
   unresolved: 0
   score: 3.4
 EOF
-  run "$STAGEMAN" checklist "$TEST_DIR/full-status.yaml"
+  run "$STATUSMAN" checklist "$TEST_DIR/full-status.yaml"
   [[ "$output" == *"generated:true"* ]]
   [[ "$output" == *"completed:3"* ]]
   [[ "$output" == *"total:10"* ]]
@@ -235,7 +235,7 @@ EOF
 progress:
   intake: active
 EOF
-  run "$STAGEMAN" checklist "$TEST_DIR/no-checklist.yaml"
+  run "$STATUSMAN" checklist "$TEST_DIR/no-checklist.yaml"
   [[ "$output" == *"generated:false"* ]]
   [[ "$output" == *"completed:0"* ]]
   [[ "$output" == *"total:0"* ]]
@@ -262,7 +262,7 @@ confidence:
   unresolved: 0
   score: 3.4
 EOF
-  run "$STAGEMAN" confidence "$TEST_DIR/full-status.yaml"
+  run "$STATUSMAN" confidence "$TEST_DIR/full-status.yaml"
   [[ "$output" == *"certain:5"* ]]
   [[ "$output" == *"confident:2"* ]]
   [[ "$output" == *"tentative:1"* ]]
@@ -275,7 +275,7 @@ EOF
 progress:
   intake: active
 EOF
-  run "$STAGEMAN" confidence "$TEST_DIR/no-confidence.yaml"
+  run "$STATUSMAN" confidence "$TEST_DIR/no-confidence.yaml"
   [[ "$output" == *"certain:0"* ]]
   [[ "$output" == *"score:5.0"* ]]
 }
@@ -301,7 +301,7 @@ confidence:
   unresolved: 0
   score: 3.4
 EOF
-  run "$STAGEMAN" current-stage "$TEST_DIR/full-status.yaml"
+  run "$STATUSMAN" current-stage "$TEST_DIR/full-status.yaml"
   [ "$output" = "spec" ]
 }
 
@@ -315,7 +315,7 @@ progress:
   review: pending
   hydrate: pending
 EOF
-  run "$STAGEMAN" current-stage "$TEST_DIR/no-active.yaml"
+  run "$STATUSMAN" current-stage "$TEST_DIR/no-active.yaml"
   [ "$output" = "spec" ]
 }
 
@@ -325,7 +325,7 @@ EOF
 
 @test "start: pending -> active succeeds" {
   make_write_fixture
-  run "$STAGEMAN" start "$TEST_DIR/write-status.yaml" "review" "test-driver"
+  run "$STATUSMAN" start "$TEST_DIR/write-status.yaml" "review" "test-driver"
   [ "$status" -eq 0 ]
   local result
   result=$(yq '.progress.review' "$TEST_DIR/write-status.yaml")
@@ -334,7 +334,7 @@ EOF
 
 @test "start: refreshes last_updated" {
   make_write_fixture
-  "$STAGEMAN" start "$TEST_DIR/write-status.yaml" "review" "test-driver"
+  "$STATUSMAN" start "$TEST_DIR/write-status.yaml" "review" "test-driver"
   local ts
   ts=$(yq '.last_updated' "$TEST_DIR/write-status.yaml")
   [[ "$ts" != "2026-01-01T00:00:00+00:00" ]]
@@ -343,7 +343,7 @@ EOF
 
 @test "start: other stages unchanged" {
   make_write_fixture
-  "$STAGEMAN" start "$TEST_DIR/write-status.yaml" "review" "test-driver"
+  "$STATUSMAN" start "$TEST_DIR/write-status.yaml" "review" "test-driver"
   local result
   result=$(yq '.progress.apply' "$TEST_DIR/write-status.yaml")
   [ "$result" = "active" ]
@@ -353,7 +353,7 @@ EOF
 
 @test "start: works without driver" {
   make_write_fixture
-  run "$STAGEMAN" start "$TEST_DIR/write-status.yaml" "review"
+  run "$STATUSMAN" start "$TEST_DIR/write-status.yaml" "review"
   [ "$status" -eq 0 ]
   local result
   result=$(yq '.progress.review' "$TEST_DIR/write-status.yaml")
@@ -364,7 +364,7 @@ EOF
   make_write_fixture
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STAGEMAN" start "$TEST_DIR/write-status.yaml" "apply"
+  run "$STATUSMAN" start "$TEST_DIR/write-status.yaml" "apply"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")
@@ -375,7 +375,7 @@ EOF
   make_write_fixture
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STAGEMAN" start "$TEST_DIR/write-status.yaml" "intake"
+  run "$STATUSMAN" start "$TEST_DIR/write-status.yaml" "intake"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")
@@ -385,10 +385,10 @@ EOF
 @test "start: rejects ready -> active (use reset instead)" {
   make_write_fixture
   # Put apply into ready state first
-  "$STAGEMAN" advance "$TEST_DIR/write-status.yaml" "apply"
+  "$STATUSMAN" advance "$TEST_DIR/write-status.yaml" "apply"
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STAGEMAN" start "$TEST_DIR/write-status.yaml" "apply"
+  run "$STATUSMAN" start "$TEST_DIR/write-status.yaml" "apply"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")
@@ -397,12 +397,12 @@ EOF
 
 @test "start: rejects invalid stage" {
   make_write_fixture
-  run "$STAGEMAN" start "$TEST_DIR/write-status.yaml" "invalid_stage"
+  run "$STATUSMAN" start "$TEST_DIR/write-status.yaml" "invalid_stage"
   [ "$status" -ne 0 ]
 }
 
 @test "start: rejects nonexistent file" {
-  run "$STAGEMAN" start "/nonexistent/path/.status.yaml" "spec"
+  run "$STATUSMAN" start "/nonexistent/path/.status.yaml" "spec"
   [ "$status" -ne 0 ]
 }
 
@@ -412,7 +412,7 @@ EOF
 
 @test "advance: active -> ready succeeds" {
   make_write_fixture
-  run "$STAGEMAN" advance "$TEST_DIR/write-status.yaml" "apply"
+  run "$STATUSMAN" advance "$TEST_DIR/write-status.yaml" "apply"
   [ "$status" -eq 0 ]
   local result
   result=$(yq '.progress.apply' "$TEST_DIR/write-status.yaml")
@@ -423,7 +423,7 @@ EOF
   make_write_fixture
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STAGEMAN" advance "$TEST_DIR/write-status.yaml" "review"
+  run "$STATUSMAN" advance "$TEST_DIR/write-status.yaml" "review"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")
@@ -434,7 +434,7 @@ EOF
   make_write_fixture
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STAGEMAN" advance "$TEST_DIR/write-status.yaml" "intake"
+  run "$STATUSMAN" advance "$TEST_DIR/write-status.yaml" "intake"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")
@@ -443,10 +443,10 @@ EOF
 
 @test "advance: rejects ready -> ready (already ready)" {
   make_write_fixture
-  "$STAGEMAN" advance "$TEST_DIR/write-status.yaml" "apply"
+  "$STATUSMAN" advance "$TEST_DIR/write-status.yaml" "apply"
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STAGEMAN" advance "$TEST_DIR/write-status.yaml" "apply"
+  run "$STATUSMAN" advance "$TEST_DIR/write-status.yaml" "apply"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")
@@ -455,12 +455,12 @@ EOF
 
 @test "advance: rejects invalid stage" {
   make_write_fixture
-  run "$STAGEMAN" advance "$TEST_DIR/write-status.yaml" "bogus"
+  run "$STATUSMAN" advance "$TEST_DIR/write-status.yaml" "bogus"
   [ "$status" -ne 0 ]
 }
 
 @test "advance: rejects nonexistent file" {
-  run "$STAGEMAN" advance "/nonexistent/path/.status.yaml" "spec"
+  run "$STATUSMAN" advance "/nonexistent/path/.status.yaml" "spec"
   [ "$status" -ne 0 ]
 }
 
@@ -470,7 +470,7 @@ EOF
 
 @test "finish: active -> done succeeds" {
   make_write_fixture
-  run "$STAGEMAN" finish "$TEST_DIR/write-status.yaml" "apply" "test-driver"
+  run "$STATUSMAN" finish "$TEST_DIR/write-status.yaml" "apply" "test-driver"
   [ "$status" -eq 0 ]
   local result
   result=$(yq '.progress.apply' "$TEST_DIR/write-status.yaml")
@@ -479,8 +479,8 @@ EOF
 
 @test "finish: ready -> done succeeds" {
   make_write_fixture
-  "$STAGEMAN" advance "$TEST_DIR/write-status.yaml" "apply"
-  run "$STAGEMAN" finish "$TEST_DIR/write-status.yaml" "apply" "test-driver"
+  "$STATUSMAN" advance "$TEST_DIR/write-status.yaml" "apply"
+  run "$STATUSMAN" finish "$TEST_DIR/write-status.yaml" "apply" "test-driver"
   [ "$status" -eq 0 ]
   local result
   result=$(yq '.progress.apply' "$TEST_DIR/write-status.yaml")
@@ -491,7 +491,7 @@ EOF
   make_write_fixture
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STAGEMAN" finish "$TEST_DIR/write-status.yaml" "review"
+  run "$STATUSMAN" finish "$TEST_DIR/write-status.yaml" "review"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")
@@ -502,7 +502,7 @@ EOF
   make_write_fixture
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STAGEMAN" finish "$TEST_DIR/write-status.yaml" "intake"
+  run "$STATUSMAN" finish "$TEST_DIR/write-status.yaml" "intake"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")
@@ -511,12 +511,12 @@ EOF
 
 @test "finish: rejects invalid stage" {
   make_write_fixture
-  run "$STAGEMAN" finish "$TEST_DIR/write-status.yaml" "bogus"
+  run "$STATUSMAN" finish "$TEST_DIR/write-status.yaml" "bogus"
   [ "$status" -ne 0 ]
 }
 
 @test "finish: rejects nonexistent file" {
-  run "$STAGEMAN" finish "/nonexistent/path/.status.yaml" "apply"
+  run "$STATUSMAN" finish "/nonexistent/path/.status.yaml" "apply"
   [ "$status" -ne 0 ]
 }
 
@@ -526,7 +526,7 @@ EOF
 
 @test "finish side-effect: next pending stage becomes active" {
   make_write_fixture
-  "$STAGEMAN" finish "$TEST_DIR/write-status.yaml" "apply" "test-driver"
+  "$STATUSMAN" finish "$TEST_DIR/write-status.yaml" "apply" "test-driver"
   local result
   result=$(yq '.progress.review' "$TEST_DIR/write-status.yaml")
   [ "$result" = "active" ]
@@ -535,8 +535,8 @@ EOF
 @test "finish side-effect: non-pending next stage is unchanged" {
   make_write_fixture
   # Start review so it is active, then finish apply
-  "$STAGEMAN" start "$TEST_DIR/write-status.yaml" "review" "other-driver"
-  "$STAGEMAN" finish "$TEST_DIR/write-status.yaml" "apply" "test-driver"
+  "$STATUSMAN" start "$TEST_DIR/write-status.yaml" "review" "other-driver"
+  "$STATUSMAN" finish "$TEST_DIR/write-status.yaml" "apply" "test-driver"
   local result
   result=$(yq '.progress.review' "$TEST_DIR/write-status.yaml")
   # review was already active, should stay active (not changed)
@@ -557,7 +557,7 @@ progress:
 stage_metrics: {}
 last_updated: 2026-01-01T00:00:00+00:00
 EOF
-  run "$STAGEMAN" finish "$TEST_DIR/write-status.yaml" "hydrate" "test-driver"
+  run "$STATUSMAN" finish "$TEST_DIR/write-status.yaml" "hydrate" "test-driver"
   [ "$status" -eq 0 ]
   local result
   result=$(yq '.progress.hydrate' "$TEST_DIR/write-status.yaml")
@@ -566,7 +566,7 @@ EOF
 
 @test "finish side-effect: finishing apply activates review with driver" {
   make_write_fixture
-  "$STAGEMAN" finish "$TEST_DIR/write-status.yaml" "apply" "fab-ff"
+  "$STATUSMAN" finish "$TEST_DIR/write-status.yaml" "apply" "fab-ff"
   local driver iter
   driver=$(yq '.stage_metrics.review.driver' "$TEST_DIR/write-status.yaml")
   iter=$(yq '.stage_metrics.review.iterations' "$TEST_DIR/write-status.yaml")
@@ -580,7 +580,7 @@ EOF
 
 @test "reset: done -> active succeeds" {
   make_write_fixture
-  run "$STAGEMAN" reset "$TEST_DIR/write-status.yaml" "spec" "test-driver"
+  run "$STATUSMAN" reset "$TEST_DIR/write-status.yaml" "spec" "test-driver"
   [ "$status" -eq 0 ]
   local result
   result=$(yq '.progress.spec' "$TEST_DIR/write-status.yaml")
@@ -589,8 +589,8 @@ EOF
 
 @test "reset: ready -> active succeeds" {
   make_write_fixture
-  "$STAGEMAN" advance "$TEST_DIR/write-status.yaml" "apply"
-  run "$STAGEMAN" reset "$TEST_DIR/write-status.yaml" "apply" "test-driver"
+  "$STATUSMAN" advance "$TEST_DIR/write-status.yaml" "apply"
+  run "$STATUSMAN" reset "$TEST_DIR/write-status.yaml" "apply" "test-driver"
   [ "$status" -eq 0 ]
   local result
   result=$(yq '.progress.apply' "$TEST_DIR/write-status.yaml")
@@ -601,7 +601,7 @@ EOF
   make_write_fixture
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STAGEMAN" reset "$TEST_DIR/write-status.yaml" "review"
+  run "$STATUSMAN" reset "$TEST_DIR/write-status.yaml" "review"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")
@@ -612,7 +612,7 @@ EOF
   make_write_fixture
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STAGEMAN" reset "$TEST_DIR/write-status.yaml" "apply"
+  run "$STATUSMAN" reset "$TEST_DIR/write-status.yaml" "apply"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")
@@ -621,12 +621,12 @@ EOF
 
 @test "reset: rejects invalid stage" {
   make_write_fixture
-  run "$STAGEMAN" reset "$TEST_DIR/write-status.yaml" "bogus"
+  run "$STATUSMAN" reset "$TEST_DIR/write-status.yaml" "bogus"
   [ "$status" -ne 0 ]
 }
 
 @test "reset: rejects nonexistent file" {
-  run "$STAGEMAN" reset "/nonexistent/path/.status.yaml" "spec"
+  run "$STATUSMAN" reset "/nonexistent/path/.status.yaml" "spec"
   [ "$status" -ne 0 ]
 }
 
@@ -638,7 +638,7 @@ EOF
   make_write_fixture
   # Fixture: intake..tasks=done, apply=active, review+hydrate=pending
   # Reset spec -> tasks,apply,review,hydrate should all go to pending
-  "$STAGEMAN" reset "$TEST_DIR/write-status.yaml" "spec" "test-driver"
+  "$STATUSMAN" reset "$TEST_DIR/write-status.yaml" "spec" "test-driver"
   local result
   result=$(yq '.progress.tasks' "$TEST_DIR/write-status.yaml")
   [ "$result" = "pending" ]
@@ -652,7 +652,7 @@ EOF
 
 @test "reset cascade: before-target stages preserved" {
   make_write_fixture
-  "$STAGEMAN" reset "$TEST_DIR/write-status.yaml" "spec" "test-driver"
+  "$STATUSMAN" reset "$TEST_DIR/write-status.yaml" "spec" "test-driver"
   local result
   result=$(yq '.progress.intake' "$TEST_DIR/write-status.yaml")
   [ "$result" = "done" ]
@@ -660,7 +660,7 @@ EOF
 
 @test "reset cascade: target itself becomes active" {
   make_write_fixture
-  "$STAGEMAN" reset "$TEST_DIR/write-status.yaml" "spec" "test-driver"
+  "$STATUSMAN" reset "$TEST_DIR/write-status.yaml" "spec" "test-driver"
   local result
   result=$(yq '.progress.spec' "$TEST_DIR/write-status.yaml")
   [ "$result" = "active" ]
@@ -670,10 +670,10 @@ EOF
   make_write_fixture
   # Give apply some metrics via start (it is already active from fixture,
   # so finish it and then restart it to get metrics)
-  "$STAGEMAN" finish "$TEST_DIR/write-status.yaml" "apply" "drv1"
+  "$STATUSMAN" finish "$TEST_DIR/write-status.yaml" "apply" "drv1"
   # review is now active (side-effect). Give it metrics too.
   # Now reset spec: tasks, apply, review, hydrate all go to pending
-  "$STAGEMAN" reset "$TEST_DIR/write-status.yaml" "spec" "reset-drv"
+  "$STATUSMAN" reset "$TEST_DIR/write-status.yaml" "spec" "reset-drv"
   local apply_metrics review_metrics
   apply_metrics=$(yq '.stage_metrics.apply' "$TEST_DIR/write-status.yaml")
   review_metrics=$(yq '.stage_metrics.review' "$TEST_DIR/write-status.yaml")
@@ -683,7 +683,7 @@ EOF
 
 @test "reset cascade: target gets fresh metrics" {
   make_write_fixture
-  "$STAGEMAN" reset "$TEST_DIR/write-status.yaml" "spec" "reset-drv"
+  "$STATUSMAN" reset "$TEST_DIR/write-status.yaml" "spec" "reset-drv"
   local driver iter started
   driver=$(yq '.stage_metrics.spec.driver' "$TEST_DIR/write-status.yaml")
   iter=$(yq '.stage_metrics.spec.iterations' "$TEST_DIR/write-status.yaml")
@@ -697,7 +697,7 @@ EOF
   make_write_fixture
   # Give intake metrics manually so we can verify they survive reset of spec
   yq -i '.stage_metrics.intake = {"started_at": "2026-01-01T00:00:00+00:00", "driver": "orig", "iterations": 1, "completed_at": "2026-01-01T01:00:00+00:00"}' "$TEST_DIR/write-status.yaml"
-  "$STAGEMAN" reset "$TEST_DIR/write-status.yaml" "spec" "reset-drv"
+  "$STATUSMAN" reset "$TEST_DIR/write-status.yaml" "spec" "reset-drv"
   local intake_driver
   intake_driver=$(yq '.stage_metrics.intake.driver' "$TEST_DIR/write-status.yaml")
   [ "$intake_driver" = "orig" ]
@@ -709,8 +709,8 @@ EOF
 
 @test "fail: review active -> failed succeeds" {
   make_write_fixture
-  "$STAGEMAN" start "$TEST_DIR/write-status.yaml" "review" "test-driver"
-  run "$STAGEMAN" fail "$TEST_DIR/write-status.yaml" "review"
+  "$STATUSMAN" start "$TEST_DIR/write-status.yaml" "review" "test-driver"
+  run "$STATUSMAN" fail "$TEST_DIR/write-status.yaml" "review"
   [ "$status" -eq 0 ]
   local result
   result=$(yq '.progress.review' "$TEST_DIR/write-status.yaml")
@@ -721,7 +721,7 @@ EOF
   make_write_fixture
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STAGEMAN" fail "$TEST_DIR/write-status.yaml" "apply"
+  run "$STATUSMAN" fail "$TEST_DIR/write-status.yaml" "apply"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")
@@ -744,7 +744,7 @@ last_updated: 2026-01-01T00:00:00+00:00
 EOF
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STAGEMAN" fail "$TEST_DIR/write-status.yaml" "spec"
+  run "$STATUSMAN" fail "$TEST_DIR/write-status.yaml" "spec"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")
@@ -755,7 +755,7 @@ EOF
   make_write_fixture
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STAGEMAN" fail "$TEST_DIR/write-status.yaml" "review"
+  run "$STATUSMAN" fail "$TEST_DIR/write-status.yaml" "review"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")
@@ -777,7 +777,7 @@ last_updated: 2026-01-01T00:00:00+00:00
 EOF
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STAGEMAN" fail "$TEST_DIR/write-status.yaml" "review"
+  run "$STATUSMAN" fail "$TEST_DIR/write-status.yaml" "review"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")
@@ -786,12 +786,12 @@ EOF
 
 @test "fail: rejects invalid stage" {
   make_write_fixture
-  run "$STAGEMAN" fail "$TEST_DIR/write-status.yaml" "bogus"
+  run "$STATUSMAN" fail "$TEST_DIR/write-status.yaml" "bogus"
   [ "$status" -ne 0 ]
 }
 
 @test "fail: rejects nonexistent file" {
-  run "$STAGEMAN" fail "/nonexistent/path/.status.yaml" "review"
+  run "$STATUSMAN" fail "/nonexistent/path/.status.yaml" "review"
   [ "$status" -ne 0 ]
 }
 
@@ -801,14 +801,14 @@ EOF
 
 @test "start: failed -> active on review succeeds" {
   make_write_fixture
-  "$STAGEMAN" start "$TEST_DIR/write-status.yaml" "review" "first-pass"
-  "$STAGEMAN" fail "$TEST_DIR/write-status.yaml" "review"
+  "$STATUSMAN" start "$TEST_DIR/write-status.yaml" "review" "first-pass"
+  "$STATUSMAN" fail "$TEST_DIR/write-status.yaml" "review"
   # Verify review is failed
   local state
   state=$(yq '.progress.review' "$TEST_DIR/write-status.yaml")
   [ "$state" = "failed" ]
   # Now start from failed
-  run "$STAGEMAN" start "$TEST_DIR/write-status.yaml" "review" "retry-driver"
+  run "$STATUSMAN" start "$TEST_DIR/write-status.yaml" "review" "retry-driver"
   [ "$status" -eq 0 ]
   state=$(yq '.progress.review' "$TEST_DIR/write-status.yaml")
   [ "$state" = "active" ]
@@ -831,7 +831,7 @@ progress:
 stage_metrics: {}
 last_updated: 2026-01-01T00:00:00+00:00
 EOF
-  run "$STAGEMAN" start "$TEST_DIR/write-status.yaml" "tasks"
+  run "$STATUSMAN" start "$TEST_DIR/write-status.yaml" "tasks"
   [ "$status" -ne 0 ]
 }
 
@@ -841,7 +841,7 @@ EOF
 
 @test "stage-metrics: start creates entry with started_at, driver, iterations" {
   make_write_fixture
-  "$STAGEMAN" start "$TEST_DIR/write-status.yaml" "review" "fab-continue"
+  "$STATUSMAN" start "$TEST_DIR/write-status.yaml" "review" "fab-continue"
   local driver iter started
   driver=$(yq '.stage_metrics.review.driver' "$TEST_DIR/write-status.yaml")
   iter=$(yq '.stage_metrics.review.iterations' "$TEST_DIR/write-status.yaml")
@@ -853,7 +853,7 @@ EOF
 
 @test "stage-metrics: start without driver records empty driver" {
   make_write_fixture
-  "$STAGEMAN" start "$TEST_DIR/write-status.yaml" "review"
+  "$STATUSMAN" start "$TEST_DIR/write-status.yaml" "review"
   local driver
   driver=$(yq '.stage_metrics.review.driver' "$TEST_DIR/write-status.yaml")
   [ "$driver" = "" ]
@@ -861,11 +861,11 @@ EOF
 
 @test "stage-metrics: advance is a no-op for metrics" {
   make_write_fixture
-  "$STAGEMAN" start "$TEST_DIR/write-status.yaml" "review" "fab-continue"
+  "$STATUSMAN" start "$TEST_DIR/write-status.yaml" "review" "fab-continue"
   local started_before
   started_before=$(yq '.stage_metrics.review.started_at' "$TEST_DIR/write-status.yaml")
   # advance apply (which is already active in fixture)
-  "$STAGEMAN" advance "$TEST_DIR/write-status.yaml" "apply"
+  "$STATUSMAN" advance "$TEST_DIR/write-status.yaml" "apply"
   # Apply metrics should still be empty/what they were (no entry created by advance)
   # Check review metrics are untouched too
   local started_after
@@ -875,7 +875,7 @@ EOF
 
 @test "stage-metrics: finish sets completed_at on finished stage" {
   make_write_fixture
-  "$STAGEMAN" finish "$TEST_DIR/write-status.yaml" "apply" "fab-continue"
+  "$STATUSMAN" finish "$TEST_DIR/write-status.yaml" "apply" "fab-continue"
   local completed
   completed=$(yq '.stage_metrics.apply.completed_at' "$TEST_DIR/write-status.yaml")
   [[ "$completed" == *"T"* ]]
@@ -901,7 +901,7 @@ stage_metrics:
   apply: {started_at: "2026-01-01T00:00:00+00:00", driver: "orig-driver", iterations: 1}
 last_updated: 2026-01-01T00:00:00+00:00
 EOF
-  "$STAGEMAN" finish "$TEST_DIR/write-status.yaml" "apply" "finish-driver"
+  "$STATUSMAN" finish "$TEST_DIR/write-status.yaml" "apply" "finish-driver"
   local driver
   driver=$(yq '.stage_metrics.apply.driver' "$TEST_DIR/write-status.yaml")
   [ "$driver" = "orig-driver" ]
@@ -909,7 +909,7 @@ EOF
 
 @test "stage-metrics: finish activates next stage with metrics" {
   make_write_fixture
-  "$STAGEMAN" finish "$TEST_DIR/write-status.yaml" "apply" "fab-ff"
+  "$STATUSMAN" finish "$TEST_DIR/write-status.yaml" "apply" "fab-ff"
   local to_driver to_iter to_started
   to_driver=$(yq '.stage_metrics.review.driver' "$TEST_DIR/write-status.yaml")
   to_iter=$(yq '.stage_metrics.review.iterations' "$TEST_DIR/write-status.yaml")
@@ -934,7 +934,7 @@ stage_metrics:
   apply: {started_at: "2026-01-01T00:00:00+00:00", driver: "d1", iterations: 1, completed_at: "2026-01-01T01:00:00+00:00"}
 last_updated: 2026-01-01T00:00:00+00:00
 EOF
-  "$STAGEMAN" reset "$TEST_DIR/write-status.yaml" "apply" "d2"
+  "$STATUSMAN" reset "$TEST_DIR/write-status.yaml" "apply" "d2"
   local iter
   iter=$(yq '.stage_metrics.apply.iterations' "$TEST_DIR/write-status.yaml")
   [ "$iter" = "2" ]
@@ -942,11 +942,11 @@ EOF
 
 @test "stage-metrics: fail is a no-op for metrics" {
   make_write_fixture
-  "$STAGEMAN" start "$TEST_DIR/write-status.yaml" "review" "fab-continue"
+  "$STATUSMAN" start "$TEST_DIR/write-status.yaml" "review" "fab-continue"
   local started_before driver_before
   started_before=$(yq '.stage_metrics.review.started_at' "$TEST_DIR/write-status.yaml")
   driver_before=$(yq '.stage_metrics.review.driver' "$TEST_DIR/write-status.yaml")
-  "$STAGEMAN" fail "$TEST_DIR/write-status.yaml" "review"
+  "$STATUSMAN" fail "$TEST_DIR/write-status.yaml" "review"
   local started_after driver_after completed
   started_after=$(yq '.stage_metrics.review.started_at' "$TEST_DIR/write-status.yaml")
   driver_after=$(yq '.stage_metrics.review.driver' "$TEST_DIR/write-status.yaml")
@@ -958,13 +958,13 @@ EOF
 
 @test "stage-metrics: reset clears downstream metrics" {
   make_write_fixture
-  "$STAGEMAN" finish "$TEST_DIR/write-status.yaml" "apply" "d1"
+  "$STATUSMAN" finish "$TEST_DIR/write-status.yaml" "apply" "d1"
   # review is now active with metrics
   local review_before
   review_before=$(yq '.stage_metrics.review.driver' "$TEST_DIR/write-status.yaml")
   [ "$review_before" = "d1" ]
   # Reset apply — review (downstream) should lose metrics
-  "$STAGEMAN" reset "$TEST_DIR/write-status.yaml" "apply" "d2"
+  "$STATUSMAN" reset "$TEST_DIR/write-status.yaml" "apply" "d2"
   local review_after
   review_after=$(yq '.stage_metrics.review' "$TEST_DIR/write-status.yaml")
   [ "$review_after" = "null" ]
@@ -976,7 +976,7 @@ EOF
 
 @test "set-checklist: completed update succeeds" {
   make_write_fixture
-  run "$STAGEMAN" set-checklist "$TEST_DIR/write-status.yaml" "completed" "7"
+  run "$STATUSMAN" set-checklist "$TEST_DIR/write-status.yaml" "completed" "7"
   [ "$status" -eq 0 ]
   local result
   result=$(grep "^  completed:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
@@ -985,7 +985,7 @@ EOF
 
 @test "set-checklist: generated update succeeds" {
   make_write_fixture
-  run "$STAGEMAN" set-checklist "$TEST_DIR/write-status.yaml" "generated" "false"
+  run "$STATUSMAN" set-checklist "$TEST_DIR/write-status.yaml" "generated" "false"
   [ "$status" -eq 0 ]
   local result
   result=$(grep "^  generated:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
@@ -994,7 +994,7 @@ EOF
 
 @test "set-checklist: total update succeeds" {
   make_write_fixture
-  run "$STAGEMAN" set-checklist "$TEST_DIR/write-status.yaml" "total" "25"
+  run "$STATUSMAN" set-checklist "$TEST_DIR/write-status.yaml" "total" "25"
   [ "$status" -eq 0 ]
   local result
   result=$(grep "^  total:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
@@ -1005,7 +1005,7 @@ EOF
   make_write_fixture
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STAGEMAN" set-checklist "$TEST_DIR/write-status.yaml" "invalid_field" "5"
+  run "$STATUSMAN" set-checklist "$TEST_DIR/write-status.yaml" "invalid_field" "5"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")
@@ -1016,7 +1016,7 @@ EOF
   make_write_fixture
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STAGEMAN" set-checklist "$TEST_DIR/write-status.yaml" "completed" "-3"
+  run "$STATUSMAN" set-checklist "$TEST_DIR/write-status.yaml" "completed" "-3"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")
@@ -1027,7 +1027,7 @@ EOF
   make_write_fixture
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STAGEMAN" set-checklist "$TEST_DIR/write-status.yaml" "generated" "yes"
+  run "$STATUSMAN" set-checklist "$TEST_DIR/write-status.yaml" "generated" "yes"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")
@@ -1035,7 +1035,7 @@ EOF
 }
 
 @test "set-checklist: rejects nonexistent file" {
-  run "$STAGEMAN" set-checklist "/nonexistent/path/.status.yaml" "completed" "5"
+  run "$STATUSMAN" set-checklist "/nonexistent/path/.status.yaml" "completed" "5"
   [ "$status" -ne 0 ]
 }
 
@@ -1045,7 +1045,7 @@ EOF
 
 @test "set-confidence: valid replacement succeeds" {
   make_write_fixture
-  run "$STAGEMAN" set-confidence "$TEST_DIR/write-status.yaml" "10" "3" "1" "0" "4.1"
+  run "$STATUSMAN" set-confidence "$TEST_DIR/write-status.yaml" "10" "3" "1" "0" "4.1"
   [ "$status" -eq 0 ]
   local result
   result=$(grep "^  certain:" "$TEST_DIR/write-status.yaml" | sed 's/.*: *//')
@@ -1056,7 +1056,7 @@ EOF
 
 @test "set-confidence: refreshes last_updated" {
   make_write_fixture
-  "$STAGEMAN" set-confidence "$TEST_DIR/write-status.yaml" "10" "3" "1" "0" "4.1"
+  "$STATUSMAN" set-confidence "$TEST_DIR/write-status.yaml" "10" "3" "1" "0" "4.1"
   local ts
   ts=$(grep "^last_updated:" "$TEST_DIR/write-status.yaml" | sed 's/last_updated: //')
   [[ "$ts" == *"T"* ]]
@@ -1064,7 +1064,7 @@ EOF
 
 @test "set-confidence: preserves other blocks" {
   make_write_fixture
-  "$STAGEMAN" set-confidence "$TEST_DIR/write-status.yaml" "10" "3" "1" "0" "4.1"
+  "$STATUSMAN" set-confidence "$TEST_DIR/write-status.yaml" "10" "3" "1" "0" "4.1"
   local result
   result=$(grep "^  apply:" "$TEST_DIR/write-status.yaml" | sed 's/.*: //')
   [ "$result" = "active" ]
@@ -1076,7 +1076,7 @@ EOF
   make_write_fixture
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STAGEMAN" set-confidence "$TEST_DIR/write-status.yaml" "-1" "3" "1" "0" "4.1"
+  run "$STATUSMAN" set-confidence "$TEST_DIR/write-status.yaml" "-1" "3" "1" "0" "4.1"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")
@@ -1087,7 +1087,7 @@ EOF
   make_write_fixture
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STAGEMAN" set-confidence "$TEST_DIR/write-status.yaml" "10" "3" "1" "0" "abc"
+  run "$STATUSMAN" set-confidence "$TEST_DIR/write-status.yaml" "10" "3" "1" "0" "abc"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")
@@ -1098,7 +1098,7 @@ EOF
   make_write_fixture
   local before
   before=$(cat "$TEST_DIR/write-status.yaml")
-  run "$STAGEMAN" set-confidence "$TEST_DIR/write-status.yaml" "10" "3" "1" "0" "-2.5"
+  run "$STATUSMAN" set-confidence "$TEST_DIR/write-status.yaml" "10" "3" "1" "0" "-2.5"
   [ "$status" -ne 0 ]
   local after
   after=$(cat "$TEST_DIR/write-status.yaml")
@@ -1106,7 +1106,7 @@ EOF
 }
 
 @test "set-confidence: rejects nonexistent file" {
-  run "$STAGEMAN" set-confidence "/nonexistent/path/.status.yaml" "10" "3" "1" "0" "4.1"
+  run "$STATUSMAN" set-confidence "/nonexistent/path/.status.yaml" "10" "3" "1" "0" "4.1"
   [ "$status" -ne 0 ]
 }
 
@@ -1117,7 +1117,7 @@ EOF
 @test "log-command creates command event" {
   local history_dir="$TEST_DIR/history"
   mkdir -p "$history_dir"
-  "$STAGEMAN" log-command "$history_dir" "fab-continue" ""
+  "$STATUSMAN" log-command "$history_dir" "fab-continue" ""
   local line
   line=$(head -1 "$history_dir/.history.jsonl")
   [[ "$line" == *'"event":"command"'* ]]
@@ -1127,7 +1127,7 @@ EOF
 @test "log-command omits empty args" {
   local history_dir="$TEST_DIR/history"
   mkdir -p "$history_dir"
-  "$STAGEMAN" log-command "$history_dir" "fab-continue" ""
+  "$STATUSMAN" log-command "$history_dir" "fab-continue" ""
   local line
   line=$(head -1 "$history_dir/.history.jsonl")
   [[ "$line" != *'"args"'* ]]
@@ -1136,7 +1136,7 @@ EOF
 @test "log-command includes non-empty args" {
   local history_dir="$TEST_DIR/history"
   mkdir -p "$history_dir"
-  "$STAGEMAN" log-command "$history_dir" "fab-ff" "spec"
+  "$STATUSMAN" log-command "$history_dir" "fab-ff" "spec"
   local line
   line=$(tail -1 "$history_dir/.history.jsonl")
   [[ "$line" == *'"args":"spec"'* ]]
@@ -1145,7 +1145,7 @@ EOF
 @test "log-confidence creates confidence event with score" {
   local history_dir="$TEST_DIR/history"
   mkdir -p "$history_dir"
-  "$STAGEMAN" log-confidence "$history_dir" 4.1 "+4.1" "calc-score"
+  "$STATUSMAN" log-confidence "$history_dir" 4.1 "+4.1" "calc-score"
   local line
   line=$(tail -1 "$history_dir/.history.jsonl")
   [[ "$line" == *'"event":"confidence"'* ]]
@@ -1155,7 +1155,7 @@ EOF
 @test "log-review creates passed event without rework" {
   local history_dir="$TEST_DIR/history"
   mkdir -p "$history_dir"
-  "$STAGEMAN" log-review "$history_dir" "passed"
+  "$STATUSMAN" log-review "$history_dir" "passed"
   local line
   line=$(tail -1 "$history_dir/.history.jsonl")
   [[ "$line" == *'"result":"passed"'* ]]
@@ -1165,25 +1165,25 @@ EOF
 @test "log-review creates failed event with rework" {
   local history_dir="$TEST_DIR/history"
   mkdir -p "$history_dir"
-  "$STAGEMAN" log-review "$history_dir" "failed" "revise-tasks"
+  "$STATUSMAN" log-review "$history_dir" "failed" "revise-tasks"
   local line
   line=$(tail -1 "$history_dir/.history.jsonl")
   [[ "$line" == *'"rework":"revise-tasks"'* ]]
 }
 
 @test "log-command resolves relative path against repo root" {
-  # Derive repo root from stageman location (same logic as resolve_change_arg)
-  local stageman_dir
-  stageman_dir="$(cd "$(dirname "$(readlink -f "$STAGEMAN")")" && pwd)"
+  # Derive repo root from statusman location (same logic as resolve_change_arg)
+  local statusman_dir
+  statusman_dir="$(cd "$(dirname "$(readlink -f "$STATUSMAN")")" && pwd)"
   local repo_root
-  repo_root="$(cd "$stageman_dir/../../../.." && pwd)"
+  repo_root="$(cd "$statusman_dir/../../../.." && pwd)"
 
   # Create a temp dir under repo root
   local test_subdir=".test-resolve-$$"
   mkdir -p "$repo_root/$test_subdir"
 
   # Run log-command with a relative path from a different cwd
-  (cd /tmp && "$STAGEMAN" log-command "$test_subdir" "test-resolve" "")
+  (cd /tmp && "$STATUSMAN" log-command "$test_subdir" "test-resolve" "")
 
   # Verify file was written at the resolved absolute path, not relative to cwd
   [ -f "$repo_root/$test_subdir/.history.jsonl" ]
@@ -1196,11 +1196,11 @@ EOF
 @test "history file accumulates events" {
   local history_dir="$TEST_DIR/history"
   mkdir -p "$history_dir"
-  "$STAGEMAN" log-command "$history_dir" "fab-continue" ""
-  "$STAGEMAN" log-command "$history_dir" "fab-ff" "spec"
-  "$STAGEMAN" log-confidence "$history_dir" 4.1 "+4.1" "calc-score"
-  "$STAGEMAN" log-review "$history_dir" "passed"
-  "$STAGEMAN" log-review "$history_dir" "failed" "revise-tasks"
+  "$STATUSMAN" log-command "$history_dir" "fab-continue" ""
+  "$STATUSMAN" log-command "$history_dir" "fab-ff" "spec"
+  "$STATUSMAN" log-confidence "$history_dir" 4.1 "+4.1" "calc-score"
+  "$STATUSMAN" log-review "$history_dir" "passed"
+  "$STATUSMAN" log-review "$history_dir" "failed" "revise-tasks"
   local event_count
   event_count=$(wc -l < "$history_dir/.history.jsonl" | tr -d ' ')
   [ "$event_count" = "5" ]
@@ -1220,7 +1220,7 @@ progress:
   review: pending
   hydrate: pending
 EOF
-  run "$STAGEMAN" progress-line "$TEST_DIR/all-pending.yaml"
+  run "$STATUSMAN" progress-line "$TEST_DIR/all-pending.yaml"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
@@ -1235,7 +1235,7 @@ progress:
   review: pending
   hydrate: pending
 EOF
-  run "$STAGEMAN" progress-line "$TEST_DIR/first-active.yaml"
+  run "$STATUSMAN" progress-line "$TEST_DIR/first-active.yaml"
   [ "$status" -eq 0 ]
   [ "$output" = "intake ⏳" ]
 }
@@ -1250,7 +1250,7 @@ progress:
   review: pending
   hydrate: pending
 EOF
-  run "$STAGEMAN" progress-line "$TEST_DIR/mid-pipeline.yaml"
+  run "$STATUSMAN" progress-line "$TEST_DIR/mid-pipeline.yaml"
   [ "$status" -eq 0 ]
   [ "$output" = "intake → spec → tasks → apply ⏳" ]
 }
@@ -1265,7 +1265,7 @@ progress:
   review: failed
   hydrate: pending
 EOF
-  run "$STAGEMAN" progress-line "$TEST_DIR/failed.yaml"
+  run "$STATUSMAN" progress-line "$TEST_DIR/failed.yaml"
   [ "$status" -eq 0 ]
   [ "$output" = "intake → spec → tasks → apply → review ✗" ]
 }
@@ -1280,7 +1280,7 @@ progress:
   review: done
   hydrate: done
 EOF
-  run "$STAGEMAN" progress-line "$TEST_DIR/all-done.yaml"
+  run "$STATUSMAN" progress-line "$TEST_DIR/all-done.yaml"
   [ "$status" -eq 0 ]
   [ "$output" = "intake → spec → tasks → apply → review → hydrate ✓" ]
 }
@@ -1295,7 +1295,7 @@ progress:
   review: pending
   hydrate: pending
 EOF
-  run "$STAGEMAN" progress-line "$TEST_DIR/single-done.yaml"
+  run "$STATUSMAN" progress-line "$TEST_DIR/single-done.yaml"
   [ "$status" -eq 0 ]
   [ "$output" = "intake" ]
 }
@@ -1310,7 +1310,7 @@ progress:
   review: pending
   hydrate: pending
 EOF
-  run "$STAGEMAN" progress-line "$TEST_DIR/ready.yaml"
+  run "$STATUSMAN" progress-line "$TEST_DIR/ready.yaml"
   [ "$status" -eq 0 ]
   [ "$output" = "intake → spec ◷" ]
 }
@@ -1322,7 +1322,7 @@ EOF
 @test "add-pr: appends URL to empty prs array" {
   make_write_fixture
   yq -i '.prs = []' "$TEST_DIR/write-status.yaml"
-  run "$STAGEMAN" add-pr "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/42"
+  run "$STATUSMAN" add-pr "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/42"
   [ "$status" -eq 0 ]
   local result
   result=$(yq '.prs[0]' "$TEST_DIR/write-status.yaml")
@@ -1332,7 +1332,7 @@ EOF
 @test "add-pr: appends second URL" {
   make_write_fixture
   yq -i '.prs = ["https://github.com/org/repo/pull/42"]' "$TEST_DIR/write-status.yaml"
-  "$STAGEMAN" add-pr "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/43"
+  "$STATUSMAN" add-pr "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/43"
   local count
   count=$(yq '.prs | length' "$TEST_DIR/write-status.yaml")
   [ "$count" = "2" ]
@@ -1344,7 +1344,7 @@ EOF
 @test "add-pr: deduplicates existing URL" {
   make_write_fixture
   yq -i '.prs = ["https://github.com/org/repo/pull/42"]' "$TEST_DIR/write-status.yaml"
-  run "$STAGEMAN" add-pr "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/42"
+  run "$STATUSMAN" add-pr "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/42"
   [ "$status" -eq 0 ]
   local count
   count=$(yq '.prs | length' "$TEST_DIR/write-status.yaml")
@@ -1354,7 +1354,7 @@ EOF
 @test "add-pr: does not treat substring as duplicate" {
   make_write_fixture
   yq -i '.prs = ["https://github.com/org/repo/pull/42"]' "$TEST_DIR/write-status.yaml"
-  "$STAGEMAN" add-pr "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/4"
+  "$STATUSMAN" add-pr "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/4"
   local count
   count=$(yq '.prs | length' "$TEST_DIR/write-status.yaml")
   [ "$count" = "2" ]
@@ -1362,7 +1362,7 @@ EOF
 
 @test "add-pr: creates prs key when missing" {
   make_write_fixture
-  run "$STAGEMAN" add-pr "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/99"
+  run "$STATUSMAN" add-pr "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/99"
   [ "$status" -eq 0 ]
   local result
   result=$(yq '.prs[0]' "$TEST_DIR/write-status.yaml")
@@ -1372,14 +1372,14 @@ EOF
 @test "add-pr: refreshes last_updated" {
   make_write_fixture
   yq -i '.prs = []' "$TEST_DIR/write-status.yaml"
-  "$STAGEMAN" add-pr "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/42"
+  "$STATUSMAN" add-pr "$TEST_DIR/write-status.yaml" "https://github.com/org/repo/pull/42"
   local ts
   ts=$(yq '.last_updated' "$TEST_DIR/write-status.yaml")
   [[ "$ts" != "2026-01-01T00:00:00+00:00" ]]
 }
 
 @test "add-pr: rejects nonexistent file" {
-  run "$STAGEMAN" add-pr "/nonexistent/path/.status.yaml" "https://example.com"
+  run "$STATUSMAN" add-pr "/nonexistent/path/.status.yaml" "https://example.com"
   [ "$status" -ne 0 ]
   [[ "$output" == *"Status file not found"* ]]
 }
@@ -1387,7 +1387,7 @@ EOF
 @test "get-prs: returns URLs one per line" {
   make_write_fixture
   yq -i '.prs = ["https://github.com/org/repo/pull/42", "https://github.com/org/repo/pull/43"]' "$TEST_DIR/write-status.yaml"
-  run "$STAGEMAN" get-prs "$TEST_DIR/write-status.yaml"
+  run "$STATUSMAN" get-prs "$TEST_DIR/write-status.yaml"
   [ "$status" -eq 0 ]
   [ "$(echo "$output" | wc -l)" -eq 2 ]
 }
@@ -1395,20 +1395,20 @@ EOF
 @test "get-prs: returns empty for empty array" {
   make_write_fixture
   yq -i '.prs = []' "$TEST_DIR/write-status.yaml"
-  run "$STAGEMAN" get-prs "$TEST_DIR/write-status.yaml"
+  run "$STATUSMAN" get-prs "$TEST_DIR/write-status.yaml"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
 
 @test "get-prs: returns empty when key missing" {
   make_write_fixture
-  run "$STAGEMAN" get-prs "$TEST_DIR/write-status.yaml"
+  run "$STATUSMAN" get-prs "$TEST_DIR/write-status.yaml"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
 
 @test "get-prs: rejects nonexistent file" {
-  run "$STAGEMAN" get-prs "/nonexistent/path/.status.yaml"
+  run "$STATUSMAN" get-prs "/nonexistent/path/.status.yaml"
   [ "$status" -ne 0 ]
   [[ "$output" == *"Status file not found"* ]]
 }
@@ -1416,7 +1416,7 @@ EOF
 @test "add-issue: appends ID to empty issues array" {
   make_write_fixture
   yq -i '.issues = []' "$TEST_DIR/write-status.yaml"
-  run "$STAGEMAN" add-issue "$TEST_DIR/write-status.yaml" "DEV-123"
+  run "$STATUSMAN" add-issue "$TEST_DIR/write-status.yaml" "DEV-123"
   [ "$status" -eq 0 ]
   local result
   result=$(yq '.issues[0]' "$TEST_DIR/write-status.yaml")
@@ -1426,7 +1426,7 @@ EOF
 @test "add-issue: deduplicates existing ID" {
   make_write_fixture
   yq -i '.issues = ["DEV-123"]' "$TEST_DIR/write-status.yaml"
-  run "$STAGEMAN" add-issue "$TEST_DIR/write-status.yaml" "DEV-123"
+  run "$STATUSMAN" add-issue "$TEST_DIR/write-status.yaml" "DEV-123"
   [ "$status" -eq 0 ]
   local count
   count=$(yq '.issues | length' "$TEST_DIR/write-status.yaml")
@@ -1436,7 +1436,7 @@ EOF
 @test "add-issue: appends second ID" {
   make_write_fixture
   yq -i '.issues = ["DEV-123"]' "$TEST_DIR/write-status.yaml"
-  "$STAGEMAN" add-issue "$TEST_DIR/write-status.yaml" "DEV-456"
+  "$STATUSMAN" add-issue "$TEST_DIR/write-status.yaml" "DEV-456"
   local count
   count=$(yq '.issues | length' "$TEST_DIR/write-status.yaml")
   [ "$count" = "2" ]
@@ -1445,14 +1445,14 @@ EOF
 @test "add-issue: refreshes last_updated" {
   make_write_fixture
   yq -i '.issues = []' "$TEST_DIR/write-status.yaml"
-  "$STAGEMAN" add-issue "$TEST_DIR/write-status.yaml" "DEV-123"
+  "$STATUSMAN" add-issue "$TEST_DIR/write-status.yaml" "DEV-123"
   local ts
   ts=$(yq '.last_updated' "$TEST_DIR/write-status.yaml")
   [[ "$ts" != "2026-01-01T00:00:00+00:00" ]]
 }
 
 @test "add-issue: rejects nonexistent file" {
-  run "$STAGEMAN" add-issue "/nonexistent/path/.status.yaml" "DEV-123"
+  run "$STATUSMAN" add-issue "/nonexistent/path/.status.yaml" "DEV-123"
   [ "$status" -ne 0 ]
   [[ "$output" == *"Status file not found"* ]]
 }
@@ -1460,7 +1460,7 @@ EOF
 @test "get-issues: returns IDs one per line" {
   make_write_fixture
   yq -i '.issues = ["DEV-123", "DEV-456"]' "$TEST_DIR/write-status.yaml"
-  run "$STAGEMAN" get-issues "$TEST_DIR/write-status.yaml"
+  run "$STATUSMAN" get-issues "$TEST_DIR/write-status.yaml"
   [ "$status" -eq 0 ]
   [ "$(echo "$output" | wc -l)" -eq 2 ]
 }
@@ -1468,13 +1468,13 @@ EOF
 @test "get-issues: returns empty for empty array" {
   make_write_fixture
   yq -i '.issues = []' "$TEST_DIR/write-status.yaml"
-  run "$STAGEMAN" get-issues "$TEST_DIR/write-status.yaml"
+  run "$STATUSMAN" get-issues "$TEST_DIR/write-status.yaml"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
 
 @test "get-issues: rejects nonexistent file" {
-  run "$STAGEMAN" get-issues "/nonexistent/path/.status.yaml"
+  run "$STATUSMAN" get-issues "/nonexistent/path/.status.yaml"
   [ "$status" -ne 0 ]
   [[ "$output" == *"Status file not found"* ]]
 }
@@ -1493,7 +1493,7 @@ progress:
   review: pending
   hydrate: pending
 EOF
-  run "$STAGEMAN" current-stage "$TEST_DIR/ready-stage.yaml"
+  run "$STATUSMAN" current-stage "$TEST_DIR/ready-stage.yaml"
   [ "$status" -eq 0 ]
   [ "$output" = "spec" ]
 }
@@ -1508,14 +1508,14 @@ progress:
   review: pending
   hydrate: pending
 EOF
-  run "$STAGEMAN" display-stage "$TEST_DIR/display-ready.yaml"
+  run "$STATUSMAN" display-stage "$TEST_DIR/display-ready.yaml"
   [ "$status" -eq 0 ]
   [ "$output" = "spec:ready" ]
 }
 
 @test "advance: produces ready state in file" {
   make_write_fixture
-  "$STAGEMAN" advance "$TEST_DIR/write-status.yaml" "apply"
+  "$STATUSMAN" advance "$TEST_DIR/write-status.yaml" "apply"
   local result
   result=$(yq '.progress.apply' "$TEST_DIR/write-status.yaml")
   [ "$result" = "ready" ]
@@ -1524,11 +1524,11 @@ EOF
 @test "stage-metrics: advance is no-op for metrics (preserves active metrics)" {
   make_write_fixture
   # Start review to give it metrics
-  "$STAGEMAN" start "$TEST_DIR/write-status.yaml" "review" "fab-continue"
+  "$STATUSMAN" start "$TEST_DIR/write-status.yaml" "review" "fab-continue"
   local started_before
   started_before=$(yq '.stage_metrics.review.started_at' "$TEST_DIR/write-status.yaml")
   # Advance review to ready
-  "$STAGEMAN" advance "$TEST_DIR/write-status.yaml" "review"
+  "$STATUSMAN" advance "$TEST_DIR/write-status.yaml" "review"
   local started_after completed
   started_after=$(yq '.stage_metrics.review.started_at' "$TEST_DIR/write-status.yaml")
   completed=$(yq '.stage_metrics.review.completed_at' "$TEST_DIR/write-status.yaml")

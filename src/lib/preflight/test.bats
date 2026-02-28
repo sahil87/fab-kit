@@ -15,7 +15,7 @@ setup() {
 
   # Copy real scripts and schema
   cp "$PROJECT_ROOT/fab/.kit/scripts/lib/preflight.sh" "$fab/.kit/scripts/lib/"
-  cp "$PROJECT_ROOT/fab/.kit/scripts/lib/stageman.sh" "$fab/.kit/scripts/lib/"
+  cp "$PROJECT_ROOT/fab/.kit/scripts/lib/statusman.sh" "$fab/.kit/scripts/lib/"
   cp "$PROJECT_ROOT/fab/.kit/scripts/lib/changeman.sh" "$fab/.kit/scripts/lib/"
   cp "$PROJECT_ROOT/fab/.kit/schemas/workflow.yaml" "$fab/.kit/schemas/"
   chmod +x "$fab/.kit/scripts/lib/preflight.sh"

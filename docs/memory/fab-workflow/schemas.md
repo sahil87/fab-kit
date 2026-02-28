@@ -4,7 +4,7 @@
 
 ## Overview
 
-`fab/.kit/schemas/workflow.yaml` is the single source of truth for the Fab workflow: stages, states, transitions, and validation rules. All scripts and skills query this schema (via `stageman.sh`) rather than hardcoding workflow knowledge.
+`fab/.kit/schemas/workflow.yaml` is the single source of truth for the Fab workflow: stages, states, transitions, and validation rules. All scripts and skills query this schema (via `statusman.sh`) rather than hardcoding workflow knowledge.
 
 ## What workflow.yaml Defines
 
@@ -37,19 +37,19 @@
 
 ## Referencing from Scripts vs Skills
 
-**In bash scripts**: Invoke `stageman.sh` via CLI subprocess calls:
+**In bash scripts**: Invoke `statusman.sh` via CLI subprocess calls:
 ```bash
-STAGEMAN="$(dirname "$(readlink -f "$0")")/stageman.sh"
-for stage in $("$STAGEMAN" all-stages); do ...; done
+STATUSMAN="$(dirname "$(readlink -f "$0")")/statusman.sh"
+for stage in $("$STATUSMAN" all-stages); do ...; done
 ```
 
-**In skills (Claude prompts)**: Reference the schema directly or use bash scripts that call `stageman.sh`:
+**In skills (Claude prompts)**: Reference the schema directly or use bash scripts that call `statusman.sh`:
 ```markdown
 Run `fab/.kit/scripts/lib/preflight.sh` to get validated stage information.
-The script uses `stageman.sh` CLI subcommands internally.
+The script uses `statusman.sh` CLI subcommands internally.
 ```
 
-For the complete API reference, see `src/lib/stageman/README.md`.
+For the complete API reference, see `src/lib/statusman/README.md`.
 
 ## Design Principles
 
@@ -71,9 +71,9 @@ For the complete API reference, see `src/lib/stageman/README.md`.
 
 | Change | Date | Summary |
 |--------|------|---------|
-| 260215-lqm5-stageman-cli-only | 2026-02-15 | Updated script example from `source stageman.sh` to CLI subprocess pattern (`$STAGEMAN <subcommand>`) |
-| 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_preflight.sh` → `lib/preflight.sh` in skill example; updated `src/stageman/README.md` → `src/lib/stageman/README.md` |
+| 260215-lqm5-statusman-cli-only | 2026-02-15 | Updated script example from `source statusman.sh` to CLI subprocess pattern (`$STATUSMAN <subcommand>`) |
+| 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_preflight.sh` → `lib/preflight.sh` in skill example; updated `src/statusman/README.md` → `src/lib/statusman/README.md` |
 | 260213-jc0u-split-archive-hydrate | 2026-02-13 | Updated progression references: terminal stage from `archive` to `hydrate` |
-| 260226-6boq-event-driven-stageman | 2026-02-26 | Transitions are now event-keyed (event, from, to) instead of from→to with conditions. Five event commands: `start`, `advance`, `finish`, `reset`, `fail`. |
+| 260226-6boq-event-driven-statusman | 2026-02-26 | Transitions are now event-keyed (event, from, to) instead of from→to with conditions. Five event commands: `start`, `advance`, `finish`, `reset`, `fail`. |
 | 260226-i9av-add-ready-state-to-stages | 2026-02-26 | Added `ready` state (artifact exists, eligible for advancement). Removed unused `skipped` state. Updated transitions (`active→ready`, `ready→done`), progression (current stage includes `ready`), and validation (terminal states: `done` only). |
-| 260212-4tw0-migrate-scripts-stageman | 2026-02-12 | Moved from `fab/.kit/schemas/README.md`, trimmed stageman API duplication |
+| 260212-4tw0-migrate-scripts-statusman | 2026-02-12 | Moved from `fab/.kit/schemas/README.md`, trimmed statusman API duplication |

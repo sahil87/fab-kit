@@ -49,7 +49,7 @@ CHANGEMAN="path/to/changeman.sh"
 **Arguments:**
 - `--slug <slug>` (required) — Folder name suffix. Alphanumeric + hyphens, no leading/trailing hyphens.
 - `--change-id <4char>` (optional) — Explicit 4-char lowercase alphanumeric ID. Random if omitted.
-- `--log-args <description>` (optional) — Description logged via `stageman log-command`.
+- `--log-args <description>` (optional) — Description logged via `statusman log-command`.
 
 **Behavior:**
 1. Validates slug format (`^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$`)
@@ -60,8 +60,8 @@ CHANGEMAN="path/to/changeman.sh"
 6. Creates directory via `mkdir` (not `-p` — parent guaranteed by sync-workspace.sh)
 7. Detects `created_by`: `gh api user` → `git config user.name` → `"unknown"`
 8. Initializes `.status.yaml` from template via `sed`
-9. Calls `stageman start <file> intake fab-new`
-10. Optionally calls `stageman log-command` if `--log-args` provided
+9. Calls `statusman start <file> intake fab-new`
+10. Optionally calls `statusman log-command` if `--log-args` provided
 
 **Collision detection:**
 - Provided ID collision → fatal error with existing folder name
@@ -91,7 +91,7 @@ CHANGEMAN="path/to/changeman.sh"
 7. Renames folder via `mv`
 8. Updates `.status.yaml` `name` field via `sed`
 9. Updates `fab/current` if it points to the old folder name
-10. Calls `stageman log-command` with the new change directory
+10. Calls `statusman log-command` with the new change directory
 
 **Error cases:**
 - Missing `--folder` → error
@@ -132,7 +132,7 @@ Error messages are generic — callers add context-appropriate guidance.
 2. Writes folder name to `fab/current`
 3. Reads `config.yaml` via `yq` for `git.enabled` and `git.branch_prefix` (defaults: true, "")
 4. Git branch integration: checkout if exists, create if not. Non-fatal on failure.
-5. Derives current stage via `$STAGEMAN current-stage`
+5. Derives current stage via `$STATUSMAN current-stage`
 6. Outputs structured summary (name, stage, branch, next command)
 
 **Behavior (deactivation):**
@@ -153,7 +153,7 @@ Next: {suggested command}
 
 - Bash 4.0+
 - `yq` v4 (Mike Farah Go binary) — for config.yaml parsing in `switch`
-- `fab/.kit/scripts/lib/stageman.sh` on the same relative path
+- `fab/.kit/scripts/lib/statusman.sh` on the same relative path
 - `fab/.kit/templates/status.yaml` for template
 - `fab/changes/` directory must exist
 - GNU coreutils (sed, head, mkdir, date, tr)
