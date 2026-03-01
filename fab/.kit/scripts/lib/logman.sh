@@ -69,9 +69,14 @@ case "${1:-}" in
       # Explicit change: fail loudly if it doesn't resolve
       change_dir=$(resolve_change_dir "$change") || exit 1
     else
-      # No change arg: try fab/current, silently exit 0 on any failure
-      change_dir=$(resolve_change_dir "" 2>/dev/null) || exit 0
-      # Guard against stale fab/current pointing to nonexistent directory
+      # No change arg: read fab/current directly, silently exit 0 on any failure.
+      # Deliberately bypasses resolve.sh's single-change guess fallback —
+      # best-effort logging only fires when an explicit active change pointer exists.
+      current_file="$LIB_DIR/../../../current"
+      [ -f "$current_file" ] || exit 0
+      change_ref=$(tr -d '[:space:]' < "$current_file" 2>/dev/null || true)
+      [ -n "${change_ref:-}" ] || exit 0
+      change_dir=$(resolve_change_dir "$change_ref" 2>/dev/null) || exit 0
       [ -d "$change_dir" ] || exit 0
     fi
 

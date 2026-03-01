@@ -72,7 +72,7 @@ All internal paths resolve relative to the script's own location via `$(dirname 
 
 Skills that perform pre-flight checks (ff, apply, review, archive, continue, clarify) reference `lib/preflight.sh` instead of inline validation. On non-zero exit, the agent stops and surfaces the stderr message. On success, the agent uses the stdout YAML for change context. After preflight, skills log the command invocation via a direct `logman.sh command` call (per `_preamble.md` §2 step 4).
 
-Skills exempt from preflight: `init`, `switch`, `status`, `hydrate`, `help`, `new`. Exempt skills call `logman.sh command` directly in their own skill files for best-effort logging.
+Skills exempt from preflight: `setup`, `new`, `switch`, `status`, `discuss`, `help`. Exempt skills call `logman.sh command` directly in their own skill files for best-effort logging.
 
 ## Design Decisions
 

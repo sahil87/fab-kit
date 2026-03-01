@@ -103,12 +103,15 @@ teardown() {
 @test "command with cmd only and no fab/current exits 0 silently" {
   rm -f "$FAB_ROOT/current"
 
+  # Remove pre-existing history so we can assert no file is created
+  rm -f "$HISTORY"
+
   run bash "$LOGMAN" command "fab-setup"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 
-  # No history file should be created or modified
-  [ ! -f "$HISTORY" ] || [ "$(wc -l < "$HISTORY")" -eq 0 ] || true
+  # No history file should be created
+  [ ! -f "$HISTORY" ]
 }
 
 @test "command with cmd only and empty fab/current exits 0 silently" {
