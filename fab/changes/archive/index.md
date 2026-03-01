@@ -1,5 +1,6 @@
 # Archive Index
 
+- **260228-hqv5-update-specs-statusman-refs** — Updated 7 spec files to replace stale `stageman.sh` references with `statusman.sh`, aligning docs/specs/ with the script rename completed in PR #177.
 - **260228-wyhd-add-skipped-stage-state** — Added `skipped` as a terminal stage state with a `skip` event (`{pending,active}→skipped`), downstream cascade, and reset support, enabling intake-only changes and partial-pipeline workflows.
 - **260228-wqe2-bats-tests-resolve-logman** — Added comprehensive BATS test suites for `resolve.sh` and `logman.sh` to match the two-file convention (`test-simple.sh` + `test.bats`) used by all other kit script test directories.
 - **260228-9fg2-refactor-kit-scripts** — Refactored kit scripts into atomic responsibilities: extracted `resolve.sh` for canonical change resolution, renamed `stageman.sh` to `statusman.sh`, created `logman.sh` for append-only history logging, DRY'd up `calc-score.sh`, and folded manual logging into preflight `--driver` and statusman auto-logging.
