@@ -85,7 +85,7 @@ After extracting the new `.kit/` contents, `fab-upgrade.sh` SHALL re-run `fab-sy
 
 `src/scripts/fab-release.sh` SHALL package `fab/.kit/` into a `kit.tar.gz` archive, bump the VERSION file, commit the version change, and create a GitHub Release with `kit.tar.gz` as an attached asset.
 
-The script accepts a required bump type argument (`patch`, `minor`, or `major`) and an optional `--no-latest` flag. Arguments are position-independent — `fab-release.sh patch --no-latest` and `fab-release.sh --no-latest patch` are equivalent. Unknown flags produce an error.
+The script accepts a bump type argument (`patch`, `minor`, or `major`) that is required to perform a release, and an optional `--no-latest` flag. When invoked with no arguments, the script displays usage and exits successfully; when flags are provided without a bump type, it produces an error. Arguments are position-independent — `fab-release.sh patch --no-latest` and `fab-release.sh --no-latest patch` are equivalent. Unknown flags produce an error.
 
 The script pushes to the current branch (via `git branch --show-current`) rather than hardcoded `main`. On `main`, behavior is identical to before. On a release branch (e.g., `release/0.25`), commits and tags are pushed to that branch.
 

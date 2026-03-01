@@ -6,7 +6,7 @@
 
 ## Phase 1: Core Implementation
 
-- [x] T001 Rework argument parsing in `src/scripts/fab-release.sh` — replace the `case` on `$1` with a loop that extracts the bump type (required positional) and `--no-latest` flag, erroring on unknown flags
+- [x] T001 Rework argument parsing in `src/scripts/fab-release.sh` — replace the `case` on `$1` with a loop that extracts the bump type (required, position-independent) and `--no-latest` flag, erroring on unknown flags
 - [x] T002 Push to current branch in `src/scripts/fab-release.sh` — replace hardcoded `HEAD:main` with `HEAD:$(git branch --show-current)`
 - [x] T003 Add `--latest=false` to `gh release create` in `src/scripts/fab-release.sh` when `--no-latest` flag is set; add completion note
 

@@ -90,7 +90,7 @@
 
 ### Requirement: Argument parsing rework
 
-The release script SHALL parse `$1` as the bump type (required) and scan remaining arguments for `--no-latest`. The bump type validation (patch/minor/major) SHALL remain unchanged. Unknown flags SHALL produce an error.
+The release script SHALL identify the first non-flag argument as the bump type (required) and scan all arguments for `--no-latest`. The bump type validation (patch/minor/major) SHALL remain unchanged. Unknown flags SHALL produce an error.
 
 #### Scenario: Invalid flag
 - **GIVEN** the user runs `fab-release.sh patch --unknown`

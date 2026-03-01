@@ -9,7 +9,7 @@
 - [ ] CHK-002 Upgrade latest fallback: `fab-upgrade.sh` (no args) downloads latest release (unchanged behavior)
 - [ ] CHK-003 Release push to current branch: `fab-release.sh` pushes to `$(git branch --show-current)` instead of hardcoded `main`
 - [ ] CHK-004 Release `--no-latest` flag: `fab-release.sh patch --no-latest` passes `--latest=false` to `gh release create`
-- [ ] CHK-005 Argument parsing: bump type is required positional, `--no-latest` is optional flag, unknown flags error
+- [ ] CHK-005 Argument parsing: bump type is a required argument; `--no-latest` is an optional flag that may precede it; unknown flags error
 
 ## Behavioral Correctness
 - [ ] CHK-006 Release on main: behavior is identical to before (push to main, release marked latest)

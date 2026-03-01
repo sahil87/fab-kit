@@ -36,6 +36,12 @@ no_latest=false
 for arg in "$@"; do
   case "$arg" in
     patch|minor|major)
+      if [ -n "$bump_type" ]; then
+        echo "ERROR: Multiple bump types specified: '$bump_type' and '$arg'."
+        echo ""
+        usage
+        exit 1
+      fi
       bump_type="$arg"
       ;;
     --no-latest)
@@ -163,12 +169,17 @@ echo "Created kit.tar.gz ($(wc -c < "$repo_root/kit.tar.gz") bytes)"
 # Capture previous tag before committing
 previous_tag=$(git -C "$repo_root" describe --tags --abbrev=0 2>/dev/null || echo "")
 
+branch=$(git -C "$repo_root" branch --show-current)
+if [ -z "$branch" ]; then
+  echo "ERROR: Not on a branch (detached HEAD). Check out a branch before releasing."
+  exit 1
+fi
+
 echo "Committing VERSION bump..."
 
 git -C "$repo_root" add "$kit_dir/VERSION"
 git -C "$repo_root" commit -m "release: $tag"
 git -C "$repo_root" tag "$tag"
-branch=$(git -C "$repo_root" branch --show-current)
 git -C "$repo_root" push git@github.com:"$repo".git HEAD:"$branch" "$tag"
 
 echo "Creating GitHub Release $tag on $repo..."
