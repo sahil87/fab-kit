@@ -37,9 +37,14 @@ The existing `cp -r` distribution method SHALL continue to work. The bootstrap o
 
 `fab/.kit/scripts/fab-upgrade.sh` SHALL download the latest `kit.tar.gz` from GitHub Releases, extract it to replace the current `fab/.kit/` contents, display the version change, and re-run `fab-sync.sh` to repair directories and skill deployments.
 
+The script accepts an optional positional argument — a release tag (e.g., `v0.24.0`) — to download a specific version instead of latest. The tag is passed as-is to `gh release download "$tag"`, with no normalization or `v`-prefix stripping.
+
 **Scenarios**:
 - Update to a newer version — replaces `.kit/` contents, displays version change (e.g., "0.1.0 → 0.2.0"), re-runs `fab-sync.sh`, checks for version drift and prints `/fab-setup migrations` reminder if needed, preserves all files outside `.kit/`
-- Already up to date — informs user, no files modified
+- Update to a specific version (`fab-upgrade.sh v0.24.0`) — downloads and installs the exact tagged release; no version comparison or downgrade warning
+- Already up to date — informs user ("Already on the latest version"), no files modified
+- Already on the requested tag — informs user ("Already on v0.24.0 (0.24.0)"), no files modified
+- Tag not found — exits non-zero with error including the tag and a hint: `Check that the tag exists: gh release view $tag --repo $repo`
 - No network access — exits non-zero with error message, existing `.kit/` unchanged
 - `fab/.kit-migration-version` missing after upgrade — prints guidance to run `/fab-setup` then `/fab-setup migrations`
 - `fab/.kit-migration-version` behind new engine version — prints reminder to run `/fab-setup migrations` to apply migrations
@@ -80,15 +85,23 @@ After extracting the new `.kit/` contents, `fab-upgrade.sh` SHALL re-run `fab-sy
 
 `src/scripts/fab-release.sh` SHALL package `fab/.kit/` into a `kit.tar.gz` archive, bump the VERSION file, commit the version change, and create a GitHub Release with `kit.tar.gz` as an attached asset.
 
-The script accepts an optional argument specifying the bump type: `patch` (default), `minor`, or `major`.
+The script accepts a required bump type argument (`patch`, `minor`, or `major`) and an optional `--no-latest` flag. Arguments are position-independent — `fab-release.sh patch --no-latest` and `fab-release.sh --no-latest patch` are equivalent. Unknown flags produce an error.
+
+The script pushes to the current branch (via `git branch --show-current`) rather than hardcoded `main`. On `main`, behavior is identical to before. On a release branch (e.g., `release/0.25`), commits and tags are pushed to that branch.
+
+When `--no-latest` is passed, `gh release create` is invoked with `--latest=false`, preventing the release from becoming the "latest" release on GitHub. This enables backport releases for older version series without breaking `fab-upgrade.sh` (no args) for users on the current release line.
 
 After bumping VERSION, the script validates the migration chain: warns if no migration file targets the new version (reminder for release authors), and warns if overlapping migration ranges are detected. These are warnings only — they do not block the release.
 
 **Scenarios**:
-- Default patch release — bumps patch version (e.g., "0.1.0" → "0.1.1"), creates `kit.tar.gz`, commits VERSION bump, creates GitHub Release
+- Default patch release — bumps patch version (e.g., "0.1.0" → "0.1.1"), creates `kit.tar.gz`, commits VERSION bump, pushes to current branch, creates GitHub Release marked as latest
 - Minor release (`fab-release.sh minor`) — bumps minor version (e.g., "0.1.1" → "0.2.0")
 - Major release (`fab-release.sh major`) — bumps major version (e.g., "0.2.0" → "1.0.0")
+- Backport release (`fab-release.sh patch --no-latest`) — bumps version, pushes to current branch (not main), creates GitHub Release with `--latest=false`, prints "Note: This release was NOT marked as 'latest'."
+- Backport workflow — `git checkout -b release/0.25 v0.25.1`, cherry-pick fixes, `fab-release.sh patch --no-latest` bumps 0.25.1→0.25.2, pushes to `release/0.25`, tags `v0.25.2`
+- Missing bump type with flags (`fab-release.sh --no-latest`) — displays usage and exits non-zero
 - Invalid bump argument — exits with error message listing valid options
+- Unknown flag (`fab-release.sh patch --unknown`) — exits with error listing valid options
 - No git remote configured — exits with error
 - Dirty working tree — aborts with error directing user to commit or stash
 
@@ -112,6 +125,7 @@ The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its rol
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260301-08pa-version-pinned-upgrade-and-release | 2026-03-02 | Added version-pinned upgrade (`fab-upgrade.sh v0.24.0`) with tag-aware messaging. Added backport release support to `fab-release.sh`: push to current branch instead of hardcoded `main`, `--no-latest` flag for `gh release create --latest=false`, position-independent argument parsing. |
 | 260226-koj1-version-staleness-warning | 2026-02-26 | Added sync staleness detection (`fab/.kit-sync-version` stamp, preflight stderr warning). Renamed `fab/project/VERSION` → `fab/.kit-migration-version`. Updated preserved files list in upgrade section. |
 | 260224-v40o-wt-drop-prefix-and-dotworktrees | 2026-02-25 | wt package: dropped `wt/` branch prefix from exploratory worktrees (branch = worktree name directly). Switched worktree home directory from `<repo>-worktrees` to `<repo>.worktrees` (GitLens convention). Updated `wt-create` help text. No migration for existing worktrees. |
 | 260221-i0z6-move-env-packages-add-fab-pipeline | 2026-02-21 | `env-packages.sh` moved from `scripts/` to `scripts/lib/` — now sourced from `fab/.kit/scripts/lib/env-packages.sh` in both `scaffold/fragment-.envrc` and `src/packages/rc-init.sh` |

@@ -6,41 +6,61 @@ set -euo pipefail
 # Packages fab/.kit/ into kit.tar.gz, bumps VERSION, commits, and creates
 # a GitHub Release with the archive as an asset.
 #
-# Usage: fab-release.sh <patch|minor|major>
+# Usage: fab-release.sh <patch|minor|major> [--no-latest]
 #   patch — 0.1.0 → 0.1.1
 #   minor — 0.1.0 → 0.2.0
 #   major — 0.1.0 → 1.0.0
 #
+#   --no-latest — do NOT mark the release as "latest" on GitHub
+#                 (use for backport releases on older version series)
+#
 # Requires: gh CLI (https://cli.github.com/)
 
 usage() {
-  echo "Usage: fab-release.sh <patch|minor|major>"
+  echo "Usage: fab-release.sh <patch|minor|major> [--no-latest]"
   echo ""
-  echo "  patch — bump patch version (e.g. 0.1.0 → 0.1.1)"
-  echo "  minor — bump minor version (e.g. 0.1.0 → 0.2.0)"
-  echo "  major — bump major version (e.g. 0.1.0 → 1.0.0)"
+  echo "  patch       — bump patch version (e.g. 0.1.0 → 0.1.1)"
+  echo "  minor       — bump minor version (e.g. 0.1.0 → 0.2.0)"
+  echo "  major       — bump major version (e.g. 0.1.0 → 1.0.0)"
+  echo "  --no-latest — don't mark as \"latest\" (for backport releases)"
 }
 
 repo_root="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 kit_dir="$repo_root/fab/.kit"
 
-bump_type="${1:-}"
+# ── Parse arguments ──────────────────────────────────────────────────
 
-# ── Validate arguments ───────────────────────────────────────────────
+bump_type=""
+no_latest=false
 
-case "$bump_type" in
-  patch|minor|major) ;;
-  -h|--help|"")
-    usage
-    exit 0
-    ;;
-  *)
-    echo "ERROR: Invalid bump type '$bump_type'. Use: patch, minor, or major."
-    echo ""
-    usage
-    exit 1
-    ;;
-esac
+for arg in "$@"; do
+  case "$arg" in
+    patch|minor|major)
+      bump_type="$arg"
+      ;;
+    --no-latest)
+      no_latest=true
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "ERROR: Unknown argument '$arg'. Use: patch, minor, or major. Optional: --no-latest."
+      echo ""
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+if [ -z "$bump_type" ]; then
+  usage
+  if [ $# -gt 0 ]; then
+    exit 1  # Had flags but no bump type — that's an error
+  fi
+  exit 0
+fi
 
 # ── Pre-flight ───────────────────────────────────────────────────────
 
@@ -148,7 +168,8 @@ echo "Committing VERSION bump..."
 git -C "$repo_root" add "$kit_dir/VERSION"
 git -C "$repo_root" commit -m "release: $tag"
 git -C "$repo_root" tag "$tag"
-git -C "$repo_root" push git@github.com:"$repo".git HEAD:main "$tag"
+branch=$(git -C "$repo_root" branch --show-current)
+git -C "$repo_root" push git@github.com:"$repo".git HEAD:"$branch" "$tag"
 
 echo "Creating GitHub Release $tag on $repo..."
 
@@ -166,10 +187,16 @@ else
 Initial release of Fab Kit."
 fi
 
+latest_flag=()
+if [ "$no_latest" = true ]; then
+  latest_flag=(--latest=false)
+fi
+
 gh release create "$tag" \
   --repo "$repo" \
   --title "Fab Kit $tag" \
   --notes "$notes" \
+  "${latest_flag[@]}" \
   "$repo_root/kit.tar.gz"
 
 # Clean up the tar.gz from the repo root
@@ -180,3 +207,8 @@ echo "Release complete: $tag"
 echo "  Tag:     $tag"
 echo "  Version: $new_version"
 echo "  Asset:   kit.tar.gz"
+
+if [ "$no_latest" = true ]; then
+  echo ""
+  echo "Note: This release was NOT marked as \"latest\"."
+fi
