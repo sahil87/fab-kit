@@ -1,0 +1,1 @@
+{"ts":"2026-03-02T01:40:21+05:30","event":"command","cmd":"fab-new","args":"Extract command logging from preflight.sh into direct logman.sh calls"}
