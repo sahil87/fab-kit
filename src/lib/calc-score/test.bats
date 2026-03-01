@@ -504,8 +504,8 @@ EOF
 # appropriate Assumptions tables.
 
 # Helper: create a gate test fixture with spec.md containing N certain rows.
-# With change_type=fix and expected_min=4 for spec stage:
-#   N certain → score = 5.0 * min(1.0, N/4)
+# Score = 5.0 * min(1.0, N / expected_min) for all-certain rows.
+# expected_min values are read from calc-score.sh config section.
 make_gate_fixture() {
   local dir="$1"
   local change_type="$2"
@@ -538,21 +538,21 @@ make_gate_fixture() {
 
 | # | Grade | Decision | Rationale |
 |---|-------|----------|-----------|
-${rows}EOF
+${rows}
+EOF
 }
 
-# fix: gate threshold=2.0, expected_min=4
-# 4 certain → score = 5.0 * (4/4) = 5.0, passes 2.0
+# fix: gate threshold=2.0, enough certain to pass
 @test "gate: fix passes with high score (threshold 2.0)" {
   local d="$TEST_DIR/gate-fix-pass"
   mkdir -p "$d"
-  make_gate_fixture "$d" "fix" 4
+  make_gate_fixture "$d" "fix" 5
   run "$CALC_SCORE" --check-gate "$d"
   [[ "$output" == *"gate: pass"* ]]
   [[ "$output" == *"threshold: 2.0"* ]]
 }
 
-# fix: 1 certain → score = 5.0 * (1/4) = 1.2, fails 2.0
+# fix: 1 certain, low cover → fails 2.0
 @test "gate: fix fails with low score (threshold 2.0)" {
   local d="$TEST_DIR/gate-fix-fail"
   mkdir -p "$d"
@@ -561,17 +561,16 @@ ${rows}EOF
   [[ "$output" == *"gate: fail"* ]]
 }
 
-# feat: gate threshold=3.0, expected_min=6
-# 6 certain → score = 5.0 * (6/6) = 5.0, passes 3.0
+# feat: gate threshold=3.0, enough certain to pass
 @test "gate: feat passes with high score (threshold 3.0)" {
   local d="$TEST_DIR/gate-feat-pass"
   mkdir -p "$d"
-  make_gate_fixture "$d" "feat" 6
+  make_gate_fixture "$d" "feat" 7
   run "$CALC_SCORE" --check-gate "$d"
   [[ "$output" == *"gate: pass"* ]]
 }
 
-# feat: 2 certain → score = 5.0 * (2/6) = 1.7, fails 3.0
+# feat: 2 certain, low cover → fails 3.0
 @test "gate: feat fails with low score (threshold 3.0)" {
   local d="$TEST_DIR/gate-feat-fail"
   mkdir -p "$d"
@@ -580,19 +579,18 @@ ${rows}EOF
   [[ "$output" == *"gate: fail"* ]]
 }
 
-# refactor: gate threshold=3.0, expected_min=5
-# 5 certain → score = 5.0 * (5/5) = 5.0, passes 3.0
+# refactor: gate threshold=3.0, enough certain to pass
 @test "gate: refactor uses 3.0 threshold" {
   local d="$TEST_DIR/gate-refactor"
   mkdir -p "$d"
-  make_gate_fixture "$d" "refactor" 5
+  make_gate_fixture "$d" "refactor" 6
   run "$CALC_SCORE" --check-gate "$d"
   [[ "$output" == *"gate: pass"* ]]
   [[ "$output" == *"threshold: 3.0"* ]]
 }
 
-# Missing change_type defaults to feat (threshold 3.0, expected_min=6)
-# 2 certain → score = 5.0 * (2/6) = 1.7, fails 3.0
+# Missing change_type defaults to feat (threshold 3.0)
+# 2 certain, low cover → fails 3.0
 @test "gate: missing change_type defaults to feat (threshold 3.0)" {
   local d="$TEST_DIR/gate-no-type"
   mkdir -p "$d"

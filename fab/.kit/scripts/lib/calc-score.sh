@@ -17,17 +17,44 @@ STATUSMAN="$LIB_DIR/statusman.sh"
 LOGMAN="$LIB_DIR/logman.sh"
 RESOLVE="$LIB_DIR/resolve.sh"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Tunable Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Penalty weights per decision grade (subtracted from ceiling of 5.0).
+# Formula: base = max(0, 5.0 - W_CERTAIN*certain - W_CONFIDENT*confident
+#                                - W_TENTATIVE*tentative)
+# Note: when unresolved > 0, score is forced to 0.0 regardless of weights.
+W_CERTAIN=0.0
+W_CONFIDENT=0.3
+W_TENTATIVE=1.0
+W_UNRESOLVED=5.0
+
+# Expected minimum decisions by {stage, type}.
+# Controls the coverage factor: cover = min(1.0, total_decisions / expected_min)
+EXPECTED_MIN_INTAKE_FEAT=5
+EXPECTED_MIN_INTAKE_REFACTOR=4
+EXPECTED_MIN_INTAKE_FIX=3
+EXPECTED_MIN_INTAKE_DEFAULT=2
+
+EXPECTED_MIN_SPEC_FEAT=7
+EXPECTED_MIN_SPEC_REFACTOR=6
+EXPECTED_MIN_SPEC_FIX=5
+EXPECTED_MIN_SPEC_DEFAULT=3
+
 # --- Expected minimum decisions by stage and change_type ---
 get_expected_min() {
   local stage="$1" change_type="$2"
   case "$stage" in
     intake)
       case "$change_type" in
-        fix) echo 2 ;; feat) echo 4 ;; refactor) echo 3 ;; *) echo 2 ;;
+        fix) echo "$EXPECTED_MIN_INTAKE_FIX" ;; feat) echo "$EXPECTED_MIN_INTAKE_FEAT" ;;
+        refactor) echo "$EXPECTED_MIN_INTAKE_REFACTOR" ;; *) echo "$EXPECTED_MIN_INTAKE_DEFAULT" ;;
       esac ;;
     spec|*)
       case "$change_type" in
-        fix) echo 4 ;; feat) echo 6 ;; refactor) echo 5 ;; *) echo 3 ;;
+        fix) echo "$EXPECTED_MIN_SPEC_FIX" ;; feat) echo "$EXPECTED_MIN_SPEC_FEAT" ;;
+        refactor) echo "$EXPECTED_MIN_SPEC_REFACTOR" ;; *) echo "$EXPECTED_MIN_SPEC_DEFAULT" ;;
       esac ;;
   esac
 }
@@ -142,18 +169,19 @@ count_grades() {
   echo "$g_certain $g_confident $g_tentative $g_unresolved $has_fuzzy $dim_count $sum_s $sum_r $sum_a $sum_d"
 }
 
-# compute_score <confident> <tentative> <unresolved> <total> <expected_min>
+# compute_score <certain> <confident> <tentative> <unresolved> <total> <expected_min>
 # Compute confidence score. Outputs score on stdout.
 compute_score() {
-  local confident="$1" tentative="$2" unresolved="$3" total="$4" expected_min="$5"
+  local certain="$1" confident="$2" tentative="$3" unresolved="$4" total="$5" expected_min="$6"
 
   if [ "$unresolved" -gt 0 ]; then
     echo "0.0"
   else
-    awk -v confident="$confident" -v tentative="$tentative" \
+    awk -v certain="$certain" -v confident="$confident" -v tentative="$tentative" \
         -v total="$total" -v exp_min="$expected_min" \
+        -v wCe="$W_CERTAIN" -v wCo="$W_CONFIDENT" -v wT="$W_TENTATIVE" \
       "BEGIN {
-        base = 5.0 - 0.3 * confident - 1.0 * tentative
+        base = 5.0 - wCe * certain - wCo * confident - wT * tentative
         if (base < 0.0) base = 0.0
         if (exp_min > 0) cover = total / exp_min; else cover = 1.0
         if (cover > 1.0) cover = 1.0
@@ -234,7 +262,7 @@ if [ "$CHECK_GATE" = true ]; then
   # Count grades via shared helper
   read -r g_certain g_confident g_tentative g_unresolved _ _ _ _ _ _ <<< "$(count_grades "$score_file")"
   g_total=$((g_certain + g_confident + g_tentative + g_unresolved))
-  score=$(compute_score "$g_confident" "$g_tentative" "$g_unresolved" "$g_total" "$expected_min")
+  score=$(compute_score "$g_certain" "$g_confident" "$g_tentative" "$g_unresolved" "$g_total" "$expected_min")
 
   # Compare score >= threshold
   passes=$(awk "BEGIN { print ($score >= $threshold) ? \"pass\" : \"fail\" }")
@@ -297,7 +325,7 @@ if [ -f "$status_file" ]; then
 fi
 
 # Compute score via shared helper
-score=$(compute_score "$table_confident" "$table_tentative" "$table_unresolved" "$total_decisions" "$expected_min")
+score=$(compute_score "$table_certain" "$table_confident" "$table_tentative" "$table_unresolved" "$total_decisions" "$expected_min")
 
 # Compute delta
 delta=$(awk "BEGIN {
