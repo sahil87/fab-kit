@@ -59,6 +59,16 @@ Run `bash fab/.kit/scripts/lib/changeman.sh switch --blank`. Display changeman's
 
 The skill displays changeman's stdout directly.
 
+### Command Logging
+
+After a successful switch (not `--blank`), log the command invocation:
+
+```bash
+bash fab/.kit/scripts/lib/logman.sh command "fab-switch" 2>/dev/null || true
+```
+
+This is best-effort — logman resolves the active change via `fab/current` (just written by changeman). Failures are silently ignored.
+
 ### Hint Line
 
 After displaying changeman's output, append (unless the operation was `--blank`):

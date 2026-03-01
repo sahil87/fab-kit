@@ -314,7 +314,7 @@ cmd_new() {
   "$STATUSMAN" start "$status_file" intake fab-new
 
   if [ -n "$log_args" ]; then
-    "$LOGMAN" command "$folder_name" "fab-new" "$log_args"
+    "$LOGMAN" command "fab-new" "$folder_name" "$log_args"
   fi
 
   # Output: folder name only (one line to stdout)
@@ -402,7 +402,7 @@ cmd_rename() {
   fi
 
   # Log the rename
-  "$LOGMAN" command "$new_name" "changeman-rename" "--folder $folder --slug $slug"
+  "$LOGMAN" command "changeman-rename" "$new_name" "--folder $folder --slug $slug"
 
   # Output: new folder name
   echo "$new_name"

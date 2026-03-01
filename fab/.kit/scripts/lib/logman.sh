@@ -5,7 +5,7 @@
 # No reads, no .status.yaml touches. Side-effect: appends one JSON line.
 #
 # Usage:
-#   logman.sh command <change> <cmd> [args]
+#   logman.sh command <cmd> [change] [args]
 #   logman.sh confidence <change> <score> <delta> <trigger>
 #   logman.sh review <change> <result> [rework]
 #   logman.sh --help
@@ -20,21 +20,23 @@ show_help() {
 logman.sh - History Logger (append-only)
 
 USAGE:
-  logman.sh command <change> <cmd> [args]
+  logman.sh command <cmd> [change] [args]
   logman.sh confidence <change> <score> <delta> <trigger>
   logman.sh review <change> <result> [rework]
   logman.sh --help
 
 SUBCOMMANDS:
-  command     Log a skill invocation
+  command     Log a skill invocation (change optional — resolves via fab/current)
   confidence  Log a confidence score change
   review      Log a review outcome
 
 ARGS:
+  <cmd>     Skill or command name (always required for command subcommand)
   <change>  Change reference (any form accepted by resolve.sh)
 
 EXAMPLES:
-  logman.sh command 9fg2 "fab-continue" "spec"
+  logman.sh command "fab-continue" 9fg2 "spec"
+  logman.sh command "fab-discuss"
   logman.sh confidence 9fg2 4.1 "+0.5" "calc-score"
   logman.sh review 9fg2 "passed"
   logman.sh review 9fg2 "failed" "fix-code"
@@ -54,13 +56,25 @@ case "${1:-}" in
     show_help
     ;;
   command)
-    if [ $# -lt 3 ] || [ $# -gt 4 ]; then
-      echo "Usage: logman.sh command <change> <cmd> [args]" >&2
+    if [ $# -lt 2 ] || [ $# -gt 4 ]; then
+      echo "Usage: logman.sh command <cmd> [change] [args]" >&2
       exit 1
     fi
-    change_dir=$(resolve_change_dir "$2") || exit 1
-    cmd="$3"
+    cmd="$2"
+    change="${3:-}"
     args="${4:-}"
+
+    # Resolve change directory — behavior depends on whether change was provided
+    if [ -n "$change" ]; then
+      # Explicit change: fail loudly if it doesn't resolve
+      change_dir=$(resolve_change_dir "$change") || exit 1
+    else
+      # No change arg: try fab/current, silently exit 0 on any failure
+      change_dir=$(resolve_change_dir "" 2>/dev/null) || exit 0
+      # Guard against stale fab/current pointing to nonexistent directory
+      [ -d "$change_dir" ] || exit 0
+    fi
+
     now=$(date -Iseconds)
 
     json="{\"ts\":\"${now}\",\"event\":\"command\",\"cmd\":\"${cmd}\""

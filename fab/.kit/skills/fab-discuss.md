@@ -43,6 +43,18 @@ After loading the always-load layer, check for an active change:
 
 ---
 
+## Command Logging
+
+After context loading, log the command invocation:
+
+```bash
+bash fab/.kit/scripts/lib/logman.sh command "fab-discuss" 2>/dev/null || true
+```
+
+This is best-effort — logman resolves the active change via `fab/current` if one exists. Failures are silently ignored.
+
+---
+
 ## Behavior
 
 1. Read all 7 always-load files (skip optional files gracefully)

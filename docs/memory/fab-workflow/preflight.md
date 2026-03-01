@@ -4,7 +4,7 @@
 
 ## Overview
 
-The preflight script (`fab/.kit/scripts/lib/preflight.sh`) validates the active change's state and outputs structured YAML for agent consumption. It consolidates repeated validation logic from individual skills into a single reusable script.
+The preflight script (`fab/.kit/scripts/lib/preflight.sh`) validates the active change's state and outputs structured YAML for agent consumption. It consolidates repeated validation logic from individual skills into a single reusable script. Preflight is purely validation + structured output — it has no logging side-effects.
 
 ## Requirements
 
@@ -70,9 +70,9 @@ All internal paths resolve relative to the script's own location via `$(dirname 
 
 ### Skill Integration
 
-Skills that perform pre-flight checks (ff, apply, review, archive, continue, clarify) reference `lib/preflight.sh` instead of inline validation. On non-zero exit, the agent stops and surfaces the stderr message. On success, the agent uses the stdout YAML for change context.
+Skills that perform pre-flight checks (ff, apply, review, archive, continue, clarify) reference `lib/preflight.sh` instead of inline validation. On non-zero exit, the agent stops and surfaces the stderr message. On success, the agent uses the stdout YAML for change context. After preflight, skills log the command invocation via a direct `logman.sh command` call (per `_preamble.md` §2 step 4).
 
-Skills exempt from preflight: `init`, `switch`, `status`, `hydrate`, `help`, `new`.
+Skills exempt from preflight: `init`, `switch`, `status`, `hydrate`, `help`, `new`. Exempt skills call `logman.sh command` directly in their own skill files for best-effort logging.
 
 ## Design Decisions
 
@@ -98,6 +98,7 @@ Skills exempt from preflight: `init`, `switch`, `status`, `hydrate`, `help`, `ne
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260302-9fnn-extract-logman-from-preflight | 2026-03-02 | Removed `--driver` flag, `LOGMAN` variable, and logman call from preflight — now purely validation + YAML output. Command logging moved to direct `logman.sh command` calls from skills (via `_preamble.md` §2 step 4 for preflight-calling skills, per-skill instructions for exempt skills). Updated Skill Integration section. |
 | 260226-koj1-version-staleness-warning | 2026-02-26 | Added sync staleness check (step 1b) — non-blocking stderr warning when `fab/.kit-sync-version` mismatches `fab/.kit/VERSION`. Runs after init check, before change resolution. |
 | 260218-95xn-split-stage-display-from-routing | 2026-02-18 | Added `display_stage` and `display_state` fields to YAML output via `$STATUSMAN display-stage`. Documented routing vs display stage distinction in Structured YAML Output and Accessor-Based Architecture sections. |
 | 260216-oinh-DEV-1045-fold-resolve-into-changeman | 2026-02-17 | Replaced `source resolve-change.sh` / `$RESOLVED_CHANGE_NAME` with `$CHANGEMAN resolve` CLI subprocess call. Updated all references from resolve-change.sh to changeman.sh resolve. Rewrote "Shared Change Resolution Library" → "Change Resolution via changeman CLI" design decision. Updated No External Dependencies section. |

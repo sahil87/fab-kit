@@ -49,7 +49,7 @@ Run `lib/changeman.sh new` with appropriate flags:
 - `--change-id <4char>` — only if a backlog ID was detected in Step 0 (the 4-char backlog ID becomes the change ID)
 - `--log-args <description>` — the original description text
 
-Capture the folder name from stdout. The script handles date generation, random ID generation (if no `--change-id`), collision detection, directory creation, `created_by` detection, `.status.yaml` initialization, and `statusman.sh` integration.
+Capture the folder name from stdout. The script handles date generation, random ID generation (if no `--change-id`), collision detection, directory creation, `created_by` detection, `.status.yaml` initialization, `statusman.sh` integration, and command logging via logman (when `--log-args` is provided).
 
 If a Linear ticket was detected in Step 0, record the issue ID via statusman:
 `fab/.kit/scripts/lib/statusman.sh add-issue fab/changes/{name}/.status.yaml DEV-988` (using the actual detected ID).

@@ -1,1 +1,3 @@
 {"ts":"2026-03-02T01:40:21+05:30","event":"command","cmd":"fab-new","args":"Extract command logging from preflight.sh into direct logman.sh calls"}
+{"ts":"2026-03-02T01:52:17+05:30","event":"confidence","score":4.1,"delta":"+4.1","trigger":"calc-score"}
+{"ts":"2026-03-02T02:07:33+05:30","event":"review","result":"passed"}

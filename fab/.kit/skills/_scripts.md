@@ -32,7 +32,7 @@ calc-score.sh  ← confidence scoring from Assumptions tables
 preflight.sh   ← validation entry point (calls all above)
 ```
 
-**Call graph**: `resolve.sh` is called by every other script. `logman.sh` is called as a side effect by `statusman.sh` (review auto-log), `calc-score.sh` (confidence log), `preflight.sh` (command log via `--driver`), and `changeman.sh` (new/rename log). Skills never call `logman.sh` directly.
+**Call graph**: `resolve.sh` is called by every other script. `logman.sh` is called by `statusman.sh` (review auto-log), `calc-score.sh` (confidence log), `changeman.sh` (new/rename log), and skills (command log directly via `_preamble.md` §2 or per-skill instructions). Skills call `logman.sh command` directly for command invocation logging.
 
 ---
 
@@ -122,19 +122,22 @@ changeman.sh <subcommand> [flags...]
 
 ## logman.sh
 
-History Logger — append-only JSON logging to `.history.jsonl`. Never called directly by skills.
+History Logger — append-only JSON logging to `.history.jsonl`. Skills call `logman.sh command` directly for command invocation logging.
 
 ```
-logman.sh command <change> <cmd> [args]
+logman.sh command <cmd> [change] [args]
 logman.sh confidence <change> <score> <delta> <trigger>
 logman.sh review <change> <result> [rework]
 ```
 
-**Callers** (auto-triggered, not manual):
+The `command` subcommand accepts `<cmd>` (skill name) as the first argument. `[change]` is optional — when omitted, logman resolves the active change via `fab/current`. If resolution fails (no `fab/current`, empty file, stale pointer), logman exits 0 silently. When `[change]` IS provided and doesn't resolve, logman exits 1 with an error.
+
+**Callers**:
 
 | Caller | Trigger | Logman call |
 |--------|---------|-------------|
-| `preflight.sh --driver <skill>` | Skill invocation | `logman.sh command` |
+| Skills (via `_preamble.md` §2) | Skill invocation (preflight-calling skills) | `logman.sh command "<skill>" "<change>"` |
+| Skills (per-skill instructions) | Skill invocation (exempt skills) | `logman.sh command "<skill>"` |
 | `statusman.sh finish review` | Review pass | `logman.sh review "passed"` |
 | `statusman.sh fail review` | Review fail | `logman.sh review "failed"` |
 | `calc-score.sh` | Score computation | `logman.sh confidence` |
@@ -164,13 +167,12 @@ calc-score.sh [--check-gate] [--stage <stage>] <change>
 
 ## preflight.sh
 
-Pre-flight validator — validates project state and outputs structured YAML.
+Pre-flight validator — validates project state and outputs structured YAML. Purely validation + structured output — no logging side-effects.
 
 ```
-preflight.sh [--driver <skill-name>] [<change-name>]
+preflight.sh [<change-name>]
 ```
 
-- `--driver <skill-name>`: Auto-logs command invocation via `logman.sh command` after validation succeeds. Replaces manual `log-command` calls in skills.
 - `<change-name>`: Optional change override (resolved via changeman → resolve.sh).
 
 Validates: config.yaml exists, constitution.md exists, active change resolved, `.status.yaml` exists. Outputs YAML with `name`, `change_dir`, `stage`, `progress`, `checklist`, `confidence` fields. Non-zero exit on failure with error message on stderr.

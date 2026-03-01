@@ -34,22 +34,6 @@ fi
 # CLI entry points (subprocess calls, not sourced)
 STATUSMAN="$scripts_dir/lib/statusman.sh"
 CHANGEMAN="$scripts_dir/lib/changeman.sh"
-LOGMAN="$scripts_dir/lib/logman.sh"
-
-# Parse --driver flag
-driver=""
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --driver)
-      [ $# -lt 2 ] && { echo "ERROR: --driver requires a skill name" >&2; exit 1; }
-      driver="$2"
-      shift 2
-      ;;
-    *)
-      break
-      ;;
-  esac
-done
 
 # 1. Project initialization validation
 if [ ! -f "$fab_root/project/config.yaml" ] || [ ! -f "$fab_root/project/constitution.md" ]; then
@@ -102,11 +86,6 @@ fi
 if ! "$STATUSMAN" validate-status-file "$status_file"; then
   echo "Status file validation failed for \"$name\". Fix .status.yaml or run /fab-new." >&2
   exit 1
-fi
-
-# 6. Auto-log command invocation via logman (if --driver specified)
-if [ -n "$driver" ]; then
-  "$LOGMAN" command "$name" "$driver" 2>/dev/null || true
 fi
 
 # --- All validations passed — emit structured YAML to stdout ---

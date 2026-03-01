@@ -44,6 +44,16 @@ Before doing anything else, verify the kit exists:
 | `validate` | Output redirect message and STOP |
 | *(anything else)* | Output unknown subcommand message and STOP |
 
+### Command Logging
+
+After the pre-flight check passes, log the command invocation:
+
+```bash
+bash fab/.kit/scripts/lib/logman.sh command "fab-setup" 2>/dev/null || true
+```
+
+This is best-effort — logman resolves the active change via `fab/current` if one exists. Failures are silently ignored.
+
 ---
 
 ## Bootstrap Behavior
