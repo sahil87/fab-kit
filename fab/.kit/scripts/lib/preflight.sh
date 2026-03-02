@@ -10,19 +10,20 @@ kit_dir="$fab_root/.kit"
 if [ -f "$kit_dir/kit.conf" ]; then
   _build_type=$(grep -E '^build-type=' "$kit_dir/kit.conf" | cut -d= -f2 | tr -d '[:space:]')
   if [ "$_build_type" = "test" ]; then
-    cat >&2 <<'OOPS'
+    _repo=$(grep -E '^repo=' "$kit_dir/kit.conf" | cut -d= -f2 | tr -d '[:space:]')
+    cat >&2 <<OOPS
 
-  ╔══════════════════════════════════════════════════╗
-  ║    ** THIS IS THE TEST VERSION OF FAB-KIT **     ║
-  ║                                                  ║
-  ║  The first rule of test builds:                  ║
-  ║  you do not ship test builds.                    ║
-  ║                                                  ║
-  ║  I am the all-singing, all-dancing               ║
-  ║  crap of the CI pipeline.                        ║
-  ║                                                  ║
-  ║  The real one: github.com/wvrdz/fab-kit          ║
-  ╚══════════════════════════════════════════════════╝
+  ╔══════════════════════════════════════════════════════════╗
+  ║        ** THIS IS THE TEST VERSION OF FAB-KIT **         ║
+  ║                                                          ║
+  ║  The first rule of test builds:                          ║
+  ║  you do not ship test builds.                            ║
+  ║                                                          ║
+  ║  I am the all-singing, all-dancing                       ║
+  ║  crap of the CI pipeline.                                ║
+  ║                                                          ║
+  ║  The real one: github.com/$(printf "%-26s" "$_repo")     ║
+  ╚══════════════════════════════════════════════════════════╝
 
 OOPS
     exit 1

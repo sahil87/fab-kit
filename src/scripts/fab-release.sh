@@ -76,7 +76,7 @@ if ! command -v gh &>/dev/null; then
   exit 1
 fi
 
-repo="wvrdz/fab-kit"
+repo=$(grep -E '^repo=' "$kit_dir/kit.conf" | cut -d= -f2 | tr -d '[:space:]')
 
 # Check clean working tree
 if [ -n "$(git -C "$repo_root" status --porcelain)" ]; then

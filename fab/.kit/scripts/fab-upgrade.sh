@@ -35,7 +35,7 @@ echo "Current version: $current_version"
 
 # ── Determine repo ───────────────────────────────────────────────────
 
-repo="wvrdz/fab-kit"
+repo=$(grep -E '^repo=' "$kit_dir/kit.conf" | cut -d= -f2 | tr -d '[:space:]')
 tag="${1:-}"
 
 # ── Download ─────────────────────────────────────────────────────────

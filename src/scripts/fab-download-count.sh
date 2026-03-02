@@ -11,7 +11,8 @@ set -euo pipefail
 #
 # Requires: gh CLI (https://cli.github.com/)
 
-repo="wvrdz/fab-kit"
+repo_root="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+repo=$(grep -E '^repo=' "$repo_root/fab/.kit/kit.conf" | cut -d= -f2 | tr -d '[:space:]')
 
 if ! command -v gh &>/dev/null; then
   echo "ERROR: gh CLI not found. Install it from https://cli.github.com/"
