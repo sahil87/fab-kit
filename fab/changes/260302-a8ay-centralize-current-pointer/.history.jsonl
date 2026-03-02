@@ -1,0 +1,1 @@
+{"ts":"2026-03-02T16:09:26+05:30","event":"command","cmd":"fab-new","args":"Change fab/current to two-line format (ID + folder name), centralize all access through resolve.sh/changeman.sh"}
