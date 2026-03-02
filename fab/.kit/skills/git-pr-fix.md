@@ -17,10 +17,11 @@ Wait for GitHub Copilot review comments on the current PR, triage them, and fix 
 1. Verify `gh` is available: `command -v gh`
    - If missing → print `gh CLI not found.` and STOP
 2. Get current branch: `git branch --show-current`
-3. Look up PR: `gh pr view --json number,url 2>/dev/null`
-4. If no PR exists → print `No PR found on this branch.` and STOP
-5. Capture `{number}` and `{url}` from the response
-6. Get owner/repo: `gh repo view --json nameWithOwner -q '.nameWithOwner'`
+3. Look up PR with `gh pr view --json number,url`, capturing its exit code and any stderr output.
+   - If the command fails with a "no pull requests found" error → print `No PR found on this branch.` and STOP.
+   - If the command fails for any other reason → print the `gh` error output and STOP.
+4. If the command succeeds, capture `{number}` and `{url}` from the response.
+5. Get owner/repo: `gh repo view --json nameWithOwner -q '.nameWithOwner'`
 
 ### Step 2: Wait for Copilot Review
 
@@ -71,7 +72,7 @@ After all actionable comments are processed:
 3. Stage only the specific modified files: `git add {file1} {file2} ...` (NOT `git add -A`)
 4. Commit: `git commit -m "fix: address copilot review feedback"`
 5. Push: `git push`
-6. If commit or push fails → print the error and STOP (no partial state)
+6. If commit or push fails → run `git reset` to clear any staged changes, then print the error and STOP (no partial state)
 
 Print: `✓ Fixed {N} copilot comment(s) across {M} file(s)`
 

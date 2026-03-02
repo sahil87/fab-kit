@@ -16,11 +16,17 @@ checklist:
   completed: 26
   total: 26
 confidence:
-  certain: 0
-  confident: 0
+  certain: 7
+  confident: 3
   tentative: 0
   unresolved: 0
-  score: 0.0
+  score: 4.1
+  fuzzy: true
+  dimensions:
+    signal: 88.5
+    reversibility: 89.0
+    competence: 86.0
+    disambiguation: 88.5
 stage_metrics:
   intake: {started_at: "2026-03-03T01:33:33+05:30", driver: fab-new, iterations: 1, completed_at: "2026-03-03T01:39:22+05:30"}
   spec: {started_at: "2026-03-03T01:39:23+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-03T01:40:17+05:30"}
@@ -30,4 +36,4 @@ stage_metrics:
   hydrate: {started_at: "2026-03-03T01:45:17+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-03T01:46:16+05:30"}
 prs:
   - https://github.com/wvrdz/fab-kit/pull/192
-last_updated: "2026-03-03T02:02:06+05:30"
+last_updated: 2026-03-03T02:06:57+05:30

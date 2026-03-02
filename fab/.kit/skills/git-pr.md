@@ -260,10 +260,10 @@ Shipped.
 
 After printing "Shipped.", execute `/git-pr-fix` behavior inline with **wait mode** enabled (the PR was just created or just confirmed — the Copilot review may not have arrived yet).
 
-1. Skip Step 1 of `/git-pr-fix` (PR is already resolved from this skill's earlier steps)
-2. Execute Step 2 of `/git-pr-fix` in **wait mode**: poll `gh api repos/{owner}/{repo}/pulls/{number}/reviews` for `copilot-pull-request-reviewer[bot]` every 30 seconds, max 12 attempts (6 minutes)
-3. If review found: execute Steps 3-4 of `/git-pr-fix` (fetch comments, triage, fix, commit, push)
-4. Print outcome (fixes applied, no actionable comments, timeout, or error)
+1. From the known PR URL, resolve `{owner}`, `{repo}`, and `{number}` (e.g., by parsing the URL path or reusing values from earlier steps).
+2. Using those values, execute Step 2 of `/git-pr-fix` in **wait mode**: poll `gh api repos/{owner}/{repo}/pulls/{number}/reviews` for `copilot-pull-request-reviewer[bot]` every 30 seconds, max 12 attempts (6 minutes).
+3. If a Copilot review is found, execute Steps 3-4 of `/git-pr-fix` (fetch comments, triage, fix, commit, push) against that same PR.
+4. Print outcome (fixes applied, no actionable comments, timeout, or error).
 
 **Best-effort**: Any failure in Step 6 (timeout, API error, commit failure) is printed but does NOT change the exit status of `/git-pr`. The "Shipped." output has already been printed — Step 6 is a follow-up action.
 
