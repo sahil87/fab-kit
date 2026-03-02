@@ -47,7 +47,7 @@ create_change() {
 # Helper: set the active change in fab/current (two-line format)
 set_current() {
   local name="$1"
-  # Extract 4-char ID from YYMMDD-XXXX-slug format; fallback to name for simple test names
+  # Extract 4-char ID from YYMMDD-XXXX-slug format via cut
   local id
   id=$(echo "$name" | cut -d'-' -f2)
   printf '%s\n%s' "$id" "$name" > "$TEST_DIR/fab/current"

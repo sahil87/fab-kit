@@ -571,9 +571,9 @@ STUB
   run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" switch "a7k2"
   [ "$status" -eq 0 ]
   # Verify exact byte content: "a7k2\n260216-a7k2-add-oauth" (no trailing newline)
-  local expected
-  expected=$(printf 'a7k2\n260216-a7k2-add-oauth')
-  [ "$(cat "$FAB_ROOT/current")" = "$expected" ]
+  # Use cmp instead of $(cat) which strips trailing newlines
+  printf 'a7k2\n260216-a7k2-add-oauth' > "$TEST_DIR/expected-current"
+  cmp -s "$TEST_DIR/expected-current" "$FAB_ROOT/current"
 }
 
 @test "switch: output includes stage and next command" {
