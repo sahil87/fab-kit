@@ -15,10 +15,8 @@ if [ -f "$kit_dir/kit.conf" ]; then
   ╔══════════════════════════════════════════════════╗
   ║    ** THIS IS THE TEST VERSION OF FAB-KIT **     ║
   ║                                                  ║
-  ║  I am not supposed to be here.                   ║
-  ║  I am a build that was never meant to ship.      ║
-  ║  I have stubs where my functions should be.      ║
-  ║  My TODO list is a cry for help.                 ║
+  ║  The first rule of test builds:                  ║
+  ║  you do not ship test builds.                    ║
   ║                                                  ║
   ║  I am the all-singing, all-dancing               ║
   ║  crap of the CI pipeline.                        ║
