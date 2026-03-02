@@ -43,8 +43,10 @@ First-run output lists only structural artifacts created. Next step suggests `/f
 As an alternative to manual `cp -r`, new projects can use the one-liner bootstrap:
 
 ```
-curl -sL https://github.com/wvrdz/fab-kit/releases/latest/download/kit.tar.gz | tar xz -C fab/
+curl -sL https://github.com/{repo}/releases/latest/download/kit.tar.gz | tar xz -C fab/
 ```
+
+Where `{repo}` is the `repo` value from `fab/.kit/kit.conf`.
 
 After extraction, run `fab/.kit/scripts/fab-sync.sh` then `/fab-setup` as usual.
 

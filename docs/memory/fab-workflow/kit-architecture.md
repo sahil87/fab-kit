@@ -220,8 +220,10 @@ Agent-specific skill files SHALL be symlinks pointing into `fab/.kit/skills/`. T
 **Option A — One-liner bootstrap** (recommended):
 ```
 mkdir -p fab
-curl -sL https://github.com/wvrdz/fab-kit/releases/latest/download/kit.tar.gz | tar xz -C fab/
+curl -sL https://github.com/{repo}/releases/latest/download/kit.tar.gz | tar xz -C fab/
 ```
+
+Where `{repo}` is the `repo` value from `fab/.kit/kit.conf`.
 
 **Option B — Manual copy** (from a local clone):
 ```

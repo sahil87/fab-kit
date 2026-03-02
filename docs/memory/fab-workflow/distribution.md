@@ -16,8 +16,10 @@ New projects SHALL be bootstrappable via a single curl command that downloads th
 
 ```
 mkdir -p fab
-curl -sL https://github.com/wvrdz/fab-kit/releases/latest/download/kit.tar.gz | tar xz -C fab/
+curl -sL https://github.com/{repo}/releases/latest/download/kit.tar.gz | tar xz -C fab/
 ```
+
+Where `{repo}` is the `repo` value from `fab/.kit/kit.conf` (e.g. `wvrdz/fab-kit`).
 
 After extraction, the user MUST run `fab/.kit/scripts/fab-sync.sh` to validate prerequisites (`yq`, `jq`, `gh`, `direnv`, `bats`), create directories (`changes/`, `memory/`, `specs/`), skeleton files (copied from `scaffold/memory-index.md` and `scaffold/specs-index.md`), deploy skills (copies with model templating for Claude Code, symlinks for OpenCode, copies for Codex), `.envrc` entries (from `scaffold/envrc`, line-ensuring), and `.gitignore` entries (from `scaffold/gitignore-entries`). The bootstrap only provides `.kit/` — no `config.yaml`, `constitution.md`, or other project files.
 
@@ -114,7 +116,7 @@ After bumping VERSION, the script validates the migration chain: warns if no mig
 The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its role as the canonical source for `fab/.kit/`. GitHub auto-redirects handle existing URLs and clones.
 
 **Scenarios**:
-- Old URLs (`github.com/wvrdz/docs-sddr`) redirect to `github.com/wvrdz/fab-kit`
+- Old URLs (`github.com/wvrdz/docs-sddr`) redirect to the current repo URL
 - Existing clones with old remote URL continue to work via redirect
 
 ## Design Decisions
