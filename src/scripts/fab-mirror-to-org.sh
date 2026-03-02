@@ -6,14 +6,16 @@ set -euo pipefail
 # Clones the current repo at a given tag, rebrands repo references to
 # the target org/repo, and force-pushes to the target.
 #
-# Usage: fab-mirror-to-org.sh <org/repo> [--tag <tag>] [--branch <branch>] [--shell] [--dry-run]
+# Usage: fab-mirror-to-org.sh <org/repo> [options]
 #
-#   <org/repo>         — target GitHub repository (e.g. acme-corp/fab-kit)
-#   --tag <tag>        — source tag to mirror (default: latest tag on current branch)
-#   --branch <branch>  — target branch to push to (default: main)
-#   --shell            — after pushing, drop into a subshell in the temp clone
-#                        (useful for running fab-release.sh against the target)
-#   --dry-run          — show what would change without pushing
+#   <org/repo>            — target GitHub repository (e.g. acme-corp/fab-kit)
+#   --tag <tag>           — source tag to mirror (default: latest tag on current branch)
+#   --branch <branch>     — target branch to push to (default: main)
+#   --git-name <name>     — git user.name for the mirror commit (default: fab-kit-mirror)
+#   --git-email <email>   — git user.email for the mirror commit (default: noreply@fab-kit)
+#   --shell               — after pushing, drop into a subshell in the temp clone
+#                           (useful for running fab-release.sh against the target)
+#   --dry-run             — show what would change without pushing
 #
 # Requires: gh CLI (https://cli.github.com/)
 #
@@ -33,13 +35,15 @@ set -euo pipefail
 #     GH_TOKEN=ghp_target_org_token fab-mirror-to-org.sh acme-corp/fab-kit
 
 usage() {
-  echo "Usage: fab-mirror-to-org.sh <org/repo> [--tag <tag>] [--branch <branch>] [--shell] [--dry-run]"
+  echo "Usage: fab-mirror-to-org.sh <org/repo> [options]"
   echo ""
-  echo "  <org/repo>         — target GitHub repository (e.g. acme-corp/fab-kit)"
-  echo "  --tag <tag>        — source tag to mirror (default: latest tag)"
-  echo "  --branch <branch>  — target branch to push to (default: main)"
-  echo "  --shell            — drop into a subshell in the temp clone after pushing"
-  echo "  --dry-run          — show what would change without pushing"
+  echo "  <org/repo>            — target GitHub repository (e.g. acme-corp/fab-kit)"
+  echo "  --tag <tag>           — source tag to mirror (default: latest tag)"
+  echo "  --branch <branch>     — target branch to push to (default: main)"
+  echo "  --git-name <name>     — git user.name for commits (default: fab-kit-mirror)"
+  echo "  --git-email <email>   — git user.email for commits (default: noreply@fab-kit)"
+  echo "  --shell               — drop into a subshell in the temp clone after pushing"
+  echo "  --dry-run             — show what would change without pushing"
   echo ""
   echo "To release to the target org, use --shell then run fab-release.sh:"
   echo "  GH_TOKEN=ghp_xxx bash src/scripts/fab-release.sh patch"
@@ -51,15 +55,19 @@ source_repo=$(grep -E '^repo=' "$repo_root/fab/.kit/kit.conf" | cut -d= -f2 | tr
 target=""
 tag=""
 branch="main"
+git_name="fab-kit-mirror"
+git_email="noreply@fab-kit"
 dry_run=false
 shell_mode=false
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --tag)    tag="$2"; shift 2 ;;
-    --branch) branch="$2"; shift 2 ;;
-    --shell)  shell_mode=true; shift ;;
-    --dry-run) dry_run=true; shift ;;
+    --tag)       tag="$2"; shift 2 ;;
+    --branch)    branch="$2"; shift 2 ;;
+    --git-name)  git_name="$2"; shift 2 ;;
+    --git-email) git_email="$2"; shift 2 ;;
+    --shell)     shell_mode=true; shift ;;
+    --dry-run)   dry_run=true; shift ;;
     -h|--help) usage; exit 0 ;;
     -*)       echo "ERROR: Unknown flag '$1'"; usage; exit 1 ;;
     *)
@@ -122,8 +130,8 @@ if [ "$dry_run" = true ]; then
 fi
 
 # Commit and push
-git -C "$tmp/repo" config user.name "fab-kit-mirror"
-git -C "$tmp/repo" config user.email "noreply@fab-kit"
+git -C "$tmp/repo" config user.name "$git_name"
+git -C "$tmp/repo" config user.email "$git_email"
 git -C "$tmp/repo" add -A
 git -C "$tmp/repo" commit -m "mirror: rebrand for $target ($tag)"
 git -C "$tmp/repo" remote set-url origin "git@github.com:$target.git"
