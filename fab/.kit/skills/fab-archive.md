@@ -5,7 +5,7 @@ description: "Archive a completed change or restore an archived change — move 
 
 # /fab-archive [<change-name>] | restore <change-name> [--switch]
 
-> Read and follow the instructions in `fab/.kit/skills/_preamble.md` before proceeding.
+> Read and follow the instructions in `./fab/.kit/skills/_preamble.md` before proceeding.
 
 ---
 

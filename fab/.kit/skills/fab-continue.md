@@ -5,7 +5,7 @@ description: "Advance to the next pipeline stage — planning, implementation, r
 
 # /fab-continue [<change-name>] [<stage>]
 
-> Read and follow the instructions in `fab/.kit/skills/_preamble.md` before proceeding.
+> Read and follow the instructions in `./fab/.kit/skills/_preamble.md` before proceeding.
 
 ---
 
