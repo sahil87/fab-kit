@@ -5,7 +5,7 @@ description: "Refine the current stage artifact — resolve gaps, ambiguities, o
 
 # /fab-clarify [<change-name>] [<target-artifact>]
 
-> Read and follow the instructions in `fab/.kit/skills/_preamble.md` before proceeding.
+> Read and follow the instructions in `_preamble.md` before proceeding.
 
 ---
 

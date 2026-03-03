@@ -5,7 +5,7 @@ description: "Full pipeline with safety gates — confidence-gated pipeline from
 
 # /fab-ff [<change-name>]
 
-> Read and follow the instructions in `fab/.kit/skills/_preamble.md` before proceeding.
+> Read and follow the instructions in `_preamble.md` before proceeding.
 
 ---
 
