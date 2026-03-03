@@ -5,7 +5,7 @@ description: "Start a new change from a natural language description. Creates th
 
 # /fab-new <description>
 
-> Read and follow the instructions in `./fab/.kit/skills/_preamble.md` before proceeding.
+> Read and follow the instructions in `fab/.kit/skills/_preamble.md` before proceeding.
 
 ---
 

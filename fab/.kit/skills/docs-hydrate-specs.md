@@ -5,7 +5,7 @@ description: "Identify structural gaps between memory and specs, propose concise
 
 # /docs-hydrate-specs
 
-> Read and follow the instructions in `./fab/.kit/skills/_preamble.md` before proceeding.
+> Read and follow the instructions in `fab/.kit/skills/_preamble.md` before proceeding.
 
 ---
 

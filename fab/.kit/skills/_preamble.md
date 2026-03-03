@@ -9,7 +9,7 @@ metadata:
 # Shared Context Preamble
 
 > This file defines shared conventions for all Fab skills. Each skill file should begin with:
-> `Read and follow the instructions in ./fab/.kit/skills/_preamble.md before proceeding.`
+> `Read and follow the instructions in fab/.kit/skills/_preamble.md before proceeding.`
 
 ---
 
