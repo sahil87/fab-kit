@@ -1,5 +1,8 @@
 # Archive Index
 
+- **260303-n30u-smart-copilot-review-detection** — Replaced blind 6-minute Copilot review polling in git-pr with a 3-phase detect/request/poll flow that explicitly requests a Copilot review via the GitHub API and skips polling entirely when Copilot is unavailable.
+- **260303-l6nk-gemini-cli-agent-aware-sync** — Added Gemini CLI as a new agent target and made agent folder creation conditional on CLI availability in PATH, keeping workspaces clean by only syncing skills to agents that are actually installed.
+- **260303-6b7c-update-underscore-skill-references** — Updated all skill file references to use co-located underscore skill paths instead of the old fab/.kit/skills/ paths, after sync script began deploying underscore files alongside regular skills.
 - **260303-hcq9-scriptify-fab-archive** — Offloaded mechanical fab-archive steps (move, index, clean, pointer) to archiveman.sh, eliminating ~10-15 sequential tool calls. Skill now orchestrates only backlog matching and report formatting.
 - **260303-4ojc-git-pr-copilot-fix** — Added a standalone `/git-pr-fix` skill that waits for Copilot review comments on a PR, triages them, and auto-fixes actionable ones, with auto-invocation from `/git-pr` as a best-effort final step.
 - **260302-c7is-fab-clarify-bulk-confirm** — Added bulk confirm mode to fab-clarify for efficiently upgrading Confident assumptions to Certain via a single conversational turn instead of per-item AskUserQuestion round-trips.
