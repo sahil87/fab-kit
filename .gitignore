@@ -10,7 +10,9 @@ fab/changes/**/.pr-done
 /.opencode
 /.codex
 /.ralph
+/.gemini
 
 /ToBeDeleted/
 kit.tar.gz
 .tmp
+
