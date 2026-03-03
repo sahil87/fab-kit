@@ -5,7 +5,7 @@ description: "Prime the agent with project context for a discussion session — 
 
 # /fab-discuss
 
-> Read and follow the instructions in the `_preamble` skill before proceeding.
+> Read `fab/.kit/skills/_preamble.md` first (path is relative to repo root). Then follow its instructions before proceeding.
 
 ---
 
