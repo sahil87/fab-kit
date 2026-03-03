@@ -1,5 +1,6 @@
 # Archive Index
 
+- **260303-hcq9-scriptify-fab-archive** — Offloaded mechanical fab-archive steps (move, index, clean, pointer) to archiveman.sh, eliminating ~10-15 sequential tool calls. Skill now orchestrates only backlog matching and report formatting.
 - **260303-4ojc-git-pr-copilot-fix** — Added a standalone `/git-pr-fix` skill that waits for Copilot review comments on a PR, triages them, and auto-fixes actionable ones, with auto-invocation from `/git-pr` as a best-effort final step.
 - **260302-c7is-fab-clarify-bulk-confirm** — Added bulk confirm mode to fab-clarify for efficiently upgrading Confident assumptions to Certain via a single conversational turn instead of per-item AskUserQuestion round-trips.
 - **260302-a8ay-centralize-current-pointer** — Changed fab/current to a two-line plain text format (4-char ID + folder name), centralized all reads through resolve.sh and writes through changeman.sh, and added an `id:` field to preflight YAML output for shorter agent script calls.
@@ -147,3 +148,9 @@
 - **260207-bb1q-add-specs-index** — The fab workflow has `fab/docs/` for post-implementation truth but no persistent home for pre-implementation intent. Specs currently live only inside `fab/changes/` and get archived, making original design intent hard to find.
 - **260207-5mjv-preflight-grep-scripts** — Every fab skill repeats the same pre-flight sequence of reading `fab/current`, validating directories, and loading configuration files. Consolidating this into a single script reduces duplication and provides a single validation point.
 - **260207-09sj-autonomy-framework** — Planning skills make 38 out of 47 decision points as silent assumptions without surfacing what was decided or why, leaving high-blast-radius decisions unchecked and creating inconsistent interruption patterns across skills.
+- **260208-q8v3-branch-to-switch** — (no description — pre-index archive)
+- **260209-k3m9-status-confidence-score** — (no description — pre-index archive)
+- **260210-wpay-extract-shared-generation-logic** — (no description — pre-index archive)
+- **260211-r3k8-simplify-planning-stages** — (no description — pre-index archive)
+- **260212-h9k3-fab-init-family** — (no description — pre-index archive)
+- **260212-k8m3-skill-model-tiers** — (no description — pre-index archive)
