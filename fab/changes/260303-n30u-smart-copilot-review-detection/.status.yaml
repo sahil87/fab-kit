@@ -16,11 +16,17 @@ checklist:
   completed: 20
   total: 20
 confidence:
-  certain: 0
-  confident: 0
+  certain: 4
+  confident: 1
   tentative: 0
   unresolved: 0
-  score: 0.0
+  score: 4.7
+  fuzzy: true
+  dimensions:
+    signal: 89.0
+    reversibility: 91.0
+    competence: 90.0
+    disambiguation: 91.0
 stage_metrics:
   intake: {started_at: "2026-03-03T11:01:51+05:30", driver: fab-new, iterations: 1, completed_at: "2026-03-03T11:04:56+05:30"}
   spec: {started_at: "2026-03-03T11:04:56+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-03T11:05:42+05:30"}
@@ -29,4 +35,4 @@ stage_metrics:
   review: {started_at: "2026-03-03T11:06:48+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-03T11:08:18+05:30"}
   hydrate: {started_at: "2026-03-03T11:08:18+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-03T11:08:59+05:30"}
 prs: []
-last_updated: "2026-03-03T11:08:59+05:30"
+last_updated: 2026-03-03T11:10:36+05:30
