@@ -5,7 +5,7 @@ description: "Prime the agent with project context for a discussion session — 
 
 # /fab-discuss
 
-> Read and follow the instructions in `./fab/.kit/skills/_preamble.md` before proceeding.
+> Read and follow the instructions in `_preamble.md` before proceeding.
 
 ---
 

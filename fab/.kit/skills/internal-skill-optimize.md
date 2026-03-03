@@ -18,8 +18,8 @@ Condense a skill (or all skills) to their core — remove verbosity, redundant e
 
 ## Pre-flight
 
-1. Read `fab/.kit/skills/_preamble.md` — this is the shared context all skills reference. Anything fully defined here does NOT need re-explaining inside individual skills.
-2. Read `fab/.kit/skills/_generation.md` — shared generation procedures. Same rule.
+1. Read `_preamble.md` — this is the shared context all skills reference. Anything fully defined here does NOT need re-explaining inside individual skills.
+2. Read `_generation.md` — shared generation procedures. Same rule.
 3. If a specific skill was requested, verify the file exists. If not, STOP with: `Skill not found: fab/.kit/skills/{skill-name}.md`
 
 ---

@@ -5,7 +5,7 @@ description: "Show current change state at a glance — name, branch, stage, che
 
 # /fab-status [<change-name>]
 
-> Read and follow the instructions in `./fab/.kit/skills/_preamble.md` before proceeding.
+> Read and follow the instructions in `_preamble.md` before proceeding.
 
 ---
 

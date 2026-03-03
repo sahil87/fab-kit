@@ -75,10 +75,20 @@ description: "Show status"
 Status skill content.
 MD
 
-  # Create a partial (should be skipped)
+  # Create underscore partials (deployed alongside skills)
   cat > "$KIT/skills/_preamble.md" <<'MD'
 # Shared Context
-This is a partial — should not be deployed as a skill.
+This is a partial — deployed alongside skills.
+MD
+
+  cat > "$KIT/skills/_generation.md" <<'MD'
+# Generation Procedures
+Shared generation logic.
+MD
+
+  cat > "$KIT/skills/_scripts.md" <<'MD'
+# Script Guide
+Script invocation conventions.
 MD
 
   # Copy the actual 2-sync-workspace.sh into the kit
@@ -285,11 +295,18 @@ YAML
   [ ! -L "$REPO_ROOT/.agents/skills/fab-continue/SKILL.md" ]
 }
 
-@test "skips _preamble.md partial (not deployed as skill)" {
+@test "deploys underscore partials as skills" {
   run bash "$KIT/sync/2-sync-workspace.sh"
   [ "$status" -eq 0 ]
-  [ ! -e "$REPO_ROOT/.claude/skills/_preamble" ]
-  [ ! -e "$REPO_ROOT/.claude/skills/_preamble.md" ]
+  [ -d "$REPO_ROOT/.claude/skills/_preamble" ]
+  [ -f "$REPO_ROOT/.claude/skills/_preamble/SKILL.md" ]
+  [ -d "$REPO_ROOT/.claude/skills/_generation" ]
+  [ -f "$REPO_ROOT/.claude/skills/_generation/SKILL.md" ]
+  [ -d "$REPO_ROOT/.claude/skills/_scripts" ]
+  [ -f "$REPO_ROOT/.claude/skills/_scripts/SKILL.md" ]
+  cmp -s "$KIT/skills/_preamble.md" "$REPO_ROOT/.claude/skills/_preamble/SKILL.md"
+  cmp -s "$KIT/skills/_generation.md" "$REPO_ROOT/.claude/skills/_generation/SKILL.md"
+  cmp -s "$KIT/skills/_scripts.md" "$REPO_ROOT/.claude/skills/_scripts/SKILL.md"
 }
 
 # ── Skill Copy Verification ───────────────────────────────────────

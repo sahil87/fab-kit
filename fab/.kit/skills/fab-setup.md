@@ -5,7 +5,7 @@ description: "Set up a new project, manage config/constitution, or apply version
 
 # /fab-setup [subcommand]
 
-> Read and follow the instructions in `./fab/.kit/skills/_preamble.md` before proceeding.
+> Read and follow the instructions in `_preamble.md` before proceeding.
 > **Exception**: `/fab-setup` has subcommand-specific context loading:
 > - **bare / config / constitution**: Skip the "Always Load" context layer if files don't exist (first-run). Load them only if they already exist (re-run scenario).
 > - **migrations**: Load `fab/project/config.yaml` (MUST exist). Skip Change Context loading — migrations operate on project-level files, not a specific change.
