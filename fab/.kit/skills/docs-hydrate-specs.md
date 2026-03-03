@@ -5,7 +5,7 @@ description: "Identify structural gaps between memory and specs, propose concise
 
 # /docs-hydrate-specs
 
-> Read and follow the instructions in the `_preamble` skill before proceeding.
+> Read `fab/.kit/skills/_preamble.md` first (path is relative to repo root). Then follow its instructions before proceeding.
 
 ---
 

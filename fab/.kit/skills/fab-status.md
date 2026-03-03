@@ -5,7 +5,7 @@ description: "Show current change state at a glance — name, branch, stage, che
 
 # /fab-status [<change-name>]
 
-> Read and follow the instructions in the `_preamble` skill before proceeding.
+> Read `fab/.kit/skills/_preamble.md` first (path is relative to repo root). Then follow its instructions before proceeding.
 
 ---
 

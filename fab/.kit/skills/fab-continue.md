@@ -5,7 +5,7 @@ description: "Advance to the next pipeline stage — planning, implementation, r
 
 # /fab-continue [<change-name>] [<stage>]
 
-> Read and follow the instructions in the `_preamble` skill before proceeding.
+> Read `fab/.kit/skills/_preamble.md` first (path is relative to repo root). Then follow its instructions before proceeding.
 
 ---
 

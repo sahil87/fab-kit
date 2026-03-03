@@ -9,7 +9,7 @@ metadata:
 # Shared Context Preamble
 
 > This file defines shared conventions for all Fab skills. Each skill file should begin with:
-> `Read and follow the instructions in the _preamble skill before proceeding.`
+> ``Read `fab/.kit/skills/_preamble.md` first (path is relative to repo root). Then follow its instructions before proceeding.``
 
 ---
 
@@ -54,7 +54,7 @@ Read these files first — they define the project's identity, constraints, and 
 
 > **Note**: If the skill runs `fab/.kit/scripts/lib/preflight.sh` (Section 2 above), the init check (config.yaml and constitution.md existence) is already covered by the script. Skills using preflight don't need separate existence checks for these files — they only need to read them for content.
 
-Also read **the `_scripts` skill** — script invocation conventions (argument formats, stage transitions, error patterns). This is the authoritative reference for calling `statusman.sh`, `changeman.sh`, `calc-score.sh`, and `preflight.sh`.
+Also read **`fab/.kit/skills/_scripts.md`** — script invocation conventions (argument formats, stage transitions, error patterns). This is the authoritative reference for calling `statusman.sh`, `changeman.sh`, `calc-score.sh`, and `preflight.sh`.
 
 ### 2. Change Context (when operating on an active change)
 
