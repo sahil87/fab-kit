@@ -304,6 +304,9 @@ YAML
   [ -f "$REPO_ROOT/.claude/skills/_generation/SKILL.md" ]
   [ -d "$REPO_ROOT/.claude/skills/_scripts" ]
   [ -f "$REPO_ROOT/.claude/skills/_scripts/SKILL.md" ]
+  cmp -s "$KIT/skills/_preamble.md" "$REPO_ROOT/.claude/skills/_preamble/SKILL.md"
+  cmp -s "$KIT/skills/_generation.md" "$REPO_ROOT/.claude/skills/_generation/SKILL.md"
+  cmp -s "$KIT/skills/_scripts.md" "$REPO_ROOT/.claude/skills/_scripts/SKILL.md"
 }
 
 # ── Skill Copy Verification ───────────────────────────────────────

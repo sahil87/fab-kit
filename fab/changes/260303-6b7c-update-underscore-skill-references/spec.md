@@ -43,7 +43,7 @@ The `fab-switch.md` variant SHALL remain:
 - **THEN** the instruction references `fab/.kit/skills/_preamble.md` (no `./` prefix)
 - **AND** the agent can resolve this path from the repo root CWD
 
-#### Scenario: All 12 skill files with the standard instruction are updated
+#### Scenario: All 11 skill files with the standard instruction are updated
 - **GIVEN** the files: `fab-ff.md`, `fab-archive.md`, `fab-setup.md`, `fab-clarify.md`, `fab-status.md`, `fab-new.md`, `fab-continue.md`, `fab-fff.md`, `docs-hydrate-memory.md`, `fab-discuss.md`, `docs-hydrate-specs.md`
 - **WHEN** the `./` prefix is removed from the top-of-file instruction
 - **THEN** each file's line 8 reads: `> Read and follow the instructions in \`fab/.kit/skills/_preamble.md\` before proceeding.`
