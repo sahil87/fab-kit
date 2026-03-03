@@ -5,3 +5,4 @@
 - [ ] [a4v0] 2026-03-03: A few extra states have been added for git-pr command. I want all states to be trackable via the .status.yaml file - ie 'is there copilot? Are we waiting for review? Is review done? All qns should be answerable via the status.yaml file (in a minimalistic way)
 - [ ] [9yvv] 2026-03-03:  FabKit make if a full state machine - even sub states within git-pr
 - [ ] [gt52] 2026-03-03: Evaluate rust vs node for speed for moving the tool scripts
+- [ ] [4szh] 2026-03-03: Improve rework loop logging — log explicit apply re-entry events in .history.jsonl, clarify whether stage_metrics.iterations counts the stage or the apply→review pair, and standardize ad-hoc event names (smoke-test, test-pass) into the schema

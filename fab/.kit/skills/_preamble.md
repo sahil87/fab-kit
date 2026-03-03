@@ -1,3 +1,11 @@
+---
+name: _preamble
+description: "Shared context preamble loaded by every Fab skill — defines path conventions, context loading, SRAD framework, and confidence scoring."
+user-invocable: false
+disable-model-invocation: true
+metadata:
+  internal: true
+---
 # Shared Context Preamble
 
 > This file defines shared conventions for all Fab skills. Each skill file should begin with:

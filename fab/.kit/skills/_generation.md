@@ -1,3 +1,11 @@
+---
+name: _generation
+description: "Artifact generation procedures — shared logic for intake, spec, and tasks generation used by fab-continue and fab-ff."
+user-invocable: false
+disable-model-invocation: true
+metadata:
+  internal: true
+---
 # Artifact Generation Procedures
 
 > This file defines the shared artifact generation logic used by both `/fab-continue` and `/fab-ff`.

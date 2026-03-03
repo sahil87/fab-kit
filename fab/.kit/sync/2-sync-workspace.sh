@@ -217,11 +217,10 @@ if [ -d "$scaffold_dir" ]; then
 fi
 
 # ── 3. Skill deployment ────────────────────────────────────────────
-# Canonical list: every *.md in .kit/skills/ except _preamble.md
+# Canonical list: every *.md in .kit/skills/ (including _underscore partials)
 skills=()
 for f in "$kit_dir"/skills/*.md; do
   [ -f "$f" ] || continue
-  [[ "$(basename "$f")" == _*.md ]] && continue
   skills+=("$(basename "$f" .md)")
 done
 

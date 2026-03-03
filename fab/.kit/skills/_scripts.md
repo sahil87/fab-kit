@@ -1,3 +1,11 @@
+---
+name: _scripts
+description: "Kit script invocation guide — calling conventions for statusman, changeman, calc-score, preflight, and other shell scripts."
+user-invocable: false
+disable-model-invocation: true
+metadata:
+  internal: true
+---
 # Kit Script Invocation Guide
 
 > Loaded by every skill via `_preamble.md`. Defines calling conventions for all kit shell scripts.
