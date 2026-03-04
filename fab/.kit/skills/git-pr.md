@@ -156,7 +156,7 @@ Print: `  ✓ push   — origin/<branch>`
    - If missing → print `gh CLI not found — cannot create PR` and STOP
 
 2. **Derive PR title**: Compute `{pr_title}` where:
-   - If `changeman.sh resolve` succeeds AND `intake.md` exists: `{title}` = first `# ` heading from `intake.md`, stripping `Intake: ` prefix if present
+   - If `fab/.kit/scripts/lib/changeman.sh resolve 2>/dev/null` succeeds AND `fab/changes/{name}/intake.md` exists: `{title}` = first `# ` heading from `fab/changes/{name}/intake.md`, stripping `Intake: ` prefix if present
    - Otherwise: `{title}` = commit message subject line from `git log -1 --format=%s`
 
    If `issues` (from Step 1) is non-empty: `{pr_title}` = `{type}: {issues} {title}` (e.g., `feat: DEV-123 DEV-456 Add OAuth support`), where `{issues}` is space-joined.
@@ -167,7 +167,7 @@ Print: `  ✓ push   — origin/<branch>`
 3. **Generate PR body** using a single unified template with conditional field population based on artifact availability:
 
    **Resolve fab context** (attempt once, used for all conditional fields):
-   - Run `changeman.sh resolve 2>/dev/null`. If it succeeds, set `{has_fab} = true` and `{name}` = resolved change name
+   - Run `fab/.kit/scripts/lib/changeman.sh resolve 2>/dev/null`. If it succeeds, set `{has_fab} = true` and `{name}` = resolved change name
    - Check if `fab/changes/{name}/intake.md` exists → `{has_intake}`
    - Check if `fab/changes/{name}/spec.md` exists → `{has_spec}`
    - Check if `fab/changes/{name}/tasks.md` exists → `{has_tasks}`
@@ -176,8 +176,8 @@ Print: `  ✓ push   — origin/<branch>`
    **Construct blob URLs** (only when `{has_fab}`):
    - `{owner_repo}` = `gh repo view --json nameWithOwner -q '.nameWithOwner'`
    - `{branch}` = `git branch --show-current`
-   - Intake URL = `https://github.com/{owner_repo}/blob/{branch}/fab/changes/{name}/intake.md`
-   - Spec URL = `https://github.com/{owner_repo}/blob/{branch}/fab/changes/{name}/spec.md`
+   - If `{has_intake}`: Intake URL = `https://github.com/{owner_repo}/blob/{branch}/fab/changes/{name}/intake.md`
+   - If `{has_spec}`: Spec URL = `https://github.com/{owner_repo}/blob/{branch}/fab/changes/{name}/spec.md`
 
    **Generate body sections**:
 
