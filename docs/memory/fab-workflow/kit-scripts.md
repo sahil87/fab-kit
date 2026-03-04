@@ -7,7 +7,7 @@
 | Script | Location | Purpose |
 |--------|----------|---------|
 | `resolve.sh` | `fab/.kit/scripts/lib/resolve.sh` | Pure change resolution — converts any change reference to canonical output (no side effects) |
-| `statusman.sh` | `fab/.kit/scripts/lib/statusman.sh` | Stage management — state transitions, `.status.yaml` accessors and metadata writes |
+| `statusman.sh` | `fab/.kit/scripts/lib/statusman.sh` | Stage management — state transitions, `.status.yaml` accessors and metadata writes. `confidence` accessor outputs `indicative:{true|false}`. `set-confidence`/`set-confidence-fuzzy` accept `[--indicative]` flag |
 | `logman.sh` | `fab/.kit/scripts/lib/logman.sh` | History logging — append-only JSON to `.history.jsonl` |
 | `changeman.sh` | `fab/.kit/scripts/lib/changeman.sh` | Change management — create, rename, resolve (passthrough), switch, list |
 | `calc-score.sh` | `fab/.kit/scripts/lib/calc-score.sh` | Confidence scoring — parse Assumptions tables, compute SRAD scores, gate checks |
@@ -128,6 +128,10 @@ Range: 0.0 to 5.0. `expected_min` varies by `{stage, change_type}`.
 
 - `count_grades <file>` — parse Assumptions table, output grade counts and dimension sums
 - `compute_score <confident> <tentative> <unresolved> <total> <expected_min>` — apply the formula, return score
+
+### Indicative Flag
+
+When `calc-score.sh` runs in normal mode with `--stage intake`, it passes `--indicative` to `statusman.sh` write calls, persisting `confidence.indicative: true` in `.status.yaml`. When running without `--stage intake` (spec scoring), `--indicative` is not passed, which clears the flag (via `del(.confidence.indicative)` or omission in the AWK block).
 
 ### Gate Check
 

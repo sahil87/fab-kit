@@ -1,1 +1,11 @@
 {"ts":"2026-03-05T00:47:05+05:30","event":"command","cmd":"fab-new","args":"Show confidence scores in fab-switch and fab-status for all stages by persisting indicative confidence to .status.yaml"}
+{"ts":"2026-03-05T01:06:44+05:30","event":"command","cmd":"fab-switch"}
+{"ts":"2026-03-05T01:07:08+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-03-05T01:08:08+05:30","event":"stage-transition","stage":"spec","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T01:09:15+05:30","event":"confidence","score":4.7,"delta":"+4.7","trigger":"calc-score"}
+{"ts":"2026-03-05T01:10:08+05:30","event":"stage-transition","stage":"tasks","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T01:10:08+05:30","event":"stage-transition","stage":"apply","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T01:14:16+05:30","event":"stage-transition","stage":"review","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T01:18:03+05:30","event":"stage-transition","stage":"hydrate","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T01:18:03+05:30","event":"review","result":"passed"}
+{"ts":"2026-03-05T01:19:57+05:30","event":"stage-transition","stage":"ship","action":"enter","driver":"fab-ff"}

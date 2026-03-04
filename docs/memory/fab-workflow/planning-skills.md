@@ -63,7 +63,7 @@ After generating `intake.md`, `/fab-new` infers the `change_type` from the intak
 
 #### Indicative Confidence
 
-After generating `intake.md` and inferring the change type, `/fab-new` computes and displays an indicative confidence score using the coverage-weighted formula with intake-stage `expected_min` thresholds. This is display-only — NOT written to `.status.yaml`. The authoritative score is computed at the spec stage by `calc-score.sh`. Output format: `Indicative confidence: {score} / 5.0 ({N} decisions, cover: {cover})`.
+After generating `intake.md` and inferring the change type, `/fab-new` persists an indicative confidence score by calling `calc-score.sh --stage intake <change>` in normal mode (not `--check-gate`). This writes the score to `.status.yaml` with `confidence.indicative: true`, making it visible to all consumers (`/fab-switch`, `/fab-status`, `changeman.sh list`) without recomputation. The authoritative spec-stage score overwrites it (clearing `indicative: true`) when `calc-score.sh` runs at the spec stage. Output format: `Indicative confidence: {score} / 5.0 ({N} decisions)`.
 
 #### Intake-Only Output
 
@@ -323,6 +323,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260305-8ooz-persist-indicative-confidence | 2026-03-05 | `/fab-new` Step 7 now persists indicative confidence via `calc-score.sh --stage intake` (normal mode) instead of inline display-only computation. Score written to `.status.yaml` with `indicative: true`. `_preamble.md` Confidence Scoring section updated to document indicative flag, persistence, and uniform consumer reads. |
 | 260303-6b7c-update-underscore-skill-references | 2026-03-04 | Standardized top-of-file `_preamble.md` references in all skill files — removed `./` prefix from `./fab/.kit/skills/_preamble.md`, now `fab/.kit/skills/_preamble.md`. Updated `_preamble.md` self-reference (line 12). Inline shorthand references (`_preamble.md` §2, `_generation.md`) unchanged. |
 | 260302-c7is-fab-clarify-bulk-confirm | 2026-03-02 | Added bulk confirm mode (Step 1.5) to `/fab-clarify` suggest mode — detects Confident-dominant confidence drag, presents numbered list for conversational bulk confirmation. Updated suggest mode steps (now 11 steps, bulk confirm at step 4). Documented in `_preamble.md` Confidence Scoring section. |
 | 260227-ijql-streamline-planning-dispatch | 2026-02-27 | Consolidated planning dispatch: `/fab-new` leaves intake as `ready` (Step 9 added). `/fab-continue` finishes previous `ready` stage + generates next artifact + advances to `ready` in one invocation. Single-dispatch rule removed. Reset flow uses `advance` (not `finish`) to preserve `/fab-clarify` checkpoint. |

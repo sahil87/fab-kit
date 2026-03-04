@@ -86,12 +86,15 @@ Canonical format (from `changeman.sh switch` + skill hint):
 ```
 fab/current → {name}
 
-Stage:  {display_stage} ({N}/6) — {state}
-Next:   {routing_stage} (via {default_command})
+Stage:       {display_stage} ({N}/8) — {state}
+Confidence:  {score} of 5.0{indicative_suffix}
+Next:        {routing_stage} (via {default_command})
 Tip: run /git-branch to create or switch to the matching branch
 ```
 
-Where `{display_stage}` is "where you are" (last active or last done stage) and `{routing_stage}` is "what's next" (what `/fab-continue` will produce). The `{state}` qualifier is `done`, `active`, or `pending`. When all stages are done, `Next:` shows only `/fab-archive`.
+Where `{display_stage}` is "where you are" (last active or last done stage) and `{routing_stage}` is "what's next" (what `/fab-continue` will produce). The `{state}` qualifier is `done`, `active`, or `pending`. When all stages are done, `Next:` shows only `/fab-archive`. The `{indicative_suffix}` is ` (indicative)` when `confidence.indicative` is true, empty otherwise. When score is `0.0` and no assumptions exist, shows `not yet scored`.
+
+For the no-argument flow (listing changes), the skill reads `changeman.sh list` output (format `name:display_stage:display_state:score:indicative`) and displays confidence info alongside stage info in the numbered list.
 
 Tip line omitted for `--blank`. Deactivation shows `No active change.`. Already-blank shows `No active change (already blank).`
 

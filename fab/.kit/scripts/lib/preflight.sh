@@ -138,4 +138,5 @@ confidence:
   tentative: ${confidence[tentative]}
   unresolved: ${confidence[unresolved]}
   score: ${confidence[score]}
+  indicative: ${confidence[indicative]:-false}
 EOF

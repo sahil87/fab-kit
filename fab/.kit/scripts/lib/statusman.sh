@@ -186,14 +186,15 @@ get_checklist() {
 }
 
 # get_confidence <status_file> — Extract confidence fields
-# Outputs: certain:{val}, confident:{val}, tentative:{val}, unresolved:{val}, score:{val}
+# Outputs: certain:{val}, confident:{val}, tentative:{val}, unresolved:{val}, score:{val}, indicative:{true|false}
 get_confidence() {
   local status_file="$1"
   echo "certain:$(yq '.confidence.certain // 0' "$status_file")"
   echo "confident:$(yq '.confidence.confident // 0' "$status_file")"
   echo "tentative:$(yq '.confidence.tentative // 0' "$status_file")"
   echo "unresolved:$(yq '.confidence.unresolved // 0' "$status_file")"
-  echo "score:$(yq '.confidence.score // "5.0"' "$status_file")"
+  echo "score:$(yq '.confidence.score // "0.0"' "$status_file")"
+  echo "indicative:$(yq '.confidence.indicative // false' "$status_file")"
 }
 
 # get_progress_line <status_file> — Single-line visual pipeline progress
@@ -473,9 +474,10 @@ set_checklist_field() {
   mv "$tmpfile" "$status_file"
 }
 
-# set_confidence_block <status_file> <certain> <confident> <tentative> <unresolved> <score>
+# set_confidence_block <status_file> <certain> <confident> <tentative> <unresolved> <score> [--indicative]
 # Replace the entire confidence block in .status.yaml.
 # Validates counts are non-negative integers and score is a non-negative float.
+# When --indicative is passed, writes confidence.indicative: true. Otherwise removes the key.
 # Returns 0 on success, 1 on validation failure.
 set_confidence_block() {
   local status_file="$1"
@@ -484,6 +486,10 @@ set_confidence_block() {
   local tentative="$4"
   local unresolved="$5"
   local score="$6"
+  local indicative=false
+  if [ "${7:-}" = "--indicative" ]; then
+    indicative=true
+  fi
 
   if [ ! -f "$status_file" ]; then
     echo "ERROR: Status file not found: $status_file" >&2
@@ -521,12 +527,19 @@ set_confidence_block() {
     .last_updated = \"${now}\"
   " "$tmpfile"
 
+  if [ "$indicative" = true ]; then
+    yq -i '.confidence.indicative = true' "$tmpfile"
+  else
+    yq -i 'del(.confidence.indicative)' "$tmpfile"
+  fi
+
   mv "$tmpfile" "$status_file"
 }
 
-# set_confidence_block_fuzzy <status_file> <certain> <confident> <tentative> <unresolved> <score> <mean_s> <mean_r> <mean_a> <mean_d>
+# set_confidence_block_fuzzy <status_file> <certain> <confident> <tentative> <unresolved> <score> <mean_s> <mean_r> <mean_a> <mean_d> [--indicative]
 # Replace the entire confidence block in .status.yaml, including fuzzy dimension data.
 # Extends set_confidence_block with fuzzy: true flag and dimensions sub-block.
+# When --indicative is passed, writes confidence.indicative: true. Otherwise omits the key.
 set_confidence_block_fuzzy() {
   local status_file="$1"
   local certain="$2"
@@ -538,6 +551,10 @@ set_confidence_block_fuzzy() {
   local mean_r="$8"
   local mean_a="$9"
   local mean_d="${10}"
+  local indicative=false
+  if [ "${11:-}" = "--indicative" ]; then
+    indicative=true
+  fi
 
   if [ ! -f "$status_file" ]; then
     echo "ERROR: Status file not found: $status_file" >&2
@@ -574,6 +591,7 @@ set_confidence_block_fuzzy() {
       -v mean_r="$mean_r" \
       -v mean_a="$mean_a" \
       -v mean_d="$mean_d" \
+      -v is_indicative="$indicative" \
       -v ts="$now" '
     /^confidence:/ {
       in_block = 1
@@ -583,6 +601,9 @@ set_confidence_block_fuzzy() {
       print "  tentative: " tentative
       print "  unresolved: " unresolved
       print "  score: " score
+      if (is_indicative == "true") {
+        print "  indicative: true"
+      }
       print "  fuzzy: true"
       print "  dimensions:"
       print "    signal: " mean_s
@@ -1047,8 +1068,8 @@ SUBCOMMANDS:
   Write commands:
     set-change-type <change> <type>            Set change_type (feat/fix/refactor/docs/test/ci/chore)
     set-checklist <change> <field> <value>      Update checklist field
-    set-confidence <change> <certain> <confident> <tentative> <unresolved> <score>
-    set-confidence-fuzzy <change> <certain> <confident> <tentative> <unresolved> <score> <mean_s> <mean_r> <mean_a> <mean_d>
+    set-confidence <change> <certain> <confident> <tentative> <unresolved> <score> [--indicative]
+    set-confidence-fuzzy <change> <certain> <confident> <tentative> <unresolved> <score> <mean_s> <mean_r> <mean_a> <mean_d> [--indicative]
     add-issue <change> <id>            Append issue ID to issues array (idempotent)
     get-issues <change>                List issue IDs (one per line)
     add-pr <change> <url>              Append PR URL to prs array (idempotent)
@@ -1213,20 +1234,22 @@ case "${1:-}" in
     set_checklist_field "$_resolved_file" "$3" "$4"
     ;;
   set-confidence)
-    if [ $# -ne 7 ]; then
-      echo "Usage: statusman.sh set-confidence <change> <certain> <confident> <tentative> <unresolved> <score>" >&2
+    # Usage: set-confidence <change> <certain> <confident> <tentative> <unresolved> <score> [--indicative]
+    if [ $# -lt 7 ] || [ $# -gt 8 ]; then
+      echo "Usage: statusman.sh set-confidence <change> <certain> <confident> <tentative> <unresolved> <score> [--indicative]" >&2
       exit 1
     fi
     _resolved_file=$(resolve_to_status "$2") || exit 1
-    set_confidence_block "$_resolved_file" "$3" "$4" "$5" "$6" "$7"
+    set_confidence_block "$_resolved_file" "$3" "$4" "$5" "$6" "$7" "${8:-}"
     ;;
   set-confidence-fuzzy)
-    if [ $# -ne 11 ]; then
-      echo "Usage: statusman.sh set-confidence-fuzzy <change> <certain> <confident> <tentative> <unresolved> <score> <mean_s> <mean_r> <mean_a> <mean_d>" >&2
+    # Usage: set-confidence-fuzzy <change> ... <mean_d> [--indicative]
+    if [ $# -lt 11 ] || [ $# -gt 12 ]; then
+      echo "Usage: statusman.sh set-confidence-fuzzy <change> <certain> <confident> <tentative> <unresolved> <score> <mean_s> <mean_r> <mean_a> <mean_d> [--indicative]" >&2
       exit 1
     fi
     _resolved_file=$(resolve_to_status "$2") || exit 1
-    set_confidence_block_fuzzy "$_resolved_file" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}" "${11}"
+    set_confidence_block_fuzzy "$_resolved_file" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}" "${11}" "${12:-}"
     ;;
   add-issue)
     if [ $# -ne 3 ]; then
