@@ -1,1 +1,6 @@
 {"ts":"2026-03-03T20:09:31+05:30","event":"command","cmd":"fab-new","args":"Extract PR review handling from git-pr into standalone git-fix-pr-reviews skill — support Copilot and manual reviews, move polling into new skill, remove Step 6 from git-pr"}
+{"ts":"2026-03-04T02:20:55+05:30","event":"command","cmd":"fab-switch"}
+{"ts":"2026-03-04T02:22:00+05:30","event":"command","cmd":"fab-continue"}
+{"ts":"2026-03-04T22:48:10+05:30","event":"confidence","score":3.1,"delta":"+3.1","trigger":"calc-score"}
+{"ts":"2026-03-04T22:54:30+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-03-04T22:59:35+05:30","event":"review","result":"passed"}

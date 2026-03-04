@@ -4,24 +4,36 @@ created_by: sahil-weaver
 change_type: refactor
 issues: []
 progress:
-  intake: ready
-  spec: pending
-  tasks: pending
-  apply: pending
-  review: pending
-  hydrate: pending
+  intake: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
 checklist:
-  generated: false
+  generated: true
   path: checklist.md
   completed: 0
-  total: 0
+  total: 31
 confidence:
-  certain: 0
-  confident: 0
-  tentative: 0
+  certain: 7
+  confident: 3
+  tentative: 1
   unresolved: 0
-  score: 0.0
+  score: 3.1
+  fuzzy: true
+  dimensions:
+    signal: 87.7
+    reversibility: 78.6
+    competence: 84.1
+    disambiguation: 86.8
 stage_metrics:
-  intake: {started_at: "2026-03-03T20:09:31+05:30", driver: fab-new, iterations: 1}
-prs: []
-last_updated: "2026-03-03T20:10:28+05:30"
+  intake: {started_at: "2026-03-03T20:09:31+05:30", driver: fab-new, iterations: 1, completed_at: "2026-03-04T02:22:28+05:30"}
+  spec: {started_at: "2026-03-04T02:22:28+05:30", driver: fab-continue, iterations: 1, completed_at: "2026-03-04T22:55:24+05:30"}
+  tasks: {started_at: "2026-03-04T22:55:24+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-04T22:55:25+05:30"}
+  apply: {started_at: "2026-03-04T22:55:25+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-04T22:56:57+05:30"}
+  review: {started_at: "2026-03-04T22:56:57+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-04T22:59:35+05:30"}
+  hydrate: {started_at: "2026-03-04T22:59:35+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-04T22:59:41+05:30"}
+prs:
+  - https://github.com/wvrdz/fab-kit/pull/200
+last_updated: "2026-03-04T23:04:44+05:30"
