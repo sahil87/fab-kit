@@ -13,7 +13,7 @@ progress:
 checklist:
   generated: true
   path: checklist.md
-  completed: 31
+  completed: 0
   total: 31
 confidence:
   certain: 7

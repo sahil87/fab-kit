@@ -38,7 +38,7 @@ gh api repos/{owner}/{repo}/pulls/{number}/reviews --jq '[.[] | select(.state !=
 If the count is > 0, check for actual inline comments:
 
 ```bash
-gh api --paginate repos/{owner}/{repo}/pulls/{number}/comments --jq 'length'
+gh api repos/{owner}/{repo}/pulls/{number}/comments --jq 'length'
 ```
 
 If comments exist → proceed directly to Step 3 (Path A: fetch all comments). Skip Phases 2 and 3.
