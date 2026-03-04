@@ -1,1 +1,8 @@
 {"ts":"2026-03-05T00:26:16+05:30","event":"command","cmd":"fab-new","args":"Fix rework loop logging — add stage-transition event type to .history.jsonl"}
+{"ts":"2026-03-05T00:30:27+05:30","event":"command","cmd":"fab-switch"}
+{"ts":"2026-03-05T00:34:42+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-03-05T00:38:13+05:30","event":"confidence","score":4.4,"delta":"+4.4","trigger":"calc-score"}
+{"ts":"2026-03-05T00:43:39+05:30","event":"stage-transition","stage":"review","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T00:47:35+05:30","event":"stage-transition","stage":"hydrate","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T00:47:35+05:30","event":"review","result":"passed"}
+{"ts":"2026-03-05T00:47:53+05:30","event":"stage-transition","stage":"ship","action":"enter","driver":"fab-ff"}

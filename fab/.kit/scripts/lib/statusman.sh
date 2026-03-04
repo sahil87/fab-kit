@@ -8,7 +8,7 @@
 #   statusman.sh --help               Show usage
 #   statusman.sh all-stages           List all stage IDs
 #   statusman.sh progress-map <change>  Extract stage:state pairs
-#   statusman.sh start <change> <stage> [driver]
+#   statusman.sh start <change> <stage> [driver] [from] [reason]
 #   statusman.sh finish <change> <stage> [driver]
 
 set -euo pipefail
@@ -234,14 +234,17 @@ get_progress_line() {
   echo "$line"
 }
 
-# _apply_metrics_side_effect <tmpfile> <stage> <state> [driver]
+# _apply_metrics_side_effect <tmpfile> <stage> <state> [driver] [from] [reason]
 # Internal helper: apply stage_metrics side-effects for a state change.
 # Operates on tmpfile (caller handles atomicity).
+# On active: also emits a stage-transition event via logman (best-effort).
 _apply_metrics_side_effect() {
   local tmpfile="$1"
   local stage="$2"
   local state="$3"
   local driver="${4:-}"
+  local from="${5:-}"
+  local reason="${6:-}"
   local now
   now=$(date -Iseconds)
 
@@ -252,6 +255,18 @@ _apply_metrics_side_effect() {
       iterations=$((iterations + 1))
       yq -i ".stage_metrics.${stage} = {\"started_at\": \"${now}\", \"driver\": \"${driver}\", \"iterations\": ${iterations}}" "$tmpfile"
       yq -i "(.stage_metrics.${stage}) style=\"flow\"" "$tmpfile"
+
+      # Emit stage-transition event via logman (best-effort)
+      local change_dir folder action
+      change_dir="$(dirname "$tmpfile")"
+      folder="$(basename "$change_dir")"
+      if [ "$iterations" -eq 1 ]; then
+        action="enter"
+        "$LOGMAN" transition "$folder" "$stage" "$action" "" "" "$driver" 2>/dev/null || true
+      else
+        action="re-entry"
+        "$LOGMAN" transition "$folder" "$stage" "$action" "$from" "$reason" "$driver" 2>/dev/null || true
+      fi
       ;;
     done)
       yq -i ".stage_metrics.${stage}.completed_at = \"${now}\"" "$tmpfile"
@@ -590,12 +605,14 @@ set_confidence_block_fuzzy() {
 # Event Functions
 # ─────────────────────────────────────────────────────────────────────────────
 
-# event_start <status_file> <stage> [driver]
+# event_start <status_file> <stage> [driver] [from] [reason]
 # {pending,failed} → active. Validates via lookup_transition.
 event_start() {
   local status_file="$1"
   local stage="$2"
   local driver="${3:-}"
+  local from="${4:-}"
+  local reason="${5:-}"
 
   if [ ! -f "$status_file" ]; then
     echo "ERROR: Status file not found: $status_file" >&2
@@ -621,7 +638,7 @@ event_start() {
 
   cp "$status_file" "$tmpfile"
   yq -i ".progress.${stage} = \"${target_state}\" | .last_updated = \"${now}\"" "$tmpfile"
-  _apply_metrics_side_effect "$tmpfile" "$stage" "$target_state" "$driver"
+  _apply_metrics_side_effect "$tmpfile" "$stage" "$target_state" "$driver" "$from" "$reason"
 
   mv "$tmpfile" "$status_file"
 }
@@ -719,12 +736,14 @@ event_finish() {
   fi
 }
 
-# event_reset <status_file> <stage> [driver]
+# event_reset <status_file> <stage> [driver] [from] [reason]
 # {done,ready,skipped} → active. Cascade: all downstream stages → pending.
 event_reset() {
   local status_file="$1"
   local stage="$2"
   local driver="${3:-}"
+  local from="${4:-}"
+  local reason="${5:-}"
 
   if [ ! -f "$status_file" ]; then
     echo "ERROR: Status file not found: $status_file" >&2
@@ -750,7 +769,7 @@ event_reset() {
 
   cp "$status_file" "$tmpfile"
   yq -i ".progress.${stage} = \"${target_state}\" | .last_updated = \"${now}\"" "$tmpfile"
-  _apply_metrics_side_effect "$tmpfile" "$stage" "$target_state" "$driver"
+  _apply_metrics_side_effect "$tmpfile" "$stage" "$target_state" "$driver" "$from" "$reason"
 
   # Cascade: set all downstream stages to pending, remove their metrics
   local found_target=false
@@ -1018,12 +1037,12 @@ SUBCOMMANDS:
     validate-status-file <change>      Validate .status.yaml against schema
 
   Event commands:
-    start <change> <stage> [driver]            {pending,failed} → active
-    advance <change> <stage> [driver]          active → ready
-    finish <change> <stage> [driver]           {active,ready} → done (+next)
-    reset <change> <stage> [driver]            {done,ready,skipped} → active (+cascade)
-    skip <change> <stage> [driver]            {pending,active} → skipped (+cascade)
-    fail <change> <stage> [driver] [rework]    active → failed (review only)
+    start <change> <stage> [driver] [from] [reason]    {pending,failed} → active
+    advance <change> <stage> [driver]                  active → ready
+    finish <change> <stage> [driver]                   {active,ready} → done (+next)
+    reset <change> <stage> [driver] [from] [reason]    {done,ready,skipped} → active (+cascade)
+    skip <change> <stage> [driver]                     {pending,active} → skipped (+cascade)
+    fail <change> <stage> [driver] [rework]            active → failed (review only)
 
   Write commands:
     set-change-type <change> <type>            Set change_type (feat/fix/refactor/docs/test/ci/chore)
@@ -1128,12 +1147,12 @@ case "${1:-}" in
 
   # ── Event Commands ────────────────────────────────────────────────────
   start)
-    if [ $# -lt 3 ] || [ $# -gt 4 ]; then
-      echo "Usage: statusman.sh start <change> <stage> [driver]" >&2
+    if [ $# -lt 3 ] || [ $# -gt 6 ]; then
+      echo "Usage: statusman.sh start <change> <stage> [driver] [from] [reason]" >&2
       exit 1
     fi
     _resolved_file=$(resolve_to_status "$2") || exit 1
-    event_start "$_resolved_file" "$3" "${4:-}"
+    event_start "$_resolved_file" "$3" "${4:-}" "${5:-}" "${6:-}"
     ;;
   advance)
     if [ $# -lt 3 ] || [ $# -gt 4 ]; then
@@ -1152,12 +1171,12 @@ case "${1:-}" in
     event_finish "$_resolved_file" "$3" "${4:-}"
     ;;
   reset)
-    if [ $# -lt 3 ] || [ $# -gt 4 ]; then
-      echo "Usage: statusman.sh reset <change> <stage> [driver]" >&2
+    if [ $# -lt 3 ] || [ $# -gt 6 ]; then
+      echo "Usage: statusman.sh reset <change> <stage> [driver] [from] [reason]" >&2
       exit 1
     fi
     _resolved_file=$(resolve_to_status "$2") || exit 1
-    event_reset "$_resolved_file" "$3" "${4:-}"
+    event_reset "$_resolved_file" "$3" "${4:-}" "${5:-}" "${6:-}"
     ;;
   skip)
     if [ $# -lt 3 ] || [ $# -gt 4 ]; then

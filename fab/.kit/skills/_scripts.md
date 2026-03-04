@@ -75,9 +75,9 @@ statusman.sh <subcommand> <change> [args...]
 | Subcommand | Usage | Purpose |
 |------------|-------|---------|
 | `finish` | `finish <change> <stage> [driver]` | Mark stage done, auto-activate next. Review stage auto-logs "passed" |
-| `start` | `start <change> <stage> [driver]` | pending/failed → active |
+| `start` | `start <change> <stage> [driver] [from] [reason]` | pending/failed → active |
 | `advance` | `advance <change> <stage> [driver]` | active → ready |
-| `reset` | `reset <change> <stage> [driver]` | done/ready/skipped → active (cascades downstream to pending) |
+| `reset` | `reset <change> <stage> [driver] [from] [reason]` | done/ready/skipped → active (cascades downstream to pending) |
 | `skip` | `skip <change> <stage> [driver]` | {pending,active} → skipped (cascades downstream pending to skipped) |
 | `fail` | `fail <change> <stage> [driver] [rework]` | active → failed (review only). Review stage auto-logs "failed" |
 | `set-change-type` | `set-change-type <change> <type>` | Set change type |
@@ -106,8 +106,9 @@ finish hydrate → pipeline complete
 
 - `finish <change> review [driver]` → auto-calls `logman.sh review <change> "passed"`
 - `fail <change> review [driver] [rework]` → auto-calls `logman.sh review <change> "failed" [rework]`
+- Any event that sets a stage to `active` → auto-calls `logman.sh transition <change> <stage> <action> [from] [reason] [driver]` (best-effort)
 
-Skills do NOT need to call `log-review` manually — it's handled by statusman.
+Skills do NOT need to call `logman.sh review` or `logman.sh transition` manually — it's handled by statusman.
 
 ---
 
@@ -137,6 +138,7 @@ History Logger — append-only JSON logging to `.history.jsonl`. Skills call `lo
 logman.sh command <cmd> [change] [args]
 logman.sh confidence <change> <score> <delta> <trigger>
 logman.sh review <change> <result> [rework]
+logman.sh transition <change> <stage> <action> [from] [reason] [driver]
 ```
 
 The `command` subcommand accepts `<cmd>` (skill name) as the first argument. `[change]` is optional — when omitted, logman resolves the active change via `fab/current`. If resolution fails (no `fab/current`, empty file, stale pointer), logman exits 0 silently. When `[change]` IS provided and doesn't resolve, logman exits 1 with an error.
@@ -149,6 +151,7 @@ The `command` subcommand accepts `<cmd>` (skill name) as the first argument. `[c
 | Skills (per-skill instructions) | Skill invocation (exempt skills) | `logman.sh command "<skill>"` |
 | `statusman.sh finish review` | Review pass | `logman.sh review "passed"` |
 | `statusman.sh fail review` | Review fail | `logman.sh review "failed"` |
+| `statusman.sh _apply_metrics_side_effect` | Stage activation | `logman.sh transition` |
 | `calc-score.sh` | Score computation | `logman.sh confidence` |
 | `changeman.sh new` | Change creation | `logman.sh command` |
 | `changeman.sh rename` | Change rename | `logman.sh command` |

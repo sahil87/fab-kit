@@ -130,9 +130,9 @@ On success: `progress.ship` becomes `done`, `progress.review-pr` auto-activates.
 
 *(Skip if `progress.review-pr` is `done`.)*
 
-Invoke `/git-pr-review` behavior — detect reviews, triage comments, apply fixes, push. The git-pr-review skill handles statusman integration internally (start/finish/fail review-pr stage).
+Invoke `/git-pr-review` behavior — detect reviews, triage comments, apply fixes, push. This includes requesting Copilot as reviewer if no reviews exist, then polling for up to 6 minutes. The git-pr-review skill handles statusman integration internally (start/finish/fail review-pr stage).
 
-**If review-pr fails** (Copilot timeout, no reviews): STOP with the error.
+**If review-pr fails** (no PR found, Copilot unavailable, or Copilot review timeout): STOP with the error.
 
 On success: `progress.review-pr` becomes `done`.
 

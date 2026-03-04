@@ -55,16 +55,16 @@ CLI dispatch resolves `<change>` via `resolve.sh --status`. Also accepts direct 
 
 Branch: `active` → `failed` (review only), `failed` → `active` (via `start`)
 
-Reset: `done`/`ready` → `active` (cascades downstream to `pending`)
+Reset: `done`/`ready`/`skipped` → `active` (cascades downstream to `pending`)
 
 ### Transitions
 
 | Command | From | To | Side Effects |
 |---------|------|----|-------------|
-| `start` | pending, failed | active | None |
+| `start` | pending, failed | active | Logs stage-transition event (best-effort) |
 | `advance` | active | ready | None |
-| `finish` | active, ready | done | Auto-activates next pending stage; review stage auto-logs "passed" via logman |
-| `reset` | done, ready | active | Cascades all downstream stages to pending |
+| `finish` | active, ready | done | Auto-activates next pending stage (logs stage-transition for next); review stage auto-logs "passed" via logman |
+| `reset` | done, ready, skipped | active | Cascades all downstream stages to pending; logs stage-transition event (best-effort) |
 | `fail` | active | failed | Review stage only; auto-logs "failed" [rework] via logman |
 
 ### Auto-Activation Chain
@@ -82,6 +82,7 @@ Reset: `done`/`ready` → `active` (cascades downstream to `pending`)
 | `preflight.sh --driver <skill>` | Skill invocation | `logman.sh command` |
 | `statusman.sh finish review` | Review pass | `logman.sh review "passed"` |
 | `statusman.sh fail review` | Review fail | `logman.sh review "failed" [rework]` |
+| `statusman.sh _apply_metrics_side_effect` | Stage activation | `logman.sh transition` |
 | `calc-score.sh` | Score computation | `logman.sh confidence` |
 | `changeman.sh new` | Change creation | `logman.sh command` |
 | `changeman.sh rename` | Change rename | `logman.sh command` |
@@ -94,15 +95,18 @@ One JSON object per line, appended to `{change_dir}/.history.jsonl`.
 
 **Confidence event**: `{"ts":"ISO-8601","event":"confidence","score":3.5,"delta":"+0.3","trigger":"calc-score"}`
 
-**Review event**: `{"ts":"ISO-8601","event":"review","result":"passed"}` or `{"ts":"ISO-8601","event":"review","result":"failed","rework":"fix-code"}`
+**Review event**: `{"ts":"ISO-8601","event":"review","result":"passed"}` or `{"ts":"ISO-8601","event":"review","result":"failed","rework":"fix-code"}`. Canonical `result` values: `"passed"` and `"failed"`. Validation is permissive — non-canonical values (e.g., `"smoke-test"`, `"test-pass"`) are accepted for ad-hoc debugging.
+
+**Stage-transition event**: `{"ts":"ISO-8601","event":"stage-transition","stage":"spec","action":"enter","driver":"fab-ff"}` (first entry) or `{"ts":"ISO-8601","event":"stage-transition","stage":"apply","action":"re-entry","from":"review","reason":"fix-code","driver":"fab-ff"}` (re-entry). `action` is `"enter"` when `iterations == 1`, `"re-entry"` when `iterations > 1`. `from`/`reason` present only on re-entries. `driver` present when provided.
 
 ### `logman.sh` Subcommands
 
 All resolve `<change>` via `resolve.sh --dir`. The `command` subcommand's no-change-arg path delegates to `resolve.sh` (reads `fab/current` internally) with a file-existence guard to skip the single-change guess fallback — best-effort logging only fires when an explicit active change pointer exists.
 
-- `logman.sh command <change> <cmd> [args]` — logs command invocation
+- `logman.sh command <cmd> [change] [args]` — logs command invocation
 - `logman.sh confidence <change> <score> <delta> <trigger>` — logs confidence change
 - `logman.sh review <change> <result> [rework]` — logs review outcome
+- `logman.sh transition <change> <stage> <action> [from] [reason] [driver]` — logs stage transition. `action` is `"enter"` (first activation, `iterations == 1`) or `"re-entry"` (`iterations > 1`). `from`/`reason` are present only on re-entries. `driver` is optional. Called automatically by `statusman.sh _apply_metrics_side_effect` — skills do not call this directly.
 
 ## Confidence Scoring
 
@@ -156,4 +160,4 @@ Each script has exactly one responsibility with no overlap:
 
 ---
 
-*Last updated: 2026-03-02*
+*Last updated: 2026-03-05*
