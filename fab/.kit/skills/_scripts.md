@@ -1,6 +1,6 @@
 ---
 name: _scripts
-description: "Kit script invocation guide — calling conventions for the Go binary and shell script fallbacks."
+description: "Kit script invocation guide — calling conventions for the fab dispatcher and shell scripts."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -14,29 +14,31 @@ metadata:
 
 ## Calling Convention
 
-The fab Go binary at `fab/.kit/bin/fab` is the primary invocation method. Shell scripts in `fab/.kit/scripts/lib/` serve as fallbacks — they contain shims that delegate to the Go binary when available, falling back to their bash implementations when it is not.
+`fab/.kit/bin/fab` is a shell dispatcher that serves as the sole entry point for all fab CLI operations. It checks for compiled backends in priority order (`fab-rust` → `fab-go` → shell scripts) and delegates accordingly. Shell scripts in `fab/.kit/scripts/lib/` are pure implementations — no shims, no delegation logic.
 
-**Primary (Go binary)**:
 ```
 fab/.kit/bin/fab <command> <subcommand> [args...]
 ```
 
-**Legacy (shell scripts — still works via shim delegation)**:
-```
-bash fab/.kit/scripts/lib/<script>.sh <subcommand> [args...]
-```
+### Backend Priority
+
+1. `fab/.kit/bin/fab-rust` — if present and executable, all commands delegate here
+2. `fab/.kit/bin/fab-go` — if present and executable, all commands delegate here
+3. Shell scripts — dispatcher routes to `fab/.kit/scripts/lib/` via `case` statement
+
+When falling back to shell scripts, the dispatcher prints `[fab] using shell backend` to stderr.
 
 ### Command Mapping
 
-| Go command | Shell script | Purpose |
-|-----------|-------------|---------|
-| `fab/.kit/bin/fab resolve` | `resolve.sh` | Change reference resolution |
-| `fab/.kit/bin/fab status` | `statusman.sh` | Stage state machine + metadata |
-| `fab/.kit/bin/fab log` | `logman.sh` | Append-only history logging |
-| `fab/.kit/bin/fab preflight` | `preflight.sh` | Validation + structured YAML output |
-| `fab/.kit/bin/fab change` | `changeman.sh` | Change lifecycle (new, rename, switch, list) |
-| `fab/.kit/bin/fab score` | `calc-score.sh` | Confidence scoring |
-| `fab/.kit/bin/fab archive` | `archiveman.sh` | Archive/restore operations |
+| Command | Shell script | Purpose |
+|---------|-------------|---------|
+| `fab resolve` | `resolve.sh` | Change reference resolution |
+| `fab status` | `statusman.sh` | Stage state machine + metadata |
+| `fab log` | `logman.sh` | Append-only history logging |
+| `fab preflight` | `preflight.sh` | Validation + structured YAML output |
+| `fab change` | `changeman.sh` | Change lifecycle (new, rename, switch, list) |
+| `fab score` | `calc-score.sh` | Confidence scoring |
+| `fab archive` | `archiveman.sh` | Archive/restore operations |
 
 ---
 

@@ -38,7 +38,7 @@ func repoRoot(t *testing.T) string {
 // fabBinary returns the path to the compiled Go binary.
 func fabBinary(t *testing.T) string {
 	t.Helper()
-	bin := filepath.Join(repoRoot(t), "fab", ".kit", "bin", "fab")
+	bin := filepath.Join(repoRoot(t), "fab", ".kit", "bin", "fab-go")
 	if _, err := os.Stat(bin); err != nil {
 		t.Skipf("fab binary not found at %s — run 'go build -o %s ./cmd/fab' first", bin, bin)
 	}

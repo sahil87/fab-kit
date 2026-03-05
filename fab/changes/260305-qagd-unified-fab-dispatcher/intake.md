@@ -31,8 +31,10 @@ If we don't fix this: every new compiled backend requires touching all 7 scripts
 
 A ~30-line shell script that:
 - Resolves its own directory (`SCRIPT_DIR`)
+- Handles `--version` directly — reads `VERSION` file and reports the active backend (e.g., `fab 0.32.1 (shell backend)`)
 - Checks for `fab-rust` (executable) → `exec "$SCRIPT_DIR/fab-rust" "$@"`
 - Checks for `fab-go` (executable) → `exec "$SCRIPT_DIR/fab-go" "$@"`
+- Prints a diagnostic to stderr (e.g., `[fab] using shell backend`) when no compiled binary is found
 - Falls back to shell scripts via a `case "$1"` routing table:
 
 ```bash
@@ -110,8 +112,26 @@ Update these to use `fab/.kit/bin/fab change resolve` / `fab/.kit/bin/fab change
 
 ## Open Questions
 
-- Should the dispatcher print a diagnostic when falling back to shell scripts (e.g., `[fab] using shell backend`)? Could be useful for debugging but noisy in normal operation.
-- Should `fab --version` be handled by the dispatcher itself (reporting which backend is active) or passed through to the backend?
+- ~~Should the dispatcher print a diagnostic when falling back to shell scripts?~~ **Resolved**: Yes — print a diagnostic (e.g., `[fab] using shell backend`) when falling back to shell scripts.
+- ~~Should `fab --version` be handled by the dispatcher itself or passed through?~~ **Resolved**: Dispatcher handles it — reports version and active backend (e.g., `fab 0.32.1 (shell backend)`).
+
+## Clarifications
+
+### Session 2026-03-05 (bulk confirm)
+
+| # | Action | Detail |
+|---|--------|--------|
+| 5 | Confirmed | — |
+| 6 | Changed | "print diagnostic when falling back to shell scripts" |
+| 7 | Confirmed | — |
+| 8 | Confirmed | — |
+
+### Session 2026-03-05 (taxonomy)
+
+| # | Question | Answer |
+|---|----------|--------|
+| 1 | Diagnostic on shell fallback? | Yes — print diagnostic to stderr |
+| 2 | `fab --version` — dispatcher or passthrough? | Dispatcher handles it, reports version + active backend |
 
 ## Assumptions
 
@@ -121,9 +141,9 @@ Update these to use `fab/.kit/bin/fab change resolve` / `fab/.kit/bin/fab change
 | 2 | Certain | Priority: rust > go > shell | Discussed — user explicitly chose this order | S:95 R:85 A:90 D:95 |
 | 3 | Certain | Shell fallback must be complete | Discussed — user explicitly said "don't assume Go binary always available" | S:95 R:80 A:90 D:95 |
 | 4 | Certain | Rename Go binary to fab-go | Discussed — user confirmed this naming | S:90 R:85 A:90 D:90 |
-| 5 | Confident | Archive command needs arg injection | Codebase signal — archiveman.sh expects `archive` as first positional, CLI omits it | S:80 R:90 A:85 D:80 |
-| 6 | Confident | No diagnostic output on fallback by default | Silent fallback is less noisy; listed as open question for user input | S:60 R:90 A:70 D:65 |
-| 7 | Confident | Batch scripts use `fab change resolve` not direct changeman.sh | Discussed — user said batch scripts should use new signatures | S:85 R:85 A:80 D:75 |
-| 8 | Confident | Parity tests may need path updates | Go binary moves from `fab/.kit/bin/fab` to `fab/.kit/bin/fab-go` | S:70 R:90 A:80 D:80 |
+| 5 | Certain | Archive command needs arg injection | Clarified — user confirmed | S:95 R:90 A:85 D:80 |
+| 6 | Certain | Diagnostic output on shell fallback | Clarified — user changed to "print diagnostic when falling back to shell scripts" | S:95 R:90 A:70 D:65 |
+| 7 | Certain | Batch scripts use `fab change resolve` not direct changeman.sh | Clarified — user confirmed | S:95 R:85 A:80 D:75 |
+| 8 | Certain | Parity tests may need path updates | Clarified — user confirmed | S:95 R:90 A:80 D:80 |
 
-8 assumptions (4 certain, 4 confident, 0 tentative, 0 unresolved).
+8 assumptions (8 certain, 0 confident, 0 tentative, 0 unresolved).

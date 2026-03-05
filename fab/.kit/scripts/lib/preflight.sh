@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-# Shim: delegate to Go binary if available
-_fab_bin="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)/../../bin/fab"
-if [ -x "$_fab_bin" ]; then
-  exec "$_fab_bin" preflight "$@"
-fi
 fab_root="$(dirname "$0")/../../.."
 scripts_dir="$(cd "$(dirname "$0")/.." && pwd)"
 kit_dir="$fab_root/.kit"

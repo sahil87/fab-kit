@@ -13,12 +13,6 @@
 #   changeman.sh --help
 
 set -euo pipefail
-
-# Shim: delegate to Go binary if available
-_fab_bin="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)/../../bin/fab"
-if [ -x "$_fab_bin" ]; then
-  exec "$_fab_bin" change "$@"
-fi
 # Path resolution
 LIB_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 FAB_ROOT="$(cd "$LIB_DIR/../../.." && pwd)"

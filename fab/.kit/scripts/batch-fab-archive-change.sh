@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KIT_DIR="$(dirname "$SCRIPT_DIR")"
 FAB_DIR="$(dirname "$KIT_DIR")"
 CHANGES_DIR="${FAB_DIR}/changes"
-CHANGEMAN="${SCRIPT_DIR}/lib/changeman.sh"
+FAB_BIN="$KIT_DIR/bin/fab"
 
 usage() {
   cat <<'EOF'
@@ -110,7 +110,7 @@ esac
 
 resolved=()
 for change in "${changes[@]}"; do
-  if ! match=$("$CHANGEMAN" resolve "$change"); then
+  if ! match=$("$FAB_BIN" change resolve "$change"); then
     continue
   fi
 

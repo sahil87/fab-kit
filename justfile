@@ -34,7 +34,7 @@ go_src := "src/fab-go"
 
 # Build fab Go binary for current platform
 build-go:
-    cd {{go_src}} && CGO_ENABLED=0 go build -o ../../fab/.kit/bin/fab ./cmd/fab
+    cd {{go_src}} && CGO_ENABLED=0 go build -o ../../fab/.kit/bin/fab-go ./cmd/fab
 
 # Run Go parity tests (bash vs Go binary output)
 test-go:

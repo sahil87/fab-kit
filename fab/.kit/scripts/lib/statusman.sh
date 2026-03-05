@@ -12,12 +12,6 @@
 #   statusman.sh finish <change> <stage> [driver]
 
 set -euo pipefail
-
-# Shim: delegate to Go binary if available
-_fab_bin="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)/../../bin/fab"
-if [ -x "$_fab_bin" ]; then
-  exec "$_fab_bin" status "$@"
-fi
 # Locate workflow schema and sibling scripts relative to this script
 STATUSMAN_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 WORKFLOW_SCHEMA="$STATUSMAN_DIR/../../schemas/workflow.yaml"

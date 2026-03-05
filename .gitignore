@@ -22,4 +22,5 @@ src/benchmark/statusman-node/node_modules/
 src/benchmark/statusman-go/statusman
 src/benchmark/results/*.json
 
-fab/.kit/bin/fab
+fab/.kit/bin/fab-go
+fab/.kit/bin/fab-rust
