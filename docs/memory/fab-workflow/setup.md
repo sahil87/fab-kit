@@ -84,6 +84,7 @@ Each subcommand operates independently — they can be invoked directly without 
 | Skill symlinks (Claude Code, OpenCode, Codex) | `fab-sync.sh` | Discovers skills via glob pattern |
 | `.envrc` symlink | `fab-sync.sh` | Links to `fab/.kit/scaffold/envrc` |
 | `.gitignore` entries | `fab-sync.sh` | Appends entries from `scaffold/gitignore-entries` if not present |
+| Hook registration | `fab-sync.sh` via `5-sync-hooks.sh` | Registers `fab/.kit/hooks/on-*.sh` into `.claude/settings.local.json` hooks; idempotent jq merge |
 | `config.yaml` | `/fab-setup config` (delegated by `/fab-setup`) | Reads `scaffold/config.yaml` template, substitutes placeholders with user-provided values |
 | `constitution.md` | `/fab-setup constitution` (delegated by `/fab-setup`) | Reads `scaffold/constitution.md` skeleton, generates principles from project context |
 
@@ -152,6 +153,7 @@ Each subcommand operates independently — they can be invoked directly without 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260305-bs5x-orchestrator-idle-hooks | 2026-03-05 | Added hook registration to delegation table: `fab-sync.sh` via `5-sync-hooks.sh` registers `fab/.kit/hooks/on-*.sh` into `.claude/settings.local.json` hooks (idempotent jq merge). |
 | 260223-sr3u-add-fab-doctor | 2026-02-23 | Added Phase 0 prerequisite check: `/fab-setup` (bare bootstrap) runs `fab-doctor.sh` as early gate before creating any project artifacts. Non-zero exit stops bootstrap. Subcommands (config, constitution, migrations) skip this check. |
 | 260217-17pe-DEV-1046-scaffold-setup-templates | 2026-02-17 | Extracted inline config.yaml and constitution.md templates from `fab-setup.md` into `scaffold/config.yaml` and `scaffold/constitution.md`. Replaced inline memory-index and specs-index templates with scaffold file references. Updated delegation table notes. Added "Templates in Scaffold Files" design decision. |
 | 260216-tk7a-DEV-1037-consolidate-setup-upgrade-flow | 2026-02-16 | Renamed `/fab-init` → `/fab-setup`; absorbed `/fab-update` as `migrations` subcommand; promoted `lib/sync-workspace.sh` → `fab-sync.sh`; validate subcommand folded into config/constitution flows; file renamed from init.md to setup.md |

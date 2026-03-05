@@ -72,10 +72,15 @@ fab/.kit/
 │       └── lib/wt-common.sh
 ├── schemas/                # Workflow schema
 │   └── workflow.yaml       # Canonical stage/state definitions
+├── hooks/                  # Claude Code hook scripts (runtime lifecycle signals)
+│   ├── on-session-start.sh # SessionStart hook — removes agent block from .status.yaml
+│   └── on-stop.sh          # Stop hook — writes agent.idle_since timestamp to .status.yaml
 ├── sync/                   # Kit-level sync scripts (iterated by fab-sync.sh)
 │   ├── 1-prerequisites.sh  # Validate required tools (yq, jq, gh, direnv, bats) — fatal on missing
+│   ├── 2-sync-workspace.sh # Workspace sync logic (directories, symlinks, agents, .envrc, .gitignore, settings)
 │   ├── 3-direnv.sh         # Run direnv allow (idempotent)
-│   └── 2-sync-workspace.sh # Workspace sync logic (directories, symlinks, agents, .envrc, .gitignore, settings)
+│   ├── 4-get-fab-binary.sh # Download platform-specific Go binary (optional, graceful skip)
+│   └── 5-sync-hooks.sh     # Register hook scripts into .claude/settings.local.json (idempotent)
 └── scripts/                # Shell utilities
     ├── batch-fab-archive-change.sh  # Batch archive completed changes via tmux + Claude
     ├── batch-fab-new-backlog.sh     # Batch create changes from backlog via tmux + Claude
@@ -462,6 +467,7 @@ Full benchmark suite with harness and all 4 implementations: `src/benchmark/`
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260305-bs5x-orchestrator-idle-hooks | 2026-03-05 | Added `hooks/` directory to `.kit/` tree with `on-session-start.sh` (clears `agent` block) and `on-stop.sh` (writes `agent.idle_since` timestamp). Added `5-sync-hooks.sh` to `sync/` directory (registers hooks into `.claude/settings.local.json` via idempotent jq merge). Fixed sync directory tree listing (added missing `4-get-fab-binary.sh`, corrected sort order of `2-sync-workspace.sh` and `3-direnv.sh`). |
 | 260305-7zq4-worktree-status-command | 2026-03-05 | Added `wt-status` to wt package — shows fab pipeline status (stage + state) per worktree. Three modes: no args (current worktree), `<name>` (specific worktree), `--all` (all worktrees). Composable architecture: atomic `wt_get_fab_status` function reads `fab/current` + `.status.yaml` via `statusman.sh display-stage`. |
 | 260305-38q7-wt-delete-show-all-in-menu | 2026-03-05 | wt-delete interactive selection menu now shows "All (N worktrees)" as first option (item 1). Selecting "All" delegates to `wt_delete_all_worktrees`. Individual worktrees shift by +1. Default selection (MRU) shifts accordingly. `--delete-all` flag preserved for non-interactive use. |
 | 260303-hcq9-scriptify-fab-archive | 2026-03-04 | Added `archiveman.sh` to `scripts/lib/` — Archive Manager with `archive`, `restore`, and `list` subcommands. Slimmed `/fab-archive` skill to orchestrator (backlog matching only). Added `logman.sh` and `resolve.sh` to directory tree listing (were already documented in script sections but missing from the tree). Dev test suite: `src/lib/archiveman/test.bats` (41 tests). |

@@ -62,6 +62,22 @@ For the complete API reference, see `src/lib/statusman/README.md`.
 4. **Validated** — Schema enforces correctness at runtime
 5. **Versionable** — Metadata tracks compatibility and changes
 
+## Ephemeral Runtime State
+
+### Agent Block
+
+`.status.yaml` supports an optional `agent` block at the top level for runtime lifecycle signaling. This block is NOT part of the workflow schema, NOT initialized by templates, and NOT read by statusman or any workflow script. It is managed exclusively by Claude Code hook scripts in `fab/.kit/hooks/`.
+
+```yaml
+agent:
+  idle_since: 1741193400    # unix timestamp — set by Stop hook, cleared by SessionStart hook
+```
+
+- **Present** (`agent.idle_since` set): agent is idle (finished its last response turn)
+- **Absent** (no `agent` block): agent is active or no hook has run
+
+External tools (e.g., pipeline orchestrator) can read this field to detect agent idle state without relying on timing heuristics.
+
 ## Future Enhancements
 
 1. **Custom workflows** — Allow `fab/project/config.yaml` to override or extend `workflow.yaml`
@@ -74,6 +90,7 @@ For the complete API reference, see `src/lib/statusman/README.md`.
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260305-bs5x-orchestrator-idle-hooks | 2026-03-05 | Added Ephemeral Runtime State section documenting the optional `agent` block (`agent.idle_since` timestamp) managed by Claude Code hooks, not part of workflow schema or templates |
 | 260215-lqm5-statusman-cli-only | 2026-02-15 | Updated script example from `source statusman.sh` to CLI subprocess pattern (`$STATUSMAN <subcommand>`) |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_preflight.sh` → `lib/preflight.sh` in skill example; updated `src/statusman/README.md` → `src/lib/statusman/README.md` |
 | 260213-jc0u-split-archive-hydrate | 2026-02-13 | Updated progression references: terminal stage from `archive` to `hydrate` |

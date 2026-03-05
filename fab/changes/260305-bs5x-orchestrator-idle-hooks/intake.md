@@ -62,7 +62,7 @@ A shell script at `fab/.kit/hooks/on-stop.sh` that:
 
 ### Hook registration
 
-The hooks need to be registered in Claude Code's settings. This is a user-side configuration — the hooks reference scripts inside `fab/.kit/hooks/`. Registration format (in `.claude/settings.json` or equivalent):
+The hooks need to be registered in Claude Code's settings. This is a project-local configuration — the hooks reference scripts inside `fab/.kit/hooks/`. Registration format (in `.claude/settings.local.json`):
 
 ```json
 {
@@ -73,7 +73,14 @@ The hooks need to be registered in Claude Code's settings. This is a user-side c
 }
 ```
 
-Registration is out of scope for this change — it's a user/project configuration concern. The change only delivers the scripts.
+Registration SHALL be handled by a new `fab/.kit/sync/5-sync-hooks.sh` script, following the existing numbered-step convention alongside `1-prerequisites.sh`, `2-sync-workspace.sh`, etc. The script:
+
+1. Reads hook definitions from `fab/.kit/hooks/` (discovers available hook scripts)
+2. Merges them into `.claude/settings.local.json` under the `hooks` key (same file as permissions scaffold)
+3. Uses its own idempotent merge logic for `hooks.*` arrays — the existing `json_merge_permissions` only handles `permissions.allow` and won't work for hooks. Entries already present are not duplicated.
+4. Requires `jq` (already used by `2-sync-workspace.sh` for JSON merging)
+
+This keeps hook wiring automated and consistent with the existing sync workflow — users don't need to manually configure hooks.
 
 ### Path resolution
 
@@ -84,6 +91,8 @@ Both scripts must work from any working directory (worktrees, repo root). They s
 - `fab-workflow/kit-architecture`: (modify) Document the `fab/.kit/hooks/` directory and hook scripts
 - `fab-workflow/schemas`: (modify) Document the `agent` block in `.status.yaml` schema
 - `fab-workflow/pipeline-orchestrator`: (modify) Note that `idle_since` hooks exist as an explicit idle signal, complementing the existing polling approach
+- `fab-workflow/setup`: (modify) Document the new `5-sync-hooks.sh` sync step in fab-sync.sh's sub-step inventory
+- `fab-workflow/distribution`: (modify) Note `fab/.kit/hooks/` as a new distributed directory
 
 ## Impact
 
@@ -91,10 +100,6 @@ Both scripts must work from any working directory (worktrees, repo root). They s
 - **Pipeline orchestrator**: Future changes can replace fixed delays with `idle_since` polling. This change does NOT modify `run.sh`/`dispatch.sh` — it only provides the signal.
 - **New directory**: `fab/.kit/hooks/` — new convention for Claude Code hook scripts shipped with the kit
 - **Dependencies**: Requires `yq` (already a fab-kit dependency) and `git` (always present)
-
-## Open Questions
-
-- Should the hooks also write to a shared location (e.g., `fab/.agent-status`) for multi-worktree visibility, or is per-change `.status.yaml` sufficient for now?
 
 ## Assumptions
 
@@ -104,10 +109,28 @@ Both scripts must work from any working directory (worktrees, repo root). They s
 | 2 | Certain | Clear entire `agent` block on SessionStart (not just null the field) | Cleaner — absence means "active", presence means "idle". No stale partial state. | S:85 R:90 A:85 D:90 |
 | 3 | Certain | Hook scripts live at `fab/.kit/hooks/` | Follows constitution (kit is self-contained, portable via cp -r). New directory is analogous to `fab/.kit/scripts/`. | S:80 R:90 A:90 D:90 |
 | 4 | Certain | Don't modify status.yaml template | `agent` block is ephemeral runtime state, not part of change lifecycle. Template should only contain lifecycle fields. | S:85 R:95 A:90 D:90 |
-| 5 | Confident | Hook registration is out of scope | Discussed — hooks are user/project config. Kit delivers scripts; user wires them. Consistent with constitution's portability principle. | S:75 R:85 A:80 D:75 |
-| 6 | Confident | Don't modify run.sh/dispatch.sh in this change | Discussed — this change provides the signal only. Consuming the signal is a separate change. Keeps scope minimal. | S:80 R:90 A:75 D:80 |
-| 7 | Confident | Use `git rev-parse --show-toplevel` for path resolution | Hooks run from arbitrary CWDs (worktrees, subdirectories). git rev-parse is the canonical way to find repo root. | S:75 R:85 A:85 D:80 |
-| 8 | Tentative | Per-change `.status.yaml` is sufficient (no shared file) | For single-session multi-window, each window has its own worktree with its own `.status.yaml`. The orchestrator already knows which worktree to poll. Multi-session coordination might need a shared file, but that's a future concern. | S:60 R:70 A:60 D:55 |
-<!-- assumed: per-change status file sufficient — orchestrator already polls per-worktree .status.yaml, shared file deferred to multi-session use case -->
+| 5 | Certain | Hook registration via fab-sync.sh sub-step (new script) | Clarified — user changed to: registration handled by fab-sync.sh, not out of scope | S:95 R:85 A:80 D:75 |
+| 6 | Certain | Don't modify run.sh/dispatch.sh in this change | Clarified — user confirmed | S:95 R:90 A:75 D:80 |
+| 7 | Certain | Use `git rev-parse --show-toplevel` for path resolution | Clarified — user confirmed | S:95 R:85 A:85 D:80 |
+| 8 | Confident | Per-change `.status.yaml` is sufficient (no shared file) | Deferred — orchestrator polls per-worktree, shared file is a future concern if multi-session coordination materializes | S:60 R:70 A:60 D:75 |
+<!-- clarified: shared file deferred — orchestrator already tracks worktree paths, per-change status sufficient for v1 -->
 
-8 assumptions (4 certain, 3 confident, 1 tentative, 0 unresolved).
+8 assumptions (7 certain, 1 confident, 0 tentative, 0 unresolved).
+
+## Clarifications
+
+### Session 2026-03-05 (bulk confirm)
+
+| # | Action | Detail |
+|---|--------|--------|
+| 5 | Changed | "Hook registration via fab-sync.sh sub-step (new script)" |
+| 6 | Confirmed | — |
+| 7 | Confirmed | — |
+
+### Session 2026-03-05 (taxonomy scan)
+
+| # | Question | Resolution |
+|---|----------|------------|
+| 1 | fab-sync.sh registration mechanism | New `5-sync-hooks.sh` in `fab/.kit/sync/`, idempotent merge into `.claude/settings.local.json` |
+| 2 | Affected Memory gap for fab-sync scope | Added `fab-workflow/setup` and `fab-workflow/distribution` |
+| 3 | Shared file open question (#8) | Explicitly deferred — upgraded #8 to Confident, removed from Open Questions |

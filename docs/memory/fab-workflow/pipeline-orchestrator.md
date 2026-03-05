@@ -41,6 +41,8 @@ The `stage` field is written by the orchestrator. Valid values: `intake`, `spec`
 
 **Configurable timeouts**: `PIPELINE_FF_TIMEOUT` (default 1800s/30min), `PIPELINE_SHIP_TIMEOUT` (default 300s/5min).
 
+**Agent idle signal**: Claude Code hook scripts (`fab/.kit/hooks/on-stop.sh`, `fab/.kit/hooks/on-session-start.sh`) write/clear an `agent.idle_since` timestamp in `.status.yaml`. This provides an explicit filesystem-based idle signal that the orchestrator (or future coordination tools) can poll instead of relying on fixed-delay heuristics (`CLAUDE_STARTUP_DELAY`, `POST_SWITCH_DELAY`, `PIPELINE_SHIP_DELAY`). The hooks are registered by `fab/.kit/sync/5-sync-hooks.sh`. The orchestrator does not yet consume this signal — it continues to use fixed delays. Replacing delays with idle-signal polling is a future enhancement.
+
 **Stage classification for resumability**:
 - Terminal (`done`, `failed`, `invalid`) — skip permanently
 - Intermediate (pipeline stage names) — re-dispatch into fresh worktree
@@ -183,6 +185,7 @@ BATS test suite at `src/scripts/pipeline/test.bats` covers pure-logic functions 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260305-bs5x-orchestrator-idle-hooks | 2026-03-05 | Added agent idle signal documentation: `on-stop.sh` and `on-session-start.sh` hooks write/clear `agent.idle_since` in `.status.yaml`, registered by `5-sync-hooks.sh`. Signal-only — orchestrator does not yet consume it (fixed delays remain). Replacing delays with idle-signal polling is a future enhancement. |
 | 260223-xiuk-batch-pipeline-single-change-and-base-branch | 2026-02-23 | `batch-pipeline-series.sh` now accepts a single change argument (minimum lowered from 2 to 1). `run.sh` `validate_manifest()` treats `base` as optional — resolves to current branch via `git branch --show-current` with `main` fallback, writes resolved value back to manifest. Fixed detached HEAD fallback in both scripts (explicit empty-check replaces `\|\|` pattern). Scaffold `example.yaml` synced with main copy. Test suite: 44→46 tests. |
 | 260227-gasp-consolidate-status-field-naming | 2026-02-27 | `.shipped` sentinel renamed to `.pr-done`. Pipeline runner updated accordingly. |
 | 260222-trdc-git-pr-shipped-sentinel-and-status-commit | 2026-02-22 | Ship completion detection now uses `.shipped` sentinel file (gitignored, written by `/git-pr` after all git ops) instead of `statusman is-shipped` polling. Eliminates TOCTOU race where `.status.yaml` update was visible before commit+push completed. `/git-pr` now performs a second commit+push of `.status.yaml` before writing the sentinel. |

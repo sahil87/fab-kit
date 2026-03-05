@@ -1,3 +1,14 @@
 {"ts":"2026-03-05T16:55:33+05:30","event":"stage-transition","stage":"intake","action":"enter","driver":"fab-new"}
 {"ts":"2026-03-05T16:55:33+05:30","event":"command","cmd":"fab-new","args":"Add SessionStart/Stop hooks for agent idle_since tracking in .status.yaml"}
 {"delta":"+3.1","event":"confidence","score":3.1,"trigger":"calc-score","ts":"2026-03-05T16:56:34+05:30"}
+{"cmd":"fab-switch","event":"command","ts":"2026-03-05T17:29:54+05:30"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-03-05T17:33:59+05:30"}
+{"delta":"+1.6","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-03-05T20:18:44+05:30"}
+{"cmd":"fab-ff","event":"command","ts":"2026-03-05T20:19:39+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"spec","ts":"2026-03-05T20:22:14+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"tasks","ts":"2026-03-05T20:25:57+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"apply","ts":"2026-03-05T20:29:29+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"review","ts":"2026-03-05T20:33:40+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"hydrate","ts":"2026-03-05T20:37:12+05:30"}
+{"event":"review","result":"passed","ts":"2026-03-05T20:37:12+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"ship","ts":"2026-03-05T20:39:47+05:30"}
