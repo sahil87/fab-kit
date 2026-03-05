@@ -1,0 +1,12 @@
+{"ts":"2026-03-05T08:32:46+05:30","event":"stage-transition","stage":"intake","action":"enter","driver":"fab-new"}
+{"ts":"2026-03-05T08:32:46+05:30","event":"command","cmd":"fab-new","args":"wt-delete: absorb --all into default invocation by showing All as first menu option"}
+{"ts":"2026-03-05T08:33:22+05:30","event":"confidence","score":4.4,"delta":"+4.4","trigger":"calc-score"}
+{"ts":"2026-03-05T08:35:11+05:30","event":"command","cmd":"fab-switch"}
+{"ts":"2026-03-05T08:36:11+05:30","event":"command","cmd":"fab-discuss"}
+{"ts":"2026-03-05T08:41:14+05:30","event":"stage-transition","stage":"spec","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:41:38+05:30","event":"stage-transition","stage":"tasks","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:41:39+05:30","event":"stage-transition","stage":"apply","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:44:15+05:30","event":"stage-transition","stage":"review","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:46:14+05:30","event":"stage-transition","stage":"hydrate","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:46:14+05:30","event":"review","result":"passed"}
+{"ts":"2026-03-05T08:46:50+05:30","event":"stage-transition","stage":"ship","action":"enter","driver":"fab-ff"}

@@ -350,6 +350,11 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 **Rejected**: Separate `--porcelain`/`--quiet` flag — `--non-interactive` already existed with the same audience. Fd-based output (fd 3) — non-standard, breaks simple `$(command)` capture. Env var — subshells can't export to parent.
 *Source*: 260222-s101-wt-create-stderr-wt-list-flags
 
+### wt-delete Interactive Menu Includes "All" Option
+**Decision**: When `wt-delete` is invoked without arguments from outside a worktree, the interactive selection menu shows "All (N worktrees)" as the first option (item 1), followed by individual worktrees. Selecting "All" delegates to `wt_delete_all_worktrees`. The `--delete-all` CLI flag is preserved for non-interactive usage.
+**Why**: Deleting all worktrees is the most common interactive use case. Putting it in the menu eliminates the need to remember the `--delete-all` flag.
+*Source*: 260305-38q7-wt-delete-show-all-in-menu
+
 ### Hash-Based Stash over Index-Based
 **Decision**: wt-delete uses `git stash create` + `git stash store` (hash-based) instead of `git stash push`/`git stash pop` (index-based). Stash hashes are registered with the rollback stack.
 **Why**: Index-based stash (`stash@{0}`) is a global counter vulnerable to race conditions in concurrent worktree operations. Hash-based stash returns a stable SHA that uniquely identifies the stash regardless of concurrent `git stash` activity. `git stash store` writes the hash to the reflog for discoverability via `git stash list`.
@@ -360,6 +365,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260305-38q7-wt-delete-show-all-in-menu | 2026-03-05 | wt-delete interactive selection menu now shows "All (N worktrees)" as first option (item 1). Selecting "All" delegates to `wt_delete_all_worktrees`. Individual worktrees shift by +1. Default selection (MRU) shifts accordingly. `--delete-all` flag preserved for non-interactive use. |
 | 260303-hcq9-scriptify-fab-archive | 2026-03-04 | Added `archiveman.sh` to `scripts/lib/` — Archive Manager with `archive`, `restore`, and `list` subcommands. Slimmed `/fab-archive` skill to orchestrator (backlog matching only). Added `logman.sh` and `resolve.sh` to directory tree listing (were already documented in script sections but missing from the tree). Dev test suite: `src/lib/archiveman/test.bats` (41 tests). |
 | 260303-l6nk-gemini-cli-agent-aware-sync | 2026-03-04 | Added Gemini CLI as 4th agent target (`.gemini/skills/<name>/SKILL.md`, directory-based copies). Made agent skill deployment conditional — each agent's CLI checked via `command -v` before syncing; absent agents skipped with message, existing dot folders preserved. Added `FAB_AGENTS` env var override for testing/CI. Added `/.gemini` to gitignore scaffold. Updated "Agent Integration via Symlinks" → "Agent Skill Deployment" section and design decision. |
 | 260303-6b7c-update-underscore-skill-references | 2026-03-04 | Documented underscore file deployment in Agent Integration section — `2-sync-workspace.sh` now deploys all `*.md` files including `_preamble.md`, `_generation.md`, `_scripts.md` (with `user-invocable: false` frontmatter). Updated stale test assertion from "skips" to "deploys" underscore files. |
