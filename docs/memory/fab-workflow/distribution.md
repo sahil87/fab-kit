@@ -4,7 +4,7 @@
 
 ## Overview
 
-How `fab/.kit/` is distributed to new and existing projects. Covers the bootstrap process (getting `.kit/` into a project for the first time), the update mechanism (pulling new versions into an existing project), the release workflow (packaging and publishing new versions), and the repo rename from `docs-sddr` to `fab-kit`.
+How `fab/.kit/` is distributed to new and existing projects. Covers the bootstrap process (getting `.kit/` into a project for the first time), the update mechanism (pulling new versions into an existing project), the release workflow (packaging and publishing new versions — including per-platform archives with Go binary), and the repo rename from `docs-sddr` to `fab-kit`.
 
 ## Requirements
 
@@ -12,19 +12,28 @@ How `fab/.kit/` is distributed to new and existing projects. Covers the bootstra
 
 #### One-Liner Bootstrap
 
-New projects SHALL be bootstrappable via a single curl command that downloads the latest `kit.tar.gz` from GitHub Releases and extracts it into `fab/.kit/`:
+New projects SHALL be bootstrappable via a single curl command that downloads a kit archive from GitHub Releases and extracts it into `fab/.kit/`.
 
+**With Go binary** (recommended — auto-detects platform via `uname`):
+```
+os=$(uname -s | tr '[:upper:]' '[:lower:]'); arch=$(uname -m); case "$arch" in x86_64) arch=amd64;; aarch64) arch=arm64;; esac
+mkdir -p fab; curl -sL "https://github.com/{repo}/releases/latest/download/kit-${os}-${arch}.tar.gz" | tar xz -C fab/
+```
+
+**Generic** (shell scripts only, no binary):
 ```
 mkdir -p fab
-curl -sL https://github.com/{repo}/releases/latest/download/kit.tar.gz | tar xz -C fab/
+gh release download --repo {repo} --pattern 'kit.tar.gz' --output - | tar xz -C fab/
 ```
 
-Where `{repo}` is the `repo` value from `fab/.kit/kit.conf` (e.g. `wvrdz/fab-kit`).
+Where `{repo}` is the `repo` value from `fab/.kit/kit.conf` (e.g. `wvrdz/fab-kit`). The platform-aware one-liner detects OS and architecture at runtime (`uname -s`, `uname -m`) and downloads the matching `kit-{os}-{arch}.tar.gz` archive which includes the pre-compiled Go binary at `fab/.kit/bin/fab`.
 
 After extraction, the user MUST run `fab/.kit/scripts/fab-sync.sh` to validate prerequisites (`yq`, `jq`, `gh`, `direnv`, `bats`), create directories (`changes/`, `memory/`, `specs/`), skeleton files (copied from `scaffold/memory-index.md` and `scaffold/specs-index.md`), deploy skills conditionally to detected agents (copies for Claude Code, Codex, and Gemini CLI; symlinks for OpenCode — only when the agent's CLI is found in PATH), `.envrc` entries (from `scaffold/envrc`, line-ensuring), and `.gitignore` entries (from `scaffold/gitignore-entries`). The bootstrap only provides `.kit/` — no `config.yaml`, `constitution.md`, or other project files.
 
 **Scenarios**:
-- Bootstrap a new project (no `fab/` directory) — creates `fab/.kit/` with all skills, templates, scripts, and VERSION file; running `fab-sync.sh` first validates prerequisites (yq, jq, gh, direnv, bats), then creates `changes/`, `memory/index.md`, `specs/index.md`, skill deployments conditionally per detected agent (Claude Code, OpenCode, Codex, Gemini CLI — only when the agent's CLI command is found in PATH), `.envrc` (line-ensuring from scaffold), and `.gitignore` entry
+- Bootstrap with Go binary (platform-aware one-liner) — downloads `kit-{os}-{arch}.tar.gz`, creates `fab/.kit/` with all skills, templates, scripts, VERSION file, and Go binary at `fab/.kit/bin/fab`; running `fab-sync.sh` first validates prerequisites (yq, jq, gh, direnv, bats), then creates `changes/`, `memory/index.md`, `specs/index.md`, skill deployments conditionally per detected agent (Claude Code, OpenCode, Codex, Gemini CLI — only when the agent's CLI command is found in PATH), `.envrc` (line-ensuring from scaffold), and `.gitignore` entry
+- Bootstrap without Go binary (generic one-liner) — downloads `kit.tar.gz`, creates `fab/.kit/` with shell scripts only (no `fab/.kit/bin/fab`); shell scripts function identically, the Go binary shims fall through to bash implementations
+- Bootstrap a new project (no `fab/` directory) — creates `fab/.kit/` with all skills, templates, scripts, and VERSION file; same sync behavior as above
 - Bootstrap with existing `fab/` directory — creates or replaces `fab/.kit/`; existing files outside `.kit/` (config.yaml, constitution.md, memory/, specs/, changes/) are NOT affected
 
 #### Manual Copy Still Works
@@ -37,12 +46,13 @@ The existing `cp -r` distribution method SHALL continue to work. The bootstrap o
 
 #### Update Script (`fab-upgrade.sh`)
 
-`fab/.kit/scripts/fab-upgrade.sh` SHALL download the latest `kit.tar.gz` from GitHub Releases, extract it to replace the current `fab/.kit/` contents, display the version change, and re-run `fab-sync.sh` to repair directories and skill deployments.
+`fab/.kit/scripts/fab-upgrade.sh` SHALL detect the current platform via `uname -s` (OS) and `uname -m` (architecture, with `x86_64`→`amd64` and `aarch64`→`arm64` normalization), attempt to download the platform-specific `kit-{os}-{arch}.tar.gz` from GitHub Releases, fall back to the generic `kit.tar.gz` if the platform archive is not available, extract it to replace the current `fab/.kit/` contents, display the version change, report whether the Go binary is included, and re-run `fab-sync.sh` to repair directories and skill deployments.
 
 The script accepts an optional positional argument — a release tag (e.g., `v0.24.0`) — to download a specific version instead of latest. The tag is passed as-is to `gh release download "$tag"`, with no normalization or `v`-prefix stripping.
 
 **Scenarios**:
-- Update to a newer version — replaces `.kit/` contents, displays version change (e.g., "0.1.0 → 0.2.0"), re-runs `fab-sync.sh`, checks for version drift and prints `/fab-setup migrations` reminder if needed, preserves all files outside `.kit/`
+- Update to a newer version (platform archive available) — downloads `kit-{os}-{arch}.tar.gz`, replaces `.kit/` contents including `bin/fab` Go binary, displays version change (e.g., "0.1.0 → 0.2.0"), reports "Go binary: included ({os}/{arch})", re-runs `fab-sync.sh`, checks for version drift and prints `/fab-setup migrations` reminder if needed, preserves all files outside `.kit/`
+- Update with platform archive unavailable — falls back to generic `kit.tar.gz` with message "Platform {os}/{arch} not available, using generic archive", reports "Go binary: not included (shell scripts only)"
 - Update to a specific version (`fab-upgrade.sh v0.24.0`) — downloads and installs the exact tagged release; no version comparison or downgrade warning
 - Already up to date — informs user ("Already on the latest version"), no files modified
 - Already on the requested tag — informs user ("Already on v0.24.0 (0.24.0)"), no files modified
@@ -85,7 +95,9 @@ After extracting the new `.kit/` contents, `fab-upgrade.sh` SHALL re-run `fab-sy
 
 #### Release Script (`fab-release.sh`)
 
-`src/scripts/fab-release.sh` SHALL package `fab/.kit/` into a `kit.tar.gz` archive, bump the VERSION file, commit the version change, and create a GitHub Release with `kit.tar.gz` as an attached asset.
+`src/scripts/fab-release.sh` SHALL cross-compile the Go binary for 4 platform targets (`darwin/arm64`, `darwin/amd64`, `linux/arm64`, `linux/amd64`) using `CGO_ENABLED=0 GOOS={os} GOARCH={arch} go build`, package `fab/.kit/` into 5 archives (1 generic `kit.tar.gz` without binary + 4 per-platform `kit-{os}-{arch}.tar.gz` with the compiled binary at `.kit/bin/fab`), bump the VERSION file, commit the version change, and create a GitHub Release with all 5 archives as attached assets.
+
+The script requires the Go toolchain in addition to `gh` CLI. Cross-compilation uses `CGO_ENABLED=0` for static binaries with no system library dependencies. Build artifacts are staged in a `.release-build/` temporary directory, cleaned up after release.
 
 The script accepts a bump type argument (`patch`, `minor`, or `major`) that is required to perform a release, and an optional `--no-latest` flag. When invoked with no arguments, the script displays usage and exits successfully; when flags are provided without a bump type, it produces an error. Arguments are position-independent — `fab-release.sh patch --no-latest` and `fab-release.sh --no-latest patch` are equivalent. Unknown flags produce an error.
 
@@ -96,11 +108,12 @@ When `--no-latest` is passed, `gh release create` is invoked with `--latest=fals
 After bumping VERSION, the script validates the migration chain: warns if no migration file targets the new version (reminder for release authors), and warns if overlapping migration ranges are detected. These are warnings only — they do not block the release.
 
 **Scenarios**:
-- Default patch release — bumps patch version (e.g., "0.1.0" → "0.1.1"), creates `kit.tar.gz`, commits VERSION bump, pushes to current branch, creates GitHub Release marked as latest
+- Default patch release — bumps patch version (e.g., "0.1.0" → "0.1.1"), cross-compiles Go binary for 4 platforms, creates 5 archives (kit.tar.gz + kit-{os}-{arch}.tar.gz), commits VERSION bump, pushes to current branch, creates GitHub Release marked as latest with all 5 archives
 - Minor release (`fab-release.sh minor`) — bumps minor version (e.g., "0.1.1" → "0.2.0")
 - Major release (`fab-release.sh major`) — bumps major version (e.g., "0.2.0" → "1.0.0")
 - Backport release (`fab-release.sh patch --no-latest`) — bumps version, pushes to current branch (not main), creates GitHub Release with `--latest=false`, prints "Note: This release was NOT marked as 'latest'."
 - Backport workflow — `git checkout -b release/0.25 v0.25.1`, cherry-pick fixes, `fab-release.sh patch --no-latest` bumps 0.25.1→0.25.2, pushes to `release/0.25`, tags `v0.25.2`
+- Go toolchain missing — exits with error directing user to install from https://go.dev/
 - Missing bump type with flags (`fab-release.sh --no-latest`) — displays usage and exits non-zero
 - Invalid bump argument — exits with error message listing valid options
 - Unknown flag (`fab-release.sh patch --unknown`) — exits with error listing valid options
@@ -109,7 +122,15 @@ After bumping VERSION, the script validates the migration chain: warns if no mig
 
 #### Release Archive Contents
 
-`kit.tar.gz` SHALL contain only the `fab/.kit/` directory contents. All paths are rooted at `.kit/` (e.g., `.kit/VERSION`, `.kit/skills/fab-new.md`, `.kit/packages/idea/bin/idea`). No project-specific files (config.yaml, constitution.md, memory/, specs/, changes/) are included. Package production code (idea, wt) is included under `.kit/packages/` and delivered to downstream projects on upgrade.
+Each release produces 5 archives, all rooted at `.kit/` (e.g., `.kit/VERSION`, `.kit/skills/fab-new.md`, `.kit/packages/idea/bin/idea`):
+
+- **`kit.tar.gz`** — Generic archive containing shell scripts, skills, templates, packages, and all non-binary `.kit/` contents. No Go binary included. Serves as a fallback for unsupported platforms.
+- **`kit-darwin-arm64.tar.gz`** — Generic contents + Go binary at `.kit/bin/fab` compiled for macOS Apple Silicon.
+- **`kit-darwin-amd64.tar.gz`** — Generic contents + Go binary at `.kit/bin/fab` compiled for macOS Intel.
+- **`kit-linux-arm64.tar.gz`** — Generic contents + Go binary at `.kit/bin/fab` compiled for Linux ARM64.
+- **`kit-linux-amd64.tar.gz`** — Generic contents + Go binary at `.kit/bin/fab` compiled for Linux x86-64.
+
+No project-specific files (config.yaml, constitution.md, memory/, specs/, changes/) are included in any archive. Package production code (idea, wt) is included under `.kit/packages/` and delivered to downstream projects on upgrade. The Go binary is placed at `.kit/bin/fab` in platform archives; the `bin/` directory contains a `.gitkeep` to ensure the directory exists even in the generic archive.
 
 ### Repo Rename
 
@@ -127,6 +148,7 @@ The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its rol
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260305-g0uq-2-ship-fab-go-binary | 2026-03-05 | Ship fab Go binary: release now produces 5 archives (generic `kit.tar.gz` + 4 per-platform `kit-{os}-{arch}.tar.gz` with Go binary at `.kit/bin/fab`). `fab-release.sh` cross-compiles via `CGO_ENABLED=0` for darwin/arm64, darwin/amd64, linux/arm64, linux/amd64. `fab-upgrade.sh` detects platform via `uname -s`/`uname -m`, downloads platform archive with fallback to generic. README bootstrap one-liner is now platform-aware. Shell scripts in `lib/` have shim layer that delegates to Go binary when present. Skills updated via `_scripts.md` to invoke `fab/.kit/bin/fab` as primary calling convention. |
 | 260305-bhd6-1-build-fab-go-binary | 2026-03-05 | Go binary (`src/fab-go/`) built — ports all lib/ scripts to single `fab` binary. No distribution changes in this change — binary inclusion in kit.tar.gz and per-platform archives are deferred to a future change. Go toolchain required only for building from source, not for end users. |
 | 260303-l6nk-gemini-cli-agent-aware-sync | 2026-03-04 | Added Gemini CLI as 4th supported agent. Updated bootstrap/sync descriptions to reflect conditional agent deployment (skills deployed only when agent's CLI found in PATH). Four agents: Claude Code (copies), OpenCode (symlinks), Codex (copies), Gemini CLI (copies). |
 | 260301-08pa-version-pinned-upgrade-and-release | 2026-03-02 | Added version-pinned upgrade (`fab-upgrade.sh v0.24.0`) with tag-aware messaging. Added backport release support to `fab-release.sh`: push to current branch instead of hardcoded `main`, `--no-latest` flag for `gh release create --latest=false`, position-independent argument parsing. |

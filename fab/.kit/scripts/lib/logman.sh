@@ -13,6 +13,11 @@
 
 set -euo pipefail
 
+# Shim: delegate to Go binary if available
+_fab_bin="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)/../../bin/fab"
+if [ -x "$_fab_bin" ]; then
+  exec "$_fab_bin" log "$@"
+fi
 LIB_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 RESOLVE="$LIB_DIR/resolve.sh"
 

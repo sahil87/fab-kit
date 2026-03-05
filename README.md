@@ -105,6 +105,15 @@ brew install bats-core parallel go
 
 **From GitHub releases** (requires [gh CLI](https://cli.github.com/) with authentication):
 
+**With Go binary** (recommended — auto-detects platform):
+
+```bash
+os=$(uname -s | tr '[:upper:]' '[:lower:]'); arch=$(uname -m); case "$arch" in x86_64) arch=amd64;; aarch64) arch=arm64;; esac
+mkdir -p fab; curl -sL "https://github.com/wvrdz/fab-kit/releases/latest/download/kit-${os}-${arch}.tar.gz" | tar xz -C fab/
+```
+
+**Generic** (shell scripts only, no binary — requires [gh CLI](https://cli.github.com/)):
+
 ```bash
 mkdir -p fab
 gh release download --repo wvrdz/fab-kit --pattern 'kit.tar.gz' --output - | tar xz -C fab/

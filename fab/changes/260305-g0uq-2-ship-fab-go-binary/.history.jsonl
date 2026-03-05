@@ -1,3 +1,13 @@
 {"ts":"2026-03-05T12:36:56+05:30","event":"stage-transition","stage":"intake","action":"enter","driver":"fab-new"}
 {"ts":"2026-03-05T12:36:56+05:30","event":"command","cmd":"fab-new","args":"Ship the fab Go binary — parity test harness, local cross-compilation in fab-release.sh, per-platform kit archives, shim switchover"}
 {"ts":"2026-03-05T12:37:41+05:30","event":"confidence","score":4.7,"delta":"+4.7","trigger":"calc-score"}
+{"ts":"2026-03-05T13:39:06+05:30","event":"command","cmd":"fab-switch"}
+{"ts":"2026-03-05T13:39:35+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-03-05T13:45:18+05:30","event":"stage-transition","stage":"spec","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T13:45:21+05:30","event":"confidence","score":4.4,"delta":"-0.3","trigger":"calc-score"}
+{"ts":"2026-03-05T13:45:58+05:30","event":"stage-transition","stage":"tasks","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T13:47:08+05:30","event":"stage-transition","stage":"apply","action":"enter","driver":"fab-ff"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"review","ts":"2026-03-05T14:50:34+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"hydrate","ts":"2026-03-05T14:58:16+05:30"}
+{"event":"review","result":"passed","ts":"2026-03-05T14:58:16+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"ship","ts":"2026-03-05T15:04:15+05:30"}

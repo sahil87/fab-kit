@@ -1,0 +1,31 @@
+name: 260305-t3st-parity-test-change
+created: 2026-03-05T10:00:00+05:30
+created_by: parity-test
+change_type: feat
+issues: []
+progress:
+  intake: done
+  spec: done
+  tasks: active
+  apply: pending
+  review: pending
+  hydrate: pending
+  ship: pending
+  review-pr: pending
+checklist:
+  generated: false
+  path: checklist.md
+  completed: 0
+  total: 0
+confidence:
+  certain: 5
+  confident: 1
+  tentative: 0
+  unresolved: 0
+  score: 4.7
+stage_metrics:
+  intake: {started_at: "2026-03-05T10:00:00+05:30", driver: parity-test, iterations: 1}
+  spec: {started_at: "2026-03-05T10:01:00+05:30", driver: parity-test, iterations: 1}
+  tasks: {started_at: "2026-03-05T10:02:00+05:30", driver: parity-test, iterations: 1}
+prs: []
+last_updated: "2026-03-05T10:02:00+05:30"
