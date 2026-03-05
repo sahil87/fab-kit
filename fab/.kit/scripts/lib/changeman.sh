@@ -111,7 +111,18 @@ cmd_list() {
     display_output=$("$STATUSMAN" display-stage "$status_file" 2>/dev/null) || display_output="unknown:unknown"
     display_stage="${display_output%%:*}"
     display_state="${display_output#*:}"
-    echo "$base:$display_stage:$display_state"
+
+    # Read confidence score and indicative flag
+    local conf_score="0.0" conf_indicative="false"
+    local conf_output
+    conf_output=$("$STATUSMAN" confidence "$status_file" 2>/dev/null) || true
+    if [ -n "$conf_output" ]; then
+      conf_score=$(echo "$conf_output" | grep '^score:' | cut -d: -f2)
+      conf_score=${conf_score:-0.0}
+      conf_indicative=$(echo "$conf_output" | grep '^indicative:' | cut -d: -f2)
+      conf_indicative=${conf_indicative:-false}
+    fi
+    echo "$base:$display_stage:$display_state:$conf_score:$conf_indicative"
   done
 }
 
@@ -204,17 +215,52 @@ cmd_switch() {
   local dnum
   dnum=$(stage_number "$display_stage")
 
-  # 4. Output summary
+  # 4. Read confidence
+  local conf_score="0.0" conf_indicative="false" conf_certain=0 conf_confident=0 conf_tentative=0 conf_unresolved=0
+  if [ -f "$status_file" ]; then
+    local conf_output
+    conf_output=$("$STATUSMAN" confidence "$status_file" 2>/dev/null) || true
+    if [ -n "$conf_output" ]; then
+      conf_score=$(echo "$conf_output" | grep '^score:' | cut -d: -f2)
+      conf_score=${conf_score:-0.0}
+      conf_indicative=$(echo "$conf_output" | grep '^indicative:' | cut -d: -f2)
+      conf_indicative=${conf_indicative:-false}
+      conf_certain=$(echo "$conf_output" | grep '^certain:' | cut -d: -f2)
+      conf_certain=${conf_certain:-0}
+      conf_confident=$(echo "$conf_output" | grep '^confident:' | cut -d: -f2)
+      conf_confident=${conf_confident:-0}
+      conf_tentative=$(echo "$conf_output" | grep '^tentative:' | cut -d: -f2)
+      conf_tentative=${conf_tentative:-0}
+      conf_unresolved=$(echo "$conf_output" | grep '^unresolved:' | cut -d: -f2)
+      conf_unresolved=${conf_unresolved:-0}
+    fi
+  fi
+
+  # Derive confidence display
+  local conf_display
+  local total_counts=$((conf_certain + conf_confident + conf_tentative + conf_unresolved))
+  local score_is_zero
+  score_is_zero=$(awk "BEGIN { print ($conf_score + 0 == 0) ? 1 : 0 }")
+  if [ "$score_is_zero" = "1" ] && [ "$total_counts" -eq 0 ]; then
+    conf_display="not yet scored"
+  elif [ "$conf_indicative" = "true" ]; then
+    conf_display="$conf_score of 5.0 (indicative)"
+  else
+    conf_display="$conf_score of 5.0"
+  fi
+
+  # 5. Output summary
   echo "fab/current → $resolved"
   echo ""
-  echo "Stage:  $display_stage ($dnum/8) — $display_state"
+  echo "Stage:       $display_stage ($dnum/8) — $display_state"
+  echo "Confidence:  $conf_display"
   local cmd nstage
   cmd=$(default_command "$routing_stage")
   nstage=$(next_stage "$routing_stage")
   if [ -n "$nstage" ]; then
-    echo "Next:   $nstage (via $cmd)"
+    echo "Next:        $nstage (via $cmd)"
   else
-    echo "Next:   $cmd"
+    echo "Next:        $cmd"
   fi
 }
 

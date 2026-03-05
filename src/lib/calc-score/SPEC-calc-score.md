@@ -10,21 +10,20 @@ Computes confidence scores from the `## Assumptions` table in `spec.md`. Scans f
 ## Usage
 
 ```bash
-calc-score.sh <change-dir>
+calc-score.sh [--stage <stage>] <change>
+calc-score.sh --check-gate [--stage <stage>] <change>
 ```
 
-Where `<change-dir>` is the path to a change directory (e.g., `fab/changes/260214-mgh5-calc-score-dev-setup`).
-
-The directory MUST contain `spec.md` with an `## Assumptions` table.
+Where `<change>` is a change identifier (4-char ID, folder name, or substring). With `--stage intake`, parses `intake.md` and persists with `indicative: true`. Without `--stage`, parses `spec.md` and clears the `indicative` flag. `--check-gate` mode is read-only (no `.status.yaml` writes).
 
 ## API Reference
 
 | Field | Value |
 |-------|-------|
-| **Arguments** | `<change-dir>` — path to change directory (required) |
+| **Arguments** | `[--stage <stage>] <change>` — optional stage, change identifier (required) |
 | **Output** | YAML confidence block to stdout (see format below) |
-| **Side effects** | Replaces `confidence:` block in `<change-dir>/.status.yaml` |
-| **Exit 0** | Success — score computed and written |
+| **Side effects** | Normal mode: replaces `confidence:` block in `.status.yaml` (with `indicative: true` for intake, cleared for spec). Gate mode: read-only |
+| **Exit 0** | Success — score computed and written (or gate result emitted) |
 | **Exit 1** | Error — message to stderr |
 
 ### Output Format

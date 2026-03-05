@@ -82,8 +82,8 @@ statusman.sh <subcommand> <change> [args...]
 | `fail` | `fail <change> <stage> [driver] [rework]` | active → failed (review only). Review stage auto-logs "failed" |
 | `set-change-type` | `set-change-type <change> <type>` | Set change type |
 | `set-checklist` | `set-checklist <change> <field> <value>` | Update checklist field |
-| `set-confidence` | `set-confidence <change> <counts...> <score>` | Set confidence block |
-| `set-confidence-fuzzy` | `set-confidence-fuzzy <change> <counts...> <score> <dims...>` | Set confidence with dimensions |
+| `set-confidence` | `set-confidence <change> <counts...> <score> [--indicative]` | Set confidence block (with optional indicative flag) |
+| `set-confidence-fuzzy` | `set-confidence-fuzzy <change> <counts...> <score> <dims...> [--indicative]` | Set confidence with dimensions (with optional indicative flag) |
 | `progress-line` | `progress-line <change>` | Single-line visual progress |
 | `current-stage` | `current-stage <change>` | Detect active stage |
 

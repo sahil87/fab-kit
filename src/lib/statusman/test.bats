@@ -268,6 +268,7 @@ EOF
   [[ "$output" == *"tentative:1"* ]]
   [[ "$output" == *"unresolved:0"* ]]
   [[ "$output" == *"score:3.4"* ]]
+  [[ "$output" == *"indicative:false"* ]]
 }
 
 @test "confidence defaults when block missing" {
@@ -277,7 +278,23 @@ progress:
 EOF
   run "$STATUSMAN" confidence "$TEST_DIR/no-confidence.yaml"
   [[ "$output" == *"certain:0"* ]]
-  [[ "$output" == *"score:5.0"* ]]
+  [[ "$output" == *"score:0.0"* ]]
+  [[ "$output" == *"indicative:false"* ]]
+}
+
+@test "confidence reads indicative flag when present" {
+  cat > "$TEST_DIR/indicative-status.yaml" <<EOF
+confidence:
+  certain: 6
+  confident: 3
+  tentative: 0
+  unresolved: 0
+  score: 4.1
+  indicative: true
+EOF
+  run "$STATUSMAN" confidence "$TEST_DIR/indicative-status.yaml"
+  [[ "$output" == *"indicative:true"* ]]
+  [[ "$output" == *"score:4.1"* ]]
 }
 
 @test "current-stage finds active stage" {
@@ -1108,6 +1125,38 @@ EOF
 @test "set-confidence: rejects nonexistent file" {
   run "$STATUSMAN" set-confidence "/nonexistent/path/.status.yaml" "10" "3" "1" "0" "4.1"
   [ "$status" -ne 0 ]
+}
+
+@test "set-confidence: --indicative flag writes indicative true" {
+  make_write_fixture
+  "$STATUSMAN" set-confidence "$TEST_DIR/write-status.yaml" "6" "3" "0" "0" "4.1" --indicative
+  local result
+  result=$(yq '.confidence.indicative' "$TEST_DIR/write-status.yaml")
+  [ "$result" = "true" ]
+}
+
+@test "set-confidence: without --indicative clears indicative flag" {
+  make_write_fixture
+  # First set with indicative
+  "$STATUSMAN" set-confidence "$TEST_DIR/write-status.yaml" "6" "3" "0" "0" "4.1" --indicative
+  # Then set without
+  "$STATUSMAN" set-confidence "$TEST_DIR/write-status.yaml" "9" "0" "0" "0" "5.0"
+  local result
+  result=$(yq '.confidence.indicative // "absent"' "$TEST_DIR/write-status.yaml")
+  [ "$result" = "absent" ]
+}
+
+@test "set-confidence: without --indicative clears stale fuzzy metadata" {
+  make_write_fixture
+  # Add fuzzy data first
+  yq -i '.confidence.fuzzy = true | .confidence.dimensions.signal = 80.0' "$TEST_DIR/write-status.yaml"
+  # Non-fuzzy set-confidence should clear it
+  "$STATUSMAN" set-confidence "$TEST_DIR/write-status.yaml" "9" "0" "0" "0" "5.0"
+  local result
+  result=$(yq '.confidence.fuzzy // "absent"' "$TEST_DIR/write-status.yaml")
+  [ "$result" = "absent" ]
+  result=$(yq '.confidence.dimensions // "absent"' "$TEST_DIR/write-status.yaml")
+  [ "$result" = "absent" ]
 }
 
 

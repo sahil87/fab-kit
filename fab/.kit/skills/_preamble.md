@@ -297,6 +297,7 @@ confidence:
   tentative: 2     # count of Tentative-graded decisions
   unresolved: 0    # count of Unresolved-graded decisions
   score: 2.1       # derived score (see formula below)
+  indicative: true # present (true) when score is from intake.md, absent when from spec.md
 ```
 
 ### Formula
@@ -331,11 +332,19 @@ See `docs/specs/change-types.md` for the full taxonomy.
 
 ### Invocation
 
-Confidence is computed by `fab/.kit/scripts/lib/calc-score.sh`, invoked by `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode). `/fab-ff` gates at two points: (1) intake gate via `calc-score.sh --check-gate --stage intake` before starting, and (2) spec gate via `calc-score.sh --check-gate` after spec generation. `/fab-fff` does not gate or recompute.
+Confidence is computed by `fab/.kit/scripts/lib/calc-score.sh`, invoked by:
+- `/fab-new` (intake stage, normal mode with `--stage intake`) — persists indicative score with `indicative: true`
+- `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode) — persists spec score, clears `indicative` flag
+
+`/fab-ff` gates at two points: (1) intake gate via `calc-score.sh --check-gate --stage intake` before starting, and (2) spec gate via `calc-score.sh --check-gate` after spec generation. `/fab-fff` does not gate or recompute.
+
+### Indicative vs Spec Scores
+
+When `confidence.indicative` is `true`, the score was computed from `intake.md` Assumptions (less authoritative, fewer decisions). When absent or `false`, the score is from `spec.md` (authoritative). Consumers (`/fab-status`, `/fab-switch`, `changeman.sh`) read uniformly from `.status.yaml` and use the `indicative` flag to label the display (e.g., `4.1 of 5.0 (indicative)`).
 
 ### Template
 
-`fab/.kit/templates/status.yaml` includes the confidence block initialized to zero counts and score 0.0. Template defaults persist until `/fab-continue` generates the spec and invokes `fab/.kit/scripts/lib/calc-score.sh`.
+`fab/.kit/templates/status.yaml` includes the confidence block initialized to zero counts and score 0.0. `/fab-new` writes the indicative score after intake generation. `/fab-continue` overwrites with the spec score at the spec stage.
 
 ### Bulk Confirm (Confident Assumptions)
 

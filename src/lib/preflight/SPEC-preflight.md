@@ -68,7 +68,8 @@ confidence:
   confident: 0
   tentative: 0
   unresolved: 0
-  score: 5.0
+  score: 0.0
+  indicative: false
 ```
 
 | Field | Source | Default |
@@ -78,7 +79,7 @@ confidence:
 | `stage` | First `active` stage, or `archive` if all done | `archive` |
 | `progress.*` | Per-stage state from `.status.yaml` | `pending` |
 | `checklist.*` | From `.status.yaml` checklist block | `false`/`0` |
-| `confidence.*` | From `.status.yaml` confidence block | `0`/`5.0` |
+| `confidence.*` | From `.status.yaml` confidence block | `0`/`0.0`/`false` |
 
 ## Exit Codes
 

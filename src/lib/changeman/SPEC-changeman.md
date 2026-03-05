@@ -41,7 +41,8 @@ CHANGEMAN="path/to/changeman.sh"
 | `new --slug <slug> [--change-id <4char>] [--log-args <desc>]` | slug (required), optional id and log args | folder name to stdout | 0 success, 1 error |
 | `rename --folder <current-folder> --slug <new-slug>` | folder (required), slug (required) | new folder name to stdout | 0 success, 1 error |
 | `resolve [<override>]` | optional name/substring | resolved folder name to stdout | 0 success, 1 error |
-| `switch <name> \| --blank` | name or --blank | structured summary to stdout | 0 success, 1 error |
+| `switch <name> \| --blank` | name or --blank | structured summary (stage, confidence, next) to stdout | 0 success, 1 error |
+| `list [--archive]` | optional --archive flag | `name:stage:state:score:indicative` lines to stdout | 0 success, 1 error |
 | `--help` | — | usage text | 0 |
 
 ### `new` Subcommand
@@ -143,11 +144,12 @@ Error messages are generic — callers add context-appropriate guidance.
 ```
 fab/current → {name}
 
-Stage:  {stage} ({N}/6)
-Branch: {branch} ({created|checked out})
-
-Next: {suggested command}
+Stage:       {stage} ({N}/8) — {state}
+Confidence:  {score} of 5.0{indicative_suffix}
+Next:        {routing_stage} (via {command})
 ```
+
+Where `{indicative_suffix}` is ` (indicative)` when `confidence.indicative` is true, empty otherwise. When score is 0.0 and all grade counts are 0, displays `not yet scored`.
 
 ## Requirements
 

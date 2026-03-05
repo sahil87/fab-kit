@@ -4,26 +4,39 @@ created_by: sahil-weaver
 change_type: feat
 issues: []
 progress:
-  intake: ready
-  spec: pending
-  tasks: pending
-  apply: pending
-  review: pending
-  hydrate: pending
-  ship: pending
+  intake: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
+  ship: active
   review-pr: pending
 checklist:
-  generated: false
+  generated: true
   path: checklist.md
   completed: 0
-  total: 0
+  total: 33
 confidence:
-  certain: 0
-  confident: 0
+  certain: 9
+  confident: 1
   tentative: 0
   unresolved: 0
-  score: 0.0
+  score: 4.7
+  fuzzy: true
+  dimensions:
+    signal: 89.0
+    reversibility: 87.0
+    competence: 90.5
+    disambiguation: 89.5
 stage_metrics:
-  intake: {started_at: "2026-03-05T00:47:05+05:30", driver: fab-new, iterations: 1}
-prs: []
-last_updated: "2026-03-05T00:48:58+05:30"
+  intake: {started_at: "2026-03-05T00:47:05+05:30", driver: fab-new, iterations: 1, completed_at: "2026-03-05T01:08:08+05:30"}
+  spec: {started_at: "2026-03-05T01:08:08+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-05T01:10:07+05:30"}
+  tasks: {started_at: "2026-03-05T01:10:07+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-05T01:10:08+05:30"}
+  apply: {started_at: "2026-03-05T01:10:08+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-05T01:14:16+05:30"}
+  review: {started_at: "2026-03-05T01:14:16+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-05T01:18:03+05:30"}
+  hydrate: {started_at: "2026-03-05T01:18:03+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-05T01:19:57+05:30"}
+  ship: {started_at: "2026-03-05T01:19:57+05:30", driver: fab-ff, iterations: 1}
+prs:
+  - https://github.com/wvrdz/fab-kit/pull/204
+last_updated: "2026-03-05T01:21:12+05:30"

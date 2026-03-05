@@ -41,7 +41,7 @@ STATUSMAN="path/to/statusman.sh"
 |------------|-------|--------|------|
 | `progress-map <file>` | .status.yaml path | `stage:state` pairs, one per line | 0 |
 | `checklist <file>` | .status.yaml path | `generated:{val}`, `completed:{val}`, `total:{val}` | 0 |
-| `confidence <file>` | .status.yaml path | `certain:{val}`, `confident:{val}`, `tentative:{val}`, `unresolved:{val}`, `score:{val}` | 0 |
+| `confidence <file>` | .status.yaml path | `certain:{val}`, `confident:{val}`, `tentative:{val}`, `unresolved:{val}`, `score:{val}`, `indicative:{true\|false}` | 0 |
 
 ### Progression
 
@@ -70,8 +70,8 @@ STATUSMAN="path/to/statusman.sh"
 | Subcommand | Input | Output | Exit |
 |------------|-------|--------|------|
 | `set-checklist <file> <field> <value>` | path, field name, value | — | 0 |
-| `set-confidence <file> <c> <cf> <t> <u> <score>` | path, grade counts, score | — | 0 |
-| `set-confidence-fuzzy <file> <c> <cf> <t> <u> <score> <s> <r> <a> <d>` | path, grade counts, score, dimension means | — | 0 |
+| `set-confidence <file> <c> <cf> <t> <u> <score> [--indicative]` | path, grade counts, score, optional flag | — | 0 |
+| `set-confidence-fuzzy <file> <c> <cf> <t> <u> <score> <s> <r> <a> <d> [--indicative]` | path, grade counts, score, dimension means, optional flag | — | 0 |
 
 ### History
 

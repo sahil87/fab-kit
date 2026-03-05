@@ -90,20 +90,15 @@ fab/.kit/scripts/lib/statusman.sh set-change-type fab/changes/{name}/.status.yam
 
 ### Step 7: Indicative Confidence
 
-After generating `intake.md` and inferring the change type, compute and display an indicative confidence score:
+After generating `intake.md` and inferring the change type, persist and display an indicative confidence score:
 
-1. Count assumptions from the intake's `## Assumptions` table (certain, confident, tentative, unresolved)
-2. Look up `expected_min` for the **intake** stage using the inferred `change_type`:
-   - `fix`=2, `feat`=4, `refactor`=3, others=2
-3. Compute the indicative score using the coverage-weighted formula:
-   ```
-   base = max(0.0, 5.0 - 0.3 * confident - 1.0 * tentative)
-   cover = min(1.0, total_decisions / expected_min)
-   score = base * cover  (or 0.0 if unresolved > 0)
-   ```
-4. Display: `Indicative confidence: {score} / 5.0 ({N} decisions, cover: {cover})`
+1. Call `bash fab/.kit/scripts/lib/calc-score.sh --stage intake <change>` (normal mode, **not** `--check-gate`)
+2. This writes the indicative score to `.status.yaml` with `indicative: true`
+3. Display the result from stdout (score and breakdown)
 
-This is **display-only** — NOT written to `.status.yaml`. The authoritative score is computed at the spec stage by `calc-score.sh`.
+Output format: `Indicative confidence: {score} / 5.0 ({N} decisions)`
+
+The indicative score is persisted to `.status.yaml` so that consumers (`/fab-switch`, `/fab-status`, `changeman.sh list`) can display it without recomputation. The authoritative spec-stage score overwrites it (clearing `indicative: true`) when `calc-score.sh` runs at the spec stage.
 
 ### Step 8: SRAD-Based Question Selection
 
