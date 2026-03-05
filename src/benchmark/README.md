@@ -6,8 +6,15 @@ Compares 4 implementations of core `statusman.sh` operations to inform the runti
 
 - `yq` v4 (Go version)
 - `node` (v18+)
-- `cargo` / `rustc`
-- `hyperfine`
+- `cargo` / `rustc` — install via [rustup](https://rustup.rs/) if not present:
+  ```bash
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  source "$HOME/.cargo/env"
+  ```
+- `hyperfine` — install via cargo if not available:
+  ```bash
+  cargo install hyperfine
+  ```
 
 ## Setup
 
