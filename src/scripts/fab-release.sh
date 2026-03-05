@@ -182,8 +182,8 @@ echo "Cross-compilation complete."
 
 echo "Packaging archives..."
 
-# Generic archive (no binary)
-COPYFILE_DISABLE=1 tar czf "$repo_root/kit.tar.gz" -C "$repo_root/fab" .kit
+# Generic archive (no binary) — exclude .kit/bin/fab in case it was built locally
+COPYFILE_DISABLE=1 tar czf "$repo_root/kit.tar.gz" -C "$repo_root/fab" --exclude='.kit/bin/fab' .kit
 echo "  kit.tar.gz ($(wc -c < "$repo_root/kit.tar.gz") bytes)"
 
 # Per-platform archives (kit + binary)

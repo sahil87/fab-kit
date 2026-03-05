@@ -68,7 +68,7 @@ func TestPreflight(t *testing.T) {
 	})
 }
 
-// assertExitCodeParity checks exit codes match and are non-zero.
+// assertExitCodeParity checks exit codes match between implementations.
 func assertExitCodeParity(t *testing.T, label string, bash, goRes cmdResult) {
 	t.Helper()
 	if bash.ExitCode != goRes.ExitCode {

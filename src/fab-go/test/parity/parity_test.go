@@ -202,19 +202,28 @@ func runBash(t *testing.T, tmpDir, script string, args ...string) cmdResult {
 }
 
 // stripShim removes the Go binary shim block from a shell script.
+// Tracks if/fi depth to handle shims with nested conditionals (e.g., archiveman.sh).
 func stripShim(data []byte) []byte {
 	lines := strings.Split(string(data), "\n")
 	var result []string
 	inShim := false
+	depth := 0
 	for _, line := range lines {
 		if strings.Contains(line, "Shim: delegate to Go binary") {
 			inShim = true
+			depth = 0
 			continue
 		}
 		if inShim {
-			if line == "fi" {
-				inShim = false
-				continue
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "if ") || strings.HasPrefix(trimmed, "if[") {
+				depth++
+			}
+			if trimmed == "fi" {
+				depth--
+				if depth == 0 {
+					inShim = false
+				}
 			}
 			continue
 		}
