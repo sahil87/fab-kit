@@ -82,35 +82,37 @@ If exists and not a raw template: report "constitution.md already exists — ski
 
 #### 1b-lang. Language Detection and Template Application
 
-After config and constitution are created (or already exist), detect the project's language and apply language-specific templates:
+After config and constitution are created (or already exist), detect the project's language/framework and apply matching templates from `fab/.kit/templates/`. This step merges language-specific conventions into the constitution and config without overwriting user content.
 
-1. Check for marker files at the repository root:
-   - `Cargo.toml` exists → **Rust project**
-   - `package.json` AND `tsconfig.json` both exist → **Node/TypeScript project**
-   - `package.json` exists (without `tsconfig.json`) → Node.js project (future template, no-op for now)
-   - `go.mod` exists → Go project (future template, no-op for now)
+**Detection rules (checked in order):**
 
-2. For a detected language with available templates:
-   - Check `fab/.kit/templates/constitutions/{language}.md` exists
-   - Check `fab/.kit/templates/configs/{language}.yaml` exists
-   - If either is missing, skip silently (template not yet available for this language)
+| Marker file(s) | Language | Constitution section | Config overlay |
+|----------------|----------|---------------------|----------------|
+| `Cargo.toml` | Rust | `## Rust Conventions` | `templates/configs/rust.yaml` |
+| `package.json` + `tsconfig.json` | TypeScript | `## TypeScript Conventions` | `templates/configs/typescript.yaml` |
+| `package.json` (no tsconfig) | Node.js | `## Node.js Conventions` | `templates/configs/node.yaml` |
+| `go.mod` | Go | `## Go Conventions` | `templates/configs/go.yaml` |
 
-3. **Constitution merge** (examples: Rust, Node/TypeScript):
-   - If `fab/project/constitution.md` already contains the language heading (e.g. `## Rust Conventions`, `## Node/TypeScript Conventions`), skip (idempotent marker)
-   - Otherwise, read `fab/.kit/templates/constitutions/{language}.md` and append its content before the `## Governance` section
-   - Preserve existing principles and constraints — this is append-only
+**Framework detection (checked after language):**
 
-4. **Config merge** (examples: Rust, Node/TypeScript):
-   - Read `fab/.kit/templates/configs/{language}.yaml`
-   - Add any `source_paths` entries not already present in `fab/project/config.yaml`
-   - Add any `checklist.extra_categories` entries not already present
-   - For `stage_directives`, add any directives under each stage key that are not already present (additive, never replace)
-   - Preserve YAML comments via targeted string replacement, not full YAML rewrite
+| Condition | Framework | Constitution section | Config overlay |
+|-----------|-----------|---------------------|----------------|
+| `package.json` contains `"react":` in dependencies | React | `## React Conventions` | `templates/configs/react.yaml` |
 
-5. Output: `Detected {Language} project (via {marker_file}). Applied {Language} conventions to constitution and config.`
+**Application logic:**
 
-If no marker file is found, output nothing (no language detection is not an error).
-
+1. For each matching detection rule:
+   a. Check `fab/.kit/templates/constitutions/{language}.md` and `fab/.kit/templates/configs/{language}.yaml` exist. If either is missing, skip silently (template not yet available for this language)
+   b. Check if `fab/project/constitution.md` already contains the section heading (idempotency marker)
+   c. If missing: read the constitution template and append before the `## Governance` section. Preserve existing principles — this is append-only.
+   d. Read the config template overlay and merge into `fab/project/config.yaml`:
+      - `source_paths`: union with existing (no duplicates)
+      - `checklist.extra_categories`: union with existing
+      - `stage_directives`: merge per-stage arrays (append directives not already present)
+      - Preserve YAML comments via targeted string replacement, not full YAML rewrite
+   e. Print: `"Detected {Language} project. Applied {Language} conventions to constitution and config."`
+2. If no templates directory exists or no markers match: skip silently
+3. Framework templates layer on top of language templates (a React+TS project gets both)
 #### 1b2. `fab/project/context.md`
 
 If missing: copy `fab/.kit/scaffold/fab/project/context.md` to `fab/project/context.md`. Report "Created: fab/project/context.md".

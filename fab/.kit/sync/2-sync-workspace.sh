@@ -216,6 +216,36 @@ if [ -d "$scaffold_dir" ]; then
   done < <(find "$scaffold_dir" -type f | sort)
 fi
 
+# ── 2b. Language template advisory ─────────────────────────────────
+# If a language is detected but the constitution lacks the corresponding
+# conventions section, suggest running /fab-setup --refresh.
+if [ -d "$kit_dir/templates/constitutions" ] && [ -f "$fab_dir/project/constitution.md" ]; then
+  constitution="$fab_dir/project/constitution.md"
+
+  # Rust detection
+  if [ -f "$repo_root/Cargo.toml" ] && [ -f "$kit_dir/templates/constitutions/rust.md" ]; then
+    if ! grep -q "## Rust Conventions" "$constitution"; then
+      echo "Note: Rust project detected but constitution lacks Rust conventions. Run /fab-setup to apply."
+    fi
+  fi
+
+  # TypeScript detection
+  if [ -f "$repo_root/tsconfig.json" ] && [ -f "$kit_dir/templates/constitutions/typescript.md" ]; then
+    if ! grep -q "## TypeScript Conventions" "$constitution"; then
+      echo "Note: TypeScript project detected but constitution lacks TypeScript conventions. Run /fab-setup to apply."
+    fi
+  fi
+
+  # React detection
+  if [ -f "$repo_root/package.json" ] && [ -f "$kit_dir/templates/constitutions/react.md" ]; then
+    if grep -q '"react":' "$repo_root/package.json"; then
+      if ! grep -q "## React Conventions" "$constitution"; then
+        echo "Note: React project detected but constitution lacks React conventions. Run /fab-setup to apply."
+      fi
+    fi
+  fi
+fi
+
 # ── 3. Skill deployment ────────────────────────────────────────────
 # Canonical list: every *.md in .kit/skills/ (including _underscore partials)
 skills=()
@@ -435,24 +465,7 @@ if [ -d "$claude_agents_dir" ]; then
   fi
 fi
 
-# ── 5. Language template advisory ─────────────────────────────────────
-# If language-specific constitution templates exist and the project matches
-# but hasn't applied them yet, print an advisory (sync never modifies
-# constitution automatically).
-templates_dir="$kit_dir/templates/constitutions"
-if [ -d "$templates_dir" ]; then
-  constitution_file="$fab_dir/project/constitution.md"
-  if [ -f "$constitution_file" ]; then
-    # Rust detection
-    if [ -f "$repo_root/Cargo.toml" ] && [ -f "$templates_dir/rust.md" ]; then
-      if ! grep -qF "## Rust Conventions" "$constitution_file"; then
-        echo "Note: Rust project detected but constitution lacks Rust conventions. Run /fab-setup to apply."
-      fi
-    fi
-  fi
-fi
-
-# ── 6. Sync version stamp ────────────────────────────────────────────
+# ── 5. Sync version stamp ────────────────────────────────────────────
 # Record the kit version that was last synced. Preflight compares this
 # against fab/.kit/VERSION to detect stale skill deployments.
 sync_version_file="$fab_dir/.kit-sync-version"

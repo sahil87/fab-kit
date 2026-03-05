@@ -1,0 +1,13 @@
+current_stage: intake
+stages:
+  intake: pending
+  spec: pending
+  tasks: pending
+  apply: pending
+  review: pending
+  hydrate: pending
+metadata:
+  bead_id: fa-4vj
+  created: "2026-03-05"
+  type: feat
+  triage: standard
