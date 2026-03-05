@@ -1,0 +1,13 @@
+{"ts":"2026-03-05T08:34:44+05:30","event":"stage-transition","stage":"intake","action":"enter","driver":"fab-new"}
+{"ts":"2026-03-05T08:34:44+05:30","event":"command","cmd":"fab-new","args":"batch-fab-archive-changes.sh: move the default behaviour to --list. Make --all the new default behaviour when no arguments are passed"}
+{"ts":"2026-03-05T08:35:11+05:30","event":"confidence","score":3.5,"delta":"+3.5","trigger":"calc-score"}
+{"ts":"2026-03-05T08:35:25+05:30","event":"command","cmd":"fab-switch"}
+{"ts":"2026-03-05T08:36:16+05:30","event":"command","cmd":"fab-discuss"}
+{"ts":"2026-03-05T08:40:54+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-03-05T08:41:09+05:30","event":"stage-transition","stage":"spec","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:41:47+05:30","event":"stage-transition","stage":"tasks","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:42:09+05:30","event":"stage-transition","stage":"apply","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:42:36+05:30","event":"stage-transition","stage":"review","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:43:57+05:30","event":"stage-transition","stage":"hydrate","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:43:57+05:30","event":"review","result":"passed"}
+{"ts":"2026-03-05T08:44:46+05:30","event":"stage-transition","stage":"ship","action":"enter","driver":"fab-ff"}

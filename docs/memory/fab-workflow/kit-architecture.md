@@ -198,7 +198,7 @@ Batch scripts follow the `batch-fab-{verb}-{entity}.sh` naming pattern (except p
 
 - **`batch-fab-new-backlog.sh`** — Per backlog ID: creates a worktree, opens a tmux tab, runs `/fab-new <description>`. Supports `--list` (show pending), `--all` (all pending), and direct ID arguments.
 - **`batch-fab-switch-change.sh`** — Per change name/ID: creates a worktree with the expected branch, opens a tmux tab, runs `/fab-switch <change>`. Supports `--list`, `--all`, substring matching.
-- **`batch-fab-archive-change.sh`** — Per completed change (`hydrate:done`): creates a worktree, opens a tmux tab, runs `/fab-archive <change>`. Filters by reading `.status.yaml` for `hydrate: done`. Supports `--list`, `--all`, substring matching.
+- **`batch-fab-archive-change.sh`** — Per completed change (`hydrate:done|skipped`): runs `/fab-archive <change>` for each. Filters by reading `.status.yaml` for `hydrate: done|skipped`. Default (no arguments) archives all eligible (same as `--all`). Supports `--list` (preview), `--all`, and positional change arguments.
 
 ### Agent Skill Deployment
 
