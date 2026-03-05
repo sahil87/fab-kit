@@ -369,22 +369,23 @@ Benchmark conducted 2026-03-05 comparing 4 implementations of `statusman.sh` ope
 
 | Contender | progress-map | set-change-type | finish | Startup |
 |-----------|-------------|-----------------|--------|---------|
-| bash+yq (baseline) | 19.2 ms | 6.7 ms | 37.8 ms | 2.5 ms |
-| optimized bash | 4.0 ms (4.8x) | 3.4 ms (2.0x) | 7.2 ms (5.3x) | 1.4 ms |
-| node (js-yaml) | 14.0 ms (1.4x) | 14.5 ms (0.5x) | 14.6 ms (2.6x) | 12.4 ms |
-| rust (serde_yaml) | 0.26 ms (74x) | 0.30 ms (22x) | 0.31 ms (123x) | 0.20 ms |
+| bash+yq (baseline) | 19.5 ms | 6.8 ms | 39.4 ms | 2.5 ms |
+| optimized bash | 4.1 ms (4.8x) | 3.5 ms (1.9x) | 7.4 ms (5.3x) | 1.4 ms |
+| node (js-yaml) | 14.2 ms (1.4x) | 14.8 ms (0.5x) | 15.4 ms (2.6x) | 12.6 ms |
+| go (yaml.v3) | 0.69 ms (28x) | 0.80 ms (8.4x) | 0.80 ms (49x) | 0.54 ms |
+| rust (serde_yaml) | 0.26 ms (74x) | 0.33 ms (20x) | 0.36 ms (110x) | 0.18 ms |
 
 ### Key Findings
 
-- **Rust** is the clear performance winner — sub-millisecond for all operations, 22-123x faster than baseline
+- **Rust** is the fastest — sub-millisecond for all operations, 20-110x faster than baseline
+- **Go** is 2-3x slower than Rust but still 8-49x faster than baseline. Trivial cross-compilation (`GOOS`/`GOARCH`) is a major practical advantage. Binary is 3.4 MB (vs Rust's 595 KB)
 - **Optimized bash** (batched yq reads + awk writes) achieves 2-5x improvement with no new dependencies
-- **Node** is slower than bash+yq baseline for simple operations due to V8 startup overhead (~13ms floor); only competitive on complex operations where its single-process advantage outweighs startup cost
-- The `finish` operation (38ms baseline) exposes the real cost of repeated yq subprocess spawns — each of the ~10 yq invocations adds ~4ms
-- Rust binary is 595 KB (stripped, LTO); yq binary is 12.6 MB; Node requires 684 KB of node_modules
+- **Node** is slower than bash+yq baseline for simple operations due to V8 startup overhead (~13ms floor)
+- The `finish` operation (39ms baseline) exposes the real cost of repeated yq subprocess spawns — each of the ~10 yq invocations adds ~4ms
 
 ### Constitution Alignment
 
-Constitution Principle I requires "single-binary utilities" with no runtime dependencies. Rust fits this constraint perfectly. Node violates it (requires node runtime + node_modules). Optimized bash stays within the current architecture but has a performance ceiling.
+Constitution Principle I requires "single-binary utilities" with no runtime dependencies. Both Rust and Go fit this constraint. Node violates it (requires node runtime + node_modules). Optimized bash stays within the current architecture but has a performance ceiling. Go's cross-compilation story (`GOOS=linux GOARCH=arm64 go build`) is significantly simpler than Rust's (which needs target-specific linkers).
 
 ### Benchmark Code
 

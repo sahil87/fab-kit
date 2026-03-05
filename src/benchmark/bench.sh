@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Benchmark harness: compares 4 statusman contenders using hyperfine.
+# Benchmark harness: compares 5 statusman contenders using hyperfine.
 # Usage: bash src/benchmark/bench.sh
 set -euo pipefail
 
@@ -13,12 +13,13 @@ BASELINE="bash $REPO_ROOT/fab/.kit/scripts/lib/statusman.sh"
 OPT_BASH="bash $BENCH_DIR/statusman-bash-opt/statusman.sh"
 NODE="node $BENCH_DIR/statusman-node/statusman.mjs"
 RUST="$BENCH_DIR/statusman-rust/target/release/statusman"
+GO="$BENCH_DIR/statusman-go/statusman"
 
 # Source cargo env for hyperfine if needed
 [ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env"
 
 # Verify prerequisites
-for cmd in hyperfine yq node python3; do
+for cmd in hyperfine yq node go python3; do
   if ! command -v "$cmd" &>/dev/null; then
     echo "ERROR: $cmd not found" >&2
     exit 1
@@ -26,6 +27,10 @@ for cmd in hyperfine yq node python3; do
 done
 if [ ! -f "$RUST" ]; then
   echo "ERROR: Rust binary not found at $RUST. Run: cd src/benchmark/statusman-rust && cargo build --release" >&2
+  exit 1
+fi
+if [ ! -f "$GO" ]; then
+  echo "ERROR: Go binary not found at $GO. Run: cd src/benchmark/statusman-go && go build -o statusman ." >&2
   exit 1
 fi
 
@@ -44,6 +49,7 @@ echo "Machine: $(uname -srm)"
 echo "CPU: $(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | cut -d: -f2 | xargs || sysctl -n machdep.cpu.brand_string 2>/dev/null || echo 'unknown')"
 echo "yq: $(yq --version 2>&1 | head -1)"
 echo "node: $(node --version)"
+echo "go: $(go version)"
 echo "rustc: $(source "$HOME/.cargo/env" 2>/dev/null; rustc --version)"
 echo "hyperfine: $(hyperfine --version)"
 echo ""
@@ -58,6 +64,7 @@ hyperfine \
   -n "bash+yq" "$BASELINE --help" \
   -n "optimized-bash" "$OPT_BASH --help" \
   -n "node" "$NODE --help" \
+  -n "go" "$GO --help" \
   -n "rust" "$RUST --help"
 echo ""
 
@@ -73,6 +80,7 @@ hyperfine \
   -n "bash+yq" "$BASELINE progress-map $WORK_FILE" \
   -n "optimized-bash" "$OPT_BASH progress-map $WORK_FILE" \
   -n "node" "$NODE progress-map $WORK_FILE" \
+  -n "go" "$GO progress-map $WORK_FILE" \
   -n "rust" "$RUST progress-map $WORK_FILE"
 echo ""
 
@@ -87,6 +95,7 @@ hyperfine \
   -n "bash+yq" "$BASELINE set-change-type $WORK_FILE feat" \
   -n "optimized-bash" "$OPT_BASH set-change-type $WORK_FILE feat" \
   -n "node" "$NODE set-change-type $WORK_FILE feat" \
+  -n "go" "$GO set-change-type $WORK_FILE feat" \
   -n "rust" "$RUST set-change-type $WORK_FILE feat"
 echo ""
 
@@ -101,6 +110,7 @@ hyperfine \
   -n "bash+yq" "$BASELINE finish $WORK_FILE intake" \
   -n "optimized-bash" "$OPT_BASH finish $WORK_FILE intake" \
   -n "node" "$NODE finish $WORK_FILE intake" \
+  -n "go" "$GO finish $WORK_FILE intake" \
   -n "rust" "$RUST finish $WORK_FILE intake"
 echo ""
 
@@ -169,6 +179,7 @@ for r in data['results']:
   echo ""
   echo "- yq: $(yq --version 2>&1 | head -1)"
   echo "- node: $(node --version)"
+  echo "- go: $(go version)"
   echo "- rustc: $(source "$HOME/.cargo/env" 2>/dev/null; rustc --version)"
   echo "- hyperfine: $(hyperfine --version)"
   echo ""
@@ -179,6 +190,7 @@ for r in data['results']:
   echo "| bash+yq (statusman.sh) | $(wc -c < "$REPO_ROOT/fab/.kit/scripts/lib/statusman.sh" | xargs) bytes (script) + $(wc -c < "$(readlink -f "$(which yq)")" 2>/dev/null | xargs || echo '?') bytes (yq binary) |"
   echo "| optimized-bash | $(wc -c < "$BENCH_DIR/statusman-bash-opt/statusman.sh" | xargs) bytes (script) |"
   echo "| node | $(wc -c < "$BENCH_DIR/statusman-node/statusman.mjs" | xargs) bytes (script) + $(du -sh "$BENCH_DIR/statusman-node/node_modules" 2>/dev/null | cut -f1 || echo '?') (node_modules) |"
+  echo "| go | $(ls -la "$GO" | awk '{print $5}') bytes (binary) |"
   echo "| rust | $(ls -la "$RUST" | awk '{print $5}') bytes (binary) |"
   echo ""
   echo "## Results"

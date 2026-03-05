@@ -6,6 +6,7 @@ Compares 4 implementations of core `statusman.sh` operations to inform the runti
 
 - `yq` v4 (Go version)
 - `node` (v18+)
+- `go` (1.21+)
 - `cargo` / `rustc` — install via [rustup](https://rustup.rs/) if not present:
   ```bash
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -22,6 +23,9 @@ Compares 4 implementations of core `statusman.sh` operations to inform the runti
 # Install Node deps
 cd src/benchmark/statusman-node && npm install && cd -
 
+# Build Go contender
+cd src/benchmark/statusman-go && go build -o statusman . && cd -
+
 # Build Rust contender
 cd src/benchmark/statusman-rust && cargo build --release && cd -
 ```
@@ -37,7 +41,7 @@ Runs all benchmarks via `hyperfine` and generates `RESULTS.md`. Requires the Rus
 
 ## What's benchmarked
 
-3 operations across 4 contenders:
+3 operations across 5 contenders:
 
 | Operation | What it tests |
 |-----------|---------------|
@@ -50,6 +54,7 @@ Runs all benchmarks via `hyperfine` and generates `RESULTS.md`. Requires the Rus
 1. **bash+yq** — production `statusman.sh` (baseline)
 2. **optimized-bash** — batched yq reads + awk writes
 3. **node** — `js-yaml` (pure JS)
-4. **rust** — `serde_yaml` (compiled binary)
+4. **go** — `yaml.v3` (compiled binary)
+5. **rust** — `serde_yaml` (compiled binary)
 
 See `RESULTS.md` for the latest numbers.

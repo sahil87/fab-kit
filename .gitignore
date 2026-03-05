@@ -19,5 +19,6 @@ kit.tar.gz
 # Benchmark build artifacts
 src/benchmark/statusman-rust/target/
 src/benchmark/statusman-node/node_modules/
+src/benchmark/statusman-go/statusman
 src/benchmark/results/*.json
 
