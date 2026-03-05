@@ -30,7 +30,14 @@ fi
 # Shell fallback
 echo "[fab] using shell backend" >&2
 
-case "${1:-}" in
+cmd="${1:-}"
+if [ -z "$cmd" ]; then
+  echo "Usage: fab <command> [args...]" >&2
+  echo "Commands: resolve, status, log, preflight, change, score, archive" >&2
+  exit 1
+fi
+
+case "$cmd" in
   resolve)    shift; exec bash "$LIB_DIR/resolve.sh" "$@" ;;
   status)     shift; exec bash "$LIB_DIR/statusman.sh" "$@" ;;
   log)        shift; exec bash "$LIB_DIR/logman.sh" "$@" ;;
@@ -38,5 +45,5 @@ case "${1:-}" in
   change)     shift; exec bash "$LIB_DIR/changeman.sh" "$@" ;;
   score)      shift; exec bash "$LIB_DIR/calc-score.sh" "$@" ;;
   archive)    shift; exec bash "$LIB_DIR/archiveman.sh" "archive" "$@" ;;
-  *)          echo "Unknown command: ${1:-}" >&2; exit 1 ;;
+  *)          echo "Unknown command: $cmd" >&2; exit 1 ;;
 esac
