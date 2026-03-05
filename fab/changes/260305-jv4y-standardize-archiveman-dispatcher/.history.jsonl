@@ -1,0 +1,3 @@
+{"ts":"2026-03-05T17:01:00+05:30","event":"stage-transition","stage":"intake","action":"enter","driver":"fab-new"}
+{"ts":"2026-03-05T17:01:00+05:30","event":"command","cmd":"fab-new","args":"Standardize archiveman.sh dispatcher integration: remove hardcoded archive subcommand, make archiveman.sh default to archive when $1 isn't a known subcommand"}
+{"delta":"+4.7","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-03-05T17:02:23+05:30"}
