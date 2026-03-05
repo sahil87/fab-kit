@@ -86,7 +86,8 @@ After config and constitution are created (or already exist), detect the project
 
 1. Check for marker files at the repository root:
    - `Cargo.toml` exists → **Rust project**
-   - `package.json` exists → Node.js project (future template, no-op for now)
+   - `package.json` AND `tsconfig.json` both exist → **Node/TypeScript project**
+   - `package.json` exists (without `tsconfig.json`) → Node.js project (future template, no-op for now)
    - `go.mod` exists → Go project (future template, no-op for now)
 
 2. For a detected language with available templates:
@@ -94,13 +95,13 @@ After config and constitution are created (or already exist), detect the project
    - Check `fab/.kit/templates/configs/{language}.yaml` exists
    - If either is missing, skip silently (template not yet available for this language)
 
-3. **Constitution merge** (Rust example):
-   - If `fab/project/constitution.md` already contains the heading `## Rust Conventions`, skip (idempotent marker)
-   - Otherwise, read `fab/.kit/templates/constitutions/rust.md` and append its content before the `## Governance` section
+3. **Constitution merge** (examples: Rust, Node/TypeScript):
+   - If `fab/project/constitution.md` already contains the language heading (e.g. `## Rust Conventions`, `## Node/TypeScript Conventions`), skip (idempotent marker)
+   - Otherwise, read `fab/.kit/templates/constitutions/{language}.md` and append its content before the `## Governance` section
    - Preserve existing principles and constraints — this is append-only
 
-4. **Config merge** (Rust example):
-   - Read `fab/.kit/templates/configs/rust.yaml`
+4. **Config merge** (examples: Rust, Node/TypeScript):
+   - Read `fab/.kit/templates/configs/{language}.yaml`
    - Add any `source_paths` entries not already present in `fab/project/config.yaml`
    - Add any `checklist.extra_categories` entries not already present
    - For `stage_directives`, add any directives under each stage key that are not already present (additive, never replace)
