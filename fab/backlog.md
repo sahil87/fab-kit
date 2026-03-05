@@ -49,7 +49,7 @@ Step 8: gm12                      ← remove old shell scripts (deferred — onl
 - [x] [gm10] 2026-03-05: Local cross-compilation in fab-release.sh — build fab binary for darwin-arm64, darwin-amd64, linux-arm64, linux-amd64 via `GOOS/GOARCH go build`; produce per-platform kit-{os}-{arch}.tar.gz plus generic kit.tar.gz (no binary, fallback); update fab-upgrade.sh to detect platform and download correct archive; update bootstrap one-liner with platform detection
 - [x] [gm11] 2026-03-05: Switchover — update all skill scripts and bash callers to invoke `fab` binary instead of shell scripts
 - [x] [gm12] 2026-03-05: Remove shim layer from old shell scripts — make `fab` binary the sole code path (after confidence period)
-- [ ] [gm13] 2026-03-05: Remove old shell scripts from lib/ (deferred — only after confidence period in production)
+- [x] [gm13] 2026-03-05: Remove old shell scripts from lib/ (deferred — only after confidence period in production)
 
 ## Go Migration — Phase 2 (wt binary)
 
