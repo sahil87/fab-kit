@@ -1,5 +1,6 @@
 # Archive Index
 
+- **260305-socx-5-remove-legacy-shell-scripts** — Stale — scope completed by u8t9 (shell script removal) and 7arg (test cleanup); wt script removal moved to k8ds
 - **260305-u8t9-clean-break-go-only** — Remove all shell script fallbacks from the fab dispatcher, delete 7 fully-ported lib/ scripts, absorb wt-status into fab status show with JSON output, and add fab/.kit/bin/ to PATH — establishing the Go binary as the sole backend.
 - **260305-jv4y-standardize-archiveman-dispatcher** — Fix shell dispatcher's broken archive restore/list pass-through by defaulting to cmd_archive when $1 isn't a known subcommand, and removing the hardcoded archive argument from the dispatcher.
 - **260305-bs5x-orchestrator-idle-hooks** — Add SessionStart and Stop hooks that write/clear agent.idle_since in .status.yaml, replacing fixed-delay timing heuristics with an explicit filesystem idle signal for the pipeline orchestrator.

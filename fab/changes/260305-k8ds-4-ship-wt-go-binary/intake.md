@@ -67,6 +67,15 @@ Update `fab/.kit/scripts/lib/env-packages.sh` to add `fab/.kit/bin/` to PATH (fo
 
 After shim validation, callers that invoke `wt-create`, `wt-list`, etc. can optionally be updated to `wt create`, `wt list`. However, since wt commands are primarily user-facing (typed in terminal), not called by skills, the shim layer may be sufficient — users continue typing `wt-create` and it transparently delegates.
 
+### Remove Legacy wt Shell Scripts
+
+After switchover and confidence period, remove the bash wt-* scripts entirely (absorbed from archived `socx` change):
+
+- Delete `fab/.kit/packages/wt/bin/wt-create`, `wt-delete`, `wt-init`, `wt-list`, `wt-open`, `wt-pr`
+- Delete `fab/.kit/packages/wt/lib/wt-common.sh`
+- Remove the `fab/.kit/packages/wt/` directory if empty after deletion
+- Update `env-packages.sh` PATH entries to remove `fab/.kit/packages/wt/bin`
+
 ## Affected Memory
 
 - `fab-workflow/distribution`: (modify) Document wt binary in per-platform archives, env-packages.sh update
