@@ -79,7 +79,7 @@ gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers -X POST -f 'revie
 
 **Phase 3 — Poll for Copilot review completion**:
 
-Poll `GET /reviews` for `copilot-pull-request-reviewer[bot]` every 30 seconds, max 12 attempts (6 minutes total):
+Poll `GET /reviews` for `copilot-pull-request-reviewer[bot]` every 30 seconds, max 16 attempts (8 minutes total):
 
 ```bash
 gh api repos/{owner}/{repo}/pulls/{number}/reviews --jq '[.[] | select(.user.login == "copilot-pull-request-reviewer[bot]")] | sort_by(.submitted_at) | if length > 0 then .[-1].id else empty end'
@@ -87,7 +87,7 @@ gh api repos/{owner}/{repo}/pulls/{number}/reviews --jq '[.[] | select(.user.log
 
 If a review ID is returned → capture `{review_id}` and proceed to Step 3 (Path B: Copilot-specific comments).
 
-If timeout (12 attempts, no review) → print `Copilot review did not arrive within 6 minutes.` and STOP.
+If timeout (16 attempts, no review) → print `Copilot review did not arrive within 8 minutes.` and STOP.
 
 ### Step 3: Fetch Comments
 
@@ -156,8 +156,8 @@ Print: `Fixed {N} comment(s) across {M} file(s)`
 If an active change was resolved in Step 0:
 
 1. **On success** (comments processed and pushed, or no actionable comments): Call `fab/.kit/scripts/lib/statusman.sh finish <change> review-pr git-pr-review 2>/dev/null || true`.
-2. **On failure** (Copilot timeout, no PR found, processing error): Call `fab/.kit/scripts/lib/statusman.sh fail <change> review-pr git-pr-review 2>/dev/null || true`.
-3. **On no reviews and Copilot unavailable**: Call `fab/.kit/scripts/lib/statusman.sh finish <change> review-pr git-pr-review 2>/dev/null || true` — a successful no-op outcome.
+2. **On failure** (no PR found, processing error): Call `fab/.kit/scripts/lib/statusman.sh fail <change> review-pr git-pr-review 2>/dev/null || true`.
+3. **On no reviews** (Copilot unavailable, Copilot timeout, or no reviews at all): Call `fab/.kit/scripts/lib/statusman.sh finish <change> review-pr git-pr-review 2>/dev/null || true` — a successful no-op outcome.
 
 All statusman calls are best-effort — failures silently ignored to avoid blocking the PR review workflow.
 

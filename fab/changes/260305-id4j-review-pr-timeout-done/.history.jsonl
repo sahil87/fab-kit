@@ -1,0 +1,13 @@
+{"ts":"2026-03-05T08:32:58+05:30","event":"stage-transition","stage":"intake","action":"enter","driver":"fab-new"}
+{"ts":"2026-03-05T08:32:58+05:30","event":"command","cmd":"fab-new","args":"for the git-pr-review stage, if there's no human review, and no copilot review comes in time, the final state should be done, not failed"}
+{"ts":"2026-03-05T08:33:31+05:30","event":"confidence","score":5.0,"delta":"+5.0","trigger":"calc-score"}
+{"ts":"2026-03-05T08:35:45+05:30","event":"command","cmd":"fab-switch"}
+{"ts":"2026-03-05T08:36:06+05:30","event":"command","cmd":"fab-discuss"}
+{"ts":"2026-03-05T08:41:04+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-03-05T08:41:35+05:30","event":"stage-transition","stage":"spec","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:42:07+05:30","event":"stage-transition","stage":"tasks","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:42:07+05:30","event":"stage-transition","stage":"apply","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:43:17+05:30","event":"stage-transition","stage":"review","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:45:21+05:30","event":"stage-transition","stage":"hydrate","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:45:21+05:30","event":"review","result":"passed"}
+{"ts":"2026-03-05T08:45:40+05:30","event":"stage-transition","stage":"ship","action":"enter","driver":"fab-ff"}

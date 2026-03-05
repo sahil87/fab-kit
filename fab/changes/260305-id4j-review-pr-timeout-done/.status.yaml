@@ -1,0 +1,42 @@
+name: 260305-id4j-review-pr-timeout-done
+created: 2026-03-05T08:32:58+05:30
+created_by: sahil-weaver
+change_type: fix
+issues: []
+progress:
+  intake: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
+  ship: active
+  review-pr: pending
+checklist:
+  generated: true
+  path: checklist.md
+  completed: 14
+  total: 14
+confidence:
+  certain: 3
+  confident: 0
+  tentative: 0
+  unresolved: 0
+  score: 5.0
+  indicative: true
+  fuzzy: true
+  dimensions:
+    signal: 88.3
+    reversibility: 93.3
+    competence: 90.0
+    disambiguation: 93.3
+stage_metrics:
+  intake: {started_at: "2026-03-05T08:32:58+05:30", driver: fab-new, iterations: 1, completed_at: "2026-03-05T08:41:35+05:30"}
+  spec: {started_at: "2026-03-05T08:41:35+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-05T08:42:07+05:30"}
+  tasks: {started_at: "2026-03-05T08:42:07+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-05T08:42:07+05:30"}
+  apply: {started_at: "2026-03-05T08:42:07+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-05T08:43:17+05:30"}
+  review: {started_at: "2026-03-05T08:43:17+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-05T08:45:21+05:30"}
+  hydrate: {started_at: "2026-03-05T08:45:21+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-05T08:45:40+05:30"}
+  ship: {started_at: "2026-03-05T08:45:40+05:30", driver: fab-ff, iterations: 1}
+prs: []
+last_updated: "2026-03-05T08:45:40+05:30"
