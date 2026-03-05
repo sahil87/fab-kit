@@ -63,7 +63,7 @@ fab/.kit/
 ├── packages/               # Distributable CLI tools (idea, wt)
 │   ├── idea/bin/idea       # Per-repo idea backlog manager
 │   └── wt/                 # Git worktree management
-│       ├── bin/            # wt-create, wt-delete, wt-init, wt-list, wt-open, wt-pr
+│       ├── bin/            # wt-create, wt-delete, wt-init, wt-list, wt-open, wt-pr, wt-status
 │       └── lib/wt-common.sh
 ├── schemas/                # Workflow schema
 │   └── workflow.yaml       # Canonical stage/state definitions
@@ -365,6 +365,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260305-7zq4-worktree-status-command | 2026-03-05 | Added `wt-status` to wt package — shows fab pipeline status (stage + state) per worktree. Three modes: no args (current worktree), `<name>` (specific worktree), `--all` (all worktrees). Composable architecture: atomic `wt_get_fab_status` function reads `fab/current` + `.status.yaml` via `statusman.sh display-stage`. |
 | 260305-38q7-wt-delete-show-all-in-menu | 2026-03-05 | wt-delete interactive selection menu now shows "All (N worktrees)" as first option (item 1). Selecting "All" delegates to `wt_delete_all_worktrees`. Individual worktrees shift by +1. Default selection (MRU) shifts accordingly. `--delete-all` flag preserved for non-interactive use. |
 | 260303-hcq9-scriptify-fab-archive | 2026-03-04 | Added `archiveman.sh` to `scripts/lib/` — Archive Manager with `archive`, `restore`, and `list` subcommands. Slimmed `/fab-archive` skill to orchestrator (backlog matching only). Added `logman.sh` and `resolve.sh` to directory tree listing (were already documented in script sections but missing from the tree). Dev test suite: `src/lib/archiveman/test.bats` (41 tests). |
 | 260303-l6nk-gemini-cli-agent-aware-sync | 2026-03-04 | Added Gemini CLI as 4th agent target (`.gemini/skills/<name>/SKILL.md`, directory-based copies). Made agent skill deployment conditional — each agent's CLI checked via `command -v` before syncing; absent agents skipped with message, existing dot folders preserved. Added `FAB_AGENTS` env var override for testing/CI. Added `/.gemini` to gitignore scaffold. Updated "Agent Integration via Symlinks" → "Agent Skill Deployment" section and design decision. |

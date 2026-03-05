@@ -1,0 +1,16 @@
+{"ts":"2026-03-05T08:32:59+05:30","event":"stage-transition","stage":"intake","action":"enter","driver":"fab-new"}
+{"ts":"2026-03-05T08:32:59+05:30","event":"command","cmd":"fab-new","args":"A command line to show the status (status = stage + state) of every worktree"}
+{"ts":"2026-03-05T08:33:46+05:30","event":"confidence","score":4.4,"delta":"+4.4","trigger":"calc-score"}
+{"ts":"2026-03-05T08:34:59+05:30","event":"command","cmd":"fab-switch"}
+{"ts":"2026-03-05T08:36:03+05:30","event":"command","cmd":"fab-discuss"}
+{"ts":"2026-03-05T08:45:22+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-03-05T08:46:53+05:30","event":"stage-transition","stage":"spec","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:47:36+05:30","event":"stage-transition","stage":"tasks","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:47:36+05:30","event":"stage-transition","stage":"apply","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:50:49+05:30","event":"stage-transition","stage":"review","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:53:39+05:30","event":"review","result":"failed"}
+{"ts":"2026-03-05T08:53:39+05:30","event":"stage-transition","stage":"apply","action":"re-entry","driver":"fab-ff"}
+{"ts":"2026-03-05T08:54:33+05:30","event":"stage-transition","stage":"review","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:56:43+05:30","event":"stage-transition","stage":"hydrate","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T08:56:43+05:30","event":"review","result":"passed"}
+{"ts":"2026-03-05T08:57:12+05:30","event":"stage-transition","stage":"ship","action":"enter","driver":"fab-ff"}
