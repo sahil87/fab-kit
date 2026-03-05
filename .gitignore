@@ -16,3 +16,8 @@ fab/changes/**/.pr-done
 kit.tar.gz
 .tmp
 
+# Benchmark build artifacts
+src/benchmark/statusman-rust/target/
+src/benchmark/statusman-node/node_modules/
+src/benchmark/results/*.json
+

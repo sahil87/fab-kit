@@ -361,6 +361,35 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 **Rejected**: Index-based `git stash push`/`git stash pop` — unsafe with concurrent worktree deletions; another worktree's stash could shift indices.
 *Source*: 260218-qcqx-harden-wt-resilience
 
+## Performance Benchmark: Script Runtime Comparison
+
+Benchmark conducted 2026-03-05 comparing 4 implementations of `statusman.sh` operations (progress-map, set-change-type, finish) on aarch64 Linux.
+
+### Results Summary
+
+| Contender | progress-map | set-change-type | finish | Startup |
+|-----------|-------------|-----------------|--------|---------|
+| bash+yq (baseline) | 19.2 ms | 6.7 ms | 37.8 ms | 2.5 ms |
+| optimized bash | 4.0 ms (4.8x) | 3.4 ms (2.0x) | 7.2 ms (5.3x) | 1.4 ms |
+| node (js-yaml) | 14.0 ms (1.4x) | 14.5 ms (0.5x) | 14.6 ms (2.6x) | 12.4 ms |
+| rust (serde_yaml) | 0.26 ms (74x) | 0.30 ms (22x) | 0.31 ms (123x) | 0.20 ms |
+
+### Key Findings
+
+- **Rust** is the clear performance winner — sub-millisecond for all operations, 22-123x faster than baseline
+- **Optimized bash** (batched yq reads + awk writes) achieves 2-5x improvement with no new dependencies
+- **Node** is slower than bash+yq baseline for simple operations due to V8 startup overhead (~13ms floor); only competitive on complex operations where its single-process advantage outweighs startup cost
+- The `finish` operation (38ms baseline) exposes the real cost of repeated yq subprocess spawns — each of the ~10 yq invocations adds ~4ms
+- Rust binary is 595 KB (stripped, LTO); yq binary is 12.6 MB; Node requires 684 KB of node_modules
+
+### Constitution Alignment
+
+Constitution Principle I requires "single-binary utilities" with no runtime dependencies. Rust fits this constraint perfectly. Node violates it (requires node runtime + node_modules). Optimized bash stays within the current architecture but has a performance ceiling.
+
+### Benchmark Code
+
+Full benchmark suite with harness and all 4 implementations: `src/benchmark/`
+
 ## Changelog
 
 | Change | Date | Summary |
@@ -414,6 +443,7 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 | 260213-w8p3-extract-fab-score | 2026-02-14 | Added `_calc-score.sh` to scripts directory listing and Shell Scripts section — internal confidence scoring script |
 | 260213-puow-consolidate-status-reads | 2026-02-14 | Renamed `statusman.sh` → `_statusman.sh`; added `.status.yaml` accessor API (`get_progress_map`, `get_checklist`, `get_confidence`); refactored `get_current_stage` to use accessors; extracted `_resolve-change.sh` change resolution library; documented underscore prefix convention |
 | 260213-v3rn-batch-commands | 2026-02-14 | Renamed `fab-batch-new.sh` → `batch-new-backlog.sh`, `fab-batch-switch.sh` → `batch-switch-change.sh`; added `batch-archive-change.sh`; added batch scripts section to Shell Scripts docs |
+| 260305-gt52-rust-vs-node-benchmark | 2026-03-05 | Added Performance Benchmark section: Rust vs Node vs optimized bash vs bash+yq for statusman.sh operations. Rust is 23-123x faster than baseline; optimized bash 2-5x; Node slower than baseline due to V8 startup |
 | 260213-3njv-scaffold-dir | 2026-02-13 | Added `scaffold/` directory to tree listing; `_init_scaffold.sh` now reads bootstrap content from scaffold files instead of hardcoded heredocs |
 | 260213-iq2l-rename-setup-scripts | 2026-02-13 | Renamed `fab-setup.sh` → `_init_scaffold.sh` and `fab-update.sh` → `fab-upgrade.sh`; updated directory listing and all script references |
 | 260213-v8r3-remove-dead-fab-help-agent | 2026-02-13 | Removed `.claude/agents/fab-help.md` from agent files listing — agent was never spawned; skill + script pair covers all usage |

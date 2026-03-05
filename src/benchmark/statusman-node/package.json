@@ -1,0 +1,9 @@
+{
+  "name": "statusman-node-benchmark",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}

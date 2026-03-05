@@ -1,0 +1,42 @@
+name: 260305-gt52-rust-vs-node-benchmark
+created: 2026-03-05T08:32:48+05:30
+created_by: sahil-weaver
+change_type: chore
+issues: []
+progress:
+  intake: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
+  ship: active
+  review-pr: pending
+checklist:
+  generated: true
+  path: checklist.md
+  completed: 22
+  total: 22
+confidence:
+  certain: 4
+  confident: 4
+  tentative: 0
+  unresolved: 0
+  score: 3.8
+  indicative: true
+  fuzzy: true
+  dimensions:
+    signal: 81.2
+    reversibility: 89.4
+    competence: 85.6
+    disambiguation: 86.2
+stage_metrics:
+  intake: {started_at: "2026-03-05T08:32:48+05:30", driver: fab-new, iterations: 1, completed_at: "2026-03-05T09:02:58+05:30"}
+  spec: {started_at: "2026-03-05T09:02:58+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-05T09:03:40+05:30"}
+  tasks: {started_at: "2026-03-05T09:03:40+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-05T09:03:40+05:30"}
+  apply: {started_at: "2026-03-05T09:12:50+05:30", driver: fab-ff, iterations: 2, completed_at: "2026-03-05T09:15:03+05:30"}
+  review: {started_at: "2026-03-05T09:15:03+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-05T09:17:40+05:30"}
+  hydrate: {started_at: "2026-03-05T09:17:40+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-05T09:18:49+05:30"}
+  ship: {started_at: "2026-03-05T09:18:49+05:30", driver: fab-ff, iterations: 1}
+prs: []
+last_updated: "2026-03-05T09:18:49+05:30"

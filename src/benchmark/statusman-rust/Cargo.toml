@@ -1,0 +1,12 @@
+[package]
+name = "statusman"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde_yaml = "0.9"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
