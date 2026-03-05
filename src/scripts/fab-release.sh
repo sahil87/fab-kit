@@ -3,8 +3,8 @@ set -euo pipefail
 
 # src/scripts/fab-release.sh — Create a GitHub Release for fab/.kit/
 #
-# Packages fab/.kit/ into kit.tar.gz, bumps VERSION, commits, and creates
-# a GitHub Release with the archive as an asset.
+# Packages fab/.kit/ into kit.tar.gz (generic) and per-platform archives
+# with the Go binary, bumps VERSION, commits, and creates a GitHub Release.
 #
 # Usage: fab-release.sh <patch|minor|major> [--no-latest]
 #   patch — 0.1.0 → 0.1.1
@@ -14,7 +14,7 @@ set -euo pipefail
 #   --no-latest — do NOT mark the release as "latest" on GitHub
 #                 (use for backport releases on older version series)
 #
-# Requires: gh CLI (https://cli.github.com/)
+# Requires: gh CLI (https://cli.github.com/), Go toolchain (https://go.dev/)
 
 usage() {
   echo "Usage: fab-release.sh <patch|minor|major> [--no-latest]"
@@ -27,6 +27,7 @@ usage() {
 
 repo_root="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 kit_dir="$repo_root/fab/.kit"
+go_src="$repo_root/src/fab-go"
 
 # ── Parse arguments ──────────────────────────────────────────────────
 
@@ -73,6 +74,12 @@ fi
 # Check gh CLI
 if ! command -v gh &>/dev/null; then
   echo "ERROR: gh CLI not found. Install it from https://cli.github.com/"
+  exit 1
+fi
+
+# Check Go toolchain
+if ! command -v go &>/dev/null; then
+  echo "ERROR: Go toolchain not found. Install from https://go.dev/"
   exit 1
 fi
 
@@ -142,9 +149,6 @@ if [ -d "$migrations_dir" ]; then
       b="${migration_files[$j]}"
       b_from="${b%%-to-*}"
       b_to="${b##*-to-}"
-      # Overlap check using string comparison (works for dotted semver)
-      # A overlaps B if A.FROM < B.TO AND B.FROM < A.TO
-      # Use sort -V for proper semver comparison
       if [ "$(printf '%s\n%s' "$a_from" "$b_to" | sort -V | head -1)" = "$a_from" ] && [ "$a_from" != "$b_to" ] && \
          [ "$(printf '%s\n%s' "$b_from" "$a_to" | sort -V | head -1)" = "$b_from" ] && [ "$b_from" != "$a_to" ]; then
         echo "Warning: Overlapping migration ranges detected: ${a}.md and ${b}.md — this will cause /fab-update to error."
@@ -154,15 +158,52 @@ if [ -d "$migrations_dir" ]; then
   done
 fi
 
-# ── Package kit.tar.gz ───────────────────────────────────────────────
+# ── Cross-compile Go binary ─────────────────────────────────────────
 
-echo "Packaging kit.tar.gz..."
+platforms=("darwin/arm64" "darwin/amd64" "linux/arm64" "linux/amd64")
+build_dir="$repo_root/.release-build"
 
-# Create archive rooted at .kit/ so `tar xz -C fab/` produces fab/.kit/
-# COPYFILE_DISABLE prevents macOS from including ._ (Apple Double) resource fork files
+rm -rf "$build_dir"
+mkdir -p "$build_dir"
+
+echo "Cross-compiling Go binary for ${#platforms[@]} platforms..."
+
+for platform in "${platforms[@]}"; do
+  os="${platform%%/*}"
+  arch="${platform##*/}"
+  output="$build_dir/fab-${os}-${arch}"
+  echo "  Building ${os}/${arch}..."
+  CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -o "$output" -C "$go_src" ./cmd/fab
+done
+
+echo "Cross-compilation complete."
+
+# ── Package archives ─────────────────────────────────────────────────
+
+echo "Packaging archives..."
+
+# Generic archive (no binary)
 COPYFILE_DISABLE=1 tar czf "$repo_root/kit.tar.gz" -C "$repo_root/fab" .kit
+echo "  kit.tar.gz ($(wc -c < "$repo_root/kit.tar.gz") bytes)"
 
-echo "Created kit.tar.gz ($(wc -c < "$repo_root/kit.tar.gz") bytes)"
+# Per-platform archives (kit + binary)
+for platform in "${platforms[@]}"; do
+  os="${platform%%/*}"
+  arch="${platform##*/}"
+  archive_name="kit-${os}-${arch}.tar.gz"
+  binary="$build_dir/fab-${os}-${arch}"
+
+  # Create temp staging area with .kit/ + binary
+  staging="$build_dir/staging-${os}-${arch}"
+  mkdir -p "$staging"
+  cp -a "$repo_root/fab/.kit" "$staging/.kit"
+  mkdir -p "$staging/.kit/bin"
+  cp "$binary" "$staging/.kit/bin/fab"
+  chmod +x "$staging/.kit/bin/fab"
+
+  COPYFILE_DISABLE=1 tar czf "$repo_root/$archive_name" -C "$staging" .kit
+  echo "  $archive_name ($(wc -c < "$repo_root/$archive_name") bytes)"
+done
 
 # ── Commit and release ───────────────────────────────────────────────
 
@@ -203,21 +244,29 @@ if [ "$no_latest" = true ]; then
   latest_flag=(--latest=false)
 fi
 
+# Upload all 5 archives
 gh release create "$tag" \
   --repo "$repo" \
   --title "Fab Kit $tag" \
   --notes "$notes" \
   "${latest_flag[@]}" \
-  "$repo_root/kit.tar.gz"
+  "$repo_root/kit.tar.gz" \
+  "$repo_root/kit-darwin-arm64.tar.gz" \
+  "$repo_root/kit-darwin-amd64.tar.gz" \
+  "$repo_root/kit-linux-arm64.tar.gz" \
+  "$repo_root/kit-linux-amd64.tar.gz"
 
-# Clean up the tar.gz from the repo root
+# ── Cleanup ──────────────────────────────────────────────────────────
+
 rm -f "$repo_root/kit.tar.gz"
+rm -f "$repo_root"/kit-*.tar.gz
+rm -rf "$build_dir"
 
 echo ""
 echo "Release complete: $tag"
 echo "  Tag:     $tag"
 echo "  Version: $new_version"
-echo "  Asset:   kit.tar.gz"
+echo "  Assets:  kit.tar.gz + 4 platform archives"
 
 if [ "$no_latest" = true ]; then
   echo ""

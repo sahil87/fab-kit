@@ -20,7 +20,7 @@ If no argument (and no `--blank`): list all active changes and ask user to pick.
 
 ## Context Loading
 
-Loads matched change's `.status.yaml`. Name resolution and switch logic are delegated to `fab/.kit/scripts/lib/changeman.sh`. Does NOT load constitution, memory, or specs.
+Loads matched change's `.status.yaml`. Name resolution and switch logic are delegated to `fab/.kit/bin/fab change`. Does NOT load constitution, memory, or specs.
 
 ---
 
@@ -37,18 +37,18 @@ Loads matched change's `.status.yaml`. Name resolution and switch logic are dele
 Delegate to `changeman.sh switch` via a single Bash call:
 
 ```bash
-bash fab/.kit/scripts/lib/changeman.sh switch "<change-name>"
+fab/.kit/bin/fab change switch "<change-name>"
 ```
 
 If changeman exits 0: display the stdout output (contains name, stage, next command).
 
-If changeman exits 1 and stderr contains "Multiple changes match": parse the comma-separated folder names from stderr, list them with stages as numbered options, ask user to pick. After selection, run `bash fab/.kit/scripts/lib/changeman.sh switch "<selected>"`.
+If changeman exits 1 and stderr contains "Multiple changes match": parse the comma-separated folder names from stderr, list them with stages as numbered options, ask user to pick. After selection, run `fab/.kit/bin/fab change switch "<selected>"`.
 
 If changeman exits 1 and stderr contains "No change matches": list all available changes, inform user.
 
 ### Deactivation Flow (`--blank`)
 
-Run `bash fab/.kit/scripts/lib/changeman.sh switch --blank`. Display changeman's stdout output.
+Run `fab/.kit/bin/fab change switch --blank`. Display changeman's stdout output.
 
 ### Switch Flow
 
@@ -64,7 +64,7 @@ The skill displays changeman's stdout directly.
 After a successful switch (not `--blank`), log the command invocation:
 
 ```bash
-bash fab/.kit/scripts/lib/logman.sh command "fab-switch" 2>/dev/null || true
+fab/.kit/bin/fab log command "fab-switch" 2>/dev/null || true
 ```
 
 This is best-effort — logman resolves the active change via `fab/current` (just written by changeman). Failures are silently ignored.

@@ -1,0 +1,17 @@
+project:
+  name: "parity-test"
+  description: "Parity test fixture project"
+
+source_paths:
+  - fab/.kit/
+
+checklist:
+  extra_categories: []
+
+stage_directives:
+  intake: []
+  spec: []
+  tasks: []
+  apply: []
+  review: []
+  hydrate: []

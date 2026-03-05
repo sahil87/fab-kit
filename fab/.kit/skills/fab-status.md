@@ -34,10 +34,10 @@ This skill uses **minimal context** — it does not need to load `fab/project/co
 Run the preflight script to resolve the change, then render the status display:
 
 ```bash
-bash fab/.kit/scripts/lib/preflight.sh [change-name]
+fab/.kit/bin/fab preflight [change-name]
 ```
 
-Use `fab/.kit/scripts/lib/preflight.sh` and `fab/.kit/scripts/lib/statusman.sh` for validation and data retrieval. The skill handles formatting and presentation:
+Use `fab/.kit/bin/fab preflight` and `fab/.kit/bin/fab status` for validation and data retrieval. The skill handles formatting and presentation:
 
 - Reads `fab/.kit/VERSION`, `fab/.kit-migration-version` (if exists), `fab/current`, and `fab/changes/{name}/.status.yaml`
 - Queries live branch via `git branch --show-current` (instead of reading a static `branch:` field from `.status.yaml`)

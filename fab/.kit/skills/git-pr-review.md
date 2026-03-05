@@ -14,10 +14,10 @@ Process GitHub PR review comments on the current branch's PR. Handles feedback f
 
 ### Step 0: Start Review-PR Stage
 
-If an active change resolves (`fab/.kit/scripts/lib/changeman.sh resolve 2>/dev/null`), attempt to start the `review-pr` stage:
+If an active change resolves (`fab/.kit/bin/fab change resolve 2>/dev/null`), attempt to start the `review-pr` stage:
 
 ```bash
-fab/.kit/scripts/lib/statusman.sh start <change> review-pr git-pr-review 2>/dev/null || true
+fab/.kit/bin/fab status start <change> review-pr git-pr-review 2>/dev/null || true
 ```
 
 This is best-effort — failures are silently ignored. The `start` command handles both `pending` and `failed` → `active`. If the stage is already `active` or `done`, the call is a no-op (exits non-zero, silently ignored).
@@ -155,9 +155,9 @@ Print: `Fixed {N} comment(s) across {M} file(s)`
 
 If an active change was resolved in Step 0:
 
-1. **On success** (comments processed and pushed, or no actionable comments): Call `fab/.kit/scripts/lib/statusman.sh finish <change> review-pr git-pr-review 2>/dev/null || true`.
-2. **On failure** (no PR found, processing error): Call `fab/.kit/scripts/lib/statusman.sh fail <change> review-pr git-pr-review 2>/dev/null || true`.
-3. **On no reviews** (Copilot unavailable, Copilot timeout, or no reviews at all): Call `fab/.kit/scripts/lib/statusman.sh finish <change> review-pr git-pr-review 2>/dev/null || true` — a successful no-op outcome.
+1. **On success** (comments processed and pushed, or no actionable comments): Call `fab/.kit/bin/fab status finish <change> review-pr git-pr-review 2>/dev/null || true`.
+2. **On failure** (no PR found, processing error): Call `fab/.kit/bin/fab status fail <change> review-pr git-pr-review 2>/dev/null || true`.
+3. **On no reviews** (Copilot unavailable, Copilot timeout, or no reviews at all): Call `fab/.kit/bin/fab status finish <change> review-pr git-pr-review 2>/dev/null || true` — a successful no-op outcome.
 
 All statusman calls are best-effort — failures silently ignored to avoid blocking the PR review workflow.
 

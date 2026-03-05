@@ -33,7 +33,7 @@ Archive a completed change after hydrate, or restore an archived change back to 
 
 ## Pre-flight
 
-1. Run `fab/.kit/scripts/lib/preflight.sh [change-name]` per `_preamble.md`
+1. Run `fab/.kit/bin/fab preflight [change-name]` per `_preamble.md`
 2. **Hydrate Guard**: If `progress.hydrate` is not `done`, STOP: `Hydrate has not completed. Run /fab-continue to hydrate memory first.`
 
 ---
@@ -55,7 +55,7 @@ Read the intake's **Why** section and extract a 1-2 sentence description summari
 Call `archiveman.sh` in a single invocation:
 
 ```bash
-bash fab/.kit/scripts/lib/archiveman.sh archive <change> --description "<extracted description>"
+fab/.kit/bin/fab archive <change> --description "<extracted description>"
 ```
 
 Where `<change>` is the change ID or name from preflight. Parse the structured YAML output for the report.
@@ -169,7 +169,7 @@ None required — the script handles all file operations.
 Call `archiveman.sh` in a single invocation:
 
 ```bash
-bash fab/.kit/scripts/lib/archiveman.sh restore <change-name> [--switch]
+fab/.kit/bin/fab archive restore <change-name> [--switch]
 ```
 
 Parse the structured YAML output for the report. If the script exits non-zero:

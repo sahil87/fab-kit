@@ -36,7 +36,7 @@ Load per `_preamble.md` Sections 1-3 (config, constitution, intake, memory index
 
 ## Behavior
 
-> **Note**: All `.status.yaml` mutations in this skill use `fab/.kit/scripts/lib/statusman.sh` event commands (`start`, `advance`, `finish`, `reset`, `fail`, `set-checklist`) rather than direct file edits. Driver is optional in the CLI but this skill always passes `fab-fff`.
+> **Note**: All `.status.yaml` mutations in this skill use `fab/.kit/bin/fab status` event commands (`start`, `advance`, `finish`, `reset`, `fail`, `set-checklist`) rather than direct file edits. Driver is optional in the CLI but this skill always passes `fab-fff`.
 
 ### Resumability
 
@@ -55,7 +55,7 @@ At most one Q&A round.
 
 *(Skip if `progress.spec` is `done`.)*
 
-Follow **Spec Generation Procedure** (`_generation.md`). Incorporate answers from Step 1 — no `[NEEDS CLARIFICATION]` markers. Update `.status.yaml` via `fab/.kit/scripts/lib/statusman.sh finish <change> spec fab-fff`.
+Follow **Spec Generation Procedure** (`_generation.md`). Incorporate answers from Step 1 — no `[NEEDS CLARIFICATION]` markers. Update `.status.yaml` via `fab/.kit/bin/fab status finish <change> spec fab-fff`.
 
 **Auto-Clarify**: Invoke `/fab-clarify` with `[AUTO-MODE]` prefix. If `blocking: 0` → continue. If `blocking > 0` → **BAIL**: report issues, suggest `/fab-clarify` then `/fab-fff`.
 
@@ -71,7 +71,7 @@ Follow **Checklist Generation Procedure** (`_generation.md`).
 
 ### Step 5: Update `.status.yaml` (Planning Complete)
 
-Run `fab/.kit/scripts/lib/statusman.sh finish <change> tasks fab-fff`. Then set checklist fields via `fab/.kit/scripts/lib/statusman.sh set-checklist <change> generated true`, `fab/.kit/scripts/lib/statusman.sh set-checklist <change> total <count>`, `fab/.kit/scripts/lib/statusman.sh set-checklist <change> completed 0`.
+Run `fab/.kit/bin/fab status finish <change> tasks fab-fff`. Then set checklist fields via `fab/.kit/bin/fab status set-checklist <change> generated true`, `fab/.kit/bin/fab status set-checklist <change> total <count>`, `fab/.kit/bin/fab status set-checklist <change> completed 0`.
 
 ### Step 6: Implementation
 
@@ -81,7 +81,7 @@ Invoke `/fab-continue` using the Skill tool — follow its Apply Behavior exactl
 
 **If task fails**: STOP with `Task {ID} failed: {reason}. Investigate and re-run /fab-fff.`
 
-On success: run `fab/.kit/scripts/lib/statusman.sh finish <change> apply fab-fff`.
+On success: run `fab/.kit/bin/fab status finish <change> apply fab-fff`.
 
 ### Step 7: Review
 
@@ -89,9 +89,9 @@ On success: run `fab/.kit/scripts/lib/statusman.sh finish <change> apply fab-fff
 
 Invoke `/fab-continue` using the Skill tool — follow its Review Behavior exactly (dispatch to a sub-agent in a separate execution context, perform all validation checks, return structured findings with three-tier priority: must-fix / should-fix / nice-to-have).
 
-**Pass**: run `fab/.kit/scripts/lib/statusman.sh finish <change> review fab-fff`. Proceed to Step 8.
+**Pass**: run `fab/.kit/bin/fab status finish <change> review fab-fff`. Proceed to Step 8.
 
-**Fail**: Autonomous rework with bounded retry. Run `fab/.kit/scripts/lib/statusman.sh fail <change> review` then `fab/.kit/scripts/lib/statusman.sh reset <change> apply fab-fff`. The agent triages the sub-agent's prioritized findings and autonomously selects the rework path — no user interaction. Must-fix items are always addressed; should-fix items when clear and low-effort; nice-to-have items may be skipped.
+**Fail**: Autonomous rework with bounded retry. Run `fab/.kit/bin/fab status fail <change> review` then `fab/.kit/bin/fab status reset <change> apply fab-fff`. The agent triages the sub-agent's prioritized findings and autonomously selects the rework path — no user interaction. Must-fix items are always addressed; should-fix items when clear and low-effort; nice-to-have items may be skipped.
 
 **Decision heuristics** (applied to prioritized findings):
 - **Must-fix: test failures, spec mismatches, checklist violations** → "Fix code" — uncheck affected tasks with `<!-- rework: reason -->`, re-run apply, then spawn a **fresh sub-agent** for re-review
@@ -114,7 +114,7 @@ Run /fab-continue for manual rework options.
 
 *(Skip if `progress.hydrate` is `done`.)*
 
-Invoke `/fab-continue` using the Skill tool — follow its Hydrate Behavior exactly (validate review passed, hydrate into `docs/memory/`, run `fab/.kit/scripts/lib/statusman.sh finish <change> hydrate fab-fff`).
+Invoke `/fab-continue` using the Skill tool — follow its Hydrate Behavior exactly (validate review passed, hydrate into `docs/memory/`, run `fab/.kit/bin/fab status finish <change> hydrate fab-fff`).
 
 ### Step 9: Ship
 

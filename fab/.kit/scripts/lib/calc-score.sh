@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Shim: delegate to Go binary if available
+_fab_bin="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)/../../bin/fab"
+if [ -x "$_fab_bin" ]; then
+  exec "$_fab_bin" score "$@"
+fi
 # calc-score.sh — Compute confidence score from Assumptions table
 #
 # Internal library script invoked by /fab-continue (spec stage) and

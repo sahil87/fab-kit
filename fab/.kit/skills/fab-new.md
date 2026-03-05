@@ -52,7 +52,7 @@ Run `lib/changeman.sh new` with appropriate flags:
 Capture the folder name from stdout. The script handles date generation, random ID generation (if no `--change-id`), collision detection, directory creation, `created_by` detection, `.status.yaml` initialization, `statusman.sh` integration, and command logging via logman (when `--log-args` is provided).
 
 If a Linear ticket was detected in Step 0, record the issue ID via statusman:
-`fab/.kit/scripts/lib/statusman.sh add-issue fab/changes/{name}/.status.yaml DEV-988` (using the actual detected ID).
+`fab/.kit/bin/fab status add-issue fab/changes/{name}/.status.yaml DEV-988` (using the actual detected ID).
 
 ### Step 4: Conversation Context Mining
 
@@ -85,14 +85,14 @@ After generating `intake.md`, infer the change type from the intake content usin
 
 Write the inferred type to `.status.yaml`:
 ```bash
-fab/.kit/scripts/lib/statusman.sh set-change-type fab/changes/{name}/.status.yaml <type>
+fab/.kit/bin/fab status set-change-type fab/changes/{name}/.status.yaml <type>
 ```
 
 ### Step 7: Indicative Confidence
 
 After generating `intake.md` and inferring the change type, persist and display an indicative confidence score:
 
-1. Call `bash fab/.kit/scripts/lib/calc-score.sh --stage intake <change>` (normal mode, **not** `--check-gate`)
+1. Call `fab/.kit/bin/fab score --stage intake <change>` (normal mode, **not** `--check-gate`)
 2. This writes the indicative score to `.status.yaml` with `indicative: true`
 3. Display the result from stdout (score and breakdown)
 
@@ -109,7 +109,7 @@ Apply SRAD (`_preamble.md`). No fixed question cap — SRAD scoring determines c
 After all intake work is complete (generation, type inference, confidence, questions), advance intake to `ready`:
 
 ```bash
-fab/.kit/scripts/lib/statusman.sh advance fab/changes/{name}/.status.yaml intake
+fab/.kit/bin/fab status advance fab/changes/{name}/.status.yaml intake
 ```
 
 This signals that the intake artifact exists and is open for `/fab-clarify` refinement. The user runs `/fab-continue` when ready to proceed to spec generation.

@@ -13,6 +13,15 @@
 
 set -euo pipefail
 
+# Shim: delegate to Go binary if available
+_fab_bin="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)/../../bin/fab"
+if [ -x "$_fab_bin" ]; then
+  # Strip leading "archive" arg — Go binary's "archive" command doesn't take it as a subcommand
+  if [ "${1:-}" = "archive" ]; then
+    shift
+  fi
+  exec "$_fab_bin" archive "$@"
+fi
 # Path resolution
 LIB_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 FAB_ROOT="$(cd "$LIB_DIR/../../.." && pwd)"

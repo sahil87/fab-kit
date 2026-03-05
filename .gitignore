@@ -22,3 +22,4 @@ src/benchmark/statusman-node/node_modules/
 src/benchmark/statusman-go/statusman
 src/benchmark/results/*.json
 
+fab/.kit/bin/fab
