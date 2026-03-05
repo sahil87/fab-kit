@@ -10,8 +10,8 @@ progress:
   apply: done
   review: done
   hydrate: done
-  ship: active
-  review-pr: pending
+  ship: done
+  review-pr: done
 checklist:
   generated: true
   path: checklist.md
@@ -36,6 +36,7 @@ stage_metrics:
   apply: {started_at: "2026-03-05T12:56:55+05:30", driver: fab-ff, iterations: 2, completed_at: "2026-03-05T12:56:58+05:30"}
   review: {started_at: "2026-03-05T12:56:58+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-05T13:00:19+05:30"}
   hydrate: {started_at: "2026-03-05T13:00:19+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-05T13:01:11+05:30"}
-  ship: {started_at: "2026-03-05T13:01:11+05:30", driver: fab-ff, iterations: 1}
+  ship: {started_at: "2026-03-05T13:01:11+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-05T13:01:55+05:30"}
+  review-pr: {started_at: "2026-03-05T13:01:55+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-05T13:02:11+05:30"}
 prs: []
-last_updated: "2026-03-05T13:01:11+05:30"
+last_updated: "2026-03-05T13:02:11+05:30"

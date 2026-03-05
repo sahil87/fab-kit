@@ -2,13 +2,12 @@
 # fab/.kit/scripts/lib/archiveman.sh
 #
 # Archive Manager — CLI utility for archive/restore lifecycle operations.
-# Supports `archive`, `restore`, `list`, `migrate` subcommands.
+# Supports `archive`, `restore`, `list` subcommands.
 #
 # Usage:
 #   archiveman.sh archive <change> --description "..."
 #   archiveman.sh restore <change> [--switch]
 #   archiveman.sh list
-#   archiveman.sh migrate
 #   archiveman.sh --help
 
 set -euo pipefail
@@ -365,46 +364,6 @@ cmd_list() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# migrate subcommand
-# ─────────────────────────────────────────────────────────────────────────────
-
-cmd_migrate() {
-  local archive_dir="$FAB_ROOT/changes/archive"
-
-  if [ ! -d "$archive_dir" ]; then
-    echo "No archive folder found."
-    return 0
-  fi
-
-  local moved=0
-  local d base bucket_year bucket_month dest_dir
-
-  for d in "$archive_dir"/*/; do
-    [ -d "$d" ] || continue
-    base="$(basename "$d")"
-    # Skip year directories (4-digit numbers)
-    [[ "$base" =~ ^[0-9]{4}$ ]] && continue
-
-    read -r bucket_year bucket_month <<< "$(parse_date_bucket "$base")"
-    dest_dir="$archive_dir/$bucket_year/$bucket_month"
-    if [ -e "$dest_dir/$base" ]; then
-      echo "  SKIP: $base (already exists at $bucket_year/$bucket_month/$base)"
-      continue
-    fi
-    mkdir -p "$dest_dir"
-    mv "$d" "$dest_dir/$base"
-    echo "  $base → $bucket_year/$bucket_month/$base"
-    moved=$((moved + 1))
-  done
-
-  if [ "$moved" -eq 0 ]; then
-    echo "No flat entries to migrate."
-  else
-    echo "Migrated $moved entries."
-  fi
-}
-
-# ─────────────────────────────────────────────────────────────────────────────
 # Help
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -416,14 +375,12 @@ USAGE:
   archiveman.sh archive <change> --description "..."
   archiveman.sh restore <change> [--switch]
   archiveman.sh list
-  archiveman.sh migrate
   archiveman.sh --help
 
 SUBCOMMANDS:
   archive   Archive a change: clean .pr-done, move to archive/yyyy/mm/, update index, clear pointer
   restore   Restore an archived change: move back, remove index entry, optionally activate
   list      List archived change folder names (one per line)
-  migrate   Move flat archive entries into yyyy/mm/ date buckets (idempotent)
 
 FLAGS (for archive):
   --description "..."  Required. Description text for the archive index entry.
@@ -440,7 +397,6 @@ EXAMPLES:
   archiveman.sh archive hcq9 --description "Offloaded archive to shell script"
   archiveman.sh restore hcq9 --switch
   archiveman.sh list
-  archiveman.sh migrate
 EOF
 }
 
@@ -463,10 +419,6 @@ case "${1:-}" in
   list)
     shift
     cmd_list "$@"
-    ;;
-  migrate)
-    shift
-    cmd_migrate "$@"
     ;;
   "")
     echo "ERROR: No subcommand provided. Try: archiveman.sh --help" >&2
