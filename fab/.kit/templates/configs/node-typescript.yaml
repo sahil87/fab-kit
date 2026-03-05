@@ -1,0 +1,19 @@
+language: node-typescript
+source_paths:
+  - "src/"
+  - "lib/"
+
+checklist:
+  extra_categories:
+    - tsc_clean
+    - eslint_pass
+    - test_pass
+
+stage_directives:
+  spec:
+    - "Reference package.json for dependency constraints"
+    - "Reference tsconfig.json for compiler options and module resolution"
+  review:
+    - "Verify tsc --noEmit passes with no errors"
+    - "Verify test suite passes (npm test or equivalent)"
+    - "Run ESLint with no warnings (npx eslint .)"
