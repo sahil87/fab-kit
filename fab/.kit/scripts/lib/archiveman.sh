@@ -2,12 +2,13 @@
 # fab/.kit/scripts/lib/archiveman.sh
 #
 # Archive Manager — CLI utility for archive/restore lifecycle operations.
-# Supports `archive`, `restore`, `list` subcommands.
+# Supports `archive`, `restore`, `list`, `migrate` subcommands.
 #
 # Usage:
 #   archiveman.sh archive <change> --description "..."
 #   archiveman.sh restore <change> [--switch]
 #   archiveman.sh list
+#   archiveman.sh migrate
 #   archiveman.sh --help
 
 set -euo pipefail
@@ -22,9 +23,29 @@ CHANGEMAN="$LIB_DIR/changeman.sh"
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
+# parse_date_bucket <folder-name> — Extract yyyy and mm from YYMMDD prefix.
+# Outputs "yyyy mm" on stdout.
+parse_date_bucket() {
+  local name="$1"
+  if [[ ! "$name" =~ ^[0-9]{6} ]]; then
+    echo "ERROR: invalid folder name '$name': expected YYMMDD prefix" >&2
+    return 1
+  fi
+  local yy="${name:0:2}"
+  local mm="${name:2:2}"
+  echo "20${yy}" "$mm"
+}
+
+# Globals: set by resolve_archive for the caller to read
+_ARCHIVE_RESOLVED_NAME=""
+_ARCHIVE_RESOLVED_DIR=""
+
 # resolve_archive <override> — Resolve a change reference against fab/changes/archive/.
 # Same logic as resolve.sh but scans archive/ instead of changes/.
 resolve_archive() {
+  _ARCHIVE_RESOLVED_NAME=""
+  _ARCHIVE_RESOLVED_DIR=""
+
   local override="${1:-}"
   local archive_dir="$FAB_ROOT/changes/archive"
 
@@ -38,13 +59,26 @@ resolve_archive() {
     return 1
   fi
 
-  # Collect archive folder names (exclude index.md and non-directories)
+  # Collect archive folder names from both flat and nested (yyyy/mm/) entries
   local folders=()
+  local folder_dirs=()
   local d base
+
+  # Flat entries: archive/{name}/ (skip year directories)
   for d in "$archive_dir"/*/; do
     [ -d "$d" ] || continue
     base="$(basename "$d")"
+    [[ "$base" =~ ^[0-9]{4}$ ]] && continue
     folders+=("$base")
+    folder_dirs+=("$d")
+  done
+
+  # Nested entries: archive/yyyy/mm/{name}/
+  for d in "$archive_dir"/*/*/*/; do
+    [ -d "$d" ] || continue
+    base="$(basename "$d")"
+    folders+=("$base")
+    folder_dirs+=("$d")
   done
 
   if [ ${#folders[@]} -eq 0 ]; then
@@ -55,24 +89,29 @@ resolve_archive() {
   # Case-insensitive matching
   local override_lower
   override_lower=$(echo "$override" | tr '[:upper:]' '[:lower:]')
-  local exact_match=""
-  local partial_matches=()
+  local exact_match="" exact_match_dir=""
+  local partial_matches=() partial_match_dirs=()
 
-  local folder folder_lower
-  for folder in "${folders[@]}"; do
+  local i folder folder_lower
+  for i in "${!folders[@]}"; do
+    folder="${folders[$i]}"
     folder_lower=$(echo "$folder" | tr '[:upper:]' '[:lower:]')
     if [ "$folder_lower" = "$override_lower" ]; then
       exact_match="$folder"
+      exact_match_dir="${folder_dirs[$i]}"
       break
     elif [[ "$folder_lower" == *"$override_lower"* ]]; then
       partial_matches+=("$folder")
+      partial_match_dirs+=("${folder_dirs[$i]}")
     fi
   done
 
   if [ -n "$exact_match" ]; then
-    echo "$exact_match"
+    _ARCHIVE_RESOLVED_NAME="$exact_match"
+    _ARCHIVE_RESOLVED_DIR="$exact_match_dir"
   elif [ ${#partial_matches[@]} -eq 1 ]; then
-    echo "${partial_matches[0]}"
+    _ARCHIVE_RESOLVED_NAME="${partial_matches[0]}"
+    _ARCHIVE_RESOLVED_DIR="${partial_match_dirs[0]}"
   elif [ ${#partial_matches[@]} -gt 1 ]; then
     local matches_list
     matches_list=$(printf ', %s' "${partial_matches[@]}")
@@ -89,7 +128,19 @@ resolve_archive() {
 backfill_index() {
   local archive_dir="$1" index_file="$2"
   local d base
+
+  # Flat entries (pre-migration)
   for d in "$archive_dir"/*/; do
+    [ -d "$d" ] || continue
+    base="$(basename "$d")"
+    [[ "$base" =~ ^[0-9]{4}$ ]] && continue
+    if ! grep -qF "**${base}**" "$index_file" 2>/dev/null; then
+      echo "- **${base}** — (no description — pre-index archive)" >> "$index_file"
+    fi
+  done
+
+  # Nested entries
+  for d in "$archive_dir"/*/*/*/; do
     [ -d "$d" ] || continue
     base="$(basename "$d")"
     if ! grep -qF "**${base}**" "$index_file" 2>/dev/null; then
@@ -146,13 +197,16 @@ cmd_archive() {
     clean_status="removed"
   fi
 
-  # 2. Move: change folder → archive/
-  mkdir -p "$archive_dir"
-  if [ -e "$archive_dir/$folder" ]; then
-    echo "ERROR: Archive destination already exists: $archive_dir/$folder" >&2
+  # 2. Move: change folder → archive/yyyy/mm/
+  local bucket_year bucket_month
+  read -r bucket_year bucket_month <<< "$(parse_date_bucket "$folder")"
+  local dest_dir="$archive_dir/$bucket_year/$bucket_month"
+  mkdir -p "$dest_dir"
+  if [ -e "$dest_dir/$folder" ]; then
+    echo "ERROR: Archive destination already exists: $dest_dir/$folder" >&2
     exit 1
   fi
-  mv "$change_dir" "$archive_dir/$folder"
+  mv "$change_dir" "$dest_dir/$folder"
   local move_status="moved"
 
   # 3. Index: update archive/index.md
@@ -228,19 +282,19 @@ cmd_restore() {
     exit 1
   fi
 
-  # Resolve against archive folder
-  local folder
-  folder=$(resolve_archive "$change_arg") || exit 1
+  # Resolve against archive folder (called directly, not in subshell, to preserve globals)
+  resolve_archive "$change_arg" || exit 1
+  local folder="$_ARCHIVE_RESOLVED_NAME"
 
   local changes_dir="$FAB_ROOT/changes"
   local archive_dir="$changes_dir/archive"
 
-  # 1. Move: archive/ → changes/
+  # 1. Move: archive/{yyyy/mm/}folder → changes/
   local move_status
   if [ -d "$changes_dir/$folder" ]; then
     move_status="already_in_changes"
   else
-    mv "$archive_dir/$folder" "$changes_dir/$folder"
+    mv "$_ARCHIVE_RESOLVED_DIR" "$changes_dir/$folder"
     move_status="restored"
   fi
 
@@ -284,11 +338,61 @@ cmd_list() {
   fi
 
   local d base
+
+  # Flat entries (pre-migration): archive/{name}/
   for d in "$archive_dir"/*/; do
+    [ -d "$d" ] || continue
+    base="$(basename "$d")"
+    [[ "$base" =~ ^[0-9]{4}$ ]] && continue
+    echo "$base"
+  done
+
+  # Nested entries: archive/yyyy/mm/{name}/
+  for d in "$archive_dir"/*/*/*/; do
     [ -d "$d" ] || continue
     base="$(basename "$d")"
     echo "$base"
   done
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# migrate subcommand
+# ─────────────────────────────────────────────────────────────────────────────
+
+cmd_migrate() {
+  local archive_dir="$FAB_ROOT/changes/archive"
+
+  if [ ! -d "$archive_dir" ]; then
+    echo "No archive folder found."
+    return 0
+  fi
+
+  local moved=0
+  local d base bucket_year bucket_month dest_dir
+
+  for d in "$archive_dir"/*/; do
+    [ -d "$d" ] || continue
+    base="$(basename "$d")"
+    # Skip year directories (4-digit numbers)
+    [[ "$base" =~ ^[0-9]{4}$ ]] && continue
+
+    read -r bucket_year bucket_month <<< "$(parse_date_bucket "$base")"
+    dest_dir="$archive_dir/$bucket_year/$bucket_month"
+    if [ -e "$dest_dir/$base" ]; then
+      echo "  SKIP: $base (already exists at $bucket_year/$bucket_month/$base)"
+      continue
+    fi
+    mkdir -p "$dest_dir"
+    mv "$d" "$dest_dir/$base"
+    echo "  $base → $bucket_year/$bucket_month/$base"
+    moved=$((moved + 1))
+  done
+
+  if [ "$moved" -eq 0 ]; then
+    echo "No flat entries to migrate."
+  else
+    echo "Migrated $moved entries."
+  fi
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -303,12 +407,14 @@ USAGE:
   archiveman.sh archive <change> --description "..."
   archiveman.sh restore <change> [--switch]
   archiveman.sh list
+  archiveman.sh migrate
   archiveman.sh --help
 
 SUBCOMMANDS:
-  archive   Archive a change: clean .pr-done, move to archive/, update index, clear pointer
+  archive   Archive a change: clean .pr-done, move to archive/yyyy/mm/, update index, clear pointer
   restore   Restore an archived change: move back, remove index entry, optionally activate
   list      List archived change folder names (one per line)
+  migrate   Move flat archive entries into yyyy/mm/ date buckets (idempotent)
 
 FLAGS (for archive):
   --description "..."  Required. Description text for the archive index entry.
@@ -325,6 +431,7 @@ EXAMPLES:
   archiveman.sh archive hcq9 --description "Offloaded archive to shell script"
   archiveman.sh restore hcq9 --switch
   archiveman.sh list
+  archiveman.sh migrate
 EOF
 }
 
@@ -347,6 +454,10 @@ case "${1:-}" in
   list)
     shift
     cmd_list "$@"
+    ;;
+  migrate)
+    shift
+    cmd_migrate "$@"
     ;;
   "")
     echo "ERROR: No subcommand provided. Try: archiveman.sh --help" >&2

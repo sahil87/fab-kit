@@ -95,11 +95,33 @@ cmd_list() {
 
   # Enumerate change directories
   local d base status_file display_output display_stage display_state
-  for d in "$scan_dir"/*/; do
-    [ -d "$d" ] || continue
+  local dirs=()
+
+  if [ "$archive" = true ]; then
+    # Flat entries (pre-migration): archive/{name}/
+    for d in "$scan_dir"/*/; do
+      [ -d "$d" ] || continue
+      base="$(basename "$d")"
+      [[ "$base" =~ ^[0-9]{4}$ ]] && continue
+      dirs+=("$d")
+    done
+    # Nested entries: archive/yyyy/mm/{name}/
+    for d in "$scan_dir"/*/*/*/; do
+      [ -d "$d" ] || continue
+      dirs+=("$d")
+    done
+  else
+    for d in "$scan_dir"/*/; do
+      [ -d "$d" ] || continue
+      base="$(basename "$d")"
+      # Skip archive/ when listing active changes
+      [ "$base" = "archive" ] && continue
+      dirs+=("$d")
+    done
+  fi
+
+  for d in "${dirs[@]}"; do
     base="$(basename "$d")"
-    # Skip archive/ when listing active changes
-    [ "$archive" = false ] && [ "$base" = "archive" ] && continue
 
     status_file="$d/.status.yaml"
     if [ ! -f "$status_file" ]; then

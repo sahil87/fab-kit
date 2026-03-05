@@ -1,3 +1,16 @@
 {"ts":"2026-03-05T12:21:12+05:30","event":"stage-transition","stage":"intake","action":"enter","driver":"fab-new"}
 {"ts":"2026-03-05T12:21:12+05:30","event":"command","cmd":"fab-new","args":"Add date-bucketed archive organization to fab-archive"}
 {"ts":"2026-03-05T12:21:57+05:30","event":"confidence","score":4.1,"delta":"+4.1","trigger":"calc-score"}
+{"ts":"2026-03-05T12:44:38+05:30","event":"command","cmd":"fab-switch"}
+{"ts":"2026-03-05T12:45:16+05:30","event":"command","cmd":"fab-ff"}
+{"ts":"2026-03-05T12:46:46+05:30","event":"stage-transition","stage":"spec","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T12:46:49+05:30","event":"confidence","score":3.8,"delta":"-0.3","trigger":"calc-score"}
+{"ts":"2026-03-05T12:47:24+05:30","event":"stage-transition","stage":"tasks","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T12:48:05+05:30","event":"stage-transition","stage":"apply","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T12:51:53+05:30","event":"stage-transition","stage":"review","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T12:56:55+05:30","event":"review","result":"failed"}
+{"ts":"2026-03-05T12:56:55+05:30","event":"stage-transition","stage":"apply","action":"re-entry","driver":"fab-ff"}
+{"ts":"2026-03-05T12:56:58+05:30","event":"stage-transition","stage":"review","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T13:00:19+05:30","event":"stage-transition","stage":"hydrate","action":"enter","driver":"fab-ff"}
+{"ts":"2026-03-05T13:00:19+05:30","event":"review","result":"passed"}
+{"ts":"2026-03-05T13:01:11+05:30","event":"stage-transition","stage":"ship","action":"enter","driver":"fab-ff"}

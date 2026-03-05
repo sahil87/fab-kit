@@ -62,7 +62,7 @@ Where `<change>` is the change ID or name from preflight. Parse the structured Y
 
 The script handles:
 - **Clean**: Delete `.pr-done` if present
-- **Move**: `fab/changes/{name}/` → `fab/changes/archive/{name}/`
+- **Move**: `fab/changes/{name}/` → `fab/changes/archive/yyyy/mm/{name}/` (date-bucketed)
 - **Index**: Create/update `fab/changes/archive/index.md` with entry + backfill
 - **Pointer**: Clear `fab/current` if this was the active change
 
@@ -92,7 +92,7 @@ Construct the user-facing report from the script's YAML output fields:
 |------------|-------------|
 | `clean: removed` | `Cleaned:  ✓ .pr-done removed` |
 | `clean: not_present` | `Cleaned:  — not present` |
-| `move: moved` | `Moved:    ✓ fab/changes/archive/{name}/` |
+| `move: moved` | `Moved:    ✓ fab/changes/archive/yyyy/mm/{name}/` |
 | `index: created` | `Index:    ✓ fab/changes/archive/index.md created` |
 | `index: updated` | `Index:    ✓ fab/changes/archive/index.md updated` |
 | `pointer: cleared` | `Pointer:  ✓ fab/current cleared` |
@@ -108,7 +108,7 @@ Backlog and Scan lines come from Step 3 (agent-driven), not from the script.
 Archive: {change name}
 
 Cleaned:  ✓ .pr-done removed                    (or: — not present)
-Moved:    ✓ fab/changes/archive/{name}/
+Moved:    ✓ fab/changes/archive/yyyy/mm/{name}/
 Index:    ✓ fab/changes/archive/index.md updated (or: created)
 Backlog:  ✓ [ID] marked done                   (or: — no backlog file)
 Scan:     ✓ {N} candidates, {M} marked done    (or: ✓ no matches)
