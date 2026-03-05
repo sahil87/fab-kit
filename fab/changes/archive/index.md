@@ -1,5 +1,9 @@
 # Archive Index
 
+- **260305-b0xs-unified-pr-template** — Replaces the two-tier PR template system with a single unified template that conditionally populates fab-linked fields based on artifact availability, adding a horizontal stats table and pipeline progress line.
+- **260305-8ooz-persist-indicative-confidence** — Persists indicative confidence scores into .status.yaml at intake finish, enabling uniform display across fab-status, fab-switch, and changeman without duplicated mode-selection logic.
+- **260305-4szh-stage-transition-logging** — Adds a stage-transition event type to logman.sh and emits transition events from statusman.sh, enabling complete state machine tracing in .history.jsonl for rework loop debugging.
+- **260303-he6t-extend-pipeline-through-pr** — Extends the pipeline past hydrate by adding ship and review-pr as first-class stages in the state machine, enabling ff/fff to run the full pipeline through PR creation and review.
 - **260303-i58g-extract-pr-review-skill** — Extract PR review handling from /git-pr Step 6 into a standalone /git-review skill that supports both Copilot and human reviews, replacing the Copilot-specific /git-pr-fix skill.
 - **260303-n30u-smart-copilot-review-detection** — Replaced blind 6-minute Copilot review polling in git-pr with a 3-phase detect/request/poll flow that explicitly requests a Copilot review via the GitHub API and skips polling entirely when Copilot is unavailable.
 - **260303-l6nk-gemini-cli-agent-aware-sync** — Added Gemini CLI as a new agent target and made agent folder creation conditional on CLI availability in PATH, keeping workspaces clean by only syncing skills to agents that are actually installed.

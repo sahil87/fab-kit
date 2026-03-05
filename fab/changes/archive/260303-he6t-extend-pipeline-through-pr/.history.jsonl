@@ -3,3 +3,4 @@
 {"ts":"2026-03-04T23:45:08+05:30","event":"command","cmd":"fab-ff"}
 {"ts":"2026-03-04T23:49:40+05:30","event":"confidence","score":3.8,"delta":"+3.8","trigger":"calc-score"}
 {"ts":"2026-03-05T00:02:20+05:30","event":"review","result":"passed"}
+{"ts":"2026-03-05T08:24:20+05:30","event":"command","cmd":"fab-archive"}
