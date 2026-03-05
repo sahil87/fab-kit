@@ -533,6 +533,9 @@ set_confidence_block() {
     yq -i 'del(.confidence.indicative)' "$tmpfile"
   fi
 
+  # Clear stale fuzzy metadata (non-fuzzy writer should not leave orphaned dimensions)
+  yq -i 'del(.confidence.fuzzy) | del(.confidence.dimensions)' "$tmpfile"
+
   mv "$tmpfile" "$status_file"
 }
 

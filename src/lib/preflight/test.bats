@@ -445,7 +445,8 @@ run_preflight_combined() {
   [[ "$output" == *"generated: false"* ]]
   [[ "$output" == *"completed: 0"* ]]
   [[ "$output" == *"total: 0"* ]]
-  [[ "$output" == *"score: 5.0"* ]]
+  [[ "$output" == *"score: 0.0"* ]]
+  [[ "$output" == *"indicative: false"* ]]
 }
 
 @test "rich change with checklist and confidence" {

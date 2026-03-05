@@ -592,6 +592,15 @@ YAML
 #!/usr/bin/env bash
 if [ "\$1" = "current-stage" ]; then echo "spec"; exit 0; fi
 if [ "\$1" = "display-stage" ]; then echo "spec:active"; exit 0; fi
+if [ "\$1" = "confidence" ]; then
+  echo "certain:5"
+  echo "confident:2"
+  echo "tentative:0"
+  echo "unresolved:0"
+  echo "score:3.5"
+  echo "indicative:false"
+  exit 0
+fi
 echo "\$@" >> "$STATUSMAN_LOG"
 STUB
   chmod +x "$FAB_ROOT/.kit/scripts/lib/statusman.sh"
@@ -599,7 +608,8 @@ STUB
   run bash "$FAB_ROOT/.kit/scripts/lib/changeman.sh" switch "a7k2"
   [ "$status" -eq 0 ]
   [[ "$output" == *"fab/current → 260216-a7k2-add-oauth"* ]]
-  [[ "$output" == *"Stage:  spec (2/6) — active"* ]]
+  [[ "$output" == *"Stage:       spec (2/8) — active"* ]]
+  [[ "$output" == *"Confidence:  3.5 of 5.0"* ]]
   [[ "$output" == *"Next:"* ]]
 }
 
@@ -661,6 +671,15 @@ if [ "\$1" = "display-stage" ]; then
   fi
   exit 0
 fi
+if [ "\$1" = "confidence" ]; then
+  echo "certain:0"
+  echo "confident:0"
+  echo "tentative:0"
+  echo "unresolved:0"
+  echo "score:0.0"
+  echo "indicative:false"
+  exit 0
+fi
 echo "\$@" >> "$STATUSMAN_LOG"
 STUB
   chmod +x "$FAB_ROOT/.kit/scripts/lib/statusman.sh"
@@ -670,8 +689,8 @@ STUB
   local line_count
   line_count=$(echo "$output" | wc -l)
   [ "$line_count" -eq 2 ]
-  [[ "$output" == *"260226-a1b2-change-one:spec:active"* ]]
-  [[ "$output" == *"260226-c3d4-change-two:intake:active"* ]]
+  [[ "$output" == *"260226-a1b2-change-one:spec:active:0.0:false"* ]]
+  [[ "$output" == *"260226-c3d4-change-two:intake:active:0.0:false"* ]]
 }
 
 @test "list: excludes archive directory" {
