@@ -231,6 +231,20 @@ teardown() {
 # Delete All
 # ============================================================================
 
+@test "wt-delete: interactive menu shows All as first option and deletes all when selected" {
+    wt-create --non-interactive --worktree-name menu-all-1 &>/dev/null
+    wt-create --non-interactive --worktree-name menu-all-2 &>/dev/null
+
+    # Select "1" (All) from menu, then "1" (Yes) from delete-all confirmation
+    # 4 inputs needed: flush1 + choice1 (select All) + flush2 + choice2 (confirm delete)
+    run simulate_input "1\n1\n1\n1\n" wt-delete
+    assert_success
+    assert_output --partial "All (2 worktrees)"
+
+    assert_worktree_not_exists "menu-all-1"
+    assert_worktree_not_exists "menu-all-2"
+}
+
 @test "wt-delete: --delete-all removes all worktrees" {
     wt-create --non-interactive --worktree-name wt-all-1 &>/dev/null
     wt-create --non-interactive --worktree-name wt-all-2 &>/dev/null
