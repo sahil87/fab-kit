@@ -3,6 +3,7 @@ fab/.kit-sync-version
 # fab/backlog.md
 fab/pipelines/.series-*.yaml
 fab/changes/**/.pr-done
+fab/.kit/bin/fab-*
 
 /.agents
 /.claude
