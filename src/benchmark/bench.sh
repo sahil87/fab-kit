@@ -18,7 +18,7 @@ RUST="$BENCH_DIR/statusman-rust/target/release/statusman"
 [ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env"
 
 # Verify prerequisites
-for cmd in hyperfine yq node; do
+for cmd in hyperfine yq node python3; do
   if ! command -v "$cmd" &>/dev/null; then
     echo "ERROR: $cmd not found" >&2
     exit 1

@@ -1,8 +1,6 @@
 // Rust benchmark contender for statusman operations.
 // Uses serde_yaml for YAML parsing/serialization.
 
-use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 use std::io::Write;
@@ -19,12 +17,6 @@ const STAGES: &[&str] = &[
     "ship",
     "review-pr",
 ];
-
-#[derive(Debug, Serialize, Deserialize)]
-struct StatusFile {
-    #[serde(flatten)]
-    fields: BTreeMap<String, serde_yaml::Value>,
-}
 
 fn read_status(path: &str) -> serde_yaml::Value {
     let content = fs::read_to_string(path).unwrap_or_else(|e| {
@@ -57,7 +49,10 @@ fn write_status_atomic(path: &str, data: &serde_yaml::Value) {
         eprintln!("ERROR: Cannot create temp file: {}", e);
         process::exit(1);
     });
-    file.write_all(yaml_str.as_bytes()).unwrap();
+    file.write_all(yaml_str.as_bytes()).unwrap_or_else(|e| {
+        eprintln!("ERROR: Cannot write to temp file: {}", e);
+        process::exit(1);
+    });
     drop(file);
 
     fs::rename(&tmp_path, path).unwrap_or_else(|e| {
@@ -186,7 +181,10 @@ fn finish(status_file: &str, stage: &str) {
     let stage_idx = STAGES.iter().position(|&s| s == stage);
     let next_stage = stage_idx.and_then(|i| STAGES.get(i + 1).copied());
 
-    let mapping = data.as_mapping_mut().unwrap();
+    let mapping = data.as_mapping_mut().unwrap_or_else(|| {
+        eprintln!("ERROR: Status file root must be a mapping");
+        process::exit(1);
+    });
 
     // Update progress
     if let Some(progress) = mapping

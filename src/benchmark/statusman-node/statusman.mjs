@@ -2,9 +2,8 @@
 // Node benchmark contender for statusman operations.
 // Uses js-yaml for YAML parsing/serialization.
 
-import { readFileSync, writeFileSync, mkdtempSync, renameSync } from 'fs';
+import { readFileSync, writeFileSync, renameSync } from 'fs';
 import { dirname, join } from 'path';
-import { tmpdir } from 'os';
 import yaml from 'js-yaml';
 
 const STAGES = ['intake', 'spec', 'tasks', 'apply', 'review', 'hydrate', 'ship', 'review-pr'];

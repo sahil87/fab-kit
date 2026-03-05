@@ -4,7 +4,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
-WORKFLOW_YAML="$SCRIPT_DIR/../fixtures/workflow.yaml"
 
 STAGES="intake spec tasks apply review hydrate ship review-pr"
 
