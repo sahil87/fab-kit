@@ -22,3 +22,14 @@ stage_directives:
   apply: []
   review: []
   hydrate: []
+
+# Pre/post shell commands per pipeline stage.
+# Pre hooks run before a stage starts — failure blocks the stage.
+# Post hooks run after a stage completes — failure fails the stage.
+# Commands execute via sh -c with the repo root as working directory.
+# Supports shell commands and script paths.
+# stage_hooks:
+#   review:
+#     pre: "cargo test"
+#   apply:
+#     post: "cargo clippy -- -D warnings"

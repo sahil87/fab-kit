@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wvrdz/fab-kit/src/fab-go/internal/config"
+	"github.com/wvrdz/fab-kit/src/fab-go/internal/hooks"
 	"github.com/wvrdz/fab-kit/src/fab-go/internal/log"
 	sf "github.com/wvrdz/fab-kit/src/fab-go/internal/statusfile"
 )
@@ -83,6 +85,8 @@ func lookupTransition(event, stage, currentState string) (string, error) {
 }
 
 // Start transitions a stage from {pending,failed} to active.
+// If a pre hook is configured for the stage, it runs before the transition.
+// A failing pre hook blocks the stage from starting.
 func Start(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver, from, reason string) error {
 	if !isValidStage(stage) {
 		return fmt.Errorf("Invalid stage '%s'", stage)
@@ -91,6 +95,11 @@ func Start(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver, from, 
 	currentState := statusFile.GetProgress(stage)
 	targetState, err := lookupTransition("start", stage, currentState)
 	if err != nil {
+		return err
+	}
+
+	// Run pre hook before transitioning
+	if err := runStageHook(fabRoot, stage, "pre"); err != nil {
 		return err
 	}
 
@@ -118,6 +127,8 @@ func Advance(statusFile *sf.StatusFile, statusPath, stage, driver string) error 
 }
 
 // Finish transitions a stage to done and auto-activates the next pending stage.
+// If a post hook is configured for the stage, it runs after the transition.
+// A failing post hook causes the stage to fail.
 func Finish(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver string) error {
 	if !isValidStage(stage) {
 		return fmt.Errorf("Invalid stage '%s'", stage)
@@ -143,6 +154,11 @@ func Finish(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver string
 	}
 
 	if err := statusFile.Save(statusPath); err != nil {
+		return err
+	}
+
+	// Run post hook after transition is saved
+	if err := runStageHook(fabRoot, stage, "post"); err != nil {
 		return err
 	}
 
@@ -555,6 +571,26 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+// runStageHook loads the project config and runs the pre or post hook for the given stage.
+// Returns nil if no hook is configured or if the hook succeeds.
+func runStageHook(fabRoot, stage, phase string) error {
+	cfg, err := config.Load(fabRoot)
+	if err != nil {
+		return fmt.Errorf("failed to load config for stage hooks: %w", err)
+	}
+
+	hook := cfg.GetStageHook(stage)
+	var command string
+	switch phase {
+	case "pre":
+		command = hook.Pre
+	case "post":
+		command = hook.Post
+	}
+
+	return hooks.Run(fabRoot, command)
 }
 
 func parseInt(s string) (int, error) {
