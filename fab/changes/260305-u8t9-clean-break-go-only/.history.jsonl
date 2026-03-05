@@ -1,3 +1,20 @@
 {"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-05T20:44:58+05:30"}
 {"args":"Clean break: remove shell script fallbacks, delete ported shell scripts, remove wt-status, absorb into fab status with --json/--all, add fab/.kit/bin/ to PATH","cmd":"fab-new","event":"command","ts":"2026-03-05T20:44:58+05:30"}
 {"delta":"+4.4","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-05T20:48:44+05:30"}
+{"cmd":"fab-switch","event":"command","ts":"2026-03-05T22:43:27+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"spec","ts":"2026-03-05T23:21:59+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"tasks","ts":"2026-03-05T23:25:19+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"apply","ts":"2026-03-05T23:25:19+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"review","ts":"2026-03-05T23:32:15+05:30"}
+{"event":"review","result":"failed","ts":"2026-03-05T23:36:12+05:30"}
+{"action":"re-entry","driver":"fab-ff","event":"stage-transition","stage":"apply","ts":"2026-03-05T23:36:12+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"review","ts":"2026-03-05T23:38:03+05:30"}
+{"event":"review","result":"failed","ts":"2026-03-05T23:40:09+05:30"}
+{"action":"re-entry","driver":"fab-ff","event":"stage-transition","stage":"apply","ts":"2026-03-05T23:40:09+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"review","ts":"2026-03-05T23:44:02+05:30"}
+{"event":"review","result":"failed","ts":"2026-03-05T23:47:40+05:30"}
+{"action":"re-entry","driver":"fab-ff","event":"stage-transition","stage":"apply","ts":"2026-03-05T23:47:40+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"review","ts":"2026-03-05T23:48:24+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"hydrate","ts":"2026-03-05T23:49:49+05:30"}
+{"event":"review","result":"passed","ts":"2026-03-05T23:49:49+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"ship","ts":"2026-03-05T23:52:29+05:30"}

@@ -8,6 +8,7 @@ import (
 	"github.com/wvrdz/fab-kit/src/fab-go/internal/resolve"
 	"github.com/wvrdz/fab-kit/src/fab-go/internal/status"
 	sf "github.com/wvrdz/fab-kit/src/fab-go/internal/statusfile"
+	"github.com/wvrdz/fab-kit/src/fab-go/internal/worktree"
 )
 
 func statusCmd() *cobra.Command {
@@ -17,6 +18,7 @@ func statusCmd() *cobra.Command {
 	}
 
 	cmd.AddCommand(
+		statusShowCmd(),
 		statusAllStagesCmd(),
 		statusProgressMapCmd(),
 		statusProgressLineCmd(),
@@ -495,5 +497,72 @@ func optArg(args []string, idx int) string {
 		return args[idx]
 	}
 	return ""
+}
+
+func statusShowCmd() *cobra.Command {
+	var allFlag bool
+	var jsonFlag bool
+
+	cmd := &cobra.Command{
+		Use:   "show [<name>]",
+		Short: "Show fab pipeline status for worktrees",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				// Named worktree
+				info, err := worktree.FindByName(args[0])
+				if err != nil {
+					return err
+				}
+				if jsonFlag {
+					out, err := worktree.FormatJSON(info)
+					if err != nil {
+						return err
+					}
+					fmt.Println(out)
+				} else {
+					fmt.Println(worktree.FormatHuman(info))
+				}
+				return nil
+			}
+
+			if allFlag {
+				infos, err := worktree.List()
+				if err != nil {
+					return err
+				}
+				if jsonFlag {
+					out, err := worktree.FormatAllJSON(infos)
+					if err != nil {
+						return err
+					}
+					fmt.Println(out)
+				} else {
+					fmt.Println(worktree.FormatAllHuman(infos))
+				}
+				return nil
+			}
+
+			// Default: current worktree
+			info, err := worktree.Current()
+			if err != nil {
+				return err
+			}
+			if jsonFlag {
+				out, err := worktree.FormatJSON(info)
+				if err != nil {
+					return err
+				}
+				fmt.Println(out)
+			} else {
+				fmt.Println(worktree.FormatHuman(info))
+			}
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&allFlag, "all", false, "Show status for all worktrees")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Output as JSON")
+	return cmd
 }
 

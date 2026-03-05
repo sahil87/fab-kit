@@ -122,9 +122,27 @@ type cmdResult struct {
 	ExitCode int
 }
 
+// bashScriptExists checks if a bash script exists in the real repo's lib/ directory.
+// Returns false when shell scripts have been removed (Go-only mode).
+func bashScriptExists(t *testing.T, script string) bool {
+	t.Helper()
+	path := filepath.Join(repoRoot(t), "fab", ".kit", "scripts", "lib", script)
+	_, err := os.Stat(path)
+	return err == nil
+}
+
 // runBash executes a bash script with args, using tmpDir as the repo root.
+// Returns a zero-value cmdResult with ExitCode -1 if the script doesn't exist
+// (caller should skip the parity comparison).
 func runBash(t *testing.T, tmpDir, script string, args ...string) cmdResult {
 	t.Helper()
+
+	// Skip gracefully when bash scripts have been removed
+	if !bashScriptExists(t, script) {
+		t.Skipf("bash script %s not found — shell scripts removed, skipping parity comparison", script)
+		return cmdResult{ExitCode: -1}
+	}
+
 	realScriptsDir := filepath.Join(repoRoot(t), "fab", ".kit", "scripts", "lib")
 	tmpScriptsDir := filepath.Join(tmpDir, "fab", ".kit", "scripts", "lib")
 	if err := os.MkdirAll(tmpScriptsDir, 0o755); err != nil {
