@@ -1,0 +1,17 @@
+language: react
+source_paths:
+  - "src/"
+  - "components/"
+
+checklist:
+  extra_categories:
+    - build_clean
+    - component_tests
+
+stage_directives:
+  spec:
+    - "Reference package.json for dependency constraints"
+  review:
+    - "Verify build passes with no warnings"
+    - "Verify component tests pass"
+    - "Check for accessibility violations (aria attributes, semantic HTML)"
