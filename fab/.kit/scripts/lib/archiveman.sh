@@ -27,6 +27,10 @@ CHANGEMAN="$LIB_DIR/changeman.sh"
 # Outputs "yyyy mm" on stdout.
 parse_date_bucket() {
   local name="$1"
+  if [[ ! "$name" =~ ^[0-9]{6} ]]; then
+    echo "ERROR: invalid folder name '$name': expected YYMMDD prefix" >&2
+    return 1
+  fi
   local yy="${name:0:2}"
   local mm="${name:2:2}"
   echo "20${yy}" "$mm"
@@ -39,6 +43,9 @@ _ARCHIVE_RESOLVED_DIR=""
 # resolve_archive <override> — Resolve a change reference against fab/changes/archive/.
 # Same logic as resolve.sh but scans archive/ instead of changes/.
 resolve_archive() {
+  _ARCHIVE_RESOLVED_NAME=""
+  _ARCHIVE_RESOLVED_DIR=""
+
   local override="${1:-}"
   local archive_dir="$FAB_ROOT/changes/archive"
 
