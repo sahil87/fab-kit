@@ -20,6 +20,9 @@ func changeCmd() *cobra.Command {
 		changeSwitchCmd(),
 		changeListCmd(),
 		changeResolveCmd(),
+		changeArchiveCmd(),
+		changeRestoreCmd(),
+		changeArchiveListCmd(),
 	)
 
 	return cmd

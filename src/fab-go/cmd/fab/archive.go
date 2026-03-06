@@ -8,12 +8,12 @@ import (
 	"github.com/wvrdz/fab-kit/src/fab-go/internal/resolve"
 )
 
-func archiveCmd() *cobra.Command {
+func changeArchiveCmd() *cobra.Command {
 	var description string
 
 	cmd := &cobra.Command{
 		Use:   "archive <change>",
-		Short: "Archive/restore lifecycle management",
+		Short: "Archive a change",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
@@ -34,11 +34,10 @@ func archiveCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&description, "description", "", "Description for archive index (required)")
 
-	cmd.AddCommand(archiveRestoreCmd(), archiveListCmd())
 	return cmd
 }
 
-func archiveRestoreCmd() *cobra.Command {
+func changeRestoreCmd() *cobra.Command {
 	var doSwitch bool
 
 	cmd := &cobra.Command{
@@ -64,9 +63,9 @@ func archiveRestoreCmd() *cobra.Command {
 	return cmd
 }
 
-func archiveListCmd() *cobra.Command {
+func changeArchiveListCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "list",
+		Use:   "archive-list",
 		Short: "List archived changes",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {

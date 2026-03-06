@@ -2,3 +2,15 @@
 {"args":"Reorganize fab CLI commands: regroup _scripts.md by concern and move archive under change subcommand","cmd":"fab-new","event":"command","ts":"2026-03-06T19:31:39+05:30"}
 {"delta":"+4.4","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-06T19:32:21+05:30"}
 {"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-06T19:32:29+05:30"}
+{"cmd":"fab-switch","event":"command","ts":"2026-03-06T19:48:51+05:30"}
+{"delta":"-0.3","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-06T19:51:50+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"spec","ts":"2026-03-06T19:51:55+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"tasks","ts":"2026-03-06T19:53:40+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"apply","ts":"2026-03-06T19:53:40+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"review","ts":"2026-03-06T19:58:46+05:30"}
+{"event":"review","result":"failed","ts":"2026-03-06T20:01:05+05:30"}
+{"action":"re-entry","driver":"fab-ff","event":"stage-transition","stage":"apply","ts":"2026-03-06T20:01:05+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"review","ts":"2026-03-06T20:01:08+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"hydrate","ts":"2026-03-06T20:02:32+05:30"}
+{"event":"review","result":"passed","ts":"2026-03-06T20:02:32+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"ship","ts":"2026-03-06T20:03:41+05:30"}
