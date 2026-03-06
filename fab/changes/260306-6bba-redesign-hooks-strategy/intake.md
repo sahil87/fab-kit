@@ -25,6 +25,7 @@ Key decisions from conversation:
 - SessionStart enhancement dropped — skills already handle context loading
 - `fab status advance` stays in skills — must happen after SRAD questions, not on artifact write
 - Existing hooks should migrate from `yq` to `fab runtime` subcommands
+- Hooks are a **reliability layer**, not a replacement — skills keep bookkeeping instructions for agent-agnostic portability (Claude Code hooks are not available on Codex, Gemini CLI, Cursor, etc.)
 
 ## Why
 
@@ -77,6 +78,15 @@ PostToolUse fires (Write or Edit)
 - Returns `additionalContext` in stdout JSON to inform agent (e.g., "Bookkeeping: score 4.2/5.0, type: refactor")
 - Exits 0 always — bookkeeping failures must not interrupt the agent
 - Uses `fab` CLI exclusively — no `yq` dependency
+- **All commands are idempotent** — running `fab score` or `fab status set-checklist` twice produces identical results. This means the hook and the skill can both run the same command without conflict
+
+**Agent-agnostic portability:**
+
+Claude Code's hook system is unique — no equivalent exists in Codex, Gemini CLI, Cursor, or other agent platforms. The hook is a **reliability layer** that catches bookkeeping the agent forgets, not a replacement for skill instructions. Skills KEEP their bookkeeping instructions so that:
+
+- **Claude Code users** get hook-backed bookkeeping (automatic) + skill-instructed bookkeeping (agent-directed). Doubling up is harmless due to idempotency.
+- **Non-Claude-Code agents** get skill-instructed bookkeeping only (current behavior, works most of the time).
+- **No agent is required to have hooks** for the workflow to function correctly.
 
 ### 2. New Go subcommands: `fab runtime`
 
@@ -133,18 +143,11 @@ yq -i "del(.\"$change_folder\".agent)" "$runtime_file"
 
 The `map_event()` function needs extending to return event+matcher pairs. One approach: a mapping table in the script instead of a case statement, or a naming convention like `on-posttooluse-write-artifact-write.sh`.
 
-### 5. Update skills to remove bookkeeping instructions
+### 5. Skills: no changes (hooks are additive)
 
-After the PostToolUse hook handles bookkeeping, remove explicit instructions from:
+Skills **keep** their existing bookkeeping instructions unchanged. The PostToolUse hook supplements them as a reliability layer — it catches what the agent forgets. Since all bookkeeping commands are idempotent, the hook and the skill can both run the same command without conflict.
 
-| Skill | What to remove | What stays |
-|-------|---------------|------------|
-| `fab-new.md` | Step 6 (infer change type), Step 7 (indicative confidence) | Step 9 (advance — after SRAD questions) |
-| `fab-continue.md` | Score computation after spec generation, checklist counting after tasks/checklist generation | All stage transitions (finish, start, reset) |
-| `fab-ff.md` | Step 4 set-checklist calls (3 Bash calls), score after spec | Gate checks (read score that hook already wrote) |
-| `fab-fff.md` | Same as fab-ff | Same as fab-ff |
-| `fab-clarify.md` | Step 7 (recompute confidence in suggest mode) | Everything else |
-| `_generation.md` | Checklist procedure step 6 (3 set-checklist commands) | Generation logic |
+This preserves portability: non-Claude-Code agents (Codex, Gemini CLI, etc.) continue to work with skill-instructed bookkeeping only.
 
 ### 6. Delete stale changes
 
@@ -175,8 +178,8 @@ Remove Phase 1b-lang (language detection and template application) from the boot
 
 - `fab-workflow/kit-architecture`: (modify) Document new hooks, updated hook sync, hook-to-event mapping, `fab runtime` subcommands
 - `fab-workflow/schemas`: (modify) No longer needs `compact_context` — just document `fab runtime` commands for `.fab-runtime.yaml`
-- `fab-workflow/planning-skills`: (modify) Note that bookkeeping is now hook-driven, not skill-instructed
-- `fab-workflow/execution-skills`: (modify) Remove references to manual bookkeeping steps
+- `fab-workflow/planning-skills`: (modify) Note that bookkeeping is now hook-backed (reliability layer, not replacement)
+- `fab-workflow/execution-skills`: (modify) Note hook-backed bookkeeping for review checklist updates
 - `fab-workflow/setup`: (modify) Remove language detection section
 
 ## Impact
@@ -185,7 +188,7 @@ Remove Phase 1b-lang (language detection and template application) from the boot
 - **New Go code**: `fab runtime set-idle` + `fab runtime clear-idle` (~20 lines total)
 - **Modified hooks**: `on-stop.sh`, `on-session-start.sh` — replace yq with `fab runtime`
 - **Modified sync**: `fab/.kit/sync/5-sync-hooks.sh` — support matchers
-- **Modified skills**: 5 skill files + `_generation.md` — remove bookkeeping instructions (net deletion)
+- **No skill changes**: Skills keep bookkeeping instructions for agent-agnostic portability; hooks are additive
 - **Modified constitution**: 1 word change
 - **Modified fab-setup.md**: Remove language detection phase
 - **Deleted changes**: 3 change folders (shk2 already deleted)
@@ -207,8 +210,9 @@ None — all design decisions resolved in preceding discussion.
 | 6 | Certain | `fab status advance` stays in fab-new (not hookable) | Discussed — must happen after SRAD questions (Step 8), not on intake write | S:90 R:80 A:90 D:90 |
 | 7 | Certain | Existing hooks migrate from yq to `fab runtime` subcommands | Discussed — eliminates silent-fail yq dependency, consistent with all-through-fab-CLI pattern | S:90 R:85 A:90 D:90 |
 | 8 | Certain | Single script `on-artifact-write.sh` handles both Write and Edit matchers | Same logic — detect path, run bookkeeping. No reason for separate scripts | S:85 R:90 A:85 D:90 |
-| 9 | Confident | Hook returns `additionalContext` to inform agent what was auto-handled | PostToolUse hooks can return JSON with `additionalContext` field. Agent sees it but doesn't need to act on it | S:80 R:90 A:80 D:85 |
-| 10 | Confident | Pipeline orchestrator keeps yq (~40 uses) — separate concern | Absorbing manifest parsing into `fab pipeline` is a much larger change. Pipeline already lists yq as a prerequisite | S:80 R:85 A:85 D:80 |
-| 11 | Confident | Remove language detection from fab-setup.md | Template changes are rejected. Detection logic has no purpose without templates to apply | S:80 R:85 A:80 D:80 |
+| 9 | Certain | Hooks are a reliability layer, not a replacement — skills keep bookkeeping instructions | Discussed — Claude Code hooks are platform-specific (no equivalent in Codex, Gemini CLI, Cursor). Constitution §I requires agent-agnostic portability. All bookkeeping commands are idempotent so doubling up is harmless | S:95 R:90 A:95 D:90 |
+| 10 | Confident | Hook returns `additionalContext` to inform agent what was auto-handled | PostToolUse hooks can return JSON with `additionalContext` field. Agent sees it but doesn't need to act on it | S:80 R:90 A:80 D:85 |
+| 11 | Confident | Pipeline orchestrator keeps yq (~40 uses) — separate concern | Absorbing manifest parsing into `fab pipeline` is a much larger change. Pipeline already lists yq as a prerequisite | S:80 R:85 A:85 D:80 |
+| 12 | Confident | Remove language detection from fab-setup.md | Template changes are rejected. Detection logic has no purpose without templates to apply | S:80 R:85 A:80 D:80 |
 
-11 assumptions (8 certain, 3 confident, 0 tentative, 0 unresolved).
+12 assumptions (9 certain, 3 confident, 0 tentative, 0 unresolved).
