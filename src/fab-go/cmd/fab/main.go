@@ -23,6 +23,7 @@ func main() {
 		changeCmd(),
 		scoreCmd(),
 		archiveCmd(),
+		runtimeCmd(),
 	)
 
 	if err := root.Execute(); err != nil {

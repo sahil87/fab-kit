@@ -19,6 +19,8 @@ The partial contains three procedures:
 
 Command invocations are auto-logged via `preflight.sh --driver <skill-name>` — skills no longer call `log-command` manually. All event commands (`start`, `advance`, `finish`, `reset`, `fail`) accept an optional `driver` parameter; skills always pass it to identify the invoking skill (e.g., `fab-continue`, `fab-ff`).
 
+**Hook-backed bookkeeping**: Bookkeeping commands (confidence scoring, change type inference, checklist metadata) are now supplemented by a PostToolUse hook (`on-artifact-write.sh`) that fires on Write and Edit events. The hook is a **reliability layer** — it catches bookkeeping the agent forgets. Skills keep their existing bookkeeping instructions unchanged for agent-agnostic portability (non-Claude-Code agents rely on skill instructions only). All bookkeeping commands are idempotent, so both the hook and the skill running the same command produces no conflict.
+
 Each skill retains its own orchestration logic (stage guards, question handling, auto-clarify, resumability). Only the generation mechanics are shared.
 
 ## Requirements
@@ -323,6 +325,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260306-6bba-redesign-hooks-strategy | 2026-03-06 | Added hook-backed bookkeeping note: PostToolUse hook (`on-artifact-write.sh`) supplements skill-instructed bookkeeping as a reliability layer. Skills keep instructions unchanged for agent-agnostic portability; hooks catch what the agent forgets. All commands idempotent. |
 | 260305-8ooz-persist-indicative-confidence | 2026-03-05 | `/fab-new` Step 7 now persists indicative confidence via `calc-score.sh --stage intake` (normal mode) instead of inline display-only computation. Score written to `.status.yaml` with `indicative: true`. `_preamble.md` Confidence Scoring section updated to document indicative flag, persistence, and uniform consumer reads. |
 | 260303-6b7c-update-underscore-skill-references | 2026-03-04 | Standardized top-of-file `_preamble.md` references in all skill files — removed `./` prefix from `./fab/.kit/skills/_preamble.md`, now `fab/.kit/skills/_preamble.md`. Updated `_preamble.md` self-reference (line 12). Inline shorthand references (`_preamble.md` §2, `_generation.md`) unchanged. |
 | 260302-c7is-fab-clarify-bulk-confirm | 2026-03-02 | Added bulk confirm mode (Step 1.5) to `/fab-clarify` suggest mode — detects Confident-dominant confidence drag, presents numbered list for conversational bulk confirmation. Updated suggest mode steps (now 11 steps, bulk confirm at step 4). Documented in `_preamble.md` Confidence Scoring section. |

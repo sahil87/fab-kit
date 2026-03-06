@@ -66,7 +66,7 @@ For the complete API reference, see `src/lib/statusman/README.md`.
 
 ### Agent Block — `.fab-runtime.yaml`
 
-Agent runtime state lives in `.fab-runtime.yaml` at the repository root (gitignored). This file is NOT part of the workflow schema, NOT initialized by templates, and NOT read by statusman or any workflow script. It is managed exclusively by Claude Code hook scripts in `fab/.kit/hooks/`.
+Agent runtime state lives in `.fab-runtime.yaml` at the repository root (gitignored). This file is NOT part of the workflow schema, NOT initialized by templates, and NOT read by statusman or any workflow script. It is managed by Claude Code hook scripts in `fab/.kit/hooks/` via `fab runtime` Go subcommands (`fab runtime set-idle <change>`, `fab runtime clear-idle <change>`), which replace direct yq manipulation.
 
 The file is keyed by full change folder name (`YYMMDD-XXXX-slug` format):
 
@@ -79,7 +79,7 @@ The file is keyed by full change folder name (`YYMMDD-XXXX-slug` format):
 - **Present** (`{change_folder}.agent.idle_since` set): agent is idle (finished its last response turn)
 - **Absent** (no `agent` block for that change): agent is active or no hook has run
 
-Each worktree has its own repo root, so each gets its own `.fab-runtime.yaml` — no cross-worktree contention. The file is created with `{}` on first write by `on-stop.sh`. External tools (e.g., pipeline orchestrator) can read this file to detect agent idle state without relying on timing heuristics.
+Each worktree has its own repo root, so each gets its own `.fab-runtime.yaml` — no cross-worktree contention. The file is created with `{}` on first write by `fab runtime set-idle`. External tools (e.g., pipeline orchestrator) can read this file to detect agent idle state without relying on timing heuristics.
 
 ## Future Enhancements
 
@@ -93,6 +93,7 @@ Each worktree has its own repo root, so each gets its own `.fab-runtime.yaml` �
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260306-6bba-redesign-hooks-strategy | 2026-03-06 | Updated Ephemeral Runtime State: `.fab-runtime.yaml` operations now use `fab runtime set-idle` and `fab runtime clear-idle` Go subcommands instead of direct yq manipulation in hooks. |
 | 260306-1lwf-extract-agent-runtime-file | 2026-03-06 | Moved agent runtime state from `.status.yaml` to `.fab-runtime.yaml` (repo root, gitignored, keyed by change folder name). Updated Ephemeral Runtime State section accordingly. |
 | 260305-bs5x-orchestrator-idle-hooks | 2026-03-05 | Added Ephemeral Runtime State section documenting the optional `agent` block (`agent.idle_since` timestamp) managed by Claude Code hooks, not part of workflow schema or templates |
 | 260215-lqm5-statusman-cli-only | 2026-02-15 | Updated script example from `source statusman.sh` to CLI subprocess pattern (`$STATUSMAN <subcommand>`) |

@@ -58,7 +58,7 @@ This is best-effort — logman resolves the active change via `fab/current` if o
 
 ## Bootstrap Behavior
 
-When invoked with no arguments, perform the full structural bootstrap. `/fab-setup` delegates directory/symlink/skeleton creation to `fab/.kit/scripts/fab-sync.sh` (step 1f) while handling interactive config/constitution generation itself.
+When invoked with no arguments, perform the full structural bootstrap. `/fab-setup` delegates directory/symlink/skeleton creation to `fab/.kit/scripts/fab-sync.sh` (step 1j) while handling interactive config/constitution generation itself.
 
 ### Phase 0: Prerequisite Check
 
@@ -80,74 +80,36 @@ If exists and not a raw template: report "config.yaml already exists — skippin
 If missing or raw template (contains `{Project Name}`): execute **Constitution Behavior** (below) in create mode.
 If exists and not a raw template: report "constitution.md already exists — skipping".
 
-#### 1b-lang. Language Detection and Convention Inference
-
-After config and constitution are created (or already exist), detect the project's language/framework and infer conventions from the actual project configuration. If no language markers are found, skip silently.
-
-**Detection phase** — check for marker files at the repo root (multiple can match):
-
-| Marker file(s) | Language/Framework |
-|----------------|-------------------|
-| `Cargo.toml` | Rust |
-| `tsconfig.json` + `package.json` | TypeScript |
-| `package.json` (no `tsconfig.json`) | Node.js / JavaScript |
-| `go.mod` | Go |
-| `pyproject.toml` or `setup.py` or `requirements.txt` | Python |
-
-After language detection, scan for framework signals in `package.json` dependencies: `react`/`next` (React/Next.js), `vue` (Vue), `svelte` (Svelte). Also scan for linter/formatter configs (`.eslintrc*`, `eslint.config.*`, `biome.json`, `.prettierrc*`, `clippy.toml`, `rustfmt.toml`, `ruff.toml`, `vitest.config.*`, `jest.config.*`, `pytest.ini`, and relevant `pyproject.toml`/`Cargo.toml` tool sections).
-
-**Inference phase** — for each detected language/framework:
-
-1. Read the detected marker files and config files to extract concrete values (compiler options, linter rules, dependency versions, scripts, features)
-2. Use agent training knowledge to derive standard conventions for the detected stack, grounded in the actual config values read — do NOT hard-code convention content in this skill
-3. Distinguish between enforcement rules (MUST/SHOULD) and descriptive context
-
-**Adaptive questions** — ask up to 3 free-form questions about aspects genuinely not inferable from the project files (e.g., error handling philosophy, architecture pattern, testing expectations when no test infrastructure is visible). Skip questions for signals already present. SRAD does not apply.
-
-**Write phase** — route inferred conventions to `fab/project/*` files by content type:
-
-| Content type | Target file |
-|-------------|------------|
-| MUST/SHOULD enforcement rules | `fab/project/constitution.md` |
-| Descriptive stack info | `fab/project/context.md` |
-| Coding standards, anti-patterns | `fab/project/code-quality.md` |
-| Review policy additions | `fab/project/code-review.md` |
-| Source paths, checklist categories | `fab/project/config.yaml` |
-
-Insert constitution sections as `## {Language} Conventions` before the `## Governance` heading. Append to `context.md`, `code-quality.md`, and `code-review.md` under appropriate headings. Merge `config.yaml` via targeted string replacement: union `source_paths`, union `checklist.extra_categories`, merge `stage_directives`.
-
-**Idempotency** — read existing `fab/project/*` content before writing. Detect what conventions are already present. Merge/update without duplicating or overwriting user edits. Skip sections that are already complete. On re-run after user edits, preserve user changes and append only new conventions not already covered.
-
-#### 1b2. `fab/project/context.md`
+#### 1c. `fab/project/context.md`
 
 If missing: copy `fab/.kit/scaffold/fab/project/context.md` to `fab/project/context.md`. Report "Created: fab/project/context.md".
 If exists: skip.
 
-#### 1b3. `fab/project/code-quality.md`
+#### 1d. `fab/project/code-quality.md`
 
 If missing: copy `fab/.kit/scaffold/fab/project/code-quality.md` to `fab/project/code-quality.md`. Report "Created: fab/project/code-quality.md".
 If exists: skip.
 
-#### 1b4. `fab/project/code-review.md`
+#### 1e. `fab/project/code-review.md`
 
 If missing: copy `fab/.kit/scaffold/fab/project/code-review.md` to `fab/project/code-review.md`. Report "Created: fab/project/code-review.md".
 If exists: skip.
 
-#### 1c. `docs/memory/index.md`
+#### 1f. `docs/memory/index.md`
 
 If missing, create `docs/memory/` directory and copy `fab/.kit/scaffold/docs/memory/index.md` to `docs/memory/index.md`.
 
 If exists: skip.
 
-#### 1d. `docs/specs/index.md`
+#### 1g. `docs/specs/index.md`
 
 If missing, create `docs/specs/` directory and copy `fab/.kit/scaffold/docs/specs/index.md` to `docs/specs/index.md`.
 
 If exists: skip.
 
-#### 1e. `fab/.kit-migration-version`
+#### 1h. `fab/.kit-migration-version`
 
-Handled by `fab-sync.sh` (step 1f). The scaffold script creates `fab/.kit-migration-version` with version logic based on project state:
+Handled by `fab-sync.sh` (step 1j). The scaffold script creates `fab/.kit-migration-version` with version logic based on project state:
 
 - **New project** (no `fab/project/config.yaml`): copies `fab/.kit/VERSION` value (engine version)
 - **Existing project** (has `fab/project/config.yaml`, no `fab/.kit-migration-version`): writes `0.1.0` (base version, run `/fab-setup migrations` to migrate)
@@ -158,12 +120,12 @@ On bootstrap output:
 - Existing project: `Created: fab/.kit-migration-version (0.1.0 — existing project, run "/fab-setup migrations" to migrate)`
 - Re-run: `fab/.kit-migration-version` reported as part of scaffold output (no modification)
 
-#### 1f. `fab/changes/`
+#### 1i. `fab/changes/`
 
 If missing: create `fab/changes/`, `fab/changes/archive/`, and `fab/changes/.gitkeep`.
 If exists: ensure `fab/changes/archive/` exists, then skip.
 
-#### 1g. `.claude/skills/` Symlinks
+#### 1j. `.claude/skills/` Symlinks
 
 Run `fab/.kit/scripts/fab-sync.sh` to create or repair all skill symlinks, directories, and `fab/.kit-migration-version`. The script discovers skills by globbing `fab/.kit/skills/fab-*.md` and creates:
 
@@ -179,7 +141,7 @@ If the script cannot execute, perform the equivalent manually:
 
 Report how many symlinks were created, repaired, or already valid.
 
-#### 1h. `.gitignore` — append `fab/current`
+#### 1k. `.gitignore` — append `fab/current`
 
 Read `.gitignore` (create if missing). If `fab/current` is not listed, append it.
 
