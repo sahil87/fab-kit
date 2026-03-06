@@ -1,36 +1,42 @@
 name: 260306-bh45-pane-map-subcommand
 created: 2026-03-06T19:21:08+05:30
 created_by: sahil-weaver
-change_type: feat
+change_type: refactor
 issues: []
 progress:
-    intake: ready
-    spec: pending
-    tasks: pending
-    apply: pending
-    review: pending
-    hydrate: pending
-    ship: pending
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
     review-pr: pending
 checklist:
-    generated: false
+    generated: true
     path: checklist.md
-    completed: 0
-    total: 0
+    completed: 24
+    total: 24
 confidence:
-    certain: 3
-    confident: 4
-    tentative: 1
+    certain: 12
+    confident: 0
+    tentative: 0
     unresolved: 0
-    score: 2.8
-    indicative: true
+    score: 5.0
     fuzzy: true
     dimensions:
-        signal: 79.4
-        reversibility: 87.5
-        competence: 81.3
-        disambiguation: 82.5
+        signal: 92.9
+        reversibility: 87.9
+        competence: 83.3
+        disambiguation: 84.6
 stage_metrics:
-    intake: {started_at: "2026-03-06T19:21:08+05:30", driver: fab-new, iterations: 1}
-prs: []
-last_updated: 2026-03-06T19:22:18+05:30
+    intake: {started_at: "2026-03-06T19:21:08+05:30", driver: fab-new, iterations: 1, completed_at: "2026-03-06T21:48:58+05:30"}
+    spec: {started_at: "2026-03-06T21:48:58+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-06T21:50:15+05:30"}
+    tasks: {started_at: "2026-03-06T21:50:15+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-06T21:51:06+05:30"}
+    apply: {started_at: "2026-03-06T21:51:06+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-06T21:57:41+05:30"}
+    review: {started_at: "2026-03-06T21:57:41+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-06T22:00:16+05:30"}
+    hydrate: {started_at: "2026-03-06T22:00:16+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-06T22:01:21+05:30"}
+    ship: {started_at: "2026-03-06T22:01:21+05:30", driver: fab-ff, iterations: 1}
+prs:
+    - https://github.com/wvrdz/fab-kit/pull/227
+last_updated: 2026-03-06T22:02:59+05:30

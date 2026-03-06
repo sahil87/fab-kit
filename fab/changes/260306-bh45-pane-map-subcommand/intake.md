@@ -38,13 +38,11 @@ Pane   Worktree                       Change                              Stage 
 %3     .worktrees/alpha/              260306-r3m7-add-retry-logic         apply     active
 %7     .worktrees/bravo/              260306-k8ds-ship-wt-binary          review    idle (2m)
 %12    .worktrees/charlie/            260306-ab12-refactor-auth           hydrate   idle (8m)
-—      —                              260305-j4k2-fix-login-bug           intake    no pane
 ```
 
 Key behaviors:
 - Worktree paths are displayed relative to the repo parent (e.g., `.worktrees/alpha/` not full absolute path)
 - Idle duration is shown in parentheses: seconds, minutes, or hours as appropriate (e.g., `idle (30s)`, `idle (5m)`, `idle (2h)`)
-- Changes with no running pane are listed at the bottom with `—` for Pane and Worktree columns
 - Panes that are worktrees but have no active change show `(no change)` in the Change column
 - Non-fab panes (e.g., plain shell tabs) are excluded from the output
 
@@ -64,7 +62,6 @@ These flags are noted for design awareness but are NOT required for the initial 
 ## Affected Memory
 
 - `fab-workflow/kit-architecture`: (modify) Document the new `pane-map` subcommand alongside existing `status`, `runtime`, `change` commands
-- `fab-workflow/schemas`: (modify) If `.fab-runtime.yaml` schema is extended for pane tracking
 
 ## Impact
 
@@ -74,8 +71,28 @@ These flags are noted for design awareness but are NOT required for the initial 
 
 ## Open Questions
 
-- Should the main repo worktree (not a `.worktrees/` child) also appear in the map if it has an active change?
-- Should pane-map detect Claude Code sessions specifically, or any process in a worktree pane?
+- ~~Should the main repo worktree (not a `.worktrees/` child) also appear in the map if it has an active change?~~ **Resolved**: Yes — include it, shown as `(main)` or `.` in the Worktree column.
+- ~~Should pane-map detect Claude Code sessions specifically, or any process in a worktree pane?~~ **Resolved**: No process inspection — Agent column is derived entirely from `.fab-runtime.yaml` (set/cleared by hooks). No runtime entry → `?`.
+
+## Clarifications
+
+### Session 2026-03-06 (bulk confirm)
+
+| # | Action | Detail |
+|---|--------|--------|
+| 4 | Confirmed | — |
+| 5 | Confirmed | — |
+| 6 | Confirmed | — |
+| 7 | Confirmed | — |
+
+### Session 2026-03-06 (suggest)
+
+| # | Question | Answer |
+|---|----------|--------|
+| 1 | Main repo worktree inclusion? | Yes — show as `(main)` or `.` |
+| 2 | Agent column: detect processes or use runtime file? | Runtime file only, no process inspection |
+| 3 | Orphan change discovery scope? | Skip orphan discovery — only show tmux panes |
+| 4 | Affected Memory: keep schemas entry? | Remove — pane-map only reads, doesn't extend schema |
 
 ## Assumptions
 
@@ -83,12 +100,12 @@ These flags are noted for design awareness but are NOT required for the initial 
 |---|-------|----------|-----------|--------|
 | 1 | Certain | Subcommand lives in Go binary as `fab pane-map` | Discussed — consistent with existing `fab status`, `fab runtime` subcommands | S:95 R:90 A:95 D:95 |
 | 2 | Certain | Output is a formatted table with Pane, Worktree, Change, Stage, Agent columns | Discussed — specific format agreed upon in conversation | S:90 R:85 A:90 D:95 |
-| 3 | Certain | Orphan changes (no pane) shown at bottom with dash placeholders | Discussed — user explicitly requested this | S:90 R:90 A:90 D:95 |
-| 4 | Confident | Worktree paths shown relative to repo parent, not absolute | Discussed — keeps output compact. Exact relative base TBD | S:75 R:85 A:80 D:80 |
-| 5 | Confident | Idle duration shown as human-readable relative time | Reasonable default — `idle (5m)` more useful than raw Unix timestamp | S:70 R:90 A:85 D:80 |
-| 6 | Confident | Non-fab panes excluded from output | Discussed — reduces noise. Conductor may want all panes later, but `--all` flag can add that | S:75 R:85 A:75 D:70 |
-| 7 | Confident | tmux required at runtime — graceful error if not in tmux | Constitutional: no optional runtime frameworks, but tmux is an external dependency like `gh` | S:80 R:90 A:70 D:85 |
+| 3 | Certain | No orphan discovery — only show panes that exist in tmux | Clarified — user chose to skip orphan discovery entirely | S:95 R:90 A:90 D:95 |
+| 4 | Certain | Worktree paths shown relative to repo parent, not absolute | Clarified — user confirmed | S:95 R:85 A:80 D:80 |
+| 5 | Certain | Idle duration shown as human-readable relative time | Clarified — user confirmed | S:95 R:90 A:85 D:80 |
+| 6 | Certain | Non-fab panes excluded from output | Clarified — user confirmed | S:95 R:85 A:75 D:70 |
+| 7 | Certain | tmux required at runtime — graceful error if not in tmux | Clarified — user confirmed | S:95 R:90 A:70 D:85 |
 | 8 | Tentative | `--json` and `--watch` flags deferred to future iteration | Reasonable for v1 scope — but conductor may need `--json` sooner than expected | S:60 R:85 A:65 D:60 |
 <!-- assumed: JSON and watch flags deferred — v1 focuses on human-readable table output, conductor can parse text initially -->
 
-8 assumptions (3 certain, 4 confident, 1 tentative, 0 unresolved).
+8 assumptions (7 certain, 0 confident, 1 tentative, 0 unresolved).

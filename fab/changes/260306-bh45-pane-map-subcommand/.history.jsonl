@@ -2,3 +2,24 @@
 {"args":"Add fab pane-map subcommand combining tmux pane introspection, worktree resolution, runtime idle state, and status into a single table view","cmd":"fab-new","event":"command","ts":"2026-03-06T19:21:08+05:30"}
 {"delta":"+2.8","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-03-06T19:21:56+05:30"}
 {"delta":"+0.0","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-03-06T19:22:12+05:30"}
+{"cmd":"fab-switch","event":"command","ts":"2026-03-06T21:14:03+05:30"}
+{"delta":"+1.2","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-03-06T21:37:04+05:30"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-03-06T21:37:08+05:30"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-03-06T21:37:13+05:30"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-03-06T21:39:26+05:30"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-03-06T21:40:12+05:30"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-03-06T21:43:00+05:30"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-03-06T21:43:07+05:30"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-03-06T21:43:12+05:30"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-03-06T21:43:52+05:30"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-03-06T21:44:00+05:30"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-03-06T21:44:04+05:30"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-03-06T21:44:08+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"spec","ts":"2026-03-06T21:48:58+05:30"}
+{"delta":"+1.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-03-06T21:50:06+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"tasks","ts":"2026-03-06T21:50:15+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"apply","ts":"2026-03-06T21:51:06+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"review","ts":"2026-03-06T21:57:41+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"hydrate","ts":"2026-03-06T22:00:16+05:30"}
+{"event":"review","result":"passed","ts":"2026-03-06T22:00:16+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"ship","ts":"2026-03-06T22:01:21+05:30"}

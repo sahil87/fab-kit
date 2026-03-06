@@ -23,6 +23,7 @@ func main() {
 		changeCmd(),
 		scoreCmd(),
 		runtimeCmd(),
+		paneMapCmd(),
 	)
 
 	if err := root.Execute(); err != nil {

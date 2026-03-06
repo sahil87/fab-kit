@@ -42,6 +42,7 @@ fab/.kit/bin/fab <command> <subcommand> [args...]
 | `fab change` | Change lifecycle (new, rename, switch, list, archive, restore, archive-list) |
 | `fab score` | Confidence scoring |
 | `fab runtime` | Runtime state management (.fab-runtime.yaml) |
+| `fab pane-map` | Tmux pane-to-worktree mapping with fab pipeline state |
 
 ---
 
@@ -234,6 +235,39 @@ fab/.kit/bin/fab runtime <subcommand> <change>
 | `clear-idle` | `clear-idle <change>` | Delete the `agent` block for the resolved change (no-op if file missing) |
 
 Both subcommands accept the standard `<change>` argument (4-char ID, substring, or full folder name). The runtime file is `.fab-runtime.yaml` at the repo root, keyed by the change's full folder name.
+
+---
+
+## fab pane-map
+
+Pane Map — shows all tmux panes mapped to their fab worktrees with pipeline state. Requires an active tmux session.
+
+```
+fab/.kit/bin/fab pane-map
+```
+
+No arguments or flags. Produces an aligned table with columns:
+
+| Column | Content |
+|--------|---------|
+| Pane | Tmux pane ID (e.g., `%3`) |
+| Worktree | Relative path from main repo parent, or `(main)` for the main worktree |
+| Change | Active change folder name, or `(no change)` if none |
+| Stage | Current pipeline stage from `.status.yaml`, or `—` if no change |
+| Agent | Agent state: `active`, `idle ({duration})`, `?` (runtime file missing), or `—` (no change) |
+
+Idle duration format: `{N}s` (< 60s), `{N}m` (60s–59m), `{N}h` (>= 60m). Floor division.
+
+**Error behavior**: If `$TMUX` is unset, prints `Error: not inside a tmux session` to stderr and exits 1. Panes not inside a git repo or without a `fab/` directory are silently excluded. If no fab worktrees are found, prints `No fab worktrees found in tmux panes.` and exits 0.
+
+**Example output**:
+
+```
+Pane   Worktree                       Change                              Stage     Agent
+%3     myrepo.worktrees/alpha/        260306-r3m7-add-retry-logic         apply     active
+%7     myrepo.worktrees/bravo/        260306-k8ds-ship-wt-binary          review    idle (2m)
+%12    (main)                         260306-ab12-refactor-auth           hydrate   idle (8m)
+```
 
 ---
 
