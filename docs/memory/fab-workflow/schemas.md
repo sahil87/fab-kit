@@ -64,19 +64,22 @@ For the complete API reference, see `src/lib/statusman/README.md`.
 
 ## Ephemeral Runtime State
 
-### Agent Block
+### Agent Block — `.fab-runtime.yaml`
 
-`.status.yaml` supports an optional `agent` block at the top level for runtime lifecycle signaling. This block is NOT part of the workflow schema, NOT initialized by templates, and NOT read by statusman or any workflow script. It is managed exclusively by Claude Code hook scripts in `fab/.kit/hooks/`.
+Agent runtime state lives in `.fab-runtime.yaml` at the repository root (gitignored). This file is NOT part of the workflow schema, NOT initialized by templates, and NOT read by statusman or any workflow script. It is managed exclusively by Claude Code hook scripts in `fab/.kit/hooks/`.
+
+The file is keyed by full change folder name (`YYMMDD-XXXX-slug` format):
 
 ```yaml
-agent:
-  idle_since: 1741193400    # unix timestamp — set by Stop hook, cleared by SessionStart hook
+260306-1lwf-extract-agent-runtime-file:
+  agent:
+    idle_since: 1741193400    # unix timestamp — set by Stop hook, cleared by SessionStart hook
 ```
 
-- **Present** (`agent.idle_since` set): agent is idle (finished its last response turn)
-- **Absent** (no `agent` block): agent is active or no hook has run
+- **Present** (`{change_folder}.agent.idle_since` set): agent is idle (finished its last response turn)
+- **Absent** (no `agent` block for that change): agent is active or no hook has run
 
-External tools (e.g., pipeline orchestrator) can read this field to detect agent idle state without relying on timing heuristics.
+Each worktree has its own repo root, so each gets its own `.fab-runtime.yaml` — no cross-worktree contention. The file is created with `{}` on first write by `on-stop.sh`. External tools (e.g., pipeline orchestrator) can read this file to detect agent idle state without relying on timing heuristics.
 
 ## Future Enhancements
 
@@ -90,6 +93,7 @@ External tools (e.g., pipeline orchestrator) can read this field to detect agent
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260306-1lwf-extract-agent-runtime-file | 2026-03-06 | Moved agent runtime state from `.status.yaml` to `.fab-runtime.yaml` (repo root, gitignored, keyed by change folder name). Updated Ephemeral Runtime State section accordingly. |
 | 260305-bs5x-orchestrator-idle-hooks | 2026-03-05 | Added Ephemeral Runtime State section documenting the optional `agent` block (`agent.idle_since` timestamp) managed by Claude Code hooks, not part of workflow schema or templates |
 | 260215-lqm5-statusman-cli-only | 2026-02-15 | Updated script example from `source statusman.sh` to CLI subprocess pattern (`$STATUSMAN <subcommand>`) |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_preflight.sh` → `lib/preflight.sh` in skill example; updated `src/statusman/README.md` → `src/lib/statusman/README.md` |

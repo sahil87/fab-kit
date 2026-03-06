@@ -1,5 +1,6 @@
 fab/current
 fab/.kit-sync-version
+.fab-runtime.yaml
 # fab/backlog.md
 fab/pipelines/.series-*.yaml
 fab/changes/**/.pr-done

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # fab/.kit/hooks/on-session-start.sh — Claude Code SessionStart hook
 #
-# Clears the agent block from the active change's .status.yaml.
+# Clears the agent block from .fab-runtime.yaml (repo root)
+# for the active change's folder name.
 # Fires when a new Claude Code session begins.
 # MUST exit 0 always — hooks must never block the agent.
 
@@ -18,10 +19,13 @@ fab_cmd="$repo_root/fab/.kit/bin/fab"
 change_dir="$("$fab_cmd" resolve --dir "$change_name" 2>/dev/null)" || exit 0
 [ -d "$repo_root/$change_dir" ] || exit 0
 
-status_file="$repo_root/${change_dir}.status.yaml"
-[ -f "$status_file" ] || exit 0
+change_folder="$("$fab_cmd" resolve --folder "$change_name" 2>/dev/null)" || exit 0
+[ -n "$change_folder" ] || exit 0
+
+runtime_file="$repo_root/.fab-runtime.yaml"
+[ -f "$runtime_file" ] || exit 0
 
 command -v yq >/dev/null 2>&1 || exit 0
 
-yq -i 'del(.agent)' "$status_file" 2>/dev/null || true
+yq -i "del(.\"$change_folder\".agent)" "$runtime_file" 2>/dev/null || true
 exit 0
