@@ -1,5 +1,7 @@
 # Archive Index
 
+- **260306-yzxj-regroup-cli-subcommands** — Regroup fab CLI subcommands by concern (Change Lifecycle, Pipeline & Status, Plumbing) and consolidate archive/restore operations under fab change as subcommands, updating Go implementation, skills, and docs.
+- **260306-bh45-pane-map-subcommand** — Add fab pane-map subcommand providing a unified view combining tmux pane introspection, worktree resolution, runtime agent state, and change status into a single table — eliminates mental mapping across 3+ separate commands when managing parallel agents.
 - **260306-6bba-redesign-hooks-strategy** — Redesigned fab-kit hooks strategy: added PostToolUse hook for automatic artifact bookkeeping, migrated existing hooks from yq to fab CLI, and updated Constitution §I.
 - **260306-1lwf-extract-agent-runtime-file** — Moved agent ephemeral runtime data (agent.idle_since) from per-change .status.yaml to a repo-root gitignored singleton file (.fab-runtime.yaml), reducing noisy writes to tracked files on every agent turn.
 - **260306-143f-setup-language-inference** — Replaced template-driven language detection in fab-setup with agent-inferred conventions, removing fab/.kit/templates/ dependency and writing to user-owned fab/project/* files instead.
