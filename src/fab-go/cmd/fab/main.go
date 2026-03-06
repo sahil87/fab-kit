@@ -22,7 +22,6 @@ func main() {
 		preflightCmd(),
 		changeCmd(),
 		scoreCmd(),
-		archiveCmd(),
 		runtimeCmd(),
 	)
 

@@ -335,7 +335,7 @@ The sole backend for all fab CLI operations. A single Go binary at `fab/.kit/bin
 - `fab preflight [<change>]`
 - `fab change new|rename|switch|list|resolve ...`
 - `fab score [--check-gate] [--stage <stage>] <change>`
-- `fab archive <change> --description "..." | restore | list`
+- `fab change archive <change> --description "..." | restore <change> [--switch] | archive-list`
 - `fab runtime set-idle <change>` — write `agent.idle_since` to `.fab-runtime.yaml`
 - `fab runtime clear-idle <change>` — remove agent block from `.fab-runtime.yaml`
 

@@ -2,7 +2,7 @@
 
 ## Summary
 
-Archives a completed change (post-hydrate) or restores an archived change. Delegates mechanical operations to `fab archive` CLI. Handles backlog matching interactively.
+Archives a completed change (post-hydrate) or restores an archived change. Delegates mechanical operations to `fab change archive` CLI. Handles backlog matching interactively.
 
 ## Flow
 
@@ -19,7 +19,7 @@ User invokes /fab-archive [change-name]
 │  │  └─ Read: fab/changes/{name}/intake.md
 │  │
 │  ├─ Step 2: Run archive
-│  │  └─ Bash: fab archive <change> --description "..."
+│  │  └─ Bash: fab change archive <change> --description "..."
 │  │     └─ (clean .pr-done, move, update index, clear pointer)
 │  │
 │  ├─ Step 3: Backlog matching
@@ -32,7 +32,7 @@ User invokes /fab-archive [change-name]
 │
 └── Restore Mode (/fab-archive restore <name> [--switch])
    │
-   ├─ Bash: fab archive restore <name> [--switch]
+   ├─ Bash: fab change restore <name> [--switch]
    └─ Format report from YAML output
 ```
 
@@ -42,7 +42,7 @@ User invokes /fab-archive [change-name]
 |------|---------|
 | Read | Preamble, intake.md, backlog.md |
 | Edit | backlog.md (mark items done) |
-| Bash | `fab preflight`, `fab archive`, `fab archive restore`, `fab archive list` |
+| Bash | `fab preflight`, `fab change archive`, `fab change restore`, `fab change archive-list` |
 
 ### Sub-agents
 

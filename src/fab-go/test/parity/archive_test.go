@@ -21,7 +21,7 @@ func TestArchive(t *testing.T) {
 		}
 
 		bashRes := runBash(t, tmpBash, "archiveman.sh", "list")
-		goRes := runGo(t, tmpGo, "archive", "list")
+		goRes := runGo(t, tmpGo, "change", "archive-list")
 
 		assertParity(t, "list empty", bashRes, goRes)
 	})
@@ -38,7 +38,7 @@ func TestArchive(t *testing.T) {
 		}
 
 		bashRes := runBash(t, tmpBash, "archiveman.sh", changeID, "--description", "test archive")
-		goRes := runGo(t, tmpGo, "archive", changeID, "--description", "test archive")
+		goRes := runGo(t, tmpGo, "change", "archive", changeID, "--description", "test archive")
 
 		assertParity(t, "archive", bashRes, goRes)
 	})

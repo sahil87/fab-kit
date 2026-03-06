@@ -39,9 +39,8 @@ fab/.kit/bin/fab <command> <subcommand> [args...]
 | `fab status show` | Worktree fab pipeline status |
 | `fab log` | Append-only history logging |
 | `fab preflight` | Validation + structured YAML output |
-| `fab change` | Change lifecycle (new, rename, switch, list) |
+| `fab change` | Change lifecycle (new, rename, switch, list, archive, restore, archive-list) |
 | `fab score` | Confidence scoring |
-| `fab archive` | Archive/restore operations |
 | `fab runtime` | Runtime state management (.fab-runtime.yaml) |
 
 ---
@@ -60,6 +59,8 @@ All commands accept a unified `<change>` argument:
 
 ---
 
+# Change Lifecycle
+
 ## fab resolve
 
 Change Resolver — pure query, no side effects. Converts any change reference to a canonical output.
@@ -76,6 +77,33 @@ fab/.kit/bin/fab resolve [--id|--folder|--dir|--status] [<change>]
 | `--status` | `.status.yaml` path (e.g., `fab/changes/260228-9fg2-refactor-kit-scripts/.status.yaml`) |
 
 ---
+
+## fab change
+
+Change Manager — manages change folders, naming, and the `fab/current` pointer.
+
+```
+fab/.kit/bin/fab change <subcommand> [flags...]
+```
+
+| Subcommand | Usage | Purpose |
+|------------|-------|---------|
+| `new` | `new --slug <slug> [--change-id <4char>] [--log-args <desc>]` | Create new change |
+| `rename` | `rename --folder <current-folder> --slug <new-slug>` | Rename change slug |
+| `resolve` | `resolve [<override>]` | Passthrough to resolve --folder |
+| `switch` | `switch <name> \| --blank` | Switch active change |
+| `list` | `list [--archive]` | List changes with stage info |
+| `archive` | `archive <change> --description "..."` | Clean .pr-done, move to archive/, update index, clear pointer |
+| `restore` | `restore <change> [--switch]` | Move from archive/, remove index entry, optionally activate |
+| `archive-list` | `archive-list` | List archived folder names (one per line) |
+
+**Resolution**: archive resolves `<change>` via standard resolution (active changes). `restore` uses internal archive-folder resolution. Both support 4-char ID, substring, and full folder name.
+
+**Output**: Both archive and restore output structured YAML to stdout. Skills parse this YAML to construct user-facing reports.
+
+---
+
+# Pipeline & Status
 
 ## fab status
 
@@ -129,24 +157,6 @@ finish hydrate → pipeline complete
 - Any event that sets a stage to `active` → auto-logs transition (best-effort)
 
 Skills do NOT need to call `fab log review` or `fab log transition` manually — it's handled by `fab status` internally.
-
----
-
-## fab change
-
-Change Manager — manages change folders, naming, and the `fab/current` pointer.
-
-```
-fab/.kit/bin/fab change <subcommand> [flags...]
-```
-
-| Subcommand | Usage | Purpose |
-|------------|-------|---------|
-| `new` | `new --slug <slug> [--change-id <4char>] [--log-args <desc>]` | Create new change |
-| `rename` | `rename --folder <current-folder> --slug <new-slug>` | Rename change slug |
-| `resolve` | `resolve [<override>]` | Passthrough to resolve --folder |
-| `switch` | `switch <name> \| --blank` | Switch active change |
-| `list` | `list [--archive]` | List changes with stage info |
 
 ---
 
@@ -208,27 +218,7 @@ Validates: config.yaml exists, constitution.md exists, active change resolved, `
 
 ---
 
-## fab archive
-
-Archive Manager — handles archive/restore lifecycle operations.
-
-```
-fab/.kit/bin/fab archive <change> --description "..."
-fab/.kit/bin/fab archive restore <change> [--switch]
-fab/.kit/bin/fab archive list
-```
-
-| Subcommand | Usage | Purpose |
-|------------|-------|---------|
-| *(default)* | `<change> --description "..."` | Clean .pr-done, move to archive/, update index, clear pointer |
-| `restore` | `restore <change> [--switch]` | Move from archive/, remove index entry, optionally activate |
-| `list` | `list` | List archived folder names (one per line) |
-
-**Resolution**: archive resolves `<change>` via standard resolution (active changes). `restore` uses internal archive-folder resolution. Both support 4-char ID, substring, and full folder name.
-
-**Output**: Both archive and restore output structured YAML to stdout. Skills parse this YAML to construct user-facing reports.
-
----
+# Plumbing
 
 ## fab runtime
 
