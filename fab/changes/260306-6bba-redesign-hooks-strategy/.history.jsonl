@@ -1,0 +1,4 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-06T13:40:34+05:30"}
+{"args":"Redesign fab-kit hooks — expand from idle tracking to automatic artifact bookkeeping, archive shk2 and language template changes","cmd":"fab-new","event":"command","ts":"2026-03-06T13:40:34+05:30"}
+{"delta":"+2.8","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-03-06T13:41:59+05:30"}
+{"delta":"+1.3","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-06T14:50:55+05:30"}
