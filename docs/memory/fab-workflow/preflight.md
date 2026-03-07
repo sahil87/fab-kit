@@ -35,7 +35,7 @@ The script validates in this order, stopping at the first failure:
 
 1. `fab/project/config.yaml` and `fab/project/constitution.md` exist (project initialized)
 1b. Sync staleness check (non-blocking) — compares `fab/.kit/VERSION` against `fab/.kit-sync-version`; emits stderr warning if mismatched or missing, but does NOT exit or alter stdout
-2. Change name resolves (via `lib/changeman.sh resolve` — from `$1` override or `fab/current`)
+2. Change name resolves (via `lib/changeman.sh resolve` — from `$1` override or `.fab-status.yaml`)
 3. Change directory `fab/changes/{name}/` exists
 4. `.status.yaml` exists within the change directory
 5. `.status.yaml` passes schema validation via `validate_status_file()` from `lib/statusman.sh` (catches invalid states, missing stages, multiple active stages)
@@ -46,7 +46,7 @@ Each failure exits with code 1 and prints a diagnostic message to stderr. The st
 
 The script invokes `lib/changeman.sh` and `lib/statusman.sh` via CLI subprocess calls, delegating all resolution and `.status.yaml` parsing to their respective subcommands:
 
-- **Change resolution**: `$CHANGEMAN resolve [override]` handles both default mode (reads `fab/current`) and override mode (case-insensitive substring matching against `fab/changes/`). Returns resolved folder name to stdout; errors to stderr.
+- **Change resolution**: `$CHANGEMAN resolve [override]` handles both default mode (reads `.fab-status.yaml` symlink) and override mode (case-insensitive substring matching against `fab/changes/`). Returns resolved folder name to stdout; errors to stderr.
 - **Progress extraction**: `$STATUSMAN progress-map` returns `stage:state` pairs, consumed via `while IFS=: read -r`
 - **Stage derivation (routing)**: `$STATUSMAN current-stage` — returns the next stage to work on (three-tier fallback: first active, first pending after last done, hydrate)
 - **Stage derivation (display)**: `$STATUSMAN display-stage` — returns `stage:state` for "where you are" (first active, or last done, or first stage with pending). Used for user-facing display in `/fab-status` and `/fab-switch`

@@ -47,7 +47,7 @@ After context loading, log the command invocation:
 fab/.kit/bin/fab log command "fab-operator1" 2>/dev/null || true
 ```
 
-This is best-effort — logman resolves the active change via `fab/current` if one exists. Failures are silently ignored.
+This is best-effort — the logger resolves the active change via the `.fab-status.yaml` symlink if one exists. Failures are silently ignored.
 
 ---
 

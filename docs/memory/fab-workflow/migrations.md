@@ -112,6 +112,7 @@ Handled by `fab-sync.sh` during structural bootstrap:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260307-x2tx-status-symlink-pointer | 2026-03-07 | Replaced `fab/current` pointer file with `.fab-status.yaml` symlink at repo root. Added `id` field to `.status.yaml`. Updated resolution, switch, rename, pane-map, hooks, and dispatch. Migration `0.32.0-to-0.34.0` covers conversion. |
 | 260226-koj1-version-staleness-warning | 2026-02-26 | Renamed `fab/project/VERSION` → `fab/.kit-migration-version` throughout. Added `0.20.0-to-0.21.0.md` migration for the rename. Updated dual-version model description. |
 | 260218-5isu-fix-docs-consistency-drift | 2026-02-18 | Replaced stale `/fab-update` → `/fab-setup migrations` in `/fab-status` version drift display message |
 | 260216-tk7a-DEV-1037-consolidate-setup-upgrade-flow | 2026-02-16 | `/fab-update` absorbed into `/fab-setup migrations` subcommand; `lib/sync-workspace.sh` → `fab-sync.sh`; updated design decision wording |

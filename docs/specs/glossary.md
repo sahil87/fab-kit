@@ -16,7 +16,7 @@
 | **Domain** | A topic area in `docs/memory/` (e.g., `auth/`, `payments/`). Each domain has its own `index.md` and one or more memory files. |
 | **Hydration** | The process of integrating knowledge into `docs/memory/`. Two modes: (1) **pipeline hydration** — merging change artifacts (spec.md) into memory files via `/fab-continue` (hydrate stage) on change completion, and (2) **source hydration** — ingesting external documentation or generating from codebase analysis via `/docs-hydrate-memory` (supports both ingest and generate modes). |
 | **Kit** | The `fab/.kit/` directory containing the Fab engine — templates, skill definitions, and scripts. Replaceable upstream; everything outside `.kit/` is project-specific. |
-| **Pointer file** | `fab/current` — a plain text file containing the name of the active change. Read by all skills to resolve the working context. Cleared by `/fab-archive`. |
+| **Pointer file** | `.fab-status.yaml` — a symlink at repo root pointing to the active change's `fab/changes/{name}/.status.yaml`. Read by all skills to resolve the working context. Removed by `/fab-archive`. |
 | **Skill** | A markdown prompt file in `fab/.kit/skills/` that defines behavior for an AI agent. Skills are the primary interface to Fab — invoked as `/fab-*` commands. |
 | **Design specs** | Human-curated, pre-implementation design documents in `docs/specs/`. Capture architectural intent, design rationale, and the "why" behind the system. Not managed by Fab tooling — organized however makes sense for the project. Contrast with **memory files** (post-implementation, AI-maintained via hydration). |
 | **spec.md** | A change-level specification file inside a change folder. Describes requirements relevant to that specific change using RFC 2119 keywords and GIVEN/WHEN/THEN scenarios. Not to be confused with **design specs** (the project-wide design documents in `docs/specs/`). |
@@ -54,7 +54,7 @@
 | `/fab-archive` | Standalone housekeeping skill — moves completed changes to `fab/changes/archive/`, updates archive index, clears pointer. Not a pipeline stage. Supports restore mode. |
 | `/docs-reorg-memory` | Analyzes memory files for themes and proposes reorganization. Read-only unless user approves changes. No active change required. |
 | `/docs-reorg-specs` | Analyzes spec files for themes and proposes reorganization. Read-only unless user approves changes. No active change required. |
-| `/fab-switch` | Changes the active change by updating `fab/current`. Supports partial/slug matching. |
+| `/fab-switch` | Changes the active change by creating the `.fab-status.yaml` symlink. Supports partial/slug matching. |
 | `/fab-status` | Displays current change state — stage progress, checklist counts, suggested next command. |
 | `/docs-hydrate-specs` | Identifies gaps between `docs/memory/` and `docs/specs/`, proposes additions with interactive confirmation. No active change required. |
 | `/fab-help` | Prints an overview of available Fab skills and their purposes. |
@@ -68,7 +68,7 @@
 | `.status.yaml` | The status manifest inside each change folder. Tracks progress of all stages, checklist counts, and confidence score. Current stage is derived from the `active` entry in the progress map. Single source of truth for where a change is. |
 | `config.yaml` | Project configuration at `fab/project/config.yaml`. Defines project identity, source paths, checklist categories, stage directives, and model tiers. |
 | `checklist.md` | Auto-generated quality checklist inside a change folder. Items derived from spec and constitution. Verified by `/fab-continue` (review); all items must pass before hydrate. |
-| `fab/current` | Pointer file containing the active change name. Read by every skill; updated by `/fab-switch`; cleared by `/fab-archive`. |
+| `.fab-status.yaml` | Symlink at repo root pointing to the active change's `.status.yaml`. Read by every skill; created by `/fab-switch`; removed by `/fab-archive`. |
 | `fab/changes/` | Directory holding all active change folders. Completed changes are moved to `fab/changes/archive/`. |
 | `fab/changes/archive/` | Directory holding completed change folders. Folder names are unchanged (date is already embedded). |
 | `docs/memory/` | Memory files. Organized by domain with index files. The authoritative post-implementation source of truth. |

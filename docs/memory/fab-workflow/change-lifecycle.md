@@ -22,41 +22,43 @@ All components MUST be lowercase. The name is unique by construction (date + ran
 
 **Example**: `260115-a7k2-add-oauth`
 
-### Active Change Tracking (`fab/current`)
+### Active Change Tracking (`.fab-status.yaml` symlink)
 
-`fab/current` is a two-line plain text file tracking the active change. Line 1 is the 4-char change ID; line 2 is the full folder name. No trailing newline. This removes the need to scan `changes/` or remember folder names.
+`.fab-status.yaml` is a symlink at the repository root that points to the active change's `.status.yaml`. It replaces the former `fab/current` pointer file. The symlink target is always a relative path from the repo root (e.g., `fab/changes/260302-ye59-example-change/.status.yaml`). This collapses change identity and status into a single filesystem entry — `readlink` gives the change name (from the target path), `cat` gives the full status.
 
 ```
-ye59
-260302-ye59-example-change
+.fab-status.yaml → fab/changes/260302-ye59-example-change/.status.yaml
 ```
 
-**Access pattern**: Only `resolve.sh` reads `fab/current` (for default-mode resolution). Only `changeman.sh` writes `fab/current` (via `switch` and `rename` subcommands). No skill or other script reads or writes the file directly — the format is an implementation detail encapsulated by these two scripts.
+**Observation model**: All ephemeral per-worktree state lives as two sibling files at the repo root: `.fab-status.yaml` (symlink → change identity + pipeline state) and `.fab-runtime.yaml` (agent idle state). Both gitignored, both at the same level, scannable with a single glob. This reduces cross-worktree observation from three reads to two (no separate pointer indirection).
+
+**Access pattern**: Only `resolve.go` reads `.fab-status.yaml` (via `readlink` for default-mode resolution). Only `change.go` writes `.fab-status.yaml` (via `switch` and `rename` subcommands — `os.Remove` + `os.Symlink`). No skill or other script reads or writes the symlink directly — the mechanism is an implementation detail encapsulated by these two modules.
 
 **Lifecycle**:
-- **Created** by `changeman.sh switch` (called by `/fab-switch`) — writes 4-char ID on line 1, full folder name on line 2
-- **Updated** by `changeman.sh switch` — overwritten with the new change's ID and folder name
-- **Updated** by `changeman.sh rename` — line 1 (ID) preserved, line 2 (folder name) updated to reflect the new slug
-- **Not modified** by `/fab-new` — `/fab-new` never writes to `fab/current`; the user activates via `/fab-switch` after creation
-- **Read** by `resolve.sh` — reads line 2 for folder name resolution. All other scripts and skills resolve the active change via `changeman.sh resolve` (which delegates to `resolve.sh`)
-- **Cleared** by `changeman.sh switch --blank` (called by `/fab-switch --blank` or `/fab-archive`) — file is deleted to deactivate the current change
-- **Optionally written** by `changeman.sh switch` (called by `/fab-archive restore --switch`) — written with the restored change when `--switch` flag is used
+- **Created** by `fab change switch` (called by `/fab-switch`) — creates symlink pointing to `fab/changes/{name}/.status.yaml`
+- **Updated** by `fab change switch` — old symlink removed, new symlink created for the target change
+- **Updated** by `fab change rename` — symlink recreated to point to the renamed folder's `.status.yaml`
+- **Not modified** by `/fab-new` — `/fab-new` never writes `.fab-status.yaml`; the user activates via `/fab-switch` after creation
+- **Read** by `resolve.go` — `readlink` extracts the folder name from the target path. All other scripts and skills resolve the active change via `fab resolve` (which delegates to `resolve.go`)
+- **Removed** by `fab change switch --blank` (called by `/fab-switch --blank` or `/fab-archive`) — symlink is deleted to deactivate the current change
+- **Optionally created** by `fab change switch` (called by `/fab-archive restore --switch`) — created for the restored change when `--switch` flag is used
 
-**Resolution pattern** (used by all skills via `changeman.sh resolve` → `resolve.sh`):
-1. If `fab/current` exists, read line 2 (folder name) and return it (primary path)
-2. If `fab/current` is missing or empty, attempt single-change guessing:
+**Resolution pattern** (used by all skills via `fab resolve` → `resolve.go`):
+1. If `.fab-status.yaml` symlink exists and its target is valid, extract the folder name from the target path and return it (primary path). A broken symlink (target deleted/archived) is treated as absent — no active change
+2. If `.fab-status.yaml` is absent or broken, attempt single-change guessing:
    - Enumerate non-archive folders in `fab/changes/` that contain a valid `.status.yaml`
    - Exactly 1 candidate → return it, emit `(resolved from single active change)` to stderr
    - 0 candidates → exit 1 with `No active change.`
    - 2+ candidates → exit 1 with `No active change (multiple changes exist — use /fab-switch).`
-3. Guessing is transparent to callers — `preflight.sh`, `/git-branch`, and `/git-pr` all call `changeman.sh resolve` and benefit automatically
+3. Guessing is transparent to callers — `preflight.sh`, `/git-branch`, and `/git-pr` all call `fab resolve` and benefit automatically
 
-`fab/current` SHOULD be added to `.gitignore` since it is local working state (each developer has their own active change).
+`.fab-status.yaml` SHOULD be added to `.gitignore` since it is local working state (each developer has their own active change).
 
 ### Status Tracking (`.status.yaml`)
 
 Every change folder SHALL contain a `.status.yaml` manifest with these fields:
 
+- `id` — the 4-character change ID (the `XXXX` component of the folder name). Derived from `name` at creation time, immutable. Makes the change ID directly available without parsing the folder name
 - `name` — the full change folder name
 - `created` — ISO 8601 datetime
 - `progress` — map of all stages to their state. The stage marked `active` is the current stage (single source of truth for where the change is). There is no separate `stage:` field — current stage is derived from the `active` entry in the progress map.
@@ -122,7 +124,7 @@ The stages split into three phases:
 - **Execution** (4-5): apply, review
 - **Completion** (6): hydrate (hydrates into memory files, completes the pipeline)
 
-After hydrate completes, the change folder remains in `fab/changes/`. To move it to the archive, run `/fab-archive` — a standalone housekeeping command (not a pipeline stage). `/fab-archive` moves the folder to `fab/changes/archive/yyyy/mm/` (date-bucketed by the folder's `YYMMDD` prefix), updates the archive index, marks backlog items done (exact-ID check always; keyword scan with interactive confirmation), and conditionally clears `fab/current`. To restore an archived change, run `/fab-archive restore <change-name>` — this moves the folder back to `fab/changes/`, removes the index entry, and optionally activates via `--switch`. Existing flat archive entries are migrated to the date-bucketed structure via `/fab-setup migrations` (see `fab/.kit/migrations/0.24.0-to-0.32.0.md`).
+After hydrate completes, the change folder remains in `fab/changes/`. To move it to the archive, run `/fab-archive` — a standalone housekeeping command (not a pipeline stage). `/fab-archive` moves the folder to `fab/changes/archive/yyyy/mm/` (date-bucketed by the folder's `YYMMDD` prefix), updates the archive index, marks backlog items done (exact-ID check always; keyword scan with interactive confirmation), and conditionally removes `.fab-status.yaml` if the archived change was active. To restore an archived change, run `/fab-archive restore <change-name>` — this moves the folder back to `fab/changes/`, removes the index entry, and optionally activates via `--switch`. Existing flat archive entries are migrated to the date-bucketed structure via `/fab-setup migrations` (see `fab/.kit/migrations/0.24.0-to-0.32.0.md`).
 
 **Full pipeline path**: `/fab-fff` chains the entire flow (planning → apply → review → hydrate) in a single invocation with no confidence gate, frontloaded questions, and interactive rework on review failure. `/fab-ff` fast-forwards from spec through hydrate, gated on confidence score (dynamic per-type thresholds via `calc-score.sh --check-gate`), and bails on review failure. After either pipeline completes, run `/fab-archive` to move the change to archive.
 
@@ -132,7 +134,7 @@ Fab works without git. Change folders are the unit of identity, not branches —
 
 **Why decoupled**: A developer might work on the same change across multiple worktrees, a change might span multiple branches, or a change might move between branches after a rebase. Storing a static `branch:` field would go stale; instead, `/fab-status` uses `git branch --show-current` for live display.
 
-**Branch management** is handled by the standalone `/git-branch` command — separate from change activation. `/fab-switch` only writes `fab/current` and never executes git commands.
+**Branch management** is handled by the standalone `/git-branch` command — separate from change activation. `/fab-switch` only updates `.fab-status.yaml` and never executes git commands.
 
 | Condition | Action | Report |
 |-----------|--------|--------|
@@ -150,7 +152,7 @@ To bring an archived change back to active:
 1. Run `/fab-archive restore <change-name>` — moves `fab/changes/archive/yyyy/mm/{name}/` (or flat `archive/{name}/` for pre-migration entries) back to `fab/changes/{name}/`
 2. The archive index entry is removed from `fab/changes/archive/index.md`
 3. All artifacts (`.status.yaml`, `intake.md`, `spec.md`, etc.) are preserved without modification
-4. Optionally use `--switch` to activate the restored change (writes to `fab/current`)
+4. Optionally use `--switch` to activate the restored change (creates `.fab-status.yaml` symlink)
 5. Without `--switch`, run `/fab-switch {name}` to activate manually
 
 The restore operation is idempotent — if the folder already exists in `fab/changes/`, the move is skipped and remaining steps (index cleanup, optional pointer update) complete normally.
@@ -162,13 +164,13 @@ To rename a change's slug (e.g., if the scope evolved or a typo was made):
 changeman.sh rename --folder <current-folder> --slug <new-slug>
 ```
 
-This atomically: renames the folder, updates `.status.yaml` `name` field, updates `fab/current` if it points to the renamed change, and logs the operation. The `{YYMMDD}-{XXXX}` prefix is preserved — only the slug portion changes. Git branch rename is not included (manual if needed).
+This atomically: renames the folder, updates `.status.yaml` `name` field, updates `.fab-status.yaml` symlink if it points to the renamed change, and logs the operation. The `{YYMMDD}-{XXXX}` prefix is preserved — only the slug portion changes. Git branch rename is not included (manual if needed).
 
 ### Abandoning a Change
 
 To discard a change that won't be completed:
 1. Delete the change folder: `rm -rf fab/changes/{name}/`
-2. Clear the pointer (if active): `rm fab/current`
+2. Clear the pointer (if active): `rm .fab-status.yaml`
 3. Optionally delete the git branch: `git branch -d {branch}`
 
 There is no `/fab-abandon` skill — this is a manual operation. To preserve context about why a change was dropped, move the folder to `archive/` instead.
@@ -195,19 +197,19 @@ The skill uses `lib/preflight.sh` for data retrieval (including `display_stage` 
 1. Match `change-name` against `fab/changes/` (supports partial/slug match)
 2. **Ambiguous match** — if multiple changes match, list them and ask the user to pick. Never guess
 3. **No match** — list available changes and ask
-4. Write `fab/current` via `changeman.sh switch` (two-line format: 4-char ID on line 1, full folder name on line 2)
+4. Create `.fab-status.yaml` symlink via `fab change switch` (symlink points to `fab/changes/{name}/.status.yaml`)
 5. Display the switched change's status summary (three-line format: `Stage: {display_stage} ({N}/8) — {state}` + `Confidence: {score} of 5.0{indicative_suffix}` + `Next: {routing_stage} (via {default_command})`)
 6. Append a hint: `Tip: run /git-branch to create or switch to the matching branch`
 
 **Deactivating (`--blank`):**
-1. Delete `fab/current` — deactivates the current change. Idempotent (no error if already blank)
+1. Remove `.fab-status.yaml` symlink — deactivates the current change. Idempotent (no error if already blank)
 
 ### `/git-branch [change-name]`
 
-`/git-branch` creates or checks out a git branch matching the active (or specified) change. When an explicit argument doesn't match any change, falls back to creating a standalone branch with the literal name. Standalone command — does not modify fab state (`fab/current`, `.status.yaml`).
+`/git-branch` creates or checks out a git branch matching the active (or specified) change. When an explicit argument doesn't match any change, falls back to creating a standalone branch with the literal name. Standalone command — does not modify fab state (`.fab-status.yaml`, `.status.yaml`).
 
 **Behavior:**
-1. Resolve change name (from argument or `fab/current`). If resolution fails with an explicit argument, enter **standalone fallback** — use the raw argument as a literal branch name, print `No matching change found — using standalone branch '{name}'`. If no argument was provided, display changeman's error and stop.
+1. Resolve change name (from argument or `.fab-status.yaml`). If resolution fails with an explicit argument, enter **standalone fallback** — use the raw argument as a literal branch name, print `No matching change found — using standalone branch '{name}'`. If no argument was provided, display changeman's error and stop.
 2. Derive branch name: `{change-name}` for change-resolved branches; raw argument as-is for standalone
 3. Context-dependent action:
    - **Already on target** → no-op ("already active")
@@ -229,14 +231,14 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 
 ## Design Decisions
 
-### Pointer File, Not Symlink
-**Decision**: `fab/current` is a plain text file containing the change name, not a symlink to the change folder.
-**Why**: Cross-platform (Windows symlinks require Developer Mode). Cleaner errors (stale name is easy to detect vs. dangling symlink). Simpler operations (any tool can read/write a text file).
-**Rejected**: Symlink — platform-dependent, confusing error messages on dangling links.
-*Source*: doc/fab-spec/ARCHITECTURE.md
+### Symlink Replaces Pointer File
+**Decision**: `.fab-status.yaml` is a symlink at the repo root pointing to the active change's `.status.yaml`, replacing the former `fab/current` two-line text file.
+**Why**: The conductor orchestrator needs to observe N worktrees efficiently. The old pointer file required three reads per worktree (`fab/current` → parse folder name → `.status.yaml` → `.fab-runtime.yaml`). The symlink collapses two reads into one: `readlink .fab-status.yaml` gives change identity (from target path) and `cat .fab-status.yaml` gives full status. Grouping `.fab-status.yaml` alongside `.fab-runtime.yaml` at repo root consolidates all ephemeral per-worktree state into two sibling files scannable with a single glob. Windows compatibility is not a concern (explicitly confirmed).
+**Rejected**: Keeping `fab/current` as a text file — adds unnecessary indirection for every cross-worktree observation cycle. The original reasons for a text file (Windows, cleaner errors) are no longer relevant: Windows is not a target, and broken symlinks are handled gracefully (`os.Lstat` succeeds, `os.Stat` fails → treat as no active change).
+*Introduced by*: 260307-x2tx-status-symlink-pointer; *Supersedes*: "Pointer File, Not Symlink" (doc/fab-spec/ARCHITECTURE.md)
 
 ### Name Stable Across Lifecycle
-**Decision**: Change folders keep the same `{YYMMDD}-{XXXX}` prefix from creation through archive. No automatic rename on archive. The slug portion can be explicitly renamed via `changeman.sh rename`, which atomically updates the folder, `.status.yaml`, and `fab/current`.
+**Decision**: Change folders keep the same `{YYMMDD}-{XXXX}` prefix from creation through archive. No automatic rename on archive. The slug portion can be explicitly renamed via `changeman.sh rename`, which atomically updates the folder, `.status.yaml`, and `.fab-status.yaml`.
 **Why**: The immutable prefix simplifies references — specs, changelogs, and design decisions can reference the change by date-ID without tracking renames. Explicit slug rename is supported for scope evolution and typo correction, but the date-ID prefix ensures continuity.
 **Rejected**: Renaming with archive prefix — adds complexity, breaks back-references. Auto-rename — would silently break references.
 *Source*: doc/fab-spec/ARCHITECTURE.md; *Updated by*: 260216-u6d5-DEV-1039-add-changeman-rename
@@ -248,8 +250,8 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 *Source*: doc/fab-spec/TEMPLATES.md; *Updated by*: 260226-i9av-add-ready-state-to-stages (added `ready`, removed `skipped`)
 
 ### Branch Management in `/git-branch`, Not `/fab-switch`
-**Decision**: Git branch operations are handled by the standalone `/git-branch` command, not `/fab-switch`. `/fab-switch` only writes `fab/current` — it performs zero git operations. `/fab-new` never activates changes. The `branch:` field was removed from `.status.yaml`; `/fab-status` uses `git branch --show-current` for live display.
-**Why**: Change activation (pointing `fab/current`) and git branch management are independent concerns. Coupling them in `/fab-switch` required `--no-branch-change` as an escape hatch (used by `dispatch.sh` for worktree-based pipelines), added interactive friction for users who just wanted to switch the active pointer, and forced every feature touching change activation to consider git side effects. Separating them lets each command do one thing well.
+**Decision**: Git branch operations are handled by the standalone `/git-branch` command, not `/fab-switch`. `/fab-switch` only updates `.fab-status.yaml` — it performs zero git operations. `/fab-new` never activates changes. The `branch:` field was removed from `.status.yaml`; `/fab-status` uses `git branch --show-current` for live display.
+**Why**: Change activation (updating `.fab-status.yaml`) and git branch management are independent concerns. Coupling them in `/fab-switch` required `--no-branch-change` as an escape hatch (used by `dispatch.sh` for worktree-based pipelines), added interactive friction for users who just wanted to switch the active pointer, and forced every feature touching change activation to consider git side effects. Separating them lets each command do one thing well.
 **Rejected**: Keeping branch in `/fab-switch` — couples two concerns, requires negative flags. Shell script instead of command — loses conversational invocability in Claude sessions. Silent ignore of old flags — defers cleanup, adds dead-flag debt.
 *Introduced by*: 260208-q8v3-branch-to-switch; *Updated*: 260216-7ltw-DEV-1038 (removed `--switch` flag); *Updated*: 260224-vx4k-decouple-git-from-fab-switch (extracted to standalone `/git-branch`)
 
@@ -277,16 +279,17 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 **Rejected**: `/fab-abandon` skill — low-value automation for a rare, deliberate action.
 *Source*: doc/fab-spec/ARCHITECTURE.md
 
-### Centralized Pointer Format
-**Decision**: `fab/current` uses two-line plain text (4-char ID on line 1, full folder name on line 2). Only `resolve.sh` reads it; only `changeman.sh` writes it. Skills and other scripts delegate through these two scripts.
-**Why**: Encapsulates the file format as an implementation detail. Future format changes require updating only two scripts. Eliminates format knowledge leakage in `logman.sh` (direct read), `fab-discuss` (direct read), and `fab-archive` (direct read/write/delete). The two-line format provides zero-cost folder name reads (line 2) and short ID comparison (line 1) for `dispatch.sh` polling.
-**Rejected**: YAML (`yq` dependency on hot path). Single-ID-only (requires folder scan on every default-mode resolve). Backward compatibility layer (unnecessary — `fab/current` is transient gitignored state, rewritten on every switch).
-*Introduced by*: 260302-a8ay-centralize-current-pointer
+### Centralized Pointer Access
+**Decision**: `.fab-status.yaml` (a symlink at repo root) encodes the active change pointer. Only `resolve.go` reads it (via `readlink`); only `change.go` writes it (via `os.Remove` + `os.Symlink`). Skills and other scripts delegate through `fab resolve` and `fab change switch`.
+**Why**: Encapsulates the pointer mechanism as an implementation detail. The symlink encodes both change identity (from the target path) and status data (the target file itself) in one filesystem entry. The `id` field in `.status.yaml` provides the 4-char change ID without path parsing. Eliminates format knowledge leakage — no script or skill manipulates the symlink directly.
+**Rejected**: YAML pointer file (`yq` dependency on hot path). Keeping the old two-line `fab/current` text file (unnecessary indirection for cross-worktree observation).
+*Introduced by*: 260302-a8ay-centralize-current-pointer; *Updated by*: 260307-x2tx-status-symlink-pointer (text file → symlink)
 
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260307-x2tx-status-symlink-pointer | 2026-03-07 | Replaced `fab/current` pointer file with `.fab-status.yaml` symlink at repo root. Added `id` field to `.status.yaml`. Updated resolution, switch, rename, pane-map, hooks, and dispatch. Migration `0.32.0-to-0.34.0` covers conversion. |
 | 260305-02ip-archive-date-buckets | 2026-03-05 | Archive destination changed from flat `archive/{name}/` to date-bucketed `archive/yyyy/mm/{name}/`. Date derived from folder name's `YYMMDD` prefix (year prefixed with `20`). One-time migration of existing flat entries shipped as `fab/.kit/migrations/0.24.0-to-0.32.0.md` (applied via `/fab-setup migrations`). `resolve_archive`, `cmd_list`, `backfill_index` updated to scan both flat and nested structures. `changeman.sh list --archive` updated for nested archive traversal. `fab-archive.md` skill doc updated with bucketed path references. |
 | 260305-8ooz-persist-indicative-confidence | 2026-03-05 | Indicative confidence scores now persisted to `.status.yaml` with `confidence.indicative: true` flag. `/fab-new` calls `calc-score.sh --stage intake` (normal mode) to persist. Spec scoring clears the flag. `changeman.sh list` output extended to `name:display_stage:display_state:score:indicative`. `changeman.sh switch` adds `Confidence:` line. `preflight.sh` emits `indicative:` field. `/fab-status` reads uniformly from `.status.yaml` (removed live `calc-score.sh` call). `statusman.sh` gains `--indicative` flag on `set-confidence`/`set-confidence-fuzzy` and outputs `indicative:` in `confidence` accessor. |
 | 260305-4szh-stage-transition-logging | 2026-03-05 | Added `stage-transition` as 4th event type in `.history.jsonl`. `logman.sh` gains `transition` subcommand. `statusman.sh _apply_metrics_side_effect` emits transition events on stage activation (enter/re-entry). `event_start` and `event_reset` accept optional `[from] [reason]` for rework context. Clarified `iterations` semantics (per-stage activations, not apply→review pairs). Documented canonical review result values (`"passed"`, `"failed"`) with permissive validation. |

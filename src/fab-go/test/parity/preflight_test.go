@@ -1,6 +1,8 @@
 package parity
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -55,8 +57,11 @@ func TestPreflight(t *testing.T) {
 		tmpBash := setupTempRepo(t)
 		tmpGo := setupTempRepo(t)
 
-		writeFile(t, tmpBash, "fab/current", "nonexistent")
-		writeFile(t, tmpGo, "fab/current", "nonexistent")
+		// Point symlink to a nonexistent change
+		os.Remove(filepath.Join(tmpBash, ".fab-status.yaml"))
+		os.Symlink("fab/changes/nonexistent/.status.yaml", filepath.Join(tmpBash, ".fab-status.yaml"))
+		os.Remove(filepath.Join(tmpGo, ".fab-status.yaml"))
+		os.Symlink("fab/changes/nonexistent/.status.yaml", filepath.Join(tmpGo, ".fab-status.yaml"))
 
 		bashRes := runBash(t, tmpBash, "preflight.sh")
 		goRes := runGo(t, tmpGo, "preflight")

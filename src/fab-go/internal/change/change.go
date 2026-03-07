@@ -71,6 +71,7 @@ func New(fabRoot, slug, changeID, logArgs string) (string, error) {
 	}
 
 	content := string(tmplData)
+	content = strings.ReplaceAll(content, "{ID}", changeID)
 	content = strings.ReplaceAll(content, "{NAME}", folderName)
 	content = strings.ReplaceAll(content, "{CREATED}", now)
 	content = strings.ReplaceAll(content, "{CREATED_BY}", createdBy)
@@ -143,13 +144,15 @@ func Rename(fabRoot, currentFolder, newSlug string) (string, error) {
 		_ = statusFile.Save(statusPath)
 	}
 
-	// Update fab/current if it points to old folder
-	currentFile := filepath.Join(fabRoot, "current")
-	if data, err := os.ReadFile(currentFile); err == nil {
-		lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-		if len(lines) >= 2 && strings.TrimSpace(lines[1]) == currentFolder {
-			newContent := fmt.Sprintf("%s\n%s", strings.TrimSpace(lines[0]), newName)
-			_ = os.WriteFile(currentFile, []byte(newContent), 0644)
+	// Update .fab-status.yaml symlink if it points to old folder
+	repoRoot := filepath.Dir(fabRoot)
+	symlinkPath := filepath.Join(repoRoot, ".fab-status.yaml")
+	if target, err := os.Readlink(symlinkPath); err == nil {
+		expectedOld := fmt.Sprintf("fab/changes/%s/.status.yaml", currentFolder)
+		if target == expectedOld {
+			newTarget := fmt.Sprintf("fab/changes/%s/.status.yaml", newName)
+			os.Remove(symlinkPath)
+			_ = os.Symlink(newTarget, symlinkPath)
 		}
 	}
 
@@ -165,11 +168,12 @@ func Switch(fabRoot, name string) (string, error) {
 		return "", err
 	}
 
-	changeID := resolve.ExtractID(folder)
-	currentFile := filepath.Join(fabRoot, "current")
-	content := fmt.Sprintf("%s\n%s", changeID, folder)
-	if err := os.WriteFile(currentFile, []byte(content), 0644); err != nil {
-		return "", fmt.Errorf("write fab/current: %w", err)
+	repoRoot := filepath.Dir(fabRoot)
+	symlinkPath := filepath.Join(repoRoot, ".fab-status.yaml")
+	target := fmt.Sprintf("fab/changes/%s/.status.yaml", folder)
+	os.Remove(symlinkPath)
+	if err := os.Symlink(target, symlinkPath); err != nil {
+		return "", fmt.Errorf("create .fab-status.yaml symlink: %w", err)
 	}
 
 	// Derive display info
@@ -199,7 +203,7 @@ func Switch(fabRoot, name string) (string, error) {
 	dnum := sf.StageNumber(displayStage)
 
 	var output strings.Builder
-	fmt.Fprintf(&output, "fab/current → %s\n", folder)
+	fmt.Fprintf(&output, ".fab-status.yaml → %s\n", folder)
 	fmt.Fprintln(&output)
 	fmt.Fprintf(&output, "Stage:       %s (%d/8) — %s\n", displayStage, dnum, displayState)
 	fmt.Fprintf(&output, "Confidence:  %s\n", confDisplay)
@@ -217,11 +221,12 @@ func Switch(fabRoot, name string) (string, error) {
 
 // SwitchBlank deactivates the current change.
 func SwitchBlank(fabRoot string) string {
-	currentFile := filepath.Join(fabRoot, "current")
-	if _, err := os.Stat(currentFile); os.IsNotExist(err) {
+	repoRoot := filepath.Dir(fabRoot)
+	symlinkPath := filepath.Join(repoRoot, ".fab-status.yaml")
+	if _, err := os.Lstat(symlinkPath); os.IsNotExist(err) {
 		return "No active change (already blank)."
 	}
-	os.Remove(currentFile)
+	os.Remove(symlinkPath)
 	return "No active change."
 }
 

@@ -22,7 +22,7 @@ Each gap SHALL show the exact markdown that would be inserted, the source memory
 
 ### Requirement: No Active Change Required
 
-The skill operates on project-level `docs/memory/` and `docs/specs/` directories. It does not require `fab/current`, does not modify `.status.yaml`, and does not create git branches.
+The skill operates on project-level `docs/memory/` and `docs/specs/` directories. It does not require an active change (`.fab-status.yaml`), does not modify `.status.yaml`, and does not create git branches.
 
 ### Requirement: Pre-flight Checks
 

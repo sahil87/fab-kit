@@ -4,7 +4,7 @@
 
 ## Overview
 
-Execution behavior (apply, review, hydrate) is accessed via `/fab-continue`, which dispatches to the appropriate behavior based on the active stage. The pipeline has 8 stages: intake → spec → tasks → apply → review → hydrate → ship → review-pr. The first 6 stages handle planning and execution; `ship` and `review-pr` handle integration (PR creation and PR review feedback). `/fab-continue` also dispatches ship (via `/git-pr` behavior) and review-pr (via `/git-pr-review` behavior). `/fab-archive` exists as a standalone housekeeping skill (not a pipeline stage) for moving completed changes to the archive — it requires `hydrate: done` but does not require ship/review-pr completion. All execution behaviors in `/fab-continue` inherit the optional `[change-name]` argument, which is passed to the preflight script for transient change resolution without modifying `fab/current`.
+Execution behavior (apply, review, hydrate) is accessed via `/fab-continue`, which dispatches to the appropriate behavior based on the active stage. The pipeline has 8 stages: intake → spec → tasks → apply → review → hydrate → ship → review-pr. The first 6 stages handle planning and execution; `ship` and `review-pr` handle integration (PR creation and PR review feedback). `/fab-continue` also dispatches ship (via `/git-pr` behavior) and review-pr (via `/git-pr-review` behavior). `/fab-archive` exists as a standalone housekeeping skill (not a pipeline stage) for moving completed changes to the archive — it requires `hydrate: done` but does not require ship/review-pr completion. All execution behaviors in `/fab-continue` inherit the optional `[change-name]` argument, which is passed to the preflight script for transient change resolution without modifying `.fab-status.yaml`.
 
 **Status mutations**: All `.status.yaml` progress transitions, checklist updates, and confidence writes use `fab/.kit/bin/fab status` CLI event commands (`start`, `advance`, `finish`, `reset`, `fail`, `skip`, `set-checklist`, `set-confidence`) via the Bash tool, rather than direct file editing. The `skip` event transitions `{pending,active} → skipped` with forward cascade (all downstream pending stages become skipped). Skipped stages are treated as resolved for progression (like `done`). Resetting a skipped stage follows normal reset mechanics (`skipped → active`, downstream cascade to `pending`). This centralizes validation and ensures atomic writes with `last_updated` refresh. The `driver` parameter is optional but skills always pass it. Stage metrics (started_at, completed_at, driver, iterations) are updated automatically as side-effects.
 
@@ -147,7 +147,7 @@ Requires `hydrate: done` in `.status.yaml`. If hydrate is not done, it stops wit
 1. **Move change folder** — `fab/changes/{name}/` → `fab/changes/archive/{name}/`. Create `archive/` if needed. No rename.
 2. **Update archive index** — prepend entry to `fab/changes/archive/index.md` (create with backfill if missing). Format: `- **{folder-name}** — {1-2 sentence description}`. Most-recent-first.
 3. **Mark backlog items done** — exact-ID check (always), then keyword scan with interactive confirmation
-4. **Clear pointer** — delete `fab/current` only if the archived change is the active one
+4. **Clear pointer** — remove `.fab-status.yaml` symlink only if the archived change is the active one
 
 ##### Fail-Safe Order of Operations
 
@@ -165,7 +165,7 @@ Restores an archived change back to `fab/changes/`. Inverse of the archive opera
 
 1. **Move change folder** — `fab/changes/archive/{name}/` → `fab/changes/{name}/`. No rename. All artifacts preserved.
 2. **Remove archive index entry** — remove the entry for `{name}` from `fab/changes/archive/index.md`. Preserve empty index file.
-3. **Update pointer** (conditional) — if `--switch` flag provided, write `{name}` to `fab/current`. Otherwise no-op.
+3. **Update pointer** (conditional) — if `--switch` flag provided, create `.fab-status.yaml` symlink pointing to `fab/changes/{name}/.status.yaml`. Otherwise no-op.
 
 Steps execute 1→3 for safety. If interrupted, re-run detects folder already in `fab/changes/` and completes remaining steps (index cleanup, optional pointer update).
 
@@ -173,7 +173,7 @@ Steps execute 1→3 for safety. If interrupted, re-run detects folder already in
 
 - Does NOT modify `.status.yaml` progress (may update `last_updated`)
 - Accepts optional `[change-name]` argument for targeting a specific change (archive mode)
-- Conditional pointer clearing in archive mode — only clears `fab/current` when the archived change is the active one
+- Conditional pointer clearing in archive mode — only removes `.fab-status.yaml` when the archived change is the active one
 - Restore mode requires explicit `<change-name>` — no "restore most recent" convenience
 - Restore mode optionally activates via `--switch` flag
 
@@ -290,7 +290,7 @@ The operator sends commands to other agents via the `fab send-keys <change> "<te
 *Introduced by*: 260214-v7k3-archive-restore-mode
 
 ### fab-archive Clears Pointer Conditionally
-**Decision**: `/fab-archive` only clears `fab/current` when the archived change is the active one.
+**Decision**: `/fab-archive` only removes `.fab-status.yaml` when the archived change is the active one.
 **Why**: If archiving a non-active change (via change-name argument), clearing the pointer would disrupt the user's active work context.
 **Rejected**: Always clear — would lose active change context when archiving a different change. Never clear — would leave stale pointer after archiving the active change.
 *Introduced by*: 260213-jc0u-split-archive-hydrate

@@ -27,7 +27,7 @@ Each skill retains its own orchestration logic (stage guards, question handling,
 
 ### `/fab-new <description>`
 
-`/fab-new` starts a new change from a natural language description. It is adaptive: clear inputs get a quick intake, vague inputs trigger conversational exploration. It creates the change folder, initializes status tracking, and generates an intake (with Origin section). The change is NOT activated — no write to `fab/current`, no branch integration. The user activates via `/fab-switch` after creation. Output is always a single artifact: `intake.md`.
+`/fab-new` starts a new change from a natural language description. It is adaptive: clear inputs get a quick intake, vague inputs trigger conversational exploration. It creates the change folder, initializes status tracking, and generates an intake (with Origin section). The change is NOT activated — no `.fab-status.yaml` symlink created, no branch integration. The user activates via `/fab-switch` after creation. Output is always a single artifact: `intake.md`.
 
 #### Slug Generation and Change Creation
 
@@ -77,7 +77,7 @@ Loads: config, constitution, `docs/memory/index.md` (to understand the existing 
 
 ### `/fab-continue [<change-name>] [<stage>]`
 
-`/fab-continue` advances to the next pipeline stage — planning, implementation, review, or hydrate — and either generates the artifact or executes the stage's behavior. When called with a stage argument, it resets to that stage. When called with a change-name argument, it targets that change instead of the active one in `fab/current` (transient — `fab/current` is not modified). Both arguments can coexist; stage names are disambiguated first (fixed set of 6), all other arguments are treated as change-name overrides. The pipeline flows intake → spec → tasks → apply → review → hydrate.
+`/fab-continue` advances to the next pipeline stage — planning, implementation, review, or hydrate — and either generates the artifact or executes the stage's behavior. When called with a stage argument, it resets to that stage. When called with a change-name argument, it targets that change instead of the active one in `.fab-status.yaml` (transient — `.fab-status.yaml` is not modified). Both arguments can coexist; stage names are disambiguated first (fixed set of 6), all other arguments are treated as change-name overrides. The pipeline flows intake → spec → tasks → apply → review → hydrate.
 
 #### Normal Forward Flow (no argument)
 
@@ -110,7 +110,7 @@ Reset is primarily used after review identifies issues upstream.
 
 ### `/fab-fff [<change-name>]` (Full Pipeline)
 
-`/fab-fff` runs the entire Fab pipeline in a single invocation: planning (spec, tasks) → apply → review → hydrate. No confidence gate. It frontloads questions, interleaves auto-clarify between planning stages, and autonomously reworks on review failure with bounded retry (3 cycles max, escalation after 2 consecutive fix-code failures). Accepts an optional change-name argument to target a specific change instead of the active one in `fab/current`.
+`/fab-fff` runs the entire Fab pipeline in a single invocation: planning (spec, tasks) → apply → review → hydrate. No confidence gate. It frontloads questions, interleaves auto-clarify between planning stages, and autonomously reworks on review failure with bounded retry (3 cycles max, escalation after 2 consecutive fix-code failures). Accepts an optional change-name argument to target a specific change instead of the active one in `.fab-status.yaml`.
 
 #### Minimum Prerequisite
 
@@ -129,7 +129,7 @@ The `/fab-fff` pipeline interleaves auto-clarify between planning stage generati
 
 #### Pipeline Flow
 
-1. Read `fab/current` to resolve the active change; verify intake exists
+1. Resolve the active change (via `.fab-status.yaml` symlink); verify intake exists
 2. Frontload questions (single batch)
 3. Generate `spec.md` (incorporating answers) → run auto-clarify on spec
 4. Produce task breakdown (referencing spec and intake) → run auto-clarify on tasks
@@ -174,7 +174,7 @@ Since the spec already exists when `/fab-ff` is invoked, there is no frontloaded
 
 #### Pipeline Flow
 
-1. Read `fab/current` to resolve the active change; verify spec exists and confidence gate passes
+1. Resolve the active change (via `.fab-status.yaml` symlink); verify spec exists and confidence gate passes
 2. Generate `tasks.md` if needed → run auto-clarify on tasks
 3. Auto-generate quality checklist
 4. Execute tasks via apply behavior
@@ -205,7 +205,7 @@ Loads all planning context upfront: config, constitution, `intake.md`, `spec.md`
 
 ### `/fab-clarify [<change-name>]`
 
-`/fab-clarify` deepens and refines the current stage artifact without advancing to the next stage. It operates in two modes depending on call context: **suggest mode** (user invocation) and **auto mode** (internal `fab-ff` call). It is idempotent and non-advancing. Accepts an optional change-name argument to target a specific change instead of the active one in `fab/current`. See [clarify.md](clarify.md) for the detailed dual-mode specification.
+`/fab-clarify` deepens and refines the current stage artifact without advancing to the next stage. It operates in two modes depending on call context: **suggest mode** (user invocation) and **auto mode** (internal `fab-ff` call). It is idempotent and non-advancing. Accepts an optional change-name argument to target a specific change instead of the active one in `.fab-status.yaml`. See [clarify.md](clarify.md) for the detailed dual-mode specification.
 
 #### Suggest Mode (User Invocation)
 
@@ -364,7 +364,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 | 260210-wpay-extract-shared-generation-logic | 2026-02-10 | Extracted shared generation logic (spec, tasks, checklist) into `_generation.md` partial; both `/fab-continue` and `/fab-ff` now reference it |
 | 260210-nan4-define-auto-mode-signaling | 2026-02-10 | Defined explicit `[AUTO-MODE]` prefix protocol for skill-to-skill invocation in `_preamble.md`; updated `/fab-ff` auto-clarify invocations and "Clarify Mode Selection" design decision |
 | 260210-0p4e-fix-stage-guard-progress-check | 2026-02-10 | `/fab-continue` stage guard now checks `progress.{stage}` value to distinguish done/active/pending states, allowing resumption of interrupted stage generations |
-| 260210-zr1f-discuss-auto-activate-when-no-current | 2026-02-10 | `/fab-discuss` conditionally offers activation when `fab/current` is empty; updated proposal output, key differences table |
+| 260210-zr1f-discuss-auto-activate-when-no-current | 2026-02-10 | `/fab-discuss` conditionally offers activation when no active change; updated proposal output, key differences table |
 | 260209-r4w8-archive-index-longer-slugs | 2026-02-09 | Expanded slug word count from 2-4 to 2-6 words in `/fab-new` folder name generation |
 | 260208-q8v3-branch-to-switch | 2026-02-09 | Moved branch integration from `/fab-new` to `/fab-switch`, removed `--branch` flag from `/fab-new`, `/fab-new` now calls `/fab-switch` internally |
 | 260208-lgd7-fab-discuss-command | 2026-02-08 | Added `/fab-discuss` conversational intake skill, `/fab-new` confidence scoring, context-driven mode selection design decisions |

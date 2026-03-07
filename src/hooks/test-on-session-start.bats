@@ -2,7 +2,7 @@
 
 # Test suite for fab/.kit/hooks/on-session-start.sh
 # Covers: active change clears agent block, no agent block is idempotent,
-#         no fab/current, missing change dir, missing .status.yaml,
+#         no .fab-status.yaml symlink, missing change dir, missing .status.yaml,
 #         yq not available, fab dispatcher not available
 
 SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
@@ -43,7 +43,7 @@ agent:
   idle_since: 1741193400
 YAML
 
-  echo "260305-bs5x-test-change" > "$REPO/fab/current"
+  ln -s "fab/changes/260305-bs5x-test-change/.status.yaml" "$REPO/.fab-status.yaml"
 }
 
 teardown() {
@@ -71,9 +71,9 @@ teardown() {
   [ "$agent" = "null" ]
 }
 
-@test "on-session-start: no fab/current exits 0 silently" {
+@test "on-session-start: no .fab-status.yaml symlink exits 0 silently" {
   cd "$REPO"
-  rm "$REPO/fab/current"
+  rm "$REPO/.fab-status.yaml"
   run bash fab/.kit/hooks/on-session-start.sh
   [ "$status" -eq 0 ]
 

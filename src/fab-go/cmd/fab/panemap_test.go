@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/wvrdz/fab-kit/src/fab-go/internal/resolve"
 )
 
 func TestFormatIdleDuration(t *testing.T) {
@@ -181,12 +182,10 @@ func TestPrintPaneTable(t *testing.T) {
 }
 
 func TestReadFabCurrent(t *testing.T) {
-	t.Run("two line format", func(t *testing.T) {
+	t.Run("symlink present", func(t *testing.T) {
 		tmp := t.TempDir()
-		if err := os.MkdirAll(tmp+"/fab", 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(tmp+"/fab/current", []byte("ab12\n260306-ab12-some-change\n"), 0o644); err != nil {
+		target := "fab/changes/260306-ab12-some-change/.status.yaml"
+		if err := os.Symlink(target, tmp+"/.fab-status.yaml"); err != nil {
 			t.Fatal(err)
 		}
 
@@ -199,43 +198,24 @@ func TestReadFabCurrent(t *testing.T) {
 		}
 	})
 
-	t.Run("empty file", func(t *testing.T) {
+	t.Run("broken symlink", func(t *testing.T) {
 		tmp := t.TempDir()
-		if err := os.MkdirAll(tmp+"/fab", 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(tmp+"/fab/current", []byte(""), 0o644); err != nil {
+		// Symlink to non-existent target — readlink still works
+		target := "fab/changes/260306-ab12-deleted-change/.status.yaml"
+		if err := os.Symlink(target, tmp+"/.fab-status.yaml"); err != nil {
 			t.Fatal(err)
 		}
 
 		display, folder := readFabCurrent(tmp)
-		if display != "(no change)" {
-			t.Errorf("display = %q, want %q", display, "(no change)")
+		if display != "260306-ab12-deleted-change" {
+			t.Errorf("display = %q, want %q", display, "260306-ab12-deleted-change")
 		}
-		if folder != "" {
-			t.Errorf("folder = %q, want empty", folder)
-		}
-	})
-
-	t.Run("single line only", func(t *testing.T) {
-		tmp := t.TempDir()
-		if err := os.MkdirAll(tmp+"/fab", 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(tmp+"/fab/current", []byte("ab12\n"), 0o644); err != nil {
-			t.Fatal(err)
-		}
-
-		display, folder := readFabCurrent(tmp)
-		if display != "(no change)" {
-			t.Errorf("display = %q, want %q", display, "(no change)")
-		}
-		if folder != "" {
-			t.Errorf("folder = %q, want empty", folder)
+		if folder != "260306-ab12-deleted-change" {
+			t.Errorf("folder = %q, want %q", folder, "260306-ab12-deleted-change")
 		}
 	})
 
-	t.Run("missing file", func(t *testing.T) {
+	t.Run("no symlink", func(t *testing.T) {
 		tmp := t.TempDir()
 
 		display, folder := readFabCurrent(tmp)
@@ -246,4 +226,27 @@ func TestReadFabCurrent(t *testing.T) {
 			t.Errorf("folder = %q, want empty", folder)
 		}
 	})
+}
+
+func TestExtractFolderFromSymlink(t *testing.T) {
+	tests := []struct {
+		name     string
+		target   string
+		expected string
+	}{
+		{"valid target", "fab/changes/260306-ab12-some-change/.status.yaml", "260306-ab12-some-change"},
+		{"empty name", "fab/changes//.status.yaml", ""},
+		{"no prefix", "other/260306-ab12-some-change/.status.yaml", ""},
+		{"no suffix", "fab/changes/260306-ab12-some-change/other.yaml", ""},
+		{"nested slash in name", "fab/changes/foo/bar/.status.yaml", ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := resolve.ExtractFolderFromSymlink(tc.target)
+			if result != tc.expected {
+				t.Errorf("resolve.ExtractFolderFromSymlink(%q) = %q, want %q", tc.target, result, tc.expected)
+			}
+		})
+	}
 }
