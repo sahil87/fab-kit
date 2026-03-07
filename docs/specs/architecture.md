@@ -8,6 +8,7 @@
 
 ```
 project/
+├── .fab-status.yaml → fab/changes/{name}/.status.yaml  # Symlink to active change status
 ├── fab/
 │   ├── .kit/                       # Engine — replaceable upstream, rarely touched
 │   │   ├── VERSION                 # Engine version (semver, e.g. "0.1.0")
@@ -46,7 +47,6 @@ project/
 │   ├── project/
 │   │   ├── config.yaml             # Project-specific configuration
 │   │   └── constitution.md         # Project principles & constraints
-│   ├── current                     # Pointer file (contains active change name)
 │   ├── memory/                     # Centralized source of truth
 │   │   ├── index.md               # Top-level memory index
 │   │   ├── auth/
@@ -121,26 +121,26 @@ All three support `--list` (show targets), `--all` (process all), and direct ID/
 
 ---
 
-## Active Change Tracking (`fab/current`)
+## Active Change Tracking (`.fab-status.yaml`)
 
-`fab/current` is a plain text file containing the name of the active change folder (e.g. `260115-a7k2-add-oauth`). It removes the need to scan `changes/` or remember folder names.
+`.fab-status.yaml` is a symlink at the repo root that points to the active change's `.status.yaml` file (e.g., `fab/changes/260115-a7k2-add-oauth/.status.yaml`). It removes the need to scan `changes/` or remember folder names.
 
 **Lifecycle**:
-- **Created** by `/fab-switch` — written with the change folder name when a change is activated
-- **Updated** by `/fab-switch` — overwritten with the new change name
-- **Read** by every other skill — `/fab-continue`, `/fab-clarify`, `/fab-status` all resolve the active change via `current` rather than requiring a name argument
-- **Cleared** by `/fab-archive` — file is deleted after archiving (no active change)
+- **Created** by `/fab-switch` — symlink created pointing to the change's `.status.yaml` when a change is activated
+- **Updated** by `/fab-switch` — symlink replaced to point to the new change's `.status.yaml`
+- **Read** by every other skill — `/fab-continue`, `/fab-clarify`, `/fab-status` all resolve the active change via `.fab-status.yaml` rather than requiring a name argument
+- **Removed** by `/fab-archive` — symlink is deleted after archiving (no active change)
 
 **Resolution pattern** (used by all skills):
 ```
-active=$(cat fab/current)
-# then access: fab/changes/$active/.status.yaml, fab/changes/$active/intake.md, etc.
+# .fab-status.yaml → fab/changes/{name}/.status.yaml
+# Skills resolve the active change by following the symlink
 ```
 
 **Switching between changes**: If multiple change folders exist and you want to switch context:
 ```
 /fab-switch add-oauth
-→ "fab/current now points to 260115-a7k2-add-oauth"
+→ "fab/current → 260115-a7k2-add-oauth"
 ```
 
 `/fab-switch` accepts partial matches — the slug portion is enough to identify the change unambiguously.
@@ -151,11 +151,10 @@ active=$(cat fab/current)
 ```
 The skill outputs a formatted status block with version, change name, branch, stage progress, checklist counts, and suggested next command.
 
-**Why a pointer file (not a symlink)?**
-- **Cross-platform** — symlinks on Windows require Developer Mode or admin privileges. A plain text file works everywhere.
-- **Cleaner errors** — if the target change is deleted, reading a stale name is easy to detect and report clearly, vs. a dangling symlink producing confusing errors.
-- **Simpler operations** — any language/tool can read and write a plain text file. No `ln -sf` semantics.
-- **Git-friendly** — add `fab/current` to `.gitignore` since it's local working state.
+**Why a symlink?**
+- **Direct access** — reading `.fab-status.yaml` yields the active change's status directly, no intermediate lookup step
+- **Atomic pointer** — the symlink target encodes both the change name and the path to its status file
+- **Git-friendly** — add `.fab-status.yaml` to `.gitignore` since it's local working state
 
 ---
 
@@ -164,7 +163,7 @@ The skill outputs a formatted status block with version, change name, branch, st
 To discard a change that won't be completed:
 
 1. Delete the change folder: `rm -rf fab/changes/{name}/`
-2. Clear the pointer (if it's the active change): `rm fab/current`
+2. Remove the symlink (if it's the active change): `rm .fab-status.yaml`
 3. Optionally delete the associated git branch: `git branch -d {branch}`
 
 There is no `/fab-abandon` skill — this is a manual operation. If you want to preserve context about *why* the change was dropped, move the folder to `archive/` instead of deleting it and set `stage: abandoned` in `.status.yaml`.
@@ -318,7 +317,7 @@ Fab stays out of this. No branch information is stored in `.status.yaml` — `/f
 
 ### How It Works
 
-`/git-branch` is the standalone command for branch management. It creates or checks out a branch matching the active (or specified) change. `/fab-switch` only writes `fab/current` — it does not touch git.
+`/git-branch` is the standalone command for branch management. It creates or checks out a branch matching the active (or specified) change. `/fab-switch` only creates the `.fab-status.yaml` symlink — it does not touch git.
 
 | Option | When to use | What happens |
 |--------|-------------|--------------|
@@ -361,7 +360,7 @@ For the full taxonomy — confidence thresholds, expected decision counts, keywo
 Add to your project's `.gitignore`:
 
 ```
-fab/current          # Local working state — each developer has their own active change
+.fab-status.yaml     # Local working state — each developer has their own active change
 ```
 
 **What to commit** (shared with team):
@@ -369,7 +368,7 @@ fab/current          # Local working state — each developer has their own acti
 - `fab/changes/` — change artifacts (intakes, specs, tasks)
 
 **What to ignore** (local state):
-- `fab/current` — active change pointer (per-developer)
+- `.fab-status.yaml` — active change symlink (per-developer)
 
 ---
 
@@ -468,7 +467,7 @@ This keeps the workflow entirely prompt-driven after the one-time directory copy
 - `fab/project/constitution.md` — project principles and constraints
 - `docs/memory/` — memory files (post-implementation truth)
 - `fab/changes/` — active and archived changes
-- `fab/current` — active change pointer
+- `.fab-status.yaml` — active change symlink
 
 **What's replaced** (lives inside `.kit/`):
 - `fab/.kit/templates/` — artifact templates
@@ -487,7 +486,7 @@ A monorepo is one Fab project. Place a single `fab/` at the repository root — 
 
 - **Changes naturally span packages.** "Add user avatars" touches the API, the frontend, and shared types. One change folder, one spec — that's exactly how Fab works.
 - **Memory is domain-based, not package-based.** `docs/memory/auth/` describes authentication regardless of which package implements it. This is already the right abstraction for cross-cutting concerns.
-- **One developer, one change at a time.** `fab/current` points to a single active change. In practice, AI-assisted development is sequential — you finish one change before starting the next.
+- **One developer, one change at a time.** `.fab-status.yaml` points to a single active change. In practice, AI-assisted development is sequential — you finish one change before starting the next.
 - **Simplicity.** Multiple `fab/` directories means multiple constitutions, multiple memory trees, symlink conflicts in `.claude/skills/`, and no natural home for cross-package changes.
 
 ### Structured Context for Mixed Tech Stacks
@@ -519,7 +518,7 @@ Skills loading context will naturally scope to the relevant section based on wha
 
 | Concern | Status |
 |---------|--------|
-| `fab/current` (single pointer) | Fine — one change at a time |
+| `.fab-status.yaml` (single pointer) | Fine — one change at a time |
 | `fab/changes/` (flat) | Fine — changes reference affected packages in their spec |
 | `docs/memory/` (domain-based) | Already monorepo-friendly |
 | `fab/project/constitution.md` | Shared principles apply repo-wide; use sections for package-specific conventions if needed |

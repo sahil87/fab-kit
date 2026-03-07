@@ -65,7 +65,7 @@ All commands accept a unified `<change>` argument:
 
 ## fab change
 
-Change Manager — manages change folders, naming, and the `fab/current` pointer.
+Change Manager — manages change folders, naming, and the `.fab-status.yaml` symlink.
 
 ```
 fab/.kit/bin/fab change <subcommand> [flags...]
@@ -206,7 +206,7 @@ fab/.kit/bin/fab log review <change> <result> [rework]
 fab/.kit/bin/fab log transition <change> <stage> <action> [from] [reason] [driver]
 ```
 
-The `command` subcommand accepts `<cmd>` (skill name) as the first argument. `[change]` is optional — when omitted, it resolves the active change via `fab/current`. If resolution fails (no `fab/current`, empty file, stale pointer), exits 0 silently. When `[change]` IS provided and doesn't resolve, exits 1 with an error.
+The `command` subcommand accepts `<cmd>` (skill name) as the first argument. `[change]` is optional — when omitted, it resolves the active change via `.fab-status.yaml`. If resolution fails (no `.fab-status.yaml` symlink, dangling symlink), exits 0 silently. When `[change]` IS provided and doesn't resolve, exits 1 with an error.
 
 **Callers**:
 
@@ -315,4 +315,4 @@ fab/.kit/bin/fab send-keys 260306-k8ds-ship-wt-binary "git fetch origin main && 
 | "Status file not found: {path}" | Passed a path that doesn't exist as a file | Use a change ID or folder name instead |
 | "Cannot resolve change '{arg}'" | Change ID/name doesn't match any folder in `fab/changes/` | Check `fab/.kit/bin/fab change list` for available changes |
 | "Multiple changes match" | Ambiguous substring matched multiple folders | Use a more specific identifier |
-| "No active changes found" | `fab/current` is empty/missing and no changes exist | Run `/fab-new` first |
+| "No active changes found" | `.fab-status.yaml` symlink is absent and no changes exist | Run `/fab-new` first |

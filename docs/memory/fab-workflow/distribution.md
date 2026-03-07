@@ -63,7 +63,7 @@ The script accepts an optional positional argument — a release tag (e.g., `v0.
 
 #### Update Preserves Project Files
 
-`fab-upgrade.sh` MUST NOT modify any files outside of `fab/.kit/`. Preserved: `fab/project/config.yaml`, `fab/project/constitution.md`, `fab/.kit-migration-version`, `fab/.kit-sync-version`, `docs/memory/`, `docs/specs/`, `fab/changes/`, `fab/current`.
+`fab-upgrade.sh` MUST NOT modify any files outside of `fab/.kit/`. Preserved: `fab/project/config.yaml`, `fab/project/constitution.md`, `fab/.kit-migration-version`, `fab/.kit-sync-version`, `docs/memory/`, `docs/specs/`, `fab/changes/`, `.fab-status.yaml`.
 
 ### Sync Staleness Detection
 

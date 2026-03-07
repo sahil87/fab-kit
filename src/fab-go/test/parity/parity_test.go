@@ -112,6 +112,11 @@ func setupTempRepo(t *testing.T) string {
 	if err := os.WriteFile(dstSchema, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// Create .fab-status.yaml symlink (active change pointer)
+	target := fmt.Sprintf("fab/changes/%s/.status.yaml", changeName)
+	if err := os.Symlink(target, filepath.Join(tmp, ".fab-status.yaml")); err != nil {
+		t.Fatal(err)
+	}
 	return tmp
 }
 

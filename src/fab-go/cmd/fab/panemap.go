@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/wvrdz/fab-kit/src/fab-go/internal/resolve"
 	sf "github.com/wvrdz/fab-kit/src/fab-go/internal/statusfile"
 	"github.com/wvrdz/fab-kit/src/fab-go/internal/status"
 	"gopkg.in/yaml.v3"
@@ -137,7 +138,7 @@ func resolvePane(p paneEntry, mainRoot string, runtimeCache map[string]interface
 	// Compute worktree display path
 	wtDisplay := worktreeDisplayPath(wtRoot, mainRoot)
 
-	// Read fab/current for the active change folder name
+	// Read .fab-status.yaml symlink for the active change folder name
 	changeName, folderName := readFabCurrent(wtRoot)
 
 	// Read stage from .status.yaml
@@ -189,26 +190,24 @@ func worktreeDisplayPath(wtRoot, mainRoot string) string {
 	return filepath.Base(wtRoot) + "/"
 }
 
-// readFabCurrent reads fab/current and returns (displayName, folderName).
+// readFabCurrent reads .fab-status.yaml symlink and returns (displayName, folderName).
 // displayName is what shows in the Change column; folderName is the actual folder.
 func readFabCurrent(wtRoot string) (string, string) {
-	currentFile := filepath.Join(wtRoot, "fab", "current")
-	data, err := os.ReadFile(currentFile)
-	if err != nil || len(strings.TrimSpace(string(data))) == 0 {
+	symlinkPath := filepath.Join(wtRoot, ".fab-status.yaml")
+	target, err := os.Readlink(symlinkPath)
+	if err != nil {
 		return "(no change)", ""
 	}
 
-	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	folderName := ""
-	if len(lines) >= 2 {
-		folderName = strings.TrimSpace(lines[1])
-	}
+	// target is "fab/changes/{name}/.status.yaml"
+	folderName := resolve.ExtractFolderFromSymlink(target)
 	if folderName == "" {
 		return "(no change)", ""
 	}
 
 	return folderName, folderName
 }
+
 
 // resolveAgentState determines the agent state string for a pane row.
 func resolveAgentState(wtRoot, folderName string, cache map[string]interface{}) string {

@@ -31,7 +31,7 @@ preflight.sh   ← uses changeman.sh resolve, statusman.sh for queries, logman.s
 
 Universal resolver called by every other script. Pure function — no file writes, no `.status.yaml` modifications, no logging.
 
-**Input forms**: 4-char change ID, folder name substring (case-insensitive), full folder name, or no argument (reads line 2 of `fab/current` for folder name, single-change guess fallback). `resolve.sh` is the sole reader of `fab/current` content — all other scripts and skills delegate through it or `changeman.sh resolve`.
+**Input forms**: 4-char change ID, folder name substring (case-insensitive), full folder name, or no argument (reads `.fab-status.yaml` symlink target to extract folder name, single-change guess fallback). `resolve.go` is the sole reader of `.fab-status.yaml` — all other scripts and skills delegate through it or `fab resolve`.
 
 **Output flags** (mutually exclusive):
 - `--id` (default) — 4-char change ID
@@ -101,7 +101,7 @@ One JSON object per line, appended to `{change_dir}/.history.jsonl`.
 
 ### `logman.sh` Subcommands
 
-All resolve `<change>` via `resolve.sh --dir`. The `command` subcommand's no-change-arg path delegates to `resolve.sh` (reads `fab/current` internally) with a file-existence guard to skip the single-change guess fallback — best-effort logging only fires when an explicit active change pointer exists.
+All resolve `<change>` via `resolve.sh --dir`. The `command` subcommand's no-change-arg path delegates to `resolve.sh` (reads `.fab-status.yaml` symlink internally) with a symlink-existence guard to skip the single-change guess fallback — best-effort logging only fires when an explicit active change pointer exists.
 
 - `logman.sh command <cmd> [change] [args]` — logs command invocation
 - `logman.sh confidence <change> <score> <delta> <trigger>` — logs confidence change
@@ -158,9 +158,9 @@ Each script has exactly one responsibility with no overlap:
 
 `resolve.sh` is the universal dependency (~180 lines including help text). Every other script calls it first. Embedding it in changeman would force every script to load 400+ lines for a ~95-line resolution function.
 
-### Centralized `fab/current` Access
+### Centralized `.fab-status.yaml` Access
 
-`resolve.sh` is the sole reader of `fab/current` content; `changeman.sh` is the sole writer. This was enforced by 260302-a8ay-centralize-current-pointer, which removed direct reads from `logman.sh` (replaced with `resolve.sh` delegation) and updated `fab-discuss`/`fab-archive` skills to use `resolve.sh`/`changeman.sh` instead of direct file operations.
+`resolve.go` is the sole reader of the `.fab-status.yaml` symlink; `change.go` is the sole writer (`os.Remove` + `os.Symlink`). This was enforced by 260302-a8ay-centralize-current-pointer (centralized access to the former `fab/current` pointer), and updated by 260307-x2tx-status-symlink-pointer (replaced text file with symlink). No script or skill manipulates the symlink directly — all access goes through `fab resolve` and `fab change switch`.
 
 ---
 

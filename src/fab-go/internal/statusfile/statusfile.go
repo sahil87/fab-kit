@@ -72,6 +72,7 @@ type StageMetric struct {
 
 // StatusFile represents the .status.yaml structure.
 type StatusFile struct {
+	ID          string                  `yaml:"id"`
 	Name        string                  `yaml:"name"`
 	Created     string                  `yaml:"created"`
 	CreatedBy   string                  `yaml:"created_by"`
@@ -120,6 +121,8 @@ func Load(path string) (*StatusFile, error) {
 		val := root.Content[i+1]
 
 		switch key {
+		case "id":
+			sf.ID = val.Value
 		case "name":
 			sf.Name = val.Value
 		case "created":
@@ -243,6 +246,8 @@ func (sf *StatusFile) syncToRaw() {
 		val := root.Content[i+1]
 
 		switch key {
+		case "id":
+			val.Value = sf.ID
 		case "name":
 			val.Value = sf.Name
 		case "created":

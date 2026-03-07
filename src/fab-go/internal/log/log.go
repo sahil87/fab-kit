@@ -21,9 +21,10 @@ func Command(fabRoot, cmd, changeArg, args string) error {
 			return err
 		}
 	} else {
-		// No change arg: read fab/current, graceful degradation
-		currentFile := filepath.Join(fabRoot, "current")
-		if _, statErr := os.Stat(currentFile); os.IsNotExist(statErr) {
+		// No change arg: resolve from .fab-status.yaml symlink, graceful degradation
+		repoRoot := filepath.Dir(fabRoot)
+		symlinkPath := filepath.Join(repoRoot, ".fab-status.yaml")
+		if _, statErr := os.Lstat(symlinkPath); os.IsNotExist(statErr) {
 			return nil // silent exit
 		}
 		changeDir, err = resolve.ToAbsDir(fabRoot, "")

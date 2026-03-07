@@ -190,7 +190,7 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 
 **Arguments**:
 - `<description>` — natural language description of the change, Linear ticket ID (e.g., `DEV-988`), or backlog ID (e.g., `90g5`) (required)
-- `--switch` — automatically switch to the new change after creation (calls `/fab-switch` internally to write `fab/current` and handle branch integration). Also detected from natural language (e.g., "and switch to it", "make it active").
+- `--switch` — automatically switch to the new change after creation (calls `/fab-switch` internally to create the `.fab-status.yaml` symlink and handle branch integration). Also detected from natural language (e.g., "and switch to it", "make it active").
 
 **Examples**:
 ```
@@ -210,7 +210,7 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 5. Perform gap analysis — check whether the change is already covered by existing mechanisms
 6. Use SRAD-driven adaptive questioning (no fixed cap) to resolve ambiguities conversationally
 7. Advance intake to `ready` — the artifact exists and is open for `/fab-clarify` refinement
-8. **Switch** (if `--switch` flag or switching intent detected): call `/fab-switch` to write `fab/current` and handle branch integration. Default: skip this step.
+8. **Switch** (if `--switch` flag or switching intent detected): call `/fab-switch` to create the `.fab-status.yaml` symlink and handle branch integration. Default: skip this step.
 
 ---
 
@@ -466,7 +466,7 @@ The applying agent triages review comments by priority — not all comments need
 **Prerequisite**: `hydrate: done` in `.status.yaml`. If hydrate is not done, stop with: *"Hydrate has not completed. Run /fab-continue to hydrate memory first."*
 
 **Arguments**:
-- `<change-name>` *(optional)* — target a specific change instead of `fab/current`
+- `<change-name>` *(optional)* — target a specific change instead of the active one resolved via `.fab-status.yaml`
 
 **Example**:
 ```
@@ -479,7 +479,7 @@ The applying agent triages review comments by priority — not all comments need
 1. **Move change folder** — `fab/changes/{name}/` → `fab/changes/archive/{name}/`. Create `archive/` if needed. No rename.
 2. **Update archive index** — prepend entry to `fab/changes/archive/index.md` (create with backfill if missing). Format: `- **{folder-name}** — {1-2 sentence description}`. Most-recent-first.
 3. **Mark backlog items done** — exact-ID check (always), then keyword scan with interactive confirmation.
-4. **Clear pointer** — delete `fab/current` only if the archived change is the active one.
+4. **Clear pointer** — remove `.fab-status.yaml` symlink only if the archived change is the active one.
 
 **Order of operations**: Steps 1–4 execute in this order for safety. Folder move first (recoverable if interrupted — re-run detects folder already in archive and completes remaining steps). Index after folder is in place. Backlog marking after index. Pointer last.
 
@@ -494,14 +494,14 @@ The applying agent triages review comments by priority — not all comments need
 **Example**:
 ```
 /fab-switch fix-checkout
-→ "fab/current now points to 260202-m3x1-fix-checkout-bug"
+→ "fab/current → 260202-m3x1-fix-checkout-bug"
 ```
 
 **Behavior**:
 1. Match `change-name` against `fab/changes/` (supports partial/slug match)
 2. **Ambiguous match** — if multiple changes match the input (e.g., `/fab-switch add` matches both `260115-a7k2-add-oauth` and `260202-m3x1-add-dark-mode`), list the matches and ask the user to pick one. Never guess.
 3. **No match** — if nothing matches, list available changes and ask
-4. Write the full change name to `fab/current`
+4. Create the `.fab-status.yaml` symlink pointing to the change's `.status.yaml`
 5. Display the switched change's status summary
 
 ---
@@ -518,7 +518,7 @@ The applying agent triages review comments by priority — not all comments need
 
 **Behavior**:
 1. Check inside a git repo (`git rev-parse --is-inside-work-tree`)
-2. Resolve change name (from argument or `fab/current`)
+2. Resolve change name (from argument or `.fab-status.yaml`)
 3. Derive branch name: `{change-name}` (no prefix)
 4. Context-dependent action:
    - **Already on target** → no-op
@@ -529,7 +529,7 @@ The applying agent triages review comments by priority — not all comments need
 5. Report result
 
 **Key properties**:
-- Does not modify `fab/current` or `.status.yaml`
+- Does not modify `.fab-status.yaml` or `.status.yaml`
 - Idempotent — checking out an already-active branch is a no-op
 - Always enabled if in a git repo
 
@@ -564,10 +564,10 @@ Next: Complete intake.md, then /fab-continue
 
 **Purpose**: Prime the agent with project context for a discussion session. Loads the standard always-load layer and presents an orientation summary of the project landscape — memory domains, specs, active change (if any). Session entry point for exploratory conversations, not a pipeline stage.
 
-**Context**: Same as always-load (`_preamble.md` §1) — `config.yaml`, `constitution.md`, `context.md` (optional), `code-quality.md` (optional), `code-review.md` (optional), `docs/memory/index.md`, `docs/specs/index.md`. Also reads `fab/current` + `.status.yaml` for active change awareness (light touch).
+**Context**: Same as always-load (`_preamble.md` §1) — `config.yaml`, `constitution.md`, `context.md` (optional), `code-quality.md` (optional), `code-review.md` (optional), `docs/memory/index.md`, `docs/specs/index.md`. Also reads `.fab-status.yaml` symlink for active change awareness (light touch).
 
 **Key properties**:
-- No active change required — works without `fab/current`, without `fab/changes/`
+- No active change required — works without `.fab-status.yaml`, without `fab/changes/`
 - Read-only — modifies no files
 - Idempotent — safe to invoke repeatedly
 - Does not run preflight
@@ -611,7 +611,7 @@ Next: Complete intake.md, then /fab-continue
 
 **Purpose**: Analyze memory files across all domains for themes and propose a reorganization plan. Read-only by default — files only moved/rewritten with explicit user approval.
 
-**Context**: `docs/memory/index.md`, all domain indexes and memory files. Does NOT require `fab/current`, config, or constitution.
+**Context**: `docs/memory/index.md`, all domain indexes and memory files. Does NOT require `.fab-status.yaml`, config, or constitution.
 
 **Prerequisite**: `docs/memory/index.md` must exist and `docs/memory/` must contain at least one domain with `.md` files besides `index.md`.
 
@@ -630,7 +630,7 @@ Next: Complete intake.md, then /fab-continue
 
 **Purpose**: Analyze spec files for themes and propose a reorganization plan. Read-only by default — files only moved/rewritten with explicit user approval.
 
-**Context**: `docs/specs/index.md` and all spec files. Does NOT require `fab/current`, config, or constitution.
+**Context**: `docs/specs/index.md` and all spec files. Does NOT require `.fab-status.yaml`, config, or constitution.
 
 **Prerequisite**: `docs/specs/index.md` must exist and `docs/specs/` must contain at least one `.md` file besides `index.md`.
 

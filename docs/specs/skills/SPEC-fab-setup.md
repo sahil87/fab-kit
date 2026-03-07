@@ -40,7 +40,7 @@ User invokes /fab-setup [subcommand]
 │  │     └─ (creates directories, symlinks, migration version)
 │  │
 │  └─ Phase 1k: .gitignore
-│     └─ Edit: .gitignore (append fab/current)
+│     └─ Edit: .gitignore (append .fab-status.yaml)
 │
 ├── config: Config ──────────────────────────────────────
 │  ├─ Read: fab/project/config.yaml

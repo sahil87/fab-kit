@@ -24,7 +24,7 @@ This gives the agent awareness of project settings, constraints, project context
 
 ### Preflight Script for Change Context
 
-Skills that operate on an active change resolve the change context by running `fab/.kit/scripts/lib/preflight.sh [change-name]` via Bash. The script accepts an optional first positional argument as a change name override. When provided, the script resolves the change using case-insensitive substring matching against folder names in `fab/changes/` (excluding `archive/`) instead of reading `fab/current`. The override is transient — `fab/current` is never modified. When no argument is provided, the script falls back to reading `fab/current` (backward compatible).
+Skills that operate on an active change resolve the change context by running `fab/.kit/scripts/lib/preflight.sh [change-name]` via Bash. The script accepts an optional first positional argument as a change name override. When provided, the script resolves the change using case-insensitive substring matching against folder names in `fab/changes/` (excluding `archive/`) instead of reading `.fab-status.yaml`. The override is transient — `.fab-status.yaml` is never modified. When no argument is provided, the script falls back to reading `.fab-status.yaml` (backward compatible).
 
 The matching supports full folder names, partial slug matches, and 4-char random IDs (e.g., `r3m7`). Exact match takes priority; single partial match resolves directly; multiple matches or no match produce a non-zero exit with a descriptive error.
 
@@ -67,7 +67,7 @@ This protocol is loaded as part of the "Always Load" layer via `_preamble.md` an
 The `_preamble.md` preamble defines a **state-keyed Next Steps Convention** that all skills use to derive their `Next:` output lines. The convention includes:
 
 1. **State Table** — 9 states (none, initialized, intake, spec, tasks, apply, review pass, review fail, hydrate) each mapping to available commands and a default
-2. **State derivation rules** — how to determine the current state from `config.yaml` existence, `fab/current`, and `.status.yaml` progress map
+2. **State derivation rules** — how to determine the current state from `config.yaml` existence, `.fab-status.yaml`, and `.status.yaml` progress map
 3. **Lookup procedure** — determine state, look up in table, output default first
 4. **Activation preamble** — when a skill creates/restores a change without activating it (e.g., `/fab-new`, `/fab-archive restore` without `--switch`), the `Next:` line includes a `/fab-switch {name}` instruction before state-derived commands
 

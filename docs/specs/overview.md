@@ -34,7 +34,7 @@ Code serves documentation, not the other way around. The memory files (`docs/mem
 All work happens in change folders. Each change captures its requirements (`spec.md`), which get hydrated into memory files on completion.
 
 ### 4. Stage Visibility
-Always know where you are. Each change folder has a `.status.yaml` manifest that tracks current stage and progress. A `current` pointer file (`fab/current` contains the active change name) provides instant access to whichever change is in flight — no scanning or guessing required. Run `/fab-status` for a quick check.
+Always know where you are. Each change folder has a `.status.yaml` manifest that tracks current stage and progress. The `.fab-status.yaml` symlink at repo root points to the active change's `.status.yaml`, providing instant access to whichever change is in flight — no scanning or guessing required. Run `/fab-status` for a quick check.
 
 ### 5. Skill-Based Interface
 Use skills (not rigid commands) for better agent interoperability. Skills are more naturally invocable by AI agents.

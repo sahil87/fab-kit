@@ -62,6 +62,26 @@ For the complete API reference, see `src/lib/statusman/README.md`.
 4. **Validated** — Schema enforces correctness at runtime
 5. **Versionable** — Metadata tracks compatibility and changes
 
+## `.status.yaml` Identity Fields
+
+### `id` Field
+
+The `id` field is a top-level field in `.status.yaml` containing the 4-character change ID (the `XXXX` component of the folder name). It is derived from the `name` at creation time and is immutable.
+
+```yaml
+id: x2tx
+name: 260307-x2tx-status-symlink-pointer
+created: 2026-03-07T16:54:29+05:30
+```
+
+The `id` field makes the change ID directly available from reading `.status.yaml` without needing to parse the folder name. This is especially useful when reading status via the `.fab-status.yaml` symlink — the consumer gets the ID from the file content rather than having to parse the symlink target path.
+
+### `.fab-status.yaml` Symlink
+
+`.fab-status.yaml` is a symlink at the repository root pointing to the active change's `.status.yaml`. It is the active change pointer — the replacement for the former `fab/current` text file. The symlink target is always a relative path: `fab/changes/{name}/.status.yaml`. See [change-lifecycle.md](change-lifecycle.md) for full lifecycle documentation.
+
+Together with `.fab-runtime.yaml`, these two sibling files at the repo root form the complete ephemeral per-worktree state surface, scannable with a single glob.
+
 ## Ephemeral Runtime State
 
 ### Agent Block — `.fab-runtime.yaml`
@@ -93,6 +113,7 @@ Each worktree has its own repo root, so each gets its own `.fab-runtime.yaml` �
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260307-x2tx-status-symlink-pointer | 2026-03-07 | Replaced `fab/current` pointer file with `.fab-status.yaml` symlink at repo root. Added `id` field to `.status.yaml`. Updated resolution, switch, rename, pane-map, hooks, and dispatch. Migration `0.32.0-to-0.34.0` covers conversion. |
 | 260306-6bba-redesign-hooks-strategy | 2026-03-06 | Updated Ephemeral Runtime State: `.fab-runtime.yaml` operations now use `fab runtime set-idle` and `fab runtime clear-idle` Go subcommands instead of direct yq manipulation in hooks. |
 | 260306-1lwf-extract-agent-runtime-file | 2026-03-06 | Moved agent runtime state from `.status.yaml` to `.fab-runtime.yaml` (repo root, gitignored, keyed by change folder name). Updated Ephemeral Runtime State section accordingly. |
 | 260305-bs5x-orchestrator-idle-hooks | 2026-03-05 | Added Ephemeral Runtime State section documenting the optional `agent` block (`agent.idle_since` timestamp) managed by Claude Code hooks, not part of workflow schema or templates |

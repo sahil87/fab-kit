@@ -2,7 +2,7 @@
 
 ## Summary
 
-Switches the active change by writing to `fab/current`. Lists available changes when called with no argument. Supports deactivation via `--blank`.
+Switches the active change by creating the `.fab-status.yaml` symlink. Lists available changes when called with no argument. Supports deactivation via `--blank`.
 
 ## Flow
 

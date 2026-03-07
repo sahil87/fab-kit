@@ -6,7 +6,8 @@ import (
 	"testing"
 )
 
-const testYAML = `name: 260305-test-1-sample-change
+const testYAML = `id: te1t
+name: 260305-test-1-sample-change
 created: "2026-03-05T12:00:00+05:30"
 created_by: test-user
 change_type: feat
@@ -48,6 +49,9 @@ func TestLoadAndSave(t *testing.T) {
 		t.Fatalf("Load failed: %v", err)
 	}
 
+	if sf.ID != "te1t" {
+		t.Errorf("expected id 'te1t', got '%s'", sf.ID)
+	}
 	if sf.Name != "260305-test-1-sample-change" {
 		t.Errorf("expected name '260305-test-1-sample-change', got '%s'", sf.Name)
 	}
@@ -98,6 +102,9 @@ func TestLoadAndSave(t *testing.T) {
 	sf2, err := Load(outPath)
 	if err != nil {
 		t.Fatalf("Reload failed: %v", err)
+	}
+	if sf2.ID != sf.ID {
+		t.Errorf("round-trip id mismatch: %s vs %s", sf2.ID, sf.ID)
 	}
 	if sf2.Name != sf.Name {
 		t.Errorf("round-trip name mismatch: %s vs %s", sf2.Name, sf.Name)

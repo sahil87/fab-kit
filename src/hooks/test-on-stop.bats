@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 
 # Test suite for fab/.kit/hooks/on-stop.sh
-# Covers: active change writes timestamp, no fab/current, missing change dir,
+# Covers: active change writes timestamp, no .fab-status.yaml symlink, missing change dir,
 #         missing .status.yaml, yq not available, fab dispatcher not available
 
 SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
@@ -40,8 +40,8 @@ progress:
   intake: done
 YAML
 
-  # Set active change
-  echo "260305-bs5x-test-change" > "$REPO/fab/current"
+  # Set active change via symlink
+  ln -s "fab/changes/260305-bs5x-test-change/.status.yaml" "$REPO/.fab-status.yaml"
 }
 
 teardown() {
@@ -59,9 +59,9 @@ teardown() {
   [ "$idle_since" -gt 0 ]
 }
 
-@test "on-stop: no fab/current exits 0 silently" {
+@test "on-stop: no .fab-status.yaml symlink exits 0 silently" {
   cd "$REPO"
-  rm "$REPO/fab/current"
+  rm "$REPO/.fab-status.yaml"
   run bash fab/.kit/hooks/on-stop.sh
   [ "$status" -eq 0 ]
 
@@ -70,9 +70,10 @@ teardown() {
   [ "$idle_since" = "null" ]
 }
 
-@test "on-stop: empty fab/current exits 0 silently" {
+@test "on-stop: broken .fab-status.yaml symlink exits 0 silently" {
   cd "$REPO"
-  echo "" > "$REPO/fab/current"
+  rm "$REPO/.fab-status.yaml"
+  ln -s "fab/changes/nonexistent/.status.yaml" "$REPO/.fab-status.yaml"
   run bash fab/.kit/hooks/on-stop.sh
   [ "$status" -eq 0 ]
 }

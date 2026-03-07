@@ -27,7 +27,7 @@ func FabRoot() (string, error) {
 }
 
 // ToFolder resolves a change reference to a full folder name.
-// If override is empty, reads fab/current line 2.
+// If override is empty, reads .fab-status.yaml symlink at repo root.
 func ToFolder(fabRoot, override string) (string, error) {
 	changesDir := filepath.Join(fabRoot, "changes")
 
@@ -123,14 +123,14 @@ func resolveOverride(changesDir, override string) (string, error) {
 }
 
 func resolveFromCurrent(fabRoot, changesDir string) (string, error) {
-	currentFile := filepath.Join(fabRoot, "current")
-	if data, err := os.ReadFile(currentFile); err == nil {
-		lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-		if len(lines) >= 2 {
-			name := strings.TrimSpace(lines[1])
-			if name != "" {
-				return name, nil
-			}
+	// Read .fab-status.yaml symlink at repo root
+	repoRoot := filepath.Dir(fabRoot)
+	symlinkPath := filepath.Join(repoRoot, ".fab-status.yaml")
+	if target, err := os.Readlink(symlinkPath); err == nil {
+		// target is "fab/changes/{name}/.status.yaml"
+		name := ExtractFolderFromSymlink(target)
+		if name != "" {
+			return name, nil
 		}
 	}
 
@@ -159,6 +159,22 @@ func resolveFromCurrent(fabRoot, changesDir string) (string, error) {
 		return "", fmt.Errorf("No active change.")
 	}
 	return "", fmt.Errorf("No active change (multiple changes exist — use /fab-switch).")
+}
+
+// ExtractFolderFromSymlink extracts the change folder name from a symlink target path.
+// Expected format: "fab/changes/{name}/.status.yaml"
+func ExtractFolderFromSymlink(target string) string {
+	// Normalize separators for cross-platform
+	target = filepath.ToSlash(target)
+	const prefix = "fab/changes/"
+	const suffix = "/.status.yaml"
+	if strings.HasPrefix(target, prefix) && strings.HasSuffix(target, suffix) {
+		name := target[len(prefix) : len(target)-len(suffix)]
+		if name != "" && !strings.Contains(name, "/") {
+			return name
+		}
+	}
+	return ""
 }
 
 func listChangeFolders(changesDir string) ([]string, error) {
