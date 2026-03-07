@@ -130,7 +130,7 @@ Each release produces 5 archives, all rooted at `.kit/` (e.g., `.kit/VERSION`, `
 - **`kit-linux-arm64.tar.gz`** — Generic contents + Go binary at `.kit/bin/fab` compiled for Linux ARM64.
 - **`kit-linux-amd64.tar.gz`** — Generic contents + Go binary at `.kit/bin/fab` compiled for Linux x86-64.
 
-No project-specific files (config.yaml, constitution.md, memory/, specs/, changes/) are included in any archive. Package production code (idea, wt) is included under `.kit/packages/`, hook scripts under `.kit/hooks/`, and sync scripts under `.kit/sync/` — all delivered to downstream projects on upgrade. The Go binary is placed at `.kit/bin/fab` in platform archives; the `bin/` directory contains a `.gitkeep` to ensure the directory exists even in the generic archive.
+No project-specific files (config.yaml, constitution.md, memory/, specs/, changes/) are included in any archive. Package production code (idea, wt) is included under `.kit/packages/`, hook scripts under `.kit/hooks/`, and sync scripts under `.kit/sync/` — all delivered to downstream projects on upgrade. Skill files under `.kit/skills/` (including `fab-operator1.md`) are included in all archives and deployed to agents by `fab-sync.sh`. The Go binary is placed at `.kit/bin/fab` in platform archives; the `bin/` directory contains a `.gitkeep` to ensure the directory exists even in the generic archive.
 
 ### Repo Rename
 
@@ -148,6 +148,7 @@ The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its rol
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260306-qkov-operator1-skill | 2026-03-07 | Noted that `fab-operator1.md` ships as part of the kit skills directory in all archives — no new distribution mechanics, just another skill file deployed by `fab-sync.sh`. |
 | 260305-u8t9-clean-break-go-only | 2026-03-05 | Updated generic archive (shell-only) scenario: no longer provides a working `fab` command — Go binary is required. Shell script fallback removed from dispatcher. |
 | 260305-bs5x-orchestrator-idle-hooks | 2026-03-05 | Added `fab/.kit/hooks/` as a new distributed directory (hook scripts shipped with kit). Updated bootstrap description to mention hook registration via `5-sync-hooks.sh`. Updated release archive contents to note hooks and sync scripts alongside packages. |
 | 260305-g0uq-2-ship-fab-go-binary | 2026-03-05 | Ship fab Go binary: release now produces 5 archives (generic `kit.tar.gz` + 4 per-platform `kit-{os}-{arch}.tar.gz` with Go binary at `.kit/bin/fab`). `fab-release.sh` cross-compiles via `CGO_ENABLED=0` for darwin/arm64, darwin/amd64, linux/arm64, linux/amd64. `fab-upgrade.sh` detects platform via `uname -s`/`uname -m`, downloads platform archive with fallback to generic. README bootstrap one-liner is now platform-aware. Shell scripts in `lib/` have shim layer that delegates to Go binary when present. Skills updated via `_scripts.md` to invoke `fab/.kit/bin/fab` as primary calling convention. |

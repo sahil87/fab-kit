@@ -24,6 +24,7 @@ func main() {
 		scoreCmd(),
 		runtimeCmd(),
 		paneMapCmd(),
+		sendKeysCmd(),
 	)
 
 	if err := root.Execute(); err != nil {

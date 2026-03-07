@@ -43,6 +43,7 @@ fab/.kit/bin/fab <command> <subcommand> [args...]
 | `fab score` | Confidence scoring |
 | `fab runtime` | Runtime state management (.fab-runtime.yaml) |
 | `fab pane-map` | Tmux pane-to-worktree mapping with fab pipeline state |
+| `fab send-keys` | Send text to a change's tmux pane |
 
 ---
 
@@ -267,6 +268,42 @@ Pane   Worktree                       Change                              Stage 
 %3     myrepo.worktrees/alpha/        260306-r3m7-add-retry-logic         apply     active
 %7     myrepo.worktrees/bravo/        260306-k8ds-ship-wt-binary          review    idle (2m)
 %12    (main)                         260306-ab12-refactor-auth           hydrate   idle (8m)
+```
+
+---
+
+## fab send-keys
+
+Send Keys — sends text to a change's tmux pane. Used by the operator skill for cross-agent coordination.
+
+```
+fab/.kit/bin/fab send-keys <change> "<text>"
+```
+
+| Argument | Description |
+|----------|-------------|
+| `<change>` | Standard change reference (4-char ID, substring, or full folder name) |
+| `<text>` | Text to send to the target pane (typically a skill command like `/fab-continue`) |
+
+**Pane resolution**: Resolves the change argument to a folder name via standard change resolution, then discovers all tmux panes (`tmux list-panes -a`), resolves each pane's git worktree root and `fab/current`, and matches the change folder. Sends to the first matching pane.
+
+**Safety**: Does NOT enforce idle checks — policy (check idle before sending) lives in the operator skill, mechanism (send text to pane) lives in the CLI.
+
+**Error behavior**:
+
+| Condition | Message | Exit code |
+|-----------|---------|-----------|
+| `$TMUX` unset | `Error: not inside a tmux session` | 1 |
+| Change not found | `No change matches "<arg>".` | 1 |
+| No pane for change | `No tmux pane found for change "<folder>".` | 1 |
+| Pane disappeared after resolution | `Error: pane %N no longer exists.` | 1 |
+| Multiple panes for same change | Sends to first match, prints `Warning: multiple panes found for <id>, using %N` to stderr | 0 |
+
+**Example**:
+
+```
+fab/.kit/bin/fab send-keys r3m7 "/fab-continue"
+fab/.kit/bin/fab send-keys 260306-k8ds-ship-wt-binary "git fetch origin main && git rebase origin/main"
 ```
 
 ---

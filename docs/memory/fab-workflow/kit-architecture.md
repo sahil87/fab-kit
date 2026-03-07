@@ -36,6 +36,7 @@ fab/.kit/
 │   ├── fab-status.md
 │   ├── fab-help.md
 │   ├── git-pr.md
+│   ├── fab-operator1.md
 │   ├── internal-consistency-check.md
 │   ├── internal-retrospect.md
 │   └── internal-skill-optimize.md
@@ -339,6 +340,7 @@ The sole backend for all fab CLI operations. A single Go binary at `fab/.kit/bin
 - `fab runtime set-idle <change>` — write `agent.idle_since` to `.fab-runtime.yaml`
 - `fab runtime clear-idle <change>` — remove agent block from `.fab-runtime.yaml`
 - `fab pane-map` — combine tmux pane introspection with worktree/change/runtime state into a unified table (columns: Pane, Worktree, Change, Stage, Agent)
+- `fab send-keys <change> "<text>"` — send text to a target agent's tmux pane (see below)
 
 **Architecture**: `internal/statusfile` is the shared foundation — a `StatusFile` struct parsed once via `Load()`, passed by pointer across all operations, and written atomically via temp+rename `Save()`. All other packages (`resolve`, `log`, `status`, `preflight`, `change`, `score`, `archive`, `worktree`) import `statusfile` for YAML access. The `worktree` package provides worktree discovery via `git worktree list --porcelain` and fab state resolution. The runtime-related CLI subcommands in `cmd/fab/runtime.go` manage `.fab-runtime.yaml` (agent idle state). The `pane-map` subcommand in `cmd/fab/panemap.go` combines tmux pane discovery, worktree resolution, change state, and runtime state into a single observation command.
 
@@ -349,6 +351,20 @@ The sole backend for all fab CLI operations. A single Go binary at `fab/.kit/bin
 #### Skill Invocation Convention (`_scripts.md`)
 
 The `_scripts.md` partial (loaded by every skill via `_preamble.md`) defines the calling convention for all kit operations. Skills invoke operations via `fab/.kit/bin/fab <command> <subcommand> [args...]` — this calls the dispatcher, which routes to the best available backend. The `_scripts.md` partial includes the full command mapping table, backend priority documentation, argument formats, stage transition sequences, and error patterns.
+
+#### `fab send-keys` Subcommand
+
+Sends text to a target agent's tmux pane. Signature: `fab send-keys <change> "<text>"`. Resolves `<change>` using standard change resolution (4-char ID, substring, full folder name).
+
+**Pane resolution**: (1) resolve the change argument to a folder name via standard change resolution, (2) run `tmux list-panes -a -F "#{pane_id} #{pane_current_path}"` to get all panes, (3) for each pane compute the git worktree root and read `fab/current` to find the change folder, (4) match the resolved change folder against pane entries. Reuses the same discovery logic as `fab pane-map`.
+
+**Tmux guard**: Checks that `$TMUX` is set. If not, exits non-zero with: `Error: not inside a tmux session`.
+
+**Pane existence validation**: Before sending, validates the target pane still exists. If gone, exits non-zero.
+
+**Multiple panes**: When multiple panes match the same change, sends to the first match and prints a warning to stderr: `Warning: multiple panes found for {change}, using {pane}`.
+
+**No idle check**: `fab send-keys` does NOT enforce idle checks. Policy (check idle before sending) lives in the operator skill; mechanism (send text to pane) lives in the CLI. This is separation of concerns — the CLI should not make policy decisions about when sending is safe.
 
 ## Design Decisions
 
@@ -449,6 +465,7 @@ Full benchmark suite with harness and all 4 implementations: `src/benchmark/`
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260306-qkov-operator1-skill | 2026-03-07 | Added `fab-operator1.md` to skills listing. Added `fab send-keys <change> "<text>"` subcommand to Go binary — resolves change to tmux pane (reuses pane-map discovery logic), sends text via `tmux send-keys`. Tmux guard, pane existence validation, multi-pane warning. No idle check in CLI (policy in skill, mechanism in CLI). |
 | 260306-bh45-pane-map-subcommand | 2026-03-06 | Added `fab pane-map` subcommand to Go binary — discovers all tmux panes, resolves worktree roots via git, reads `fab/current` for active change, correlates `.fab-runtime.yaml` for agent idle state, and renders an aligned table (Pane, Worktree, Change, Stage, Agent). Requires tmux at runtime (graceful error if not in session). Non-fab panes excluded. Main worktree shown as `(main)`. |
 | 260306-6bba-redesign-hooks-strategy | 2026-03-06 | Added `on-artifact-write.sh` PostToolUse hook (Write + Edit matchers) for automatic artifact bookkeeping. Added `fab runtime set-idle` and `fab runtime clear-idle` Go subcommands replacing yq in hooks. Updated `on-stop.sh` and `on-session-start.sh` descriptions (yq → fab runtime). Updated `5-sync-hooks.sh` to support tool-name matchers for PostToolUse events. Added `runtime` package to Go binary architecture. |
 | 260306-7arg-fix-stale-shell-refs | 2026-03-06 | Deleted 20 orphaned shell test files (`src/lib/*/test.bats`, `src/lib/*/SPEC-*.md`, `src/lib/*/test-simple.sh`, `src/lib/calc-score/sensitivity.sh`, `src/sync/test-5-sync-hooks.bats`) and removed `src/lib/` and `src/sync/` directories. Removed "Dev folder" references from statusman, logman, calc-score, and archiveman sections. Added Go parity test documentation note. Fixed stale `calc-score.sh` stub in `src/scripts/pipeline/test.bats` (replaced with `fab` dispatcher stub). Added 4 missing status subcommands (`add-issue`, `get-issues`, `add-pr`, `get-prs`) to `_scripts.md`. Fixed `git-pr.md` Step 4 to pass `<change>` instead of `<status_file>` path to `add-pr`. |

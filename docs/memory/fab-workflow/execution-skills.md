@@ -177,6 +177,61 @@ Steps execute 1→3 for safety. If interrupted, re-run detects folder already in
 - Restore mode requires explicit `<change-name>` — no "restore most recent" convenience
 - Restore mode optionally activates via `--switch` flag
 
+### `/fab-operator1` (Standalone Coordination Skill)
+
+`/fab-operator1` is a standalone coordination skill — NOT a pipeline stage. It runs as a long-lived Claude session in a dedicated tmux pane. It is user-driven (not a daemon or polling loop): waits for user input, acts, reports back. It handles cross-agent coordination only — it is NOT a lifecycle enforcer (individual agents self-govern via their own pipeline skills).
+
+#### Context Loading
+
+The operator loads the always-load layer (`_preamble.md` §1) — the same 7 files as `/fab-discuss`. It does NOT run preflight. It does NOT load change-specific artifacts (intakes, specs, tasks). The operator's context window is reserved for coordination state, not change content.
+
+#### Orientation on Start
+
+On invocation, the operator displays the pane map (via `fab pane-map`) and a summary of all changes (via `fab status show --all`), then signals readiness. Outside tmux, it enters status-only mode with a warning.
+
+#### State Re-derivation
+
+The operator MUST re-query live state (`fab pane-map`, `fab status show --all`, `fab runtime`) before every action. It SHALL NOT rely on stale values from conversation memory.
+
+#### Seven Use Cases
+
+Each use case follows the pattern: interpret user intent → refresh state → validate preconditions → execute → report.
+
+1. **Broadcast command to all agents** — refresh pane map, filter for idle agents, send command (e.g., `/fab-continue`) to each via `fab send-keys`
+2. **Sequenced rebase after completion** — hold instruction in conversation context, check target agent's status on next interaction, send rebase command when precondition met
+3. **Merge completed PRs** — identify changes with PRs via `fab status get-prs`, confirm before executing (destructive), run `gh pr merge` from operator's own shell
+4. **Spawn new worktree + agent from idea** — look up idea, create worktree via `wt-create --non-interactive`, open tmux tab, send `/fab-new <description>`
+5. **Status dashboard** — refresh pane map and status, present concise human-readable summary
+6. **Unstick a stuck agent** — confirm idle via `fab runtime`, send `/fab-continue`, warn on repeated nudge ("Already nudged once. Manual investigation recommended.")
+7. **Notification surface** — hold "notify me" instructions in conversation context, check on next user interaction, report status
+
+#### Confirmation Model
+
+| Risk | Examples | Behavior |
+|------|----------|----------|
+| Read-only | Status check, pane map | No confirmation |
+| Recoverable | Send `/fab-continue`, rebase | Announce before sending |
+| Destructive | Merge PR, archive, delete worktree | Confirm before executing |
+
+#### Pre-Send Validation
+
+Before sending keys to any pane via `fab send-keys`, the operator MUST: (1) verify the target pane still exists (via refreshed pane map), (2) check the agent is idle via `fab runtime`, (3) if the agent is not idle, warn the user and ask for confirmation before sending.
+
+#### Bounded Retries and Escalation
+
+| Situation | Max retries | Escalation |
+|-----------|-------------|------------|
+| Stuck agent nudge | 1 | "Appears stuck at {stage}. Manual investigation recommended." |
+| Rebase conflict | 0 (never auto-resolve) | Immediately flag to user |
+
+#### Context Discipline
+
+The operator SHALL NOT load change artifacts (intakes, specs, tasks). It reports concisely. It delegates diagnosis to the user. For terminal output inspection, it MAY use `tmux capture-pane -t <pane> -p` to read recent output but SHALL NOT deeply analyze codebase work.
+
+#### Interaction Primitive: `fab send-keys`
+
+The operator sends commands to other agents via the `fab send-keys <change> "<text>"` CLI subcommand (see kit-architecture.md for full subcommand documentation). The skill enforces policy (idle check, pane validation); the CLI provides mechanism (text delivery to pane).
+
 ## Design Decisions
 
 ### Checklist Tests Implementation Fidelity and Code Quality
@@ -270,6 +325,7 @@ Steps execute 1→3 for safety. If interrupted, re-run detects folder already in
 | Change | Date | Summary |
 |--------|------|---------|
 | 260307-8ggm-git-pr-ship-finish-ordering | 2026-03-07 | Fixed git-pr post-PR step ordering: reordered as 4a (record PR URL) → 4b (finish ship stage) → 4c (commit+push .status.yaml and .history.jsonl) → 4d (write .pr-done sentinel). All status mutations now occur before the commit boundary, preventing uncommitted fab state files in the working tree after PR creation. Steps renumbered from 4/4b/4c/4d to 4a/4b/4c/4d. |
+| 260306-qkov-operator1-skill | 2026-03-07 | Added `/fab-operator1` standalone coordination skill: user-driven Claude session for cross-agent coordination (not a pipeline stage, not a lifecycle enforcer). Seven use cases (broadcast, sequenced rebase, merge PRs, spawn worktree, status dashboard, unstick agent, notification surface). Three-tier confirmation model. Pre-send validation via `fab runtime`. Bounded retries with escalation. Context discipline — loads always-load layer only, never change artifacts. Relies on `fab send-keys` CLI primitive for agent interaction. |
 | 260306-6bba-redesign-hooks-strategy | 2026-03-06 | Added hook-backed bookkeeping note: PostToolUse hook (`on-artifact-write.sh`) supplements skill-instructed checklist bookkeeping as a reliability layer. Skills keep instructions unchanged for agent-agnostic portability; hooks catch what the agent forgets. All commands idempotent. |
 | 260305-u8t9-clean-break-go-only | 2026-03-05 | Updated status mutations overview: replaced `fab/.kit/scripts/lib/statusman.sh` reference with `fab/.kit/bin/fab status` CLI. Shell scripts removed — all status mutations now go through Go binary via `fab status` commands. |
 | 260305-id4j-review-pr-timeout-done | 2026-03-05 | `/git-pr-review` Copilot polling window increased from 12 attempts / 6 minutes to 16 attempts / 8 minutes. Copilot timeout now results in `finish` (done) instead of `fail` (failed) — absence of external review is a graceful no-op, matching the existing "Copilot unavailable" behavior. Step 6 routing updated: failure case limited to "no PR found" and "processing error". `fab-ff.md` Step 9 and `fab-fff.md` Step 10 updated to reflect new timeout and routing. |
