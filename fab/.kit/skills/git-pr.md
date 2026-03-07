@@ -246,12 +246,12 @@ This marks `ship` as `done` and auto-activates `review-pr`. Best-effort — fail
 
 If Step 4a successfully recorded a PR URL (changeman resolved and statusman add-pr ran):
 
-1. Stage the status and history files: `git add fab/changes/{name}/.status.yaml .history.jsonl`
+1. Stage the status and history files: `git add fab/changes/{name}/.status.yaml fab/changes/{name}/.history.jsonl`
 2. Check for changes: `git diff --cached --quiet`
 3. If changes exist: commit (`git commit -m "Update ship status and record PR URL"`) and push (`git push`). If commit or push fails → report the error and STOP.
 4. If no changes (already committed): skip commit+push silently
 
-Print (if committed): `  ✓ status — committed and pushed .status.yaml`
+Print (if committed): `  ✓ status — committed and pushed status updates (.status.yaml, .history.jsonl)`
 
 If Step 4a was skipped (no active change, changeman not found), skip this step silently.
 

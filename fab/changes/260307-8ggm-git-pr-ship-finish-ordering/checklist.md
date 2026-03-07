@@ -19,7 +19,7 @@
 - [x] CHK-008 Already-shipped path: Early-exit references updated to use new step numbering (4a–4d)
 
 ## Edge Cases & Error Handling
-- [x] CHK-009 History missing: `git add .history.jsonl` is a no-op when file doesn't exist
+- [x] CHK-009 History missing: Step 4c stages `fab/changes/{name}/.history.jsonl` if present; a missing history file is tolerated and does not cause the step to fail
 - [x] CHK-010 Finish fails: Pipeline continues when `fab status finish` errors (best-effort)
 
 ## Code Quality

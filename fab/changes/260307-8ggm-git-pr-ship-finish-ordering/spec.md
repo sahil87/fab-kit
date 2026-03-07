@@ -15,7 +15,7 @@ The new step ordering SHALL be:
 1. **Step 4a** (Record PR URL): `fab status add-pr <change> <url>` — mutates `.status.yaml`
 2. **Step 4b** (Finish ship stage): `fab status finish <change> ship git-pr` — mutates `.status.yaml` and `.history.jsonl`
 3. **Step 4c** (Commit + push): `git add` both `.status.yaml` and `.history.jsonl`, then `git commit && git push`
-4. **Step 4d** (Write sentinel): `echo "$PR_URL" > .pr-done` — gitignored, stays last
+4. **Step 4d** (Write sentinel): `echo "$PR_URL" > "<change_dir>/.pr-done"` — gitignored, stays last
 
 #### Scenario: Normal PR creation flow
 - **GIVEN** a `/git-pr` run that successfully creates a PR
@@ -39,7 +39,7 @@ The new step ordering SHALL be:
 
 ### Requirement: Step 4c MUST stage both `.status.yaml` and `.history.jsonl`
 
-The commit step SHALL stage both `fab/changes/{name}/.status.yaml` and `.history.jsonl` (repo-root), since `fab status finish` auto-logs transitions to `.history.jsonl`. The previous implementation only staged `.status.yaml`.
+The commit step SHALL stage both `fab/changes/{name}/.status.yaml` and `fab/changes/{name}/.history.jsonl`, since `fab status finish` auto-logs transitions to `.history.jsonl`. The previous implementation only staged `.status.yaml`.
 
 #### Scenario: Both files committed
 - **GIVEN** Step 4a and 4b have mutated `.status.yaml` and `.history.jsonl`
@@ -48,9 +48,9 @@ The commit step SHALL stage both `fab/changes/{name}/.status.yaml` and `.history
 - **AND** the commit message reflects the broader scope (e.g., "Update ship status and record PR URL")
 
 #### Scenario: .history.jsonl has no changes
-- **GIVEN** `.history.jsonl` does not exist or has no new entries
-- **WHEN** Step 4c runs `git add .history.jsonl`
-- **THEN** git silently ignores the no-op add
+- **GIVEN** `fab/changes/{name}/.history.jsonl` does not exist or has no new entries
+- **WHEN** Step 4c runs `git add fab/changes/{name}/.history.jsonl`
+- **THEN** the missing file is tolerated (e.g., via `git add --ignore-missing` or conditional staging)
 - **AND** Step 4c proceeds normally
 
 ### Requirement: Step renumbering for clarity
