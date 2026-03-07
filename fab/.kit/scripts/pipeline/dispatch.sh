@@ -240,11 +240,11 @@ run_pipeline() {
       return 0
     fi
 
-    # Check .fab-status.yaml symlink target contains expected ID
+    # Check .fab-status.yaml symlink target points to the expected change
     if [[ -L "$symlink_path" ]]; then
       local target
       target=$(readlink "$symlink_path" 2>/dev/null)
-      if [[ "$target" == *"-${expected_id}-"* ]]; then
+      if [[ $target == fab/changes/[0-9][0-9][0-9][0-9][0-9][0-9]-${expected_id}-* ]]; then
         switch_ok=true
         break
       fi

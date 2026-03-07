@@ -72,7 +72,7 @@ The `Rename()` function SHALL update the symlink target when the active change i
 #### Scenario: Renaming the active change
 - **GIVEN** `.fab-status.yaml` points to `fab/changes/260307-x2tx-old-slug/.status.yaml`
 - **AND** the active change is being renamed to `260307-x2tx-new-slug`
-- **WHEN** `Rename()` updates `fab/current` (now symlink)
+- **WHEN** `Rename()` updates the `.fab-status.yaml` symlink
 - **THEN** it SHALL read the current symlink target via `os.Readlink()`
 - **AND** extract the folder name from the target
 - **AND** if the folder name matches the old name, remove and recreate the symlink with the new target path

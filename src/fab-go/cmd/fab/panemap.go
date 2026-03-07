@@ -208,7 +208,6 @@ func readFabCurrent(wtRoot string) (string, string) {
 	return folderName, folderName
 }
 
-
 // resolveAgentState determines the agent state string for a pane row.
 func resolveAgentState(wtRoot, folderName string, cache map[string]interface{}) string {
 	if folderName == "" {

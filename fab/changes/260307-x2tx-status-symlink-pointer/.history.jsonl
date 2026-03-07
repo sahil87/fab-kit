@@ -15,3 +15,4 @@
 {"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"hydrate","ts":"2026-03-07T19:46:53+05:30"}
 {"event":"review","result":"passed","ts":"2026-03-07T19:46:53+05:30"}
 {"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"ship","ts":"2026-03-07T19:56:22+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-07T20:07:27+05:30"}

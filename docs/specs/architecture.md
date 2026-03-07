@@ -140,7 +140,7 @@ All three support `--list` (show targets), `--all` (process all), and direct ID/
 **Switching between changes**: If multiple change folders exist and you want to switch context:
 ```
 /fab-switch add-oauth
-→ "fab/current → 260115-a7k2-add-oauth"
+→ ".fab-status.yaml → 260115-a7k2-add-oauth"
 ```
 
 `/fab-switch` accepts partial matches — the slug portion is enough to identify the change unambiguously.

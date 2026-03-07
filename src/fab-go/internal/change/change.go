@@ -203,7 +203,7 @@ func Switch(fabRoot, name string) (string, error) {
 	dnum := sf.StageNumber(displayStage)
 
 	var output strings.Builder
-	fmt.Fprintf(&output, "fab/current → %s\n", folder)
+	fmt.Fprintf(&output, ".fab-status.yaml → %s\n", folder)
 	fmt.Fprintln(&output)
 	fmt.Fprintf(&output, "Stage:       %s (%d/8) — %s\n", displayStage, dnum, displayState)
 	fmt.Fprintf(&output, "Confidence:  %s\n", confDisplay)

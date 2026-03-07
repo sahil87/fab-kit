@@ -84,7 +84,7 @@ Tip: run /git-branch to create or switch to the matching branch
 Canonical format (from `fab change switch` + skill hint):
 
 ```
-fab/current → {name}
+.fab-status.yaml → {name}
 
 Stage:       {display_stage} ({N}/8) — {state}
 Confidence:  {score} of 5.0{indicative_suffix}

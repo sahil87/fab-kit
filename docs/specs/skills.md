@@ -494,7 +494,7 @@ The applying agent triages review comments by priority — not all comments need
 **Example**:
 ```
 /fab-switch fix-checkout
-→ "fab/current → 260202-m3x1-fix-checkout-bug"
+→ ".fab-status.yaml → 260202-m3x1-fix-checkout-bug"
 ```
 
 **Behavior**:
