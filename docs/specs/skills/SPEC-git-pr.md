@@ -41,19 +41,19 @@ Autonomously commits, pushes, and creates a GitHub PR. No prompts, no questions.
 │     ├─ Bash: gh repo view --json (for blob URLs)
 │     └─ Bash: gh pr create --title --body
 │
-├─ Step 4: Record PR URL
+├─ Step 4a: Record PR URL
 │  └─ Bash: fab status add-pr <change> <url>
 │
-├─ Step 4b: Commit Status Update
-│  ├─ Bash: git add .status.yaml
+├─ Step 4b: Finish Ship Stage
+│  └─ Bash: fab status finish <change> ship git-pr
+│
+├─ Step 4c: Commit Status Update
+│  ├─ Bash: git add .status.yaml .history.jsonl
 │  ├─ Bash: git commit
 │  └─ Bash: git push
 │
-├─ Step 4c: Write PR Sentinel
-│  └─ Bash: echo "$PR_URL" > .pr-done
-│
-└─ Step 4d: Finish Ship Stage
-   └─ Bash: fab status finish <change> ship git-pr
+└─ Step 4d: Write PR Sentinel
+   └─ Bash: echo "$PR_URL" > .pr-done
 ```
 
 ### Tools used
