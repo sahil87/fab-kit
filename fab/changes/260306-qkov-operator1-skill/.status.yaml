@@ -1,7 +1,7 @@
-name: 260306-qkov-conductor-skill
+name: 260306-qkov-operator1-skill
 created: 2026-03-06T19:23:05+05:30
 created_by: sahil-weaver
-change_type: docs
+change_type: feat
 issues: []
 progress:
     intake: ready
@@ -18,19 +18,19 @@ checklist:
     completed: 0
     total: 0
 confidence:
-    certain: 17
-    confident: 5
+    certain: 15
+    confident: 2
     tentative: 0
     unresolved: 0
-    score: 3.5
+    score: 4.4
     indicative: true
     fuzzy: true
     dimensions:
-        signal: 88.4
-        reversibility: 81.8
-        competence: 86.8
-        disambiguation: 88.2
+        signal: 90.0
+        reversibility: 83.2
+        competence: 88.8
+        disambiguation: 90.6
 stage_metrics:
     intake: {started_at: "2026-03-06T19:23:05+05:30", driver: fab-new, iterations: 1}
 prs: []
-last_updated: 2026-03-06T19:38:37+05:30
+last_updated: 2026-03-07T16:53:50+05:30
