@@ -59,7 +59,7 @@ func runSendKeys(cmd *cobra.Command, args []string) error {
 }
 
 // resolveChangePane finds the tmux pane associated with a given change folder.
-// It reuses the same pane discovery logic as pane-map: tmux list-panes → git root → fab/current.
+// It reuses the same pane discovery logic as pane-map: tmux list-panes → git root → .fab-status.yaml.
 func resolveChangePane(folder string, cmd *cobra.Command) (string, error) {
 	panes, err := discoverPanes()
 	if err != nil {
