@@ -1,0 +1,4 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-07T20:37:33+05:30"}
+{"args":"Add cargo-zigbuild Rust cross-compilation to justfile and CI workflow","cmd":"fab-new","event":"command","ts":"2026-03-07T20:37:33+05:30"}
+{"delta":"+4.1","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-07T20:38:19+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-07T20:38:27+05:30"}

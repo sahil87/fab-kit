@@ -1,0 +1,4 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-07T20:30:23+05:30"}
+{"args":"Move Go cross-compilation and release packaging into justfile with CI-backed GitHub Actions","cmd":"fab-new","event":"command","ts":"2026-03-07T20:30:23+05:30"}
+{"delta":"+4.1","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-07T20:34:13+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-07T20:34:18+05:30"}

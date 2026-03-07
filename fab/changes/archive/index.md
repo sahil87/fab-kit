@@ -1,5 +1,8 @@
 # Archive Index
 
+- **260307-x2tx-status-symlink-pointer** — Replaced fab/current pointer file with .fab-status.yaml symlink at repo root, consolidating active change tracking and reducing observation cost for cross-worktree orchestration.
+- **260307-8ggm-git-pr-ship-finish-ordering** — Fixed git-pr ship stage ordering so fab status finish runs before the commit+push boundary, preventing uncommitted .status.yaml and .history.jsonl changes after every PR creation.
+- **260306-qkov-operator1-skill** — Added /fab-operator1 skill for multi-agent coordination in tmux — observe agents via pane-map, interact via send-keys, and coordinate cross-agent actions like broadcasts, sequenced rebases, and PR merges.
 - **260306-yzxj-regroup-cli-subcommands** — Regroup fab CLI subcommands by concern (Change Lifecycle, Pipeline & Status, Plumbing) and consolidate archive/restore operations under fab change as subcommands, updating Go implementation, skills, and docs.
 - **260306-bh45-pane-map-subcommand** — Add fab pane-map subcommand providing a unified view combining tmux pane introspection, worktree resolution, runtime agent state, and change status into a single table — eliminates mental mapping across 3+ separate commands when managing parallel agents.
 - **260306-6bba-redesign-hooks-strategy** — Redesigned fab-kit hooks strategy: added PostToolUse hook for automatic artifact bookkeeping, migrated existing hooks from yq to fab CLI, and updated Constitution §I.

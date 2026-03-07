@@ -1,0 +1,4 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-07T20:35:27+05:30"}
+{"args":"Slim fab-release.sh to version bump + tag + push; CI handles build/package/release","cmd":"fab-new","event":"command","ts":"2026-03-07T20:35:27+05:30"}
+{"delta":"+4.1","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-07T20:36:06+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-07T20:36:12+05:30"}

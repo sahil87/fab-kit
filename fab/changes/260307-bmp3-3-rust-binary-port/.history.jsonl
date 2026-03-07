@@ -1,0 +1,4 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-07T20:36:23+05:30"}
+{"args":"Big bang port of Go binary to Rust with backend switching mechanism","cmd":"fab-new","event":"command","ts":"2026-03-07T20:36:23+05:30"}
+{"delta":"+2.8","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-03-07T20:37:19+05:30"}
+{"delta":"+0.0","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-03-07T20:37:24+05:30"}

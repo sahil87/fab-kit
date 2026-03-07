@@ -1,0 +1,37 @@
+id: b56y
+name: 260307-b56y-2-tag-triggered-releases
+created: 2026-03-07T20:35:27+05:30
+created_by: sahil-weaver
+change_type: docs
+issues: []
+progress:
+    intake: ready
+    spec: pending
+    tasks: pending
+    apply: pending
+    review: pending
+    hydrate: pending
+    ship: pending
+    review-pr: pending
+checklist:
+    generated: false
+    path: checklist.md
+    completed: 0
+    total: 0
+confidence:
+    certain: 3
+    confident: 3
+    tentative: 0
+    unresolved: 0
+    score: 4.1
+    indicative: true
+    fuzzy: true
+    dimensions:
+        signal: 81.7
+        reversibility: 81.7
+        competence: 83.3
+        disambiguation: 83.3
+stage_metrics:
+    intake: {started_at: "2026-03-07T20:35:27+05:30", driver: fab-new, iterations: 1}
+prs: []
+last_updated: 2026-03-07T20:36:12+05:30
