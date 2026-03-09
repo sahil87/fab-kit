@@ -2,36 +2,43 @@ id: ma7o
 name: 260307-ma7o-1-ci-releases-justfile
 created: 2026-03-07T20:30:23+05:30
 created_by: sahil-weaver
-change_type: refactor
+change_type: ci
 issues: []
 progress:
-    intake: ready
-    spec: pending
-    tasks: pending
-    apply: pending
-    review: pending
-    hydrate: pending
-    ship: pending
-    review-pr: pending
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: active
 checklist:
-    generated: false
+    generated: true
     path: checklist.md
     completed: 0
-    total: 0
+    total: 34
 confidence:
-    certain: 4
+    certain: 7
     confident: 3
     tentative: 0
     unresolved: 0
     score: 4.1
-    indicative: true
     fuzzy: true
     dimensions:
-        signal: 84.3
-        reversibility: 83.6
-        competence: 87.1
-        disambiguation: 87.1
+        signal: 83.5
+        reversibility: 83.5
+        competence: 87.5
+        disambiguation: 87.0
 stage_metrics:
-    intake: {started_at: "2026-03-07T20:30:23+05:30", driver: fab-new, iterations: 1}
-prs: []
-last_updated: 2026-03-07T20:34:22+05:30
+    intake: {started_at: "2026-03-07T20:30:23+05:30", driver: fab-new, iterations: 1, completed_at: "2026-03-09T13:17:32+05:30"}
+    spec: {started_at: "2026-03-09T13:17:32+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-09T13:18:57+05:30"}
+    tasks: {started_at: "2026-03-09T13:18:57+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-09T13:22:04+05:30"}
+    apply: {started_at: "2026-03-09T13:22:04+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-09T13:25:24+05:30"}
+    review: {started_at: "2026-03-09T13:25:24+05:30", driver: fab-continue, iterations: 1, completed_at: "2026-03-09T13:29:32+05:30"}
+    hydrate: {started_at: "2026-03-09T13:29:32+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-09T13:31:36+05:30"}
+    ship: {started_at: "2026-03-09T13:31:36+05:30", driver: fab-ff, iterations: 1, completed_at: "2026-03-09T13:33:26+05:30"}
+    review-pr: {started_at: "2026-03-09T13:33:26+05:30", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/wvrdz/fab-kit/pull/232
+last_updated: 2026-03-09T13:33:26+05:30

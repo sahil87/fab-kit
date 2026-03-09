@@ -2,3 +2,15 @@
 {"args":"Move Go cross-compilation and release packaging into justfile with CI-backed GitHub Actions","cmd":"fab-new","event":"command","ts":"2026-03-07T20:30:23+05:30"}
 {"delta":"+4.1","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-07T20:34:13+05:30"}
 {"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-07T20:34:18+05:30"}
+{"cmd":"fab-switch","event":"command","ts":"2026-03-09T13:11:30+05:30"}
+{"cmd":"fab-ff","event":"command","ts":"2026-03-09T13:12:34+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-09T13:17:27+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"spec","ts":"2026-03-09T13:17:32+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"tasks","ts":"2026-03-09T13:18:57+05:30"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-03-09T13:19:49+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"apply","ts":"2026-03-09T13:22:04+05:30"}
+{"action":"enter","driver":"fab-continue","event":"stage-transition","stage":"review","ts":"2026-03-09T13:25:24+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"hydrate","ts":"2026-03-09T13:29:32+05:30"}
+{"event":"review","result":"passed","ts":"2026-03-09T13:29:32+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"ship","ts":"2026-03-09T13:31:36+05:30"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-03-09T13:33:26+05:30"}

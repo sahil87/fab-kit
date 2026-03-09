@@ -4,7 +4,7 @@
 
 ## Overview
 
-How `fab/.kit/` is distributed to new and existing projects. Covers the bootstrap process (getting `.kit/` into a project for the first time), the update mechanism (pulling new versions into an existing project), the release workflow (packaging and publishing new versions — including per-platform archives with Go binary), and the repo rename from `docs-sddr` to `fab-kit`.
+How `fab/.kit/` is distributed to new and existing projects. Covers the bootstrap process (getting `.kit/` into a project for the first time), the update mechanism (pulling new versions into an existing project), the release workflow (version management via `fab-release.sh`, build recipes via `justfile`, CI orchestration via `.github/workflows/release.yml` — producing per-platform archives with Go binary), and the repo rename from `docs-sddr` to `fab-kit`.
 
 ## Requirements
 
@@ -93,32 +93,70 @@ After extracting the new `.kit/` contents, `fab-upgrade.sh` SHALL re-run `fab-sy
 
 ### Release
 
+Release is split across three components: `fab-release.sh` handles version management and git operations, a `justfile` at repo root provides locally-replicable build recipes, and `.github/workflows/release.yml` orchestrates CI. The key principle: CI uses the exact same `just` commands a developer runs locally — no CI-only build logic.
+
 #### Release Script (`fab-release.sh`)
 
-`src/scripts/fab-release.sh` SHALL cross-compile the Go binary for 4 platform targets (`darwin/arm64`, `darwin/amd64`, `linux/arm64`, `linux/amd64`) using `CGO_ENABLED=0 GOOS={os} GOARCH={arch} go build`, package `fab/.kit/` into 5 archives (1 generic `kit.tar.gz` without binary + 4 per-platform `kit-{os}-{arch}.tar.gz` with the compiled binary at `.kit/bin/fab`), bump the VERSION file, commit the version change, and create a GitHub Release with all 5 archives as attached assets.
+`src/scripts/fab-release.sh` handles version bumping, migration validation, and git commit/tag/push. It does NOT cross-compile, package archives, or create GitHub Releases — those responsibilities moved to the justfile and CI workflow.
 
-The script requires the Go toolchain in addition to `gh` CLI. Cross-compilation uses `CGO_ENABLED=0` for static binaries with no system library dependencies. Build artifacts are staged in a `.release-build/` temporary directory, cleaned up after release.
+The script accepts a bump type argument (`patch`, `minor`, or `major`) that is required to perform a release. When invoked with no arguments, the script displays usage and exits successfully. Unknown arguments produce an error.
 
-The script accepts a bump type argument (`patch`, `minor`, or `major`) that is required to perform a release, and an optional `--no-latest` flag. When invoked with no arguments, the script displays usage and exits successfully; when flags are provided without a bump type, it produces an error. Arguments are position-independent — `fab-release.sh patch --no-latest` and `fab-release.sh --no-latest patch` are equivalent. Unknown flags produce an error.
-
-The script pushes to the current branch (via `git branch --show-current`) rather than hardcoded `main`. On `main`, behavior is identical to before. On a release branch (e.g., `release/0.25`), commits and tags are pushed to that branch.
-
-When `--no-latest` is passed, `gh release create` is invoked with `--latest=false`, preventing the release from becoming the "latest" release on GitHub. This enables backport releases for older version series without breaking `fab-upgrade.sh` (no args) for users on the current release line.
+The script pushes to the current branch (via `git branch --show-current`) rather than hardcoded `main`. On `main`, behavior is identical to before. On a release branch (e.g., `release/0.25`), commits and tags are pushed to that branch. The tag push triggers CI to handle cross-compilation, packaging, and GitHub Release creation.
 
 After bumping VERSION, the script validates the migration chain: warns if no migration file targets the new version (reminder for release authors), and warns if overlapping migration ranges are detected. These are warnings only — they do not block the release.
 
+Pre-flight checks: clean working tree (error if dirty), `fab/.kit/VERSION` exists (error if missing). The script does NOT check for `gh` CLI or Go toolchain — those are no longer needed locally for releasing.
+
 **Scenarios**:
-- Default patch release — bumps patch version (e.g., "0.1.0" → "0.1.1"), cross-compiles Go binary for 4 platforms, creates 5 archives (kit.tar.gz + kit-{os}-{arch}.tar.gz), commits VERSION bump, pushes to current branch, creates GitHub Release marked as latest with all 5 archives
-- Minor release (`fab-release.sh minor`) — bumps minor version (e.g., "0.1.1" → "0.2.0")
-- Major release (`fab-release.sh major`) — bumps major version (e.g., "0.2.0" → "1.0.0")
-- Backport release (`fab-release.sh patch --no-latest`) — bumps version, pushes to current branch (not main), creates GitHub Release with `--latest=false`, prints "Note: This release was NOT marked as 'latest'."
-- Backport workflow — `git checkout -b release/0.25 v0.25.1`, cherry-pick fixes, `fab-release.sh patch --no-latest` bumps 0.25.1→0.25.2, pushes to `release/0.25`, tags `v0.25.2`
-- Go toolchain missing — exits with error directing user to install from https://go.dev/
-- Missing bump type with flags (`fab-release.sh --no-latest`) — displays usage and exits non-zero
+- Default patch release — bumps patch version (e.g., "0.34.0" → "0.34.1"), commits VERSION bump with message `release: v0.34.1`, creates tag `v0.34.1`, pushes commit and tag to current branch; CI takes over from the tag push
+- Minor release (`fab-release.sh minor`) — bumps minor version (e.g., "0.34.1" → "0.35.0")
+- Major release (`fab-release.sh major`) — bumps major version (e.g., "0.35.0" → "1.0.0")
+- Backport release — on branch `release/0.34`, `fab-release.sh patch` bumps 0.34.1→0.34.2, pushes to `release/0.34`, tags `v0.34.2`; CI creates the release, and GitHub's semver ordering ensures the backport is not marked as "latest"
+- Backport workflow — `git checkout -b release/0.34 v0.34.1`, cherry-pick fixes, `fab-release.sh patch` bumps and pushes to `release/0.34`, CI handles the rest
 - Invalid bump argument — exits with error message listing valid options
-- Unknown flag (`fab-release.sh patch --unknown`) — exits with error listing valid options
+- Unknown argument — exits with error listing valid options
 - No git remote configured — exits with error
 - Dirty working tree — aborts with error directing user to commit or stash
+
+#### Build Recipes (`justfile`)
+
+The `justfile` at repo root provides locally-replicable build recipes using [just](https://github.com/casey/just). These same recipes are invoked by CI.
+
+- **`build-go`** — compiles the Go binary for the current platform at `fab/.kit/bin/fab-go` using `CGO_ENABLED=0`
+- **`build-go-target os arch`** — cross-compiles for a specific platform, outputs to `.release-build/fab-{os}-{arch}` using `CGO_ENABLED=0 GOOS={os} GOARCH={arch}`
+- **`build-go-all`** — cross-compiles for all 4 release targets (`darwin/arm64`, `darwin/amd64`, `linux/arm64`, `linux/amd64`) by invoking `build-go-target` for each
+- **`package-kit`** — creates 5 tar.gz archives: generic `kit.tar.gz` (no binary) + 4 per-platform `kit-{os}-{arch}.tar.gz` (with binary at `.kit/bin/fab-go`). Verifies cross-compiled binaries exist first. Uses `COPYFILE_DISABLE=1` to suppress macOS extended attributes. Archives are rooted at `.kit/`.
+- **`clean`** — removes `.release-build/` directory and all `kit*.tar.gz` files from repo root
+
+**Scenarios**:
+- Local dev build (`just build-go`) — compiles Go binary for current platform at `fab/.kit/bin/fab-go`
+- Cross-compile single target (`just build-go-target darwin arm64`) — produces `.release-build/fab-darwin-arm64`
+- Build all targets (`just build-go-all`) — produces 4 binaries in `.release-build/`
+- Package after build (`just package-kit`) — creates 5 archives in repo root; per-platform archives include `.kit/bin/fab-go`, generic archive does not
+- Package without prior build (`just package-kit`) — fails with error directing to run `just build-go-all` first
+- Clean up (`just clean`) — removes `.release-build/` and `kit*.tar.gz`
+
+#### CI Workflow (`.github/workflows/release.yml`)
+
+`.github/workflows/release.yml` is a GitHub Actions workflow triggered on push of tags matching `v*`. It runs on a single `ubuntu-latest` runner and uses the same `just` recipes as local development.
+
+Workflow steps:
+1. Checkout repository (`actions/checkout@v4`)
+2. Set up Go toolchain (`actions/setup-go@v5`, Go 1.22)
+3. Install `just` command runner (from `just.systems`)
+4. Run `just build-go-all` (cross-compiles all 4 targets)
+5. Run `just package-kit` (creates 5 archives)
+6. Create GitHub Release via `gh release create` with all 5 archives and auto-generated release notes (`--generate-notes`)
+
+The workflow sets `permissions: contents: write` for release creation. `GITHUB_TOKEN` is used implicitly by `gh`.
+
+GitHub determines "latest" release status based on semver ordering — backport releases for older version series (e.g., `v0.34.2` when `v0.35.0` exists) are not marked as latest automatically. For edge cases, use `gh release edit $TAG --latest=false` after CI creates the release.
+
+**Scenarios**:
+- Tag push triggers workflow — push of `v0.35.0` tag triggers the release workflow
+- Non-tag push does not trigger — regular commits pushed without a `v*` tag do not run the workflow
+- Full CI release — tag `v0.35.0` triggers workflow, which cross-compiles, packages, and creates a GitHub Release with 5 archives and auto-generated notes
+- Backport release via CI — tag `v0.34.2` triggers workflow; GitHub's semver ordering ensures it is not marked as "latest" since `v0.35.0` exists
 
 #### Release Archive Contents
 
@@ -142,12 +180,16 @@ The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its rol
 
 ## Design Decisions
 
-<!-- No design decisions to document for this change. -->
+- **CI/local parity via justfile (260307-ma7o-1)**: Build recipes live in the `justfile` so CI and local development use identical commands (`just build-go-all`, `just package-kit`). No CI-only build scripts or logic. This makes CI behavior fully reproducible locally and prepares for adding Rust as a second backend.
+- **Three-way release split (260307-ma7o-1)**: `fab-release.sh` owns version/tag/push, `justfile` owns build/package, `.github/workflows/release.yml` owns orchestration. Each component has a single responsibility and can be tested independently.
+- **GitHub semver ordering replaces `--no-latest` (260307-ma7o-1)**: GitHub automatically determines "latest" release based on semver. Backport releases (e.g., `v0.34.2` when `v0.35.0` exists) are not marked latest. The `--no-latest` flag was removed from `fab-release.sh` — no flag to remember, no CI mechanism to pass it through. For edge cases, `gh release edit` can be used post-creation.
+- **Auto-generated release notes (260307-ma7o-1)**: CI uses `gh release create --generate-notes` instead of manually constructing a changelog from `git log --oneline`. Richer content (PR titles, contributor info), less maintenance.
 
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260307-ma7o-1-ci-releases-justfile | 2026-03-09 | Split release workflow into three components: `fab-release.sh` simplified to version bump + git commit/tag/push only (~60 lines, removed ~200 lines of build/package/release logic). New `justfile` at repo root provides build recipes (`build-go`, `build-go-target`, `build-go-all`, `package-kit`, `clean`) replicable locally and in CI. New `.github/workflows/release.yml` triggered on `v*` tag push — uses `just` recipes on single `ubuntu-latest` runner, creates GitHub Release with auto-generated notes. Removed `--no-latest` flag (GitHub's semver ordering handles backport "latest" status). Removed Go toolchain and `gh` CLI checks from release script. |
 | 260306-qkov-operator1-skill | 2026-03-07 | Noted that `fab-operator1.md` ships as part of the kit skills directory in all archives — no new distribution mechanics, just another skill file deployed by `fab-sync.sh`. |
 | 260305-u8t9-clean-break-go-only | 2026-03-05 | Updated generic archive (shell-only) scenario: no longer provides a working `fab` command — Go binary is required. Shell script fallback removed from dispatcher. |
 | 260305-bs5x-orchestrator-idle-hooks | 2026-03-05 | Added `fab/.kit/hooks/` as a new distributed directory (hook scripts shipped with kit). Updated bootstrap description to mention hook registration via `5-sync-hooks.sh`. Updated release archive contents to note hooks and sync scripts alongside packages. |

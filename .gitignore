@@ -16,6 +16,8 @@ fab/.kit/bin/fab-*
 
 /ToBeDeleted/
 kit.tar.gz
+kit-*.tar.gz
+.release-build/
 .tmp
 
 # Benchmark build artifacts

@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout repository
+      - uses: actions/checkout@v4
+
+      # Set up Go toolchain
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      # Install just command runner
+      - uses: extractions/setup-just@v2
+
+      # Cross-compile Go binary for all release targets
+      - name: Build all targets
+        run: just build-go-all
+
+      # Create kit archives (generic + per-platform)
+      - name: Package kit archives
+        run: just package-kit
+
+      # Create GitHub Release with all archives
+      - name: Create GitHub Release
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --generate-notes \
+            kit.tar.gz \
+            kit-darwin-arm64.tar.gz \
+            kit-darwin-amd64.tar.gz \
+            kit-linux-arm64.tar.gz \
+            kit-linux-amd64.tar.gz
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,38 +1,30 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# src/scripts/fab-release.sh — Create a GitHub Release for fab/.kit/
+# src/scripts/fab-release.sh — Bump VERSION, commit, tag, and push.
 #
-# Packages fab/.kit/ into kit.tar.gz (generic) and per-platform archives
-# with the Go binary, bumps VERSION, commits, and creates a GitHub Release.
+# CI takes over from the tag push to cross-compile, package, and create
+# the GitHub Release (see .github/workflows/release.yml).
 #
-# Usage: fab-release.sh <patch|minor|major> [--no-latest]
+# Usage: fab-release.sh <patch|minor|major>
 #   patch — 0.1.0 → 0.1.1
 #   minor — 0.1.0 → 0.2.0
 #   major — 0.1.0 → 1.0.0
-#
-#   --no-latest — do NOT mark the release as "latest" on GitHub
-#                 (use for backport releases on older version series)
-#
-# Requires: gh CLI (https://cli.github.com/), Go toolchain (https://go.dev/)
 
 usage() {
-  echo "Usage: fab-release.sh <patch|minor|major> [--no-latest]"
+  echo "Usage: fab-release.sh <patch|minor|major>"
   echo ""
-  echo "  patch       — bump patch version (e.g. 0.1.0 → 0.1.1)"
-  echo "  minor       — bump minor version (e.g. 0.1.0 → 0.2.0)"
-  echo "  major       — bump major version (e.g. 0.1.0 → 1.0.0)"
-  echo "  --no-latest — don't mark as \"latest\" (for backport releases)"
+  echo "  patch — bump patch version (e.g. 0.1.0 → 0.1.1)"
+  echo "  minor — bump minor version (e.g. 0.1.0 → 0.2.0)"
+  echo "  major — bump major version (e.g. 0.1.0 → 1.0.0)"
 }
 
 repo_root="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 kit_dir="$repo_root/fab/.kit"
-go_src="$repo_root/src/fab-go"
 
 # ── Parse arguments ──────────────────────────────────────────────────
 
 bump_type=""
-no_latest=false
 
 for arg in "$@"; do
   case "$arg" in
@@ -45,15 +37,12 @@ for arg in "$@"; do
       fi
       bump_type="$arg"
       ;;
-    --no-latest)
-      no_latest=true
-      ;;
     -h|--help)
       usage
       exit 0
       ;;
     *)
-      echo "ERROR: Unknown argument '$arg'. Use: patch, minor, or major. Optional: --no-latest."
+      echo "ERROR: Unknown argument '$arg'. Use: patch, minor, or major."
       echo ""
       usage
       exit 1
@@ -70,20 +59,6 @@ if [ -z "$bump_type" ]; then
 fi
 
 # ── Pre-flight ───────────────────────────────────────────────────────
-
-# Check gh CLI
-if ! command -v gh &>/dev/null; then
-  echo "ERROR: gh CLI not found. Install it from https://cli.github.com/"
-  exit 1
-fi
-
-# Check Go toolchain
-if ! command -v go &>/dev/null; then
-  echo "ERROR: Go toolchain not found. Install from https://go.dev/"
-  exit 1
-fi
-
-repo=$(grep -E '^repo=' "$kit_dir/kit.conf" | cut -d= -f2 | tr -d '[:space:]')
 
 # Check clean working tree
 if [ -n "$(git -C "$repo_root" status --porcelain)" ]; then
@@ -158,57 +133,7 @@ if [ -d "$migrations_dir" ]; then
   done
 fi
 
-# ── Cross-compile Go binary ─────────────────────────────────────────
-
-platforms=("darwin/arm64" "darwin/amd64" "linux/arm64" "linux/amd64")
-build_dir="$repo_root/.release-build"
-
-rm -rf "$build_dir"
-mkdir -p "$build_dir"
-
-echo "Cross-compiling Go binary for ${#platforms[@]} platforms..."
-
-for platform in "${platforms[@]}"; do
-  os="${platform%%/*}"
-  arch="${platform##*/}"
-  output="$build_dir/fab-${os}-${arch}"
-  echo "  Building ${os}/${arch}..."
-  CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -C "$go_src" -o "$output" ./cmd/fab
-done
-
-echo "Cross-compilation complete."
-
-# ── Package archives ─────────────────────────────────────────────────
-
-echo "Packaging archives..."
-
-# Generic archive (no binary) — exclude .kit/bin/fab in case it was built locally
-COPYFILE_DISABLE=1 tar czf "$repo_root/kit.tar.gz" -C "$repo_root/fab" --exclude='.kit/bin/fab-go' .kit
-echo "  kit.tar.gz ($(wc -c < "$repo_root/kit.tar.gz") bytes)"
-
-# Per-platform archives (kit + binary)
-for platform in "${platforms[@]}"; do
-  os="${platform%%/*}"
-  arch="${platform##*/}"
-  archive_name="kit-${os}-${arch}.tar.gz"
-  binary="$build_dir/fab-${os}-${arch}"
-
-  # Create temp staging area with .kit/ + binary
-  staging="$build_dir/staging-${os}-${arch}"
-  mkdir -p "$staging"
-  cp -a "$repo_root/fab/.kit" "$staging/.kit"
-  mkdir -p "$staging/.kit/bin"
-  cp "$binary" "$staging/.kit/bin/fab-go"
-  chmod +x "$staging/.kit/bin/fab-go"
-
-  COPYFILE_DISABLE=1 tar czf "$repo_root/$archive_name" -C "$staging" .kit
-  echo "  $archive_name ($(wc -c < "$repo_root/$archive_name") bytes)"
-done
-
-# ── Commit and release ───────────────────────────────────────────────
-
-# Capture previous tag before committing
-previous_tag=$(git -C "$repo_root" describe --tags --abbrev=0 2>/dev/null || echo "")
+# ── Commit, tag, and push ───────────────────────────────────────────
 
 branch=$(git -C "$repo_root" branch --show-current)
 if [ -z "$branch" ]; then
@@ -223,52 +148,10 @@ git -C "$repo_root" commit -m "release: $tag"
 git -C "$repo_root" tag "$tag"
 git -C "$repo_root" push origin HEAD:"$branch" "$tag"
 
-echo "Creating GitHub Release $tag on $repo..."
-
-# Generate release notes with changelog
-if [ -n "$previous_tag" ]; then
-  changelog=$(git -C "$repo_root" log "$previous_tag..HEAD" --oneline --no-decorate | sed 's/^/- /')
-  notes="Fab Kit release $new_version
-
-## Changes since $previous_tag
-
-$changelog"
-else
-  notes="Fab Kit release $new_version
-
-Initial release of Fab Kit."
-fi
-
-latest_flag=()
-if [ "$no_latest" = true ]; then
-  latest_flag=(--latest=false)
-fi
-
-# Upload all 5 archives
-gh release create "$tag" \
-  --repo "$repo" \
-  --title "Fab Kit $tag" \
-  --notes "$notes" \
-  "${latest_flag[@]}" \
-  "$repo_root/kit.tar.gz" \
-  "$repo_root/kit-darwin-arm64.tar.gz" \
-  "$repo_root/kit-darwin-amd64.tar.gz" \
-  "$repo_root/kit-linux-arm64.tar.gz" \
-  "$repo_root/kit-linux-amd64.tar.gz"
-
-# ── Cleanup ──────────────────────────────────────────────────────────
-
-rm -f "$repo_root/kit.tar.gz"
-rm -f "$repo_root"/kit-*.tar.gz
-rm -rf "$build_dir"
-
 echo ""
-echo "Release complete: $tag"
+echo "Release tagged: $tag"
 echo "  Tag:     $tag"
 echo "  Version: $new_version"
-echo "  Assets:  kit.tar.gz + 4 platform archives"
-
-if [ "$no_latest" = true ]; then
-  echo ""
-  echo "Note: This release was NOT marked as \"latest\"."
-fi
+echo "  Branch:  $branch"
+echo ""
+echo "CI will handle cross-compilation, packaging, and GitHub Release creation."
