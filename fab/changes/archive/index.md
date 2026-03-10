@@ -1,5 +1,9 @@
 # Archive Index
 
+- **260310-qbiq-go-wt-binary** — Consolidate wt-* shell scripts into a single Go binary with cobra subcommands, sharing the fab Go module and internal packages.
+- **260310-pl72-port-idea-to-go** — Port the idea Bash script to a Go subcommand (fab idea) with comprehensive tests, making all fab CLI tooling run through a single compiled binary.
+- **260310-bvc6-merge-hooks-into-go** — Merge all three Claude Code hook shell scripts into the Go binary as fab hook subcommands, eliminating jq dependency and subprocess overhead.
+- **260310-8m3k-port-wt-tests-cleanup-legacy** — Port wt bats tests to Go, remove legacy shell infrastructure (src/packages/, src/tests/, .gitmodules) superseded by the Go rewrite.
 - **260310-czb7-go-test-coverage** — Add Go test coverage for 6 untested internal packages, restore just test-go targets, and reverse backend priority in fab dispatcher from rust>go to go>rust.
 - **260310-b8ff-operator-observation-fixes** — Fix pane-map session scoping, add tab name column, add fab runtime is-idle read subcommand, and remove redundant status show --all from operator skill.
 - **260307-buf0-4-rust-ci-build** — Add Rust cross-compilation via cargo-zigbuild to CI workflow and justfile, enabling releases to ship both Go and Rust binaries during the transition period.

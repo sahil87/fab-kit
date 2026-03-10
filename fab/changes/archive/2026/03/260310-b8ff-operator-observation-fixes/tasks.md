@@ -6,11 +6,11 @@
 
 ## Phase 1: Core Implementation
 
-- [x] T001 [P] Scope `discoverPanes()` to current session and add tab field — in `src/fab-go/cmd/fab/panemap.go`, change `tmux list-panes -a -F "#{pane_id} #{pane_current_path}"` to `tmux list-panes -s -F "#{pane_id} #{window_name} #{pane_current_path}"`. Update `paneEntry` struct to include a `tab` field. Update parsing in `discoverPanes()` to split 3 fields instead of 2. This change propagates to `send-keys` since it calls `discoverPanes()`.
+- [x] T001 [P] Scope `discoverPanes()` to current session and add tab field — in `src/go/fab/cmd/fab/panemap.go`, change `tmux list-panes -a -F "#{pane_id} #{pane_current_path}"` to `tmux list-panes -s -F "#{pane_id} #{window_name} #{pane_current_path}"`. Update `paneEntry` struct to include a `tab` field. Update parsing in `discoverPanes()` to split 3 fields instead of 2. This change propagates to `send-keys` since it calls `discoverPanes()`.
 
-- [x] T002 [P] Add Tab column to pane-map output — in `src/fab-go/cmd/fab/panemap.go`, add `tab` field to `paneRow` struct. Update `resolvePane()` to populate `tab` from the `paneEntry`. Update `printPaneTable()` to include Tab as the second column (between Pane and Worktree): headers become 6-element array `[Pane, Tab, Worktree, Change, Stage, Agent]` with matching format string and width calculation.
+- [x] T002 [P] Add Tab column to pane-map output — in `src/go/fab/cmd/fab/panemap.go`, add `tab` field to `paneRow` struct. Update `resolvePane()` to populate `tab` from the `paneEntry`. Update `printPaneTable()` to include Tab as the second column (between Pane and Worktree): headers become 6-element array `[Pane, Tab, Worktree, Change, Stage, Agent]` with matching format string and width calculation.
 
-- [x] T003 [P] Add `runtime is-idle` subcommand — in `src/fab-go/cmd/fab/runtime.go`, add `runtimeIsIdleCmd()` function returning a `*cobra.Command` with `Use: "is-idle <change>"`, `Args: cobra.ExactArgs(1)`. Implementation: resolve change via `resolve.ToFolder`, load runtime file via `loadRuntimeFile`, check for `agent.idle_since` entry. Output `idle {duration}` (reuse `formatIdleDuration` from panemap.go), `active`, or `unknown`. Always exit 0. Register the command in `runtimeCmd()` via `cmd.AddCommand(runtimeIsIdleCmd())`.
+- [x] T003 [P] Add `runtime is-idle` subcommand — in `src/go/fab/cmd/fab/runtime.go`, add `runtimeIsIdleCmd()` function returning a `*cobra.Command` with `Use: "is-idle <change>"`, `Args: cobra.ExactArgs(1)`. Implementation: resolve change via `resolve.ToFolder`, load runtime file via `loadRuntimeFile`, check for `agent.idle_since` entry. Output `idle {duration}` (reuse `formatIdleDuration` from panemap.go), `active`, or `unknown`. Always exit 0. Register the command in `runtimeCmd()` via `cmd.AddCommand(runtimeIsIdleCmd())`.
 
 ## Phase 2: Skill & Spec Updates
 
@@ -22,7 +22,7 @@
 
 ## Phase 3: Build Verification
 
-- [x] T007 Build Go binary and verify — run `cd src/fab-go && go build ./cmd/fab/` to verify compilation. Run `go vet ./cmd/fab/` for static analysis.
+- [x] T007 Build Go binary and verify — run `cd src/go/fab && go build ./cmd/fab/` to verify compilation. Run `go vet ./cmd/fab/` for static analysis.
 
 ---
 

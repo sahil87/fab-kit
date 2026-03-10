@@ -11,9 +11,9 @@
 
 ## Phase 2: Tests
 
-- [x] T003 Update the bash side of `src/fab-go/test/parity/archive_test.go` "archive change" test to invoke `archiveman.sh` without the explicit `archive` subcommand, exercising the default-to-archive path
+- [x] T003 Update the bash side of `src/go/fab/test/parity/archive_test.go` "archive change" test to invoke `archiveman.sh` without the explicit `archive` subcommand, exercising the default-to-archive path
 - [x] T004 Run bats tests (`src/lib/archiveman/test.bats`) to confirm they still pass (updated test 40 for new default-to-archive behavior)
-- [x] T005 Run parity tests (`src/fab-go/test/parity/`) to confirm bash/Go output matches
+- [x] T005 Run parity tests (`src/go/fab/test/parity/`) to confirm bash/Go output matches
 
 ---
 

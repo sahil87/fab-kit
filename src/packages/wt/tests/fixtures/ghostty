@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-# Mock ghostty executable for testing
-
-if [[ -n "${MOCK_LOG:-}" ]]; then
-    echo "ghostty $*" >> "$MOCK_LOG"
-fi
-
-exit 0

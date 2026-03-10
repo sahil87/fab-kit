@@ -193,7 +193,7 @@ When multiple panes share the same worktree (e.g., two panes both `cd`'d into th
    - *Why*: Simplifies implementation. The command answers "what's running in my tmux?" not "what changes exist?". `fab status show --all` already covers the latter.
    - *Rejected*: Scanning all worktree `fab/changes/` — requires cross-worktree traversal, mixes observation with inventory.
 
-3. **Command file with inline logic**: The pane-map logic lives in a single command file (`src/fab-go/cmd/fab/panemap.go`) rather than an internal package.
+3. **Command file with inline logic**: The pane-map logic lives in a single command file (`src/go/fab/cmd/fab/panemap.go`) rather than an internal package.
    - *Why*: The logic is self-contained and specific to this command. No other command needs tmux pane discovery. Follows the pattern of `runtime.go`.
    - *Rejected*: Creating `internal/panemap/` package — over-engineering for a single consumer.
 

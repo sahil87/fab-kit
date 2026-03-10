@@ -116,7 +116,7 @@ The Go binary SHALL be built to `fab/.kit/bin/fab-go` instead of `fab/.kit/bin/f
 
 ### Requirement: Parity Test Binary Path
 
-The parity test helper `fabBinary()` in `src/fab-go/test/parity/parity_test.go` SHALL reference `fab/.kit/bin/fab-go` instead of `fab/.kit/bin/fab`.
+The parity test helper `fabBinary()` in `src/go/fab/test/parity/parity_test.go` SHALL reference `fab/.kit/bin/fab-go` instead of `fab/.kit/bin/fab`.
 
 #### Scenario: Parity tests find binary
 - **GIVEN** `fab-go` has been built at `fab/.kit/bin/fab-go`

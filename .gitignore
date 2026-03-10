@@ -28,10 +28,10 @@ src/benchmark/statusman-rust/target/
 src/benchmark/statusman-node/node_modules/
 src/benchmark/statusman-go/statusman
 src/benchmark/results/*.json
-src/fab-go/wt
+src/go/fab/wt
 
 # Rust build artifacts
-src/fab-rust/target/
+src/rust/fab/target/
 
 # Gas Town runtime
 .beads/

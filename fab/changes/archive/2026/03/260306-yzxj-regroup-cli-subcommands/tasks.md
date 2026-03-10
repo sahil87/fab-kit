@@ -6,13 +6,13 @@
 
 ## Phase 1: Go Implementation
 
-- [x] T001 Refactor `src/fab-go/cmd/fab/archive.go` — rename `archiveCmd` → `changeArchiveCmd`, `archiveRestoreCmd` → `changeRestoreCmd`, `archiveListCmd` → `changeArchiveListCmd`. Update Cobra `Use` for archive-list to `archive-list`. Remove the `cmd.AddCommand` call inside `changeArchiveCmd` (restore and archive-list are now siblings, not children)
-- [x] T002 Update `src/fab-go/cmd/fab/change.go` — add `changeArchiveCmd()`, `changeRestoreCmd()`, `changeArchiveListCmd()` to the `cmd.AddCommand` call in `changeCmd()`
-- [x] T003 Update `src/fab-go/cmd/fab/main.go` — remove `archiveCmd()` from the root `AddCommand` list
+- [x] T001 Refactor `src/go/fab/cmd/fab/archive.go` — rename `archiveCmd` → `changeArchiveCmd`, `archiveRestoreCmd` → `changeRestoreCmd`, `archiveListCmd` → `changeArchiveListCmd`. Update Cobra `Use` for archive-list to `archive-list`. Remove the `cmd.AddCommand` call inside `changeArchiveCmd` (restore and archive-list are now siblings, not children)
+- [x] T002 Update `src/go/fab/cmd/fab/change.go` — add `changeArchiveCmd()`, `changeRestoreCmd()`, `changeArchiveListCmd()` to the `cmd.AddCommand` call in `changeCmd()`
+- [x] T003 Update `src/go/fab/cmd/fab/main.go` — remove `archiveCmd()` from the root `AddCommand` list
 
 ## Phase 2: Test Updates
 
-- [x] T004 Update `src/fab-go/test/parity/archive_test.go` — change `runGo` calls from `"archive", ...` to `"change", "archive", ...` and `"change", "archive-list"` respectively
+- [x] T004 Update `src/go/fab/test/parity/archive_test.go` — change `runGo` calls from `"archive", ...` to `"change", "archive", ...` and `"change", "archive-list"` respectively
 
 ## Phase 3: Skill and Script Documentation
 
@@ -26,7 +26,7 @@
 
 ## Phase 5: Build and Verify
 
-- [x] T009 Build Go binary — run `go build` in `src/fab-go/` to verify compilation
+- [x] T009 Build Go binary — run `go build` in `src/go/fab/` to verify compilation
 - [x] T010 Run parity tests — run `go test ./test/parity/ -run TestArchive` to verify updated tests pass
 
 ---

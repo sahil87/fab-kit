@@ -6,7 +6,7 @@
 
 ## Origin
 
-> 1-build-fab-binary: Build the `fab` Go binary — scaffold Go module at src/fab-go/ with cobra CLI, then port all 8 lib/ shell scripts (statusman.sh, resolve.sh, logman.sh, preflight.sh, changeman.sh, calc-score.sh, archiveman.sh) into subcommands of a single `fab` binary. Shared internal/yaml package for .status.yaml struct. Tasks follow dependency graph: scaffold first, then status+resolve+log in parallel, then preflight, then change+score in parallel, then archive.
+> 1-build-fab-binary: Build the `fab` Go binary — scaffold Go module at src/go/fab/ with cobra CLI, then port all 8 lib/ shell scripts (statusman.sh, resolve.sh, logman.sh, preflight.sh, changeman.sh, calc-score.sh, archiveman.sh) into subcommands of a single `fab` binary. Shared internal/yaml package for .status.yaml struct. Tasks follow dependency graph: scaffold first, then status+resolve+log in parallel, then preflight, then change+score in parallel, then archive.
 
 This change follows a benchmarking effort (260305-gt52-rust-vs-node-benchmark) that evaluated Rust, Go, Node, and optimized bash as replacements for the shell+yq scripts. The benchmark demonstrated Go as the recommended target: 8-49x faster than bash+yq baseline, sub-millisecond for all operations, trivial cross-compilation, and constitution-compliant as a single-binary utility.
 
@@ -24,12 +24,12 @@ The decision was made in a `/fab-discuss` session where the full dependency grap
 
 ## What Changes
 
-### Go Module Scaffold (`src/fab-go/`)
+### Go Module Scaffold (`src/go/fab/`)
 
-New Go module at `src/fab-go/` with the following structure:
+New Go module at `src/go/fab/` with the following structure:
 
 ```
-src/fab-go/
+src/go/fab/
 ├── cmd/
 │   └── fab/
 │       └── main.go              # cobra root command, registers all subcommands
@@ -138,7 +138,7 @@ File operations: move directories, update `fab/changes/archive/index.md`, manage
 
 ## Impact
 
-- **Source**: New `src/fab-go/` directory with Go module (~1,500-2,000 lines estimated)
+- **Source**: New `src/go/fab/` directory with Go module (~1,500-2,000 lines estimated)
 - **Scripts**: All 8 lib/ scripts (`statusman.sh`, `resolve.sh`, `logman.sh`, `preflight.sh`, `changeman.sh`, `calc-score.sh`, `archiveman.sh`, `frontmatter.sh`) — shell scripts remain unchanged in this change, shim + switchover is a separate change
 - **Dependencies**: New Go toolchain requirement for building from source (not for end users — they get pre-built binaries)
 - **Kit distribution**: No changes in this change — release integration is a separate change
@@ -154,7 +154,7 @@ File operations: move directories, update `fab/changes/archive/index.md`, manage
 |---|-------|----------|-----------|--------|
 | 1 | Certain | Go as the implementation language | Discussed — benchmark data (8-49x over bash+yq), trivial cross-compilation, constitution-compliant | S:95 R:85 A:95 D:95 |
 | 2 | Certain | Single `fab` binary with subcommands | Discussed — eliminates inter-script subprocess overhead, matches yq/gh pattern | S:90 R:80 A:90 D:90 |
-| 3 | Certain | Module location at `src/fab-go/` | Discussed — follows existing `src/` convention, keeps Go source separate from kit distribution | S:85 R:90 A:90 D:90 |
+| 3 | Certain | Module location at `src/go/fab/` | Discussed — follows existing `src/` convention, keeps Go source separate from kit distribution | S:85 R:90 A:90 D:90 |
 | 4 | Certain | Cobra for CLI framework | Standard Go CLI library, well-maintained, supports nested subcommands | S:80 R:90 A:90 D:95 |
 | 5 | Certain | `internal/statusfile/` as shared YAML package | Discussed — single StatusFile struct parsed once, passed by pointer | S:90 R:85 A:90 D:90 |
 | 6 | Certain | Identical CLI interface to bash scripts | Required for parity testing and shim switchover (separate change) | S:85 R:70 A:90 D:95 |

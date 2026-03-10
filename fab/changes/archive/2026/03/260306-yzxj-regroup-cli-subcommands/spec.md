@@ -57,7 +57,7 @@ The `archiveCmd()` function SHALL no longer be added to the root command in `mai
 
 ### Requirement: Go Implementation Structure
 
-The archive command functions (`archiveCmd`, `archiveRestoreCmd`, `archiveListCmd`) in `src/fab-go/cmd/fab/archive.go` SHALL be refactored:
+The archive command functions (`archiveCmd`, `archiveRestoreCmd`, `archiveListCmd`) in `src/go/fab/cmd/fab/archive.go` SHALL be refactored:
 
 1. `archiveCmd()` → `changeArchiveCmd()` — registered under `changeCmd()` as `archive`
 2. `archiveRestoreCmd()` → `changeRestoreCmd()` — registered under `changeCmd()` as `restore`
@@ -153,7 +153,7 @@ All `fab archive` CLI invocations in `fab/.kit/skills/fab-archive.md` SHALL be u
 
 ### Requirement: Update Parity Tests
 
-`src/fab-go/test/parity/archive_test.go` SHALL update `runGo` calls from `"archive", ...` to `"change", "archive", ...` (and similarly for restore/list).
+`src/go/fab/test/parity/archive_test.go` SHALL update `runGo` calls from `"archive", ...` to `"change", "archive", ...` (and similarly for restore/list).
 
 #### Scenario: Parity test invocations
 - **GIVEN** the updated test file

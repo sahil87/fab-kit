@@ -5,7 +5,7 @@
 **Spec**: `spec.md`
 
 ## Functional Completeness
-- [ ] CHK-001 Go module scaffold: `src/fab-go/go.mod` exists with correct module path, Go 1.22+, cobra and yaml.v3 dependencies
+- [ ] CHK-001 Go module scaffold: `src/go/fab/go.mod` exists with correct module path, Go 1.22+, cobra and yaml.v3 dependencies
 - [ ] CHK-002 StatusFile struct: `internal/statusfile` loads and saves `.status.yaml` with all fields (progress, checklist, confidence, stage_metrics, issues, prs)
 - [ ] CHK-003 Resolve: `fab resolve` supports all four output modes (--id, --folder, --dir, --status) and all input forms (4-char ID, substring, full name, fab/current default)
 - [ ] CHK-004 Log: `fab log` implements all four subcommands (command, confidence, review, transition) with correct JSON format

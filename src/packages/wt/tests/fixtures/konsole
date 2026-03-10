@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-# Mock konsole executable for testing
-
-if [[ -n "${MOCK_LOG:-}" ]]; then
-    echo "konsole $*" >> "$MOCK_LOG"
-fi
-
-exit 0

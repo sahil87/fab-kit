@@ -10,9 +10,9 @@
 
 ## Phase 2: Core Implementation
 
-- [x] T002 Implement `fab send-keys` subcommand in `src/fab-go/cmd/fab/sendkeys.go` — two positional args (`<change>`, `<text>`), tmux session guard, pane resolution (reuse pane-map discovery logic), pane existence validation, multi-pane warning, and `tmux send-keys -t <pane> "<text>" Enter` execution
-- [x] T003 Register `sendKeysCmd()` in `src/fab-go/cmd/fab/main.go` root command
-- [x] T004 Write tests for `fab send-keys` in `src/fab-go/cmd/fab/sendkeys_test.go` — test pane matching logic, multi-pane warning, no-pane-found error, tmux session guard
+- [x] T002 Implement `fab send-keys` subcommand in `src/go/fab/cmd/fab/sendkeys.go` — two positional args (`<change>`, `<text>`), tmux session guard, pane resolution (reuse pane-map discovery logic), pane existence validation, multi-pane warning, and `tmux send-keys -t <pane> "<text>" Enter` execution
+- [x] T003 Register `sendKeysCmd()` in `src/go/fab/cmd/fab/main.go` root command
+- [x] T004 Write tests for `fab send-keys` in `src/go/fab/cmd/fab/sendkeys_test.go` — test pane matching logic, multi-pane warning, no-pane-found error, tmux session guard
 - [x] T005 Create the operator skill file at `fab/.kit/skills/fab-operator1.md` — frontmatter, context loading (always-load layer only), orientation on start (pane map + status), seven use cases, confirmation model, pre-send validation, bounded retries, context discipline, not-a-lifecycle-enforcer, key properties table
 
 ## Phase 3: Integration

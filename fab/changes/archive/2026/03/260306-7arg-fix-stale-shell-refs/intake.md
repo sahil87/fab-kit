@@ -100,7 +100,7 @@ The intermediate `.status.yaml` path derivation is unnecessary — `fab status` 
 - **`src/lib/`** — entire directory tree deleted (~20 files across 8 subdirs)
 - **`src/sync/`** — directory deleted (sole file was orphaned test)
 - **`just test`** — now passes (no more failing shell test suites)
-- **Go parity tests** — NOT affected (they live in `src/fab-go/test/parity/` and test the Go binary directly)
+- **Go parity tests** — NOT affected (they live in `src/go/fab/test/parity/` and test the Go binary directly)
 
 ### `.gitmodules` — no change needed
 

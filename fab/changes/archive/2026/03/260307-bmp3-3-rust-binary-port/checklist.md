@@ -20,7 +20,7 @@
 - [ ] CHK-012 Justfile Recipes: `build-rust` compiles and copies binary; `test-rust` runs Rust tests
 - [ ] CHK-013 Gitignore: `.fab-backend` added to `.gitignore`
 - [ ] CHK-014 Rust Integration Tests: Test suite at `src/fab-rust/tests/` with fixture-based approach covering all subcommands
-- [ ] CHK-015 Go Tests Unmodified: No changes to `src/fab-go/` — existing parity tests still pass
+- [ ] CHK-015 Go Tests Unmodified: No changes to `src/go/fab/` — existing parity tests still pass
 
 ## Behavioral Correctness
 

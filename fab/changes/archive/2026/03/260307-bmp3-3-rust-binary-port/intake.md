@@ -6,7 +6,7 @@
 
 ## Origin
 
-> Big bang port of the Go binary (`src/fab-go/`) to Rust (`src/fab-rust/`). All 9 subcommands ported at once. The dispatcher (`fab/.kit/bin/fab`) already supports `fab-rust` with higher priority than `fab-go`. Add a mechanism to switch back to Go for comparison during the transition period. This is step 3 of the 4-part plan.
+> Big bang port of the Go binary (`src/go/fab/`) to Rust (`src/fab-rust/`). All 9 subcommands ported at once. The dispatcher (`fab/.kit/bin/fab`) already supports `fab-rust` with higher priority than `fab-go`. Add a mechanism to switch back to Go for comparison during the transition period. This is step 3 of the 4-part plan.
 
 Discussion context: User chose big bang over incremental porting because the incremental approach doesn't work well — cobra/clap each want to own the full command tree, making per-subcommand delegation more complex than just porting everything. The Go codebase is small enough (~38 source files, 9 subcommands, deps: cobra + yaml.v3) to port in one shot. User wants an env var or file-based mechanism to switch back to Go for comparison. User confirmed `clap` derive for CLI help (equivalent to cobra's auto-help).
 
@@ -106,8 +106,8 @@ build-rust:
 
 ### Existing: Go parity tests
 
-The Go parity tests at `src/fab-go/test/parity/` verify behavior against shell script baselines. Both test suites run during development:
-- **Go parity tests** (`src/fab-go/test/parity/`) — continue to run as-is, validating the Go binary
+The Go parity tests at `src/go/fab/test/parity/` verify behavior against shell script baselines. Both test suites run during development:
+- **Go parity tests** (`src/go/fab/test/parity/`) — continue to run as-is, validating the Go binary
 - **Rust integration tests** (`src/fab-rust/tests/`) — new Rust-native tests validating the Rust binary against the same expected behavior
 <!-- clarified: Both Go and Rust test suites run in parallel — no shared harness, no test replacement -->
 

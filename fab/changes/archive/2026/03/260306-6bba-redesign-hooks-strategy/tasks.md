@@ -6,13 +6,13 @@
 
 ## Phase 1: Setup
 
-- [x] T001 Add `fab runtime` Cobra command group in `src/fab-go/cmd/fab/main.go` — register `runtimeCmd()` on the root command
+- [x] T001 Add `fab runtime` Cobra command group in `src/go/fab/cmd/fab/main.go` — register `runtimeCmd()` on the root command
 
 ## Phase 2: Core Implementation
 
-- [x] T002 Implement `fab runtime set-idle <change>` in `src/fab-go/cmd/fab/runtime.go` — resolve change to folder name, read/create `.fab-runtime.yaml` at repo root, write `{folder}.agent.idle_since` with current Unix timestamp
-- [x] T003 Implement `fab runtime clear-idle <change>` in `src/fab-go/cmd/fab/runtime.go` — resolve change to folder name, read `.fab-runtime.yaml`, delete `{folder}.agent` block, exit 0 if file doesn't exist
-- [x] T004 Add tests for runtime commands in `src/fab-go/test/parity/runtime_test.go` — test set-idle (creates file, updates existing), clear-idle (removes entry, no-op on missing file), change resolution
+- [x] T002 Implement `fab runtime set-idle <change>` in `src/go/fab/cmd/fab/runtime.go` — resolve change to folder name, read/create `.fab-runtime.yaml` at repo root, write `{folder}.agent.idle_since` with current Unix timestamp
+- [x] T003 Implement `fab runtime clear-idle <change>` in `src/go/fab/cmd/fab/runtime.go` — resolve change to folder name, read `.fab-runtime.yaml`, delete `{folder}.agent` block, exit 0 if file doesn't exist
+- [x] T004 Add tests for runtime commands in `src/go/fab/test/parity/runtime_test.go` — test set-idle (creates file, updates existing), clear-idle (removes entry, no-op on missing file), change resolution
 - [x] T005 Create `fab/.kit/hooks/on-artifact-write.sh` — PostToolUse hook script: parse stdin JSON for `tool_input.file_path`, pattern-match against `fab/changes/*/intake.md|spec.md|tasks.md|checklist.md`, derive change name, run appropriate bookkeeping commands, return `additionalContext` JSON, exit 0 always
 - [x] T006 [P] Migrate `fab/.kit/hooks/on-stop.sh` — replace yq calls with `"$fab_cmd" runtime set-idle "$change_folder"`, remove `command -v yq` guard and `runtime_file` variable
 - [x] T007 [P] Migrate `fab/.kit/hooks/on-session-start.sh` — replace yq calls with `"$fab_cmd" runtime clear-idle "$change_folder"`, remove `command -v yq` guard and `runtime_file` variable

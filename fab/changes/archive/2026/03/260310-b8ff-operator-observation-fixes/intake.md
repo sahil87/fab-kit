@@ -8,7 +8,7 @@
 
 > Fix pane-map session scoping, add tab name column, add `fab runtime is-idle` read subcommand, and remove `status show --all` from operator skill.
 
-Identified during a deep-dive discussion of `/fab-operator1` and the commands it uses to observe state. Four issues surfaced from reading the Go implementation (`src/fab-go/cmd/fab/panemap.go`, `src/fab-go/cmd/fab/runtime.go`) and the hook scripts.
+Identified during a deep-dive discussion of `/fab-operator1` and the commands it uses to observe state. Four issues surfaced from reading the Go implementation (`src/go/fab/cmd/fab/panemap.go`, `src/go/fab/cmd/fab/runtime.go`) and the hook scripts.
 
 ## Why
 
@@ -25,7 +25,7 @@ If not fixed: the operator skill sees noise from unrelated sessions, has no clea
 
 ### 1. Scope `pane-map` to current tmux session
 
-In `src/fab-go/cmd/fab/panemap.go`, change:
+In `src/go/fab/cmd/fab/panemap.go`, change:
 
 ```
 tmux list-panes -a -F "#{pane_id} #{pane_current_path}"
@@ -50,7 +50,7 @@ Pane   Tab        Worktree                       Change                         
 
 ### 2. Update `send-keys` pane discovery
 
-`src/fab-go/cmd/fab/sendkeys.go` uses `tmux list-panes -a` for pane resolution. Switch to `-s` for consistency with pane-map — send-keys should only target panes in the current session.
+`src/go/fab/cmd/fab/sendkeys.go` uses `tmux list-panes -a` for pane resolution. Switch to `-s` for consistency with pane-map — send-keys should only target panes in the current session.
 
 ### 3. Add `fab runtime is-idle <change>`
 
@@ -80,11 +80,11 @@ The `--all` flag itself stays in the CLI (it has legitimate non-operator use for
 
 ## Impact
 
-- **Go binary** (`src/fab-go/`): `panemap.go` (session scoping + tab column), `runtime.go` (add is-idle), `sendkeys.go` (session scoping), `main.go` (register is-idle subcommand)
+- **Go binary** (`src/go/fab/`): `panemap.go` (session scoping + tab column), `runtime.go` (add is-idle), `sendkeys.go` (session scoping), `main.go` (register is-idle subcommand)
 - **Operator skill** (`fab/.kit/skills/fab-operator1.md`): Replace `status show --all` with `pane-map`
 - **Operator spec** (`docs/specs/skills/SPEC-fab-operator1.md`): Update references
 - **Specs/memory**: Update docs to reflect new behavior
-- **Go parity tests**: Update `src/fab-go/test/parity/`
+- **Go parity tests**: Update `src/go/fab/test/parity/`
 
 ## Open Questions
 

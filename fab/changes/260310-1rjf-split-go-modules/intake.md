@@ -6,7 +6,7 @@
 
 ## Origin
 
-> Split the monolithic `src/fab-go/` into three independent Go modules (`src/fab-go/`, `src/wt-go/`, `src/idea-go/`) with zero shared code between them.
+> Split the monolithic `src/go/fab/` into three independent Go modules (`src/go/fab/`, `src/go/wt/`, `src/go/idea/`) with zero shared code between them.
 
 Initiated via `/fab-discuss` conversation. User identified that the single Go module containing all 3 binaries was confusing — you can't tell which binary owns which `internal/` package, tests are scattered inconsistently, and the dependency graph between `wt` and `fab` internal packages was unnecessarily coupled. Discussion explored three proposals (group internal by binary, separate modules, minimal fix). User chose separate modules (Proposal B).
 
@@ -14,7 +14,7 @@ Key design decision during discussion: `wt list` should NOT show fab-specific st
 
 ## Why
 
-The current `src/fab-go/` module contains three independent binaries (fab, wt, idea) in a single Go module. This creates several problems:
+The current `src/go/fab/` module contains three independent binaries (fab, wt, idea) in a single Go module. This creates several problems:
 
 1. **Ownership ambiguity** — `internal/` has 14 flat packages. You can't tell from the directory tree which binary owns which package (e.g., does `internal/hooklib` belong to `fab` or `wt`?).
 2. **Unnecessary coupling** — `internal/worktree` imports `internal/status` and `internal/statusfile` solely to display fab pipeline state in `wt list`. This pulls in a transitive chain (status → config, hooks, log, resolve) that has nothing to do with worktree management.
@@ -42,11 +42,11 @@ Make `fab status show` call the `wt` binary instead of importing the worktree pa
 - Format output with fab-specific columns (change, stage, state)
 - Handle `wt` binary not found gracefully
 
-### Create `src/wt-go/` module
+### Create `src/go/wt/` module
 
 ```
-src/wt-go/
-  go.mod                    module github.com/wvrdz/fab-kit/src/wt-go
+src/go/wt/
+  go.mod                    module github.com/wvrdz/fab-kit/src/go/wt
   cmd/
     main.go, create.go, delete.go, init.go, list.go, open.go
   internal/
@@ -56,13 +56,13 @@ src/wt-go/
       rollback.go, rollback_test.go, stash.go, worktree.go
 ```
 
-All import paths updated from `github.com/wvrdz/fab-kit/src/fab-go/internal/worktree` to `github.com/wvrdz/fab-kit/src/wt-go/internal/worktree`.
+All import paths updated from `github.com/wvrdz/fab-kit/src/go/fab/internal/worktree` to `github.com/wvrdz/fab-kit/src/go/wt/internal/worktree`.
 
-### Create `src/idea-go/` module
+### Create `src/go/idea/` module
 
 ```
-src/idea-go/
-  go.mod                    module github.com/wvrdz/fab-kit/src/idea-go
+src/go/idea/
+  go.mod                    module github.com/wvrdz/fab-kit/src/go/idea
   cmd/
     main.go, resolve.go, add.go, list.go, show.go, done.go, reopen.go, edit.go, rm.go
   internal/
@@ -70,9 +70,9 @@ src/idea-go/
       idea.go, idea_test.go
 ```
 
-Split the monolithic `cmd/idea/main.go` (305 lines) into per-subcommand files matching the pattern used by `cmd/wt/` and `cmd/fab/`. All import paths updated to `github.com/wvrdz/fab-kit/src/idea-go/internal/idea`.
+Split the monolithic `cmd/idea/main.go` (305 lines) into per-subcommand files matching the pattern used by `cmd/wt/` and `cmd/fab/`. All import paths updated to `github.com/wvrdz/fab-kit/src/go/idea/internal/idea`.
 
-### Clean up `src/fab-go/`
+### Clean up `src/go/fab/`
 
 - Delete `cmd/wt/` (moved to `wt-go`)
 - Delete `cmd/idea/` (moved to `idea-go`)
@@ -87,7 +87,7 @@ Split the monolithic `cmd/idea/main.go` (305 lines) into per-subcommand files ma
 ### Update justfile
 
 - `test-go`: run `go test` in all 3 module directories
-- `build-go`: build from each module's own path (`src/fab-go`, `src/wt-go`, `src/idea-go`)
+- `build-go`: build from each module's own path (`src/go/fab`, `src/go/wt`, `src/go/idea`)
 - `_build-go-binary`: accept `src_dir` and `cmd_path` parameters
 - `build-go-target`: cross-compile all 3 using per-module paths
 - Remove `go_src` variable (no longer a single source directory)
@@ -104,9 +104,9 @@ Split the monolithic `cmd/idea/main.go` (305 lines) into per-subcommand files ma
 
 ## Impact
 
-- `src/fab-go/` — significant cleanup (remove wt, idea, worktree code)
-- `src/wt-go/` — new Go module (moved from fab-go)
-- `src/idea-go/` — new Go module (moved from fab-go)
+- `src/go/fab/` — significant cleanup (remove wt, idea, worktree code)
+- `src/go/wt/` — new Go module (moved from fab-go)
+- `src/go/idea/` — new Go module (moved from fab-go)
 - `justfile` — build/test paths updated for 3 modules
 - `fab/.kit/skills/_scripts.md` — remove `fab idea` documentation
 - `src/packages/idea/` — deleted (old shell tests)

@@ -13,19 +13,19 @@
 
 ## Go Module: Scaffold and Structure
 
-### Requirement: Go Module at `src/fab-go/`
+### Requirement: Go Module at `src/go/fab/`
 
-The Go module SHALL be located at `src/fab-go/` with module path `github.com/wvrdz/fab-kit/src/fab-go`. The module SHALL use Go 1.22+ and depend only on `github.com/spf13/cobra` (CLI framework) and `gopkg.in/yaml.v3` (YAML parsing). No CGo dependencies SHALL be used.
+The Go module SHALL be located at `src/go/fab/` with module path `github.com/wvrdz/fab-kit/src/go/fab`. The module SHALL use Go 1.22+ and depend only on `github.com/spf13/cobra` (CLI framework) and `gopkg.in/yaml.v3` (YAML parsing). No CGo dependencies SHALL be used.
 
 #### Scenario: Module initialization
-- **GIVEN** no `src/fab-go/` directory exists
+- **GIVEN** no `src/go/fab/` directory exists
 - **WHEN** the module is scaffolded
-- **THEN** `src/fab-go/go.mod` declares the module path and Go version
-- **AND** `src/fab-go/go.sum` contains checksums for cobra and yaml.v3
+- **THEN** `src/go/fab/go.mod` declares the module path and Go version
+- **AND** `src/go/fab/go.sum` contains checksums for cobra and yaml.v3
 
 ### Requirement: Binary Entry Point
 
-The binary entry point SHALL be at `src/fab-go/cmd/fab/main.go`. It SHALL register all subcommands via cobra and exit with the command's exit code.
+The binary entry point SHALL be at `src/go/fab/cmd/fab/main.go`. It SHALL register all subcommands via cobra and exit with the command's exit code.
 
 #### Scenario: Root command with no args
 - **GIVEN** the `fab` binary is built
@@ -464,7 +464,7 @@ This enables parity testing by running both the shell script and Go binary again
 |---|-------|----------|-----------|--------|
 | 1 | Certain | Go as the implementation language | Confirmed from intake #1 — benchmark data validated, constitution-compliant | S:95 R:85 A:95 D:95 |
 | 2 | Certain | Single `fab` binary with subcommands | Confirmed from intake #2 — eliminates inter-script subprocess overhead | S:90 R:80 A:90 D:90 |
-| 3 | Certain | Module location at `src/fab-go/` | Confirmed from intake #3 — follows src/ convention | S:85 R:90 A:90 D:90 |
+| 3 | Certain | Module location at `src/go/fab/` | Confirmed from intake #3 — follows src/ convention | S:85 R:90 A:90 D:90 |
 | 4 | Certain | Cobra for CLI framework | Confirmed from intake #4 — standard Go CLI library | S:80 R:90 A:90 D:95 |
 | 5 | Certain | `internal/statusfile/` as shared YAML package | Confirmed from intake #5 — single struct, single parse | S:90 R:85 A:90 D:90 |
 | 6 | Certain | Identical CLI interface to bash scripts | Confirmed from intake #6 — required for parity testing | S:85 R:70 A:90 D:95 |

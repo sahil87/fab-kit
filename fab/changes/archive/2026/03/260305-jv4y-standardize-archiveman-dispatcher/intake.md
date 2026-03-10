@@ -67,7 +67,7 @@ This standardizes the `archive` entry to match all other dispatcher entries (pla
 
 ### 3. Update parity tests
 
-The bash side of `src/fab-go/test/parity/archive_test.go` calls `archiveman.sh "archive" ...` explicitly. Update to call via the dispatcher or without the explicit `archive` subcommand, matching the new behavior.
+The bash side of `src/go/fab/test/parity/archive_test.go` calls `archiveman.sh "archive" ...` explicitly. Update to call via the dispatcher or without the explicit `archive` subcommand, matching the new behavior.
 
 ### 4. Update bats tests
 
@@ -81,7 +81,7 @@ The bash side of `src/fab-go/test/parity/archive_test.go` calls `archiveman.sh "
 
 - `fab/.kit/bin/fab` — dispatcher case statement (1 line change)
 - `fab/.kit/scripts/lib/archiveman.sh` — default case in subcommand dispatch (~2 lines)
-- `src/fab-go/test/parity/archive_test.go` — bash invocation lines
+- `src/go/fab/test/parity/archive_test.go` — bash invocation lines
 - `src/lib/archiveman/test.bats` — no change needed (explicit subcommand still works)
 - `fab/.kit/skills/fab-archive.md` — no change needed (already uses `fab archive` correctly)
 - `fab/.kit/skills/_scripts.md` — no change needed (already documents `fab archive`)

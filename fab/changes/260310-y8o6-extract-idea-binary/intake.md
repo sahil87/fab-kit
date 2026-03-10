@@ -18,10 +18,10 @@ The `idea` subcommand was embedded inside the `fab` binary as `fab idea ...`. Th
 
 ### Standalone `idea` binary
 
-- Create `src/fab-go/cmd/idea/main.go` — cobra root command with all 7 subcommands (add, list, show, done, reopen, edit, rm)
-- Move cobra CLI wiring from `src/fab-go/cmd/fab/idea.go` into the new entry point
-- Remove `ideaCmd()` registration from `src/fab-go/cmd/fab/main.go`
-- Delete `src/fab-go/cmd/fab/idea.go`
+- Create `src/go/fab/cmd/idea/main.go` — cobra root command with all 7 subcommands (add, list, show, done, reopen, edit, rm)
+- Move cobra CLI wiring from `src/go/fab/cmd/fab/idea.go` into the new entry point
+- Remove `ideaCmd()` registration from `src/go/fab/cmd/fab/main.go`
+- Delete `src/go/fab/cmd/fab/idea.go`
 - Business logic in `internal/idea/` is unchanged — only the CLI layer moves
 
 ### Justfile reorganization
@@ -45,8 +45,8 @@ The `idea` subcommand was embedded inside the `fab` binary as `fab idea ...`. Th
 
 ## Impact
 
-- `src/fab-go/cmd/fab/` — idea subcommand removed
-- `src/fab-go/cmd/idea/` — new binary entry point
+- `src/go/fab/cmd/fab/` — idea subcommand removed
+- `src/go/fab/cmd/idea/` — new binary entry point
 - `justfile` — full rewrite of build/test section
 - `.github/workflows/release.yml` — build step updated
 - `fab/.kit/bin/` — `idea` binary added alongside `fab-go` and `wt`

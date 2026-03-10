@@ -22,7 +22,7 @@ Follows the wt build change (260305-jug9-3-build-wt-go-binary). Same pattern as 
 
 ### Parity Test Harness for wt
 
-Test suite at `src/fab-go/test/parity/wt/` that:
+Test suite at `src/go/fab/test/parity/wt/` that:
 
 1. Creates temporary git repositories with worktrees as test fixtures
 2. For each wt command, runs both `bash wt-<command> <args>` and `wt <command> <args>`

@@ -24,10 +24,10 @@ Phase 2 of the Go migration. Depends on Phase 1 (fab binary) being complete. The
 
 ### Go Module (same module as fab binary)
 
-The wt binary lives in the same Go module at `src/fab-go/` but builds a separate binary:
+The wt binary lives in the same Go module at `src/go/fab/` but builds a separate binary:
 
 ```
-src/fab-go/
+src/go/fab/
 ├── cmd/
 │   ├── fab/
 │   │   └── main.go          # fab binary (from Phase 1)
@@ -104,7 +104,7 @@ Create a worktree for reviewing a GitHub PR:
 
 ## Impact
 
-- **Source**: New `src/fab-go/cmd/wt/` and `src/fab-go/internal/worktree/` (~1,500-2,000 lines estimated)
+- **Source**: New `src/go/fab/cmd/wt/` and `src/go/fab/internal/worktree/` (~1,500-2,000 lines estimated)
 - **Existing wt scripts**: Unchanged in this change — parity testing and switchover is the next change
 - **gh CLI dependency**: wt-pr requires `gh` — the Go binary will shell out to `gh` (same as the bash version)
 
@@ -117,7 +117,7 @@ Create a worktree for reviewing a GitHub PR:
 | # | Grade | Decision | Rationale | Scores |
 |---|-------|----------|-----------|--------|
 | 1 | Certain | Separate `wt` binary (not merged into `fab`) | Discussed — different concern domains, matches current package separation | S:90 R:85 A:90 D:90 |
-| 2 | Certain | Same Go module as fab (`src/fab-go/`) | Shared internal packages possible (e.g., resolve), single go.mod | S:85 R:85 A:85 D:90 |
+| 2 | Certain | Same Go module as fab (`src/go/fab/`) | Shared internal packages possible (e.g., resolve), single go.mod | S:85 R:85 A:85 D:90 |
 | 3 | Certain | wt-common.sh → internal/worktree/ package | Discussed — shared library becomes proper Go package | S:85 R:85 A:90 D:95 |
 | 4 | Confident | Shell out to `gh` for GitHub operations | Rewriting gh API calls in Go adds complexity for marginal benefit. gh handles auth, pagination, rate limiting | S:75 R:85 A:80 D:75 |
 | 5 | Confident | Preserve interactive TUI (menus, fzf) | Users rely on interactive flows. Go TUI libraries (bubbletea, survey) can replicate this. Alternative: drop interactivity in favor of flags-only | S:70 R:70 A:75 D:70 |

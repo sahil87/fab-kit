@@ -162,7 +162,7 @@ Each dispatched change gets its own tmux split pane (stacked vertically in the r
 
 ## Testing
 
-BATS test suite at `src/scripts/pipeline/test.bats` covers pure-logic functions from `run.sh` and `dispatch.sh`. Both scripts have source guards (`if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then main; fi`) enabling function-level testing without triggering `main()`.
+BATS test suite at `src/sh/pipeline/test.bats` covers pure-logic functions from `run.sh` and `dispatch.sh`. Both scripts have source guards (`if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then main; fi`) enabling function-level testing without triggering `main()`.
 
 ### Coverage
 

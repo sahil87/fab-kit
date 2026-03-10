@@ -176,7 +176,7 @@ Update `fab/.kit/skills/_scripts.md` to:
 
 Delete `src/packages/wt/tests/wt-status.bats` — tests the shell `wt-status` command which is being removed.
 
-The Go parity tests in `src/fab-go/test/parity/` stay as authoritative integration tests. They currently compare bash vs Go output; after this change they test the Go binary standalone (the bash side will fail gracefully or can be updated to test Go-only).
+The Go parity tests in `src/go/fab/test/parity/` stay as authoritative integration tests. They currently compare bash vs Go output; after this change they test the Go binary standalone (the bash side will fail gracefully or can be updated to test Go-only).
 
 ### Update Memory and Docs
 

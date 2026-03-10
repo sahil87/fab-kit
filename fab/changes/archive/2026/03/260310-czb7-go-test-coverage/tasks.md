@@ -11,16 +11,16 @@
 
 ## Phase 2: Core Implementation
 
-- [x] T003 [P] Add `src/fab-go/internal/resolve/resolve_test.go` — test `ToFolder` (symlink, 4-char ID, substring, full name, ambiguous, no match), `ExtractID`, `FabRoot`, `ToDir`, `ToStatus`, `ToAbsDir`, `ToAbsStatus`
-- [x] T004 [P] Add `src/fab-go/internal/log/log_test.go` — test `Command`, `Transition`, `Review`, `ConfidenceLog` (event types, timestamps, append-only, optional field omission)
-- [x] T005 [P] Add `src/fab-go/internal/preflight/preflight_test.go` — test `Run` (valid repo, missing config, missing constitution, missing active change, override resolution) and `FormatYAML`
-- [x] T006 [P] Add `src/fab-go/internal/score/score_test.go` — test `Compute` (all certain, confident penalties, unresolved zero, cover factor, dimension parsing) and `CheckGate` (pass/fail, intake gate)
-- [x] T007 [P] Add `src/fab-go/internal/archive/archive_test.go` — test `Archive` (move + index + pointer clear), `Restore` (move back + index removal, with switch), `List`
-- [x] T008 [P] Add `src/fab-go/internal/change/change_test.go` — test `New` (valid slug, explicit ID, invalid slug, ID collision), `Rename`, `Switch`, `SwitchBlank`, `List`
+- [x] T003 [P] Add `src/go/fab/internal/resolve/resolve_test.go` — test `ToFolder` (symlink, 4-char ID, substring, full name, ambiguous, no match), `ExtractID`, `FabRoot`, `ToDir`, `ToStatus`, `ToAbsDir`, `ToAbsStatus`
+- [x] T004 [P] Add `src/go/fab/internal/log/log_test.go` — test `Command`, `Transition`, `Review`, `ConfidenceLog` (event types, timestamps, append-only, optional field omission)
+- [x] T005 [P] Add `src/go/fab/internal/preflight/preflight_test.go` — test `Run` (valid repo, missing config, missing constitution, missing active change, override resolution) and `FormatYAML`
+- [x] T006 [P] Add `src/go/fab/internal/score/score_test.go` — test `Compute` (all certain, confident penalties, unresolved zero, cover factor, dimension parsing) and `CheckGate` (pass/fail, intake gate)
+- [x] T007 [P] Add `src/go/fab/internal/archive/archive_test.go` — test `Archive` (move + index + pointer clear), `Restore` (move back + index removal, with switch), `List`
+- [x] T008 [P] Add `src/go/fab/internal/change/change_test.go` — test `New` (valid slug, explicit ID, invalid slug, ID collision), `Rename`, `Switch`, `SwitchBlank`, `List`
 
 ## Phase 3: Integration & Edge Cases
 
-- [x] T009 Verify all tests pass via `cd src/fab-go && go test ./... -count=1` — confirm no `[no test files]` for the 6 target packages
+- [x] T009 Verify all tests pass via `cd src/go/fab && go test ./... -count=1` — confirm no `[no test files]` for the 6 target packages
 
 ---
 

@@ -279,7 +279,7 @@ The Rust binary SHALL have integration tests at `src/fab-rust/tests/` that valid
 
 ### Requirement: Go Tests Unmodified
 
-The existing Go parity tests at `src/fab-go/test/parity/` SHALL NOT be modified by this change. They continue to test the Go binary independently.
+The existing Go parity tests at `src/go/fab/test/parity/` SHALL NOT be modified by this change. They continue to test the Go binary independently.
 
 #### Scenario: Go tests still pass
 

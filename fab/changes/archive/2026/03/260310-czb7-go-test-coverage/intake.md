@@ -8,7 +8,7 @@
 
 > Fix Go test coverage — every fab subcommand should have test cases. Restore `just test-go` and `just test-go-v` justfile targets to run all Go tests (unit + integration), not just the old parity tests which have been removed. Also reverse the backend priority in the `fab` dispatcher from rust > go to go > rust, since Go is now the actively maintained backend.
 
-The Go parity tests (`src/fab-go/test/parity/`) were removed because the bash scripts they tested against no longer exist. This left `just test-go` missing from the justfile. The existing Go unit tests (`./...`) cover some packages but several internal packages have zero test files.
+The Go parity tests (`src/go/fab/test/parity/`) were removed because the bash scripts they tested against no longer exist. This left `just test-go` missing from the justfile. The existing Go unit tests (`./...`) cover some packages but several internal packages have zero test files.
 
 ## Why
 
@@ -138,7 +138,7 @@ These packages already have tests:
 ## Impact
 
 - **justfile**: Restore `test-go`, `test-go-v` targets; add `test-go` to `test` recipe
-- **src/fab-go/internal/**: 6 new `*_test.go` files (~600-800 lines total)
+- **src/go/fab/internal/**: 6 new `*_test.go` files (~600-800 lines total)
 - **fab/.kit/bin/fab**: Dispatcher priority reversed (go > rust)
 - **No behavioral changes** to the fab commands themselves — additive test coverage + dispatcher priority swap
 

@@ -22,7 +22,7 @@ Follows the build change (260305-bhd6-1-build-fab-go-binary). Once the Go binary
 
 ### Parity Test Harness
 
-A test suite at `src/fab-go/test/parity/` that:
+A test suite at `src/go/fab/test/parity/` that:
 
 1. Maintains fixture files (`.status.yaml` variants, change directories, backlog files) covering all operations
 2. For each operation, runs both:

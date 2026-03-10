@@ -15,7 +15,7 @@
 
 ### Requirement: Parity Test Harness
 
-A Go test suite at `src/fab-go/test/parity/` SHALL compare the output of each bash script against its Go binary equivalent. For each operation, the test MUST run both:
+A Go test suite at `src/go/fab/test/parity/` SHALL compare the output of each bash script against its Go binary equivalent. For each operation, the test MUST run both:
 1. `bash fab/.kit/scripts/lib/{script}.sh <subcommand> <args>` (using the repo's actual scripts)
 2. The Go binary equivalent (`fab {command} <subcommand> <args>`)
 
@@ -50,20 +50,20 @@ The parity test suite SHALL maintain fixtures covering all 7 ported scripts and 
 
 Fixtures SHALL include: `.status.yaml` variants (different stages, states, confidence values), `config.yaml`, `constitution.md`, change directories with intake/spec artifacts, `.history.jsonl`, `workflow.yaml` schema, and archive directory structures.
 
-The existing benchmark fixtures at `src/benchmark/fixtures/` MAY be referenced or extended but the parity suite SHALL maintain its own independent fixture set under `src/fab-go/test/parity/fixtures/`.
+The existing benchmark fixtures at `src/benchmark/fixtures/` MAY be referenced or extended but the parity suite SHALL maintain its own independent fixture set under `src/go/fab/test/parity/fixtures/`.
 
 #### Scenario: Fixtures cover all scripts
 - **GIVEN** the parity test suite
-- **WHEN** `go test ./test/parity/...` is run from `src/fab-go/`
+- **WHEN** `go test ./test/parity/...` is run from `src/go/fab/`
 - **THEN** at least one test case executes for each of the 7 scripts listed above
 
 ### Requirement: Test Execution
 
-The parity tests SHALL be runnable via `go test ./test/parity/...` from `src/fab-go/`. Tests MAY also be wrapped in a shell script for convenience. Tests MUST skip gracefully (not fail) if required tools (`yq`, `jq`) are not installed, since the bash scripts depend on these.
+The parity tests SHALL be runnable via `go test ./test/parity/...` from `src/go/fab/`. Tests MAY also be wrapped in a shell script for convenience. Tests MUST skip gracefully (not fail) if required tools (`yq`, `jq`) are not installed, since the bash scripts depend on these.
 
 #### Scenario: Run parity tests
 - **GIVEN** Go toolchain, `yq`, and `jq` are installed
-- **WHEN** `cd src/fab-go && go test ./test/parity/...` is executed
+- **WHEN** `cd src/go/fab && go test ./test/parity/...` is executed
 - **THEN** all parity tests pass
 
 #### Scenario: Missing prerequisites
@@ -84,12 +84,12 @@ The parity tests SHALL be runnable via `go test ./test/parity/...` from `src/fab
 | `linux` | `arm64` | `fab` binary for Linux ARM64 |
 | `linux` | `amd64` | `fab` binary for Linux x86_64 |
 
-Cross-compilation SHALL use `GOOS=<os> GOARCH=<arch> go build -o <output> ./cmd/fab` from the `src/fab-go/` directory. CGo MUST be disabled (`CGO_ENABLED=0`) to ensure static binaries.
+Cross-compilation SHALL use `GOOS=<os> GOARCH=<arch> go build -o <output> ./cmd/fab` from the `src/go/fab/` directory. CGo MUST be disabled (`CGO_ENABLED=0`) to ensure static binaries.
 
 The build step SHALL occur after the version bump and before archive packaging.
 
 #### Scenario: Cross-compile for all platforms
-- **GIVEN** Go toolchain is installed and `src/fab-go/` contains the binary source
+- **GIVEN** Go toolchain is installed and `src/go/fab/` contains the binary source
 - **WHEN** `fab-release.sh patch` is run
 - **THEN** 4 platform binaries are built successfully
 - **AND** each binary is a statically-linked executable for its target platform
@@ -134,7 +134,7 @@ After uploading, `fab-release.sh` SHALL clean up all temporary archives and bina
 #### Scenario: Cleanup after release
 - **GIVEN** a successful release
 - **WHEN** the script completes
-- **THEN** no `kit*.tar.gz` files or `fab` binaries remain in the repo root or `src/fab-go/`
+- **THEN** no `kit*.tar.gz` files or `fab` binaries remain in the repo root or `src/go/fab/`
 
 ## Upgrade Pipeline
 

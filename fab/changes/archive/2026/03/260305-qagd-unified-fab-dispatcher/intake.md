@@ -106,7 +106,7 @@ Update these to use `fab/.kit/bin/fab change resolve` / `fab/.kit/bin/fab change
 - **`fab/.kit/scripts/batch-fab-switch-change.sh`**: Updated invocation
 - **`fab/.kit/scripts/batch-fab-archive-change.sh`**: Updated invocation
 - **`justfile`**: Updated build target
-- **Parity tests** (`src/fab-go/test/parity/`): May need path updates if they reference `fab/.kit/bin/fab` directly
+- **Parity tests** (`src/go/fab/test/parity/`): May need path updates if they reference `fab/.kit/bin/fab` directly
 - **`.gitignore`**: May need update for `fab-go` / `fab-rust` binary names
 - **Skills**: No changes — they already call `fab/.kit/bin/fab <command>`, which now points to the dispatcher
 

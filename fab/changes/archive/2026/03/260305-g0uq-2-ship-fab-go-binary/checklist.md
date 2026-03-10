@@ -6,7 +6,7 @@
 
 ## Functional Completeness
 
-- [ ] CHK-001 Parity test harness: Go test suite at `src/fab-go/test/parity/` runs both bash and Go for each operation
+- [ ] CHK-001 Parity test harness: Go test suite at `src/go/fab/test/parity/` runs both bash and Go for each operation
 - [ ] CHK-002 Parity fixtures: Fixtures cover all 7 ported scripts with representative inputs
 - [ ] CHK-003 Cross-compilation: `fab-release.sh` builds Go binary for 4 platforms (darwin/arm64, darwin/amd64, linux/arm64, linux/amd64)
 - [ ] CHK-004 Per-platform archives: Release produces 5 archives (4 platform + 1 generic)

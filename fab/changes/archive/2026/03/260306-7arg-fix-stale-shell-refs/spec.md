@@ -6,7 +6,7 @@
 
 ## Non-Goals
 
-- Modifying Go parity tests in `src/fab-go/test/parity/` — they test the Go binary directly and are unrelated to the removed shell scripts
+- Modifying Go parity tests in `src/go/fab/test/parity/` — they test the Go binary directly and are unrelated to the removed shell scripts
 - Removing bats submodules from `src/packages/tests/libs/bats*` — still used by active hook tests and package tests
 - Modifying `test-bash.sh` or `test-parallel.sh` — they handle empty globs gracefully after the deletions
 
@@ -62,7 +62,7 @@ After file deletion, the following directories SHALL be removed: `src/lib/status
 - **GIVEN** all files in `src/lib/` and `src/sync/` have been deleted
 - **WHEN** directory cleanup runs
 - **THEN** all 8 subdirectories of `src/lib/`, the `src/lib/` parent directory, and the `src/sync/` directory are removed
-- **AND** `src/` still exists (it contains other directories like `src/fab-go/`, `src/hooks/`, etc.)
+- **AND** `src/` still exists (it contains other directories like `src/go/fab/`, `src/hooks/`, etc.)
 
 ### Requirement: Test pipeline passes after cleanup
 

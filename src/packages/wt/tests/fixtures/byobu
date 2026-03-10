@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-# Mock byobu executable for testing
-
-if [[ -n "${MOCK_LOG:-}" ]]; then
-    echo "byobu $*" >> "$MOCK_LOG"
-fi
-
-exit 0

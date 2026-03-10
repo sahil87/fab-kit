@@ -20,13 +20,13 @@ The justfile SHALL include `test-go` and `test-go-v` targets that run all Go tes
 #### Scenario: Run Go tests via justfile
 - **GIVEN** a justfile with `test-go` defined
 - **WHEN** a user runs `just test-go`
-- **THEN** all Go unit tests execute via `cd src/fab-go && go test ./... -count=1`
+- **THEN** all Go unit tests execute via `cd src/go/fab && go test ./... -count=1`
 - **AND** the exit code reflects test pass/fail status
 
 #### Scenario: Verbose Go tests
 - **GIVEN** a justfile with `test-go-v` defined
 - **WHEN** a user runs `just test-go-v`
-- **THEN** all Go tests execute with verbose output via `cd src/fab-go && go test ./... -v -count=1`
+- **THEN** all Go tests execute with verbose output via `cd src/go/fab && go test ./... -v -count=1`
 
 #### Scenario: Combined test target includes Go
 - **GIVEN** the `test` recipe in the justfile

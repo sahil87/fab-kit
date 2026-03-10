@@ -200,7 +200,7 @@ Each use case follows the pattern: interpret user intent → refresh state → v
 1. **Broadcast command to all agents** — refresh pane map, filter for idle agents, send command (e.g., `/fab-continue`) to each via `fab send-keys`
 2. **Sequenced rebase after completion** — hold instruction in conversation context, check target agent's status on next interaction, send rebase command when precondition met
 3. **Merge completed PRs** — identify changes with PRs via `fab status get-prs`, confirm before executing (destructive), run `gh pr merge` from operator's own shell
-4. **Spawn new worktree + agent from idea** — look up idea, create worktree via `wt-create --non-interactive`, open tmux tab, send `/fab-new <description>`
+4. **Spawn new worktree + agent from idea** — look up idea, create worktree via `wt create --non-interactive`, open tmux tab, send `/fab-new <description>`
 5. **Status dashboard** — refresh pane map (`fab pane-map`), present concise human-readable summary
 6. **Unstick a stuck agent** — confirm idle via `fab runtime is-idle <change>`, send `/fab-continue`, warn on repeated nudge ("Already nudged once. Manual investigation recommended.")
 7. **Notification surface** — hold "notify me" instructions in conversation context, check on next user interaction, report status

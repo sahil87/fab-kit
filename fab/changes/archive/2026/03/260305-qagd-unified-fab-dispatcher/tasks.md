@@ -19,7 +19,7 @@
 
 - [x] T006 Update `fab/.kit/scripts/batch-fab-switch-change.sh`: replace `CHANGEMAN="${SCRIPT_DIR}/lib/changeman.sh"` with `FAB_BIN="$KIT_DIR/bin/fab"`, update resolve call at line 112 to `"$FAB_BIN" change resolve "$change"`
 - [x] T007 [P] Update `fab/.kit/scripts/batch-fab-archive-change.sh`: replace `CHANGEMAN="${SCRIPT_DIR}/lib/changeman.sh"` with `FAB_BIN="$KIT_DIR/bin/fab"`, update resolve call at line 113 to `"$FAB_BIN" change resolve "$change"`
-- [x] T008 Update parity tests: change `fabBinary()` in `src/fab-go/test/parity/parity_test.go` line 41 to reference `fab-go` instead of `fab`
+- [x] T008 Update parity tests: change `fabBinary()` in `src/go/fab/test/parity/parity_test.go` line 41 to reference `fab-go` instead of `fab`
 
 ## Phase 4: Polish
 

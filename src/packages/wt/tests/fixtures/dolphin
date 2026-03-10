@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-# Mock dolphin executable for testing
-
-if [[ -n "${MOCK_LOG:-}" ]]; then
-    echo "dolphin $*" >> "$MOCK_LOG"
-fi
-
-exit 0

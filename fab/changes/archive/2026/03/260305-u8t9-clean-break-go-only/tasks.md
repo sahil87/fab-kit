@@ -17,14 +17,14 @@
 
 ## Phase 3: Go Binary — fab status show
 
-- [x] T006 Add `fab status show` subcommand to `src/fab-go/cmd/fab/status.go` — implement worktree discovery via `git worktree list --porcelain`, fab state resolution using existing `internal/resolve` and `internal/statusfile` packages, support `--all`, `--json`, and `[<name>]` arguments
-- [x] T007 Add Go implementation for worktree discovery and fab state resolution in `src/fab-go/internal/` (new package or extend existing)
+- [x] T006 Add `fab status show` subcommand to `src/go/fab/cmd/fab/status.go` — implement worktree discovery via `git worktree list --porcelain`, fab state resolution using existing `internal/resolve` and `internal/statusfile` packages, support `--all`, `--json`, and `[<name>]` arguments
+- [x] T007 Add Go implementation for worktree discovery and fab state resolution in `src/go/fab/internal/` (new package or extend existing)
 
 ## Phase 4: Pipeline, Tests & Documentation
 
 - [x] T008 Update `fab/.kit/scripts/pipeline/dispatch.sh` `validate_prerequisites` function — replace direct `calc-score.sh` path check and invocation with `fab score --check-gate <change-id>` via worktree's `fab/.kit/bin/fab`
 - [x] T009 Update `fab/.kit/skills/_scripts.md` — remove shell fallback references, update Backend Priority to `rust > go > error`, note Cobra help support, remove `[fab] using shell backend` reference
-- [x] T010 Update `src/fab-go/test/parity/parity_test.go` `runBash` function — add skip guard that checks if the target bash script exists in `repoRoot/fab/.kit/scripts/lib/` before copying; when missing, return a sentinel that causes the calling test to skip with `t.Skipf("bash script %s not found — shell scripts removed")`
+- [x] T010 Update `src/go/fab/test/parity/parity_test.go` `runBash` function — add skip guard that checks if the target bash script exists in `repoRoot/fab/.kit/scripts/lib/` before copying; when missing, return a sentinel that causes the calling test to skip with `t.Skipf("bash script %s not found — shell scripts removed")`
 
 ---
 

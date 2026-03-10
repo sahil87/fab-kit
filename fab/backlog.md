@@ -37,7 +37,7 @@ Step 7: gm10    gm11              ← parallel: local cross-compilation in relea
 Step 8: gm12                      ← remove old shell scripts (deferred — only after confidence period)
 ```
 
-- [x] [gm01] 2026-03-05: Scaffold Go module at src/fab-go/ with cobra CLI skeleton, shared internal/yaml package for .status.yaml struct, and subcommand stubs
+- [x] [gm01] 2026-03-05: Scaffold Go module at src/go/fab/ with cobra CLI skeleton, shared internal/yaml package for .status.yaml struct, and subcommand stubs
 - [x] [gm02] 2026-03-05: Port statusman.sh → `fab status` subcommand (43 yq calls, biggest performance win)
 - [x] [gm03] 2026-03-05: Port resolve.sh → `fab resolve` subcommand (dependency of preflight and others)
 - [x] [gm04] 2026-03-05: Port logman.sh → `fab log` subcommand (JSON append-only logging)
@@ -77,14 +77,14 @@ Step 5: wt09    wt10              ← parallel: cross-compile + switchover
 Step 6: wt11                      ← remove old shell scripts (deferred)
 ```
 
-- [ ] [wt01] 2026-03-05: Port wt-common.sh shared library → internal/worktree/ Go package (git worktree operations, name generation, stash/rollback)
-- [ ] [wt02] 2026-03-05: Port wt-create → `wt create` subcommand
-- [ ] [wt03] 2026-03-05: Port wt-list → `wt list` subcommand
-- [ ] [wt04] 2026-03-05: Port wt-open → `wt open` subcommand (editor/terminal/file-manager launch)
-- [ ] [wt05] 2026-03-05: Port wt-delete → `wt delete` subcommand (interactive rollback, branch cleanup)
-- [ ] [wt06] 2026-03-05: Port wt-pr → `wt pr` subcommand (gh integration)
-- [ ] [wt07] 2026-03-05: Port wt-init and wt-status → `wt init` and `wt status` subcommands
-- [ ] [wt08] 2026-03-05: Parity tests — run identical inputs through bash wt-* scripts and Go wt binary, diff outputs
-- [ ] [wt09] 2026-03-05: Cross-compile wt binary, integrate into fab-release.sh alongside fab binary
-- [ ] [wt10] 2026-03-05: Switchover — update env-packages.sh and PATH to use Go wt binary
-- [ ] [wt11] 2026-03-05: Remove old wt shell scripts from packages/wt/ (deferred — only after confidence period)
+- [x] [wt01] 2026-03-05: Port wt-common.sh shared library → internal/worktree/ Go package (git worktree operations, name generation, stash/rollback)
+- [x] [wt02] 2026-03-05: Port wt-create → `wt create` subcommand
+- [x] [wt03] 2026-03-05: Port wt-list → `wt list` subcommand
+- [x] [wt04] 2026-03-05: Port wt-open → `wt open` subcommand (editor/terminal/file-manager launch)
+- [x] [wt05] 2026-03-05: Port wt-delete → `wt delete` subcommand (interactive rollback, branch cleanup)
+- [x] [wt06] 2026-03-05: Port wt-pr → `wt pr` subcommand (gh integration)
+- [x] [wt07] 2026-03-05: Port wt-init and wt-status → `wt init` and `wt status` subcommands
+- [x] [wt08] 2026-03-05: Parity tests — run identical inputs through bash wt-* scripts and Go wt binary, diff outputs
+- [x] [wt09] 2026-03-05: Cross-compile wt binary, integrate into fab-release.sh alongside fab binary
+- [x] [wt10] 2026-03-05: Switchover — update env-packages.sh and PATH to use Go wt binary
+- [x] [wt11] 2026-03-05: Remove old wt shell scripts from packages/wt/ (deferred — only after confidence period)

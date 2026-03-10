@@ -6,7 +6,7 @@
 
 ## Phase 1: Setup
 
-- [x] T001 Scaffold Go module at `src/fab-go/`: create `go.mod` (module `github.com/wvrdz/fab-kit/src/fab-go`, Go 1.22), `cmd/fab/main.go` (cobra root command), and `internal/` package directories. Run `go mod tidy` to fetch cobra and yaml.v3 dependencies.
+- [x] T001 Scaffold Go module at `src/go/fab/`: create `go.mod` (module `github.com/wvrdz/fab-kit/src/go/fab`, Go 1.22), `cmd/fab/main.go` (cobra root command), and `internal/` package directories. Run `go mod tidy` to fetch cobra and yaml.v3 dependencies.
 
 ## Phase 2: Core Implementation
 
@@ -23,7 +23,7 @@
 
 - [x] T010 Wire all subcommands into `cmd/fab/main.go` root command. Verify `fab --help` lists all subcommands. Verify `fab <subcmd> --help` works for each.
 - [x] T011 Add integration tests: create test fixtures (sample .status.yaml, sample change directories) and test key end-to-end flows — preflight happy path, status finish with cascade, change new + switch, score computation, archive + restore round-trip. Tests in `internal/*/..._test.go`.
-- [x] T012 Verify build: `cd src/fab-go && go build -o fab ./cmd/fab/` produces a single static binary. Verify `go vet ./...` and `go test ./...` pass clean.
+- [x] T012 Verify build: `cd src/go/fab && go build -o fab ./cmd/fab/` produces a single static binary. Verify `go vet ./...` and `go test ./...` pass clean.
 
 ---
 

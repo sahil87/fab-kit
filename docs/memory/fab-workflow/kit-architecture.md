@@ -182,7 +182,7 @@ Prints the Fab Kit help overview and skill catalog. Dynamically reads skill name
 
 #### `lib/env-packages.sh`
 
-Sourceable script that adds `fab/.kit/bin` and all `fab/.kit/packages/*/bin` directories to PATH. Used by both `scaffold/fragment-.envrc` (for direnv-based projects) and `src/packages/rc-init.sh` (for shell rc sourcing). Self-contained: resolves `KIT_DIR` relative to its own location (two levels up from `scripts/lib/` to `.kit/`), adds `$KIT_DIR/bin` to PATH (making `fab`, `fab-go`, `fab-rust`, and `wt` binaries available), then iterates package bin directories and exports each to PATH. Handles missing `packages/` directory gracefully (no error). Lives in `lib/` because it is a sourceable helper, not a user-callable command — keeping it off PATH prevents it from appearing in tab completion.
+Sourceable script that adds `fab/.kit/bin` and each `fab/.kit/packages/*/bin` directory to PATH. Used by `scaffold/fragment-.envrc` (for direnv-based projects). Self-contained: resolves `KIT_DIR` relative to its own location (two levels up from `scripts/lib/` to `.kit/`), adds `$KIT_DIR/bin` to PATH (making `fab`, `wt`, and `idea` binaries available), then iterates `$KIT_DIR/packages/*/bin` and adds each existing directory to PATH (making package-bundled executables available). Lives in `lib/` because it is a sourceable helper, not a user-callable command — keeping it off PATH prevents it from appearing in tab completion.
 
 #### `lib/frontmatter.sh`
 
@@ -326,9 +326,9 @@ The dispatcher script is always shipped and always tracked in git. Compiled back
 
 ### Go Binary (`fab-go`)
 
-The sole backend for all fab CLI operations. A single Go binary at `fab/.kit/bin/fab-go` (source: `src/fab-go/`). Originally a port of 7 `lib/` shell scripts, those scripts have been removed — the Go binary is now the authoritative implementation.
+The sole backend for all fab CLI operations. A single Go binary at `fab/.kit/bin/fab-go` (source: `src/go/fab/`). Originally a port of 7 `lib/` shell scripts, those scripts have been removed — the Go binary is now the authoritative implementation.
 
-**Module**: `github.com/wvrdz/fab-kit/src/fab-go` (Go 1.22+, dependencies: cobra, gopkg.in/yaml.v3, no CGo)
+**Module**: `github.com/wvrdz/fab-kit/src/go/fab` (Go 1.22+, dependencies: cobra, gopkg.in/yaml.v3, no CGo)
 
 **Binary location**: `fab/.kit/bin/fab-go` — included in per-platform release archives (`kit-{os}-{arch}.tar.gz`), absent from the generic `kit.tar.gz`. The generic archive no longer provides a working `fab` command — a compiled backend is required.
 
@@ -357,7 +357,7 @@ The sole backend for all fab CLI operations. A single Go binary at `fab/.kit/bin
 
 **Parity**: All subcommands produce stdout/stderr output matching the bash versions (modulo timestamps).
 
-**Testing**: Unit tests in `src/fab-go/` cover all internal packages via `go test ./...`. Run with `just test-go` (or `just test-go-v` for verbose). Tested packages: `cmd/fab` (panemap, sendkeys), `cmd/wt`, `internal/config`, `internal/hooks`, `internal/hooklib` (artifact bookkeeping + hook sync), `internal/runtime` (runtime file manipulation), `internal/status`, `internal/statusfile`, `internal/resolve`, `internal/log`, `internal/preflight`, `internal/score`, `internal/archive`, `internal/change`, `internal/worktree`, `internal/idea`. Test patterns: `t.TempDir()` for filesystem isolation, table-driven tests with `t.Run()` subtests, standard `testing` package only (no external test frameworks). The previous parity tests (`src/fab-go/test/parity/`) were removed — the bash scripts they validated against no longer exist.
+**Testing**: Unit tests in `src/go/fab/` cover all internal packages via `go test ./...`. Run with `just test-go` (or `just test-go-v` for verbose). Tested packages: `cmd/fab` (panemap, sendkeys), `cmd/wt`, `internal/config`, `internal/hooks`, `internal/hooklib` (artifact bookkeeping + hook sync), `internal/runtime` (runtime file manipulation), `internal/status`, `internal/statusfile`, `internal/resolve`, `internal/log`, `internal/preflight`, `internal/score`, `internal/archive`, `internal/change`, `internal/worktree`, `internal/idea`. Test patterns: `t.TempDir()` for filesystem isolation, table-driven tests with `t.Run()` subtests, standard `testing` package only (no external test frameworks). The previous parity tests (`src/go/fab/test/parity/`) were removed — the bash scripts they validated against no longer exist.
 
 #### `fab idea` Subcommand
 
@@ -373,7 +373,7 @@ Backlog idea management — CRUD operations for `fab/backlog.md`. Ported from th
 
 ### Rust Binary (`fab-rust`)
 
-A second backend implementing all 9 subcommands with strict output parity to the Go binary. A single Rust binary crate at `src/fab-rust/` (source), placed at `fab/.kit/bin/fab-rust` when built. The dispatcher prefers `fab-go` over it by default.
+A second backend implementing all 9 subcommands with strict output parity to the Go binary. A single Rust binary crate at `src/rust/fab/` (source), placed at `fab/.kit/bin/fab-rust` when built. The dispatcher prefers `fab-go` over it by default.
 
 **Module**: `fab-rust` (Rust 2021 edition, dependencies: `clap` 4 with derive, `serde` + `serde_yaml` 0.9, `serde_json`, `anyhow`, `chrono`, `rand`, `regex`; dev: `tempfile`)
 
@@ -381,7 +381,7 @@ A second backend implementing all 9 subcommands with strict output parity to the
 
 **Project structure** (flat modules — one file per subcommand + shared utilities):
 ```
-src/fab-rust/
+src/rust/fab/
 ├── Cargo.toml          # lto = true, strip = true in [profile.release]
 ├── Cargo.lock          # Committed (binary crate convention)
 └── src/
@@ -403,21 +403,21 @@ src/fab-rust/
     └── hooks.rs        # stage hook execution
 ```
 
-**Build**: `just build-rust` — `cargo build --manifest-path src/fab-rust/Cargo.toml --release`, copies binary to `fab/.kit/bin/fab-rust`. Release profile uses `lto = true` and `strip = true` for minimal binary size.
+**Build**: `just build-rust` — `cargo build --manifest-path src/rust/fab/Cargo.toml --release`, copies binary to `fab/.kit/bin/fab-rust`. Release profile uses `lto = true` and `strip = true` for minimal binary size.
 
 **Subcommands**: Identical CLI surface to Go binary — all 9 top-level subcommands (`resolve`, `log`, `status`, `preflight`, `change`, `score`, `runtime`, `pane-map`, `send-keys`) with identical flags, positional arguments, and subcommands. Help text format differs (clap vs cobra style) but subcommand/flag names match.
 
 **Parity**: Strict output parity with Go binary — identical stdout, stderr, and exit codes for the same inputs and file system state. Exceptions: timestamp fields (execution-time dependent), help text format (clap vs cobra), `indicative: false` may be omitted when false.
 
-**Testing**: Rust integration tests at `src/fab-rust/tests/integration_test.rs`. Run via `just test-rust` (`cargo test --manifest-path src/fab-rust/Cargo.toml`). Both Go and Rust test suites run independently — no shared harness.
+**Testing**: Rust integration tests at `src/rust/fab/tests/integration_test.rs`. Run via `just test-rust` (`cargo test --manifest-path src/rust/fab/Cargo.toml`). Both Go and Rust test suites run independently — no shared harness.
 
 ### wt Binary
 
-A separate Go binary for git worktree management, built from `src/fab-go/cmd/wt/main.go`. Operates on any git repo — does not require a `fab/` directory. Different concern domain from `fab` (worktree management vs workflow pipeline), so users type `wt create`, not `fab wt create`.
+A separate Go binary for git worktree management, built from `src/go/fab/cmd/wt/main.go`. Operates on any git repo — does not require a `fab/` directory. Different concern domain from `fab` (worktree management vs workflow pipeline), so users type `wt create`, not `fab wt create`.
 
 **Binary location**: `fab/.kit/bin/wt` — included in per-platform release archives (`kit-{os}-{arch}.tar.gz`), absent from the generic `kit.tar.gz`. Available on PATH via `env-packages.sh` (which adds `$KIT_DIR/bin` to PATH).
 
-**Module**: Same Go module as `fab-go` (`github.com/wvrdz/fab-kit/src/fab-go`). Dependencies: cobra (subcommand dispatch). Does NOT depend on any `fab`-specific packages — only `internal/worktree/` and shared utilities in `internal/`.
+**Module**: Same Go module as `fab-go` (`github.com/wvrdz/fab-kit/src/go/fab`). Dependencies: cobra (subcommand dispatch). Does NOT depend on any `fab`-specific packages — only `internal/worktree/` and shared utilities in `internal/`.
 
 **Subcommands** (5 — `wt pr` dropped, overlaps with `/git-pr`):
 - `wt create [flags] [branch]` — create a git worktree (random name for exploratory, branch-derived name for feature)
@@ -556,12 +556,12 @@ Full benchmark suite with harness and all 4 implementations: `src/benchmark/`
 | 260310-pl72-port-idea-to-go | 2026-03-10 | Added `fab idea` subcommand to Go binary — ports the shell `idea` package (`fab/.kit/packages/idea/bin/idea`) to native Go. Seven sub-subcommands: `add`, `list`, `show`, `done`, `reopen`, `edit`, `rm`. New `internal/idea/` package with `Idea`/`File` structs, round-trip serialization, case-insensitive query matching, and CRUD operations. Cobra integration via `cmd/fab/idea.go`. `--file` flag and `IDEAS_FILE` env var for file override. `rm` requires `--force` (no interactive prompt). Shell package retained for rollback safety. |
 | 260310-czb7-go-test-coverage | 2026-03-10 | Documented Go test strategy: 11 internal packages now have unit tests (added resolve, log, preflight, score, archive, change). Tests run via `just test-go` / `just test-go-v` (`go test ./...`). Test patterns: `t.TempDir()` isolation, table-driven, `t.Run()` subtests, standard `testing` package. Only `internal/worktree` intentionally untested. Replaced stale parity test reference. |
 | 260310-b8ff-operator-observation-fixes | 2026-03-10 | Updated pane-map and send-keys to use session-scoped pane discovery (`-s` instead of `-a`). Added Tab column to pane-map output (6 columns: Pane, Tab, Worktree, Change, Stage, Agent). Added `fab runtime is-idle <change>` read-only subcommand (prints `idle {duration}`, `active`, or `unknown`). Updated send-keys pane resolution description to reflect session scoping and `#{window_name}` in tmux format string. |
-| 260307-bmp3-3-rust-binary-port | 2026-03-10 | Added Rust binary (`fab-rust`) as second backend — all 9 subcommands with strict Go parity. Source at `src/fab-rust/` (flat modules, clap derive, serde_yaml, anyhow). Release profile: `lto` + `strip`. Built locally via `just build-rust` (+ `test-rust` recipe). Updated dispatcher with backend override mechanism (`FAB_BACKEND` env var, `.fab-backend` file, priority: override > rust > go). Updated directory tree (`fab-rust` no longer "future"). CI/release for Rust deferred. |
+| 260307-bmp3-3-rust-binary-port | 2026-03-10 | Added Rust binary (`fab-rust`) as second backend — all 9 subcommands with strict Go parity. Source at `src/rust/fab/` (flat modules, clap derive, serde_yaml, anyhow). Release profile: `lto` + `strip`. Built locally via `just build-rust` (+ `test-rust` recipe). Updated dispatcher with backend override mechanism (`FAB_BACKEND` env var, `.fab-backend` file, priority: override > rust > go). Updated directory tree (`fab-rust` no longer "future"). CI/release for Rust deferred. |
 | 260307-x2tx-status-symlink-pointer | 2026-03-07 | Replaced `fab/current` pointer file with `.fab-status.yaml` symlink at repo root. Added `id` field to `.status.yaml`. Updated resolution, switch, rename, pane-map, hooks, and dispatch. Migration `0.32.0-to-0.34.0` covers conversion. |
 | 260306-qkov-operator1-skill | 2026-03-07 | Added `fab-operator1.md` to skills listing. Added `fab send-keys <change> "<text>"` subcommand to Go binary — resolves change to tmux pane (reuses pane-map discovery logic), sends text via `tmux send-keys`. Tmux guard, pane existence validation, multi-pane warning. No idle check in CLI (policy in skill, mechanism in CLI). |
 | 260306-bh45-pane-map-subcommand | 2026-03-06 | Added `fab pane-map` subcommand to Go binary — discovers all tmux panes, resolves worktree roots via git, reads `.fab-status.yaml` symlink for active change, correlates `.fab-runtime.yaml` for agent idle state, and renders an aligned table (Pane, Worktree, Change, Stage, Agent). Requires tmux at runtime (graceful error if not in session). Non-fab panes excluded. Main worktree shown as `(main)`. |
 | 260306-6bba-redesign-hooks-strategy | 2026-03-06 | Added `on-artifact-write.sh` PostToolUse hook (Write + Edit matchers) for automatic artifact bookkeeping. Added `fab runtime set-idle` and `fab runtime clear-idle` Go subcommands replacing yq in hooks. Updated `on-stop.sh` and `on-session-start.sh` descriptions (yq → fab runtime). Updated `5-sync-hooks.sh` to support tool-name matchers for PostToolUse events. Added `runtime` package to Go binary architecture. |
-| 260306-7arg-fix-stale-shell-refs | 2026-03-06 | Deleted 20 orphaned shell test files (`src/lib/*/test.bats`, `src/lib/*/SPEC-*.md`, `src/lib/*/test-simple.sh`, `src/lib/calc-score/sensitivity.sh`, `src/sync/test-5-sync-hooks.bats`) and removed `src/lib/` and `src/sync/` directories. Removed "Dev folder" references from statusman, logman, calc-score, and archiveman sections. Added Go parity test documentation note. Fixed stale `calc-score.sh` stub in `src/scripts/pipeline/test.bats` (replaced with `fab` dispatcher stub). Added 4 missing status subcommands (`add-issue`, `get-issues`, `add-pr`, `get-prs`) to `_scripts.md`. Fixed `git-pr.md` Step 4 to pass `<change>` instead of `<status_file>` path to `add-pr`. |
+| 260306-7arg-fix-stale-shell-refs | 2026-03-06 | Deleted 20 orphaned shell test files (`src/lib/*/test.bats`, `src/lib/*/SPEC-*.md`, `src/lib/*/test-simple.sh`, `src/lib/calc-score/sensitivity.sh`, `src/sync/test-5-sync-hooks.bats`) and removed `src/lib/` and `src/sync/` directories. Removed "Dev folder" references from statusman, logman, calc-score, and archiveman sections. Added Go parity test documentation note. Fixed stale `calc-score.sh` stub in `src/sh/pipeline/test.bats` (replaced with `fab` dispatcher stub). Added 4 missing status subcommands (`add-issue`, `get-issues`, `add-pr`, `get-prs`) to `_scripts.md`. Fixed `git-pr.md` Step 4 to pass `<change>` instead of `<status_file>` path to `add-pr`. |
 | 260305-u8t9-clean-break-go-only | 2026-03-05 | Removed shell fallback from dispatcher (backend priority: rust > go > error, no shell fallback). Deleted all 7 ported shell scripts from `lib/` (statusman, changeman, archiveman, logman, calc-score, preflight, resolve). Only `env-packages.sh` and `frontmatter.sh` remain. Deleted `wt-status` from wt package (replaced by `fab status show`). Added `fab status show [--all] [--json] [<name>]` to Go binary for worktree pipeline status. Added `internal/worktree` package for worktree discovery. Updated `env-packages.sh` to add `$KIT_DIR/bin` to PATH. Updated `dispatch.sh` from `calc-score.sh` to `fab score --check-gate`. Updated `_scripts.md` to reflect Go-only backend. Updated parity tests with graceful skip when bash scripts missing. |
 | 260305-bs5x-orchestrator-idle-hooks | 2026-03-05 | Added `hooks/` directory to `.kit/` tree with `on-session-start.sh` (clears `agent` block) and `on-stop.sh` (writes `agent.idle_since` timestamp). Added `5-sync-hooks.sh` to `sync/` directory (registers hooks into `.claude/settings.local.json` via idempotent jq merge). Fixed sync directory tree listing (added missing `4-get-fab-binary.sh`, corrected sort order of `2-sync-workspace.sh` and `3-direnv.sh`). |
 | 260305-7zq4-worktree-status-command | 2026-03-05 | Added `wt-status` to wt package — shows fab pipeline status (stage + state) per worktree. Three modes: no args (current worktree), `<name>` (specific worktree), `--all` (all worktrees). Composable architecture: atomic `wt_get_fab_status` function reads `.fab-status.yaml` symlink + `.status.yaml` via `statusman.sh display-stage`. |
@@ -614,7 +614,7 @@ Full benchmark suite with harness and all 4 implementations: `src/benchmark/`
 | 260213-puow-consolidate-status-reads | 2026-02-14 | Renamed `statusman.sh` → `_statusman.sh`; added `.status.yaml` accessor API (`get_progress_map`, `get_checklist`, `get_confidence`); refactored `get_current_stage` to use accessors; extracted `_resolve-change.sh` change resolution library; documented underscore prefix convention |
 | 260213-v3rn-batch-commands | 2026-02-14 | Renamed `fab-batch-new.sh` → `batch-new-backlog.sh`, `fab-batch-switch.sh` → `batch-switch-change.sh`; added `batch-archive-change.sh`; added batch scripts section to Shell Scripts docs |
 | 260305-g0uq-2-ship-fab-go-binary | 2026-03-05 | Shipped Go binary: added `bin/` directory to `.kit/` tree (with `fab` binary and `.gitkeep`). Documented shim delegation layer — all 7 `lib/` shell scripts have shim at top that `exec`s `fab/.kit/bin/fab` when present, falls through to bash when absent. Added `_scripts.md` partial as skill invocation guide — skills now call `fab/.kit/bin/fab <command>` as primary convention. Updated bootstrap options (platform-aware + generic + manual). Updated `fab-upgrade.sh` description (platform detection via `uname`, fallback to generic). Updated `fab-release.sh` description (cross-compiles 4 platforms, produces 5 archives). Updated Replaced list to include `bin/`. Updated "All Logic in Markdown and Shell" design decision to reflect optional Go binary with graceful degradation. |
-| 260305-bhd6-1-build-fab-go-binary | 2026-03-05 | Added Go binary section: `src/fab-go/` with `fab` binary porting all 7 lib/ shell scripts into cobra subcommands. Uses `internal/statusfile` as shared YAML foundation (single parse, atomic writes), eliminating yq dependency. Shell scripts unchanged — switchover is a separate change. |
+| 260305-bhd6-1-build-fab-go-binary | 2026-03-05 | Added Go binary section: `src/go/fab/` with `fab` binary porting all 7 lib/ shell scripts into cobra subcommands. Uses `internal/statusfile` as shared YAML foundation (single parse, atomic writes), eliminating yq dependency. Shell scripts unchanged — switchover is a separate change. |
 | 260305-gt52-rust-vs-node-benchmark | 2026-03-05 | Added Performance Benchmark section: Rust vs Node vs optimized bash vs bash+yq for statusman.sh operations. Rust is 23-123x faster than baseline; optimized bash 2-5x; Node slower than baseline due to V8 startup |
 | 260213-3njv-scaffold-dir | 2026-02-13 | Added `scaffold/` directory to tree listing; `_init_scaffold.sh` now reads bootstrap content from scaffold files instead of hardcoded heredocs |
 | 260213-iq2l-rename-setup-scripts | 2026-02-13 | Renamed `fab-setup.sh` → `_init_scaffold.sh` and `fab-update.sh` → `fab-upgrade.sh`; updated directory listing and all script references |

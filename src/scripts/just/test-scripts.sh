@@ -5,7 +5,7 @@ failed_suites=()
 passed_suites=()
 total=0
 
-for t in src/scripts/*/test.bats; do
+for t in src/sh/*/test.bats; do
     [ -f "$t" ] || continue
     suite=$(basename "$(dirname "$t")")
     total=$((total + 1))

@@ -6,13 +6,13 @@
 
 ## Phase 1: Setup
 
-- [x] T001 Create parity test directory structure at `src/fab-go/test/parity/` with fixture scaffolding under `src/fab-go/test/parity/fixtures/`
-- [x] T002 [P] Create parity test fixtures: `.status.yaml` variants (pending, active, done stages), `config.yaml`, `constitution.md`, `workflow.yaml`, `.history.jsonl`, and change directory structures under `src/fab-go/test/parity/fixtures/`
+- [x] T001 Create parity test directory structure at `src/go/fab/test/parity/` with fixture scaffolding under `src/go/fab/test/parity/fixtures/`
+- [x] T002 [P] Create parity test fixtures: `.status.yaml` variants (pending, active, done stages), `config.yaml`, `constitution.md`, `workflow.yaml`, `.history.jsonl`, and change directory structures under `src/go/fab/test/parity/fixtures/`
 - [x] T003 [P] Create `fab/.kit/bin/` directory with `.gitkeep` to establish the binary location convention
 
 ## Phase 2: Core Implementation
 
-- [x] T004 Implement parity test harness at `src/fab-go/test/parity/parity_test.go` — shared helpers for running bash vs Go binary, diffing stdout/stderr/exit code/file mutations, temp dir isolation, prerequisite skip logic
+- [x] T004 Implement parity test harness at `src/go/fab/test/parity/parity_test.go` — shared helpers for running bash vs Go binary, diffing stdout/stderr/exit code/file mutations, temp dir isolation, prerequisite skip logic
 - [x] T005 Add parity tests for `resolve.sh` vs `fab resolve` — cover `--id`, `--folder`, `--dir`, `--status` with change ID, substring, and full name inputs
 - [x] T006 [P] Add parity tests for `logman.sh` vs `fab log` — cover `command`, `confidence`, `review`, `transition` subcommands
 - [x] T007 [P] Add parity tests for `statusman.sh` vs `fab status` — cover `progress-map`, `progress-line`, `current-stage`, `start`, `advance`, `finish`, `reset`, `skip`, `fail`, `set-change-type`, `set-checklist`, `set-confidence`

@@ -137,13 +137,13 @@ Ship a migration file in `fab/.kit/migrations/` that:
 
 Update all tests that write `fab/current`:
 
-**`src/fab-go/internal/resolve/`** — tests that create `fab/current` as a text file need to create a symlink instead.
+**`src/go/fab/internal/resolve/`** — tests that create `fab/current` as a text file need to create a symlink instead.
 
-**`src/fab-go/internal/change/`** — switch tests that assert `fab/current` content need to assert symlink target instead.
+**`src/go/fab/internal/change/`** — switch tests that assert `fab/current` content need to assert symlink target instead.
 
-**`src/fab-go/cmd/fab/panemap_test.go`** — `WriteFile(tmp+"/fab/current", ...)` needs to become `os.Symlink(...)`.
+**`src/go/fab/cmd/fab/panemap_test.go`** — `WriteFile(tmp+"/fab/current", ...)` needs to become `os.Symlink(...)`.
 
-**`src/fab-go/test/parity/`** — any parity tests referencing `fab/current`.
+**`src/go/fab/test/parity/`** — any parity tests referencing `fab/current`.
 
 New test cases:
 - Symlink resolution returns correct folder name

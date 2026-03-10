@@ -29,11 +29,11 @@ A `justfile` (consumed by [just](https://github.com/casey/just)) with these reci
 ```just
 # Build Go binary for the current platform (local dev)
 build-go:
-    CGO_ENABLED=0 go build -C src/fab-go -o ../../fab/.kit/bin/fab-go ./cmd/fab
+    CGO_ENABLED=0 go build -C src/go/fab -o ../../fab/.kit/bin/fab-go ./cmd/fab
 
 # Cross-compile Go binary for a specific target
 build-go-target os arch:
-    CGO_ENABLED=0 GOOS={{os}} GOARCH={{arch}} go build -C src/fab-go -o .release-build/fab-{{os}}-{{arch}} ./cmd/fab
+    CGO_ENABLED=0 GOOS={{os}} GOARCH={{arch}} go build -C src/go/fab -o .release-build/fab-{{os}}-{{arch}} ./cmd/fab
 
 # Cross-compile Go binary for all release targets
 build-go-all:
