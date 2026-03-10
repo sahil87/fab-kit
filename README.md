@@ -91,6 +91,7 @@ In addition to the above:
 
 ```bash
 brew install bats-core parallel go rust
+cargo install cargo-zigbuild
 ```
 
 | Tool | Purpose |
@@ -99,6 +100,7 @@ brew install bats-core parallel go rust
 | [parallel](https://www.gnu.org/software/parallel/) | Parallel execution for test suites and batch operations |
 | [Go](https://go.dev/) | Required for building the `fab` binary from source (`src/fab-go/`) |
 | [Rust](https://www.rust-lang.org/) | Required for building the `fab` binary from source (`src/fab-rust/`) |
+| [cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild) | Cross-compilation for Rust release builds |
 
 ### 1. Install
 
