@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "fab-rust"
+name = "fab"
 path = "src/main.rs"
 
 [dependencies]

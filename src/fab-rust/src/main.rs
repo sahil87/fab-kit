@@ -18,7 +18,7 @@ use clap::{Parser, Subcommand};
 use std::process;
 
 #[derive(Parser)]
-#[command(name = "fab", about = "Fab workflow engine — single binary replacement for kit shell scripts")]
+#[command(name = "fab", bin_name = "fab", about = "Fab workflow engine — single binary replacement for kit shell scripts")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,

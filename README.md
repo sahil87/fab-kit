@@ -90,7 +90,7 @@ brew install yq jq gh direnv
 In addition to the above:
 
 ```bash
-brew install bats-core parallel go
+brew install bats-core parallel go rust
 ```
 
 | Tool | Purpose |
@@ -98,6 +98,7 @@ brew install bats-core parallel go
 | [bats-core](https://github.com/bats-core/bats-core) | Bash test runner for kit validation |
 | [parallel](https://www.gnu.org/software/parallel/) | Parallel execution for test suites and batch operations |
 | [Go](https://go.dev/) | Required for building the `fab` binary from source (`src/fab-go/`) |
+| [Rust](https://www.rust-lang.org/) | Required for building the `fab` binary from source (`src/fab-rust/`) |
 
 ### 1. Install
 

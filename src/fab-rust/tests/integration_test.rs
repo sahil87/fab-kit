@@ -13,7 +13,7 @@ fn binary_path() -> PathBuf {
     } else {
         path.push("release");
     }
-    path.push("fab-rust");
+    path.push("fab");
     path
 }
 
