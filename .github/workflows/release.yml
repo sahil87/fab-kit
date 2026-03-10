@@ -37,8 +37,9 @@ jobs:
         run: |
           TAG="${{ github.ref_name }}"
           VERSION="${TAG#v}"
+          REPO="${{ github.repository }}"
           PREV=$(gh release list --limit 1 --json tagName -q '.[0].tagName')
-          COMMITS=$(git log --oneline "${PREV}..${TAG}" | sed 's/^/- /')
+          COMMITS=$(git log --oneline "${PREV}..${TAG}" | sed "s|^\([0-9a-f]\{7,\}\)|[\1](https://github.com/${REPO}/commit/\1)|" | sed 's/^/- /')
           printf 'Fab Kit release %s\n\n## Changes since %s\n\n%s\n' \
             "$VERSION" "$PREV" "$COMMITS" > /tmp/release-body.md
 
