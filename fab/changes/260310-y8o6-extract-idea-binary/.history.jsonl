@@ -1,0 +1,4 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-10T13:07:01Z"}
+{"args":"Extract idea into standalone Go binary and reorganize justfile","cmd":"fab-new","event":"command","ts":"2026-03-10T13:07:01Z"}
+{"delta":"+4.7","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-03-10T13:07:30Z"}
+{"delta":"+0.0","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-03-10T13:07:43Z"}
