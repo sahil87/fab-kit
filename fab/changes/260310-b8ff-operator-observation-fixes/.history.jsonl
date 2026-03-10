@@ -1,0 +1,12 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-10T13:18:52.481016+05:30"}
+{"args":"Fix pane-map session scoping, add tab column, add UserPromptSubmit clear-idle hook, add fab runtime is-idle, remove status show --all from operator","cmd":"fab-new","event":"command","ts":"2026-03-10T13:18:52.487908+05:30"}
+{"delta":"+4.4","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-10T13:19:53.540854+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-10T13:20:08.950613+05:30"}
+{"cmd":"fab-new","event":"command","ts":"2026-03-10T13:20:13.647524+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-10T13:53:25.884952+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-10T13:53:35.372782+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-10T13:54:07.580688+05:30"}
+{"delta":"-0.3","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-10T13:54:20.795230+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-10T13:54:25.965485+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-10T14:03:43.306457+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-10T14:04:24.405541+05:30"}

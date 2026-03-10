@@ -1,5 +1,9 @@
 # Archive Index
 
+- **260305-k8ds-4-ship-wt-go-binary** — Superseded by 260310-qbiq-go-wt-binary
+- **260305-jug9-3-build-wt-go-binary** — Superseded by 260310-qbiq-go-wt-binary
+- **260307-ma7o-1-ci-releases-justfile** — Move Go cross-compilation and release packaging from fab-release.sh into a justfile with locally-replicable recipes, plus a tag-triggered GitHub Actions CI workflow for automated releases.
+- **260307-bmp3-3-rust-binary-port** — Port the Go CLI binary to Rust for smaller binaries, truly static linking, better CLI framework (clap), and ecosystem alignment. All 9 subcommands ported at once with backend override mechanism.
 - **260307-x2tx-status-symlink-pointer** — Replaced fab/current pointer file with .fab-status.yaml symlink at repo root, consolidating active change tracking and reducing observation cost for cross-worktree orchestration.
 - **260307-8ggm-git-pr-ship-finish-ordering** — Fixed git-pr ship stage ordering so fab status finish runs before the commit+push boundary, preventing uncommitted .status.yaml and .history.jsonl changes after every PR creation.
 - **260306-qkov-operator1-skill** — Added /fab-operator1 skill for multi-agent coordination in tmux — observe agents via pane-map, interact via send-keys, and coordinate cross-agent actions like broadcasts, sequenced rebases, and PR merges.

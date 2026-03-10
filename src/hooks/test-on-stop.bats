@@ -25,8 +25,16 @@ setup() {
 
   cat > "$REPO/fab/.kit/bin/fab" <<SCRIPT
 #!/usr/bin/env bash
-if [ "\$1" = "resolve" ] && [ "\$2" = "--dir" ]; then
-  echo "$CHANGE_DIR/"
+if [ "\$1" = "resolve" ] && [ "\$2" = "--folder" ]; then
+  echo "260305-bs5x-test-change"
+  exit 0
+fi
+if [ "\$1" = "runtime" ] && [ "\$2" = "set-idle" ]; then
+  repo_root="\$(git rev-parse --show-toplevel 2>/dev/null)"
+  runtime="\$repo_root/.fab-runtime.yaml"
+  [ -f "\$runtime" ] || echo "{}" > "\$runtime"
+  ts=\$(date +%s)
+  yq -i ".[\"\$3\"].agent.idle_since = \$ts" "\$runtime" 2>/dev/null
   exit 0
 fi
 exit 1
@@ -53,8 +61,8 @@ teardown() {
   run bash fab/.kit/hooks/on-stop.sh
   [ "$status" -eq 0 ]
 
-  # Verify agent.idle_since is a positive integer
-  idle_since=$(yq '.agent.idle_since' "$REPO/$CHANGE_DIR/.status.yaml")
+  # Verify agent.idle_since is a positive integer in .fab-runtime.yaml
+  idle_since=$(yq '.["260305-bs5x-test-change"].agent.idle_since' "$REPO/.fab-runtime.yaml")
   [ "$idle_since" != "null" ]
   [ "$idle_since" -gt 0 ]
 }
@@ -65,9 +73,8 @@ teardown() {
   run bash fab/.kit/hooks/on-stop.sh
   [ "$status" -eq 0 ]
 
-  # No agent block written
-  idle_since=$(yq '.agent.idle_since' "$REPO/$CHANGE_DIR/.status.yaml")
-  [ "$idle_since" = "null" ]
+  # No runtime file written
+  [ ! -f "$REPO/.fab-runtime.yaml" ]
 }
 
 @test "on-stop: broken .fab-status.yaml symlink exits 0 silently" {
@@ -121,7 +128,7 @@ teardown() {
   run bash "$REPO/fab/.kit/hooks/on-stop.sh"
   [ "$status" -eq 0 ]
 
-  idle_since=$(yq '.agent.idle_since' "$REPO/$CHANGE_DIR/.status.yaml")
+  idle_since=$(yq '.["260305-bs5x-test-change"].agent.idle_since' "$REPO/.fab-runtime.yaml")
   [ "$idle_since" != "null" ]
   [ "$idle_since" -gt 0 ]
 }

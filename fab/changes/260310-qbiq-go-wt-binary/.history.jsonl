@@ -1,0 +1,11 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-10T13:45:21.984501+05:30"}
+{"args":"Consolidate wt-* shell scripts into a single wt Rust binary with cargo workspace","cmd":"fab-new","event":"command","ts":"2026-03-10T13:45:21.990972+05:30"}
+{"delta":"+3.8","event":"confidence","score":3.8,"trigger":"calc-score","ts":"2026-03-10T13:46:22.086709+05:30"}
+{"delta":"+0.0","event":"confidence","score":3.8,"trigger":"calc-score","ts":"2026-03-10T13:46:27.741085+05:30"}
+{"args":"--folder 260310-qbiq-rust-wt-binary --slug go-wt-binary","cmd":"changeman-rename","event":"command","ts":"2026-03-10T14:01:35.348868+05:30"}
+{"delta":"+0.3","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-10T14:02:03.940198+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-10T14:02:08.819750+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-10T14:09:27.302799+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-10T14:09:37.446185+05:30"}
+{"delta":"-0.6","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-03-10T14:09:47.421897+05:30"}
+{"delta":"+0.0","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-03-10T14:09:52.425551+05:30"}

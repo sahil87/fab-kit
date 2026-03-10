@@ -30,10 +30,7 @@ fn setup_temp_repo() -> tempfile::TempDir {
 
     // Copy fixture files
     let fixture_base = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent().unwrap()
-        .join("fab-go")
-        .join("test")
-        .join("parity")
+        .join("tests")
         .join("fixtures");
 
     let change_dir = fab.join("changes").join("260305-t3st-parity-test-change");

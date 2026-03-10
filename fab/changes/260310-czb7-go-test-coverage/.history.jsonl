@@ -1,0 +1,9 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-10T14:02:13.985944+05:30"}
+{"args":"Fix Go test coverage — every subcommand should have test cases, restore test-go justfile targets","cmd":"fab-new","event":"command","ts":"2026-03-10T14:02:13.992550+05:30"}
+{"delta":"+4.4","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-10T14:03:15.405493+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-10T14:05:49.401291+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-10T14:05:55.506465+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-10T14:06:02.687485+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-10T14:06:09.124287+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-10T14:06:16.240327+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-10T14:06:21.104071+05:30"}

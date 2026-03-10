@@ -2,23 +2,21 @@ scripts := "src/scripts/just"
 rust_src := "src/fab-rust"
 go_src := "src/fab-go"
 
-# Run all tests (bash + rust) with summary
+# Run all tests with summary
 test:
     just test-setup
-    just _test-parallel
-    # just test-rust  # uncomment when Rust libs exist
-
-# Run test suites in parallel with prefixed live output
-_test-parallel:
-    {{scripts}}/test-parallel.sh
+    just test-hooks
+    just test-packages
+    just test-scripts
+    just test-rust
 
 # Setup test dependencies
 test-setup:
     {{scripts}}/test-setup.sh
 
-# Run bash tests (bats)
-test-bash:
-    {{scripts}}/test-bash.sh
+# Run hook tests (bats)
+test-hooks:
+    {{scripts}}/test-hooks.sh
 
 # Run package tests (bats)
 test-packages:
@@ -138,14 +136,6 @@ package-kit:
       rm -rf "$staging"
     done
     echo "Packaging complete: kit.tar.gz + ${#platforms[@]} platform archives (dual binary)"
-
-# Run Go parity tests (bash vs Go binary output)
-test-go:
-    cd {{go_src}} && go test ./test/parity/... -count=1
-
-# Run Go parity tests with verbose output
-test-go-v:
-    cd {{go_src}} && go test ./test/parity/... -v -count=1
 
 # Remove build artifacts and kit archives
 clean:

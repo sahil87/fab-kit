@@ -24,23 +24,34 @@ setup() {
   CHANGE_DIR="fab/changes/260305-bs5x-test-change"
   mkdir -p "$REPO/$CHANGE_DIR"
 
+  CHANGE_FOLDER="260305-bs5x-test-change"
   cat > "$REPO/fab/.kit/bin/fab" <<SCRIPT
 #!/usr/bin/env bash
-if [ "\$1" = "resolve" ] && [ "\$2" = "--dir" ]; then
-  echo "$CHANGE_DIR/"
+if [ "\$1" = "resolve" ] && [ "\$2" = "--folder" ]; then
+  echo "$CHANGE_FOLDER"
+  exit 0
+fi
+if [ "\$1" = "runtime" ] && [ "\$2" = "clear-idle" ]; then
+  repo_root="\$(git rev-parse --show-toplevel 2>/dev/null)"
+  yq -i "del(.[\"\$3\"].agent)" "\$repo_root/.fab-runtime.yaml" 2>/dev/null
   exit 0
 fi
 exit 1
 SCRIPT
   chmod +x "$REPO/fab/.kit/bin/fab"
 
-  # .status.yaml with agent block present
+  # .status.yaml (no agent block — that's now in runtime)
   cat > "$REPO/$CHANGE_DIR/.status.yaml" <<'YAML'
 name: test-change
 progress:
   intake: done
-agent:
-  idle_since: 1741193400
+YAML
+
+  # .fab-runtime.yaml with agent idle state
+  cat > "$REPO/.fab-runtime.yaml" <<YAML
+$CHANGE_FOLDER:
+  agent:
+    idle_since: 1741193400
 YAML
 
   ln -s "fab/changes/260305-bs5x-test-change/.status.yaml" "$REPO/.fab-status.yaml"
@@ -55,19 +66,19 @@ teardown() {
   run bash fab/.kit/hooks/on-session-start.sh
   [ "$status" -eq 0 ]
 
-  agent=$(yq '.agent' "$REPO/$CHANGE_DIR/.status.yaml")
+  agent=$(yq '.["260305-bs5x-test-change"].agent' "$REPO/.fab-runtime.yaml")
   [ "$agent" = "null" ]
 }
 
 @test "on-session-start: no agent block is idempotent" {
   cd "$REPO"
-  # Remove agent block first
-  yq -i 'del(.agent)' "$REPO/$CHANGE_DIR/.status.yaml"
+  # Remove agent block from runtime first
+  yq -i 'del(.["260305-bs5x-test-change"].agent)' "$REPO/.fab-runtime.yaml"
 
   run bash fab/.kit/hooks/on-session-start.sh
   [ "$status" -eq 0 ]
 
-  agent=$(yq '.agent' "$REPO/$CHANGE_DIR/.status.yaml")
+  agent=$(yq '.["260305-bs5x-test-change"].agent' "$REPO/.fab-runtime.yaml")
   [ "$agent" = "null" ]
 }
 
@@ -77,8 +88,8 @@ teardown() {
   run bash fab/.kit/hooks/on-session-start.sh
   [ "$status" -eq 0 ]
 
-  # Agent block still present (not cleared)
-  idle_since=$(yq '.agent.idle_since' "$REPO/$CHANGE_DIR/.status.yaml")
+  # Agent idle state still present in runtime (not cleared)
+  idle_since=$(yq '.["260305-bs5x-test-change"].agent.idle_since' "$REPO/.fab-runtime.yaml")
   [ "$idle_since" = "1741193400" ]
 }
 
@@ -110,8 +121,8 @@ teardown() {
   PATH="$TEST_DIR/restricted-bin" run bash fab/.kit/hooks/on-session-start.sh
   [ "$status" -eq 0 ]
 
-  # Agent block should still be present (not cleared)
-  idle_since=$(yq '.agent.idle_since' "$REPO/$CHANGE_DIR/.status.yaml")
+  # Agent idle state should still be present (not cleared)
+  idle_since=$(yq '.["260305-bs5x-test-change"].agent.idle_since' "$REPO/.fab-runtime.yaml")
   [ "$idle_since" = "1741193400" ]
 }
 

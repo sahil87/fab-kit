@@ -1,0 +1,12 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-10T13:47:45.728698+05:30"}
+{"args":"Merge all three Claude Code hook shell scripts into the fab Rust binary as fab hook subcommands","cmd":"fab-new","event":"command","ts":"2026-03-10T13:47:45.733913+05:30"}
+{"delta":"+3.1","event":"confidence","score":3.1,"trigger":"calc-score","ts":"2026-03-10T13:48:51.821769+05:30"}
+{"delta":"+0.0","event":"confidence","score":3.1,"trigger":"calc-score","ts":"2026-03-10T13:48:58.178203+05:30"}
+{"args":"--folder 260310-bvc6-merge-hooks-into-rust --slug merge-hooks-into-go","cmd":"changeman-rename","event":"command","ts":"2026-03-10T14:00:20.601880+05:30"}
+{"delta":"+1.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-10T14:00:45.445608+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-10T14:00:49.942812+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-10T14:03:50.402246+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-10T14:04:00.868303+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-10T14:04:11.023194+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-10T14:04:17.697113+05:30"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-10T14:04:24.797979+05:30"}

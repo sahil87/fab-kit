@@ -1,0 +1,40 @@
+id: qbiq
+name: 260310-qbiq-go-wt-binary
+created: 2026-03-10T13:45:21.981595+05:30
+created_by: sahil-weaver
+change_type: refactor
+issues: []
+progress:
+  intake: ready
+  spec: pending
+  tasks: pending
+  apply: pending
+  review: pending
+  hydrate: pending
+  ship: pending
+  review-pr: pending
+checklist:
+  generated: false
+  path: checklist.md
+  completed: 0
+  total: 0
+confidence:
+  certain: 4
+  confident: 5
+  tentative: 0
+  unresolved: 0
+  score: 3.5
+  indicative: true
+  fuzzy: true
+  dimensions:
+    signal: 80.0
+    reversibility: 82.2
+    competence: 83.3
+    disambiguation: 81.7
+stage_metrics:
+  intake:
+    started_at: 2026-03-10T13:45:21.984131+05:30
+    driver: fab-new
+    iterations: 1
+prs: []
+last_updated: 2026-03-10T14:09:52.419006+05:30
