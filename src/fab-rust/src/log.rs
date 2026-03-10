@@ -16,7 +16,7 @@ pub fn command(fab_root: &str, cmd: &str, change_arg: &str, args: &str) -> Resul
         // No change arg: resolve from .fab-status.yaml symlink, graceful degradation
         let repo_root = Path::new(fab_root).parent().unwrap_or(Path::new("/"));
         let symlink_path = repo_root.join(".fab-status.yaml");
-        if !symlink_path.symlink_metadata().is_ok() {
+        if symlink_path.symlink_metadata().is_err() {
             return Ok(()); // silent exit
         }
         match resolve::to_abs_dir(fab_root, "") {

@@ -24,8 +24,7 @@ struct PaneRow {
 pub fn run_pane_map() -> Result<()> {
     // Tmux session guard
     if std::env::var("TMUX").unwrap_or_default().is_empty() {
-        eprintln!("Error: not inside a tmux session");
-        std::process::exit(1);
+        bail!("not inside a tmux session");
     }
 
     // Discover tmux panes

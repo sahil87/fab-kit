@@ -34,8 +34,7 @@ pub fn run_send_keys(change_arg: &str, text: &str) -> Result<()> {
 
 fn validate_send_keys_inputs(change_arg: &str) -> Result<()> {
     if std::env::var("TMUX").unwrap_or_default().is_empty() {
-        eprintln!("Error: not inside a tmux session");
-        std::process::exit(1);
+        bail!("not inside a tmux session");
     }
     if change_arg.trim().is_empty() {
         bail!("change argument must not be empty");

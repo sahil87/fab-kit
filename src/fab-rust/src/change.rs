@@ -360,7 +360,7 @@ fn has_id_collision(changes_dir: &Path, change_id: &str) -> bool {
         if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
             let name = entry.file_name().to_string_lossy().to_string();
             // Check YYMMDD-{id}-slug pattern
-            if name.len() > 6 && &name[6..6 + pattern.len().min(name.len() - 6)] == pattern.as_str() {
+            if name.len() > 6 && name[6..].starts_with(&pattern) {
                 return true;
             }
         }

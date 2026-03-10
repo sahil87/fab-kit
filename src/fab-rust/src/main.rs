@@ -32,7 +32,7 @@ enum Commands {
         change: Option<String>,
         /// Output 4-char change ID (default)
         #[arg(long)]
-        _id: bool,
+        id: bool,
         /// Output full folder name
         #[arg(long)]
         folder: bool,
@@ -418,8 +418,8 @@ fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Resolve { change, _id, folder, dir, status } => {
-            run_resolve(change, _id, folder, dir, status)
+        Commands::Resolve { change, id, folder, dir, status } => {
+            run_resolve(change, id, folder, dir, status)
         }
         Commands::Log { command } => run_log(command),
         Commands::Status { command } => run_status(command),
@@ -439,7 +439,7 @@ fn main() {
 
 fn run_resolve(
     change_arg: Option<String>,
-    _id: bool,
+    _id: bool, // accepted but unused — --id is the default behavior
     folder: bool,
     dir: bool,
     status: bool,
