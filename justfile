@@ -1,6 +1,5 @@
 scripts := "src/scripts/just"
 rust_src := "src/fab-rust"
-go_src := "src/fab-go"
 
 # Run all tests with summary (excludes Rust)
 test:
@@ -26,29 +25,33 @@ test-packages:
 test-scripts:
     {{scripts}}/test-scripts.sh
 
-# Run Go unit tests (all binaries)
+# Run Go unit tests (all modules)
 test-go:
-    cd {{go_src}} && go test ./... -count=1
+    cd src/fab-go && go test ./... -count=1
+    cd src/wt-go && go test ./... -count=1
+    cd src/idea-go && go test ./... -count=1
 
 # Run Go unit tests (verbose)
 test-go-v:
-    cd {{go_src}} && go test ./... -v -count=1
+    cd src/fab-go && go test ./... -v -count=1
+    cd src/wt-go && go test ./... -v -count=1
+    cd src/idea-go && go test ./... -v -count=1
 
 # Build all Go binaries for current platform (fab, wt, idea)
 build-go:
-    cd {{go_src}} && CGO_ENABLED=0 go build -o ../../fab/.kit/bin/fab-go ./cmd/fab
-    cd {{go_src}} && CGO_ENABLED=0 go build -o ../../fab/.kit/bin/wt ./cmd/wt
-    cd {{go_src}} && CGO_ENABLED=0 go build -o ../../fab/.kit/bin/idea ./cmd/idea
+    cd src/fab-go && CGO_ENABLED=0 go build -o ../../fab/.kit/bin/fab-go ./cmd/fab
+    cd src/wt-go && CGO_ENABLED=0 go build -o ../../fab/.kit/bin/wt ./cmd
+    cd src/idea-go && CGO_ENABLED=0 go build -o ../../fab/.kit/bin/idea ./cmd
 
 # Cross-compile a Go binary for a specific target
-_build-go-binary name cmd os arch:
-    mkdir -p .release-build && cd {{go_src}} && CGO_ENABLED=0 GOOS={{os}} GOARCH={{arch}} go build -o ../../.release-build/{{name}}-{{os}}-{{arch}} ./cmd/{{cmd}}
+_build-go-binary src_dir cmd_path name os arch:
+    mkdir -p .release-build && cd {{src_dir}} && CGO_ENABLED=0 GOOS={{os}} GOARCH={{arch}} go build -o ../../.release-build/{{name}}-{{os}}-{{arch}} {{cmd_path}}
 
 # Cross-compile all Go binaries for a specific target
 build-go-target os arch:
-    just _build-go-binary fab fab {{os}} {{arch}}
-    just _build-go-binary wt wt {{os}} {{arch}}
-    just _build-go-binary idea idea {{os}} {{arch}}
+    just _build-go-binary src/fab-go ./cmd/fab fab {{os}} {{arch}}
+    just _build-go-binary src/wt-go ./cmd wt {{os}} {{arch}}
+    just _build-go-binary src/idea-go ./cmd idea {{os}} {{arch}}
 
 # Cross-compile all Go binaries for all release targets
 build-go-all:
