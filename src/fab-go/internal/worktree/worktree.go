@@ -1,4 +1,4 @@
-// Package worktree discovers git worktrees and resolves their fab pipeline state.
+// Package worktree discovers git worktrees.
 package worktree
 
 import (
@@ -8,25 +8,18 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"github.com/wvrdz/fab-kit/src/fab-go/internal/status"
-	sf "github.com/wvrdz/fab-kit/src/fab-go/internal/statusfile"
 )
 
-// Info holds the fab pipeline state for a single worktree.
+// Info holds the core state for a single worktree.
 type Info struct {
 	Name      string `json:"name"`
 	Path      string `json:"path"`
 	Branch    string `json:"branch"`
 	IsMain    bool   `json:"is_main"`
 	IsCurrent bool   `json:"is_current"`
-	Change    string `json:"change"`
-	Stage     string `json:"stage,omitempty"`
-	State     string `json:"state,omitempty"`
 }
 
-// List discovers all git worktrees via `git worktree list --porcelain` and
-// resolves their fab pipeline state.
+// List discovers all git worktrees via `git worktree list --porcelain`.
 func List() ([]Info, error) {
 	currentDir, err := os.Getwd()
 	if err != nil {
@@ -62,7 +55,6 @@ func List() ([]Info, error) {
 			info.Name = filepath.Base(e.path)
 		}
 
-		resolveFabState(&info)
 		infos = append(infos, info)
 	}
 
@@ -100,10 +92,7 @@ func Current() (*Info, error) {
 
 // FormatHuman formats a single worktree as a human-readable line.
 func FormatHuman(info *Info) string {
-	if info.Stage != "" {
-		return fmt.Sprintf("%s  %s  %s  %s", info.Name, info.Change, info.Stage, info.State)
-	}
-	return fmt.Sprintf("%s  %s", info.Name, info.Change)
+	return fmt.Sprintf("%s  %s", info.Name, info.Branch)
 }
 
 // FormatAllHuman formats all worktrees as a human-readable table.
@@ -133,11 +122,7 @@ func FormatAllHuman(infos []Info) string {
 		if info.IsCurrent {
 			marker = "* "
 		}
-		if info.Stage != "" {
-			fmt.Fprintf(&sb, "%s%-14s %-42s %-10s %s\n", marker, info.Name, info.Change, info.Stage, info.State)
-		} else {
-			fmt.Fprintf(&sb, "%s%-14s %s\n", marker, info.Name, info.Change)
-		}
+		fmt.Fprintf(&sb, "%s%-14s %s\n", marker, info.Name, info.Branch)
 	}
 
 	fmt.Fprintf(&sb, "\nTotal: %d worktree(s)", len(infos))
@@ -186,46 +171,3 @@ func parseWorktreeList(raw string) []worktreeEntry {
 	}
 	return entries
 }
-
-func resolveFabState(info *Info) {
-	fabDir := filepath.Join(info.Path, "fab")
-	if _, err := os.Stat(fabDir); os.IsNotExist(err) {
-		info.Change = "(no fab)"
-		return
-	}
-
-	currentFile := filepath.Join(fabDir, "current")
-	data, err := os.ReadFile(currentFile)
-	if err != nil || len(strings.TrimSpace(string(data))) == 0 {
-		info.Change = "(no change)"
-		return
-	}
-
-	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	folderName := ""
-	if len(lines) >= 2 {
-		folderName = strings.TrimSpace(lines[1])
-	}
-	if folderName == "" {
-		info.Change = "(no change)"
-		return
-	}
-
-	statusPath := filepath.Join(fabDir, "changes", folderName, ".status.yaml")
-	if _, err := os.Stat(statusPath); os.IsNotExist(err) {
-		info.Change = "(stale)"
-		return
-	}
-
-	info.Change = folderName
-
-	statusFile, err := sf.Load(statusPath)
-	if err != nil {
-		return
-	}
-
-	stage, state := status.DisplayStage(statusFile)
-	info.Stage = stage
-	info.State = state
-}
-

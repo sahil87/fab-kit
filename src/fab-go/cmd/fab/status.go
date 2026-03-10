@@ -1,14 +1,18 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/wvrdz/fab-kit/src/fab-go/internal/resolve"
 	"github.com/wvrdz/fab-kit/src/fab-go/internal/status"
 	sf "github.com/wvrdz/fab-kit/src/fab-go/internal/statusfile"
-	"github.com/wvrdz/fab-kit/src/fab-go/internal/worktree"
 )
 
 func statusCmd() *cobra.Command {
@@ -499,6 +503,127 @@ func optArg(args []string, idx int) string {
 	return ""
 }
 
+// worktreeInfo mirrors the JSON output from `wt list --json`.
+type worktreeInfo struct {
+	Name      string `json:"name"`
+	Path      string `json:"path"`
+	Branch    string `json:"branch"`
+	IsMain    bool   `json:"is_main"`
+	IsCurrent bool   `json:"is_current"`
+	// fab-specific fields resolved locally
+	Change string `json:"change,omitempty"`
+	Stage  string `json:"stage,omitempty"`
+	State  string `json:"state,omitempty"`
+}
+
+func listWorktrees() ([]worktreeInfo, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("cannot determine executable path: %w", err)
+	}
+	wtBin := filepath.Join(filepath.Dir(exe), "wt")
+
+	out, err := exec.Command(wtBin, "list", "--json").Output()
+	if err != nil {
+		return nil, fmt.Errorf("wt list --json: %w (is the wt binary installed?)", err)
+	}
+
+	var infos []worktreeInfo
+	if err := json.Unmarshal(out, &infos); err != nil {
+		return nil, fmt.Errorf("parse wt output: %w", err)
+	}
+
+	for i := range infos {
+		resolveWorktreeFabState(&infos[i])
+	}
+	return infos, nil
+}
+
+func resolveWorktreeFabState(info *worktreeInfo) {
+	fabDir := filepath.Join(info.Path, "fab")
+	if _, err := os.Stat(fabDir); os.IsNotExist(err) {
+		info.Change = "(no fab)"
+		return
+	}
+
+	currentFile := filepath.Join(fabDir, "current")
+	data, err := os.ReadFile(currentFile)
+	if err != nil || len(strings.TrimSpace(string(data))) == 0 {
+		info.Change = "(no change)"
+		return
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	folderName := ""
+	if len(lines) >= 2 {
+		folderName = strings.TrimSpace(lines[1])
+	}
+	if folderName == "" {
+		info.Change = "(no change)"
+		return
+	}
+
+	statusPath := filepath.Join(fabDir, "changes", folderName, ".status.yaml")
+	if _, err := os.Stat(statusPath); os.IsNotExist(err) {
+		info.Change = "(stale)"
+		return
+	}
+
+	info.Change = folderName
+
+	statusFile, err := sf.Load(statusPath)
+	if err != nil {
+		return
+	}
+
+	stage, state := status.DisplayStage(statusFile)
+	info.Stage = stage
+	info.State = state
+}
+
+func findWorktreeByName(name string, infos []worktreeInfo) *worktreeInfo {
+	nameLower := strings.ToLower(name)
+	for i := range infos {
+		if strings.ToLower(infos[i].Name) == nameLower {
+			return &infos[i]
+		}
+	}
+	return nil
+}
+
+func currentWorktree(infos []worktreeInfo) *worktreeInfo {
+	for i := range infos {
+		if infos[i].IsCurrent {
+			return &infos[i]
+		}
+	}
+	return nil
+}
+
+func formatWorktreeHuman(info *worktreeInfo) string {
+	if info.Stage != "" {
+		return fmt.Sprintf("%s  %s  %s  %s", info.Name, info.Change, info.Stage, info.State)
+	}
+	return fmt.Sprintf("%s  %s", info.Name, info.Change)
+}
+
+func formatWorktreesHuman(infos []worktreeInfo) string {
+	var sb strings.Builder
+	for _, info := range infos {
+		marker := "  "
+		if info.IsCurrent {
+			marker = "* "
+		}
+		if info.Stage != "" {
+			fmt.Fprintf(&sb, "%s%-14s %-42s %-10s %s\n", marker, info.Name, info.Change, info.Stage, info.State)
+		} else {
+			fmt.Fprintf(&sb, "%s%-14s %s\n", marker, info.Name, info.Change)
+		}
+	}
+	fmt.Fprintf(&sb, "\nTotal: %d worktree(s)", len(infos))
+	return sb.String()
+}
+
 func statusShowCmd() *cobra.Command {
 	var allFlag bool
 	var jsonFlag bool
@@ -508,54 +633,53 @@ func statusShowCmd() *cobra.Command {
 		Short: "Show fab pipeline status for worktrees",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			infos, err := listWorktrees()
+			if err != nil {
+				return err
+			}
+
 			if len(args) > 0 {
-				// Named worktree
-				info, err := worktree.FindByName(args[0])
-				if err != nil {
-					return err
+				info := findWorktreeByName(args[0], infos)
+				if info == nil {
+					return fmt.Errorf("worktree '%s' not found", args[0])
 				}
 				if jsonFlag {
-					out, err := worktree.FormatJSON(info)
+					data, err := json.MarshalIndent(info, "", "  ")
 					if err != nil {
 						return err
 					}
-					fmt.Println(out)
+					fmt.Println(string(data))
 				} else {
-					fmt.Println(worktree.FormatHuman(info))
+					fmt.Println(formatWorktreeHuman(info))
 				}
 				return nil
 			}
 
 			if allFlag {
-				infos, err := worktree.List()
-				if err != nil {
-					return err
-				}
 				if jsonFlag {
-					out, err := worktree.FormatAllJSON(infos)
+					data, err := json.MarshalIndent(infos, "", "  ")
 					if err != nil {
 						return err
 					}
-					fmt.Println(out)
+					fmt.Println(string(data))
 				} else {
-					fmt.Println(worktree.FormatAllHuman(infos))
+					fmt.Print(formatWorktreesHuman(infos))
 				}
 				return nil
 			}
 
-			// Default: current worktree
-			info, err := worktree.Current()
-			if err != nil {
-				return err
+			info := currentWorktree(infos)
+			if info == nil {
+				return fmt.Errorf("current directory is not a git worktree")
 			}
 			if jsonFlag {
-				out, err := worktree.FormatJSON(info)
+				data, err := json.MarshalIndent(info, "", "  ")
 				if err != nil {
 					return err
 				}
-				fmt.Println(out)
+				fmt.Println(string(data))
 			} else {
-				fmt.Println(worktree.FormatHuman(info))
+				fmt.Println(formatWorktreeHuman(info))
 			}
 			return nil
 		},
@@ -563,6 +687,7 @@ func statusShowCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&allFlag, "all", false, "Show status for all worktrees")
 	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Output as JSON")
+
 	return cmd
 }
 
