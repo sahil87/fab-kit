@@ -1,5 +1,8 @@
 # Archive Index
 
+- **260310-czb7-go-test-coverage** — Add Go test coverage for 6 untested internal packages, restore just test-go targets, and reverse backend priority in fab dispatcher from rust>go to go>rust.
+- **260310-b8ff-operator-observation-fixes** — Fix pane-map session scoping, add tab name column, add fab runtime is-idle read subcommand, and remove redundant status show --all from operator skill.
+- **260307-buf0-4-rust-ci-build** — Add Rust cross-compilation via cargo-zigbuild to CI workflow and justfile, enabling releases to ship both Go and Rust binaries during the transition period.
 - **260305-k8ds-4-ship-wt-go-binary** — Superseded by 260310-qbiq-go-wt-binary
 - **260305-jug9-3-build-wt-go-binary** — Superseded by 260310-qbiq-go-wt-binary
 - **260307-ma7o-1-ci-releases-justfile** — Move Go cross-compilation and release packaging from fab-release.sh into a justfile with locally-replicable recipes, plus a tag-triggered GitHub Actions CI workflow for automated releases.
