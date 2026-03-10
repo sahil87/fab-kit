@@ -182,7 +182,7 @@ Prints the Fab Kit help overview and skill catalog. Dynamically reads skill name
 
 #### `lib/env-packages.sh`
 
-Sourceable script that adds `fab/.kit/bin` to PATH. Used by `scaffold/fragment-.envrc` (for direnv-based projects). Self-contained: resolves `KIT_DIR` relative to its own location (two levels up from `scripts/lib/` to `.kit/`), adds `$KIT_DIR/bin` to PATH (making `fab`, `wt`, and `idea` binaries available). Lives in `lib/` because it is a sourceable helper, not a user-callable command — keeping it off PATH prevents it from appearing in tab completion.
+Sourceable script that adds `fab/.kit/bin` and each `fab/.kit/packages/*/bin` directory to PATH. Used by `scaffold/fragment-.envrc` (for direnv-based projects). Self-contained: resolves `KIT_DIR` relative to its own location (two levels up from `scripts/lib/` to `.kit/`), adds `$KIT_DIR/bin` to PATH (making `fab`, `wt`, and `idea` binaries available), then iterates `$KIT_DIR/packages/*/bin` and adds each existing directory to PATH (making package-bundled executables available). Lives in `lib/` because it is a sourceable helper, not a user-callable command — keeping it off PATH prevents it from appearing in tab completion.
 
 #### `lib/frontmatter.sh`
 

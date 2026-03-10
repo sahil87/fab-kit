@@ -229,8 +229,16 @@ func TestList_DirtyIndicator(t *testing.T) {
 
 	r := runWtSuccess(t, repo, nil, "list")
 	assertContains(t, r.Stdout, "dirty-status-test")
-	// Should show * indicator for dirty worktree
-	assertContains(t, r.Stdout, "*")
+	// Should show * dirty indicator on the dirty worktree line
+	for _, line := range strings.Split(r.Stdout, "\n") {
+		if strings.Contains(line, "dirty-status-test") {
+			if !strings.Contains(line, "*") {
+				t.Errorf("expected dirty indicator '*' on dirty-status-test line, got: %s", line)
+			}
+			return
+		}
+	}
+	t.Fatal("dirty-status-test line not found in output")
 }
 
 // NO_COLOR support

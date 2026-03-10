@@ -247,10 +247,10 @@ func TestCreate_PorcelainStdoutOnlyPath(t *testing.T) {
 
 	stdout, err := cmd.Output()
 	if err != nil {
-		// Ignore exit error if any - we want to check stdout
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			t.Fatalf("wt create failed (exit %d): %s", exitErr.ExitCode(), exitErr.Stderr)
 		}
+		t.Fatalf("wt create failed: %v", err)
 	}
 
 	// stdout should be exactly one line: the worktree path

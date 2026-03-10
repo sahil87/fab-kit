@@ -59,7 +59,7 @@ func mustGetModuleRoot() string {
 
 // createTestRepo creates a temporary git repo with an initial commit on "main"
 // and a bare remote "origin". Returns the resolved path to the repo.
-// The caller should defer cleanupTestRepo(path).
+// Cleanup is handled automatically by t.TempDir().
 func createTestRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -92,7 +92,9 @@ func createTestRepo(t *testing.T) string {
 
 	// Initial commit
 	readme := filepath.Join(resolved, "README.md")
-	os.WriteFile(readme, []byte("# Test Repository\n"), 0644)
+	if err := os.WriteFile(readme, []byte("# Test Repository\n"), 0644); err != nil {
+		t.Fatalf("WriteFile README: %v", err)
+	}
 	run("git", "add", "README.md")
 	run("git", "commit", "-q", "-m", "Initial commit")
 
@@ -102,9 +104,11 @@ func createTestRepo(t *testing.T) string {
 		run("git", "branch", "-m", "main")
 	}
 
-	// Set up bare remote
-	remoteDir := resolved + "-remote"
-	os.MkdirAll(remoteDir, 0755)
+	// Set up bare remote inside temp dir
+	remoteDir := filepath.Join(resolved, "remote.git")
+	if err := os.MkdirAll(remoteDir, 0755); err != nil {
+		t.Fatalf("MkdirAll remote: %v", err)
+	}
 	remoteInit := exec.Command("git", "init", "-q", "--bare")
 	remoteInit.Dir = remoteDir
 	if out, err := remoteInit.CombinedOutput(); err != nil {
@@ -311,13 +315,17 @@ func createWorktreeViaWt(t *testing.T, repoPath, name string) string {
 func createInitScript(t *testing.T, repoPath string) {
 	t.Helper()
 	scriptDir := filepath.Join(repoPath, "fab", ".kit")
-	os.MkdirAll(scriptDir, 0755)
+	if err := os.MkdirAll(scriptDir, 0755); err != nil {
+		t.Fatalf("MkdirAll init script dir: %v", err)
+	}
 	script := filepath.Join(scriptDir, "worktree-init.sh")
 	content := `#!/usr/bin/env bash
 echo "Test init script executed"
 touch .init-script-ran
 `
-	os.WriteFile(script, []byte(content), 0755)
+	if err := os.WriteFile(script, []byte(content), 0755); err != nil {
+		t.Fatalf("WriteFile init script: %v", err)
+	}
 }
 
 // pushMainToRemote pushes main to the mock remote.
