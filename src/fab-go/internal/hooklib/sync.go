@@ -1,6 +1,7 @@
 package hooklib
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -80,8 +81,11 @@ func Sync(hooksDir, settingsPath string) (*SyncResult, error) {
 	// Load or initialize settings
 	settings := make(map[string]json.RawMessage)
 	if data, err := os.ReadFile(settingsPath); err == nil {
-		if err := json.Unmarshal(data, &settings); err != nil {
-			return nil, fmt.Errorf("parsing settings: %w", err)
+		trimmed := bytes.TrimSpace(data)
+		if len(trimmed) > 0 {
+			if err := json.Unmarshal(trimmed, &settings); err != nil {
+				return nil, fmt.Errorf("parsing settings: %w", err)
+			}
 		}
 	}
 

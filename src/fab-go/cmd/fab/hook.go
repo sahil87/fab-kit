@@ -184,16 +184,8 @@ func artifactBookkeeping(fabRoot, filePath string, match hooklib.ArtifactMatch, 
 		}
 
 		count := hooklib.CountChecklistItems(string(content))
-		// Need to reload after set-generated since it saved
-		statusFile2, err := sf.Load(statusPath)
-		if err == nil {
-			_ = status.SetChecklist(statusFile2, statusPath, "total", fmt.Sprintf("%d", count))
-			// Reload again after set-total
-			statusFile3, err := sf.Load(statusPath)
-			if err == nil {
-				_ = status.SetChecklist(statusFile3, statusPath, "completed", "0")
-			}
-		}
+		_ = status.SetChecklist(statusFile, statusPath, "total", fmt.Sprintf("%d", count))
+		_ = status.SetChecklist(statusFile, statusPath, "completed", "0")
 		contextParts = append(contextParts, fmt.Sprintf("checklist generated, total: %d", count))
 	}
 
