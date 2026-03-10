@@ -23,6 +23,7 @@ func main() {
 		changeCmd(),
 		scoreCmd(),
 		runtimeCmd(),
+		hookCmd(),
 		paneMapCmd(),
 		sendKeysCmd(),
 	)

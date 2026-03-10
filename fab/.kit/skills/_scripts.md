@@ -42,6 +42,7 @@ fab/.kit/bin/fab <command> <subcommand> [args...]
 | `fab change` | Change lifecycle (new, rename, switch, list, archive, restore, archive-list) |
 | `fab score` | Confidence scoring |
 | `fab runtime` | Runtime state management (.fab-runtime.yaml) |
+| `fab hook` | Claude Code hook subcommands (session-start, stop, user-prompt, artifact-write, sync) |
 | `fab pane-map` | Tmux pane-to-worktree mapping with fab pipeline state |
 | `fab send-keys` | Send text to a change's tmux pane |
 
@@ -237,6 +238,33 @@ fab/.kit/bin/fab runtime <subcommand> <change>
 | `is-idle` | `is-idle <change>` | Check agent idle state. Outputs `idle {duration}`, `active`, or `unknown`. Always exits 0 |
 
 All subcommands accept the standard `<change>` argument (4-char ID, substring, or full folder name). The runtime file is `.fab-runtime.yaml` at the repo root, keyed by the change's full folder name.
+
+---
+
+## fab hook
+
+Claude Code Hook Manager — implements hook logic in Go for Claude Code lifecycle events. Each subcommand is invoked by thin shell wrappers in `fab/.kit/hooks/`. All hook subcommands MUST exit 0 always — errors are silently swallowed to never block the agent.
+
+```
+fab/.kit/bin/fab hook <subcommand>
+```
+
+| Subcommand | Usage | Purpose |
+|------------|-------|---------|
+| `session-start` | `hook session-start` | Clear agent idle state for the active change. Fires on `SessionStart` |
+| `stop` | `hook stop` | Write `agent.idle_since` Unix timestamp for the active change. Fires on `Stop` |
+| `user-prompt` | `hook user-prompt` | Clear agent idle state for the active change. Fires on `UserPromptSubmit` |
+| `artifact-write` | `hook artifact-write` | Read PostToolUse JSON from stdin, perform per-artifact bookkeeping (change type, score, checklist). Fires on `PostToolUse` (Write/Edit) |
+| `sync` | `hook sync` | Discover `on-*.sh` scripts in `fab/.kit/hooks/`, map to Claude Code events, merge into `.claude/settings.local.json`. Idempotent |
+
+**Hook subcommands vs `fab runtime`**: Hook subcommands resolve the active change automatically (no `<change>` argument) and swallow all errors. `fab runtime` subcommands require an explicit `<change>` argument and report errors normally. Hook subcommands use `internal/runtime` and other internal packages directly — no subprocesses.
+
+**`artifact-write` stdin**: Expects Claude Code PostToolUse JSON payload on stdin. Extracts `tool_input.file_path`, matches against fab artifact patterns (`fab/changes/*/intake.md`, `spec.md`, `tasks.md`, `checklist.md`), and performs bookkeeping. Outputs `{"additionalContext":"Bookkeeping: ..."}` JSON on success.
+
+**`sync` output**: Reports one of three statuses to stdout:
+- `Created: .claude/settings.local.json hooks (N hook entries)` — fresh settings
+- `Updated: .claude/settings.local.json hooks (added N hook entries)` — merged new entries
+- `.claude/settings.local.json hooks: OK` — already up to date
 
 ---
 
