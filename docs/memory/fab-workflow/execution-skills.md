@@ -191,7 +191,7 @@ On invocation, the operator displays the pane map (via `fab pane-map` — column
 
 #### State Re-derivation
 
-The operator MUST re-query live state (`fab pane-map`, `fab runtime`) before every action. It SHALL NOT rely on stale values from conversation memory. `fab pane-map` is the primary observation mechanism; `fab runtime is-idle <change>` provides per-agent idle checks for pre-send validation.
+The operator MUST re-query live state (`fab pane-map`, `fab runtime is-idle`) before every action. It SHALL NOT rely on stale values from conversation memory. `fab pane-map` is the primary observation mechanism; `fab runtime is-idle <change>` provides per-agent idle checks for pre-send validation.
 
 #### Seven Use Cases
 
@@ -202,7 +202,7 @@ Each use case follows the pattern: interpret user intent → refresh state → v
 3. **Merge completed PRs** — identify changes with PRs via `fab status get-prs`, confirm before executing (destructive), run `gh pr merge` from operator's own shell
 4. **Spawn new worktree + agent from idea** — look up idea, create worktree via `wt-create --non-interactive`, open tmux tab, send `/fab-new <description>`
 5. **Status dashboard** — refresh pane map (`fab pane-map`), present concise human-readable summary
-6. **Unstick a stuck agent** — confirm idle via `fab runtime`, send `/fab-continue`, warn on repeated nudge ("Already nudged once. Manual investigation recommended.")
+6. **Unstick a stuck agent** — confirm idle via `fab runtime is-idle <change>`, send `/fab-continue`, warn on repeated nudge ("Already nudged once. Manual investigation recommended.")
 7. **Notification surface** — hold "notify me" instructions in conversation context, check on next user interaction, report status
 
 #### Confirmation Model

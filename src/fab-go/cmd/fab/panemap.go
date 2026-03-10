@@ -82,8 +82,9 @@ func runPaneMap(cmd *cobra.Command, args []string) error {
 }
 
 // discoverPanes runs `tmux list-panes -s` (current session only) and parses the output.
+// Uses tab as the field delimiter so that window names containing spaces are handled correctly.
 func discoverPanes() ([]paneEntry, error) {
-	out, err := exec.Command("tmux", "list-panes", "-s", "-F", "#{pane_id} #{window_name} #{pane_current_path}").Output()
+	out, err := exec.Command("tmux", "list-panes", "-s", "-F", "#{pane_id}\t#{window_name}\t#{pane_current_path}").Output()
 	if err != nil {
 		return nil, fmt.Errorf("tmux list-panes: %w", err)
 	}
@@ -94,7 +95,7 @@ func discoverPanes() ([]paneEntry, error) {
 		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, " ", 3)
+		parts := strings.SplitN(line, "\t", 3)
 		if len(parts) != 3 {
 			continue
 		}

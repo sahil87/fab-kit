@@ -185,12 +185,14 @@ func runtimeIsIdleCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fabRoot, err := resolve.FabRoot()
 			if err != nil {
-				return err
+				fmt.Fprintln(cmd.OutOrStdout(), "unknown")
+				return nil
 			}
 
 			folder, err := resolve.ToFolder(fabRoot, args[0])
 			if err != nil {
-				return err
+				fmt.Fprintln(cmd.OutOrStdout(), "unknown")
+				return nil
 			}
 
 			rtPath := runtimeFilePath(fabRoot)
@@ -201,7 +203,8 @@ func runtimeIsIdleCmd() *cobra.Command {
 
 			m, err := loadRuntimeFile(rtPath)
 			if err != nil {
-				return err
+				fmt.Fprintln(cmd.OutOrStdout(), "unknown")
+				return nil
 			}
 
 			folderEntry, ok := m[folder].(map[string]interface{})
