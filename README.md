@@ -90,13 +90,12 @@ brew install yq jq gh direnv
 In addition to the above:
 
 ```bash
-brew install bats-core parallel go rust zig
+brew install parallel go rust zig
 cargo install cargo-zigbuild
 ```
 
 | Tool | Purpose |
 |------|---------|
-| [bats-core](https://github.com/bats-core/bats-core) | Bash test runner for kit validation |
 | [parallel](https://www.gnu.org/software/parallel/) | Parallel execution for test suites and batch operations |
 | [Go](https://go.dev/) | Required for building the `fab` binary from source (`src/fab-go/`) |
 | [Rust](https://www.rust-lang.org/) | Required for building the `fab` binary from source (`src/fab-rust/`) |
@@ -348,21 +347,14 @@ Fab Kit ships standalone shell CLI tools in `fab/.kit/packages/`. These are gene
 
 ### Setup
 
-Add to your `~/.zshrc` (or `~/.bashrc`):
-
-```bash
-source /path/to/fab-kit/src/packages/rc-init.sh
-```
-
-This delegates to `fab/.kit/scripts/lib/env-packages.sh`, which puts all package `bin/` directories on your PATH. Projects using direnv get this automatically via `.envrc`.
+Projects using direnv get CLI tools (`wt`, `idea`) on PATH automatically via `.envrc`. The Go binaries are distributed in `fab/.kit/bin/`.
 
 ### Development
 
-After cloning, initialize shared test dependencies:
+After cloning, run Go tests:
 
 ```bash
-just test-setup         # clones bats submodules
-just test-packages      # run all package tests
+just test-go            # run all Go module tests
 ```
 
 ## Learn More

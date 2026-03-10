@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-# Mock nautilus executable for testing
-
-if [[ -n "${MOCK_LOG:-}" ]]; then
-    echo "nautilus $*" >> "$MOCK_LOG"
-fi
-
-exit 0

@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-# Mock macOS 'open' command for testing
-
-if [[ -n "${MOCK_LOG:-}" ]]; then
-    echo "open $*" >> "$MOCK_LOG"
-fi
-
-exit 0

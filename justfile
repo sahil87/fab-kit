@@ -3,23 +3,13 @@ rust_src := "src/fab-rust"
 
 # Run all tests with summary (excludes Rust)
 test:
-    just test-setup
     just test-hooks
-    just test-packages
     just test-scripts
     just test-go
-
-# Setup test dependencies
-test-setup:
-    {{scripts}}/test-setup.sh
 
 # Run hook tests (bats)
 test-hooks:
     {{scripts}}/test-hooks.sh
-
-# Run package tests (bats)
-test-packages:
-    {{scripts}}/test-packages.sh
 
 # Run script tests (bats)
 test-scripts:
