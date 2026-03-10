@@ -6,7 +6,7 @@
 
 ## Origin
 
-> Consolidate wt-* shell scripts into a single `wt` Go binary. The wt binary lives in the same Go module as fab (`src/fab-go/`) but builds a separate binary. Uses cobra subcommands (wt create, wt list, wt open, wt delete, wt init, wt pr) mirroring the current wt-* script functionality. Separate binary from fab — wt should work in any git repo, not just fab-initialized projects.
+> Consolidate wt-* shell scripts into a single `wt` Go binary. The wt binary lives in the same Go module as fab (`src/fab-go/`) but builds a separate binary. Uses cobra subcommands (wt create, wt list, wt open, wt delete, wt init) mirroring the current wt-* script functionality. `wt pr` excluded (overlaps with `/git-pr`). Separate binary from fab — wt should work in any git repo, not just fab-initialized projects.
 
 Initiated via `/fab-discuss` conversation. The user chose Go to match the existing `fab-go` binary and leverage the shared `internal/` packages. Chose **option B** (separate binary) over merging wt into fab as a subcommand.
 
@@ -61,7 +61,9 @@ The 578-line shared library maps to:
 | OS detection (`wt_detect_os`, `wt_is_tmux_session`) | `internal/worktree/platform.go` |
 | Worktree CRUD (`wt_create_worktree`, `wt_list_worktrees`) | `internal/worktree/worktree.go` |
 
-### Port: 6 wt-* commands → cobra subcommands
+### Port: 5 wt-* commands → cobra subcommands
+
+> **Excluded**: `wt pr` (wt-pr, 307 lines) — overlaps with `/git-pr` territory. Not ported.
 
 ```
 wt create    # wt-create (328 lines)
@@ -69,7 +71,6 @@ wt list      # wt-list (264 lines)
 wt open      # wt-open (538 lines)
 wt delete    # wt-delete (680 lines)
 wt init      # wt-init (105 lines)
-wt pr        # wt-pr (307 lines)
 ```
 
 Each subcommand preserves the current script's behavior:
@@ -97,25 +98,13 @@ done
 
 Update `fab/.kit/scripts/lib/env-packages.sh` to add `fab/.kit/bin/` to PATH (for both `fab` and `wt` binaries), in addition to the existing `fab/.kit/packages/*/bin` entries.
 
-### Shim Layer (transition)
-
-Existing `wt-*` scripts get a shim at the top to delegate to the binary when available:
-
-```bash
-if [ -x "$(dirname "$0")/../../bin/wt" ]; then
-  exec "$(dirname "$0")/../../bin/wt" <subcommand> "$@"
-fi
-```
-
-This preserves backward compatibility for users who type `wt-create` while the binary is available.
-
 ### Remove Legacy wt Shell Scripts
 
-After switchover and confidence period, remove the bash wt-* scripts:
+Direct cutover — no shim layer. Remove all bash wt-* scripts:
 
 - Delete `fab/.kit/packages/wt/bin/wt-create`, `wt-delete`, `wt-init`, `wt-list`, `wt-open`, `wt-pr`
 - Delete `fab/.kit/packages/wt/lib/wt-common.sh`
-- Remove the `fab/.kit/packages/wt/` directory if empty after deletion
+- Remove the `fab/.kit/packages/wt/` directory entirely
 - Update `env-packages.sh` PATH entries to remove `fab/.kit/packages/wt/bin`
 
 ## Affected Memory
@@ -125,18 +114,29 @@ After switchover and confidence period, remove the bash wt-* scripts:
 
 ## Impact
 
-- **Source**: New `src/fab-go/cmd/wt/` and `src/fab-go/internal/worktree/` (~1,500-2,000 lines estimated)
+- **Source**: New `src/fab-go/cmd/wt/` and `src/fab-go/internal/worktree/` (~1,200-1,700 lines estimated, wt pr excluded)
+- **Test coverage**: Same or greater coverage than the shell scripts being replaced
 - **Build**: `justfile`, `fab-release.sh` — updated for dual binary builds and cross-compilation
 - **Release pipeline**: Both `fab` and `wt` binaries in each per-platform archive
 - **env-packages.sh**: Adds `fab/.kit/bin/` to PATH
 - **Existing fab binary**: Unchanged — wt is a separate cmd/ entry
-- **Existing wt scripts**: Preserved with shim initially, removed after switchover
-- **Batch scripts**: `batch-fab-new-backlog.sh`, `batch-fab-switch-change.sh` — may reference wt-* directly, will work via shim
-- **External deps**: `gh` CLI (wt-pr shells out to it, same as bash version)
+- **Existing wt scripts**: All removed (including `wt-pr` — not ported, not kept)
+- **Batch scripts**: `batch-fab-new-backlog.sh`, `batch-fab-switch-change.sh` — may reference wt-* directly, need updating
 
 ## Open Questions
 
 - None.
+
+## Clarifications
+
+### Session 2026-03-10 (bulk confirm)
+
+| # | Action | Detail |
+|---|--------|--------|
+| 4 | Changed | "Exclude wt pr from scope — overlaps with /git-pr" |
+| 5 | Confirmed | — |
+| 6 | Changed | "No shim layer — direct cutover" |
+| 8 | Confirmed | Added test coverage requirement |
 
 ## Assumptions
 
@@ -145,11 +145,11 @@ After switchover and confidence period, remove the bash wt-* scripts:
 | 1 | Certain | Go, same module as fab (`src/fab-go/`) | Discussed — shared internal packages, single go.mod, consistent toolchain | S:90 R:85 A:90 D:90 |
 | 2 | Certain | Separate `wt` binary, not a `fab` subcommand | Discussed — different concern domains, wt works in any git repo without fab init | S:90 R:85 A:90 D:90 |
 | 3 | Certain | wt-common.sh → `internal/worktree/` package | Shared library becomes proper Go package with testable units | S:85 R:85 A:90 D:95 |
-| 4 | Confident | Shell out to `gh` for GitHub operations (wt pr) | Rewriting gh API calls adds complexity for marginal benefit; gh handles auth, pagination, rate limiting | S:75 R:85 A:80 D:75 |
-| 5 | Confident | Preserve interactive TUI (menus, fzf detection) | Users rely on interactive flows. Go TUI libraries (bubbletea, survey) can replicate this | S:70 R:70 A:75 D:70 |
-| 6 | Confident | Shim in wt-* scripts for backward compatibility | Users type `wt-create` — shim transparently delegates to `wt create`. Low-cost transition path | S:75 R:90 A:80 D:75 |
+| 4 | Certain | Exclude wt pr from scope — overlaps with /git-pr. Shell script also removed | Clarified — user changed: wt pr dropped entirely, not ported and not kept | S:95 R:85 A:80 D:75 |
+| 5 | Certain | Preserve interactive TUI (menus, fzf detection) | Clarified — user confirmed | S:95 R:70 A:75 D:70 |
+| 6 | Certain | No shim layer — direct cutover | Clarified — user changed: shim not needed | S:95 R:90 A:80 D:75 |
 | 7 | Certain | Both binaries in same per-platform archive | Single download, same distribution path as existing fab binary | S:85 R:85 A:85 D:90 |
-| 8 | Confident | `fab/.kit/bin/` added to PATH via env-packages.sh | Central place for binary PATH management, consistent with existing pattern | S:75 R:85 A:80 D:75 |
-| 9 | Confident | Remove legacy wt shell scripts after switchover | Scripts become dead code once binary is validated. Clean removal of `fab/.kit/packages/wt/` | S:75 R:70 A:80 D:75 |
+| 8 | Certain | `fab/.kit/bin/` added to PATH via env-packages.sh. Ensure same or more test coverage | Clarified — user confirmed with test coverage requirement | S:95 R:85 A:80 D:75 |
+| 9 | Confident | Remove all legacy wt shell scripts including wt-pr | Scripts become dead code once binary is validated. wt-pr also dropped (not ported, /git-pr covers it) | S:75 R:70 A:80 D:75 |
 
-9 assumptions (4 certain, 5 confident, 0 tentative, 0 unresolved).
+9 assumptions (8 certain, 1 confident, 0 tentative, 0 unresolved).

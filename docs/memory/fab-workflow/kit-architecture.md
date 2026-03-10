@@ -19,6 +19,7 @@ fab/.kit/
 │   ├── fab                 # Shell dispatcher — sole entry point, checks fab-go → fab-rust → error
 │   ├── fab-go              # Go binary (optional, platform-specific from per-platform archives)
 │   ├── fab-rust            # Rust binary (optional, built locally via `just build-rust`)
+│   ├── wt                  # Go binary — git worktree management (optional, platform-specific from per-platform archives)
 │   └── .gitkeep            # Ensures directory exists even in generic archive (no binary)
 ├── skills/                 # Skill definitions (markdown prompts)
 │   ├── _preamble.md         # Shared context loading convention
@@ -66,11 +67,8 @@ fab/.kit/
 │       │   ├── code-quality.md # Code quality defaults (copy-if-absent)
 │       │   └── code-review.md  # Review policy defaults (copy-if-absent)
 │       └── sync/README.md     # README template for fab/sync/ (copy-if-absent)
-├── packages/               # Distributable CLI tools (idea, wt)
-│   ├── idea/bin/idea       # Per-repo idea backlog manager
-│   └── wt/                 # Git worktree management
-│       ├── bin/            # wt-create, wt-delete, wt-init, wt-list, wt-open, wt-pr
-│       └── lib/wt-common.sh
+├── packages/               # Distributable CLI tools (idea)
+│   └── idea/bin/idea       # Per-repo idea backlog manager
 ├── schemas/                # Workflow schema
 │   └── workflow.yaml       # Canonical stage/state definitions
 ├── hooks/                  # Claude Code hook scripts (thin wrappers delegating to fab hook <subcommand>)
@@ -180,11 +178,11 @@ Standalone prerequisite checker, sibling of `fab-help.sh`. Validates 5 required 
 
 #### `fab-help.sh`
 
-Prints the Fab Kit help overview and skill catalog. Dynamically reads skill names and descriptions from YAML frontmatter in `fab/.kit/skills/` at runtime via the shared `lib/frontmatter.sh` library. Also scans `batch-*.sh` scripts for shell-comment frontmatter (`# ---` delimited) via `shell_frontmatter_field()`, rendering discovered batch scripts under a "Batch Operations" group without `/` prefix (they are shell commands, not slash-commands). Excludes `_*` (partials) and `internal-*` (internal tooling) prefixed skill files. Maintains centralized group mappings (associative arrays `skill_to_group` and `batch_to_group`) for display organization — skills not in any group appear under an "Other" catch-all at the end. Computes column alignment dynamically from the longest display name across both skills and batch scripts. Includes `fab-sync.sh` as a hardcoded non-skill entry in the "Setup" group. Appends a static `PACKAGES` section after `TYPICAL FLOW` listing bundled packages (wt commands and idea) with one-liner descriptions — static because packages are stable and few, unlike skills which change frequently. Adding a new skill file to `fab/.kit/skills/` with valid frontmatter, or a new `batch-*.sh` script with shell-comment frontmatter and a `batch_to_group` mapping, automatically includes it in help output.
+Prints the Fab Kit help overview and skill catalog. Dynamically reads skill names and descriptions from YAML frontmatter in `fab/.kit/skills/` at runtime via the shared `lib/frontmatter.sh` library. Also scans `batch-*.sh` scripts for shell-comment frontmatter (`# ---` delimited) via `shell_frontmatter_field()`, rendering discovered batch scripts under a "Batch Operations" group without `/` prefix (they are shell commands, not slash-commands). Excludes `_*` (partials) and `internal-*` (internal tooling) prefixed skill files. Maintains centralized group mappings (associative arrays `skill_to_group` and `batch_to_group`) for display organization — skills not in any group appear under an "Other" catch-all at the end. Computes column alignment dynamically from the longest display name across both skills and batch scripts. Includes `fab-sync.sh` as a hardcoded non-skill entry in the "Setup" group. Appends a static `PACKAGES` section after `TYPICAL FLOW` listing bundled tools (wt binary and idea) with one-liner descriptions — static because packages are stable and few, unlike skills which change frequently. The `wt` entry reflects the Go binary (`wt create`, `wt list`, `wt open`, `wt delete`, `wt init`) rather than the removed shell scripts. Adding a new skill file to `fab/.kit/skills/` with valid frontmatter, or a new `batch-*.sh` script with shell-comment frontmatter and a `batch_to_group` mapping, automatically includes it in help output.
 
 #### `lib/env-packages.sh`
 
-Sourceable script that adds all `fab/.kit/packages/*/bin` directories to PATH. Used by both `scaffold/fragment-.envrc` (for direnv-based projects) and `src/packages/rc-init.sh` (for shell rc sourcing). Self-contained: resolves `KIT_DIR` relative to its own location (two levels up from `scripts/lib/` to `.kit/`), iterates package bin directories, exports each to PATH. Handles missing `packages/` directory gracefully (no error). Lives in `lib/` because it is a sourceable helper, not a user-callable command — keeping it off PATH prevents it from appearing in tab completion.
+Sourceable script that adds `fab/.kit/bin` and all `fab/.kit/packages/*/bin` directories to PATH. Used by both `scaffold/fragment-.envrc` (for direnv-based projects) and `src/packages/rc-init.sh` (for shell rc sourcing). Self-contained: resolves `KIT_DIR` relative to its own location (two levels up from `scripts/lib/` to `.kit/`), adds `$KIT_DIR/bin` to PATH (making `fab`, `fab-go`, `fab-rust`, and `wt` binaries available), then iterates package bin directories and exports each to PATH. Handles missing `packages/` directory gracefully (no error). Lives in `lib/` because it is a sourceable helper, not a user-callable command — keeping it off PATH prevents it from appearing in tab completion.
 
 #### `lib/frontmatter.sh`
 
@@ -290,7 +288,7 @@ Run `fab/.kit/scripts/fab-upgrade.sh` to update to the latest release. The scrip
 Skill deployments in `.claude/skills/`, `.opencode/commands/`, `.agents/skills/`, and `.gemini/skills/` are refreshed by `fab-sync.sh` after the update. OpenCode symlinks resolve automatically; copies for Claude Code, Codex, and Gemini are re-copied.
 
 **Preserved** (lives outside `.kit/`): `config.yaml`, `constitution.md`, `docs/memory/`, `docs/specs/`, `changes/`, `current`, `.kit-migration-version`, `.kit-sync-version`
-**Replaced** (lives inside `.kit/`): `templates/`, `skills/`, `scripts/`, `sync/`, `migrations/`, `packages/`, `bin/`, `VERSION`
+**Replaced** (lives inside `.kit/`): `templates/`, `skills/`, `scripts/`, `sync/`, `migrations/`, `packages/` (idea only — wt is now a binary in `bin/`), `bin/`, `VERSION`
 
 ### Portability
 
@@ -354,11 +352,11 @@ The sole backend for all fab CLI operations. A single Go binary at `fab/.kit/bin
 - `fab pane-map` — combine tmux pane introspection with worktree/change/runtime state into a unified table (columns: Pane, Tab, Worktree, Change, Stage, Agent); session-scoped via `-s`
 - `fab send-keys <change> "<text>"` — send text to a target agent's tmux pane (see below)
 
-**Architecture**: `internal/statusfile` is the shared foundation — a `StatusFile` struct parsed once via `Load()`, passed by pointer across all operations, and written atomically via temp+rename `Save()`. All other packages (`resolve`, `log`, `status`, `preflight`, `change`, `score`, `archive`, `worktree`) import `statusfile` for YAML access. The `worktree` package provides worktree discovery via `git worktree list --porcelain` and fab state resolution. The `internal/runtime` package (extracted from `cmd/fab/runtime.go`) provides shared runtime file manipulation (`LoadFile`, `SaveFile`, `FilePath`, `ClearIdle`, `SetIdle`) — used by both `fab runtime` CLI subcommands and `fab hook` subcommands. The `internal/hooklib` package provides artifact bookkeeping logic (JSON parsing, path pattern matching, change type inference, task/checklist counting) and hook sync logic (hook-to-event mapping, JSON merging for `.claude/settings.local.json`). The `pane-map` subcommand in `cmd/fab/panemap.go` combines tmux pane discovery, worktree resolution, change state, and runtime state into a single observation command.
+**Architecture**: `internal/statusfile` is the shared foundation — a `StatusFile` struct parsed once via `Load()`, passed by pointer across all operations, and written atomically via temp+rename `Save()`. All other packages (`resolve`, `log`, `status`, `preflight`, `change`, `score`, `archive`, `worktree`) import `statusfile` for YAML access. The `worktree` package provides worktree discovery via `git worktree list --porcelain` and fab state resolution, and also contains the full worktree management library used by the `wt` binary (see below). The `internal/runtime` package (extracted from `cmd/fab/runtime.go`) provides shared runtime file manipulation (`LoadFile`, `SaveFile`, `FilePath`, `ClearIdle`, `SetIdle`) — used by both `fab runtime` CLI subcommands and `fab hook` subcommands. The `internal/hooklib` package provides artifact bookkeeping logic (JSON parsing, path pattern matching, change type inference, task/checklist counting) and hook sync logic (hook-to-event mapping, JSON merging for `.claude/settings.local.json`). The `pane-map` subcommand in `cmd/fab/panemap.go` combines tmux pane discovery, worktree resolution, change state, and runtime state into a single observation command.
 
 **Parity**: All subcommands produce stdout/stderr output matching the bash versions (modulo timestamps).
 
-**Testing**: Unit tests in `src/fab-go/` cover all internal packages via `go test ./...`. Run with `just test-go` (or `just test-go-v` for verbose). Tested packages: `cmd/fab` (panemap, sendkeys), `internal/config`, `internal/hooks`, `internal/hooklib` (artifact bookkeeping + hook sync), `internal/runtime` (runtime file manipulation), `internal/status`, `internal/statusfile`, `internal/resolve`, `internal/log`, `internal/preflight`, `internal/score`, `internal/archive`, `internal/change`. The `internal/worktree` package has no tests (depends on live git worktree state). Test patterns: `t.TempDir()` for filesystem isolation, table-driven tests with `t.Run()` subtests, standard `testing` package only (no external test frameworks). The previous parity tests (`src/fab-go/test/parity/`) were removed — the bash scripts they validated against no longer exist.
+**Testing**: Unit tests in `src/fab-go/` cover all internal packages via `go test ./...`. Run with `just test-go` (or `just test-go-v` for verbose). Tested packages: `cmd/fab` (panemap, sendkeys), `cmd/wt`, `internal/config`, `internal/hooks`, `internal/hooklib` (artifact bookkeeping + hook sync), `internal/runtime` (runtime file manipulation), `internal/status`, `internal/statusfile`, `internal/resolve`, `internal/log`, `internal/preflight`, `internal/score`, `internal/archive`, `internal/change`, `internal/worktree`. Test patterns: `t.TempDir()` for filesystem isolation, table-driven tests with `t.Run()` subtests, standard `testing` package only (no external test frameworks). The previous parity tests (`src/fab-go/test/parity/`) were removed — the bash scripts they validated against no longer exist.
 
 ### Rust Binary (`fab-rust`)
 
@@ -399,6 +397,29 @@ src/fab-rust/
 **Parity**: Strict output parity with Go binary — identical stdout, stderr, and exit codes for the same inputs and file system state. Exceptions: timestamp fields (execution-time dependent), help text format (clap vs cobra), `indicative: false` may be omitted when false.
 
 **Testing**: Rust integration tests at `src/fab-rust/tests/integration_test.rs`. Run via `just test-rust` (`cargo test --manifest-path src/fab-rust/Cargo.toml`). Both Go and Rust test suites run independently — no shared harness.
+
+### wt Binary
+
+A separate Go binary for git worktree management, built from `src/fab-go/cmd/wt/main.go`. Operates on any git repo — does not require a `fab/` directory. Different concern domain from `fab` (worktree management vs workflow pipeline), so users type `wt create`, not `fab wt create`.
+
+**Binary location**: `fab/.kit/bin/wt` — included in per-platform release archives (`kit-{os}-{arch}.tar.gz`), absent from the generic `kit.tar.gz`. Available on PATH via `env-packages.sh` (which adds `$KIT_DIR/bin` to PATH).
+
+**Module**: Same Go module as `fab-go` (`github.com/wvrdz/fab-kit/src/fab-go`). Dependencies: cobra (subcommand dispatch). Does NOT depend on any `fab`-specific packages — only `internal/worktree/` and shared utilities in `internal/`.
+
+**Subcommands** (5 — `wt pr` dropped, overlaps with `/git-pr`):
+- `wt create [flags] [branch]` — create a git worktree (random name for exploratory, branch-derived name for feature)
+- `wt list [flags]` — list worktrees with status indicators (dirty `*`, unpushed `↑N`)
+- `wt open [flags] [name|path]` — open a worktree in a detected application (VSCode, Cursor, Ghostty, tmux, etc.)
+- `wt delete [flags]` — delete a worktree with optional branch and remote cleanup
+- `wt init` — run the worktree init script (`fab/.kit/worktree-init.sh`)
+
+**`internal/worktree/` package**: The existing worktree listing/state code (used by `fab pane-map`) has been extended with the full worktree management library: repo context detection, random name generation, branch validation, change detection (uncommitted, untracked, unpushed), hash-based stash (create/apply), LIFO rollback stack, default branch detection, worktree CRUD (create/remove), interactive menu, OS/session detection (macOS/Linux, byobu/tmux), worktree name derivation, and application detection/launching.
+
+**Replaces**: All 6 `wt-*` shell scripts and `wt-common.sh` from the removed `fab/.kit/packages/wt/` directory. No shim layer — direct cutover. `wt pr` dropped entirely (overlaps `/git-pr`).
+
+**Exit codes**: `0` success, `1` general error, `2` invalid arguments, `3` git operation failed, `4` retry exhausted (name generation), `5` byobu tab error, `6` tmux window error.
+
+**Error format**: Structured `Error: {what}\n  Why: {why}\n  Fix: {fix}`, colors disabled when `$NO_COLOR` is set.
 
 #### Skill Invocation Convention (`_scripts.md`)
 
@@ -454,31 +475,31 @@ Sends text to a target agent's tmux pane. Signature: `fab send-keys <change> "<t
 **Rejected**: Per-package `fab/` directories — conflicting constitutions, fragmented memory trees, symlink conflicts.
 *Source*: doc/fab-spec/ARCHITECTURE.md
 
-### LIFO Rollback Stack with EXIT Trap
-**Decision**: Multi-step wt commands (wt-create, wt-pr) use a LIFO rollback stack (`WT_ROLLBACK_STACK` array in wt-common.sh) with `trap wt_rollback EXIT`. Commands register undo operations after each successful step. On success, `wt_disarm_rollback` clears the stack. `wt_rollback` disables `set -e` during execution so individual rollback failures don't prevent subsequent cleanup. INT/TERM signals fire `wt_cleanup_on_signal` (rollback + exit 130).
-**Why**: Git worktree creation involves multiple coupled steps (worktree add, branch create). A partial failure must undo completed steps. EXIT traps catch all exit paths (including `set -e` failures). LIFO ordering ensures dependent resources are cleaned up before their prerequisites.
+### LIFO Rollback Stack
+**Decision**: Multi-step wt commands (`wt create`, `wt delete`) use a LIFO rollback stack — a `Rollback` type in `internal/worktree/` with `Register(cmd)`, `Execute()` (LIFO order), and `Disarm()` methods. Commands register undo operations after each successful step. On success, `Disarm()` clears the stack. `Execute()` continues executing remaining commands even if individual commands fail. Signal handlers (SIGINT, SIGTERM) trigger rollback. Originally implemented as bash arrays with EXIT traps; now ported to Go.
+**Why**: Git worktree creation involves multiple coupled steps (worktree add, branch create). A partial failure must undo completed steps. LIFO ordering ensures dependent resources are cleaned up before their prerequisites.
 **Rejected**: Manual cleanup in error handlers at each callsite — fragile, easy to miss paths. Temp directory approach — doesn't apply to git branch/worktree state.
-*Source*: 260218-qcqx-harden-wt-resilience
+*Source*: 260218-qcqx-harden-wt-resilience, 260310-qbiq-go-wt-binary
 
-### No cd-in-Current-Shell for wt-open
-**Decision**: `wt-open` does not and cannot offer a "cd here" option that changes the calling shell's working directory.
-**Why**: Unix process model constraint — child processes cannot modify the parent shell's environment. Every `wt-*` command runs as a child process of the calling shell. When the child exits, the parent's working directory is unchanged. Only shell builtins and shell functions (which run in the caller's process) can `cd`. A shell function wrapper (e.g., `wt-cd() { cd "$(wt-list --path "$1")"; }`) is the standard workaround but would require users to source a file from their rc, which is a different distribution model than the current PATH-based `env-packages.sh` approach. Users who want this can define a 4-line function in their own `.bashrc`/`.zshrc`.
-**Rejected**: Adding a `cd` app type to `wt-open` that prints the path for `eval` — adds complexity to `wt-open` for something `wt-list --path` already provides. Shipping a shell function in `env-packages.sh` — mixes PATH setup with function definitions, different sourcing semantics.
+### No cd-in-Current-Shell for wt open
+**Decision**: `wt open` does not and cannot offer a "cd here" option that changes the calling shell's working directory.
+**Why**: Unix process model constraint — child processes cannot modify the parent shell's environment. The `wt` binary runs as a child process of the calling shell. When the child exits, the parent's working directory is unchanged. Only shell builtins and shell functions (which run in the caller's process) can `cd`. A shell function wrapper (e.g., `wt-cd() { cd "$(wt list --path "$1")"; }`) is the standard workaround but would require users to source a file from their rc, which is a different distribution model than the current PATH-based `env-packages.sh` approach. Users who want this can define a 4-line function in their own `.bashrc`/`.zshrc`.
+**Rejected**: Adding a `cd` app type to `wt open` that prints the path for `eval` — adds complexity to `wt open` for something `wt list --path` already provides. Shipping a shell function in `env-packages.sh` — mixes PATH setup with function definitions, different sourcing semantics.
 *Source*: 260223-ufk6-wt-open-cd-current-shell (abandoned — documented as design constraint)
 
 ### Non-Interactive Porcelain Output Contract
-**Decision**: wt-create and wt-pr `--non-interactive` mode redirects all human-readable messages to stderr and writes only the worktree path to stdout. Batch callers capture the path via `$(wt-create --non-interactive ...)` instead of `| tail -1`.
+**Decision**: `wt create --non-interactive` mode redirects all human-readable messages to stderr and writes only the worktree path to stdout. Batch callers capture the path via `$(wt create --non-interactive ...)` instead of `| tail -1`.
 **Why**: Three batch consumers (`batch-fab-new-backlog.sh`, `batch-fab-switch-change.sh`, `pipeline/dispatch.sh`) relied on `| tail -1` to extract the path — fragile against any output format change. The `--reuse` codepath already followed this pattern (messages to stderr). Making `--non-interactive` imply porcelain output unifies the contract without adding a separate flag.
 **Rejected**: Separate `--porcelain`/`--quiet` flag — `--non-interactive` already existed with the same audience. Fd-based output (fd 3) — non-standard, breaks simple `$(command)` capture. Env var — subshells can't export to parent.
 *Source*: 260222-s101-wt-create-stderr-wt-list-flags
 
-### wt-delete Interactive Menu Includes "All" Option
-**Decision**: When `wt-delete` is invoked without arguments from outside a worktree, the interactive selection menu shows "All (N worktrees)" as the first option (item 1), followed by individual worktrees. Selecting "All" delegates to `wt_delete_all_worktrees`. The `--delete-all` CLI flag is preserved for non-interactive usage.
+### wt delete Interactive Menu Includes "All" Option
+**Decision**: When `wt delete` is invoked without arguments from outside a worktree, the interactive selection menu shows "All (N worktrees)" as the first option (item 1), followed by individual worktrees. Selecting "All" deletes all worktrees sequentially. The `--delete-all` CLI flag is preserved for non-interactive usage.
 **Why**: Deleting all worktrees is the most common interactive use case. Putting it in the menu eliminates the need to remember the `--delete-all` flag.
 *Source*: 260305-38q7-wt-delete-show-all-in-menu
 
 ### Hash-Based Stash over Index-Based
-**Decision**: wt-delete uses `git stash create` + `git stash store` (hash-based) instead of `git stash push`/`git stash pop` (index-based). Stash hashes are registered with the rollback stack.
+**Decision**: `wt delete` uses `git stash create` + `git stash store` (hash-based) instead of `git stash push`/`git stash pop` (index-based). Stash hashes are registered with the rollback stack. Implemented in `internal/worktree/` as `StashCreate(msg)` and `StashApply(hash)`.
 **Why**: Index-based stash (`stash@{0}`) is a global counter vulnerable to race conditions in concurrent worktree operations. Hash-based stash returns a stable SHA that uniquely identifies the stash regardless of concurrent `git stash` activity. `git stash store` writes the hash to the reflog for discoverability via `git stash list`.
 **Rejected**: Index-based `git stash push`/`git stash pop` — unsafe with concurrent worktree deletions; another worktree's stash could shift indices.
 *Source*: 260218-qcqx-harden-wt-resilience
@@ -518,6 +539,7 @@ Full benchmark suite with harness and all 4 implementations: `src/benchmark/`
 | Change | Date | Summary |
 |--------|------|---------|
 | 260310-bvc6-merge-hooks-into-go | 2026-03-10 | Merged Claude Code hooks into Go binary. New `fab hook` subcommand group with 5 subcommands: `session-start`, `stop`, `user-prompt`, `artifact-write`, `sync`. Shell scripts in `fab/.kit/hooks/` are now thin wrappers (`exec ... 2>/dev/null; exit 0`) delegating to `fab hook <subcommand>`. New `on-user-prompt.sh` for `UserPromptSubmit` event (improves agent idle tracking). `5-sync-hooks.sh` rewritten as thin wrapper delegating to `fab hook sync`, eliminating its jq dependency. Removed jq and bats from `fab-doctor.sh` prerequisites (7 → 5 tools). New `internal/runtime/` package (extracted from `cmd/fab/runtime.go` for shared use by `fab runtime` and `fab hook` commands). New `internal/hooklib/` package (artifact bookkeeping + hook sync logic). |
+| 260310-qbiq-go-wt-binary | 2026-03-10 | Replaced `wt` shell scripts (`fab/.kit/packages/wt/`) with a Go binary at `fab/.kit/bin/wt` (source: `cmd/wt/`). 5 subcommands: `create`, `list`, `open`, `delete`, `init` (`wt pr` dropped — overlaps `/git-pr`). Extended `internal/worktree/` package with full worktree management library (context, names, git ops, stash, rollback, menu, platform, errors, CRUD, apps). No shim layer — direct cutover. `packages/` now contains only `idea`. Updated `fab-help.sh` PACKAGES section, design decisions (rollback stack, stash, porcelain output), and directory tree. |
 | 260310-czb7-go-test-coverage | 2026-03-10 | Documented Go test strategy: 11 internal packages now have unit tests (added resolve, log, preflight, score, archive, change). Tests run via `just test-go` / `just test-go-v` (`go test ./...`). Test patterns: `t.TempDir()` isolation, table-driven, `t.Run()` subtests, standard `testing` package. Only `internal/worktree` intentionally untested. Replaced stale parity test reference. |
 | 260310-b8ff-operator-observation-fixes | 2026-03-10 | Updated pane-map and send-keys to use session-scoped pane discovery (`-s` instead of `-a`). Added Tab column to pane-map output (6 columns: Pane, Tab, Worktree, Change, Stage, Agent). Added `fab runtime is-idle <change>` read-only subcommand (prints `idle {duration}`, `active`, or `unknown`). Updated send-keys pane resolution description to reflect session scoping and `#{window_name}` in tmux format string. |
 | 260307-bmp3-3-rust-binary-port | 2026-03-10 | Added Rust binary (`fab-rust`) as second backend — all 9 subcommands with strict Go parity. Source at `src/fab-rust/` (flat modules, clap derive, serde_yaml, anyhow). Release profile: `lto` + `strip`. Built locally via `just build-rust` (+ `test-rust` recipe). Updated dispatcher with backend override mechanism (`FAB_BACKEND` env var, `.fab-backend` file, priority: override > rust > go). Updated directory tree (`fab-rust` no longer "future"). CI/release for Rust deferred. |

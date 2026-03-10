@@ -29,6 +29,8 @@ src/benchmark/results/*.json
 
 fab/.kit/bin/fab-go
 fab/.kit/bin/fab-rust
+fab/.kit/bin/wt
+src/fab-go/wt
 
 # Rust build artifacts
 src/fab-rust/target/

@@ -26,12 +26,12 @@ mkdir -p fab
 gh release download --repo {repo} --pattern 'kit.tar.gz' --output - | tar xz -C fab/
 ```
 
-Where `{repo}` is the `repo` value from `fab/.kit/kit.conf` (e.g. `wvrdz/fab-kit`). The platform-aware one-liner detects OS and architecture at runtime (`uname -s`, `uname -m`) and downloads the matching `kit-{os}-{arch}.tar.gz` archive which includes both pre-compiled backends (`fab-go` and `fab-rust`) at `fab/.kit/bin/`. The dispatcher prefers `fab-rust` when both are present.
+Where `{repo}` is the `repo` value from `fab/.kit/kit.conf` (e.g. `wvrdz/fab-kit`). The platform-aware one-liner detects OS and architecture at runtime (`uname -s`, `uname -m`) and downloads the matching `kit-{os}-{arch}.tar.gz` archive which includes all pre-compiled binaries (`fab-go`, `fab-rust`, `wt`) at `fab/.kit/bin/`. The dispatcher prefers `fab-rust` when both fab backends are present.
 
 After extraction, the user MUST run `fab/.kit/scripts/fab-sync.sh` to validate prerequisites (`yq`, `jq`, `gh`, `direnv`, `bats`), create directories (`changes/`, `memory/`, `specs/`), skeleton files (copied from `scaffold/memory-index.md` and `scaffold/specs-index.md`), deploy skills conditionally to detected agents (copies for Claude Code, Codex, and Gemini CLI; symlinks for OpenCode — only when the agent's CLI is found in PATH), `.envrc` entries (from `scaffold/envrc`, line-ensuring), `.gitignore` entries (from `scaffold/gitignore-entries`), and register Claude Code hooks from `fab/.kit/hooks/` into `.claude/settings.local.json`. The bootstrap only provides `.kit/` — no `config.yaml`, `constitution.md`, or other project files.
 
 **Scenarios**:
-- Bootstrap with compiled backend (platform-aware one-liner) — downloads `kit-{os}-{arch}.tar.gz`, creates `fab/.kit/` with all skills, templates, scripts, VERSION file, and both binaries (`fab-go` and `fab-rust`) at `fab/.kit/bin/`; running `fab-sync.sh` first validates prerequisites (yq, jq, gh, direnv, bats), then creates `changes/`, `memory/index.md`, `specs/index.md`, skill deployments conditionally per detected agent (Claude Code, OpenCode, Codex, Gemini CLI — only when the agent's CLI command is found in PATH), `.envrc` (line-ensuring from scaffold), and `.gitignore` entry. The dispatcher prefers `fab-rust` over `fab-go` by default.
+- Bootstrap with compiled backend (platform-aware one-liner) — downloads `kit-{os}-{arch}.tar.gz`, creates `fab/.kit/` with all skills, templates, scripts, VERSION file, and all three binaries (`fab-go`, `fab-rust`, `wt`) at `fab/.kit/bin/`; running `fab-sync.sh` first validates prerequisites (yq, jq, gh, direnv, bats), then creates `changes/`, `memory/index.md`, `specs/index.md`, skill deployments conditionally per detected agent (Claude Code, OpenCode, Codex, Gemini CLI — only when the agent's CLI command is found in PATH), `.envrc` (line-ensuring from scaffold), and `.gitignore` entry. The dispatcher prefers `fab-rust` over `fab-go` by default.
 - Bootstrap without compiled backend (generic one-liner) — downloads `kit.tar.gz`, creates `fab/.kit/` with skills, templates, and utility scripts but no compiled backend; the `fab` command will not work until a backend is installed (via `fab-sync.sh` step 4 or manual build)
 - Bootstrap a new project (no `fab/` directory) — creates `fab/.kit/` with all skills, templates, scripts, and VERSION file; same sync behavior as above
 - Bootstrap with existing `fab/` directory — creates or replaces `fab/.kit/`; existing files outside `.kit/` (config.yaml, constitution.md, memory/, specs/, changes/) are NOT affected
@@ -133,19 +133,26 @@ The `justfile` at repo root provides locally-replicable build recipes using [jus
 - **`build-rust-target target`** — cross-compiles for a specific Rust target triple using `cargo zigbuild`, outputs to `.release-build/fab-rust-{target}`. Linux targets use musl for fully static binaries.
 - **`build-rust-all`** — cross-compiles for all 4 release targets (`aarch64-apple-darwin`, `x86_64-apple-darwin`, `aarch64-unknown-linux-musl`, `x86_64-unknown-linux-musl`) by invoking `build-rust-target` for each
 
+**wt recipes**:
+- **`build-wt`** — compiles the wt Go binary for the current platform at `fab/.kit/bin/wt` using `CGO_ENABLED=0`
+- **`build-wt-target os arch`** — cross-compiles for a specific platform, outputs to `.release-build/wt-{os}-{arch}` using `CGO_ENABLED=0 GOOS={os} GOARCH={arch}`
+- **`build-wt-all`** — cross-compiles for all 4 release targets (`darwin/arm64`, `darwin/amd64`, `linux/arm64`, `linux/amd64`) by invoking `build-wt-target` for each
+
 **Combined recipes**:
-- **`build-all`** — runs `build-go-all` then `build-rust-all`, producing 8 cross-compiled binaries (4 Go + 4 Rust)
-- **`package-kit`** — creates 5 tar.gz archives: generic `kit.tar.gz` (no binaries) + 4 per-platform `kit-{os}-{arch}.tar.gz` (with both `fab-go` and `fab-rust`). Verifies both Go and Rust cross-compiled binaries exist first. Uses `COPYFILE_DISABLE=1` to suppress macOS extended attributes. Archives are rooted at `.kit/`.
+- **`build-all`** — runs `build-go-all`, `build-rust-all`, and `build-wt-all`, producing 12 cross-compiled binaries (4 Go + 4 Rust + 4 wt)
+- **`package-kit`** — creates 5 tar.gz archives: generic `kit.tar.gz` (no binaries) + 4 per-platform `kit-{os}-{arch}.tar.gz` (with `fab-go`, `fab-rust`, and `wt`). Verifies Go, Rust, and wt cross-compiled binaries exist first. Uses `COPYFILE_DISABLE=1` to suppress macOS extended attributes. Archives are rooted at `.kit/`.
 - **`clean`** — removes `.release-build/` directory and all `kit*.tar.gz` files from repo root
 
 **Scenarios**:
-- Local dev build (`just build-go` / `just build-rust`) — compiles binary for current platform at `fab/.kit/bin/`
+- Local dev build (`just build-go` / `just build-rust` / `just build-wt`) — compiles binary for current platform at `fab/.kit/bin/`
 - Cross-compile single Go target (`just build-go-target darwin arm64`) — produces `.release-build/fab-darwin-arm64`
 - Cross-compile single Rust target (`just build-rust-target aarch64-apple-darwin`) — produces `.release-build/fab-rust-aarch64-apple-darwin`
-- Build all targets (`just build-all`) — produces 8 binaries in `.release-build/` (4 Go + 4 Rust)
-- Package after build (`just package-kit`) — creates 5 archives in repo root; per-platform archives include both `.kit/bin/fab-go` and `.kit/bin/fab-rust`, generic archive includes neither
+- Cross-compile single wt target (`just build-wt-target darwin arm64`) — produces `.release-build/wt-darwin-arm64`
+- Build all targets (`just build-all`) — produces 12 binaries in `.release-build/` (4 Go + 4 Rust + 4 wt)
+- Package after build (`just package-kit`) — creates 5 archives in repo root; per-platform archives include `.kit/bin/fab-go`, `.kit/bin/fab-rust`, and `.kit/bin/wt`, generic archive includes none
 - Package without prior Go build (`just package-kit`) — fails with error directing to run `just build-go-all` first
 - Package without prior Rust build (`just package-kit`) — fails with error directing to run `just build-rust-all` first
+- Package without prior wt build (`just package-kit`) — fails with error directing to run `just build-wt-all` first
 - Clean up (`just clean`) — removes `.release-build/` and `kit*.tar.gz`
 
 #### CI Workflow (`.github/workflows/release.yml`)
@@ -159,8 +166,8 @@ Workflow steps:
 4. Cache cross-compilation tools (`cargo-zigbuild`, Zig pip package)
 5. Install Zig (`pip install ziglang`) and `cargo-zigbuild` (`cargo install cargo-zigbuild`) — skipped on cache hit
 6. Install `just` command runner (`extractions/setup-just@v2`)
-7. Run `just build-all` (cross-compiles all 8 targets: 4 Go + 4 Rust)
-8. Run `just package-kit` (creates 5 archives with dual binaries)
+7. Run `just build-all` (cross-compiles all 12 targets: 4 Go + 4 Rust + 4 wt)
+8. Run `just package-kit` (creates 5 archives with three binaries per platform)
 9. Create GitHub Release via `gh release create` with all 5 archives and auto-generated release notes (`--generate-notes`)
 
 The workflow sets `permissions: contents: write` for release creation. `GITHUB_TOKEN` is used implicitly by `gh`.
@@ -170,7 +177,7 @@ GitHub determines "latest" release status based on semver ordering — backport 
 **Scenarios**:
 - Tag push triggers workflow — push of `v0.35.0` tag triggers the release workflow
 - Non-tag push does not trigger — regular commits pushed without a `v*` tag do not run the workflow
-- Full CI release — tag `v0.35.0` triggers workflow, which cross-compiles both Go and Rust (8 binaries), packages 5 dual-binary archives, and creates a GitHub Release with auto-generated notes
+- Full CI release — tag `v0.35.0` triggers workflow, which cross-compiles Go, Rust, and wt (12 binaries), packages 5 archives (3 binaries per platform), and creates a GitHub Release with auto-generated notes
 - Backport release via CI — tag `v0.34.2` triggers workflow; GitHub's semver ordering ensures it is not marked as "latest" since `v0.35.0` exists
 
 #### Release Archive Contents
@@ -178,12 +185,12 @@ GitHub determines "latest" release status based on semver ordering — backport 
 Each release produces 5 archives, all rooted at `.kit/` (e.g., `.kit/VERSION`, `.kit/skills/fab-new.md`, `.kit/packages/idea/bin/idea`):
 
 - **`kit.tar.gz`** — Generic archive containing shell scripts, skills, templates, packages, and all non-binary `.kit/` contents. No compiled binaries included. Serves as a fallback for unsupported platforms.
-- **`kit-darwin-arm64.tar.gz`** — Generic contents + Go binary at `.kit/bin/fab-go` + Rust binary at `.kit/bin/fab-rust` compiled for macOS Apple Silicon.
-- **`kit-darwin-amd64.tar.gz`** — Generic contents + Go binary at `.kit/bin/fab-go` + Rust binary at `.kit/bin/fab-rust` compiled for macOS Intel.
-- **`kit-linux-arm64.tar.gz`** — Generic contents + Go binary at `.kit/bin/fab-go` + Rust binary at `.kit/bin/fab-rust` compiled for Linux ARM64 (musl, fully static).
-- **`kit-linux-amd64.tar.gz`** — Generic contents + Go binary at `.kit/bin/fab-go` + Rust binary at `.kit/bin/fab-rust` compiled for Linux x86-64 (musl, fully static).
+- **`kit-darwin-arm64.tar.gz`** — Generic contents + Go binary at `.kit/bin/fab-go` + Rust binary at `.kit/bin/fab-rust` + wt binary at `.kit/bin/wt` compiled for macOS Apple Silicon.
+- **`kit-darwin-amd64.tar.gz`** — Generic contents + Go binary at `.kit/bin/fab-go` + Rust binary at `.kit/bin/fab-rust` + wt binary at `.kit/bin/wt` compiled for macOS Intel.
+- **`kit-linux-arm64.tar.gz`** — Generic contents + Go binary at `.kit/bin/fab-go` + Rust binary at `.kit/bin/fab-rust` + wt binary at `.kit/bin/wt` compiled for Linux ARM64 (musl, fully static).
+- **`kit-linux-amd64.tar.gz`** — Generic contents + Go binary at `.kit/bin/fab-go` + Rust binary at `.kit/bin/fab-rust` + wt binary at `.kit/bin/wt` compiled for Linux x86-64 (musl, fully static).
 
-No project-specific files (config.yaml, constitution.md, memory/, specs/, changes/) are included in any archive. Package production code (idea, wt) is included under `.kit/packages/`, hook scripts under `.kit/hooks/`, and sync scripts under `.kit/sync/` — all delivered to downstream projects on upgrade. Skill files under `.kit/skills/` (including `fab-operator1.md`) are included in all archives and deployed to agents by `fab-sync.sh`. Both binaries are placed at `.kit/bin/fab-go` and `.kit/bin/fab-rust` in platform archives; the `bin/` directory contains a `.gitkeep` to ensure the directory exists even in the generic archive. The dispatcher (`fab/.kit/bin/fab`) prefers `fab-rust` when both are present.
+No project-specific files (config.yaml, constitution.md, memory/, specs/, changes/) are included in any archive. Package production code (idea only — wt is now a binary in `bin/`) is included under `.kit/packages/`, hook scripts under `.kit/hooks/`, and sync scripts under `.kit/sync/` — all delivered to downstream projects on upgrade. Skill files under `.kit/skills/` (including `fab-operator1.md`) are included in all archives and deployed to agents by `fab-sync.sh`. Three binaries are placed at `.kit/bin/fab-go`, `.kit/bin/fab-rust`, and `.kit/bin/wt` in platform archives; the `bin/` directory contains a `.gitkeep` to ensure the directory exists even in the generic archive. The dispatcher (`fab/.kit/bin/fab`) prefers `fab-rust` when both fab backends are present.
 
 ### Backend Override Mechanism
 
@@ -209,7 +216,7 @@ During the transition period where both Go and Rust backends coexist, the `fab/.
 
 Both Go and Rust binaries coexist during the transition period. The Rust binary (`fab-rust`) implements all 9 subcommands with strict output parity to the Go binary (`fab-go`). The dispatcher prefers Rust by default when both are present.
 
-**Current state**: Both Go and Rust binaries are shipped in release archives. Per-platform `kit-{os}-{arch}.tar.gz` includes both `fab-go` and `fab-rust`. CI cross-compiles Rust via `cargo-zigbuild` (Zig as cross-compiler linker) from a single Linux runner — same approach as Go. Linux Rust targets use musl for fully static binaries.
+**Current state**: Both Go and Rust fab binaries plus the wt binary are shipped in release archives. Per-platform `kit-{os}-{arch}.tar.gz` includes `fab-go`, `fab-rust`, and `wt`. CI cross-compiles Rust via `cargo-zigbuild` (Zig as cross-compiler linker) from a single Linux runner — same approach as Go. Linux Rust targets use musl for fully static binaries.
 
 **Local Rust build**: `just build-rust` compiles the Rust binary with release profile (`lto` + `strip`) and copies it to `fab/.kit/bin/fab-rust`, where the dispatcher will prefer it over `fab-go`. For cross-compilation: `just build-rust-all` requires `cargo-zigbuild` and Zig to be installed.
 
@@ -234,6 +241,7 @@ The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its rol
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260310-qbiq-go-wt-binary | 2026-03-10 | Per-platform archives now include `wt` binary at `.kit/bin/wt` alongside `fab-go` and `fab-rust` (3 binaries per platform, 12 total cross-compiled). Added justfile recipes: `build-wt`, `build-wt-target`, `build-wt-all`. Updated `build-all` to include wt. Updated `package-kit` to verify and include wt binary. `fab/.kit/packages/wt/` removed — wt is a binary, not a shell package. `env-packages.sh` already adds `$KIT_DIR/bin` to PATH — no change needed for wt binary availability. |
 | 260307-buf0-4-rust-ci-build | 2026-03-10 | Releases now ship both Go and Rust binaries. Added Rust cross-compilation recipes to justfile (`build-rust-target`, `build-rust-all`, `build-all`, `_rust-target`). Updated `package-kit` to include both `fab-go` and `fab-rust` in per-platform archives and exclude both from generic archive. CI workflow updated with Rust toolchain (`dtolnay/rust-toolchain`), Zig (`pip install ziglang`), `cargo-zigbuild`, and cached tool installations. `build-go-all` → `build-all` in CI. Linux Rust targets use musl for fully static binaries. |
 | 260307-bmp3-3-rust-binary-port | 2026-03-10 | Added backend override mechanism (`FAB_BACKEND` env var, `.fab-backend` file) to dispatcher for switching between Rust and Go backends. Documented transition period where both binaries coexist — Rust preferred by default, Go shipped in release archives, Rust built locally via `just build-rust`. CI/release for Rust deferred. Updated bootstrap one-liners to reference both backends. |
 | 260307-ma7o-1-ci-releases-justfile | 2026-03-09 | Split release workflow into three components: `fab-release.sh` simplified to version bump + git commit/tag/push only (~60 lines, removed ~200 lines of build/package/release logic). New `justfile` at repo root provides build recipes (`build-go`, `build-go-target`, `build-go-all`, `package-kit`, `clean`) replicable locally and in CI. New `.github/workflows/release.yml` triggered on `v*` tag push — uses `just` recipes on single `ubuntu-latest` runner, creates GitHub Release with auto-generated notes. Removed `--no-latest` flag (GitHub's semver ordering handles backport "latest" status). Removed Go toolchain and `gh` CLI checks from release script. |
