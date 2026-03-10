@@ -24,15 +24,17 @@ func paneMapCmd() *cobra.Command {
 	}
 }
 
-// paneEntry holds a single tmux pane's ID and current working directory.
+// paneEntry holds a single tmux pane's ID, tab (window) name, and current working directory.
 type paneEntry struct {
 	id  string
+	tab string
 	cwd string
 }
 
 // paneRow holds the resolved data for a single output row.
 type paneRow struct {
 	pane      string
+	tab       string
 	worktree  string
 	change    string
 	stage     string
@@ -79,9 +81,9 @@ func runPaneMap(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// discoverPanes runs `tmux list-panes -a` and parses the output.
+// discoverPanes runs `tmux list-panes -s` (current session only) and parses the output.
 func discoverPanes() ([]paneEntry, error) {
-	out, err := exec.Command("tmux", "list-panes", "-a", "-F", "#{pane_id} #{pane_current_path}").Output()
+	out, err := exec.Command("tmux", "list-panes", "-s", "-F", "#{pane_id} #{window_name} #{pane_current_path}").Output()
 	if err != nil {
 		return nil, fmt.Errorf("tmux list-panes: %w", err)
 	}
@@ -92,11 +94,11 @@ func discoverPanes() ([]paneEntry, error) {
 		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, " ", 2)
-		if len(parts) != 2 {
+		parts := strings.SplitN(line, " ", 3)
+		if len(parts) != 3 {
 			continue
 		}
-		panes = append(panes, paneEntry{id: parts[0], cwd: parts[1]})
+		panes = append(panes, paneEntry{id: parts[0], tab: parts[1], cwd: parts[2]})
 	}
 	return panes, nil
 }
@@ -156,6 +158,7 @@ func resolvePane(p paneEntry, mainRoot string, runtimeCache map[string]interface
 
 	return paneRow{
 		pane:     p.id,
+		tab:      p.tab,
 		worktree: wtDisplay,
 		change:   changeName,
 		stage:    stageName,
@@ -321,11 +324,11 @@ func formatIdleDuration(seconds int64) string {
 // printPaneTable prints the aligned pane map table.
 func printPaneTable(cmd *cobra.Command, rows []paneRow) {
 	// Compute column widths
-	headers := [5]string{"Pane", "Worktree", "Change", "Stage", "Agent"}
-	widths := [5]int{len(headers[0]), len(headers[1]), len(headers[2]), len(headers[3]), len(headers[4])}
+	headers := [6]string{"Pane", "Tab", "Worktree", "Change", "Stage", "Agent"}
+	widths := [6]int{len(headers[0]), len(headers[1]), len(headers[2]), len(headers[3]), len(headers[4]), len(headers[5])}
 
 	for _, r := range rows {
-		cols := [5]string{r.pane, r.worktree, r.change, r.stage, r.agent}
+		cols := [6]string{r.pane, r.tab, r.worktree, r.change, r.stage, r.agent}
 		for i, c := range cols {
 			if len(c) > widths[i] {
 				widths[i] = len(c)
@@ -334,11 +337,11 @@ func printPaneTable(cmd *cobra.Command, rows []paneRow) {
 	}
 
 	// Print header
-	fmtStr := fmt.Sprintf("%%-%ds  %%-%ds  %%-%ds  %%-%ds  %%s\n", widths[0], widths[1], widths[2], widths[3])
-	fmt.Fprintf(cmd.OutOrStdout(), fmtStr, headers[0], headers[1], headers[2], headers[3], headers[4])
+	fmtStr := fmt.Sprintf("%%-%ds  %%-%ds  %%-%ds  %%-%ds  %%-%ds  %%s\n", widths[0], widths[1], widths[2], widths[3], widths[4])
+	fmt.Fprintf(cmd.OutOrStdout(), fmtStr, headers[0], headers[1], headers[2], headers[3], headers[4], headers[5])
 
 	// Print data rows
 	for _, r := range rows {
-		fmt.Fprintf(cmd.OutOrStdout(), fmtStr, r.pane, r.worktree, r.change, r.stage, r.agent)
+		fmt.Fprintf(cmd.OutOrStdout(), fmtStr, r.pane, r.tab, r.worktree, r.change, r.stage, r.agent)
 	}
 }

@@ -344,7 +344,8 @@ The sole backend for all fab CLI operations. A single Go binary at `fab/.kit/bin
 - `fab change archive|restore|archive-list ...`
 - `fab runtime set-idle <change>` — write `agent.idle_since` to `.fab-runtime.yaml`
 - `fab runtime clear-idle <change>` — remove agent block from `.fab-runtime.yaml`
-- `fab pane-map` — combine tmux pane introspection with worktree/change/runtime state into a unified table (columns: Pane, Worktree, Change, Stage, Agent)
+- `fab runtime is-idle <change>` — read-only idle state query; prints `idle {duration}`, `active`, or `unknown` (exit 0 always)
+- `fab pane-map` — combine tmux pane introspection with worktree/change/runtime state into a unified table (columns: Pane, Tab, Worktree, Change, Stage, Agent); session-scoped via `-s`
 - `fab send-keys <change> "<text>"` — send text to a target agent's tmux pane (see below)
 
 **Architecture**: `internal/statusfile` is the shared foundation — a `StatusFile` struct parsed once via `Load()`, passed by pointer across all operations, and written atomically via temp+rename `Save()`. All other packages (`resolve`, `log`, `status`, `preflight`, `change`, `score`, `archive`, `worktree`) import `statusfile` for YAML access. The `worktree` package provides worktree discovery via `git worktree list --porcelain` and fab state resolution. The runtime-related CLI subcommands in `cmd/fab/runtime.go` manage `.fab-runtime.yaml` (agent idle state). The `pane-map` subcommand in `cmd/fab/panemap.go` combines tmux pane discovery, worktree resolution, change state, and runtime state into a single observation command.
@@ -401,7 +402,7 @@ The `_scripts.md` partial (loaded by every skill via `_preamble.md`) defines the
 
 Sends text to a target agent's tmux pane. Signature: `fab send-keys <change> "<text>"`. Resolves `<change>` using standard change resolution (4-char ID, substring, full folder name).
 
-**Pane resolution**: (1) resolve the change argument to a folder name via standard change resolution, (2) run `tmux list-panes -a -F "#{pane_id} #{pane_current_path}"` to get all panes, (3) for each pane compute the git worktree root and read `fab/current` to find the change folder, (4) match the resolved change folder against pane entries. Reuses the same discovery logic as `fab pane-map`.
+**Pane resolution**: (1) resolve the change argument to a folder name via standard change resolution, (2) run `tmux list-panes -s -F "#{pane_id} #{window_name} #{pane_current_path}"` to get all panes in the current session, (3) for each pane compute the git worktree root and read `fab/current` to find the change folder, (4) match the resolved change folder against pane entries. Reuses the same session-scoped discovery logic as `fab pane-map`.
 
 **Tmux guard**: Checks that `$TMUX` is set. If not, exits non-zero with: `Error: not inside a tmux session`.
 
@@ -510,6 +511,7 @@ Full benchmark suite with harness and all 4 implementations: `src/benchmark/`
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260310-b8ff-operator-observation-fixes | 2026-03-10 | Updated pane-map and send-keys to use session-scoped pane discovery (`-s` instead of `-a`). Added Tab column to pane-map output (6 columns: Pane, Tab, Worktree, Change, Stage, Agent). Added `fab runtime is-idle <change>` read-only subcommand (prints `idle {duration}`, `active`, or `unknown`). Updated send-keys pane resolution description to reflect session scoping and `#{window_name}` in tmux format string. |
 | 260307-bmp3-3-rust-binary-port | 2026-03-10 | Added Rust binary (`fab-rust`) as second backend — all 9 subcommands with strict Go parity. Source at `src/fab-rust/` (flat modules, clap derive, serde_yaml, anyhow). Release profile: `lto` + `strip`. Built locally via `just build-rust` (+ `test-rust` recipe). Updated dispatcher with backend override mechanism (`FAB_BACKEND` env var, `.fab-backend` file, priority: override > rust > go). Updated directory tree (`fab-rust` no longer "future"). CI/release for Rust deferred. |
 | 260307-x2tx-status-symlink-pointer | 2026-03-07 | Replaced `fab/current` pointer file with `.fab-status.yaml` symlink at repo root. Added `id` field to `.status.yaml`. Updated resolution, switch, rename, pane-map, hooks, and dispatch. Migration `0.32.0-to-0.34.0` covers conversion. |
 | 260306-qkov-operator1-skill | 2026-03-07 | Added `fab-operator1.md` to skills listing. Added `fab send-keys <change> "<text>"` subcommand to Go binary — resolves change to tmux pane (reuses pane-map discovery logic), sends text via `tmux send-keys`. Tmux guard, pane existence validation, multi-pane warning. No idle check in CLI (policy in skill, mechanism in CLI). |

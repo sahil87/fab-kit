@@ -187,11 +187,11 @@ The operator loads the always-load layer (`_preamble.md` §1) — the same 7 fil
 
 #### Orientation on Start
 
-On invocation, the operator displays the pane map (via `fab pane-map`) and a summary of all changes (via `fab status show --all`), then signals readiness. Outside tmux, it enters status-only mode with a warning.
+On invocation, the operator displays the pane map (via `fab pane-map` — columns: Pane, Tab, Worktree, Change, Stage, Agent), then signals readiness. Pane-map uses session-scoped discovery (`-s`), showing only panes in the current tmux session. Outside tmux, the operator falls back to `fab status show --all` (pane-map is unavailable) and enters status-only mode with a warning.
 
 #### State Re-derivation
 
-The operator MUST re-query live state (`fab pane-map`, `fab status show --all`, `fab runtime`) before every action. It SHALL NOT rely on stale values from conversation memory.
+The operator MUST re-query live state (`fab pane-map`, `fab runtime`) before every action. It SHALL NOT rely on stale values from conversation memory. `fab pane-map` is the primary observation mechanism; `fab runtime is-idle <change>` provides per-agent idle checks for pre-send validation.
 
 #### Seven Use Cases
 
@@ -201,7 +201,7 @@ Each use case follows the pattern: interpret user intent → refresh state → v
 2. **Sequenced rebase after completion** — hold instruction in conversation context, check target agent's status on next interaction, send rebase command when precondition met
 3. **Merge completed PRs** — identify changes with PRs via `fab status get-prs`, confirm before executing (destructive), run `gh pr merge` from operator's own shell
 4. **Spawn new worktree + agent from idea** — look up idea, create worktree via `wt-create --non-interactive`, open tmux tab, send `/fab-new <description>`
-5. **Status dashboard** — refresh pane map and status, present concise human-readable summary
+5. **Status dashboard** — refresh pane map (`fab pane-map`), present concise human-readable summary
 6. **Unstick a stuck agent** — confirm idle via `fab runtime`, send `/fab-continue`, warn on repeated nudge ("Already nudged once. Manual investigation recommended.")
 7. **Notification surface** — hold "notify me" instructions in conversation context, check on next user interaction, report status
 
@@ -215,7 +215,7 @@ Each use case follows the pattern: interpret user intent → refresh state → v
 
 #### Pre-Send Validation
 
-Before sending keys to any pane via `fab send-keys`, the operator MUST: (1) verify the target pane still exists (via refreshed pane map), (2) check the agent is idle via `fab runtime`, (3) if the agent is not idle, warn the user and ask for confirmation before sending.
+Before sending keys to any pane via `fab send-keys`, the operator MUST: (1) verify the target pane still exists (via refreshed pane map), (2) check the agent is idle via `fab runtime is-idle <change>`, (3) if the agent is not idle, warn the user and ask for confirmation before sending.
 
 #### Bounded Retries and Escalation
 
@@ -324,6 +324,7 @@ The operator sends commands to other agents via the `fab send-keys <change> "<te
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260310-b8ff-operator-observation-fixes | 2026-03-10 | Updated `/fab-operator1` observation model: pane-map is now the sole primary observation mechanism (session-scoped via `-s`, 6 columns: Pane, Tab, Worktree, Change, Stage, Agent). `fab status show --all` retained only as outside-tmux fallback. State re-derivation uses `fab pane-map` + `fab runtime is-idle <change>` (replacing `fab status show --all`). Pre-send validation references `fab runtime is-idle <change>` explicitly. |
 | 260307-8ggm-git-pr-ship-finish-ordering | 2026-03-07 | Fixed git-pr post-PR step ordering: reordered as 4a (record PR URL) → 4b (finish ship stage) → 4c (commit+push .status.yaml and .history.jsonl) → 4d (write .pr-done sentinel). All status mutations now occur before the commit boundary, preventing uncommitted fab state files in the working tree after PR creation. Steps renumbered from 4/4b/4c/4d to 4a/4b/4c/4d. |
 | 260306-qkov-operator1-skill | 2026-03-07 | Added `/fab-operator1` standalone coordination skill: user-driven Claude session for cross-agent coordination (not a pipeline stage, not a lifecycle enforcer). Seven use cases (broadcast, sequenced rebase, merge PRs, spawn worktree, status dashboard, unstick agent, notification surface). Three-tier confirmation model. Pre-send validation via `fab runtime`. Bounded retries with escalation. Context discipline — loads always-load layer only, never change artifacts. Relies on `fab send-keys` CLI primitive for agent interaction. |
 | 260306-6bba-redesign-hooks-strategy | 2026-03-06 | Added hook-backed bookkeeping note: PostToolUse hook (`on-artifact-write.sh`) supplements skill-instructed checklist bookkeeping as a reliability layer. Skills keep instructions unchanged for agent-agnostic portability; hooks catch what the agent forgets. All commands idempotent. |

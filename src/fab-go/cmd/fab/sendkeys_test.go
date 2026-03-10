@@ -13,8 +13,8 @@ func TestMatchPanesByFolder(t *testing.T) {
 
 	t.Run("single match", func(t *testing.T) {
 		panes := []paneEntry{
-			{id: "%3", cwd: "260306-ab12-some-change"},
-			{id: "%7", cwd: "260306-cd34-other-change"},
+			{id: "%3", tab: "alpha", cwd: "260306-ab12-some-change"},
+			{id: "%7", tab: "bravo", cwd: "260306-cd34-other-change"},
 		}
 
 		matches, warning := matchPanesByFolder(panes, "260306-ab12-some-change", stubResolver)
@@ -31,8 +31,8 @@ func TestMatchPanesByFolder(t *testing.T) {
 
 	t.Run("no match", func(t *testing.T) {
 		panes := []paneEntry{
-			{id: "%3", cwd: "260306-ab12-some-change"},
-			{id: "%7", cwd: "260306-cd34-other-change"},
+			{id: "%3", tab: "alpha", cwd: "260306-ab12-some-change"},
+			{id: "%7", tab: "bravo", cwd: "260306-cd34-other-change"},
 		}
 
 		matches, _ := matchPanesByFolder(panes, "260306-xyz-nonexistent", stubResolver)
@@ -43,8 +43,8 @@ func TestMatchPanesByFolder(t *testing.T) {
 
 	t.Run("multiple matches produces warning", func(t *testing.T) {
 		panes := []paneEntry{
-			{id: "%3", cwd: "260306-ab12-some-change"},
-			{id: "%7", cwd: "260306-ab12-some-change"},
+			{id: "%3", tab: "alpha", cwd: "260306-ab12-some-change"},
+			{id: "%7", tab: "bravo", cwd: "260306-ab12-some-change"},
 		}
 
 		matches, warning := matchPanesByFolder(panes, "260306-ab12-some-change", stubResolver)
@@ -73,7 +73,7 @@ func TestMatchPanesByFolder(t *testing.T) {
 	t.Run("non-matching resolver", func(t *testing.T) {
 		alwaysEmpty := func(p paneEntry) string { return "" }
 		panes := []paneEntry{
-			{id: "%3", cwd: "260306-ab12-some-change"},
+			{id: "%3", tab: "alpha", cwd: "260306-ab12-some-change"},
 		}
 
 		matches, _ := matchPanesByFolder(panes, "260306-ab12-some-change", alwaysEmpty)
@@ -143,7 +143,7 @@ func TestValidateSendKeysInputs(t *testing.T) {
 func TestResolvePaneChange(t *testing.T) {
 	t.Run("non-git directory returns empty", func(t *testing.T) {
 		tmp := t.TempDir()
-		p := paneEntry{id: "%1", cwd: tmp}
+		p := paneEntry{id: "%1", tab: "test", cwd: tmp}
 		result := resolvePaneChange(p)
 		if result != "" {
 			t.Errorf("expected empty for non-git dir, got %q", result)
@@ -153,7 +153,7 @@ func TestResolvePaneChange(t *testing.T) {
 	t.Run("git dir without fab returns empty", func(t *testing.T) {
 		// resolvePaneChange calls gitWorktreeRoot which needs a real git repo
 		// We just test that a random directory returns empty (no git)
-		p := paneEntry{id: "%1", cwd: "/tmp"}
+		p := paneEntry{id: "%1", tab: "test", cwd: "/tmp"}
 		result := resolvePaneChange(p)
 		if result != "" {
 			t.Errorf("expected empty for non-fab git dir, got %q", result)

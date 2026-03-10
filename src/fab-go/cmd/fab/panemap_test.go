@@ -90,7 +90,7 @@ func TestPrintPaneTable(t *testing.T) {
 		cmd.SetOut(&buf)
 
 		rows := []paneRow{
-			{pane: "%3", worktree: "myrepo.worktrees/alpha/", change: "260306-r3m7-add-retry-logic", stage: "apply", agent: "active"},
+			{pane: "%3", tab: "alpha", worktree: "myrepo.worktrees/alpha/", change: "260306-r3m7-add-retry-logic", stage: "apply", agent: "active"},
 		}
 		printPaneTable(cmd, rows)
 
@@ -100,13 +100,13 @@ func TestPrintPaneTable(t *testing.T) {
 			t.Fatalf("expected 2 lines (header + 1 row), got %d:\n%s", len(lines), output)
 		}
 
-		for _, col := range []string{"Pane", "Worktree", "Change", "Stage", "Agent"} {
+		for _, col := range []string{"Pane", "Tab", "Worktree", "Change", "Stage", "Agent"} {
 			if !strings.Contains(lines[0], col) {
 				t.Errorf("header missing column %q: %q", col, lines[0])
 			}
 		}
 
-		for _, val := range []string{"%3", "myrepo.worktrees/alpha/", "260306-r3m7-add-retry-logic", "apply", "active"} {
+		for _, val := range []string{"%3", "alpha", "myrepo.worktrees/alpha/", "260306-r3m7-add-retry-logic", "apply", "active"} {
 			if !strings.Contains(lines[1], val) {
 				t.Errorf("data row missing value %q: %q", val, lines[1])
 			}
@@ -119,8 +119,8 @@ func TestPrintPaneTable(t *testing.T) {
 		cmd.SetOut(&buf)
 
 		rows := []paneRow{
-			{pane: "%3", worktree: "myrepo.worktrees/alpha/", change: "260306-r3m7-add-retry-logic", stage: "apply", agent: "active"},
-			{pane: "%12", worktree: "(main)", change: "260306-ab12-refactor-auth", stage: "hydrate", agent: "idle (8m)"},
+			{pane: "%3", tab: "alpha", worktree: "myrepo.worktrees/alpha/", change: "260306-r3m7-add-retry-logic", stage: "apply", agent: "active"},
+			{pane: "%12", tab: "main", worktree: "(main)", change: "260306-ab12-refactor-auth", stage: "hydrate", agent: "idle (8m)"},
 		}
 		printPaneTable(cmd, rows)
 
@@ -145,7 +145,7 @@ func TestPrintPaneTable(t *testing.T) {
 		cmd.SetOut(&buf)
 
 		rows := []paneRow{
-			{pane: "%5", worktree: "(main)", change: "(no change)", stage: "\u2014", agent: "\u2014"},
+			{pane: "%5", tab: "main", worktree: "(main)", change: "(no change)", stage: "\u2014", agent: "\u2014"},
 		}
 		printPaneTable(cmd, rows)
 
@@ -162,8 +162,8 @@ func TestPrintPaneTable(t *testing.T) {
 		cmd.SetOut(&buf)
 
 		rows := []paneRow{
-			{pane: "%3", worktree: "repo.worktrees/alpha/", change: "260306-test-change", stage: "apply", agent: "active"},
-			{pane: "%5", worktree: "repo.worktrees/alpha/", change: "260306-test-change", stage: "apply", agent: "active"},
+			{pane: "%3", tab: "alpha", worktree: "repo.worktrees/alpha/", change: "260306-test-change", stage: "apply", agent: "active"},
+			{pane: "%5", tab: "alpha", worktree: "repo.worktrees/alpha/", change: "260306-test-change", stage: "apply", agent: "active"},
 		}
 		printPaneTable(cmd, rows)
 

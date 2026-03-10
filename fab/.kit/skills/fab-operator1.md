@@ -11,7 +11,7 @@ description: "Multi-agent coordination in tmux — observe agents via pane-map a
 
 ## Purpose
 
-Multi-agent coordination layer that runs in a dedicated tmux pane. Observes all running fab agents via `fab pane-map`, `fab status show --all`, and `fab runtime`, and interacts with them via `fab send-keys`. Translates natural-language user instructions into cross-agent actions: broadcasting commands, sequencing rebases, spawning new worktrees, and merging PRs.
+Multi-agent coordination layer that runs in a dedicated tmux pane. Observes all running fab agents via `fab pane-map` and `fab runtime`, and interacts with them via `fab send-keys`. Translates natural-language user instructions into cross-agent actions: broadcasting commands, sequencing rebases, spawning new worktrees, and merging PRs.
 
 Not a lifecycle enforcer — individual agents already know their pipeline. The operator handles coordination that requires cross-agent awareness.
 
@@ -55,9 +55,8 @@ This is best-effort — the logger resolves the active change via the `.fab-stat
 
 On invocation, display the current coordination landscape:
 
-1. **Pane map**: Run `fab/.kit/bin/fab pane-map` and display the output
-2. **Status overview**: Run `fab/.kit/bin/fab status show --all` and display the output
-3. **Ready signal**: Output `Ready for coordination commands.`
+1. **Pane map**: Run `fab/.kit/bin/fab pane-map` and display the output (shows Pane, Tab, Worktree, Change, Stage, Agent)
+2. **Ready signal**: Output `Ready for coordination commands.`
 
 ### Outside tmux
 
@@ -75,9 +74,8 @@ Then run `fab/.kit/bin/fab status show --all` for status queries only. `fab send
 
 Before **every** action, re-query live state:
 
-- `fab/.kit/bin/fab pane-map` — current pane-to-change mapping
-- `fab/.kit/bin/fab status show --all` — pipeline state per change
-- `fab/.kit/bin/fab runtime` — agent idle/active state (when checking specific agents)
+- `fab/.kit/bin/fab pane-map` — current pane-to-change mapping with stage and agent state
+- `fab/.kit/bin/fab runtime is-idle <change>` — check specific agent's idle state (for pre-send validation)
 
 Never rely on stale values from conversation memory. If a pane died or a change advanced since the last check, the operator must know.
 
@@ -116,8 +114,8 @@ Each use case follows the pattern: **interpret user intent** then **refresh stat
 
 ### UC5: Status dashboard
 
-1. Refresh pane map and `fab/.kit/bin/fab status show --all`
-2. Present a concise human-readable summary with change name, stage, and agent state
+1. Refresh pane map via `fab/.kit/bin/fab pane-map`
+2. Present a concise human-readable summary with change name, tab, stage, and agent state
 
 ### UC6: Unstick a stuck agent
 
@@ -153,7 +151,7 @@ Actions are categorized into three risk tiers:
 Before sending keys to any pane via `fab send-keys`, the operator MUST:
 
 1. **Verify pane exists**: Refresh the pane map. If the target pane is gone, report: "Pane for {change} is gone (agent exited or tab closed)." Do NOT attempt to send.
-2. **Check agent is idle**: Run `fab/.kit/bin/fab runtime` or read the Agent column from the pane map. If the agent is not idle, warn: "{change} is currently active. Sending may corrupt its work. Send anyway?" Only send if the user confirms.
+2. **Check agent is idle**: Run `fab/.kit/bin/fab runtime is-idle <change>` or read the Agent column from the pane map. If the agent is not idle, warn: "{change} is currently active. Sending may corrupt its work. Send anyway?" Only send if the user confirms.
 
 ---
 
