@@ -485,7 +485,7 @@ func handleBranchCleanup(branch, wtName, deleteBranch, deleteRemote string) {
 	}
 
 	// Clean up orphaned wt/ branch
-	wtOriginBranch := wtName
+	wtOriginBranch := "wt/" + wtName
 	if wtOriginBranch != branch {
 		if err := wt.DeleteLocalBranch(wtOriginBranch, true); err == nil {
 			fmt.Printf("Deleted branch: %s (local)\n", wtOriginBranch)

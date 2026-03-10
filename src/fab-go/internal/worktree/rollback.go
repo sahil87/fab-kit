@@ -2,14 +2,13 @@ package worktree
 
 import (
 	"os/exec"
-	"strings"
 )
 
 // Rollback provides a LIFO stack of commands to execute on failure.
 // Register commands as they succeed, Execute runs them in reverse order,
 // and Disarm clears the stack on success.
 type Rollback struct {
-	commands []string
+	commands [][]string
 	armed    bool
 }
 
@@ -19,8 +18,9 @@ func NewRollback() *Rollback {
 }
 
 // Register pushes a rollback command onto the stack.
-func (r *Rollback) Register(cmd string) {
-	r.commands = append(r.commands, cmd)
+// Each argument is a separate element so paths with spaces are handled correctly.
+func (r *Rollback) Register(args ...string) {
+	r.commands = append(r.commands, args)
 }
 
 // Execute runs all registered commands in LIFO (reverse) order.
@@ -30,11 +30,11 @@ func (r *Rollback) Execute() {
 		return
 	}
 	for i := len(r.commands) - 1; i >= 0; i-- {
-		parts := strings.Fields(r.commands[i])
-		if len(parts) == 0 {
+		args := r.commands[i]
+		if len(args) == 0 {
 			continue
 		}
-		cmd := exec.Command(parts[0], parts[1:]...)
+		cmd := exec.Command(args[0], args[1:]...)
 		cmd.Run() // Intentionally ignore errors
 	}
 }
@@ -46,6 +46,6 @@ func (r *Rollback) Disarm() {
 }
 
 // Commands returns the current list of registered commands (for testing).
-func (r *Rollback) Commands() []string {
+func (r *Rollback) Commands() [][]string {
 	return r.commands
 }

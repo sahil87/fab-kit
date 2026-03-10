@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"path/filepath"
 )
 
 // Adjectives for random worktree naming (~50 adjectives).
@@ -38,7 +39,7 @@ func GenerateRandomName() string {
 func GenerateUniqueName(worktreesDir string, maxRetries int) (string, error) {
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		name := GenerateRandomName()
-		path := worktreesDir + string(os.PathSeparator) + name
+		path := filepath.Join(worktreesDir, name)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			return name, nil
 		}

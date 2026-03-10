@@ -111,7 +111,16 @@ or creates a new branch.`,
 				switch choice {
 				case 1: // continue
 				case 2:
-					wt.StashCreate("wt-create: pre-creation stash")
+					stashID, err := wt.StashCreate("wt-create: pre-creation stash")
+					if err != nil {
+						wt.ExitWithError(wt.ExitGeneralError,
+							"Failed to create stash",
+							err.Error(),
+							"Resolve any repository issues and try again")
+					}
+					if stashID != "" {
+						fmt.Fprintf(os.Stderr, "Created stash %s for pre-creation changes.\n", stashID)
+					}
 				case 3, 0:
 					rb.Disarm()
 					return nil
@@ -125,7 +134,7 @@ or creates a new branch.`,
 				if err != nil {
 					wt.ExitWithError(wt.ExitRetryExhausted,
 						"Could not find unique worktree name",
-						fmt.Sprintf("All 10 random name attempts collided with existing worktrees"),
+						"All 10 random name attempts collided with existing worktrees",
 						fmt.Sprintf("Remove some worktrees from %s or increase retries", ctx.WorktreesDir))
 				}
 			} else {
@@ -159,37 +168,19 @@ or creates a new branch.`,
 			// Create worktree
 			var wtPath string
 			if branchArg == "" {
-				if nonInteractive {
-					wtPath, err = wt.CreateExploratoryWorktree(finalName, ctx, rb)
-					if err != nil {
-						wt.ExitWithError(wt.ExitGitError, "Failed to create worktree", err.Error(),
-							"Check if the branch already exists or if there are permission issues")
-					}
-					fmt.Fprintf(os.Stderr, "Created worktree: %s\nPath: %s\nBranch: %s\n", finalName, wtPath, finalName)
-				} else {
-					wtPath, err = wt.CreateExploratoryWorktree(finalName, ctx, rb)
-					if err != nil {
-						wt.ExitWithError(wt.ExitGitError, "Failed to create worktree", err.Error(),
-							"Check if the branch already exists or if there are permission issues")
-					}
-					fmt.Fprintf(os.Stderr, "Created worktree: %s\nPath: %s\nBranch: %s\n", finalName, wtPath, finalName)
+				wtPath, err = wt.CreateExploratoryWorktree(finalName, ctx, rb)
+				if err != nil {
+					wt.ExitWithError(wt.ExitGitError, "Failed to create worktree", err.Error(),
+						"Check if the branch already exists or if there are permission issues")
 				}
+				fmt.Fprintf(os.Stderr, "Created worktree: %s\nPath: %s\nBranch: %s\n", finalName, wtPath, finalName)
 			} else {
-				if nonInteractive {
-					wtPath, err = wt.CreateBranchWorktree(branchArg, finalName, ctx, rb)
-					if err != nil {
-						wt.ExitWithError(wt.ExitGitError, "Failed to create worktree", err.Error(),
-							"The branch may already be checked out in another worktree")
-					}
-					fmt.Fprintf(os.Stderr, "Created worktree: %s\nPath: %s\nBranch: %s\n", finalName, wtPath, branchArg)
-				} else {
-					wtPath, err = wt.CreateBranchWorktree(branchArg, finalName, ctx, rb)
-					if err != nil {
-						wt.ExitWithError(wt.ExitGitError, "Failed to create worktree", err.Error(),
-							"The branch may already be checked out in another worktree")
-					}
-					fmt.Fprintf(os.Stderr, "Created worktree: %s\nPath: %s\nBranch: %s\n", finalName, wtPath, branchArg)
+				wtPath, err = wt.CreateBranchWorktree(branchArg, finalName, ctx, rb)
+				if err != nil {
+					wt.ExitWithError(wt.ExitGitError, "Failed to create worktree", err.Error(),
+						"The branch may already be checked out in another worktree")
 				}
+				fmt.Fprintf(os.Stderr, "Created worktree: %s\nPath: %s\nBranch: %s\n", finalName, wtPath, branchArg)
 			}
 
 			// Setup
@@ -198,13 +189,15 @@ or creates a new branch.`,
 				if nonInteractive || branchArg == "" {
 					// Auto-run init
 					if err := wt.RunWorktreeSetup(wtPath, "force", initScript, ctx.RepoRoot); err != nil {
-						// Init failure triggers rollback
+						// Init failure triggers rollback — must execute before os.Exit
+						rb.Execute()
 						wt.ExitWithError(wt.ExitGeneralError, "Init script failed", err.Error(),
 							"Check the init script for errors")
 					}
 				} else {
 					// Prompt for init
 					if err := wt.RunWorktreeSetup(wtPath, "", initScript, ctx.RepoRoot); err != nil {
+						rb.Execute()
 						wt.ExitWithError(wt.ExitGeneralError, "Init script failed", err.Error(),
 							"Check the init script for errors")
 					}

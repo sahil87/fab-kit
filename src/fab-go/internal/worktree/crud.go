@@ -73,7 +73,7 @@ func CreateBranchWorktree(branch, name string, ctx *RepoContext, rb *Rollback) (
 		if err := CreateWorktree(wtPath, branch, false); err != nil {
 			return "", err
 		}
-		rb.Register(fmt.Sprintf("git worktree remove --force %s", wtPath))
+		rb.Register("git", "worktree", "remove", "--force", wtPath)
 	} else if BranchExistsRemotely(branch) {
 		if err := FetchRemoteBranch(branch); err != nil {
 			return "", err
@@ -81,13 +81,13 @@ func CreateBranchWorktree(branch, name string, ctx *RepoContext, rb *Rollback) (
 		if err := CreateWorktree(wtPath, branch, false); err != nil {
 			return "", err
 		}
-		rb.Register(fmt.Sprintf("git worktree remove --force %s", wtPath))
+		rb.Register("git", "worktree", "remove", "--force", wtPath)
 	} else {
 		if err := CreateWorktree(wtPath, branch, true); err != nil {
 			return "", err
 		}
-		rb.Register(fmt.Sprintf("git worktree remove --force %s", wtPath))
-		rb.Register(fmt.Sprintf("git branch -D %s", branch))
+		rb.Register("git", "worktree", "remove", "--force", wtPath)
+		rb.Register("git", "branch", "-D", branch)
 	}
 
 	return wtPath, nil
@@ -106,8 +106,8 @@ func CreateExploratoryWorktree(name string, ctx *RepoContext, rb *Rollback) (str
 	if err := CreateWorktree(wtPath, branch, true); err != nil {
 		return "", err
 	}
-	rb.Register(fmt.Sprintf("git worktree remove --force %s", wtPath))
-	rb.Register(fmt.Sprintf("git branch -D %s", branch))
+	rb.Register("git", "worktree", "remove", "--force", wtPath)
+	rb.Register("git", "branch", "-D", branch)
 
 	return wtPath, nil
 }
