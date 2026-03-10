@@ -24,20 +24,20 @@ jobs:
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin,aarch64-unknown-linux-musl,x86_64-unknown-linux-musl
 
-      # Cache cargo-zigbuild and Zig installations
+      # Cache cargo-zigbuild and Zig installations (versioned key)
       - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin/cargo-zigbuild
             ~/.local/lib/python*/site-packages/ziglang
             ~/.local/bin/zig
-          key: cross-tools-v1-${{ runner.os }}
+          key: cross-tools-zig0.13-zigbuild0.19-${{ runner.os }}
 
-      # Install Zig via pip and cargo-zigbuild (skipped on cache hit)
+      # Install Zig via pip and cargo-zigbuild with pinned versions (skipped on cache hit)
       - name: Install cross-compilation tools
         run: |
-          which zig || pip install ziglang
-          which cargo-zigbuild || cargo install cargo-zigbuild
+          which zig || pip install ziglang==0.13.0
+          which cargo-zigbuild || cargo install cargo-zigbuild@0.19.8
 
       # Install just command runner
       - uses: extractions/setup-just@v2

@@ -70,6 +70,8 @@ stage_metrics:
     started_at: 2026-03-10T13:08:59.737094001+05:30
     driver: git-pr
     iterations: 1
+    phase: fixing
+    reviewer: copilot-pull-request-reviewer[bot]
 prs:
-- https://github.com/wvrdz/fab-kit/pull/234
-last_updated: 2026-03-10T13:08:59.737121918+05:30
+  - https://github.com/wvrdz/fab-kit/pull/234
+last_updated: 2026-03-10T13:09:22.943333138+05:30

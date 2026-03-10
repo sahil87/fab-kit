@@ -63,6 +63,7 @@ build-rust-all:
 
 # Build everything for release (Go + Rust)
 build-all:
+    mkdir -p .release-build
     just build-go-all
     just build-rust-all
 
@@ -72,7 +73,7 @@ build-go:
 
 # Cross-compile Go binary for a specific target
 build-go-target os arch:
-    mkdir -p ../../.release-build && cd {{go_src}} && CGO_ENABLED=0 GOOS={{os}} GOARCH={{arch}} go build -o ../../.release-build/fab-{{os}}-{{arch}} ./cmd/fab
+    mkdir -p .release-build && cd {{go_src}} && CGO_ENABLED=0 GOOS={{os}} GOARCH={{arch}} go build -o ../../.release-build/fab-{{os}}-{{arch}} ./cmd/fab
 
 # Cross-compile Go binary for all release targets
 build-go-all:
@@ -87,13 +88,10 @@ package-kit:
     set -euo pipefail
     platforms=("darwin/arm64" "darwin/amd64" "linux/arm64" "linux/amd64")
     build_dir=".release-build"
-    # Target triple mapping (os-arch → rust target)
-    declare -A rust_targets=(
-      ["darwin-arm64"]="aarch64-apple-darwin"
-      ["darwin-amd64"]="x86_64-apple-darwin"
-      ["linux-arm64"]="aarch64-unknown-linux-musl"
-      ["linux-amd64"]="x86_64-unknown-linux-musl"
-    )
+    # Resolve Rust target triple via _rust-target (single source of truth)
+    rust_target_for() {
+      just _rust-target "$1" "$2"
+    }
     # Verify cross-compiled Go binaries exist
     for platform in "${platforms[@]}"; do
       os="${platform%%/*}"
@@ -108,7 +106,7 @@ package-kit:
     for platform in "${platforms[@]}"; do
       os="${platform%%/*}"
       arch="${platform##*/}"
-      target="${rust_targets["${os}-${arch}"]}"
+      target="$(rust_target_for "$os" "$arch")"
       binary="$build_dir/fab-rust-${target}"
       if [ ! -f "$binary" ]; then
         echo "ERROR: Missing Rust binary $binary — run 'just build-rust-all' first."
@@ -123,7 +121,7 @@ package-kit:
     for platform in "${platforms[@]}"; do
       os="${platform%%/*}"
       arch="${platform##*/}"
-      target="${rust_targets["${os}-${arch}"]}"
+      target="$(rust_target_for "$os" "$arch")"
       archive_name="kit-${os}-${arch}.tar.gz"
       go_binary="$build_dir/fab-${os}-${arch}"
       rust_binary="$build_dir/fab-rust-${target}"
