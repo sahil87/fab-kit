@@ -1,4 +1,5 @@
 .fab-status.yaml
+.fab-backend
 fab/.kit-sync-version
 .fab-runtime.yaml
 # fab/backlog.md
@@ -28,6 +29,9 @@ src/benchmark/results/*.json
 
 fab/.kit/bin/fab-go
 fab/.kit/bin/fab-rust
+
+# Rust build artifacts
+src/fab-rust/target/
 
 # Gas Town runtime
 .beads/

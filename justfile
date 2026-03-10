@@ -26,9 +26,16 @@ test-packages:
 test-scripts:
     {{scripts}}/test-scripts.sh
 
-# Run Rust tests (placeholder)
+# Run Rust integration tests
 test-rust:
-    @echo "No Rust tests yet."
+    cargo test --manifest-path src/fab-rust/Cargo.toml
+
+rust_src := "src/fab-rust"
+
+# Build Rust binary for the current platform (local dev)
+build-rust:
+    cargo build --manifest-path {{rust_src}}/Cargo.toml --release
+    cp {{rust_src}}/target/release/fab-rust fab/.kit/bin/fab-rust
 
 go_src := "src/fab-go"
 

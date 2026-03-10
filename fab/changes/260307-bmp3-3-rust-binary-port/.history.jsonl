@@ -2,3 +2,23 @@
 {"args":"Big bang port of Go binary to Rust with backend switching mechanism","cmd":"fab-new","event":"command","ts":"2026-03-07T20:36:23+05:30"}
 {"delta":"+2.8","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-03-07T20:37:19+05:30"}
 {"delta":"+0.0","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-03-07T20:37:24+05:30"}
+{"cmd":"fab-switch","event":"command","ts":"2026-03-10T08:58:55+05:30"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-03-10T08:59:50+05:30"}
+{"delta":"+1.2","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-03-10T09:01:44+05:30"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-03-10T09:01:49+05:30"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-03-10T09:05:12+05:30"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-03-10T09:05:16+05:30"}
+{"delta":"+1.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-03-10T09:05:23+05:30"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-03-10T09:05:28+05:30"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-03-10T09:05:34+05:30"}
+{"cmd":"fab-ff","event":"command","ts":"2026-03-10T09:05:55+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"spec","ts":"2026-03-10T09:08:42+05:30"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-03-10T09:10:32+05:30"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-03-10T09:11:50+05:30"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-03-10T09:11:58+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"tasks","ts":"2026-03-10T09:12:40+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"apply","ts":"2026-03-10T09:17:51+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"review","ts":"2026-03-10T09:35:26+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"hydrate","ts":"2026-03-10T09:39:19+05:30"}
+{"event":"review","result":"passed","ts":"2026-03-10T09:39:19+05:30"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"ship","ts":"2026-03-10T09:43:07+05:30"}

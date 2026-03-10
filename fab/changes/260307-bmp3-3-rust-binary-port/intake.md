@@ -106,10 +106,10 @@ build-rust:
 
 ### Existing: Go parity tests
 
-The Go parity tests at `src/fab-go/test/parity/` verify behavior against shell script baselines. The Rust port MUST pass equivalent tests. Strategy:
-- Port the parity test suite to Rust integration tests (`src/fab-rust/tests/`)
-- OR run the existing Go parity tests against the Rust binary (by temporarily symlinking `fab-rust` as `fab-go`)
-- OR create a shared test harness that runs against whichever binary is present
+The Go parity tests at `src/fab-go/test/parity/` verify behavior against shell script baselines. Both test suites run during development:
+- **Go parity tests** (`src/fab-go/test/parity/`) — continue to run as-is, validating the Go binary
+- **Rust integration tests** (`src/fab-rust/tests/`) — new Rust-native tests validating the Rust binary against the same expected behavior
+<!-- clarified: Both Go and Rust test suites run in parallel — no shared harness, no test replacement -->
 
 ### New: `.gitignore` entry
 
@@ -128,7 +128,9 @@ Add `.fab-backend` to `.gitignore` — this is a local developer preference, not
 - **`.gitignore`**: Add `.fab-backend`
 - **`justfile`**: Add `build-rust` recipe
 - **Go binary**: Unchanged — continues to work as fallback
-- **Parity tests**: Need a strategy for testing Rust binary against expected behavior
+- **Go parity tests**: Unchanged — continue to validate Go binary
+- **Rust integration tests**: New — validate Rust binary against same expected behavior
+- **CI/release**: Out of scope — deferred to a follow-up change (cross-compilation, packaging, archive updates)
 
 ## Open Questions
 
@@ -142,10 +144,29 @@ Add `.fab-backend` to `.gitignore` — this is a local developer preference, not
 | 2 | Certain | Use `clap` derive for CLI parsing | Discussed — equivalent to cobra's auto-help, also gives completions and man pages | S:90 R:85 A:90 D:90 |
 | 3 | Certain | Backend override via FAB_BACKEND env var + .fab-backend file | Discussed — user wants mechanism to switch back to Go for comparison | S:85 R:90 A:85 D:80 |
 | 4 | Certain | Dispatcher priority remains rust > go by default | Already implemented in current fab dispatcher | S:95 R:85 A:95 D:95 |
-| 5 | Confident | Use `serde_yaml` for YAML handling | Standard Rust YAML library, mature enough for this use case | S:70 R:80 A:85 D:75 |
-| 6 | Confident | Use `anyhow` for error handling | Standard pattern for CLI tools — simple, good error messages | S:70 R:85 A:80 D:80 |
-| 7 | Confident | Flat module structure (one file per subcommand + shared modules) | Matches Go's flat structure, codebase is small enough | S:75 R:90 A:80 D:75 |
-| 8 | Confident | .fab-backend file at repo root, gitignored | User suggested file-based override; repo root is the natural location | S:80 R:90 A:80 D:75 |
-| 9 | Tentative | Port Go parity tests to Rust integration tests rather than shared harness | Rust-native tests are simpler to maintain; shared harness adds complexity. But the existing Go tests could be reused | S:50 R:75 A:60 D:50 |
+| 5 | Certain | Use `serde_yaml` for YAML handling | Clarified — user confirmed | S:95 R:80 A:85 D:75 |
+| 6 | Certain | Use `anyhow` for error handling | Clarified — user confirmed | S:95 R:85 A:80 D:80 |
+| 7 | Certain | Flat module structure (one file per subcommand + shared modules) | Clarified — user confirmed | S:95 R:90 A:80 D:75 |
+| 8 | Certain | `.fab-backend` file at repo root, gitignored | Clarified — user confirmed | S:95 R:90 A:80 D:75 |
+| 9 | Certain | Both test suites run — Go parity tests stay, Rust gets own integration tests | Clarified — user confirmed both suites run in parallel | S:95 R:75 A:60 D:50 |
+| 10 | Certain | CI/release deferred — this change is port + local dev build only | Clarified — user confirmed CI cross-compilation and archive packaging is a follow-up | S:95 R:90 A:85 D:90 |
 
-9 assumptions (4 certain, 4 confident, 1 tentative, 0 unresolved).
+10 assumptions (10 certain, 0 confident, 0 tentative, 0 unresolved).
+
+## Clarifications
+
+### Session 2026-03-10 (bulk confirm)
+
+| # | Action | Detail |
+|---|--------|--------|
+| 5 | Confirmed | — |
+| 6 | Confirmed | — |
+| 7 | Confirmed | — |
+| 8 | Confirmed | — |
+
+### Session 2026-03-10 (taxonomy scan)
+
+| # | Action | Detail |
+|---|--------|--------|
+| 9 | Changed | Both Go and Rust test suites run in parallel — no shared harness |
+| 10 | Added | CI/release deferred to follow-up change |

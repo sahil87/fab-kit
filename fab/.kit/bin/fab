@@ -18,7 +18,19 @@ if [ "${1:-}" = "--version" ]; then
   exit 0
 fi
 
-# Backend priority: rust > go
+# Backend override: FAB_BACKEND env var or .fab-backend file
+backend_override="${FAB_BACKEND:-}"
+if [ -z "$backend_override" ] && [ -f "$SCRIPT_DIR/../../../.fab-backend" ]; then
+  backend_override=$(cat "$SCRIPT_DIR/../../../.fab-backend" | tr -d '[:space:]')
+fi
+
+if [ "$backend_override" = "go" ] && [ -x "$SCRIPT_DIR/fab-go" ]; then
+  exec "$SCRIPT_DIR/fab-go" "$@"
+elif [ "$backend_override" = "rust" ] && [ -x "$SCRIPT_DIR/fab-rust" ]; then
+  exec "$SCRIPT_DIR/fab-rust" "$@"
+fi
+
+# Default priority: rust > go
 if [ -x "$SCRIPT_DIR/fab-rust" ]; then
   exec "$SCRIPT_DIR/fab-rust" "$@"
 fi

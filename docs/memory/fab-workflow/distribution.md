@@ -4,7 +4,7 @@
 
 ## Overview
 
-How `fab/.kit/` is distributed to new and existing projects. Covers the bootstrap process (getting `.kit/` into a project for the first time), the update mechanism (pulling new versions into an existing project), the release workflow (version management via `fab-release.sh`, build recipes via `justfile`, CI orchestration via `.github/workflows/release.yml` — producing per-platform archives with Go binary), and the repo rename from `docs-sddr` to `fab-kit`.
+How `fab/.kit/` is distributed to new and existing projects. Covers the bootstrap process (getting `.kit/` into a project for the first time), the update mechanism (pulling new versions into an existing project), the release workflow (version management via `fab-release.sh`, build recipes via `justfile`, CI orchestration via `.github/workflows/release.yml` — producing per-platform archives with Go binary), the backend override mechanism for switching between Rust and Go backends during the transition period, and the repo rename from `docs-sddr` to `fab-kit`.
 
 ## Requirements
 
@@ -14,7 +14,7 @@ How `fab/.kit/` is distributed to new and existing projects. Covers the bootstra
 
 New projects SHALL be bootstrappable via a single curl command that downloads a kit archive from GitHub Releases and extracts it into `fab/.kit/`.
 
-**With Go binary** (recommended — auto-detects platform via `uname`):
+**With compiled backend** (recommended — auto-detects platform via `uname`):
 ```
 os=$(uname -s | tr '[:upper:]' '[:lower:]'); arch=$(uname -m); case "$arch" in x86_64) arch=amd64;; aarch64) arch=arm64;; esac
 mkdir -p fab; curl -sL "https://github.com/{repo}/releases/latest/download/kit-${os}-${arch}.tar.gz" | tar xz -C fab/
@@ -26,13 +26,13 @@ mkdir -p fab
 gh release download --repo {repo} --pattern 'kit.tar.gz' --output - | tar xz -C fab/
 ```
 
-Where `{repo}` is the `repo` value from `fab/.kit/kit.conf` (e.g. `wvrdz/fab-kit`). The platform-aware one-liner detects OS and architecture at runtime (`uname -s`, `uname -m`) and downloads the matching `kit-{os}-{arch}.tar.gz` archive which includes the pre-compiled Go binary at `fab/.kit/bin/fab`.
+Where `{repo}` is the `repo` value from `fab/.kit/kit.conf` (e.g. `wvrdz/fab-kit`). The platform-aware one-liner detects OS and architecture at runtime (`uname -s`, `uname -m`) and downloads the matching `kit-{os}-{arch}.tar.gz` archive which includes pre-compiled backends at `fab/.kit/bin/`. Currently only the Go binary (`fab-go`) is included in release archives; the Rust binary (`fab-rust`) can be built locally via `just build-rust` but is not yet shipped in release archives (CI/release for Rust is deferred to a follow-up change).
 
 After extraction, the user MUST run `fab/.kit/scripts/fab-sync.sh` to validate prerequisites (`yq`, `jq`, `gh`, `direnv`, `bats`), create directories (`changes/`, `memory/`, `specs/`), skeleton files (copied from `scaffold/memory-index.md` and `scaffold/specs-index.md`), deploy skills conditionally to detected agents (copies for Claude Code, Codex, and Gemini CLI; symlinks for OpenCode — only when the agent's CLI is found in PATH), `.envrc` entries (from `scaffold/envrc`, line-ensuring), `.gitignore` entries (from `scaffold/gitignore-entries`), and register Claude Code hooks from `fab/.kit/hooks/` into `.claude/settings.local.json`. The bootstrap only provides `.kit/` — no `config.yaml`, `constitution.md`, or other project files.
 
 **Scenarios**:
-- Bootstrap with Go binary (platform-aware one-liner) — downloads `kit-{os}-{arch}.tar.gz`, creates `fab/.kit/` with all skills, templates, scripts, VERSION file, and Go binary at `fab/.kit/bin/fab`; running `fab-sync.sh` first validates prerequisites (yq, jq, gh, direnv, bats), then creates `changes/`, `memory/index.md`, `specs/index.md`, skill deployments conditionally per detected agent (Claude Code, OpenCode, Codex, Gemini CLI — only when the agent's CLI command is found in PATH), `.envrc` (line-ensuring from scaffold), and `.gitignore` entry
-- Bootstrap without Go binary (generic one-liner) — downloads `kit.tar.gz`, creates `fab/.kit/` with skills, templates, and utility scripts but no compiled backend; the `fab` command will not work until a Go binary is installed (via `fab-sync.sh` step 4 or manual build)
+- Bootstrap with compiled backend (platform-aware one-liner) — downloads `kit-{os}-{arch}.tar.gz`, creates `fab/.kit/` with all skills, templates, scripts, VERSION file, and Go binary at `fab/.kit/bin/fab-go`; running `fab-sync.sh` first validates prerequisites (yq, jq, gh, direnv, bats), then creates `changes/`, `memory/index.md`, `specs/index.md`, skill deployments conditionally per detected agent (Claude Code, OpenCode, Codex, Gemini CLI — only when the agent's CLI command is found in PATH), `.envrc` (line-ensuring from scaffold), and `.gitignore` entry. If a locally-built Rust binary (`fab-rust`) is also present, the dispatcher prefers it over Go by default.
+- Bootstrap without compiled backend (generic one-liner) — downloads `kit.tar.gz`, creates `fab/.kit/` with skills, templates, and utility scripts but no compiled backend; the `fab` command will not work until a backend is installed (via `fab-sync.sh` step 4 or manual build)
 - Bootstrap a new project (no `fab/` directory) — creates `fab/.kit/` with all skills, templates, scripts, and VERSION file; same sync behavior as above
 - Bootstrap with existing `fab/` directory — creates or replaces `fab/.kit/`; existing files outside `.kit/` (config.yaml, constitution.md, memory/, specs/, changes/) are NOT affected
 
@@ -170,6 +170,34 @@ Each release produces 5 archives, all rooted at `.kit/` (e.g., `.kit/VERSION`, `
 
 No project-specific files (config.yaml, constitution.md, memory/, specs/, changes/) are included in any archive. Package production code (idea, wt) is included under `.kit/packages/`, hook scripts under `.kit/hooks/`, and sync scripts under `.kit/sync/` — all delivered to downstream projects on upgrade. Skill files under `.kit/skills/` (including `fab-operator1.md`) are included in all archives and deployed to agents by `fab-sync.sh`. The Go binary is placed at `.kit/bin/fab` in platform archives; the `bin/` directory contains a `.gitkeep` to ensure the directory exists even in the generic archive.
 
+### Backend Override Mechanism
+
+During the transition period where both Go and Rust backends coexist, the `fab/.kit/bin/fab` dispatcher supports a backend override mechanism. This allows developers to switch between backends for comparison or fallback.
+
+**Priority chain** (first match wins):
+1. `FAB_BACKEND` environment variable — per-command override (e.g., `FAB_BACKEND=go fab resolve`)
+2. `.fab-backend` file at repo root — persistent project-level override (contains `go` or `rust`, whitespace trimmed)
+3. Default priority — `fab-rust` > `fab-go`
+
+**`.fab-backend` file**: Lives at the repo root (three levels up from `fab/.kit/bin/`), gitignored, contains a single word: `go` or `rust`. Created manually by the developer.
+
+**Fallthrough behavior**: Invalid override values (e.g., `FAB_BACKEND=python`) and overrides pointing to unavailable backends (e.g., `FAB_BACKEND=rust` when `fab-rust` doesn't exist) silently fall through to the default priority chain. This prevents lockout if the file has a typo.
+
+**Scenarios**:
+- `FAB_BACKEND=go fab resolve` — invokes Go backend for a single command
+- `echo "go" > .fab-backend` — persistent switch to Go backend for all commands in this repo
+- `FAB_BACKEND=rust` with `.fab-backend` containing `go` — env var wins (Rust used)
+- `FAB_BACKEND=python` — unrecognized, falls through to default priority (Rust > Go)
+- `FAB_BACKEND=rust` but `fab-rust` not present — falls through to `fab-go`
+
+### Transition Period: Dual Backends
+
+Both Go and Rust binaries coexist during the transition period. The Rust binary (`fab-rust`) implements all 9 subcommands with strict output parity to the Go binary (`fab-go`). The dispatcher prefers Rust by default when both are present.
+
+**Current state**: Only Go archives are shipped in releases (per-platform `kit-{os}-{arch}.tar.gz` includes `fab-go`). The Rust binary must be built locally via `just build-rust`. CI/release pipeline changes for Rust (cross-compilation, archive packaging) are deferred to a follow-up change (`260307-buf0-4-rust-ci-build`).
+
+**Local Rust build**: `just build-rust` compiles the Rust binary with release profile (`lto` + `strip`) and copies it to `fab/.kit/bin/fab-rust`, where the dispatcher will prefer it over `fab-go`.
+
 ### Repo Rename
 
 The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its role as the canonical source for `fab/.kit/`. GitHub auto-redirects handle existing URLs and clones.
@@ -184,11 +212,13 @@ The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its rol
 - **Three-way release split (260307-ma7o-1)**: `fab-release.sh` owns version/tag/push, `justfile` owns build/package, `.github/workflows/release.yml` owns orchestration. Each component has a single responsibility and can be tested independently.
 - **GitHub semver ordering replaces `--no-latest` (260307-ma7o-1)**: GitHub automatically determines "latest" release based on semver. Backport releases (e.g., `v0.34.2` when `v0.35.0` exists) are not marked latest. The `--no-latest` flag was removed from `fab-release.sh` — no flag to remember, no CI mechanism to pass it through. For edge cases, `gh release edit` can be used post-creation.
 - **Auto-generated release notes (260307-ma7o-1)**: CI uses `gh release create --generate-notes` instead of manually constructing a changelog from `git log --oneline`. Richer content (PR titles, contributor info), less maintenance.
+- **Backend override via env var + file (260307-bmp3-3)**: `FAB_BACKEND` env var and `.fab-backend` file provide a way to switch between Rust and Go backends during the transition period. Env var for per-command overrides, file for persistent project-level preference. Invalid/unavailable values fall through to the default priority chain (no lockout). Rejected: CLI flag (would require dispatcher to parse args before delegating).
 
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260307-bmp3-3-rust-binary-port | 2026-03-10 | Added backend override mechanism (`FAB_BACKEND` env var, `.fab-backend` file) to dispatcher for switching between Rust and Go backends. Documented transition period where both binaries coexist — Rust preferred by default, Go shipped in release archives, Rust built locally via `just build-rust`. CI/release for Rust deferred. Updated bootstrap one-liners to reference both backends. |
 | 260307-ma7o-1-ci-releases-justfile | 2026-03-09 | Split release workflow into three components: `fab-release.sh` simplified to version bump + git commit/tag/push only (~60 lines, removed ~200 lines of build/package/release logic). New `justfile` at repo root provides build recipes (`build-go`, `build-go-target`, `build-go-all`, `package-kit`, `clean`) replicable locally and in CI. New `.github/workflows/release.yml` triggered on `v*` tag push — uses `just` recipes on single `ubuntu-latest` runner, creates GitHub Release with auto-generated notes. Removed `--no-latest` flag (GitHub's semver ordering handles backport "latest" status). Removed Go toolchain and `gh` CLI checks from release script. |
 | 260306-qkov-operator1-skill | 2026-03-07 | Noted that `fab-operator1.md` ships as part of the kit skills directory in all archives — no new distribution mechanics, just another skill file deployed by `fab-sync.sh`. |
 | 260305-u8t9-clean-break-go-only | 2026-03-05 | Updated generic archive (shell-only) scenario: no longer provides a working `fab` command — Go binary is required. Shell script fallback removed from dispatcher. |

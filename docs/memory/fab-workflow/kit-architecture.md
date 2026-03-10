@@ -18,7 +18,7 @@ fab/.kit/
 ├── bin/                    # Dispatcher + optional compiled backends
 │   ├── fab                 # Shell dispatcher — sole entry point, checks fab-rust → fab-go → error
 │   ├── fab-go              # Go binary (optional, platform-specific from per-platform archives)
-│   ├── fab-rust            # Rust binary (optional, future)
+│   ├── fab-rust            # Rust binary (optional, built locally via `just build-rust`)
 │   └── .gitkeep            # Ensures directory exists even in generic archive (no binary)
 ├── skills/                 # Skill definitions (markdown prompts)
 │   ├── _preamble.md         # Shared context loading convention
@@ -237,11 +237,11 @@ All `*.md` files in `fab/.kit/skills/` are deployed, including underscore partia
 
 ### Distribution & Bootstrapping
 
-`.kit/` is a standalone directory — no package manager, no system install. The dispatcher script (`bin/fab`) is always included. Compiled backends (`bin/fab-go`) are optional performance enhancements included in platform-specific archives, not required dependencies. This preserves the "pure prompt play" principle — shell scripts remain the fallback and work identically without any compiled backend.
+`.kit/` is a standalone directory — no package manager, no system install. The dispatcher script (`bin/fab`) is always included. Compiled backends (`bin/fab-go`, `bin/fab-rust`) are included in platform-specific archives or built locally. A compiled backend is required — there is no shell script fallback.
 
 #### Bootstrap Sequence
 
-**Option A — Platform-aware bootstrap** (recommended, includes Go binary):
+**Option A — Platform-aware bootstrap** (recommended, includes compiled backend):
 ```
 os=$(uname -s | tr '[:upper:]' '[:lower:]'); arch=$(uname -m); case "$arch" in x86_64) arch=amd64;; aarch64) arch=arm64;; esac
 mkdir -p fab; curl -sL "https://github.com/{repo}/releases/latest/download/kit-${os}-${arch}.tar.gz" | tar xz -C fab/
@@ -309,11 +309,16 @@ For mixed tech stacks, use labeled sections in `config.yaml`'s `context` field s
 
 ### Dispatcher (`fab/.kit/bin/fab`)
 
-A POSIX-compatible shell script that serves as the sole entry point for all fab CLI operations. The dispatcher checks for compiled backends in priority order and delegates accordingly. A compiled backend (Go or Rust) is required — there is no shell script fallback.
+A POSIX-compatible shell script that serves as the sole entry point for all fab CLI operations. The dispatcher supports a backend override mechanism, then checks for compiled backends in priority order and delegates accordingly. A compiled backend (Go or Rust) is required — there is no shell script fallback.
 
-**Backend priority chain** (first available wins):
-1. `fab/.kit/bin/fab-rust` — Rust binary (future, not yet implemented)
-2. `fab/.kit/bin/fab-go` — Go binary (required, from per-platform archives)
+**Backend override** (checked before default priority):
+1. `FAB_BACKEND` environment variable — per-command override (e.g., `FAB_BACKEND=go fab resolve`)
+2. `.fab-backend` file at repo root — persistent project-level override (three levels up from `fab/.kit/bin/`, gitignored, contains `go` or `rust`, whitespace trimmed)
+Invalid or unavailable override values silently fall through to the default priority chain.
+
+**Default priority chain** (first available wins):
+1. `fab/.kit/bin/fab-rust` — Rust binary (built locally via `just build-rust`)
+2. `fab/.kit/bin/fab-go` — Go binary (from per-platform release archives)
 3. Error — exits 1 with message: `Error: no fab backend found (expected fab-go or fab-rust in <dir>)`
 
 **Version handling**: `fab --version` is handled by the dispatcher itself (not delegated). Reads `fab/.kit/VERSION` and reports the active backend: `fab {version} ({backend} backend)` where `{backend}` is `rust`, `go`, or `none`.
@@ -346,7 +351,47 @@ The sole backend for all fab CLI operations. A single Go binary at `fab/.kit/bin
 
 **Parity**: All subcommands produce stdout/stderr output matching the bash versions (modulo timestamps).
 
-**Testing**: Go parity tests in `src/fab-go/test/parity/` are the sole test infrastructure for the CLI backend. The previous shell script test suites (`src/lib/*/test.bats`, `src/lib/*/test-simple.sh`, `src/lib/*/SPEC-*.md`, etc.) were removed along with the shell scripts they tested. The `src/lib/` and `src/sync/` directories no longer exist.
+**Testing**: Go parity tests in `src/fab-go/test/parity/` validate the Go binary. The previous shell script test suites (`src/lib/*/test.bats`, `src/lib/*/test-simple.sh`, `src/lib/*/SPEC-*.md`, etc.) were removed along with the shell scripts they tested. The `src/lib/` and `src/sync/` directories no longer exist.
+
+### Rust Binary (`fab-rust`)
+
+A second backend implementing all 9 subcommands with strict output parity to the Go binary. A single Rust binary crate at `src/fab-rust/` (source), placed at `fab/.kit/bin/fab-rust` when built. The dispatcher prefers it over `fab-go` by default.
+
+**Module**: `fab-rust` (Rust 2021 edition, dependencies: `clap` 4 with derive, `serde` + `serde_yaml` 0.9, `serde_json`, `anyhow`, `chrono`, `rand`, `regex`; dev: `tempfile`)
+
+**Binary location**: `fab/.kit/bin/fab-rust` — built locally via `just build-rust`. Not yet included in release archives (CI/release for Rust is deferred to `260307-buf0-4-rust-ci-build`).
+
+**Project structure** (flat modules — one file per subcommand + shared utilities):
+```
+src/fab-rust/
+├── Cargo.toml          # lto = true, strip = true in [profile.release]
+├── Cargo.lock          # Committed (binary crate convention)
+└── src/
+    ├── main.rs         # clap CLI definition, subcommand dispatch
+    ├── resolve.rs      # resolve subcommand
+    ├── log.rs          # log subcommand
+    ├── status.rs       # status subcommand + stage machine
+    ├── preflight.rs    # preflight subcommand
+    ├── change.rs       # change subcommand (new, rename, switch, list, archive, restore)
+    ├── score.rs        # confidence scoring
+    ├── runtime.rs      # runtime state management
+    ├── panemap.rs      # tmux pane mapping
+    ├── sendkeys.rs     # tmux send-keys
+    ├── archive.rs      # archive/restore logic
+    ├── config.rs       # shared config loading (config.yaml)
+    ├── statusfile.rs   # .status.yaml read/write (atomic temp+rename)
+    ├── types.rs        # shared types (StatusFile, etc.)
+    ├── worktree.rs     # worktree discovery
+    └── hooks.rs        # stage hook execution
+```
+
+**Build**: `just build-rust` — `cargo build --manifest-path src/fab-rust/Cargo.toml --release`, copies binary to `fab/.kit/bin/fab-rust`. Release profile uses `lto = true` and `strip = true` for minimal binary size.
+
+**Subcommands**: Identical CLI surface to Go binary — all 9 top-level subcommands (`resolve`, `log`, `status`, `preflight`, `change`, `score`, `runtime`, `pane-map`, `send-keys`) with identical flags, positional arguments, and subcommands. Help text format differs (clap vs cobra style) but subcommand/flag names match.
+
+**Parity**: Strict output parity with Go binary — identical stdout, stderr, and exit codes for the same inputs and file system state. Exceptions: timestamp fields (execution-time dependent), help text format (clap vs cobra), `indicative: false` may be omitted when false.
+
+**Testing**: Rust integration tests at `src/fab-rust/tests/integration_test.rs`. Run via `just test-rust` (`cargo test --manifest-path src/fab-rust/Cargo.toml`). Both Go and Rust test suites run independently — no shared harness.
 
 #### Skill Invocation Convention (`_scripts.md`)
 
@@ -369,9 +414,9 @@ Sends text to a target agent's tmux pane. Signature: `fab send-keys <change> "<t
 ## Design Decisions
 
 ### All Logic in Markdown and Shell (with Optional Compiled Backends)
-**Decision**: Workflow logic lives in markdown skill files and shell scripts. A shell dispatcher at `fab/.kit/bin/fab` serves as the sole entry point, routing to compiled backends (`fab-rust` → `fab-go`) when available, falling back to shell scripts when not. No runtime dependencies for end users; Go/Rust toolchains are only needed for building from source.
-**Why**: Constitution I (Pure Prompt Play). Any AI agent that can read markdown and execute shell commands can drive the workflow. Compiled backends are pre-compiled static binaries (no runtime dependencies via `CGO_ENABLED=0`), distributed inside platform-specific archives — they are not system installs. The dispatcher pattern centralizes backend selection in one place instead of duplicating shim logic in every shell script.
-**Rejected**: CLI tool, npm package, or Python script — all introduce system dependencies. Also rejected: making compiled backends mandatory — preserves graceful degradation for unsupported platforms. Also rejected: per-script shim delegation (previous approach) — duplicated 3-line shim in all 7 scripts, no path for multiple compiled backends.
+**Decision**: Workflow logic lives in markdown skill files and shell scripts. A shell dispatcher at `fab/.kit/bin/fab` serves as the sole entry point, routing to compiled backends (`fab-rust` → `fab-go`) with a backend override mechanism (`FAB_BACKEND` env var, `.fab-backend` file). No runtime dependencies for end users; Go/Rust toolchains are only needed for building from source.
+**Why**: Constitution I (Pure Prompt Play). Any AI agent that can read markdown and execute shell commands can drive the workflow. Compiled backends are pre-compiled static binaries (no runtime dependencies via `CGO_ENABLED=0` for Go, `lto`+`strip` for Rust), distributed inside platform-specific archives — they are not system installs. The dispatcher pattern centralizes backend selection in one place instead of duplicating shim logic in every shell script. The override mechanism enables comparison during the Rust transition period.
+**Rejected**: CLI tool, npm package, or Python script — all introduce system dependencies. Also rejected: making compiled backends mandatory — preserves graceful degradation for unsupported platforms. Also rejected: per-script shim delegation (previous approach) — duplicated 3-line shim in all 7 scripts, no path for multiple compiled backends. Also rejected: CLI flag for backend selection — would require dispatcher to parse args before delegating.
 *Source*: doc/fab-spec/README.md, fab/project/constitution.md, 260305-qagd-unified-fab-dispatcher
 
 ### Agent Skill Deployment Strategy
@@ -465,6 +510,7 @@ Full benchmark suite with harness and all 4 implementations: `src/benchmark/`
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260307-bmp3-3-rust-binary-port | 2026-03-10 | Added Rust binary (`fab-rust`) as second backend — all 9 subcommands with strict Go parity. Source at `src/fab-rust/` (flat modules, clap derive, serde_yaml, anyhow). Release profile: `lto` + `strip`. Built locally via `just build-rust` (+ `test-rust` recipe). Updated dispatcher with backend override mechanism (`FAB_BACKEND` env var, `.fab-backend` file, priority: override > rust > go). Updated directory tree (`fab-rust` no longer "future"). CI/release for Rust deferred. |
 | 260307-x2tx-status-symlink-pointer | 2026-03-07 | Replaced `fab/current` pointer file with `.fab-status.yaml` symlink at repo root. Added `id` field to `.status.yaml`. Updated resolution, switch, rename, pane-map, hooks, and dispatch. Migration `0.32.0-to-0.34.0` covers conversion. |
 | 260306-qkov-operator1-skill | 2026-03-07 | Added `fab-operator1.md` to skills listing. Added `fab send-keys <change> "<text>"` subcommand to Go binary — resolves change to tmux pane (reuses pane-map discovery logic), sends text via `tmux send-keys`. Tmux guard, pane existence validation, multi-pane warning. No idle check in CLI (policy in skill, mechanism in CLI). |
 | 260306-bh45-pane-map-subcommand | 2026-03-06 | Added `fab pane-map` subcommand to Go binary — discovers all tmux panes, resolves worktree roots via git, reads `.fab-status.yaml` symlink for active change, correlates `.fab-runtime.yaml` for agent idle state, and renders an aligned table (Pane, Worktree, Change, Stage, Agent). Requires tmux at runtime (graceful error if not in session). Non-fab panes excluded. Main worktree shown as `(main)`. |
