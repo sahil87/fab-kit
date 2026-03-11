@@ -2,7 +2,7 @@
 
 ## Summary
 
-Multi-agent coordination layer that runs in a dedicated tmux pane. Observes all running fab agents via `fab pane-map` and `fab runtime`, and interacts with them via `fab send-keys`. Translates natural-language user instructions into cross-agent actions: broadcasting commands, sequencing rebases, spawning new worktrees, and merging PRs.
+Multi-agent coordination layer that runs in a dedicated tmux pane. Observes all running fab agents via `fab pane-map`, and interacts with them via `fab send-keys`. Translates natural-language user instructions into cross-agent actions: broadcasting commands, sequencing rebases, spawning new worktrees, and merging PRs.
 
 Not a lifecycle enforcer — individual agents already know their pipeline. The operator handles coordination that requires cross-agent awareness.
 
@@ -15,7 +15,6 @@ The operator relies on these primitives:
 | Primitive | Source | Purpose |
 |-----------|--------|---------|
 | `fab pane-map` | fab CLI | Primary observation: pane-to-change mapping with stage and agent state |
-| `fab runtime is-idle` | fab CLI + `.fab-runtime.yaml` | Check if a specific agent is idle (for pre-send validation) |
 | `fab send-keys` | fab CLI | Send text to a target agent's tmux pane |
 | `fab status show --all` | fab CLI | Fallback observation when outside tmux |
 
@@ -148,7 +147,7 @@ For each change (in order):
   3. Check confidence       → fab status confidence <change>
      - confidence >= gate   → fab send-keys <change> "/fab-ff"
      - confidence < gate    → flag to user, skip or run /fab-fff
-  4. Monitor (on each tick) → fab pane-map + fab runtime is-idle
+  4. Monitor (on each tick) → fab pane-map
      - stage reaches hydrate/ship → change succeeded
      - review fails after rework budget → flag and skip
      - agent idle >15 min at non-terminal stage → nudge once, then flag
@@ -220,7 +219,7 @@ The user can override with "just do it" or similar to skip confirmation for dest
 Before sending keys to any pane, the operator MUST:
 
 1. Verify the target pane still exists (refresh pane map)
-2. Verify the agent is idle (via `fab runtime is-idle <change>`) — sending commands to a busy agent risks corrupting its work
+2. Verify the agent is idle (via the Agent column in the pane map) — sending commands to a busy agent risks corrupting its work
 3. If the agent is not idle, warn the user and ask for confirmation
 
 ---
@@ -240,7 +239,7 @@ Informed by patterns from [agent-orchestrator](https://github.com/sahil-weaver/a
 
 ### Always re-derive state
 
-The operator MUST re-query live state (`fab pane-map`, `fab runtime is-idle`) before every action. Never rely on stale values from conversation memory. State derivation over caching — if a pane died or a change advanced since the last check, the operator must know.
+The operator MUST re-query live state (`fab pane-map`) before every action. Never rely on stale values from conversation memory. State derivation over caching — if a pane died or a change advanced since the last check, the operator must know.
 
 ### Retry limits + escalation
 
@@ -303,7 +302,7 @@ This is a **skill** (`/fab-operator1`), not a package. It requires an AI agent t
 
 ### Context loading
 
-The operator loads the always-load layer (like `/fab-discuss`) but does NOT load change-specific artifacts. It doesn't need intakes, specs, or tasks — it only needs the coordination primitives (pane map, status, runtime state).
+The operator loads the always-load layer (like `/fab-discuss`) but does NOT load change-specific artifacts. It doesn't need intakes, specs, or tasks — it only needs the coordination primitives (pane map, status).
 
 ### Stale pane detection
 
@@ -311,7 +310,7 @@ Tmux panes can disappear (user closes tab, agent crashes). The operator SHOULD d
 
 ### Agent busy detection
 
-Sending keys to a busy agent is dangerous — the text lands in the agent's input buffer and may be processed at the wrong time. The operator MUST check `fab runtime is-idle <change>` before sending. If the agent is busy, the operator can either wait or ask the user.
+Sending keys to a busy agent is dangerous — the text lands in the agent's input buffer and may be processed at the wrong time. The operator MUST check the Agent column in the pane map before sending. If the agent is busy, the operator can either wait or ask the user.
 
 ### Worktree-to-change resolution
 
@@ -326,7 +325,6 @@ A worktree may not have an active change yet (freshly created). The operator sho
 | `batch-fab-switch-change` | Operator is the conversational equivalent. Batch script remains for non-interactive use. |
 | `batch-fab-new-backlog` | Operator's "spawn new worktree" use case overlaps. Batch script remains for bulk operations. |
 | `fab pane-map` | Primary observation mechanism. Operator consumes its output for pane, tab, change, stage, and agent state. |
-| `fab runtime is-idle` | Agent idle check for pre-send validation. |
 | `fab status show --all` | Fallback observation when outside tmux (pane-map unavailable). |
 | `wt-create`, `wt-delete` | Operator delegates worktree lifecycle to existing wt commands. |
 | Assembly line (spec) | Operator is the natural evolution — same parallel model, but with a coordinator instead of manual tab-hopping. |

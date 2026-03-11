@@ -2,3 +2,16 @@
 {"args":"Fix fab-operator1 skill to use pane-map Agent column for idle state instead of fab runtime is-idle","cmd":"fab-new","event":"command","ts":"2026-03-11T07:36:32Z"}
 {"delta":"+5.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-03-11T07:37:11Z"}
 {"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-03-11T07:37:23Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-03-11T07:57:37Z"}
+{"cmd":"fab-ff","event":"command","ts":"2026-03-11T07:58:45Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-03-11T07:59:50Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"spec","ts":"2026-03-11T07:59:54Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"tasks","ts":"2026-03-11T08:00:33Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"apply","ts":"2026-03-11T08:00:33Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"review","ts":"2026-03-11T08:02:34Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"hydrate","ts":"2026-03-11T08:04:41Z"}
+{"event":"review","result":"passed","ts":"2026-03-11T08:04:41Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"ship","ts":"2026-03-11T08:06:02Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"review-pr","ts":"2026-03-11T08:07:48Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-03-11T08:14:13Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-03-11T08:14:21Z"}
