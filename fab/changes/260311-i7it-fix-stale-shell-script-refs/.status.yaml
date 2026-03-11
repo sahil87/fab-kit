@@ -1,0 +1,37 @@
+id: i7it
+name: 260311-i7it-fix-stale-shell-script-refs
+created: 2026-03-11T07:05:27Z
+created_by: sahil-weaver
+change_type: fix
+issues: []
+progress:
+    intake: ready
+    spec: pending
+    tasks: pending
+    apply: pending
+    review: pending
+    hydrate: pending
+    ship: pending
+    review-pr: pending
+checklist:
+    generated: false
+    path: checklist.md
+    completed: 0
+    total: 0
+confidence:
+    certain: 7
+    confident: 1
+    tentative: 0
+    unresolved: 0
+    score: 4.7
+    indicative: true
+    fuzzy: true
+    dimensions:
+        signal: 91.9
+        reversibility: 85.6
+        competence: 91.9
+        disambiguation: 91.9
+stage_metrics:
+    intake: {started_at: "2026-03-11T07:05:27Z", driver: fab-new, iterations: 1}
+prs: []
+last_updated: 2026-03-11T07:08:09Z

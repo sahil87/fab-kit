@@ -1,0 +1,9 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-11T07:05:27Z"}
+{"args":"Fix stale shell-script references across specs and memory after wt/idea Go binary conversion","cmd":"fab-new","event":"command","ts":"2026-03-11T07:05:27Z"}
+{"delta":"+3.7","event":"confidence","score":3.7,"trigger":"calc-score","ts":"2026-03-11T07:06:25Z"}
+{"delta":"+0.0","event":"confidence","score":3.7,"trigger":"calc-score","ts":"2026-03-11T07:06:31Z"}
+{"delta":"+0.0","event":"confidence","score":3.7,"trigger":"calc-score","ts":"2026-03-11T07:07:56Z"}
+{"delta":"+0.0","event":"confidence","score":3.7,"trigger":"calc-score","ts":"2026-03-11T07:07:58Z"}
+{"delta":"+0.0","event":"confidence","score":3.7,"trigger":"calc-score","ts":"2026-03-11T07:08:00Z"}
+{"delta":"+1.0","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-03-11T07:08:03Z"}
+{"delta":"+0.0","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-03-11T07:08:09Z"}
