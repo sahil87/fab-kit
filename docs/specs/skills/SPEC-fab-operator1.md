@@ -79,18 +79,20 @@ Operator:
 User says: "merge all PRs that are ready"
 
 Operator:
-1. Checks which changes have reached the `ship` or `review-pr (pass)` state
-2. For each: runs `gh pr merge` directly (operator's own shell, not via send-keys — merging doesn't need the target agent)
+1. Refreshes pane map, filters for changes at `ship` or `review-pr (pass)` stage
+2. For each candidate: `fab status get-prs <change>` to retrieve PR URLs
+3. Confirms before executing (destructive): "Will merge PRs for {change1}, {change2}. Proceed?"
+4. On confirmation: runs `gh pr merge <url>` from the operator's own shell for each PR
 
 ### 4. Spawn a new worktree + agent for an idea
 
 User says: "start working on the retry logic idea"
 
 Operator:
-1. Looks up the idea in `fab/backlog.md` (via `idea show "retry logic"`)
-2. Creates a worktree: `wt-create --non-interactive`
-3. Opens a new tmux tab in that worktree
-4. Sends: `fab send-keys <new-change> "/fab-new <description from backlog>"`
+1. Looks up the idea via `fab idea show "retry logic"`
+2. Creates a worktree: `wt create --non-interactive --worktree-name <name>`
+3. Opens a new tmux tab with a Claude session:
+   `tmux new-window -n "fab-<id>" -c <worktree> "claude --dangerously-skip-permissions '/fab-new <description from backlog>'"`
 
 This replaces the manual `batch-fab-switch-change` workflow with natural language.
 
@@ -123,27 +125,45 @@ This is user-driven, not event-driven — the operator does not poll in the back
 
 User says: "take all these changes to completion: bh45, qkov, ab12" — or "run all my changes, highest confidence first."
 
-This is the operator's most complex use case. It operates as an autonomous pipeline operator, driving each change through the full lifecycle sequentially:
+This is the operator's most complex use case. It operates as an autonomous pipeline operator, driving each change through the full lifecycle sequentially.
+
+#### Monitoring via `/loop`
+
+The operator itself stays reactive — it acts in response to input. Autopilot monitoring uses `/loop` to provide a periodic heartbeat:
+
+1. After confirming the queue and starting the first change, invoke `/loop 2m "check autopilot progress"`
+2. Each tick: re-derive state via `fab pane-map` → check current change → advance/flag/skip as needed
+3. On queue completion: report final summary and stop the loop
+4. On "pause": stop the loop; on "resume": restart it
+
+The user can still interject between ticks — interrupt commands work immediately on the next prompt.
+
+#### Per-change loop
 
 ```
 For each change (in order):
-  1. Create worktree         → wt-create --non-interactive
-  2. Open tmux tab           → tmux new-window with claude session
-  3. Activate change         → fab send-keys <change> "/fab-switch <change>"
-  4. Check confidence        → fab status show <change>
-  5. Execute pipeline:
-     - confidence >= gate    → fab send-keys <change> "/fab-ff"
-     - confidence < gate     → flag to user, skip or run /fab-fff
-  6. Monitor until done      → poll fab status + fab runtime
-  7. On success              → gh pr merge from operator's shell
-  8. Rebase remaining        → fab send-keys <next> "git fetch && git rebase origin/main"
-  9. Next change
+  1. Spawn worktree         → wt create --non-interactive --reuse --worktree-name <change> <branch>
+  2. Open tmux tab          → tmux new-window -n "fab-<id>" -c <worktree> \
+                               "claude --dangerously-skip-permissions '/fab-switch <change>'"
+  3. Check confidence       → fab status confidence <change>
+     - confidence >= gate   → fab send-keys <change> "/fab-ff"
+     - confidence < gate    → flag to user, skip or run /fab-fff
+  4. Monitor (on each tick) → fab pane-map + fab runtime is-idle
+     - stage reaches hydrate/ship → change succeeded
+     - review fails after rework budget → flag and skip
+     - agent idle >15 min at non-terminal stage → nudge once, then flag
+     - pane dies → flag and skip
+  5. Merge                  → gh pr merge from operator's shell
+  6. Rebase remaining       → fab send-keys <next> "git fetch origin main && git rebase origin/main"
+     - conflict → flag to user, skip to next (never auto-resolve)
+  7. Cleanup                → wt delete <worktree-name> (optional, after merge)
+  8. Progress               → report one-line status
 ```
 
 #### Ordering strategies
 
 - **User-provided order**: "run these in this order: bh45, qkov, ab12." Deterministic — the user controls dependencies and sequencing.
-- **Confidence-based**: Sort by confidence score descending. Highest confidence changes are most likely to complete autonomously. Get the easy wins merged first, then tackle the ambiguous ones.
+- **Confidence-based**: Sort by confidence score descending (query each change via `fab status confidence <change>`). Highest confidence changes are most likely to complete autonomously. Get the easy wins merged first, then tackle the ambiguous ones.
 - **Hybrid**: User provides constraints ("bh45 before qkov"), operator optimizes the rest by confidence.
 
 #### Failure handling
@@ -172,7 +192,7 @@ This use case requires the operator to understand:
 
 ## Interaction Model
 
-The operator is a long-running Claude session in its own tmux pane. It does NOT run in a loop — it waits for user input, acts, and reports back. The user talks to it like any other Claude session.
+The operator is a long-running Claude session in its own tmux pane. It waits for user input, acts, and reports back. The user talks to it like any other Claude session. The one exception is autopilot mode, where `/loop` provides periodic heartbeat prompts (see UC8).
 
 ```
 You (in operator pane):"rebase all agents on main"
@@ -232,6 +252,8 @@ For autopilot mode, the operator tracks attempt counts per change:
 | Agent idle too long (>15 min at non-terminal stage) | 1 nudge (`/fab-continue`) | If still idle after nudge, flag to user: "r3m7 appears stuck at apply stage." |
 | Rebase conflict | 0 (never auto-resolve) | Immediately flag to user. |
 | Agent pane dies | 1 respawn attempt | If respawn fails, flag and skip. |
+| Pane death (non-autopilot) | 0 | Report: "Pane for {change} is gone." No respawn outside autopilot. |
+| Send to busy agent | 0 | Warn user, require explicit confirmation before sending. |
 
 The operator MUST NOT retry indefinitely. Every automatic action has a bounded retry count. When the budget is exhausted, escalate to the user and move on.
 
@@ -270,6 +292,10 @@ The operator acknowledges interrupts immediately, even if an action is in progre
 ---
 
 ## Implementation Considerations
+
+### Launcher
+
+Start the operator via `fab/.kit/scripts/fab-operator.sh` — creates a singleton tmux tab named `operator1` and invokes `/fab-operator1` in a new Claude session.
 
 ### Skill or package?
 
@@ -311,7 +337,7 @@ A worktree may not have an active change yet (freshly created). The operator sho
 
 1. **No persistent standing orders in v1.** Conversation context within a session is sufficient — the operator holds instructions like "tell me when r3m7 finishes" in memory for the duration of the session. Persistence (surviving session restarts) deferred until real friction emerges. Natural future home: `fab/project/operator1.yaml`.
 
-2. **User-driven, not event-driven.** The operator does not poll or watch files in the background. It refreshes state before each action and when the user asks. The operator pane is the single notification surface — the user checks it for cross-agent status. The "unstick agent" and "notify me when done" use cases work within this model via conversation context.
+2. **User-driven, not event-driven.** The operator does not poll or watch files in the background. It refreshes state before each action and when the user asks. The one exception is autopilot mode, where `/loop` provides periodic heartbeat prompts — the operator itself stays reactive, but `/loop` injects the periodic input. The operator pane is the single notification surface — the user checks it for cross-agent status. The "unstick agent" and "notify me when done" use cases work within this model via conversation context.
 
 3. **Single-repo only, by design.** Fab-kit's model is one repo with worktrees as checkouts of the same repo. Multi-repo coordination is a fundamentally different tool, out of scope.
 

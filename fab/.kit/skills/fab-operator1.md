@@ -58,6 +58,8 @@ On invocation, display the current coordination landscape:
 1. **Pane map**: Run `fab/.kit/bin/fab pane-map` and display the output (shows Pane, Tab, Worktree, Change, Stage, Agent)
 2. **Ready signal**: Output `Ready for coordination commands.`
 
+**Launcher**: Start the operator via `fab/.kit/scripts/fab-operator.sh` — creates a singleton tmux tab named `operator1` and invokes `/fab-operator1` in a new Claude session.
+
 ### Outside tmux
 
 If `$TMUX` is unset, display:
@@ -101,16 +103,17 @@ Each use case follows the pattern: **interpret user intent** then **refresh stat
 
 ### UC3: Merge completed PRs
 
-1. Identify changes with PRs via `fab/.kit/bin/fab status get-prs`
-2. **Confirm before executing** (destructive action): "Will merge PRs for {change1}, {change2}. Proceed?"
-3. On confirmation, run `gh pr merge` from the operator's own shell
+1. Refresh pane map, filter for changes at `ship` or `review-pr` stage
+2. For each candidate: `fab/.kit/bin/fab status get-prs <change>` to retrieve PR URLs
+3. **Confirm before executing** (destructive action): "Will merge PRs for {change1}, {change2}. Proceed?"
+4. On confirmation, run `gh pr merge <url>` from the operator's own shell for each PR
 
 ### UC4: Spawn new worktree + agent from idea
 
-1. Look up the idea via `idea show "<description>"`
-2. Create a worktree via `wt create --non-interactive`
-3. Open a new tmux tab in that worktree
-4. Send `/fab-new <description>` to the new agent via `fab/.kit/bin/fab send-keys`
+1. Look up the idea via `fab/.kit/bin/fab idea show "<description>"`
+2. Create a worktree: `wt create --non-interactive --worktree-name <name>`
+3. Open a new tmux tab with a Claude session:
+   `tmux new-window -n "fab-<id>" -c <worktree> "claude --dangerously-skip-permissions '/fab-new <description>'"`
 
 ### UC5: Status dashboard
 
@@ -170,6 +173,8 @@ Every automatic action has a bounded retry count. When the budget is exhausted, 
 |-----------|-------------|------------|
 | Stuck agent nudge | 1 | "{change} appears stuck at {stage}. Manual investigation recommended." |
 | Rebase conflict | 0 (never auto-resolve) | Immediately flag to user |
+| Pane death (non-autopilot) | 0 | Report: "Pane for {change} is gone." No respawn outside autopilot. |
+| Send to busy agent | 0 | Warn user, require explicit confirmation before sending |
 
 ---
 
@@ -209,6 +214,17 @@ Present the output to the user. Do NOT attempt to load the agent's spec, tasks, 
 
 When UC8 delegates here, the operator drives a queue of changes through the full pipeline — spawning agents, monitoring progress, merging PRs, and rebasing downstream changes.
 
+### Monitoring via `/loop`
+
+The operator itself stays reactive — it acts in response to input. Autopilot monitoring uses `/loop` to provide a periodic heartbeat:
+
+1. After confirming the queue and starting the first change, invoke `/loop 2m "check autopilot progress"`
+2. Each tick: re-derive state via `fab pane-map` → check current change → advance/flag/skip as needed
+3. On queue completion: report final summary and stop the loop
+4. On `"pause"`: stop the loop; on `"resume"`: restart it
+
+The user can still interject between ticks — interrupt commands (`"skip"`, `"stop after current"`) are processed immediately on the next prompt.
+
 ### Ordering Strategies
 
 The operator resolves queue order via one of three strategies:
@@ -216,7 +232,7 @@ The operator resolves queue order via one of three strategies:
 | Strategy | Description |
 |----------|-------------|
 | User-provided | Run in the exact order given by the user |
-| Confidence-based | Sort by confidence score descending (via `fab/.kit/bin/fab status show --all`). Highest-confidence changes merge first. |
+| Confidence-based | Sort by confidence score descending. Query each change via `fab/.kit/bin/fab status confidence <change>`. Highest-confidence changes merge first. |
 | Hybrid | User provides ordering constraints (partial order); operator sorts unconstrained changes by confidence as tiebreaker |
 
 ### Per-Change Autopilot Loop
@@ -238,7 +254,7 @@ For each change in the resolved queue:
 5. Merge        → gh pr merge from operator shell (destructive — already confirmed)
 6. Rebase next  → fab/.kit/bin/fab send-keys <next-change> "git fetch origin main && git rebase origin/main"
                    - conflict → flag to user, skip to next (never auto-resolve)
-7. Cleanup      → wt delete (optional, after merge)
+7. Cleanup      → wt delete <worktree-name> (optional, after merge)
 8. Progress     → report one-line status
 ```
 
