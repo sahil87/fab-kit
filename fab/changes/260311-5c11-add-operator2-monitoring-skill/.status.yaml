@@ -1,0 +1,37 @@
+id: 5c11
+name: 260311-5c11-add-operator2-monitoring-skill
+created: 2026-03-11T08:05:12Z
+created_by: sahil-weaver
+change_type: refactor
+issues: []
+progress:
+    intake: ready
+    spec: pending
+    tasks: pending
+    apply: pending
+    review: pending
+    hydrate: pending
+    ship: pending
+    review-pr: pending
+checklist:
+    generated: false
+    path: checklist.md
+    completed: 0
+    total: 0
+confidence:
+    certain: 9
+    confident: 1
+    tentative: 0
+    unresolved: 0
+    score: 4.7
+    indicative: true
+    fuzzy: true
+    dimensions:
+        signal: 91.0
+        reversibility: 88.0
+        competence: 90.5
+        disambiguation: 92.5
+stage_metrics:
+    intake: {started_at: "2026-03-11T08:05:12Z", driver: fab-new, iterations: 1}
+prs: []
+last_updated: 2026-03-11T08:09:17Z
