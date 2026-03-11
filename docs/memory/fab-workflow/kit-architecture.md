@@ -86,6 +86,7 @@ fab/.kit/
     ├── batch-fab-archive-change.sh  # Batch archive completed changes via tmux + Claude
     ├── batch-fab-new-backlog.sh     # Batch create changes from backlog via tmux + Claude
     ├── batch-fab-switch-change.sh   # Batch switch to changes via tmux + Claude
+    ├── fab-operator.sh     # Launch operator in singleton tmux tab ("operator1")
     ├── fab-doctor.sh       # Prerequisite checker (5 tools: git, bash, yq v4+, gh, direnv+hook)
     ├── fab-help.sh         # Print help overview
     ├── batch-pipeline.sh      # Entry point for the pipeline orchestrator (listing, matching, delegation)
@@ -203,6 +204,10 @@ Batch scripts follow the `batch-fab-{verb}-{entity}.sh` naming pattern (except p
 - **`batch-fab-new-backlog.sh`** — Per backlog ID: creates a worktree, opens a tmux tab, runs `/fab-new <description>`. Supports `--list` (show pending), `--all` (all pending), and direct ID arguments.
 - **`batch-fab-switch-change.sh`** — Per change name/ID: creates a worktree with the expected branch, opens a tmux tab, runs `/fab-switch <change>`. Supports `--list`, `--all`, substring matching. Uses `fab/.kit/bin/fab change resolve` for name resolution (via the dispatcher).
 - **`batch-fab-archive-change.sh`** — Per completed change (`hydrate:done|skipped`): runs `/fab-archive <change>` for each. Filters by reading `.status.yaml` for `hydrate: done|skipped`. Default (no arguments) archives all eligible (same as `--all`). Supports `--list` (preview), `--all`, and positional change arguments. Uses `fab/.kit/bin/fab change resolve` for name resolution (via the dispatcher).
+
+#### Launcher Scripts
+
+- **`fab-operator.sh`** — Singleton launcher for the operator skill. Creates a tmux tab named `operator1` running `claude --dangerously-skip-permissions '/fab-operator1'`. If the tab already exists, switches to it instead of creating a duplicate. Requires an active tmux/byobu session.
 
 ### Agent Skill Deployment
 

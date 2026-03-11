@@ -179,7 +179,7 @@ Steps execute 1→3 for safety. If interrupted, re-run detects folder already in
 
 ### `/fab-operator1` (Standalone Coordination Skill)
 
-`/fab-operator1` is a standalone coordination skill — NOT a pipeline stage. It runs as a long-lived Claude session in a dedicated tmux pane. It is user-driven (not a daemon or polling loop): waits for user input, acts, reports back. It handles cross-agent coordination only — it is NOT a lifecycle enforcer (individual agents self-govern via their own pipeline skills).
+`/fab-operator1` is a standalone coordination skill — NOT a pipeline stage. It runs as a long-lived Claude session in a dedicated tmux pane. It is user-driven (not a daemon or polling loop): waits for user input, acts, reports back. It handles cross-agent coordination only — it is NOT a lifecycle enforcer (individual agents self-govern via their own pipeline skills). Launch via `fab/.kit/scripts/fab-operator.sh` — a singleton launcher that creates (or switches to) a tmux tab named `operator1` running `claude --dangerously-skip-permissions '/fab-operator1'`.
 
 #### Context Loading
 
