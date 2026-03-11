@@ -18,3 +18,10 @@
 {"event":"review","result":"passed","ts":"2026-03-11T07:34:36Z"}
 {"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"ship","ts":"2026-03-11T07:35:33Z"}
 {"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"review-pr","ts":"2026-03-11T07:36:55Z"}
+{"delta":"+0.0","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-03-11T07:44:48Z"}
+{"delta":"+0.0","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-03-11T07:44:54Z"}
+{"delta":"+0.0","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-03-11T07:45:01Z"}
+{"delta":"+0.0","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-03-11T07:45:04Z"}
+{"delta":"+0.0","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-03-11T07:45:14Z"}
+{"delta":"+0.0","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-03-11T07:45:21Z"}
+{"delta":"+0.0","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-03-11T07:45:25Z"}

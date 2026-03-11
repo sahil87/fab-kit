@@ -18,12 +18,12 @@
 `docs/specs/packages.md` SHALL be rewritten to accurately describe the current CLI tool architecture:
 
 1. **wt** MUST be described as a Go binary at `fab/.kit/bin/wt`, not as shell scripts in `fab/.kit/packages/wt/`
-2. **idea** MUST be described as a Go binary at `fab/.kit/bin/idea` (also available as `fab idea` via the dispatcher), with the shell package at `fab/.kit/packages/idea/bin/idea` retained for rollback safety
+2. **idea** MUST be described as a Go binary at `fab/.kit/bin/idea` (standalone binary added to PATH by `env-packages.sh`)
 3. The `wt` binary SHALL use subcommand style (`wt create`, `wt list`, etc.), NOT hyphenated executables (`wt-create`, `wt-list`)
 4. The spec SHALL document that `wt pr` was dropped (replaced by `/git-pr`)
 5. References to `lib/wt-common.sh` SHALL be removed (deleted shared library)
-6. The Package Architecture section SHALL reflect that only the `idea` shell package remains in `fab/.kit/packages/`; the `wt` package directory was removed entirely
-7. PATH setup SHALL describe `env-packages.sh` adding `$KIT_DIR/bin` to PATH first (making `fab`, `wt`, `idea` binaries available), then iterating `packages/*/bin` for remaining shell packages
+6. The Package Architecture section SHALL reflect that `fab/.kit/packages/` no longer exists; both `wt` and `idea` are Go binaries in `fab/.kit/bin/`
+7. PATH setup SHALL describe `env-packages.sh` adding `$KIT_DIR/bin` to PATH first (making `fab`, `wt`, `idea` binaries available), then iterating `packages/*/bin` for any future shell packages
 
 #### Scenario: Agent consults packages.md for wt architecture
 - **GIVEN** an agent reads `docs/specs/packages.md` for context on the wt tool
@@ -34,32 +34,23 @@
 #### Scenario: Agent consults packages.md for idea architecture
 - **GIVEN** an agent reads `docs/specs/packages.md` for context on the idea tool
 - **WHEN** the agent extracts the tool's location and invocation paths
-- **THEN** it finds idea described as a Go binary at `fab/.kit/bin/idea` (preferred) with a fallback shell package at `fab/.kit/packages/idea/bin/idea`
-- **AND** it learns that `idea` is also available as `fab idea` via the dispatcher
+- **THEN** it finds idea described as a Go binary at `fab/.kit/bin/idea` (added to PATH by `env-packages.sh`)
 
 #### Scenario: Agent consults packages.md for PATH setup
 - **GIVEN** an agent reads the PATH setup section of `docs/specs/packages.md`
 - **WHEN** it determines how `wt` and `idea` become available on PATH
 - **THEN** it finds that `env-packages.sh` adds `$KIT_DIR/bin` to PATH (providing `fab`, `wt`, `idea` binaries)
-- **AND** then iterates `$KIT_DIR/packages/*/bin` for remaining shell packages (currently: `idea` only)
+- **AND** then iterates `$KIT_DIR/packages/*/bin` for any future shell packages
 
 ### Requirement: Accurate Packages Directory Structure
 
-The spec SHALL accurately describe the `fab/.kit/packages/` directory structure:
-
-```
-fab/.kit/packages/
-└── idea/
-    └── bin/idea              # Shell package (retained for rollback)
-```
-
-The `wt/` subdirectory SHALL NOT be listed (removed when wt became a Go binary).
+The spec SHALL reflect that `fab/.kit/packages/` no longer exists. All tools (`fab`, `wt`, `idea`) are in `fab/.kit/bin/`. The `env-packages.sh` script still iterates `packages/*/bin` for forward compatibility, but the directory is not present in the current repo.
 
 #### Scenario: Agent checks what exists in packages/
 - **GIVEN** an agent consults `docs/specs/packages.md` for the directory structure
 - **WHEN** it reads the Package Architecture section
-- **THEN** it sees only `idea/bin/idea` under `fab/.kit/packages/`
-- **AND** no `wt/` directory or `lib/wt-common.sh` is listed
+- **THEN** it sees all binaries listed under `fab/.kit/bin/` only
+- **AND** no `fab/.kit/packages/` directory is referenced as currently existing
 
 ## Specs: Naming Convention Fixes
 
@@ -138,7 +129,7 @@ The `lib/env-packages.sh` description SHALL explicitly note that `wt` is a Go bi
 - **GIVEN** an agent reads the `lib/env-packages.sh` section of kit-architecture.md
 - **WHEN** it checks how `wt` becomes available on PATH
 - **THEN** it learns that `wt` is a Go binary in `$KIT_DIR/bin/`
-- **AND** the `packages/*/bin` iteration is described as providing remaining shell packages only
+- **AND** the `packages/*/bin` iteration is described as providing any future shell packages (none currently exist)
 
 ## Deprecated Requirements
 
@@ -170,7 +161,7 @@ The `lib/env-packages.sh` description SHALL explicitly note that `wt` is a Go bi
 | 2 | Certain | idea is a Go binary at `fab/.kit/bin/idea` | Confirmed from intake #2 — verified by consistency check | S:95 R:90 A:95 D:95 |
 | 3 | Certain | 7 lib/ shell scripts were deleted in 260305-u8t9 | Confirmed from intake #3 — changelog confirms | S:95 R:90 A:95 D:95 |
 | 4 | Certain | `wt pr` subcommand was dropped | Confirmed from intake #4 — replaced by `/git-pr` | S:90 R:85 A:90 D:95 |
-| 5 | Certain | idea shell package retained at packages/idea/ for rollback | Confirmed from intake #5 — memory confirms | S:90 R:85 A:90 D:90 |
+| 5 | Certain | idea is a standalone Go binary; no shell package exists | Confirmed — `fab/.kit/packages/` directory does not exist in repo | S:90 R:85 A:90 D:90 |
 | 6 | Certain | wt uses subcommands not hyphenated executables | Confirmed from intake #6 — Go binary verified | S:95 R:90 A:95 D:95 |
 | 7 | Confident | packages.md needs full rewrite, not incremental fixes | Confirmed from intake #7 — structural mismatch too deep for line edits | S:80 R:75 A:80 D:75 |
 | 8 | Certain | kit-scripts.md should be deleted, not rewritten | Confirmed from intake #8 — user confirmed _scripts.md is canonical | S:95 R:80 A:95 D:95 |

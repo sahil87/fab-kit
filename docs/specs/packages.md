@@ -85,7 +85,7 @@ A shell function wrapper like Option 3 works because functions execute in the ca
 
 The idea command manages a per-repo backlog stored in `fab/backlog.md`. It's a lightweight CRUD tool for capturing, triaging, and tracking ideas before they become fab changes.
 
-**Binary**: `fab/.kit/bin/idea` (Go binary, included in per-platform release archives). Also available as `fab idea` via the dispatcher. A shell package at `fab/.kit/packages/idea/bin/idea` is retained for rollback safety.
+**Binary**: `fab/.kit/bin/idea` (Go binary, included in per-platform release archives; added to PATH as `idea` by `env-packages.sh` during workspace setup).
 
 ### Commands
 
@@ -132,7 +132,7 @@ batch-fab-new-backlog --all   # Create changes from all open ideas
 
 ## Package Architecture
 
-The `fab/.kit/bin/` directory contains compiled Go binaries (`fab`, `wt`, `idea`) that are added to PATH by `env-packages.sh`. The `fab/.kit/packages/` directory retains the legacy `idea` shell package for rollback safety:
+The `fab/.kit/bin/` directory contains the shell dispatcher and compiled Go binaries, all added to PATH by `env-packages.sh`:
 
 ```
 fab/.kit/bin/
@@ -140,14 +140,10 @@ fab/.kit/bin/
 ├── fab-go              # Go binary backend (optional, platform-specific)
 ├── fab-rust            # Rust binary backend (optional, built locally)
 ├── wt                  # Go binary — worktree management
-├── idea                # Go binary — backlog management (symlink or copy)
+├── idea                # Go binary — backlog management
 └── .gitkeep
-
-fab/.kit/packages/
-└── idea/
-    └── bin/idea        # Shell package (retained for rollback safety)
 ```
 
-**PATH setup**: `fab/.kit/scripts/lib/env-packages.sh` adds `$KIT_DIR/bin` to PATH first (making `fab`, `wt`, and `idea` Go binaries available), then iterates `$KIT_DIR/packages/*/bin` and adds each existing directory to PATH (making remaining shell packages available — currently only `idea`). This script is sourced by `.envrc` (for direnv-based projects) and can be sourced from shell rc files.
+**PATH setup**: `fab/.kit/scripts/lib/env-packages.sh` adds `$KIT_DIR/bin` to PATH (making the `fab` dispatcher, `wt`, and `idea` binaries available), then iterates `$KIT_DIR/packages/*/bin` and adds each existing directory to PATH (for any future shell packages). This script is sourced by `.envrc` (for direnv-based projects) and can be sourced from shell rc files.
 
-**Distribution**: Go binaries are included in per-platform release archives (`kit-{os}-{arch}.tar.gz`). The generic `kit.tar.gz` does not include binaries. The `idea` shell package ships with `kit.tar.gz` alongside skills and templates — same lifecycle as other kit content. `fab-upgrade.sh` replaces `packages/` atomically alongside skills and templates.
+**Distribution**: Go binaries are included in per-platform release archives (`kit-{os}-{arch}.tar.gz`). The generic `kit.tar.gz` is source-only: it contains skills, templates, and supporting scripts/configuration, but no compiled binaries. `fab-upgrade.sh` updates kit content atomically alongside skills and templates.
