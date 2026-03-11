@@ -1,0 +1,4 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-11T07:36:32Z"}
+{"args":"Fix fab-operator1 skill to use pane-map Agent column for idle state instead of fab runtime is-idle","cmd":"fab-new","event":"command","ts":"2026-03-11T07:36:32Z"}
+{"delta":"+5.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-03-11T07:37:11Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-03-11T07:37:23Z"}
