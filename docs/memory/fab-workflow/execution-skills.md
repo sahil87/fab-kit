@@ -191,7 +191,7 @@ On invocation, the operator displays the pane map (via `fab pane-map` — column
 
 #### State Re-derivation
 
-The operator MUST re-query live state (`fab pane-map`) before every action. It SHALL NOT rely on stale values from conversation memory. `fab pane-map` is the sole observation mechanism; the Agent column provides per-agent idle state for pre-send validation.
+The operator MUST re-query live state before every action (`fab pane-map` in tmux sessions, `fab status show --all` when running outside tmux). It SHALL NOT rely on stale values from conversation memory. Within tmux, `fab pane-map` is the primary observation mechanism; the Agent column provides per-agent idle state for pre-send validation.
 
 #### Use Cases
 
@@ -350,7 +350,7 @@ When UC8 delegates here, the operator drives a queue of changes through the full
 
 | Change | Date | Summary |
 |--------|------|---------|
-| 260311-ftrh-drop-runtime-idle-from-operator | 2026-03-11 | Removed all `fab runtime is-idle` references from `/fab-operator1` description. The operator now uses the pane-map Agent column exclusively for idle detection — `fab runtime is-idle` read the wrong worktree's `.fab-runtime.yaml` when called from the operator's pane. Updated state re-derivation, UC6 (unstick), pre-send validation, autopilot per-change loop, and two prior changelog entries (b8ff, qkov). |
+| 260311-ftrh-drop-runtime-idle-from-operator | 2026-03-11 | Removed all `fab runtime is-idle` references from `/fab-operator1` description. The operator now uses the pane-map Agent column exclusively for idle detection — `fab runtime is-idle` reads the wrong worktree's `.fab-runtime.yaml` when called from the operator's pane. Updated state re-derivation, UC6 (unstick), pre-send validation, autopilot per-change loop, and two prior changelog entries (b8ff, qkov). |
 | 260310-1ttn-operator-autopilot-uc8 | 2026-03-11 | Added UC8 (Autopilot) to `/fab-operator1`: drives a queue of changes through the full pipeline with per-change spawn, gate check, monitoring, merge, and rebase-next loop. Three ordering strategies (user-provided, confidence-based, hybrid). Failure matrix with 6 failure types. Interruptibility (stop/skip/pause/resume). Session-resumable via `fab pane-map`. Queue state held in conversation context (v1). "Seven Use Cases" heading renamed to "Use Cases". Confirmation model updated to include autopilot as destructive. |
 | 260310-b8ff-operator-observation-fixes | 2026-03-10 | Updated `/fab-operator1` observation model: pane-map is now the sole primary observation mechanism (session-scoped via `-s`, 6 columns: Pane, Tab, Worktree, Change, Stage, Agent). `fab status show --all` retained only as outside-tmux fallback. State re-derivation uses `fab pane-map` (replacing `fab status show --all`). Pre-send validation uses the Agent column in the pane map. |
 | 260307-8ggm-git-pr-ship-finish-ordering | 2026-03-07 | Fixed git-pr post-PR step ordering: reordered as 4a (record PR URL) → 4b (finish ship stage) → 4c (commit+push .status.yaml and .history.jsonl) → 4d (write .pr-done sentinel). All status mutations now occur before the commit boundary, preventing uncommitted fab state files in the working tree after PR creation. Steps renumbered from 4/4b/4c/4d to 4a/4b/4c/4d. |

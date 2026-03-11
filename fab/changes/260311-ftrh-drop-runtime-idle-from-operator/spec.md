@@ -95,20 +95,19 @@ The operator spec (`docs/specs/skills/SPEC-fab-operator1.md`) SHALL be updated t
 - **WHEN** an agent reads the table
 - **THEN** there is no row for `fab runtime is-idle`
 
-### Requirement: Eight specific edits SHALL be applied to the operator spec
+### Requirement: Seven specific edits SHALL be applied to the operator spec
 
 The following edits SHALL be applied to `docs/specs/skills/SPEC-fab-operator1.md`:
 
-1. **Summary (line ~5)**: Remove `fab runtime` from the observation primitives list
+1. **Summary (line ~5)**: Remove `fab runtime` from the observation primitives list and replace "via `fab pane-map` and `fab runtime`" with "via `fab pane-map`"
 2. **Primitives table (line ~18)**: Remove the `fab runtime is-idle` row entirely
 3. **Per-change loop (line ~151)**: Remove `fab runtime is-idle` from monitoring step
 4. **Pre-send validation (line ~223)**: Replace `runtime is-idle` with pane-map Agent column
 5. **Always re-derive state (line ~243)**: Remove `fab runtime is-idle` from the list
 6. **Agent busy detection (line ~314)**: Replace `fab runtime is-idle` with pane-map Agent column
 7. **Relationship table (line ~329)**: Remove the `fab runtime is-idle` row
-8. **Summary observation text (line ~5)**: Replace "via `fab pane-map` and `fab runtime`" with "via `fab pane-map`"
 
-#### Scenario: All eight edits applied
+#### Scenario: All seven edits applied
 
 - **GIVEN** the operator spec file after edits
 - **WHEN** searching for the string `runtime is-idle` or `fab runtime`
@@ -131,6 +130,6 @@ The following edits SHALL be applied to `docs/specs/skills/SPEC-fab-operator1.md
 | 2 | Certain | No changes to fab runtime CLI | Confirmed from intake #2 — YAGNI, hooks use CWD-local runtime correctly | S:90 R:95 A:90 D:90 |
 | 3 | Certain | No behavioral change to operator policy | Confirmed from intake #3 — idle checking still happens, data source changes | S:90 R:95 A:95 D:95 |
 | 4 | Certain | Update spec alongside skill per constitution | Confirmed from intake #4 — constitution mandates parallel spec updates | S:95 R:80 A:95 D:95 |
-| 5 | Certain | No grep residue after edits | Codebase search confirms all `runtime is-idle` references in these two files only | S:90 R:90 A:90 D:95 |
+| 5 | Certain | No grep residue in operator skill/spec after edits | Search of operator skill and spec confirms all `runtime is-idle` references removed; remaining matches are only in archived/architecture docs | S:90 R:90 A:90 D:95 |
 
 5 assumptions (5 certain, 0 confident, 0 tentative, 0 unresolved).
