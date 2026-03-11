@@ -1,31 +1,34 @@
 # Packages
 
-Fab Kit ships two standalone CLI packages alongside the skill-based pipeline. Unlike skills (which are Claude Code prompts invoked via `/`), packages are plain shell scripts that run directly in the terminal — no AI agent required.
+Fab Kit ships two standalone CLI tools alongside the skill-based pipeline. Unlike skills (which are Claude Code prompts invoked via `/`), these are compiled Go binaries that run directly in the terminal — no AI agent required.
 
-Both packages live inside `fab/.kit/packages/` and are added to PATH via `env-packages.sh` during workspace setup. They complement the fab pipeline: **wt** provides the worktree isolation that enables parallel changes, and **idea** provides the backlog that feeds `/fab-new`.
+Both binaries live inside `fab/.kit/bin/` and are added to PATH via `env-packages.sh` during workspace setup. They complement the fab pipeline: **wt** provides the worktree isolation that enables parallel changes, and **idea** provides the backlog that feeds `/fab-new`.
 
 ---
 
 ## wt (Worktree Management)
 
-Git worktrees let you have multiple checkouts of the same repository side by side. The wt package wraps `git worktree` with opinionated defaults for the fab workflow: worktrees are created as siblings in `<repo>.worktrees/`, names are memorable random words, and each worktree can run its own fab change independently.
+Git worktrees let you have multiple checkouts of the same repository side by side. The wt binary wraps `git worktree` with opinionated defaults for the fab workflow: worktrees are created as siblings in `<repo>.worktrees/`, names are memorable random words, and each worktree can run its own fab change independently.
+
+**Binary**: `fab/.kit/bin/wt` (Go binary, included in per-platform release archives)
 
 ### Commands
 
 | Command | Description |
 |---------|-------------|
-| `wt-create` | Create a git worktree for parallel development |
-| `wt-list` | List all git worktrees for the current repository |
-| `wt-open` | Open a git worktree in an editor, terminal, or file manager |
-| `wt-delete` | Delete a git worktree with optional branch cleanup |
-| `wt-init` | Run the init script for the current worktree |
-| `wt-pr` | Create a git worktree for reviewing a GitHub pull request |
+| `wt create` | Create a git worktree for parallel development |
+| `wt list` | List all git worktrees for the current repository |
+| `wt open` | Open a git worktree in an editor, terminal, or file manager |
+| `wt delete` | Delete a git worktree with optional branch cleanup |
+| `wt init` | Run the init script for the current worktree |
 
-Run `<command> help` for full usage details.
+Run `wt <command> --help` for full usage details.
+
+> **Note**: `wt pr` was dropped — pull request creation is handled by `/git-pr`.
 
 ### Integration with Fab
 
-The wt package is the foundation of the [assembly-line pattern](assembly-line.md). Each fab change gets its own worktree, enabling parallel AI sessions — one tmux tab per change, zero conflicts between them.
+The wt binary is the foundation of the [assembly-line pattern](assembly-line.md). Each fab change gets its own worktree, enabling parallel AI sessions — one tmux tab per change, zero conflicts between them.
 
 The batch scripts orchestrate this at scale:
 
@@ -37,48 +40,42 @@ The batch scripts orchestrate this at scale:
 
 **Start a new change in isolation:**
 ```bash
-wt-create                    # Creates a worktree with a random name
+wt create                    # Creates a worktree with a random name
 cd ../repo.worktrees/name/   # Enter the worktree
 # Work on your change — main repo is untouched
 ```
 
-**Review a pull request:**
-```bash
-wt-pr 42                     # Creates a worktree checked out to PR #42's branch
-# Review, test, comment — then wt-delete to clean up
-```
-
 **Clean up when done:**
 ```bash
-wt-delete                    # Removes the worktree and optionally its branch
+wt delete                    # Removes the worktree and optionally its branch
 ```
 
 ### Why wt-open Cannot cd in the Current Shell
 
-A frequently requested feature is a "cd here" option in `wt-open` that changes the calling shell's working directory to the worktree path. This is not possible due to a fundamental Unix process model constraint.
+A frequently requested feature is a "cd here" option in `wt open` that changes the calling shell's working directory to the worktree path. This is not possible due to a fundamental Unix process model constraint.
 
-**The constraint**: Every shell command (including `wt-open` and `wt-create`) runs as a **child process** of the calling shell. A child process has its own working directory that is independent of its parent. When the child exits, the parent's working directory is unchanged — there is no mechanism for a child process to modify its parent's environment.
+**The constraint**: Every shell command (including `wt open` and `wt create`) runs as a **child process** of the calling shell. A child process has its own working directory that is independent of its parent. When the child exits, the parent's working directory is unchanged — there is no mechanism for a child process to modify its parent's environment.
 
-This is not a limitation of `wt-open` specifically — it applies to all executables on Unix systems. Only code that runs **within** the shell process itself (shell builtins like `cd`, and shell functions defined via `source` or `.`) can change the shell's working directory.
+This is not a limitation of `wt open` specifically — it applies to all executables on Unix systems. Only code that runs **within** the shell process itself (shell builtins like `cd`, and shell functions defined via `source` or `.`) can change the shell's working directory.
 
 **Workarounds**: Users who want to navigate to a worktree in their current shell can use:
 
 ```bash
-# Option 1: Use command substitution with wt-create's stdout path
-cd "$(wt-create --non-interactive)"
+# Option 1: Use command substitution with wt create's stdout path
+cd "$(wt create --non-interactive)"
 
-# Option 2: Copy path from wt-open's "Copy path" menu option, then paste
+# Option 2: Copy path from wt open's "Copy path" menu option, then paste
 cd <paste>
 
 # Option 3: Define a shell function in your .bashrc/.zshrc
 wt-cd() {
     local path
-    path=$(wt-list --path "${1:?worktree name required}") || return $?
+    path=$(wt list --path "${1:?worktree name required}") || return $?
     cd "$path" || return $?
 }
 ```
 
-A shell function wrapper like Option 3 works because functions execute in the calling shell's process, not as a child. The function delegates path resolution to `wt-list --path` (which runs as a child) but executes `cd` in the parent shell's context.
+A shell function wrapper like Option 3 works because functions execute in the calling shell's process, not as a child. The function delegates path resolution to `wt list --path` (which runs as a child) but executes `cd` in the parent shell's context.
 
 **Why we don't ship a shell function**: Shipping a `wt-cd` function would require users to `source` a file from their shell rc (`.bashrc`/`.zshrc`), which is a different distribution model than the current PATH-based approach. `env-packages.sh` adds `bin/` directories to PATH — it doesn't define shell functions. Mixing the two models adds complexity for a convenience that can be achieved with a 4-line function in the user's own rc file.
 
@@ -88,11 +85,13 @@ A shell function wrapper like Option 3 works because functions execute in the ca
 
 The idea command manages a per-repo backlog stored in `fab/backlog.md`. It's a lightweight CRUD tool for capturing, triaging, and tracking ideas before they become fab changes.
 
+**Binary**: `fab/.kit/bin/idea` (Go binary, included in per-platform release archives; added to PATH as `idea` by `env-packages.sh` during workspace setup).
+
 ### Commands
 
 | Command | Description |
 |---------|-------------|
-| `idea "text"` | Add a new idea to the backlog |
+| `idea add "text"` | Add a new idea to the backlog |
 | `idea list` | List open (uncompleted) ideas |
 | `idea show <query>` | Show a single idea matching the query |
 | `idea done <query>` | Mark an idea as done |
@@ -106,7 +105,7 @@ Each idea gets a short 4-character ID (e.g., `[a7k2]`) and a timestamp. Queries 
 
 The idea → fab pipeline:
 
-1. **Capture**: `idea "add retry logic to API client"` — appends to `fab/backlog.md`
+1. **Capture**: `idea add "add retry logic to API client"` — appends to `fab/backlog.md`
 2. **Triage**: `idea list` — review open ideas, decide what to build next
 3. **Start work**: `/fab-new` can accept a backlog ID to create a change from an idea, pulling the description directly from the backlog
 4. **Close**: `idea done a7k2` — marks the idea as completed after the change ships
@@ -117,9 +116,9 @@ The `batch-fab-new-backlog` script automates step 3 at scale — it reads all op
 
 **Capture ideas throughout the day:**
 ```bash
-idea "refactor auth middleware to use JWT"
-idea "add rate limiting to public endpoints"
-idea "update README with new setup instructions"
+idea add "refactor auth middleware to use JWT"
+idea add "add rate limiting to public endpoints"
+idea add "update README with new setup instructions"
 ```
 
 **Triage and start work:**
@@ -133,19 +132,18 @@ batch-fab-new-backlog --all   # Create changes from all open ideas
 
 ## Package Architecture
 
-Packages live inside `fab/.kit/packages/`, which means they ship with `kit.tar.gz` and are replaced on `fab-upgrade.sh` runs — same lifecycle as skills and templates.
+The `fab/.kit/bin/` directory contains the shell dispatcher and compiled Go binaries, all added to PATH by `env-packages.sh`:
 
 ```
-fab/.kit/packages/
-├── idea/
-│   └── bin/idea              # Single executable
-└── wt/
-    ├── bin/                  # Executables (wt-create, wt-list, wt-open, wt-delete, wt-init, wt-pr)
-    └── lib/wt-common.sh      # Shared library (sourced by bin/ scripts)
+fab/.kit/bin/
+├── fab                 # Shell dispatcher (entry point for all fab CLI operations)
+├── fab-go              # Go binary backend (optional, platform-specific)
+├── fab-rust            # Rust binary backend (optional, built locally)
+├── wt                  # Go binary — worktree management
+├── idea                # Go binary — backlog management
+└── .gitkeep
 ```
 
-**Convention**: Each package has a `bin/` directory containing executable commands. Packages with shared logic use a `lib/` directory for sourceable libraries. Commands in `bin/` are the public interface; `lib/` is internal.
+**PATH setup**: `fab/.kit/scripts/lib/env-packages.sh` adds `$KIT_DIR/bin` to PATH (making the `fab` dispatcher, `wt`, and `idea` binaries available), then iterates `$KIT_DIR/packages/*/bin` and adds each existing directory to PATH (for any future shell packages). This script is sourced by `.envrc` (for direnv-based projects) and can be sourced from shell rc files.
 
-**PATH setup**: `fab/.kit/scripts/lib/env-packages.sh` iterates all `fab/.kit/packages/*/bin` directories and adds them to PATH. This script is sourced by `.envrc` (for direnv-based projects) and can be sourced from shell rc files.
-
-**Distribution**: Packages are part of the kit archive — `fab-release.sh` packages them into `kit.tar.gz`, and `fab-upgrade.sh` replaces them atomically alongside skills and templates. No separate installation step.
+**Distribution**: Go binaries are included in per-platform release archives (`kit-{os}-{arch}.tar.gz`). The generic `kit.tar.gz` is source-only: it contains skills, templates, and supporting scripts/configuration, but no compiled binaries. `fab-upgrade.sh` updates kit content atomically alongside skills and templates.

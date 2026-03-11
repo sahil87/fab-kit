@@ -39,7 +39,7 @@ The directory name for filesystem-isolated worktrees.
 |-------|-------|
 | **Pattern** | `{adjective}-{noun}` |
 | **Example** | `swift-fox` |
-| **Encoded in** | `wt-create` (`fab/.kit/packages/wt/bin/wt-create`) |
+| **Encoded in** | `wt create` (`fab/.kit/bin/wt`) |
 
 Random adjective-noun combo from predefined word lists. Can be overridden with `--worktree-name`. Worktrees are created at `$(dirname {repo_root})/{repo_name}.worktrees/`.
 
@@ -63,7 +63,7 @@ The format for items in the local backlog (`fab/backlog.md`).
 |-------|-------|
 | **Pattern** | `- [ ] [{ID}] [{issue_ids}] {YYYY-MM-DD}: {description}` (issue IDs are optional) |
 | **Example** | `- [ ] [ni3o] [DEV-1011] 2026-02-12: Capture more metrics` or `- [ ] [ngaw] 2026-02-23: Quality gate` |
-| **Encoded in** | `idea` command (`fab/.kit/packages/wt/` — backlog management) |
+| **Encoded in** | `idea` command (`fab/.kit/bin/idea` — backlog management) |
 
 Components:
 - `[{ID}]` — 4-char alphanumeric backlog ID
