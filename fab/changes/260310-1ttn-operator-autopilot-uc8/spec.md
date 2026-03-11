@@ -101,7 +101,7 @@ For each change in the resolved queue, the operator SHALL execute the following 
 5. **On success**: `gh pr merge` from operator shell (destructive — already confirmed at start)
 6. **Rebase next**: `fab send-keys <next-change> "git fetch origin main && git rebase origin/main"`
    - If conflict → flag to user, skip to next (never auto-resolve)
-7. **Cleanup**: `wt-delete` (optional, after merge)
+7. **Cleanup**: `wt delete` (optional, after merge)
 8. **Progress**: Report one-line status
 
 #### Scenario: Successful change through autopilot

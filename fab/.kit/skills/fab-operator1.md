@@ -216,7 +216,7 @@ The operator resolves queue order via one of three strategies:
 | Strategy | Description |
 |----------|-------------|
 | User-provided | Run in the exact order given by the user |
-| Confidence-based | Sort by confidence score descending (via `fab status show --all`). Highest-confidence changes merge first. |
+| Confidence-based | Sort by confidence score descending (via `fab/.kit/bin/fab status show --all`). Highest-confidence changes merge first. |
 | Hybrid | User provides ordering constraints (partial order); operator sorts unconstrained changes by confidence as tiebreaker |
 
 ### Per-Change Autopilot Loop
@@ -227,18 +227,18 @@ For each change in the resolved queue:
 1. Spawn        → wt create --non-interactive
 2. Open tab     → tmux new-window -n "fab-<id>" -c <worktree> \
                    "claude --dangerously-skip-permissions '/fab-switch <change>'"
-3. Gate check   → fab status show <change>
-                   - confidence >= gate → fab send-keys <change> "/fab-ff"
+3. Gate check   → fab/.kit/bin/fab status show <change>
+                   - confidence >= gate → fab/.kit/bin/fab send-keys <change> "/fab-ff"
                    - confidence < gate  → flag to user with score and threshold
-4. Monitor      → poll fab pane-map + fab runtime is-idle on each user interaction
+4. Monitor      → poll fab/.kit/bin/fab pane-map + fab/.kit/bin/fab runtime is-idle on each user interaction
                    - stage reaches hydrate/ship → change succeeded
                    - review fails after rework budget → flag and skip
                    - agent idle >15 min at non-terminal stage → nudge once, then flag
                    - pane dies → flag and skip
 5. Merge        → gh pr merge from operator shell (destructive — already confirmed)
-6. Rebase next  → fab send-keys <next-change> "git fetch origin main && git rebase origin/main"
+6. Rebase next  → fab/.kit/bin/fab send-keys <next-change> "git fetch origin main && git rebase origin/main"
                    - conflict → flag to user, skip to next (never auto-resolve)
-7. Cleanup      → wt-delete (optional, after merge)
+7. Cleanup      → wt delete (optional, after merge)
 8. Progress     → report one-line status
 ```
 
