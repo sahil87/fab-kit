@@ -11,7 +11,7 @@ description: "Multi-agent coordination in tmux — observe agents via pane-map a
 
 ## Purpose
 
-Multi-agent coordination layer that runs in a dedicated tmux pane. Observes all running fab agents via `fab pane-map` and `fab runtime`, and interacts with them via `fab send-keys`. Translates natural-language user instructions into cross-agent actions: broadcasting commands, sequencing rebases, spawning new worktrees, and merging PRs.
+Multi-agent coordination layer that runs in a dedicated tmux pane. Observes all running fab agents via `fab pane-map`, and interacts with them via `fab send-keys`. Translates natural-language user instructions into cross-agent actions: broadcasting commands, sequencing rebases, spawning new worktrees, and merging PRs.
 
 Not a lifecycle enforcer — individual agents already know their pipeline. The operator handles coordination that requires cross-agent awareness.
 
@@ -77,7 +77,6 @@ Then run `fab/.kit/bin/fab status show --all` for status queries only. `fab send
 Before **every** action, re-query live state:
 
 - `fab/.kit/bin/fab pane-map` — current pane-to-change mapping with stage and agent state
-- `fab/.kit/bin/fab runtime is-idle <change>` — check specific agent's idle state (for pre-send validation)
 
 Never rely on stale values from conversation memory. If a pane died or a change advanced since the last check, the operator must know.
 
@@ -90,7 +89,7 @@ Each use case follows the pattern: **interpret user intent** then **refresh stat
 ### UC1: Broadcast command to all idle agents
 
 1. Refresh pane map
-2. Filter for idle agents (via `fab runtime` state in the pane map)
+2. Filter for idle agents (via the Agent column in the pane map)
 3. Announce: "Sending {command} to {change1} (%N), {change2} (%M)"
 4. For each idle agent: `fab/.kit/bin/fab send-keys <change> "<command>"`
 5. Report: "Done. {N} agents received {command}."
@@ -122,7 +121,7 @@ Each use case follows the pattern: **interpret user intent** then **refresh stat
 
 ### UC6: Unstick a stuck agent
 
-1. Confirm the target agent is idle via `fab/.kit/bin/fab runtime`
+1. Confirm the target agent is idle via the Agent column in the pane map
 2. Announce: "Sending /fab-continue to {change} (%N)"
 3. Send `/fab-continue` via `fab/.kit/bin/fab send-keys <change> "/fab-continue"`
 4. Report the send
@@ -161,7 +160,7 @@ Actions are categorized into three risk tiers:
 Before sending keys to any pane via `fab send-keys`, the operator MUST:
 
 1. **Verify pane exists**: Refresh the pane map. If the target pane is gone, report: "Pane for {change} is gone (agent exited or tab closed)." Do NOT attempt to send.
-2. **Check agent is idle**: Run `fab/.kit/bin/fab runtime is-idle <change>` or read the Agent column from the pane map. If the agent is not idle, warn: "{change} is currently active. Sending may corrupt its work. Send anyway?" Only send if the user confirms.
+2. **Check agent is idle**: Read the Agent column from the pane map. If the agent is not idle, warn: "{change} is currently active. Sending may corrupt its work. Send anyway?" Only send if the user confirms.
 
 ---
 
@@ -246,7 +245,7 @@ For each change in the resolved queue:
 3. Gate check   → fab/.kit/bin/fab status show <change>
                    - confidence >= gate → fab/.kit/bin/fab send-keys <change> "/fab-ff"
                    - confidence < gate  → flag to user with score and threshold
-4. Monitor      → poll fab/.kit/bin/fab pane-map + fab/.kit/bin/fab runtime is-idle on each user interaction
+4. Monitor      → poll fab/.kit/bin/fab pane-map on each user interaction
                    - stage reaches hydrate/ship → change succeeded
                    - review fails after rework budget → flag and skip
                    - agent idle >15 min at non-terminal stage → nudge once, then flag
