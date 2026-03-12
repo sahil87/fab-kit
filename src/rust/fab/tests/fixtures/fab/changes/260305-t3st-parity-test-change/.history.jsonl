@@ -1,2 +1,0 @@
-{"type":"command","cmd":"fab-new","change":"260305-t3st-parity-test-change","ts":"2026-03-05T10:00:00+05:30"}
-{"type":"transition","change":"260305-t3st-parity-test-change","stage":"intake","action":"start","to":"active","ts":"2026-03-05T10:00:00+05:30"}

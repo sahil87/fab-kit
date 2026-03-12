@@ -155,7 +155,6 @@ The `fab/.kit/bin/` directory contains the shell dispatcher and compiled Go bina
 fab/.kit/bin/
 ├── fab                 # Shell dispatcher (entry point for all fab CLI operations)
 ├── fab-go              # Go binary backend (optional, platform-specific)
-├── fab-rust            # Rust binary backend (optional, built locally)
 ├── wt                  # Go binary — worktree management
 ├── idea                # Go binary — backlog management
 └── .gitkeep
@@ -164,3 +163,9 @@ fab/.kit/bin/
 **PATH setup**: `fab/.kit/scripts/lib/env-packages.sh` adds `$KIT_DIR/bin` to PATH (making the `fab` dispatcher, `wt`, and `idea` binaries available), then iterates `$KIT_DIR/packages/*/bin` and adds each existing directory to PATH (for any future shell packages). This script is sourced by `.envrc` (for direnv-based projects) and can be sourced from shell rc files.
 
 **Distribution**: Go binaries are included in per-platform release archives (`kit-{os}-{arch}.tar.gz`). The generic `kit.tar.gz` is source-only: it contains skills, templates, and supporting scripts/configuration, but no compiled binaries. `fab-upgrade.sh` updates kit content atomically alongside skills and templates.
+
+## Changelog
+
+| Change | Date | Summary |
+|--------|------|---------|
+| 260312-96nf-remove-rust-implementation | 2026-03-12 | Removed `fab-rust` line from `fab/.kit/bin/` directory tree. |

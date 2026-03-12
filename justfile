@@ -1,7 +1,6 @@
 scripts := "src/scripts/just"
-rust_src := "src/rust/fab"
 
-# Run all tests with summary (excludes Rust)
+# Run all tests with summary
 test:
     just test-scripts
     just test-go
@@ -45,36 +44,10 @@ build-go-all:
     just build-go-target linux arm64
     just build-go-target linux amd64
 
-# Build everything for release (Go binaries only — use build-rust-all for Rust)
+# Build everything for release
 build-all:
     mkdir -p .release-build
     just build-go-all
-
-# Run Rust integration tests
-test-rust:
-    cargo test --manifest-path src/rust/fab/Cargo.toml
-
-# Build Rust binary for the current platform (local dev)
-build-rust:
-    cargo build --manifest-path {{rust_src}}/Cargo.toml --release
-    cp {{rust_src}}/target/release/fab fab/.kit/bin/fab-rust
-
-# Map os/arch pair to Rust target triple
-_rust-target os arch:
-    {{scripts}}/rust-target.sh {{os}} {{arch}}
-
-# Cross-compile Rust binary for a specific target triple
-build-rust-target target:
-    cargo zigbuild --manifest-path {{rust_src}}/Cargo.toml --release --target {{target}}
-    mkdir -p .release-build
-    cp {{rust_src}}/target/{{target}}/release/fab .release-build/fab-rust-{{target}}
-
-# Cross-compile Rust binary for all release targets
-build-rust-all:
-    just build-rust-target aarch64-apple-darwin
-    just build-rust-target x86_64-apple-darwin
-    just build-rust-target aarch64-unknown-linux-musl
-    just build-rust-target x86_64-unknown-linux-musl
 
 # Package kit archives for release (generic + per-platform with Go binaries)
 package-kit:
