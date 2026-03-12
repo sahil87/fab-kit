@@ -1,0 +1,37 @@
+id: wrk6
+name: 260312-wrk6-add-wt-create-base-flag
+created: 2026-03-12T06:29:26Z
+created_by: sahil-weaver
+change_type: feat
+issues: []
+progress:
+    intake: ready
+    spec: pending
+    tasks: pending
+    apply: pending
+    review: pending
+    hydrate: pending
+    ship: pending
+    review-pr: pending
+checklist:
+    generated: false
+    path: checklist.md
+    completed: 0
+    total: 0
+confidence:
+    certain: 2
+    confident: 4
+    tentative: 0
+    unresolved: 0
+    score: 3.8
+    indicative: true
+    fuzzy: true
+    dimensions:
+        signal: 84.2
+        reversibility: 86.7
+        competence: 82.5
+        disambiguation: 81.7
+stage_metrics:
+    intake: {started_at: "2026-03-12T06:29:26Z", driver: fab-new, iterations: 1}
+prs: []
+last_updated: 2026-03-12T06:30:44Z
