@@ -237,9 +237,9 @@ The operator sends commands to other agents via the `fab send-keys <change> "<te
 
 When UC8 delegates here, the operator drives a queue of changes through the full pipeline — spawning agents, monitoring progress, merging PRs, and rebasing downstream changes. Queue state is held in conversation context only (no file-backed persistence in v1).
 
-**Ordering strategies**: Three strategies resolve queue order: (1) user-provided — exact order as given; (2) confidence-based — sorted by confidence score descending via `fab status show --all`; (3) hybrid — user provides partial ordering constraints, operator sorts unconstrained changes by confidence as tiebreaker.
+**Ordering strategies**: Three strategies resolve queue order: (1) user-provided — exact order as given; (2) confidence-based — sorted by confidence score descending via `fab status confidence <change>`; (3) hybrid — user provides partial ordering constraints, operator sorts unconstrained changes by confidence as tiebreaker.
 
-**Per-change loop**: For each change in the resolved queue: spawn worktree tied to the change's branch (`wt create --non-interactive --reuse --worktree-name <change> <branch>`) → open tmux tab (`tmux new-window -n "fab-<id>" -c <worktree> "claude --dangerously-skip-permissions '/fab-switch <change>'"`) → gate check confidence (`fab status show <change>`; if >= gate, dispatch `/fab-ff` via `fab send-keys`; if < gate, flag to user) → monitor via `fab pane-map` on each user interaction → on success, merge PR from operator shell (`gh pr merge`) → rebase next change on main (`git fetch origin main && git rebase origin/main` via `fab send-keys`; conflict = flag and skip, never auto-resolve) → optional cleanup (`wt delete`) → report one-line status.
+**Per-change loop**: For each change in the resolved queue: spawn worktree (`wt create --non-interactive --reuse --worktree-name <change> <branch>`) → open tmux tab → gate check confidence (`fab status confidence <change>`; if >= gate, dispatch `/fab-ff` via `fab send-keys`; if < gate, flag to user) → monitor via `fab pane-map` on each tick → on success, merge PR from operator shell (`gh pr merge`) → rebase next change (`fab send-keys`; conflict = flag and skip, never auto-resolve) → optional cleanup (`wt delete`) → report one-line status.
 
 **Failure matrix**:
 
