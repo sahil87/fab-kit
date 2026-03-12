@@ -256,7 +256,7 @@ Run `fab/.kit/scripts/fab-upgrade.sh` to update to the latest release. The scrip
 
 Skill deployments in `.claude/skills/`, `.opencode/commands/`, `.agents/skills/`, and `.gemini/skills/` are refreshed by `fab-sync.sh` after the update. OpenCode symlinks resolve automatically; copies for Claude Code, Codex, and Gemini are re-copied.
 
-**Preserved** (lives outside `.kit/`): `config.yaml`, `constitution.md`, `docs/memory/`, `docs/specs/`, `changes/`, `current`, `.kit-migration-version`, `.kit-sync-version`
+**Preserved** (lives outside `.kit/`): `config.yaml`, `constitution.md`, `docs/memory/`, `docs/specs/`, `changes/`, `.fab-status.yaml`, `.kit-migration-version`, `.kit-sync-version`
 **Replaced** (lives inside `.kit/`): `templates/`, `skills/`, `scripts/`, `sync/`, `migrations/`, `packages/` (idea only — wt is now a binary in `bin/`), `bin/`, `VERSION`
 
 ### Portability
@@ -304,8 +304,7 @@ The sole backend for all fab CLI operations. A single Go binary at `fab/.kit/bin
 **Subcommands**:
 - `fab resolve [--id|--folder|--dir|--status] [<change>]`
 - `fab log command|confidence|review|transition ...`
-- `fab status start|advance|finish|reset|skip|fail|show|...` (all 20+ subcommands)
-- `fab status show [--all] [--json] [<name>]` — worktree fab pipeline status (replaces `wt-status`)
+- `fab status start|advance|finish|reset|skip|fail|all-stages|progress-map|...` (stage-machine operations plus status/diagnostic utilities)
 - `fab preflight [<change>]`
 - `fab change new|rename|switch|list|resolve ...`
 - `fab score [--check-gate] [--stage <stage>] <change>`
@@ -595,4 +594,5 @@ Full benchmark suite with harness and all 4 implementations: `src/benchmark/`
 | 260210-h7r3-kit-distribution-update | 2026-02-10 | Added `fab-upgrade.sh` and `fab-release.sh` script descriptions, bootstrap one-liner (Option A), atomic update mechanism, version-based update flow |
 | 260210-m3k7-multi-agent-support | 2026-02-10 | Added OpenCode commands and Codex skills symlink creation to `_init_scaffold.sh`; documented all three agent integration paths |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
+| 260312-9lci-fix-status-show-fab-current | 2026-03-12 | Removed `fab status show` from Go binary subcommand list (was already deleted from source). Fixed stale `fab/current` references in send-keys pane resolution description and "Preserved" list (now `.fab-status.yaml`). |
 | — | 2026-02-07 | Generated from doc/fab-spec/ (ARCHITECTURE.md, README.md) |

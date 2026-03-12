@@ -55,12 +55,12 @@ Review is performed by a **sub-agent** running in a separate context - a fresh p
 A change folder looks like this:
 
 ```
-fab/current/add-spinner/
+fab/changes/260101-abcd-add-spinner/
 ├── intake.md        # What you want and why
 ├── spec.md          # Requirements (generated)
 ├── tasks.md         # Implementation plan (generated)
 ├── checklist.md     # Progress tracking
-└── .status.yaml     # Pipeline state
+└── .status.yaml     # Pipeline state (+ .fab-status.yaml at repo root tracks active change)
 ```
 
 ## Quick Start
@@ -155,7 +155,7 @@ bash fab/.kit/scripts/fab-sync.sh
 # Creation - creates change folder, writes intake.md, asks clarifying questions
 /fab-new Add a loading spinner to the submit button
 
-# Switch to the change (make it active via fab/current)
+# Switch to the change (make it active via .fab-status.yaml)
 /fab-switch
 # Planning - generates spec.md (structured requirements)
 /fab-continue

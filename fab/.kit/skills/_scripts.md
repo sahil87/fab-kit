@@ -36,7 +36,6 @@ fab/.kit/bin/fab <command> <subcommand> [args...]
 |---------|---------|
 | `fab resolve` | Change reference resolution |
 | `fab status` | Stage state machine + metadata |
-| `fab status show` | Worktree fab pipeline status |
 | `fab log` | Append-only history logging |
 | `fab preflight` | Validation + structured YAML output |
 | `fab change` | Change lifecycle (new, rename, switch, list, archive, restore, archive-list) |
@@ -103,7 +102,6 @@ fab/.kit/bin/fab status <subcommand> <change> [args...]
 
 | Subcommand | Usage | Purpose |
 |------------|-------|---------|
-| `show` | `show [--all] [--json] [<name>]` | Worktree fab pipeline status |
 | `finish` | `finish <change> <stage> [driver]` | Mark stage done, auto-activate next. Review stage auto-logs "passed" |
 | `start` | `start <change> <stage> [driver] [from] [reason]` | pending/failed → active |
 | `advance` | `advance <change> <stage> [driver]` | active → ready |

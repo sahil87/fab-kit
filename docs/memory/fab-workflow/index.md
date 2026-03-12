@@ -8,11 +8,11 @@
 | [context-loading](context-loading.md) | Smart context loading convention — 7-file always-load layer, selective domain loading, SRAD protocol, state-keyed Next Steps Convention | 2026-02-20 |
 | [planning-skills](planning-skills.md) | `/fab-new`, `/fab-continue`, `/fab-ff`, `/fab-clarify` — the planning pipeline from intake through tasks, shared `_generation.md` partial | 2026-02-16 |
 | [clarify](clarify.md) | `/fab-clarify` skill — dual modes (suggest/auto), taxonomy scan, structured questions, coverage reports, audit trail, grade reclassification | 2026-02-16 |
-| [execution-skills](execution-skills.md) | Apply, review, hydrate, archive, and operator behavior — `/fab-continue` for pipeline stages, `/fab-archive` for housekeeping, `/fab-operator1` and `/fab-operator2` for cross-agent coordination | 2026-03-11 |
+| [execution-skills](execution-skills.md) | Apply, review, hydrate, archive, and operator behavior — `/fab-continue` for pipeline stages, `/fab-archive` for housekeeping, `/fab-operator1` and `/fab-operator2` for cross-agent coordination | 2026-03-12 |
 | [change-lifecycle](change-lifecycle.md) | Change naming, folder structure, `.status.yaml`, `.fab-status.yaml` symlink, git integration, `/fab-status`, `/fab-switch`, backlog scanning | 2026-03-07 |
 | [templates](templates.md) | Artifact templates (intake, spec, tasks, checklist), skill frontmatter, and memory file format | 2026-02-27 |
 | [distribution](distribution.md) | How `fab/.kit/` is distributed — bootstrap, update, release workflow | 2026-03-10 |
-| [kit-architecture](kit-architecture.md) | `.kit/` structure, scripts, agent integration, distribution, versioning, monorepos | 2026-03-11 |
+| [kit-architecture](kit-architecture.md) | `.kit/` structure, scripts, agent integration, distribution, versioning, monorepos | 2026-03-12 |
 | [model-tiers](model-tiers.md) | Provider-agnostic model tier system — tier naming, selection criteria, skill audit, config.yaml mapping, copy-with-template deployment | 2026-02-19 |
 | [configuration](configuration.md) | `config.yaml` schema, companion files (`context.md`, `code-quality.md`, `code-review.md`), `constitution.md` governance, 5 Cs of Quality, lifecycle management | 2026-02-27 |
 | [preflight](preflight.md) | `lib/preflight.sh` script — validation, accessor-based architecture, structured YAML output, skill integration | 2026-02-14 |

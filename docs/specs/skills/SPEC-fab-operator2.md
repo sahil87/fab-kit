@@ -18,7 +18,7 @@ The operator relies on these primitives:
 |-----------|--------|---------|
 | `fab pane-map` | fab CLI | Primary observation: pane-to-change mapping with stage and agent state (all panes) |
 | `fab resolve --pane` | fab CLI | Resolve a change to its tmux pane ID for use with raw `tmux send-keys` |
-| `fab status show --all` | fab CLI | Fallback observation when outside tmux |
+| `wt list` + `fab change list` | fab CLI / wt CLI | Fallback observation when outside tmux |
 | `/loop` | fab skill | Periodic heartbeat for monitoring ticks |
 
 ### `fab resolve --pane` (change-to-pane primitive)
@@ -402,7 +402,7 @@ A worktree may not have an active change yet (freshly created). The operator sho
 | `batch-fab-switch-change` | Operator is the conversational equivalent. Batch script remains for non-interactive use. |
 | `batch-fab-new-backlog` | Operator's "spawn new worktree" use case overlaps. Batch script remains for bulk operations. |
 | `fab pane-map` | Primary observation mechanism. Operator consumes its output for pane, tab, change, stage, and agent state. |
-| `fab status show --all` | Fallback observation when outside tmux (pane-map unavailable). |
+| `wt list` + `fab change list` | Fallback observation when outside tmux (pane-map unavailable). |
 | `/loop` | Provides periodic heartbeat for monitoring ticks. |
 | `wt-create`, `wt-delete` | Operator delegates worktree lifecycle to existing wt commands. |
 | Assembly line (spec) | Operator is the natural evolution — same parallel model, but with a coordinator and proactive monitoring. |
