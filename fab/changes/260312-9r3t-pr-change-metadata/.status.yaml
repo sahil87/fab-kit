@@ -5,33 +5,34 @@ created_by: sahil-weaver
 change_type: docs
 issues: []
 progress:
-    intake: ready
-    spec: pending
-    tasks: pending
-    apply: pending
-    review: pending
-    hydrate: pending
-    ship: pending
-    review-pr: pending
+  intake: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
+  ship: done
+  review-pr: active
 checklist:
-    generated: false
-    path: checklist.md
-    completed: 0
-    total: 0
+  generated: true
+  path: checklist.md
+  completed: 23
+  total: 23
 confidence:
-    certain: 5
-    confident: 2
-    tentative: 0
-    unresolved: 0
-    score: 4.4
-    indicative: true
-    fuzzy: true
-    dimensions:
-        signal: 85.7
-        reversibility: 90.0
-        competence: 88.6
-        disambiguation: 90.7
+  certain: 6
+  confident: 2
+  tentative: 0
+  unresolved: 0
+  score: 3.4
 stage_metrics:
-    intake: {started_at: "2026-03-12T08:18:32Z", driver: fab-new, iterations: 1}
-prs: []
-last_updated: 2026-03-12T08:24:37Z
+  intake: {started_at: "2026-03-12T08:18:32Z", driver: fab-new, iterations: 1, completed_at: "2026-03-12T08:34:25Z"}
+  spec: {started_at: "2026-03-12T08:34:25Z", driver: fab-ff, iterations: 1, completed_at: "2026-03-12T08:37:47Z"}
+  tasks: {started_at: "2026-03-12T08:37:47Z", driver: fab-ff, iterations: 1, completed_at: "2026-03-12T08:40:16Z"}
+  apply: {started_at: "2026-03-12T08:40:16Z", driver: fab-ff, iterations: 1, completed_at: "2026-03-12T08:42:37Z"}
+  review: {started_at: "2026-03-12T08:42:37Z", driver: fab-ff, iterations: 1, completed_at: "2026-03-12T08:44:54Z"}
+  hydrate: {started_at: "2026-03-12T08:44:54Z", driver: fab-ff, iterations: 1, completed_at: "2026-03-12T08:46:24Z"}
+  ship: {started_at: "2026-03-12T08:46:24Z", driver: fab-ff, iterations: 1, completed_at: "2026-03-12T08:48:14Z"}
+  review-pr: {started_at: "2026-03-12T08:48:14Z", driver: git-pr, iterations: 1, phase: fixing, reviewer: 'copilot-pull-request-reviewer[bot]'}
+prs:
+  - https://github.com/wvrdz/fab-kit/pull/250
+last_updated: 2026-03-12T08:48:14Z

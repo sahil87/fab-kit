@@ -1,6 +1,7 @@
 project:
   name: "fab-kit"
   description: "FAB Kit — Tooling for Specification-Driven Development"
+  linear_workspace: "weaver-ai"
 
 # Directories containing implementation code (relative to repo root).
 source_paths:

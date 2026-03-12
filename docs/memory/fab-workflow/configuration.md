@@ -15,6 +15,7 @@ Fab uses a set of complementary configuration files — the **5 Cs of Quality**:
 #### `project`
 - `name` — Project name (string)
 - `description` — Project description (string)
+- `linear_workspace` — Linear workspace slug (string, optional). When present, `/git-pr` constructs issue hyperlinks using `https://linear.app/{linear_workspace}/issue/{ISSUE_ID}`. When absent, issue IDs are rendered as bare text. Set once per project. Used exclusively by `/git-pr` for URL construction in the PR body's Change section.
 
 #### `model_tiers`
 Provider-specific model identifiers for the two-tier system. Replaces the former `fab/.kit/model-tiers.yaml` file. Structure:
@@ -221,6 +222,7 @@ See [setup](setup.md) for the complete command suite.
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260312-9r3t-pr-change-metadata | 2026-03-12 | Added optional `linear_workspace` field to `config.yaml` `project:` block. Used by `/git-pr` to construct Linear issue hyperlinks (`https://linear.app/{workspace}/issue/{ID}`) in the PR body's Change section. When absent, issue IDs render as bare text. Migration `0.34.0-to-0.37.0.md` surfaces the field to existing users as a commented-out line. |
 | 260227-gasp-consolidate-status-field-naming | 2026-02-27 | `.status.yaml` fields renamed: `issue_id` (scalar) → `issues` (array), `shipped` → `prs`. Migration `0.22.0-to-0.24.0.md` handles active changes. |
 | 260226-tnr8-coverage-scoring-change-types | 2026-02-26 | `calc-score.sh` gains coverage-weighted confidence formula (`score = base * cover`), `--stage` flag for intake/spec threshold selection, `expected_min` lookup tables embedded by `{stage, change_type}`, and 7-type gate thresholds replacing old 4-type (`bugfix`/`feature`/`refactor`/`architecture`) mapping. New `statusman.sh set-change-type` subcommand validates and writes `change_type` to `.status.yaml`. |
 | 260226-jq7a-slim-config-decouple-naming | 2026-02-26 | Removed `git` and `naming` sections from config.yaml schema. Renamed `rules` → `stage_directives` with all 6 stage placeholders. Added `issue_id` to status.yaml. |
