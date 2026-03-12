@@ -298,3 +298,209 @@ func TestCreate_ImmediatelyListable(t *testing.T) {
 	combined := r.Stdout + r.Stderr
 	assertContains(t, combined, "immediate-list")
 }
+
+func TestCreate_BaseNewBranch(t *testing.T) {
+	repo := createTestRepo(t)
+
+	// Create a feature branch with a marker commit
+	gitRun(t, repo, "checkout", "-b", "feature-A")
+	os.WriteFile(filepath.Join(repo, "marker-A.txt"), []byte("from feature-A"), 0644)
+	gitRun(t, repo, "add", "marker-A.txt")
+	gitRun(t, repo, "commit", "-q", "-m", "Add marker-A")
+	featureATip := gitRun(t, repo, "rev-parse", "HEAD")
+	gitRun(t, repo, "checkout", "main")
+
+	// Create a new branch based on feature-A
+	r := runWtSuccess(t, repo, nil, "create", "--non-interactive", "--worktree-name", "base-new",
+		"--worktree-init", "false", "feature-B", "--base", "feature-A")
+
+	wtPath := strings.TrimSpace(r.Stdout)
+
+	// The worktree should have the marker file from feature-A
+	assertFileExists(t, filepath.Join(wtPath, "marker-A.txt"))
+
+	// The worktree's HEAD should match feature-A's tip
+	wtCommit := gitRun(t, wtPath, "rev-parse", "HEAD")
+	if wtCommit != featureATip {
+		t.Errorf("worktree HEAD %s != feature-A tip %s", wtCommit, featureATip)
+	}
+
+	// The branch name should be feature-B
+	wtBranch := gitRun(t, wtPath, "rev-parse", "--abbrev-ref", "HEAD")
+	if wtBranch != "feature-B" {
+		t.Errorf("expected branch feature-B, got %s", wtBranch)
+	}
+}
+
+func TestCreate_BaseExploratoryWorktree(t *testing.T) {
+	repo := createTestRepo(t)
+
+	// Create a feature branch with a marker commit
+	gitRun(t, repo, "checkout", "-b", "feature-A")
+	os.WriteFile(filepath.Join(repo, "marker-A.txt"), []byte("from feature-A"), 0644)
+	gitRun(t, repo, "add", "marker-A.txt")
+	gitRun(t, repo, "commit", "-q", "-m", "Add marker-A")
+	featureATip := gitRun(t, repo, "rev-parse", "HEAD")
+	gitRun(t, repo, "checkout", "main")
+
+	// Create an exploratory worktree based on feature-A
+	r := runWtSuccess(t, repo, nil, "create", "--non-interactive", "--worktree-name", "explore-base",
+		"--worktree-init", "false", "--base", "feature-A")
+
+	wtPath := strings.TrimSpace(r.Stdout)
+
+	// The worktree should have the marker file from feature-A
+	assertFileExists(t, filepath.Join(wtPath, "marker-A.txt"))
+
+	// The worktree's HEAD should match feature-A's tip
+	wtCommit := gitRun(t, wtPath, "rev-parse", "HEAD")
+	if wtCommit != featureATip {
+		t.Errorf("worktree HEAD %s != feature-A tip %s", wtCommit, featureATip)
+	}
+}
+
+func TestCreate_BaseWithExistingLocalBranch(t *testing.T) {
+	repo := createTestRepo(t)
+
+	// Create an existing local branch with its own history
+	gitRun(t, repo, "checkout", "-b", "existing-branch")
+	os.WriteFile(filepath.Join(repo, "existing.txt"), []byte("existing"), 0644)
+	gitRun(t, repo, "add", "existing.txt")
+	gitRun(t, repo, "commit", "-q", "-m", "Add existing.txt")
+	existingTip := gitRun(t, repo, "rev-parse", "HEAD")
+	gitRun(t, repo, "checkout", "main")
+
+	// Create another branch to use as --base
+	gitRun(t, repo, "checkout", "-b", "other-branch")
+	os.WriteFile(filepath.Join(repo, "other.txt"), []byte("other"), 0644)
+	gitRun(t, repo, "add", "other.txt")
+	gitRun(t, repo, "commit", "-q", "-m", "Add other.txt")
+	gitRun(t, repo, "checkout", "main")
+
+	// Create worktree for existing branch with --base (should be ignored)
+	r := runWtSuccess(t, repo, nil, "create", "--non-interactive", "--worktree-name", "exist-local",
+		"--worktree-init", "false", "existing-branch", "--base", "other-branch")
+
+	// Stderr should contain the warning
+	assertContains(t, r.Stderr, "--base ignored: branch already exists locally")
+
+	wtPath := strings.TrimSpace(r.Stdout)
+
+	// The worktree should be on the existing branch, not other-branch
+	wtCommit := gitRun(t, wtPath, "rev-parse", "HEAD")
+	if wtCommit != existingTip {
+		t.Errorf("worktree HEAD %s != existing branch tip %s", wtCommit, existingTip)
+	}
+}
+
+func TestCreate_BaseWithExistingRemoteBranch(t *testing.T) {
+	repo := createTestRepo(t)
+
+	// Create a branch, push it, then delete locally
+	gitRun(t, repo, "checkout", "-b", "remote-only")
+	os.WriteFile(filepath.Join(repo, "remote-file.txt"), []byte("remote"), 0644)
+	gitRun(t, repo, "add", "remote-file.txt")
+	gitRun(t, repo, "commit", "-q", "-m", "Remote commit")
+	gitRun(t, repo, "push", "-q", "-u", "origin", "remote-only")
+	gitRun(t, repo, "checkout", "main")
+	gitRun(t, repo, "branch", "-D", "remote-only")
+
+	// Create worktree for remote branch with --base (should be ignored)
+	r := runWtSuccess(t, repo, nil, "create", "--non-interactive", "--worktree-name", "exist-remote",
+		"--worktree-init", "false", "remote-only", "--base", "main")
+
+	// Stderr should contain the warning
+	assertContains(t, r.Stderr, "--base ignored: fetching existing remote branch")
+
+	assertWorktreeExists(t, repo, "exist-remote")
+}
+
+func TestCreate_BaseInvalidRef(t *testing.T) {
+	repo := createTestRepo(t)
+
+	r := runWt(t, repo, nil, "create", "--non-interactive", "--worktree-name", "bad-base",
+		"--worktree-init", "false", "new-branch", "--base", "nonexistent-ref")
+
+	if r.ExitCode == 0 {
+		t.Error("expected failure with invalid --base ref")
+	}
+	assertContains(t, r.Stderr, "Invalid --base ref")
+
+	// No worktree should have been created
+	assertDirNotExists(t, worktreePath(repo, "bad-base"))
+	assertBranchNotExists(t, repo, "new-branch")
+}
+
+func TestCreate_BaseInvalidRefExistingBranch(t *testing.T) {
+	repo := createTestRepo(t)
+
+	// Create an existing branch with a commit
+	gitRun(t, repo, "checkout", "-b", "existing-branch")
+	os.WriteFile(filepath.Join(repo, "existing.txt"), []byte("existing"), 0644)
+	gitRun(t, repo, "add", "existing.txt")
+	gitRun(t, repo, "commit", "-q", "-m", "Add existing.txt")
+	gitRun(t, repo, "checkout", "main")
+
+	// Create a worktree for the existing branch with an invalid --base; it should be ignored
+	r := runWtSuccess(t, repo, nil, "create", "--non-interactive", "--worktree-name", "exist-branch",
+		"--worktree-init", "false", "existing-branch", "--base", "nonexistent-ref")
+
+	// Command should succeed and worktree should exist, despite invalid --base
+	assertContains(t, r.Stderr, "--base ignored: branch already exists locally")
+	assertWorktreeExists(t, repo, "exist-branch")
+}
+
+func TestCreate_BaseInvalidRefWithReuse(t *testing.T) {
+	repo := createTestRepo(t)
+
+	// Create a worktree first
+	firstPath := createWorktreeViaWt(t, repo, "reuse-invalid-base")
+
+	// Attempt to reuse the existing worktree with an invalid --base; --reuse should take precedence
+	r := runWtSuccess(t, repo, nil, "create", "--non-interactive", "--reuse", "--worktree-name", "reuse-invalid-base",
+		"--base", "nonexistent-ref")
+
+	reusedPath := strings.TrimSpace(r.Stdout)
+	if reusedPath != firstPath {
+		t.Errorf("--reuse path mismatch with invalid --base: got %q, want %q", reusedPath, firstPath)
+	}
+}
+
+func TestCreate_BaseWithReuse(t *testing.T) {
+	repo := createTestRepo(t)
+
+	// Create a worktree first
+	firstPath := createWorktreeViaWt(t, repo, "reuse-base")
+
+	// Create a branch to use as --base
+	gitRun(t, repo, "checkout", "-b", "base-branch")
+	os.WriteFile(filepath.Join(repo, "base.txt"), []byte("base"), 0644)
+	gitRun(t, repo, "add", "base.txt")
+	gitRun(t, repo, "commit", "-q", "-m", "Add base.txt")
+	gitRun(t, repo, "checkout", "main")
+
+	// Try to create with --reuse and --base — reuse should take precedence
+	r := runWtSuccess(t, repo, nil, "create", "--non-interactive", "--reuse", "--worktree-name", "reuse-base",
+		"--base", "base-branch")
+
+	reusePath := strings.TrimSpace(r.Stdout)
+	if reusePath != firstPath {
+		t.Errorf("--reuse path mismatch: got %q, want %q", reusePath, firstPath)
+	}
+}
+
+func TestCreate_BaseDoesNotAffectExistingBehavior(t *testing.T) {
+	repo := createTestRepo(t)
+
+	mainCommit := gitRun(t, repo, "rev-parse", "HEAD")
+
+	// Create a new branch WITHOUT --base — should branch from HEAD (main)
+	r := runWtSuccess(t, repo, nil, "create", "--non-interactive", "--worktree-name", "no-base",
+		"--worktree-init", "false", "no-base-branch")
+
+	wtPath := strings.TrimSpace(r.Stdout)
+	wtCommit := gitRun(t, wtPath, "rev-parse", "HEAD")
+	if wtCommit != mainCommit {
+		t.Errorf("worktree HEAD %s != main commit %s (without --base, should branch from HEAD)", wtCommit, mainCommit)
+	}
+}

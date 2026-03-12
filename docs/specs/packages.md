@@ -26,6 +26,23 @@ Run `wt <command> --help` for full usage details.
 
 > **Note**: `wt pr` was dropped — pull request creation is handled by `/git-pr`.
 
+### `wt create --base`
+
+The `--base <ref>` flag specifies a git start-point when creating a new branch. This maps to `git worktree add -b <branch> <path> <start-point>`.
+
+| Scenario | `--base` | Behavior |
+|----------|----------|----------|
+| New branch (doesn't exist locally or remotely) | provided | Branch created from `--base` ref instead of HEAD |
+| New branch | omitted | Branch created from HEAD (default) |
+| Existing local branch | provided | Warning: `--base ignored: branch already exists locally` |
+| Existing remote branch | provided | Warning: `--base ignored: fetching existing remote branch` |
+| Exploratory (no branch arg) | provided | Exploratory branch created from `--base` ref |
+| Exploratory | omitted | Branch created from current HEAD (default) |
+| With `--reuse` (worktree exists) | provided | `--reuse` takes precedence; `--base` has no effect |
+| Invalid ref | provided | Error exit; no worktree or branch created |
+
+The ref is validated via `git rev-parse --verify` before worktree creation, so invalid refs produce a clear error rather than a partial failure.
+
 ### Integration with Fab
 
 The wt binary is the foundation of the [assembly-line pattern](assembly-line.md). Each fab change gets its own worktree, enabling parallel AI sessions — one tmux tab per change, zero conflicts between them.

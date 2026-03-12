@@ -297,7 +297,7 @@ The operator resolves queue order via one of three strategies:
 
 For each change in the resolved queue:
 
-1. **Spawn** — Create worktree (with `--reuse` for respawns), open a new agent tab with `/fab-switch <change>`
+1. **Spawn** — Create worktree (with `--reuse` for respawns), open a new agent tab with `/fab-switch <change>`. For user-provided ordering, pass `--base <previous-change-folder-name>` to branch from the prior change: `wt create --non-interactive --reuse --worktree-name <name> <branch> --base <prev-change-folder-name>`. For confidence-based ordering (independent changes), omit `--base`.
 2. **Gate check** — Query confidence score. If >= gate, send `/fab-ff`. If < gate, flag to user with score and threshold.
 3. **Monitor** — Poll pane map on each tick. Detect: stage reaches hydrate/ship (success), review fails after rework budget (flag and skip), agent idle >15 min at non-terminal stage (nudge once, then flag), pane dies (flag and skip).
 4. **Merge** — Merge PR from operator's shell (destructive — already confirmed at queue start)

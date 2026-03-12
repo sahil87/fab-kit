@@ -27,10 +27,15 @@ func CheckNameCollision(worktreesDir, name string) bool {
 
 // CreateWorktree creates a git worktree at the given path for the given branch.
 // If newBranch is true, it creates a new branch with -b flag.
-func CreateWorktree(path, branch string, newBranch bool) error {
+// When startPoint is non-empty and newBranch is true, the branch is created from the given start-point.
+func CreateWorktree(path, branch string, newBranch bool, startPoint string) error {
 	var cmd *exec.Cmd
 	if newBranch {
-		cmd = exec.Command("git", "worktree", "add", "-b", branch, path)
+		if startPoint != "" {
+			cmd = exec.Command("git", "worktree", "add", "-b", branch, path, startPoint)
+		} else {
+			cmd = exec.Command("git", "worktree", "add", "-b", branch, path)
+		}
 	} else {
 		cmd = exec.Command("git", "worktree", "add", path, branch)
 	}
@@ -61,8 +66,9 @@ func RemoveWorktree(path string, force bool) error {
 }
 
 // CreateBranchWorktree creates a worktree for a specified branch (local, remote, or new).
+// startPoint is only used when creating a new branch; it is ignored for existing local/remote branches.
 // Returns the worktree path.
-func CreateBranchWorktree(branch, name string, ctx *RepoContext, rb *Rollback) (string, error) {
+func CreateBranchWorktree(branch, name string, ctx *RepoContext, rb *Rollback, startPoint string) (string, error) {
 	if err := EnsureWorktreesDir(ctx.WorktreesDir); err != nil {
 		return "", err
 	}
@@ -70,7 +76,7 @@ func CreateBranchWorktree(branch, name string, ctx *RepoContext, rb *Rollback) (
 	wtPath := filepath.Join(ctx.WorktreesDir, name)
 
 	if BranchExistsLocally(branch) {
-		if err := CreateWorktree(wtPath, branch, false); err != nil {
+		if err := CreateWorktree(wtPath, branch, false, ""); err != nil {
 			return "", err
 		}
 		rb.Register("git", "worktree", "remove", "--force", wtPath)
@@ -78,12 +84,12 @@ func CreateBranchWorktree(branch, name string, ctx *RepoContext, rb *Rollback) (
 		if err := FetchRemoteBranch(branch); err != nil {
 			return "", err
 		}
-		if err := CreateWorktree(wtPath, branch, false); err != nil {
+		if err := CreateWorktree(wtPath, branch, false, ""); err != nil {
 			return "", err
 		}
 		rb.Register("git", "worktree", "remove", "--force", wtPath)
 	} else {
-		if err := CreateWorktree(wtPath, branch, true); err != nil {
+		if err := CreateWorktree(wtPath, branch, true, startPoint); err != nil {
 			return "", err
 		}
 		rb.Register("git", "worktree", "remove", "--force", wtPath)
@@ -94,8 +100,9 @@ func CreateBranchWorktree(branch, name string, ctx *RepoContext, rb *Rollback) (
 }
 
 // CreateExploratoryWorktree creates an exploratory worktree with a new branch matching the name.
+// When startPoint is non-empty, the new branch is created from the given start-point.
 // Returns the worktree path.
-func CreateExploratoryWorktree(name string, ctx *RepoContext, rb *Rollback) (string, error) {
+func CreateExploratoryWorktree(name string, ctx *RepoContext, rb *Rollback, startPoint string) (string, error) {
 	if err := EnsureWorktreesDir(ctx.WorktreesDir); err != nil {
 		return "", err
 	}
@@ -103,7 +110,7 @@ func CreateExploratoryWorktree(name string, ctx *RepoContext, rb *Rollback) (str
 	wtPath := filepath.Join(ctx.WorktreesDir, name)
 	branch := name
 
-	if err := CreateWorktree(wtPath, branch, true); err != nil {
+	if err := CreateWorktree(wtPath, branch, true, startPoint); err != nil {
 		return "", err
 	}
 	rb.Register("git", "worktree", "remove", "--force", wtPath)

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"syscall"
@@ -18,6 +19,7 @@ func createCmd() *cobra.Command {
 		worktreeOpen   string
 		reuse          bool
 		nonInteractive bool
+		base           string
 	)
 
 	cmd := &cobra.Command{
@@ -96,6 +98,28 @@ or creates a new branch.`,
 				}
 			}
 
+			// Validate --base ref only when it will actually be used.
+			// When --reuse is set, or when BRANCH already exists locally/remotely,
+			// later logic ignores --base, so we skip validation here to avoid
+			// failing commands like `wt create --reuse --base <bad>` or
+			// `wt create <existing-branch> --base <bad>`.
+			if base != "" && !reuse {
+				existingBranch := false
+				if branchArg != "" {
+					if err := exec.Command("git", "rev-parse", "--verify", branchArg).Run(); err == nil {
+						existingBranch = true
+					}
+				}
+				if !existingBranch {
+					if err := exec.Command("git", "rev-parse", "--verify", base).Run(); err != nil {
+						wt.ExitWithError(wt.ExitInvalidArgs,
+							fmt.Sprintf("Invalid --base ref: %s", base),
+							fmt.Sprintf("'%s' does not resolve to a valid git object", base),
+							"Provide a valid branch name, tag, or commit SHA")
+					}
+				}
+			}
+
 			// Dirty-state check
 			if !nonInteractive && (wt.HasUncommittedChanges() || wt.HasUntrackedFiles()) {
 				fmt.Fprintf(os.Stderr, "%sWarning: main repo has uncommitted changes%s\n",
@@ -168,14 +192,25 @@ or creates a new branch.`,
 			// Create worktree
 			var wtPath string
 			if branchArg == "" {
-				wtPath, err = wt.CreateExploratoryWorktree(finalName, ctx, rb)
+				wtPath, err = wt.CreateExploratoryWorktree(finalName, ctx, rb, base)
 				if err != nil {
 					wt.ExitWithError(wt.ExitGitError, "Failed to create worktree", err.Error(),
 						"Check if the branch already exists or if there are permission issues")
 				}
 				fmt.Fprintf(os.Stderr, "Created worktree: %s\nPath: %s\nBranch: %s\n", finalName, wtPath, finalName)
 			} else {
-				wtPath, err = wt.CreateBranchWorktree(branchArg, finalName, ctx, rb)
+				// Warn-and-ignore --base for existing branches
+				effectiveBase := base
+				if base != "" {
+					if wt.BranchExistsLocally(branchArg) {
+						fmt.Fprintf(os.Stderr, "--base ignored: branch already exists locally\n")
+						effectiveBase = ""
+					} else if wt.BranchExistsRemotely(branchArg) {
+						fmt.Fprintf(os.Stderr, "--base ignored: fetching existing remote branch\n")
+						effectiveBase = ""
+					}
+				}
+				wtPath, err = wt.CreateBranchWorktree(branchArg, finalName, ctx, rb, effectiveBase)
 				if err != nil {
 					wt.ExitWithError(wt.ExitGitError, "Failed to create worktree", err.Error(),
 						"The branch may already be checked out in another worktree")
@@ -249,6 +284,7 @@ or creates a new branch.`,
 	cmd.Flags().StringVar(&worktreeOpen, "worktree-open", "", "Open in app after creation, or 'skip'")
 	cmd.Flags().BoolVar(&reuse, "reuse", false, "Reuse existing worktree if name collides (requires --worktree-name)")
 	cmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "No prompts, porcelain output")
+	cmd.Flags().StringVar(&base, "base", "", "Git ref (branch, tag, SHA) to use as start-point for new branch")
 
 	return cmd
 }
