@@ -269,13 +269,13 @@ func TestResolvePaneChange(t *testing.T) {
 		}
 	})
 
-	t.Run("git dir without fab returns empty", func(t *testing.T) {
-		// resolvePaneChange calls gitWorktreeRoot which needs a real git repo
-		// We just test that a random directory returns empty (no git)
+	t.Run("non-git /tmp directory returns empty", func(t *testing.T) {
+		// resolvePaneChange calls gitWorktreeRoot which needs a real git repo.
+		// Here we just use a fixed non-git directory (/tmp) and expect empty.
 		p := paneEntry{id: "%1", tab: "test", cwd: "/tmp"}
 		result := resolvePaneChange(p)
 		if result != "" {
-			t.Errorf("expected empty for non-fab git dir, got %q", result)
+			t.Errorf("expected empty for non-git /tmp dir, got %q", result)
 		}
 	})
 }

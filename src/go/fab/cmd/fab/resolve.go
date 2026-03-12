@@ -54,7 +54,8 @@ func resolveCmd() *cobra.Command {
 				matches, warning := matchPanesByFolder(panes, folder, resolvePaneChange)
 
 				if len(matches) == 0 {
-					return fmt.Errorf("no tmux pane found for change %q", folder)
+					fmt.Fprintf(cmd.ErrOrStderr(), "no tmux pane found for change %q\n", folder)
+					os.Exit(1)
 				}
 
 				if warning != "" {

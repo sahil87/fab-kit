@@ -342,7 +342,7 @@ Backlog idea management — CRUD operations for `fab/backlog.md`. Ported from th
 
 ### Rust Binary (`fab-rust`)
 
-A second backend implementing all 9 subcommands with strict output parity to the Go binary. A single Rust binary crate at `src/rust/fab/` (source), placed at `fab/.kit/bin/fab-rust` when built. The dispatcher prefers `fab-go` over it by default.
+A second backend intended to closely mirror the Go binary. A single Rust binary crate at `src/rust/fab/` (source), placed at `fab/.kit/bin/fab-rust` when built. The dispatcher prefers `fab-go` over it by default. **Parity gap**: the Rust backend still exposes a `send-keys` subcommand (removed from Go) and its `resolve` implementation does not yet support the `--pane` flag.
 
 **Module**: `fab-rust` (Rust 2021 edition, dependencies: `clap` 4 with derive, `serde` + `serde_yaml` 0.9, `serde_json`, `anyhow`, `chrono`, `rand`, `regex`; dev: `tempfile`)
 
@@ -373,7 +373,7 @@ src/rust/fab/
 
 **Build**: `just build-rust` — `cargo build --manifest-path src/rust/fab/Cargo.toml --release`, copies binary to `fab/.kit/bin/fab-rust`. Release profile uses `lto = true` and `strip = true` for minimal binary size.
 
-**Subcommands**: Identical CLI surface to Go binary — all 8 top-level subcommands (`resolve`, `log`, `status`, `preflight`, `change`, `score`, `runtime`, `pane-map`) with identical flags, positional arguments, and subcommands. Help text format differs (clap vs cobra style) but subcommand/flag names match.
+**Subcommands**: The Rust CLI is intended to closely mirror the Go binary — covering the same core workflow subcommands (`resolve`, `log`, `status`, `preflight`, `change`, `score`, `runtime`, `pane-map`) — but is not yet in full parity. In particular, the Rust backend currently still exposes a `send-keys` subcommand and its `resolve` implementation does not yet support the `--pane` flag. Help text format differs (clap vs cobra style) and `fab/.kit/skills/_scripts.md` remains the source of truth for the current CLI surface.
 
 **Parity**: Strict output parity with Go binary — identical stdout, stderr, and exit codes for the same inputs and file system state. Exceptions: timestamp fields (execution-time dependent), help text format (clap vs cobra), `indicative: false` may be omitted when false.
 
