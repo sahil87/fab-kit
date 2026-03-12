@@ -1,0 +1,4 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-12T06:32:37Z"}
+{"args":"Add --pane flag to fab resolve, delete fab send-keys subcommand, and evolve fab pane-map to show all tmux panes","cmd":"fab-new","event":"command","ts":"2026-03-12T06:32:37Z"}
+{"delta":"+4.4","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-12T06:33:32Z"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-12T06:33:44Z"}
