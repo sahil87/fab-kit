@@ -309,11 +309,47 @@ UC3 (merge), UC4 (spawn), UC5 (status dashboard), and UC8 (autopilot) behave ide
 
 - **Pane-map only**: Uses `fab pane-map` as its sole observation primitive — no `fab runtime is-idle` (same cross-worktree issue as operator1)
 - **No change artifacts**: Never reads intakes, specs, or tasks — context window reserved for coordination state
-- **One operator at a time**: The operator tab runs either `/fab-operator1` or `/fab-operator2`, never both simultaneously
+- **One operator at a time**: The operator tab runs either `/fab-operator1`, `/fab-operator2`, or `/fab-operator3`, never more than one simultaneously
 
 #### Launcher Scripts
 
-`fab-operator1.sh` (renamed from `fab-operator.sh`) launches operator1; `fab-operator2.sh` launches operator2. Both use the shared singleton tmux tab name `operator`. The launcher reference in `fab-operator1.md` was updated from `fab-operator.sh` to `fab-operator1.sh` for naming symmetry.
+`fab-operator1.sh` (renamed from `fab-operator.sh`) launches operator1; `fab-operator2.sh` launches operator2; `fab-operator3.sh` launches operator3. All use the shared singleton tmux tab name `operator`. The launcher reference in `fab-operator1.md` was updated from `fab-operator.sh` to `fab-operator1.sh` for naming symmetry.
+
+### `/fab-operator3` (Standalone Coordination Skill — Auto-Nudge Iteration)
+
+`/fab-operator3` is a workflow iteration of `/fab-operator2`. It inherits all operator2 behavior — monitoring, enrollment, `/loop` ticks, all eight use cases (UC1–UC8), confirmation model, pre-send validation, context discipline, and configuration — and adds auto-nudge capability: question detection via terminal heuristic, an answer confidence model, and an input-waiting detection step in the monitoring tick. Launch via `fab/.kit/scripts/fab-operator3.sh` — a singleton launcher that creates (or switches to) a tmux tab named `operator` running `claude --dangerously-skip-permissions '/fab-operator3'`. Only one operator (1, 2, or 3) runs at a time in the shared `operator` tab.
+
+#### Question Detection (Terminal Heuristic)
+
+During each monitoring tick, for idle agents (per pane-map Agent column), operator3 captures the last ~10 lines of the agent's terminal via `tmux capture-pane -t <pane> -p -l 10` and scans for question indicators: lines ending with `?`, `[Y/n]`/`[y/N]`/`(y/n)`/`(yes/no)` patterns, `Allow?`/`Approve?`/`Confirm?`/`Proceed?` keywords, Claude Code permission prompts, and `Do you want to...`/`Should I...`/`Would you like...` phrasing. The heuristic is intentionally broad — false positives are handled by the confidence model (escalate when unsure). When multiple indicators appear, the bottom-most (most recent) is evaluated. Active agents are not scanned.
+
+#### Answer Confidence Model
+
+Detected questions are classified into two tiers:
+
+- **Auto-answer**: One obvious right answer — binary yes/no where "yes" continues work and "no" stalls, with no destructive or branching implications. Action: send the answer via `tmux send-keys`, report `"{change}: auto-answered '{summary}' → {answer}"`.
+- **Escalate**: Multiple valid paths or judgment required — tradeoffs, destructive actions, branching decisions, failing tests. Action: report `"{change}: waiting for input — '{summary}'. Please respond."` without sending any answer.
+
+No cooldown or retry limit. Each question is evaluated independently. PR review serves as the safety net.
+
+#### Updated Monitoring Tick
+
+The monitoring tick gains a new step 5 (input-waiting detection) between pane death detection (step 4) and stuck detection (step 6):
+
+1. Stage advance detection *(existing)*
+2. Pipeline completion detection *(existing)*
+3. Review failure detection *(existing)*
+4. Pane death detection *(existing)*
+5. **Input-waiting detection** *(new)* — terminal heuristic for idle agents, auto-answer or escalate
+6. Stuck detection *(existing, modified)* — only for agents NOT detected as input-waiting
+
+Key invariant: input-waiting detection runs before stuck detection. An agent waiting for input is not "stuck." Stuck detection only flags agents idle without a visible question.
+
+#### Design Constraints
+
+- **Inherits all operator2 constraints**: Pane-map only, no change artifacts, one operator at a time
+- **No audit trail for v1**: Auto-answers reported inline, not logged to a persistent file
+- **Hardcoded patterns**: Question indicator patterns embedded in skill file, not configurable via config.yaml
 
 ## Design Decisions
 
@@ -408,6 +444,7 @@ UC3 (merge), UC4 (spawn), UC5 (status dashboard), and UC8 (autopilot) behave ide
 | Change | Date | Summary |
 |--------|------|---------|
 | 260312-9r3t-pr-change-metadata | 2026-03-12 | `/git-pr` gains "Change" section in PR body (above Stats), conditional on `{has_fab}`. Three-column table (ID, Name, Issue) shows change identity and linked Linear issues. Issue IDs rendered as hyperlinks when `linear_workspace` is configured in `fab/project/config.yaml`, bare text otherwise. Missing fields show `—`. Section omitted entirely when no active fab change. |
+| 260312-ngew-add-operator3-auto-nudge | 2026-03-12 | Added `/fab-operator3` standalone coordination skill — workflow iteration of operator2 with auto-nudge capability. Detects input-waiting agents via terminal heuristic (`tmux capture-pane -t <pane> -p -l 10`), classifies questions via two-tier confidence model (auto-answer vs escalate), and adds input-waiting detection as step 5 in the monitoring tick (before stuck detection). No cooldown on auto-answers. Hardcoded question patterns for v1. New launcher `fab-operator3.sh`. Updated "one operator at a time" constraint to include operator3. |
 | 260312-kvng-resolve-pane-evolve-panemap | 2026-03-12 | Updated operator skill references: replaced all `fab send-keys` invocations with `fab resolve --pane` + `tmux send-keys` pattern. Updated pre-send validation, interaction primitive, autopilot per-change loop, and operator2 monitor-after-action sections. `fab send-keys` CLI subcommand removed — `resolve --pane` provides pane lookup, raw `tmux send-keys` provides delivery. |
 | 260312-wrk6-add-wt-create-base-flag | 2026-03-12 | Updated operator autopilot per-change loop: `wt create` now uses `--base <previous-change-folder-name>` for user-provided ordering so dependent changes branch from the previous change's tip instead of HEAD. Confidence-based ordering omits `--base` (independent changes). |
 | 260311-5c11-add-operator2-monitoring-skill | 2026-03-11 | Added `/fab-operator2` standalone coordination skill — workflow iteration of operator1 with proactive monitoring. After every send-keys action, enrolls target change in a monitoring set and runs `/loop` (default 5m) to detect stage advances, completions, failures, pane deaths, and stuck agents. Monitoring-enhanced UC1 (auto-enroll after broadcast), UC2 (loop-driven sequenced rebase), UC6 (monitor recovery after nudge), UC7 (immediate enrollment instead of next-interaction check). Advisory-only stuck detection (15m threshold). Conversation-held monitored set, not file-backed. New launcher `fab-operator2.sh`; renamed `fab-operator.sh` to `fab-operator1.sh` with shared `operator` tab name. |
