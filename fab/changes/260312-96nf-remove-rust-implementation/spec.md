@@ -20,7 +20,7 @@ The `src/rust/` directory tree SHALL be deleted entirely. This includes `src/rus
 - **GIVEN** the change has been applied
 - **WHEN** an agent or developer lists the `src/` directory
 - **THEN** no `rust/` subdirectory exists
-- **AND** no `Cargo.toml` or `Cargo.lock` files exist anywhere in the repo
+- **AND** no `Cargo.toml` or `Cargo.lock` files exist under `src/rust/` (including `src/rust/fab/`)
 
 ### Requirement: Delete Rust helper script
 

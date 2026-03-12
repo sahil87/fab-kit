@@ -26,12 +26,12 @@ mkdir -p fab
 gh release download --repo {repo} --pattern 'kit.tar.gz' --output - | tar xz -C fab/
 ```
 
-Where `{repo}` is the `repo` value from `fab/.kit/kit.conf` (e.g. `wvrdz/fab-kit`). The platform-aware one-liner detects OS and architecture at runtime (`uname -s`, `uname -m`) and downloads the matching `kit-{os}-{arch}.tar.gz` archive which includes all pre-compiled binaries (`fab-go`, `wt`) at `fab/.kit/bin/`.
+Where `{repo}` is the `repo` value from `fab/.kit/kit.conf` (e.g. `wvrdz/fab-kit`). The platform-aware one-liner detects OS and architecture at runtime (`uname -s`, `uname -m`) and downloads the matching `kit-{os}-{arch}.tar.gz` archive which includes all pre-compiled binaries (`fab-go`, `idea`, `wt`) at `fab/.kit/bin/`.
 
 After extraction, the user MUST run `fab/.kit/scripts/fab-sync.sh` to validate prerequisites (`yq`, `jq`, `gh`, `direnv`), create directories (`changes/`, `memory/`, `specs/`), skeleton files (copied from `scaffold/memory-index.md` and `scaffold/specs-index.md`), deploy skills conditionally to detected agents (copies for Claude Code, Codex, and Gemini CLI; symlinks for OpenCode — only when the agent's CLI is found in PATH), `.envrc` entries (from `scaffold/envrc`, line-ensuring), `.gitignore` entries (from `scaffold/gitignore-entries`), and register Claude Code hooks from `fab/.kit/hooks/` into `.claude/settings.local.json`. The bootstrap only provides `.kit/` — no `config.yaml`, `constitution.md`, or other project files.
 
 **Scenarios**:
-- Bootstrap with compiled backend (platform-aware one-liner) — downloads `kit-{os}-{arch}.tar.gz`, creates `fab/.kit/` with all skills, templates, scripts, VERSION file, and both binaries (`fab-go`, `wt`) at `fab/.kit/bin/`; running `fab-sync.sh` first validates prerequisites (yq, jq, gh, direnv), then creates `changes/`, `memory/index.md`, `specs/index.md`, skill deployments conditionally per detected agent (Claude Code, OpenCode, Codex, Gemini CLI — only when the agent's CLI command is found in PATH), `.envrc` (line-ensuring from scaffold), and `.gitignore` entry.
+- Bootstrap with compiled backend (platform-aware one-liner) — downloads `kit-{os}-{arch}.tar.gz`, creates `fab/.kit/` with all skills, templates, scripts, VERSION file, and all three binaries (`fab-go`, `idea`, `wt`) at `fab/.kit/bin/`; running `fab-sync.sh` first validates prerequisites (yq, jq, gh, direnv), then creates `changes/`, `memory/index.md`, `specs/index.md`, skill deployments conditionally per detected agent (Claude Code, OpenCode, Codex, Gemini CLI — only when the agent's CLI command is found in PATH), `.envrc` (line-ensuring from scaffold), and `.gitignore` entry.
 - Bootstrap without compiled backend (generic one-liner) — downloads `kit.tar.gz`, creates `fab/.kit/` with skills, templates, and utility scripts but no compiled backend; the `fab` command will not work until a backend is installed (via `fab-sync.sh` step 4 or manual build)
 - Bootstrap a new project (no `fab/` directory) — creates `fab/.kit/` with all skills, templates, scripts, and VERSION file; same sync behavior as above
 - Bootstrap with existing `fab/` directory — creates or replaces `fab/.kit/`; existing files outside `.kit/` (config.yaml, constitution.md, memory/, specs/, changes/) are NOT affected
@@ -123,28 +123,21 @@ Pre-flight checks: clean working tree (error if dirty), `fab/.kit/VERSION` exist
 The `justfile` at repo root provides locally-replicable build recipes using [just](https://github.com/casey/just). These same recipes are invoked by CI.
 
 **Go recipes**:
-- **`build-go`** — compiles the Go binary for the current platform at `fab/.kit/bin/fab-go` using `CGO_ENABLED=0`
-- **`build-go-target os arch`** — cross-compiles for a specific platform, outputs to `.release-build/fab-{os}-{arch}` using `CGO_ENABLED=0 GOOS={os} GOARCH={arch}`
-- **`build-go-all`** — cross-compiles for all 4 release targets (`darwin/arm64`, `darwin/amd64`, `linux/arm64`, `linux/amd64`) by invoking `build-go-target` for each
-
-**wt recipes**:
-- **`build-wt`** — compiles the wt Go binary for the current platform at `fab/.kit/bin/wt` using `CGO_ENABLED=0`
-- **`build-wt-target os arch`** — cross-compiles for a specific platform, outputs to `.release-build/wt-{os}-{arch}` using `CGO_ENABLED=0 GOOS={os} GOARCH={arch}`
-- **`build-wt-all`** — cross-compiles for all 4 release targets (`darwin/arm64`, `darwin/amd64`, `linux/arm64`, `linux/amd64`) by invoking `build-wt-target` for each
+- **`build-go`** — compiles all three Go binaries (`fab-go`, `idea`, `wt`) for the current platform at `fab/.kit/bin/` using `CGO_ENABLED=0`
+- **`build-go-target os arch`** — cross-compiles all three Go binaries (`fab`, `idea`, `wt`) for a specific platform, outputs to `.release-build/{name}-{os}-{arch}` using `CGO_ENABLED=0 GOOS={os} GOARCH={arch}`
+- **`build-go-all`** — cross-compiles for all 4 release targets (`darwin/arm64`, `darwin/amd64`, `linux/arm64`, `linux/amd64`) by invoking `build-go-target` for each, producing 12 binaries total (3 per platform)
 
 **Combined recipes**:
-- **`build-all`** — runs `build-go-all` and `build-wt-all`, producing 8 cross-compiled binaries (4 Go + 4 wt)
-- **`package-kit`** — creates 5 tar.gz archives: generic `kit.tar.gz` (no binaries) + 4 per-platform `kit-{os}-{arch}.tar.gz` (with `fab-go` and `wt`). Verifies Go and wt cross-compiled binaries exist first. Uses `COPYFILE_DISABLE=1` to suppress macOS extended attributes. Archives are rooted at `.kit/`.
+- **`build-all`** — runs `build-go-all`, producing 12 cross-compiled binaries (3 per platform x 4 platforms)
+- **`package-kit`** — creates 5 tar.gz archives: generic `kit.tar.gz` (no binaries) + 4 per-platform `kit-{os}-{arch}.tar.gz` (with `fab-go`, `idea`, and `wt`). Verifies all cross-compiled binaries exist first. Uses `COPYFILE_DISABLE=1` to suppress macOS extended attributes. Archives are rooted at `.kit/`.
 - **`clean`** — removes `.release-build/` directory and all `kit*.tar.gz` files from repo root
 
 **Scenarios**:
-- Local dev build (`just build-go` / `just build-wt`) — compiles binary for current platform at `fab/.kit/bin/`
-- Cross-compile single Go target (`just build-go-target darwin arm64`) — produces `.release-build/fab-darwin-arm64`
-- Cross-compile single wt target (`just build-wt-target darwin arm64`) — produces `.release-build/wt-darwin-arm64`
-- Build all targets (`just build-all`) — produces 8 binaries in `.release-build/` (4 Go + 4 wt)
-- Package after build (`just package-kit`) — creates 5 archives in repo root; per-platform archives include `.kit/bin/fab-go` and `.kit/bin/wt`, generic archive includes none
-- Package without prior Go build (`just package-kit`) — fails with error directing to run `just build-go-all` first
-- Package without prior wt build (`just package-kit`) — fails with error directing to run `just build-wt-all` first
+- Local dev build (`just build-go`) — compiles all three binaries (`fab-go`, `idea`, `wt`) for current platform at `fab/.kit/bin/`
+- Cross-compile for a single target (`just build-go-target darwin arm64`) — produces `.release-build/fab-darwin-arm64`, `.release-build/idea-darwin-arm64`, `.release-build/wt-darwin-arm64`
+- Build all targets (`just build-all`) — produces 12 binaries in `.release-build/` (3 per platform x 4 platforms)
+- Package after build (`just package-kit`) — creates 5 archives in repo root; per-platform archives include `.kit/bin/fab-go`, `.kit/bin/idea`, and `.kit/bin/wt`, generic archive includes none
+- Package without prior build (`just package-kit`) — fails with error directing to run `just build-go-all` first
 - Clean up (`just clean`) — removes `.release-build/` and `kit*.tar.gz`
 
 #### CI Workflow (`.github/workflows/release.yml`)
@@ -155,8 +148,8 @@ Workflow steps:
 1. Checkout repository (`actions/checkout@v4`)
 2. Set up Go toolchain (`actions/setup-go@v5`, Go 1.22)
 3. Install `just` command runner (`extractions/setup-just@v2`)
-4. Run `just build-all` (cross-compiles all 8 targets: 4 Go + 4 wt)
-5. Run `just package-kit` (creates 5 archives with two binaries per platform)
+4. Run `just build-all` (cross-compiles all 12 targets: 3 binaries x 4 platforms)
+5. Run `just package-kit` (creates 5 archives with three binaries per platform)
 6. Create GitHub Release via `gh release create` with all 5 archives and auto-generated release notes (`--generate-notes`)
 
 The workflow sets `permissions: contents: write` for release creation. `GITHUB_TOKEN` is used implicitly by `gh`.
@@ -166,7 +159,7 @@ GitHub determines "latest" release status based on semver ordering — backport 
 **Scenarios**:
 - Tag push triggers workflow — push of `v0.35.0` tag triggers the release workflow
 - Non-tag push does not trigger — regular commits pushed without a `v*` tag do not run the workflow
-- Full CI release — tag `v0.35.0` triggers workflow, which cross-compiles Go and wt (8 binaries), packages 5 archives (2 binaries per platform), and creates a GitHub Release with auto-generated notes
+- Full CI release — tag `v0.35.0` triggers workflow, which cross-compiles all Go binaries (12 total: fab, idea, wt x 4 platforms), packages 5 archives (3 binaries per platform), and creates a GitHub Release with auto-generated notes
 - Backport release via CI — tag `v0.34.2` triggers workflow; GitHub's semver ordering ensures it is not marked as "latest" since `v0.35.0` exists
 
 #### Release Archive Contents
@@ -174,12 +167,12 @@ GitHub determines "latest" release status based on semver ordering — backport 
 Each release produces 5 archives, all rooted at `.kit/` (e.g., `.kit/VERSION`, `.kit/skills/fab-new.md`, `.kit/packages/idea/bin/idea`):
 
 - **`kit.tar.gz`** — Generic archive containing shell scripts, skills, templates, packages, and all non-binary `.kit/` contents. No compiled binaries included. Serves as a fallback for unsupported platforms.
-- **`kit-darwin-arm64.tar.gz`** — Generic contents + Go binary at `.kit/bin/fab-go` + wt binary at `.kit/bin/wt` compiled for macOS Apple Silicon.
-- **`kit-darwin-amd64.tar.gz`** — Generic contents + Go binary at `.kit/bin/fab-go` + wt binary at `.kit/bin/wt` compiled for macOS Intel.
-- **`kit-linux-arm64.tar.gz`** — Generic contents + Go binary at `.kit/bin/fab-go` + wt binary at `.kit/bin/wt` compiled for Linux ARM64 (musl, fully static).
-- **`kit-linux-amd64.tar.gz`** — Generic contents + Go binary at `.kit/bin/fab-go` + wt binary at `.kit/bin/wt` compiled for Linux x86-64 (musl, fully static).
+- **`kit-darwin-arm64.tar.gz`** — Generic contents + three binaries at `.kit/bin/` (`fab-go`, `idea`, `wt`) compiled for macOS Apple Silicon.
+- **`kit-darwin-amd64.tar.gz`** — Generic contents + three binaries at `.kit/bin/` (`fab-go`, `idea`, `wt`) compiled for macOS Intel.
+- **`kit-linux-arm64.tar.gz`** — Generic contents + three binaries at `.kit/bin/` (`fab-go`, `idea`, `wt`) compiled for Linux ARM64 (musl, fully static).
+- **`kit-linux-amd64.tar.gz`** — Generic contents + three binaries at `.kit/bin/` (`fab-go`, `idea`, `wt`) compiled for Linux x86-64 (musl, fully static).
 
-No project-specific files (config.yaml, constitution.md, memory/, specs/, changes/) are included in any archive. Package production code (idea only — wt is now a binary in `bin/`) is included under `.kit/packages/`, hook scripts under `.kit/hooks/`, and sync scripts under `.kit/sync/` — all delivered to downstream projects on upgrade. The `idea` package is also available as `fab idea` via the Go binary (per-platform archives only); the shell package at `.kit/packages/idea/bin/idea` is retained for rollback safety and generic-archive users. Skill files under `.kit/skills/` (including `fab-operator1.md`) are included in all archives and deployed to agents by `fab-sync.sh`. Two binaries are placed at `.kit/bin/fab-go` and `.kit/bin/wt` in platform archives; the `bin/` directory contains a `.gitkeep` to ensure the directory exists even in the generic archive.
+No project-specific files (config.yaml, constitution.md, memory/, specs/, changes/) are included in any archive. Package production code (idea only — wt is now a binary in `bin/`) is included under `.kit/packages/`, hook scripts under `.kit/hooks/`, and sync scripts under `.kit/sync/` — all delivered to downstream projects on upgrade. The `idea` package is also available as `fab idea` via the Go binary (per-platform archives only); the shell package at `.kit/packages/idea/bin/idea` is retained for rollback safety and generic-archive users. Skill files under `.kit/skills/` (including `fab-operator1.md`) are included in all archives and deployed to agents by `fab-sync.sh`. Three binaries are placed at `.kit/bin/fab-go`, `.kit/bin/idea`, and `.kit/bin/wt` in platform archives; the `bin/` directory contains a `.gitkeep` to ensure the directory exists even in the generic archive.
 
 ### Backend Override Mechanism
 

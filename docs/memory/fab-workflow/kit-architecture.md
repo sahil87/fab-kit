@@ -21,6 +21,7 @@ fab/.kit/
 │   ├── fab                 # Shell dispatcher — sole entry point, delegates to fab-go
 │   ├── fab-go              # Go binary (optional, platform-specific from per-platform archives)
 │   ├── wt                  # Go binary — git worktree management (optional, platform-specific from per-platform archives)
+│   ├── idea                # Go binary — IDE integration helper (optional, platform-specific from per-platform archives)
 │   └── .gitkeep            # Ensures directory exists even in generic archive (no binary)
 ├── skills/                 # Skill definitions (markdown prompts)
 │   ├── _preamble.md         # Shared context loading convention

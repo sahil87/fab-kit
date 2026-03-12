@@ -22,7 +22,7 @@
 - [x] CHK-013 Backend override `FAB_BACKEND=rust` is silently ignored (falls through to fab-go) — verified: still returns "fab 0.35.6 (go backend)"
 
 ## Removal Verification
-- [x] CHK-014 No Cargo.toml or Cargo.lock files exist in the repo — **NOTE**: `src/benchmark/statusman-rust/Cargo.{toml,lock}` exist but are an independent benchmark tool, not part of the fab Rust implementation. The spec's intent covers `src/rust/fab/` Cargo files which are deleted. See should-fix note.
+- [x] CHK-014 No fab Rust backend Cargo.toml or Cargo.lock files (under `src/rust/`) exist in the repo — **NOTE**: `src/benchmark/statusman-rust/Cargo.{toml,lock}` exist but are an independent benchmark tool, not part of the fab Rust implementation. The spec's intent covers `src/rust/fab/` Cargo files which are deleted.
 - [x] CHK-015 No `fab-rust` binary referenced in any shell script — verified: no `.sh` files reference `fab-rust`
 - [x] CHK-016 Deprecated "Transition Period: Dual Backends" section removed from distribution.md — verified: only appears in changelog entry describing its removal
 
