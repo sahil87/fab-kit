@@ -1,0 +1,7 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-12T06:44:08Z"}
+{"args":"fix: fab status show reads outdated fab/current instead of .fab-status.yaml","cmd":"fab-new","event":"command","ts":"2026-03-12T06:44:08Z"}
+{"delta":"+4.4","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-12T06:44:47Z"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-12T06:44:52Z"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-12T06:49:19Z"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-12T06:49:24Z"}
+{"delta":"+0.6","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-03-12T06:58:06Z"}
