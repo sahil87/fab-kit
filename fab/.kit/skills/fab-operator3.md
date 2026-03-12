@@ -5,7 +5,7 @@ description: "Multi-agent coordination with proactive monitoring and auto-nudge 
 
 # /fab-operator3
 
-> Read `fab/.kit/skills/fab-operator2.md` first. Operator3 inherits ALL of operator2's behavior — monitoring, enrollment, `/loop` ticks, all use cases (UC1–UC8), confirmation model, pre-send validation, context discipline, and configuration. Then return here for the new behavior defined below.
+> Read `fab/.kit/skills/_preamble.md` first, then read `fab/.kit/skills/fab-operator2.md`. Operator3 inherits ALL of operator2's behavior — monitoring, enrollment, `/loop` ticks, all use cases (UC1–UC8), confirmation model, pre-send validation, context discipline, and configuration. Then return here for the additional operator3 behavior defined below.
 
 ---
 
@@ -116,5 +116,5 @@ The monitoring tick gains a new step between existing detection steps. The full 
 | Advances stage? | No |
 | Outputs `Next:` line? | No — ends with ready signal |
 | Loads change artifacts? | No — coordination context only |
-| Requires tmux? | Yes |
+| Requires tmux? | Yes — required for monitoring/auto-nudge; status-only mode works without tmux |
 | Uses `/loop`? | Yes — inherited from operator2 |

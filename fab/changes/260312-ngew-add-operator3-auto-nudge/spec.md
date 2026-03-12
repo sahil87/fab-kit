@@ -199,7 +199,7 @@ A new spec file `docs/specs/skills/SPEC-fab-operator3.md` SHALL be created docum
 | # | Grade | Decision | Rationale | Scores |
 |---|-------|----------|-----------|--------|
 | 1 | Certain | Operator3 extends operator2 (not replaces) | Confirmed from intake #1 — user confirmed incremental evolution model | S:95 R:90 A:95 D:95 |
-| 2 | Certain | "Stuck" means waiting for user input, not slow | Confirmed from intake #2 — user explicitly defined scope | S:95 R:95 A:95 D:95 |
+| 2 | Certain | "Stuck" means idle without visible progress (no prompt/output), not merely slow; explicit input prompts are handled by input-waiting detection | Confirmed from intake #2 — user explicitly defined scope, then refined to separate "stuck" from "input-waiting" | S:95 R:95 A:95 D:95 |
 | 3 | Certain | Detection via terminal heuristic (tmux capture-pane) | Confirmed from intake #3 — user chose option 1 over alternatives | S:90 R:80 A:85 D:90 |
 | 4 | Certain | Two-tier confidence model: auto-answer vs escalate | Confirmed from intake #4 — user agreed on approach | S:90 R:85 A:85 D:90 |
 | 5 | Certain | No audit trail for v1 | Confirmed from intake #5 — user agreed overkill for v1 | S:95 R:95 A:90 D:95 |
