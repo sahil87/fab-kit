@@ -22,7 +22,7 @@ done
 
 # Generic archive (no binaries)
 echo "Packaging kit.tar.gz (generic, no binary)..."
-COPYFILE_DISABLE=1 tar czf kit.tar.gz -C fab --exclude='.kit/bin/fab-go' --exclude='.kit/bin/fab-rust' --exclude='.kit/bin/wt' --exclude='.kit/bin/idea' .kit
+COPYFILE_DISABLE=1 tar czf kit.tar.gz -C fab --exclude='.kit/bin/fab-go' --exclude='.kit/bin/wt' --exclude='.kit/bin/idea' .kit
 echo "  kit.tar.gz ($(wc -c < kit.tar.gz) bytes)"
 
 # Per-platform archives (kit + Go binaries)

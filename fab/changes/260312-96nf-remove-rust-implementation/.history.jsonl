@@ -2,3 +2,13 @@
 {"args":"remove the rust implementation (src/rust) - its confusing the agent on any new work. The rust version isn't being maintained only the go version is. Also remove any related commands in justfile, in build workflows.","cmd":"fab-new","event":"command","ts":"2026-03-12T07:51:43Z"}
 {"delta":"+4.1","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-12T07:53:01Z"}
 {"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-12T07:53:13Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-03-12T08:05:59Z"}
+{"cmd":"fab-ff","event":"command","ts":"2026-03-12T08:06:24Z"}
+{"delta":"+0.3","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-12T08:08:00Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"spec","ts":"2026-03-12T08:08:04Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"tasks","ts":"2026-03-12T08:09:37Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"apply","ts":"2026-03-12T08:09:37Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"review","ts":"2026-03-12T08:18:12Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"hydrate","ts":"2026-03-12T08:20:58Z"}
+{"event":"review","result":"passed","ts":"2026-03-12T08:20:58Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"ship","ts":"2026-03-12T08:22:14Z"}
