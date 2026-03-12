@@ -60,7 +60,7 @@ This is the authoritative mapping of intent to tool. Use the right tool for the 
 | Intent | Tool | Notes |
 |--------|------|-------|
 | See all agents + stages + panes | `fab/.kit/bin/fab pane-map` | Primary observation tool. Requires tmux. |
-| See all worktrees + pipeline status (no tmux) | `fab/.kit/bin/fab status show --all` | Fallback when `$TMUX` is unset. No pane/agent info. |
+| List all worktrees | `fab/.kit/bin/wt list` | Names, branches, paths. Works without tmux. |
 | Check if a worktree exists | `fab/.kit/bin/wt list --path <name>` | Exit 0 = exists (prints path), exit 1 = not found. |
 | Read an agent's recent terminal output | `tmux capture-pane -t <pane> -p` | For diagnosis. Do NOT deeply analyze — report what you see. |
 
@@ -68,6 +68,7 @@ This is the authoritative mapping of intent to tool. Use the right tool for the 
 
 | Intent | Tool | Notes |
 |--------|------|-------|
+| List all open changes | `fab/.kit/bin/fab change list` | Returns name:stage:state:confidence:indicative per line. |
 | Get a change's confidence score | `fab/.kit/bin/fab status confidence <change>` | Use for autopilot gate checks. |
 | Get a change's PR URLs | `fab/.kit/bin/fab status get-prs <change>` | For merge operations. |
 | Look up a backlog idea | `fab/.kit/bin/fab idea show "<description>"` | For spawning new work. |
@@ -84,7 +85,7 @@ This is the authoritative mapping of intent to tool. Use the right tool for the 
 
 ### State Re-derivation
 
-Before **every** action, re-query live state via `fab pane-map` (or `fab status show --all` if outside tmux). Never rely on stale values from conversation memory. If a pane died or a change advanced since the last check, the operator must know.
+Before **every** action, re-query live state via `fab pane-map` (or `wt list` + `fab change list` if outside tmux). Never rely on stale values from conversation memory. If a pane died or a change advanced since the last check, the operator must know.
 
 ---
 
@@ -105,7 +106,7 @@ If `$TMUX` is unset, display:
 Warning: not inside a tmux session. Pane map and send-keys unavailable. Status-only mode.
 ```
 
-Use `fab status show --all` for status queries only.
+Use `wt list` (worktree overview) and `fab change list` (pipeline state) for status queries only.
 
 ---
 
