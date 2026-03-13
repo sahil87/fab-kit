@@ -46,7 +46,7 @@ func resolveCmd() *cobra.Command {
 					os.Exit(1)
 				}
 
-				panes, err := discoverPanes()
+				panes, err := discoverPanes(sessionDefault, "")
 				if err != nil {
 					return err
 				}

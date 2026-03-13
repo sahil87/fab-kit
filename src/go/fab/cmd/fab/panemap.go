@@ -1,10 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,40 +18,62 @@ import (
 )
 
 func paneMapCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "pane-map",
 		Short: "Show tmux pane-to-worktree mapping with fab pipeline state",
 		Args:  cobra.NoArgs,
 		RunE:  runPaneMap,
 	}
+	cmd.Flags().Bool("json", false, "Output as JSON array")
+	cmd.Flags().String("session", "", "Target a specific tmux session by name")
+	cmd.Flags().Bool("all-sessions", false, "Query all tmux sessions")
+	cmd.MarkFlagsMutuallyExclusive("session", "all-sessions")
+	return cmd
 }
 
-// paneEntry holds a single tmux pane's ID, tab (window) name, and current working directory.
+// paneEntry holds a single tmux pane's ID, tab (window) name, current working directory,
+// session name, and window index.
 type paneEntry struct {
-	id  string
-	tab string
-	cwd string
+	id      string
+	tab     string
+	cwd     string
+	session string
+	index   int
 }
 
 // paneRow holds the resolved data for a single output row.
 type paneRow struct {
-	pane      string
-	tab       string
-	worktree  string
-	change    string
-	stage     string
-	agent     string
+	session     string
+	windowIndex int
+	pane        string
+	tab         string
+	worktree    string
+	change      string
+	stage       string
+	agent       string
 }
 
 func runPaneMap(cmd *cobra.Command, args []string) error {
-	// Tmux session guard
-	if os.Getenv("TMUX") == "" {
+	jsonFlag, _ := cmd.Flags().GetBool("json")
+	sessionFlag, _ := cmd.Flags().GetString("session")
+	allSessionsFlag, _ := cmd.Flags().GetBool("all-sessions")
+
+	// Determine session targeting mode
+	mode := sessionDefault
+	if allSessionsFlag {
+		mode = sessionAll
+	} else if sessionFlag != "" {
+		mode = sessionNamed
+	}
+
+	// $TMUX guard only when neither --session nor --all-sessions is set
+	if mode == sessionDefault && os.Getenv("TMUX") == "" {
 		fmt.Fprintln(cmd.ErrOrStderr(), "Error: not inside a tmux session")
 		os.Exit(1)
 	}
 
 	// Discover tmux panes
-	panes, err := discoverPanes()
+	panes, err := discoverPanes(mode, sessionFlag)
 	if err != nil {
 		return err
 	}
@@ -77,29 +101,93 @@ func runPaneMap(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	printPaneTable(cmd, rows)
+	if jsonFlag {
+		return printPaneJSON(cmd, rows)
+	}
+
+	printPaneTable(cmd, rows, allSessionsFlag)
 	return nil
 }
 
-// discoverPanes runs `tmux list-panes -s` (current session only) and parses the output.
+// sessionMode controls how discoverPanes selects tmux sessions.
+type sessionMode int
+
+const (
+	sessionDefault  sessionMode = iota // current session (tmux list-panes -s)
+	sessionNamed                       // specific session by name (-t <name>)
+	sessionAll                         // all sessions
+)
+
+// tmuxPaneFormat is the format string passed to tmux list-panes -F.
+const tmuxPaneFormat = "#{pane_id}\t#{window_name}\t#{pane_current_path}\t#{session_name}\t#{window_index}"
+
+// discoverPanes runs `tmux list-panes` with session targeting and parses the output.
 // Uses tab as the field delimiter so that window names containing spaces are handled correctly.
-func discoverPanes() ([]paneEntry, error) {
-	out, err := exec.Command("tmux", "list-panes", "-s", "-F", "#{pane_id}\t#{window_name}\t#{pane_current_path}").Output()
+func discoverPanes(mode sessionMode, sessionName string) ([]paneEntry, error) {
+	switch mode {
+	case sessionAll:
+		return discoverAllSessions()
+	case sessionNamed:
+		return discoverSessionPanes(sessionName)
+	default:
+		return discoverSessionPanes("")
+	}
+}
+
+// discoverSessionPanes lists panes for a single session (or the current session if name is empty).
+func discoverSessionPanes(name string) ([]paneEntry, error) {
+	args := []string{"list-panes", "-s", "-F", tmuxPaneFormat}
+	if name != "" {
+		args = append(args, "-t", name)
+	}
+	out, err := exec.Command("tmux", args...).Output()
 	if err != nil {
 		return nil, fmt.Errorf("tmux list-panes: %w", err)
 	}
+	return parsePaneLines(string(out))
+}
 
+// discoverAllSessions enumerates all tmux sessions, then lists panes for each.
+func discoverAllSessions() ([]paneEntry, error) {
+	out, err := exec.Command("tmux", "list-sessions", "-F", "#{session_name}").Output()
+	if err != nil {
+		return nil, fmt.Errorf("tmux list-sessions: %w", err)
+	}
+	var all []paneEntry
+	for _, sess := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		sess = strings.TrimSpace(sess)
+		if sess == "" {
+			continue
+		}
+		panes, err := discoverSessionPanes(sess)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, panes...)
+	}
+	return all, nil
+}
+
+// parsePaneLines parses tmux list-panes output into paneEntry slices.
+func parsePaneLines(output string) ([]paneEntry, error) {
 	var panes []paneEntry
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, "\t", 3)
-		if len(parts) != 3 {
+		parts := strings.SplitN(line, "\t", 5)
+		if len(parts) != 5 {
 			continue
 		}
-		panes = append(panes, paneEntry{id: parts[0], tab: parts[1], cwd: parts[2]})
+		idx, _ := strconv.Atoi(parts[4])
+		panes = append(panes, paneEntry{
+			id:      parts[0],
+			tab:     parts[1],
+			cwd:     parts[2],
+			session: parts[3],
+			index:   idx,
+		})
 	}
 	return panes, nil
 }
@@ -170,12 +258,14 @@ func resolvePane(p paneEntry, mainRoot string, runtimeCache map[string]interface
 	if err != nil {
 		// Non-git directory: show basename of CWD
 		return paneRow{
-			pane:     p.id,
-			tab:      p.tab,
-			worktree: filepath.Base(p.cwd) + "/",
-			change:   emDash,
-			stage:    emDash,
-			agent:    emDash,
+			session:     p.session,
+			windowIndex: p.index,
+			pane:        p.id,
+			tab:         p.tab,
+			worktree:    filepath.Base(p.cwd) + "/",
+			change:      emDash,
+			stage:       emDash,
+			agent:       emDash,
 		}, true
 	}
 
@@ -184,12 +274,14 @@ func resolvePane(p paneEntry, mainRoot string, runtimeCache map[string]interface
 	if _, err := os.Stat(fabDir); os.IsNotExist(err) {
 		// Git repo without fab/: show worktree path
 		return paneRow{
-			pane:     p.id,
-			tab:      p.tab,
-			worktree: worktreeDisplayPath(wtRoot, mainRoot),
-			change:   emDash,
-			stage:    emDash,
-			agent:    emDash,
+			session:     p.session,
+			windowIndex: p.index,
+			pane:        p.id,
+			tab:         p.tab,
+			worktree:    worktreeDisplayPath(wtRoot, mainRoot),
+			change:      emDash,
+			stage:       emDash,
+			agent:       emDash,
 		}, true
 	}
 
@@ -213,12 +305,14 @@ func resolvePane(p paneEntry, mainRoot string, runtimeCache map[string]interface
 	agentState := resolveAgentState(wtRoot, folderName, runtimeCache)
 
 	return paneRow{
-		pane:     p.id,
-		tab:      p.tab,
-		worktree: wtDisplay,
-		change:   changeName,
-		stage:    stageName,
-		agent:    agentState,
+		session:     p.session,
+		windowIndex: p.index,
+		pane:        p.id,
+		tab:         p.tab,
+		worktree:    wtDisplay,
+		change:      changeName,
+		stage:       stageName,
+		agent:       agentState,
 	}, true
 }
 
@@ -377,27 +471,136 @@ func formatIdleDuration(seconds int64) string {
 	return fmt.Sprintf("%dh", seconds/3600)
 }
 
-// printPaneTable prints the aligned pane map table.
-func printPaneTable(cmd *cobra.Command, rows []paneRow) {
-	// Compute column widths
-	headers := [6]string{"Pane", "Tab", "Worktree", "Change", "Stage", "Agent"}
-	widths := [6]int{len(headers[0]), len(headers[1]), len(headers[2]), len(headers[3]), len(headers[4]), len(headers[5])}
+// paneJSON represents a single pane in JSON output.
+type paneJSON struct {
+	Session           string  `json:"session"`
+	WindowIndex       int     `json:"window_index"`
+	Pane              string  `json:"pane"`
+	Tab               string  `json:"tab"`
+	Worktree          string  `json:"worktree"`
+	Change            *string `json:"change"`
+	Stage             *string `json:"stage"`
+	AgentState        *string `json:"agent_state"`
+	AgentIdleDuration *string `json:"agent_idle_duration"`
+}
 
+// toNullable converts a table display string to a *string for JSON output.
+// Em-dash and "(no change)" map to nil (JSON null).
+func toNullable(s string) *string {
+	if s == "\u2014" || s == "(no change)" {
+		return nil
+	}
+	return &s
+}
+
+// splitAgentState splits the combined agent display string into separate
+// state and idle duration values for JSON output.
+//
+// Mapping:
+//
+//	"active"       → ("active", nil)
+//	"idle (2m)"    → ("idle", "2m")
+//	"—" (em dash)  → (nil, nil)
+//	"?"            → ("unknown", nil)
+func splitAgentState(agent string) (state *string, idleDuration *string) {
+	switch {
+	case agent == "\u2014":
+		return nil, nil
+	case agent == "?":
+		s := "unknown"
+		return &s, nil
+	case strings.HasPrefix(agent, "idle ("):
+		s := "idle"
+		dur := strings.TrimSuffix(strings.TrimPrefix(agent, "idle ("), ")")
+		return &s, &dur
+	default:
+		// "active" or any other value
+		return &agent, nil
+	}
+}
+
+// printPaneJSON marshals rows to a JSON array and writes to cmd's stdout.
+func printPaneJSON(cmd *cobra.Command, rows []paneRow) error {
+	out := make([]paneJSON, len(rows))
+	for i, r := range rows {
+		agentState, idleDur := splitAgentState(r.agent)
+		out[i] = paneJSON{
+			Session:           r.session,
+			WindowIndex:       r.windowIndex,
+			Pane:              r.pane,
+			Tab:               r.tab,
+			Worktree:          r.worktree,
+			Change:            toNullable(r.change),
+			Stage:             toNullable(r.stage),
+			AgentState:        agentState,
+			AgentIdleDuration: idleDur,
+		}
+	}
+	enc := json.NewEncoder(cmd.OutOrStdout())
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
+}
+
+// printPaneTable prints the aligned pane map table.
+// When showSession is true, a Session column is prepended.
+func printPaneTable(cmd *cobra.Command, rows []paneRow, showSession bool) {
+	// Build dynamic column list
+	type col struct {
+		header string
+		value  func(r paneRow) string
+	}
+
+	var cols []col
+	if showSession {
+		cols = append(cols, col{"Session", func(r paneRow) string { return r.session }})
+	}
+	cols = append(cols,
+		col{"Pane", func(r paneRow) string { return r.pane }},
+		col{"WinIdx", func(r paneRow) string { return strconv.Itoa(r.windowIndex) }},
+		col{"Tab", func(r paneRow) string { return r.tab }},
+		col{"Worktree", func(r paneRow) string { return r.worktree }},
+		col{"Change", func(r paneRow) string { return r.change }},
+		col{"Stage", func(r paneRow) string { return r.stage }},
+		col{"Agent", func(r paneRow) string { return r.agent }},
+	)
+
+	// Compute column widths
+	widths := make([]int, len(cols))
+	for i, c := range cols {
+		widths[i] = len(c.header)
+	}
 	for _, r := range rows {
-		cols := [6]string{r.pane, r.tab, r.worktree, r.change, r.stage, r.agent}
 		for i, c := range cols {
-			if len(c) > widths[i] {
-				widths[i] = len(c)
+			if v := len(c.value(r)); v > widths[i] {
+				widths[i] = v
 			}
 		}
 	}
 
+	// Build format string: all columns left-aligned with two-space gap, last column unpadded
+	var fmtParts []string
+	for i := range cols {
+		if i == len(cols)-1 {
+			fmtParts = append(fmtParts, "%s")
+		} else {
+			fmtParts = append(fmtParts, fmt.Sprintf("%%-%ds", widths[i]))
+		}
+	}
+	fmtStr := strings.Join(fmtParts, "  ") + "\n"
+
 	// Print header
-	fmtStr := fmt.Sprintf("%%-%ds  %%-%ds  %%-%ds  %%-%ds  %%-%ds  %%s\n", widths[0], widths[1], widths[2], widths[3], widths[4])
-	fmt.Fprintf(cmd.OutOrStdout(), fmtStr, headers[0], headers[1], headers[2], headers[3], headers[4], headers[5])
+	hvals := make([]interface{}, len(cols))
+	for i, c := range cols {
+		hvals[i] = c.header
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), fmtStr, hvals...)
 
 	// Print data rows
 	for _, r := range rows {
-		fmt.Fprintf(cmd.OutOrStdout(), fmtStr, r.pane, r.tab, r.worktree, r.change, r.stage, r.agent)
+		vals := make([]interface{}, len(cols))
+		for i, c := range cols {
+			vals[i] = c.value(r)
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), fmtStr, vals...)
 	}
 }
