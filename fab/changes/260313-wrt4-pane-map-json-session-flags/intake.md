@@ -71,6 +71,8 @@ When `--all-sessions` is set, the `$TMUX` check is skipped. Output includes pane
 
 When neither `--session` nor `--all-sessions` is set, current behavior is preserved: the command uses `$TMUX` to discover the current session and only lists panes from that session. This is the default and requires being inside a tmux session (existing behavior, no regression).
 
+**`$TMUX` guard change**: The existing `$TMUX` environment variable check at the top of `runPaneMap()` only applies when neither `--session` nor `--all-sessions` is provided. When either flag is set, the session target is explicit and the `$TMUX` check is skipped entirely — the command works from outside tmux (e.g., from a backend process, cron job, or non-tmux terminal).
+
 ### 4. `window_index` field
 
 Add `window_index` (integer) to both table and JSON output. This is the tmux window index (`#{window_index}`). Required by run-kit to join pane-map results back to its `WindowInfo` structs keyed by `session:window_index`.
