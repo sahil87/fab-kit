@@ -1,0 +1,4 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-13T15:11:57Z"}
+{"args":"Add --json, --session, --all-sessions flags and window_index field to fab pane-map","cmd":"fab-new","event":"command","ts":"2026-03-13T15:11:57Z"}
+{"delta":"+4.1","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-13T15:14:04Z"}
+{"cmd":"fab-new","event":"command","ts":"2026-03-13T15:14:11Z"}
