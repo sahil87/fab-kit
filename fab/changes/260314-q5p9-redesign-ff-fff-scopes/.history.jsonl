@@ -1,0 +1,6 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-14T16:19:11Z"}
+{"args":"Redesign fab-ff and fab-fff pipeline scopes: ff stops at hydrate (with confidence gates), fff extends ff through ship + review-pr (same gates). Drop frontloaded questions from fff. Add --force flag.","cmd":"fab-new","event":"command","ts":"2026-03-14T16:19:11Z"}
+{"delta":"+3.4","event":"confidence","score":3.4,"trigger":"calc-score","ts":"2026-03-14T16:20:28Z"}
+{"delta":"+0.0","event":"confidence","score":3.4,"trigger":"calc-score","ts":"2026-03-14T16:20:39Z"}
+{"delta":"+0.0","event":"confidence","score":3.4,"trigger":"calc-score","ts":"2026-03-14T16:41:34Z"}
+{"delta":"+0.0","event":"confidence","score":3.4,"trigger":"calc-score","ts":"2026-03-14T16:41:42Z"}

@@ -14,7 +14,10 @@ flowchart TD
     S -->|"break down work"| T[tasks]
     T -->|"write code"| A[apply]
     A -->|"validate"| R[review]
-    R -->|"document & close"| AR[archive]
+    R -->|"document learnings"| H[hydrate]
+    H -->|"commit & push"| SH[ship]
+    SH -->|"process feedback"| RP[review-pr]
+    RP -->|"close"| AR[archive]
 
     %% Rework
     R -.->|"fix issues"| A
@@ -26,14 +29,17 @@ flowchart TD
     style T fill:#e8f4f8,stroke:#2196F3
     style A fill:#fff3e0,stroke:#FF9800
     style R fill:#fff3e0,stroke:#FF9800
-    style AR fill:#e8f5e9,stroke:#4CAF50
+    style H fill:#fff3e0,stroke:#FF9800
+    style SH fill:#e8f5e9,stroke:#4CAF50
+    style RP fill:#e8f5e9,stroke:#4CAF50
+    style AR fill:#f0f0f0,stroke:#999
 ```
 
 ---
 
 ## 2. The Same Flow, With Fab
 
-Each transition is now a `/fab-*` command. Shortcuts (`/fab-ff`, `/fab-fff`) run the full pipeline in one invocation. `/fab-archive` is a separate housekeeping step after the pipeline completes.
+Each transition is now a `/fab-*` command. `/fab-ff` fast-forwards from intake through hydrate; `/fab-fff` fast-forwards further through ship and PR review. `/fab-archive` is a separate housekeeping step after the pipeline completes.
 
 ```mermaid
 flowchart TD
@@ -42,15 +48,17 @@ flowchart TD
     T -->|"/fab-continue"| A[apply]
     A -->|"/fab-continue"| R[review]
     R -->|"/fab-continue"| H[hydrate]
+    H -->|"/git-pr"| SH[ship]
+    SH -->|"/git-pr-review"| RP[review-pr]
 
     %% Post-pipeline housekeeping
-    H -->|"/fab-archive"| AR[archive]
+    RP -->|"/fab-archive"| AR[archive]
 
-    %% Shortcuts (full pipeline from intake onward)
+    %% Shortcuts
     B -->|"/fab-ff
-    (confidence-gated, auto-rework loop)"| H
+    (fast-forward, confidence-gated)"| H
     B -->|"/fab-fff
-    (full pipeline, autonomous rework)"| H
+    (fast-forward-further, confidence-gated)"| RP
 
     %% Apply-review loop (sub-agent review with auto-rework)
     R -.->|"sub-agent review
@@ -66,48 +74,15 @@ flowchart TD
     style T fill:#e8f4f8,stroke:#2196F3
     style A fill:#fff3e0,stroke:#FF9800
     style R fill:#fff3e0,stroke:#FF9800
-    style H fill:#e8f5e9,stroke:#4CAF50
+    style H fill:#fff3e0,stroke:#FF9800
+    style SH fill:#e8f5e9,stroke:#4CAF50
+    style RP fill:#e8f5e9,stroke:#4CAF50
     style AR fill:#f0f0f0,stroke:#999
 ```
 
 ---
 
-## 3A. Setup & Utilities
-
-Commands that live outside the change pipeline — run once per project or anytime.
-
-```mermaid
-flowchart LR
-    subgraph setup ["Setup (once per project)"]
-        INIT["/fab-setup"]
-        HYDRATE["/docs-hydrate-memory"]
-    end
-
-    subgraph utility ["Utility (anytime)"]
-        direction TB
-        STATUS["/fab-status"] ~~~ HELP["/fab-help"] ~~~ DISCUSS["/fab-discuss"]
-        BACKFILL["/docs-hydrate-specs"] ~~~ REORG_MEM["/docs-reorg-memory"] ~~~ REORG_SPEC["/docs-reorg-specs"]
-        STATUS ~~~ BACKFILL
-    end
-
-    subgraph shell ["Shell Utilities"]
-        direction TB
-        UPGRADE["fab-upgrade.sh"] ~~~ BATCH_NEW["batch-fab-new-backlog.sh"]
-        BATCH_SWITCH["batch-fab-switch-change.sh"] ~~~ BATCH_ARCHIVE["batch-fab-archive-change.sh"]
-        UPGRADE ~~~ BATCH_SWITCH
-    end
-
-    setup ~~~ utility ~~~ shell
-
-    INIT --> HYDRATE
-
-    %% Styles
-    style setup fill:#f0f0f0,stroke:#999
-    style utility fill:#fce4ec,stroke:#e91e63
-    style shell fill:#f0f0f0,stroke:#999
-```
-
-## 3B. Change Flow
+## 3. Change Flow
 
 The pipeline for a single change: creation, execution (with shortcuts), and completion. Solid arrows are the primary flow; dashed arrows are lateral/utility actions.
 
@@ -131,10 +106,17 @@ flowchart TD
             CONT_T --> APPLY
         end
 
+        subgraph shipping ["Shipping"]
+            direction TB
+            SHIP["/git-pr → ship"]
+            RP["/git-pr-review → review-pr"]
+            SHIP --> RP
+        end
+
         FF["/fab-ff
-        (confidence-gated, auto-rework loop)"]
+        (fast-forward through hydrate)"]
         FFF["/fab-fff
-        (full pipeline, autonomous rework)"]
+        (fast-forward further through review-pr)"]
 
         FF ~~~ FFF
 
@@ -158,7 +140,7 @@ flowchart TD
     SWITCH -.-> FF
     SWITCH -.-> FFF
     FF --> HYD
-    FFF --> HYD
+    FFF --> RP
 
     %% Clarify connects to the execution block
     CLARIFY -.->|"refine, then resume"| execution
@@ -173,12 +155,14 @@ flowchart TD
     REVIEW -->|"pass"| HYD
     REVIEW -.->|"fail → auto-rework
     (sub-agent, fab-ff/fab-fff)"| APPLY
-    HYD -->|"move to archive"| FAB_ARCHIVE
+    HYD --> SHIP
+    RP -->|"move to archive"| FAB_ARCHIVE
 
     %% Styles
     style creation fill:#f3e5f5,stroke:#9C27B0
     style change_exec fill:#fff3e0,stroke:#FF9800
     style execution fill:#d6eaf8,stroke:#2196F3
+    style shipping fill:#d5f5e3,stroke:#4CAF50
     style completion fill:#e8f5e9,stroke:#4CAF50
     style FAB_ARCHIVE fill:#f0f0f0,stroke:#999
     style CLARIFY fill:#fff,stroke:#999,stroke-dasharray: 5 5
@@ -200,8 +184,8 @@ stateDiagram-v2
     intake --> spec: /fab-continue
 
     spec --> tasks: /fab-continue
-    intake --> hydrate: /fab-ff (confidence-gated, auto-rework loop)
-    intake --> hydrate: /fab-fff (full pipeline, autonomous rework)
+    intake --> hydrate: /fab-ff (fast-forward, confidence-gated)
+    intake --> review_pr: /fab-fff (fast-forward-further, confidence-gated)
 
     tasks --> apply: /fab-continue
 
@@ -213,7 +197,11 @@ stateDiagram-v2
 
     state "spec / tasks / apply" as earlier_stage
 
-    hydrate --> [*]: /fab-archive
+    hydrate --> ship: /git-pr
+    ship --> review_pr: /git-pr-review
+    review_pr --> [*]: /fab-archive
+
+    state "review-pr" as review_pr
 
     note right of intake
         Created by /fab-new
@@ -241,16 +229,20 @@ stateDiagram-v2
         fab-ff and fab-fff.
     end note
 
+    note right of ship
+        Commit, push, create PR
+    end note
+
     %% Styles
     classDef planning fill:#e8f4f8,stroke:#2196F3,stroke-width:2px
     classDef execution fill:#fff3e0,stroke:#FF9800,stroke-width:2px
-    classDef completion fill:#e8f5e9,stroke:#4CAF50,stroke-width:2px
+    classDef shipping fill:#e8f5e9,stroke:#4CAF50,stroke-width:2px
     classDef input fill:#f3e5f5,stroke:#9C27B0,stroke-width:2px
 
     class intake input
     class spec,tasks planning
-    class apply,review execution
-    class hydrate completion
+    class apply,review,hydrate execution
+    class ship,review_pr shipping
 ```
 
 ---

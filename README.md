@@ -316,18 +316,65 @@ Grades aggregate into a **confidence score** that gates `/fab-ff`. If ambiguity 
 
 > **Prefix:** Use `/fab-*` in Claude Code, `$fab-*` in Codex.
 
+### Pipeline
+
+| Command | Purpose |
+|---------|---------|
+| `/fab-new <description>` | Start a new change from a description, Linear ticket, or backlog ID |
+| `/fab-continue` | Advance to the next stage (or reset to a specific stage) |
+| `/fab-ff` | Fast-forward through hydrate — confidence-gated, auto-rework loop |
+| `/fab-fff` | Fast-forward further through ship + PR review — same gates as ff |
+| `/fab-clarify` | Refine the current artifact — resolve gaps without advancing |
+| `/fab-archive` | Archive a completed change (or restore an archived one) |
+
+### Setup & Status
+
 | Command | Purpose |
 |---------|---------|
 | `/fab-setup` | Bootstrap fab/ structure, manage config/constitution, apply migrations |
-| `/fab-new <description>` | Start a new change |
-| `/fab-continue` | Advance to next stage |
-| `/fab-ff` | Fast-forward from spec with auto-rework loop |
-| `/fab-fff` | Full autonomous pipeline with sub-agent rework |
-| `/fab-clarify` | Deepen current artifact before moving on |
-| `/fab-status` | Check current progress |
-| `/fab-switch` | Switch active change |
-| `/fab-archive` | Archive a completed change |
-| `/docs-hydrate-memory [sources...]` | Ingest external docs into memory |
+| `/fab-status` | Show current change state — name, branch, stage, checklist, next command |
+| `/fab-switch` | Switch active change (or list available changes) |
+| `/fab-help` | Show workflow overview and command summary |
+| `/fab-discuss` | Load project context for an exploratory discussion session |
+
+### Git
+
+| Command | Purpose |
+|---------|---------|
+| `/git-branch` | Create or switch to the git branch matching the active change |
+| `/git-pr` | Commit, push, and create a GitHub PR |
+| `/git-pr-review` | Process PR review comments — triage and fix feedback |
+
+### Documentation
+
+| Command | Purpose |
+|---------|---------|
+| `/docs-hydrate-memory [sources...]` | Ingest external docs or generate memory from codebase analysis |
+| `/docs-hydrate-specs` | Detect gaps between memory and specs, propose additions |
+| `/docs-reorg-memory` | Analyze memory files for themes, suggest reorganization |
+| `/docs-reorg-specs` | Analyze spec files for themes, suggest reorganization |
+
+### Multi-Agent Coordination
+
+| Command | Purpose |
+|---------|---------|
+| `/fab-operator1` | Observe and interact with agents across tmux panes |
+| `/fab-operator2` | Operator1 + proactive monitoring after every action |
+| `/fab-operator3` | Operator2 + auto-nudge for agents waiting on user input |
+
+### Shell Utilities
+
+| Script | Purpose |
+|--------|---------|
+| `fab-upgrade.sh` | Download latest kit release, replace fab/.kit/, run sync |
+| `fab-sync.sh` | Repair symlinks, scaffold structure, deploy skills |
+| `fab-doctor.sh` | Diagnose common setup issues |
+| `fab-help.sh` | Print workflow overview to terminal |
+| `batch-fab-new-backlog.sh` | Create changes from multiple backlog entries |
+| `batch-fab-switch-change.sh` | Switch changes across multiple worktrees |
+| `batch-fab-archive-change.sh` | Archive multiple completed changes |
+| `batch-pipeline.sh` | Run pipeline on a change in a worktree |
+| `batch-pipeline-series.sh` | Chain multiple pipeline runs in sequence |
 
 ## Packages
 
