@@ -88,7 +88,7 @@
 | **Confident** | SRAD grade. Strong signal, one obvious interpretation. No artifact marker; noted in Assumptions summary. |
 | **Tentative** | SRAD grade. Reasonable guess but multiple valid options. Marked with `<!-- assumed: ... -->` in the artifact. Resolvable by `/fab-clarify`. |
 | **Unresolved** | SRAD grade. Cannot determine; incompatible interpretations. Must always be asked as a question — never silently assumed. |
-| **Confidence score** | A 0.0–5.0 numeric measure of how well-resolved a change's decisions are. Formula: `max(0.0, 5.0 - 0.3 * confident - 1.0 * tentative)` (0.0 if any unresolved). Stored in `.status.yaml`. |
+| **Confidence score** | A 0.0–5.0 numeric measure of how well-resolved a change's decisions are. Formula: `score = base * cover` where `base = max(0.0, 5.0 - 0.3 * confident - 1.0 * tentative)` and `cover = min(1.0, total_decisions / expected_min)`. Score is 0.0 if any unresolved. Stored in `.status.yaml`. |
 | **Confidence gate** | The requirement that `/fab-ff` and `/fab-fff` check: confidence score must meet a type-specific threshold (see [Change Types](change-types.md)). Ensures pipeline runs only when decisions are sufficiently resolved. Bypassed with `--force`. |
 | **Assumptions summary** | A table appended to artifacts listing all Confident and Tentative decisions with rationale. Enables `/fab-clarify` to discover and resolve assumptions. |
 | `<!-- assumed: ... -->` | Inline HTML comment marker placed after tentatively assumed content. Scanned by `/fab-clarify` for resolution. |
