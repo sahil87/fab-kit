@@ -22,7 +22,7 @@ User invokes /git-rebase
 │     └─ [stash] → git stash push -m "git-rebase: auto-stash before rebase"
 │
 ├─ Step 4: Fetch and Rebase
-│  ├─ Bash: git rev-parse --verify main (auto-detect main vs master)
+│  ├─ Bash: git symbolic-ref refs/remotes/origin/HEAD (with main/master fallback)
 │  ├─ Bash: git fetch origin {main_branch}
 │  │  └─ [fetch fails] → report error, pop stash if applicable, STOP
 │  ├─ Bash: git rebase origin/{main_branch}

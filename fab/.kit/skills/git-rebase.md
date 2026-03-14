@@ -59,7 +59,7 @@ If there is output (uncommitted changes exist), show the user what's pending and
 ```
 You have uncommitted changes:
 
-{git status --short output}
+{git status --porcelain output}
 
 Options:
 1. Stash changes, rebase, then restore — runs git stash, rebases, then git stash pop
@@ -75,7 +75,7 @@ Wait for user response. If the user chooses to abort, STOP. If the user chooses 
 Determine the upstream default branch name:
 
 ```bash
-git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||'
+ref=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null) && echo "${ref#refs/remotes/origin/}"
 ```
 
 If that fails (e.g., `origin/HEAD` not set), fall back to local detection:

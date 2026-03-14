@@ -9,7 +9,7 @@
 - [x] CHK-002 Git Repository Guard: Step 1 checks `git rev-parse --is-inside-work-tree`
 - [x] CHK-003 Branch Guard: Step 2 rejects main/master with appropriate error message
 - [x] CHK-004 Uncommitted Changes Detection: Step 3 uses `git status --porcelain` and presents stash-or-abort options
-- [x] CHK-005 Main Branch Auto-Detection: Step 4 uses `git rev-parse --verify main` with master fallback
+- [x] CHK-005 Main Branch Auto-Detection: Step 4 uses `git symbolic-ref refs/remotes/origin/HEAD` with local main/master fallback
 - [x] CHK-006 Fetch and Rebase: Step 4 runs `git fetch origin {main_branch}` then `git rebase origin/{main_branch}`
 - [x] CHK-007 Stash Safety: stash push before rebase, stash pop after, with error handling for both
 - [x] CHK-008 No Fab State Modification: key properties confirm no .fab-status.yaml or .status.yaml changes
