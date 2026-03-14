@@ -2,7 +2,7 @@ id: 007n
 name: 260314-007n-redesign-operator-auto-nudge
 created: 2026-03-14T16:44:49Z
 created_by: sahil-weaver
-change_type: feat
+change_type: fix
 issues: []
 progress:
     intake: ready
@@ -19,7 +19,7 @@ checklist:
     completed: 0
     total: 0
 confidence:
-    certain: 11
+    certain: 12
     confident: 2
     tentative: 0
     unresolved: 0
@@ -27,11 +27,11 @@ confidence:
     indicative: true
     fuzzy: true
     dimensions:
-        signal: 88.8
-        reversibility: 88.5
-        competence: 85.8
-        disambiguation: 91.2
+        signal: 89.3
+        reversibility: 87.9
+        competence: 85.7
+        disambiguation: 91.4
 stage_metrics:
     intake: {started_at: "2026-03-14T16:44:49Z", driver: fab-new, iterations: 1}
 prs: []
-last_updated: 2026-03-14T16:46:39Z
+last_updated: 2026-03-14T17:33:54Z

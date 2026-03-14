@@ -2,3 +2,6 @@
 {"args":"Create fab-operator4: extends operator3 with simplified auto-answer model, routing discipline, improved detection heuristics, re-capture guard, per-answer logging","cmd":"fab-new","event":"command","ts":"2026-03-14T16:44:49Z"}
 {"delta":"+4.4","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-14T16:46:25Z"}
 {"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-14T16:46:31Z"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-14T17:33:38Z"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-14T17:33:48Z"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-03-14T17:33:54Z"}

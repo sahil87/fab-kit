@@ -35,6 +35,10 @@ The operator MUST NOT execute user instructions directly. When the user gives an
 
 The operator's job is coordination, not implementation.
 
+### Autopilot Pipeline Skill (override)
+
+Operator4 uses `/fab-fff` instead of `/fab-ff` for autopilot gate checks. An upcoming change will make `/fab-fff` confidence-gated, aligning it with the operator's needs. The inherited autopilot behavior (from operator2) is unchanged except for this skill substitution.
+
 ### Simplified Answer Model (replaces operator3's two-tier confidence model)
 
 Remove the auto-answer/escalate classification entirely. All questions are auto-answered. The only escalation case is when the operator literally cannot determine what keystrokes to send.
@@ -119,5 +123,6 @@ None — all design decisions were resolved during the discussion session.
 | 11 | Certain | Create as operator4 (new skill), not modify operator3 | Discussed — user explicitly said "instead of making any changes to operator3, I want to do all this directly in operator4" | S:95 R:90 A:90 D:95 |
 | 12 | Confident | Launcher script follows operator3.sh pattern | Strong precedent from operator1/2/3 launcher scripts — same singleton tab pattern | S:75 R:90 A:85 D:90 |
 | 13 | Confident | Numbered decision list for "what to send" (items 1-6) | Discussed as "decision tree" replacement for prose heuristic — user agreed (#8 ok). Exact ordering and items derived from discussion | S:80 R:85 A:80 D:80 |
+| 14 | Certain | Autopilot uses `/fab-fff` instead of `/fab-ff` | Discussed — user decided: fff will become confidence-gated in an upcoming change, making it the right fit for operator autopilot | S:95 R:80 A:85 D:95 |
 
-13 assumptions (11 certain, 2 confident, 0 tentative, 0 unresolved).
+14 assumptions (12 certain, 2 confident, 0 tentative, 0 unresolved).
