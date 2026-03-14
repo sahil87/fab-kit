@@ -178,8 +178,6 @@ Both existing hooks (`on-stop.sh`, `on-session-start.sh`) and `/git-pr-review` u
 |----------|------|---------|
 | `hooks/on-stop.sh` | 1 | Write `agent.idle_since` to `.fab-runtime.yaml` |
 | `hooks/on-session-start.sh` | 1 | Delete `agent` block from `.fab-runtime.yaml` |
-| `scripts/pipeline/run.sh` | ~40 | Manifest YAML parsing and mutation |
-| `scripts/pipeline/dispatch.sh` | ~3 | Config reading, manifest stage writes |
 | `scripts/fab-doctor.sh` | 1 | Check yq is installed (diagnostic) |
 
 ### Proposal: `fab runtime` subcommands
@@ -193,7 +191,7 @@ Absorb the hook `yq` calls into the Go binary:
 
 The hooks simplify from ~30 lines (with yq dependency check, file creation, quoting) to ~15 lines calling `fab runtime`.
 
-**Pipeline orchestrator** (`run.sh`, `dispatch.sh`) keeps `yq` — it's a heavy manifest parser with ~40 calls. Absorbing those is a separate, larger change.
+The pipeline orchestrator (`run.sh`, `dispatch.sh`) was removed in change o1tu, eliminating its ~43 `yq` calls.
 
 ---
 
