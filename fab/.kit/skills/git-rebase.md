@@ -78,9 +78,11 @@ Determine the upstream default branch name:
 ref=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null) && echo "${ref#refs/remotes/origin/}"
 ```
 
-If that fails (e.g., `origin/HEAD` not set), fall back to local detection:
+If that fails (e.g., `origin/HEAD` not set), fall back to remote ref detection, then local:
 
 ```bash
+git rev-parse --verify refs/remotes/origin/main >/dev/null 2>&1 && echo main || \
+git rev-parse --verify refs/remotes/origin/master >/dev/null 2>&1 && echo master || \
 git rev-parse --verify main >/dev/null 2>&1 && echo main || echo master
 ```
 

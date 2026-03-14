@@ -59,7 +59,7 @@ The skill SHALL check for uncommitted changes via `git status --porcelain` befor
 #### Scenario: Uncommitted changes — user chooses stash
 - **GIVEN** the working tree has uncommitted changes
 - **WHEN** the user runs `/git-rebase`
-- **THEN** the skill displays the pending changes via `git status --short`
+- **THEN** the skill displays the pending changes via `git status --porcelain`
 - **AND** presents two options: stash-and-rebase or abort
 - **WHEN** the user chooses stash
 - **THEN** the skill runs `git stash push -m "git-rebase: auto-stash before rebase"`
