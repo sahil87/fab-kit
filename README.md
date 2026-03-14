@@ -102,11 +102,8 @@ brew install parallel go
 
 #### New project
 
-**From GitHub releases** (requires [gh CLI](https://cli.github.com/) with authentication):
-
 ```bash
-mkdir -p fab
-gh release download --repo wvrdz/fab-kit --pattern 'kit.tar.gz' --output - | tar xz -C fab/
+curl -fsSL https://raw.githubusercontent.com/wvrdz/fab-kit/main/src/scripts/install.sh | bash
 ```
 
 #### Initialize
