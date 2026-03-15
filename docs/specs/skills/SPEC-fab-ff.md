@@ -2,17 +2,17 @@
 
 ## Summary
 
-Full pipeline with safety gates: intake through review-pr in one invocation. Three gates: (1) intake indicative confidence >= 3.0, (2) spec confidence >= per-type threshold, (3) review rework capped at 3 cycles. Resumable — re-running picks up from first incomplete stage. All sub-skill invocations dispatched as sub-agents.
+Fast-forward through hydrate: intake through hydrate in one invocation. Three gates: (1) intake indicative confidence >= 3.0, (2) spec confidence >= per-type threshold, (3) review rework capped at 3 cycles. Resumable — re-running picks up from first incomplete stage. All sub-skill invocations dispatched as sub-agents. Accepts `--force` to bypass confidence gates (intake + spec).
 
 ## Flow
 
 ```
-User invokes /fab-ff [change-name]
+User invokes /fab-ff [change-name] [--force]
 │
 ├─ Read: _preamble.md (always-load layer)
 ├─ Bash: fab preflight [change-name]
 │
-├─ Gate 1: Intake Gate
+├─ Gate 1: Intake Gate (skip if --force)
 │  └─ Bash: fab score --check-gate --stage intake <change>
 │     └─ STOP if < 3.0
 │
@@ -20,7 +20,7 @@ User invokes /fab-ff [change-name]
 │  ├─ Bash: fab status finish <change> intake fab-ff
 │  ├─ Read: templates, intake.md, memory files
 │  ├─ Write: spec.md                                     ◄── HOOK CANDIDATE
-│  ├─ Gate 2: Spec Gate
+│  ├─ Gate 2: Spec Gate (skip if --force)
 │  │  └─ Bash: fab score --check-gate <change>
 │  │     └─ STOP if below threshold
 │  └─ ┌──────────────────────────────────────────┐
@@ -91,21 +91,7 @@ User invokes /fab-ff [change-name]
 │     │  Bash: fab status finish <change> hydrate│
 │     └──────────────────────────────────────────┘
 │
-├─ Step 8: Ship
-│  └─ ┌──────────────────────────────────────────┐
-│     │ SUB-AGENT: /git-pr                       │
-│     │  Bash: git add, commit, push, gh pr create│
-│     │  Bash: fab status start/finish ship      │
-│     └──────────────────────────────────────────┘
-│
-└─ Step 9: Review-PR
-   └─ ┌──────────────────────────────────────────┐
-      │ SUB-AGENT: /git-pr-review                │
-      │  Bash: gh api (reviews, comments)        │
-      │  Read/Edit: source files                 │
-      │  Bash: git commit, push                  │
-      │  Bash: fab status start/finish review-pr │
-      └──────────────────────────────────────────┘
+└─ Pipeline complete.
 ```
 
 ### Sub-agents
@@ -116,8 +102,6 @@ User invokes /fab-ff [change-name]
 | /fab-continue (Apply) | 5 | Task execution |
 | /fab-continue (Review) | 6 | Review validation (itself spawns a nested review sub-agent) |
 | /fab-continue (Hydrate) | 7 | Memory hydration |
-| /git-pr | 8 | Commit, push, create PR |
-| /git-pr-review | 9 | Process PR review comments |
 
 ### Bookkeeping commands (hook candidates)
 

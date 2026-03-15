@@ -183,7 +183,7 @@ If interrupted (operator pane closed, session restarted), the operator reconstru
 This use case requires the operator to understand:
 - Confidence gates and thresholds per change type (from `docs/specs/change-types.md`)
 - Stage progression: intake → spec → tasks → apply → review → hydrate → ship
-- The difference between `/fab-ff` (gated, no frontloaded questions) and `/fab-fff` (ungated, frontloaded questions)
+- The difference between `/fab-ff` (stops at hydrate) and `/fab-fff` (extends through ship + review-pr) — both confidence-gated
 - Rework budget (max 3 cycles from `fab/project/code-review.md`)
 - PR merge mechanics via `gh`
 

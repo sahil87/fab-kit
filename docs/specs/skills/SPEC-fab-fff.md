@@ -2,26 +2,30 @@
 
 ## Summary
 
-Full pipeline with no confidence gates. Same stages as fab-ff but frontloads all SRAD questions in a single batch, interleaves auto-clarify between planning stages, and forces through regardless of scores. Max 3 rework cycles on review failure with escalation rule.
+Full pipeline with confidence gates (identical to fab-ff). Extends through ship and review-pr (fab-ff stops at hydrate). No frontloaded questions — proceeds directly to spec generation. Interleaves auto-clarify between planning stages. Max 3 rework cycles on review failure with escalation rule. Accepts `--force` to bypass confidence gates.
 
 ## Flow
 
 ```
-User invokes /fab-fff [change-name]
+User invokes /fab-fff [change-name] [--force]
 │
 ├─ Read: _preamble.md (always-load layer)
 ├─ Bash: fab preflight [change-name]
 │
-├─ Step 1: Frontload Questions
-│  └─ (SRAD analysis → batch Unresolved → 1 Q&A round)
+├─ Gate 1: Intake Gate (skip if --force)
+│  └─ Bash: fab score --check-gate --stage intake <change>
+│     └─ STOP if < 3.0
 │
-├─ Steps 2-10: Identical to /fab-ff except:
-│  ├─ No intake gate (Step 1 of fab-ff)
-│  ├─ No spec gate (Step 1 of fab-ff)
+├─ Steps 1-7: Same as /fab-ff Steps 1-7 (spec, tasks, checklist, planning complete, apply, review, hydrate)
+│  ├─ Gate 2: Spec Gate after spec generation (skip if --force)
 │  ├─ fab-clarify dispatched between spec AND tasks
 │  └─ Driver argument is "fab-fff" instead of "fab-ff"
 │
-└─ (see fab-ff.md for full pipeline diagram)
+├─ Step 8: Ship
+│  └─ SUB-AGENT: /git-pr (commit, push, create PR)
+│
+└─ Step 9: Review-PR
+   └─ SUB-AGENT: /git-pr-review (process PR review comments)
 ```
 
 ### Sub-agents

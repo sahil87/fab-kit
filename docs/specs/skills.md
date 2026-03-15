@@ -258,11 +258,11 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 
 ## `/fab-ff` (Fast Forward)
 
-**Purpose**: Fast-forward from spec through hydrate. Confidence-gated, with sub-agent review, auto-rework loop (up to 3 cycles with prioritized findings), and interactive fallback on retry cap exhaustion. Requires an active change with a completed spec.
+**Purpose**: Fast-forward from intake through hydrate. Confidence-gated (intake gate + spec gate), with sub-agent review, auto-rework loop (up to 3 cycles with prioritized findings), and stop on exhaustion. Accepts `--force` to bypass all confidence gates.
 
-**Context**: config, constitution, `intake.md`, target memory file(s) from `docs/memory/` (loaded once for the spec → hydrate run)
+**Context**: config, constitution, `intake.md`, target memory file(s) from `docs/memory/` (loaded once for the intake → hydrate run)
 
-**Flow**: spec → tasks (+ checklist) → apply → review → hydrate
+**Flow**: intake → spec → tasks (+ checklist) → apply → review → hydrate
 
 **When to use**:
 - Small, well-understood changes
@@ -277,21 +277,22 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 ```
 
 **Behavior**:
-1. Check confidence gate (dynamic threshold per change type). Abort if below threshold.
-2. Generate `tasks.md` (referencing spec and intake)
-3. Auto-generate quality checklist
-4. Execute tasks in dependency order, run tests after each
-5. **Review** — dispatch to sub-agent (fresh context). Sub-agent returns prioritized findings (must-fix / should-fix / nice-to-have)
-6. **On pass** — advance to hydrate
-7. **On fail** — auto-rework loop (up to 3 cycles): triage findings by priority, autonomously select rework path (fix code, revise tasks, revise spec), re-apply, spawn fresh sub-agent for re-review. Escalation after 2 consecutive fix-code attempts
-8. **Interactive fallback** — after 3 failed auto-rework cycles, present the user with the same 3 rework options as `/fab-continue`. No further retry cap (user is in the loop)
-9. Hydrate into `docs/memory/`
+1. Check intake gate (indicative confidence >= 3.0). Abort if below threshold. Skip if `--force`.
+2. Generate `spec.md` + check spec gate (dynamic threshold per change type). Abort if below threshold. Skip gate if `--force`.
+3. Auto-clarify on spec (bail on blocking issues)
+4. Generate `tasks.md` (referencing spec and intake) + auto-clarify on tasks
+5. Auto-generate quality checklist
+6. Execute tasks in dependency order, run tests after each
+7. **Review** — dispatch to sub-agent (fresh context). Sub-agent returns prioritized findings (must-fix / should-fix / nice-to-have)
+8. **On pass** — advance to hydrate
+9. **On fail** — auto-rework loop (up to 3 cycles): triage findings by priority, autonomously select rework path (fix code, revise tasks, revise spec), re-apply, spawn fresh sub-agent for re-review. Escalation after 2 consecutive fix-code attempts. Stop after 3 failed cycles with summary.
+10. Hydrate into `docs/memory/`
 
 ---
 
 ## `/fab-fff` (Full Autonomous Pipeline)
 
-**Purpose**: Run the entire Fab pipeline from planning through hydrate in a single invocation. No confidence gate. Frontloads questions, interleaves auto-clarify between planning stages, and autonomously reworks on review failure using sub-agent review with prioritized findings (3-cycle retry cap, escalation after 2 consecutive fix-code failures).
+**Purpose**: Run the entire Fab pipeline from intake through PR review in a single invocation. Confidence-gated (same intake + spec gates as `/fab-ff`). Interleaves auto-clarify between planning stages, and autonomously reworks on review failure using sub-agent review with prioritized findings (3-cycle retry cap, escalation after 2 consecutive fix-code failures). Accepts `--force` to bypass all confidence gates.
 
 **Prerequisite**: Active change with completed `intake.md`.
 
@@ -308,18 +309,24 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 → ... (validation passed)
 → --- Hydrate ---
 → ... (memory hydrated)
-→ "Pipeline complete. Change hydrated."
+→ --- Ship ---
+→ ... (PR created)
+→ --- Review-PR ---
+→ ... (PR review processed)
+→ "Pipeline complete."
 ```
 
 **Behavior**:
-1. **Frontload questions**: Scan intake for ambiguities across all planning stages. Collect Unresolved decisions into a single batch. Ask once, then proceed.
+1. **Intake gate** (skip if `--force`): Check indicative confidence >= 3.0. Abort if below threshold.
 2. **Resumability**: Check `progress` map — skip any stage already marked `done` or `skipped`. Re-invoking after interruption picks up from the first incomplete stage.
-3. **Step 1 — Planning**: Generate spec + tasks with checklist. Interleave auto-clarify between stages. Bails on blocking issues.
+3. **Step 1 — Planning**: Generate spec (+ spec gate, skip if `--force`) + tasks with checklist. Interleave auto-clarify between stages. Bails on blocking issues.
 4. **Step 2 — Implementation**: Execute tasks in dependency order, run tests after each.
 5. **Step 3 — Review**: Dispatch to review sub-agent (fresh context, prioritized findings). On failure, triage findings by priority and autonomously select rework path (fix code, revise tasks, revise spec). Re-review via fresh sub-agent. Retry up to 3 cycles (escalation after 2 consecutive fix-code). Bail with summary after 3 failed cycles.
 6. **Step 4 — Hydrate**: Hydrate into memory.
+7. **Step 5 — Ship**: Dispatch `/git-pr` to commit, push, and create PR.
+8. **Step 6 — Review-PR**: Dispatch `/git-pr-review` to process PR review comments.
 
-**Key difference from `/fab-ff`**: `/fab-fff` is the full pipeline (intake → hydrate) with autonomous rework and no confidence gate. `/fab-ff` is fast-forward from spec (spec → hydrate) with confidence gate, auto-rework loop (up to 3 cycles), and interactive fallback on retry cap exhaustion. Both use sub-agent review with prioritized findings.
+**Key difference from `/fab-ff`**: The difference is scope only. `/fab-fff` extends through ship and review-pr; `/fab-ff` stops at hydrate. Both have identical confidence gates (intake + spec), identical auto-clarify, and identical auto-rework (3-cycle cap with escalation). Both accept `--force` to bypass gates.
 
 ---
 

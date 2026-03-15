@@ -174,7 +174,7 @@ confidence:
 
 ## Gate Threshold
 
-`/fab-ff` requires `confidence.score >= threshold` before executing the fast-forward pipeline. The threshold varies by **change type** (7 types from [Conventional Commits](change-types.md)):
+Both `/fab-ff` and `/fab-fff` require `confidence.score >= threshold` before executing their pipelines. The `--force` flag on either skill bypasses all gates. The threshold varies by **change type** (7 types from [Conventional Commits](change-types.md)):
 
 | Change Type | Gate Threshold | Rationale |
 |-------------|---------------|-----------|
@@ -279,8 +279,8 @@ SRAD manifests differently depending on which skill is running. Skills closer to
 
 | Aspect | `/fab-new` | `/fab-continue` | `/fab-ff` | `/fab-fff` |
 |--------|------------|-----------------|-----------|-----------|
-| **Posture** | SRAD-driven adaptive questioning, gap analysis, conversational mode, intake-only output | Surface tentative, ask top ~3 unresolved | Batch all unresolved upfront, then go; gated on confidence >= threshold | Same as `/fab-ff` (frontloaded questions); no confidence gate |
-| **Interruption budget** | Adaptive — SRAD-driven (no fixed cap) | 1–2 per stage | 0–1 batch at start | Same as `/fab-ff` (frontloaded) |
-| **Output** | Intake + confidence score + assumptions summary | Key Decisions + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary | Same as `/fab-ff` + apply/review/archive output |
-| **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` (bails on blockers or review failure) |
+| **Posture** | SRAD-driven adaptive questioning, gap analysis, conversational mode, intake-only output | Surface tentative, ask top ~3 unresolved | Gated on confidence; stops at hydrate | Gated on confidence; extends through ship + review-pr |
+| **Interruption budget** | Adaptive — SRAD-driven (no fixed cap) | 1–2 per stage | 0 (interactive rework on failure) | 0 (interactive rework on failure) |
+| **Output** | Intake + confidence score + assumptions summary | Key Decisions + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary + apply/review/hydrate output | Cumulative Assumptions summary + apply/review/hydrate/ship/review-pr output |
+| **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` |
 | **Recomputes confidence?** | No | Spec stage only | No | No |
