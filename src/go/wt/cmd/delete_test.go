@@ -315,6 +315,42 @@ func TestDelete_AllTakesPrecedenceOverPositionalArgs(t *testing.T) {
 	assertWorktreeNotExists(t, repo, "prec-charlie")
 }
 
+func TestDelete_AutoModeSkipsBranchWhenNameMismatch(t *testing.T) {
+	repo := createTestRepo(t)
+
+	// Create a branch with a different name than the worktree
+	gitRun(t, repo, "checkout", "-b", "feature/different-branch")
+	gitRun(t, repo, "checkout", "main")
+	runWtSuccess(t, repo, nil, "create", "--non-interactive", "--worktree-name", "auto-skip-wt", "feature/different-branch")
+
+	// Delete the worktree WITHOUT --delete-branch (auto mode)
+	r := runWtSuccess(t, repo, nil, "delete", "--non-interactive", "--worktree-name", "auto-skip-wt")
+	combined := r.Stdout + r.Stderr
+	assertContains(t, combined, "Deleted worktree")
+	// Auto mode should skip branch deletion and print the skip message
+	assertContains(t, combined, "Skipped branch deletion")
+
+	// The branch should still exist because auto mode only deletes when branch == wtName
+	assertWorktreeNotExists(t, repo, "auto-skip-wt")
+	assertBranchExists(t, repo, "feature/different-branch")
+}
+
+func TestDelete_AutoModeDeletesBranchWhenNameMatches(t *testing.T) {
+	repo := createTestRepo(t)
+	createWorktreeViaWt(t, repo, "auto-match-wt")
+
+	// Branch name == worktree name (created by wt create)
+	assertBranchExists(t, repo, "auto-match-wt")
+
+	// Delete without --delete-branch (auto mode should delete because names match)
+	r := runWtSuccess(t, repo, nil, "delete", "--non-interactive", "--worktree-name", "auto-match-wt")
+	combined := r.Stdout + r.Stderr
+	assertContains(t, combined, "Deleted worktree")
+
+	assertWorktreeNotExists(t, repo, "auto-match-wt")
+	assertBranchNotExists(t, repo, "auto-match-wt")
+}
+
 func TestDelete_MultipleBranchPreservation(t *testing.T) {
 	repo := createTestRepo(t)
 	createWorktreeViaWt(t, repo, "bp-alpha")

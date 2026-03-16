@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 	wt "github.com/wvrdz/fab-kit/src/go/wt/internal/worktree"
@@ -119,8 +120,9 @@ func handleJSONOutput(entries []listEntry) error {
 }
 
 // displayWidth returns the visible width of s, excluding ANSI escape sequences.
+// Uses RuneCountInString to correctly count multi-byte characters (e.g. "↑").
 func displayWidth(s string) int {
-	return len(ansiPattern.ReplaceAllString(s, ""))
+	return utf8.RuneCountInString(ansiPattern.ReplaceAllString(s, ""))
 }
 
 // relativePath computes a short relative path for display.

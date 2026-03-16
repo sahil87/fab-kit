@@ -241,6 +241,34 @@ func TestList_DirtyIndicator(t *testing.T) {
 	t.Fatal("dirty-status-test line not found in output")
 }
 
+// formatted output layout
+
+func TestList_HeaderAndSeparator(t *testing.T) {
+	repo := createTestRepo(t)
+	createWorktreeViaWt(t, repo, "fmt-test")
+
+	r := runWtSuccess(t, repo, nil, "list")
+	// Header row must contain all column labels
+	assertContains(t, r.Stdout, "Name")
+	assertContains(t, r.Stdout, "Branch")
+	assertContains(t, r.Stdout, "Status")
+	assertContains(t, r.Stdout, "Path")
+
+	// Separator row: dashes under each header
+	assertContains(t, r.Stdout, "----")
+
+	// Paths should be relative (contain ".worktrees/" segment, no leading "/")
+	for _, line := range strings.Split(r.Stdout, "\n") {
+		if strings.Contains(line, "fmt-test") && !strings.HasPrefix(line, "Worktrees") && !strings.HasPrefix(line, "Location") {
+			if strings.Contains(line, ".worktrees/") {
+				// Good — relative path uses .worktrees/ segment
+				return
+			}
+		}
+	}
+	t.Error("expected relative path with .worktrees/ segment for fmt-test worktree")
+}
+
 // NO_COLOR support
 
 func TestList_NoColorSupport(t *testing.T) {
