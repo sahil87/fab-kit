@@ -26,7 +26,7 @@ func TestGenerateRandomName_Variety(t *testing.T) {
 		name := GenerateRandomName()
 		seen[name] = true
 	}
-	// With 48*48=2304 combos, 100 draws should produce at least 50 unique names
+	// With 120*120=14400 combos, 100 draws should produce at least 50 unique names
 	if len(seen) < 50 {
 		t.Errorf("GenerateRandomName() produced only %d unique names in 100 draws, expected more variety", len(seen))
 	}
@@ -71,10 +71,10 @@ func TestWordListsNonEmpty(t *testing.T) {
 	if len(nouns) == 0 {
 		t.Error("nouns list is empty")
 	}
-	if len(adjectives) < 40 {
-		t.Errorf("adjectives list has only %d entries, expected ~50", len(adjectives))
+	if len(adjectives) < 120 {
+		t.Errorf("adjectives list has only %d entries, expected >= 120", len(adjectives))
 	}
-	if len(nouns) < 40 {
-		t.Errorf("nouns list has only %d entries, expected ~50", len(nouns))
+	if len(nouns) < 120 {
+		t.Errorf("nouns list has only %d entries, expected >= 120", len(nouns))
 	}
 }

@@ -208,13 +208,6 @@ func handleFormattedOutput(entries []listEntry, ctx *wt.RepoContext) error {
 		colWidths[2], headers[2],
 		headers[3])
 
-	// Print separator row (dashes match header label length)
-	fmt.Printf("  %s  %s  %s  %s\n",
-		strings.Repeat("-", len(headers[0])),
-		strings.Repeat("-", len(headers[1])),
-		strings.Repeat("-", len(headers[2])),
-		strings.Repeat("-", len(headers[3])))
-
 	// Print data rows
 	for i, r := range rows {
 		marker := "  "

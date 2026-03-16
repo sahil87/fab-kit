@@ -243,7 +243,7 @@ func TestList_DirtyIndicator(t *testing.T) {
 
 // formatted output layout
 
-func TestList_HeaderAndSeparator(t *testing.T) {
+func TestList_Header(t *testing.T) {
 	repo := createTestRepo(t)
 	createWorktreeViaWt(t, repo, "fmt-test")
 
@@ -254,8 +254,8 @@ func TestList_HeaderAndSeparator(t *testing.T) {
 	assertContains(t, r.Stdout, "Status")
 	assertContains(t, r.Stdout, "Path")
 
-	// Separator row: dashes under each header
-	assertContains(t, r.Stdout, "----")
+	// Separator row must be absent (was removed in this change)
+	assertNotContains(t, r.Stdout, "----")
 
 	// Paths should be relative (contain ".worktrees/" segment, no leading "/")
 	for _, line := range strings.Split(r.Stdout, "\n") {
