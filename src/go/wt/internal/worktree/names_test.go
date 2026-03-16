@@ -71,10 +71,10 @@ func TestWordListsNonEmpty(t *testing.T) {
 	if len(nouns) == 0 {
 		t.Error("nouns list is empty")
 	}
-	if len(adjectives) < 100 {
-		t.Errorf("adjectives list has only %d entries, expected ~120", len(adjectives))
+	if len(adjectives) < 120 {
+		t.Errorf("adjectives list has only %d entries, expected >= 120", len(adjectives))
 	}
-	if len(nouns) < 100 {
-		t.Errorf("nouns list has only %d entries, expected ~120", len(nouns))
+	if len(nouns) < 120 {
+		t.Errorf("nouns list has only %d entries, expected >= 120", len(nouns))
 	}
 }

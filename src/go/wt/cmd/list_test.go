@@ -254,6 +254,9 @@ func TestList_Header(t *testing.T) {
 	assertContains(t, r.Stdout, "Status")
 	assertContains(t, r.Stdout, "Path")
 
+	// Separator row must be absent (was removed in this change)
+	assertNotContains(t, r.Stdout, "----")
+
 	// Paths should be relative (contain ".worktrees/" segment, no leading "/")
 	for _, line := range strings.Split(r.Stdout, "\n") {
 		if strings.Contains(line, "fmt-test") && !strings.HasPrefix(line, "Worktrees") && !strings.HasPrefix(line, "Location") {
