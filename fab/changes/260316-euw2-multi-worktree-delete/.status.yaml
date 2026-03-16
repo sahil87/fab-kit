@@ -1,0 +1,44 @@
+id: euw2
+name: 260316-euw2-multi-worktree-delete
+created: 2026-03-16T06:27:21Z
+created_by: sahil-weaver
+change_type: feat
+issues: []
+progress:
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: active
+checklist:
+    generated: true
+    path: checklist.md
+    completed: 0
+    total: 27
+confidence:
+    certain: 7
+    confident: 1
+    tentative: 1
+    unresolved: 0
+    score: 3.7
+    fuzzy: true
+    dimensions:
+        signal: 63.9
+        reversibility: 81.1
+        competence: 88.3
+        disambiguation: 80.6
+stage_metrics:
+    intake: {started_at: "2026-03-16T06:27:21Z", driver: fab-new, iterations: 1, completed_at: "2026-03-16T06:32:55Z"}
+    spec: {started_at: "2026-03-16T06:32:55Z", driver: fab-ff, iterations: 1, completed_at: "2026-03-16T06:35:25Z"}
+    tasks: {started_at: "2026-03-16T06:35:25Z", driver: fab-ff, iterations: 1, completed_at: "2026-03-16T06:36:11Z"}
+    apply: {started_at: "2026-03-16T06:41:25Z", driver: fab-ff, iterations: 2, completed_at: "2026-03-16T06:42:24Z"}
+    review: {started_at: "2026-03-16T06:42:24Z", driver: fab-ff, iterations: 1, completed_at: "2026-03-16T06:43:44Z"}
+    hydrate: {started_at: "2026-03-16T06:43:44Z", driver: fab-ff, iterations: 1, completed_at: "2026-03-16T06:44:12Z"}
+    ship: {started_at: "2026-03-16T06:44:12Z", driver: fab-ff, iterations: 1, completed_at: "2026-03-16T06:52:44Z"}
+    review-pr: {started_at: "2026-03-16T06:52:44Z", driver: fab-fff, iterations: 1}
+prs:
+    - https://github.com/wvrdz/fab-kit/pull/258
+last_updated: 2026-03-16T06:52:44Z

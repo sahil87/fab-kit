@@ -19,7 +19,7 @@ Git worktrees let you have multiple checkouts of the same repository side by sid
 | `wt create` | Create a git worktree for parallel development |
 | `wt list` | List all git worktrees for the current repository |
 | `wt open` | Open a git worktree in an editor, terminal, or file manager |
-| `wt delete` | Delete a git worktree with optional branch cleanup |
+| `wt delete [names...]` | Delete one or more git worktrees with optional branch cleanup |
 | `wt init` | Run the init script for the current worktree |
 
 Run `wt <command> --help` for full usage details.
@@ -64,8 +64,11 @@ cd ../repo.worktrees/name/   # Enter the worktree
 
 **Clean up when done:**
 ```bash
-wt delete                    # Removes the worktree and optionally its branch
+wt delete                    # Removes the current worktree and optionally its branch
+wt delete fox bear           # Removes multiple worktrees by name
 ```
+
+> **Note**: The `--worktree-name` flag is deprecated — use positional arguments instead: `wt delete <name>` rather than `wt delete --worktree-name <name>`.
 
 ### Why wt-open Cannot cd in the Current Shell
 
@@ -168,4 +171,5 @@ fab/.kit/bin/
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260316-euw2-multi-worktree-delete | 2026-03-16 | `wt delete` now accepts positional arguments for multi-worktree deletion (`wt delete fox bear`). `--worktree-name` flag deprecated. Fail-fast validation, single confirmation prompt, sequential deletion with continue-on-error. |
 | 260312-96nf-remove-rust-implementation | 2026-03-12 | Removed `fab-rust` line from `fab/.kit/bin/` directory tree. |

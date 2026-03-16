@@ -1,0 +1,23 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-16T06:27:21Z"}
+{"args":"Allow deleting multiple worktrees at once by allowing specifying multiple worktree names","cmd":"fab-new","event":"command","ts":"2026-03-16T06:27:21Z"}
+{"delta":"+3.1","event":"confidence","score":3.1,"trigger":"calc-score","ts":"2026-03-16T06:28:12Z"}
+{"delta":"+0.0","event":"confidence","score":3.1,"trigger":"calc-score","ts":"2026-03-16T06:28:23Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-03-16T06:30:42Z"}
+{"cmd":"fab-ff","event":"command","ts":"2026-03-16T06:31:22Z"}
+{"delta":"-0.6","event":"confidence","score":2.5,"trigger":"calc-score","ts":"2026-03-16T06:32:50Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"spec","ts":"2026-03-16T06:32:55Z"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-03-16T06:33:46Z"}
+{"delta":"+1.2","event":"confidence","score":3.7,"trigger":"calc-score","ts":"2026-03-16T06:34:41Z"}
+{"delta":"+0.0","event":"confidence","score":3.7,"trigger":"calc-score","ts":"2026-03-16T06:34:45Z"}
+{"delta":"+0.0","event":"confidence","score":3.7,"trigger":"calc-score","ts":"2026-03-16T06:34:52Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"tasks","ts":"2026-03-16T06:35:25Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"apply","ts":"2026-03-16T06:36:11Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"review","ts":"2026-03-16T06:38:51Z"}
+{"event":"review","result":"failed","ts":"2026-03-16T06:41:25Z"}
+{"action":"re-entry","driver":"fab-ff","event":"stage-transition","stage":"apply","ts":"2026-03-16T06:41:25Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"review","ts":"2026-03-16T06:42:24Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"hydrate","ts":"2026-03-16T06:43:44Z"}
+{"event":"review","result":"passed","ts":"2026-03-16T06:43:44Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"ship","ts":"2026-03-16T06:44:12Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-03-16T06:50:38Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review-pr","ts":"2026-03-16T06:52:44Z"}

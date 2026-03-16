@@ -25,12 +25,13 @@ func deleteCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "delete",
+		Use:   "delete [worktree-names...]",
 		Short: "Delete a git worktree",
-		Long: `Delete a git worktree with optional branch cleanup.
+		Long: `Delete one or more git worktrees with optional branch cleanup.
 
-Resolution order: --worktree-name, current worktree (if in one), interactive selection.`,
-		Args: cobra.NoArgs,
+Positional arguments are interpreted as worktree names to delete.
+Resolution order: --delete-all, positional args, --worktree-name (deprecated), current worktree, interactive selection.`,
+		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Apply defaults
 			if deleteBranch == "" {
@@ -67,6 +68,17 @@ Resolution order: --worktree-name, current worktree (if in one), interactive sel
 				return handleDeleteAll(nonInteractive, deleteBranch, deleteRemote, stashMode)
 			}
 
+			if len(args) > 0 && worktreeName != "" {
+				wt.ExitWithError(wt.ExitInvalidArgs,
+					"Cannot mix positional arguments and --worktree-name",
+					"Use either positional arguments or --worktree-name, not both",
+					"Example: wt delete alpha bravo --non-interactive")
+			}
+
+			if len(args) > 0 {
+				return handleDeleteMultiple(args, nonInteractive, deleteBranch, deleteRemote, stashMode)
+			}
+
 			if worktreeName != "" {
 				return handleDeleteByName(worktreeName, nonInteractive, deleteBranch, deleteRemote, stashMode, rb)
 			}
@@ -78,8 +90,8 @@ Resolution order: --worktree-name, current worktree (if in one), interactive sel
 			if nonInteractive {
 				wt.ExitWithError(wt.ExitInvalidArgs,
 					"No worktree specified",
-					"In non-interactive mode, --worktree-name is required (or run from within a worktree)",
-					"Example: wt delete --non-interactive --worktree-name my-feature")
+					"In non-interactive mode, specify worktree names as arguments (or run from within a worktree)",
+					"Example: wt delete my-feature --non-interactive")
 			}
 
 			return handleDeleteMenu(nonInteractive, deleteBranch, deleteRemote, stashMode)
@@ -92,6 +104,8 @@ Resolution order: --worktree-name, current worktree (if in one), interactive sel
 	cmd.Flags().BoolVar(&deleteAll, "delete-all", false, "Delete all worktrees")
 	cmd.Flags().BoolVarP(&stashFlag, "stash", "s", false, "Stash uncommitted changes before deleting")
 	cmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "No prompts, use defaults")
+
+	cmd.Flags().MarkDeprecated("worktree-name", "use positional arguments instead")
 
 	return cmd
 }
@@ -227,6 +241,113 @@ func handleDeleteByName(name string, nonInteractive bool, deleteBranch, deleteRe
 	fmt.Printf("Deleted worktree: %s%s%s\n", wt.ColorGreen, name, wt.ColorReset)
 
 	handleBranchCleanup(branch, name, deleteBranch, deleteRemote)
+
+	return nil
+}
+
+func handleDeleteMultiple(names []string, nonInteractive bool, deleteBranch, deleteRemote, stashMode string) error {
+	// If running from inside a worktree that may be deleted, chdir to main repo first
+	if wt.IsWorktree() {
+		ctx, err := wt.GetRepoContext()
+		if err == nil {
+			os.Chdir(ctx.RepoRoot)
+		}
+	}
+
+	entries, err := listWorktreeEntries()
+	if err != nil {
+		wt.ExitWithError(wt.ExitGitError, "Cannot list worktrees", err.Error(), "")
+	}
+
+	// Build lookup map: name -> rawEntry
+	entryMap := make(map[string]rawEntry)
+	for _, e := range entries {
+		entryMap[filepath.Base(e.path)] = e
+	}
+
+	// Deduplicate names preserving order
+	seen := make(map[string]bool)
+	var unique []string
+	for _, n := range names {
+		if !seen[n] {
+			seen[n] = true
+			unique = append(unique, n)
+		}
+	}
+
+	// Resolve all names upfront — fail-fast if any are invalid
+	type wtInfo struct {
+		name   string
+		path   string
+		branch string
+	}
+	var resolved []wtInfo
+	var unresolved []string
+	for _, n := range unique {
+		if e, ok := entryMap[n]; ok {
+			resolved = append(resolved, wtInfo{
+				name:   n,
+				path:   e.path,
+				branch: e.branch,
+			})
+		} else {
+			unresolved = append(unresolved, n)
+		}
+	}
+
+	if len(unresolved) > 0 {
+		for _, n := range unresolved {
+			wt.PrintError(
+				fmt.Sprintf("Worktree '%s' not found", n),
+				"No worktree with that name exists",
+				"Use 'wt list' to see available worktrees")
+		}
+		os.Exit(wt.ExitGeneralError)
+	}
+
+	// Display summary
+	fmt.Printf("Worktrees to delete (%d):\n", len(resolved))
+	for _, w := range resolved {
+		fmt.Printf("  %s%s%s  (branch: %s, path: %s)\n", wt.ColorBold, w.name, wt.ColorReset, w.branch, w.path)
+	}
+	fmt.Println()
+
+	// Single confirmation prompt
+	if !nonInteractive {
+		choice, err := wt.ShowMenu(
+			fmt.Sprintf("Delete these %d worktrees?", len(resolved)),
+			[]string{"Yes, delete all"},
+			0)
+		if err != nil {
+			return err
+		}
+		if choice == 0 {
+			fmt.Println("Cancelled.")
+			return nil
+		}
+	}
+
+	// Sequential deletion with continue-on-error
+	for _, w := range resolved {
+		fmt.Printf("\n--- Deleting: %s ---\n", w.name)
+		fmt.Printf("Worktree: %s%s%s\n", wt.ColorBold, w.name, wt.ColorReset)
+		fmt.Printf("Branch: %s\n", w.branch)
+		fmt.Printf("Path: %s\n\n", w.path)
+
+		// Handle stash per worktree
+		if stashMode == "stash" {
+			rb := wt.NewRollback()
+			handleStashInDir(w.path, w.name, rb)
+		}
+
+		fmt.Println("Removing worktree...")
+		if err := wt.RemoveWorktree(w.path, true); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to remove %s: %s\n", w.name, err)
+			continue
+		}
+		fmt.Printf("Deleted worktree: %s%s%s\n", wt.ColorGreen, w.name, wt.ColorReset)
+		handleBranchCleanup(w.branch, w.name, deleteBranch, deleteRemote)
+	}
 
 	return nil
 }

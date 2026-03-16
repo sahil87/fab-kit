@@ -197,3 +197,147 @@ func TestDelete_LifecycleStashAndCleanup(t *testing.T) {
 		t.Error("expected stash to contain lifecycle-test reference")
 	}
 }
+
+// ---------- Multi-Delete Tests ----------
+
+func TestDelete_MultipleByPositionalArgs(t *testing.T) {
+	repo := createTestRepo(t)
+	createWorktreeViaWt(t, repo, "multi-a")
+	createWorktreeViaWt(t, repo, "multi-b")
+	createWorktreeViaWt(t, repo, "multi-c")
+
+	r := runWtSuccess(t, repo, nil, "delete", "--non-interactive", "multi-a", "multi-b")
+	combined := r.Stdout + r.Stderr
+	assertContains(t, combined, "Deleted worktree")
+
+	assertWorktreeNotExists(t, repo, "multi-a")
+	assertWorktreeNotExists(t, repo, "multi-b")
+	assertWorktreeExists(t, repo, "multi-c")
+}
+
+func TestDelete_MultipleFailFastOnInvalidName(t *testing.T) {
+	repo := createTestRepo(t)
+	createWorktreeViaWt(t, repo, "valid-one")
+
+	r := runWt(t, repo, nil, "delete", "--non-interactive", "valid-one", "typo-name")
+	if r.ExitCode == 0 {
+		t.Error("expected failure when one name is invalid")
+	}
+	assertContains(t, r.Stderr, "Worktree 'typo-name' not found")
+	// valid-one must NOT have been deleted (fail-fast)
+	assertWorktreeExists(t, repo, "valid-one")
+}
+
+func TestDelete_MultipleDeduplication(t *testing.T) {
+	repo := createTestRepo(t)
+	createWorktreeViaWt(t, repo, "dedup-wt")
+
+	r := runWtSuccess(t, repo, nil, "delete", "--non-interactive", "dedup-wt", "dedup-wt")
+	combined := r.Stdout + r.Stderr
+	assertContains(t, combined, "Deleted worktree")
+
+	assertWorktreeNotExists(t, repo, "dedup-wt")
+}
+
+func TestDelete_MultipleBranchCleanup(t *testing.T) {
+	repo := createTestRepo(t)
+	createWorktreeViaWt(t, repo, "bc-alpha")
+	createWorktreeViaWt(t, repo, "bc-bravo")
+
+	assertBranchExists(t, repo, "bc-alpha")
+	assertBranchExists(t, repo, "bc-bravo")
+
+	runWtSuccess(t, repo, nil, "delete", "--non-interactive", "--delete-branch", "true", "bc-alpha", "bc-bravo")
+
+	assertWorktreeNotExists(t, repo, "bc-alpha")
+	assertWorktreeNotExists(t, repo, "bc-bravo")
+	assertBranchNotExists(t, repo, "bc-alpha")
+	assertBranchNotExists(t, repo, "bc-bravo")
+}
+
+func TestDelete_MixPositionalAndFlagError(t *testing.T) {
+	repo := createTestRepo(t)
+	createWorktreeViaWt(t, repo, "mix-alpha")
+	createWorktreeViaWt(t, repo, "mix-bravo")
+
+	r := runWt(t, repo, nil, "delete", "--non-interactive", "mix-alpha", "--worktree-name", "mix-bravo")
+	if r.ExitCode == 0 {
+		t.Error("expected failure when mixing positional args and --worktree-name")
+	}
+	assertContains(t, r.Stderr, "Cannot mix positional arguments and --worktree-name")
+}
+
+func TestDelete_SinglePositionalArg(t *testing.T) {
+	repo := createTestRepo(t)
+	createWorktreeViaWt(t, repo, "single-pos")
+
+	r := runWtSuccess(t, repo, nil, "delete", "--non-interactive", "single-pos")
+	combined := r.Stdout + r.Stderr
+	assertContains(t, combined, "Deleted worktree")
+
+	assertWorktreeNotExists(t, repo, "single-pos")
+}
+
+func TestDelete_DeprecatedFlagStillWorks(t *testing.T) {
+	repo := createTestRepo(t)
+	createWorktreeViaWt(t, repo, "deprecated-wt")
+
+	r := runWtSuccess(t, repo, nil, "delete", "--non-interactive", "--worktree-name", "deprecated-wt")
+	combined := r.Stdout + r.Stderr
+	assertContains(t, combined, "Deleted worktree")
+	assertContains(t, r.Stderr, "deprecated")
+
+	assertWorktreeNotExists(t, repo, "deprecated-wt")
+}
+
+func TestDelete_MultipleAllNamesInvalid(t *testing.T) {
+	repo := createTestRepo(t)
+
+	r := runWt(t, repo, nil, "delete", "--non-interactive", "foo", "bar")
+	if r.ExitCode == 0 {
+		t.Error("expected failure when all names are invalid")
+	}
+	assertContains(t, r.Stderr, "Worktree 'foo' not found")
+	assertContains(t, r.Stderr, "Worktree 'bar' not found")
+}
+
+func TestDelete_MultipleBranchPreservation(t *testing.T) {
+	repo := createTestRepo(t)
+	createWorktreeViaWt(t, repo, "bp-alpha")
+	createWorktreeViaWt(t, repo, "bp-bravo")
+
+	assertBranchExists(t, repo, "bp-alpha")
+	assertBranchExists(t, repo, "bp-bravo")
+
+	runWtSuccess(t, repo, nil, "delete", "--non-interactive", "--delete-branch", "false", "bp-alpha", "bp-bravo")
+
+	assertWorktreeNotExists(t, repo, "bp-alpha")
+	assertWorktreeNotExists(t, repo, "bp-bravo")
+	// Branches should still exist
+	assertBranchExists(t, repo, "bp-alpha")
+	assertBranchExists(t, repo, "bp-bravo")
+}
+
+func TestDelete_MultipleWithStash(t *testing.T) {
+	repo := createTestRepo(t)
+	wtPathA := createWorktreeViaWt(t, repo, "stash-alpha")
+	wtPathB := createWorktreeViaWt(t, repo, "stash-bravo")
+
+	// Create uncommitted changes in both worktrees
+	os.WriteFile(filepath.Join(wtPathA, "dirty-a.txt"), []byte("alpha changes"), 0644)
+	gitRun(t, wtPathA, "add", "dirty-a.txt")
+	os.WriteFile(filepath.Join(wtPathB, "dirty-b.txt"), []byte("bravo changes"), 0644)
+	gitRun(t, wtPathB, "add", "dirty-b.txt")
+
+	r := runWtSuccess(t, repo, nil, "delete", "--non-interactive", "--stash", "stash-alpha", "stash-bravo")
+	combined := r.Stdout + r.Stderr
+	assertContains(t, combined, "Stashing changes")
+
+	assertWorktreeNotExists(t, repo, "stash-alpha")
+	assertWorktreeNotExists(t, repo, "stash-bravo")
+
+	// Verify stashes exist
+	stashOut := gitRun(t, repo, "stash", "list")
+	assertContains(t, stashOut, "stash-alpha")
+	assertContains(t, stashOut, "stash-bravo")
+}
