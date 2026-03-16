@@ -301,6 +301,20 @@ func TestDelete_MultipleAllNamesInvalid(t *testing.T) {
 	assertContains(t, r.Stderr, "Worktree 'bar' not found")
 }
 
+func TestDelete_AllTakesPrecedenceOverPositionalArgs(t *testing.T) {
+	repo := createTestRepo(t)
+	createWorktreeViaWt(t, repo, "prec-alpha")
+	createWorktreeViaWt(t, repo, "prec-bravo")
+	createWorktreeViaWt(t, repo, "prec-charlie")
+
+	// --delete-all should delete ALL worktrees, not just the named one
+	runWtSuccess(t, repo, nil, "delete", "--non-interactive", "--delete-all", "prec-alpha")
+
+	assertWorktreeNotExists(t, repo, "prec-alpha")
+	assertWorktreeNotExists(t, repo, "prec-bravo")
+	assertWorktreeNotExists(t, repo, "prec-charlie")
+}
+
 func TestDelete_MultipleBranchPreservation(t *testing.T) {
 	repo := createTestRepo(t)
 	createWorktreeViaWt(t, repo, "bp-alpha")

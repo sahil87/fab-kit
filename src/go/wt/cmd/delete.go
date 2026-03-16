@@ -219,7 +219,7 @@ func handleDeleteByName(name string, nonInteractive bool, deleteBranch, deleteRe
 
 	// Handle stash
 	if stashMode == "stash" {
-		handleStashInDir(wtPath, name, rb)
+		handleStashInDir(wtPath, name)
 	}
 
 	// Confirmation
@@ -246,11 +246,17 @@ func handleDeleteByName(name string, nonInteractive bool, deleteBranch, deleteRe
 }
 
 func handleDeleteMultiple(names []string, nonInteractive bool, deleteBranch, deleteRemote, stashMode string) error {
+	ctx, err := wt.GetRepoContext()
+	if err != nil {
+		wt.ExitWithError(wt.ExitGeneralError, "Cannot get repo context", err.Error(), "")
+	}
+
 	// If running from inside a worktree that may be deleted, chdir to main repo first
 	if wt.IsWorktree() {
-		ctx, err := wt.GetRepoContext()
-		if err == nil {
-			os.Chdir(ctx.RepoRoot)
+		if err := os.Chdir(ctx.RepoRoot); err != nil {
+			wt.ExitWithError(wt.ExitGeneralError, "Cannot change to main repo",
+				fmt.Sprintf("Failed to cd to %s", ctx.RepoRoot),
+				"Check if the main repository still exists")
 		}
 	}
 
@@ -259,9 +265,12 @@ func handleDeleteMultiple(names []string, nonInteractive bool, deleteBranch, del
 		wt.ExitWithError(wt.ExitGitError, "Cannot list worktrees", err.Error(), "")
 	}
 
-	// Build lookup map: name -> rawEntry
+	// Build lookup map: name -> rawEntry (excluding main worktree)
 	entryMap := make(map[string]rawEntry)
 	for _, e := range entries {
+		if e.path == ctx.RepoRoot {
+			continue
+		}
 		entryMap[filepath.Base(e.path)] = e
 	}
 
@@ -336,8 +345,7 @@ func handleDeleteMultiple(names []string, nonInteractive bool, deleteBranch, del
 
 		// Handle stash per worktree
 		if stashMode == "stash" {
-			rb := wt.NewRollback()
-			handleStashInDir(w.path, w.name, rb)
+			handleStashInDir(w.path, w.name)
 		}
 
 		fmt.Println("Removing worktree...")
@@ -619,7 +627,7 @@ func handleBranchCleanup(branch, wtName, deleteBranch, deleteRemote string) {
 	}
 }
 
-func handleStashInDir(wtPath, name string, rb *wt.Rollback) {
+func handleStashInDir(wtPath, name string) {
 	// Check if there are changes to stash
 	cmd := exec.Command("git", "diff", "--quiet", "HEAD")
 	cmd.Dir = wtPath
