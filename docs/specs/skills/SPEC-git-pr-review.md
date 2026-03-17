@@ -2,7 +2,7 @@
 
 ## Summary
 
-Processes PR review comments from any reviewer (human or Copilot). Fully autonomous — detects reviews, requests Copilot if none exist, triages comments, applies fixes, commits and pushes.
+Processes PR review comments from any reviewer (human or Copilot). Fully autonomous — detects reviews, requests Copilot if none exist, triages comments with disposition intent (fix/defer/skip), applies fixes, commits, pushes, and posts reply comments confirming outcomes.
 
 ## Flow
 
@@ -31,27 +31,45 @@ Processes PR review comments from any reviewer (human or Copilot). Fully autonom
 │        └─ [if review arrives] → Step 3 Path B
 │        └─ [if timeout] STOP
 │
-├─ Step 3: Fetch Comments
+├─ Step 3: Fetch Comments (with id, node_id)
 │  ├─ Path A: Bash: gh api .../pulls/{n}/comments
 │  └─ Path B: Bash: gh api .../reviews/{id}/comments
 │
 ├─ Step 4: Triage Comments
-│  ├─ Classify: actionable vs informational
+│  ├─ Classify intent: fix, defer, skip, or informational
 │  ├─ Read: source files at {path}
-│  └─ Edit: source files (targeted fixes)
+│  └─ Edit: source files (targeted fixes for "fixed" comments)
 │
 ├─ Step 5: Commit and Push
 │  ├─ Bash: git add {files}
 │  ├─ Bash: git commit -m "fix: address review feedback"
-│  └─ Bash: git push
+│  ├─ Bash: git push
+│  └─ [no modifications] → proceed to Step 5.5 (don't stop)
+│
+├─ Step 5.5: Post Replies
+│  ├─ Deduplicate: skip comments with existing disposition replies
+│  ├─ Bash: gh api .../pulls/{n}/comments -f body=... -F in_reply_to=...
+│  └─ Best-effort: failed POSTs logged, not fatal
 │
 └─ Step 6: Update Review-PR Stage
    ├─ [pass] Bash: fab status finish <change> review-pr
    └─ [fail] Bash: fab status fail <change> review-pr
 
 Phase tracking (via yq directly on .status.yaml):
-  waiting → received → triaging → fixing → pushed
+  waiting → received → triaging → fixing → pushed → replying
 ```
+
+### Disposition taxonomy
+
+Triage assigns **intent** (action verb); replies confirm **outcome** (past-tense).
+
+| Intent (triage) | Reply (outcome) |
+|-----------------|-----------------|
+| `fix` | `Fixed — {description}. ({sha})` |
+| `defer` | `Deferred — {reason}.` |
+| `skip` | `Skipped — {reason}.` |
+
+Informational comments receive no reply.
 
 ### Tools used
 
@@ -59,7 +77,7 @@ Phase tracking (via yq directly on .status.yaml):
 |------|---------|
 | Read | Source files for applying fixes |
 | Edit | Source files (targeted fixes from review comments) |
-| Bash | gh API calls, git operations, fab status commands, yq phase tracking |
+| Bash | gh API calls (REST only), git operations, fab status commands, yq phase tracking |
 
 ### Sub-agents
 
@@ -69,5 +87,5 @@ None.
 
 | Field | When |
 |-------|------|
-| `stage_metrics.review-pr.phase` | At each phase transition |
+| `stage_metrics.review-pr.phase` | At each phase transition (including `replying`) |
 | `stage_metrics.review-pr.reviewer` | When reviews detected |

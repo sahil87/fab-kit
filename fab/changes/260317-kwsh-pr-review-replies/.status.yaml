@@ -1,0 +1,44 @@
+id: kwsh
+name: 260317-kwsh-pr-review-replies
+created: 2026-03-17T08:43:05Z
+created_by: aditya-weaver
+change_type: fix
+issues: []
+progress:
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+checklist:
+    generated: true
+    path: checklist.md
+    completed: 0
+    total: 0
+confidence:
+    certain: 12
+    confident: 1
+    tentative: 0
+    unresolved: 0
+    score: 4.7
+    fuzzy: true
+    dimensions:
+        signal: 89.6
+        reversibility: 88.1
+        competence: 88.5
+        disambiguation: 91.2
+stage_metrics:
+    intake: {started_at: "2026-03-17T08:43:05Z", driver: fab-new, iterations: 1, completed_at: "2026-03-17T08:50:25Z"}
+    spec: {started_at: "2026-03-17T08:50:25Z", driver: fab-continue, iterations: 1, completed_at: "2026-03-17T08:59:48Z"}
+    tasks: {started_at: "2026-03-17T08:59:48Z", driver: fab-continue, iterations: 1, completed_at: "2026-03-17T09:01:52Z"}
+    apply: {started_at: "2026-03-17T09:01:52Z", driver: fab-continue, iterations: 1, completed_at: "2026-03-17T09:04:42Z"}
+    review: {started_at: "2026-03-17T09:04:42Z", driver: fab-continue, iterations: 1, completed_at: "2026-03-17T09:09:24Z"}
+    hydrate: {started_at: "2026-03-17T09:09:24Z", driver: fab-continue, iterations: 1, completed_at: "2026-03-17T09:10:52Z"}
+    ship: {started_at: "2026-03-17T09:10:52Z", driver: fab-continue, iterations: 1, completed_at: "2026-03-17T09:12:58Z"}
+    review-pr: {started_at: "2026-03-17T09:12:58Z", driver: fab-continue, iterations: 1, completed_at: "2026-03-17T09:26:49Z"}
+prs:
+    - https://github.com/wvrdz/fab-kit/pull/263
+last_updated: 2026-03-17T09:46:57Z
