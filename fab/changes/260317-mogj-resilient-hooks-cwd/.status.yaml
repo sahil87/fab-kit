@@ -1,0 +1,42 @@
+id: mogj
+name: 260317-mogj-resilient-hooks-cwd
+created: 2026-03-17T10:16:06Z
+created_by: sahil-weaver
+change_type: fix
+issues: []
+progress:
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+checklist:
+    generated: true
+    path: checklist.md
+    completed: 10
+    total: 10
+confidence:
+    certain: 4
+    confident: 1
+    tentative: 0
+    unresolved: 0
+    score: 4.7
+    fuzzy: true
+    dimensions:
+        signal: 84.0
+        reversibility: 91.0
+        competence: 91.0
+        disambiguation: 91.0
+stage_metrics:
+    intake: {started_at: "2026-03-17T10:16:06Z", driver: fab-new, iterations: 1, completed_at: "2026-03-17T11:06:22Z"}
+    spec: {started_at: "2026-03-17T11:06:22Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-17T11:06:48Z"}
+    tasks: {started_at: "2026-03-17T11:06:48Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-17T11:06:48Z"}
+    apply: {started_at: "2026-03-17T11:06:48Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-17T11:07:26Z"}
+    review: {started_at: "2026-03-17T11:07:26Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-17T11:08:27Z"}
+    hydrate: {started_at: "2026-03-17T11:08:27Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-17T11:09:49Z"}
+    ship: {started_at: "2026-03-17T11:09:49Z", driver: fab-fff, iterations: 1}
+prs: []
+last_updated: 2026-03-17T11:09:49Z
