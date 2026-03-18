@@ -5,40 +5,40 @@ created_by: sahil-weaver
 change_type: docs
 issues: []
 progress:
-    intake: done
-    spec: done
-    tasks: done
-    apply: done
-    review: done
-    hydrate: done
-    ship: done
-    review-pr: active
+  intake: done
+  spec: done
+  tasks: done
+  apply: done
+  review: done
+  hydrate: done
+  ship: done
+  review-pr: active
 checklist:
-    generated: true
-    path: checklist.md
-    completed: 0
-    total: 0
+  generated: true
+  path: checklist.md
+  completed: 0
+  total: 33
 confidence:
-    certain: 18
-    confident: 6
-    tentative: 0
-    unresolved: 0
-    score: 3.2
-    fuzzy: true
-    dimensions:
-        signal: 85.4
-        reversibility: 87.9
-        competence: 87.3
-        disambiguation: 86.5
+  certain: 18
+  confident: 6
+  tentative: 0
+  unresolved: 0
+  score: 3.2
+  fuzzy: true
+  dimensions:
+    signal: 85.4
+    reversibility: 87.9
+    competence: 87.3
+    disambiguation: 86.5
 stage_metrics:
-    intake: {started_at: "2026-03-17T08:51:10Z", driver: fab-new, iterations: 1, completed_at: "2026-03-18T06:45:59Z"}
-    spec: {started_at: "2026-03-18T06:45:59Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-18T06:54:45Z"}
-    tasks: {started_at: "2026-03-18T06:54:45Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-18T06:56:22Z"}
-    apply: {started_at: "2026-03-18T06:56:22Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-18T06:59:45Z"}
-    review: {started_at: "2026-03-18T06:59:45Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-18T07:01:42Z"}
-    hydrate: {started_at: "2026-03-18T07:01:42Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-18T07:04:04Z"}
-    ship: {started_at: "2026-03-18T07:04:04Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-18T07:05:27Z"}
-    review-pr: {started_at: "2026-03-18T07:05:27Z", driver: fab-fff, iterations: 1}
+  intake: {started_at: "2026-03-17T08:51:10Z", driver: fab-new, iterations: 1, completed_at: "2026-03-18T06:45:59Z"}
+  spec: {started_at: "2026-03-18T06:45:59Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-18T06:54:45Z"}
+  tasks: {started_at: "2026-03-18T06:54:45Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-18T06:56:22Z"}
+  apply: {started_at: "2026-03-18T06:56:22Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-18T06:59:45Z"}
+  review: {started_at: "2026-03-18T06:59:45Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-18T07:01:42Z"}
+  hydrate: {started_at: "2026-03-18T07:01:42Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-18T07:04:04Z"}
+  ship: {started_at: "2026-03-18T07:04:04Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-18T07:05:27Z"}
+  review-pr: {started_at: "2026-03-18T07:05:27Z", driver: fab-fff, iterations: 1}
 prs:
-    - https://github.com/wvrdz/fab-kit/pull/265
-last_updated: 2026-03-18T07:05:27Z
+  - https://github.com/wvrdz/fab-kit/pull/265
+last_updated: 2026-03-18T07:10:47Z

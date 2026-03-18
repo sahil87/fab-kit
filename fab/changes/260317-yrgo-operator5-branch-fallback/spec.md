@@ -131,7 +131,7 @@ Operator5's `/loop` lifecycle differs from operator4. The loop is the operator's
 When `fab resolve` returns non-zero during a user-initiated action (not monitoring ticks), the operator searches local and remote branch names as a fallback.
 
 ```bash
-git for-each-ref --format='%(refname:short)' refs/heads/ refs/remotes/ | grep -i "<query>"
+git for-each-ref --format='%(refname:short)' refs/heads/ refs/remotes/ | grep -iF "<query>"
 ```
 
 #### Scenario: Single branch match — read-only query

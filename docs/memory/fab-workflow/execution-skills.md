@@ -332,7 +332,7 @@ All settings are session-scoped — they reset when the operator session restart
 
 ### `/fab-operator5` (Use Case Registry + Branch Fallback)
 
-`/fab-operator5` is operator4's successor — a standalone coordination skill that adds a **use case registry**, **branch fallback resolution**, and three built-in proactive monitoring use cases. All operator4 behavior (principles, safety model, auto-nudge, autopilot) is carried forward unchanged. Launch via the same `fab-operator4.sh` launcher (singleton `operator` tab).
+`/fab-operator5` is operator4's successor — a standalone coordination skill that adds a **use case registry**, **branch fallback resolution**, and three built-in proactive monitoring use cases. All operator4 behavior (principles, safety model, auto-nudge, autopilot) is carried forward unchanged. Launch via `fab/.kit/scripts/fab-operator5.sh` (singleton `operator` tab).
 
 #### Key Differences from Operator4
 

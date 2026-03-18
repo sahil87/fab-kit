@@ -9,7 +9,7 @@ description: "Multi-agent coordination with use case registry — branch fallbac
 
 Multi-agent coordination layer with use case registry, branch fallback resolution, and proactive monitoring. Runs in a dedicated tmux pane, observes all running fab agents via `fab pane-map`, routes commands via `tmux send-keys`, and monitors multiple concerns via `/loop`. Translates natural-language user instructions into cross-agent actions.
 
-Start via `fab/.kit/scripts/fab-operator4.sh` (singleton tmux tab named `operator`).
+Start via `fab/.kit/scripts/fab-operator5.sh` (singleton tmux tab named `operator`).
 
 ---
 
@@ -85,7 +85,7 @@ When `fab resolve` returns non-zero during a **user-initiated** action (not moni
 
 1. Scan local and remote branch names:
    ```bash
-   git for-each-ref --format='%(refname:short)' refs/heads/ refs/remotes/ | grep -i "<query>"
+   git for-each-ref --format='%(refname:short)' refs/heads/ refs/remotes/ | grep -iF "<query>"
    ```
 2. **Single match** — choose response based on user intent:
    - **Read-only query** (status check, "what stage is X at?"): read `.status.yaml` directly from the branch via `git show <branch>:fab/changes/<folder>/.status.yaml` — no worktree needed
