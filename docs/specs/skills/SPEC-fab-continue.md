@@ -55,9 +55,10 @@ User invokes /fab-continue [change-name] [stage]
 │  │  │ SUB-AGENT: Review Validation             │   │
 │  │  │  (Agent tool, general-purpose)           │   │
 │  │  │                                          │   │
+│  │  │  Read: standard subagent context         │   │
+│  │  │        (per _preamble.md)                │   │
 │  │  │  Read: spec.md, tasks.md, checklist.md,  │   │
-│  │  │        source files, constitution,       │   │
-│  │  │        code-quality.md, code-review.md   │   │
+│  │  │        source files, memory files        │   │
 │  │  │  Bash: run tests                         │   │
 │  │  │  Edit: checklist.md (mark [x])           │   │
 │  │  │  Returns: structured findings            │   │

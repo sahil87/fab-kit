@@ -63,6 +63,8 @@ The orchestrating LLM MAY use any review agent available in its environment (e.g
 
 The review sub-agent performs capable-tier work: deep reasoning, code analysis, spec comparison, and checklist validation.
 
+**Context**: The review sub-agent receives standard subagent context files (per `_preamble.md` § Standard Subagent Context) plus change-specific files: `spec.md`, `tasks.md`, `checklist.md`, relevant source files (files touched by the change), and target memory file(s) from `docs/memory/`. The `fab/project/**` files are no longer listed ad-hoc in the review behavior — they are inherited from the standard subagent context template in `_preamble.md`.
+
 #### Validation Checks
 
 The sub-agent performs all of these checks:
@@ -369,6 +371,12 @@ All settings are session-scoped — they reset when the operator session restart
 **Rejected**: Multiple inline review passes (still shares context), external review tool integration (too prescriptive, not portable).
 *Introduced by*: 260216-gqpp-DEV-1040-code-review-loop
 
+### Standard Subagent Context Template
+**Decision**: All subagent prompts include a standard set of `fab/project/**` files (`config.yaml`, `constitution.md`, `context.md`, `code-quality.md`, `code-review.md`) defined in `_preamble.md` § Standard Subagent Context. Review behavior references this template instead of listing files ad-hoc.
+**Why**: Previously, each skill that dispatched subagents maintained its own context list, creating silent quality gaps when files were omitted and drift risk as new project files were added. The template in `_preamble.md` centralizes the list so all subagents — including nested sub-subagents — inherit project principles automatically. Total context cost is ~150 lines, negligible.
+**Rejected**: Selective per-subagent file lists (maintenance burden, drift risk), loading only for review subagents (apply and other subagents also benefit from project principles).
+*Introduced by*: 260318-dzze-standard-subagent-context
+
 ### Priority-Based Comment Triage
 **Decision**: The applying agent triages review comments by severity (must-fix / should-fix / nice-to-have) rather than implementing all of them.
 **Why**: Prevents infinite rework loops over diminishing-return suggestions. Must-fix items ensure correctness; nice-to-have items allow pragmatic completion.
@@ -488,6 +496,7 @@ All settings are session-scoped — they reset when the operator session restart
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260318-dzze-standard-subagent-context | 2026-03-18 | Review sub-agent context now references `_preamble.md` § Standard Subagent Context instead of listing `fab/project/**` files ad-hoc. Added Standard Subagent Context Template design decision. All subagents (including nested sub-subagents) inherit project principles via the centralized template. |
 | 260317-yrgo-operator5-branch-fallback | 2026-03-17 | Added `/fab-operator5` as operator4's successor with three new capabilities: (1) use case registry — toggleable named concerns (`monitor-changes`, `linear-inbox`, `pr-freshness`) persisted in `.fab-operator.yaml`, with conversational toggling and tick-start status roster; (2) branch fallback resolution — scans local/remote branch names when `fab resolve` fails (user-initiated only), with read-only `git show` path and action worktree-creation path; (3) tab preparation procedure — shared pre-dispatch sequence (verify pane, check idle, check active change, check branch alignment) used by all playbooks and use cases. Operator4's "Modes of Operation" renamed to "Playbooks". Deleted legacy `fab-operator{1,2,3}.sh` launcher scripts. |
 | 260315-a2b2-standalone-operator4-rewrite | 2026-03-15 | Rewrote operator documentation: replaced operator1/2/3/4 inheritance chain with standalone `/fab-operator4`. Removed all references to operator1, operator2, operator3 as separate skills. Operator4 is now documented as the single operator skill with all behavior inlined (principles, startup, safety model, monitoring, auto-nudge, modes of operation, autopilot, configuration). Loads `_cli-external.md` (operator-only) for wt/tmux/loop references. Consolidated design decisions (merged "All-Auto-Answer" + "Decision List" into single DD, renamed "operator4"-specific DDs to generic names). Added "Standalone Operator Over Inheritance Chain" design decision. |
 | 260314-q5p9-redesign-ff-fff-scopes | 2026-03-14 | Updated pipeline invocation overview: `/fab-ff` now runs intake → hydrate (6 stages), `/fab-fff` runs intake → review-pr (8 stages). Both have identical confidence gates and autonomous rework. Updated review failure rework descriptions: both `/fab-ff` and `/fab-fff` now use identical auto-loop + stop behavior (was: `/fab-ff` had interactive fallback, `/fab-fff` had bail). |
