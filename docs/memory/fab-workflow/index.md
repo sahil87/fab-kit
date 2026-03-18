@@ -5,10 +5,10 @@
 | [hydrate](hydrate.md) | `/docs-hydrate-memory` skill — argument routing, dual-mode (ingest + generate), hydration rules, index maintenance | 2026-02-14 |
 | [hydrate-generate](hydrate-generate.md) | `/docs-hydrate-memory` generate mode — codebase scanning, gap detection, interactive scoping, memory file generation | 2026-02-07 |
 | [setup](setup.md) | `/fab-setup` skill — structural bootstrap, subcommand architecture (config, constitution, migrations), delegation pattern with `fab-sync.sh` | 2026-02-16 |
-| [context-loading](context-loading.md) | Smart context loading convention — 7-file always-load layer, selective domain loading, SRAD protocol, state-keyed Next Steps Convention | 2026-02-20 |
+| [context-loading](context-loading.md) | Smart context loading convention — 7-file always-load layer, standard subagent context, selective domain loading, SRAD protocol, state-keyed Next Steps Convention | 2026-03-18 |
 | [planning-skills](planning-skills.md) | `/fab-new`, `/fab-continue`, `/fab-ff`, `/fab-clarify` — the planning pipeline from intake through tasks, shared `_generation.md` partial | 2026-02-16 |
 | [clarify](clarify.md) | `/fab-clarify` skill — dual modes (suggest/auto), taxonomy scan, structured questions, coverage reports, audit trail, grade reclassification | 2026-02-16 |
-| [execution-skills](execution-skills.md) | Apply, review, hydrate, archive, and operator behavior — `/fab-continue` for pipeline stages, `/fab-archive` for housekeeping, `/fab-operator4` for cross-agent coordination, `/fab-operator5` for use case registry + branch fallback | 2026-03-17 |
+| [execution-skills](execution-skills.md) | Apply, review, hydrate, archive, and operator behavior — `/fab-continue` for pipeline stages, `/fab-archive` for housekeeping, `/fab-operator4` for cross-agent coordination, `/fab-operator5` for use case registry + branch fallback | 2026-03-18 |
 | [change-lifecycle](change-lifecycle.md) | Change naming, folder structure, `.status.yaml`, `.fab-status.yaml` symlink, git integration, `/fab-status`, `/fab-switch`, backlog scanning | 2026-03-07 |
 | [templates](templates.md) | Artifact templates (intake, spec, tasks, checklist), skill frontmatter, and memory file format | 2026-02-27 |
 | [distribution](distribution.md) | How `fab/.kit/` is distributed — bootstrap, update, release workflow | 2026-03-10 |

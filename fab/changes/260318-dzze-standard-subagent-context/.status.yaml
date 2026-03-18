@@ -1,0 +1,45 @@
+id: dzze
+name: 260318-dzze-standard-subagent-context
+created: 2026-03-18T06:19:17Z
+created_by: sahil-weaver
+change_type: docs
+issues: []
+progress:
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+checklist:
+    generated: true
+    path: checklist.md
+    completed: 17
+    total: 17
+confidence:
+    certain: 6
+    confident: 1
+    tentative: 0
+    unresolved: 0
+    score: 4.7
+    indicative: true
+    fuzzy: true
+    dimensions:
+        signal: 90.7
+        reversibility: 85.7
+        competence: 90.0
+        disambiguation: 92.1
+stage_metrics:
+    intake: {started_at: "2026-03-18T06:19:17Z", driver: fab-new, iterations: 1, completed_at: "2026-03-18T11:14:16Z"}
+    spec: {started_at: "2026-03-18T11:14:16Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-18T11:15:50Z"}
+    tasks: {started_at: "2026-03-18T11:15:50Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-18T11:16:37Z"}
+    apply: {started_at: "2026-03-18T11:16:37Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-18T11:19:42Z"}
+    review: {started_at: "2026-03-18T11:19:42Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-18T11:22:08Z"}
+    hydrate: {started_at: "2026-03-18T11:22:08Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-18T11:24:34Z"}
+    ship: {started_at: "2026-03-18T11:24:34Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-18T11:26:05Z"}
+    review-pr: {started_at: "2026-03-18T11:26:05Z", driver: git-pr, iterations: 1, completed_at: "2026-03-18T11:32:08Z"}
+prs:
+    - https://github.com/wvrdz/fab-kit/pull/266
+last_updated: 2026-03-18T11:32:08Z

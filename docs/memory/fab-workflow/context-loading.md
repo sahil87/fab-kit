@@ -46,6 +46,27 @@ When operating on an active change, skills selectively load relevant memory file
 
 This applies to all skills operating on an active change, not just spec-writing skills.
 
+### Standard Subagent Context
+
+When orchestrator skills (`/fab-ff`, `/fab-fff`) or middle agents (`/fab-continue`) dispatch subagents via the Agent tool, the subagent prompt MUST instruct the subagent to read a standard set of project files **before** executing its task. This is defined in `_preamble.md` § Standard Subagent Context and is distinct from the Always Load layer (which is for the parent agent itself).
+
+The standard subagent context includes:
+
+**Required** (subagent reports error if missing):
+- `fab/project/config.yaml`
+- `fab/project/constitution.md`
+
+**Optional** (skip gracefully if missing):
+- `fab/project/context.md`
+- `fab/project/code-quality.md`
+- `fab/project/code-review.md`
+
+This is a subset of the Always Load layer — it includes the 5 `fab/project/**` files but excludes `docs/memory/index.md` and `docs/specs/index.md` (which are navigation aids for the parent agent, not project principles needed by subagents).
+
+**Nested dispatch**: When a subagent dispatches its own sub-subagent (e.g., review sub-agent within `/fab-continue`), the inner prompt MUST also include the standard subagent context instruction. The same 5 files are loaded at every nesting level.
+
+**Relationship to Always Load**: The Always Load layer is what the parent agent reads. The Standard Subagent Context is what the parent agent instructs its subagents to read. The parent does not re-pass `docs/memory/index.md` or `docs/specs/index.md` to subagents — those are for the parent's own domain awareness.
+
 ### SRAD Protocol
 
 The shared context preamble (`_preamble.md`) includes the SRAD autonomy framework, which all planning skills reference during artifact generation. The framework defines:
@@ -103,10 +124,17 @@ The following skills skip the standard context loading layers:
 **Rejected**: Loading only when needed — would require each skill to independently decide, leading to inconsistency.
 *Introduced by*: 260207-q7m3-separate-hydrate-smart-context
 
+### Standard Subagent Context as Centralized Template
+**Decision**: Added a Standard Subagent Context subsection to `_preamble.md` § Subagent Dispatch, listing the 5 `fab/project/**` files that every subagent must read. Skills reference this template instead of maintaining ad-hoc file lists.
+**Why**: Each skill that dispatched subagents maintained its own context list, creating silent quality gaps (forgotten files) and drift risk (new files not propagated). Centralizing in `_preamble.md` ensures all subagents — at any nesting depth — inherit project principles automatically.
+**Rejected**: Including `docs/memory/index.md` and `docs/specs/index.md` in subagent context — these are navigation aids for the parent agent, not project principles needed by subagents.
+*Introduced by*: 260318-dzze-standard-subagent-context
+
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260318-dzze-standard-subagent-context | 2026-03-18 | Added Standard Subagent Context section — defines the 5 `fab/project/**` files that every subagent prompt must include, distinct from the Always Load layer. Added design decision for centralized template approach. |
 | 260303-6b7c-update-underscore-skill-references | 2026-03-04 | Standardized all skill top-of-file `_preamble.md` references to use `fab/.kit/skills/_preamble.md` (no `./` prefix). No content changes to context-loading requirements — all references already used correct form. |
 | 260221-5tj7-rename-context-to-preamble | 2026-02-21 | Renamed shared skill preamble file from `_context.md` to `_preamble.md`. Updated all references throughout — Overview, SRAD Protocol, and Next Steps Convention sections now reference `_preamble.md` |
 | 260220-9ogw-add-fab-discuss | 2026-02-20 | Added `fab-discuss` special case note in Exception Skills section — the only skill whose primary output IS the always-load layer |
