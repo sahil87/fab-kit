@@ -7,3 +7,4 @@
 - [ ] [t13m] 2026-03-18: Configurable agent spawn command in config.yaml — centralize the agent binary/flags so all spawn scripts and operator read from one place. Default: `claude --dangerously-skip-permissions --effort max -n "$(basename "$(pwd)")"`. Currently hardcoded in 4+ locations.
 - [ ] [9tqo] 2026-03-18: The idea section on _cli-fab.md is factually incorrect. Move it to _cli_external - the whole Backlog section, and correct it. idea is a standalone binary that is shipped with fab-kit
 - [ ] [02eh] 2026-03-18: When operator5 works in branch mode for matching a change, it asks for confirmation. Don't do so, just proceed
+- [ ] [tm9h] 2026-03-19: When starting to creat PRs - create drafts. fab-kit should always create draft PRs. The devs generally need to check the implementation before marking it ok for code review
