@@ -130,17 +130,3 @@ The script will:
 4. Create a GitHub Release with `kit.tar.gz` as an asset
 
 **Requires**: clean working tree, [gh CLI](https://cli.github.com/), and a configured `origin` remote.
-
-## References
-
-The `references/` folder contains analysis docs from other SDD projects:
-
-### [references/speckit/](references/speckit/)
-Analysis of **Spec-Kit** (https://github.com/github/spec-kit) — GitHub's SDD toolkit.
-- Start with [README.md](references/speckit/README.md) for overview
-- Key docs: philosophy, workflow, commands, templates, agents
-
-### [references/openspec/](references/openspec/)
-Analysis of **OpenSpec** (https://github.com/Fission-AI/OpenSpec) — an AI-native spec-driven framework.
-- Start with [README.md](references/openspec/README.md) for overview
-- Key docs: overview, philosophy, cli-architecture, agent-integration
