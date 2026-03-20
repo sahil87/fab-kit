@@ -9,7 +9,7 @@
 - [ ] [02eh] 2026-03-18: When operator5 works in branch mode for matching a change, it asks for confirmation. Don't do so, just proceed
 - [ ] [tm9h] 2026-03-19: When starting to creat PRs - create drafts. fab-kit should always create draft PRs. The devs generally need to check the implementation before marking it ok for code review
 - [ ] [heht] 2026-03-19: Ensure randomness in worktree names is actually getting following - inrease the name universe even further
-- [ ] [gogt] 2026-03-19: Write operator6 from hand
+- [ ] [gogt] 2026-03-19: Write operator6 from hand. Remove references to byobu in it.
 - [ ] [p4ki] 2026-03-19: Allow 'idea <text of idea>' format once again
 - [ ] [m1ef] 2026-03-18: The PRs created by fab-kit, should be draft by default. Right now ready PRs are getting created
 - [ ] [rd3u] 2026-03-19: operator should mention on each tick the current timestamp
