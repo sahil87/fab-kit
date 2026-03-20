@@ -14,7 +14,7 @@ for platform in "${platforms[@]}"; do
   for bin in fab wt idea; do
     binary="$build_dir/${bin}-${os}-${arch}"
     if [ ! -f "$binary" ]; then
-      echo "ERROR: Missing $bin binary $binary — run 'just build-go-all' first."
+      echo "ERROR: Missing $bin binary $binary — run 'just build-all' first."
       exit 1
     fi
   done

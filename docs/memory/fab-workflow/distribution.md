@@ -122,22 +122,25 @@ Pre-flight checks: clean working tree (error if dirty), `fab/.kit/VERSION` exist
 
 The `justfile` at repo root provides locally-replicable build recipes using [just](https://github.com/casey/just). These same recipes are invoked by CI.
 
-**Go recipes**:
-- **`build-go`** — compiles all three Go binaries (`fab-go`, `idea`, `wt`) for the current platform at `fab/.kit/bin/` using `CGO_ENABLED=0`
-- **`build-go-target os arch`** — cross-compiles all three Go binaries (`fab`, `idea`, `wt`) for a specific platform, outputs to `.release-build/{name}-{os}-{arch}` using `CGO_ENABLED=0 GOOS={os} GOARCH={arch}`
-- **`build-go-all`** — cross-compiles for all 4 release targets (`darwin/arm64`, `darwin/amd64`, `linux/arm64`, `linux/amd64`) by invoking `build-go-target` for each, producing 12 binaries total (3 per platform)
+**Development recipes**:
+- **`build`** — compiles all three binaries (`fab-go`, `idea`, `wt`) for the current platform at `fab/.kit/bin/` using `CGO_ENABLED=0`
+- **`test`** — runs all unit tests across all Go modules
+- **`test-v`** — runs all unit tests (verbose)
+- **`doctor`** — checks prerequisites and environment health
 
-**Combined recipes**:
-- **`build-all`** — runs `build-go-all`, producing 12 cross-compiled binaries (3 per platform x 4 platforms)
+**Release recipes**:
+- **`release [bump]`** — bumps VERSION (default: patch), commits, tags, and pushes; CI handles the rest
+- **`build-target os arch`** — cross-compiles all three binaries (`fab`, `idea`, `wt`) for a specific platform, outputs to `.release-build/{name}-{os}-{arch}` using `CGO_ENABLED=0 GOOS={os} GOARCH={arch}`
+- **`build-all`** — cross-compiles for all 4 release targets (`darwin/arm64`, `darwin/amd64`, `linux/arm64`, `linux/amd64`), producing 12 binaries total (3 per platform)
 - **`package-kit`** — creates 5 tar.gz archives: generic `kit.tar.gz` (no binaries) + 4 per-platform `kit-{os}-{arch}.tar.gz` (with `fab-go`, `idea`, and `wt`). Verifies all cross-compiled binaries exist first. Uses `COPYFILE_DISABLE=1` to suppress macOS extended attributes. Archives are rooted at `.kit/`.
 - **`clean`** — removes `.release-build/` directory and all `kit*.tar.gz` files from repo root
 
 **Scenarios**:
-- Local dev build (`just build-go`) — compiles all three binaries (`fab-go`, `idea`, `wt`) for current platform at `fab/.kit/bin/`
-- Cross-compile for a single target (`just build-go-target darwin arm64`) — produces `.release-build/fab-darwin-arm64`, `.release-build/idea-darwin-arm64`, `.release-build/wt-darwin-arm64`
+- Local dev build (`just build`) — compiles all three binaries (`fab-go`, `idea`, `wt`) for current platform at `fab/.kit/bin/`
+- Cross-compile for a single target (`just build-target darwin arm64`) — produces `.release-build/fab-darwin-arm64`, `.release-build/idea-darwin-arm64`, `.release-build/wt-darwin-arm64`
 - Build all targets (`just build-all`) — produces 12 binaries in `.release-build/` (3 per platform x 4 platforms)
 - Package after build (`just package-kit`) — creates 5 archives in repo root; per-platform archives include `.kit/bin/fab-go`, `.kit/bin/idea`, and `.kit/bin/wt`, generic archive includes none
-- Package without prior build (`just package-kit`) — fails with error directing to run `just build-go-all` first
+- Package without prior build (`just package-kit`) — fails with error directing to run `just build-all` first
 - Clean up (`just clean`) — removes `.release-build/` and `kit*.tar.gz`
 
 #### CI Workflow (`.github/workflows/release.yml`)
@@ -202,7 +205,7 @@ The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its rol
 
 ## Design Decisions
 
-- **CI/local parity via justfile (260307-ma7o-1)**: Build recipes live in the `justfile` so CI and local development use identical commands (`just build-go-all`, `just package-kit`). No CI-only build scripts or logic. This makes CI behavior fully reproducible locally.
+- **CI/local parity via justfile (260307-ma7o-1)**: Build recipes live in the `justfile` so CI and local development use identical commands (`just build-all`, `just package-kit`). No CI-only build scripts or logic. This makes CI behavior fully reproducible locally.
 - **Three-way release split (260307-ma7o-1)**: `release.sh` owns version/tag/push, `justfile` owns build/package, `.github/workflows/release.yml` owns orchestration. Each component has a single responsibility and can be tested independently.
 - **GitHub semver ordering replaces `--no-latest` (260307-ma7o-1)**: GitHub automatically determines "latest" release based on semver. Backport releases (e.g., `v0.34.2` when `v0.35.0` exists) are not marked latest. The `--no-latest` flag was removed from `release.sh` — no flag to remember, no CI mechanism to pass it through. For edge cases, `gh release edit` can be used post-creation.
 - **Commit-level release notes with minor cumulation**: CI generates release notes from `git log --oneline` with linked commit SHAs. Minor releases (x.y.0) cumulate all commits since the previous minor tag, giving a complete picture of the release cycle. Patch releases show commits since the previous release only. Major releases use the same patch-style diff (manual curation expected for milestone releases).

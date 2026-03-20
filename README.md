@@ -391,7 +391,7 @@ Projects using direnv get CLI tools (`wt`, `idea`) on PATH automatically via `.e
 After cloning, run Go tests:
 
 ```bash
-just test-go            # run all Go module tests
+just test               # run all tests
 ```
 
 ## Learn More
