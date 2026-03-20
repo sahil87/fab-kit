@@ -5,7 +5,8 @@
 # ---
 set -euo pipefail
 
-source "$(dirname "${BASH_SOURCE[0]}")/lib/spawn.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/spawn.sh"
 
 TAB_NAME="operator"
 

@@ -136,4 +136,4 @@ prompt="Run /fab-archive for each of these changes, one at a time: ${resolved[*]
 
 echo "Archiving: ${resolved[*]}"
 SPAWN_CMD=$(fab_spawn_cmd "$CONFIG_FILE")
-eval "exec $SPAWN_CMD \"\$prompt\""
+exec bash -c "$SPAWN_CMD \"\$1\"" -- "$prompt"
