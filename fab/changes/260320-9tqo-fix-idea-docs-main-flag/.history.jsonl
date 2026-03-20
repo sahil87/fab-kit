@@ -1,0 +1,17 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-20T21:10:31Z"}
+{"args":"[9tqo] 2026-03-18: The idea section on _cli-fab.md is factually incorrect. Move it to _cli_external - the whole Backlog section, and correct it. idea is a standalone binary that is shipped with fab-kit. Also make it explicit in the help text that the idea command operates on the backlog.md of the main worktree only if --main modifier is passed (make relevant code changes) - right now this behaviour is default (not obvious).","cmd":"fab-new","event":"command","ts":"2026-03-20T21:10:31Z"}
+{"delta":"+4.1","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-20T21:11:36Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-20T21:11:54Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-03-20T21:16:10Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-03-20T22:06:09Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-20T22:07:38Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"spec","ts":"2026-03-20T22:07:43Z"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-03-20T22:08:45Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-03-20T22:10:55Z"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-03-20T22:12:36Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"tasks","ts":"2026-03-20T22:15:50Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-03-20T22:15:59Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-03-20T22:20:31Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-03-20T22:23:15Z"}
+{"event":"review","result":"passed","ts":"2026-03-20T22:23:15Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-03-20T22:24:04Z"}

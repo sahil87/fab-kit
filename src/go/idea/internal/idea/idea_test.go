@@ -867,6 +867,28 @@ func TestIdeaJSON_Done(t *testing.T) {
 	}
 }
 
+// --- Repo Root Tests ---
+
+func TestMainRepoRoot_ReturnsPath(t *testing.T) {
+	root, err := MainRepoRoot()
+	if err != nil {
+		t.Fatalf("MainRepoRoot: %v", err)
+	}
+	if root == "" {
+		t.Error("MainRepoRoot returned empty string")
+	}
+}
+
+func TestWorktreeRoot_ReturnsPath(t *testing.T) {
+	root, err := WorktreeRoot()
+	if err != nil {
+		t.Fatalf("WorktreeRoot: %v", err)
+	}
+	if root == "" {
+		t.Error("WorktreeRoot returned empty string")
+	}
+}
+
 // --- Edge Case Tests ---
 
 func TestAdd_AppendToExisting(t *testing.T) {

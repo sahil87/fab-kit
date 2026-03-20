@@ -3,7 +3,13 @@ package main
 import "github.com/wvrdz/fab-kit/src/go/idea/internal/idea"
 
 func resolveFile() (string, error) {
-	repoRoot, err := idea.GitRepoRoot()
+	var repoRoot string
+	var err error
+	if mainFlag {
+		repoRoot, err = idea.MainRepoRoot()
+	} else {
+		repoRoot, err = idea.WorktreeRoot()
+	}
 	if err != nil {
 		return "", err
 	}

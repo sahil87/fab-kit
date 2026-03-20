@@ -1,6 +1,6 @@
 ---
 name: _cli-external
-description: "External CLI tool reference — wt (worktree manager), tmux, and /loop. Loaded by operator skills only."
+description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), tmux, and /loop. Loaded by operator skills only."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -37,6 +37,52 @@ metadata:
 
 **Example — known change**: `fab/.kit/bin/wt create --non-interactive --worktree-name <name> <change-folder-name>`
 **Example — autopilot respawn**: `fab/.kit/bin/wt create --non-interactive --reuse --worktree-name <name> <branch> --base <prev-change>`
+
+---
+
+## idea (Backlog Manager)
+
+Standalone binary for backlog idea management — CRUD for `fab/backlog.md`. Shipped with fab-kit at `fab/.kit/bin/idea` (not a `fab` subcommand).
+
+```
+fab/.kit/bin/idea <subcommand> [flags...]
+```
+
+| Subcommand | Usage | Purpose |
+|------------|-------|---------|
+| `add` | `add <text> [--id <4char>] [--date <YYYY-MM-DD>]` | Add a new idea |
+| `list` | `list [-a] [--done] [--json] [--sort <id\|date>] [--reverse]` | List ideas |
+| `show` | `show <query> [--json]` | Show a single idea |
+| `done` | `done <query>` | Mark an idea as done |
+| `reopen` | `reopen <query>` | Reopen a completed idea |
+| `edit` | `edit <query> <new-text> [--id <4char>] [--date <YYYY-MM-DD>]` | Modify an idea |
+| `rm` | `rm <query> --force` | Delete an idea (requires --force) |
+
+### Persistent Flags
+
+| Flag | Purpose |
+|------|---------|
+| `--file <path>` | Override backlog file path (relative to git root). Also respects `IDEAS_FILE` env var. Priority: `--file` > `IDEAS_FILE` > default `fab/backlog.md` |
+| `--main` | Operate on the main worktree's backlog instead of the current worktree |
+
+By default, `idea` operates on the **current worktree's** `fab/backlog.md` (resolved via `git rev-parse --show-toplevel`). Pass `--main` to target the main worktree's backlog instead (resolved via `git rev-parse --git-common-dir`). In the main worktree, both behave identically.
+
+**Query matching**: Case-insensitive substring match on both the idea ID and text fields. Commands that modify a single idea (`show`, `done`, `reopen`, `edit`, `rm`) require exactly one match; zero matches returns "No idea matching", multiple matches returns disambiguation guidance.
+
+**Backlog format**:
+
+```
+- [ ] [a7k2] 2025-06-15: Add dark mode to settings page
+- [ ] [c3d4] 2025-06-10: DES-123 Link to a Linear ticket
+- [x] [e5f6] 2025-06-08: Fix login redirect bug
+```
+
+**Output format**:
+- Add: `Added: [{id}] {date}: {text}`
+- Done: `Done: - [x] [{id}] {date}: {text}`
+- Reopen: `Reopened: - [ ] [{id}] {date}: {text}`
+- Edit: `Updated: - [{status}] [{id}] {date}: {text}`
+- Rm: `Removed: - [{status}] [{id}] {date}: {text}`
 
 ---
 

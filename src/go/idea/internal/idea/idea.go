@@ -100,10 +100,11 @@ func FormatLine(i Idea) string {
 	return fmt.Sprintf("- [%s] [%s] %s: %s", i.StatusCheck(), i.ID, i.Date, i.Text)
 }
 
-// GitRepoRoot returns the git repository root directory.
+// MainRepoRoot returns the main worktree's root directory.
 // It runs: git rev-parse --path-format=absolute --git-common-dir
-// and returns the parent of that directory.
-func GitRepoRoot() (string, error) {
+// and returns the parent of that directory. This always resolves to the
+// main worktree regardless of which worktree the command is run from.
+func MainRepoRoot() (string, error) {
 	cmd := exec.Command("git", "rev-parse", "--path-format=absolute", "--git-common-dir")
 	out, err := cmd.Output()
 	if err != nil {
@@ -111,6 +112,19 @@ func GitRepoRoot() (string, error) {
 	}
 	gitDir := strings.TrimSpace(string(out))
 	return filepath.Dir(gitDir), nil
+}
+
+// WorktreeRoot returns the current worktree's root directory.
+// It runs: git rev-parse --show-toplevel
+// In the main worktree this returns the same path as MainRepoRoot.
+// In a linked worktree this returns the worktree's own root.
+func WorktreeRoot() (string, error) {
+	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("not in a git repository")
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // File represents a loaded backlog file, preserving non-idea lines.
