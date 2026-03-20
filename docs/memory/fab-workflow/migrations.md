@@ -76,7 +76,7 @@ The migration runner, now a subcommand of `/fab-setup` (previously the standalon
 
 - **`fab-upgrade.sh`**: prints drift reminder when `fab/.kit-migration-version` < engine after upgrade; prints init guidance if `fab/.kit-migration-version` missing
 - **`/fab-status`**: displays `⚠ Version drift: local {X}, engine {Y} — run /fab-setup migrations` when versions differ
-- **`fab-release.sh`**: warns when no migration targets the new release version; warns on overlapping migration ranges
+- **`release.sh`**: warns when no migration targets the new release version; warns on overlapping migration ranges
 
 ### `fab/.kit-migration-version` Creation
 
@@ -99,7 +99,7 @@ Handled by `fab-sync.sh` during structural bootstrap:
 **Rejected**: Single combined script — would require embedding LLM invocation in shell or making migration files executable (violates pure prompt play).
 
 ### Warning-Only Release Validation
-**Decision**: `fab-release.sh` warns but does not block releases without a migration file targeting the new version.
+**Decision**: `release.sh` warns but does not block releases without a migration file targeting the new version.
 **Why**: Not every release changes project-level files. Blocking would create friction with empty boilerplate migration files.
 **Rejected**: Hard block — too restrictive.
 

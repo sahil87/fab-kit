@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# src/scripts/fab-release.sh — Bump VERSION, commit, tag, and push.
+# src/scripts/release.sh — Bump VERSION, commit, tag, and push.
 #
 # CI takes over from the tag push to cross-compile, package, and create
 # the GitHub Release (see .github/workflows/release.yml).
 #
-# Usage: fab-release.sh <patch|minor|major>
+# Usage: release.sh <patch|minor|major>
 #   patch — 0.1.0 → 0.1.1
 #   minor — 0.1.0 → 0.2.0
 #   major — 0.1.0 → 1.0.0
 
 usage() {
-  echo "Usage: fab-release.sh <patch|minor|major>"
+  echo "Usage: release.sh <patch|minor|major>"
   echo ""
   echo "  patch — bump patch version (e.g. 0.1.0 → 0.1.1)"
   echo "  minor — bump minor version (e.g. 0.1.0 → 0.2.0)"

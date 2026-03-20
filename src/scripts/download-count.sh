@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# src/scripts/fab-download-count.sh — Show download counts for GitHub Releases
+# src/scripts/download-count.sh — Show download counts for GitHub Releases
 #
-# Usage: fab-download-count.sh [--all | --total | <tag>]
+# Usage: download-count.sh [--all | --total | <tag>]
 #   (no args) — show latest release downloads
 #   --all     — show all releases
 #   --total   — show grand total across all releases
@@ -27,7 +27,7 @@ for arg in "$@"; do
     --all)   mode="all" ;;
     --total) mode="total" ;;
     -h|--help)
-      echo "Usage: fab-download-count.sh [--all | --total | <tag>]"
+      echo "Usage: download-count.sh [--all | --total | <tag>]"
       echo ""
       echo "  (no args)  — latest release"
       echo "  --all      — all releases"

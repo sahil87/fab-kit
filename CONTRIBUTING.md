@@ -116,7 +116,7 @@ For complete documentation, see:
 To publish a new release:
 
 ```bash
-fab-release.sh [patch|minor|major]
+release.sh [patch|minor|major]
 ```
 
 - `patch` (default): 0.1.0 → 0.1.1
