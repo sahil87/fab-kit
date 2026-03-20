@@ -65,7 +65,7 @@ fab/.kit/bin/idea <subcommand> [flags...]
 | `--file <path>` | Override backlog file path (relative to git root). Also respects `IDEAS_FILE` env var. Priority: `--file` > `IDEAS_FILE` > default `fab/backlog.md` |
 | `--main` | Operate on the main worktree's backlog instead of the current worktree |
 
-By default, `idea` operates on the **current worktree's** `fab/backlog.md` (resolved via `git rev-parse --show-toplevel`). Pass `--main` to target the main worktree's backlog instead (resolved via `git rev-parse --git-common-dir`). In the main worktree, both behave identically.
+By default, `idea` operates on the **current worktree's** `fab/backlog.md` (resolved via `git rev-parse --show-toplevel`). Pass `--main` to target the main worktree's backlog instead (resolved by running `git rev-parse --path-format=absolute --git-common-dir` and taking its parent directory as the main worktree root). In the main worktree, both behave identically.
 
 **Query matching**: Case-insensitive substring match on both the idea ID and text fields. Commands that modify a single idea (`show`, `done`, `reopen`, `edit`, `rm`) require exactly one match; zero matches returns "No idea matching", multiple matches returns disambiguation guidance.
 

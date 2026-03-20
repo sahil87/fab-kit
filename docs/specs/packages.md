@@ -107,7 +107,7 @@ The idea command manages a per-repo backlog stored in `fab/backlog.md`. It's a l
 
 **Binary**: `fab/.kit/bin/idea` (Go binary, included in per-platform release archives; added to PATH as `idea` by `env-packages.sh` during workspace setup).
 
-**Worktree behavior**: By default, `idea` operates on the **current worktree's** `fab/backlog.md` (resolved via `git rev-parse --show-toplevel`). Pass `--main` to target the main worktree's backlog instead (resolved via `git rev-parse --git-common-dir`). In the main worktree, both behave identically. This ensures that users in a linked worktree get predictable local behavior unless they explicitly opt into the shared backlog.
+**Worktree behavior**: By default, `idea` operates on the **current worktree's** `fab/backlog.md` (resolved via `git rev-parse --show-toplevel`). Pass `--main` to target the main worktree's backlog instead; internally, `idea` resolves the main worktree root by running `git rev-parse --path-format=absolute --git-common-dir` and taking its parent directory. In the main worktree, both behave identically. This ensures that users in a linked worktree get predictable local behavior unless they explicitly opt into the shared backlog.
 
 ### Commands
 
