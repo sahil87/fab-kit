@@ -41,7 +41,7 @@ Autonomously commits, pushes, and creates a GitHub PR. No prompts, no questions.
 │     ├─ Read: config.yaml (linear_workspace for issue link URLs)
 │     ├─ Generate: "Change" section (ID, Name, Issue table — gated on {has_fab})
 │     ├─ Bash: gh repo view --json (for blob URLs)
-│     └─ Bash: gh pr create --title --body
+│     └─ Bash: gh pr create --draft --title --body
 │
 ├─ Step 4a: Record PR URL
 │  └─ Bash: fab status add-pr <change> <url>
