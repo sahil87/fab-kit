@@ -183,7 +183,7 @@ Steps execute 1→3 for safety. If interrupted, re-run detects folder already in
 
 ### `/fab-operator4` (Standalone Coordination Skill)
 
-`/fab-operator4` is a standalone, self-contained coordination skill — NOT a pipeline stage. It runs as a long-lived Claude session in a dedicated tmux pane, observing agents via `fab pane-map`, routing commands via `tmux send-keys`, monitoring progress via `/loop`, and auto-answering idle agent prompts. Launch via `fab/.kit/scripts/fab-operator4.sh` — a singleton launcher that creates (or switches to) a tmux tab named `operator` running `claude --dangerously-skip-permissions '/fab-operator4'`.
+`/fab-operator4` is a standalone, self-contained coordination skill — NOT a pipeline stage. It runs as a long-lived Claude session in a dedicated tmux pane, observing agents via `fab pane-map`, routing commands via `tmux send-keys`, monitoring progress via `/loop`, and auto-answering idle agent prompts. Launch via `fab/.kit/scripts/fab-operator4.sh` — a singleton launcher that creates (or switches to) a tmux tab named `operator` running the spawn command from `config.yaml` `agent.spawn_command` (via `lib/spawn.sh`) with `'/fab-operator4'`.
 
 Operator4 is the single operator skill. Previous iterations (operator1, operator2, operator3) have been removed — their behavior is fully inlined into operator4 as a standalone file. An agent reading operator4 has complete knowledge of all operator behavior from this single file plus the standard `_` files loaded via `_preamble.md`.
 
@@ -330,11 +330,11 @@ All settings are session-scoped — they reset when the operator session restart
 
 #### Launcher Script
 
-`fab-operator4.sh` launches operator4. Uses a singleton tmux tab named `operator`. Only one operator session runs at a time. It has full capability parity with operator1 — all eight use cases (UC1-UC8), same confirmation model, same pre-send validation, same bounded retries, same context discipline — but replaces operator1's fire-and-forget pattern with proactive monitoring after every action that dispatches work to another agent. Launch via `fab/.kit/scripts/fab-operator4.sh` — a singleton launcher that creates (or switches to) a tmux tab named `operator` running `claude --dangerously-skip-permissions '/fab-operator4'`. Only one operator runs at a time in the shared `operator` tab.
+`fab-operator4.sh` launches operator4. Uses a singleton tmux tab named `operator`. Only one operator session runs at a time. It has full capability parity with operator1 — all eight use cases (UC1-UC8), same confirmation model, same pre-send validation, same bounded retries, same context discipline — but replaces operator1's fire-and-forget pattern with proactive monitoring after every action that dispatches work to another agent. Launch via `fab/.kit/scripts/fab-operator4.sh` — a singleton launcher that creates (or switches to) a tmux tab named `operator` running the spawn command from `config.yaml` `agent.spawn_command` (via `lib/spawn.sh`) with `'/fab-operator4'`. Only one operator runs at a time in the shared `operator` tab.
 
 ### `/fab-operator5` (Use Case Registry + Branch Fallback)
 
-`/fab-operator5` is operator4's successor — a standalone coordination skill that adds a **use case registry**, **branch fallback resolution**, and three built-in proactive monitoring use cases. All operator4 behavior (principles, safety model, auto-nudge, autopilot) is carried forward unchanged. Launch via `fab/.kit/scripts/fab-operator5.sh` (singleton `operator` tab).
+`/fab-operator5` is operator4's successor — a standalone coordination skill that adds a **use case registry**, **branch fallback resolution**, and three built-in proactive monitoring use cases. All operator4 behavior (principles, safety model, auto-nudge, autopilot) is carried forward unchanged. Launch via `fab/.kit/scripts/fab-operator5.sh` (singleton `operator` tab, reads spawn command from `config.yaml` `agent.spawn_command` via `lib/spawn.sh`).
 
 #### Key Differences from Operator4
 
@@ -496,6 +496,7 @@ All settings are session-scoped — they reset when the operator session restart
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260320-t13m-configurable-agent-spawn-command | 2026-03-20 | Updated operator spawn documentation: operator4 and operator5 launcher descriptions now reference configurable spawn command from `config.yaml` `agent.spawn_command` (via `lib/spawn.sh`) instead of hardcoded `claude --dangerously-skip-permissions`. |
 | 260320-tm9h-draft-prs-by-default | 2026-03-20 | `/git-pr` now creates all PRs as drafts via `gh pr create --draft`. Unconditional — no configuration toggle. Both primary and fallback (`--fill`) paths include `--draft`. Updated "PR shipping" overview paragraph. |
 | 260318-dzze-standard-subagent-context | 2026-03-18 | Review sub-agent context now references `_preamble.md` § Standard Subagent Context instead of listing `fab/project/**` files ad-hoc. Added Standard Subagent Context Template design decision. All subagents (including nested sub-subagents) inherit project principles via the centralized template. |
 | 260317-yrgo-operator5-branch-fallback | 2026-03-17 | Added `/fab-operator5` as operator4's successor with three new capabilities: (1) use case registry — toggleable named concerns (`monitor-changes`, `linear-inbox`, `pr-freshness`) persisted in `.fab-operator.yaml`, with conversational toggling and tick-start status roster; (2) branch fallback resolution — scans local/remote branch names when `fab resolve` fails (user-initiated only), with read-only `git show` path and action worktree-creation path; (3) tab preparation procedure — shared pre-dispatch sequence (verify pane, check idle, check active change, check branch alignment) used by all playbooks and use cases. Operator4's "Modes of Operation" renamed to "Playbooks". Deleted legacy `fab-operator{1,2,3}.sh` launcher scripts. |

@@ -102,7 +102,7 @@ Terminal multiplexer commands used by the operator for agent observation and int
 
 - **`capture-pane -l 20`** is the standard capture window for question detection (wide enough to handle line wrapping and verbose preambles)
 - **`send-keys`** requires pre-send validation: pane must exist and agent must be idle. Sending to a busy agent risks corrupting its work
-- **`new-window`** is used for spawning new agent sessions: `tmux new-window -n "fab-<id>" -c <worktree> "claude --dangerously-skip-permissions '<command>'"`
+- **`new-window`** is used for spawning new agent sessions: `tmux new-window -n "fab-<id>" -c <worktree> "$SPAWN_CMD '<command>'"` where `$SPAWN_CMD` is read from `config.yaml` `agent.spawn_command` (see `lib/spawn.sh`)
 
 ---
 

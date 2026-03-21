@@ -29,6 +29,9 @@ When absent, `fab-sync.sh` falls back to `haiku` for the fast tier. See [model-t
 #### `checklist`
 - `extra_categories` — Project-specific quality categories added to the default checklist categories (functional_completeness, behavioral_correctness, scenario_coverage, edge_cases, code_quality, security)
 
+#### `agent`
+- `spawn_command` — Shell command string used by operator launchers and batch scripts to spawn agent sessions. Default: `'claude --dangerously-skip-permissions --effort max -n "$(basename "$(pwd)")"'`. May contain shell expansions (e.g., `$(basename "$(pwd)")`) that are evaluated at invocation time, not at config read time (stored as a single-quoted YAML string). Scripts read this value via the shared helper `lib/spawn.sh` (`fab_spawn_cmd` function), which falls back to `claude --dangerously-skip-permissions` when the key is missing or null. Existing configs without an `agent` section continue to work — all consumers fall back to the hardcoded default.
+
 #### `stage_directives`
 Per-stage directives that customize artifact generation. Keys are stage IDs (`intake`, `spec`, `tasks`, `apply`, `review`, `hydrate`), values are lists of instruction strings. Example:
 ```yaml
@@ -222,6 +225,7 @@ See [setup](setup.md) for the complete command suite.
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260320-t13m-configurable-agent-spawn-command | 2026-03-20 | Added `agent` section to `config.yaml` schema with `spawn_command` key — configurable shell command string for spawning agent sessions. Default: `claude --dangerously-skip-permissions --effort max -n "$(basename "$(pwd)")"`. Shell expansions evaluate at invocation time. Scripts read via `lib/spawn.sh` helper with fallback to `claude --dangerously-skip-permissions` when key is absent. Migration adds `agent` section to existing configs. |
 | 260312-9r3t-pr-change-metadata | 2026-03-12 | Added optional `linear_workspace` field to `config.yaml` `project:` block. Used by `/git-pr` to construct Linear issue hyperlinks (`https://linear.app/{workspace}/issue/{ID}`) in the PR body's Change section. When absent, issue IDs render as bare text. Migration `0.34.0-to-0.37.0.md` surfaces the field to existing users as a commented-out line. |
 | 260227-gasp-consolidate-status-field-naming | 2026-02-27 | `.status.yaml` fields renamed: `issue_id` (scalar) → `issues` (array), `shipped` → `prs`. Migration `0.22.0-to-0.24.0.md` handles active changes. |
 | 260226-tnr8-coverage-scoring-change-types | 2026-02-26 | `calc-score.sh` gains coverage-weighted confidence formula (`score = base * cover`), `--stage` flag for intake/spec threshold selection, `expected_min` lookup tables embedded by `{stage, change_type}`, and 7-type gate thresholds replacing old 4-type (`bugfix`/`feature`/`refactor`/`architecture`) mapping. New `statusman.sh set-change-type` subcommand validates and writes `change_type` to `.status.yaml`. |

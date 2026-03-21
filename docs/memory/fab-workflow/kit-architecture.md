@@ -96,13 +96,15 @@ fab/.kit/
     ├── batch-fab-new-backlog.sh     # Batch create changes from backlog via tmux + Claude
     ├── batch-fab-switch-change.sh   # Batch switch to changes via tmux + Claude
     ├── fab-operator4.sh    # Launch operator in singleton tmux tab ("operator")
+    ├── fab-operator5.sh    # Launch operator5 in singleton tmux tab ("operator")
     ├── fab-doctor.sh       # Prerequisite checker (5 tools: git, bash, yq v4+, gh, direnv+hook)
     ├── fab-help.sh         # Print help overview
     ├── fab-sync.sh         # Single entry point — thin orchestrator iterating sync/*.sh then fab/sync/*.sh
     ├── fab-upgrade.sh      # Update .kit/ from GitHub Releases
     └── lib/                # Utility scripts (not user-facing)
         ├── env-packages.sh     # Add fab/.kit/bin and package bin/ dirs to PATH (sourced by .envrc and rc-init.sh)
-        └── frontmatter.sh      # Shared frontmatter parser — YAML (frontmatter_field) and shell-comment (shell_frontmatter_field)
+        ├── frontmatter.sh      # Shared frontmatter parser — YAML (frontmatter_field) and shell-comment (shell_frontmatter_field)
+        └── spawn.sh            # Shared spawn command reader — fab_spawn_cmd() reads agent.spawn_command from config.yaml with fallback
 ```
 
 ### Shell Scripts
@@ -143,6 +145,10 @@ Prints the Fab Kit help overview and skill catalog. Dynamically reads skill name
 
 Sourceable script that adds `fab/.kit/bin` and any existing `fab/.kit/packages/*/bin` directories to PATH. Used by `scaffold/fragment-.envrc` (for direnv-based projects). Self-contained: resolves `KIT_DIR` relative to its own location (two levels up from `scripts/lib/` to `.kit/`), adds `$KIT_DIR/bin` to PATH first (making the `fab` dispatcher, `wt` Go binary, and `idea` Go binary available), then iterates `$KIT_DIR/packages/*/bin` and adds each directory that actually exists to PATH (for any future shell packages). Both `wt` and `idea` are Go binaries in `$KIT_DIR/bin/` — they are available via the first PATH addition, not the packages iteration. Lives in `lib/` because it is a sourceable helper, not a user-callable command — keeping it off PATH prevents it from appearing in tab completion.
 
+#### `lib/spawn.sh`
+
+Shared sourceable shell library providing `fab_spawn_cmd()` — reads `agent.spawn_command` from `fab/project/config.yaml` via `yq`, returns the configured spawn command string. Falls back to `claude --dangerously-skip-permissions` when the key is missing, null, or `yq` is unavailable (stderr suppressed). Accepts the config file path as its sole argument. Sourced by operator launchers (`fab-operator4.sh`, `fab-operator5.sh`) and all batch scripts.
+
 #### `lib/frontmatter.sh`
 
 Shared sourceable shell library defining two parser functions. `frontmatter_field()` extracts a field value from YAML frontmatter delimited by `---` markers. `shell_frontmatter_field()` extracts a field value from shell-comment frontmatter delimited by `# ---` markers (strips leading `# ` before matching, handles quoted/unquoted values). Both return the unquoted value or empty string if not found. Uses `sed` for parsing (no `yq` dependency). Sourced by `fab-help.sh` and `sync/2-sync-workspace.sh`. No shebang or `set -euo pipefail` — designed to be sourced, not executed directly.
@@ -159,13 +165,14 @@ Bumps VERSION (accepts `[patch|minor|major]` argument), validates the migration 
 
 Batch scripts follow the `batch-fab-{verb}-{entity}.sh` naming pattern. Each creates tmux tabs with Claude Code sessions running a specific skill, one per target entity. Each batch script includes a `# ---` shell-comment frontmatter block with `name` and `description` fields, enabling automatic discovery by `fab-help.sh`.
 
-- **`batch-fab-new-backlog.sh`** — Per backlog ID: creates a worktree, opens a tmux tab, runs `/fab-new <description>`. Supports `--list` (show pending), `--all` (all pending), and direct ID arguments.
-- **`batch-fab-switch-change.sh`** — Per change name/ID: creates a worktree with the expected branch, opens a tmux tab, runs `/fab-switch <change>`. Supports `--list`, `--all`, substring matching. Uses `fab/.kit/bin/fab change resolve` for name resolution (via the dispatcher).
-- **`batch-fab-archive-change.sh`** — Per completed change (`hydrate:done|skipped`): runs `/fab-archive <change>` for each. Filters by reading `.status.yaml` for `hydrate: done|skipped`. Default (no arguments) archives all eligible (same as `--all`). Supports `--list` (preview), `--all`, and positional change arguments. Uses `fab/.kit/bin/fab change resolve` for name resolution (via the dispatcher).
+- **`batch-fab-new-backlog.sh`** — Per backlog ID: creates a worktree, opens a tmux tab, runs `/fab-new <description>`. Reads spawn command from `config.yaml` `agent.spawn_command` via `lib/spawn.sh`. Supports `--list` (show pending), `--all` (all pending), and direct ID arguments.
+- **`batch-fab-switch-change.sh`** — Per change name/ID: creates a worktree with the expected branch, opens a tmux tab, runs `/fab-switch <change>`. Reads spawn command from `config.yaml` `agent.spawn_command` via `lib/spawn.sh`. Supports `--list`, `--all`, substring matching. Uses `fab/.kit/bin/fab change resolve` for name resolution (via the dispatcher).
+- **`batch-fab-archive-change.sh`** — Per completed change (`hydrate:done|skipped`): runs `/fab-archive <change>` for each. Reads spawn command from `config.yaml` `agent.spawn_command` via `lib/spawn.sh`. Filters by reading `.status.yaml` for `hydrate: done|skipped`. Default (no arguments) archives all eligible (same as `--all`). Supports `--list` (preview), `--all`, and positional change arguments. Uses `fab/.kit/bin/fab change resolve` for name resolution (via the dispatcher).
 
 #### Launcher Scripts
 
-- **`fab-operator4.sh`** — Singleton launcher for the operator skill. Creates a tmux tab named `operator` running `claude --dangerously-skip-permissions '/fab-operator4'`. If the tab already exists, switches to it instead of creating a duplicate. Requires an active tmux/byobu session.
+- **`fab-operator4.sh`** — Singleton launcher for the operator skill. Creates a tmux tab named `operator` running the spawn command from `config.yaml` `agent.spawn_command` (via `lib/spawn.sh`) with `'/fab-operator4'`. If the tab already exists, switches to it instead of creating a duplicate. Requires an active tmux/byobu session.
+- **`fab-operator5.sh`** — Singleton launcher for the operator5 skill. Same singleton tab pattern as operator4. Reads spawn command from `config.yaml` `agent.spawn_command` via `lib/spawn.sh`.
 
 ### Agent Skill Deployment
 
@@ -484,6 +491,7 @@ Full benchmark suite with harness and all 4 implementations: `src/benchmark/`
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260320-t13m-configurable-agent-spawn-command | 2026-03-20 | Added `lib/spawn.sh` (shared `fab_spawn_cmd` helper reading `agent.spawn_command` from `config.yaml` with fallback). Updated 5 scripts (`fab-operator4.sh`, `fab-operator5.sh`, `batch-fab-new-backlog.sh`, `batch-fab-switch-change.sh`, `batch-fab-archive-change.sh`) to read spawn command from config via `lib/spawn.sh` instead of hardcoding `claude --dangerously-skip-permissions`. Added `fab-operator5.sh` and `lib/spawn.sh` to directory tree. Updated batch script and launcher script descriptions. |
 | 260317-mogj-resilient-hooks-cwd | 2026-03-17 | Made hook shell scripts cwd-resilient. Replaced `dirname "$0"` relative path resolution with `git rev-parse --show-toplevel` in all 4 hook scripts (`on-session-start.sh`, `on-stop.sh`, `on-user-prompt.sh`, `on-artifact-write.sh`). Scripts now find the fab binary from any subdirectory within the repo. No Go code or settings.local.json changes needed — the Go binary already handled cwd via `resolve.FabRoot()` upward walk. Updated directory tree comment from "thin wrappers" to "cwd-resilient wrappers". |
 | 260315-a2b2-standalone-operator4-rewrite | 2026-03-15 | Updated `_` file ecosystem: renamed `_scripts.md` to `_cli-fab.md`, added `_cli-external.md` (operator-only load for wt/tmux/loop), added `_naming.md` (always-load for naming conventions). Updated directory tree: removed operator1/2/3 skill files, added new `_` files, added missing skills (fab-archive, fab-discuss, git-branch, git-pr-review). Updated launcher script from `fab-operator.sh` to `fab-operator4.sh`. Added "Underscore File Ecosystem" section documenting load strategies for all `_` files. Updated `_scripts.md` references to `_cli-fab.md` in kit-architecture and related docs. Updated agent deployment section to list all current underscore partials. |
 | 260312-96nf-remove-rust-implementation | 2026-03-12 | Removed Rust binary (`fab-rust`) and all Rust-related infrastructure. Deleted `src/rust/` directory tree, `scripts/just/rust-target.sh`. Removed `rust_src` variable and all Rust recipes (`test-rust`, `build-rust`, `_rust-target`, `build-rust-target`, `build-rust-all`) from justfile. Simplified dispatcher to Go-only (removed `fab-rust` from version handler, backend override, default priority, error message). Removed `fab-rust` from directory tree. Removed Rust Binary section. Updated overview, dispatcher, distribution, design decisions, and benchmark sections to reflect Go-only architecture. |

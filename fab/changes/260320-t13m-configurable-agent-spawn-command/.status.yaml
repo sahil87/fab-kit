@@ -1,0 +1,42 @@
+id: t13m
+name: 260320-t13m-configurable-agent-spawn-command
+created: 2026-03-20T21:09:19Z
+created_by: sahil-weaver
+change_type: refactor
+issues: []
+progress:
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+checklist:
+    generated: true
+    path: checklist.md
+    completed: 19
+    total: 19
+confidence:
+    certain: 8
+    confident: 0
+    tentative: 0
+    unresolved: 0
+    score: 5.0
+    fuzzy: true
+    dimensions:
+        signal: 83.1
+        reversibility: 84.4
+        competence: 90.0
+        disambiguation: 89.4
+stage_metrics:
+    intake: {started_at: "2026-03-20T21:09:19Z", driver: fab-new, iterations: 1, completed_at: "2026-03-20T22:09:52Z"}
+    spec: {started_at: "2026-03-20T22:09:52Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-20T22:11:13Z"}
+    tasks: {started_at: "2026-03-20T22:11:13Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-20T22:11:13Z"}
+    apply: {started_at: "2026-03-20T22:11:13Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-20T22:17:31Z"}
+    review: {started_at: "2026-03-20T22:17:31Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-20T22:20:00Z"}
+    hydrate: {started_at: "2026-03-20T22:20:00Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-20T22:24:26Z"}
+    ship: {started_at: "2026-03-20T22:24:26Z", driver: fab-fff, iterations: 1}
+prs: []
+last_updated: 2026-03-20T22:24:26Z
