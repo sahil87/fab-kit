@@ -12,17 +12,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Checkout repository
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
 
       # Set up Go toolchain
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.22'
 
       # Install just command runner
-      - uses: extractions/setup-just@v2
+      - uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2
 
       # Cross-compile Go binaries for all release targets
       - name: Build all targets
