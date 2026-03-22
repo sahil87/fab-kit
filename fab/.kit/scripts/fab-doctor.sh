@@ -140,8 +140,13 @@ if command -v direnv &>/dev/null; then
       pass "direnv $ver ($shell_name hook active)"
     else
       fail "direnv shell hook not detected for $shell_name"
-      hint "Add the following to your ~/.${shell_name}rc (or equivalent):"
-      hint "  eval \"\$(direnv hook $shell_name)\""
+      hint "Add the hook to your ~/.${shell_name}rc and reload:"
+      hint "  echo 'eval \"\$(direnv hook $shell_name)\"' >> ~/.${shell_name}rc"
+      hint "  source ~/.${shell_name}rc"
+      hint "  direnv status  # verify: Shell and Hook should both show as enabled"
+      hint ""
+      hint "Or bypass direnv entirely:"
+      hint "  export PATH=\"\$PWD/fab/.kit/scripts:\$PATH\""
     fi
   fi
 else

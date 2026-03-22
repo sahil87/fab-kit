@@ -76,7 +76,20 @@ brew install yq jq gh direnv
 ```
 
 * After installing `gh`, authenticate with `gh auth login`.
-* After installing `direnv`, add the hook [to your shell](https://direnv.net/docs/hook.html).
+* After installing `direnv`, add the hook to your shell and reload it:
+
+  ```bash
+  # zsh
+  echo 'eval "$(direnv hook zsh)"' >> ~/.zshrc
+  source ~/.zshrc
+
+  # bash
+  echo 'eval "$(direnv hook bash)"' >> ~/.bashrc
+  source ~/.bashrc
+  ```
+
+  Verify with `direnv status` — you should see `Shell: zsh` and `Hook: enabled`.
+  No direnv? Use the fallback instead: `export PATH="$PWD/fab/.kit/scripts:$PATH"`
 
 | Tool | Purpose |
 |------|---------|
@@ -181,7 +194,8 @@ Each change is a self-contained folder - multiple AI sessions run in parallel wi
 
 ### Troubleshooting
 
-- `direnv allow` doesn't work - reload your shell or run `eval "$(direnv export zsh)"`
+- `direnv shell hook not detected` — add the hook to `~/.zshrc` (see Prerequisites above), then run `source ~/.zshrc`. Or skip direnv: `export PATH="$PWD/fab/.kit/scripts:$PATH"`
+- `direnv allow` doesn't work — reload your shell or run `eval "$(direnv export zsh)"`
 - `/fab-setup` not recognized - re-run `fab/.kit/scripts/fab-sync.sh` to repair symlinks
 
 ## Why Fab Kit
