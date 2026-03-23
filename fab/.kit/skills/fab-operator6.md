@@ -107,7 +107,7 @@ When `fab resolve` fails during a **user-initiated** action (not monitoring tick
 
 ## 4. The Loop
 
-The loop is the operator's heartbeat — a `/loop 3m "operator tick"` that runs as long as the monitored set is non-empty or an autopilot queue is active. When both are empty, stop the loop. The loop starts when the first change is enrolled or an autopilot queue begins. A user prompt can also restart it.
+The loop is the operator's heartbeat — a `/loop 3m "operator tick"` that runs as long as the monitored set is non-empty, an autopilot queue is active, or any watch is configured. When all three are empty, stop the loop. The loop starts when the first change is enrolled, an autopilot queue begins, or a watch is created. A user prompt can also restart it.
 
 ### `.fab-operator.yaml`
 
@@ -119,19 +119,22 @@ monitored:
     pane: "%3"
     stage: apply
     agent: active
+    stop_stage: null     # null = full pipeline, or a stage name to park at
     enrolled_at: "2026-03-23T17:30:00Z"
     last_transition: "2026-03-23T17:32:00Z"
-  k8ds:
-    pane: "%7"
-    stage: review
-    agent: "idle"
-    enrolled_at: "2026-03-23T17:28:00Z"
-    last_transition: "2026-03-23T17:31:00Z"
 autopilot:
   queue: [ab12, cd34, ef56]
   current: cd34
   completed: [ab12]
   state: running  # running | paused | null
+watches:
+  linear-bugs:
+    source: linear
+    query: { project: "DEV", status: [Backlog, Todo], assignee: "@me" }
+    trigger: { age_min: "10m" }
+    action: spawn
+    stop_stage: intake   # park after intake — don't continue pipeline
+    known: [DEV-988, DEV-992]
 ```
 
 ### Monitored Set
@@ -140,7 +143,9 @@ Each entry tracks: change ID, pane, last-known stage, last-known agent state, en
 
 **Enrollment**: operator sends a command to a change, user requests monitoring, or operator triggers an automatic action. Read-only actions do not enroll.
 
-**Removal**: change reaches a terminal stage (hydrate, ship, review-pr), pane dies, user explicitly stops.
+**Removal**: change reaches its stop stage (or a terminal stage if `stop_stage` is null), pane dies, user explicitly stops.
+
+**Stop stage**: when `stop_stage` is set on a monitored entry, the operator treats that stage as the terminal stage for that change. On reaching it, the operator reports completion and removes the change — it does not push the agent further. Default is `null` (full pipeline: hydrate/ship/review-pr are terminal).
 
 ### Tick Behavior
 
@@ -149,22 +154,25 @@ On each tick:
 1. **Snapshot** — run `fab pane-map`, read `.fab-operator.yaml`. Compute status for each monitored change: stage advances, completions, review failures, pane deaths. Output the status frame:
 
 ```
-── Operator ── 17:32 ── 3 monitored · autopilot 1/3 ──────
+── Operator ── 17:32 ── 3 monitored · autopilot 1/3 · 1 watch ──
 
   r3m7  🟢 apply → review
   k8ds  🟡 review · idle 18m ⚠
   ab12  🟢 hydrate ✓
 
+  👁 linear-bugs  2 known · last check 17:29
+
 ───────────────────────────────────────────────────────────
 ```
 
-Stage indicators: 🟢 active, 🟡 idle, 🔴 stuck (>15m idle at non-terminal), ✓ complete.
+Stage indicators: 🟢 active, 🟡 idle, 🔴 stuck (>15m idle at non-terminal), ✓ complete. Watch indicator: 👁.
 
 2. **Auto-nudge** — for each idle agent, run question detection (§5). If a newly-spawned agent advances past intake, send `/git-branch` to align the branch.
-3. **Autopilot step** — if an autopilot queue is active, run the next autopilot action (§6).
-4. **Removals** — remove completed changes and dead panes from the monitored set.
-5. **Persist** — write updated state to `.fab-operator.yaml`
-6. **Loop lifecycle** — if monitored set is empty and no autopilot (and no watches), stop the loop.
+3. **Watches** — for each watch, query the source, compare against `known`, spawn on new matches (§7).
+4. **Autopilot step** — if an autopilot queue is active, run the next autopilot action (§6).
+5. **Removals** — remove completed changes (reached stop stage or terminal stage) and dead panes from the monitored set.
+6. **Persist** — write updated state to `.fab-operator.yaml`
+7. **Loop lifecycle** — if monitored set is empty, no autopilot, and no watches, stop the loop.
 
 Actions (nudges, removals, autopilot progress) print as plain lines below the frame as they happen:
 
@@ -283,7 +291,46 @@ Autopilot state (queue, current, completed) persists in `.fab-operator.yaml`.
 
 ---
 
-## 7. Configuration
+## 7. Watches
+
+Watches are standing instructions to monitor an external source and take action when new items appear. Users create watches conversationally: "watch Linear project DEV for new issues, spawn agents, stop at intake."
+
+### Schema
+
+Each watch in `.fab-operator.yaml` has:
+
+| Field | Description |
+|-------|-------------|
+| `source` | `linear` or `slack` |
+| `query` | Source-specific filter (project, status, assignee, channel) |
+| `trigger` | Condition to act on (e.g., `age_min: "10m"` — item older than 10m) |
+| `action` | What to do: `spawn` (create worktree + agent) |
+| `stop_stage` | How far to go: `intake`, `spec`, `hydrate`, or `null` (full pipeline) |
+| `known` | List of already-handled item IDs (prevents re-spawn) |
+
+### Tick Behavior
+
+On each tick (step 3), for each watch:
+
+1. **Query source** — Linear via MCP (`mcp__claude_ai_Linear__list_issues`), Slack via MCP (`mcp__claude_ai_Slack__slack_read_channel`)
+2. **Filter** — apply `trigger` conditions (e.g., age > `age_min`)
+3. **Deduplicate** — skip items in `known` list
+4. **Act** — for each new item:
+   - `spawn`: create worktree, open agent tab, send appropriate command (e.g., `/fab-new DEV-123`)
+   - Enroll in monitored set with `stop_stage` from the watch
+   - Add item ID to `known`
+5. **Report** — `"Watch linear-bugs: DEV-1024 — Fix auth redirect (12m old). Spawning."`
+
+### Conversational Management
+
+- "Watch Linear project DEV for new bugs, spawn agents, stop at intake" → creates watch
+- "Stop watching Linear" → removes watch
+- "What are you watching?" → lists active watches
+- "Change the Linear watch to go through full pipeline" → updates `stop_stage` to null
+
+---
+
+## 8. Configuration
 
 | Setting | Default | Override via natural language |
 |---------|---------|------------------------------|
@@ -294,7 +341,7 @@ Session-scoped — resets on `/clear` or session restart.
 
 ---
 
-## 8. Key Properties
+## 9. Key Properties
 
 | Property | Value |
 |----------|-------|
