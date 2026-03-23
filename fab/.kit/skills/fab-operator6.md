@@ -131,10 +131,11 @@ watches:
   linear-bugs:
     source: linear
     query: { project: "DEV", status: [Backlog, Todo], assignee: "@me" }
-    trigger: { age_min: "10m" }
-    action: spawn
-    stop_stage: intake   # park after intake — don't continue pipeline
+    stop_stage: intake
     known: [DEV-988, DEV-992]
+    instructions: >
+      Spawn agents for issues older than 1 hour with label 'bug'.
+      Max 2 concurrent agents from this watch.
 ```
 
 ### Monitored Set
@@ -301,32 +302,34 @@ Each watch in `.fab-operator.yaml` has:
 
 | Field | Description |
 |-------|-------------|
-| `source` | `linear` or `slack` |
-| `query` | Source-specific filter (project, status, assignee, channel) |
-| `trigger` | Condition to act on (e.g., `age_min: "10m"` — item older than 10m) |
-| `action` | What to do: `spawn` (create worktree + agent) |
+| `source` | `linear` or `slack` — determines which MCP tool to query |
+| `query` | Source-specific API filter (project, status, assignee, channel) — passed to MCP |
 | `stop_stage` | How far to go: `intake`, `spec`, `hydrate`, or `null` (full pipeline) |
-| `known` | List of already-handled item IDs (prevents re-spawn) |
+| `known` | List of already-handled item IDs (prevents re-spawn) — managed automatically |
+| `instructions` | Free-form natural language — trigger conditions, concurrency limits, label filters, action details, anything else |
+
+The operator interprets `instructions` on each tick. Structured fields (`source`, `query`, `known`) handle machine-readable concerns; `instructions` handles everything the operator evaluates as an LLM.
 
 ### Tick Behavior
 
 On each tick (step 3), for each watch:
 
-1. **Query source** — Linear via MCP (`mcp__claude_ai_Linear__list_issues`), Slack via MCP (`mcp__claude_ai_Slack__slack_read_channel`)
-2. **Filter** — apply `trigger` conditions (e.g., age > `age_min`)
-3. **Deduplicate** — skip items in `known` list
-4. **Act** — for each new item:
-   - `spawn`: create worktree, open agent tab, send appropriate command (e.g., `/fab-new DEV-123`)
+1. **Query source** — Linear via MCP (`mcp__claude_ai_Linear__list_issues`), Slack via MCP (`mcp__claude_ai_Slack__slack_read_channel`), using `query` as the API filter
+2. **Deduplicate** — skip items in `known` list
+3. **Evaluate instructions** — apply trigger conditions, label filters, concurrency limits, and any other criteria from `instructions` to each remaining item
+4. **Act** — for each item that passes:
+   - Spawn worktree, open agent tab, send appropriate command (e.g., `/fab-new DEV-123`)
    - Enroll in monitored set with `stop_stage` from the watch
    - Add item ID to `known`
-5. **Report** — `"Watch linear-bugs: DEV-1024 — Fix auth redirect (12m old). Spawning."`
+5. **Report** — `"Watch linear-bugs: DEV-1024 — Fix auth redirect (72m old). Spawning."`
 
 ### Conversational Management
 
-- "Watch Linear project DEV for new bugs, spawn agents, stop at intake" → creates watch
+- "Watch Linear project DEV for bugs older than 1 hour, spawn agents, stop at intake" → creates watch
 - "Stop watching Linear" → removes watch
-- "What are you watching?" → lists active watches
+- "What are you watching?" → lists active watches with instructions
 - "Change the Linear watch to go through full pipeline" → updates `stop_stage` to null
+- "Also limit to 2 concurrent agents" → appends to `instructions`
 
 ---
 
