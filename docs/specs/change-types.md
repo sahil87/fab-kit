@@ -58,7 +58,7 @@ Unknown types default to 3.0 (the `feat` threshold). The gate check is performed
 
 ## Pipeline Requirements by Tier
 
-The change type determines whether the full fab pipeline (intake → spec → tasks → apply → review → hydrate → ship) is required:
+The change type determines whether the core fab pipeline (intake → spec → tasks → apply → review → hydrate → ship) is required. Post-ship stages like `review-pr` (via `/git-pr-review`) apply to both tiers and are documented separately:
 
 | Tier | Types | Intake Required | Spec Required | Pipeline |
 |------|-------|----------------|---------------|----------|
@@ -67,7 +67,7 @@ The change type determines whether the full fab pipeline (intake → spec → ta
 
 **Tier 1** changes modify application behavior and require design artifacts (intake and spec) to document the problem, approach, and decisions. PRs include blob URL links to intake and spec.
 
-**Tier 2** changes are low-risk housekeeping with no behavioral impact. They skip the fab pipeline entirely — no intake, spec, or design artifacts are generated. PRs use an auto-generated summary with "No design artifacts — housekeeping change."
+**Tier 2** changes are low-risk changes that do not modify production application behavior. They skip the fab change pipeline (`/fab-new`, `/fab-continue`, `/fab-ff`) — no intake, spec, or design artifacts are generated. PRs are created via `/git-pr` (which auto-detects Tier 2) with "No design artifacts — housekeeping change."
 
 PR titles always use the `{type}: {title}` prefix format regardless of tier.
 
