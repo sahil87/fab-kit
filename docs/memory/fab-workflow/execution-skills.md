@@ -492,10 +492,22 @@ All settings are session-scoped — they reset when the operator session restart
 **Rejected**: `fab resolve --search-branches`, `--branch` output mode, automatic fallback in CLI — all rejected because they couple the CLI to git branch semantics.
 *Introduced by*: 260317-yrgo-operator5-branch-fallback
 
+### Dependency-Aware Agent Spawning (operator7)
+**Decision**: `/fab-operator7` extends operator6 with pre-spawn dependency resolution. When spawning an agent for a change with `depends_on` entries, the operator cherry-picks dependency content into the worktree before opening the agent tab. Uses `git cherry-pick --no-commit origin/main..<dep-branch> && git commit -m "operator: cherry-pick <dep> dependency"`. On conflict: abort, escalate, do not spawn.
+**Why**: Without dependency awareness, agents working on dependent changes start from a baseline missing the dependency code, causing build failures, spec divergence, and manual intervention. This defeats the operator's "automate the routine" principle.
+**Rejected**: `git merge --squash` — rejected for unattended sessions where merge machinery introduces risk. Transitive dependency resolution — rejected because leaf dependency branches already carry transitive content via the operator's own cherry-picking when those deps were spawned; `origin/main..<dep-branch>` gives the complete transitive closure.
+*Introduced by*: 260324-prtv-operator7-dep-aware-spawning
+
+### Operator7 Schema Additions
+**Decision**: `.fab-operator.yaml` gains three new fields: `depends_on` (list of change IDs per monitored entry), `branch` (change's branch name per monitored entry), and `branch_map` (top-level map persisting change ID → branch name after changes leave the monitored set). Redundant deps are pruned via `git merge-base --is-ancestor` before cherry-picking. The `--base` autopilot flag implies `depends_on`.
+**Why**: Branch names must persist after dependencies complete (merged/archived) so downstream changes can still cherry-pick from them. Redundant dep pruning prevents duplicate cherry-picks in chains (B's branch already contains A's content).
+*Introduced by*: 260324-prtv-operator7-dep-aware-spawning
+
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260324-prtv-operator7-dep-aware-spawning | 2026-03-24 | New `/fab-operator7` skill — operator6 plus dependency-aware agent spawning. Pre-spawn step cherry-picks dependency content into worktrees via `git cherry-pick --no-commit origin/main..<dep-branch>`. Schema additions: `depends_on`, `branch` on monitored entries; `branch_map` top-level for post-removal persistence. Redundant dep pruning via ancestor check. `--base` implies `depends_on`. Cherry-pick conflict: abort, escalate, do not spawn. Idle message now includes timestamp (`Time: HH:MM · next tick: HH:MM`). New launcher `fab-operator7.sh`. |
 | 260320-t13m-configurable-agent-spawn-command | 2026-03-20 | Updated operator spawn documentation: operator4 and operator5 launcher descriptions now reference configurable spawn command from `config.yaml` `agent.spawn_command` (via `lib/spawn.sh`) instead of hardcoded `claude --dangerously-skip-permissions`. |
 | 260320-tm9h-draft-prs-by-default | 2026-03-20 | `/git-pr` now creates all PRs as drafts via `gh pr create --draft`. Unconditional — no configuration toggle. Both primary and fallback (`--fill`) paths include `--draft`. Updated "PR shipping" overview paragraph. |
 | 260318-dzze-standard-subagent-context | 2026-03-18 | Review sub-agent context now references `_preamble.md` § Standard Subagent Context instead of listing `fab/project/**` files ad-hoc. Added Standard Subagent Context Template design decision. All subagents (including nested sub-subagents) inherit project principles via the centralized template. |
