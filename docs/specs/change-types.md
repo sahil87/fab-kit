@@ -20,19 +20,17 @@ Types use the short conventional commit prefix form (e.g., `feat`, not `feature`
 
 ---
 
-## Expected Minimum Decisions
+## Expected Minimum Decisions (Tier 1 only)
 
-The `expected_min` thresholds define how many SRAD decisions a change should have at each planning stage. These drive the **coverage factor** in confidence scoring — thin specs with fewer decisions than expected get attenuated scores.
+The `expected_min` thresholds define how many SRAD decisions a Tier 1 change should have at each planning stage. These drive the **coverage factor** in confidence scoring — thin specs with fewer decisions than expected get attenuated scores.
 
 | Type | Intake `expected_min` | Spec `expected_min` |
 |------|----------------------|---------------------|
 | `fix` | 2 | 4 |
 | `feat` | 4 | 6 |
 | `refactor` | 3 | 5 |
-| `docs` | 2 | 3 |
-| `test` | 2 | 3 |
-| `ci` | 2 | 3 |
-| `chore` | 2 | 3 |
+
+Tier 2 types (`docs`, `test`, `ci`, `chore`) skip the fab pipeline and do not require design artifacts, so these thresholds do not apply to them.
 
 Thresholds were calibrated from archive analysis of 124 completed changes (84% unaffected at these values). Unknown or null types default to: intake=2, spec=3.
 
@@ -58,14 +56,20 @@ Unknown types default to 3.0 (the `feat` threshold). The gate check is performed
 
 ---
 
-## PR Template Tiers
+## Pipeline Requirements by Tier
 
-| Tier | Types | Template |
-|------|-------|----------|
-| **Tier 1 — Fab-Linked** | `feat`, `fix`, `refactor` | Summary/Changes/Context with blob URL links to intake and spec |
-| **Tier 2 — Lightweight** | `docs`, `test`, `ci`, `chore` | Auto-generated summary with "No design artifacts — housekeeping change" |
+The change type determines whether the full fab pipeline (intake → spec → tasks → apply → review → hydrate → ship) is required:
 
-PR titles always use the `{type}: {title}` prefix format.
+| Tier | Types | Intake Required | Spec Required | Pipeline |
+|------|-------|----------------|---------------|----------|
+| **Tier 1 — Fab-Linked** | `feat`, `fix`, `refactor` | Yes | Yes | Full fab pipeline via `/fab-new` → `/fab-continue` → `/git-pr` |
+| **Tier 2 — Lightweight** | `docs`, `test`, `ci`, `chore` | No | No | Direct commit and PR — no design artifacts needed |
+
+**Tier 1** changes modify application behavior and require design artifacts (intake and spec) to document the problem, approach, and decisions. PRs include blob URL links to intake and spec.
+
+**Tier 2** changes are low-risk housekeeping with no behavioral impact. They skip the fab pipeline entirely — no intake, spec, or design artifacts are generated. PRs use an auto-generated summary with "No design artifacts — housekeeping change."
+
+PR titles always use the `{type}: {title}` prefix format regardless of tier.
 
 ---
 
