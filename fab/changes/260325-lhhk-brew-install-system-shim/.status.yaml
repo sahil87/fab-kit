@@ -1,0 +1,37 @@
+id: lhhk
+name: 260325-lhhk-brew-install-system-shim
+created: 2026-03-25T10:20:39Z
+created_by: sahil-weaver
+change_type: feat
+issues: []
+progress:
+    intake: ready
+    spec: pending
+    tasks: pending
+    apply: pending
+    review: pending
+    hydrate: pending
+    ship: pending
+    review-pr: pending
+checklist:
+    generated: false
+    path: checklist.md
+    completed: 0
+    total: 0
+confidence:
+    certain: 4
+    confident: 2
+    tentative: 2
+    unresolved: 0
+    score: 2.4
+    indicative: true
+    fuzzy: true
+    dimensions:
+        signal: 73.1
+        reversibility: 82.5
+        competence: 75.6
+        disambiguation: 73.8
+stage_metrics:
+    intake: {started_at: "2026-03-25T10:20:39Z", driver: fab-new, iterations: 1}
+prs: []
+last_updated: 2026-03-25T10:21:53Z

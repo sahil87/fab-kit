@@ -1,0 +1,5 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-25T10:20:39Z"}
+{"args":"System-level installation for fab-kit via Homebrew","cmd":"fab-new","event":"command","ts":"2026-03-25T10:20:39Z"}
+{"delta":"+2.4","event":"confidence","score":2.4,"trigger":"calc-score","ts":"2026-03-25T10:21:31Z"}
+{"delta":"+0.0","event":"confidence","score":2.4,"trigger":"calc-score","ts":"2026-03-25T10:21:48Z"}
+{"cmd":"fab-new","event":"command","ts":"2026-03-25T10:21:54Z"}
