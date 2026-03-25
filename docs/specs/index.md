@@ -25,4 +25,5 @@
 | [packages](packages.md) | Bundled packages — wt (worktree management) and idea (backlog management) |
 | [naming](naming.md) | Naming conventions — change folders, branches, worktrees, PRs, backlog entries |
 | [glossary](glossary.md) | All Fab terminology — core concepts, stages, skills, files, SRAD, conventions |
+| [superpowers-comparison](superpowers-comparison.md) | Comparison with Superpowers — shared ground, key differences, lessons for fab |
 | [skills/](skills/) | Per-skill flow diagrams — summary, tool usage, sub-agents, hooks, and bookkeeping candidates |
