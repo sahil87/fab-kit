@@ -43,7 +43,9 @@ Each transition is now a `/fab-*` command. `/fab-ff` fast-forwards from intake t
 
 ```mermaid
 flowchart TD
-    B[intake] -->|"/fab-continue"| S[spec]
+    WT[new worktree] -->|"/fab-discuss"| IDEA[idea]
+    IDEA -->|"/fab-new"| B[intake]
+    B -->|"/fab-continue"| S[spec]
     S -->|"/fab-continue"| T[tasks]
     T -->|"/fab-continue"| A[apply]
     A -->|"/fab-continue"| R[review]
@@ -59,6 +61,7 @@ flowchart TD
     (fast-forward, confidence-gated)"| H
     B -->|"/fab-fff
     (fast-forward-further, confidence-gated)"| RP
+    IDEA -->|"/fab-proceed"| RP
 
     %% Apply-review loop (sub-agent review with auto-rework)
     R -.->|"sub-agent review
@@ -69,6 +72,8 @@ flowchart TD
     /fab-continue &lt;stage&gt;"| REWORK["spec / tasks / apply / review"]
 
     %% Styles
+    style WT fill:#f0f0f0,stroke:#999
+    style IDEA fill:#f0f0f0,stroke:#999
     style B fill:#e8f4f8,stroke:#2196F3
     style S fill:#e8f4f8,stroke:#2196F3
     style T fill:#e8f4f8,stroke:#2196F3
@@ -82,96 +87,7 @@ flowchart TD
 
 ---
 
-## 3. Change Flow
-
-The pipeline for a single change: creation, execution (with shortcuts), and completion. Solid arrows are the primary flow; dashed arrows are lateral/utility actions.
-
-```mermaid
-flowchart TD
-    subgraph creation ["Creation (once per change)"]
-        NEW["/fab-new &lt;desc&gt;"]
-    end
-
-    subgraph change_exec ["Change Execution"]
-        SWITCH["/fab-switch &lt;change-id&gt;"]
-
-        CONT_S["/fab-continue → spec"]
-
-        subgraph execution ["Execution"]
-            direction TB
-            CONT_T["/fab-continue → tasks"]
-            APPLY["/fab-continue → apply"]
-            REVIEW["/fab-continue → review"]
-            HYD["/fab-continue → hydrate"]
-            CONT_T --> APPLY
-        end
-
-        subgraph shipping ["Shipping"]
-            direction TB
-            SHIP["/git-pr → ship"]
-            RP["/git-pr-review → review-pr"]
-            SHIP --> RP
-        end
-
-        FF["/fab-ff
-        (fast-forward through hydrate)"]
-        FFF["/fab-fff
-        (fast-forward further through review-pr)"]
-
-        FF ~~~ FFF
-
-        CLARIFY["/fab-clarify
-        (refine any planning artifact)"]
-
-        RESET["To revise any stage:
-        /fab-continue &lt;stage&gt;"]
-    end
-
-    subgraph completion ["Completion"]
-        FAB_ARCHIVE["/fab-archive
-        (housekeeping)"]
-    end
-
-    %% Creation → Activation → Spec
-    NEW --> SWITCH
-    SWITCH --> CONT_S
-
-    %% Shortcut alternatives (both start from intake)
-    SWITCH -.-> FF
-    SWITCH -.-> FFF
-    FF --> HYD
-    FFF --> RP
-
-    %% Clarify connects to the execution block
-    CLARIFY -.->|"refine, then resume"| execution
-
-    %% Spec into execution
-    CONT_S --> CONT_T
-
-    %% Execution flow
-    APPLY --> REVIEW
-
-    %% Review outcomes (sub-agent review with prioritized findings)
-    REVIEW -->|"pass"| HYD
-    REVIEW -.->|"fail → auto-rework
-    (sub-agent, fab-ff/fab-fff)"| APPLY
-    HYD --> SHIP
-    RP -->|"move to archive"| FAB_ARCHIVE
-
-    %% Styles
-    style creation fill:#f3e5f5,stroke:#9C27B0
-    style change_exec fill:#fff3e0,stroke:#FF9800
-    style execution fill:#d6eaf8,stroke:#2196F3
-    style shipping fill:#d5f5e3,stroke:#4CAF50
-    style completion fill:#e8f5e9,stroke:#4CAF50
-    style FAB_ARCHIVE fill:#f0f0f0,stroke:#999
-    style CLARIFY fill:#fff,stroke:#999,stroke-dasharray: 5 5
-    style RESET fill:#fff,stroke:#999,stroke-dasharray: 5 5
-```
-
----
-
-## 4. Change State Diagram
+## 3. Change State Diagram
 
 The complete state machine showing how a change progresses through all stages. Each stage can be in one of five states: `pending`, `active`, `ready`, `done`, or `failed` (review only). The diagram shows normal forward flow, shortcuts, rework paths, and the commands that cause each transition.
 
@@ -247,9 +163,9 @@ stateDiagram-v2
 
 ---
 
-## 5. Per-Stage State Machine
+## 4. Per-Stage State Machine
 
-Section 4 shows which *stage* a change is at. This section shows how each individual stage transitions between *states*. Every stage tracks its own progress as one of: `pending`, `active`, `ready`, `done` (and `failed` for review). The events that drive transitions are issued by `statusman.sh`.
+Section 3 shows which *stage* a change is at. This section shows how each individual stage transitions between *states*. Every stage tracks its own progress as one of: `pending`, `active`, `ready`, `done` (and `failed` for review). The events that drive transitions are issued by `statusman.sh`.
 
 ```mermaid
 stateDiagram-v2
@@ -298,180 +214,6 @@ Source of truth: [`fab/.kit/schemas/workflow.yaml`](../../fab/.kit/schemas/workf
 
 ---
 
-## 6. Command Composition
+## 5. Stage Coverage by Command
 
-How atomic commands compose into shortcuts. Each layer adds automation over the one below it.
-
-```
-fab-proceed  = git-branch + fab-fff  (on active change)
-fab-proceed  = fab-new + fab-switch + git-branch + fab-fff  (after fab-discuss)
-fab-fff      = fab-ff + ship + review-pr
-fab-ff       = spec → tasks → apply → review → hydrate
-fab-continue = advance one stage
-```
-
-```mermaid
-sequenceDiagram
-    actor Dev as Developer
-    participant W as Workspace
-    participant P as Pipeline
-
-    Note over W: worktree · change folder · branch
-    Note over P: spec · tasks · apply · review · hydrate · ship · review-pr
-
-    rect rgb(224, 224, 224)
-    Note over Dev,P: /fab-discuss — explore without a change
-    Dev->>W: loads project context (config, constitution, memory, specs)
-    Note right of W: read-only · no active change required
-    end
-
-    rect rgb(243, 229, 245)
-    Note over Dev,P: Manual — one command per stage
-    Dev->>W: /fab-new — create change + intake
-    Dev->>W: /fab-switch — activate change
-    Dev->>W: /git-branch — create branch
-    Dev->>P: /fab-continue — spec
-    Dev->>P: /fab-continue — tasks
-    Dev->>P: /fab-continue — apply
-    Dev->>P: /fab-continue — review
-    Dev->>P: /fab-continue — hydrate
-    Dev->>P: /git-pr — ship
-    Dev->>P: /git-pr-review — review-pr
-    Dev->>P: /fab-archive — archive
-    end
-
-    rect rgb(232, 244, 248)
-    Note over Dev,P: /fab-ff — fast-forward to hydrate
-    Dev->>P: spec → tasks → apply → review → hydrate
-    Note right of P: confidence-gated
-    end
-
-    rect rgb(232, 245, 233)
-    Note over Dev,P: /fab-fff — full pipeline through review-pr
-    Dev->>P: spec → tasks → apply → review → hydrate → ship → review-pr
-    Note right of P: confidence-gated
-    end
-
-    rect rgb(255, 243, 224)
-    Note over Dev,P: /fab-proceed — on active change
-    Dev->>W: git-branch
-    Dev->>P: fab-fff (full pipeline)
-    end
-
-    rect rgb(255, 220, 180)
-    Note over Dev,P: /fab-discuss + /fab-proceed — new change from scratch
-    Dev->>W: /fab-discuss — load project context
-    Dev->>W: fab-new + fab-switch + git-branch
-    Dev->>P: fab-fff (full pipeline)
-    end
-```
-
----
-
-## 7. Stage Coverage by Command
-
-Which pipeline stages each command covers. Taller bars = more automation. Read left-to-right from most manual to most automated. Git operations (git-branch, git-pr) are interleaved where they naturally occur in the flow.
-
-```mermaid
-block-beta
-    columns 12
-
-    space:1 header1["fab-discuss"] header0["fab-new"] header2["fab-switch"] header3["git-branch"] header4["fab-continue"] header5["fab-ff"] header6["git-pr"] header9["git-pr-review"] header7["fab-fff"] header8["fab-proceed"] space:1
-
-    space:12
-
-    s01["context"]:1 d_ctx["project context"]:1 space:10
-    s11["intake"]:1 space:1 fn_in["fab-new"]:1 space:7 p_in["fab-new"]:1 space:1
-    s02["activate"]:1 space:2 sw_act["fab-switch"]:1 space:1 space:5 p_sw["fab-switch"]:1 space:1
-    s03["branch"]:1 space:3 gb_br["git-branch"]:1 space:5 p_br["git-branch"]:1 space:1
-    s04["spec"]:1 space:4 c_stg["one stage ▾"]:1 ff_sp["spec"]:1 space:2 fff_sp["spec"]:1 p_sp["spec"]:1 space:1
-    s05["tasks"]:1 space:4 space:1 ff_ta["tasks"]:1 space:2 fff_ta["tasks"]:1 p_ta["tasks"]:1 space:1
-    s06["apply"]:1 space:4 space:1 ff_ap["apply"]:1 space:2 fff_ap["apply"]:1 p_ap["apply"]:1 space:1
-    s07["review"]:1 space:4 space:1 ff_rv["review"]:1 space:2 fff_rv["review"]:1 p_rv["review"]:1 space:1
-    s08["hydrate"]:1 space:4 space:1 ff_hy["hydrate"]:1 space:2 fff_hy["hydrate"]:1 p_hy["hydrate"]:1 space:1
-    s09["ship"]:1 space:4 space:2 gp_sh["git-pr"]:1 space:1 fff_pr["git-pr"]:1 p_pr["git-pr"]:1 space:1
-    s10["review-pr"]:1 space:4 space:3 gpr_rp["review-pr"]:1 fff_rp["review-pr"]:1 p_rp["review-pr"]:1 space:1
-
-    %% Arrows — multiple paths from top-left to bottom-right
-    d_ctx --> fn_in
-    d_ctx --> p_in
-    fn_in --> sw_act
-    sw_act --> gb_br
-    gb_br --> ff_sp
-    ff_hy --> gp_sh
-    gp_sh --> gpr_rp
-
-    %% Header styles
-    style header1 fill:#e0e0e0,stroke:#999
-    style header0 fill:#f3e5f5,stroke:#9C27B0
-    style header2 fill:#f3e5f5,stroke:#9C27B0
-    style header3 fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
-    style header4 fill:#f3e5f5,stroke:#9C27B0
-    style header5 fill:#e8f4f8,stroke:#2196F3
-    style header6 fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
-    style header9 fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
-    style header7 fill:#e8f5e9,stroke:#4CAF50
-    style header8 fill:#fff3e0,stroke:#FF9800
-
-    %% Row labels
-    style s01 fill:#f5f5f5,stroke:#ccc
-    style s02 fill:#f5f5f5,stroke:#ccc
-    style s11 fill:#f5f5f5,stroke:#ccc
-    style s03 fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
-    style s04 fill:#f5f5f5,stroke:#ccc
-    style s05 fill:#f5f5f5,stroke:#ccc
-    style s06 fill:#f5f5f5,stroke:#ccc
-    style s07 fill:#f5f5f5,stroke:#ccc
-    style s08 fill:#f5f5f5,stroke:#ccc
-    style s09 fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
-    style s10 fill:#f5f5f5,stroke:#ccc
-
-    %% fab-discuss
-    style d_ctx fill:#e0e0e0,stroke:#999,stroke-dasharray: 5 5
-
-    %% fab-new
-    style fn_in fill:#f3e5f5,stroke:#9C27B0
-
-    %% fab-switch
-    style sw_act fill:#f3e5f5,stroke:#9C27B0
-
-    %% git-branch
-    style gb_br fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
-
-    %% fab-continue
-    style c_stg fill:#f3e5f5,stroke:#9C27B0
-
-    %% fab-ff
-    style ff_sp fill:#e8f4f8,stroke:#2196F3
-    style ff_ta fill:#e8f4f8,stroke:#2196F3
-    style ff_ap fill:#e8f4f8,stroke:#2196F3
-    style ff_rv fill:#e8f4f8,stroke:#2196F3
-    style ff_hy fill:#e8f4f8,stroke:#2196F3
-
-    %% git-pr
-    style gp_sh fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
-
-    %% git-pr-review
-    style gpr_rp fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
-
-    %% fab-fff
-    style fff_sp fill:#e8f5e9,stroke:#4CAF50
-    style fff_ta fill:#e8f5e9,stroke:#4CAF50
-    style fff_ap fill:#e8f5e9,stroke:#4CAF50
-    style fff_rv fill:#e8f5e9,stroke:#4CAF50
-    style fff_hy fill:#e8f5e9,stroke:#4CAF50
-    style fff_pr fill:#e8f5e9,stroke:#4CAF50
-    style fff_rp fill:#e8f5e9,stroke:#4CAF50
-
-    %% fab-proceed
-    style p_sw fill:#fff3e0,stroke:#FF9800
-    style p_in fill:#fff3e0,stroke:#FF9800
-    style p_br fill:#fff3e0,stroke:#FF9800
-    style p_sp fill:#fff3e0,stroke:#FF9800
-    style p_ta fill:#fff3e0,stroke:#FF9800
-    style p_ap fill:#fff3e0,stroke:#FF9800
-    style p_rv fill:#fff3e0,stroke:#FF9800
-    style p_hy fill:#fff3e0,stroke:#FF9800
-    style p_pr fill:#fff3e0,stroke:#FF9800
-    style p_rp fill:#fff3e0,stroke:#FF9800
-```
+See [Stage Coverage by Command](../../README.md#stage-coverage-by-command) in the README.

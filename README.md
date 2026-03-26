@@ -10,7 +10,7 @@ The more capable AI agents become, the wider the gap between what they can build
 
 > **[Try it now](#quick-start)** | **[Understand the concepts](#why-fab-kit)**
 
-**Contents:** [The 6 Stages](#the-6-stages) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start) · [Why Fab Kit](#why-fab-kit) · [Commands](#command-quick-reference) · [Learn More](#learn-more)
+**Contents:** [The 6 Stages](#the-6-stages) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start) · [Why Fab Kit](#why-fab-kit) · [Commands](#command-quick-reference) · [Stage Coverage](#stage-coverage-by-command) · [Learn More](#learn-more)
 
 ## The 6 Stages
 
@@ -363,8 +363,9 @@ The operator is a long-running coordination layer that sits in its own tmux pane
 | `/fab-operator2` | Operator1 + proactive monitoring after every action | Retired |
 | `/fab-operator3` | Operator2 + auto-nudge for agents waiting on user input | Retired |
 | `/fab-operator4` | Operator3 + `/loop`-driven monitoring, auto-nudge answer model, playbook catalog | Retired |
-| `/fab-operator5` | Operator4 + use case registry (Linear inbox, PR freshness), branch fallback, autopilot queues | Available |
-| `/fab-operator6` | Clean rewrite — principles-driven inference, persistent state via `.fab-operator.yaml`, generic watches (Linear/Slack/any MCP source), `stop_stage`, tick count, framed status output | **Current** |
+| `/fab-operator5` | Operator4 + use case registry (Linear inbox, PR freshness), branch fallback, autopilot queues | Retired |
+| `/fab-operator6` | Clean rewrite — principles-driven inference, persistent state via `.fab-operator.yaml`, generic watches (Linear/Slack/any MCP source), `stop_stage`, tick count, framed status output | Retired |
+| `/fab-operator7` | Operator6 + dependency-aware agent spawning (cherry-pick chains), branch map persistence, bounded retries, pre-send validation tiers | **Current** |
 
 ### Shell Utilities
 
@@ -378,9 +379,121 @@ The operator is a long-running coordination layer that sits in its own tmux pane
 | `batch-fab-switch-change.sh` | Switch changes across multiple worktrees |
 | `batch-fab-archive-change.sh` | Archive multiple completed changes |
 
+## Stage Coverage by Command
+
+Which pipeline stages each command covers. Taller bars = more automation. Read left-to-right from most manual to most automated. Arrows show the typical manual path from idea to PR.
+
+```mermaid
+block-beta
+    columns 11
+
+    hdr_label["wt create →"]:1 header0["/fab-discuss"] header1["/fab-new"] header2["/fab-switch"] header3["/git-branch"] header4["/fab-continue"] header5["/fab-ff"] header6["/git-pr \n /git-pr-review"] header8["/fab-fff"] header9["/fab-proceed"] space:1
+
+    space:11
+
+    s01["context"]:1 d_ctx["project context"]:1 space:9
+    s11["intake"]:1 space:1 fn_in["intake"]:1 space:6 p_in["intake"]:1 space:1
+    s02["change active"]:1 space:2 sw_act["change active"]:1 space:1 space:4 p_sw["change active"]:1 space:1
+    s03["branch name"]:1 space:3 gb_br["branch name"]:1 space:4 p_br["branch name"]:1 space:1
+    s04["spec"]:1 space:4 c_stg["one stage ▾"]:1 ff_sp["spec"]:1 space:1 fff_sp["spec"]:1 p_sp["spec"]:1 space:1
+    s05["tasks"]:1 space:4 c_stg2["one stage ▾"]:1 ff_ta["tasks"]:1 space:1 fff_ta["tasks"]:1 p_ta["tasks"]:1 space:1
+    s06["apply"]:1 space:4 c_stg3["one stage ▾"]:1 ff_ap["apply"]:1 space:1 fff_ap["apply"]:1 p_ap["apply"]:1 space:1
+    s07["review"]:1 space:4 c_stg4["one stage ▾"]:1 ff_rv["review"]:1 space:1 fff_rv["review"]:1 p_rv["review"]:1 space:1
+    s08["hydrate"]:1 space:4 c_stg5["one stage"]:1 ff_hy["hydrate"]:1 space:1 fff_hy["hydrate"]:1 p_hy["hydrate"]:1 space:1
+    s09["ship"]:1 space:4 space:1 space:1 gp_sh["PR raised"]:1 fff_pr["PR raised"]:1 p_pr["PR raised"]:1 space:1
+    s10["review-pr"]:1 space:4 space:1 space:1 gp_rp["PR reviewed"]:1 fff_rp["PR reviewed"]:1 p_rp["PR reviewed"]:1 space:1
+
+    %% Arrows — multiple paths from top-left to bottom-right
+    d_ctx --> fn_in
+    d_ctx --> p_in
+    fn_in --> sw_act
+    sw_act --> gb_br
+    gb_br --> ff_sp
+    gb_br --> fff_sp
+    ff_hy --> gp_sh
+
+    %% Header styles
+    style hdr_label fill:none,stroke:none
+    style header0 fill:#e0e0e0,stroke:#999
+    style header1 fill:#f3e5f5,stroke:#9C27B0
+    style header2 fill:#f3e5f5,stroke:#9C27B0
+    style header3 fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
+    style header4 fill:#f3e5f5,stroke:#9C27B0
+    style header5 fill:#e8f4f8,stroke:#2196F3
+    style header6 fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
+    style header8 fill:#e8f5e9,stroke:#4CAF50
+    style header9 fill:#fff3e0,stroke:#FF9800
+
+    %% Row labels
+    style s01 fill:#f5f5f5,stroke:#ccc
+    style s02 fill:#f5f5f5,stroke:#ccc
+    style s11 fill:#f5f5f5,stroke:#ccc
+    style s03 fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
+    style s04 fill:#f5f5f5,stroke:#ccc
+    style s05 fill:#f5f5f5,stroke:#ccc
+    style s06 fill:#f5f5f5,stroke:#ccc
+    style s07 fill:#f5f5f5,stroke:#ccc
+    style s08 fill:#f5f5f5,stroke:#ccc
+    style s09 fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
+    style s10 fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
+
+    %% fab-discuss
+    style d_ctx fill:#e0e0e0,stroke:#999
+
+    %% fab-new
+    style fn_in fill:#f3e5f5,stroke:#9C27B0
+
+    %% fab-switch
+    style sw_act fill:#f3e5f5,stroke:#9C27B0
+
+    %% git-branch
+    style gb_br fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
+
+    %% fab-continue
+    style c_stg fill:#f3e5f5,stroke:#9C27B0,stroke-dasharray: 5 5
+    style c_stg2 fill:#f3e5f5,stroke:#9C27B0,stroke-dasharray: 5 5
+    style c_stg3 fill:#f3e5f5,stroke:#9C27B0,stroke-dasharray: 5 5
+    style c_stg4 fill:#f3e5f5,stroke:#9C27B0,stroke-dasharray: 5 5
+    style c_stg5 fill:#f3e5f5,stroke:#9C27B0,stroke-dasharray: 5 5
+
+    %% fab-ff
+    style ff_sp fill:#e8f4f8,stroke:#2196F3
+    style ff_ta fill:#e8f4f8,stroke:#2196F3
+    style ff_ap fill:#e8f4f8,stroke:#2196F3
+    style ff_rv fill:#e8f4f8,stroke:#2196F3
+    style ff_hy fill:#e8f4f8,stroke:#2196F3
+
+    %% git-pr
+    style gp_sh fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
+
+    %% git-pr-review
+    style gp_rp fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
+
+    %% fab-fff
+    style fff_sp fill:#e8f5e9,stroke:#4CAF50
+    style fff_ta fill:#e8f5e9,stroke:#4CAF50
+    style fff_ap fill:#e8f5e9,stroke:#4CAF50
+    style fff_rv fill:#e8f5e9,stroke:#4CAF50
+    style fff_hy fill:#e8f5e9,stroke:#4CAF50
+    style fff_pr fill:#e8f5e9,stroke:#4CAF50,stroke-dasharray: 5 5
+    style fff_rp fill:#e8f5e9,stroke:#4CAF50,stroke-dasharray: 5 5
+
+    %% fab-proceed
+    style p_sw fill:#fff3e0,stroke:#FF9800
+    style p_in fill:#fff3e0,stroke:#FF9800
+    style p_br fill:#fff3e0,stroke:#FF9800,stroke-dasharray: 5 5
+    style p_sp fill:#fff3e0,stroke:#FF9800
+    style p_ta fill:#fff3e0,stroke:#FF9800
+    style p_ap fill:#fff3e0,stroke:#FF9800
+    style p_rv fill:#fff3e0,stroke:#FF9800
+    style p_hy fill:#fff3e0,stroke:#FF9800
+    style p_pr fill:#fff3e0,stroke:#FF9800,stroke-dasharray: 5 5
+    style p_rp fill:#fff3e0,stroke:#FF9800,stroke-dasharray: 5 5
+```
+
 ## Packages
 
-Fab Kit ships standalone shell CLI tools in `fab/.kit/packages/`. These are general-purpose developer workflow utilities - independent of the fab pipeline - and are distributed automatically via `kit.tar.gz`.
+Fab Kit ships standalone shell CLI tools in `fab/.kit/packages/`. These are general-purpose developer workflow utilities - independent of the fab pipeline - and are distributed automatically via `kit.tar.gz`. See [packages.md](docs/specs/packages.md) for details.
 
 | Package | Purpose |
 |---------|---------|
