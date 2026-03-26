@@ -1,0 +1,42 @@
+id: 13ro
+name: 260326-13ro-operator7-direct-fab-new-spawn
+created: 2026-03-26T06:07:44Z
+created_by: sahil-weaver
+change_type: refactor
+issues: []
+progress:
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+checklist:
+    generated: true
+    path: checklist.md
+    completed: 9
+    total: 0
+confidence:
+    certain: 4
+    confident: 2
+    tentative: 0
+    unresolved: 0
+    score: 4.4
+    fuzzy: true
+    dimensions:
+        signal: 85.0
+        reversibility: 90.8
+        competence: 88.3
+        disambiguation: 86.7
+stage_metrics:
+    intake: {started_at: "2026-03-26T06:07:44Z", driver: fab-new, iterations: 1, completed_at: "2026-03-26T11:49:14Z"}
+    spec: {started_at: "2026-03-26T11:51:14Z", driver: fab-clarify, iterations: 2, completed_at: "2026-03-26T11:52:56Z"}
+    tasks: {started_at: "2026-03-26T11:52:56Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-26T11:52:56Z"}
+    apply: {started_at: "2026-03-26T11:52:56Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-26T11:53:22Z"}
+    review: {started_at: "2026-03-26T11:53:22Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-26T11:54:25Z"}
+    hydrate: {started_at: "2026-03-26T11:54:25Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-26T11:54:52Z"}
+    ship: {started_at: "2026-03-26T11:54:52Z", driver: fab-fff, iterations: 1}
+prs: []
+last_updated: 2026-03-26T11:54:52Z

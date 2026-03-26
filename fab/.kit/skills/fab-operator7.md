@@ -340,10 +340,13 @@ The operator accepts work in three forms:
 6. On completion: merge PR, optionally archive
 
 **From raw text** (e.g., "fix login after password reset"):
-1. Create backlog entry: `idea add "<description>"` — captures the ID
-2. Proceed with the structured flow above using the new ID
+1. Create worktree (`wt create --non-interactive`)
+2. Resolve dependencies (cherry-pick `depends_on` entries — see above)
+3. Spawn agent: `tmux new-window -n "fab-<wt>" -c <worktree-path> "<spawn_cmd> '/fab-new <description>'"` — where `<description>` is the raw text as provided
+4. Enroll in monitored set
+5. On completion: merge PR, optionally archive
 
-This ensures every change gets a proper intake artifact with traceability, even for ad-hoc requests. The operator handles `idea add` internally — the user just says "fix [description]" and the operator does the rest.
+This ensures every change gets a proper intake artifact with traceability, even for ad-hoc requests. `/fab-new` captures the raw input in the intake's Origin section — the user just says "fix [description]" and the operator does the rest.
 
 **From existing change** (already has intake or further):
 The operator determines which steps are needed from the change's current state. If intake already exists, skip `/fab-new`. If branch already matches, skip `/git-branch`. Dependency resolution still applies if `depends_on` is set.

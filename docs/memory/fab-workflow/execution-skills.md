@@ -515,10 +515,17 @@ All settings are session-scoped — they reset when the operator session restart
 **Why**: Branch names must persist after dependencies complete (merged/archived) so downstream changes can still cherry-pick from them. Redundant dep pruning prevents duplicate cherry-picks in chains (B's branch already contains A's content).
 *Introduced by*: 260324-prtv-operator7-dep-aware-spawning
 
+### Operator7 Direct fab-new for Raw Text Spawns
+**Decision**: When spawning agents from raw text descriptions, the operator passes the description directly to `/fab-new` instead of creating an intermediate backlog entry via `idea add`. The "From raw text" spawn path now follows the same structure as "From backlog ID": worktree → resolve deps → spawn with `/fab-new <description>` → enroll → completion.
+**Why**: The `idea add` step created orphaned backlog entries in `fab/backlog.md` that served no further purpose — the intake's Origin section already captures the raw input for traceability. `/fab-new` natively accepts natural language descriptions, making the backlog indirection redundant overhead.
+**Rejected**: Keeping `idea add` for backlog traceability — the intake artifact is the real record of a change's origin, not the backlog entry.
+*Introduced by*: 260326-13ro-operator7-direct-fab-new-spawn
+
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260326-13ro-operator7-direct-fab-new-spawn | 2026-03-26 | Updated operator7 "From raw text" spawn path: removed `idea add` intermediate step, operator now passes description directly to `/fab-new`. Spawn sequence aligned with structured flow (worktree → deps → spawn → enroll → completion). Explanatory paragraph updated to attribute traceability to `/fab-new` Origin section instead of `idea add`. |
 | 260324-prtv-operator7-dep-aware-spawning | 2026-03-24 | New `/fab-operator7` skill — operator6 plus dependency-aware agent spawning. Pre-spawn step cherry-picks dependency content into worktrees via `git cherry-pick --no-commit origin/main..<dep-branch>`. Schema additions: `depends_on`, `branch` on monitored entries; `branch_map` top-level for post-removal persistence. Redundant dep pruning via ancestor check. `--base` implies `depends_on`. Cherry-pick conflict: abort, escalate, do not spawn. Idle message now includes timestamp (`Time: HH:MM · next tick: HH:MM`). New launcher `fab-operator7.sh`. |
 | 260320-t13m-configurable-agent-spawn-command | 2026-03-20 | Updated operator spawn documentation: operator4 and operator5 launcher descriptions now reference configurable spawn command from `config.yaml` `agent.spawn_command` (via `lib/spawn.sh`) instead of hardcoded `claude --dangerously-skip-permissions`. |
 | 260320-tm9h-draft-prs-by-default | 2026-03-20 | `/git-pr` now creates all PRs as drafts via `gh pr create --draft`. Unconditional — no configuration toggle. Both primary and fallback (`--fill`) paths include `--draft`. Updated "PR shipping" overview paragraph. |
