@@ -1,0 +1,13 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-26T06:00:34Z"}
+{"args":"Change fab-switch --blank to fab-switch --none or just bare fab-switch. --blank is not easy to remember","cmd":"fab-new","event":"command","ts":"2026-03-26T06:00:34Z"}
+{"delta":"+5.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-03-26T06:02:04Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-03-26T06:02:12Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-03-26T11:46:27Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"spec","ts":"2026-03-26T11:47:16Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-03-26T11:47:50Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"tasks","ts":"2026-03-26T11:47:58Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-03-26T11:48:31Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-03-26T11:50:53Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-03-26T11:52:09Z"}
+{"event":"review","result":"passed","ts":"2026-03-26T11:52:09Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-03-26T11:52:32Z"}

@@ -15,7 +15,7 @@
 - [ ] [q0lw] 2026-03-11: If fab binary or wt or idea binary not found, stop. Add to preamble?
 - [ ] [heht] 2026-03-19: Ensure randomness in worktree names is actually getting followed - inrease the name universe even further
 - [ ] [p4ki] 2026-03-19: Allow 'idea <text of idea>' format once again
-- [ ] [1tch] 2026-03-20: Change fab-switch --blank to fab-switch --none or just fab-switch. --blank isn't easy to remember
+- [x] [1tch] 2026-03-20: Change fab-switch --blank to fab-switch --none or just fab-switch. --blank isn't easy to remember
 
 ## Done
 

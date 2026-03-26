@@ -271,7 +271,7 @@ func TestSwitch(t *testing.T) {
 	}
 }
 
-func TestSwitchBlank(t *testing.T) {
+func TestSwitchNone(t *testing.T) {
 	fabRoot := setupChangeFixture(t)
 	folder := "260310-abcd-my-change"
 	changeDir := filepath.Join(fabRoot, "changes", folder)
@@ -282,23 +282,23 @@ func TestSwitchBlank(t *testing.T) {
 	symlinkPath := filepath.Join(repoRoot, ".fab-status.yaml")
 	os.Symlink("fab/changes/"+folder+"/.status.yaml", symlinkPath)
 
-	msg := SwitchBlank(fabRoot)
+	msg := SwitchNone(fabRoot)
 	if !strings.Contains(msg, "No active change") {
-		t.Errorf("SwitchBlank output = %q, expected 'No active change'", msg)
+		t.Errorf("SwitchNone output = %q, expected 'No active change'", msg)
 	}
 
 	// Verify symlink is removed
 	if _, err := os.Lstat(symlinkPath); !os.IsNotExist(err) {
-		t.Error("symlink should be removed after SwitchBlank")
+		t.Error("symlink should be removed after SwitchNone")
 	}
 }
 
-func TestSwitchBlank_AlreadyBlank(t *testing.T) {
+func TestSwitchNone_AlreadyDeactivated(t *testing.T) {
 	fabRoot := setupChangeFixture(t)
 
-	msg := SwitchBlank(fabRoot)
-	if !strings.Contains(msg, "already blank") {
-		t.Errorf("SwitchBlank output = %q, expected 'already blank'", msg)
+	msg := SwitchNone(fabRoot)
+	if !strings.Contains(msg, "already deactivated") {
+		t.Errorf("SwitchNone output = %q, expected 'already deactivated'", msg)
 	}
 }
 

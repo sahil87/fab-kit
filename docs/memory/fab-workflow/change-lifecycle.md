@@ -40,7 +40,7 @@ All components MUST be lowercase. The name is unique by construction (date + ran
 - **Updated** by `fab change rename` — symlink recreated to point to the renamed folder's `.status.yaml`
 - **Not modified** by `/fab-new` — `/fab-new` never writes `.fab-status.yaml`; the user activates via `/fab-switch` after creation
 - **Read** by `resolve.go` — `readlink` extracts the folder name from the target path. All other scripts and skills resolve the active change via `fab resolve` (which delegates to `resolve.go`)
-- **Removed** by `fab change switch --blank` (called by `/fab-switch --blank` or `/fab-archive`) — symlink is deleted to deactivate the current change
+- **Removed** by `fab change switch --none` (called by `/fab-switch --none` or `/fab-archive`) — symlink is deleted to deactivate the current change
 - **Optionally created** by `fab change switch` (called by `/fab-archive restore --switch`) — created for the restored change when `--switch` flag is used
 
 **Resolution pattern** (used by all skills via `fab resolve` → `resolve.go`):
@@ -189,7 +189,7 @@ Used by `/fab-switch` (no-argument flow) and `/fab-status` to enumerate changes 
 
 The skill uses `lib/preflight.sh` for data retrieval (including `display_stage` and `display_state` fields), then formats the output. The "Stage:" line shows the display stage (where you are) with a state qualifier (e.g., `Stage: intake (1/6) — done`). The "Next:" line shows the routing stage with the default command (e.g., `Next: spec (via /fab-continue)`). It uses `git branch --show-current` for live branch display.
 
-### `/fab-switch [change-name] [--blank]`
+### `/fab-switch [change-name] [--none]`
 
 `/fab-switch` changes the active change pointer. It does not perform git operations — branch management is handled by the separate `/git-branch` command.
 
@@ -201,8 +201,8 @@ The skill uses `lib/preflight.sh` for data retrieval (including `display_stage` 
 5. Display the switched change's status summary (three-line format: `Stage: {display_stage} ({N}/8) — {state}` + `Confidence: {score} of 5.0{indicative_suffix}` + `Next: {routing_stage} (via {default_command})`)
 6. Append a hint: `Tip: run /git-branch to create or switch to the matching branch`
 
-**Deactivating (`--blank`):**
-1. Remove `.fab-status.yaml` symlink — deactivates the current change. Idempotent (no error if already blank)
+**Deactivating (`--none`):**
+1. Remove `.fab-status.yaml` symlink — deactivates the current change. Idempotent (no error if already deactivated)
 
 ### `/git-branch [change-name]`
 
@@ -289,6 +289,7 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260326-1tch-rename-blank-to-none | 2026-03-26 | Renamed `--blank` flag to `--none` in `fab change switch`. Renamed `SwitchBlank` → `SwitchNone`. Updated output string from "already blank" to "already deactivated". Updated `fab-switch.md`, `_cli-fab.md`, `SPEC-fab-switch.md`. |
 | 260307-x2tx-status-symlink-pointer | 2026-03-07 | Replaced `fab/current` pointer file with `.fab-status.yaml` symlink at repo root. Added `id` field to `.status.yaml`. Updated resolution, switch, rename, pane-map, hooks, and dispatch. Migration `0.32.0-to-0.34.0` covers conversion. |
 | 260305-02ip-archive-date-buckets | 2026-03-05 | Archive destination changed from flat `archive/{name}/` to date-bucketed `archive/yyyy/mm/{name}/`. Date derived from folder name's `YYMMDD` prefix (year prefixed with `20`). One-time migration of existing flat entries shipped as `fab/.kit/migrations/0.24.0-to-0.32.0.md` (applied via `/fab-setup migrations`). `resolve_archive`, `cmd_list`, `backfill_index` updated to scan both flat and nested structures. `changeman.sh list --archive` updated for nested archive traversal. `fab-archive.md` skill doc updated with bucketed path references. |
 | 260305-8ooz-persist-indicative-confidence | 2026-03-05 | Indicative confidence scores now persisted to `.status.yaml` with `confidence.indicative: true` flag. `/fab-new` calls `calc-score.sh --stage intake` (normal mode) to persist. Spec scoring clears the flag. `changeman.sh list` output extended to `name:display_stage:display_state:score:indicative`. `changeman.sh switch` adds `Confidence:` line. `preflight.sh` emits `indicative:` field. `/fab-status` reads uniformly from `.status.yaml` (removed live `calc-score.sh` call). `statusman.sh` gains `--indicative` flag on `set-confidence`/`set-confidence-fuzzy` and outputs `indicative:` in `confidence` accessor. |
@@ -321,7 +322,7 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 | 260213-wo9v-fix-reset-auto-advance | 2026-02-13 | Fixed stage derivation fallback to use three-tier logic (active → first pending after done → hydrate). Reset flow now stops at target stage without auto-advancing. Updated preflight, status, statusman scripts, workflow schema, and fab-continue skill. Added pending cases to status next-command display. |
 | 260213-wloh-archive-backlog-scan | 2026-02-13 | Added keyword-based backlog scanning to archive Step 7 — surfaces candidate matches from intake title/Why section, interactive confirmation, skipped in auto mode. Added Keyword Scan Interactive-Only design decision. |
 | 260212-a4bd-unify-fab-continue | 2026-02-12 | Updated `fab/current` lifecycle and review failure references to use `/fab-continue` instead of removed standalone skills |
-| 260212-egqa-switch-return-main | 2026-02-12 | Added `--blank` flag to `/fab-switch` for deactivating the current change (deletes `fab/current`). Composable with `--branch` for git operations. Updated fab/current lifecycle and /fab-switch section. |
+| 260212-egqa-switch-return-main | 2026-02-12 | Added `--none` flag to `/fab-switch` for deactivating the current change (deletes `fab/current`). Composable with `--branch` for git operations. Updated fab/current lifecycle and /fab-switch section. |
 | 260212-ipoe-checklist-folder-location | 2026-02-12 | Updated `.status.yaml` `checklist.path` default from `checklists/quality.md` to `checklist.md` at change root |
 | 260212-v5p2-intake-pipeline-stage | 2026-02-12 | Restored intake as formal pipeline stage, updated migration note to keep intake: entry |
 | — | 2026-02-12 | Updated `/fab-new` default behavior: no longer auto-switches. Updated `fab/current` lifecycle, git integration description, and Branch Integration design decision |
