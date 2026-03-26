@@ -377,7 +377,13 @@ The operator accepts work in three forms:
 This ensures every change gets a proper intake artifact with traceability, even for ad-hoc requests. `/fab-new` captures the raw input in the intake's Origin section — the user just says "fix [description]" and the operator does the rest.
 
 **From existing change** (already has intake or further):
-Send `/fab-proceed` to the agent — it auto-detects the change's current state and runs only the needed steps (`/fab-switch`, `/git-branch`, then `/fab-fff`). Dependency resolution still applies if `depends_on` is set.
+1. Create worktree (`wt create --non-interactive --worktree-name <name>`)
+2. Resolve dependencies (cherry-pick `depends_on` entries — see above)
+3. Spawn agent: `tmux new-window -n "fab-<id>" -c <worktree-path> "<spawn_cmd> '/fab-switch <change> && /fab-proceed'"`
+4. Enroll in monitored set
+5. On completion: merge PR, optionally archive
+
+`/fab-switch` activates the target change so `/fab-proceed` knows which one to run. `/fab-proceed` then handles `/git-branch` → `/fab-fff` automatically.
 
 ### Autopilot
 
