@@ -289,7 +289,9 @@ intake → spec → tasks → apply → review → hydrate → ship
 ```
 
 **Setup commands**: `/fab-new` (create change), `/fab-switch` (activate), `/git-branch` (align branch)
-**Pipeline commands**: `/fab-continue` (one stage), `/fab-fff` (full pipeline), `/fab-ff` (fast-forward to hydrate)
+
+**Pipeline commands**: `/fab-proceed` (auto-detect state, run `/fab-new` → `/fab-switch` → `/git-branch` as needed, then `/fab-fff`), `/fab-continue` (one stage), `/fab-fff` (full pipeline), `/fab-ff` (fast-forward to hydrate), `/git-pr` (commit, push, create PR)
+
 **Maintenance**: rebase onto `origin/main`, merge PR (`gh pr merge`), `/fab-archive`
 
 ### Spawning an Agent
@@ -357,13 +359,14 @@ Dependencies are declared through three conversational paths, all of which coexi
 
 The operator accepts work in three forms:
 
-**From backlog ID or Linear issue** (structured):
-1. Look up the idea (`idea show <id>`) or resolve the Linear issue
-2. Create worktree (`wt create --non-interactive --worktree-name <name>`)
-3. Resolve dependencies (cherry-pick `depends_on` entries — see above)
-4. Spawn agent: `tmux new-window -n "fab-<id>" -c <worktree-path> "<spawn_cmd> '/fab-new <id>'"`
-5. Enroll in monitored set
-6. On completion: merge PR, optionally archive
+**From existing change** (already has intake or further):
+1. Create worktree (`wt create --non-interactive --worktree-name <name>`)
+2. Resolve dependencies (cherry-pick `depends_on` entries — see above)
+3. Spawn agent: `tmux new-window -n "fab-<id>" -c <worktree-path> "<spawn_cmd> '/fab-switch <change> && /fab-proceed'"`
+4. Enroll in monitored set
+5. On completion: merge PR, optionally archive
+
+`/fab-switch` activates the target change so `/fab-proceed` knows which one to run. `/fab-proceed` then handles `/git-branch` → `/fab-fff` automatically.
 
 **From raw text** (e.g., "fix login after password reset"):
 1. Create worktree (`wt create --non-interactive`)
@@ -372,10 +375,15 @@ The operator accepts work in three forms:
 4. Enroll in monitored set
 5. On completion: merge PR, optionally archive
 
-This ensures every change gets a proper intake artifact with traceability, even for ad-hoc requests. `/fab-new` captures the raw input in the intake's Origin section — the user just says "fix [description]" and the operator does the rest.
+**From backlog ID or Linear issue** (structured):
+1. Look up the idea (`idea show <id>`) or resolve the Linear issue
+2. Create worktree (`wt create --non-interactive --worktree-name <name>`)
+3. Resolve dependencies (cherry-pick `depends_on` entries — see above)
+4. Spawn agent: `tmux new-window -n "fab-<id>" -c <worktree-path> "<spawn_cmd> '/fab-new <id>'"`
+5. Enroll in monitored set
+6. On completion: merge PR, optionally archive
 
-**From existing change** (already has intake or further):
-The operator determines which steps are needed from the change's current state. If intake already exists, skip `/fab-new`. If branch already matches, skip `/git-branch`. Dependency resolution still applies if `depends_on` is set.
+Both raw text and backlog paths use `/fab-new` to generate a proper intake with traceability. `/fab-new` captures the raw input in the intake's Origin section — the user just says "fix [description]" and the operator does the rest.
 
 ### Autopilot
 

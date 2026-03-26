@@ -1,0 +1,43 @@
+id: 4r2p
+name: 260326-4r2p-add-proceed-to-cli-fab
+created: 2026-03-26T06:08:22Z
+created_by: sahil-weaver
+change_type: docs
+issues: []
+progress:
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+checklist:
+    generated: true
+    path: checklist.md
+    completed: 7
+    total: 7
+confidence:
+    certain: 4
+    confident: 0
+    tentative: 0
+    unresolved: 0
+    score: 5.0
+    fuzzy: true
+    dimensions:
+        signal: 92.5
+        reversibility: 92.5
+        competence: 93.8
+        disambiguation: 92.5
+stage_metrics:
+    intake: {started_at: "2026-03-26T06:08:22Z", driver: fab-new, iterations: 1, completed_at: "2026-03-26T06:12:12Z"}
+    spec: {started_at: "2026-03-26T12:04:20Z", driver: fab-fff, iterations: 2, completed_at: "2026-03-26T12:05:18Z"}
+    tasks: {started_at: "2026-03-26T12:05:18Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-26T12:05:18Z"}
+    apply: {started_at: "2026-03-26T12:05:18Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-26T12:05:18Z"}
+    review: {started_at: "2026-03-26T12:05:18Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-26T12:05:18Z"}
+    hydrate: {started_at: "2026-03-26T12:05:18Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-26T12:05:28Z"}
+    ship: {started_at: "2026-03-26T12:05:28Z", driver: fab-fff, iterations: 1}
+prs:
+    - https://github.com/wvrdz/fab-kit/pull/280
+last_updated: 2026-03-26T12:05:28Z
