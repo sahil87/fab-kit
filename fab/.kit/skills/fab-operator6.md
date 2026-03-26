@@ -245,7 +245,7 @@ intake → spec → tasks → apply → review → hydrate → ship
 ```
 
 **Setup commands**: `/fab-new` (create change), `/fab-switch` (activate), `/git-branch` (align branch)
-**Pipeline commands**: `/fab-proceed` (auto-detect state, run prefix steps, delegate to `/fab-fff`), `/fab-continue` (one stage), `/fab-fff` (full pipeline), `/fab-ff` (fast-forward to hydrate)
+**Pipeline commands**: `/fab-proceed` (auto-detect state, run `/fab-new` → `/fab-switch` → `/git-branch` as needed, then `/fab-fff`), `/fab-continue` (one stage), `/fab-fff` (full pipeline), `/fab-ff` (fast-forward to hydrate)
 **Maintenance**: rebase onto `origin/main`, merge PR (`gh pr merge`), `/fab-archive`
 
 ### Spawning an Agent
