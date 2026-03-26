@@ -374,34 +374,49 @@ Which pipeline stages each command covers. Taller bars = more automation. Read l
 
 ```mermaid
 block-beta
-    columns 8
+    columns 12
 
-    space:1 header1["fab-discuss"] header2["fab-switch"] header3["fab-continue"] header4["fab-ff"] header5["fab-fff"] header6["fab-proceed"] space:1
+    space:1 header1["fab-discuss"] header0["fab-new"] header2["fab-switch"] header3["git-branch"] header4["fab-continue"] header5["fab-ff"] header6["git-pr"] header9["git-pr-review"] header7["fab-fff"] header8["fab-proceed"] space:1
 
-    space:8
+    space:12
 
-    s01["context"]:1 d_ctx["project context"]:1 space:6
-    s02["activate"]:1 space:1 sw_act["fab-switch"]:1 space:3 p_sw["fab-switch"]:1 space:1
-    s03["branch"]:1 space:1 space:1 space:1 space:1 space:1 p_br["git-branch"]:1 space:1
-    s04["spec"]:1 space:1 space:1 c_stg["one stage ▾"]:1 ff_sp["spec"]:1 fff_sp["spec"]:1 p_sp["spec"]:1 space:1
-    s05["tasks"]:1 space:1 space:2 ff_ta["tasks"]:1 fff_ta["tasks"]:1 p_ta["tasks"]:1 space:1
-    s06["apply"]:1 space:1 space:2 ff_ap["apply"]:1 fff_ap["apply"]:1 p_ap["apply"]:1 space:1
-    s07["review"]:1 space:1 space:2 ff_rv["review"]:1 fff_rv["review"]:1 p_rv["review"]:1 space:1
-    s08["hydrate"]:1 space:1 space:2 ff_hy["hydrate"]:1 fff_hy["hydrate"]:1 p_hy["hydrate"]:1 space:1
-    s09["ship"]:1 space:1 space:2 space:1 fff_pr["git-pr"]:1 p_pr["git-pr"]:1 space:1
-    s10["review-pr"]:1 space:1 space:2 space:1 fff_rp["review-pr"]:1 p_rp["review-pr"]:1 space:1
+    s01["context"]:1 d_ctx["project context"]:1 space:10
+    s11["intake"]:1 space:1 fn_in["fab-new"]:1 space:7 p_in["fab-new"]:1 space:1
+    s02["activate"]:1 space:2 sw_act["fab-switch"]:1 space:1 space:5 p_sw["fab-switch"]:1 space:1
+    s03["branch"]:1 space:3 gb_br["git-branch"]:1 space:5 p_br["git-branch"]:1 space:1
+    s04["spec"]:1 space:4 c_stg["one stage ▾"]:1 ff_sp["spec"]:1 space:2 fff_sp["spec"]:1 p_sp["spec"]:1 space:1
+    s05["tasks"]:1 space:4 space:1 ff_ta["tasks"]:1 space:2 fff_ta["tasks"]:1 p_ta["tasks"]:1 space:1
+    s06["apply"]:1 space:4 space:1 ff_ap["apply"]:1 space:2 fff_ap["apply"]:1 p_ap["apply"]:1 space:1
+    s07["review"]:1 space:4 space:1 ff_rv["review"]:1 space:2 fff_rv["review"]:1 p_rv["review"]:1 space:1
+    s08["hydrate"]:1 space:4 space:1 ff_hy["hydrate"]:1 space:2 fff_hy["hydrate"]:1 p_hy["hydrate"]:1 space:1
+    s09["ship"]:1 space:4 space:2 gp_sh["git-pr"]:1 space:1 fff_pr["git-pr"]:1 p_pr["git-pr"]:1 space:1
+    s10["review-pr"]:1 space:4 space:3 gpr_rp["review-pr"]:1 fff_rp["review-pr"]:1 p_rp["review-pr"]:1 space:1
+
+    %% Arrows — multiple paths from top-left to bottom-right
+    d_ctx --> fn_in
+    d_ctx --> p_in
+    fn_in --> sw_act
+    sw_act --> gb_br
+    gb_br --> ff_sp
+    ff_hy --> gp_sh
+    gp_sh --> gpr_rp
 
     %% Header styles
     style header1 fill:#e0e0e0,stroke:#999
+    style header0 fill:#f3e5f5,stroke:#9C27B0
     style header2 fill:#f3e5f5,stroke:#9C27B0
-    style header3 fill:#f3e5f5,stroke:#9C27B0
-    style header4 fill:#e8f4f8,stroke:#2196F3
-    style header5 fill:#e8f5e9,stroke:#4CAF50
-    style header6 fill:#fff3e0,stroke:#FF9800
+    style header3 fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
+    style header4 fill:#f3e5f5,stroke:#9C27B0
+    style header5 fill:#e8f4f8,stroke:#2196F3
+    style header6 fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
+    style header9 fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
+    style header7 fill:#e8f5e9,stroke:#4CAF50
+    style header8 fill:#fff3e0,stroke:#FF9800
 
     %% Row labels
     style s01 fill:#f5f5f5,stroke:#ccc
     style s02 fill:#f5f5f5,stroke:#ccc
+    style s11 fill:#f5f5f5,stroke:#ccc
     style s03 fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
     style s04 fill:#f5f5f5,stroke:#ccc
     style s05 fill:#f5f5f5,stroke:#ccc
@@ -414,8 +429,14 @@ block-beta
     %% fab-discuss
     style d_ctx fill:#e0e0e0,stroke:#999,stroke-dasharray: 5 5
 
+    %% fab-new
+    style fn_in fill:#f3e5f5,stroke:#9C27B0
+
     %% fab-switch
     style sw_act fill:#f3e5f5,stroke:#9C27B0
+
+    %% git-branch
+    style gb_br fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
 
     %% fab-continue
     style c_stg fill:#f3e5f5,stroke:#9C27B0
@@ -426,6 +447,12 @@ block-beta
     style ff_ap fill:#e8f4f8,stroke:#2196F3
     style ff_rv fill:#e8f4f8,stroke:#2196F3
     style ff_hy fill:#e8f4f8,stroke:#2196F3
+
+    %% git-pr
+    style gp_sh fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
+
+    %% git-pr-review
+    style gpr_rp fill:#f5f5f5,stroke:#ccc,stroke-dasharray: 5 5
 
     %% fab-fff
     style fff_sp fill:#e8f5e9,stroke:#4CAF50
@@ -438,6 +465,7 @@ block-beta
 
     %% fab-proceed
     style p_sw fill:#fff3e0,stroke:#FF9800
+    style p_in fill:#fff3e0,stroke:#FF9800
     style p_br fill:#fff3e0,stroke:#FF9800
     style p_sp fill:#fff3e0,stroke:#FF9800
     style p_ta fill:#fff3e0,stroke:#FF9800
