@@ -61,7 +61,7 @@ var nouns = []string{
 	// Big cats
 	"tiger", "lion", "panther", "jaguar", "leopard", "cheetah", "cougar", "bobcat",
 	"ocelot", "serval", "caracal", "margay",
-	// Marine mammals
+	// Marine animals
 	"dolphin", "whale", "seal", "walrus", "orca", "dugong", "narwhal", "beluga",
 	"manatee", "porpoise", "seastar", "urchin",
 	// Reptiles

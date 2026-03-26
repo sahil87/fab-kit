@@ -65,7 +65,9 @@ func TestGenerateUniqueName_RetryExhaustion(t *testing.T) {
 	for _, adj := range adjectives {
 		for _, noun := range nouns {
 			name := adj + "-" + noun
-			os.MkdirAll(filepath.Join(dir, name), 0755)
+			if err := os.MkdirAll(filepath.Join(dir, name), 0755); err != nil {
+				t.Fatalf("failed to create directory %s: %v", name, err)
+			}
 		}
 	}
 
