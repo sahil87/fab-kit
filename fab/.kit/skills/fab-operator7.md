@@ -359,23 +359,6 @@ Dependencies are declared through three conversational paths, all of which coexi
 
 The operator accepts work in three forms:
 
-**From backlog ID or Linear issue** (structured):
-1. Look up the idea (`idea show <id>`) or resolve the Linear issue
-2. Create worktree (`wt create --non-interactive --worktree-name <name>`)
-3. Resolve dependencies (cherry-pick `depends_on` entries — see above)
-4. Spawn agent: `tmux new-window -n "fab-<id>" -c <worktree-path> "<spawn_cmd> '/fab-new <id>'"`
-5. Enroll in monitored set
-6. On completion: merge PR, optionally archive
-
-**From raw text** (e.g., "fix login after password reset"):
-1. Create worktree (`wt create --non-interactive`)
-2. Resolve dependencies (cherry-pick `depends_on` entries — see above)
-3. Spawn agent: `tmux new-window -n "fab-<wt>" -c <worktree-path> "<spawn_cmd> '/fab-new <shell_escaped_description>'"` — where `<shell_escaped_description>` is the raw description text safely shell-escaped for inclusion in a single-quoted shell argument (do not insert unescaped raw text directly)
-4. Enroll in monitored set
-5. On completion: merge PR, optionally archive
-
-This ensures every change gets a proper intake artifact with traceability, even for ad-hoc requests. `/fab-new` captures the raw input in the intake's Origin section — the user just says "fix [description]" and the operator does the rest.
-
 **From existing change** (already has intake or further):
 1. Create worktree (`wt create --non-interactive --worktree-name <name>`)
 2. Resolve dependencies (cherry-pick `depends_on` entries — see above)
@@ -384,6 +367,23 @@ This ensures every change gets a proper intake artifact with traceability, even 
 5. On completion: merge PR, optionally archive
 
 `/fab-switch` activates the target change so `/fab-proceed` knows which one to run. `/fab-proceed` then handles `/git-branch` → `/fab-fff` automatically.
+
+**From raw text** (e.g., "fix login after password reset"):
+1. Create worktree (`wt create --non-interactive`)
+2. Resolve dependencies (cherry-pick `depends_on` entries — see above)
+3. Spawn agent: `tmux new-window -n "fab-<wt>" -c <worktree-path> "<spawn_cmd> '/fab-new <shell_escaped_description>'"` — where `<shell_escaped_description>` is the raw description text safely shell-escaped for inclusion in a single-quoted shell argument (do not insert unescaped raw text directly)
+4. Enroll in monitored set
+5. On completion: merge PR, optionally archive
+
+**From backlog ID or Linear issue** (structured):
+1. Look up the idea (`idea show <id>`) or resolve the Linear issue
+2. Create worktree (`wt create --non-interactive --worktree-name <name>`)
+3. Resolve dependencies (cherry-pick `depends_on` entries — see above)
+4. Spawn agent: `tmux new-window -n "fab-<id>" -c <worktree-path> "<spawn_cmd> '/fab-new <id>'"`
+5. Enroll in monitored set
+6. On completion: merge PR, optionally archive
+
+Both raw text and backlog paths use `/fab-new` to generate a proper intake with traceability. `/fab-new` captures the raw input in the intake's Origin section — the user just says "fix [description]" and the operator does the rest.
 
 ### Autopilot
 

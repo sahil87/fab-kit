@@ -262,20 +262,6 @@ tmux new-window -n "fab-<id>" -c <worktree-path> "<spawn_cmd> '<command>'"
 
 The operator accepts work in three forms:
 
-**From backlog ID or Linear issue** (structured):
-1. Look up the idea (`idea show <id>`) or resolve the Linear issue
-2. Create worktree (`wt create --non-interactive --worktree-name <name>`)
-3. Spawn agent: `tmux new-window -n "fab-<id>" -c <worktree-path> "<spawn_cmd> '/fab-new <id>'"`
-4. Agent runs `/fab-new <id>` → `/fab-switch` → `/git-branch` → `/fab-fff`
-5. Enroll in monitored set
-6. On completion: merge PR, optionally archive
-
-**From raw text** (e.g., "fix login after password reset"):
-1. Create backlog entry: `idea add "<description>"` — captures the ID
-2. Proceed with the structured flow above using the new ID
-
-This ensures every change gets a proper intake artifact with traceability, even for ad-hoc requests. The operator handles `idea add` internally — the user just says "fix [description]" and the operator does the rest.
-
 **From existing change** (already has intake or further):
 1. Create worktree (`wt create --non-interactive --worktree-name <name>`)
 2. Resolve dependencies (cherry-pick `depends_on` entries — see above)
@@ -284,6 +270,20 @@ This ensures every change gets a proper intake artifact with traceability, even 
 5. On completion: merge PR, optionally archive
 
 `/fab-switch` activates the target change so `/fab-proceed` knows which one to run. `/fab-proceed` then handles `/git-branch` → `/fab-fff` automatically.
+
+**From raw text** (e.g., "fix login after password reset"):
+1. Create backlog entry: `idea add "<description>"` — captures the ID
+2. Proceed with the backlog flow below using the new ID
+
+**From backlog ID or Linear issue** (structured):
+1. Look up the idea (`idea show <id>`) or resolve the Linear issue
+2. Create worktree (`wt create --non-interactive --worktree-name <name>`)
+3. Spawn agent: `tmux new-window -n "fab-<id>" -c <worktree-path> "<spawn_cmd> '/fab-new <id>'"`
+4. Agent runs `/fab-new <id>` → `/fab-switch` → `/git-branch` → `/fab-fff`
+5. Enroll in monitored set
+6. On completion: merge PR, optionally archive
+
+Both raw text and backlog paths use `/fab-new` to generate a proper intake with traceability.
 
 ### Autopilot
 
