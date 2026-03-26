@@ -521,11 +521,17 @@ All settings are session-scoped — they reset when the operator session restart
 **Rejected**: Keeping `idea add` for backlog traceability — the intake artifact is the real record of a change's origin, not the backlog entry.
 *Introduced by*: 260326-13ro-operator7-direct-fab-new-spawn
 
+### Pipeline-First Routing Principle (operator7)
+**Decision**: `/fab-operator7` §1 Principles gains a "Pipeline-first routing" principle requiring the operator to route all new work through `/fab-new` then a pipeline command (`/fab-fff`, `/fab-ff`, `/fab-continue`). The operator MUST NOT dispatch raw inline implementation instructions to agent panes and MUST NOT use `/fab-continue` to skip intake for new work. Operational maintenance commands (merge PR, archive, delete worktree, rebase, `/git-branch`, `/fab-switch`) are exempt. A reinforcing blockquote in §6 "Working a Change" references the §1 principle.
+**Why**: Without an explicit prohibition, an operator (especially after `/clear` or under time pressure) could shortcut by sending freeform implementation instructions directly to an agent pane — bypassing intake generation, confidence scoring, and the full pipeline. This violates the fab workflow's core value: specification-driven development with traceability (Constitution §II).
+*Introduced by*: 260326-u3un-operator-enforce-pipeline-routing
+
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
 | 260326-13ro-operator7-direct-fab-new-spawn | 2026-03-26 | Updated operator7 "From raw text" spawn path: removed `idea add` intermediate step, operator now passes description directly to `/fab-new`. Spawn sequence aligned with structured flow (worktree → deps → spawn → enroll → completion). Explanatory paragraph updated to attribute traceability to `/fab-new` Origin section instead of `idea add`. |
+| 260326-u3un-operator-enforce-pipeline-routing | 2026-03-26 | Added "Pipeline-first routing" principle to `/fab-operator7` §1: operator MUST route all new work through `/fab-new` then pipeline commands, MUST NOT dispatch raw inline implementation instructions to agent panes, MUST NOT use `/fab-continue` to skip intake. Operational maintenance exempt. Reinforcing blockquote added to §6 "Working a Change" referencing the §1 principle. |
 | 260324-prtv-operator7-dep-aware-spawning | 2026-03-24 | New `/fab-operator7` skill — operator6 plus dependency-aware agent spawning. Pre-spawn step cherry-picks dependency content into worktrees via `git cherry-pick --no-commit origin/main..<dep-branch>`. Schema additions: `depends_on`, `branch` on monitored entries; `branch_map` top-level for post-removal persistence. Redundant dep pruning via ancestor check. `--base` implies `depends_on`. Cherry-pick conflict: abort, escalate, do not spawn. Idle message now includes timestamp (`Time: HH:MM · next tick: HH:MM`). New launcher `fab-operator7.sh`. |
 | 260320-t13m-configurable-agent-spawn-command | 2026-03-20 | Updated operator spawn documentation: operator4 and operator5 launcher descriptions now reference configurable spawn command from `config.yaml` `agent.spawn_command` (via `lib/spawn.sh`) instead of hardcoded `claude --dangerously-skip-permissions`. |
 | 260320-tm9h-draft-prs-by-default | 2026-03-20 | `/git-pr` now creates all PRs as drafts via `gh pr create --draft`. Unconditional — no configuration toggle. Both primary and fallback (`--fill`) paths include `--draft`. Updated "PR shipping" overview paragraph. |
