@@ -295,3 +295,73 @@ stateDiagram-v2
 | **skip** | All downstream `pending` stages are cascaded to `skipped` |
 
 Source of truth: [`fab/.kit/schemas/workflow.yaml`](../../fab/.kit/schemas/workflow.yaml)
+
+---
+
+## 6. Command Composition
+
+How atomic commands compose into shortcuts. Each layer adds automation over the one below it.
+
+```
+fab-proceed  = git-branch + fab-fff  (on active change)
+fab-proceed  = fab-new + fab-switch + git-branch + fab-fff  (after fab-discuss)
+fab-fff      = fab-ff + ship + review-pr
+fab-ff       = spec → tasks → apply → review → hydrate
+fab-continue = advance one stage
+```
+
+```mermaid
+sequenceDiagram
+    actor Dev as Developer
+    participant W as Workspace
+    participant P as Pipeline
+
+    Note over W: worktree · change folder · branch
+    Note over P: spec · tasks · apply · review · hydrate · ship · review-pr
+
+    rect rgb(224, 224, 224)
+    Note over Dev,P: /fab-discuss — explore without a change
+    Dev->>W: loads project context (config, constitution, memory, specs)
+    Note right of W: read-only · no active change required
+    end
+
+    rect rgb(243, 229, 245)
+    Note over Dev,P: Manual — one command per stage
+    Dev->>W: /fab-new — create change + intake
+    Dev->>W: /fab-switch — activate change
+    Dev->>W: /git-branch — create branch
+    Dev->>P: /fab-continue — spec
+    Dev->>P: /fab-continue — tasks
+    Dev->>P: /fab-continue — apply
+    Dev->>P: /fab-continue — review
+    Dev->>P: /fab-continue — hydrate
+    Dev->>P: /git-pr — ship
+    Dev->>P: /git-pr-review — review-pr
+    Dev->>P: /fab-archive — archive
+    end
+
+    rect rgb(232, 244, 248)
+    Note over Dev,P: /fab-ff — fast-forward to hydrate
+    Dev->>P: spec → tasks → apply → review → hydrate
+    Note right of P: confidence-gated
+    end
+
+    rect rgb(232, 245, 233)
+    Note over Dev,P: /fab-fff — full pipeline through review-pr
+    Dev->>P: spec → tasks → apply → review → hydrate → ship → review-pr
+    Note right of P: confidence-gated
+    end
+
+    rect rgb(255, 243, 224)
+    Note over Dev,P: /fab-proceed — on active change
+    Dev->>W: git-branch
+    Dev->>P: fab-fff (full pipeline)
+    end
+
+    rect rgb(255, 220, 180)
+    Note over Dev,P: /fab-discuss + /fab-proceed — new change from scratch
+    Dev->>W: /fab-discuss — load project context
+    Dev->>W: fab-new + fab-switch + git-branch
+    Dev->>P: fab-fff (full pipeline)
+    end
+```
