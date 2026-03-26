@@ -63,7 +63,7 @@ Error: operator requires tmux. Start a tmux session first.
 1. Read `.fab-operator.yaml` from the repo root. If missing, create with empty `monitored: {}`, `autopilot: null`, and `branch_map: {}`
 2. Restore monitored set, autopilot queue, and branch_map from the file (supports `/clear` recovery)
 3. Run `fab pane-map` and display the output
-4. If monitored set is non-empty, autopilot is active, or watches exist, start the loop: `/loop 3m "operator tick"`
+4. If any tracked items exist (monitored changes, active autopilot, or watches), start the loop: `/loop 3m "operator tick"`
 5. Output: `Operator ready.` (+ `Loop active (3m).` if loop started)
 
 ---
@@ -170,25 +170,47 @@ The top-level `branch_map` persists change ID → branch name mappings. Entries 
 
 On each tick:
 
-1. **Snapshot** — increment `tick_count`, run `fab pane-map`, read `.fab-operator.yaml`. Compute status for each monitored change: stage advances, completions, review failures, pane deaths. Output the status frame:
+1. **Snapshot** — increment `tick_count`, run `fab pane-map`, read `.fab-operator.yaml`. Compute status for all tracked items: stage advances, completions, review failures, pane deaths, watch query results. Output the status frame:
 
 ```
-── Operator ── 17:32 ── tick #47 ── 3 monitored · autopilot 1/3 · 1 watch ──
+── Operator ── 17:32 ── tick #47 ── 7 tracked ──
 
-  r3m7  🟢 apply → review
-  k8ds  🟡 review · idle 18m ⚠
-  ab12  🟢 hydrate ✓
-
-  👁 linear-bugs  2 known · 1 completed · last check 17:29
+  [change]  r3m7         ▶ 🟢 apply → review
+  [change]  k8ds         ▶ 🟡 review · idle 18m ⚠
+  [change]  ab12           🟢 hydrate ✓
+  [change]  ef56           🔴 spec · idle 32m ⚠
+  [watch]   linear-bugs    🟢 2 known · 1 completed · 3m ago
+  [watch]   slack-alerts   🟢 0 new · 1m ago
+  [watch]   gmail-deploys  🟡 1 new · 2m ago
 
 ───────────────────────────────────────────────────────────
 ```
 
-Stage indicators: 🟢 active, 🟡 idle, 🔴 stuck (>15m idle at non-terminal), ✓ complete. Watch indicator: 👁.
+All tracked items render in a single flat list. Every row follows a consistent column layout:
+
+| Column | Content |
+|--------|---------|
+| Type | `[change]` or `[watch]` — bracketed type prefix |
+| ID | Change ID (4-char) or watch name |
+| Autopilot | `▶` if autopilot-driven, blank otherwise |
+| Health | Status emoji — universal position across all types |
+| Detail | Type-specific status text |
+
+**Header**: `N tracked` is the total count of all entries (changes + watches). No per-type counts.
+
+**Ordering**: Changes first (sorted by enrollment time), then watches (sorted alphabetically by name).
+
+**Change health**: 🟢 active, 🟡 idle, 🔴 stuck (>15m idle at non-terminal), ✓ complete.
+
+**Watch health**: 🟢 healthy (last query succeeded, no new items), 🟡 has new unprocessed items, 🔴 errored (`last_error` set), ⏸ paused (`enabled: false`).
+
+**Autopilot marker**: `▶` marks changes driven by the autopilot queue. Non-autopilot changes (manually enrolled or watch-spawned) show blank. Queue state is readable from the list — which entries have `▶`, which are complete.
+
+**Watch timestamps**: Relative format (`{N}m ago`) matching the idle duration format: `{N}s ago` (< 60s), `{N}m ago` (60s–59m), `{N}h ago` (>= 60m). Floor division.
 
 2. **Auto-nudge** — for each idle agent, run question detection (§5). If a newly-spawned agent advances past intake, send `/git-branch` to align the branch.
 3. **Watches** — for each watch, query the source, compare against `known`, spawn on new matches (§7).
-4. **Autopilot step** — if an autopilot queue is active, run the next autopilot action (§6).
+4. **Autopilot dispatch** — if an autopilot queue is active, run the next autopilot action (§6). Autopilot-driven changes are visible in the frame via `▶`.
 5. **Removals** — remove completed changes (reached stop stage or terminal stage) and dead panes from the monitored set.
 6. **Persist** — write updated state to `.fab-operator.yaml`
 7. **Loop lifecycle** — if monitored set is empty, no autopilot, and no watches, stop the loop.
@@ -376,6 +398,8 @@ The operator works each change through the pipeline, applying pre-send validatio
 7. **Rebase next** — rebase next queued change onto latest `origin/main`. On conflict: flag, skip
 8. **Cleanup** — optionally delete worktree after merge
 9. **Report** — `"ab12: merged. 1 of 3 complete. Starting cd34."`
+
+Autopilot-driven changes display `▶` in the status frame (§4). Queue progress is visible from the list — entries with `▶` that show ✓ are complete, the one showing 🟢/🟡 is current.
 
 Autopilot state (queue, current, completed) persists in `.fab-operator.yaml`.
 
