@@ -113,6 +113,7 @@ The idea command manages a per-repo backlog stored in `fab/backlog.md`. It's a l
 
 | Command | Description |
 |---------|-------------|
+| `idea "text"` | Add a new idea (shorthand for `idea add`) |
 | `idea add "text"` | Add a new idea to the backlog |
 | `idea list` | List open (uncompleted) ideas |
 | `idea show <query>` | Show a single idea matching the query |
@@ -138,9 +139,9 @@ The `batch-fab-new-backlog` script automates step 3 at scale — it reads all op
 
 **Capture ideas throughout the day:**
 ```bash
-idea add "refactor auth middleware to use JWT"
-idea add "add rate limiting to public endpoints"
-idea add "update README with new setup instructions"
+idea "refactor auth middleware to use JWT"
+idea "add rate limiting to public endpoints"
+idea "update README with new setup instructions"
 ```
 
 **Triage and start work:**
