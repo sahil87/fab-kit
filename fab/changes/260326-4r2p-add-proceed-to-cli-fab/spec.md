@@ -1,4 +1,4 @@
-# Spec: Add fab-proceed to _cli-fab.md
+# Spec: Add fab-proceed to operator skill Pipeline References
 
 **Change**: 260326-4r2p-add-proceed-to-cli-fab
 **Created**: 2026-03-26
@@ -6,72 +6,48 @@
 
 ## Non-Goals
 
-- Adding new CLI commands — PR 278 introduced only a skill, no Go binary changes
-- Restructuring `_cli-fab.md` layout — additions follow the existing document structure
-- Documenting `/fab-proceed`'s full behavior — that belongs in the skill file and specs, not the CLI guide
+- Modifying `_cli-fab.md` — the previous changes to that file have been reverted
+- Changing operator behavior logic — only the Pipeline Reference knowledge section is updated
+- Documenting `/fab-proceed` internals — operators only need to know what it does, not how
 
-## CLI Guide: fab-proceed Consumer Documentation
+## Operator Skills: Pipeline Reference Update
 
-### Requirement: fab resolve SHALL document fab-proceed as a caller
+### Requirement: fab-operator7 Pipeline Reference SHALL include `/fab-proceed`
 
-The `fab resolve` section in `_cli-fab.md` SHALL include a **Notable callers** note documenting that `/fab-proceed` invokes `fab resolve --folder` (with stderr suppressed) in its Step 1 state detection to check whether an active change exists.
+The Pipeline Reference section in `fab/.kit/skills/fab-operator7.md` (§6 Coordination Patterns) SHALL list `/fab-proceed` with a brief description: auto-detects state and runs needed prefix steps before `/fab-fff`.
 
-#### Scenario: Reader looks up fab resolve callers
-- **GIVEN** a skill author reading the `fab resolve` section of `_cli-fab.md`
-- **WHEN** they look for which skills use `fab resolve --folder`
-- **THEN** `/fab-proceed` SHALL be listed as a caller with its usage pattern (`fab resolve --folder 2>/dev/null` for active change detection)
+#### Scenario: Operator7 decides how to start an agent on a new backlog item
+- **GIVEN** operator7 has loaded its Pipeline Reference at startup
+- **WHEN** it needs to send a command to an agent for a backlog item that has no intake yet
+- **THEN** `/fab-proceed` SHALL be available in its command vocabulary
+- **AND** the operator MAY choose `/fab-proceed` instead of manually chaining `/fab-new` → `/fab-switch` → `/git-branch` → `/fab-fff`
 
-### Requirement: fab change switch SHALL document fab-proceed as a caller
+### Requirement: fab-operator6 Pipeline Reference SHALL include `/fab-proceed`
 
-The `fab change` section's `switch` subcommand row in `_cli-fab.md` SHALL include a note that `/fab-proceed` dispatches `fab change switch` via a subagent when an unactivated intake is detected.
+The Pipeline Reference section in `fab/.kit/skills/fab-operator6.md` (§6 Coordination Patterns) SHALL list `/fab-proceed` with the same description used in operator7.
 
-#### Scenario: Reader looks up fab change switch callers
-- **GIVEN** a skill author reading the `fab change` section of `_cli-fab.md`
-- **WHEN** they check who invokes the `switch` subcommand
-- **THEN** `/fab-proceed` SHALL be documented as dispatching `fab change switch "<change-name>"` via subagent
+#### Scenario: Operator6 decides how to start an agent on an existing intake
+- **GIVEN** operator6 has loaded its Pipeline Reference at startup
+- **WHEN** it needs to send a command to an agent for a change that has an intake but isn't activated
+- **THEN** `/fab-proceed` SHALL be available in its command vocabulary
 
-### Requirement: fab log Callers table SHALL NOT add a fab-proceed row
+### Requirement: `/fab-proceed` SHALL be categorized as a pipeline command
 
-The `fab log` Callers table SHALL NOT add a dedicated `/fab-proceed` row because `/fab-proceed` does not call `fab log command` directly. Its subagents (`/fab-new`, `/fab-switch`) use `fab log` through their own documented paths, which are already captured in the existing Callers entries.
+`/fab-proceed` orchestrates both setup and pipeline steps, but its primary purpose is running the full pipeline. It SHALL be listed under **Pipeline commands** alongside `/fab-continue`, `/fab-fff`, and `/fab-ff`.
 
-#### Scenario: fab-proceed's indirect logging is already covered
-- **GIVEN** `/fab-proceed` dispatches `/fab-new` as a subagent
-- **WHEN** `/fab-new` calls `fab change new --log-args`
-- **THEN** the existing `fab change new` auto-log Callers entry covers this path
-- **AND** no duplicate `/fab-proceed` row is needed in the Callers table
-
-### Requirement: Documentation additions SHALL follow existing _cli-fab.md patterns
-
-All additions to `_cli-fab.md` MUST use the same formatting patterns already present in the file: brief inline notes or small tables, not new top-level sections. The additions SHOULD be minimal — a sentence or note per command section, not paragraphs.
-
-#### Scenario: Addition to fab resolve section
-- **GIVEN** the `fab resolve` section currently has no callers documentation
-- **WHEN** `/fab-proceed` is added as a caller
-- **THEN** the addition SHALL be a brief `**Notable callers**:` line after the flags table, consistent with the `**Callers**:` pattern used in the `fab log` section
-
-#### Scenario: Addition to fab change section
-- **GIVEN** the `fab change` subcommand table documents `switch` on one row
-- **WHEN** `/fab-proceed` is added as a consumer
-- **THEN** the addition SHALL be a brief note after the subcommand table (not inline in the table cell)
-
-### Requirement: Affected memory update SHALL add CLI invocation detail
-
-The `docs/memory/fab-workflow/execution-skills.md` memory file's `/fab-proceed` section already describes the skill's dispatch table and behavior. If the CLI invocation patterns (`fab resolve --folder`, `fab change switch`) are not already present in the memory, they SHOULD be confirmed as present or added.
-
-#### Scenario: Memory already covers CLI invocations
-- **GIVEN** `execution-skills.md` already mentions `fab resolve --folder` in the `/fab-proceed` section
-- **WHEN** the hydrate step checks for completeness
-- **THEN** no memory modification is needed for CLI invocation patterns
+#### Scenario: Pipeline Reference categorization
+- **GIVEN** the Pipeline Reference has Setup commands, Pipeline commands, and Maintenance categories
+- **WHEN** `/fab-proceed` is added
+- **THEN** it SHALL appear in the **Pipeline commands** line
+- **AND** its description SHALL indicate it auto-detects state and delegates to `/fab-fff`
 
 ## Assumptions
 
 | # | Grade | Decision | Rationale | Scores |
 |---|-------|----------|-----------|--------|
-| 1 | Certain | No new CLI commands to document | Confirmed from intake #1 — PR 278 added a skill only | S:95 R:95 A:95 D:95 |
-| 2 | Certain | Document fab-proceed as consumer of fab resolve and fab change switch | Confirmed from intake #2 — verified by reading fab-proceed.md Step 1 and dispatch table | S:90 R:90 A:90 D:90 |
-| 3 | Certain | No new fab log Callers row needed | Upgraded from intake #3 Confident → Certain — verified fab-proceed.md confirms no direct fab log calls | S:90 R:90 A:90 D:90 |
-| 4 | Certain | Use Notable callers pattern for fab resolve | _cli-fab.md has Callers table under fab log; fab resolve has no callers section yet — add one using the same pattern | S:85 R:95 A:90 D:85 |
-| 5 | Certain | Memory execution-skills already covers CLI patterns | Verified — execution-skills.md line 15 mentions `fab resolve --folder` explicitly | S:95 R:95 A:95 D:95 |
-| 6 | Certain | This is a docs change type | Confirmed from intake #5 — only markdown files modified | S:95 R:95 A:95 D:95 |
+| 1 | Certain | Target is operator skill files, not _cli-fab.md | Confirmed from intake #1 — user corrected the target | S:95 R:95 A:95 D:95 |
+| 2 | Certain | Both operator6 and operator7 need the update | Confirmed from intake #2 — verified both have identical Pipeline Reference sections | S:95 R:90 A:95 D:95 |
+| 3 | Certain | List under Pipeline commands category | Upgraded from intake #3 Confident → Certain — fab-proceed's purpose is running the full pipeline; it delegates setup steps as prefix | S:85 R:90 A:90 D:85 |
+| 4 | Certain | docs change type | Confirmed from intake #4 — only markdown files modified | S:95 R:95 A:95 D:95 |
 
-6 assumptions (6 certain, 0 confident, 0 tentative, 0 unresolved).
+4 assumptions (4 certain, 0 confident, 0 tentative, 0 unresolved).

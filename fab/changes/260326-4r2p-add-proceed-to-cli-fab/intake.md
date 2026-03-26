@@ -1,4 +1,4 @@
-# Intake: Add fab-proceed to _cli-fab.md
+# Intake: Add fab-proceed to operator skill Pipeline References
 
 **Change**: 260326-4r2p-add-proceed-to-cli-fab
 **Created**: 2026-03-26
@@ -6,56 +6,53 @@
 
 ## Origin
 
-> Add fab-proceed to _cli-fab.md — the new context-aware orchestrator skill was implemented in PR 278 but its entry was missed from the kit script invocation guide. Document it alongside the other skill references.
+> Add fab-proceed to the operator skills — the new context-aware orchestrator skill was implemented in PR 278 but its entry was missed from the Pipeline Reference sections in fab-operator6 and fab-operator7. The operators need to know about `/fab-proceed` so they can use it instead of manually chaining `/fab-new` → `/fab-switch` → `/git-branch` → `/fab-fff`.
 
-One-shot request. The user noticed the omission while reviewing the PR 278 merge (`1c956ac feat: fab-proceed orchestrator (#278)`).
+Course correction after initial misunderstanding: the target is the operator skill files, not `_cli-fab.md`. The operators learn about fab skills through a hardcoded Pipeline Reference section — `/fab-proceed` is absent from both.
 
 ## Why
 
-`_cli-fab.md` is the authoritative reference loaded by every skill via `_preamble.md` to understand how to invoke CLI commands. When a new skill that invokes CLI commands ships without being documented here, the reference becomes incomplete. `/fab-proceed` calls `fab resolve --folder`, `fab change switch`, and relies on other skills that in turn call `fab status`, `fab score`, etc. Its calling patterns should be documented so that future skill authors and the `_cli-fab.md` reference itself remain accurate.
-
-The constitution (§ Additional Constraints) requires: "Changes to the `fab` CLI (Go binary) MUST include corresponding test updates and MUST update `fab/.kit/skills/_cli-fab.md` with any new or changed command signatures." While fab-proceed didn't change CLI signatures, it introduced a new skill that consumes CLI commands — the spirit of this rule is that `_cli-fab.md` stays current as the definitive guide.
+`/fab-proceed` is a context-aware orchestrator that replaces the manual chain of `/fab-new` → `/fab-switch` → `/git-branch` → `/fab-fff`. Both `fab-operator6.md` and `fab-operator7.md` have a "Pipeline Reference" section (§6 Coordination Patterns) that lists setup, pipeline, and maintenance commands. This is how operators decide which command to send to an agent. Without `/fab-proceed` in this list, operators will never use it — they'll always fall back to the manual multi-step chain.
 
 ## What Changes
 
-### Add fab-proceed to the Callers table under `fab log`
+### Add `/fab-proceed` to Pipeline Reference in `fab/.kit/skills/fab-operator7.md`
 
-The `fab log` section has a Callers table (lines 210–218 of `_cli-fab.md`) listing which skills invoke `fab log command`. `/fab-proceed` itself is exempt from preflight (it delegates to `/fab-fff`), so it doesn't directly call `fab log command` via the preamble §2 path. However, if `/fab-proceed` invokes `/fab-new` as a subagent, that subagent will call `fab log command` via `fab change new --log-args`. This is already covered by the existing `fab change new` auto-log entry — no new Callers row needed for `fab log` specifically.
+The Pipeline Reference (line ~267) currently lists:
 
-### Add fab-proceed to the `fab resolve` section
+```
+Setup commands: /fab-new (create change), /fab-switch (activate), /git-branch (align branch)
+Pipeline commands: /fab-continue (one stage), /fab-fff (full pipeline), /fab-ff (fast-forward to hydrate)
+```
 
-`/fab-proceed` directly invokes `fab resolve --folder` in its Step 1 (Active Change Check) to detect whether an active change exists. This is a notable consumer that should be documented.
+Add `/fab-proceed` as either a setup or pipeline command with a brief description indicating it auto-detects state and chains the needed prefix steps before `/fab-fff`. It belongs logically between setup and pipeline commands since it orchestrates both.
 
-### Add fab-proceed to the `fab change switch` reference
+### Add `/fab-proceed` to Pipeline Reference in `fab/.kit/skills/fab-operator6.md`
 
-`/fab-proceed` dispatches `fab change switch` via a subagent when an unactivated intake is detected (dispatch table row 3). This usage should be noted.
-
-### Cross-reference in Command Reference table
-
-The Command Reference table at the top of `_cli-fab.md` lists commands and their purposes. No new commands were added by PR 278 — this table needs no changes. The documentation additions are to existing command sections, adding `/fab-proceed` as a caller/consumer.
+Same change — operator6 has an identical Pipeline Reference section (line ~247).
 
 ## Affected Memory
 
-- `fab-workflow/execution-skills`: (modify) Add fab-proceed's CLI invocation patterns to the execution skills memory
+- `fab-workflow/execution-skills`: (modify) Note that operator skills' Pipeline References now include `/fab-proceed`
 
 ## Impact
 
-- `fab/.kit/skills/_cli-fab.md` — primary file being updated
-- No CLI commands changed — purely documentation additions
-- No other skills affected — this is additive cross-referencing
+- `fab/.kit/skills/fab-operator7.md` — Pipeline Reference section
+- `fab/.kit/skills/fab-operator6.md` — Pipeline Reference section
+- No CLI or Go binary changes
+- No other skills affected
 
 ## Open Questions
 
-None — the scope is clear from the PR 278 diff and the existing `_cli-fab.md` structure.
+None.
 
 ## Assumptions
 
 | # | Grade | Decision | Rationale | Scores |
 |---|-------|----------|-----------|--------|
-| 1 | Certain | No new CLI commands to document | PR 278 added a skill file only; no Go binary changes | S:95 R:95 A:95 D:95 |
-| 2 | Certain | Document fab-proceed as a consumer of existing commands | _cli-fab.md tracks callers of CLI commands; fab-proceed calls fab resolve and dispatches fab change switch | S:90 R:90 A:90 D:90 |
-| 3 | Confident | No new Callers row needed under fab log | fab-proceed doesn't call fab log command directly — its subagents do, but those are already covered by existing entries | S:80 R:85 A:80 D:75 |
-| 4 | Confident | Affected Memory includes execution-skills | execution-skills.md was already updated in PR 278 but may need the CLI invocation detail added | S:75 R:85 A:70 D:80 |
-| 5 | Certain | This is a docs change type | Only markdown documentation files are modified | S:95 R:95 A:95 D:95 |
+| 1 | Certain | Target is operator skill files, not _cli-fab.md | User corrected — operators learn skills from their hardcoded Pipeline Reference | S:95 R:95 A:95 D:95 |
+| 2 | Certain | Both operator6 and operator7 need the same update | Both have identical Pipeline Reference sections missing fab-proceed | S:95 R:90 A:95 D:95 |
+| 3 | Confident | fab-proceed listed as a pipeline/orchestrator command | It orchestrates setup + pipeline steps; fits between setup and pipeline categories | S:80 R:90 A:80 D:75 |
+| 4 | Certain | This is a docs change type | Only markdown skill files are modified | S:95 R:95 A:95 D:95 |
 
-5 assumptions (3 certain, 2 confident, 0 tentative, 0 unresolved).
+4 assumptions (3 certain, 1 confident, 0 tentative, 0 unresolved).

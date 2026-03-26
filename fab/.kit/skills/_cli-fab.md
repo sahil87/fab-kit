@@ -84,8 +84,6 @@ fab/.kit/bin/fab change <subcommand> [flags...]
 
 **Output**: Both archive and restore output structured YAML to stdout. Skills parse this YAML to construct user-facing reports.
 
-**Notable callers**: /fab-proceed dispatches `fab change switch "<change-name>"` via subagent (unactivated intake detection).
-
 ---
 
 # Pipeline & Status
@@ -192,8 +190,6 @@ fab/.kit/bin/fab resolve [--id|--folder|--dir|--status|--pane] [<change>]
 | `--dir` | Directory path (e.g., `fab/changes/260228-9fg2-refactor-kit-scripts/`) |
 | `--status` | `.status.yaml` path (e.g., `fab/changes/260228-9fg2-refactor-kit-scripts/.status.yaml`) |
 | `--pane` | Tmux pane ID (e.g., `%5`). Requires `$TMUX`. Errors if no pane matches the change |
-
-**Notable callers**: /fab-proceed invokes `fab resolve --folder 2>/dev/null` (Step 1 — active change detection).
 
 ---
 
