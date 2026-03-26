@@ -82,7 +82,7 @@ func changeRenameCmd() *cobra.Command {
 }
 
 func changeSwitchCmd() *cobra.Command {
-	var blank bool
+	var none bool
 
 	cmd := &cobra.Command{
 		Use:   "switch [name]",
@@ -94,13 +94,13 @@ func changeSwitchCmd() *cobra.Command {
 				return err
 			}
 
-			if blank {
-				fmt.Println(change.SwitchBlank(fabRoot))
+			if none {
+				fmt.Println(change.SwitchNone(fabRoot))
 				return nil
 			}
 
 			if len(args) == 0 {
-				return fmt.Errorf("switch requires <name> or --blank")
+				return fmt.Errorf("switch requires <name> or --none")
 			}
 
 			output, err := change.Switch(fabRoot, args[0])
@@ -112,7 +112,7 @@ func changeSwitchCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVar(&blank, "blank", false, "Deactivate the current change")
+	cmd.Flags().BoolVar(&none, "none", false, "Deactivate the current change")
 	return cmd
 }
 

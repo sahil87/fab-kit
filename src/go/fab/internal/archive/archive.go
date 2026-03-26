@@ -97,7 +97,7 @@ func Archive(fabRoot, changeArg, description string) (*ArchiveResult, error) {
 	pointerStatus := "skipped"
 	activeFolder, err := resolve.ToFolder(fabRoot, "")
 	if err == nil && activeFolder == folder {
-		change.SwitchBlank(fabRoot)
+		change.SwitchNone(fabRoot)
 		pointerStatus = "cleared"
 	}
 

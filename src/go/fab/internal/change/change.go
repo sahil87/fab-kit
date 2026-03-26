@@ -219,12 +219,12 @@ func Switch(fabRoot, name string) (string, error) {
 	return output.String(), nil
 }
 
-// SwitchBlank deactivates the current change.
-func SwitchBlank(fabRoot string) string {
+// SwitchNone deactivates the current change.
+func SwitchNone(fabRoot string) string {
 	repoRoot := filepath.Dir(fabRoot)
 	symlinkPath := filepath.Join(repoRoot, ".fab-status.yaml")
 	if _, err := os.Lstat(symlinkPath); os.IsNotExist(err) {
-		return "No active change (already blank)."
+		return "No active change (already deactivated)."
 	}
 	os.Remove(symlinkPath)
 	return "No active change."

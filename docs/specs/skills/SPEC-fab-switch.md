@@ -2,12 +2,12 @@
 
 ## Summary
 
-Switches the active change by creating the `.fab-status.yaml` symlink. Lists available changes when called with no argument. Supports deactivation via `--blank`.
+Switches the active change by creating the `.fab-status.yaml` symlink. Lists available changes when called with no argument. Supports deactivation via `--none`.
 
 ## Flow
 
 ```
-User invokes /fab-switch [change-name] [--blank]
+User invokes /fab-switch [change-name] [--none]
 │
 ├─ Read: _preamble.md (config.yaml only)
 │
@@ -17,8 +17,8 @@ User invokes /fab-switch [change-name] [--blank]
 │  └─ (wait for user selection)
 │     └─ Bash: fab change switch "<selected>"
 │
-├── --blank ─────────────────────────────────────────────
-│  └─ Bash: fab change switch --blank
+├── --none ─────────────────────────────────────────────
+│  └─ Bash: fab change switch --none
 │
 └── change-name ─────────────────────────────────────────
    ├─ Bash: fab change switch "<change-name>"
