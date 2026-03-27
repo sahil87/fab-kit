@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 const (
@@ -53,7 +54,8 @@ func EnsureCached(version string) (string, error) {
 func downloadAndExtract(version, targetDir string) error {
 	url := DownloadURL(version)
 
-	resp, err := http.Get(url)
+	client := &http.Client{Timeout: 5 * time.Minute}
+	resp, err := client.Get(url)
 	if err != nil {
 		return fmt.Errorf("downloading %s: %w", url, err)
 	}

@@ -2,13 +2,13 @@ package internal
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 )
 
@@ -92,10 +92,10 @@ func TestDownloadAndExtract_HTTPError(t *testing.T) {
 	}
 }
 
-func createTestArchive(t *testing.T, files map[string]string) *strings.Reader {
+func createTestArchive(t *testing.T, files map[string]string) *bytes.Reader {
 	t.Helper()
 
-	var buf strings.Builder
+	var buf bytes.Buffer
 	gw := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gw)
 
@@ -113,8 +113,12 @@ func createTestArchive(t *testing.T, files map[string]string) *strings.Reader {
 		}
 	}
 
-	tw.Close()
-	gw.Close()
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gw.Close(); err != nil {
+		t.Fatal(err)
+	}
 
-	return strings.NewReader(buf.String())
+	return bytes.NewReader(buf.Bytes())
 }

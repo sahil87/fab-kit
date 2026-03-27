@@ -45,13 +45,13 @@ func run(args []string) error {
 	cfg, err := internal.DiscoverConfig(cwd)
 	if err != nil {
 		if errors.Is(err, internal.ErrNoConfig) {
-			return fmt.Errorf("not in a fab-managed repo. Run 'fab init' to get started")
+			return fmt.Errorf("Not in a fab-managed repo. Run 'fab init' to get started.")
 		}
 		return err
 	}
 
 	if cfg.FabVersion == "" {
-		return fmt.Errorf("no fab_version in config.yaml. Run 'fab init' to set one")
+		return fmt.Errorf("No fab_version in config.yaml. Run 'fab init' to set one.")
 	}
 
 	// Ensure the version is cached (downloads if needed).

@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -69,7 +70,8 @@ func RunInit() error {
 }
 
 func fetchLatestVersion() (string, error) {
-	resp, err := http.Get(latestReleaseURL)
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(latestReleaseURL)
 	if err != nil {
 		return "", fmt.Errorf("querying GitHub: %w", err)
 	}
@@ -121,7 +123,9 @@ func setFabVersion(configPath, version string) error {
 	// Read existing config to preserve other fields.
 	existing := make(map[string]interface{})
 	if data, err := os.ReadFile(configPath); err == nil {
-		_ = yaml.Unmarshal(data, &existing)
+		if err := yaml.Unmarshal(data, &existing); err != nil {
+			return fmt.Errorf("parsing existing config: %w", err)
+		}
 	}
 
 	existing["fab_version"] = version

@@ -28,7 +28,7 @@ class FabKit < Formula
 
   test do
     assert_match "fab-shim", shell_output("#{bin}/fab --version")
-    assert_match "wt", shell_output("#{bin}/wt --version 2>&1", 0).downcase
-    assert_match "idea", shell_output("#{bin}/idea --version 2>&1", 0).downcase
+    assert_match "wt", shell_output("#{bin}/wt --help 2>&1", 0).downcase
+    assert_match "idea", shell_output("#{bin}/idea --help 2>&1", 0).downcase
   end
 end

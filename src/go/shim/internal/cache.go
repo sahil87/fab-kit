@@ -47,7 +47,10 @@ func IsCached(version string) (bool, error) {
 	}
 	info, err := os.Stat(rpath)
 	if err != nil {
-		return false, nil
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
 	}
 	return !info.IsDir(), nil
 }
