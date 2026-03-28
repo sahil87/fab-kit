@@ -357,6 +357,8 @@ A separate Go binary for git worktree management, built from `src/go/fab/cmd/wt/
 
 **Error format**: Structured `Error: {what}\n  Why: {why}\n  Fix: {fix}`, colors disabled when `$NO_COLOR` is set.
 
+**"Open here" option**: `wt create` and `wt open` app menus include an "Open here" (`open_here`) entry — always available (no detection needed), placed first in the list. The `open_here` handler in `OpenInApp()` prints `cd <quoted-path>` to stdout. `DetectDefaultApp()` skips `open_here` in its fallback logic — it is never the auto-detected default, but respects the last-app cache (if a user previously chose it, it becomes the default on next run when no context-based default applies). When `open_here` is selected, `create.go` suppresses the final path line to keep stdout clean for the shell wrapper. Requires a shell function wrapper to take effect — without it, the `cd` line prints harmlessly to the terminal. Standard pattern (cf. `nvm`, `direnv`, `z`): the wrapper captures stdout, checks for `cd ` prefix, and `eval`s it in the current shell.
+
 #### Skill Invocation Convention (`_cli-fab.md`)
 
 The `_cli-fab.md` partial (renamed from `_scripts.md`, loaded by every skill via `_preamble.md`) defines the calling convention for all kit operations. Skills invoke operations via `fab/.kit/bin/fab <command> <subcommand> [args...]` — this calls the dispatcher, which routes to the best available backend. The `_cli-fab.md` partial includes the full command mapping table, backend priority documentation, argument formats, stage transition sequences, and error patterns.

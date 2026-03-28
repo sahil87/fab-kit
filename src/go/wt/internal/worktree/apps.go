@@ -19,6 +19,9 @@ func BuildAvailableApps() []AppInfo {
 	osType := DetectOS()
 	var apps []AppInfo
 
+	// Open here — always available, no detection needed
+	apps = append(apps, AppInfo{"Open here", "open_here"})
+
 	// VSCode
 	if appAvailable("code", "com.microsoft.VSCode", "code.desktop", osType) {
 		apps = append(apps, AppInfo{"VSCode", "code"})
@@ -151,8 +154,11 @@ func DetectDefaultApp(apps []AppInfo) int {
 		}
 	}
 
-	if len(apps) > 0 {
-		return 1
+	// Skip "open_here" in the fallback — it should never be the default
+	for i, app := range apps {
+		if app.Cmd != "open_here" {
+			return i + 1
+		}
 	}
 	return -1
 }
@@ -160,6 +166,9 @@ func DetectDefaultApp(apps []AppInfo) int {
 // OpenInApp opens the given path in the specified application.
 func OpenInApp(appCmd, path, repoName, wtName string) error {
 	switch appCmd {
+	case "open_here":
+		fmt.Printf("cd -- %q\n", path)
+		return nil
 	case "code":
 		return runCommand("code", path)
 	case "cursor":

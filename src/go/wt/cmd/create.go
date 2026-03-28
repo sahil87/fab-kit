@@ -240,6 +240,7 @@ or creates a new branch.`,
 			}
 
 			// Open
+			var suppressPath bool
 			if worktreeOpen == "prompt" {
 				apps := wt.BuildAvailableApps()
 				if len(apps) > 0 {
@@ -255,6 +256,9 @@ or creates a new branch.`,
 						if openErr := wt.OpenInApp(selected.Cmd, wtPath, ctx.RepoName, finalName); openErr != nil {
 							fmt.Fprintf(os.Stderr, "Warning: could not open in %s: %s\n", selected.Name, openErr)
 						}
+						if selected.Cmd == "open_here" {
+							suppressPath = true
+						}
 					}
 				}
 			} else if worktreeOpen != "skip" {
@@ -267,6 +271,9 @@ or creates a new branch.`,
 					if openErr := wt.OpenInApp(resolved.Cmd, wtPath, ctx.RepoName, finalName); openErr != nil {
 						fmt.Fprintf(os.Stderr, "Warning: could not open in %s: %s\n", resolved.Name, openErr)
 					}
+					if resolved.Cmd == "open_here" {
+						suppressPath = true
+					}
 				}
 			}
 
@@ -274,7 +281,9 @@ or creates a new branch.`,
 			rb.Disarm()
 
 			// Output the worktree path as the last line
-			fmt.Println(wtPath)
+			if !suppressPath {
+				fmt.Println(wtPath)
+			}
 			return nil
 		},
 	}
