@@ -537,10 +537,17 @@ All settings are session-scoped — they reset when the operator session restart
 **Rejected**: Keeping merge-as-you-go as default — too many rebase conflicts and no review control. Available as opt-in for users who want it.
 *Introduced by*: 260327-gwg9-operator-base-chaining-default
 
+### Standardized Tmux Tab Naming (operator7)
+**Decision**: All agent tab names in `/fab-operator7` use `⚡<wt>` format (zap emoji + worktree name, no space). Replaces the previous `fab-<id>` naming which was unreliable for new changes where the change ID doesn't exist at spawn time. The worktree name is always available at spawn time and unique across panes, making it a consistent identifier for all three spawn paths (existing change, raw text, backlog).
+**Why**: The `fab-<id>` format had two issues: (1) for new changes, the ID doesn't exist until `fab-new` runs inside the spawned agent, and (2) the raw-text path already used `fab-<wt>` as a workaround, creating inconsistency. The `⚡` prefix makes agent tabs visually distinct from other tmux windows.
+**Rejected**: Keeping `fab-<id>` with worktree fallback — adds conditional logic without benefit since worktree name is always available.
+*Introduced by*: 260328-iqt8-standardize-tmux-tab-naming
+
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260328-iqt8-standardize-tmux-tab-naming | 2026-03-28 | Standardized tmux tab naming in `/fab-operator7`: all four `tmux new-window -n` invocations now use `⚡<wt>` (zap emoji + worktree name) instead of `fab-<id>` or `fab-<wt>`. Resolves inconsistency where change ID wasn't available at spawn time for new changes. |
 | 260327-gwg9-operator-base-chaining-default | 2026-03-27 | Changed `/fab-operator7` autopilot default from merge-as-you-go to **stack-then-review**: queued changes get implicit `depends_on` chaining (implicit `--base`), PRs created but not merged until user reviews. Queue completion summary with ordered merge support. Previous behavior preserved via `--merge-on-complete` opt-in. Confirmation prompt updated. Failure matrix updated: cherry-pick conflict replaces rebase conflict in default mode. |
 | 260326-oxgu-unified-tick-status-list | 2026-03-26 | Updated `/fab-operator7` tick status frame: replaced two-block layout (changes + 👁 watches) with a single unified list. Every entry gets `[type]` prefix (`[change]`/`[watch]`), consistent column layout (Type, ID, Autopilot, Health, Detail). Autopilot moved from header (`autopilot 1/3`) to per-entry `▶` symbol. Watches gain health emojis (🟢 healthy, 🟡 new items, 🔴 errored, ⏸ paused) matching change emoji column. Watch timestamps use relative format (`3m ago`). Header simplified to `N tracked` total count. |
 | 260326-13ro-operator7-direct-fab-new-spawn | 2026-03-26 | Updated operator7 "From raw text" spawn path: removed `idea add` intermediate step, operator now passes description directly to `/fab-new`. Spawn sequence aligned with structured flow (worktree → deps → spawn → enroll → completion). Explanatory paragraph updated to attribute traceability to `/fab-new` Origin section instead of `idea add`. |

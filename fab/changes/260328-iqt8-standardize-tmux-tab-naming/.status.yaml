@@ -1,0 +1,45 @@
+id: iqt8
+name: 260328-iqt8-standardize-tmux-tab-naming
+created: 2026-03-28T07:16:59Z
+created_by: sahil-weaver
+change_type: fix
+issues: []
+progress:
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: active
+checklist:
+    generated: true
+    path: checklist.md
+    completed: 12
+    total: 12
+confidence:
+    certain: 3
+    confident: 2
+    tentative: 0
+    unresolved: 0
+    score: 4.4
+    indicative: true
+    fuzzy: true
+    dimensions:
+        signal: 81.0
+        reversibility: 90.0
+        competence: 83.0
+        disambiguation: 83.0
+stage_metrics:
+    intake: {started_at: "2026-03-28T07:16:59Z", driver: fab-new, iterations: 1, completed_at: "2026-03-28T07:20:27Z"}
+    spec: {started_at: "2026-03-28T07:20:27Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-28T07:20:58Z"}
+    tasks: {started_at: "2026-03-28T07:20:58Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-28T07:20:58Z"}
+    apply: {started_at: "2026-03-28T07:20:58Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-28T07:22:03Z"}
+    review: {started_at: "2026-03-28T07:22:03Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-28T07:23:20Z"}
+    hydrate: {started_at: "2026-03-28T07:23:20Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-28T07:23:24Z"}
+    ship: {started_at: "2026-03-28T07:23:24Z", driver: fab-fff, iterations: 1, completed_at: "2026-03-28T07:24:41Z"}
+    review-pr: {started_at: "2026-03-28T07:24:41Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/wvrdz/fab-kit/pull/290
+last_updated: 2026-03-28T07:29:07Z

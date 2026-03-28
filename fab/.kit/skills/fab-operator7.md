@@ -300,9 +300,9 @@ Read `agent.spawn_command` from `config.yaml` (loaded at startup). Default: `cla
 
 The spawn sequence is:
 
-1. **Create worktree** — `wt create --non-interactive --worktree-name <name> [<branch>]`
+1. **Create worktree** — `wt create --non-interactive --worktree-name <wt> [<branch>]`
 2. **Resolve dependencies** — if the change has a non-empty `depends_on` list, cherry-pick dependency content into the worktree (see below)
-3. **Open agent tab** — `tmux new-window -n "fab-<id>" -c <worktree-path> "<spawn_cmd> '<command>'"`
+3. **Open agent tab** — `tmux new-window -n "⚡<wt>" -c <worktree-path> "<spawn_cmd> '<command>'"` (where `<wt>` is the worktree name from step 1)`
 4. **Enroll in monitored set** — record pane, stage, branch, depends_on in `.fab-operator.yaml`; add branch to `branch_map`
 
 ### Dependency Resolution
@@ -360,9 +360,9 @@ Dependencies are declared through three conversational paths, all of which coexi
 The operator accepts work in three forms:
 
 **From existing change** (already has intake or further):
-1. Create worktree (`wt create --non-interactive --worktree-name <name>`)
+1. Create worktree (`wt create --non-interactive --worktree-name <wt>`)
 2. Resolve dependencies (cherry-pick `depends_on` entries — see above)
-3. Spawn agent: `tmux new-window -n "fab-<id>" -c <worktree-path> "<spawn_cmd> '/fab-switch <change> && /fab-proceed'"`
+3. Spawn agent: `tmux new-window -n "⚡<wt>" -c <worktree-path> "<spawn_cmd> '/fab-switch <change> && /fab-proceed'"`
 4. Enroll in monitored set
 5. On completion: PR ready, optionally archive
 
@@ -371,15 +371,15 @@ The operator accepts work in three forms:
 **From raw text** (e.g., "fix login after password reset"):
 1. Create worktree (`wt create --non-interactive`)
 2. Resolve dependencies (cherry-pick `depends_on` entries — see above)
-3. Spawn agent: `tmux new-window -n "fab-<wt>" -c <worktree-path> "<spawn_cmd> '/fab-new <shell_escaped_description>'"` — where `<shell_escaped_description>` is the raw description text safely shell-escaped for inclusion in a single-quoted shell argument (do not insert unescaped raw text directly)
+3. Spawn agent: `tmux new-window -n "⚡<wt>" -c <worktree-path> "<spawn_cmd> '/fab-new <shell_escaped_description>'"` — where `<shell_escaped_description>` is the raw description text safely shell-escaped for inclusion in a single-quoted shell argument (do not insert unescaped raw text directly)
 4. Enroll in monitored set
 5. On completion: PR ready, optionally archive
 
 **From backlog ID or Linear issue** (structured):
 1. Look up the idea (`idea show <id>`) or resolve the Linear issue
-2. Create worktree (`wt create --non-interactive --worktree-name <name>`)
+2. Create worktree (`wt create --non-interactive --worktree-name <wt>`)
 3. Resolve dependencies (cherry-pick `depends_on` entries — see above)
-4. Spawn agent: `tmux new-window -n "fab-<id>" -c <worktree-path> "<spawn_cmd> '/fab-new <id>'"`
+4. Spawn agent: `tmux new-window -n "⚡<wt>" -c <worktree-path> "<spawn_cmd> '/fab-new <id>'"`
 5. Enroll in monitored set
 6. On completion: PR ready, optionally archive
 
