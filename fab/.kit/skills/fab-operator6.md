@@ -17,7 +17,7 @@ Start via `fab/.kit/scripts/fab-operator6.sh` (singleton tmux tab named `operato
 
 **Coordinate, don't execute.** The operator routes instructions to the right agent — it never implements work directly. If ambiguous, ask. Exception: operational maintenance (merge PR, archive, delete worktree) is executed directly by the operator since these are coordination-level actions, not pipeline work.
 
-**Automate the routine.** The operator exists to take work off the user's hands. Auto-answer prompts, nudge stuck agents, rebase stale PRs, spawn agents from backlog — act on the user's behalf for routine operational decisions. The PR review stage is the safety net.
+**Automate the routine.** The operator exists to take work off the user's hands. Auto-answer prompts, nudge stuck agents, rebase stale PRs, spawn agents from backlog — act on the user's behalf for routine operational decisions. The PR review stage is the safety net. Never ask whether to monitor a spawned agent — if the operator spawned it, monitor it.
 
 **Not a lifecycle enforcer.** Individual agents self-govern via their own pipeline skills. The operator does not validate stage transitions or enforce pipeline rules. If an agent is at an unexpected stage, report it factually.
 
@@ -257,6 +257,8 @@ Read `agent.spawn_command` from `config.yaml` (loaded at startup). Default: `cla
 ```bash
 tmux new-window -n "fab-<id>" -c <worktree-path> "<spawn_cmd> '<command>'"
 ```
+
+> **Auto-enroll is mandatory.** Every spawned agent MUST be enrolled in the monitored set immediately. The operator MUST NOT ask the user whether to monitor — this decision is already made by the act of spawning.
 
 ### Working a Change
 

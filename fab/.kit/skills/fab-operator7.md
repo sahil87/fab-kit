@@ -303,7 +303,9 @@ The spawn sequence is:
 1. **Create worktree** — `wt create --non-interactive --worktree-name <wt> [<branch>]`
 2. **Resolve dependencies** — if the change has a non-empty `depends_on` list, cherry-pick dependency content into the worktree (see below)
 3. **Open agent tab** — `tmux new-window -n "⚡<wt>" -c <worktree-path> "<spawn_cmd> '<command>'"` (where `<wt>` is the worktree name from step 1)`
-4. **Enroll in monitored set** — record pane, stage, branch, depends_on in `.fab-operator.yaml`; add branch to `branch_map`
+4. **Enroll in monitored set** — unconditionally and silently record pane, stage, branch, depends_on in `.fab-operator.yaml`; add branch to `branch_map`. MUST NOT prompt the user about whether to monitor.
+
+> **Auto-enroll is mandatory.** Every spawned agent MUST be enrolled in the monitored set immediately as part of the spawn sequence. The operator MUST NOT ask the user whether to monitor a spawned agent — this decision is already made by the act of spawning. If the operator spawned it, it is monitored. No exceptions.
 
 ### Dependency Resolution
 
