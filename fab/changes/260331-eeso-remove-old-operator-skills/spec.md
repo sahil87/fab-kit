@@ -8,7 +8,7 @@
 
 - Modifying `fab-operator7.md`, `fab-operator7.sh`, or `.claude/skills/fab-operator7/` — these are the current operator and remain untouched
 - Modifying deployed copies in `.claude/skills/` — user explicitly excluded these from scope
-- Removing operator4 references — operator4 is documented as historical context in memory files and is not in scope
+- Performing a broad cleanup of operator4 references — operator4 remains documented as historical context in memory files; only the specific `fab-operator4.sh` references explicitly called out in this spec (e.g., in kit-architecture documentation) may be updated
 
 ## Skill Files: Delete Old Operator Sources
 
@@ -154,7 +154,7 @@ References to `operator5/6/7` in `docs/specs/superpowers-comparison.md` SHALL be
 | 5 | Confident | No SPEC-fab-operator6.md exists to delete | Only SPEC-fab-operator5.md found in docs/specs/skills/ | S:70 R:95 A:85 D:90 |
 | 6 | Confident | No migration needed | Internal repo cleanup — no user-facing data structures change | S:75 R:90 A:80 D:85 |
 | 7 | Certain | Delete operator5.sh and operator6.sh launcher scripts | Launchers for deleted skills serve no purpose; user said only operator7.sh remains | S:90 R:85 A:90 D:90 |
-| 8 | Confident | Delete operator4.sh launcher script too | operator4 was superseded by operator5, which was superseded by operator7; keeping operator4.sh is inconsistent with cleanup intent | S:70 R:80 A:75 D:70 |
+| 8 | Confident | operator4 artifacts (including fab-operator4.sh) are already absent on main | operator4 cleanup is out of scope per Non-Goals; only specific references in kit-architecture docs are updated | S:70 R:80 A:75 D:70 |
 | 9 | Confident | Preserve changelog entries referencing old operators | Changelogs are historical records — deleting entries loses provenance | S:75 R:85 A:85 D:85 |
 | 10 | Confident | Update "extends operator6" to standalone phrasing | Referencing a deleted entity creates a dangling reference | S:80 R:85 A:80 D:85 |
 

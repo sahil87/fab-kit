@@ -8,6 +8,8 @@
 
 > Remove all previous operator skill versions — keep only fab-operator7. Delete fab-operator5.md and fab-operator6.md from fab/.kit/skills/. Also remove their deployed copies from .claude/skills/ (fab-operator5/ and fab-operator6/ directories). Remove any references to the old operators from docs/specs/ and docs/memory/ files. Update docs/specs/skills.md if it lists the old operators. The fab-operator7.sh launcher script should remain unchanged.
 
+Note: The portion of the original request that asked to delete deployed copies under `.claude/skills/` (the `fab-operator5/` and `fab-operator6/` directories) was later rescoped out and is explicitly out of scope for this change; the spec and checklist below reflect the updated scope.
+
 ## Why
 
 The operator skill has evolved through multiple versions (operator5 → operator6 → operator7). The older versions are no longer used but their files remain in the repo — source skills, deployed copies, spec files, and memory references. This creates confusion about which version is current and bloats the codebase with dead code. Cleaning them out ensures only the active operator7 is present, reducing maintenance burden and preventing accidental use of deprecated behavior.

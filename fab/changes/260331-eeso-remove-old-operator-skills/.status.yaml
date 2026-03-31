@@ -41,4 +41,4 @@ stage_metrics:
     review-pr: {started_at: "2026-03-31T18:03:16Z", driver: git-pr, iterations: 1}
 prs:
     - https://github.com/wvrdz/fab-kit/pull/292
-last_updated: 2026-03-31T18:03:16Z
+last_updated: 2026-03-31T18:12:27Z
