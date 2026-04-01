@@ -209,7 +209,7 @@ Operator4 was the first standalone operator skill. Previous iterations (operator
 
 **Context discipline.** The operator never reads change artifacts (intakes, specs, tasks). Its context window is reserved for coordination state — pane maps, stage snapshots, monitoring state.
 
-**State re-derivation.** Before every action, re-query live state via `fab pane-map` (or `wt list` + `fab change list` outside tmux). Panes die, stages advance, agents finish — stale state leads to wrong actions.
+**State re-derivation.** Before every action, re-query live state via `fab pane map` (or `wt list` + `fab change list` outside tmux). Panes die, stages advance, agents finish — stale state leads to wrong actions.
 
 #### Context Loading
 
@@ -217,7 +217,7 @@ The operator loads the always-load layer (`_preamble.md` §1) plus `fab/.kit/ski
 
 #### Orientation
 
-On invocation, runs `fab pane-map` and displays the output, then signals readiness. Outside tmux (`$TMUX` unset), falls back to `wt list` + `fab change list` for status queries only — monitoring is disabled.
+On invocation, runs `fab pane map` and displays the output, then signals readiness. Outside tmux (`$TMUX` unset), falls back to `wt list` + `fab change list` for status queries only — monitoring is disabled.
 
 #### Safety Model
 
@@ -227,7 +227,7 @@ On invocation, runs `fab pane-map` and displays the output, then signals readine
 | Recoverable | Send `/fab-continue`, rebase | Announce before sending |
 | Destructive | Merge PR, archive, delete worktree, autopilot | Confirm before executing |
 
-**Pre-send validation**: Before sending keys to any pane, the operator MUST (1) verify the pane exists via refreshed pane map (dead panes fail silently), (2) check the agent is idle via the Agent column. If busy, warn and require explicit confirmation.
+**Pre-send validation**: The operator uses `fab pane send <pane> <text>` which validates pane existence and agent idle state (steps 1-2). If the pane is gone, the command exits 1. If the agent is active, it exits 1 (use `--force` after explicit user confirmation). The operator separately verifies change-active and branch-aligned state (steps 3-4) as pipeline-level logic before dispatching.
 
 **Bounded retries**: Every automatic action has a bounded retry count. Unbounded retries compound errors.
 
@@ -265,12 +265,13 @@ The operator acts as a proxy for the user on routine operational questions.
 
 **Question detection** — for each idle monitored agent:
 
-1. Capture: `tmux capture-pane -t <pane> -p -l 20` (wide window compensates for line wrapping)
-2. Claude turn boundary guard: if `^\s*>\s*$` appears in last 2 lines, skip (normal human-turn boundary)
-3. Blank capture guard: if output is entirely blank/whitespace, skip (treat as "cannot determine")
-4. Scan for question indicators: lines ending with `?` (tightened — last non-empty line only, <120 chars, skip comment/log prefixes), `[Y/n]`/`[y/N]`/`(y/n)`/`(yes/no)`, `Allow?`/`Approve?`/`Confirm?`/`Proceed?`, Claude Code permission prompts, `Do you want to...`/`Should I...`/`Would you like...`, lines ending with `:`/`:\s*$`, enumerated options (`[1-9]\)` patterns), `Press.*key`/`press.*enter`/`hit.*enter` (case-insensitive)
-5. No match → normal idle behavior (stuck detection applies)
-6. Match found → proceed to answer model. Bottom-most (most recent) indicator evaluated when multiple match.
+1. Process pre-filter: `fab pane process <pane>` — if state is not `waiting-for-input`, skip (the process is running, sleeping, or exited; no prompt to answer). Only proceed to capture when state is `waiting-for-input`.
+2. Capture: `fab pane capture <pane> -l 20` (wide window compensates for line wrapping)
+3. Claude turn boundary guard: if `^\s*>\s*$` appears in last 2 lines, skip (normal human-turn boundary)
+4. Blank capture guard: if output is entirely blank/whitespace, skip (treat as "cannot determine")
+5. Scan for question indicators: lines ending with `?` (tightened — last non-empty line only, <120 chars, skip comment/log prefixes), `[Y/n]`/`[y/N]`/`(y/n)`/`(yes/no)`, `Allow?`/`Approve?`/`Confirm?`/`Proceed?`, Claude Code permission prompts, `Do you want to...`/`Should I...`/`Would you like...`, lines ending with `:`/`:\s*$`, enumerated options (`[1-9]\)` patterns), `Press.*key`/`press.*enter`/`hit.*enter` (case-insensitive)
+6. No match → normal idle behavior (stuck detection applies)
+7. Match found → proceed to answer model. Bottom-most (most recent) indicator evaluated when multiple match.
 
 **Answer model** — all detected questions are auto-answered. The only escalation is when the operator cannot determine what keystrokes to send. Evaluate in order:
 
@@ -283,7 +284,7 @@ The operator acts as a proxy for the user on routine operational questions.
 
 No cooldown or retry limit — each question is evaluated independently. Worktree isolation and human PR merge provide the safety gate.
 
-**Re-capture before send**: Before sending an auto-answer via `tmux send-keys`, MUST re-capture the terminal. If output changed since initial capture, abort — the agent is no longer waiting. Eliminates the race condition between detection and send.
+**Re-capture before send**: Before sending an auto-answer via `fab pane send`, MUST re-capture the terminal. If output changed since initial capture, abort — the agent is no longer waiting. Eliminates the race condition between detection and send.
 
 **Logging**: Every auto-answer: `"{change}: auto-answered '{summary}' -> {answer}"`. Escalated (item 6): `"{change}: can't determine answer for '{summary}'. Please respond."`.
 
@@ -342,7 +343,7 @@ All settings are session-scoped — they reset when the operator session restart
 
 #### Design Constraints
 
-- **Pane-map only**: Uses `fab pane-map` as its sole observation primitive — no `fab runtime is-idle`
+- **Pane commands only**: Uses the `fab pane` command group (`map`, `capture`, `send`, `process`) as its observation and interaction primitives — no `fab runtime is-idle`, no raw `tmux send-keys` or `tmux capture-pane`
 - **No change artifacts**: Never reads intakes, specs, or tasks — context window reserved for coordination state
 - **No persistent audit trail for v1**: Per-answer logging is inline only — no file-backed log
 - **Hardcoded patterns**: Question indicator patterns embedded in skill file, not configurable via config.yaml
@@ -521,10 +522,17 @@ The `fab-operator4.sh` launcher has been removed. The current operator launcher 
 **Rejected**: Keeping `fab-<id>` with worktree fallback — adds conditional logic without benefit since worktree name is always available.
 *Introduced by*: 260328-iqt8-standardize-tmux-tab-naming
 
+### `fab pane` Command Group Internalizes Tmux Interaction
+**Decision**: `fab pane-map` renamed to `fab pane map` under a new `pane` parent command group with three additional subcommands: `capture` (structured pane content with fab context), `send` (safe send-keys with idle/existence validation), and `process` (OS-level process state detection). All live in the existing `fab-go` binary. No backward-compatible `pane-map` alias. Raw `tmux capture-pane` and `tmux send-keys` removed from `_cli-external.md` — only `tmux new-window` remains as direct-use tmux. The operator's §3 pre-send validation now uses `fab pane send` (pane existence + idle check built in); §5 question detection gains a `fab pane process` pre-filter (eliminates false positives by checking if the foreground process is actually blocked on tty read before capture-and-regex).
+**Why**: The operator previously used raw tmux commands with manual validation logic repeated in skill instructions. Internalizing into `fab-go` gives validated, fab-context-enriched operations in single commands. `fab pane process` provides OS-level signal (process blocked on read) that is stronger than heuristic regex matching on terminal output.
+**Rejected**: External tmux MCP server (violates Constitution §I and §V), `tmux wait-for` integration (blocking primitives don't help LLM-driven agents), `fab pane spawn` wrapping `tmux new-window` (moves complexity without reducing it).
+*Introduced by*: 260331-1y2f-tmux-superpowers-operator-research
+
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260331-1y2f-tmux-superpowers-operator-research | 2026-03-31 | New `fab pane` command group (`map`, `capture`, `send`, `process`) replaces raw tmux commands. `fab pane-map` renamed to `fab pane map`. Operator4 §3 pre-send validation now uses `fab pane send` (built-in pane existence + idle check). Operator4 §5 question detection gains `fab pane process` pre-filter before capture-and-regex. `_cli-external.md` tmux section shrunk to `tmux new-window` only. |
 | 260328-iqt8-standardize-tmux-tab-naming | 2026-03-28 | Standardized tmux tab naming in `/fab-operator7`: all four `tmux new-window -n` invocations now use `⚡<wt>` (zap emoji + worktree name) instead of `fab-<id>` or `fab-<wt>`. Resolves inconsistency where change ID wasn't available at spawn time for new changes. |
 | 260327-gwg9-operator-base-chaining-default | 2026-03-27 | Changed `/fab-operator7` autopilot default from merge-as-you-go to **stack-then-review**: queued changes get implicit `depends_on` chaining (implicit `--base`), PRs created but not merged until user reviews. Queue completion summary with ordered merge support. Previous behavior preserved via `--merge-on-complete` opt-in. Confirmation prompt updated. Failure matrix updated: cherry-pick conflict replaces rebase conflict in default mode. |
 | 260326-oxgu-unified-tick-status-list | 2026-03-26 | Updated `/fab-operator7` tick status frame: replaced two-block layout (changes + 👁 watches) with a single unified list. Every entry gets `[type]` prefix (`[change]`/`[watch]`), consistent column layout (Type, ID, Autopilot, Health, Detail). Autopilot moved from header (`autopilot 1/3`) to per-entry `▶` symbol. Watches gain health emojis (🟢 healthy, 🟡 new items, 🔴 errored, ⏸ paused) matching change emoji column. Watch timestamps use relative format (`3m ago`). Header simplified to `N tracked` total count. |

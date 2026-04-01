@@ -27,7 +27,7 @@ func main() {
 		scoreCmd(),
 		runtimeCmd(),
 		hookCmd(),
-		paneMapCmd(),
+		paneCmd(),
 	)
 
 	if err := root.Execute(); err != nil {

@@ -7,7 +7,7 @@ description: "Use when coordinating multiple fab agents across tmux panes — mu
 
 > Read `fab/.kit/skills/_preamble.md` first (path is relative to repo root). Then follow its instructions before proceeding.
 
-Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents via `fab pane-map`, routes commands via `tmux send-keys`, monitors progress via `/loop`. The loop is the heart of the operator.
+Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents via `fab pane map`, routes commands via `fab pane send`, monitors progress via `/loop`. The loop is the heart of the operator.
 
 Start via `fab/.kit/scripts/fab-operator7.sh` (singleton tmux tab named `operator`).
 
@@ -23,7 +23,7 @@ Start via `fab/.kit/scripts/fab-operator7.sh` (singleton tmux tab named `operato
 
 **Context discipline.** The operator never reads change artifacts (intakes, specs, tasks). Its context window is reserved for coordination state — pane maps, stage snapshots, `.fab-operator.yaml`. This keeps long-running sessions lean.
 
-**State re-derivation.** Before every action, re-query live state via `fab pane-map`. Panes die, stages advance, agents finish — stale state leads to wrong actions. Never rely on conversation memory for pane or stage values.
+**State re-derivation.** Before every action, re-query live state via `fab pane map`. Panes die, stages advance, agents finish — stale state leads to wrong actions. Never rely on conversation memory for pane or stage values.
 
 **Self-manage context.** The operator is long-lived. When context approaches capacity, run `/clear` and restart the loop. Continuity is maintained via `.fab-operator.yaml` — the monitored set and autopilot queue survive a clear. After clearing, re-read context files, re-read `.fab-operator.yaml`, and resume.
 
@@ -62,7 +62,7 @@ Error: operator requires tmux. Start a tmux session first.
 
 1. Read `.fab-operator.yaml` from the repo root. If missing, create with empty `monitored: {}`, `autopilot: null`, and `branch_map: {}`
 2. Restore monitored set, autopilot queue, and branch_map from the file (supports `/clear` recovery)
-3. Run `fab pane-map` and display the output
+3. Run `fab pane map` and display the output
 4. If any tracked items exist (monitored changes, active autopilot, or watches), start the loop: `/loop 3m "operator tick"`
 5. Output: `Operator ready.` (+ `Loop active (3m).` if loop started)
 
@@ -80,12 +80,11 @@ Error: operator requires tmux. Start a tmux session first.
 
 ### Pre-Send Validation
 
-Before sending keys to any pane:
+Before sending to any pane:
 
-1. **Verify pane exists** — refresh pane map. If gone: "Pane for {change} is gone." Do not send.
-2. **Check agent is idle** — if busy: "{change} is active. Sending may corrupt its work. Send anyway?" Only on explicit confirmation.
-3. **Check change is active** — if the target change isn't the active change in that tab, send `/fab-switch <change>` first.
-4. **Check branch alignment** — if the tab's git branch doesn't match the change folder name, send `/git-branch` to align it.
+1. **Send via `fab pane send`** — use `fab pane send <pane> <text>` which validates pane existence and agent idle state. If the pane is gone, the command exits 1 with `pane <pane> not found`. If the agent is active, it exits 1 with `agent in <pane> is active, use --force to override`. Use `--force` only after explicit user confirmation.
+2. **Check change is active** — if the target change isn't the active change in that tab, send `/fab-switch <change>` first.
+3. **Check branch alignment** — if the tab's git branch doesn't match the change folder name, send `/git-branch` to align it.
 
 ### Branch Fallback
 
@@ -170,7 +169,7 @@ The top-level `branch_map` persists change ID → branch name mappings. Entries 
 
 On each tick:
 
-1. **Snapshot** — increment `tick_count`, run `fab pane-map`, read `.fab-operator.yaml`. Compute status for all tracked items: stage advances, completions, review failures, pane deaths, and watch statuses from the last persisted check (`last_checked` / `last_error` / last counts). Output the status frame:
+1. **Snapshot** — increment `tick_count`, run `fab pane map`, read `.fab-operator.yaml`. Compute status for all tracked items: stage advances, completions, review failures, pane deaths, and watch statuses from the last persisted check (`last_checked` / `last_error` / last counts). Output the status frame:
 
 ```
 ── Operator ── 17:32 ── tick #47 ── 7 tracked ──
@@ -241,10 +240,11 @@ The operator auto-answers routine prompts from monitored agents. Each idle agent
 
 ### Question Detection
 
-1. **Capture**: `tmux capture-pane -t <pane> -p -l 20`
-2. **Claude turn boundary guard**: `^\s*>\s*$` in last 2 lines → skip (normal human-turn boundary)
-3. **Blank capture guard**: all blank → skip (treat as "cannot determine")
-4. **Scan for indicators** (bottom-most match wins):
+1. **Process pre-filter**: `fab pane process <pane>` — if state is not `waiting-for-input`, skip capture (the process is running, sleeping, or exited; no prompt to answer). Only proceed to capture when state is `waiting-for-input`.
+2. **Capture**: `fab pane capture <pane> -l 20`
+3. **Claude turn boundary guard**: `^\s*>\s*$` in last 2 lines → skip (normal human-turn boundary)
+4. **Blank capture guard**: all blank → skip (treat as "cannot determine")
+5. **Scan for indicators** (bottom-most match wins):
    - Lines ending with `?` (last non-empty line only, <120 chars, skip `#`/`//`/`*`/`>`/timestamp lines)
    - `[Y/n]`, `[y/N]`, `(y/n)`, `(yes/no)`
    - `Allow?`, `Approve?`, `Confirm?`, `Proceed?`
@@ -253,8 +253,8 @@ The operator auto-answers routine prompts from monitored agents. Each idle agent
    - Lines ending with `:` (CLI input prompts)
    - Enumerated options (`[1-9]\)`)
    - `Press.*key`, `press.*enter`, `hit.*enter` (case-insensitive)
-5. **No match** → stuck detection applies
-6. **Match** → answer model
+6. **No match** → stuck detection applies
+7. **Match** → answer model
 
 ### Answer Model
 
@@ -269,7 +269,7 @@ Evaluate in order:
 
 ### Sending Auto-Answers
 
-Before `tmux send-keys`: verify pane exists and agent is still idle (§3 steps 1-2), then re-capture the terminal. If output changed since detection, abort — agent is no longer waiting.
+Before sending: use `fab pane send <pane> <answer>` which validates pane existence and idle state (§3 step 1). Then re-capture the terminal. If output changed since detection, abort — agent is no longer waiting.
 
 ### Logging
 

@@ -19,7 +19,7 @@ import (
 
 func paneMapCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "pane-map",
+		Use:   "map",
 		Short: "Show tmux pane-to-worktree mapping with fab pipeline state",
 		Args:  cobra.NoArgs,
 		RunE:  runPaneMap,

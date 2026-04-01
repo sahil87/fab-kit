@@ -1,0 +1,25 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-03-31T17:57:37Z"}
+{"args":"Research: investigate tmux superpowers for the operator — tmux wait-for and tmux MCP","cmd":"fab-new","event":"command","ts":"2026-03-31T17:57:37Z"}
+{"delta":"+2.4","event":"confidence","score":2.4,"trigger":"calc-score","ts":"2026-03-31T17:59:01Z"}
+{"delta":"+0.0","event":"confidence","score":2.4,"trigger":"calc-score","ts":"2026-03-31T17:59:06Z"}
+{"delta":"+0.0","event":"confidence","score":2.4,"trigger":"calc-score","ts":"2026-03-31T18:00:03Z"}
+{"delta":"+0.0","event":"confidence","score":2.4,"trigger":"calc-score","ts":"2026-03-31T19:00:31Z"}
+{"delta":"+0.0","event":"confidence","score":2.4,"trigger":"calc-score","ts":"2026-03-31T19:00:35Z"}
+{"delta":"+0.0","event":"confidence","score":2.4,"trigger":"calc-score","ts":"2026-04-01T03:48:38Z"}
+{"delta":"+0.0","event":"confidence","score":2.4,"trigger":"calc-score","ts":"2026-04-01T03:48:58Z"}
+{"delta":"+1.4","event":"confidence","score":3.8,"trigger":"calc-score","ts":"2026-04-01T03:52:52Z"}
+{"delta":"+0.0","event":"confidence","score":3.8,"trigger":"calc-score","ts":"2026-04-01T03:52:55Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-04-01T03:55:00Z"}
+{"delta":"-2.0","event":"confidence","score":1.8,"trigger":"calc-score","ts":"2026-04-01T03:58:21Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"spec","ts":"2026-04-01T03:58:39Z"}
+{"delta":"+1.4","event":"confidence","score":3.2,"trigger":"calc-score","ts":"2026-04-01T03:59:08Z"}
+{"delta":"+0.0","event":"confidence","score":3.2,"trigger":"calc-score","ts":"2026-04-01T03:59:09Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"tasks","ts":"2026-04-01T03:59:18Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-04-01T04:02:14Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-04-01T04:23:34Z"}
+{"event":"review","result":"failed","ts":"2026-04-01T04:45:46Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-04-01T04:45:47Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-04-01T04:46:55Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-04-01T04:49:02Z"}
+{"event":"review","result":"passed","ts":"2026-04-01T04:49:02Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-04-01T04:52:09Z"}

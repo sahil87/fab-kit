@@ -1,0 +1,42 @@
+id: 1y2f
+name: 260331-1y2f-tmux-superpowers-operator-research
+created: 2026-03-31T17:57:37Z
+created_by: sahil-weaver
+change_type: refactor
+issues: []
+progress:
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+checklist:
+    generated: true
+    path: checklist.md
+    completed: 0
+    total: 0
+confidence:
+    certain: 5
+    confident: 6
+    tentative: 0
+    unresolved: 0
+    score: 3.2
+    fuzzy: true
+    dimensions:
+        signal: 81.4
+        reversibility: 87.3
+        competence: 84.1
+        disambiguation: 81.8
+stage_metrics:
+    intake: {started_at: "2026-03-31T17:57:37Z", driver: fab-new, iterations: 1, completed_at: "2026-04-01T03:58:39Z"}
+    spec: {started_at: "2026-04-01T03:58:39Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-01T03:59:18Z"}
+    tasks: {started_at: "2026-04-01T03:59:18Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-01T04:02:14Z"}
+    apply: {started_at: "2026-04-01T04:45:47Z", driver: fab-fff, iterations: 2, completed_at: "2026-04-01T04:46:55Z"}
+    review: {started_at: "2026-04-01T04:46:55Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-01T04:49:02Z"}
+    hydrate: {started_at: "2026-04-01T04:49:02Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-01T04:52:09Z"}
+    ship: {started_at: "2026-04-01T04:52:09Z", driver: fab-fff, iterations: 1}
+prs: []
+last_updated: 2026-04-01T04:52:09Z

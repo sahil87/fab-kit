@@ -711,6 +711,7 @@ func TestPrintPaneTableWithWinIdx(t *testing.T) {
 
 func TestPaneMapMutualExclusion(t *testing.T) {
 	t.Run("session and all-sessions are mutually exclusive", func(t *testing.T) {
+		// paneMapCmd is now registered as "map" under the "pane" parent
 		cmd := paneMapCmd()
 		cmd.SetArgs([]string{"--session", "foo", "--all-sessions"})
 		// Cobra's MarkFlagsMutuallyExclusive should produce an error

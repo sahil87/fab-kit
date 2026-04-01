@@ -41,7 +41,7 @@ fab/.kit/bin/fab <command> <subcommand> [args...]
 | `fab score` | Confidence scoring |
 | `fab runtime` | Runtime state management (.fab-runtime.yaml) |
 | `fab hook` | Claude Code hook subcommands (session-start, stop, user-prompt, artifact-write, sync) |
-| `fab pane-map` | Tmux pane-to-worktree mapping with pipeline state (all panes) |
+| `fab pane` | Tmux pane observation and interaction (map, capture, send, process) |
 
 ---
 
@@ -265,15 +265,32 @@ fab/.kit/bin/fab hook <subcommand>
 
 ---
 
-## fab pane-map
+## fab pane
 
-Pane Map — shows all tmux panes with pipeline state. Includes all panes regardless of whether they are in a git repo or have a `fab/` directory.
+Tmux pane observation and interaction — subcommands for mapping, capturing, sending, and process detection.
 
 ```
-fab/.kit/bin/fab pane-map [--json] [--session <name>] [--all-sessions]
+fab/.kit/bin/fab pane <subcommand> [args...]
 ```
 
-### Flags
+| Subcommand | Usage | Purpose |
+|------------|-------|---------|
+| `map` | `pane map [--json] [--session <name>] [--all-sessions]` | Show pane-to-worktree mapping with pipeline state |
+| `capture` | `pane capture <pane> [-l N] [--json]` | Capture visible content of a tmux pane |
+| `send` | `pane send <pane> <text> [--force]` | Send text to a tmux pane with safety validation |
+| `process` | `pane process <pane> [--json]` | Detect OS-level state of the foreground process |
+
+---
+
+### fab pane map
+
+Shows all tmux panes with pipeline state. Includes all panes regardless of whether they are in a git repo or have a `fab/` directory.
+
+```
+fab/.kit/bin/fab pane map [--json] [--session <name>] [--all-sessions]
+```
+
+#### Flags
 
 | Flag | Type | Description |
 |------|------|-------------|
@@ -283,7 +300,7 @@ fab/.kit/bin/fab pane-map [--json] [--session <name>] [--all-sessions]
 
 `--session` and `--all-sessions` are mutually exclusive. When neither is set, discovers panes in the current tmux session only (`-s` session scope) and requires `$TMUX` to be set.
 
-### Table Output
+#### Table Output
 
 Produces an aligned table with columns:
 
@@ -310,7 +327,7 @@ Pane   WinIdx  Tab        Worktree                       Change                 
 %15    3       scratch    downloads/                     —                                   —         —
 ```
 
-### JSON Output
+#### JSON Output
 
 When `--json` is set, output is a JSON array. Each element has these fields (snake_case):
 
@@ -327,6 +344,126 @@ When `--json` is set, output is a JSON array. Each element has these fields (sna
 | `agent_idle_duration` | string\|null | Duration string (e.g., `"5m"`) when idle; `null` otherwise |
 
 **Error behavior**: If `$TMUX` is unset and neither `--session` nor `--all-sessions` is provided, prints `Error: not inside a tmux session` to stderr and exits 1. If no tmux panes are found, prints `No tmux panes found.` and exits 0.
+
+---
+
+### fab pane capture
+
+Capture the visible content of a tmux pane. Default output is raw text. With `--json`, enriches output with fab context (change, stage, agent state).
+
+```
+fab/.kit/bin/fab pane capture <pane> [-l N] [--json]
+```
+
+#### Arguments
+
+| Arg | Required | Description |
+|-----|----------|-------------|
+| `<pane>` | Yes | Tmux pane ID (e.g., `%3`) |
+
+#### Flags
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `-l N` | int | Number of lines to capture (default: all visible) |
+| `--json` | bool | Output as JSON object with fab context |
+
+#### Raw Output
+
+Plain text, equivalent to `tmux capture-pane -t <pane> -p [-l N]`.
+
+#### JSON Output
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `pane` | string | Tmux pane ID |
+| `lines` | int | Number of lines captured |
+| `content` | string | Raw captured text |
+| `change` | string\|null | Active change folder name; `null` if not in a fab worktree |
+| `stage` | string\|null | Pipeline stage; `null` if not in a fab worktree |
+| `agent_state` | string\|null | `"active"`, `"idle"`, `"unknown"`, or `null` |
+
+**Error behavior**: If the pane does not exist, prints `pane <pane> not found` to stderr and exits 1.
+
+---
+
+### fab pane send
+
+Send text to a tmux pane with safety validation. By default, validates pane existence and agent idle state before sending. Non-fab panes are treated as idle (no `--force` required).
+
+```
+fab/.kit/bin/fab pane send <pane> <text> [--force]
+```
+
+#### Arguments
+
+| Arg | Required | Description |
+|-----|----------|-------------|
+| `<pane>` | Yes | Tmux pane ID (e.g., `%3`) |
+| `<text>` | Yes | Text to send (followed by Enter) |
+
+#### Flags
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--force` | bool | Skip agent idle check (pane existence still validated) |
+
+#### Validation
+
+1. **Pane exists** — if not: `pane <pane> not found` (exit 1)
+2. **Agent idle** (skipped with `--force`) — if active: `agent in <pane> is active, use --force to override` (exit 1)
+
+Non-fab panes (no `fab/` directory or no `.fab-runtime.yaml`) are treated as idle.
+
+**Sends**: `tmux send-keys -t <pane> "<text>" Enter`
+
+---
+
+### fab pane process
+
+Detect the OS-level state of the foreground process in a tmux pane. Walks the process tree from the pane's shell PID to find the foreground (leaf) process.
+
+```
+fab/.kit/bin/fab pane process <pane> [--json]
+```
+
+#### Arguments
+
+| Arg | Required | Description |
+|-----|----------|-------------|
+| `<pane>` | Yes | Tmux pane ID (e.g., `%3`) |
+
+#### Flags
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--json` | bool | Output as JSON object |
+
+#### States
+
+| State | Meaning |
+|-------|---------|
+| `running` | Foreground process is actively executing |
+| `waiting-for-input` | Foreground process is blocked on tty read |
+| `sleeping` | Foreground process is sleeping (not on tty read) |
+| `stopped` | Foreground process is stopped (SIGSTOP/SIGTSTP) |
+| `exited` | No foreground process beyond the pane's shell |
+
+Default output is a single state word on stdout. Exit code 0 on success.
+
+#### JSON Output
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `pane` | string | Tmux pane ID |
+| `pid` | int | Foreground process PID |
+| `state` | string | One of the five states above |
+| `process_name` | string | Name of the foreground process |
+| `change` | string\|null | Active change folder name; `null` if not in a fab worktree |
+
+**Cross-platform**: Linux uses `/proc/{pid}/stat` + `/proc/{pid}/wchan`; macOS uses `ps` + `lsof`. Ambiguous states fall back to `sleeping` (no error).
+
+**Error behavior**: If the pane does not exist, prints `pane <pane> not found` to stderr and exits 1.
 
 ---
 
