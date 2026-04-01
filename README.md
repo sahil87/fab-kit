@@ -102,7 +102,7 @@ brew install go
 #### New project
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/wvrdz/fab-kit/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/sahil87/fab-kit/main/scripts/install.sh | bash
 ```
 
 #### Initialize

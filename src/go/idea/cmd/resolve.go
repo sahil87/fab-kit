@@ -1,6 +1,6 @@
 package main
 
-import "github.com/wvrdz/fab-kit/src/go/idea/internal/idea"
+import "github.com/sahil87/fab-kit/src/go/idea/internal/idea"
 
 func resolveFile() (string, error) {
 	var repoRoot string

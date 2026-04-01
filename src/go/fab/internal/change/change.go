@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wvrdz/fab-kit/src/go/fab/internal/log"
-	"github.com/wvrdz/fab-kit/src/go/fab/internal/resolve"
-	"github.com/wvrdz/fab-kit/src/go/fab/internal/status"
-	sf "github.com/wvrdz/fab-kit/src/go/fab/internal/statusfile"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/log"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
+	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
 )
 
 var slugRegex = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$`)

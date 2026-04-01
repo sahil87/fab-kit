@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wvrdz/fab-kit/src/go/fab/internal/resolve"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 
-	"github.com/wvrdz/fab-kit/src/go/fab/internal/status"
-	sf "github.com/wvrdz/fab-kit/src/go/fab/internal/statusfile"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
+	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
 )
 
 // Result holds the structured preflight output.

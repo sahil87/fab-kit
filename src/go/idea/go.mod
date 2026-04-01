@@ -1,4 +1,4 @@
-module github.com/wvrdz/fab-kit/src/go/idea
+module github.com/sahil87/fab-kit/src/go/idea
 
 go 1.22
 

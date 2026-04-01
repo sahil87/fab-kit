@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/wvrdz/fab-kit/src/go/fab/internal/resolve"
-	"github.com/wvrdz/fab-kit/src/go/fab/internal/score"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/score"
 )
 
 func scoreCmd() *cobra.Command {

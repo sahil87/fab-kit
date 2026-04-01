@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wvrdz/fab-kit/src/go/fab/internal/change"
-	"github.com/wvrdz/fab-kit/src/go/fab/internal/resolve"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/change"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 )
 
 // ArchiveResult holds the YAML output for archive operations.

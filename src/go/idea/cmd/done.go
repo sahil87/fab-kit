@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/wvrdz/fab-kit/src/go/idea/internal/idea"
+	"github.com/sahil87/fab-kit/src/go/idea/internal/idea"
 )
 
 func doneCmd() *cobra.Command {

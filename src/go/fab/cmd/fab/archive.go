@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	archivePkg "github.com/wvrdz/fab-kit/src/go/fab/internal/archive"
-	"github.com/wvrdz/fab-kit/src/go/fab/internal/resolve"
+	archivePkg "github.com/sahil87/fab-kit/src/go/fab/internal/archive"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 )
 
 func changeArchiveCmd() *cobra.Command {

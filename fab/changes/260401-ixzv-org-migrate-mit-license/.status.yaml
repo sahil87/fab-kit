@@ -1,0 +1,44 @@
+id: ixzv
+name: 260401-ixzv-org-migrate-mit-license
+created: 2026-04-01T23:12:52Z
+created_by: sahil-weaver
+change_type: chore
+issues: []
+progress:
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: active
+checklist:
+    generated: true
+    path: checklist.md
+    completed: 13
+    total: 13
+confidence:
+    certain: 7
+    confident: 1
+    tentative: 0
+    unresolved: 0
+    score: 4.7
+    fuzzy: true
+    dimensions:
+        signal: 91.3
+        reversibility: 91.9
+        competence: 92.5
+        disambiguation: 94.4
+stage_metrics:
+    intake: {started_at: "2026-04-01T23:12:52Z", driver: fab-new, iterations: 1, completed_at: "2026-04-01T23:23:43Z"}
+    spec: {started_at: "2026-04-01T23:23:43Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-01T23:24:57Z"}
+    tasks: {started_at: "2026-04-01T23:24:57Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-01T23:24:57Z"}
+    apply: {started_at: "2026-04-01T23:24:57Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-01T23:26:27Z"}
+    review: {started_at: "2026-04-01T23:26:27Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-01T23:27:34Z"}
+    hydrate: {started_at: "2026-04-01T23:27:34Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-01T23:29:01Z"}
+    ship: {started_at: "2026-04-01T23:29:01Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-01T23:30:42Z"}
+    review-pr: {started_at: "2026-04-01T23:30:42Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/295
+last_updated: 2026-04-01T23:30:42Z

@@ -290,7 +290,7 @@ The dispatcher script is always shipped and always tracked in git. The Go backen
 
 The sole backend for all fab CLI operations. A single Go binary at `fab/.kit/bin/fab-go` (source: `src/go/fab/`).
 
-**Module**: `github.com/wvrdz/fab-kit/src/go/fab` (Go 1.22+, dependencies: cobra, gopkg.in/yaml.v3, no CGo)
+**Module**: `github.com/sahil87/fab-kit/src/go/fab` (Go 1.22+, dependencies: cobra, gopkg.in/yaml.v3, no CGo)
 
 **Binary location**: `fab/.kit/bin/fab-go` — included in per-platform release archives (`kit-{os}-{arch}.tar.gz`), absent from the generic `kit.tar.gz`. The generic archive no longer provides a working `fab` command — a compiled backend is required.
 
@@ -338,7 +338,7 @@ A separate Go binary for git worktree management, built from `src/go/fab/cmd/wt/
 
 **Binary location**: `fab/.kit/bin/wt` — included in per-platform release archives (`kit-{os}-{arch}.tar.gz`), absent from the generic `kit.tar.gz`. Available on PATH via `.envrc` (`PATH_add fab/.kit/bin`).
 
-**Module**: Same Go module as `fab-go` (`github.com/wvrdz/fab-kit/src/go/fab`). Dependencies: cobra (subcommand dispatch). Does NOT depend on any `fab`-specific packages — only `internal/worktree/` and shared utilities in `internal/`.
+**Module**: Same Go module as `fab-go` (`github.com/sahil87/fab-kit/src/go/fab`). Dependencies: cobra (subcommand dispatch). Does NOT depend on any `fab`-specific packages — only `internal/worktree/` and shared utilities in `internal/`.
 
 **Subcommands** (5 — `wt pr` dropped, overlaps with `/git-pr`):
 - `wt create [flags] [branch]` — create a git worktree (random name for exploratory, branch-derived name for feature). `--base <ref>` sets the git start-point for new branches (maps to `git worktree add -b <branch> <path> <start-point>`); ignored with a warning for existing local/remote branches; validated via `git rev-parse --verify` before use; defers to `--reuse` when both are provided and the worktree already exists
@@ -568,3 +568,4 @@ Full benchmark suite with harness and all 4 implementations: `src/benchmark/`
 | 260313-wrt4-pane-map-json-session-flags | 2026-03-13 | Added `--json`, `--session <name>`, `--all-sessions` flags to `fab pane-map`. JSON output with snake_case fields and null semantics. `WinIdx` column in table, conditional `Session` column with `--all-sessions`. `discoverPanes` now accepts session targeting mode. |
 | 260312-9lci-fix-status-show-fab-current | 2026-03-12 | Removed `fab status show` from Go binary subcommand list (was already deleted from source). Fixed stale `fab/current` references in send-keys pane resolution description and "Preserved" list (now `.fab-status.yaml`). |
 | — | 2026-02-07 | Generated from doc/fab-spec/ (ARCHITECTURE.md, README.md) |
+| 260401-ixzv-org-migrate-mit-license | 2026-04-02 | Migrated GitHub org references from wvrdz to sahil87. License changed from PolyForm Internal Use to MIT (root LICENSE). |

@@ -12,7 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/spf13/cobra"
-	wt "github.com/wvrdz/fab-kit/src/go/wt/internal/worktree"
+	wt "github.com/sahil87/fab-kit/src/go/wt/internal/worktree"
 )
 
 // ansiPattern matches ANSI escape sequences for display width calculation.

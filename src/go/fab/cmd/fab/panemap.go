@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/wvrdz/fab-kit/src/go/fab/internal/resolve"
-	sf "github.com/wvrdz/fab-kit/src/go/fab/internal/statusfile"
-	"github.com/wvrdz/fab-kit/src/go/fab/internal/status"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
+	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
 	"gopkg.in/yaml.v3"
 )
 
