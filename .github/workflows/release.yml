@@ -78,75 +78,31 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Update Homebrew tap formula with new version and SHA256 hashes
       - name: Update Homebrew tap
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
-          TAG="${{ github.ref_name }}"
-          VERSION="${TAG#v}"
+          version="${{ github.ref_name }}"
+          version="${version#v}"
 
-          # Compute SHA256 for each brew archive
-          SHA_DARWIN_ARM64=$(shasum -a 256 brew-darwin-arm64.tar.gz | cut -d' ' -f1)
-          SHA_DARWIN_AMD64=$(shasum -a 256 brew-darwin-amd64.tar.gz | cut -d' ' -f1)
-          SHA_LINUX_ARM64=$(shasum -a 256 brew-linux-arm64.tar.gz | cut -d' ' -f1)
-          SHA_LINUX_AMD64=$(shasum -a 256 brew-linux-amd64.tar.gz | cut -d' ' -f1)
+          sha_darwin_arm64=$(shasum -a 256 brew-darwin-arm64.tar.gz | cut -d' ' -f1)
+          sha_darwin_amd64=$(shasum -a 256 brew-darwin-amd64.tar.gz | cut -d' ' -f1)
+          sha_linux_arm64=$(shasum -a 256 brew-linux-arm64.tar.gz | cut -d' ' -f1)
+          sha_linux_amd64=$(shasum -a 256 brew-linux-amd64.tar.gz | cut -d' ' -f1)
 
-          # Clone tap repo
-          git clone https://x-access-token:${TAP_TOKEN}@github.com/sahil87/homebrew-tap.git /tmp/tap
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/sahil87/homebrew-tap.git" /tmp/tap
+
+          sed \
+            -e "s/VERSION_PLACEHOLDER/${version}/" \
+            -e "s/SHA_DARWIN_ARM64/${sha_darwin_arm64}/" \
+            -e "s/SHA_DARWIN_AMD64/${sha_darwin_amd64}/" \
+            -e "s/SHA_LINUX_ARM64/${sha_linux_arm64}/" \
+            -e "s/SHA_LINUX_AMD64/${sha_linux_amd64}/" \
+            .github/formula-template.rb > /tmp/tap/Formula/fab-kit.rb
+
           cd /tmp/tap
-
-          # Generate updated formula
-          cat > Formula/fab-kit.rb << FORMULA
-          class FabKit < Formula
-            desc "Specification-driven development toolkit — router, workspace manager, worktree manager, and backlog tool"
-            homepage "https://github.com/sahil87/fab-kit"
-            version "${VERSION}"
-            license "MIT"
-
-            on_macos do
-              on_arm do
-                url "https://github.com/sahil87/fab-kit/releases/download/v#{version}/brew-darwin-arm64.tar.gz"
-                sha256 "${SHA_DARWIN_ARM64}"
-              end
-              on_intel do
-                url "https://github.com/sahil87/fab-kit/releases/download/v#{version}/brew-darwin-amd64.tar.gz"
-                sha256 "${SHA_DARWIN_AMD64}"
-              end
-            end
-
-            on_linux do
-              on_arm do
-                url "https://github.com/sahil87/fab-kit/releases/download/v#{version}/brew-linux-arm64.tar.gz"
-                sha256 "${SHA_LINUX_ARM64}"
-              end
-              on_intel do
-                url "https://github.com/sahil87/fab-kit/releases/download/v#{version}/brew-linux-amd64.tar.gz"
-                sha256 "${SHA_LINUX_AMD64}"
-              end
-            end
-
-            def install
-              bin.install "fab"
-              bin.install "fab-kit"
-              bin.install "wt"
-              bin.install "idea"
-            end
-
-            test do
-              assert_match version.to_s, shell_output("#{bin}/fab --version")
-              assert_match version.to_s, shell_output("#{bin}/fab-kit --version")
-              assert_match version.to_s, shell_output("#{bin}/wt --version")
-              assert_match version.to_s, shell_output("#{bin}/idea --version")
-            end
-          end
-          FORMULA
-
-          # Remove leading whitespace from heredoc indentation
-          sed -i 's/^          //' Formula/fab-kit.rb
-
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/fab-kit.rb
-          git commit -m "fab-kit ${VERSION}"
+          git commit -m "fab-kit ${version}"
           git push
-        env:
-          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
