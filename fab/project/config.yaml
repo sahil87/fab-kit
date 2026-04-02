@@ -1,11 +1,13 @@
+agent:
+    spawn_command: claude --dangerously-skip-permissions --effort max -n "$(basename "$(pwd)")"
 checklist:
     extra_categories:
         - documentation_accuracy
         - cross_references
-fab_version: 0.45.1
+fab_version: 0.46.0
 project:
     description: FAB Kit — Tooling for Specification-Driven Development
-    linear_workspace: 
+    linear_workspace: null
     name: fab-kit
 source_paths:
     - src/
@@ -20,8 +22,3 @@ stage_directives:
         - Document impacts on existing research docs
         - Note any methodology comparisons or synthesis
     tasks: []
-
-agent:
-  # Base command for spawning agent sessions in scripts and operators.
-  # Shell expansions (e.g., $(basename "$(pwd)")) expand at invocation time.
-  spawn_command: 'claude --dangerously-skip-permissions --effort max -n "$(basename "$(pwd)")"'
