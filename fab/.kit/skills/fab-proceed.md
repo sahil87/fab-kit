@@ -30,7 +30,7 @@ Detect the current state by executing the following checks in order. The skill M
 ### Step 1: Active Change Check
 
 ```bash
-fab/.kit/bin/fab resolve --folder 2>/dev/null
+fab resolve --folder 2>/dev/null
 ```
 
 If exits 0, an active change exists. Capture the folder name.
@@ -108,7 +108,7 @@ When conversation context exists but no intake:
 
 When an unactivated intake exists (or fab-new just created one):
 
-1. Dispatch subagent: read `fab/.kit/skills/fab-switch.md`, invoke `fab/.kit/bin/fab change switch "<change-name>"`
+1. Dispatch subagent: read `fab/.kit/skills/fab-switch.md`, invoke `fab change switch "<change-name>"`
 2. Capture the switch confirmation from the subagent result
 
 #### git-branch Dispatch

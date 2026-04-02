@@ -1,6 +1,7 @@
 scripts := "scripts/just"
 fab_version := `cat fab/.kit/VERSION`
 fab_ldflags := "-X main.version=" + fab_version
+shim_ldflags := "-X main.version=" + fab_version
 
 # ── Development ──────────────────────────────────────────────────────
 
@@ -9,18 +10,25 @@ test:
     cd src/go/fab && go test ./... -count=1
     cd src/go/idea && go test ./... -count=1
     cd src/go/wt && go test ./... -count=1
+    cd src/go/shim && go test ./... -count=1
 
 # Run all tests (verbose)
 test-v:
     cd src/go/fab && go test ./... -v -count=1
     cd src/go/idea && go test ./... -v -count=1
     cd src/go/wt && go test ./... -v -count=1
+    cd src/go/shim && go test ./... -v -count=1
 
-# Build all binaries for current platform (fab, wt, idea)
+# Build all binaries for current platform (fab-go, wt, idea, fab shim)
 build:
-    cd src/go/fab && CGO_ENABLED=0 go build -ldflags '{{fab_ldflags}}' -o ../../../fab/.kit/bin/fab-go ./cmd/fab
-    cd src/go/idea && CGO_ENABLED=0 go build -o ../../../fab/.kit/bin/idea ./cmd
-    cd src/go/wt && CGO_ENABLED=0 go build -o ../../../fab/.kit/bin/wt ./cmd
+    cd src/go/fab && CGO_ENABLED=0 go build -ldflags '{{fab_ldflags}}' -o ../../../.release-build/fab-go ./cmd/fab
+    cd src/go/idea && CGO_ENABLED=0 go build -o ../../../.release-build/idea ./cmd
+    cd src/go/wt && CGO_ENABLED=0 go build -o ../../../.release-build/wt ./cmd
+    cd src/go/shim && CGO_ENABLED=0 go build -ldflags '{{shim_ldflags}}' -o ../../../.release-build/fab ./cmd
+
+# Build shim only (for local development)
+build-shim:
+    cd src/go/shim && CGO_ENABLED=0 go build -ldflags '{{shim_ldflags}}' -o ../../../.release-build/fab ./cmd
 
 # Check prerequisites and environment health
 doctor:
@@ -43,6 +51,7 @@ build-target os arch:
     just _build-binary src/go/fab ./cmd/fab fab {{os}} {{arch}} '{{fab_ldflags}}'
     just _build-binary src/go/idea ./cmd idea {{os}} {{arch}}
     just _build-binary src/go/wt ./cmd wt {{os}} {{arch}}
+    just _build-binary src/go/shim ./cmd shim {{os}} {{arch}} '{{shim_ldflags}}'
 
 # Cross-compile all binaries for all release targets
 build-all:

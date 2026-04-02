@@ -26,7 +26,7 @@ Run the entire Fab pipeline from intake through PR review in a single invocation
 
 1. Run preflight per `_preamble.md` Section 2. Pass `<change-name>` if provided.
 2. Verify `intake.md` exists. If not, STOP: `Intake not found. Run /fab-new to create the intake first, then run /fab-fff.`
-3. **Intake gate** (skip if `--force`): Run `fab/.kit/bin/fab score --check-gate --stage intake <change>`. If the gate fails → STOP: `Indicative confidence is {score} of 5.0 (need >= 3.0). Run /fab-clarify to resolve, then retry.`
+3. **Intake gate** (skip if `--force`): Run `fab score --check-gate --stage intake <change>`. If the gate fails → STOP: `Indicative confidence is {score} of 5.0 (need >= 3.0). Run /fab-clarify to resolve, then retry.`
 
 ---
 
@@ -38,7 +38,7 @@ Load per `_preamble.md` Sections 1-3 (config, constitution, intake, memory index
 
 ## Behavior
 
-> **Note**: All `.status.yaml` mutations in this skill use `fab/.kit/bin/fab status` event commands (`start`, `advance`, `finish`, `reset`, `fail`, `set-checklist`) rather than direct file edits. Driver is optional in the CLI but this skill always passes `fab-fff`.
+> **Note**: All `.status.yaml` mutations in this skill use `fab status` event commands (`start`, `advance`, `finish`, `reset`, `fail`, `set-checklist`) rather than direct file edits. Driver is optional in the CLI but this skill always passes `fab-fff`.
 >
 > **Dispatch**: All sub-skill invocations use the Agent tool (`general-purpose` subagent) per `_preamble.md` § Subagent Dispatch. Each subagent reads the target skill file, follows the specified behavior, and returns a structured result to the pipeline.
 
@@ -50,9 +50,9 @@ Check `progress` from preflight. Skip stages already `done`. If `review-pr: done
 
 *(Skip if `progress.spec` is `done`.)*
 
-Follow **Spec Generation Procedure** (`_generation.md`). No frontloaded questions. Update `.status.yaml` via `fab/.kit/bin/fab status finish <change> intake fab-fff`.
+Follow **Spec Generation Procedure** (`_generation.md`). No frontloaded questions. Update `.status.yaml` via `fab status finish <change> intake fab-fff`.
 
-**Spec gate** (skip if `--force`): After spec generation, run `fab/.kit/bin/fab score --check-gate <change>`. If the gate fails → **STOP**: `Confidence is {score} of 5.0 (need >= {threshold} for {change_type}). Run /fab-clarify to resolve, then retry /fab-fff.`
+**Spec gate** (skip if `--force`): After spec generation, run `fab score --check-gate <change>`. If the gate fails → **STOP**: `Confidence is {score} of 5.0 (need >= {threshold} for {change_type}). Run /fab-clarify to resolve, then retry /fab-fff.`
 
 **Auto-Clarify**: Dispatch `/fab-clarify` as subagent — `[AUTO-MODE]`, target: `spec.md`, change: `{id}`. Returns `{resolved, blocking, non_blocking}`. If `blocking: 0` → continue. If `blocking > 0` → **BAIL**: report blocking issues, suggest `/fab-clarify` then `/fab-fff`.
 
@@ -70,7 +70,7 @@ Follow **Checklist Generation Procedure** (`_generation.md`).
 
 ### Step 4: Update `.status.yaml` (Planning Complete)
 
-Run `fab/.kit/bin/fab status finish <change> tasks fab-fff`. Then set checklist fields via `fab/.kit/bin/fab status set-checklist <change> generated true`, `fab/.kit/bin/fab status set-checklist <change> total <count>`, `fab/.kit/bin/fab status set-checklist <change> completed 0`.
+Run `fab status finish <change> tasks fab-fff`. Then set checklist fields via `fab status set-checklist <change> generated true`, `fab status set-checklist <change> total <count>`, `fab status set-checklist <change> completed 0`.
 
 ### Step 5: Implementation
 
@@ -80,7 +80,7 @@ Dispatch `/fab-continue` as subagent — Apply Behavior, change: `{id}`. The sub
 
 **If task fails**: STOP with `Task {ID} failed: {reason}. Investigate and re-run /fab-fff.`
 
-On success: run `fab/.kit/bin/fab status finish <change> apply fab-fff`.
+On success: run `fab status finish <change> apply fab-fff`.
 
 ### Step 6: Review
 
@@ -88,9 +88,9 @@ On success: run `fab/.kit/bin/fab status finish <change> apply fab-fff`.
 
 Dispatch `/fab-continue` as subagent — Review Behavior, change: `{id}`. The subagent dispatches validation to a review sub-agent, performs all checks, and returns structured findings (must-fix / should-fix / nice-to-have) with pass/fail status.
 
-**Pass**: run `fab/.kit/bin/fab status finish <change> review fab-fff`. Proceed to Step 7.
+**Pass**: run `fab status finish <change> review fab-fff`. Proceed to Step 7.
 
-**Fail**: Autonomous rework with bounded retry. Run `fab/.kit/bin/fab status fail <change> review` then `fab/.kit/bin/fab status reset <change> apply fab-fff`. The agent triages the sub-agent's prioritized findings and autonomously selects the rework path — no user interaction. Must-fix items are always addressed; should-fix items when clear and low-effort; nice-to-have items may be skipped.
+**Fail**: Autonomous rework with bounded retry. Run `fab status fail <change> review` then `fab status reset <change> apply fab-fff`. The agent triages the sub-agent's prioritized findings and autonomously selects the rework path — no user interaction. Must-fix items are always addressed; should-fix items when clear and low-effort; nice-to-have items may be skipped.
 
 **Decision heuristics** (applied to prioritized findings):
 - **Must-fix: test failures, spec mismatches, checklist violations** → "Fix code" — uncheck affected tasks with `<!-- rework: reason -->`, re-run apply, then spawn a **fresh sub-agent** for re-review
@@ -113,7 +113,7 @@ Run /fab-continue for manual rework options.
 
 *(Skip if `progress.hydrate` is `done`.)*
 
-Dispatch `/fab-continue` as subagent — Hydrate Behavior, change: `{id}`. The subagent validates review passed, hydrates into `docs/memory/`, and runs `fab/.kit/bin/fab status finish <change> hydrate fab-fff`. Returns completion status.
+Dispatch `/fab-continue` as subagent — Hydrate Behavior, change: `{id}`. The subagent validates review passed, hydrates into `docs/memory/`, and runs `fab status finish <change> hydrate fab-fff`. Returns completion status.
 
 ### Step 8: Ship
 

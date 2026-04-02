@@ -20,7 +20,7 @@ if [[ "${1:-}" == "--porcelain" ]]; then
 fi
 
 failures=0
-total=6
+total=7
 
 if [[ "$porcelain" == false ]]; then
   echo "fab-doctor: checking prerequisites..."
@@ -59,7 +59,17 @@ else
   hint "Install: brew install git"
 fi
 
-# ── 2. bash ─────────────────────────────────────────────────────────
+# ── 2. fab ──────────────────────────────────────────────────────────
+
+if command -v fab &>/dev/null; then
+  ver=$(fab --version 2>/dev/null | head -1 || echo "unknown")
+  pass "fab $ver"
+else
+  fail "fab — not found"
+  hint "Install: brew install fab-kit"
+fi
+
+# ── 3. bash ─────────────────────────────────────────────────────────
 
 if command -v bash &>/dev/null; then
   ver=$(bash --version | head -1 | sed 's/.*version \([^ (]*\).*/\1/')
@@ -69,7 +79,7 @@ else
   hint "Install: brew install bash"
 fi
 
-# ── 3. yq ───────────────────────────────────────────────────────────
+# ── 4. yq ───────────────────────────────────────────────────────────
 
 if command -v yq &>/dev/null; then
   yq_ver_raw=$(yq --version 2>&1)
@@ -89,7 +99,7 @@ else
   hint "Install: brew install yq"
 fi
 
-# ── 4. jq ──────────────────────────────────────────────────────────
+# ── 5. jq ──────────────────────────────────────────────────────────
 
 if command -v jq &>/dev/null; then
   ver=$(jq --version | sed 's/jq-//')
@@ -99,7 +109,7 @@ else
   hint "Install: brew install jq"
 fi
 
-# ── 5. gh ───────────────────────────────────────────────────────────
+# ── 6. gh ───────────────────────────────────────────────────────────
 
 if command -v gh &>/dev/null; then
   ver=$(gh --version | head -1 | sed 's/.*version //' | sed 's/ .*//')
@@ -109,7 +119,7 @@ else
   hint "Install: brew install gh"
 fi
 
-# ── 6. direnv ───────────────────────────────────────────────────────
+# ── 7. direnv ───────────────────────────────────────────────────────
 
 if command -v direnv &>/dev/null; then
   ver=$(direnv version)

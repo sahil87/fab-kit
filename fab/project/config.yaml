@@ -1,3 +1,5 @@
+fab_version: "0.43.1"
+
 project:
   name: "fab-kit"
   description: "FAB Kit — Tooling for Specification-Driven Development"

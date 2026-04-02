@@ -2,7 +2,6 @@
 .fab-*
 fab/.kit-sync-version
 fab/.kit/bin/*
-!fab/.kit/bin/fab
 !fab/.kit/bin/.gitkeep
 fab/changes/**/.pr-done
 

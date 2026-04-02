@@ -49,7 +49,7 @@ Before doing anything else, verify the kit exists:
 After the pre-flight check passes, log the command invocation:
 
 ```bash
-fab/.kit/bin/fab log command "fab-setup" 2>/dev/null || true
+fab log command "fab-setup" 2>/dev/null || true
 ```
 
 This is best-effort — logman resolves the active change via `.fab-status.yaml` if one exists. Failures are silently ignored.

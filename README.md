@@ -72,7 +72,8 @@ fab/changes/260101-abcd-add-spinner/
 Install with [Homebrew](https://brew.sh/) (macOS and Linux):
 
 ```bash
-brew install yq jq gh direnv
+brew tap wvrdz/tap
+brew install fab-kit yq jq gh direnv
 ```
 
 * After installing `gh`, authenticate with `gh auth login`.
@@ -80,6 +81,7 @@ brew install yq jq gh direnv
 
 | Tool | Purpose |
 |------|---------|
+| [fab-kit](https://github.com/sahil87/fab-kit) | The fab CLI shim, worktree manager (`wt`), and backlog manager (`idea`) |
 | [yq](https://github.com/mikefarah/yq) | YAML processing for status files and schemas |
 | [jq](https://jqlang.github.io/jq/) | JSON processing for settings merge during sync |
 | [gh](https://cli.github.com/) | GitHub CLI - used for installation and releases |
@@ -90,30 +92,23 @@ brew install yq jq gh direnv
 In addition to the above:
 
 ```bash
-brew install go
+brew install go just
 ```
 
 | Tool | Purpose |
 |------|---------|
-| [Go](https://go.dev/) | Required for building the `fab` binary from source (`src/go/fab/`) |
+| [Go](https://go.dev/) | Required for building binaries from source (`src/go/`) |
+| [just](https://just.systems/) | Task runner for build, test, and release recipes |
 
 ### 1. Install
 
 #### New project
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sahil87/fab-kit/main/scripts/install.sh | bash
+fab init
 ```
 
-#### Initialize
-
-**In your terminal:**
-
-```bash
-fab/.kit/scripts/fab-sync.sh            # creates directories, symlinks, docs/memory/, .gitignore
-# direnv allow                          # Done by fab-sync.sh automatically. approve .envrc (adds scripts to PATH)
-# No direnv? export PATH="$PWD/fab/.kit/scripts:$PATH"
-```
+This scaffolds `fab/.kit/` from the latest release, sets `fab_version` in `fab/project/config.yaml`, and runs `fab-sync.sh`.
 
 **Then in your AI agent:**
 
@@ -127,8 +122,8 @@ This generates `fab/project/config.yaml` and `fab/project/constitution.md` (your
 #### Updating from a previous version
 
 ```bash
-fab-upgrade.sh           # downloads latest kit, replaces fab/.kit/, auto-runs fab-sync.sh
-fab-upgrade.sh v0.24.0   # downloads a specific version instead of latest
+fab upgrade              # upgrades to latest version
+fab upgrade 0.44.0       # upgrades to a specific version
 ```
 
 If the upgrade reports a version mismatch, run `/fab-setup migrations` in your AI agent to apply migrations. Safe to re-run.
@@ -371,7 +366,6 @@ The operator is a long-running coordination layer that sits in its own tmux pane
 
 | Script | Purpose |
 |--------|---------|
-| `fab-upgrade.sh` | Download latest kit release, replace fab/.kit/, run sync |
 | `fab-sync.sh` | Repair symlinks, scaffold structure, deploy skills |
 | `fab-doctor.sh` | Diagnose common setup issues |
 | `fab-help.sh` | Print workflow overview to terminal |
@@ -502,7 +496,7 @@ Fab Kit ships standalone shell CLI tools in `fab/.kit/packages/`. These are gene
 
 ### Setup
 
-Projects using direnv get CLI tools (`wt`, `idea`) on PATH automatically via `.envrc`. The Go binaries are distributed in `fab/.kit/bin/`.
+`wt` and `idea` are installed system-wide via `brew install fab-kit`. No per-repo binary distribution needed.
 
 ### Development
 

@@ -47,7 +47,7 @@ The operator needs full command vocabulary to make routing decisions (e.g., know
 After context loading, log the command invocation:
 
 ```bash
-fab/.kit/bin/fab log command "fab-operator7" 2>/dev/null || true
+fab log command "fab-operator7" 2>/dev/null || true
 ```
 
 ### Tmux Gate

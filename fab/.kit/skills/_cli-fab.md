@@ -14,16 +14,17 @@ metadata:
 
 ## Calling Convention
 
-`fab/.kit/bin/fab` is a shell dispatcher that serves as the sole entry point for all fab CLI operations. It delegates to the Go backend (`fab-go`). All commands are implemented in the Go binary via Cobra.
+`fab` is a system shim that serves as the sole entry point for all fab CLI operations. It resolves `fab_version` from `fab/project/config.yaml`, locates the matching `fab-go` binary in the local cache (`~/.fab-kit/versions/{version}/fab-go`), and execs it with full argument passthrough. All commands are implemented in the Go binary via Cobra.
 
 ```
-fab/.kit/bin/fab <command> <subcommand> [args...]
+fab <command> <subcommand> [args...]
 ```
 
 ### Backend
 
-1. `fab/.kit/bin/fab-go` — if present and executable, all commands delegate here
-2. Error — exits 1 with message directing user to install the backend
+1. The system shim reads `fab_version` from `fab/project/config.yaml`
+2. Dispatches to the cached `fab-go` at `~/.fab-kit/versions/{version}/fab-go`
+3. If the version is not cached, the shim auto-fetches it from GitHub releases
 
 ### Help
 
@@ -66,7 +67,7 @@ All commands accept a unified `<change>` argument:
 Change Manager — manages change folders, naming, and the `.fab-status.yaml` symlink.
 
 ```
-fab/.kit/bin/fab change <subcommand> [flags...]
+fab change <subcommand> [flags...]
 ```
 
 | Subcommand | Usage | Purpose |
@@ -93,7 +94,7 @@ fab/.kit/bin/fab change <subcommand> [flags...]
 Status Manager — manages workflow stages, states, and `.status.yaml`.
 
 ```
-fab/.kit/bin/fab status <subcommand> <change> [args...]
+fab status <subcommand> <change> [args...]
 ```
 
 ### Key subcommands
@@ -147,15 +148,15 @@ Skills do NOT need to call `fab log review` or `fab log transition` manually —
 Confidence scorer — computes SRAD confidence score from Assumptions tables.
 
 ```
-fab/.kit/bin/fab score [--check-gate] [--stage <stage>] <change>
+fab score [--check-gate] [--stage <stage>] <change>
 ```
 
 | Mode | Usage | Behavior |
 |------|-------|----------|
-| Normal | `fab/.kit/bin/fab score <change>` | Parse spec.md, compute score, write to .status.yaml |
-| Intake scoring | `fab/.kit/bin/fab score --stage intake <change>` | Parse intake.md, compute score, write to .status.yaml |
-| Gate check | `fab/.kit/bin/fab score --check-gate <change>` | Parse artifact, compute score, compare threshold. Read-only |
-| Intake gate | `fab/.kit/bin/fab score --check-gate --stage intake <change>` | Intake gate with fixed threshold 3.0 |
+| Normal | `fab score <change>` | Parse spec.md, compute score, write to .status.yaml |
+| Intake scoring | `fab score --stage intake <change>` | Parse intake.md, compute score, write to .status.yaml |
+| Gate check | `fab score --check-gate <change>` | Parse artifact, compute score, compare threshold. Read-only |
+| Intake gate | `fab score --check-gate --stage intake <change>` | Intake gate with fixed threshold 3.0 |
 
 ---
 
@@ -164,7 +165,7 @@ fab/.kit/bin/fab score [--check-gate] [--stage <stage>] <change>
 Pre-flight validator — validates project state and outputs structured YAML. Purely validation + structured output — no logging side-effects.
 
 ```
-fab/.kit/bin/fab preflight [<change-name>]
+fab preflight [<change-name>]
 ```
 
 - `<change-name>`: Optional change override (resolved via change resolution).
@@ -180,7 +181,7 @@ Validates: config.yaml exists, constitution.md exists, active change resolved, `
 Change Resolver — pure query, no side effects. Converts any change reference to a canonical output.
 
 ```
-fab/.kit/bin/fab resolve [--id|--folder|--dir|--status|--pane] [<change>]
+fab resolve [--id|--folder|--dir|--status|--pane] [<change>]
 ```
 
 | Flag | Output |
@@ -198,10 +199,10 @@ fab/.kit/bin/fab resolve [--id|--folder|--dir|--status|--pane] [<change>]
 History Logger — append-only JSON logging to `.history.jsonl`. Skills call `fab log command` directly for command invocation logging.
 
 ```
-fab/.kit/bin/fab log command <cmd> [change] [args]
-fab/.kit/bin/fab log confidence <change> <score> <delta> <trigger>
-fab/.kit/bin/fab log review <change> <result> [rework]
-fab/.kit/bin/fab log transition <change> <stage> <action> [from] [reason] [driver]
+fab log command <cmd> [change] [args]
+fab log confidence <change> <score> <delta> <trigger>
+fab log review <change> <result> [rework]
+fab log transition <change> <stage> <action> [from] [reason] [driver]
 ```
 
 The `command` subcommand accepts `<cmd>` (skill name) as the first argument. `[change]` is optional — when omitted, it resolves the active change via `.fab-status.yaml`. If resolution fails (no `.fab-status.yaml` symlink, dangling symlink), exits 0 silently. When `[change]` IS provided and doesn't resolve, exits 1 with an error.
@@ -210,8 +211,8 @@ The `command` subcommand accepts `<cmd>` (skill name) as the first argument. `[c
 
 | Caller | Trigger | Call |
 |--------|---------|------|
-| Skills (via `_preamble.md` §2) | Skill invocation (preflight-calling skills) | `fab/.kit/bin/fab log command "<skill>" "<change>"` |
-| Skills (per-skill instructions) | Skill invocation (exempt skills) | `fab/.kit/bin/fab log command "<skill>"` |
+| Skills (via `_preamble.md` §2) | Skill invocation (preflight-calling skills) | `fab log command "<skill>" "<change>"` |
+| Skills (per-skill instructions) | Skill invocation (exempt skills) | `fab log command "<skill>"` |
 | `fab status finish review` | Review pass | auto-logs review "passed" |
 | `fab status fail review` | Review fail | auto-logs review "failed" |
 | `fab score` | Score computation | auto-logs confidence |
@@ -225,7 +226,7 @@ The `command` subcommand accepts `<cmd>` (skill name) as the first argument. `[c
 Runtime State Manager — manages `.fab-runtime.yaml` at the repo root. Used by hooks to track agent idle state per change.
 
 ```
-fab/.kit/bin/fab runtime <subcommand> <change>
+fab runtime <subcommand> <change>
 ```
 
 | Subcommand | Usage | Purpose |
@@ -243,7 +244,7 @@ All subcommands accept the standard `<change>` argument (4-char ID, substring, o
 Claude Code Hook Manager — implements hook logic in Go for Claude Code lifecycle events. Each subcommand is invoked by thin shell wrappers in `fab/.kit/hooks/`. All hook subcommands MUST exit 0 always — errors are silently swallowed to never block the agent.
 
 ```
-fab/.kit/bin/fab hook <subcommand>
+fab hook <subcommand>
 ```
 
 | Subcommand | Usage | Purpose |
@@ -270,7 +271,7 @@ fab/.kit/bin/fab hook <subcommand>
 Pane Map — shows all tmux panes with pipeline state. Includes all panes regardless of whether they are in a git repo or have a `fab/` directory.
 
 ```
-fab/.kit/bin/fab pane-map [--json] [--session <name>] [--all-sessions]
+fab pane-map [--json] [--session <name>] [--all-sessions]
 ```
 
 ### Flags
@@ -335,6 +336,6 @@ When `--json` is set, output is a JSON array. Each element has these fields (sna
 | Error | Cause | Fix |
 |-------|-------|-----|
 | "Status file not found: {path}" | Passed a path that doesn't exist as a file | Use a change ID or folder name instead |
-| "Cannot resolve change '{arg}'" | Change ID/name doesn't match any folder in `fab/changes/` | Check `fab/.kit/bin/fab change list` for available changes |
+| "Cannot resolve change '{arg}'" | Change ID/name doesn't match any folder in `fab/changes/` | Check `fab change list` for available changes |
 | "Multiple changes match" | Ambiguous substring matched multiple folders | Use a more specific identifier |
 | "No active changes found" | `.fab-status.yaml` symlink is absent and no changes exist | Run `/fab-new` first |

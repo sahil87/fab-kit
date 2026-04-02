@@ -20,7 +20,7 @@ If no argument (and no `--none`): list all active changes and ask user to pick.
 
 ## Context Loading
 
-Loads matched change's `.status.yaml`. Name resolution and switch logic are delegated to `fab/.kit/bin/fab change`. Does NOT load constitution, memory, or specs.
+Loads matched change's `.status.yaml`. Name resolution and switch logic are delegated to `fab change`. Does NOT load constitution, memory, or specs.
 
 ---
 
@@ -37,18 +37,18 @@ Loads matched change's `.status.yaml`. Name resolution and switch logic are dele
 Delegate to `fab change switch` via a single Bash call:
 
 ```bash
-fab/.kit/bin/fab change switch "<change-name>"
+fab change switch "<change-name>"
 ```
 
 If the command exits 0: display the stdout output (contains name, stage, next command).
 
-If the command exits 1 and stderr contains "Multiple changes match": parse the comma-separated folder names from stderr, list them with stages as numbered options, ask user to pick. After selection, run `fab/.kit/bin/fab change switch "<selected>"`.
+If the command exits 1 and stderr contains "Multiple changes match": parse the comma-separated folder names from stderr, list them with stages as numbered options, ask user to pick. After selection, run `fab change switch "<selected>"`.
 
 If the command exits 1 and stderr contains "No change matches": list all available changes, inform user.
 
 ### Deactivation Flow (`--none`)
 
-Run `fab/.kit/bin/fab change switch --none`. Display the command's stdout output.
+Run `fab change switch --none`. Display the command's stdout output.
 
 ### Switch Flow
 
@@ -64,7 +64,7 @@ The skill displays the command's stdout directly.
 After a successful switch (not `--none`), log the command invocation:
 
 ```bash
-fab/.kit/bin/fab log command "fab-switch" 2>/dev/null || true
+fab log command "fab-switch" 2>/dev/null || true
 ```
 
 This is best-effort — the logger resolves the active change via `.fab-status.yaml` (just created by the switch command). Failures are silently ignored.

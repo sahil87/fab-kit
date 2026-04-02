@@ -5,7 +5,6 @@ fab/.kit-sync-version
 # fab/backlog.md
 fab/changes/**/.pr-done
 fab/.kit/bin/*
-!fab/.kit/bin/fab
 !fab/.kit/bin/.gitkeep
 
 /.agents
