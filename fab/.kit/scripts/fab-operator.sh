@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ---
-# name: fab-operator7
+# name: fab-operator
 # description: "Launch operator7 in a dedicated tmux tab (singleton per session)"
 # ---
 set -euo pipefail
@@ -28,5 +28,5 @@ CONFIG_FILE="$REPO_ROOT/fab/project/config.yaml"
 SPAWN_CMD=$(fab_spawn_cmd "$CONFIG_FILE")
 
 # Create new tab running the operator skill
-tmux new-window -c "$REPO_ROOT" -n "$TAB_NAME" "$SPAWN_CMD '/fab-operator7'"
+tmux new-window -c "$REPO_ROOT" -n "$TAB_NAME" "$SPAWN_CMD '/fab-operator'"
 echo "Launched $TAB_NAME."

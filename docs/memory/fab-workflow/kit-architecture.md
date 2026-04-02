@@ -40,7 +40,7 @@ fab/.kit/
 │   ├── fab-help.md
 │   ├── fab-archive.md
 │   ├── fab-discuss.md
-│   ├── fab-operator7.md     # Standalone operator — multi-agent coordination with dependency-aware spawning
+│   ├── fab-operator.md      # Standalone operator — multi-agent coordination with dependency-aware spawning
 │   ├── git-branch.md
 │   ├── git-pr.md
 │   ├── git-pr-review.md
@@ -87,7 +87,7 @@ fab/.kit/
     ├── batch-fab-archive-change.sh  # Batch archive completed changes via tmux + Claude
     ├── batch-fab-new-backlog.sh     # Batch create changes from backlog via tmux + Claude
     ├── batch-fab-switch-change.sh   # Batch switch to changes via tmux + Claude
-    ├── fab-operator7.sh    # Launch operator7 in singleton tmux tab ("operator")
+    ├── fab-operator.sh     # Launch operator in singleton tmux tab ("operator")
     ├── fab-doctor.sh       # Prerequisite checker (7 tools: git, fab, bash, yq v4+, jq, gh, direnv+hook)
     ├── fab-help.sh         # Print help overview
     └── lib/                # Utility scripts (not user-facing)
@@ -127,7 +127,7 @@ Prints the Fab Kit help overview and skill catalog. Dynamically reads skill name
 
 #### `lib/spawn.sh`
 
-Shared sourceable shell library providing `fab_spawn_cmd()` — reads `agent.spawn_command` from `fab/project/config.yaml` via `yq`, returns the configured spawn command string. Falls back to `claude --dangerously-skip-permissions` when the key is missing, null, or `yq` is unavailable (stderr suppressed). Accepts the config file path as its sole argument. Sourced by operator launcher (`fab-operator7.sh`) and all batch scripts.
+Shared sourceable shell library providing `fab_spawn_cmd()` — reads `agent.spawn_command` from `fab/project/config.yaml` via `yq`, returns the configured spawn command string. Falls back to `claude --dangerously-skip-permissions` when the key is missing, null, or `yq` is unavailable (stderr suppressed). Accepts the config file path as its sole argument. Sourced by operator launcher (`fab-operator.sh`) and all batch scripts.
 
 #### `lib/frontmatter.sh`
 
@@ -151,7 +151,7 @@ Batch scripts follow the `batch-fab-{verb}-{entity}.sh` naming pattern. Each cre
 
 #### Launcher Scripts
 
-- **`fab-operator7.sh`** — Singleton launcher for the operator7 skill. Creates a tmux tab named `operator` running the spawn command from `config.yaml` `agent.spawn_command` (via `lib/spawn.sh`) with `'/fab-operator7'`. If the tab already exists, switches to it instead of creating a duplicate. Requires an active tmux/byobu session.
+- **`fab-operator.sh`** — Singleton launcher for the operator skill. Creates a tmux tab named `operator` running the spawn command from `config.yaml` `agent.spawn_command` (via `lib/spawn.sh`) with `'/fab-operator'`. If the tab already exists, switches to it instead of creating a duplicate. Requires an active tmux/byobu session.
 
 ### Agent Skill Deployment
 
@@ -371,7 +371,7 @@ The `_` (underscore) prefix denotes internal partial files that are loaded by sk
 | `_cli-fab.md` | Always-load (via preamble) | Fab CLI command reference (renamed from `_scripts.md`) |
 | `_naming.md` | Always-load (via preamble) | Naming conventions for change folders, branches, worktrees, operator spawning rules |
 | `_generation.md` | Selective (planning skills) | Spec/tasks generation procedures |
-| `_cli-external.md` | Operator-only (loaded by `fab-operator7.md` startup) | External CLI tools: `wt` (worktree manager), `tmux`, `/loop` |
+| `_cli-external.md` | Operator-only (loaded by `fab-operator.md` startup) | External CLI tools: `wt` (worktree manager), `tmux`, `/loop` |
 
 The always-load files are referenced in `_preamble.md` §1. `_cli-external.md` is explicitly NOT in the always-load list — `wt`, `tmux`, and `/loop` are operator-specific tools that pipeline skills do not need.
 

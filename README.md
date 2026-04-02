@@ -355,17 +355,23 @@ Grades aggregate into a **confidence score** that gates `/fab-ff`. If ambiguity 
 
 ### Multi-Agent Coordination
 
-The operator is a long-running coordination layer that sits in its own tmux pane, observing and directing agents across other panes.
+The operator (`/fab-operator`) is a long-running coordination layer that sits in its own tmux pane, observing and directing agents across other panes.
 
-| Command | Purpose | Status |
-|---------|---------|--------|
-| `/fab-operator1` | Observe and interact with agents across tmux panes | Retired |
-| `/fab-operator2` | Operator1 + proactive monitoring after every action | Retired |
-| `/fab-operator3` | Operator2 + auto-nudge for agents waiting on user input | Retired |
-| `/fab-operator4` | Operator3 + `/loop`-driven monitoring, auto-nudge answer model, playbook catalog | Retired |
-| `/fab-operator5` | Operator4 + use case registry (Linear inbox, PR freshness), branch fallback, autopilot queues | Retired |
-| `/fab-operator6` | Clean rewrite — principles-driven inference, persistent state via `.fab-operator.yaml`, generic watches (Linear/Slack/any MCP source), `stop_stage`, tick count, framed status output | Retired |
-| `/fab-operator7` | Operator6 + dependency-aware agent spawning (cherry-pick chains), branch map persistence, bounded retries, pre-send validation tiers | **Current** |
+| Command | Purpose |
+|---------|---------|
+| `/fab-operator` | Multi-agent coordination — monitoring, auto-answering, autopilot queues, dependency-aware spawning |
+
+The current operator (v7) evolved through seven iterations:
+
+| Version | Key addition |
+|---------|-------------|
+| v1 | Observe and interact with agents across tmux panes |
+| v2 | Proactive monitoring after every action |
+| v3 | Auto-nudge for agents waiting on user input |
+| v4 | `/loop`-driven monitoring, auto-nudge answer model, playbook catalog |
+| v5 | Use case registry (Linear inbox, PR freshness), branch fallback, autopilot queues |
+| v6 | Clean rewrite — principles-driven inference, persistent state via `.fab-operator.yaml`, generic watches, framed status output |
+| v7 | Dependency-aware agent spawning (cherry-pick chains), branch map persistence, bounded retries, pre-send validation tiers |
 
 ### Shell Utilities
 

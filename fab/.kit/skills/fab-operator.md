@@ -1,15 +1,15 @@
 ---
-name: fab-operator7
+name: fab-operator
 description: "Use when coordinating multiple fab agents across tmux panes — multi-agent monitoring, auto-answering prompts, routing commands, driving autopilot queues, and dependency-aware agent spawning."
 ---
 
-# /fab-operator7
+# /fab-operator
 
 > Read `fab/.kit/skills/_preamble.md` first (path is relative to repo root). Then follow its instructions before proceeding.
 
 Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents via `fab pane-map`, routes commands via `tmux send-keys`, monitors progress via `/loop`. The loop is the heart of the operator.
 
-Start via `fab/.kit/scripts/fab-operator7.sh` (singleton tmux tab named `operator`).
+Start via `fab/.kit/scripts/fab-operator.sh` (singleton tmux tab named `operator`).
 
 ---
 
@@ -47,7 +47,7 @@ The operator needs full command vocabulary to make routing decisions (e.g., know
 After context loading, log the command invocation:
 
 ```bash
-fab log command "fab-operator7" 2>/dev/null || true
+fab log command "fab-operator" 2>/dev/null || true
 ```
 
 ### Tmux Gate
