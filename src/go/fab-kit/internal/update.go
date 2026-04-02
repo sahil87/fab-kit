@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -80,7 +81,6 @@ func brewLatestVersion() (string, error) {
 
 // isBrewInstalled checks whether fab-kit was installed via Homebrew by resolving
 // the executable's symlink and looking for /Cellar/ in the real path.
-// Homebrew layout: /opt/homebrew/Cellar/fab-kit/0.44.9/bin/fab-kit
 func isBrewInstalled() bool {
 	self, err := os.Executable()
 	if err != nil {
@@ -90,8 +90,7 @@ func isBrewInstalled() bool {
 	if err != nil {
 		return false
 	}
-	// Walk up: bin -> 0.44.9 -> fab-kit -> Cellar
-	return filepath.Base(filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(real))))) == "Cellar"
+	return strings.Contains(real, "/Cellar/")
 }
 
 // runWithTimeout runs a command with a timeout.
