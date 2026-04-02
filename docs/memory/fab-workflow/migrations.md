@@ -70,11 +70,24 @@ The migration runner, now a subcommand of `/fab-setup` (previously the standalon
 
 ### Two-Step Update Flow
 
-`fab-upgrade.sh` handles the mechanical `.kit/` swap. `/fab-setup migrations` (subcommand) handles intelligent migration execution. They are separate operations — the shell script doesn't need an LLM, the skill does.
+`fab upgrade` (shim subcommand) handles the mechanical `.kit/` swap. `/fab-setup migrations` (skill subcommand) handles intelligent migration execution. They are separate operations — the shim handles download/swap (no LLM needed), the skill handles reading and applying instructions (LLM needed).
+
+### Brew-Install Migration
+
+A migration file for the transition to the system shim model. The migration:
+
+1. **Prerequisite gate**: Verify `fab` (system shim) is on PATH. If not, instruct: `"Install fab-kit first: brew tap wvrdz/tap && brew install fab-kit"`
+2. **Add `fab_version`**: Write `fab_version: "{version}"` to `fab/project/config.yaml` (set to the current `fab/.kit/VERSION`)
+3. **Clean `.envrc`**: Remove the `PATH_add fab/.kit/bin` line if present
+4. **Clean `fab/.kit/bin/`**: Remove `fab`, `fab-go`, `wt`, `idea` — only `.gitkeep` remains
+
+**Scenarios**:
+- Migration on existing repo — adds `fab_version`, cleans `.envrc`, removes binaries; subsequent `fab` invocations work via system shim
+- Migration without shim installed — stops at prerequisite gate with install instructions
 
 ### Version Drift Detection
 
-- **`fab-upgrade.sh`**: prints drift reminder when `fab/.kit-migration-version` < engine after upgrade; prints init guidance if `fab/.kit-migration-version` missing
+- **`fab upgrade`**: prints drift reminder when `fab/.kit-migration-version` < engine after upgrade; prints init guidance if `fab/.kit-migration-version` missing
 - **`/fab-status`**: displays `⚠ Version drift: local {X}, engine {Y} — run /fab-setup migrations` when versions differ
 - **`release.sh`**: warns when no migration targets the new release version; warns on overlapping migration ranges
 
@@ -94,8 +107,8 @@ Handled by `fab-sync.sh` during structural bootstrap:
 **Rejected**: Minor-only stepping (forced empty migration files), exact-version chaining (unbroken linked list, maintenance burden).
 
 ### Two-Step Update Flow
-**Decision**: `fab-upgrade.sh` (script) handles mechanical swap; `/fab-setup migrations` (subcommand) handles intelligent migration.
-**Why**: Migrations are LLM instruction files. The shell script handles download/swap (no LLM needed); the skill handles reading and applying instructions (LLM needed). Preserves Constitution I.
+**Decision**: `fab upgrade` (shim subcommand) handles mechanical swap; `/fab-setup migrations` (skill subcommand) handles intelligent migration.
+**Why**: Migrations are LLM instruction files. The shim handles download/cache/swap (no LLM needed); the skill handles reading and applying instructions (LLM needed). Preserves Constitution I.
 **Rejected**: Single combined script — would require embedding LLM invocation in shell or making migration files executable (violates pure prompt play).
 
 ### Warning-Only Release Validation
@@ -112,6 +125,7 @@ Handled by `fab-sync.sh` during structural bootstrap:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260401-46hw-brew-install-system-shim | 2026-04-02 | Added brew-install migration for transition to system shim model. Prerequisite gate: verifies `fab` system binary on PATH. Adds `fab_version` field to `config.yaml`. Cleans `.envrc` (removes `PATH_add fab/.kit/bin`). Cleans `fab/.kit/bin/` (removes `fab`, `fab-go`, `wt`, `idea`). Updated Two-Step Update Flow to reference `fab upgrade` replacing `fab-upgrade.sh`. |
 | 260312-9r3t-pr-change-metadata | 2026-03-12 | Added migration `0.34.0-to-0.37.0.md` for discoverability of new `linear_workspace` config field. Migration checks if `fab/project/config.yaml` already has `linear_workspace` — if so, skips. Otherwise adds a commented-out `# linear_workspace: "your-workspace"` line under the `project:` block. Does not change behavior — surfaces the new option to existing users during `/fab-setup migrations`. |
 | 260307-x2tx-status-symlink-pointer | 2026-03-07 | Replaced `fab/current` pointer file with `.fab-status.yaml` symlink at repo root. Added `id` field to `.status.yaml`. Updated resolution, switch, rename, pane-map, hooks, and dispatch. Migration `0.32.0-to-0.34.0` covers conversion. |
 | 260226-koj1-version-staleness-warning | 2026-02-26 | Renamed `fab/project/VERSION` → `fab/.kit-migration-version` throughout. Added `0.20.0-to-0.21.0.md` migration for the rename. Updated dual-version model description. |

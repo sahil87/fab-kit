@@ -16,10 +16,10 @@ Autonomously ship local changes to a GitHub PR. No questions, no prompts — jus
 
 ### Step 0a: Start Ship Stage
 
-If an active change resolves (`fab/.kit/bin/fab change resolve 2>/dev/null`) and `progress.ship` is not `done`, attempt to start the `ship` stage:
+If an active change resolves (`fab change resolve 2>/dev/null`) and `progress.ship` is not `done`, attempt to start the `ship` stage:
 
 ```bash
-fab/.kit/bin/fab status start <change> ship git-pr 2>/dev/null || true
+fab status start <change> ship git-pr 2>/dev/null || true
 ```
 
 This is best-effort — failures are silently ignored. If the stage is already `active`, the call is a no-op. If no active change, skip entirely.
@@ -34,7 +34,7 @@ Determine the PR type before gathering state. The type controls the PR title pre
 
 1. **Explicit argument**: If the user invoked `/git-pr {type}` where `{type}` is one of the 7 valid types (case-insensitive), normalize to lowercase and use it. If the argument is not a valid type, ignore it and fall through to step 2.
 
-2. **Read from `.status.yaml`**: Run `fab/.kit/bin/fab change resolve 2>/dev/null`. If resolution succeeds, read `change_type` from `fab/changes/{name}/.status.yaml`. If non-null and one of the 7 valid types (`feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`), use it. Fall through if resolution fails, `change_type` is null, or `change_type` is not a valid type.
+2. **Read from `.status.yaml`**: Run `fab change resolve 2>/dev/null`. If resolution succeeds, read `change_type` from `fab/changes/{name}/.status.yaml`. If non-null and one of the 7 valid types (`feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`), use it. Fall through if resolution fails, `change_type` is null, or `change_type` is not a valid type.
 
 3. **Infer from fab change intake**: If `fab change resolve` succeeded (from step 2) and `fab/changes/{name}/intake.md` exists, read the intake content and pattern-match (case-insensitive). Keyword lists are evaluated in order — first match wins:
    - Contains any of: "fix", "bug", "broken", "regression" → type = `fix`
@@ -67,7 +67,7 @@ git log --oneline @{u}..HEAD 2>/dev/null || echo "NO_UPSTREAM"
 gh pr view --json number,state,url 2>/dev/null || echo "NO_PR"
 ```
 
-If an active change is resolved (via `fab/.kit/bin/fab change resolve`), read issues via `fab/.kit/bin/fab status get-issues <change>` and capture the output (one ID per line, may be empty).
+If an active change is resolved (via `fab change resolve`), read issues via `fab status get-issues <change>` and capture the output (one ID per line, may be empty).
 
 Determine:
 - **branch** — current branch name
@@ -78,7 +78,7 @@ Determine:
 
 ### Step 1b: Branch Mismatch Nudge
 
-If there is an active change (resolve via `fab/.kit/bin/fab change resolve 2>/dev/null`), compare the current branch against the change name.
+If there is an active change (resolve via `fab change resolve 2>/dev/null`), compare the current branch against the change name.
 
 A match is: (1) exact string equality between current branch and change name, or (2) the change name appears as a substring of the current branch.
 
@@ -158,7 +158,7 @@ Print: `  ✓ push   — origin/<branch>`
    - If missing → print `gh CLI not found — cannot create PR` and STOP
 
 2. **Derive PR title**: Compute `{pr_title}` where:
-   - If `fab/.kit/bin/fab change resolve 2>/dev/null` succeeds AND `fab/changes/{name}/intake.md` exists: `{title}` = first `# ` heading from `fab/changes/{name}/intake.md`, stripping `Intake: ` prefix if present
+   - If `fab change resolve 2>/dev/null` succeeds AND `fab/changes/{name}/intake.md` exists: `{title}` = first `# ` heading from `fab/changes/{name}/intake.md`, stripping `Intake: ` prefix if present
    - Otherwise: `{title}` = commit message subject line from `git log -1 --format=%s`
 
    If `issues` (from Step 1) is non-empty: `{pr_title}` = `{type}: {issues} {title}` (e.g., `feat: DEV-123 DEV-456 Add OAuth support`), where `{issues}` is space-joined.
@@ -169,7 +169,7 @@ Print: `  ✓ push   — origin/<branch>`
 3. **Generate PR body** using a single unified template with conditional field population based on artifact availability:
 
    **Resolve fab context** (attempt once, used for all conditional fields):
-   - Run `fab/.kit/bin/fab change resolve 2>/dev/null`. If it succeeds, set `{has_fab} = true` and `{name}` = resolved change name
+   - Run `fab change resolve 2>/dev/null`. If it succeeds, set `{has_fab} = true` and `{name}` = resolved change name
    - Check if `fab/changes/{name}/intake.md` exists → `{has_intake}`
    - Check if `fab/changes/{name}/spec.md` exists → `{has_spec}`
    - Check if `fab/changes/{name}/tasks.md` exists → `{has_tasks}`
@@ -241,8 +241,8 @@ Print: `  ✓ pr     — <PR URL>`
 
 After the PR URL is known (from step 3c or from the existing PR in step 1), attempt to record it in the active change's `.status.yaml`:
 
-1. Resolve the active change: `fab/.kit/bin/fab change resolve 2>/dev/null`
-2. If resolution succeeds (exit 0), call: `fab/.kit/bin/fab status add-pr <name> <pr_url>`
+1. Resolve the active change: `fab change resolve 2>/dev/null`
+2. If resolution succeeds (exit 0), call: `fab status add-pr <name> <pr_url>`
 3. If resolution fails (exit non-zero), skip silently — do not print any error or warning
 
 This step MUST NOT block or fail the PR workflow. Any error is silently ignored.
@@ -252,7 +252,7 @@ This step MUST NOT block or fail the PR workflow. Any error is silently ignored.
 If an active change was resolved in Step 0a and `progress.ship` was started (not already `done`):
 
 ```bash
-fab/.kit/bin/fab status finish <change> ship git-pr 2>/dev/null || true
+fab status finish <change> ship git-pr 2>/dev/null || true
 ```
 
 This marks `ship` as `done` and auto-activates `review-pr`. Best-effort — failures silently ignored.

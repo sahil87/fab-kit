@@ -1,9 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(fab/.kit/bin/fab:*)",
+      "Bash(fab:*)",
       "Bash(fab/.kit/scripts/fab-sync.sh:*)",
-      "Bash(fab/.kit/scripts/fab-upgrade.sh:*)",
       "Bash(fab/.kit/scripts/fab-help.sh:*)",
       "Bash(fab/.kit/scripts/batch-fab-new-backlog.sh:*)",
       "Bash(fab/.kit/scripts/batch-fab-archive-change.sh:*)",

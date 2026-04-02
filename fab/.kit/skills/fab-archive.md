@@ -33,7 +33,7 @@ Archive a completed change after hydrate, or restore an archived change back to 
 
 ## Pre-flight
 
-1. Run `fab/.kit/bin/fab preflight [change-name]` per `_preamble.md`
+1. Run `fab preflight [change-name]` per `_preamble.md`
 2. **Hydrate Guard**: If `progress.hydrate` is not `done`, STOP: `Hydrate has not completed. Run /fab-continue to hydrate memory first.`
 
 ---
@@ -55,7 +55,7 @@ Read the intake's **Why** section and extract a 1-2 sentence description summari
 Call `fab change archive` in a single invocation:
 
 ```bash
-fab/.kit/bin/fab change archive <change> --description "<extracted description>"
+fab change archive <change> --description "<extracted description>"
 ```
 
 Where `<change>` is the change ID or name from preflight. Parse the structured YAML output for the report.
@@ -169,12 +169,12 @@ None required — the script handles all file operations.
 Call `fab change restore` in a single invocation:
 
 ```bash
-fab/.kit/bin/fab change restore <change-name> [--switch]
+fab change restore <change-name> [--switch]
 ```
 
 Parse the structured YAML output for the report. If the command exits non-zero:
 - **"Multiple archives match"** → list the matches from stderr, ask user to pick, re-run with the selected name
-- **"No archive matches"** → call `fab/.kit/bin/fab change archive-list`, display available archives, inform user
+- **"No archive matches"** → call `fab change archive-list`, display available archives, inform user
 
 ### Step 2: Format Report
 
@@ -213,7 +213,7 @@ Next: {per state table — if --switch: restored change's state; otherwise: acti
 |-----------|--------|
 | Script exits 1: "No archive folder found" | Display error |
 | Script exits 1: "No archived changes found" | Display error |
-| Script exits 1: "No archive matches" | List available archives via `fab/.kit/bin/fab change archive-list` |
+| Script exits 1: "No archive matches" | List available archives via `fab change archive-list` |
 | Script exits 1: "Multiple archives match" | Parse matches from stderr, ask user to pick |
 | Folder already in `fab/changes/` | Script handles — reports `already_in_changes` |
 | Index entry not found | Script handles — reports `not_found` |

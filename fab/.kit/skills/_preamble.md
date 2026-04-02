@@ -19,7 +19,7 @@ All script and file paths in skills are **relative to the repo root** (the agent
 
 ```
 # correct
-fab/.kit/bin/fab preflight
+fab preflight
 
 # wrong
 bash /home/user/project/fab/.kit/bin/fab preflight
@@ -32,7 +32,7 @@ bash /home/user/project/fab/.kit/bin/fab preflight
 Before doing anything else, read `fab/.kit/kit.conf` and check the `build-type` value:
 
 - If `build-type=production` (or the file is missing), proceed normally.
-- If `build-type=test`, run `fab/.kit/bin/fab preflight` via Bash, display its full output to the user, and **STOP** — do not proceed with any further steps.
+- If `build-type=test`, run `fab preflight` via Bash, display its full output to the user, and **STOP** — do not proceed with any further steps.
 
 ---
 
@@ -52,7 +52,7 @@ Read these files first — they define the project's identity, constraints, and 
 - **`docs/memory/index.md`** — memory landscape (which domains and memory files exist)
 - **`docs/specs/index.md`** — specifications landscape (pre-implementation design intent, human-curated)
 
-> **Note**: If the skill runs `fab/.kit/bin/fab preflight` (Section 2 above), the init check (config.yaml and constitution.md existence) is already covered by the script. Skills using preflight don't need separate existence checks for these files — they only need to read them for content.
+> **Note**: If the skill runs `fab preflight` (Section 2 above), the init check (config.yaml and constitution.md existence) is already covered by the script. Skills using preflight don't need separate existence checks for these files — they only need to read them for content.
 
 Also read **`fab/.kit/skills/_cli-fab.md`** — script invocation conventions (argument formats, stage transitions, error patterns). This is the authoritative reference for calling `fab status`, `fab change`, `fab score`, and `fab preflight`.
 
@@ -62,10 +62,10 @@ Also read **`fab/.kit/skills/_naming.md`** — naming conventions for change fol
 
 Resolve the active change and load its state by running the preflight script:
 
-1. **Run preflight**: Execute `fab/.kit/bin/fab preflight [change-name]` via Bash — pass the optional change-name argument if the skill received one
+1. **Run preflight**: Execute `fab preflight [change-name]` via Bash — pass the optional change-name argument if the skill received one
 2. **Check exit code**: If the script exits non-zero, STOP and surface the stderr message to the user (it contains the specific error and suggested fix)
 3. **Parse stdout YAML**: On success, parse the YAML output for `id`, `name`, `change_dir`, `stage`, `progress`, `checklist`, and `confidence` fields — use these for all subsequent change context instead of re-reading `.status.yaml`. Use `id` (4-char change ID) for script invocations; use `name` for display, path construction, and artifact metadata.
-4. **Log command**: Call `fab/.kit/bin/fab log command "<skill-name>" "<id>" 2>/dev/null || true` where `<skill-name>` is the invoking skill (e.g., `fab-continue`) and `<id>` is the `id` field from the preflight YAML output. This is best-effort — failures are silently ignored.
+4. **Log command**: Call `fab log command "<skill-name>" "<id>" 2>/dev/null || true` where `<skill-name>` is the invoking skill (e.g., `fab-continue`) and `<id>` is the `id` field from the preflight YAML output. This is best-effort — failures are silently ignored.
 5. Load all completed artifacts in the change folder (e.g., `intake.md`, `spec.md`, `tasks.md`) — read each file that exists so you have full context of what has been decided so far
 
 > **Change-name override**: When a `[change-name]` argument is passed to the preflight script, it resolves the change using case-insensitive substring matching against `fab/changes/` folder names (excluding `archive/`) instead of reading the `.fab-status.yaml` symlink. The override is **transient** — `.fab-status.yaml` is never modified. This enables parallel workflows where multiple tabs target different changes concurrently. Supports full folder names, partial slugs, or 4-char IDs (e.g., `r3m7`).
@@ -224,7 +224,7 @@ For each decision point, evaluate four dimensions on a **continuous 0–100 scal
 
 **Aggregation**: Compute a composite score via weighted mean: `composite = 0.25*S + 0.30*R + 0.25*A + 0.20*D`. Map to grade using thresholds: Certain (85–100), Confident (60–84), Tentative (30–59), Unresolved (0–29). Critical Rule override: R < 25 AND A < 25 → always Unresolved.
 
-Record per-dimension scores in the Assumptions table's required `Scores` column (e.g., `S:75 R:80 A:65 D:70`). The Scores column is mandatory for every row. `fab/.kit/bin/fab score` parses these and writes aggregate dimension statistics to `.status.yaml`.
+Record per-dimension scores in the Assumptions table's required `Scores` column (e.g., `S:75 R:80 A:65 D:70`). The Scores column is mandatory for every row. `fab score` parses these and writes aggregate dimension statistics to `.status.yaml`.
 
 ### Confidence Grades
 
@@ -368,7 +368,7 @@ See `docs/specs/change-types.md` for the full taxonomy.
 
 ### Invocation
 
-Confidence is computed by `fab/.kit/bin/fab score`, invoked by:
+Confidence is computed by `fab score`, invoked by:
 - `/fab-new` (intake stage, normal mode with `--stage intake`) — persists indicative score with `indicative: true`
 - `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode) — persists spec score, clears `indicative` flag
 

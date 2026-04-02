@@ -41,13 +41,13 @@ STOP.
 If `<change-name>` provided:
 
 ```bash
-fab/.kit/bin/fab change resolve "<change-name>"
+fab change resolve "<change-name>"
 ```
 
 If not provided, resolve from `.fab-status.yaml`:
 
 ```bash
-fab/.kit/bin/fab change resolve
+fab change resolve
 ```
 
 If resolution fails:

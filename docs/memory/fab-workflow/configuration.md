@@ -12,6 +12,13 @@ Fab uses a set of complementary configuration files — the **5 Cs of Quality**:
 
 `fab/project/config.yaml` SHALL contain the following sections:
 
+#### `fab_version`
+A top-level field (string) that declares the fab-kit version the repo expects. The system `fab` shim reads this field to resolve which cached `fab-go` binary to dispatch to. Format: bare semver string (e.g., `"0.43.0"`).
+
+When present, the shim resolves and dispatches to the matching cached binary. When absent but `config.yaml` exists, the shim exits with an actionable error: `"No fab_version in config.yaml. Run 'fab init' to set one."`.
+
+Set by `fab init` (on bootstrap) and `fab upgrade` (on version update). Not user-editable under normal circumstances — managed by the shim subcommands.
+
 #### `project`
 - `name` — Project name (string)
 - `description` — Project description (string)
@@ -225,6 +232,7 @@ See [setup](setup.md) for the complete command suite.
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260401-46hw-brew-install-system-shim | 2026-04-02 | Added `fab_version` top-level field to `config.yaml` schema — bare semver string declaring the fab-kit version the repo expects. Read by the system `fab` shim for version resolution and dispatch. Set by `fab init` (bootstrap) and `fab upgrade` (version update). When absent but `config.yaml` exists, shim exits with actionable error. |
 | 260320-t13m-configurable-agent-spawn-command | 2026-03-20 | Added `agent` section to `config.yaml` schema with `spawn_command` key — configurable shell command string for spawning agent sessions. Default: `claude --dangerously-skip-permissions --effort max -n "$(basename "$(pwd)")"`. Shell expansions evaluate at invocation time. Scripts read via `lib/spawn.sh` helper with fallback to `claude --dangerously-skip-permissions` when key is absent. Migration adds `agent` section to existing configs. |
 | 260312-9r3t-pr-change-metadata | 2026-03-12 | Added optional `linear_workspace` field to `config.yaml` `project:` block. Used by `/git-pr` to construct Linear issue hyperlinks (`https://linear.app/{workspace}/issue/{ID}`) in the PR body's Change section. When absent, issue IDs render as bare text. Migration `0.34.0-to-0.37.0.md` surfaces the field to existing users as a commented-out line. |
 | 260227-gasp-consolidate-status-field-naming | 2026-02-27 | `.status.yaml` fields renamed: `issue_id` (scalar) → `issues` (array), `shipped` → `prs`. Migration `0.22.0-to-0.24.0.md` handles active changes. |
