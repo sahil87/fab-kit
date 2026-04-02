@@ -15,9 +15,9 @@
 | **Constitution** | The file `fab/project/constitution.md`. Defines immutable project principles using MUST/SHOULD/MUST NOT keywords. Loaded as context by most skills; violations are flagged during review. |
 | **Domain** | A topic area in `docs/memory/` (e.g., `auth/`, `payments/`). Each domain has its own `index.md` and one or more memory files. |
 | **Hydration** | The process of integrating knowledge into `docs/memory/`. Two modes: (1) **pipeline hydration** — merging change artifacts (spec.md) into memory files via `/fab-continue` (hydrate stage) on change completion, and (2) **source hydration** — ingesting external documentation or generating from codebase analysis via `/docs-hydrate-memory` (supports both ingest and generate modes). |
-| **Kit** | The `fab/.kit/` directory containing the Fab engine — templates, skill definitions, and scripts. Replaceable upstream; everything outside `.kit/` is project-specific. |
+| **Kit** | The `src/kit/` directory containing the Fab engine — templates, skill definitions, and scripts. Replaceable upstream; everything outside `.kit/` is project-specific. |
 | **Pointer file** | `.fab-status.yaml` — a symlink at repo root pointing to the active change's `fab/changes/{name}/.status.yaml`. Read by all skills to resolve the working context. Removed by `/fab-archive`. |
-| **Skill** | A markdown prompt file in `fab/.kit/skills/` that defines behavior for an AI agent. Skills are the primary interface to Fab — invoked as `/fab-*` commands. |
+| **Skill** | A markdown prompt file in `src/kit/skills/` that defines behavior for an AI agent. Skills are the primary interface to Fab — invoked as `/fab-*` commands. |
 | **Design specs** | Human-curated, pre-implementation design documents in `docs/specs/`. Capture architectural intent, design rationale, and the "why" behind the system. Not managed by Fab tooling — organized however makes sense for the project. Contrast with **memory files** (post-implementation, AI-maintained via hydration). |
 | **spec.md** | A change-level specification file inside a change folder. Describes requirements relevant to that specific change using RFC 2119 keywords and GIVEN/WHEN/THEN scenarios. Not to be confused with **design specs** (the project-wide design documents in `docs/specs/`). |
 | **Stage** | One of the 6 sequential phases a change passes through: intake, spec, tasks, apply, review, hydrate. Tracked in `.status.yaml` via the `progress` map (the entry marked `active` is the current stage). |
@@ -73,9 +73,9 @@
 | `fab/changes/archive/` | Directory holding completed change folders. Folder names are unchanged (date is already embedded). |
 | `docs/memory/` | Memory files. Organized by domain with index files. The authoritative post-implementation source of truth. |
 | `docs/specs/` | Human-curated pre-implementation design specifications. Flat structure, not managed by Fab tooling. |
-| `fab/.kit/` | The Fab engine directory — templates, skills, scripts. Replaceable upstream without affecting project-specific files. |
-| `fab/.kit/templates/` | Markdown scaffolds that skills fill with concrete content. Includes templates for all artifact types. |
-| `fab/.kit/scripts/` | Shell utilities — `fab-sync.sh` (workspace sync orchestrator), `fab-help.sh` (skill catalog), `fab-upgrade.sh` (kit updater), plus `lib/` for internal scripts (`resolve.sh`, `statusman.sh`, `logman.sh`, `changeman.sh`, `calc-score.sh`, `preflight.sh`). |
+| `src/kit/` | The Fab engine directory — templates, skills, scripts. Replaceable upstream without affecting project-specific files. |
+| `$(fab kit-path)/templates/` | Markdown scaffolds that skills fill with concrete content. Includes templates for all artifact types. |
+| `src/kit/scripts/` | Shell utilities — `fab-sync.sh` (workspace sync orchestrator), `fab-help.sh` (skill catalog), `fab-upgrade.sh` (kit updater), plus `lib/` for internal scripts (`resolve.sh`, `statusman.sh`, `logman.sh`, `changeman.sh`, `calc-score.sh`, `preflight.sh`). |
 
 ---
 

@@ -20,7 +20,7 @@ usage() {
 }
 
 repo_root="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
-kit_dir="$repo_root/fab/.kit"
+kit_dir="$repo_root/src/kit"
 
 # ── Parse arguments ──────────────────────────────────────────────────
 
@@ -68,7 +68,7 @@ fi
 
 # Read current version
 if [ ! -f "$kit_dir/VERSION" ]; then
-  echo "ERROR: fab/.kit/VERSION not found — kit may be corrupted."
+  echo "ERROR: src/kit/VERSION not found — kit may be corrupted."
   exit 1
 fi
 

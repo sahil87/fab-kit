@@ -4,7 +4,7 @@
 
 ## Overview
 
-The preflight script (`fab/.kit/scripts/lib/preflight.sh`) validates the active change's state and outputs structured YAML for agent consumption. It consolidates repeated validation logic from individual skills into a single reusable script. Preflight is purely validation + structured output — it has no logging side-effects.
+The preflight script (`src/kit/scripts/lib/preflight.sh`) validates the active change's state and outputs structured YAML for agent consumption. It consolidates repeated validation logic from individual skills into a single reusable script. Preflight is purely validation + structured output — it has no logging side-effects.
 
 ## Requirements
 
@@ -34,7 +34,7 @@ Agents consume this output by running the script via Bash and parsing the stdout
 The script validates in this order, stopping at the first failure:
 
 1. `fab/project/config.yaml` and `fab/project/constitution.md` exist (project initialized)
-1b. Sync staleness check (non-blocking) — compares `fab/.kit/VERSION` against `fab_version` in `fab/project/config.yaml`; emits stderr warning if they differ, silently skips if either is unreadable. Does NOT exit or alter stdout
+1b. Sync staleness check (non-blocking) — compares `$(fab kit-path)/VERSION` against `fab_version` in `fab/project/config.yaml`; emits stderr warning if they differ, silently skips if either is unreadable. Does NOT exit or alter stdout
 2. Change name resolves (via `lib/changeman.sh resolve` — from `$1` override or `.fab-status.yaml`)
 3. Change directory `fab/changes/{name}/` exists
 4. `.status.yaml` exists within the change directory
@@ -83,7 +83,7 @@ Skills exempt from preflight: `setup`, `new`, `switch`, `status`, `discuss`, `he
 *Updated by*: 260215-lqm5-statusman-cli-only (previously "Accessor Functions Over Inline Parsing")
 
 ### lib/ Subfolder for Internal Scripts
-**Decision**: All internal scripts (`preflight.sh`, `statusman.sh`, `changeman.sh`, `calc-score.sh`, `sync-workspace.sh`) live in `fab/.kit/scripts/lib/` without underscore prefix, replacing the previous `_`-prefixed convention in the parent `scripts/` directory.
+**Decision**: All internal scripts (`preflight.sh`, `statusman.sh`, `changeman.sh`, `calc-score.sh`, `sync-workspace.sh`) live in `src/kit/scripts/lib/` without underscore prefix, replacing the previous `_`-prefixed convention in the parent `scripts/` directory.
 **Why**: The `lib/` subfolder provides a clearer structural boundary between internal plumbing and user-facing scripts than naming conventions alone. All internal scripts are co-located, making the dependency graph explicit.
 **Rejected**: Retaining underscore prefix — naming conventions are less discoverable than directory structure.
 *Introduced by*: 260214-q7f2-reorganize-src
@@ -98,8 +98,9 @@ Skills exempt from preflight: `setup`, `new`, `switch`, `status`, `discuss`, `he
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260402-gnx5-relocate-kit-to-system-cache | 2026-04-02 | Updated sync staleness check: VERSION now read from exe-sibling kit in cache (`kitpath.KitDir()`) instead of `fab/.kit/VERSION`. Comparison logic unchanged — `$(fab kit-path)/VERSION` vs `fab_version` in `config.yaml`. |
 | 260302-9fnn-extract-logman-from-preflight | 2026-03-02 | Removed `--driver` flag, `LOGMAN` variable, and logman call from preflight — now purely validation + YAML output. Command logging moved to direct `logman.sh command` calls from skills (via `_preamble.md` §2 step 4 for preflight-calling skills, per-skill instructions for exempt skills). Updated Skill Integration section. |
-| 260402-0ak9-remove-sync-version-file | 2026-04-02 | Updated sync staleness check (step 1b) — now compares `fab/.kit/VERSION` against `fab_version` in `config.yaml` instead of `fab/.kit-sync-version`. Single warning message with "project" label. |
+| 260402-0ak9-remove-sync-version-file | 2026-04-02 | Updated sync staleness check (step 1b) — now compares `$(fab kit-path)/VERSION` against `fab_version` in `config.yaml` instead of `fab/.kit-sync-version`. Single warning message with "project" label. |
 | 260226-koj1-version-staleness-warning | 2026-02-26 | Added sync staleness check (step 1b) — non-blocking stderr warning. Runs after init check, before change resolution. |
 | 260218-95xn-split-stage-display-from-routing | 2026-02-18 | Added `display_stage` and `display_state` fields to YAML output via `$STATUSMAN display-stage`. Documented routing vs display stage distinction in Structured YAML Output and Accessor-Based Architecture sections. |
 | 260216-oinh-DEV-1045-fold-resolve-into-changeman | 2026-02-17 | Replaced `source resolve-change.sh` / `$RESOLVED_CHANGE_NAME` with `$CHANGEMAN resolve` CLI subprocess call. Updated all references from resolve-change.sh to changeman.sh resolve. Rewrote "Shared Change Resolution Library" → "Change Resolution via changeman CLI" design decision. Updated No External Dependencies section. |

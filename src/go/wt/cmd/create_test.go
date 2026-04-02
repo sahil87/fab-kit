@@ -266,10 +266,10 @@ func TestCreate_InitScriptRuns(t *testing.T) {
 	createInitScript(t, repo)
 
 	// Commit init script so worktrees see it
-	gitRun(t, repo, "add", "fab/.kit/worktree-init.sh")
+	gitRun(t, repo, "add", "scripts/worktree-init.sh")
 	gitRun(t, repo, "commit", "-q", "-m", "Add init script")
 
-	r := runWtSuccess(t, repo, []string{"WORKTREE_INIT_SCRIPT=fab/.kit/worktree-init.sh"}, "create", "--non-interactive", "--worktree-name", "init-run-test")
+	r := runWtSuccess(t, repo, []string{"WORKTREE_INIT_SCRIPT=scripts/worktree-init.sh"}, "create", "--non-interactive", "--worktree-name", "init-run-test")
 
 	wtPath := strings.TrimSpace(r.Stdout)
 	assertFileExists(t, filepath.Join(wtPath, ".init-script-ran"))
@@ -278,7 +278,7 @@ func TestCreate_InitScriptRuns(t *testing.T) {
 func TestCreate_InitScriptSkippedWhenFalse(t *testing.T) {
 	repo := createTestRepo(t)
 	createInitScript(t, repo)
-	gitRun(t, repo, "add", "fab/.kit/worktree-init.sh")
+	gitRun(t, repo, "add", "scripts/worktree-init.sh")
 	gitRun(t, repo, "commit", "-q", "-m", "Add init script")
 
 	r := runWtSuccess(t, repo, nil, "create", "--non-interactive", "--worktree-name", "no-init-test", "--worktree-init", "false")

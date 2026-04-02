@@ -4,7 +4,7 @@
 
 ## Overview
 
-`fab/.kit/schemas/workflow.yaml` is the single source of truth for the Fab workflow: stages, states, transitions, and validation rules. All scripts and skills query this schema (via `statusman.sh`) rather than hardcoding workflow knowledge.
+`$(fab kit-path)/schemas/workflow.yaml` is the single source of truth for the Fab workflow: stages, states, transitions, and validation rules. All scripts and skills query this schema (via `statusman.sh`) rather than hardcoding workflow knowledge.
 
 ## What workflow.yaml Defines
 
@@ -48,7 +48,7 @@ for stage in $("$STATUSMAN" all-stages); do ...; done
 
 **In skills (Claude prompts)**: Reference the schema directly or use bash scripts that call `statusman.sh`:
 ```markdown
-Run `fab/.kit/scripts/lib/preflight.sh` to get validated stage information.
+Run `src/kit/scripts/lib/preflight.sh` to get validated stage information.
 The script uses `statusman.sh` CLI subcommands internally.
 ```
 
@@ -86,7 +86,7 @@ Together with `.fab-runtime.yaml`, these two sibling files at the repo root form
 
 ### Agent Block — `.fab-runtime.yaml`
 
-Agent runtime state lives in `.fab-runtime.yaml` at the repository root (gitignored). This file is NOT part of the workflow schema, NOT initialized by templates, and NOT read by statusman or any workflow script. It is managed by Claude Code hook scripts in `fab/.kit/hooks/` via `fab runtime` Go subcommands (`fab runtime set-idle <change>`, `fab runtime clear-idle <change>`), which replace direct yq manipulation.
+Agent runtime state lives in `.fab-runtime.yaml` at the repository root (gitignored). This file is NOT part of the workflow schema, NOT initialized by templates, and NOT read by statusman or any workflow script. It is managed by Claude Code hook scripts in `$(fab kit-path)/hooks/` via `fab runtime` Go subcommands (`fab runtime set-idle <change>`, `fab runtime clear-idle <change>`), which replace direct yq manipulation.
 
 The file is keyed by full change folder name (`YYMMDD-XXXX-slug` format):
 
@@ -123,4 +123,4 @@ Each worktree has its own repo root, so each gets its own `.fab-runtime.yaml` �
 | 260226-6boq-event-driven-statusman | 2026-02-26 | Transitions are now event-keyed (event, from, to) instead of from→to with conditions. Five event commands: `start`, `advance`, `finish`, `reset`, `fail`. |
 | 260226-i9av-add-ready-state-to-stages | 2026-02-26 | Added `ready` state (artifact exists, eligible for advancement). Removed unused `skipped` state. Updated transitions (`active→ready`, `ready→done`), progression (current stage includes `ready`), and validation (terminal states: `done` only). |
 | 260228-wyhd-add-skipped-stage-state | 2026-02-28 | Added `skipped` state (`⏭`, terminal) and `skip` event (`{pending,active} → skipped` with forward cascade). Updated `reset` to accept `skipped → active`. Updated progression rules to treat `skipped` alongside `done`. Allowed for all stages except intake. Six event commands: `start`, `advance`, `finish`, `reset`, `fail`, `skip`. |
-| 260212-4tw0-migrate-scripts-statusman | 2026-02-12 | Moved from `fab/.kit/schemas/README.md`, trimmed statusman API duplication |
+| 260212-4tw0-migrate-scripts-statusman | 2026-02-12 | Moved from `$(fab kit-path)/schemas/README.md`, trimmed statusman API duplication |

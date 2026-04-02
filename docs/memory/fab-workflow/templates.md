@@ -4,7 +4,7 @@
 
 ## Overview
 
-Fab ships artifact templates in `fab/.kit/templates/` that skills fill with concrete content during planning stages. Each template is a markdown scaffold with guidance comments (`<!-- -->`) that instruct the agent — comments are not preserved in output. This doc covers the four artifact templates (intake, spec, tasks, checklist) and the memory file format used in `docs/memory/`.
+Fab ships artifact templates in `$(fab kit-path)/templates/` that skills fill with concrete content during planning stages. Each template is a markdown scaffold with guidance comments (`<!-- -->`) that instruct the agent — comments are not preserved in output. This doc covers the four artifact templates (intake, spec, tasks, checklist) and the memory file format used in `docs/memory/`.
 
 ## Requirements
 
@@ -91,7 +91,7 @@ See [change-lifecycle.md](change-lifecycle.md) for the full `.status.yaml` field
 
 ### Skill Frontmatter
 
-Skill files in `fab/.kit/skills/` use YAML frontmatter with these fields:
+Skill files in `$(fab kit-path)/skills/` use YAML frontmatter with these fields:
 
 - **`name`** *(required)* — skill identifier, used for symlink naming and invocation
 - **`description`** *(required)* — short description shown in skill listings

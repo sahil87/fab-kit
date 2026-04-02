@@ -11,7 +11,7 @@ User invokes /fab-help
 │
 ├─ Bash: fab log command "fab-help"
 └─ Bash: fab fab-help
-   └─ (scans fab/.kit/skills/*.md frontmatter, prints grouped help text)
+   └─ (scans src/kit/skills/*.md frontmatter, prints grouped help text)
 ```
 
 ### Tools used

@@ -25,7 +25,7 @@ Set by `fab init` (on bootstrap) and `fab upgrade` (on version update). Not user
 - `linear_workspace` — Linear workspace slug (string, optional). When present, `/git-pr` constructs issue hyperlinks using `https://linear.app/{linear_workspace}/issue/{ISSUE_ID}`. When absent, issue IDs are rendered as bare text. Set once per project. Used exclusively by `/git-pr` for URL construction in the PR body's Change section.
 
 #### `model_tiers`
-Provider-specific model identifiers for the two-tier system. Replaces the former `fab/.kit/model-tiers.yaml` file. Structure:
+Provider-specific model identifiers for the two-tier system. Replaces the former `src/kit/model-tiers.yaml` file. Structure:
 ```yaml
 model_tiers:
   fast:
@@ -211,7 +211,7 @@ See [setup](setup.md) for the complete command suite.
 *Source*: doc/fab-spec/TEMPLATES.md
 
 ### Stage Graph in Schema, Not Config
-**Decision**: The stage pipeline is defined in `fab/.kit/schemas/workflow.yaml` (the authoritative schema), not in `config.yaml`. The `stages:` section was removed from config in v0.8.0 because no skill ever consumed it — all skills derive stage ordering from the schema or their own hardcoded logic.
+**Decision**: The stage pipeline is defined in `$(fab kit-path)/schemas/workflow.yaml` (the authoritative schema), not in `config.yaml`. The `stages:` section was removed from config in v0.8.0 because no skill ever consumed it — all skills derive stage ordering from the schema or their own hardcoded logic.
 **Why**: The stages section was dead config. Removing it reduces config surface area without losing functionality.
 **Superseded**: Earlier design placed stages in config for inspectability. In practice, this was never used.
 *Source*: 260218-bb93-restructure-config-yaml
@@ -232,6 +232,7 @@ See [setup](setup.md) for the complete command suite.
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260402-gnx5-relocate-kit-to-system-cache | 2026-04-02 | Removed `kit.conf` references — `build-type` feature eliminated, `repo` hardcoded in Go binary. Stage graph schema reference updated to `$(fab kit-path)/schemas/workflow.yaml`. Scaffold references updated to `$(fab kit-path)/scaffold/`. No changes to `config.yaml` schema itself. |
 | 260401-46hw-brew-install-system-shim | 2026-04-02 | Added `fab_version` top-level field to `config.yaml` schema — bare semver string declaring the fab-kit version the repo expects. Read by the system `fab` shim for version resolution and dispatch. Set by `fab init` (bootstrap) and `fab upgrade` (version update). When absent but `config.yaml` exists, shim exits with actionable error. |
 | 260320-t13m-configurable-agent-spawn-command | 2026-03-20 | Added `agent` section to `config.yaml` schema with `spawn_command` key — configurable shell command string for spawning agent sessions. Default: `claude --dangerously-skip-permissions --effort max -n "$(basename "$(pwd)")"`. Shell expansions evaluate at invocation time. Scripts read via `lib/spawn.sh` helper with fallback to `claude --dangerously-skip-permissions` when key is absent. Migration adds `agent` section to existing configs. |
 | 260312-9r3t-pr-change-metadata | 2026-03-12 | Added optional `linear_workspace` field to `config.yaml` `project:` block. Used by `/git-pr` to construct Linear issue hyperlinks (`https://linear.app/{workspace}/issue/{ID}`) in the PR body's Change section. When absent, issue IDs render as bare text. Migration `0.34.0-to-0.37.0.md` surfaces the field to existing users as a commented-out line. |
@@ -239,7 +240,7 @@ See [setup](setup.md) for the complete command suite.
 | 260226-tnr8-coverage-scoring-change-types | 2026-02-26 | `calc-score.sh` gains coverage-weighted confidence formula (`score = base * cover`), `--stage` flag for intake/spec threshold selection, `expected_min` lookup tables embedded by `{stage, change_type}`, and 7-type gate thresholds replacing old 4-type (`bugfix`/`feature`/`refactor`/`architecture`) mapping. New `statusman.sh set-change-type` subcommand validates and writes `change_type` to `.status.yaml`. |
 | 260226-jq7a-slim-config-decouple-naming | 2026-02-26 | Removed `git` and `naming` sections from config.yaml schema. Renamed `rules` → `stage_directives` with all 6 stage placeholders. Added `issue_id` to status.yaml. |
 | 260219-wq0e-move-5cs-to-project-folder | 2026-02-19 | Moved 5 Cs + VERSION from `fab/` to `fab/project/` subdirectory — creating clean top-level triad (`.kit/`, `project/`, `changes/`). Updated all path references across overview, requirements, companion files section, lifecycle menu, and design decisions. Migration `0.9.0-to-0.10.0.md` handles existing installations. |
-| 260218-xkkc-add-code-review-5cs-quality | 2026-02-18 | Added `code-review.md` as 5th configuration file (the "5 Cs of Quality"). Added to overview, requirements, relationship section, lifecycle menu (item 10), and design decisions. New scaffold at `fab/.kit/scaffold/code-review.md` |
+| 260218-xkkc-add-code-review-5cs-quality | 2026-02-18 | Added `code-review.md` as 5th configuration file (the "5 Cs of Quality"). Added to overview, requirements, relationship section, lifecycle menu (item 10), and design decisions. New scaffold at `$(fab kit-path)/scaffold/code-review.md` |
 | 260218-bb93-restructure-config-yaml | 2026-02-18 | Extracted `context:` → `fab/context.md`, `code_quality:` → `fab/code-quality.md`, removed dead `stages:` section, merged `model-tiers.yaml` into config.yaml `model_tiers:` section. Updated schema, lifecycle menu, design decisions, and relationship section |
 | 260216-tk7a-DEV-1037-consolidate-setup-upgrade-flow | 2026-02-16 | `/fab-init` → `/fab-setup` throughout (lifecycle commands, scenario tables, cross-references) |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |

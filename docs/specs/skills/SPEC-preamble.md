@@ -4,7 +4,7 @@
 
 Shared context preamble loaded by every Fab skill. Defines path conventions, test-build guard, context loading layers (always-load, change context, memory lookup, source code), next-steps convention with state table, skill invocation protocol, subagent dispatch pattern with standard subagent context, SRAD autonomy framework, and confidence scoring.
 
-This is an internal partial (`user-invocable: false`) — it is never invoked directly. Skills reference it via the opening instruction: "Read `fab/.kit/skills/_preamble.md` first."
+This is an internal partial (`user-invocable: false`) — it is never invoked directly. Skills reference it via the opening instruction: "Read `src/kit/skills/_preamble.md` first."
 
 ## Flow
 
@@ -15,7 +15,7 @@ Skill reads _preamble.md
 │  (all paths relative to repo root)
 │
 ├─ Test-Build Guard
-│  Read: fab/.kit/kit.conf
+│  Read: kit.conf (removed)
 │  [if build-type=test]
 │    Bash: fab preflight
 │    STOP

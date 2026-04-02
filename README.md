@@ -113,7 +113,7 @@ brew install go just
 fab init
 ```
 
-This downloads the latest release, populates `fab/.kit/`, sets `fab_version` in `fab/project/config.yaml`, and runs `fab sync` — all in one step. No curl scripts or manual downloads.
+This downloads the latest release to the system cache, sets `fab_version` in `fab/project/config.yaml`, and runs `fab sync` to deploy skills — all in one step. No curl scripts or manual downloads.
 
 **Then in your AI agent:**
 

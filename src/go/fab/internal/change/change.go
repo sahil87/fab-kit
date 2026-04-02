@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/kitpath"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/log"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
@@ -64,7 +65,11 @@ func New(fabRoot, slug, changeID, logArgs string) (string, error) {
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	// Initialize .status.yaml from template
-	templatePath := filepath.Join(fabRoot, ".kit", "templates", "status.yaml")
+	kitDir, err := kitpath.KitDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve kit directory: %w", err)
+	}
+	templatePath := filepath.Join(kitDir, "templates", "status.yaml")
 	tmplData, err := os.ReadFile(templatePath)
 	if err != nil {
 		return "", fmt.Errorf("read template: %w", err)

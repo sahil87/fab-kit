@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/frontmatter"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/kitpath"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 )
 
@@ -59,12 +60,15 @@ func fabHelpCmd() *cobra.Command {
 
 func runFabHelp(cmd *cobra.Command, args []string) error {
 	w := cmd.OutOrStdout()
-	fabRoot, err := resolve.FabRoot()
+	_, err := resolve.FabRoot()
 	if err != nil {
 		return err
 	}
 
-	kitDir := filepath.Join(fabRoot, ".kit")
+	kitDir, err := kitpath.KitDir()
+	if err != nil {
+		return fmt.Errorf("cannot resolve kit directory: %w", err)
+	}
 	version := readKitVersion(kitDir)
 
 	// Scan skills

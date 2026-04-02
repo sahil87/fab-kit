@@ -31,24 +31,15 @@ func Init() error {
 		return fmt.Errorf("cannot determine working directory: %w", err)
 	}
 
-	// 4. Copy kit/ -> repo's fab/.kit/
-	kitSrc := CachedKitDir(latest)
-	kitDst := filepath.Join(cwd, "fab", ".kit")
-
-	fmt.Println("Populating fab/.kit/...")
-	if err := copyDir(kitSrc, kitDst); err != nil {
-		return fmt.Errorf("cannot copy kit: %w", err)
-	}
-
-	// 5. Create/update config.yaml with fab_version
+	// 4. Create/update config.yaml with fab_version
 	configPath := filepath.Join(cwd, "fab", "project", "config.yaml")
 	if err := setFabVersion(configPath, latest); err != nil {
 		return fmt.Errorf("cannot update config.yaml: %w", err)
 	}
 	fmt.Printf("Set fab_version: %s in config.yaml\n", latest)
 
-	// 6. Run sync
-	fmt.Println("Running sync...")
+	// 5. Run sync
+	fmt.Println("Setting up project...")
 	if err := Sync(latest, false, false); err != nil {
 		return fmt.Errorf("sync failed: %w", err)
 	}

@@ -8,7 +8,6 @@ project:
     linear_workspace: 
     name: fab-kit
 source_paths:
-    - fab/.kit/
     - src/
 stage_directives:
     apply: []

@@ -31,7 +31,7 @@ User invokes /fab-new <description>
 │  └─ (agent reasoning — scans conversation history)
 │
 ├─ Step 5: Generate intake.md
-│  ├─ Read: fab/.kit/templates/intake.md
+│  ├─ Read: $(fab kit-path)/templates/intake.md
 │  └─ Write: fab/changes/{name}/intake.md          ◄── HOOK CANDIDATE
 │
 ├─ Step 6: Infer Change Type

@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Upgrade handles `fab upgrade [version]` — updates fab/.kit/ and config.yaml.
+// Upgrade handles `fab upgrade [version]` — updates fab_version in config.yaml and re-syncs skills.
 func Upgrade(targetVersion string) error {
 	// Must be in a fab repo
 	cfg, err := ResolveConfig()
@@ -63,33 +63,13 @@ func Upgrade(targetVersion string) error {
 		return err
 	}
 
-	// Atomic swap of fab/.kit/
+	// Verify cached kit has a VERSION file
 	kitSrc := CachedKitDir(targetVersion)
-	kitDst := filepath.Join(cfg.RepoRoot, "fab", ".kit")
-
-	// Verify source kit has a VERSION file
 	if _, err := os.Stat(filepath.Join(kitSrc, "VERSION")); err != nil {
 		return fmt.Errorf("cached kit for v%s is missing VERSION file", targetVersion)
 	}
 
-	fmt.Println("Updating fab/.kit/...")
-
-	// Extract to temp, then swap
-	tmpKit := kitDst + ".upgrade-tmp"
-	os.RemoveAll(tmpKit)
-	if err := copyDir(kitSrc, tmpKit); err != nil {
-		os.RemoveAll(tmpKit)
-		return fmt.Errorf("cannot prepare kit update: %w", err)
-	}
-
-	// Swap: remove old, rename new
-	if err := os.RemoveAll(kitDst); err != nil {
-		os.RemoveAll(tmpKit)
-		return fmt.Errorf("cannot remove old kit: %w", err)
-	}
-	if err := os.Rename(tmpKit, kitDst); err != nil {
-		return fmt.Errorf("cannot install new kit: %w", err)
-	}
+	fmt.Printf("Upgrading to %s...\n", targetVersion)
 
 	// Update fab_version in config.yaml
 	if err := setFabVersion(cfg.ConfigPath, targetVersion); err != nil {

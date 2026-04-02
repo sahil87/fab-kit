@@ -77,16 +77,13 @@ func Sync(systemVersion string, shimOnly, projectOnly bool) error {
 
 		deploySkills(repoRoot, cachedKitDir)
 
-		// Hook sync (absorbed from 5-sync-hooks.sh)
-		hooksDir := filepath.Join(cachedKitDir, "hooks")
+		// Hook sync — registers inline fab hook commands
 		settingsPath := filepath.Join(repoRoot, ".claude", "settings.local.json")
-		if dirExists(hooksDir) {
-			msg, err := syncHooks(hooksDir, settingsPath)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "WARN: hook sync failed: %v\n", err)
-			} else {
-				fmt.Println(msg)
-			}
+		msg, err := syncHooks(settingsPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "WARN: hook sync failed: %v\n", err)
+		} else {
+			fmt.Println(msg)
 		}
 
 		cleanLegacyAgents(repoRoot, cachedKitDir)
@@ -520,7 +517,7 @@ func deploySkills(repoRoot, kitDir string) {
 	// Define agent configurations
 	agents := []agentConfig{
 		{Label: "Claude Code", CLI: "claude", BaseDir: filepath.Join(repoRoot, ".claude", "skills"), Format: "directory", Mode: "copy"},
-		{Label: "OpenCode", CLI: "opencode", BaseDir: filepath.Join(repoRoot, ".opencode", "commands"), Format: "flat", Mode: "symlink"},
+		{Label: "OpenCode", CLI: "opencode", BaseDir: filepath.Join(repoRoot, ".opencode", "commands"), Format: "flat", Mode: "copy"},
 		{Label: "Codex", CLI: "codex", BaseDir: filepath.Join(repoRoot, ".agents", "skills"), Format: "directory", Mode: "copy"},
 		{Label: "Gemini", CLI: "gemini", BaseDir: filepath.Join(repoRoot, ".gemini", "skills"), Format: "directory", Mode: "copy"},
 	}
@@ -585,7 +582,7 @@ func syncAgentSkills(agent agentConfig, skills []string, skillsDir string) {
 	for _, skill := range skills {
 		src := filepath.Join(skillsDir, skill+".md")
 		if _, err := os.Stat(src); os.IsNotExist(err) {
-			fmt.Printf("WARN: fab/.kit/skills/%s.md missing — skipping\n", skill)
+			fmt.Printf("WARN: kit/skills/%s.md missing in cache — skipping\n", skill)
 			continue
 		}
 
@@ -622,8 +619,8 @@ func syncAgentSkills(agent agentConfig, skills []string, skillsDir string) {
 				created++
 			}
 		} else {
-			// Symlink mode
-			target := "../../fab/.kit/skills/" + skill + ".md"
+			// Symlink mode — target is the absolute path in the cache
+			target := filepath.Join(skillsDir, skill+".md")
 			if info, err := os.Lstat(dest); err == nil && info.Mode()&os.ModeSymlink != 0 {
 				// Symlink exists — check if target resolves
 				if _, err := os.Stat(dest); err == nil {

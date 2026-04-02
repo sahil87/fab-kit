@@ -121,8 +121,8 @@ func CreateExploratoryWorktree(name string, ctx *RepoContext, rb *Rollback, star
 
 // RunWorktreeSetup runs the init script/command in the worktree directory.
 // mode: "force" runs without prompting, "" prompts for confirmation.
-// initScript is either a relative path from repo root (e.g., "fab/.kit/worktree-init.sh")
-// or a command invocation (e.g., "fab-kit sync").
+// initScript is either a relative path from repo root
+// or a command invocation (e.g., "fab sync").
 func RunWorktreeSetup(wtPath, mode, initScript string, repoRoot string) error {
 	// Determine if it's a command (contains spaces) or a file path
 	var cmd *exec.Cmd

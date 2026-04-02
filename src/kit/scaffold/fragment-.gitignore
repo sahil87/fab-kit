@@ -1,0 +1,12 @@
+# Fab Specific
+.fab-*
+fab/changes/**/.pr-done
+
+# Optional - ignore agent specific folders
+/.agents
+/.claude
+/.cursor
+/.opencode
+/.codex
+/.gemini
+/.ralph

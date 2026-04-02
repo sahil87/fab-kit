@@ -9,7 +9,7 @@ Bootstraps a new project or manages config/constitution/migrations. Creates `fab
 ```
 User invokes /fab-setup [subcommand]
 │
-├─ Pre-flight: verify fab/.kit/ and VERSION exist
+├─ Pre-flight: verify src/kit/ and VERSION exist
 ├─ Bash: fab log command "fab-setup"
 │
 ├── No argument: Bootstrap ─────────────────────────────
@@ -19,12 +19,12 @@ User invokes /fab-setup [subcommand]
 │  │
 │  ├─ Phase 1a: config.yaml
 │  │  ├─ Read: README, package.json (project context)
-│  │  ├─ Read: fab/.kit/scaffold/fab/project/config.yaml
+│  │  ├─ Read: src/kit/scaffold/fab/project/config.yaml
 │  │  ├─ (interactive: ask name, description, source_paths)
 │  │  └─ Write: fab/project/config.yaml
 │  │
 │  ├─ Phase 1b: constitution.md
-│  │  ├─ Read: fab/.kit/scaffold/fab/project/constitution.md
+│  │  ├─ Read: src/kit/scaffold/fab/project/constitution.md
 │  │  ├─ Read: project context (config, README, codebase)
 │  │  ├─ (agent generates principles)
 │  │  └─ Write: fab/project/constitution.md
@@ -36,7 +36,7 @@ User invokes /fab-setup [subcommand]
 │  │  └─ Write: docs/memory/index.md, docs/specs/index.md (from scaffold)
 │  │
 │  ├─ Phase 1i: Changes directory + sync
-│  │  └─ Bash: fab/.kit/scripts/fab-sync.sh
+│  │  └─ Bash: src/kit/scripts/fab-sync.sh
 │  │     └─ (creates directories, symlinks, migration version)
 │  │
 │  └─ Phase 1k: .gitignore
@@ -53,8 +53,8 @@ User invokes /fab-setup [subcommand]
 │  └─ Edit: fab/project/constitution.md
 │
 └── migrations: Migrations ─────────────────────────────
-   ├─ Read: fab/.kit-migration-version, fab/.kit/VERSION
-   ├─ Glob: fab/.kit/migrations/*.md
+   ├─ Read: fab/.kit-migration-version, src/kit/VERSION
+   ├─ Glob: src/kit/migrations/*.md
    ├─ For each applicable migration:
    │  ├─ Read: migration file
    │  ├─ (execute pre-checks, changes, verification)
