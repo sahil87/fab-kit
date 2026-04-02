@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
+	"path/filepath"
 	"time"
 )
 
@@ -14,8 +14,7 @@ const brewFormula = "fab-kit"
 // Update self-updates the fab-kit binary via Homebrew.
 func Update(currentVersion string) error {
 	// Guard: only works if installed via Homebrew
-	self, err := os.Executable()
-	if err == nil && !strings.Contains(self, "/Cellar/fab-kit/") {
+	if !isBrewInstalled() {
 		fmt.Printf("fab-kit v%s was not installed via Homebrew.\n", currentVersion)
 		fmt.Println("Update manually, or reinstall with: brew install sahil87/tap/fab-kit")
 		return nil
@@ -77,6 +76,21 @@ func brewLatestVersion() (string, error) {
 		return "", fmt.Errorf("no stable version found in brew info output")
 	}
 	return info.Formulae[0].Versions.Stable, nil
+}
+
+// isBrewInstalled checks whether fab-kit was installed via Homebrew by resolving
+// the executable's symlink and looking for /Cellar/fab-kit/ in the real path.
+func isBrewInstalled() bool {
+	self, err := os.Executable()
+	if err != nil {
+		return false
+	}
+	real, err := filepath.EvalSymlinks(self)
+	if err != nil {
+		return false
+	}
+	// Check both Cellar path (Intel/ARM) patterns
+	return filepath.Base(filepath.Dir(filepath.Dir(filepath.Dir(real)))) == "Cellar"
 }
 
 // runWithTimeout runs a command with a timeout.
