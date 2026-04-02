@@ -87,7 +87,7 @@ func printHelp() {
 	fmt.Printf("fab %s — workspace & workflow toolkit\n\n", version)
 	fmt.Println("Workspace commands:")
 	fmt.Println("  init       Initialize fab in the current repo")
-	fmt.Println("  upgrade    Upgrade fab/.kit/ to a specific or latest version")
+	fmt.Println("  upgrade    Upgrade to a specific or latest version")
 	fmt.Println("  sync       Sync workspace (skills, directories, scaffold)")
 	fmt.Println("  update     Update fab-kit itself via Homebrew")
 	fmt.Println()

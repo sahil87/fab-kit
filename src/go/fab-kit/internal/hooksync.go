@@ -9,20 +9,28 @@ import (
 	"strings"
 )
 
-// hookMapping defines a mapping from a hook script to a Claude Code event.
+// hookMapping defines a mapping from a fab hook subcommand to a Claude Code event.
 type hookMapping struct {
-	Script  string
-	Event   string
-	Matcher string
+	Subcommand string
+	Event      string
+	Matcher    string
 }
 
-// defaultHookMappings maps hook scripts to Claude Code events.
+// defaultHookMappings maps fab hook subcommands to Claude Code events.
 var defaultHookMappings = []hookMapping{
-	{Script: "on-session-start.sh", Event: "SessionStart", Matcher: ""},
-	{Script: "on-stop.sh", Event: "Stop", Matcher: ""},
-	{Script: "on-user-prompt.sh", Event: "UserPromptSubmit", Matcher: ""},
-	{Script: "on-artifact-write.sh", Event: "PostToolUse", Matcher: "Write"},
-	{Script: "on-artifact-write.sh", Event: "PostToolUse", Matcher: "Edit"},
+	{Subcommand: "session-start", Event: "SessionStart", Matcher: ""},
+	{Subcommand: "stop", Event: "Stop", Matcher: ""},
+	{Subcommand: "user-prompt", Event: "UserPromptSubmit", Matcher: ""},
+	{Subcommand: "artifact-write", Event: "PostToolUse", Matcher: "Write"},
+	{Subcommand: "artifact-write", Event: "PostToolUse", Matcher: "Edit"},
+}
+
+// oldScriptToSubcommand maps old hook script names to new subcommand names for migration.
+var oldScriptToSubcommand = map[string]string{
+	"on-session-start.sh":  "session-start",
+	"on-stop.sh":           "stop",
+	"on-user-prompt.sh":    "user-prompt",
+	"on-artifact-write.sh": "artifact-write",
 }
 
 type hookEntry struct {
@@ -35,22 +43,9 @@ type hookSpec struct {
 	Command string `json:"command"`
 }
 
-// syncHooks discovers hook scripts in hooksDir, maps them to Claude Code events,
-// and merges entries into settingsPath. Idempotent.
-func syncHooks(hooksDir, settingsPath string) (string, error) {
-	// Discover existing hook scripts
-	existingScripts := make(map[string]bool)
-	entries, err := os.ReadDir(hooksDir)
-	if err != nil && !os.IsNotExist(err) {
-		return "", fmt.Errorf("reading hooks dir: %w", err)
-	}
-	for _, e := range entries {
-		if !e.IsDir() {
-			existingScripts[e.Name()] = true
-		}
-	}
-
-	// Build desired hook entries from mappings (only for scripts that exist)
+// syncHooks registers inline `fab hook <subcommand>` commands in settingsPath. Idempotent.
+func syncHooks(settingsPath string) (string, error) {
+	// Build desired hook entries from hardcoded mappings
 	type desiredEntry struct {
 		event   string
 		matcher string
@@ -58,10 +53,7 @@ func syncHooks(hooksDir, settingsPath string) (string, error) {
 	}
 	var desired []desiredEntry
 	for _, m := range defaultHookMappings {
-		if !existingScripts[m.Script] {
-			continue
-		}
-		cmd := `bash "$CLAUDE_PROJECT_DIR"/fab/.kit/hooks/` + m.Script
+		cmd := "fab hook " + m.Subcommand
 		desired = append(desired, desiredEntry{event: m.Event, matcher: m.Matcher, command: cmd})
 	}
 
@@ -90,23 +82,8 @@ func syncHooks(hooksDir, settingsPath string) (string, error) {
 		}
 	}
 
-	// Migrate old-format commands (relative path) to new format ($CLAUDE_PROJECT_DIR)
-	migrated := 0
-	for event, eventEntries := range existingHooks {
-		for i, entry := range eventEntries {
-			for j, h := range entry.Hooks {
-				if strings.HasPrefix(h.Command, "bash fab/.kit/hooks/") {
-					existingHooks[event][i].Hooks[j].Command = strings.Replace(
-						h.Command,
-						"bash fab/.kit/hooks/",
-						`bash "$CLAUDE_PROJECT_DIR"/fab/.kit/hooks/`,
-						1,
-					)
-					migrated++
-				}
-			}
-		}
-	}
+	// Migrate old-style commands to inline fab hook commands
+	migrated := migrateOldHookCommands(existingHooks)
 
 	// Count existing entries for change detection
 	existingCount := 0
@@ -167,9 +144,30 @@ func syncHooks(hooksDir, settingsPath string) (string, error) {
 		parts = append(parts, fmt.Sprintf("added %d hook entries", added))
 	}
 	if migrated > 0 {
-		parts = append(parts, fmt.Sprintf("migrated %d to absolute paths", migrated))
+		parts = append(parts, fmt.Sprintf("migrated %d to inline commands", migrated))
 	}
 	return fmt.Sprintf("Updated: .claude/settings.local.json hooks (%s)", strings.Join(parts, ", ")), nil
+}
+
+// migrateOldHookCommands replaces old-style bash script commands with inline fab hook commands.
+func migrateOldHookCommands(hooks map[string][]hookEntry) int {
+	migrated := 0
+	for event, eventEntries := range hooks {
+		for i, entry := range eventEntries {
+			for j, h := range entry.Hooks {
+				for scriptName, subcommand := range oldScriptToSubcommand {
+					oldAbsolute := `bash "$CLAUDE_PROJECT_DIR"/fab/.kit/hooks/` + scriptName
+					oldRelative := "bash fab/.kit/hooks/" + scriptName
+					if h.Command == oldAbsolute || h.Command == oldRelative {
+						hooks[event][i].Hooks[j].Command = "fab hook " + subcommand
+						migrated++
+						break
+					}
+				}
+			}
+		}
+	}
+	return migrated
 }
 
 // hookHasDuplicate checks if an entry with the same matcher and command already exists.

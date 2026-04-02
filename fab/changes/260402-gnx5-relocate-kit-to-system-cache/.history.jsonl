@@ -1,0 +1,19 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-04-02T10:26:17Z"}
+{"args":"Move fab/.kit from user projects to ~/.fab-kit/versions/\u003cversion\u003e/kit/ system cache; rename source to src/kit; add fab kit-path command; eliminate kit.conf","cmd":"fab-new","event":"command","ts":"2026-04-02T10:26:17Z"}
+{"delta":"+0.8","event":"confidence","score":0.8,"trigger":"calc-score","ts":"2026-04-02T10:28:02Z"}
+{"delta":"+0.0","event":"confidence","score":0.8,"trigger":"calc-score","ts":"2026-04-02T10:28:06Z"}
+{"delta":"+0.0","event":"confidence","score":0.8,"trigger":"calc-score","ts":"2026-04-02T10:48:57Z"}
+{"delta":"+0.0","event":"confidence","score":0.8,"trigger":"calc-score","ts":"2026-04-02T10:49:03Z"}
+{"delta":"+0.0","event":"confidence","score":0.8,"trigger":"calc-score","ts":"2026-04-02T10:49:10Z"}
+{"delta":"+4.2","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-04-02T10:49:30Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-04-02T10:49:35Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-04-02T10:50:50Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"spec","ts":"2026-04-02T10:51:18Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-04-02T10:53:40Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-04-02T10:53:44Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"tasks","ts":"2026-04-02T10:54:41Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-04-02T10:55:58Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-04-02T11:39:36Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-04-02T11:45:39Z"}
+{"event":"review","result":"passed","ts":"2026-04-02T11:45:39Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-04-02T11:48:32Z"}

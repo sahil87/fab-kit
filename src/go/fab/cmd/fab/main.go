@@ -31,6 +31,7 @@ func main() {
 		fabHelpCmd(),
 		operatorCmd(),
 		batchCmd(),
+		kitPathCmd(),
 	)
 
 	if err := root.Execute(); err != nil {

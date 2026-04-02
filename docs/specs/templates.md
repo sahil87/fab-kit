@@ -1,6 +1,6 @@
 # Fab Templates
 
-> Templates that ship in `fab/.kit/templates/`. Each is a markdown scaffold that skills fill with concrete content. Guidance comments (`<!-- -->`) are instructions to the agent, not preserved in output.
+> Templates that ship in `$(fab kit-path)/templates/`. Each is a markdown scaffold that skills fill with concrete content. Guidance comments (`<!-- -->`) are instructions to the agent, not preserved in output.
 
 ---
 

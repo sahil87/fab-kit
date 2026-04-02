@@ -55,7 +55,7 @@ func initCmd() *cobra.Command {
 func upgradeCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "upgrade [version]",
-		Short: "Upgrade fab/.kit/ to a specific or latest version",
+		Short: "Upgrade to a specific or latest version",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			targetVersion := ""

@@ -2,7 +2,7 @@
 
 Fab Kit ships two standalone CLI tools alongside the skill-based pipeline. Unlike skills (which are Claude Code prompts invoked via `/`), these are compiled Go binaries that run directly in the terminal — no AI agent required.
 
-Both binaries live inside `fab/.kit/bin/` and are added to PATH via `.envrc` during workspace setup. They complement the fab pipeline: **wt** provides the worktree isolation that enables parallel changes, and **idea** provides the backlog that feeds `/fab-new`.
+Both binaries live inside `src/go/ binary ` and are added to PATH via `.envrc` during workspace setup. They complement the fab pipeline: **wt** provides the worktree isolation that enables parallel changes, and **idea** provides the backlog that feeds `/fab-new`.
 
 ---
 
@@ -10,7 +10,7 @@ Both binaries live inside `fab/.kit/bin/` and are added to PATH via `.envrc` dur
 
 Git worktrees let you have multiple checkouts of the same repository side by side. The wt binary wraps `git worktree` with opinionated defaults for the fab workflow: worktrees are created as siblings in `<repo>.worktrees/`, names are memorable random words, and each worktree can run its own fab change independently.
 
-**Binary**: `fab/.kit/bin/wt` (Go binary, included in per-platform release archives)
+**Binary**: `src/go/ binary wt` (Go binary, included in per-platform release archives)
 
 ### Commands
 
@@ -105,7 +105,7 @@ A shell function wrapper like Option 3 works because functions execute in the ca
 
 The idea command manages a per-repo backlog stored in `fab/backlog.md`. It's a lightweight CRUD tool for capturing, triaging, and tracking ideas before they become fab changes.
 
-**Binary**: `fab/.kit/bin/idea` (Go binary, included in per-platform release archives; added to PATH as `idea` via `.envrc` during workspace setup).
+**Binary**: `src/go/ binary idea` (Go binary, included in per-platform release archives; added to PATH as `idea` via `.envrc` during workspace setup).
 
 **Worktree behavior**: By default, `idea` operates on the **current worktree's** `fab/backlog.md` (resolved via `git rev-parse --show-toplevel`). Pass `--main` to target the main worktree's backlog instead; internally, `idea` resolves the main worktree root by running `git rev-parse --path-format=absolute --git-common-dir` and taking its parent directory. In the main worktree, both behave identically. This ensures that users in a linked worktree get predictable local behavior unless they explicitly opt into the shared backlog.
 
@@ -155,10 +155,10 @@ batch-fab-new-backlog --all   # Create changes from all open ideas
 
 ## Package Architecture
 
-The `fab/.kit/bin/` directory contains the shell dispatcher and compiled Go binaries, all added to PATH via `.envrc`:
+The `src/go/ binary ` directory contains the shell dispatcher and compiled Go binaries, all added to PATH via `.envrc`:
 
 ```
-fab/.kit/bin/
+src/go/ binary 
 ├── fab                 # Shell dispatcher (entry point for all fab CLI operations)
 ├── fab-go              # Go binary backend (optional, platform-specific)
 ├── wt                  # Go binary — worktree management
@@ -166,7 +166,7 @@ fab/.kit/bin/
 └── .gitkeep
 ```
 
-**PATH setup**: `.envrc` uses `PATH_add fab/.kit/bin` (via direnv) to make the `fab` dispatcher, `wt`, and `idea` binaries available.
+**PATH setup**: `.envrc` uses `PATH_add src/kit/bin` (via direnv) to make the `fab` dispatcher, `wt`, and `idea` binaries available.
 
 **Distribution**: Go binaries are included in per-platform release archives (`kit-{os}-{arch}.tar.gz`). The generic `kit.tar.gz` is source-only: it contains skills, templates, and supporting scripts/configuration, but no compiled binaries. `fab-upgrade.sh` updates kit content atomically alongside skills and templates.
 
@@ -175,4 +175,4 @@ fab/.kit/bin/
 | Change | Date | Summary |
 |--------|------|---------|
 | 260316-euw2-multi-worktree-delete | 2026-03-16 | `wt delete` now accepts positional arguments for multi-worktree deletion (`wt delete fox bear`). `--worktree-name` flag deprecated. Fail-fast validation, single confirmation prompt, sequential deletion with continue-on-error. |
-| 260312-96nf-remove-rust-implementation | 2026-03-12 | Removed `fab-rust` line from `fab/.kit/bin/` directory tree. |
+| 260312-96nf-remove-rust-implementation | 2026-03-12 | Removed `fab-rust` line from `src/go/ binary ` directory tree. |

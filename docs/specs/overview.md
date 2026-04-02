@@ -25,7 +25,7 @@ Fab combines ideas from two specification-driven workflows — SpecKit and OPSX 
 ## Design Principles
 
 ### 1. Pure Prompt Play
-No system installation required. All workflow logic lives in `fab/.kit/` as markdown templates and skill definitions that any AI agent can execute.
+No system installation required. All workflow logic lives in `src/kit/` as markdown templates and skill definitions that any AI agent can execute.
 
 ### 2. Memory Is the Source of Truth
 Code serves documentation, not the other way around. The memory files (`docs/memory/`) are the source of truth for what the system does and why it works the way it does.

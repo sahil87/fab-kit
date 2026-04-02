@@ -36,7 +36,7 @@ The `expected_min` thresholds define how many SRAD decisions a change should hav
 
 Thresholds were calibrated from archive analysis of 124 completed changes (84% unaffected at these values). Unknown or null types default to: intake=2, spec=3.
 
-These values are embedded directly in `fab/.kit/scripts/lib/calc-score.sh` since the script ships with `fab/.kit/` to projects.
+These values are embedded directly in `src/kit/scripts/lib/calc-score.sh` since the script ships with `src/kit/` to projects.
 
 ---
 

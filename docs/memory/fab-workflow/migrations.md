@@ -4,7 +4,7 @@
 
 ## Overview
 
-The migration system lets kit releases ship step-by-step instructions that an LLM agent can follow to bring a project's `fab/` files in sync with the kit engine they run on. Migrations handle evolving `config.yaml` schemas, `.status.yaml` formats, naming conventions, and other project-level artifacts that live outside `fab/.kit/`.
+The migration system lets kit releases ship step-by-step instructions that an LLM agent can follow to bring a project's `fab/` files in sync with the kit engine they run on. Migrations handle evolving `config.yaml` schemas, `.status.yaml` formats, naming conventions, and other project-level artifacts that live outside `src/kit/`.
 
 ## Requirements
 
@@ -12,14 +12,14 @@ The migration system lets kit releases ship step-by-step instructions that an LL
 
 Two VERSION files track the relationship between the installed engine and the project's file format:
 
-- **`fab/.kit/VERSION`** — engine version (ships inside `.kit/`, replaced on each `fab-upgrade.sh` run)
+- **`$(fab kit-path)/VERSION`** — engine version (ships inside `.kit/`, replaced on each `fab-upgrade.sh` run)
 - **`fab/.kit-migration-version`** — local project version (lives outside `.kit/`, NOT replaced on upgrades; renamed from `fab/.kit-migration-version`)
 
 Both files contain a bare semver string (`MAJOR.MINOR.PATCH`), no prefix, no trailing content.
 
 ### Migration Directory
 
-`fab/.kit/migrations/` ships with the kit and contains migration instruction files. The directory exists even if empty for the first release (`.gitkeep`).
+`$(fab kit-path)/migrations/` ships with the kit and contains migration instruction files. The directory exists even if empty for the first release (`.gitkeep`).
 
 ### Migration File Format
 
@@ -55,8 +55,8 @@ Migration file ranges MUST NOT overlap. `/fab-setup migrations` validates this b
 
 The migration runner, now a subcommand of `/fab-setup` (previously the standalone `/fab-update` skill). It:
 
-1. Compares `fab/.kit-migration-version` to `fab/.kit/VERSION`
-2. Scans `fab/.kit/migrations/` for applicable files
+1. Compares `fab/.kit-migration-version` to `$(fab kit-path)/VERSION`
+2. Scans `$(fab kit-path)/migrations/` for applicable files
 3. Validates non-overlapping ranges
 4. Applies migrations sequentially (sorted by FROM ascending)
 5. Updates `fab/.kit-migration-version` after each successful migration
@@ -77,9 +77,9 @@ The migration runner, now a subcommand of `/fab-setup` (previously the standalon
 A migration file for the transition to the system shim model. The migration:
 
 1. **Prerequisite gate**: Verify `fab` (system shim) is on PATH. If not, instruct: `"Install fab-kit first: brew tap wvrdz/tap && brew install fab-kit"`
-2. **Add `fab_version`**: Write `fab_version: "{version}"` to `fab/project/config.yaml` (set to the current `fab/.kit/VERSION`)
-3. **Clean `.envrc`**: Remove the `PATH_add fab/.kit/bin` line if present
-4. **Clean `fab/.kit/bin/`**: Remove `fab`, `fab-go`, `wt`, `idea` — only `.gitkeep` remains
+2. **Add `fab_version`**: Write `fab_version: "{version}"` to `fab/project/config.yaml` (set to the current `$(fab kit-path)/VERSION`)
+3. **Clean `.envrc`**: Remove the `PATH_add src/kit/bin` line if present
+4. **Clean `fab-go binary at `**: Remove `fab`, `fab-go`, `wt`, `idea` — only `.gitkeep` remains
 
 **Scenarios**:
 - Migration on existing repo — adds `fab_version`, cleans `.envrc`, removes binaries; subsequent `fab` invocations work via system shim
@@ -95,7 +95,7 @@ A migration file for the transition to the system shim model. The migration:
 
 Handled by `fab-sync.sh` during structural bootstrap:
 
-- **New project** (no `config.yaml`): copies engine version from `fab/.kit/VERSION`
+- **New project** (no `config.yaml`): copies engine version from `$(fab kit-path)/VERSION`
 - **Existing project** (has `config.yaml`, no `fab/.kit-migration-version`): writes `0.1.0` (base version) so `/fab-setup migrations` runs all migrations
 - **Already exists**: preserves existing value
 
@@ -125,8 +125,9 @@ Handled by `fab-sync.sh` during structural bootstrap:
 
 | Change | Date | Summary |
 |--------|------|---------|
-| 260402-0ak9-remove-sync-version-file | 2026-04-02 | Added migration `0.45.1-to-0.46.0.md` for orphaned `fab/.kit-sync-version` cleanup. Migration deletes the obsolete sync stamp file (staleness detection now uses `fab/.kit/VERSION` vs `config.yaml fab_version`). Handles missing file gracefully. |
-| 260401-46hw-brew-install-system-shim | 2026-04-02 | Added brew-install migration for transition to system shim model. Prerequisite gate: verifies `fab` system binary on PATH. Adds `fab_version` field to `config.yaml`. Cleans `.envrc` (removes `PATH_add fab/.kit/bin`). Cleans `fab/.kit/bin/` (removes `fab`, `fab-go`, `wt`, `idea`). Updated Two-Step Update Flow to reference `fab upgrade` replacing `fab-upgrade.sh`. |
+| 260402-gnx5-relocate-kit-to-system-cache | 2026-04-02 | Ships migration for existing users: verify cache populated, inline hooks in `.claude/settings.local.json` (replace `bash "$CLAUDE_PROJECT_DIR"/fab/.kit/hooks/on-*.sh` with `fab hook <subcommand>`), remove `fab/.kit/` from project, clean `PATH_add fab/.kit/scripts` from `.envrc`, clean `fab/.kit/bin/*` from `.gitignore`. `$(fab kit-path)/VERSION` is now the engine version source (read from exe-sibling kit in cache). |
+| 260402-0ak9-remove-sync-version-file | 2026-04-02 | Added migration `0.45.1-to-0.46.0.md` for orphaned `fab/.kit-sync-version` cleanup. Migration deletes the obsolete sync stamp file (staleness detection now uses `$(fab kit-path)/VERSION` vs `config.yaml fab_version`). Handles missing file gracefully. |
+| 260401-46hw-brew-install-system-shim | 2026-04-02 | Added brew-install migration for transition to system shim model. Prerequisite gate: verifies `fab` system binary on PATH. Adds `fab_version` field to `config.yaml`. Cleans `.envrc` (removes `PATH_add src/kit/bin`). Cleans `fab-go binary at ` (removes `fab`, `fab-go`, `wt`, `idea`). Updated Two-Step Update Flow to reference `fab upgrade` replacing `fab-upgrade.sh`. |
 | 260312-9r3t-pr-change-metadata | 2026-03-12 | Added migration `0.34.0-to-0.37.0.md` for discoverability of new `linear_workspace` config field. Migration checks if `fab/project/config.yaml` already has `linear_workspace` — if so, skips. Otherwise adds a commented-out `# linear_workspace: "your-workspace"` line under the `project:` block. Does not change behavior — surfaces the new option to existing users during `/fab-setup migrations`. |
 | 260307-x2tx-status-symlink-pointer | 2026-03-07 | Replaced `fab/current` pointer file with `.fab-status.yaml` symlink at repo root. Added `id` field to `.status.yaml`. Updated resolution, switch, rename, pane-map, hooks, and dispatch. Migration `0.32.0-to-0.34.0` covers conversion. |
 | 260226-koj1-version-staleness-warning | 2026-02-26 | Renamed `fab/project/VERSION` → `fab/.kit-migration-version` throughout. Added `0.20.0-to-0.21.0.md` migration for the rename. Updated dual-version model description. |

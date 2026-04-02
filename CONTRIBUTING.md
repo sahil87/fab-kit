@@ -124,8 +124,8 @@ release.sh [patch|minor|major]
 - `major`: 0.1.0 → 1.0.0
 
 The script will:
-1. Bump the version in `fab/.kit/VERSION`
-2. Package `fab/.kit/` into `kit.tar.gz`
+1. Bump the version in `src/kit/VERSION`
+2. Commit the VERSION bump, tag, and push
 3. Commit the VERSION bump
 4. Create a GitHub Release with `kit.tar.gz` as an asset
 

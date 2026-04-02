@@ -10,7 +10,7 @@ All fab skills run on the session's default model — there is no model tier sys
 
 ### Single Tier: All Skills Use Platform Default
 
-No skill file in `fab/.kit/skills/` declares a `model_tier` field. All skills run on whatever model the user's session is using. There is no `model_tiers:` section in `config.yaml`, no tier resolution logic in `2-sync-workspace.sh`, and no model substitution during skill deployment.
+No skill file in `$(fab kit-path)/skills/` declares a `model_tier` field. All skills run on whatever model the user's session is using. There is no `model_tiers:` section in `config.yaml`, no tier resolution logic in `2-sync-workspace.sh`, and no model substitution during skill deployment.
 
 ### Deployment: Plain Copy
 
@@ -62,7 +62,7 @@ All skills are deployed identically to all platforms — no per-skill model temp
 | 260222-s101-wt-create-stderr-wt-list-flags | 2026-02-22 | Moved `git-pr` from fast to capable tier — removed `model_tier: fast` and preamble directive. Commit message generation needs reasoning; haiku's smaller context window caused limit hits when invoked late in pipeline sessions. |
 | 260219-d2y2-copy-template-skills-drop-agents | 2026-02-19 | Replaced dual deployment (symlinks + agent files) with copy-with-template: Claude Code skills deployed as copies with `model_tier:` → `model:` substitution. Removed agent file generation. Added transitional agent cleanup. Marked Dual Deployment design decision as superseded |
 | 260218-5isu-fix-docs-consistency-drift | 2026-02-18 | Replaced stale `fab-init` → `fab-setup` in skill classification and `lib/sync-workspace.sh` → correct paths (`fab-sync.sh`, `sync/2-sync-workspace.sh`) in deployment references |
-| 260218-bb93-restructure-config-yaml | 2026-02-18 | Deleted `fab/.kit/model-tiers.yaml`, consolidated into `config.yaml` `model_tiers:` section with hardcoded `haiku` fallback. Updated mapping file section, provider instructions, and design decisions |
+| 260218-bb93-restructure-config-yaml | 2026-02-18 | Deleted `src/kit/model-tiers.yaml`, consolidated into `config.yaml` `model_tiers:` section with hardcoded `haiku` fallback. Updated mapping file section, provider instructions, and design decisions |
 | 260216-gqpp-DEV-1040-code-review-loop | 2026-02-16 | Added review sub-agent classification as capable tier — spawned during pipeline execution by `/fab-continue`, `/fab-ff`, `/fab-fff` |
 | 260215-v4n7-DEV-1025-rename-brief-to-intake | 2026-02-15 | Renamed `brief` stage/artifact to `intake` throughout — stage identifiers, artifact filenames, YAML keys, prose references |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_preflight.sh` → `lib/preflight.sh` and `_init_scaffold.sh` → `lib/sync-workspace.sh` in skill classification and deployment references |

@@ -1,0 +1,42 @@
+id: gnx5
+name: 260402-gnx5-relocate-kit-to-system-cache
+created: 2026-04-02T10:26:17Z
+created_by: sahil-weaver
+change_type: docs
+issues: []
+progress:
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+checklist:
+    generated: true
+    path: checklist.md
+    completed: 0
+    total: 22
+confidence:
+    certain: 14
+    confident: 0
+    tentative: 0
+    unresolved: 0
+    score: 5.0
+    fuzzy: true
+    dimensions:
+        signal: 90.7
+        reversibility: 73.6
+        competence: 86.4
+        disambiguation: 90.0
+stage_metrics:
+    intake: {started_at: "2026-04-02T10:26:17Z", driver: fab-new, iterations: 1, completed_at: "2026-04-02T10:51:18Z"}
+    spec: {started_at: "2026-04-02T10:51:18Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-02T10:54:41Z"}
+    tasks: {started_at: "2026-04-02T10:54:41Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-02T10:55:58Z"}
+    apply: {started_at: "2026-04-02T10:55:58Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-02T11:39:36Z"}
+    review: {started_at: "2026-04-02T11:39:36Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-02T11:45:39Z"}
+    hydrate: {started_at: "2026-04-02T11:45:39Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-02T11:48:32Z"}
+    ship: {started_at: "2026-04-02T11:48:32Z", driver: fab-fff, iterations: 1}
+prs: []
+last_updated: 2026-04-02T11:48:32Z

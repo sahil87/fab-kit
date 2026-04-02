@@ -2,12 +2,12 @@
 
 ## Current Hooks
 
-Two Claude Code hooks exist today, both registered via `fab/.kit/sync/5-sync-hooks.sh`:
+Two Claude Code hooks exist today, both registered via `src/kit/sync/5-sync-hooks.sh`:
 
 | Hook | Event | File | Fires |
 |------|-------|------|-------|
-| Agent idle tracking | **Stop** | `fab/.kit/hooks/on-stop.sh` | Every agent response turn |
-| Agent session clear | **SessionStart** | `fab/.kit/hooks/on-session-start.sh` | Every new/resumed session |
+| Agent idle tracking | **Stop** | `src/kit/hooks/on-stop.sh` | Every agent response turn |
+| Agent session clear | **SessionStart** | `src/kit/hooks/on-session-start.sh` | Every new/resumed session |
 
 **What they do**: Write/clear `agent.idle_since` in `.fab-runtime.yaml` (implemented in change 1lwf).
 
@@ -172,7 +172,7 @@ Both existing hooks (`on-stop.sh`, `on-session-start.sh`) and `/git-pr-review` u
 2. **Inconsistency** — every other status operation uses the `fab` CLI. Hooks bypassing it is an anomaly
 3. **Extra dependency** — the Go binary is always present (it's the kit's own binary). `yq` is an external tool
 
-### Current yq usage in fab/.kit/
+### Current yq usage in src/kit/
 
 | Location | Uses | Purpose |
 |----------|------|---------|
@@ -249,11 +249,11 @@ The sync script needs updating to support **matchers** for PostToolUse hooks:
   "PostToolUse": [
     {
       "matcher": "Write",
-      "hooks": [{"type": "command", "command": "bash fab/.kit/hooks/on-artifact-write.sh"}]
+      "hooks": [{"type": "command", "command": "bash src/kit/hooks/on-artifact-write.sh"}]
     },
     {
       "matcher": "Edit",
-      "hooks": [{"type": "command", "command": "bash fab/.kit/hooks/on-artifact-write.sh"}]
+      "hooks": [{"type": "command", "command": "bash src/kit/hooks/on-artifact-write.sh"}]
     }
   ]
 }

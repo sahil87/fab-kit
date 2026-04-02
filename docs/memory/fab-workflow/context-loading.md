@@ -4,7 +4,7 @@
 
 ## Overview
 
-The context loading convention defines how fab skills load project context before execution. It is implemented in `fab/.kit/skills/_preamble.md` as a shared preamble read by all skills. The convention uses a layered approach: always-load essentials, change-specific artifacts, and selective domain memory loading.
+The context loading convention defines how fab skills load project context before execution. It is implemented in `$(fab kit-path)/skills/_preamble.md` as a shared preamble read by all skills. The convention uses a layered approach: always-load essentials, change-specific artifacts, and selective domain memory loading.
 
 ## Requirements
 
@@ -24,7 +24,7 @@ This gives the agent awareness of project settings, constraints, project context
 
 ### Preflight Script for Change Context
 
-Skills that operate on an active change resolve the change context by running `fab/.kit/scripts/lib/preflight.sh [change-name]` via Bash. The script accepts an optional first positional argument as a change name override. When provided, the script resolves the change using case-insensitive substring matching against folder names in `fab/changes/` (excluding `archive/`) instead of reading `.fab-status.yaml`. The override is transient — `.fab-status.yaml` is never modified. When no argument is provided, the script falls back to reading `.fab-status.yaml` (backward compatible).
+Skills that operate on an active change resolve the change context by running `src/kit/scripts/lib/preflight.sh [change-name]` via Bash. The script accepts an optional first positional argument as a change name override. When provided, the script resolves the change using case-insensitive substring matching against folder names in `fab/changes/` (excluding `archive/`) instead of reading `.fab-status.yaml`. The override is transient — `.fab-status.yaml` is never modified. When no argument is provided, the script falls back to reading `.fab-status.yaml` (backward compatible).
 
 The matching supports full folder names, partial slug matches, and 4-char random IDs (e.g., `r3m7`). Exact match takes priority; single partial match resolves directly; multiple matches or no match produce a non-zero exit with a descriptive error.
 
@@ -134,8 +134,9 @@ The following skills skip the standard context loading layers:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260402-gnx5-relocate-kit-to-system-cache | 2026-04-02 | Updated kit path references: `_preamble.md` is now at `$(fab kit-path)/skills/_preamble.md` (resolved from system cache). Template access via `$(fab kit-path)/templates/` instead of `fab/.kit/templates/`. Test-build guard removed from preamble (`kit.conf` eliminated). Skills deployed to `.claude/skills/` unchanged. |
 | 260318-dzze-standard-subagent-context | 2026-03-18 | Added Standard Subagent Context section — defines the 5 `fab/project/**` files that every subagent prompt must include, distinct from the Always Load layer. Added design decision for centralized template approach. |
-| 260303-6b7c-update-underscore-skill-references | 2026-03-04 | Standardized all skill top-of-file `_preamble.md` references to use `fab/.kit/skills/_preamble.md` (no `./` prefix). No content changes to context-loading requirements — all references already used correct form. |
+| 260303-6b7c-update-underscore-skill-references | 2026-03-04 | Standardized all skill top-of-file `_preamble.md` references to use `$(fab kit-path)/skills/_preamble.md` (no `./` prefix). No content changes to context-loading requirements — all references already used correct form. |
 | 260221-5tj7-rename-context-to-preamble | 2026-02-21 | Renamed shared skill preamble file from `_context.md` to `_preamble.md`. Updated all references throughout — Overview, SRAD Protocol, and Next Steps Convention sections now reference `_preamble.md` |
 | 260220-9ogw-add-fab-discuss | 2026-02-20 | Added `fab-discuss` special case note in Exception Skills section — the only skill whose primary output IS the always-load layer |
 | 260218-5isu-fix-docs-consistency-drift | 2026-02-18 | Replaced stale `/fab-init` → `/fab-setup` in exception list (2 occurrences) |

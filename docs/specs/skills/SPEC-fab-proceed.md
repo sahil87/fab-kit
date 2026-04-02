@@ -34,19 +34,19 @@ User invokes /fab-proceed
 ├─ Prefix Dispatch (subagents)
 │  ├─ ┌──────────────────────────────────────────┐
 │  │  │ SUB-AGENT: /fab-new (if needed)          │
-│  │  │  Read: fab/.kit/skills/fab-new.md        │
+│  │  │  Read: src/kit/skills/fab-new.md        │
 │  │  │  Input: synthesized description          │
 │  │  │  Returns: created change folder name     │
 │  │  └──────────────────────────────────────────┘
 │  ├─ ┌──────────────────────────────────────────┐
 │  │  │ SUB-AGENT: /fab-switch (if needed)       │
-│  │  │  Read: fab/.kit/skills/fab-switch.md     │
+│  │  │  Read: src/kit/skills/fab-switch.md     │
 │  │  │  Bash: fab change switch "<change-name>" │
 │  │  │  Returns: switch confirmation            │
 │  │  └──────────────────────────────────────────┘
 │  └─ ┌──────────────────────────────────────────┐
 │     │ SUB-AGENT: /git-branch (if needed)       │
-│     │  Read: fab/.kit/skills/git-branch.md     │
+│     │  Read: src/kit/skills/git-branch.md     │
 │     │  Returns: branch action result           │
 │     └──────────────────────────────────────────┘
 │

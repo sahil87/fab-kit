@@ -1,6 +1,6 @@
 # Project-Specific Sync Scripts
 
-Scripts in this directory run during `fab sync` after the kit-level sync scripts (`fab/.kit/sync/`).
+Scripts in this directory run during `fab sync` after the kit-level sync steps.
 
 ## Naming Convention
 

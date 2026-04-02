@@ -46,7 +46,7 @@ As an alternative to manual `cp -r`, new projects can use the one-liner bootstra
 curl -sL https://github.com/{repo}/releases/latest/download/kit.tar.gz | tar xz -C fab/
 ```
 
-Where `{repo}` is the `repo` value from `fab/.kit/kit.conf`.
+Where `{repo}` is the `repo` value from `kit.conf (removed)`.
 
 After extraction, run `fab-kit sync` then `/fab-setup` as usual.
 
@@ -121,14 +121,14 @@ Each subcommand operates independently — they can be invoked directly without 
 *Deprecated by*: 260216-tk7a-DEV-1037-consolidate-setup-upgrade-flow
 
 ### Templates in Scaffold Files
-**Decision**: `config.yaml` and `constitution.md` templates live as standalone files in `fab/.kit/scaffold/` rather than as inline code blocks in `fab-setup.md`. `/fab-setup` reads from these files and substitutes placeholders. Index templates (`memory-index.md`, `specs-index.md`) are also referenced from scaffold files, eliminating duplicated inline copies.
+**Decision**: `config.yaml` and `constitution.md` templates live as standalone files in `$(fab kit-path)/scaffold/` rather than as inline code blocks in `fab-setup.md`. `/fab-setup` reads from these files and substitutes placeholders. Index templates (`memory-index.md`, `specs-index.md`) are also referenced from scaffold files, eliminating duplicated inline copies.
 **Why**: Prevents drift between inline templates and actual schema expectations. Aligns with Constitution V (Portability) — `.kit/` owns its templates as inspectable, diffable files. Single source of truth for both `fab-kit sync` and `/fab-setup`.
 **Rejected**: Keeping inline templates — two sources of truth that can diverge when the config schema evolves.
 *Introduced by*: 260217-17pe-DEV-1046-scaffold-setup-templates
 
 ### Agent-Inferred Conventions Replace Templates (superseded)
 **Decision**: Step 1b-lang uses agent inference (Detection → Inference → Write) instead of bundled language templates. The agent reads project marker files (`Cargo.toml`, `tsconfig.json`, `package.json`, `go.mod`, `pyproject.toml`, etc.) and linter/formatter configs, then derives conventions from its training knowledge grounded in actual config values. Conventions are routed to the appropriate `fab/project/*` file by content type (enforcement rules → constitution, stack info → context, coding standards → code-quality, review policy → code-review, source paths → config). The skill describes the *process*, not hard-coded convention content.
-**Why**: Bundling language-specific templates in `fab/.kit/templates/constitutions/` and `fab/.kit/templates/configs/` violated Constitution §V (portability — no assumptions about host project's language/toolchain). Templates created maintenance burden and encoded opinions that may not match the project's actual setup.
+**Why**: Bundling language-specific templates in `$(fab kit-path)/templates/constitutions/` and `$(fab kit-path)/templates/configs/` violated Constitution §V (portability — no assumptions about host project's language/toolchain). Templates created maintenance burden and encoded opinions that may not match the project's actual setup.
 **Rejected**: Keeping language templates — violates neutrality, creates maintenance burden, makes judgment calls on behalf of users.
 *Introduced by*: 260306-143f-setup-language-inference
 *Superseded by*: 260306-6bba-redesign-hooks-strategy — language-specific customization rejected entirely; fab-kit stays language-neutral. Step 1b-lang removed from bootstrap flow.
@@ -158,7 +158,7 @@ Each subcommand operates independently — they can be invoked directly without 
 
 ### Template-Driven Language Detection (Step 1b-lang)
 **Deprecated by**: 260306-143f-setup-language-inference (2026-03-06)
-**Reason**: Replaced by agent-inferred conventions. Template files (`fab/.kit/templates/constitutions/`, `fab/.kit/templates/configs/`) deleted. Language template advisory in `fab/.kit/sync/2-sync-workspace.sh` (invoked by `fab-sync.sh`, section 2b) removed.
+**Reason**: Replaced by agent-inferred conventions. Template files (`$(fab kit-path)/templates/constitutions/`, `$(fab kit-path)/templates/configs/`) deleted. Language template advisory in `src/kit/sync/2-sync-workspace.sh` (invoked by `fab-sync.sh`, section 2b) removed.
 **Migration**: Step 1b-lang now uses agent inference — no user action required.
 
 ### Agent-Inferred Language Conventions (Step 1b-lang)
@@ -170,11 +170,12 @@ Each subcommand operates independently — they can be invoked directly without 
 
 | Change | Date | Summary |
 |--------|------|---------|
-| 260402-ktbg-sync-from-cache | 2026-04-02 | Updated delegation table: all `fab-sync.sh` references → `fab-kit sync`; scaffold sources now read from `{cache}/kit/` instead of `fab/.kit/`; hook registration absorbed into `fab-kit sync` step 4 (replaces `5-sync-hooks.sh` delegation). Updated overview and bootstrap path to reflect `fab-kit sync` with cache-based resolution. |
+| 260402-gnx5-relocate-kit-to-system-cache | 2026-04-02 | Updated delegation table to reflect cache-based resolution: all scaffold sources read from `{cache}/kit/` (no in-project `fab/.kit/`). Hook registration references `fab hook <subcommand>` inline commands instead of shell scripts. Bootstrap alternative references `kit.conf (removed)` for historical context. |
+| 260402-ktbg-sync-from-cache | 2026-04-02 | Updated delegation table: all `fab-sync.sh` references → `fab-kit sync`; scaffold sources now read from `{cache}/kit/` instead of `src/kit/`; hook registration absorbed into `fab-kit sync` step 4 (replaces `5-sync-hooks.sh` delegation). Updated overview and bootstrap path to reflect `fab-kit sync` with cache-based resolution. |
 | 260402-41gc-migrate-kit-scripts | 2026-04-02 | Updated doctor reference: `/fab-setup` Phase 0 gate now calls `fab doctor` (a `fab-kit` Go subcommand) instead of `fab-doctor.sh` shell script. |
 | 260306-6bba-redesign-hooks-strategy | 2026-03-06 | Full removal of Phase 1b-lang (language detection and convention inference) from bootstrap flow — fab-kit stays language-neutral. Supersedes 260306-143f agent-inferred conventions. Added deprecated requirement for agent-inferred conventions. Updated "Agent-Inferred Conventions" design decision as superseded. Updated hook registration delegation table to reflect matcher support. |
-| 260306-143f-setup-language-inference | 2026-03-06 | Replaced template-driven language detection (step 1b-lang) with agent-inferred conventions. Deleted `fab/.kit/templates/constitutions/` and `fab/.kit/templates/configs/` (6 template files). Removed language template advisory (section 2b) from `2-sync-workspace.sh`. Added "Agent-Inferred Conventions Replace Templates" design decision. |
-| 260305-bs5x-orchestrator-idle-hooks | 2026-03-05 | Added hook registration to delegation table: `fab-sync.sh` via `5-sync-hooks.sh` registers `fab/.kit/hooks/on-*.sh` into `.claude/settings.local.json` hooks (idempotent jq merge). |
+| 260306-143f-setup-language-inference | 2026-03-06 | Replaced template-driven language detection (step 1b-lang) with agent-inferred conventions. Deleted `$(fab kit-path)/templates/constitutions/` and `$(fab kit-path)/templates/configs/` (6 template files). Removed language template advisory (section 2b) from `2-sync-workspace.sh`. Added "Agent-Inferred Conventions Replace Templates" design decision. |
+| 260305-bs5x-orchestrator-idle-hooks | 2026-03-05 | Added hook registration to delegation table: `fab-sync.sh` via `5-sync-hooks.sh` registers `$(fab kit-path)/hooks/on-*.sh` into `.claude/settings.local.json` hooks (idempotent jq merge). |
 | 260223-sr3u-add-fab-doctor | 2026-02-23 | Added Phase 0 prerequisite check: `/fab-setup` (bare bootstrap) runs `fab-doctor.sh` as early gate before creating any project artifacts. Non-zero exit stops bootstrap. Subcommands (config, constitution, migrations) skip this check. |
 | 260217-17pe-DEV-1046-scaffold-setup-templates | 2026-02-17 | Extracted inline config.yaml and constitution.md templates from `fab-setup.md` into `scaffold/config.yaml` and `scaffold/constitution.md`. Replaced inline memory-index and specs-index templates with scaffold file references. Updated delegation table notes. Added "Templates in Scaffold Files" design decision. |
 | 260216-tk7a-DEV-1037-consolidate-setup-upgrade-flow | 2026-02-16 | Renamed `/fab-init` → `/fab-setup`; absorbed `/fab-update` as `migrations` subcommand; promoted `lib/sync-workspace.sh` → `fab-sync.sh`; validate subcommand folded into config/constitution flows; file renamed from init.md to setup.md |

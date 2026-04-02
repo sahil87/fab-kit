@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sahil87/fab-kit/src/go/fab/internal/kitpath"
 )
 
 const statusTemplate = `id: {ID}
@@ -77,11 +79,14 @@ func setupChangeFixture(t *testing.T) string {
 
 	// Create directories
 	os.MkdirAll(filepath.Join(fabRoot, "changes"), 0755)
-	os.MkdirAll(filepath.Join(fabRoot, ".kit", "templates"), 0755)
 	os.MkdirAll(filepath.Join(fabRoot, "project"), 0755)
 
-	// Write status template
-	os.WriteFile(filepath.Join(fabRoot, ".kit", "templates", "status.yaml"), []byte(statusTemplate), 0644)
+	// Create kit directory (simulates cache kit) and set override
+	kitDir := filepath.Join(dir, "kit")
+	os.MkdirAll(filepath.Join(kitDir, "templates"), 0755)
+	os.WriteFile(filepath.Join(kitDir, "templates", "status.yaml"), []byte(statusTemplate), 0644)
+	kitpath.SetOverride(kitDir)
+	t.Cleanup(func() { kitpath.SetOverride("") })
 
 	// Write minimal config (needed for hooks)
 	os.WriteFile(filepath.Join(fabRoot, "project", "config.yaml"), []byte("project:\n  name: test\n"), 0644)

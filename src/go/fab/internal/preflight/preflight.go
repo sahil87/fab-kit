@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/kitpath"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
@@ -123,9 +124,12 @@ func FormatYAML(r *Result) string {
 
 func checkSyncStaleness(fabRoot string) {
 	kitVersion := ""
-	versionFile := filepath.Join(fabRoot, ".kit", "VERSION")
-	if data, err := os.ReadFile(versionFile); err == nil {
-		kitVersion = strings.TrimSpace(string(data))
+	kitDir, err := kitpath.KitDir()
+	if err == nil {
+		versionFile := filepath.Join(kitDir, "VERSION")
+		if data, err := os.ReadFile(versionFile); err == nil {
+			kitVersion = strings.TrimSpace(string(data))
+		}
 	}
 	if kitVersion == "" {
 		return

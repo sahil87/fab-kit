@@ -316,10 +316,10 @@ func createWorktreeViaWt(t *testing.T, repoPath, name string) string {
 	return path
 }
 
-// createInitScript creates a test init script in the repo at the default path.
+// createInitScript creates a test init script in the repo at a test path.
 func createInitScript(t *testing.T, repoPath string) {
 	t.Helper()
-	scriptDir := filepath.Join(repoPath, "fab", ".kit")
+	scriptDir := filepath.Join(repoPath, "scripts")
 	if err := os.MkdirAll(scriptDir, 0755); err != nil {
 		t.Fatalf("MkdirAll init script dir: %v", err)
 	}

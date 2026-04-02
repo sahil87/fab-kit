@@ -4,7 +4,7 @@
 
 Standalone multi-agent coordination layer with proactive monitoring and auto-nudge. Runs in a dedicated tmux pane, observes all running fab agents via `fab pane-map`, routes commands via `tmux send-keys`, monitors progress via `/loop`, auto-answers routine agent questions, and drives autopilot queues through the full pipeline.
 
-Self-contained — does not inherit from any other operator skill. All behavior is defined in `fab/.kit/skills/fab-operator4.md` plus the standard `_` files loaded via `_preamble.md`. External tool reference (`_cli-external.md`) is loaded in the operator's own startup section.
+Self-contained — does not inherit from any other operator skill. All behavior is defined in `src/kit/skills/fab-operator4.md` plus the standard `_` files loaded via `_preamble.md`. External tool reference (`_cli-external.md`) is loaded in the operator's own startup section.
 
 Not a lifecycle enforcer — the operator coordinates across agents and proxies routine user input, not advancing stages or making pipeline decisions.
 

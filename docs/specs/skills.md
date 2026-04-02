@@ -77,7 +77,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **Purpose**: Bootstrap `fab/` in an existing project and manage ongoing configuration. Delegates structural setup to `fab-sync.sh` and adds interactive configuration on top. Safe to run repeatedly (idempotent). Also provides subcommands for config, constitution, and migrations.
 
-**Prerequisite**: `fab/.kit/` must exist. If missing, abort with: *"fab/.kit/ not found. Copy the kit directory into fab/.kit/ first — see the Getting Started guide."*
+**Prerequisite**: `src/kit/` must exist. If missing, abort with: *"src/kit/ not found. Copy the kit directory into src/kit/ first — see the Getting Started guide."*
 
 **Subcommands**:
 
@@ -96,7 +96,7 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 - `docs/memory/index.md` — initial memory index (via `fab-sync.sh`)
 - `docs/specs/index.md` — specifications index (via `fab-sync.sh`)
 - `fab/changes/` — empty, ready for change folders (via `fab-sync.sh`)
-- `.claude/skills/` — symlinks pointing into `fab/.kit/skills/` (via `fab-sync.sh`)
+- `.claude/skills/` — symlinks pointing into `src/kit/skills/` (via `fab-sync.sh`)
 
 **Delegation pattern**: `fab-sync.sh` handles all non-interactive structural setup (directories, symlinks, indexes, `.envrc`, `.gitignore`). `/fab-setup` adds the interactive parts (config, constitution). `fab-sync.sh` can be run independently (e.g., in CI or after bootstrap download) without requiring `/fab-setup`.
 

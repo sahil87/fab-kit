@@ -1,5 +1,5 @@
 scripts := "scripts/just"
-fab_version := `cat fab/.kit/VERSION`
+fab_version := `cat src/kit/VERSION`
 fab_ldflags := "-X main.version=" + fab_version
 fab_kit_ldflags := "-X main.version=" + fab_version
 
@@ -37,7 +37,7 @@ build:
 install: build
     mkdir -p {{local_cache}}/kit
     cp dist/bin/fab-go {{local_cache}}/fab-go
-    rsync -a --delete --exclude='bin/' fab/.kit/ {{local_cache}}/kit/
+    rsync -a --delete src/kit/ {{local_cache}}/kit/
     @echo "Installed fab-go + kit → {{local_cache}}/"
 
 # Check prerequisites and environment health
@@ -52,13 +52,13 @@ doctor:
 release bump="patch":
     scripts/release.sh {{bump}}
 
-# Assemble dist/kit/ from fab/.kit/ (single copy, reused by packaging)
+# Assemble dist/kit/ from src/kit/ (single copy, reused by packaging)
 dist-kit:
     rm -rf dist/kit
     mkdir -p dist/kit/bin
-    cp -a fab/.kit/. dist/kit/
+    cp -a src/kit/. dist/kit/
     mkdir -p dist/kit/bin
-    @echo "Assembled dist/kit/ from fab/.kit/"
+    @echo "Assembled dist/kit/ from src/kit/"
 
 # Cross-compile a binary for a specific target into dist/bin/
 _build-binary src_dir cmd_path name os arch ldflags="":

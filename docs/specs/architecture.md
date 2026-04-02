@@ -68,7 +68,7 @@ project/
 └── .claude/                        # Agent-specific skill exports
     └── skills/
         └── fab-new/
-            └── SKILL.md → ../../../fab/.kit/skills/fab-new.md  # Symlinks into .kit
+            └── SKILL.md → ../../../src/kit/skills/fab-new.md  # Symlinks into .kit
 ```
 
 ---
@@ -97,7 +97,7 @@ project/
 
 ## Script Naming Convention
 
-Scripts in `fab/.kit/scripts/` follow a prefix convention to distinguish entry points from internal libraries:
+Scripts in `src/kit/scripts/` follow a prefix convention to distinguish entry points from internal libraries:
 
 | Prefix | Role | Invoked by | Example |
 |--------|------|------------|---------|
@@ -364,7 +364,7 @@ Add to your project's `.gitignore`:
 ```
 
 **What to commit** (shared with team):
-- `fab/project/config.yaml`, `fab/project/constitution.md`, `docs/memory/`, `fab/.kit/` — project configuration and memory
+- `fab/project/config.yaml`, `fab/project/constitution.md`, `docs/memory/`, `src/kit/` — project configuration and memory
 - `fab/changes/` — change artifacts (intakes, specs, tasks)
 
 **What to ignore** (local state):
@@ -374,33 +374,33 @@ Add to your project's `.gitignore`:
 
 ## Agent Integration
 
-Agent-specific skill files are **symlinks** pointing into `fab/.kit/skills/`. This means updating `.kit/` automatically updates all agent integrations — no re-export step needed.
+Agent-specific skill files are **symlinks** pointing into `src/kit/skills/`. This means updating `.kit/` automatically updates all agent integrations — no re-export step needed.
 
 ### Claude Code (`.claude/skills/`)
 
-`fab/.kit/scripts/fab-sync.sh` (via `sync/2-sync-workspace.sh`) creates skill subdirectories with symlinks:
+`src/kit/scripts/fab-sync.sh` (via `sync/2-sync-workspace.sh`) creates skill subdirectories with symlinks:
 ```
 .claude/skills/
 ├── fab-setup/
-│   └── SKILL.md → ../../../fab/.kit/skills/fab-setup.md
+│   └── SKILL.md → ../../../src/kit/skills/fab-setup.md
 ├── docs-hydrate-memory/
-│   └── SKILL.md → ../../../fab/.kit/skills/docs-hydrate-memory.md
+│   └── SKILL.md → ../../../src/kit/skills/docs-hydrate-memory.md
 ├── fab-new/
-│   └── SKILL.md → ../../../fab/.kit/skills/fab-new.md
+│   └── SKILL.md → ../../../src/kit/skills/fab-new.md
 ├── fab-continue/
-│   └── SKILL.md → ../../../fab/.kit/skills/fab-continue.md
+│   └── SKILL.md → ../../../src/kit/skills/fab-continue.md
 ├── fab-ff/
-│   └── SKILL.md → ../../../fab/.kit/skills/fab-ff.md
+│   └── SKILL.md → ../../../src/kit/skills/fab-ff.md
 ├── fab-clarify/
-│   └── SKILL.md → ../../../fab/.kit/skills/fab-clarify.md
+│   └── SKILL.md → ../../../src/kit/skills/fab-clarify.md
 ├── fab-switch/
-│   └── SKILL.md → ../../../fab/.kit/skills/fab-switch.md
+│   └── SKILL.md → ../../../src/kit/skills/fab-switch.md
 └── fab-status/
-    └── SKILL.md → ../../../fab/.kit/skills/fab-status.md
+    └── SKILL.md → ../../../src/kit/skills/fab-status.md
 ```
 
 ### Other agents (Cursor, Windsurf, etc.)
-Same pattern — symlinks from the agent's convention directory into `fab/.kit/skills/`. The skill prompt files are agent-agnostic markdown; only the symlink locations differ.
+Same pattern — symlinks from the agent's convention directory into `src/kit/skills/`. The skill prompt files are agent-agnostic markdown; only the symlink locations differ.
 
 ---
 
@@ -412,7 +412,7 @@ Same pattern — symlinks from the agent's convention directory into `fab/.kit/s
 
 ```
 1. User obtains .kit/  →  cp -r /path/to/fab-kit fab/.kit (or curl one-liner)
-2. User runs fab/.kit/scripts/fab-sync.sh  →  creates directories, symlinks, indexes, .envrc, .gitignore entries
+2. User runs src/kit/scripts/fab-sync.sh  →  creates directories, symlinks, indexes, .envrc, .gitignore entries
 3. User runs /fab-setup  →  generates config.yaml, constitution.md (structural bootstrap)
 4. User optionally runs /docs-hydrate-memory  →  ingests external sources into docs/memory/
 5. User runs /fab-new  →  first change is created
@@ -420,7 +420,7 @@ Same pattern — symlinks from the agent's convention directory into `fab/.kit/s
 
 Step 1 is manual. Step 2 is a shell script. Steps 3–5 are skill-driven.
 
-`fab/.kit/scripts/fab-sync.sh` is a thin orchestrator that iterates `fab/.kit/sync/*.sh` (kit-level scripts) then `fab/sync/*.sh` (project-specific scripts). It handles all structural setup (directories, symlinks, indexes, `.envrc`, `.gitignore`). `/fab-setup` delegates to `fab-sync.sh` and adds the interactive parts (config, constitution). `fab/.kit/scripts/fab-help.sh` dynamically reads skill names from YAML frontmatter — no manual updates needed when skills are added.
+`src/kit/scripts/fab-sync.sh` is a thin orchestrator that iterates `src/kit/sync/*.sh` (kit-level scripts) then `fab/sync/*.sh` (project-specific scripts). It handles all structural setup (directories, symlinks, indexes, `.envrc`, `.gitignore`). `/fab-setup` delegates to `fab-sync.sh` and adds the interactive parts (config, constitution). `src/kit/scripts/fab-help.sh` dynamically reads skill names from YAML frontmatter — no manual updates needed when skills are added.
 
 **Re-running `/fab-setup`**: Setup is idempotent — safe to call at any time. On subsequent runs it verifies structure and repairs missing artifacts. To ingest external documentation into `docs/memory/`, use `/docs-hydrate-memory` — see [Skills Reference](skills.md#docs-hydrate-memory-sources) for details.
 
@@ -431,14 +431,14 @@ Step 1 is manual. Step 2 is a shell script. Steps 3–5 are skill-driven.
 | Method | Command | When to use |
 |--------|---------|-------------|
 | **Copy from a reference project** | `cp -r ../other-project/fab/.kit fab/.kit` | Quick start, already have a Fab project |
-| **Clone the kit repo** | `git clone <kit-repo> fab/.kit && rm -rf fab/.kit/.git` | Clean start from canonical source |
+| **Clone the kit repo** | `git clone <kit-repo> fab/.kit && rm -rf src/kit/.git` | Clean start from canonical source |
 | **Download a release** | `curl -sL <release-url> \| tar -xz -C fab/` | CI/automation, pinned version |
 
 > When `.kit/` gets its own repository, the canonical source URL will be documented here.
 
 ### Why Two Phases?
 
-`/fab-setup` is itself a skill defined inside `fab/.kit/skills/fab-setup.md`. It cannot run until `.kit/` exists. Rather than solving this chicken-and-egg with a special bootstrap script (which would violate "no system installation"), Fab splits setup into:
+`/fab-setup` is itself a skill defined inside `src/kit/skills/fab-setup.md`. It cannot run until `.kit/` exists. Rather than solving this chicken-and-egg with a special bootstrap script (which would violate "no system installation"), Fab splits setup into:
 
 1. **Manual step**: Get `.kit/` into the project (a directory copy or curl one-liner)
 2. **Shell step**: `fab-sync.sh` creates directories, symlinks, indexes (no LLM needed)
@@ -459,7 +459,7 @@ This keeps the workflow entirely prompt-driven after the one-time directory copy
 
 `.kit/` is a self-contained engine directory. To update the workflow framework:
 
-1. Replace `fab/.kit/` contents with the latest version
+1. Replace `src/kit/` contents with the latest version
 2. That's it — symlinks in `.claude/skills/` (and other agent directories) automatically resolve to the new files
 
 **What's preserved** (lives outside `.kit/`, never touched by updates):
@@ -470,9 +470,9 @@ This keeps the workflow entirely prompt-driven after the one-time directory copy
 - `.fab-status.yaml` — active change symlink
 
 **What's replaced** (lives inside `.kit/`):
-- `fab/.kit/templates/` — artifact templates
-- `fab/.kit/skills/` — skill prompt definitions
-- `fab/.kit/scripts/` — shell utilities
+- `$(fab kit-path)/templates/` — artifact templates
+- `src/kit/skills/` — skill prompt definitions
+- `src/kit/scripts/` — shell utilities
 
 When `.kit/` is eventually extracted to its own repository, the update mechanism becomes a single pull or copy operation.
 

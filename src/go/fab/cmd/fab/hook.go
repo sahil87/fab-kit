@@ -204,7 +204,7 @@ func artifactBookkeeping(fabRoot, filePath string, match hooklib.ArtifactMatch, 
 func hookSyncCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "sync",
-		Short: "Register hook scripts into .claude/settings.local.json",
+		Short: "Register hook commands into .claude/settings.local.json",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fabRoot, err := resolve.FabRoot()
@@ -213,10 +213,9 @@ func hookSyncCmd() *cobra.Command {
 			}
 
 			repoRoot := filepath.Dir(fabRoot)
-			hooksDir := filepath.Join(fabRoot, ".kit", "hooks")
 			settingsPath := filepath.Join(repoRoot, ".claude", "settings.local.json")
 
-			result, err := hooklib.Sync(hooksDir, settingsPath)
+			result, err := hooklib.Sync(settingsPath)
 			if err != nil {
 				return err
 			}

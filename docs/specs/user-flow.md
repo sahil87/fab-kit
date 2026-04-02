@@ -210,7 +210,7 @@ stateDiagram-v2
 | **reset** | All downstream stages are cascaded to `pending` |
 | **skip** | All downstream `pending` stages are cascaded to `skipped` |
 
-Source of truth: [`fab/.kit/schemas/workflow.yaml`](../../fab/.kit/schemas/workflow.yaml)
+Source of truth: [`src/kit/schemas/workflow.yaml`](../../src/kit/schemas/workflow.yaml)
 
 ---
 
