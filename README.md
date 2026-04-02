@@ -374,16 +374,17 @@ The current operator (v8) evolved through eight iterations:
 | v7 | Dependency-aware agent spawning (cherry-pick chains), branch map persistence, bounded retries, pre-send validation tiers |
 | v8 | Pipeline-first routing, unified tick status frame, stack-then-review autopilot (with ordered merge), `⚡<wt>` tab naming, mandatory auto-enroll, `/fab-proceed` integration |
 
-### Shell Utilities
+### CLI Subcommands
 
-| Script | Purpose |
-|--------|---------|
+| Command | Purpose |
+|---------|---------|
 | `fab sync` | Repair symlinks, scaffold structure, deploy skills |
-| `fab-doctor.sh` | Diagnose common setup issues |
-| `fab-help.sh` | Print workflow overview to terminal |
-| `batch-fab-new-backlog.sh` | Create changes from multiple backlog entries |
-| `batch-fab-switch-change.sh` | Switch changes across multiple worktrees |
-| `batch-fab-archive-change.sh` | Archive multiple completed changes |
+| `fab doctor` | Diagnose common setup issues |
+| `fab fab-help` | Print workflow overview to terminal |
+| `fab operator` | Launch operator in a dedicated tmux tab |
+| `fab batch new` | Create worktree tabs from backlog items |
+| `fab batch switch` | Open tmux tabs in worktrees for one or more changes |
+| `fab batch archive` | Archive multiple completed changes in one session |
 
 ## Stage Coverage by Command
 

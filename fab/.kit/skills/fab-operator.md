@@ -9,7 +9,7 @@ description: "Use when coordinating multiple fab agents across tmux panes — mu
 
 Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents via `fab pane-map`, routes commands via `tmux send-keys`, monitors progress via `/loop`. The loop is the heart of the operator.
 
-Start via `fab/.kit/scripts/fab-operator.sh` (singleton tmux tab named `operator`).
+Start via `fab operator` (singleton tmux tab named `operator`).
 
 ---
 

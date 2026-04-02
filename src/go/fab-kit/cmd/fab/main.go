@@ -18,6 +18,7 @@ var fabKitArgs = map[string]bool{
 	"upgrade": true,
 	"sync":    true,
 	"update":  true,
+	"doctor":  true,
 }
 
 func main() {

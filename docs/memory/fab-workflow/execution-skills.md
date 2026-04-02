@@ -347,9 +347,9 @@ All settings are session-scoped — they reset when the operator session restart
 - **No persistent audit trail for v1**: Per-answer logging is inline only — no file-backed log
 - **Hardcoded patterns**: Question indicator patterns embedded in skill file, not configurable via config.yaml
 
-#### Launcher Script (removed)
+#### Launcher
 
-The `fab-operator4.sh` launcher has been removed. The current operator launcher is `fab-operator.sh`.
+The operator is launched via `fab operator` — a `fab-go` subcommand (source: `src/go/fab/cmd/fab/operator.go`). It creates a singleton tmux window named "operator" running the configured `agent.spawn_command` (via `internal/spawn/`) with `'/fab-operator'`. If the window already exists, switches to it. Requires an active tmux session. Previous shell launcher scripts (`fab-operator4.sh`, `fab-operator5.sh`, `fab-operator.sh`) have been removed.
 
 ## Design Decisions
 
@@ -525,6 +525,7 @@ The `fab-operator4.sh` launcher has been removed. The current operator launcher 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260402-41gc-migrate-kit-scripts | 2026-04-02 | Updated operator launcher: replaced `fab-operator.sh` shell script reference with `fab operator` Go subcommand (`fab-go`). Previous shell launchers (`fab-operator4.sh`, `fab-operator5.sh`, `fab-operator.sh`) all removed — `fab operator` is the sole launcher. Source: `src/go/fab/cmd/fab/operator.go`, uses `internal/spawn/` for config-driven spawn command resolution. |
 | 260328-iqt8-standardize-tmux-tab-naming | 2026-03-28 | Standardized tmux tab naming in `/fab-operator`: all four `tmux new-window -n` invocations now use `⚡<wt>` (zap emoji + worktree name) instead of `fab-<id>` or `fab-<wt>`. Resolves inconsistency where change ID wasn't available at spawn time for new changes. |
 | 260327-gwg9-operator-base-chaining-default | 2026-03-27 | Changed `/fab-operator` autopilot default from merge-as-you-go to **stack-then-review**: queued changes get implicit `depends_on` chaining (implicit `--base`), PRs created but not merged until user reviews. Queue completion summary with ordered merge support. Previous behavior preserved via `--merge-on-complete` opt-in. Confirmation prompt updated. Failure matrix updated: cherry-pick conflict replaces rebase conflict in default mode. |
 | 260326-oxgu-unified-tick-status-list | 2026-03-26 | Updated `/fab-operator` tick status frame: replaced two-block layout (changes + 👁 watches) with a single unified list. Every entry gets `[type]` prefix (`[change]`/`[watch]`), consistent column layout (Type, ID, Autopilot, Health, Detail). Autopilot moved from header (`autopilot 1/3`) to per-entry `▶` symbol. Watches gain health emojis (🟢 healthy, 🟡 new items, 🔴 errored, ⏸ paused) matching change emoji column. Watch timestamps use relative format (`3m ago`). Header simplified to `N tracked` total count. |

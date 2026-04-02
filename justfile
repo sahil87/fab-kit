@@ -38,7 +38,7 @@ build-fab-kit:
 
 # Check prerequisites and environment health
 doctor:
-    fab/.kit/scripts/fab-doctor.sh
+    fab doctor
     @echo ""
     {{scripts}}/dev-doctor.sh
 

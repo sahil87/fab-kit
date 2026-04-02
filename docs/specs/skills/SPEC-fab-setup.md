@@ -14,7 +14,7 @@ User invokes /fab-setup [subcommand]
 │
 ├── No argument: Bootstrap ─────────────────────────────
 │  │
-│  ├─ Phase 0: Bash: fab/.kit/scripts/fab-doctor.sh
+│  ├─ Phase 0: Bash: fab doctor
 │  │  └─ STOP if non-zero
 │  │
 │  ├─ Phase 1a: config.yaml
@@ -69,7 +69,7 @@ User invokes /fab-setup [subcommand]
 | Read | Scaffold templates, project files, migration files |
 | Write | Project files, migration version |
 | Edit | Config, constitution, gitignore |
-| Bash | `fab-doctor.sh`, `fab-sync.sh`, `fab log command` |
+| Bash | `fab doctor`, `fab-sync.sh`, `fab log command` |
 | Glob | Discover migration files |
 
 ### Sub-agents

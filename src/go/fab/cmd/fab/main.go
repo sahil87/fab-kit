@@ -28,6 +28,9 @@ func main() {
 		runtimeCmd(),
 		hookCmd(),
 		paneMapCmd(),
+		fabHelpCmd(),
+		operatorCmd(),
+		batchCmd(),
 	)
 
 	if err := root.Execute(); err != nil {

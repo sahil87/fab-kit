@@ -10,7 +10,7 @@
 
 ### Prerequisite Check (Phase 0)
 
-`/fab-setup` (bare bootstrap only) runs `fab/.kit/scripts/fab-doctor.sh` as an early gate before creating any project artifacts. If doctor exits non-zero, setup stops immediately and surfaces the doctor output with fix hints. This gate does not apply to subcommands (`config`, `constitution`, `migrations`).
+`/fab-setup` (bare bootstrap only) runs `fab doctor` as an early gate before creating any project artifacts. If doctor exits non-zero, setup stops immediately and surfaces the doctor output with fix hints. This gate does not apply to subcommands (`config`, `constitution`, `migrations`).
 
 ### Structural Bootstrap Only
 
@@ -48,7 +48,7 @@ curl -sL https://github.com/{repo}/releases/latest/download/kit.tar.gz | tar xz 
 
 Where `{repo}` is the `repo` value from `fab/.kit/kit.conf`.
 
-After extraction, run `fab/.kit/scripts/fab-sync.sh` then `/fab-setup` as usual.
+After extraction, run `fab-kit sync` then `/fab-setup` as usual.
 
 ## Subcommand Architecture
 
@@ -122,7 +122,7 @@ Each subcommand operates independently — they can be invoked directly without 
 
 ### Templates in Scaffold Files
 **Decision**: `config.yaml` and `constitution.md` templates live as standalone files in `fab/.kit/scaffold/` rather than as inline code blocks in `fab-setup.md`. `/fab-setup` reads from these files and substitutes placeholders. Index templates (`memory-index.md`, `specs-index.md`) are also referenced from scaffold files, eliminating duplicated inline copies.
-**Why**: Prevents drift between inline templates and actual schema expectations. Aligns with Constitution V (Portability) — `.kit/` owns its templates as inspectable, diffable files. Single source of truth for both `fab-sync.sh` and `/fab-setup`.
+**Why**: Prevents drift between inline templates and actual schema expectations. Aligns with Constitution V (Portability) — `.kit/` owns its templates as inspectable, diffable files. Single source of truth for both `fab-kit sync` and `/fab-setup`.
 **Rejected**: Keeping inline templates — two sources of truth that can diverge when the config schema evolves.
 *Introduced by*: 260217-17pe-DEV-1046-scaffold-setup-templates
 
@@ -171,6 +171,7 @@ Each subcommand operates independently — they can be invoked directly without 
 | Change | Date | Summary |
 |--------|------|---------|
 | 260402-ktbg-sync-from-cache | 2026-04-02 | Updated delegation table: all `fab-sync.sh` references → `fab-kit sync`; scaffold sources now read from `{cache}/kit/` instead of `fab/.kit/`; hook registration absorbed into `fab-kit sync` step 4 (replaces `5-sync-hooks.sh` delegation). Updated overview and bootstrap path to reflect `fab-kit sync` with cache-based resolution. |
+| 260402-41gc-migrate-kit-scripts | 2026-04-02 | Updated doctor reference: `/fab-setup` Phase 0 gate now calls `fab doctor` (a `fab-kit` Go subcommand) instead of `fab-doctor.sh` shell script. |
 | 260306-6bba-redesign-hooks-strategy | 2026-03-06 | Full removal of Phase 1b-lang (language detection and convention inference) from bootstrap flow — fab-kit stays language-neutral. Supersedes 260306-143f agent-inferred conventions. Added deprecated requirement for agent-inferred conventions. Updated "Agent-Inferred Conventions" design decision as superseded. Updated hook registration delegation table to reflect matcher support. |
 | 260306-143f-setup-language-inference | 2026-03-06 | Replaced template-driven language detection (step 1b-lang) with agent-inferred conventions. Deleted `fab/.kit/templates/constitutions/` and `fab/.kit/templates/configs/` (6 template files). Removed language template advisory (section 2b) from `2-sync-workspace.sh`. Added "Agent-Inferred Conventions Replace Templates" design decision. |
 | 260305-bs5x-orchestrator-idle-hooks | 2026-03-05 | Added hook registration to delegation table: `fab-sync.sh` via `5-sync-hooks.sh` registers `fab/.kit/hooks/on-*.sh` into `.claude/settings.local.json` hooks (idempotent jq merge). |

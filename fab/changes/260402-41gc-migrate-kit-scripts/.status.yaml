@@ -1,0 +1,43 @@
+id: 41gc
+name: 260402-41gc-migrate-kit-scripts
+created: 2026-04-02T08:13:50Z
+created_by: sahil-weaver
+change_type: refactor
+issues: []
+progress:
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+checklist:
+    generated: true
+    path: checklist.md
+    completed: 0
+    total: 36
+confidence:
+    certain: 4
+    confident: 4
+    tentative: 0
+    unresolved: 0
+    score: 3.8
+    indicative: true
+    fuzzy: true
+    dimensions:
+        signal: 83.1
+        reversibility: 78.1
+        competence: 82.5
+        disambiguation: 83.1
+stage_metrics:
+    intake: {started_at: "2026-04-02T08:13:50Z", driver: fab-new, iterations: 1, completed_at: "2026-04-02T08:18:56Z"}
+    spec: {started_at: "2026-04-02T08:18:56Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-02T08:24:13Z"}
+    tasks: {started_at: "2026-04-02T08:24:13Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-02T08:24:13Z"}
+    apply: {started_at: "2026-04-02T08:49:51Z", driver: fab-fff, iterations: 3, completed_at: "2026-04-02T08:50:23Z"}
+    review: {started_at: "2026-04-02T08:50:23Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-02T08:53:16Z"}
+    hydrate: {started_at: "2026-04-02T08:53:16Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-02T08:59:42Z"}
+    ship: {started_at: "2026-04-02T08:59:42Z", driver: fab-fff, iterations: 1}
+prs: []
+last_updated: 2026-04-02T08:59:42Z

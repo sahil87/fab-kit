@@ -3,10 +3,6 @@
     "allow": [
       "Bash(fab:*)",
       "Bash(fab-kit:*)",
-      "Bash(fab/.kit/scripts/fab-help.sh:*)",
-      "Bash(fab/.kit/scripts/batch-fab-new-backlog.sh:*)",
-      "Bash(fab/.kit/scripts/batch-fab-archive-change.sh:*)",
-      "Bash(fab/.kit/scripts/batch-fab-switch-change.sh:*)",
       "Bash(git:*)",
       "Bash(gh pr:*)",
       "Bash(gh issue:*)",

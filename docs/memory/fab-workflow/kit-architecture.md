@@ -81,18 +81,8 @@ fab/.kit/
 │   ├── on-session-start.sh # SessionStart hook — delegates to fab hook session-start
 │   ├── on-stop.sh          # Stop hook — delegates to fab hook stop
 │   └── on-user-prompt.sh   # UserPromptSubmit hook — delegates to fab hook user-prompt
-├── sync/                   # Kit-level sync scripts (empty after full fab-kit sync absorption)
-│   └── .gitkeep            # All sync scripts absorbed into fab-kit Go binary
-└── scripts/                # Shell utilities
-    ├── batch-fab-archive-change.sh  # Batch archive completed changes via tmux + Claude
-    ├── batch-fab-new-backlog.sh     # Batch create changes from backlog via tmux + Claude
-    ├── batch-fab-switch-change.sh   # Batch switch to changes via tmux + Claude
-    ├── fab-operator.sh     # Launch operator in singleton tmux tab ("operator")
-    ├── fab-doctor.sh       # Prerequisite checker (7 tools: git, fab, bash, yq v4+, jq, gh, direnv+hook)
-    ├── fab-help.sh         # Print help overview
-    └── lib/                # Utility scripts (not user-facing)
-        ├── frontmatter.sh      # Shared frontmatter parser — YAML (frontmatter_field) and shell-comment (shell_frontmatter_field)
-        └── spawn.sh            # Shared spawn command reader — fab_spawn_cmd() reads agent.spawn_command from config.yaml with fallback
+└── sync/                   # Kit-level sync scripts (empty after full fab-kit sync absorption)
+    └── .gitkeep            # All sync scripts absorbed into fab-kit Go binary
 ```
 
 ### Shell Scripts
@@ -117,21 +107,21 @@ All workspace sync logic absorbed into `fab-kit sync` (Go binary). The Go implem
 
 These scripts were removed in change `260305-u8t9-clean-break-go-only`. Their operations are now handled by Go binary subcommands (`fab status`, `fab log`, `fab score`, `fab change`, `fab change archive/restore`). See `fab/.kit/skills/_cli-fab.md` for the canonical CLI command reference.
 
-#### `fab-doctor.sh`
+#### `fab-doctor.sh` (Removed)
 
-Standalone prerequisite checker, sibling of `fab-help.sh`. Validates 7 required tools in order: `git`, `fab` (system shim — checks for the Homebrew-installed binary on PATH; fails with hint `"Install: brew install fab-kit"` if missing), `bash`, `yq` (v4+ gate), `jq`, `gh`, `direnv` (binary + shell hook). Each check uses `command -v` for presence detection, tool-specific version extraction, and structured output (`✓`/`✗` with version or error + actionable fix hint). The yq check parses the major version and rejects v3 (Python) with a specific message. The direnv check has two parts: binary presence and shell hook integration — spawns an interactive subshell (`-i` flag) to source rc files, checking for `_direnv_hook` function (zsh) or `PROMPT_COMMAND` containing "direnv" (bash); unsupported shells pass with a "hook check skipped" note. All subshell output suppressed via `&>/dev/null`. Failures are accumulated (no early exit) — the script runs all 7 checks before reporting. Exit code equals the failure count (0 = all pass, 1-7 = number of failures). Output format: header line, per-tool result lines (indented), blank line, summary. Supports `--porcelain` flag for scripted callers (quiet mode: only errors, no passes/hints/summary). Called by: `sync/1-prerequisites.sh` (exec delegate) and `/fab-setup` (Phase 0 early gate).
+Replaced by `fab doctor` — a `fab-kit` subcommand. The Go implementation in `src/go/fab-kit/cmd/fab-kit/doctor.go` replicates all behavior: validates 7 tools (git, fab, bash, yq v4+, jq, gh, direnv+hook), supports `--porcelain` flag, exit code = failure count. Added to the `fab` router's `fabKitArgs` allowlist so it works before `config.yaml` exists (required for `/fab-setup` Phase 0 gate).
 
-#### `fab-help.sh`
+#### `fab-help.sh` (Removed)
 
-Prints the Fab Kit help overview and skill catalog. Dynamically reads skill names and descriptions from YAML frontmatter in `fab/.kit/skills/` at runtime via the shared `lib/frontmatter.sh` library. Also scans `batch-*.sh` scripts for shell-comment frontmatter (`# ---` delimited) via `shell_frontmatter_field()`, rendering discovered batch scripts under a "Batch Operations" group without `/` prefix (they are shell commands, not slash-commands). Excludes `_*` (partials) and `internal-*` (internal tooling) prefixed skill files. Maintains centralized group mappings (associative arrays `skill_to_group` and `batch_to_group`) for display organization — skills not in any group appear under an "Other" catch-all at the end. Computes column alignment dynamically from the longest display name across both skills and batch scripts. Includes `fab-sync.sh` as a hardcoded non-skill entry in the "Setup" group. Appends a static `PACKAGES` section after `TYPICAL FLOW` listing bundled tools (wt binary and idea) with one-liner descriptions — static because packages are stable and few, unlike skills which change frequently. The `wt` entry reflects the Go binary (`wt create`, `wt list`, `wt open`, `wt delete`, `wt init`) rather than the removed shell scripts. Adding a new skill file to `fab/.kit/skills/` with valid frontmatter, or a new `batch-*.sh` script with shell-comment frontmatter and a `batch_to_group` mapping, automatically includes it in help output.
+Replaced by `fab fab-help` — a `fab-go` subcommand. The Go implementation in `src/go/fab/cmd/fab/fabhelp.go` dynamically scans `fab/.kit/skills/*.md` frontmatter via `internal/frontmatter/`, groups commands by category (hardcoded map matching the former shell script's `skill_to_group`), and renders formatted output with version header, workflow diagram, and typical flow. Batch commands are read from `fab batch` cobra subcommands instead of scanning `batch-*.sh` scripts. Skills with `_` prefix (partials) and `internal-` prefix are excluded.
 
-#### `lib/spawn.sh`
+#### `lib/spawn.sh` (Removed)
 
-Shared sourceable shell library providing `fab_spawn_cmd()` — reads `agent.spawn_command` from `fab/project/config.yaml` via `yq`, returns the configured spawn command string. Falls back to `claude --dangerously-skip-permissions` when the key is missing, null, or `yq` is unavailable (stderr suppressed). Accepts the config file path as its sole argument. Sourced by operator launcher (`fab-operator.sh`) and all batch scripts.
+Replaced by `internal/spawn/` package in `fab-go`. The Go implementation reads `agent.spawn_command` from `fab/project/config.yaml` via `gopkg.in/yaml.v3`, falls back to `claude --dangerously-skip-permissions`. Used by `fab operator` and all `fab batch` subcommands.
 
-#### `lib/frontmatter.sh`
+#### `lib/frontmatter.sh` (Removed)
 
-Shared sourceable shell library defining two parser functions. `frontmatter_field()` extracts a field value from YAML frontmatter delimited by `---` markers. `shell_frontmatter_field()` extracts a field value from shell-comment frontmatter delimited by `# ---` markers (strips leading `# ` before matching, handles quoted/unquoted values). Both return the unquoted value or empty string if not found. Uses `sed` for parsing (no `yq` dependency). Sourced by `fab-help.sh` and `sync/2-sync-workspace.sh`. No shebang or `set -euo pipefail` — designed to be sourced, not executed directly.
+Replaced by `internal/frontmatter/` package in `fab-go`. The Go implementation extracts fields from YAML frontmatter (content between `---` markers), handles quoted/unquoted values, strips inline comments. Used by `fab fab-help` for skill discovery.
 
 #### `fab-upgrade.sh` (Removed)
 
@@ -141,17 +131,17 @@ Replaced by `fab upgrade` — a shim subcommand. See [distribution.md](distribut
 
 Bumps VERSION (accepts `[patch|minor|major]` argument), validates the migration chain (warns if no migration targets the new version, warns on overlapping migration ranges), commits the version change, tags it, and pushes to the remote. CI takes over from the tag push to cross-compile, package, and create the GitHub Release. Requires clean working tree. This script is not shipped inside `fab/.kit/` — it is a dev-only tool for maintainers of the fab-kit repo.
 
-#### Batch Scripts
+#### Batch Scripts (Removed)
 
-Batch scripts follow the `batch-fab-{verb}-{entity}.sh` naming pattern. Each creates tmux tabs with Claude Code sessions running a specific skill, one per target entity. Each batch script includes a `# ---` shell-comment frontmatter block with `name` and `description` fields, enabling automatic discovery by `fab-help.sh`.
+Replaced by `fab batch` subcommand group in `fab-go`. Source: `src/go/fab/cmd/fab/batch.go` (parent command), `batch_new.go`, `batch_switch.go`, `batch_archive.go`. All three share common patterns: tmux tab creation, spawn command resolution via `internal/spawn/`, `--list`/`--all` flags.
 
-- **`batch-fab-new-backlog.sh`** — Per backlog ID: creates a worktree, opens a tmux tab, runs `/fab-new <description>`. Reads spawn command from `config.yaml` `agent.spawn_command` via `lib/spawn.sh`. Supports `--list` (show pending), `--all` (all pending), and direct ID arguments.
-- **`batch-fab-switch-change.sh`** — Per change name/ID: creates a worktree with the expected branch, opens a tmux tab, runs `/fab-switch <change>`. Reads spawn command from `config.yaml` `agent.spawn_command` via `lib/spawn.sh`. Supports `--list`, `--all`, substring matching. Uses `fab change resolve` for name resolution (via the dispatcher).
-- **`batch-fab-archive-change.sh`** — Per completed change (`hydrate:done|skipped`): runs `/fab-archive <change>` for each. Reads spawn command from `config.yaml` `agent.spawn_command` via `lib/spawn.sh`. Filters by reading `.status.yaml` for `hydrate: done|skipped`. Default (no arguments) archives all eligible (same as `--all`). Supports `--list` (preview), `--all`, and positional change arguments. Uses `fab change resolve` for name resolution (via the dispatcher).
+- **`fab batch new`** — Per backlog ID: creates a worktree via `wt create --non-interactive`, opens a tmux tab, starts a Claude Code session running `/fab-new <description>`. Parses `fab/backlog.md` with continuation line handling. Supports `--list`, `--all`, and positional ID arguments.
+- **`fab batch switch`** — Per change name/ID: creates a worktree with the correct branch name (using `branch_prefix` from config), opens a tmux tab, runs `/fab-switch <change>`. Uses `fab change resolve` for name resolution. Supports `--list`, `--all`, and positional arguments.
+- **`fab batch archive`** — Finds changes with `hydrate: done|skipped` in `.status.yaml`, spawns a single Claude Code session to run `/fab-archive` for each. Supports `--list`, `--all`, and positional change arguments. Uses `fab change resolve` for name resolution.
 
-#### Launcher Scripts
+#### Launcher Scripts (Removed)
 
-- **`fab-operator.sh`** — Singleton launcher for the operator skill. Creates a tmux tab named `operator` running the spawn command from `config.yaml` `agent.spawn_command` (via `lib/spawn.sh`) with `'/fab-operator'`. If the tab already exists, switches to it instead of creating a duplicate. Requires an active tmux/byobu session.
+Replaced by `fab operator` — a `fab-go` subcommand. Source: `src/go/fab/cmd/fab/operator.go`. Creates a singleton tmux window named "operator" running the configured `agent.spawn_command` (via `internal/spawn/`) with `'/fab-operator'`. If the window already exists, switches to it. Requires an active tmux session (`$TMUX` check).
 
 ### Agent Skill Deployment
 
@@ -235,7 +225,7 @@ Run `fab upgrade` to update to the latest release. The fab-kit subcommand downlo
 Skill deployments in `.claude/skills/`, `.opencode/commands/`, `.agents/skills/`, and `.gemini/skills/` are refreshed by `fab-kit sync` after the update. OpenCode symlinks resolve automatically; copies for Claude Code, Codex, and Gemini are re-copied.
 
 **Preserved** (lives outside `.kit/`): `config.yaml`, `constitution.md`, `docs/memory/`, `docs/specs/`, `changes/`, `.fab-status.yaml`, `.kit-migration-version`, `.kit-sync-version`
-**Replaced** (lives inside `.kit/`): `templates/`, `skills/`, `scripts/`, `sync/`, `migrations/`, `packages/` (idea shell package), `bin/` (`.gitkeep` only), `VERSION`
+**Replaced** (lives inside `.kit/`): `templates/`, `skills/`, `sync/`, `migrations/`, `packages/` (idea shell package), `bin/` (`.gitkeep` only), `VERSION`
 
 ### Portability
 
@@ -259,7 +249,7 @@ The system provides three distinct binaries, each independently executable with 
 
 #### `fab` (Router)
 
-The `fab` binary (installed via `brew install fab-kit`) is the user-facing entry point. It uses negative-match routing: a static allowlist of fab-kit commands (`init`, `upgrade`, `sync`, `--version`, `-v`, `--help`, `-h`, `help`) is dispatched to `fab-kit` via `syscall.Exec`; all other commands are dispatched to the version-resolved `fab-go` via `syscall.Exec`.
+The `fab` binary (installed via `brew install fab-kit`) is the user-facing entry point. It uses negative-match routing: a static allowlist of fab-kit commands (`init`, `upgrade`, `sync`, `doctor`, `--version`, `-v`, `--help`, `-h`, `help`) is dispatched to `fab-kit` via `syscall.Exec`; all other commands are dispatched to the version-resolved `fab-go` via `syscall.Exec`.
 
 For fab-go dispatch, the router:
 1. Walks up from CWD to find `fab/project/config.yaml`
@@ -279,6 +269,7 @@ The `fab-kit` binary (installed via `brew install fab-kit`) owns workspace lifec
 - `fab-kit init` — initialize fab in a repo (resolve latest version, cache it, populate `fab/.kit/`, set `fab_version`, run sync)
 - `fab-kit upgrade [version]` — upgrade to a different version (download to cache, atomic replace `fab/.kit/`, update `fab_version`, run sync)
 - `fab-kit sync` — reconcile workspace with pinned version (6-step pipeline: prerequisites, version guard, ensure cache, scaffolding, direnv, project scripts). Supports `--shim` (steps 1-5) and `--project` (step 6) flags.
+- `fab-kit doctor [--porcelain]` — validate fab-kit prerequisites (7 tools: git, fab, bash, yq v4+, jq, gh, direnv+hook). Works before `config.yaml` exists — required for `/fab-setup` Phase 0 gate. Exit code = failure count. `--porcelain` outputs only errors (no passes/hints/summary)
 
 `fab-kit sync` resolves all kit content from the system cache at `~/.fab-kit/versions/{version}/kit/` (via `CachedKitDir(fab_version)`) rather than from `fab/.kit/` in the repo. The 6-step pipeline: (1) prerequisites check (git, bash, yq v4+, direnv), (2) version guard (ensures `fab_version` <= system `fab-kit` version, auto-runs `fab update` if behind), (3) ensure cache (calls `EnsureCached(fab_version)`, downloads if needed), (4) workspace scaffolding from cache (directory creation, scaffold tree-walk with fragment-merge and copy-if-absent, multi-agent skill deployment, hook sync, version stamp, legacy cleanup), (5) direnv allow, (6) project-level `fab/sync/*.sh` script execution. Hook sync (previously delegated to `5-sync-hooks.sh` and `fab hook sync`) is absorbed directly into step 4 — `fab-kit` replicates the hooklib sync logic internally rather than shelling out to the `fab` binary.
 
@@ -313,12 +304,15 @@ The workflow engine backend for all fab CLI operations. Source: `src/go/fab/`.
 - `fab pane-map [--json] [--session <name>] [--all-sessions]` — combine tmux pane introspection with worktree/change/runtime state into a unified view (table columns: Pane, WinIdx, Tab, Worktree, Change, Stage, Agent; plus conditional Session column with `--all-sessions`). `--json` outputs a JSON array with fields: `session`, `window_index`, `pane`, `tab`, `worktree`, `change`, `stage`, `agent_state`, `agent_idle_duration` (null semantics for non-fab panes). `--session <name>` targets a specific tmux session by name (skips `$TMUX` check). `--all-sessions` queries all tmux sessions. Flags `--session` and `--all-sessions` are mutually exclusive. Default mode uses current session via `$TMUX` (existing behavior). Shows all tmux panes (not just fab worktrees) with em-dash/null fallbacks for non-fab panes
 - `fab resolve <change> --pane` — output the tmux pane ID (e.g., `%5`) for the pane running the resolved change; composable with `tmux send-keys -t "$(fab resolve <change> --pane)" "<text>" Enter`
 - `fab idea add|list|show|done|reopen|edit|rm` — backlog idea management (CRUD for `fab/backlog.md`)
+- `fab fab-help` — dynamic skill discovery and help overview (scans `.kit/skills/` frontmatter, groups by category)
+- `fab operator` — singleton tmux tab launcher for the operator skill (reads `agent.spawn_command` from config)
+- `fab batch new|switch|archive` — multi-target batch operations via tmux tabs with Claude Code sessions
 
-**Architecture**: `internal/statusfile` is the shared foundation — a `StatusFile` struct parsed once via `Load()`, passed by pointer across all operations, and written atomically via temp+rename `Save()`. All other packages (`resolve`, `log`, `status`, `preflight`, `change`, `score`, `archive`, `worktree`) import `statusfile` for YAML access. The `worktree` package provides worktree discovery via `git worktree list --porcelain` and fab state resolution, and also contains the full worktree management library used by the `wt` binary (see below). The `internal/runtime` package (extracted from `cmd/fab/runtime.go`) provides shared runtime file manipulation (`LoadFile`, `SaveFile`, `FilePath`, `ClearIdle`, `SetIdle`) — used by both `fab runtime` CLI subcommands and `fab hook` subcommands. The `internal/hooklib` package provides artifact bookkeeping logic (JSON parsing, path pattern matching, change type inference, task/checklist counting) and hook sync logic (hook-to-event mapping, JSON merging for `.claude/settings.local.json`). The `pane-map` subcommand in `cmd/fab/panemap.go` combines tmux pane discovery, worktree resolution, change state, and runtime state into a single observation command. Supports `--json` (JSON array output), `--session <name>` (target specific session), and `--all-sessions` (enumerate all sessions). `discoverPanes(mode, sessionName)` accepts a session targeting mode and extends the tmux format string with `#{session_name}` and `#{window_index}`. Shared pane-matching functions (`discoverPanes`, `matchPanesByFolder`, `resolvePaneChange`) also live in `panemap.go` and are reused by `resolve --pane`.
+**Architecture**: `internal/spawn` provides shared spawn command resolution (reads `agent.spawn_command` from `config.yaml`, used by `operator` and `batch` subcommands). `internal/frontmatter` provides YAML frontmatter parsing (used by `fab-help`). `internal/statusfile` is the shared foundation — a `StatusFile` struct parsed once via `Load()`, passed by pointer across all operations, and written atomically via temp+rename `Save()`. All other packages (`resolve`, `log`, `status`, `preflight`, `change`, `score`, `archive`, `worktree`) import `statusfile` for YAML access. The `worktree` package provides worktree discovery via `git worktree list --porcelain` and fab state resolution, and also contains the full worktree management library used by the `wt` binary (see below). The `internal/runtime` package (extracted from `cmd/fab/runtime.go`) provides shared runtime file manipulation (`LoadFile`, `SaveFile`, `FilePath`, `ClearIdle`, `SetIdle`) — used by both `fab runtime` CLI subcommands and `fab hook` subcommands. The `internal/hooklib` package provides artifact bookkeeping logic (JSON parsing, path pattern matching, change type inference, task/checklist counting) and hook sync logic (hook-to-event mapping, JSON merging for `.claude/settings.local.json`). The `pane-map` subcommand in `cmd/fab/panemap.go` combines tmux pane discovery, worktree resolution, change state, and runtime state into a single observation command. Supports `--json` (JSON array output), `--session <name>` (target specific session), and `--all-sessions` (enumerate all sessions). `discoverPanes(mode, sessionName)` accepts a session targeting mode and extends the tmux format string with `#{session_name}` and `#{window_index}`. Shared pane-matching functions (`discoverPanes`, `matchPanesByFolder`, `resolvePaneChange`) also live in `panemap.go` and are reused by `resolve --pane`.
 
 **Parity**: All subcommands produce stdout/stderr output matching the bash versions (modulo timestamps).
 
-**Testing**: Unit tests in `src/go/fab/` cover all internal packages via `go test ./...`. Run with `just test` (or `just test-v` for verbose). Tested packages: `cmd/fab` (panemap), `cmd/wt`, `internal/config`, `internal/hooks`, `internal/hooklib` (artifact bookkeeping + hook sync), `internal/runtime` (runtime file manipulation), `internal/status`, `internal/statusfile`, `internal/resolve`, `internal/log`, `internal/preflight`, `internal/score`, `internal/archive`, `internal/change`, `internal/worktree`, `internal/idea`. Test patterns: `t.TempDir()` for filesystem isolation, table-driven tests with `t.Run()` subtests, standard `testing` package only (no external test frameworks). The previous parity tests (`src/go/fab/test/parity/`) were removed — the bash scripts they validated against no longer exist.
+**Testing**: Unit tests in `src/go/fab/` cover all internal packages via `go test ./...`. Run with `just test` (or `just test-v` for verbose). Tested packages: `cmd/fab` (panemap, operator, batch_new, batch_switch, batch_archive, fabhelp), `cmd/wt`, `internal/config`, `internal/hooks`, `internal/hooklib` (artifact bookkeeping + hook sync), `internal/runtime` (runtime file manipulation), `internal/status`, `internal/statusfile`, `internal/resolve`, `internal/log`, `internal/preflight`, `internal/score`, `internal/archive`, `internal/change`, `internal/worktree`, `internal/idea`, `internal/spawn`, `internal/frontmatter`. `fab-kit` tests: `cmd/fab-kit` (doctor). Test patterns: `t.TempDir()` for filesystem isolation, table-driven tests with `t.Run()` subtests, standard `testing` package only (no external test frameworks). The previous parity tests (`src/go/fab/test/parity/`) were removed — the bash scripts they validated against no longer exist.
 
 #### `fab idea` Subcommand
 
@@ -403,10 +397,9 @@ Outputs the tmux pane ID for a change's worktree. Signature: `fab resolve <chang
 **Rejected**: Unconditional deployment to all agents — creates workspace clutter for unused agents. Also rejected: symlinks for all agents — Claude Code and Codex don't reliably follow symlinks.
 *Source*: 260303-l6nk-gemini-cli-agent-aware-sync, 260219-d2y2-copy-template-skills-drop-agents, 260402-3ac3-three-binary-architecture
 
-### lib/ Subfolder for Internal Scripts
-**Decision**: Internal scripts (`statusman.sh`, `changeman.sh`, `calc-score.sh`, `preflight.sh`) live in `fab/.kit/scripts/lib/` without underscore prefix. User-facing scripts (`fab-doctor.sh`, `fab-help.sh`, `fab-sync.sh`, `fab-upgrade.sh`, batch scripts) remain in the parent `scripts/` directory.
-**Why**: The `lib/` subfolder provides a clearer structural boundary between internal plumbing and user-facing entry points than naming conventions alone. All internal scripts are co-located, making the dependency graph explicit. The directory structure is more discoverable than prefix conventions.
-**Rejected**: Underscore prefix convention (previous approach) — naming conventions are less discoverable than directory structure; the prefix was inconsistent (`_init_scaffold.sh` used underscore+name while others used underscore only).
+### lib/ Subfolder for Internal Scripts (Removed)
+**Decision**: Internal scripts (`statusman.sh`, `changeman.sh`, `calc-score.sh`, `preflight.sh`) lived in `fab/.kit/scripts/lib/`. User-facing scripts lived in the parent `scripts/` directory.
+**Deprecated by**: 260402-41gc-migrate-kit-scripts — All scripts migrated to Go binary subcommands. The `scripts/` directory has been deleted entirely. `lib/spawn.sh` → `internal/spawn/` in `fab-go`. `lib/frontmatter.sh` → `internal/frontmatter/` in `fab-go`. User-facing scripts → `fab-kit` and `fab-go` subcommands.
 
 ### Scaffold Overlay Tree with Fragment Prefix
 **Decision**: `scaffold/` is structured as a repo-root overlay tree where file paths mirror their destinations. Files requiring merge strategies use a `fragment-` filename prefix. Template files (config.yaml, constitution.md) are detected at runtime by `/fab-setup` via placeholder string checks rather than being excluded from the tree-walk via a skip-list.
@@ -518,6 +511,7 @@ Full benchmark suite with harness and all 4 implementations: `src/benchmark/`
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260402-41gc-migrate-kit-scripts | 2026-04-02 | Migrated all 6 shell scripts and 2 lib files from `fab/.kit/scripts/` to Go binary subcommands. `fab-doctor.sh` → `fab doctor` (`fab-kit` subcommand, added to router allowlist). `fab-help.sh` → `fab fab-help` (`fab-go` subcommand with dynamic skill scanning via `internal/frontmatter/`). `fab-operator.sh` → `fab operator` (`fab-go` subcommand). 3 batch scripts → `fab batch new|switch|archive` (`fab-go` subcommand group). `lib/spawn.sh` → `internal/spawn/` package. `lib/frontmatter.sh` → `internal/frontmatter/` package. Deleted entire `fab/.kit/scripts/` directory. Updated skills: `/fab-setup` (doctor path), `/fab-help` (script path), `/fab-operator` (launcher path). Updated `_cli-fab.md` with new command signatures. |
 | 260320-t13m-configurable-agent-spawn-command | 2026-03-20 | Added `lib/spawn.sh` (shared `fab_spawn_cmd` helper reading `agent.spawn_command` from `config.yaml` with fallback). Updated 5 scripts (`fab-operator4.sh`, `fab-operator5.sh`, `batch-fab-new-backlog.sh`, `batch-fab-switch-change.sh`, `batch-fab-archive-change.sh`) to read spawn command from config via `lib/spawn.sh` instead of hardcoding `claude --dangerously-skip-permissions`. Added `fab-operator5.sh` and `lib/spawn.sh` to directory tree. Updated batch script and launcher script descriptions. |
 | 260317-mogj-resilient-hooks-cwd | 2026-03-17 | Made hook shell scripts cwd-resilient. Replaced `dirname "$0"` relative path resolution with `git rev-parse --show-toplevel` in all 4 hook scripts (`on-session-start.sh`, `on-stop.sh`, `on-user-prompt.sh`, `on-artifact-write.sh`). Scripts now find the fab binary from any subdirectory within the repo. No Go code or settings.local.json changes needed — the Go binary already handled cwd via `resolve.FabRoot()` upward walk. Updated directory tree comment from "thin wrappers" to "cwd-resilient wrappers". |
 | 260402-ktbg-sync-from-cache | 2026-04-02 | Rewrote `fab-kit sync` to resolve kit content from system cache (`~/.fab-kit/versions/{version}/kit/`) instead of `fab/.kit/`. 6-step pipeline with version guard and cache-first resolution. Absorbed hook sync into step 4 — replicated hooklib logic in `fab-kit` internal package, removed `5-sync-hooks.sh` from `sync/` directory (now `.gitkeep` only). Added `--shim` and `--project` flags. Updated `$WORKTREE_INIT_SCRIPT` from `fab-kit sync` to `fab sync`. Superseded "5-sync-hooks.sh Retained" design decision. Updated "Single Entry Point" design decision with cache-based resolution. Updated prerequisites (removed jq, gh). |

@@ -56,6 +56,10 @@ fab <command> <subcommand> [args...]
 | `fab runtime` | Runtime state management (.fab-runtime.yaml) |
 | `fab hook` | Claude Code hook subcommands (session-start, stop, user-prompt, artifact-write, sync) |
 | `fab pane-map` | Tmux pane-to-worktree mapping with pipeline state (all panes) |
+| `fab doctor` | Validate fab-kit prerequisites (lives in fab-kit, works before config.yaml exists) |
+| `fab fab-help` | Show fab workflow overview and available commands (dynamic skill discovery) |
+| `fab operator` | Launch operator in a dedicated tmux tab (singleton) |
+| `fab batch` | Multi-target batch operations (new, switch, archive) |
 
 ---
 
@@ -341,6 +345,179 @@ When `--json` is set, output is a JSON array. Each element has these fields (sna
 | `agent_idle_duration` | string\|null | Duration string (e.g., `"5m"`) when idle; `null` otherwise |
 
 **Error behavior**: If `$TMUX` is unset and neither `--session` nor `--all-sessions` is provided, prints `Error: not inside a tmux session` to stderr and exits 1. If no tmux panes are found, prints `No tmux panes found.` and exits 0.
+
+---
+
+# Prerequisites & Setup
+
+## fab doctor
+
+Prerequisite Validator — checks that all required tools are installed and configured. Lives in `fab-kit` (not `fab-go`) so it works before `config.yaml` exists. Used by `/fab-setup` as the Phase 0 bootstrap gate.
+
+```
+fab doctor [--porcelain]
+```
+
+### Flags
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--porcelain` | bool | Only print errors (no passes, hints, or summary). Useful for scripted callers |
+
+### Checks (7 total)
+
+git, fab, bash, yq (v4+), jq, gh, direnv (with shell hook detection for zsh/bash).
+
+### Output
+
+- Pass: `  ✓ {tool} {version}`
+- Fail: `  ✗ {tool} — not found` with install hints
+- Summary: `{N}/{total} checks passed. {failures} issues found.`
+- Exit code: number of failures (0 = all passed)
+
+### Porcelain mode
+
+When `--porcelain` is set, only error lines are printed. Exit code is the failure count. Empty output + exit 0 means all tools are present.
+
+---
+
+## fab fab-help
+
+Workflow Help — scans `fab/.kit/skills/*.md` frontmatter, groups commands by category, and renders a formatted overview. The command name is `fab-help` (not overriding cobra's built-in `help`).
+
+```
+fab fab-help
+```
+
+### Behavior
+
+1. Reads `VERSION` from `.kit/` directory
+2. Scans `fab/.kit/skills/*.md` files for `name` and `description` frontmatter fields
+3. Excludes partials (`_` prefix) and internal skills (`internal-` prefix)
+4. Groups skills by a hardcoded mapping into: Start & Navigate, Planning, Completion, Maintenance, Setup, Batch Operations
+5. Batch command entries are read dynamically from `fab batch` cobra subcommands
+6. Unmapped skills appear under "Other"
+
+### Output sections
+
+- Version header
+- Workflow diagram
+- Grouped commands with descriptions
+- Typical flow examples
+- Packages section (wt, idea)
+
+---
+
+## fab operator
+
+Singleton Tmux Tab Launcher — creates a tmux window named "operator" running the configured agent spawn command with `/fab-operator`. If a window named "operator" already exists, switches to it instead.
+
+```
+fab operator
+```
+
+### Behavior
+
+1. Requires `$TMUX` to be set (exits 1 with error if not in tmux)
+2. If a tmux window named "operator" exists, selects it and prints `Switched to existing operator tab.`
+3. Otherwise, creates a new tmux window in the repo root running `{spawn_command} '/fab-operator'` and prints `Launched operator.`
+
+### Spawn command resolution
+
+Reads `agent.spawn_command` from `fab/project/config.yaml`. Falls back to `claude --dangerously-skip-permissions` if the key is missing, null, or empty.
+
+---
+
+# Batch Operations
+
+## fab batch
+
+Multi-target batch operations — groups `new`, `switch`, and `archive` subcommands that operate on multiple changes or backlog items at once. All subcommands that create tmux windows require `$TMUX` to be set.
+
+```
+fab batch <subcommand> [flags...]
+```
+
+| Subcommand | Usage | Purpose |
+|------------|-------|---------|
+| `new` | `new [--list] [--all] [backlog-id...]` | Create worktree tabs from backlog items |
+| `switch` | `switch [--list] [--all] [change...]` | Open tmux tabs in worktrees for changes |
+| `archive` | `archive [--list] [--all] [change...]` | Archive completed changes in one session |
+
+---
+
+## fab batch new
+
+Create Worktree Tabs from Backlog — parses `fab/backlog.md` for pending items (`- [ ] [xxxx]`), creates git worktrees, opens tmux windows, and starts Claude Code sessions with `/fab-new {description}`.
+
+```
+fab batch new [--list] [--all] [backlog-id...]
+```
+
+### Flags
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--list` | bool | Show pending backlog items and their IDs |
+| `--all` | bool | Open tabs for all pending backlog items |
+
+### Behavior
+
+- No arguments: defaults to `--list`
+- With IDs: creates a worktree tab for each specified backlog ID
+- With `--all`: creates worktree tabs for all pending items
+- Requires `$TMUX` when creating tabs (not for `--list`)
+- For each ID: runs `wt create --non-interactive --worktree-name {id}`, opens a tmux window named `fab-{id}`, starts `{spawn_command} '/fab-new {description}'`
+- Handles continuation lines in backlog entries (lines starting with whitespace that aren't new list items)
+
+---
+
+## fab batch switch
+
+Open Worktree Tabs for Changes — resolves change names, creates worktrees with branch names (using `branch_prefix` from config if present), and starts Claude Code sessions with `/fab-switch {change}`.
+
+```
+fab batch switch [--list] [--all] [change...]
+```
+
+### Flags
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--list` | bool | Show available changes |
+| `--all` | bool | Open tabs for all changes |
+
+### Behavior
+
+- No arguments: defaults to `--list`
+- With change names: resolves each via `fab change resolve`, creates a worktree tab
+- With `--all`: opens tabs for all active changes (excludes `archive/`)
+- Requires `$TMUX` when creating tabs (not for `--list`)
+- Branch naming: `{branch_prefix}{folder_name}` (reads `branch_prefix` from config.yaml)
+
+---
+
+## fab batch archive
+
+Archive Completed Changes — finds changes with `hydrate: done|skipped` in `.status.yaml`, then spawns a single Claude Code session with a prompt to run `/fab-archive` for each eligible change.
+
+```
+fab batch archive [--list] [--all] [change...]
+```
+
+### Flags
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--list` | bool | Show archivable changes without archiving |
+| `--all` | bool | Archive all archivable changes |
+
+### Behavior
+
+- No arguments: defaults to `--all` (unlike new/switch which default to `--list`)
+- With change names: resolves each via `fab change resolve`, validates archivability, then archives
+- With `--list`: shows changes where hydrate is done or skipped
+- Spawns a single Claude session with prompt: `Run /fab-archive for each of these changes, one at a time: {changes}`
 
 ---
 

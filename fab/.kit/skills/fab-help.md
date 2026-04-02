@@ -15,14 +15,14 @@ Orient the user in the fab workflow. Show how the stages fit together and list e
 
 ## Behavior
 
-When invoked, log the command and execute the help script:
+When invoked, log the command and execute the help subcommand:
 
 ```bash
 fab log command "fab-help" 2>/dev/null || true
-bash fab/.kit/scripts/fab-help.sh
+fab fab-help
 ```
 
-The script reads the kit version from `fab/.kit/VERSION` (falling back to "unknown" if missing) and prints the complete help text. The script is the single source of truth for help content.
+The subcommand reads the kit version from `fab/.kit/VERSION` (falling back to "unknown" if missing), scans `fab/.kit/skills/*.md` frontmatter for command descriptions, and prints the complete help text. The subcommand is the single source of truth for help content.
 
 ---
 

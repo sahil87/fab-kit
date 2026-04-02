@@ -62,7 +62,7 @@ When invoked with no arguments, perform the full structural bootstrap. `/fab-set
 
 ### Phase 0: Prerequisite Check
 
-Run `fab/.kit/scripts/fab-doctor.sh` as the first step. If doctor exits non-zero, STOP immediately and surface the doctor output to the user. Do NOT create any project artifacts.
+Run `fab doctor` as the first step. If doctor exits non-zero, STOP immediately and surface the doctor output to the user. Do NOT create any project artifacts.
 
 This gate applies only to the bare bootstrap flow. Subcommands (`config`, `constitution`, `migrations`) skip this check.
 

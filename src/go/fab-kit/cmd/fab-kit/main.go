@@ -16,6 +16,7 @@ var fabKitCommands = map[string]bool{
 	"upgrade": true,
 	"sync":    true,
 	"update":  true,
+	"doctor":  true,
 }
 
 func main() {
@@ -32,6 +33,7 @@ func main() {
 		upgradeCmd(),
 		syncCmd(),
 		updateCmd(),
+		doctorCmd(),
 	)
 
 	if err := root.Execute(); err != nil {

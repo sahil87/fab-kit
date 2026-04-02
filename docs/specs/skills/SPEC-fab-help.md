@@ -2,7 +2,7 @@
 
 ## Summary
 
-Displays workflow overview and command reference. Delegates entirely to a shell script. No context loading, no file modification.
+Displays workflow overview and command reference. Delegates to `fab fab-help` Go subcommand. No context loading, no file modification.
 
 ## Flow
 
@@ -10,15 +10,15 @@ Displays workflow overview and command reference. Delegates entirely to a shell 
 User invokes /fab-help
 │
 ├─ Bash: fab log command "fab-help"
-└─ Bash: bash fab/.kit/scripts/fab-help.sh
-   └─ (reads fab/.kit/VERSION, prints help text)
+└─ Bash: fab fab-help
+   └─ (scans fab/.kit/skills/*.md frontmatter, prints grouped help text)
 ```
 
 ### Tools used
 
 | Tool | Purpose |
 |------|---------|
-| Bash | `fab log command`, `fab-help.sh` |
+| Bash | `fab log command`, `fab fab-help` |
 
 ### Sub-agents
 
