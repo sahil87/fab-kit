@@ -16,9 +16,7 @@ fab/.kit/bin/*
 /.gemini
 
 /ToBeDeleted/
-kit.tar.gz
-kit-*.tar.gz
-.release-build/
+/dist/
 .tmp
 
 # Benchmark build artifacts

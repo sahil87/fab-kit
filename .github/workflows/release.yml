@@ -24,57 +24,39 @@ jobs:
       # Install just command runner
       - uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2
 
-      # Cross-compile Go binaries for all release targets (5 binaries x 4 platforms)
+      # Full build pipeline (same steps you'd run locally)
+      - name: Assemble dist/kit/
+        run: just dist-kit
+
       - name: Build all targets
         run: just build-all
 
-      # Create kit archives (per-platform with fab-go)
       - name: Package kit archives
         run: just package-kit
 
-      # Create brew archives (per-platform with fab, fab-kit, wt, idea)
       - name: Package brew archives
         run: just package-brew
 
-      # Create GitHub Release with commit-level changelog
-      # Minor releases (x.y.0) cumulate all commits since the previous minor.
-      # Patch releases show commits since the previous release.
-      # Major releases are treated like patch (manual curation expected).
+      - name: Generate release notes
+        run: just release-notes "${{ github.ref_name }}"
+
+      - name: Generate Homebrew formula
+        run: just brew-formula "${{ github.ref_name }}"
+
+      # Upload — these steps need tokens, so they stay CI-only
       - name: Create GitHub Release
         run: |
-          TAG="${{ github.ref_name }}"
-          VERSION="${TAG#v}"
-          REPO="${{ github.repository }}"
-          PATCH="${VERSION##*.}"
-
-          if [ "$PATCH" = "0" ]; then
-            # Minor release — find the previous minor/major tag (*.0)
-            PREV=$(git tag -l 'v*' | grep '\.0$' | sort -V | grep -B1 "^${TAG}$" | head -1)
-            # If no previous minor found (first minor), fall back to earliest tag
-            if [ "$PREV" = "$TAG" ] || [ -z "$PREV" ]; then
-              PREV=$(git tag -l 'v*' | sort -V | head -1)
-            fi
-            HEADER="Changes since ${PREV}"
-          else
-            PREV=$(gh release list --limit 1 --json tagName -q '.[0].tagName')
-            HEADER="Changes since ${PREV}"
-          fi
-
-          COMMITS=$(git log --oneline "${PREV}..${TAG}" | sed "s|^\([0-9a-f]\{7,\}\)|[\1](https://github.com/${REPO}/commit/\1)|" | sed 's/^/- /')
-          printf 'Fab Kit release %s\n\n## %s\n\n%s\n' \
-            "$VERSION" "$HEADER" "$COMMITS" > /tmp/release-body.md
-
-          gh release create "$TAG" \
-            --title "Fab Kit ${TAG}" \
-            --notes-file /tmp/release-body.md \
-            kit-darwin-arm64.tar.gz \
-            kit-darwin-amd64.tar.gz \
-            kit-linux-arm64.tar.gz \
-            kit-linux-amd64.tar.gz \
-            brew-darwin-arm64.tar.gz \
-            brew-darwin-amd64.tar.gz \
-            brew-linux-arm64.tar.gz \
-            brew-linux-amd64.tar.gz
+          gh release create "${{ github.ref_name }}" \
+            --title "Fab Kit ${{ github.ref_name }}" \
+            --notes-file dist/release-notes.md \
+            dist/kit-darwin-arm64.tar.gz \
+            dist/kit-darwin-amd64.tar.gz \
+            dist/kit-linux-arm64.tar.gz \
+            dist/kit-linux-amd64.tar.gz \
+            dist/brew-darwin-arm64.tar.gz \
+            dist/brew-darwin-amd64.tar.gz \
+            dist/brew-linux-arm64.tar.gz \
+            dist/brew-linux-amd64.tar.gz
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -84,22 +66,8 @@ jobs:
         run: |
           version="${{ github.ref_name }}"
           version="${version#v}"
-
-          sha_darwin_arm64=$(shasum -a 256 brew-darwin-arm64.tar.gz | cut -d' ' -f1)
-          sha_darwin_amd64=$(shasum -a 256 brew-darwin-amd64.tar.gz | cut -d' ' -f1)
-          sha_linux_arm64=$(shasum -a 256 brew-linux-arm64.tar.gz | cut -d' ' -f1)
-          sha_linux_amd64=$(shasum -a 256 brew-linux-amd64.tar.gz | cut -d' ' -f1)
-
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/sahil87/homebrew-tap.git" /tmp/tap
-
-          sed \
-            -e "s/VERSION_PLACEHOLDER/${version}/" \
-            -e "s/SHA_DARWIN_ARM64/${sha_darwin_arm64}/" \
-            -e "s/SHA_DARWIN_AMD64/${sha_darwin_amd64}/" \
-            -e "s/SHA_LINUX_ARM64/${sha_linux_arm64}/" \
-            -e "s/SHA_LINUX_AMD64/${sha_linux_amd64}/" \
-            .github/formula-template.rb > /tmp/tap/Formula/fab-kit.rb
-
+          cp dist/fab-kit.rb /tmp/tap/Formula/fab-kit.rb
           cd /tmp/tap
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

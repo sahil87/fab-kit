@@ -28,13 +28,13 @@ build:
     rsync -a --delete --exclude='bin/' fab/.kit/ {{local_cache}}/kit/
     @echo "Built fab-go → {{local_cache}}/fab-go"
 
-# Build fab-kit and fab router to .release-build/ (install to PATH or test directly)
+# Build fab-kit and fab router to dist/bin/ (install to PATH or test directly)
 build-fab-kit:
-    mkdir -p .release-build
-    cd src/go/fab-kit && CGO_ENABLED=0 go build -ldflags '{{fab_kit_ldflags}}' -o ../../../.release-build/fab-kit ./cmd/fab-kit
-    cd src/go/fab-kit && CGO_ENABLED=0 go build -ldflags '{{fab_kit_ldflags}}' -o ../../../.release-build/fab ./cmd/fab
-    @echo "Built fab-kit → .release-build/fab-kit"
-    @echo "Built fab (router) → .release-build/fab"
+    mkdir -p dist/bin
+    cd src/go/fab-kit && CGO_ENABLED=0 go build -ldflags '{{fab_kit_ldflags}}' -o ../../../dist/bin/fab-kit ./cmd/fab-kit
+    cd src/go/fab-kit && CGO_ENABLED=0 go build -ldflags '{{fab_kit_ldflags}}' -o ../../../dist/bin/fab ./cmd/fab
+    @echo "Built fab-kit → dist/bin/fab-kit"
+    @echo "Built fab (router) → dist/bin/fab"
 
 # Check prerequisites and environment health
 doctor:
@@ -48,9 +48,17 @@ doctor:
 release bump="patch":
     scripts/release.sh {{bump}}
 
-# Cross-compile a binary for a specific target
+# Assemble dist/kit/ from fab/.kit/ (single copy, reused by packaging)
+dist-kit:
+    rm -rf dist/kit
+    mkdir -p dist/kit/bin
+    cp -a fab/.kit/. dist/kit/
+    mkdir -p dist/kit/bin
+    @echo "Assembled dist/kit/ from fab/.kit/"
+
+# Cross-compile a binary for a specific target into dist/bin/
 _build-binary src_dir cmd_path name os arch ldflags="":
-    mkdir -p .release-build && cd {{src_dir}} && CGO_ENABLED=0 GOOS={{os}} GOARCH={{arch}} go build -ldflags '{{ldflags}}' -o ../../../.release-build/{{name}}-{{os}}-{{arch}} {{cmd_path}}
+    mkdir -p dist/bin && cd {{src_dir}} && CGO_ENABLED=0 GOOS={{os}} GOARCH={{arch}} go build -ldflags '{{ldflags}}' -o ../../../dist/bin/{{name}}-{{os}}-{{arch}} {{cmd_path}}
 
 # Cross-compile all binaries for a specific target (5 binaries)
 build-target os arch:
@@ -67,15 +75,25 @@ build-all:
     just build-target linux arm64
     just build-target linux amd64
 
-# Package kit archives for release (generic + per-platform with fab-go)
+# Package kit archives into dist/ (per-platform: kit content + fab-go)
 package-kit:
     {{scripts}}/package-kit.sh
 
-# Package brew archives for Homebrew (per-platform with fab, fab-kit, wt, idea)
+# Package brew archives into dist/ (per-platform: fab, fab-kit, wt, idea)
 package-brew:
     {{scripts}}/package-brew.sh
 
-# Remove build artifacts and kit archives
+# Generate release notes for the current tag into dist/release-notes.md
+release-notes tag="":
+    {{scripts}}/release-notes.sh {{tag}}
+
+# Generate Homebrew formula from template into dist/fab-kit.rb
+brew-formula tag="":
+    {{scripts}}/brew-formula.sh {{tag}}
+
+# Full release pipeline (everything CI runs, minus token-gated uploads)
+dist: dist-kit build-all package-kit package-brew
+
+# Remove all build artifacts
 clean:
-    rm -rf .release-build
-    rm -f kit-*.tar.gz brew-*.tar.gz
+    rm -rf dist

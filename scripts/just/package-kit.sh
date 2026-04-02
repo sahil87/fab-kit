@@ -1,41 +1,49 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Package kit archives for release (per-platform with fab-go binary)
+# Package kit archives into dist/ (per-platform: kit content + fab-go binary)
 # Called by: just package-kit
-#
-# fab (router), fab-kit, wt, and idea are distributed via Homebrew, not kit archives.
-# Only fab-go goes into the per-platform archives for auto-fetch.
+# Requires: just dist-kit && just build-all
 
 platforms=("darwin/arm64" "darwin/amd64" "linux/arm64" "linux/amd64")
-build_dir=".release-build"
 
-# Verify cross-compiled fab-go binaries exist for all platforms
+# Verify dist/kit/ was assembled
+if [ ! -d "dist/kit" ]; then
+  echo "ERROR: dist/kit/ not found — run 'just dist-kit' first."
+  exit 1
+fi
+
+# Verify cross-compiled fab-go binaries exist
 for platform in "${platforms[@]}"; do
   os="${platform%%/*}"
   arch="${platform##*/}"
-  binary="$build_dir/fab-go-${os}-${arch}"
+  binary="dist/bin/fab-go-${os}-${arch}"
   if [ ! -f "$binary" ]; then
-    echo "ERROR: Missing fab-go binary $binary — run 'just build-all' first."
+    echo "ERROR: Missing $binary — run 'just build-all' first."
     exit 1
   fi
 done
 
-# Per-platform archives (kit content + fab-go binary)
+echo "Packaging kit archives..."
+
 for platform in "${platforms[@]}"; do
   os="${platform%%/*}"
   arch="${platform##*/}"
-  archive_name="kit-${os}-${arch}.tar.gz"
-  staging="$build_dir/staging-${os}-${arch}"
+  archive="dist/kit-${os}-${arch}.tar.gz"
+  staging="dist/staging-kit-${os}-${arch}"
+
   rm -rf "$staging"
-  mkdir -p "$staging"
-  cp -a fab/.kit "$staging/"
-  # Only fab-go goes in the archive (fab, fab-kit, wt, idea are Homebrew-only)
-  mkdir -p "$staging/.kit/bin"
-  cp "$build_dir/fab-go-${os}-${arch}" "$staging/.kit/bin/fab-go"
-  chmod +x "$staging/.kit/bin/fab-go"
-  COPYFILE_DISABLE=1 tar czf "$archive_name" -C "$staging" .kit
-  echo "  $archive_name ($(wc -c < "$archive_name") bytes)"
+  cp -a dist/kit "$staging"
+  cp "dist/bin/fab-go-${os}-${arch}" "$staging/bin/fab-go"
+  chmod +x "$staging/bin/fab-go"
+
+  # Archive contents are rooted at .kit/ for extraction into version cache
+  mv "$staging" "dist/.kit"
+  COPYFILE_DISABLE=1 tar czf "$archive" -C dist .kit
+  mv "dist/.kit" "$staging"
+
+  echo "  kit-${os}-${arch}.tar.gz ($(wc -c < "$archive") bytes)"
   rm -rf "$staging"
 done
-echo "Packaging complete: ${#platforms[@]} platform archives"
+
+echo "Kit packaging complete: ${#platforms[@]} archives"
