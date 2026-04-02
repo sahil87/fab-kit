@@ -2,7 +2,7 @@ checklist:
     extra_categories:
         - documentation_accuracy
         - cross_references
-fab_version: 0.44.9
+fab_version: 0.45.1
 project:
     description: FAB Kit — Tooling for Specification-Driven Development
     linear_workspace: 
