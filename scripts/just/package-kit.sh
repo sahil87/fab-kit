@@ -31,6 +31,7 @@ for platform in "${platforms[@]}"; do
   mkdir -p "$staging"
   cp -a fab/.kit "$staging/"
   # Only fab-go goes in the archive (fab, fab-kit, wt, idea are Homebrew-only)
+  mkdir -p "$staging/.kit/bin"
   cp "$build_dir/fab-go-${os}-${arch}" "$staging/.kit/bin/fab-go"
   chmod +x "$staging/.kit/bin/fab-go"
   COPYFILE_DISABLE=1 tar czf "$archive_name" -C "$staging" .kit
