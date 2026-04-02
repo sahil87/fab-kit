@@ -183,12 +183,17 @@ The `justfile` at repo root provides locally-replicable build recipes using [jus
 - **`test-v`** — runs all unit tests (verbose)
 - **`doctor`** — checks prerequisites and environment health
 
-**Release recipes**:
+**Release recipes** (all output goes to `dist/`):
 - **`release [bump]`** — bumps VERSION (default: patch), commits, tags, and pushes; CI handles the rest
-- **`build-target os arch`** — cross-compiles all five binaries (`fab` router, `fab-kit`, `fab-go`, `idea`, `wt`) for a specific platform, outputs to `.release-build/{name}-{os}-{arch}` using `CGO_ENABLED=0 GOOS={os} GOARCH={arch}`
+- **`dist-kit`** — assembles `dist/kit/` from `fab/.kit/` (single copy, reused by packaging)
+- **`build-target os arch`** — cross-compiles all five binaries for a specific platform into `dist/bin/{name}-{os}-{arch}`
 - **`build-all`** — cross-compiles for all 4 release targets (`darwin/arm64`, `darwin/amd64`, `linux/arm64`, `linux/amd64`), producing 20 binaries total (5 per platform)
-- **`package-kit`** — creates 5 tar.gz archives: generic `kit.tar.gz` (no binaries) + 4 per-platform `kit-{os}-{arch}.tar.gz` (with `fab-go` only — `fab` router, `fab-kit`, `idea`, and `wt` are Homebrew-distributed). Verifies all cross-compiled binaries exist first. Uses `COPYFILE_DISABLE=1` to suppress macOS extended attributes. Archives are rooted at `.kit/`.
-- **`clean`** — removes `.release-build/` directory and all `kit*.tar.gz` files from repo root
+- **`package-kit`** — creates 4 per-platform `dist/kit-{os}-{arch}.tar.gz` (kit content + `fab-go` only). Archives are rooted at `.kit/`.
+- **`package-brew`** — creates 4 per-platform `dist/brew-{os}-{arch}.tar.gz` (`fab`, `fab-kit`, `wt`, `idea`)
+- **`release-notes [tag]`** — generates `dist/release-notes.md` with commit-level changelog
+- **`brew-formula [tag]`** — generates `dist/fab-kit.rb` from template with SHA256 hashes
+- **`dist`** — full pipeline: `dist-kit` + `build-all` + `package-kit` + `package-brew`
+- **`clean`** — removes `dist/`
 
 **Five Go binaries**:
 
@@ -202,11 +207,11 @@ The `justfile` at repo root provides locally-replicable build recipes using [jus
 
 **Scenarios**:
 - Local dev build (`just build`) — compiles all five binaries for current platform
-- Cross-compile for a single target (`just build-target darwin arm64`) — produces 5 binaries in `.release-build/`
-- Build all targets (`just build-all`) — produces 20 binaries in `.release-build/` (5 per platform x 4 platforms)
-- Package after build (`just package-kit`) — creates 5 archives in repo root; per-platform archives include `.kit/bin/fab-go` only, generic archive includes none
-- Package without prior build (`just package-kit`) — fails with error directing to run `just build-all` first
-- Clean up (`just clean`) — removes `.release-build/` and `kit*.tar.gz`
+- Cross-compile for a single target (`just build-target darwin arm64`) — produces 5 binaries in `dist/bin/`
+- Build all targets (`just build-all`) — produces 20 binaries in `dist/bin/` (5 per platform x 4 platforms)
+- Full pipeline (`just dist`) — assembles kit, builds all, packages all into `dist/`
+- Package without prior build (`just package-kit`) — fails with error directing to run prerequisite steps first
+- Clean up (`just clean`) — removes `dist/`
 
 #### CI Workflow (`.github/workflows/release.yml`)
 
