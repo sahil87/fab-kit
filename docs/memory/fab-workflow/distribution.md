@@ -118,7 +118,7 @@ The existing `cp -r` distribution method SHALL continue to work, given the syste
 
 #### Update Preserves Project Files
 
-`fab upgrade` MUST NOT modify any files outside of `fab/.kit/` and `fab/project/config.yaml` (version bump only). Preserved: `fab/project/constitution.md`, `fab/.kit-migration-version`, `fab/.kit-sync-version`, `docs/memory/`, `docs/specs/`, `fab/changes/`, `.fab-status.yaml`.
+`fab upgrade` MUST NOT modify any files outside of `fab/.kit/` and `fab/project/config.yaml` (version bump only). Preserved: `fab/project/constitution.md`, `fab/.kit-migration-version`, `docs/memory/`, `docs/specs/`, `fab/changes/`, `.fab-status.yaml`.
 
 #### Deprecated: `fab-upgrade.sh`
 
@@ -126,12 +126,11 @@ The existing `cp -r` distribution method SHALL continue to work, given the syste
 
 ### Sync Staleness Detection
 
-`fab-kit sync` writes `fab/.kit-sync-version` after skill deployment — a gitignored stamp file containing the synced version value at sync time. `lib/preflight.sh` compares this stamp against the current kit VERSION and emits a non-blocking stderr warning when they differ:
+Preflight compares `fab/.kit/VERSION` against `fab_version` in `fab/project/config.yaml` and emits a non-blocking stderr warning when they differ:
 
-- `⚠ Skills out of sync — run fab sync to refresh (engine X, last synced Y)` — when stamp is behind
-- `⚠ Skills may be out of sync — run fab sync to refresh` — when stamp is missing
+- `⚠ Skills may be out of sync — run fab sync to refresh (engine X, project Y)`
 
-This detects stale local skill deployments when a developer pulls new `fab/.kit/` source via git but hasn't re-run `fab sync` (since `.claude/`, `.agents/`, `.opencode/` are gitignored and not updated by git pull).
+If either value is unreadable or empty, the check is silently skipped. This detects stale local skill deployments when a developer pulls new `fab/.kit/` source via git but hasn't re-run `fab sync` (since `.claude/`, `.agents/`, `.opencode/` are gitignored and not updated by git pull).
 
 #### Atomic Update
 
@@ -299,7 +298,8 @@ The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its rol
 | 260305-bhd6-1-build-fab-go-binary | 2026-03-05 | Go binary (`src/go/fab/`) built — ports all lib/ scripts to single `fab` binary. No distribution changes in this change — binary inclusion in kit.tar.gz and per-platform archives are deferred to a future change. Go toolchain required only for building from source, not for end users. |
 | 260303-l6nk-gemini-cli-agent-aware-sync | 2026-03-04 | Added Gemini CLI as 4th supported agent. Updated bootstrap/sync descriptions to reflect conditional agent deployment (skills deployed only when agent's CLI found in PATH). Four agents: Claude Code (copies), OpenCode (symlinks), Codex (copies), Gemini CLI (copies). |
 | 260301-08pa-version-pinned-upgrade-and-release | 2026-03-02 | Added version-pinned upgrade (`fab-upgrade.sh v0.24.0`) with tag-aware messaging. Added backport release support to `release.sh`: push to current branch instead of hardcoded `main`, `--no-latest` flag for `gh release create --latest=false`, position-independent argument parsing. |
-| 260226-koj1-version-staleness-warning | 2026-02-26 | Added sync staleness detection (`fab/.kit-sync-version` stamp, preflight stderr warning). Renamed `fab/project/VERSION` → `fab/.kit-migration-version`. Updated preserved files list in upgrade section. |
+| 260402-0ak9-remove-sync-version-file | 2026-04-02 | Removed `fab/.kit-sync-version` from preserved files list. Sync staleness detection now compares `fab/.kit/VERSION` against `fab_version` in `config.yaml` (single warning message). |
+| 260226-koj1-version-staleness-warning | 2026-02-26 | Added sync staleness detection (preflight stderr warning). Renamed `fab/project/VERSION` → `fab/.kit-migration-version`. Updated preserved files list in upgrade section. |
 | 260224-v40o-wt-drop-prefix-and-dotworktrees | 2026-02-25 | wt package: dropped `wt/` branch prefix from exploratory worktrees (branch = worktree name directly). Switched worktree home directory from `<repo>-worktrees` to `<repo>.worktrees` (GitLens convention). Updated `wt-create` help text. No migration for existing worktrees. |
 | 260221-i0z6-move-env-packages-add-fab-pipeline | 2026-02-21 | `env-packages.sh` moved from `scripts/` to `scripts/lib/` — now sourced from `fab/.kit/scripts/lib/env-packages.sh` in both `scaffold/fragment-.envrc` and `src/packages/rc-init.sh` |
 | 260219-d2y2-copy-template-skills-drop-agents | 2026-02-19 | Updated references from symlinks to copies for Claude Code skills. Renamed "Symlink Repair After Update" to "Skill Deployment Repair After Update". Updated bootstrap and upgrade descriptions to reflect copy-with-template deployment |

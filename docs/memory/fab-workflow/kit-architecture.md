@@ -210,13 +210,13 @@ Then in either case:
 
 ### Version Tracking (Dual-Version Model)
 
-Two VERSION files track the relationship between the installed engine and the project's file format:
+Three version locations track the relationship between the installed engine and the project's file format:
 
 - **`fab/.kit/VERSION`** (engine version) — ships inside `.kit/`, replaced on each `fab-upgrade.sh` run. Enables version display, update comparison, and migration targeting.
+- **`fab/project/config.yaml` `fab_version`** (project version) — set by `fab upgrade` and `fab init`. Used by preflight to detect sync staleness (compared against `fab/.kit/VERSION`).
 - **`fab/.kit-migration-version`** (local project version) — lives outside `.kit/`, NOT replaced on upgrades. Tracks the version the project's `config.yaml`, `.status.yaml`, and conventions were written for. Created by `sync/2-sync-workspace.sh`. Renamed from `fab/project/VERSION`.
-- **`fab/.kit-sync-version`** (sync stamp) — lives outside `.kit/`, gitignored (per-developer local state). Records the `fab/.kit/VERSION` value at the time `fab-sync.sh` last ran. Used by `lib/preflight.sh` to detect stale skill deployments.
 
-All contain a bare semver string (`MAJOR.MINOR.PATCH`). See [migrations.md](migrations.md) for the full migration system.
+`VERSION` and `.kit-migration-version` contain a bare semver string (`MAJOR.MINOR.PATCH`). See [migrations.md](migrations.md) for the full migration system.
 
 ### Updating `.kit/`
 
@@ -224,7 +224,7 @@ Run `fab upgrade` to update to the latest release. The fab-kit subcommand downlo
 
 Skill deployments in `.claude/skills/`, `.opencode/commands/`, `.agents/skills/`, and `.gemini/skills/` are refreshed by `fab-kit sync` after the update. OpenCode symlinks resolve automatically; copies for Claude Code, Codex, and Gemini are re-copied.
 
-**Preserved** (lives outside `.kit/`): `config.yaml`, `constitution.md`, `docs/memory/`, `docs/specs/`, `changes/`, `.fab-status.yaml`, `.kit-migration-version`, `.kit-sync-version`
+**Preserved** (lives outside `.kit/`): `config.yaml`, `constitution.md`, `docs/memory/`, `docs/specs/`, `changes/`, `.fab-status.yaml`, `.kit-migration-version`
 **Replaced** (lives inside `.kit/`): `templates/`, `skills/`, `sync/`, `migrations/`, `packages/` (idea shell package), `bin/` (`.gitkeep` only), `VERSION`
 
 ### Portability
@@ -539,7 +539,8 @@ Full benchmark suite with harness and all 4 implementations: `src/benchmark/`
 | 260303-6b7c-update-underscore-skill-references | 2026-03-04 | Documented underscore file deployment in Agent Integration section — `2-sync-workspace.sh` now deploys all `*.md` files including `_preamble.md`, `_generation.md`, `_scripts.md` (with `user-invocable: false` frontmatter). Updated stale test assertion from "skips" to "deploys" underscore files. |
 | 260227-gasp-consolidate-status-field-naming | 2026-02-27 | Replaced `ship_url()`/`is_shipped()` with generic `_append_to_array`/`_get_array` helpers and 4 symmetric functions: `add_issue`/`get_issues`/`add_pr`/`get_prs`. CLI routes `ship`/`is-shipped` → `add-issue`/`get-issues`/`add-pr`/`get-prs`. Template fields `issue_id: null` → `issues: []`, `shipped: []` → `prs: []`. |
 | 260226-85rg-drop-fast-model-tier | 2026-02-26 | Removed "Model Tier Agent Files (Dual Deployment)" section — the fast tier has been eliminated. All skills are now deployed as plain copies with no model templating. See `model-tiers.md` for full details. |
-| 260226-koj1-version-staleness-warning | 2026-02-26 | Added `fab/.kit-sync-version` (gitignored sync stamp) and `fab/.kit-migration-version` (renamed from `fab/project/VERSION`) to version tracking section. Updated preserved/replaced file lists. Added sync stamp to directory overview. |
+| 260402-0ak9-remove-sync-version-file | 2026-04-02 | Removed `fab/.kit-sync-version` from version tracking section and preserved files list. Staleness detection now compares `fab/.kit/VERSION` against `fab_version` in `config.yaml`. Updated version inventory to 3 locations. |
+| 260226-koj1-version-staleness-warning | 2026-02-26 | Added `fab/.kit-migration-version` (renamed from `fab/project/VERSION`) to version tracking section. Updated preserved/replaced file lists. |
 | 260223-sr3u-add-fab-doctor | 2026-02-23 | Added `fab-doctor.sh` standalone prerequisite checker (7 tools: git, bash, yq v4+, jq, gh, bats, direnv+hook). Rewrote `sync/1-prerequisites.sh` as thin `exec` delegate to doctor. Updated `fab-upgrade.sh` output: "Update complete" prints first, `⚠` migration warning prints last (or omitted when no drift). Added Phase 0 doctor gate to `fab-setup.md` (bare bootstrap only). Added `fab-doctor.sh` to directory tree, scripts section, and lib/ design decision user-facing scripts list. |
 | 260222-s101-wt-create-stderr-wt-list-flags | 2026-02-22 | wt-create and wt-pr `--non-interactive` now redirects human messages to stderr (porcelain output: only path on stdout). Removed `\| tail -1` from 3 batch callers. Added `--path <name>` (single worktree path lookup), `--json` (JSON array with dirty/unpushed fields), and status column (`*` dirty, `↑N` unpushed) to wt-list. Added mutual exclusivity check for `--path`/`--json`. Added "Non-Interactive Porcelain Output Contract" design decision. |
 | 260222-s90r-add-shipped-tracking | 2026-02-22 | Added `shipped` tracking to fab pipeline. Extended `statusman.sh` with `ship` (append PR URL, idempotent, exact-match dedup) and `is-shipped` (exit-code query) subcommands (14→16 CLI subcommands). Added `shipped: []` to `status.yaml` template. Added `shipped` documentation section to `workflow.yaml` schema. Updated `/git-pr` skill to call `statusman.sh ship` after PR creation with graceful degradation when no active change. Updated `_preamble.md` state table: hydrate row now routes to `/git-pr` as default, `/fab-archive` as alternative. Updated `changeman.sh` `default_command` for hydrate. Test suite: 53→71 tests. |

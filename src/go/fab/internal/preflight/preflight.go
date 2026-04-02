@@ -10,6 +10,7 @@ import (
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
 	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
+	"gopkg.in/yaml.v3"
 )
 
 // Result holds the structured preflight output.
@@ -126,19 +127,28 @@ func checkSyncStaleness(fabRoot string) {
 	if data, err := os.ReadFile(versionFile); err == nil {
 		kitVersion = strings.TrimSpace(string(data))
 	}
-
-	syncVersion := ""
-	syncFile := filepath.Join(fabRoot, ".kit-sync-version")
-	if data, err := os.ReadFile(syncFile); err == nil {
-		syncVersion = strings.TrimSpace(string(data))
-	} else {
-		if kitVersion != "" {
-			fmt.Fprintf(os.Stderr, "⚠ Skills may be out of sync — run fab sync to refresh\n")
-		}
+	if kitVersion == "" {
 		return
 	}
 
-	if kitVersion != "" && syncVersion != "" && kitVersion != syncVersion {
-		fmt.Fprintf(os.Stderr, "⚠ Skills out of sync — run fab sync to refresh (engine %s, last synced %s)\n", kitVersion, syncVersion)
+	configPath := filepath.Join(fabRoot, "project", "config.yaml")
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		return
+	}
+
+	var cfg struct {
+		FabVersion string `yaml:"fab_version"`
+	}
+	if err := yaml.Unmarshal(configData, &cfg); err != nil {
+		return
+	}
+	configVersion := strings.TrimSpace(cfg.FabVersion)
+	if configVersion == "" {
+		return
+	}
+
+	if kitVersion != configVersion {
+		fmt.Fprintf(os.Stderr, "⚠ Skills may be out of sync — run fab sync to refresh (engine %s, project %s)\n", kitVersion, configVersion)
 	}
 }

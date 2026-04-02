@@ -34,7 +34,7 @@ Agents consume this output by running the script via Bash and parsing the stdout
 The script validates in this order, stopping at the first failure:
 
 1. `fab/project/config.yaml` and `fab/project/constitution.md` exist (project initialized)
-1b. Sync staleness check (non-blocking) — compares `fab/.kit/VERSION` against `fab/.kit-sync-version`; emits stderr warning if mismatched or missing, but does NOT exit or alter stdout
+1b. Sync staleness check (non-blocking) — compares `fab/.kit/VERSION` against `fab_version` in `fab/project/config.yaml`; emits stderr warning if they differ, silently skips if either is unreadable. Does NOT exit or alter stdout
 2. Change name resolves (via `lib/changeman.sh resolve` — from `$1` override or `.fab-status.yaml`)
 3. Change directory `fab/changes/{name}/` exists
 4. `.status.yaml` exists within the change directory
@@ -99,7 +99,8 @@ Skills exempt from preflight: `setup`, `new`, `switch`, `status`, `discuss`, `he
 | Change | Date | Summary |
 |--------|------|---------|
 | 260302-9fnn-extract-logman-from-preflight | 2026-03-02 | Removed `--driver` flag, `LOGMAN` variable, and logman call from preflight — now purely validation + YAML output. Command logging moved to direct `logman.sh command` calls from skills (via `_preamble.md` §2 step 4 for preflight-calling skills, per-skill instructions for exempt skills). Updated Skill Integration section. |
-| 260226-koj1-version-staleness-warning | 2026-02-26 | Added sync staleness check (step 1b) — non-blocking stderr warning when `fab/.kit-sync-version` mismatches `fab/.kit/VERSION`. Runs after init check, before change resolution. |
+| 260402-0ak9-remove-sync-version-file | 2026-04-02 | Updated sync staleness check (step 1b) — now compares `fab/.kit/VERSION` against `fab_version` in `config.yaml` instead of `fab/.kit-sync-version`. Single warning message with "project" label. |
+| 260226-koj1-version-staleness-warning | 2026-02-26 | Added sync staleness check (step 1b) — non-blocking stderr warning. Runs after init check, before change resolution. |
 | 260218-95xn-split-stage-display-from-routing | 2026-02-18 | Added `display_stage` and `display_state` fields to YAML output via `$STATUSMAN display-stage`. Documented routing vs display stage distinction in Structured YAML Output and Accessor-Based Architecture sections. |
 | 260216-oinh-DEV-1045-fold-resolve-into-changeman | 2026-02-17 | Replaced `source resolve-change.sh` / `$RESOLVED_CHANGE_NAME` with `$CHANGEMAN resolve` CLI subprocess call. Updated all references from resolve-change.sh to changeman.sh resolve. Rewrote "Shared Change Resolution Library" → "Change Resolution via changeman CLI" design decision. Updated No External Dependencies section. |
 | 260216-jmy4-DEV-1044-switch-shell-name-resolution | 2026-02-16 | Updated Shared Change Resolution Library decision: `/fab-switch` now sources `resolve-change.sh` for name resolution in its Argument Flow (previously only `preflight.sh` and `fab-status.sh` sourced it) |

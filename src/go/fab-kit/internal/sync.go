@@ -90,7 +90,6 @@ func Sync(systemVersion string, shimOnly, projectOnly bool) error {
 		}
 
 		cleanLegacyAgents(repoRoot, cachedKitDir)
-		writeSyncVersionStamp(fabDir, kitVersion)
 
 		// Step 5: Direnv allow
 		runDirenvAllow(repoRoot)
@@ -726,24 +725,6 @@ func cleanLegacyAgents(repoRoot, kitDir string) {
 
 	if staleAgents > 0 {
 		fmt.Printf("Cleaned: %d stale agent files from .claude/agents/\n", staleAgents)
-	}
-}
-
-// writeSyncVersionStamp writes the kit version to fab/.kit-sync-version.
-func writeSyncVersionStamp(fabDir, kitVersion string) {
-	syncVersionFile := filepath.Join(fabDir, ".kit-sync-version")
-
-	if data, err := os.ReadFile(syncVersionFile); err == nil {
-		oldVer := strings.TrimSpace(string(data))
-		if oldVer == kitVersion {
-			fmt.Printf("fab/.kit-sync-version: OK (%s)\n", kitVersion)
-		} else {
-			os.WriteFile(syncVersionFile, []byte(kitVersion+"\n"), 0644)
-			fmt.Printf("Updated: fab/.kit-sync-version (%s -> %s)\n", oldVer, kitVersion)
-		}
-	} else {
-		os.WriteFile(syncVersionFile, []byte(kitVersion+"\n"), 0644)
-		fmt.Printf("Created: fab/.kit-sync-version (%s)\n", kitVersion)
 	}
 }
 

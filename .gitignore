@@ -1,6 +1,5 @@
 .fab-status.yaml
 .fab-backend
-fab/.kit-sync-version
 .fab-runtime.yaml
 # fab/backlog.md
 fab/changes/**/.pr-done

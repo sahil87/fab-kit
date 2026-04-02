@@ -125,6 +125,7 @@ Handled by `fab-sync.sh` during structural bootstrap:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260402-0ak9-remove-sync-version-file | 2026-04-02 | Added migration `0.45.1-to-0.46.0.md` for orphaned `fab/.kit-sync-version` cleanup. Migration deletes the obsolete sync stamp file (staleness detection now uses `fab/.kit/VERSION` vs `config.yaml fab_version`). Handles missing file gracefully. |
 | 260401-46hw-brew-install-system-shim | 2026-04-02 | Added brew-install migration for transition to system shim model. Prerequisite gate: verifies `fab` system binary on PATH. Adds `fab_version` field to `config.yaml`. Cleans `.envrc` (removes `PATH_add fab/.kit/bin`). Cleans `fab/.kit/bin/` (removes `fab`, `fab-go`, `wt`, `idea`). Updated Two-Step Update Flow to reference `fab upgrade` replacing `fab-upgrade.sh`. |
 | 260312-9r3t-pr-change-metadata | 2026-03-12 | Added migration `0.34.0-to-0.37.0.md` for discoverability of new `linear_workspace` config field. Migration checks if `fab/project/config.yaml` already has `linear_workspace` — if so, skips. Otherwise adds a commented-out `# linear_workspace: "your-workspace"` line under the `project:` block. Does not change behavior — surfaces the new option to existing users during `/fab-setup migrations`. |
 | 260307-x2tx-status-symlink-pointer | 2026-03-07 | Replaced `fab/current` pointer file with `.fab-status.yaml` symlink at repo root. Added `id` field to `.status.yaml`. Updated resolution, switch, rename, pane-map, hooks, and dispatch. Migration `0.32.0-to-0.34.0` covers conversion. |
