@@ -1,32 +1,23 @@
-fab_version: "0.43.1"
-
-project:
-  name: "fab-kit"
-  description: "FAB Kit — Tooling for Specification-Driven Development"
-  linear_workspace: "weaver-ai"
-
-# Directories containing implementation code (relative to repo root).
-source_paths:
-  - fab/.kit/
-  - src/
-
-# Project-specific categories appended to default checklist categories.
-# Defaults: functional_completeness, behavioral_correctness, scenario_coverage, edge_cases, security
 checklist:
-  extra_categories:
-    - documentation_accuracy
-    - cross_references
-
-# Per-stage directives for artifact generation.
-# Each stage key accepts a list of instructions the agent follows during generation.
+    extra_categories:
+        - documentation_accuracy
+        - cross_references
+fab_version: 0.44.9
+project:
+    description: FAB Kit — Tooling for Specification-Driven Development
+    linear_workspace: 
+    name: fab-kit
+source_paths:
+    - fab/.kit/
+    - src/
 stage_directives:
-  intake: []
-  spec:
-    - Use GIVEN/WHEN/THEN for scenarios
-    - Mark ambiguities with [NEEDS CLARIFICATION]
-    - Document impacts on existing research docs
-    - Note any methodology comparisons or synthesis
-  tasks: []
-  apply: []
-  review: []
-  hydrate: []
+    apply: []
+    hydrate: []
+    intake: []
+    review: []
+    spec:
+        - Use GIVEN/WHEN/THEN for scenarios
+        - Mark ambiguities with [NEEDS CLARIFICATION]
+        - Document impacts on existing research docs
+        - Note any methodology comparisons or synthesis
+    tasks: []
