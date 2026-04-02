@@ -1,0 +1,42 @@
+id: 5tci
+name: 260402-5tci-remove-copilot-clean-scaffold
+created: 2026-04-02T13:35:05Z
+created_by: sahil-weaver
+change_type: chore
+issues: []
+progress:
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+checklist:
+    generated: true
+    path: checklist.md
+    completed: 25
+    total: 25
+confidence:
+    certain: 8
+    confident: 0
+    tentative: 0
+    unresolved: 0
+    score: 5.0
+    fuzzy: true
+    dimensions:
+        signal: 93.8
+        reversibility: 89.4
+        competence: 93.8
+        disambiguation: 95.0
+stage_metrics:
+    intake: {started_at: "2026-04-02T13:35:05Z", driver: fab-new, iterations: 1, completed_at: "2026-04-02T13:38:34Z"}
+    spec: {started_at: "2026-04-02T13:38:34Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-02T13:39:30Z"}
+    tasks: {started_at: "2026-04-02T13:39:30Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-02T13:41:42Z"}
+    apply: {started_at: "2026-04-02T13:47:07Z", driver: fab-fff, iterations: 2, completed_at: "2026-04-02T13:47:26Z"}
+    review: {started_at: "2026-04-02T13:47:26Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-02T13:48:26Z"}
+    hydrate: {started_at: "2026-04-02T13:48:26Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-02T13:52:12Z"}
+    ship: {started_at: "2026-04-02T13:52:12Z", driver: fab-fff, iterations: 1}
+prs: []
+last_updated: 2026-04-02T13:52:12Z
