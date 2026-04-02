@@ -17,6 +17,7 @@ var fabKitArgs = map[string]bool{
 	"init":    true,
 	"upgrade": true,
 	"sync":    true,
+	"update":  true,
 }
 
 func main() {
@@ -87,6 +88,7 @@ func printHelp() {
 	fmt.Println("  init       Initialize fab in the current repo")
 	fmt.Println("  upgrade    Upgrade fab/.kit/ to a specific or latest version")
 	fmt.Println("  sync       Sync workspace (skills, directories, scaffold)")
+	fmt.Println("  update     Update fab-kit itself via Homebrew")
 	fmt.Println()
 
 	// Show workflow commands only inside a fab-managed repo

@@ -15,6 +15,7 @@ var fabKitCommands = map[string]bool{
 	"init":    true,
 	"upgrade": true,
 	"sync":    true,
+	"update":  true,
 }
 
 func main() {
@@ -30,6 +31,7 @@ func main() {
 		initCmd(),
 		upgradeCmd(),
 		syncCmd(),
+		updateCmd(),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -69,6 +71,16 @@ func syncCmd() *cobra.Command {
 		Short: "Sync workspace (skills, directories, scaffold)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return internal.Sync()
+		},
+	}
+}
+
+func updateCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "update",
+		Short: "Update fab-kit itself via Homebrew",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return internal.Update(version)
 		},
 	}
 }
