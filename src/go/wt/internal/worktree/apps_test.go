@@ -137,6 +137,144 @@ func TestOpenInApp_OpenHere_WithWrapper(t *testing.T) {
 	}
 }
 
+func TestBuildAvailableApps_TmuxSession_InTmux(t *testing.T) {
+	// Simulate a plain tmux session
+	t.Setenv("TMUX", "/tmp/tmux-1000/default,12345,0")
+	t.Setenv("BYOBU_TTY", "")
+	t.Setenv("BYOBU_BACKEND", "")
+	t.Setenv("BYOBU_SESSION", "")
+	t.Setenv("BYOBU_CONFIG_DIR", "")
+
+	apps := BuildAvailableApps()
+
+	found := false
+	for _, app := range apps {
+		if app.Cmd == "tmux_session" {
+			found = true
+			if app.Name != "tmux session" {
+				t.Errorf("expected display name %q, got %q", "tmux session", app.Name)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("expected tmux_session in BuildAvailableApps when IsTmuxSession() is true")
+	}
+}
+
+func TestBuildAvailableApps_TmuxSession_AfterTmuxWindow(t *testing.T) {
+	// Simulate a plain tmux session
+	t.Setenv("TMUX", "/tmp/tmux-1000/default,12345,0")
+	t.Setenv("BYOBU_TTY", "")
+	t.Setenv("BYOBU_BACKEND", "")
+	t.Setenv("BYOBU_SESSION", "")
+	t.Setenv("BYOBU_CONFIG_DIR", "")
+
+	apps := BuildAvailableApps()
+
+	windowIdx := -1
+	sessionIdx := -1
+	for i, app := range apps {
+		if app.Cmd == "tmux_window" {
+			windowIdx = i
+		}
+		if app.Cmd == "tmux_session" {
+			sessionIdx = i
+		}
+	}
+
+	if windowIdx == -1 {
+		t.Fatal("tmux_window not found in apps")
+	}
+	if sessionIdx == -1 {
+		t.Fatal("tmux_session not found in apps")
+	}
+	if sessionIdx != windowIdx+1 {
+		t.Errorf("expected tmux_session (index %d) immediately after tmux_window (index %d)", sessionIdx, windowIdx)
+	}
+}
+
+func TestBuildAvailableApps_TmuxSession_AbsentOutsideTmux(t *testing.T) {
+	t.Setenv("TMUX", "")
+	t.Setenv("BYOBU_TTY", "")
+	t.Setenv("BYOBU_BACKEND", "")
+	t.Setenv("BYOBU_SESSION", "")
+	t.Setenv("BYOBU_CONFIG_DIR", "")
+
+	apps := BuildAvailableApps()
+
+	for _, app := range apps {
+		if app.Cmd == "tmux_session" {
+			t.Error("tmux_session should not appear when not in a tmux session")
+		}
+	}
+}
+
+func TestBuildAvailableApps_TmuxSession_AbsentInByobu(t *testing.T) {
+	// Simulate a byobu session
+	t.Setenv("TMUX", "/tmp/tmux-1000/default,12345,0")
+	t.Setenv("BYOBU_BACKEND", "tmux")
+
+	apps := BuildAvailableApps()
+
+	for _, app := range apps {
+		if app.Cmd == "tmux_session" {
+			t.Error("tmux_session should not appear in a byobu session")
+		}
+	}
+}
+
+func TestResolveApp_TmuxSession_ByCmd(t *testing.T) {
+	apps := []AppInfo{
+		{"Open here", "open_here"},
+		{"tmux window", "tmux_window"},
+		{"tmux session", "tmux_session"},
+	}
+
+	resolved, err := ResolveApp("tmux_session", apps)
+	if err != nil {
+		t.Fatalf("ResolveApp returned error: %v", err)
+	}
+	if resolved.Cmd != "tmux_session" {
+		t.Errorf("expected Cmd %q, got %q", "tmux_session", resolved.Cmd)
+	}
+	if resolved.Name != "tmux session" {
+		t.Errorf("expected Name %q, got %q", "tmux session", resolved.Name)
+	}
+}
+
+func TestResolveApp_TmuxSession_ByDisplayName(t *testing.T) {
+	apps := []AppInfo{
+		{"Open here", "open_here"},
+		{"tmux window", "tmux_window"},
+		{"tmux session", "tmux_session"},
+	}
+
+	resolved, err := ResolveApp("tmux session", apps)
+	if err != nil {
+		t.Fatalf("ResolveApp returned error: %v", err)
+	}
+	if resolved.Cmd != "tmux_session" {
+		t.Errorf("expected Cmd %q, got %q", "tmux_session", resolved.Cmd)
+	}
+}
+
+func TestResolveApp_TmuxSession_ByDisplayNameCaseInsensitive(t *testing.T) {
+	apps := []AppInfo{
+		{"Open here", "open_here"},
+		{"tmux window", "tmux_window"},
+		{"tmux session", "tmux_session"},
+	}
+
+	resolved, err := ResolveApp("Tmux Session", apps)
+	if err != nil {
+		t.Fatalf("ResolveApp returned error: %v", err)
+	}
+	if resolved.Cmd != "tmux_session" {
+		t.Errorf("expected Cmd %q, got %q", "tmux_session", resolved.Cmd)
+	}
+}
+
 func TestOpenInApp_OpenHere_WithoutWrapper(t *testing.T) {
 	path := "/tmp/test-worktree"
 
