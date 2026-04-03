@@ -34,6 +34,7 @@ This is best-effort — failures are silently ignored. The `start` command handl
    - If the command fails for any other reason → print the `gh` error output and STOP.
 4. If the command succeeds, capture `{number}` and `{url}` from the response.
 5. Get owner/repo: `gh repo view --json nameWithOwner -q '.nameWithOwner'`
+6. Get the PR base branch: `gh pr view --json baseRefName -q '.baseRefName'` — capture as `{base_branch}` for use in context enrichment (Step 2a)
 
 ### Step 1.5: Parse `--tool` Flag
 
@@ -63,12 +64,9 @@ gh api repos/{owner}/{repo}/pulls/{number}/comments --jq 'length'
 
 If comments exist → proceed directly to Step 3 (skip Phase 2 — the cascade does not run when existing reviews with comments are found).
 
-<!-- Note: This checks for inline review comments only. Review-level body comments
-     (e.g., "LGTM but please rename that variable") without inline annotations are
-     not detected here. If a reviewer only leaves a body comment, the skill will
-     fall through to Phase 2 (cascade). -->
+If reviews exist but no inline comments → print `Reviews exist but no actionable inline comments to process. Check the PR directly for reviewer feedback.` and STOP. This prevents re-requesting automated reviews when a human reviewer left only a body-level comment (e.g., a summary in the review dialog).
 
-If reviews exist but no inline comments, or no reviews at all → proceed to Phase 2.
+If no reviews at all → proceed to Phase 2.
 
 **Phase 2 — Review Request Cascade**:
 
@@ -106,11 +104,12 @@ For each tool in order (or just the forced tool):
 
 - Detection: `command -v codex`
 - If not found: fall through to Claude
-- If found: construct the enriched review prompt (see Step 2a) and run:
+- If found: run the built-in Codex review command:
   ```bash
-  codex --quiet "Review this PR diff for bugs, edge cases, and improvements: <enriched_prompt>"
+  codex review --base {base_branch}
   ```
-- On success: post output as PR comment (see Step 2b), print output to terminal, and STOP
+  Where `{base_branch}` is the PR base branch resolved in Step 1.
+- On success: post output as PR review (see Step 2b), print output to terminal, and STOP
 - On failure: fall through to Claude
 
 **Tool 3 — Claude (local)**:
@@ -121,7 +120,8 @@ For each tool in order (or just the forced tool):
   ```bash
   claude -p "Review this PR diff for bugs, edge cases, and improvements: <enriched_prompt>"
   ```
-- On success: post output as PR comment (see Step 2b), print output to terminal, and STOP
+  Where `{base_branch}` is the PR base branch resolved in Step 1.
+- On success: post output as PR review (see Step 2b), print output to terminal, and STOP
 - On failure: cascade exhausted — print `No review tools available.` and STOP
 
 **All tools disabled**: If all tools are disabled in config (all set to `false`) and no `--tool` flag was provided, print `All review tools are disabled in config. Enable at least one tool in review_tools.` and STOP.
@@ -132,8 +132,8 @@ For each tool in order (or just the forced tool):
 
 When running a local tool (Codex or Claude), construct an enriched review prompt containing these labeled sections:
 
-1. **Diff**: `git diff main...HEAD`
-2. **Changed files**: `git diff --name-only main...HEAD`
+1. **Diff**: `git diff {base_branch}...HEAD` (where `{base_branch}` is the PR base branch resolved in Step 1)
+2. **Changed files**: `git diff --name-only {base_branch}...HEAD`
 3. **PR description**: `gh pr view --json body -q .body` (omit section if empty or command fails)
 4. **Test results**: Run the project's test suite and capture output (best-effort — omit section if no test command is configured or tests fail to run)
 
@@ -161,11 +161,11 @@ Missing sections are omitted — the prompt remains valid with whatever context 
 
 When a local tool (Codex or Claude) produces review output:
 
-1. Attempt to post the output as a PR comment:
+1. Attempt to post the output as a PR review (not an issue comment — this ensures Phase 1 detects it on re-run):
    ```bash
-   gh api repos/{owner}/{repo}/issues/{number}/comments -f body="{review_output}"
+   gh api repos/{owner}/{repo}/pulls/{number}/reviews -f body="{review_output}" -f event="COMMENT"
    ```
-2. If posting succeeds: print `Review posted as PR comment.`
+2. If posting succeeds: print `Review posted on PR.`
 3. If posting fails: log the error and continue — the output is still printed to the terminal
 4. Always print the review output to the terminal regardless of posting outcome
 
