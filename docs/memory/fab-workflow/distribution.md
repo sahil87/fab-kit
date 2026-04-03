@@ -145,6 +145,34 @@ If either value is unreadable or empty, the check is silently skipped. This dete
 
 After copying new `.kit/` contents, `fab upgrade` SHALL call `Sync()` directly (the same logic as `fab-kit sync`) to ensure all skill deployments are up to date: copies refreshed (`.claude/skills/`, `.agents/skills/`), symlinks valid (`.opencode/commands/`), and stale agent files cleaned up (`.claude/agents/`).
 
+### wt Shell Setup
+
+#### `wt shell-setup` Subcommand
+
+The `wt` binary provides a `shell-setup` subcommand that outputs a shell wrapper function to stdout, suitable for `eval` in the user's shell profile. This follows the direnv/rbenv/mise pattern.
+
+**Recommended setup** (add to `~/.bashrc` or `~/.zshrc`):
+```bash
+eval "$(wt shell-setup)"
+```
+
+The output defines a `wt()` shell function that wraps the real `wt` binary: captures stdout line-by-line, prints each line through, and if the last line starts with `cd `, evals it in the calling shell. The output also includes `export WT_WRAPPER=1` so the binary can detect the wrapper is active.
+
+Shell detection: reads `$SHELL` basename. For `bash`, `zsh`, or unset `$SHELL`, outputs the wrapper silently. For unrecognized shells, outputs the same bash/zsh wrapper with a stderr warning (`warning: unsupported shell "{shell}" — outputting bash/zsh wrapper`).
+
+The wrapper function text is defined as `ShellWrapperFunc` constant in `src/go/wt/cmd/shell_setup.go`.
+
+#### `WT_WRAPPER` Environment Variable Detection
+
+When `open_here` is selected (in both `wt open` and `wt create`, via the shared `OpenInApp` function in `src/go/wt/internal/worktree/apps.go`), the binary checks `os.Getenv("WT_WRAPPER")`. If the value is not `"1"`, a two-line hint is printed to stderr before the `cd` command is printed to stdout:
+
+```
+hint: "Open here" requires the shell wrapper to cd. Run: eval "$(wt shell-setup)"
+      Add it to your ~/.zshrc or ~/.bashrc to make it permanent.
+```
+
+The hint goes to stderr so it does not interfere with the `cd` command on stdout. When `WT_WRAPPER=1` is set, no hint is printed.
+
 ### Release
 
 Release is split across three components: `release.sh` handles version management and git operations, a `justfile` at repo root provides locally-replicable build recipes, and `.github/workflows/release.yml` orchestrates CI. The key principle: CI uses the exact same `just` commands a developer runs locally — no CI-only build logic.
@@ -281,6 +309,7 @@ The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its rol
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260403-24ic-wt-open-shell-setup | 2026-04-03 | Added `wt shell-setup` subcommand (outputs shell wrapper function for `eval` in shell profile, following direnv/rbenv/mise pattern). Added `WT_WRAPPER=1` env var detection in `OpenInApp` — prints stderr hint when wrapper not installed and `open_here` is selected. Updated `wt` root command help text to reference `wt shell-setup` instead of inline function body. |
 | 260402-5tci-remove-copilot-clean-scaffold | 2026-04-02 | Removed `scaffold/.github/copilot-code-review.yml` from the scaffold tree. Cleaned stale entries from `scaffold/fragment-.gitignore` (`fab/changes/**/.pr-done`, `/.ralph`). Scaffold file count unchanged at 11 (3 fragment, 8 copy-if-absent) after removal of the Copilot config and stale `.gitignore` lines. |
 | 260402-gnx5-relocate-kit-to-system-cache | 2026-04-02 | Kit content no longer copied to user projects — served entirely from system cache at `~/.fab-kit/versions/<version>/kit/`. `fab init` and `fab upgrade` no longer create `fab/.kit/` in projects. Source repo layout: `fab/.kit/` renamed to `src/kit/`. Build scripts (`justfile`, `release.sh`) updated to read from `src/kit/`. `.gitignore` cleaned of `fab/.kit/` entries. `fab kit-path` command added for agent-agnostic kit path resolution. Bootstrap one-liner and manual copy references updated. |
 | 260402-ktbg-sync-from-cache | 2026-04-02 | Rewrote `fab-kit sync` to resolve kit content from system cache (`~/.fab-kit/versions/{version}/kit/`) instead of `src/kit/` in the repo. 6-step pipeline: prerequisites, version guard, ensure cache, scaffolding, direnv, project scripts. Added `--shim` (steps 1-5) and `--project` (step 6) flags. Absorbed hook sync into step 4 (replicated hooklib in `fab-kit` internal package). Removed `5-sync-hooks.sh`. Fixed `fragment-.envrc` (`fab-kit sync` -> `fab sync`). Updated prerequisites (removed jq, gh — no longer needed by sync). Updated release archive description (sync/ now empty). |

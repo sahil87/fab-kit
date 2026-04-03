@@ -1,0 +1,14 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-04-03T09:03:04Z"}
+{"args":"Fix wt open Open Here cd mechanism — add wt shell-setup subcommand, WT_WRAPPER detection, stderr hint","cmd":"fab-new","event":"command","ts":"2026-04-03T09:03:04Z"}
+{"delta":"+4.4","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-04-03T09:04:03Z"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-04-03T09:04:13Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-04-03T09:06:39Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-04-03T09:07:40Z"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-04-03T09:08:51Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"spec","ts":"2026-04-03T09:08:56Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"tasks","ts":"2026-04-03T09:09:38Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-04-03T09:09:38Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-04-03T09:14:12Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-04-03T09:17:12Z"}
+{"event":"review","result":"passed","ts":"2026-04-03T09:17:12Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-04-03T09:18:32Z"}

@@ -78,7 +78,16 @@ A frequently requested feature is a "cd here" option in `wt open` that changes t
 
 This is not a limitation of `wt open` specifically — it applies to all executables on Unix systems. Only code that runs **within** the shell process itself (shell builtins like `cd`, and shell functions defined via `source` or `.`) can change the shell's working directory.
 
-**Workarounds**: Users who want to navigate to a worktree in their current shell can use:
+**Recommended setup**: Add the shell wrapper to your profile to enable the "Open here" menu option:
+
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+eval "$(wt shell-setup)"
+```
+
+The `wt shell-setup` subcommand outputs a shell function that wraps the `wt` binary. Because shell functions execute in the calling shell's process (not as a child), the wrapper can intercept `cd` commands from `wt open`'s "Open here" option and eval them in the parent shell's context.
+
+**Alternative workarounds** (if you prefer not to use the shell wrapper):
 
 ```bash
 # Option 1: Use command substitution with wt create's stdout path
@@ -86,18 +95,7 @@ cd "$(wt create --non-interactive)"
 
 # Option 2: Copy path from wt open's "Copy path" menu option, then paste
 cd <paste>
-
-# Option 3: Define a shell function in your .bashrc/.zshrc
-wt-cd() {
-    local path
-    path=$(wt list --path "${1:?worktree name required}") || return $?
-    cd "$path" || return $?
-}
 ```
-
-A shell function wrapper like Option 3 works because functions execute in the calling shell's process, not as a child. The function delegates path resolution to `wt list --path` (which runs as a child) but executes `cd` in the parent shell's context.
-
-**Why we don't ship a shell function**: Shipping a `wt-cd` function would require users to `source` a file from their shell rc (`.bashrc`/`.zshrc`), which is a different distribution model than the current PATH-based approach. `.envrc` adds `bin/` directories to PATH — it doesn't define shell functions. Mixing the two models adds complexity for a convenience that can be achieved with a 4-line function in the user's own rc file.
 
 ---
 

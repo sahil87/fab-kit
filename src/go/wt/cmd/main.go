@@ -16,20 +16,9 @@ func main() {
 
 Shell wrapper (recommended):
   To enable the "Open here" menu option (cd into a worktree in the current
-  shell), add this function to your shell profile (~/.bashrc or ~/.zshrc):
+  shell), add this to your shell profile (~/.bashrc or ~/.zshrc):
 
-    wt() {
-      local line last rc
-      while IFS= read -r line; do
-        printf '%s\n' "$line"
-        last=$line
-      done < <(command wt "$@")
-      rc=$?
-      if [[ "$last" == cd\ * ]]; then
-        eval "$last"
-      fi
-      return $rc
-    }`,
+    eval "$(wt shell-setup)"`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
@@ -40,6 +29,7 @@ Shell wrapper (recommended):
 		openCmd(),
 		deleteCmd(),
 		initCmd(),
+		shellSetupCmd(),
 	)
 
 	if err := root.Execute(); err != nil {

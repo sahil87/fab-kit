@@ -167,6 +167,10 @@ func DetectDefaultApp(apps []AppInfo) int {
 func OpenInApp(appCmd, path, repoName, wtName string) error {
 	switch appCmd {
 	case "open_here":
+		if os.Getenv("WT_WRAPPER") != "1" {
+			fmt.Fprintln(os.Stderr, `hint: "Open here" requires the shell wrapper to cd. Run: eval "$(wt shell-setup)"`)
+			fmt.Fprintln(os.Stderr, `      Add it to your ~/.zshrc or ~/.bashrc to make it permanent.`)
+		}
 		fmt.Printf("cd -- %q\n", path)
 		return nil
 	case "code":

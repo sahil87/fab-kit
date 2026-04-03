@@ -1,0 +1,42 @@
+id: 24ic
+name: 260403-24ic-wt-open-shell-setup
+created: 2026-04-03T09:03:04Z
+created_by: sahil-weaver
+change_type: fix
+issues: []
+progress:
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+checklist:
+    generated: true
+    path: checklist.md
+    completed: 0
+    total: 0
+confidence:
+    certain: 7
+    confident: 2
+    tentative: 0
+    unresolved: 0
+    score: 4.4
+    fuzzy: true
+    dimensions:
+        signal: 85.6
+        reversibility: 90.0
+        competence: 88.9
+        disambiguation: 88.3
+stage_metrics:
+    intake: {started_at: "2026-04-03T09:03:04Z", driver: fab-new, iterations: 1, completed_at: "2026-04-03T09:08:56Z"}
+    spec: {started_at: "2026-04-03T09:08:56Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-03T09:09:38Z"}
+    tasks: {started_at: "2026-04-03T09:09:38Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-03T09:09:38Z"}
+    apply: {started_at: "2026-04-03T09:09:38Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-03T09:14:12Z"}
+    review: {started_at: "2026-04-03T09:14:12Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-03T09:17:12Z"}
+    hydrate: {started_at: "2026-04-03T09:17:12Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-03T09:18:32Z"}
+    ship: {started_at: "2026-04-03T09:18:32Z", driver: fab-fff, iterations: 1}
+prs: []
+last_updated: 2026-04-03T09:18:32Z
