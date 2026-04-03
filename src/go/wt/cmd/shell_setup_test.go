@@ -13,7 +13,7 @@ func TestShellSetup_OutputsWrapperFunction(t *testing.T) {
 	// Verify the wrapper function is present in stdout
 	assertContains(t, r.Stdout, "wt() {")
 	assertContains(t, r.Stdout, `command wt "$@"`)
-	assertContains(t, r.Stdout, `eval "$last"`)
+	assertContains(t, r.Stdout, `cd -- "$_wt_dir"`)
 	assertContains(t, r.Stdout, "export WT_WRAPPER=1")
 
 	// Verify the full output matches the expected wrapper
