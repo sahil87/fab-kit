@@ -514,7 +514,7 @@ func TestCreate_OpenHereSuppressesPath(t *testing.T) {
 		"--worktree-open", "open_here")
 
 	// stdout should contain the cd line
-	assertContains(t, r.Stdout, `cd -- "`)
+	assertContains(t, r.Stdout, `cd -- '`)
 
 	// stdout should NOT contain a trailing bare path line (the suppressed fmt.Println)
 	lines := strings.Split(strings.TrimSpace(r.Stdout), "\n")

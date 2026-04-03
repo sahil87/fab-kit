@@ -138,8 +138,10 @@ func runWt(t *testing.T, dir string, env []string, args ...string) wtResult {
 	cmd.Env = append(os.Environ(),
 		// Always set NO_COLOR to simplify output matching
 		"NO_COLOR=1",
-		// Clear WORKTREE_INIT_SCRIPT so user's env doesn't leak into tests
-		"WORKTREE_INIT_SCRIPT=",
+		// Set WORKTREE_INIT_SCRIPT to a nonexistent command so init is
+		// silently skipped. Empty string would fall through to the default
+		// "fab-kit sync" which fails in non-fab-managed test repos.
+		"WORKTREE_INIT_SCRIPT=__wt_test_noinit__ noop",
 	)
 	// Append test-provided env vars last so they can override defaults above
 	cmd.Env = append(cmd.Env, env...)

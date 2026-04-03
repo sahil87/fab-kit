@@ -36,8 +36,8 @@ func TestInit_GuidanceWhenNoScript(t *testing.T) {
 func TestInit_SkipsWhenCommandNotOnPath(t *testing.T) {
 	repo := createTestRepo(t)
 
-	// Default init script is "fab-kit sync" which won't be on PATH in test env
-	r := runWt(t, repo, nil, "init")
+	// Use an explicitly nonexistent command (fab-kit may be on PATH in dev envs)
+	r := runWt(t, repo, []string{"WORKTREE_INIT_SCRIPT=__nonexistent_cmd__ sync"}, "init")
 	assertExitCode(t, r, 0)
 	combined := r.Stdout + r.Stderr
 	assertContains(t, combined, "not found on PATH")
