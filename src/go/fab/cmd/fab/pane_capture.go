@@ -62,7 +62,7 @@ func runPaneCapture(cmd *cobra.Command, args []string) error {
 	}
 
 	// Resolve fab context
-	ctx, err := pane.ResolvePaneContext(paneID)
+	ctx, err := pane.ResolvePaneContext(paneID, "")
 	if err != nil {
 		return fmt.Errorf("resolve context: %w", err)
 	}

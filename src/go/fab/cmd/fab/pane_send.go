@@ -35,7 +35,7 @@ func runPaneSend(cmd *cobra.Command, args []string) error {
 
 	// Step 2: Validate agent idle (unless --force)
 	if !force {
-		ctx, err := pane.ResolvePaneContext(paneID)
+		ctx, err := pane.ResolvePaneContext(paneID, "")
 		if err != nil {
 			return fmt.Errorf("resolve context: %w", err)
 		}
@@ -51,14 +51,20 @@ func runPaneSend(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Step 3: Send keys
-	tmuxArgs := []string{"send-keys", "-t", paneID, text}
-	if !noEnter {
-		tmuxArgs = append(tmuxArgs, "Enter")
-	}
+	// Step 3: Send keys — use -l for literal text to avoid tmux interpreting
+	// key names like "Enter", "Space", "C-c" within the text itself.
+	// The trailing Enter keystroke (if needed) is sent as a separate command.
+	tmuxArgs := []string{"send-keys", "-t", paneID, "-l", text}
 
 	if err := exec.Command("tmux", tmuxArgs...).Run(); err != nil {
 		return fmt.Errorf("tmux send-keys: %w", err)
+	}
+
+	// Send Enter as a separate non-literal key press
+	if !noEnter {
+		if err := exec.Command("tmux", "send-keys", "-t", paneID, "Enter").Run(); err != nil {
+			return fmt.Errorf("tmux send-keys (Enter): %w", err)
+		}
 	}
 
 	fmt.Fprintf(cmd.OutOrStdout(), "Sent to %s\n", paneID)

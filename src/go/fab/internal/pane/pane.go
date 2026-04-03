@@ -56,7 +56,9 @@ func GetPanePID(paneID string) (int, error) {
 }
 
 // ResolvePaneContext resolves the fab context for a given tmux pane.
-func ResolvePaneContext(paneID string) (*PaneContext, error) {
+// mainRoot is the main worktree root used for computing relative display paths.
+// Pass "" if unknown — WorktreeDisplay will fall back to filepath.Base.
+func ResolvePaneContext(paneID string, mainRoot string) (*PaneContext, error) {
 	// Get pane CWD
 	out, err := exec.Command("tmux", "display-message", "-t", paneID, "-p", "#{pane_current_path}").Output()
 	if err != nil {
@@ -79,8 +81,8 @@ func ResolvePaneContext(paneID string) (*PaneContext, error) {
 	}
 	ctx.WorktreeRoot = wtRoot
 
-	// Set worktree display (always, regardless of fab presence)
-	ctx.WorktreeDisplay = filepath.Base(wtRoot) + "/"
+	// Set worktree display using the same logic as pane map
+	ctx.WorktreeDisplay = WorktreeDisplayPath(wtRoot, mainRoot)
 
 	// Check for fab/ directory
 	fabDir := filepath.Join(wtRoot, "fab")
