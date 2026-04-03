@@ -3,86 +3,12 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 )
-
-func TestFormatIdleDuration(t *testing.T) {
-	tests := []struct {
-		name     string
-		seconds  int64
-		expected string
-	}{
-		{"zero seconds", 0, "0s"},
-		{"30 seconds", 30, "30s"},
-		{"45 seconds", 45, "45s"},
-		{"59 seconds", 59, "59s"},
-		{"exactly 60 seconds", 60, "1m"},
-		{"125 seconds", 125, "2m"},
-		{"300 seconds (5m)", 300, "5m"},
-		{"3599 seconds", 3599, "59m"},
-		{"exactly 3600 seconds", 3600, "1h"},
-		{"7500 seconds (2h)", 7500, "2h"},
-		{"7200 seconds (2h exact)", 7200, "2h"},
-		{"86400 seconds (24h)", 86400, "24h"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result := formatIdleDuration(tc.seconds)
-			if result != tc.expected {
-				t.Errorf("formatIdleDuration(%d) = %q, want %q", tc.seconds, result, tc.expected)
-			}
-		})
-	}
-}
-
-func TestWorktreeDisplayPath(t *testing.T) {
-	tests := []struct {
-		name     string
-		wtRoot   string
-		mainRoot string
-		expected string
-	}{
-		{
-			"main worktree",
-			"/home/user/myrepo",
-			"/home/user/myrepo",
-			"(main)",
-		},
-		{
-			"child worktree",
-			"/home/user/myrepo.worktrees/alpha",
-			"/home/user/myrepo",
-			"myrepo.worktrees/alpha/",
-		},
-		{
-			"another child worktree",
-			"/home/user/myrepo.worktrees/bravo",
-			"/home/user/myrepo",
-			"myrepo.worktrees/bravo/",
-		},
-		{
-			"no main root fallback",
-			"/home/user/some-repo",
-			"",
-			"some-repo/",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result := worktreeDisplayPath(tc.wtRoot, tc.mainRoot)
-			if result != tc.expected {
-				t.Errorf("worktreeDisplayPath(%q, %q) = %q, want %q", tc.wtRoot, tc.mainRoot, result, tc.expected)
-			}
-		})
-	}
-}
 
 func TestPrintPaneTable(t *testing.T) {
 	t.Run("single row", func(t *testing.T) {
@@ -277,53 +203,6 @@ func TestResolvePaneChange(t *testing.T) {
 		result := resolvePaneChange(p)
 		if result != "" {
 			t.Errorf("expected empty for non-git /tmp dir, got %q", result)
-		}
-	})
-}
-
-func TestReadFabCurrent(t *testing.T) {
-	t.Run("symlink present", func(t *testing.T) {
-		tmp := t.TempDir()
-		target := "fab/changes/260306-ab12-some-change/.status.yaml"
-		if err := os.Symlink(target, tmp+"/.fab-status.yaml"); err != nil {
-			t.Fatal(err)
-		}
-
-		display, folder := readFabCurrent(tmp)
-		if display != "260306-ab12-some-change" {
-			t.Errorf("display = %q, want %q", display, "260306-ab12-some-change")
-		}
-		if folder != "260306-ab12-some-change" {
-			t.Errorf("folder = %q, want %q", folder, "260306-ab12-some-change")
-		}
-	})
-
-	t.Run("broken symlink", func(t *testing.T) {
-		tmp := t.TempDir()
-		// Symlink to non-existent target — readlink still works
-		target := "fab/changes/260306-ab12-deleted-change/.status.yaml"
-		if err := os.Symlink(target, tmp+"/.fab-status.yaml"); err != nil {
-			t.Fatal(err)
-		}
-
-		display, folder := readFabCurrent(tmp)
-		if display != "260306-ab12-deleted-change" {
-			t.Errorf("display = %q, want %q", display, "260306-ab12-deleted-change")
-		}
-		if folder != "260306-ab12-deleted-change" {
-			t.Errorf("folder = %q, want %q", folder, "260306-ab12-deleted-change")
-		}
-	})
-
-	t.Run("no symlink", func(t *testing.T) {
-		tmp := t.TempDir()
-
-		display, folder := readFabCurrent(tmp)
-		if display != "(no change)" {
-			t.Errorf("display = %q, want %q", display, "(no change)")
-		}
-		if folder != "" {
-			t.Errorf("folder = %q, want empty", folder)
 		}
 	})
 }

@@ -12,7 +12,7 @@
 | [change-lifecycle](change-lifecycle.md) | Change naming, folder structure, `.status.yaml`, `.fab-status.yaml` symlink, git integration, `/fab-status`, `/fab-switch`, backlog scanning | 2026-03-07 |
 | [templates](templates.md) | Artifact templates (intake, spec, tasks, checklist), skill frontmatter, and memory file format | 2026-02-27 |
 | [distribution](distribution.md) | How `src/kit/` is distributed — Homebrew formula (4 binaries), `fab` router, `fab-kit` lifecycle, `fab init` bootstrap, `fab upgrade`, release workflow (5 binaries, 20 cross-compiled), `wt shell-setup` wrapper | 2026-04-03 |
-| [kit-architecture](kit-architecture.md) | `src/kit/` structure (binary-free), three-binary architecture (fab router + fab-kit + fab-go), `fab-kit sync`, agent integration, versioning, monorepos, underscore file ecosystem | 2026-04-02 |
+| [kit-architecture](kit-architecture.md) | `src/kit/` structure (binary-free), three-binary architecture (fab router + fab-kit + fab-go), `fab-kit sync`, agent integration, versioning, monorepos, underscore file ecosystem, `fab pane` command group | 2026-04-03 |
 | [model-tiers](model-tiers.md) | Provider-agnostic model tier system — tier naming, selection criteria, skill audit, config.yaml mapping, copy-with-template deployment | 2026-02-19 |
 | [configuration](configuration.md) | `config.yaml` schema (incl. `fab_version`), companion files (`context.md`, `code-quality.md`, `code-review.md`), `constitution.md` governance, 5 Cs of Quality, lifecycle management | 2026-04-02 |
 | [preflight](preflight.md) | `lib/preflight.sh` script — validation, accessor-based architecture, structured YAML output, skill integration | 2026-04-02 |

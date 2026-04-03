@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/runtime"
 )
@@ -128,7 +129,7 @@ func runtimeIsIdleCmd() *cobra.Command {
 				elapsed = 0
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "idle %s\n", formatIdleDuration(elapsed))
+			fmt.Fprintf(cmd.OutOrStdout(), "idle %s\n", pane.FormatIdleDuration(elapsed))
 			return nil
 		},
 	}

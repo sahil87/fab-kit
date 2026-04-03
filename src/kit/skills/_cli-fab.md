@@ -55,7 +55,7 @@ fab <command> <subcommand> [args...]
 | `fab score` | Confidence scoring |
 | `fab runtime` | Runtime state management (.fab-runtime.yaml) |
 | `fab hook` | Claude Code hook subcommands (session-start, stop, user-prompt, artifact-write, sync) |
-| `fab pane-map` | Tmux pane-to-worktree mapping with pipeline state (all panes) |
+| `fab pane` | Tmux pane operations: map, capture, send, process |
 | `fab doctor` | Validate fab-kit prerequisites (lives in fab-kit, works before config.yaml exists) |
 | `fab fab-help` | Show fab workflow overview and available commands (dynamic skill discovery) |
 | `fab operator` | Launch operator in a dedicated tmux tab (singleton) |
@@ -283,15 +283,32 @@ fab hook <subcommand>
 
 ---
 
-## fab pane-map
+## fab pane
 
-Pane Map — shows all tmux panes with pipeline state. Includes all panes regardless of whether they are in a git repo or have a `fab/` directory.
+Tmux pane operations — groups all pane-related subcommands under a single parent command.
 
 ```
-fab pane-map [--json] [--session <name>] [--all-sessions]
+fab pane <subcommand> [flags...]
 ```
 
-### Flags
+| Subcommand | Usage | Purpose |
+|------------|-------|---------|
+| `map` | `fab pane map [--json] [--session <name>] [--all-sessions]` | Show tmux pane-to-worktree mapping with pipeline state |
+| `capture` | `fab pane capture <pane> [-l N] [--json] [--raw]` | Capture terminal content with fab context enrichment |
+| `send` | `fab pane send <pane> <text> [--no-enter] [--force]` | Send keystrokes with pane existence and agent idle validation |
+| `process` | `fab pane process <pane> [--json]` | Detect the process tree running in a pane |
+
+---
+
+### fab pane map
+
+Show all tmux panes with pipeline state. Includes all panes regardless of whether they are in a git repo or have a `fab/` directory.
+
+```
+fab pane map [--json] [--session <name>] [--all-sessions]
+```
+
+#### Flags
 
 | Flag | Type | Description |
 |------|------|-------------|
@@ -301,7 +318,7 @@ fab pane-map [--json] [--session <name>] [--all-sessions]
 
 `--session` and `--all-sessions` are mutually exclusive. When neither is set, discovers panes in the current tmux session only (`-s` session scope) and requires `$TMUX` to be set.
 
-### Table Output
+#### Table Output
 
 Produces an aligned table with columns:
 
@@ -312,11 +329,11 @@ Produces an aligned table with columns:
 | WinIdx | Tmux window index (integer) | Always |
 | Tab | Tmux window (tab) name | Always |
 | Worktree | Relative path from main repo parent, `(main)` for the main worktree, or `basename/` for non-git panes | Always |
-| Change | Active change folder name, `(no change)` if no active change, or `—` if not a fab worktree | Always |
-| Stage | Current pipeline stage from `.status.yaml`, or `—` if no change or not a fab worktree | Always |
-| Agent | Agent state: `active`, `idle ({duration})`, `?` (runtime file missing), or `—` (no change or not fab) | Always |
+| Change | Active change folder name, `(no change)` if no active change, or `---` if not a fab worktree | Always |
+| Stage | Current pipeline stage from `.status.yaml`, or `---` if no change or not a fab worktree | Always |
+| Agent | Agent state: `active`, `idle ({duration})`, `?` (runtime file missing), or `---` (no change or not fab) | Always |
 
-Idle duration format: `{N}s` (< 60s), `{N}m` (60s–59m), `{N}h` (>= 60m). Floor division.
+Idle duration format: `{N}s` (< 60s), `{N}m` (60s-59m), `{N}h` (>= 60m). Floor division.
 
 **Example table output**:
 
@@ -325,10 +342,10 @@ Pane   WinIdx  Tab        Worktree                       Change                 
 %3     0       alpha      myrepo.worktrees/alpha/        260306-r3m7-add-retry-logic         apply     active
 %7     1       bravo      myrepo.worktrees/bravo/        260306-k8ds-ship-wt-binary          review    idle (2m)
 %12    2       main       (main)                         260306-ab12-refactor-auth           hydrate   idle (8m)
-%15    3       scratch    downloads/                     —                                   —         —
+%15    3       scratch    downloads/                     ---                                 ---       ---
 ```
 
-### JSON Output
+#### JSON Output
 
 When `--json` is set, output is a JSON array. Each element has these fields (snake_case):
 
@@ -339,12 +356,157 @@ When `--json` is set, output is a JSON array. Each element has these fields (sna
 | `pane` | string | Tmux pane ID |
 | `tab` | string | Tmux window (tab) name |
 | `worktree` | string | Display path |
-| `change` | string\|null | Active change folder name; `null` for `—` or `(no change)` |
-| `stage` | string\|null | Pipeline stage; `null` for `—` |
+| `change` | string\|null | Active change folder name; `null` for `---` or `(no change)` |
+| `stage` | string\|null | Pipeline stage; `null` for `---` |
 | `agent_state` | string\|null | `"active"`, `"idle"`, `"unknown"`, or `null` |
 | `agent_idle_duration` | string\|null | Duration string (e.g., `"5m"`) when idle; `null` otherwise |
 
 **Error behavior**: If `$TMUX` is unset and neither `--session` nor `--all-sessions` is provided, prints `Error: not inside a tmux session` to stderr and exits 1. If no tmux panes are found, prints `No tmux panes found.` and exits 0.
+
+---
+
+### fab pane capture
+
+Capture terminal content from a tmux pane with fab context enrichment.
+
+```
+fab pane capture <pane> [-l N] [--json] [--raw]
+```
+
+#### Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `<pane>` | positional | required | Tmux pane ID (e.g., `%5`) |
+| `-l` | int | 50 | Number of lines to capture (passed to `tmux capture-pane -l`) |
+| `--json` | bool | false | Output as JSON with metadata |
+| `--raw` | bool | false | Output raw captured text only (no enrichment) |
+
+`--json` and `--raw` are mutually exclusive.
+
+#### Default Output (human-readable)
+
+Captured text with a header block showing pane metadata (pane ID, worktree, change, stage, agent state).
+
+#### JSON Output
+
+```json
+{
+  "pane": "%5",
+  "lines": 50,
+  "content": "...",
+  "worktree": "myrepo.worktrees/alpha/",
+  "change": "260306-r3m7-add-retry-logic",
+  "stage": "apply",
+  "agent_state": "idle",
+  "agent_idle_duration": "2m"
+}
+```
+
+Fields `change`, `stage`, `agent_state`, `agent_idle_duration` are `null` when the pane is not in a fab worktree or has no active change.
+
+#### Raw Output
+
+Plain captured text only, identical to raw `tmux capture-pane -p`. No header, no enrichment.
+
+**Error behavior**: If the pane does not exist, prints `Error: pane <id> not found` to stderr and exits 1.
+
+---
+
+### fab pane send
+
+Send keystrokes to a tmux pane with built-in pane existence and agent idle validation.
+
+```
+fab pane send <pane> <text> [--no-enter] [--force]
+```
+
+#### Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `<pane>` | positional | required | Tmux pane ID (e.g., `%5`) |
+| `<text>` | positional | required | Text to send |
+| `--no-enter` | bool | false | Don't append Enter keystroke |
+| `--force` | bool | false | Skip idle validation (still validates pane existence) |
+
+#### Validation Pipeline
+
+1. **Pane exists**: Checks via `tmux list-panes -a`. If not found, exits 1 with `Error: pane <id> not found` (even with `--force`).
+2. **Agent idle**: Resolves pane fab context and checks agent state. Rejects if agent is `active` or `unknown` with `Error: agent in pane <id> is not idle (state: <state>)`. The `--force` flag bypasses this check.
+3. **Send keys**: Executes `tmux send-keys -t <pane> "<text>" Enter` (or without `Enter` if `--no-enter`).
+
+**Output on success**: `Sent to <pane>` to stdout.
+
+**Unknown state**: A pane with no active change, no `.fab-runtime.yaml`, or no runtime entry is treated as `unknown` (non-idle). Use `--force` to override.
+
+---
+
+### fab pane process
+
+Detect the process tree running in a tmux pane via OS-level process inspection.
+
+```
+fab pane process <pane> [--json]
+```
+
+#### Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `<pane>` | positional | required | Tmux pane ID (e.g., `%5`) |
+| `--json` | bool | false | Output as JSON |
+
+#### Process Discovery
+
+- **Linux**: Reads `/proc/<pid>/task/<tid>/children` recursively. Reads `/proc/<pid>/comm` and `/proc/<pid>/cmdline` for process details.
+- **macOS**: Uses `ps -o pid,ppid,comm -ax` with PPID traversal. Uses `ps -o args= -p <pid>` for full command line.
+
+#### Process Classification
+
+| Comm name | Classification |
+|-----------|---------------|
+| `claude`, `claude-code` | `agent` |
+| `node` | `node` |
+| `git`, `gh` | `git` |
+| All others | `other` |
+
+#### Default Output (human-readable)
+
+Tree-formatted process listing with PID, command name, and classification.
+
+#### JSON Output
+
+```json
+{
+  "pane": "%5",
+  "pane_pid": 12345,
+  "processes": [
+    {
+      "pid": 12345,
+      "ppid": 1,
+      "comm": "zsh",
+      "cmdline": "/bin/zsh",
+      "classification": "other",
+      "children": [
+        {
+          "pid": 12350,
+          "ppid": 12345,
+          "comm": "claude",
+          "cmdline": "claude --dangerously-skip-permissions ...",
+          "classification": "agent",
+          "children": []
+        }
+      ]
+    }
+  ],
+  "has_agent": true
+}
+```
+
+`has_agent` is `true` if any process in the tree is classified as `"agent"`.
+
+**Error behavior**: If the pane does not exist, prints `Error: pane <id> not found` to stderr and exits 1.
 
 ---
 

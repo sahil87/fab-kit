@@ -8,18 +8,17 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
-	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
-	"gopkg.in/yaml.v3"
+	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
 )
 
 func paneMapCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "pane-map",
+		Use:   "map",
 		Short: "Show tmux pane-to-worktree mapping with fab pipeline state",
 		Args:  cobra.NoArgs,
 		RunE:  runPaneMap,
@@ -79,14 +78,16 @@ func runPaneMap(cmd *cobra.Command, args []string) error {
 	}
 
 	// Determine main worktree root for relative path computation.
-	// We derive mainRoot from the first resolved pane's git root so that
-	// the command works even when invoked from outside the repo.
-	mainRoot := findMainWorktreeRoot(panes)
+	cwds := make([]string, len(panes))
+	for i, p := range panes {
+		cwds[i] = p.cwd
+	}
+	mainRoot := pane.FindMainWorktreeRoot(cwds)
 
 	// Resolve each pane to a row
 	var rows []paneRow
 	// Cache runtime files per worktree root to avoid re-reading
-	runtimeCache := make(map[string]interface{}) // wtRoot -> loaded map or error sentinel
+	runtimeCache := make(map[string]interface{})
 
 	for _, p := range panes {
 		row, ok := resolvePane(p, mainRoot, runtimeCache)
@@ -192,30 +193,9 @@ func parsePaneLines(output string) ([]paneEntry, error) {
 	return panes, nil
 }
 
-// findMainWorktreeRoot returns the main worktree root by parsing `git worktree list --porcelain`.
-// It derives the root from one of the discovered pane CWDs (via `git -C`) so that
-// the command works even when invoked from outside the repo.
-// Returns empty string if detection fails.
-func findMainWorktreeRoot(panes []paneEntry) string {
-	for _, p := range panes {
-		out, err := exec.Command("git", "-C", p.cwd, "worktree", "list", "--porcelain").Output()
-		if err != nil {
-			continue
-		}
-		for _, line := range strings.Split(string(out), "\n") {
-			if strings.HasPrefix(line, "worktree ") {
-				return strings.TrimPrefix(line, "worktree ")
-			}
-		}
-	}
-	return ""
-}
-
 // resolvePaneChange resolves a pane entry to its active change folder name.
-// Returns empty string if the pane is not in a git repo, has no fab/ directory,
-// or has no active change.
 func resolvePaneChange(p paneEntry) string {
-	wtRoot, err := gitWorktreeRoot(p.cwd)
+	wtRoot, err := pane.GitWorktreeRoot(p.cwd)
 	if err != nil {
 		return ""
 	}
@@ -225,12 +205,11 @@ func resolvePaneChange(p paneEntry) string {
 		return ""
 	}
 
-	_, folderName := readFabCurrent(wtRoot)
+	_, folderName := pane.ReadFabCurrent(wtRoot)
 	return folderName
 }
 
 // matchPanesByFolder is a testable helper that matches pane entries to a change folder.
-// Returns (matchedPaneIDs, warningMessage).
 func matchPanesByFolder(panes []paneEntry, folder string, resolveFunc func(paneEntry) string) ([]string, string) {
 	var matches []string
 	for _, p := range panes {
@@ -249,14 +228,11 @@ func matchPanesByFolder(panes []paneEntry, folder string, resolveFunc func(paneE
 }
 
 // resolvePane resolves a pane entry into a table row.
-// Returns true for all panes — non-git and non-fab panes show fallback values.
 func resolvePane(p paneEntry, mainRoot string, runtimeCache map[string]interface{}) (paneRow, bool) {
 	emDash := "\u2014"
 
-	// Resolve git worktree root
-	wtRoot, err := gitWorktreeRoot(p.cwd)
+	wtRoot, err := pane.GitWorktreeRoot(p.cwd)
 	if err != nil {
-		// Non-git directory: show basename of CWD
 		return paneRow{
 			session:     p.session,
 			windowIndex: p.index,
@@ -269,29 +245,23 @@ func resolvePane(p paneEntry, mainRoot string, runtimeCache map[string]interface
 		}, true
 	}
 
-	// Check for fab/ directory
 	fabDir := filepath.Join(wtRoot, "fab")
 	if _, err := os.Stat(fabDir); os.IsNotExist(err) {
-		// Git repo without fab/: show worktree path
 		return paneRow{
 			session:     p.session,
 			windowIndex: p.index,
 			pane:        p.id,
 			tab:         p.tab,
-			worktree:    worktreeDisplayPath(wtRoot, mainRoot),
+			worktree:    pane.WorktreeDisplayPath(wtRoot, mainRoot),
 			change:      emDash,
 			stage:       emDash,
 			agent:       emDash,
 		}, true
 	}
 
-	// Compute worktree display path
-	wtDisplay := worktreeDisplayPath(wtRoot, mainRoot)
+	wtDisplay := pane.WorktreeDisplayPath(wtRoot, mainRoot)
+	changeName, folderName := pane.ReadFabCurrent(wtRoot)
 
-	// Read .fab-status.yaml symlink for the active change folder name
-	changeName, folderName := readFabCurrent(wtRoot)
-
-	// Read stage from .status.yaml
 	stageName := emDash
 	if folderName != "" {
 		statusPath := filepath.Join(fabDir, "changes", folderName, ".status.yaml")
@@ -301,8 +271,7 @@ func resolvePane(p paneEntry, mainRoot string, runtimeCache map[string]interface
 		}
 	}
 
-	// Determine agent state from .fab-runtime.yaml
-	agentState := resolveAgentState(wtRoot, folderName, runtimeCache)
+	agentState := pane.ResolveAgentStateWithCache(wtRoot, folderName, runtimeCache)
 
 	return paneRow{
 		session:     p.session,
@@ -314,161 +283,6 @@ func resolvePane(p paneEntry, mainRoot string, runtimeCache map[string]interface
 		stage:       stageName,
 		agent:       agentState,
 	}, true
-}
-
-// gitWorktreeRoot returns the git worktree root for a given path.
-func gitWorktreeRoot(dir string) (string, error) {
-	cmd := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel")
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(out)), nil
-}
-
-// worktreeDisplayPath computes the display path for a worktree.
-// Main worktree shows "(main)", others show path relative to main's parent.
-func worktreeDisplayPath(wtRoot, mainRoot string) string {
-	if mainRoot != "" && wtRoot == mainRoot {
-		return "(main)"
-	}
-	if mainRoot != "" {
-		parent := filepath.Dir(mainRoot)
-		rel, err := filepath.Rel(parent, wtRoot)
-		if err == nil {
-			return rel + "/"
-		}
-	}
-	// Fallback: basename with trailing slash
-	return filepath.Base(wtRoot) + "/"
-}
-
-// readFabCurrent reads .fab-status.yaml symlink and returns (displayName, folderName).
-// displayName is what shows in the Change column; folderName is the actual folder.
-func readFabCurrent(wtRoot string) (string, string) {
-	symlinkPath := filepath.Join(wtRoot, ".fab-status.yaml")
-	target, err := os.Readlink(symlinkPath)
-	if err != nil {
-		return "(no change)", ""
-	}
-
-	// target is "fab/changes/{name}/.status.yaml"
-	folderName := resolve.ExtractFolderFromSymlink(target)
-	if folderName == "" {
-		return "(no change)", ""
-	}
-
-	return folderName, folderName
-}
-
-// resolveAgentState determines the agent state string for a pane row.
-func resolveAgentState(wtRoot, folderName string, cache map[string]interface{}) string {
-	if folderName == "" {
-		return "\u2014" // em dash for no change
-	}
-
-	rtPath := filepath.Join(wtRoot, ".fab-runtime.yaml")
-
-	// Check cache
-	var rtData map[string]interface{}
-	var fileMissing bool
-
-	if cached, ok := cache[wtRoot]; ok {
-		switch v := cached.(type) {
-		case map[string]interface{}:
-			rtData = v
-		case nil:
-			fileMissing = true
-		}
-	} else {
-		// Load and cache
-		loaded, err := loadPaneMapRuntimeFile(rtPath)
-		if err != nil {
-			if os.IsNotExist(err) {
-				// Cache absence of runtime file so we don't re-check repeatedly.
-				cache[wtRoot] = nil
-				fileMissing = true
-			} else {
-				// Do not cache nil for non-NotExist errors; they may be transient
-				// or indicate a corrupted .fab-runtime.yaml. Surface a warning.
-				fmt.Fprintf(os.Stderr, "warning: failed to load %s: %v\n", rtPath, err)
-				return "?"
-			}
-		} else {
-			cache[wtRoot] = loaded
-			rtData = loaded
-		}
-	}
-
-	if fileMissing {
-		return "?"
-	}
-
-	// Look up change entry
-	folderEntry, ok := rtData[folderName].(map[string]interface{})
-	if !ok {
-		return "active"
-	}
-
-	agentBlock, ok := folderEntry["agent"].(map[string]interface{})
-	if !ok {
-		return "active"
-	}
-
-	idleSince, ok := agentBlock["idle_since"]
-	if !ok {
-		return "active"
-	}
-
-	// Parse idle_since as Unix timestamp
-	var ts int64
-	switch v := idleSince.(type) {
-	case int:
-		ts = int64(v)
-	case int64:
-		ts = v
-	case float64:
-		ts = int64(v)
-	default:
-		return "active"
-	}
-
-	elapsed := time.Now().Unix() - ts
-	if elapsed < 0 {
-		elapsed = 0
-	}
-
-	return fmt.Sprintf("idle (%s)", formatIdleDuration(elapsed))
-}
-
-// loadPaneMapRuntimeFile reads and parses .fab-runtime.yaml.
-// Returns an error if the file doesn't exist (distinct from loadRuntimeFile in runtime.go
-// which returns an empty map for missing files — we need to distinguish missing vs empty).
-func loadPaneMapRuntimeFile(path string) (map[string]interface{}, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err // includes os.IsNotExist
-	}
-	var m map[string]interface{}
-	if err := yaml.Unmarshal(data, &m); err != nil {
-		return nil, fmt.Errorf("parsing %s: %w", path, err)
-	}
-	if m == nil {
-		m = make(map[string]interface{})
-	}
-	return m, nil
-}
-
-// formatIdleDuration formats elapsed seconds into a human-readable duration.
-// Uses floor division: <60s -> Ns, 60s-3599s -> Nm, >=3600s -> Nh.
-func formatIdleDuration(seconds int64) string {
-	if seconds < 60 {
-		return fmt.Sprintf("%ds", seconds)
-	}
-	if seconds < 3600 {
-		return fmt.Sprintf("%dm", seconds/60)
-	}
-	return fmt.Sprintf("%dh", seconds/3600)
 }
 
 // paneJSON represents a single pane in JSON output.
@@ -485,7 +299,6 @@ type paneJSON struct {
 }
 
 // toNullable converts a table display string to a *string for JSON output.
-// Em-dash and "(no change)" map to nil (JSON null).
 func toNullable(s string) *string {
 	if s == "\u2014" || s == "(no change)" {
 		return nil
@@ -495,13 +308,6 @@ func toNullable(s string) *string {
 
 // splitAgentState splits the combined agent display string into separate
 // state and idle duration values for JSON output.
-//
-// Mapping:
-//
-//	"active"       → ("active", nil)
-//	"idle (2m)"    → ("idle", "2m")
-//	"—" (em dash)  → (nil, nil)
-//	"?"            → ("unknown", nil)
 func splitAgentState(agent string) (state *string, idleDuration *string) {
 	switch {
 	case agent == "\u2014":
@@ -514,7 +320,6 @@ func splitAgentState(agent string) (state *string, idleDuration *string) {
 		dur := strings.TrimSuffix(strings.TrimPrefix(agent, "idle ("), ")")
 		return &s, &dur
 	default:
-		// "active" or any other value
 		return &agent, nil
 	}
 }
@@ -542,9 +347,7 @@ func printPaneJSON(cmd *cobra.Command, rows []paneRow) error {
 }
 
 // printPaneTable prints the aligned pane map table.
-// When showSession is true, a Session column is prepended.
 func printPaneTable(cmd *cobra.Command, rows []paneRow, showSession bool) {
-	// Build dynamic column list
 	type col struct {
 		header string
 		value  func(r paneRow) string
@@ -564,7 +367,6 @@ func printPaneTable(cmd *cobra.Command, rows []paneRow, showSession bool) {
 		col{"Agent", func(r paneRow) string { return r.agent }},
 	)
 
-	// Compute column widths
 	widths := make([]int, len(cols))
 	for i, c := range cols {
 		widths[i] = len(c.header)
@@ -577,7 +379,6 @@ func printPaneTable(cmd *cobra.Command, rows []paneRow, showSession bool) {
 		}
 	}
 
-	// Build format string: all columns left-aligned with two-space gap, last column unpadded
 	var fmtParts []string
 	for i := range cols {
 		if i == len(cols)-1 {
@@ -588,14 +389,12 @@ func printPaneTable(cmd *cobra.Command, rows []paneRow, showSession bool) {
 	}
 	fmtStr := strings.Join(fmtParts, "  ") + "\n"
 
-	// Print header
 	hvals := make([]interface{}, len(cols))
 	for i, c := range cols {
 		hvals[i] = c.header
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), fmtStr, hvals...)
 
-	// Print data rows
 	for _, r := range rows {
 		vals := make([]interface{}, len(cols))
 		for i, c := range cols {

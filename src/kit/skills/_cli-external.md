@@ -95,14 +95,12 @@ Terminal multiplexer commands used by the operator for agent observation and int
 
 | Command | Usage | Purpose |
 |---------|-------|---------|
-| `capture-pane` | `tmux capture-pane -t <pane> -p [-l N]` | Capture terminal output. `-p` prints to stdout. `-l N` limits to last N lines |
-| `send-keys` | `tmux send-keys -t <pane> "<text>" Enter` | Send keystrokes to a pane. Always validate pane exists + agent idle first |
 | `new-window` | `tmux new-window -n <name> -c <dir> "<cmd>"` | Open a new tmux tab with a command running in a specific directory |
 
 ### Usage Notes
 
-- **`capture-pane -l 20`** is the standard capture window for question detection (wide enough to handle line wrapping and verbose preambles)
-- **`send-keys`** requires pre-send validation: pane must exist and agent must be idle. Sending to a busy agent risks corrupting its work
+- **Pane capture**: Use `fab pane capture` instead of raw `tmux capture-pane`. It provides fab context enrichment, validation, and structured output.
+- **Send keys**: Use `fab pane send` instead of raw `tmux send-keys`. It includes built-in pane existence and agent idle validation.
 - **`new-window`** is used for spawning new agent sessions: `tmux new-window -n "fab-<id>" -c <worktree> "$SPAWN_CMD '<command>'"` where `$SPAWN_CMD` is read from `config.yaml` `agent.spawn_command` (see `lib/spawn.sh`)
 
 ---
