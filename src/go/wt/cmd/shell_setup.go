@@ -11,16 +11,17 @@ import (
 // ShellWrapperFunc is the shell wrapper function output by shell-setup.
 // Defined as a constant to avoid duplication between the subcommand and tests.
 const ShellWrapperFunc = `wt() {
-  local line last rc
-  while IFS= read -r line; do
-    printf '%s\n' "$line"
-    last=$line
-  done < <(command wt "$@")
-  rc=$?
-  if [[ "$last" == cd\ * ]]; then
-    eval "$last"
+  local _wt_cd _wt_rc
+  _wt_cd=$(mktemp "${TMPDIR:-/tmp}/wt-cd.XXXXXX")
+  WT_CD_FILE="$_wt_cd" command wt "$@"
+  _wt_rc=$?
+  if [[ -s "$_wt_cd" ]]; then
+    local _wt_dir
+    _wt_dir=$(<"$_wt_cd")
+    cd -- "$_wt_dir" || true
   fi
-  return $rc
+  rm -f "$_wt_cd"
+  return $_wt_rc
 }
 export WT_WRAPPER=1
 `

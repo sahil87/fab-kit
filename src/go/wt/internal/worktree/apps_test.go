@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -45,6 +46,8 @@ func TestOpenInApp_OpenHere(t *testing.T) {
 
 	// Set WT_WRAPPER=1 so the hint is suppressed (original test behavior)
 	t.Setenv("WT_WRAPPER", "1")
+	// Clear WT_CD_FILE so we test the stdout fallback path
+	t.Setenv("WT_CD_FILE", "")
 
 	// Capture stdout
 	origStdout := os.Stdout
@@ -78,10 +81,31 @@ func TestOpenInApp_OpenHere(t *testing.T) {
 	}
 }
 
+func TestOpenInApp_OpenHere_CdFile(t *testing.T) {
+	path := "/tmp/test-worktree"
+
+	cdFile := filepath.Join(t.TempDir(), "wt-cd")
+	t.Setenv("WT_CD_FILE", cdFile)
+
+	openErr := OpenInApp("open_here", path, "repo", "wt-name")
+	if openErr != nil {
+		t.Fatalf("OpenInApp returned error: %v", openErr)
+	}
+
+	data, err := os.ReadFile(cdFile)
+	if err != nil {
+		t.Fatalf("reading cd file: %v", err)
+	}
+	if string(data) != path {
+		t.Errorf("expected cd file content %q, got %q", path, string(data))
+	}
+}
+
 func TestOpenInApp_OpenHere_WithWrapper(t *testing.T) {
 	path := "/tmp/test-worktree"
 
 	t.Setenv("WT_WRAPPER", "1")
+	t.Setenv("WT_CD_FILE", "")
 
 	// Capture stdout
 	origStdout := os.Stdout
@@ -278,8 +302,9 @@ func TestResolveApp_TmuxSession_ByDisplayNameCaseInsensitive(t *testing.T) {
 func TestOpenInApp_OpenHere_WithoutWrapper(t *testing.T) {
 	path := "/tmp/test-worktree"
 
-	// Ensure WT_WRAPPER is not set
+	// Ensure WT_WRAPPER and WT_CD_FILE are not set
 	t.Setenv("WT_WRAPPER", "")
+	t.Setenv("WT_CD_FILE", "")
 
 	// Capture stdout
 	origStdout := os.Stdout
@@ -344,6 +369,7 @@ func TestOpenInApp_OpenHere_WithoutWrapper(t *testing.T) {
 
 func TestOpenInApp_OpenHere_ShellSafeQuoting(t *testing.T) {
 	t.Setenv("WT_WRAPPER", "1")
+	t.Setenv("WT_CD_FILE", "")
 
 	tests := []struct {
 		name     string
