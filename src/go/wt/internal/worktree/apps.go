@@ -255,6 +255,11 @@ func OpenInApp(appCmd, path, repoName, wtName string) error {
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("tmux new-session failed: %s", strings.TrimSpace(string(out)))
 		}
+		// Switch the current client to the newly created session
+		switchCmd := exec.Command("tmux", "switch-client", "-t", sessionName)
+		if out, err := switchCmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("tmux switch-client failed: %s", strings.TrimSpace(string(out)))
+		}
 		return nil
 	default:
 		return fmt.Errorf("unknown application: %s", appCmd)
