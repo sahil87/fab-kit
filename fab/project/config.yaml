@@ -4,15 +4,15 @@ checklist:
     extra_categories:
         - documentation_accuracy
         - cross_references
-fab_version: 1.1.0
-review_tools:
-    copilot: true
-    codex: true
-    claude: true
+fab_version: 1.2.0
 project:
     description: FAB Kit — Tooling for Specification-Driven Development
     linear_workspace: null
     name: fab-kit
+review_tools:
+    claude: true
+    codex: true
+    copilot: true
 source_paths:
     - src/
 stage_directives:
