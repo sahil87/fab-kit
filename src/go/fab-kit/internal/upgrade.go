@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Upgrade handles `fab upgrade [version]` — updates fab_version in config.yaml and re-syncs skills.
+// Upgrade handles `fab upgrade-repo [version]` — updates fab_version in config.yaml and re-syncs skills.
 func Upgrade(targetVersion string) error {
 	// Must be in a fab repo
 	cfg, err := ResolveConfig()

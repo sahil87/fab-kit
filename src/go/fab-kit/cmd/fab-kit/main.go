@@ -12,17 +12,17 @@ var version = "dev"
 
 // fabKitCommands lists the commands owned by fab-kit (used by tests).
 var fabKitCommands = map[string]bool{
-	"init":    true,
-	"upgrade": true,
-	"sync":    true,
-	"update":  true,
-	"doctor":  true,
+	"init":         true,
+	"upgrade-repo": true,
+	"sync":         true,
+	"update":       true,
+	"doctor":       true,
 }
 
 func main() {
 	root := &cobra.Command{
 		Use:           "fab-kit",
-		Short:         "Fab Kit — workspace lifecycle (init, upgrade, sync)",
+		Short:         "Fab Kit — workspace lifecycle (init, upgrade-repo, sync)",
 		Version:       version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -54,7 +54,7 @@ func initCmd() *cobra.Command {
 
 func upgradeCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "upgrade [version]",
+		Use:   "upgrade-repo [version]",
 		Short: "Upgrade to a specific or latest version",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

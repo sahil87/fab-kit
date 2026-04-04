@@ -82,7 +82,7 @@ This installs the `fab` CLI (router), `fab-kit` (workspace lifecycle), and stand
 
 | Tool | Purpose |
 |------|---------|
-| [fab-kit](https://github.com/sahil87/fab-kit) | The `fab` CLI router, workspace lifecycle (`init`/`upgrade`/`sync`), `wt`, and `idea` |
+| [fab-kit](https://github.com/sahil87/fab-kit) | The `fab` CLI router, workspace lifecycle (`init`/`upgrade-repo`/`sync`), `wt`, and `idea` |
 | [yq](https://github.com/mikefarah/yq) | YAML processing for status files and schemas |
 | [jq](https://jqlang.github.io/jq/) | JSON processing for settings merge during sync |
 | [gh](https://cli.github.com/) | GitHub CLI - used for releases and PR workflows |
@@ -123,8 +123,8 @@ This generates `fab/project/constitution.md` and other project configuration fil
 #### Updating from a previous version
 
 ```bash
-fab upgrade              # upgrades to latest version
-fab upgrade 0.44.0       # upgrades to a specific version
+fab upgrade-repo              # upgrades to latest version
+fab upgrade-repo 0.44.0       # upgrades to a specific version
 ```
 
 If the upgrade reports a version mismatch, run `/fab-setup migrations` in your AI agent to apply migrations. Safe to re-run.

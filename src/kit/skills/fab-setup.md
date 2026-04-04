@@ -31,7 +31,7 @@ Before doing anything else, verify the kit is accessible:
 1. Run `fab kit-path` and check that it exits 0
 2. Check that `$(fab kit-path)/VERSION` file exists and is readable
 
-**If either check fails, STOP immediately.** Output: `Kit not found. Run 'fab sync' or 'fab upgrade' to populate the cache.` Do NOT create any files.
+**If either check fails, STOP immediately.** Output: `Kit not found. Run 'fab sync' or 'fab upgrade-repo' to populate the cache.` Do NOT create any files.
 
 ### Argument Classification
 

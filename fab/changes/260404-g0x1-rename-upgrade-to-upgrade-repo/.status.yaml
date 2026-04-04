@@ -5,33 +5,40 @@ created_by: sahil-weaver
 change_type: refactor
 issues: []
 progress:
-    intake: ready
-    spec: pending
-    tasks: pending
-    apply: pending
-    review: pending
-    hydrate: pending
-    ship: pending
-    review-pr: pending
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: active
 checklist:
-    generated: false
+    generated: true
     path: checklist.md
     completed: 0
     total: 0
 confidence:
-    certain: 3
-    confident: 2
+    certain: 4
+    confident: 3
     tentative: 0
     unresolved: 0
-    score: 4.4
-    indicative: true
+    score: 4.1
     fuzzy: true
     dimensions:
-        signal: 81.0
-        reversibility: 87.0
-        competence: 86.0
-        disambiguation: 86.0
+        signal: 80.7
+        reversibility: 87.9
+        competence: 85.7
+        disambiguation: 85.7
 stage_metrics:
-    intake: {started_at: "2026-04-04T18:43:11Z", driver: fab-new, iterations: 1}
-prs: []
-last_updated: 2026-04-04T18:43:58Z
+    intake: {started_at: "2026-04-04T18:43:11Z", driver: fab-new, iterations: 1, completed_at: "2026-04-04T19:01:08Z"}
+    spec: {started_at: "2026-04-04T19:01:08Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-04T19:25:23Z"}
+    tasks: {started_at: "2026-04-04T19:25:23Z", driver: fab-continue, iterations: 1, completed_at: "2026-04-04T19:25:25Z"}
+    apply: {started_at: "2026-04-04T19:25:25Z", driver: fab-continue, iterations: 1, completed_at: "2026-04-04T19:25:27Z"}
+    review: {started_at: "2026-04-04T19:25:27Z", driver: fab-continue, iterations: 1, completed_at: "2026-04-04T19:27:42Z"}
+    hydrate: {started_at: "2026-04-04T19:27:42Z", driver: fab-continue, iterations: 1, completed_at: "2026-04-04T19:29:35Z"}
+    ship: {started_at: "2026-04-04T19:29:35Z", driver: fab-continue, iterations: 1, completed_at: "2026-04-04T19:30:43Z"}
+    review-pr: {started_at: "2026-04-04T19:30:43Z", driver: fab-kit, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/320
+last_updated: 2026-04-04T19:30:43Z

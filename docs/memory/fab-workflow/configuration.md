@@ -17,7 +17,7 @@ A top-level field (string) that declares the fab-kit version the repo expects. T
 
 When present, the shim resolves and dispatches to the matching cached binary. When absent but `config.yaml` exists, the shim exits with an actionable error: `"No fab_version in config.yaml. Run 'fab init' to set one."`.
 
-Set by `fab init` (on bootstrap) and `fab upgrade` (on version update). Not user-editable under normal circumstances — managed by the shim subcommands.
+Set by `fab init` (on bootstrap) and `fab upgrade-repo` (on version update). Not user-editable under normal circumstances — managed by the shim subcommands.
 
 #### `project`
 - `name` — Project name (string)
@@ -232,6 +232,7 @@ See [setup](setup.md) for the complete command suite.
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260404-g0x1-rename-upgrade-to-upgrade-repo | 2026-04-05 | Renamed `fab upgrade` to `fab upgrade-repo` throughout live prose, requirements, and command examples. Historical changelog entries preserved. |
 | 260402-gnx5-relocate-kit-to-system-cache | 2026-04-02 | Removed `kit.conf` references — `build-type` feature eliminated, `repo` hardcoded in Go binary. Stage graph schema reference updated to `$(fab kit-path)/schemas/workflow.yaml`. Scaffold references updated to `$(fab kit-path)/scaffold/`. No changes to `config.yaml` schema itself. |
 | 260401-46hw-brew-install-system-shim | 2026-04-02 | Added `fab_version` top-level field to `config.yaml` schema — bare semver string declaring the fab-kit version the repo expects. Read by the system `fab` shim for version resolution and dispatch. Set by `fab init` (bootstrap) and `fab upgrade` (version update). When absent but `config.yaml` exists, shim exits with actionable error. |
 | 260320-t13m-configurable-agent-spawn-command | 2026-03-20 | Added `agent` section to `config.yaml` schema with `spawn_command` key — configurable shell command string for spawning agent sessions. Default: `claude --dangerously-skip-permissions --effort max -n "$(basename "$(pwd)")"`. Shell expansions evaluate at invocation time. Scripts read via `lib/spawn.sh` helper with fallback to `claude --dangerously-skip-permissions` when key is absent. Migration adds `agent` section to existing configs. |

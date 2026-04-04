@@ -4,7 +4,7 @@
 
 ## Overview
 
-How `src/kit/` is distributed to new and existing projects. Covers the Homebrew distribution model (three-binary architecture: `fab` router + `fab-kit` workspace lifecycle + standalone utilities), the bootstrap process (getting `.kit/` into a project for the first time — primary method is `brew install fab-kit` + `fab init`), the update mechanism (`fab upgrade` replaces the old `fab-upgrade.sh`), the release workflow (version management via `release.sh`, build recipes via `justfile`, CI orchestration via `.github/workflows/release.yml` — producing per-platform archives with Go binaries), and the repo rename from `docs-sddr` to `fab-kit`.
+How `src/kit/` is distributed to new and existing projects. Covers the Homebrew distribution model (three-binary architecture: `fab` router + `fab-kit` workspace lifecycle + standalone utilities), the bootstrap process (getting `.kit/` into a project for the first time — primary method is `brew install fab-kit` + `fab init`), the update mechanism (`fab upgrade-repo` replaces the old `fab-upgrade.sh`), the release workflow (version management via `release.sh`, build recipes via `justfile`, CI orchestration via `.github/workflows/release.yml` — producing per-platform archives with Go binaries), and the repo rename from `docs-sddr` to `fab-kit`.
 
 ## Requirements
 
@@ -20,7 +20,7 @@ A Homebrew formula named `fab-kit` SHALL be published to the `wvrdz/homebrew-tap
 
 #### Router Architecture (System `fab` Binary)
 
-The system `fab` binary acts as a router using negative-match dispatch. It maintains a static allowlist of fab-kit commands (`init`, `upgrade`, `sync`, `--version`, `-v`, `--help`, `-h`, `help`). Commands matching this list are dispatched to `fab-kit` via `syscall.Exec`. All other commands are dispatched to the version-resolved `fab-go`.
+The system `fab` binary acts as a router using negative-match dispatch. It maintains a static allowlist of fab-kit commands (`init`, `upgrade-repo`, `sync`, `update`, `doctor`, `--version`, `-v`, `--help`, `-h`, `help`). Commands matching this list are dispatched to `fab-kit` via `syscall.Exec`. All other commands are dispatched to the version-resolved `fab-go`.
 
 For fab-go dispatch, the router SHALL:
 
@@ -33,7 +33,7 @@ For fab-go dispatch, the router SHALL:
 `fab help` composes help from both sub-binaries: workspace commands (from fab-kit) are always shown; workflow commands (from fab-go) are shown only inside a fab-managed repo.
 
 **Scenarios**:
-- fab-kit command dispatch — `fab init`, `fab sync`, `fab upgrade` are routed to `fab-kit` with all args passed through
+- fab-kit command dispatch — `fab init`, `fab sync`, `fab upgrade-repo` are routed to `fab-kit` with all args passed through
 - Normal fab-go dispatch — router reads `fab_version`, resolves cached `fab-go`, execs with all args passed through
 - Version not cached — router auto-fetches from GitHub releases, caches binary + `.kit/` content, then dispatches
 - No network during auto-fetch — exits non-zero with version and network hint
@@ -98,11 +98,11 @@ The existing `cp -r` distribution method SHALL continue to work, given the syste
 
 ### Update
 
-#### `fab upgrade` (Shim Subcommand)
+#### `fab upgrade-repo` (Shim Subcommand)
 
-`fab upgrade [version]` is a fab-kit subcommand (routed via the `fab` router to `fab-kit`, not dispatched to `fab-go`) that replaces the former `src/kit/scripts/fab-upgrade.sh`. It SHALL:
+`fab upgrade-repo [version]` is a fab-kit subcommand (routed via the `fab` router to `fab-kit`, not dispatched to `fab-go`) that replaces the former `src/kit/scripts/fab-upgrade.sh`. It SHALL:
 
-1. Resolve the target version — latest release if no argument, or the explicit version (e.g., `fab upgrade 0.44.0`)
+1. Resolve the target version — latest release if no argument, or the explicit version (e.g., `fab upgrade-repo 0.44.0`)
 2. Download the release to cache if not already present (binary + `.kit/` content)
 3. Copy `~/.fab-kit/versions/{version}/kit/` to the repo's `src/kit/` (atomic swap: extract to temp, verify, then replace)
 4. Update `fab_version` in `fab/project/config.yaml` to the new version
@@ -111,18 +111,18 @@ The existing `cp -r` distribution method SHALL continue to work, given the syste
 
 **Scenarios**:
 - Upgrade to latest — downloads new version to cache, replaces `src/kit/`, updates `fab_version` in config, runs sync, displays "Updated: 0.43.0 → 0.44.0"
-- Upgrade to specific version (`fab upgrade 0.42.1`) — downloads to cache, replaces `src/kit/` and updates `fab_version`
+- Upgrade to specific version (`fab upgrade-repo 0.42.1`) — downloads to cache, replaces `src/kit/` and updates `fab_version`
 - Already up to date — displays "Already on the latest version (0.43.0). No update needed.", no files modified
 - Migration reminder — when `fab/.kit-migration-version` is behind the new version and a migration exists, output includes a reminder to run `/fab-setup migrations`
 - No network access — exits non-zero with error message, existing `.kit/` unchanged
 
 #### Update Preserves Project Files
 
-`fab upgrade` MUST NOT modify any files outside of `src/kit/` and `fab/project/config.yaml` (version bump only). Preserved: `fab/project/constitution.md`, `fab/.kit-migration-version`, `docs/memory/`, `docs/specs/`, `fab/changes/`, `.fab-status.yaml`.
+`fab upgrade-repo` MUST NOT modify any files outside of `src/kit/` and `fab/project/config.yaml` (version bump only). Preserved: `fab/project/constitution.md`, `fab/.kit-migration-version`, `docs/memory/`, `docs/specs/`, `fab/changes/`, `.fab-status.yaml`.
 
 #### Deprecated: `fab-upgrade.sh`
 
-`src/kit/scripts/fab-upgrade.sh` has been removed. Use `fab upgrade` instead.
+`src/kit/scripts/fab-upgrade.sh` has been removed. Use `fab upgrade-repo` instead.
 
 ### Sync Staleness Detection
 
@@ -134,7 +134,7 @@ If either value is unreadable or empty, the check is silently skipped. This dete
 
 #### Atomic Update
 
-`fab upgrade` SHALL use an atomic update strategy: extract cached content to a temporary directory, verify the extraction succeeded (checks for VERSION file), then replace the existing `src/kit/` via `rm -rf` and `mv`. This prevents corruption if interrupted mid-extraction.
+`fab upgrade-repo` SHALL use an atomic update strategy: extract cached content to a temporary directory, verify the extraction succeeded (checks for VERSION file), then replace the existing `src/kit/` via `rm -rf` and `mv`. This prevents corruption if interrupted mid-extraction.
 
 **Scenarios**:
 - Interrupted during download — existing `.kit/` unchanged
@@ -143,7 +143,7 @@ If either value is unreadable or empty, the check is silently skipped. This dete
 
 #### Skill Deployment Repair After Update
 
-After copying new `.kit/` contents, `fab upgrade` SHALL call `Sync()` directly (the same logic as `fab-kit sync`) to ensure all skill deployments are up to date: copies refreshed (`.claude/skills/`, `.agents/skills/`), symlinks valid (`.opencode/commands/`), and stale agent files cleaned up (`.claude/agents/`).
+After copying new `.kit/` contents, `fab upgrade-repo` SHALL call `Sync()` directly (the same logic as `fab-kit sync`) to ensure all skill deployments are up to date: copies refreshed (`.claude/skills/`, `.agents/skills/`), symlinks valid (`.opencode/commands/`), and stale agent files cleaned up (`.claude/agents/`).
 
 ### wt Shell Setup
 
@@ -299,9 +299,9 @@ The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its rol
 - **Three-way release split (260307-ma7o-1)**: `release.sh` owns version/tag/push, `justfile` owns build/package, `.github/workflows/release.yml` owns orchestration. Each component has a single responsibility and can be tested independently.
 - **GitHub semver ordering replaces `--no-latest` (260307-ma7o-1)**: GitHub automatically determines "latest" release based on semver. Backport releases (e.g., `v0.34.2` when `v0.35.0` exists) are not marked latest. The `--no-latest` flag was removed from `release.sh` — no flag to remember, no CI mechanism to pass it through. For edge cases, `gh release edit` can be used post-creation.
 - **Commit-level release notes with minor cumulation**: CI generates release notes from `git log --oneline` with linked commit SHAs. Minor releases (x.y.0) cumulate all commits since the previous minor tag, giving a complete picture of the release cycle. Patch releases show commits since the previous release only. Major releases use the same patch-style diff (manual curation expected for milestone releases).
-- **Homebrew distribution with three-binary architecture (260401-46hw, 260402-3ac3)**: The system `fab` binary is a router installed via `brew install fab-kit`. It dispatches workspace commands to `fab-kit` and workflow commands to the version-resolved `fab-go`. `fab-kit` owns workspace lifecycle (init, upgrade, sync). This decouples binary distribution from the repo — `src/kit/` holds content only, the binaries manage execution. Rejected: binary-in-repo (redundant when router manages versions), `fab self-update` (don't reinvent the package manager), two-binary shim model (untestable, blurred concerns).
-- **`fab upgrade` as fab-kit subcommand (260401-46hw, 260402-3ac3)**: `fab-kit` handles upgrade directly, replacing `fab-upgrade.sh`. `fab-kit` already has download/cache logic — upgrade is a natural extension. Rejected: keeping `fab-upgrade.sh` alongside `fab-kit` (duplication of download logic).
-- **Cache stores binary + content (260401-46hw)**: Each cached version includes both `fab-go` and the full `.kit/` content. `fab upgrade` needs the content to populate the repo's `src/kit/`. Rejected: binary-only cache (would need separate download for content).
+- **Homebrew distribution with three-binary architecture (260401-46hw, 260402-3ac3)**: The system `fab` binary is a router installed via `brew install fab-kit`. It dispatches workspace commands to `fab-kit` and workflow commands to the version-resolved `fab-go`. `fab-kit` owns workspace lifecycle (init, upgrade-repo, sync, update, doctor). This decouples binary distribution from the repo — `src/kit/` holds content only, the binaries manage execution. Rejected: binary-in-repo (redundant when router manages versions), `fab self-update` (don't reinvent the package manager), two-binary shim model (untestable, blurred concerns).
+- **`fab upgrade-repo` as fab-kit subcommand (260401-46hw, 260402-3ac3)**: `fab-kit` handles upgrade directly, replacing `fab-upgrade.sh`. `fab-kit` already has download/cache logic — upgrade is a natural extension. Rejected: keeping `fab-upgrade.sh` alongside `fab-kit` (duplication of download logic).
+- **Cache stores binary + content (260401-46hw)**: Each cached version includes both `fab-go` and the full `.kit/` content. `fab upgrade-repo` needs the content to populate the repo's `src/kit/`. Rejected: binary-only cache (would need separate download for content).
 - **Formula name `fab-kit`, binary name `fab` (260401-46hw)**: Homebrew formula uses `fab-kit` to avoid collision with Python Fabric's `fab` formula, while the installed binary is `fab`. Rejected: `fab` as formula name (collides with Fabric).
 - **~~Backend override via env var + file (260307-bmp3-3)~~**: *Deprecated* — removed with the shim model. Go is the only backend; the shim dispatches to `fab-go` directly.
 
@@ -309,6 +309,7 @@ The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its rol
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260404-g0x1-rename-upgrade-to-upgrade-repo | 2026-04-05 | Renamed `fab upgrade` to `fab upgrade-repo` throughout live prose, requirements, and command examples. Historical changelog entries preserved. |
 | 260403-24ic-wt-open-shell-setup | 2026-04-03 | Added `wt shell-setup` subcommand (outputs shell wrapper function for `eval` in shell profile, following direnv/rbenv/mise pattern). Added `WT_WRAPPER=1` env var detection in `OpenInApp` — prints stderr hint when wrapper not installed and `open_here` is selected. Updated `wt` root command help text to reference `wt shell-setup` instead of inline function body. |
 | 260402-5tci-remove-copilot-clean-scaffold | 2026-04-02 | Removed `scaffold/.github/copilot-code-review.yml` from the scaffold tree. Cleaned stale entries from `scaffold/fragment-.gitignore` (`fab/changes/**/.pr-done`, `/.ralph`). Scaffold file count unchanged at 11 (3 fragment, 8 copy-if-absent) after removal of the Copilot config and stale `.gitignore` lines. |
 | 260402-gnx5-relocate-kit-to-system-cache | 2026-04-02 | Kit content no longer copied to user projects — served entirely from system cache at `~/.fab-kit/versions/<version>/kit/`. `fab init` and `fab upgrade` no longer create `fab/.kit/` in projects. Source repo layout: `fab/.kit/` renamed to `src/kit/`. Build scripts (`justfile`, `release.sh`) updated to read from `src/kit/`. `.gitignore` cleaned of `fab/.kit/` entries. `fab kit-path` command added for agent-agnostic kit path resolution. Bootstrap one-liner and manual copy references updated. |

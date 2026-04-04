@@ -25,12 +25,12 @@ fab <command> <subcommand> [args...]
 | Binary | Role | Installation |
 |--------|------|-------------|
 | `fab` | Router — dispatches to fab-kit or fab-go | Homebrew (system binary) |
-| `fab-kit` | Workspace lifecycle — init, upgrade, sync | Homebrew (system binary) |
+| `fab-kit` | Workspace lifecycle — init, upgrade-repo, sync | Homebrew (system binary) |
 | `fab-go` | Workflow engine — resolve, status, preflight, etc. | Per-version cache (~/.fab-kit/versions/) |
 
 ### Routing
 
-- **Workspace commands** (`init`, `upgrade`, `sync`, `--version`, `--help`, `help`): routed to `fab-kit`
+- **Workspace commands** (`init`, `upgrade-repo`, `sync`, `update`, `doctor`, `--version`, `--help`, `help`): routed to `fab-kit`
 - **Workflow commands** (everything else): routed to `fab-go` after version resolution
 
 ### Backend

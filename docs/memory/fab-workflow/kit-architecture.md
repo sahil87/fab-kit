@@ -125,7 +125,7 @@ Replaced by `internal/frontmatter/` package in `fab-go`. The Go implementation e
 
 #### `fab-upgrade.sh` (Removed)
 
-Replaced by `fab upgrade` — a shim subcommand. See [distribution.md](distribution.md) for the full upgrade flow.
+Replaced by `fab upgrade-repo` — a shim subcommand. See [distribution.md](distribution.md) for the full upgrade flow.
 
 #### `release.sh` (dev-only, at `scripts/release.sh`)
 
@@ -213,14 +213,14 @@ Then in either case:
 Three version locations track the relationship between the installed engine and the project's file format:
 
 - **`$(fab kit-path)/VERSION`** (engine version) — ships inside `.kit/`, replaced on each `fab-upgrade.sh` run. Enables version display, update comparison, and migration targeting.
-- **`fab/project/config.yaml` `fab_version`** (project version) — set by `fab upgrade` and `fab init`. Used by preflight to detect sync staleness (compared against `$(fab kit-path)/VERSION`).
+- **`fab/project/config.yaml` `fab_version`** (project version) — set by `fab upgrade-repo` and `fab init`. Used by preflight to detect sync staleness (compared against `$(fab kit-path)/VERSION`).
 - **`fab/.kit-migration-version`** (local project version) — lives outside `.kit/`, NOT replaced on upgrades. Tracks the version the project's `config.yaml`, `.status.yaml`, and conventions were written for. Created by `sync/2-sync-workspace.sh`. Renamed from `fab/project/VERSION`.
 
 `VERSION` and `.kit-migration-version` contain a bare semver string (`MAJOR.MINOR.PATCH`). See [migrations.md](migrations.md) for the full migration system.
 
 ### Updating `.kit/`
 
-Run `fab upgrade` to update to the latest release. The fab-kit subcommand downloads the new version to the cache (if not present), atomically replaces `src/kit/` with content from the cache, updates `fab_version` in `config.yaml`, and calls `Sync()` directly to repair directories and agents. After the upgrade, if `fab/.kit-migration-version` is behind the new engine version, the output includes a migration reminder. See [distribution.md](distribution.md) for full upgrade details.
+Run `fab upgrade-repo` to update to the latest release. The fab-kit subcommand downloads the new version to the cache (if not present), atomically replaces `src/kit/` with content from the cache, updates `fab_version` in `config.yaml`, and calls `Sync()` directly to repair directories and agents. After the upgrade, if `fab/.kit-migration-version` is behind the new engine version, the output includes a migration reminder. See [distribution.md](distribution.md) for full upgrade details.
 
 Skill deployments in `.claude/skills/`, `.opencode/commands/`, `.agents/skills/`, and `.gemini/skills/` are refreshed by `fab-kit sync` after the update. OpenCode symlinks resolve automatically; copies for Claude Code, Codex, and Gemini are re-copied.
 
@@ -515,6 +515,7 @@ Full benchmark suite with harness and all 4 implementations: `src/benchmark/`
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260404-g0x1-rename-upgrade-to-upgrade-repo | 2026-04-05 | Renamed `fab upgrade` to `fab upgrade-repo` throughout live prose, requirements, and command examples. Historical changelog entries preserved. |
 | 260403-tam1-pane-commands | 2026-04-03 | Replaced root-level `fab pane-map` with `fab pane` parent command grouping four subcommands: `map` (renamed from `pane-map`, identical behavior), `capture` (structured pane content capture with fab context enrichment, `--json`/`--raw` output modes), `send` (safe send-keys with pane existence and agent idle validation, `--force` override), `process` (OS-level process tree detection via `/proc` on Linux and `ps` on macOS, with process classification and `has_agent` detection). Extracted shared pane resolution logic from `panemap.go` into new `internal/pane/` package (`ValidatePane`, `ResolvePaneContext`, `GetPanePID`, `FindMainWorktreeRoot`). Updated `_cli-fab.md` (new `## fab pane` section replacing `## fab pane-map`). Reduced `_cli-external.md` tmux section (`capture-pane` and `send-keys` removed, `new-window` retained). Platform-specific process discovery via Go build tags (`//go:build linux` / `//go:build darwin`). |
 | 260403-o8eg-wt-open-tmux-session-option | 2026-04-03 | Added `tmux_session` app entry to `wt open` — creates a new detached tmux session (`tmux new-session -d -s {name} -c {path}`) for worktree isolation. Same `IsTmuxSession()` guard and `ExitTmuxWindowError` exit code as existing `tmux_window`. Appears immediately after `tmux_window` in menu. |
 | 260402-gnx5-relocate-kit-to-system-cache | 2026-04-02 | Kit content relocated from `fab/.kit/` (in-project) to `~/.fab-kit/versions/<version>/kit/` (system cache). Go binaries resolve kit via `kitpath.KitDir()` (exe-sibling for `fab-go`, version-from-config for `fab-kit`). New `fab kit-path` command exposes resolved path for agent-agnostic template access. Hook shell scripts eliminated — hooks now inline as `fab hook <subcommand>` in settings.local.json. `kit.conf` eliminated (build-type removed, repo hardcoded). Source repo layout: `fab/.kit/` renamed to `src/kit/`. Skills reference templates via `$(fab kit-path)/templates/`. Build scripts updated (`justfile`, `release.sh`, `.gitignore`). Migration ships for existing users (inline hooks, remove `fab/.kit/`, clean `.envrc`/`.gitignore`). |

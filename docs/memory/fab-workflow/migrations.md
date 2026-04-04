@@ -70,7 +70,7 @@ The migration runner, now a subcommand of `/fab-setup` (previously the standalon
 
 ### Two-Step Update Flow
 
-`fab upgrade` (shim subcommand) handles the mechanical `.kit/` swap. `/fab-setup migrations` (skill subcommand) handles intelligent migration execution. They are separate operations — the shim handles download/swap (no LLM needed), the skill handles reading and applying instructions (LLM needed).
+`fab upgrade-repo` (shim subcommand) handles the mechanical `.kit/` swap. `/fab-setup migrations` (skill subcommand) handles intelligent migration execution. They are separate operations — the shim handles download/swap (no LLM needed), the skill handles reading and applying instructions (LLM needed).
 
 ### Brew-Install Migration
 
@@ -87,7 +87,7 @@ A migration file for the transition to the system shim model. The migration:
 
 ### Version Drift Detection
 
-- **`fab upgrade`**: prints drift reminder when `fab/.kit-migration-version` < engine after upgrade; prints init guidance if `fab/.kit-migration-version` missing
+- **`fab upgrade-repo`**: prints drift reminder when `fab/.kit-migration-version` < engine after upgrade; prints init guidance if `fab/.kit-migration-version` missing
 - **`/fab-status`**: displays `⚠ Version drift: local {X}, engine {Y} — run /fab-setup migrations` when versions differ
 - **`release.sh`**: warns when no migration targets the new release version; warns on overlapping migration ranges
 
@@ -107,7 +107,7 @@ Handled by `fab-sync.sh` during structural bootstrap:
 **Rejected**: Minor-only stepping (forced empty migration files), exact-version chaining (unbroken linked list, maintenance burden).
 
 ### Two-Step Update Flow
-**Decision**: `fab upgrade` (shim subcommand) handles mechanical swap; `/fab-setup migrations` (skill subcommand) handles intelligent migration.
+**Decision**: `fab upgrade-repo` (shim subcommand) handles mechanical swap; `/fab-setup migrations` (skill subcommand) handles intelligent migration.
 **Why**: Migrations are LLM instruction files. The shim handles download/cache/swap (no LLM needed); the skill handles reading and applying instructions (LLM needed). Preserves Constitution I.
 **Rejected**: Single combined script — would require embedding LLM invocation in shell or making migration files executable (violates pure prompt play).
 
@@ -125,6 +125,7 @@ Handled by `fab-sync.sh` during structural bootstrap:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260404-g0x1-rename-upgrade-to-upgrade-repo | 2026-04-05 | Renamed `fab upgrade` to `fab upgrade-repo` throughout live prose, requirements, and command examples. Historical changelog entries preserved. |
 | 260402-5tci-remove-copilot-clean-scaffold | 2026-04-02 | Appended three steps to migration `0.46.0-to-0.47.0.md`: (5) delete `.github/copilot-code-review.yml` if present, (6) remove stale `.gitignore` entries (`/.ralph`, `fab/changes/**/.pr-done`), (7) find and delete any `.pr-done` files under `fab/changes/`. Each step prints status and handles already-clean state gracefully. Verification section updated with checks for all three new steps. |
 | 260402-gnx5-relocate-kit-to-system-cache | 2026-04-02 | Ships migration for existing users: verify cache populated, inline hooks in `.claude/settings.local.json` (replace `bash "$CLAUDE_PROJECT_DIR"/fab/.kit/hooks/on-*.sh` with `fab hook <subcommand>`), remove `fab/.kit/` from project, clean `PATH_add fab/.kit/scripts` from `.envrc`, clean `fab/.kit/bin/*` from `.gitignore`. `$(fab kit-path)/VERSION` is now the engine version source (read from exe-sibling kit in cache). |
 | 260402-0ak9-remove-sync-version-file | 2026-04-02 | Added migration `0.45.1-to-0.46.0.md` for orphaned `fab/.kit-sync-version` cleanup. Migration deletes the obsolete sync stamp file (staleness detection now uses `$(fab kit-path)/VERSION` vs `config.yaml fab_version`). Handles missing file gracefully. |
