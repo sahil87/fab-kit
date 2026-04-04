@@ -5,7 +5,7 @@ created_by: sahil-weaver
 change_type: refactor
 issues: []
 progress:
-    intake: active
+    intake: ready
     spec: pending
     tasks: pending
     apply: pending
@@ -34,4 +34,4 @@ confidence:
 stage_metrics:
     intake: {started_at: "2026-04-04T18:43:11Z", driver: fab-new, iterations: 1}
 prs: []
-last_updated: 2026-04-04T18:43:52Z
+last_updated: 2026-04-04T18:43:58Z
