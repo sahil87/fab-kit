@@ -11,8 +11,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 checklist:
     generated: true
     path: checklist.md
@@ -37,6 +37,8 @@ stage_metrics:
     apply: {started_at: "2026-04-04T19:25:25Z", driver: fab-continue, iterations: 1, completed_at: "2026-04-04T19:25:27Z"}
     review: {started_at: "2026-04-04T19:25:27Z", driver: fab-continue, iterations: 1, completed_at: "2026-04-04T19:27:42Z"}
     hydrate: {started_at: "2026-04-04T19:27:42Z", driver: fab-continue, iterations: 1, completed_at: "2026-04-04T19:29:35Z"}
-    ship: {started_at: "2026-04-04T19:29:35Z", driver: fab-continue, iterations: 1}
-prs: []
-last_updated: 2026-04-04T19:29:35Z
+    ship: {started_at: "2026-04-04T19:29:35Z", driver: fab-continue, iterations: 1, completed_at: "2026-04-04T19:30:43Z"}
+    review-pr: {started_at: "2026-04-04T19:30:43Z", driver: fab-kit, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/320
+last_updated: 2026-04-04T19:30:43Z
