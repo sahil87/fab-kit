@@ -1,6 +1,6 @@
 ---
 name: fab-proceed
-description: "Context-aware orchestrator — detects state, runs prefix steps (fab-new, git-branch), then delegates to fab-fff."
+description: "Context-aware orchestrator — detects state, runs prefix steps (fab-new, fab-switch, git-branch as needed), then delegates to fab-fff."
 ---
 
 # /fab-proceed

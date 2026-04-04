@@ -413,6 +413,7 @@ block-beta
     d_ctx --> p_in
     fd_in --> sw_act
     sw_act --> gb_br
+    fnew_in --> fnew_act
     fnew_act --> gb_br
     gb_br --> ff_sp
     gb_br --> fff_sp

@@ -61,8 +61,8 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 |-------|---------------|-----------|
 | `/fab-setup` | initialized | `Next: /fab-new <description> or /docs-hydrate-memory <sources>` |
 | `/docs-hydrate-memory` | memory hydrated | `Next: /fab-new <description> or /docs-hydrate-memory <more-sources>` |
-| `/fab-new` | intake ready (activated) | `Next: /fab-continue or /fab-clarify (refine intake) or /fab-ff` |
-| `/fab-draft` | intake ready (not activated) | `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-clarify or /fab-ff` |
+| `/fab-new` | intake ready (activated) | `Next: /fab-continue or /fab-clarify (refine intake) or /fab-ff or /fab-fff` |
+| `/fab-draft` | intake ready (not activated) | `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-clarify or /fab-ff or /fab-fff` |
 | `/fab-continue` (from intake ready) | spec ready | `Next: /fab-continue (tasks) or /fab-clarify (refine spec) or /fab-ff` |
 | `/fab-continue` (from spec ready) | tasks ready | `Next: /fab-continue (apply) or /fab-clarify (refine tasks)` |
 | `/fab-ff` | tasks done | `Next: /fab-continue (apply)` |
@@ -203,7 +203,7 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 **Behavior**:
 1. Generate folder name: today's date (`YYMMDD`) + 4 random alphanumeric chars + 2-6 word slug from description
 2. Create `fab/changes/{name}/`
-3. Initialize `.status.yaml` with all stages `pending`; `fab change new` calls `fab status start intake` to activate
+3. Initialize `.status.yaml` with all stages `pending`, then make the intake stage active
 4. Generate `intake.md` using template (loading `fab/project/constitution.md` and `fab/project/config.yaml` as context)
 5. Perform gap analysis — check whether the change is already covered by existing mechanisms
 6. Use SRAD-driven adaptive questioning (no fixed cap) to resolve ambiguities conversationally
