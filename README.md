@@ -1,12 +1,12 @@
 # Fab Kit
 
-A structured development workflow for AI agents. You describe a change, AI plans it, implements it, reviews it, and saves what it learned — so future changes start with better knowledge. Plain markdown prompts, no SDK, no vendor lock-in. Works with Claude Code, Codex, Cursor, and Windsurf.
+A development toolkit for AI-assisted coding. It includes a 6-stage pipeline (describe → plan → implement → review → learn), standalone CLI tools for [git worktree management](#standalone-cli-tools) (`wt`) and [idea backlogs](#standalone-cli-tools) (`idea`), and batch orchestration for running multiple AI agents in parallel. Plain markdown prompts, no SDK, no vendor lock-in. Works with Claude Code, Codex, Cursor, and Windsurf.
 
 AI agents write code fast. The bottleneck is now your clarity: did you define the problem well enough? Fab Kit sits at that bottleneck — it forces structured thinking before implementation, grounds every session in your project's actual context, and gets cheaper to run as agents improve.
 
 > **[Try it now](#quick-start)** | **[Understand the concepts](#why-fab-kit)** | **[Glossary](docs/specs/glossary.md)** (new to Fab terminology?)
 
-**Contents:** [The 6 Stages](#the-6-stages) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start) · [Why Fab Kit](#why-fab-kit) · [The 5 Cs](#the-5-cs-of-quality) · [Commands](#command-quick-reference) · [Stage Coverage](#stage-coverage-by-command) · [Learn More](#learn-more)
+**Contents:** [The 6 Stages](#the-6-stages) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start) · [Why Fab Kit](#why-fab-kit) · [The 5 Cs](#the-5-cs-of-quality) · [Commands](#command-quick-reference) · [CLI Tools](#standalone-cli-tools) · [Stage Coverage](#stage-coverage-by-command) · [Learn More](#learn-more)
 
 ## The 6 Stages
 
@@ -129,11 +129,13 @@ fab upgrade-repo 0.44.0       # upgrades to a specific version
 
 If the upgrade reports a version mismatch, run `/fab-setup migrations` in your AI agent to apply migrations. Safe to re-run.
 
-To re-deploy skills and scaffold structure without downloading a new release (useful when developing fab-kit itself):
+To re-deploy skills, scaffold structure, and sync hooks without changing the pinned version (useful after cloning):
 
 ```bash
 fab sync
 ```
+
+> **Note:** `fab sync` runs automatically in every new worktree created by [`wt create`](docs/specs/packages.md#wt-worktree-management).
 
 ### 2. Your first change
 
@@ -174,7 +176,11 @@ For small changes, `/fab-ff` (fast-forward) skips intermediate planning stages -
 
 While AI works on one change, start another in a separate [git worktree](https://git-scm.com/docs/git-worktree) (an isolated copy of your repo):
 
-```
+```bash
+# In your terminal:
+wt create                # creates an isolated worktree with a random name
+
+# In a new AI agent session in that worktree:
 /fab-new Add error toast for failed submissions
 ```
 
@@ -384,6 +390,15 @@ The operator (`/fab-operator`) is a long-running coordination layer that sits in
 | `fab batch switch` | Open tmux tabs in worktrees for one or more changes |
 | `fab batch archive` | Archive multiple completed changes in one session |
 
+## Standalone CLI Tools
+
+Fab Kit includes standalone CLI tools that work with or without the pipeline. They're installed system-wide via `brew install fab-kit`. See [packages.md](docs/specs/packages.md) for details.
+
+| Tool | Purpose |
+|------|---------|
+| **wt** | Git worktree management - `wt create`, `wt open`, `wt list`, `wt delete`. Worktrees are the foundation of [parallel changes](#parallel-by-default). |
+| **idea** | Per-repo idea backlog in `fab/backlog.md` - `idea add`, `idea list`, `idea done`. Feeds directly into `/fab-new`. |
+
 ## Stage Coverage by Command
 
 Which pipeline stages each command covers. Taller bars = more automation. Read left-to-right from most manual to most automated. Arrows show the typical manual path from idea to PR.
@@ -502,24 +517,6 @@ block-beta
     style p_hy fill:#ffb74d,stroke:#E65100,color:#1a1a1a
     style p_pr fill:#ffb74d,stroke:#E65100,color:#1a1a1a,stroke-dasharray: 5 5
     style p_rp fill:#ffb74d,stroke:#E65100,color:#1a1a1a,stroke-dasharray: 5 5
-```
-
-## Packages
-
-Fab Kit includes standalone CLI tools — general-purpose developer workflow utilities independent of the fab pipeline. They're installed system-wide via `brew install fab-kit`. See [packages.md](docs/specs/packages.md) for details.
-
-| Package | Purpose |
-|---------|---------|
-| **idea** | Per-repo idea backlog in `fab/backlog.md` - add, list, edit, complete, remove |
-| **wt** | Git worktree management - create, open, list, delete worktrees with random naming |
-
-### Development
-
-After cloning, run Go tests:
-
-```bash
-just test               # run all tests
-just build-fab-kit      # build fab + fab-kit to dist/bin/
 ```
 
 ## Learn More

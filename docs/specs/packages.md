@@ -19,7 +19,7 @@ Git worktrees let you have multiple checkouts of the same repository side by sid
 | `wt create` | Create a git worktree for parallel development |
 | `wt list` | List all git worktrees for the current repository |
 | `wt open` | Open a git worktree in an editor, terminal, or file manager |
-| `wt delete [names...]` | Delete one or more git worktrees with optional branch cleanup |
+| `wt delete [names...]` | Delete one or more git worktrees with optional branch cleanup (positional args; `--worktree-name` flag is deprecated) |
 | `wt init` | Run the init script for the current worktree |
 
 Run `wt <command> --help` for full usage details.
@@ -57,8 +57,8 @@ The batch scripts orchestrate this at scale:
 
 **Start a new change in isolation:**
 ```bash
-wt create                    # Creates a worktree with a random name
-cd ../repo.worktrees/name/   # Enter the worktree
+wt create                        # Interactive menu → creates worktree
+cd ../repo.worktrees/<name>/     # Enter the worktree (name shown in output)
 # Work on your change — main repo is untouched
 ```
 
@@ -68,33 +68,25 @@ wt delete                    # Removes the current worktree and optionally its b
 wt delete fox bear           # Removes multiple worktrees by name
 ```
 
-> **Note**: The `--worktree-name` flag is deprecated — use positional arguments instead: `wt delete <name>` rather than `wt delete --worktree-name <name>`.
-
 ### Why wt-open Cannot cd in the Current Shell
 
-A frequently requested feature is a "cd here" option in `wt open` that changes the calling shell's working directory to the worktree path. This is not possible due to a fundamental Unix process model constraint.
-
-**The constraint**: Every shell command (including `wt open` and `wt create`) runs as a **child process** of the calling shell. A child process has its own working directory that is independent of its parent. When the child exits, the parent's working directory is unchanged — there is no mechanism for a child process to modify its parent's environment.
-
-This is not a limitation of `wt open` specifically — it applies to all executables on Unix systems. Only code that runs **within** the shell process itself (shell builtins like `cd`, and shell functions defined via `source` or `.`) can change the shell's working directory.
-
-**Recommended setup**: Add the shell wrapper to your profile to enable the "Open here" menu option:
+Child processes cannot change the parent shell's working directory — this is a Unix process model constraint, not a `wt` limitation. To get a "cd here" option in `wt open`, add the shell wrapper to your profile:
 
 ```bash
 # Add to ~/.bashrc or ~/.zshrc
 eval "$(wt shell-setup)"
 ```
 
-The `wt shell-setup` subcommand outputs a shell function that wraps the `wt` binary. Because shell functions execute in the calling shell's process (not as a child), the wrapper can intercept `cd` commands from `wt open`'s "Open here" option and eval them in the parent shell's context.
+This installs a shell function that wraps the `wt` binary. Because shell functions run in the calling shell's process, the wrapper can eval `cd` commands from `wt open`'s "Open here" menu option.
 
-**Alternative workarounds** (if you prefer not to use the shell wrapper):
+**Alternative workarounds** (without the shell wrapper):
 
 ```bash
 # Option 1: Use command substitution with wt create's stdout path
 cd "$(wt create --non-interactive)"
 
 # Option 2: Copy path from wt open's "Copy path" menu option, then paste
-cd <paste>
+cd /path/copied/from/menu
 ```
 
 ---
