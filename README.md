@@ -1,16 +1,12 @@
 # Fab Kit
 
-A structured development workflow for AI agents. You describe a change, AI plans it, implements it, reviews it, and saves what it learned into shared project memory. Each completed change builds shared context, so future changes start with better knowledge.
+A structured development workflow for AI agents. You describe a change, AI plans it, implements it, reviews it, and saves what it learned — so future changes start with better knowledge. Plain markdown prompts, no SDK, no vendor lock-in. Works with Claude Code, Codex, Cursor, and Windsurf.
 
-AI agents are getting better at writing code fast. The bottleneck is shifting to you: did you define the problem well enough? Fab Kit sits at that bottleneck - it forces structured thinking before implementation, gives you a legible signal of your own clarity, and grounds every session in your project's actual context.
-
-Fab Kit is a 6-stage pipeline defined entirely in markdown prompts - no SDK, no vendor lock-in. The skills are plain prompts any AI agent can execute (Claude Code, Codex, Cursor, Windsurf). Copy it into your project and go. It's plain markdown and shell, so it gets cheaper to run as agents improve, not more expensive.
-
-The more capable AI agents become, the wider the gap between what they can build and what humans can clearly articulate. Fab Kit sits in that gap - and it grows with it.
+AI agents write code fast. The bottleneck is now your clarity: did you define the problem well enough? Fab Kit sits at that bottleneck — it forces structured thinking before implementation, grounds every session in your project's actual context, and gets cheaper to run as agents improve.
 
 > **[Try it now](#quick-start)** | **[Understand the concepts](#why-fab-kit)** | **[Glossary](docs/specs/glossary.md)** (new to Fab terminology?)
 
-**Contents:** [The 6 Stages](#the-6-stages) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start) · [Why Fab Kit](#why-fab-kit) · [Commands](#command-quick-reference) · [Stage Coverage](#stage-coverage-by-command) · [Learn More](#learn-more)
+**Contents:** [The 6 Stages](#the-6-stages) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start) · [Why Fab Kit](#why-fab-kit) · [The 5 Cs](#the-5-cs-of-quality) · [Commands](#command-quick-reference) · [Stage Coverage](#stage-coverage-by-command) · [Learn More](#learn-more)
 
 ## The 6 Stages
 
@@ -122,7 +118,7 @@ This downloads the latest release to the system cache, sets `fab_version` in `fa
 $fab-setup    # Codex
 ```
 
-This generates `fab/project/constitution.md` and other project configuration files.
+This generates `fab/project/constitution.md` and other project configuration files. Run `fab doctor` to verify your setup.
 
 #### Updating from a previous version
 
@@ -186,9 +182,14 @@ Each change is a self-contained folder - multiple AI sessions run in parallel wi
 
 ### Troubleshooting
 
+Run `fab doctor` to check all prerequisites (git, yq, direnv hook, etc.) and diagnose common setup issues.
+
 - `direnv allow` doesn't work - reload your shell or run `eval "$(direnv export zsh)"`
 - `/fab-setup` not recognized - re-run `fab sync` to deploy skills
 - **After cloning a repo that uses Fab Kit** - run `fab sync` once. Agent skills and hooks live in `.claude/` which is gitignored by default, so each developer needs to deploy them locally.
+- **A stage fails mid-way** - run `/fab-continue` to resume from the last checkpoint. All stage artifacts are persisted, so no progress is lost.
+- **AI produces bad code** - the review sub-agent catches it. `/fab-ff` and `/fab-fff` auto-loop between apply and review (up to 3 cycles) before escalating to you.
+- **Abandon a change** - delete the change folder, or run `/fab-archive` to move it to the archive.
 
 ## Why Fab Kit
 
@@ -282,7 +283,7 @@ AI writes code fast. Without structure, it also skips requirements, ignores arch
 | Code quality issue | Should-fix | → apply | Addressed when clear and low-effort |
 | Style suggestion | Nice-to-have | - | May be skipped |
 
-`/fab-fff` and `/fab-ff` auto-loop between apply and review (up to 3 cycles) - each re-review uses a fresh sub-agent. `/fab-ff` falls back to interactive rework after exhausting auto-retries.
+`/fab-fff` and `/fab-ff` auto-loop between apply and review (up to 3 cycles) - each re-review uses a fresh sub-agent. `/fab-ff` falls back to interactive rework after exhausting auto-retries. A typical `/fab-fff` run uses 2-4 agent turns per stage; the sub-agent review spawns a separate context.
 
 #### The 5 Cs of Quality
 

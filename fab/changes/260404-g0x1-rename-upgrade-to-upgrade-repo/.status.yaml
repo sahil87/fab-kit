@@ -1,0 +1,37 @@
+id: g0x1
+name: 260404-g0x1-rename-upgrade-to-upgrade-repo
+created: 2026-04-04T18:43:11Z
+created_by: sahil-weaver
+change_type: refactor
+issues: []
+progress:
+    intake: active
+    spec: pending
+    tasks: pending
+    apply: pending
+    review: pending
+    hydrate: pending
+    ship: pending
+    review-pr: pending
+checklist:
+    generated: false
+    path: checklist.md
+    completed: 0
+    total: 0
+confidence:
+    certain: 3
+    confident: 2
+    tentative: 0
+    unresolved: 0
+    score: 4.4
+    indicative: true
+    fuzzy: true
+    dimensions:
+        signal: 81.0
+        reversibility: 87.0
+        competence: 86.0
+        disambiguation: 86.0
+stage_metrics:
+    intake: {started_at: "2026-04-04T18:43:11Z", driver: fab-new, iterations: 1}
+prs: []
+last_updated: 2026-04-04T18:43:52Z

@@ -77,7 +77,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 **Purpose**: Bootstrap `fab/` in an existing project and manage ongoing configuration. Delegates structural setup to `fab-sync.sh` and adds interactive configuration on top. Safe to run repeatedly (idempotent). Also provides subcommands for config, constitution, and migrations.
 
-**Prerequisite**: `src/kit/` must exist. If missing, abort with: *"src/kit/ not found. Copy the kit directory into src/kit/ first — see the Getting Started guide."*
+**Prerequisite**: Fab Kit must be installed (`brew install fab-kit`) and `fab init` or `fab sync` must have been run in the project.
 
 **Subcommands**:
 
