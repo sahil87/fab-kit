@@ -1,5 +1,24 @@
 # Archive Index
 
+- **260404-rzvq-fab-draft-auto-activate** — Make /fab-new auto-activate the created change and introduce /fab-draft as the create-only power-user path, simplifying the newcomer onboarding flow.
+- **260404-g0x1-rename-upgrade-to-upgrade-repo** — Rename fab upgrade to fab upgrade-repo to eliminate confusion with fab update — the -repo suffix makes the target (project kit version) explicit.
+- **260403-tam1-pane-commands** — Internalize tmux pane operations into fab pane command group (map, capture, send, process) with built-in validation, context enrichment, and OS-level process detection.
+- **260403-oh82-cascading-pr-review-tools** — Add cascading automated PR review to git-pr-review: try Copilot (remote), then Codex (local), then Claude (local), with per-tool config and --tool flag to force a specific reviewer.
+- **260403-o8eg-wt-open-tmux-session-option** — Add tmux session option to wt open menu alongside the existing tmux window entry, giving users a choice between lightweight same-session and isolated new-session workflows.
+- **260403-24ic-wt-open-shell-setup** — Add wt shell-setup subcommand that outputs a shell wrapper function for eval, enabling the Open here cd mechanism following the direnv/rbenv/mise pattern.
+- **260402-ktbg-sync-from-cache** — Rewrite fab sync to read skills, templates, and scaffold from ~/.fab-kit/ cache instead of fab/.kit/ in the repo, eliminating the redundant copy chain and preparing for repo-less kit.
+- **260402-gnx5-relocate-kit-to-system-cache** — Eliminate fab/.kit/ from user projects by relocating kit content to the system cache (~/.fab-kit/versions/), using exe-sibling resolution in Go binaries and fab kit-path for agent-agnostic access.
+- **260402-5tci-remove-copilot-clean-scaffold** — Remove Copilot code review integration (scaffold file, request/poll phases in git-pr-review) and clean stale .gitignore entries, eliminating a failure mode for non-Copilot accounts.
+- **260402-41gc-migrate-kit-scripts** — Migrate all 6 shell scripts from fab/.kit/scripts/ into Go subcommands (doctor, operator, batch new/switch/archive, enhanced help), removing the scripts/ directory dependency.
+- **260402-3ac3-three-binary-architecture** — Split the binary architecture into three: fab (router), fab-kit (workspace lifecycle — init, upgrade, sync), and fab-go (workflow engine), absorbing fab-sync.sh into Go.
+- **260402-0ak9-remove-sync-version-file** — Remove redundant .kit-sync-version file, consolidating from 4 to 3 version locations by replacing the staleness check with a VERSION vs config.yaml fab_version comparison.
+- **260401-ixzv-org-migrate-mit-license** — Migrate repo from wvrdz to sahil87 org — update all Go module paths, import statements, config, install script, and README. Switch license from PolyForm Internal Use to MIT.
+- **260401-46hw-brew-install-system-shim** — Replace binary-in-repo distribution with a Homebrew-installed system shim that resolves per-repo fab_version from config.yaml and dispatches to cached binaries, making fab/.kit/ purely content.
+- **260331-mvhj-operator-never-ask-monitor** — Reinforce never-ask-monitor principle in operator spawn sequence with explicit MUST NOT language, preventing the LLM from prompting users about monitoring freshly spawned agents.
+- **260331-eeso-remove-old-operator-skills** — Remove old operator skill versions (operator5, operator6) and all their references from specs and memory, keeping only the current operator7.
+- **260328-iqt8-standardize-tmux-tab-naming** — Standardize tmux tab naming for operator-spawned agents to use ⚡{worktree-name} instead of fab-<id>, since the worktree name is always available at spawn time.
+- **260327-gwg9-operator-base-chaining-default** — Default fab-operator autopilot queues to branch stacking (--base chaining) instead of merge-as-you-go, giving users full review control over all PRs before any code merges to main.
+- **260327-7rnu-wt-create-open-here** — Add 'Open here' option to wt create/open menu so users can cd into a worktree in their current terminal session, using a shell function wrapper pattern.
 - **260323-1arx-create-operator-six** — Clean rewrite of the operator skill as operator6 — cut prompt bloat, removed rigid playbooks and config overhead in favor of principle-driven coordination.
 - **260326-u3un-operator-enforce-pipeline-routing** — Add explicit pipeline-first routing principle to operator7 — operator must always route new work through fab-new then fab-fff, never dispatch raw inline task instructions.
 - **260326-p4ki-allow-idea-shorthand** — Restore bare 'idea <text>' shorthand for 'idea add <text>' that was lost during the Go port — Cobra's root command now falls through to add when positional args don't match a subcommand.
