@@ -407,115 +407,113 @@ Which pipeline stages each command covers. Taller bars = more automation. Read l
 block-beta
     columns 12
 
-    hdr_label["wt create →"]:1 header0["/fab-discuss"] header1["/fab-draft"] header2["/fab-switch"] headerN["/fab-new"] header3["/git-branch"] header4["/fab-continue"] header5["/fab-ff"] header6["/git-pr \n /git-pr-review"] header8["/fab-fff"] header9["/fab-proceed"] space:1
+    hdr_label["wt create →"]:1 hdr_discuss["/fab-discuss"] hdr_draft["/fab-draft"] hdr_switch["/fab-switch"] hdr_new["/fab-new"] hdr_branch["/git-branch"] hdr_continue["/fab-continue"] hdr_ff["/fab-ff"] hdr_gitpr["/git-pr \n /git-pr-review"] hdr_fff["/fab-fff"] hdr_proceed["/fab-proceed"] space:1
 
     space:12
 
-    s01["context"]:1 d_ctx["project context"]:1 space:10
-    s11["intake"]:1 space:1 fd_in["intake"]:1 space:1 fnew_in["intake"]:1 space:5 p_in["intake"]:1 space:1
-    s02["change active"]:1 space:2 sw_act["change active"]:1 fnew_act["change active"]:1 space:1 space:4 p_sw["change active"]:1 space:1
-    s03["branch name"]:1 space:4 gb_br["branch name"]:1 space:4 p_br["branch name"]:1 space:1
-    s04["spec"]:1 space:5 c_stg["one stage ▾"]:1 ff_sp["spec"]:1 space:1 fff_sp["spec"]:1 p_sp["spec"]:1 space:1
-    s05["tasks"]:1 space:5 c_stg2["one stage ▾"]:1 ff_ta["tasks"]:1 space:1 fff_ta["tasks"]:1 p_ta["tasks"]:1 space:1
-    s06["apply"]:1 space:5 c_stg3["one stage ▾"]:1 ff_ap["apply"]:1 space:1 fff_ap["apply"]:1 p_ap["apply"]:1 space:1
-    s07["review"]:1 space:5 c_stg4["one stage ▾"]:1 ff_rv["review"]:1 space:1 fff_rv["review"]:1 p_rv["review"]:1 space:1
-    s08["hydrate"]:1 space:5 c_stg5["one stage"]:1 ff_hy["hydrate"]:1 space:1 fff_hy["hydrate"]:1 p_hy["hydrate"]:1 space:1
-    s09["ship"]:1 space:5 space:1 space:1 gp_sh["PR raised"]:1 fff_pr["PR raised"]:1 p_pr["PR raised"]:1 space:1
-    s10["review-pr"]:1 space:5 space:1 space:1 gp_rp["PR reviewed"]:1 fff_rp["PR reviewed"]:1 p_rp["PR reviewed"]:1 space:1
+    row_ctx["context"]:1 discuss_ctx["project context"]:1 space:10
+    row_intake["intake"]:1 space:1 draft_intake["intake"]:1 space:1 new_intake["intake"]:1 space:5 proceed_intake["intake"]:1 space:1
+    row_active["change active"]:1 space:2 switch_active["change active"]:1 new_active["change active"]:1 space:1 space:4 proceed_active["change active"]:1 space:1
+    row_branch["branch name"]:1 space:4 branch_branch["branch name"]:1 space:4 proceed_branch["branch name"]:1 space:1
+    row_spec["spec"]:1 space:5 cont_spec["one stage ▾"]:1 ff_spec["spec"]:1 space:1 fff_spec["spec"]:1 proceed_spec["spec"]:1 space:1
+    row_tasks["tasks"]:1 space:5 cont_tasks["one stage ▾"]:1 ff_tasks["tasks"]:1 space:1 fff_tasks["tasks"]:1 proceed_tasks["tasks"]:1 space:1
+    row_apply["apply"]:1 space:5 cont_apply["one stage ▾"]:1 ff_apply["apply"]:1 space:1 fff_apply["apply"]:1 proceed_apply["apply"]:1 space:1
+    row_review["review"]:1 space:5 cont_review["one stage ▾"]:1 ff_review["review"]:1 space:1 fff_review["review"]:1 proceed_review["review"]:1 space:1
+    row_hydrate["hydrate"]:1 space:5 cont_hydrate["one stage"]:1 ff_hydrate["hydrate"]:1 space:1 fff_hydrate["hydrate"]:1 proceed_hydrate["hydrate"]:1 space:1
+    row_ship["ship"]:1 space:5 space:1 space:1 gitpr_ship["PR raised"]:1 fff_ship["PR raised"]:1 proceed_ship["PR raised"]:1 space:1
+    row_prreview["review-pr"]:1 space:5 space:1 space:1 gitpr_prreview["PR reviewed"]:1 fff_prreview["PR reviewed"]:1 proceed_prreview["PR reviewed"]:1 space:1
 
     %% Arrows — multiple paths from top-left to bottom-right
-    d_ctx --> fd_in
-    d_ctx --> fnew_in
-    d_ctx --> p_in
-    fd_in --> sw_act
-    sw_act --> gb_br
-    fnew_act --> gb_br
-    gb_br --> ff_sp
-    gb_br --> fff_sp
-    ff_hy --> gp_sh
+    discuss_ctx --> draft_intake
+    discuss_ctx --> new_intake
+    discuss_ctx --> proceed_intake
+    draft_intake --> switch_active
+    switch_active --> branch_branch
+    new_active --> branch_branch
+    branch_branch --> ff_spec
+    branch_branch --> fff_spec
+    ff_hydrate --> gitpr_ship
 
     %% Header styles
     style hdr_label fill:none,stroke:none,color:#999
-    style header0 fill:#4dd0e1,stroke:#00838f,color:#1a1a1a
-    style header1 fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
-    style header2 fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
-    style headerN fill:#81c784,stroke:#2E7D32,color:#1a1a1a
-    style header3 fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5
-    style header4 fill:#64b5f6,stroke:#1565C0,color:#1a1a1a
-    style header5 fill:#81c784,stroke:#2E7D32,color:#1a1a1a
-    style header6 fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5
-    style header8 fill:#81c784,stroke:#2E7D32,color:#1a1a1a
-    style header9 fill:#ffb74d,stroke:#E65100,color:#1a1a1a
+    style hdr_discuss fill:#4dd0e1,stroke:#00838f,color:#1a1a1a
+    style hdr_draft fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
+    style hdr_switch fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
+    style hdr_new fill:#81c784,stroke:#2E7D32,color:#1a1a1a
+    style hdr_branch fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5
+    style hdr_continue fill:#64b5f6,stroke:#1565C0,color:#1a1a1a
+    style hdr_ff fill:#81c784,stroke:#2E7D32,color:#1a1a1a
+    style hdr_gitpr fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5
+    style hdr_fff fill:#81c784,stroke:#2E7D32,color:#1a1a1a
+    style hdr_proceed fill:#ffb74d,stroke:#E65100,color:#1a1a1a
 
     %% Row labels
-    style s01 fill:#bdbdbd,stroke:#757575,color:#1a1a1a
-    style s02 fill:#bdbdbd,stroke:#757575,color:#1a1a1a
-    style s11 fill:#bdbdbd,stroke:#757575,color:#1a1a1a
-    style s03 fill:#bdbdbd,stroke:#757575,color:#1a1a1a,stroke-dasharray: 5 5
-    style s04 fill:#bdbdbd,stroke:#757575,color:#1a1a1a
-    style s05 fill:#bdbdbd,stroke:#757575,color:#1a1a1a
-    style s06 fill:#bdbdbd,stroke:#757575,color:#1a1a1a
-    style s07 fill:#bdbdbd,stroke:#757575,color:#1a1a1a
-    style s08 fill:#bdbdbd,stroke:#757575,color:#1a1a1a
-    style s09 fill:#bdbdbd,stroke:#757575,color:#1a1a1a,stroke-dasharray: 5 5
-    style s10 fill:#bdbdbd,stroke:#757575,color:#1a1a1a,stroke-dasharray: 5 5
+    style row_ctx fill:#bdbdbd,stroke:#757575,color:#1a1a1a
+    style row_intake fill:#bdbdbd,stroke:#757575,color:#1a1a1a
+    style row_active fill:#bdbdbd,stroke:#757575,color:#1a1a1a
+    style row_branch fill:#bdbdbd,stroke:#757575,color:#1a1a1a,stroke-dasharray: 5 5
+    style row_spec fill:#bdbdbd,stroke:#757575,color:#1a1a1a
+    style row_tasks fill:#bdbdbd,stroke:#757575,color:#1a1a1a
+    style row_apply fill:#bdbdbd,stroke:#757575,color:#1a1a1a
+    style row_review fill:#bdbdbd,stroke:#757575,color:#1a1a1a
+    style row_hydrate fill:#bdbdbd,stroke:#757575,color:#1a1a1a
+    style row_ship fill:#bdbdbd,stroke:#757575,color:#1a1a1a,stroke-dasharray: 5 5
+    style row_prreview fill:#bdbdbd,stroke:#757575,color:#1a1a1a,stroke-dasharray: 5 5
 
     %% fab-discuss (Explore — teal)
-    style d_ctx fill:#4dd0e1,stroke:#00838f,color:#1a1a1a
+    style discuss_ctx fill:#4dd0e1,stroke:#00838f,color:#1a1a1a
 
     %% fab-draft (Change lifecycle — purple)
-    style fd_in fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
+    style draft_intake fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
 
     %% fab-switch (Change lifecycle — purple)
-    style sw_act fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
+    style switch_active fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
 
     %% fab-new (Automation — green, creates intake + activates)
-    style fnew_in fill:#81c784,stroke:#2E7D32,color:#1a1a1a
-    style fnew_act fill:#81c784,stroke:#2E7D32,color:#1a1a1a
+    style new_intake fill:#81c784,stroke:#2E7D32,color:#1a1a1a
+    style new_active fill:#81c784,stroke:#2E7D32,color:#1a1a1a
 
     %% git-branch (Git utilities — blue-grey)
-    style gb_br fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5
+    style branch_branch fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5
 
     %% fab-continue (Stage advance — blue)
-    style c_stg fill:#64b5f6,stroke:#1565C0,color:#1a1a1a,stroke-dasharray: 5 5
-    style c_stg2 fill:#64b5f6,stroke:#1565C0,color:#1a1a1a,stroke-dasharray: 5 5
-    style c_stg3 fill:#64b5f6,stroke:#1565C0,color:#1a1a1a,stroke-dasharray: 5 5
-    style c_stg4 fill:#64b5f6,stroke:#1565C0,color:#1a1a1a,stroke-dasharray: 5 5
-    style c_stg5 fill:#64b5f6,stroke:#1565C0,color:#1a1a1a,stroke-dasharray: 5 5
+    style cont_spec fill:#64b5f6,stroke:#1565C0,color:#1a1a1a,stroke-dasharray: 5 5
+    style cont_tasks fill:#64b5f6,stroke:#1565C0,color:#1a1a1a,stroke-dasharray: 5 5
+    style cont_apply fill:#64b5f6,stroke:#1565C0,color:#1a1a1a,stroke-dasharray: 5 5
+    style cont_review fill:#64b5f6,stroke:#1565C0,color:#1a1a1a,stroke-dasharray: 5 5
+    style cont_hydrate fill:#64b5f6,stroke:#1565C0,color:#1a1a1a,stroke-dasharray: 5 5
 
     %% fab-ff (Automation — green)
-    style ff_sp fill:#81c784,stroke:#2E7D32,color:#1a1a1a
-    style ff_ta fill:#81c784,stroke:#2E7D32,color:#1a1a1a
-    style ff_ap fill:#81c784,stroke:#2E7D32,color:#1a1a1a
-    style ff_rv fill:#81c784,stroke:#2E7D32,color:#1a1a1a
-    style ff_hy fill:#81c784,stroke:#2E7D32,color:#1a1a1a
+    style ff_spec fill:#81c784,stroke:#2E7D32,color:#1a1a1a
+    style ff_tasks fill:#81c784,stroke:#2E7D32,color:#1a1a1a
+    style ff_apply fill:#81c784,stroke:#2E7D32,color:#1a1a1a
+    style ff_review fill:#81c784,stroke:#2E7D32,color:#1a1a1a
+    style ff_hydrate fill:#81c784,stroke:#2E7D32,color:#1a1a1a
 
-    %% git-pr (Git utilities — blue-grey)
-    style gp_sh fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5
-
-    %% git-pr-review (Git utilities — blue-grey)
-    style gp_rp fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5
+    %% git-pr / git-pr-review (Git utilities — blue-grey)
+    style gitpr_ship fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5
+    style gitpr_prreview fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5
 
     %% fab-fff (Automation — green)
-    style fff_sp fill:#81c784,stroke:#2E7D32,color:#1a1a1a
-    style fff_ta fill:#81c784,stroke:#2E7D32,color:#1a1a1a
-    style fff_ap fill:#81c784,stroke:#2E7D32,color:#1a1a1a
-    style fff_rv fill:#81c784,stroke:#2E7D32,color:#1a1a1a
-    style fff_hy fill:#81c784,stroke:#2E7D32,color:#1a1a1a
-    style fff_pr fill:#81c784,stroke:#2E7D32,color:#1a1a1a,stroke-dasharray: 5 5
-    style fff_rp fill:#81c784,stroke:#2E7D32,color:#1a1a1a,stroke-dasharray: 5 5
+    style fff_spec fill:#81c784,stroke:#2E7D32,color:#1a1a1a
+    style fff_tasks fill:#81c784,stroke:#2E7D32,color:#1a1a1a
+    style fff_apply fill:#81c784,stroke:#2E7D32,color:#1a1a1a
+    style fff_review fill:#81c784,stroke:#2E7D32,color:#1a1a1a
+    style fff_hydrate fill:#81c784,stroke:#2E7D32,color:#1a1a1a
+    style fff_ship fill:#81c784,stroke:#2E7D32,color:#1a1a1a,stroke-dasharray: 5 5
+    style fff_prreview fill:#81c784,stroke:#2E7D32,color:#1a1a1a,stroke-dasharray: 5 5
 
     %% fab-proceed (Orchestrator — amber)
-    style p_sw fill:#ffb74d,stroke:#E65100,color:#1a1a1a
-    style p_in fill:#ffb74d,stroke:#E65100,color:#1a1a1a
-    style p_br fill:#ffb74d,stroke:#E65100,color:#1a1a1a,stroke-dasharray: 5 5
-    style p_sp fill:#ffb74d,stroke:#E65100,color:#1a1a1a
-    style p_ta fill:#ffb74d,stroke:#E65100,color:#1a1a1a
-    style p_ap fill:#ffb74d,stroke:#E65100,color:#1a1a1a
-    style p_rv fill:#ffb74d,stroke:#E65100,color:#1a1a1a
-    style p_hy fill:#ffb74d,stroke:#E65100,color:#1a1a1a
-    style p_pr fill:#ffb74d,stroke:#E65100,color:#1a1a1a,stroke-dasharray: 5 5
-    style p_rp fill:#ffb74d,stroke:#E65100,color:#1a1a1a,stroke-dasharray: 5 5
+    style proceed_active fill:#ffb74d,stroke:#E65100,color:#1a1a1a
+    style proceed_intake fill:#ffb74d,stroke:#E65100,color:#1a1a1a
+    style proceed_branch fill:#ffb74d,stroke:#E65100,color:#1a1a1a,stroke-dasharray: 5 5
+    style proceed_spec fill:#ffb74d,stroke:#E65100,color:#1a1a1a
+    style proceed_tasks fill:#ffb74d,stroke:#E65100,color:#1a1a1a
+    style proceed_apply fill:#ffb74d,stroke:#E65100,color:#1a1a1a
+    style proceed_review fill:#ffb74d,stroke:#E65100,color:#1a1a1a
+    style proceed_hydrate fill:#ffb74d,stroke:#E65100,color:#1a1a1a
+    style proceed_ship fill:#ffb74d,stroke:#E65100,color:#1a1a1a,stroke-dasharray: 5 5
+    style proceed_prreview fill:#ffb74d,stroke:#E65100,color:#1a1a1a,stroke-dasharray: 5 5
 ```
 
 ## Learn More
