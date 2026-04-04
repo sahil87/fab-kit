@@ -112,7 +112,7 @@ After all intake work is complete (generation, type inference, confidence, quest
 fab status advance fab/changes/{name}/.status.yaml intake
 ```
 
-This signals that the intake artifact exists and is open for `/fab-clarify` refinement. The user runs `/fab-continue` when ready to proceed to spec generation.
+This signals that the intake artifact exists and is open for `/fab-clarify` refinement. After Step 10 activates the change, the user can run `/fab-continue` immediately to proceed to spec generation.
 
 ### Step 10: Activate Change
 
@@ -160,6 +160,7 @@ Next: {per state table — intake state (no activation preamble)}
 | No description | Ask for one |
 | Intake template missing | Abort: "Kit may be corrupted." |
 | `fab change new` failure | Surface stderr output to user and stop |
+| `fab change switch` failure (Step 10) | Surface stderr output to user; intake is already at `ready` — user can manually run `/fab-switch {name}` to activate |
 | Linear ticket not found / API error | Warn, treat as natural language |
 | Backlog ID not found | Abort with guidance |
 | `fab/backlog.md` missing | Abort: "Use natural language or Linear ID instead." |
