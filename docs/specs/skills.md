@@ -61,7 +61,8 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 |-------|---------------|-----------|
 | `/fab-setup` | initialized | `Next: /fab-new <description> or /docs-hydrate-memory <sources>` |
 | `/docs-hydrate-memory` | memory hydrated | `Next: /fab-new <description> or /docs-hydrate-memory <more-sources>` |
-| `/fab-new` | intake ready | `Next: /fab-continue or /fab-clarify (refine intake) or /fab-ff` |
+| `/fab-new` | intake ready (activated) | `Next: /fab-continue or /fab-clarify (refine intake) or /fab-ff or /fab-fff` |
+| `/fab-draft` | intake ready (not activated) | `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-clarify or /fab-ff or /fab-fff` |
 | `/fab-continue` (from intake ready) | spec ready | `Next: /fab-continue (tasks) or /fab-clarify (refine spec) or /fab-ff` |
 | `/fab-continue` (from spec ready) | tasks ready | `Next: /fab-continue (apply) or /fab-clarify (refine tasks)` |
 | `/fab-ff` | tasks done | `Next: /fab-continue (apply)` |
@@ -177,9 +178,45 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 
 ---
 
-## `/fab-new <description> [--switch]`
+## `/fab-new <description>`
 
-**Purpose**: Start a new change from a natural language description.
+**Purpose**: Start a new change — creates the intake and activates it.
+
+**Context**: config, constitution, `docs/memory/index.md` (to understand existing memory landscape)
+
+**Creates**:
+- Change folder named `{YYMMDD}-{XXXX}-{slug}`
+- `.status.yaml` manifest
+- `intake.md` from template (with clarifying questions if ambiguous)
+- `.fab-status.yaml` symlink (auto-activation)
+
+**Arguments**:
+- `<description>` — natural language description of the change, Linear ticket ID (e.g., `DEV-988`), or backlog ID (e.g., `90g5`) (required)
+
+**Examples**:
+```
+/fab-new Add OAuth2 support for Google and GitHub sign-in
+→ Created fab/changes/260115-a7k2-add-oauth/
+→ Activated: 260115-a7k2-add-oauth
+```
+
+**Behavior**:
+1. Generate folder name: today's date (`YYMMDD`) + 4 random alphanumeric chars + 2-6 word slug from description
+2. Create `fab/changes/{name}/`
+3. Initialize `.status.yaml` with all stages `pending`, then make the intake stage active
+4. Generate `intake.md` using template (loading `fab/project/constitution.md` and `fab/project/config.yaml` as context)
+5. Perform gap analysis — check whether the change is already covered by existing mechanisms
+6. Use SRAD-driven adaptive questioning (no fixed cap) to resolve ambiguities conversationally
+7. Advance intake to `ready` — the artifact exists and is open for `/fab-clarify` refinement
+8. Activate the change via `fab change switch` — creates the `.fab-status.yaml` symlink so `/fab-continue` works immediately
+
+> **Create without activating**: Use `/fab-draft` to queue a change for later without switching context.
+
+---
+
+## `/fab-draft <description>`
+
+**Purpose**: Create a change intake without activating it. Use this to queue a change for later work.
 
 **Context**: config, constitution, `docs/memory/index.md` (to understand existing memory landscape)
 
@@ -190,27 +227,15 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 
 **Arguments**:
 - `<description>` — natural language description of the change, Linear ticket ID (e.g., `DEV-988`), or backlog ID (e.g., `90g5`) (required)
-- `--switch` — automatically switch to the new change after creation (calls `/fab-switch` internally to create the `.fab-status.yaml` symlink and handle branch integration). Also detected from natural language (e.g., "and switch to it", "make it active").
 
 **Examples**:
 ```
-/fab-new Add OAuth2 support for Google and GitHub sign-in
+/fab-draft Add OAuth2 support for Google and GitHub sign-in
 → Created fab/changes/260115-a7k2-add-oauth/
-
-/fab-new --switch Add OAuth2 support
-→ Created fab/changes/260115-a7k2-add-oauth/
-→ Switched to 260115-a7k2-add-oauth (branch created)
+→ Next: /fab-switch 260115-a7k2-add-oauth to make it active
 ```
 
-**Behavior**:
-1. Generate folder name: today's date (`YYMMDD`) + 4 random alphanumeric chars + 2-6 word slug from description
-2. Create `fab/changes/{name}/`
-3. Initialize `.status.yaml` with all stages `pending`; `changeman.sh` calls `statusman.sh start intake` to activate
-4. Generate `intake.md` using template (loading `fab/project/constitution.md` and `fab/project/config.yaml` as context)
-5. Perform gap analysis — check whether the change is already covered by existing mechanisms
-6. Use SRAD-driven adaptive questioning (no fixed cap) to resolve ambiguities conversationally
-7. Advance intake to `ready` — the artifact exists and is open for `/fab-clarify` refinement
-8. **Switch** (if `--switch` flag or switching intent detected): call `/fab-switch` to create the `.fab-status.yaml` symlink and handle branch integration. Default: skip this step.
+**Behavior**: Identical to `/fab-new` Steps 1-7, but does NOT activate the change. The user must run `/fab-switch {name}` to make it active before proceeding.
 
 ---
 
@@ -332,7 +357,7 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 
 ## `/fab-proceed`
 
-**Purpose**: Context-aware orchestrator — detects the current pipeline state (active change, branch, unactivated intake, conversation context) and automatically runs whatever prefix steps are needed (fab-new, fab-switch, git-branch) before delegating to `/fab-fff` for the full pipeline.
+**Purpose**: Context-aware orchestrator — detects the current pipeline state (active change, branch, unactivated intake, conversation context) and automatically runs whatever prefix steps are needed (fab-new, git-branch) before delegating to `/fab-fff` for the full pipeline. `/fab-new` auto-activates, so `/fab-switch` is only needed for unactivated intakes created by `/fab-draft`.
 
 **Prerequisite**: None — can bootstrap from conversation context alone.
 
@@ -350,14 +375,14 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 
 **Behavior**:
 1. **State detection** — 4-step pipeline: active change check (`fab resolve --folder`), branch check (`git branch --show-current`), unactivated intake scan (`fab/changes/`), conversation context evaluation
-2. **Prefix dispatch** — subagent dispatch for prefix steps (fab-new, fab-switch, git-branch) per `_preamble.md` § Subagent Dispatch
+2. **Prefix dispatch** — subagent dispatch for prefix steps (fab-new, fab-switch for `/fab-draft` intakes, git-branch) per `_preamble.md` § Subagent Dispatch
 3. **Terminal delegation** — invoke `/fab-fff` via the Skill tool (not subagent) for full user visibility
 
 **Key properties**:
 - No arguments, no flags — infers everything from context
 - Idempotent — re-running detects completed steps and skips them
 - Does not run preflight or load `_preamble.md` context — delegates to `/fab-fff`
-- Errors on empty context: "Nothing to proceed with — start a discussion or run /fab-new first."
+- Errors on empty context: "Nothing to proceed with — start a discussion or run /fab-new (or /fab-draft) first."
 
 ---
 

@@ -29,7 +29,7 @@ Loads matched change's `.status.yaml`. Name resolution and switch logic are dele
 ### No Argument Flow
 
 1. Scan `fab/changes/` (exclude `archive/`)
-2. If no folders: `No active changes found. Run /fab-new <description> to start one.`
+2. If no folders: `No active changes found. Run /fab-new <description> to start one, or /fab-draft <description> to create without activating.`
 3. If folders exist: list with stages as numbered options, wait for selection
 
 ### Argument Flow
@@ -104,7 +104,7 @@ Tip line omitted for `--none`. Deactivation shows `No active change.`. Already-d
 
 | Condition | Action |
 |-----------|--------|
-| No changes exist | "No active changes found. Run /fab-new." |
+| No changes exist | "No active changes found. Run /fab-new or /fab-draft." |
 | Matched folder missing `.status.yaml` | Switch anyway, warn: "Warning: .status.yaml not found — change may be corrupted." |
 | `fab/changes/` doesn't exist | "fab/changes/ not found. Run /fab-setup." |
 | `fab/project/config.yaml` not found | No impact (config not required) |

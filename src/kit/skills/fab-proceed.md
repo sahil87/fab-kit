@@ -1,6 +1,6 @@
 ---
 name: fab-proceed
-description: "Context-aware orchestrator — detects state, runs prefix steps (fab-new, fab-switch, git-branch), then delegates to fab-fff."
+description: "Context-aware orchestrator — detects state, runs prefix steps (fab-new, fab-switch, git-branch as needed), then delegates to fab-fff."
 ---
 
 # /fab-proceed
@@ -13,7 +13,7 @@ Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`).
 
 ## Purpose
 
-Detect the current pipeline state and automatically run whatever prefix steps are needed (fab-new, fab-switch, git-branch) before handing off to `/fab-fff` for the full pipeline. Zero-argument, zero-flag — the skill infers everything from context. Idempotent — re-running detects completed steps and skips them.
+Detect the current pipeline state and automatically run whatever prefix steps are needed (fab-new, git-branch) before handing off to `/fab-fff` for the full pipeline. `/fab-new` auto-activates, so `/fab-switch` is only needed for unactivated intakes created by `/fab-draft`. Zero-argument, zero-flag — the skill infers everything from context. Idempotent — re-running detects completed steps and skips them.
 
 ---
 
@@ -76,7 +76,7 @@ Substantive context means the conversation contains at least one of:
 | Active change + matching branch | `/fab-fff` only |
 | Active change + no matching branch | `/git-branch` → `/fab-fff` |
 | Unactivated intake (no active change) | `/fab-switch` → `/git-branch` → `/fab-fff` |
-| Conversation context (no intake) | `/fab-new` → `/fab-switch` → `/git-branch` → `/fab-fff` |
+| Conversation context (no intake) | `/fab-new` → `/git-branch` → `/fab-fff` |
 | No context, no intake | Error — stop |
 
 ---
@@ -85,7 +85,7 @@ Substantive context means the conversation contains at least one of:
 
 ### Subagent Dispatch (Prefix Steps)
 
-Each prefix step (fab-new, fab-switch, git-branch) SHALL be dispatched as a subagent using the Agent tool (`subagent_type: "general-purpose"`) per `_preamble.md` § Subagent Dispatch. Each subagent prompt MUST include the standard subagent context files:
+Each prefix step (fab-new, fab-switch, git-branch) SHALL be dispatched as a subagent using the Agent tool (`subagent_type: "general-purpose"`) per `_preamble.md` § Subagent Dispatch. Note: `/fab-new` now auto-activates, so `/fab-switch` is only needed for unactivated intakes (created by `/fab-draft`). Each subagent prompt MUST include the standard subagent context files:
 
 **Required** (subagent reports error if missing):
 - `fab/project/config.yaml`
@@ -106,7 +106,7 @@ When conversation context exists but no intake:
 
 #### fab-switch Dispatch
 
-When an unactivated intake exists (or fab-new just created one):
+When an unactivated intake exists (created by `/fab-draft`, not `/fab-new` which auto-activates):
 
 1. Dispatch subagent: read `.claude/skills/fab-switch.md`, invoke `fab change switch "<change-name>"`
 2. Capture the switch confirmation from the subagent result
@@ -141,7 +141,7 @@ The skill SHALL NOT pass `--force` or any other flags to `/fab-fff`. If `/fab-ff
 
 | Condition | Action |
 |-----------|--------|
-| No context and no intake | Output: `Nothing to proceed with — start a discussion or run /fab-new first.` Stop. |
+| No context and no intake | Output: `Nothing to proceed with — start a discussion or run /fab-new (or /fab-draft) first.` Stop. |
 | fab-new subagent fails | Surface the error from fab-new and stop. Do not proceed to further steps. |
 | fab-switch subagent fails | Surface the error from fab-switch and stop. |
 | git-branch subagent fails | Surface the error from git-branch and stop. |

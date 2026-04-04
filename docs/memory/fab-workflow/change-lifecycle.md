@@ -38,7 +38,8 @@ All components MUST be lowercase. The name is unique by construction (date + ran
 - **Created** by `fab change switch` (called by `/fab-switch`) — creates symlink pointing to `fab/changes/{name}/.status.yaml`
 - **Updated** by `fab change switch` — old symlink removed, new symlink created for the target change
 - **Updated** by `fab change rename` — symlink recreated to point to the renamed folder's `.status.yaml`
-- **Not modified** by `/fab-new` — `/fab-new` never writes `.fab-status.yaml`; the user activates via `/fab-switch` after creation
+- **Created** by `/fab-new` — `/fab-new` calls `fab change switch "{name}"` after advancing intake to ready (Step 10), creating the symlink as a side effect. The newly created change is immediately active; no separate `/fab-switch` step is required
+- **Not created** by `/fab-draft` — `/fab-draft` performs identical Steps 1–9 to `/fab-new` (create folder, initialize `.status.yaml`, generate intake, advance to ready) but does NOT call `fab change switch` and does NOT create or modify `.fab-status.yaml`. The user must run `/fab-switch {name}` to activate a draft change
 - **Read** by `resolve.go` — `readlink` extracts the folder name from the target path. All other scripts and skills resolve the active change via `fab resolve` (which delegates to `resolve.go`)
 - **Removed** by `fab change switch --none` (called by `/fab-switch --none` or `/fab-archive`) — symlink is deleted to deactivate the current change
 - **Optionally created** by `fab change switch` (called by `/fab-archive restore --switch`) — created for the restored change when `--switch` flag is used

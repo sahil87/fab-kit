@@ -118,7 +118,7 @@ func TestComputeMaxNameLen(t *testing.T) {
 func TestFabHelp_GroupMapping(t *testing.T) {
 	// Verify all expected skills are mapped
 	expectedMapped := []string{
-		"fab-new", "fab-switch", "fab-status", "fab-discuss",
+		"fab-new", "fab-draft", "fab-switch", "fab-status", "fab-discuss",
 		"fab-continue", "fab-ff", "fab-fff", "fab-clarify",
 		"fab-archive", "git-pr",
 		"docs-hydrate-specs", "docs-reorg-specs", "docs-reorg-memory",

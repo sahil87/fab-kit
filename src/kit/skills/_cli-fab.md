@@ -710,4 +710,4 @@ fab batch archive [--list] [--all] [change...]
 | "Status file not found: {path}" | Passed a path that doesn't exist as a file | Use a change ID or folder name instead |
 | "Cannot resolve change '{arg}'" | Change ID/name doesn't match any folder in `fab/changes/` | Check `fab change list` for available changes |
 | "Multiple changes match" | Ambiguous substring matched multiple folders | Use a more specific identifier |
-| "No active changes found" | `.fab-status.yaml` symlink is absent and no changes exist | Run `/fab-new` first |
+| "No active changes found" | `.fab-status.yaml` symlink is absent and no changes exist | Run `/fab-new` or `/fab-draft` first |

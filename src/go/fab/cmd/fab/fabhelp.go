@@ -22,6 +22,7 @@ type skillGroup struct {
 // skillToGroupMap maps skill names to their display group.
 var skillToGroupMap = map[string]string{
 	"fab-new":             "Start & Navigate",
+	"fab-draft":           "Start & Navigate",
 	"fab-switch":          "Start & Navigate",
 	"fab-status":          "Start & Navigate",
 	"fab-discuss":         "Start & Navigate",

@@ -390,29 +390,32 @@ Which pipeline stages each command covers. Taller bars = more automation. Read l
 
 ```mermaid
 block-beta
-    columns 11
+    columns 12
 
-    hdr_label["wt create →"]:1 header0["/fab-discuss"] header1["/fab-new"] header2["/fab-switch"] header3["/git-branch"] header4["/fab-continue"] header5["/fab-ff"] header6["/git-pr \n /git-pr-review"] header8["/fab-fff"] header9["/fab-proceed"] space:1
+    hdr_label["wt create →"]:1 header0["/fab-discuss"] header1["/fab-draft"] header2["/fab-switch"] headerN["/fab-new"] header3["/git-branch"] header4["/fab-continue"] header5["/fab-ff"] header6["/git-pr \n /git-pr-review"] header8["/fab-fff"] header9["/fab-proceed"] space:1
 
-    space:11
+    space:12
 
-    s01["context"]:1 d_ctx["project context"]:1 space:9
-    s11["intake"]:1 space:1 fn_in["intake"]:1 space:6 p_in["intake"]:1 space:1
-    s02["change active"]:1 space:2 sw_act["change active"]:1 space:1 space:4 p_sw["change active"]:1 space:1
-    s03["branch name"]:1 space:3 gb_br["branch name"]:1 space:4 p_br["branch name"]:1 space:1
-    s04["spec"]:1 space:4 c_stg["one stage ▾"]:1 ff_sp["spec"]:1 space:1 fff_sp["spec"]:1 p_sp["spec"]:1 space:1
-    s05["tasks"]:1 space:4 c_stg2["one stage ▾"]:1 ff_ta["tasks"]:1 space:1 fff_ta["tasks"]:1 p_ta["tasks"]:1 space:1
-    s06["apply"]:1 space:4 c_stg3["one stage ▾"]:1 ff_ap["apply"]:1 space:1 fff_ap["apply"]:1 p_ap["apply"]:1 space:1
-    s07["review"]:1 space:4 c_stg4["one stage ▾"]:1 ff_rv["review"]:1 space:1 fff_rv["review"]:1 p_rv["review"]:1 space:1
-    s08["hydrate"]:1 space:4 c_stg5["one stage"]:1 ff_hy["hydrate"]:1 space:1 fff_hy["hydrate"]:1 p_hy["hydrate"]:1 space:1
-    s09["ship"]:1 space:4 space:1 space:1 gp_sh["PR raised"]:1 fff_pr["PR raised"]:1 p_pr["PR raised"]:1 space:1
-    s10["review-pr"]:1 space:4 space:1 space:1 gp_rp["PR reviewed"]:1 fff_rp["PR reviewed"]:1 p_rp["PR reviewed"]:1 space:1
+    s01["context"]:1 d_ctx["project context"]:1 space:10
+    s11["intake"]:1 space:1 fd_in["intake"]:1 space:1 fnew_in["intake"]:1 space:5 p_in["intake"]:1 space:1
+    s02["change active"]:1 space:2 sw_act["change active"]:1 fnew_act["change active"]:1 space:1 space:4 p_sw["change active"]:1 space:1
+    s03["branch name"]:1 space:4 gb_br["branch name"]:1 space:4 p_br["branch name"]:1 space:1
+    s04["spec"]:1 space:5 c_stg["one stage ▾"]:1 ff_sp["spec"]:1 space:1 fff_sp["spec"]:1 p_sp["spec"]:1 space:1
+    s05["tasks"]:1 space:5 c_stg2["one stage ▾"]:1 ff_ta["tasks"]:1 space:1 fff_ta["tasks"]:1 p_ta["tasks"]:1 space:1
+    s06["apply"]:1 space:5 c_stg3["one stage ▾"]:1 ff_ap["apply"]:1 space:1 fff_ap["apply"]:1 p_ap["apply"]:1 space:1
+    s07["review"]:1 space:5 c_stg4["one stage ▾"]:1 ff_rv["review"]:1 space:1 fff_rv["review"]:1 p_rv["review"]:1 space:1
+    s08["hydrate"]:1 space:5 c_stg5["one stage"]:1 ff_hy["hydrate"]:1 space:1 fff_hy["hydrate"]:1 p_hy["hydrate"]:1 space:1
+    s09["ship"]:1 space:5 space:1 space:1 gp_sh["PR raised"]:1 fff_pr["PR raised"]:1 p_pr["PR raised"]:1 space:1
+    s10["review-pr"]:1 space:5 space:1 space:1 gp_rp["PR reviewed"]:1 fff_rp["PR reviewed"]:1 p_rp["PR reviewed"]:1 space:1
 
     %% Arrows — multiple paths from top-left to bottom-right
-    d_ctx --> fn_in
+    d_ctx --> fd_in
+    d_ctx --> fnew_in
     d_ctx --> p_in
-    fn_in --> sw_act
+    fd_in --> sw_act
     sw_act --> gb_br
+    fnew_in --> fnew_act
+    fnew_act --> gb_br
     gb_br --> ff_sp
     gb_br --> fff_sp
     ff_hy --> gp_sh
@@ -422,6 +425,7 @@ block-beta
     style header0 fill:#4dd0e1,stroke:#00838f,color:#1a1a1a
     style header1 fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
     style header2 fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
+    style headerN fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style header3 fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5
     style header4 fill:#64b5f6,stroke:#1565C0,color:#1a1a1a
     style header5 fill:#81c784,stroke:#2E7D32,color:#1a1a1a
@@ -445,11 +449,15 @@ block-beta
     %% fab-discuss (Explore — teal)
     style d_ctx fill:#4dd0e1,stroke:#00838f,color:#1a1a1a
 
-    %% fab-new (Change lifecycle — purple)
-    style fn_in fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
+    %% fab-draft (Change lifecycle — purple)
+    style fd_in fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
 
     %% fab-switch (Change lifecycle — purple)
     style sw_act fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
+
+    %% fab-new (Automation — green, creates intake + activates)
+    style fnew_in fill:#81c784,stroke:#2E7D32,color:#1a1a1a
+    style fnew_act fill:#81c784,stroke:#2E7D32,color:#1a1a1a
 
     %% git-branch (Git utilities — blue-grey)
     style gb_br fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5

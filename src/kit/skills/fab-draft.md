@@ -1,9 +1,9 @@
 ---
-name: fab-new
-description: "Start a new change — creates the intake and activates it."
+name: fab-draft
+description: "Create a change intake without activating it."
 ---
 
-# /fab-new <description>
+# /fab-draft <description>
 
 > Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.
 
@@ -25,6 +25,8 @@ If no description: ask *"What change do you want to make?"*
 ---
 
 ## Behavior
+
+`/fab-draft` creates a change folder and generates an intake without activating the change. This is the "queue for later" path — use `/fab-new` instead if you want to immediately start working on the change.
 
 ### Step 0: Parse Input
 
@@ -56,7 +58,7 @@ If a Linear ticket was detected in Step 0, record the issue ID via statusman:
 
 ### Step 4: Conversation Context Mining
 
-Before generating the intake, scan the current conversation for prior discussion of this change's topic — whether from `/fab-discuss`, free-form exploration, or any conversation that preceded this `/fab-new` invocation. Extract:
+Before generating the intake, scan the current conversation for prior discussion of this change's topic — whether from `/fab-discuss`, free-form exploration, or any conversation that preceded this `/fab-draft` invocation. Extract:
 
 - **Decisions made** — specific choices with rationale (e.g., "OAuth2 over SAML because no enterprise requirement")
 - **Alternatives rejected** — options considered and why they were ruled out
@@ -65,7 +67,7 @@ Before generating the intake, scan the current conversation for prior discussion
 
 Encode extracted decisions as Certain or Confident assumptions in the intake's Assumptions table with rationale referencing the discussion (e.g., "Discussed — user chose X over Y"). These feed directly into SRAD scoring and reduce downstream ambiguity.
 
-If no prior discussion exists in the conversation, skip this step — behavior is identical to a cold `/fab-new`.
+If no prior discussion exists in the conversation, skip this step — behavior is identical to a cold `/fab-draft`.
 
 ### Step 5: Generate `intake.md`
 
@@ -112,19 +114,7 @@ After all intake work is complete (generation, type inference, confidence, quest
 fab status advance fab/changes/{name}/.status.yaml intake
 ```
 
-This signals that the intake artifact exists and is open for `/fab-clarify` refinement. After Step 10 activates the change, the user can run `/fab-continue` immediately to proceed to spec generation.
-
-### Step 10: Activate Change
-
-After advancing intake to ready, activate the newly created change:
-
-```bash
-fab change switch "{name}"
-```
-
-Display the switch confirmation from stdout. This makes the change immediately available for `/fab-continue` without requiring a separate `/fab-switch` step.
-
-> **Note**: For create-without-activate behavior (e.g., queuing a change for later), use `/fab-draft` instead.
+This signals that the intake artifact exists and is open for `/fab-clarify` refinement. The change is NOT activated — the user must run `/fab-switch {name}` to make it active before proceeding.
 
 ---
 
@@ -145,9 +135,7 @@ Intake complete.
 
 Indicative confidence: {score} / 5.0 ({N} decisions, cover: {cover})
 
-Activated: {name}
-
-Next: {per state table — intake state (no activation preamble)}
+Next: /fab-switch {name} to make it active, then /fab-continue, /fab-fff, /fab-ff, or /fab-clarify
 ```
 
 ---
@@ -160,11 +148,10 @@ Next: {per state table — intake state (no activation preamble)}
 | No description | Ask for one |
 | Intake template missing | Abort: "Kit may be corrupted." |
 | `fab change new` failure | Surface stderr output to user and stop |
-| `fab change switch` failure (Step 10) | Surface stderr output to user; intake is already at `ready` — user can manually run `/fab-switch {name}` to activate |
 | Linear ticket not found / API error | Warn, treat as natural language |
 | Backlog ID not found | Abort with guidance |
 | `fab/backlog.md` missing | Abort: "Use natural language or Linear ID instead." |
 
 ---
 
-Next: `/fab-continue, /fab-fff, /fab-ff, or /fab-clarify`
+Next: `/fab-switch {name} to make it active, then /fab-continue, /fab-fff, /fab-ff, or /fab-clarify`

@@ -42,7 +42,7 @@ Also read:
 - `.claude/skills/_cli-external.md` — wt, idea, tmux, /loop reference
 - `.claude/skills/_naming.md` — naming conventions
 
-The operator needs full command vocabulary to make routing decisions (e.g., knowing a change needs `/fab-new` → `/fab-switch` → `/git-branch` → `/fab-fff`).
+The operator needs full command vocabulary to make routing decisions (e.g., knowing a change needs `/fab-new` → `/git-branch` → `/fab-fff`).
 
 After context loading, log the command invocation:
 
@@ -288,9 +288,9 @@ The operator understands the full fab pipeline and command vocabulary. It infers
 intake → spec → tasks → apply → review → hydrate → ship
 ```
 
-**Setup commands**: `/fab-new` (create change), `/fab-switch` (activate), `/git-branch` (align branch)
+**Setup commands**: `/fab-new` (create + activate change), `/fab-draft` (create without activating), `/fab-switch` (activate existing change), `/git-branch` (align branch)
 
-**Pipeline commands**: `/fab-proceed` (auto-detect state, run `/fab-new` → `/fab-switch` → `/git-branch` as needed, then `/fab-fff`), `/fab-continue` (one stage), `/fab-fff` (full pipeline), `/fab-ff` (fast-forward to hydrate), `/git-pr` (commit, push, create PR)
+**Pipeline commands**: `/fab-proceed` (auto-detect state, run `/fab-new` → `/git-branch` as needed, then `/fab-fff`), `/fab-continue` (one stage), `/fab-fff` (full pipeline), `/fab-ff` (fast-forward to hydrate), `/git-pr` (commit, push, create PR)
 
 **Maintenance**: rebase onto `origin/main`, merge PR (`gh pr merge`), `/fab-archive`
 

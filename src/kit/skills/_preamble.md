@@ -134,7 +134,7 @@ When a skill creates or restores a change without activating it (no `.fab-status
 Next: /fab-switch {name} to make it active, then {default}, {other commands}
 ```
 
-This applies to `/fab-new` (always) and `/fab-archive restore` (without `--switch`).
+This applies to `/fab-draft` (always) and `/fab-archive restore` (without `--switch`). `/fab-new` auto-activates and does not need the activation preamble.
 
 ---
 

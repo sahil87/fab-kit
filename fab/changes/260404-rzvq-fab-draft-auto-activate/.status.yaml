@@ -2,36 +2,43 @@ id: rzvq
 name: 260404-rzvq-fab-draft-auto-activate
 created: 2026-04-04T18:13:31Z
 created_by: sahil-weaver
-change_type: refactor
+change_type: docs
 issues: []
 progress:
-    intake: active
-    spec: pending
-    tasks: pending
-    apply: pending
-    review: pending
-    hydrate: pending
-    ship: pending
-    review-pr: pending
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
 checklist:
-    generated: false
+    generated: true
     path: checklist.md
-    completed: 0
-    total: 0
+    completed: 28
+    total: 29
 confidence:
-    certain: 4
+    certain: 6
     confident: 3
     tentative: 0
     unresolved: 0
     score: 4.1
-    indicative: true
     fuzzy: true
     dimensions:
-        signal: 83.6
-        reversibility: 85.0
-        competence: 87.9
-        disambiguation: 87.9
+        signal: 85.0
+        reversibility: 86.7
+        competence: 88.9
+        disambiguation: 89.4
 stage_metrics:
-    intake: {started_at: "2026-04-04T18:13:31Z", driver: fab-new, iterations: 1}
-prs: []
-last_updated: 2026-04-04T18:14:20Z
+    intake: {started_at: "2026-04-04T18:13:31Z", driver: fab-new, iterations: 1, completed_at: "2026-04-04T18:37:54Z"}
+    spec: {started_at: "2026-04-04T18:37:54Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-04T18:41:38Z"}
+    tasks: {started_at: "2026-04-04T18:41:38Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-04T18:41:44Z"}
+    apply: {started_at: "2026-04-04T18:41:44Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-04T18:43:21Z"}
+    review: {started_at: "2026-04-04T18:43:21Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-04T18:46:29Z"}
+    hydrate: {started_at: "2026-04-04T18:46:29Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-04T18:48:25Z"}
+    ship: {started_at: "2026-04-04T18:48:25Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-04T18:49:38Z"}
+    review-pr: {started_at: "2026-04-04T18:49:38Z", driver: git-pr, iterations: 1, completed_at: "2026-04-04T18:51:36Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/319
+last_updated: 2026-04-04T20:26:03Z

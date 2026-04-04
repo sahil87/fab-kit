@@ -16,13 +16,15 @@ Execution behavior (apply, review, hydrate) is accessed via `/fab-continue`, whi
 
 | Detected state | Steps |
 |---|---|
-| No context, no intake | Error: "Nothing to proceed with — start a discussion or run /fab-new first." |
-| Conversation context, no intake | Synthesize description → `/fab-new` → `/fab-switch` → `/git-branch` → `/fab-fff` |
+| No context, no intake | Error: "Nothing to proceed with — start a discussion or run /fab-new (or /fab-draft) first." |
+| Conversation context, no intake | Synthesize description → `/fab-new` → `/git-branch` → `/fab-fff` |
 | Intake exists, change not active | `/fab-switch` → `/git-branch` → `/fab-fff` |
 | Active change, no matching branch | `/git-branch` → `/fab-fff` |
 | Active change + matching branch | `/fab-fff` |
 
 Each prefix step (`/fab-new`, `/fab-switch`, `/git-branch`) is dispatched as a subagent via the Agent tool per `_preamble.md` § Subagent Dispatch. The final `/fab-fff` delegation is invoked via the Skill tool in the current context (not as a subagent), since it is the terminal operation and its output should be visible to the user. `/fab-proceed` does not pass `--force` or any flags to `/fab-fff`. The skill is idempotent — re-running detects which steps are already complete and skips them. When conversation context synthesis is needed, the skill extracts decisions, rejected alternatives, constraints, and specific values from the conversation to produce a description substantive enough for `/fab-new` to generate a complete intake. Skill file: `$(fab kit-path)/skills/fab-proceed.md`.
+
+**Skill inventory — change creation**: Two skills handle change creation: `/fab-new` (create + activate, description: "Start a new change — creates the intake and activates it", skill file: `$(fab kit-path)/skills/fab-new.md`) and `/fab-draft` (create without activating, description: "Create a change intake without activating it.", skill file: `$(fab kit-path)/skills/fab-draft.md`). `/fab-new` calls `fab change switch "{name}"` after advancing intake to ready, so the change is immediately active and `.fab-status.yaml` is created as a side effect. `/fab-draft` performs identical Steps 1–9 (create folder, initialize `.status.yaml`, generate intake, advance to ready) but does NOT call `fab change switch` and does NOT create the `.fab-status.yaml` symlink. The `Next:` line for `/fab-new` reads `/fab-continue, /fab-fff, /fab-ff, or /fab-clarify` (no activation preamble); the `Next:` line for `/fab-draft` includes the activation preamble: `/fab-switch {name} to make it active, then /fab-continue or /fab-fff or /fab-clarify`. Both skills appear under the "Start & Navigate" group in `fab help`.
 
 **Status confidence display**: `/fab-status` shows stage-aware confidence. At the intake stage, it computes an indicative score on the fly via `calc-score.sh --check-gate --stage intake` and displays `Indicative confidence: {score} (fab-ff gate: {threshold}) — {total} assumptions ({N} certain, {N} confident, {N} tentative)`, appending `, {N} unresolved` only when unresolved > 0. At spec stage or later, it reads the persisted confidence block from `.status.yaml` and displays `Confidence: {score} of 5.0 (...)`. When no confidence data exists and the stage is not intake, it falls back to `Confidence: not yet scored`. The `--check-gate` mode of `calc-score.sh` emits count fields (`certain`, `confident`, `tentative`, `unresolved`) in both the intake and spec branches.
 
