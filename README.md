@@ -158,7 +158,7 @@ Then type the commands below in the agent's prompt. Each command runs one pipeli
 ```bash
 # In your AI agent:
 
-# Creation - creates change folder, writes intake.md, activates the change
+# Creation - creates change folder, writes intake.md, activates the change, creates git branch
 /fab-new Add a loading spinner to the submit button
 
 # Planning - generates spec.md (structured requirements)
@@ -345,7 +345,7 @@ Grades aggregate into a **confidence score** that gates `/fab-ff`. If ambiguity 
 
 | Command | Purpose |
 |---------|---------|
-| `/fab-new <description>` | Start a new change — creates the intake and activates it |
+| `/fab-new <description>` | Start a new change — creates the intake, activates it, and creates the git branch |
 | `/fab-draft <description>` | Create a change intake without activating it (queue for later) |
 | `/fab-continue` | Advance to the next stage (or reset to a specific stage) |
 | `/fab-ff` | Fast-forward through hydrate — confidence-gated, auto-rework loop |
