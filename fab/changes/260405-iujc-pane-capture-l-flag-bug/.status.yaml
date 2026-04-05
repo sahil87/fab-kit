@@ -1,0 +1,42 @@
+id: iujc
+name: 260405-iujc-pane-capture-l-flag-bug
+created: 2026-04-05T18:05:47Z
+created_by: sahil-weaver
+change_type: fix
+issues: []
+progress:
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+checklist:
+    generated: true
+    path: checklist.md
+    completed: 0
+    total: 11
+confidence:
+    certain: 4
+    confident: 0
+    tentative: 0
+    unresolved: 0
+    score: 4.0
+    fuzzy: true
+    dimensions:
+        signal: 92.5
+        reversibility: 90.0
+        competence: 88.8
+        disambiguation: 87.5
+stage_metrics:
+    intake: {started_at: "2026-04-05T18:05:47Z", driver: fab-new, iterations: 1, completed_at: "2026-04-05T18:16:26Z"}
+    spec: {started_at: "2026-04-05T18:16:26Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-05T18:19:25Z"}
+    tasks: {started_at: "2026-04-05T18:19:25Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-05T18:19:25Z"}
+    apply: {started_at: "2026-04-05T18:19:25Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-05T18:21:55Z"}
+    review: {started_at: "2026-04-05T18:21:55Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-05T18:24:05Z"}
+    hydrate: {started_at: "2026-04-05T18:24:05Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-05T18:24:40Z"}
+    ship: {started_at: "2026-04-05T18:24:40Z", driver: fab-fff, iterations: 1}
+prs: []
+last_updated: 2026-04-05T18:24:40Z

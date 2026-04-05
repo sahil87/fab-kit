@@ -378,7 +378,7 @@ fab pane capture <pane> [-l N] [--json] [--raw]
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `<pane>` | positional | required | Tmux pane ID (e.g., `%5`) |
-| `-l` | int | 50 | Number of lines to capture (passed to `tmux capture-pane -l`) |
+| `-l`, `--lines` | int | 50 | Number of lines to capture |
 | `--json` | bool | false | Output as JSON with metadata |
 | `--raw` | bool | false | Output raw captured text only (no enrichment) |
 
