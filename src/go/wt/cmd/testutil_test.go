@@ -140,7 +140,7 @@ func runWt(t *testing.T, dir string, env []string, args ...string) wtResult {
 		"NO_COLOR=1",
 		// Set WORKTREE_INIT_SCRIPT to a nonexistent command so init is
 		// silently skipped. Empty string would fall through to the default
-		// "fab-kit sync" which fails in non-fab-managed test repos.
+		// "fab sync" which fails in non-fab-managed test repos.
 		"WORKTREE_INIT_SCRIPT=__wt_test_noinit__ noop",
 	)
 	// Append test-provided env vars last so they can override defaults above

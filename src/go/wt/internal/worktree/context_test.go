@@ -71,8 +71,8 @@ func TestInitScriptPath_Default(t *testing.T) {
 	// When WORKTREE_INIT_SCRIPT is not set, should return default
 	t.Setenv("WORKTREE_INIT_SCRIPT", "")
 	got := InitScriptPath()
-	if got != "fab-kit sync" {
-		t.Errorf("InitScriptPath() = %q, want %q", got, "fab-kit sync")
+	if got != "fab sync" {
+		t.Errorf("InitScriptPath() = %q, want %q", got, "fab sync")
 	}
 }
 

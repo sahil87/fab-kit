@@ -180,7 +180,14 @@ or creates a new branch.`,
 				if reuse {
 					fmt.Fprintf(os.Stderr, "Reusing existing worktree: %s\n", finalName)
 					rb.Disarm()
-					fmt.Println(filepath.Join(ctx.WorktreesDir, finalName))
+					existingWtPath := filepath.Join(ctx.WorktreesDir, finalName)
+					// Run init script on reuse — ensures skills are current even in existing worktrees.
+					// Non-fatal: reuse proceeds even if init fails (existing worktree may be functional).
+					if worktreeInit == "true" {
+						initScript := wt.InitScriptPath()
+						_ = wt.RunWorktreeSetup(existingWtPath, "force", initScript, ctx.RepoRoot)
+					}
+					fmt.Println(existingWtPath)
 					return nil
 				}
 				wt.ExitWithError(wt.ExitGeneralError,

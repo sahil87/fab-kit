@@ -177,5 +177,5 @@ func InitScriptPath() string {
 	if v := os.Getenv("WORKTREE_INIT_SCRIPT"); v != "" {
 		return v
 	}
-	return "fab-kit sync"
+	return "fab sync"
 }

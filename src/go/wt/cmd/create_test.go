@@ -275,6 +275,36 @@ func TestCreate_InitScriptRuns(t *testing.T) {
 	assertFileExists(t, filepath.Join(wtPath, ".init-script-ran"))
 }
 
+func TestCreate_ReuseRunsInitScript(t *testing.T) {
+	repo := createTestRepo(t)
+	createInitScript(t, repo)
+
+	// Commit init script so worktrees see it
+	gitRun(t, repo, "add", "scripts/worktree-init.sh")
+	gitRun(t, repo, "commit", "-q", "-m", "Add init script")
+
+	// Pre-create the worktree (without init script so .init-script-ran is absent)
+	existingPath := createWorktreeViaWt(t, repo, "reuse-init-test")
+
+	// Verify .init-script-ran is NOT present yet (init was skipped during pre-create)
+	if _, err := os.Stat(filepath.Join(existingPath, ".init-script-ran")); err == nil {
+		t.Fatal("expected .init-script-ran to be absent before reuse")
+	}
+
+	// Now run wt create --reuse — should run the init script on the existing worktree
+	r := runWtSuccess(t, repo, []string{"WORKTREE_INIT_SCRIPT=scripts/worktree-init.sh"},
+		"create", "--non-interactive", "--reuse", "--worktree-name", "reuse-init-test")
+
+	// Stdout should still print the worktree path (porcelain contract)
+	reusedPath := strings.TrimSpace(r.Stdout)
+	if reusedPath != existingPath {
+		t.Errorf("--reuse path mismatch: got %q, want %q", reusedPath, existingPath)
+	}
+
+	// Init script should have run and created .init-script-ran
+	assertFileExists(t, filepath.Join(existingPath, ".init-script-ran"))
+}
+
 func TestCreate_InitScriptSkippedWhenFalse(t *testing.T) {
 	repo := createTestRepo(t)
 	createInitScript(t, repo)
