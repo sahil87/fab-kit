@@ -411,14 +411,14 @@ Which pipeline stages each command covers. Taller bars = more automation. Read l
 block-beta
     columns 12
 
-    hdr_label["wt create →"]:1 hdr_discuss["/fab-discuss"] hdr_draft["/fab-draft"] hdr_switch["/fab-switch"] hdr_new["/fab-new"] hdr_branch["/git-branch"] hdr_continue["/fab-continue"] hdr_ff["/fab-ff"] hdr_gitpr["/git-pr \n /git-pr-review"] hdr_fff["/fab-fff"] hdr_proceed["/fab-proceed"] space:1
+    hdr_label["wt create →"]:1 hdr_discuss["▶ /fab-discuss"] hdr_draft["/fab-draft"] hdr_switch["/fab-switch"] hdr_branch["/git-branch"] hdr_new["▶ /fab-new"] hdr_continue["/fab-continue"] hdr_ff["/fab-ff"] hdr_gitpr["/git-pr \n /git-pr-review"] hdr_fff["/fab-fff"] hdr_proceed["/fab-proceed"] space:1
 
     space:12
 
     row_ctx["context"]:1 discuss_ctx["project context"]:1 space:10
-    row_intake["intake"]:1 space:1 draft_intake["intake"]:1 space:1 new_intake["intake"]:1 space:5 proceed_intake["intake"]:1 space:1
-    row_active["change active"]:1 space:2 switch_active["change active"]:1 new_active["change active"]:1 space:1 space:4 proceed_active["change active"]:1 space:1
-    row_branch["branch name"]:1 space:3 new_branch["branch name"]:1 branch_branch["branch name"]:1 space:4 proceed_branch["branch name"]:1 space:1
+    row_intake["intake"]:1 space:1 draft_intake["intake"]:1 space:2 new_intake["intake"]:1 space:4 proceed_intake["intake"]:1 space:1
+    row_active["change active"]:1 space:2 switch_active["change active"]:1 space:1 new_active["change active"]:1 space:4 proceed_active["change active"]:1 space:1
+    row_branch["branch name"]:1 space:3 branch_branch["branch name"]:1 new_branch["branch name"]:1 space:4 proceed_branch["branch name"]:1 space:1
     row_spec["spec"]:1 space:5 cont_spec["one stage ▾"]:1 ff_spec["spec"]:1 space:1 fff_spec["spec"]:1 proceed_spec["spec"]:1 space:1
     row_tasks["tasks"]:1 space:5 cont_tasks["one stage ▾"]:1 ff_tasks["tasks"]:1 space:1 fff_tasks["tasks"]:1 proceed_tasks["tasks"]:1 space:1
     row_apply["apply"]:1 space:5 cont_apply["one stage ▾"]:1 ff_apply["apply"]:1 space:1 fff_apply["apply"]:1 proceed_apply["apply"]:1 space:1
@@ -435,6 +435,7 @@ block-beta
     discuss_ctx --> proceed_intake
     draft_intake --> switch_active
     switch_active --> branch_branch
+    new_branch --> cont_spec
     new_branch --> ff_spec
     new_branch --> fff_spec
     branch_branch --> ff_spec
@@ -476,7 +477,7 @@ block-beta
     %% fab-switch (Change lifecycle — purple)
     style switch_active fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
 
-    %% fab-new (Automation — green, creates intake + activates + branch)
+    %% fab-new (Automation — green, creates intake + activates + branches)
     style new_intake fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style new_active fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style new_branch fill:#81c784,stroke:#2E7D32,color:#1a1a1a
