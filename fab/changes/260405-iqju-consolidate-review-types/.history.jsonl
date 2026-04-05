@@ -1,0 +1,17 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-04-05T11:52:19Z"}
+{"args":"Consolidate the two review types in the fab pipeline: move outward holistic review into fab-continue as a sub-agent (with Codex→Claude cascade), remove Codex/Claude from git-pr-review Phase 2 (Copilot-only), and clean up config.yaml review_tools","cmd":"fab-new","event":"command","ts":"2026-04-05T11:52:19Z"}
+{"delta":"+2.1","event":"confidence","score":2.1,"trigger":"calc-score","ts":"2026-04-05T11:53:27Z"}
+{"delta":"+0.0","event":"confidence","score":2.1,"trigger":"calc-score","ts":"2026-04-05T11:53:42Z"}
+{"delta":"+2.9","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-04-05T12:05:37Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-04-05T12:05:40Z"}
+{"delta":"-1.2","event":"confidence","score":3.8,"trigger":"calc-score","ts":"2026-04-05T12:31:19Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"spec","ts":"2026-04-05T12:31:23Z"}
+{"delta":"+0.0","event":"confidence","score":3.8,"trigger":"calc-score","ts":"2026-04-05T12:31:25Z"}
+{"delta":"+0.0","event":"confidence","score":3.8,"trigger":"calc-score","ts":"2026-04-05T12:32:46Z"}
+{"delta":"+1.2","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-04-05T12:33:03Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"tasks","ts":"2026-04-05T12:36:25Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-04-05T12:36:58Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-04-05T12:44:48Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-04-05T12:48:22Z"}
+{"event":"review","result":"passed","ts":"2026-04-05T12:48:22Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-04-05T12:52:43Z"}

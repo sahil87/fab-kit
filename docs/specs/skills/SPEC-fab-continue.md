@@ -50,19 +50,30 @@ User invokes /fab-continue [change-name] [stage]
 │
 │  ┌─────────────────────────────────────────────────┐
 │  │ REVIEW STAGE                                    │
+│  │  (delegates to _review.md for sub-agent dispatch│
+│  │   and findings merge; orchestration below)      │
 │  │                                                 │
 │  │  ┌──────────────────────────────────────────┐   │
-│  │  │ SUB-AGENT: Review Validation             │   │
-│  │  │  (Agent tool, general-purpose)           │   │
-│  │  │                                          │   │
-│  │  │  Read: standard subagent context         │   │
-│  │  │        (per _preamble.md)                │   │
-│  │  │  Read: spec.md, tasks.md, checklist.md,  │   │
+│  │  │ SUB-AGENT (inward): Spec/Tasks/Checklist │   │
+│  │  │  Validation (Agent tool, general-purpose)│   │
+│  │  │  Read: standard subagent context,        │   │
+│  │  │        spec.md, tasks.md, checklist.md,  │   │
 │  │  │        source files, memory files        │   │
 │  │  │  Bash: run tests                         │   │
 │  │  │  Edit: checklist.md (mark [x])           │   │
-│  │  │  Returns: structured findings            │   │
+│  │  │  Returns: must-fix/should-fix/nice-to-have   │
 │  │  └──────────────────────────────────────────┘   │
+│  │           ↕ parallel dispatch                   │
+│  │  ┌──────────────────────────────────────────┐   │
+│  │  │ SUB-AGENT (outward): Holistic Diff Review│   │
+│  │  │  (Agent tool, general-purpose)           │   │
+│  │  │  Receives: git diff + changed file list  │   │
+│  │  │  Full repo read access                   │   │
+│  │  │  Codex→Claude cascade (graceful no-op)  │   │
+│  │  │  Returns: must-fix/should-fix/nice-to-have   │
+│  │  └──────────────────────────────────────────┘   │
+│  │                                                 │
+│  │  Merge findings → single verdict set            │
 │  │                                                 │
 │  │  Pass:                                          │
 │  │    Bash: fab status finish <change> review      │
@@ -109,7 +120,10 @@ User invokes /fab-continue [change-name] [stage]
 
 | Agent | Stage | Purpose |
 |-------|-------|---------|
-| Review validation | review | Fresh-perspective code review with spec/checklist/test checks |
+| Inward review validation (`_review.md`) | review | Spec/tasks/checklist validation with test execution — dispatched in parallel with outward |
+| Outward diff review (`_review.md`) | review | Holistic diff review with full repo access via Codex→Claude cascade — dispatched in parallel with inward |
+
+> Review Behavior is delegated to `_review.md` (single source of truth for sub-agent dispatch and findings merge). `fab-continue.md` retains the Verdict section (pass/fail state transitions, rework options).
 
 ### Bookkeeping commands (hook candidates)
 

@@ -71,7 +71,7 @@ Load per `_preamble.md` layers. Stage-specific additions: planning stages load i
 | spec | **Spec Generation Procedure** (`_generation.md`) |
 | tasks | **Tasks Generation Procedure** + **Checklist Generation Procedure** (`_generation.md`) |
 | apply | [Apply Behavior](#apply-behavior) |
-| review | [Review Behavior](#review-behavior) |
+| review | **Review Behavior** (`_review.md`) |
 | hydrate | [Hydrate Behavior](#hydrate-behavior) |
 
 **Spec stage only**: After spec generation, invoke `fab score <change>` to compute the confidence score. No scoring at other stages.
@@ -137,49 +137,7 @@ Starts from first unchecked item. Checked items assumed complete.
 
 ## Review Behavior
 
-### Preconditions
-
-- `tasks.md` and `checklist.md` MUST exist
-- All tasks MUST be `[x]`. If not: STOP with "{N} of {total} tasks are incomplete."
-
-### Sub-Agent Dispatch
-
-Review validation SHALL be dispatched to a **sub-agent running in a separate execution context**. The sub-agent provides a fresh perspective — it has no shared context with the applying agent beyond the explicitly provided artifacts.
-
-The orchestrating LLM MAY use any review agent available in its environment (e.g., a `code-review` skill, a general-purpose sub-agent with review instructions, or any equivalent). The skill files SHALL NOT hardcode a specific agent name or tool.
-
-The review sub-agent performs capable-tier work: deep reasoning, code analysis, spec comparison, and checklist validation.
-
-**Context provided to the sub-agent**: Standard subagent context files (per `_preamble.md` § Standard Subagent Context), plus change-specific files: `spec.md`, `tasks.md`, `checklist.md`, relevant source files (files touched by the change), and target memory file(s) from `docs/memory/`.
-
-### Validation Steps
-
-The sub-agent performs all of these checks:
-
-1. **Tasks complete**: All `[x]` in `tasks.md`
-2. **Quality checklist**: Inspect code/tests per CHK item. Mark `[x]` if met, `[x] **N/A**: {reason}` if N/A, leave `[ ]` with reason if not met
-3. **Run affected tests**: Scoped to touched modules/files
-4. **Spot-check spec**: Verify key requirements and GIVEN/WHEN/THEN scenarios
-5. **Memory drift check**: Compare implementation against referenced memory (warning only)
-6. **Code quality check**: For each file modified during apply, verify:
-   - Naming conventions consistent with surrounding code
-   - Functions focused and appropriately sized
-   - Error handling consistent with codebase style
-   - Existing utilities reused where applicable
-   - If `fab/project/code-quality.md` exists, check each applicable principle from `## Principles`
-   - If `fab/project/code-quality.md` exists, check for violations listed in `## Anti-Patterns`
-
-### Structured Review Output
-
-The sub-agent SHALL return structured findings with a **three-tier priority scheme**:
-
-- **Must-fix**: Spec mismatches, failing tests, checklist violations — always addressed during rework
-- **Should-fix**: Code quality issues, pattern inconsistencies — addressed when clear and low-effort
-- **Nice-to-have**: Style suggestions, minor improvements — may be skipped
-
-Each finding includes: severity tier, description, and file:line reference where applicable.
-
-**Pass/fail determination**: If any must-fix findings exist, the review fails. If only should-fix and/or nice-to-have findings remain, the review MAY be considered a pass.
+Follow **Review Behavior** (`_review.md`). The `_review.md` skill defines both sub-agent dispatches (inward + outward) run in parallel, their preconditions, validation steps, structured output format, and the findings merge procedure.
 
 ### Verdict
 

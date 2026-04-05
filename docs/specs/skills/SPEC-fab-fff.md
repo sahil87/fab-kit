@@ -32,6 +32,8 @@ User invokes /fab-fff [change-name] [--force]
 
 Same as fab-ff: /fab-clarify [AUTO-MODE], /fab-continue (Apply, Review, Hydrate), /git-pr, /git-pr-review.
 
+> Step 6 review behavior (inward spec/tasks/checklist validation and outward holistic diff review) is defined in `_review.md`. `/fab-continue` Review Behavior delegates to `_review.md` — the authoritative source for inward + outward sub-agent dispatch and findings merge.
+
 ### Bookkeeping commands (hook candidates)
 
 Same as fab-ff.

@@ -1,14 +1,14 @@
 ---
 name: git-pr-review
-description: "Process PR review comments — triage and fix feedback from any reviewer (human or bot)."
-allowed-tools: Bash(git:*), Bash(gh:*), Bash(command:*), Bash(codex:*), Bash(claude:*)
+description: "Process PR review comments — triage and fix feedback from any reviewer (human or bot). When no reviews exist, requests a Copilot review and waits up to 10 minutes for it to appear."
+allowed-tools: Bash(git:*), Bash(gh:*), Bash(command:*)
 ---
 
 # /git-pr-review [--tool <name>]
 
-Process GitHub PR review comments on the current branch's PR. Handles feedback from any reviewer — human or bot. When no reviews exist, requests an automated review via a cascading tool chain (Copilot → Codex → Claude). Fully autonomous — no questions, no prompts.
+Process GitHub PR review comments on the current branch's PR. Handles feedback from any reviewer — human or bot. When no reviews exist, requests an automated Copilot review and polls for up to 10 minutes for it to appear. Fully autonomous — no questions, no prompts.
 
-**`--tool` flag**: Forces a specific review tool, bypassing the cascade. Valid values: `copilot`, `codex`, `claude`. When provided, only that tool is attempted — no fallthrough.
+**`--tool` flag**: Forces a specific review tool, bypassing automatic detection. Valid values: `copilot`. When provided, only that tool is attempted.
 
 ---
 
@@ -34,14 +34,13 @@ This is best-effort — failures are silently ignored. The `start` command handl
    - If the command fails for any other reason → print the `gh` error output and STOP.
 4. If the command succeeds, capture `{number}` and `{url}` from the response.
 5. Get owner/repo: `gh repo view --json nameWithOwner -q '.nameWithOwner'`
-6. Get the PR base branch: `gh pr view --json baseRefName -q '.baseRefName'` — capture as `{base_branch}` for use in context enrichment (Step 2a)
 
 ### Step 1.5: Parse `--tool` Flag
 
 If the invocation includes `--tool <name>`:
 
-1. Validate `<name>` is one of: `copilot`, `codex`, `claude` (case-insensitive, normalize to lowercase)
-2. If invalid → print `Invalid tool: {name}. Valid values: copilot, codex, claude.` and STOP
+1. Validate `<name>` is one of: `copilot` (case-insensitive, normalize to lowercase)
+2. If invalid → print `Invalid tool: {name}. Valid values: copilot.` and STOP
 3. Store the forced tool name for use in Step 2 Phase 2
 
 ### Step 2: Detect Reviews and Route
@@ -68,106 +67,35 @@ If reviews exist but no inline comments → print `Reviews exist but no actionab
 
 If no reviews at all → proceed to Phase 2.
 
-**Phase 2 — Review Request Cascade**:
+**Phase 2 — Copilot Review Request**:
 
-Request an automated review via a cascading tool chain. Each tool is attempted in order; the cascade stops on the first success.
+Request an automated Copilot review and wait for it to appear.
 
-**Configuration**: Read `review_tools` from `fab/project/config.yaml`. Each tool may be set to `true` (try) or `false` (skip). When the `review_tools` key is absent, all tools default to `true`.
+**Configuration**: Read `review_tools` from `fab/project/config.yaml`. Only the `copilot` key is honored. When the `review_tools` key is absent, Copilot defaults to enabled.
 
 ```yaml
 review_tools:
   copilot: true
-  codex: true
-  claude: true
 ```
 
-**Forced tool override**: If `--tool <name>` was provided (Step 1.5), skip the cascade and attempt only the specified tool, regardless of config settings.
+If `review_tools.copilot` is `false`: print `No automated reviewer available. Run /git-pr-review when reviews are added.` and STOP (clean finish).
 
-**Cascade order**: Copilot → Codex → Claude
+**Forced tool override**: If `--tool copilot` was provided (Step 1.5), proceed regardless of config settings.
 
-For each tool in order (or just the forced tool):
+**Copilot request and poll**:
 
-1. **Check config**: If the tool is set to `false` in `review_tools`, skip it
-2. **Detect availability**: Check if the tool can run (see per-tool details below)
-3. **Run the tool**: Execute the review request
-4. **On success**: Print result and STOP (cascade complete)
-5. **On failure/unavailability**: Fall through to the next tool
-
-**Tool 1 — Copilot (remote)**:
-
-- Attempt: `gh pr edit {number} --add-reviewer copilot`
-- Detection: by attempting the command and checking exit code
-- On success: print `Copilot review requested — re-run /git-pr-review later to process comments.` and STOP
-- On failure (non-zero exit): fall through to Codex
-
-**Tool 2 — Codex (local)**:
-
-- Detection: `command -v codex`
-- If not found: fall through to Claude
-- If found: run the built-in Codex review command:
-  ```bash
-  codex review --base {base_branch}
-  ```
-  Where `{base_branch}` is the PR base branch resolved in Step 1.
-- On success: post output as PR review (see Step 2b), print output to terminal, and STOP
-- On failure: fall through to Claude
-
-**Tool 3 — Claude (local)**:
-
-- Detection: `command -v claude`
-- If not found: cascade exhausted — print `No review tools available. Install codex or claude, or enable Copilot on this repository.` and STOP
-- If found: construct the enriched review prompt (see Step 2a) and run:
-  ```bash
-  claude -p "Review this PR diff for bugs, edge cases, and improvements: <enriched_prompt>"
-  ```
-  Where `{base_branch}` is the PR base branch resolved in Step 1.
-- On success: post output as PR review (see Step 2b), print output to terminal, and STOP
-- On failure: cascade exhausted — print `No review tools available.` and STOP
-
-**All tools disabled**: If all tools are disabled in config (all set to `false`) and no `--tool` flag was provided, print `All review tools are disabled in config. Enable at least one tool in review_tools.` and STOP.
-
-**All tools unavailable**: If all enabled tools fail detection or execution, print `No review tools available. Install codex or claude, or enable Copilot on this repository.` and STOP.
-
-### Step 2a: Context Enrichment
-
-When running a local tool (Codex or Claude), construct an enriched review prompt containing these labeled sections:
-
-1. **Diff**: `git diff {base_branch}...HEAD` (where `{base_branch}` is the PR base branch resolved in Step 1)
-2. **Changed files**: `git diff --name-only {base_branch}...HEAD`
-3. **PR description**: `gh pr view --json body -q .body` (omit section if empty or command fails)
-4. **Test results**: Run the project's test suite and capture output (best-effort — omit section if no test command is configured or tests fail to run)
-
-Format the prompt as:
-
-```
-Review this PR diff for bugs, edge cases, and improvements.
-
-## Changed Files
-{file_list}
-
-## PR Description
-{pr_body}
-
-## Diff
-{diff}
-
-## Test Results
-{test_output}
-```
-
-Missing sections are omitted — the prompt remains valid with whatever context is available.
-
-### Step 2b: Local Review Output Posting
-
-When a local tool (Codex or Claude) produces review output:
-
-1. Attempt to post the output as a PR review (not an issue comment — this ensures Phase 1 detects it on re-run):
-   ```bash
-   gh api repos/{owner}/{repo}/pulls/{number}/reviews -f body="{review_output}" -f event="COMMENT"
-   ```
-2. If posting succeeds: print `Review posted on PR.`
-3. If posting fails: log the error and continue — the output is still printed to the terminal
-4. Always print the review output to the terminal regardless of posting outcome
+1. Attempt: `gh pr edit {number} --add-reviewer copilot`
+2. **On success** (exit 0):
+   - Print: `Copilot review requested. Waiting up to 10 minutes...`
+   - Poll every 30 seconds, up to 20 attempts:
+     ```bash
+     gh pr view --json reviews -q '.reviews | length'
+     ```
+   - When count > 0: proceed to Step 3 (Fetch Comments)
+   - If 20 attempts exhausted without a review: print `Copilot review requested but not yet available. Re-run /git-pr-review to process when ready.` and STOP (clean finish — no error, no fail event)
+3. **On failure** (non-zero exit from `gh pr edit`):
+   - Print: `No automated reviewer available. Run /git-pr-review when reviews are added.`
+   - STOP (clean finish — no error, no fail event)
 
 ### Step 3: Fetch Comments
 

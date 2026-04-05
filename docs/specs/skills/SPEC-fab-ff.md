@@ -65,16 +65,26 @@ User invokes /fab-ff [change-name] [--force]
 │  └─ Bash: fab status finish <change> apply fab-ff
 │
 ├─ Step 6: Review (with auto-rework loop, max 3 cycles)
+│  │  Review behavior is defined in `_review.md` (authoritative source
+│  │  for inward + outward sub-agent dispatch and findings merge).
 │  └─ ┌──────────────────────────────────────────┐
 │     │ SUB-AGENT: /fab-continue (Review)        │
+│     │  Reads _review.md for dispatch:          │
 │     │  ┌────────────────────────────────────┐  │
-│     │  │ NESTED SUB-AGENT: Review validator │  │
-│     │  │  Read: all artifacts + source      │  │
+│     │  │ NESTED SUB-AGENT (inward):         │  │
+│     │  │  Read: artifacts + source          │  │
 │     │  │  Bash: run tests                   │  │
 │     │  │  Edit: checklist.md                │  │
 │     │  │  Returns: findings                 │  │
 │     │  └────────────────────────────────────┘  │
-│     │  Returns: pass/fail + findings           │
+│     │  ┌────────────────────────────────────┐  │
+│     │  │ NESTED SUB-AGENT (outward):        │  │
+│     │  │  Receives: diff + changed files    │  │
+│     │  │  Full repo access                  │  │
+│     │  │  Codex→Claude cascade              │  │
+│     │  │  Returns: findings                 │  │
+│     │  └────────────────────────────────────┘  │
+│     │  Merge findings → Returns: pass/fail     │
 │     └──────────────────────────────────────────┘
 │  ├─ Pass: Bash: fab status finish <change> review
 │  └─ Fail: Auto-rework loop
@@ -100,8 +110,10 @@ User invokes /fab-ff [change-name] [--force]
 |-------|------|---------|
 | /fab-clarify [AUTO-MODE] | 1, 2 | Autonomous gap resolution after spec/tasks generation |
 | /fab-continue (Apply) | 5 | Task execution |
-| /fab-continue (Review) | 6 | Review validation (itself spawns a nested review sub-agent) |
+| /fab-continue (Review) | 6 | Review orchestration — reads `_review.md` to dispatch inward + outward sub-agents in parallel; merges findings |
 | /fab-continue (Hydrate) | 7 | Memory hydration |
+
+> Step 6 review behavior (inward spec/tasks/checklist validation and outward holistic diff review) is defined in `_review.md`. `/fab-continue` Review Behavior delegates to `_review.md`.
 
 ### Bookkeeping commands (hook candidates)
 

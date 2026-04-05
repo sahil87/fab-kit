@@ -86,7 +86,7 @@ On success: run `fab status finish <change> apply fab-fff`.
 
 *(Skip if `progress.review` is `done`.)*
 
-Dispatch `/fab-continue` as subagent — Review Behavior, change: `{id}`. The subagent dispatches validation to a review sub-agent, performs all checks, and returns structured findings (must-fix / should-fix / nice-to-have) with pass/fail status.
+Dispatch `/fab-continue` as subagent — Review Behavior, change: `{id}`. The subagent reads `_review.md` for review dispatch instructions — both inward and outward sub-agents are defined there. It dispatches both sub-agents in parallel, merges their findings, and returns structured findings (must-fix / should-fix / nice-to-have) with pass/fail status.
 
 **Pass**: run `fab status finish <change> review fab-fff`. Proceed to Step 7.
 

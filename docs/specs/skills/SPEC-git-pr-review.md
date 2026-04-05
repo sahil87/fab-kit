@@ -2,24 +2,22 @@
 
 ## Summary
 
-Processes PR review comments from any reviewer (human or bot). Fully autonomous — detects reviews, requests automated reviews via a cascading tool chain (Copilot → Codex → Claude) when no existing reviews are found, triages comments with disposition intent (fix/defer/skip), applies fixes, commits, pushes, and posts reply comments confirming outcomes.
+Processes PR review comments from any reviewer (human or bot). Fully autonomous — detects reviews, requests an automated Copilot review and polls up to 10 minutes for it to appear when no existing reviews are found, triages comments with disposition intent (fix/defer/skip), applies fixes, commits, pushes, and posts reply comments confirming outcomes.
 
 ## Arguments
 
-- **`--tool <name>`** *(optional)* — Forces a specific review tool, bypassing the cascade. Valid values: `copilot`, `codex`, `claude`.
+- **`--tool <name>`** *(optional)* — Forces a specific review tool. Valid values: `copilot` only.
 
 ## Configuration
 
-The `review_tools` block in `fab/project/config.yaml` controls which tools are attempted in the cascade:
+The `review_tools` block in `fab/project/config.yaml` controls whether Copilot is attempted:
 
 ```yaml
 review_tools:
-  copilot: true    # try GitHub Copilot (remote)
-  codex: true      # try OpenAI Codex CLI (local)
-  claude: true     # try Claude CLI (local)
+  copilot: true    # try GitHub Copilot (remote) — default when key is absent
 ```
 
-Setting a tool to `false` skips it. When the `review_tools` key is absent, all tools default to `true`.
+Setting `copilot` to `false` skips Phase 2 entirely. When the `review_tools` key is absent, Copilot defaults to enabled.
 
 ## Flow
 
@@ -34,7 +32,7 @@ Setting a tool to `false` skips it. When the `review_tools` key is absent, all t
 │  └─ Bash: gh repo view --json nameWithOwner
 │
 ├─ Step 1.5: Parse --tool Flag
-│  └─ Validate tool name (copilot, codex, claude) or STOP on invalid
+│  └─ Validate tool name (copilot only) or STOP on invalid
 │
 ├─ Step 2: Detect Reviews and Route
 │  ├─ Phase 1: Check existing reviews
@@ -42,34 +40,15 @@ Setting a tool to `false` skips it. When the `review_tools` key is absent, all t
 │  │  └─ Bash: gh api .../pulls/{n}/comments
 │  │     └─ [if comments exist] → Step 3
 │  │
-│  └─ Phase 2: Review Request Cascade (no reviews found)
-│     ├─ Read config: review_tools from fab/project/config.yaml
-│     ├─ If --tool flag: attempt only that tool
-│     ├─ Tool 1 — Copilot (remote):
-│     │  └─ Bash: gh pr edit {n} --add-reviewer copilot
-│     │     └─ [success] "Copilot review requested" → STOP
-│     │     └─ [fail] fall through
-│     ├─ Tool 2 — Codex (local):
-│     │  ├─ Bash: command -v codex
-│     │  ├─ Construct enriched prompt (Step 2a)
-│     │  └─ Bash: codex --quiet "<enriched_prompt>"
-│     │     └─ [success] post as PR comment (Step 2b) → STOP
-│     │     └─ [fail] fall through
-│     └─ Tool 3 — Claude (local):
-│        ├─ Bash: command -v claude
-│        ├─ Construct enriched prompt (Step 2a)
-│        └─ Bash: claude -p "<enriched_prompt>"
-│           └─ [success] post as PR comment (Step 2b) → STOP
-│           └─ [fail] "No review tools available" → STOP
-│
-├─ Step 2a: Context Enrichment (for local tools)
-│  ├─ Bash: git diff main...HEAD (diff)
-│  ├─ Bash: git diff --name-only main...HEAD (file list)
-│  ├─ Bash: gh pr view --json body -q .body (PR description)
-│  └─ Best-effort: test suite output
-│
-├─ Step 2b: Local Review Output Posting
-│  └─ Bash: gh api .../issues/{n}/comments -f body="..." (best-effort)
+│  └─ Phase 2: Copilot Review Request (no reviews found)
+│     ├─ Read config: review_tools.copilot from fab/project/config.yaml
+│     ├─ [copilot: false] "No automated reviewer available" → STOP (clean finish)
+│     ├─ Bash: gh pr edit {n} --add-reviewer copilot
+│     │  ├─ [success] Print "Copilot review requested. Waiting up to 10 minutes..."
+│     │  │  └─ Poll: gh pr view --json reviews every 30s, up to 20 attempts
+│     │  │     ├─ [review appears] → Step 3
+│     │  │     └─ [20 attempts, no review] "...not yet available. Re-run /git-pr-review..." → STOP (clean finish)
+│     │  └─ [failure] "No automated reviewer available..." → STOP (clean finish)
 │
 ├─ Step 3: Fetch Comments (with id, node_id)
 │  └─ Bash: gh api .../pulls/{n}/comments
@@ -98,17 +77,15 @@ Phase tracking (via yq directly on .status.yaml):
   waiting → received → triaging → fixing → pushed → replying
 ```
 
-### Review Request Cascade
+### Copilot Review Request (Phase 2)
 
-The cascade runs when Phase 1 finds no existing reviews with inline comments. It attempts review tools in a fixed order (Copilot → Codex → Claude), stopping on the first success:
+Phase 2 runs when Phase 1 finds no existing reviews with inline comments. It requests a Copilot review and polls for up to 10 minutes:
 
 | Tool | Type | Detection | On Success | On Failure |
 |------|------|-----------|------------|------------|
-| Copilot | Remote | Attempt `gh pr edit --add-reviewer copilot` | Print message, STOP (user re-invokes later) | Fall through |
-| Codex | Local | `command -v codex` | Post as PR comment + print to terminal | Fall through |
-| Claude | Local | `command -v claude` | Post as PR comment + print to terminal | Cascade exhausted |
+| Copilot | Remote | Attempt `gh pr edit --add-reviewer copilot` | Poll 30s/attempt up to 20× — proceed to Step 3 when review appears; clean finish on timeout | Clean finish: "No automated reviewer available..." |
 
-The `--tool` flag bypasses the cascade and attempts only the specified tool. Config-disabled tools are skipped (unless forced via `--tool`).
+The `--tool copilot` flag forces the Copilot path regardless of config. If `review_tools.copilot: false`, Phase 2 skips without attempting the request.
 
 ### Disposition taxonomy
 
@@ -128,7 +105,7 @@ Informational comments receive no reply.
 |------|---------|
 | Read | Source files for applying fixes |
 | Edit | Source files (targeted fixes from review comments) |
-| Bash | gh API calls (REST only), git operations, fab status commands, yq phase tracking, codex/claude CLI invocation |
+| Bash | gh API calls (REST only), git operations, fab status commands, yq phase tracking |
 
 ### Sub-agents
 
