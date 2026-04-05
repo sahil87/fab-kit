@@ -10,6 +10,8 @@ project:
     linear_workspace: null
     name: fab-kit
 review_tools:
+    claude: true
+    codex: true
     copilot: true
 source_paths:
     - src/

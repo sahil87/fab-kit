@@ -75,12 +75,22 @@ The outward sub-agent performs a holistic diff review with full repository acces
 - Standard subagent context files (per `_preamble.md` § Standard Subagent Context)
 - Full tool access (Read, Bash, Agent) — the sub-agent MAY read any file in the repo
 
-**Cascade**: The outward sub-agent uses a **Codex → Claude cascade**:
-1. Attempt Codex: `command -v codex` — if found, run Codex as the reviewer
-2. If Codex is unavailable or fails, attempt Claude: `command -v claude` — if found, run Claude as the reviewer
-3. If neither tool is available, return an empty findings set (no must-fix, no should-fix, no nice-to-have). This is a graceful no-op — not an error condition. The review stage continues normally.
+**Cascade**: The outward sub-agent uses a **Codex → Claude cascade**, controlled by `review_tools` in `fab/project/config.yaml`:
 
-**Always on**: The outward sub-agent is dispatched unconditionally. There is no config flag to disable it. The Codex→Claude cascade gracefully no-ops if neither tool is available, so always attempting incurs no harm.
+```yaml
+review_tools:
+    codex: true    # first in cascade — set to false to skip
+    claude: true   # fallback — set to false to skip
+    copilot: true  # used by /git-pr-review only, not this cascade
+```
+
+When `review_tools` is absent, all tools default to `true`.
+
+1. **Check config**: Read `review_tools.codex` — if `false`, skip Codex
+2. **Attempt Codex**: `command -v codex` — if found and enabled, run Codex as the reviewer
+3. **Check config**: Read `review_tools.claude` — if `false`, skip Claude
+4. **If Codex unavailable/disabled or fails**, attempt Claude: `command -v claude` — if found and enabled, run Claude as the reviewer
+5. If all enabled tools are unavailable or fail, return an empty findings set (graceful no-op — not an error condition). The review stage continues normally.
 
 ### Focus Areas
 
