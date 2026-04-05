@@ -2,14 +2,11 @@
 .fab-backend
 .fab-runtime.yaml
 # fab/backlog.md
-fab/changes/**/.pr-done
-
 /.agents
 /.claude
 /.cursor
 /.opencode
 /.codex
-/.ralph
 /.gemini
 
 /ToBeDeleted/
