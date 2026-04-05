@@ -133,7 +133,7 @@ After activating the change, create or check out the matching git branch inline.
 First, verify the working directory is inside a git repository:
 
 ```bash
-git rev-parse --is-inside-work-tree
+git rev-parse --is-inside-work-tree >/dev/null 2>&1
 ```
 
 If this fails: warn `Not in a git repository — skipping branch creation` and continue. The change remains activated. This step is **non-fatal**.
@@ -148,8 +148,9 @@ git branch --show-current   # current branch name
 - No git operation needed
 - Report: `Branch: {name} (already active)`
 
-**Case 2 — Target branch exists but is not current** (`git rev-parse --verify "{name}"` succeeds):
+**Case 2 — Target branch exists but is not current**:
 ```bash
+git rev-parse --verify "{name}" >/dev/null 2>&1
 git checkout "{name}"
 ```
 - Report: `Branch: {name} (checked out)`
@@ -160,17 +161,22 @@ git checkout -b "{name}"
 ```
 - Report: `Branch: {name} (created)`
 
-**Case 4 — On a local-only branch** (no upstream — `git config branch.{current}.remote` returns empty):
+Check upstream tracking to choose between Case 4 and 5:
+```bash
+upstream=$(git config "branch.$(git branch --show-current).remote" 2>/dev/null || true)
+```
+
+**Case 4 — On a local-only branch** (`upstream` is empty):
 ```bash
 git branch -m "{name}"
 ```
-- Report: `Branch: {name} (renamed from {old})`
+- Report: `Branch: {name} (renamed from {old_branch})`
 
-**Case 5 — On a pushed branch** (has upstream tracking ref):
+**Case 5 — On a pushed branch** (`upstream` is non-empty):
 ```bash
 git checkout -b "{name}"
 ```
-- Report: `Branch: {name} (created, leaving {old} intact)`
+- Report: `Branch: {name} (created, leaving {old_branch} intact)`
 
 If any git operation fails (e.g., uncommitted conflicts blocking checkout):
 - Report the git error message
@@ -197,7 +203,7 @@ Intake complete.
 Indicative confidence: {score} / 5.0 ({N} decisions, cover: {cover})
 
 Activated: {name}
-Branch: {name} (created|checked out|renamed from {old}|already active)
+Branch: {name} (created|created, leaving {old_branch} intact|checked out|renamed from {old_branch}|already active)
 
 Next: {per state table — intake state (no activation preamble)}
 ```

@@ -430,6 +430,8 @@ block-beta
     %% Arrows — multiple paths from top-left to bottom-right
     discuss_ctx --> draft_intake
     discuss_ctx --> new_intake
+    new_intake --> new_active
+    new_active --> new_branch
     discuss_ctx --> proceed_intake
     draft_intake --> switch_active
     switch_active --> branch_branch

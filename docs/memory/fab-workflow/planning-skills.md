@@ -69,7 +69,7 @@ After generating `intake.md` and inferring the change type, `/fab-new` persists 
 
 #### Output
 
-`/fab-new` produces `intake.md` as its primary artifact. It does not generate `spec.md` or any other downstream artifacts. The intake includes an **Origin** section recording how the change was initiated (description text, conversational vs. one-shot mode, key decisions from the conversation). After the intake, the output includes `Activated: {name}` (Step 10) and `Branch: {name} (created|checked out|renamed from {old}|already active)` (Step 11).
+`/fab-new` produces `intake.md` as its primary artifact. It does not generate `spec.md` or any other downstream artifacts. The intake includes an **Origin** section recording how the change was initiated (description text, conversational vs. one-shot mode, key decisions from the conversation). After the intake, the output includes `Activated: {name}` (Step 10) and `Branch: {name} (created|created, leaving {old_branch} intact|checked out|renamed from {old_branch}|already active)` (Step 11).
 
 #### Context
 
@@ -321,7 +321,7 @@ Calling `/fab-clarify` multiple times is safe — it refines further each time. 
 
 | Change | Date | Summary |
 |--------|------|---------|
-| 260405-hgv7-fab-new-include-git-branch | 2026-04-05 | `/fab-new` now auto-activates changes (Step 10: `fab change switch`) and creates the matching git branch inline (Step 11). Branch creation uses 5-case logic (already active, target exists, on main/master, local-only branch rename, pushed branch). Git step is non-fatal. Updated Change Initialization, Change Initialization section, and Output section. Removed stale "never activates" text. |
+| 260405-hgv7-fab-new-include-git-branch | 2026-04-05 | `/fab-new` now auto-activates changes (Step 10: `fab change switch`) and creates the matching git branch inline (Step 11). Branch creation uses 5-case logic (already active, target exists, on main/master, local-only branch rename, pushed branch). Git step is non-fatal. Updated Change Initialization and Output sections. Removed stale "never activates" text. |
 | 260402-gnx5-relocate-kit-to-system-cache | 2026-04-02 | Updated shared generation partial reference: `$(fab kit-path)/skills/_generation.md` now resolves from system cache. Template loading in spec/tasks/checklist generation procedures uses `$(fab kit-path)/templates/` instead of `fab/.kit/templates/`. Hook-backed bookkeeping references inline `fab hook <subcommand>` commands. |
 | 260314-q5p9-redesign-ff-fff-scopes | 2026-03-14 | Redesigned `/fab-ff` and `/fab-fff` scope differentiation. `/fab-ff` now runs intake → hydrate (was: spec → review-pr). `/fab-fff` now runs intake → review-pr with identical confidence gates (was: no gates, frontloaded questions). Both have identical behavior (gates, auto-clarify, autonomous rework). Both accept `--force` to bypass gates. Frontloaded questions removed from `/fab-fff`. Updated Overview, requirements, pipeline flows, design decisions. |
 | 260306-6bba-redesign-hooks-strategy | 2026-03-06 | Added hook-backed bookkeeping note: PostToolUse hook (`on-artifact-write.sh`) supplements skill-instructed bookkeeping as a reliability layer. Skills keep instructions unchanged for agent-agnostic portability; hooks catch what the agent forgets. All commands idempotent. |

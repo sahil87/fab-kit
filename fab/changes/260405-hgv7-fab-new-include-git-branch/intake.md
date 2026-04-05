@@ -64,9 +64,9 @@ The step is non-fatal: if git operations fail, surface the error and tell the us
 
 **Frontmatter changes**:
 - `description`: update to `"Start a new change — creates the intake, activates it, and creates the git branch."`
-- `allowed-tools`: add `Bash(git:*)`
+- ~~`allowed-tools`: add `Bash(git:*)`~~ — *superseded: adding this would restrict all Bash calls in fab-new to git-only, breaking Steps 3–10. No `allowed-tools` change needed.*
 
-**Output section**: Add `Branch: {name} (created|checked out|renamed from {old}|already active)` line after `Activated: {name}`.
+**Output section**: Add `Branch: {name} (created|created, leaving {old_branch} intact|checked out|renamed from {old_branch}|already active)` line after `Activated: {name}`.
 
 **Error handling table**: Add two rows:
 - Not in a git repo (Step 11): Warn and skip branch creation — change is still activated
