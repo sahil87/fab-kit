@@ -405,15 +405,15 @@ The operator (`/fab-operator`) is a long-running coordination layer that sits in
 
 ## Stage Coverage by Command
 
-Which pipeline stages each command covers. Taller bars = more automation. Read left-to-right from most manual to most automated. **▶** marks typical entry points — start with `/fab-discuss` (exploratory) or `/fab-new` (ready to build). Arrows show the typical path from idea to PR. Dashed borders indicate optional/utility stages.
+Which pipeline stages each command covers. Taller bars = more automation. Read left-to-right from most manual to most automated. **▶** marks typical entry points — start with `/fab-discuss` (exploratory) or `/fab-new` (ready to build). Arrows show the typical path from idea to PR. Dashed borders indicate optional/utility stages. Empty cells = not covered by that command.
 
 | Color | Category | Commands |
 |-------|----------|----------|
 | 🟦 Cyan | Explore (read-only) | `/fab-discuss` |
-| 🟪 Purple | Change lifecycle (single action) | `/fab-draft`, `/fab-switch` |
+| 🟧 Amber | Manual (single action) | `/fab-draft`, `/fab-switch`, `/fab-continue` |
 | ⬜ Blue-grey (dashed) | Git utilities | `/git-branch`, `/git-pr`, `/git-pr-review` |
-| 🟧 Amber | Stage advance (one at a time) | `/fab-continue` |
 | 🟩 Green | Automated pipeline (multi-stage) | `/fab-new`, `/fab-ff`, `/fab-fff`, `/fab-proceed` |
+| ◻️ Grey | Fab pipeline stage (row label) | intake, change active, spec, tasks, apply, review, hydrate |
 | ▶ | Typical entry point | `/fab-discuss`, `/fab-new` |
 
 ```mermaid
@@ -428,10 +428,10 @@ block-beta
     row_intake["intake"]:1 space:1 draft_intake["intake"]:1 space:2 new_intake["intake"]:1 space:4 proceed_intake["intake"]:1 space:1
     row_active["change active"]:1 space:2 switch_active["change active"]:1 space:1 new_active["change active"]:1 space:4 proceed_active["change active"]:1 space:1
     row_branch["branch name"]:1 space:3 branch_branch["branch name"]:1 new_branch["branch name"]:1 space:4 proceed_branch["branch name"]:1 space:1
-    row_spec["spec"]:1 space:5 cont_spec["one stage ▾"]:1 ff_spec["spec"]:1 space:1 fff_spec["spec"]:1 proceed_spec["spec"]:1 space:1
-    row_tasks["tasks"]:1 space:5 cont_tasks["one stage ▾"]:1 ff_tasks["tasks"]:1 space:1 fff_tasks["tasks"]:1 proceed_tasks["tasks"]:1 space:1
-    row_apply["apply"]:1 space:5 cont_apply["one stage ▾"]:1 ff_apply["apply"]:1 space:1 fff_apply["apply"]:1 proceed_apply["apply"]:1 space:1
-    row_review["review"]:1 space:5 cont_review["one stage ▾"]:1 ff_review["review"]:1 space:1 fff_review["review"]:1 proceed_review["review"]:1 space:1
+    row_spec["spec"]:1 space:5 cont_spec["one stage"]:1 ff_spec["spec"]:1 space:1 fff_spec["spec"]:1 proceed_spec["spec"]:1 space:1
+    row_tasks["tasks"]:1 space:5 cont_tasks["one stage"]:1 ff_tasks["tasks"]:1 space:1 fff_tasks["tasks"]:1 proceed_tasks["tasks"]:1 space:1
+    row_apply["apply"]:1 space:5 cont_apply["one stage"]:1 ff_apply["apply"]:1 space:1 fff_apply["apply"]:1 proceed_apply["apply"]:1 space:1
+    row_review["review"]:1 space:5 cont_review["one stage"]:1 ff_review["review"]:1 space:1 fff_review["review"]:1 proceed_review["review"]:1 space:1
     row_hydrate["hydrate"]:1 space:5 cont_hydrate["one stage"]:1 ff_hydrate["hydrate"]:1 space:1 fff_hydrate["hydrate"]:1 proceed_hydrate["hydrate"]:1 space:1
     row_ship["ship"]:1 space:5 space:1 space:1 gitpr_ship["PR raised"]:1 fff_ship["PR raised"]:1 proceed_ship["PR raised"]:1 space:1
     row_prreview["review-pr"]:1 space:5 space:1 space:1 gitpr_prreview["PR reviewed"]:1 fff_prreview["PR reviewed"]:1 proceed_prreview["PR reviewed"]:1 space:1
@@ -450,8 +450,8 @@ block-beta
     %% Header styles
     style hdr_label fill:none,stroke:none,color:#999
     style hdr_discuss fill:#4dd0e1,stroke:#00838f,color:#1a1a1a
-    style hdr_draft fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
-    style hdr_switch fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
+    style hdr_draft fill:#ffb74d,stroke:#E65100,color:#1a1a1a
+    style hdr_switch fill:#ffb74d,stroke:#E65100,color:#1a1a1a
     style hdr_new fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style hdr_branch fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5
     style hdr_continue fill:#ffb74d,stroke:#E65100,color:#1a1a1a
@@ -460,27 +460,27 @@ block-beta
     style hdr_fff fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style hdr_proceed fill:#81c784,stroke:#2E7D32,color:#1a1a1a
 
-    %% Row labels
+    %% Row labels — grey for fab pipeline stages, blue-grey dashed for git stages
     style row_ctx fill:#bdbdbd,stroke:#757575,color:#1a1a1a
     style row_intake fill:#bdbdbd,stroke:#757575,color:#1a1a1a
     style row_active fill:#bdbdbd,stroke:#757575,color:#1a1a1a
-    style row_branch fill:#bdbdbd,stroke:#757575,color:#1a1a1a,stroke-dasharray: 5 5
+    style row_branch fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5
     style row_spec fill:#bdbdbd,stroke:#757575,color:#1a1a1a
     style row_tasks fill:#bdbdbd,stroke:#757575,color:#1a1a1a
     style row_apply fill:#bdbdbd,stroke:#757575,color:#1a1a1a
     style row_review fill:#bdbdbd,stroke:#757575,color:#1a1a1a
     style row_hydrate fill:#bdbdbd,stroke:#757575,color:#1a1a1a
-    style row_ship fill:#bdbdbd,stroke:#757575,color:#1a1a1a,stroke-dasharray: 5 5
-    style row_prreview fill:#bdbdbd,stroke:#757575,color:#1a1a1a,stroke-dasharray: 5 5
+    style row_ship fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5
+    style row_prreview fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5
 
     %% fab-discuss (Explore — teal)
     style discuss_ctx fill:#4dd0e1,stroke:#00838f,color:#1a1a1a
 
-    %% fab-draft (Change lifecycle — purple)
-    style draft_intake fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
+    %% fab-draft (Manual — amber)
+    style draft_intake fill:#ffb74d,stroke:#E65100,color:#1a1a1a
 
-    %% fab-switch (Change lifecycle — purple)
-    style switch_active fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
+    %% fab-switch (Manual — amber)
+    style switch_active fill:#ffb74d,stroke:#E65100,color:#1a1a1a
 
     %% fab-new (Automation — green, creates intake + activates + branches)
     style new_intake fill:#81c784,stroke:#2E7D32,color:#1a1a1a
