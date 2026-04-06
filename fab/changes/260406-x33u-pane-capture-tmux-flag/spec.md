@@ -71,12 +71,12 @@ The Question Detection section of `src/kit/skills/fab-operator.md` SHALL documen
 
 ### Requirement: Operator skill spec updated to match skill
 
-<!-- clarified: constitution requires SPEC-*.md updated when skill file changes; SPEC-fab-operator4.md line 58 documents the same incorrect -l 20 flag and must be corrected -->
-`docs/specs/skills/SPEC-fab-operator4.md` SHALL be updated to replace `-l 20` with `-S -20` in both the Question Detection section (line 58) and the Auto-Nudge summary entry (line 21).
+<!-- clarified: constitution requires SPEC-*.md updated when skill file changes; SPEC-fab-operator.md line 58 documents the same incorrect -l 20 flag and must be corrected -->
+`docs/specs/skills/SPEC-fab-operator.md` SHALL be updated to replace `-l 20` with `-S -20` in both the Question Detection section (line 58) and the Auto-Nudge summary entry (line 21).
 
 #### Scenario: Spec reflects corrected command
 
-- **GIVEN** the operator skill spec (`SPEC-fab-operator4.md`) has been updated
+- **GIVEN** the operator skill spec (`SPEC-fab-operator.md`) has been updated
 - **WHEN** a developer reads the Auto-Nudge → Question Detection section
 - **THEN** the capture command shown is `tmux capture-pane -t <pane> -p -S -20`
 - **AND** the summary entry in the feature list also shows `-S -20`
@@ -96,6 +96,6 @@ The Question Detection section of `src/kit/skills/fab-operator.md` SHALL documen
 | 3 | Certain | Extract `capturePaneArgs` as a pure function for testability | Constitution requires Go CLI changes to include test updates. A pure function is the minimal testable abstraction | S:85 R:85 A:85 D:85 |
 | 4 | Confident | No change to cobra `-l`/`--lines` flag definition | Confirmed from intake #3. The cobra CLI flag is independent of the tmux argument; both happen to use `-l` but for different reasons | S:80 R:85 A:80 D:80 |
 | 5 | Confident | `_cli-fab.md` documentation needs no update | Confirmed from intake #4. `_cli-fab.md` documents the `fab pane capture` CLI flags, not the internal tmux invocation | S:75 R:80 A:80 D:80 |
-| 6 | Certain | `docs/specs/skills/SPEC-fab-operator4.md` must also be updated | Clarified — constitution requires SPEC-*.md updated whenever a skill file changes; SPEC-fab-operator4.md contains the same incorrect `-l 20` flag at lines 21 and 58 | S:90 R:90 A:95 D:90 |
+| 6 | Certain | `docs/specs/skills/SPEC-fab-operator.md` must also be updated | Clarified — constitution requires SPEC-*.md updated whenever a skill file changes; SPEC-fab-operator.md contains the same incorrect `-l 20` flag at lines 21 and 58 | S:90 R:90 A:95 D:90 |
 
 6 assumptions (4 certain, 2 confident, 0 tentative, 0 unresolved).

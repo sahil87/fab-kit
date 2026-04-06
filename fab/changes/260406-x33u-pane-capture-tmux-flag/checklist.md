@@ -9,7 +9,7 @@
 - [ ] CHK-001 Correct tmux flag in capturePaneContent: `src/go/fab/cmd/fab/pane_capture.go` uses `-S -N` (not `-l N`) when invoking `tmux capture-pane`
 - [ ] CHK-002 capturePaneArgs extracted: A standalone `capturePaneArgs(paneID string, lines int) []string` function exists in `pane_capture.go`
 - [ ] CHK-003 Operator skill doc fixed: `src/kit/skills/fab-operator.md` Question Detection step 1 shows `tmux capture-pane -t <pane> -p -S -20`
-- [ ] CHK-004 Operator spec doc fixed: `docs/specs/skills/SPEC-fab-operator4.md` shows `-S -20` at both the feature summary and the Question Detection detail
+- [ ] CHK-004 Operator spec doc fixed: `docs/specs/skills/SPEC-fab-operator.md` shows `-S -20` at both the feature summary and the Question Detection detail
 
 ## Behavioral Correctness
 

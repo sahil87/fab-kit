@@ -8,7 +8,7 @@
 
 - [x] T001 [P] Extract `capturePaneArgs(paneID string, lines int) []string` as a pure helper and update `capturePaneContent` to use it — in `src/go/fab/cmd/fab/pane_capture.go`
 - [x] T002 [P] Fix documented tmux command in Question Detection section of `src/kit/skills/fab-operator.md` (line 244): replace `tmux capture-pane -t <pane> -p -l 20` with `tmux capture-pane -t <pane> -p -S -20`
-- [x] T003 [P] Fix documented tmux command in `docs/specs/skills/SPEC-fab-operator4.md` (lines 21 and 58): replace `-l 20` with `-S -20`
+- [x] T003 [P] Fix documented tmux command in `docs/specs/skills/SPEC-fab-operator.md` (lines 21 and 58): replace `-l 20` with `-S -20`
 
 ## Phase 2: Tests
 

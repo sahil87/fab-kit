@@ -96,7 +96,7 @@
 ## Cross References
 <!-- config.yaml extra_categories: cross_references -->
 - [x] **N/A** CHK-056 _cli-fab.md updated per constitution: no `docs/specs/skills/SPEC-_cli-fab.md` file exists in the repo — the constitution's "MUST update corresponding SPEC-*.md" constraint does not apply to `_cli-fab.md` (no SPEC file to update)
-- [x] **N/A** CHK-057 fab-operator.md spec file: `docs/specs/skills/SPEC-fab-operator.md` does not exist — only `SPEC-fab-operator4.md` exists (for the retired `fab-operator4.md` skill). No corresponding SPEC file to update for the current `fab-operator.md`.
+- [x] **N/A** CHK-057 fab-operator.md spec file: `docs/specs/skills/SPEC-fab-operator.md` exists (renamed from `SPEC-fab-operator4.md`) but covers the retired `fab-operator4.md` skill structure; no corresponding SPEC for the current `fab-operator.md` behavior was updated for this change.
 - [x] CHK-058 _cli-fab.md cross-reference consistency: the new `### fab operator tick-start` and `### fab operator time` sections in `_cli-fab.md` are consistent with the corresponding operator.go implementation and with `fab-operator.md`'s usage instructions
 - [x] CHK-059 execution-skills.md ↔ kit-architecture.md consistency: the operator subcommand descriptions in both memory files are consistent with each other and with the spec's output format definitions
 - [x] CHK-060 Constitution CLI constraint satisfied: constitution states "Changes to the `fab` CLI MUST update `src/kit/skills/_cli-fab.md` with any new or changed command signatures" — confirm `_cli-fab.md` documents both `fab operator tick-start` and `fab operator time`
