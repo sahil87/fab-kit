@@ -185,7 +185,9 @@ or creates a new branch.`,
 					// Non-fatal: reuse proceeds even if init fails (existing worktree may be functional).
 					if worktreeInit == "true" {
 						initScript := wt.InitScriptPath()
-						_ = wt.RunWorktreeSetup(existingWtPath, "force", initScript, ctx.RepoRoot)
+						if err := wt.RunWorktreeSetup(existingWtPath, "force", initScript, ctx.RepoRoot); err != nil {
+							fmt.Fprintf(os.Stderr, "Warning: worktree init failed for reused worktree %q: %v\n", finalName, err)
+						}
 					}
 					fmt.Println(existingWtPath)
 					return nil

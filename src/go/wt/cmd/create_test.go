@@ -305,6 +305,28 @@ func TestCreate_ReuseRunsInitScript(t *testing.T) {
 	assertFileExists(t, filepath.Join(existingPath, ".init-script-ran"))
 }
 
+func TestCreate_ReuseInitSkippedWhenWorktreeInitFalse(t *testing.T) {
+	repo := createTestRepo(t)
+	createInitScript(t, repo)
+
+	// Commit init script so worktrees see it
+	gitRun(t, repo, "add", "scripts/worktree-init.sh")
+	gitRun(t, repo, "commit", "-q", "-m", "Add init script")
+
+	// Pre-create the worktree (without init script so .init-script-ran is absent)
+	existingPath := createWorktreeViaWt(t, repo, "reuse-noinit-test")
+
+	// Run wt create --reuse with --worktree-init false — init should NOT run
+	runWtSuccess(t, repo, []string{"WORKTREE_INIT_SCRIPT=scripts/worktree-init.sh"},
+		"create", "--non-interactive", "--reuse", "--worktree-name", "reuse-noinit-test",
+		"--worktree-init", "false")
+
+	// Init script should NOT have run
+	if _, err := os.Stat(filepath.Join(existingPath, ".init-script-ran")); err == nil {
+		t.Error("init script should not have run with --worktree-init false on --reuse path")
+	}
+}
+
 func TestCreate_InitScriptSkippedWhenFalse(t *testing.T) {
 	repo := createTestRepo(t)
 	createInitScript(t, repo)
