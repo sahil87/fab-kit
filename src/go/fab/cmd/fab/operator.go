@@ -13,12 +13,13 @@ import (
 )
 
 func operatorCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "operator",
 		Short: "Launch operator in a dedicated tmux tab (singleton)",
-		Args:  cobra.NoArgs,
 		RunE:  runOperator,
 	}
+	cmd.AddCommand(operatorTickStartCmd(), operatorTimeCmd())
+	return cmd
 }
 
 func runOperator(cmd *cobra.Command, args []string) error {

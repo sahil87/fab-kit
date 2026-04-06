@@ -170,7 +170,7 @@ The top-level `branch_map` persists change ID → branch name mappings. Entries 
 
 On each tick:
 
-1. **Snapshot** — increment `tick_count`, run `fab pane map`, read `.fab-operator.yaml`. Compute status for all tracked items: stage advances, completions, review failures, pane deaths, and watch statuses from the last persisted check (`last_checked` / `last_error` / last counts). Output the status frame:
+1. **Snapshot** — run `fab operator tick-start` (increments `tick_count`, writes `last_tick_at`, outputs `tick: N` and `now: HH:MM`). Parse stdout for the tick number and current time. Then run `fab pane map` and read `.fab-operator.yaml`. Compute status for all tracked items: stage advances, completions, review failures, pane deaths, and watch statuses from the last persisted check (`last_checked` / `last_error` / last counts). Output the status frame:
 
 ```
 ── Operator ── 17:32 ── tick #47 ── 7 tracked ──
@@ -231,7 +231,7 @@ Between ticks, the operator displays an idle message with the current time and n
 Waiting for next tick. Time: 08:26 · next tick: 08:29
 ```
 
-The time is HH:MM in the operator's local timezone. The next-tick time is computed by adding the current loop interval (default 3m) to the current time. This lets the user gauge staleness at a glance without scrolling to the last tick frame.
+Run `fab operator time --interval {interval}` (where `{interval}` is the current loop interval, e.g. `3m`) to get the `now:` and `next:` values to fill in the message. This lets the user gauge staleness at a glance without scrolling to the last tick frame.
 
 ---
 

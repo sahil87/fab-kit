@@ -61,7 +61,7 @@ fab <command> <subcommand> [args...]
 | `fab pane` | Tmux pane operations: map, capture, send, process |
 | `fab doctor` | Validate fab-kit prerequisites (lives in fab-kit, works before config.yaml exists) |
 | `fab fab-help` | Show fab workflow overview and available commands (dynamic skill discovery) |
-| `fab operator` | Launch operator in a dedicated tmux tab (singleton) |
+| `fab operator` | Launch operator in a dedicated tmux tab (singleton); subcommands: `tick-start`, `time` |
 | `fab batch` | Multi-target batch operations (new, switch, archive) |
 
 ---
@@ -610,6 +610,51 @@ fab operator
 ### Spawn command resolution
 
 Reads `agent.spawn_command` from `fab/project/config.yaml`. Falls back to `claude --dangerously-skip-permissions` if the key is missing, null, or empty.
+
+---
+
+### fab operator tick-start
+
+Called at the start of each operator tick. Increments `tick_count` by 1, writes `last_tick_at` (ISO 8601 UTC) to `.fab-operator.yaml`, and outputs current time.
+
+```
+fab operator tick-start
+```
+
+**Output** (stdout):
+```
+tick: N
+now: HH:MM
+```
+
+No flags. Side effects: updates `.fab-operator.yaml` (`tick_count`, `last_tick_at`).
+
+---
+
+### fab operator time
+
+Pure time query — no side effects, no file writes.
+
+```
+fab operator time [--interval <duration>]
+```
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--interval` | duration string | If given, also outputs `next: HH:MM` = now + interval |
+
+**Output** without `--interval`:
+```
+now: HH:MM
+```
+
+**Output** with `--interval 3m`:
+```
+now: HH:MM
+next: HH:MM
+```
+
+Duration format: Go duration strings (`3m`, `5m`, `2m`). Invalid duration → exit 1.
 
 ---
 

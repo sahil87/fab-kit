@@ -360,6 +360,14 @@ All settings are session-scoped — they reset when the operator session restart
 
 The operator is launched via `fab operator` — a `fab-go` subcommand (source: `src/go/fab/cmd/fab/operator.go`). It creates a singleton tmux window named "operator" running the configured `agent.spawn_command` (via `internal/spawn/`) with `'/fab-operator'`. If the window already exists, switches to it. Requires an active tmux session. Previous shell launcher scripts (`fab-operator4.sh`, `fab-operator5.sh`, `fab-operator.sh`) have been removed.
 
+`fab operator` is a parent command with two subcommands:
+
+- **`fab operator tick-start`** — Called at the start of each operator tick (step 1 of tick behavior). Resolves repo root via `gitRepoRoot()`, reads `.fab-operator.yaml` into `map[string]interface{}` using `gopkg.in/yaml.v3` (absent file treated as empty), increments `tick_count` by 1, writes `last_tick_at` as an RFC3339 UTC timestamp (`time.RFC3339`), writes the updated map back preserving all other fields (monitored set, autopilot queue, branch_map, watches). Outputs `tick: N\nnow: HH:MM` to stdout using local time. Write failure → stderr error + exit 1. No flags.
+
+- **`fab operator time`** — Pure clock query with no file I/O or side effects. Always outputs `now: HH:MM` (local 24-hour time). With `--interval <duration>` (Go duration string, e.g. `3m`), also outputs `next: HH:MM` = now + interval. Invalid duration string → stderr error + exit 1.
+
+**Usage in tick lifecycle**: The agent invokes `fab operator tick-start` at step 1 of each tick and parses its stdout for the tick count (`tick: N`) and current time (`now: HH:MM`). Between ticks (idle message), the agent runs `fab operator time --interval {interval}` to obtain both `now:` and `next:` values for the idle message line `Waiting for next tick. Time: HH:MM · next tick: HH:MM`. Separation of concerns: `tick-start` has side effects (writes YAML state), `time` is a pure query (no writes).
+
 ## Design Decisions
 
 ### Checklist Tests Implementation Fidelity and Code Quality
