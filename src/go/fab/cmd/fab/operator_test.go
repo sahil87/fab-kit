@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -194,23 +193,21 @@ func TestOperatorTime_WithInterval(t *testing.T) {
 }
 
 // TestOperatorTime_InvalidInterval verifies that an invalid --interval string
-// causes time.ParseDuration to return an error (the command path that leads
-// to os.Exit(1)). Verifying the parse failure confirms the error branch is
-// correctly reached without forking a subprocess.
+// causes the command to return an error (exit 1) and produce no stdout output.
 func TestOperatorTime_InvalidInterval(t *testing.T) {
-	_, err := time.ParseDuration("notaduration")
-	if err == nil {
-		t.Error("expected time.ParseDuration error for 'notaduration', got nil")
-	}
-	// Also confirm the flag is accepted by the command (no flag-parse error)
 	cmd := operatorTimeCmd()
-	cmd.SetOut(&bytes.Buffer{})
-	var stderrBuf bytes.Buffer
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.SetOut(&stdoutBuf)
 	cmd.SetErr(&stderrBuf)
 	cmd.SetArgs([]string{"--interval", "notaduration"})
-	// We don't call Execute because it calls os.Exit(1); flag registration is sufficient.
-	// Validate the flag is registered correctly.
-	if f := cmd.Flags().Lookup("interval"); f == nil {
-		t.Error("--interval flag not registered on time command")
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Error("expected error for invalid --interval, got nil")
+	}
+	if stdoutBuf.Len() != 0 {
+		t.Errorf("expected no stdout on error, got %q", stdoutBuf.String())
 	}
 }
