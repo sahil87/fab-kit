@@ -45,11 +45,11 @@ func TestOpen_ErrorUnknownApp(t *testing.T) {
 	assertContains(t, r.Stderr, "Unknown app")
 }
 
-func TestOpen_AppDefault_NoDefaultDetected(t *testing.T) {
+func TestOpen_AppDefault(t *testing.T) {
 	repo := createTestRepo(t)
-	wtPath := createWorktreeViaWt(t, repo, "default-err")
+	wtPath := createWorktreeViaWt(t, repo, "default-test")
 
-	// Clear environment so no default can be detected, and only open_here is available
+	// Clear environment to control detection path
 	env := []string{
 		"TERM_PROGRAM=",
 		"TMUX=",
@@ -61,14 +61,17 @@ func TestOpen_AppDefault_NoDefaultDetected(t *testing.T) {
 	}
 
 	r := runWt(t, repo, env, "open", "--app", "default", wtPath)
-	// DetectDefaultApp falls through to the first non-open_here app.
-	// Can't control installed apps, so accept either:
-	// - exit 0 (some app resolved and opened)
-	// - non-zero (no default detected — expected error message)
+	// Installed apps vary across environments (e.g., macOS always has Finder).
+	// Accept either outcome, but verify the "default" keyword was recognized:
+	// - exit 0: some default app resolved and opened
+	// - non-zero: no default detected — should show our error, not "Unknown app"
 	if r.ExitCode != 0 {
 		assertContains(t, r.Stderr, "No default app detected")
 	}
-	// Must never panic
+	// "default" must never be treated as a literal app name
+	if strings.Contains(r.Stderr, "Unknown app: default") {
+		t.Errorf("'default' was treated as a literal app name instead of the keyword: %s", r.Stderr)
+	}
 	if strings.Contains(r.Stderr, "panic") {
 		t.Errorf("command panicked: %s", r.Stderr)
 	}
