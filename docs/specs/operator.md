@@ -19,4 +19,4 @@ The current operator (v8) evolved through eight iterations:
 | v5 | Use case registry (Linear inbox, PR freshness), branch fallback, autopilot queues |
 | v6 | Clean rewrite — principles-driven inference, persistent state via `.fab-operator.yaml`, generic watches, framed status output |
 | v7 | Dependency-aware agent spawning (cherry-pick chains), branch map persistence, bounded retries, pre-send validation tiers |
-| v8 | Pipeline-first routing, unified tick status frame, stack-then-review autopilot (with ordered merge), `⚡<wt>` tab naming, mandatory auto-enroll, `/fab-proceed` integration |
+| v8 | Pipeline-first routing, unified tick status frame, stack-then-review autopilot (with ordered merge), `»<wt>` tab naming, mandatory auto-enroll, `/fab-proceed` integration |

@@ -1,0 +1,18 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-04-11T08:30:35Z"}
+{"args":"The lightning symbol (⚡) used as tmux tab prefix for operator-managed agents makes console output wonky due to its horizontal width. Switch to a more console-friendly character.","cmd":"fab-new","event":"command","ts":"2026-04-11T08:30:35Z"}
+{"delta":"+4.7","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-04-11T08:31:05Z"}
+{"delta":"+0.0","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-04-11T08:31:16Z"}
+{"delta":"+0.3","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-04-11T08:32:43Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-04-11T08:32:48Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-04-11T08:32:51Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-04-11T08:32:55Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-04-11T08:33:06Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-04-11T08:33:51Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"spec","ts":"2026-04-11T08:33:54Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"tasks","ts":"2026-04-11T08:34:22Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-04-11T08:34:22Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-04-11T08:35:01Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-04-11T08:37:28Z"}
+{"event":"review","result":"passed","ts":"2026-04-11T08:37:28Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-04-11T08:37:36Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-04-11T08:38:43Z"}
