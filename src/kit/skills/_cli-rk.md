@@ -74,9 +74,9 @@ Never hardcode the server URL — it can change between sessions.
 Any skill that wants to show HTML content to the user follows this centralized 4-step recipe. Fail silently at any step if rk is unavailable or a step fails.
 
 1. **Generate HTML** to a known location (e.g., `~/.agent/diagrams/`, a temp directory, or the project tree)
-2. **Serve it** — start a local HTTP server in the file's directory:
+2. **Serve it** — start a local HTTP server bound to loopback (not exposed on LAN):
    ```sh
-   python3 -m http.server <port> -d <dir> &
+   python3 -m http.server --bind 127.0.0.1 <port> -d <dir> &
    ```
 3. **Open an iframe window** pointing to the proxy URL:
    ```sh
