@@ -85,7 +85,7 @@ Auto mode SHALL return a structured result: `{resolved: N, blocking: N, non_bloc
 
 ### Bulk Confirm (Confident Assumptions)
 
-When the confidence score is low primarily due to many Confident (not Tentative/Unresolved) assumptions, suggest mode SHALL offer a bulk confirm flow before the taxonomy scan (Step 1.5). This displays all Confident assumptions in a numbered list and lets the user confirm, change, or request explanation in a single conversational turn.
+When the confidence score is low primarily due to many Confident (not Tentative/Unresolved) assumptions, suggest mode SHALL offer a bulk confirm flow (Step 2) after the taxonomy scan and tentative resolution (Step 1.5). This displays all Confident assumptions in a numbered list and lets the user confirm, change, or request explanation in a single conversational turn.
 
 #### Detection
 
@@ -93,7 +93,7 @@ Bulk confirm triggers when BOTH conditions are met:
 - `confident >= 3` (enough to materially affect the score)
 - `confident > tentative + unresolved` (Confident is the dominant drag)
 
-When not triggered, the skill proceeds directly to the taxonomy scan.
+When not triggered, the skill proceeds directly to Step 3 (remaining taxonomy questions).
 
 #### Flow
 
@@ -103,7 +103,7 @@ When not triggered, the skill proceeds directly to the taxonomy scan.
 4. Update the Assumptions table in place: confirmed/changed items → Certain, Rationale updated (e.g., `Clarified — user confirmed`), S dimension → 95 (R, A, D unchanged). Unmentioned items stay Confident.
 5. Append to Clarifications audit trail as `### Session {date} (bulk confirm)`.
 
-After bulk confirm completes, proceed to Step 2 (taxonomy scan) on the updated artifact.
+After bulk confirm completes, proceed to Step 3 (remaining taxonomy questions from Step 1.5's queue).
 
 #### Auto Mode Exclusion
 
@@ -156,6 +156,7 @@ The skill SHALL only operate on planning stages (`intake`, `spec`, `tasks`). At 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260416-hyl6-clarify-tentative-first | 2026-04-16 | Reordered suggest mode flow — taxonomy scan (Step 1.5) now runs before bulk confirm (Step 2), so tentative assumptions are addressed before confident ones |
 | 260302-c7is-fab-clarify-bulk-confirm | 2026-03-02 | Added bulk confirm mode (Step 1.5) to suggest mode — detects when Confident assumptions dominate the confidence drag (`confident >= 3` AND `confident > tentative + unresolved`), displays numbered list for conversational bulk response, supports confirm/change/explain/range/all formats, one re-prompt round for explanations. Added to `_preamble.md` Confidence Scoring section. Auto Mode excluded. |
 | 260221-5tj7-rename-context-to-preamble | 2026-02-21 | Renamed shared skill preamble from `_context.md` to `_preamble.md`. Updated all references in dual-mode operation and design decisions sections. |
 | 260216-7ltw-DEV-1038-standardize-state-keyed-suggestions | 2026-02-16 | Extended stage guard to include `intake` as valid planning stage. Added intake taxonomy scan categories (scope boundaries, affected areas, blocking questions, impact, memory coverage). All `Next:` lines now derived from canonical state table in `_preamble.md`. |

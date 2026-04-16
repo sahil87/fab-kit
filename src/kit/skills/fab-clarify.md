@@ -44,14 +44,28 @@ Run preflight per `_preamble.md` §2.
 
 Resolve file (`intake.md`, `spec.md`, or `tasks.md`). If the resolved artifact is missing and the target was defaulted (not user-specified), fall back to the previous `done` stage's artifact. If still missing or the target was explicitly specified: STOP with "No {artifact} found. Run /fab-continue to generate it first."
 
-### Step 1.5: Bulk Confirm (Confident Assumptions)
+### Step 1.5: Taxonomy Scan
 
-After reading the target artifact, parse the `## Assumptions` table and count assumptions by grade. Trigger bulk confirm when BOTH:
+Scan for gaps, `[NEEDS CLARIFICATION]`, and `<!-- assumed: ... -->` markers. Categories by target:
+
+- **Intake**: scope boundaries, affected areas, blocking questions, impact, memory coverage
+- **Spec**: requirement precision (RFC 2119), scenario coverage (GIVEN/WHEN/THEN), edge cases, deprecated requirements, memory cross-references
+- **Tasks**: completeness vs spec, granularity, dependencies, file paths, `[P]` markers
+
+For `<!-- assumed: ... -->` markers, frame current assumption as recommended option with alternatives.
+
+Build **prioritized question queue** (max 5). Present tentative assumption questions (from `<!-- assumed: ... -->` markers) first. If zero gaps: "No gaps found — artifact looks solid." with Next line, stop.
+
+### Step 2: Bulk Confirm (Confident Assumptions)
+
+> **Note**: If Step 1.5 (Taxonomy Scan) presented tentative questions, this flow runs on the already-updated artifact. Some gaps may have been resolved by tentative resolution.
+
+After the taxonomy scan, parse the `## Assumptions` table and count assumptions by grade. Trigger bulk confirm when BOTH:
 
 1. `confident >= 3`
 2. `confident > tentative + unresolved`
 
-If NOT triggered, skip to Step 2.
+If NOT triggered, skip to Step 3.
 
 #### Display
 
@@ -119,25 +133,11 @@ Append to `## Clarifications` (create before `## Assumptions` if it doesn't exis
 | {#} | Confirmed | After explanation |
 ```
 
-After bulk confirm completes (including any re-prompts), proceed to Step 2.
-
-### Step 2: Taxonomy Scan
-
-> **Note**: If Step 1.5 (Bulk Confirm) triggered, this scan runs on the already-updated artifact. Some gaps may have been resolved by bulk confirm.
-
-Scan for gaps, `[NEEDS CLARIFICATION]`, and `<!-- assumed: ... -->` markers. Categories by target:
-
-- **Intake**: scope boundaries, affected areas, blocking questions, impact, memory coverage
-- **Spec**: requirement precision (RFC 2119), scenario coverage (GIVEN/WHEN/THEN), edge cases, deprecated requirements, memory cross-references
-- **Tasks**: completeness vs spec, granularity, dependencies, file paths, `[P]` markers
-
-For `<!-- assumed: ... -->` markers, frame current assumption as recommended option with alternatives.
-
-Build **prioritized question queue** (max 5). If zero gaps: "No gaps found — artifact looks solid." with Next line, stop.
+After bulk confirm completes (including any re-prompts), proceed to Step 3.
 
 ### Step 3: Ask Questions One at a Time
 
-For each question, present:
+For each remaining non-tentative question from the Step 1.5 queue, present:
 - The question text with its position in the queue (e.g., 1 of 3)
 - A recommended option with brief reasoning
 - Alternatives (if applicable)
@@ -181,7 +181,7 @@ Only update `confidence` and `last_updated` in `.status.yaml`.
 
 ## Auto Mode (Internal fab-ff Call)
 
-> **Note**: Bulk confirm (Step 1.5) is Suggest Mode only. Auto Mode skips it — there is no user to confirm with.
+> **Note**: Bulk confirm (Step 2) is Suggest Mode only. Auto Mode skips it — there is no user to confirm with.
 
 1. **Read target artifact** (same as Suggest Step 1)
 2. **Autonomous gap resolution**: Same taxonomy scan. Resolvable from context → resolve + `<!-- clarified: ... -->`. Needs user input → `<!-- blocking: ... -->`. Minor → leave as-is.

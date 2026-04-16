@@ -1,0 +1,42 @@
+id: hyl6
+name: 260416-hyl6-clarify-tentative-first
+created: 2026-04-16T08:04:58Z
+created_by: sahil-weaver
+change_type: refactor
+issues: []
+progress:
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+checklist:
+    generated: true
+    path: checklist.md
+    completed: 16
+    total: 16
+confidence:
+    certain: 10
+    confident: 0
+    tentative: 0
+    unresolved: 0
+    score: 5.0
+    fuzzy: true
+    dimensions:
+        signal: 90.5
+        reversibility: 87.0
+        competence: 88.5
+        disambiguation: 86.0
+stage_metrics:
+    intake: {started_at: "2026-04-16T08:04:58Z", driver: fab-new, iterations: 1, completed_at: "2026-04-16T08:07:47Z"}
+    spec: {started_at: "2026-04-16T08:07:47Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-16T08:10:50Z"}
+    tasks: {started_at: "2026-04-16T08:10:50Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-16T08:10:50Z"}
+    apply: {started_at: "2026-04-16T08:10:50Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-16T08:13:01Z"}
+    review: {started_at: "2026-04-16T08:13:01Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-16T08:15:29Z"}
+    hydrate: {started_at: "2026-04-16T08:15:29Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-16T08:15:46Z"}
+    ship: {started_at: "2026-04-16T08:15:46Z", driver: fab-fff, iterations: 1}
+prs: []
+last_updated: 2026-04-16T08:15:46Z

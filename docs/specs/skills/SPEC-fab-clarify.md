@@ -21,13 +21,13 @@ User invokes /fab-clarify [change-name] [target-artifact]
 │  ├─ Step 1: Read target artifact
 │  │  └─ Read: fab/changes/{name}/{artifact}.md
 │  │
-│  ├─ Step 1.5: Bulk Confirm (if confident >= 3)
+│  ├─ Step 1.5: Taxonomy Scan
+│  │  └─ (agent reasoning — scan for gaps, markers)
+│  │  └─ Present tentative assumption questions first
+│  │
+│  ├─ Step 2: Bulk Confirm (if confident >= 3, after tentative resolution)
 │  │  └─ Display Confident assumptions → user responds
 │  │  └─ Edit: {artifact}.md (upgrade grades in Assumptions table)
-│  │
-│  ├─ Step 2: Taxonomy Scan
-│  │  └─ (agent reasoning — scan for gaps, markers)
-│  │  └─ Build prioritized question queue (max 5)
 │  │
 │  ├─ Step 3-4: Ask Questions, Process Answers
 │  │  └─ Edit: {artifact}.md (resolve markers, update Assumptions)
