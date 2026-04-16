@@ -1,0 +1,42 @@
+id: edq9
+name: 260416-edq9-operator-terminal-safe-status-symbols
+created: 2026-04-16T08:04:23Z
+created_by: sahil-weaver
+change_type: fix
+issues: []
+progress:
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+checklist:
+    generated: true
+    path: checklist.md
+    completed: 14
+    total: 14
+confidence:
+    certain: 9
+    confident: 0
+    tentative: 0
+    unresolved: 0
+    score: 5.0
+    fuzzy: true
+    dimensions:
+        signal: 94.4
+        reversibility: 88.9
+        competence: 93.9
+        disambiguation: 94.4
+stage_metrics:
+    intake: {started_at: "2026-04-16T08:04:23Z", driver: fab-new, iterations: 1, completed_at: "2026-04-16T08:07:19Z"}
+    spec: {started_at: "2026-04-16T08:07:19Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-16T08:07:53Z"}
+    tasks: {started_at: "2026-04-16T08:07:53Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-16T08:07:53Z"}
+    apply: {started_at: "2026-04-16T08:07:53Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-16T08:09:37Z"}
+    review: {started_at: "2026-04-16T08:09:37Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-16T08:11:57Z"}
+    hydrate: {started_at: "2026-04-16T08:11:57Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-16T08:13:37Z"}
+    ship: {started_at: "2026-04-16T08:13:37Z", driver: fab-fff, iterations: 1}
+prs: []
+last_updated: 2026-04-16T08:13:37Z

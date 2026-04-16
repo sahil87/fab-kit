@@ -175,13 +175,13 @@ On each tick:
 ```
 ── Operator ── 17:32 ── tick #47 ── 7 tracked ──
 
-  [change]  r3m7         ▶ 🟢 apply → review
-  [change]  k8ds         ▶ 🟡 review · idle 18m ⚠
-  [change]  ab12           🟢 hydrate ✓
-  [change]  ef56           🔴 spec · idle 32m ⚠
-  [watch]   gmail-deploys  🟡 1 new · 2m ago
-  [watch]   linear-bugs    🟢 2 known · 1 completed · 3m ago
-  [watch]   slack-alerts   🟢 0 new · 1m ago
+  [change]  r3m7         ▶ ● apply → review
+  [change]  k8ds         ▶ ◌ review · idle 18m ⚠
+  [change]  ab12           ● hydrate ✓
+  [change]  ef56           ✗ spec · idle 32m ⚠
+  [watch]   gmail-deploys  ◌ 1 new · 2m ago
+  [watch]   linear-bugs    ● 2 known · 1 completed · 3m ago
+  [watch]   slack-alerts   ● 0 new · 1m ago
 
 ───────────────────────────────────────────────────────────
 ```
@@ -193,16 +193,16 @@ All tracked items render in a single flat list. Every row follows a consistent c
 | Type | `[change]` or `[watch]` — bracketed type prefix |
 | ID | Change ID (4-char) or watch name |
 | Autopilot | `▶` if autopilot-driven, blank otherwise |
-| Health | Status emoji — universal position across all types |
+| Health | Status indicator — universal position across all types |
 | Detail | Type-specific status text |
 
 **Header**: `N tracked` is the total count of all entries (changes + watches). No per-type counts.
 
 **Ordering**: Changes first (sorted by enrollment time), then watches (sorted alphabetically by name).
 
-**Change health**: 🟢 active, 🟡 idle, 🔴 stuck (>15m idle at non-terminal), ✓ complete.
+**Change health**: ● active, ◌ idle, ✗ stuck (>15m idle at non-terminal), ✓ complete.
 
-**Watch health**: 🟢 healthy (last query succeeded, no new items), 🟡 has new unprocessed items, 🔴 errored (`last_error` set), ⏸ paused (`enabled: false`).
+**Watch health**: ● healthy (last query succeeded, no new items), ◌ has new unprocessed items, ✗ errored (`last_error` set), – paused (`enabled: false`).
 
 **Autopilot marker**: `▶` marks changes driven by the autopilot queue. Non-autopilot changes (manually enrolled or watch-spawned) show blank. Queue state is readable from the list — which entries have `▶`, which are complete.
 
@@ -417,7 +417,7 @@ The operator works each change through the pipeline, applying pre-send validatio
 
 When `--merge-on-complete` is active, steps 6–9 revert to the previous merge-as-you-go behavior: merge PR on completion, rebase next change onto `origin/main`, report merge.
 
-Autopilot-driven changes display `▶` in the status frame (§4). Queue progress is visible from the list — entries with `▶` that show ✓ are complete, the one showing 🟢/🟡 is current.
+Autopilot-driven changes display `▶` in the status frame (§4). Queue progress is visible from the list — entries with `▶` that show ✓ are complete, the one showing ●/◌ is current.
 
 #### Queue Completion Summary
 

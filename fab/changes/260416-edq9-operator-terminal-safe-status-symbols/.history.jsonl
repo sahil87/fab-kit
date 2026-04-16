@@ -1,0 +1,13 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-04-16T08:04:23Z"}
+{"args":"Replace operator status emoji with terminal-safe single-width Unicode symbols to fix terminal display corruption in tmux","cmd":"fab-new","event":"command","ts":"2026-04-16T08:04:23Z"}
+{"delta":"+4.4","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-04-16T08:05:12Z"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-04-16T08:05:15Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-04-16T08:06:05Z"}
+{"delta":"+0.6","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-04-16T08:07:15Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"spec","ts":"2026-04-16T08:07:19Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"tasks","ts":"2026-04-16T08:07:53Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-04-16T08:07:53Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-04-16T08:09:37Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-04-16T08:11:57Z"}
+{"event":"review","result":"passed","ts":"2026-04-16T08:11:57Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-04-16T08:13:37Z"}
