@@ -27,6 +27,9 @@ func TestFabKitArgs(t *testing.T) {
 
 func TestFabGoNoConfigArgs(t *testing.T) {
 	// Verify pane is the sole exempt subcommand
+	if len(fabGoNoConfigArgs) != 1 {
+		t.Errorf("expected fabGoNoConfigArgs to contain exactly 1 entry, got %d", len(fabGoNoConfigArgs))
+	}
 	if !fabGoNoConfigArgs["pane"] {
 		t.Error("expected fabGoNoConfigArgs to contain \"pane\"")
 	}
