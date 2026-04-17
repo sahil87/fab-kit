@@ -56,6 +56,7 @@ func runPaneMap(cmd *cobra.Command, args []string) error {
 	jsonFlag, _ := cmd.Flags().GetBool("json")
 	sessionFlag, _ := cmd.Flags().GetString("session")
 	allSessionsFlag, _ := cmd.Flags().GetBool("all-sessions")
+	server, _ := cmd.Flags().GetString("server")
 
 	// Determine session targeting mode
 	mode := sessionDefault
@@ -72,7 +73,7 @@ func runPaneMap(cmd *cobra.Command, args []string) error {
 	}
 
 	// Discover tmux panes
-	panes, err := discoverPanes(mode, sessionFlag)
+	panes, err := discoverPanes(mode, sessionFlag, server)
 	if err != nil {
 		return err
 	}
@@ -124,24 +125,39 @@ const tmuxPaneFormat = "#{pane_id}\t#{window_name}\t#{pane_current_path}\t#{sess
 
 // discoverPanes runs `tmux list-panes` with session targeting and parses the output.
 // Uses tab as the field delimiter so that window names containing spaces are handled correctly.
-func discoverPanes(mode sessionMode, sessionName string) ([]paneEntry, error) {
+// When server is non-empty, every tmux invocation is scoped via `-L <server>`.
+func discoverPanes(mode sessionMode, sessionName, server string) ([]paneEntry, error) {
 	switch mode {
 	case sessionAll:
-		return discoverAllSessions()
+		return discoverAllSessions(server)
 	case sessionNamed:
-		return discoverSessionPanes(sessionName)
+		return discoverSessionPanes(sessionName, server)
 	default:
-		return discoverSessionPanes("")
+		return discoverSessionPanes("", server)
 	}
 }
 
-// discoverSessionPanes lists panes for a single session (or the current session if name is empty).
-func discoverSessionPanes(name string) ([]paneEntry, error) {
+// listPanesArgs builds the tmux argv for `list-panes -s ...`. When name is
+// non-empty, adds `-t <name>`. When server is non-empty, prepends `-L <server>`.
+// Extracted for unit-testability of argv construction.
+func listPanesArgs(name, server string) []string {
 	args := []string{"list-panes", "-s", "-F", tmuxPaneFormat}
 	if name != "" {
 		args = append(args, "-t", name)
 	}
-	out, err := exec.Command("tmux", args...).Output()
+	return pane.WithServer(server, args...)
+}
+
+// listSessionsArgs builds the tmux argv for `list-sessions -F ...`. When server
+// is non-empty, prepends `-L <server>`. Extracted for unit-testability.
+func listSessionsArgs(server string) []string {
+	return pane.WithServer(server, "list-sessions", "-F", "#{session_name}")
+}
+
+// discoverSessionPanes lists panes for a single session (or the current session if name is empty).
+// When server is non-empty, the tmux invocation is scoped via `-L <server>`.
+func discoverSessionPanes(name, server string) ([]paneEntry, error) {
+	out, err := exec.Command("tmux", listPanesArgs(name, server)...).Output()
 	if err != nil {
 		return nil, fmt.Errorf("tmux list-panes: %w", err)
 	}
@@ -149,8 +165,9 @@ func discoverSessionPanes(name string) ([]paneEntry, error) {
 }
 
 // discoverAllSessions enumerates all tmux sessions, then lists panes for each.
-func discoverAllSessions() ([]paneEntry, error) {
-	out, err := exec.Command("tmux", "list-sessions", "-F", "#{session_name}").Output()
+// When server is non-empty, every tmux invocation is scoped via `-L <server>`.
+func discoverAllSessions(server string) ([]paneEntry, error) {
+	out, err := exec.Command("tmux", listSessionsArgs(server)...).Output()
 	if err != nil {
 		return nil, fmt.Errorf("tmux list-sessions: %w", err)
 	}
@@ -160,7 +177,7 @@ func discoverAllSessions() ([]paneEntry, error) {
 		if sess == "" {
 			continue
 		}
-		panes, err := discoverSessionPanes(sess)
+		panes, err := discoverSessionPanes(sess, server)
 		if err != nil {
 			return nil, err
 		}

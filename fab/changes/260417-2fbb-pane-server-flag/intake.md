@@ -80,20 +80,18 @@ Current helpers hardcode `exec.Command("tmux", …)`. Refactor them to accept a 
 
 **`src/go/fab/cmd/fab/pane_capture.go`, `pane_send.go`, `pane_process.go`, `pane_process_linux.go`, `pane_process_darwin.go`**: update every tmux invocation site to receive `server` and prepend `-L <server>` when non-empty.
 
-A small helper is fine:
+A small helper lives in `internal/pane/pane.go`, named `withServer` to avoid colliding with the existing `tmuxArgs` local variable in `pane_send.go`:
 
 ```go
-// tmuxArgs prepends -L <server> when server is non-empty, else returns args unchanged.
-func tmuxArgs(server string, args ...string) []string {
+// withServer prepends -L <server> when server is non-empty, else returns args unchanged.
+func withServer(server string, args ...string) []string {
     if server == "" {
         return args
     }
     return append([]string{"-L", server}, args...)
 }
-// usage: exec.Command("tmux", tmuxArgs(server, "list-sessions", "-F", "#{session_name}")...)
+// usage: exec.Command("tmux", withServer(server, "list-sessions", "-F", "#{session_name}")...)
 ```
-
-This helper could live in `internal/pane/pane.go` or a new `internal/tmuxutil/` package — spec stage decides.
 
 ### 3. Behavior when the flag is absent
 
@@ -118,10 +116,8 @@ No end-to-end tmux integration test is required (existing test strategy doesn't 
 
 ## Affected Memory
 
-- `fab-workflow/pane-commands`: (modify) If this domain/file exists, add a paragraph documenting the `--server` / `-L` flag and the multi-socket use case. Spec stage confirms the exact filename.
-- `fab-workflow/kit-architecture`: (modify) If it narrates how fab subprocesses interact with tmux, note that `pane` is the only subcommand group that supports `-L` selection (because it is the only group whose semantics are tied to a specific tmux server).
-
-Both entries are tentative pending a spec-stage grep of `docs/memory/` to confirm the right file(s).
+- `fab-workflow/pane-commands`: (new) Create `docs/memory/fab-workflow/pane-commands.md` as the dedicated memory file for the four `fab pane` subcommands. Document the `--server` / `-L` flag, the default-inheritance behavior when absent, and the multi-socket use case (run-kit daemon on a separate socket from the inspected sessions). Register it in `docs/memory/fab-workflow/index.md`.
+- `fab-workflow/kit-architecture`: (modify) Trim the per-subcommand detail that will now live in `pane-commands.md`; leave only the high-level statement that the `pane` subcommand group exists and is the sole `fabGoNoConfigArgs` allowlist entry. Optionally cross-link to `pane-commands.md`.
 
 ## Impact
 
@@ -148,6 +144,26 @@ Both entries are tentative pending a spec-stage grep of `docs/memory/` to confir
 - Should the flag also be exposed as a persistent env var (e.g., `FAB_TMUX_SERVER`) for convenience in shells, or is the CLI flag sufficient? (Leaning CLI-only; env vars add hidden coupling.)
 - Should we consider `--socket-path` as an alternative to `-L` for callers that know the full path rather than the label? tmux supports both (`-L <name>` and `-S <path>`). Likely yes — cheap to add, matches tmux. Spec stage decides.
 
+> Both questions resolved in Clarifications (Session 2026-04-17). See assumptions #7 and #8.
+
+## Clarifications
+
+### Session 2026-04-17
+
+**Q (Tentative #10)**: Primary memory file to update for the `--server` flag?
+**A**: Create a new `docs/memory/fab-workflow/pane-commands.md` as the dedicated memory file for the four pane subcommands. Trim `kit-architecture.md` (which currently owns the per-subcommand detail) to a high-level pointer. Register the new file in `docs/memory/fab-workflow/index.md`.
+
+**Q (Tentative #11)**: Helper function name and location?
+**A**: `withServer(server string, args ...string) []string` in `internal/pane/pane.go`. Chose `withServer` over `tmuxArgs` to avoid collision with the existing `tmuxArgs` local variable at `pane_send.go:57`.
+
+### Session 2026-04-17 (bulk confirm)
+
+| # | Action | Detail |
+|---|--------|--------|
+| 7 | Confirmed | "passthrough is the correct technique" — user endorsed letting `tmux -L` do the work rather than inventing a second selector |
+| 8 | Confirmed | — |
+| 9 | Confirmed | — |
+
 ## Assumptions
 
 | # | Grade | Decision | Rationale | Scores |
@@ -158,10 +174,10 @@ Both entries are tentative pending a spec-stage grep of `docs/memory/` to confir
 | 4 | Certain | Flag is registered as `PersistentFlags` on the `pane` parent cobra command, not individually on each subcommand | Cobra idiom for shared flags across a command group; one registration, uniform UX | S:90 R:90 A:95 D:90 |
 | 5 | Certain | The argv-prepend helper lives close to the pane code (either `internal/pane/pane.go` or a new `internal/tmuxutil/` package) | There is no existing shared tmux-invocation layer in fab-go; introducing one now for exactly this purpose is proportional | S:85 R:80 A:85 D:80 |
 | 6 | Certain | Change type is `feat` (new CLI flag, additive capability — callers that don't pass it see no change) | Not a bug fix in fab itself: the bug is that fab *never had* a way to target a non-default socket. Adding that way is a new feature, even though it was motivated by a downstream bug | S:85 R:90 A:90 D:80 |
-| 7 | Confident | No `--socket-path` / `-S` flag in the first cut; add if requested during review | tmux supports both; `-L <name>` covers the motivating case (run-kit already tracks named servers); `-S <path>` is trivially addable later and may not be needed at all | S:70 R:85 A:75 D:75 |
-| 8 | Confident | No env-var-based alternative (e.g., `FAB_TMUX_SERVER`) in the first cut | CLI flag is sufficient for programmatic callers (they already build argv); env vars add implicit coupling and a second code path to document | S:70 R:80 A:75 D:75 |
-| 9 | Confident | Tests cover the argv-building helper as a pure function; no end-to-end tmux integration test added | Matches existing test strategy in `pane_*_test.go` (unit-level, no live tmux assumed); integration coverage would duplicate what real usage verifies | S:75 R:85 A:80 D:75 |
-| 10 | Tentative | Primary memory file to update is something under `docs/memory/fab-workflow/` — likely `pane-commands.md` or `kit-architecture.md` | Haven't grepped the memory tree yet; spec stage confirms the exact files | S:55 R:85 A:60 D:55 |
-| 11 | Tentative | The helper function is named `tmuxArgs` and lives in `internal/pane/pane.go` | Reasonable default, but spec stage may prefer a dedicated `internal/tmuxutil/` package if it intends to grow other tmux helpers there | S:50 R:80 A:60 D:55 |
+| 7 | Certain | No `--socket-path` / `-S` flag in the first cut; add if requested during review | Clarified — user confirmed; noted "passthrough is the correct technique" (let `tmux -L` do the work, don't invent a second selector) | S:95 R:85 A:75 D:75 |
+| 8 | Certain | No env-var-based alternative (e.g., `FAB_TMUX_SERVER`) in the first cut | Clarified — user confirmed; CLI-only avoids hidden env coupling | S:95 R:80 A:75 D:75 |
+| 9 | Certain | Tests cover the argv-building helper as a pure function; no end-to-end tmux integration test added | Clarified — user confirmed; matches existing `pane_*_test.go` strategy | S:95 R:85 A:80 D:75 |
+| 10 | Certain | Primary memory file is a new `docs/memory/fab-workflow/pane-commands.md` (not a modification of `kit-architecture.md`) | Clarified — user chose to extract pane subcommand documentation into a dedicated memory file | S:95 R:85 A:60 D:55 |
+| 11 | Certain | The helper function is named `withServer` (not `tmuxArgs`) and lives in `internal/pane/pane.go` | Clarified — user confirmed; `withServer` avoids collision with the existing `tmuxArgs` local variable at `pane_send.go:57` | S:95 R:80 A:60 D:55 |
 
-11 assumptions (6 certain, 3 confident, 2 tentative, 0 unresolved).
+11 assumptions (11 certain, 0 confident, 0 tentative, 0 unresolved).

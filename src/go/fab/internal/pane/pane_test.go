@@ -2,8 +2,70 @@ package pane
 
 import (
 	"os"
+	"reflect"
 	"testing"
 )
+
+func TestWithServer(t *testing.T) {
+	t.Run("empty server returns args verbatim", func(t *testing.T) {
+		got := WithServer("", "list-panes", "-a")
+		want := []string{"list-panes", "-a"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("WithServer(\"\", ...) = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("non-empty server prepends -L", func(t *testing.T) {
+		got := WithServer("runKit", "list-panes", "-a")
+		want := []string{"-L", "runKit", "list-panes", "-a"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("WithServer(\"runKit\", ...) = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("no args with non-empty server returns just -L and server", func(t *testing.T) {
+		got := WithServer("runKit")
+		want := []string{"-L", "runKit"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("WithServer(\"runKit\") = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("no args with empty server returns empty slice", func(t *testing.T) {
+		got := WithServer("")
+		if len(got) != 0 {
+			t.Errorf("WithServer(\"\") = %v, want empty slice", got)
+		}
+	})
+
+	t.Run("input args slice is not mutated across calls", func(t *testing.T) {
+		original := []string{"list-panes", "-a", "-F", "#{pane_id}"}
+		// Snapshot original contents for later comparison
+		snapshot := make([]string, len(original))
+		copy(snapshot, original)
+
+		// Call twice with the same shared slice
+		_ = WithServer("runKit", original...)
+		_ = WithServer("runKit", original...)
+
+		if !reflect.DeepEqual(original, snapshot) {
+			t.Errorf("input slice mutated: got %v, want %v", original, snapshot)
+		}
+	})
+
+	t.Run("special characters in server name passed verbatim", func(t *testing.T) {
+		got := WithServer("my-socket", "list-panes")
+		want := []string{"-L", "my-socket", "list-panes"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("WithServer(\"my-socket\", ...) = %v, want %v", got, want)
+		}
+		got2 := WithServer("socket_1", "list-panes")
+		want2 := []string{"-L", "socket_1", "list-panes"}
+		if !reflect.DeepEqual(got2, want2) {
+			t.Errorf("WithServer(\"socket_1\", ...) = %v, want %v", got2, want2)
+		}
+	})
+}
 
 func TestFormatIdleDuration(t *testing.T) {
 	tests := []struct {

@@ -296,10 +296,18 @@ fab pane <subcommand> [flags...]
 
 | Subcommand | Usage | Purpose |
 |------------|-------|---------|
-| `map` | `fab pane map [--json] [--session <name>] [--all-sessions]` | Show tmux pane-to-worktree mapping with pipeline state |
-| `capture` | `fab pane capture <pane> [-l N] [--json] [--raw]` | Capture terminal content with fab context enrichment |
-| `send` | `fab pane send <pane> <text> [--no-enter] [--force]` | Send keystrokes with pane existence and agent idle validation |
-| `process` | `fab pane process <pane> [--json]` | Detect the process tree running in a pane |
+| `map` | `fab pane map [--json] [--session <name>] [--all-sessions] [--server <name>]` | Show tmux pane-to-worktree mapping with pipeline state |
+| `capture` | `fab pane capture <pane> [-l N] [--json] [--raw] [--server <name>]` | Capture terminal content with fab context enrichment |
+| `send` | `fab pane send <pane> <text> [--no-enter] [--force] [--server <name>]` | Send keystrokes with pane existence and agent idle validation |
+| `process` | `fab pane process <pane> [--json] [--server <name>]` | Detect the process tree running in a pane |
+
+#### Persistent Flag
+
+`--server` / `-L` is registered as a persistent flag on the `pane` parent command, so it is available to every subcommand (`map`, `capture`, `send`, `process`). When set, every internal `tmux` invocation is scoped to the named socket via `tmux -L <name>`. When absent or empty, tmux's default socket selection applies (inheriting from `$TMUX` or falling back to the default socket). This enables programmatic callers that run inside one tmux server to query panes on a different tmux server — e.g., a daemon running inside `tmux -L rk-daemon ...` that needs to inspect panes on the `runKit` socket.
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--server <name>`, `-L <name>` | string | `""` | Target tmux socket label (passed as `tmux -L <name>`). Defaults to `$TMUX` / tmux default socket. |
 
 ---
 
@@ -308,7 +316,7 @@ fab pane <subcommand> [flags...]
 Show all tmux panes with pipeline state. Includes all panes regardless of whether they are in a git repo or have a `fab/` directory.
 
 ```
-fab pane map [--json] [--session <name>] [--all-sessions]
+fab pane map [--json] [--session <name>] [--all-sessions] [--server <name>]
 ```
 
 #### Flags
@@ -318,6 +326,7 @@ fab pane map [--json] [--session <name>] [--all-sessions]
 | `--json` | bool | Output as JSON array instead of aligned table |
 | `--session <name>` | string | Target a specific tmux session by name (skips `$TMUX` check) |
 | `--all-sessions` | bool | Query all tmux sessions (skips `$TMUX` check) |
+| `--server <name>`, `-L <name>` | string | Target tmux socket label (passed as `tmux -L <name>`). Defaults to `$TMUX` / tmux default socket. |
 
 `--session` and `--all-sessions` are mutually exclusive. When neither is set, discovers panes in the current tmux session only (`-s` session scope) and requires `$TMUX` to be set.
 
@@ -373,7 +382,7 @@ When `--json` is set, output is a JSON array. Each element has these fields (sna
 Capture terminal content from a tmux pane with fab context enrichment.
 
 ```
-fab pane capture <pane> [-l N] [--json] [--raw]
+fab pane capture <pane> [-l N] [--json] [--raw] [--server <name>]
 ```
 
 #### Flags
@@ -384,6 +393,7 @@ fab pane capture <pane> [-l N] [--json] [--raw]
 | `-l`, `--lines` | int | 50 | Number of lines to capture |
 | `--json` | bool | false | Output as JSON with metadata |
 | `--raw` | bool | false | Output raw captured text only (no enrichment) |
+| `--server <name>`, `-L <name>` | string | `""` | Target tmux socket label (passed as `tmux -L <name>`). Defaults to `$TMUX` / tmux default socket. |
 
 `--json` and `--raw` are mutually exclusive.
 
@@ -421,7 +431,7 @@ Plain captured text only, identical to raw `tmux capture-pane -p`. No header, no
 Send keystrokes to a tmux pane with built-in pane existence and agent idle validation.
 
 ```
-fab pane send <pane> <text> [--no-enter] [--force]
+fab pane send <pane> <text> [--no-enter] [--force] [--server <name>]
 ```
 
 #### Flags
@@ -432,6 +442,7 @@ fab pane send <pane> <text> [--no-enter] [--force]
 | `<text>` | positional | required | Text to send |
 | `--no-enter` | bool | false | Don't append Enter keystroke |
 | `--force` | bool | false | Skip idle validation (still validates pane existence) |
+| `--server <name>`, `-L <name>` | string | `""` | Target tmux socket label (passed as `tmux -L <name>`). Defaults to `$TMUX` / tmux default socket. |
 
 #### Validation Pipeline
 
@@ -450,7 +461,7 @@ fab pane send <pane> <text> [--no-enter] [--force]
 Detect the process tree running in a tmux pane via OS-level process inspection.
 
 ```
-fab pane process <pane> [--json]
+fab pane process <pane> [--json] [--server <name>]
 ```
 
 #### Flags
@@ -459,6 +470,7 @@ fab pane process <pane> [--json]
 |------|------|---------|-------------|
 | `<pane>` | positional | required | Tmux pane ID (e.g., `%5`) |
 | `--json` | bool | false | Output as JSON |
+| `--server <name>`, `-L <name>` | string | `""` | Target tmux socket label (passed as `tmux -L <name>`). Defaults to `$TMUX` / tmux default socket. The subsequent `/proc` or `ps` walk is socket-independent. |
 
 #### Process Discovery
 

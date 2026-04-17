@@ -15,6 +15,22 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// WithServer prepends "-L <server>" to a tmux argument list when server is
+// non-empty, and returns args unchanged otherwise. Callers use this to build
+// the argv for `exec.Command("tmux", ...)` so the --server/-L CLI flag is
+// plumbed through to every tmux invocation. The input args slice is never
+// mutated; a new slice is allocated when a prefix is added.
+//
+// Exported (rather than unexported as originally drafted) so that the
+// `cmd/fab` package — which owns the pane subcommand wiring — shares the
+// single canonical argv builder instead of duplicating the logic.
+func WithServer(server string, args ...string) []string {
+	if server == "" {
+		return args
+	}
+	return append([]string{"-L", server}, args...)
+}
+
 // PaneContext holds resolved fab context for a single tmux pane.
 type PaneContext struct {
 	Pane              string
@@ -28,9 +44,10 @@ type PaneContext struct {
 }
 
 // ValidatePane checks that a tmux pane exists by running `tmux list-panes -a`
-// and verifying the pane ID appears in the output.
-func ValidatePane(paneID string) error {
-	out, err := exec.Command("tmux", "list-panes", "-a", "-F", "#{pane_id}").Output()
+// and verifying the pane ID appears in the output. If server is non-empty, the
+// tmux invocation is scoped to that server via `-L <server>`.
+func ValidatePane(paneID, server string) error {
+	out, err := exec.Command("tmux", WithServer(server, "list-panes", "-a", "-F", "#{pane_id}")...).Output()
 	if err != nil {
 		return fmt.Errorf("tmux list-panes: %w", err)
 	}
@@ -42,9 +59,10 @@ func ValidatePane(paneID string) error {
 	return fmt.Errorf("pane %s not found", paneID)
 }
 
-// GetPanePID returns the shell PID of a tmux pane.
-func GetPanePID(paneID string) (int, error) {
-	out, err := exec.Command("tmux", "display-message", "-t", paneID, "-p", "#{pane_pid}").Output()
+// GetPanePID returns the shell PID of a tmux pane. If server is non-empty, the
+// tmux invocation is scoped to that server via `-L <server>`.
+func GetPanePID(paneID, server string) (int, error) {
+	out, err := exec.Command("tmux", WithServer(server, "display-message", "-t", paneID, "-p", "#{pane_pid}")...).Output()
 	if err != nil {
 		return 0, fmt.Errorf("tmux display-message: %w", err)
 	}
@@ -58,9 +76,12 @@ func GetPanePID(paneID string) (int, error) {
 // ResolvePaneContext resolves the fab context for a given tmux pane.
 // mainRoot is the main worktree root used for computing relative display paths.
 // Pass "" if unknown — WorktreeDisplay will fall back to filepath.Base.
-func ResolvePaneContext(paneID string, mainRoot string) (*PaneContext, error) {
+// If server is non-empty, the tmux invocation is scoped to that server via
+// `-L <server>`; file reads, git-worktree detection, and runtime-file lookups
+// are independent of the tmux server.
+func ResolvePaneContext(paneID, mainRoot, server string) (*PaneContext, error) {
 	// Get pane CWD
-	out, err := exec.Command("tmux", "display-message", "-t", paneID, "-p", "#{pane_current_path}").Output()
+	out, err := exec.Command("tmux", WithServer(server, "display-message", "-t", paneID, "-p", "#{pane_current_path}")...).Output()
 	if err != nil {
 		return nil, fmt.Errorf("tmux display-message: %w", err)
 	}

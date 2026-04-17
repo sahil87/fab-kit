@@ -71,15 +71,16 @@ func hasAgentInTree(nodes []ProcessNode) bool {
 func runPaneProcess(cmd *cobra.Command, args []string) error {
 	paneID := args[0]
 	jsonFlag, _ := cmd.Flags().GetBool("json")
+	server, _ := cmd.Flags().GetString("server")
 
 	// Validate pane exists
-	if err := pane.ValidatePane(paneID); err != nil {
+	if err := pane.ValidatePane(paneID, server); err != nil {
 		fmt.Fprintf(cmd.ErrOrStderr(), "Error: %s\n", err)
 		os.Exit(1)
 	}
 
 	// Get pane PID
-	pid, err := pane.GetPanePID(paneID)
+	pid, err := pane.GetPanePID(paneID, server)
 	if err != nil {
 		return fmt.Errorf("get pane PID: %w", err)
 	}
