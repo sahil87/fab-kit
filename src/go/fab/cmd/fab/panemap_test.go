@@ -3,12 +3,98 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 )
+
+func TestListPanesArgs(t *testing.T) {
+	t.Run("no name, no server returns bare list-panes args", func(t *testing.T) {
+		got := listPanesArgs("", "")
+		want := []string{"list-panes", "-s", "-F", tmuxPaneFormat}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("listPanesArgs(\"\", \"\") = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("name set, no server appends -t <name>", func(t *testing.T) {
+		got := listPanesArgs("main", "")
+		want := []string{"list-panes", "-s", "-F", tmuxPaneFormat, "-t", "main"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("listPanesArgs(\"main\", \"\") = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("no name, server set prepends -L <server>", func(t *testing.T) {
+		got := listPanesArgs("", "runKit")
+		want := []string{"-L", "runKit", "list-panes", "-s", "-F", tmuxPaneFormat}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("listPanesArgs(\"\", \"runKit\") = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("name and server both set prepend -L and append -t", func(t *testing.T) {
+		got := listPanesArgs("main", "runKit")
+		want := []string{"-L", "runKit", "list-panes", "-s", "-F", tmuxPaneFormat, "-t", "main"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("listPanesArgs(\"main\", \"runKit\") = %v, want %v", got, want)
+		}
+	})
+}
+
+func TestListSessionsArgs(t *testing.T) {
+	t.Run("no server returns bare list-sessions args", func(t *testing.T) {
+		got := listSessionsArgs("")
+		want := []string{"list-sessions", "-F", "#{session_name}"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("listSessionsArgs(\"\") = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("server set prepends -L <server>", func(t *testing.T) {
+		got := listSessionsArgs("runKit")
+		want := []string{"-L", "runKit", "list-sessions", "-F", "#{session_name}"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("listSessionsArgs(\"runKit\") = %v, want %v", got, want)
+		}
+	})
+}
+
+func TestPaneMapServerFlag(t *testing.T) {
+	t.Run("--server flag is registered via persistent flag", func(t *testing.T) {
+		// The persistent --server flag is registered on paneCmd. Verify it
+		// is visible to paneMapCmd as a persistent flag (inherited).
+		parent := paneCmd()
+		// Find the map subcommand.
+		var mapSub *cobra.Command
+		for _, c := range parent.Commands() {
+			if c.Use == "map" {
+				mapSub = c
+				break
+			}
+		}
+		if mapSub == nil {
+			t.Fatal("paneCmd did not register a map subcommand")
+		}
+		flag := mapSub.Flags().Lookup("server")
+		if flag == nil {
+			// Persistent flags on parent may only be visible via InheritedFlags.
+			flag = mapSub.InheritedFlags().Lookup("server")
+		}
+		if flag == nil {
+			t.Fatal("expected --server flag to be visible on pane map subcommand")
+		}
+		if flag.Shorthand != "L" {
+			t.Errorf("expected shorthand \"L\", got %q", flag.Shorthand)
+		}
+		if flag.DefValue != "" {
+			t.Errorf("expected empty default, got %q", flag.DefValue)
+		}
+	})
+}
 
 func TestPrintPaneTable(t *testing.T) {
 	t.Run("single row", func(t *testing.T) {

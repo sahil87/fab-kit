@@ -298,3 +298,53 @@ func TestPaneProcessCmd(t *testing.T) {
 		}
 	})
 }
+
+func TestPaneProcessServerFlag(t *testing.T) {
+	t.Run("--server flag inherited from pane parent", func(t *testing.T) {
+		parent := paneCmd()
+		var sub *cobra.Command
+		for _, c := range parent.Commands() {
+			if c.Use == "process <pane>" {
+				sub = c
+				break
+			}
+		}
+		if sub == nil {
+			t.Fatal("paneCmd did not register a process subcommand")
+		}
+		flag := sub.Flags().Lookup("server")
+		if flag == nil {
+			flag = sub.InheritedFlags().Lookup("server")
+		}
+		if flag == nil {
+			t.Fatal("expected --server flag to be visible on pane process subcommand")
+		}
+		if flag.Shorthand != "L" {
+			t.Errorf("expected shorthand \"L\", got %q", flag.Shorthand)
+		}
+		if flag.DefValue != "" {
+			t.Errorf("expected empty default, got %q", flag.DefValue)
+		}
+	})
+
+	t.Run("--server flag value is parsed as string", func(t *testing.T) {
+		// Build the full pane command tree so that persistent flag parsing works
+		// the way cobra would at runtime.
+		parent := paneCmd()
+		// Parse --server runKit at the parent level; cobra should propagate it.
+		parent.SetArgs([]string{"process", "%5", "--server", "runKit"})
+		// We can't actually execute because runPaneProcess calls tmux; just verify
+		// parsing the flag doesn't error out before RunE runs.
+		// Instead, inspect the persistent flag value after manual Parse.
+		if err := parent.ParseFlags([]string{"--server", "runKit"}); err != nil {
+			t.Fatalf("ParseFlags(--server runKit) returned error: %v", err)
+		}
+		val, err := parent.PersistentFlags().GetString("server")
+		if err != nil {
+			t.Fatalf("GetString(\"server\") error: %v", err)
+		}
+		if val != "runKit" {
+			t.Errorf("expected server=\"runKit\", got %q", val)
+		}
+	})
+}

@@ -167,7 +167,7 @@ func TestPrintCaptureHeader(t *testing.T) {
 
 func TestCapturePaneArgs(t *testing.T) {
 	t.Run("default 50 lines uses -S -50", func(t *testing.T) {
-		args := capturePaneArgs("%5", 50)
+		args := capturePaneArgs("", "%5", 50)
 		expected := []string{"capture-pane", "-t", "%5", "-p", "-S", "-50"}
 		if len(args) != len(expected) {
 			t.Fatalf("args length = %d, want %d: got %v", len(args), len(expected), args)
@@ -180,7 +180,7 @@ func TestCapturePaneArgs(t *testing.T) {
 	})
 
 	t.Run("custom 20 lines uses -S -20", func(t *testing.T) {
-		args := capturePaneArgs("%5", 20)
+		args := capturePaneArgs("", "%5", 20)
 		expected := []string{"capture-pane", "-t", "%5", "-p", "-S", "-20"}
 		if len(args) != len(expected) {
 			t.Fatalf("args length = %d, want %d: got %v", len(args), len(expected), args)
@@ -193,12 +193,60 @@ func TestCapturePaneArgs(t *testing.T) {
 	})
 
 	t.Run("lines=1 is the minimum valid value", func(t *testing.T) {
-		args := capturePaneArgs("%5", 1)
+		args := capturePaneArgs("", "%5", 1)
 		expected := []string{"capture-pane", "-t", "%5", "-p", "-S", "-1"}
 		for i, v := range expected {
 			if args[i] != v {
 				t.Errorf("args[%d] = %q, want %q", i, args[i], v)
 			}
+		}
+	})
+
+	t.Run("non-empty server prepends -L", func(t *testing.T) {
+		args := capturePaneArgs("runKit", "%5", 50)
+		expected := []string{"-L", "runKit", "capture-pane", "-t", "%5", "-p", "-S", "-50"}
+		if len(args) != len(expected) {
+			t.Fatalf("args length = %d, want %d: got %v", len(args), len(expected), args)
+		}
+		for i, v := range expected {
+			if args[i] != v {
+				t.Errorf("args[%d] = %q, want %q", i, args[i], v)
+			}
+		}
+	})
+
+	t.Run("empty server returns same argv as before change", func(t *testing.T) {
+		args := capturePaneArgs("", "%5", 50)
+		for _, el := range args {
+			if el == "-L" {
+				t.Errorf("did not expect -L in argv for empty server, got %v", args)
+			}
+		}
+	})
+}
+
+func TestPaneCaptureServerFlag(t *testing.T) {
+	t.Run("--server flag inherited from pane parent", func(t *testing.T) {
+		parent := paneCmd()
+		var sub *cobra.Command
+		for _, c := range parent.Commands() {
+			if c.Use == "capture <pane>" {
+				sub = c
+				break
+			}
+		}
+		if sub == nil {
+			t.Fatal("paneCmd did not register a capture subcommand")
+		}
+		flag := sub.Flags().Lookup("server")
+		if flag == nil {
+			flag = sub.InheritedFlags().Lookup("server")
+		}
+		if flag == nil {
+			t.Fatal("expected --server flag to be visible on pane capture subcommand")
+		}
+		if flag.Shorthand != "L" {
+			t.Errorf("expected shorthand \"L\", got %q", flag.Shorthand)
 		}
 	})
 }

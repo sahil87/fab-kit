@@ -42,6 +42,7 @@ func runPaneCapture(cmd *cobra.Command, args []string) error {
 	lines, _ := cmd.Flags().GetInt("lines")
 	jsonFlag, _ := cmd.Flags().GetBool("json")
 	rawFlag, _ := cmd.Flags().GetBool("raw")
+	server, _ := cmd.Flags().GetString("server")
 
 	// Validate line count
 	if lines < 1 {
@@ -50,13 +51,13 @@ func runPaneCapture(cmd *cobra.Command, args []string) error {
 	}
 
 	// Validate pane exists
-	if err := pane.ValidatePane(paneID); err != nil {
+	if err := pane.ValidatePane(paneID, server); err != nil {
 		fmt.Fprintf(cmd.ErrOrStderr(), "Error: %s\n", err)
 		os.Exit(1)
 	}
 
 	// Capture pane content
-	content, err := capturePaneContent(paneID, lines)
+	content, err := capturePaneContent(server, paneID, lines)
 	if err != nil {
 		return fmt.Errorf("capture-pane: %w", err)
 	}
@@ -68,7 +69,7 @@ func runPaneCapture(cmd *cobra.Command, args []string) error {
 	}
 
 	// Resolve fab context
-	ctx, err := pane.ResolvePaneContext(paneID, "")
+	ctx, err := pane.ResolvePaneContext(paneID, "", server)
 	if err != nil {
 		return fmt.Errorf("resolve context: %w", err)
 	}
@@ -97,13 +98,15 @@ func runPaneCapture(cmd *cobra.Command, args []string) error {
 
 // capturePaneArgs returns the tmux capture-pane argument list for the given pane and line count.
 // It uses -S -N to capture the last N lines from the pane's scrollback buffer.
-func capturePaneArgs(paneID string, lines int) []string {
-	return []string{"capture-pane", "-t", paneID, "-p", "-S", fmt.Sprintf("-%d", lines)}
+// When server is non-empty, the argv is prepended with `-L <server>`.
+func capturePaneArgs(server, paneID string, lines int) []string {
+	return pane.WithServer(server, "capture-pane", "-t", paneID, "-p", "-S", fmt.Sprintf("-%d", lines))
 }
 
 // capturePaneContent runs tmux capture-pane and returns the captured text.
-func capturePaneContent(paneID string, lines int) (string, error) {
-	out, err := exec.Command("tmux", capturePaneArgs(paneID, lines)...).Output()
+// When server is non-empty, the tmux invocation is scoped via `-L <server>`.
+func capturePaneContent(server, paneID string, lines int) (string, error) {
+	out, err := exec.Command("tmux", capturePaneArgs(server, paneID, lines)...).Output()
 	if err != nil {
 		return "", err
 	}
