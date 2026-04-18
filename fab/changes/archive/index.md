@@ -1,5 +1,19 @@
 # Archive Index
 
+- **260417-y0sw-pane-skip-config-check** — Exempt the fab pane command group from the fab/project/config.yaml requirement so pane subcommands work from scratch tmux tabs outside any fab worktree.
+- **260417-2fbb-pane-server-flag** — Add --server/-L flag to fab pane subcommands so programmatic callers (e.g., run-kit daemon) can target a specific tmux socket instead of inheriting $TMUX from the caller.
+- **260416-mgsm-add-cli-rk-skill** — Add _cli-rk always-load skill documenting run-kit iframe windows, proxy URLs, and the visual display recipe, so every fab session can show HTML output via rk.
+- **260416-hyl6-clarify-tentative-first** — Reorder /fab-clarify suggest mode to resolve tentative assumptions before confident bulk-confirm, so users address the riskier decisions first.
+- **260416-edq9-operator-terminal-safe-status-symbols** — Replace variable-width emoji (🟢🟡🔴⏸) in the operator status frame with single-width BMP Unicode symbols that render reliably in monospace terminals.
+- **260411-57k0-operator-tab-prefix-char** — Replace double-width lightning emoji tab prefix with single-width » for operator-spawned tabs to avoid tmux tab-bar misalignment and console output issues.
+- **260409-5z32-wt-open-default-medium** — Add 'default' as a recognized value for wt open --app and wt create --worktree-open, letting automation scripts open in the detected current medium non-interactively.
+- **260409-2v5s-remove-pr-done-sentinel** — Remove the redundant .pr-done sentinel — .status.yaml already records PR URL authoritatively, so the write-only file adds dead code paths without any reader gating on it.
+- **260406-x33u-pane-capture-tmux-flag** — Fix fab pane capture invoking tmux capture-pane with an invalid -l flag, replacing it with -S -N for correct line-count limiting.
+- **260405-xh08-operator-spawn-add-fab-sync** — Fix operator respawn failure when wt create --reuse hits an early return that skips fab sync, leaving skills undeployed in the reused worktree.
+- **260405-px5o-operator-tick-start-time-subcommands** — Add fab operator tick-start and time subcommands for cross-platform clock and tick counting, replacing unreliable shell date calls in the fab-operator idle message.
+- **260405-iujc-pane-capture-l-flag-bug** — Fix the broken -l short flag on fab pane capture by aligning the Go binary with the documented interface in _cli-fab.
+- **260405-iqju-consolidate-review-types** — Consolidate the fab pipeline's outward review into fab-continue as a parallel sub-agent with full repo access, reducing git-pr-review's Phase 2 to Copilot-only.
+- **260405-hgv7-fab-new-include-git-branch** — Expand /fab-new to create the git branch inline after activating the change, so /fab-new → /fab-fff is a fully self-contained workflow. Also clarifies in constitution that src/kit/ is the canonical source for kit content.
 - **260404-rzvq-fab-draft-auto-activate** — Make /fab-new auto-activate the created change and introduce /fab-draft as the create-only power-user path, simplifying the newcomer onboarding flow.
 - **260404-g0x1-rename-upgrade-to-upgrade-repo** — Rename fab upgrade to fab upgrade-repo to eliminate confusion with fab update — the -repo suffix makes the target (project kit version) explicit.
 - **260403-tam1-pane-commands** — Internalize tmux pane operations into fab pane command group (map, capture, send, process) with built-in validation, context enrichment, and OS-level process detection.
