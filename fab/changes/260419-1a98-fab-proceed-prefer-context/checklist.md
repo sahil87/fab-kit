@@ -29,7 +29,7 @@
 - [x] CHK-012 Scenario "Substantive conversation with unrelated draft" (spec §Dispatch Table): Manually trace — substantive conversation + 1 unrelated intake → relevance check classifies as not clearly relevant → dispatch `/fab-new` + emit bypass Note. Confirm the skill text supports this path.
 - [x] CHK-013 Scenario "Empty conversation with existing draft" (spec §Dispatch Table): Manually trace — empty/thin + ≥1 intake → date-recency pick → dispatch `/fab-switch` → `/git-branch` → `/fab-fff`, no Note emitted. Confirm the skill text supports this path.
 - [x] CHK-014 Scenario "Empty conversation with no draft" (spec §Dispatch Table): Manually trace — empty/thin + no intake → error with wording preserved from today (`Nothing to proceed with — start a discussion or run /fab-new (or /fab-draft) first.`). Confirm.
-- [x] CHK-015 Scenario "Multiple clearly-relevant candidates" (spec §Relevance Assessment): Manually trace — two intakes both clearly relevant → date-descending tiebreak picks the higher `YYMMDD`; the other is bypassed with a Note.
+- [x] CHK-015 Scenario "Multiple clearly-relevant candidates" (spec §Relevance Assessment): Manually trace — two intakes both clearly relevant → date-descending tiebreak picks the higher `YYMMDD`; the non-selected candidate is left untouched with no bypass Note (activation path emits no Notes per Output Format).
 - [x] CHK-016 Scenario "Multiple bypasses" (spec §Output Format): Manually trace — two unrelated intakes → two Note lines emitted in date-descending order, both BEFORE the `Created intake:` line.
 
 ## Edge Cases & Error Handling

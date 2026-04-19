@@ -2,7 +2,7 @@
 
 ## Summary
 
-Context-aware orchestrator — detects pipeline state via a 5-step detection pipeline, runs prefix steps (fab-new, fab-switch, git-branch) as subagents, then delegates to `/fab-fff` via the Skill tool. No arguments, no flags — infers everything from context. Idempotent — re-running detects completed steps and skips them. Does not load `_preamble.md` or run preflight.
+Context-aware orchestrator — detects pipeline state via a 5-step detection pipeline, runs prefix steps (fab-new, fab-switch, git-branch) as subagents, then delegates to `/fab-fff` via the Skill tool. No arguments, no flags — infers everything from context. Idempotent — re-running detects completed steps and skips them. Reads `_preamble.md` (per skill convention) but skips running preflight and defers project-context loading to `/fab-fff`.
 
 Conversation context is the interpretive lens for any unactivated intakes: an unactivated intake is only resumed when it is clearly relevant to the current conversation or there is no competing conversation signal. An unrelated draft never hijacks the pipeline when the current conversation is about a different topic.
 

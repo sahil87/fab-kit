@@ -151,8 +151,9 @@ Relevance judgment is performed by the invoking agent inline — no external cla
 - **AND** two unactivated intakes both clearly about feature `X`
 - **WHEN** relevance assessment runs
 - **THEN** both are classified `clearly relevant`
-- **AND** the one with the higher `YYMMDD` prefix is selected
-- **AND** the other is left untouched and surfaced as a bypass note
+- **AND** the one with the higher `YYMMDD` prefix is selected for activation
+- **AND** the other is left untouched
+- **AND** the output SHALL NOT contain a bypass Note for the non-selected candidate (activation path emits no Notes — see Requirement: Output Format)
 
 #### Scenario: Ambiguous candidate resolves to not-relevant
 

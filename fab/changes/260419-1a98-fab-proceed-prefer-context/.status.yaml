@@ -16,7 +16,7 @@ progress:
 checklist:
     generated: true
     path: checklist.md
-    completed: 25
+    completed: 0
     total: 25
 confidence:
     certain: 13
@@ -41,4 +41,4 @@ stage_metrics:
     review-pr: {started_at: "2026-04-19T09:37:21Z", driver: fab-fff, iterations: 1}
 prs:
     - https://github.com/sahil87/fab-kit/pull/342
-last_updated: 2026-04-19T09:37:21Z
+last_updated: 2026-04-19T09:43:15Z
