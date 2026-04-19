@@ -227,24 +227,13 @@ Never hardcode the server URL — it can change between sessions.
 
 ### Visual Display Recipe
 
-Any skill that wants to show HTML content to the user follows this centralized 4-step recipe. Fail silently at any step if rk is unavailable or a step fails.
+The canonical recipe for displaying HTML content in an iframe window is documented by `rk context` — run-kit owns this workflow because every step (loopback HTTP server, relative `/proxy/<port>/...` path, `@rk_type`/`@rk_url` tmux options) is run-kit-specific. Keeping the recipe in one place eliminates drift between fab-kit and run-kit.
 
-1. **Generate HTML** to a known location (e.g., `~/.agent/diagrams/`, a temp directory, or the project tree)
-2. **Serve it** — start a local HTTP server bound to loopback (not exposed on LAN):
-   ```sh
-   python3 -m http.server --bind 127.0.0.1 <port> -d <dir> &
-   ```
-3. **Open an iframe window** pointing to the proxy URL:
-   ```sh
-   tmux new-window -n <name>
-   tmux set-option -w @rk_type iframe
-   tmux set-option -w @rk_url {server_url}/proxy/<port>/<filename>
-   ```
-4. **Fail silently** — if any step fails (rk missing, port in use, server start fails), skip remaining steps without error
+At use-time, call `rk context` and read the `### Visual Display Recipe` subsection of the output for the current 4-step flow (generate HTML → loopback HTTP server → iframe window with relative `@rk_url` → fail silently). Any step SHALL fail silently if its prerequisite is unavailable (rk missing, port in use, server start fails) — skip remaining steps without surfacing an error.
 
 #### Visual-Explainer Integration
 
-When the `visual-explainer` plugin is available, skills MAY delegate HTML generation to it (Step 1), then follow Steps 2–4 above to display the result. If visual-explainer is not available, skip the visual display entirely — no error, no fallback.
+When the `visual-explainer` plugin is available, skills MAY delegate HTML generation to it (Step 1 of the `rk context` recipe), then follow the remaining steps to display the result. If `visual-explainer` is not available, skip the visual display entirely — no error, no fallback.
 
 ---
 
