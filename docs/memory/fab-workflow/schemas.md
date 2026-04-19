@@ -84,22 +84,13 @@ Together with `.fab-runtime.yaml`, these two sibling files at the repo root form
 
 ## Ephemeral Runtime State
 
-### Agent Block — `.fab-runtime.yaml`
+### Agent State — `.fab-runtime.yaml`
 
-Agent runtime state lives in `.fab-runtime.yaml` at the repository root (gitignored). This file is NOT part of the workflow schema, NOT initialized by templates, and NOT read by statusman or any workflow script. It is managed by Claude Code hook scripts in `$(fab kit-path)/hooks/` via `fab runtime` Go subcommands (`fab runtime set-idle <change>`, `fab runtime clear-idle <change>`), which replace direct yq manipulation.
+Agent runtime state lives in `.fab-runtime.yaml` at the repository root (gitignored). This file is NOT part of the workflow schema (distinct from `workflow.yaml`, which this doc describes), NOT initialized by templates, and NOT read by statusman or any workflow script. It is managed by Claude Code hook scripts via the `fab hook stop|session-start|user-prompt` subcommands.
 
-The file is keyed by full change folder name (`YYMMDD-XXXX-slug` format):
+**Schema and write pipeline**: See [runtime-agents.md](runtime-agents.md) for the authoritative documentation. The file uses a top-level `_agents` map keyed by Claude's `session_id` (UUID from hook stdin) with `change`, `pid`, `tmux_server`, `tmux_pane`, and `transcript_path` as optional entry properties, plus a top-level `last_run_gc` timestamp that throttles an inline GC sweep. Entries populate regardless of active-change state, so agents running in discussion mode are tracked the same as change-associated agents.
 
-```yaml
-260306-1lwf-extract-agent-runtime-file:
-  agent:
-    idle_since: 1741193400    # unix timestamp — set by Stop hook, cleared by SessionStart hook
-```
-
-- **Present** (`{change_folder}.agent.idle_since` set): agent is idle (finished its last response turn)
-- **Absent** (no `agent` block for that change): agent is active or no hook has run
-
-Each worktree has its own repo root, so each gets its own `.fab-runtime.yaml` — no cross-worktree contention. The file is created with `{}` on first write by `fab runtime set-idle`. External tools (e.g., pipeline orchestrator) can read this file to detect agent idle state without relying on timing heuristics.
+Each worktree has its own repo root, so each gets its own `.fab-runtime.yaml` — no cross-worktree contention. External tools can read this file to detect agent idle state and correlate agents to panes without relying on timing heuristics.
 
 ## Future Enhancements
 
@@ -113,6 +104,7 @@ Each worktree has its own repo root, so each gets its own `.fab-runtime.yaml` �
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260419-o5ej-agents-runtime-unified | 2026-04-19 | Replaced the in-file `.fab-runtime.yaml` schema description with a cross-reference to the new [runtime-agents.md](runtime-agents.md) (authoritative doc for the `_agents[session_id]` + `last_run_gc` schema, hook write pipeline, GC, grandparent PID walker, and pane-map matching rule). Clarified that `.fab-runtime.yaml` is a distinct schema from `workflow.yaml` — this file documents the latter. |
 | 260307-x2tx-status-symlink-pointer | 2026-03-07 | Replaced `fab/current` pointer file with `.fab-status.yaml` symlink at repo root. Added `id` field to `.status.yaml`. Updated resolution, switch, rename, pane-map, hooks, and dispatch. Migration `0.32.0-to-0.34.0` covers conversion. |
 | 260306-6bba-redesign-hooks-strategy | 2026-03-06 | Updated Ephemeral Runtime State: `.fab-runtime.yaml` operations now use `fab runtime set-idle` and `fab runtime clear-idle` Go subcommands instead of direct yq manipulation in hooks. |
 | 260306-1lwf-extract-agent-runtime-file | 2026-03-06 | Moved agent runtime state from `.status.yaml` to `.fab-runtime.yaml` (repo root, gitignored, keyed by change folder name). Updated Ephemeral Runtime State section accordingly. |

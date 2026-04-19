@@ -25,7 +25,6 @@ func main() {
 		preflightCmd(),
 		changeCmd(),
 		scoreCmd(),
-		runtimeCmd(),
 		hookCmd(),
 		paneCmd(),
 		fabHelpCmd(),

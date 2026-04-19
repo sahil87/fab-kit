@@ -33,7 +33,23 @@ This doc covers the four subcommands, the `--server` / `-L` persistent flag, and
 
 **Table columns**: `Session` (only with `--all-sessions`), `Pane`, `WinIdx`, `Tab`, `Worktree`, `Change`, `Stage`, `Agent`. The `Worktree` column displays `(main)` for the main worktree, a relative path from the main repo's parent for other git worktrees, or `basename/` for non-git panes. Non-fab panes render em-dash fallbacks for `Change`, `Stage`, `Agent`.
 
-**JSON fields** (snake_case): `session`, `window_index`, `pane`, `tab`, `worktree`, `change`, `stage`, `agent_state`, `agent_idle_duration`. `change`, `stage`, `agent_state`, `agent_idle_duration` are `null` for non-fab panes or panes with no active change.
+**JSON fields** (snake_case): `session`, `window_index`, `pane`, `tab`, `worktree`, `change`, `stage`, `agent_state`, `agent_idle_duration`. `change` and `stage` are `null` when no active change exists on the pane's worktree. `agent_state` and `agent_idle_duration` populate whenever an `_agents` entry matches the pane — independent of `change` / `stage`.
+
+**Three-axis model**: The map resolves three orthogonal axes independently — **Change** (from `.fab-status.yaml`), **Agent** (from `_agents` in `.fab-runtime.yaml`), and **Process** (opt-in via `fab pane process`, not in `map` output). See [runtime-agents.md](runtime-agents.md) for the full model.
+
+**Agent state resolution**: The Agent column is resolved by scanning `_agents` in the pane's worktree's `.fab-runtime.yaml` for an entry whose `tmux_pane` equals the pane ID AND whose `tmux_server` is either empty or matches the current server. A matched entry without `idle_since` renders as `active`; with `idle_since` renders as `idle (<duration>)` (e.g., `idle (2m)`). No match renders as `—`. This resolution is **independent of whether the pane has an active change** — agents running in discussion mode populate the Agent column just like change-associated agents. See [runtime-agents.md](runtime-agents.md) for the matching rule and schema details.
+
+**Display scenarios**:
+
+| Scenario | Change | Stage | Agent |
+|----------|--------|-------|-------|
+| Change active, agent idle | `260417-...` | `spec` | `idle (2m)` |
+| Change active, agent active | `260417-...` | `spec` | `active` |
+| Discussion mode (fab worktree), agent idle | `(no change)` | `—` | `idle (2m)` |
+| Discussion mode (fab worktree), agent active | `(no change)` | `—` | `active` |
+| Change active, no agent matched | `260417-...` | `spec` | `—` |
+| Fab worktree, no change, no agent | `(no change)` | `—` | `—` |
+| Non-fab pane (no `fab/` dir) | `—` | `—` | `—` |
 
 **Error behavior**: Unset `$TMUX` with neither session flag → `Error: not inside a tmux session` (exit 1). No panes found → `No tmux panes found.` (exit 0).
 
@@ -63,7 +79,7 @@ This doc covers the four subcommands, the `--server` / `-L` persistent flag, and
 
 **Why two send-keys invocations**: The `-l` flag sends `<text>` literally so tmux does not interpret key names like `"Enter"`, `"Space"`, `"C-c"` embedded in the text itself. The trailing Enter keystroke is sent as a separate non-literal command.
 
-**Unknown state**: A pane with no active change, no `.fab-runtime.yaml`, or no runtime entry is treated as `unknown` (non-idle). Use `--force` to override.
+**Unknown state**: A pane with no matching `_agents` entry (no `.fab-runtime.yaml`, or no entry whose `tmux_pane` matches this pane) is treated as `unknown` (non-idle). Discussion-mode panes with a live Claude session resolve to `idle`/`active` via `_agents` matching and are accepted without `--force`. Use `--force` to override the idle check for any non-idle state. See [runtime-agents.md](runtime-agents.md) for the matching rule.
 
 ### Subcommand: `fab pane process`
 
@@ -151,4 +167,5 @@ All tmux-invoking functions accept a trailing `server string` parameter and buil
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260419-o5ej-agents-runtime-unified | 2026-04-19 | Rewrote the `fab pane map` Agent column resolution: entries are matched by `_agents[*].tmux_pane` in `.fab-runtime.yaml`, independent of active-change state. Discussion-mode panes (no active change) now render `idle (<dur>)` or `active` in the Agent column instead of `—`. Added the three-axis model (Change / Agent / Process) and display-scenario table. `fab pane send` inherits the fix — previously rejected discussion-mode panes as `unknown` now resolve correctly and accept sends when idle. Cross-referenced the new [runtime-agents.md](runtime-agents.md) for the full `.fab-runtime.yaml` schema, hook write pipeline, GC design, and grandparent PID walker. |
 | 260417-2fbb-pane-server-flag | 2026-04-17 | Created `pane-commands.md` from the per-subcommand detail previously in `kit-architecture.md`. Added persistent `--server` / `-L` flag on the parent `paneCmd` (default `""`; when non-empty, every internal `exec.Command("tmux", ...)` is prepended with `-L <server>`). New `WithServer(server string, args ...string) []string` helper exported from `internal/pane/pane.go`, consumed by all tmux exec sites across `cmd/fab/pane*.go` and `internal/pane/pane.go`. `ValidatePane`, `GetPanePID`, `ResolvePaneContext`, `discoverPanes`/`discoverSessionPanes`/`discoverAllSessions` all gained a trailing `server string` parameter; test-only argv builders (`listPanesArgs`, `listSessionsArgs`, `capturePaneArgs`, `sendTextArgs`, `sendEnterArgs`) extracted for pure-function argv-capture tests. Motivating use case: run-kit daemon in `rk-daemon` tmux socket inspecting panes on the `runKit` socket. |

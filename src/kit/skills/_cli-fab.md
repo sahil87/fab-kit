@@ -24,7 +24,7 @@ All commands accept the unified `<change>`: 4-char ID (`yobi`), folder substring
 
 ### Commands covered in `_preamble` Common fab Commands
 
-`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab runtime`, `fab hook`, `fab pane`, `fab doctor`, `fab kit-path`, `fab fab-help`, `fab operator`, `fab batch`) and extended flag details for the above.
+`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab hook`, `fab pane`, `fab doctor`, `fab kit-path`, `fab fab-help`, `fab operator`, `fab batch`) and extended flag details for the above.
 
 ---
 
@@ -128,35 +128,19 @@ fab resolve [--id|--folder|--dir|--status|--pane] [<change>]
 
 ---
 
-## fab runtime
-
-Manages `.fab-runtime.yaml` at repo root (agent idle state per change). Used by hooks.
-
-```
-fab runtime <set-idle|clear-idle|is-idle> <change>
-```
-
-- `set-idle <change>` — writes `agent.idle_since` Unix timestamp
-- `clear-idle <change>` — deletes the `agent` block (no-op if file missing)
-- `is-idle <change>` — prints `idle {duration}`, `active`, or `unknown`. Always exits 0.
-
-Accepts standard `<change>` argument.
-
----
-
 ## fab hook
 
 Claude Code hook handlers. Each subcommand is registered as inline `fab hook <subcommand>` in `.claude/settings.local.json`. **All hook subcommands exit 0** — errors silently swallowed so they never block the agent.
 
 | Subcommand | Event | Purpose |
 |------------|-------|---------|
-| `session-start` | SessionStart | Clear active-change idle state |
-| `stop` | Stop | Write `agent.idle_since` for active change |
-| `user-prompt` | UserPromptSubmit | Clear active-change idle state |
+| `session-start` | SessionStart | Delete `_agents[session_id]` entry in `.fab-runtime.yaml` |
+| `stop` | Stop | Write `_agents[session_id]` with `idle_since` plus optional tmux/pid/change/transcript fields |
+| `user-prompt` | UserPromptSubmit | Remove only `idle_since` from `_agents[session_id]`; other fields preserved |
 | `artifact-write` | PostToolUse (Write/Edit) | Per-artifact bookkeeping from stdin JSON |
 | `sync` | n/a | Register inline hook entries in `.claude/settings.local.json`; migrates old-style bash scripts; idempotent |
 
-Hook subcommands resolve the active change automatically (no `<change>` arg) — contrast `fab runtime` which requires it. `artifact-write` expects Claude Code PostToolUse JSON on stdin and emits `{"additionalContext":"Bookkeeping: ..."}`.
+The three session-scoped hooks (`session-start`, `stop`, `user-prompt`) read a JSON payload on stdin with at least a `session_id` field (UUID) and optionally `transcript_path`. Malformed JSON or a missing `session_id` is silently skipped. Each handler also invokes a throttled GC sweep (≤ once per 180 s via `last_run_gc`) that prunes entries whose stored `pid` no longer exists (`kill(pid, 0)` returning ESRCH). `artifact-write` is unchanged — it parses a different payload shape (`tool_input.file_path`) and does not participate in `_agents` writes; it emits `{"additionalContext":"Bookkeeping: ..."}` on stdout.
 
 `sync` output: `Created`, `Updated`, or `.claude/settings.local.json hooks: OK`.
 
@@ -178,7 +162,7 @@ All tmux panes with pipeline state. Non-git/non-fab panes included with `---` fa
 | `--session <name>` | Target specific session (skips `$TMUX` check) |
 | `--all-sessions` | Query all sessions (skips `$TMUX` check; mutually exclusive with `--session`) |
 
-Without `--session`/`--all-sessions` → current session only (`-s` scope, requires `$TMUX`). Table columns: `Session` (only with `--all-sessions`), `Pane`, `WinIdx`, `Tab`, `Worktree` (relative; `(main)` for main; `basename/` non-git), `Change`, `Stage`, `Agent`. Agent: `active`, `idle ({dur})`, `?`, or `---`. Idle duration: `{N}s`/`{N}m`/`{N}h` floor division. `$TMUX` unset without targeting flag → exit 1. No panes → exit 0 `No tmux panes found.`
+Without `--session`/`--all-sessions` → current session only (`-s` scope, requires `$TMUX`). Table columns: `Session` (only with `--all-sessions`), `Pane`, `WinIdx`, `Tab`, `Worktree` (relative; `(main)` for main; `basename/` non-git), `Change`, `Stage`, `Agent`. Agent: `active`, `idle ({dur})`, or `—` (em dash). Change: folder name, `(no change)` for fab worktree with no active change, or `—` for non-fab panes. Idle duration: `{N}s`/`{N}m`/`{N}h` floor division. Change and Agent resolve on independent axes: Change comes from `.fab-status.yaml`; Agent comes from `_agents[*].tmux_pane` matching in `.fab-runtime.yaml` — so a pane with a running Claude in discussion mode (no active change) now shows `(no change)` in Change but a populated Agent column. `$TMUX` unset without targeting flag → exit 1. No panes → exit 0 `No tmux panes found.`
 
 ### capture — `fab pane capture <pane> [-l N] [--json] [--raw] [--server <name>]`
 
@@ -186,7 +170,7 @@ Without `--session`/`--all-sessions` → current session only (`-s` scope, requi
 
 ### send — `fab pane send <pane> <text> [--no-enter] [--force] [--server <name>]`
 
-Validation pipeline: (1) pane exists via `tmux list-panes -a`; (2) agent is idle (rejects `active`/`unknown` unless `--force`); (3) `tmux send-keys`. `--no-enter` skips the trailing Enter. `--force` bypasses idle check only — pane-existence still enforced. Panes with no change/runtime entry = `unknown` (non-idle). Success: `Sent to <pane>`.
+Validation pipeline: (1) pane exists via `tmux list-panes -a`; (2) agent is idle (rejects `active`/`unknown` unless `--force`); (3) `tmux send-keys`. `--no-enter` skips the trailing Enter. `--force` bypasses idle check only — pane-existence still enforced. Agent resolution matches `_agents[*].tmux_pane` in `.fab-runtime.yaml` at the worktree root; a pane with no matching entry = `unknown` (non-idle). Change state is independent — panes in discussion mode (no active change) now accept sends when idle, instead of being rejected as `unknown`. Success: `Sent to <pane>`.
 
 ### process — `fab pane process <pane> [--json] [--server <name>]`
 

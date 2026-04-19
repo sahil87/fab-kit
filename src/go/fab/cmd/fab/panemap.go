@@ -91,7 +91,7 @@ func runPaneMap(cmd *cobra.Command, args []string) error {
 	runtimeCache := make(map[string]interface{})
 
 	for _, p := range panes {
-		row, ok := resolvePane(p, mainRoot, runtimeCache)
+		row, ok := resolvePane(p, mainRoot, server, runtimeCache)
 		if ok {
 			rows = append(rows, row)
 		}
@@ -244,8 +244,12 @@ func matchPanesByFolder(panes []paneEntry, folder string, resolveFunc func(paneE
 	return matches, warning
 }
 
-// resolvePane resolves a pane entry into a table row.
-func resolvePane(p paneEntry, mainRoot string, runtimeCache map[string]interface{}) (paneRow, bool) {
+// resolvePane resolves a pane entry into a table row. Agent state is
+// resolved by matching `_agents[*].tmux_pane` in the worktree's
+// .fab-runtime.yaml — independent of whether a change is active. This is
+// the three-axis model: Change (from .fab-status.yaml), Agent (from
+// _agents), and (not shown here) Process (opt-in via `fab pane process`).
+func resolvePane(p paneEntry, mainRoot, server string, runtimeCache map[string]interface{}) (paneRow, bool) {
 	emDash := "\u2014"
 
 	wtRoot, err := pane.GitWorktreeRoot(p.cwd)
@@ -263,32 +267,31 @@ func resolvePane(p paneEntry, mainRoot string, runtimeCache map[string]interface
 	}
 
 	fabDir := filepath.Join(wtRoot, "fab")
+	fabDirMissing := false
 	if _, err := os.Stat(fabDir); os.IsNotExist(err) {
-		return paneRow{
-			session:     p.session,
-			windowIndex: p.index,
-			pane:        p.id,
-			tab:         p.tab,
-			worktree:    pane.WorktreeDisplayPath(wtRoot, mainRoot),
-			change:      emDash,
-			stage:       emDash,
-			agent:       emDash,
-		}, true
+		fabDirMissing = true
 	}
 
 	wtDisplay := pane.WorktreeDisplayPath(wtRoot, mainRoot)
-	changeName, folderName := pane.ReadFabCurrent(wtRoot)
 
+	changeName := emDash
 	stageName := emDash
-	if folderName != "" {
-		statusPath := filepath.Join(fabDir, "changes", folderName, ".status.yaml")
-		if statusFile, err := sf.Load(statusPath); err == nil {
-			stage, _ := status.DisplayStage(statusFile)
-			stageName = stage
+	var folderName string
+	if !fabDirMissing {
+		changeName, folderName = pane.ReadFabCurrent(wtRoot)
+		if folderName != "" {
+			statusPath := filepath.Join(fabDir, "changes", folderName, ".status.yaml")
+			if statusFile, err := sf.Load(statusPath); err == nil {
+				stage, _ := status.DisplayStage(statusFile)
+				stageName = stage
+			}
 		}
 	}
 
-	agentState := pane.ResolveAgentStateWithCache(wtRoot, folderName, runtimeCache)
+	// Agent resolution runs regardless of fabDir presence — the runtime
+	// file lives at the worktree root and can hold entries for
+	// discussion-mode agents with no associated change.
+	agentState := pane.ResolveAgentStateWithCache(wtRoot, p.id, server, runtimeCache)
 
 	return paneRow{
 		session:     p.session,
@@ -329,9 +332,6 @@ func splitAgentState(agent string) (state *string, idleDuration *string) {
 	switch {
 	case agent == "\u2014":
 		return nil, nil
-	case agent == "?":
-		s := "unknown"
-		return &s, nil
 	case strings.HasPrefix(agent, "idle ("):
 		s := "idle"
 		dur := strings.TrimSuffix(strings.TrimPrefix(agent, "idle ("), ")")

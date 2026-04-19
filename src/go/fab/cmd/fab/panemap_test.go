@@ -409,7 +409,6 @@ func TestSplitAgentState(t *testing.T) {
 	}{
 		{"active", "active", strPtr("active"), nil},
 		{"em dash", "\u2014", nil, nil},
-		{"unknown", "?", strPtr("unknown"), nil},
 		{"idle with duration", "idle (5m)", strPtr("idle"), strPtr("5m")},
 		{"idle with seconds", "idle (30s)", strPtr("idle"), strPtr("30s")},
 		{"idle with hours", "idle (2h)", strPtr("idle"), strPtr("2h")},
@@ -525,28 +524,6 @@ func TestPrintPaneJSON(t *testing.T) {
 		}
 		if r.AgentIdleDuration == nil || *r.AgentIdleDuration != "5m" {
 			t.Errorf("agent_idle_duration = %v, want 5m", ptrStr(r.AgentIdleDuration))
-		}
-	})
-
-	t.Run("unknown agent state", func(t *testing.T) {
-		var buf bytes.Buffer
-		cmd := &cobra.Command{}
-		cmd.SetOut(&buf)
-
-		rows := []paneRow{
-			{session: "runK", windowIndex: 0, pane: "%9", tab: "charlie", worktree: "(main)", change: "260306-xy12-test", stage: "apply", agent: "?"},
-		}
-		if err := printPaneJSON(cmd, rows); err != nil {
-			t.Fatal(err)
-		}
-
-		var result []paneJSON
-		if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
-			t.Fatalf("invalid JSON: %v", err)
-		}
-		r := result[0]
-		if r.AgentState == nil || *r.AgentState != "unknown" {
-			t.Errorf("agent_state = %v, want unknown", ptrStr(r.AgentState))
 		}
 	})
 
@@ -670,6 +647,69 @@ func TestPrintPaneTableWithWinIdx(t *testing.T) {
 		tabIdx := strings.Index(header, "Tab")
 		if paneIdx >= winIdxIdx || winIdxIdx >= tabIdx {
 			t.Errorf("column order wrong: Pane@%d WinIdx@%d Tab@%d — expected Pane < WinIdx < Tab", paneIdx, winIdxIdx, tabIdx)
+		}
+	})
+}
+
+// TestPrintPaneJSON_DiscussionMode verifies the three-axis independence
+// of change/agent fields in JSON output. A discussion-mode row has a null
+// change but a populated agent — previously impossible in the old
+// folder-keyed schema.
+func TestPrintPaneJSON_DiscussionMode(t *testing.T) {
+	t.Run("discussion-mode pane populates agent_state with null change", func(t *testing.T) {
+		var buf bytes.Buffer
+		cmd := &cobra.Command{}
+		cmd.SetOut(&buf)
+
+		// Discussion mode: change and stage are em-dash; agent is populated.
+		rows := []paneRow{
+			{session: "main", windowIndex: 2, pane: "%15", tab: "scratch", worktree: "(main)", change: "(no change)", stage: "\u2014", agent: "idle (2m)"},
+		}
+		if err := printPaneJSON(cmd, rows); err != nil {
+			t.Fatal(err)
+		}
+
+		var result []paneJSON
+		if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+			t.Fatalf("invalid JSON: %v", err)
+		}
+		r := result[0]
+		if r.Change != nil {
+			t.Errorf("change should be null in discussion mode, got %v", ptrStr(r.Change))
+		}
+		if r.Stage != nil {
+			t.Errorf("stage should be null in discussion mode, got %v", ptrStr(r.Stage))
+		}
+		if r.AgentState == nil || *r.AgentState != "idle" {
+			t.Errorf("agent_state = %v, want idle", ptrStr(r.AgentState))
+		}
+		if r.AgentIdleDuration == nil || *r.AgentIdleDuration != "2m" {
+			t.Errorf("agent_idle_duration = %v, want 2m", ptrStr(r.AgentIdleDuration))
+		}
+	})
+
+	t.Run("discussion-mode active agent has agent_state active, null change", func(t *testing.T) {
+		var buf bytes.Buffer
+		cmd := &cobra.Command{}
+		cmd.SetOut(&buf)
+
+		rows := []paneRow{
+			{session: "main", windowIndex: 0, pane: "%15", tab: "scratch", worktree: "(main)", change: "(no change)", stage: "\u2014", agent: "active"},
+		}
+		if err := printPaneJSON(cmd, rows); err != nil {
+			t.Fatal(err)
+		}
+
+		var result []paneJSON
+		if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+			t.Fatalf("invalid JSON: %v", err)
+		}
+		r := result[0]
+		if r.Change != nil {
+			t.Errorf("change should be null, got %v", ptrStr(r.Change))
+		}
+		if r.AgentState == nil || *r.AgentState != "active" {
+			t.Errorf("agent_state = %v, want active", ptrStr(r.AgentState))
 		}
 	})
 }

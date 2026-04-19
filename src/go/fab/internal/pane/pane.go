@@ -15,6 +15,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Runtime schema keys — kept in sync with the canonical definitions in the
+// runtime package. Duplicating the constants here avoids a circular import
+// (runtime → pane would be circular).
+const (
+	agentsKey    = "_agents"
+	idleSinceKey = "idle_since"
+	tmuxPaneKey  = "tmux_pane"
+	tmuxSrvKey   = "tmux_server"
+)
+
 // WithServer prepends "-L <server>" to a tmux argument list when server is
 // non-empty, and returns args unchanged otherwise. Callers use this to build
 // the argv for `exec.Command("tmux", ...)` so the --server/-L CLI flag is
@@ -79,6 +89,10 @@ func GetPanePID(paneID, server string) (int, error) {
 // If server is non-empty, the tmux invocation is scoped to that server via
 // `-L <server>`; file reads, git-worktree detection, and runtime-file lookups
 // are independent of the tmux server.
+//
+// Agent-state resolution is independent of whether a change is active — a
+// pane with a running Claude in "discussion mode" (no change) will still
+// populate AgentState if a matching `_agents` entry exists.
 func ResolvePaneContext(paneID, mainRoot, server string) (*PaneContext, error) {
 	// Get pane CWD
 	out, err := exec.Command("tmux", WithServer(server, "display-message", "-t", paneID, "-p", "#{pane_current_path}")...).Output()
@@ -111,7 +125,7 @@ func ResolvePaneContext(paneID, mainRoot, server string) (*PaneContext, error) {
 		return ctx, nil
 	}
 
-	// Read .fab-status.yaml symlink for the active change
+	// Read .fab-status.yaml symlink for the active change (independent axis).
 	_, folderName := ReadFabCurrent(wtRoot)
 	if folderName != "" {
 		ctx.Change = &folderName
@@ -122,15 +136,16 @@ func ResolvePaneContext(paneID, mainRoot, server string) (*PaneContext, error) {
 			stage, _ := status.DisplayStage(statusFile)
 			ctx.Stage = &stage
 		}
+	}
 
-		// Resolve agent state
-		state, idleDur := ResolveAgentState(wtRoot, folderName)
-		if state != "" {
-			ctx.AgentState = &state
-		}
-		if idleDur != "" {
-			ctx.AgentIdleDuration = &idleDur
-		}
+	// Agent resolution — independent of whether a change is active. Runs
+	// regardless of folderName so discussion-mode panes get populated.
+	state, idleDur := ResolveAgentState(wtRoot, paneID, server)
+	if state != "" {
+		ctx.AgentState = &state
+	}
+	if idleDur != "" {
+		ctx.AgentIdleDuration = &idleDur
 	}
 
 	return ctx, nil
@@ -194,131 +209,159 @@ func ReadFabCurrent(wtRoot string) (string, string) {
 	return folderName, folderName
 }
 
-// ResolveAgentState determines the agent state and idle duration for a change.
-// Returns (state, idleDuration). state is "active", "idle", or "unknown".
-// idleDuration is non-empty only when state is "idle".
-func ResolveAgentState(wtRoot, folderName string) (string, string) {
-	if folderName == "" {
+// findAgentByPane scans the given `_agents` map for an entry matching
+// paneID (exact `tmux_pane` equality) AND tmux_server (if the entry has a
+// non-empty tmux_server, it must equal server; an entry with empty
+// tmux_server matches any server). Returns the matching entry map and true
+// on hit; nil, false otherwise.
+//
+// When multiple entries match, preference goes to: (1) an active entry (no
+// `idle_since`), then (2) the most recently idle entry (largest idle_since).
+// This gives "active agent here" priority over stale idle entries for the
+// same pane — matching the pane-map semantics in the spec.
+func findAgentByPane(rtData map[string]interface{}, paneID, server string) (map[string]interface{}, bool) {
+	agents, ok := rtData[agentsKey].(map[string]interface{})
+	if !ok {
+		return nil, false
+	}
+
+	var activeMatch map[string]interface{}
+	var idleMatch map[string]interface{}
+	var idleMatchTs int64
+
+	for _, raw := range agents {
+		entry, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		entryPane, _ := entry[tmuxPaneKey].(string)
+		if entryPane != paneID {
+			continue
+		}
+		entrySrv, _ := entry[tmuxSrvKey].(string)
+		if entrySrv != "" && server != "" && entrySrv != server {
+			continue
+		}
+		// Entry matches — determine if active or idle.
+		if _, hasIdle := entry[idleSinceKey]; !hasIdle {
+			// Active entry wins immediately.
+			if activeMatch == nil {
+				activeMatch = entry
+			}
+			continue
+		}
+		// Idle entry — keep the most recent idle_since for disambiguation.
+		ts, _ := asInt64(entry[idleSinceKey])
+		if idleMatch == nil || ts > idleMatchTs {
+			idleMatch = entry
+			idleMatchTs = ts
+		}
+	}
+
+	if activeMatch != nil {
+		return activeMatch, true
+	}
+	if idleMatch != nil {
+		return idleMatch, true
+	}
+	return nil, false
+}
+
+// ResolveAgentState determines the agent state and idle duration for a
+// pane by matching `_agents[*].tmux_pane` to paneID. Returns (state,
+// idleDuration). state is "active" or "idle". idleDuration is non-empty
+// only when state is "idle". Returns ("", "") when no entry matches.
+//
+// The pane-keyed resolution is independent of the active change — a pane
+// in discussion mode still returns "idle"/"active" when an entry matches,
+// enabling pane-map visibility for pre-intake work.
+func ResolveAgentState(wtRoot, paneID, server string) (string, string) {
+	if paneID == "" {
 		return "", ""
 	}
 
 	rtPath := filepath.Join(wtRoot, ".fab-runtime.yaml")
 	rtData, err := LoadRuntimeFile(rtPath)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return "unknown", ""
-		}
-		return "unknown", ""
+		// Missing file or parse error — no match, no state.
+		return "", ""
 	}
 
-	folderEntry, ok := rtData[folderName].(map[string]interface{})
+	entry, ok := findAgentByPane(rtData, paneID, server)
+	if !ok {
+		return "", ""
+	}
+
+	idleVal, hasIdle := entry[idleSinceKey]
+	if !hasIdle {
+		return "active", ""
+	}
+	ts, ok := asInt64(idleVal)
 	if !ok {
 		return "active", ""
 	}
-
-	agentBlock, ok := folderEntry["agent"].(map[string]interface{})
-	if !ok {
-		return "active", ""
-	}
-
-	idleSince, ok := agentBlock["idle_since"]
-	if !ok {
-		return "active", ""
-	}
-
-	var ts int64
-	switch v := idleSince.(type) {
-	case int:
-		ts = int64(v)
-	case int64:
-		ts = v
-	case float64:
-		ts = int64(v)
-	default:
-		return "active", ""
-	}
-
 	elapsed := time.Now().Unix() - ts
 	if elapsed < 0 {
 		elapsed = 0
 	}
-
 	return "idle", FormatIdleDuration(elapsed)
 }
 
-// ResolveAgentStateWithCache is like ResolveAgentState but uses a per-worktree
-// cache to avoid re-reading .fab-runtime.yaml for multiple panes in the same worktree.
-// Returns the combined display string used by pane map (e.g., "active", "idle (2m)", "?", em dash).
-func ResolveAgentStateWithCache(wtRoot, folderName string, cache map[string]interface{}) string {
-	if folderName == "" {
-		return "\u2014" // em dash for no change
+// ResolveAgentStateWithCache is the pane-map variant of ResolveAgentState
+// that uses a per-worktree cache to avoid re-reading .fab-runtime.yaml for
+// multiple panes in the same worktree. Returns the combined display string
+// used by pane map (e.g., "active", "idle (2m)", em dash for no match).
+func ResolveAgentStateWithCache(wtRoot, paneID, server string, cache map[string]interface{}) string {
+	emDash := "\u2014"
+	if paneID == "" {
+		return emDash
 	}
 
-	rtPath := filepath.Join(wtRoot, ".fab-runtime.yaml")
-
-	var rtData map[string]interface{}
-	var fileMissing bool
-
-	if cached, ok := cache[wtRoot]; ok {
-		switch v := cached.(type) {
-		case map[string]interface{}:
-			rtData = v
-		case nil:
-			fileMissing = true
-		}
-	} else {
-		loaded, err := LoadRuntimeFile(rtPath)
-		if err != nil {
-			if os.IsNotExist(err) {
-				cache[wtRoot] = nil
-				fileMissing = true
-			} else {
-				fmt.Fprintf(os.Stderr, "warning: failed to load %s: %v\n", rtPath, err)
-				return "?"
-			}
-		} else {
-			cache[wtRoot] = loaded
-			rtData = loaded
-		}
+	rtData, ok := loadRuntimeForCache(wtRoot, cache)
+	if !ok {
+		return emDash
 	}
 
-	if fileMissing {
-		return "?"
+	entry, ok := findAgentByPane(rtData, paneID, server)
+	if !ok {
+		return emDash
 	}
 
-	folderEntry, ok := rtData[folderName].(map[string]interface{})
+	idleVal, hasIdle := entry[idleSinceKey]
+	if !hasIdle {
+		return "active"
+	}
+	ts, ok := asInt64(idleVal)
 	if !ok {
 		return "active"
 	}
-
-	agentBlock, ok := folderEntry["agent"].(map[string]interface{})
-	if !ok {
-		return "active"
-	}
-
-	idleSince, ok := agentBlock["idle_since"]
-	if !ok {
-		return "active"
-	}
-
-	var ts int64
-	switch v := idleSince.(type) {
-	case int:
-		ts = int64(v)
-	case int64:
-		ts = v
-	case float64:
-		ts = int64(v)
-	default:
-		return "active"
-	}
-
 	elapsed := time.Now().Unix() - ts
 	if elapsed < 0 {
 		elapsed = 0
 	}
-
 	return fmt.Sprintf("idle (%s)", FormatIdleDuration(elapsed))
+}
+
+// loadRuntimeForCache returns the parsed runtime map for wtRoot, using and
+// populating the shared cache. Returns (data, true) on a successful read,
+// (nil, false) when the file is missing or unreadable — the cache records
+// nil in either case to avoid retries.
+func loadRuntimeForCache(wtRoot string, cache map[string]interface{}) (map[string]interface{}, bool) {
+	if cached, present := cache[wtRoot]; present {
+		if m, ok := cached.(map[string]interface{}); ok {
+			return m, true
+		}
+		return nil, false
+	}
+
+	rtPath := filepath.Join(wtRoot, ".fab-runtime.yaml")
+	loaded, err := LoadRuntimeFile(rtPath)
+	if err != nil {
+		cache[wtRoot] = nil
+		return nil, false
+	}
+	cache[wtRoot] = loaded
+	return loaded, true
 }
 
 // LoadRuntimeFile reads and parses .fab-runtime.yaml.
@@ -348,4 +391,19 @@ func FormatIdleDuration(seconds int64) string {
 		return fmt.Sprintf("%dm", seconds/60)
 	}
 	return fmt.Sprintf("%dh", seconds/3600)
+}
+
+// asInt64 coerces a YAML-decoded numeric value to int64. Returns ok=false
+// when the value is missing or of an unexpected type.
+func asInt64(v interface{}) (int64, bool) {
+	switch n := v.(type) {
+	case int:
+		return int64(n), true
+	case int64:
+		return n, true
+	case float64:
+		return int64(n), true
+	default:
+		return 0, false
+	}
 }

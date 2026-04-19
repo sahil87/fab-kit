@@ -7,14 +7,27 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/hooklib"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/proc"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/runtime"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/score"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
 	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
+)
+
+// gcInterval is the throttle window for GCIfDue calls from hook handlers.
+// Matches the 180-second value documented in the spec.
+const gcInterval = 180 * time.Second
+
+// envTmux is the environment variable name for the tmux socket path.
+// envTmuxPane is the environment variable name for the current pane ID.
+const (
+	envTmux     = "TMUX"
+	envTmuxPane = "TMUX_PANE"
 )
 
 func hookCmd() *cobra.Command {
@@ -34,13 +47,80 @@ func hookCmd() *cobra.Command {
 	return cmd
 }
 
+// parseTmuxServer extracts the basename of the $TMUX socket path. A $TMUX
+// value looks like "/tmp/tmux-1001/fabKit,8671,0" — we take the first
+// comma-separated component and return its basename ("fabKit"). Returns
+// empty when $TMUX is unset or malformed.
+func parseTmuxServer(tmuxEnv string) string {
+	if tmuxEnv == "" {
+		return ""
+	}
+	first := tmuxEnv
+	if idx := strings.Index(first, ","); idx >= 0 {
+		first = first[:idx]
+	}
+	if first == "" {
+		return ""
+	}
+	return filepath.Base(first)
+}
+
+// resolveClaudePID returns a pointer to Claude's PID resolved via the
+// platform-split grandparent walker, or nil on failure. Nil is preserved in
+// the serialized entry so GC does not attempt liveness checks on an absent
+// field.
+func resolveClaudePID() *int {
+	pid, err := proc.ClaudePID()
+	if err != nil || pid <= 0 {
+		return nil
+	}
+	return &pid
+}
+
+// resolveActiveChangeFolder returns the folder name of the active change, or
+// empty string if none is active. Swallows all errors — discussion-mode
+// agents MUST NOT fail the hook just because no change is set.
+func resolveActiveChangeFolder(fabRoot string) string {
+	folder, err := resolve.ToFolder(fabRoot, "")
+	if err != nil {
+		return ""
+	}
+	return folder
+}
+
+// buildAgentEntry assembles an AgentEntry from the current hook invocation
+// context. Only IdleSince is set by the caller (Stop uses now; others pass
+// nil). All other fields are pulled from the environment and the grandparent
+// walker — missing fields are omitted from the written record.
+func buildAgentEntry(fabRoot string, idleSince *int64, transcriptPath string) runtime.AgentEntry {
+	return runtime.AgentEntry{
+		Change:         resolveActiveChangeFolder(fabRoot),
+		IdleSince:      idleSince,
+		PID:            resolveClaudePID(),
+		TmuxServer:     parseTmuxServer(os.Getenv(envTmux)),
+		TmuxPane:       os.Getenv(envTmuxPane),
+		TranscriptPath: transcriptPath,
+	}
+}
+
 func hookSessionStartCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "session-start",
-		Short: "Clear agent idle state on session start",
+		Short: "Delete agent entry on session start",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			clearIdleForActiveChange()
+			payload, err := hooklib.ParseSessionPayload(cmd.InOrStdin())
+			if err != nil || payload.SessionID == "" {
+				return nil // swallow
+			}
+
+			fabRoot, err := resolve.FabRoot()
+			if err != nil {
+				return nil // swallow
+			}
+
+			_ = runtime.ClearAgent(fabRoot, payload.SessionID)
+			_ = runtime.GCIfDue(fabRoot, gcInterval)
 			return nil
 		},
 	}
@@ -49,20 +129,23 @@ func hookSessionStartCmd() *cobra.Command {
 func hookStopCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop",
-		Short: "Set agent idle timestamp on stop",
+		Short: "Record agent idle entry on stop",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := hooklib.ParseSessionPayload(cmd.InOrStdin())
+			if err != nil || payload.SessionID == "" {
+				return nil // swallow
+			}
+
 			fabRoot, err := resolve.FabRoot()
 			if err != nil {
 				return nil // swallow
 			}
 
-			folder, err := resolve.ToFolder(fabRoot, "")
-			if err != nil {
-				return nil // swallow
-			}
-
-			_ = runtime.SetIdle(fabRoot, folder)
+			now := time.Now().Unix()
+			entry := buildAgentEntry(fabRoot, &now, payload.TranscriptPath)
+			_ = runtime.WriteAgent(fabRoot, payload.SessionID, entry)
+			_ = runtime.GCIfDue(fabRoot, gcInterval)
 			return nil
 		},
 	}
@@ -71,22 +154,38 @@ func hookStopCmd() *cobra.Command {
 func hookUserPromptCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "user-prompt",
-		Short: "Clear agent idle state on user prompt",
+		Short: "Clear idle_since on user prompt, preserving other entry fields",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			clearIdleForActiveChange()
+			payload, err := hooklib.ParseSessionPayload(cmd.InOrStdin())
+			if err != nil || payload.SessionID == "" {
+				return nil // swallow
+			}
+
+			fabRoot, err := resolve.FabRoot()
+			if err != nil {
+				return nil // swallow
+			}
+
+			_ = runtime.ClearAgentIdle(fabRoot, payload.SessionID)
+			_ = runtime.GCIfDue(fabRoot, gcInterval)
 			return nil
 		},
 	}
 }
 
+// hookArtifactWriteCmd handles the PostToolUse hook for Write/Edit tools.
+// Unlike the three session-scoped hooks above, this handler parses a
+// different payload shape (tool_input.file_path) — see hooklib.ParsePayload.
+// It does not participate in _agents writes; it only manages artifact
+// bookkeeping and git staging for status/history files.
 func hookArtifactWriteCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "artifact-write",
 		Short: "Artifact bookkeeping on PostToolUse Write/Edit",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			filePath, err := hooklib.ParsePayload(os.Stdin)
+			filePath, err := hooklib.ParsePayload(cmd.InOrStdin())
 			if err != nil || filePath == "" {
 				return nil // swallow
 			}
@@ -224,20 +323,4 @@ func hookSyncCmd() *cobra.Command {
 			return nil
 		},
 	}
-}
-
-// clearIdleForActiveChange resolves the active change and clears its idle state.
-// Swallows all errors.
-func clearIdleForActiveChange() {
-	fabRoot, err := resolve.FabRoot()
-	if err != nil {
-		return
-	}
-
-	folder, err := resolve.ToFolder(fabRoot, "")
-	if err != nil {
-		return
-	}
-
-	_ = runtime.ClearIdle(fabRoot, folder)
 }

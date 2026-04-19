@@ -297,12 +297,11 @@ The workflow engine backend for all fab CLI operations. Source: `src/go/fab/`.
 - `fab change new|rename|switch|list|resolve ...`
 - `fab score [--check-gate] [--stage <stage>] <change>`
 - `fab change archive|restore|archive-list ...`
-- `fab runtime set-idle <change>` — write `agent.idle_since` to `.fab-runtime.yaml`
-- `fab runtime clear-idle <change>` — remove agent block from `.fab-runtime.yaml`
-- `fab runtime is-idle <change>` — read-only idle state query; prints `idle {duration}`, `active`, or `unknown` (exit 0 always)
-- `fab hook session-start` — clear agent idle state (SessionStart event)
-- `fab hook stop` — set agent idle timestamp (Stop event)
-- `fab hook user-prompt` — clear agent idle state (UserPromptSubmit event)
+- `fab hook session-start` — SessionStart event: delete `_agents[session_id]` entry (fresh session)
+- `fab hook stop` — Stop event: write `_agents[session_id]` with `idle_since = now()` and available optional properties (change, pid, tmux_server, tmux_pane, transcript_path)
+- `fab hook user-prompt` — UserPromptSubmit event: remove only `idle_since` from `_agents[session_id]`, preserving other properties
+
+*Removed in 1.5.0*: `fab runtime set-idle|clear-idle|is-idle <change>` subcommands. These were hook-internal plumbing (invoked only by the hook scripts, never by users) and are replaced by direct `_agents[session_id]`-keyed writes inside the hook handlers. No user-facing replacement. See [runtime-agents.md](runtime-agents.md) for the new schema and write pipeline.
 - `fab hook artifact-write` — artifact bookkeeping: parse PostToolUse JSON from stdin, pattern-match fab artifact paths, perform per-artifact bookkeeping (type inference, scoring, checklist counting)
 - `fab hook sync` — register hook scripts into `.claude/settings.local.json` (replaces jq-dependent shell implementation)
 - `fab pane` — parent command grouping four pane-related subcommands (`map`, `capture`, `send`, `process`). Available from any directory, including outside a fab repo (sole entry in the router's `fabGoNoConfigArgs` allowlist — see Router section). Detailed subcommand behavior and the `--server`/`-L` flag live in [pane-commands.md](pane-commands.md).
@@ -521,6 +520,7 @@ Full benchmark suite with harness and all 4 implementations: `src/benchmark/`
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260419-o5ej-agents-runtime-unified | 2026-04-19 | Removed `fab runtime set-idle|clear-idle|is-idle <change>` subcommands from the fab-go subcommand listing. These were hook-internal plumbing replaced by direct `_agents[session_id]`-keyed writes inside the hook handlers. Added a pointer to the new [runtime-agents.md](runtime-agents.md) memory file that documents the `.fab-runtime.yaml` schema and hook write pipeline. `fab hook stop|session-start|user-prompt` descriptions updated to reflect the new `_agents[session_id]` write semantics. |
 | 260418-or0o-flatten-skill-helpers | 2026-04-18 | Flattened skill helper include tree. Removed `_naming.md` and `_cli-rk.md` from the `src/kit/skills/` directory tree; their content is inlined into `_preamble.md` (`## Naming Conventions`, `## Run-Kit (rk) Reference`). Added `_review.md` to the directory listing. Updated the Underscore File Ecosystem table — `_preamble.md` remains the sole always-load helper; `_cli-fab`, `_generation`, `_review`, `_cli-external` are now selective via the per-skill `helpers:` frontmatter field. Compressed `_cli-fab.md` from 773 to ≤300 lines; canonical command/flag documentation preserved. Inlined the 6 most-used fab command families into `_preamble.md § Common fab Commands`. |
 | 260417-2fbb-pane-server-flag | 2026-04-17 | Trimmed the per-subcommand detail for `fab pane {map,capture,send,process}` (previously at this section) to a high-level pointer; full subcommand reference and the new persistent `--server`/`-L` flag now live in `pane-commands.md`. The `fabGoNoConfigArgs` allowlist note is retained here. |
 | 260417-y0sw-pane-skip-config-check | 2026-04-17 | Added `fabGoNoConfigArgs` allowlist to the `fab` router (`src/go/fab-kit/cmd/fab/main.go`) exempting `pane` from the `config.yaml` requirement so `fab pane ...` works from any directory (including scratch tmux tabs outside a fab repo). Outside a fab repo, exempt commands dispatch to the bundled fab-go via the router's build-time `version` constant; inside a fab repo, the project-pinned `fab_version` is used unchanged. `printHelp` now runs the fab-go `--help` block even without a config so `pane` remains discoverable from scratch tabs. Safe default preserved — all other fab-go commands continue to exit with "Not in a fab-managed repo". |

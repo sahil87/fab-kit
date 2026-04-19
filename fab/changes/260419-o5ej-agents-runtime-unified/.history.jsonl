@@ -1,0 +1,22 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-04-19T09:34:40Z"}
+{"args":"Refactor .fab-runtime.yaml: make agents first-class entries keyed by Claude session_id; surface discussion-mode agents in fab pane map; add throttled GC, stdin JSON parsing, grandparent PID walk.","cmd":"fab-new","event":"command","ts":"2026-04-19T09:34:40Z"}
+{"delta":"+0.0","event":"confidence","score":0,"trigger":"calc-score","ts":"2026-04-19T09:38:01Z"}
+{"delta":"+0.0","event":"confidence","score":0,"trigger":"calc-score","ts":"2026-04-19T09:38:19Z"}
+{"delta":"+0.0","event":"confidence","score":0,"trigger":"calc-score","ts":"2026-04-19T09:38:49Z"}
+{"delta":"+0.0","event":"confidence","score":0,"trigger":"calc-score","ts":"2026-04-19T09:38:53Z"}
+{"delta":"+2.8","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-04-19T09:40:28Z"}
+{"delta":"+0.0","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-04-19T09:40:32Z"}
+{"delta":"-1.3","event":"confidence","score":1.5,"trigger":"calc-score","ts":"2026-04-19T09:44:41Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"spec","ts":"2026-04-19T09:44:44Z"}
+{"delta":"+0.0","event":"confidence","score":1.5,"trigger":"calc-score","ts":"2026-04-19T09:44:44Z"}
+{"delta":"+1.9","event":"confidence","score":3.4,"trigger":"calc-score","ts":"2026-04-19T09:45:39Z"}
+{"delta":"+0.0","event":"confidence","score":3.4,"trigger":"calc-score","ts":"2026-04-19T09:45:42Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"tasks","ts":"2026-04-19T09:48:42Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-04-19T09:48:42Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-04-19T09:52:04Z"}
+{"action":"enter","driver":"fab-continue","event":"stage-transition","stage":"review","ts":"2026-04-19T10:05:52Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-04-19T10:10:21Z"}
+{"event":"review","result":"passed","ts":"2026-04-19T10:10:21Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-04-19T10:17:17Z"}
+{"cmd":"git-pr","event":"command","ts":"2026-04-19T10:18:36Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-04-19T10:19:37Z"}
