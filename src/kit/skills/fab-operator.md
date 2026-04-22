@@ -156,9 +156,22 @@ watches:
 
 Each entry tracks: change ID, pane, last-known stage, last-known agent state, stop_stage, spawned_by (watch name or null), depends_on (change IDs to cherry-pick), branch (this change's branch name), enrolled-at, last-transition-at.
 
-**Enrollment**: operator sends a command to a change, user requests monitoring, or operator triggers an automatic action. Read-only actions do not enroll. On enrollment, the change's branch name is also recorded in the top-level `branch_map`.
+**Enrollment**: operator sends a command to a change, user requests monitoring, or operator triggers an automatic action (including autopilot and watch spawns). Read-only actions do not enroll. On enrollment, the change's branch name is also recorded in the top-level `branch_map`.
 
-**Removal**: change reaches its stop stage (or a terminal stage if `stop_stage` is null), pane dies, user explicitly stops. The `branch_map` entry is **not** removed — it persists for downstream dependency resolution.
+After writing the monitored entry to `.fab-operator.yaml`, the operator MUST prefix `»` (U+00BB) to the target tmux window's name. The rename applies to every enrollment path:
+
+```sh
+name=$(tmux display-message -p -t <pane> '#W')
+case "$name" in »*) ;; *) tmux rename-window -t <pane> "»${name}" ;; esac
+```
+
+The guard is a literal `»` prefix check — windows that already carry it (operator-spawned windows from §6, `/clear`-restored entries, re-enrolled changes) get no rename. If `tmux rename-window` fails (e.g., the pane vanished between refresh and the rename call), the operator logs one line and continues — enrollment itself is already durable:
+
+```
+{change}: window rename skipped ({error}).
+```
+
+**Removal**: change reaches its stop stage (or a terminal stage if `stop_stage` is null), pane dies, user explicitly stops. The `branch_map` entry is **not** removed — it persists for downstream dependency resolution. The window name is **not** restored on removal — the `»` prefix persists. Users who want it removed rename the window manually (`Ctrl-b ,`).
 
 **Stop stage**: when `stop_stage` is set on a monitored entry, the operator treats that stage as the terminal stage for that change. On reaching it, the operator reports completion and removes the change — it does not push the agent further. Default is `null` (full pipeline: hydrate/ship/review-pr are terminal).
 
@@ -325,7 +338,7 @@ The spawn sequence is:
 1. **Create worktree** — `wt create --non-interactive --worktree-name <wt> [<branch>]`
 2. **Resolve dependencies** — if the change has a non-empty `depends_on` list, cherry-pick dependency content into the worktree (see below)
 3. **Open agent tab** — `tmux new-window -n "»<wt>" -c <worktree-path> "<spawn_cmd> '<command>'"` (where `<wt>` is the worktree name from step 1)
-4. **Enroll in monitored set** — unconditionally and silently record pane, stage, branch, depends_on in `.fab-operator.yaml`; add branch to `branch_map`. MUST NOT prompt the user about whether to monitor.
+4. **Enroll in monitored set** — unconditionally and silently record pane, stage, branch, depends_on in `.fab-operator.yaml`; add branch to `branch_map`. MUST NOT prompt the user about whether to monitor. (Enrollment applies the §4 window-rename rule; the `»<wt>` name produced in step 3 already satisfies the idempotent prefix guard, so no duplicate rename occurs.)
 
 > **Auto-enroll is mandatory.** Every spawned agent MUST be enrolled in the monitored set immediately as part of the spawn sequence. The operator MUST NOT ask the user whether to monitor a spawned agent — this decision is already made by the act of spawning. If the operator spawned it, it is monitored. No exceptions.
 

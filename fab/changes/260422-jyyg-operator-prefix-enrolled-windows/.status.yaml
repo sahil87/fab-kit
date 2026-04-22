@@ -1,0 +1,42 @@
+id: jyyg
+name: 260422-jyyg-operator-prefix-enrolled-windows
+created: 2026-04-22T14:42:57Z
+created_by: sahil-weaver
+change_type: feat
+issues: []
+progress:
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+checklist:
+    generated: true
+    path: checklist.md
+    completed: 0
+    total: 24
+confidence:
+    certain: 13
+    confident: 1
+    tentative: 0
+    unresolved: 0
+    score: 4.7
+    fuzzy: true
+    dimensions:
+        signal: 92.1
+        reversibility: 87.1
+        competence: 91.4
+        disambiguation: 89.3
+stage_metrics:
+    intake: {started_at: "2026-04-22T14:42:57Z", driver: fab-new, iterations: 1, completed_at: "2026-04-22T14:54:09Z"}
+    spec: {started_at: "2026-04-22T14:54:09Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-22T14:58:31Z"}
+    tasks: {started_at: "2026-04-22T14:58:31Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-22T14:58:31Z"}
+    apply: {started_at: "2026-04-22T14:58:31Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-22T14:59:39Z"}
+    review: {started_at: "2026-04-22T14:59:39Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-22T15:02:29Z"}
+    hydrate: {started_at: "2026-04-22T15:02:29Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-22T15:04:30Z"}
+    ship: {started_at: "2026-04-22T15:04:30Z", driver: fab-fff, iterations: 1}
+prs: []
+last_updated: 2026-04-22T15:04:30Z
