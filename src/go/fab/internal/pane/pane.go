@@ -1,6 +1,7 @@
 package pane
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -67,6 +68,21 @@ func ValidatePane(paneID, server string) error {
 		}
 	}
 	return fmt.Errorf("pane %s not found", paneID)
+}
+
+// ReadWindowName returns the current window name for a tmux pane via
+// `tmux display-message -p -t <pane> '#W'`. Returns the trimmed name, the
+// tmux stderr bytes (useful for exit-code mapping — callers can distinguish
+// "pane missing" from other tmux errors by inspecting stderr), and any exec
+// error. If server is non-empty, the tmux invocation is scoped to that server
+// via `-L <server>`.
+func ReadWindowName(paneID, server string) (string, []byte, error) {
+	cmd := exec.Command("tmux", WithServer(server, "display-message", "-p", "-t", paneID, "#W")...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	return strings.TrimSpace(stdout.String()), stderr.Bytes(), err
 }
 
 // GetPanePID returns the shell PID of a tmux pane. If server is non-empty, the
