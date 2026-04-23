@@ -2,3 +2,22 @@
 {"args":"Add 'fab pane window-name' subcommand group with two verbs (ensure-prefix, replace-prefix) as mechanical primitives for tmux window-name prefix operations. Use them in /fab-operator to (a) replace inline tmux shell in §4 Enrollment, (b) swap '»' for a done-marker (e.g., '›' or '✓') on removal instead of leaving the prefix — only transforming if the current name still starts with '»', so user renames mid-monitoring are preserved. Follow-up to 260422-jyyg-operator-prefix-enrolled-windows.","cmd":"fab-new","event":"command","ts":"2026-04-23T02:31:17Z"}
 {"delta":"+0.0","event":"confidence","score":0,"trigger":"calc-score","ts":"2026-04-23T02:33:12Z"}
 {"delta":"+0.0","event":"confidence","score":0,"trigger":"calc-score","ts":"2026-04-23T02:33:17Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-04-23T03:05:30Z"}
+{"delta":"+0.0","event":"confidence","score":0,"trigger":"calc-score","ts":"2026-04-23T03:14:17Z"}
+{"delta":"+0.0","event":"confidence","score":0,"trigger":"calc-score","ts":"2026-04-23T03:14:28Z"}
+{"delta":"+0.0","event":"confidence","score":0,"trigger":"calc-score","ts":"2026-04-23T03:14:37Z"}
+{"delta":"+0.0","event":"confidence","score":0,"trigger":"calc-score","ts":"2026-04-23T03:15:00Z"}
+{"delta":"+3.5","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-04-23T03:15:15Z"}
+{"delta":"+0.0","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-04-23T03:15:22Z"}
+{"delta":"+1.5","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-04-23T03:19:11Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-04-23T03:19:14Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-04-23T03:19:20Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-04-23T03:19:44Z"}
+{"delta":"-1.5","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-04-23T03:26:17Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"spec","ts":"2026-04-23T03:26:20Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"tasks","ts":"2026-04-23T03:29:15Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-04-23T03:29:15Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-04-23T03:32:19Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-04-23T03:33:51Z"}
+{"event":"review","result":"passed","ts":"2026-04-23T03:33:51Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-04-23T03:36:30Z"}

@@ -4,7 +4,7 @@
 
 ## Overview
 
-`fab pane` is the parent command grouping four tmux-pane operations: `map`, `capture`, `send`, and `process`. All four subcommands shell out to `tmux` to query or manipulate panes, combining raw tmux output with fab-specific enrichment (worktree, change, stage, agent state resolved from per-pane CWD).
+`fab pane` is the parent command grouping five tmux-pane operations: `map`, `capture`, `send`, `process`, and `window-name`. The first four subcommands shell out to `tmux` to query or manipulate panes, combining raw tmux output with fab-specific enrichment (worktree, change, stage, agent state resolved from per-pane CWD). The fifth subcommand group (`window-name`) is a primitive set for idempotent / guarded rewrites of the tmux window name — used by `/fab-operator` to mark enrolled and done-monitoring windows.
 
 The command group is special in the router: `pane` is the sole entry in the `fab` router's `fabGoNoConfigArgs` allowlist, meaning it runs from any directory — including outside a fab-managed repo (scratch tmux tabs, cross-repo orchestration, non-fab daemons). See `kit-architecture.md` for the router-level exemption.
 
@@ -14,7 +14,7 @@ This doc covers the four subcommands, the `--server` / `-L` persistent flag, and
 
 ### Parent Command: `fab pane`
 
-`fab pane` is a cobra command group with four subcommands (`map`, `capture`, `send`, `process`) and one persistent flag (`--server` / `-L`). Invoking `fab pane` with no subcommand prints the standard cobra help listing the four subcommands. Source: `src/go/fab/cmd/fab/pane.go`.
+`fab pane` is a cobra command group with five subcommands (`map`, `capture`, `send`, `process`, `window-name`) and one persistent flag (`--server` / `-L`). Invoking `fab pane` with no subcommand prints the standard cobra help listing the five subcommands. Source: `src/go/fab/cmd/fab/pane.go`.
 
 ### Subcommand: `fab pane map`
 
@@ -95,6 +95,43 @@ This doc covers the four subcommands, the `--server` / `-L` persistent flag, and
 
 Platform-specific process discovery is tmux-server-independent — once the pane's shell PID has been resolved via `GetPanePID`, the `/proc` walk or `ps` traversal operates on the OS process table, not tmux.
 
+### Subcommand: `fab pane window-name`
+
+`fab pane window-name` is a cobra subgroup with two verbs (`ensure-prefix`, `replace-prefix`) that perform guarded rewrites of the tmux window name. Both verbs read the current name via `tmux display-message -p -t <pane> '#W'`, compare it against a literal prefix, and conditionally call `tmux rename-window`. Both honor the parent `--server` / `-L` flag via the existing `WithServer` argv builder. Source: `src/go/fab/cmd/fab/pane_window_name.go`.
+
+**Motivating use case**: `/fab-operator` enrolls monitored windows with a `»` (U+00BB) prefix and transitions them to `›` (U+203A) on removal to keep the tmux tab bar an honest at-a-glance map of active vs. done monitoring. The verbs factor out the inline tmux read-and-rename shell that was previously duplicated inside `fab-operator.md`.
+
+#### Verb: `ensure-prefix <pane> <char>`
+
+Idempotent prepend. Reads the current name; if it begins with the literal string `<char>`, no-ops. Otherwise runs `tmux rename-window -t <pane> "<char><current-name>"`. Exits 0 on both rename and no-op, with stdout `renamed: <old> -> <new>` on rename and empty stdout on no-op.
+
+`<char>` is any non-empty string — no width / BMP / codepoint validation is performed. The caller owns the single-width convention (the operator skill enforces it via its choice of `»` and `›`).
+
+#### Verb: `replace-prefix <pane> <from> <to>`
+
+Atomic guarded swap. Reads the current name; if it begins with the literal string `<from>`, runs `tmux rename-window -t <pane> "<to><name-without-from-prefix>"`. Otherwise, no-ops with exit 0 — this is the user-rename-mid-monitoring guard: if the user renamed the window so it no longer starts with `<from>`, the swap is silently skipped.
+
+`<to>` MAY be empty, in which case the `<from>` prefix is stripped (removal). `<from>` MUST be non-empty; an empty `<from>` exits 3 with a usage message on stderr.
+
+#### Exit codes (both verbs)
+
+| Exit | Meaning |
+|------|---------|
+| 0 | Rename succeeded OR operation was a no-op |
+| 1 | `$TMUX` unset (tmux not running) — stderr `tmux not running` |
+| 2 | Pane does not exist (`tmux list-panes -a` scan misses the pane) — stderr carries tmux's message |
+| 3 | Any other tmux error (rename failure, permission denied, malformed arguments) — stderr carries tmux's message |
+
+The distinct codes let `/fab-operator`'s removal path discriminate "pane gone" (exit 2 → treat as successful removal, window is gone anyway) from "pane alive but rename failed" (exit 3 → log warning and continue).
+
+#### Output modes
+
+Plain text is the default: `renamed: <old> -> <new>\n` on a rename, empty stdout on a no-op. The `--json` flag emits a single JSON object on stdout with the shape `{"pane", "old", "new", "action"}` where `action` is `"renamed"` or `"noop"`. JSON output always emits an object (including for no-ops), unlike plain output which is empty on no-op. Matches the plain/`--json` pattern used by `map` and `capture`.
+
+#### Operator skill consumption
+
+`src/kit/skills/fab-operator.md` §4 Enrollment invokes `fab pane window-name ensure-prefix <pane> »` after writing the monitored entry to `.fab-operator.yaml`. §4 Removal invokes `fab pane window-name replace-prefix <pane> » ›` on every removal path (terminal stage, `stop_stage` reached, pane death, explicit stop) — exit 2 is treated as successful removal; other non-zero exits log `"{change}: window rename skipped ({error})."` and continue.
+
 ### `--server` / `-L` Flag
 
 **Registration**: `paneCmd` registers a persistent string flag `--server` (short `-L`) with default `""`. Because it is a persistent flag on the parent, it is automatically visible on all four subcommands' `--help`. Source: `src/go/fab/cmd/fab/pane.go:14`.
@@ -126,6 +163,7 @@ Shared pane-resolution logic lives in `src/go/fab/internal/pane/pane.go`:
 
 - `ValidatePane(paneID, server string) error` — runs `tmux list-panes -a` and checks for the pane ID
 - `GetPanePID(paneID, server string) (int, error)` — resolves shell PID via `tmux display-message`
+- `ReadWindowName(paneID, server string) (string, error)` — reads the tmux window name via `tmux display-message -p -t <pane> '#W'`, trimmed. Used by the `window-name` subcommand group.
 - `ResolvePaneContext(paneID, mainRoot, server string) (*PaneContext, error)` — resolves worktree, change, stage, and agent state from the pane's CWD
 - `FindMainWorktreeRoot(cwds []string) string` — derives the main worktree root from pane CWDs via `git worktree list --porcelain`
 - `WithServer(server string, args ...string) []string` — the canonical argv-building helper (see Design Decisions)
@@ -167,5 +205,6 @@ All tmux-invoking functions accept a trailing `server string` parameter and buil
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260423-rxu3-window-prefix-primitives | 2026-04-23 | Added `fab pane window-name` subcommand group with two verbs: `ensure-prefix <pane> <char>` (idempotent prepend) and `replace-prefix <pane> <from> <to>` (atomic guarded swap; empty `<to>` strips the prefix). Distinct exit codes 1 (no tmux) / 2 (pane missing) / 3 (other tmux error) let callers discriminate "pane gone" from other failures — `/fab-operator`'s removal path treats exit 2 as successful removal. Default plain output `renamed: <old> -> <new>`; `--json` flag emits `{"pane","old","new","action"}`. Parent `fab pane` help now lists five subcommands. New `ReadWindowName` helper in `internal/pane/pane.go` reads the current window name. No width / BMP / codepoint validation — the primitive is a mechanical shell-replacement tool; the single-width convention remains operator-skill guidance. Skill consumption: `/fab-operator` §4 Enrollment now calls `ensure-prefix <pane> »`; §4 Removal calls `replace-prefix <pane> » ›` on every removal path (reverses the prior "no restore on removal" rule shipped in 260422-jyyg). Motivating use case: keep the tmux tab bar an honest at-a-glance map of active (`»`) vs. done (`›`) monitoring. |
 | 260419-o5ej-agents-runtime-unified | 2026-04-19 | Rewrote the `fab pane map` Agent column resolution: entries are matched by `_agents[*].tmux_pane` in `.fab-runtime.yaml`, independent of active-change state. Discussion-mode panes (no active change) now render `idle (<dur>)` or `active` in the Agent column instead of `—`. Added the three-axis model (Change / Agent / Process) and display-scenario table. `fab pane send` inherits the fix — previously rejected discussion-mode panes as `unknown` now resolve correctly and accept sends when idle. Cross-referenced the new [runtime-agents.md](runtime-agents.md) for the full `.fab-runtime.yaml` schema, hook write pipeline, GC design, and grandparent PID walker. |
 | 260417-2fbb-pane-server-flag | 2026-04-17 | Created `pane-commands.md` from the per-subcommand detail previously in `kit-architecture.md`. Added persistent `--server` / `-L` flag on the parent `paneCmd` (default `""`; when non-empty, every internal `exec.Command("tmux", ...)` is prepended with `-L <server>`). New `WithServer(server string, args ...string) []string` helper exported from `internal/pane/pane.go`, consumed by all tmux exec sites across `cmd/fab/pane*.go` and `internal/pane/pane.go`. `ValidatePane`, `GetPanePID`, `ResolvePaneContext`, `discoverPanes`/`discoverSessionPanes`/`discoverAllSessions` all gained a trailing `server string` parameter; test-only argv builders (`listPanesArgs`, `listSessionsArgs`, `capturePaneArgs`, `sendTextArgs`, `sendEnterArgs`) extracted for pure-function argv-capture tests. Motivating use case: run-kit daemon in `rk-daemon` tmux socket inspecting panes on the `runKit` socket. |

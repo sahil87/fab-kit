@@ -69,6 +69,18 @@ func ValidatePane(paneID, server string) error {
 	return fmt.Errorf("pane %s not found", paneID)
 }
 
+// ReadWindowName returns the current window name for a tmux pane via
+// `tmux display-message -p -t <pane> '#W'`. If server is non-empty, the tmux
+// invocation is scoped to that server via `-L <server>`. The returned name is
+// trimmed of trailing newline/whitespace.
+func ReadWindowName(paneID, server string) (string, error) {
+	out, err := exec.Command("tmux", WithServer(server, "display-message", "-p", "-t", paneID, "#W")...).Output()
+	if err != nil {
+		return "", fmt.Errorf("tmux display-message: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 // GetPanePID returns the shell PID of a tmux pane. If server is non-empty, the
 // tmux invocation is scoped to that server via `-L <server>`.
 func GetPanePID(paneID, server string) (int, error) {

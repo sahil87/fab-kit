@@ -63,7 +63,11 @@ Idempotent prepend.
 
 - **Behavior**: Read the current window name via `tmux display-message -p -t <pane> '#W'`. If it starts with `<char>` (literal string prefix, no regex): no-op, exit 0 with no stdout. Else: run `tmux rename-window -t <pane> "<char><current-name>"`, exit 0 with stdout `renamed: <old> -> <new>`.
 - **Errors**: `$TMUX` unset → exit 1 with `tmux not running`. Pane doesn't exist → exit 2 with tmux's stderr. Rename fails for any other reason → exit 3 with tmux's stderr.
-- **Arguments**: `<pane>` is a tmux pane ID (e.g., `%3`, `%foo`), same format accepted by the existing `fab pane send` / `fab pane capture` commands. `<char>` is any non-empty string; the command does not restrict to single characters.
+<!-- clarified: distinct exit codes 1/2/3 confirmed — lets operator treat exit 2 (pane gone) as successful removal (Clarify session 2026-04-23, Q3) -->
+- **Arguments**: `<pane>` is a tmux pane ID (e.g., `%3`, `%foo`), same format accepted by the existing `fab pane send` / `fab pane capture` commands. `<char>` is any non-empty string; the command does not restrict to single characters (no width/BMP validation — operator-skill guidance enforces the single-width convention).
+<!-- clarified: primitives perform no width/BMP validation — mechanical verb, single-width is operator-skill guidance (Clarify session 2026-04-23, Q4) -->
+- **Output**: Plain text by default (`renamed: <old> -> <new>` on rename, empty on no-op). `--json` flag emits `{"pane": ..., "old": ..., "new": ..., "action": "renamed"|"noop"}`, matching the pattern used by other `fab pane` subcommands.
+<!-- clarified: --json supported alongside plain text, matching fab pane convention (Clarify session 2026-04-23, Q5) -->
 
 #### `fab pane window-name replace-prefix <pane> <from> <to>`
 
@@ -71,8 +75,9 @@ Atomic guarded swap.
 
 - **Behavior**: Read the current window name. If it starts with `<from>` (literal string prefix): run `tmux rename-window -t <pane> "<to><name-without-from-prefix>"`, exit 0 with stdout `renamed: <old> -> <new>`. If it does not start with `<from>`: no-op, exit 0 with no stdout (the guard protects user-renamed windows without any additional state).
 - **Empty `<to>` (= removal)**: Supported. Strips the `<from>` prefix.
-- **Errors**: Same triad as `ensure-prefix`.
-- **Arguments**: `<pane>` as above. `<from>` must be non-empty. `<to>` may be empty.
+- **Errors**: Same triad as `ensure-prefix` (exit 1 / 2 / 3).
+- **Arguments**: `<pane>` as above. `<from>` must be non-empty (no width validation). `<to>` may be empty.
+- **Output**: Same plain/`--json` modes as `ensure-prefix`.
 
 Source location (following existing patterns): `src/go/fab/cmd/fab/pane_window_name.go` with a subroutine in `internal/pane/` if the tmux read-and-rename logic is worth factoring. Wire into the existing `fab pane` cobra group defined in `src/go/fab/cmd/fab/pane.go`.
 
@@ -109,9 +114,12 @@ Two candidates surfaced in conversation, both single-width BMP (per the 260328/2
 - `›` (U+203A, SINGLE RIGHT-POINTING ANGLE QUOTATION MARK) — direct parity with `»` (U+00BB, DOUBLE), visually lighter, reads as "was-chevron, now reduced." Keeps the guillemet family.
 - `✓` (U+2713, CHECK MARK) — strong, unambiguous "done" semantics. Trade-off: breaks the guillemet family; could clash with any other user convention that already uses `✓`.
 
-**Tentative lean**: `›` — the semantic is "monitoring complete, trail preserved," not "task done." The completion signal for a change is already `✓` in the operator status frame (`● apply → review ✓`), so reusing `✓` on window names creates a light visual collision.
+**Decision**: `›` (U+203A, SINGLE RIGHT-POINTING ANGLE QUOTATION MARK). The semantic is "monitoring complete, trail preserved," not "task done." The completion signal for a change is already `✓` in the operator status frame (`● apply → review ✓`), so reusing `✓` on window names creates a light visual collision.
+<!-- clarified: done-marker = › (Clarify session 2026-04-23, Q1) -->
 
-Spec stage will lock this in. Open question #1 below.
+Stored as a skill constant in `src/kit/skills/fab-operator.md` (hardcoded literally in the removal-site command), not as a config option. No new config surface; users who want a different marker edit the skill file.
+<!-- clarified: done-marker storage = skill constant, not config (Clarify session 2026-04-23, Q2) -->
+
 
 ### 4. Memory updates (hydrate stage)
 
@@ -140,11 +148,34 @@ Per constitution "Additional Constraints", `docs/specs/skills/SPEC-fab-operator.
 
 ## Open Questions
 
-1. **Done-marker character.** `›` (U+203A, guillemet parity) vs `✓` (U+2713, explicit done) vs something else (`·`, `¦`, `‥`)? See §3 above for tentative lean toward `›`.
-2. **Should the primitives validate `<char>` / `<from>` / `<to>` for width?** The 260328/260416 decisions require single-width BMP characters for tmux tab rendering. Enforcing that in the Go subcommand (reject multi-codepoint or double-width input) is one option; leaving it to the caller is another. Lean toward *no validation* in the primitive — the verb is a mechanical shell-replacement tool, not a style enforcer — and keeping the single-width requirement as operator-skill guidance.
-3. **Should `ensure-prefix` and `replace-prefix` emit structured (JSON) output?** Current `fab pane` subcommands mix plain text and `--json`. Lean toward following the pattern: plain `renamed: <old> -> <new>` by default, `--json` flag for `{"pane": …, "old": …, "new": …, "action": renamed|noop}`.
-4. **Does pane death need a distinct exit code?** Currently suggested as generic exit 2 ("pane doesn't exist"). The operator's removal-path caller wants to treat "pane gone" as successful removal (the window is gone anyway) and "pane alive but rename failed" as a warning. Separate exit codes (2 for "no such pane" vs 3 for "tmux other error") allow this discrimination.
-5. **Stage fence.** Pure infra + behavior in one PR is nice for validating the abstraction, but doubles the rework risk if review catches an issue in either half. Acceptable because: (a) both halves land in the same `.md` hydrate file, (b) the skill change is textually small (~6 lines net).
+1. ~~**Done-marker character.**~~ **RESOLVED (Clarify session 2026-04-23)**: `›` (U+203A, single guillemet). Guillemet-family parity with `»`, avoids visual collision with operator status frame's `✓`.
+2. ~~**Should the primitives validate `<char>` / `<from>` / `<to>` for width?**~~ **RESOLVED**: No validation in the primitive. Single-width BMP requirement remains operator-skill guidance. Keeps the verb mechanical.
+3. ~~**Should `ensure-prefix` and `replace-prefix` emit structured (JSON) output?**~~ **RESOLVED**: Yes. Plain `renamed: <old> -> <new>` by default, `--json` flag for `{"pane": …, "old": …, "new": …, "action": renamed|noop}`. Matches existing `fab pane` convention.
+4. ~~**Does pane death need a distinct exit code?**~~ **RESOLVED**: Distinct exit codes: 1 = no tmux, 2 = no such pane, 3 = other tmux error. Operator can treat exit 2 as successful removal.
+5. ~~**Stored `<done-char>` as skill constant or config option?**~~ **RESOLVED**: Skill constant, hardcoded in `src/kit/skills/fab-operator.md`. No config surface added.
+6. **Stage fence.** Pure infra + behavior in one PR is nice for validating the abstraction, but doubles the rework risk if review catches an issue in either half. Acceptable because: (a) both halves land in the same `.md` hydrate file, (b) the skill change is textually small (~6 lines net). *(Non-blocking — accepted as a design tradeoff, not a question to resolve.)*
+
+## Clarifications
+
+### Session 2026-04-23
+
+| # | Question | Answer |
+|---|----------|--------|
+| Q1 | Done-marker character (`›` vs `✓` vs other)? | `›` (U+203A, single guillemet) — parity with `»`, avoids `✓` collision with operator status frame. |
+| Q2 | Done-marker storage (skill constant vs config option)? | Skill constant in `src/kit/skills/fab-operator.md`. No new config surface. |
+| Q3 | Pane-death exit-code scheme? | Distinct codes: 1 = no tmux, 2 = no such pane, 3 = other tmux error. |
+| Q4 | Primitives validate width/BMP/codepoint? | No validation. Mechanical verb; single-width remains operator-skill guidance. |
+| Q5 | `--json` output supported? | Yes. Plain by default, `--json` flag emits `{pane, old, new, action}`. Matches `fab pane` convention. |
+
+### Session 2026-04-23 (bulk confirm)
+
+| # | Action | Detail |
+|---|--------|--------|
+| 8 | Confirmed | — |
+| 9 | Confirmed | — |
+| 10 | Confirmed | — |
+| 11 | Confirmed | — |
+| 12 | Confirmed | — |
 
 ## Assumptions
 
@@ -157,15 +188,15 @@ Per constitution "Additional Constraints", `docs/specs/skills/SPEC-fab-operator.
 | 5 | Certain | `<pane>` argument format matches existing `fab pane send` / `capture` (tmux pane ID like `%3`) | Consistency with the existing subcommand group | S:95 R:95 A:100 D:95 |
 | 6 | Certain | Replace-on-removal replaces the current "no rename on removal" rule wholesale | User directly revisited the prior decision. The new rule is strictly more informative (honest tab-bar signal) | S:90 R:80 A:90 D:90 |
 | 7 | Certain | Guard-on-current-prefix (not `original_name` field) is how user-rename-mid-monitoring is protected | Discussed and endorsed. Avoids schema churn and avoids the "which original is authoritative?" ambiguity | S:95 R:80 A:85 D:90 |
-| 8 | Confident | Done-marker candidates are single-width BMP; `›` (U+203A) is the tentative lead over `✓` (U+2713) | `✓` already appears in operator status frame as stage-done signal → visual collision. `›` has parity with `»`. Both BMP. Spec-stage decision | S:70 R:85 A:85 D:75 |
-| 9 | Confident | Changes land in a single PR, not split infra-then-behavior | User: "one PR that …". Splitting loses validation value (primitive shipped with only one user) | S:80 R:80 A:85 D:85 |
-| 10 | Confident | No `original_name` or equivalent state added to `.fab-operator.yaml` | Implied by #7. Spec-stage to confirm no edge case forces schema addition | S:75 R:80 A:85 D:85 |
-| 11 | Confident | Enrollment site call shape is `fab pane window-name ensure-prefix <pane> »` (literal `»` arg, not quoted shell) | One-liner matches existing `fab pane send` / `capture` ergonomics; pane ID first, payload after | S:75 R:90 A:85 D:80 |
-| 12 | Confident | Removal site applies to every removal path (terminal stage, stop_stage, pane death, explicit stop) uniformly | `260422-jyyg` spec established a single Removal-triggers set; this change doesn't split that | S:80 R:85 A:85 D:85 |
-| 13 | Tentative | Stored `<done-char>` is a skill constant, not a config option | A config surface (e.g., `config.yaml: operator.done_marker`) is plausible but speculative. Spec stage to decide | S:55 R:70 A:70 D:60 |
-| 14 | Tentative | Pane-death error path uses a distinct exit code (2 = no such pane, 3 = other tmux error) | Open Question #4. Operator benefits from the discrimination but the value is small and can be deferred | S:50 R:75 A:75 D:65 |
-| 15 | Tentative | Primitives do not validate width/BMP/codepoint of `<char>`, `<from>`, `<to>` | Open Question #2. Leaning toward primitive-stays-mechanical, but spec stage to confirm | S:55 R:80 A:70 D:60 |
-| 16 | Tentative | Primitives provide `--json` alongside plain output, matching existing subcommands | Open Question #3. Most existing `fab pane` subcommands offer `--json`; plausible default but not explicitly required | S:60 R:85 A:75 D:70 |
-| 17 | Tentative | Done-marker character (`›` vs `✓` vs other) | Open Question #1. Spec stage to lock in after considering the operator status frame's existing `✓` usage | S:55 R:75 A:70 D:50 |
+| 8 | Certain | Done-marker candidates are single-width BMP (per 260328/260416 decisions; `›` locked via Q1) | Clarified — user confirmed (Session 2026-04-23, bulk confirm) | S:95 R:85 A:85 D:75 |
+| 9 | Certain | Changes land in a single PR, not split infra-then-behavior | Clarified — user confirmed (Session 2026-04-23, bulk confirm) | S:95 R:80 A:85 D:85 |
+| 10 | Certain | No `original_name` or equivalent state added to `.fab-operator.yaml` | Clarified — user confirmed (Session 2026-04-23, bulk confirm) | S:95 R:80 A:85 D:85 |
+| 11 | Certain | Enrollment site call shape is `fab pane window-name ensure-prefix <pane> »` (literal `»` arg, not quoted shell) | Clarified — user confirmed (Session 2026-04-23, bulk confirm) | S:95 R:90 A:85 D:80 |
+| 12 | Certain | Removal site applies to every removal path (terminal stage, stop_stage, pane death, explicit stop) uniformly | Clarified — user confirmed (Session 2026-04-23, bulk confirm) | S:95 R:85 A:85 D:85 |
+| 13 | Certain | Stored `<done-char>` is a skill constant, not a config option | Clarified — user confirmed (Session 2026-04-23, Q2) | S:95 R:70 A:70 D:60 |
+| 14 | Certain | Pane-death error path uses a distinct exit code (1 = no tmux, 2 = no such pane, 3 = other tmux error) | Clarified — user confirmed (Session 2026-04-23, Q3) | S:95 R:75 A:75 D:65 |
+| 15 | Certain | Primitives do not validate width/BMP/codepoint of `<char>`, `<from>`, `<to>` | Clarified — user confirmed (Session 2026-04-23, Q4) | S:95 R:80 A:70 D:60 |
+| 16 | Certain | Primitives provide `--json` alongside plain output, matching existing subcommands | Clarified — user confirmed (Session 2026-04-23, Q5) | S:95 R:85 A:75 D:70 |
+| 17 | Certain | Done-marker character is `›` (U+203A, single guillemet) | Clarified — user confirmed (Session 2026-04-23, Q1) | S:95 R:75 A:70 D:50 |
 
-17 assumptions (7 certain, 5 confident, 5 tentative, 0 unresolved).
+17 assumptions (17 certain, 0 confident, 0 tentative, 0 unresolved).
