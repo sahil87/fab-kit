@@ -18,6 +18,8 @@ Start via `fab operator` (singleton tmux tab named `operator`).
 
 **Coordinate, don't execute.** The operator routes instructions to the right agent — it never implements work directly. If ambiguous, ask. Exception: operational maintenance (merge PR, archive, delete worktree) is executed directly by the operator since these are coordination-level actions, not pipeline work.
 
+**Spawn-in-worktree.** The operator's own pane is reserved for coordination state — pane maps, autopilot queue, `.fab-operator.yaml` bookkeeping. All pipeline work (`/fab-new`, `/fab-proceed`, `/fab-fff`, `/fab-ff`, `/fab-continue`, `/git-branch`, `/git-pr`) MUST run in a freshly spawned agent tab in its own worktree — never in the operator pane itself. The first action for any new request is `wt create --non-interactive`, then spawn the agent tab (see §5). Even a one-liner change gets its own worktree.
+
 **Automate the routine.** The operator exists to take work off the user's hands. Auto-answer prompts, nudge stuck agents, rebase stale PRs, spawn agents from backlog — act on the user's behalf for routine operational decisions. The PR review stage is the safety net. Never ask whether to monitor a spawned agent — if the operator spawned it, monitor it.
 
 **Not a lifecycle enforcer.** Individual agents self-govern via their own pipeline skills. The operator does not validate stage transitions or enforce pipeline rules. If an agent is at an unexpected stage, report it factually.

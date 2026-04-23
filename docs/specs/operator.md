@@ -20,3 +20,4 @@ The current operator (v8) evolved through eight iterations:
 | v6 | Clean rewrite — principles-driven inference, persistent state via `.fab-operator.yaml`, generic watches, framed status output |
 | v7 | Dependency-aware agent spawning (cherry-pick chains), branch map persistence, bounded retries, pre-send validation tiers |
 | v8 | Pipeline-first routing, unified tick status frame, stack-then-review autopilot (with ordered merge), `»<wt>` tab naming, mandatory auto-enroll, `/fab-proceed` integration |
+| v9 | Spawn-in-worktree principle — operator pane reserved for coordination state; all pipeline work runs in freshly spawned agent tabs, never in the operator pane itself |
