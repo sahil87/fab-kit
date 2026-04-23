@@ -24,3 +24,4 @@
 {"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review-pr","ts":"2026-04-23T03:37:53Z"}
 {"delta":"+0.0","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-04-23T03:50:39Z"}
 {"delta":"+0.0","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-04-23T03:50:46Z"}
+{"event":"review","result":"passed","ts":"2026-04-23T03:52:09Z"}
