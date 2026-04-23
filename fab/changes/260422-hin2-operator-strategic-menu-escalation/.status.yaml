@@ -1,0 +1,44 @@
+id: hin2
+name: 260422-hin2-operator-strategic-menu-escalation
+created: 2026-04-22T09:08:20Z
+created_by: sahil-weaver
+change_type: feat
+issues: []
+progress:
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: active
+checklist:
+    generated: true
+    path: checklist.md
+    completed: 0
+    total: 0
+confidence:
+    certain: 17
+    confident: 1
+    tentative: 0
+    unresolved: 0
+    score: 4.7
+    fuzzy: true
+    dimensions:
+        signal: 95.3
+        reversibility: 80.0
+        competence: 89.7
+        disambiguation: 87.8
+stage_metrics:
+    intake: {started_at: "2026-04-22T09:08:20Z", driver: fab-new, iterations: 1, completed_at: "2026-04-22T14:43:22Z"}
+    spec: {started_at: "2026-04-22T14:43:22Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-22T14:47:33Z"}
+    tasks: {started_at: "2026-04-22T14:47:33Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-22T14:47:33Z"}
+    apply: {started_at: "2026-04-22T14:47:33Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-22T14:53:03Z"}
+    review: {started_at: "2026-04-22T14:53:03Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-22T14:55:32Z"}
+    hydrate: {started_at: "2026-04-22T14:55:32Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-22T14:58:46Z"}
+    ship: {started_at: "2026-04-22T14:58:46Z", driver: fab-fff, iterations: 1, completed_at: "2026-04-22T15:01:20Z"}
+    review-pr: {started_at: "2026-04-22T15:01:20Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/344
+last_updated: 2026-04-22T15:01:20Z

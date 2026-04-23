@@ -64,20 +64,34 @@ All 6 steps are fully specified inline:
 
 ### Answer Model
 
-Simplified decision list (all auto-answer except undeterminable):
+Decision list (all auto-answer except undeterminable or strategic):
 
 1. Binary yes/no -> `y`
 2. `[Y/n]`/`[y/N]` -> `y`
 3. Claude Code permission -> `y`
-4. Numbered menu -> `1`
+4. Numbered menu -> classify then act:
+   - **Routine** (tool/permission prompts, binary-framed menus, synonymous-option menus) -> `1`
+   - **Strategic** (multi-option menus where options represent materially different directions — scope, PR split, pipeline shape, commit organization, spec/approach decisions) -> escalate to user
+   - Classification uses LLM judgment over the terminal capture, weighing: option text length, semantic distinctness of options, surrounding agent context, and reversibility of the choice. No hardcoded keyword list. No agent-side sentinel/marker protocol.
+   - On classification uncertainty, treat as Strategic and escalate. False-negative strategic commits the queue to an unchosen direction; false-positive strategic costs at most a user nudge, recovered by the 30m idle auto-default below.
 5. Determinable from context -> send answer
 6. Cannot determine keystrokes -> escalate
+
+### Idle Auto-Default on Strategic Escalations
+
+When rule 4 escalates as Strategic, the operator runs a per-prompt idle timer. If the prompt stays idle for 30 minutes, the operator auto-answers and logs with a distinct `auto-defaulted` format.
+
+- **Threshold**: 30 minutes, hardcoded. No `.fab-operator.yaml` field, no per-change override, no environment variable. `.fab-operator.yaml` schema is unchanged.
+- **Idle clock reset**: timer resets on any terminal-state change in the pane (new content appended by the agent, user keystrokes that alter the prompt display, prompt redraw). The timer watches pane-idle-ness, not escalation-open-ness.
+- **Answer selection priority**: (1) if the prompt visibly states a default (e.g., `(default: 2)`, `Press enter for 2`, `[2]`), send that default; (2) otherwise, send `1`.
+- **Scope exclusion**: applies ONLY to rule 4 Strategic escalations. Rule 6 ("cannot determine keystrokes") escalations MUST NOT trigger idle auto-default — sending `1` would emit nonsense into the pane. Rule-6 escalations remain open pending user action.
+- **Distinct log format**: `"{change}: auto-defaulted after 30m idle: '{summary}' → {answer}"`. This is grep-distinguishable from the normal `auto-answered` line for after-action review.
 
 ### Safety
 
 - Re-capture before send eliminates detection-to-send race condition
 - No cooldown or retry limit — PR review is the safety net
-- Per-answer logging for all auto-answers and escalations
+- Per-answer logging for all auto-answers, escalations, and auto-defaults
 
 ---
 

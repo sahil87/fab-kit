@@ -261,7 +261,11 @@ Evaluate in order:
 1. Binary yes/no or confirmation → `y`
 2. `[Y/n]` or `[y/N]` → `y`
 3. Claude Code permission prompt → `y`
-4. Numbered menu → `1` (first/default)
+4. Numbered menu:
+   - Classify the prompt as **Routine** or **Strategic** using LLM judgment over the terminal capture. Signals: option text length, semantic distinctness of options, surrounding agent context, reversibility of the choice. No hardcoded keyword list.
+     - **Routine** (tool/permission prompts, binary-framed menus, synonymous-option menus) → `1` (first/default).
+     - **Strategic** (multi-option choices representing materially different directions — scope, PR split, pipeline shape, commit organization, spec/approach decisions) → escalate to user.
+   - On classification uncertainty, treat as Strategic and escalate. False-negative strategic commits the queue to an unchosen direction; false-positive strategic costs at most a user nudge, which the 30-minute idle auto-default (below) will resolve.
 5. Open-ended, answer determinable from visible context → send that answer
 6. Cannot determine keystrokes → escalate to user
 
@@ -269,10 +273,28 @@ Evaluate in order:
 
 Before `tmux send-keys`: verify pane exists and agent is still idle (§3 steps 1-2), then re-capture the terminal. If output changed since detection, abort — agent is no longer waiting.
 
+### Idle Auto-Default on Strategic Escalations
+
+When rule 4 above escalates a prompt as **Strategic**, the operator starts a per-prompt idle timer measured in real time from the moment the escalation log line is written. If the prompt remains idle for 30 minutes, the operator auto-answers the prompt and logs using the distinct `auto-defaulted` format (§5 Logging).
+
+**Threshold**: 30 minutes, hardcoded. No `.fab-operator.yaml` field, no per-change override, no environment variable exposes this value. The §4 `.fab-operator.yaml` schema is unchanged.
+
+**Idle clock reset**: the idle timer resets on any terminal-state change in the pane — new content appended by the agent, user keystrokes that alter the prompt display, or the prompt's own redraw. The timer is a watchdog on pane-idle-ness, not on escalation-open-ness. Tick cadence already provides sub-minute resolution via §4 Tick Behavior — no new polling infrastructure is required.
+
+**Answer selection** (in priority order):
+
+1. If the prompt text visibly states a default (e.g., `(default: 2)`, `Press enter for 2`, `[2]`), send that stated default.
+2. Otherwise, send `1`.
+
+This matches rule 4's existing "first/default" semantics for routine menus.
+
+**Scope (hard exclusion)**: the idle auto-default applies ONLY to escalations produced by rule 4's Strategic classification path. Escalations produced by rule 6 ("cannot determine keystrokes") MUST NOT trigger the idle auto-default — the operator does not know what the correct keystrokes are, so sending `1` or the stated default would emit nonsense into the pane. Rule-6 escalations remain open pending user action regardless of idle duration.
+
 ### Logging
 
 - Auto-answer: `"{change}: auto-answered '{summary}' → {answer}"`
 - Escalation: `"{change}: can't determine answer for '{summary}'. Please respond."`
+- Auto-default (after 30m idle on strategic escalation): `"{change}: auto-defaulted after 30m idle: '{summary}' → {answer}"`
 
 ---
 

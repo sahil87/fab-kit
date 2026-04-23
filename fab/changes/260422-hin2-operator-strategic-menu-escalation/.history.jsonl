@@ -1,0 +1,21 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-04-22T09:08:20Z"}
+{"args":"Operator numbered-menu classification + idle-escalation auto-default (resolves backlog hin2 + i1l6)","cmd":"fab-new","event":"command","ts":"2026-04-22T09:08:20Z"}
+{"delta":"+1.5","event":"confidence","score":1.5,"trigger":"calc-score","ts":"2026-04-22T09:10:24Z"}
+{"delta":"+0.0","event":"confidence","score":1.5,"trigger":"calc-score","ts":"2026-04-22T09:10:38Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-04-22T09:12:04Z"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-04-22T13:39:31Z"}
+{"delta":"+0.0","event":"confidence","score":1.5,"trigger":"calc-score","ts":"2026-04-22T14:29:49Z"}
+{"delta":"+0.0","event":"confidence","score":1.5,"trigger":"calc-score","ts":"2026-04-22T14:29:53Z"}
+{"delta":"+3.5","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-04-22T14:30:19Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-04-22T14:30:26Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-04-22T14:30:32Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-04-22T14:40:35Z"}
+{"delta":"-0.3","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-04-22T14:43:11Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"spec","ts":"2026-04-22T14:43:22Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"tasks","ts":"2026-04-22T14:47:33Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-04-22T14:47:33Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-04-22T14:53:03Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-04-22T14:55:32Z"}
+{"event":"review","result":"passed","ts":"2026-04-22T14:55:32Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-04-22T14:58:46Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-04-22T15:01:20Z"}
