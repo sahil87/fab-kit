@@ -2,7 +2,7 @@ id: qszh
 name: 260423-qszh-merge-tasks-checklist
 created: 2026-04-23T05:02:32Z
 created_by: sahil-weaver
-change_type: refactor
+change_type: fix
 issues: []
 progress:
     intake: ready
@@ -19,19 +19,19 @@ checklist:
     completed: 0
     total: 0
 confidence:
-    certain: 3
+    certain: 13
     confident: 5
-    tentative: 3
-    unresolved: 2
-    score: 0.0
+    tentative: 0
+    unresolved: 0
+    score: 3.5
     indicative: true
     fuzzy: true
     dimensions:
-        signal: 71.2
-        reversibility: 74.6
-        competence: 75.8
-        disambiguation: 68.1
+        signal: 90.3
+        reversibility: 74.7
+        competence: 79.4
+        disambiguation: 73.9
 stage_metrics:
     intake: {started_at: "2026-04-23T05:02:32Z", driver: fab-new, iterations: 1}
 prs: []
-last_updated: 2026-04-23T05:05:27Z
+last_updated: 2026-05-04T12:49:28Z

@@ -1,4 +1,4 @@
-# Intake: Merge Tasks and Checklist into a Single Plan Artifact
+# Intake: Collapse Tasks Stage into Apply; Replace tasks.md + checklist.md with plan.md
 
 **Change**: 260423-qszh-merge-tasks-checklist
 **Created**: 2026-04-23
@@ -6,32 +6,39 @@
 
 ## Origin
 
-> Discussion question (paraphrased): "tasks.md and checklist.md are both derived from spec — why two files?"
+> Discussion question (paraphrased): "tasks.md and checklist.md are both derived from spec — why two files? And why is there a separate `tasks` stage gate when nobody stops there?"
 
-Raised during a `/fab-discuss` workflow retrospective on 2026-04-23, after ~2 months of production use. Analysis of `src/kit/skills/_generation.md` showed that Tasks Generation Procedure and Checklist Generation Procedure both take `spec.md` as input, both produce line-item lists, and differ primarily by consumer: apply reads tasks, review reads checklist. The two files are generated sequentially by the same orchestrator call (`/fab-continue` at spec-ready, `/fab-ff`/`/fab-fff` Steps 2+3) and have no independent lifecycle — you never touch one without the other.
+Raised during a `/fab-discuss` workflow retrospective on 2026-04-23, after ~2 months of production use, then rescoped on 2026-05-04 in a `/fab-clarify` session. Original framing was an artifact-level merge (`tasks.md` + `checklist.md` → `plan.md`). Discussion surfaced a deeper structural issue: the `tasks` stage is a state-machine gate that no human decision actually uses — it exists only because the two artifacts are generated independently, so a "planning is done" boundary was needed between generation and execution. With co-generation in a single skill call, the boundary becomes unnecessary.
 
-**Related draft**: `260423-xvaz-skip-tasks-simple-types` — skips tasks generation for simple change types. Orthogonal but complementary. If this change ships first, that change rephrases as "skip `plan.md` generation for simple types" (checklist portion always required, tasks portion optional per policy). If that ships first, this change operates on whatever types still generate the tasks artifact. Agents picking this up should read that intake before starting.
+The chosen design folds plan generation into the `apply` skill's entry sub-step, eliminating the `tasks` stage entirely. We considered also dropping the `spec` stage (collapsing further to `intake → apply → review → ...`) but rejected it: `/fab-clarify spec` is the workhorse clarify target, the `fab score` per-type spec gate is the primary precision gate, and review depends on spec for behavioral correctness. Those are real decision points the `tasks` gate never was.
+
+**Related draft**: `260423-xvaz-skip-tasks-simple-types` — proposed skipping tasks generation for simple change types via a per-type skip policy. **Becomes obsolete** once this change ships: simple changes naturally produce a tiny `plan.md` and execute in seconds; no skip policy is needed because there's no separate stage to skip. The agent picking up xvaz should archive it (via `/fab-archive`) once qszh ships.
 
 ## Why
 
 **Problem**:
-1. **Drift risk**: A spec requirement might be tracked as a task but missed from the checklist (or vice versa). Today, both generations are independent LLM passes over the same spec — the failure mode is silent gap in review coverage.
-2. **Generation cost**: Two separate artifact-generation rounds for the same source material. Measured on recent changes, checklist generation is ~30–40% of the planning-stage wall time — duplicating work.
-3. **Cognitive load**: Two files with overlapping but non-identical item IDs (T001 vs CHK-001), two templates, two parsers (apply vs review), two `.status.yaml` surfaces (`tasks` stage + `checklist.total/completed`).
-4. **Review-rework friction**: When review fails, rework may touch tasks AND/OR checklist; agents sometimes update one and forget the other, causing a second review failure.
 
-**Consequence if unfixed**: Continued silent drift + doubled generation cost on every pipeline run. As the project grows, the ratio of "ceremony-tax tokens" to "real work tokens" degrades further.
+1. **Drift risk between sibling artifacts.** A spec requirement might be tracked in `tasks.md` but missed from `checklist.md` (or vice versa). Today, both generations are independent LLM passes over the same spec — the failure mode is silent gaps in review coverage.
+2. **A stage gate with no decision content.** `tasks` is a transition users never stop at. `/fab-continue` advances spec → tasks → apply back-to-back. Every change pays the wall-time, token, and `.status.yaml` cost of a gate that exists only because the artifacts are generated separately. The orthogonal `260423-xvaz-skip-tasks-simple-types` proposal exists *only* to paper over this for the simple-change case — a skip-flag is a workaround, not a fix.
+3. **Generation cost.** Two separate artifact-generation rounds for the same source material. Measured on recent changes, checklist generation is ~30–40% of the planning-stage wall time — duplicating work over the same context.
+4. **Cognitive load.** Two files with overlapping but non-identical item IDs (T001 vs CHK-001), two templates, two parsers (apply vs review), two `.status.yaml` surfaces (`progress.tasks` + `checklist.{total,completed}`), two `/fab-clarify` targets.
+5. **Review-rework friction.** When review fails, rework may touch tasks AND/OR checklist; agents sometimes update one and forget the other, causing a second review failure.
+
+**Consequence if unfixed**: Continued silent drift + doubled generation cost + redundant gate ceremony on every pipeline run. As the project grows, the ratio of "ceremony-tax tokens" to "real work tokens" degrades further. The xvaz draft is symptomatic — adding more policy on top of a gate that shouldn't exist.
 
 **Why this approach over alternatives**:
-- **Alternative A — keep two files, add cross-check step**: adds more ceremony, not less. Agents already struggle to keep them in sync; a cross-check pass is another place to fail.
-- **Alternative B — drop checklist, review reads tasks directly**: loses review's acceptance-criteria framing. Tasks are imperative ("do X"); checklist items are declarative ("X is done and correct"). Review wants the declarative framing.
-- **Alternative C — merge into one file with two sections** (chosen): preserves the consumer distinction (apply reads `## Tasks`, review reads `## Acceptance`) while guaranteeing both sections are generated from the same spec in the same pass, with the same model, in the same context window. Drift becomes mechanically impossible at generation time.
+
+- **A — Keep two files, add cross-check step.** Adds more ceremony, not less. Agents already struggle to keep them in sync; a cross-check pass is another place to fail.
+- **B — Drop checklist, review reads tasks directly.** Loses review's acceptance-criteria framing. Tasks are imperative ("do X"); acceptance items are declarative ("X is done and correct"). Review wants the declarative framing.
+- **C — Merge artifacts only, keep `tasks` stage.** Fixes drift but keeps the no-decision gate. Leaves the xvaz workaround relevant. Misses the structural simplification.
+- **D — Merge artifacts AND drop spec stage too.** Loses `/fab-clarify spec` as a checkpoint, breaks the per-type spec gate in `fab score`, and weakens review's behavioral reference. Discussed and rejected.
+- **E — Merge artifacts AND drop tasks stage** (chosen). Generates `plan.md` at the entry of `apply` in the same skill call that executes the tasks. Drift becomes mechanically impossible (single skill call, single context). Stage gate that nobody used is removed. Spec stage and its decision-rich roles are preserved.
 
 ## What Changes
 
 ### 1. New artifact: `plan.md`
 
-Replaces `tasks.md` + `checklist.md`. Location: `fab/changes/{name}/plan.md`.
+Replaces `tasks.md` + `checklist.md`. Location: `fab/changes/{name}/plan.md`. Generated by the `apply` skill at entry, before any task execution.
 
 **Structure**:
 
@@ -65,72 +72,106 @@ Replaces `tasks.md` + `checklist.md`. Location: `fab/changes/{name}/plan.md`.
 <!-- Declarative acceptance criteria used by the review stage. -->
 
 ### Functional Completeness
-- [ ] CHK-001 {acceptance item derived from a spec requirement}
+- [ ] A-001 {acceptance item derived from a spec requirement}
 
 ### Behavioral Correctness
-- [ ] CHK-002 {item}
+- [ ] A-002 {item}
 
 ### Code Quality
-- [ ] CHK-003 {item from code-quality.md Principles}
+- [ ] A-003 {item from code-quality.md Principles}
 
 ### Edge Cases & Error Handling
-- [ ] CHK-004 {item}
+- [ ] A-004 {item}
 ```
 
 Section headings (`## Tasks`, `## Acceptance`) are the parser contract — stable identifiers. Phase/category subheadings under each are presentational and may vary per change.
 
-### 2. Unified generation procedure
+### 2. Stage list: 8 → 7
 
-`src/kit/skills/_generation.md` — replace **Tasks Generation Procedure** + **Checklist Generation Procedure** with a single **Plan Generation Procedure** that produces both sections in one pass over the spec. The procedure enumerates requirements once, then for each requirement emits:
+Pipeline changes from:
+
+```
+intake → spec → tasks → apply → review → hydrate → ship → review-pr
+```
+
+to:
+
+```
+intake → spec → apply → review → hydrate → ship → review-pr
+```
+
+The `tasks` stage is removed entirely. After `spec done`, the next active stage is `apply`. The `apply` stage's responsibilities expand to include plan generation (see §3).
+
+### 3. `apply` skill behavior
+
+`src/kit/skills/fab-continue.md` § Apply Behavior is restructured:
+
+**Current** (two stages):
+1. `tasks` stage: generate `tasks.md` + `checklist.md`
+2. `apply` stage: parse `tasks.md`, execute each `[ ]` task, mark `[x]` on completion
+
+**New** (one stage with two sub-steps):
+1. **Apply entry — Plan Generation sub-step**: Read `spec.md`. Run the unified Plan Generation Procedure (see §4). Write `plan.md` with both `## Tasks` and `## Acceptance` sections populated. This sub-step runs exactly once per apply invocation; on resume (subsequent `/fab-continue` calls after interruption), `plan.md` already exists and this sub-step is skipped.
+2. **Apply main — Task Execution sub-step**: Parse `plan.md` `## Tasks` section (everything between `## Tasks` and `## Acceptance` / `## Execution Order` / end-of-file). Execute each `[ ]` task; mark `[x]` on completion. Apply ignores the `## Acceptance` section entirely.
+
+Resumability semantics are preserved: a partially-completed apply run leaves `plan.md` on disk with some tasks `[x]` and others `[ ]`. The next `/fab-continue` skips plan generation (already done) and resumes task execution.
+
+### 4. Unified Plan Generation Procedure
+
+`src/kit/skills/_generation.md` — remove **Tasks Generation Procedure** + **Checklist Generation Procedure**. Add a single **Plan Generation Procedure** invoked by `apply` (no longer by a planning skill). The procedure enumerates spec requirements once, then for each requirement emits:
+
 - A Task entry (what to implement, in which file)
 - An Acceptance entry (what must be true for review to pass)
 
-Cross-linking via shared IDs is optional; the co-generation invariant is what guarantees alignment.
+Cross-linking via shared IDs is optional; the co-generation invariant — single skill call, single model, single context window — is what guarantees alignment.
 
-### 3. Apply behavior
-
-`src/kit/skills/fab-continue.md` § Apply Behavior, Task Execution step 1:
-
-Current:
-> Parse tasks: `- [ ]` = remaining, `- [x]` = skip
-
-New:
-> Parse `plan.md` `## Tasks` section (everything between `## Tasks` and `## Acceptance` / `## Execution Order` / end-of-file). Apply ignores the `## Acceptance` section entirely. Checkboxes in `## Tasks` are marked `[x]` as tasks complete (behavior unchanged).
-
-### 4. Review behavior
+### 5. Review behavior
 
 `src/kit/skills/_review.md` Preconditions:
 
-Current:
+**Current**:
 > `tasks.md` and `checklist.md` MUST exist
 
-New:
+**New**:
 > `plan.md` MUST exist with both `## Tasks` and `## Acceptance` sections populated.
 
 Inward sub-agent currently does:
 > 2. Quality checklist: Inspect code/tests per CHK item. Mark `[x]` if met...
 
-New:
-> 2. Quality checklist: Inspect code/tests per CHK item in `plan.md` `## Acceptance` section. Mark `[x]` in place.
+**New**:
+> 2. Quality checklist: Inspect code/tests per A item in `plan.md` `## Acceptance` section. Mark `[x]` in place.
 
-### 5. `.status.yaml` schema
+### 6. `.status.yaml` schema
 
-Current:
+**Current**:
 
 ```yaml
 progress:
+  intake: done
+  spec: done
   tasks: done
+  apply: done
+  review: done
+  hydrate: pending
+  ship: pending
+  review-pr: pending
 checklist:
   generated: true
   total: 12
   completed: 12
 ```
 
-Proposed:
+**New**:
 
 ```yaml
 progress:
-  plan: done       # renamed from `tasks`
+  intake: done
+  spec: done
+  apply: done       # subsumes plan generation
+  review: done
+  hydrate: pending
+  ship: pending
+  review-pr: pending
 plan:
   generated: true
   task_count: 8
@@ -138,105 +179,161 @@ plan:
   acceptance_completed: 12
 ```
 
-The `tasks` stage in progress is renamed to `plan` — small consumer-churn cost, but aligns artifact name and stage name. Rename is performed via a migration.
+Changes:
+- `progress.tasks` key is **removed entirely** (not renamed).
+- `checklist:` block is replaced by `plan:` block with `task_count`, `acceptance_count`, `acceptance_completed`.
+- `.status.yaml` template (`$(fab kit-path)/templates/status.yaml`) updated accordingly.
 
-`fab status set-checklist` CLI → renamed/aliased to `fab status set-plan`. Existing command kept as deprecated alias for one release cycle.
+CLI updates:
+- `fab status set-checklist` → renamed to `fab status set-acceptance`. Updates `plan.acceptance_completed` against `plan.acceptance_count`. Legacy `set-checklist` errors immediately with a pointer to `set-acceptance` (consistent with the strict-error stance for `tasks` stage references).
+- All internal callers of `set-checklist` (e.g., review skill) updated to `set-acceptance` in this same change.
 
-### 6. Template
+### 7. Template
 
-- Add `src/kit/templates/plan.md` (new, combined structure above).
-- Deprecate `src/kit/templates/tasks.md` and `src/kit/templates/checklist.md`. Keep the files for one release cycle so deployed kits don't break mid-migration; remove in the next minor version.
+- Add `src/kit/templates/plan.md` (new, combined structure from §1).
+- **Remove** `src/kit/templates/tasks.md` and `src/kit/templates/checklist.md` in this change (no deprecation window). The migration handles in-flight `tasks.md` / `checklist.md` files under `fab/changes/` (those are change content, not templates), so no deployed kits break from template removal.
+- Update `src/kit/templates/status.yaml` to drop `progress.tasks`, replace `checklist` block with `plan` block.
 
-### 7. Migration (required per Constitution § Additional Constraints)
+### 8. Migration (required per Constitution § Additional Constraints)
 
-New migration file at `src/kit/migrations/{NNN}-merge-tasks-checklist.md`:
+New migration file at `src/kit/migrations/{NNN}-collapse-tasks-stage.md`.
 
-Purpose: For every in-flight change (`fab/changes/*/` excluding `archive/`) that has `tasks.md` and/or `checklist.md` but no `plan.md`:
-1. Read both files.
-2. Produce `plan.md` by concatenating: tasks content under `## Tasks`, checklist content under `## Acceptance`.
-3. Rewrite `.status.yaml`: rename `progress.tasks` → `progress.plan`, transform `checklist.{total,completed}` → `plan.{acceptance_count, acceptance_completed}`.
-4. Leave `tasks.md` and `checklist.md` in place (do not delete) so users can verify the merge, with a one-line note appended: `<!-- Migrated to plan.md on {DATE} — safe to delete. -->`
-5. Archived changes (`fab/changes/archive/**`) left untouched.
+**Purpose**: For every in-flight change (`fab/changes/*/` excluding `archive/`):
 
-Idempotent: re-running the migration is a no-op when `plan.md` already exists.
+1. **If `plan.md` already exists**: idempotent no-op. Skip the change entirely.
+2. **Otherwise, if `tasks.md` and/or `checklist.md` exist**:
+   a. Produce `plan.md` by concatenating: tasks content under `## Tasks`, checklist content under `## Acceptance`. Acceptance item IDs are preserved verbatim — in-flight changes keep their existing `CHK-NNN` IDs; only *newly generated* plans (via the unified Plan Generation Procedure) use the `A-NNN` prefix. No mid-change ID swap.
+   b. Rewrite `.status.yaml`: drop `progress.tasks` key entirely. If `progress.tasks: done`, the change is past the (former) tasks gate — `progress.apply` retains its current state. If `progress.tasks: active` or `ready`, set `progress.apply` to that state (the change was mid-planning and is now mid-apply-with-plan-already-generated).
+   c. Replace `checklist` block with `plan` block: `plan.generated = true`, `plan.task_count` = count of `- [ ]` / `- [x]` items in `## Tasks`, `plan.acceptance_count` = old `checklist.total`, `plan.acceptance_completed` = old `checklist.completed`.
+   d. Append a one-line note to `tasks.md` and `checklist.md`: `<!-- Migrated to plan.md on {DATE} — safe to delete. -->`. Files are left in place (do not delete) so users can verify the merge.
+3. **Archived changes** (`fab/changes/archive/**`) left untouched.
 
-### 8. Skill updates
+Idempotent: re-running the migration is a no-op when `plan.md` already exists (Step 1).
 
-- `src/kit/skills/fab-continue.md` — dispatch table row for `spec ready` collapses two actions (`generate tasks.md + checklist`) into one (`generate plan.md`). Apply preconditions and review preconditions updated as above.
-- `src/kit/skills/fab-ff.md` / `fab-fff.md` — Steps 2 and 3 merge into a single **Step 2: Generate `plan.md`**.
-- `src/kit/skills/fab-clarify.md` — target disambiguation: accept both `plan` and legacy `tasks` (alias). Scan `## Tasks` for task-level clarifications, `## Acceptance` for acceptance-level.
-- `src/kit/skills/_generation.md` — merged procedure replaces the two existing ones.
-- `src/kit/skills/_review.md` — precondition + parsing updates.
-- `src/kit/skills/_preamble.md` — no direct change (State Table stages unchanged if we keep `plan` as the stage name).
+### 9. Skill updates
 
-### 9. Specs
+- `src/kit/skills/_preamble.md` — State Table loses the `tasks` row. The `spec → apply` transition becomes the new "spec done → apply" entry.
+- `src/kit/skills/fab-continue.md` — dispatch table: remove the `spec ready → tasks` row; add the plan generation sub-step to the `spec ready → apply` body. Update `apply ready` and `apply active` rows to reflect the entry-time plan generation. Reset table accepts `apply` only (not `tasks`).
+- `src/kit/skills/fab-ff.md` / `fab-fff.md` — Steps 2 (tasks) and 3 (checklist) are removed. The new pipeline goes directly from spec generation to apply, where plan generation happens internally. Step numbering shifts.
+- `src/kit/skills/fab-clarify.md` — target disambiguation: planning stages become `{intake, spec}` only. `plan` is a valid `<target-artifact>` for post-planning stages (apply, review, hydrate) once `plan.md` exists. Legacy `tasks` errors with a helpful message pointing to `plan` (or `spec` for pre-apply clarifications). Pre-flight stage guard updated: planning stages list drops `tasks`.
+- `src/kit/skills/_generation.md` — replace Tasks Generation Procedure + Checklist Generation Procedure with the single Plan Generation Procedure (§4).
+- `src/kit/skills/_review.md` — preconditions + acceptance section reference (§5).
 
-- `docs/specs/templates.md` — replace tasks.md + checklist.md entries with plan.md entry.
-- `docs/specs/skills.md` — per-skill flow updates.
-- `docs/specs/overview.md` — stage list / artifacts per stage.
+### 10. Binary (`fab` Go CLI)
+
+- `fab status set-acceptance` (new) — replaces `set-checklist`; updates `plan.acceptance_completed`.
+- `fab status set-checklist` (remove) — errors immediately with `"set-checklist" is now "set-acceptance" — run fab status set-acceptance instead.`
+- `fab status finish/advance/reset/start` — accept `apply` only as the post-spec target. Legacy `tasks` errors with `"tasks" stage was removed — run ... apply instead. plan.md is now generated at apply entry.`. Migration rewrites `.status.yaml` for in-flight changes so no user-visible `tasks` key survives the upgrade.
+- `fab change list` / `fab-status` display — reference 7-stage pipeline; `tasks` no longer appears.
+- `fab score` — verify no direct read of `tasks.md` / `checklist.md` (scoring is spec-level today; this should be a no-op verification, but worth confirming).
+
+### 11. Specs
+
+- `docs/specs/overview.md` — stage list reduces to 7; remove `tasks` stage description.
+- `docs/specs/skills.md` — per-skill flow updates: `fab-continue`, `fab-ff`, `fab-fff`, `fab-clarify` flows reflect new stage list.
+- `docs/specs/templates.md` — replace `tasks.md` + `checklist.md` entries with `plan.md` entry.
+- `docs/specs/user-flow.md` — diagram updates for 7-stage pipeline.
+- `docs/specs/architecture.md` — if it lists `progress` map keys, update.
+- `docs/specs/glossary.md` — remove `tasks` stage entry; update `plan.md` entry.
 
 ## Affected Memory
 
-- `fab-workflow/templates`: (modify) — plan.md replaces tasks.md + checklist.md in template list
-- `fab-workflow/planning-skills`: (modify) — unified plan generation
-- `fab-workflow/execution-skills`: (modify) — apply reads plan.md `## Tasks`; review reads plan.md `## Acceptance`
-- `fab-workflow/change-lifecycle`: (modify) — artifact file list
-- `fab-workflow/schemas`: (modify) — `.status.yaml` `progress.plan` replaces `progress.tasks`
+- `fab-workflow/templates`: (modify) — `plan.md` replaces `tasks.md` + `checklist.md` in template list; `status.yaml` template updated
+- `fab-workflow/planning-skills`: (modify) — `tasks` stage no longer exists; planning skills produce intake.md and spec.md only
+- `fab-workflow/execution-skills`: (modify) — apply now does plan generation at entry then task execution; review reads `plan.md` `## Acceptance`
+- `fab-workflow/change-lifecycle`: (modify) — 7-stage pipeline; artifact list updated
+- `fab-workflow/schemas`: (modify) — `.status.yaml` schema: `progress.tasks` removed entirely; `checklist` block replaced by `plan` block
 - `fab-workflow/migrations`: (modify) — new migration file registered
-- `fab-workflow/hydrate`: (modify, if applicable) — hydrate may reference plan.md
+- `fab-workflow/clarify`: (modify) — `/fab-clarify` target list reduces; `tasks` removed
+- `fab-workflow/hydrate`: (review, likely modify) — hydrate references to `plan.md` in place of `tasks.md` / `checklist.md`
 
 ## Impact
 
-### Code
-- `src/kit/skills/_generation.md` — merge two procedures into one
+### Code (Skills)
+- `src/kit/skills/_preamble.md` — State Table row removed; stage count updated in narrative
+- `src/kit/skills/_generation.md` — two procedures → one; invocation point moves to apply
 - `src/kit/skills/_review.md` — preconditions + parser
-- `src/kit/skills/fab-continue.md` — dispatch + apply + review
-- `src/kit/skills/fab-ff.md` — Step 2+3 merge
-- `src/kit/skills/fab-fff.md` — Step 2+3 merge
-- `src/kit/skills/fab-clarify.md` — target disambiguation + scan
-- `src/kit/skills/_preamble.md` — State Table sanity check (stage named `tasks` → `plan` if renamed)
+- `src/kit/skills/fab-continue.md` — dispatch table, apply behavior, reset table
+- `src/kit/skills/fab-ff.md` — Step structure
+- `src/kit/skills/fab-fff.md` — Step structure
+- `src/kit/skills/fab-clarify.md` — target disambiguation, planning stage list, pre-flight guard
 
 ### Binary (`fab` Go CLI)
-- `fab status set-plan` (new) — alias for set-checklist
-- `fab status set-checklist` (deprecate, keep as alias) — emit deprecation notice
-- `fab status finish/advance/reset/start` — accept `plan` stage name (alongside legacy `tasks` for backwards-compat during migration window)
-- `fab change list` / `fab-status` display — reference `plan` stage
+- `fab status set-acceptance` (new)
+- `fab status set-checklist` (remove — errors with pointer)
+- `fab status finish/advance/reset/start` — accept `apply` only post-spec; legacy `tasks` errors
+- `fab change list` / `fab-status` display — 7-stage pipeline
+- `fab score` — verification only (likely no-op)
 
 ### Templates
 - `src/kit/templates/plan.md` — new
-- `src/kit/templates/tasks.md` — deprecate
-- `src/kit/templates/checklist.md` — deprecate
+- `src/kit/templates/tasks.md` — remove
+- `src/kit/templates/checklist.md` — remove
+- `src/kit/templates/status.yaml` — drop `progress.tasks`; `checklist` → `plan` block
 
 ### Migrations
-- `src/kit/migrations/{NNN}-merge-tasks-checklist.md` — new
+- `src/kit/migrations/{NNN}-collapse-tasks-stage.md` — new
 
 ### Specs
-- `docs/specs/templates.md`, `docs/specs/skills.md`, `docs/specs/overview.md`, `docs/specs/user-flow.md` (if it diagrams per-file artifacts)
+- `docs/specs/overview.md`
+- `docs/specs/skills.md`
+- `docs/specs/templates.md`
+- `docs/specs/user-flow.md`
+- `docs/specs/architecture.md` (if it lists `progress` keys)
+- `docs/specs/glossary.md`
+
+### Coordination
+- `260423-xvaz-skip-tasks-simple-types` — archive after qszh ships (becomes obsolete)
 
 ## Open Questions
 
-- Rename `progress.tasks` → `progress.plan` or keep the legacy name? Rename is clearer but has more consumer churn. Alternative: keep `progress.tasks` as the stage key, just change what artifact gets generated. Leaning: rename, per the "artifact name and stage name should match" design principle.
-- Single file `plan.md` vs two files with a manifest linking them? Single file is simpler and matches the co-generation invariant. Two files re-introduces drift risk. Leaning: single file.
-- Do we keep `tasks.md` + `checklist.md` templates indefinitely as "legacy format" or remove them after one release? Removal is cleaner; keeping forever encourages opt-out of the new flow. Leaning: remove after one release cycle with deprecation notice.
-- Acceptance section IDs: keep `CHK-001` or renumber to `A001`? CHK is recognizable from 2 months of user habit. Leaning: keep CHK-.
-- Does `fab score` need any update? (Scoring is spec-level, so probably not — but worth verifying the CLI doesn't read any tasks/checklist file directly.)
+- Should `fab score` learn to score `plan.md` for any future "plan gate"? Not needed now — apply has no gate. Note for future.
+
+## Clarifications
+
+### Session 2026-04-23
+
+| # | Question | Resolution |
+|---|----------|------------|
+| 9 | Keep `CHK-` prefix for acceptance items or renumber to `A-`? | Renumber newly generated plans to `A-NNN`. Migration preserves `CHK-NNN` verbatim for in-flight changes — no mid-change ID swap. |
+| 10 | Remove legacy templates after one release cycle, keep indefinitely, or remove immediately? | Remove `tasks.md` and `checklist.md` templates immediately in this change. In-flight changes are handled by migration; templates themselves aren't read by live changes. |
+| 11 | Confirm migration idempotency (no-op when `plan.md` exists)? | Confirmed — standard idempotency contract. Migration file MUST assert no-op path. |
+| 12 | `fab-continue tasks` — accept as alias, error, or phased deprecation? | Error immediately across all entry points (`fab-continue`, `fab status ...`, `fab-clarify`). Migration rewrites `.status.yaml` so no in-flight change is stranded. |
+
+### Session 2026-05-04 (rescope)
+
+| # | Question | Resolution |
+|---|----------|------------|
+| R1 | Keep `tasks` as a separate stage, or fold plan generation into `apply`? | Fold into `apply`. The `tasks` stage was a no-decision gate; collapsing eliminates it. Pipeline goes from 8 stages → 7. |
+| R2 | Drop `spec` stage too (collapse to `intake → apply → review → ...`)? | No. Spec is decision-rich: `/fab-clarify spec` is the workhorse, the `fab score` per-type spec gate is the primary precision gate, review depends on spec for behavioral correctness. Stop the collapse at `tasks`. |
+| R3 | Rename `apply` stage to `execute` or `implement` to reflect new responsibilities? | Keep `apply`. Plan generation is an entry sub-step, not a different mission; renaming adds migration churn (state table, `.status.yaml`, all skills, user muscle memory) for marginal semantic gain. |
+| R4 | Rename `progress.tasks` → `progress.plan`, or drop the key entirely? | Drop entirely. With no `tasks` stage, there's no `plan` stage either — `plan.md` is an apply-internal artifact. Schema becomes simpler: 7 keys instead of 8. |
+| R5 | What happens to `260423-xvaz-skip-tasks-simple-types`? | Becomes obsolete. Simple changes naturally produce a tiny `plan.md` and execute in seconds; no skip policy needed. xvaz should be archived (`/fab-archive`) once qszh ships. |
+| R6 | What replaces `fab status set-checklist`? | `fab status set-acceptance` (updates `plan.acceptance_completed`). Legacy `set-checklist` errors immediately with a pointer — consistent with the strict-error stance (#12). |
+| R7 | Add an opt-in `--pause-after-plan-gen` flag to `apply` in v1, or defer? | Defer to follow-up. Plan-level clarifications go through `/fab-clarify spec` (upstream) or `/fab-clarify plan` post-apply-entry. Add flag later if usage data shows users want a pre-apply checkpoint. |
+| R8 | Does any external tooling read `tasks.md` / `checklist.md` directly? | No — user confirmed no consumer projects, dashboards, or scripts depend on these files. Migration can proceed without external-consumer hedges. |
 
 ## Assumptions
 
 | # | Grade | Decision | Rationale | Scores |
 |---|-------|----------|-----------|--------|
-| 1 | Certain | Two files → one file eliminates drift risk at generation time | Tautologically true: a single-pass generation over the same context cannot produce divergent sub-artifacts | S:95 R:90 A:95 D:95 |
+| 1 | Certain | Two files → one file eliminates drift risk at generation time | Tautologically true: a single skill call over the same context cannot produce divergent sub-artifacts | S:95 R:90 A:95 D:95 |
 | 2 | Certain | Constitution § Additional Constraints mandates migration for user-data schema change | Direct constitution quote | S:95 R:95 A:95 D:95 |
 | 3 | Certain | Apply and review need different sub-sections of the artifact | Apply = imperative tasks, review = declarative acceptance. Design principle preserved. | S:90 R:85 A:90 D:90 |
-| 4 | Confident | `plan.md` is the right name | Matches SpecKit/industry naming; "plan" encompasses both tasks and acceptance cleanly | S:80 R:85 A:75 D:75 |
-| 5 | Confident | `## Tasks` and `## Acceptance` are the stable parser contract | Heading-based parsing is what existing skills already use implicitly | S:80 R:80 A:85 D:75 |
-| 6 | Confident | Rename `progress.tasks` → `progress.plan` is worth the consumer churn | Stage and artifact names should match; migration handles existing data | S:70 R:60 A:75 D:65 |
-| 7 | Confident | `fab status set-checklist` becomes deprecated alias for `set-plan` | Standard deprecation pattern; one release cycle | S:75 R:75 A:80 D:70 |
-| 8 | Confident | Migration leaves legacy `tasks.md` / `checklist.md` on disk with a note, doesn't delete | Safer for users to verify manually; cleanup is cheap later | S:80 R:80 A:80 D:75 |
-| 9 | Tentative | Keep `CHK-` prefix for acceptance items (not renumber to `A-`) | Preserves 2 months of user visual memory; minor aesthetic cost | S:60 R:80 A:65 D:55 |
-| 10 | Tentative | Remove legacy templates after one release cycle | Encourages migration; risk of breaking third-party tooling that reads them | S:55 R:60 A:65 D:50 |
-| 11 | Tentative | Migration is idempotent no-op when `plan.md` exists | Standard migration pattern but must be explicitly verified in the migration file | S:65 R:75 A:70 D:60 |
-| 12 | Unresolved | Should `fab-continue tasks` remain a valid reset target (alias for `plan`) or error? | Alias is friendlier; erroring forces users to learn new vocab. Depends on deprecation aggressiveness. | S:40 R:55 A:55 D:40 |
-| 13 | Unresolved | Interaction with intake #1 (`260423-xvaz-skip-tasks-simple-types`): if that ships first, does this change rewrite the skip-policy key from `generate_tasks` → `generate_plan`? | Depends on ship order; agent picking this up must coordinate with other draft | S:40 R:50 A:55 D:40 |
+| 4 | Certain | Drop `tasks` stage entirely; fold plan generation into `apply` skill entry | Clarified — `tasks` was a no-decision gate. Collapsing simplifies the state machine and eliminates xvaz's reason to exist. | S:95 R:60 A:80 D:70 |
+| 5 | Certain | Keep `apply` as the stage name (no rename to `execute`/`implement`) | Clarified — semantic gain doesn't justify migration churn across state table, `.status.yaml`, all skills, muscle memory | S:95 R:70 A:80 D:75 |
+| 6 | Certain | Drop `progress.tasks` key from `.status.yaml` (not rename to `progress.plan`) | Clarified — with no separate stage, no key is needed. Schema simplifies to 7 keys. | S:95 R:70 A:85 D:80 |
+| 7 | Certain | Renumber acceptance items to `A-NNN` in newly generated `plan.md`; migration preserves `CHK-NNN` verbatim for in-flight changes | Clarified — user chose A- prefix for new plans; avoids ID rewrite risk in migration | S:95 R:80 A:65 D:55 |
+| 8 | Certain | Remove `src/kit/templates/tasks.md` and `src/kit/templates/checklist.md` in this change (no deprecation window) | Clarified — user chose immediate removal; template files aren't read by in-flight changes so no breakage | S:95 R:60 A:65 D:50 |
+| 9 | Certain | Migration is idempotent no-op when `plan.md` exists | Clarified — user confirmed standard idempotency contract; migration file MUST assert no-op path | S:95 R:75 A:70 D:60 |
+| 10 | Certain | All `tasks` references error immediately (no alias window): `fab-continue tasks`, `fab status ... tasks`, `fab-clarify tasks`, `fab status set-checklist` | Clarified — strict-error stance applied consistently across stage names and CLI commands | S:95 R:55 A:55 D:40 |
+| 11 | Certain | `260423-xvaz-skip-tasks-simple-types` becomes obsolete and is archived after qszh ships | Clarified — simple changes naturally produce a tiny plan.md; no skip policy is needed once the gate is gone | S:95 R:80 A:90 D:90 |
+| 12 | Confident | `plan.md` is the right name | Matches SpecKit/industry naming; "plan" encompasses both tasks and acceptance cleanly | S:80 R:85 A:75 D:75 |
+| 13 | Confident | `## Tasks` and `## Acceptance` are the stable parser contract | Heading-based parsing is what existing skills already use implicitly | S:80 R:80 A:85 D:75 |
+| 14 | Confident | `fab status set-acceptance` is the right name for the renamed CLI command | Matches the new section name (`## Acceptance`) and the schema field (`plan.acceptance_completed`) | S:75 R:75 A:80 D:75 |
+| 15 | Confident | Migration leaves legacy `tasks.md` / `checklist.md` on disk with a note, doesn't delete | Safer for users to verify manually; cleanup is cheap later | S:80 R:80 A:80 D:75 |
+| 16 | Confident | Apply skill plan-gen sub-step is skipped on resume when `plan.md` already exists | Standard resumability pattern; preserves the "long apply across sessions" use case | S:80 R:75 A:85 D:80 |
+| 17 | Certain | No opt-in pre-apply pause flag in this change (`--pause-after-plan-gen` deferred to follow-up) | Clarified — user chose defer. Plan-level clarifications go through `/fab-clarify spec` (upstream) or `/fab-clarify plan` post-apply-entry. Flag added later if usage data warrants. | S:95 R:75 A:65 D:60 |
+| 18 | Certain | No external tooling reads `tasks.md` / `checklist.md` directly | Clarified — user confirmed no consumer projects, dashboards, or scripts depend on these files. Migration can proceed without external-consumer hedges. | S:95 R:55 A:90 D:90 |
 
-13 assumptions (3 certain, 5 confident, 3 tentative, 2 unresolved).
+18 assumptions (13 certain, 5 confident, 0 tentative, 0 unresolved).
