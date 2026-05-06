@@ -23,9 +23,9 @@ Mode determined by `[AUTO-MODE]` prefix (see `_preamble.md` > Skill Invocation P
 ## Arguments
 
 - **`<change-name>`** *(optional)* — target a specific change (see `_preamble.md` > Change-name override). `.fab-status.yaml` unchanged.
-- **`<target-artifact>`** *(optional)* — `intake`, `spec`, or `tasks`. **Required** at post-planning stages. Defaults to current stage's artifact at planning stages.
+- **`<target-artifact>`** *(optional)* — `intake`, `spec`, or `plan`. The legacy `tasks` target errors with `"tasks" target was removed — use plan (post-apply-entry) or spec (pre-apply).` **Required** at post-planning stages. Defaults to current stage's artifact at planning stages.
 
-Disambiguation: matches `intake`/`spec`/`tasks` → target artifact; anything else → change name. Both can be provided.
+Disambiguation: matches `intake`/`spec`/`plan` → target artifact; matches `tasks` → strict-error (see above); anything else → change name. Both can be provided.
 
 ---
 
@@ -33,8 +33,8 @@ Disambiguation: matches `intake`/`spec`/`tasks` → target artifact; anything el
 
 Run preflight per `_preamble.md` §2.
 
-- **Planning stages** (`intake`, `spec`, `tasks`) with state `active` or `ready` — defaults to current stage's artifact if it exists; if the current stage is `pending` (no artifact yet), fall back to the previous `done` stage's artifact. `<target-artifact>` overrides either default. At the `intake` stage, the taxonomy scan covers intake artifact refinement (scope boundaries, affected areas, blocking questions, impact, memory coverage). When state is `ready`, the artifact exists — scanning proceeds normally and the stage stays `ready` throughout.
-- **Post-planning** (`apply`, `review`, `hydrate`) — requires `<target-artifact>`. If missing, prompt: "Which planning artifact to clarify? (1) spec, (2) tasks, (3) intake"
+- **Planning stages** (`intake`, `spec`) with state `active` or `ready` — defaults to current stage's artifact if it exists; if the current stage is `pending` (no artifact yet), fall back to the previous `done` stage's artifact. `<target-artifact>` overrides either default. At the `intake` stage, the taxonomy scan covers intake artifact refinement (scope boundaries, affected areas, blocking questions, impact, memory coverage). When state is `ready`, the artifact exists — scanning proceeds normally and the stage stays `ready` throughout.
+- **Post-planning** (`apply`, `review`, `hydrate`) — requires `<target-artifact>`. The `plan` target is valid only when `plan.md` exists at apply or later (apply has already entered and generated the plan). If `plan` is requested but `plan.md` is missing, STOP with: "No plan.md found. Run /fab-continue to enter apply (which generates plan.md), then re-run /fab-clarify plan." If `<target-artifact>` is missing, prompt: "Which artifact to clarify? (1) spec, (2) plan (post-apply-entry only), (3) intake"
 
 ---
 
@@ -42,7 +42,7 @@ Run preflight per `_preamble.md` §2.
 
 ### Step 1: Read Target Artifact
 
-Resolve file (`intake.md`, `spec.md`, or `tasks.md`). If the resolved artifact is missing and the target was defaulted (not user-specified), fall back to the previous `done` stage's artifact. If still missing or the target was explicitly specified: STOP with "No {artifact} found. Run /fab-continue to generate it first."
+Resolve file (`intake.md`, `spec.md`, or `plan.md`). If the resolved artifact is missing and the target was defaulted (not user-specified), fall back to the previous `done` stage's artifact. If still missing or the target was explicitly specified: STOP with "No {artifact} found. Run /fab-continue to generate it first."
 
 ### Step 1.5: Taxonomy Scan
 
@@ -50,7 +50,7 @@ Scan for gaps, `[NEEDS CLARIFICATION]`, and `<!-- assumed: ... -->` markers. Cat
 
 - **Intake**: scope boundaries, affected areas, blocking questions, impact, memory coverage
 - **Spec**: requirement precision (RFC 2119), scenario coverage (GIVEN/WHEN/THEN), edge cases, deprecated requirements, memory cross-references
-- **Tasks**: completeness vs spec, granularity, dependencies, file paths, `[P]` markers
+- **Plan**: tasks (`## Tasks`) — completeness vs spec, granularity, dependencies, file paths, `[P]` markers — plus acceptance (`## Acceptance`) — coverage of spec requirements, declarative phrasing, IDs follow `A-NNN` (newly generated plans) or `CHK-NNN` (in-flight migrated plans)
 
 For `<!-- assumed: ... -->` markers, frame current assumption as recommended option with alternatives.
 

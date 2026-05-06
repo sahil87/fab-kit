@@ -22,7 +22,7 @@ func statusCmd() *cobra.Command {
 		statusProgressLineCmd(),
 		statusCurrentStageCmd(),
 		statusDisplayStageCmd(),
-		statusChecklistCmd(),
+		statusPlanCmd(),
 		statusConfidenceCmd(),
 		statusValidateCmd(),
 		statusStartCmd(),
@@ -32,7 +32,8 @@ func statusCmd() *cobra.Command {
 		statusSkipCmd(),
 		statusFailCmd(),
 		statusSetChangeTypeCmd(),
-		statusSetChecklistCmd(),
+		statusSetAcceptanceCmd(),
+		statusSetChecklistRemovedCmd(),
 		statusSetConfidenceCmd(),
 		statusSetConfidenceFuzzyCmd(),
 		statusAddIssueCmd(),
@@ -144,19 +145,20 @@ func statusDisplayStageCmd() *cobra.Command {
 	}
 }
 
-func statusChecklistCmd() *cobra.Command {
+func statusPlanCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "checklist <change>",
-		Short: "Extract checklist fields",
+		Use:   "plan <change>",
+		Short: "Extract plan fields",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sf, _, _, err := loadStatus(args[0])
 			if err != nil {
 				return err
 			}
-			fmt.Printf("generated:%v\n", sf.Checklist.Generated)
-			fmt.Printf("completed:%d\n", sf.Checklist.Completed)
-			fmt.Printf("total:%d\n", sf.Checklist.Total)
+			fmt.Printf("generated:%v\n", sf.Plan.Generated)
+			fmt.Printf("task_count:%d\n", sf.Plan.TaskCount)
+			fmt.Printf("acceptance_count:%d\n", sf.Plan.AcceptanceCount)
+			fmt.Printf("acceptance_completed:%d\n", sf.Plan.AcceptanceCompleted)
 			return nil
 		},
 	}
@@ -313,17 +315,33 @@ func statusSetChangeTypeCmd() *cobra.Command {
 	}
 }
 
-func statusSetChecklistCmd() *cobra.Command {
+func statusSetAcceptanceCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "set-checklist <change> <field> <value>",
-		Short: "Update checklist field",
+		Use:   "set-acceptance <change> <field> <value>",
+		Short: "Update plan field",
 		Args:  cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sf, statusPath, _, err := loadStatus(args[0])
 			if err != nil {
 				return err
 			}
-			return status.SetChecklist(sf, statusPath, args[1], args[2])
+			return status.SetAcceptance(sf, statusPath, args[1], args[2])
+		},
+	}
+}
+
+// statusSetChecklistRemovedCmd surfaces the strict-error message for the
+// removed `set-checklist` command. The Cobra layer matches the literal
+// command name and returns the pointer-to-set-acceptance error.
+func statusSetChecklistRemovedCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:    "set-checklist [args...]",
+		Short:  "Removed — use set-acceptance",
+		Hidden: true,
+		Args:   cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cmd.SilenceUsage = true
+			return status.SetChecklistRemovedError()
 		},
 	}
 }

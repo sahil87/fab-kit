@@ -273,28 +273,35 @@ func artifactBookkeeping(fabRoot, filePath string, match hooklib.ArtifactMatch, 
 			contextParts = append(contextParts, fmt.Sprintf("score: %.1f", result.Score))
 		}
 
-	case "tasks.md":
+	case "plan.md":
 		content, err := os.ReadFile(absPath)
 		if err != nil {
 			content = []byte{}
 		}
 
-		count := hooklib.CountUncheckedTasks(string(content))
-		_ = status.SetChecklist(statusFile, statusPath, "total", fmt.Sprintf("%d", count))
-		contextParts = append(contextParts, fmt.Sprintf("tasks total: %d", count))
+		hasTasks := hooklib.HasSectionHeading(string(content), hooklib.SectionTasks)
+		hasAcceptance := hooklib.HasSectionHeading(string(content), hooklib.SectionAcceptance)
 
-	case "checklist.md":
-		_ = status.SetChecklist(statusFile, statusPath, "generated", "true")
-
-		content, err := os.ReadFile(absPath)
-		if err != nil {
-			content = []byte{}
+		// Always set generated=true if the file exists with at least the ## Tasks heading.
+		if hasTasks {
+			_ = status.SetAcceptance(statusFile, statusPath, "generated", "true")
 		}
 
-		count := hooklib.CountChecklistItems(string(content))
-		_ = status.SetChecklist(statusFile, statusPath, "total", fmt.Sprintf("%d", count))
-		_ = status.SetChecklist(statusFile, statusPath, "completed", "0")
-		contextParts = append(contextParts, fmt.Sprintf("checklist generated, total: %d", count))
+		// Defensive: only update task_count when ## Tasks is present.
+		if hasTasks {
+			taskCount := hooklib.CountSectionItemsBounded(string(content), hooklib.SectionTasks)
+			_ = status.SetAcceptance(statusFile, statusPath, "task_count", fmt.Sprintf("%d", taskCount))
+			contextParts = append(contextParts, fmt.Sprintf("plan tasks: %d", taskCount))
+		}
+
+		// Defensive: only update acceptance counts when ## Acceptance is present.
+		if hasAcceptance {
+			acceptanceCount := hooklib.CountSectionItemsBounded(string(content), hooklib.SectionAcceptance)
+			acceptanceCompleted := hooklib.CountCompletedSectionItemsBounded(string(content), hooklib.SectionAcceptance)
+			_ = status.SetAcceptance(statusFile, statusPath, "acceptance_count", fmt.Sprintf("%d", acceptanceCount))
+			_ = status.SetAcceptance(statusFile, statusPath, "acceptance_completed", fmt.Sprintf("%d", acceptanceCompleted))
+			contextParts = append(contextParts, fmt.Sprintf("plan acceptance: %d/%d", acceptanceCompleted, acceptanceCount))
+		}
 	}
 
 	return contextParts

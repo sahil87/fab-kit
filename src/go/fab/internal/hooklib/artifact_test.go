@@ -72,23 +72,25 @@ func TestMatchArtifactPath_RelativeSpec(t *testing.T) {
 	}
 }
 
-func TestMatchArtifactPath_Tasks(t *testing.T) {
-	match, ok := MatchArtifactPath("fab/changes/my-change/tasks.md")
+func TestMatchArtifactPath_Plan(t *testing.T) {
+	match, ok := MatchArtifactPath("fab/changes/my-change/plan.md")
 	if !ok {
 		t.Fatal("expected match")
 	}
-	if match.Artifact != "tasks.md" {
-		t.Errorf("Artifact = %q, want %q", match.Artifact, "tasks.md")
+	if match.Artifact != "plan.md" {
+		t.Errorf("Artifact = %q, want %q", match.Artifact, "plan.md")
 	}
 }
 
-func TestMatchArtifactPath_Checklist(t *testing.T) {
-	match, ok := MatchArtifactPath("fab/changes/my-change/checklist.md")
-	if !ok {
-		t.Fatal("expected match")
+func TestMatchArtifactPath_LegacyTasksRejected(t *testing.T) {
+	if _, ok := MatchArtifactPath("fab/changes/my-change/tasks.md"); ok {
+		t.Error("expected no match for legacy tasks.md")
 	}
-	if match.Artifact != "checklist.md" {
-		t.Errorf("Artifact = %q, want %q", match.Artifact, "checklist.md")
+}
+
+func TestMatchArtifactPath_LegacyChecklistRejected(t *testing.T) {
+	if _, ok := MatchArtifactPath("fab/changes/my-change/checklist.md"); ok {
+		t.Error("expected no match for legacy checklist.md")
 	}
 }
 
@@ -220,66 +222,115 @@ func TestInferChangeType_FirstMatchWins(t *testing.T) {
 	}
 }
 
-func TestCountUncheckedTasks(t *testing.T) {
-	content := `# Tasks
+func TestHasSectionHeading_Present(t *testing.T) {
+	content := `# Plan: example
+
+## Tasks
+
+- [ ] T001 do thing
+
+## Acceptance
+
+- [ ] A-001 check thing
+`
+	if !HasSectionHeading(content, SectionTasks) {
+		t.Error("expected ## Tasks heading to be detected")
+	}
+	if !HasSectionHeading(content, SectionAcceptance) {
+		t.Error("expected ## Acceptance heading to be detected")
+	}
+}
+
+func TestHasSectionHeading_Missing(t *testing.T) {
+	content := `# Plan: example
+
+## Tasks
+
+- [ ] T001 do thing
+`
+	if !HasSectionHeading(content, SectionTasks) {
+		t.Error("expected ## Tasks heading to be detected")
+	}
+	if HasSectionHeading(content, SectionAcceptance) {
+		t.Error("expected ## Acceptance heading to be absent")
+	}
+}
+
+func TestHasSectionHeading_DoesNotMatchPrefix(t *testing.T) {
+	content := `## TasksAndStuff
+
+- [ ] T001 do thing
+`
+	if HasSectionHeading(content, SectionTasks) {
+		t.Error("## TasksAndStuff should not match the SectionTasks heading")
+	}
+}
+
+func TestCountSectionItemsBounded_TasksAndAcceptance(t *testing.T) {
+	content := `# Plan: example
+
+## Tasks
+
+### Phase 1: Setup
 - [ ] T001 First task
 - [x] T002 Done task
+
+### Phase 2: Core
 - [ ] T003 Another task
 - [ ] T004 Third task
-Some other text
 - [x] T005 Also done
+
+## Execution Order
+
+- T001 blocks T003
+
+## Acceptance
+
+- [ ] A-001 unmet
+- [x] A-002 met
+- [ ] A-003 unmet
 `
-	got := CountUncheckedTasks(content)
-	if got != 3 {
-		t.Errorf("got %d, want 3", got)
+	tasks := CountSectionItemsBounded(content, SectionTasks)
+	if tasks != 5 {
+		t.Errorf("Tasks count: got %d, want 5", tasks)
+	}
+	acceptance := CountSectionItemsBounded(content, SectionAcceptance)
+	if acceptance != 3 {
+		t.Errorf("Acceptance count: got %d, want 3", acceptance)
+	}
+	completed := CountCompletedSectionItemsBounded(content, SectionAcceptance)
+	if completed != 1 {
+		t.Errorf("Acceptance completed: got %d, want 1", completed)
 	}
 }
 
-func TestCountUncheckedTasks_Empty(t *testing.T) {
-	got := CountUncheckedTasks("")
-	if got != 0 {
-		t.Errorf("got %d, want 0", got)
-	}
-}
+func TestCountSectionItemsBounded_StopsAtNextHeading(t *testing.T) {
+	// Items only under Tasks should be counted; nothing past `## Acceptance`.
+	content := `## Tasks
 
-func TestCountUncheckedTasks_AllChecked(t *testing.T) {
-	content := `- [x] T001 Done
-- [x] T002 Done
+- [ ] T001 inside tasks
+- [x] T002 inside tasks
+
+## Acceptance
+
+- [ ] A-001 not a task
+- [ ] A-002 not a task
 `
-	got := CountUncheckedTasks(content)
-	if got != 0 {
-		t.Errorf("got %d, want 0", got)
+	if got := CountSectionItemsBounded(content, SectionTasks); got != 2 {
+		t.Errorf("Tasks count: got %d, want 2", got)
 	}
 }
 
-func TestCountChecklistItems(t *testing.T) {
-	content := `# Checklist
-- [ ] CHK-001 First check
-- [x] CHK-002 Done check
-- [ ] CHK-003 Another check
-- [x] CHK-004 Also done
-Some text
+func TestCountSectionItemsBounded_MissingSectionReturnsZero(t *testing.T) {
+	content := `# Plan: example
+
+## Acceptance
+
+- [ ] A-001 unmet
 `
-	got := CountChecklistItems(content)
-	if got != 4 {
-		t.Errorf("got %d, want 4", got)
-	}
-}
-
-func TestCountChecklistItems_Empty(t *testing.T) {
-	got := CountChecklistItems("")
-	if got != 0 {
-		t.Errorf("got %d, want 0", got)
-	}
-}
-
-func TestCountChecklistItems_NoItems(t *testing.T) {
-	content := `# Checklist
-No items here
-Just text
-`
-	got := CountChecklistItems(content)
-	if got != 0 {
-		t.Errorf("got %d, want 0", got)
+	// Tasks section absent — bounded scan returns 0; callers should use
+	// HasSectionHeading to distinguish "missing" from "empty".
+	if got := CountSectionItemsBounded(content, SectionTasks); got != 0 {
+		t.Errorf("Tasks count when section absent: got %d, want 0", got)
 	}
 }

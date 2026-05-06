@@ -16,17 +16,16 @@ issues: []
 progress:
   intake: done
   spec: active
-  tasks: pending
   apply: pending
   review: pending
   hydrate: pending
   ship: pending
   review-pr: pending
-checklist:
+plan:
   generated: false
-  path: checklist.md
-  completed: 0
-  total: 0
+  task_count: 0
+  acceptance_count: 0
+  acceptance_completed: 0
 confidence:
   certain: 0
   confident: 0

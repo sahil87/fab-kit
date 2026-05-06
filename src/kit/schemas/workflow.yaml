@@ -49,7 +49,6 @@ states:
 #   - required: Whether this stage is required (false = optional)
 #   - initial_state: Default state when creating a new change
 #   - allowed_states: Which state values are valid for this stage
-#   - auto_checklist: Generate checklist.md when this stage completes
 #   - commands: Primary commands that operate on this stage
 stages:
   - id: intake
@@ -72,22 +71,11 @@ stages:
     allowed_states: [pending, active, ready, done, skipped]
     commands: [fab-continue, fab-clarify]
 
-  - id: tasks
-    name: "Tasks"
-    generates: tasks.md
-    description: "Implementation task breakdown with dependencies"
-    requires: [spec]
-    required: true
-    initial_state: pending
-    allowed_states: [pending, active, ready, done, skipped]
-    auto_checklist: true
-    commands: [fab-continue, fab-clarify]
-
   - id: apply
     name: "Apply"
-    generates: null
-    description: "Execute implementation tasks in dependency order"
-    requires: [tasks]
+    generates: plan.md
+    description: "Generate plan.md (## Tasks + ## Acceptance) at entry, then execute the unchecked tasks in dependency order"
+    requires: [spec]
     required: true
     initial_state: pending
     allowed_states: [pending, active, ready, done, skipped]
@@ -96,7 +84,7 @@ stages:
   - id: review
     name: "Review"
     generates: null
-    description: "Validate implementation against specs and checklists"
+    description: "Validate implementation against spec and plan.md ## Acceptance items"
     requires: [apply]
     required: true
     initial_state: pending
@@ -224,12 +212,11 @@ progression:
 stage_numbers:
   intake: 1
   spec: 2
-  tasks: 3
-  apply: 4
-  review: 5
-  hydrate: 6
-  ship: 7
-  review-pr: 8
+  apply: 3
+  review: 4
+  hydrate: 5
+  ship: 6
+  review-pr: 7
 
 # validation — Rules for .status.yaml validation.
 validation:

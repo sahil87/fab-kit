@@ -202,7 +202,7 @@ fab/project/config.yaml sections:
 1. project            — name and description
 2. source_paths       — implementation code directories
 3. stage_directives   — per-stage artifact generation directives
-4. checklist          — extra quality categories
+4. checklist          — extra plan-acceptance categories (config key remains `checklist.extra_categories`)
 5. context.md         — free-form project context
 6. code-quality.md    — coding standards for apply/review
 7. code-review.md     — review policy for validation sub-agent

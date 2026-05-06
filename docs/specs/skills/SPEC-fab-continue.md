@@ -2,7 +2,7 @@
 
 ## Summary
 
-Advances through the 8-stage pipeline one step at a time. Each invocation handles the current stage's work and transitions to the next. Supports reset to a given stage. Handles planning (spec, tasks), execution (apply), review (sub-agent), and hydrate.
+Advances through the 7-stage pipeline one step at a time. Each invocation handles the current stage's work and transitions to the next. Supports reset to a given stage (legacy `tasks` target errors with a pointer). Handles planning (spec), execution (apply — generates `plan.md` at entry then runs tasks), review (sub-agent), and hydrate.
 
 **Helpers**: Declares `helpers: [_generation, _review]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
 
@@ -21,18 +21,15 @@ User invokes /fab-continue [change-name] [stage]
 ├─ Dispatch on current stage + state
 │
 │  ┌─────────────────────────────────────────────────┐
-│  │ PLANNING STAGES (intake/spec/tasks)             │
+│  │ PLANNING STAGES (intake/spec)                   │
 │  │                                                 │
 │  │  Bash: fab status finish <prev-stage>           │
-│  │  Read: templates, intake, spec, memory files    │
+│  │  Read: templates, intake, memory files          │
 │  │  (agent generates artifact via SRAD)            │
-│  │  Write: spec.md / tasks.md / checklist.md   ◄── HOOK CANDIDATE
+│  │  Write: intake.md / spec.md             ◄── HOOK CANDIDATE
 │  │                                                 │
 │  │  [spec stage only]                              │
 │  │  Bash: fab score <change>               ◄── bookkeeping
-│  │                                                 │
-│  │  [tasks stage]                                  │
-│  │  Bash: fab status set-checklist ...     ◄── bookkeeping
 │  │                                                 │
 │  │  Bash: fab status advance <stage>               │
 │  └─────────────────────────────────────────────────┘
@@ -40,14 +37,20 @@ User invokes /fab-continue [change-name] [stage]
 │  ┌─────────────────────────────────────────────────┐
 │  │ APPLY STAGE                                     │
 │  │                                                 │
-│  │  Read: tasks.md, spec.md, source files          │
-│  │  (pattern extraction from neighboring files)    │
-│  │  For each unchecked task:                       │
-│  │    Read: relevant source files                  │
-│  │    Edit/Write: implementation files             │
-│  │    Bash: run tests                              │
-│  │    Edit: tasks.md (mark [x])                    │
-│  │  Bash: fab status finish <change> apply         │
+│  │  Entry sub-step (skip if plan.md exists):       │
+│  │    Read: spec.md, _generation.md                │
+│  │    Write: plan.md                       ◄── HOOK CANDIDATE
+│  │      (## Tasks + ## Acceptance, A-NNN IDs)      │
+│  │                                                 │
+│  │  Main sub-step (Task Execution):                │
+│  │    Read: plan.md ## Tasks, source files         │
+│  │    (pattern extraction from neighboring files)  │
+│  │    For each unchecked task:                     │
+│  │      Read: relevant source files                │
+│  │      Edit/Write: implementation files           │
+│  │      Bash: run tests                            │
+│  │      Edit: plan.md ## Tasks (mark [x])          │
+│  │    Bash: fab status finish <change> apply       │
 │  └─────────────────────────────────────────────────┘
 │
 │  ┌─────────────────────────────────────────────────┐
@@ -56,13 +59,14 @@ User invokes /fab-continue [change-name] [stage]
 │  │   and findings merge; orchestration below)      │
 │  │                                                 │
 │  │  ┌──────────────────────────────────────────┐   │
-│  │  │ SUB-AGENT (inward): Spec/Tasks/Checklist │   │
-│  │  │  Validation (Agent tool, general-purpose)│   │
+│  │  │ SUB-AGENT (inward): Spec/Plan Validation │   │
+│  │  │  (Agent tool, general-purpose)           │   │
 │  │  │  Read: standard subagent context,        │   │
-│  │  │        spec.md, tasks.md, checklist.md,  │   │
-│  │  │        source files, memory files        │   │
+│  │  │        spec.md, plan.md (## Tasks +      │   │
+│  │  │        ## Acceptance), source files,     │   │
+│  │  │        memory files                      │   │
 │  │  │  Bash: run tests                         │   │
-│  │  │  Edit: checklist.md (mark [x])           │   │
+│  │  │  Edit: plan.md ## Acceptance (mark [x])  │   │
 │  │  │  Returns: must-fix/should-fix/nice-to-have   │
 │  │  └──────────────────────────────────────────┘   │
 │  │           ↕ parallel dispatch                   │
@@ -79,7 +83,8 @@ User invokes /fab-continue [change-name] [stage]
 │  │                                                 │
 │  │  Pass:                                          │
 │  │    Bash: fab status finish <change> review      │
-│  │    Bash: fab status set-checklist completed N   │
+│  │    Bash: fab status set-acceptance              │
+│  │          <change> acceptance_completed N        │
 │  │  Fail:                                          │
 │  │    Bash: fab status fail <change> review        │
 │  │    Bash: fab status reset <change> apply        │
@@ -113,8 +118,8 @@ User invokes /fab-continue [change-name] [stage]
 | Tool | Purpose |
 |------|---------|
 | Read | Preamble, templates, artifacts, source files, memory |
-| Write | Spec, tasks, checklist, memory files |
-| Edit | Tasks (mark [x]), checklist (mark [x]), memory files |
+| Write | Spec, plan, memory files |
+| Edit | Plan (mark `## Tasks` and `## Acceptance` items [x]), memory files |
 | Bash | All `fab status` transitions, `fab score`, `fab preflight`, test execution |
 | Agent | Review validation sub-agent (general-purpose) |
 
@@ -122,7 +127,7 @@ User invokes /fab-continue [change-name] [stage]
 
 | Agent | Stage | Purpose |
 |-------|-------|---------|
-| Inward review validation (`_review.md`) | review | Spec/tasks/checklist validation with test execution — dispatched in parallel with outward |
+| Inward review validation (`_review.md`) | review | Spec + plan.md validation (`## Tasks` + `## Acceptance`) with test execution — dispatched in parallel with outward |
 | Outward diff review (`_review.md`) | review | Holistic diff review with full repo access via Codex→Claude cascade — dispatched in parallel with inward |
 
 > Review Behavior is delegated to `_review.md` (single source of truth for sub-agent dispatch and findings merge). `fab-continue.md` retains the Verdict section (pass/fail state transitions, rework options).
@@ -132,6 +137,5 @@ User invokes /fab-continue [change-name] [stage]
 | Step | Command | Trigger |
 |------|---------|---------|
 | Spec generation | `fab score <change>` | After spec.md write |
-| Tasks generation | `fab status set-checklist ... total N` | After tasks.md write |
-| Tasks generation | `fab status set-checklist generated true` | After checklist.md write |
-| Review pass | `fab status set-checklist completed N` | After checklist validation |
+| Plan generation | PostToolUse hook recomputes `plan.task_count`, `plan.acceptance_count`, sets `plan.generated=true` | After plan.md write |
+| Review pass | `fab status set-acceptance <change> acceptance_completed N` | After review validation |

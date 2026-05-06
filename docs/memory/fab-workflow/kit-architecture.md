@@ -52,9 +52,8 @@ src/kit/
 ├── templates/              # Artifact templates
 │   ├── intake.md
 │   ├── spec.md
-│   ├── tasks.md
-│   ├── checklist.md
-│   └── status.yaml         # .status.yaml template (includes stage_metrics: {}, issues: [], prs: [])
+│   ├── plan.md             # Combined ## Tasks + ## Acceptance — apply-stage artifact (qszh)
+│   └── status.yaml         # .status.yaml template (7-stage progress, plan: block, stage_metrics: {}, issues: [], prs: [])
 ├── scaffold/               # Overlay tree — paths mirror repo root destinations
 │   ├── fragment-.envrc     # .envrc required entries (line-ensuring merge)
 │   ├── fragment-.gitignore # .gitignore entries (line-ensuring merge)

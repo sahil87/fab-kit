@@ -60,7 +60,8 @@ Full subcommand table (headline in `_preamble` § Common fab Commands):
 | `skip` | `skip <change> <stage> [driver]` | {pending,active} → skipped (cascades pending→skipped downstream) |
 | `fail` | `fail <change> <stage> [driver] [rework]` | active → failed (review only). Auto-logs `failed` |
 | `set-change-type` | `set-change-type <change> <type>` | |
-| `set-checklist` | `set-checklist <change> <field> <value>` | |
+| `set-acceptance` | `set-acceptance <change> <field> <value>` | Updates `plan:` block. Valid fields: `generated` (bool), `task_count`, `acceptance_count`, `acceptance_completed` (int) |
+| `set-checklist` | `set-checklist [args...]` | **Removed** — exits 1 with `"set-checklist" is now "set-acceptance" — run fab status set-acceptance instead.` Use `set-acceptance` |
 | `set-confidence` | `set-confidence <change> <counts...> <score> [--indicative]` | Basic confidence block |
 | `set-confidence-fuzzy` | `set-confidence-fuzzy <change> <counts...> <score> <dims...> [--indicative]` | With SRAD dimensions |
 | `add-issue` / `get-issues` | `<change> <id>` / `<change>` | Issue ID array — idempotent / one per line |
@@ -68,7 +69,7 @@ Full subcommand table (headline in `_preamble` § Common fab Commands):
 | `progress-line` | `progress-line <change>` | Single-line visual progress |
 | `current-stage` | `current-stage <change>` | Detect active stage |
 
-**Side effects of `finish`**: `intake→spec`, `spec→tasks`, `tasks→apply`, `apply→review`, `review→hydrate` (+auto-log `passed`), `hydrate→done`. Never call `start` after `finish`.
+**Side effects of `finish`**: `intake→spec`, `spec→apply`, `apply→review`, `review→hydrate` (+auto-log `passed`), `hydrate→ship`, `ship→review-pr`. Never call `start` after `finish`. Legacy `tasks` event invocations (e.g., `fab status finish <change> tasks`) exit 1 with `"tasks" stage was removed — run "fab status <event> <change> apply" instead. plan.md is now generated at apply entry.`
 
 **Auto-logs**: `finish review`→`passed`; `fail review`→`failed`; every `active` transition is best-effort logged. Skills do NOT manually call `fab log review` or `fab log transition`.
 
@@ -89,7 +90,7 @@ See `_preamble.md` § Common fab Commands. Modes:
 
 ## fab preflight (extended)
 
-`fab preflight [<change-name>]` — validates config.yaml, constitution.md, active change resolution, `.status.yaml` existence. Outputs YAML with `name`, `change_dir`, `stage`, `progress`, `checklist`, `confidence`. Non-zero exit on failure (error on stderr). Pure validation — no side effects.
+`fab preflight [<change-name>]` — validates config.yaml, constitution.md, active change resolution, `.status.yaml` existence. Outputs YAML with `name`, `change_dir`, `stage`, `progress`, `plan`, `confidence`. Non-zero exit on failure (error on stderr). Pure validation — no side effects.
 
 ---
 

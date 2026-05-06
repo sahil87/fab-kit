@@ -34,26 +34,26 @@ After bootstrapping, use `/docs-hydrate-memory` to ingest existing documentation
 
 ---
 
-## The 6 Stages
+## The 5 Core Stages (7 with Ship + Review-PR)
 
-Changes progress through 6 stages:
+Changes progress through 5 core stages plus 2 PR-side stages (`ship`, `review-pr`):
 
 ```mermaid
 flowchart TD
     subgraph planning ["Planning"]
         direction LR
-        B["1 INTAKE"] --> S["2 SPEC"] --> T["3 TASKS"]
+        B["1 INTAKE"] --> S["2 SPEC"]
     end
     subgraph execution ["Execution"]
         direction LR
-        A["4 APPLY"] --> V["5 REVIEW"]
+        A["3 APPLY"] --> V["4 REVIEW"]
     end
     subgraph completion ["Completion"]
         direction LR
-        AR["6 HYDRATE"] --> H[/"Hydrate into memory"/]
+        AR["5 HYDRATE"] --> H[/"Hydrate into memory"/]
     end
 
-    T --> A
+    S --> A
     V --> AR
 
     style planning fill:#e8f4f8,stroke:#2196F3
@@ -67,10 +67,11 @@ flowchart TD
 |---|-------|---------|----------|----------|
 | 1 | **Intake** | Intent, scope, approach | `intake.md` | Created by `/fab-new` (auto-activates) or `/fab-draft` (no activation) with adaptive SRAD-driven questioning |
 | 2 | **Spec** | What's changing | `spec.md` | Clarification of ambiguities, [NEEDS CLARIFICATION] markers |
-| 3 | **Tasks** | Implementation checklist | `tasks.md` | Auto-generated quality checklist (`checklist.md`) |
-| 4 | **Apply** | Execute tasks | code changes | Run tests per task, progress tracking |
-| 5 | **Review** | Validate via sub-agent | validation report | Sub-agent review with prioritized findings (must-fix / should-fix / nice-to-have) |
-| 6 | **Hydrate** | Complete & hydrate | memory updates | Hydrate spec into memory files |
+| 3 | **Apply** | Generate plan + execute | `plan.md` + code changes | Entry sub-step: write `plan.md` with `## Tasks` and `## Acceptance` sections from `spec.md`. Main sub-step: execute the unchecked tasks under `## Tasks`, run tests, mark `[x]` |
+| 4 | **Review** | Validate via sub-agent | validation report | Sub-agent review with prioritized findings (must-fix / should-fix / nice-to-have); inward sub-agent inspects items under `plan.md` `## Acceptance` |
+| 5 | **Hydrate** | Complete & hydrate | memory updates | Hydrate spec into memory files |
+
+The pipeline continues with `ship` (`/git-pr` creates the PR) and `review-pr` (`/git-pr-review` triages PR feedback) for a total of 7 stages end to end.
 
 ### User Flow
 
@@ -87,7 +88,7 @@ For detailed visual maps of how commands connect — including shortcuts, rework
 | `/fab-new` | Start change (creates intake + activates) | `intake.md`, `.status.yaml` |
 | `/fab-draft` | Create change intake without activating | `intake.md`, `.status.yaml` |
 | `/fab-continue [<stage>]` | Next artifact (or reset to stage) | Next stage artifact |
-| `/fab-ff` | Fast-forward through hydrate (confidence-gated) | spec + tasks + checklist + apply + sub-agent review + hydrate |
+| `/fab-ff` | Fast-forward through hydrate (confidence-gated) | spec + apply (plan + execute) + sub-agent review + hydrate |
 | `/fab-fff` | Fast-forward-further through review-pr (confidence-gated) | All artifacts through hydrate + ship + review-pr |
 | `/fab-clarify` | Deepen current artifact | Refined artifact (in place) |
 | `/fab-continue` → apply | Implement | Code changes |
@@ -118,24 +119,20 @@ For detailed visual maps of how commands connect — including shortcuts, rework
 # → Creates spec.md with requirements for this change
 # → Asks clarifying questions about ambiguities
 
-# 4. Continue to tasks
+# 4. Implement (apply auto-generates plan.md, then runs tasks)
 /fab-continue
-# → Creates tasks.md with implementation checklist
-# → Auto-generates checklist.md
+# → Writes plan.md with ## Tasks and ## Acceptance sections
+# → Executes unchecked tasks, marks each [x]
 
-# 5. Implement
+# 5. Review
 /fab-continue
-# → Executes tasks, marks completed
+# → Validates implementation, checks plan.md ## Acceptance items
 
-# 6. Review
-/fab-continue
-# → Validates implementation, checks checklist
-
-# 7. Hydrate
+# 6. Hydrate
 /fab-continue
 # → Saves learnings into docs/memory/
 
-# 8. Archive
+# 7. Archive
 /fab-archive
 # → Moves change folder to archive/
 ```
@@ -154,5 +151,5 @@ For detailed visual maps of how commands connect — including shortcuts, rework
 - [User Flow Diagrams](user-flow.md) — visual maps of the full pipeline, shortcuts, rework paths, and state machine
 - [Architecture](architecture.md) — directory structure, config, conventions
 - [Skills Reference](skills.md) — detailed behavior for each `/fab-*` skill
-- [Templates](templates.md) — artifact formats and checklist generation
+- [Templates](templates.md) — artifact formats and acceptance generation
 

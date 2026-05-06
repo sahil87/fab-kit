@@ -14,7 +14,7 @@ User invokes /fab-clarify [change-name] [target-artifact]
 ├─ Read: _preamble.md (always-load layer)
 ├─ Bash: fab preflight [change-name]
 │
-├─ Resolve target artifact (intake.md / spec.md / tasks.md)
+├─ Resolve target artifact (intake.md / spec.md / plan.md). Legacy `tasks` target errors with a pointer to `plan` / `spec`.
 │
 ├─── SUGGEST MODE (user invocation) ────────────────────
 │  │

@@ -14,7 +14,7 @@
    - `skipped` means "stage intentionally bypassed" (terminal, symbol `⏭`). Allowed for all stages except intake
    - Terminal states (`done`, `skipped`) cannot transition without explicit reset
 
-2. **Stages** — The workflow pipeline in execution order
+2. **Stages** — The workflow pipeline in execution order — 7 stages: `intake`, `spec`, `apply`, `review`, `hydrate`, `ship`, `review-pr`. The legacy `tasks` stage was removed in qszh; plan generation is an apply-internal sub-step that produces `plan.md` (`## Tasks` + `## Acceptance`). `allowedStates` does NOT contain a `tasks` key, and `isValidStage("tasks")` returns false.
    - Each stage has: ID, name, artifact, description, requirements, initial state, allowed states, commands
    - Stages execute in sequence with dependency validation
 
@@ -62,6 +62,37 @@ For the complete API reference, see `src/lib/statusman/README.md`.
 4. **Validated** — Schema enforces correctness at runtime
 5. **Versionable** — Metadata tracks compatibility and changes
 
+## `.status.yaml` Plan Block (qszh)
+
+Every `.status.yaml` SHALL contain a `plan:` block describing the apply-stage artifact (`plan.md`):
+
+```yaml
+plan:
+  generated: false      # bool — true after first plan.md write
+  task_count: 0         # int — count of - [ ] + - [x] items in ## Tasks section
+  acceptance_count: 0   # int — count of - [ ] + - [x] items in ## Acceptance section
+  acceptance_completed: 0  # int — count of - [x] items in ## Acceptance section
+```
+
+This block replaces the prior `checklist:` block. Field rename: `total → acceptance_count`, `completed → acceptance_completed`. New field: `task_count`. Removed field: `path` (location is fixed at change root).
+
+The `progress` block contains exactly 7 keys (no `tasks` key):
+
+```yaml
+progress:
+  intake: pending
+  spec: pending
+  apply: pending
+  review: pending
+  hydrate: pending
+  ship: pending
+  review-pr: pending
+```
+
+`StageOrder` is `["intake", "spec", "apply", "review", "hydrate", "ship", "review-pr"]` (length 7). `NextStage("spec")` returns `"apply"`. The `set-acceptance` CLI command (`fab status set-acceptance <change> <field> <value>`) updates `plan:` block fields; the legacy `set-checklist` errors immediately with a pointer to `set-acceptance`.
+
+The `Load()` function is tolerant of legacy `.status.yaml` files: it upgrades a `checklist:` block to a `plan:` raw mapping with field migration (`completed → acceptance_completed`, `total → acceptance_count`) and drops `checklist:` when both blocks coexist. The `1.8.0-to-1.9.0.md` migration rewrites in-flight `.status.yaml` files to the new schema (drops `progress.tasks`, replaces `checklist:` with `plan:`); see [migrations.md](migrations.md).
+
 ## `.status.yaml` Identity Fields
 
 ### `id` Field
@@ -104,6 +135,7 @@ Each worktree has its own repo root, so each gets its own `.fab-runtime.yaml` �
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260423-qszh-merge-tasks-checklist | 2026-05-06 | `.status.yaml` schema: `progress.tasks` key dropped entirely (no rename). `checklist:` block replaced by `plan:` block with fields `generated`, `task_count`, `acceptance_count`, `acceptance_completed` (rename: `total → acceptance_count`, `completed → acceptance_completed`; new: `task_count`; removed: `path`). Added "`.status.yaml` Plan Block" section documenting the new schema, 7-key progress block, `StageOrder`/`NextStage` updates, `set-acceptance` CLI replacing `set-checklist`, and `Load()` tolerance of legacy files. Updated Stages bullet to note 7-stage pipeline and removal of `tasks` from `allowedStates`/`isValidStage`. |
 | 260419-o5ej-agents-runtime-unified | 2026-04-19 | Replaced the in-file `.fab-runtime.yaml` schema description with a cross-reference to the new [runtime-agents.md](runtime-agents.md) (authoritative doc for the `_agents[session_id]` + `last_run_gc` schema, hook write pipeline, GC, grandparent PID walker, and pane-map matching rule). Clarified that `.fab-runtime.yaml` is a distinct schema from `workflow.yaml` — this file documents the latter. |
 | 260307-x2tx-status-symlink-pointer | 2026-03-07 | Replaced `fab/current` pointer file with `.fab-status.yaml` symlink at repo root. Added `id` field to `.status.yaml`. Updated resolution, switch, rename, pane-map, hooks, and dispatch. Migration `0.32.0-to-0.34.0` covers conversion. |
 | 260306-6bba-redesign-hooks-strategy | 2026-03-06 | Updated Ephemeral Runtime State: `.fab-runtime.yaml` operations now use `fab runtime set-idle` and `fab runtime clear-idle` Go subcommands instead of direct yq manipulation in hooks. |

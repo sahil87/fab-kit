@@ -206,11 +206,12 @@ func Switch(fabRoot, name string) (string, error) {
 	}
 
 	dnum := sf.StageNumber(displayStage)
+	total := len(sf.StageOrder)
 
 	var output strings.Builder
 	fmt.Fprintf(&output, ".fab-status.yaml → %s\n", folder)
 	fmt.Fprintln(&output)
-	fmt.Fprintf(&output, "Stage:       %s (%d/8) — %s\n", displayStage, dnum, displayState)
+	fmt.Fprintf(&output, "Stage:       %s (%d/%d) — %s\n", displayStage, dnum, total, displayState)
 	fmt.Fprintf(&output, "Confidence:  %s\n", confDisplay)
 
 	cmd := defaultCommand(routingStage)
@@ -369,7 +370,7 @@ func findCollision(changesDir, changeID string) string {
 
 func defaultCommand(stage string) string {
 	switch stage {
-	case "intake", "spec", "tasks", "apply", "review":
+	case "intake", "spec", "apply", "review":
 		return "/fab-continue"
 	case "hydrate":
 		return "/git-pr"

@@ -21,7 +21,6 @@ var ValidStates = []string{"pending", "active", "ready", "done", "failed", "skip
 var AllowedStates = map[string][]string{
 	"intake":    {"active", "ready", "done"},
 	"spec":      {"pending", "active", "ready", "done", "skipped"},
-	"tasks":     {"pending", "active", "ready", "done", "skipped"},
 	"apply":     {"pending", "active", "ready", "done", "skipped"},
 	"review":    {"pending", "active", "ready", "done", "failed", "skipped"},
 	"hydrate":   {"pending", "active", "ready", "done", "skipped"},
@@ -84,12 +83,25 @@ func lookupTransition(event, stage, currentState string) (string, error) {
 	return "", fmt.Errorf("Cannot %s stage '%s' — current state is '%s', no valid transition", event, stage, currentState)
 }
 
+// validateStage returns nil if the stage is part of the current pipeline,
+// the strict-error message for the removed `tasks` stage, or a generic
+// "Invalid stage" error for everything else.
+func validateStage(event, stage string) error {
+	if isValidStage(stage) {
+		return nil
+	}
+	if stage == "tasks" {
+		return fmt.Errorf("\"tasks\" stage was removed — run \"fab status %s <change> apply\" instead. plan.md is now generated at apply entry.", event)
+	}
+	return fmt.Errorf("Invalid stage '%s'", stage)
+}
+
 // Start transitions a stage from {pending,failed} to active.
 // If a pre hook is configured for the stage, it runs before the transition.
 // A failing pre hook blocks the stage from starting.
 func Start(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver, from, reason string) error {
-	if !isValidStage(stage) {
-		return fmt.Errorf("Invalid stage '%s'", stage)
+	if err := validateStage("start", stage); err != nil {
+		return err
 	}
 
 	currentState := statusFile.GetProgress(stage)
@@ -111,8 +123,8 @@ func Start(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver, from, 
 
 // Advance transitions a stage from active to ready.
 func Advance(statusFile *sf.StatusFile, statusPath, stage, driver string) error {
-	if !isValidStage(stage) {
-		return fmt.Errorf("Invalid stage '%s'", stage)
+	if err := validateStage("advance", stage); err != nil {
+		return err
 	}
 
 	currentState := statusFile.GetProgress(stage)
@@ -130,8 +142,8 @@ func Advance(statusFile *sf.StatusFile, statusPath, stage, driver string) error 
 // If a post hook is configured for the stage, it runs after the transition.
 // A failing post hook causes the stage to fail.
 func Finish(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver string) error {
-	if !isValidStage(stage) {
-		return fmt.Errorf("Invalid stage '%s'", stage)
+	if err := validateStage("finish", stage); err != nil {
+		return err
 	}
 
 	currentState := statusFile.GetProgress(stage)
@@ -172,8 +184,8 @@ func Finish(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver string
 
 // Reset transitions a stage to active and cascades downstream to pending.
 func Reset(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver, from, reason string) error {
-	if !isValidStage(stage) {
-		return fmt.Errorf("Invalid stage '%s'", stage)
+	if err := validateStage("reset", stage); err != nil {
+		return err
 	}
 
 	currentState := statusFile.GetProgress(stage)
@@ -202,8 +214,8 @@ func Reset(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver, from, 
 
 // Skip transitions a stage to skipped and cascades downstream pending to skipped.
 func Skip(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver string) error {
-	if !isValidStage(stage) {
-		return fmt.Errorf("Invalid stage '%s'", stage)
+	if err := validateStage("skip", stage); err != nil {
+		return err
 	}
 
 	currentState := statusFile.GetProgress(stage)
@@ -234,8 +246,8 @@ func Skip(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver string) 
 
 // Fail transitions a stage to failed (review/review-pr only).
 func Fail(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver, rework string) error {
-	if !isValidStage(stage) {
-		return fmt.Errorf("Invalid stage '%s'", stage)
+	if err := validateStage("fail", stage); err != nil {
+		return err
 	}
 
 	currentState := statusFile.GetProgress(stage)
@@ -274,30 +286,46 @@ func SetChangeType(statusFile *sf.StatusFile, statusPath, changeType string) err
 	return statusFile.Save(statusPath)
 }
 
-// SetChecklist updates a checklist field.
-func SetChecklist(statusFile *sf.StatusFile, statusPath, field, value string) error {
+// SetAcceptance updates a field on the plan: block of .status.yaml.
+// Valid fields: generated (bool), task_count (int), acceptance_count (int),
+// acceptance_completed (int).
+func SetAcceptance(statusFile *sf.StatusFile, statusPath, field, value string) error {
 	switch field {
 	case "generated":
 		if value != "true" && value != "false" {
 			return fmt.Errorf("Invalid value '%s' for field 'generated' (expected true/false)", value)
 		}
-		statusFile.Checklist.Generated = value == "true"
-	case "completed":
+		statusFile.Plan.Generated = value == "true"
+	case "task_count":
 		n, err := parseInt(value)
 		if err != nil {
-			return fmt.Errorf("Invalid value '%s' for field 'completed' (expected non-negative integer)", value)
+			return fmt.Errorf("Invalid value '%s' for field 'task_count' (expected non-negative integer)", value)
 		}
-		statusFile.Checklist.Completed = n
-	case "total":
+		statusFile.Plan.TaskCount = n
+	case "acceptance_count":
 		n, err := parseInt(value)
 		if err != nil {
-			return fmt.Errorf("Invalid value '%s' for field 'total' (expected non-negative integer)", value)
+			return fmt.Errorf("Invalid value '%s' for field 'acceptance_count' (expected non-negative integer)", value)
 		}
-		statusFile.Checklist.Total = n
+		statusFile.Plan.AcceptanceCount = n
+	case "acceptance_completed":
+		n, err := parseInt(value)
+		if err != nil {
+			return fmt.Errorf("Invalid value '%s' for field 'acceptance_completed' (expected non-negative integer)", value)
+		}
+		statusFile.Plan.AcceptanceCompleted = n
 	default:
-		return fmt.Errorf("Invalid checklist field '%s' (expected: generated, completed, total)", field)
+		return fmt.Errorf("Invalid plan field '%s' (expected: generated, task_count, acceptance_count, acceptance_completed)", field)
 	}
 	return statusFile.Save(statusPath)
+}
+
+// SetChecklistRemovedError returns the strict-error message for the removed
+// `set-checklist` command. The command is no longer supported; callers
+// should use `set-acceptance` instead. This is exposed so the Cobra layer
+// can surface the same message regardless of how it is reached.
+func SetChecklistRemovedError() error {
+	return fmt.Errorf("\"set-checklist\" is now \"set-acceptance\" — run fab status set-acceptance instead.")
 }
 
 // SetConfidence replaces the confidence block.

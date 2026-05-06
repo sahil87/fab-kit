@@ -62,8 +62,8 @@ Every change folder SHALL contain a `.status.yaml` manifest with these fields:
 - `id` — the 4-character change ID (the `XXXX` component of the folder name). Derived from `name` at creation time, immutable. Makes the change ID directly available without parsing the folder name
 - `name` — the full change folder name
 - `created` — ISO 8601 datetime
-- `progress` — map of all stages to their state. The stage marked `active` is the current stage (single source of truth for where the change is). There is no separate `stage:` field — current stage is derived from the `active` entry in the progress map.
-- `checklist` — generation status, path (default: `checklist.md` at change root), completion counts
+- `progress` — map of 7 stages to their state (`intake`, `spec`, `apply`, `review`, `hydrate`, `ship`, `review-pr`). The stage marked `active` is the current stage (single source of truth for where the change is). There is no separate `stage:` field — current stage is derived from the `active` entry in the progress map. The `tasks` key was removed entirely in qszh — plan generation became an apply-internal sub-step, not a separate stage.
+- `plan` — generation status and counts: `generated: bool`, `task_count: int`, `acceptance_count: int`, `acceptance_completed: int`. Replaces the prior `checklist:` block (renamed in qszh, location is fixed at change root, the prior `path` field was dropped). Counts are maintained by the PostToolUse `artifactBookkeeping` hook on every `plan.md` write (heading-bounded section parse). The legacy `set-checklist` CLI command was renamed to `set-acceptance`.
 - `confidence` — SRAD confidence scoring: `certain`, `confident`, `tentative`, `unresolved` counts, derived `score` (0.0-5.0), and optional `indicative: true` flag. Initialized to 0.0 (no assessed confidence). Computed by `lib/calc-score.sh`: at intake stage by `/fab-new` (persists with `indicative: true`), at spec stage by `/fab-continue` and `/fab-clarify` (clears `indicative` flag). The `indicative` flag distinguishes intake-derived scores (less authoritative) from spec-derived scores. Used as intake gate by `/fab-ff` (fixed threshold 3.0 via `calc-score.sh --check-gate --stage intake`) and spec gate (dynamic per-type thresholds via `calc-score.sh --check-gate`). Displayed as `{score} of 5.0` with ` (indicative)` suffix when flagged. Consumers (`/fab-status`, `/fab-switch`, `changeman.sh`) read uniformly from `.status.yaml`
 - `stage_metrics` — per-stage operational data map. Each stage that has been activated gets an entry with flow-style YAML: `{started_at, driver, iterations, completed_at}`. Automatically managed by event commands (`start`, `advance`, `finish`, `reset`, `fail`) via `_apply_metrics_side_effect`. On `start` (`active`): creates entry with `started_at`, `driver`, `iterations` (incremented, not reset — tracks rework cycles); also emits a `stage-transition` event via `logman.sh transition` (best-effort). On `finish` (`done`): sets `completed_at`. On `advance` (`ready`): no-op (preserves existing metrics from active phase). On `reset`: transitions the target stage back to `active` and cascades all downstream stages to `pending`; when stages are set to `pending` or `skipped` during this cascade, their `stage_metrics` entries are removed. On `fail` (`failed`): no-op (preserves timing data). Initialized as empty `stage_metrics: {}` in the template. **`iterations` semantics**: counts per-stage activations — each time a stage transitions to `active`, `iterations` is incremented by 1. First activation = 1, each rework re-entry increments by 1. It is NOT the count of apply→review pairs. The `iterations` value determines the `stage-transition` event's `action` field: `iterations == 1` → `"enter"`, `iterations > 1` → `"re-entry"`
 - `last_updated` — refreshed on every status change. All `.status.yaml` mutations SHOULD go through `lib/statusman.sh` write functions (or CLI commands), which handle validation and `last_updated` refresh automatically
@@ -110,20 +110,21 @@ Each change folder MAY contain a `.history.jsonl` file — an append-only event 
 
 Events are auto-logged as side effects: `preflight.sh --driver` logs command invocations, `statusman.sh finish/fail review` logs review outcomes, `statusman.sh` event functions log stage transitions (via `_apply_metrics_side_effect`), and `calc-score.sh` logs confidence changes via `logman.sh`. Skills never call `logman.sh` directly. The file is informational — no skill reads it for logic. Useful for debugging workflow progression, understanding change history, and tracing rework loops.
 
-### The 6 Stages
+### The 7 Stages
 
-Changes progress through 6 stages in a defined graph:
+Changes progress through 7 stages in a defined graph:
 
 ```
-intake → spec → tasks → apply → review → hydrate
+intake → spec → apply → review → hydrate → ship → review-pr
 ```
 
-The intake (`intake.md`) is created by `/fab-new`, which leaves the intake stage as `ready` (artifact exists, open for refinement). Each planning stage follows this pattern: generation leaves the stage at `ready`, and `/fab-continue` finishes it while generating the next artifact. Users can run `/fab-clarify` at any `ready` checkpoint before continuing.
+The intake (`intake.md`) is created by `/fab-new`, which leaves the intake stage as `ready` (artifact exists, open for refinement). Each planning stage follows this pattern: generation leaves the stage at `ready`, and `/fab-continue` finishes it while generating the next artifact. Users can run `/fab-clarify` at any `ready` checkpoint before continuing. After spec, the next stage is `apply` — the apply skill generates `plan.md` (`## Tasks` + `## Acceptance` sections) at entry as an internal sub-step, then executes tasks. The legacy `tasks` stage was removed in qszh.
 
-The stages split into three phases:
-- **Planning** (1-3): intake, spec, tasks
-- **Execution** (4-5): apply, review
-- **Completion** (6): hydrate (hydrates into memory files, completes the pipeline)
+The stages split into four phases:
+- **Planning** (1-2): intake, spec
+- **Execution** (3-4): apply (with internal plan generation), review
+- **Hydration** (5): hydrate (hydrates into memory files)
+- **Integration** (6-7): ship (PR creation via `/git-pr`), review-pr (PR review feedback via `/git-pr-review`)
 
 After hydrate completes, the change folder remains in `fab/changes/`. To move it to the archive, run `/fab-archive` — a standalone housekeeping command (not a pipeline stage). `/fab-archive` moves the folder to `fab/changes/archive/yyyy/mm/` (date-bucketed by the folder's `YYMMDD` prefix), updates the archive index, marks backlog items done (exact-ID check always; keyword scan with interactive confirmation), and conditionally removes `.fab-status.yaml` if the archived change was active. To restore an archived change, run `/fab-archive restore <change-name>` — this moves the folder back to `fab/changes/`, removes the index entry, and optionally activates via `--switch`. Existing flat archive entries are migrated to the date-bucketed structure via `/fab-setup migrations` (see `$(fab kit-path)/migrations/0.24.0-to-0.32.0.md`).
 
@@ -188,7 +189,7 @@ Used by `/fab-switch` (no-argument flow) and `/fab-status` to enumerate changes 
 
 `/fab-status` shows the current change state at a glance: name, live git branch, display stage with state qualifier, next action, progress through all stages, checklist status, confidence score, and version drift warning.
 
-The skill uses `lib/preflight.sh` for data retrieval (including `display_stage` and `display_state` fields), then formats the output. The "Stage:" line shows the display stage (where you are) with a state qualifier (e.g., `Stage: intake (1/6) — done`). The "Next:" line shows the routing stage with the default command (e.g., `Next: spec (via /fab-continue)`). It uses `git branch --show-current` for live branch display.
+The skill uses `lib/preflight.sh` for data retrieval (including `display_stage` and `display_state` fields), then formats the output. The "Stage:" line shows the display stage (where you are) with a state qualifier (e.g., `Stage: intake (1/7) — done`). The "Next:" line shows the routing stage with the default command (e.g., `Next: spec (via /fab-continue)`). It uses `git branch --show-current` for live branch display.
 
 ### `/fab-switch [change-name] [--none]`
 
@@ -199,7 +200,7 @@ The skill uses `lib/preflight.sh` for data retrieval (including `display_stage` 
 2. **Ambiguous match** — if multiple changes match, list them and ask the user to pick. Never guess
 3. **No match** — list available changes and ask
 4. Create `.fab-status.yaml` symlink via `fab change switch` (symlink points to `fab/changes/{name}/.status.yaml`)
-5. Display the switched change's status summary (three-line format: `Stage: {display_stage} ({N}/8) — {state}` + `Confidence: {score} of 5.0{indicative_suffix}` + `Next: {routing_stage} (via {default_command})`)
+5. Display the switched change's status summary (three-line format: `Stage: {display_stage} ({N}/7) — {state}` + `Confidence: {score} of 5.0{indicative_suffix}` + `Next: {routing_stage} (via {default_command})`)
 6. Append a hint: `Tip: run /git-branch to create or switch to the matching branch`
 
 **Deactivating (`--none`):**
@@ -229,6 +230,10 @@ Existing `.status.yaml` files created before v5p2 may contain a `stage:` field. 
 3. **Set the appropriate stage to `active`** — e.g., if the old `stage:` was `spec`, set `spec: active` in the progress map
 
 Skills will tolerate old-format files — the preflight script infers `intake: done` when the entry is missing.
+
+### qszh Migration (1.8.0 → 1.9.0)
+
+`.status.yaml` files created before qszh contain a `progress.tasks` key and a `checklist:` block. The `1.8.0-to-1.9.0.md` migration handles this automatically (idempotent on `plan.md` presence): drops `progress.tasks` (preserving `progress.apply` state, advancing if it was `tasks: active|ready`), replaces `checklist:` with `plan:` (`generated: true`, `task_count = count(- [ ]/- [x]) under ## Tasks`, `acceptance_count = old checklist.total`, `acceptance_completed = old checklist.completed`), and concatenates legacy `tasks.md` + `checklist.md` into a single `plan.md` with `## Tasks` and `## Acceptance` headings (acceptance IDs preserved verbatim — `CHK-NNN` survives the merge for in-flight changes; only newly-generated plans use `A-NNN`). The legacy files are left on disk with a `<!-- Migrated to plan.md on {DATE} — safe to delete. -->` note. `Load()` is also tolerant of legacy files when reading directly: it upgrades a `checklist:` block to a `plan:` raw mapping with field migration (`completed → acceptance_completed`, `total → acceptance_count`) and drops `checklist:` when both blocks coexist. Archived changes (`fab/changes/archive/**`) are untouched.
 
 ## Design Decisions
 
@@ -264,9 +269,9 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 
 ### Reset Flow Stops at Target Stage
 **Decision**: When `/fab-continue` resets to a planning stage, the target stage is advanced to `ready` after regeneration. The next stage is NOT set to `active` — it remains `pending`. The user can run `/fab-clarify` to refine or `/fab-continue` to proceed.
-**Why**: Auto-advancing past the regenerated stage leaves the next stage `active` with a stale or invalidated artifact. Example: `fab-continue spec` regenerates spec.md, but if it also sets `tasks: active`, the user is stranded at tasks with an invalidated `tasks.md`. The `ready` state signals the artifact exists and is open for refinement.
+**Why**: Auto-advancing past the regenerated stage leaves the next stage `active` with a stale or invalidated upstream input. Example: `fab-continue intake` regenerates intake.md, but if it also sets `spec: active`, the user is stranded at spec with a spec generated against the prior intake. The `ready` state signals the artifact exists and is open for refinement.
 **Rejected**: Leaving target as `active` (confusing — artifact is fresh but stage says "in progress"). Marking as `done` (skips the `/fab-clarify` checkpoint). Auto-advancing to next stage (the bug this decision fixes).
-*Introduced by*: 260213-wo9v-fix-reset-auto-advance; *Updated by*: 260227-ijql-streamline-planning-dispatch (changed from `done` to `ready`)
+*Introduced by*: 260213-wo9v-fix-reset-auto-advance; *Updated by*: 260227-ijql-streamline-planning-dispatch (changed from `done` to `ready`); 260423-qszh-merge-tasks-checklist (example updated for 7-stage pipeline — `spec → tasks` example replaced with `intake → spec`)
 
 ### Keyword Scan Interactive-Only (`/fab-archive`)
 **Decision**: The keyword-based backlog scan in `/fab-archive` always runs interactively with user confirmation. `/fab-archive` is always user-invoked (never called by auto-mode pipelines), so the interactive confirmation is natural.
@@ -290,6 +295,7 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260423-qszh-merge-tasks-checklist | 2026-05-06 | Pipeline reduced from 8 stages to 7 — `tasks` stage removed entirely; plan generation absorbed into apply. Renamed "The 6 Stages" → "The 7 Stages"; updated phase split (Planning: 1-2, Execution: 3-4, Hydration: 5, Integration: 6-7). `.status.yaml` schema: dropped `progress.tasks` key; replaced `checklist:` block with `plan:` block (`generated`, `task_count`, `acceptance_count`, `acceptance_completed`; dropped `path`). `/fab-status` and `/fab-switch` stage counters updated `(N/8)` → `(N/7)` and `(N/6)` → `(N/7)`. Added qszh Migration sub-section under Migration Note documenting the `1.8.0-to-1.9.0` migration scope, idempotency, and legacy-tolerance in `Load()`. |
 | 260326-1tch-rename-blank-to-none | 2026-03-26 | Renamed `--blank` flag to `--none` in `fab change switch`. Renamed `SwitchBlank` → `SwitchNone`. Updated output string from "already blank" to "already deactivated". Updated `fab-switch.md`, `_cli-fab.md`, `SPEC-fab-switch.md`. |
 | 260307-x2tx-status-symlink-pointer | 2026-03-07 | Replaced `fab/current` pointer file with `.fab-status.yaml` symlink at repo root. Added `id` field to `.status.yaml`. Updated resolution, switch, rename, pane-map, hooks, and dispatch. Migration `0.32.0-to-0.34.0` covers conversion. |
 | 260305-02ip-archive-date-buckets | 2026-03-05 | Archive destination changed from flat `archive/{name}/` to date-bucketed `archive/yyyy/mm/{name}/`. Date derived from folder name's `YYMMDD` prefix (year prefixed with `20`). One-time migration of existing flat entries shipped as `$(fab kit-path)/migrations/0.24.0-to-0.32.0.md` (applied via `/fab-setup migrations`). `resolve_archive`, `cmd_list`, `backfill_index` updated to scan both flat and nested structures. `changeman.sh list --archive` updated for nested archive traversal. `fab-archive.md` skill doc updated with bucketed path references. |

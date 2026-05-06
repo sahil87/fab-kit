@@ -11,7 +11,7 @@ import (
 
 // Ordered stage list — pipeline order.
 var StageOrder = []string{
-	"intake", "spec", "tasks", "apply", "review", "hydrate", "ship", "review-pr",
+	"intake", "spec", "apply", "review", "hydrate", "ship", "review-pr",
 }
 
 // StageNumber returns the 1-indexed position of a stage.
@@ -34,12 +34,12 @@ func NextStage(stage string) string {
 	return ""
 }
 
-// Checklist holds checklist metadata.
-type Checklist struct {
-	Generated bool   `yaml:"generated"`
-	Path      string `yaml:"path,omitempty"`
-	Completed int    `yaml:"completed"`
-	Total     int    `yaml:"total"`
+// Plan holds plan.md metadata. Replaces the legacy Checklist struct.
+type Plan struct {
+	Generated           bool `yaml:"generated"`
+	TaskCount           int  `yaml:"task_count"`
+	AcceptanceCount     int  `yaml:"acceptance_count"`
+	AcceptanceCompleted int  `yaml:"acceptance_completed"`
 }
 
 // Dimensions holds fuzzy SRAD dimension means.
@@ -79,7 +79,7 @@ type StatusFile struct {
 	ChangeType  string                  `yaml:"change_type"`
 	Issues      []string                `yaml:"issues"`
 	Progress    yaml.Node               `yaml:"-"`
-	Checklist   Checklist               `yaml:"checklist"`
+	Plan        Plan                    `yaml:"plan"`
 	Confidence  Confidence              `yaml:"confidence"`
 	StageMetrics map[string]*StageMetric `yaml:"-"`
 	PRs         []string                `yaml:"prs"`
@@ -116,6 +116,9 @@ func Load(path string) (*StatusFile, error) {
 		return nil, fmt.Errorf("expected mapping at root of %s", path)
 	}
 
+	hasPlan := false
+	hasChecklist := false
+	var legacyChecklist Plan
 	for i := 0; i+1 < len(root.Content); i += 2 {
 		key := root.Content[i].Value
 		val := root.Content[i+1]
@@ -139,13 +142,36 @@ func Load(path string) (*StatusFile, error) {
 			sf.PRs = decodeStringSlice(val)
 		case "progress":
 			sf.Progress = *val
+		case "plan":
+			hasPlan = true
+			_ = val.Decode(&sf.Plan)
 		case "checklist":
-			_ = val.Decode(&sf.Checklist)
+			hasChecklist = true
+			legacyChecklist = decodeLegacyChecklist(val)
 		case "confidence":
 			_ = val.Decode(&sf.Confidence)
 		case "stage_metrics":
 			sf.StageMetrics = decodeStageMetrics(val)
 		}
+	}
+
+	// Legacy schema upgrade: a pre-1.9.0 .status.yaml has `checklist:` instead
+	// of `plan:`. Translate the old field shape into Plan so subsequent saves
+	// emit a `plan:` block and the user's mutations are not silently dropped.
+	// Field mapping mirrors migration 1.8.0-to-1.9.0.md step 4.3:
+	//   plan.generated            <- checklist.generated
+	//   plan.acceptance_completed <- checklist.completed
+	//   plan.acceptance_count     <- checklist.total
+	//   plan.task_count           <- 0 (no source field; populated later by callers)
+	if !hasPlan && hasChecklist {
+		sf.Plan = legacyChecklist
+		upgradeLegacyChecklistRaw(root)
+	} else if hasPlan && hasChecklist {
+		// Mixed schema: both blocks coexist (e.g., a partial migration left the
+		// legacy `checklist:` key behind). The `plan:` block is authoritative —
+		// drop the stale `checklist:` key from the raw mapping so it does not
+		// survive Save.
+		dropChecklistRaw(root)
 	}
 
 	if sf.Issues == nil {
@@ -159,6 +185,76 @@ func Load(path string) (*StatusFile, error) {
 	}
 
 	return sf, nil
+}
+
+// decodeLegacyChecklist parses a legacy `checklist:` mapping into the modern
+// Plan shape. Unknown fields (e.g., `path`) are ignored. Missing fields default
+// to zero values.
+func decodeLegacyChecklist(n *yaml.Node) Plan {
+	var p Plan
+	if n == nil || n.Kind != yaml.MappingNode {
+		return p
+	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		key := n.Content[i].Value
+		val := n.Content[i+1].Value
+		switch key {
+		case "generated":
+			p.Generated = val == "true"
+		case "completed":
+			if v, err := parseIntStrict(val); err == nil {
+				p.AcceptanceCompleted = v
+			}
+		case "total":
+			if v, err := parseIntStrict(val); err == nil {
+				p.AcceptanceCount = v
+			}
+		}
+	}
+	return p
+}
+
+// upgradeLegacyChecklistRaw rewrites the root mapping in-place: the legacy
+// `checklist:` key/value pair is replaced by a `plan:` placeholder mapping so
+// syncToRaw has a node to write into. The placeholder is intentionally empty;
+// encodePlan repopulates it on every Save with the current Plan struct values.
+func upgradeLegacyChecklistRaw(root *yaml.Node) {
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value == "checklist" {
+			root.Content[i].Value = "plan"
+			root.Content[i+1] = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+			return
+		}
+	}
+}
+
+// dropChecklistRaw removes the legacy `checklist:` key/value pair from the
+// root mapping. Used when both `plan:` and `checklist:` coexist — the `plan:`
+// block is authoritative and the stale `checklist:` block must not survive
+// Save.
+func dropChecklistRaw(root *yaml.Node) {
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value == "checklist" {
+			root.Content = append(root.Content[:i], root.Content[i+2:]...)
+			return
+		}
+	}
+}
+
+// parseIntStrict parses a non-negative integer string. Empty / non-numeric
+// inputs return an error and the caller should leave the destination at zero.
+func parseIntStrict(s string) (int, error) {
+	if s == "" {
+		return 0, fmt.Errorf("empty")
+	}
+	n := 0
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return 0, fmt.Errorf("non-digit")
+		}
+		n = n*10 + int(c-'0')
+	}
+	return n, nil
 }
 
 // Save writes the StatusFile back to disk atomically (temp + rename).
@@ -264,8 +360,8 @@ func (sf *StatusFile) syncToRaw() {
 			encodeStringSlice(val, sf.PRs)
 		case "progress":
 			*val = sf.Progress
-		case "checklist":
-			encodeChecklist(val, &sf.Checklist)
+		case "plan":
+			encodePlan(val, &sf.Plan)
 		case "confidence":
 			encodeConfidence(val, &sf.Confidence)
 		case "stage_metrics":
@@ -310,18 +406,18 @@ func encodeStringSlice(n *yaml.Node, items []string) {
 	n.Content = content
 }
 
-func encodeChecklist(n *yaml.Node, c *Checklist) {
+func encodePlan(n *yaml.Node, p *Plan) {
 	n.Kind = yaml.MappingNode
 	n.Tag = "!!map"
 	n.Content = []*yaml.Node{
 		{Kind: yaml.ScalarNode, Value: "generated"},
-		{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%v", c.Generated), Tag: "!!bool"},
-		{Kind: yaml.ScalarNode, Value: "path"},
-		{Kind: yaml.ScalarNode, Value: c.Path, Tag: "!!str"},
-		{Kind: yaml.ScalarNode, Value: "completed"},
-		{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", c.Completed), Tag: "!!int"},
-		{Kind: yaml.ScalarNode, Value: "total"},
-		{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", c.Total), Tag: "!!int"},
+		{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%v", p.Generated), Tag: "!!bool"},
+		{Kind: yaml.ScalarNode, Value: "task_count"},
+		{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", p.TaskCount), Tag: "!!int"},
+		{Kind: yaml.ScalarNode, Value: "acceptance_count"},
+		{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", p.AcceptanceCount), Tag: "!!int"},
+		{Kind: yaml.ScalarNode, Value: "acceptance_completed"},
+		{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", p.AcceptanceCompleted), Tag: "!!int"},
 	}
 }
 
