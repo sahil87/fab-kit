@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Package brew archives into dist/ (per-platform: fab, fab-kit, wt, idea)
+# Package brew archives into dist/ (per-platform: fab, fab-kit)
 # Called by: just package-brew
 # Requires: just build-all
 
@@ -15,10 +15,8 @@ for platform in "${platforms[@]}"; do
 
   fab="dist/bin/fab-${os}-${arch}"
   fab_kit="dist/bin/fab-kit-${os}-${arch}"
-  wt="dist/bin/wt-${os}-${arch}"
-  idea="dist/bin/idea-${os}-${arch}"
 
-  for bin in "$fab" "$fab_kit" "$wt" "$idea"; do
+  for bin in "$fab" "$fab_kit"; do
     if [ ! -f "$bin" ]; then
       echo "ERROR: Missing $bin — run 'just build-all' first."
       exit 1
@@ -32,11 +30,9 @@ for platform in "${platforms[@]}"; do
   mkdir -p "$staging"
   cp "$fab" "$staging/fab"
   cp "$fab_kit" "$staging/fab-kit"
-  cp "$wt" "$staging/wt"
-  cp "$idea" "$staging/idea"
-  chmod +x "$staging/fab" "$staging/fab-kit" "$staging/wt" "$staging/idea"
+  chmod +x "$staging/fab" "$staging/fab-kit"
 
-  COPYFILE_DISABLE=1 tar czf "$archive" -C "$staging" fab fab-kit wt idea
+  COPYFILE_DISABLE=1 tar czf "$archive" -C "$staging" fab fab-kit
   echo "  brew-${os}-${arch}.tar.gz ($(wc -c < "$archive") bytes)"
   rm -rf "$staging"
 done

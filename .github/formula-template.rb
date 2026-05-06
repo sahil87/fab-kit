@@ -1,8 +1,11 @@
 class FabKit < Formula
-  desc "Specification-driven development toolkit — router, workspace manager, worktree manager, and backlog tool"
+  desc "Specification-driven development toolkit — fab router and fab-kit workspace lifecycle manager"
   homepage "https://github.com/sahil87/fab-kit"
   version "VERSION_PLACEHOLDER"
   license "MIT"
+
+  depends_on "sahil87/tap/wt"
+  depends_on "sahil87/tap/idea"
 
   on_macos do
     on_arm do
@@ -29,14 +32,10 @@ class FabKit < Formula
   def install
     bin.install "fab"
     bin.install "fab-kit"
-    bin.install "wt"
-    bin.install "idea"
   end
 
   test do
     assert_match version.to_s, shell_output("#{bin}/fab --version")
     assert_match version.to_s, shell_output("#{bin}/fab-kit --version")
-    assert_match version.to_s, shell_output("#{bin}/wt --version")
-    assert_match version.to_s, shell_output("#{bin}/idea --version")
   end
 end

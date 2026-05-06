@@ -4,7 +4,7 @@
 
 ## Overview
 
-How `src/kit/` is distributed to new and existing projects. Covers the Homebrew distribution model (three-binary architecture: `fab` router + `fab-kit` workspace lifecycle + standalone utilities), the bootstrap process (getting `.kit/` into a project for the first time — primary method is `brew install fab-kit` + `fab init`), the update mechanism (`fab upgrade-repo` replaces the old `fab-upgrade.sh`), the release workflow (version management via `release.sh`, build recipes via `justfile`, CI orchestration via `.github/workflows/release.yml` — producing per-platform archives with Go binaries), and the repo rename from `docs-sddr` to `fab-kit`.
+How `src/kit/` is distributed to new and existing projects. Covers the Homebrew distribution model (fab-kit ships `fab` router + `fab-kit` workspace lifecycle directly; declares `wt` and `idea` as Homebrew dependencies pulled from sibling formulas), the bootstrap process (getting `.kit/` into a project for the first time — primary method is `brew install fab-kit` + `fab init`), the update mechanism (`fab upgrade-repo` replaces the old `fab-upgrade.sh`), the release workflow (version management via `release.sh`, build recipes via `justfile`, CI orchestration via `.github/workflows/release.yml` — producing per-platform archives with Go binaries), and the repo rename from `docs-sddr` to `fab-kit`.
 
 ## Requirements
 
@@ -12,11 +12,15 @@ How `src/kit/` is distributed to new and existing projects. Covers the Homebrew 
 
 #### Homebrew Formula
 
-A Homebrew formula named `fab-kit` SHALL be published to the `wvrdz/homebrew-tap` tap. The formula SHALL install four binaries to the system PATH: `fab` (router/dispatcher), `fab-kit` (workspace lifecycle), `wt` (worktree management), and `idea` (backlog management). Users add the tap via `brew tap wvrdz/tap`.
+A Homebrew formula named `fab-kit` SHALL be published to the `sahil87/tap` tap (GitHub repo: `sahil87/homebrew-tap`). The formula SHALL install two binaries directly: `fab` (router/dispatcher) and `fab-kit` (workspace lifecycle). The formula SHALL declare `depends_on "sahil87/tap/wt"` and `depends_on "sahil87/tap/idea"` so Homebrew transitively installs the standalone `wt` (worktree management) and `idea` (backlog management) formulas — yielding four binaries on PATH after install. Users add the tap via `brew tap sahil87/tap`.
+
+The standalone `wt` and `idea` formulas in `sahil87/homebrew-tap` SHALL declare `link_overwrite "bin/wt"` and `link_overwrite "bin/idea"` respectively. This allows them to take ownership of pre-existing symlinks (e.g., from a `fab-kit 1.6.2` install that previously bundled `wt`/`idea` directly) silently during `brew upgrade fab-kit`. The directives are also carried in the templates of `sahil87/wt` and `sahil87/idea`, so subsequent regenerations preserve them.
 
 **Scenarios**:
-- Fresh install (`brew tap wvrdz/tap && brew install fab-kit`) — installs `fab`, `fab-kit`, `wt`, and `idea` to the Homebrew bin directory; all respond to `--version`
-- Upgrade via Homebrew (`brew upgrade fab-kit`) — updates the router, fab-kit, `wt`, and `idea` to latest formula version; per-version cache is unaffected
+- Fresh install (`brew tap sahil87/tap && brew install fab-kit`) — installs `fab` and `fab-kit` directly; resolves `depends_on` and installs `wt` and `idea` from sibling formulas; all four respond to `--version` (each reporting its own formula's version)
+- Upgrade from fab-kit 1.6.2 (which bundled `wt`/`idea` directly) — `brew upgrade fab-kit` triggers installation of standalone `wt`/`idea` via `depends_on`; `link_overwrite` lets them adopt the existing `bin/wt`, `bin/idea` symlinks without "Refusing to link" errors
+- Upgrade via Homebrew (`brew upgrade fab-kit`) — updates the router and fab-kit to the latest formula version; per-version cache is unaffected. Standalone `wt`/`idea` upgrade independently on their own release cadence
+- Troubleshooting fallback — if `link_overwrite` does not resolve cleanly for some reason, run `brew unlink wt idea && brew upgrade fab-kit`
 
 #### Router Architecture (System `fab` Binary)
 
@@ -27,7 +31,7 @@ For fab-go dispatch, the router SHALL:
 1. Walk up from CWD to find `fab/project/config.yaml`
 2. Read `fab_version` from `config.yaml` (e.g., `fab_version: "0.43.0"`)
 3. Check the local cache for the matching `fab-go` binary at `~/.fab-kit/versions/{version}/fab-go`
-4. If not cached, download the release from GitHub (`wvrdz/fab-kit` releases) and cache it
+4. If not cached, download the release from GitHub (`sahil87/fab-kit` releases) and cache it
 5. Exec the cached `fab-go` with full argument passthrough
 
 A sibling `fabGoNoConfigArgs` allowlist exempts specific fab-go subcommands from the `config.yaml` requirement — currently `pane` only, because pane subcommands resolve state from target pane IDs rather than from the invoker's CWD. When the router is outside a fab repo and the invoked subcommand is in this allowlist, it dispatches to the `fab-go` matching the router's own build-time `version` constant (bundled fab-go) instead of exiting. Inside a fab repo, exempt commands continue to use the project-pinned `fab_version`.
@@ -63,7 +67,7 @@ Multiple versions coexist independently. No automatic cache eviction — users m
 
 The primary bootstrap path for new projects is:
 ```
-brew tap wvrdz/tap && brew install fab-kit
+brew tap sahil87/tap && brew install fab-kit
 cd <repo>
 fab init
 ```
@@ -163,11 +167,11 @@ The output defines a `wt()` shell function that wraps the real `wt` binary: capt
 
 Shell detection: reads `$SHELL` basename. For `bash`, `zsh`, or unset `$SHELL`, outputs the wrapper silently. For unrecognized shells, outputs the same bash/zsh wrapper with a stderr warning (`warning: unsupported shell "{shell}" — outputting bash/zsh wrapper`).
 
-The wrapper function text is defined as `ShellWrapperFunc` constant in `src/go/wt/cmd/shell_setup.go`.
+The wrapper function text is defined as `ShellWrapperFunc` constant in `cmd/shell_setup.go` of `github.com/sahil87/wt`.
 
 #### `WT_WRAPPER` Environment Variable Detection
 
-When `open_here` is selected (in both `wt open` and `wt create`, via the shared `OpenInApp` function in `src/go/wt/internal/worktree/apps.go`), the binary checks `os.Getenv("WT_WRAPPER")`. If the value is not `"1"`, a two-line hint is printed to stderr before the `cd` command is printed to stdout:
+When `open_here` is selected (in both `wt open` and `wt create`, via the shared `OpenInApp` function in `internal/worktree/apps.go` of `github.com/sahil87/wt`), the binary checks `os.Getenv("WT_WRAPPER")`. If the value is not `"1"`, a two-line hint is printed to stderr before the `cd` command is printed to stdout:
 
 ```
 hint: "Open here" requires the shell wrapper to cd. Run: eval "$(wt shell-setup)"
@@ -178,7 +182,7 @@ The hint goes to stderr so it does not interfere with the `cd` command on stdout
 
 #### `"default"` Keyword for App Resolution
 
-Both `wt open --app` and `wt create --worktree-open` accept `"default"` as a keyword value (case-sensitive, lowercase). When received, the command resolves the app via `ResolveDefaultApp()` (in `src/go/wt/internal/worktree/apps.go`), which delegates to `DetectDefaultApp()` — the same priority chain used by the interactive menu (TERM_PROGRAM → tmux/byobu session → cached last-app → first available non-open_here app).
+Both `wt open --app` and `wt create --worktree-open` accept `"default"` as a keyword value (case-sensitive, lowercase). When received, the command resolves the app via `ResolveDefaultApp()` (in `internal/worktree/apps.go` of `github.com/sahil87/wt`), which delegates to `DetectDefaultApp()` — the same priority chain used by the interactive menu (TERM_PROGRAM → tmux/byobu session → cached last-app → first available non-open_here app).
 
 On success, `SaveLastApp` is called and the app opens. On failure (no default detected): `wt open` exits with an error; `wt create` prints a stderr warning and continues (non-fatal, matching the existing `--worktree-open` error pattern). This asymmetry exists because `wt open --app default` is an explicit open request (failure is meaningful), while `wt create --worktree-open default` is secondary to worktree creation (failing the entire create for an open failure would be disruptive).
 
@@ -214,37 +218,42 @@ Pre-flight checks: clean working tree (error if dirty), `$(fab kit-path)/VERSION
 The `justfile` at repo root provides locally-replicable build recipes using [just](https://github.com/casey/just). These same recipes are invoked by CI.
 
 **Development recipes**:
-- **`build`** — compiles all five binaries (`fab` router, `fab-kit`, `fab-go`, `idea`, `wt`) for the current platform using `CGO_ENABLED=0`
-- **`test`** — runs all unit tests across all Go modules
+- **`build`** — compiles all three fab-kit-owned binaries (`fab` router, `fab-kit`, `fab-go`) for the current platform using `CGO_ENABLED=0`
+- **`test`** — runs all unit tests across `src/go/fab/` and `src/go/fab-kit/`
 - **`test-v`** — runs all unit tests (verbose)
 - **`doctor`** — checks prerequisites and environment health
 
 **Release recipes** (all output goes to `dist/`):
 - **`release [bump]`** — bumps VERSION (default: patch), commits, tags, and pushes; CI handles the rest
 - **`dist-kit`** — assembles `dist/kit/` from `src/kit/` (single copy, reused by packaging)
-- **`build-target os arch`** — cross-compiles all five binaries for a specific platform into `dist/bin/{name}-{os}-{arch}`
-- **`build-all`** — cross-compiles for all 4 release targets (`darwin/arm64`, `darwin/amd64`, `linux/arm64`, `linux/amd64`), producing 20 binaries total (5 per platform)
+- **`build-target os arch`** — cross-compiles all three fab-kit-owned binaries for a specific platform into `dist/bin/{name}-{os}-{arch}`
+- **`build-all`** — cross-compiles for all 4 release targets (`darwin/arm64`, `darwin/amd64`, `linux/arm64`, `linux/amd64`), producing 12 binaries total (3 per platform)
 - **`package-kit`** — creates 4 per-platform `dist/kit-{os}-{arch}.tar.gz` (kit content + `fab-go` only). Archives are rooted at `.kit/`.
-- **`package-brew`** — creates 4 per-platform `dist/brew-{os}-{arch}.tar.gz` (`fab`, `fab-kit`, `wt`, `idea`)
+- **`package-brew`** — creates 4 per-platform `dist/brew-{os}-{arch}.tar.gz` (`fab`, `fab-kit`)
 - **`release-notes [tag]`** — generates `dist/release-notes.md` with commit-level changelog
 - **`brew-formula [tag]`** — generates `dist/fab-kit.rb` from template with SHA256 hashes
 - **`dist`** — full pipeline: `dist-kit` + `build-all` + `package-kit` + `package-brew`
 - **`clean`** — removes `dist/`
 
-**Five Go binaries**:
+**Three fab-kit-owned Go binaries**:
 
 | Binary | Source | Distribution |
 |--------|--------|-------------|
-| `fab` (router) | `src/go/fab-kit/cmd/fab/` | Homebrew formula |
-| `fab-kit` | `src/go/fab-kit/cmd/fab-kit/` | Homebrew formula |
-| `fab-go` | `src/go/fab/` | Per-version cache via GitHub releases |
-| `wt` | `src/go/wt/` | Homebrew formula |
-| `idea` | `src/go/idea/` | Homebrew formula |
+| `fab` (router) | `src/go/fab-kit/cmd/fab/` | Homebrew formula `sahil87/tap/fab-kit` |
+| `fab-kit` | `src/go/fab-kit/cmd/fab-kit/` | Homebrew formula `sahil87/tap/fab-kit` |
+| `fab-go` | `src/go/fab/` | Per-version cache via GitHub releases (`sahil87/fab-kit`) |
+
+**Two external dependency binaries** (installed transitively via the fab-kit formula's `depends_on`):
+
+| Binary | Source repo | Distribution |
+|--------|-------------|-------------|
+| `wt` | `github.com/sahil87/wt` | Homebrew formula `sahil87/tap/wt` |
+| `idea` | `github.com/sahil87/idea` | Homebrew formula `sahil87/tap/idea` |
 
 **Scenarios**:
-- Local dev build (`just build`) — compiles all five binaries for current platform
-- Cross-compile for a single target (`just build-target darwin arm64`) — produces 5 binaries in `dist/bin/`
-- Build all targets (`just build-all`) — produces 20 binaries in `dist/bin/` (5 per platform x 4 platforms)
+- Local dev build (`just build`) — compiles three fab-kit-owned binaries for current platform
+- Cross-compile for a single target (`just build-target darwin arm64`) — produces 3 binaries in `dist/bin/`
+- Build all targets (`just build-all`) — produces 12 binaries in `dist/bin/` (3 per platform x 4 platforms)
 - Full pipeline (`just dist`) — assembles kit, builds all, packages all into `dist/`
 - Package without prior build (`just package-kit`) — fails with error directing to run prerequisite steps first
 - Clean up (`just clean`) — removes `dist/`
@@ -257,8 +266,8 @@ Workflow steps:
 1. Checkout repository (`actions/checkout@v4`)
 2. Set up Go toolchain (`actions/setup-go@v5`, Go 1.22)
 3. Install `just` command runner (`extractions/setup-just@v2`)
-4. Run `just build-all` (cross-compiles all 20 targets: 5 binaries x 4 platforms)
-5. Run `just package-kit` (creates 5 archives with `fab-go` per platform — router, fab-kit, wt, idea are Homebrew-distributed)
+4. Run `just build-all` (cross-compiles all 12 targets: 3 fab-kit-owned binaries x 4 platforms)
+5. Run `just package-kit` (creates 5 archives with `fab-go` per platform — `fab` router and `fab-kit` are Homebrew-distributed via `package-brew`; `wt` and `idea` are external Homebrew dependencies)
 6. Create GitHub Release via `gh release create` with all 5 archives and commit-level changelog (minor releases cumulate all commits since the previous minor; patch releases show commits since the previous release)
 
 The workflow sets `permissions: contents: write` for release creation. `GITHUB_TOKEN` is used implicitly by `gh`.
@@ -268,7 +277,7 @@ GitHub determines "latest" release status based on semver ordering — backport 
 **Scenarios**:
 - Tag push triggers workflow — push of `v0.35.0` tag triggers the release workflow
 - Non-tag push does not trigger — regular commits pushed without a `v*` tag do not run the workflow
-- Full CI release — tag `v0.35.0` triggers workflow, which cross-compiles all Go binaries (20 total: fab router, fab-kit, fab-go, idea, wt x 4 platforms), packages 5 archives (`fab-go` per platform), and creates a GitHub Release with commit-level changelog
+- Full CI release — tag `v0.35.0` triggers workflow, which cross-compiles all fab-kit-owned Go binaries (12 total: fab router, fab-kit, fab-go x 4 platforms), packages 5 archives (`fab-go` per platform), and creates a GitHub Release with commit-level changelog. The standalone `wt` and `idea` releases are produced independently from `sahil87/wt` and `sahil87/idea` and are not part of the fab-kit release workflow
 - Backport release via CI — tag `v0.34.2` triggers workflow; GitHub's semver ordering ensures it is not marked as "latest" since `v0.35.0` exists
 
 #### Release Archive Contents
@@ -288,7 +297,7 @@ Per-platform archives:
 
 No project-specific files (config.yaml, constitution.md, memory/, specs/, changes/) are included in any archive. Package production code (idea only) is included under `.kit/packages/`, hook scripts under `.kit/hooks/` — all delivered to downstream projects on upgrade. `src/kit/sync/` contains only `.gitkeep` (all sync scripts absorbed into `fab-kit` Go binary). `idea` is a standalone system binary (installed via Homebrew, not per-repo); the shell package at `.kit/packages/idea/bin/idea` is retained for rollback safety and generic-archive users. Skill files are included in all archives and deployed to agents by `fab-kit sync`. `fab-go binary at ` contains only `.gitkeep` — no binaries are shipped in the repo.
 
-**Binary distribution split**: The router (`fab`), `fab-kit`, `wt`, and `idea` are Homebrew-only (version-independent, system-level). Only `fab-go` is version-coupled and lives in the per-version cache.
+**Binary distribution split**: The router (`fab`) and `fab-kit` ship in fab-kit's Homebrew formula (version-coupled to fab-kit's release tag). `wt` and `idea` are external standalone Homebrew formulas in `sahil87/tap`, declared as `depends_on` so they install transitively (each versioned independently). Only `fab-go` is per-version cached, downloaded from `sahil87/fab-kit` GitHub releases on first use.
 
 ### Deprecated: Backend Override Mechanism
 
@@ -308,7 +317,9 @@ The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its rol
 - **Three-way release split (260307-ma7o-1)**: `release.sh` owns version/tag/push, `justfile` owns build/package, `.github/workflows/release.yml` owns orchestration. Each component has a single responsibility and can be tested independently.
 - **GitHub semver ordering replaces `--no-latest` (260307-ma7o-1)**: GitHub automatically determines "latest" release based on semver. Backport releases (e.g., `v0.34.2` when `v0.35.0` exists) are not marked latest. The `--no-latest` flag was removed from `release.sh` — no flag to remember, no CI mechanism to pass it through. For edge cases, `gh release edit` can be used post-creation.
 - **Commit-level release notes with minor cumulation**: CI generates release notes from `git log --oneline` with linked commit SHAs. Minor releases (x.y.0) cumulate all commits since the previous minor tag, giving a complete picture of the release cycle. Patch releases show commits since the previous release only. Major releases use the same patch-style diff (manual curation expected for milestone releases).
-- **Homebrew distribution with three-binary architecture (260401-46hw, 260402-3ac3)**: The system `fab` binary is a router installed via `brew install fab-kit`. It dispatches workspace commands to `fab-kit` and workflow commands to the version-resolved `fab-go`. `fab-kit` owns workspace lifecycle (init, upgrade-repo, sync, update, doctor). This decouples binary distribution from the repo — `src/kit/` holds content only, the binaries manage execution. Rejected: binary-in-repo (redundant when router manages versions), `fab self-update` (don't reinvent the package manager), two-binary shim model (untestable, blurred concerns).
+- **Homebrew distribution with two fab-kit-owned binaries + two external dependencies (260401-46hw, 260402-3ac3, 260506-4rtx)**: The system `fab` binary is a router installed via `brew install fab-kit`. It dispatches workspace commands to `fab-kit` and workflow commands to the version-resolved `fab-go`. `fab-kit` owns workspace lifecycle (init, upgrade-repo, sync, update, doctor). The fab-kit formula directly ships only `fab` and `fab-kit`; `wt` and `idea` are pulled in via `depends_on "sahil87/tap/wt"` and `depends_on "sahil87/tap/idea"` from sibling formulas in the same tap. User-visible install behavior is unchanged (all four binaries land on PATH), but each binary now versions and releases independently. Rejected: binary-in-repo (redundant when router manages versions), `fab self-update` (don't reinvent the package manager), two-binary shim model (untestable, blurred concerns).
+- **Decouple wt and idea via `depends_on`, not Go module pin or CI-time external builds (260506-4rtx)**: After `wt` and `idea` were extracted into `github.com/sahil87/wt` and `github.com/sahil87/idea` with their own release pipelines, fab-kit's vendored `src/go/wt/` and `src/go/idea/` were removed and replaced with Homebrew dependency declarations. Each repo now versions and releases independently; fab-kit's CI shrinks (no longer cross-compiles `wt`/`idea`). Rejected: vendor via Go module dep `require github.com/sahil87/wt` (still ties fab-kit's release to a `wt` version pin and produces a duplicate `wt` binary built from fab-kit's CI); bundle binaries in fab-kit's brew tarball but build them from external repos at CI time (coupling moves from source to CI; fab-kit releases are blocked when external CI is broken); keep vendored sources, accept drift (defeats the purpose of the extraction).
+- **`link_overwrite` in standalone wt/idea formulas, not `caveats` or `post_install` in fab-kit (260506-4rtx)**: To support upgrade from `fab-kit 1.6.2` (which bundled `wt`/`idea` directly), the standalone formulas declare `link_overwrite "bin/wt"` and `link_overwrite "bin/idea"`. This is Homebrew's idiomatic mechanism for ownership transitions and runs silently. The directives are also carried in the `sahil87/wt` and `sahil87/idea` templates so subsequent regenerations preserve them. Rejected: `caveats` block in fab-kit asking users to `brew unlink wt idea` first (visible but does not actually solve the conflict); custom `post_install` migration logic in fab-kit (overkill, fragile).
 - **`fab upgrade-repo` as fab-kit subcommand (260401-46hw, 260402-3ac3)**: `fab-kit` handles upgrade directly, replacing `fab-upgrade.sh`. `fab-kit` already has download/cache logic — upgrade is a natural extension. Rejected: keeping `fab-upgrade.sh` alongside `fab-kit` (duplication of download logic).
 - **Cache stores binary + content (260401-46hw)**: Each cached version includes both `fab-go` and the full `.kit/` content. `fab upgrade-repo` needs the content to populate the repo's `src/kit/`. Rejected: binary-only cache (would need separate download for content).
 - **Formula name `fab-kit`, binary name `fab` (260401-46hw)**: Homebrew formula uses `fab-kit` to avoid collision with Python Fabric's `fab` formula, while the installed binary is `fab`. Rejected: `fab` as formula name (collides with Fabric).
@@ -318,6 +329,7 @@ The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its rol
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260506-4rtx-decouple-wt-idea | 2026-05-06 | `wt` and `idea` split out of fab-kit's brew tarball into standalone Homebrew formulas in `sahil87/tap` (formerly bundled). fab-kit's formula declares them as `depends_on "sahil87/tap/wt"` and `depends_on "sahil87/tap/idea"`. Brew tarball shrinks from 4 binaries to 2 (`fab`, `fab-kit`); cross-compile matrix shrinks from 5×4=20 to 3×4=12. `src/go/wt/` and `src/go/idea/` removed; canonical sources are `github.com/sahil87/wt` and `github.com/sahil87/idea`. `link_overwrite "bin/wt"` / `link_overwrite "bin/idea"` in the standalone formulas handle the upgrade-conflict from `fab-kit 1.6.2` (which owned those symlinks) transparently. Release notes for `1.7.0` document the `brew unlink wt idea && brew upgrade fab-kit` fallback for the rare case `link_overwrite` does not resolve cleanly. First release carrying this change is `1.7.0` (semver minor — user-visible install set unchanged via `depends_on` transitivity). Also swept stale `wvrdz/tap` references in active prose to `sahil87/tap` (historical Changelog rows preserved). |
 | 260417-y0sw-pane-skip-config-check | 2026-04-17 | Router adds `fabGoNoConfigArgs` allowlist (currently `pane` only) exempting listed fab-go subcommands from the `config.yaml` requirement. Outside a fab repo, exempt commands dispatch to the bundled fab-go via the router's build-time `version`; inside a fab repo, the project-pinned `fab_version` is used unchanged. Updated "Not in a fab-managed repo, workflow command" scenario to note the `pane` exception. |
 | 260409-5z32-wt-open-default-medium | 2026-04-09 | Added `"default"` keyword for `wt open --app` and `wt create --worktree-open`. Resolves via `ResolveDefaultApp()` → `DetectDefaultApp()` priority chain. `wt open` errors on no-default; `wt create` warns and continues. Added `SaveLastApp` call to `wt open --app` code path (was previously missing for all `--app` values). |
 | 260404-g0x1-rename-upgrade-to-upgrade-repo | 2026-04-05 | Renamed `fab upgrade` to `fab upgrade-repo` throughout live prose, requirements, and command examples. Historical changelog entries preserved. |

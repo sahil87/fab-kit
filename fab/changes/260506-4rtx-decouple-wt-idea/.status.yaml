@@ -1,0 +1,44 @@
+id: 4rtx
+name: 260506-4rtx-decouple-wt-idea
+created: 2026-05-06T08:23:03Z
+created_by: sahil-weaver
+change_type: refactor
+issues: []
+progress:
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: active
+checklist:
+    generated: true
+    path: checklist.md
+    completed: 43
+    total: 43
+confidence:
+    certain: 15
+    confident: 1
+    tentative: 1
+    unresolved: 0
+    score: 3.7
+    fuzzy: true
+    dimensions:
+        signal: 88.8
+        reversibility: 83.2
+        competence: 90.0
+        disambiguation: 90.0
+stage_metrics:
+    intake: {started_at: "2026-05-06T08:23:03Z", driver: fab-new, iterations: 1, completed_at: "2026-05-06T08:38:01Z"}
+    spec: {started_at: "2026-05-06T08:38:01Z", driver: fab-fff, iterations: 1, completed_at: "2026-05-06T08:44:27Z"}
+    tasks: {started_at: "2026-05-06T08:44:27Z", driver: fab-fff, iterations: 1, completed_at: "2026-05-06T08:44:27Z"}
+    apply: {started_at: "2026-05-06T08:44:27Z", driver: fab-fff, iterations: 1, completed_at: "2026-05-06T08:53:34Z"}
+    review: {started_at: "2026-05-06T08:53:34Z", driver: fab-fff, iterations: 1, completed_at: "2026-05-06T08:56:05Z"}
+    hydrate: {started_at: "2026-05-06T08:56:05Z", driver: fab-fff, iterations: 1, completed_at: "2026-05-06T08:58:36Z"}
+    ship: {started_at: "2026-05-06T08:58:36Z", driver: fab-fff, iterations: 1, completed_at: "2026-05-06T09:00:40Z"}
+    review-pr: {started_at: "2026-05-06T09:00:40Z", driver: fab-fff, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/349
+last_updated: 2026-05-06T09:00:40Z
