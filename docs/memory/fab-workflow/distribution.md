@@ -12,7 +12,7 @@ How `src/kit/` is distributed to new and existing projects. Covers the Homebrew 
 
 #### Homebrew Formula
 
-A Homebrew formula named `fab-kit` SHALL be published to the `sahil87/homebrew-tap` tap. The formula SHALL install two binaries directly: `fab` (router/dispatcher) and `fab-kit` (workspace lifecycle). The formula SHALL declare `depends_on "sahil87/tap/wt"` and `depends_on "sahil87/tap/idea"` so Homebrew transitively installs the standalone `wt` (worktree management) and `idea` (backlog management) formulas — yielding four binaries on PATH after install. Users add the tap via `brew tap sahil87/tap`.
+A Homebrew formula named `fab-kit` SHALL be published to the `sahil87/tap` tap (GitHub repo: `sahil87/homebrew-tap`). The formula SHALL install two binaries directly: `fab` (router/dispatcher) and `fab-kit` (workspace lifecycle). The formula SHALL declare `depends_on "sahil87/tap/wt"` and `depends_on "sahil87/tap/idea"` so Homebrew transitively installs the standalone `wt` (worktree management) and `idea` (backlog management) formulas — yielding four binaries on PATH after install. Users add the tap via `brew tap sahil87/tap`.
 
 The standalone `wt` and `idea` formulas in `sahil87/homebrew-tap` SHALL declare `link_overwrite "bin/wt"` and `link_overwrite "bin/idea"` respectively. This allows them to take ownership of pre-existing symlinks (e.g., from a `fab-kit 1.6.2` install that previously bundled `wt`/`idea` directly) silently during `brew upgrade fab-kit`. The directives are also carried in the templates of `sahil87/wt` and `sahil87/idea`, so subsequent regenerations preserve them.
 

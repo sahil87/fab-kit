@@ -1,6 +1,6 @@
 # Packages
 
-Fab Kit ships alongside two standalone CLI tools that complement the skill-based pipeline. Unlike skills (which are Claude Code prompts invoked via `/`), these are compiled Go binaries that run directly in the terminal — no AI agent required.
+Fab Kit is installed alongside two standalone CLI tools that complement the skill-based pipeline. Unlike skills (which are Claude Code prompts invoked via `/`), these are compiled Go binaries that run directly in the terminal — no AI agent required.
 
 **wt** and **idea** are now standalone packages in their own repositories (`github.com/sahil87/wt`, `github.com/sahil87/idea`) with independent release cadences. fab-kit's Homebrew formula declares them as dependencies (`depends_on "sahil87/tap/wt"` and `depends_on "sahil87/tap/idea"`), so `brew install sahil87/tap/fab-kit` still installs all four CLIs (`fab`, `fab-kit`, `wt`, `idea`) on PATH transitively. They complement the fab pipeline: **wt** provides the worktree isolation that enables parallel changes, and **idea** provides the backlog that feeds `/fab-new`.
 
