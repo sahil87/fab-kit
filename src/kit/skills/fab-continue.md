@@ -122,10 +122,11 @@ If `fab/project/code-quality.md` exists, load its `## Principles` as additional 
 ### Task Execution (main sub-step)
 
 1. Parse the `## Tasks` section of `plan.md` — content between `## Tasks` and the next `## ` heading (typically `## Execution Order` or `## Acceptance`). The `## Acceptance` section is OUT OF SCOPE for apply.
-2. Parse tasks: `- [ ]` = remaining, `- [x]` = skip
-3. If all checked: run `fab status finish <change> apply fab-continue` (auto-activates review). Stop.
-4. Execute in phase order; within phases, non-`[P]` sequential, `[P]` parallelizable. Respect Execution Order constraints.
-5. For each unchecked task:
+2. If a top-level `## Execution Order` heading is present in `plan.md`, parse its body separately (content between `## Execution Order` and the next `## ` heading) and use it to constrain task ordering in step 4. If absent, infer ordering from phase/`[P]`-marker conventions alone.
+3. Parse tasks: `- [ ]` = remaining, `- [x]` = skip
+4. If all checked: run `fab status finish <change> apply fab-continue` (auto-activates review). Stop.
+5. Execute in phase order; within phases, non-`[P]` sequential, `[P]` parallelizable. Respect Execution Order constraints parsed in step 2.
+6. For each unchecked task:
    1. Read source files relevant to this task
    2. Implement per spec, constitution, and extracted patterns
    3. Prefer reusing existing utilities over creating new ones
@@ -133,7 +134,7 @@ If `fab/project/code-quality.md` exists, load its `## Principles` as additional 
    5. Write tests per `fab/project/code-quality.md` test strategy (default: `test-alongside`)
    6. Run tests, fix failures
    7. Mark `[x]` immediately
-6. On completion: run `fab status finish <change> apply fab-continue` (auto-activates review).
+7. On completion: run `fab status finish <change> apply fab-continue` (auto-activates review).
 
 ### Resumability
 
