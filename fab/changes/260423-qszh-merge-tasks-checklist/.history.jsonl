@@ -33,3 +33,4 @@
 {"delta":"+0.0","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-05-04T12:49:19Z"}
 {"delta":"+0.0","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-05-04T12:49:24Z"}
 {"delta":"+0.0","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-05-04T12:49:28Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-05-04T12:50:27Z"}
