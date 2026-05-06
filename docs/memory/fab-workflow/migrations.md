@@ -76,7 +76,7 @@ The migration runner, now a subcommand of `/fab-setup` (previously the standalon
 
 A migration file for the transition to the system shim model. The migration:
 
-1. **Prerequisite gate**: Verify `fab` (system shim) is on PATH. If not, instruct: `"Install fab-kit first: brew tap wvrdz/tap && brew install fab-kit"`
+1. **Prerequisite gate**: Verify `fab` (system shim) is on PATH. If not, instruct: `"Install fab-kit first: brew tap sahil87/tap && brew install fab-kit"`
 2. **Add `fab_version`**: Write `fab_version: "{version}"` to `fab/project/config.yaml` (set to the current `$(fab kit-path)/VERSION`)
 3. **Clean `.envrc`**: Remove the `PATH_add src/kit/bin` line if present
 4. **Clean `fab-go binary at `**: Remove `fab`, `fab-go`, `wt`, `idea` — only `.gitkeep` remains
@@ -125,6 +125,7 @@ Handled by `fab-sync.sh` during structural bootstrap:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260506-4rtx-decouple-wt-idea | 2026-05-06 | Swept stale `brew tap wvrdz/tap` instruction at the brew-install migration's prerequisite gate to `brew tap sahil87/tap` (residual from the `260401-ixzv` org migration). No structural change to the migration system itself. |
 | 260404-g0x1-rename-upgrade-to-upgrade-repo | 2026-04-05 | Renamed `fab upgrade` to `fab upgrade-repo` throughout live prose, requirements, and command examples. Historical changelog entries preserved. |
 | 260402-5tci-remove-copilot-clean-scaffold | 2026-04-02 | Appended three steps to migration `0.46.0-to-0.47.0.md`: (5) delete `.github/copilot-code-review.yml` if present, (6) remove stale `.gitignore` entries (`/.ralph`, `fab/changes/**/.pr-done`), (7) find and delete any `.pr-done` files under `fab/changes/`. Each step prints status and handles already-clean state gracefully. Verification section updated with checks for all three new steps. |
 | 260402-gnx5-relocate-kit-to-system-cache | 2026-04-02 | Ships migration for existing users: verify cache populated, inline hooks in `.claude/settings.local.json` (replace `bash "$CLAUDE_PROJECT_DIR"/fab/.kit/hooks/on-*.sh` with `fab hook <subcommand>`), remove `fab/.kit/` from project, clean `PATH_add fab/.kit/scripts` from `.envrc`, clean `fab/.kit/bin/*` from `.gitignore`. `$(fab kit-path)/VERSION` is now the engine version source (read from exe-sibling kit in cache). |

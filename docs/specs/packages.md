@@ -1,8 +1,8 @@
 # Packages
 
-Fab Kit ships two standalone CLI tools alongside the skill-based pipeline. Unlike skills (which are Claude Code prompts invoked via `/`), these are compiled Go binaries that run directly in the terminal — no AI agent required.
+Fab Kit ships alongside two standalone CLI tools that complement the skill-based pipeline. Unlike skills (which are Claude Code prompts invoked via `/`), these are compiled Go binaries that run directly in the terminal — no AI agent required.
 
-Both binaries are compiled from `src/go/` and installed system-wide via Homebrew. They complement the fab pipeline: **wt** provides the worktree isolation that enables parallel changes, and **idea** provides the backlog that feeds `/fab-new`.
+**wt** and **idea** are now standalone packages in their own repositories (`github.com/sahil87/wt`, `github.com/sahil87/idea`) with independent release cadences. fab-kit's Homebrew formula declares them as dependencies (`depends_on "sahil87/tap/wt"` and `depends_on "sahil87/tap/idea"`), so `brew install sahil87/tap/fab-kit` still installs all four CLIs (`fab`, `fab-kit`, `wt`, `idea`) on PATH transitively. They complement the fab pipeline: **wt** provides the worktree isolation that enables parallel changes, and **idea** provides the backlog that feeds `/fab-new`.
 
 ---
 
@@ -10,7 +10,7 @@ Both binaries are compiled from `src/go/` and installed system-wide via Homebrew
 
 Git worktrees let you have multiple checkouts of the same repository side by side. The wt binary wraps `git worktree` with opinionated defaults for the fab workflow: worktrees are created as siblings in `<repo>.worktrees/`, names are memorable random words, and each worktree can run its own fab change independently.
 
-**Binary**: `src/go/wt/` (Go binary, included in per-platform release archives)
+**Source**: [`github.com/sahil87/wt`](https://github.com/sahil87/wt) (standalone Go binary). **Distribution**: Homebrew formula `sahil87/tap/wt`, installed transitively as a dependency of `sahil87/tap/fab-kit`.
 
 ### Commands
 
@@ -95,7 +95,7 @@ cd /path/copied/from/menu
 
 The idea command manages a per-repo backlog stored in `fab/backlog.md`. It's a lightweight CRUD tool for capturing, triaging, and tracking ideas before they become fab changes.
 
-**Binary**: `src/go/idea/` (Go binary, included in per-platform release archives; installed as `idea` via Homebrew).
+**Source**: [`github.com/sahil87/idea`](https://github.com/sahil87/idea) (standalone Go binary). **Distribution**: Homebrew formula `sahil87/tap/idea`, installed transitively as a dependency of `sahil87/tap/fab-kit`.
 
 **Worktree behavior**: By default, `idea` operates on the **current worktree's** `fab/backlog.md` (resolved via `git rev-parse --show-toplevel`). Pass `--main` to target the main worktree's backlog instead; internally, `idea` resolves the main worktree root by running `git rev-parse --path-format=absolute --git-common-dir` and taking its parent directory. In the main worktree, both behave identically. This ensures that users in a linked worktree get predictable local behavior unless they explicitly opt into the shared backlog.
 
@@ -145,19 +145,19 @@ fab batch new --all           # Create changes from all open ideas
 
 ## Package Architecture
 
-The `src/go/` directory contains the Go source for all binaries:
+fab-kit's `src/go/` directory contains only the Go source for the fab-kit-owned binaries:
 
 ```
 src/go/
-├── fab/                # fab CLI router
-├── fab-kit/            # fab-kit lifecycle (init, sync, upgrade, doctor)
-├── wt/                 # Worktree management
-└── idea/               # Backlog management
+├── fab/                # fab-go workflow backend (router source lives in fab-kit/)
+└── fab-kit/            # fab CLI router + fab-kit lifecycle (init, sync, upgrade, doctor)
 ```
 
-All four binaries are installed system-wide via `brew install fab-kit`.
+The `wt` and `idea` binaries live in their own repositories — `github.com/sahil87/wt` and `github.com/sahil87/idea` — each with its own release pipeline and Homebrew formula in `sahil87/tap`.
 
-**Distribution**: Go binaries are included in per-platform release archives (`kit-{os}-{arch}.tar.gz`). The generic `kit.tar.gz` is source-only: it contains skills, templates, and supporting scripts/configuration, but no compiled binaries. `fab-upgrade.sh` updates kit content atomically alongside skills and templates.
+All four binaries (`fab`, `fab-kit`, `wt`, `idea`) are installed system-wide via `brew install sahil87/tap/fab-kit`: fab-kit's formula installs `fab` and `fab-kit` directly, and Homebrew resolves `depends_on "sahil87/tap/wt"` and `depends_on "sahil87/tap/idea"` to install the standalone formulas.
+
+**Distribution**: fab-kit's Go binaries (`fab`, `fab-kit`) ship in per-platform Homebrew tarballs (`brew-{os}-{arch}.tar.gz`); `fab-go` ships in the per-version cache via `kit-{os}-{arch}.tar.gz`. The generic `kit.tar.gz` is source-only: it contains skills, templates, and supporting scripts/configuration, but no compiled binaries. `wt` and `idea` ship from their own repositories' release pipelines and are not part of fab-kit's release artifacts.
 
 ## Changelog
 

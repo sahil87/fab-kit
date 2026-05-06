@@ -185,7 +185,7 @@ All `*.md` files in `$(fab kit-path)/skills/` are deployed, including underscore
 
 **Primary method** (recommended):
 ```
-brew tap wvrdz/tap && brew install fab-kit
+brew tap sahil87/tap && brew install fab-kit
 cd <repo>
 fab init
 ```
@@ -520,6 +520,7 @@ Full benchmark suite with harness and all 4 implementations: `src/benchmark/`
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260506-4rtx-decouple-wt-idea | 2026-05-06 | Swept stale `brew tap wvrdz/tap` reference in the live bootstrap example to `brew tap sahil87/tap` (residual from the `260401-ixzv` org migration). The historical Changelog row at the bottom of this file preserves the original `wvrdz` mention. No structural change to `src/kit/` architecture. |
 | 260419-o5ej-agents-runtime-unified | 2026-04-19 | Removed `fab runtime set-idle|clear-idle|is-idle <change>` subcommands from the fab-go subcommand listing. These were hook-internal plumbing replaced by direct `_agents[session_id]`-keyed writes inside the hook handlers. Added a pointer to the new [runtime-agents.md](runtime-agents.md) memory file that documents the `.fab-runtime.yaml` schema and hook write pipeline. `fab hook stop|session-start|user-prompt` descriptions updated to reflect the new `_agents[session_id]` write semantics. |
 | 260418-or0o-flatten-skill-helpers | 2026-04-18 | Flattened skill helper include tree. Removed `_naming.md` and `_cli-rk.md` from the `src/kit/skills/` directory tree; their content is inlined into `_preamble.md` (`## Naming Conventions`, `## Run-Kit (rk) Reference`). Added `_review.md` to the directory listing. Updated the Underscore File Ecosystem table — `_preamble.md` remains the sole always-load helper; `_cli-fab`, `_generation`, `_review`, `_cli-external` are now selective via the per-skill `helpers:` frontmatter field. Compressed `_cli-fab.md` from 773 to ≤300 lines; canonical command/flag documentation preserved. Inlined the 6 most-used fab command families into `_preamble.md § Common fab Commands`. |
 | 260417-2fbb-pane-server-flag | 2026-04-17 | Trimmed the per-subcommand detail for `fab pane {map,capture,send,process}` (previously at this section) to a high-level pointer; full subcommand reference and the new persistent `--server`/`-L` flag now live in `pane-commands.md`. The `fabGoNoConfigArgs` allowlist note is retained here. |
