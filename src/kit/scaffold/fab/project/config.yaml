@@ -6,6 +6,11 @@ project:
 source_paths:
   - {SOURCE_PATHS}
 
+# Pathspec exclusions used by /git-pr to compute the "true impact" line counts
+# in the PR body (lines added/deleted excluding noise directories like fab/ and
+# docs/). Optional — when absent or empty, the impact block is omitted.
+true_impact_exclude: [fab/, docs/]
+
 # The review stage validates code against the plan.md ## Acceptance section.
 # Built-in categories: functional_completeness, behavioral_correctness,
 # scenario_coverage, edge_cases, security.

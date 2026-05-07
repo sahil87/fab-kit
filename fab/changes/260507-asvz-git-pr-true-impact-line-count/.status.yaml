@@ -2,36 +2,44 @@ id: asvz
 name: 260507-asvz-git-pr-true-impact-line-count
 created: 2026-05-07T02:59:26Z
 created_by: sahil-weaver
-change_type: feat
+change_type: fix
 issues: []
 progress:
-    intake: ready
-    spec: pending
-    tasks: pending
-    apply: pending
-    review: pending
-    hydrate: pending
-    ship: pending
-    review-pr: pending
+    intake: done
+    spec: done
+    tasks: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: active
 checklist:
-    generated: false
+    generated: true
     path: checklist.md
     completed: 0
-    total: 0
+    total: 28
 confidence:
-    certain: 2
-    confident: 4
-    tentative: 3
+    certain: 9
+    confident: 0
+    tentative: 0
     unresolved: 0
-    score: 0.8
+    score: 5.0
     indicative: true
     fuzzy: true
     dimensions:
-        signal: 74.4
+        signal: 95.0
         reversibility: 83.9
         competence: 77.8
         disambiguation: 72.8
 stage_metrics:
-    intake: {started_at: "2026-05-07T02:59:26Z", driver: fab-new, iterations: 1}
-prs: []
-last_updated: 2026-05-07T03:00:28Z
+    intake: {started_at: "2026-05-07T02:59:26Z", driver: fab-new, iterations: 1, completed_at: "2026-05-07T07:59:11Z"}
+    spec: {started_at: "2026-05-07T07:59:11Z", driver: fab-fff, iterations: 1, completed_at: "2026-05-07T08:04:49Z"}
+    tasks: {started_at: "2026-05-07T08:04:49Z", driver: fab-fff, iterations: 1, completed_at: "2026-05-07T08:04:49Z"}
+    apply: {started_at: "2026-05-07T08:13:14Z", driver: fab-fff, iterations: 2, completed_at: "2026-05-07T08:13:50Z"}
+    review: {started_at: "2026-05-07T08:13:50Z", driver: fab-fff, iterations: 1, completed_at: "2026-05-07T08:15:17Z"}
+    hydrate: {started_at: "2026-05-07T08:15:17Z", driver: fab-fff, iterations: 1, completed_at: "2026-05-07T08:17:06Z"}
+    ship: {started_at: "2026-05-07T08:17:06Z", driver: fab-fff, iterations: 1, completed_at: "2026-05-07T08:18:58Z"}
+    review-pr: {started_at: "2026-05-07T08:18:58Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/353
+last_updated: 2026-05-07T08:54:29Z

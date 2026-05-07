@@ -15,6 +15,7 @@ review_tools:
     copilot: true
 source_paths:
     - src/
+true_impact_exclude: [fab/, docs/]
 stage_directives:
     apply: []
     hydrate: []

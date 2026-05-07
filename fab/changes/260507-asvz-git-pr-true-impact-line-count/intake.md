@@ -14,7 +14,7 @@ Decisions made in conversation:
 - The "true impact" line goes in the PR **body**, not the title.
 - Default exclusion list: `fab/` and `docs/` (the two directories fab itself populates with non-code artifacts).
 - Exclusion list SHOULD be configurable per-project — different projects have different "noise" directories (generated code, vendored deps, lockfiles).
-- Configurable via a new field in `fab/project/config.yaml` (e.g., `pr_impact_exclude: [fab/, docs/]`).
+- Configurable via a new field in `fab/project/config.yaml` (e.g., `true_impact_exclude: [fab/, docs/]`).
 - Both numbers (true-impact and GitHub-visible total) MAY be displayed for contrast, but the true-impact number is the primary signal.
 
 ## Why
@@ -38,43 +38,54 @@ Decisions made in conversation:
 Add a top-level field:
 
 ```yaml
-pr_impact_exclude:
+true_impact_exclude:
   - fab/
   - docs/
 ```
+<!-- clarified: field name `true_impact_exclude` (was `pr_impact_exclude`); top-level placement confirmed -->
 
 Semantics:
-- **Optional**. If absent or empty, the impact line is omitted from the PR body (no degradation — `/git-pr` works as today).
+- **Optional**. If absent or empty, the impact block is omitted from the PR body (no degradation — `/git-pr` works as today).
 - **Format**: array of pathspec exclusion patterns (directory prefixes with trailing slash, or globs). Passed verbatim to `git diff` as `:(exclude)<pattern>` arguments.
-- **Default in template**: `fab/project/config.yaml` template SHOULD ship with `pr_impact_exclude: [fab/, docs/]` populated, so new fab-kit projects get the right behavior out of the box. Existing projects opt in by editing their config.
+- **Default in template**: `fab/project/config.yaml` template SHOULD ship with `true_impact_exclude: [fab/, docs/]` populated, so new fab-kit projects get the right behavior out of the box. Existing projects acquire the field via migration (see §3).
 
 ### 2. New step in `/git-pr` skill
 
 Insert a new sub-step in the PR body assembly (around line 137 in `.claude/skills/git-pr/SKILL.md`, where `git diff --stat HEAD` is already read) that:
 
-1. Reads `pr_impact_exclude` from `fab/project/config.yaml` via `yq`.
-2. If the list is non-empty, runs:
+1. Reads `true_impact_exclude` from `fab/project/config.yaml` via `yq`.
+2. If the list is non-empty, runs **two** `git diff --shortstat` invocations against the same base:
    ```bash
-   git diff --shortstat $BASE...HEAD -- . $(printf "':(exclude)%s' " "${EXCLUDES[@]}")
+   BASE=$(git merge-base origin/main HEAD)
+
+   # True-impact (with exclusions)
+   git diff --shortstat "$BASE...HEAD" -- . \
+     $(printf "':(exclude)%s' " "${EXCLUDES[@]}")
+
+   # Git diff total (no exclusions)
+   git diff --shortstat "$BASE...HEAD"
    ```
-   where `$BASE` is the merge-base with the default branch (already computed elsewhere in `/git-pr`).
-3. Parses `--shortstat` output to extract added/deleted line counts.
-4. Appends an "Impact" line to the PR body before the test plan section:
+   where `$BASE` is the merge-base with the default branch (computed in this same sub-step via `git merge-base origin/main HEAD`, with `origin/master` fallback). Three-dot range gives "changes on this branch" semantics.
+   <!-- clarified: three-dot range with pathspec :(exclude); two invocations to produce both numbers -->
+3. Parses each `--shortstat` output to extract added/deleted line counts.
+4. Renders an **Impact line** inside the body's `## Meta` block at the **top of the PR body**, alongside the metadata table and the `**Pipeline**:` line (the original "after `## Test plan`" idea was abandoned during clarify — the rendered `/git-pr` body has no `## Test plan` section, and the user opted to consolidate all metadata at the top under `## Meta`):
 
    ```markdown
-   **Impact**: +X / −Y lines (excluding: fab/, docs/)
+   **Impact (excluding fab/, docs/)**: +X / −Y
+   **git diff total**: +A / −B
    ```
+   <!-- clarified: two-line format with "git diff total" label, placed at bottom of body after Test plan -->
 
-   The exclusion list in parentheses MUST reflect the actual config values, not be hardcoded.
+   The exclusion list in the first line MUST reflect the actual config values, not be hardcoded.
 
-5. If the config field is absent OR the diff produces zero changes outside the exclusions, omit the line entirely.
+5. If the config field is absent OR the diff produces zero changes outside the exclusions, omit the entire block.
 
 ### 3. Migration for existing projects
 
 Add a migration file in `src/kit/migrations/` (per constitution rule on user-data restructuring):
 
-- **Filename**: `1.9.x-add-pr-impact-exclude.md` (exact version TBD based on next release)
-- **Behavior**: If `fab/project/config.yaml` does not contain `pr_impact_exclude`, add `pr_impact_exclude: [fab/, docs/]` to it. Idempotent — re-running detects the field and skips.
+- **Filename**: `1.9.1-to-1.9.2.md` (canonical `{FROM}-to-{TO}.md` convention against pre-bump `src/kit/VERSION`)
+- **Behavior**: If `fab/project/config.yaml` does not contain `true_impact_exclude`, add `true_impact_exclude: [fab/, docs/]` to it. Idempotent — re-running detects the field and skips.
 
 ### 4. Spec updates
 
@@ -84,15 +95,15 @@ Per constitution: changes to skill files MUST update the corresponding `docs/spe
 
 ## Affected Memory
 
-- `fab-workflow/configuration`: (modify) Document the new `pr_impact_exclude` config field, its format, default, and semantics.
+- `fab-workflow/configuration`: (modify) Document the new `true_impact_exclude` config field, its format, default, and semantics.
 - `fab-workflow/migrations`: (modify) Reference the new migration file in the migration index, if one exists in this domain.
 
 ## Impact
 
 **Code areas touched**:
 - `src/kit/skills/git-pr.md` — new sub-step in PR body assembly
-- `src/kit/templates/config.yaml` — add default `pr_impact_exclude` entry
-- `src/kit/migrations/1.9.x-add-pr-impact-exclude.md` — new migration file
+- `src/kit/scaffold/fab/project/config.yaml` — add default `true_impact_exclude` entry
+- `src/kit/migrations/1.9.1-to-1.9.2.md` — new migration file
 - `docs/specs/skills/SPEC-git-pr.md` — document the new behavior
 - `docs/memory/fab-workflow/configuration.md` — document the config field (post-hydrate)
 
@@ -107,21 +118,37 @@ Per constitution: changes to skill files MUST update the corresponding `docs/spe
 ## Open Questions
 
 - Should the impact line also include file count (e.g., `+X / −Y across N files`)? Marginal value; defer to spec stage.
-- Should we display GitHub's headline number alongside for contrast (e.g., `Impact: +50/−10 (GitHub stats: +800/−50 — fab/ and docs/ excluded)`)? Possibly informative but verbose. Defer.
-- What format for the exclusion display in the PR body — full list, count, or just the rule name? Lean toward full list for transparency.
+
+> Resolved during clarify (see `## Clarifications`):
+> - ~~Show GitHub headline alongside?~~ → Yes, as a second line labeled `git diff total`.
+> - ~~Format for exclusion display?~~ → Full list in parentheses on the first line.
+
+## Clarifications
+
+### Session 2026-05-07
+
+| # | Action | Detail |
+|---|--------|--------|
+| 7 | Confirmed | Display format `**Impact**: +X / −Y lines (excluding: fab/, docs/)` accepted (later restructured into two-line block per #8) |
+| 6 | Confirmed | Migration approach for existing projects (writes `true_impact_exclude: [fab/, docs/]`) |
+| 3 | Confirmed | Top-level `pr_impact_exclude` placement (later renamed via #4) |
+| 5 | Confirmed | Three-dot range with pathspec `:(exclude)` |
+| 4 | Changed | Field name → `true_impact_exclude` (was `pr_impact_exclude`) |
+| 8 | Changed | Two-line dual display: true-impact + `git diff total` (was: true-impact only) |
+| 9 | Changed | Placement → bottom of body, after `## Test plan` (was: before `## Test plan`) |
 
 ## Assumptions
 
 | # | Grade | Decision | Rationale | Scores |
 |---|-------|----------|-----------|--------|
-| 1 | Certain | Impact line goes in PR body, not title | Discussed — user explicitly chose body to keep GitHub's native stats untouched | S:95 R:90 A:90 D:95 |
+| 1 | Certain | Impact block goes in PR body, not title | Discussed — user explicitly chose body to keep git's native stats untouched | S:95 R:90 A:90 D:95 |
 | 2 | Certain | Default exclusion list is `[fab/, docs/]` | Discussed — these are the two directories fab populates with non-code | S:95 R:85 A:90 D:95 |
-| 3 | Confident | Exclusion list is configurable via `fab/project/config.yaml` | Discussed — user agreed configurability matters for projects with other noise directories | S:85 R:75 A:85 D:80 |
-| 4 | Confident | Field name is `pr_impact_exclude` | Naming follows existing snake_case convention in config.yaml; descriptive of purpose | S:70 R:90 A:85 D:70 |
-| 5 | Confident | Implementation uses `git diff --shortstat ... ':(exclude)<dir>/'` | Standard git idiom; single command produces the needed numbers | S:80 R:80 A:90 D:75 |
-| 6 | Confident | Existing projects get the field added via migration | Constitution rule: "user data restructuring MUST ship as a migration" | S:90 R:70 A:85 D:80 |
-| 7 | Tentative | Display format: `**Impact**: +X / −Y lines (excluding: fab/, docs/)` | Reasonable default; specific wording is spec-stage detail | S:55 R:90 A:60 D:50 |
-| 8 | Tentative | Both numbers (true-impact and GitHub headline) NOT shown side-by-side by default | Conversation leaned this way but user said "optionally"; spec stage to finalize | S:50 R:85 A:55 D:55 |
-| 9 | Tentative | Impact line placement: before the "## Test plan" section in PR body | Natural reading order — context before checklist; spec stage to confirm | S:50 R:90 A:60 D:55 |
+| 3 | Certain | Exclusion list is a top-level field in `fab/project/config.yaml` | Clarified — user confirmed flat top-level placement (matches existing `source_paths` style) | S:95 R:75 A:85 D:80 |
+| 4 | Certain | Field name is `true_impact_exclude` | Clarified — user changed from `pr_impact_exclude` to `true_impact_exclude` | S:95 R:90 A:85 D:70 |
+| 5 | Certain | Implementation uses `git diff --shortstat $BASE...HEAD -- . ':(exclude)<dir>/'` | Clarified — user confirmed three-dot range against merge-base | S:95 R:80 A:90 D:75 |
+| 6 | Certain | Existing projects get the field added via migration `1.9.x-add-pr-impact-exclude.md` | Clarified — user confirmed migration over lazy default; constitution rule reinforced | S:95 R:70 A:85 D:80 |
+| 7 | Certain | First line of impact block: `**Impact (excluding <list>)**: +X / −Y` | Clarified — user confirmed format; later restructured by #8 | S:95 R:90 A:60 D:50 |
+| 8 | Certain | Two-line block: `**Impact (excluding ...)**: +X/−Y` then `**git diff total**: +A/−B` | Clarified — user changed to dual display with "git diff total" label | S:95 R:85 A:55 D:55 |
+| 9 | Certain | Impact block placed at bottom of PR body, after `## Test plan` | Clarified — user changed to bottom placement (footer-style metadata) | S:95 R:90 A:60 D:55 |
 
-9 assumptions (2 certain, 4 confident, 3 tentative, 0 unresolved).
+9 assumptions (9 certain, 0 confident, 0 tentative, 0 unresolved).

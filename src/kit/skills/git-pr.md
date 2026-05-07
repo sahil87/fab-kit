@@ -166,69 +166,126 @@ Print: `  ✓ push   — origin/<branch>`
 
    The `{pr_title}` variable (already prefixed) is used as-is in step 4's `gh pr create --title`.
 
-3. **Generate PR body** using a single unified template with conditional field population based on artifact availability:
+3. **Generate PR body** using a single unified template with conditional field population based on artifact availability.
 
    **Resolve fab context** (attempt once, used for all conditional fields):
    - Run `fab change resolve 2>/dev/null`. If it succeeds, set `{has_fab} = true` and `{name}` = resolved change name
    - Check if `fab/changes/{name}/intake.md` exists → `{has_intake}`
    - Check if `fab/changes/{name}/spec.md` exists → `{has_spec}`
    - Check if `fab/changes/{name}/plan.md` exists → `{has_plan}`
+   - Check if `fab/changes/{name}/tasks.md` exists → `{has_tasks}` (legacy, pre-1.9.0)
    - Read `fab/changes/{name}/.status.yaml` for `id`, `name`, `confidence`, `plan`, `progress`, and `stage_metrics` fields
-   - Read `fab/project/config.yaml` for the optional `linear_workspace` field under `project:`
+   - Read `fab/project/config.yaml` for the optional `linear_workspace` field under `project:` and the optional top-level `true_impact_exclude` list
 
    **Construct blob URLs** (only when `{has_fab}`):
    - `{owner_repo}` = `gh repo view --json nameWithOwner -q '.nameWithOwner'`
    - `{branch}` = `git branch --show-current`
    - If `{has_intake}`: Intake URL = `https://github.com/{owner_repo}/blob/{branch}/fab/changes/{name}/intake.md`
    - If `{has_spec}`: Spec URL = `https://github.com/{owner_repo}/blob/{branch}/fab/changes/{name}/spec.md`
+   - If `{has_plan}`: Apply URL = `https://github.com/{owner_repo}/blob/{branch}/fab/changes/{name}/plan.md`
+   - Else if `{has_tasks}`: Apply URL = `https://github.com/{owner_repo}/blob/{branch}/fab/changes/{name}/tasks.md` (legacy fallback for changes that predate the 1.8.0→1.9.0 migration)
 
-   **Generate body sections**:
+   **Compute true-impact line counts** (only when `{has_fab}` AND `true_impact_exclude` is non-empty): used to render the `**Impact**` line in the Meta block below.
+
+   1. Read `true_impact_exclude` from `fab/project/config.yaml` via `yq`:
+      ```bash
+      readarray -t EXCLUDES < <(yq '.true_impact_exclude[]' fab/project/config.yaml 2>/dev/null)
+      ```
+      If `yq` errors, the key is missing, the value is `null`, or `EXCLUDES` is empty → skip impact computation (omit the `**Impact**` line entirely).
+
+   2. Compute the merge-base against the default branch:
+      ```bash
+      BASE=$(git merge-base origin/main HEAD 2>/dev/null) \
+        || BASE=$(git merge-base origin/master HEAD 2>/dev/null)
+      ```
+      `/git-pr` does not compute a merge-base elsewhere, so this is the canonical site for it. If neither resolves, omit the `**Impact**` line silently.
+
+   3. Run two `git diff --shortstat` invocations against `$BASE` (three-dot range — "changes on this branch" semantics):
+      ```bash
+      # True-impact pass (with pathspec exclusions)
+      EXCLUDE_ARGS=()
+      for pat in "${EXCLUDES[@]}"; do EXCLUDE_ARGS+=( ":(exclude)$pat" ); done
+      IMPACT_RAW=$(git diff --shortstat "$BASE...HEAD" -- . "${EXCLUDE_ARGS[@]}")
+
+      # Total pass (no exclusions)
+      TOTAL_RAW=$(git diff --shortstat "$BASE...HEAD")
+      ```
+
+   4. Parse each `--shortstat` line for `(\d+) insertions?\(\+\)` and `(\d+) deletions?\(-\)`. Missing clauses default to `0`.
+
+   5. If the true-impact pass yields `+0 / −0` (every modified file lies inside an excluded path) → omit the `**Impact**` line entirely. Do not render `+0/−0`.
+
+   **Generate body sections** in this exact order:
 
    ```
+   ## Meta
+
+   | ID | Type | Confidence | Plan | Review |
+   |----|------|-----------|------|--------|
+   | {id} | {type} | {confidence} | {plan_cell} | {review_cell} |
+
+   **Pipeline**: {pipeline_line}
+
+   **Impact**: {impact_line}
+
    ## Summary
-   {if has_fab AND has_intake: 1-3 sentences derived from intake's ## Why section}
-   {otherwise: 1-3 sentences auto-generated from commit messages or git diff --stat}
+
+   {summary_text}
 
    ## Changes
-   {if has_fab AND has_intake: bulleted list of subsection headings from intake's ## What Changes section}
-   {otherwise: omit this section entirely}
 
-   ## Change
-   {if has_fab: render the Change table below}
-   {otherwise: omit this section entirely}
-   | ID | Name | Issue |
-   |----|------|-------|
-   | {id} | {status_name} | {issue_display} |
-
-   ## Stats
-   | Type | Confidence | Tasks | Acceptance | Review |
-   |------|-----------|-------|-----------|--------|
-   | {type} | {confidence} | {tasks} | {acceptance} | {review} |
+   {changes_bullets}
    ```
 
-   **Change column population** (only when `{has_fab}`):
-   - **ID**: From `.status.yaml` `id` field (4-char change ID). Show `—` if unavailable
-   - **Name**: From `.status.yaml` `name` field (full change folder name). Use a distinct variable (e.g., `{status_name}`) to avoid clobbering `{name}` (the resolved change folder used for path construction). Show `—` if unavailable
-   - **Issue**: From `issues` resolved in Step 1 (`fab status get-issues`). If `linear_workspace` is configured in `fab/project/config.yaml`, render each issue as `[{ID}](https://linear.app/{linear_workspace}/issue/{ID})`. If `linear_workspace` is absent, render bare issue IDs. Multiple issues are comma-separated. Show `—` if no issues
+   When `{has_fab}` is false, the entire `## Meta` block (table + Pipeline + Impact) is omitted; the body becomes just `## Summary` + `## Changes` (or just `## Summary` if no intake exists).
 
-   **Stats column population**:
-   - **Type**: Always populated from the resolved PR type
-   - **Confidence**: `{confidence.score} / 5.0` from `.status.yaml`. Show `—` if no fab change or confidence data absent
-   - **Tasks**: Parse `plan.md` `## Tasks` section for checkbox counts (`- [x]` vs `- [ ]`), formatted as `{done}/{total}`. Append ` ✓` when `done == total` AND `total > 0`. Show `—` if `plan.md` doesn't exist or has no `## Tasks` heading
-   - **Acceptance**: `{plan.acceptance_completed}/{plan.acceptance_count}` from `.status.yaml`. Append ` ✓` when `completed == count` AND `count > 0`. Show `—` if not available
-   - **Review**: Derive from `.status.yaml` `progress.review` state and `stage_metrics.review.iterations`. Show `Pass ({N} iterations)` if review is `done`, `Fail ({N} iterations)` if review is `failed`, `—` if review not yet reached. If `iterations` is not populated, omit the parenthetical
+   **Meta table cell population** (only when `{has_fab}`):
+   - **ID**: From `.status.yaml` `id` field (4-char change ID). Show `—` if unavailable.
+   - **Type**: The resolved PR type (always present).
+   - **Confidence**: `{confidence.score}/5.0` from `.status.yaml`. Show `—` if confidence data absent.
+   - **Plan**:
+     - If `{has_plan}` (1.9.0+): parse `plan.md` `## Tasks` for checkbox counts (`- [x]` vs `- [ ]`) → `{done}/{total} tasks`. Append `, {plan.acceptance_completed}/{plan.acceptance_count} acceptance` from `.status.yaml`. Append ` ✓` when both pairs are complete (`done == total > 0` AND `acceptance_completed == acceptance_count > 0`).
+     - Else if `{has_tasks}` (legacy): parse `tasks.md` for `- [x]` vs `- [ ]` → `{done}/{total} tasks`. Append `, {checklist.completed}/{checklist.total} acceptance` from `.status.yaml`. Append ` ✓` when complete.
+     - Else: `—`.
+   - **Review**: Derive from `.status.yaml` `progress.review` state and `stage_metrics.review.iterations`:
+     - `done` → `✓ {N} cycle{s}` (use `cycle` for 1, `cycles` otherwise)
+     - `failed` → `✗ {N} cycle{s}`
+     - any other state (pending, active) → `—`
+     - If `iterations` is not populated, drop the count: `✓` / `✗` alone.
 
-   **Pipeline progress line** (only when `{has_fab}`):
+   **Issue rendering**: Issues are NOT shown in the Meta table (the table is fixed at 5 columns). When `issues` (from Step 1) is non-empty, append a `**Issues**: ...` line BELOW the `**Pipeline**:` line and ABOVE `**Impact**:`. If `linear_workspace` is configured in `fab/project/config.yaml`, render each issue as `[{ID}](https://linear.app/{linear_workspace}/issue/{ID})` joined with `, `; otherwise render bare IDs comma-joined. Omit the line when `issues` is empty.
 
-   Below the Stats table, show a pipeline progress line. Stages with `done` status from `.status.yaml`'s `progress` map are listed in fixed order: intake, spec, apply, review, hydrate, ship, review-pr — joined with ` → `.
+   **Pipeline line population** (only when `{has_fab}`):
 
-   - If `{has_intake}`: "intake" is a hyperlink → `[intake]({intake_url})`
-   - If `{has_spec}`: "spec" is a hyperlink → `[spec]({spec_url})`
-   - All other stage names are plain text
+   List the seven pipeline stages in fixed order — `intake → spec → apply → review → hydrate → ship → review-pr` — separated by ` → `. For each stage:
+   - If `.status.yaml` `progress.{stage}` is `done`, append ` ✓` after the stage label.
+   - Stage labels are hyperlinks when an artifact exists:
+     - `intake` → Intake URL (when `{has_intake}`)
+     - `spec` → Spec URL (when `{has_spec}`)
+     - `apply` → Apply URL (when `{has_plan}` or `{has_tasks}` — see Apply URL resolution above)
+     - `review`, `hydrate`, `ship`, `review-pr` → always plain text (no per-change artifact)
+   - Stages without an artifact and without `done` status render as plain text with no marker.
 
-   If no fab change exists (`{has_fab}` is false), the pipeline line is omitted entirely.
+   **Impact line population** (only when `{has_fab}`):
 
-4. Create PR: `gh pr create --draft --title "{pr_title}" --body "<body>"` (where `{pr_title}` is the already-prefixed title from step 2)
+   - If impact computation succeeded with non-zero true-impact: build `{COMMA_LIST}` by joining `EXCLUDES` with `, ` (literal comma + space) and render:
+     ```
+     **Impact**: +A/−D code (excluding `{COMMA_LIST_CODE}`) · +A_total/−D_total total
+     ```
+     where `{COMMA_LIST_CODE}` is the same comma-joined list with each entry wrapped in single backticks (e.g., `` `fab/`, `docs/` ``). Use the Unicode minus `−` (U+2212), not ASCII `-`.
+   - If impact computation was skipped (field absent/null/empty, no merge-base, true-impact yielded `+0/−0`, or `{has_fab}` is false): omit the entire `**Impact**:` line. The body still renders the Meta table and Pipeline line.
+
+   **Summary text**: 1–3 sentences. Source:
+   - If `{has_fab}` AND `{has_intake}`: derive from intake's `## Why` section.
+   - Otherwise: auto-generate from commit messages or `git diff --stat`.
+
+   **Changes bullets**: Bulleted list. Source:
+   - If `{has_fab}` AND `{has_intake}`: subsection headings from intake's `## What Changes` section.
+   - Otherwise: omit the `## Changes` section entirely.
+
+   Print after body assembly: `  ✓ body  — meta + summary + changes` (skip "impact" / "issues" tokens when those lines were omitted).
+
+4. Create PR: `gh pr create --draft --title "{pr_title}" --body "<body>"` (where `{pr_title}` is the already-prefixed title from step 2; `<body>` is the assembled body from step 3 including the Meta block when `{has_fab}`)
    - If PR creation fails → report the error and STOP
    - Fall back to `gh pr create --draft --fill` if body generation fails for any reason (silent fallback)
 5. Get the PR URL: `gh pr view --json url -q '.url'`
