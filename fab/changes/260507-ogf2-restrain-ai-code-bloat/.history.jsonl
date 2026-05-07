@@ -1,0 +1,4 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-05-07T03:00:36Z"}
+{"args":"Three combined interventions to restrain AI-driven code bloat: (1) reviewer parsimony pass, (2) net-line accounting per change with surfacing in fab-status, (3) deletion-candidate prompt at hydrate","cmd":"fab-new","event":"command","ts":"2026-05-07T03:00:36Z"}
+{"delta":"+0.0","event":"confidence","score":0,"trigger":"calc-score","ts":"2026-05-07T03:02:01Z"}
+{"delta":"+0.0","event":"confidence","score":0,"trigger":"calc-score","ts":"2026-05-07T03:02:07Z"}
