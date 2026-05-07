@@ -19,17 +19,18 @@ checklist:
     completed: 0
     total: 28
 confidence:
-    certain: 14
+    certain: 9
     confident: 0
     tentative: 0
     unresolved: 0
     score: 5.0
+    indicative: true
     fuzzy: true
     dimensions:
-        signal: 93.2
-        reversibility: 84.3
-        competence: 85.4
-        disambiguation: 84.3
+        signal: 95.0
+        reversibility: 83.9
+        competence: 77.8
+        disambiguation: 72.8
 stage_metrics:
     intake: {started_at: "2026-05-07T02:59:26Z", driver: fab-new, iterations: 1, completed_at: "2026-05-07T07:59:11Z"}
     spec: {started_at: "2026-05-07T07:59:11Z", driver: fab-fff, iterations: 1, completed_at: "2026-05-07T08:04:49Z"}
@@ -41,4 +42,4 @@ stage_metrics:
     review-pr: {started_at: "2026-05-07T08:18:58Z", driver: git-pr, iterations: 1}
 prs:
     - https://github.com/sahil87/fab-kit/pull/353
-last_updated: 2026-05-07T08:48:25Z
+last_updated: 2026-05-07T08:54:29Z

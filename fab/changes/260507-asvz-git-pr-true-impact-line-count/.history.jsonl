@@ -30,3 +30,10 @@
 {"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-07T08:48:11Z"}
 {"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-07T08:48:21Z"}
 {"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-07T08:48:25Z"}
+{"cmd":"git-pr-review","event":"command","ts":"2026-05-07T08:53:34Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-07T08:54:16Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-07T08:54:18Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-07T08:54:22Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-07T08:54:25Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-07T08:54:27Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-07T08:54:29Z"}
