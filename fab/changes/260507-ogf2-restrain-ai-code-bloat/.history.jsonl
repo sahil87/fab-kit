@@ -43,3 +43,7 @@
 {"delta":"+0.3","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-07T10:06:39Z"}
 {"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-07T10:06:43Z"}
 {"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-07T10:06:47Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-05-07T10:07:17Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-07T10:14:10Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-07T10:14:18Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"spec","ts":"2026-05-07T10:14:59Z"}
