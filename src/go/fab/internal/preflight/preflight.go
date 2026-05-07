@@ -23,7 +23,7 @@ type Result struct {
 	DisplayStage string
 	DisplayState string
 	Progress     []sf.StageState
-	Checklist    sf.Checklist
+	Plan         sf.Plan
 	Confidence   sf.Confidence
 }
 
@@ -85,7 +85,7 @@ func Run(fabRoot, changeOverride string) (*Result, error) {
 		DisplayStage: displayStage,
 		DisplayState: displayState,
 		Progress:     statusFile.GetProgressMap(),
-		Checklist:    statusFile.Checklist,
+		Plan:         statusFile.Plan,
 		Confidence:   statusFile.Confidence,
 	}, nil
 }
@@ -104,10 +104,11 @@ func FormatYAML(r *Result) string {
 	for _, ss := range r.Progress {
 		fmt.Fprintf(&b, "  %s: %s\n", ss.Stage, ss.State)
 	}
-	b.WriteString("checklist:\n")
-	fmt.Fprintf(&b, "  generated: %v\n", r.Checklist.Generated)
-	fmt.Fprintf(&b, "  completed: %d\n", r.Checklist.Completed)
-	fmt.Fprintf(&b, "  total: %d\n", r.Checklist.Total)
+	b.WriteString("plan:\n")
+	fmt.Fprintf(&b, "  generated: %v\n", r.Plan.Generated)
+	fmt.Fprintf(&b, "  task_count: %d\n", r.Plan.TaskCount)
+	fmt.Fprintf(&b, "  acceptance_count: %d\n", r.Plan.AcceptanceCount)
+	fmt.Fprintf(&b, "  acceptance_completed: %d\n", r.Plan.AcceptanceCompleted)
 	b.WriteString("confidence:\n")
 	fmt.Fprintf(&b, "  certain: %d\n", r.Confidence.Certain)
 	fmt.Fprintf(&b, "  confident: %d\n", r.Confidence.Confident)

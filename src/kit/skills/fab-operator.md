@@ -24,7 +24,7 @@ Start via `fab operator` (singleton tmux tab named `operator`).
 
 **Not a lifecycle enforcer.** Individual agents self-govern via their own pipeline skills. The operator does not validate stage transitions or enforce pipeline rules. If an agent is at an unexpected stage, report it factually.
 
-**Context discipline.** The operator never reads change artifacts (intakes, specs, tasks). Its context window is reserved for coordination state — pane maps, stage snapshots, `.fab-operator.yaml`. This keeps long-running sessions lean.
+**Context discipline.** The operator never reads change artifacts (intakes, specs, plans). Its context window is reserved for coordination state — pane maps, stage snapshots, `.fab-operator.yaml`. This keeps long-running sessions lean.
 
 **State re-derivation.** Before every action, re-query live state via `fab pane map`. Panes die, stages advance, agents finish — stale state leads to wrong actions. Never rely on conversation memory for pane or stage values.
 
@@ -325,7 +325,7 @@ The operator understands the full fab pipeline and command vocabulary. It infers
 ### Pipeline Reference
 
 ```
-intake → spec → tasks → apply → review → hydrate → ship
+intake → spec → apply → review → hydrate → ship → review-pr
 ```
 
 **Setup commands**: `/fab-new` (create + activate change), `/fab-draft` (create without activating), `/fab-switch` (activate existing change), `/git-branch` (align branch)

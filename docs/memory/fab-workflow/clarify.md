@@ -21,12 +21,15 @@ There SHALL be no `--suggest` or `--auto` flags on the clarify skill.
 
 #### Stage-Scoped Taxonomy Scan
 
-The skill SHALL perform a systematic scan of the current stage's artifacts for gaps, ambiguities, and `[NEEDS CLARIFICATION]` markers. Scan categories vary by stage, using per-artifact taxonomy:
+The skill SHALL perform a systematic scan of the current stage's artifacts for gaps, ambiguities, and `[NEEDS CLARIFICATION]` markers. Scan categories vary by target, using per-artifact taxonomy:
 
+- **Intake**: scope boundaries, affected areas, blocking questions, impact completeness, affected memory coverage, Origin section completeness
 - **Spec** (scans both `intake.md` and `spec.md`):
   - *Intake refinement*: scope boundaries, affected areas, blocking questions, impact completeness, affected memory coverage, Origin section completeness
   - *Spec refinement*: requirement precision, scenario coverage, edge cases, deprecated requirements, cross-references
-- **Tasks**: task completeness, granularity, dependency ordering, file path accuracy, parallel markers
+- **Plan** (post-apply-entry; requires `plan.md` to exist): task completeness, granularity, dependency ordering, file path accuracy, `[P]` parallel markers (under `## Tasks`); plus acceptance coverage of spec requirements (under `## Acceptance`)
+
+`/fab-clarify tasks` SHALL error with `"tasks" target was removed — use plan (post-apply-entry) or spec (pre-apply).` The `tasks` stage was removed in qszh; plan-level clarification now scans `plan.md` instead of `tasks.md` + `checklist.md`.
 
 The scan also detects:
 - `<!-- assumed: ... -->` markers left by any planning skill — Tentative assumptions to confirm or override
@@ -115,7 +118,13 @@ The clarify skill SHALL never advance the stage in `.status.yaml`. It only updat
 
 ### Stage Guard
 
-The skill SHALL only operate on planning stages (`intake`, `spec`, `tasks`). At the `intake` stage, the taxonomy scan covers intake artifact refinement (scope boundaries, affected areas, blocking questions, impact, memory coverage). If the stage is `apply`, `review`, or `hydrate`, the skill aborts with a suggestion to use `/fab-continue` instead.
+The skill SHALL accept the following targets:
+
+- **`intake`** — operates on the intake stage (`progress.intake` in `{active, ready, done}`)
+- **`spec`** — operates on the spec stage (`progress.spec` in `{active, ready, done}`)
+- **`plan`** — post-apply-entry target. Requires `plan.md` to exist AND `progress.apply` in `{active, ready, done}` or later (review/hydrate). Stage stays at apply (clarify is non-advancing).
+
+The pre-flight stage guard MUST allow the planning stages (`intake`, `spec`); for the `plan` target, the change MUST be at `apply` or later AND `plan.md` MUST exist. `tasks` is rejected with the strict-error pointer above. If the stage is `ship` or `review-pr` and no valid target is requested, the skill aborts with a suggestion to use `/fab-continue` instead.
 
 ## Design Decisions
 
@@ -156,6 +165,7 @@ The skill SHALL only operate on planning stages (`intake`, `spec`, `tasks`). At 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260423-qszh-merge-tasks-checklist | 2026-05-06 | Updated target taxonomy: `tasks` removed, `plan` added (post-apply-entry; requires `plan.md` to exist; scans `## Tasks` for completeness/granularity/dependencies/file paths/`[P]` markers and `## Acceptance` for coverage of spec requirements). Added explicit "Intake" entry to the per-target taxonomy list. `/fab-clarify tasks` errors with `"tasks" target was removed — use plan (post-apply-entry) or spec (pre-apply).` Stage Guard rewritten to enumerate accepted targets and the apply-or-later requirement for `plan`. |
 | 260416-hyl6-clarify-tentative-first | 2026-04-16 | Reordered suggest mode flow — taxonomy scan (Step 1.5) now runs before bulk confirm (Step 2), so tentative assumptions are addressed before confident ones |
 | 260302-c7is-fab-clarify-bulk-confirm | 2026-03-02 | Added bulk confirm mode (Step 1.5) to suggest mode — detects when Confident assumptions dominate the confidence drag (`confident >= 3` AND `confident > tentative + unresolved`), displays numbered list for conversational bulk response, supports confirm/change/explain/range/all formats, one re-prompt round for explanations. Added to `_preamble.md` Confidence Scoring section. Auto Mode excluded. |
 | 260221-5tj7-rename-context-to-preamble | 2026-02-21 | Renamed shared skill preamble from `_context.md` to `_preamble.md`. Updated all references in dual-mode operation and design decisions sections. |

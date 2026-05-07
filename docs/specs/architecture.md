@@ -15,8 +15,7 @@ project/
 │   │   ├── templates/
 │   │   │   ├── intake.md
 │   │   │   ├── spec.md
-│   │   │   ├── tasks.md
-│   │   │   └── checklist.md
+│   │   │   └── plan.md            # Apply-stage artifact (## Tasks + ## Acceptance)
 │   │   ├── skills/                 # Skill definitions (markdown prompts)
 │   │   │   ├── fab-setup.md
 │   │   │   ├── docs-hydrate-memory.md
@@ -61,8 +60,7 @@ project/
 │       │   ├── .status.yaml        # Stage tracking
 │       │   ├── intake.md
 │       │   ├── spec.md              # What's changing (requirements)
-│       │   ├── tasks.md
-│       │   └── checklist.md        # Auto-generated
+│       │   └── plan.md              # Auto-generated at apply entry — ## Tasks + ## Acceptance
 │       └── archive/                # Completed changes
 │           └── 250920-m3x1-add-2fa/
 └── .claude/                        # Agent-specific skill exports
@@ -149,7 +147,7 @@ All three support `--list` (show targets), `--all` (process all), and direct ID/
 ```bash
 /fab-status
 ```
-The skill outputs a formatted status block with version, change name, branch, stage progress, checklist counts, and suggested next command.
+The skill outputs a formatted status block with version, change name, branch, stage progress, plan counts (tasks + acceptance), and suggested next command.
 
 **Why a symlink?**
 - **Direct access** — reading `.fab-status.yaml` yields the active change's status directly, no intermediate lookup step
@@ -174,7 +172,7 @@ There is no `/fab-abandon` skill — this is a manual operation. If you want to 
 
 Every change folder contains a `.status.yaml` manifest:
 
-**Example — spec stage** (checklist not yet generated):
+**Example — spec stage** (plan not yet generated):
 
 ```yaml
 name: 260115-a7k2-add-oauth
@@ -183,19 +181,20 @@ created_by: Jane Smith
 progress:
   intake: done
   spec: active
-  tasks: pending
   apply: pending
   review: pending
   hydrate: pending
-checklist:
+  ship: pending
+  review-pr: pending
+plan:
   generated: false
-  path: checklist.md
-  completed: 0
-  total: 0
+  task_count: 0
+  acceptance_count: 0
+  acceptance_completed: 0
 last_updated: 2026-01-16T09:15:00Z
 ```
 
-**Example — review stage** (checklist partially verified):
+**Example — review stage** (acceptance partially verified):
 
 ```yaml
 name: 260115-a7k2-add-oauth
@@ -204,15 +203,16 @@ created_by: Jane Smith
 progress:
   intake: done
   spec: done
-  tasks: done
   apply: done
   review: active
   hydrate: pending
-checklist:
+  ship: pending
+  review-pr: pending
+plan:
   generated: true
-  path: checklist.md
-  completed: 10
-  total: 12
+  task_count: 8
+  acceptance_count: 12
+  acceptance_completed: 10
 last_updated: 2026-01-18T11:00:00Z
 ```
 
@@ -229,7 +229,9 @@ project:
 source_paths:
   - src/
 
-# Project-specific categories appended to default checklist categories.
+# Project-specific categories appended to default plan-acceptance categories.
+# (Config key remains `checklist.extra_categories` for backward compatibility;
+# semantically these are categories under plan.md ## Acceptance.)
 checklist:
   extra_categories:
     - performance
@@ -242,7 +244,6 @@ stage_directives:
     - Use GIVEN/WHEN/THEN for scenarios
     - Mark ambiguities with [NEEDS CLARIFICATION]
     - Document breaking changes explicitly
-  tasks: []
   apply: []
   review: []
   hydrate: []
@@ -289,7 +290,7 @@ The constitution is the **architectural DNA** of a Fab project. It defines immut
 
 **How skills use it**:
 - `/fab-setup` generates it from project context (README, existing docs, conversation with user)
-- `/fab-continue` and `/fab-ff` load it as context when generating **spec**, **tasks**, and **checklist** artifacts
+- `/fab-continue` and `/fab-ff` load it as context when generating **spec** and **plan** (`## Tasks` + `## Acceptance`) artifacts
 - `/fab-continue` (review) checks implementation against constitutional principles (not just the spec)
 - Constitution violations found during review are flagged as high-severity issues
 
@@ -308,7 +309,7 @@ Fab works without git. Change folders are the unit of identity, not branches —
 
 ### Why Decoupled
 
-A change folder captures *what* is being built (intake, spec, tasks). Where that work happens in git is a separate concern:
+A change folder captures *what* is being built (intake, spec, plan). Where that work happens in git is a separate concern:
 - A developer might work on the same change across multiple worktrees
 - A change might span multiple branches (feature branch + hotfix backport)
 - A change might start on one branch and move to another after a rebase
@@ -365,7 +366,7 @@ Add to your project's `.gitignore`:
 
 **What to commit** (shared with team):
 - `fab/project/config.yaml`, `fab/project/constitution.md`, `docs/memory/`, `src/kit/` — project configuration and memory
-- `fab/changes/` — change artifacts (intakes, specs, tasks)
+- `fab/changes/` — change artifacts (intakes, specs, plans)
 
 **What to ignore** (local state):
 - `.fab-status.yaml` — active change symlink (per-developer)

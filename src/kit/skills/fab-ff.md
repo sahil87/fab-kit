@@ -12,7 +12,7 @@ helpers: [_generation, _review]
 
 ## Purpose
 
-Fast-forward through hydrate: intake → spec → tasks → apply → review → hydrate. Three gates where execution can stop: (1) intake gate — indicative confidence >= 3.0, (2) spec gate — confidence >= per-type threshold via `fab score --check-gate`, (3) review gate — stops after 3 autonomous rework cycles. On any gate stop, the user can intervene then re-run. Resumable — re-running picks up from the first incomplete stage.
+Fast-forward through hydrate: intake → spec → apply → review → hydrate. Three gates where execution can stop: (1) intake gate — indicative confidence >= 3.0, (2) spec gate — confidence >= per-type threshold via `fab score --check-gate`, (3) review gate — stops after 3 autonomous rework cycles. On any gate stop, the user can intervene then re-run. Resumable — re-running picks up from the first incomplete stage.
 
 ---
 
@@ -39,7 +39,7 @@ Load per `_preamble.md` Sections 1-3 (config, constitution, intake, memory index
 
 ## Behavior
 
-> **Note**: All `.status.yaml` mutations in this skill use `fab status` event commands (`start`, `advance`, `finish`, `reset`, `fail`, `set-checklist`) rather than direct file edits. The driver argument is optional, but this skill always passes `fab-ff`.
+> **Note**: All `.status.yaml` mutations in this skill use `fab status` event commands (`start`, `advance`, `finish`, `reset`, `fail`, `set-acceptance`) rather than direct file edits. The driver argument is optional, but this skill always passes `fab-ff`.
 >
 > **Dispatch**: All sub-skill invocations use the Agent tool (`general-purpose` subagent) per `_preamble.md` § Subagent Dispatch. Each subagent reads the target skill file, follows the specified behavior, and returns a structured result to the pipeline.
 
@@ -57,35 +57,19 @@ Follow **Spec Generation Procedure** (`_generation.md`). No frontloaded question
 
 **Auto-Clarify**: Dispatch `/fab-clarify` as subagent — `[AUTO-MODE]`, target: `spec.md`, change: `{id}`. Returns `{resolved, blocking, non_blocking}`. If `blocking: 0` → continue. If `blocking > 0` → **BAIL**: report blocking issues, suggest `/fab-clarify` then `/fab-ff`.
 
-### Step 2: Generate `tasks.md`
-
-*(Skip if `progress.tasks` is `done`.)*
-
-Follow **Tasks Generation Procedure** (`_generation.md`).
-
-**Auto-Clarify**: Dispatch `/fab-clarify` as subagent — `[AUTO-MODE]`, target: `tasks.md`, change: `{id}`. Same bail logic as Step 1.
-
-### Step 3: Generate Quality Checklist
-
-*(Skip if checklist already generated.)*
-
-Follow **Checklist Generation Procedure** (`_generation.md`).
-
-### Step 4: Update `.status.yaml` (Planning Complete)
-
-Run `fab status finish <change> tasks fab-ff`. Then set checklist fields via `fab status set-checklist <change> generated true`, `fab status set-checklist <change> total <count>`, `fab status set-checklist <change> completed 0`.
-
-### Step 5: Implementation
+### Step 2: Implementation (apply, with internal plan generation)
 
 *(Skip if `progress.apply` is `done`.)*
 
-Dispatch `/fab-continue` as subagent — Apply Behavior, change: `{id}`. The subagent parses unchecked tasks, executes in dependency order, runs tests, and marks `[x]` on completion. Returns completion status or failure with task ID and reason.
+Dispatch `/fab-continue` as subagent — Apply Behavior, change: `{id}`. The subagent runs both apply sub-steps in a single invocation: (1) Plan Generation — produce `plan.md` from `spec.md` per **Plan Generation Procedure** (`_generation.md`), unless `plan.md` already exists; (2) Task Execution — parse unchecked tasks under `## Tasks`, execute in dependency order, run tests, mark `[x]` on completion. Returns completion status or failure with task ID and reason.
+
+**Auto-Clarify on plan** *(after plan generation, before task execution; only when `plan.md` was newly written this run)*: Dispatch `/fab-clarify` as subagent — `[AUTO-MODE]`, target: `plan`, change: `{id}`. Same bail logic as Step 1.
 
 **If task fails**: STOP with `Task {ID} failed: {reason}. Investigate and re-run /fab-ff.`
 
 On success: run `fab status finish <change> apply fab-ff`.
 
-### Step 6: Review
+### Step 3: Review
 
 *(Skip if `progress.review` is `done`.)*
 
@@ -100,11 +84,11 @@ Dispatch `/fab-continue` as subagent — Review Behavior, change: `{id}`. The su
 The agent triages the sub-agent's prioritized findings and autonomously selects the rework path — no user interaction. Must-fix items are always addressed; should-fix items when clear and low-effort; nice-to-have items may be skipped.
 
 **Decision heuristics** (applied to prioritized findings):
-- **Must-fix: test failures, spec mismatches, checklist violations** → "Fix code" — uncheck affected tasks with `<!-- rework: reason -->`, re-run apply, then spawn a **fresh sub-agent** for re-review
-- **Must-fix: missing functionality, incomplete coverage, wrong task breakdown** → "Revise tasks" — add/modify tasks in `tasks.md`, re-run apply, then spawn a fresh sub-agent for re-review
+- **Must-fix: test failures, spec mismatches, acceptance violations** → "Fix code" — uncheck affected tasks in `plan.md` `## Tasks` with `<!-- rework: reason -->`, re-run apply, then spawn a **fresh sub-agent** for re-review
+- **Must-fix: missing functionality, incomplete coverage, wrong task breakdown** → "Revise plan" — edit `plan.md` (add/modify tasks under `## Tasks` and/or acceptance items under `## Acceptance`), re-run apply, then spawn a fresh sub-agent for re-review
 - **Must-fix: spec drift, requirements mismatch, fundamental approach issues** → "Revise spec" — reset to spec stage, regenerate downstream, re-run apply, then spawn a fresh sub-agent for re-review
 
-**Escalation rule**: If the agent chooses "Fix code" and the subsequent sub-agent review fails again on the same or similar issues, the agent MUST escalate to "Revise tasks" or "Revise spec" after **2 consecutive "fix code" attempts**. This is a hard rule — the agent SHALL NOT choose "Fix code" a third time in a row, even if it believes another code fix would work. Non-fix-code actions (revise tasks, revise spec) reset the consecutive counter.
+**Escalation rule**: If the agent chooses "Fix code" and the subsequent sub-agent review fails again on the same or similar issues, the agent MUST escalate to "Revise plan" or "Revise spec" after **2 consecutive "fix code" attempts**. This is a hard rule — the agent SHALL NOT choose "Fix code" a third time in a row, even if it believes another code fix would work. Non-fix-code actions (revise plan, revise spec) reset the consecutive counter.
 
 #### Stop (after 3 failed cycles)
 
@@ -118,9 +102,9 @@ Review failed after 3 rework attempts. Summary:
 Run /fab-continue for manual rework options.
 ```
 
-The user can run `/fab-continue` for interactive rework, or `/fab-clarify` to deepen the spec/tasks before re-running `/fab-ff`.
+The user can run `/fab-continue` for interactive rework, or `/fab-clarify` to deepen the spec or plan (`/fab-clarify spec` / `/fab-clarify plan`) before re-running `/fab-ff`.
 
-### Step 7: Hydrate
+### Step 4: Hydrate
 
 *(Skip if `progress.hydrate` is `done`.)*
 
@@ -133,11 +117,8 @@ Dispatch `/fab-continue` as subagent — Hydrate Behavior, change: `{id}`. The s
 ```
 /fab-ff — confidence {score} of 5.0, gate passed.
 
---- Planning ---
-{tasks + checklist output}
-
 --- Implementation ---
-{apply output}
+{apply output (plan generation + task execution)}
 
 --- Review ---
 {review output}
@@ -164,4 +145,4 @@ Resuming shows `(resuming)...` header and `Skipping {stage} — already done.` f
 | Spec gate fails (confidence < threshold) | Stop with score, threshold, and guidance |
 | Auto-clarify bails | Stop, report blocking issues, suggest `/fab-clarify` then `/fab-ff` |
 | Task fails | Stop: "Task {ID} failed: {reason}. Investigate and re-run /fab-ff." |
-| Review fails | Auto-rework loop: 3 cycles (each re-review by fresh sub-agent), escalation after 2 consecutive fix-code. Stops after 3 cycles with summary. |
+| Review fails | Auto-rework loop: 3 cycles (each re-review by fresh sub-agent), escalation after 2 consecutive fix-code. Stops after 3 cycles with summary. Escalation paths: revise plan (`plan.md`) or revise spec (`spec.md`). |

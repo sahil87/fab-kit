@@ -6,22 +6,22 @@ project:
 source_paths:
   - {SOURCE_PATHS}
 
-# The review stage validates code against a quality checklist.
+# The review stage validates code against the plan.md ## Acceptance section.
 # Built-in categories: functional_completeness, behavioral_correctness,
 # scenario_coverage, edge_cases, security.
-# Add your own — each becomes an extra section in the checklist.
+# Add your own — each becomes an extra subsection under plan.md ## Acceptance.
 # Example: [accessibility, performance, i18n]
+# (Config key remains `checklist.extra_categories` for backward compatibility.)
 checklist:
   extra_categories: []
 
 # Extra instructions the agent follows when generating each stage's artifact.
-# Add directives to shape how the agent writes specs, plans tasks, writes code, etc.
+# Add directives to shape how the agent writes specs, plans (apply entry), code, etc.
 stage_directives:
   intake: []
   spec:
     - Use GIVEN/WHEN/THEN for scenarios
     - "Mark ambiguities with [NEEDS CLARIFICATION]"
-  tasks: []
   apply: []
   review: []
   hydrate: []

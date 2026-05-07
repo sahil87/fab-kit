@@ -77,7 +77,7 @@ func MatchArtifactPath(filePath string) (ArtifactMatch, bool) {
 
 	// Only match known artifact files
 	switch artifact {
-	case "intake.md", "spec.md", "tasks.md", "checklist.md":
+	case "intake.md", "spec.md", "plan.md":
 		return ArtifactMatch{ChangeFolder: folder, Artifact: artifact}, true
 	default:
 		return ArtifactMatch{}, false
@@ -109,27 +109,73 @@ func InferChangeType(content string) string {
 	return "feat"
 }
 
-var uncheckedTaskRegex = regexp.MustCompile(`^- \[ \]`)
 var checklistItemRegex = regexp.MustCompile(`^- \[(x| )\]`)
+var checkedItemRegex = regexp.MustCompile(`^- \[x\]`)
+var headingRegex = regexp.MustCompile(`^##\s+`)
 
-// CountUncheckedTasks counts lines matching "^- \[ \]" in content.
-func CountUncheckedTasks(content string) int {
-	count := 0
+// PlanSection enumerates the heading-keyed sections recognized in plan.md.
+type PlanSection string
+
+const (
+	SectionTasks      PlanSection = "Tasks"
+	SectionAcceptance PlanSection = "Acceptance"
+)
+
+// HasSectionHeading reports whether the given content contains a top-level
+// (`## `) heading that exactly matches the named plan section. Used to
+// guard counter updates: when a section heading is missing on an
+// in-progress write, the corresponding count fields SHOULD be left
+// untouched.
+func HasSectionHeading(content string, section PlanSection) bool {
+	target := "## " + string(section)
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	for scanner.Scan() {
-		if uncheckedTaskRegex.MatchString(scanner.Text()) {
-			count++
+		line := scanner.Text()
+		// Match exactly "## Tasks" or "## Tasks ..." (allow trailing
+		// whitespace) but not "## TasksAndOther".
+		if line == target || strings.HasPrefix(line, target+" ") {
+			return true
 		}
 	}
-	return count
+	return false
 }
 
-// CountChecklistItems counts lines matching "^- \[(x| )\]" in content.
-func CountChecklistItems(content string) int {
+// CountSectionItemsBounded counts lines matching "^- \[(x| )\]" inside the
+// named heading-keyed section of content. Section bounds are: from the
+// first matching `## {section}` line (exclusive) to the next `## ` heading
+// (exclusive) or EOF. Returns 0 when the section heading is absent —
+// callers SHOULD use HasSectionHeading first to decide whether to apply
+// the count, since "section missing" and "section empty" are
+// indistinguishable from the count alone.
+func CountSectionItemsBounded(content string, section PlanSection) int {
+	return scanSectionItems(content, section, checklistItemRegex)
+}
+
+// CountCompletedSectionItemsBounded counts lines matching "^- \[x\]"
+// inside the named heading-keyed section of content. Same bounding rules
+// as CountSectionItemsBounded.
+func CountCompletedSectionItemsBounded(content string, section PlanSection) int {
+	return scanSectionItems(content, section, checkedItemRegex)
+}
+
+func scanSectionItems(content string, section PlanSection, itemRegex *regexp.Regexp) int {
+	target := "## " + string(section)
 	count := 0
+	inSection := false
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	for scanner.Scan() {
-		if checklistItemRegex.MatchString(scanner.Text()) {
+		line := scanner.Text()
+		if !inSection {
+			if line == target || strings.HasPrefix(line, target+" ") {
+				inSection = true
+			}
+			continue
+		}
+		// Stop at the next top-level heading.
+		if headingRegex.MatchString(line) {
+			break
+		}
+		if itemRegex.MatchString(line) {
 			count++
 		}
 	}

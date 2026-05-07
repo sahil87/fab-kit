@@ -84,6 +84,7 @@ Every hydration operation maintains navigable indexes:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260423-qszh-merge-tasks-checklist | 2026-05-06 | Reviewed for `tasks.md`/`checklist.md` references in light of the apply-stage artifact merge into `plan.md`. No live references found — this file documents the standalone `/docs-hydrate-memory` skill (URL/folder ingest + generate from codebase), not the `/fab-continue` pipeline-stage hydrate behavior, and it never named those legacy artifacts. No changes required. |
 | 260218-5isu-fix-docs-consistency-drift | 2026-02-18 | Replaced stale `/fab-init` → `/fab-setup` (3 occurrences) and `lib/sync-workspace.sh` → `sync/2-sync-workspace.sh` in glob pattern reference |
 | 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Updated hydration target paths from `fab/memory/` to `docs/memory/` |
 | 260214-q7f2-reorganize-src | 2026-02-14 | Renamed `_init_scaffold.sh` → `lib/sync-workspace.sh` in glob pattern reference |

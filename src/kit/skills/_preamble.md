@@ -53,9 +53,9 @@ Resolve the active change and load its state by running the preflight script:
 
 1. **Run preflight**: Execute `fab preflight [change-name]` via Bash — pass the optional change-name argument if the skill received one
 2. **Check exit code**: If the script exits non-zero, STOP and surface the stderr message to the user (it contains the specific error and suggested fix)
-3. **Parse stdout YAML**: On success, parse the YAML output for `id`, `name`, `change_dir`, `stage`, `progress`, `checklist`, and `confidence` fields — use these for all subsequent change context instead of re-reading `.status.yaml`. Use `id` (4-char change ID) for script invocations; use `name` for display, path construction, and artifact metadata.
+3. **Parse stdout YAML**: On success, parse the YAML output for `id`, `name`, `change_dir`, `stage`, `progress`, `plan`, and `confidence` fields — use these for all subsequent change context instead of re-reading `.status.yaml`. Use `id` (4-char change ID) for script invocations; use `name` for display, path construction, and artifact metadata.
 4. **Log command**: Call `fab log command "<skill-name>" "<id>" 2>/dev/null || true` where `<skill-name>` is the invoking skill (e.g., `fab-continue`) and `<id>` is the `id` field from the preflight YAML output. This is best-effort — failures are silently ignored.
-5. Load all completed artifacts in the change folder (e.g., `intake.md`, `spec.md`, `tasks.md`) — read each file that exists so you have full context of what has been decided so far
+5. Load all completed artifacts in the change folder (e.g., `intake.md`, `spec.md`, `plan.md`) — read each file that exists so you have full context of what has been decided so far
 
 > **Change-name override**: When a `[change-name]` argument is passed to the preflight script, it resolves the change using case-insensitive substring matching against `fab/changes/` folder names (excluding `archive/`) instead of reading the `.fab-status.yaml` symlink. The override is **transient** — `.fab-status.yaml` is never modified. This enables parallel workflows where multiple tabs target different changes concurrently. Supports full folder names, partial slugs, or 4-char IDs (e.g., `r3m7`).
 
@@ -73,7 +73,7 @@ Selectively load relevant memory files based on the change's scope:
 2. For each referenced domain, read `docs/memory/{domain}/index.md` to understand the domain's memory files
 3. Read the specific memory file(s) referenced by the Affected Memory entries (those marked `(new)`, `(modify)`, or `(remove)`) — read `docs/memory/{domain}/{name}.md` for each listed file that exists
 4. If a referenced file or domain does not exist yet (e.g., listed as `(new)`), note this and proceed without error — it will be created during hydrate (via `/fab-continue` or `/fab-ff`)
-5. Use this context to ground all artifact generation (spec, tasks, reviews) in the real current state, not assumptions
+5. Use this context to ground all artifact generation (spec, plan, reviews) in the real current state, not assumptions
 
 ### 4. Source Code Loading (during implementation and review)
 
@@ -243,12 +243,12 @@ These command families cover ~90% of skill usage. See `_cli-fab` for the full re
 
 | Command | Purpose | Canonical form |
 |---------|---------|----------------|
-| `fab preflight [<change>]` | Validate init + resolve active change; outputs YAML with `id`/`name`/`change_dir`/`stage`/`progress`/`checklist`/`confidence`. Non-zero exit on error. | `fab preflight` |
+| `fab preflight [<change>]` | Validate init + resolve active change; outputs YAML with `id`/`name`/`change_dir`/`stage`/`progress`/`plan`/`confidence`. Non-zero exit on error. | `fab preflight` |
 | `fab score [--check-gate] [--stage <stage>] <change>` | Compute SRAD confidence. `--check-gate` returns non-zero below threshold (intake gate = 3.0 when `--stage intake`; spec gate per change type). | `fab score --check-gate --stage intake <id>` |
 | `fab log command "<skill>" [<change>]` | Best-effort command telemetry. Failures silently ignored. | `fab log command "fab-continue" "<id>" 2>/dev/null \|\| true` |
 | `fab change <sub>` | Change lifecycle: `new --slug <slug>`, `switch <name>\|--none`, `resolve [<override>]`, `rename`, `list [--archive]`, `archive <change>`, `restore <change> [--switch]`. | `fab change resolve --folder` *(note: `fab resolve` is the pure-query alias)* |
 | `fab resolve [--id\|--folder\|--dir\|--status\|--pane] [<change>]` | Pure query — converts change reference to canonical output (4-char ID by default). No side effects. | `fab resolve --folder 2>/dev/null` |
-| `fab status <sub> <change>` | State machine + metadata. Key subcommands: `finish <stage>` (auto-activates next), `advance <stage>`, `start <stage>`, `reset <stage>`, `skip <stage>`, `fail <stage>` (review only), `set-change-type <type>`, `set-checklist <field> <value>`, `add-issue <id>`, `add-pr <url>`. | `fab status finish <id> <stage>` |
+| `fab status <sub> <change>` | State machine + metadata. Key subcommands: `finish <stage>` (auto-activates next), `advance <stage>`, `start <stage>`, `reset <stage>`, `skip <stage>`, `fail <stage>` (review only), `set-change-type <type>`, `set-acceptance <field> <value>` (updates `plan:` block), `add-issue <id>`, `add-pr <url>`. | `fab status finish <id> <stage>` |
 
 **Key behaviors** to remember without loading `_cli-fab`:
 
@@ -273,8 +273,7 @@ Every skill MUST end its output with a `Next:` line derived from the State Table
 | initialized | /fab-new, /fab-proceed, /docs-hydrate-memory | /fab-new |
 | intake | /fab-continue, /fab-ff, /fab-fff, /fab-proceed, /fab-clarify | /fab-continue |
 | spec | /fab-continue, /fab-ff, /fab-clarify | /fab-continue |
-| tasks | /fab-continue, /fab-ff, /fab-clarify | /fab-continue |
-| apply | /fab-continue | /fab-continue |
+| apply | /fab-continue, /fab-clarify | /fab-continue |
 | review (pass) | /fab-continue | /fab-continue |
 | review (fail) | *(rework menu)* | — |
 | hydrate | /git-pr, /fab-archive | /git-pr |

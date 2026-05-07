@@ -6,13 +6,12 @@
 
 ## 1. How Development Works Today
 
-The stages every developer already follows — define what to build, design it, break it down, code it, review it, close it. Fab doesn't invent new stages; it gives each one a name and a place.
+The stages every developer already follows — define what to build, design it, code it (apply), review it, close it. Fab doesn't invent new stages; it gives each one a name and a place.
 
 ```mermaid
 flowchart TD
     B[intake] -->|"define requirements"| S[spec]
-    S -->|"break down work"| T[tasks]
-    T -->|"write code"| A[apply]
+    S -->|"plan + write code"| A[apply]
     A -->|"validate"| R[review]
     R -->|"document learnings"| H[hydrate]
     H -->|"commit & push"| SH[ship]
@@ -21,12 +20,11 @@ flowchart TD
 
     %% Rework
     R -.->|"fix issues"| A
-    R -.->|"rethink approach"| REWORK["spec / tasks"]
+    R -.->|"rethink approach"| REWORK["spec / plan"]
 
     %% Styles
     style B fill:#e8f4f8,stroke:#2196F3
     style S fill:#e8f4f8,stroke:#2196F3
-    style T fill:#e8f4f8,stroke:#2196F3
     style A fill:#fff3e0,stroke:#FF9800
     style R fill:#fff3e0,stroke:#FF9800
     style H fill:#fff3e0,stroke:#FF9800
@@ -46,8 +44,7 @@ flowchart TD
     WT[new worktree] -->|"/fab-discuss"| IDEA[idea]
     IDEA -->|"/fab-new"| B[intake]
     B -->|"/fab-continue"| S[spec]
-    S -->|"/fab-continue"| T[tasks]
-    T -->|"/fab-continue"| A[apply]
+    S -->|"/fab-continue"| A[apply]
     A -->|"/fab-continue"| R[review]
     R -->|"/fab-continue"| H[hydrate]
     H -->|"/git-pr"| SH[ship]
@@ -69,14 +66,13 @@ flowchart TD
 
     %% Rework (reset to any earlier stage)
     H -.->|"Revise anytime using
-    /fab-continue &lt;stage&gt;"| REWORK["spec / tasks / apply / review"]
+    /fab-continue &lt;stage&gt;"| REWORK["spec / apply / review"]
 
     %% Styles
     style WT fill:#f0f0f0,stroke:#999
     style IDEA fill:#f0f0f0,stroke:#999
     style B fill:#e8f4f8,stroke:#2196F3
     style S fill:#e8f4f8,stroke:#2196F3
-    style T fill:#e8f4f8,stroke:#2196F3
     style A fill:#fff3e0,stroke:#FF9800
     style R fill:#fff3e0,stroke:#FF9800
     style H fill:#fff3e0,stroke:#FF9800
@@ -99,11 +95,9 @@ stateDiagram-v2
 
     intake --> spec: /fab-continue
 
-    spec --> tasks: /fab-continue
+    spec --> apply: /fab-continue (writes plan.md, runs tasks)
     intake --> hydrate: /fab-ff (fast-forward, confidence-gated)
     intake --> review_pr: /fab-fff (fast-forward-further, confidence-gated)
-
-    tasks --> apply: /fab-continue
 
     apply --> review: /fab-continue
 
@@ -111,7 +105,7 @@ stateDiagram-v2
     review --> apply: auto-rework (sub-agent, fab-ff/fab-fff)
     review --> earlier_stage: /fab-continue ‹stage› (manual)
 
-    state "spec / tasks / apply" as earlier_stage
+    state "spec / apply" as earlier_stage
 
     hydrate --> ship: /git-pr
     ship --> review_pr: /git-pr-review
@@ -131,9 +125,12 @@ stateDiagram-v2
     end note
 
     note right of apply
-        Tasks run in order
-        Tests after each task
-        Resumable (markdown ✓)
+        Entry sub-step: writes plan.md
+        from spec.md (Tasks + Acceptance).
+        Tasks run in order;
+        tests after each task;
+        resumable (plan.md persists,
+        markdown ✓ tracks progress).
     end note
 
     note right of review
@@ -156,7 +153,7 @@ stateDiagram-v2
     classDef input fill:#f3e5f5,stroke:#9C27B0,stroke-width:2px
 
     class intake input
-    class spec,tasks planning
+    class spec planning
     class apply,review,hydrate execution
     class ship,review_pr shipping
 ```

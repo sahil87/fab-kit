@@ -37,8 +37,10 @@ Autonomously commits, pushes, and creates a GitHub PR. No prompts, no questions.
 │  ├─ 3b. Push (if unpushed)
 │  │  └─ Bash: git push [-u origin <branch>]
 │  └─ 3c. Create PR (if no PR exists)
-│     ├─ Read: intake.md (PR title), spec.md, tasks.md, .status.yaml
+│     ├─ Read: intake.md (PR title), spec.md, plan.md, .status.yaml
 │     ├─ Read: config.yaml (linear_workspace for issue link URLs)
+│     ├─ Stats columns: Tasks parsed from plan.md ## Tasks (checkbox counts);
+│     │                 Acceptance from .status.yaml plan.{acceptance_completed,acceptance_count}
 │     ├─ Generate: "Change" section (ID, Name, Issue table — gated on {has_fab})
 │     ├─ Bash: gh repo view --json (for blob URLs)
 │     └─ Bash: gh pr create --draft --title --body
@@ -59,7 +61,7 @@ Autonomously commits, pushes, and creates a GitHub PR. No prompts, no questions.
 
 | Tool | Purpose |
 |------|---------|
-| Read | Intake, spec, tasks, .status.yaml, config.yaml (for PR body generation including Change section) |
+| Read | Intake, spec, plan, .status.yaml, config.yaml (for PR body generation including Change section) |
 | Bash | All git operations, gh CLI, fab status commands |
 
 ### Sub-agents

@@ -34,39 +34,32 @@ User invokes /fab-ff [change-name] [--force]
 │     └──────────────────────────────────────────┘
 │     └─ BAIL if blocking > 0
 │
-├─ Step 2: Generate tasks.md
-│  ├─ Read: templates, spec.md
-│  ├─ Write: tasks.md                                    ◄── HOOK CANDIDATE
-│  └─ ┌──────────────────────────────────────────┐
-│     │ SUB-AGENT: /fab-clarify [AUTO-MODE]      │
-│     │  Read: tasks.md                          │
-│     │  (autonomous gap resolution)             │
-│     │  Edit: tasks.md                          │
-│     │  Returns: {resolved, blocking, non_blocking} │
-│     └──────────────────────────────────────────┘
-│     └─ BAIL if blocking > 0
-│
-├─ Step 3: Generate checklist.md
-│  └─ Write: checklist.md                                ◄── HOOK CANDIDATE
-│
-├─ Step 4: Planning Complete
-│  ├─ Bash: fab status finish <change> tasks fab-ff
-│  ├─ Bash: fab status set-checklist generated true      ◄── bookkeeping
-│  ├─ Bash: fab status set-checklist total <N>           ◄── bookkeeping
-│  └─ Bash: fab status set-checklist completed 0         ◄── bookkeeping
-│
-├─ Step 5: Implementation
+├─ Step 2: Implementation (apply, with internal plan generation)
+│  ├─ Bash: fab status finish <change> spec fab-ff (auto-activates apply)
 │  └─ ┌──────────────────────────────────────────┐
 │     │ SUB-AGENT: /fab-continue (Apply)         │
-│     │  Read: tasks.md, spec.md, source files   │
-│     │  Edit/Write: implementation files        │
-│     │  Bash: run tests                         │
-│     │  Edit: tasks.md (mark [x])               │
-│     │  Returns: completion status              │
+│     │  Entry sub-step (skip if plan.md exists):│
+│     │    Read: spec.md, _generation.md         │
+│     │    Write: plan.md            ◄── HOOK    │
+│     │      (## Tasks + ## Acceptance)          │
+│     │  ┌────────────────────────────────────┐  │
+│     │  │ NESTED SUB-AGENT:                  │  │
+│     │  │ /fab-clarify [AUTO-MODE] target=plan│ │
+│     │  │  (autonomous gap resolution on    │  │
+│     │  │   plan.md after generation)        │  │
+│     │  │  Returns: {resolved, blocking,...} │  │
+│     │  └────────────────────────────────────┘  │
+│     │     └─ BAIL if blocking > 0              │
+│     │  Main sub-step (Task Execution):         │
+│     │    Read: plan.md ## Tasks, source files  │
+│     │    Edit/Write: implementation files      │
+│     │    Bash: run tests                       │
+│     │    Edit: plan.md ## Tasks (mark [x])     │
+│     │    Returns: completion status            │
 │     └──────────────────────────────────────────┘
 │  └─ Bash: fab status finish <change> apply fab-ff
 │
-├─ Step 6: Review (with auto-rework loop, max 3 cycles)
+├─ Step 3: Review (with auto-rework loop, max 3 cycles)
 │  │  Review behavior is defined in `_review.md` (authoritative source
 │  │  for inward + outward sub-agent dispatch and findings merge).
 │  └─ ┌──────────────────────────────────────────┐
@@ -74,9 +67,9 @@ User invokes /fab-ff [change-name] [--force]
 │     │  Reads _review.md for dispatch:          │
 │     │  ┌────────────────────────────────────┐  │
 │     │  │ NESTED SUB-AGENT (inward):         │  │
-│     │  │  Read: artifacts + source          │  │
+│     │  │  Read: spec.md + plan.md + source  │  │
 │     │  │  Bash: run tests                   │  │
-│     │  │  Edit: checklist.md                │  │
+│     │  │  Edit: plan.md ## Acceptance       │  │
 │     │  │  Returns: findings                 │  │
 │     │  └────────────────────────────────────┘  │
 │     │  ┌────────────────────────────────────┐  │
@@ -91,12 +84,12 @@ User invokes /fab-ff [change-name] [--force]
 │  ├─ Pass: Bash: fab status finish <change> review
 │  └─ Fail: Auto-rework loop
 │     ├─ Bash: fab status fail + reset
-│     ├─ Triage findings → fix code / revise tasks / revise spec
+│     ├─ Triage findings → fix code / revise plan / revise spec
 │     ├─ Re-dispatch apply + review sub-agents
 │     ├─ Escalation rule: 2 consecutive fix-code → must escalate
 │     └─ STOP after 3 failed cycles
 │
-├─ Step 7: Hydrate
+├─ Step 4: Hydrate
 │  └─ ┌──────────────────────────────────────────┐
 │     │ SUB-AGENT: /fab-continue (Hydrate)       │
 │     │  Read/Write/Edit: docs/memory/ files     │
@@ -110,16 +103,16 @@ User invokes /fab-ff [change-name] [--force]
 
 | Agent | Step | Purpose |
 |-------|------|---------|
-| /fab-clarify [AUTO-MODE] | 1, 2 | Autonomous gap resolution after spec/tasks generation |
-| /fab-continue (Apply) | 5 | Task execution |
-| /fab-continue (Review) | 6 | Review orchestration — reads `_review.md` to dispatch inward + outward sub-agents in parallel; merges findings |
-| /fab-continue (Hydrate) | 7 | Memory hydration |
+| /fab-clarify [AUTO-MODE] | 1 (spec), 2 (plan) | Autonomous gap resolution after spec generation and after plan generation |
+| /fab-continue (Apply) | 2 | Plan generation (entry sub-step) + task execution (main sub-step) |
+| /fab-continue (Review) | 3 | Review orchestration — reads `_review.md` to dispatch inward + outward sub-agents in parallel; merges findings |
+| /fab-continue (Hydrate) | 4 | Memory hydration |
 
-> Step 6 review behavior (inward spec/tasks/checklist validation and outward holistic diff review) is defined in `_review.md`. `/fab-continue` Review Behavior delegates to `_review.md`.
+> Step 3 review behavior (inward spec + plan validation and outward holistic diff review) is defined in `_review.md`. `/fab-continue` Review Behavior delegates to `_review.md`.
 
 ### Bookkeeping commands (hook candidates)
 
 | Step | Command | Trigger |
 |------|---------|---------|
 | 1 | `fab score --check-gate` | After spec.md write |
-| 4 | `fab status set-checklist` (3 calls) | After checklist.md write |
+| 2 | PostToolUse hook recomputes plan counts (`plan.task_count`, `plan.acceptance_count`, `plan.acceptance_completed`); sets `plan.generated=true` | After plan.md write/edit |

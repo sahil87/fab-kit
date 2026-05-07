@@ -172,8 +172,8 @@ Print: `  ✓ push   — origin/<branch>`
    - Run `fab change resolve 2>/dev/null`. If it succeeds, set `{has_fab} = true` and `{name}` = resolved change name
    - Check if `fab/changes/{name}/intake.md` exists → `{has_intake}`
    - Check if `fab/changes/{name}/spec.md` exists → `{has_spec}`
-   - Check if `fab/changes/{name}/tasks.md` exists → `{has_tasks}`
-   - Read `fab/changes/{name}/.status.yaml` for `id`, `name`, `confidence`, `checklist`, `progress`, and `stage_metrics` fields
+   - Check if `fab/changes/{name}/plan.md` exists → `{has_plan}`
+   - Read `fab/changes/{name}/.status.yaml` for `id`, `name`, `confidence`, `plan`, `progress`, and `stage_metrics` fields
    - Read `fab/project/config.yaml` for the optional `linear_workspace` field under `project:`
 
    **Construct blob URLs** (only when `{has_fab}`):
@@ -201,9 +201,9 @@ Print: `  ✓ push   — origin/<branch>`
    | {id} | {status_name} | {issue_display} |
 
    ## Stats
-   | Type | Confidence | Checklist | Tasks | Review |
-   |------|-----------|-----------|-------|--------|
-   | {type} | {confidence} | {checklist} | {tasks} | {review} |
+   | Type | Confidence | Tasks | Acceptance | Review |
+   |------|-----------|-------|-----------|--------|
+   | {type} | {confidence} | {tasks} | {acceptance} | {review} |
    ```
 
    **Change column population** (only when `{has_fab}`):
@@ -214,13 +214,13 @@ Print: `  ✓ push   — origin/<branch>`
    **Stats column population**:
    - **Type**: Always populated from the resolved PR type
    - **Confidence**: `{confidence.score} / 5.0` from `.status.yaml`. Show `—` if no fab change or confidence data absent
-   - **Checklist**: `{checklist.completed}/{checklist.total}` from `.status.yaml`. Append ` ✓` when `completed == total` AND `total > 0`. Show `—` if not available
-   - **Tasks**: Parse `tasks.md` for checkbox counts (`- [x]` vs `- [ ]`), formatted as `{done}/{total}`. Show `—` if `tasks.md` doesn't exist
+   - **Tasks**: Parse `plan.md` `## Tasks` section for checkbox counts (`- [x]` vs `- [ ]`), formatted as `{done}/{total}`. Append ` ✓` when `done == total` AND `total > 0`. Show `—` if `plan.md` doesn't exist or has no `## Tasks` heading
+   - **Acceptance**: `{plan.acceptance_completed}/{plan.acceptance_count}` from `.status.yaml`. Append ` ✓` when `completed == count` AND `count > 0`. Show `—` if not available
    - **Review**: Derive from `.status.yaml` `progress.review` state and `stage_metrics.review.iterations`. Show `Pass ({N} iterations)` if review is `done`, `Fail ({N} iterations)` if review is `failed`, `—` if review not yet reached. If `iterations` is not populated, omit the parenthetical
 
    **Pipeline progress line** (only when `{has_fab}`):
 
-   Below the Stats table, show a pipeline progress line. Stages with `done` status from `.status.yaml`'s `progress` map are listed in fixed order: intake, spec, tasks, apply, review, hydrate, ship, review-pr — joined with ` → `.
+   Below the Stats table, show a pipeline progress line. Stages with `done` status from `.status.yaml`'s `progress` map are listed in fixed order: intake, spec, apply, review, hydrate, ship, review-pr — joined with ` → `.
 
    - If `{has_intake}`: "intake" is a hyperlink → `[intake]({intake_url})`
    - If `{has_spec}`: "spec" is a hyperlink → `[spec]({spec_url})`

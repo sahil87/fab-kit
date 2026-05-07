@@ -1,6 +1,6 @@
 ---
 name: _generation
-description: "Artifact generation procedures — shared logic for intake, spec, and tasks generation used by fab-continue and fab-ff."
+description: "Artifact generation procedures — shared logic for intake, spec, and plan generation used by fab-continue and fab-ff."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -19,7 +19,7 @@ metadata:
 
 ## Intake Generation Procedure
 
-> **Generation rule**: The intake is a state transfer document — downstream agents (spec, tasks, checklist)
+> **Generation rule**: The intake is a state transfer document — downstream agents (spec, plan)
 > have NO shared context beyond this file and the always-loaded config/constitution/memory. Every section
 > must contain enough concrete detail (examples, code blocks, specific values, exact behavior descriptions)
 > for an agent with no conversation history to generate a complete spec. If a design decision was discussed
@@ -60,46 +60,65 @@ metadata:
 
 ---
 
-## Tasks Generation Procedure
+## Plan Generation Procedure
 
-1. Read the template from `$(fab kit-path)/templates/tasks.md`
+> Replaces the legacy split between Tasks Generation and Checklist Generation. The unified
+> procedure walks `spec.md` once and emits both an imperative Task entry and a declarative
+> Acceptance entry per requirement. Single skill call, single context window — that is the
+> alignment guarantee. No mid-change ID rewrites: newly generated plans use `A-NNN` for
+> acceptance items; in-flight migrations preserve legacy `CHK-NNN` IDs verbatim (handled by
+> the migration, not this procedure).
+
+> **Invocation**: This procedure is invoked from `/fab-continue` Apply Behavior at apply
+> entry, before any task is executed. It is not a planning-stage step.
+
+1. Read the template from `$(fab kit-path)/templates/plan.md`
 2. Fill in metadata fields:
-   - `{CHANGE_NAME}`: From the intake
+   - `{CHANGE_NAME}`: From the intake (the human-readable name)
    - `{YYMMDD-XXXX-slug}`: The change folder name
-   - Include `intake.md` reference for traceability
-3. Break implementation into phased tasks:
-   - **Phase 1: Setup** — scaffolding, dependencies, configuration
-   - **Phase 2: Core Implementation** — primary functionality, ordered by dependency
-   - **Phase 3: Integration & Edge Cases** — wiring, error states, validation
-   - **Phase 4: Polish** — documentation, cleanup (only if warranted)
-4. Each task follows the format: `- [ ] T{NNN} [{markers}] {description with file paths}`
-   - IDs are sequential: T001, T002, ...
+   - Keep the `Intake` and `Spec` links pointing at `intake.md` and `spec.md`
+3. **Walk `spec.md` requirements once.** For each requirement, emit two entries — a Task and
+   an Acceptance — paired by the same logical work item:
+   - The Task entry goes under `## Tasks` and describes *what to implement, in which file*
+   - The Acceptance entry goes under `## Acceptance` and describes *what must be true for
+     review to pass* (a declarative outcome, not a step)
+   - Cross-linking via shared IDs is OPTIONAL — readers who want it MAY annotate entries
+     (e.g., `T001 ... <!-- A-001 -->`); the co-generation invariant is the alignment
+     contract, not the IDs.
+4. **Tasks subsection** (`## Tasks`):
+   - Group by phase. Phases execute sequentially; within a phase, `[P]`-marked tasks may run
+     in parallel:
+     - **Phase 1: Setup** — scaffolding, dependencies, configuration
+     - **Phase 2: Core Implementation** — primary functionality, ordered by dependency
+     - **Phase 3: Integration & Edge Cases** — wiring, error states, validation
+     - **Phase 4: Polish** — documentation, cleanup (only if warranted)
+   - Each task follows the format: `- [ ] T{NNN} [{markers}] {description with file paths}`
+   - IDs are sequential, three-digit: T001, T002, ...
    - Mark parallelizable tasks with `[P]`
    - Include exact file paths in descriptions
    - Each task should be completable in one focused session
-5. Include an **Execution Order** section for non-obvious dependencies
-6. Write the completed tasks to `fab/changes/{name}/tasks.md`
-
----
-
-## Checklist Generation Procedure
-
-1. Read the template from `$(fab kit-path)/templates/checklist.md`
-2. Generate `fab/changes/{name}/checklist.md` with:
-   - `{CHANGE_NAME}`: From the intake
-   - `{YYMMDD-XXXX-slug}`: The change folder name
-   - `{DATE}`: Today's date
-4. Populate checklist items derived from:
-   - `spec.md` — every requirement should have a corresponding CHK item under **Functional Completeness**
-   - Changed requirements → **Behavioral Correctness** items
-   - Deprecated requirements → **Removal Verification** items
-   - Key scenarios from spec → **Scenario Coverage** items
-   - Edge cases identified in spec → **Edge Cases & Error Handling** items
-   - `fab/project/code-quality.md` → **Code Quality** items. If `fab/project/code-quality.md` exists: one item per relevant principle from `## Principles`, one per relevant anti-pattern from `## Anti-Patterns` that applies to the change's scope, plus the two baseline items. If no `fab/project/code-quality.md`: include the two baseline items only (pattern consistency, no unnecessary duplication)
-   - Security-relevant changes → **Security** items (only if applicable)
-   - Additional categories from `fab/project/config.yaml` `checklist.extra_categories` (if any)
-5. Use sequential IDs: CHK-001, CHK-002, ...
-6. Update `.status.yaml` via CLI:
-   - `fab status set-checklist <change> generated true`
-   - `fab status set-checklist <change> total <count>` (number of checklist items generated)
-   - `fab status set-checklist <change> completed 0`
+   - Include an `## Execution Order` section after `## Tasks` only for non-obvious
+     dependencies between tasks; omit when ordering is self-evident
+5. **Acceptance subsection** (`## Acceptance`):
+   - Populate items derived from:
+     - `spec.md` — every requirement gets at least one item under **Functional Completeness**
+     - Changed requirements → **Behavioral Correctness** items
+     - Deprecated requirements → **Removal Verification** items
+     - Key scenarios from spec → **Scenario Coverage** items
+     - Edge cases identified in spec → **Edge Cases & Error Handling** items
+     - `fab/project/code-quality.md` → **Code Quality** items. If
+       `fab/project/code-quality.md` exists: one item per relevant principle from
+       `## Principles`, one per relevant anti-pattern from `## Anti-Patterns` that applies to
+       the change's scope, plus the two baseline items. If no `fab/project/code-quality.md`:
+       include the two baseline items only (pattern consistency, no unnecessary duplication)
+     - Security-relevant changes → **Security** items (only if applicable)
+     - Additional categories from `fab/project/config.yaml` `checklist.extra_categories` (if
+       any)
+   - Each item follows the format: `- [ ] A-{NNN} {declarative outcome}`
+   - IDs are sequential, three-digit, zero-padded: A-001, A-002, ...
+6. Write the completed plan to `fab/changes/{name}/plan.md`. The PostToolUse hook updates
+   `.status.yaml` `plan.generated`, `plan.task_count`, `plan.acceptance_count`, and
+   `plan.acceptance_completed` automatically; no manual `fab status set-acceptance` calls
+   are required at generation time. Skills that wish to assert the counts explicitly MAY
+   call `fab status set-acceptance <change> <field> <value>` (valid fields: `generated`,
+   `task_count`, `acceptance_count`, `acceptance_completed`).

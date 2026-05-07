@@ -4,13 +4,13 @@
 
 ## Overview
 
-Execution behavior (apply, review, hydrate) is accessed via `/fab-continue`, which dispatches to the appropriate behavior based on the active stage. The pipeline has 8 stages: intake → spec → tasks → apply → review → hydrate → ship → review-pr. The first 6 stages handle planning and execution; `ship` and `review-pr` handle integration (PR creation and PR review feedback). `/fab-continue` also dispatches ship (via `/git-pr` behavior) and review-pr (via `/git-pr-review` behavior). `/fab-archive` exists as a standalone housekeeping skill (not a pipeline stage) for moving completed changes to the archive — it requires `hydrate: done` but does not require ship/review-pr completion. All execution behaviors in `/fab-continue` inherit the optional `[change-name]` argument, which is passed to the preflight script for transient change resolution without modifying `.fab-status.yaml`.
+Execution behavior (apply, review, hydrate) is accessed via `/fab-continue`, which dispatches to the appropriate behavior based on the active stage. The pipeline has 7 stages: intake → spec → apply → review → hydrate → ship → review-pr. The first 5 stages handle planning and execution; `ship` and `review-pr` handle integration (PR creation and PR review feedback). The `tasks` stage was removed in qszh — plan generation is now an entry sub-step of apply (writes `plan.md` once per apply invocation; skipped on resume when `plan.md` already exists). `/fab-continue` also dispatches ship (via `/git-pr` behavior) and review-pr (via `/git-pr-review` behavior). `/fab-archive` exists as a standalone housekeeping skill (not a pipeline stage) for moving completed changes to the archive — it requires `hydrate: done` but does not require ship/review-pr completion. All execution behaviors in `/fab-continue` inherit the optional `[change-name]` argument, which is passed to the preflight script for transient change resolution without modifying `.fab-status.yaml`.
 
-**Status mutations**: All `.status.yaml` progress transitions, checklist updates, and confidence writes use `fab-go binary at fab status` CLI event commands (`start`, `advance`, `finish`, `reset`, `fail`, `skip`, `set-checklist`, `set-confidence`) via the Bash tool, rather than direct file editing. The `skip` event transitions `{pending,active} → skipped` with forward cascade (all downstream pending stages become skipped). Skipped stages are treated as resolved for progression (like `done`). Resetting a skipped stage follows normal reset mechanics (`skipped → active`, downstream cascade to `pending`). This centralizes validation and ensures atomic writes with `last_updated` refresh. The `driver` parameter is optional but skills always pass it. Stage metrics (started_at, completed_at, driver, iterations) are updated automatically as side-effects.
+**Status mutations**: All `.status.yaml` progress transitions, plan/acceptance updates, and confidence writes use `fab status` CLI event commands (`start`, `advance`, `finish`, `reset`, `fail`, `skip`, `set-acceptance`, `set-confidence`) via the Bash tool, rather than direct file editing. The legacy `set-checklist` command was renamed to `set-acceptance` in qszh; invoking `set-checklist` errors immediately with a pointer to `set-acceptance`. Any `fab status <event> <change> tasks` invocation errors immediately with `"tasks" stage was removed — run ... apply instead. plan.md is now generated at apply entry.` The `skip` event transitions `{pending,active} → skipped` with forward cascade (all downstream pending stages become skipped). Skipped stages are treated as resolved for progression (like `done`). Resetting a skipped stage follows normal reset mechanics (`skipped → active`, downstream cascade to `pending`). This centralizes validation and ensures atomic writes with `last_updated` refresh. The `driver` parameter is optional but skills always pass it. Stage metrics (started_at, completed_at, driver, iterations) are updated automatically as side-effects.
 
-**Hook-backed bookkeeping**: Checklist bookkeeping commands (e.g., `fab status set-checklist`) are now supplemented by a PostToolUse hook (`on-artifact-write.sh`) that fires on Write and Edit events. The hook is a **reliability layer** — it catches bookkeeping the agent forgets. Skills keep their existing bookkeeping instructions unchanged for agent-agnostic portability (non-Claude-Code agents rely on skill instructions only). All bookkeeping commands are idempotent, so both the hook and the skill running the same command produces no conflict.
+**Hook-backed bookkeeping**: Plan bookkeeping commands (e.g., `fab status set-acceptance`) are supplemented by a PostToolUse hook (`on-artifact-write.sh`) that fires on Write and Edit events. The hook is a **reliability layer** — it catches bookkeeping the agent forgets. For `plan.md` writes, the hook does heading-bounded section parsing: counts `- [ ]` + `- [x]` items between `## Tasks` and the next `##` heading for `plan.task_count`; same between `## Acceptance` and the next `##` heading for `plan.acceptance_count`; counts `- [x]` in `## Acceptance` for `plan.acceptance_completed`. Updates flow on every write (so review's mark-in-place updates propagate). Missing sections leave the corresponding fields untouched (defensive — avoid overwriting valid values with zero on a malformed in-progress write). `plan.generated` flips to `true` on first write and remains `true` thereafter. `MatchArtifactPath` recognizes `intake.md`, `spec.md`, `plan.md`; writes to legacy `tasks.md` / `checklist.md` are bookkeeping no-ops (those files exist only on in-flight migrations and recognizing them would re-populate a `checklist:` block that no longer exists). Skills keep their existing bookkeeping instructions unchanged for agent-agnostic portability (non-Claude-Code agents rely on skill instructions only). All bookkeeping commands are idempotent, so both the hook and the skill running the same command produces no conflict.
 
-**Pipeline invocation**: `/fab-fff` runs the full 8-stage pipeline (intake through review-pr); `/fab-ff` runs intake through hydrate (6 stages). All three pipeline skills (`/fab-continue`, `/fab-ff`, `/fab-fff`) dispatch review to a sub-agent in a separate execution context, producing structured findings with three-tier priority (must-fix / should-fix / nice-to-have). `/fab-continue` preserves manual rework on failure; both `/fab-ff` and `/fab-fff` use autonomous rework with bounded retry (3-cycle cap, escalation after 2 consecutive fix-code failures, stop on exhaustion). Both `/fab-ff` and `/fab-fff` have identical confidence gates (intake + spec) and accept `--force` to bypass them. Only `/fab-fff` extends past hydrate to invoke `/git-pr` behavior for the ship stage and `/git-pr-review` behavior for the review-pr stage. Both accept an optional `[change-name]` argument.
+**Pipeline invocation**: `/fab-fff` runs the full 7-stage pipeline (intake through review-pr); `/fab-ff` runs intake through hydrate (5 stages). All three pipeline skills (`/fab-continue`, `/fab-ff`, `/fab-fff`) dispatch review to a sub-agent in a separate execution context, producing structured findings with three-tier priority (must-fix / should-fix / nice-to-have). `/fab-continue` preserves manual rework on failure; both `/fab-ff` and `/fab-fff` use autonomous rework with bounded retry (3-cycle cap, escalation after 2 consecutive fix-code failures, stop on exhaustion). Both `/fab-ff` and `/fab-fff` have identical confidence gates (intake + spec) and accept `--force` to bypass them. Only `/fab-fff` extends past hydrate to invoke `/git-pr` behavior for the ship stage and `/git-pr-review` behavior for the review-pr stage. Both accept an optional `[change-name]` argument.
 
 **Pipeline orchestrator**: `/fab-proceed` is a context-aware orchestrator that detects the current pipeline state and runs the minimum prefix steps needed before delegating to `/fab-fff`. It accepts no arguments or flags — everything is inferred from context. It does not run preflight or load preamble; it delegates those concerns entirely to `/fab-fff`. State detection follows a 5-step pipeline: (1) active change check via `fab resolve --folder`; (2) branch check via `git branch --show-current` compared to the resolved change folder name (runs only when Step 1 found an active change); (3) conversation classification as *substantive* or *empty/thin* (substantive = contains at least one of technical requirements, design decisions, specific values, or problem statements — anything else is empty/thin; this is a single classifier, no separate "thin but non-empty" tier); (4) unactivated intake scan of `fab/changes/` (excluding `archive/`), retaining the full candidate list sorted by date-descending; (5) dispatch decision that combines Steps 1–4. Steps 3 and 4 are order-independent and both run whenever no active change was found in Step 1 — conversation context is NOT gated on intake absence (unlike the prior behavior, where the conversation check ran only when no intake existed). The dispatch table maps 7 state combinations to step sequences:
 
@@ -48,17 +48,23 @@ Each prefix step (`/fab-new`, `/fab-switch`, `/git-branch`) is dispatched as a s
 
 ### Apply Behavior (via `/fab-continue`)
 
-`/fab-continue` dispatches to apply behavior when the active stage is `tasks` or `apply`. It executes tasks from `tasks.md` in dependency order, running tests after each completed task.
+`/fab-continue` dispatches to apply behavior when the active stage is `apply`. Apply runs in two sub-steps inside a single skill invocation: (1) **Plan Generation sub-step** — writes `plan.md`; skipped on resume when `plan.md` already exists; (2) **Task Execution sub-step** — parses `plan.md` `## Tasks` and runs tasks in dependency order, running tests after each completed task. Apply MUST ignore the `## Acceptance` section — that is review's surface.
+
+#### Plan Generation Sub-Step (apply entry)
+
+On first apply invocation (when `plan.md` does not yet exist), the agent runs the **Plan Generation Procedure** from `_generation.md`: reads `spec.md`, walks requirements once, and emits paired Task + Acceptance entries per requirement into a single `plan.md` with stable headings `## Tasks` (consumed by apply) and `## Acceptance` (consumed by review). Acceptance items use `A-NNN` IDs in newly generated plans. The PostToolUse hook updates `.status.yaml` `plan` block on the write (counts, `generated: true`). On subsequent `/fab-continue` calls (resume), `plan.md` already exists and this sub-step is skipped — task execution resumes from the first unchecked item.
+
+The apply precondition is `spec.md` MUST exist (used to generate the plan). The prior precondition `tasks.md MUST exist` was removed in qszh.
 
 #### Pattern Extraction
 
 Before executing the first unchecked task, the agent reads existing source files in the areas the change will touch and extracts: naming conventions, error handling style, typical structure, and reusable utilities. These patterns are held as context for all subsequent task execution. If `config.yaml` defines a `code_quality` section, its `principles` are loaded as additional constraints and `test_strategy` governs test timing (default: `test-alongside`). Pattern extraction is skipped when resuming mid-apply.
 
-#### Task Execution
+#### Task Execution Sub-Step
 
-1. Parse `tasks.md` for unchecked items (`- [ ]`)
+1. Parse `plan.md` `## Tasks` (everything between `## Tasks` and the next `##` heading or EOF) for unchecked items (`- [ ]`)
 2. Execute tasks in dependency order
-3. Respect parallel markers `[P]`
+3. Respect parallel markers `[P]` (semantics unchanged from the legacy `tasks.md` convention)
 4. For each unchecked task:
    1. Read source files relevant to this task
    2. Implement per spec, constitution, and extracted patterns
@@ -66,16 +72,16 @@ Before executing the first unchecked task, the agent reads existing source files
    4. Keep functions focused — consider extracting if implementation exceeds the codebase's typical function size
    5. Write tests per `code_quality.test_strategy` (default: `test-alongside`)
    6. Run tests, fix failures
-   7. Mark `[x]` immediately
-5. Update `.status.yaml` progress after each task
+   7. Mark `[x]` immediately (apply does not touch the `## Acceptance` section)
+5. Update `.status.yaml` progress after each task; the PostToolUse hook also reflects task count changes from any write
 
 #### Resumability
 
-Apply behavior is inherently resumable. If the agent is interrupted mid-run, re-invoking `/fab-continue` picks up from the first unchecked item. The markdown checklist *is* the progress state — no separate tracking needed.
+Apply behavior is inherently resumable. If the agent is interrupted mid-run, re-invoking `/fab-continue` picks up from the first unchecked item. The markdown checklist *is* the progress state — no separate tracking needed. The plan-generation sub-step is idempotent on `plan.md` presence — if a partially-checked `plan.md` exists, generation is skipped and execution resumes immediately. To force plan regeneration, the user MUST delete `plan.md` before re-running.
 
 #### Context
 
-Loads: config, constitution, `specs/index.md`, `tasks.md`, `spec.md`, relevant source code (files referenced in tasks), neighboring files for pattern extraction.
+Loads: config, constitution, `specs/index.md`, `plan.md` (when it exists), `spec.md`, relevant source code (files referenced in tasks), neighboring files for pattern extraction.
 
 ### Review Behavior (via `/fab-continue`)
 
@@ -88,13 +94,15 @@ Loads: config, constitution, `specs/index.md`, `tasks.md`, `spec.md`, relevant s
 
 Both sub-agents are dispatched via the Agent tool (`subagent_type: "general-purpose"`). The orchestrator waits for both before merging findings.
 
-**Context (inward sub-agent)**: Standard subagent context files (per `_preamble.md` § Standard Subagent Context) plus change-specific files: `spec.md`, `tasks.md`, `checklist.md`, relevant source files, and target memory file(s) from `docs/memory/`.
+**Context (inward sub-agent)**: Standard subagent context files (per `_preamble.md` § Standard Subagent Context) plus change-specific files: `spec.md`, `plan.md`, relevant source files, and target memory file(s) from `docs/memory/`.
+
+**Precondition**: `plan.md` MUST exist with both `## Tasks` and `## Acceptance` sections populated. If the `## Acceptance` section is missing, review STOPs with `plan.md missing Acceptance section.`
 
 #### Validation Checks (inward sub-agent)
 
 The inward sub-agent performs all of these checks:
-1. All tasks in `tasks.md` marked `[x]`
-2. All checklist items in `checklist.md` verified and checked off — inspects relevant code/tests per `CHK-*` item, marks `[x]` or reports failure
+1. All tasks in `plan.md` `## Tasks` marked `[x]`
+2. All acceptance items in `plan.md` `## Acceptance` verified and checked off — inspects relevant code/tests per `A-NNN` item (or `CHK-NNN` for in-flight migrated changes), marks `[x]` in place. The PostToolUse hook propagates the count to `plan.acceptance_completed` on every write; review MAY also call `fab status set-acceptance` for explicit updates
 3. Run tests affected by the change (scoped to modules touched, not the full suite)
 4. Features match spec requirements (spot-check key scenarios from `spec.md`)
 5. No memory drift detected (implementation doesn't contradict memory files)
@@ -124,9 +132,9 @@ Review failure is auto-logged: `statusman.sh fail <change> review [driver] [rewo
 
 **`/fab-continue` (manual rework)**: Presents the sub-agent's prioritized findings to the user, then offers three rework options:
 
-- **Fix code** — the agent identifies affected tasks, unchecks them in `tasks.md` with `<!-- rework: reason -->` annotations, re-runs apply, then spawns a fresh sub-agent for re-review
-- **Revise tasks** — the user edits `tasks.md` (add/modify tasks), then the agent re-runs apply for unchecked tasks and spawns a fresh sub-agent for re-review
-- **Revise spec** → `/fab-continue spec` — resets to spec stage, regenerates downstream, re-runs apply, then spawns a fresh sub-agent for re-review
+- **Fix code** — the agent identifies affected tasks, unchecks them in `plan.md` `## Tasks` with `<!-- rework: reason -->` annotations, re-runs apply, then spawns a fresh sub-agent for re-review
+- **Revise plan** — the user edits `plan.md` `## Tasks` (add/modify tasks) and/or `## Acceptance` items, then the agent re-runs apply for unchecked tasks and spawns a fresh sub-agent for re-review
+- **Revise spec** → `/fab-continue spec` — resets to spec stage, regenerates downstream (apply re-entry regenerates `plan.md` if it was deleted; otherwise the existing plan persists), re-runs apply, then spawns a fresh sub-agent for re-review
 
 **`/fab-ff` (auto-loop + stop)**: The agent triages the sub-agent's prioritized findings and autonomously selects the rework path (up to 3 cycles). Each cycle = one rework action + one re-review by a fresh sub-agent. On exhaustion after 3 cycles, stops with a per-cycle summary.
 
@@ -140,7 +148,7 @@ The general rule: **artifacts at and after the re-entry point are regenerated or
 
 #### Context
 
-Loads: config, constitution, `specs/index.md`, `tasks.md`, `checklist.md`, `spec.md`, target memory file(s) from `docs/memory/`, relevant source code (files touched by the change).
+Loads: config, constitution, `specs/index.md`, `plan.md`, `spec.md`, target memory file(s) from `docs/memory/`, relevant source code (files touched by the change).
 
 ### Hydrate Behavior (via `/fab-continue`)
 
@@ -148,7 +156,7 @@ Loads: config, constitution, `specs/index.md`, `tasks.md`, `checklist.md`, `spec
 
 #### Behavior
 
-1. **Final validation** — review MUST have passed (all tasks `[x]`, all checklist items `[x]` including N/A items)
+1. **Final validation** — review MUST have passed (all tasks `[x]` in `plan.md` `## Tasks`, all acceptance items `[x]` in `plan.md` `## Acceptance` including N/A items)
 2. **Concurrent change check** — scan `fab/changes/` for other active changes whose specs reference the same memory files. If found, warn: "Change {name} also modifies {file}. After this hydrate, that change's spec was written against a now-stale base. Re-review with `/fab-continue` after switching to it."
 3. **Hydrate into `docs/memory/`**:
    - From `spec.md` → integrate new/changed requirements and scenarios into the Requirements section. Remove requirements the spec explicitly deprecates. Extract durable design decisions into Design Decisions section
@@ -387,12 +395,12 @@ The operator is launched via `fab operator` — a `fab-go` subcommand (source: `
 
 ## Design Decisions
 
-### Checklist Tests Implementation Fidelity and Code Quality
-**Decision**: The quality checklist validates "does the code match the spec?" (implementation fidelity) and "is the code well-written?" (code quality). Code Quality is always included with at least two baseline items (pattern consistency, no unnecessary duplication); additional items derive from `config.yaml` `code_quality` section when present.
+### Acceptance Tests Implementation Fidelity and Code Quality
+**Decision**: The `plan.md` `## Acceptance` section validates "does the code match the spec?" (implementation fidelity) and "is the code well-written?" (code quality). Code Quality is always included with at least two baseline items (pattern consistency, no unnecessary duplication); additional items derive from `config.yaml` `code_quality` section when present.
 **Why**: Spec quality is addressed during the spec stage (via `/fab-clarify`), but code quality is only observable at review time. The baseline items are universally applicable; project-specific standards come from config.
 **Rejected**: Code quality as opt-in only — would miss quality checks on projects without `code_quality` config. SpecKit-style requirement-quality checklist — duplicates planning-stage work.
 *Source*: doc/fab-spec/TEMPLATES.md
-*Updated by*: 260215-r8k3-DEV-1024-code-quality-layer
+*Updated by*: 260215-r8k3-DEV-1024-code-quality-layer; 260423-qszh-merge-tasks-checklist (renamed from "Checklist Tests…"; review now consumes `plan.md` `## Acceptance` instead of the standalone `checklist.md`)
 
 ### Sub-Agent Over Inline Review
 **Decision**: Review validation is dispatched to a sub-agent in a separate execution context, replacing inline review by the applying agent.
@@ -419,10 +427,16 @@ The operator is launched via `fab operator` — a `fab-go` subcommand (source: `
 *Introduced by*: 260216-gqpp-DEV-1040-code-review-loop
 
 ### Review Failure Offers Multiple Re-Entry Points
-**Decision**: On review failure, the agent presents three options (fix code, revise tasks, revise spec) and the user chooses where to loop back.
+**Decision**: On review failure, the agent presents three options (fix code, revise plan, revise spec) and the user chooses where to loop back.
 **Why**: Not all review failures are implementation bugs. Some require revisiting upstream artifacts. Giving the user explicit choice prevents the agent from guessing wrong about where the problem originated.
 **Rejected**: Always looping back to apply — misses cases where the spec was wrong.
-*Source*: doc/fab-spec/SKILLS.md
+*Source*: doc/fab-spec/SKILLS.md; *Updated by*: 260423-qszh-merge-tasks-checklist (renamed "revise tasks" → "revise plan"; rework now edits `plan.md` `## Tasks` and/or `## Acceptance` sections)
+
+### Apply Absorbs Plan Generation; `plan.md` is Apply's Single Artifact (qszh)
+**Decision**: The apply skill (defined in `fab-continue.md` § Apply Behavior) gains a Plan Generation entry sub-step that writes `plan.md` (with `## Tasks` and `## Acceptance` sections) before any task execution. The sub-step is skipped on resume when `plan.md` already exists. No new dedicated skill (`/fab-plan`) is introduced; no separate `progress.plan` stage is added. Apply parses `## Tasks`; review parses `## Acceptance`. The two `##` headings are the **stable parser contract** — phase/category subheadings underneath are presentational.
+**Why**: The two sub-steps share context (spec, memory, code-quality config), execute back-to-back without user intervention, and have no decision boundary between them. Splitting them into separate skills would duplicate context loading and add a redundant pause point. Keeping the stage name `apply` (not renaming to `execute`/`implement`) avoids migration churn across state table, `.status.yaml`, all skills, and user muscle memory for marginal semantic gain. Heading-based parsing is what existing skills already used implicitly for `tasks.md` and `checklist.md`; promoting two parent headings to a contract codifies the boundary without locking down the ergonomic subheadings.
+**Rejected**: New `/fab-plan` skill — adds command surface for what is mechanically a single autonomous step. Dedicated `progress.plan` stage with separate `active`/`ready`/`done` tracking — recreates the no-decision gate this change exists to remove. Section markers like `<!-- TASKS-START -->` — uglier, identical guarantees. Single mixed list with item-type markers — destroys imperative-vs-declarative framing reviewers rely on.
+*Introduced by*: 260423-qszh-merge-tasks-checklist
 
 ### Hydrate Semantically, Not by Delta Markers
 **Decision**: The agent compares `spec.md` against existing memory files to determine what's new, changed, or removed. No ADDED/MODIFIED/REMOVED markers in the spec.
@@ -461,11 +475,11 @@ The operator is launched via `fab operator` — a `fab-go` subcommand (source: `
 *Introduced by*: 260305-b0xs-unified-pr-template
 *Supersedes*: 260225-54vl-smart-git-pr-category-taxonomy (Two-Tier PR Templates with Type Resolution)
 
-### Execution Stage Reset Preserves Task Checkboxes
-**Decision**: `/fab-continue apply` re-runs apply behavior starting from the first unchecked task. It does NOT uncheck all tasks.
-**Why**: Task checkboxes reflect actual implementation progress. Silently unchecking them would discard valid work. Review rework (Option 1: "Fix code") handles targeted unchecking with `<!-- rework: reason -->` annotations.
-**Rejected**: Resetting all checkboxes on apply reset — too destructive, discards completed work.
-*Introduced by*: 260212-a4bd-unify-fab-continue
+### Execution Stage Reset Preserves Artifacts and Checkboxes
+**Decision**: `/fab-continue apply` re-runs apply behavior starting from the first unchecked task. It does NOT uncheck all tasks. After qszh, `fab status reset apply` also preserves `plan.md` on disk — reset modifies `.status.yaml` state only; artifact files persist. The apply entry's plan-generation sub-step is idempotent on `plan.md` presence and is skipped when the file exists. To force plan regeneration the user MUST delete `plan.md` before re-running.
+**Why**: Task checkboxes and acceptance items reflect actual implementation progress. Silently unchecking them would discard valid work. Review rework (Option 1: "Fix code") handles targeted unchecking with `<!-- rework: reason -->` annotations. Treating `plan.md` like every other change artifact (intake.md, spec.md) under reset preserves the existing artifact-file convention and Constitution III (idempotency).
+**Rejected**: Resetting all checkboxes on apply reset — too destructive, discards completed work. Auto-deleting `plan.md` on apply reset — violates the artifact-file convention and surprises users who reset to re-run only the task execution sub-step.
+*Introduced by*: 260212-a4bd-unify-fab-continue; *Updated by*: 260423-qszh-merge-tasks-checklist (extended to `plan.md` artifact preservation; renamed from "Execution Stage Reset Preserves Task Checkboxes")
 
 ### Review Active Triggers Forward Progression
 **Decision**: When the active stage is `review`, `/fab-continue` runs the review behavior (advancing toward hydrate), not re-review. Re-review is available via `/fab-continue review` reset.
@@ -596,6 +610,7 @@ The operator is launched via `fab operator` — a `fab-go` subcommand (source: `
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260423-qszh-merge-tasks-checklist | 2026-05-06 | Pipeline collapsed from 8 to 7 stages: `tasks` stage removed; plan generation absorbed into apply as an entry sub-step. Apply Behavior restructured into two sub-steps (Plan Generation + Task Execution); apply parses `plan.md` `## Tasks` (everything between `## Tasks` and the next `##`); precondition changed from `tasks.md MUST exist` to `spec.md MUST exist`. Review precondition rewritten: `plan.md` MUST exist with both `## Tasks` and `## Acceptance` sections; review reads `## Acceptance` (`A-NNN` IDs in new plans, `CHK-NNN` preserved for in-flight migrated changes). Manual-rework menu: "revise tasks" → "revise plan"; rework now edits `plan.md` `## Tasks` and/or `## Acceptance`. Hydrate validation references `plan.md ## Tasks`/`## Acceptance` instead of `tasks.md`/`checklist.md`. Status-mutations overview: `set-checklist` → `set-acceptance` (legacy errors with pointer); legacy `tasks` event commands error with strict-error pointer. Hook-backed bookkeeping: `MatchArtifactPath` recognizes `plan.md` (not `tasks.md`/`checklist.md`); section-bounded parse counts `task_count`/`acceptance_count`/`acceptance_completed` on every write; defensive on missing sections. Pipeline invocation overview: `/fab-fff` runs 7 stages (was 8), `/fab-ff` runs 5 stages to hydrate (was 6). Renamed "Checklist Tests Implementation Fidelity" → "Acceptance Tests Implementation Fidelity"; renamed "Execution Stage Reset Preserves Task Checkboxes" → "Execution Stage Reset Preserves Artifacts and Checkboxes" with `plan.md` preservation note. Added new "Apply Absorbs Plan Generation; plan.md is Apply's Single Artifact" design decision. |
 | 260423-rxu3-window-prefix-primitives | 2026-04-23 | Extracted the inline tmux window-name rewrite shell into `fab pane window-name {ensure-prefix, replace-prefix}` primitives and introduced a done-marker swap on removal. `/fab-operator` §4 Enrollment now calls `fab pane window-name ensure-prefix <pane> »` (replacing a three-line `tmux display-message` / `case` / `tmux rename-window` block). §4 Removal now calls `fab pane window-name replace-prefix <pane> » ›` on every removal path (terminal stage, `stop_stage` reached, pane death, explicit stop) — replacing the prior "window name is not restored on removal" rule shipped in 260422-jyyg. The done-marker `›` (U+203A, single right guillemet) was chosen over `✓` to avoid collision with the operator status frame's stage-done signal, and preserves the guillemet family with `»`. The primitive's literal-prefix guard protects user-renamed windows without schema state. Distinct exit codes 1 / 2 / 3 let the removal path treat "pane gone" as successful removal. Skill edits: `src/kit/skills/fab-operator.md` §4 Enrollment (primitive call), §4 Removal (swap rule), §6 step 4 (parenthetical reference). Spec: `docs/specs/skills/SPEC-fab-operator.md` item 4 one-bullet rewritten. Existing `»`-prefixed windows continue to work — the first run of the new operator is idempotent over them. |
 | 260422-jyyg-operator-prefix-enrolled-windows | 2026-04-22 | Extended the `»` tab-naming convention to all enrollment paths. On enrollment, `/fab-operator` now runs `tmux rename-window -t <pane> "»<current-name>"` after writing the monitored entry to `.fab-operator.yaml`, guarded by a literal `»` (U+00BB) prefix check so spawned/restored/re-enrolled windows no-op. Rename failure logs `"{change}: window rename skipped ({error})."` and does not roll back enrollment. Removal does not restore the original name — the prefix persists. Skill edits: `src/kit/skills/fab-operator.md` §4 Enrollment (new paragraph), §4 Removal (additive sentence), §6 step 4 (parenthetical cross-reference). Spec: `docs/specs/skills/SPEC-fab-operator.md` item 4 of Section Structure gains a one-line bullet. |
 | 260422-hin2-operator-strategic-menu-escalation | 2026-04-22 | `/fab-operator` §5 Answer Model rule 4 (numbered menu) now classifies each prompt as Routine or Strategic before answering. Routine (tool/permission, binary-framed, synonymous-option menus) auto-answers `1`; Strategic (multi-option menus representing materially different directions — scope, PR split, pipeline shape, commit organization, spec/approach) escalates to user. Classification is LLM-judged over four signals in the terminal capture: option text length, semantic distinctness of options, surrounding agent context, reversibility. No hardcoded keyword list, no agent-side sentinel/marker protocol. On classification uncertainty, the operator treats the prompt as Strategic and escalates. New Idle Auto-Default rule added to §5: when a Strategic escalation remains idle for 30 minutes (no terminal-state change in the pane), the operator auto-answers — prompt's stated default if visible, otherwise option `1` — and logs with a distinct format `"{change}: auto-defaulted after 30m idle: '{summary}' → {answer}"` so after-action review can distinguish confidently-auto-answered from fell-back decisions. Idle clock resets on any terminal-state change. Rule 6 "cannot determine keystrokes" escalations are NOT subject to auto-default — they remain open pending user action. Threshold is hardcoded 30 minutes (no `.fab-operator.yaml` schema change, no per-change override). Resolves backlog `[hin2]` and `[i1l6]`. |

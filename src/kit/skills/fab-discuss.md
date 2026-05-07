@@ -39,7 +39,7 @@ After loading the always-load layer, check for an active change:
 
 1. Run `fab resolve --folder 2>/dev/null` — if it exits non-zero, note "No active change"
 2. If resolution succeeds, use the returned folder name to read `fab/changes/{name}/.status.yaml` for the current stage
-3. Do **not** load change artifacts (intake, spec, tasks)
+3. Do **not** load change artifacts (intake, spec, plan)
 
 ---
 

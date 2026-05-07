@@ -1,6 +1,6 @@
 ---
 name: _review
-description: "Review behavior — inward sub-agent (spec/tasks/checklist) and outward sub-agent (Codex→Claude cascade with full repo access), dispatched in parallel during the review stage."
+description: "Review behavior — inward sub-agent (spec/plan) and outward sub-agent (Codex→Claude cascade with full repo access), dispatched in parallel during the review stage."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -21,25 +21,25 @@ metadata:
 
 ## Preconditions
 
-- `tasks.md` and `checklist.md` MUST exist
-- All tasks MUST be `[x]`. If not: STOP with "{N} of {total} tasks are incomplete."
+- `plan.md` MUST exist with both `## Tasks` and `## Acceptance` sections populated. If `## Acceptance` is missing, STOP with "plan.md missing Acceptance section."
+- All tasks under `## Tasks` MUST be `[x]`. If not: STOP with "{N} of {total} tasks are incomplete."
 
 ---
 
 ## Inward Sub-Agent Dispatch
 
-The inward sub-agent validates implementation against the spec, tasks, and checklist. It provides a fresh perspective — no shared context with the applying agent beyond the explicitly provided artifacts.
+The inward sub-agent validates implementation against the spec and plan. It provides a fresh perspective — no shared context with the applying agent beyond the explicitly provided artifacts.
 
 **Dispatch**: Via the Agent tool (`subagent_type: "general-purpose"`).
 
-**Context provided to the sub-agent**: Standard subagent context files (per `_preamble.md` § Standard Subagent Context), plus change-specific files: `spec.md`, `tasks.md`, `checklist.md`, relevant source files (files touched by the change), and target memory file(s) from `docs/memory/`.
+**Context provided to the sub-agent**: Standard subagent context files (per `_preamble.md` § Standard Subagent Context), plus change-specific files: `spec.md`, `plan.md` (containing both `## Tasks` and `## Acceptance` sections), relevant source files (files touched by the change), and target memory file(s) from `docs/memory/`.
 
 ### Validation Steps
 
 The inward sub-agent performs all of these checks:
 
-1. **Tasks complete**: All `[x]` in `tasks.md`
-2. **Quality checklist**: Inspect code/tests per CHK item. Mark `[x]` if met, `[x] **N/A**: {reason}` if N/A, leave `[ ]` with reason if not met
+1. **Tasks complete**: All `[x]` in `plan.md` `## Tasks`
+2. **Acceptance items**: Inspect code/tests per item under `plan.md` `## Acceptance`. Mark `[x]` in place if met, `[x] **N/A**: {reason}` if N/A, leave `[ ]` with reason if not met
 3. **Run affected tests**: Scoped to touched modules/files
 4. **Spot-check spec**: Verify key requirements and GIVEN/WHEN/THEN scenarios
 5. **Memory drift check**: Compare implementation against referenced memory (warning only)
@@ -55,7 +55,7 @@ The inward sub-agent performs all of these checks:
 
 The inward sub-agent SHALL return structured findings with a **three-tier priority scheme**:
 
-- **Must-fix**: Spec mismatches, failing tests, checklist violations
+- **Must-fix**: Spec mismatches, failing tests, acceptance violations
 - **Should-fix**: Code quality issues, pattern inconsistencies
 - **Nice-to-have**: Style suggestions, minor improvements
 
@@ -134,5 +134,5 @@ After both sub-agents return, their findings are merged into a single prioritize
 The merged findings set is returned to the orchestrator for verdict and rework decisions.
 
 > **Note**: The rework loop (bounded retry, escalation rule, pass/fail state transitions) is defined
-> in the orchestrator (`fab-continue.md` Verdict section, `fab-ff.md` Step 6, `fab-fff.md` Step 6),
+> in the orchestrator (`fab-continue.md` Verdict section, `fab-ff.md` Step 3, `fab-fff.md` Step 3),
 > not in this file. This file defines only the dispatch and merge mechanics.

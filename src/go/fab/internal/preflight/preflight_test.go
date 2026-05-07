@@ -16,17 +16,16 @@ issues: []
 progress:
   intake: done
   spec: active
-  tasks: pending
   apply: pending
   review: pending
   hydrate: pending
   ship: pending
   review-pr: pending
-checklist:
+plan:
   generated: false
-  path: checklist.md
-  completed: 0
-  total: 0
+  task_count: 0
+  acceptance_count: 0
+  acceptance_completed: 0
 confidence:
   certain: 3
   confident: 1
@@ -85,8 +84,8 @@ func TestRun_ValidRepo(t *testing.T) {
 	if result.Stage != "spec" {
 		t.Errorf("Stage = %q, want %q", result.Stage, "spec")
 	}
-	if len(result.Progress) != 8 {
-		t.Errorf("Progress has %d stages, want 8", len(result.Progress))
+	if len(result.Progress) != 7 {
+		t.Errorf("Progress has %d stages, want 7", len(result.Progress))
 	}
 }
 
@@ -163,7 +162,7 @@ func TestFormatYAML(t *testing.T) {
 
 	output := FormatYAML(result)
 
-	requiredFields := []string{"id:", "name:", "change_dir:", "stage:", "progress:", "checklist:", "confidence:"}
+	requiredFields := []string{"id:", "name:", "change_dir:", "stage:", "progress:", "plan:", "confidence:"}
 	for _, field := range requiredFields {
 		if !strings.Contains(output, field) {
 			t.Errorf("FormatYAML output missing %q", field)

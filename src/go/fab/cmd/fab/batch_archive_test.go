@@ -13,7 +13,6 @@ func TestIsArchivable_HydrateDone(t *testing.T) {
 	os.WriteFile(statusPath, []byte(`progress:
   intake: done
   spec: done
-  tasks: done
   apply: done
   review: done
   hydrate: done

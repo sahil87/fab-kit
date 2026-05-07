@@ -46,17 +46,13 @@ These are `fab` CLI calls that skills instruct the agent to run after generating
 |---------|---------|-----------|
 | `fab score <change>` | Compute spec confidence score | Yes |
 
-**After `tasks.md` is written** (fab-continue, fab-ff, fab-fff):
+**After `plan.md` is written** (fab-continue, fab-ff, fab-fff):
 | Command | Purpose | Hookable? |
 |---------|---------|-----------|
-| `fab status set-checklist <change> total <N>` | Record task count | Yes — hook counts `- [ ]` lines |
-
-**After `checklist.md` is written** (fab-continue, fab-ff, fab-fff):
-| Command | Purpose | Hookable? |
-|---------|---------|-----------|
-| `fab status set-checklist <change> generated true` | Mark checklist as generated | Yes |
-| `fab status set-checklist <change> total <N>` | Record checklist item count | Yes — hook counts `- [ ]` lines |
-| `fab status set-checklist <change> completed 0` | Initialize completed count | Yes |
+| `fab status set-acceptance <change> generated true` | Mark plan as generated | Yes — hook detects `## Tasks` heading exists |
+| `fab status set-acceptance <change> task_count <N>` | Record task count | Yes — hook counts `- [ ]` + `- [x]` lines under `## Tasks` |
+| `fab status set-acceptance <change> acceptance_count <M>` | Record acceptance item count | Yes — hook counts items under `## Acceptance` |
+| `fab status set-acceptance <change> acceptance_completed <K>` | Record completed acceptance items | Yes — hook counts `- [x]` lines under `## Acceptance` |
 
 **After `spec.md` is edited** (fab-clarify, suggest mode only):
 | Command | Purpose | Hookable? |
@@ -155,7 +151,7 @@ For `Edit`, `tool_input` contains `file_path`, `old_string`, `new_string` instea
 
 The hook script can:
 1. Extract `file_path` from the JSON
-2. Pattern-match against `fab/changes/*/intake.md|spec.md|tasks.md|checklist.md`
+2. Pattern-match against `fab/changes/*/intake.md|spec.md|plan.md`
 3. Derive the change name from path components
 4. Run the appropriate `fab` CLI bookkeeping commands
 5. Return `additionalContext` in stdout JSON to inform the agent
@@ -210,8 +206,7 @@ Stop ──────────────────► on-stop.sh       
 PostToolUse (Write) ───► on-artifact-write.sh       ◄── NEW
                          ├─ intake.md → fab status set-change-type + fab score --stage intake
                          ├─ spec.md → fab score
-                         ├─ tasks.md → fab status set-checklist total <N>
-                         └─ checklist.md → fab status set-checklist generated + total + completed
+                         └─ plan.md → fab status set-acceptance generated + task_count + acceptance_count + acceptance_completed
 
 PostToolUse (Edit) ────► on-artifact-write.sh       (same script, both matchers)
                          └─ spec.md → fab score
@@ -229,11 +224,11 @@ Skills that currently contain bookkeeping instructions can drop them:
 | Skill | Steps removed | Net effect |
 |-------|---------------|------------|
 | fab-new | Steps 6 (type inference), 7 (confidence) | Simpler, 2 fewer Bash calls |
-| fab-continue | Score after spec, checklist after tasks | Fewer bookkeeping instructions |
-| fab-ff | Step 4 (3 set-checklist calls) | Cleaner pipeline |
+| fab-continue | Score after spec, set-acceptance after plan | Fewer bookkeeping instructions |
+| fab-ff | Plan-write set-acceptance calls | Cleaner pipeline |
 | fab-fff | Same as fab-ff | Cleaner pipeline |
 | fab-clarify | Step 7 (recompute confidence) | One fewer Bash call |
-| _generation.md | Checklist procedure step 6 | 3 fewer Bash calls |
+| _generation.md | Plan generation post-write set-acceptance calls | Fewer Bash calls |
 
 **Stays in skills** (agent decisions, not mechanical bookkeeping):
 - `fab status advance` — agent signals artifact readiness (e.g., after SRAD questions)

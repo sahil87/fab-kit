@@ -13,7 +13,7 @@
      into one of these tiers. Override the defaults below to match your project's
      quality bar. -->
 
-- **Must-fix**: Spec mismatches, failing tests, checklist violations — always addressed during rework
+- **Must-fix**: Spec mismatches, failing tests, acceptance violations — always addressed during rework
 - **Should-fix**: Code quality issues, pattern inconsistencies — addressed when clear and low-effort
 - **Nice-to-have**: Style suggestions, minor improvements — may be skipped
 
@@ -41,7 +41,7 @@
      Applies to /fab-fff and /fab-ff auto-rework loops. -->
 
 - Max cycles: 3
-- After 2 consecutive "fix code" attempts on the same issue, escalate to "revise tasks" or "revise spec"
+- After 2 consecutive "fix code" attempts on the same issue, escalate to "revise plan" or "revise spec"
 
 ## Project-Specific Review Rules
 

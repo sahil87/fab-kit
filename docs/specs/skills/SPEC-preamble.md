@@ -37,7 +37,7 @@ Skill reads _preamble.md
 │  ├─ Layer 2: Change Context
 │  │  Bash: fab preflight [change-name]
 │  │  Bash: fab log command "<skill>" "<id>"
-│  │  Read: change artifacts (intake, spec, tasks)
+│  │  Read: change artifacts (intake, spec, plan)
 │  │
 │  ├─ Layer 3: Memory File Lookup
 │  │  Read: intake/spec affected memory refs
