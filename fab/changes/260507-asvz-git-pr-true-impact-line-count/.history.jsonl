@@ -1,0 +1,4 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-05-07T02:59:26Z"}
+{"args":"Add a true-impact line count to PR body in /git-pr, excluding fab/ and docs/ directories so GitHub diff stats reflect the real code change","cmd":"fab-new","event":"command","ts":"2026-05-07T02:59:26Z"}
+{"delta":"+0.8","event":"confidence","score":0.8,"trigger":"calc-score","ts":"2026-05-07T03:00:18Z"}
+{"delta":"+0.0","event":"confidence","score":0.8,"trigger":"calc-score","ts":"2026-05-07T03:00:26Z"}
