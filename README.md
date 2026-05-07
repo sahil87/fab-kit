@@ -2,6 +2,8 @@
 
 > Part of [@sahil87's open source toolkit](https://ai.shll.in) — see all projects there.
 
+[![Latest release](https://img.shields.io/github/v/release/sahil87/fab-kit)](https://github.com/sahil87/fab-kit/releases) [![Downloads](https://img.shields.io/github/downloads/sahil87/fab-kit/total)](https://github.com/sahil87/fab-kit/releases) [![Stars](https://img.shields.io/github/stars/sahil87/fab-kit)](https://github.com/sahil87/fab-kit/stargazers)
+
 A development toolkit for AI-assisted coding. It includes an 8-stage pipeline (intake → spec → tasks → apply → review → hydrate → ship → review-PR), standalone CLI tools for [git worktree management](#standalone-cli-tools) (`wt`) and [idea backlogs](#standalone-cli-tools) (`idea`), and batch orchestration for running multiple AI agents in parallel. Plain markdown prompts, no SDK, no vendor lock-in. Works with Claude Code, Codex, Cursor, and Windsurf.
 
 AI agents write code fast. The bottleneck is now your clarity: did you define the problem well enough? Fab Kit sits at that bottleneck — it forces structured thinking before implementation, grounds every session in your project's actual context, and gets cheaper to run as agents improve.
