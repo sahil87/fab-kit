@@ -39,6 +39,17 @@ When absent, `fab-sync.sh` falls back to `haiku` for the fast tier. See [model-t
 #### `agent`
 - `spawn_command` — Shell command string used by operator launchers and batch scripts to spawn agent sessions. Default: `'claude --dangerously-skip-permissions --effort xhigh -n "$(basename "$(pwd)")"'`. May contain shell expansions (e.g., `$(basename "$(pwd)")`) that are evaluated at invocation time, not at config read time (stored as a single-quoted YAML string). Scripts read this value via the shared helper `lib/spawn.sh` (`fab_spawn_cmd` function), which falls back to `claude --dangerously-skip-permissions` when the key is missing or null. Existing configs without an `agent` section continue to work — all consumers fall back to the hardcoded default.
 
+#### `true_impact_exclude`
+Optional top-level field. A YAML sequence of pathspec exclusion patterns — typically directory prefixes ending in `/` (e.g., `fab/`, `docs/`, `vendor/`), but any pattern accepted by `git diff` `:(exclude)<pattern>` syntax is valid. Scaffold default: `[fab/, docs/]` so new fab-kit projects emit the impact block out of the box.
+
+Semantics:
+- **Present and non-empty** — `/git-pr` appends a two-line impact block at the bottom of the PR body: `**Impact (excluding {COMMA_LIST})**: +A / −D` followed by `**git diff total**: +A_total / −D_total`. The parenthetical reflects the config values verbatim (never hardcoded). Computed via two `git diff --shortstat "$BASE...HEAD"` invocations against the same merge-base — one with `:(exclude)<pattern>` pathspec args, one without.
+- **Absent, `null`, or `[]`** — the impact block is omitted entirely; the rest of the PR body matches the no-block output byte-for-byte.
+- **No fab context** (`fab/project/config.yaml` does not exist) — the block is omitted silently, preserving `/git-pr`'s fab-optional behavior.
+- **True-impact pass returns zero** (every modified file falls inside an excluded path) — the entire block is omitted to avoid a misleading `+0 / −0` line.
+
+Consumed exclusively by the `/git-pr` skill's Step 3c-impact sub-step during PR body assembly.
+
 #### `stage_directives`
 Per-stage directives that customize artifact generation. Keys are stage IDs (`intake`, `spec`, `tasks`, `apply`, `review`, `hydrate`), values are lists of instruction strings. Example:
 ```yaml
@@ -245,6 +256,7 @@ See [setup](setup.md) for the complete command suite.
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260507-asvz-git-pr-true-impact-line-count | 2026-05-07 | Added optional top-level `true_impact_exclude` field (sequence of pathspec exclusion patterns; scaffold default `[fab/, docs/]`) consumed by `/git-pr`'s Step 3c-impact to append a two-line `**Impact (excluding ...)**` + `**git diff total**` block; absent/null/empty/no-fab-context all omit the block. |
 | 260418-u1m1-copilot-reviewer-login | 2026-04-18 | Documentation of the `review_tools.copilot` key now shows the corrected `gh pr edit --add-reviewer copilot-pull-request-reviewer` command. The fab-kit-local config key name `copilot` is unchanged — only the inline example of the GitHub login used by `/git-pr-review` Phase 2 was corrected. |
 | 260405-iqju-consolidate-review-types | 2026-04-05 | `review_tools` schema simplified: `copilot` key only. `codex` and `claude` keys removed — they controlled Codex/Claude in `/git-pr-review` Phase 2, which is now Copilot-only. Migration `1.3.0-to-1.4.0.md` strips `review_tools.codex` and `review_tools.claude` via `yq del`. The outward sub-agent Codex→Claude cascade in `_review.md` is not configurable (always-on, graceful no-op). |
 | 260404-g0x1-rename-upgrade-to-upgrade-repo | 2026-04-05 | Renamed `fab upgrade` to `fab upgrade-repo` throughout live prose, requirements, and command examples. Historical changelog entries preserved. |

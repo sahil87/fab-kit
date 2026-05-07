@@ -43,7 +43,14 @@ Autonomously commits, pushes, and creates a GitHub PR. No prompts, no questions.
 │     │                 Acceptance from .status.yaml plan.{acceptance_completed,acceptance_count}
 │     ├─ Generate: "Change" section (ID, Name, Issue table — gated on {has_fab})
 │     ├─ Bash: gh repo view --json (for blob URLs)
-│     └─ Bash: gh pr create --draft --title --body
+│     ├─ 3c-impact. Append true-impact block to PR body (gated on {has_fab} and non-empty true_impact_exclude)
+│     │  ├─ Read: config.yaml (true_impact_exclude via yq)
+│     │  ├─ Bash: git merge-base origin/main HEAD (compute BASE)
+│     │  ├─ Bash: git diff --shortstat "$BASE...HEAD" -- . :(exclude)<pat> ... (true-impact pass)
+│     │  ├─ Bash: git diff --shortstat "$BASE...HEAD" (total pass)
+│     │  └─ Append two-line block to PR body after pipeline progress line
+│     │     (omitted when field absent/null/empty, no fab context, or true-impact pass yields +0/−0)
+│     └─ Bash: gh pr create --draft --title --body  (body now includes the impact block)
 │
 ├─ Step 4a: Record PR URL
 │  └─ Bash: fab status add-pr <change> <url>
@@ -62,7 +69,7 @@ Autonomously commits, pushes, and creates a GitHub PR. No prompts, no questions.
 | Tool | Purpose |
 |------|---------|
 | Read | Intake, spec, plan, .status.yaml, config.yaml (for PR body generation including Change section) |
-| Bash | All git operations, gh CLI, fab status commands |
+| Bash | All git operations, gh CLI, fab status commands. Step 3c-impact additionally runs two `git diff --shortstat "$BASE...HEAD"` reads (one with `:(exclude)<pat>` pathspec args from `true_impact_exclude`, one without) to compute the true-impact and total line-count pairs. |
 
 ### Sub-agents
 

@@ -228,10 +228,59 @@ Print: `  ✓ push   — origin/<branch>`
 
    If no fab change exists (`{has_fab}` is false), the pipeline line is omitted entirely.
 
-4. Create PR: `gh pr create --draft --title "{pr_title}" --body "<body>"` (where `{pr_title}` is the already-prefixed title from step 2)
+4. **Append true-impact block** (only when `{has_fab}` is true): compute the true-impact line counts and append a two-line metadata block to the assembled PR body.
+
+   1. Read `true_impact_exclude` from `fab/project/config.yaml` via `yq`:
+      ```bash
+      readarray -t EXCLUDES < <(yq '.true_impact_exclude[]' fab/project/config.yaml 2>/dev/null)
+      ```
+      If `yq` errors, the key is missing, the value is `null`, or `EXCLUDES` is empty → skip this sub-step entirely (no block, no extra git invocation).
+
+   2. Compute the merge-base against the default branch:
+      ```bash
+      BASE=$(git merge-base origin/main HEAD)
+      ```
+      `/git-pr` does not compute a merge-base elsewhere, so this is the canonical site for it. If `origin/main` is not present, fall back to `origin/master`; if neither resolves, skip the block silently.
+
+   3. Run two `git diff --shortstat` invocations against `$BASE`:
+      ```bash
+      # True-impact pass (with pathspec exclusions)
+      EXCLUDE_ARGS=()
+      for pat in "${EXCLUDES[@]}"; do EXCLUDE_ARGS+=( ":(exclude)$pat" ); done
+      IMPACT_RAW=$(git diff --shortstat "$BASE...HEAD" -- . "${EXCLUDE_ARGS[@]}")
+
+      # Total pass (no exclusions)
+      TOTAL_RAW=$(git diff --shortstat "$BASE...HEAD")
+      ```
+      Both invocations use the **three-dot range** `$BASE...HEAD` for "changes on this branch" semantics.
+
+   4. Parse each `--shortstat` line for `(\d+) insertions?\(\+\)` and `(\d+) deletions?\(-\)`. Missing clauses default to `0` (e.g., `2 files changed, 50 insertions(+)` with no deletions clause yields `D=0`).
+
+   5. If the true-impact pass yields `+0 / −0` (i.e., every modified file lies inside an excluded path), omit the entire block — do not render `+0 / −0`.
+
+   6. Otherwise, build `{COMMA_LIST}` by joining the `EXCLUDES` array with `, ` (literal comma + space) and append the rendered block (see format below) to the PR body **after** the pipeline progress line, separated by a single blank line. Do NOT wrap the block in a `## Impact` heading.
+
+   **Rendered block format**:
+
+   ```markdown
+
+   **Impact (excluding {COMMA_LIST})**: +A / −D
+   **git diff total**: +A_total / −D_total
+   ```
+
+   The leading blank line is the single-blank-line separator from the preceding pipeline progress line. `{COMMA_LIST}` reflects the actual config values verbatim (e.g., `fab/, docs/` for the default scaffold) — never hardcoded.
+
+   **Fallbacks** — the impact block is omitted entirely (PR body byte-for-byte identical to today's output) when any of the following holds:
+   - (a) `true_impact_exclude` is absent, `null`, or an empty list in `fab/project/config.yaml` (matches spec assumption #11).
+   - (b) `{has_fab}` is false (no `fab/project/config.yaml` resolved — matches spec's graceful-degradation requirement).
+   - (c) The true-impact pass yields zero changes (`+0 / −0`) outside the exclusions — matches spec assumption #12 to avoid a misleading zero-impact line.
+
+   Print: `  ✓ impact — +A / −D (excluding {COMMA_LIST})` after the block is appended (skipped when the block is omitted).
+
+5. Create PR: `gh pr create --draft --title "{pr_title}" --body "<body>"` (where `{pr_title}` is the already-prefixed title from step 2)
    - If PR creation fails → report the error and STOP
    - Fall back to `gh pr create --draft --fill` if body generation fails for any reason (silent fallback)
-5. Get the PR URL: `gh pr view --json url -q '.url'`
+6. Get the PR URL: `gh pr view --json url -q '.url'`
 
 Print: `  ✓ pr     — <PR URL>`
 
