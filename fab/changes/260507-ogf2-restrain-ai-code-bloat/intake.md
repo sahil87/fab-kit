@@ -81,7 +81,7 @@ true_impact:
 
 Fields:
 - `added` / `deleted` / `net`: raw `git diff --shortstat` from merge-base to current HEAD.
-- `excluding_fab_docs`: the same numbers with `fab/` and `docs/` excluded — this overlaps with the sister intake (`260507-asvz`). The two intakes SHOULD coordinate on a single source-of-truth helper that both consume.
+- `excluding_fab_docs`: the same numbers with paths in the project's `true_impact_exclude` config list excluded (defaults to `[fab/, docs/]`). This config field was introduced by sister change `asvz` (PR #353, merged) and is read from `fab/project/config.yaml`.
 - `computed_at` / `computed_at_stage`: bookkeeping for staleness detection.
 
 **When computed**:
@@ -115,13 +115,18 @@ Fields:
 
 **Why review (not hydrate)**: deletion-candidate identification is a critique of the diff — same cognitive mode as the parsimony pass. Hydrate is about updating memory, a different job. Co-locating with #1 also enables the review agent to share context across both passes.
 
-### Coordination with sister intake (`260507-asvz`)
+### Coordination with sister change (`260507-asvz`) — RESOLVED
 
-Both this change and the sister change need a "diff stats excluding fab/docs" helper. To avoid duplication:
-- The first of the two changes to merge SHOULD introduce a small helper (e.g., `fab impact stats <base> <head>`) that reads `pr_impact_exclude` from config and returns shortstat numbers.
-- The second change reuses it.
+Sister change `asvz` (PR #353) merged first and shipped:
+- A new top-level `true_impact_exclude` list in `fab/project/config.yaml` (default `[fab/, docs/]`)
+- Inline `git diff --shortstat` math in `src/kit/skills/git-pr.md` that reads the config and renders an "Impact" line in PR bodies
 
-The order of merging is not load-bearing — whichever merges first wins the helper; the other gets refactored to consume it.
+There is **no shared helper subcommand** today — the math is inline in `git-pr.md`. This intake's spec stage SHOULD decide between two paths:
+
+1. **Inline duplication**: Replicate the same `git diff --shortstat`+exclude logic at the apply/hydrate hook that computes `true_impact`. Cheapest, but duplicates ~10 lines of shell.
+2. **Extract a helper**: Promote the inline math into a shared location (e.g., a new `fab impact <base> <head>` subcommand, or a shared shell snippet) that both `git-pr.md` and the new compute hook consume. Slightly more scope; refactors `git-pr.md` to use the new helper.
+
+**Recommendation**: extract a helper. Two consumers is exactly the point at which extraction is justified, and the inline math has a non-trivial number of edge cases (merge-base resolution, empty exclude list, three-dot range semantics, parsing `--shortstat` output) that benefit from one canonical implementation. Spec stage to confirm.
 
 ## Affected Memory
 
@@ -178,7 +183,7 @@ The order of merging is not load-bearing — whichever merges first wins the hel
 | 3 | Certain | Parsimony pass lives in `_review` skill, integrated with existing severity tiers | Clarified — user confirmed | S:95 R:75 A:85 D:75 |
 | 4 | Certain | `true_impact` block goes in `.status.yaml` (not a separate file); renamed from `line_stats` | Clarified — user confirmed and renamed for clarity (it's the true-impact signal, not just raw line stats) | S:95 R:75 A:85 D:80 |
 | 5 | Certain | Deletion candidates go in a new `## Deletion Candidates` section of `plan.md` (not a separate artifact, not in spec.md) | Clarified — user reframed: discovered (vs planned) deletions are post-implementation findings; co-locate with the existing as-built artifact (`plan.md`) rather than creating a new file. Avoids artifact proliferation, which is exactly the bloat we're restraining | S:95 R:75 A:90 D:80 |
-| 6 | Confident | The "excluding fab/docs" stats are computed using the same helper as the sister intake (260507-asvz). Helper signature is locked in once asvz merges; this intake refactors to consume it before final spec | User confirmed pending asvz merge — coordination resolved at that point | S:80 R:80 A:85 D:80 |
+| 6 | Certain | `true_impact_exclude` config field (top-level list in `fab/project/config.yaml`, default `[fab/, docs/]`) is reused from sister change asvz (PR #353, merged). Spec stage decides whether to extract the inline shortstat math from `git-pr.md` into a shared helper or duplicate it; recommendation is to extract | Resolved post-asvz-merge: config field exists and works; helper extraction is the only open sub-question and is a localized spec-stage decision | S:90 R:80 A:85 D:80 |
 | 7 | Certain | Refactor-type changes with net > +50 (excluding fab/docs) get a soft warning in `/fab-status` | Clarified — user confirmed | S:95 R:85 A:80 D:70 |
 | 8 | Certain | Parsimony pass threshold: 100 net added lines (hard-coded in kit, not project-configurable) | Clarified — user chose hard-coded defaults; revisit if real-world usage shows the value is wrong | S:95 R:85 A:60 D:55 |
 | 9 | Certain | Refactor warning threshold: +50 net excluding fab/docs (hard-coded in kit) | Clarified — user chose hard-coded defaults; consistent with #8 | S:95 R:85 A:60 D:55 |
@@ -187,7 +192,7 @@ The order of merging is not load-bearing — whichever merges first wins the hel
 | 12 | Certain | Deletion-candidate prompt lives in `_review` skill, co-located with the parsimony pass (review stage, not hydrate) | Clarified — user confirmed: deletion-candidate identification is a diff-critique task, same cognitive mode as parsimony; hydrate reads the artifact but doesn't generate it | S:95 R:55 A:50 D:35 |
 | 13 | Certain | No cross-change cumulative deltas in `/fab-status` (per-change net only) | Clarified — user dropped the feature: per-change signal is sufficient, branch-level rollup is overreach | S:95 R:75 A:55 D:50 |
 
-13 assumptions (12 certain, 1 confident, 0 tentative, 0 unresolved).
+13 assumptions (13 certain, 0 confident, 0 tentative, 0 unresolved).
 
 ## Clarifications
 
