@@ -80,36 +80,57 @@ The output of `git diff --shortstat` has the form `N files changed, A insertions
 - **THEN** the first line SHALL be `**Impact (excluding fab/, docs/)**: +50 / −0`
 - **AND** the rendered numbers SHALL be `+0` / `−0` for any clause missing from `git diff --shortstat` output
 
-### Requirement: Impact block format and placement
+### Requirement: PR body structure — `## Meta` block at top
 
-The impact block SHALL consist of exactly two markdown lines, in this order:
+The PR body SHALL open with a `## Meta` block (when `{has_fab}` is true) that consolidates all PR metadata in one place, ABOVE `## Summary` and `## Changes`. The `## Meta` block SHALL contain, in this order:
 
-```markdown
-**Impact (excluding {COMMA_LIST})**: +A / −D
-**git diff total**: +A_total / −D_total
+1. A 5-column metadata table: `ID | Type | Confidence | Plan | Review`.
+2. A `**Pipeline**:` line listing the seven stages (`intake → spec → apply → review → hydrate → ship → review-pr`) joined with ` → `, with `✓` markers after each `done` stage and hyperlinks for stages whose artifact exists (intake → `intake.md`, spec → `spec.md`, apply → `plan.md` for 1.9.0+ or `tasks.md` for legacy changes; the remaining stages are always plain text).
+3. An optional `**Issues**:` line — present only when the change has issues. Issues SHALL be hyperlinks when `linear_workspace` is configured, plain IDs otherwise.
+4. An optional `**Impact**:` line — present only when the conditions in the "Impact line emission" requirement below are met.
+
+The legacy `## Change` and `## Stats` sections SHALL be removed; their content is consolidated into the Meta table.
+
+When `{has_fab}` is false, the `## Meta` block SHALL be omitted entirely; the body becomes just `## Summary` (and optionally `## Changes`).
+
+#### Scenario: Standard fab-resolved PR body structure
+- **GIVEN** a fab change at the ship stage with all planning + review stages `done`
+- **WHEN** `/git-pr` assembles the PR body
+- **THEN** the body SHALL start with `## Meta`, followed by the metadata table, the `**Pipeline**:` line, the `**Impact**:` line (when applicable), then `## Summary`, then `## Changes`
+- **AND** the body SHALL contain neither `## Change` nor `## Stats` headings
+
+#### Scenario: No fab context
+- **GIVEN** `fab/project/config.yaml` does not exist (`{has_fab}` is false)
+- **WHEN** `/git-pr` assembles the PR body
+- **THEN** the body SHALL contain neither `## Meta` nor any of its sub-elements
+- **AND** the body SHALL contain only `## Summary` (and `## Changes` if a manual changes list can be derived)
+
+### Requirement: `**Impact**:` line format
+
+When emitted, the `**Impact**:` line SHALL be a single markdown line of the form:
+
+```
+**Impact**: +A/−D code (excluding `<pat1>`, `<pat2>`, ...) · +A_total/−D_total total
 ```
 
-Where `{COMMA_LIST}` is the value of `true_impact_exclude` joined with `, ` (a literal comma followed by a space). The list SHALL reflect the actual config values verbatim — `/git-pr` SHALL NOT hardcode `fab/, docs/`.
+Where:
+- The minus sign is the Unicode minus `−` (U+2212), not ASCII `-`.
+- `+A/−D` is the true-impact pair (insertions/deletions with `true_impact_exclude` patterns excluded via `:(exclude)`).
+- Each exclusion pattern is wrapped in single backticks and joined with `, ` (literal comma + space).
+- The middle separator is the Unicode middot `·` (U+00B7) flanked by single spaces.
+- `+A_total/−D_total` is the total pair (no exclusions).
 
-The block SHALL be appended at the **bottom of the PR body**, after every other section (after `## Stats` and the optional pipeline progress line).
-
-A single blank line SHALL separate the impact block from the preceding content. The block SHALL NOT be wrapped in a `## Impact` heading.
+The list inside the parenthetical SHALL reflect the actual config values verbatim — `/git-pr` SHALL NOT hardcode `fab/, docs/`.
 
 #### Scenario: Single-entry exclusion list
 - **GIVEN** `true_impact_exclude: [vendor/]`
-- **WHEN** the impact block is rendered
-- **THEN** the first line SHALL be `**Impact (excluding vendor/)**: +X / −Y` (no trailing comma)
+- **WHEN** the `**Impact**:` line is rendered
+- **THEN** the line SHALL be ``**Impact**: +X/−Y code (excluding `vendor/`) · +A/−B total`` (no trailing comma in the parenthetical)
 
 #### Scenario: Three-entry exclusion list
 - **GIVEN** `true_impact_exclude: [fab/, docs/, vendor/]`
-- **WHEN** the impact block is rendered
-- **THEN** the first line SHALL be `**Impact (excluding fab/, docs/, vendor/)**: +X / −Y`
-
-#### Scenario: Block placement
-- **GIVEN** the PR body already contains `## Summary`, `## Changes`, `## Change`, `## Stats`, and the pipeline progress line
-- **WHEN** the impact block is appended
-- **THEN** the impact block SHALL be the last content in the PR body
-- **AND** every preceding section SHALL retain its current ordering
+- **WHEN** the `**Impact**:` line is rendered
+- **THEN** the line SHALL be ``**Impact**: +X/−Y code (excluding `fab/`, `docs/`, `vendor/`) · +A/−B total``
 
 ### Requirement: Graceful degradation when fab context absent
 
@@ -219,12 +240,14 @@ The migration SHALL NOT alter any other fab files, change folders, or status sta
 | 3 | Certain | Top-level `true_impact_exclude` in `fab/project/config.yaml` | Confirmed from intake #3+#4 (clarified value) | S:95 R:75 A:85 D:80 |
 | 4 | Certain | Two `git diff --shortstat` calls, three-dot range vs. merge-base | Confirmed from intake #5 (clarified) | S:95 R:80 A:90 D:75 |
 | 5 | Certain | Migration `1.9.1-to-1.9.2.md` adds field idempotently | Confirmed from intake #6 (clarified); filename uses canonical `{FROM}-to-{TO}.md` convention against pre-bump `src/kit/VERSION` | S:95 R:70 A:85 D:80 |
-| 6 | Certain | Block format: `**Impact (excluding ...)**: +X / −Y` then `**git diff total**: +A / −B` | Confirmed from intake #7+#8 (clarified) | S:95 R:85 A:60 D:55 |
-| 7 | Certain | Block placed at bottom of PR body, after `## Stats` and pipeline line | Confirmed from intake #9 (clarified) | S:95 R:90 A:60 D:55 |
+| 6 | Certain | Single-line format: ``**Impact**: +A/−D code (excluding `pat1`, `pat2`) · +A_total/−D_total total`` | Revised post-clarify after the user reviewed the rendered PR and asked for a more compact, professional layout. Supersedes the original two-line block from intake #7+#8. | S:95 R:85 A:75 D:75 |
+| 7 | Certain | Impact line lives inside the new `## Meta` block at the TOP of the PR body, alongside the metadata table and `**Pipeline**:` line | Revised post-clarify: user asked to consolidate Impact, Pipeline, and the metadata table into one Meta section at the top. Supersedes intake #9's "bottom of body" choice. | S:95 R:85 A:75 D:75 |
 | 8 | Certain | Empty-list and missing-field treated identically (block omitted) | Spec-stage decision: removes a degenerate-state ambiguity | S:90 R:90 A:90 D:90 |
 | 9 | Certain | Missing `insertions` / `deletions` clauses in `--shortstat` rendered as `+0` / `−0` | Spec-stage decision: defines parser fallback explicitly | S:90 R:90 A:90 D:90 |
 | 10 | Certain | Migration target version is `1.9.2` (next patch after 1.9.1) | Spec-stage decision: matches the post-apply `src/kit/VERSION` bump; canonical migration filename `1.9.1-to-1.9.2.md` | S:95 R:90 A:85 D:85 |
 | 11 | Certain | Empty-list, null, and missing field treated identically by `/git-pr` | Spec-stage decision: removes ambiguity for users who explicitly opt out | S:90 R:90 A:90 D:90 |
-| 12 | Certain | True-impact pass with zero changes outside exclusions → block omitted entirely | Spec-stage decision: avoids a misleading `+0 / −0` line | S:85 R:90 A:90 D:90 |
+| 12 | Certain | True-impact pass with zero changes outside exclusions → impact line omitted entirely | Spec-stage decision: avoids a misleading `+0/−0` line | S:85 R:90 A:90 D:90 |
+| 13 | Certain | Legacy `## Change` and `## Stats` sections are REMOVED; their content is consolidated into the new `## Meta` table | Revised post-clarify: user asked for "more professional" layout; two single-row tables for what's effectively metadata felt heavy. Single 5-column table replaces both. | S:95 R:75 A:80 D:80 |
+| 14 | Certain | Pipeline line decorates each `done` stage with a trailing `✓` and links `apply` → `plan.md` (or `tasks.md` legacy) | Revised post-clarify: the previous pipeline showed only done stages, no markers, and never linked apply. User asked for visible completion indicators and full stage list. | S:95 R:85 A:80 D:80 |
 
-12 assumptions (12 certain, 0 confident, 0 tentative, 0 unresolved).
+14 assumptions (14 certain, 0 confident, 0 tentative, 0 unresolved).
