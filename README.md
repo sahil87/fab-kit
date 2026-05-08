@@ -132,14 +132,67 @@ $fab-setup    # Codex
 
 This generates `fab/project/constitution.md` and other project configuration files. Run `fab doctor` to verify your setup.
 
+Once setup completes, run `/fab-discuss` to load project context and orient before your first change.
+
+#### Onboarding an existing repo with prior docs
+
+If your project already has documentation (Notion pages, Linear specs, READMEs, design docs), bootstrap memory from them before your first change:
+
+1. **Initialize the repo:**
+
+   ```bash
+   fab init        # new to Fab Kit
+   fab sync        # cloning a repo that already uses Fab Kit
+   ```
+
+2. **In your AI agent — set up project config:**
+
+   ```
+   /fab-setup
+   ```
+
+3. **Hydrate memory from your existing docs** (or from the codebase itself):
+
+   ```
+   /docs-hydrate-memory <notion-url> <linear-url> ./README.md ./docs/
+   /docs-hydrate-memory                 # no args → generate from codebase analysis
+   ```
+
+   Accepts Notion/Linear URLs, local `.md` files, or folder paths. Safe to re-run — content is merged, not overwritten.
+
+4. **Propagate memory into structured specs:**
+
+   ```
+   /docs-hydrate-specs
+   ```
+
+   This flows memory → specs (the reverse of `hydrate`), surfacing gaps where memory covers a topic that specs don't. Top gaps are previewed for confirmation.
+
+5. **Orient before your first change:**
+
+   ```
+   /fab-discuss
+   ```
+
 #### Updating from a previous version
 
-```bash
-fab upgrade-repo              # upgrades to latest version
-fab upgrade-repo 0.44.0       # upgrades to a specific version
-```
+Two steps — one in the terminal, one in your AI agent:
 
-If the upgrade reports a version mismatch, run `/fab-setup migrations` in your AI agent to apply migrations. Safe to re-run.
+1. **In your terminal** — bump the kit version and re-sync:
+
+   ```bash
+   fab upgrade-repo              # upgrades to latest version
+   fab upgrade-repo 0.44.0       # upgrades to a specific version
+   ```
+
+2. **In your AI agent** — apply any data migrations:
+
+   ```
+   /fab-setup migrations    # Claude Code
+   $fab-setup migrations    # Codex
+   ```
+
+   Safe to re-run — no-op if no migrations are pending.
 
 To re-deploy skills, scaffold structure, and sync hooks without changing the pinned version (useful after cloning):
 
