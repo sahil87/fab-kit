@@ -34,6 +34,17 @@
   IDs are sequential and zero-padded: A-001, A-002, ...
   Acceptance items are declarative ("X is done and correct"), not imperative.
   Review marks each item [x] in place when verified.
+
+  REVIEW-OWNED PARSER CONTRACT: ## Deletion Candidates
+
+  The review stage may append a top-level `## Deletion Candidates` section
+  below `## Notes` (or at end of file when `## Notes` is absent). Hydrate
+  reads it informationally; absence is treated as "no findings" with no
+  error. Both the parsimony pass and the deletion-candidate prompt are
+  silently skipped when change_type is `docs`, `chore`, or `ci`, in which
+  case the section is omitted entirely (not written as "None"). Do NOT add
+  a placeholder section here — the section is review-generated, not
+  template-scaffolded.
 -->
 
 ## Tasks

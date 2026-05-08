@@ -238,6 +238,13 @@ func SwitchNone(fabRoot string) string {
 
 // List lists changes with stage info.
 func List(fabRoot string, archive bool) ([]string, error) {
+	return ListWithOptions(fabRoot, archive, false)
+}
+
+// ListWithOptions lists changes with stage info; when showStats is true,
+// appends a true_impact net column ("excluding.net" when present, else
+// "net", else "—") to each row.
+func ListWithOptions(fabRoot string, archive, showStats bool) ([]string, error) {
 	scanDir := filepath.Join(fabRoot, "changes")
 	if archive {
 		scanDir = filepath.Join(fabRoot, "changes", "archive")
@@ -268,7 +275,11 @@ func List(fabRoot string, archive bool) ([]string, error) {
 		statusFile, loadErr := sf.Load(statusPath)
 
 		if loadErr != nil {
-			results = append(results, fmt.Sprintf("%s:unknown:unknown", e.Name()))
+			row := fmt.Sprintf("%s:unknown:unknown", e.Name())
+			if showStats {
+				row += ":—"
+			}
+			results = append(results, row)
 			fmt.Fprintf(os.Stderr, "Warning: .status.yaml not found for %s\n", e.Name())
 			continue
 		}
@@ -279,10 +290,32 @@ func List(fabRoot string, archive bool) ([]string, error) {
 		if c.Indicative != nil && *c.Indicative {
 			indicative = "true"
 		}
-		results = append(results, fmt.Sprintf("%s:%s:%s:%.1f:%s", e.Name(), ds, dstate, c.Score, indicative))
+		row := fmt.Sprintf("%s:%s:%s:%.1f:%s", e.Name(), ds, dstate, c.Score, indicative)
+		if showStats {
+			row += ":" + impactColumn(statusFile)
+		}
+		results = append(results, row)
 	}
 
 	return results, nil
+}
+
+func impactColumn(statusFile *sf.StatusFile) string {
+	ti := statusFile.TrueImpact
+	if ti == nil {
+		return "—"
+	}
+	if ti.Excluding != nil {
+		return formatNet(ti.Excluding.Net)
+	}
+	return formatNet(ti.Net)
+}
+
+func formatNet(n int) string {
+	if n >= 0 {
+		return fmt.Sprintf("+%d", n)
+	}
+	return fmt.Sprintf("%d", n)
 }
 
 // Resolve is a passthrough to resolve.ToFolder with --folder mode.

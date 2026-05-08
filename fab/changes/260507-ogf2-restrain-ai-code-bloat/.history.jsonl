@@ -47,3 +47,6 @@
 {"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-07T10:14:10Z"}
 {"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-07T10:14:18Z"}
 {"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"spec","ts":"2026-05-07T10:14:59Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-05-07T11:49:38Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-05-07T11:49:48Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-05-07T12:06:32Z"}

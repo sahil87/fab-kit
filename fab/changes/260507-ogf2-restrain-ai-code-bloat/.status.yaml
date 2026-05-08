@@ -6,18 +6,18 @@ change_type: fix
 issues: []
 progress:
     intake: done
-    spec: active
+    spec: done
     tasks: pending
-    apply: pending
-    review: pending
+    apply: done
+    review: active
     hydrate: pending
     ship: pending
     review-pr: pending
-checklist:
-    generated: false
-    path: checklist.md
-    completed: 0
-    total: 0
+plan:
+    generated: true
+    task_count: 24
+    acceptance_count: 35
+    acceptance_completed: 35
 confidence:
     certain: 21
     confident: 0
@@ -32,6 +32,8 @@ confidence:
         disambiguation: 72.1
 stage_metrics:
     intake: {started_at: "2026-05-07T03:00:36Z", driver: fab-new, iterations: 1, completed_at: "2026-05-07T10:14:59Z"}
-    spec: {started_at: "2026-05-07T10:14:59Z", driver: fab-fff, iterations: 1}
+    spec: {started_at: "2026-05-07T10:14:59Z", driver: fab-fff, iterations: 1, completed_at: "2026-05-07T11:49:38Z"}
+    apply: {started_at: "2026-05-07T11:49:38Z", driver: fab-fff, iterations: 1, completed_at: "2026-05-07T12:06:32Z"}
+    review: {started_at: "2026-05-07T12:06:32Z", driver: fab-fff, iterations: 1}
 prs: []
-last_updated: 2026-05-07T10:17:11Z
+last_updated: 2026-05-07T12:14:15Z

@@ -43,6 +43,14 @@
 - Max cycles: 3
 - After 2 consecutive "fix code" attempts on the same issue, escalate to "revise plan" or "revise spec"
 
+## Parsimony Pass
+
+<!-- Single project-level knob for the review-stage parsimony pass.
+     Threshold values (100 net added lines) and the change-type skip list
+     (docs, chore, ci) are hard-coded in the kit and NOT configurable here. -->
+
+- Enabled: true
+
 ## Project-Specific Review Rules
 
 <!-- Add project-specific review rules here. Examples:

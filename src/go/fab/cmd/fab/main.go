@@ -31,6 +31,7 @@ func main() {
 		operatorCmd(),
 		batchCmd(),
 		kitPathCmd(),
+		impactCmd(),
 	)
 
 	if err := root.Execute(); err != nil {
