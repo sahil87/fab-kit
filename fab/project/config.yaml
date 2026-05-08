@@ -4,7 +4,7 @@ checklist:
     extra_categories:
         - documentation_accuracy
         - cross_references
-fab_version: 1.8.0
+fab_version: 1.9.1
 project:
     description: FAB Kit — Tooling for Specification-Driven Development
     linear_workspace: null
@@ -15,7 +15,6 @@ review_tools:
     copilot: true
 source_paths:
     - src/
-true_impact_exclude: [fab/, docs/]
 stage_directives:
     apply: []
     hydrate: []
@@ -27,3 +26,6 @@ stage_directives:
         - Document impacts on existing research docs
         - Note any methodology comparisons or synthesis
     tasks: []
+true_impact_exclude:
+    - fab/
+    - docs/

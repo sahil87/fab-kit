@@ -50,3 +50,7 @@
 {"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-05-07T11:49:38Z"}
 {"cmd":"fab-fff","event":"command","ts":"2026-05-07T11:49:48Z"}
 {"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-05-07T12:06:32Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-05-07T12:15:28Z"}
+{"event":"review","result":"passed","ts":"2026-05-07T12:15:28Z"}
+{"action":"enter","driver":"fab-continue","event":"stage-transition","stage":"ship","ts":"2026-05-07T13:58:34Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-05-08T18:03:27Z"}
