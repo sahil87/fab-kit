@@ -38,13 +38,16 @@ Autonomously commits, pushes, and creates a GitHub PR. No prompts, no questions.
 │  │  └─ Bash: git push [-u origin <branch>]
 │  └─ 3c. Create PR (if no PR exists)
 │     ├─ Read: intake.md (PR title + Summary + Changes), spec.md, plan.md OR tasks.md, .status.yaml
-│     ├─ Read: config.yaml (linear_workspace for issue links; true_impact_exclude for impact computation)
+│     ├─ Read: config.yaml (linear_workspace for issue links)
 │     ├─ Bash: gh repo view --json (for blob URLs)
-│     ├─ Compute true-impact (gated on {has_fab} and non-empty true_impact_exclude):
+│     ├─ Compute true-impact (gated on {has_fab}):
 │     │  ├─ Bash: git merge-base origin/main HEAD (with origin/master fallback)
-│     │  ├─ Bash: git diff --shortstat "$BASE...HEAD" -- . :(exclude)<pat> ... (true-impact pass)
-│     │  └─ Bash: git diff --shortstat "$BASE...HEAD" (total pass)
-│     │     (Impact line omitted when field absent/null/empty, no fab context, no merge-base, or true-impact yields +0/−0)
+│     │  └─ Bash: fab impact "$BASE" HEAD
+│     │     (subcommand reads true_impact_exclude from config.yaml,
+│     │      emits YAML with added/deleted/net + optional excluding;
+│     │      Impact line omitted when fab impact fails, excluding is
+│     │      absent in the YAML, no fab context, no merge-base, or
+│     │      true-impact yields +0/−0)
 │     ├─ Assemble body: ## Meta (table + **Pipeline** + optional **Issues** + optional **Impact**),
 │     │                 ## Summary (from intake ## Why), ## Changes (from intake ## What Changes)
 │     │                 (Meta block omitted entirely when {has_fab} is false)
@@ -67,7 +70,7 @@ Autonomously commits, pushes, and creates a GitHub PR. No prompts, no questions.
 | Tool | Purpose |
 |------|---------|
 | Read | Intake, spec, plan, .status.yaml, config.yaml (for PR body generation including Change section) |
-| Bash | All git operations, gh CLI, fab status commands. Step 3c additionally runs two `git diff --shortstat "$BASE...HEAD"` reads — one with `:(exclude)<pat>` pathspec args from `true_impact_exclude`, one without — to compute the true-impact and total line-count pairs rendered as the `**Impact**` line in the body's `## Meta` block. |
+| Bash | All git operations, gh CLI, fab status commands. Step 3c additionally runs `fab impact "$BASE" HEAD` once to compute the true-impact and total line-count pairs rendered as the `**Impact**` line in the body's `## Meta` block — the subcommand internally reads `true_impact_exclude` and runs both `git diff --shortstat` passes. |
 
 ### Sub-agents
 
