@@ -117,7 +117,7 @@ func changeSwitchCmd() *cobra.Command {
 }
 
 func changeListCmd() *cobra.Command {
-	var archive bool
+	var archive, showStats bool
 
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -127,7 +127,7 @@ func changeListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			results, err := change.List(fabRoot, archive)
+			results, err := change.ListWithOptions(fabRoot, archive, showStats)
 			if err != nil {
 				return err
 			}
@@ -139,6 +139,7 @@ func changeListCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&archive, "archive", false, "List archived changes")
+	cmd.Flags().BoolVar(&showStats, "show-stats", false, "Append true_impact net column")
 
 	return cmd
 }

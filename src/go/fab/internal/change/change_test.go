@@ -353,3 +353,142 @@ func TestList_EmptyChanges(t *testing.T) {
 		t.Errorf("List should return 0 entries for empty changes, got %d", len(results))
 	}
 }
+
+func TestListWithOptions_ShowStats(t *testing.T) {
+	fabRoot := setupChangeFixture(t)
+
+	// (a) Block present with excluding
+	folderA := "260310-aaaa-with-excluding"
+	dirA := filepath.Join(fabRoot, "changes", folderA)
+	os.MkdirAll(dirA, 0o755)
+	yamlA := `id: aaaa
+name: ` + folderA + `
+created: "2026-03-10T12:00:00Z"
+created_by: test-user
+change_type: feat
+issues: []
+progress:
+  intake: done
+  spec: active
+  apply: pending
+  review: pending
+  hydrate: pending
+  ship: pending
+  review-pr: pending
+plan:
+  generated: false
+  task_count: 0
+  acceptance_count: 0
+  acceptance_completed: 0
+confidence:
+  certain: 0
+  confident: 0
+  tentative: 0
+  unresolved: 0
+  score: 0.0
+stage_metrics: {}
+prs: []
+true_impact:
+  added: 100
+  deleted: 20
+  net: 80
+  excluding:
+    added: 60
+    deleted: 20
+    net: 40
+  computed_at: "2026-03-10T12:00:00Z"
+  computed_at_stage: apply
+last_updated: "2026-03-10T12:00:00Z"
+`
+	os.WriteFile(filepath.Join(dirA, ".status.yaml"), []byte(yamlA), 0o644)
+
+	// (b) Block present without excluding
+	folderB := "260310-bbbb-no-excluding"
+	dirB := filepath.Join(fabRoot, "changes", folderB)
+	os.MkdirAll(dirB, 0o755)
+	yamlB := `id: bbbb
+name: ` + folderB + `
+created: "2026-03-10T12:00:00Z"
+created_by: test-user
+change_type: feat
+issues: []
+progress:
+  intake: done
+  spec: active
+  apply: pending
+  review: pending
+  hydrate: pending
+  ship: pending
+  review-pr: pending
+plan:
+  generated: false
+  task_count: 0
+  acceptance_count: 0
+  acceptance_completed: 0
+confidence:
+  certain: 0
+  confident: 0
+  tentative: 0
+  unresolved: 0
+  score: 0.0
+stage_metrics: {}
+prs: []
+true_impact:
+  added: 50
+  deleted: 5
+  net: 45
+  computed_at: "2026-03-10T12:00:00Z"
+  computed_at_stage: apply
+last_updated: "2026-03-10T12:00:00Z"
+`
+	os.WriteFile(filepath.Join(dirB, ".status.yaml"), []byte(yamlB), 0o644)
+
+	// (c) Block absent
+	folderC := "260310-cccc-no-impact"
+	dirC := filepath.Join(fabRoot, "changes", folderC)
+	os.MkdirAll(dirC, 0o755)
+	yamlC := strings.Replace(existingStatusYAML, "abcd", "cccc", -1)
+	yamlC = strings.Replace(yamlC, "260310-cccc-old-name", folderC, 1)
+	os.WriteFile(filepath.Join(dirC, ".status.yaml"), []byte(yamlC), 0o644)
+
+	// Default list (no flag) — no impact column.
+	plain, err := ListWithOptions(fabRoot, false, false)
+	if err != nil {
+		t.Fatalf("ListWithOptions: %v", err)
+	}
+	for _, row := range plain {
+		// Row should have exactly 5 colon-delimited parts.
+		if got := strings.Count(row, ":"); got != 4 {
+			t.Errorf("expected 4 colons in plain row, got %d: %s", got, row)
+		}
+	}
+
+	// With --show-stats — appended column.
+	stats, err := ListWithOptions(fabRoot, false, true)
+	if err != nil {
+		t.Fatalf("ListWithOptions: %v", err)
+	}
+	if len(stats) != 3 {
+		t.Fatalf("expected 3 entries, got %d", len(stats))
+	}
+
+	rowsByPrefix := map[string]string{}
+	for _, row := range stats {
+		parts := strings.SplitN(row, ":", 6)
+		if len(parts) != 6 {
+			t.Errorf("expected 6 parts in stats row, got %d: %s", len(parts), row)
+			continue
+		}
+		rowsByPrefix[parts[0]] = parts[5]
+	}
+
+	if got := rowsByPrefix[folderA]; got != "+40" {
+		t.Errorf("folder A impact column = %q, want +40", got)
+	}
+	if got := rowsByPrefix[folderB]; got != "+45" {
+		t.Errorf("folder B impact column = %q, want +45", got)
+	}
+	if got := rowsByPrefix[folderC]; got != "—" {
+		t.Errorf("folder C impact column = %q, want —", got)
+	}
+}

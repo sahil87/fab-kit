@@ -70,6 +70,25 @@ type StageMetric struct {
 	CompletedAt string `yaml:"completed_at,omitempty"`
 }
 
+// TrueImpactPair holds insertions/deletions/net for a single shortstat pass.
+type TrueImpactPair struct {
+	Added   int `yaml:"added"`
+	Deleted int `yaml:"deleted"`
+	Net     int `yaml:"net"`
+}
+
+// TrueImpact is the true_impact block in .status.yaml. Created lazily on
+// first apply-finish (no template placeholder). Excluding is omitted when
+// true_impact_exclude is absent/null/empty in fab/project/config.yaml.
+type TrueImpact struct {
+	Added           int             `yaml:"added"`
+	Deleted         int             `yaml:"deleted"`
+	Net             int             `yaml:"net"`
+	Excluding       *TrueImpactPair `yaml:"excluding,omitempty"`
+	ComputedAt      string          `yaml:"computed_at"`
+	ComputedAtStage string          `yaml:"computed_at_stage"`
+}
+
 // StatusFile represents the .status.yaml structure.
 type StatusFile struct {
 	ID          string                  `yaml:"id"`
@@ -83,6 +102,7 @@ type StatusFile struct {
 	Confidence  Confidence              `yaml:"confidence"`
 	StageMetrics map[string]*StageMetric `yaml:"-"`
 	PRs         []string                `yaml:"prs"`
+	TrueImpact  *TrueImpact             `yaml:"true_impact,omitempty"`
 	LastUpdated string                  `yaml:"last_updated"`
 
 	// raw holds the full parsed document for field-preserving serialization
@@ -152,6 +172,11 @@ func Load(path string) (*StatusFile, error) {
 			_ = val.Decode(&sf.Confidence)
 		case "stage_metrics":
 			sf.StageMetrics = decodeStageMetrics(val)
+		case "true_impact":
+			ti := &TrueImpact{}
+			if err := val.Decode(ti); err == nil {
+				sf.TrueImpact = ti
+			}
 		}
 	}
 
@@ -337,6 +362,8 @@ type StageState struct {
 func (sf *StatusFile) syncToRaw() {
 	root := sf.raw.Content[0]
 
+	hasTrueImpact := false
+
 	for i := 0; i+1 < len(root.Content); i += 2 {
 		key := root.Content[i].Value
 		val := root.Content[i+1]
@@ -366,8 +393,83 @@ func (sf *StatusFile) syncToRaw() {
 			encodeConfidence(val, &sf.Confidence)
 		case "stage_metrics":
 			encodeStageMetrics(val, sf.StageMetrics)
+		case "true_impact":
+			hasTrueImpact = true
+			if sf.TrueImpact == nil {
+				dropKeyAt(root, i)
+				i -= 2
+			} else {
+				encodeTrueImpact(val, sf.TrueImpact)
+			}
 		}
 	}
+
+	if !hasTrueImpact && sf.TrueImpact != nil {
+		insertTrueImpact(root, sf.TrueImpact)
+	}
+}
+
+// dropKeyAt removes the key/value pair at index i from a mapping node.
+func dropKeyAt(root *yaml.Node, i int) {
+	root.Content = append(root.Content[:i], root.Content[i+2:]...)
+}
+
+// insertTrueImpact appends a true_impact mapping immediately before the
+// last_updated key (or at the end if last_updated is absent).
+func insertTrueImpact(root *yaml.Node, ti *TrueImpact) {
+	keyNode := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "true_impact"}
+	valNode := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	encodeTrueImpact(valNode, ti)
+
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value == "last_updated" {
+			before := root.Content[:i]
+			after := root.Content[i:]
+			merged := make([]*yaml.Node, 0, len(root.Content)+2)
+			merged = append(merged, before...)
+			merged = append(merged, keyNode, valNode)
+			merged = append(merged, after...)
+			root.Content = merged
+			return
+		}
+	}
+	root.Content = append(root.Content, keyNode, valNode)
+}
+
+func encodeTrueImpact(n *yaml.Node, ti *TrueImpact) {
+	n.Kind = yaml.MappingNode
+	n.Tag = "!!map"
+	n.Style = 0
+	content := []*yaml.Node{
+		{Kind: yaml.ScalarNode, Value: "added"},
+		{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", ti.Added), Tag: "!!int"},
+		{Kind: yaml.ScalarNode, Value: "deleted"},
+		{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", ti.Deleted), Tag: "!!int"},
+		{Kind: yaml.ScalarNode, Value: "net"},
+		{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", ti.Net), Tag: "!!int"},
+	}
+	if ti.Excluding != nil {
+		exNode := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+		exNode.Content = []*yaml.Node{
+			{Kind: yaml.ScalarNode, Value: "added"},
+			{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", ti.Excluding.Added), Tag: "!!int"},
+			{Kind: yaml.ScalarNode, Value: "deleted"},
+			{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", ti.Excluding.Deleted), Tag: "!!int"},
+			{Kind: yaml.ScalarNode, Value: "net"},
+			{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", ti.Excluding.Net), Tag: "!!int"},
+		}
+		content = append(content,
+			&yaml.Node{Kind: yaml.ScalarNode, Value: "excluding"},
+			exNode,
+		)
+	}
+	content = append(content,
+		&yaml.Node{Kind: yaml.ScalarNode, Value: "computed_at"},
+		&yaml.Node{Kind: yaml.ScalarNode, Value: ti.ComputedAt, Tag: "!!str", Style: yaml.DoubleQuotedStyle},
+		&yaml.Node{Kind: yaml.ScalarNode, Value: "computed_at_stage"},
+		&yaml.Node{Kind: yaml.ScalarNode, Value: ti.ComputedAtStage, Tag: "!!str"},
+	)
+	n.Content = content
 }
 
 func nowISO() string {

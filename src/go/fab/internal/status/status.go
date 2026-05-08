@@ -169,6 +169,9 @@ func Finish(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver string
 		return err
 	}
 
+	// Compute and write true_impact for apply/hydrate finish (best-effort).
+	_ = WriteTrueImpact(statusFile, statusPath, fabRoot, stage)
+
 	// Run post hook after transition is saved
 	if err := runStageHook(fabRoot, stage, "post"); err != nil {
 		return err

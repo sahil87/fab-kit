@@ -2,36 +2,42 @@ id: ogf2
 name: 260507-ogf2-restrain-ai-code-bloat
 created: 2026-05-07T03:00:36Z
 created_by: sahil-weaver
-change_type: feat
+change_type: fix
 issues: []
 progress:
-    intake: ready
-    spec: pending
+    intake: done
+    spec: done
     tasks: pending
-    apply: pending
-    review: pending
-    hydrate: pending
-    ship: pending
-    review-pr: pending
-checklist:
-    generated: false
-    path: checklist.md
-    completed: 0
-    total: 0
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: active
+plan:
+    generated: true
+    task_count: 24
+    acceptance_count: 35
+    acceptance_completed: 35
 confidence:
-    certain: 2
-    confident: 5
-    tentative: 4
-    unresolved: 2
-    score: 0.0
-    indicative: true
+    certain: 21
+    confident: 0
+    tentative: 0
+    unresolved: 0
+    score: 5.0
     fuzzy: true
     dimensions:
-        signal: 67.7
-        reversibility: 78.5
-        competence: 74.2
-        disambiguation: 67.7
+        signal: 92.9
+        reversibility: 78.1
+        competence: 78.1
+        disambiguation: 72.1
 stage_metrics:
-    intake: {started_at: "2026-05-07T03:00:36Z", driver: fab-new, iterations: 1}
-prs: []
-last_updated: 2026-05-07T03:02:07Z
+    intake: {started_at: "2026-05-07T03:00:36Z", driver: fab-new, iterations: 1, completed_at: "2026-05-07T10:14:59Z"}
+    spec: {started_at: "2026-05-07T10:14:59Z", driver: fab-fff, iterations: 1, completed_at: "2026-05-07T11:49:38Z"}
+    apply: {started_at: "2026-05-07T11:49:38Z", driver: fab-fff, iterations: 1, completed_at: "2026-05-07T12:06:32Z"}
+    review: {started_at: "2026-05-07T12:06:32Z", driver: fab-fff, iterations: 1, completed_at: "2026-05-07T12:15:28Z"}
+    hydrate: {started_at: "2026-05-07T12:15:28Z", driver: fab-fff, iterations: 1, completed_at: "2026-05-07T13:58:34Z"}
+    ship: {started_at: "2026-05-07T13:58:34Z", driver: fab-continue, iterations: 1, completed_at: "2026-05-08T18:03:27Z"}
+    review-pr: {started_at: "2026-05-08T18:03:27Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/356
+last_updated: 2026-05-08T18:03:27Z

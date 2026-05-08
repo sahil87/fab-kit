@@ -15,7 +15,8 @@ type StageHook struct {
 
 // Config holds the parsed project config relevant to the fab binary.
 type Config struct {
-	StageHooks map[string]StageHook `yaml:"stage_hooks"`
+	StageHooks        map[string]StageHook `yaml:"stage_hooks"`
+	TrueImpactExclude []string             `yaml:"true_impact_exclude"`
 }
 
 // Load reads fab/project/config.yaml from fabRoot and returns the parsed config.

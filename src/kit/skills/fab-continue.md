@@ -173,9 +173,10 @@ The applying agent triages review comments by priority — not all comments need
 
 1. Final validation: all `## Tasks` and `## Acceptance` items in `plan.md` are `[x]`
 2. Concurrent change check: warn on overlap with other changes referencing same memory paths
-3. Hydrate `docs/memory/`: create new files/domains, update existing (Requirements, Design Decisions, Changelog), update indexes
-4. Run `fab status finish <change> hydrate fab-continue`
-5. **Pattern capture** *(optional)*: If the change introduced non-obvious implementation patterns that future changes should follow (e.g., a new error handling approach, a reusable abstraction), note them in the relevant memory file's Design Decisions section with the change name for traceability. Skip for implementations that follow existing patterns without introducing new ones
+3. **Read `## Deletion Candidates`** from `plan.md` when present — informational only. Hydrate MAY reference candidates in memory updates (e.g., a Design Decision noting follow-up cleanup). Hydrate MUST NOT generate or modify the section (generation is review's responsibility) and MUST treat an absent section as "no findings" without error
+4. Hydrate `docs/memory/`: create new files/domains, update existing (Requirements, Design Decisions, Changelog), update indexes
+5. Run `fab status finish <change> hydrate fab-continue`
+6. **Pattern capture** *(optional)*: If the change introduced non-obvious implementation patterns that future changes should follow (e.g., a new error handling approach, a reusable abstraction), note them in the relevant memory file's Design Decisions section with the change name for traceability. Skip for implementations that follow existing patterns without introducing new ones
 
 ---
 

@@ -50,6 +50,29 @@ The inward sub-agent performs all of these checks:
    - Existing utilities reused where applicable
    - If `fab/project/code-quality.md` exists, check each applicable principle from `## Principles`
    - If `fab/project/code-quality.md` exists, check for violations listed in `## Anti-Patterns`
+7. **Parsimony pass** (skipped when `change_type` is `docs`, `chore`, or `ci`, or when `fab/project/code-review.md` `## Parsimony Pass` `Enabled: false`): Evaluate the apply-stage diff against the question *"Could the spec's requirements be satisfied with less code?"* Threshold for stricter scrutiny: **100 net added lines** (advisory, hard-coded — not project-configurable). Below threshold the pass still runs and MAY emit findings. Findings MUST cite specific file paths and line ranges; abstract findings (e.g., "the code could be smaller") MUST NOT be emitted. Each finding is classified into exactly one of these four categories with the mapped severity:
+
+   | Category | Finding shape | Severity |
+   |----------|---------------|----------|
+   | `reuse-existing-utility` | Newly added code that duplicates a utility already present in the repo | Should-fix |
+   | `zero-call-sites` | Newly added function/symbol/branch with zero call sites in the diff | Must-fix |
+   | `duplicated-logic` | New code added alongside an existing implementation of the same logic | Must-fix |
+   | `verbosity` | Redundant defensive checks, dead branches, or boilerplate that adds no behavior | Nice-to-have |
+
+   Findings are merged into the inward sub-agent's structured output via the existing Findings Merge step.
+
+8. **Deletion-candidate prompt** (skipped under the same conditions as Step 7): Answer *"What existing code (files, functions, branches, config) did this change make redundant or unused?"* Output as a structured list of candidates, each naming a specific symbol, file path, or block, with a one-line justification. The agent MAY answer the literal `None — this change adds new functionality without making existing code redundant` when truthful — the prompt's value is in *forcing the question*. The agent MUST NOT auto-delete; findings are surfaced for the human reviewer to act on.
+
+   Append (or replace, on rework) the output as a new top-level `## Deletion Candidates` section in `plan.md`, placed immediately below the `## Notes` section (or at end of file when `## Notes` is absent). The section heading is a stable parser contract — do NOT alter the heading text. Format:
+
+   ```markdown
+   ## Deletion Candidates
+
+   - `{file:line or symbol}` — {one-line justification}
+   - `{file:line or symbol}` — {one-line justification}
+   ```
+
+   When the change type is in the skip list (`docs`, `chore`, `ci`), the section is omitted entirely from `plan.md` (NOT written as "None"). On rework cycles, an existing `## Deletion Candidates` section SHALL be replaced in place (not duplicated). The section is distinct from `## Acceptance > ### Removal Verification`: removal-verification covers *planned* removals declared in `spec.md`; deletion-candidates covers *discovered* opportunities the apply agent missed.
 
 ### Structured Output
 

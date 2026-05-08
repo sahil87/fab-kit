@@ -25,7 +25,7 @@ The motivating concern: large codebases hamper everyone's ability to find root c
 **Why this approach (the three interventions, combined)**:
 - **#1 Parsimony pass** intervenes at *review time* — the cheapest moment to catch over-additive code, before it ships. Adversarial framing ("could the spec be satisfied with less?") is different from the existing review focus ("is this correct?").
 - **#2 Net-line accounting** creates the *measurement infrastructure*. Without numbers, there's no signal. Surfacing per-change net deltas in `/fab-status` and flagging suspicious patterns (e.g., refactor changes that grow code) is what makes #1 and #3 meaningful over time.
-- **#3 Deletion-candidate prompt** intervenes at *hydrate time* — the last moment before the change is sealed. A single prompt ("what existing code did this change make redundant?") is cheap, occasionally produces real findings, and (more importantly) trains the agent loop to think about deletion as a first-class output.
+- **#3 Deletion-candidate prompt** intervenes at *review time* — co-located with the parsimony pass. A single prompt ("what existing code did this change make redundant?") is cheap, occasionally produces real findings, and (more importantly) trains the agent loop to think about deletion as a first-class output. Generating it at review (not hydrate) keeps it in the diff-critique cognitive mode and surfaces findings before the change is sealed.
 
 These three are mutually reinforcing: #2 produces the numbers, #1 and #3 produce the prompts that act on them. Doing any one alone would be weaker.
 
@@ -47,23 +47,27 @@ The user explicitly rejected hard line-count gates: they incentivize gaming (one
   - Verbosity / redundant defensive checks → **Nice-to-have**
 - The pass MUST cite specific file paths and line ranges. No abstract "the code could be smaller" findings.
 
-**Configuration**: A new optional section in `fab/project/code-review.md`:
+**Configuration**: A single optional toggle in `fab/project/code-review.md`:
 
 ```markdown
 ## Parsimony Pass
 
 - Enabled: true  (default; set to false to skip)
-- Threshold: flag when net additions exceed 100 lines without explicit spec justification
 ```
 
-The threshold is advisory, not a gate.
+Thresholds and the change-type skip list are hard-coded in the kit (not project-configurable):
+- Parsimony pass threshold: flag when net additions exceed **100 lines** without explicit spec justification
+- Refactor-growth warning threshold: **+50 net lines** (excluding fab/docs)
+- Skip list (no parsimony pass, no deletion-candidate prompt): `docs`, `chore`, `ci`
+
+These can be revisited if real-world usage shows the defaults are wrong, but until then a single set of numbers across projects keeps the surface area small. The threshold is advisory, not a gate.
 
 ### Intervention #2: Net-line accounting per change
 
 **Schema addition to `.status.yaml`**:
 
 ```yaml
-line_stats:
+true_impact:
   added: 142
   deleted: 38
   net: +104
@@ -77,7 +81,7 @@ line_stats:
 
 Fields:
 - `added` / `deleted` / `net`: raw `git diff --shortstat` from merge-base to current HEAD.
-- `excluding_fab_docs`: the same numbers with `fab/` and `docs/` excluded — this overlaps with the sister intake (`260507-asvz`). The two intakes SHOULD coordinate on a single source-of-truth helper that both consume.
+- `excluding_fab_docs`: the same numbers with paths in the project's `true_impact_exclude` config list excluded (defaults to `[fab/, docs/]`). This config field was introduced by sister change `asvz` (PR #353, merged) and is read from `fab/project/config.yaml`.
 - `computed_at` / `computed_at_stage`: bookkeeping for staleness detection.
 
 **When computed**:
@@ -92,52 +96,64 @@ Fields:
 - A `refactor`-typed change with net > +50 lines (excluding fab/docs) → surfaced in `/fab-status` as a soft warning: "Refactor changes typically shrink or stay flat — review whether this growth is intentional."
 - The flag is informational. No gate, no block.
 
-### Intervention #3: Deletion-candidate prompt at hydrate
+### Intervention #3: Deletion-candidate prompt at review
 
-**Location**: `.claude/skills/_review/SKILL.md` hydrate sub-stage, OR `.claude/skills/fab-continue/SKILL.md` hydrate behavior — to be decided at spec stage based on which file owns the hydrate prompt today.
+**Location**: `.claude/skills/_review/SKILL.md` — co-located with the parsimony pass (intervention #1). Both interventions are diff-critique passes asking "what could be smaller / what's now redundant?"
 
 **Behavior**:
-- Before the hydrate agent finalizes memory updates, it MUST answer the question: *"What existing code (files, functions, branches, config) did this change make redundant or unused? List candidates for removal in a `## Deletion Candidates` section."*
+- During review (after apply, before hydrate), the review sub-agent MUST answer: *"What existing code (files, functions, branches, config) did this change make redundant or unused? List candidates for removal in a `## Deletion Candidates` section."*
 - The output is a structured list: each candidate names a specific symbol, file path, or block, with a one-line justification.
 - The agent is permitted to answer "None — this change adds new functionality without making existing code redundant" when truthful. The prompt's value is in *forcing the question*, not in always producing answers.
-- Candidates are written to `fab/changes/{name}/deletion-candidates.md` (a new artifact, parallel to spec/tasks/checklist).
-- The hydrate agent does NOT auto-delete. The artifact is a prompt for the human reviewer to act on, either in the same PR or a follow-up `chore` change.
+- Candidates are appended as a new top-level `## Deletion Candidates` section in `plan.md` (the as-built artifact already produced at apply stage). No new artifact file.
+- The review agent does NOT auto-delete. The section is a prompt for the human reviewer to act on, either in the same PR or a follow-up `chore` change.
+- Hydrate stage reads `## Deletion Candidates` from `plan.md`, so memory updates can reference findings.
+- The section is distinct from `## Acceptance > ### Removal Verification` (which covers *planned* removals from spec.md). Deletion candidates are *discovered* removal opportunities that the apply agent missed.
 
-**Why a separate artifact, not a section in spec.md**: the spec is pre-implementation design intent (per constitution principle VI). Deletion candidates are a post-implementation finding that should not retroactively pollute the spec.
+**Why a section in `plan.md`, not a separate artifact and not in spec.md**:
+- Not in `spec.md`: spec is pre-implementation design intent (per constitution principle VI). Discovered deletion candidates are post-implementation findings — different cognitive mode, different stage, different ownership. *Planned* deletions (known at spec time) still go in spec.md as normal "remove X" requirements; only discovered ones land here.
+- Not a separate artifact: `plan.md` already records the as-built state for this change (Tasks + Acceptance + Notes). Adding a new file per change for a single section would proliferate artifacts — exactly the bloat-restraint behavior we're trying to instill. Co-locating with the apply-stage artifact keeps the change folder tidy.
 
-### Coordination with sister intake (`260507-asvz`)
+**Why review (not hydrate)**: deletion-candidate identification is a critique of the diff — same cognitive mode as the parsimony pass. Hydrate is about updating memory, a different job. Co-locating with #1 also enables the review agent to share context across both passes.
 
-Both this change and the sister change need a "diff stats excluding fab/docs" helper. To avoid duplication:
-- The first of the two changes to merge SHOULD introduce a small helper (e.g., `fab impact stats <base> <head>`) that reads `pr_impact_exclude` from config and returns shortstat numbers.
-- The second change reuses it.
+### Coordination with sister change (`260507-asvz`) — RESOLVED
 
-The order of merging is not load-bearing — whichever merges first wins the helper; the other gets refactored to consume it.
+Sister change `asvz` (PR #353) merged first and shipped:
+- A new top-level `true_impact_exclude` list in `fab/project/config.yaml` (default `[fab/, docs/]`)
+- Inline `git diff --shortstat` math in `src/kit/skills/git-pr.md` that reads the config and renders an "Impact" line in PR bodies
+
+There is **no shared helper subcommand** today — the math is inline in `git-pr.md`. This intake's spec stage SHOULD decide between two paths:
+
+1. **Inline duplication**: Replicate the same `git diff --shortstat`+exclude logic at the apply/hydrate hook that computes `true_impact`. Cheapest, but duplicates ~10 lines of shell.
+2. **Extract a helper**: Promote the inline math into a shared location (e.g., a new `fab impact <base> <head>` subcommand, or a shared shell snippet) that both `git-pr.md` and the new compute hook consume. Slightly more scope; refactors `git-pr.md` to use the new helper.
+
+**Recommendation**: extract a helper. Two consumers is exactly the point at which extraction is justified, and the inline math has a non-trivial number of edge cases (merge-base resolution, empty exclude list, three-dot range semantics, parsing `--shortstat` output) that benefit from one canonical implementation. Spec stage to confirm.
 
 ## Affected Memory
 
 - `fab-workflow/clarify`: (modify) — wait, this is review, not clarify. Removing.
 - `fab-workflow/execution-skills`: (modify) Document the parsimony pass as a review sub-behavior.
-- `fab-workflow/hydrate`: (modify) Document the deletion-candidate prompt and the new `deletion-candidates.md` artifact.
-- `fab-workflow/schemas`: (modify) Document the new `line_stats` block in `.status.yaml`.
+- `fab-workflow/execution-skills`: also documents the deletion-candidate prompt as a review sub-behavior (folded into the entry above).
+- `fab-workflow/hydrate`: (modify) Document that hydrate reads `deletion-candidates.md` when present.
+- `fab-workflow/schemas`: (modify) Document the new `true_impact` block in `.status.yaml`.
 - `fab-workflow/configuration`: (modify) Document the new `parsimony` section in `code-review.md`.
-- `fab-workflow/templates`: (modify) Document the new `deletion-candidates.md` artifact template.
+- `fab-workflow/templates`: (modify) Document the new `## Deletion Candidates` section in `plan.md`.
 
 ## Impact
 
 **Code areas touched**:
 - `src/kit/skills/_review/SKILL.md` — parsimony pass + deletion-candidate prompt
-- `src/kit/skills/fab-status/SKILL.md` — surface line_stats
+- `src/kit/skills/fab-status/SKILL.md` — surface true_impact
 - `src/kit/skills/fab-continue/SKILL.md` — possibly the hydrate prompt insertion point
-- `src/kit/templates/status.yaml` — add `line_stats` block initialized empty
-- `src/kit/templates/deletion-candidates.md` — new template
+- `src/kit/templates/status.yaml` — add `true_impact` block initialized empty
+- `src/kit/templates/plan.md` — add new `## Deletion Candidates` parser-contract section (no new template file)
 - `src/cmd/fab/status.go` (or wherever `fab status finish` lives) — invoke the line-stats computation hook
 - `src/cmd/fab/` — possibly a new subcommand `fab line-stats` or `fab impact stats` for the helper
 - `docs/specs/skills/SPEC-fab-continue.md`, `SPEC-fab-status.md`, `SPEC-_review.md` — spec updates per constitution rule
 - `docs/memory/fab-workflow/*` — memory updates per Affected Memory section
 
 **APIs / contracts**:
-- `.status.yaml` schema gains `line_stats` block. Backwards-compatible — consumers without awareness of the field ignore it.
-- New artifact: `deletion-candidates.md` per change. Optional — empty (or absent) when no candidates.
+- `.status.yaml` schema gains `true_impact` block. Backwards-compatible — consumers without awareness of the field ignore it.
+- `plan.md` gains a new top-level `## Deletion Candidates` section (parser contract). Optional — present with "None" when no candidates, omitted entirely when the change type is in the skip list.
 - New optional section in `code-review.md`: `## Parsimony Pass`. Backwards-compatible.
 
 **Dependencies**:
@@ -146,17 +162,17 @@ The order of merging is not load-bearing — whichever merges first wins the hel
 - No new binaries.
 
 **Migration**:
-- Existing `.status.yaml` files do not have `line_stats` — handled gracefully (computed lazily at next stage transition).
+- Existing `.status.yaml` files do not have `true_impact` — handled gracefully (computed lazily at next stage transition).
 - Existing `code-review.md` files do not have the parsimony section — defaults to enabled with default threshold.
 - No destructive migration required.
 
 ## Open Questions
 
-- Where exactly does the deletion-candidate prompt live — inside the existing review sub-agent dispatch, or as its own hydrate-stage step? Spec stage to decide.
-- Should `line_stats` also track the parsimony-flagged threshold violations (e.g., a `parsimony_flags` count)? Possibly redundant with the review report itself.
-- Should `/fab-status` display growth trends across multiple changes (e.g., "this branch has added net +1200 lines across 3 changes")? Out of scope for v1; defer.
-- Is the threshold for "suspicious refactor growth" fixed at +50 (excluding fab/docs), or configurable per-project? Lean toward configurable but with a sensible default.
-- Should the parsimony pass run on `docs`/`chore` changes? Probably no value — those changes are inherently additive. Spec stage to decide a type-based skip list.
+- ~~Where exactly does the deletion-candidate prompt live~~ — resolved: lives in `_review` alongside the parsimony pass.
+- Should `true_impact` also track the parsimony-flagged threshold violations (e.g., a `parsimony_flags` count)? Possibly redundant with the review report itself.
+- ~~Should `/fab-status` display growth trends across multiple changes~~ — resolved: dropped. Per-change net is sufficient signal; branch-level rollup is overreach.
+- ~~Is the refactor-growth threshold configurable per-project~~ — resolved: hard-coded at +50 (excluding fab/docs).
+- ~~Should the parsimony pass run on `docs`/`chore` changes~~ — resolved: hard-coded skip list of `docs`/`chore`/`ci`.
 
 ## Assumptions
 
@@ -164,16 +180,31 @@ The order of merging is not load-bearing — whichever merges first wins the hel
 |---|-------|----------|-----------|--------|
 | 1 | Certain | Scope is limited to interventions #1, #2, #3 from the discussion | Discussed — user explicitly chose these three; the other two (constitution rule, shrink change type) are out of scope | S:95 R:80 A:90 D:95 |
 | 2 | Certain | No hard line-count gates — soft signals only | Discussed — user explicitly rejected hard gates due to gaming risk | S:95 R:90 A:95 D:95 |
-| 3 | Confident | Parsimony pass lives in `_review` skill, integrated with existing severity tiers | Existing code-review infrastructure already classifies findings; parsimony fits naturally | S:80 R:75 A:85 D:75 |
-| 4 | Confident | `line_stats` block goes in `.status.yaml` (not a separate file) | Status.yaml is the existing per-change state container; consistent with `confidence` and `checklist` blocks | S:80 R:75 A:85 D:80 |
-| 5 | Confident | Deletion candidates go in a new `deletion-candidates.md` artifact, not in `spec.md` | Constitution principle VI: spec is pre-implementation; deletion candidates are post-implementation findings | S:85 R:75 A:90 D:80 |
-| 6 | Confident | The "excluding fab/docs" stats are computed using the same helper as the sister intake (260507-asvz) | DRY principle; both intakes need the same git command | S:80 R:80 A:85 D:80 |
-| 7 | Confident | Refactor-type changes with net > +50 (excluding fab/docs) get a soft warning in `/fab-status` | Refactors should generally shrink or stay flat; this is the cheapest detection signal | S:75 R:85 A:80 D:70 |
-| 8 | Tentative | Parsimony pass threshold default: 100 net added lines without spec justification | Plausible default; spec stage to validate against real change history | S:55 R:85 A:60 D:55 |
-| 9 | Tentative | Refactor warning threshold: +50 net (excluding fab/docs) | Conservative default; might need tuning after observing real changes | S:50 R:85 A:60 D:55 |
-| 10 | Tentative | Deletion-candidate prompt is mandatory at hydrate (cannot be skipped) | Forcing the question is the value; allowing skip undermines the intervention | S:60 R:75 A:65 D:55 |
-| 11 | Tentative | Parsimony pass is skipped for `docs`/`chore`/`ci` change types | These types are inherently additive; pass would produce noise | S:55 R:85 A:65 D:55 |
-| 12 | Unresolved | Where does the deletion-candidate prompt physically live — inside `_review` hydrate sub-stage or as a separate `_hydrate` step? | Asked — spec stage to decide based on existing skill structure | S:30 R:55 A:50 D:35 |
-| 13 | Unresolved | Should `/fab-status` show cross-change cumulative deltas (e.g., branch-level totals)? | Asked — defer or include? Lean defer-to-v2, but flagging for spec-stage decision | S:40 R:75 A:55 D:50 |
+| 3 | Certain | Parsimony pass lives in `_review` skill, integrated with existing severity tiers | Clarified — user confirmed | S:95 R:75 A:85 D:75 |
+| 4 | Certain | `true_impact` block goes in `.status.yaml` (not a separate file); renamed from `line_stats` | Clarified — user confirmed and renamed for clarity (it's the true-impact signal, not just raw line stats) | S:95 R:75 A:85 D:80 |
+| 5 | Certain | Deletion candidates go in a new `## Deletion Candidates` section of `plan.md` (not a separate artifact, not in spec.md) | Clarified — user reframed: discovered (vs planned) deletions are post-implementation findings; co-locate with the existing as-built artifact (`plan.md`) rather than creating a new file. Avoids artifact proliferation, which is exactly the bloat we're restraining | S:95 R:75 A:90 D:80 |
+| 6 | Certain | `true_impact_exclude` config field (top-level list in `fab/project/config.yaml`, default `[fab/, docs/]`) is reused from sister change asvz (PR #353, merged). Spec stage decides whether to extract the inline shortstat math from `git-pr.md` into a shared helper or duplicate it; recommendation is to extract | Resolved post-asvz-merge: config field exists and works; helper extraction is the only open sub-question and is a localized spec-stage decision | S:90 R:80 A:85 D:80 |
+| 7 | Certain | Refactor-type changes with net > +50 (excluding fab/docs) get a soft warning in `/fab-status` | Clarified — user confirmed | S:95 R:85 A:80 D:70 |
+| 8 | Certain | Parsimony pass threshold: 100 net added lines (hard-coded in kit, not project-configurable) | Clarified — user chose hard-coded defaults; revisit if real-world usage shows the value is wrong | S:95 R:85 A:60 D:55 |
+| 9 | Certain | Refactor warning threshold: +50 net excluding fab/docs (hard-coded in kit) | Clarified — user chose hard-coded defaults; consistent with #8 | S:95 R:85 A:60 D:55 |
+| 10 | Certain | Deletion-candidate prompt shares the parsimony pass's skip list (skipped for `docs`/`chore`/`ci` change types) | Clarified — user confirmed: consistent config surface, both passes are diff-critique with the same applicability profile | S:95 R:75 A:65 D:55 |
+| 11 | Certain | Parsimony pass and deletion-candidate prompt skipped for `docs`/`chore`/`ci` change types (hard-coded in kit) | Clarified — user chose hard-coded skip list; both passes share the list per #10 | S:95 R:85 A:65 D:55 |
+| 12 | Certain | Deletion-candidate prompt lives in `_review` skill, co-located with the parsimony pass (review stage, not hydrate) | Clarified — user confirmed: deletion-candidate identification is a diff-critique task, same cognitive mode as parsimony; hydrate reads the artifact but doesn't generate it | S:95 R:55 A:50 D:35 |
+| 13 | Certain | No cross-change cumulative deltas in `/fab-status` (per-change net only) | Clarified — user dropped the feature: per-change signal is sufficient, branch-level rollup is overreach | S:95 R:75 A:55 D:50 |
 
-13 assumptions (2 certain, 5 confident, 4 tentative, 2 unresolved).
+13 assumptions (13 certain, 0 confident, 0 tentative, 0 unresolved).
+
+## Clarifications
+
+### Session 2026-05-07
+
+| # | Question | Resolution |
+|---|----------|------------|
+| 12 | Where does the deletion-candidate prompt live? | Moved from hydrate to review stage, co-located with parsimony pass in `_review`. User noted it's a diff-critique task and belongs in review's cognitive mode. Hydrate reads the artifact when present. |
+| 10 | Is the deletion-candidate prompt mandatory? | Skippable via the same skip list as the parsimony pass (skips `docs`/`chore`/`ci`). Single shared config surface. |
+| 13 | Cross-change cumulative deltas in /fab-status? | Dropped. Per-change net is sufficient; branch-level rollup is overreach. |
+| 8, 9, 11 | Configurable thresholds and skip list, or hard-coded? | All three hard-coded in the kit at current defaults (100 lines / +50 refactor / docs+chore+ci). Revisit if real-world usage shows the values are wrong. `code-review.md` keeps only the on/off toggle. |
+| 4 | Confirmed; renamed `line_stats` → `true_impact` in `.status.yaml` to better reflect intent (the diff stats *are* the true-impact signal, not raw line stats). |
+| 6 | Confirmed pending asvz merge; signature of the shared helper locked when asvz lands and this intake's spec consumes it. |
+| 3, 7 | Confirmed as-is. |
+| 5 | Reframed: separated *planned* deletions (stay in spec.md) from *discovered* deletions (new `## Deletion Candidates` section in `plan.md`). No new artifact file — co-locating with `plan.md` keeps the change folder tidy and matches the as-built role `plan.md` already plays. |

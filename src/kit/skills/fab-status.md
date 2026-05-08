@@ -43,7 +43,21 @@ Use `fab preflight` and `fab status` for validation and data retrieval. The skil
 - Queries live branch via `git branch --show-current` (instead of reading a static `branch:` field from `.status.yaml`)
 - **Version drift check**: if `fab/.kit-migration-version` exists and its value is less than the kit VERSION, display a warning: `Version drift: local {local}, engine {engine} -- run /fab-setup migrations`. If versions match, no warning. If `fab/.kit-migration-version` doesn't exist, no warning (handled by `/fab-setup`)
 - Uses `display_stage` and `display_state` from preflight output for the primary "Stage:" line, showing the stage with a state qualifier (e.g., `Stage: intake (1/7) — done`). The "Next:" line shows the routing stage with the default command (e.g., `Next: spec (via /fab-continue)`). When all stages are done, shows `Next: /fab-archive`
-- Renders the full status block: version header, change name, branch, stage with state qualifier (out of 7 total stages), next action, progress table with symbols (`✓` done, `●` active, `◷` ready, `○` pending, `✗` failed), plan counts (tasks: `{plan.task_count}`, acceptance: `{plan.acceptance_completed}/{plan.acceptance_count}`), confidence score, version drift warning (if applicable)
+- Renders the full status block: version header, change name, branch, stage with state qualifier (out of 7 total stages), next action, progress table with symbols (`✓` done, `●` active, `◷` ready, `○` pending, `✗` failed), plan counts (tasks: `{plan.task_count}`, acceptance: `{plan.acceptance_completed}/{plan.acceptance_count}`), confidence score, optional Impact line (see below), optional refactor-growth warning (see below), version drift warning (if applicable)
+- **Impact line** — when `.status.yaml` `true_impact` block is present, render a single line under the change summary, sourced from the block:
+
+  ```
+  Impact: +{net} (raw {added}/-{deleted}, excluding fab/docs +{excl_net} ({excl_added}/-{excl_deleted}))
+  ```
+
+  When `excluding` is absent in the block (project's `true_impact_exclude` is empty), render only the raw figures: `Impact: +{net} ({added}/-{deleted})`. When `true_impact` is absent entirely, omit the line — no "not yet computed" placeholder. The line MUST be highlighted in yellow (terminal `\e[33m...\e[0m` or equivalent) when EITHER `true_impact.net > 100` OR `true_impact.excluding.net > 50` (when `excluding` is present). Both thresholds are hard-coded; they MUST NOT be project-configurable.
+- **Refactor-growth soft warning** — when ALL of the following hold, emit a single line below the impact line: (a) `change_type == refactor`, (b) `true_impact.excluding.net > 50` if `excluding` is present, else `true_impact.net > 50`, (c) `true_impact` block is present (from any stage). Warning text (exact, hard-coded):
+
+  ```
+  Refactor changes typically shrink or stay flat — review whether this growth is intentional.
+  ```
+
+  The +50 threshold is hard-coded. The warning is informational only — no gate, no block.
 - Handles all error cases (no active change, missing `.status.yaml`, missing fields)
 - Defaults missing progress fields to `○` (pending), missing plan to "plan not yet generated", and missing confidence to "not yet scored"
 - **Confidence display** — read uniformly from `.status.yaml` (via preflight output) for all stages:

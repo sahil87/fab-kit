@@ -185,35 +185,24 @@ Print: `  ✓ push   — origin/<branch>`
    - If `{has_plan}`: Apply URL = `https://github.com/{owner_repo}/blob/{branch}/fab/changes/{name}/plan.md`
    - Else if `{has_tasks}`: Apply URL = `https://github.com/{owner_repo}/blob/{branch}/fab/changes/{name}/tasks.md` (legacy fallback for changes that predate the 1.8.0→1.9.0 migration)
 
-   **Compute true-impact line counts** (only when `{has_fab}` AND `true_impact_exclude` is non-empty): used to render the `**Impact**` line in the Meta block below.
+   **Compute true-impact line counts** (only when `{has_fab}`): used to render the `**Impact**` line in the Meta block below. The caller does not pre-check `true_impact_exclude` — it always invokes `fab impact`, which only emits the `excluding` sub-block when `true_impact_exclude` is non-empty. The `**Impact**` line is omitted downstream when `excluding` is absent from the YAML output (see step 3) or yields `+0/−0` (step 4).
 
-   1. Read `true_impact_exclude` from `fab/project/config.yaml` via `yq`:
-      ```bash
-      readarray -t EXCLUDES < <(yq '.true_impact_exclude[]' fab/project/config.yaml 2>/dev/null)
-      ```
-      If `yq` errors, the key is missing, the value is `null`, or `EXCLUDES` is empty → skip impact computation (omit the `**Impact**` line entirely).
-
-   2. Compute the merge-base against the default branch:
+   1. Compute the merge-base against the default branch:
       ```bash
       BASE=$(git merge-base origin/main HEAD 2>/dev/null) \
         || BASE=$(git merge-base origin/master HEAD 2>/dev/null)
       ```
-      `/git-pr` does not compute a merge-base elsewhere, so this is the canonical site for it. If neither resolves, omit the `**Impact**` line silently.
+      If neither resolves, omit the `**Impact**` line silently.
 
-   3. Run two `git diff --shortstat` invocations against `$BASE` (three-dot range — "changes on this branch" semantics):
+   2. Invoke `fab impact` to compute both passes in one call (the subcommand reads `true_impact_exclude` from `fab/project/config.yaml` and emits a YAML doc with `added`/`deleted`/`net` and an optional `excluding` sub-block):
       ```bash
-      # True-impact pass (with pathspec exclusions)
-      EXCLUDE_ARGS=()
-      for pat in "${EXCLUDES[@]}"; do EXCLUDE_ARGS+=( ":(exclude)$pat" ); done
-      IMPACT_RAW=$(git diff --shortstat "$BASE...HEAD" -- . "${EXCLUDE_ARGS[@]}")
-
-      # Total pass (no exclusions)
-      TOTAL_RAW=$(git diff --shortstat "$BASE...HEAD")
+      IMPACT_YAML=$(fab impact "$BASE" HEAD 2>/dev/null) || IMPACT_YAML=""
       ```
+      If `fab impact` fails (non-zero exit) or `IMPACT_YAML` is empty → omit the `**Impact**` line entirely.
 
-   4. Parse each `--shortstat` line for `(\d+) insertions?\(\+\)` and `(\d+) deletions?\(-\)`. Missing clauses default to `0`.
+   3. Parse the YAML for `excluding.added`, `excluding.deleted`, `added`, `deleted` (e.g., via `yq`). Use `excluding.*` as the true-impact pair and `added`/`deleted` as the total pair. If `excluding` is absent in the YAML (config has empty `true_impact_exclude`) → omit the `**Impact**` line entirely.
 
-   5. If the true-impact pass yields `+0 / −0` (every modified file lies inside an excluded path) → omit the `**Impact**` line entirely. Do not render `+0/−0`.
+   4. If the true-impact pass yields `+0 / −0` (every modified file lies inside an excluded path) → omit the `**Impact**` line entirely. Do not render `+0/−0`.
 
    **Generate body sections** in this exact order:
 
