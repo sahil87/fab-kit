@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -23,7 +24,8 @@ func WriteTrueImpact(statusFile *sf.StatusFile, statusPath, fabRoot, stage strin
 		return nil
 	}
 
-	base, err := resolveMergeBase()
+	repoDir := filepath.Dir(fabRoot)
+	base, err := resolveMergeBase(repoDir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "fab: skipping true_impact (%s)\n", err)
 		return nil
@@ -55,10 +57,17 @@ func WriteTrueImpact(statusFile *sf.StatusFile, statusPath, fabRoot, stage strin
 }
 
 // resolveMergeBase returns the merge-base of HEAD against origin/main, falling
-// back to origin/master. Returns an actionable error when neither resolves.
-func resolveMergeBase() (string, error) {
+// back to origin/master. The git invocation is pinned to repoDir (via
+// `cmd.Dir`) so callers operating from nested git repos (e.g., submodules)
+// resolve against the intended repository. Pass an empty repoDir to use the
+// process cwd. Returns an actionable error when neither ref resolves.
+func resolveMergeBase(repoDir string) (string, error) {
 	for _, ref := range []string{"origin/main", "origin/master"} {
-		out, err := exec.Command("git", "merge-base", ref, "HEAD").Output()
+		cmd := exec.Command("git", "merge-base", ref, "HEAD")
+		if repoDir != "" {
+			cmd.Dir = repoDir
+		}
+		out, err := cmd.Output()
 		if err == nil {
 			base := strings.TrimSpace(string(out))
 			if base != "" {

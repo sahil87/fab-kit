@@ -221,14 +221,14 @@ excluding:
     added: 87
     deleted: 38
     net: 49
-computed_at: 2026-05-07T14:32:00Z
+computed_at: "2026-05-07T14:32:00Z"
 ```
 
 The `excluding` sub-block is emitted only when `fab/project/config.yaml`'s top-level `true_impact_exclude` list is non-empty; the subcommand applies each entry as a `:(exclude)<pattern>` pathspec when running the second `git diff --shortstat` pass. Three-dot range semantics (`<base>...<head>`) — "changes on this branch only".
 
 Exit codes:
 - `0` — success; YAML document on stdout.
-- non-zero — `git merge-base` or `git diff` failed; actionable message on stderr (e.g., `base ref is empty`). The caller decides whether to abort or skip.
+- non-zero — `<base>` is empty/invalid or `git diff` failed; actionable message on stderr (e.g., `base ref is empty`). The subcommand does not run `git merge-base` itself — callers must resolve the merge-base upstream and pass the result. The caller decides whether to abort or skip.
 
 Consumers: `/git-pr` Step 3c-impact (PR body `**Impact**` line) and the apply-finish + hydrate-finish hooks (write the result into `.status.yaml` `true_impact`).
 

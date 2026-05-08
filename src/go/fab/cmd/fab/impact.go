@@ -49,6 +49,6 @@ func renderYAML(r impact.Result) string {
 		fmt.Fprintf(&b, "    deleted: %d\n", r.Excluding.Deleted)
 		fmt.Fprintf(&b, "    net: %d\n", r.Excluding.Net)
 	}
-	fmt.Fprintf(&b, "computed_at: %s\n", time.Now().UTC().Format(time.RFC3339))
+	fmt.Fprintf(&b, "computed_at: %q\n", time.Now().UTC().Format(time.RFC3339))
 	return b.String()
 }

@@ -32,39 +32,35 @@ func TestParseShortstat(t *testing.T) {
 
 func TestCompute_EmptyExcludesNoExcludingBlock(t *testing.T) {
 	dir := setupRepo(t)
-	withCwd(t, dir, func() {
-		res, err := Compute("base", "HEAD", nil)
-		if err != nil {
-			t.Fatalf("Compute: %v", err)
-		}
-		if res.Excluding != nil {
-			t.Errorf("expected no Excluding when excludes is empty, got %+v", res.Excluding)
-		}
-		if res.Added <= 0 {
-			t.Errorf("expected non-zero Added, got %d", res.Added)
-		}
-	})
+	res, err := Compute(dir, "base", "HEAD", nil)
+	if err != nil {
+		t.Fatalf("Compute: %v", err)
+	}
+	if res.Excluding != nil {
+		t.Errorf("expected no Excluding when excludes is empty, got %+v", res.Excluding)
+	}
+	if res.Added <= 0 {
+		t.Errorf("expected non-zero Added, got %d", res.Added)
+	}
 }
 
 func TestCompute_ExcludesEmitsExcluding(t *testing.T) {
 	dir := setupRepo(t)
-	withCwd(t, dir, func() {
-		res, err := Compute("base", "HEAD", []string{"docs/"})
-		if err != nil {
-			t.Fatalf("Compute: %v", err)
-		}
-		if res.Excluding == nil {
-			t.Fatal("expected Excluding block when excludes is non-empty")
-		}
-		// docs/ excluded — exclude pass should have fewer (or equal) additions
-		if res.Excluding.Added > res.Added {
-			t.Errorf("excluding.added (%d) should not exceed raw.added (%d)", res.Excluding.Added, res.Added)
-		}
-	})
+	res, err := Compute(dir, "base", "HEAD", []string{"docs/"})
+	if err != nil {
+		t.Fatalf("Compute: %v", err)
+	}
+	if res.Excluding == nil {
+		t.Fatal("expected Excluding block when excludes is non-empty")
+	}
+	// docs/ excluded — exclude pass should have fewer (or equal) additions
+	if res.Excluding.Added > res.Added {
+		t.Errorf("excluding.added (%d) should not exceed raw.added (%d)", res.Excluding.Added, res.Added)
+	}
 }
 
 func TestCompute_BaseEmptyError(t *testing.T) {
-	_, err := Compute("", "HEAD", nil)
+	_, err := Compute("", "", "HEAD", nil)
 	if err == nil {
 		t.Fatal("expected error when base is empty")
 	}
@@ -72,12 +68,10 @@ func TestCompute_BaseEmptyError(t *testing.T) {
 
 func TestCompute_BadBaseError(t *testing.T) {
 	dir := setupRepo(t)
-	withCwd(t, dir, func() {
-		_, err := Compute("nonexistent-ref-xyzzy", "HEAD", nil)
-		if err == nil {
-			t.Fatal("expected error when base is unresolvable")
-		}
-	})
+	_, err := Compute(dir, "nonexistent-ref-xyzzy", "HEAD", nil)
+	if err == nil {
+		t.Fatal("expected error when base is unresolvable")
+	}
 }
 
 // setupRepo creates a tiny git repo with two commits and tags the first as
@@ -124,21 +118,3 @@ func setupRepo(t *testing.T) string {
 	return dir
 }
 
-// withCwd runs fn with cwd set to dir, restoring on exit. Tests using this
-// MUST NOT be run in parallel — they mutate process-wide cwd.
-func withCwd(t *testing.T, dir string, fn func()) {
-	t.Helper()
-	orig, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := os.Chdir(orig); err != nil {
-			t.Fatal(err)
-		}
-	}()
-	fn()
-}

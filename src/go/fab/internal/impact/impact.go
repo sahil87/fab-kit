@@ -7,6 +7,7 @@ package impact
 import (
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -36,9 +37,12 @@ var (
 
 // Compute runs `git diff --shortstat <base>...<head>` once unconditionally
 // (the raw pass) and a second time with `:(exclude)<pattern>` pathspec args
-// when excludes is non-empty (the excluding pass). On merge-base/git-diff
-// failure it returns an error; callers decide whether to abort or skip.
-func Compute(base, head string, excludes []string) (Result, error) {
+// when excludes is non-empty (the excluding pass). All git invocations run
+// in repoDir (via `cmd.Dir`) so callers operating from nested git repos
+// (e.g., submodules) compute diffs against the intended repository. Pass
+// an empty repoDir to use the process cwd. On merge-base/git-diff failure
+// it returns an error; callers decide whether to abort or skip.
+func Compute(repoDir, base, head string, excludes []string) (Result, error) {
 	if base == "" {
 		return Result{}, fmt.Errorf("base ref is empty (merge-base resolution likely failed upstream)")
 	}
@@ -46,7 +50,7 @@ func Compute(base, head string, excludes []string) (Result, error) {
 		head = "HEAD"
 	}
 
-	rawAdded, rawDeleted, err := runShortstat(base, head, nil)
+	rawAdded, rawDeleted, err := runShortstat(repoDir, base, head, nil)
 	if err != nil {
 		return Result{}, fmt.Errorf("git diff (raw): %w", err)
 	}
@@ -61,7 +65,7 @@ func Compute(base, head string, excludes []string) (Result, error) {
 		return res, nil
 	}
 
-	exAdded, exDeleted, err := runShortstat(base, head, excludes)
+	exAdded, exDeleted, err := runShortstat(repoDir, base, head, excludes)
 	if err != nil {
 		return Result{}, fmt.Errorf("git diff (excluding): %w", err)
 	}
@@ -75,16 +79,17 @@ func Compute(base, head string, excludes []string) (Result, error) {
 }
 
 // ComputeForRepo loads `true_impact_exclude` from fabRoot's config and
-// delegates to Compute. fabRoot points to the `fab/` directory.
+// delegates to Compute, pinning all git invocations to the repo root
+// (`filepath.Dir(fabRoot)`). fabRoot points to the `fab/` directory.
 func ComputeForRepo(fabRoot, base, head string) (Result, error) {
 	cfg, err := config.Load(fabRoot)
 	if err != nil {
 		return Result{}, err
 	}
-	return Compute(base, head, cfg.TrueImpactExclude)
+	return Compute(filepath.Dir(fabRoot), base, head, cfg.TrueImpactExclude)
 }
 
-func runShortstat(base, head string, excludes []string) (int, int, error) {
+func runShortstat(repoDir, base, head string, excludes []string) (int, int, error) {
 	args := []string{"diff", "--shortstat", base + "..." + head}
 	if len(excludes) > 0 {
 		args = append(args, "--", ".")
@@ -92,7 +97,11 @@ func runShortstat(base, head string, excludes []string) (int, int, error) {
 			args = append(args, ":(exclude)"+p)
 		}
 	}
-	out, err := exec.Command("git", args...).Output()
+	cmd := exec.Command("git", args...)
+	if repoDir != "" {
+		cmd.Dir = repoDir
+	}
+	out, err := cmd.Output()
 	if err != nil {
 		return 0, 0, fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}

@@ -185,7 +185,7 @@ Print: `  ✓ push   — origin/<branch>`
    - If `{has_plan}`: Apply URL = `https://github.com/{owner_repo}/blob/{branch}/fab/changes/{name}/plan.md`
    - Else if `{has_tasks}`: Apply URL = `https://github.com/{owner_repo}/blob/{branch}/fab/changes/{name}/tasks.md` (legacy fallback for changes that predate the 1.8.0→1.9.0 migration)
 
-   **Compute true-impact line counts** (only when `{has_fab}` AND `true_impact_exclude` is non-empty): used to render the `**Impact**` line in the Meta block below.
+   **Compute true-impact line counts** (only when `{has_fab}`): used to render the `**Impact**` line in the Meta block below. The caller does not pre-check `true_impact_exclude` — it always invokes `fab impact`, which only emits the `excluding` sub-block when `true_impact_exclude` is non-empty. The `**Impact**` line is omitted downstream when `excluding` is absent from the YAML output (see step 3) or yields `+0/−0` (step 4).
 
    1. Compute the merge-base against the default branch:
       ```bash
