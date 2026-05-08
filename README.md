@@ -4,38 +4,38 @@
 
 [![Latest release](https://img.shields.io/github/v/release/sahil87/fab-kit)](https://github.com/sahil87/fab-kit/releases) [![Downloads](https://img.shields.io/github/downloads/sahil87/fab-kit/total)](https://github.com/sahil87/fab-kit/releases) [![Stars](https://img.shields.io/github/stars/sahil87/fab-kit?style=social)](https://github.com/sahil87/fab-kit/stargazers)
 
-A development toolkit for AI-assisted coding. It includes an 8-stage pipeline (intake → spec → tasks → apply → review → hydrate → ship → review-PR), standalone CLI tools for [git worktree management](#standalone-cli-tools) (`wt`) and [idea backlogs](#standalone-cli-tools) (`idea`), and batch orchestration for running multiple AI agents in parallel. Plain markdown prompts, no SDK, no vendor lock-in. Works with Claude Code, Codex, Cursor, and Windsurf.
+A development toolkit for AI-assisted coding. It includes a 7-stage pipeline (intake → spec → apply → review → hydrate → ship → review-PR), standalone CLI tools for [git worktree management](#standalone-cli-tools) (`wt`) and [idea backlogs](#standalone-cli-tools) (`idea`), and batch orchestration for running multiple AI agents in parallel. Plain markdown prompts, no SDK, no vendor lock-in. Works with Claude Code, Codex, Cursor, and Windsurf.
 
 AI agents write code fast. The bottleneck is now your clarity: did you define the problem well enough? Fab Kit sits at that bottleneck — it forces structured thinking before implementation, grounds every session in your project's actual context, and gets cheaper to run as agents improve.
 
 > **[Try it now](#quick-start)** | **[Understand the concepts](#why-fab-kit)** | **[Glossary](docs/specs/glossary.md)** (new to Fab terminology?)
 
-**Contents:** [The 8 Stages](#the-8-stages) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start) · [Why Fab Kit](#why-fab-kit) · [The 5 Cs](#the-5-cs-of-quality) · [Commands](#command-quick-reference) · [Stage Coverage](#stage-coverage-by-command) · [CLI Tools](#standalone-cli-tools) · [Learn More](#learn-more)
+**Contents:** [The 7 Stages](#the-7-stages) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start) · [Why Fab Kit](#why-fab-kit) · [The 5 Cs](#the-5-cs-of-quality) · [Commands](#command-quick-reference) · [Stage Coverage](#stage-coverage-by-command) · [CLI Tools](#standalone-cli-tools) · [Learn More](#learn-more)
 
-## The 8 Stages
+## The 7 Stages
 
-Every change (a self-contained feature or fix with its own folder) moves through eight stages:
+Every change (a self-contained feature or fix with its own folder) moves through seven stages:
 
 ```mermaid
 flowchart TD
     subgraph planning ["Planning"]
         direction LR
-        B["1 INTAKE"] --> S["2 SPEC"] --> T["3 TASKS"]
+        B["1 INTAKE"] --> S["2 SPEC"]
     end
     subgraph execution ["Execution"]
         direction LR
-        A["4 APPLY"] --> V["5 REVIEW"]
+        A["3 APPLY"] --> V["4 REVIEW"]
     end
     subgraph completion ["Completion"]
         direction LR
-        AR["6 HYDRATE"]
+        AR["5 HYDRATE"]
     end
     subgraph shipping ["Shipping"]
         direction LR
-        SH["7 SHIP"] --> RPR["8 REVIEW-PR"]
+        SH["6 SHIP"] --> RPR["7 REVIEW-PR"]
     end
 
-    T --> A
+    S --> A
     V --> AR
     AR --> SH
 
@@ -49,12 +49,11 @@ flowchart TD
 |---|-------|---------|----------|
 | 1 | **Intake** | Capture intent, scope, approach | `intake.md` |
 | 2 | **Spec** | Define requirements | `spec.md` |
-| 3 | **Tasks** | Break into implementation checklist | `tasks.md` + `checklist.md` |
-| 4 | **Apply** | Execute the tasks | Code changes |
-| 5 | **Review** | Sub-agent validates against spec and [constitution](#code-quality-as-a-guardrail) (your project's architectural rules) | Prioritized findings report |
-| 6 | **Hydrate** | Save learnings into project memory (`docs/memory/`) | Memory updates |
-| 7 | **Ship** | Commit, push, and create a GitHub PR | Pull request |
-| 8 | **Review-PR** | Triage and fix PR review comments from humans or automated reviewers | Comments addressed |
+| 3 | **Apply** | Generate `plan.md` from spec, then execute the tasks | `plan.md` + code changes |
+| 4 | **Review** | Sub-agent validates against spec and [constitution](#code-quality-as-a-guardrail) (your project's architectural rules) | Prioritized findings report |
+| 5 | **Hydrate** | Save learnings into project memory (`docs/memory/`) | Memory updates |
+| 6 | **Ship** | Commit, push, and create a GitHub PR | Pull request |
+| 7 | **Review-PR** | Triage and fix PR review comments from humans or automated reviewers | Comments addressed |
 
 Each stage produces a persistent artifact or state update. Interrupt anything — re-run the same command to resume. All pipeline skills are idempotent.
 
@@ -66,8 +65,7 @@ A change folder looks like this:
 fab/changes/260101-abcd-add-spinner/
 ├── intake.md        # What you want and why
 ├── spec.md          # Requirements (generated)
-├── tasks.md         # Implementation plan (generated)
-├── checklist.md     # Progress tracking
+├── plan.md          # Tasks + acceptance criteria (generated at apply entry)
 └── .status.yaml     # Pipeline state (symlinked as .fab-status.yaml at repo root while this change is active)
 ```
 
@@ -220,9 +218,7 @@ Then type the commands below in the agent's prompt. Each command runs one pipeli
 
 # Planning - generates spec.md (structured requirements)
 /fab-continue
-# Planning - generates tasks.md (implementation checklist)
-/fab-continue
-# Execution - implements the code, checking off tasks as it goes
+# Execution - generates plan.md (tasks + acceptance) and implements the code, checking off tasks as it goes
 /fab-continue
 # Execution - reviews implementation against spec + constitution
 /fab-continue
@@ -305,7 +301,7 @@ Without Fab, you describe a task, wait while AI works, review, repeat. With Fab,
 
 Three properties make this work:
 
-- **Self-contained change folders** - Each change has its own spec, tasks, and status. No shared state - parallel changes don't interfere during development.
+- **Self-contained change folders** - Each change has its own spec, plan, and status. No shared state - parallel changes don't interfere during development.
 - **Git worktree isolation** - Each change runs in its own [worktree](https://git-scm.com/docs/git-worktree). Parallel AI sessions can't step on each other.
 - **Resumable pipeline** - Every stage produces a persistent artifact. Interrupt anything, resume later.
 
@@ -339,23 +335,23 @@ AI writes code fast. Without structure, it also skips requirements, ignores arch
         │    MUST · SHOULD · MUST NOT   │
         └───────────────┬───────────────┘
                         │
-  intake → spec → tasks → apply ⇄ review → hydrate
-             ↑       ↑       ↑    ↗
-             └───────┴───────┴────┘
+  intake → spec → apply ⇄ review → hydrate
+             ↑       ↑    ↗
+             └───────┴────┘
                 sub-agent review
                 with prioritized
                 findings
 ```
 
-- **Stages that can't be skipped** - The pipeline requires intake, spec, and tasks before any code is written. The AI can't jump straight to implementation. Before code is written, the [SRAD framework](#structured-autonomy-not-guesswork) ensures planning decisions are grounded in context - not silently guessed.
-- **Project constitution** - `fab/project/constitution.md` defines your architectural rules using MUST/SHOULD/MUST NOT. Every spec, task breakdown, and review checks against it - not just the change's requirements.
+- **Stages that can't be skipped** - The pipeline requires intake and spec before any code is written. The AI can't jump straight to implementation. Before code is written, the [SRAD framework](#structured-autonomy-not-guesswork) ensures planning decisions are grounded in context - not silently guessed.
+- **Project constitution** - `fab/project/constitution.md` defines your architectural rules using MUST/SHOULD/MUST NOT. Every spec, plan, and review checks against it - not just the change's requirements.
 - **Review that fixes, not just flags** - A **sub-agent** reviews in a fresh context, returning prioritized findings. The applying agent triages by severity and loops back to the right stage:
 
 | Review finds | Priority | Loops back to | What happens |
 |-------------|----------|---------------|--------------|
-| Spec mismatch, failing tests | Must-fix | → apply | Unchecks failed tasks, re-runs them |
-| Missing/wrong tasks | Must-fix | → tasks | Revises tasks, re-applies |
-| Requirements were wrong | Must-fix | → spec | Updates spec, regenerates tasks |
+| Spec mismatch, failing tests | Must-fix | → apply | Unchecks failed tasks in `plan.md`, re-runs them |
+| Missing/wrong tasks | Must-fix | → apply | Regenerates `plan.md`, re-applies |
+| Requirements were wrong | Must-fix | → spec | Updates spec, regenerates plan |
 | Code quality issue | Should-fix | → apply | Addressed when clear and low-effort |
 | Style suggestion | Nice-to-have | - | May be skipped |
 
@@ -470,7 +466,7 @@ Which pipeline stages each command covers. Taller bars = more automation. Read l
 | 🟧 Amber | Manual (single action) | `/fab-draft`, `/fab-switch`, `/fab-continue` |
 | ⬜ Blue-grey (dashed) | Git utilities | `/git-branch`, `/git-pr`, `/git-pr-review` |
 | 🟩 Green | Automated pipeline (multi-stage) | `/fab-new`, `/fab-ff`, `/fab-fff`, `/fab-proceed` |
-| ◻️ Grey | Fab pipeline stage (row label) | intake, change active, spec, tasks, apply, review, hydrate |
+| ◻️ Grey | Fab pipeline stage (row label) | intake, change active, spec, apply, review, hydrate |
 | ▶ | Typical entry point | `/fab-discuss`, `/fab-new` |
 
 ```mermaid
@@ -486,7 +482,6 @@ block-beta
     row_active["change active"]:1 space:2 switch_active["change active"]:1 space:1 new_active["change active"]:1 space:5 proceed_active["change active"]:1 space:1
     row_branch["branch name"]:1 space:3 branch_branch["branch name"]:1 new_branch["branch name"]:1 space:5 proceed_branch["branch name"]:1 space:1
     row_spec["spec"]:1 space:5 cont_spec["one stage"]:1 ff_spec["spec"]:1 space:2 fff_spec["spec"]:1 proceed_spec["spec"]:1 space:1
-    row_tasks["tasks"]:1 space:5 cont_tasks["one stage"]:1 ff_tasks["tasks"]:1 space:2 fff_tasks["tasks"]:1 proceed_tasks["tasks"]:1 space:1
     row_apply["apply"]:1 space:5 cont_apply["one stage"]:1 ff_apply["apply"]:1 space:2 fff_apply["apply"]:1 proceed_apply["apply"]:1 space:1
     row_review["review"]:1 space:5 cont_review["one stage"]:1 ff_review["review"]:1 space:2 fff_review["review"]:1 proceed_review["review"]:1 space:1
     row_hydrate["hydrate"]:1 space:5 cont_hydrate["one stage"]:1 ff_hydrate["hydrate"]:1 space:2 fff_hydrate["hydrate"]:1 proceed_hydrate["hydrate"]:1 space:1
@@ -524,7 +519,6 @@ block-beta
     style row_active fill:#bdbdbd,stroke:#757575,color:#1a1a1a
     style row_branch fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5
     style row_spec fill:#bdbdbd,stroke:#757575,color:#1a1a1a
-    style row_tasks fill:#bdbdbd,stroke:#757575,color:#1a1a1a
     style row_apply fill:#bdbdbd,stroke:#757575,color:#1a1a1a
     style row_review fill:#bdbdbd,stroke:#757575,color:#1a1a1a
     style row_hydrate fill:#bdbdbd,stroke:#757575,color:#1a1a1a
@@ -550,14 +544,12 @@ block-beta
 
     %% fab-continue (Stage advance — amber)
     style cont_spec fill:#ffb74d,stroke:#E65100,color:#1a1a1a,stroke-dasharray: 5 5
-    style cont_tasks fill:#ffb74d,stroke:#E65100,color:#1a1a1a,stroke-dasharray: 5 5
     style cont_apply fill:#ffb74d,stroke:#E65100,color:#1a1a1a,stroke-dasharray: 5 5
     style cont_review fill:#ffb74d,stroke:#E65100,color:#1a1a1a,stroke-dasharray: 5 5
     style cont_hydrate fill:#ffb74d,stroke:#E65100,color:#1a1a1a,stroke-dasharray: 5 5
 
     %% fab-ff (Automation — green)
     style ff_spec fill:#81c784,stroke:#2E7D32,color:#1a1a1a
-    style ff_tasks fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style ff_apply fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style ff_review fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style ff_hydrate fill:#81c784,stroke:#2E7D32,color:#1a1a1a
@@ -570,7 +562,6 @@ block-beta
 
     %% fab-fff (Automation — green)
     style fff_spec fill:#81c784,stroke:#2E7D32,color:#1a1a1a
-    style fff_tasks fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style fff_apply fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style fff_review fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style fff_hydrate fill:#81c784,stroke:#2E7D32,color:#1a1a1a
@@ -582,7 +573,6 @@ block-beta
     style proceed_intake fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style proceed_branch fill:#81c784,stroke:#2E7D32,color:#1a1a1a,stroke-dasharray: 5 5
     style proceed_spec fill:#81c784,stroke:#2E7D32,color:#1a1a1a
-    style proceed_tasks fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style proceed_apply fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style proceed_review fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style proceed_hydrate fill:#81c784,stroke:#2E7D32,color:#1a1a1a
@@ -599,7 +589,6 @@ block-beta
 | change active | | | ✅ | | ✅ | | | | | | ✅ |
 | branch name | | | | ✅ | ✅ | | | | | | ✅ |
 | spec | | | | | | ✅ | ✅ | | | ✅ | ✅ |
-| tasks | | | | | | ✅ | ✅ | | | ✅ | ✅ |
 | apply | | | | | | ✅ | ✅ | | | ✅ | ✅ |
 | review | | | | | | ✅ | ✅ | | | ✅ | ✅ |
 | hydrate | | | | | | ✅ | ✅ | | | ✅ | ✅ |
