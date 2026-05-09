@@ -28,3 +28,19 @@ func TestVersion(t *testing.T) {
 		t.Error("version should not be empty")
 	}
 }
+
+func TestDisplayVersion(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{"1.9.4", "v1.9.4"},
+		{"v1.9.4", "v1.9.4"},
+		{"dev", "dev"},
+	}
+	for _, tc := range cases {
+		if got := displayVersion(tc.in); got != tc.want {
+			t.Errorf("displayVersion(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}

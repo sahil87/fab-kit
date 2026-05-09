@@ -3,12 +3,24 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/sahil87/fab-kit/src/go/fab-kit/internal"
 	"github.com/spf13/cobra"
 )
 
 var version = "dev"
+
+// displayVersion returns version with a "v" prefix when it looks like a real
+// release (e.g., "1.9.4" → "v1.9.4"), so `fab-kit --version` matches the
+// toolkit-wide standard `<name> version v<X.Y.Z>`. The "dev" sentinel and any
+// already-prefixed value pass through unchanged.
+func displayVersion(v string) string {
+	if v == "dev" || strings.HasPrefix(v, "v") {
+		return v
+	}
+	return "v" + v
+}
 
 // fabKitCommands lists the commands owned by fab-kit (used by tests).
 var fabKitCommands = map[string]bool{
@@ -23,7 +35,7 @@ func main() {
 	root := &cobra.Command{
 		Use:           "fab-kit",
 		Short:         "Fab Kit — workspace lifecycle (init, upgrade-repo, sync)",
-		Version:       version,
+		Version:       displayVersion(version),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
