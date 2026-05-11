@@ -205,7 +205,7 @@ To re-deploy skills, scaffold structure, and sync hooks without changing the pin
 fab sync
 ```
 
-> **Note:** `fab sync` runs automatically in every new worktree created by [`wt create`](docs/specs/packages.md#wt-worktree-management).
+> **Note:** `fab sync` runs automatically in every new worktree created by [`wt create`](docs/specs/companions.md#wt--worktree-isolation).
 
 ### 2. Your first change
 
@@ -602,14 +602,16 @@ block-beta
 | ship | | | | | | | | ✅ | | ✅ | ✅ |
 | review-pr | | | | | | | | | ✅ | ✅ | ✅ |
 
-## Standalone CLI Tools
+## Companion tools
 
-Fab Kit includes standalone CLI tools that work with or without the pipeline. They're installed system-wide via `brew install fab-kit`. See [packages.md](docs/specs/packages.md) for details.
+fab-kit's Homebrew formula declares **wt** and **idea** as dependencies, so `brew install sahil87/tap/fab-kit` installs all four CLIs (`fab`, `fab-kit`, `wt`, `idea`) on PATH transitively. They're independent projects with their own release cadences:
 
-| Tool | Purpose |
-|------|---------|
-| **wt** | Git worktree management - `wt create`, `wt open`, `wt list`, `wt delete`. Worktrees are the foundation of [parallel changes](#parallel-by-default). |
-| **idea** | Per-repo idea backlog in `fab/backlog.md` - `idea add`, `idea list`, `idea done`. Feeds directly into `/fab-new`. |
+| Tool | Role in the fab workflow | Repo |
+|------|--------------------------|------|
+| **wt** | Worktree isolation — each change runs in its own worktree (the foundation of [parallel changes](#parallel-by-default)). Used by `fab batch new` and `fab batch switch`. | [sahil87/wt](https://github.com/sahil87/wt) |
+| **idea** | Per-repo backlog (`fab/backlog.md`) that feeds `/fab-new`. `fab batch new` reads open ideas and creates a worktree per item. | [sahil87/idea](https://github.com/sahil87/idea) |
+
+See [companions.md](docs/specs/companions.md) for the integration architecture.
 
 ## Learn More
 
