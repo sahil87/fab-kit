@@ -24,19 +24,21 @@ The standalone `wt` and `idea` formulas in `sahil87/homebrew-tap` SHALL declare 
 
 #### Router Architecture (System `fab` Binary)
 
-The system `fab` binary acts as a router using negative-match dispatch. It maintains a static allowlist of fab-kit commands (`init`, `upgrade-repo`, `sync`, `update`, `doctor`) that are dispatched to `fab-kit` via `syscall.Exec`. A separate set of inline commands (`--version`, `-v`, `--help`, `-h`, `help`) are handled directly by the router without exec'ing any sub-binary. All other commands are dispatched to the version-resolved `fab-go`.
+The system `fab` binary acts as a router using negative-match dispatch. It maintains a static allowlist of fab-kit commands (`init`, `upgrade-repo`, `sync`, `update`, `doctor`) that are dispatched to `fab-kit` via `syscall.Exec`. A separate set of inline commands (`--version`, `-v`, `--help`, `-h`, `help`) are handled directly by the router without exec'ing any sub-binary. All other commands are dispatched to the version-resolved `fab-go` — the router applies an **always-route policy** with no `config.yaml` gate.
 
 For fab-go dispatch, the router SHALL:
 
 1. Walk up from CWD to find `fab/project/config.yaml`
-2. Read `fab_version` from `config.yaml` (e.g., `fab_version: "0.43.0"`)
+2. Select version inline: if `cfg != nil` use `cfg.FabVersion` (project-pinned, e.g., `fab_version: "0.43.0"`); otherwise use the router's build-time `version` constant (router-bundled, set via `-ldflags -X`)
 3. Check the local cache for the matching `fab-go` binary at `~/.fab-kit/versions/{version}/fab-go`
 4. If not cached, download the release from GitHub (`sahil87/fab-kit` releases) and cache it
 5. Exec the cached `fab-go` with full argument passthrough
 
-A sibling `fabGoNoConfigArgs` allowlist exempts specific fab-go subcommands from the `config.yaml` requirement — currently `pane` only, because pane subcommands resolve state from target pane IDs rather than from the invoker's CWD. When the router is outside a fab repo and the invoked subcommand is in this allowlist, it dispatches to the `fab-go` matching the router's own build-time `version` constant (bundled fab-go) instead of exiting. Inside a fab repo, exempt commands continue to use the project-pinned `fab_version`.
+If `config.yaml` exists but cannot be parsed, the router hard-errors with the parse error from `internal.ResolveConfig` (corrupted-config path is unchanged). Only the missing-config case becomes a soft fall-through to the bundled version.
 
-`fab help` composes help from both sub-binaries: workspace commands (from fab-kit) are always shown; workflow commands (from fab-go) are also always shown — using the project-pinned `fab_version` inside a fab-managed repo and the router's build-time `version` (bundled fab-go) outside, so all workflow commands (including `pane`) remain discoverable from scratch tabs. Help-block errors are silently swallowed (best-effort).
+fab-go's per-command guards (typically `resolve.FabRoot()`) are the authoritative answer to "does this need config?" — commands that require project state (`preflight`, `score`, `resolve`, `status`, `change`, `log`, `batch`, `fab-help`) fail-closed with `ERROR: fab/ directory not found`, while config-free commands (`kit-path`, `pane`, `operator`'s switch path, hooks, `completion`, `shell-init`, `help`, `<subcommand> --help`) run cleanly from anywhere.
+
+`fab help` composes help from both sub-binaries: workspace commands (from fab-kit) are always shown; workflow commands (from fab-go) are also always shown — using the project-pinned `fab_version` inside a fab-managed repo and the router's build-time `version` (bundled fab-go) outside, so all workflow commands remain discoverable from scratch tabs. Help-block errors are silently swallowed (best-effort).
 
 **Scenarios**:
 - fab-kit command dispatch — `fab init`, `fab sync`, `fab upgrade-repo` are routed to `fab-kit` with all args passed through
@@ -46,7 +48,8 @@ A sibling `fabGoNoConfigArgs` allowlist exempts specific fab-go subcommands from
 - `config.yaml` found but `fab_version` absent — exits with: `"No fab_version in config.yaml. Run 'fab init' to set one."`
 - Not in a fab-managed repo, fab-kit command — `fab init`, `fab sync` dispatched to `fab-kit` (works without config.yaml)
 - Not in a fab-managed repo, inline command — `fab --version` and `fab --help` handled inline by the router (no config.yaml needed); `fab --version` prints only the system version line when no `fab/project/config.yaml` is found
-- Not in a fab-managed repo, workflow command — exits with: `"Not in a fab-managed repo. Run 'fab init' to set one up."` — exception: subcommands in the `fabGoNoConfigArgs` allowlist (currently `pane`) dispatch to the bundled fab-go instead of exiting
+- Not in a fab-managed repo, workflow command — dispatched to the router-bundled `fab-go`. Commands that need project state (e.g., `fab preflight`, `fab score`) self-guard and exit non-zero with `ERROR: fab/ directory not found`. Config-free commands (e.g., `fab kit-path`, `fab pane map`, `fab completion zsh`, `fab shell-init zsh`, `fab --help`) run successfully
+- Corrupted `config.yaml` — router hard-errors with the parse error before any dispatch
 
 #### Cache Layout
 
@@ -329,6 +332,7 @@ The repository SHALL be renamed from `docs-sddr` to `fab-kit` to reflect its rol
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260511-c432-fix-completion-outside-repo | 2026-05-12 | Router Architecture section rewritten to describe the always-route policy. Removed all references to the `fabGoNoConfigArgs` allowlist (no longer exists in `src/go/fab-kit/cmd/fab/main.go`) and the "Not in a fab-managed repo. Run 'fab init' to set one up." exit (gone). Router now routes every non-fab-kit command to `fab-go` regardless of `config.yaml` presence; version selection is inline (project-pinned when `cfg != nil`, router-bundled otherwise). fab-go's per-command guards are the authoritative gate. Corrupted-config path (parse error) still hard-errors. The "Not in a fab-managed repo, workflow command" scenario rewritten to reflect that workflow commands now reach fab-go and either run (config-free) or fail-closed via fab-go's own guard. |
 | 260506-4rtx-decouple-wt-idea | 2026-05-06 | `wt` and `idea` split out of fab-kit's brew tarball into standalone Homebrew formulas in `sahil87/tap` (formerly bundled). fab-kit's formula declares them as `depends_on "sahil87/tap/wt"` and `depends_on "sahil87/tap/idea"`. Brew tarball shrinks from 4 binaries to 2 (`fab`, `fab-kit`); cross-compile matrix shrinks from 5×4=20 to 3×4=12. `src/go/wt/` and `src/go/idea/` removed; canonical sources are `github.com/sahil87/wt` and `github.com/sahil87/idea`. `link_overwrite "bin/wt"` / `link_overwrite "bin/idea"` in the standalone formulas handle the upgrade-conflict from `fab-kit 1.6.2` (which owned those symlinks) transparently. Release notes for `1.7.0` document the `brew unlink wt idea && brew upgrade fab-kit` fallback for the rare case `link_overwrite` does not resolve cleanly. First release carrying this change is `1.7.0` (semver minor — user-visible install set unchanged via `depends_on` transitivity). Also swept stale `wvrdz/tap` references in active prose to `sahil87/tap` (historical Changelog rows preserved). |
 | 260417-y0sw-pane-skip-config-check | 2026-04-17 | Router adds `fabGoNoConfigArgs` allowlist (currently `pane` only) exempting listed fab-go subcommands from the `config.yaml` requirement. Outside a fab repo, exempt commands dispatch to the bundled fab-go via the router's build-time `version`; inside a fab repo, the project-pinned `fab_version` is used unchanged. Updated "Not in a fab-managed repo, workflow command" scenario to note the `pane` exception. |
 | 260409-5z32-wt-open-default-medium | 2026-04-09 | Added `"default"` keyword for `wt open --app` and `wt create --worktree-open`. Resolves via `ResolveDefaultApp()` → `DetectDefaultApp()` priority chain. `wt open` errors on no-default; `wt create` warns and continues. Added `SaveLastApp` call to `wt open --app` code path (was previously missing for all `--app` values). |

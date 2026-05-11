@@ -87,6 +87,13 @@ This installs the `fab` CLI (router), `fab-kit` (workspace lifecycle), and stand
 
 * After installing `gh`, authenticate with `gh auth login`.
 * After installing `direnv`, add the hook [to your shell](https://direnv.net/docs/hook.html).
+* Optional — activate shell completion in your shell's rc file:
+
+  ```bash
+  eval "$(fab shell-init zsh)"   # or bash / fish
+  ```
+
+  Works from any directory (no fab project required). Prefer saving the script to disk? Use `fab completion <shell>` instead.
 
 | Tool | Purpose |
 |------|---------|

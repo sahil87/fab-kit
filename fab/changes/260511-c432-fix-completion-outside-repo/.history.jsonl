@@ -1,0 +1,20 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-05-11T18:53:54Z"}
+{"args":"Fix fab completion outside fab-managed repos and add shell-init wrapper","cmd":"fab-new","event":"command","ts":"2026-05-11T18:53:54Z"}
+{"delta":"+1.5","event":"confidence","score":1.5,"trigger":"calc-score","ts":"2026-05-11T18:54:53Z"}
+{"delta":"+0.0","event":"confidence","score":1.5,"trigger":"calc-score","ts":"2026-05-11T18:55:01Z"}
+{"delta":"-1.0","event":"confidence","score":0.5,"trigger":"calc-score","ts":"2026-05-11T18:59:13Z"}
+{"delta":"+0.0","event":"confidence","score":0.5,"trigger":"calc-score","ts":"2026-05-11T18:59:16Z"}
+{"delta":"+2.4","event":"confidence","score":2.9,"trigger":"calc-score","ts":"2026-05-11T19:01:37Z"}
+{"delta":"+0.0","event":"confidence","score":2.9,"trigger":"calc-score","ts":"2026-05-11T19:01:41Z"}
+{"delta":"+0.3","event":"confidence","score":3.2,"trigger":"calc-score","ts":"2026-05-11T19:02:36Z"}
+{"delta":"+0.0","event":"confidence","score":3.2,"trigger":"calc-score","ts":"2026-05-11T19:02:40Z"}
+{"delta":"+0.0","event":"confidence","score":3.2,"trigger":"calc-score","ts":"2026-05-11T19:02:43Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-05-11T19:03:25Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-05-11T19:04:18Z"}
+{"delta":"+1.2","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-05-11T19:05:43Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"spec","ts":"2026-05-11T19:05:47Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-05-11T19:10:56Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-05-11T19:10:56Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-05-11T19:13:26Z"}
+{"event":"review","result":"passed","ts":"2026-05-11T19:13:26Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-05-11T19:16:25Z"}
