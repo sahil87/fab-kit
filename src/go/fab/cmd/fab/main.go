@@ -32,6 +32,7 @@ func main() {
 		batchCmd(),
 		kitPathCmd(),
 		impactCmd(),
+		shellInitCmd(),
 	)
 
 	if err := root.Execute(); err != nil {

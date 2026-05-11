@@ -479,6 +479,26 @@ When `.kit/` is eventually extracted to its own repository, the update mechanism
 
 ---
 
+## Router Dispatch (`fab` → `fab-go`)
+
+The `fab` binary (installed via `brew install fab-kit`) is a thin router. It dispatches workspace commands (`init`, `upgrade-repo`, `sync`, `update`, `doctor`) to `fab-kit`, and every other command to a version-resolved `fab-go` binary cached at `~/.fab-kit/versions/<version>/fab-go`.
+
+### Always-Route Policy
+
+The router always routes non-workspace commands to `fab-go` — it does not short-circuit on the presence or absence of `fab/project/config.yaml`. Per-command guards inside `fab-go` (typically a call to `resolve.FabRoot()`) are the authoritative answer to "does this command need project state?". Commands like `kit-path`, `pane`, `completion`, `help`, and `shell-init` run anywhere; workflow commands like `preflight`, `score`, `status`, `change` exit non-zero with `ERROR: fab/ directory not found` when invoked outside a fab repo.
+
+### Version Selection
+
+The router picks which cached `fab-go` to exec using a single rule, applied inline in `execFabGo` (and the symmetric `printHelp` helper):
+
+- **Config present** (`fab/project/config.yaml` parses successfully): use `cfg.FabVersion` — the project-pinned version.
+- **Config absent** (no `fab/project/config.yaml`): use the router's build-time `version` constant — the bundled version shipped with this release of `fab-kit`.
+- **Config corrupted** (parse error): exit non-zero with the error from `internal.ResolveConfig`. The user must fix the file.
+
+The bundled-version fallback is reachable in practice only for config-free commands (completion, help, `kit-path`, `pane`, `operator`'s switch path, hooks); commands that touch project state self-reject before any version-sensitive logic runs. Version skew between the router-bundled `fab-go` and a project-pinned `fab-go` is therefore bounded to surface-level commands.
+
+---
+
 ## Monorepos
 
 A monorepo is one Fab project. Place a single `fab/` at the repository root — do not create per-package `fab/` directories.
