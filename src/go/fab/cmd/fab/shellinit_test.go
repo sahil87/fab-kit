@@ -52,9 +52,9 @@ func TestShellInit_Zsh_StartsWithCompdef(t *testing.T) {
 	if stdout == "" {
 		t.Fatal("shell-init zsh: expected non-empty output")
 	}
+	// The canonical Cobra zsh preamble begins with `#compdef <name>` with no
+	// leading whitespace or comment lines, so a strict prefix check is correct.
 	if !strings.HasPrefix(stdout, "#compdef fab") {
-		// Allow a leading comment line — but the canonical Cobra zsh
-		// preamble begins with `#compdef <name>`.
 		t.Errorf("shell-init zsh: expected output to start with %q, got first line %q",
 			"#compdef fab", firstLine(stdout))
 	}
@@ -67,6 +67,37 @@ func TestShellInit_Fish_NonEmpty(t *testing.T) {
 	}
 	if stdout == "" {
 		t.Error("shell-init fish: expected non-empty output")
+	}
+}
+
+// TestShellInit_MatchesCompletion verifies that `fab shell-init <shell>` is
+// byte-identical to the output of Cobra's built-in `completion <shell>`
+// generator on the same root command. This is the contract the spec
+// requires (`shell-init` as an alias for `completion`) and guards against
+// the implementation drifting away from a pure delegation.
+func TestShellInit_MatchesCompletion(t *testing.T) {
+	cases := []struct {
+		shell string
+		gen   func(*cobra.Command, *bytes.Buffer) error
+	}{
+		{"bash", func(r *cobra.Command, b *bytes.Buffer) error { return r.GenBashCompletionV2(b, true) }},
+		{"zsh", func(r *cobra.Command, b *bytes.Buffer) error { return r.GenZshCompletion(b) }},
+		{"fish", func(r *cobra.Command, b *bytes.Buffer) error { return r.GenFishCompletion(b, true) }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.shell, func(t *testing.T) {
+			stdout, _, err := runShellInit(t, tc.shell)
+			if err != nil {
+				t.Fatalf("shell-init %s: unexpected error: %v", tc.shell, err)
+			}
+			var want bytes.Buffer
+			if err := tc.gen(newTestRoot(), &want); err != nil {
+				t.Fatalf("completion %s (reference): unexpected error: %v", tc.shell, err)
+			}
+			if stdout != want.String() {
+				t.Errorf("shell-init %s: output differs from completion %s", tc.shell, tc.shell)
+			}
+		})
 	}
 }
 

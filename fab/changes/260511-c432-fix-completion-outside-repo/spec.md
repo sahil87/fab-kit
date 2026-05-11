@@ -35,10 +35,15 @@ When `fab/project/config.yaml` is present but corrupted (parse error), the route
 - **AND** the router-bundled version is used
 - **AND** no "Not in a fab-managed repo" error is emitted by the router
 
-#### Scenario: Corrupted config
+#### Scenario: Corrupted config (dispatch path)
 - **GIVEN** `fab/project/config.yaml` exists but cannot be parsed
-- **WHEN** the user runs any `fab` command
+- **WHEN** the user runs a `fab` command that dispatches through `execFabGo` (i.e., any non-fab-kit command other than the router-inline `--help`/`-h`/`help`/`--version`/`-v` paths)
 - **THEN** the router exits non-zero with the parse error from `internal.ResolveConfig`
+
+#### Scenario: Corrupted config (inline help/version paths)
+- **GIVEN** `fab/project/config.yaml` exists but cannot be parsed
+- **WHEN** the user runs `fab --help`, `fab -h`, `fab help`, `fab --version`, or `fab -v`
+- **THEN** the command exits 0 — these router-inline paths use `cfg, _ := internal.ResolveConfig()` and silently ignore parse errors (help and version are best-effort and must remain available even with a broken config)
 
 ### Requirement: Removal of Router-Side Config Gate
 
@@ -135,12 +140,12 @@ The command's `Short` description SHALL be `Emit shell completion script for sou
 
 ### Requirement: Implementation Delegation
 
-The `shell-init` command SHALL delegate the script generation to Cobra's built-in completion APIs on the root command (`GenBashCompletion`, `GenZshCompletion`, `GenFishCompletion`) rather than re-implementing the completion script. This keeps `shell-init` semantically equivalent to `completion <shell>`.
+The `shell-init` command SHALL delegate the script generation to Cobra's built-in completion APIs on the root command (`GenBashCompletionV2`, `GenZshCompletion`, `GenFishCompletion`) rather than re-implementing the completion script. The bash path SHALL use `GenBashCompletionV2(out, true)` to match the implementation of Cobra's built-in `completion bash` subcommand (which uses V2 with descriptions enabled); using V1 (`GenBashCompletion`) would produce different output and violate the byte-identical contract below. This keeps `shell-init` semantically equivalent to `completion <shell>`.
 
 #### Scenario: Implementation parity
 - **GIVEN** the implementation of `shell-init`
 - **WHEN** the source file `src/go/fab/cmd/fab/shellinit.go` is inspected
-- **THEN** it invokes one of `cmd.Root().GenBashCompletion(...)`, `cmd.Root().GenZshCompletion(...)`, or `cmd.Root().GenFishCompletion(...)` based on the argument
+- **THEN** it invokes one of `cmd.Root().GenBashCompletionV2(out, true)`, `cmd.Root().GenZshCompletion(...)`, or `cmd.Root().GenFishCompletion(out, true)` based on the argument
 
 ## Tests
 
@@ -170,9 +175,10 @@ The router SHALL continue to pass `go test ./src/go/fab-kit/cmd/fab/...`.
 
 A test file SHALL exist at `src/go/fab/cmd/fab/shellinit_test.go`. It SHALL verify:
 
-- `shell-init bash` produces non-empty output that matches `completion bash` byte-for-byte (or to a tolerable hash-equivalent if comparing full strings is brittle).
+- `shell-init bash` produces non-empty output.
 - `shell-init zsh` produces output beginning with `#compdef fab`.
 - `shell-init fish` produces non-empty output.
+- For each supported shell, `shell-init <shell>` output is byte-identical to the same root command's built-in completion generator (`GenBashCompletionV2(out, true)`, `GenZshCompletion(out)`, `GenFishCompletion(out, true)`). This guards against the implementation drifting away from a pure delegation to Cobra's `completion <shell>`.
 - `shell-init powershell` returns a non-nil error.
 - `shell-init` (no args) returns a non-nil error.
 - `shell-init zsh extra` returns a non-nil error.
@@ -245,7 +251,7 @@ Or equivalent guidance. The line `fab completion <shell>` MAY also be mentioned 
 | 4 | Certain | Add `fab shell-init <shell>` as a `tu`-style alias for `completion` | Confirmed from intake #4; user explicitly requested this | S:95 R:85 A:95 D:95 |
 | 5 | Certain | Delete `fabGoNoConfigArgs` and `resolveFabVersion` entirely; not as no-ops | Upgraded from intake Confident — no remaining purpose, tests delete cleanly, package-private symbols carry no backward-compatibility concern | S:90 R:80 A:90 D:90 |
 | 6 | Certain | `shell-init` lives in fab-go at `src/go/fab/cmd/fab/shellinit.go`, factory `shellInitCmd()`, registered via `root.AddCommand` in `main.go` | Confirmed from intake #7 and #12; main.go has 13 `AddCommand` entries, convention is one-command-one-file with `xCmd()` factory matching `kitpath.go`/`operator.go`/`fabhelp.go` | S:95 R:85 A:95 D:95 |
-| 7 | Certain | `shell-init` delegates to `cmd.Root().GenBashCompletion / GenZshCompletion / GenFishCompletion` | Cobra exposes these methods on the root command; this is how Cobra's auto-generated `completion` subcommand works internally | S:95 R:80 A:95 D:95 |
+| 7 | Certain | `shell-init` delegates to `cmd.Root().GenBashCompletionV2(out, true) / GenZshCompletion / GenFishCompletion(out, true)` | Cobra exposes these methods on the root command; Cobra's auto-generated `completion bash` subcommand uses `GenBashCompletionV2(out, true)` internally (so we mirror that to keep byte-identical parity), while `completion zsh|fish` use the same single generator each | S:95 R:80 A:95 D:95 |
 | 8 | Certain | Inline version selection (`if cfg != nil { v = cfg.FabVersion } else { v = routerVersion }`) in `execFabGo` | Pattern already used in `printHelp` at main.go:142-149 — copy verbatim. No helper needed | S:90 R:85 A:90 D:90 |
 | 9 | Certain | Version skew (router-bundled fab-go outside a repo) is acceptable | Confirmed from intake #6; user explicitly confirmed during discussion. In practice only pure-doc commands reach the bundled path | S:90 R:75 A:90 D:85 |
 | 10 | Certain | Memory updates land in `kit-architecture.md` (modify) — primarily lines 255-266 (Router section) | Confirmed by reading the file: lines 255-266 contain the canonical router/`fabGoNoConfigArgs` documentation. Section is the natural target for a rewrite | S:95 R:80 A:95 D:90 |

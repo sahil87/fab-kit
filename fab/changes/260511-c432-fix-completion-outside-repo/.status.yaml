@@ -25,10 +25,10 @@ confidence:
     score: 4.4
     fuzzy: true
     dimensions:
-        signal: 91.3
-        reversibility: 84.7
-        competence: 92.2
-        disambiguation: 90.3
+        signal: 91.0
+        reversibility: 85.0
+        competence: 92.0
+        disambiguation: 90.0
 stage_metrics:
     intake: {started_at: "2026-05-11T18:53:54Z", driver: fab-new, iterations: 1, completed_at: "2026-05-11T19:05:47Z"}
     spec: {started_at: "2026-05-11T19:05:47Z", driver: fab-fff, iterations: 1, completed_at: "2026-05-11T19:10:56Z"}
@@ -39,4 +39,4 @@ stage_metrics:
     review-pr: {started_at: "2026-05-11T19:19:02Z", driver: git-pr, iterations: 1}
 prs:
     - https://github.com/sahil87/fab-kit/pull/357
-last_updated: 2026-05-11T19:19:02Z
+last_updated: 2026-05-11T19:31:39Z
