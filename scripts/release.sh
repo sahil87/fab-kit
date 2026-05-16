@@ -30,9 +30,9 @@ for arg in "$@"; do
   case "$arg" in
     patch|minor|major)
       if [ -n "$bump_type" ]; then
-        echo "ERROR: Multiple bump types specified: '$bump_type' and '$arg'."
-        echo ""
-        usage
+        echo "ERROR: Multiple bump types specified: '$bump_type' and '$arg'." >&2
+        echo "" >&2
+        usage >&2
         exit 1
       fi
       bump_type="$arg"
@@ -42,9 +42,9 @@ for arg in "$@"; do
       exit 0
       ;;
     *)
-      echo "ERROR: Unknown argument '$arg'. Use: patch, minor, or major."
-      echo ""
-      usage
+      echo "ERROR: Unknown argument '$arg'. Use: patch, minor, or major." >&2
+      echo "" >&2
+      usage >&2
       exit 1
       ;;
   esac
@@ -62,13 +62,13 @@ fi
 
 # Check clean working tree
 if [ -n "$(git -C "$repo_root" status --porcelain)" ]; then
-  echo "ERROR: Working tree not clean. Commit or stash changes first."
+  echo "ERROR: Working tree not clean. Commit or stash changes first." >&2
   exit 1
 fi
 
 # Read current version
 if [ ! -f "$kit_dir/VERSION" ]; then
-  echo "ERROR: src/kit/VERSION not found — kit may be corrupted."
+  echo "ERROR: src/kit/VERSION not found — kit may be corrupted." >&2
   exit 1
 fi
 
@@ -88,9 +88,6 @@ new_version="${major}.${minor}.${patch}"
 tag="v${new_version}"
 
 echo "Bumping version: $current_version → $new_version ($bump_type)"
-
-# Write new version
-echo "$new_version" > "$kit_dir/VERSION"
 
 # ── Migration chain validation ───────────────────────────────────────
 
@@ -126,20 +123,28 @@ if [ -d "$migrations_dir" ]; then
       b_to="${b##*-to-}"
       if [ "$(printf '%s\n%s' "$a_from" "$b_to" | sort -V | head -1)" = "$a_from" ] && [ "$a_from" != "$b_to" ] && \
          [ "$(printf '%s\n%s' "$b_from" "$a_to" | sort -V | head -1)" = "$b_from" ] && [ "$b_from" != "$a_to" ]; then
-        echo "Warning: Overlapping migration ranges detected: ${a}.md and ${b}.md — this will cause /fab-update to error."
+        echo "ERROR: Overlapping migration ranges detected: ${a}.md and ${b}.md — this will cause /fab-update to error." >&2
         overlap_found=true
       fi
     done
   done
+
+  if [ "$overlap_found" = true ]; then
+    echo "ERROR: Release blocked — resolve the overlapping migration ranges above and retry." >&2
+    exit 1
+  fi
 fi
 
 # ── Commit, tag, and push ───────────────────────────────────────────
 
 branch=$(git -C "$repo_root" branch --show-current)
 if [ -z "$branch" ]; then
-  echo "ERROR: Not on a branch (detached HEAD). Check out a branch before releasing."
+  echo "ERROR: Not on a branch (detached HEAD). Check out a branch before releasing." >&2
   exit 1
 fi
+
+# Write new VERSION only after all checks pass.
+echo "$new_version" > "$kit_dir/VERSION"
 
 echo "Committing VERSION bump..."
 
