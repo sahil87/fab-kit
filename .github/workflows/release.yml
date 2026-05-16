@@ -3,18 +3,57 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
 
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   release:
+    # workflow_dispatch must run from main; tag-push is allowed from any ref.
+    if: github.event_name == 'push' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       # Checkout repository
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.ref }}
+
+      # On manual dispatch, run scripts/release.sh — it bumps
+      # src/kit/VERSION, commits, tags, and pushes both the commit and tag.
+      - name: Create tag (manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        id: create_tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          ./scripts/release.sh "${{ inputs.bump }}"
+          echo "tag=$(git tag --sort=-v:refname | head -1)" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve release tag
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${{ steps.create_tag.outputs.tag }}"
+          else
+            tag="${{ github.ref_name }}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
 
       # Set up Go toolchain
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
@@ -38,16 +77,16 @@ jobs:
         run: just package-brew
 
       - name: Generate release notes
-        run: just release-notes "${{ github.ref_name }}"
+        run: just release-notes "${{ steps.version.outputs.tag }}"
 
       - name: Generate Homebrew formula
-        run: just brew-formula "${{ github.ref_name }}"
+        run: just brew-formula "${{ steps.version.outputs.tag }}"
 
       # Upload — these steps need tokens, so they stay CI-only
       - name: Create GitHub Release
         run: |
-          gh release create "${{ github.ref_name }}" \
-            --title "Fab Kit ${{ github.ref_name }}" \
+          gh release create "${{ steps.version.outputs.tag }}" \
+            --title "Fab Kit ${{ steps.version.outputs.tag }}" \
             --notes-file dist/release-notes.md \
             dist/kit-darwin-arm64.tar.gz \
             dist/kit-darwin-amd64.tar.gz \
@@ -64,8 +103,7 @@ jobs:
         env:
           TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
-          version="${{ github.ref_name }}"
-          version="${version#v}"
+          version="${{ steps.version.outputs.version }}"
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/sahil87/homebrew-tap.git" /tmp/tap
           cp dist/fab-kit.rb /tmp/tap/Formula/fab-kit.rb
           cd /tmp/tap
