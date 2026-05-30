@@ -17,7 +17,9 @@ func impactCmd() *cobra.Command {
 		Long: "Computes the canonical true-impact shortstat math: " +
 			"git diff --shortstat <base>...<head>, plus an optional " +
 			"`excluding` pass when fab/project/config.yaml's " +
-			"true_impact_exclude is non-empty. Outputs YAML to stdout.",
+			"true_impact_exclude is non-empty, and an optional `tests` pass " +
+			"(test lines within the scaffolding-excluded universe) when " +
+			"test_paths is non-empty. Outputs YAML to stdout.",
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			base, head := args[0], args[1]
@@ -44,11 +46,21 @@ func renderYAML(r impact.Result) string {
 	fmt.Fprintf(&b, "deleted: %d\n", r.Deleted)
 	fmt.Fprintf(&b, "net: %d\n", r.Net)
 	if r.Excluding != nil {
-		fmt.Fprintln(&b, "excluding:")
-		fmt.Fprintf(&b, "    added: %d\n", r.Excluding.Added)
-		fmt.Fprintf(&b, "    deleted: %d\n", r.Excluding.Deleted)
-		fmt.Fprintf(&b, "    net: %d\n", r.Excluding.Net)
+		renderPairYAML(&b, "excluding", r.Excluding)
+	}
+	if r.Tests != nil {
+		renderPairYAML(&b, "tests", r.Tests)
 	}
 	fmt.Fprintf(&b, "computed_at: %q\n", time.Now().UTC().Format(time.RFC3339))
 	return b.String()
+}
+
+// renderPairYAML writes a `<key>:` sub-block with indented added/deleted/net,
+// matching the .status.yaml true_impact sub-block layout so consumers can parse
+// it via yq.
+func renderPairYAML(b *strings.Builder, key string, p *impact.Pair) {
+	fmt.Fprintf(b, "%s:\n", key)
+	fmt.Fprintf(b, "    added: %d\n", p.Added)
+	fmt.Fprintf(b, "    deleted: %d\n", p.Deleted)
+	fmt.Fprintf(b, "    net: %d\n", p.Net)
 }

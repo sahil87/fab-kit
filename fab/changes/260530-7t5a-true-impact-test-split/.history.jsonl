@@ -1,0 +1,21 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-05-30T09:58:49Z"}
+{"args":"split true-impact line count by implementation vs. tests: add a tests sub-block to the .status.yaml true_impact block and three-row rendering (impl/tests/total) in /git-pr PR bodies, driven by a new project-defined test_paths config key. Attribution not exclusion — do not add test patterns to true_impact_exclude.","cmd":"fab-new","event":"command","ts":"2026-05-30T09:58:49Z"}
+{"delta":"+0.5","event":"confidence","score":0.5,"trigger":"calc-score","ts":"2026-05-30T10:00:16Z"}
+{"delta":"+0.0","event":"confidence","score":0.5,"trigger":"calc-score","ts":"2026-05-30T10:00:26Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-05-30T10:01:23Z"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-05-30T10:05:49Z"}
+{"delta":"+4.5","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-30T13:38:39Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-30T13:38:47Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-30T13:38:58Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-30T13:39:08Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-30T13:39:15Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-30T13:39:33Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-05-30T13:40:30Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-30T13:43:54Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"spec","ts":"2026-05-30T13:44:15Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-05-30T13:44:15Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-05-30T13:57:45Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-05-30T13:57:49Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-05-30T14:02:26Z"}
+{"event":"review","result":"passed","ts":"2026-05-30T14:02:26Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-05-30T14:05:29Z"}

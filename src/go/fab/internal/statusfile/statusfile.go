@@ -79,12 +79,17 @@ type TrueImpactPair struct {
 
 // TrueImpact is the true_impact block in .status.yaml. Created lazily on
 // first apply-finish (no template placeholder). Excluding is omitted when
-// true_impact_exclude is absent/null/empty in fab/project/config.yaml.
+// true_impact_exclude is absent/null/empty in fab/project/config.yaml. Tests
+// is omitted when test_paths is absent/null/empty; when present it holds the
+// test-only line counts measured within the scaffolding-excluded universe.
+// Only measured passes are stored — the impl residual (total − tests) is
+// derived at render time by consumers, never persisted here.
 type TrueImpact struct {
 	Added           int             `yaml:"added"`
 	Deleted         int             `yaml:"deleted"`
 	Net             int             `yaml:"net"`
 	Excluding       *TrueImpactPair `yaml:"excluding,omitempty"`
+	Tests           *TrueImpactPair `yaml:"tests,omitempty"`
 	ComputedAt      string          `yaml:"computed_at"`
 	ComputedAtStage string          `yaml:"computed_at_stage"`
 }
@@ -449,18 +454,15 @@ func encodeTrueImpact(n *yaml.Node, ti *TrueImpact) {
 		{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", ti.Net), Tag: "!!int"},
 	}
 	if ti.Excluding != nil {
-		exNode := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-		exNode.Content = []*yaml.Node{
-			{Kind: yaml.ScalarNode, Value: "added"},
-			{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", ti.Excluding.Added), Tag: "!!int"},
-			{Kind: yaml.ScalarNode, Value: "deleted"},
-			{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", ti.Excluding.Deleted), Tag: "!!int"},
-			{Kind: yaml.ScalarNode, Value: "net"},
-			{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", ti.Excluding.Net), Tag: "!!int"},
-		}
 		content = append(content,
 			&yaml.Node{Kind: yaml.ScalarNode, Value: "excluding"},
-			exNode,
+			encodeTrueImpactPair(ti.Excluding),
+		)
+	}
+	if ti.Tests != nil {
+		content = append(content,
+			&yaml.Node{Kind: yaml.ScalarNode, Value: "tests"},
+			encodeTrueImpactPair(ti.Tests),
 		)
 	}
 	content = append(content,
@@ -470,6 +472,23 @@ func encodeTrueImpact(n *yaml.Node, ti *TrueImpact) {
 		&yaml.Node{Kind: yaml.ScalarNode, Value: ti.ComputedAtStage, Tag: "!!str"},
 	)
 	n.Content = content
+}
+
+// encodeTrueImpactPair builds a mapping node with added/deleted/net for a
+// single shortstat pair (used for both the `excluding` and `tests` sub-blocks).
+func encodeTrueImpactPair(p *TrueImpactPair) *yaml.Node {
+	return &yaml.Node{
+		Kind: yaml.MappingNode,
+		Tag:  "!!map",
+		Content: []*yaml.Node{
+			{Kind: yaml.ScalarNode, Value: "added"},
+			{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", p.Added), Tag: "!!int"},
+			{Kind: yaml.ScalarNode, Value: "deleted"},
+			{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", p.Deleted), Tag: "!!int"},
+			{Kind: yaml.ScalarNode, Value: "net"},
+			{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", p.Net), Tag: "!!int"},
+		},
+	}
 }
 
 func nowISO() string {

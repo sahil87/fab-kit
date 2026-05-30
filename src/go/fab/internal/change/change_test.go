@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/kitpath"
+	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
 )
 
 const statusTemplate = `id: {ID}
@@ -490,5 +491,59 @@ last_updated: "2026-03-10T12:00:00Z"
 	}
 	if got := rowsByPrefix[folderC]; got != "—" {
 		t.Errorf("folder C impact column = %q, want —", got)
+	}
+}
+
+// pairPtr is a small helper for building TrueImpactPair pointers in tests.
+func pairPtr(added, deleted, net int) *sf.TrueImpactPair {
+	return &sf.TrueImpactPair{Added: added, Deleted: deleted, Net: net}
+}
+
+func TestImpactColumn(t *testing.T) {
+	cases := []struct {
+		name string
+		ti   *sf.TrueImpact
+		want string
+	}{
+		{
+			name: "nil block",
+			ti:   nil,
+			want: "—",
+		},
+		{
+			name: "bare net, no excluding, no tests",
+			ti:   &sf.TrueImpact{Net: 502},
+			want: "+502",
+		},
+		{
+			name: "excluding net, no tests",
+			ti:   &sf.TrueImpact{Net: 574, Excluding: pairPtr(540, 38, 502)},
+			want: "+502",
+		},
+		{
+			name: "compact equation with excluding total",
+			ti:   &sf.TrueImpact{Net: 574, Excluding: pairPtr(540, 38, 502), Tests: pairPtr(400, 0, 400)},
+			want: "102i+400t=502",
+		},
+		{
+			name: "compact equation total degenerates to raw net",
+			ti:   &sf.TrueImpact{Net: 540, Tests: pairPtr(400, 0, 400)},
+			want: "140i+400t=540",
+		},
+		{
+			name: "net clamp guard — tests over-count total",
+			ti:   &sf.TrueImpact{Net: 574, Excluding: pairPtr(400, 0, 400), Tests: pairPtr(450, 0, 450)},
+			want: "0i+450t=400",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			statusFile := &sf.StatusFile{Name: "260530-xxxx-fixture", TrueImpact: tc.ti}
+			got := impactColumn(statusFile)
+			if got != tc.want {
+				t.Errorf("impactColumn() = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }

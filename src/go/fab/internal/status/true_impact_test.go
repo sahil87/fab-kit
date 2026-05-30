@@ -248,6 +248,78 @@ func TestWriteTrueImpact_WithExcludeEmitsExcluding(t *testing.T) {
 	}
 }
 
+// TestWriteTrueImpact_WithTestPathsEmitsTests sets test_paths and asserts the
+// tests sub-block is populated from res.Tests, mirroring the Excluding path.
+func TestWriteTrueImpact_WithTestPathsEmitsTests(t *testing.T) {
+	repoRoot := t.TempDir()
+	fabRoot := filepath.Join(repoRoot, "fab")
+
+	run := func(args ...string) {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = repoRoot
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v: %s", args, out)
+		}
+	}
+	run("git", "init", "-q", "-b", "main")
+	run("git", "config", "user.email", "test@example.com")
+	run("git", "config", "user.name", "test")
+	run("git", "config", "commit.gpgsign", "false")
+
+	os.MkdirAll(filepath.Join(fabRoot, "project"), 0o755)
+	os.WriteFile(filepath.Join(fabRoot, "project", "config.yaml"),
+		[]byte("true_impact_exclude:\n  - docs/\ntest_paths:\n  - \"**/*_test.go\"\n"), 0o644)
+
+	os.WriteFile(filepath.Join(repoRoot, "a.txt"), []byte("hello\n"), 0o644)
+	run("git", "add", "-A")
+	run("git", "commit", "-q", "-m", "initial")
+	run("git", "update-ref", "refs/remotes/origin/main", "HEAD")
+
+	// Diverge: impl change, a docs file (excluded), and a *_test.go file.
+	os.WriteFile(filepath.Join(repoRoot, "a.txt"), []byte("hello\nworld\nfoo\n"), 0o644)
+	os.MkdirAll(filepath.Join(repoRoot, "docs"), 0o755)
+	os.WriteFile(filepath.Join(repoRoot, "docs", "b.md"), []byte("doc\nlines\n"), 0o644)
+	os.WriteFile(filepath.Join(repoRoot, "x_test.go"), []byte("package x\n\nfunc TestX() {}\n"), 0o644)
+	run("git", "add", "-A")
+	run("git", "commit", "-q", "-m", "second")
+
+	statusPath := filepath.Join(t.TempDir(), ".status.yaml")
+	os.WriteFile(statusPath, []byte(minimalStatusYAML()), 0o644)
+
+	statusFile, err := sf.Load(statusPath)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	withCwd(t, repoRoot, func() {
+		if err := WriteTrueImpact(statusFile, statusPath, fabRoot, "apply"); err != nil {
+			t.Fatalf("WriteTrueImpact: %v", err)
+		}
+	})
+
+	reloaded, err := sf.Load(statusPath)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.TrueImpact == nil {
+		t.Fatal("expected true_impact block")
+	}
+	if reloaded.TrueImpact.Tests == nil {
+		t.Fatal("expected tests sub-block when test_paths is set")
+	}
+	if reloaded.TrueImpact.Tests.Added != 3 {
+		t.Errorf("tests.added = %d, want 3 (the x_test.go lines)", reloaded.TrueImpact.Tests.Added)
+	}
+	// Tests must live within the excluded universe — never exceed excluding.
+	if reloaded.TrueImpact.Excluding == nil {
+		t.Fatal("expected excluding sub-block")
+	}
+	if reloaded.TrueImpact.Tests.Added > reloaded.TrueImpact.Excluding.Added {
+		t.Errorf("tests.added (%d) should not exceed excluding.added (%d)",
+			reloaded.TrueImpact.Tests.Added, reloaded.TrueImpact.Excluding.Added)
+	}
+}
+
 func TestWriteTrueImpact_NonApplyStageIsNoOp(t *testing.T) {
 	repoRoot, fabRoot := setupGitRepo(t, false)
 

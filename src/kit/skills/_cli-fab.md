@@ -221,10 +221,18 @@ excluding:
     added: 87
     deleted: 38
     net: 49
+tests:
+    added: 40
+    deleted: 0
+    net: 40
 computed_at: "2026-05-07T14:32:00Z"
 ```
 
-The `excluding` sub-block is emitted only when `fab/project/config.yaml`'s top-level `true_impact_exclude` list is non-empty; the subcommand applies each entry as a `:(exclude)<pattern>` pathspec when running the second `git diff --shortstat` pass. Three-dot range semantics (`<base>...<head>`) — "changes on this branch only".
+The `excluding` sub-block is emitted only when `fab/project/config.yaml`'s top-level `true_impact_exclude` list is non-empty; the subcommand applies each entry as a `:(exclude)<pattern>` pathspec when running the second `git diff --shortstat` pass.
+
+The `tests` sub-block is emitted only when the top-level `test_paths` list is non-empty. It is a third `git diff --shortstat` pass whose pathspec applies BOTH the `test_paths` includes (as `:(glob)<pattern>` so `**` matches any depth) AND the `true_impact_exclude` excludes — so the test count lives strictly inside the scaffolding-excluded universe (a test fixture under an excluded path is not double-counted). It appears after `excluding` and before `computed_at`. Only measured passes are emitted; the `impl` residual (`total − tests`) is derived by consumers at render time, never stored or emitted here.
+
+Three-dot range semantics (`<base>...<head>`) — "changes on this branch only".
 
 Exit codes:
 - `0` — success; YAML document on stdout.

@@ -291,6 +291,231 @@ last_updated: "2026-04-23T05:02:32Z"
 	}
 }
 
+// TestTrueImpactTestsEncodeOrder verifies the emitted mapping order is
+// added, deleted, net, excluding, tests, computed_at, computed_at_stage.
+func TestTrueImpactTestsEncodeOrder(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	os.WriteFile(path, []byte(testYAML), 0644)
+
+	sf, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	sf.TrueImpact = &TrueImpact{
+		Added:           540,
+		Deleted:         38,
+		Net:             502,
+		Excluding:       &TrueImpactPair{Added: 540, Deleted: 38, Net: 502},
+		Tests:           &TrueImpactPair{Added: 400, Deleted: 0, Net: 400},
+		ComputedAt:      "2026-05-30T12:00:00Z",
+		ComputedAtStage: "apply",
+	}
+
+	outPath := filepath.Join(dir, ".status-ti.yaml")
+	if err := sf.Save(outPath); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	raw, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("read saved file: %v", err)
+	}
+	rawStr := string(raw)
+
+	// Assert relative ordering of the sub-keys within true_impact.
+	iExcluding := strings.Index(rawStr, "excluding:")
+	iTests := strings.Index(rawStr, "tests:")
+	iComputed := strings.Index(rawStr, "computed_at:")
+	if iExcluding < 0 || iTests < 0 || iComputed < 0 {
+		t.Fatalf("missing expected keys in output:\n%s", rawStr)
+	}
+	if !(iExcluding < iTests && iTests < iComputed) {
+		t.Errorf("expected order excluding < tests < computed_at, got positions %d, %d, %d:\n%s",
+			iExcluding, iTests, iComputed, rawStr)
+	}
+}
+
+// TestTrueImpactTestsRoundTrip verifies a tests sub-block survives Load→Save→Load.
+func TestTrueImpactTestsRoundTrip(t *testing.T) {
+	const tiYAML = `id: te1t
+name: 260530-test-ti
+created: "2026-05-30T12:00:00Z"
+created_by: test-user
+change_type: feat
+issues: []
+progress:
+  intake: done
+  spec: done
+  apply: active
+  review: pending
+  hydrate: pending
+  ship: pending
+  review-pr: pending
+plan:
+  generated: true
+  task_count: 1
+  acceptance_count: 1
+  acceptance_completed: 0
+confidence:
+  certain: 1
+  confident: 0
+  tentative: 0
+  unresolved: 0
+  score: 5.0
+stage_metrics: {}
+prs: []
+true_impact:
+  added: 612
+  deleted: 38
+  net: 574
+  excluding:
+    added: 540
+    deleted: 38
+    net: 502
+  tests:
+    added: 400
+    deleted: 0
+    net: 400
+  computed_at: "2026-05-30T12:00:00Z"
+  computed_at_stage: apply
+last_updated: "2026-05-30T12:00:00Z"
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	os.WriteFile(path, []byte(tiYAML), 0644)
+
+	sf, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if sf.TrueImpact == nil || sf.TrueImpact.Tests == nil {
+		t.Fatal("expected decoded tests sub-block")
+	}
+	if sf.TrueImpact.Tests.Added != 400 || sf.TrueImpact.Tests.Net != 400 {
+		t.Errorf("decoded tests = %+v, want added=400 net=400", sf.TrueImpact.Tests)
+	}
+
+	outPath := filepath.Join(dir, ".status-out.yaml")
+	if err := sf.Save(outPath); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+	sf2, err := Load(outPath)
+	if err != nil {
+		t.Fatalf("Reload failed: %v", err)
+	}
+	if sf2.TrueImpact == nil || sf2.TrueImpact.Tests == nil {
+		t.Fatal("tests sub-block lost on round-trip")
+	}
+	if sf2.TrueImpact.Tests.Added != 400 || sf2.TrueImpact.Tests.Deleted != 0 || sf2.TrueImpact.Tests.Net != 400 {
+		t.Errorf("round-trip tests = %+v, want 400/0/400", sf2.TrueImpact.Tests)
+	}
+	// Excluding must also survive intact.
+	if sf2.TrueImpact.Excluding == nil || sf2.TrueImpact.Excluding.Net != 502 {
+		t.Errorf("round-trip excluding = %+v, want net=502", sf2.TrueImpact.Excluding)
+	}
+}
+
+// TestTrueImpactTestsOmittedWhenNil verifies omitempty: a nil Tests emits no
+// `tests:` key.
+func TestTrueImpactTestsOmittedWhenNil(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	os.WriteFile(path, []byte(testYAML), 0644)
+
+	sf, _ := Load(path)
+	sf.TrueImpact = &TrueImpact{
+		Added:           100,
+		Deleted:         20,
+		Net:             80,
+		Excluding:       &TrueImpactPair{Added: 60, Deleted: 20, Net: 40},
+		Tests:           nil,
+		ComputedAt:      "2026-05-30T12:00:00Z",
+		ComputedAtStage: "apply",
+	}
+	outPath := filepath.Join(dir, ".status-out.yaml")
+	if err := sf.Save(outPath); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+	raw, _ := os.ReadFile(outPath)
+	if strings.Contains(string(raw), "tests:") {
+		t.Errorf("expected no tests: key when Tests is nil:\n%s", raw)
+	}
+}
+
+// TestTrueImpactAbsentTestsBackCompat verifies an old .status.yaml whose
+// true_impact has no tests sub-block parses cleanly and re-saves unchanged
+// (no spurious tests: key appears).
+func TestTrueImpactAbsentTestsBackCompat(t *testing.T) {
+	const oldYAML = `id: te1t
+name: 260530-old-fixture
+created: "2026-05-30T12:00:00Z"
+created_by: test-user
+change_type: feat
+issues: []
+progress:
+  intake: done
+  spec: done
+  apply: active
+  review: pending
+  hydrate: pending
+  ship: pending
+  review-pr: pending
+plan:
+  generated: true
+  task_count: 1
+  acceptance_count: 1
+  acceptance_completed: 0
+confidence:
+  certain: 1
+  confident: 0
+  tentative: 0
+  unresolved: 0
+  score: 5.0
+stage_metrics: {}
+prs: []
+true_impact:
+  added: 100
+  deleted: 20
+  net: 80
+  excluding:
+    added: 60
+    deleted: 20
+    net: 40
+  computed_at: "2026-05-30T12:00:00Z"
+  computed_at_stage: apply
+last_updated: "2026-05-30T12:00:00Z"
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	os.WriteFile(path, []byte(oldYAML), 0644)
+
+	sf, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if sf.TrueImpact == nil {
+		t.Fatal("expected true_impact block")
+	}
+	if sf.TrueImpact.Tests != nil {
+		t.Errorf("expected nil Tests for old file, got %+v", sf.TrueImpact.Tests)
+	}
+
+	if err := sf.Save(path); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+	raw, _ := os.ReadFile(path)
+	if strings.Contains(string(raw), "tests:") {
+		t.Errorf("re-saved old file should not gain a tests: key:\n%s", raw)
+	}
+	// Excluding must remain intact.
+	sf2, _ := Load(path)
+	if sf2.TrueImpact == nil || sf2.TrueImpact.Excluding == nil || sf2.TrueImpact.Excluding.Net != 40 {
+		t.Errorf("excluding lost on re-save: %+v", sf2.TrueImpact)
+	}
+}
+
 func TestNextStage(t *testing.T) {
 	if NextStage("intake") != "spec" {
 		t.Error("after intake should be spec")

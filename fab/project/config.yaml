@@ -29,3 +29,5 @@ stage_directives:
 true_impact_exclude:
     - fab/
     - docs/
+test_paths:
+    - "**/*_test.go"

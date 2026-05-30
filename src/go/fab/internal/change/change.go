@@ -300,15 +300,36 @@ func ListWithOptions(fabRoot string, archive, showStats bool) ([]string, error) 
 	return results, nil
 }
 
+// impactColumn renders the true_impact net for the `change list --show-stats`
+// column. When a tests sub-block is present it renders the compact
+// explicit-equation form `{impl_net}i+{tests_net}t={total_net}` (e.g.
+// `102i+400t=502`), where total = excluding.net (else raw net) and impl is the
+// render-time residual max(0, total − tests) — clamped to never show a
+// negative impl. When tests is absent it falls back to the bare net
+// (excluding.net, else net, else "—").
 func impactColumn(statusFile *sf.StatusFile) string {
 	ti := statusFile.TrueImpact
 	if ti == nil {
 		return "—"
 	}
+
+	totalNet := ti.Net
 	if ti.Excluding != nil {
-		return formatNet(ti.Excluding.Net)
+		totalNet = ti.Excluding.Net
 	}
-	return formatNet(ti.Net)
+
+	if ti.Tests == nil {
+		return formatNet(totalNet)
+	}
+
+	testsNet := ti.Tests.Net
+	implNet := totalNet - testsNet
+	if implNet < 0 {
+		fmt.Fprintf(os.Stderr, "fab: true_impact impl net clamped to 0 for %s (total %d − tests %d = %d)\n",
+			statusFile.Name, totalNet, testsNet, implNet)
+		implNet = 0
+	}
+	return fmt.Sprintf("%di+%dt=%d", implNet, testsNet, totalNet)
 }
 
 func formatNet(n int) string {

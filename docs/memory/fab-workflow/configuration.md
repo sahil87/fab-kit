@@ -50,6 +50,22 @@ Semantics:
 
 Consumed exclusively by the `/git-pr` skill's Step 3c-impact sub-step during PR body assembly.
 
+#### `test_paths`
+Optional top-level field. A YAML sequence of glob/pathspec patterns identifying test files (read into `config.Config.TestPaths` via `yaml:"test_paths"`). Mirrors the `source_paths` / `true_impact_exclude` top-level-list style.
+
+This is an **attribution** axis, NOT an exclusion axis — orthogonal to and distinct from `true_impact_exclude`. `true_impact_exclude` *strips* scaffolding/doc noise (e.g. `fab/`, `docs/`) out of the measured universe entirely; `test_paths` *splits* the lines that remain (already scaffolding-excluded) into tests vs. implementation, showing both. Tests are first-class deliverables (constitution principle VII), not noise to hide — so they are attributed, never excluded. Adding test patterns to `true_impact_exclude` is the explicitly rejected anti-pattern: it would conflate the two orthogonal axes and destroy the test-coverage signal.
+
+**Project-defined, no kit default**: the kit ships NO default `test_paths` value (Portability, constitution principle V) — there is no universal test-file pattern across languages (`*_test.go`, `test_*.py`, `*.spec.ts` all differ). Each project declares its own. The scaffold config carries only a commented-out placeholder so users discover the knob.
+
+**Format**: glob/pathspec patterns. Include patterns are applied with git's `:(glob)` pathspec magic, so `*` does not cross `/` and `**` matches zero or more path segments — `**/*_test.go` therefore matches root-level AND nested test files. (Without `:(glob)`, git's default fnmatch treats `**/` as requiring a leading directory segment and silently misses root-level matches.)
+
+**Graceful collapse**: when `test_paths` is absent, `null`, or empty, no `tests` sub-block is computed or written and all consumers render today's single-number display (no impl/tests split) — matching the lazy-omit posture of `excluding`.
+
+Semantics:
+- Consumed by the `fab impact` engine (`internal/impact`, threaded through `Compute`/`ComputeForRepo`), which runs the extra test-only `git diff --shortstat` pass within the scaffolding-excluded universe and populates `Result.Tests` (nil when empty). See [schemas.md](schemas.md) for the `tests` sub-block schema and the render-time `impl = max(0, total − tests)` residual.
+- `/git-pr`'s three-row Impact rendering in the PR body (impl / tests / total) when `tests` is present, falling back to today's single inline `**Impact**` line when absent.
+- `fab change list --show-stats` compact column (`impactColumn`), which renders the explicit-equation form `{impl_net}i+{tests_net}t={total_net}` (e.g. `102i+400t=502`) when `tests` is present, falling back to the bare net otherwise.
+
 #### `stage_directives`
 Per-stage directives that customize artifact generation. Keys are stage IDs (`intake`, `spec`, `tasks`, `apply`, `review`, `hydrate`), values are lists of instruction strings. Example:
 ```yaml
@@ -257,6 +273,7 @@ See [setup](setup.md) for the complete command suite.
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260530-7t5a-true-impact-test-split | 2026-05-30 | Added optional top-level `test_paths` field (`config.Config.TestPaths`, `yaml:"test_paths"`) — a sequence of glob/pathspec patterns identifying test files. **Attribution** axis (splits impl vs. tests), distinct from and orthogonal to `true_impact_exclude` (which excludes noise). Project-defined with NO kit default (Portability, principle V — no universal cross-language test pattern); scaffold carries only a commented-out placeholder. Include patterns use git `:(glob)` magic so `**/*_test.go` matches root + nested. Absent/null/empty collapses gracefully to today's single-number display (lazy-omit, like `excluding`). Consumed by the `fab impact` engine, `/git-pr` three-row Impact rendering, and the `fab change list --show-stats` compact column (`{impl}i+{tests}t={total}`). |
 | 260507-ogf2-restrain-ai-code-bloat | 2026-05-07 | `code-review.md` gains an optional `## Parsimony Pass` section with a single `Enabled: true\|false` field (default true). Toggle is the only project-level knob for the parsimony validation step in `_review.md`'s inward sub-agent — the 100-line advisory threshold and the `[docs, chore, ci]` skip list are hard-coded in the kit. |
 | 260507-asvz-git-pr-true-impact-line-count | 2026-05-07 | Added optional top-level `true_impact_exclude` field (sequence of pathspec exclusion patterns; scaffold default `[fab/, docs/]`) consumed by `/git-pr`'s Step 3c-impact to append a two-line `**Impact (excluding ...)**` + `**git diff total**` block; absent/null/empty/no-fab-context all omit the block. |
 | 260418-u1m1-copilot-reviewer-login | 2026-04-18 | Documentation of the `review_tools.copilot` key now shows the corrected `gh pr edit --add-reviewer copilot-pull-request-reviewer` command. The fab-kit-local config key name `copilot` is unchanged — only the inline example of the GitHub login used by `/git-pr-review` Phase 2 was corrected. |
