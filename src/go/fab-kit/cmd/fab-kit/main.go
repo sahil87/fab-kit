@@ -97,11 +97,15 @@ func syncCmd() *cobra.Command {
 }
 
 func updateCmd() *cobra.Command {
-	return &cobra.Command{
+	var skipBrewUpdate bool
+	cmd := &cobra.Command{
 		Use:   "update",
 		Short: "Update fab-kit itself via Homebrew",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return internal.Update(version)
+			return internal.Update(version, skipBrewUpdate)
 		},
 	}
+	cmd.Flags().BoolVar(&skipBrewUpdate, "skip-brew-update", false,
+		"Skip the brew update tap-metadata refresh (still runs brew info + brew upgrade)")
+	return cmd
 }

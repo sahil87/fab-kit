@@ -1,0 +1,17 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-05-31T05:13:21Z"}
+{"args":"Add a boolean --skip-brew-update flag to the update command. When set, skip ONLY the internal brew update --quiet tap-metadata refresh; everything else (brew info version check, up-to-date short-circuit, brew upgrade) runs unchanged. Cross-toolkit contract: flag name must be EXACTLY --skip-brew-update. Wire a cobra BoolVar in updateCmd(), thread skipBrewUpdate bool through Update(), match existing subprocess convention. Add a test asserting --skip-brew-update omits brew update but still runs brew upgrade. Title: feat: add --skip-brew-update flag to update command.","cmd":"fab-new","event":"command","ts":"2026-05-31T05:13:21Z"}
+{"delta":"+3.1","event":"confidence","score":3.1,"trigger":"calc-score","ts":"2026-05-31T05:14:47Z"}
+{"delta":"+0.0","event":"confidence","score":3.1,"trigger":"calc-score","ts":"2026-05-31T05:15:04Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-05-31T05:15:46Z"}
+{"delta":"+0.3","event":"confidence","score":3.4,"trigger":"calc-score","ts":"2026-05-31T05:17:58Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"spec","ts":"2026-05-31T05:18:13Z"}
+{"delta":"+0.0","event":"confidence","score":3.4,"trigger":"calc-score","ts":"2026-05-31T05:19:31Z"}
+{"delta":"+0.0","event":"confidence","score":3.4,"trigger":"calc-score","ts":"2026-05-31T05:19:35Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-05-31T05:19:51Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-05-31T05:21:13Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-05-31T05:24:37Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-05-31T05:27:31Z"}
+{"event":"review","result":"passed","ts":"2026-05-31T05:27:31Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-05-31T05:28:52Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-05-31T05:30:09Z"}
+{"event":"review","result":"passed","ts":"2026-05-31T05:40:47Z"}

@@ -13,7 +13,7 @@ import (
 const brewFormula = "fab-kit"
 
 // Update self-updates the fab-kit binary via Homebrew.
-func Update(currentVersion string) error {
+func Update(currentVersion string, skipBrewUpdate bool) error {
 	// Guard: only works if installed via Homebrew
 	if !isBrewInstalled() {
 		fmt.Printf("fab-kit v%s was not installed via Homebrew.\n", currentVersion)
@@ -23,13 +23,15 @@ func Update(currentVersion string) error {
 
 	fmt.Printf("Current version: v%s\n", currentVersion)
 
-	// Refresh Homebrew index
-	fmt.Println("Checking for updates...")
-	cmd := exec.Command("brew", "update", "--quiet")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := runWithTimeout(cmd, 30*time.Second); err != nil {
-		return fmt.Errorf("could not check for updates (brew update failed): %w", err)
+	// Refresh Homebrew index (unless skipped)
+	if !skipBrewUpdate {
+		fmt.Println("Checking for updates...")
+		cmd := exec.Command("brew", "update", "--quiet")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := runWithTimeout(cmd, 30*time.Second); err != nil {
+			return fmt.Errorf("could not check for updates (brew update failed): %w", err)
+		}
 	}
 
 	// Query latest version from Homebrew
@@ -45,7 +47,7 @@ func Update(currentVersion string) error {
 
 	fmt.Printf("Updating v%s → v%s...\n", currentVersion, latest)
 
-	cmd = exec.Command("brew", "upgrade", brewFormula)
+	cmd := exec.Command("brew", "upgrade", brewFormula)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := runWithTimeout(cmd, 120*time.Second); err != nil {
@@ -80,8 +82,10 @@ func brewLatestVersion() (string, error) {
 }
 
 // isBrewInstalled checks whether fab-kit was installed via Homebrew by resolving
-// the executable's symlink and looking for /Cellar/ in the real path.
-func isBrewInstalled() bool {
+// the executable's symlink and looking for /Cellar/ in the real path. It is a
+// package-level var so tests can override the brew-install guard (the test binary's
+// path never contains /Cellar/); production behavior is unchanged.
+var isBrewInstalled = func() bool {
 	self, err := os.Executable()
 	if err != nil {
 		return false
