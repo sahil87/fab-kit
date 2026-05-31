@@ -12,10 +12,21 @@ import (
 
 const brewFormula = "fab-kit"
 
+// Seams for testing: overridden in tests to drive Update's flow without a real
+// Homebrew install. Production wiring keeps the exec.Command calls direct.
+var (
+	isBrewInstalledFn   = isBrewInstalled
+	brewLatestVersionFn = brewLatestVersion
+)
+
 // Update self-updates the fab-kit binary via Homebrew.
-func Update(currentVersion string) error {
+//
+// When skipBrewUpdate is true, the internal `brew update --quiet` tap-metadata
+// refresh is skipped; the brew info version check, the up-to-date
+// short-circuit, and brew upgrade all still run unchanged.
+func Update(currentVersion string, skipBrewUpdate bool) error {
 	// Guard: only works if installed via Homebrew
-	if !isBrewInstalled() {
+	if !isBrewInstalledFn() {
 		fmt.Printf("fab-kit v%s was not installed via Homebrew.\n", currentVersion)
 		fmt.Println("Update manually, or reinstall with: brew install sahil87/tap/fab-kit")
 		return nil
@@ -23,17 +34,21 @@ func Update(currentVersion string) error {
 
 	fmt.Printf("Current version: v%s\n", currentVersion)
 
-	// Refresh Homebrew index
-	fmt.Println("Checking for updates...")
-	cmd := exec.Command("brew", "update", "--quiet")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := runWithTimeout(cmd, 30*time.Second); err != nil {
-		return fmt.Errorf("could not check for updates (brew update failed): %w", err)
+	// Refresh Homebrew index (tap metadata), unless explicitly skipped.
+	if skipBrewUpdate {
+		fmt.Println("Skipping brew update (--skip-brew-update); checking for updates...")
+	} else {
+		fmt.Println("Checking for updates...")
+		cmd := exec.Command("brew", "update", "--quiet")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := runWithTimeout(cmd, 30*time.Second); err != nil {
+			return fmt.Errorf("could not check for updates (brew update failed): %w", err)
+		}
 	}
 
 	// Query latest version from Homebrew
-	latest, err := brewLatestVersion()
+	latest, err := brewLatestVersionFn()
 	if err != nil {
 		return fmt.Errorf("could not determine latest version: %w", err)
 	}
@@ -45,7 +60,7 @@ func Update(currentVersion string) error {
 
 	fmt.Printf("Updating v%s → v%s...\n", currentVersion, latest)
 
-	cmd = exec.Command("brew", "upgrade", brewFormula)
+	cmd := exec.Command("brew", "upgrade", brewFormula)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := runWithTimeout(cmd, 120*time.Second); err != nil {

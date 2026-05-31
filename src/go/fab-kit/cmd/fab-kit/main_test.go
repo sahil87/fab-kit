@@ -22,6 +22,20 @@ func TestFabKitCommands(t *testing.T) {
 	}
 }
 
+func TestUpdateCmd_HasSkipBrewUpdateFlag(t *testing.T) {
+	cmd := updateCmd()
+	flag := cmd.Flags().Lookup("skip-brew-update")
+	if flag == nil {
+		t.Fatal("update command should register --skip-brew-update flag")
+	}
+	if flag.Value.Type() != "bool" {
+		t.Errorf("--skip-brew-update should be a bool flag, got %q", flag.Value.Type())
+	}
+	if flag.DefValue != "false" {
+		t.Errorf("--skip-brew-update should default to false, got %q", flag.DefValue)
+	}
+}
+
 func TestVersion(t *testing.T) {
 	// The version variable should be set (defaults to "dev")
 	if version == "" {

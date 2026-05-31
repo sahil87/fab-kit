@@ -115,7 +115,7 @@ func versionGuard(fabVersion, systemVersion string) error {
 	}
 
 	fmt.Printf("Project needs v%s but system has v%s. Attempting update...\n", fabVersion, systemVersion)
-	if err := Update(systemVersion); err != nil {
+	if err := Update(systemVersion, false); err != nil {
 		return fmt.Errorf("system fab-kit v%s is older than project fab_version %s. Run 'fab update' manually: %w",
 			systemVersion, fabVersion, err)
 	}
