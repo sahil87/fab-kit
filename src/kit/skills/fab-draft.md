@@ -55,7 +55,7 @@ Run `fab change new` with appropriate flags:
 Capture the folder name from stdout. The command handles date generation, random ID generation (if no `--change-id`), collision detection, directory creation, `created_by` detection, `.status.yaml` initialization, and command logging (when `--log-args` is provided).
 
 If a Linear ticket was detected in Step 0, record the issue ID via statusman:
-`fab status add-issue fab/changes/{name}/.status.yaml DEV-988` (using the actual detected ID).
+`fab status add-issue {name} DEV-988` (using the actual detected ID).
 
 ### Step 4: Conversation Context Mining
 
@@ -88,7 +88,7 @@ After generating `intake.md`, infer the change type from the intake content usin
 
 Write the inferred type to `.status.yaml`:
 ```bash
-fab status set-change-type fab/changes/{name}/.status.yaml <type>
+fab status set-change-type {name} <type>
 ```
 
 ### Step 7: Indicative Confidence
@@ -112,7 +112,7 @@ Apply SRAD (`_preamble.md`). No fixed question cap — SRAD scoring determines c
 After all intake work is complete (generation, type inference, confidence, questions), advance intake to `ready`:
 
 ```bash
-fab status advance fab/changes/{name}/.status.yaml intake
+fab status advance {name} intake
 ```
 
 This signals that the intake artifact exists and is open for `/fab-clarify` refinement. The change is NOT activated — the user must run `/fab-switch {name}` to make it active before proceeding.
