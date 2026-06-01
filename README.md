@@ -1,6 +1,6 @@
 # Fab Kit
 
-> Part of [@sahil87's open source toolkit](https://ai.shll.in) — see all projects there.
+> Part of [@sahil87's open source toolkit](https://shll.ai) — see all projects there.
 
 [![Latest release](https://img.shields.io/github/v/release/sahil87/fab-kit)](https://github.com/sahil87/fab-kit/releases) [![Downloads](https://img.shields.io/github/downloads/sahil87/fab-kit/total)](https://github.com/sahil87/fab-kit/releases) [![Stars](https://img.shields.io/github/stars/sahil87/fab-kit?style=social)](https://github.com/sahil87/fab-kit/stargazers)
 
