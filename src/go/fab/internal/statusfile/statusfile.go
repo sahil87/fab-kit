@@ -11,7 +11,7 @@ import (
 
 // Ordered stage list — pipeline order.
 var StageOrder = []string{
-	"intake", "spec", "apply", "review", "hydrate", "ship", "review-pr",
+	"intake", "apply", "review", "hydrate", "ship", "review-pr",
 }
 
 // StageNumber returns the 1-indexed position of a stage.
@@ -539,12 +539,10 @@ func encodeConfidence(n *yaml.Node, c *Confidence) {
 		{Kind: yaml.ScalarNode, Value: formatFloat(c.Score), Tag: "!!float"},
 	}
 
-	if c.Indicative != nil && *c.Indicative {
-		content = append(content,
-			&yaml.Node{Kind: yaml.ScalarNode, Value: "indicative"},
-			&yaml.Node{Kind: yaml.ScalarNode, Value: "true", Tag: "!!bool"},
-		)
-	}
+	// confidence.indicative is retired (1.10.0): no longer written. The
+	// Confidence.Indicative field is kept as a decode-tolerant target so a
+	// legacy `indicative: true` key on an un-migrated/archived file round-trips
+	// without error and is simply dropped on the next Save.
 
 	if c.Fuzzy != nil && *c.Fuzzy {
 		content = append(content,

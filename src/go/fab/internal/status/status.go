@@ -20,7 +20,6 @@ var ValidStates = []string{"pending", "active", "ready", "done", "failed", "skip
 // Allowed states per stage.
 var AllowedStates = map[string][]string{
 	"intake":    {"active", "ready", "done"},
-	"spec":      {"pending", "active", "ready", "done", "skipped"},
 	"apply":     {"pending", "active", "ready", "done", "skipped"},
 	"review":    {"pending", "active", "ready", "done", "failed", "skipped"},
 	"hydrate":   {"pending", "active", "ready", "done", "skipped"},
@@ -92,6 +91,9 @@ func validateStage(event, stage string) error {
 	}
 	if stage == "tasks" {
 		return fmt.Errorf("\"tasks\" stage was removed — run \"fab status %s <change> apply\" instead. plan.md is now generated at apply entry.", event)
+	}
+	if stage == "spec" {
+		return fmt.Errorf("\"spec\" stage was removed — spec.md is now generated at apply entry. Use \"apply\".")
 	}
 	return fmt.Errorf("Invalid stage '%s'", stage)
 }
@@ -332,7 +334,7 @@ func SetChecklistRemovedError() error {
 }
 
 // SetConfidence replaces the confidence block.
-func SetConfidence(statusFile *sf.StatusFile, statusPath string, certain, confident, tentative, unresolved int, score float64, indicative bool) error {
+func SetConfidence(statusFile *sf.StatusFile, statusPath string, certain, confident, tentative, unresolved int, score float64) error {
 	statusFile.Confidence = sf.Confidence{
 		Certain:    certain,
 		Confident:  confident,
@@ -340,14 +342,11 @@ func SetConfidence(statusFile *sf.StatusFile, statusPath string, certain, confid
 		Unresolved: unresolved,
 		Score:      score,
 	}
-	if indicative {
-		statusFile.Confidence.Indicative = sf.BoolPtr(true)
-	}
 	return statusFile.Save(statusPath)
 }
 
 // SetConfidenceFuzzy replaces the confidence block with dimension data.
-func SetConfidenceFuzzy(statusFile *sf.StatusFile, statusPath string, certain, confident, tentative, unresolved int, score, meanS, meanR, meanA, meanD float64, indicative bool) error {
+func SetConfidenceFuzzy(statusFile *sf.StatusFile, statusPath string, certain, confident, tentative, unresolved int, score, meanS, meanR, meanA, meanD float64) error {
 	statusFile.Confidence = sf.Confidence{
 		Certain:    certain,
 		Confident:  confident,
@@ -361,9 +360,6 @@ func SetConfidenceFuzzy(statusFile *sf.StatusFile, statusPath string, certain, c
 			Competence:     meanA,
 			Disambiguation: meanD,
 		},
-	}
-	if indicative {
-		statusFile.Confidence.Indicative = sf.BoolPtr(true)
 	}
 	return statusFile.Save(statusPath)
 }

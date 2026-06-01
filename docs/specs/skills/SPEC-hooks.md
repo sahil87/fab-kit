@@ -38,13 +38,8 @@ These are `fab` CLI calls that skills instruct the agent to run after generating
 | Command | Purpose | Hookable? |
 |---------|---------|-----------|
 | `fab status set-change-type <change> <type>` | Infer and record change type | Yes — hook reads content, does keyword match |
-| `fab score --stage intake <change>` | Compute indicative confidence | Yes — hook calls fab score |
+| `fab score --stage intake <change>` | Compute the authoritative intake confidence (sole scoring source) | Yes — hook calls fab score |
 | `fab status advance <change> intake` | Signal intake artifact exists | **No** — must happen after SRAD questions (Step 8), not on write |
-
-**After `spec.md` is written** (fab-continue, fab-ff, fab-fff):
-| Command | Purpose | Hookable? |
-|---------|---------|-----------|
-| `fab score <change>` | Compute spec confidence score | Yes |
 
 **After `plan.md` is written** (fab-continue, fab-ff, fab-fff):
 | Command | Purpose | Hookable? |
@@ -54,10 +49,7 @@ These are `fab` CLI calls that skills instruct the agent to run after generating
 | `fab status set-acceptance <change> acceptance_count <M>` | Record acceptance item count | Yes — hook counts items under `## Acceptance` |
 | `fab status set-acceptance <change> acceptance_completed <K>` | Record completed acceptance items | Yes — hook counts `- [x]` lines under `## Acceptance` |
 
-**After `spec.md` is edited** (fab-clarify, suggest mode only):
-| Command | Purpose | Hookable? |
-|---------|---------|-----------|
-| `fab score <change>` | Recompute confidence after clarification | Yes |
+> **Removed in 1.10.0**: the `spec.md → fab score` hook rule. `spec.md` is no longer a recognized artifact (the matcher and `hook.go` `case "spec.md"` are both dropped), so editing a leftover `spec.md` does not fire scoring and cannot overwrite the authoritative intake confidence. Intake scoring is recomputed by `/fab-clarify` (intake-only) directly, not via a write hook.
 
 ---
 
@@ -151,7 +143,7 @@ For `Edit`, `tool_input` contains `file_path`, `old_string`, `new_string` instea
 
 The hook script can:
 1. Extract `file_path` from the JSON
-2. Pattern-match against `fab/changes/*/intake.md|spec.md|plan.md`
+2. Pattern-match against `fab/changes/*/intake.md|plan.md` (spec.md dropped in 1.10.0)
 3. Derive the change name from path components
 4. Run the appropriate `fab` CLI bookkeeping commands
 5. Return `additionalContext` in stdout JSON to inform the agent
@@ -205,11 +197,9 @@ Stop ──────────────────► on-stop.sh       
 
 PostToolUse (Write) ───► on-artifact-write.sh       ◄── NEW
                          ├─ intake.md → fab status set-change-type + fab score --stage intake
-                         ├─ spec.md → fab score
                          └─ plan.md → fab status set-acceptance generated + task_count + acceptance_count + acceptance_completed
 
-PostToolUse (Edit) ────► on-artifact-write.sh       (same script, both matchers)
-                         └─ spec.md → fab score
+(spec.md is no longer a recognized artifact — 1.10.0 — so no PostToolUse rule fires on it)
 ```
 
 **Dropped** (from earlier proposal):
@@ -224,7 +214,7 @@ Skills that currently contain bookkeeping instructions can drop them:
 | Skill | Steps removed | Net effect |
 |-------|---------------|------------|
 | fab-new | Steps 6 (type inference), 7 (confidence) | Simpler, 2 fewer Bash calls |
-| fab-continue | Score after spec, set-acceptance after plan | Fewer bookkeeping instructions |
+| fab-continue | set-acceptance after plan | Fewer bookkeeping instructions |
 | fab-ff | Plan-write set-acceptance calls | Cleaner pipeline |
 | fab-fff | Same as fab-ff | Cleaner pipeline |
 | fab-clarify | Step 7 (recompute confidence) | One fewer Bash call |

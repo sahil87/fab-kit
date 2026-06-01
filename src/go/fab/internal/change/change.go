@@ -196,10 +196,10 @@ func Switch(fabRoot, name string) (string, error) {
 
 		c := statusFile.Confidence
 		totalCounts := c.Certain + c.Confident + c.Tentative + c.Unresolved
+		// confidence.indicative is retired (1.10.0): intake scoring is now the
+		// sole authoritative source, so there is no "(indicative)" qualifier.
 		if c.Score == 0 && totalCounts == 0 {
 			confDisplay = "not yet scored"
-		} else if c.Indicative != nil && *c.Indicative {
-			confDisplay = fmt.Sprintf("%.1f of 5.0 (indicative)", c.Score)
 		} else {
 			confDisplay = fmt.Sprintf("%.1f of 5.0", c.Score)
 		}
@@ -286,11 +286,9 @@ func ListWithOptions(fabRoot string, archive, showStats bool) ([]string, error) 
 
 		ds, dstate := status.DisplayStage(statusFile)
 		c := statusFile.Confidence
-		indicative := "false"
-		if c.Indicative != nil && *c.Indicative {
-			indicative = "true"
-		}
-		row := fmt.Sprintf("%s:%s:%s:%.1f:%s", e.Name(), ds, dstate, c.Score, indicative)
+		// confidence.indicative is retired (1.10.0): the row no longer emits a
+		// 5th field. Format is now name:display_stage:display_state:score.
+		row := fmt.Sprintf("%s:%s:%s:%.1f", e.Name(), ds, dstate, c.Score)
 		if showStats {
 			row += ":" + impactColumn(statusFile)
 		}
@@ -403,7 +401,7 @@ func findCollision(changesDir, changeID string) string {
 
 func defaultCommand(stage string) string {
 	switch stage {
-	case "intake", "spec", "apply", "review":
+	case "intake", "apply", "review":
 		return "/fab-continue"
 	case "hydrate":
 		return "/git-pr"

@@ -39,8 +39,8 @@ User invokes /fab-draft <description>
 ├─ Step 6: Infer Change Type
 │  └─ Bash: fab status set-change-type <change> <type>    ◄── bookkeeping
 │
-├─ Step 7: Indicative Confidence
-│  └─ Bash: fab score --stage intake <change>             ◄── bookkeeping
+├─ Step 7: Confidence (authoritative — intake is the sole scoring source)
+│  └─ Bash: fab score --stage intake <change>             ◄── bookkeeping (no indicative flag, 1.10.0)
 │
 ├─ Step 8: SRAD Questions
 │  └─ (agent reasoning, possible user interaction)

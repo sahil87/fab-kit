@@ -16,8 +16,7 @@ created_by: test-user
 change_type: feat
 issues: []
 progress:
-  intake: done
-  spec: active
+  intake: active
   apply: pending
   review: pending
   hydrate: pending
@@ -183,10 +182,43 @@ func TestValidateStage_BogusReturnsGenericError(t *testing.T) {
 }
 
 func TestValidateStage_ValidStagesAccepted(t *testing.T) {
-	for _, stage := range []string{"intake", "spec", "apply", "review", "hydrate", "ship", "review-pr"} {
+	for _, stage := range []string{"intake", "apply", "review", "hydrate", "ship", "review-pr"} {
 		if err := validateStage("finish", stage); err != nil {
 			t.Errorf("validateStage(\"finish\", %q) returned error: %v", stage, err)
 		}
+	}
+}
+
+func TestValidateStage_SpecReturnsStrictError(t *testing.T) {
+	for _, event := range []string{"start", "advance", "finish", "reset", "skip", "fail"} {
+		err := validateStage(event, "spec")
+		if err == nil {
+			t.Fatalf("expected strict-error from validateStage(%q, \"spec\")", event)
+		}
+		if !strings.Contains(err.Error(), "\"spec\" stage was removed") {
+			t.Errorf("validateStage(%q, \"spec\") error should mention spec removed, got: %v", event, err)
+		}
+	}
+}
+
+func TestStartFinishOnSpecReturnsStrictError(t *testing.T) {
+	statusFile, path := loadFixture(t)
+	dir := filepath.Dir(path)
+
+	err := Start(statusFile, path, dir, "spec", "test", "", "")
+	if err == nil {
+		t.Fatal("expected strict-error from Start on spec stage")
+	}
+	if !strings.Contains(err.Error(), "\"spec\" stage was removed") {
+		t.Errorf("Start error should mention spec removed, got: %v", err)
+	}
+
+	err = Finish(statusFile, path, dir, "spec", "test")
+	if err == nil {
+		t.Fatal("expected strict-error from Finish on spec stage")
+	}
+	if !strings.Contains(err.Error(), "\"spec\" stage was removed") {
+		t.Errorf("Finish error should mention spec removed, got: %v", err)
 	}
 }
 
@@ -211,24 +243,27 @@ func TestStartFinishOnTasksReturnsStrictError(t *testing.T) {
 	}
 }
 
-func TestSpecFinishAutoActivatesApply(t *testing.T) {
+// TestIntakeFinishAutoActivatesApply verifies the six-stage transition: with
+// spec removed, apply is the stage immediately after intake, so finishing
+// intake auto-activates apply.
+func TestIntakeFinishAutoActivatesApply(t *testing.T) {
 	statusFile, path := loadFixture(t)
 	dir := filepath.Dir(path)
 
-	if err := Finish(statusFile, path, dir, "spec", "test"); err != nil {
-		t.Fatalf("Finish spec: %v", err)
+	if err := Finish(statusFile, path, dir, "intake", "test"); err != nil {
+		t.Fatalf("Finish intake: %v", err)
 	}
 
-	if statusFile.GetProgress("spec") != "done" {
-		t.Errorf("spec should be done, got %q", statusFile.GetProgress("spec"))
+	if statusFile.GetProgress("intake") != "done" {
+		t.Errorf("intake should be done, got %q", statusFile.GetProgress("intake"))
 	}
 	if statusFile.GetProgress("apply") != "active" {
 		t.Errorf("apply should auto-activate to active, got %q", statusFile.GetProgress("apply"))
 	}
-	// progress.tasks must not exist in the resulting file
+	// Neither progress.spec nor progress.tasks should exist in the canonical map.
 	for _, ss := range statusFile.GetProgressMap() {
-		if ss.Stage == "tasks" {
-			t.Errorf("progress.tasks should not exist, but found state %q", ss.State)
+		if ss.Stage == "spec" || ss.Stage == "tasks" {
+			t.Errorf("progress.%s should not exist, but found state %q", ss.Stage, ss.State)
 		}
 	}
 }

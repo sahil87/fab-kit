@@ -1,9 +1,9 @@
 ---
 name: fab-clarify
-description: "Refine the current stage artifact — resolve gaps, ambiguities, or [NEEDS CLARIFICATION] markers without advancing."
+description: "Refine the intake artifact — resolve gaps, ambiguities, or [NEEDS CLARIFICATION] markers without advancing."
 ---
 
-# /fab-clarify [<change-name>] [<target-artifact>]
+# /fab-clarify [<change-name>]
 
 > Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.
 
@@ -11,10 +11,10 @@ description: "Refine the current stage artifact — resolve gaps, ambiguities, o
 
 ## Purpose
 
-Deepen and refine the current stage artifact without advancing. Two modes:
+Deepen and refine the **intake** artifact (`intake.md`) without advancing. Clarification is an intake-only, human-facing activity: it is where the developer's decisions and disambiguation happen, gated by the single intake confidence gate. There is no post-intake clarify — inside apply, the agent resolves ambiguity inline as graded SRAD assumptions in `plan.md`, not via this skill. Two modes:
 
 - **Suggest mode** (user invocation) — interactive question flow with recommendations
-- **Auto mode** (internal `fab-ff` call) — autonomous resolution, returns machine-readable result
+- **Auto mode** — autonomous resolution, returns machine-readable result (the protocol is retained for future use; no orchestrator currently invokes clarify automatically)
 
 Mode determined by `[AUTO-MODE]` prefix (see `_preamble.md` > Skill Invocation Protocol). Safe to call multiple times.
 
@@ -23,9 +23,8 @@ Mode determined by `[AUTO-MODE]` prefix (see `_preamble.md` > Skill Invocation P
 ## Arguments
 
 - **`<change-name>`** *(optional)* — target a specific change (see `_preamble.md` > Change-name override). `.fab-status.yaml` unchanged.
-- **`<target-artifact>`** *(optional)* — `intake`, `spec`, or `plan`. The legacy `tasks` target errors with `"tasks" target was removed — use plan (post-apply-entry) or spec (pre-apply).` **Required** at post-planning stages. Defaults to current stage's artifact at planning stages.
 
-Disambiguation: matches `intake`/`spec`/`plan` → target artifact; matches `tasks` → strict-error (see above); anything else → change name. Both can be provided.
+`/fab-clarify` operates only on `intake.md`. The legacy `spec`, `plan`, and `tasks` targets were removed: `spec` and `plan` no longer exist as clarify targets (the spec stage is gone; under-specified requirements at apply become inline SRAD assumptions, not clarify sessions). Any positional argument is treated as a change name.
 
 ---
 
@@ -33,8 +32,8 @@ Disambiguation: matches `intake`/`spec`/`plan` → target artifact; matches `tas
 
 Run preflight per `_preamble.md` §2.
 
-- **Planning stages** (`intake`, `spec`) with state `active` or `ready` — defaults to current stage's artifact if it exists; if the current stage is `pending` (no artifact yet), fall back to the previous `done` stage's artifact. `<target-artifact>` overrides either default. At the `intake` stage, the taxonomy scan covers intake artifact refinement (scope boundaries, affected areas, blocking questions, impact, memory coverage). When state is `ready`, the artifact exists — scanning proceeds normally and the stage stays `ready` throughout.
-- **Post-planning** (`apply`, `review`, `hydrate`) — requires `<target-artifact>`. The `plan` target is valid only when `plan.md` exists at apply or later (apply has already entered and generated the plan). If `plan` is requested but `plan.md` is missing, STOP with: "No plan.md found. Run /fab-continue to enter apply (which generates plan.md), then re-run /fab-clarify plan." If `<target-artifact>` is missing, prompt: "Which artifact to clarify? (1) spec, (2) plan (post-apply-entry only), (3) intake"
+- **Intake** is the only stage `/fab-clarify` operates at. With `intake` state `active` or `ready`, scan `intake.md` (scope boundaries, affected areas, blocking questions, impact, memory coverage).
+- **Post-intake stages** (`apply`, `review`, `hydrate`, `ship`, `review-pr`): `/fab-clarify` does not apply. STOP with: "Clarification is intake-only. At apply or later, run /fab-continue for rework, or edit plan.md `## Requirements` directly. To re-clarify the intake, reset with /fab-continue intake first." If `intake.md` is missing entirely: STOP with "No intake.md found. Run /fab-new to create the intake first."
 
 ---
 
@@ -42,15 +41,13 @@ Run preflight per `_preamble.md` §2.
 
 ### Step 1: Read Target Artifact
 
-Resolve file (`intake.md`, `spec.md`, or `plan.md`). If the resolved artifact is missing and the target was defaulted (not user-specified), fall back to the previous `done` stage's artifact. If still missing or the target was explicitly specified: STOP with "No {artifact} found. Run /fab-continue to generate it first."
+Read `intake.md`. If missing: STOP with "No intake.md found. Run /fab-new to create the intake first."
 
 ### Step 1.5: Taxonomy Scan
 
-Scan for gaps, `[NEEDS CLARIFICATION]`, and `<!-- assumed: ... -->` markers. Categories by target:
+Scan `intake.md` for gaps, `[NEEDS CLARIFICATION]`, and `<!-- assumed: ... -->` markers. Categories:
 
 - **Intake**: scope boundaries, affected areas, blocking questions, impact, memory coverage
-- **Spec**: requirement precision (RFC 2119), scenario coverage (GIVEN/WHEN/THEN), edge cases, deprecated requirements, memory cross-references
-- **Plan**: tasks (`## Tasks`) — completeness vs spec, granularity, dependencies, file paths, `[P]` markers — plus acceptance (`## Acceptance`) — coverage of spec requirements, declarative phrasing, IDs follow `A-NNN` (newly generated plans) or `CHK-NNN` (in-flight migrated plans)
 
 For `<!-- assumed: ... -->` markers, frame current assumption as recommended option with alternatives.
 
@@ -171,7 +168,7 @@ Next: {per state table — current state, since clarify is non-advancing}
 
 ### Step 7: Recompute Confidence
 
-Run `fab score <change>` if `spec.md` exists in the change directory. Skip this step if at intake stage (no spec yet). Auto mode does not invoke this script.
+Always run `fab score --stage intake <change>` after resolving assumptions — intake is the sole scoring source, and clarify operates only at intake. This re-persists the authoritative intake confidence. Auto mode does not invoke this script.
 
 ### Step 8: Do NOT Advance Stage
 
@@ -179,14 +176,14 @@ Only update `confidence` and `last_updated` in `.status.yaml`.
 
 ---
 
-## Auto Mode (Internal fab-ff Call)
+## Auto Mode
 
-> **Note**: Bulk confirm (Step 2) is Suggest Mode only. Auto Mode skips it — there is no user to confirm with.
+> **Note**: Bulk confirm (Step 2) is Suggest Mode only. Auto Mode skips it — there is no user to confirm with. No orchestrator currently invokes clarify automatically (the former `/fab-ff` and `/fab-fff` auto-clarify steps were removed in 1.10.0); this section is retained for future use and operates on `intake.md` only.
 
-1. **Read target artifact** (same as Suggest Step 1)
-2. **Autonomous gap resolution**: Same taxonomy scan. Resolvable from context → resolve + `<!-- clarified: ... -->`. Needs user input → `<!-- blocking: ... -->`. Minor → leave as-is.
+1. **Read `intake.md`** (same as Suggest Step 1)
+2. **Autonomous gap resolution**: Same intake taxonomy scan. Resolvable from context → resolve + `<!-- clarified: ... -->`. Needs user input → `<!-- blocking: ... -->`. Minor → leave as-is.
 3. **Return result**: `{resolved: N, blocking: N, non_blocking: N}`. If `blocking > 0`, include `blocking_issues: [...]`.
-4. **Non-advancing**: Only update `last_updated`.
+4. **Non-advancing**: recompute the intake score (`fab score --stage intake <change>`) and update `last_updated`.
 
 ---
 
@@ -194,8 +191,8 @@ Only update `confidence` and `last_updated` in `.status.yaml`.
 
 | Condition | Action |
 |-----------|--------|
-| Post-planning stage, no `<target-artifact>` | Prompt for artifact selection |
-| Artifact file missing | "No {artifact} found. Run /fab-continue to generate it first." |
+| Stage is post-intake (apply/review/hydrate/ship/review-pr) | "Clarification is intake-only. Run /fab-continue for rework, or edit plan.md `## Requirements`. Reset via /fab-continue intake to re-clarify the intake." |
+| `intake.md` missing | "No intake.md found. Run /fab-new to create the intake first." |
 
 ---
 

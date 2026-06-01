@@ -17,13 +17,13 @@ Orchestrator (fab-continue / fab-ff / fab-fff) reads _review.md
 ├─ Parallel Dispatch (Agent tool)
 │  │
 │  ├─ Inward Sub-Agent
-│  │  Context: spec.md, plan.md, touched source files,
-│  │           target memory files
+│  │  Context: plan.md (## Requirements + ## Tasks + ## Acceptance),
+│  │           touched source files, target memory files
 │  │  Validation Steps (8):
 │  │    1. Tasks complete
 │  │    2. Acceptance items
 │  │    3. Run affected tests
-│  │    4. Spot-check spec
+│  │    4. Spot-check requirements (plan.md ## Requirements)
 │  │    5. Memory drift check
 │  │    6. Code quality check
 │  │    7. Parsimony pass
@@ -71,7 +71,7 @@ The inward sub-agent runs all eight checks. Steps 7 and 8 (added in 260507-ogf2)
 | 1 | Tasks complete | (always runs) | must-fix on incomplete |
 | 2 | Acceptance items | (always runs) | must-fix on unmet |
 | 3 | Run affected tests | (always runs) | must-fix on failure |
-| 4 | Spot-check spec | (always runs) | must-fix on mismatch |
+| 4 | Spot-check requirements (`plan.md` `## Requirements`) | (always runs) | must-fix on mismatch |
 | 5 | Memory drift check | (always runs) | warning only |
 | 6 | Code quality check | (always runs; expanded when `code-quality.md` exists) | should-fix on inconsistency, plus per-anti-pattern |
 | 7 | Parsimony pass | `change_type ∈ {docs, chore, ci}` OR `code-review.md` `## Parsimony Pass` `Enabled: false` | per-category mapping (see below) |
@@ -90,13 +90,13 @@ Threshold (advisory, hard-coded in the prompt body): **100 net added lines**. Be
 
 #### Deletion Candidates (Step 8)
 
-Output appended (or replaced on rework) as a top-level `## Deletion Candidates` section in `plan.md`, placed immediately below `## Notes` (or at end of file when `## Notes` is absent). The section heading is a stable parser contract. When the change type is in the skip list (`docs`, `chore`, `ci`), the section is omitted entirely (NOT written as "None"). Distinct from `## Acceptance > ### Removal Verification`, which covers *planned* removals declared in `spec.md`.
+Output appended (or replaced on rework) as a top-level `## Deletion Candidates` section in `plan.md`, placed immediately below `## Notes` (or at end of file when `## Notes` is absent). The section heading is a stable parser contract. When the change type is in the skip list (`docs`, `chore`, `ci`), the section is omitted entirely (NOT written as "None"). Distinct from `## Acceptance > ### Removal Verification`, which covers *planned* removals declared in `plan.md` `## Requirements` (`### Deprecated Requirements`).
 
 ### Tools used
 
 | Tool | Purpose |
 |------|---------|
-| Read | spec.md, plan.md, source files, memory files, code-review.md |
+| Read | plan.md (## Requirements + ## Tasks + ## Acceptance), source files, memory files, code-review.md |
 | Edit | plan.md (acceptance check-marks, ## Deletion Candidates section) |
 | Bash | git diff (outward sub-agent base + diff resolution); test invocations (Step 3) |
 | Agent | Inward sub-agent dispatch + Outward sub-agent dispatch (parallel) |

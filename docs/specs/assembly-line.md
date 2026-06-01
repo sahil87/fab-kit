@@ -85,8 +85,8 @@ A real morning with 5 changes from your backlog:
 | Time | You | AI |
 |------|-----|----|
 | 9:00 | `fab batch new --all` — 5 tmux tabs open. Hop between them, answer clarifying questions, shape each intake. | — |
-| 9:25 | Intakes done. `fab batch switch --all` — 5 worktrees created, 5 Claude sessions open. Run `/fab-fff` in each tab. | Starts speccing, planning, implementing all 5 in parallel. |
-| 9:30 | Start creating next batch of intakes from backlog. Or do deep work — design, architecture, code review. | Working. Each change progresses independently through spec → tasks → apply → review → hydrate. |
+| 9:25 | Intakes done. `fab batch switch --all` — 5 worktrees created, 5 Claude sessions open. Run `/fab-fff` in each tab. | Starts planning and implementing all 5 in parallel. |
+| 9:30 | Start creating next batch of intakes from backlog. Or do deep work — design, architecture, code review. | Working. Each change progresses independently through apply → review → hydrate (everything after intake runs unattended). |
 | 10:15 | — | First 3 changes complete. Waiting for review. |
 | 10:15 | Review 3 completed changes. Merge, archive. | Still working on remaining 2. |
 | 10:30 | Send next batch. | Finishes remaining 2. Picks up new batch. |

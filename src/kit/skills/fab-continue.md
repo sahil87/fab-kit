@@ -12,14 +12,14 @@ helpers: [_generation, _review]
 
 ## Purpose
 
-Advance through the 7-stage Fab pipeline one step at a time. Each invocation handles the current stage's work and transitions to the next. When called with a stage argument, resets to that stage and re-runs from there.
+Advance through the 6-stage Fab pipeline one step at a time. Each invocation handles the current stage's work and transitions to the next. When called with a stage argument, resets to that stage and re-runs from there.
 
 ---
 
 ## Arguments
 
 - **`<change-name>`** *(optional)* — target a specific change instead of the active one resolved via `.fab-status.yaml`. Passed to preflight as `$1` (see `_preamble.md` §2).
-- **`<stage>`** *(optional)* — reset target: `intake`, `spec`, `apply`, `review`, `hydrate`, `ship`, `review-pr`. The legacy `tasks` target errors with a pointer to `apply` / `spec` (see Error Handling).
+- **`<stage>`** *(optional)* — reset target: `intake`, `apply`, `review`, `hydrate`, `ship`, `review-pr`. The legacy `tasks` and `spec` targets error with a pointer to `apply` / `/fab-clarify intake` (see Error Handling).
 
 Both may be provided in any order. Stage names are treated as reset targets; all others as change-name overrides.
 
@@ -39,17 +39,15 @@ Both may be provided in any order. Stage names are treated as reset targets; all
 
 Dispatch on preflight's derived `stage` and `display_state`. If progress is `pending`, run `fab status start <change> <stage> fab-continue` before dispatching.
 
-**State-based dispatch**: For planning stages, `/fab-continue` consolidates work into a single invocation:
-- **`ready`** (planning) → Finish the current stage, start the next, generate its artifact, and advance it to `ready`
-- **`active`** (planning) → Generate the stage's artifact and advance to `ready` (backward compat for interrupted generations)
+**State-based dispatch**: Intake is the only planning stage. `/fab-continue` consolidates work into a single invocation:
+- **`ready`** (intake) → Finish intake, start apply, then execute apply (its entry sub-step generates `plan.md`, then runs tasks)
+- **`active`** (intake) → Generate intake if missing and advance to `ready` (backward compat for interrupted generations)
 - **`active`/`ready`** (execution) → Execute the stage's behavior and finish it
 
 | Derived stage | State | Action |
 |---------------|-------|--------|
-| `intake` | `ready` | finish intake → start spec → generate `spec.md` → advance spec to `ready` |
+| `intake` | `ready` | finish intake → start apply → execute apply (apply's entry sub-step generates `plan.md` — including its `## Requirements` — then runs tasks) |
 | `intake` | `active` | generate intake if missing → advance to `ready` |
-| `spec` | `ready` | finish spec → start apply → execute apply (apply's entry sub-step generates `plan.md`, then runs tasks) |
-| `spec` | `active` | generate `spec.md` → advance to `ready` |
 | `apply` | `active`/`ready` | Execute apply (entry: generate `plan.md` if absent; main: run tasks) → on completion run `finish <change> apply fab-continue` (auto-activates review) |
 | `review` | `active`/`ready` | Execute review → pass: run `finish <change> review fab-continue` (auto-activates hydrate). Fail: run `fail <change> review` then `start <change> apply fab-continue` |
 | `hydrate` | `active`/`ready` | Execute hydrate → run `finish <change> hydrate fab-continue` |
@@ -59,20 +57,19 @@ Dispatch on preflight's derived `stage` and `display_state`. If progress is `pen
 
 ### Step 2: Load Context
 
-Load per `_preamble.md` layers. Stage-specific additions: planning stages load intake + memory files; apply loads spec + plan (if it already exists) + source code; review adds plan + memory; hydrate loads memory index + target files.
+Load per `_preamble.md` layers. Stage-specific additions: intake loads memory files; apply loads intake + plan (if it already exists) + source code; review adds plan + memory; hydrate loads memory index + target files.
 
 ### Step 3: SRAD + Generation
 
-**Planning stages only**: Apply SRAD (`_preamble.md`) before generating. Budget: 1-2 unresolved questions per stage. Tentative decisions get `<!-- assumed: ... -->` markers.
+**Intake only**: Apply SRAD (`_preamble.md`) before generating. Budget: 1-2 unresolved questions. Tentative decisions get `<!-- assumed: ... -->` markers. (Inside apply, under-specified requirements are resolved inline as graded SRAD assumptions in `plan.md` `## Assumptions` — not as questions or markers.)
 
 | Stage | Procedure |
 |-------|-----------|
-| spec | **Spec Generation Procedure** (`_generation.md`) |
-| apply | [Apply Behavior](#apply-behavior) — entry sub-step invokes **Plan Generation Procedure** (`_generation.md`) |
+| apply | [Apply Behavior](#apply-behavior) — entry sub-step invokes **Plan Generation Procedure** (`_generation.md`), which co-generates `## Requirements` + `## Tasks` + `## Acceptance` |
 | review | **Review Behavior** (`_review.md`) |
 | hydrate | [Hydrate Behavior](#hydrate-behavior) |
 
-**Spec stage only**: After spec generation, invoke `fab score <change>` to compute the confidence score. No scoring at other stages.
+**No scoring at any stage `/fab-continue` runs.** Intake scoring is authoritative and is performed by `/fab-new` / `/fab-clarify`; `/fab-continue` operates only at apply and later, where there is no scoring.
 
 ### Step 4: Update `.status.yaml`
 
@@ -96,7 +93,7 @@ Apply runs as **two sub-steps in a single skill invocation**: a Plan Generation 
 
 ### Preconditions
 
-- `spec.md` MUST exist (used as input to plan generation)
+- `intake.md` MUST exist (used as input to plan generation — requirements are derived from the intake design)
 
 ### Plan Generation (entry sub-step)
 
@@ -128,7 +125,7 @@ If `fab/project/code-quality.md` exists, load its `## Principles` as additional 
 5. Execute in phase order; within phases, non-`[P]` sequential, `[P]` parallelizable. Respect Execution Order constraints parsed in step 2.
 6. For each unchecked task:
    1. Read source files relevant to this task
-   2. Implement per spec, constitution, and extracted patterns
+   2. Implement per the plan's `## Requirements`, constitution, and extracted patterns
    3. Prefer reusing existing utilities over creating new ones
    4. Keep functions focused — if implementation exceeds the codebase's typical function size, consider extracting
    5. Write tests per `fab/project/code-quality.md` test strategy (default: `test-alongside`)
@@ -156,7 +153,7 @@ Follow **Review Behavior** (`_review.md`). The `_review.md` skill defines both s
 |--------|------|--------|
 | Fix code | Implementation bug (must-fix / should-fix items) | Uncheck affected tasks in `plan.md` `## Tasks` with `<!-- rework: {reason} -->`, run `/fab-continue` |
 | Revise plan | Missing/wrong tasks or acceptance items | Edit `plan.md` directly, run `/fab-continue` |
-| Revise spec | Requirements wrong | Run `/fab-continue spec` to reset downstream |
+| Revise requirements | Requirements wrong | Edit `plan.md` `## Requirements` plus the downstream `## Tasks`/`## Acceptance` it affects, then re-run `/fab-continue` (apply). For a fundamentally wrong intake, fix `intake.md` via `/fab-clarify intake` first. |
 
 The applying agent triages review comments by priority — not all comments need to be implemented. Must-fix items are always addressed. Should-fix items are addressed when clear and low-effort. Nice-to-have items may be acknowledged but deferred.
 
@@ -182,12 +179,12 @@ The applying agent triages review comments by priority — not all comments need
 
 ## Reset Flow (with stage argument)
 
-1. **Validate**: Must be one of the 7 stage names. If `tasks` is passed, error with: `"tasks" stage was removed — use /fab-continue apply (regenerates plan.md and re-runs) or /fab-clarify spec.`
+1. **Validate**: Must be one of the 6 stage names. If `tasks` or `spec` is passed, error with: `"tasks"/"spec" stages were removed — use /fab-continue apply (regenerates plan.md and re-runs) or /fab-clarify intake.`
 2. **Load context** for the target stage
 3. **Reset `.status.yaml`**: Run `fab status reset <change> <stage> fab-continue`. This atomically sets the target stage → `active` and cascades all downstream stages → `pending`. Stages before the target are preserved.
-4. **Execute**: Planning stages regenerate artifact. Execution stages re-run (task checkboxes NOT reset; `plan.md` is also preserved on disk — to force plan regeneration the user MUST delete `plan.md` before re-running `/fab-continue`).
-5. **Invalidate downstream** (planning resets only): intake reset → all downstream pending; spec reset → apply pending. The `reset` command handles the status cascading automatically.
-6. **Post-execution**: For **planning resets**, after regenerating the artifact, use `fab status advance <change> <stage>` to move the target stage back to `ready` and stop there — **do not** run `finish`, to avoid auto-activating the next pending stage. For **execution resets**, use the normal `finish` commands, which will auto-activate the next pending stage.
+4. **Execute**: Intake reset regenerates the intake artifact. Execution stages (apply onward) re-run (task checkboxes NOT reset; `plan.md` is also preserved on disk — to force plan regeneration the user MUST delete `plan.md` before re-running `/fab-continue`).
+5. **Invalidate downstream**: intake reset → all downstream pending. The `reset` command handles the status cascading automatically.
+6. **Post-execution**: For the **intake reset**, after regenerating the artifact, use `fab status advance <change> <stage>` to move intake back to `ready` and stop there — **do not** run `finish`, to avoid auto-activating apply. For **execution resets**, use the normal `finish` commands, which will auto-activate the next pending stage.
 
 ---
 
@@ -195,12 +192,12 @@ The applying agent triages review comments by priority — not all comments need
 
 | Condition | Action |
 |-----------|--------|
-| `spec.md` missing for apply entry | "No spec.md found. Run /fab-continue to generate the spec first." |
+| `intake.md` missing for apply entry | "No intake.md found. Run /fab-continue to generate the intake first." |
 | `plan.md` missing `## Acceptance` for review | "plan.md missing Acceptance section." |
 | Incomplete tasks for review | "{N} of {total} tasks incomplete." |
 | Review not passed for hydrate | "Review has not passed." |
-| Reset target `tasks` | `"tasks" stage was removed — use /fab-continue apply (regenerates plan.md and re-runs) or /fab-clarify spec.` |
-| Unknown reset target | "Unknown stage. Valid: intake, spec, apply, review, hydrate, ship, review-pr." |
+| Reset target `tasks` or `spec` | `"tasks"/"spec" stages were removed — use /fab-continue apply (regenerates plan.md and re-runs) or /fab-clarify intake.` |
+| Unknown reset target | "Unknown stage. Valid: intake, apply, review, hydrate, ship, review-pr." |
 | Template file missing | "Template not found — kit may be corrupted." |
 
 ---

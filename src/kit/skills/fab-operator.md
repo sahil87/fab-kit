@@ -196,7 +196,7 @@ On each tick:
   [change]  r3m7         ▶ ● apply → review
   [change]  k8ds         ▶ ◌ review · idle 18m ⚠
   [change]  ab12           ● hydrate ✓
-  [change]  ef56           ✗ spec · idle 32m ⚠
+  [change]  ef56           ✗ apply · idle 32m ⚠
   [watch]   gmail-deploys  ◌ 1 new · 2m ago
   [watch]   linear-bugs    ● 2 known · 1 completed · 3m ago
   [watch]   slack-alerts   ● 0 new · 1m ago
@@ -325,7 +325,7 @@ The operator understands the full fab pipeline and command vocabulary. It infers
 ### Pipeline Reference
 
 ```
-intake → spec → apply → review → hydrate → ship → review-pr
+intake → apply → review → hydrate → ship → review-pr
 ```
 
 **Setup commands**: `/fab-new` (create + activate change), `/fab-draft` (create without activating), `/fab-switch` (activate existing change), `/git-branch` (align branch)
@@ -506,7 +506,7 @@ Each watch in `.fab-operator.yaml` has:
 | `enabled` | `true` or `false` — paused watches retain config but skip tick evaluation |
 | `source` | `linear` or `slack` — determines which MCP tool to query |
 | `query` | Source-specific API filter (project, status, assignee, channel) — passed to MCP |
-| `stop_stage` | How far to go: `intake`, `spec`, `hydrate`, or `null` (full pipeline) |
+| `stop_stage` | How far to go: `intake`, `apply`, `hydrate`, or `null` (full pipeline) |
 | `known` | Already-handled item IDs — managed automatically, capped at 200 (oldest pruned first) |
 | `completed` | Items that reached `stop_stage` — lets users query "what did this watch produce?" |
 | `last_checked` | ISO timestamp of last successful query |

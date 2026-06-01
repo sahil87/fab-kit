@@ -31,7 +31,14 @@ Tests MUST conform to the implementation spec — never the other way around. Wh
 - Changes to the `fab` CLI (Go binary) MUST include corresponding test updates and MUST update `src/kit/skills/_cli-fab.md` with any new or changed command signatures
 - Changes to skill files (`src/kit/skills/*.md`) MUST update the corresponding `docs/specs/skills/SPEC-*.md` file
 - `src/kit/` is the canonical source for all kit content (skills, templates, migrations). `.claude/skills/` contains deployed copies produced by `fab sync` and is gitignored — never edit files there directly
+- The core pipeline is six stages (`intake → apply → review → hydrate → ship → review-pr`). All human judgment is frontloaded to intake (the sole confidence gate); everything after intake runs unattended unless review-rework exhausts or PR feedback arrives. Requirement capture is co-generated into `plan.md`'s `## Requirements` section at apply entry — there is no separate `spec` stage or `spec.md` artifact
 
 ## Governance
 
-**Version**: 1.3.0 | **Ratified**: 2026-02-06 | **Last Amended**: 2026-03-06
+**Version**: 1.3.0 | **Ratified**: 2026-02-06 | **Last Amended**: 2026-06-01
+
+<!-- 2026-06-01 (260601-j6cs): Merged the `spec` stage into `apply` and frontloaded
+     SRAD scoring to intake — pipeline 7→6 stages, single intake gate, spec.md absorbed
+     into plan.md `## Requirements`. Dated + explained per the change's governance note;
+     no new normative MUST-rule was added (the existing constraints already cover it). -->
+

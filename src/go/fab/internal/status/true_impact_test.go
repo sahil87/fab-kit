@@ -82,7 +82,6 @@ change_type: feat
 issues: []
 progress:
   intake: done
-  spec: done
   apply: active
   review: pending
   hydrate: pending
@@ -260,11 +259,11 @@ func TestWriteTrueImpact_NonApplyStageIsNoOp(t *testing.T) {
 	}
 
 	withCwd(t, repoRoot, func() {
-		_ = WriteTrueImpact(statusFile, statusPath, fabRoot, "spec")
+		_ = WriteTrueImpact(statusFile, statusPath, fabRoot, "review")
 	})
 
 	reloaded, _ := sf.Load(statusPath)
 	if reloaded.TrueImpact != nil {
-		t.Errorf("expected no-op for stage=spec, got %+v", reloaded.TrueImpact)
+		t.Errorf("expected no-op for stage=review, got %+v", reloaded.TrueImpact)
 	}
 }

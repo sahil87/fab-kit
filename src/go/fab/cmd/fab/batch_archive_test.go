@@ -12,7 +12,6 @@ func TestIsArchivable_HydrateDone(t *testing.T) {
 	statusPath := filepath.Join(dir, ".status.yaml")
 	os.WriteFile(statusPath, []byte(`progress:
   intake: done
-  spec: done
   apply: done
   review: done
   hydrate: done

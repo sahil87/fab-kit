@@ -37,15 +37,15 @@ Skill reads _preamble.md
 │  ├─ Layer 2: Change Context
 │  │  Bash: fab preflight [change-name]
 │  │  Bash: fab log command "<skill>" "<id>"
-│  │  Read: change artifacts (intake, spec, plan)
+│  │  Read: change artifacts (intake, plan)
 │  │
 │  ├─ Layer 3: Memory File Lookup
-│  │  Read: intake/spec affected memory refs
+│  │  Read: intake affected memory refs
 │  │  Read: docs/memory/{domain}/index.md
 │  │  Read: docs/memory/{domain}/{file}.md
 │  │
 │  └─ Layer 4: Source Code Loading
-│     Read: source files from task/spec refs
+│     Read: source files from task/requirements refs
 │     Read: neighboring files (pattern context)
 │
 ├─ Skill Helper Declaration
@@ -106,4 +106,4 @@ None — `_preamble.md` is a convention document consumed by skills, not an exec
 | Step | Command | Trigger |
 |------|---------|---------|
 | Change context | `fab log command "<skill>" "<id>"` | After preflight parse |
-| Confidence scoring | `fab score <change>` | After spec generation (invoked by consuming skill) |
+| Confidence scoring | `fab score --stage intake <change>` | After intake generation / clarify (intake is the sole scoring source; no scoring at apply or later) |

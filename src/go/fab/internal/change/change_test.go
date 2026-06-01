@@ -17,7 +17,6 @@ change_type: feat
 issues: []
 progress:
   intake: pending
-  spec: pending
   apply: pending
   review: pending
   hydrate: pending
@@ -47,8 +46,7 @@ change_type: feat
 issues: []
 progress:
   intake: done
-  spec: active
-  apply: pending
+  apply: active
   review: pending
   hydrate: pending
   ship: pending
@@ -332,11 +330,12 @@ func TestList(t *testing.T) {
 		t.Errorf("List returned %d entries, want 2", len(results))
 	}
 
-	// Each entry should have format name:stage:state:score:indicative
+	// Each entry should have format name:display_stage:display_state:score
+	// (the :indicative 5th field was dropped in 1.10.0).
 	for _, entry := range results {
 		parts := strings.Split(entry, ":")
-		if len(parts) < 5 {
-			t.Errorf("entry %q has fewer than 5 colon-separated parts (expected name:stage:state:score:indicative)", entry)
+		if len(parts) != 4 {
+			t.Errorf("entry %q has %d colon-separated parts, want 4 (name:stage:state:score)", entry, len(parts))
 		}
 	}
 }
@@ -369,8 +368,7 @@ change_type: feat
 issues: []
 progress:
   intake: done
-  spec: active
-  apply: pending
+  apply: active
   review: pending
   hydrate: pending
   ship: pending
@@ -414,8 +412,7 @@ change_type: feat
 issues: []
 progress:
   intake: done
-  spec: active
-  apply: pending
+  apply: active
   review: pending
   hydrate: pending
   ship: pending
@@ -457,13 +454,14 @@ last_updated: "2026-03-10T12:00:00Z"
 		t.Fatalf("ListWithOptions: %v", err)
 	}
 	for _, row := range plain {
-		// Row should have exactly 5 colon-delimited parts.
-		if got := strings.Count(row, ":"); got != 4 {
-			t.Errorf("expected 4 colons in plain row, got %d: %s", got, row)
+		// Plain row is name:display_stage:display_state:score → 3 colons
+		// (the :indicative field was dropped in 1.10.0).
+		if got := strings.Count(row, ":"); got != 3 {
+			t.Errorf("expected 3 colons in plain row, got %d: %s", got, row)
 		}
 	}
 
-	// With --show-stats — appended column.
+	// With --show-stats — appended impact column → name:stage:state:score:impact.
 	stats, err := ListWithOptions(fabRoot, false, true)
 	if err != nil {
 		t.Fatalf("ListWithOptions: %v", err)
@@ -474,12 +472,12 @@ last_updated: "2026-03-10T12:00:00Z"
 
 	rowsByPrefix := map[string]string{}
 	for _, row := range stats {
-		parts := strings.SplitN(row, ":", 6)
-		if len(parts) != 6 {
-			t.Errorf("expected 6 parts in stats row, got %d: %s", len(parts), row)
+		parts := strings.SplitN(row, ":", 5)
+		if len(parts) != 5 {
+			t.Errorf("expected 5 parts in stats row, got %d: %s", len(parts), row)
 			continue
 		}
-		rowsByPrefix[parts[0]] = parts[5]
+		rowsByPrefix[parts[0]] = parts[4]
 	}
 
 	if got := rowsByPrefix[folderA]; got != "+40" {

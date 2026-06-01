@@ -6,7 +6,6 @@ change_type: feat
 issues: []
 progress:
   intake: pending
-  spec: pending
   apply: pending
   review: pending
   hydrate: pending

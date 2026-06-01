@@ -267,12 +267,6 @@ func artifactBookkeeping(fabRoot, filePath string, match hooklib.ArtifactMatch, 
 			contextParts = append(contextParts, fmt.Sprintf("score: %.1f", result.Score))
 		}
 
-	case "spec.md":
-		result, err := score.Compute(fabRoot, match.ChangeFolder, "spec")
-		if err == nil {
-			contextParts = append(contextParts, fmt.Sprintf("score: %.1f", result.Score))
-		}
-
 	case "plan.md":
 		content, err := os.ReadFile(absPath)
 		if err != nil {

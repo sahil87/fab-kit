@@ -86,15 +86,15 @@ Canonical format (from `fab change switch` + skill hint):
 ```
 .fab-status.yaml → {name}
 
-Stage:       {display_stage} ({N}/8) — {state}
-Confidence:  {score} of 5.0{indicative_suffix}
+Stage:       {display_stage} ({N}/6) — {state}
+Confidence:  {score} of 5.0
 Next:        {routing_stage} (via {default_command})
 Tip: run /git-branch to create or switch to the matching branch
 ```
 
-Where `{display_stage}` is "where you are" (last active or last done stage) and `{routing_stage}` is "what's next" (what `/fab-continue` will produce). The `{state}` qualifier is `done`, `active`, or `pending`. When all stages are done, `Next:` shows only `/fab-archive`. The `{indicative_suffix}` is ` (indicative)` when `confidence.indicative` is true, empty otherwise. When score is `0.0` and no assumptions exist, shows `not yet scored`.
+Where `{display_stage}` is "where you are" (last active or last done stage) and `{routing_stage}` is "what's next" (what `/fab-continue` will produce). The `{state}` qualifier is `done`, `active`, or `pending`. When all stages are done, `Next:` shows only `/fab-archive`. The pipeline has six stages; the `confidence.indicative` suffix is retired (1.10.0) — intake scoring is authoritative, so confidence is shown without qualifier. When score is `0.0` and no assumptions exist, shows `not yet scored`.
 
-For the no-argument flow (listing changes), the skill reads `fab change list` output (format `name:display_stage:display_state:score:indicative`) and displays confidence info alongside stage info in the numbered list.
+For the no-argument flow (listing changes), the skill reads `fab change list` output (format `name:display_stage:display_state:score` — the `:indicative` 5th field was dropped in 1.10.0) and displays confidence info alongside stage info in the numbered list.
 
 Tip line omitted for `--none`. Deactivation shows `No active change.`. Already-deactivated shows `No active change (already deactivated).`
 

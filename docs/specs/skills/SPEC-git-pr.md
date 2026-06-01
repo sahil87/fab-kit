@@ -37,7 +37,7 @@ Autonomously commits, pushes, and creates a GitHub PR. No prompts, no questions.
 │  ├─ 3b. Push (if unpushed)
 │  │  └─ Bash: git push [-u origin <branch>]
 │  └─ 3c. Create PR (if no PR exists)
-│     ├─ Read: intake.md (PR title + Summary + Changes), spec.md, plan.md OR tasks.md, .status.yaml
+│     ├─ Read: intake.md (PR title + Summary + Changes), plan.md OR tasks.md, .status.yaml
 │     ├─ Read: config.yaml (linear_workspace for issue links)
 │     ├─ Bash: gh repo view --json (for blob URLs)
 │     ├─ Compute true-impact (gated on {has_fab}):

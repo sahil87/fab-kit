@@ -179,11 +179,7 @@ func statusConfidenceCmd() *cobra.Command {
 			fmt.Printf("tentative:%d\n", sf.Confidence.Tentative)
 			fmt.Printf("unresolved:%d\n", sf.Confidence.Unresolved)
 			fmt.Printf("score:%.1f\n", sf.Confidence.Score)
-			indicative := false
-			if sf.Confidence.Indicative != nil && *sf.Confidence.Indicative {
-				indicative = true
-			}
-			fmt.Printf("indicative:%v\n", indicative)
+			// confidence.indicative is retired (1.10.0): no longer emitted.
 			return nil
 		},
 	}
@@ -378,11 +374,13 @@ func statusSetConfidenceCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("invalid value for 'score' (%q): %w", args[5], err)
 			}
-			return status.SetConfidence(sf, statusPath, certain, confident, tentative, unresolved, score, indicative)
+			return status.SetConfidence(sf, statusPath, certain, confident, tentative, unresolved, score)
 		},
 	}
 
-	cmd.Flags().BoolVar(&indicative, "indicative", false, "Mark score as indicative (from intake)")
+	// --indicative is retired (1.10.0): accepted-but-ignored no-op for one
+	// release so existing scripts do not break. It writes nothing.
+	cmd.Flags().BoolVar(&indicative, "indicative", false, "Deprecated no-op (retained for script back-compat)")
 	return cmd
 }
 
@@ -434,11 +432,12 @@ func statusSetConfidenceFuzzyCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("invalid value for 'mean_d' (%q): %w", args[9], err)
 			}
-			return status.SetConfidenceFuzzy(sf, statusPath, certain, confident, tentative, unresolved, score, meanS, meanR, meanA, meanD, indicative)
+			return status.SetConfidenceFuzzy(sf, statusPath, certain, confident, tentative, unresolved, score, meanS, meanR, meanA, meanD)
 		},
 	}
 
-	cmd.Flags().BoolVar(&indicative, "indicative", false, "Mark score as indicative (from intake)")
+	// --indicative is retired (1.10.0): accepted-but-ignored no-op (see set-confidence).
+	cmd.Flags().BoolVar(&indicative, "indicative", false, "Deprecated no-op (retained for script back-compat)")
 	return cmd
 }
 

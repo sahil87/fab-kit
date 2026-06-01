@@ -132,7 +132,7 @@ else:
   score = base * cover
 ```
 
-Where `total_decisions = certain + confident + tentative + unresolved` and `expected_min` is looked up by `{stage, change_type}` from embedded tables in `calc-score.sh`. See [change-types.md](change-types.md) for the full `expected_min` threshold tables.
+Where `total_decisions = certain + confident + tentative + unresolved` and `expected_min` is looked up by `change_type` from a single embedded table in `fab score`. See [change-types.md](change-types.md) for the full `expected_min` table.
 
 ### Penalty Weights
 
@@ -145,14 +145,14 @@ Where `total_decisions = certain + confident + tentative + unresolved` and `expe
 
 ### Coverage Factor
 
-The `cover` component attenuates the score when the total number of decisions is less than the expected minimum for the change type and stage. This prevents thin specs (e.g., 2 decisions scoring 5.0) from getting inflated scores.
+The `cover` component attenuates the score when the total number of decisions is less than the expected minimum for the change type. This prevents thin intakes (e.g., 2 decisions scoring 5.0) from getting inflated scores.
 
 When `total_decisions >= expected_min`, `cover = 1.0` and the formula degenerates to the base penalty only. When `total_decisions < expected_min`, the score is proportionally reduced.
 
 ### Range
 
 - **5.0**: All decisions are Certain AND decision count meets or exceeds `expected_min`
-- **3.0**: The `/fab-ff` gate threshold for `feat`/`refactor` (see below)
+- **3.0**: The single intake gate threshold (flat, all types — see below)
 - **0.0**: Any Unresolved decision exists, OR penalties + low coverage reduce the score to zero
 
 The `max(0.0, ...)` floor clamps the base — if penalties exceed 5.0, the base is 0.0, not negative.
@@ -174,19 +174,19 @@ confidence:
 
 ## Gate Threshold
 
-Both `/fab-ff` and `/fab-fff` require `confidence.score >= threshold` before executing their pipelines. The `--force` flag on either skill bypasses all gates. The threshold varies by **change type** (7 types from [Conventional Commits](change-types.md)):
+There is exactly **one** confidence gate, evaluated at **intake** (the score is computed from `intake.md`, the sole scoring source). Both `/fab-ff` and `/fab-fff` require `confidence.score >= threshold` before entering the automated bracket. The `--force` flag on either skill bypasses it. The threshold is **flat 3.0 for all seven change types** (1.10.0): collapsing the former two-gate model (fixed-3.0 intake + per-type spec gate) to one gate at 3.0 keeps every type's bar ≥ both old gates — no silent relaxation.
 
-| Change Type | Gate Threshold | Rationale |
-|-------------|---------------|-----------|
-| **`fix`** | 2.0 | Low risk, narrow scope — more tolerance for assumptions |
-| **`feat`** | 3.0 | Default — balanced risk tolerance |
-| **`refactor`** | 3.0 | Behavioral preservation important, moderate tolerance |
-| **`docs`** | 2.0 | Low blast radius, documentation-only |
-| **`test`** | 2.0 | Low blast radius, test-only |
-| **`ci`** | 2.0 | Low blast radius, infrastructure-only |
-| **`chore`** | 2.0 | Low blast radius, maintenance |
+| Change Type | Gate Threshold |
+|-------------|---------------|
+| **`fix`** | 3.0 |
+| **`feat`** | 3.0 |
+| **`refactor`** | 3.0 |
+| **`docs`** | 3.0 |
+| **`test`** | 3.0 |
+| **`ci`** | 3.0 |
+| **`chore`** | 3.0 |
 
-Change type is stored as `change_type:` in `.status.yaml` (default: `feat`). The gate check is performed by `calc-score.sh --check-gate`. See [change-types.md](change-types.md) for the full taxonomy.
+The per-type map is retained in code (`getGateThreshold`) so future divergence is a data-only change. Change type is stored as `change_type:` in `.status.yaml` (default: `feat`). The gate check is performed by `fab score --check-gate --stage intake`. See [change-types.md](change-types.md) for the full taxonomy.
 
 ### What 3.0 Allows
 
@@ -201,13 +201,13 @@ Assuming full coverage (`cover = 1.0`, i.e., `total_decisions >= expected_min`):
 - **3+ Tentative**: base ≤ 2.0 (fails — too many guesses)
 - **Any Unresolved**: score = 0.0 (always fails)
 
-With low coverage (e.g., 2 of 6 expected decisions for `feat`): `cover = 0.33`, even a perfect base of 5.0 yields only 1.7. This prevents thin specs from passing the gate.
+With low coverage (e.g., 2 of 7 expected decisions for `feat`): `cover = 0.29`, even a perfect base of 5.0 yields only 1.4. This prevents thin intakes from passing the gate.
 
 ### Gate Behavior
 
 When the user runs `/fab-ff`:
-- **Score >= threshold**: Pipeline fast-forwards through remaining planning stages, then continues through apply, review, and hydrate
-- **Score < threshold**: Pipeline refuses to execute and reports the score, suggesting `/fab-clarify` to resolve Tentative assumptions or answer Unresolved questions before retrying
+- **Score >= threshold**: Pipeline enters the automated bracket — apply (co-generating `plan.md`), review, and hydrate — unattended
+- **Score < threshold**: Pipeline refuses to execute and reports the score, suggesting `/fab-clarify` (intake-only) to resolve Tentative assumptions or answer Unresolved questions before retrying
 
 ---
 
@@ -215,9 +215,9 @@ When the user runs `/fab-ff`:
 
 | Event | Trigger | Action |
 |-------|---------|--------|
-| Computation | `/fab-continue` (spec stage) | `calc-score.sh` scans spec, writes to `.status.yaml` |
-| Recomputation | `/fab-clarify` (suggest mode) | `calc-score.sh` re-scans after resolved assumptions |
-| Gate check | `/fab-ff` | Reads score from `.status.yaml` (no recomputation) |
+| Computation | `/fab-new` (after intake generation) | `fab score --stage intake` scans `intake.md`, writes to `.status.yaml` |
+| Recomputation | `/fab-clarify` (intake-only, suggest mode) | `fab score --stage intake` re-scans after resolved assumptions |
+| Gate check | `/fab-ff`, `/fab-fff` | `fab score --check-gate --stage intake` reads/compares against the flat 3.0 gate |
 
 ---
 
@@ -283,4 +283,4 @@ SRAD manifests differently depending on which skill is running. Skills closer to
 | **Interruption budget** | Adaptive — SRAD-driven (no fixed cap) | 1–2 per stage | 0 (interactive rework on failure) | 0 (interactive rework on failure) |
 | **Output** | Intake + confidence score + assumptions summary | Key Decisions + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary + apply/review/hydrate output | Cumulative Assumptions summary + apply/review/hydrate/ship/review-pr output |
 | **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` |
-| **Recomputes confidence?** | No | Spec stage only | No | No |
+| **Recomputes confidence?** | Yes (intake) | No (no scoring at apply — intake is authoritative) | No | No |

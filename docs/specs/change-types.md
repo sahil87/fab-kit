@@ -22,39 +22,37 @@ Types use the short conventional commit prefix form (e.g., `feat`, not `feature`
 
 ## Expected Minimum Decisions
 
-The `expected_min` thresholds define how many SRAD decisions a change should have at each planning stage. These drive the **coverage factor** in confidence scoring — thin specs with fewer decisions than expected get attenuated scores.
+The `expected_min` threshold defines how many SRAD decisions a change should have at intake (the sole scoring stage). It drives the **coverage factor** in confidence scoring — thin intakes with fewer decisions than expected get attenuated scores. As of 1.10.0 there is a single `expected_min` table (the former per-stage intake/spec split is gone with the spec stage).
 
-| Type | Intake `expected_min` | Spec `expected_min` |
-|------|----------------------|---------------------|
-| `fix` | 2 | 4 |
-| `feat` | 4 | 6 |
-| `refactor` | 3 | 5 |
-| `docs` | 2 | 3 |
-| `test` | 2 | 3 |
-| `ci` | 2 | 3 |
-| `chore` | 2 | 3 |
+| Type | `expected_min` |
+|------|----------------|
+| `feat` | 7 |
+| `refactor` | 6 |
+| `fix` | 5 |
+| `docs` | 3 |
+| `test` | 3 |
+| `ci` | 3 |
+| `chore` | 3 |
 
-Thresholds were calibrated from archive analysis of 124 completed changes (84% unaffected at these values). Unknown or null types default to: intake=2, spec=3.
-
-These values are embedded directly in `src/kit/scripts/lib/calc-score.sh` since the script ships with `src/kit/` to projects.
+Types without an explicit entry (`docs`, `test`, `ci`, `chore`) use the default of 3. These values are the source of truth and are embedded in `src/go/fab/internal/score/score.go` (`expectedMin` map).
 
 ---
 
 ## Gate Thresholds
 
-`/fab-ff` requires the confidence score to meet a type-specific threshold before the fast-forward pipeline can execute.
+`/fab-ff` and `/fab-fff` require the intake confidence score to meet the gate threshold before entering the automated bracket.
 
-| Type | Gate Threshold | Rationale |
-|------|---------------|-----------|
-| `fix` | 2.0 | Low risk, narrow scope — more tolerance for assumptions |
-| `feat` | 3.0 | Default — balanced risk tolerance |
-| `refactor` | 3.0 | Behavioral preservation important, moderate tolerance |
-| `docs` | 2.0 | Low blast radius, documentation-only |
-| `test` | 2.0 | Low blast radius, test-only |
-| `ci` | 2.0 | Low blast radius, infrastructure-only |
-| `chore` | 2.0 | Low blast radius, maintenance |
+| Type | Gate Threshold |
+|------|----------------|
+| `fix` | 3.0 |
+| `feat` | 3.0 |
+| `refactor` | 3.0 |
+| `docs` | 3.0 |
+| `test` | 3.0 |
+| `ci` | 3.0 |
+| `chore` | 3.0 |
 
-Unknown types default to 3.0 (the `feat` threshold). The gate check is performed by `calc-score.sh --check-gate`.
+As of 1.10.0 the gate is **flat 3.0 for all types** — a single intake gate replacing the former two-gate (fixed-3.0 intake + per-type spec) model, keeping every type's bar ≥ both old gates. The per-type map is retained in `getGateThreshold` so future divergence is a data-only change. The gate check is performed by `fab score --check-gate --stage intake`.
 
 ---
 
@@ -62,7 +60,7 @@ Unknown types default to 3.0 (the `feat` threshold). The gate check is performed
 
 | Tier | Types | Template |
 |------|-------|----------|
-| **Tier 1 — Fab-Linked** | `feat`, `fix`, `refactor` | Summary/Changes/Context with blob URL links to intake and spec |
+| **Tier 1 — Fab-Linked** | `feat`, `fix`, `refactor` | Summary/Changes/Context with blob URL links to intake and plan |
 | **Tier 2 — Lightweight** | `docs`, `test`, `ci`, `chore` | Auto-generated summary with "No design artifacts — housekeeping change" |
 
 PR titles always use the `{type}: {title}` prefix format.
@@ -90,6 +88,6 @@ The inferred type is written to `.status.yaml` via `statusman.sh set-change-type
 ## Lifecycle
 
 1. **Inference** (`/fab-new`): Type is inferred from intake keywords and stored in `.status.yaml`
-2. **Scoring** (`calc-score.sh`): Type determines `expected_min` for coverage-weighted confidence
-3. **Gating** (`/fab-ff`): Type determines the confidence threshold for pipeline execution
+2. **Scoring** (`fab score`): Type determines `expected_min` for coverage-weighted confidence (computed from `intake.md`)
+3. **Gating** (`/fab-ff`, `/fab-fff`): Type routes through `getGateThreshold` (flat 3.0 today) for the single intake gate
 4. **PR creation** (`/git-pr`): Type determines PR title prefix and body template tier

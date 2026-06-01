@@ -15,8 +15,7 @@ change_type: feat
 issues: []
 progress:
   intake: done
-  spec: active
-  apply: pending
+  apply: active
   review: pending
   hydrate: pending
   ship: pending
@@ -34,7 +33,7 @@ confidence:
   score: 4.7
 stage_metrics:
   intake: {started_at: "2026-03-05T12:00:00+05:30", driver: fab-new, iterations: 1, completed_at: "2026-03-05T12:01:00+05:30"}
-  spec: {started_at: "2026-03-05T12:01:00+05:30", driver: fab-continue, iterations: 1}
+  apply: {started_at: "2026-03-05T12:01:00+05:30", driver: fab-continue, iterations: 1}
 prs: []
 last_updated: "2026-03-05T12:01:00+05:30"
 `
@@ -61,11 +60,11 @@ func TestLoadAndSave(t *testing.T) {
 	if sf.GetProgress("intake") != "done" {
 		t.Errorf("expected intake done, got '%s'", sf.GetProgress("intake"))
 	}
-	if sf.GetProgress("spec") != "active" {
-		t.Errorf("expected spec active, got '%s'", sf.GetProgress("spec"))
+	if sf.GetProgress("apply") != "active" {
+		t.Errorf("expected apply active, got '%s'", sf.GetProgress("apply"))
 	}
-	if sf.GetProgress("apply") != "pending" {
-		t.Errorf("expected apply pending, got '%s'", sf.GetProgress("apply"))
+	if sf.GetProgress("review") != "pending" {
+		t.Errorf("expected review pending, got '%s'", sf.GetProgress("review"))
 	}
 	if sf.Confidence.Score != 4.7 {
 		t.Errorf("expected score 4.7, got %f", sf.Confidence.Score)
@@ -87,9 +86,9 @@ func TestLoadAndSave(t *testing.T) {
 	}
 
 	// Test SetProgress
-	sf.SetProgress("spec", "done")
-	if sf.GetProgress("spec") != "done" {
-		t.Errorf("expected spec done after set, got '%s'", sf.GetProgress("spec"))
+	sf.SetProgress("apply", "done")
+	if sf.GetProgress("apply") != "done" {
+		t.Errorf("expected apply done after set, got '%s'", sf.GetProgress("apply"))
 	}
 
 	// Test Save (round-trip)
@@ -109,8 +108,8 @@ func TestLoadAndSave(t *testing.T) {
 	if sf2.Name != sf.Name {
 		t.Errorf("round-trip name mismatch: %s vs %s", sf2.Name, sf.Name)
 	}
-	if sf2.GetProgress("spec") != "done" {
-		t.Errorf("round-trip spec state mismatch: got '%s'", sf2.GetProgress("spec"))
+	if sf2.GetProgress("apply") != "done" {
+		t.Errorf("round-trip apply state mismatch: got '%s'", sf2.GetProgress("apply"))
 	}
 	if sf2.Confidence.Score != 4.7 {
 		t.Errorf("round-trip score mismatch: %f", sf2.Confidence.Score)
@@ -125,12 +124,12 @@ func TestGetProgressMap(t *testing.T) {
 	sf, _ := Load(path)
 	pm := sf.GetProgressMap()
 
-	if len(pm) != 7 {
-		t.Errorf("expected 7 stages, got %d", len(pm))
+	if len(pm) != 6 {
+		t.Errorf("expected 6 stages, got %d", len(pm))
 	}
 
 	// Verify pipeline order
-	expected := []string{"intake", "spec", "apply", "review", "hydrate", "ship", "review-pr"}
+	expected := []string{"intake", "apply", "review", "hydrate", "ship", "review-pr"}
 	for i, ss := range pm {
 		if ss.Stage != expected[i] {
 			t.Errorf("stage %d: expected '%s', got '%s'", i, expected[i], ss.Stage)
@@ -138,12 +137,77 @@ func TestGetProgressMap(t *testing.T) {
 	}
 }
 
+// TestOrphanSpecKeyTolerated verifies R-STAGE-3: a .status.yaml carrying a
+// leftover progress.spec key (un-migrated file) loads without error, and
+// GetProgressMap omits the orphan key (it derives from StageOrder, which no
+// longer contains spec).
+func TestOrphanSpecKeyTolerated(t *testing.T) {
+	const orphanYAML = `id: orph
+name: 260601-orphan-spec-fixture
+created: "2026-06-01T00:00:00Z"
+created_by: test-user
+change_type: refactor
+issues: []
+progress:
+  intake: done
+  spec: done
+  apply: active
+  review: pending
+  hydrate: pending
+  ship: pending
+  review-pr: pending
+plan:
+  generated: false
+  task_count: 0
+  acceptance_count: 0
+  acceptance_completed: 0
+confidence:
+  certain: 0
+  confident: 0
+  tentative: 0
+  unresolved: 0
+  score: 0.0
+stage_metrics: {}
+prs: []
+last_updated: "2026-06-01T00:00:00Z"
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	if err := os.WriteFile(path, []byte(orphanYAML), 0644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	sf, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load of file with orphan progress.spec failed: %v", err)
+	}
+
+	pm := sf.GetProgressMap()
+	if len(pm) != 6 {
+		t.Errorf("GetProgressMap should omit orphan spec key: expected 6 stages, got %d", len(pm))
+	}
+	for _, ss := range pm {
+		if ss.Stage == "spec" {
+			t.Error("GetProgressMap should not include the orphan spec stage")
+		}
+	}
+
+	// The raw key is still readable directly (passthrough) but not part of the
+	// canonical pipeline view.
+	if sf.GetProgress("spec") != "done" {
+		t.Errorf("orphan spec key should still be readable via GetProgress, got '%s'", sf.GetProgress("spec"))
+	}
+}
+
 func TestStageNumber(t *testing.T) {
 	if StageNumber("intake") != 1 {
 		t.Error("intake should be 1")
 	}
-	if StageNumber("review-pr") != 7 {
-		t.Error("review-pr should be 7")
+	if StageNumber("review-pr") != 6 {
+		t.Error("review-pr should be 6")
+	}
+	if StageNumber("apply") != 2 {
+		t.Error("apply should be 2")
 	}
 	if StageNumber("bogus") != 0 {
 		t.Error("bogus should be 0")
@@ -292,11 +356,11 @@ last_updated: "2026-04-23T05:02:32Z"
 }
 
 func TestNextStage(t *testing.T) {
-	if NextStage("intake") != "spec" {
-		t.Error("after intake should be spec")
+	if NextStage("intake") != "apply" {
+		t.Error("after intake should be apply")
 	}
-	if NextStage("spec") != "apply" {
-		t.Error("after spec should be apply")
+	if NextStage("apply") != "review" {
+		t.Error("after apply should be review")
 	}
 	if NextStage("hydrate") != "ship" {
 		t.Error("after hydrate should be ship")

@@ -115,10 +115,8 @@ func FormatYAML(r *Result) string {
 	fmt.Fprintf(&b, "  tentative: %d\n", r.Confidence.Tentative)
 	fmt.Fprintf(&b, "  unresolved: %d\n", r.Confidence.Unresolved)
 	fmt.Fprintf(&b, "  score: %.1f\n", r.Confidence.Score)
-
-	if r.Confidence.Indicative != nil && *r.Confidence.Indicative {
-		b.WriteString("  indicative: true\n")
-	}
+	// confidence.indicative is retired (1.10.0): no longer emitted in preflight
+	// output. The struct field remains decode-tolerant for legacy files on disk.
 
 	return b.String()
 }

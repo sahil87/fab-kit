@@ -2,7 +2,7 @@
 
 ## Summary
 
-Advances through the 7-stage pipeline one step at a time. Each invocation handles the current stage's work and transitions to the next. Supports reset to a given stage (legacy `tasks` target errors with a pointer). Handles planning (spec), execution (apply — generates `plan.md` at entry then runs tasks), review (sub-agent), and hydrate.
+Advances through the 6-stage pipeline one step at a time. Each invocation handles the current stage's work and transitions to the next. Supports reset to a given stage (legacy `tasks`/`spec` targets error with a pointer to `apply` / `/fab-clarify intake`). Handles intake (the only planning stage), execution (apply — co-generates `plan.md` `## Requirements` + `## Tasks` + `## Acceptance` at entry then runs tasks), review (sub-agent), and hydrate.
 
 **Helpers**: Declares `helpers: [_generation, _review]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
 
@@ -21,26 +21,26 @@ User invokes /fab-continue [change-name] [stage]
 ├─ Dispatch on current stage + state
 │
 │  ┌─────────────────────────────────────────────────┐
-│  │ PLANNING STAGES (intake/spec)                   │
+│  │ INTAKE STAGE (the only planning stage)          │
 │  │                                                 │
-│  │  Bash: fab status finish <prev-stage>           │
 │  │  Read: templates, intake, memory files          │
-│  │  (agent generates artifact via SRAD)            │
-│  │  Write: intake.md / spec.md             ◄── HOOK CANDIDATE
-│  │                                                 │
-│  │  [spec stage only]                              │
-│  │  Bash: fab score <change>               ◄── bookkeeping
-│  │                                                 │
+│  │  (agent generates intake artifact via SRAD)     │
+│  │  Write: intake.md                       ◄── HOOK CANDIDATE
+│  │  (no scoring here — intake score is written by  │
+│  │   /fab-new and /fab-clarify)                    │
 │  │  Bash: fab status advance <stage>               │
+│  │  (intake ready → finish intake, start apply)    │
 │  └─────────────────────────────────────────────────┘
 │
 │  ┌─────────────────────────────────────────────────┐
 │  │ APPLY STAGE                                     │
 │  │                                                 │
 │  │  Entry sub-step (skip if plan.md exists):       │
-│  │    Read: spec.md, _generation.md                │
+│  │    Read: intake.md, _generation.md              │
 │  │    Write: plan.md                       ◄── HOOK CANDIDATE
-│  │      (## Tasks + ## Acceptance, A-NNN IDs)      │
+│  │      (## Requirements + ## Tasks +              │
+│  │       ## Acceptance, R#/T###/A-### IDs)         │
+│  │      (under-spec → inline SRAD assumption)      │
 │  │                                                 │
 │  │  Main sub-step (Task Execution):                │
 │  │    Read: plan.md ## Tasks, source files         │
@@ -59,12 +59,12 @@ User invokes /fab-continue [change-name] [stage]
 │  │   and findings merge; orchestration below)      │
 │  │                                                 │
 │  │  ┌──────────────────────────────────────────┐   │
-│  │  │ SUB-AGENT (inward): Spec/Plan Validation │   │
-│  │  │  (Agent tool, general-purpose)           │   │
+│  │  │ SUB-AGENT (inward): Requirements/Accept. │   │
+│  │  │  Validation (Agent tool, general-purpose)│   │
 │  │  │  Read: standard subagent context,        │   │
-│  │  │        spec.md, plan.md (## Tasks +      │   │
-│  │  │        ## Acceptance), source files,     │   │
-│  │  │        memory files                      │   │
+│  │  │        plan.md (## Requirements +        │   │
+│  │  │        ## Tasks + ## Acceptance),        │   │
+│  │  │        source files, memory files        │   │
 │  │  │  Bash: run tests                         │   │
 │  │  │  Edit: plan.md ## Acceptance (mark [x])  │   │
 │  │  │  Returns: must-fix/should-fix/nice-to-have   │
@@ -136,6 +136,5 @@ User invokes /fab-continue [change-name] [stage]
 
 | Step | Command | Trigger |
 |------|---------|---------|
-| Spec generation | `fab score <change>` | After spec.md write |
-| Plan generation | PostToolUse hook recomputes `plan.task_count`, `plan.acceptance_count`, sets `plan.generated=true` | After plan.md write |
+| Plan generation | PostToolUse hook recomputes `plan.task_count`, `plan.acceptance_count`, sets `plan.generated=true` | After plan.md write (no scoring at apply — intake is authoritative) |
 | Review pass | `fab status set-acceptance <change> acceptance_completed N` | After review validation |

@@ -171,7 +171,6 @@ Print: `  ✓ push   — origin/<branch>`
    **Resolve fab context** (attempt once, used for all conditional fields):
    - Run `fab change resolve 2>/dev/null`. If it succeeds, set `{has_fab} = true` and `{name}` = resolved change name
    - Check if `fab/changes/{name}/intake.md` exists → `{has_intake}`
-   - Check if `fab/changes/{name}/spec.md` exists → `{has_spec}`
    - Check if `fab/changes/{name}/plan.md` exists → `{has_plan}`
    - Check if `fab/changes/{name}/tasks.md` exists → `{has_tasks}` (legacy, pre-1.9.0)
    - Read `fab/changes/{name}/.status.yaml` for `id`, `name`, `confidence`, `plan`, `progress`, and `stage_metrics` fields
@@ -181,7 +180,6 @@ Print: `  ✓ push   — origin/<branch>`
    - `{owner_repo}` = `gh repo view --json nameWithOwner -q '.nameWithOwner'`
    - `{branch}` = `git branch --show-current`
    - If `{has_intake}`: Intake URL = `https://github.com/{owner_repo}/blob/{branch}/fab/changes/{name}/intake.md`
-   - If `{has_spec}`: Spec URL = `https://github.com/{owner_repo}/blob/{branch}/fab/changes/{name}/spec.md`
    - If `{has_plan}`: Apply URL = `https://github.com/{owner_repo}/blob/{branch}/fab/changes/{name}/plan.md`
    - Else if `{has_tasks}`: Apply URL = `https://github.com/{owner_repo}/blob/{branch}/fab/changes/{name}/tasks.md` (legacy fallback for changes that predate the 1.8.0→1.9.0 migration)
 
@@ -246,11 +244,10 @@ Print: `  ✓ push   — origin/<branch>`
 
    **Pipeline line population** (only when `{has_fab}`):
 
-   List the seven pipeline stages in fixed order — `intake → spec → apply → review → hydrate → ship → review-pr` — separated by ` → `. For each stage:
+   List the six pipeline stages in fixed order — `intake → apply → review → hydrate → ship → review-pr` — separated by ` → `. For each stage:
    - If `.status.yaml` `progress.{stage}` is `done`, append ` ✓` after the stage label.
    - Stage labels are hyperlinks when an artifact exists:
      - `intake` → Intake URL (when `{has_intake}`)
-     - `spec` → Spec URL (when `{has_spec}`)
      - `apply` → Apply URL (when `{has_plan}` or `{has_tasks}` — see Apply URL resolution above)
      - `review`, `hydrate`, `ship`, `review-pr` → always plain text (no per-change artifact)
    - Stages without an artifact and without `done` status render as plain text with no marker.
