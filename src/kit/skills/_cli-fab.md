@@ -43,7 +43,7 @@ See `_preamble.md` § Common fab Commands for the headline. Full subcommand tabl
 | `restore` | `restore <change> [--switch]` | Move from `archive/`, remove index entry, optionally activate |
 | `archive-list` | `archive-list` | List archived folder names |
 
-`archive` and `restore` output structured YAML to stdout — skills parse it for user-facing reports. The `archive` YAML adds a `backlog: {marked|already|not_found}` field alongside `action`, `name`, `move`, `index`, and `pointer`.
+`archive` and `restore` output structured YAML to stdout — skills parse it for user-facing reports. The `archive` YAML adds a `backlog: {marked|already|not_found}` field alongside `action`, `name`, `move`, `index`, and `pointer`. **Exception**: on the soft-skip path (re-archiving an already-archived change), `archive` prints a plain `already archived: {change}` line instead of YAML and exits 0 — skills parsing stdout must handle this non-YAML case (the `/fab-archive` skill treats it as a clean no-op).
 
 ---
 

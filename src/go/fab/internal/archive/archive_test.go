@@ -376,6 +376,33 @@ func TestArchiveWithBacklog_NotFromBacklog(t *testing.T) {
 	}
 }
 
+func TestArchiveWithBacklog_MarkErrorPropagates(t *testing.T) {
+	fabRoot := setupArchiveFixture(t)
+
+	// Make backlog.md unreadable by creating it as a directory, so MarkDone's
+	// os.ReadFile fails with a non-IsNotExist error (distinct from the silent
+	// missing-file no-op). The archive move still succeeds first.
+	if err := os.Mkdir(filepath.Join(fabRoot, "backlog.md"), 0o755); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	result, err := ArchiveWithBacklog(fabRoot, "abcd", "desc")
+	if err == nil {
+		t.Fatal("expected an error when the backlog mark fails, got nil")
+	}
+	// The archive move succeeded, so the result must still be returned.
+	if result == nil {
+		t.Fatal("result should be non-nil — the archive move succeeded before the backlog failure")
+	}
+	if result.Move != "moved" {
+		t.Errorf("Move = %q, want %q (archive should have completed)", result.Move, "moved")
+	}
+	// The folder must actually be in the archive despite the backlog failure.
+	if _, statErr := os.Stat(filepath.Join(fabRoot, "changes", "archive", "2026", "03", "260310-abcd-my-change")); statErr != nil {
+		t.Errorf("archived folder should exist despite backlog failure: %v", statErr)
+	}
+}
+
 func TestArchive_ErrAlreadyArchivedOnReArchive(t *testing.T) {
 	fabRoot := setupArchiveFixture(t)
 	folder := "260310-abcd-my-change"

@@ -30,6 +30,12 @@ func changeArchiveCmd() *cobra.Command {
 					fmt.Printf("already archived: %s\n", args[0])
 					return nil
 				}
+				// A non-nil result means the archive move succeeded but the
+				// backlog mark failed. Emit the YAML report so the success is
+				// visible, then surface the backlog failure as the command error.
+				if result != nil {
+					fmt.Println(archivePkg.FormatArchiveYAML(result))
+				}
 				return err
 			}
 			fmt.Println(archivePkg.FormatArchiveYAML(result))

@@ -119,15 +119,23 @@ func Archive(fabRoot, changeArg, description string) (*ArchiveResult, error) {
 // ArchiveWithBacklog runs Archive, then marks the originating backlog item
 // done. The 4-char change ID is the backlog ID when the change came from
 // backlog, so the mark is a deterministic exact-ID match. Archive's error
-// (including ErrAlreadyArchived) propagates unchanged; the backlog result is
-// best-effort and recorded on result.Backlog.
+// (including ErrAlreadyArchived) propagates unchanged; the backlog status is
+// recorded on result.Backlog. A missing backlog file is a silent no-op
+// (MarkDone returns "not_found", nil), but a genuine read/write failure
+// (permissions, disk full) is propagated so callers don't report a misleading
+// success. The archive move has already happened by then, so result is
+// returned alongside the error.
 func ArchiveWithBacklog(fabRoot, changeArg, description string) (*ArchiveResult, error) {
 	result, err := Archive(fabRoot, changeArg, description)
 	if err != nil {
 		return nil, err
 	}
 	id := resolve.ExtractID(result.Name)
-	result.Backlog, _ = backlog.MarkDone(backlog.Path(fabRoot), id)
+	status, markErr := backlog.MarkDone(backlog.Path(fabRoot), id)
+	result.Backlog = status
+	if markErr != nil {
+		return result, fmt.Errorf("archive succeeded but marking backlog item %q done failed: %w", id, markErr)
+	}
 	return result, nil
 }
 

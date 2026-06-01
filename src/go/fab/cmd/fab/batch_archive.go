@@ -115,6 +115,17 @@ func archiveLoop(w, errW io.Writer, fabRoot string, resolved []string) (archived
 				skipped++
 				continue
 			}
+			// A non-nil result means the archive move succeeded but a
+			// post-archive step (backlog mark) failed. The folder is already
+			// archived and the move is irreversible within this loop, so count
+			// it as archived and surface the backlog failure as a warning
+			// rather than failing the change.
+			if result != nil {
+				fmt.Fprintf(w, "  %s — archived\n", name)
+				fmt.Fprintf(errW, "    warning: %v\n", err)
+				archived++
+				continue
+			}
 			fmt.Fprintf(errW, "  %s — FAILED: %v\n", name, err)
 			failed++
 			continue
