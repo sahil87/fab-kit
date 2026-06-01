@@ -1,6 +1,7 @@
 package archive
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -117,10 +118,18 @@ func TestArchive_MissingArgs(t *testing.T) {
 		t.Error("expected error for empty changeArg")
 	}
 
-	_, err = Archive(fabRoot, "abcd", "")
-	if err == nil {
-		t.Error("expected error for empty description")
+	// Empty description now succeeds: the fixture has no intake.md, so the
+	// description falls back to the humanized slug.
+	result, err := Archive(fabRoot, "abcd", "")
+	if err != nil {
+		t.Fatalf("expected empty description to succeed via slug fallback, got %v", err)
 	}
+	indexFile := filepath.Join(fabRoot, "changes", "archive", "index.md")
+	data, _ := os.ReadFile(indexFile)
+	if !strings.Contains(string(data), "my change") {
+		t.Errorf("index.md should contain humanized slug 'my change', got:\n%s", string(data))
+	}
+	_ = result
 }
 
 func TestRestore(t *testing.T) {
@@ -268,16 +277,122 @@ func TestFormatArchiveYAML(t *testing.T) {
 		Move:    "moved",
 		Index:   "created",
 		Pointer: "cleared",
+		Backlog: "marked",
 	}
 	output := FormatArchiveYAML(r)
 
-	for _, want := range []string{"action: archive", "name: 260310-abcd-my-change", "move: moved", "index: created", "pointer: cleared"} {
+	for _, want := range []string{"action: archive", "name: 260310-abcd-my-change", "move: moved", "index: created", "pointer: cleared", "backlog: marked"} {
 		if !strings.Contains(output, want) {
 			t.Errorf("FormatArchiveYAML missing %q", want)
 		}
 	}
 	if strings.Contains(output, "clean:") {
 		t.Error("FormatArchiveYAML should not contain clean: field")
+	}
+}
+
+func TestArchive_DerivesFromIntakeTitle(t *testing.T) {
+	fabRoot := setupArchiveFixture(t)
+	folder := "260310-abcd-my-change"
+
+	// Add an intake.md to the source folder so the description is derived.
+	intakeBody := "# Intake: Add OAuth support to the login flow\n"
+	os.WriteFile(filepath.Join(fabRoot, "changes", folder, "intake.md"), []byte(intakeBody), 0o644)
+
+	_, err := Archive(fabRoot, "abcd", "")
+	if err != nil {
+		t.Fatalf("Archive failed: %v", err)
+	}
+
+	indexFile := filepath.Join(fabRoot, "changes", "archive", "index.md")
+	data, _ := os.ReadFile(indexFile)
+	if !strings.Contains(string(data), "Add OAuth support to the login flow") {
+		t.Errorf("index.md should contain the derived intake title, got:\n%s", string(data))
+	}
+}
+
+func TestArchive_SlugFallback(t *testing.T) {
+	fabRoot := setupArchiveFixture(t)
+
+	// No intake.md → description falls back to humanized slug.
+	_, err := Archive(fabRoot, "abcd", "")
+	if err != nil {
+		t.Fatalf("Archive failed: %v", err)
+	}
+
+	indexFile := filepath.Join(fabRoot, "changes", "archive", "index.md")
+	data, _ := os.ReadFile(indexFile)
+	if !strings.Contains(string(data), "my change") {
+		t.Errorf("index.md should contain humanized slug 'my change', got:\n%s", string(data))
+	}
+}
+
+func TestArchiveWithBacklog_MarksDone(t *testing.T) {
+	fabRoot := setupArchiveFixture(t)
+
+	backlogBody := "# Backlog\n\n- [ ] [abcd] 2026-03-10: make my change\n"
+	os.WriteFile(filepath.Join(fabRoot, "backlog.md"), []byte(backlogBody), 0o644)
+
+	result, err := ArchiveWithBacklog(fabRoot, "abcd", "desc")
+	if err != nil {
+		t.Fatalf("ArchiveWithBacklog failed: %v", err)
+	}
+	if result.Backlog != "marked" {
+		t.Errorf("Backlog = %q, want %q", result.Backlog, "marked")
+	}
+
+	data, _ := os.ReadFile(filepath.Join(fabRoot, "backlog.md"))
+	if !strings.Contains(string(data), "- [x] [abcd]") {
+		t.Errorf("backlog line should be flipped to [x], got:\n%s", string(data))
+	}
+}
+
+func TestArchiveWithBacklog_NoBacklogFile(t *testing.T) {
+	fabRoot := setupArchiveFixture(t)
+	// No backlog.md exists.
+
+	result, err := ArchiveWithBacklog(fabRoot, "abcd", "desc")
+	if err != nil {
+		t.Fatalf("ArchiveWithBacklog should succeed with no backlog file: %v", err)
+	}
+	if result.Backlog != "not_found" {
+		t.Errorf("Backlog = %q, want %q", result.Backlog, "not_found")
+	}
+}
+
+func TestArchiveWithBacklog_NotFromBacklog(t *testing.T) {
+	fabRoot := setupArchiveFixture(t)
+
+	// Backlog has no matching ID.
+	backlogBody := "# Backlog\n\n- [ ] [zzzz] 2026-03-10: unrelated item\n"
+	os.WriteFile(filepath.Join(fabRoot, "backlog.md"), []byte(backlogBody), 0o644)
+
+	result, err := ArchiveWithBacklog(fabRoot, "abcd", "desc")
+	if err != nil {
+		t.Fatalf("ArchiveWithBacklog failed: %v", err)
+	}
+	if result.Backlog != "not_found" {
+		t.Errorf("Backlog = %q, want %q", result.Backlog, "not_found")
+	}
+}
+
+func TestArchive_ErrAlreadyArchivedOnReArchive(t *testing.T) {
+	fabRoot := setupArchiveFixture(t)
+	folder := "260310-abcd-my-change"
+
+	// First archive moves the folder.
+	if _, err := Archive(fabRoot, "abcd", "desc"); err != nil {
+		t.Fatalf("first archive failed: %v", err)
+	}
+
+	// Recreate the source folder so resolution succeeds, then re-archive.
+	changeDir := filepath.Join(fabRoot, "changes", folder)
+	os.MkdirAll(changeDir, 0o755)
+	os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte(testStatusYAML), 0o644)
+
+	_, err := Archive(fabRoot, folder, "desc")
+	if !errors.Is(err, ErrAlreadyArchived) {
+		t.Errorf("expected ErrAlreadyArchived, got %v", err)
 	}
 }
 

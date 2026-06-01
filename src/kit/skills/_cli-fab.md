@@ -39,11 +39,11 @@ See `_preamble.md` § Common fab Commands for the headline. Full subcommand tabl
 | `resolve` | `resolve [<override>]` | Passthrough to `fab resolve --folder` |
 | `switch` | `switch <name> \| --none` | Switch active change (writes `.fab-status.yaml` symlink) |
 | `list` | `list [--archive]` | List changes with stage info |
-| `archive` | `archive <change> --description "..."` | Move to `archive/`, update index, clear pointer |
+| `archive` | `archive <change> [--description "..."]` | Move to `archive/`, update index, mark backlog item done, clear pointer. `--description` is optional — defaults to the intake title (humanized-slug fallback). Re-archiving an already-archived change is a soft skip (exit 0). |
 | `restore` | `restore <change> [--switch]` | Move from `archive/`, remove index entry, optionally activate |
 | `archive-list` | `archive-list` | List archived folder names |
 
-`archive` and `restore` output structured YAML to stdout — skills parse it for user-facing reports.
+`archive` and `restore` output structured YAML to stdout — skills parse it for user-facing reports. The `archive` YAML adds a `backlog: {marked|already|not_found}` field alongside `action`, `name`, `move`, `index`, and `pointer`.
 
 ---
 
@@ -288,11 +288,11 @@ Duration is Go format (`3m`, `5m`, `2m`). Invalid → exit 1.
 
 ## fab batch
 
-Multi-target operations: `fab batch <new|switch|archive> [--list] [--all] [targets...]`. Subcommands creating tmux windows require `$TMUX`.
+Multi-target operations: `fab batch <new|switch|archive> [--list] [--all] [targets...]`. The `new` and `switch` subcommands create tmux windows and require `$TMUX`; `archive` runs in-process and does not.
 
 - **`new`** — parse `fab/backlog.md` pending items (`- [ ] [xxxx]`), create worktrees, open tmux windows, start agents with `/fab-new {description}`. No args → `--list`. IDs → one worktree tab each (`wt create --non-interactive --worktree-name {id}`, window `fab-{id}`, `{spawn_command} '/fab-new {description}'`). `--all` → all pending. Handles continuation lines.
 - **`switch`** — resolve change names, create worktrees with branch names (applying `branch_prefix` from config), start agents with `/fab-switch {change}`. No args → `--list`. `--all` → all active changes (excludes `archive/`). Branch naming: `{branch_prefix}{folder_name}`.
-- **`archive`** — find changes with `hydrate: done|skipped`, spawn one Claude session with `/fab-archive` per change. No args → `--all` (differs from new/switch). `--list` → show archivable only. Session prompt: `Run /fab-archive for each of these changes, one at a time: {changes}`.
+- **`archive`** — find changes with `hydrate: done|skipped`, then archive each mechanically in a Go loop via `internal/archive.ArchiveWithBacklog` (move, index, backlog mark-done, pointer). No agent or Claude session is spawned; resolution uses `resolve.ToFolder` (no `fab`-on-PATH dependency). No args → `--all` (differs from new/switch). `--list` → show archivable only. Per change prints `{name} — archived` (with ` (backlog marked done)` when applicable), `already archived, skipping`, or `FAILED: {err}`; a single failure never aborts the batch. Footer: `Archived {N}, skipped {M}, failed {K}.`. Exits non-zero only when `failed > 0`.
 
 ---
 

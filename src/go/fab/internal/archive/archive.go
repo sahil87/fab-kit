@@ -2,14 +2,22 @@ package archive
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/backlog"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/change"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/intake"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 )
+
+// ErrAlreadyArchived is returned (wrapped with the destination path) when the
+// archive destination already exists. Callers can detect it via errors.Is to
+// treat re-archiving as an idempotent soft skip.
+var ErrAlreadyArchived = errors.New("change already archived")
 
 // ArchiveResult holds the YAML output for archive operations.
 type ArchiveResult struct {
@@ -18,6 +26,7 @@ type ArchiveResult struct {
 	Move    string
 	Index   string
 	Pointer string
+	Backlog string
 }
 
 // RestoreResult holds the YAML output for restore operations.
@@ -44,18 +53,24 @@ func parseDateBucket(name string) (string, string, error) {
 	return "20" + yy, mm, nil
 }
 
-// Archive moves a change to the archive directory.
+// Archive moves a change to the archive directory. When description is empty,
+// it is derived mechanically from the change's intake title (with a humanized
+// slug fallback). Archive stays pure — it performs only move/index/pointer and
+// has no backlog dependency; ArchiveWithBacklog orchestrates the backlog mark.
 func Archive(fabRoot, changeArg, description string) (*ArchiveResult, error) {
 	if changeArg == "" {
 		return nil, fmt.Errorf("<change> argument is required for archive")
-	}
-	if description == "" {
-		return nil, fmt.Errorf("--description is required for archive")
 	}
 
 	folder, err := resolve.ToFolder(fabRoot, changeArg)
 	if err != nil {
 		return nil, err
+	}
+
+	// Derive the index description from the intake title before the folder is
+	// moved out of fab/changes/ (intake.md is still in the source folder here).
+	if description == "" {
+		description = intake.DescriptionFor(fabRoot, folder)
 	}
 
 	changesDir := filepath.Join(fabRoot, "changes")
@@ -71,7 +86,7 @@ func Archive(fabRoot, changeArg, description string) (*ArchiveResult, error) {
 	os.MkdirAll(destDir, 0755)
 	destPath := filepath.Join(destDir, folder)
 	if _, err := os.Stat(destPath); err == nil {
-		return nil, fmt.Errorf("Archive destination already exists: %s", destPath)
+		return nil, fmt.Errorf("%w: %s", ErrAlreadyArchived, destPath)
 	}
 	if err := os.Rename(changeDir, destPath); err != nil {
 		return nil, fmt.Errorf("move to archive: %w", err)
@@ -99,6 +114,21 @@ func Archive(fabRoot, changeArg, description string) (*ArchiveResult, error) {
 		Index:   indexStatus,
 		Pointer: pointerStatus,
 	}, nil
+}
+
+// ArchiveWithBacklog runs Archive, then marks the originating backlog item
+// done. The 4-char change ID is the backlog ID when the change came from
+// backlog, so the mark is a deterministic exact-ID match. Archive's error
+// (including ErrAlreadyArchived) propagates unchanged; the backlog result is
+// best-effort and recorded on result.Backlog.
+func ArchiveWithBacklog(fabRoot, changeArg, description string) (*ArchiveResult, error) {
+	result, err := Archive(fabRoot, changeArg, description)
+	if err != nil {
+		return nil, err
+	}
+	id := resolve.ExtractID(result.Name)
+	result.Backlog, _ = backlog.MarkDone(backlog.Path(fabRoot), id)
+	return result, nil
 }
 
 // Restore moves a change from the archive back to active.
@@ -195,8 +225,8 @@ func List(fabRoot string) ([]string, error) {
 
 // FormatArchiveYAML formats an ArchiveResult.
 func FormatArchiveYAML(r *ArchiveResult) string {
-	return fmt.Sprintf("action: %s\nname: %s\nmove: %s\nindex: %s\npointer: %s",
-		r.Action, r.Name, r.Move, r.Index, r.Pointer)
+	return fmt.Sprintf("action: %s\nname: %s\nmove: %s\nindex: %s\npointer: %s\nbacklog: %s",
+		r.Action, r.Name, r.Move, r.Index, r.Pointer, r.Backlog)
 }
 
 // FormatRestoreYAML formats a RestoreResult.

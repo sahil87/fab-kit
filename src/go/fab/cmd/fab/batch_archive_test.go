@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -114,6 +115,68 @@ func TestListArchivable_None(t *testing.T) {
 	output := buf.String()
 	if !bytes.Contains([]byte(output), []byte("(none)")) {
 		t.Error("expected (none) in output")
+	}
+}
+
+func TestArchiveLoop(t *testing.T) {
+	dir := t.TempDir()
+	fabRoot := filepath.Join(dir, "fab")
+	changesDir := filepath.Join(fabRoot, "changes")
+
+	// Helper to create an archivable change folder (intake + hydrate: done).
+	makeChange := func(folder, title string) {
+		cd := filepath.Join(changesDir, folder)
+		os.MkdirAll(cd, 0o755)
+		os.WriteFile(filepath.Join(cd, ".status.yaml"), []byte("progress:\n  hydrate: done\n"), 0o644)
+		os.WriteFile(filepath.Join(cd, "intake.md"), []byte("# Intake: "+title+"\n"), 0o644)
+	}
+
+	makeChange("260401-aa11-first-change", "First change")
+	makeChange("260401-bb22-second-change", "Second change")
+
+	// A third change that is already archived (destination exists) → skipped.
+	thirdFolder := "260401-cc33-third-change"
+	makeChange(thirdFolder, "Third change")
+	archivedDest := filepath.Join(changesDir, "archive", "2026", "04")
+	os.MkdirAll(filepath.Join(archivedDest, thirdFolder), 0o755)
+
+	var out, errOut bytes.Buffer
+	resolved := []string{
+		"260401-aa11-first-change",
+		"260401-bb22-second-change",
+		thirdFolder,
+	}
+	archived, skipped, failed := archiveLoop(&out, &errOut, fabRoot, resolved)
+
+	if archived != 2 {
+		t.Errorf("archived = %d, want 2", archived)
+	}
+	if skipped != 1 {
+		t.Errorf("skipped = %d, want 1 (already-archived third change)", skipped)
+	}
+	if failed != 0 {
+		t.Errorf("failed = %d, want 0", failed)
+	}
+
+	// Both archivable changes moved under archive/2026/04/.
+	for _, f := range []string{"260401-aa11-first-change", "260401-bb22-second-change"} {
+		moved := filepath.Join(archivedDest, f)
+		if _, err := os.Stat(moved); os.IsNotExist(err) {
+			t.Errorf("%s not found in archive/2026/04/", f)
+		}
+		orig := filepath.Join(changesDir, f)
+		if _, err := os.Stat(orig); !os.IsNotExist(err) {
+			t.Errorf("%s should be removed from changes/ after archive", f)
+		}
+	}
+
+	// Footer reflects the counts.
+	if !strings.Contains(out.String(), "Archived 2, skipped 1, failed 0.") {
+		t.Errorf("footer missing or wrong, got:\n%s", out.String())
+	}
+	// Already-archived third change is reported as skipped, not failed.
+	if !strings.Contains(out.String(), thirdFolder+" — already archived, skipping") {
+		t.Errorf("expected third change reported as skipped, got:\n%s", out.String())
 	}
 }
 

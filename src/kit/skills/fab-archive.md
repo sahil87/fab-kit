@@ -11,7 +11,7 @@ description: "Archive a completed change or restore an archived change — move 
 
 ## Purpose
 
-Archive a completed change after hydrate, or restore an archived change back to active. Archive mode delegates mechanical operations (move, index, pointer) to `fab change archive` and handles only backlog matching in the skill. Restore mode delegates entirely to `fab change restore`. Both modes are safe to re-run after interruption.
+Archive a completed change after hydrate, or restore an archived change back to active. Archive mode delegates all mechanical operations (move, index, backlog, pointer) to `fab change archive`; the skill only formats the YAML output into a user-facing report. Restore mode delegates entirely to `fab change restore`. Both modes are safe to re-run after interruption.
 
 ---
 
@@ -40,62 +40,46 @@ Archive a completed change after hydrate, or restore an archived change back to 
 
 ## Context Loading
 
-Minimal: `intake.md` (for backlog ID + keywords and description extraction), `.status.yaml`, `fab/backlog.md` (if exists).
+None beyond preflight — `fab change archive` reads `intake.md` and `fab/backlog.md` itself.
 
 ---
 
 ## Behavior
 
-### Step 1: Extract Description
-
-Read the intake's **Why** section and extract a 1-2 sentence description summarizing the change. This becomes the `--description` argument for the script.
-
-### Step 2: Run Archive Script
+### Step 1: Run Archive Command
 
 Call `fab change archive` in a single invocation:
 
 ```bash
-fab change archive <change> --description "<extracted description>"
+fab change archive <change>
 ```
 
-Where `<change>` is the change ID or name from preflight. Parse the structured YAML output for the report.
+Where `<change>` is the change ID or name from preflight. Pass no `--description` — the command derives it mechanically from the intake title (humanized-slug fallback). Parse the structured YAML output for the report.
 
-The command handles:
+The command handles everything mechanically:
 - **Move**: `fab/changes/{name}/` → `fab/changes/archive/yyyy/mm/{name}/` (date-bucketed)
 - **Index**: Create/update `fab/changes/archive/index.md` with entry + backfill
+- **Backlog**: Mark the originating backlog item done (`- [ ]` → `- [x]`) by exact change-ID match, in place
 - **Pointer**: Remove `.fab-status.yaml` symlink if this was the active change
 
-### Step 3: Mark Backlog Items Done
+If the command prints `already archived: ...` and exits 0, the change was already archived — report it as a soft skip.
 
-Skip silently if `fab/backlog.md` doesn't exist.
+### Step 2: Format Report
 
-**3a — Exact-ID**: If intake has backlog ID, find and mark done (`- [ ]` → `- [x]`), move to Done section.
-
-**3b — Keyword Scan**: Extract keywords from intake title/Why (filter stop words). Match against unchecked items — candidate when ≥2 significant keywords overlap (exclude 3a matches). No candidates → proceed silently.
-
-**3c — Interactive Confirmation** (if 3b found candidates):
-
-```
-Backlog matches found:
-  1. [ID] {description (~80 chars)}
-  2. [ID] {description (~80 chars)}
-
-Mark as done? (comma-separated numbers, or "none")
-```
-
-### Step 4: Format Report
-
-Construct the user-facing report from the script's YAML output fields:
+Construct the user-facing report from the command's YAML output fields:
 
 | YAML field | Report line |
 |------------|-------------|
 | `move: moved` | `Moved:    ✓ fab/changes/archive/yyyy/mm/{name}/` |
 | `index: created` | `Index:    ✓ fab/changes/archive/index.md created` |
 | `index: updated` | `Index:    ✓ fab/changes/archive/index.md updated` |
+| `backlog: marked` | `Backlog:  ✓ [ID] marked done` |
+| `backlog: already` | `Backlog:  — already done` |
+| `backlog: not_found` | `Backlog:  — no match` |
 | `pointer: cleared` | `Pointer:  ✓ .fab-status.yaml removed` |
 | `pointer: skipped` | `Pointer:  — skipped, not active` |
 
-Backlog and Scan lines come from Step 3 (agent-driven), not from the script.
+All report lines are sourced from the command's YAML output — the skill performs no file edits and asks no interactive questions.
 
 ---
 
@@ -106,8 +90,7 @@ Archive: {change name}
 
 Moved:    ✓ fab/changes/archive/yyyy/mm/{name}/
 Index:    ✓ fab/changes/archive/index.md updated (or: created)
-Backlog:  ✓ [ID] marked done                   (or: — no backlog file)
-Scan:     ✓ {N} candidates, {M} marked done    (or: ✓ no matches)
+Backlog:  ✓ [ID] marked done                   (or: — already done / — no match)
 Pointer:  ✓ .fab-status.yaml removed             (or: — skipped, not active)
 
 Archive complete.
@@ -122,10 +105,11 @@ Next: {per state table — initialized}
 | Property | Value |
 |----------|-------|
 | Advances stage? | No — post-pipeline housekeeping |
-| Idempotent? | Yes — script detects state, backlog matching is idempotent |
+| Idempotent? | Yes — re-archive is a soft skip; `fab change archive` marks the backlog idempotently (`already`) |
 | Modifies `.status.yaml`? | No (may update `last_updated`) |
-| Modifies `.fab-status.yaml`? | Yes — conditionally removes symlink (via script) |
+| Modifies `.fab-status.yaml`? | Yes — conditionally removes symlink (via command) |
 | Modifies `docs/memory/`? | No |
+| Uses `Edit`? | No — the skill only formats the command's YAML output |
 | Requires hydrate done? | Yes |
 
 ---
