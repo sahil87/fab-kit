@@ -1,0 +1,15 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-01T02:24:07Z"}
+{"args":"Fix stale fab status CLI invocations (path form) in fab-new and fab-draft skill sources","cmd":"fab-new","event":"command","ts":"2026-06-01T02:24:07Z"}
+{"delta":"+4.1","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-01T02:24:48Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-01T02:24:53Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-01T02:25:04Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-06-01T02:26:21Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-06-01T02:26:25Z"}
+{"delta":"+0.3","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-06-01T02:27:01Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"spec","ts":"2026-06-01T02:27:06Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-01T02:30:40Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-01T02:30:40Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-06-01T02:32:27Z"}
+{"event":"review","result":"passed","ts":"2026-06-01T02:32:27Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-01T02:33:55Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-06-01T02:35:30Z"}
