@@ -168,7 +168,7 @@ Next: {per state table — current state, since clarify is non-advancing}
 
 ### Step 7: Recompute Confidence
 
-Always run `fab score --stage intake <change>` after resolving assumptions — intake is the sole scoring source, and clarify operates only at intake. This re-persists the authoritative intake confidence. Auto mode does not invoke this script.
+Always run `fab score --stage intake <change>` after resolving assumptions — intake is the sole scoring source, and clarify operates only at intake. This re-persists the authoritative intake confidence. Both Suggest and Auto modes recompute (Auto Mode step 4).
 
 ### Step 8: Do NOT Advance Stage
 
