@@ -2,17 +2,16 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strings"
-	"syscall"
 
 	"github.com/spf13/cobra"
+	archivePkg "github.com/sahil87/fab-kit/src/go/fab/internal/archive"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
-	"github.com/sahil87/fab-kit/src/go/fab/internal/spawn"
 )
 
 func batchArchiveCmd() *cobra.Command {
@@ -20,8 +19,8 @@ func batchArchiveCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "archive [change...]",
-		Short: "Archive multiple completed changes in one session",
-		Long:  "Archives completed changes (hydrate done|skipped) by running /fab-archive for each.",
+		Short: "Archive multiple completed changes in one pass",
+		Long:  "Archives completed changes (hydrate done|skipped) mechanically (move, index, backlog, pointer) in a Go loop — no agent or Claude session is spawned.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runBatchArchive(cmd, args, listFlag, allFlag)
 		},
@@ -75,12 +74,11 @@ func runBatchArchive(cmd *cobra.Command, args []string, listFlag, allFlag bool) 
 	// Resolve and validate each change
 	var resolved []string
 	for _, change := range changes {
-		out, err := exec.Command("fab", "change", "resolve", change).Output()
+		match, err := resolve.ToFolder(fabRoot, change)
 		if err != nil {
 			fmt.Fprintf(errW, "Warning: could not resolve '%s', skipping\n", change)
 			continue
 		}
-		match := strings.TrimSpace(string(out))
 
 		statusPath := filepath.Join(changesDir, match, ".status.yaml")
 		if !isArchivable(statusPath) {
@@ -96,22 +94,51 @@ func runBatchArchive(cmd *cobra.Command, args []string, listFlag, allFlag bool) 
 		os.Exit(1)
 	}
 
-	// Build prompt for a single Claude session
-	prompt := "Run /fab-archive for each of these changes, one at a time: " + strings.Join(resolved, " ")
-
-	fmt.Fprintf(w, "Archiving: %s\n", strings.Join(resolved, " "))
-
-	// Read spawn command and exec
-	configPath := filepath.Join(fabRoot, "project", "config.yaml")
-	spawnCmd := spawn.Command(configPath)
-
-	// Exec the spawn command with the prompt
-	bashBin, err := exec.LookPath("bash")
-	if err != nil {
-		return fmt.Errorf("bash not found: %w", err)
+	_, _, failed := archiveLoop(w, errW, fabRoot, resolved)
+	if failed > 0 {
+		os.Exit(1)
 	}
-	argv := []string{bashBin, "-c", spawnCmd + ` "$1"`, "--", prompt}
-	return syscall.Exec(bashBin, argv, os.Environ())
+	return nil
+}
+
+// archiveLoop archives each resolved change in-process via
+// archive.ArchiveWithBacklog. A per-change failure is reported and does not
+// abort the remaining changes. Already-archived changes are counted as skipped,
+// not failed. It returns the (archived, skipped, failed) counts and never calls
+// os.Exit so it can be unit-tested.
+func archiveLoop(w, errW io.Writer, fabRoot string, resolved []string) (archived, skipped, failed int) {
+	for _, name := range resolved {
+		result, err := archivePkg.ArchiveWithBacklog(fabRoot, name, "")
+		if err != nil {
+			if errors.Is(err, archivePkg.ErrAlreadyArchived) {
+				fmt.Fprintf(w, "  %s — already archived, skipping\n", name)
+				skipped++
+				continue
+			}
+			// A non-nil result means the archive move succeeded but a
+			// post-archive step (backlog mark) failed. The folder is already
+			// archived and the move is irreversible within this loop, so count
+			// it as archived and surface the backlog failure as a warning
+			// rather than failing the change.
+			if result != nil {
+				fmt.Fprintf(w, "  %s — archived\n", name)
+				fmt.Fprintf(errW, "    warning: %v\n", err)
+				archived++
+				continue
+			}
+			fmt.Fprintf(errW, "  %s — FAILED: %v\n", name, err)
+			failed++
+			continue
+		}
+		line := fmt.Sprintf("  %s — archived", name)
+		if result.Backlog == "marked" {
+			line += " (backlog marked done)"
+		}
+		fmt.Fprintln(w, line)
+		archived++
+	}
+	fmt.Fprintf(w, "\nArchived %d, skipped %d, failed %d.\n", archived, skipped, failed)
+	return archived, skipped, failed
 }
 
 // listArchivable prints archivable changes.

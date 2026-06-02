@@ -2,7 +2,7 @@
 
 ## Summary
 
-Archives a completed change (post-hydrate) or restores an archived change. Delegates mechanical operations to `fab change archive` CLI. Handles backlog matching interactively.
+Archives a completed change (post-hydrate) or restores an archived change. Delegates all mechanical operations — move, index, backlog mark-done, and pointer — to the `fab change archive` CLI; the skill only formats the YAML output. Backlog marking is mechanical (exact change-ID match, flipped in place), not interactive.
 
 ## Flow
 
@@ -15,20 +15,12 @@ User invokes /fab-archive [change-name]
 │
 ├── Archive Mode ────────────────────────────────────────
 │  │
-│  ├─ Step 1: Extract description
-│  │  └─ Read: fab/changes/{name}/intake.md
+│  ├─ Step 1: Run archive
+│  │  └─ Bash: fab change archive <change>   (no --description)
+│  │     └─ (derive description from intake title, move, update
+│  │         index, mark backlog item done, clear pointer)
 │  │
-│  ├─ Step 2: Run archive
-│  │  └─ Bash: fab change archive <change> --description "..."
-│  │     └─ (move, update index, clear pointer)
-│  │
-│  ├─ Step 3: Backlog matching
-│  │  ├─ Read: fab/backlog.md
-│  │  ├─ (keyword scan, exact-ID match)
-│  │  ├─ (interactive: confirm candidates)
-│  │  └─ Edit: fab/backlog.md (mark [x], move to Done)
-│  │
-│  └─ Step 4: Format report
+│  └─ Step 2: Format report (incl. backlog: field)
 │
 └── Restore Mode (/fab-archive restore <name> [--switch])
    │
@@ -40,8 +32,7 @@ User invokes /fab-archive [change-name]
 
 | Tool | Purpose |
 |------|---------|
-| Read | Preamble, intake.md, backlog.md |
-| Edit | backlog.md (mark items done) |
+| Read | Preamble |
 | Bash | `fab preflight`, `fab change archive`, `fab change restore`, `fab change archive-list` |
 
 ### Sub-agents

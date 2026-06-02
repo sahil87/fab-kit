@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/sahil87/fab-kit/src/go/fab/internal/backlog"
 )
 
 const testBacklog = `# Backlog
@@ -28,26 +30,26 @@ func writeTestBacklog(t *testing.T) string {
 func TestParsePendingItems(t *testing.T) {
 	path := writeTestBacklog(t)
 
-	items := parsePendingItems(path)
+	items := backlog.ParsePending(path)
 	if len(items) != 3 {
 		t.Fatalf("expected 3 pending items, got %d", len(items))
 	}
 
-	if items[0].id != "90g5" {
-		t.Errorf("items[0].id = %q, want %q", items[0].id, "90g5")
+	if items[0].ID != "90g5" {
+		t.Errorf("items[0].ID = %q, want %q", items[0].ID, "90g5")
 	}
-	if items[1].id != "jgt6" {
-		t.Errorf("items[1].id = %q, want %q", items[1].id, "jgt6")
+	if items[1].ID != "jgt6" {
+		t.Errorf("items[1].ID = %q, want %q", items[1].ID, "jgt6")
 	}
-	if items[2].id != "ab12" {
-		t.Errorf("items[2].id = %q, want %q", items[2].id, "ab12")
+	if items[2].ID != "ab12" {
+		t.Errorf("items[2].ID = %q, want %q", items[2].ID, "ab12")
 	}
 }
 
 func TestExtractBacklogContent_SimpleItem(t *testing.T) {
 	path := writeTestBacklog(t)
 
-	content, err := extractBacklogContent(path, "90g5")
+	content, err := backlog.ExtractContent(path, "90g5")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -59,7 +61,7 @@ func TestExtractBacklogContent_SimpleItem(t *testing.T) {
 func TestExtractBacklogContent_ContinuationLine(t *testing.T) {
 	path := writeTestBacklog(t)
 
-	content, err := extractBacklogContent(path, "jgt6")
+	content, err := backlog.ExtractContent(path, "jgt6")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -72,7 +74,7 @@ func TestExtractBacklogContent_ContinuationLine(t *testing.T) {
 func TestExtractBacklogContent_NotFound(t *testing.T) {
 	path := writeTestBacklog(t)
 
-	_, err := extractBacklogContent(path, "zzzz")
+	_, err := backlog.ExtractContent(path, "zzzz")
 	if err == nil {
 		t.Error("expected error for missing ID")
 	}
@@ -81,7 +83,7 @@ func TestExtractBacklogContent_NotFound(t *testing.T) {
 func TestExtractBacklogContent_BugPrefix(t *testing.T) {
 	path := writeTestBacklog(t)
 
-	content, err := extractBacklogContent(path, "ab12")
+	content, err := backlog.ExtractContent(path, "ab12")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -23,8 +24,18 @@ func changeArchiveCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := archivePkg.Archive(fabRoot, args[0], description)
+			result, err := archivePkg.ArchiveWithBacklog(fabRoot, args[0], description)
 			if err != nil {
+				if errors.Is(err, archivePkg.ErrAlreadyArchived) {
+					fmt.Printf("already archived: %s\n", args[0])
+					return nil
+				}
+				// A non-nil result means the archive move succeeded but the
+				// backlog mark failed. Emit the YAML report so the success is
+				// visible, then surface the backlog failure as the command error.
+				if result != nil {
+					fmt.Println(archivePkg.FormatArchiveYAML(result))
+				}
 				return err
 			}
 			fmt.Println(archivePkg.FormatArchiveYAML(result))
@@ -32,7 +43,7 @@ func changeArchiveCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&description, "description", "", "Description for archive index (required)")
+	cmd.Flags().StringVar(&description, "description", "", "Description for archive index (optional; defaults to intake title)")
 
 	return cmd
 }

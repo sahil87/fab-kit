@@ -99,7 +99,7 @@ For detailed visual maps of how commands connect — including shortcuts, rework
 | `/fab-discuss` | Prime agent with project context for discussion | — (read-only) |
 | `fab batch new` | Create changes from backlog items | Worktree + tmux tab per item |
 | `fab batch switch` | Switch to existing changes | Worktree + tmux tab per change |
-| `fab batch archive` | Archive completed changes | Worktree + tmux tab per change |
+| `fab batch archive` | Archive completed changes | Folder(s) moved to archive/, backlog marked |
 
 ---
 

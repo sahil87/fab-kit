@@ -1,0 +1,15 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-01T13:48:47Z"}
+{"args":"Make fab archive (single + batch) fully mechanical — remove all Claude agent involvement from archiving. Auto-derive description from intake title, mechanize exact-ID backlog marking in Go, make batch archive a pure Go loop. Extract shared internal/backlog package. Soft-skip already-archived.","cmd":"fab-new","event":"command","ts":"2026-06-01T13:48:47Z"}
+{"delta":"+3.8","event":"confidence","score":3.8,"trigger":"calc-score","ts":"2026-06-01T13:50:07Z"}
+{"delta":"+0.0","event":"confidence","score":3.8,"trigger":"calc-score","ts":"2026-06-01T13:50:15Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-06-01T14:14:08Z"}
+{"delta":"+0.6","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-06-01T14:15:25Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"spec","ts":"2026-06-01T14:15:31Z"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-06-01T14:16:21Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-01T14:30:23Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-01T14:30:27Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-06-01T14:35:02Z"}
+{"event":"review","result":"passed","ts":"2026-06-01T14:35:02Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-01T14:37:20Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-06-01T14:39:29Z"}
+{"event":"review","result":"passed","ts":"2026-06-01T14:47:50Z"}
