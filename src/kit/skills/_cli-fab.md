@@ -24,7 +24,7 @@ All commands accept the unified `<change>`: 4-char ID (`yobi`), folder substring
 
 ### Commands covered in `_preamble` Common fab Commands
 
-`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab hook`, `fab pane`, `fab doctor`, `fab kit-path`, `fab fab-help`, `fab operator`, `fab batch`) and extended flag details for the above.
+`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab hook`, `fab pane`, `fab doctor`, `fab kit-path`, `fab impact`, `fab fab-help`, `fab help-dump`, `fab operator`, `fab batch`) and extended flag details for the above.
 
 ---
 
@@ -252,6 +252,39 @@ Scans skill frontmatter from the cache kit, groups skills by category (Start & N
 Output: version header, workflow diagram, grouped commands, typical flow, packages section (wt, idea).
 
 (The command name is `fab-help` — not overriding cobra's built-in `help`.)
+
+---
+
+## fab help-dump
+
+```
+fab help-dump
+```
+
+**Hidden, CI/build-time-only command.** Marked `Hidden: true`, so it does not appear in `fab --help` and is excluded from its own dumped tree. Takes no arguments. Walks the live cobra command tree of the rich `fab` CLI programmatically (not by regex-parsing `-h` text) and writes the frozen shll.ai "command reference" contract JSON to stdout.
+
+Contract shape (`schema_version: 1`):
+
+```json
+{
+  "tool": "fab",
+  "version": "<main.version, from ldflags>",
+  "captured_at": "<RFC3339 UTC>",
+  "schema_version": 1,
+  "root": {
+    "name": "fab",
+    "path": "fab",
+    "short": "...",
+    "usage": "...",
+    "text": "<raw -h body, byte-for-byte>",
+    "commands": [ /* recursive Node[]; [] for a leaf, never null */ ]
+  }
+}
+```
+
+Per node: `name=cmd.Name()`, `path=cmd.CommandPath()`, `short=cmd.Short`, `usage=cmd.UseLine()`, `text=cmd.UsageString()`. At every level the walk drops `completion`, `help`, and any `Hidden` command, then sorts surviving children by `Name()` for byte-stable output. JSON is 2-space indented with HTML escaping disabled, so `<`, `>`, `&` in help text are preserved verbatim.
+
+`tool` is the literal `"fab"` (the user-facing binary); the *output file* is named `help/fab-kit.json` (the repo/site slug) — these intentionally differ. Consumed by `.github/workflows/release.yml` (Help-dump → shll.ai step) to deliver an auto-merging PR into `sahil87/shll.ai`.
 
 ---
 

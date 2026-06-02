@@ -33,6 +33,7 @@ func main() {
 		kitPathCmd(),
 		impactCmd(),
 		shellInitCmd(),
+		helpDumpCmd(),
 	)
 
 	if err := root.Execute(); err != nil {

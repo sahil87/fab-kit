@@ -1,0 +1,185 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/spf13/cobra"
+)
+
+// newSyntheticTree builds a small cobra tree exercising every filter case:
+// a visible leaf, a hidden command, and fake "completion"/"help" commands —
+// plus a child with raw HTML-ish chars in its short text.
+func newSyntheticTree() *cobra.Command {
+	root := &cobra.Command{Use: "fab", Short: "root"}
+
+	visible := &cobra.Command{Use: "visible", Short: "a visible <leaf> & more"}
+	hidden := &cobra.Command{Use: "secret", Short: "hidden", Hidden: true}
+	completion := &cobra.Command{Use: "completion", Short: "auto-gen completion"}
+	help := &cobra.Command{Use: "help", Short: "auto-gen help"}
+
+	// Add out of alpha order to prove the walker sorts.
+	root.AddCommand(visible, hidden, completion, help)
+	return root
+}
+
+func TestDumpDoc_TopLevelContract(t *testing.T) {
+	doc := dumpDoc(newSyntheticTree(), "9.9.9")
+
+	if doc.Tool != "fab" {
+		t.Errorf("tool = %q, want %q", doc.Tool, "fab")
+	}
+	if doc.SchemaVersion != 1 {
+		t.Errorf("schema_version = %d, want 1", doc.SchemaVersion)
+	}
+	if doc.Version != "9.9.9" {
+		t.Errorf("version = %q, want %q (must reflect passed-in value, not be hardcoded)", doc.Version, "9.9.9")
+	}
+	// captured_at must be a valid RFC3339 timestamp.
+	if doc.CapturedAt == "" {
+		t.Errorf("captured_at is empty")
+	} else if _, err := time.Parse(time.RFC3339, doc.CapturedAt); err != nil {
+		t.Errorf("captured_at = %q does not parse as RFC3339: %v", doc.CapturedAt, err)
+	}
+}
+
+func TestBuildNode_FiltersAndSort(t *testing.T) {
+	node := buildNode(newSyntheticTree())
+
+	if node.Name != "fab" {
+		t.Errorf("root name = %q, want %q", node.Name, "fab")
+	}
+	if len(node.Commands) != 1 {
+		t.Fatalf("expected 1 surviving child (completion/help/hidden filtered), got %d: %+v", len(node.Commands), node.Commands)
+	}
+	if node.Commands[0].Name != "visible" {
+		t.Errorf("surviving child = %q, want %q", node.Commands[0].Name, "visible")
+	}
+
+	// None of the filtered names should appear.
+	for _, c := range node.Commands {
+		if c.Name == "completion" || c.Name == "help" || c.Name == "secret" {
+			t.Errorf("filtered command %q leaked into output", c.Name)
+		}
+	}
+}
+
+func TestBuildNode_SortsChildren(t *testing.T) {
+	root := &cobra.Command{Use: "fab"}
+	root.AddCommand(
+		&cobra.Command{Use: "zeta"},
+		&cobra.Command{Use: "alpha"},
+		&cobra.Command{Use: "mike"},
+	)
+	node := buildNode(root)
+	got := []string{node.Commands[0].Name, node.Commands[1].Name, node.Commands[2].Name}
+	want := []string{"alpha", "mike", "zeta"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("children not sorted: got %v, want %v", got, want)
+			break
+		}
+	}
+}
+
+func TestBuildNode_CapturesFields(t *testing.T) {
+	root := &cobra.Command{Use: "fab"}
+	child := &cobra.Command{
+		Use:   "build [target]",
+		Short: "build a target",
+	}
+	root.AddCommand(child)
+
+	node := buildNode(root)
+	if len(node.Commands) != 1 {
+		t.Fatalf("expected 1 child, got %d", len(node.Commands))
+	}
+	c := node.Commands[0]
+	if c.Path != "fab build" {
+		t.Errorf("path = %q, want %q", c.Path, "fab build")
+	}
+	if c.Short != "build a target" {
+		t.Errorf("short = %q, want %q", c.Short, "build a target")
+	}
+	if !strings.Contains(c.Usage, "build [target]") {
+		t.Errorf("usage = %q, want it to contain %q", c.Usage, "build [target]")
+	}
+	if c.Text == "" {
+		t.Errorf("text (UsageString) is empty, want the raw -h body")
+	}
+}
+
+func TestBuildNode_LeafEmitsEmptyArrayNotNull(t *testing.T) {
+	leaf := buildNode(&cobra.Command{Use: "leaf"})
+	if leaf.Commands == nil {
+		t.Fatalf("leaf.Commands is nil; want non-nil empty slice")
+	}
+	b, err := json.Marshal(leaf)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"commands":[]`) {
+		t.Errorf("leaf must serialize commands as [], got: %s", b)
+	}
+	if strings.Contains(string(b), `"commands":null`) {
+		t.Errorf("leaf must NOT serialize commands as null, got: %s", b)
+	}
+}
+
+func TestDumpDoc_EncoderDoesNotEscapeHTML(t *testing.T) {
+	doc := dumpDoc(newSyntheticTree(), "1.0.0")
+
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetIndent("", "  ")
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(doc); err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	out := buf.String()
+
+	// The visible child's short contains "<leaf> & more" — with SetEscapeHTML(false)
+	// it must be byte-preserved (literal angle brackets / ampersand).
+	if !strings.Contains(out, "<leaf> & more") {
+		t.Errorf("HTML chars should be preserved verbatim, got: %s", out)
+	}
+
+	// Contrast: the same doc encoded with HTML escaping ON must differ and must
+	// NOT contain the literal substring (the encoder would escape <, >, &). This
+	// proves SetEscapeHTML(false) is the load-bearing setting.
+	var escapedBuf bytes.Buffer
+	escEnc := json.NewEncoder(&escapedBuf)
+	escEnc.SetIndent("", "  ")
+	escEnc.SetEscapeHTML(true)
+	if err := escEnc.Encode(doc); err != nil {
+		t.Fatalf("encode (escaped): %v", err)
+	}
+	escaped := escapedBuf.String()
+	if escaped == out {
+		t.Errorf("escaped and non-escaped output are identical; SetEscapeHTML had no effect")
+	}
+	if strings.Contains(escaped, "<leaf> & more") {
+		t.Errorf("with escaping ON the literal substring should be escaped away, but it was present")
+	}
+
+	// 2-space indent sanity check.
+	if !strings.Contains(out, "\n  \"tool\": \"fab\"") {
+		t.Errorf("expected 2-space indented top-level keys, got: %s", out)
+	}
+}
+
+func TestHelpDumpCmd_IsHiddenNoArgs(t *testing.T) {
+	cmd := helpDumpCmd()
+	if !cmd.Hidden {
+		t.Errorf("help-dump command must be Hidden")
+	}
+	if cmd.Use != "help-dump" {
+		t.Errorf("Use = %q, want %q", cmd.Use, "help-dump")
+	}
+	if err := cmd.Args(cmd, []string{"extra"}); err == nil {
+		t.Errorf("help-dump must reject positional args (cobra.NoArgs)")
+	}
+}

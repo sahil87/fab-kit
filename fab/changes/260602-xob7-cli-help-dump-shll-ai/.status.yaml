@@ -1,0 +1,49 @@
+id: xob7
+name: 260602-xob7-cli-help-dump-shll-ai
+created: 2026-06-02T18:47:51Z
+created_by: sahil87
+change_type: ci
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 7
+    acceptance_count: 15
+    acceptance_completed: 15
+confidence:
+    certain: 7
+    confident: 6
+    tentative: 0
+    unresolved: 0
+    score: 3.2
+    fuzzy: true
+    dimensions:
+        signal: 79.4
+        reversibility: 77.3
+        competence: 86.6
+        disambiguation: 86.2
+stage_metrics:
+    intake: {started_at: "2026-06-02T18:47:51Z", driver: fab-new, iterations: 1, completed_at: "2026-06-02T19:05:19Z"}
+    apply: {started_at: "2026-06-02T19:05:19Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-02T19:11:13Z"}
+    review: {started_at: "2026-06-02T19:11:13Z", driver: fab-continue, iterations: 1, completed_at: "2026-06-02T19:16:20Z"}
+    hydrate: {started_at: "2026-06-02T19:16:20Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-02T19:19:15Z"}
+    ship: {started_at: "2026-06-02T19:19:15Z", driver: fab-fff, iterations: 1}
+prs: []
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-06-02T19:19:15Z"
+    computed_at_stage: hydrate
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-02T19:19:15Z
