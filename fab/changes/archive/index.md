@@ -1,5 +1,12 @@
 # Archive Index
 
+- **260602-ytua-update-readme-six-stage** — Update README to the 6-stage pipeline
+- **260602-7x8u-git-pr-review-commit-status** — git-pr-review Commit Status Updates
+- **260602-7t5a-true-impact-test-split** — Split true-impact line count by implementation vs. tests
+- **260601-zu41-mechanical-archive** — Make fab archive (single + batch) fully mechanical
+- **260601-w5sr-fix-stale-status-cli-args** — Fix stale `fab status` CLI invocations in fab-new and fab-draft
+- **260601-j6cs-merge-spec-into-apply** — Merge Spec Stage into Apply, Frontload SRAD to Intake
+- **260531-vsge-skip-brew-update-flag** — Add --skip-brew-update flag to update command
 - **260511-c432-fix-completion-outside-repo** — Remove router config gate + add `shell-init` wrapper
 - **260507-ogf2-restrain-ai-code-bloat** — Restrain AI-driven code bloat
 - **260507-asvz-git-pr-true-impact-line-count** — git-pr true-impact line count
