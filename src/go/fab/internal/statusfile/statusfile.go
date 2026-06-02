@@ -44,10 +44,10 @@ type Plan struct {
 
 // Dimensions holds fuzzy SRAD dimension means.
 type Dimensions struct {
-	Signal          float64 `yaml:"signal"`
-	Reversibility   float64 `yaml:"reversibility"`
-	Competence      float64 `yaml:"competence"`
-	Disambiguation  float64 `yaml:"disambiguation"`
+	Signal         float64 `yaml:"signal"`
+	Reversibility  float64 `yaml:"reversibility"`
+	Competence     float64 `yaml:"competence"`
+	Disambiguation float64 `yaml:"disambiguation"`
 }
 
 // Confidence holds the confidence scoring block.
@@ -85,25 +85,26 @@ type TrueImpact struct {
 	Deleted         int             `yaml:"deleted"`
 	Net             int             `yaml:"net"`
 	Excluding       *TrueImpactPair `yaml:"excluding,omitempty"`
+	Tests           *TrueImpactPair `yaml:"tests,omitempty"`
 	ComputedAt      string          `yaml:"computed_at"`
 	ComputedAtStage string          `yaml:"computed_at_stage"`
 }
 
 // StatusFile represents the .status.yaml structure.
 type StatusFile struct {
-	ID          string                  `yaml:"id"`
-	Name        string                  `yaml:"name"`
-	Created     string                  `yaml:"created"`
-	CreatedBy   string                  `yaml:"created_by"`
-	ChangeType  string                  `yaml:"change_type"`
-	Issues      []string                `yaml:"issues"`
-	Progress    yaml.Node               `yaml:"-"`
-	Plan        Plan                    `yaml:"plan"`
-	Confidence  Confidence              `yaml:"confidence"`
+	ID           string                  `yaml:"id"`
+	Name         string                  `yaml:"name"`
+	Created      string                  `yaml:"created"`
+	CreatedBy    string                  `yaml:"created_by"`
+	ChangeType   string                  `yaml:"change_type"`
+	Issues       []string                `yaml:"issues"`
+	Progress     yaml.Node               `yaml:"-"`
+	Plan         Plan                    `yaml:"plan"`
+	Confidence   Confidence              `yaml:"confidence"`
 	StageMetrics map[string]*StageMetric `yaml:"-"`
-	PRs         []string                `yaml:"prs"`
-	TrueImpact  *TrueImpact             `yaml:"true_impact,omitempty"`
-	LastUpdated string                  `yaml:"last_updated"`
+	PRs          []string                `yaml:"prs"`
+	TrueImpact   *TrueImpact             `yaml:"true_impact,omitempty"`
+	LastUpdated  string                  `yaml:"last_updated"`
 
 	// raw holds the full parsed document for field-preserving serialization
 	raw *yaml.Node
@@ -449,18 +450,17 @@ func encodeTrueImpact(n *yaml.Node, ti *TrueImpact) {
 		{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", ti.Net), Tag: "!!int"},
 	}
 	if ti.Excluding != nil {
-		exNode := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-		exNode.Content = []*yaml.Node{
-			{Kind: yaml.ScalarNode, Value: "added"},
-			{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", ti.Excluding.Added), Tag: "!!int"},
-			{Kind: yaml.ScalarNode, Value: "deleted"},
-			{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", ti.Excluding.Deleted), Tag: "!!int"},
-			{Kind: yaml.ScalarNode, Value: "net"},
-			{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", ti.Excluding.Net), Tag: "!!int"},
-		}
 		content = append(content,
 			&yaml.Node{Kind: yaml.ScalarNode, Value: "excluding"},
-			exNode,
+			pairNode(ti.Excluding),
+		)
+	}
+	// `tests` is emitted after `excluding` and before `computed_at`, lazily
+	// omitted when nil (matching the `excluding` posture).
+	if ti.Tests != nil {
+		content = append(content,
+			&yaml.Node{Kind: yaml.ScalarNode, Value: "tests"},
+			pairNode(ti.Tests),
 		)
 	}
 	content = append(content,
@@ -470,6 +470,23 @@ func encodeTrueImpact(n *yaml.Node, ti *TrueImpact) {
 		&yaml.Node{Kind: yaml.ScalarNode, Value: ti.ComputedAtStage, Tag: "!!str"},
 	)
 	n.Content = content
+}
+
+// pairNode encodes a TrueImpactPair as an added/deleted/net mapping node.
+// Shared by the `excluding` and `tests` sub-blocks of encodeTrueImpact.
+func pairNode(p *TrueImpactPair) *yaml.Node {
+	return &yaml.Node{
+		Kind: yaml.MappingNode,
+		Tag:  "!!map",
+		Content: []*yaml.Node{
+			{Kind: yaml.ScalarNode, Value: "added"},
+			{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", p.Added), Tag: "!!int"},
+			{Kind: yaml.ScalarNode, Value: "deleted"},
+			{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", p.Deleted), Tag: "!!int"},
+			{Kind: yaml.ScalarNode, Value: "net"},
+			{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", p.Net), Tag: "!!int"},
+		},
+	}
 }
 
 func nowISO() string {

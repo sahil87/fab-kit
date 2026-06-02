@@ -11,6 +11,12 @@ source_paths:
 # docs/). Optional — when absent or empty, the impact block is omitted.
 true_impact_exclude: [fab/, docs/]
 
+# Glob/pathspec patterns identifying test files. Used by the true-impact
+# breakdown to attribute lines to tests vs. implementation (impl = total − tests).
+# Language-specific — no kit default. When absent/empty, the breakdown collapses
+# to a single total line. Examples: "**/*_test.go", "test_*.py", "**/*.spec.ts".
+# test_paths: []
+
 # The review stage validates code against the plan.md ## Acceptance section.
 # Built-in categories: functional_completeness, behavioral_correctness,
 # scenario_coverage, edge_cases, security.

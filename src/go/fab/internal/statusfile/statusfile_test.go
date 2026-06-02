@@ -355,6 +355,121 @@ last_updated: "2026-04-23T05:02:32Z"
 	}
 }
 
+// TestTrueImpactTestsRoundTrip verifies the new `tests` sub-block round-trips
+// through Load→Save→Load and is positioned after `excluding` / before
+// `computed_at` in the emitted YAML.
+func TestTrueImpactTestsRoundTrip(t *testing.T) {
+	const yamlWithTests = testYAML + `true_impact:
+  added: 612
+  deleted: 38
+  net: 574
+  excluding:
+    added: 540
+    deleted: 38
+    net: 502
+  tests:
+    added: 400
+    deleted: 0
+    net: 400
+  computed_at: "2026-05-30T00:00:00Z"
+  computed_at_stage: apply
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	if err := os.WriteFile(path, []byte(yamlWithTests), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	sf, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if sf.TrueImpact == nil {
+		t.Fatal("expected TrueImpact to be parsed")
+	}
+	if sf.TrueImpact.Tests == nil {
+		t.Fatal("expected TrueImpact.Tests to be parsed")
+	}
+	if sf.TrueImpact.Tests.Added != 400 || sf.TrueImpact.Tests.Net != 400 || sf.TrueImpact.Tests.Deleted != 0 {
+		t.Errorf("tests pair decoded wrong: %+v", sf.TrueImpact.Tests)
+	}
+
+	outPath := filepath.Join(dir, ".status-out.yaml")
+	if err := sf.Save(outPath); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	// Re-load and verify the tests pair survived.
+	sf2, err := Load(outPath)
+	if err != nil {
+		t.Fatalf("Reload failed: %v", err)
+	}
+	if sf2.TrueImpact == nil || sf2.TrueImpact.Tests == nil {
+		t.Fatal("tests sub-block lost on round-trip")
+	}
+	if sf2.TrueImpact.Tests.Net != 400 {
+		t.Errorf("round-trip tests.net = %d, want 400", sf2.TrueImpact.Tests.Net)
+	}
+
+	// Inspect raw bytes for ordering: tests must appear after excluding and
+	// before computed_at.
+	raw, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("read saved file: %v", err)
+	}
+	rawStr := string(raw)
+	exIdx := strings.Index(rawStr, "excluding:")
+	tIdx := strings.Index(rawStr, "tests:")
+	cIdx := strings.Index(rawStr, "computed_at:")
+	if exIdx < 0 || tIdx < 0 || cIdx < 0 {
+		t.Fatalf("missing expected keys in:\n%s", rawStr)
+	}
+	if !(exIdx < tIdx && tIdx < cIdx) {
+		t.Errorf("expected ordering excluding < tests < computed_at, got %d < %d < %d in:\n%s", exIdx, tIdx, cIdx, rawStr)
+	}
+}
+
+// TestTrueImpactTestsOmittedWhenNil verifies the lazy-omit posture: a
+// TrueImpact with a nil Tests emits no `tests:` key.
+func TestTrueImpactTestsOmittedWhenNil(t *testing.T) {
+	const yamlNoTests = testYAML + `true_impact:
+  added: 50
+  deleted: 5
+  net: 45
+  computed_at: "2026-05-30T00:00:00Z"
+  computed_at_stage: apply
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	if err := os.WriteFile(path, []byte(yamlNoTests), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	sf, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if sf.TrueImpact == nil {
+		t.Fatal("expected TrueImpact to be parsed")
+	}
+	if sf.TrueImpact.Tests != nil {
+		t.Errorf("expected nil Tests, got %+v", sf.TrueImpact.Tests)
+	}
+
+	outPath := filepath.Join(dir, ".status-out.yaml")
+	if err := sf.Save(outPath); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+	raw, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("read saved file: %v", err)
+	}
+	if strings.Contains(string(raw), "tests:") {
+		t.Errorf("expected no tests: key when Tests is nil, got:\n%s", raw)
+	}
+}
+
 func TestNextStage(t *testing.T) {
 	if NextStage("intake") != "apply" {
 		t.Error("after intake should be apply")
