@@ -137,7 +137,7 @@ Then send the next batch. The cycle repeats — you're never waiting, AI is neve
 
 Three properties make the assembly line possible. Remove any one, and batching falls apart:
 
-1. **Self-contained change folders** — each change has its own intake, spec, tasks, and status. No shared state between changes. No conflicts.
+1. **Self-contained change folders** — each change has its own intake, plan, and status. No shared state between changes. No conflicts.
 2. **Git worktree isolation** — each change runs in its own worktree. Parallel AI sessions can't step on each other. No merge hell.
 3. **Resumable pipeline** — if anything interrupts, `/fab-continue` picks up from the last completed stage. No lost progress.
 

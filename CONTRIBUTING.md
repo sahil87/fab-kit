@@ -60,7 +60,7 @@ Fab Kit's documentation is split into two categories:
 | [docs/memory/fab-workflow/clarify.md](docs/memory/fab-workflow/clarify.md) | `/fab-clarify` — dual modes (suggest/auto), taxonomy scan, structured questions |
 | [docs/memory/fab-workflow/execution-skills.md](docs/memory/fab-workflow/execution-skills.md) | Apply, review, archive behavior — accessed via '/fab-continue' |
 | [docs/memory/fab-workflow/hydrate-specs.md](docs/memory/fab-workflow/hydrate-specs.md) | `/docs-hydrate-specs` — structural gap detection between memory and specs |
-| [docs/specs/templates.md](docs/specs/templates.md) | Artifact templates — brief, spec, tasks, checklist |
+| [docs/specs/templates.md](docs/specs/templates.md) | Artifact templates — intake, plan (requirements + tasks + acceptance), status |
 | [docs/memory/fab-workflow/templates.md](docs/memory/fab-workflow/templates.md) | Template implementation details and centralized doc format |
 
 #### Internals

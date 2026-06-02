@@ -1,0 +1,51 @@
+id: ytua
+name: 260602-ytua-update-readme-six-stage
+created: 2026-06-02T06:55:04Z
+created_by: sahil87
+change_type: docs
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: active
+plan:
+    generated: true
+    task_count: 17
+    acceptance_count: 20
+    acceptance_completed: 0
+confidence:
+    certain: 6
+    confident: 1
+    tentative: 0
+    unresolved: 0
+    score: 4.7
+    fuzzy: true
+    dimensions:
+        signal: 94.7
+        reversibility: 79.3
+        competence: 84.3
+        disambiguation: 81.4
+stage_metrics:
+    intake: {started_at: "2026-06-02T06:55:04Z", driver: fab-new, iterations: 1, completed_at: "2026-06-02T08:04:06Z"}
+    apply: {started_at: "2026-06-02T08:04:06Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-02T08:14:18Z"}
+    review: {started_at: "2026-06-02T08:14:18Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-02T08:17:24Z"}
+    hydrate: {started_at: "2026-06-02T08:17:24Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-02T08:18:38Z"}
+    ship: {started_at: "2026-06-02T08:18:38Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-02T08:20:10Z"}
+    review-pr: {started_at: "2026-06-02T08:20:10Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/369
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-06-02T08:18:38Z"
+    computed_at_stage: hydrate
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-02T08:20:10Z

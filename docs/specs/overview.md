@@ -66,7 +66,7 @@ flowchart TD
 | # | Stage | Purpose | Artifact | Includes |
 |---|-------|---------|----------|----------|
 | 1 | **Intake** | Intent, scope, approach | `intake.md` | Created by `/fab-new` (auto-activates) or `/fab-draft` (no activation) with adaptive SRAD-driven questioning. The sole confidence gate (flat 3.0) is evaluated here. Refine with `/fab-clarify` (intake-only) |
-| 2 | **Apply** | Generate plan + execute | `plan.md` + code changes | Entry sub-step: co-generate `plan.md` with `## Requirements`, `## Tasks`, and `## Acceptance` sections from `intake.md` (one pass — no separate `spec.md`). Main sub-step: execute the unchecked tasks under `## Tasks`, run tests, mark `[x]` |
+| 2 | **Apply** | Generate plan + execute | `plan.md` + code changes | Entry sub-step: co-generate `plan.md` with `## Requirements`, `## Tasks`, and `## Acceptance` sections from `intake.md` in one pass. Main sub-step: execute the unchecked tasks under `## Tasks`, run tests, mark `[x]` |
 | 3 | **Review** | Validate via sub-agent | validation report | Sub-agent review with prioritized findings (must-fix / should-fix / nice-to-have); inward sub-agent inspects items under `plan.md` `## Acceptance` against `## Requirements` |
 | 4 | **Hydrate** | Complete & hydrate | memory updates | Hydrate the plan's requirements into memory files |
 
