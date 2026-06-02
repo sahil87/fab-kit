@@ -51,6 +51,13 @@ func WriteTrueImpact(statusFile *sf.StatusFile, statusPath, fabRoot, stage strin
 			Net:     res.Excluding.Net,
 		}
 	}
+	if res.Tests != nil {
+		ti.Tests = &sf.TrueImpactPair{
+			Added:   res.Tests.Added,
+			Deleted: res.Tests.Deleted,
+			Net:     res.Tests.Net,
+		}
+	}
 	statusFile.TrueImpact = ti
 
 	return statusFile.Save(statusPath)

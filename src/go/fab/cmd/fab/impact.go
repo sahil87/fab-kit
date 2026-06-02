@@ -17,7 +17,9 @@ func impactCmd() *cobra.Command {
 		Long: "Computes the canonical true-impact shortstat math: " +
 			"git diff --shortstat <base>...<head>, plus an optional " +
 			"`excluding` pass when fab/project/config.yaml's " +
-			"true_impact_exclude is non-empty. Outputs YAML to stdout.",
+			"true_impact_exclude is non-empty, plus an optional `tests` " +
+			"pass (test paths within the scaffolding-excluded universe) " +
+			"when test_paths is non-empty. Outputs YAML to stdout.",
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			base, head := args[0], args[1]
@@ -48,6 +50,14 @@ func renderYAML(r impact.Result) string {
 		fmt.Fprintf(&b, "    added: %d\n", r.Excluding.Added)
 		fmt.Fprintf(&b, "    deleted: %d\n", r.Excluding.Deleted)
 		fmt.Fprintf(&b, "    net: %d\n", r.Excluding.Net)
+	}
+	// `tests` is emitted after `excluding`, only when present, so /git-pr can
+	// parse it via yq for the three-row Impact rendering.
+	if r.Tests != nil {
+		fmt.Fprintln(&b, "tests:")
+		fmt.Fprintf(&b, "    added: %d\n", r.Tests.Added)
+		fmt.Fprintf(&b, "    deleted: %d\n", r.Tests.Deleted)
+		fmt.Fprintf(&b, "    net: %d\n", r.Tests.Net)
 	}
 	fmt.Fprintf(&b, "computed_at: %q\n", time.Now().UTC().Format(time.RFC3339))
 	return b.String()

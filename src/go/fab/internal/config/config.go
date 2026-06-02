@@ -17,6 +17,7 @@ type StageHook struct {
 type Config struct {
 	StageHooks        map[string]StageHook `yaml:"stage_hooks"`
 	TrueImpactExclude []string             `yaml:"true_impact_exclude"`
+	TestPaths         []string             `yaml:"test_paths"`
 }
 
 // Load reads fab/project/config.yaml from fabRoot and returns the parsed config.

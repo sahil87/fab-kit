@@ -183,7 +183,7 @@ Print: `  ✓ push   — origin/<branch>`
    - If `{has_plan}`: Apply URL = `https://github.com/{owner_repo}/blob/{branch}/fab/changes/{name}/plan.md`
    - Else if `{has_tasks}`: Apply URL = `https://github.com/{owner_repo}/blob/{branch}/fab/changes/{name}/tasks.md` (legacy fallback for changes that predate the 1.8.0→1.9.0 migration)
 
-   **Compute true-impact line counts** (only when `{has_fab}`): used to render the `**Impact**` line in the Meta block below. The caller does not pre-check `true_impact_exclude` — it always invokes `fab impact`, which only emits the `excluding` sub-block when `true_impact_exclude` is non-empty. The `**Impact**` line is omitted downstream when `excluding` is absent from the YAML output (see step 3) or yields `+0/−0` (step 4).
+   **Compute true-impact line counts** (only when `{has_fab}`): used to render the `**Impact**` line(s) in the Meta block below. The caller does not pre-check `true_impact_exclude` — it always invokes `fab impact`, which emits the `excluding` sub-block only when `true_impact_exclude` is non-empty and the `tests` sub-block only when `test_paths` is non-empty. The `**Impact**` line is omitted downstream when the total pass is absent (step 3) or yields `+0/−0` (step 4).
 
    1. Compute the merge-base against the default branch:
       ```bash
@@ -192,15 +192,18 @@ Print: `  ✓ push   — origin/<branch>`
       ```
       If neither resolves, omit the `**Impact**` line silently.
 
-   2. Invoke `fab impact` to compute both passes in one call (the subcommand reads `true_impact_exclude` from `fab/project/config.yaml` and emits a YAML doc with `added`/`deleted`/`net` and an optional `excluding` sub-block):
+   2. Invoke `fab impact` to compute all passes in one call (the subcommand reads `true_impact_exclude` and `test_paths` from `fab/project/config.yaml` and emits a YAML doc with `added`/`deleted`/`net`, an optional `excluding` sub-block, and an optional `tests` sub-block):
       ```bash
       IMPACT_YAML=$(fab impact "$BASE" HEAD 2>/dev/null) || IMPACT_YAML=""
       ```
       If `fab impact` fails (non-zero exit) or `IMPACT_YAML` is empty → omit the `**Impact**` line entirely.
 
-   3. Parse the YAML for `excluding.added`, `excluding.deleted`, `added`, `deleted` (e.g., via `yq`). Use `excluding.*` as the true-impact pair and `added`/`deleted` as the total pair. If `excluding` is absent in the YAML (config has empty `true_impact_exclude`) → omit the `**Impact**` line entirely.
+   3. Parse the YAML (e.g., via `yq`) for the **raw** pair, the **total** pair, and the optional **tests** pair:
+      - **raw** = the top-level `{added,deleted,net}` (the full count, fab/ + docs/ included — the base measurement). Used only by the single-line form's trailing `total` pair (step 4 / Impact line population); the raw number is NOT shown in the three-row form.
+      - **total** = `excluding.{added,deleted,net}` when the `excluding` sub-block is present, else the top-level (raw) `{added,deleted,net}`. The total is ALWAYS the scaffolding-excluded number when excludes are configured; the raw-with-fab/docs number is NOT shown in the PR body. (Unlike the legacy behavior, the `**Impact**` line is NOT omitted merely because `excluding` is absent — when `true_impact_exclude` is empty the total degenerates to the raw pair, which is still rendered.)
+      - **tests** = `tests.{added,deleted,net}` when the `tests` sub-block is present; otherwise there is no tests pair (single-line rendering — see step 4).
 
-   4. If the true-impact pass yields `+0 / −0` (every modified file lies inside an excluded path) → omit the `**Impact**` line entirely. Do not render `+0/−0`.
+   4. If the **total** pass yields `+0 / −0` (no net change in the measured universe) → omit the `**Impact**` line entirely. Do not render `+0/−0`.
 
    **Generate body sections** in this exact order:
 
@@ -254,12 +257,24 @@ Print: `  ✓ push   — origin/<branch>`
 
    **Impact line population** (only when `{has_fab}`):
 
-   - If impact computation succeeded with non-zero true-impact: build `{COMMA_LIST}` by joining `EXCLUDES` with `, ` (literal comma + space) and render:
+   The Impact rendering has two forms, gated on whether the `tests` sub-block was parsed in compute-step 3:
+
+   - **Three-row form (when a `tests` pair is present)**: render an impl / tests / total breakdown. Derive the **impl** pair as the render-time residual `impl = total − tests`, clamped per-component independently: `impl.added = max(0, total.added − tests.added)`, `impl.deleted = max(0, total.deleted − tests.deleted)`, `impl.net = max(0, total.net − tests.net)`. NEVER render a negative component (if any component would be negative, it has already been clamped to 0). Do NOT store `impl` anywhere — it is derived here only. Build `{COMMA_LIST_CODE}` by joining the ACTUAL `true_impact_exclude` config values with `, `, each wrapped in single backticks (e.g., `` `fab/`, `docs/` ``) — never hardcode the exclude names. Use the Unicode minus `−` (U+2212), not ASCII `-`. Render:
      ```
-     **Impact**: +A/−D code (excluding `{COMMA_LIST_CODE}`) · +A_total/−D_total total
+     **Impact**:
+       impl:  +{impl.added}/−{impl.deleted}  (net +{impl.net})
+       tests: +{tests.added}/−{tests.deleted}  (net +{tests.net})
+       total: +{total.added}/−{total.deleted}  (net +{total.net})  ← excludes {COMMA_LIST_CODE}
      ```
-     where `{COMMA_LIST_CODE}` is the same comma-joined list with each entry wrapped in single backticks (e.g., `` `fab/`, `docs/` ``). Use the Unicode minus `−` (U+2212), not ASCII `-`.
-   - If impact computation was skipped (field absent/null/empty, no merge-base, true-impact yielded `+0/−0`, or `{has_fab}` is false): omit the entire `**Impact**:` line. The body still renders the Meta table and Pipeline line.
+     The `total` row is the scaffolding-excluded number; the raw-with-fab/docs number is NOT shown. When `true_impact_exclude` is empty (no `excluding` sub-block), omit the `← excludes …` annotation entirely (the total then degenerates to raw — there is nothing to annotate).
+
+   - **Single-line form (when no `tests` pair)**: collapse to today's single `total` line:
+     ```
+     **Impact**: +{total.added}/−{total.deleted} code (excluding `{COMMA_LIST_CODE}`) · +{raw.added}/−{raw.deleted} total
+     ```
+     where the `code` pair is the scaffolding-excluded total and the trailing `total` pair is the raw `added`/`deleted`. When `true_impact_exclude` is empty there is no separate `excluding` pass; render just `**Impact**: +{total.added}/−{total.deleted} total` without the `(excluding …)` clause.
+
+   - If impact computation was skipped (no merge-base, total yielded `+0/−0`, `fab impact` failed/empty, or `{has_fab}` is false): omit the entire `**Impact**:` line. The body still renders the Meta table and Pipeline line.
 
    **Summary text**: 1–3 sentences. Source:
    - If `{has_fab}` AND `{has_intake}`: derive from intake's `## Why` section.

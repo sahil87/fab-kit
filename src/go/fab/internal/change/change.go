@@ -242,8 +242,9 @@ func List(fabRoot string, archive bool) ([]string, error) {
 }
 
 // ListWithOptions lists changes with stage info; when showStats is true,
-// appends a true_impact net column ("excluding.net" when present, else
-// "net", else "—") to each row.
+// appends a true_impact column to each row via impactColumn: the compact
+// "{impl}i+{tests}t={total}" split when a tests sub-block is present, else the
+// single net value ("excluding.net" when present, else "net", else "—").
 func ListWithOptions(fabRoot string, archive, showStats bool) ([]string, error) {
 	scanDir := filepath.Join(fabRoot, "changes")
 	if archive {
@@ -298,15 +299,39 @@ func ListWithOptions(fabRoot string, archive, showStats bool) ([]string, error) 
 	return results, nil
 }
 
+// impactColumn renders the `change list --show-stats` impact cell. When a
+// `tests` sub-block is present it shows the compact explicit-equation split
+// `{impl_net}i+{tests_net}t={total_net}` (e.g. `102i+400t=502`), where
+// total_net = excluding.net (else net) and impl_net = max(0, total_net −
+// tests_net). The impl residual is derived here at render time only — it is
+// never stored. When tests is absent it falls back to today's single net
+// (excluding.net, else net, else "—").
 func impactColumn(statusFile *sf.StatusFile) string {
 	ti := statusFile.TrueImpact
 	if ti == nil {
 		return "—"
 	}
+
+	totalNet := ti.Net
 	if ti.Excluding != nil {
-		return formatNet(ti.Excluding.Net)
+		totalNet = ti.Excluding.Net
 	}
-	return formatNet(ti.Net)
+
+	if ti.Tests == nil {
+		return formatNet(totalNet)
+	}
+
+	testsNet := ti.Tests.Net
+	implNet := totalNet - testsNet
+	if implNet < 0 {
+		// Cross-pass arithmetic went negative (a test glob overlapped an
+		// excluded path). Clamp and warn, consistent with the best-effort
+		// stderr posture elsewhere. Never render a negative impl.
+		fmt.Fprintf(os.Stderr, "fab: clamping negative impl to 0 for %s (total net %d < tests net %d)\n", statusFile.Name, totalNet, testsNet)
+		implNet = 0
+	}
+
+	return fmt.Sprintf("%di+%dt=%d", implNet, testsNet, totalNet)
 }
 
 func formatNet(n int) string {

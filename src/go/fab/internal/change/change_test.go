@@ -490,3 +490,120 @@ last_updated: "2026-03-10T12:00:00Z"
 		t.Errorf("folder C impact column = %q, want —", got)
 	}
 }
+
+// TestListWithOptions_ShowStatsTestSplit verifies the compact impl/tests/total
+// split in the --show-stats impact column, including the per-component negative
+// clamp when tests over-counts the total.
+func TestListWithOptions_ShowStatsTestSplit(t *testing.T) {
+	fabRoot := setupChangeFixture(t)
+
+	mkChange := func(id, suffix, trueImpact string) string {
+		folder := "260310-" + id + "-" + suffix
+		dir := filepath.Join(fabRoot, "changes", folder)
+		os.MkdirAll(dir, 0o755)
+		y := `id: ` + id + `
+name: ` + folder + `
+created: "2026-03-10T12:00:00Z"
+created_by: test-user
+change_type: feat
+issues: []
+progress:
+  intake: done
+  apply: active
+  review: pending
+  hydrate: pending
+  ship: pending
+  review-pr: pending
+plan:
+  generated: false
+  task_count: 0
+  acceptance_count: 0
+  acceptance_completed: 0
+confidence:
+  certain: 0
+  confident: 0
+  tentative: 0
+  unresolved: 0
+  score: 0.0
+stage_metrics: {}
+prs: []
+` + trueImpact + `last_updated: "2026-03-10T12:00:00Z"
+`
+		os.WriteFile(filepath.Join(dir, ".status.yaml"), []byte(y), 0o644)
+		return folder
+	}
+
+	// (a) Normal split: total (excluding.net) = 502, tests.net = 400 →
+	//     impl = 102 → "102i+400t=502".
+	folderSplit := mkChange("spl1", "split", `true_impact:
+  added: 612
+  deleted: 38
+  net: 574
+  excluding:
+    added: 540
+    deleted: 38
+    net: 502
+  tests:
+    added: 400
+    deleted: 0
+    net: 400
+  computed_at: "2026-03-10T12:00:00Z"
+  computed_at_stage: apply
+`)
+
+	// (b) tests present but no excluding: total falls back to raw net (45),
+	//     tests.net = 30 → impl = 15 → "15i+30t=45".
+	folderRaw := mkChange("raw1", "raw-split", `true_impact:
+  added: 50
+  deleted: 5
+  net: 45
+  tests:
+    added: 30
+    deleted: 0
+    net: 30
+  computed_at: "2026-03-10T12:00:00Z"
+  computed_at_stage: apply
+`)
+
+	// (c) tests over-counts total: total = 100, tests.net = 150 → impl clamps
+	//     to 0 → "0i+150t=100" (never negative).
+	folderClamp := mkChange("clm1", "clamp", `true_impact:
+  added: 100
+  deleted: 0
+  net: 100
+  excluding:
+    added: 100
+    deleted: 0
+    net: 100
+  tests:
+    added: 150
+    deleted: 0
+    net: 150
+  computed_at: "2026-03-10T12:00:00Z"
+  computed_at_stage: apply
+`)
+
+	stats, err := ListWithOptions(fabRoot, false, true)
+	if err != nil {
+		t.Fatalf("ListWithOptions: %v", err)
+	}
+
+	got := map[string]string{}
+	for _, row := range stats {
+		parts := strings.SplitN(row, ":", 5)
+		if len(parts) != 5 {
+			t.Fatalf("expected 5 parts in stats row, got %d: %s", len(parts), row)
+		}
+		got[parts[0]] = parts[4]
+	}
+
+	if got[folderSplit] != "102i+400t=502" {
+		t.Errorf("split impact column = %q, want 102i+400t=502", got[folderSplit])
+	}
+	if got[folderRaw] != "15i+30t=45" {
+		t.Errorf("raw-split impact column = %q, want 15i+30t=45", got[folderRaw])
+	}
+	if got[folderClamp] != "0i+150t=100" {
+		t.Errorf("clamp impact column = %q, want 0i+150t=100 (no negative impl)", got[folderClamp])
+	}
+}
