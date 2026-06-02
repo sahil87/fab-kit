@@ -117,12 +117,23 @@ jobs:
               exit 0
             fi
             git commit -m "fab-kit: refresh command reference (v${version})"
-            git push -u origin "$branch"
-            GH_TOKEN="$SHLLAI_TOKEN" gh pr create --repo sahil87/shll.ai \
-              --base main --head "$branch" \
-              --title "fab-kit: command reference v${version}" \
-              --body "Automated CLI help-dump from fab-kit release v${version}."
-            GH_TOKEN="$SHLLAI_TOKEN" gh pr merge --repo sahil87/shll.ai --auto --squash "$branch"
+            # Force-push the deterministic per-version branch so a re-run of the
+            # same release refreshes it idempotently instead of being rejected
+            # non-fast-forward against a leftover branch on shll.ai.
+            git push -u --force origin "$branch"
+            # Reuse an existing PR for this branch if one is already open (a prior
+            # run created it); only create when none exists. Either way, ensure
+            # auto-merge is enabled.
+            export GH_TOKEN="$SHLLAI_TOKEN"
+            if ! gh pr view "$branch" --repo sahil87/shll.ai >/dev/null 2>&1; then
+              gh pr create --repo sahil87/shll.ai \
+                --base main --head "$branch" \
+                --title "fab-kit: command reference v${version}" \
+                --body "Automated CLI help-dump from fab-kit release v${version}."
+            else
+              echo "shll.ai PR for $branch already exists; reusing it"
+            fi
+            gh pr merge --repo sahil87/shll.ai --auto --squash "$branch"
           ) || echo "::warning::shll.ai PR step failed; release continues"
 
       - name: Package kit archives

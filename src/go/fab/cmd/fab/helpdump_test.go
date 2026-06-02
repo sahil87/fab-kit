@@ -46,6 +46,55 @@ func TestDumpDoc_TopLevelContract(t *testing.T) {
 	}
 }
 
+// encodeDoc serializes a HelpDoc with the exact encoder settings helpDumpCmd
+// uses (2-space indent, HTML escaping off), so key-order assertions reflect the
+// real on-the-wire bytes rather than a default Marshal.
+func encodeDoc(t *testing.T, doc HelpDoc) string {
+	t.Helper()
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetIndent("", "  ")
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(doc); err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	return buf.String()
+}
+
+// assertKeyOrder fails if the given JSON keys do not appear in the encoded
+// output in the listed order. Guards the frozen contract's key ordering against
+// accidental struct-field reordering.
+func assertKeyOrder(t *testing.T, out string, keys ...string) {
+	t.Helper()
+	prev := -1
+	for _, k := range keys {
+		needle := "\"" + k + "\":"
+		idx := strings.Index(out[prev+1:], needle)
+		if idx < 0 {
+			t.Fatalf("key %q not found after position %d in:\n%s", k, prev, out)
+		}
+		idx += prev + 1
+		if idx <= prev {
+			t.Errorf("key %q out of order (at %d, previous key ended at %d)", k, idx, prev)
+		}
+		prev = idx
+	}
+}
+
+// TestDumpDoc_JSONKeyOrder pins the encoded top-level and node key order to the
+// frozen shll.ai contract. The struct field order is what produces this order;
+// reordering HelpDoc/Node fields would break the contract and is caught here.
+func TestDumpDoc_JSONKeyOrder(t *testing.T) {
+	out := encodeDoc(t, dumpDoc(newSyntheticTree(), "9.9.9"))
+
+	// Top-level: tool, version, captured_at, schema_version, root.
+	assertKeyOrder(t, out, "tool", "version", "captured_at", "schema_version", "root")
+
+	// Node: name, path, short, usage, text, commands. The synthetic root has a
+	// surviving child, so a nested node is present and its order is exercised too.
+	assertKeyOrder(t, out, "name", "path", "short", "usage", "text", "commands")
+}
+
 func TestBuildNode_FiltersAndSort(t *testing.T) {
 	node := buildNode(newSyntheticTree())
 
