@@ -34,7 +34,7 @@ The `expected_min` threshold defines how many SRAD decisions a change should hav
 | `ci` | 3 |
 | `chore` | 3 |
 
-Types without an explicit entry (`docs`, `test`, `ci`, `chore`) use the default of 3. These values are the source of truth and are embedded in `src/go/fab/internal/score/score.go` (`expectedMin` map).
+Types without an explicit entry (`docs`, `test`, `ci`, `chore`) use the default of 3. The canonical source is the `expectedMin` map in `src/go/fab/internal/score/score.go`; this table is a verified mirror of it. A test in that package (`TestDocTablesMatchScoringMaps`) fails if the two drift.
 
 ---
 
@@ -52,7 +52,7 @@ Types without an explicit entry (`docs`, `test`, `ci`, `chore`) use the default 
 | `ci` | 3.0 |
 | `chore` | 3.0 |
 
-As of 1.10.0 the gate is **flat 3.0 for all types** — a single intake gate replacing the former two-gate (fixed-3.0 intake + per-type spec) model, keeping every type's bar ≥ both old gates. The per-type map is retained in `getGateThreshold` so future divergence is a data-only change. The gate check is performed by `fab score --check-gate --stage intake`.
+As of 1.10.0 the gate is **flat 3.0 for all types** — a single intake gate replacing the former two-gate (fixed-3.0 intake + per-type spec) model, keeping every type's bar ≥ both old gates. The canonical source is the `gateThresholds` map in `src/go/fab/internal/score/score.go` (resolved via `getGateThreshold`, which keeps future per-type divergence a data-only change); this table is a verified mirror of it, guarded by the same `TestDocTablesMatchScoringMaps` test that fails if the two drift. The gate check is performed by `fab score --check-gate --stage intake`.
 
 ---
 
