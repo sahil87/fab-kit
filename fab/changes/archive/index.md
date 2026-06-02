@@ -1,5 +1,17 @@
 # Archive Index
 
+- **260511-c432-fix-completion-outside-repo** — Remove router config gate + add `shell-init` wrapper
+- **260507-ogf2-restrain-ai-code-bloat** — Restrain AI-driven code bloat
+- **260507-asvz-git-pr-true-impact-line-count** — git-pr true-impact line count
+- **260506-4rtx-decouple-wt-idea** — Decouple wt and idea from fab-kit
+- **260423-qszh-merge-tasks-checklist** — Collapse Tasks Stage into Apply; Replace tasks.md + checklist.md with plan.md
+- **260422-jyyg-operator-prefix-enrolled-windows** — Operator prefix on window enrollment
+- **260422-hin2-operator-strategic-menu-escalation** — Operator Numbered-Menu Classification + Idle-Escalation Auto-Default
+- **260419-o5ej-agents-runtime-unified** — Agents Runtime Unified
+- **260419-1a98-fab-proceed-prefer-context** — /fab-proceed — Prefer Conversation Context Over Stale Intakes
+- **260418-u1m1-copilot-reviewer-login** — Fix git-pr-review Copilot reviewer login
+- **260418-or0o-flatten-skill-helpers** — Flatten Skill Helper Include Tree
+- **260423-rxu3-window-prefix-primitives** — Window prefix primitives and done-marker on removal
 - **260417-y0sw-pane-skip-config-check** — Exempt the fab pane command group from the fab/project/config.yaml requirement so pane subcommands work from scratch tmux tabs outside any fab worktree.
 - **260417-2fbb-pane-server-flag** — Add --server/-L flag to fab pane subcommands so programmatic callers (e.g., run-kit daemon) can target a specific tmux socket instead of inheriting $TMUX from the caller.
 - **260416-mgsm-add-cli-rk-skill** — Add _cli-rk always-load skill documenting run-kit iframe windows, proxy URLs, and the visual display recipe, so every fab session can show HTML output via rk.
