@@ -2,7 +2,7 @@
 
 ## Summary
 
-Creates a new change from a natural language description, Linear ticket, or backlog ID. Generates the change folder, writes `intake.md`, infers change type, computes indicative confidence, advances intake to `ready`, activates the change, and creates the matching git branch.
+Creates a new change from a natural language description, Linear ticket, or backlog ID. Generates the change folder, writes `intake.md`, infers change type, computes the authoritative intake confidence (no `indicative` flag — 1.10.0), advances intake to `ready`, activates the change, and creates the matching git branch.
 
 **Helpers**: Declares `helpers: [_generation]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
 
@@ -39,8 +39,8 @@ User invokes /fab-new <description>
 ├─ Step 6: Infer Change Type
 │  └─ Bash: fab status set-change-type <change> <type>    ◄── bookkeeping
 │
-├─ Step 7: Indicative Confidence
-│  └─ Bash: fab score --stage intake <change>             ◄── bookkeeping
+├─ Step 7: Confidence (authoritative — intake is the sole scoring source)
+│  └─ Bash: fab score --stage intake <change>             ◄── bookkeeping (no indicative flag, 1.10.0)
 │
 ├─ Step 8: SRAD Questions
 │  └─ (agent reasoning, possible user interaction)

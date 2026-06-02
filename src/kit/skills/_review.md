@@ -1,6 +1,6 @@
 ---
 name: _review
-description: "Review behavior — inward sub-agent (spec/plan) and outward sub-agent (Codex→Claude cascade with full repo access), dispatched in parallel during the review stage."
+description: "Review behavior — inward sub-agent (plan requirements/acceptance) and outward sub-agent (Codex→Claude cascade with full repo access), dispatched in parallel during the review stage."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -28,11 +28,11 @@ metadata:
 
 ## Inward Sub-Agent Dispatch
 
-The inward sub-agent validates implementation against the spec and plan. It provides a fresh perspective — no shared context with the applying agent beyond the explicitly provided artifacts.
+The inward sub-agent validates implementation against the plan's `## Requirements`, `## Tasks`, and `## Acceptance`. It provides a fresh perspective — no shared context with the applying agent beyond the explicitly provided artifacts.
 
 **Dispatch**: Via the Agent tool (`subagent_type: "general-purpose"`).
 
-**Context provided to the sub-agent**: Standard subagent context files (per `_preamble.md` § Standard Subagent Context), plus change-specific files: `spec.md`, `plan.md` (containing both `## Tasks` and `## Acceptance` sections), relevant source files (files touched by the change), and target memory file(s) from `docs/memory/`.
+**Context provided to the sub-agent**: Standard subagent context files (per `_preamble.md` § Standard Subagent Context), plus change-specific files: `plan.md` (containing `## Requirements`, `## Tasks`, and `## Acceptance` sections), relevant source files (files touched by the change), and target memory file(s) from `docs/memory/`.
 
 ### Validation Steps
 
@@ -41,7 +41,7 @@ The inward sub-agent performs all of these checks:
 1. **Tasks complete**: All `[x]` in `plan.md` `## Tasks`
 2. **Acceptance items**: Inspect code/tests per item under `plan.md` `## Acceptance`. Mark `[x]` in place if met, `[x] **N/A**: {reason}` if N/A, leave `[ ]` with reason if not met
 3. **Run affected tests**: Scoped to touched modules/files
-4. **Spot-check spec**: Verify key requirements and GIVEN/WHEN/THEN scenarios
+4. **Spot-check requirements**: Verify key requirements and GIVEN/WHEN/THEN scenarios in `plan.md` `## Requirements`
 5. **Memory drift check**: Compare implementation against referenced memory (warning only)
 6. **Code quality check**: For each file modified during apply, verify:
    - Naming conventions consistent with surrounding code
@@ -50,7 +50,7 @@ The inward sub-agent performs all of these checks:
    - Existing utilities reused where applicable
    - If `fab/project/code-quality.md` exists, check each applicable principle from `## Principles`
    - If `fab/project/code-quality.md` exists, check for violations listed in `## Anti-Patterns`
-7. **Parsimony pass** (skipped when `change_type` is `docs`, `chore`, or `ci`, or when `fab/project/code-review.md` `## Parsimony Pass` `Enabled: false`): Evaluate the apply-stage diff against the question *"Could the spec's requirements be satisfied with less code?"* Threshold for stricter scrutiny: **100 net added lines** (advisory, hard-coded — not project-configurable). Below threshold the pass still runs and MAY emit findings. Findings MUST cite specific file paths and line ranges; abstract findings (e.g., "the code could be smaller") MUST NOT be emitted. Each finding is classified into exactly one of these four categories with the mapped severity:
+7. **Parsimony pass** (skipped when `change_type` is `docs`, `chore`, or `ci`, or when `fab/project/code-review.md` `## Parsimony Pass` `Enabled: false`): Evaluate the apply-stage diff against the question *"Could the plan's `## Requirements` be satisfied with less code?"* Threshold for stricter scrutiny: **100 net added lines** (advisory, hard-coded — not project-configurable). Below threshold the pass still runs and MAY emit findings. Findings MUST cite specific file paths and line ranges; abstract findings (e.g., "the code could be smaller") MUST NOT be emitted. Each finding is classified into exactly one of these four categories with the mapped severity:
 
    | Category | Finding shape | Severity |
    |----------|---------------|----------|
@@ -72,13 +72,13 @@ The inward sub-agent performs all of these checks:
    - `{file:line or symbol}` — {one-line justification}
    ```
 
-   When the change type is in the skip list (`docs`, `chore`, `ci`), the section is omitted entirely from `plan.md` (NOT written as "None"). On rework cycles, an existing `## Deletion Candidates` section SHALL be replaced in place (not duplicated). The section is distinct from `## Acceptance > ### Removal Verification`: removal-verification covers *planned* removals declared in `spec.md`; deletion-candidates covers *discovered* opportunities the apply agent missed.
+   When the change type is in the skip list (`docs`, `chore`, `ci`), the section is omitted entirely from `plan.md` (NOT written as "None"). On rework cycles, an existing `## Deletion Candidates` section SHALL be replaced in place (not duplicated). The section is distinct from `## Acceptance > ### Removal Verification`: removal-verification covers *planned* removals declared in `plan.md` `## Requirements` (`### Deprecated Requirements`); deletion-candidates covers *discovered* opportunities the apply agent missed.
 
 ### Structured Output
 
 The inward sub-agent SHALL return structured findings with a **three-tier priority scheme**:
 
-- **Must-fix**: Spec mismatches, failing tests, acceptance violations
+- **Must-fix**: Requirements mismatches (vs. `plan.md` `## Requirements`), failing tests, acceptance violations
 - **Should-fix**: Code quality issues, pattern inconsistencies
 - **Nice-to-have**: Style suggestions, minor improvements
 

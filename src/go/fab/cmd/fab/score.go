@@ -41,7 +41,7 @@ func scoreCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&checkGate, "check-gate", false, "Gate check mode (read-only)")
-	cmd.Flags().StringVar(&stage, "stage", "spec", "Stage for scoring (intake or spec)")
+	cmd.Flags().StringVar(&stage, "stage", "intake", "Stage for scoring (intake; spec retired in 1.10.0)")
 
 	return cmd
 }

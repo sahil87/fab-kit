@@ -18,7 +18,7 @@ All status fields draw from a fixed set of states. This prevents ad-hoc state na
 | `skipped` | Intentionally bypassed | *(reserved)* |
 | `failed` | Completed with failures requiring rework | review |
 
-**`progress` map keys**: `intake` | `spec` | `apply` | `review` | `hydrate` | `ship` | `review-pr`
+**`progress` map keys**: `intake` | `apply` | `review` | `hydrate` | `ship` | `review-pr`
 
 The current stage is derived from the `progress` map — the entry marked `active` is the current stage. There is no separate `stage:` field.
 
@@ -33,8 +33,7 @@ created_by: {GIT_USER_NAME}        # Auto-detected from git config user.name; fa
 change_type: feat                  # feat | fix | refactor | docs | test | ci | chore
 progress:
   intake: pending                    # pending | active | ready | done
-  spec: pending                     # pending | active | ready | done
-  apply: pending                    # pending | active | ready | done — generates plan.md at entry, then runs tasks
+  apply: pending                    # pending | active | ready | done — co-generates plan.md (## Requirements + ## Tasks + ## Acceptance) at entry, then runs tasks
   review: pending                   # pending | active | ready | done | failed
   hydrate: pending                  # pending | active | ready | done
   ship: pending                     # pending | active | done
@@ -60,7 +59,7 @@ last_updated: {ISO_8601_DATETIME}
 - The current stage is derived from the `progress` map — the entry marked `active` is the current stage. All skills read this first.
 - `review: failed` is set when `/fab-continue` (review) finds issues. The review entry remains `failed` so `/fab-status` shows the failure.
 - `plan.task_count`, `plan.acceptance_count`, and `plan.acceptance_completed` are updated by the PostToolUse hook on every `plan.md` write (the hook re-counts checkbox items in each section). Apply mutates `## Tasks`; review mutates `## Acceptance` checkboxes in place. The legacy `set-checklist` CLI is removed — use `set-acceptance` (`fab status set-acceptance <change> <field> <value>`) for explicit overrides.
-- `confidence` block initializes to zero counts and score 0.0 — a new change has no assessed confidence. Computed by `lib/calc-score.sh` when `/fab-continue` generates the spec.
+- `confidence` block initializes to zero counts and score 0.0 — a new change has no assessed confidence. Computed by `fab score --stage intake` at the intake stage (via `/fab-new` and `/fab-clarify`); intake scoring is authoritative.
 - `stage_metrics` is populated by `lib/statusman.sh` as stages progress — tracks `started_at`, `completed_at`, `driver`, and `iterations` per stage.
 - `last_updated` is refreshed on every status change.
 
@@ -139,111 +138,34 @@ last_updated: {ISO_8601_DATETIME}
 
 ---
 
-## spec.md (Change Specification)
+## Change Requirements (now a section of plan.md)
 
-```markdown
-# Spec: {CHANGE_NAME}
+As of 1.10.0, the separate `spec.md` artifact is removed. Requirement capture lives in
+`plan.md`'s `## Requirements` section, co-generated with `## Tasks` and `## Acceptance` at
+apply entry (one pass — the strongest alignment guarantee). The requirement discipline is
+unchanged: RFC 2119 keywords (MUST/SHALL/SHOULD/MAY), at least one GIVEN/WHEN/THEN scenario
+per requirement, stable `R#` IDs, optional `### Non-Goals` / `### Design Decisions` /
+`### Deprecated Requirements` subsections. **No `[NEEDS CLARIFICATION]` markers** — those are
+an intake-only construct; an under-specified requirement at apply becomes a graded SRAD
+`## Assumptions` row instead.
 
-**Change**: {YYMMDD-XXXX-slug}
-**Created**: {DATE}
-**Affected memory**: `docs/memory/{domain}/{file-name}.md`
-
-<!--
-  CHANGE SPECIFICATION
-  Describes the requirements relevant to this change. No delta markers needed —
-  the agent compares against existing memory files during hydration to
-  determine what's new, changed, or removed.
-
-  Requirements use RFC 2119 keywords: MUST/SHALL (mandatory), SHOULD (recommended), MAY (optional).
-  Every requirement MUST have at least one scenario.
-  Scenarios use GIVEN/WHEN/THEN format.
-  Organize by domain section when the change touches multiple domains.
-  Mark unresolved ambiguities with [NEEDS CLARIFICATION] inline. /fab-clarify resolves these.
--->
-
-## {Domain}: {Topic}
-
-### Requirement: {Requirement Name}
-{Requirement text using SHALL/MUST/SHOULD/MAY}
-
-#### Scenario: {Scenario Name}
-- **GIVEN** {precondition}
-- **WHEN** {action or event}
-- **THEN** {expected outcome}
-- **AND** {additional outcome, if needed}
-
-#### Scenario: {Another Scenario}
-- **GIVEN** {precondition}
-- **WHEN** {action}
-- **THEN** {outcome}
-
-### Requirement: {Another Requirement}
-{Requirement text}
-
-#### Scenario: {Scenario Name}
-- **GIVEN** {precondition}
-- **WHEN** {action}
-- **THEN** {outcome}
-
-## Deprecated Requirements
-
-<!-- Only include if this change removes existing requirements. -->
-
-### {Requirement Name}
-**Reason**: {Why this requirement is being removed}
-**Migration**: {What replaces it, or "N/A" if simply deprecated}
-```
-
-**Design rationale**: A single `spec.md` replaces the previous multi-file delta format. Without ADDED/MODIFIED/REMOVED markers, the spec reads as a straightforward requirements document — the agent infers what's new vs changed by comparing against existing memory files during hydration. SpecKit's GIVEN/WHEN/THEN scenarios and RFC 2119 keywords provide precision. Domain sections within the file keep multi-domain changes organized without requiring a directory structure.
-
-### Example: Filled Spec
-
-```markdown
-# Spec: 260115-a7k2-add-oauth
-
-**Change**: 260115-a7k2-add-oauth
-**Created**: 2026-01-15
-**Affected memory**: `docs/memory/auth/authentication.md`
-
-## Auth: OAuth2 Support
-
-### Requirement: OAuth2 Provider Support
-The system SHALL support authentication via external OAuth2 providers.
-
-#### Supported Providers
-- Google (OpenID Connect)
-- GitHub (OAuth2)
-
-#### Scenario: OAuth Login Flow
-- **GIVEN** a user on the login page
-- **WHEN** they click "Sign in with Google"
-- **THEN** they are redirected to Google's OAuth consent screen
-- **AND** upon approval, they are authenticated and redirected back
-
-### Requirement: Session Management
-The system SHALL support sessions from multiple auth sources. Sessions MAY originate from OAuth providers or email/password.
-
-#### Scenario: Mixed Auth Sessions
-- **GIVEN** a user authenticated via Google OAuth
-- **WHEN** they view their active sessions
-- **THEN** the session shows the auth source as "Google"
-
-## Deprecated Requirements
-
-### Email-Only Registration
-**Reason**: Users can now register via OAuth without providing an email
-**Migration**: Registration accepts both OAuth and email/password
-```
+**Design rationale**: After the confidence gate moved to intake (1.10.0), nothing reads a
+separate `spec.md` programmatically — it would be generated, never machine-read, and hidden.
+Folding requirements into `plan.md` makes the same agent that writes a requirement immediately
+consume it for tasks and acceptance, eliminating the seam the former spec→plan boundary created.
+The agent infers what's new vs changed by comparing against existing memory files during
+hydration. Domain sections within `## Requirements` keep multi-domain changes organized.
 
 ---
 
-## plan.md (Apply-stage Plan: Tasks + Acceptance)
+## plan.md (Apply-stage Plan: Requirements + Tasks + Acceptance)
 
-`plan.md` replaces the legacy `tasks.md` + `checklist.md` pair. It is generated at apply
-entry by the unified Plan Generation Procedure and consumed by both apply (which reads the
-`## Tasks` section) and review (which reads the `## Acceptance` section). Section
-headings (`## Tasks`, `## Acceptance`) are the stable parser contract — phase/category
-subheadings under each are presentational and may vary per change.
+`plan.md` is co-generated at apply entry by the unified Plan Generation Procedure and consumed
+by both apply (which reads `## Tasks`) and review (which reads `## Acceptance` against
+`## Requirements`). Section headings (`## Requirements`, `## Tasks`, `## Acceptance`) and the
+`R#`/`T{NNN}`/`A-{NNN}` ID formats are the stable parser contract — phase/category subheadings
+under each are presentational and may vary per change. Trace annotations are REQUIRED: each
+`## Tasks` item carries `<!-- R# -->`; each `## Acceptance` item names its `R#`.
 
 ```markdown
 # Plan: {CHANGE_NAME}
@@ -251,13 +173,23 @@ subheadings under each are presentational and may vary per change.
 **Change**: {YYMMDD-XXXX-slug}
 **Status**: In Progress
 **Intake**: `intake.md`
-**Spec**: `spec.md`
+
+## Requirements
+
+### {Domain}: {Topic}
+
+#### R1: {Requirement Name}
+{Requirement text using SHALL/MUST/SHOULD/MAY}
+
+- **GIVEN** {precondition}
+- **WHEN** {action or event}
+- **THEN** {expected outcome}
 
 <!--
   AUTO-GENERATED by /fab-continue (or /fab-ff/fab-fff) at the apply stage entry.
 
-  TASK FORMAT: - [ ] T{NNN} [{markers}] {Description with file paths}
-  ACCEPTANCE FORMAT: - [ ] A-{NNN} {declarative outcome}
+  TASK FORMAT: - [ ] T{NNN} [{markers}] {Description with file paths} <!-- R# -->
+  ACCEPTANCE FORMAT: - [ ] A-{NNN} R#: {declarative outcome}
 
   IDs are sequential, three-digit, zero-padded.
 -->
@@ -317,7 +249,7 @@ subheadings under each are presentational and may vary per change.
 - If an item is not applicable, mark checked and prefix with **N/A**: `- [x] A-NNN **N/A**: {reason}`
 ```
 
-**Design rationale**: Apply (imperative tasks) and review (declarative acceptance) need different framings of the same spec requirements; co-generating both in a single skill call eliminates the drift between sibling artifacts the legacy `tasks.md` + `checklist.md` pair was prone to. Heading-based parsing keeps the parser contract stable while leaving phase/category subheadings ergonomic. `[P]` markers and per-phase grouping are preserved verbatim from the legacy `tasks.md` convention.
+**Design rationale**: Requirements, apply (imperative tasks), and review (declarative acceptance) are three framings of the same change; co-generating all three in a single skill call eliminates the drift between sibling artifacts the legacy `spec.md` → `tasks.md` + `checklist.md` boundary was prone to. Heading-based parsing keeps the parser contract stable while leaving phase/category subheadings ergonomic. `[P]` markers and per-phase grouping are preserved verbatim from the legacy `tasks.md` convention.
 
 For larger changes spanning multiple user stories, split Phase 2 into per-story sub-phases:
 
@@ -331,10 +263,10 @@ For larger changes spanning multiple user stories, split Phase 2 into per-story 
 
 ### Acceptance Generation
 
-The unified Plan Generation Procedure walks `spec.md` once and emits, for each
-requirement, a Task entry under `## Tasks` and an Acceptance entry under `## Acceptance`.
-Acceptance items are derived from:
-- `spec.md` (requirements and scenarios for this change)
+The unified Plan Generation Procedure generates `## Requirements` from the intake, then walks
+those requirements once and emits, for each requirement, a Task entry under `## Tasks` and an
+Acceptance entry under `## Acceptance`. Acceptance items are derived from:
+- `## Requirements` (the requirements and scenarios for this change, co-generated above)
 - Project `code-quality.md` (principles + anti-patterns)
 - Project constitution (quality standards)
 - Optional `checklist.extra_categories` from `config.yaml`
@@ -350,20 +282,30 @@ through migration; only newly generated plans use `A-NNN`.
 **Change**: 260115-a7k2-add-oauth
 **Status**: In Progress
 **Intake**: `intake.md`
-**Spec**: `spec.md`
+
+## Requirements
+
+### Auth: OAuth2 Support
+
+#### R1: OAuth2 Provider Support
+The system SHALL support authentication via external OAuth2 providers (Google OpenID Connect, GitHub OAuth2).
+
+- **GIVEN** a user on the login page
+- **WHEN** they click "Sign in with Google"
+- **THEN** they are redirected to Google's OAuth consent screen and authenticated on approval
 
 ## Tasks
 
 ### Phase 1: Setup
-- [ ] T001 [P] Add OAuth client config to `src/config/auth.ts`
-- [ ] T002 [P] Install OAuth provider SDK dependency
+- [ ] T001 [P] Add OAuth client config to `src/config/auth.ts` <!-- R1 -->
+- [ ] T002 [P] Install OAuth provider SDK dependency <!-- R1 -->
 
 ### Phase 2: Core Implementation
-- [ ] T003 Implement `OAuthClient` in `src/auth/oauth.ts`
-- [ ] T004 Wire OAuth callback handler in `src/api/auth/callback.ts`
+- [ ] T003 Implement `OAuthClient` in `src/auth/oauth.ts` <!-- R1 -->
+- [ ] T004 Wire OAuth callback handler in `src/api/auth/callback.ts` <!-- R1 -->
 
 ### Phase 3: Integration & Edge Cases
-- [ ] T005 Handle OAuth provider timeout with clear error in `src/auth/oauth.ts`
+- [ ] T005 Handle OAuth provider timeout with clear error in `src/auth/oauth.ts` <!-- R1 -->
 
 ## Execution Order
 
@@ -372,28 +314,20 @@ through migration; only newly generated plans use `A-NNN`.
 ## Acceptance
 
 ### Functional Completeness
-- [ ] A-001 OAuth2 Provider Support: Google and GitHub sign-in flows implemented
-- [ ] A-002 OAuth2 Provider Support: Provider configuration stored in environment
-
-### Behavioral Correctness
-- [ ] A-003 Session Management: Sessions support both OAuth and email/password origins
-
-### Removal Verification
-- [ ] A-004 Email-Only Registration: Registration no longer requires email, no dead code paths
+- [ ] A-001 R1: Google and GitHub sign-in flows implemented
+- [ ] A-002 R1: Provider configuration stored in environment
 
 ### Scenario Coverage
-- [ ] A-005 OAuth Login Flow: Redirect to provider consent screen works end-to-end
-- [ ] A-006 OAuth Login Flow: Callback handles approval and creates session
-- [ ] A-007 OAuth Login Flow: Callback handles denial gracefully
+- [ ] A-003 R1: Redirect to provider consent screen works end-to-end
+- [ ] A-004 R1: Callback handles approval and creates session
+- [ ] A-005 R1: Callback handles denial gracefully
 
 ### Edge Cases & Error Handling
-- [ ] A-008 Provider unavailable: Timeout with clear error message
-- [ ] A-009 Token expiry: Refresh logic handles expired tokens
+- [ ] A-006 R1: Provider unavailable — timeout with clear error message
 
 ### Security
-- [ ] A-010 OAuth tokens stored securely (not in localStorage)
-- [ ] A-011 CSRF protection on OAuth callback
-- [ ] A-012 Logout properly clears OAuth session
+- [ ] A-007 R1: OAuth tokens stored securely (not in localStorage)
+- [ ] A-008 R1: CSRF protection on OAuth callback
 
 ## Notes
 - Check items as you review: `- [x]`
@@ -405,7 +339,7 @@ through migration; only newly generated plans use `A-NNN`.
 
 ## Memory File Format (`docs/memory/`)
 
-Memory files are the **source of truth** for what the system does and why it works the way it does. They contain requirements (from `spec.md`), organized hierarchically with index files for navigation.
+Memory files are the **source of truth** for what the system does and why it works the way it does. They contain requirements (from `plan.md` `## Requirements`), organized hierarchically with index files for navigation.
 
 ### Directory Structure
 
@@ -524,10 +458,10 @@ docs/memory/
 
 ### Hydration Rules
 
-When `/fab-continue` (hydrate) hydrates `spec.md` into memory:
+When `/fab-continue` (hydrate) hydrates `plan.md` `## Requirements` into memory:
 
-1. **New memory file**: If the spec references a file that doesn't exist yet, create it from the individual memory file template and add it to the domain index. If the domain doesn't exist, create the domain folder and add it to the top-level index.
-2. **Existing memory file**: Compare `spec.md` requirements against the current file to determine what's new, changed, or removed. Update the Requirements section semantically. Minimize edits to unchanged sections.
+1. **New memory file**: If the requirements reference a file that doesn't exist yet, create it from the individual memory file template and add it to the domain index. If the domain doesn't exist, create the domain folder and add it to the top-level index.
+2. **Existing memory file**: Compare the plan's `## Requirements` against the current file to determine what's new, changed, or removed. Update the Requirements section semantically. Minimize edits to unchanged sections.
 3. **Index updates**: Update domain index "Last Updated" column. Add new entries if new files were created.
 4. **Changelog row**: Append a row to the memory file's Changelog table with the change name, date, and one-line summary.
 5. **Archive index**: Maintain `fab/changes/archive/index.md` listing all completed changes. Each entry includes the change folder name, date, and a one-line summary. `/fab-archive` appends a row when moving a change to the archive directory.

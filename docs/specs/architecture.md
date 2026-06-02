@@ -14,8 +14,7 @@ project/
 │   │   ├── VERSION                 # Engine version (semver, e.g. "0.1.0")
 │   │   ├── templates/
 │   │   │   ├── intake.md
-│   │   │   ├── spec.md
-│   │   │   └── plan.md            # Apply-stage artifact (## Tasks + ## Acceptance)
+│   │   │   └── plan.md            # Apply-stage artifact (## Requirements + ## Tasks + ## Acceptance)
 │   │   ├── skills/                 # Skill definitions (markdown prompts)
 │   │   │   ├── fab-setup.md
 │   │   │   ├── docs-hydrate-memory.md
@@ -59,8 +58,7 @@ project/
 │       ├── 260115-a7k2-add-oauth/  # Active change
 │       │   ├── .status.yaml        # Stage tracking
 │       │   ├── intake.md
-│       │   ├── spec.md              # What's changing (requirements)
-│       │   └── plan.md              # Auto-generated at apply entry — ## Tasks + ## Acceptance
+│       │   └── plan.md              # Auto-generated at apply entry — ## Requirements + ## Tasks + ## Acceptance
 │       └── archive/                # Completed changes
 │           └── 250920-m3x1-add-2fa/
 └── .claude/                        # Agent-specific skill exports
@@ -172,15 +170,14 @@ There is no `/fab-abandon` skill — this is a manual operation. If you want to 
 
 Every change folder contains a `.status.yaml` manifest:
 
-**Example — spec stage** (plan not yet generated):
+**Example — intake stage** (plan not yet generated):
 
 ```yaml
 name: 260115-a7k2-add-oauth
 created: 2026-01-15T14:30:00Z
 created_by: Jane Smith
 progress:
-  intake: done
-  spec: active
+  intake: active
   apply: pending
   review: pending
   hydrate: pending
@@ -202,7 +199,6 @@ created: 2026-01-15T14:30:00Z
 created_by: Jane Smith
 progress:
   intake: done
-  spec: done
   apply: done
   review: active
   hydrate: pending
@@ -237,14 +233,13 @@ checklist:
     - performance
     - ux
 
-# Per-stage directives for artifact generation.
+# Per-stage directives for artifact generation. The apply stage now owns
+# requirement generation (former spec-stage directives relocate here in 1.10.0).
 stage_directives:
   intake: []
-  spec:
+  apply:
     - Use GIVEN/WHEN/THEN for scenarios
-    - Mark ambiguities with [NEEDS CLARIFICATION]
     - Document breaking changes explicitly
-  apply: []
   review: []
   hydrate: []
 
@@ -290,8 +285,8 @@ The constitution is the **architectural DNA** of a Fab project. It defines immut
 
 **How skills use it**:
 - `/fab-setup` generates it from project context (README, existing docs, conversation with user)
-- `/fab-continue` and `/fab-ff` load it as context when generating **spec** and **plan** (`## Tasks` + `## Acceptance`) artifacts
-- `/fab-continue` (review) checks implementation against constitutional principles (not just the spec)
+- `/fab-continue` and `/fab-ff` load it as context when co-generating the **plan** (`## Requirements` + `## Tasks` + `## Acceptance`) at apply entry
+- `/fab-continue` (review) checks implementation against constitutional principles (not just the plan's requirements)
 - Constitution violations found during review are flagged as high-severity issues
 
 **Relationship to `config.yaml`**:
@@ -309,7 +304,7 @@ Fab works without git. Change folders are the unit of identity, not branches —
 
 ### Why Decoupled
 
-A change folder captures *what* is being built (intake, spec, plan). Where that work happens in git is a separate concern:
+A change folder captures *what* is being built (intake, plan). Where that work happens in git is a separate concern:
 - A developer might work on the same change across multiple worktrees
 - A change might span multiple branches (feature branch + hotfix backport)
 - A change might start on one branch and move to another after a rebase
@@ -340,9 +335,9 @@ When adopting an existing branch (e.g., `feature/dev-907-oauth` from Linear, or 
 
 | Type | Description | Fab Pipeline? | PR Template |
 |------|-------------|---------------|-------------|
-| `feat` | New feature or capability | Yes | Tier 1 — intake/spec links |
-| `fix` | Bug fix | Yes | Tier 1 — intake/spec links |
-| `refactor` | Restructure without behavior change | Yes | Tier 1 — intake/spec links |
+| `feat` | New feature or capability | Yes | Tier 1 — intake/plan links |
+| `fix` | Bug fix | Yes | Tier 1 — intake/plan links |
+| `refactor` | Restructure without behavior change | Yes | Tier 1 — intake/plan links |
 | `docs` | Documentation-only changes | No | Tier 2 — lightweight |
 | `test` | Adding/fixing tests only | No | Tier 2 — lightweight |
 | `ci` | CI/CD and build system changes | No | Tier 2 — lightweight |
@@ -352,7 +347,7 @@ For the full taxonomy — confidence thresholds, expected decision counts, keywo
 
 **Consolidation from Conventional Commits**: `style` merged into `refactor` (formatting is restructuring), `perf` merged into `feat` or `refactor` (performance changes are capability or internal restructuring), `build` merged into `ci` (build config and CI config are the same concern).
 
-**Two tiers**: Tier 1 (fab-linked) PRs include Summary, Changes, and Context sections with working links to `intake.md` and `spec.md`. Tier 2 (lightweight) PRs include an auto-generated summary and explicitly note "No design artifacts — housekeeping change." This signals to reviewers what level of scrutiny to apply.
+**Two tiers**: Tier 1 (fab-linked) PRs include Summary, Changes, and Context sections with working links to `intake.md` and `plan.md`. Tier 2 (lightweight) PRs include an auto-generated summary and explicitly note "No design artifacts — housekeeping change." This signals to reviewers what level of scrutiny to apply.
 
 **Type resolution**: `/git-pr` resolves the type via a three-step chain: (1) explicit argument (`/git-pr chore`), (2) infer from intake content if a fab change exists, (3) infer from diff file paths when no fab change exists. The type appears as a conventional-commits prefix in the PR title: `feat: Smart change resolution`.
 
@@ -366,7 +361,7 @@ Add to your project's `.gitignore`:
 
 **What to commit** (shared with team):
 - `fab/project/config.yaml`, `fab/project/constitution.md`, `docs/memory/`, `src/kit/` — project configuration and memory
-- `fab/changes/` — change artifacts (intakes, specs, plans)
+- `fab/changes/` — change artifacts (intakes, plans)
 
 **What to ignore** (local state):
 - `.fab-status.yaml` — active change symlink (per-developer)

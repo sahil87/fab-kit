@@ -15,8 +15,7 @@ change_type: feat
 issues: []
 progress:
   intake: done
-  spec: active
-  apply: pending
+  apply: active
   review: pending
   hydrate: pending
   ship: pending
@@ -81,11 +80,11 @@ func TestRun_ValidRepo(t *testing.T) {
 	if result.ChangeDir != "fab/changes/260310-abcd-my-change" {
 		t.Errorf("ChangeDir = %q, want %q", result.ChangeDir, "fab/changes/260310-abcd-my-change")
 	}
-	if result.Stage != "spec" {
-		t.Errorf("Stage = %q, want %q", result.Stage, "spec")
+	if result.Stage != "apply" {
+		t.Errorf("Stage = %q, want %q", result.Stage, "apply")
 	}
-	if len(result.Progress) != 7 {
-		t.Errorf("Progress has %d stages, want 7", len(result.Progress))
+	if len(result.Progress) != 6 {
+		t.Errorf("Progress has %d stages, want 6", len(result.Progress))
 	}
 }
 

@@ -11,9 +11,9 @@ Fab uses two distinct terms to avoid confusion:
 | Term | Location | Meaning |
 |------|----------|---------|
 | **Memory files** | `docs/memory/` | Source-of-truth documentation for the system. Contains both requirements (what) and durable design decisions (why). Updated by `/docs-hydrate-memory` (from external sources) and `/fab-continue` (hydrate) (from change artifacts). |
-| **spec.md** | `fab/changes/{name}/spec.md` | Change-level specification. Describes the requirements relevant to this change. |
+| **plan.md** | `fab/changes/{name}/plan.md` | Change-level plan. Carries the `## Requirements` (RFC-2119 + GIVEN/WHEN/THEN), `## Tasks`, and `## Acceptance` sections, co-generated at apply entry. |
 
-The stage named "spec" refers to the *activity* of writing the specification — its output is `spec.md` in the change folder.
+As of 1.10.0 the `spec` stage and the separate `spec.md` artifact are removed. Requirement capture lives in `plan.md`'s `## Requirements` section, co-generated with tasks and acceptance at apply entry. The canonical artifact flow is `intake.md → plan.md → code`.
 
 ---
 
@@ -67,7 +67,7 @@ Every skill that generates or validates artifacts MUST load relevant context bef
 
 **Change context** (loaded by skills operating on an active change):
 - `.status.yaml` — current stage, progress
-- All completed artifacts in the active change folder (e.g., `intake.md`, `spec.md`)
+- All completed artifacts in the active change folder (`intake.md`, `plan.md`)
 
 **Memory file lookup** (loaded by skills operating on an active change):
 - Read the intake's "Affected Memory" section to identify relevant domains
@@ -98,8 +98,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 | `/docs-hydrate-memory` | memory hydrated | `Next: /fab-new <description> or /docs-hydrate-memory <more-sources>` |
 | `/fab-new` | intake ready (activated) | `Next: /fab-continue or /fab-clarify (refine intake) or /fab-ff or /fab-fff` |
 | `/fab-draft` | intake ready (not activated) | `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-clarify or /fab-ff or /fab-fff` |
-| `/fab-continue` (from intake ready) | spec ready | `Next: /fab-continue (apply — generates plan.md and runs tasks) or /fab-clarify (refine spec) or /fab-ff` |
-| `/fab-continue` (from spec ready) | apply active | `Next: /fab-continue (continue apply) or /fab-clarify plan (refine plan.md)` |
+| `/fab-continue` (from intake ready) | apply active/done | `Next: /fab-continue (apply co-generates plan.md — requirements + tasks + acceptance — and runs tasks)` |
 | `/fab-ff` | apply done | `Next: /fab-continue (review)` |
 | `/fab-clarify` | same stage | `Next: /fab-clarify (refine further) or /fab-continue or /fab-ff` |
 | `/fab-continue` → apply | apply done | `Next: /fab-continue (review)` |
@@ -279,50 +278,45 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 **Purpose**: Advance through the pipeline — finishing the current `ready` planning stage, generating the next artifact, and leaving it at `ready` for optional `/fab-clarify` refinement. Or, when called with a stage argument, reset to that stage and regenerate from there.
 
 **Arguments**:
-- `<stage>` *(optional)* — target stage to reset to (`spec` is the typical planning reset). The legacy `tasks` target is removed and errors with a pointer to `apply` / `spec`. Used after `/fab-continue` (review) identifies issues upstream. When provided, resets `.status.yaml` to this stage and regenerates artifacts from that point forward.
+- `<stage>` *(optional)* — target stage to reset to (`apply` is the typical reset). The legacy `tasks` and `spec` targets are removed and error with a pointer to `apply` / `/fab-clarify intake`. Used after `/fab-continue` (review) identifies issues upstream. When provided, resets `.status.yaml` to this stage and re-runs from that point forward.
 
 **Context** (varies by target stage):
-- **Spec stage**: config, constitution, `intake.md`, target memory file(s) from `docs/memory/`
-- **Apply stage**: above + completed `spec.md` (used to generate `plan.md` at apply entry); plus the resumable plan + source code on subsequent invocations
+- **Apply stage**: config, constitution, `intake.md` (used to co-generate `plan.md` at apply entry); plus the resumable plan + source code on subsequent invocations
 
 **Examples**:
 ```
 /fab-continue
-→ (intake ready) Finishes intake, generates spec.md, spec is now ready.
+→ (intake ready) Finishes intake, starts apply, co-generates plan.md (## Requirements + ## Tasks + ## Acceptance), executes the unchecked tasks under ## Tasks, finishes apply.
 
-/fab-continue
-→ (spec ready) Finishes spec, starts apply (writes plan.md from spec), executes the unchecked tasks under ## Tasks, finishes apply.
-
-/fab-continue spec
-→ "Resetting to spec stage. Regenerating spec.md..."
-→ "Spec updated. Run /fab-continue to enter apply (which generates plan.md), or /fab-ff to fast-forward."
+/fab-continue apply
+→ "Resetting to apply. plan.md persists (delete it to force regeneration); re-running unchecked tasks."
 ```
 
 **Behavior** (no argument — normal forward flow):
 1. Read `.status.yaml` to determine current stage and state
-2. For planning stages in `ready` state: finish the current stage, start the next, generate its artifact, advance to `ready`
-3. For planning stages in `active` state (backward compat): generate the artifact, advance to `ready`
+2. Intake in `ready` state: finish intake, start apply, then execute apply
+3. Intake in `active` state (backward compat): generate intake if missing, advance to `ready`
 4. For execution stages: execute the stage's behavior and finish it
 5. Load relevant template + context (including `fab/project/constitution.md` for project principles)
-6. Apply entry: invoke the unified Plan Generation Procedure on `spec.md` — write `plan.md` with both `## Tasks` and `## Acceptance` sections (skipped on resume when `plan.md` already exists)
+6. Apply entry: invoke the unified Plan Generation Procedure — co-generate `plan.md` `## Requirements` (from `intake.md`) + `## Tasks` + `## Acceptance` (skipped on resume when `plan.md` already exists)
 7. Update `.status.yaml`
 
 **Behavior** (with stage argument — reset and regenerate):
-1. **Guard**: target stage must be a valid 7-pipeline stage (typically `spec`). Cannot reset to `intake` (use `/fab-new`). Reset to `tasks` errors with `"tasks" stage was removed — use /fab-continue apply (regenerates plan.md and re-runs) or /fab-clarify spec.`
+1. **Guard**: target stage must be a valid 6-pipeline stage (typically `apply`). Reset to `tasks` or `spec` errors with `"tasks"/"spec" stages were removed — use /fab-continue apply (regenerates plan.md and re-runs) or /fab-clarify intake.`
 2. Reset `.status.yaml` stage to the target. Mark all stages from target onward as `pending`.
-3. Regenerate the target stage's artifact in place (update, not recreate from scratch — preserve what's still valid).
+3. For an intake reset, regenerate the intake artifact in place; for execution resets, re-run from that stage.
 4. Downstream artifacts are invalidated only by re-running apply: `plan.md` persists across resets (deleting it forces regeneration); task checkboxes are NOT auto-cleared.
-5. Advance the target stage to `ready` (not `done` — preserves `/fab-clarify` opportunity).
+5. For an intake reset, advance intake to `ready` (not `done`) to preserve the `/fab-clarify` opportunity.
 
 ---
 
 ## `/fab-ff` (Fast Forward)
 
-**Purpose**: Fast-forward from intake through hydrate. Confidence-gated (intake gate + spec gate), with sub-agent review, auto-rework loop (up to 3 cycles with prioritized findings), and stop on exhaustion. Accepts `--force` to bypass all confidence gates.
+**Purpose**: Fast-forward apply → review → hydrate (everything after intake). Gated on the single intake confidence gate (flat 3.0), with sub-agent review, auto-rework loop (up to 3 cycles with prioritized findings), and stop on exhaustion. Accepts `--force` to bypass the gate. No `/fab-clarify` runs inside the bracket.
 
-**Context**: config, constitution, `intake.md`, target memory file(s) from `docs/memory/` (loaded once for the intake → hydrate run)
+**Context**: config, constitution, `intake.md`, target memory file(s) from `docs/memory/` (loaded once for the apply → hydrate run)
 
-**Flow**: intake → spec → apply (writes `plan.md`, executes tasks) → review → hydrate
+**Flow**: apply (co-generates `plan.md`, executes tasks) → review → hydrate
 
 **When to use**:
 - Small, well-understood changes
@@ -332,26 +326,22 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 **Example**:
 ```
 /fab-new Add a logout button to the navbar that clears session
-/fab-continue   # generate spec
 /fab-ff         # fast-forward: apply → review → hydrate
 ```
 
 **Behavior**:
-1. Check intake gate (indicative confidence >= 3.0). Abort if below threshold. Skip if `--force`.
-2. Generate `spec.md` + check spec gate (dynamic threshold per change type). Abort if below threshold. Skip gate if `--force`.
-3. Auto-clarify on spec (bail on blocking issues)
-4. Run apply (single subagent invocation): generate `plan.md` from `spec.md` (Plan Generation entry sub-step), then execute unchecked tasks under `## Tasks` in dependency order, running tests after each
-5. Auto-clarify on plan (after generation, before execution; bail on blocking issues)
-6. **Review** — dispatch to sub-agent (fresh context). Sub-agent returns prioritized findings (must-fix / should-fix / nice-to-have); inward sub-agent inspects items under `plan.md` `## Acceptance`
-7. **On pass** — advance to hydrate
-8. **On fail** — auto-rework loop (up to 3 cycles): triage findings by priority, autonomously select rework path (fix code, revise plan, revise spec), re-apply, spawn fresh sub-agent for re-review. Escalation after 2 consecutive fix-code attempts. Stop after 3 failed cycles with summary.
-9. Hydrate into `docs/memory/`
+1. Check the intake gate (confidence >= 3.0, flat). Abort if below threshold. Skip if `--force`.
+2. Run apply (single subagent invocation): co-generate `plan.md` (## Requirements from `intake.md` + ## Tasks + ## Acceptance), then execute unchecked tasks under `## Tasks` in dependency order, running tests after each. Under-specified requirements are resolved inline as graded SRAD assumptions in `plan.md` — no clarify step.
+3. **Review** — dispatch to sub-agent (fresh context). Sub-agent returns prioritized findings (must-fix / should-fix / nice-to-have); inward sub-agent inspects items under `plan.md` `## Acceptance` against `## Requirements`
+4. **On pass** — advance to hydrate
+5. **On fail** — auto-rework loop (up to 3 cycles): triage findings by priority, autonomously select rework path (fix code, revise plan, revise requirements), re-apply, spawn fresh sub-agent for re-review. Escalation after 2 consecutive fix-code attempts. Stop after 3 failed cycles with summary.
+6. Hydrate into `docs/memory/`
 
 ---
 
 ## `/fab-fff` (Full Autonomous Pipeline)
 
-**Purpose**: Run the entire Fab pipeline from intake through PR review in a single invocation. Confidence-gated (same intake + spec gates as `/fab-ff`). Interleaves auto-clarify between planning stages, and autonomously reworks on review failure using sub-agent review with prioritized findings (3-cycle retry cap, escalation after 2 consecutive fix-code failures). Accepts `--force` to bypass all confidence gates.
+**Purpose**: Run the entire automated Fab pipeline — apply → review → hydrate → ship → review-pr — in a single invocation (everything after intake). Gated on the single intake confidence gate (flat 3.0, same as `/fab-ff`). No `/fab-clarify` runs inside the bracket. Autonomously reworks on review failure using sub-agent review with prioritized findings (3-cycle retry cap, escalation after 2 consecutive fix-code failures). Accepts `--force` to bypass the gate.
 
 **Prerequisite**: Active change with completed `intake.md`.
 
@@ -360,10 +350,8 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 **Example**:
 ```
 /fab-fff
-→ --- Planning ---
-→ ... (spec generated, with auto-clarify)
 → --- Implementation ---
-→ ... (apply: plan.md generated then tasks executed)
+→ ... (apply: plan.md co-generated — requirements + tasks + acceptance — then tasks executed)
 → --- Review ---
 → ... (validation passed)
 → --- Hydrate ---
@@ -376,16 +364,15 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 ```
 
 **Behavior**:
-1. **Intake gate** (skip if `--force`): Check indicative confidence >= 3.0. Abort if below threshold.
+1. **Intake gate** (skip if `--force`): Check confidence >= 3.0 (flat). Abort if below threshold.
 2. **Resumability**: Check `progress` map — skip any stage already marked `done` or `skipped`. Re-invoking after interruption picks up from the first incomplete stage.
-3. **Step 1 — Planning**: Generate spec (+ spec gate, skip if `--force`). Auto-clarify on spec. Bails on blocking issues.
-4. **Step 2 — Implementation**: Run apply (one subagent call) — generate `plan.md` from `spec.md` (entry sub-step), auto-clarify on plan, then execute unchecked tasks under `## Tasks` in dependency order, running tests after each.
-5. **Step 3 — Review**: Dispatch to review sub-agent (fresh context, prioritized findings). On failure, triage findings by priority and autonomously select rework path (fix code, revise plan, revise spec). Re-review via fresh sub-agent. Retry up to 3 cycles (escalation after 2 consecutive fix-code). Bail with summary after 3 failed cycles.
-6. **Step 4 — Hydrate**: Hydrate into memory.
-7. **Step 5 — Ship**: Dispatch `/git-pr` to commit, push, and create PR.
-8. **Step 6 — Review-PR**: Dispatch `/git-pr-review` to process PR review comments.
+3. **Step 1 — Implementation**: Run apply (one subagent call) — co-generate `plan.md` (## Requirements from `intake.md` + ## Tasks + ## Acceptance), then execute unchecked tasks under `## Tasks` in dependency order, running tests after each. Under-specified requirements are resolved inline as graded SRAD assumptions — no clarify step.
+4. **Step 2 — Review**: Dispatch to review sub-agent (fresh context, prioritized findings). On failure, triage findings by priority and autonomously select rework path (fix code, revise plan, revise requirements). Re-review via fresh sub-agent. Retry up to 3 cycles (escalation after 2 consecutive fix-code). Bail with summary after 3 failed cycles.
+5. **Step 3 — Hydrate**: Hydrate into memory.
+6. **Step 4 — Ship**: Dispatch `/git-pr` to commit, push, and create PR.
+7. **Step 5 — Review-PR**: Dispatch `/git-pr-review` to process PR review comments.
 
-**Key difference from `/fab-ff`**: The difference is scope only. `/fab-fff` extends through ship and review-pr; `/fab-ff` stops at hydrate. Both have identical confidence gates (intake + spec), identical auto-clarify, and identical auto-rework (3-cycle cap with escalation). Both accept `--force` to bypass gates.
+**Key difference from `/fab-ff`**: The difference is scope only. `/fab-fff` extends through ship and review-pr; `/fab-ff` stops at hydrate. Both have the identical single intake gate, no in-bracket clarify, and identical auto-rework (3-cycle cap with escalation). Both accept `--force` to bypass the gate.
 
 ---
 
@@ -425,35 +412,30 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 
 ## `/fab-clarify`
 
-**Purpose**: Deepen and refine the current stage artifact without advancing to the next stage.
+**Purpose**: Deepen and refine the **intake** artifact (`intake.md`) without advancing. Clarification is intake-only (1.10.0) — it is where human judgment lives, gated by the single intake confidence gate. There is no post-intake clarify; inside apply the agent resolves ambiguity inline as graded SRAD assumptions in `plan.md`.
 
-**Context** (varies by current stage):
-- **Spec**: config, constitution, `intake.md`, target memory file(s) from `docs/memory/`
-- **Plan** (post-apply-entry only): above + `spec.md`, `plan.md`
+**Context**: config, constitution, `intake.md`, target memory file(s) from `docs/memory/`.
 
 **Example**:
 ```
 /fab-clarify
-→ "Stage: spec (active). Reviewing spec.md for gaps..."
+→ "Stage: intake (active). Reviewing intake.md for gaps..."
 → "Found 2 [NEEDS CLARIFICATION] markers. Resolving..."
-→ "Added 3 missing scenarios to spec.md"
+→ "Resolved scope boundaries; recomputed intake confidence."
 ```
 
 **When to use**:
-- Current artifact has unresolved ambiguities or [NEEDS CLARIFICATION] markers
-- You want deeper technical research before moving on
-- The plan (tasks + acceptance) feels incomplete or wrong-grained — refine `plan.md` post-apply-entry
-- Intake scope needs sharpening before moving to spec
+- Intake has unresolved ambiguities or [NEEDS CLARIFICATION] markers
+- You want deeper technical research before unlocking the automated bracket
+- Intake scope needs sharpening before the intake gate will pass
 
 **Behavior**:
 1. Read `.status.yaml` to determine current stage
-2. **Guard**: target artifact must be `intake`, `spec`, or `plan`. The legacy `tasks` target errors with a pointer to `plan` / `spec`. The `plan` target is valid only when `plan.md` exists at apply or later; before apply entry, `plan.md` does not exist and the skill points the user back to `/fab-clarify spec` or `/fab-continue` (which generates the plan).
-3. Load the current stage's artifact + relevant context
-4. Analyze the artifact for gaps, ambiguities, and opportunities to deepen:
-   - **Spec**: [NEEDS CLARIFICATION] markers, missing scenarios, underspecified requirements
-   - **Plan** (`plan.md`): completeness vs spec, granularity, dependencies, file paths, `[P]` markers in `## Tasks`; coverage of spec requirements and declarative phrasing in `## Acceptance`
+2. **Guard**: `/fab-clarify` operates only at intake. At apply or later, STOP and point the user to `/fab-continue` (rework) or editing `plan.md` `## Requirements`; to re-clarify the intake, reset via `/fab-continue intake` first. The legacy `spec`/`plan`/`tasks` targets are removed.
+3. Load `intake.md` + relevant context
+4. Analyze the intake for gaps, ambiguities, and opportunities to deepen: [NEEDS CLARIFICATION] markers, `<!-- assumed: ... -->` markers, scope boundaries, affected areas, impact, memory coverage
 5. Refine the artifact **in place** — edit the existing file, don't regenerate from scratch
-6. Report what was clarified/refined
+6. Recompute the intake score (`fab score --stage intake`) and report what was clarified/refined
 7. Do **not** advance the stage or update `.status.yaml` stage field
 
 **Key property**: Idempotent and non-advancing. Calling `/fab-clarify` multiple times is safe — it refines further each time. It never transitions to the next stage. Use `/fab-continue` when satisfied.
@@ -462,19 +444,19 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 
 ## Apply Behavior (via `/fab-continue`)
 
-**Purpose**: Generate `plan.md` from `spec.md` (entry sub-step) and execute the unchecked tasks in `plan.md` `## Tasks` (main sub-step). Both run in a single skill invocation.
+**Purpose**: Co-generate `plan.md` (`## Requirements` from `intake.md` + `## Tasks` + `## Acceptance`) at the entry sub-step, then execute the unchecked tasks in `plan.md` `## Tasks` (main sub-step). Both run in a single skill invocation.
 
-**Context**: config, constitution, `spec.md`, `plan.md` (read on resume; written at entry), relevant source code (files referenced in tasks)
+**Context**: config, constitution, `intake.md`, `plan.md` (read on resume; written at entry), relevant source code (files referenced in tasks)
 
 **Example**:
 ```
 /fab-continue
-→ "Apply entry: writing plan.md from spec.md..."
+→ "Apply entry: co-generating plan.md (requirements + tasks + acceptance) from intake.md..."
 → "Starting implementation. 12 tasks remaining."
 ```
 
 **Behavior**:
-1. **Entry sub-step (Plan Generation)**: If `plan.md` does not exist, run the unified Plan Generation Procedure on `spec.md`. Write `plan.md` with both `## Tasks` and `## Acceptance` sections. Skipped when `plan.md` already exists (resumability).
+1. **Entry sub-step (Plan Generation)**: If `plan.md` does not exist, run the unified Plan Generation Procedure — co-generate `## Requirements` (from `intake.md`; or fold a legacy `spec.md` if present), `## Tasks`, and `## Acceptance` in one pass, with required `<!-- R# -->` trace annotations. Skipped when `plan.md` already exists (resumability).
 2. **Main sub-step (Task Execution)**: Parse `plan.md` `## Tasks` for unchecked items `- [ ]`. The `## Acceptance` section is OUT OF SCOPE for apply.
 3. Execute tasks in dependency order
 4. Respect parallel markers `[P]`
@@ -488,9 +470,9 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 
 ## Review Behavior (via `/fab-continue`)
 
-**Purpose**: Validate implementation against spec and the plan's acceptance items using a **review sub-agent** running in a separate execution context.
+**Purpose**: Validate implementation against the plan's `## Requirements` and `## Acceptance` items using a **review sub-agent** running in a separate execution context.
 
-**Context**: config, constitution, `plan.md` (containing both `## Tasks` and `## Acceptance` sections), `spec.md`, target memory file(s) from `docs/memory/`, relevant source code (files touched by the change)
+**Context**: config, constitution, `plan.md` (containing `## Requirements`, `## Tasks`, and `## Acceptance` sections), target memory file(s) from `docs/memory/`, relevant source code (files touched by the change)
 
 **Sub-agent dispatch**: Review validation is dispatched to a sub-agent that runs in a fresh context — no shared state with the applying agent beyond the explicitly provided artifacts. The orchestrating LLM may use any review agent available (a `code-review` skill, a general-purpose sub-agent with review instructions, or any equivalent). No specific agent is prescribed.
 
@@ -509,12 +491,12 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 1. All tasks in `plan.md` `## Tasks` marked `[x]`
 2. All acceptance items in `plan.md` `## Acceptance` verified and checked off — the sub-agent re-reads each `A-*` (or legacy `CHK-*` for in-flight migrated plans) item, inspects the relevant code/tests, and marks `[x]` or reports failure
 3. Run tests affected by the change (scoped to modules touched, not the full suite)
-4. Features match spec requirements (spot-check key scenarios from `spec.md`)
+4. Features match requirements (spot-check key scenarios from `plan.md` `## Requirements`)
 5. No memory drift detected (implementation doesn't contradict memory files)
 6. Code quality check — naming consistency, function size, error handling, utility reuse
 
 **Structured output**: The sub-agent returns prioritized findings using a three-tier scheme:
-- **Must-fix**: Spec mismatches, failing tests, acceptance violations — always addressed
+- **Must-fix**: Requirements mismatches, failing tests, acceptance violations — always addressed
 - **Should-fix**: Code quality issues, pattern inconsistencies — addressed when clear and low-effort
 - **Nice-to-have**: Style suggestions, minor improvements — may be skipped
 
@@ -528,8 +510,8 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 - **Revise plan** → edit `plan.md`, then `/fab-continue` (apply)
   Missing or wrong tasks/acceptance items. The agent adds/modifies entries in `plan.md` (new tasks get the next sequential ID; new acceptance items use the next `A-NNN`). Completed tasks that are unaffected stay `[x]`. Only new or revised tasks are executed.
 
-- **Revise spec** → `/fab-continue spec`
-  Requirements were wrong or incomplete. Resets to spec stage, updates `spec.md` in place. Re-running apply regenerates `plan.md` (or updates it via revise plan). All downstream artifacts are reset.
+- **Revise requirements** → edit `plan.md` `## Requirements`, then `/fab-continue` (apply)
+  Requirements were wrong or incomplete. The agent edits the `## Requirements` section plus the downstream `## Tasks`/`## Acceptance` it affects, then re-runs apply. For a fundamentally wrong intake, fix `intake.md` via `/fab-clarify intake` first (then re-enter apply, which regenerates requirements from the corrected intake).
 
 The applying agent triages review comments by priority — not all comments need to be implemented. The `.status.yaml` stage is reset to the chosen re-entry point. The general rule: **artifacts at and after the re-entry point are regenerated or updated; artifacts before it are preserved.**
 
@@ -539,7 +521,7 @@ The applying agent triages review comments by priority — not all comments need
 
 **Purpose**: Validate review passed and hydrate change artifacts into memory files. The change folder remains in `fab/changes/` after hydrate — archiving is a separate step via `/fab-archive`.
 
-**Context**: `spec.md`, `intake.md`, target memory file(s) from `docs/memory/`, `docs/memory/index.md` and relevant domain indexes
+**Context**: `plan.md` (its `## Requirements`), `intake.md`, target memory file(s) from `docs/memory/`, `docs/memory/index.md` and relevant domain indexes
 
 **Example**:
 ```
@@ -550,10 +532,10 @@ The applying agent triages review comments by priority — not all comments need
 
 **Behavior**:
 1. **Final validation** — review must pass (all tasks under `plan.md` `## Tasks` are `[x]`, all acceptance items under `## Acceptance` are `[x]` including N/A items)
-2. **Concurrent change check** — scan `fab/changes/` for other active changes whose specs reference the same memory files. If found, warn the user: *"Change {name} also modifies {file}. After this hydrate, that change's spec was written against a now-stale base. Re-review with `/fab-continue` after switching to it."*
+2. **Concurrent change check** — scan `fab/changes/` for other active changes whose plans reference the same memory files. If found, warn the user: *"Change {name} also modifies {file}. After this hydrate, that change's plan was written against a now-stale base. Re-review with `/fab-continue` after switching to it."*
 3. **Hydrate into `docs/memory/`**:
-   The agent reads `spec.md` and the current memory file, then rewrites the memory file to incorporate the changes:
-   - **From spec.md** → integrate new/changed requirements and scenarios into the Requirements section. Remove requirements that the spec explicitly deprecates. Extract durable design decisions into Design Decisions section.
+   The agent reads `plan.md` `## Requirements` and the current memory file, then rewrites the memory file to incorporate the changes:
+   - **From `plan.md` `## Requirements`** → integrate new/changed requirements and scenarios into the Requirements section. Remove requirements that the plan's `### Deprecated Requirements` explicitly deprecates. Extract durable design decisions into Design Decisions section.
    The agent compares against the existing memory file to determine what's new vs changed vs removed — no explicit delta markers needed. Minimize edits to unchanged sections to prevent drift.
 4. **Update status** to `hydrate: done` in `.status.yaml`
 
@@ -645,11 +627,10 @@ The applying agent triages review comments by priority — not all comments need
 ```
 Change: 260115-a7k2-add-oauth
 Branch: 260115-a7k2-add-oauth
-Stage:  intake (1/7)
+Stage:  intake (1/6)
 
 Progress:
   ◉ intake      active
-  ○ spec        pending
   ○ apply       pending
   ○ review      pending
   ○ hydrate     pending
@@ -750,7 +731,7 @@ Next: Complete intake.md, then /fab-continue
 
 ## `/git-pr [type]`
 
-**Purpose**: Autonomously commit, push, and create a GitHub PR. No questions, no prompts. Covers stage 7 (Ship) of the pipeline.
+**Purpose**: Autonomously commit, push, and create a GitHub PR. No questions, no prompts. Covers stage 5 (Ship) of the pipeline.
 
 **Arguments**:
 - `[type]` *(optional)* — PR type prefix: `feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`. If omitted, type is inferred from `.status.yaml`, `intake.md`, or the diff (in that order).
@@ -785,7 +766,7 @@ Next: Complete intake.md, then /fab-continue
 
 ## `/git-pr-review [--tool <name>]`
 
-**Purpose**: Process GitHub PR review comments on the current branch's PR. Handles feedback from any reviewer — human or bot. Covers stage 8 (Review-PR) of the pipeline.
+**Purpose**: Process GitHub PR review comments on the current branch's PR. Handles feedback from any reviewer — human or bot. Covers stage 6 (Review-PR) of the pipeline.
 
 **Arguments**:
 - `--tool <name>` *(optional)* — force a specific review tool: `copilot`, `codex`, or `claude`. Bypasses the default cascade.

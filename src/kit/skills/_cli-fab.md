@@ -62,14 +62,14 @@ Full subcommand table (headline in `_preamble` § Common fab Commands):
 | `set-change-type` | `set-change-type <change> <type>` | |
 | `set-acceptance` | `set-acceptance <change> <field> <value>` | Updates `plan:` block. Valid fields: `generated` (bool), `task_count`, `acceptance_count`, `acceptance_completed` (int) |
 | `set-checklist` | `set-checklist [args...]` | **Removed** — exits 1 with `"set-checklist" is now "set-acceptance" — run fab status set-acceptance instead.` Use `set-acceptance` |
-| `set-confidence` | `set-confidence <change> <counts...> <score> [--indicative]` | Basic confidence block |
-| `set-confidence-fuzzy` | `set-confidence-fuzzy <change> <counts...> <score> <dims...> [--indicative]` | With SRAD dimensions |
+| `set-confidence` | `set-confidence <change> <counts...> <score> [--indicative]` | Basic confidence block. `--indicative` is a deprecated accepted-but-ignored no-op (1.10.0) — it writes nothing |
+| `set-confidence-fuzzy` | `set-confidence-fuzzy <change> <counts...> <score> <dims...> [--indicative]` | With SRAD dimensions. `--indicative` is a deprecated no-op (see above) |
 | `add-issue` / `get-issues` | `<change> <id>` / `<change>` | Issue ID array — idempotent / one per line |
 | `add-pr` / `get-prs` | `<change> <url>` / `<change>` | PR URL array — idempotent / one per line |
 | `progress-line` | `progress-line <change>` | Single-line visual progress |
 | `current-stage` | `current-stage <change>` | Detect active stage |
 
-**Side effects of `finish`**: `intake→spec`, `spec→apply`, `apply→review`, `review→hydrate` (+auto-log `passed`), `hydrate→ship`, `ship→review-pr`. Never call `start` after `finish`. Legacy `tasks` event invocations (e.g., `fab status finish <change> tasks`) exit 1 with `"tasks" stage was removed — run "fab status <event> <change> apply" instead. plan.md is now generated at apply entry.`
+**Side effects of `finish`**: `intake→apply`, `apply→review`, `review→hydrate` (+auto-log `passed`), `hydrate→ship`, `ship→review-pr`. Never call `start` after `finish`. Legacy `tasks` event invocations exit 1 with `"tasks" stage was removed — run "fab status <event> <change> apply" instead. plan.md is now generated at apply entry.` Legacy `spec` event invocations exit 1 with `"spec" stage was removed — spec.md is now generated at apply entry. Use "apply".`
 
 **Auto-logs**: `finish review`→`passed`; `fail review`→`failed`; every `active` transition is best-effort logged. Skills do NOT manually call `fab log review` or `fab log transition`.
 
@@ -81,10 +81,9 @@ See `_preamble.md` § Common fab Commands. Modes:
 
 | Mode | Usage | Behavior |
 |------|-------|----------|
-| Normal | `fab score <change>` | Parse `spec.md`, compute, write `.status.yaml` |
-| Intake | `fab score --stage intake <change>` | Parse `intake.md`, compute, write (sets `indicative: true`) |
+| Normal | `fab score <change>` | Parse `intake.md` (the sole scoring source; `--stage` defaults to `intake`), compute, write `.status.yaml`. No `indicative` key is written (retired 1.10.0) |
 | Gate | `fab score --check-gate <change>` | Read-only, threshold compare, non-zero below threshold |
-| Intake gate | `fab score --check-gate --stage intake <change>` | Fixed threshold 3.0 |
+| Intake gate | `fab score --check-gate --stage intake <change>` | Flat threshold 3.0 for all types (the single gate) |
 
 ---
 

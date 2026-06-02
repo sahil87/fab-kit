@@ -55,7 +55,7 @@ Resolve the active change and load its state by running the preflight script:
 2. **Check exit code**: If the script exits non-zero, STOP and surface the stderr message to the user (it contains the specific error and suggested fix)
 3. **Parse stdout YAML**: On success, parse the YAML output for `id`, `name`, `change_dir`, `stage`, `progress`, `plan`, and `confidence` fields — use these for all subsequent change context instead of re-reading `.status.yaml`. Use `id` (4-char change ID) for script invocations; use `name` for display, path construction, and artifact metadata.
 4. **Log command**: Call `fab log command "<skill-name>" "<id>" 2>/dev/null || true` where `<skill-name>` is the invoking skill (e.g., `fab-continue`) and `<id>` is the `id` field from the preflight YAML output. This is best-effort — failures are silently ignored.
-5. Load all completed artifacts in the change folder (e.g., `intake.md`, `spec.md`, `plan.md`) — read each file that exists so you have full context of what has been decided so far
+5. Load all completed artifacts in the change folder (`intake.md`, `plan.md`) — read each file that exists so you have full context of what has been decided so far. (A leftover `spec.md` may exist in pre-1.10.0 changes; read it for context if present, but `spec.md` is no longer a generated artifact.)
 
 > **Change-name override**: When a `[change-name]` argument is passed to the preflight script, it resolves the change using case-insensitive substring matching against `fab/changes/` folder names (excluding `archive/`) instead of reading the `.fab-status.yaml` symlink. The override is **transient** — `.fab-status.yaml` is never modified. This enables parallel workflows where multiple tabs target different changes concurrently. Supports full folder names, partial slugs, or 4-char IDs (e.g., `r3m7`).
 
@@ -69,17 +69,17 @@ Resolve the active change and load its state by running the preflight script:
 
 Selectively load relevant memory files based on the change's scope:
 
-1. Read the intake's **Affected Memory** section (or spec's **Affected memory** metadata) to identify which domains are relevant
+1. Read the intake's **Affected Memory** section to identify which domains are relevant
 2. For each referenced domain, read `docs/memory/{domain}/index.md` to understand the domain's memory files
 3. Read the specific memory file(s) referenced by the Affected Memory entries (those marked `(new)`, `(modify)`, or `(remove)`) — read `docs/memory/{domain}/{name}.md` for each listed file that exists
 4. If a referenced file or domain does not exist yet (e.g., listed as `(new)`), note this and proceed without error — it will be created during hydrate (via `/fab-continue` or `/fab-ff`)
-5. Use this context to ground all artifact generation (spec, plan, reviews) in the real current state, not assumptions
+5. Use this context to ground all artifact generation (plan, reviews) in the real current state, not assumptions
 
 ### 4. Source Code Loading (during implementation and review)
 
 Load only the source files relevant to the current work:
 
-1. Read the relevant source files referenced in the task descriptions or spec's affected areas
+1. Read the relevant source files referenced in the task descriptions or the plan's `## Requirements` affected areas
 2. Scope to files actually touched by the change — do not load the entire codebase
 3. This applies primarily to apply and review behavior in `/fab-continue`
 4. **Apply stage**: Also read neighboring files in the same directories to extract pattern context (naming conventions, error handling style, typical structure, reusable utilities). This supports Pattern Extraction in `/fab-continue` Apply Behavior
@@ -244,7 +244,7 @@ These command families cover ~90% of skill usage. See `_cli-fab` for the full re
 | Command | Purpose | Canonical form |
 |---------|---------|----------------|
 | `fab preflight [<change>]` | Validate init + resolve active change; outputs YAML with `id`/`name`/`change_dir`/`stage`/`progress`/`plan`/`confidence`. Non-zero exit on error. | `fab preflight` |
-| `fab score [--check-gate] [--stage <stage>] <change>` | Compute SRAD confidence. `--check-gate` returns non-zero below threshold (intake gate = 3.0 when `--stage intake`; spec gate per change type). | `fab score --check-gate --stage intake <id>` |
+| `fab score [--check-gate] [--stage intake] <change>` | Compute SRAD confidence from `intake.md` (the sole scoring source). `--check-gate` returns non-zero below the single intake gate (flat 3.0 for all types). `--stage` defaults to `intake`. | `fab score --check-gate --stage intake <id>` |
 | `fab log command "<skill>" [<change>]` | Best-effort command telemetry. Failures silently ignored. | `fab log command "fab-continue" "<id>" 2>/dev/null \|\| true` |
 | `fab change <sub>` | Change lifecycle: `new --slug <slug>`, `switch <name>\|--none`, `resolve [<override>]`, `rename`, `list [--archive]`, `archive <change>`, `restore <change> [--switch]`. | `fab change resolve --folder` *(note: `fab resolve` is the pure-query alias)* |
 | `fab resolve [--id\|--folder\|--dir\|--status\|--pane] [<change>]` | Pure query — converts change reference to canonical output (4-char ID by default). No side effects. | `fab resolve --folder 2>/dev/null` |
@@ -272,8 +272,7 @@ Every skill MUST end its output with a `Next:` line derived from the State Table
 | (none) | /fab-setup | /fab-setup |
 | initialized | /fab-new, /fab-proceed, /docs-hydrate-memory | /fab-new |
 | intake | /fab-continue, /fab-ff, /fab-fff, /fab-proceed, /fab-clarify | /fab-continue |
-| spec | /fab-continue, /fab-ff, /fab-clarify | /fab-continue |
-| apply | /fab-continue, /fab-clarify | /fab-continue |
+| apply | /fab-continue | /fab-continue |
 | review (pass) | /fab-continue | /fab-continue |
 | review (fail) | *(rework menu)* | — |
 | hydrate | /git-pr, /fab-archive | /git-pr |
@@ -284,7 +283,7 @@ Every skill MUST end its output with a `Next:` line derived from the State Table
 **State derivation**:
 - **(none)**: `fab/project/config.yaml` does not exist
 - **initialized**: `fab/project/config.yaml` exists AND no active change (`.fab-status.yaml` symlink is absent)
-- **intake** through **apply**: Derived from the active change's `.status.yaml` progress map (the stage with `active` or `ready` state)
+- **intake** / **apply**: Derived from the active change's `.status.yaml` progress map (the stage with `active` or `ready` state)
 - **review (pass)**: `progress.review == done`
 - **review (fail)**: `progress.review == failed`
 - **hydrate**: `progress.hydrate == done`
@@ -322,10 +321,11 @@ When one skill invokes another internally (e.g., `/fab-ff` invoking `/fab-clarif
 
 ### Currently Applicable
 
-| Calling skill | Called skill | Mode signaled |
-|---------------|-------------|---------------|
-| `/fab-fff` | `/fab-clarify` | `[AUTO-MODE]` → auto mode (autonomous gap resolution between planning stages) |
-| `/fab-ff` | `/fab-clarify` | `[AUTO-MODE]` → auto mode (autonomous gap resolution between planning stages) |
+No skill currently invokes another with the `[AUTO-MODE]` prefix. The former
+`/fab-fff` → `/fab-clarify` and `/fab-ff` → `/fab-clarify` auto-invocations were
+removed in 1.10.0: clarification is an intake-only, human-facing activity, so no
+clarify step runs inside the automated post-intake bracket (apply → review →
+hydrate → ship → review-pr). The protocol itself remains defined for future use.
 
 User-invoked skills never carry the `[AUTO-MODE]` prefix, so called skills default to interactive mode.
 
@@ -409,7 +409,7 @@ Each decision produces an assumption graded on a 4-level scale:
 | **Interruption budget** | SRAD-driven (no fixed cap); conversational mode for vague inputs | 1-2 per stage | 0 (autonomous rework, then stop) | 0 (autonomous rework, then stop) |
 | **Output** | Assumptions summary + "Run /fab-clarify to review" | Key Decisions block + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary + apply/review/hydrate/ship/review-pr output | Tasks + apply/review/hydrate output |
 | **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify`, `/fab-continue` (after rework cap) | `/fab-clarify`, `/fab-continue` (after rework cap) |
-| **Recomputes confidence?** | No | Spec stage only | No | No |
+| **Recomputes confidence?** | Yes (intake, via `fab score --stage intake`) | No (no scoring at apply — intake is authoritative) | No | No |
 
 ### Worked Examples
 
@@ -475,14 +475,14 @@ Every planning skill invocation SHALL end its output with an Assumptions summary
 **Rules**:
 - Include all four grades (Certain, Confident, Tentative, Unresolved) in the summary. The Scores column (`S:nn R:nn A:nn D:nn`) is required for every row.
 - Unresolved rows MUST include status context in the Rationale column: `Asked — {outcome}` or `Deferred — {reason}`.
-- For `/fab-ff`, the output summary is **cumulative** across all generated stages. Each entry notes its source artifact (e.g., "in spec.md"). Per-artifact `## Assumptions` sections are persisted individually.
+- For `/fab-ff`, the output summary is **cumulative** across all generated stages. Each entry notes its source artifact (e.g., "in plan.md"). Per-artifact `## Assumptions` sections are persisted individually.
 - If 0 assumptions were made, omit the Assumptions summary entirely (no empty table).
 
 ---
 
 ## Confidence Scoring
 
-Confidence scoring provides a numeric measure of how well-resolved a change's decisions are, used as a gate for fast-forward pipeline execution via `/fab-ff`.
+Confidence scoring provides a numeric measure of how well-resolved a change's decisions are, used as the single intake gate for fast-forward pipeline execution via `/fab-ff` and `/fab-fff`. Scoring reads `intake.md` (the sole scoring source) — there is no separate spec score.
 
 ### Schema (in `.status.yaml`)
 
@@ -492,9 +492,10 @@ confidence:
   confident: 3     # count of Confident-graded decisions
   tentative: 2     # count of Tentative-graded decisions
   unresolved: 0    # count of Unresolved-graded decisions
-  score: 2.1       # derived score (see formula below)
-  indicative: true # present (true) when score is from intake.md, absent when from spec.md
+  score: 2.1       # derived score (see formula below), computed from intake.md
 ```
+
+> The `confidence.indicative` flag is retired (1.10.0): intake scoring is now authoritative, not indicative, so the flag's distinction is meaningless with one scoring source. It is no longer written; a legacy `indicative: true` key on disk is tolerated on read and harmlessly dropped on the next save.
 
 ### Formula
 
@@ -507,40 +508,31 @@ else:
   score = base * cover
 ```
 
-Where `total_decisions = certain + confident + tentative + unresolved` and `expected_min` is looked up by `{stage, change_type}` from embedded tables in `fab score`. The `cover` factor prevents thin specs from getting inflated scores. When `total_decisions >= expected_min`, `cover = 1.0` and the formula degenerates to the base penalty. Range: 0.0 to 5.0. See `docs/specs/change-types.md` for the full `expected_min` threshold tables.
+Where `total_decisions = certain + confident + tentative + unresolved` and `expected_min` is looked up by `change_type` from a single embedded table in `fab score` (`feat:7, refactor:6, fix:5`, default `3` for `docs`/`test`/`ci`/`chore`). The `cover` factor prevents thin intakes from getting inflated scores. When `total_decisions >= expected_min`, `cover = 1.0` and the formula degenerates to the base penalty. Range: 0.0 to 5.0. See `docs/specs/change-types.md` for the full `expected_min` table.
 
-### Gate Thresholds
+### Gate Threshold
 
-Both `/fab-ff` and `/fab-fff` have two identical confidence gates. The `--force` flag on either skill bypasses both gates.
+There is exactly **one** confidence gate, evaluated at intake before the automated bracket proceeds. Both `/fab-ff` and `/fab-fff` check it via `fab score --check-gate --stage intake`. The `--force` flag on either skill bypasses it.
 
-**Intake gate** (fixed threshold): Both `/fab-ff` and `/fab-fff` compute an indicative score from `intake.md` via `fab score --check-gate --stage intake`. Threshold: **3.0** (fixed, not per-type).
+**Intake gate**: threshold **3.0 for all seven change types** (flat). `CheckGate` obtains it via `getGateThreshold(changeType)` (which returns 3.0 for every type today), so future per-type divergence is a data-only change. There is no separate spec gate — it was removed in 1.10.0 along with the spec stage.
 
-**Spec gate** (dynamic per-type thresholds): Both `/fab-ff` and `/fab-fff` check the spec confidence score via `fab score --check-gate`.
-
-| Type | Spec Gate Threshold |
-|------|---------------------|
-| `fix` | 2.0 |
-| `feat` | 3.0 |
-| `refactor` | 3.0 |
-| `docs`, `test`, `ci`, `chore` | 2.0 |
+A change whose intake fails the gate never reaches `done`, so gate-checking orchestrators cannot enter apply. This intake gate is the only "bounce" guard: there is no runtime mechanism inside apply that detects an SRAD Unresolved and resets to intake. The SRAD Critical Rule (Unresolved must be asked/bailed) applies at intake-time skills only (`/fab-new`, `/fab-clarify`).
 
 See `docs/specs/change-types.md` for the full taxonomy.
 
 ### Invocation
 
-Confidence is computed by `fab score`, invoked by:
-- `/fab-new` (intake stage, normal mode with `--stage intake`) — persists indicative score with `indicative: true`
-- `/fab-continue` (spec stage) and `/fab-clarify` (suggest mode) — persists spec score, clears `indicative` flag
+Confidence is computed by `fab score` (reading `intake.md`), invoked by:
+- `/fab-new` (after intake generation, `--stage intake`) — persists the intake score
+- `/fab-clarify` (intake target, suggest mode) — re-persists the intake score after resolving assumptions
 
-Both `/fab-ff` and `/fab-fff` gate at two points: (1) intake gate via `fab score --check-gate --stage intake` before starting, and (2) spec gate via `fab score --check-gate` after spec generation. The `--force` flag on either skill bypasses both gates entirely.
+`/fab-continue` does NOT score at apply entry — intake is authoritative, and there is no scoring at any post-intake stage.
 
-### Indicative vs Spec Scores
-
-When `confidence.indicative` is `true`, the score was computed from `intake.md` Assumptions (less authoritative, fewer decisions). When absent or `false`, the score is from `spec.md` (authoritative). Consumers (`/fab-status`, `/fab-switch`, `fab change list`) read uniformly from `.status.yaml` and use the `indicative` flag to label the display (e.g., `4.1 of 5.0 (indicative)`).
+Both `/fab-ff` and `/fab-fff` gate at a single point: the intake gate via `fab score --check-gate --stage intake` before starting the automated bracket. The `--force` flag on either skill bypasses it.
 
 ### Template
 
-The `status.yaml` template (in the kit cache at `$(fab kit-path)/templates/status.yaml`) includes the confidence block initialized to zero counts and score 0.0. `/fab-new` writes the indicative score after intake generation. `/fab-continue` overwrites with the spec score at the spec stage.
+The `status.yaml` template (in the kit cache at `$(fab kit-path)/templates/status.yaml`) includes the confidence block initialized to zero counts and score 0.0. `/fab-new` writes the intake score after intake generation; `/fab-clarify` re-writes it after resolving intake assumptions.
 
 ### Bulk Confirm (Confident Assumptions)
 

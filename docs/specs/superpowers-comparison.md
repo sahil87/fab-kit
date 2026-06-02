@@ -10,7 +10,7 @@ Both are "pure prompt play" — markdown skill files + shell scripts, no runtime
 
 | Dimension | Fab | Superpowers |
 |-----------|-----|-------------|
-| **Pipeline model** | 6 explicit stages (intake → spec → tasks → apply → review → hydrate) with YAML state machine tracking progress | 7 phases but loosely coupled — skills invoke each other by convention, no formal state tracking |
+| **Pipeline model** | 6 explicit stages (intake → apply → review → hydrate → ship → review-pr) with YAML state machine tracking progress; requirement capture is co-generated into `plan.md` at apply entry | 7 phases but loosely coupled — skills invoke each other by convention, no formal state tracking |
 | **Autonomy framework** | SRAD scoring (Signal, Reversibility, Agent Competence, Disambiguation) with numeric confidence gates that block fast-forward if decisions are under-resolved | No formal autonomy scoring — relies on human approval checkpoints (brainstorming approval, plan approval) |
 | **Memory / knowledge management** | First-class `docs/memory/` system — hydrate stage writes post-implementation truth back into memory files, creating institutional knowledge | No equivalent — knowledge lives in the codebase and git history only |
 | **Specs as separate artifact** | Distinct pre-implementation specs (`docs/specs/`) vs post-implementation memory — the gap between intent and reality is explicitly tracked | Design document produced during brainstorming, but no persistent spec layer separate from code |

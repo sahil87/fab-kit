@@ -6,12 +6,11 @@
 
 ## 1. How Development Works Today
 
-The stages every developer already follows — define what to build, design it, code it (apply), review it, close it. Fab doesn't invent new stages; it gives each one a name and a place.
+The stages every developer already follows — define what to build (intake), capture requirements + plan + code it (apply), review it, close it. Fab doesn't invent new stages; it gives each one a name and a place. Human judgment is frontloaded to intake; everything after runs unattended.
 
 ```mermaid
 flowchart TD
-    B[intake] -->|"define requirements"| S[spec]
-    S -->|"plan + write code"| A[apply]
+    B[intake] -->|"capture requirements + plan + write code"| A[apply]
     A -->|"validate"| R[review]
     R -->|"document learnings"| H[hydrate]
     H -->|"commit & push"| SH[ship]
@@ -20,11 +19,10 @@ flowchart TD
 
     %% Rework
     R -.->|"fix issues"| A
-    R -.->|"rethink approach"| REWORK["spec / plan"]
+    R -.->|"rethink approach"| REWORK["plan ## Requirements"]
 
     %% Styles
     style B fill:#e8f4f8,stroke:#2196F3
-    style S fill:#e8f4f8,stroke:#2196F3
     style A fill:#fff3e0,stroke:#FF9800
     style R fill:#fff3e0,stroke:#FF9800
     style H fill:#fff3e0,stroke:#FF9800
@@ -43,8 +41,7 @@ Each transition is now a `/fab-*` command. `/fab-ff` fast-forwards from intake t
 flowchart TD
     WT[new worktree] -->|"/fab-discuss"| IDEA[idea]
     IDEA -->|"/fab-new"| B[intake]
-    B -->|"/fab-continue"| S[spec]
-    S -->|"/fab-continue"| A[apply]
+    B -->|"/fab-continue"| A[apply]
     A -->|"/fab-continue"| R[review]
     R -->|"/fab-continue"| H[hydrate]
     H -->|"/git-pr"| SH[ship]
@@ -66,13 +63,12 @@ flowchart TD
 
     %% Rework (reset to any earlier stage)
     H -.->|"Revise anytime using
-    /fab-continue &lt;stage&gt;"| REWORK["spec / apply / review"]
+    /fab-continue &lt;stage&gt;"| REWORK["apply / review"]
 
     %% Styles
     style WT fill:#f0f0f0,stroke:#999
     style IDEA fill:#f0f0f0,stroke:#999
     style B fill:#e8f4f8,stroke:#2196F3
-    style S fill:#e8f4f8,stroke:#2196F3
     style A fill:#fff3e0,stroke:#FF9800
     style R fill:#fff3e0,stroke:#FF9800
     style H fill:#fff3e0,stroke:#FF9800
@@ -93,19 +89,17 @@ stateDiagram-v2
 
     [*] --> intake: /fab-new
 
-    intake --> spec: /fab-continue
-
-    spec --> apply: /fab-continue (writes plan.md, runs tasks)
-    intake --> hydrate: /fab-ff (fast-forward, confidence-gated)
-    intake --> review_pr: /fab-fff (fast-forward-further, confidence-gated)
+    intake --> apply: /fab-continue (co-generates plan.md, runs tasks)
+    intake --> hydrate: /fab-ff (fast-forward, intake-gated)
+    intake --> review_pr: /fab-fff (fast-forward-further, intake-gated)
 
     apply --> review: /fab-continue
 
     review --> hydrate: pass (all checks ✓)
     review --> apply: auto-rework (sub-agent, fab-ff/fab-fff)
-    review --> earlier_stage: /fab-continue ‹stage› (manual)
+    review --> earlier_stage: /fab-continue apply (manual)
 
-    state "spec / apply" as earlier_stage
+    state "apply (revise requirements)" as earlier_stage
 
     hydrate --> ship: /git-pr
     ship --> review_pr: /git-pr-review
@@ -114,19 +108,17 @@ stateDiagram-v2
     state "review-pr" as review_pr
 
     note right of intake
-        Created by /fab-new
-        Contains: requirements,
-        goals, constraints
-    end note
-
-    note right of spec
-        Confidence score calculated,
-        /fab-clarify to improve
+        Created by /fab-new.
+        Contains: goals, constraints.
+        Confidence score calculated;
+        /fab-clarify to improve.
+        The single gate lives here.
     end note
 
     note right of apply
-        Entry sub-step: writes plan.md
-        from spec.md (Tasks + Acceptance).
+        Entry sub-step: co-generates plan.md
+        (## Requirements from intake.md +
+        ## Tasks + ## Acceptance).
         Tasks run in order;
         tests after each task;
         resumable (plan.md persists,
@@ -153,7 +145,6 @@ stateDiagram-v2
     classDef input fill:#f3e5f5,stroke:#9C27B0,stroke-width:2px
 
     class intake input
-    class spec planning
     class apply,review,hydrate execution
     class ship,review_pr shipping
 ```

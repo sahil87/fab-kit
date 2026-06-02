@@ -14,7 +14,7 @@ User invokes /fab-clarify [change-name] [target-artifact]
 ├─ Read: _preamble.md (always-load layer)
 ├─ Bash: fab preflight [change-name]
 │
-├─ Resolve target artifact (intake.md / spec.md / plan.md). Legacy `tasks` target errors with a pointer to `plan` / `spec`.
+├─ Target is always intake.md (intake-only, 1.10.0). At apply or later, STOP (point to /fab-continue rework). Legacy `spec`/`plan`/`tasks` targets removed.
 │
 ├─── SUGGEST MODE (user invocation) ────────────────────
 │  │
@@ -66,4 +66,4 @@ None.
 
 | Step | Command | Trigger |
 |------|---------|---------|
-| 7 (Suggest only) | `fab score <change>` | After spec.md edits |
+| 7 (always) | `fab score --stage intake <change>` | After intake.md edits (intake is the sole scoring source) |

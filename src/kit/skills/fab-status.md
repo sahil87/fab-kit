@@ -42,8 +42,8 @@ Use `fab preflight` and `fab status` for validation and data retrieval. The skil
 - Reads kit VERSION (via `fab kit-path`), `fab/.kit-migration-version` (if exists), `.fab-status.yaml`, and `fab/changes/{name}/.status.yaml`
 - Queries live branch via `git branch --show-current` (instead of reading a static `branch:` field from `.status.yaml`)
 - **Version drift check**: if `fab/.kit-migration-version` exists and its value is less than the kit VERSION, display a warning: `Version drift: local {local}, engine {engine} -- run /fab-setup migrations`. If versions match, no warning. If `fab/.kit-migration-version` doesn't exist, no warning (handled by `/fab-setup`)
-- Uses `display_stage` and `display_state` from preflight output for the primary "Stage:" line, showing the stage with a state qualifier (e.g., `Stage: intake (1/7) — done`). The "Next:" line shows the routing stage with the default command (e.g., `Next: spec (via /fab-continue)`). When all stages are done, shows `Next: /fab-archive`
-- Renders the full status block: version header, change name, branch, stage with state qualifier (out of 7 total stages), next action, progress table with symbols (`✓` done, `●` active, `◷` ready, `○` pending, `✗` failed), plan counts (tasks: `{plan.task_count}`, acceptance: `{plan.acceptance_completed}/{plan.acceptance_count}`), confidence score, optional Impact line (see below), optional refactor-growth warning (see below), version drift warning (if applicable)
+- Uses `display_stage` and `display_state` from preflight output for the primary "Stage:" line, showing the stage with a state qualifier (e.g., `Stage: intake (1/6) — done`). The "Next:" line shows the routing stage with the default command (e.g., `Next: apply (via /fab-continue)`). When all stages are done, shows `Next: /fab-archive`
+- Renders the full status block: version header, change name, branch, stage with state qualifier (out of 6 total stages), next action, progress table with symbols (`✓` done, `●` active, `◷` ready, `○` pending, `✗` failed), plan counts (tasks: `{plan.task_count}`, acceptance: `{plan.acceptance_completed}/{plan.acceptance_count}`), confidence score, optional Impact line (see below), optional refactor-growth warning (see below), version drift warning (if applicable)
 - **Impact line** — when `.status.yaml` `true_impact` block is present, render a single line under the change summary, sourced from the block:
 
   ```
@@ -60,9 +60,8 @@ Use `fab preflight` and `fab status` for validation and data retrieval. The skil
   The +50 threshold is hard-coded. The warning is informational only — no gate, no block.
 - Handles all error cases (no active change, missing `.status.yaml`, missing fields)
 - Defaults missing progress fields to `○` (pending), missing plan to "plan not yet generated", and missing confidence to "not yet scored"
-- **Confidence display** — read uniformly from `.status.yaml` (via preflight output) for all stages:
-  - **Score > 0.0 with `indicative: true`**: `Indicative confidence: {score} of 5.0 ({N} certain, {N} confident, {N} tentative)` — appends `, {N} unresolved` only when unresolved > 0.
-  - **Score > 0.0 without `indicative`**: `Confidence: {score} of 5.0 ({N} certain, {N} confident, {N} tentative)` — appends `, {N} unresolved` only when unresolved > 0.
+- **Confidence display** — read uniformly from `.status.yaml` (via preflight output) for all stages (the `indicative` flag is retired in 1.10.0 — intake scoring is authoritative, so there is no separate "indicative" label):
+  - **Score > 0.0**: `Confidence: {score} of 5.0 ({N} certain, {N} confident, {N} tentative)` — appends `, {N} unresolved` only when unresolved > 0.
   - **Score = 0.0 with all grade counts 0 (template default, pre-intake)**: `Confidence: not yet scored`
 
 ---

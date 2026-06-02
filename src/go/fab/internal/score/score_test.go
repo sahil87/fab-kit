@@ -15,8 +15,7 @@ created_by: test-user
 change_type: %s
 issues: []
 progress:
-  intake: done
-  spec: active
+  intake: active
   apply: pending
   review: pending
   hydrate: pending
@@ -39,8 +38,9 @@ last_updated: "2026-03-10T12:00:00Z"
 `
 
 // setupScoreFixture creates a fab structure with a change directory and
-// writes the given spec.md content. Returns fabRoot.
-func setupScoreFixture(t *testing.T, changeType, specContent string) string {
+// writes the given intake.md content (intake is the sole scoring source as of
+// 1.10.0). Returns fabRoot.
+func setupScoreFixture(t *testing.T, changeType, assumptionsContent string) string {
 	t.Helper()
 	dir := t.TempDir()
 	fabRoot := filepath.Join(dir, "fab")
@@ -52,8 +52,8 @@ func setupScoreFixture(t *testing.T, changeType, specContent string) string {
 	statusYAML := strings.Replace(statusTemplate, "%s", changeType, 1)
 	os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte(statusYAML), 0644)
 
-	// Write spec.md
-	os.WriteFile(filepath.Join(changeDir, "spec.md"), []byte(specContent), 0644)
+	// Write intake.md (scoring reads intake.md)
+	os.WriteFile(filepath.Join(changeDir, "intake.md"), []byte(assumptionsContent), 0644)
 
 	// Create project config — required by status.SetConfidence/SetConfidenceFuzzy
 	// which reads project config to locate the status file during YAML writes
@@ -209,41 +209,41 @@ func TestCompute_DimensionParsing(t *testing.T) {
 }
 
 func TestCheckGate_Pass(t *testing.T) {
-	// fix change type has threshold 2.0
-	spec := specWithAssumptions(
+	// fix change type now has the flat gate threshold 3.0 (1.10.0)
+	intake := specWithAssumptions(
 		"| 1 | Certain | D1 | R1 | |",
 		"| 2 | Certain | D2 | R2 | |",
 		"| 3 | Certain | D3 | R3 | |",
 		"| 4 | Certain | D4 | R4 | |",
 		"| 5 | Certain | D5 | R5 | |",
 	)
-	fabRoot := setupScoreFixture(t, "fix", spec)
+	fabRoot := setupScoreFixture(t, "fix", intake)
 
-	result, err := CheckGate(fabRoot, "abcd", "")
+	result, err := CheckGate(fabRoot, "abcd", "intake")
 	if err != nil {
 		t.Fatalf("CheckGate failed: %v", err)
 	}
 
-	// 5 certain, total=5, expectedMin for fix spec=5, cover=1.0
-	// score = 5.0, threshold = 2.0 => pass
+	// 5 certain, total=5, expectedMin for fix=5, cover=1.0
+	// score = 5.0, threshold = 3.0 => pass
 	if result.Gate != "pass" {
 		t.Errorf("Gate = %q, want pass", result.Gate)
 	}
-	if result.Threshold != 2.0 {
-		t.Errorf("Threshold = %.1f, want 2.0", result.Threshold)
+	if result.Threshold != 3.0 {
+		t.Errorf("Threshold = %.1f, want 3.0", result.Threshold)
 	}
 }
 
 func TestCheckGate_Fail(t *testing.T) {
 	// feat change type has threshold 3.0, but only 3 decisions (cover factor low)
-	spec := specWithAssumptions(
+	intake := specWithAssumptions(
 		"| 1 | Confident | D1 | R1 | |",
 		"| 2 | Confident | D2 | R2 | |",
 		"| 3 | Confident | D3 | R3 | |",
 	)
-	fabRoot := setupScoreFixture(t, "feat", spec)
+	fabRoot := setupScoreFixture(t, "feat", intake)
 
-	result, err := CheckGate(fabRoot, "abcd", "")
+	result, err := CheckGate(fabRoot, "abcd", "intake")
 	if err != nil {
 		t.Fatalf("CheckGate failed: %v", err)
 	}
@@ -282,8 +282,8 @@ func TestCheckGate_IntakeStage(t *testing.T) {
 		t.Errorf("Threshold = %.1f, want 3.0", result.Threshold)
 	}
 
-	// base = 5.0 - 0.3*2 = 4.4, total=2, expectedMin for feat intake=5, cover=2/5=0.4
-	// score = 4.4 * 0.4 = 1.8 => fail
+	// base = 5.0 - 0.3*2 = 4.4, total=2, expectedMin for feat=7, cover=2/7=0.286
+	// score = 4.4 * 0.286 ~= 1.3 => fail
 	if result.Gate != "fail" {
 		t.Errorf("Gate = %q, want fail (score=%.1f)", result.Gate, result.Score)
 	}
@@ -344,11 +344,25 @@ func TestConstants(t *testing.T) {
 		t.Errorf("wTentative = %f, want 1.0", wTentative)
 	}
 
-	// Verify gate thresholds
+	// Verify gate thresholds — flat 3.0 for all types (1.10.0)
 	if gateThresholds["feat"] != 3.0 {
 		t.Errorf("feat threshold = %f, want 3.0", gateThresholds["feat"])
 	}
-	if gateThresholds["fix"] != 2.0 {
-		t.Errorf("fix threshold = %f, want 2.0", gateThresholds["fix"])
+	if gateThresholds["fix"] != 3.0 {
+		t.Errorf("fix threshold = %f, want 3.0", gateThresholds["fix"])
+	}
+
+	// Verify single expectedMin table (expectedMinIntake deleted)
+	if expectedMin["feat"] != 7 {
+		t.Errorf("expectedMin[feat] = %d, want 7", expectedMin["feat"])
+	}
+	if expectedMin["refactor"] != 6 {
+		t.Errorf("expectedMin[refactor] = %d, want 6", expectedMin["refactor"])
+	}
+	if expectedMin["fix"] != 5 {
+		t.Errorf("expectedMin[fix] = %d, want 5", expectedMin["fix"])
+	}
+	if getExpectedMin("docs") != 3 {
+		t.Errorf("getExpectedMin(docs) = %d, want 3 (default)", getExpectedMin("docs"))
 	}
 }

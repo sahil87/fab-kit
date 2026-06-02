@@ -4,7 +4,7 @@
 
 ## Overview
 
-The `/fab-clarify` skill deepens and refines the current stage artifact without advancing to the next stage. It operates in two modes depending on call context: **suggest mode** for interactive user-driven clarification, and **auto mode** for autonomous resolution when called internally by `fab-ff`.
+The `/fab-clarify` skill deepens and refines the **intake** artifact (`intake.md`) without advancing. As of j6cs it is **intake-only**: clarification is the intake-time, human-facing activity where the developer's decisions and disambiguation happen, gated by the single intake confidence gate. There is no post-intake clarify — inside apply, the agent resolves ambiguity inline as graded SRAD assumptions in `plan.md`'s `## Assumptions`, not via this skill. It operates in two modes depending on call context: **suggest mode** for interactive user-driven clarification, and **auto mode** for autonomous resolution (machine-readable result; no orchestrator currently invokes it — the former `/fab-ff`/`/fab-fff` auto-clarify steps were removed in j6cs).
 
 ## Requirements
 
@@ -13,7 +13,7 @@ The `/fab-clarify` skill deepens and refines the current stage artifact without 
 `/fab-clarify` SHALL support two modes, determined by the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (`_preamble.md`):
 
 - **Suggest mode**: Activated when the `[AUTO-MODE]` prefix is **absent** (e.g., user invokes `/fab-clarify` directly). Interactive, presents structured questions one at a time with recommendations and options.
-- **Auto mode**: Activated when the `[AUTO-MODE]` prefix is **present** (e.g., `/fab-ff` invokes clarify internally between stage generations). Autonomous, resolves gaps without user interaction and returns a machine-readable result.
+- **Auto mode**: Activated when the `[AUTO-MODE]` prefix is **present**. Autonomous, resolves gaps without user interaction and returns a machine-readable result. Retained for future use — no orchestrator currently invokes it (j6cs removed the `/fab-ff`/`/fab-fff` auto-clarify steps).
 
 There SHALL be no `--suggest` or `--auto` flags on the clarify skill.
 
@@ -21,15 +21,11 @@ There SHALL be no `--suggest` or `--auto` flags on the clarify skill.
 
 #### Stage-Scoped Taxonomy Scan
 
-The skill SHALL perform a systematic scan of the current stage's artifacts for gaps, ambiguities, and `[NEEDS CLARIFICATION]` markers. Scan categories vary by target, using per-artifact taxonomy:
+The skill SHALL perform a systematic scan of `intake.md` for gaps, ambiguities, and `[NEEDS CLARIFICATION]` markers. There is a single taxonomy (intake-only as of j6cs):
 
 - **Intake**: scope boundaries, affected areas, blocking questions, impact completeness, affected memory coverage, Origin section completeness
-- **Spec** (scans both `intake.md` and `spec.md`):
-  - *Intake refinement*: scope boundaries, affected areas, blocking questions, impact completeness, affected memory coverage, Origin section completeness
-  - *Spec refinement*: requirement precision, scenario coverage, edge cases, deprecated requirements, cross-references
-- **Plan** (post-apply-entry; requires `plan.md` to exist): task completeness, granularity, dependency ordering, file path accuracy, `[P]` parallel markers (under `## Tasks`); plus acceptance coverage of spec requirements (under `## Acceptance`)
 
-`/fab-clarify tasks` SHALL error with `"tasks" target was removed — use plan (post-apply-entry) or spec (pre-apply).` The `tasks` stage was removed in qszh; plan-level clarification now scans `plan.md` instead of `tasks.md` + `checklist.md`.
+A passed `spec`, `plan`, or `tasks` argument is treated as a change name (those targets no longer exist — `spec` and `plan` were removed in j6cs; `tasks` in qszh). At apply or later, `/fab-clarify` STOPs with a pointer to `/fab-continue` for rework or editing `plan.md`'s `## Requirements` directly.
 
 The scan also detects:
 - `<!-- assumed: ... -->` markers left by any planning skill — Tentative assumptions to confirm or override
@@ -72,7 +68,7 @@ At the end of each session, the skill SHALL display a coverage summary with four
 
 #### Autonomous Resolution
 
-In auto mode, the skill SHALL resolve gaps using available context (config, constitution, memory files, completed artifacts). It classifies each gap as resolvable, blocking, or non-blocking. The scan includes `<!-- assumed: ... -->` markers — those confirmable from context are resolved (marker removed), others are classified as blocking or non-blocking.
+In auto mode, the skill SHALL resolve gaps in `intake.md` using available context (config, constitution, memory files). It classifies each gap as resolvable, blocking, or non-blocking. The scan includes `<!-- assumed: ... -->` markers — those confirmable from context are resolved (marker removed), others are classified as blocking or non-blocking. As of j6cs no orchestrator invokes auto mode; it is retained for future use and operates on `intake.md` only.
 
 #### Grade Reclassification
 
@@ -80,11 +76,11 @@ When a Tentative or Confident assumption is resolved or confirmed during a sugge
 
 #### Confidence Recomputation
 
-After each suggest-mode session, the skill SHALL recompute the confidence score by re-counting SRAD grades across all artifacts in the change (scanning the `## Assumptions` tables) and applying the formula (see `_preamble.md` Confidence Scoring section). The updated `confidence` block is written to `.status.yaml`. Because reclassified grades (Tentative/Confident → Certain) reduce the penalty count, the score increases after clarification.
+After each suggest-mode session, the skill SHALL recompute the confidence score by re-running `fab score --stage intake <change>` (the recompute step was **inverted in j6cs**: instead of skipping at intake, it now always runs at intake — `intake.md`'s `## Assumptions` table is the sole scoring source). The updated `confidence` block is written to `.status.yaml`. Because reclassified grades (Tentative/Confident → Certain) reduce the penalty count, the score increases after clarification. Auto mode also recomputes the intake score.
 
 #### Machine-Readable Result
 
-Auto mode SHALL return a structured result: `{resolved: N, blocking: N, non_blocking: N}`. If blocking issues exist, descriptions are included: `{..., blocking_issues: ["description"]}`. This result is consumed by `fab-ff` to decide whether to continue or bail.
+Auto mode SHALL return a structured result: `{resolved: N, blocking: N, non_blocking: N}`. If blocking issues exist, descriptions are included: `{..., blocking_issues: ["description"]}`. (Historically consumed by `/fab-ff`/`/fab-fff` to decide whether to continue or bail; those auto-clarify steps were removed in j6cs, so no current consumer reads this result.)
 
 ### Bulk Confirm (Confident Assumptions)
 
@@ -118,15 +114,19 @@ The clarify skill SHALL never advance the stage in `.status.yaml`. It only updat
 
 ### Stage Guard
 
-The skill SHALL accept the following targets:
+`/fab-clarify` operates only at the **intake** stage:
 
-- **`intake`** — operates on the intake stage (`progress.intake` in `{active, ready, done}`)
-- **`spec`** — operates on the spec stage (`progress.spec` in `{active, ready, done}`)
-- **`plan`** — post-apply-entry target. Requires `plan.md` to exist AND `progress.apply` in `{active, ready, done}` or later (review/hydrate). Stage stays at apply (clarify is non-advancing).
+- **`intake`** — operates on the intake stage (`progress.intake` in `{active, ready, done}`), scanning `intake.md`.
 
-The pre-flight stage guard MUST allow the planning stages (`intake`, `spec`); for the `plan` target, the change MUST be at `apply` or later AND `plan.md` MUST exist. `tasks` is rejected with the strict-error pointer above. If the stage is `ship` or `review-pr` and no valid target is requested, the skill aborts with a suggestion to use `/fab-continue` instead.
+The pre-flight stage guard MUST allow only `intake`. At any post-intake stage (`apply`, `review`, `hydrate`, `ship`, `review-pr`), `/fab-clarify` does not apply and STOPs with: "Clarification is intake-only. At apply or later, run /fab-continue for rework, or edit plan.md `## Requirements` directly. To re-clarify the intake, reset with /fab-continue intake first." If `intake.md` is missing entirely, it STOPs with "No intake.md found. Run /fab-new to create the intake first." The former `spec` and `plan` targets were removed in j6cs (and `tasks` in qszh); any such positional argument is treated as a change name.
 
 ## Design Decisions
+
+### Clarify is Intake-Only (j6cs)
+**Decision**: `/fab-clarify` accepts only the `intake` target. The former `spec` and `plan` targets were removed when the spec stage was merged into apply. The recompute-confidence step was inverted: instead of skipping at intake, it now always runs `fab score --stage intake <change>`.
+**Why**: With one manual stage (intake) and one confidence gate, clarification is the intake-time activity where the developer's decisions happen. After intake, the agent runs unattended — under-specified requirements encountered inside apply are resolved as graded SRAD assumptions in `plan.md`'s `## Assumptions`, not via a clarify session. The intake gate is the guard: a sub-threshold intake never reaches `done`, so gate-checking orchestrators can't enter apply. The SRAD Critical Rule (Unresolved must be asked/bailed) therefore applies at intake-time skills only (`/fab-new`, `/fab-clarify`).
+**Rejected**: Keeping a `plan` target for post-apply-entry requirement clarification — re-adds an interactive checkpoint to the unattended segment; rework already flows through `/fab-continue` editing `plan.md` `## Requirements`.
+*Introduced by*: 260601-j6cs-merge-spec-into-apply
 
 ### Mode Selection by `[AUTO-MODE]` Prefix
 **Decision**: Mode is determined by the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (`_preamble.md`). Prefix present = auto mode; absent = suggest mode. No flags.
@@ -165,6 +165,7 @@ The pre-flight stage guard MUST allow the planning stages (`intake`, `spec`); fo
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260601-j6cs-merge-spec-into-apply | 2026-06-01 | Made `/fab-clarify` **intake-only**. Removed the `spec` and `plan` targets (the spec stage is gone; under-spec at apply → inline SRAD assumptions in `plan.md`). Overview, dual-mode, taxonomy scan (single Intake taxonomy), auto-mode, machine-readable-result, and stage guard rewritten. Inverted the confidence-recompute step: always runs `fab score --stage intake`. Auto mode retained but no orchestrator invokes it (the `/fab-ff`/`/fab-fff` auto-clarify steps were removed). Post-intake stages STOP with a pointer to `/fab-continue` / editing `plan.md` `## Requirements`. Added "Clarify is Intake-Only" design decision. |
 | 260423-qszh-merge-tasks-checklist | 2026-05-06 | Updated target taxonomy: `tasks` removed, `plan` added (post-apply-entry; requires `plan.md` to exist; scans `## Tasks` for completeness/granularity/dependencies/file paths/`[P]` markers and `## Acceptance` for coverage of spec requirements). Added explicit "Intake" entry to the per-target taxonomy list. `/fab-clarify tasks` errors with `"tasks" target was removed — use plan (post-apply-entry) or spec (pre-apply).` Stage Guard rewritten to enumerate accepted targets and the apply-or-later requirement for `plan`. |
 | 260416-hyl6-clarify-tentative-first | 2026-04-16 | Reordered suggest mode flow — taxonomy scan (Step 1.5) now runs before bulk confirm (Step 2), so tentative assumptions are addressed before confident ones |
 | 260302-c7is-fab-clarify-bulk-confirm | 2026-03-02 | Added bulk confirm mode (Step 1.5) to suggest mode — detects when Confident assumptions dominate the confidence drag (`confident >= 3` AND `confident > tentative + unresolved`), displays numbered list for conversational bulk response, supports confirm/change/explain/range/all formats, one re-prompt round for explanations. Added to `_preamble.md` Confidence Scoring section. Auto Mode excluded. |

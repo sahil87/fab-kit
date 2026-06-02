@@ -59,16 +59,29 @@ func TestMatchArtifactPath_AbsoluteIntake(t *testing.T) {
 	}
 }
 
-func TestMatchArtifactPath_RelativeSpec(t *testing.T) {
-	match, ok := MatchArtifactPath("fab/changes/260310-bvc6-test/spec.md")
+// TestMatchArtifactPath_RelativePlan covers a relative artifact path that
+// matches. spec.md is no longer a recognized artifact (1.10.0), so plan.md
+// stands in for the relative-path case.
+func TestMatchArtifactPath_RelativePlan(t *testing.T) {
+	match, ok := MatchArtifactPath("fab/changes/260310-bvc6-test/plan.md")
 	if !ok {
 		t.Fatal("expected match")
 	}
 	if match.ChangeFolder != "260310-bvc6-test" {
 		t.Errorf("ChangeFolder = %q, want %q", match.ChangeFolder, "260310-bvc6-test")
 	}
-	if match.Artifact != "spec.md" {
-		t.Errorf("Artifact = %q, want %q", match.Artifact, "spec.md")
+	if match.Artifact != "plan.md" {
+		t.Errorf("Artifact = %q, want %q", match.Artifact, "plan.md")
+	}
+}
+
+// TestMatchArtifactPath_LegacySpecRejected verifies a leftover spec.md no
+// longer matches (1.10.0), so editing it cannot fire the score hook and
+// overwrite the authoritative intake confidence — mirroring the tasks.md
+// rejection.
+func TestMatchArtifactPath_LegacySpecRejected(t *testing.T) {
+	if _, ok := MatchArtifactPath("fab/changes/260310-bvc6-test/spec.md"); ok {
+		t.Error("expected no match for legacy spec.md")
 	}
 }
 

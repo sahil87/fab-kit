@@ -89,17 +89,17 @@ Write the inferred type to `.status.yaml`:
 fab status set-change-type {name} <type>
 ```
 
-### Step 7: Indicative Confidence
+### Step 7: Confidence
 
-After generating `intake.md` and inferring the change type, persist and display an indicative confidence score:
+After generating `intake.md` and inferring the change type, persist and display the confidence score:
 
 1. Call `fab score --stage intake <change>` (normal mode, **not** `--check-gate`)
-2. This writes the indicative score to `.status.yaml` with `indicative: true`
+2. This writes the score to `.status.yaml` (no `indicative` flag is written — retired in 1.10.0; intake scoring is authoritative)
 3. Display the result from stdout (score and breakdown)
 
-Output format: `Indicative confidence: {score} / 5.0 ({N} decisions)`
+Output format: `Confidence: {score} / 5.0 ({N} decisions)`
 
-The indicative score is persisted to `.status.yaml` so that consumers (`/fab-switch`, `/fab-status`, `fab change list`) can display it without recomputation. The authoritative spec-stage score overwrites it (clearing `indicative: true`) when `fab score` runs at the spec stage.
+The score is persisted to `.status.yaml` so that consumers (`/fab-switch`, `/fab-status`, `fab change list`) can display it without recomputation. It is the authoritative confidence — intake is the sole scoring source, and the single intake gate (flat 3.0) reads it.
 
 ### Step 8: SRAD-Based Question Selection
 
@@ -113,7 +113,7 @@ After all intake work is complete (generation, type inference, confidence, quest
 fab status advance {name} intake
 ```
 
-This signals that the intake artifact exists and is open for `/fab-clarify` refinement. After Step 10 activates the change, the user can run `/fab-continue` immediately to proceed to spec generation.
+This signals that the intake artifact exists and is open for `/fab-clarify` refinement. After Step 10 activates the change, the user can run `/fab-continue` immediately to proceed to apply (which co-generates `plan.md` — requirements + tasks + acceptance).
 
 ### Step 10: Activate Change
 
@@ -201,7 +201,7 @@ Intake complete.
 
 {if assumptions: "## Assumptions\n\n| # | Grade | Decision | Rationale | Scores |\n..."}
 
-Indicative confidence: {score} / 5.0 ({N} decisions, cover: {cover})
+Confidence: {score} / 5.0 ({N} decisions, cover: {cover})
 
 Activated: {name}
 Branch: {name} (created|created, leaving {old_branch} intact|checked out|renamed from {old_branch}|already active)

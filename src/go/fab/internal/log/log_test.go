@@ -106,7 +106,7 @@ func TestCommand_WithArgs(t *testing.T) {
 func TestTransition(t *testing.T) {
 	fabRoot, folder := setupLogFixture(t)
 
-	err := Transition(fabRoot, folder, "spec", "finish", "", "", "fab-ff")
+	err := Transition(fabRoot, folder, "apply", "finish", "", "", "fab-ff")
 	if err != nil {
 		t.Fatalf("Transition failed: %v", err)
 	}
@@ -118,8 +118,8 @@ func TestTransition(t *testing.T) {
 	if m["event"] != "stage-transition" {
 		t.Errorf("event = %v, want stage-transition", m["event"])
 	}
-	if m["stage"] != "spec" {
-		t.Errorf("stage = %v, want spec", m["stage"])
+	if m["stage"] != "apply" {
+		t.Errorf("stage = %v, want apply", m["stage"])
 	}
 	if m["action"] != "finish" {
 		t.Errorf("action = %v, want finish", m["action"])
@@ -162,7 +162,7 @@ func TestReview(t *testing.T) {
 func TestConfidenceLog(t *testing.T) {
 	fabRoot, folder := setupLogFixture(t)
 
-	err := ConfidenceLog(fabRoot, folder, 4.2, "+0.3", "spec")
+	err := ConfidenceLog(fabRoot, folder, 4.2, "+0.3", "intake")
 	if err != nil {
 		t.Fatalf("ConfidenceLog failed: %v", err)
 	}
@@ -180,8 +180,8 @@ func TestConfidenceLog(t *testing.T) {
 	if m["delta"] != "+0.3" {
 		t.Errorf("delta = %v, want +0.3", m["delta"])
 	}
-	if m["trigger"] != "spec" {
-		t.Errorf("trigger = %v, want spec", m["trigger"])
+	if m["trigger"] != "intake" {
+		t.Errorf("trigger = %v, want intake", m["trigger"])
 	}
 }
 

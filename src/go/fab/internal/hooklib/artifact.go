@@ -75,9 +75,11 @@ func MatchArtifactPath(filePath string) (ArtifactMatch, bool) {
 		return ArtifactMatch{}, false
 	}
 
-	// Only match known artifact files
+	// Only match known artifact files. spec.md is retired (1.10.0): a leftover
+	// spec.md on disk must NOT match, so editing it cannot fire score.Compute
+	// and overwrite the authoritative intake confidence.
 	switch artifact {
-	case "intake.md", "spec.md", "plan.md":
+	case "intake.md", "plan.md":
 		return ArtifactMatch{ChangeFolder: folder, Artifact: artifact}, true
 	default:
 		return ArtifactMatch{}, false

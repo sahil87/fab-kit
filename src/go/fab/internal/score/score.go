@@ -23,18 +23,19 @@ const (
 	wTentative  = 1.0
 )
 
-// Expected minimum decisions by {stage, type}.
-var expectedMinIntake = map[string]int{
-	"feat": 5, "refactor": 4, "fix": 3,
-}
-var expectedMinSpec = map[string]int{
+// Expected minimum decisions by change type. Single table seeded from the old
+// spec-gate values; types without an explicit entry (docs/test/ci/chore) use
+// the default of 3. The intake gate is now the sole authoritative gate, so it
+// demands spec-level decision coverage.
+var expectedMin = map[string]int{
 	"feat": 7, "refactor": 6, "fix": 5,
 }
 
-// Gate thresholds by change type.
+// Gate thresholds by change type. Flat 3.0 for all seven types (1.10.0). The
+// per-type map is retained so future divergence is a data-only change.
 var gateThresholds = map[string]float64{
-	"fix": 2.0, "feat": 3.0, "refactor": 3.0,
-	"docs": 2.0, "test": 2.0, "ci": 2.0, "chore": 2.0,
+	"fix": 3.0, "feat": 3.0, "refactor": 3.0,
+	"docs": 3.0, "test": 3.0, "ci": 3.0, "chore": 3.0,
 }
 
 var scoresRegex = regexp.MustCompile(`S:(\d+)\s+R:(\d+)\s+A:(\d+)\s+D:(\d+)`)
@@ -93,15 +94,11 @@ func CheckGate(fabRoot, changeArg, stage string) (*GateResult, error) {
 		}
 	}
 
-	var scoreFile string
-	var threshold float64
-	if stage == "intake" {
-		scoreFile = filepath.Join(changeDir, "intake.md")
-		threshold = 3.0
-	} else {
-		scoreFile = filepath.Join(changeDir, "spec.md")
-		threshold = getGateThreshold(changeType)
-	}
+	// The intake gate is the sole confidence gate (1.10.0). Scoring always
+	// reads intake.md; the threshold routes through the per-type table (flat
+	// 3.0 today) so future per-type divergence is a one-line data change.
+	scoreFile := filepath.Join(changeDir, "intake.md")
+	threshold := getGateThreshold(changeType)
 
 	if _, err := os.Stat(scoreFile); os.IsNotExist(err) {
 		return nil, fmt.Errorf("%s not found in %s", filepath.Base(scoreFile), changeDir)
@@ -109,8 +106,7 @@ func CheckGate(fabRoot, changeArg, stage string) (*GateResult, error) {
 
 	gc := countGrades(scoreFile)
 	total := gc.Certain + gc.Confident + gc.Tentative + gc.Unresolved
-	expectedMin := getExpectedMin(stage, changeType)
-	score := computeScore(gc.Certain, gc.Confident, gc.Tentative, gc.Unresolved, total, expectedMin)
+	score := computeScore(gc.Certain, gc.Confident, gc.Tentative, gc.Unresolved, total, getExpectedMin(changeType))
 
 	gate := "pass"
 	if score < threshold {
@@ -138,17 +134,11 @@ func Compute(fabRoot, changeArg, stage string) (*ScoreResult, error) {
 
 	statusPath := filepath.Join(changeDir, ".status.yaml")
 
-	var scoreFile string
-	if stage == "intake" {
-		scoreFile = filepath.Join(changeDir, "intake.md")
-		if _, err := os.Stat(scoreFile); os.IsNotExist(err) {
-			return nil, fmt.Errorf("intake.md required for scoring at intake stage")
-		}
-	} else {
-		scoreFile = filepath.Join(changeDir, "spec.md")
-		if _, err := os.Stat(scoreFile); os.IsNotExist(err) {
-			return nil, fmt.Errorf("spec.md required for scoring")
-		}
+	// Scoring always reads intake.md (1.10.0): intake is the sole scoring
+	// source now that the spec stage and spec.md are retired.
+	scoreFile := filepath.Join(changeDir, "intake.md")
+	if _, err := os.Stat(scoreFile); os.IsNotExist(err) {
+		return nil, fmt.Errorf("intake.md required for scoring")
 	}
 
 	// Load status file once for change type, previous score, and writing back
@@ -163,11 +153,9 @@ func Compute(fabRoot, changeArg, stage string) (*ScoreResult, error) {
 		prevScore = statusFile.Confidence.Score
 	}
 
-	expectedMin := getExpectedMin(stage, changeType)
-
 	gc := countGrades(scoreFile)
 	total := gc.Certain + gc.Confident + gc.Tentative + gc.Unresolved
-	score := computeScore(gc.Certain, gc.Confident, gc.Tentative, gc.Unresolved, total, expectedMin)
+	score := computeScore(gc.Certain, gc.Confident, gc.Tentative, gc.Unresolved, total, getExpectedMin(changeType))
 
 	// Compute dimension means
 	var meanS, meanR, meanA, meanD float64
@@ -183,11 +171,10 @@ func Compute(fabRoot, changeArg, stage string) (*ScoreResult, error) {
 
 	// Write to .status.yaml
 	if loadErr == nil {
-		indicative := stage == "intake"
 		if gc.HasFuzzy {
-			_ = status.SetConfidenceFuzzy(statusFile, statusPath, gc.Certain, gc.Confident, gc.Tentative, gc.Unresolved, score, meanS, meanR, meanA, meanD, indicative)
+			_ = status.SetConfidenceFuzzy(statusFile, statusPath, gc.Certain, gc.Confident, gc.Tentative, gc.Unresolved, score, meanS, meanR, meanA, meanD)
 		} else {
-			_ = status.SetConfidence(statusFile, statusPath, gc.Certain, gc.Confident, gc.Tentative, gc.Unresolved, score, indicative)
+			_ = status.SetConfidence(statusFile, statusPath, gc.Certain, gc.Confident, gc.Tentative, gc.Unresolved, score)
 		}
 
 		folder := filepath.Base(changeDir)
@@ -354,17 +341,11 @@ func computeScore(certain, confident, tentative, unresolved, total, expectedMin 
 	return roundTo1(base * cover)
 }
 
-func getExpectedMin(stage, changeType string) int {
-	if stage == "intake" {
-		if v, ok := expectedMinIntake[changeType]; ok {
-			return v
-		}
-		return 2 // default
-	}
-	if v, ok := expectedMinSpec[changeType]; ok {
+func getExpectedMin(changeType string) int {
+	if v, ok := expectedMin[changeType]; ok {
 		return v
 	}
-	return 3 // default
+	return 3 // default for docs/test/ci/chore
 }
 
 func getGateThreshold(changeType string) float64 {

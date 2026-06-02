@@ -51,11 +51,11 @@ Semantics:
 Consumed exclusively by the `/git-pr` skill's Step 3c-impact sub-step during PR body assembly.
 
 #### `stage_directives`
-Per-stage directives that customize artifact generation. Keys are stage IDs (`intake`, `spec`, `tasks`, `apply`, `review`, `hydrate`), values are lists of instruction strings. Example:
+Per-stage directives that customize artifact generation. Keys are stage IDs (`intake`, `apply`, `review`, `hydrate`), values are lists of instruction strings. The `spec` key was removed in j6cs (the spec stage merged into apply); the `1.9.7-to-1.10.0` migration **relocates** any `stage_directives.spec` directives into `stage_directives.apply` rather than dropping them, since apply now owns requirement generation (this diverges from the `1.8.0-to-1.9.0` migration, which pruned the empty `tasks: []`). Example:
 ```yaml
 stage_directives:
-  spec:
-    - Use GIVEN/WHEN/THEN for scenarios
+  apply:
+    - Use GIVEN/WHEN/THEN for scenarios   # relocated from spec
     - Mark ambiguities with [NEEDS CLARIFICATION]
   review:
     - Flag any function longer than 50 lines
@@ -131,8 +131,8 @@ The constitution is the architectural DNA of a Fab project. It defines immutable
 #### How Skills Use It
 
 - `/fab-setup` generates it from project context (README, existing memory, conversation)
-- `/fab-continue` and `/fab-ff` load it when generating spec, tasks, and checklist artifacts
-- `/fab-continue` (review) checks implementation against constitutional principles (not just the spec)
+- `/fab-continue` and `/fab-ff` load it when generating the intake and the unified `plan.md` (`## Requirements` + `## Tasks` + `## Acceptance`) at apply entry
+- `/fab-continue` (review) checks implementation against constitutional principles (not just the requirements)
 - Constitution violations found during review are flagged as high-severity issues
 
 #### Versioning
@@ -257,6 +257,7 @@ See [setup](setup.md) for the complete command suite.
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260601-j6cs-merge-spec-into-apply | 2026-06-01 | Removed the `spec` key from the documented `stage_directives` stage-ID set (the spec stage merged into apply). The `1.9.7-to-1.10.0` migration **relocates** existing `stage_directives.spec` directives into `stage_directives.apply` (apply now owns requirement generation) rather than dropping them — updated the `stage_directives` schema description and example. Scoring (in `score.go`, not `config.yaml`): the per-type spec gate was removed in favor of a **single intake gate at flat 3.0** for all seven change types (obtained via `getGateThreshold`, so future per-type divergence is a data-only change); `expectedMinIntake`/`expectedMinSpec` collapsed into a **single `expectedMin` map** (`feat:7, refactor:6, fix:5`, default `3` for `docs`/`test`/`ci`/`chore`). "How Skills Use It" repointed from "spec, tasks, checklist artifacts" to the unified `plan.md`. |
 | 260507-ogf2-restrain-ai-code-bloat | 2026-05-07 | `code-review.md` gains an optional `## Parsimony Pass` section with a single `Enabled: true\|false` field (default true). Toggle is the only project-level knob for the parsimony validation step in `_review.md`'s inward sub-agent — the 100-line advisory threshold and the `[docs, chore, ci]` skip list are hard-coded in the kit. |
 | 260507-asvz-git-pr-true-impact-line-count | 2026-05-07 | Added optional top-level `true_impact_exclude` field (sequence of pathspec exclusion patterns; scaffold default `[fab/, docs/]`) consumed by `/git-pr`'s Step 3c-impact to append a two-line `**Impact (excluding ...)**` + `**git diff total**` block; absent/null/empty/no-fab-context all omit the block. |
 | 260418-u1m1-copilot-reviewer-login | 2026-04-18 | Documentation of the `review_tools.copilot` key now shows the corrected `gh pr edit --add-reviewer copilot-pull-request-reviewer` command. The fab-kit-local config key name `copilot` is unchanged — only the inline example of the GitHub login used by `/git-pr-review` Phase 2 was corrected. |
