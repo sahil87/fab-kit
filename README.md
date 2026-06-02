@@ -4,42 +4,39 @@
 
 [![Latest release](https://img.shields.io/github/v/release/sahil87/fab-kit)](https://github.com/sahil87/fab-kit/releases) [![Downloads](https://img.shields.io/github/downloads/sahil87/fab-kit/total)](https://github.com/sahil87/fab-kit/releases) [![Stars](https://img.shields.io/github/stars/sahil87/fab-kit?style=social)](https://github.com/sahil87/fab-kit/stargazers)
 
-A development toolkit for AI-assisted coding. It includes a 7-stage pipeline (intake → spec → apply → review → hydrate → ship → review-PR), standalone CLI tools for [git worktree management](#standalone-cli-tools) (`wt`) and [idea backlogs](#standalone-cli-tools) (`idea`), and batch orchestration for running multiple AI agents in parallel. Plain markdown prompts, no SDK, no vendor lock-in. Works with Claude Code, Codex, Cursor, and Windsurf.
+A development toolkit for AI-assisted coding. It includes a 6-stage pipeline (intake → apply → review → hydrate → ship → review-PR), standalone CLI tools for [git worktree management](#standalone-cli-tools) (`wt`) and [idea backlogs](#standalone-cli-tools) (`idea`), and batch orchestration for running multiple AI agents in parallel. Plain markdown prompts, no SDK, no vendor lock-in. Works with Claude Code, Codex, Cursor, and Windsurf.
 
 AI agents write code fast. The bottleneck is now your clarity: did you define the problem well enough? Fab Kit sits at that bottleneck — it forces structured thinking before implementation, grounds every session in your project's actual context, and gets cheaper to run as agents improve.
 
 > **[Try it now](#quick-start)** | **[Understand the concepts](#why-fab-kit)** | **[Glossary](docs/specs/glossary.md)** (new to Fab terminology?)
 
-**Contents:** [The 7 Stages](#the-7-stages) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start) · [Why Fab Kit](#why-fab-kit) · [The 5 Cs](#the-5-cs-of-quality) · [Commands](#command-quick-reference) · [Stage Coverage](#stage-coverage-by-command) · [CLI Tools](#standalone-cli-tools) · [Learn More](#learn-more)
+**Contents:** [The 6 Stages](#the-6-stages) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start) · [Why Fab Kit](#why-fab-kit) · [The 5 Cs](#the-5-cs-of-quality) · [Commands](#command-quick-reference) · [Stage Coverage](#stage-coverage-by-command) · [CLI Tools](#standalone-cli-tools) · [Learn More](#learn-more)
 
-## The 7 Stages
+## The 6 Stages
 
-Every change (a self-contained feature or fix with its own folder) moves through seven stages:
+Every change (a self-contained feature or fix with its own folder) moves through six stages:
 
 ```mermaid
 flowchart TD
-    subgraph planning ["Planning"]
-        direction LR
-        B["1 INTAKE"] --> S["2 SPEC"]
-    end
+    B["1 INTAKE"]
     subgraph execution ["Execution"]
         direction LR
-        A["3 APPLY"] --> V["4 REVIEW"]
+        A["2 APPLY"] --> V["3 REVIEW"]
     end
     subgraph completion ["Completion"]
         direction LR
-        AR["5 HYDRATE"]
+        AR["4 HYDRATE"]
     end
     subgraph shipping ["Shipping"]
         direction LR
-        SH["6 SHIP"] --> RPR["7 REVIEW-PR"]
+        SH["5 SHIP"] --> RPR["6 REVIEW-PR"]
     end
 
-    S --> A
+    B --> A
     V --> AR
     AR --> SH
 
-    style planning fill:#64b5f6,stroke:#1565C0,color:#1a1a1a
+    style B fill:#64b5f6,stroke:#1565C0,color:#1a1a1a
     style execution fill:#ffb74d,stroke:#E65100,color:#1a1a1a
     style completion fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style shipping fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
@@ -48,24 +45,22 @@ flowchart TD
 | # | Stage | Purpose | Artifact |
 |---|-------|---------|----------|
 | 1 | **Intake** | Capture intent, scope, approach | `intake.md` |
-| 2 | **Spec** | Define requirements | `spec.md` |
-| 3 | **Apply** | Generate `plan.md` from spec, then execute the tasks | `plan.md` + code changes |
-| 4 | **Review** | Sub-agent validates against spec and [constitution](#code-quality-as-a-guardrail) (your project's architectural rules) | Prioritized findings report |
-| 5 | **Hydrate** | Save learnings into project memory (`docs/memory/`) | Memory updates |
-| 6 | **Ship** | Commit, push, and create a GitHub PR | Pull request |
-| 7 | **Review-PR** | Triage and fix PR review comments from humans or automated reviewers | Comments addressed |
+| 2 | **Apply** | Co-generate `plan.md` (requirements + tasks + acceptance) from intake, then execute the tasks | `plan.md` + code changes |
+| 3 | **Review** | Sub-agent validates against the plan's requirements and [constitution](#code-quality-as-a-guardrail) (your project's architectural rules) | Prioritized findings report |
+| 4 | **Hydrate** | Save learnings into project memory (`docs/memory/`) | Memory updates |
+| 5 | **Ship** | Commit, push, and create a GitHub PR | Pull request |
+| 6 | **Review-PR** | Triage and fix PR review comments from humans or automated reviewers | Comments addressed |
 
 Each stage produces a persistent artifact or state update. Interrupt anything — re-run the same command to resume. All pipeline skills are idempotent.
 
-Review is performed by a **sub-agent** running in a separate context - a fresh perspective that validates against both your spec and [project constitution](#code-quality-as-a-guardrail). Findings are prioritized (must-fix, should-fix, nice-to-have) and the agent triages them, looping back for automatic rework on the issues that matter most.
+Review is performed by a **sub-agent** running in a separate context - a fresh perspective that validates against both the plan's requirements and your [project constitution](#code-quality-as-a-guardrail). Findings are prioritized (must-fix, should-fix, nice-to-have) and the agent triages them, looping back for automatic rework on the issues that matter most.
 
 A change folder looks like this:
 
 ```
 fab/changes/260101-abcd-add-spinner/
 ├── intake.md        # What you want and why
-├── spec.md          # Requirements (generated)
-├── plan.md          # Tasks + acceptance criteria (generated at apply entry)
+├── plan.md          # Requirements + tasks + acceptance (generated at apply entry)
 └── .status.yaml     # Pipeline state (symlinked as .fab-status.yaml at repo root while this change is active)
 ```
 
@@ -223,13 +218,11 @@ Then type the commands below in the agent's prompt. Each command runs one pipeli
 # Creation - creates change folder, writes intake.md, activates the change, creates git branch
 /fab-new Add a loading spinner to the submit button
 
-# Planning - generates spec.md (structured requirements)
+# Apply - generates plan.md (requirements + tasks + acceptance) and implements the code, checking off tasks as it goes
 /fab-continue
-# Execution - generates plan.md (tasks + acceptance) and implements the code, checking off tasks as it goes
+# Review - reviews implementation against the plan's requirements + constitution
 /fab-continue
-# Execution - reviews implementation against spec + constitution
-/fab-continue
-# Completion - saves learnings into docs/memory/
+# Hydrate - saves learnings into docs/memory/
 /fab-continue
 
 # Ship - commit, push, and create a GitHub PR
@@ -243,7 +236,7 @@ Then type the commands below in the agent's prompt. Each command runs one pipeli
 
 At any point, run `/fab-status` to see where you are.
 
-For small changes, `/fab-ff` (fast-forward) skips intermediate planning stages - gated by a [confidence score](#structured-autonomy-not-guesswork) that ensures ambiguity is low enough for safe execution. Both `/fab-ff` and `/fab-fff` (full fast-forward) auto-loop between apply and sub-agent review, fixing issues automatically before escalating to you.
+For small changes, `/fab-ff` (fast-forward) runs the pipeline through hydrate in one shot - gated by a single intake [confidence score](#structured-autonomy-not-guesswork) that ensures ambiguity is low enough for safe execution. Both `/fab-ff` and `/fab-fff` (full fast-forward) auto-loop between apply and sub-agent review, fixing issues automatically before escalating to you.
 
 ### 3. Going parallel
 
@@ -308,7 +301,7 @@ Without Fab, you describe a task, wait while AI works, review, repeat. With Fab,
 
 Three properties make this work:
 
-- **Self-contained change folders** - Each change has its own spec, plan, and status. No shared state - parallel changes don't interfere during development.
+- **Self-contained change folders** - Each change has its own intake, plan, and status. No shared state - parallel changes don't interfere during development.
 - **Git worktree isolation** - Each change runs in its own [worktree](https://git-scm.com/docs/git-worktree). Parallel AI sessions can't step on each other.
 - **Resumable pipeline** - Every stage produces a persistent artifact. Interrupt anything, resume later.
 
@@ -318,7 +311,7 @@ Most AI tools give each session a private memory that disappears when the sessio
 
 ```
   ┌──────────┐    hydrate     ┌──────────────┐
-  │ spec.md  │ ─────────────▶ │ docs/memory/ │
+  │ plan.md  │ ─────────────▶ │ docs/memory/ │
   └──────────┘                └──────┬───────┘
        ▲                             │
        │       context for next      │
@@ -327,7 +320,7 @@ Most AI tools give each session a private memory that disappears when the sessio
 
 This creates a self-reinforcing cycle:
 
-- **Every change makes the next one better** - Design decisions from `spec.md` merge into memory. Future changes load those files as context, so AI starts with real knowledge of your system instead of guessing.
+- **Every change makes the next one better** - Design decisions from `plan.md` merge into memory. Future changes load those files as context, so AI starts with real knowledge of your system instead of guessing.
 - **Team knowledge, not personal notes** - Memory lives in git. Every developer and every AI session reads the same source of truth. Onboarding means cloning the repo.
 - **Bootstrap from existing docs** - `/docs-hydrate-memory` ingests documentation from Notion, Linear, or local files. The pipeline keeps it current from there.
 - **Structured, not append-only** - Memory is organized by domain (`auth/`, `payments/`, `users/`). `/docs-reorg-memory` restructures as it grows. `/docs-hydrate-specs` updates spec files with relevant details from memory.
@@ -342,23 +335,23 @@ AI writes code fast. Without structure, it also skips requirements, ignores arch
         │    MUST · SHOULD · MUST NOT   │
         └───────────────┬───────────────┘
                         │
-  intake → spec → apply ⇄ review → hydrate
-             ↑       ↑    ↗
-             └───────┴────┘
-                sub-agent review
-                with prioritized
-                findings
+  intake → apply ⇄ review → hydrate
+             ↑       ↗
+             └───────┘
+          sub-agent review
+          with prioritized
+          findings
 ```
 
-- **Stages that can't be skipped** - The pipeline requires intake and spec before any code is written. The AI can't jump straight to implementation. Before code is written, the [SRAD framework](#structured-autonomy-not-guesswork) ensures planning decisions are grounded in context - not silently guessed.
-- **Project constitution** - `fab/project/constitution.md` defines your architectural rules using MUST/SHOULD/MUST NOT. Every spec, plan, and review checks against it - not just the change's requirements.
+- **Stages that can't be skipped** - The pipeline requires intake before any code is written. The AI can't jump straight to implementation. Before code is written, the [SRAD framework](#structured-autonomy-not-guesswork) ensures planning decisions are grounded in context - not silently guessed.
+- **Project constitution** - `fab/project/constitution.md` defines your architectural rules using MUST/SHOULD/MUST NOT. Every plan and review checks against it - not just the change's requirements.
 - **Review that fixes, not just flags** - A **sub-agent** reviews in a fresh context, returning prioritized findings. The applying agent triages by severity and loops back to the right stage:
 
 | Review finds | Priority | Loops back to | What happens |
 |-------------|----------|---------------|--------------|
-| Spec mismatch, failing tests | Must-fix | → apply | Unchecks failed tasks in `plan.md`, re-runs them |
+| Requirement mismatch, failing tests | Must-fix | → apply | Unchecks failed tasks in `plan.md`, re-runs them |
 | Missing/wrong tasks | Must-fix | → apply | Regenerates `plan.md`, re-applies |
-| Requirements were wrong | Must-fix | → spec | Updates spec, regenerates plan |
+| Requirements were wrong | Must-fix | → apply | Updates `plan.md`'s `## Requirements`, regenerates tasks |
 | Code quality issue | Should-fix | → apply | Addressed when clear and low-effort |
 | Style suggestion | Nice-to-have | - | May be skipped |
 
@@ -473,7 +466,7 @@ Which pipeline stages each command covers. Taller bars = more automation. Read l
 | 🟧 Amber | Manual (single action) | `/fab-draft`, `/fab-switch`, `/fab-continue` |
 | ⬜ Blue-grey (dashed) | Git utilities | `/git-branch`, `/git-pr`, `/git-pr-review` |
 | 🟩 Green | Automated pipeline (multi-stage) | `/fab-new`, `/fab-ff`, `/fab-fff`, `/fab-proceed` |
-| ◻️ Grey | Fab pipeline stage (row label) | intake, change active, spec, apply, review, hydrate |
+| ◻️ Grey | Fab pipeline stage (row label) | intake, change active, apply, review, hydrate |
 | ▶ | Typical entry point | `/fab-discuss`, `/fab-new` |
 
 ```mermaid
@@ -488,7 +481,6 @@ block-beta
     row_intake["intake"]:1 space:1 draft_intake["intake"]:1 space:2 new_intake["intake"]:1 space:5 proceed_intake["intake"]:1 space:1
     row_active["change active"]:1 space:2 switch_active["change active"]:1 space:1 new_active["change active"]:1 space:5 proceed_active["change active"]:1 space:1
     row_branch["branch name"]:1 space:3 branch_branch["branch name"]:1 new_branch["branch name"]:1 space:5 proceed_branch["branch name"]:1 space:1
-    row_spec["spec"]:1 space:5 cont_spec["one stage"]:1 ff_spec["spec"]:1 space:2 fff_spec["spec"]:1 proceed_spec["spec"]:1 space:1
     row_apply["apply"]:1 space:5 cont_apply["one stage"]:1 ff_apply["apply"]:1 space:2 fff_apply["apply"]:1 proceed_apply["apply"]:1 space:1
     row_review["review"]:1 space:5 cont_review["one stage"]:1 ff_review["review"]:1 space:2 fff_review["review"]:1 proceed_review["review"]:1 space:1
     row_hydrate["hydrate"]:1 space:5 cont_hydrate["one stage"]:1 ff_hydrate["hydrate"]:1 space:2 fff_hydrate["hydrate"]:1 proceed_hydrate["hydrate"]:1 space:1
@@ -501,9 +493,9 @@ block-beta
     discuss_ctx --> proceed_intake
     draft_intake --> switch_active
     switch_active --> branch_branch
-    new_branch --> cont_spec
-    new_branch --> ff_spec
-    new_branch --> fff_spec
+    new_branch --> cont_apply
+    new_branch --> ff_apply
+    new_branch --> fff_apply
     ff_hydrate --> gitpr_ship
 
     %% Header styles
@@ -525,7 +517,6 @@ block-beta
     style row_intake fill:#bdbdbd,stroke:#757575,color:#1a1a1a
     style row_active fill:#bdbdbd,stroke:#757575,color:#1a1a1a
     style row_branch fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5
-    style row_spec fill:#bdbdbd,stroke:#757575,color:#1a1a1a
     style row_apply fill:#bdbdbd,stroke:#757575,color:#1a1a1a
     style row_review fill:#bdbdbd,stroke:#757575,color:#1a1a1a
     style row_hydrate fill:#bdbdbd,stroke:#757575,color:#1a1a1a
@@ -550,13 +541,11 @@ block-beta
     style branch_branch fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5
 
     %% fab-continue (Stage advance — amber)
-    style cont_spec fill:#ffb74d,stroke:#E65100,color:#1a1a1a,stroke-dasharray: 5 5
     style cont_apply fill:#ffb74d,stroke:#E65100,color:#1a1a1a,stroke-dasharray: 5 5
     style cont_review fill:#ffb74d,stroke:#E65100,color:#1a1a1a,stroke-dasharray: 5 5
     style cont_hydrate fill:#ffb74d,stroke:#E65100,color:#1a1a1a,stroke-dasharray: 5 5
 
     %% fab-ff (Automation — green)
-    style ff_spec fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style ff_apply fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style ff_review fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style ff_hydrate fill:#81c784,stroke:#2E7D32,color:#1a1a1a
@@ -568,7 +557,6 @@ block-beta
     style gitprreview_prreview fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5
 
     %% fab-fff (Automation — green)
-    style fff_spec fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style fff_apply fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style fff_review fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style fff_hydrate fill:#81c784,stroke:#2E7D32,color:#1a1a1a
@@ -579,7 +567,6 @@ block-beta
     style proceed_active fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style proceed_intake fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style proceed_branch fill:#81c784,stroke:#2E7D32,color:#1a1a1a,stroke-dasharray: 5 5
-    style proceed_spec fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style proceed_apply fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style proceed_review fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style proceed_hydrate fill:#81c784,stroke:#2E7D32,color:#1a1a1a
@@ -595,7 +582,6 @@ block-beta
 | intake | | ✅ | | | ✅ | | | | | | ✅ |
 | change active | | | ✅ | | ✅ | | | | | | ✅ |
 | branch name | | | | ✅ | ✅ | | | | | | ✅ |
-| spec | | | | | | ✅ | ✅ | | | ✅ | ✅ |
 | apply | | | | | | ✅ | ✅ | | | ✅ | ✅ |
 | review | | | | | | ✅ | ✅ | | | ✅ | ✅ |
 | hydrate | | | | | | ✅ | ✅ | | | ✅ | ✅ |

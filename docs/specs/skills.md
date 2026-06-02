@@ -74,7 +74,7 @@ Every skill that generates or validates artifacts MUST load relevant context bef
 - Read domain indexes (`docs/memory/{domain}/index.md`) for each relevant domain
 - Read the specific memory file(s) referenced by the Affected Memory entries
 - If a referenced file doesn't exist yet (listed under New Files), note this and proceed — it will be created by `/fab-continue` (hydrate)
-- This grounds all artifact generation (spec, plan, reviews) in the real current state, not assumptions
+- This grounds all artifact generation (plan, reviews) in the real current state, not assumptions
 
 **Source code** (loaded during implementation and review):
 - Read relevant source files referenced in the task descriptions
