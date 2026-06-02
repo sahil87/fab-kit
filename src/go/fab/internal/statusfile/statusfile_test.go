@@ -377,7 +377,9 @@ func TestTrueImpactTestsRoundTrip(t *testing.T) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".status.yaml")
-	os.WriteFile(path, []byte(yamlWithTests), 0644)
+	if err := os.WriteFile(path, []byte(yamlWithTests), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	sf, err := Load(path)
 	if err != nil {
@@ -440,7 +442,9 @@ func TestTrueImpactTestsOmittedWhenNil(t *testing.T) {
 `
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".status.yaml")
-	os.WriteFile(path, []byte(yamlNoTests), 0644)
+	if err := os.WriteFile(path, []byte(yamlNoTests), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	sf, err := Load(path)
 	if err != nil {
@@ -457,7 +461,10 @@ func TestTrueImpactTestsOmittedWhenNil(t *testing.T) {
 	if err := sf.Save(outPath); err != nil {
 		t.Fatalf("Save failed: %v", err)
 	}
-	raw, _ := os.ReadFile(outPath)
+	raw, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("read saved file: %v", err)
+	}
 	if strings.Contains(string(raw), "tests:") {
 		t.Errorf("expected no tests: key when Tests is nil, got:\n%s", raw)
 	}

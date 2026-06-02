@@ -500,7 +500,9 @@ func TestListWithOptions_ShowStatsTestSplit(t *testing.T) {
 	mkChange := func(id, suffix, trueImpact string) string {
 		folder := "260310-" + id + "-" + suffix
 		dir := filepath.Join(fabRoot, "changes", folder)
-		os.MkdirAll(dir, 0o755)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
 		y := `id: ` + id + `
 name: ` + folder + `
 created: "2026-03-10T12:00:00Z"
@@ -529,7 +531,9 @@ stage_metrics: {}
 prs: []
 ` + trueImpact + `last_updated: "2026-03-10T12:00:00Z"
 `
-		os.WriteFile(filepath.Join(dir, ".status.yaml"), []byte(y), 0o644)
+		if err := os.WriteFile(filepath.Join(dir, ".status.yaml"), []byte(y), 0o644); err != nil {
+			t.Fatal(err)
+		}
 		return folder
 	}
 

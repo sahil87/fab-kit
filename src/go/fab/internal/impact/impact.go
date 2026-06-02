@@ -111,10 +111,12 @@ func ComputeForRepo(fabRoot, base, head string) (Result, error) {
 
 // runShortstat runs `git diff --shortstat <base>...<head>` with an optional
 // pathspec built from includes and excludes. When includes is non-empty, each
-// entry is passed as a literal pathspec; otherwise `.` is used as the base
-// path so the `:(exclude)` magic pathspecs apply against the whole tree. Each
-// exclude is appended as a `:(exclude)<pattern>` magic pathspec. When both
-// slices are empty, no `--` pathspec separator is emitted (the raw pass).
+// entry is passed as a `:(glob)<pattern>` magic pathspec (so `**` matches
+// across directory boundaries — see the inline note below); otherwise `.` is
+// used as the base path so the `:(exclude)` magic pathspecs apply against the
+// whole tree. Each exclude is appended as a `:(exclude)<pattern>` magic
+// pathspec. When both slices are empty, no `--` pathspec separator is emitted
+// (the raw pass).
 func runShortstat(repoDir, base, head string, includes, excludes []string) (int, int, error) {
 	args := []string{"diff", "--shortstat", base + "..." + head}
 	if len(includes) > 0 || len(excludes) > 0 {
