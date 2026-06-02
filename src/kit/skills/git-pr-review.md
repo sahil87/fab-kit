@@ -189,6 +189,21 @@ If an active change was resolved in Step 0:
 
 All statusman calls are best-effort — failures silently ignored to avoid blocking the PR review workflow.
 
+### Step 6.5: Commit Status Updates
+
+If an active change was resolved in Step 0 **and** Step 6 took its success / no-reviews path (i.e., `fab status finish` ran — not the `fail` path), commit the bookkeeping writes that `fab status finish` produced (`.status.yaml` review-pr active→done, `completed_at`, `last_updated`; appended `review:passed` event in `.history.jsonl`). This mirrors `git-pr.md` Step 4c.
+
+1. Stage the status and history files: `git add fab/changes/{name}/.status.yaml fab/changes/{name}/.history.jsonl`
+2. Check for staged changes: `git diff --cached --quiet`
+3. If staged changes exist: commit (`git commit -m "Update review-pr status"`) then push (`git push`).
+4. If no staged changes (already committed / idempotent re-run): skip commit+push silently.
+
+Print (if committed): `  ✓ status — committed and pushed status updates (.status.yaml, .history.jsonl)`
+
+**Skip this step silently** when no active change was resolved, or when Step 6 took the `fail` path — the fail path MUST NOT commit a half-finished state.
+
+**Failure handling** (best-effort push): If the commit fails, report the error. If `git push` fails (e.g., a transient network error), report the error but do **not** STOP the skill or mark the stage as failed — a completed review cycle must not be aborted by a transient push failure. The local commit is retained and a later re-run / push reconciles it. (This softens git-pr's fail-fast push specifically for the terminal stage, consistent with git-pr-review's best-effort status-write ethos.)
+
 ### Phase Sub-State Tracking
 
 When an active change is resolved, update `stage_metrics.review-pr.phase` at key points during the workflow. Phase values track the skill's progress through its steps:
@@ -210,11 +225,12 @@ The `reviewer` field is set when reviews are detected: `yq -i ".stage_metrics.\"
 ## Rules
 
 - Fully autonomous — never ask questions, never present options
-- Fail fast — if any step fails, report the error and stop immediately
-- No partial commits — if the commit or push fails, no changes are left staged
+- Fail fast — if any step fails, report the error and stop immediately. Exceptions: best-effort status writes (Step 6), best-effort replies (Step 5.5), and the best-effort push of the status-commit step (Step 6.5), which report but do not abort.
+- No partial commits — for the code-fix path (Step 5), if the commit or push fails, no changes are left staged (`git reset` clears them). This applies to the code-fix commit only; the Step 6.5 status commit does not `git reset` on push failure (the local commit is retained for a later push).
 - Targeted fixes only — do not modify code beyond what each comment addresses
-- Idempotent — re-running after fixes finds no new modifications and exits cleanly; re-running after replies skips already-replied comments
+- Idempotent — re-running after fixes finds no new modifications and exits cleanly; re-running after replies skips already-replied comments; re-running after the status commit finds nothing staged (`git diff --cached --quiet`) and is a silent no-op
 - Best-effort replies — failed reply POSTs do not abort the skill or mark the stage as failed
+- Best-effort status commit (Step 6.5) — a transient `git push` failure is reported but does not abort a completed review cycle or fail the stage
 
 ---
 

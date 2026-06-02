@@ -69,9 +69,16 @@ Setting `copilot` to `false` skips Phase 2 entirely. When the `review_tools` key
 │  ├─ Bash: gh api .../pulls/{n}/comments -f body=... -F in_reply_to=...
 │  └─ Best-effort: failed POSTs logged, not fatal
 │
-└─ Step 6: Update Review-PR Stage
-   ├─ [pass] Bash: fab status finish <change> review-pr
-   └─ [fail] Bash: fab status fail <change> review-pr
+├─ Step 6: Update Review-PR Stage
+│  ├─ [pass] Bash: fab status finish <change> review-pr
+│  └─ [fail] Bash: fab status fail <change> review-pr
+│
+└─ Step 6.5: Commit Status Updates (mirrors git-pr Step 4c)
+   ├─ [gate] active change resolved AND Step 6 success/no-reviews path (skip on no-change / fail path)
+   ├─ Bash: git add fab/changes/{name}/.status.yaml fab/changes/{name}/.history.jsonl
+   ├─ Bash: git diff --cached --quiet  (idempotency guard — re-run is a silent no-op)
+   ├─ [staged changes] Bash: git commit -m "Update review-pr status" && git push
+   └─ [push fails] report error, do NOT STOP (best-effort push; local commit retained)
 
 Phase tracking (via yq directly on .status.yaml):
   waiting → received → triaging → fixing → pushed → replying
@@ -99,13 +106,28 @@ Triage assigns **intent** (action verb); replies confirm **outcome** (past-tense
 
 Informational comments receive no reply.
 
+### Status-commit bookkeeping (Step 6.5)
+
+Step 6's `fab status finish` writes the terminal `review-pr` stage to `done` (plus `completed_at`, `last_updated`) in `.status.yaml` and appends a `review:passed` event to `.history.jsonl`. Step 6.5 commits those writes so the terminal stage leaves a clean worktree, mirroring `git-pr.md` Step 4c (which commits its own ship bookkeeping).
+
+| Aspect | Behavior |
+|--------|----------|
+| Gate | Runs only when an active change was resolved (Step 0) AND Step 6 took the success / no-reviews path. Skipped silently on the Step 6 `fail` path and when no active change resolved — the fail path must not commit a half-finished state. |
+| Staged files | `fab/changes/{name}/.status.yaml`, `fab/changes/{name}/.history.jsonl` |
+| Idempotency | `git diff --cached --quiet` guard — a re-run finds nothing staged and is a silent no-op (no commit, no push, no output) |
+| Commit | `git commit -m "Update review-pr status"` when staged changes exist |
+| Push | `git push` — **best-effort**: a transient push failure is reported but does NOT STOP the skill or fail the stage (unlike git-pr's fail-fast push). The local commit is retained and reconciled on a later run. |
+| Output | `  ✓ status — committed and pushed status updates (.status.yaml, .history.jsonl)` (only when a commit was made) |
+
+The best-effort push softens git-pr's fail-fast parity for the terminal stage, consistent with git-pr-review's best-effort status-write and reply ethos: a completed review cycle must not be aborted by a transient push failure.
+
 ### Tools used
 
 | Tool | Purpose |
 |------|---------|
 | Read | Source files for applying fixes |
 | Edit | Source files (targeted fixes from review comments) |
-| Bash | gh API calls (REST only), git operations, fab status commands, yq phase tracking |
+| Bash | gh API calls (REST only), git operations (including the Step 6.5 status commit + push), fab status commands, yq phase tracking |
 
 ### Sub-agents
 

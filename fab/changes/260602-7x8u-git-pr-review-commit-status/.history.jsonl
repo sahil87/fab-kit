@@ -1,0 +1,13 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-02T07:58:40Z"}
+{"args":"fix: git-pr-review leaves orphaned status writes in worktree — add Commit Status Updates step mirroring git-pr Step 4c","cmd":"fab-new","event":"command","ts":"2026-06-02T07:58:40Z"}
+{"cmd":"fab-new","event":"command","ts":"2026-06-02T07:58:48Z"}
+{"delta":"+3.1","event":"confidence","score":3.1,"trigger":"calc-score","ts":"2026-06-02T07:59:34Z"}
+{"delta":"+0.0","event":"confidence","score":3.1,"trigger":"calc-score","ts":"2026-06-02T07:59:39Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-06-02T08:00:18Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-02T08:00:18Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-06-02T08:01:17Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-02T08:04:31Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-06-02T08:08:12Z"}
+{"event":"review","result":"passed","ts":"2026-06-02T08:08:12Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-02T08:09:45Z"}
+{"cmd":"git-pr","event":"command","ts":"2026-06-02T08:10:28Z"}
