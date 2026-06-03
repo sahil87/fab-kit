@@ -1,0 +1,11 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-03T14:24:43Z"}
+{"args":"Tear down deprecated push-side shll.ai integration now that shll.ai's puller is live: remove the entire Help-dump → shll.ai step from release.yml (dump+validate AND the auto-merging cross-repo PR), the SHLLAI_TOKEN env wiring, and the dead /help/ gitignore entry. Do NOT touch the help-dump command — it remains the contract surface the puller invokes. Update docs/memory distribution.md to reflect the removal.","cmd":"fab-new","event":"command","ts":"2026-06-03T14:24:43Z"}
+{"delta":"+4.1","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-03T14:25:38Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-03T14:25:44Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-03T14:26:11Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-06-03T14:26:11Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-03T14:29:22Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-06-03T14:31:03Z"}
+{"event":"review","result":"passed","ts":"2026-06-03T14:31:03Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-03T14:34:12Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-06-03T14:36:45Z"}

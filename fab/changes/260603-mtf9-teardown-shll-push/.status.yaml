@@ -1,0 +1,51 @@
+id: mtf9
+name: 260603-mtf9-teardown-shll-push
+created: 2026-06-03T14:24:43Z
+created_by: sahil87
+change_type: ci
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: active
+plan:
+    generated: true
+    task_count: 3
+    acceptance_count: 8
+    acceptance_completed: 0
+confidence:
+    certain: 3
+    confident: 3
+    tentative: 0
+    unresolved: 0
+    score: 4.1
+    fuzzy: true
+    dimensions:
+        signal: 88.0
+        reversibility: 76.7
+        competence: 89.2
+        disambiguation: 88.3
+stage_metrics:
+    intake: {started_at: "2026-06-03T14:24:43Z", driver: fab-new, iterations: 1, completed_at: "2026-06-03T14:26:11Z"}
+    apply: {started_at: "2026-06-03T14:26:11Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-03T14:29:22Z"}
+    review: {started_at: "2026-06-03T14:29:22Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-03T14:31:03Z"}
+    hydrate: {started_at: "2026-06-03T14:31:03Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-03T14:34:12Z"}
+    ship: {started_at: "2026-06-03T14:34:12Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-03T14:36:45Z"}
+    review-pr: {started_at: "2026-06-03T14:36:45Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/373
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-06-03T14:34:12Z"
+    computed_at_stage: hydrate
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-03T14:36:45Z

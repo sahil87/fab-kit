@@ -13,9 +13,6 @@
 /dist/
 .tmp
 
-# Transient CI help-dump artifact (owned by sahil87/shll.ai, not retained here)
-/help/
-
 # Benchmark build artifacts
 src/benchmark/statusman-rust/target/
 src/benchmark/statusman-node/node_modules/
