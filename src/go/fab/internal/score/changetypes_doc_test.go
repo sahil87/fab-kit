@@ -8,12 +8,15 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
 )
 
-// canonicalChangeTypes is the authoritative set of change types. The doc tables
-// in change-types.md must cover exactly these, and each must resolve to the same
-// value in the doc as in the canonical Go maps (getExpectedMin/getGateThreshold).
-var canonicalChangeTypes = []string{"feat", "fix", "refactor", "docs", "test", "ci", "chore"}
+// canonicalChangeTypes is the authoritative set of change types. It reuses
+// status.ValidChangeTypes (the same list the change-type validation layer
+// enforces) rather than redeclaring the 7 types here — keeping a single source
+// so adding a type updates validation and this drift test together.
+var canonicalChangeTypes = status.ValidChangeTypes
 
 const (
 	docRelPath           = "docs/specs/change-types.md"
