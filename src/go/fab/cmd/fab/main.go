@@ -32,6 +32,7 @@ func main() {
 		batchCmd(),
 		kitPathCmd(),
 		impactCmd(),
+		prMetaCmd(),
 		shellInitCmd(),
 		helpDumpCmd(),
 	)

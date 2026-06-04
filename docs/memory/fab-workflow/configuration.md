@@ -43,12 +43,12 @@ When absent, `fab-sync.sh` falls back to `haiku` for the fast tier. See [model-t
 Optional top-level field. A YAML sequence of pathspec exclusion patterns — typically directory prefixes ending in `/` (e.g., `fab/`, `docs/`, `vendor/`), but any pattern accepted by `git diff` `:(exclude)<pattern>` syntax is valid. Scaffold default: `[fab/, docs/]` so new fab-kit projects emit the impact block out of the box.
 
 Semantics:
-- **Present and non-empty** — `/git-pr` appends a two-line impact block at the bottom of the PR body: `**Impact (excluding {COMMA_LIST})**: +A / −D` followed by `**git diff total**: +A_total / −D_total`. The parenthetical reflects the config values verbatim (never hardcoded). Computed via two `git diff --shortstat "$BASE...HEAD"` invocations against the same merge-base — one with `:(exclude)<pattern>` pathspec args, one without.
+- **Present and non-empty** — the `**Impact**:` line of the PR `## Meta` block (rendered by `fab pr-meta` as of rj31; previously inlined in `/git-pr`) annotates the excluded scope, the parenthetical/annotation reflecting the config values verbatim (each per-element backtick-wrapped, never hardcoded). Computed via `git diff --shortstat "$BASE...HEAD"` against the merge-base with and without the `:(exclude)<pattern>` pathspec args (canonical math in `internal/impact`).
 - **Absent, `null`, or `[]`** — the impact block is omitted entirely; the rest of the PR body matches the no-block output byte-for-byte.
 - **No fab context** (`fab/project/config.yaml` does not exist) — the block is omitted silently, preserving `/git-pr`'s fab-optional behavior.
 - **True-impact pass returns zero** (every modified file falls inside an excluded path) — the entire block is omitted to avoid a misleading `+0 / −0` line.
 
-Consumed exclusively by the `/git-pr` skill's Step 3c-impact sub-step during PR body assembly.
+Consumed by the impact engine (`internal/impact`) and its consumers: the `fab pr-meta` subcommand (which renders the PR `## Meta` block Impact line for `/git-pr` as of rj31 — `/git-pr` no longer assembles it inline), the `fab impact` CLI, and the apply/hydrate `true_impact` write path. The exclude values are wrapped per-element in backticks in the rendered Impact line (never hardcoded).
 
 #### `test_paths`
 Optional top-level field (7t5a). A YAML sequence of glob/pathspec patterns identifying test files, mirroring the `source_paths` / `true_impact_exclude` style (top-level list of strings). Read into `config.Config` as `TestPaths []string` (`yaml:"test_paths"`).

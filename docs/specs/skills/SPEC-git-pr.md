@@ -37,24 +37,25 @@ Autonomously commits, pushes, and creates a GitHub PR. No prompts, no questions.
 │  ├─ 3b. Push (if unpushed)
 │  │  └─ Bash: git push [-u origin <branch>]
 │  └─ 3c. Create PR (if no PR exists)
-│     ├─ Read: intake.md (PR title + Summary + Changes), plan.md OR tasks.md, .status.yaml
-│     ├─ Read: config.yaml (linear_workspace for issue links)
-│     ├─ Bash: gh repo view --json (for blob URLs)
-│     ├─ Compute true-impact (gated on {has_fab}):
-│     │  ├─ Bash: git merge-base origin/main HEAD (with origin/master fallback)
-│     │  └─ Bash: fab impact "$BASE" HEAD
-│     │     (subcommand reads true_impact_exclude + test_paths from config.yaml,
-│     │      emits YAML with added/deleted/net + optional excluding + optional tests;
-│     │      total = excluding (else raw); tests = tests sub-block;
-│     │      impl = max(0, total − tests) derived at render time, per component;
-│     │      three-row impl/tests/total Impact form when tests present, single
-│     │      total line otherwise; ← excludes annotation from actual
+│     ├─ Read: intake.md (PR title + Summary + Changes)
+│     ├─ Render ## Meta block (gated on {has_fab}):
+│     │  └─ Bash: META=$(fab pr-meta <change> --type <type> --issues "<issues>")
+│     │     (subcommand is self-contained: reads .status.yaml, parses plan.md
+│     │      (or legacy tasks.md) checkboxes, reads config.yaml
+│     │      (true_impact_exclude, test_paths, project.linear_workspace),
+│     │      computes impact via internal/impact against the internal merge-base,
+│     │      and resolves git/gh context (branch, owner/repo) itself;
+│     │      emits the full table + **Pipeline** + optional **Issues** +
+│     │      optional **Impact** as final markdown;
+│     │      three-row impl/tests/total Impact form when a tests pair exists,
+│     │      single total line otherwise; ← excludes annotation from actual
 │     │      true_impact_exclude config values, never hardcoded;
-│     │      Impact line omitted when fab impact fails, no fab context,
-│     │      no merge-base, or total yields +0/−0)
-│     ├─ Assemble body: ## Meta (table + **Pipeline** + optional **Issues** + optional **Impact**),
+│     │      gh failure → plain-text Pipeline labels; missing merge-base or
+│     │      +0/−0 total → Impact line dropped;
+│     │      non-zero exit / empty stdout → Meta block omitted entirely)
+│     ├─ Assemble body: $META verbatim,
 │     │                 ## Summary (from intake ## Why), ## Changes (from intake ## What Changes)
-│     │                 (Meta block omitted entirely when {has_fab} is false)
+│     │                 (Meta block omitted entirely when {has_fab} is false or $META empty)
 │     └─ Bash: gh pr create --draft --title --body
 │
 ├─ Step 4a: Record PR URL
@@ -73,8 +74,8 @@ Autonomously commits, pushes, and creates a GitHub PR. No prompts, no questions.
 
 | Tool | Purpose |
 |------|---------|
-| Read | Intake, spec, plan, .status.yaml, config.yaml (for PR body generation including Change section) |
-| Bash | All git operations, gh CLI, fab status commands. Step 3c additionally runs `fab impact "$BASE" HEAD` once to compute the true-impact line counts rendered as the `**Impact**` line(s) in the body's `## Meta` block — the subcommand internally reads `true_impact_exclude` and `test_paths` and runs up to three `git diff --shortstat` passes (raw, excluding, tests). When a `tests` sub-block is present the Impact renders as a three-row impl / tests / total breakdown, where `impl = max(0, total − tests)` is the render-time residual (per component, never stored) and the `← excludes …` annotation reflects the actual `true_impact_exclude` config values; otherwise it collapses to the single `total` line. |
+| Read | Intake (for PR title + the agent-generated `## Summary` and `## Changes` sections) |
+| Bash | All git operations, gh CLI, fab status commands. Step 3c renders the body's entire `## Meta` block by calling `fab pr-meta <change> --type <type> --issues "<issues>"` and pasting its stdout verbatim — the subcommand is self-contained (reads `.status.yaml`, `plan.md`/`tasks.md`, `config.yaml`, computes impact via `internal/impact`, resolves git/`gh` context) and renders the table, `**Pipeline**`, optional `**Issues**`, and optional `**Impact**` deterministically. When a `tests` pair is present the Impact renders as a three-row impl / tests / total breakdown (`impl = max(0, total − tests)`, per component, never stored; `← excludes …` from the actual `true_impact_exclude` values); otherwise it collapses to the single `total` line. A non-zero exit / empty stdout means the Meta block is omitted. `/git-pr` no longer calls `fab impact` directly. |
 
 ### Sub-agents
 
