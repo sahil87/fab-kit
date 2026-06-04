@@ -317,6 +317,29 @@ func TestHasConfidenceBlock(t *testing.T) {
 			want:    false,
 		},
 		{
+			// Regression: an explicit null must NOT count as present (it would
+			// otherwise render 0.0/5.0 instead of —). The old `!= nil` check
+			// risked this; the mapping-node check rejects it.
+			name:    "explicit null block",
+			content: "id: rj31\nconfidence: null\n",
+			want:    false,
+		},
+		{
+			name:    "bare key with no value",
+			content: "id: rj31\nconfidence:\n",
+			want:    false,
+		},
+		{
+			name:    "empty mapping",
+			content: "id: rj31\nconfidence: {}\n",
+			want:    false,
+		},
+		{
+			name:    "non-mapping scalar",
+			content: "id: rj31\nconfidence: 5\n",
+			want:    false,
+		},
+		{
 			name:    "malformed yaml",
 			content: "id: rj31\n  : : :\n",
 			want:    false,
@@ -340,4 +363,58 @@ func TestHasConfidenceBlock(t *testing.T) {
 			t.Error("hasConfidenceBlock on missing file = true, want false")
 		}
 	})
+}
+
+// TestCountCheckboxesInTasksSection covers the section-bounded checkbox tally,
+// including the exact-heading guard: a heading like "## TasksAndStuff" must not
+// open the Tasks section, and counting must stop at the next "## " heading.
+func TestCountCheckboxesInTasksSection(t *testing.T) {
+	cases := []struct {
+		name              string
+		content           string
+		wantDone, wantTot int
+	}{
+		{
+			name:     "basic mixed checkboxes",
+			content:  "## Tasks\n- [x] T001 done\n- [ ] T002 todo\n- [X] T003 done\n",
+			wantDone: 2, wantTot: 3,
+		},
+		{
+			name:     "stops at next heading",
+			content:  "## Tasks\n- [x] T001\n## Acceptance\n- [ ] A-001 must not count\n",
+			wantDone: 1, wantTot: 1,
+		},
+		{
+			name: "heading with trailing text still opens section",
+			// "## Tasks (13)" — trailing text after a space is allowed.
+			content:  "## Tasks (13)\n- [x] T001\n- [ ] T002\n",
+			wantDone: 1, wantTot: 2,
+		},
+		{
+			// Regression for the Copilot finding: "## TasksAndStuff" must NOT be
+			// treated as the Tasks section, so its checkboxes are not counted.
+			name:     "prefix-only heading does not open section",
+			content:  "## TasksAndStuff\n- [x] not a task\n- [ ] also not\n",
+			wantDone: 0, wantTot: 0,
+		},
+		{
+			name:     "no tasks section",
+			content:  "## Requirements\n- [x] R1\n",
+			wantDone: 0, wantTot: 0,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "plan.md")
+			if err := os.WriteFile(path, []byte(tc.content), 0o644); err != nil {
+				t.Fatalf("write plan: %v", err)
+			}
+			done, total := countCheckboxesInTasksSection(path)
+			if done != tc.wantDone || total != tc.wantTot {
+				t.Errorf("countCheckboxesInTasksSection = (%d, %d), want (%d, %d)",
+					done, total, tc.wantDone, tc.wantTot)
+			}
+		})
+	}
 }

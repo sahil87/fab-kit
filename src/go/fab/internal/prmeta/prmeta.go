@@ -403,7 +403,10 @@ func countCheckboxesInTasksSection(path string) (int, int) {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, "## Tasks") {
+		// Match the heading exactly — "## Tasks" or "## Tasks ..." (trailing
+		// text/whitespace) — but never "## TasksAndStuff". Mirrors the
+		// canonical bound in hooklib.HasSectionHeading / scanSectionItems.
+		if line == tasksHeading || strings.HasPrefix(line, tasksHeading+" ") {
 			inSection = true
 			continue
 		}
@@ -419,6 +422,9 @@ func countCheckboxesInTasksSection(path string) (int, int) {
 	}
 	return done, total
 }
+
+// tasksHeading is the exact `## Tasks` section heading parsed from plan.md.
+const tasksHeading = "## Tasks"
 
 // countCheckboxes counts "- [x]" vs "- [ ]" across an entire file (legacy
 // tasks.md, which has no `## Tasks` section wrapper). Returns (done, total).
@@ -472,24 +478,29 @@ func readLinearWorkspace(fabRoot string) string {
 	return doc.Project.LinearWorkspace
 }
 
-// hasConfidenceBlock reports whether .status.yaml actually carries a
+// hasConfidenceBlock reports whether .status.yaml actually carries a populated
 // `confidence:` mapping. The shared statusfile.Confidence struct uses value
 // types, so after Load an absent block is indistinguishable from an all-zero
 // one — but the old Step 3c prose renders "—" for an absent block, not
 // "0.0/5.0". This local presence check restores that parity without widening
-// the shared struct. Returns false on any read/parse failure (no block).
+// the shared struct.
+//
+// Only a non-empty mapping node counts as present: an absent key, an explicit
+// `confidence: null`, a bare `confidence:` (both decode to a !!null scalar), an
+// empty `confidence: {}`, or a non-mapping scalar all mean "no usable
+// confidence data" and render "—". Returns false on any read/parse failure.
 func hasConfidenceBlock(statusPath string) bool {
 	data, err := os.ReadFile(statusPath)
 	if err != nil {
 		return false
 	}
 	var doc struct {
-		Confidence *yaml.Node `yaml:"confidence"`
+		Confidence yaml.Node `yaml:"confidence"`
 	}
 	if err := yaml.Unmarshal(data, &doc); err != nil {
 		return false
 	}
-	return doc.Confidence != nil
+	return doc.Confidence.Kind == yaml.MappingNode && len(doc.Confidence.Content) > 0
 }
 
 func gitBranch(repoDir string) string {

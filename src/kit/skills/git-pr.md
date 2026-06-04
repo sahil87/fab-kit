@@ -172,10 +172,10 @@ Print: `  ✓ push   — origin/<branch>`
    - Run `fab change resolve 2>/dev/null`. If it succeeds, set `{has_fab} = true` and `{name}` = resolved change name.
    - Check if `fab/changes/{name}/intake.md` exists → `{has_intake}` (controls Summary/Changes sourcing below).
 
-   **Render the `## Meta` block** (only when `{has_fab}`): delegate the entire Meta block (table + `**Pipeline**` + optional `**Issues**` + optional `**Impact**`) to `fab pr-meta`, which reads `.status.yaml`, parses `plan.md` checkboxes, reads `fab/project/config.yaml` (`true_impact_exclude`, `test_paths`, `project.linear_workspace`), computes the impact math, and resolves git/`gh` context (branch, owner/repo, merge-base) itself. Pass only the resolved `{type}` (from Step 0b) and the space-joined `{issues}` (from Step 1):
+   **Render the `## Meta` block** (only when `{has_fab}`): delegate the entire Meta block (table + `**Pipeline**` + optional `**Issues**` + optional `**Impact**`) to `fab pr-meta`, which reads `.status.yaml`, parses `plan.md` checkboxes, reads `fab/project/config.yaml` (`true_impact_exclude`, `test_paths`, `project.linear_workspace`), computes the impact math, and resolves git/`gh` context (branch, owner/repo, merge-base) itself. Pass the `{name}` already resolved above (do NOT re-run `fab change resolve` — reuse the single resolution to avoid inconsistency), the resolved `{type}` (from Step 0b), and the space-joined `{issues}` (from Step 1):
 
    ```bash
-   META=$(fab pr-meta "$(fab change resolve 2>/dev/null)" --type {type} --issues "{issues}" 2>/dev/null) || META=""
+   META=$(fab pr-meta "{name}" --type {type} --issues "{issues}" 2>/dev/null) || META=""
    ```
 
    - If exit 0 and `META` is non-empty: the `## Meta` block is `$META` **verbatim** — do not reformat, re-wrap, or re-derive any of it.
