@@ -24,7 +24,7 @@ All commands accept the unified `<change>`: 4-char ID (`yobi`), folder substring
 
 ### Commands covered in `_preamble` Common fab Commands
 
-`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab hook`, `fab pane`, `fab doctor`, `fab kit-path`, `fab impact`, `fab fab-help`, `fab help-dump`, `fab operator`, `fab batch`) and extended flag details for the above.
+`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab hook`, `fab pane`, `fab doctor`, `fab kit-path`, `fab impact`, `fab pr-meta`, `fab fab-help`, `fab help-dump`, `fab operator`, `fab batch`) and extended flag details for the above.
 
 ---
 
@@ -237,7 +237,43 @@ Exit codes:
 - `0` — success; YAML document on stdout.
 - non-zero — `<base>` is empty/invalid or `git diff` failed; actionable message on stderr (e.g., `base ref is empty`). The subcommand does not run `git merge-base` itself — callers must resolve the merge-base upstream and pass the result. The caller decides whether to abort or skip.
 
-Consumers: `/git-pr` Step 3c-impact (PR body `**Impact**` line) and the apply-finish + hydrate-finish hooks (write the result into `.status.yaml` `true_impact`).
+Consumers: `fab pr-meta` (which renders the PR body `**Impact**` line via the same `internal/impact` package) and the apply-finish + hydrate-finish hooks (write the result into `.status.yaml` `true_impact`). `/git-pr` no longer calls `fab impact` directly — it delegates the whole `## Meta` block to `fab pr-meta`.
+
+---
+
+## fab pr-meta
+
+```
+fab pr-meta <change> --type <type> [--issues "DEV-1 DEV-2"]
+```
+
+Renders the complete `## Meta` block of a fab-generated PR as final markdown on stdout — the deterministic replacement for the natural-language Meta formatting that previously lived in `/git-pr` Step 3c. The block is byte-for-byte stable across runs, so the Meta block stops drifting between PRs.
+
+Arguments and flags:
+- `<change>` — 4-char ID, folder substring, or full folder name (resolved via the same `resolve` package as every other subcommand).
+- `--type <type>` — **required**. The resolved PR type (`feat|fix|refactor|docs|test|ci|chore`). `/git-pr` resolves type via its Step 0b chain (which depends on the user's argument and the diff) and passes it in; the binary does not re-derive it.
+- `--issues "<space-joined IDs>"` — optional. When non-empty, renders the `**Issues**` line. When absent/empty, the line is omitted.
+
+Self-contained data sourcing — the command reads everything else itself:
+- `.status.yaml` (via the `statusfile` package): `id`, `confidence.score`, `plan.acceptance_count`/`acceptance_completed`, `progress.*`, `stage_metrics.review.iterations`.
+- `plan.md`: parses the `## Tasks` checkboxes (`- [x]` vs `- [ ]`) for the `{done}/{total} tasks` count. Legacy `tasks.md` fallback for pre-1.9.0 changes.
+- `fab/project/config.yaml`: `true_impact_exclude`, `test_paths`, and `project.linear_workspace`.
+- Impact math: reuses `internal/impact` (`ComputeForRepo`) against the merge-base of HEAD vs `origin/main` (falling back to `origin/master`), computed internally.
+- Git/`gh` context: branch (`git branch --show-current`) and owner/repo (`gh repo view --json nameWithOwner`) for blob URLs.
+
+Output — the exact `## Meta` block markdown:
+- The 5-column table (`ID | Type | Confidence | Plan | Review`) with `—` fallbacks, a ` ✓` Plan completion suffix when both task and acceptance pairs are complete, and a `✓/✗ {N} cycle{s}` Review cell.
+- `**Pipeline**`: the six stages in fixed order with ` ✓` per `done` stage; `intake`/`apply` labels hyperlink to blob URLs when the artifact exists and owner/repo resolved.
+- `**Issues**` (only when `--issues` is non-empty): Linear-linked when `project.linear_workspace` is set, bare comma-joined IDs otherwise; positioned between Pipeline and Impact.
+- `**Impact**`: three-row impl/tests/total form when a `tests` pair exists (impl is the per-component `max(0, total − tests)` residual, Unicode minus `−`, `← excludes` annotation built from the actual `true_impact_exclude` values each backtick-wrapped), single-line form otherwise; omitted entirely on `+0/−0` total, missing merge-base, or impact failure.
+
+Exit codes:
+- `0` — success; the `## Meta` block on stdout.
+- non-zero — no fab context (change unresolved or `.status.yaml` absent); nothing on stdout. `/git-pr` treats this (or empty stdout) as "omit the Meta block", matching the legacy `{has_fab} = false` path.
+
+Graceful degradation: an unreachable `gh` leaves owner/repo empty so Pipeline stages render as plain-text labels (never a hard error); a missing/failed merge-base drops only the `**Impact**` line.
+
+Consumers: `/git-pr` Step 3c (renders the PR body `## Meta` block, pasted verbatim).
 
 ---
 
