@@ -1,0 +1,187 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="560" viewBox="0 0 1180 560" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-label="Stage coverage by command: a matrix whose rows are pipeline stages (context, intake, change active, branch name, apply, review, hydrate, ship, review-pr) and whose columns are commands. fab-discuss covers context. fab-draft covers intake. fab-switch covers change active. git-branch covers branch name. fab-new covers intake, change active, and branch name. fab-continue, fab-ff, fab-fff, and fab-proceed each cover apply, review, and hydrate; fff and proceed also cover ship and review-pr. git-pr covers ship. git-pr-review covers review-pr.">
+  <title>Stage coverage by command</title>
+  <desc>Matrix of pipeline stages (rows) by command (columns). Cyan = Explore, Amber = Manual, Blue-grey dashed = Git utilities, Green = Automated pipeline, Grey = pipeline stage row labels. fab-discuss to context; fab-draft to intake; fab-switch to change active; git-branch to branch name; fab-new to intake, change active, branch name; fab-continue, fab-ff, fab-fff, fab-proceed to apply, review, hydrate; fab-fff and fab-proceed also to ship and review-pr; git-pr to ship; git-pr-review to review-pr.</desc>
+
+  <rect x="0" y="0" width="1180" height="560" fill="#ffffff"/>
+
+  <!-- ===== Column headers ===== -->
+  <!-- geometry: row-label col x=10 w=120; data cols start at x=140, each w=84, gap handled by x stepping -->
+  <g font-size="11" font-weight="600" fill="#1a1a1a" text-anchor="middle">
+    <!-- wt create label (no fill) -->
+    <text x="70" y="34" fill="#999999" font-size="11">wt create &#8594;</text>
+
+    <rect x="140" y="14" width="84" height="34" rx="5" fill="#4dd0e1" stroke="#00838f" stroke-width="1.5"/>
+    <text x="182" y="30">&#9654; /fab-</text><text x="182" y="42">discuss</text>
+
+    <rect x="230" y="14" width="84" height="34" rx="5" fill="#ffb74d" stroke="#E65100" stroke-width="1.5"/>
+    <text x="272" y="35">/fab-draft</text>
+
+    <rect x="320" y="14" width="84" height="34" rx="5" fill="#ffb74d" stroke="#E65100" stroke-width="1.5"/>
+    <text x="362" y="35">/fab-switch</text>
+
+    <rect x="410" y="14" width="84" height="34" rx="5" fill="#b0bec5" stroke="#546e7a" stroke-width="1.5" stroke-dasharray="5 5"/>
+    <text x="452" y="35">/git-branch</text>
+
+    <rect x="500" y="14" width="84" height="34" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="542" y="35">&#9654; /fab-new</text>
+
+    <rect x="590" y="14" width="84" height="34" rx="5" fill="#ffb74d" stroke="#E65100" stroke-width="1.5"/>
+    <text x="632" y="30">/fab-</text><text x="632" y="42">continue</text>
+
+    <rect x="680" y="14" width="84" height="34" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="722" y="35">/fab-ff</text>
+
+    <rect x="770" y="14" width="84" height="34" rx="5" fill="#b0bec5" stroke="#546e7a" stroke-width="1.5" stroke-dasharray="5 5"/>
+    <text x="812" y="35">/git-pr</text>
+
+    <rect x="860" y="14" width="84" height="34" rx="5" fill="#b0bec5" stroke="#546e7a" stroke-width="1.5" stroke-dasharray="5 5"/>
+    <text x="902" y="30">/git-pr-</text><text x="902" y="42">review</text>
+
+    <rect x="950" y="14" width="84" height="34" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="992" y="35">/fab-fff</text>
+
+    <rect x="1040" y="14" width="84" height="34" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="1082" y="30">/fab-</text><text x="1082" y="42">proceed</text>
+  </g>
+
+  <!-- ===== Row labels + cells =====
+       Rows (y): context 64, intake 100, change active 136, branch name 172,
+                 apply 208, review 244, hydrate 280, ship 316, review-pr 352
+       cell height 30 -->
+
+  <!-- helper styling done inline per cell -->
+  <g font-size="11" fill="#1a1a1a" text-anchor="middle">
+
+    <!-- Row labels: grey for fab stages, blue-grey dashed for git stages -->
+    <!-- context -->
+    <rect x="10" y="64" width="120" height="30" rx="5" fill="#bdbdbd" stroke="#757575" stroke-width="1.5"/>
+    <text x="70" y="83">context</text>
+    <!-- intake -->
+    <rect x="10" y="100" width="120" height="30" rx="5" fill="#bdbdbd" stroke="#757575" stroke-width="1.5"/>
+    <text x="70" y="119">intake</text>
+    <!-- change active -->
+    <rect x="10" y="136" width="120" height="30" rx="5" fill="#bdbdbd" stroke="#757575" stroke-width="1.5"/>
+    <text x="70" y="155">change active</text>
+    <!-- branch name (git, dashed) -->
+    <rect x="10" y="172" width="120" height="30" rx="5" fill="#b0bec5" stroke="#546e7a" stroke-width="1.5" stroke-dasharray="5 5"/>
+    <text x="70" y="191">branch name</text>
+    <!-- apply -->
+    <rect x="10" y="208" width="120" height="30" rx="5" fill="#bdbdbd" stroke="#757575" stroke-width="1.5"/>
+    <text x="70" y="227">apply</text>
+    <!-- review -->
+    <rect x="10" y="244" width="120" height="30" rx="5" fill="#bdbdbd" stroke="#757575" stroke-width="1.5"/>
+    <text x="70" y="263">review</text>
+    <!-- hydrate -->
+    <rect x="10" y="280" width="120" height="30" rx="5" fill="#bdbdbd" stroke="#757575" stroke-width="1.5"/>
+    <text x="70" y="299">hydrate</text>
+    <!-- ship (git, dashed) -->
+    <rect x="10" y="316" width="120" height="30" rx="5" fill="#b0bec5" stroke="#546e7a" stroke-width="1.5" stroke-dasharray="5 5"/>
+    <text x="70" y="335">ship</text>
+    <!-- review-pr (git, dashed) -->
+    <rect x="10" y="352" width="120" height="30" rx="5" fill="#b0bec5" stroke="#546e7a" stroke-width="1.5" stroke-dasharray="5 5"/>
+    <text x="70" y="371">review-pr</text>
+
+    <!-- ===== Data cells ===== -->
+
+    <!-- fab-discuss (col x=140) : context -->
+    <rect x="140" y="64" width="84" height="30" rx="5" fill="#4dd0e1" stroke="#00838f" stroke-width="1.5"/>
+    <text x="182" y="83">project context</text>
+
+    <!-- fab-draft (col x=230) : intake -->
+    <rect x="230" y="100" width="84" height="30" rx="5" fill="#ffb74d" stroke="#E65100" stroke-width="1.5"/>
+    <text x="272" y="119">intake</text>
+
+    <!-- fab-switch (col x=320) : change active -->
+    <rect x="320" y="136" width="84" height="30" rx="5" fill="#ffb74d" stroke="#E65100" stroke-width="1.5"/>
+    <text x="362" y="155">change active</text>
+
+    <!-- git-branch (col x=410) : branch name -->
+    <rect x="410" y="172" width="84" height="30" rx="5" fill="#b0bec5" stroke="#546e7a" stroke-width="1.5" stroke-dasharray="5 5"/>
+    <text x="452" y="191">branch name</text>
+
+    <!-- fab-new (col x=500) : intake, change active, branch name -->
+    <rect x="500" y="100" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="542" y="119">intake</text>
+    <rect x="500" y="136" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="542" y="155">change active</text>
+    <rect x="500" y="172" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="542" y="191">branch name</text>
+
+    <!-- fab-continue (col x=590) : apply, review, hydrate (dashed amber "one stage") -->
+    <rect x="590" y="208" width="84" height="30" rx="5" fill="#ffb74d" stroke="#E65100" stroke-width="1.5" stroke-dasharray="5 5"/>
+    <text x="632" y="227">one stage</text>
+    <rect x="590" y="244" width="84" height="30" rx="5" fill="#ffb74d" stroke="#E65100" stroke-width="1.5" stroke-dasharray="5 5"/>
+    <text x="632" y="263">one stage</text>
+    <rect x="590" y="280" width="84" height="30" rx="5" fill="#ffb74d" stroke="#E65100" stroke-width="1.5" stroke-dasharray="5 5"/>
+    <text x="632" y="299">one stage</text>
+
+    <!-- fab-ff (col x=680) : apply, review, hydrate -->
+    <rect x="680" y="208" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="722" y="227">apply</text>
+    <rect x="680" y="244" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="722" y="263">review</text>
+    <rect x="680" y="280" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="722" y="299">hydrate</text>
+
+    <!-- git-pr (col x=770) : ship -->
+    <rect x="770" y="316" width="84" height="30" rx="5" fill="#b0bec5" stroke="#546e7a" stroke-width="1.5" stroke-dasharray="5 5"/>
+    <text x="812" y="335">PR raised</text>
+
+    <!-- git-pr-review (col x=860) : review-pr -->
+    <rect x="860" y="352" width="84" height="30" rx="5" fill="#b0bec5" stroke="#546e7a" stroke-width="1.5" stroke-dasharray="5 5"/>
+    <text x="902" y="371">PR reviewed</text>
+
+    <!-- fab-fff (col x=950) : apply, review, hydrate, ship (dashed), review-pr (dashed) -->
+    <rect x="950" y="208" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="992" y="227">apply</text>
+    <rect x="950" y="244" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="992" y="263">review</text>
+    <rect x="950" y="280" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="992" y="299">hydrate</text>
+    <rect x="950" y="316" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5" stroke-dasharray="5 5"/>
+    <text x="992" y="335">PR raised</text>
+    <rect x="950" y="352" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5" stroke-dasharray="5 5"/>
+    <text x="992" y="371">PR reviewed</text>
+
+    <!-- fab-proceed (col x=1040) : intake, change active, branch name(dashed), apply, review, hydrate, ship(dashed), review-pr(dashed) -->
+    <rect x="1040" y="100" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="1082" y="119">intake</text>
+    <rect x="1040" y="136" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="1082" y="155">change active</text>
+    <rect x="1040" y="172" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5" stroke-dasharray="5 5"/>
+    <text x="1082" y="191">branch name</text>
+    <rect x="1040" y="208" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="1082" y="227">apply</text>
+    <rect x="1040" y="244" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="1082" y="263">review</text>
+    <rect x="1040" y="280" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="1082" y="299">hydrate</text>
+    <rect x="1040" y="316" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5" stroke-dasharray="5 5"/>
+    <text x="1082" y="335">PR raised</text>
+    <rect x="1040" y="352" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5" stroke-dasharray="5 5"/>
+    <text x="1082" y="371">PR reviewed</text>
+  </g>
+
+  <!-- ===== Legend ===== -->
+  <g font-size="12" fill="#1a1a1a">
+    <text x="10" y="424" font-weight="700" font-size="13">Legend</text>
+
+    <rect x="10" y="436" width="20" height="16" rx="3" fill="#4dd0e1" stroke="#00838f" stroke-width="1.5"/>
+    <text x="38" y="449">Explore (read-only)</text>
+
+    <rect x="200" y="436" width="20" height="16" rx="3" fill="#ffb74d" stroke="#E65100" stroke-width="1.5"/>
+    <text x="228" y="449">Manual (single action)</text>
+
+    <rect x="410" y="436" width="20" height="16" rx="3" fill="#b0bec5" stroke="#546e7a" stroke-width="1.5" stroke-dasharray="4 4"/>
+    <text x="438" y="449">Git utilities (dashed)</text>
+
+    <rect x="620" y="436" width="20" height="16" rx="3" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="648" y="449">Automated pipeline</text>
+
+    <rect x="820" y="436" width="20" height="16" rx="3" fill="#bdbdbd" stroke="#757575" stroke-width="1.5"/>
+    <text x="848" y="449">Pipeline stage (row label)</text>
+
+    <text x="10" y="476" font-size="12">&#9654; marks typical entry points: /fab-discuss (exploratory) and /fab-new (ready to build).</text>
+    <text x="10" y="496" font-size="12">Taller coverage (more filled cells) = more automation. Read left-to-right, most manual to most automated.</text>
+  </g>
+</svg>
