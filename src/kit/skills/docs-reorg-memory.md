@@ -97,7 +97,7 @@ A folder is `✓ ok`, `⚠ over width`, `⚠ over depth`, or `⚠ under floor`. 
 |---|------|------|----|------|-----------|
 ```
 
-`Kind` is one of: `move-section` (relocate a `##`/`###` block between files), `split-domain` (fan out an over-width folder into sub-domains), `merge-domain` (fold an under-floor folder into a sibling), `flatten` (reduce depth > 3).
+`Kind` is one of: `move-section` (relocate a `##`/`###` block between files), `split-domain` (fan out an over-width folder into sub-domains), `merge-domain` (fold an under-floor folder into a sibling), `flatten` (reduce depth > 3), `move` (relocate a single file between domains/sub-domains without a split/merge/flatten).
 
 For any `split-domain` / `merge-domain` / `flatten` / `move` row (any move-bearing migration), the proposal MUST also list, in a **Link Impact** note, **every relative link that would break** when files move — in BOTH directions: links *from* moved files to their (now-relocated) siblings, and links *to* moved files from elsewhere in the domain. Each entry pairs the current link with its rewrite, so the user sees the full blast radius before approving:
 

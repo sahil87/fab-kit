@@ -434,12 +434,16 @@ func TestGather_SubDomainRenderIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sub := domains[0].SubDomains[0]
-	if RenderDomain(sub) != RenderDomain(sub) {
-		t.Error("sub-domain render is not byte-stable for identical input")
+	// Re-gathering the same tree must yield identical render output for both
+	// the sub-domain and its parent — compare across two independent Gather
+	// calls so the check can actually fail on a regression.
+	_, domains2, _, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
 	}
-	// Re-gathering the same tree yields identical render output.
-	_, domains2, _, _ := Gather(repo)
+	if RenderDomain(domains[0].SubDomains[0]) != RenderDomain(domains2[0].SubDomains[0]) {
+		t.Error("sub-domain render is not byte-stable across re-gathers of identical input")
+	}
 	if RenderDomain(domains[0]) != RenderDomain(domains2[0]) {
 		t.Error("re-gathering the same tree produced a different parent render")
 	}
