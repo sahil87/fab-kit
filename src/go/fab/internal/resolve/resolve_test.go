@@ -54,7 +54,7 @@ func TestExtractFolderFromSymlink(t *testing.T) {
 		{"fab/changes/260310-ef12-other/.status.yaml", "260310-ef12-other"},
 		{"fab/changes//.status.yaml", ""},      // empty name
 		{"wrong/prefix/name/.status.yaml", ""}, // wrong prefix
-		{"completely-unrelated-path", ""},       // no matching structure
+		{"completely-unrelated-path", ""},      // no matching structure
 	}
 	for _, tt := range tests {
 		t.Run(tt.target, func(t *testing.T) {

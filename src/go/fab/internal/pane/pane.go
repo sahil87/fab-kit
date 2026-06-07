@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
-	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
+	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
 	"gopkg.in/yaml.v3"
 )
 

@@ -9,11 +9,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
 	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
+	"github.com/spf13/cobra"
 )
 
 func paneMapCmd() *cobra.Command {
@@ -115,9 +115,9 @@ func runPaneMap(cmd *cobra.Command, args []string) error {
 type sessionMode int
 
 const (
-	sessionDefault  sessionMode = iota // current session (tmux list-panes -s)
-	sessionNamed                       // specific session by name (-t <name>)
-	sessionAll                         // all sessions
+	sessionDefault sessionMode = iota // current session (tmux list-panes -s)
+	sessionNamed                      // specific session by name (-t <name>)
+	sessionAll                        // all sessions
 )
 
 // tmuxPaneFormat is the format string passed to tmux list-panes -F.

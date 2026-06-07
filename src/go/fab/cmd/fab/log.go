@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/spf13/cobra"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/log"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
+	"github.com/spf13/cobra"
 )
 
 func logCmd() *cobra.Command {

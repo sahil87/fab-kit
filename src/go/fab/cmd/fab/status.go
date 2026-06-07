@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/spf13/cobra"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
 	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
+	"github.com/spf13/cobra"
 )
 
 func statusCmd() *cobra.Command {
@@ -513,5 +513,3 @@ func optArg(args []string, idx int) string {
 	}
 	return ""
 }
-
-

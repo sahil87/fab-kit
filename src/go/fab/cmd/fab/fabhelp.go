@@ -7,10 +7,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/frontmatter"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/kitpath"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
+	"github.com/spf13/cobra"
 )
 
 // skillGroup defines a display group and its order.

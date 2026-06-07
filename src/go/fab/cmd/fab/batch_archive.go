@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/spf13/cobra"
 	archivePkg "github.com/sahil87/fab-kit/src/go/fab/internal/archive"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
+	"github.com/spf13/cobra"
 )
 
 func batchArchiveCmd() *cobra.Command {
