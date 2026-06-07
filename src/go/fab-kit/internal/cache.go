@@ -9,7 +9,7 @@ import (
 // Cache directory names under ~/.fab-kit/
 const (
 	localCacheDir  = ".fab-kit/local-versions" // populated by `just build`, always takes priority
-	remoteCacheDir = ".fab-kit/versions"        // populated by shim auto-fetch from GitHub releases
+	remoteCacheDir = ".fab-kit/versions"       // populated by shim auto-fetch from GitHub releases
 )
 
 func fabKitHome() string {

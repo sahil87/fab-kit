@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/hooklib"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/proc"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
@@ -17,6 +16,7 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/score"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
 	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
+	"github.com/spf13/cobra"
 )
 
 // gcInterval is the throttle window for GCIfDue calls from hook handlers.

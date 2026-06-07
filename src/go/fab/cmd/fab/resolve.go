@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
+	"github.com/spf13/cobra"
 )
 
 func resolveCmd() *cobra.Command {

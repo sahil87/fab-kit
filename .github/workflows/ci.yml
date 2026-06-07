@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Cancel superseded runs on the same ref (PR branch or main).
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      # Don't cancel the other module's run when one fails — we want both
+      # results so a red fab-kit doesn't mask a separately-red fab.
+      fail-fast: false
+      matrix:
+        # The repo has two independent Go modules; each is fmt/vet/test'd
+        # in its own matrix leg. Add a module here and CI picks it up.
+        module:
+          - src/go/fab
+          - src/go/fab-kit
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          # Single source of truth for the Go version — same as release.yml.
+          # Pinning to the module's go.mod also pins gofmt's formatting rules,
+          # so the gofmt check matches the toolchain that wrote the files.
+          go-version-file: ${{ matrix.module }}/go.mod
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+
+      - name: gofmt
+        working-directory: ${{ matrix.module }}
+        run: |
+          # gofmt -l prints files that are NOT formatted. Any output ⇒ fail.
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not gofmt-clean:" >&2
+            echo "$unformatted" >&2
+            echo "Run: (cd ${{ matrix.module }} && gofmt -w .)" >&2
+            exit 1
+          fi
+
+      - name: go vet
+        working-directory: ${{ matrix.module }}
+        run: go vet ./...
+
+      - name: go test
+        working-directory: ${{ matrix.module }}
+        run: go test ./... -count=1
+
+  # Single stable status check to pin branch protection to. Pinning the
+  # ruleset to this job (rather than the matrix legs directly) means the
+  # required check name stays constant even if the matrix is later expanded
+  # or renamed — only this job's `needs:` list has to track that, not the
+  # repo ruleset. (The matrix legs surface as `test (src/go/fab)` etc., whose
+  # names would change if the module list changed.)
+  ci-gate:
+    needs: [test]
+    runs-on: ubuntu-latest
+    # Run even when a dependency failed, so the gate can fail explicitly
+    # rather than being skipped (a skipped required check blocks merge in a
+    # confusing way).
+    if: always()
+    steps:
+      - name: Verify CI passed
+        run: |
+          if [ "${{ needs.test.result }}" != "success" ]; then
+            echo "CI gate failed: test job result = ${{ needs.test.result }}" >&2
+            exit 1
+          fi
+          echo "CI gate passed: all required jobs succeeded."

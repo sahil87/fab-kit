@@ -18,9 +18,9 @@ import (
 
 // Penalty weights per decision grade.
 const (
-	wCertain    = 0.0
-	wConfident  = 0.3
-	wTentative  = 1.0
+	wCertain   = 0.0
+	wConfident = 0.3
+	wTentative = 1.0
 )
 
 // Expected minimum decisions by change type. Single table seeded from the old
@@ -42,12 +42,12 @@ var scoresRegex = regexp.MustCompile(`S:(\d+)\s+R:(\d+)\s+A:(\d+)\s+D:(\d+)`)
 
 // GradeCount holds parsed assumption counts.
 type GradeCount struct {
-	Certain    int
-	Confident  int
-	Tentative  int
-	Unresolved int
-	HasFuzzy   bool
-	DimCount   int
+	Certain                int
+	Confident              int
+	Tentative              int
+	Unresolved             int
+	HasFuzzy               bool
+	DimCount               int
 	SumS, SumR, SumA, SumD int
 }
 
@@ -65,13 +65,13 @@ type GateResult struct {
 
 // ScoreResult holds the normal scoring output.
 type ScoreResult struct {
-	Certain    int
-	Confident  int
-	Tentative  int
-	Unresolved int
-	Score      float64
-	Delta      string
-	HasFuzzy   bool
+	Certain                    int
+	Confident                  int
+	Tentative                  int
+	Unresolved                 int
+	Score                      float64
+	Delta                      string
+	HasFuzzy                   bool
 	MeanS, MeanR, MeanA, MeanD float64
 }
 

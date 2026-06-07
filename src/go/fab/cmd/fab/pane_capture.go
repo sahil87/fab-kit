@@ -7,8 +7,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
+	"github.com/spf13/cobra"
 )
 
 func paneCaptureCmd() *cobra.Command {

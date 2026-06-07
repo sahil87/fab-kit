@@ -22,8 +22,8 @@ func setupFabRoot(t *testing.T) string {
 
 // intPtr and int64Ptr are test helpers for building AgentEntry fixtures with
 // optional numeric fields.
-func intPtr(v int) *int        { return &v }
-func int64Ptr(v int64) *int64  { return &v }
+func intPtr(v int) *int       { return &v }
+func int64Ptr(v int64) *int64 { return &v }
 
 func TestFilePath(t *testing.T) {
 	fabRoot := "/tmp/repo/fab"

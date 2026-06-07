@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 
-	"github.com/spf13/cobra"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/preflight"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
+	"github.com/spf13/cobra"
 )
 
 func preflightCmd() *cobra.Command {
