@@ -39,10 +39,11 @@ Skill reads _preamble.md
 │  │  Bash: fab log command "<skill>" "<id>"
 │  │  Read: change artifacts (intake, plan)
 │  │
-│  ├─ Layer 3: Memory File Lookup
-│  │  Read: intake affected memory refs
+│  ├─ Layer 3: Memory File Lookup (up to 3-hop walk)
+│  │  Read: intake affected memory refs ({domain}/{file} or {domain}/{sub-domain}/{file})
 │  │  Read: docs/memory/{domain}/index.md
-│  │  Read: docs/memory/{domain}/{file}.md
+│  │  Read: docs/memory/{domain}/{sub-domain}/index.md   (only if the ref names a sub-domain)
+│  │  Read: docs/memory/{domain}/[{sub-domain}/]{file}.md
 │  │
 │  └─ Layer 4: Source Code Loading
 │     Read: source files from task/requirements refs

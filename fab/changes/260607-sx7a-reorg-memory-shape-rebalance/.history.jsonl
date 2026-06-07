@@ -1,2 +1,23 @@
 {"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-07T16:42:11Z"}
 {"args":"Enhance docs-reorg-memory skill to be the memory rebalancer: Shape Report (fan-out/depth bounds), split/merge/flatten migration kinds, reserved _shared/_unsorted, fab memory-index regen + link rewriting on apply. Follow-up to tciy (B + C-detect).","cmd":"fab-new","event":"command","ts":"2026-06-07T16:42:11Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-06-07T17:36:32Z"}
+{"delta":"+2.1","event":"confidence","score":2.1,"trigger":"calc-score","ts":"2026-06-07T17:42:39Z"}
+{"delta":"+0.0","event":"confidence","score":2.1,"trigger":"calc-score","ts":"2026-06-07T17:42:45Z"}
+{"delta":"+1.0","event":"confidence","score":3.1,"trigger":"calc-score","ts":"2026-06-07T17:49:42Z"}
+{"delta":"+0.0","event":"confidence","score":3.1,"trigger":"calc-score","ts":"2026-06-07T17:49:49Z"}
+{"delta":"+1.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-07T17:49:54Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-07T17:50:04Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-07T17:50:08Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-07T17:50:15Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-07T17:50:29Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-07T17:50:33Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-06-07T17:50:38Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-07T17:50:43Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-06-07T17:51:25Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-07T18:00:18Z"}
+{"event":"review","result":"failed","ts":"2026-06-07T18:06:03Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-07T18:06:03Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-07T18:06:43Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-06-07T18:10:58Z"}
+{"event":"review","result":"passed","ts":"2026-06-07T18:10:58Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-07T18:17:42Z"}

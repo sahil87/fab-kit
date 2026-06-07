@@ -40,7 +40,7 @@ Read these files first — they define the project's identity, constraints, and 
 - **`fab/project/context.md`** — free-form project context: tech stack, conventions, architecture *(optional — no error if missing)*
 - **`fab/project/code-quality.md`** — coding standards for apply/review: principles, anti-patterns, test strategy *(optional — no error if missing)*
 - **`fab/project/code-review.md`** — review policy: severity definitions, scope, rework budget *(optional — no error if missing)*
-- **`docs/memory/index.md`** — memory landscape (which domains and memory files exist)
+- **`docs/memory/index.md`** — memory landscape (which domains exist; a domain may contain sub-domains — see § Memory File Lookup)
 - **`docs/specs/index.md`** — specifications landscape (pre-implementation design intent, human-curated)
 
 > **Note**: If the skill runs `fab preflight` (Section 2 above), the init check (config.yaml and constitution.md existence) is already covered by the script. Skills using preflight don't need separate existence checks for these files — they only need to read them for content.
@@ -67,13 +67,14 @@ Resolve the active change and load its state by running the preflight script:
 
 ### 3. Memory File Lookup (when operating on an active change)
 
-Selectively load relevant memory files based on the change's scope:
+Selectively load relevant memory files based on the change's scope. An Affected Memory entry is either flat (`{domain}/{name}`) or sub-domained (`{domain}/{sub-domain}/{name}` — used after a domain has been split). Load via an **up-to-3-hop walk**:
 
-1. Read the intake's **Affected Memory** section to identify which domains are relevant
-2. For each referenced domain, read `docs/memory/{domain}/index.md` to understand the domain's memory files
-3. Read the specific memory file(s) referenced by the Affected Memory entries (those marked `(new)`, `(modify)`, or `(remove)`) — read `docs/memory/{domain}/{name}.md` for each listed file that exists
-4. If a referenced file or domain does not exist yet (e.g., listed as `(new)`), note this and proceed without error — it will be created during hydrate (via `/fab-continue` or `/fab-ff`)
-5. Use this context to ground all artifact generation (plan, reviews) in the real current state, not assumptions
+1. Read the intake's **Affected Memory** section to identify which domains (and sub-domains) are relevant
+2. **Domain index**: for each referenced domain, read `docs/memory/{domain}/index.md` to understand the domain's memory files and any sub-domains it lists
+3. **Sub-domain index (only if the entry is sub-domained)**: if the referenced file lives in a sub-domain (3-part `{domain}/{sub-domain}/{name}` form), read `docs/memory/{domain}/{sub-domain}/index.md` next
+4. **File**: read the specific memory file referenced by each Affected Memory entry (those marked `(new)`, `(modify)`, or `(remove)`) — `docs/memory/{domain}/{name}.md` for a flat entry, or `docs/memory/{domain}/{sub-domain}/{name}.md` for a sub-domained entry — for each listed file that exists
+5. If a referenced file, sub-domain, or domain does not exist yet (e.g., listed as `(new)`), note this and proceed without error — it will be created during hydrate (via `/fab-continue` or `/fab-ff`)
+6. Use this context to ground all artifact generation (plan, reviews) in the real current state, not assumptions
 
 ### 4. Source Code Loading (during implementation and review)
 

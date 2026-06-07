@@ -67,19 +67,28 @@ type FileEntry struct {
 }
 
 // DomainData is everything RenderDomain needs to render one domain index. It is
-// a plain value so RenderDomain is a pure function of it.
+// a plain value so RenderDomain is a pure function of it. The same struct
+// represents both a top-level domain and a sub-domain (a folder one level under
+// a domain dir holding its own topic files) — the file-row contract is
+// identical at either tier, so RenderDomain renders both.
 type DomainData struct {
-	// Name is the domain folder name (e.g. "fab-workflow").
+	// Name is the folder name (e.g. "fab-workflow" for a domain, "runtime" for
+	// a sub-domain).
 	Name string
-	// Title is the human heading rendered at the top of the domain index.
+	// Title is the human heading rendered at the top of the (sub-)domain index.
 	Title string
-	// Description is the curated one-liner for the root index row; it is
-	// round-tripped through the generated domain index.md's `description:`
-	// frontmatter so it survives regeneration (the domain index is the single
-	// home for this fact — the root index reads it back here).
+	// Description is the curated one-liner for the parent index row; it is
+	// round-tripped through the generated index.md's `description:` frontmatter
+	// so it survives regeneration (the (sub-)domain index is the single home for
+	// this fact — the parent index reads it back here).
 	Description string
-	// Files are the domain's topic files, sorted lexicographically by Base.
+	// Files are the (sub-)domain's topic files, sorted lexicographically by Base.
 	Files []FileEntry
+	// SubDomains are the child sub-domain folders (one level down) that hold at
+	// least one topic file, sorted lexicographically by Name. Empty for a
+	// sub-domain (recursion is one level only — deeper nesting is a depth
+	// warning, not a generated index tier) and for a flat domain.
+	SubDomains []DomainData
 }
 
 // DomainRow is one row of the root (domains-only) index.
@@ -170,6 +179,21 @@ func RenderDomain(d DomainData) string {
 		}
 		fmt.Fprintf(&b, "| [%s](%s.md) | %s | %s |\n", f.Base, f.Base, desc, date)
 	}
+	// Sub-domain references — emitted only when sub-domains exist, so a flat
+	// domain index renders byte-identically to the pre-recursion output. Mirrors
+	// the root index's domain-link convention: [name](name/index.md).
+	if len(d.SubDomains) > 0 {
+		b.WriteString("\n## Sub-Domains\n\n")
+		b.WriteString("| Sub-Domain | Description |\n")
+		b.WriteString("|------------|-------------|\n")
+		for _, sd := range d.SubDomains {
+			desc := sd.Description
+			if desc == "" {
+				desc = missingCell
+			}
+			fmt.Fprintf(&b, "| [%s](%s/index.md) | %s |\n", sd.Name, sd.Name, desc)
+		}
+	}
 	return b.String()
 }
 
@@ -201,25 +225,37 @@ func Gather(repoRoot string) (RootData, []DomainData, []Warning, error) {
 		domainDir := filepath.Join(memRoot, domainName)
 
 		files := gatherFiles(repoRoot, domainDir)
+		subDomains := gatherSubDomains(repoRoot, domainDir)
 		desc := domainDescription(domainDir)
 		domains = append(domains, DomainData{
 			Name:        domainName,
 			Title:       domainTitle(domainDir, domainName),
 			Description: desc,
 			Files:       files,
+			SubDomains:  subDomains,
 		})
 		root.Domains = append(root.Domains, DomainRow{
 			Name:        domainName,
 			Description: desc,
 		})
 
-		// Shape warnings — width (reserved-exempt) + depth.
+		// Width warnings — reserved-exempt — for the domain and each sub-domain.
+		// Depth warnings walk the whole subtree once below.
 		if !reservedDomains[domainName] && len(files) > WidthWarnThreshold {
 			warnings = append(warnings, Warning{
 				Path:  filepath.ToSlash(filepath.Join("docs", "memory", domainName)),
 				Kind:  "width",
 				Count: len(files),
 			})
+		}
+		for _, sd := range subDomains {
+			if len(sd.Files) > WidthWarnThreshold {
+				warnings = append(warnings, Warning{
+					Path:  filepath.ToSlash(filepath.Join("docs", "memory", domainName, sd.Name)),
+					Kind:  "width",
+					Count: len(sd.Files),
+				})
+			}
 		}
 		warnings = append(warnings, depthWarnings(memRoot, domainDir)...)
 	}
@@ -263,6 +299,40 @@ func gatherFiles(repoRoot, domainDir string) []FileEntry {
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Base < files[j].Base })
 	return files
+}
+
+// gatherSubDomains reads the immediate child directories of domainDir that hold
+// at least one non-index topic file and returns a DomainData per sub-domain,
+// sorted lexicographically by Name. Recursion is one level only: a sub-domain's
+// own SubDomains field is left empty — deeper nesting is surfaced as a depth
+// warning, not an additional generated index tier (the depth-3 bound is
+// {domain}/{sub-domain}/{topic}.md). An empty sub-folder (no .md) yields no
+// entry, so it never produces a spurious index.
+func gatherSubDomains(repoRoot, domainDir string) []DomainData {
+	dirEntries, err := os.ReadDir(domainDir)
+	if err != nil {
+		return nil
+	}
+	var subs []DomainData
+	for _, de := range dirEntries {
+		if !de.IsDir() {
+			continue
+		}
+		subName := de.Name()
+		subDir := filepath.Join(domainDir, subName)
+		files := gatherFiles(repoRoot, subDir)
+		if len(files) == 0 {
+			continue // no topic files → not a sub-domain, no index to generate
+		}
+		subs = append(subs, DomainData{
+			Name:        subName,
+			Title:       domainTitle(subDir, subName),
+			Description: domainDescription(subDir),
+			Files:       files,
+		})
+	}
+	sort.Slice(subs, func(i, j int) bool { return subs[i].Name < subs[j].Name })
+	return subs
 }
 
 // domainTitle reads the existing domain index.md H1 if present (preserving a

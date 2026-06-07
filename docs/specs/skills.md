@@ -69,10 +69,11 @@ Every skill that generates or validates artifacts MUST load relevant context bef
 - `.status.yaml` — current stage, progress
 - All completed artifacts in the active change folder (`intake.md`, `plan.md`)
 
-**Memory file lookup** (loaded by skills operating on an active change):
-- Read the intake's "Affected Memory" section to identify relevant domains
+**Memory file lookup** (loaded by skills operating on an active change) — an up-to-3-hop walk, since a domain may be split into sub-domains:
+- Read the intake's "Affected Memory" section to identify relevant domains (and sub-domains); entries are either flat (`{domain}/{file}`) or sub-domained (`{domain}/{sub-domain}/{file}`)
 - Read domain indexes (`docs/memory/{domain}/index.md`) for each relevant domain
-- Read the specific memory file(s) referenced by the Affected Memory entries
+- If an entry is sub-domained, read the sub-domain index (`docs/memory/{domain}/{sub-domain}/index.md`) next
+- Read the specific memory file(s) referenced by the Affected Memory entries (`docs/memory/{domain}/{file}.md`, or `docs/memory/{domain}/{sub-domain}/{file}.md` for a sub-domained entry)
 - If a referenced file doesn't exist yet (listed under New Files), note this and proceed — it will be created by `/fab-continue` (hydrate)
 - This grounds all artifact generation (plan, reviews) in the real current state, not assumptions
 

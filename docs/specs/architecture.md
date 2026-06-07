@@ -46,13 +46,16 @@ project/
 │   │   ├── config.yaml             # Project-specific configuration
 │   │   └── constitution.md         # Project principles & constraints
 │   ├── memory/                     # Centralized source of truth
-│   │   ├── index.md               # Top-level memory index
+│   │   ├── index.md               # Top-level memory index (domains-only, generated)
 │   │   ├── auth/
-│   │   │   ├── index.md           # Domain index
+│   │   │   ├── index.md           # Domain index (files + any sub-domains, generated)
 │   │   │   └── authentication.md
 │   │   ├── payments/
 │   │   │   ├── index.md
-│   │   │   └── checkout.md
+│   │   │   ├── checkout.md
+│   │   │   └── disputes/          # Sub-domain (depth 3; created by /docs-reorg-memory)
+│   │   │       ├── index.md       # Sub-domain index (generated)
+│   │   │       └── chargebacks.md
 │   │   └── ...
 │   └── changes/
 │       ├── 260115-a7k2-add-oauth/  # Active change
