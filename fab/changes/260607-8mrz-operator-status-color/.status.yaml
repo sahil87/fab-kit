@@ -1,0 +1,49 @@
+id: 8mrz
+name: 260607-8mrz-operator-status-color
+created: 2026-06-07T15:47:31Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 6
+    acceptance_count: 12
+    acceptance_completed: 12
+confidence:
+    certain: 3
+    confident: 4
+    tentative: 0
+    unresolved: 0
+    score: 3.8
+    fuzzy: true
+    dimensions:
+        signal: 82.9
+        reversibility: 86.6
+        competence: 86.4
+        disambiguation: 84.3
+stage_metrics:
+    intake: {started_at: "2026-06-07T15:47:31Z", driver: fab-new, iterations: 1, completed_at: "2026-06-07T15:49:32Z"}
+    apply: {started_at: "2026-06-07T15:49:32Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-07T15:54:08Z"}
+    review: {started_at: "2026-06-07T15:54:08Z", driver: fab-continue, iterations: 1, completed_at: "2026-06-07T15:57:53Z"}
+    hydrate: {started_at: "2026-06-07T15:57:53Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-07T15:59:27Z"}
+    ship: {started_at: "2026-06-07T15:59:27Z", driver: fab-continue, iterations: 1}
+prs: []
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-06-07T15:59:27Z"
+    computed_at_stage: hydrate
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-07T15:59:27Z
