@@ -1,0 +1,2 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-07T16:42:11Z"}
+{"args":"Enhance docs-reorg-memory skill to be the memory rebalancer: Shape Report (fan-out/depth bounds), split/merge/flatten migration kinds, reserved _shared/_unsorted, fab memory-index regen + link rewriting on apply. Follow-up to tciy (B + C-detect).","cmd":"fab-new","event":"command","ts":"2026-06-07T16:42:11Z"}
