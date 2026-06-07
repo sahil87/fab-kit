@@ -277,6 +277,58 @@ Consumers: `/git-pr` Step 3c (renders the PR body `## Meta` block, pasted verbat
 
 ---
 
+## fab memory-index
+
+```
+fab memory-index [--check]
+```
+
+Deterministically (re)generates the `docs/memory/` index files so agents never hand-edit
+them — the deterministic replacement for the hand-maintained index rows that previously lived
+in the hydrate / `docs-reorg-memory` skill prose. Modeled on `fab pr-meta` (pure
+`RenderRoot`/`RenderDomain` + a `Gather` I/O orchestrator in `internal/memoryindex`), so the
+output is byte-for-byte stable across runs and stops the per-row merge conflicts on the hot
+`description` / `Last Updated` cells.
+
+What it writes:
+- **Root `docs/memory/index.md`** — **domains-only** (`| Domain | Description |`). The legacy
+  inlined per-file "Memory Files" column is dropped (it silently drifts). Each domain row's
+  Description is read from that domain `index.md`'s `description:` frontmatter.
+- **Every `docs/memory/{domain}/index.md`** — file rows (`| File | Description | Last Updated |`)
+  for each non-`index` `.md` file, plus a `description:` frontmatter line carrying the domain's
+  curated one-liner (round-tripped so the root row survives regen).
+
+Data sourcing (all read by the command itself):
+- Each topic file's **H1** (first `# ` line) and **`description:` frontmatter** (via
+  `internal/frontmatter`). A file with no `description:` renders `—` in that cell (never errors).
+- **"Last Updated"** from `git log -1 --date=short --format=%ad -- <file>`, run at the repo
+  root. Degrades to `—` when git returns nothing — uncommitted file, worktree, shallow clone,
+  squash/rebase, or git unavailable — mirroring how `fab pr-meta` degrades on missing git/gh
+  context.
+
+Shape warnings (non-fatal, stderr — the "detect" half of the memory-tree-shape work):
+- `⚠ docs/memory/<domain> has <N> topic files (soft bound: ~12) — consider splitting into sub-domains`
+  when a folder holds more than ~12 topic files.
+- `⚠ docs/memory/<domain>/<sub>/<deep> exceeds depth 3 — consider flattening` when nesting
+  exceeds 3 levels under `docs/memory/`.
+- Reserved domains **`_shared/`** and **`_unsorted/`** are **exempt** from the width warning.
+- Warnings are advisory: they never block, never modify files, and never affect the byte-stable
+  index output (so a regen-with-warnings is still idempotent).
+
+Flags:
+- `--check` — write nothing; exit non-zero (listing the out-of-date files on stderr) if any
+  index file differs from what would be generated. Useful as a staleness guard (CI / preflight).
+
+Exit codes:
+- `0` — success (indexes written or already up to date; `--check` clean).
+- non-zero — `docs/memory/` not found, a write failed, or (`--check`) an index is out of date.
+
+Consumers: the hydrate skills (`/docs-hydrate-memory` Step 4, `/fab-continue` hydrate) and
+`/docs-reorg-memory` (index regen after diagnosis) — all call `fab memory-index` instead of
+hand-maintaining index rows.
+
+---
+
 ## fab fab-help
 
 ```

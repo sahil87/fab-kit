@@ -1,3 +1,6 @@
+---
+description: "`/fab-new`, `/fab-continue`, `/fab-ff`, `/fab-clarify` — the planning stage (intake only) and the shared `_generation.md` partial (Intake + unified Plan procedures); requirement capture + plan generation live at apply entry (spec stage removed in j6cs)"
+---
 # Planning Skills
 
 **Domain**: fab-workflow

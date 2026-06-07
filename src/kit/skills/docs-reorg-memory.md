@@ -49,6 +49,30 @@ Analyze content for recurring topics, conceptual clusters, cross-cutting concern
 
 Brief assessment (5-7 bullets max): what works well, pain points (files too large, topics split across files, domain boundaries unclear, duplicated content), missing connections.
 
+#### Shape Report (read-only)
+
+Compute per-folder file counts and tree depth, then flag every folder that violates the ideal-shape bounds. This is **detect/diagnose only** — it never moves files (see Scope below).
+
+```
+## Shape Report
+
+| Folder | Files | Depth | Bound | Finding |
+|--------|-------|-------|-------|---------|
+| docs/memory/<domain> | 20 | 2 | ~12 max | Over-wide — candidate for sub-domain split |
+| docs/memory/<domain>/<sub>/<deep> | 3 | 4 | depth ≤3 | Too deep — candidate for flattening |
+| docs/memory/<thin> | 2 | 2 | ~5 min | Under floor — candidate for merge into a sibling |
+```
+
+Bounds (SHOULD guidance — the same ones `fab memory-index` warns on):
+- **Width**: ~12 topic files per folder upper, ~5 lower.
+- **Depth**: ≤3 (`docs/memory/{domain}/{sub-domain}/{topic}.md`).
+- **Sub-domain earns its own index** only at a cohesive cluster of **≥8 files**.
+- **Reserved domains `_shared/` and `_unsorted/` are exempt** from the width finding (cross-cutting / staging buckets).
+
+If no folder violates the bounds, state "Shape is within bounds" and move on.
+
+> **Scope (this skill, today)**: the Shape Report and the migration map below are **diagnostic** — they *propose* split / merge / flatten actions. The file-moving *apply* path (actually moving files into sub-domains and rewriting the ~intra-domain relative links a move breaks) is a deferred follow-up; until it lands, treat split/merge/flatten as proposals to review, and let `fab memory-index` regenerate indexes once any approved moves are made by hand.
+
 ### Step 4: Propose Reorganization
 
 ```
@@ -59,20 +83,19 @@ Brief assessment (5-7 bullets max): what works well, pain points (files too larg
 
 ## Migration Map
 
-| # | Section | From | To | Rationale |
-|---|---------|------|----|-----------|
+| # | Kind | Section/Files | From | To | Rationale |
+|---|------|---------------|------|----|-----------|
 
-## Updated Indexes Preview
-(markdown preview of affected index files)
+(Migration **Kind** is one of: `split` (over-wide folder → sub-domain), `merge` (under-floor folder → sibling), `flatten` (over-depth → shallower), or `move` (re-home a topic). Indexes are NOT previewed here — `fab memory-index` regenerates them after any approved move.)
 ```
 
-Constraints: prefer fewer files per domain, preserve existing domain names where possible, keep files under ~300 lines, say so if current structure is fine.
+Constraints: prefer fewer files per domain (respect the ~5–12 / depth ≤3 bounds from the Shape Report), preserve existing domain names where possible, keep files under ~300 lines, say so if current structure is fine. Reserved domains `_shared/` and `_unsorted/` are exempt from the width bound.
 
 ### Step 5: User Confirmation
 
 Options: **Apply all**, **Cherry-pick** (select specific migrations), **Skip** (keep analysis only).
 
-On approval: execute migrations, update all affected `index.md` files (domain-level and top-level), verify no headings lost, present change summary.
+On approval: execute the approved content migrations, verify no headings lost, then run **`fab memory-index`** to regenerate every affected `index.md` (domain-level and top-level) deterministically — never hand-edit index rows. Present a change summary.
 
 ---
 

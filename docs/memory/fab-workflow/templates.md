@@ -1,3 +1,6 @@
+---
+description: "Artifact templates (intake, plan), skill frontmatter, and memory file format (incl. `description:` frontmatter + generated domains-only index, tciy). `plan.md` (`## Requirements` + `## Tasks` + `## Acceptance` + optional review-owned `## Deletion Candidates`) absorbs the former `spec.md` (j6cs) and the prior `tasks.md` + `checklist.md` pair"
+---
 # Templates
 
 **Domain**: fab-workflow
@@ -101,24 +104,38 @@ The `model_tier` field is used by `sync/2-sync-workspace.sh` during deployment t
 
 Memory files are the source of truth for system behavior and design decisions. Structure:
 
+- **`description:` frontmatter** — a leading YAML frontmatter block (`---\ndescription: "..."\n---`) above the `# H1`, carrying a curated one-line summary. Load-bearing: the generated domain index reads each row's Description from this field (auto-deriving it from the H1/Overview is lossy — see the design decision below). Authored by every memory writer (hydrate, `/docs-hydrate-memory`, `docs-reorg-memory`)
 - **Overview** — 1-2 sentences describing what the file covers
 - **Requirements** — Using RFC 2119 keywords, with GIVEN/WHEN/THEN scenarios
 - **Design Decisions** — Durable architectural decisions extracted from specs during hydration. Each includes decision, rationale, rejected alternatives, and the introducing change name
 - **Changelog** — Auto-maintained by `/fab-continue` (hydrate), most recent first
 
-#### Index Hierarchy
+#### Index Hierarchy (generated — never hand-edited)
 
-- **Top-level** (`docs/memory/index.md`): `| [domain](domain/index.md) | description | file-list |`
-- **Domain-level** (`docs/memory/{domain}/index.md`): `| [file-name](file-name.md) | description | last-updated |`
+Both index levels are **generated artifacts** written by `fab memory-index` (see `_cli-fab.md` → `## fab memory-index`); agents never hand-edit index rows. The render is a pure function of folder contents + each file's `description:` frontmatter + `git log -1 --date=short` dates (mirroring the `internal/prmeta` Render/Gather pattern), so the output is byte-stable / idempotent.
+
+- **Top-level** (`docs/memory/index.md`): **domains-only** — `| Domain | Description |`. The legacy inlined per-file "Memory Files" / file-list column was dropped (tciy) because it silently drifted; each domain row's Description is read from that domain `index.md`'s `description:` frontmatter (round-tripped by the generator)
+- **Domain-level** (`docs/memory/{domain}/index.md`): file rows — `| File | Description | Last Updated |`. Description comes from each topic file's `description:` frontmatter; "Last Updated" is git-stamped (degrades to `—` when uncommitted / in a worktree / shallow clone), never hand-stamped
 - All links SHALL be relative
+
+#### Memory Tree Shape (SHOULD guidance)
+
+To keep folders from becoming maximally wide (the source of central files that churn on every change), shape bounds are advisory — surfaced as non-fatal `fab memory-index` stderr warnings and the `docs-reorg-memory` Shape Report, never enforced:
+
+- **~12 topic files per folder** (soft upper bound) — over this, `fab memory-index` warns and `docs-reorg-memory` flags a split candidate. **Lower floor ~5** before a sub-domain earns its own index (advisory only — not warned on)
+- **Max depth 3**: `docs/memory/{domain}/{sub-domain}/{topic}.md` — over this warns
+- **Introduce a sub-domain only reactively** — when a real cluster of **≥8 cohesive files** exists in one domain. Never pre-build hierarchy
+- **Reserved domains `_shared/` (cross-cutting) and `_unsorted/` (staging) are exempt** from the width warning
+
+The *file-moving* rebalance (splitting an over-wide domain into sub-domains, with relative-link rewriting) is the `docs-reorg-memory` skill's job (propose-then-apply) — its apply path is a deferred follow-up (`sx7a`); `fab memory-index` only *detects* and warns.
 
 #### Hydration Rules
 
 When `/fab-continue` (hydrate) hydrates into memory files:
-1. **New file**: Create from template, add to domain index. If domain is new, create domain folder and add to top-level index
-2. **Existing file**: Compare spec requirements against current file. Update Requirements section semantically. Minimize edits to unchanged sections
+1. **New file**: Create from template (including the `description:` frontmatter). If the domain is new, create the domain folder
+2. **Existing file**: Compare spec requirements against current file. Update Requirements section semantically. Minimize edits to unchanged sections. Keep the `description:` frontmatter accurate
 3. **Design decisions**: Extract durable decisions from spec. Skip tactical details. Add with change name for traceability
-4. **Index updates**: Update "Last Updated" column. Add entries for new files
+4. **Index updates**: Run `fab memory-index` — it regenerates the root (domains-only) and every domain index deterministically from folder contents + frontmatter + git dates. Never hand-edit index rows or "Last Updated" cells; the command is the single writer
 5. **Changelog row**: Append to file's Changelog with change name, date, summary
 
 ## Design Decisions
@@ -177,6 +194,12 @@ When `/fab-continue` (hydrate) hydrates into memory files:
 **Rejected**: Keep three subsections (New Files / Modified Files / Removed Files) — empty headings add noise for typical changes.
 *Introduced by*: 260213-v4rx-simplify-templates
 
+### Generated Memory Index + `description:` Frontmatter (Domains-Only Root)
+**Decision**: Memory indexes are generated by `fab memory-index` from a new per-file `description:` frontmatter field + git dates, not hand-maintained. The root index is domains-only (the inlined per-file column is dropped); descriptions live co-located in each file's frontmatter.
+**Why**: The hand-maintained per-row index cells (`description` + `Last Updated`) were the dominant merge-conflict and drift source — rewritten on nearly every memory edit, and silently wrong (stale dates, a root roster listing 18 files when 20+ existed). A generated, byte-stable index removes the hand-edit class entirely. The `description:` is a *curated* one-liner that cannot be auto-derived without loss (an H1 + first-Overview-sentence extraction breaks tables — `hydrate.md`'s Overview contains literal `|` pipes — and degrades the always-load routing signal), so it is stored as co-located frontmatter (the Starlight lesson). The root goes domains-only because the root index is near-zero churn and only the *domain* index carries the volatile file list.
+**Rejected**: Hand-edited index rows (the prior approach — the churn this change exists to kill). Auto-deriving descriptions from H1/Overview (lossy, breaks tables). Keeping the per-file column on the root (re-introduces a wide, drift-prone hand roster). Splitting wide domains *first* to relocate the hot row (Approach A — only moves the conflict and manufactures a one-time link-rewrite bomb; deferred to follow-up `sx7a`).
+*Introduced by*: 260607-tciy-memory-tree-shape-rebalance
+
 ### SRAD-Driven Open Questions (No BLOCKING/DEFERRED Labels)
 **Decision**: The intake's Open Questions section uses a plain list without explicit priority markers. SRAD handles prioritization at intake (scoring) and at apply-entry requirement generation.
 **Why**: The BLOCKING/DEFERRED labels duplicated SRAD's prioritization work. SRAD already evaluates reversibility and agent competence to decide what to ask vs. assume.
@@ -193,6 +216,7 @@ When `/fab-continue` (hydrate) hydrates into memory files:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260607-tciy-memory-tree-shape-rebalance | 2026-06-07 | Memory File Format gains a leading `description:` frontmatter field (curated one-liner, load-bearing for the generated index). Index Hierarchy reworked: both levels are now **generated by `fab memory-index`** (never hand-edited) — root index flipped to **domains-only** (`\| Domain \| Description \|`; the inlined per-file "Memory Files" / file-list column dropped), domain rows are `\| File \| Description \| Last Updated \|` with descriptions from frontmatter and git-stamped dates. Hydration Rule 4 ("Update 'Last Updated' column / add entries for new files") replaced with "Run `fab memory-index`"; Rules 1–2 now author/maintain the `description:` frontmatter. Added a **Memory Tree Shape (SHOULD guidance)** subsection (~12 upper / ~5 floor / depth ≤3 / ≥8-file cluster to earn a sub-domain; `_shared`/`_unsorted` exempt; file-moving rebalance deferred to `docs-reorg-memory` follow-up `sx7a`). New design decision "Generated Memory Index + `description:` Frontmatter (Domains-Only Root)". |
 | 260601-j6cs-merge-spec-into-apply | 2026-06-01 | Removed the `spec.md` template (its requirement discipline now lives as a `## Requirements` section in `plan.md`). Overview now lists two artifact templates (intake, plan). Replaced the `### spec.md` section with a `## Requirements` description inside the `plan.md` section (RFC-2119 + GIVEN/WHEN/THEN, stable `R#` IDs, optional Non-Goals/Design-Decisions/Deprecated-Requirements subsections, NO `[NEEDS CLARIFICATION]`). `plan.md` parser contract is now three `##` parent headings (`## Requirements` apply-entry + review, `## Tasks` apply, `## Acceptance` review). **Trace annotations made REQUIRED** (`<!-- R# -->` on tasks, `R#` on acceptance). `### Removal Verification` distinction repointed from `spec.md` to `plan.md` `## Requirements > ### Deprecated Requirements`. Generation note reads `intake.md` (not `spec.md`). `.status.yaml` template progress map → 6 stages (dropped `spec: pending`); confidence-block note: `fab score` reads `intake.md`, `indicative` flag retired (no `indicative` key). Renamed/updated design decisions: "Single spec.md Without Delta Markers" → "Requirements Without Delta Markers", "Acceptance Validates Implementation, Not Requirement Quality", "Non-Goals Before Requirements", "Optional Sections as Guidance Comment", "SRAD-Driven Open Questions". |
 | 260507-ogf2-restrain-ai-code-bloat | 2026-05-07 | `plan.md` parser contract extended from two to three heading-keyed sections: alongside `## Tasks` (apply parses) and `## Acceptance` (review parses), there is now an OPTIONAL `## Deletion Candidates` section appended by review (`_review.md` Validation Step 8) when findings exist or — for non-skip change types — the literal "None — ..." line. The section is review-owned and review-generated; apply does not write it; the template scaffold MUST NOT include a placeholder. Hydrate MAY read it informationally. Distinct from `## Acceptance > ### Removal Verification` (planned vs discovered removals). Omitted entirely for `[docs, chore, ci]` change types. |
 | 260423-qszh-merge-tasks-checklist | 2026-05-06 | Replaced `tasks.md` + `checklist.md` template entries with a single `plan.md` entry (`## Tasks` + `## Acceptance` heading-keyed sections; stable parser contract). Updated `.status.yaml` template to 7-stage progress map (dropped `progress.tasks`) and replaced `checklist:` block with `plan:` block (`generated`, `task_count`, `acceptance_count`, `acceptance_completed`; dropped `path`). New plans use `A-NNN` acceptance IDs; in-flight migrations preserve `CHK-NNN` verbatim. Renamed "Checklist Validates Implementation" → "Acceptance Validates Implementation" and "Checklist Co-located at Change Root" → "Plan Co-located at Change Root". Added two design decisions: `plan.md` replaces tasks+checklist (single apply-stage artifact) and `A-NNN` for new plans; `CHK-NNN` preserved for in-flight migrations. |

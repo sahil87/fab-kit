@@ -1,3 +1,6 @@
+---
+description: "`docs/specs/` directory — pre-implementation specs, distinction from memory, bootstrap and context integration"
+---
 # Specs Index
 
 **Domain**: fab-workflow

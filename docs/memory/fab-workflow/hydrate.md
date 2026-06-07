@@ -1,3 +1,6 @@
+---
+description: "`/docs-hydrate-memory` skill — argument routing, dual-mode (ingest + generate), hydration rules, mechanical index regen via `fab memory-index`"
+---
 # Hydrate
 
 **Domain**: fab-workflow
@@ -33,10 +36,9 @@ When arguments route to ingest mode:
 
 - Fetches/reads each source independently
 - Analyzes content and maps to domains
-- Creates or merges memory files in `docs/memory/{domain}/`
-- Creates/updates domain indexes (`docs/memory/{domain}/index.md`)
-- Updates top-level index (`docs/memory/index.md`)
-- Multiple sources are processed in a single pass; indexes updated once at the end
+- Creates or merges memory files in `docs/memory/{domain}/`, authoring each file's `description:` frontmatter
+- Regenerates all indexes (root + every domain) mechanically via `fab memory-index` — never by hand-editing rows
+- Multiple sources are processed in a single pass; `fab memory-index` runs once at the end
 
 ### Generate Mode Behavior
 
@@ -56,10 +58,11 @@ Safe to run repeatedly with the same sources:
 
 ### Index Maintenance
 
-Every hydration operation maintains navigable indexes:
-- **Top-level** (`docs/memory/index.md`): `| [domain](domain/index.md) | description | file-list |`
-- **Domain-level** (`docs/memory/{domain}/index.md`): `| [file-name](file-name.md) | description | last-updated |`
-- All links are relative (not absolute paths)
+Every hydration operation regenerates the navigable indexes **mechanically** via `fab memory-index` — the skill never hand-edits index rows:
+- **Top-level** (`docs/memory/index.md`): domains-only — `| Domain | Description |`. The legacy inlined per-file "Memory Files" column was dropped (tciy); per-domain descriptions come from each domain `index.md`'s `description:` frontmatter (round-tripped by the generator).
+- **Domain-level** (`docs/memory/{domain}/index.md`): file rows — `| File | Description | Last Updated |`. Each row's Description is read from the topic file's `description:` frontmatter; "Last Updated" is git-stamped (`git log -1 --date=short`, degrading to `—`), never hand-stamped.
+- The command is the single writer of both index levels — output is byte-stable / idempotent, so re-running produces no diff and any post-merge conflict auto-resolves by re-running `fab memory-index`.
+- Memory writers MUST author the `description:` frontmatter on every new/modified topic file so the regenerated index has content.
 - Formats follow `docs/specs/templates.md`
 
 ## Design Decisions
@@ -76,16 +79,17 @@ Every hydration operation maintains navigable indexes:
 **Rejected**: Auto-creating `docs/memory/` in hydrate — would blur the separation of concerns.
 *Introduced by*: 260207-q7m3-separate-hydrate-smart-context
 
-### Index Maintenance Embedded in Skill Instructions
-**Decision**: Each skill (hydrate, archive) includes inline instructions for updating indexes rather than sharing a utility.
-**Why**: Constitution I forbids system dependencies. Markdown skill instructions are the right abstraction level.
-**Rejected**: Shell script for index updates — would be brittle (parsing markdown tables in bash) and violate the "prompt play" spirit.
-*Introduced by*: 260207-q7m3-separate-hydrate-smart-context
+### Memory Index Maintenance is a Mechanical `fab memory-index` Call
+**Decision**: The hydrate skill regenerates `docs/memory/` indexes by invoking the deterministic `fab memory-index` Go subcommand, not by hand-editing index rows in skill instructions.
+**Why**: Hand-maintained per-row index cells (`description` + `Last Updated`) were the dominant merge-conflict and drift source — they get rewritten on nearly every memory edit. A generated, byte-stable index removes the hand-edit entirely, so two branches can never produce conflicting hand-edits to the same row, and any residual textual conflict auto-resolves by re-running the command. The render is a pure function of folder contents + `description:` frontmatter + git dates, mirroring the established `internal/prmeta` Render/Gather pattern.
+**Rejected**: Markdown skill instructions for index updates (the prior approach) — they silently drift (the old root roster listed 18 files when 20+ existed; hand-stamped dates were already wrong). A bespoke bash table-parser was also rejected earlier as brittle; the deterministic Go helper is admitted by the constitution (cf. `prmeta`/`impact`/`score`) and is fully unit-testable.
+*Introduced by*: 260207-q7m3-separate-hydrate-smart-context (original inline-instruction design); *Superseded by*: 260607-tciy-memory-tree-shape-rebalance (mechanical `fab memory-index`)
 
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260607-tciy-memory-tree-shape-rebalance | 2026-06-07 | Index Maintenance rewired to a mechanical `fab memory-index` call — the skill no longer hand-edits index rows. Ingest-mode behavior bullets updated (author `description:` frontmatter on files; run `fab memory-index` once at end). Index Maintenance requirement: root index is now **domains-only** (`\| Domain \| Description \|`; the inlined per-file "Memory Files" / `file-list` column is dropped), domain rows are `\| File \| Description \| Last Updated \|` with descriptions from each file's `description:` frontmatter and git-stamped "Last Updated". Renamed the "Index Maintenance Embedded in Skill Instructions" design decision → "Memory Index Maintenance is a Mechanical `fab memory-index` Call" (superseded — the hand-maintained rows were the merge-conflict + drift source). |
 | 260507-ogf2-restrain-ai-code-bloat | 2026-05-07 | Added Overview disambiguation: this file documents the standalone `/docs-hydrate-memory` skill; the `/fab-continue` pipeline hydrate stage (now reads `## Deletion Candidates` from `plan.md` informationally as Step 3) is documented in [execution-skills](execution-skills.md). No changes to `/docs-hydrate-memory` behavior. |
 | 260423-qszh-merge-tasks-checklist | 2026-05-06 | Reviewed for `tasks.md`/`checklist.md` references in light of the apply-stage artifact merge into `plan.md`. No live references found — this file documents the standalone `/docs-hydrate-memory` skill (URL/folder ingest + generate from codebase), not the `/fab-continue` pipeline-stage hydrate behavior, and it never named those legacy artifacts. No changes required. |
 | 260218-5isu-fix-docs-consistency-drift | 2026-02-18 | Replaced stale `/fab-init` → `/fab-setup` (3 occurrences) and `lib/sync-workspace.sh` → `sync/2-sync-workspace.sh` in glob pattern reference |

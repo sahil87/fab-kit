@@ -1,3 +1,6 @@
+---
+description: "Smart context loading convention — 7-file always-load layer, standard subagent context, selective domain loading, SRAD protocol, state-keyed Next Steps Convention"
+---
 # Context Loading
 
 **Domain**: fab-workflow

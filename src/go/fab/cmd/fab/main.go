@@ -33,6 +33,7 @@ func main() {
 		kitPathCmd(),
 		impactCmd(),
 		prMetaCmd(),
+		memoryIndexCmd(),
 		shellInitCmd(),
 		helpDumpCmd(),
 	)

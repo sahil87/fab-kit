@@ -1,3 +1,6 @@
+---
+description: "Provider-agnostic model tier system — tier naming, selection criteria, skill audit, config.yaml mapping, copy-with-template deployment"
+---
 # Model Tiers
 
 **Domain**: fab-workflow

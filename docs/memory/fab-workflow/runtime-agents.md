@@ -1,3 +1,6 @@
+---
+description: "`.fab-runtime.yaml` schema — `_agents[session_id]` keying, hook write/clear pipeline (stop/session-start/user-prompt), throttled GC via `last_run_gc`, grandparent PID walker, pane-map matching rule"
+---
 # Runtime Agents
 
 **Domain**: fab-workflow

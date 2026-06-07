@@ -1,3 +1,6 @@
+---
+description: "`/fab-setup` skill — structural bootstrap, subcommand architecture (config, constitution, migrations), delegation pattern with `fab-kit sync`"
+---
 # Setup
 
 **Domain**: fab-workflow

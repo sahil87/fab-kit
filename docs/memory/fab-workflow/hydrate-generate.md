@@ -1,3 +1,6 @@
+---
+description: "`/docs-hydrate-memory` generate mode — codebase scanning, gap detection, interactive scoping, memory file generation"
+---
 # Hydrate: Generate Mode
 
 **Domain**: fab-workflow
@@ -65,16 +68,15 @@ If only 1-3 gaps are found, the skill MAY skip the interactive prompt and procee
 
 ### Structured Memory Output
 
-For each selected gap, the skill SHALL generate a memory file in `docs/memory/{domain}/{topic}.md` following the memory file format (Overview, Requirements with RFC 2119 keywords, Design Decisions, Changelog). Generated files SHALL synthesize one file per gap (not per source file). When behavior is ambiguous, files SHOULD include `[INFERRED]` markers inline with explanations.
+For each selected gap, the skill SHALL generate a memory file in `docs/memory/{domain}/{topic}.md` following the memory file format: a leading `description:` frontmatter line (a curated one-line summary, consumed by the generated domain index) above the `# H1`, then Overview, Requirements with RFC 2119 keywords, Design Decisions, and Changelog. Generated files SHALL synthesize one file per gap (not per source file). When behavior is ambiguous, files SHOULD include `[INFERRED]` markers inline with explanations.
 
 ### Index Maintenance
 
-Generate mode SHALL reuse the same index maintenance logic as ingest mode:
+Generate mode SHALL reuse the same mechanical index regeneration as ingest mode — `fab memory-index`, never hand-edited rows:
 
-1. Create or update `docs/memory/{domain}/index.md` for each domain touched
-2. Update `docs/memory/index.md` with new domains and file lists
-3. All links SHALL be relative
-4. Existing entries SHALL NOT be removed
+1. Author the `description:` frontmatter on every generated topic file (the generated index reads its row Description from this field).
+2. Run `fab memory-index` once after generation. It regenerates the root `docs/memory/index.md` (domains-only — `| Domain | Description |`) and every `docs/memory/{domain}/index.md` (file rows — `| File | Description | Last Updated |`) deterministically from folder contents + frontmatter + `git log` dates.
+3. The command is the single writer; its output is byte-stable, all links are relative, and entries are derived from disk (so a file present on disk is always listed — there is no manual "do not remove entries" rule to forget).
 
 ### Idempotent Generation
 
@@ -127,5 +129,6 @@ Generate mode SHALL be safe to re-run:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260607-tciy-memory-tree-shape-rebalance | 2026-06-07 | Index Maintenance rewired: generate mode now runs the mechanical `fab memory-index` (root = domains-only; domain rows = `\| File \| Description \| Last Updated \|`) once after generation instead of hand-updating `docs/memory/index.md` "with new domains and file lists". Structured Memory Output now requires a leading `description:` frontmatter line on each generated file (consumed by the generated domain index). |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | 260207-k5od-hydrate-generate-mode | 2026-02-07 | Created — generate mode requirements and design decisions for `/docs-hydrate-memory` |

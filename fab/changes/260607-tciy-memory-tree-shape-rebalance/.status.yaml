@@ -1,0 +1,51 @@
+id: tciy
+name: 260607-tciy-memory-tree-shape-rebalance
+created: 2026-06-07T15:50:03Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 14
+    acceptance_count: 23
+    acceptance_completed: 23
+confidence:
+    certain: 6
+    confident: 5
+    tentative: 0
+    unresolved: 0
+    score: 3.5
+    fuzzy: true
+    dimensions:
+        signal: 80.8
+        reversibility: 73.5
+        competence: 83.3
+        disambiguation: 80.9
+stage_metrics:
+    intake: {started_at: "2026-06-07T15:50:03Z", driver: fab-new, iterations: 1, completed_at: "2026-06-07T16:46:49Z"}
+    apply: {started_at: "2026-06-07T16:46:49Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-07T16:59:49Z"}
+    review: {started_at: "2026-06-07T16:59:49Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-07T17:05:27Z"}
+    hydrate: {started_at: "2026-06-07T17:05:27Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-07T17:13:29Z"}
+    ship: {started_at: "2026-06-07T17:13:29Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-07T17:16:16Z"}
+    review-pr: {started_at: "2026-06-07T17:16:16Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-07T17:23:03Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/377
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-06-07T17:13:29Z"
+    computed_at_stage: hydrate
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-07T17:23:03Z
