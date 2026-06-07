@@ -194,8 +194,8 @@ On each tick:
 ── Operator ── 17:32 ── tick #47 ── 7 tracked ──
 
   [change]  r3m7         ▶ \e[32m●\e[0m apply → review
-  [change]  k8ds         ▶ \e[33m◌\e[0m review · idle 18m ⚠
-  [change]  ab12           \e[32m●\e[0m hydrate \e[32m✓\e[0m
+  [change]  k8ds         ▶ \e[33m◌\e[0m review · idle 8m
+  [change]  ab12           \e[32m✓\e[0m hydrate
   [change]  ef56           \e[31m✗\e[0m apply · idle 32m ⚠
   [watch]   gmail-deploys  \e[33m◌\e[0m 1 new · 2m ago
   [watch]   linear-bugs    \e[32m●\e[0m 2 known · 1 completed · 3m ago
@@ -223,6 +223,8 @@ All tracked items render in a single flat list. Every row follows a consistent c
 **Watch health** (only the glyph is ANSI-colored): `●` healthy (green — last query succeeded, no new items), `◌` has new unprocessed items (yellow), `✗` errored (red, `last_error` set), `–` paused (grey/default — `enabled: false`).
 
 **Health color**: wrap each health glyph in an ANSI SGR color code — green `\e[32m…\e[0m` (active/healthy/complete), yellow `\e[33m…\e[0m` (idle/new-items), red `\e[31m…\e[0m` (stuck/errored), grey/default (paused — none or `\e[90m…\e[0m`). Only the health glyph is colored; the autopilot `▶`, type prefix, IDs, detail text, and the `⚠` marker stay uncolored. Terminals without color support degrade to the bare single-width BMP glyph (`● ◌ ✗ – ✓`) — the glyph alone still disambiguates every state, so color is redundant reinforcement, not the sole signal. This keeps the frame terminal-safe with zero color (the glyphs are unchanged single-width BMP, so no width corruption can recur).
+
+**Stuck marker**: `⚠` (uncolored) trails the detail text on any change row whose idle duration has exceeded the stuck threshold (§8, default 15m) at a non-terminal stage — the same condition that paints the health glyph red `✗`. It is a redundant inline flag drawing the eye to rows needing manual investigation; rows below the threshold carry no marker.
 
 **Autopilot marker**: `▶` marks changes driven by the autopilot queue. Non-autopilot changes (manually enrolled or watch-spawned) show blank. Queue state is readable from the list — which entries have `▶`, which are complete.
 
