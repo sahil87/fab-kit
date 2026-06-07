@@ -34,7 +34,8 @@ stage_metrics:
     review: {started_at: "2026-06-07T16:59:49Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-07T17:05:27Z"}
     hydrate: {started_at: "2026-06-07T17:05:27Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-07T17:13:29Z"}
     ship: {started_at: "2026-06-07T17:13:29Z", driver: fab-fff, iterations: 1}
-prs: []
+prs:
+    - https://github.com/sahil87/fab-kit/pull/377
 true_impact:
     added: 0
     deleted: 0
@@ -46,4 +47,4 @@ true_impact:
     computed_at: "2026-06-07T17:13:29Z"
     computed_at_stage: hydrate
 # true_impact: lazily created on first apply-finish (no placeholder here).
-last_updated: 2026-06-07T17:13:29Z
+last_updated: 2026-06-07T17:15:41Z
