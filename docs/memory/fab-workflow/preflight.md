@@ -1,3 +1,6 @@
+---
+description: "`lib/preflight.sh` script — validation, accessor-based architecture, structured YAML output, skill integration"
+---
 # Preflight
 
 **Domain**: fab-workflow

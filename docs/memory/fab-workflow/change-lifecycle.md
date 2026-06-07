@@ -1,3 +1,6 @@
+---
+description: "Change naming, folder structure, `.status.yaml` (6-stage pipeline + `plan:` block), `.fab-status.yaml` symlink, git integration, `/fab-status`, `/fab-switch`, backlog scanning"
+---
 # Change Lifecycle
 
 **Domain**: fab-workflow

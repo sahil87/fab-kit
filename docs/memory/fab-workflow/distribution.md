@@ -1,3 +1,6 @@
+---
+description: "How `src/kit/` is distributed — Homebrew formula (2 binaries direct + 2 via `depends_on`), `fab` router (always-route policy), `fab-kit` lifecycle, `fab init` bootstrap, `fab upgrade-repo`, release workflow (3 binaries, 12 cross-compiled), `wt shell-setup` wrapper; the `shll.ai/fab-kit` public docs site — README-slice pull (`ReadmeSlice.astro`) + producer-side README-conformance obligation (tail boundary at `## Development`, diagram SVGs by absolute raw URL, absolute slice links) + `docs/` audience-axis layout (`docs/internal/`, RESERVED `docs/site/`)"
+---
 # Distribution
 
 **Domain**: fab-workflow

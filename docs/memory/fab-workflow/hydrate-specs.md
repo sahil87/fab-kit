@@ -1,3 +1,6 @@
+---
+description: "`/docs-hydrate-specs` skill — structural gap detection between memory and specs, interactive propose-then-apply"
+---
 # Hydrate Specs
 
 **Domain**: fab-workflow

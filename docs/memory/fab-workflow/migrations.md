@@ -1,3 +1,6 @@
+---
+description: "Migration system — dual-version model, migration file format, `/fab-setup migrations` subcommand, brew-install migration, `1.8.0-to-1.9.0` migration (tasks-stage collapse + plan.md), `1.9.1-to-1.9.2` migration (`true_impact_exclude` config field), `1.9.7-to-1.10.0` migration (spec-stage collapse, four-state spec.md→plan.md case table), version drift detection, `fab/.kit-migration-version` creation"
+---
 # Migrations
 
 **Domain**: fab-workflow

@@ -1,3 +1,6 @@
+---
+description: "`/fab-clarify` skill — intake-only (j6cs), dual modes (suggest/auto), intake taxonomy scan, structured questions, coverage reports, audit trail, grade reclassification, always-recompute intake score"
+---
 # Clarify Skill
 
 **Domain**: fab-workflow

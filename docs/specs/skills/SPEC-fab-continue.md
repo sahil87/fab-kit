@@ -96,7 +96,8 @@ User invokes /fab-continue [change-name] [stage]
 │  │                                                 │
 │  │  Read: docs/memory/ files, intake.md            │
 │  │  Write/Edit: docs/memory/{domain}/{file}.md     │
-│  │  Edit: docs/memory/index.md, domain indexes     │
+│  │    (with description: frontmatter)              │
+│  │  Bash: fab memory-index (regenerates indexes)   │
 │  │  Bash: fab status finish <change> hydrate       │
 │  └─────────────────────────────────────────────────┘
 │

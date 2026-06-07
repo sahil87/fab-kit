@@ -1,3 +1,6 @@
+---
+description: "`fab pane {map,capture,send,process,window-name}` subcommand reference, persistent `--server`/`-L` flag, `WithServer` argv helper, pane-ID-per-server semantics, motivating multi-socket use case, three-axis model (Change / Agent / Process), window-name primitives for idempotent / guarded tmux window rewrites"
+---
 # Pane Commands
 
 **Domain**: fab-workflow

@@ -1,3 +1,6 @@
+---
+description: "`workflow.yaml` schema — 6-stage pipeline, states, transitions, validation rules, design principles; `.status.yaml` `plan:` (`## Requirements`-aware), `confidence:` (indicative retired), and lazy `true_impact:` block schemas (incl. the `tests` sub-block + render-time `impl` residual, 7t5a); `fab impact` and `fab pr-meta` helper subcommands (rj31)"
+---
 # Schemas
 
 **Domain**: fab-workflow
