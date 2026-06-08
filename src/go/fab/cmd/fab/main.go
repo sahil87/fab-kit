@@ -29,6 +29,7 @@ func main() {
 		paneCmd(),
 		fabHelpCmd(),
 		operatorCmd(),
+		spawnCommandCmd(),
 		batchCmd(),
 		kitPathCmd(),
 		impactCmd(),

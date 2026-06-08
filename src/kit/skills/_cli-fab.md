@@ -24,7 +24,7 @@ All commands accept the unified `<change>`: 4-char ID (`yobi`), folder substring
 
 ### Commands covered in `_preamble` Common fab Commands
 
-`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab hook`, `fab pane`, `fab doctor`, `fab kit-path`, `fab impact`, `fab pr-meta`, `fab fab-help`, `fab help-dump`, `fab operator`, `fab batch`) and extended flag details for the above.
+`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab hook`, `fab pane`, `fab doctor`, `fab kit-path`, `fab impact`, `fab pr-meta`, `fab fab-help`, `fab help-dump`, `fab operator`, `fab spawn-command`, `fab batch`) and extended flag details for the above.
 
 ---
 
@@ -158,11 +158,11 @@ All tmux panes with pipeline state. Non-git/non-fab panes included with `---` fa
 
 | Flag | Description |
 |------|-------------|
-| `--json` | JSON array (snake_case: `session`, `window_index`, `pane`, `tab`, `worktree`, `change`, `stage`, `agent_state`, `agent_idle_duration`) |
+| `--json` | JSON array (snake_case: `session`, `window_index`, `pane`, `tab`, `worktree`, `repo`, `change`, `stage`, `agent_state`, `agent_idle_duration`). `repo` is the absolute main-worktree root for the pane's repo (`null` when unresolved) — `--json` only, no human-table column. |
 | `--session <name>` | Target specific session (skips `$TMUX` check) |
 | `--all-sessions` | Query all sessions (skips `$TMUX` check; mutually exclusive with `--session`) |
 
-Without `--session`/`--all-sessions` → current session only (`-s` scope, requires `$TMUX`). Table columns: `Session` (only with `--all-sessions`), `Pane`, `WinIdx`, `Tab`, `Worktree` (relative; `(main)` for main; `basename/` non-git), `Change`, `Stage`, `Agent`. Agent: `active`, `idle ({dur})`, or `—` (em dash). Change: folder name, `(no change)` for fab worktree with no active change, or `—` for non-fab panes. Idle duration: `{N}s`/`{N}m`/`{N}h` floor division. Change and Agent resolve on independent axes: Change comes from `.fab-status.yaml`; Agent comes from `_agents[*].tmux_pane` matching in `.fab-runtime.yaml` — so a pane with a running Claude in discussion mode (no active change) now shows `(no change)` in Change but a populated Agent column. `$TMUX` unset without targeting flag → exit 1. No panes → exit 0 `No tmux panes found.`
+Without `--session`/`--all-sessions` → current session only (`-s` scope, requires `$TMUX`). Table columns: `Session` (only with `--all-sessions`), `Pane`, `WinIdx`, `Tab`, `Worktree` (relative; `(main)` for main; `basename/` non-git), `Change`, `Stage`, `Agent`. The `Worktree` relative path is computed **per repo** — each pane's display path is relative to its own repo's main-worktree root (cached by git worktree root), so panes from multiple repos render correct paths. Agent: `active`, `idle ({dur})`, or `—` (em dash). Change: folder name, `(no change)` for fab worktree with no active change, or `—` for non-fab panes. Idle duration: `{N}s`/`{N}m`/`{N}h` floor division. Change and Agent resolve on independent axes: Change comes from `.fab-status.yaml`; Agent comes from `_agents[*].tmux_pane` matching in `.fab-runtime.yaml` — so a pane with a running Claude in discussion mode (no active change) now shows `(no change)` in Change but a populated Agent column. `$TMUX` unset without targeting flag → exit 1. No panes → exit 0 `No tmux panes found.`
 
 ### capture — `fab pane capture <pane> [-l N] [--json] [--raw] [--server <name>]`
 
@@ -400,12 +400,14 @@ Singleton tmux-tab launcher for `/fab-operator`. Requires `$TMUX`. If window `op
 fab operator tick-start
 ```
 
-Called at start of each operator tick. Increments `tick_count`, writes `last_tick_at` (ISO 8601 UTC) to `.fab-operator.yaml`. Stdout:
+Called at start of each operator tick. Increments `tick_count`, writes `last_tick_at` (ISO 8601 UTC) to the **server-keyed** state file (not the old repo-rooted `.fab-operator.yaml`). Stdout:
 
 ```
 tick: N
 now: HH:MM
 ```
+
+**State path** (server-keyed, XDG): `<XDG_STATE_HOME>/fab/operator/<server-slug>.yaml`, where the base is `$XDG_STATE_HOME` (when set and absolute) else `$HOME/.local/state` — uniform on Linux and macOS (never `~/Library/...`). `<server-slug>` is derived from the tmux socket path (`#{socket_path}`) by escaping literal `-` to `--` then mapping separators to a single `-` (e.g. `/tmp/tmux-1000/default` → `tmp-tmux--1000-default`); the escape keeps the mapping collision-free so distinct sockets never share a state file. One operator-per-tmux-server gets one state file that survives a server restart (same `-L` label → same socket path). Falls back to slug `default` when tmux can't be queried. No migration of old repo-rooted `.fab-operator.yaml` files — they are abandoned in place.
 
 ### fab operator time
 
@@ -419,6 +421,16 @@ Pure time query (no writes).
 - With `--interval 3m`: `now: HH:MM\nnext: HH:MM` (now + interval)
 
 Duration is Go format (`3m`, `5m`, `2m`). Invalid → exit 1.
+
+---
+
+## fab spawn-command
+
+```
+fab spawn-command [--repo <path>]
+```
+
+Prints a repo's configured agent spawn command to stdout. With `--repo <path>`, reads `agent.spawn_command` from `<path>/fab/project/config.yaml`; without `--repo`, resolves the current repo's config via upward `fab/` search (same source as `fab operator`). Falls back to `claude --dangerously-skip-permissions` when the key is missing/empty or the file is unreadable. Lets the operator fetch a **target** repo's spawn command (e.g. to spawn an agent into a different repo with that repo's configuration) instead of only its own.
 
 ---
 

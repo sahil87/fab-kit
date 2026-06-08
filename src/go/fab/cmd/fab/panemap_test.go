@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -561,10 +563,35 @@ func TestPrintPaneJSON(t *testing.T) {
 		}
 
 		output := buf.String()
-		for _, field := range []string{"session", "window_index", "pane", "tab", "worktree", "change", "stage", "agent_state", "agent_idle_duration"} {
+		for _, field := range []string{"session", "window_index", "pane", "tab", "worktree", "repo", "change", "stage", "agent_state", "agent_idle_duration"} {
 			if !strings.Contains(output, "\""+field+"\"") {
 				t.Errorf("JSON output missing field %q:\n%s", field, output)
 			}
+		}
+	})
+
+	t.Run("repo field populated and null when unresolved", func(t *testing.T) {
+		var buf bytes.Buffer
+		cmd := &cobra.Command{}
+		cmd.SetOut(&buf)
+
+		rows := []paneRow{
+			{session: "runK", windowIndex: 0, pane: "%3", tab: "alpha", worktree: "(main)", repo: "/home/u/repo-a", change: "260306-r3m7-x", stage: "apply", agent: "active"},
+			{session: "dev", windowIndex: 1, pane: "%5", tab: "scratch", worktree: "downloads/", repo: "—", change: "—", stage: "—", agent: "—"},
+		}
+		if err := printPaneJSON(cmd, rows); err != nil {
+			t.Fatal(err)
+		}
+
+		var result []paneJSON
+		if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+			t.Fatalf("invalid JSON: %v\n%s", err, buf.String())
+		}
+		if result[0].Repo == nil || *result[0].Repo != "/home/u/repo-a" {
+			t.Errorf("repo[0] = %v, want /home/u/repo-a", ptrStr(result[0].Repo))
+		}
+		if result[1].Repo != nil {
+			t.Errorf("repo[1] should be null for unresolved repo, got %v", ptrStr(result[1].Repo))
 		}
 	})
 }
@@ -712,6 +739,59 @@ func TestPrintPaneJSON_DiscussionMode(t *testing.T) {
 			t.Errorf("agent_state = %v, want active", ptrStr(r.AgentState))
 		}
 	})
+}
+
+// TestMainRootForPane verifies that the main-worktree root is resolved per
+// distinct repo (not shared across repos) and cached by the pane's git worktree
+// root. Two distinct git repos must yield two distinct main roots so panes in
+// each render display paths relative to their OWN repo.
+func TestMainRootForPane(t *testing.T) {
+	repoA := initGitRepo(t)
+	repoB := initGitRepo(t)
+
+	cache := make(map[string]string)
+
+	gotA := mainRootForPane(repoA, cache)
+	gotB := mainRootForPane(repoB, cache)
+
+	if gotA == "" || gotB == "" {
+		t.Fatalf("expected non-empty main roots, got A=%q B=%q", gotA, gotB)
+	}
+	if gotA == gotB {
+		t.Errorf("distinct repos must yield distinct main roots; both = %q (the prior single-shared-root bug)", gotA)
+	}
+	// filepath.EvalSymlinks-tolerant comparison: git reports the resolved root.
+	if filepath.Base(gotA) != filepath.Base(repoA) {
+		t.Errorf("repoA main root = %q, want a path ending in %q", gotA, filepath.Base(repoA))
+	}
+
+	t.Run("non-git cwd yields empty and is cached", func(t *testing.T) {
+		nonGit := t.TempDir()
+		c := make(map[string]string)
+		if got := mainRootForPane(nonGit, c); got != "" {
+			t.Errorf("non-git cwd should yield empty main root, got %q", got)
+		}
+		if _, ok := c[nonGit]; !ok {
+			t.Errorf("non-git cwd should be cached to avoid retries")
+		}
+	})
+}
+
+// initGitRepo creates a fresh git repo in a temp dir and returns its path.
+func initGitRepo(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	for _, args := range [][]string{
+		{"init"},
+		{"config", "user.email", "test@example.com"},
+		{"config", "user.name", "test"},
+	} {
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Skipf("git %v failed (git unavailable?): %v\n%s", args, err, out)
+		}
+	}
+	return dir
 }
 
 func TestPaneMapMutualExclusion(t *testing.T) {
