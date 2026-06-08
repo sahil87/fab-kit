@@ -8,7 +8,7 @@ A development toolkit for AI-assisted coding. It includes a 6-stage pipeline (in
 
 AI agents write code fast. The bottleneck is now your clarity: did you define the problem well enough? Fab Kit sits at that bottleneck — it forces structured thinking before implementation, grounds every session in your project's actual context, and gets cheaper to run as agents improve.
 
-> **[Try it now](#quick-start)** | **[Understand the concepts](#why-fab-kit)** | **[Glossary](https://github.com/sahil87/fab-kit/blob/main/docs/specs/glossary.md)** (new to Fab terminology?)
+> **[Try it now](#quick-start)** | **[Understand the concepts](#why-fab-kit)** | **[Install guide](docs/site/install.md)** | **[Workflows guide](docs/site/workflows.md)** | **[Glossary](https://github.com/sahil87/fab-kit/blob/main/docs/specs/glossary.md)** (new to Fab terminology?)
 
 **Contents:** [The 6 Stages](#the-6-stages) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start) · [Why Fab Kit](#why-fab-kit) · [The 5 Cs](#the-5-cs-of-quality) · [Commands](#command-quick-reference)
 

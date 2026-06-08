@@ -1,0 +1,17 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-08T09:58:47Z"}
+{"args":"Conform repo to shll.ai README-extraction contract (§Producer conformance directive): restructure README head/tail/images/mermaid/links per Part 1, add docs/site/ tree per Part 2 (install.md, workflows.md), refresh stale docs/site placeholder now that §9 is ACTIVE, run Verify checklist. Single PR.","cmd":"fab-new","event":"command","ts":"2026-06-08T09:58:47Z"}
+{"delta":"+2.5","event":"confidence","score":2.5,"trigger":"calc-score","ts":"2026-06-08T10:00:20Z"}
+{"delta":"+0.0","event":"confidence","score":2.5,"trigger":"calc-score","ts":"2026-06-08T10:00:25Z"}
+{"delta":"+0.0","event":"confidence","score":2.5,"trigger":"calc-score","ts":"2026-06-08T10:14:55Z"}
+{"delta":"+0.0","event":"confidence","score":2.5,"trigger":"calc-score","ts":"2026-06-08T10:15:00Z"}
+{"delta":"+1.0","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-06-08T10:15:09Z"}
+{"delta":"+0.0","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-06-08T10:15:13Z"}
+{"delta":"+0.0","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-06-08T10:15:16Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-06-08T10:15:48Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-08T10:16:07Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-08T10:21:32Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-06-08T10:26:45Z"}
+{"event":"review","result":"passed","ts":"2026-06-08T10:26:45Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-08T10:30:38Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-06-08T10:32:46Z"}
+{"event":"review","result":"passed","ts":"2026-06-08T10:38:28Z"}
