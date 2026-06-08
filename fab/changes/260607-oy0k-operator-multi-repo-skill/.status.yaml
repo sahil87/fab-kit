@@ -2,7 +2,7 @@ id: oy0k
 name: 260607-oy0k-operator-multi-repo-skill
 created: 2026-06-07T17:54:17Z
 created_by: sahil-noon
-change_type: fix
+change_type: feat
 issues: []
 progress:
     intake: done
@@ -10,7 +10,7 @@ progress:
     review: done
     hydrate: done
     ship: done
-    review-pr: active
+    review-pr: done
 plan:
     generated: true
     task_count: 12
@@ -34,7 +34,7 @@ stage_metrics:
     review: {started_at: "2026-06-08T03:59:34Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-08T04:02:26Z"}
     hydrate: {started_at: "2026-06-08T04:02:26Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-08T04:07:18Z"}
     ship: {started_at: "2026-06-08T04:07:18Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-08T04:30:09Z"}
-    review-pr: {started_at: "2026-06-08T04:30:09Z", driver: git-pr, iterations: 1}
+    review-pr: {started_at: "2026-06-08T04:30:09Z", driver: git-pr, iterations: 1, completed_at: "2026-06-08T04:38:38Z"}
 prs:
     - https://github.com/sahil87/fab-kit/pull/382
 true_impact:
@@ -52,4 +52,4 @@ true_impact:
     computed_at: "2026-06-08T04:07:18Z"
     computed_at_stage: hydrate
 # true_impact: lazily created on first apply-finish (no placeholder here).
-last_updated: 2026-06-08T04:30:09Z
+last_updated: 2026-06-08T04:38:38Z
