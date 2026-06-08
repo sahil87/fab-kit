@@ -2,7 +2,7 @@
 // state file that tracks Claude Code agents and drives fab pane map / fab
 // pane send behavior.
 //
-// Schema (see docs/memory/fab-workflow/runtime-agents.md for the canonical reference):
+// Schema (see docs/memory/runtime/runtime-agents.md for the canonical reference):
 //
 //	_agents:
 //	  "<session_id>":

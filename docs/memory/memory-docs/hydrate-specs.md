@@ -3,7 +3,7 @@ description: "`/docs-hydrate-specs` skill — structural gap detection between m
 ---
 # Hydrate Specs
 
-**Domain**: fab-workflow
+**Domain**: memory-docs
 
 ## Overview
 

@@ -3,13 +3,13 @@ description: "`/docs-hydrate-memory` skill — argument routing, dual-mode (inge
 ---
 # Hydrate
 
-**Domain**: fab-workflow
+**Domain**: memory-docs
 
 ## Overview
 
 `/docs-hydrate-memory [sources...|folders...]` is a standalone skill that operates in two modes: **ingest mode** (fetching URLs or reading `.md` files into `docs/memory/`) and **generate mode** (scanning the codebase for undocumented areas and producing structured memory files). Mode is determined automatically by argument type — no flags needed. It requires `docs/memory/` to exist (created by `/fab-setup`). See [hydrate-generate](hydrate-generate.md) for full generate mode requirements.
 
-> **Distinct from pipeline hydrate**: This file documents the standalone `/docs-hydrate-memory` skill. The `/fab-continue` pipeline hydrate stage (which advances a change from `review: done` to `hydrate: done` and updates `docs/memory/` from the change's spec/plan) is documented in [execution-skills](execution-skills.md) under "Hydrate Behavior (via `/fab-continue`)". The pipeline hydrate stage reads `## Deletion Candidates` from `plan.md` informationally (per execution-skills Hydrate Behavior Step 3) — see that file for the authoritative behavior.
+> **Distinct from pipeline hydrate**: This file documents the standalone `/docs-hydrate-memory` skill. The `/fab-continue` pipeline hydrate stage (which advances a change from `review: done` to `hydrate: done` and updates `docs/memory/` from the change's spec/plan) is documented in [execution-skills](../pipeline/execution-skills.md) under "Hydrate Behavior (via `/fab-continue`)". The pipeline hydrate stage reads `## Deletion Candidates` from `plan.md` informationally (per execution-skills Hydrate Behavior Step 3) — see that file for the authoritative behavior.
 
 ## Requirements
 
@@ -90,7 +90,7 @@ Every hydration operation regenerates the navigable indexes **mechanically** via
 | Change | Date | Summary |
 |--------|------|---------|
 | 260607-tciy-memory-tree-shape-rebalance | 2026-06-07 | Index Maintenance rewired to a mechanical `fab memory-index` call — the skill no longer hand-edits index rows. Ingest-mode behavior bullets updated (author `description:` frontmatter on files; run `fab memory-index` once at end). Index Maintenance requirement: root index is now **domains-only** (`\| Domain \| Description \|`; the inlined per-file "Memory Files" / `file-list` column is dropped), domain rows are `\| File \| Description \| Last Updated \|` with descriptions from each file's `description:` frontmatter and git-stamped "Last Updated". Renamed the "Index Maintenance Embedded in Skill Instructions" design decision → "Memory Index Maintenance is a Mechanical `fab memory-index` Call" (superseded — the hand-maintained rows were the merge-conflict + drift source). |
-| 260507-ogf2-restrain-ai-code-bloat | 2026-05-07 | Added Overview disambiguation: this file documents the standalone `/docs-hydrate-memory` skill; the `/fab-continue` pipeline hydrate stage (now reads `## Deletion Candidates` from `plan.md` informationally as Step 3) is documented in [execution-skills](execution-skills.md). No changes to `/docs-hydrate-memory` behavior. |
+| 260507-ogf2-restrain-ai-code-bloat | 2026-05-07 | Added Overview disambiguation: this file documents the standalone `/docs-hydrate-memory` skill; the `/fab-continue` pipeline hydrate stage (now reads `## Deletion Candidates` from `plan.md` informationally as Step 3) is documented in [execution-skills](../pipeline/execution-skills.md). No changes to `/docs-hydrate-memory` behavior. |
 | 260423-qszh-merge-tasks-checklist | 2026-05-06 | Reviewed for `tasks.md`/`checklist.md` references in light of the apply-stage artifact merge into `plan.md`. No live references found — this file documents the standalone `/docs-hydrate-memory` skill (URL/folder ingest + generate from codebase), not the `/fab-continue` pipeline-stage hydrate behavior, and it never named those legacy artifacts. No changes required. |
 | 260218-5isu-fix-docs-consistency-drift | 2026-02-18 | Replaced stale `/fab-init` → `/fab-setup` (3 occurrences) and `lib/sync-workspace.sh` → `sync/2-sync-workspace.sh` in glob pattern reference |
 | 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Updated hydration target paths from `fab/memory/` to `docs/memory/` |

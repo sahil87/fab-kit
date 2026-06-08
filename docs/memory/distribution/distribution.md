@@ -3,7 +3,7 @@ description: "How `src/kit/` is distributed — Homebrew formula (2 binaries dir
 ---
 # Distribution
 
-**Domain**: fab-workflow
+**Domain**: distribution
 
 ## Overview
 

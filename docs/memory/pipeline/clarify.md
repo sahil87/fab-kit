@@ -3,7 +3,7 @@ description: "`/fab-clarify` skill — intake-only (j6cs), dual modes (suggest/a
 ---
 # Clarify Skill
 
-**Domain**: fab-workflow
+**Domain**: pipeline
 
 ## Overview
 

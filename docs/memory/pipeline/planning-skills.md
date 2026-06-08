@@ -3,7 +3,7 @@ description: "`/fab-new`, `/fab-continue`, `/fab-ff`, `/fab-clarify` — the pla
 ---
 # Planning Skills
 
-**Domain**: fab-workflow
+**Domain**: pipeline
 
 ## Overview
 

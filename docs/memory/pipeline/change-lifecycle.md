@@ -3,7 +3,7 @@ description: "Change naming, folder structure, `.status.yaml` (6-stage pipeline 
 ---
 # Change Lifecycle
 
-**Domain**: fab-workflow
+**Domain**: pipeline
 
 ## Overview
 

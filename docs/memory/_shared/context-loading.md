@@ -3,7 +3,7 @@ description: "Smart context loading convention — 7-file always-load layer, sta
 ---
 # Context Loading
 
-**Domain**: fab-workflow
+**Domain**: _shared
 
 ## Overview
 

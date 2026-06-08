@@ -3,7 +3,7 @@ description: "Artifact templates (intake, plan), skill frontmatter, and memory f
 ---
 # Templates
 
-**Domain**: fab-workflow
+**Domain**: memory-docs
 
 ## Overview
 
@@ -18,7 +18,7 @@ The intake captures intent, scope, approach, and open questions. Structure:
 - **Origin** — How the change was initiated: description text, interaction mode (one-shot vs. conversational), key decisions from the conversation. Provides traceability for how the intake was developed
 - **Why** — Motivation, 1-3 sentences
 - **What Changes** — Specific capabilities added, modified, or removed
-- **Affected Memory** — Flat list of memory files affected by this change, each with an inline marker: `(new)`, `(modify)`, or `(remove)`. Kebab-case identifiers matching `docs/memory/` paths. An entry is either flat — `{domain}/{file-name}` — or, when a domain has been split into sub-domains, sub-domained — `{domain}/{sub-domain}/{file-name}` (the flat form stays valid for un-split domains). The sub-domained form is what drives the up-to-3-hop selective-load walk (see [context-loading.md](context-loading.md))
+- **Affected Memory** — Flat list of memory files affected by this change, each with an inline marker: `(new)`, `(modify)`, or `(remove)`. Kebab-case identifiers matching `docs/memory/` paths. An entry is either flat — `{domain}/{file-name}` — or, when a domain has been split into sub-domains, sub-domained — `{domain}/{sub-domain}/{file-name}` (the flat form stays valid for un-split domains). The sub-domained form is what drives the up-to-3-hop selective-load walk (see [context-loading.md](../_shared/context-loading.md))
 - **Impact** — Affected code areas, APIs, dependencies
 - **Open Questions** — Plain list of questions the agent couldn't resolve from context. SRAD handles prioritization at spec generation time — no explicit blocking/deferred labels needed
 
@@ -88,7 +88,7 @@ This block replaces the prior `checklist:` block. Field migration: `total → ac
 
 The confidence block initializes to zero counts and score 0.0 — a new change has no assessed confidence. The score is computed by `fab score` from `intake.md` (the sole scoring source as of j6cs), persisted by `/fab-new` and recomputed by `/fab-clarify`. The `confidence.indicative` flag is no longer written (retired in j6cs); the template carries no `indicative` key.
 
-See [change-lifecycle.md](change-lifecycle.md) for the full `.status.yaml` field reference and state vocabulary.
+See [change-lifecycle.md](../pipeline/change-lifecycle.md) for the full `.status.yaml` field reference and state vocabulary.
 
 ### Skill Frontmatter
 
@@ -98,7 +98,7 @@ Skill files in `$(fab kit-path)/skills/` use YAML frontmatter with these fields:
 - **`description`** *(required)* — short description shown in skill listings
 - **`model_tier`** *(optional)* — provider-agnostic model tier. Valid values: `fast`. Omission means `capable` (the default — use the platform's most capable model)
 
-The `model_tier` field is used by `sync/2-sync-workspace.sh` during deployment to generate agent files with provider-specific `model:` fields. See [model-tiers.md](model-tiers.md) for tier selection criteria and the full mapping system.
+The `model_tier` field is used by `sync/2-sync-workspace.sh` during deployment to generate agent files with provider-specific `model:` fields. (Note: the model-tier system was later eliminated — all skills now run on the session's default model and no `model_tier` frontmatter is consumed. This documents historical behavior; the former `model-tiers.md` memory file was removed in the 260608 domain restructure.)
 
 ### Memory File Format (`docs/memory/`)
 

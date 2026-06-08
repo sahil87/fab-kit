@@ -3,7 +3,7 @@ description: "Migration system — dual-version model, migration file format, `/
 ---
 # Migrations
 
-**Domain**: fab-workflow
+**Domain**: distribution
 
 ## Overview
 

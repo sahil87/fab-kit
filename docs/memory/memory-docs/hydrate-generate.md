@@ -3,7 +3,7 @@ description: "`/docs-hydrate-memory` generate mode — codebase scanning, gap de
 ---
 # Hydrate: Generate Mode
 
-**Domain**: fab-workflow
+**Domain**: memory-docs
 
 ## Overview
 
