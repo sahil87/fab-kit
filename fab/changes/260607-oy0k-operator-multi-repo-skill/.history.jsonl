@@ -2,3 +2,22 @@
 {"args":"feat: operator multi-repo skill + specs — multi-repo/multi-session fab-operator coordination on one tmux server (depends on change 1, the Go primitives)","cmd":"fab-new","event":"command","ts":"2026-06-07T17:54:17Z"}
 {"delta":"+2.1","event":"confidence","score":2.1,"trigger":"calc-score","ts":"2026-06-07T17:55:23Z"}
 {"delta":"+0.0","event":"confidence","score":2.1,"trigger":"calc-score","ts":"2026-06-07T17:55:28Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-06-08T03:30:26Z"}
+{"delta":"+2.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-08T03:32:34Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-08T03:32:43Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-08T03:32:51Z"}
+{"delta":"+0.9","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-06-08T03:47:13Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-06-08T03:47:18Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-06-08T03:47:25Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-06-08T03:47:28Z"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-06-08T03:47:35Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-08T03:48:06Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-06-08T03:49:06Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-08T03:59:34Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-06-08T04:02:26Z"}
+{"event":"review","result":"passed","ts":"2026-06-08T04:02:26Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-08T04:07:18Z"}
+{"cmd":"git-pr","event":"command","ts":"2026-06-08T04:28:51Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-06-08T04:30:09Z"}
+{"cmd":"git-pr-review","event":"command","ts":"2026-06-08T04:31:14Z"}
+{"event":"review","result":"passed","ts":"2026-06-08T04:38:38Z"}

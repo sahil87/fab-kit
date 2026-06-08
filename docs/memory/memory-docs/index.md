@@ -7,8 +7,8 @@ description: "Authoring docs/memory & docs/specs — the hydrate skills (ingest 
 
 | File | Description | Last Updated |
 |------|-------------|-------------|
-| [hydrate](hydrate.md) | `/docs-hydrate-memory` skill — argument routing, dual-mode (ingest + generate), hydration rules, mechanical index regen via `fab memory-index` | — |
-| [hydrate-generate](hydrate-generate.md) | `/docs-hydrate-memory` generate mode — codebase scanning, gap detection, interactive scoping, memory file generation | — |
-| [hydrate-specs](hydrate-specs.md) | `/docs-hydrate-specs` skill — structural gap detection between memory and specs, interactive propose-then-apply | — |
-| [specs-index](specs-index.md) | `docs/specs/` directory — pre-implementation specs, distinction from memory, bootstrap and context integration | — |
-| [templates](templates.md) | Artifact templates (intake, plan), skill frontmatter, and memory file format (incl. `description:` frontmatter + generated domains-only index, tciy). `plan.md` (`## Requirements` + `## Tasks` + `## Acceptance` + optional review-owned `## Deletion Candidates`) absorbs the former `spec.md` (j6cs) and the prior `tasks.md` + `checklist.md` pair | — |
+| [hydrate](hydrate.md) | `/docs-hydrate-memory` skill — argument routing, dual-mode (ingest + generate), hydration rules, mechanical index regen via `fab memory-index` | 2026-06-08 |
+| [hydrate-generate](hydrate-generate.md) | `/docs-hydrate-memory` generate mode — codebase scanning, gap detection, interactive scoping, memory file generation | 2026-06-08 |
+| [hydrate-specs](hydrate-specs.md) | `/docs-hydrate-specs` skill — structural gap detection between memory and specs, interactive propose-then-apply | 2026-06-08 |
+| [specs-index](specs-index.md) | `docs/specs/` directory — pre-implementation specs, distinction from memory, bootstrap and context integration | 2026-06-08 |
+| [templates](templates.md) | Artifact templates (intake, plan), skill frontmatter, and memory file format (incl. `description:` frontmatter + generated domains-only index, tciy). `plan.md` (`## Requirements` + `## Tasks` + `## Acceptance` + optional review-owned `## Deletion Candidates`) absorbs the former `spec.md` (j6cs) and the prior `tasks.md` + `checklist.md` pair | 2026-06-08 |

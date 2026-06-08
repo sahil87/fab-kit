@@ -1,5 +1,5 @@
 ---
-description: "Operator coordination skill (`/fab-operator`, superseding the historical operator4) — multi-agent monitoring, auto-answer model with strategic escalation, dependency-aware spawning, autopilot, and tmux tab-naming. Historical operator4 context plus the operator design-decision lineage."
+description: "Operator coordination skill (`/fab-operator`, superseding the historical operator4) — multi-repo / multi-session coordination on one tmux server via the `(session, repo, pane)` addressing tuple, server-keyed state file, multi-agent monitoring, auto-answer model with strategic escalation, repo-targeted spawning, two-tier dependency resolution, repo-spanning autopilot, and tmux tab-naming. Historical operator4 context plus the operator design-decision lineage."
 ---
 # Operator
 
@@ -7,7 +7,7 @@ description: "Operator coordination skill (`/fab-operator`, superseding the hist
 
 ## Overview
 
-The operator is a standalone, long-lived coordination skill (`/fab-operator`) — NOT a pipeline stage. It runs in a dedicated tmux pane, observes agents via `fab pane map`, routes commands via `tmux send-keys`, monitors progress via `/loop`, and auto-answers idle agent prompts (escalating strategic ones to the user). This file documents the operator's behavior, its tick lifecycle and state model, and the design-decision lineage from the historical `/fab-operator4` through the current dependency-aware `/fab-operator` (v7). For the `.fab-runtime.yaml` agent schema and `fab pane` primitives the operator builds on, see [runtime-agents.md](runtime-agents.md) and [pane-commands.md](pane-commands.md).
+The operator is a standalone, long-lived coordination skill (`/fab-operator`) — NOT a pipeline stage. It runs in a dedicated tmux pane, coordinates agents **across multiple repos and multiple tmux sessions on a single tmux server**, observes them via `fab pane map --all-sessions`, routes commands via `tmux send-keys`, monitors progress via `/loop`, and auto-answers idle agent prompts (escalating strategic ones to the user). Every agent is addressed by the `(session, repo, pane)` tuple: the **pane ID is the primary key** (server-global, stable), with `repo` (the agent's absolute main-worktree root) and `session` (its tmux session name) as added dimensions. There is **one operator per tmux server**, owning **one server-keyed state file** that spans every repo it coordinates. This file documents the operator's behavior, its tick lifecycle and state model, and the design-decision lineage from the historical `/fab-operator4` through the current multi-repo `/fab-operator`. For the `.fab-runtime.yaml` agent schema and `fab pane` primitives the operator builds on, see [runtime-agents.md](runtime-agents.md) and [pane-commands.md](pane-commands.md). For the Go-side mechanism (server-keyed state path derivation, the `repo` JSON field, `fab spawn-command --repo`), see [kit-architecture.md](../distribution/kit-architecture.md) → "Operator State File" and [pane-commands.md](pane-commands.md).
 
 ## Requirements
 
@@ -56,19 +56,71 @@ On invocation, runs `fab pane-map` and displays the output, then signals readine
 | Pane death (non-autopilot) | 0 | Report pane gone. No respawn outside autopilot |
 | Send to busy agent | 0 | Warn user, require explicit confirmation |
 
-#### Monitoring System
+#### Monitoring System (historical operator4 framing — see "Multi-Repo Monitoring Model" below for the current model)
 
-The operator maintains a monitored set persisted to `.fab-operator.yaml` at the repo root (and mirrored in conversation context for the active tick). Each entry tracks: change ID, pane, last-known stage, last-known agent state, enrolled-at timestamp, last-transition-at timestamp.
+Operator4 maintained a monitored set persisted to a repo-rooted `.fab-operator.yaml` (mirrored in conversation context for the active tick), each entry tracking: change ID, pane, last-known stage, last-known agent state, enrolled-at timestamp, last-transition-at timestamp. The enrollment/removal mechanics (window-name prefix on enroll, done-marker swap on removal) below are unchanged by the multi-repo reframe — only the addressing model and state-file location moved (see the next section).
 
-> **State-file location (binary level)**: As of 260607-h3jk, the underlying state file the binary reads/writes (`fab operator tick-start`) is no longer repo-rooted `.fab-operator.yaml` — it is a **server-keyed XDG path** `<stateDir>/fab/operator/<server-slug>.yaml`, keyed by the tmux socket so one operator-per-server owns one file across repos (see [kit-architecture.md](../distribution/kit-architecture.md) → "Operator State File"). h3jk shipped only the Go primitives (state path, per-repo `fab pane map`, `fab spawn-command`); the skill prose above still describes the old repo-rooted framing. Re-framing the operator's monitored-set model around the server-keyed file and the `(session, repo, pane)` addressing tuple is the scope of the follow-up skill change `260607-oy0k-operator-multi-repo-skill`.
+**Enrollment triggers**: operator sends a command to it, user requests monitoring, operator triggers an automatic action toward it (including autopilot and watch spawns). Read-only actions do not enroll. **Spawned agents are always auto-enrolled** — the operator MUST NOT ask the user whether to monitor a spawned agent. This constraint is reinforced in both the §1 principles and the "Spawning an Agent" procedural subsection to ensure proximity-based LLM adherence.
 
-**Enrollment triggers**: operator sends a command to it, user requests monitoring, operator triggers an automatic action toward it (including autopilot and watch spawns). Read-only actions do not enroll. **Spawned agents are always auto-enrolled** — the operator MUST NOT ask the user whether to monitor a spawned agent. This constraint is reinforced in both the §1 principles and the "Spawning an Agent" procedural subsection of each operator skill (operator6, operator7) to ensure proximity-based LLM adherence.
-
-**Enrollment also applies the `»` window-name prefix**: after writing the monitored entry to `.fab-operator.yaml`, the operator invokes `fab pane window-name ensure-prefix <pane> »` (U+00BB). The primitive enforces the literal-prefix idempotent guard internally: operator-spawned windows (already `»<wt>` from the spawn step), `/clear`-restored entries, and re-enrollment after transient removal all no-op through the guard. A non-zero exit — pane vanished between refresh and rename (exit 2) or any other tmux error (exit 3, including tmux not running / socket unreachable) — is logged as `"{change}: window rename skipped ({error})."` and does not roll back the enrollment.
+**Enrollment also applies the `»` window-name prefix**: after writing the monitored entry to the state file, the operator invokes `fab pane window-name ensure-prefix <pane> »` (U+00BB). The primitive enforces the literal-prefix idempotent guard internally: operator-spawned windows (already `»<wt>` from the spawn step), `/clear`-restored entries, and re-enrollment after transient removal all no-op through the guard. A non-zero exit — pane vanished between refresh and rename (exit 2) or any other tmux error (exit 3, including tmux not running / socket unreachable) — is logged as `"{change}: window rename skipped ({error})."` and does not roll back the enrollment. Window markers (`»` / `›`) are **unchanged by the multi-repo model** — they key on server-global pane IDs, which are unique across every repo and session on the server.
 
 **Removal triggers**: change reaches a terminal stage (hydrate, ship, review-pr), pane dies, user explicitly stops monitoring. On every removal path the operator invokes `fab pane window-name replace-prefix <pane> » ›` (U+203A, single right guillemet — the done-marker), swapping the active-monitoring `»` prefix for the trail-preserved `›`. The primitive's literal-prefix guard protects user-renamed windows: if the user renamed the window mid-monitoring so it no longer starts with `»`, the swap silently no-ops without clobbering the user's name. Exit 2 (pane missing — the window is gone anyway) is treated as a successful removal; other non-zero exits log `"{change}: window rename skipped ({error})."`. This keeps the tab bar an accurate at-a-glance map: `»` for currently-tracked, `›` for operator-touched-but-done, and untouched names for windows the operator never marked.
 
-**`/loop` lifecycle**: Start when first change enrolled (no loop running) — `/loop 5m "check monitored agents"`. Stop when monitored set empty. One-loop invariant: at most one active `/loop` at any time.
+#### Multi-Repo Monitoring Model (current `/fab-operator`)
+
+> Introduced by `260607-oy0k-operator-multi-repo-skill`; consumes the Go primitives shipped by `260607-h3jk`. This is the authoritative monitored-set model; the operator4 framing above is historical context.
+
+**One operator per tmux server.** The isolation unit is the tmux server — a single operator spans every session and every repo on that server. A second operator means a second tmux server (`tmux -L <label>`). "Multiple sessions, same server" share one operator and one state file. There is no `--name` dimension; the server boundary is the only isolation knob. This matches the server-wide singleton already enforced by the `operator` window (`fab operator` switches to the existing window rather than creating a second one).
+
+**Server-keyed state file.** The monitored set, autopilot queue, `branch_map`, and watches persist in **one server-keyed file** — `$XDG_STATE_HOME/fab/operator/<server-slug>.yaml` (fallback `~/.local/state/fab/operator/<server-slug>.yaml`), keyed by the tmux socket path so the one operator-per-server owns one file across all the repos it coordinates. The binary derives this path (`fab operator tick-start` reads/writes it via `StatePath()`); the operator never computes it. See [kit-architecture.md](../distribution/kit-architecture.md) → "Operator State File" for the derivation mechanism. Old repo-rooted `.fab-operator.yaml` files from before the server-keyed model are **not migrated** — they are abandoned in place (the monitored set is re-derivable from live `»`-prefixed panes).
+
+**`(session, repo, pane)` addressing.** Every monitored agent, `branch_map` value, and watch is repo-qualified. The pane ID remains the primary key (server-global, stable); `repo` (absolute main-worktree root) and `session` (tmux session name) are added dimensions, not replacements. Schema additions over the operator4 entry:
+
+- Each `monitored` entry gains `repo` (absolute main-worktree root) and `session` (tmux session name).
+- The `branch_map` value becomes `{ branch, repo }` (was a bare branch string). The `repo` is required to disambiguate a dependency's branch across repos and to choose same-repo (cherry-pick) vs. cross-repo (ordering-only) dependency resolution.
+- Each `watches` entry gains `target_repo` — the repo a watch's spawned changes land in. A watch with no `target_repo` cannot spawn.
+
+#### Multi-Repo Coordination: Spawning, Dependencies, Autopilot (current `/fab-operator`)
+
+> Introduced by `260607-oy0k-operator-multi-repo-skill`. Supersedes the single-repo spawning/autopilot prose in the historical operator4 sections below.
+
+**Repo-targeted spawning.** Every spawn flow first establishes **which repo** the work targets (an existing change's `repo`, a watch's `target_repo`, or the repo the user names — defaulting to the operator's launch repo), then runs each step against that repo, not the operator's own:
+
+1. Run `wt create --non-interactive` **with the target repo as the working directory**, so the worktree lands under `$(dirname <target-repo>)/<repo-name>.worktrees/` rather than the operator's repo.
+2. Read **that repo's** `agent.spawn_command` via `fab spawn-command --repo <target-repo>` (see [kit-architecture.md](../distribution/kit-architecture.md)) — never the operator's own `config.yaml`, since each repo may configure a different spawn command.
+3. Open the agent tab and enroll with `repo` and `session` recorded, plus `{ branch, repo }` added to `branch_map`.
+
+All three work paths (existing change, raw text, backlog/Linear) and watch-driven spawns use this same repo-targeted sequence.
+
+**Two-tier dependency resolution.** Each `depends_on` entry is classified by comparing the dependency's `repo` (from its `branch_map` `{ branch, repo }` pair, or its monitored entry) against this change's `repo`:
+
+- **Same-repo dependency** → **cherry-pick** as today: `git cherry-pick --no-commit origin/main..<dep-branch>` into the worktree.
+- **Cross-repo dependency** → **ordering-only barrier**: wait until the dependency reaches its `stop_stage` (terminal stage when `stop_stage` is null), then spawn. **No code is merged.**
+
+> **REQUIRED caveat — cross-repo deps give the dependent agent NO code.** A cross-repo `depends_on` is a pure *sequencing* constraint; the dependent worktree receives nothing from the dependency. This is correct only for **logical** dependencies ("don't start the frontend change until the API change merges"), never for **code-level** ones. Cross-repo branches share no common `origin/main` base to cherry-pick across, so there is no sound way to make the dependency's code available. For code sharing across repos, the dependency must merge and be consumed as a normal upstream artifact (package, vendored copy), outside the operator's scope.
+
+Ancestor-pruning (`git merge-base --is-ancestor`) is scoped to the **same-repo subset** of the dependency set — it is meaningless across repos with no shared history. The `origin/main..<dep-branch>` transitive-closure argument (only direct/leaf deps need cherry-picking) holds only within a repo; cross-repo deps carry no such transitive content.
+
+**Repo-spanning autopilot.** An autopilot queue **may span repos** with mixed dependency semantics: implicit `--base`/`depends_on` chaining cherry-picks **within** a repo and **degrades to an ordering-only barrier across** repo boundaries. Ordered merge tracks **per-repo PR sequences** — within each repo, base-first in dependency order; across repos, cross-repo barriers are honored (a cross-repo dependent's PR merges only after its barrier dependency reaches its target repo's main). The queue-completion summary annotates each PR with its repo and suggests a per-repo merge order.
+
+**CI-failure = halt-dependents-only.** During ordered merge, a CI failure halts the failing repo's merge sub-sequence AND any repo whose queued items carry a cross-repo `depends_on` into the failed chain — **transitively** over the cross-repo `depends_on` graph (a repo halts if any of its queued items depends, directly or via another already-halted item, on a PR in the failed chain). **Truly independent repos' sub-sequences continue merging.** The operator isolates the blast radius to the failure's dependency cone, reports which sub-sequences halted vs. completed, and escalates the failure to the user.
+
+**`/loop` lifecycle**: Start when first change enrolled (no loop running) — `/loop 3m "operator tick"`. Stop when monitored set empty. One-loop invariant: at most one active `/loop` at any time.
+
+**Tick snapshot is server-wide.** The tick's snapshot step uses `fab pane map --all-sessions --json` (not bare `fab pane map`), so the operator sees agents in **every** session on its server, not just its own. `--json` exposes the per-row `repo` field (the agent's absolute main-worktree root, `null` when the pane is not in a git repo — see [pane-commands.md](pane-commands.md)). Rows are grouped first by `repo`, then by `session`. The health glyphs, autopilot `▶` marker, and `⚠` stuck marker are unchanged — only the grouping changes.
+
+**Repo-section status frame.** The status frame renders **repo-section headers** — one header line per repo (noting the session) with the repo's change rows indented beneath — rather than per-row `repo`/`session` columns (chosen for scannability). Watches render after all repo sections in a flat list, each annotated with its `target_repo` (`→ ~/code/foo`). A pane whose main-worktree root could not be resolved renders under an `(unresolved repo)` header rather than being dropped. Example:
+
+```
+── Operator ── 17:32 ── tick #47 ── 7 tracked ──
+
+  ~/code/foo (session: work)
+    [change]  r3m7   ▶ ● apply → review
+    [change]  ab12     ✓ hydrate
+  ~/code/bar (session: side)
+    [change]  k8ds   ▶ ◌ review · idle 8m
+  [watch]   linear-bugs  → ~/code/foo   ● 2 known · 1 completed · 3m ago
+```
 
 **Monitoring tick** (on each `/loop` tick or "any updates?"):
 
@@ -132,6 +184,8 @@ Every mode follows the same rhythm: interpret user intent → refresh state → 
 | **Autopilot** | Drive a queue of changes through the full pipeline. See below |
 
 #### Autopilot
+
+> The autopilot mechanics below describe the operator4 single-repo framing. Under the current `/fab-operator`, an autopilot queue may span repos with mixed dependency semantics, ordered merge tracks per-repo PR sequences, and CI-failure halts dependents only (not the whole sequence) — see "Multi-Repo Coordination" above for the authoritative behavior.
 
 Drives a queue of changes through the full pipeline — spawning agents, monitoring progress, and collecting PRs for review. The default mode is **stack-then-review**: all queued changes build on each other via implicit `depends_on` chaining, PRs are created but NOT merged until the user explicitly requests merging. Confirm queue before starting (destructive tier). Default confirmation: "Confirm upfront (creates PRs — merge after review)."
 
@@ -284,9 +338,28 @@ The operator is launched via `fab operator` — a `fab-go` subcommand (source: `
 **Rejected**: (1) Leave `»` on removal (260422-jyyg's original rule) — self-defeating signal staleness; tab bar lies about what is tracked. (2) Restore the original name — requires storing `original_name` with a "user-renamed-mid-monitoring" ambiguity that the guard-based approach side-steps. (3) `✓` as the done-marker — collides with the stage-done signal in the operator status frame. (4) Per-project config option for the done-marker character — speculative, no current demand; the character is a skill constant in `src/kit/skills/fab-operator.md`.
 *Introduced by*: 260423-rxu3-window-prefix-primitives
 
+### Multi-Repo / Multi-Session Isolation = Tmux Server (one operator per server)
+**Decision**: The operator's isolation unit is the **tmux server** — exactly one operator per server, spanning every session and repo on it, owning one **server-keyed** state file at `$XDG_STATE_HOME/fab/operator/<server-slug>.yaml` (fallback `~/.local/state/...`), keyed by the tmux socket path (the binary derives it via `StatePath()` — see [kit-architecture.md](../distribution/kit-architecture.md)). A second operator means a second tmux server (`tmux -L <label>`). There is **no `--name` dimension** — the server boundary is the only isolation knob, matching the server-wide singleton already enforced by the `operator` window. Old repo-rooted `.fab-operator.yaml` files are **not migrated** — abandoned in place (the monitored set is re-derivable from live `»`-prefixed panes). Every monitored entry, `branch_map` value (`{ branch, repo }`), and watch (`target_repo`) is repo-qualified under the `(session, repo, pane)` addressing tuple, with pane ID as the server-global primary key.
+**Why**: A single operator coordinating multiple repos/sessions is the central value of the operator (one pane of glass). A repo-rooted state file is single-repo-only; a fixed global path would force a machine-wide singleton. Keying the file by the tmux socket scopes one owner across all repos on a server while still allowing a second server to host an independent operator. No migration is acceptable because operators don't survive a binary upgrade anyway.
+**Rejected**: Per-repo operators (loses the single pane of glass). A `--name` operator dimension (redundant with the server boundary). Repo-rooted `.fab-operator.yaml` (single-repo only). A fixed global state path (machine-wide singleton). Migrating old state files (unnecessary — monitored set is re-derivable).
+*Introduced by*: 260607-oy0k-operator-multi-repo-skill
+
+### Cross-Repo Dependencies = Ordering-Only (no code merge)
+**Decision**: `depends_on` resolution is two-tier, split by repo. A **same-repo** dependency cherry-picks as today (`git cherry-pick --no-commit origin/main..<dep-branch>`). A **cross-repo** dependency is an **ordering-only barrier**: the operator waits until the dependency reaches its `stop_stage`, then spawns — **no code is merged**. The skill states the REQUIRED caveat that a cross-repo dependency gives the dependent agent no code (pure logical sequencing), correct only for logical deps ("don't start the frontend until the API merges"), never code-level ones. Ancestor-pruning (`git merge-base --is-ancestor`) is scoped to the same-repo subset only.
+**Why**: Cross-repo branches share no common `origin/main` base, so there is no sound cross-repo cherry-pick; logical sequencing is the only sound cross-repo semantic. Forbidding cross-repo deps would be too restrictive for real multi-repo workflows.
+**Rejected**: Forbid cross-repo deps (too restrictive). Full cross-repo code merge (unsound — no shared base). Cross-repo ancestor-pruning (meaningless across repos with no shared history).
+*Introduced by*: 260607-oy0k-operator-multi-repo-skill
+
+### Repo-Spanning Autopilot CI-Failure = Halt-Dependents-Only
+**Decision**: An autopilot queue may span repos with mixed dependency semantics (within-repo cherry-pick chaining degrades to cross-repo ordering-only barriers); ordered merge tracks per-repo PR sequences. On a CI failure during ordered merge, the operator halts the failing repo's merge sub-sequence AND any repo whose queued items carry a cross-repo `depends_on` into the failed chain — **transitively** over the cross-repo `depends_on` graph. Truly independent repos' sub-sequences **continue merging**. The completion summary reports halted vs. completed sub-sequences and escalates to the user.
+**Why**: Maximizes independent-repo throughput while still respecting cross-repo ordering barriers — the failure's blast radius is isolated to its dependency cone rather than throttling the whole queue.
+**Rejected**: Halt-all (conservative, throttles independent repos — the earlier lean, superseded during clarify). Halt-only-failing-repo (ignores cross-repo ordering barriers, would merge a dependent ahead of its failed barrier).
+*Introduced by*: 260607-oy0k-operator-multi-repo-skill
+
 
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
 | 260608-memory-domain-restructure | 2026-06-08 | Created `runtime/operator.md` by extracting the operator coordination content from `pipeline/execution-skills.md` (the `/fab-operator4` historical section, Monitoring System, tick lifecycle via `fab operator tick-start`/`time`, and the operator design-decision lineage from "Auto-Answer Model with Strategic Escalation" through "Done-Marker Swap on Removal"). Part of the memory-domain restructure that replaced the single `fab-workflow/` pseudo-domain with `pipeline/`, `memory-docs/`, `distribution/`, `runtime/`, and `_shared/`. The per-change history of these design decisions is preserved in `execution-skills.md`'s changelog (where the content lived when those changes shipped); this row records the extraction only. No operator behavior changed. |
+| 260607-oy0k-operator-multi-repo-skill | 2026-06-08 | Re-framed `/fab-operator` for **multi-repo / multi-session coordination on one tmux server**. Addressing moved to the `(session, repo, pane)` tuple (pane ID stays primary key; `repo` + `session` are added dimensions). Resolved the h3jk deferral note and rewrote the repo-rooted "Monitoring System" prose into a server-keyed model: one operator per server, one server-keyed state file `$XDG_STATE_HOME/fab/operator/<server-slug>.yaml` (no migration of old repo-rooted files), `monitored` entries gain `repo`+`session`, `branch_map` value becomes `{ branch, repo }`, watches gain `target_repo`. Tick snapshots via `fab pane map --all-sessions --json` grouped by repo→session with repo-section-header status frame. Added repo-targeted spawning (`wt create` in the target repo dir, `fab spawn-command --repo`), two-tier dependency resolution (same-repo cherry-pick / cross-repo ordering-only with the no-code caveat; ancestor-pruning scoped to same-repo subset), and repo-spanning autopilot with per-repo PR sequences and halt-dependents-only CI semantics (transitive over the cross-repo `depends_on` graph). Added three Design Decisions (tmux-server isolation / one-operator-per-server, cross-repo deps ordering-only, halt-dependents-only CI). Skill+specs change only; consumes change 1's (`260607-h3jk`) Go primitives, whose mechanism docs live in [kit-architecture.md](../distribution/kit-architecture.md) and [pane-commands.md](pane-commands.md). |

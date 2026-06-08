@@ -1,10 +1,12 @@
-# fab-operator4
+# fab-operator
 
 ## Summary
 
-Standalone multi-agent coordination layer with proactive monitoring and auto-nudge. Runs in a dedicated tmux pane, observes all running fab agents via `fab pane-map`, routes commands via `tmux send-keys`, monitors progress via `/loop`, auto-answers routine agent questions, and drives autopilot queues through the full pipeline.
+Standalone multi-agent coordination layer with proactive monitoring and auto-nudge. Runs in a dedicated tmux pane, observes all running fab agents across every session on its tmux server via `fab pane map --all-sessions`, routes commands via `tmux send-keys`, monitors progress via `/loop`, auto-answers routine agent questions, and drives autopilot queues through the full pipeline.
 
-Self-contained — does not inherit from any other operator skill. All behavior is defined in `src/kit/skills/fab-operator4.md` plus the standard `_` files loaded via `_preamble.md`. External tool reference (`_cli-external.md`) is loaded in the operator's own startup section.
+**Multi-repo / multi-session model.** The operator coordinates agents across **multiple repos and multiple tmux sessions on a single tmux server** — one operator per server (the isolation unit; a second operator means a second `tmux -L <label>` server). Every agent is addressed by the `(session, repo, pane)` tuple: the **pane ID is the primary key** (server-global, stable), with `repo` (the agent's absolute main-worktree root) and `session` (its tmux session name) layered on as dimensions. Every monitored entry, every `branch_map` value (`{ branch, repo }`), and every watch (`target_repo`) is repo-qualified. State lives in **one server-keyed file** — `$XDG_STATE_HOME/fab/operator/<server-slug>.yaml` (fallback `~/.local/state/...`), keyed by the tmux socket path — not a per-repo `.fab-operator.yaml`. This model consumes the Go primitives shipped by change 1 (`260607-h3jk`): `fab pane map --all-sessions --json` with a per-row `repo` field, `fab spawn-command --repo`, and the binary-derived server-keyed state path. Old repo-rooted state files are not migrated.
+
+Self-contained — does not inherit from any other operator skill. All behavior is defined in `src/kit/skills/fab-operator.md` plus the standard `_` files loaded via `_preamble.md`. External tool reference (`_cli-external.md`) is loaded in the operator's own startup section.
 
 Not a lifecycle enforcer — the operator coordinates across agents and proxies routine user input, not advancing stages or making pipeline decisions.
 
@@ -16,15 +18,15 @@ Not a lifecycle enforcer — the operator coordinates across agents and proxies 
 
 The skill is organized into 9 sections:
 
-1. **Principles** — identity (coordinate don't execute), routing discipline, context discipline (never loads change artifacts), state re-derivation (why: stale state = wrong actions)
-2. **Startup** — always-load context layer, `_cli-external.md` load, orientation (pane map + ready signal), outside-tmux degradation
+1. **Principles** — identity (coordinate don't execute), **multi-repo aware** (`(session, repo, pane)` addressing; pane ID is the server-global primary key; repo + session are added dimensions), routing discipline, context discipline (never loads change artifacts), state re-derivation via `fab pane map --all-sessions` (why: stale state = wrong actions)
+2. **Startup** — always-load context layer, `_cli-external.md` load, orientation (`fab pane map --all-sessions` + ready signal), reads the server-keyed state file, outside-tmux degradation
 3. **Safety Model** — confirmation tiers (read-only / recoverable / destructive), pre-send validation (pane exists + agent idle), bounded retries & escalation table
-4. **Monitoring System** — monitored set (fields, enrollment triggers, removal triggers), `/loop` lifecycle (start/extend/stop, one-loop invariant), monitoring tick with 6 steps. The tick status frame renders a single-width BMP health glyph per row (`●` active/healthy, `◌` idle/new-items, `✗` stuck/errored, `✓` complete, `–` paused), ANSI-colored via an SGR escape (`\e[3Xm…\e[0m`): green = active/healthy/complete, yellow = idle/new-items, red = stuck/errored, grey/default = paused (the paused glyph may be left uncolored rather than wrapped). Only the health glyph is colored; no-color terminals degrade to the bare glyph, which alone disambiguates every state (terminal-safe by design). Window-name rename on enrollment: prefix `»` to the tmux window name via `fab pane window-name ensure-prefix` (idempotent). Removal replaces `»` with `›` via `fab pane window-name replace-prefix`, guarded to skip user-renamed windows.
-5. **Auto-Nudge** — question detection (capture -S -20, guards, pattern matching), answer model (simplified decision list items 1-6), re-capture before send, per-answer logging
-6. **Modes of Operation** — shared rhythm + compact table: broadcast, sequenced rebase, merge PRs, spawn agent, status dashboard, unstick agent, notification, rebase all, autopilot
-7. **Autopilot** — queue ordering (user-provided / confidence-based / hybrid), per-change loop, failure matrix, interruptibility, resumability. Pipeline uses `/fab-fff`
-8. **Configuration** — monitoring interval (5m), stuck threshold (15m), autopilot tick (2m), session-scoped
-9. **Key Properties** — standard properties table
+4. **Monitoring System** — server-keyed state file (`$XDG_STATE_HOME/fab/operator/<server-slug>.yaml`), monitored set (fields incl. `repo` + `session`; enrollment triggers, removal triggers), `branch_map` value is `{ branch, repo }`, `/loop` lifecycle (start/extend/stop, one-loop invariant), monitoring tick with 6 steps. The tick snapshot uses `fab pane map --all-sessions --json` and groups rows by `repo` then `session`. The status frame renders **repo-section headers** (one header line per repo, noting the session, with the repo's change rows indented beneath; watches follow in a flat list annotated with `target_repo`) — preferred over per-row repo/session columns for scannability. Each row still carries a single-width BMP health glyph (`●` active/healthy, `◌` idle/new-items, `✗` stuck/errored, `✓` complete, `–` paused), ANSI-colored via an SGR escape (`\e[3Xm…\e[0m`): green = active/healthy/complete, yellow = idle/new-items, red = stuck/errored, grey/default = paused (the paused glyph may be left uncolored rather than wrapped). Only the health glyph is colored; no-color terminals degrade to the bare glyph, which alone disambiguates every state (terminal-safe by design). Window-name rename on enrollment: prefix `»` to the tmux window name via `fab pane window-name ensure-prefix` (idempotent; keys on server-global pane IDs, unchanged by the multi-repo model). Removal replaces `»` with `›` via `fab pane window-name replace-prefix`, guarded to skip user-renamed windows.
+5. **Auto-Nudge** — question detection (capture -S -20, guards, pattern matching), answer model (decision list items 1-6 with rule 4 Routine/Strategic classification), idle auto-default on strategic escalations, re-capture before send, per-answer logging
+6. **Coordination Patterns / Modes of Operation** — shared rhythm + compact table: broadcast, sequenced rebase, merge PRs, spawn agent, status dashboard, unstick agent, notification, autopilot. **Repo-targeted spawning**: each spawn establishes the target repo first, runs `wt create` in that repo's directory, reads the target repo's `agent.spawn_command` via `fab spawn-command --repo <target-repo>`, and enrolls with `repo` + `session`. **Two-tier dependency resolution**: same-repo `depends_on` cherry-picks (`git cherry-pick --no-commit origin/main..<dep-branch>`); cross-repo `depends_on` is an ordering-only barrier (wait for stop_stage, no code merge) — with the REQUIRED caveat that a cross-repo dependency gives the dependent agent no code, only logical sequencing. Ancestor-pruning (`git merge-base --is-ancestor`) is scoped to the same-repo subset.
+7. **Autopilot** — queue ordering (user-provided / confidence-based / hybrid); queue may span repos with mixed dependency semantics (within-repo cherry-pick chaining degrades to cross-repo ordering-only); per-change loop; per-repo PR sequences for ordered merge; CI-failure is **halt-dependents-only** (halt the failing repo's sub-sequence + any repo with a transitive cross-repo `depends_on` into the failed chain; independent repos continue; summary reports halted vs completed and escalates); failure matrix; interruptibility; resumability. Pipeline uses `/fab-fff`
+8. **Configuration** — one operator per tmux server (isolation unit; second operator = second `tmux -L` server; no `--name` dimension), loop interval (3m), stuck threshold (15m), session-scoped
+9. **Key Properties** — standard properties table, incl. server-keyed XDG state file and multi-repo/multi-session row
 
 ---
 
@@ -34,15 +36,17 @@ All tool references are in shared `_` files — operator4 does not duplicate too
 
 | Primitive | Reference |
 |-----------|-----------|
-| `fab pane-map`, `fab resolve`, `fab change list`, `fab status`, `fab score` | `_cli-fab.md` |
-| `wt list`, `wt create`, `wt delete`, `tmux` commands, `/loop` | `_cli-external.md` |
+| `fab pane map --all-sessions --json` (per-row `repo` field), `fab spawn-command --repo`, `fab resolve`, `fab change list`, `fab status`, `fab score`, `fab operator tick-start` (server-keyed state path) | `_cli-fab.md` |
+| `wt list`, `wt create` (run in the target repo's directory), `wt delete`, `tmux` commands, `/loop` | `_cli-external.md` |
 | Change folder, branch, worktree naming | `_preamble.md` § Naming Conventions |
+
+The multi-repo primitives (`--all-sessions`, the `repo` JSON field, `fab spawn-command --repo`, and the server-keyed state path) are provided by change 1 (`260607-h3jk`); this skill is the policy layer over them.
 
 ---
 
 ## Monitoring Tick
 
-All 6 steps are fully specified inline:
+The snapshot uses `fab pane map --all-sessions --json` and groups rows by `repo` then `session` before computing status. All 6 steps are fully specified inline:
 
 1. Stage advance detection
 2. Pipeline completion detection
@@ -99,10 +103,13 @@ When rule 4 escalates as Strategic, the operator runs a per-prompt idle timer. I
 
 - Pipeline: `/fab-fff` (not `/fab-ff`)
 - Gate: confidence score threshold per change type
-- Per-change loop: spawn -> gate -> monitor -> merge -> rebase -> cleanup -> progress
-- Failure matrix covers: confidence below gate, review fails, rebase conflict, pane death, stage timeout, total timeout
+- Per-change loop: spawn (in target repo) -> resolve deps (same-repo cherry-pick / cross-repo ordering-only) -> gate -> monitor -> record `{ branch, repo }` + collect PR -> dispatch next -> progress
+- **Repo-spanning queue**: a queue may span repos with mixed dependency semantics — within-repo `--base`/`depends_on` chaining cherry-picks, cross-repo chaining degrades to an ordering-only barrier
+- **Per-repo ordered merge**: the completion summary annotates each PR with its repo and suggests a per-repo merge order; ordered merge waits for CI on each PR within a repo's sequence, honoring cross-repo barriers across repos
+- **CI failure = halt-dependents-only**: halt the failing repo's sub-sequence + any repo with a transitive cross-repo `depends_on` into the failed chain; truly independent repos continue; the summary reports halted vs completed sub-sequences and escalates
+- Failure matrix covers: confidence below gate, review fails, rebase conflict, cherry-pick conflict, pane death, stage timeout, total timeout
 - Interruptible: stop/skip/pause/resume
-- Resumable from `fab pane-map` state reconstruction
+- Resumable from `fab pane map --all-sessions` state reconstruction
 
 ---
 
@@ -117,8 +124,10 @@ When rule 4 escalates as Strategic, the operator runs a per-prompt idle timer. I
 | Advances stage? | No |
 | Outputs `Next:` line? | No — ends with ready signal |
 | Loads change artifacts? | No — coordination context only |
-| Requires tmux? | Yes for pane-map, resolve --pane, monitoring, auto-nudge; status-only mode without |
+| Requires tmux? | Yes for pane map, resolve --pane, monitoring, auto-nudge; status-only mode without |
 | Uses `/loop`? | Yes — for proactive monitoring after every send |
+| State file | Server-keyed: `$XDG_STATE_HOME/fab/operator/<server-slug>.yaml` (fallback `~/.local/state/...`), keyed by the tmux socket path. Binary-derived; old repo-rooted files not migrated |
+| Multi-repo / multi-session? | Yes — one operator per tmux server spans all its sessions and repos via the `(session, repo, pane)` addressing tuple |
 
 ---
 
@@ -133,3 +142,13 @@ When rule 4 escalates as Strategic, the operator runs a per-prompt idle timer. I
 4. **`/fab-fff` for autopilot.** The more autonomous pipeline variant, fitting for operator-driven autopilot where human interaction is minimized.
 
 5. **`/git-branch` after new change.** The operator sends `/git-branch` to the agent after detecting intake stage advancement for backlog-spawned changes, aligning branch names with change folders per `_preamble.md` § Naming Conventions.
+
+6. **Isolation unit = tmux server (one operator per server).** Matches the existing server-wide `operator`-window singleton. A fixed global state path was rejected (forces a machine-wide singleton); keying the state file by the tmux socket path lets a second `tmux -L <label>` server host an independent operator. No `--name` dimension — the server boundary is the only isolation knob.
+
+7. **State file keyed by tmux socket path, under XDG.** `$XDG_STATE_HOME/fab/operator/<server-slug>.yaml` (fallback `~/.local/state/...`), derived by change 1's binary (`StatePath()`). Rejected: repo-rooted `.fab-operator.yaml` (single-repo only, can't span repos) and a fixed global path (machine-wide singleton). Old repo-rooted files are abandoned in place — no migration (the monitored set is re-derivable from live `»`-prefixed panes).
+
+8. **Cross-repo dependencies = ordering-only.** Same-repo `depends_on` cherry-picks as today; cross-repo `depends_on` is a pure sequencing barrier (wait for stop_stage, no code merge). Cross-repo branches share no common `origin/main` base, so there is no sound cross-repo cherry-pick — the dependent agent gets no code, only ordering. Rejected: forbidding cross-repo deps (too restrictive) and full cross-repo code merge (unsound, no shared base).
+
+9. **CI-failure scope = halt-dependents-only.** A CI failure halts the failing repo's merge sub-sequence + any repo with a transitive cross-repo `depends_on` into the failed chain; truly independent repos continue. Rejected: halt-all (throttles independent repos) and halt-only-failing-repo (ignores cross-repo ordering barriers). Chosen to maximize independent-repo throughput while respecting cross-repo barriers.
+
+10. **Status frame = repo-section headers.** Changes render grouped under per-repo header lines (noting the session) with indented rows, rather than per-row repo/session columns. Chosen for scannability.

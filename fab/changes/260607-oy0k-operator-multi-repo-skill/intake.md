@@ -120,7 +120,8 @@ The ancestor-pruning logic (`git merge-base --is-ancestor`) applies only within 
 
 - A queue **may now span repos**, with mixed dependency semantics: implicit `--base` chaining cherry-picks within a repo and degrades to ordering-only across repo boundaries.
 - Ordered merge (`gh pr merge` + CI wait) tracks **per-repo PR sequences** — the merge order respects each repo's own dependency chain. The queue-completion summary annotates each PR with its repo.
-- CI-failure halt behavior is per-repo: a CI failure in one repo halts that repo's merge sub-sequence; the skill documents whether other repos' sequences continue (recommend: halt all, report, escalate — consistent with the current conservative stance).
+- CI-failure halt behavior is **halt-dependents-only**: a CI failure in one repo halts that repo's merge sub-sequence AND any other repo whose queue items carry a cross-repo `depends_on` pointing into the failed chain; truly independent repos' sub-sequences continue merging. The queue-completion summary reports which sub-sequences halted vs. completed, and escalates the failure to the user. <!-- clarified 2026-06-08: user chose halt-dependents-only over the conservative halt-all default, to maximize independent-repo throughput while still respecting cross-repo ordering barriers -->
+  - **Implementation note for apply**: "dependent" is determined transitively over the cross-repo `depends_on` graph — a repo halts if any of its queued items depends (directly or via another halted item) on a PR in the failed chain. Repos with no such edge continue.
 
 ### B6 — Watches gain `target_repo` (§7)
 
@@ -153,8 +154,27 @@ The ancestor-pruning logic (`git merge-base --is-ancestor`) applies only within 
 
 ## Open Questions
 
-- **B5 CI-failure scope across repos**: when a cross-repo autopilot queue is mid-merge and one repo's CI fails, should other repos' independent merge sub-sequences continue, or halt all? (Leaning: halt all + escalate, consistent with the current conservative single-repo stance — but worth confirming during apply.)
-- **B2 frame layout**: repo-section headers vs. adding `repo`/`session` columns to every row. Both convey the grouping; the choice is presentation. (Leaning: repo-section headers for scannability; resolvable at apply time as a Tentative assumption.)
+_All previously-open questions resolved during /fab-clarify (2026-06-08):_
+
+- **B5 CI-failure scope across repos** — RESOLVED: **halt-dependents-only**. A CI failure halts the failing repo's sub-sequence plus any repo with a cross-repo `depends_on` into the failed chain; truly independent repos continue. (Superseded the earlier "halt all" lean.)
+- **B2 frame layout** — RESOLVED: **repo-section headers** (per-repo header line with indented entries), chosen for scannability over per-row repo/session columns.
+
+## Clarifications
+
+### Session 2026-06-08
+
+| # | Q | A |
+|---|---|---|
+| 9 (B2) | Status frame layout: repo-section headers vs. per-row repo/session columns? | Repo-section headers (per-repo header line with indented entries, for scannability) |
+| 10 (B5) | Cross-repo CI-failure during ordered merge: halt all, halt only failing repo, or halt dependents only? | Halt-dependents-only — halt the failing repo + any repo with a cross-repo `depends_on` into the failed chain; independent repos continue |
+
+### Session 2026-06-08 (bulk confirm)
+
+| # | Action | Detail |
+|---|--------|--------|
+| 6 | Confirmed | — |
+| 7 | Confirmed | — |
+| 8 | Confirmed | — |
 
 ## Assumptions
 
@@ -165,10 +185,10 @@ The ancestor-pruning logic (`git merge-base --is-ancestor`) applies only within 
 | 3 | Certain | No migration of old repo-rooted `.fab-operator.yaml`; abandon in place | Discussed — user explicitly said no migration needed | S:98 R:80 A:90 D:98 |
 | 4 | Certain | Cross-repo `depends_on` = ordering-only (no code merge); same-repo = cherry-pick as today | Discussed — user selected "Allow, no cherry-pick" over forbid/full-cross-repo | S:95 R:55 A:85 D:90 |
 | 5 | Certain | Ship as skill+specs change separate from Go primitives; this change depends on change 1 | Discussed — user selected "Split Go / skill" over one-change / stack-of-4 | S:98 R:75 A:92 D:95 |
-| 6 | Confident | `branch_map` value becomes `{branch, repo}` (was bare branch string) | Cross-repo dependency resolution needs the dep's repo to choose cherry-pick vs. ordering-only; only consistent place to store it | S:80 R:50 A:80 D:75 |
-| 7 | Confident | Pane ID stays primary key; `repo`/`session` are added dimensions, not replacements | Pane IDs are server-global and stable; existing primitives already key on them. Minimal-disruption framing | S:82 R:60 A:85 D:80 |
-| 8 | Confident | Cross-repo dependent agent gets NO code from its dep — documented as logical-only caveat | Direct consequence of ordering-only (decision 4); must be explicit so users don't misuse it | S:78 R:65 A:82 D:78 |
-| 9 | Tentative | Status frame uses repo-section headers (vs. per-row repo/session columns) | Both convey grouping; presentation choice. Leaning headers for scannability — resolvable at apply | S:55 R:80 A:55 D:50 |
-| 10 | Tentative | Cross-repo CI-failure during ordered merge halts ALL repos + escalates | Consistent with current conservative stance, but no explicit user decision; flagged as Open Question | S:50 R:60 A:55 D:48 |
+| 6 | Certain | `branch_map` value becomes `{branch, repo}` (was bare branch string) | Clarified — user confirmed | S:95 R:50 A:80 D:75 |
+| 7 | Certain | Pane ID stays primary key; `repo`/`session` are added dimensions, not replacements | Clarified — user confirmed | S:95 R:60 A:85 D:80 |
+| 8 | Certain | Cross-repo dependent agent gets NO code from its dep — documented as logical-only caveat | Clarified — user confirmed | S:95 R:65 A:82 D:78 |
+| 9 | Certain | Status frame uses repo-section headers (vs. per-row repo/session columns) | Clarified — user confirmed repo-section headers for scannability | S:95 R:80 A:55 D:50 |
+| 10 | Certain | Cross-repo CI-failure during ordered merge halts the failing repo + any repo whose queue items have a cross-repo `depends_on` into the failed chain; truly independent repos continue | Clarified — user changed from "halt all" to "halt dependents only" (most precise; independent repos keep merging) | S:95 R:60 A:55 D:48 |
 
-10 assumptions (5 certain, 3 confident, 2 tentative, 0 unresolved).
+10 assumptions (10 certain, 0 confident, 0 tentative, 0 unresolved).
