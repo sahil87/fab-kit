@@ -4,7 +4,7 @@ checklist:
     extra_categories:
         - documentation_accuracy
         - cross_references
-fab_version: 2.0.1
+fab_version: 2.1.0
 project:
     description: FAB Kit — Tooling for Specification-Driven Development
     linear_workspace: null
@@ -15,19 +15,17 @@ review_tools:
     copilot: true
 source_paths:
     - src/
-test_paths:
-    - '**/*_test.go'
 stage_directives:
-    apply: []
-    hydrate: []
-    intake: []
-    review: []
-    spec:
+    apply:
         - Use GIVEN/WHEN/THEN for scenarios
         - Mark ambiguities with [NEEDS CLARIFICATION]
         - Document impacts on existing research docs
         - Note any methodology comparisons or synthesis
-    tasks: []
+    hydrate: []
+    intake: []
+    review: []
+test_paths:
+    - '**/*_test.go'
 true_impact_exclude:
     - fab/
     - docs/
