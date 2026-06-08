@@ -47,6 +47,7 @@ type paneRow struct {
 	pane        string
 	tab         string
 	worktree    string
+	repo        string // absolute main-worktree root for this pane's repo (em dash when unresolved)
 	change      string
 	stage       string
 	agent       string
@@ -78,19 +79,20 @@ func runPaneMap(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Determine main worktree root for relative path computation.
-	cwds := make([]string, len(panes))
-	for i, p := range panes {
-		cwds[i] = p.cwd
-	}
-	mainRoot := pane.FindMainWorktreeRoot(cwds)
-
-	// Resolve each pane to a row
+	// Resolve each pane to a row. The main worktree root used for relative
+	// display-path computation is determined PER DISTINCT REPO (keyed by the
+	// pane's git worktree root), so panes from different repos render their
+	// worktree paths relative to their own repo's main root — not against a
+	// single shared root derived from the first parsable pane.
 	var rows []paneRow
-	// Cache runtime files per worktree root to avoid re-reading
+	// Cache runtime files per worktree root to avoid re-reading.
 	runtimeCache := make(map[string]interface{})
+	// Cache main-worktree root per pane's git worktree root to avoid re-running
+	// `git worktree list` for every pane in the same repo.
+	mainRootCache := make(map[string]string)
 
 	for _, p := range panes {
+		mainRoot := mainRootForPane(p.cwd, mainRootCache)
 		row, ok := resolvePane(p, mainRoot, server, runtimeCache)
 		if ok {
 			rows = append(rows, row)
@@ -109,6 +111,29 @@ func runPaneMap(cmd *cobra.Command, args []string) error {
 
 	printPaneTable(cmd, rows, allSessionsFlag)
 	return nil
+}
+
+// mainRootForPane returns the main-worktree root for the repo that owns cwd,
+// caching the result keyed by the pane's git worktree root so panes sharing a
+// repo reuse a single `git worktree list` lookup. Returns "" when cwd is not in
+// a git repo (the same fallback FindMainWorktreeRoot uses for unresolvable
+// paths), letting WorktreeDisplayPath fall back to basename display.
+func mainRootForPane(cwd string, cache map[string]string) string {
+	wtRoot, err := pane.GitWorktreeRoot(cwd)
+	if err != nil {
+		// Not in a git repo — no main root, cache by cwd to avoid retries.
+		if mr, ok := cache[cwd]; ok {
+			return mr
+		}
+		cache[cwd] = ""
+		return ""
+	}
+	if mr, ok := cache[wtRoot]; ok {
+		return mr
+	}
+	mr := pane.FindMainWorktreeRoot([]string{cwd})
+	cache[wtRoot] = mr
+	return mr
 }
 
 // sessionMode controls how discoverPanes selects tmux sessions.
@@ -260,10 +285,18 @@ func resolvePane(p paneEntry, mainRoot, server string, runtimeCache map[string]i
 			pane:        p.id,
 			tab:         p.tab,
 			worktree:    filepath.Base(p.cwd) + "/",
+			repo:        emDash,
 			change:      emDash,
 			stage:       emDash,
 			agent:       emDash,
 		}, true
+	}
+
+	// repo is the absolute main-worktree root for this pane's repo; em dash
+	// when it could not be resolved (e.g. detached / non-standard layout).
+	repoRoot := mainRoot
+	if repoRoot == "" {
+		repoRoot = emDash
 	}
 
 	fabDir := filepath.Join(wtRoot, "fab")
@@ -299,6 +332,7 @@ func resolvePane(p paneEntry, mainRoot, server string, runtimeCache map[string]i
 		pane:        p.id,
 		tab:         p.tab,
 		worktree:    wtDisplay,
+		repo:        repoRoot,
 		change:      changeName,
 		stage:       stageName,
 		agent:       agentState,
@@ -312,6 +346,7 @@ type paneJSON struct {
 	Pane              string  `json:"pane"`
 	Tab               string  `json:"tab"`
 	Worktree          string  `json:"worktree"`
+	Repo              *string `json:"repo"`
 	Change            *string `json:"change"`
 	Stage             *string `json:"stage"`
 	AgentState        *string `json:"agent_state"`
@@ -352,6 +387,7 @@ func printPaneJSON(cmd *cobra.Command, rows []paneRow) error {
 			Pane:              r.pane,
 			Tab:               r.tab,
 			Worktree:          r.worktree,
+			Repo:              toNullable(r.repo),
 			Change:            toNullable(r.change),
 			Stage:             toNullable(r.stage),
 			AgentState:        agentState,

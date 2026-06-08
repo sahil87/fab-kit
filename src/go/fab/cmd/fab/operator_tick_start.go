@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"path/filepath"
 	"time"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/runtime"
@@ -11,32 +10,32 @@ import (
 	"os"
 )
 
-// operatorRepoRootOverride is used in tests to redirect .fab-operator.yaml I/O
-// to a temp directory instead of the real git repo root.
-var operatorRepoRootOverride string
+// operatorStatePathOverride is used in tests to redirect operator state-file
+// I/O to a temp file instead of the real server-keyed XDG state path. It holds
+// a full file path (not a directory).
+var operatorStatePathOverride string
 
 func operatorTickStartCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "tick-start",
-		Short: "Increment tick_count and record last_tick_at in .fab-operator.yaml",
+		Short: "Increment tick_count and record last_tick_at in the server-keyed operator state file",
 		Args:  cobra.NoArgs,
 		RunE:  runOperatorTickStart,
 	}
 }
 
 func runOperatorTickStart(cmd *cobra.Command, args []string) error {
-	var repoRoot string
-	if operatorRepoRootOverride != "" {
-		repoRoot = operatorRepoRootOverride
+	var yamlPath string
+	if operatorStatePathOverride != "" {
+		yamlPath = operatorStatePathOverride
 	} else {
 		var err error
-		repoRoot, err = gitRepoRoot()
+		// server "" → query the operator's own (current) tmux server socket.
+		yamlPath, err = StatePath("")
 		if err != nil {
-			return fmt.Errorf("cannot determine repo root: %w", err)
+			return fmt.Errorf("cannot determine operator state path: %w", err)
 		}
 	}
-
-	yamlPath := filepath.Join(repoRoot, ".fab-operator.yaml")
 
 	// Read existing file, or start with empty map if missing
 	data := make(map[string]interface{})

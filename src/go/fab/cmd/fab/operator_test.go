@@ -63,8 +63,8 @@ func TestOperatorTickStart_IncrementsCount(t *testing.T) {
 		t.Fatalf("write initial yaml: %v", err)
 	}
 
-	operatorRepoRootOverride = dir
-	t.Cleanup(func() { operatorRepoRootOverride = "" })
+	operatorStatePathOverride = yamlPath
+	t.Cleanup(func() { operatorStatePathOverride = "" })
 
 	cmd := operatorTickStartCmd()
 	var stdout bytes.Buffer
@@ -109,9 +109,10 @@ func TestOperatorTickStart_IncrementsCount(t *testing.T) {
 // .fab-operator.yaml with tick_count=1 when the file does not exist.
 func TestOperatorTickStart_MissingFile(t *testing.T) {
 	dir := t.TempDir()
+	yamlPath := filepath.Join(dir, "operator-state.yaml")
 
-	operatorRepoRootOverride = dir
-	t.Cleanup(func() { operatorRepoRootOverride = "" })
+	operatorStatePathOverride = yamlPath
+	t.Cleanup(func() { operatorStatePathOverride = "" })
 
 	cmd := operatorTickStartCmd()
 	var stdout bytes.Buffer
@@ -128,7 +129,6 @@ func TestOperatorTickStart_MissingFile(t *testing.T) {
 	}
 
 	// Verify file was created
-	yamlPath := filepath.Join(dir, ".fab-operator.yaml")
 	raw, err := os.ReadFile(yamlPath)
 	if err != nil {
 		t.Fatalf("read created yaml: %v", err)
@@ -209,5 +209,124 @@ func TestOperatorTime_InvalidInterval(t *testing.T) {
 	}
 	if stdoutBuf.Len() != 0 {
 		t.Errorf("expected no stdout on error, got %q", stdoutBuf.String())
+	}
+}
+
+// TestStateDir verifies XDG state base resolution: XDG_STATE_HOME is honored
+// only when set AND absolute; otherwise it falls back to $HOME/.local/state.
+func TestStateDir(t *testing.T) {
+	t.Run("XDG_STATE_HOME absolute is honored", func(t *testing.T) {
+		abs := filepath.Join(t.TempDir(), "xdgstate")
+		t.Setenv("XDG_STATE_HOME", abs)
+		got, err := stateDir()
+		if err != nil {
+			t.Fatalf("stateDir() error: %v", err)
+		}
+		if got != abs {
+			t.Errorf("stateDir() = %q, want %q", got, abs)
+		}
+	})
+
+	t.Run("XDG_STATE_HOME unset falls back to HOME/.local/state", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("XDG_STATE_HOME", "")
+		t.Setenv("HOME", home)
+		got, err := stateDir()
+		if err != nil {
+			t.Fatalf("stateDir() error: %v", err)
+		}
+		want := filepath.Join(home, ".local", "state")
+		if got != want {
+			t.Errorf("stateDir() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("XDG_STATE_HOME relative is ignored", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("XDG_STATE_HOME", "relative/path")
+		t.Setenv("HOME", home)
+		got, err := stateDir()
+		if err != nil {
+			t.Fatalf("stateDir() error: %v", err)
+		}
+		want := filepath.Join(home, ".local", "state")
+		if got != want {
+			t.Errorf("stateDir() = %q, want %q (relative XDG_STATE_HOME must be ignored)", got, want)
+		}
+	})
+}
+
+// TestSlugify verifies the socket-path slug is filesystem-safe, deterministic,
+// and collision-free for distinct socket paths.
+func TestSlugify(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"typical socket path", "/tmp/tmux-1000/default", "tmp-tmux-1000-default"},
+		{"custom label socket", "/private/tmp/tmux-501/work", "private-tmp-tmux-501-work"},
+		{"no leading separator", "tmp/tmux-1000/default", "tmp-tmux-1000-default"},
+		{"empty falls back to default", "", "default"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := slugify(tc.in)
+			if got != tc.want {
+				t.Errorf("slugify(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+			// Filesystem-safe: no separators remain.
+			if strings.ContainsRune(got, '/') || strings.ContainsRune(got, os.PathSeparator) {
+				t.Errorf("slugify(%q) = %q contains a path separator", tc.in, got)
+			}
+			// Deterministic: same input → same output.
+			if again := slugify(tc.in); again != got {
+				t.Errorf("slugify(%q) not deterministic: %q vs %q", tc.in, got, again)
+			}
+		})
+	}
+
+	t.Run("distinct paths produce distinct slugs", func(t *testing.T) {
+		paths := []string{
+			"/tmp/tmux-1000/default",
+			"/tmp/tmux-1000/work",
+			"/tmp/tmux-1001/default",
+			"/private/tmp/tmux-501/default",
+		}
+		seen := make(map[string]string)
+		for _, p := range paths {
+			s := slugify(p)
+			if prev, ok := seen[s]; ok {
+				t.Errorf("slug collision: %q and %q both → %q", prev, p, s)
+			}
+			seen[s] = p
+		}
+	})
+}
+
+// TestStatePath verifies the server-keyed state path layout and that the parent
+// directory is created. serverSlug shells out to tmux; here we pin stateDir via
+// HOME and accept whatever slug serverSlug derives (it falls back to "default"
+// when tmux is unavailable in CI).
+func TestStatePath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", "")
+	t.Setenv("HOME", home)
+
+	got, err := StatePath("")
+	if err != nil {
+		t.Fatalf("StatePath() error: %v", err)
+	}
+
+	dir := filepath.Join(home, ".local", "state", "fab", "operator")
+	if filepath.Dir(got) != dir {
+		t.Errorf("StatePath() dir = %q, want %q", filepath.Dir(got), dir)
+	}
+	if filepath.Ext(got) != ".yaml" {
+		t.Errorf("StatePath() = %q, want a .yaml file", got)
+	}
+	// Parent directory must have been created.
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		t.Errorf("StatePath() did not create parent dir %q: err=%v", dir, err)
 	}
 }

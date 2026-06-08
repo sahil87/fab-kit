@@ -1,0 +1,17 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-07T17:56:04Z"}
+{"args":"feat: operator multi-repo Go primitives — server-keyed XDG state file, per-repo mainRoot in fab pane map, fab spawn-command --repo helper (change 1 of 2; change 2 = 260607-oy0k depends on this)","cmd":"fab-new","event":"command","ts":"2026-06-07T17:56:04Z"}
+{"delta":"+2.1","event":"confidence","score":2.1,"trigger":"calc-score","ts":"2026-06-07T17:57:05Z"}
+{"delta":"+0.0","event":"confidence","score":2.1,"trigger":"calc-score","ts":"2026-06-07T17:57:10Z"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-06-08T01:24:25Z"}
+{"delta":"+0.0","event":"confidence","score":2.1,"trigger":"calc-score","ts":"2026-06-08T01:40:17Z"}
+{"delta":"+0.0","event":"confidence","score":2.1,"trigger":"calc-score","ts":"2026-06-08T01:40:21Z"}
+{"delta":"+2.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-08T01:40:28Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-08T01:40:39Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-08T01:40:43Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-06-08T01:41:08Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-08T01:41:24Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-08T01:41:29Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-08T01:49:41Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-06-08T01:53:58Z"}
+{"event":"review","result":"passed","ts":"2026-06-08T01:53:58Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-08T01:58:38Z"}
