@@ -3,7 +3,7 @@ description: "`/fab-setup` skill — structural bootstrap, subcommand architectu
 ---
 # Setup
 
-**Domain**: fab-workflow
+**Domain**: distribution
 
 ## Overview
 
@@ -59,8 +59,8 @@ The subcommands manage the lifecycle of Fab's setup artifacts and migrations:
 
 | Subcommand | Purpose |
 |---------|---------|
-| `/fab-setup constitution` | Create or amend `constitution.md` with semantic versioning (see [configuration](configuration.md#amending-constitution)) |
-| `/fab-setup config` | Create or update `config.yaml` interactively, preserving comments (see [configuration](configuration.md#updating-config)) |
+| `/fab-setup constitution` | Create or amend `constitution.md` with semantic versioning (see [configuration](../_shared/configuration.md#amending-constitution)) |
+| `/fab-setup config` | Create or update `config.yaml` interactively, preserving comments (see [configuration](../_shared/configuration.md#updating-config)) |
 | `/fab-setup migrations [file]` | Run version migrations against the current project (see [migrations](migrations.md)) |
 
 `/fab-setup` delegates artifact creation to the subcommands:

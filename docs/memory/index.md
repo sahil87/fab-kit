@@ -14,4 +14,8 @@
 
 | Domain | Description |
 |--------|-------------|
-| [fab-workflow](fab-workflow/index.md) | Fab kit workflow — skills, architecture, templates, configuration, change lifecycle |
+| [_shared](_shared/index.md) | Cross-cutting concerns spanning all domains — config.yaml/constitution/5 Cs and the context-loading convention (always-load layer, SRAD, selective loading) |
+| [distribution](distribution/index.md) | How the kit is packaged, shipped & configured — .kit/ structure, three-binary architecture, Homebrew, releases, migrations, /fab-setup bootstrap |
+| [memory-docs](memory-docs/index.md) | Authoring docs/memory & docs/specs — the hydrate skills (ingest + generate), spec backfill, artifact/memory templates, and the specs index |
+| [pipeline](pipeline/index.md) | The change pipeline — stage lifecycle & state machine, planning/clarify/execution skills, schemas, preflight (intake → apply → review → hydrate → ship → review-pr) |
+| [runtime](runtime/index.md) | tmux & multi-agent runtime — fab pane primitives, .fab-runtime.yaml agent tracking, and the operator coordination skill |

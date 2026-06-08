@@ -3,7 +3,7 @@ description: "`docs/specs/` directory — pre-implementation specs, distinction 
 ---
 # Specs Index
 
-**Domain**: fab-workflow
+**Domain**: memory-docs
 
 ## Overview
 

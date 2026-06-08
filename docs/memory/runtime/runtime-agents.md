@@ -3,7 +3,7 @@ description: "`.fab-runtime.yaml` schema — `_agents[session_id]` keying, hook 
 ---
 # Runtime Agents
 
-**Domain**: fab-workflow
+**Domain**: runtime
 
 ## Overview
 

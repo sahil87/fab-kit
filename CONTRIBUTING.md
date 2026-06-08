@@ -16,9 +16,9 @@ Fab Kit's documentation is split into two categories:
 3. **[fab/project/constitution.md](fab/project/constitution.md)** — immutable project principles (MUST/SHOULD rules)
 4. **[docs/specs/architecture.md](docs/specs/architecture.md)** — directory structure, config, naming, agent integration
 5. **[docs/specs/skills.md](docs/specs/skills.md)** — detailed behavior for each `/fab-*` skill
-6. **[docs/memory/fab-workflow/kit-architecture.md](docs/memory/fab-workflow/kit-architecture.md)** — `.kit/` internals, scripts, distribution
+6. **[docs/memory/distribution/kit-architecture.md](docs/memory/distribution/kit-architecture.md)** — `.kit/` internals, scripts, distribution
 7. **[docs/specs/templates.md](docs/specs/templates.md)** — artifact template system
-8. **[docs/memory/fab-workflow/schemas.md](docs/memory/fab-workflow/schemas.md)** — Stage Manager schemas and development guide
+8. **[docs/memory/pipeline/schemas.md](docs/memory/pipeline/schemas.md)** — Stage Manager schemas and development guide
 
 #### Spec Reader — "I want to understand the design rationale"
 
@@ -38,39 +38,39 @@ Fab Kit's documentation is split into two categories:
 | [docs/specs/overview.md](docs/specs/overview.md) | The Fab workflow specification — design principles, 6 stages, quick command reference |
 | [docs/specs/user-flow.md](docs/specs/user-flow.md) | Visual diagrams showing how commands connect and how a typical development session flows |
 | [docs/specs/glossary.md](docs/specs/glossary.md) | All Fab terminology — core concepts, stages, skills, files, SRAD, conventions |
-| [docs/memory/fab-workflow/setup.md](docs/memory/fab-workflow/setup.md) | `/fab-setup` — structural bootstrap: creates config.yaml, constitution.md, directories |
-| [docs/memory/fab-workflow/configuration.md](docs/memory/fab-workflow/configuration.md) | `config.yaml` schema and `constitution.md` governance |
+| [docs/memory/distribution/setup.md](docs/memory/distribution/setup.md) | `/fab-setup` — structural bootstrap: creates config.yaml, constitution.md, directories |
+| [docs/memory/_shared/configuration.md](docs/memory/_shared/configuration.md) | `config.yaml` schema and `constitution.md` governance |
 
 #### Concepts
 
 | Document | Description |
 |----------|-------------|
 | [fab/project/constitution.md](fab/project/constitution.md) | Project principles and constraints — the MUST/SHOULD rules that govern all skills |
-| [docs/memory/fab-workflow/change-lifecycle.md](docs/memory/fab-workflow/change-lifecycle.md) | Change folders, `.status.yaml`, naming conventions, git integration, `/fab-status`, `/fab-switch` |
-| [docs/memory/fab-workflow/context-loading.md](docs/memory/fab-workflow/context-loading.md) | How skills load project context — always-load layer, selective domain loading, SRAD protocol |
-| [docs/memory/fab-workflow/hydrate.md](docs/memory/fab-workflow/hydrate.md) | `/docs-hydrate-memory` — dual-mode: ingest external sources or generate docs from codebase scanning |
-| [docs/memory/fab-workflow/specs-index.md](docs/memory/fab-workflow/specs-index.md) | `docs/specs/` directory — pre-implementation specs, distinction from docs |
+| [docs/memory/pipeline/change-lifecycle.md](docs/memory/pipeline/change-lifecycle.md) | Change folders, `.status.yaml`, naming conventions, git integration, `/fab-status`, `/fab-switch` |
+| [docs/memory/_shared/context-loading.md](docs/memory/_shared/context-loading.md) | How skills load project context — always-load layer, selective domain loading, SRAD protocol |
+| [docs/memory/memory-docs/hydrate.md](docs/memory/memory-docs/hydrate.md) | `/docs-hydrate-memory` — dual-mode: ingest external sources or generate docs from codebase scanning |
+| [docs/memory/memory-docs/specs-index.md](docs/memory/memory-docs/specs-index.md) | `docs/specs/` directory — pre-implementation specs, distinction from docs |
 
 #### Reference
 
 | Document | Description |
 |----------|-------------|
 | [docs/specs/skills.md](docs/specs/skills.md) | Detailed behavioral specification for each `/fab-*` skill |
-| [docs/memory/fab-workflow/planning-skills.md](docs/memory/fab-workflow/planning-skills.md) | `/fab-new`, `/fab-discuss`, `/fab-continue`, `/fab-ff`, `/fab-clarify` — the planning pipeline |
-| [docs/memory/fab-workflow/clarify.md](docs/memory/fab-workflow/clarify.md) | `/fab-clarify` — dual modes (suggest/auto), taxonomy scan, structured questions |
-| [docs/memory/fab-workflow/execution-skills.md](docs/memory/fab-workflow/execution-skills.md) | Apply, review, archive behavior — accessed via '/fab-continue' |
-| [docs/memory/fab-workflow/hydrate-specs.md](docs/memory/fab-workflow/hydrate-specs.md) | `/docs-hydrate-specs` — structural gap detection between memory and specs |
+| [docs/memory/pipeline/planning-skills.md](docs/memory/pipeline/planning-skills.md) | `/fab-new`, `/fab-discuss`, `/fab-continue`, `/fab-ff`, `/fab-clarify` — the planning pipeline |
+| [docs/memory/pipeline/clarify.md](docs/memory/pipeline/clarify.md) | `/fab-clarify` — dual modes (suggest/auto), taxonomy scan, structured questions |
+| [docs/memory/pipeline/execution-skills.md](docs/memory/pipeline/execution-skills.md) | Apply, review, archive behavior — accessed via '/fab-continue' |
+| [docs/memory/memory-docs/hydrate-specs.md](docs/memory/memory-docs/hydrate-specs.md) | `/docs-hydrate-specs` — structural gap detection between memory and specs |
 | [docs/specs/templates.md](docs/specs/templates.md) | Artifact templates — intake, plan (requirements + tasks + acceptance), status |
-| [docs/memory/fab-workflow/templates.md](docs/memory/fab-workflow/templates.md) | Template implementation details and centralized doc format |
+| [docs/memory/memory-docs/templates.md](docs/memory/memory-docs/templates.md) | Template implementation details and centralized doc format |
 
 #### Internals
 
 | Document | Description |
 |----------|-------------|
 | [docs/specs/architecture.md](docs/specs/architecture.md) | Directory structure, config schema, naming conventions, agent integration |
-| [docs/memory/fab-workflow/kit-architecture.md](docs/memory/fab-workflow/kit-architecture.md) | `.kit/` directory structure, shell scripts, agent integration, distribution |
-| [docs/memory/fab-workflow/preflight.md](docs/memory/fab-workflow/preflight.md) | `preflight.sh` — validation script, structured YAML output, skill integration |
-| [docs/memory/fab-workflow/hydrate-generate.md](docs/memory/fab-workflow/hydrate-generate.md) | `/docs-hydrate-memory` generate mode — codebase scanning, gap detection, doc generation |
+| [docs/memory/distribution/kit-architecture.md](docs/memory/distribution/kit-architecture.md) | `.kit/` directory structure, shell scripts, agent integration, distribution |
+| [docs/memory/pipeline/preflight.md](docs/memory/pipeline/preflight.md) | `preflight.sh` — validation script, structured YAML output, skill integration |
+| [docs/memory/memory-docs/hydrate-generate.md](docs/memory/memory-docs/hydrate-generate.md) | `/docs-hydrate-memory` generate mode — codebase scanning, gap detection, doc generation |
 
 ### Index Files
 
@@ -78,7 +78,7 @@ Fab Kit's documentation is split into two categories:
 |-------|---------------|
 | [docs/specs/index.md](docs/specs/index.md) | Pre-implementation specifications (design intent) |
 | [docs/memory/index.md](docs/memory/index.md) | Post-implementation centralized docs (what actually shipped) |
-| [docs/memory/fab-workflow/index.md](docs/memory/fab-workflow/index.md) | All fab-workflow domain docs with last-updated dates |
+| [docs/memory/index.md](docs/memory/index.md) | Domain index — links to each domain (pipeline, memory-docs, distribution, runtime, _shared); per-domain indexes list files with last-updated dates |
 
 ## Stage Manager
 
@@ -108,8 +108,8 @@ cat src/lib/stageman/README.md
 ```
 
 For complete documentation, see:
-- [docs/memory/fab-workflow/schemas.md](docs/memory/fab-workflow/schemas.md) - Schema overview
-- [docs/memory/fab-workflow/schemas.md](docs/memory/fab-workflow/schemas.md) - Stage Manager schemas and API reference
+- [docs/memory/pipeline/schemas.md](docs/memory/pipeline/schemas.md) - Schema overview
+- [docs/memory/pipeline/schemas.md](docs/memory/pipeline/schemas.md) - Stage Manager schemas and API reference
 
 ## Creating a Release
 

@@ -3,7 +3,7 @@ description: "`lib/preflight.sh` script — validation, accessor-based architect
 ---
 # Preflight
 
-**Domain**: fab-workflow
+**Domain**: pipeline
 
 ## Overview
 
