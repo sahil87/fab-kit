@@ -296,7 +296,15 @@ What it writes:
   Description is read from that domain `index.md`'s `description:` frontmatter.
 - **Every `docs/memory/{domain}/index.md`** — file rows (`| File | Description | Last Updated |`)
   for each non-`index` `.md` file, plus a `description:` frontmatter line carrying the domain's
-  curated one-liner (round-tripped so the root row survives regen).
+  curated one-liner (round-tripped so the root row survives regen). When the domain contains
+  sub-domains, a `## Sub-Domains` table is appended referencing each (`[sub](sub/index.md)`) —
+  emitted only when sub-domains exist, so a flat domain index is byte-identical to before.
+- **Every `docs/memory/{domain}/{sub-domain}/index.md`** — a sub-domain is a folder one level
+  under a domain dir holding ≥1 non-`index` `.md`. It gets its own generated index using the
+  same file-row contract as a domain index (relative `[file](file.md)` links are correct from
+  the sub-domain folder). Recursion is one level only: `{domain}/{sub-domain}/{topic}.md`
+  (depth 3, the max bound). Deeper nesting is surfaced as a depth warning, not an extra index
+  tier. An empty sub-folder (no `.md`) is skipped — no spurious index.
 
 Data sourcing (all read by the command itself):
 - Each topic file's **H1** (first `# ` line) and **`description:` frontmatter** (via

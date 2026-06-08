@@ -99,6 +99,68 @@ func TestMemoryIndexCmd_RegeneratesAndIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestMemoryIndexCmd_GeneratesSubDomainIndex(t *testing.T) {
+	repo := t.TempDir()
+	mustMkdir(t, filepath.Join(repo, "fab"))
+	// Domain with a sub-domain holding a depth-3 topic file.
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "fab-workflow", "context-loading.md"),
+		"---\ndescription: \"Loading\"\n---\n# Context Loading\n")
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "fab-workflow", "index.md"),
+		"---\ndescription: \"Fab workflow\"\n---\n# Fab Workflow Documentation\n")
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "fab-workflow", "runtime", "runtime-agents.md"),
+		"---\ndescription: \"Agents\"\n---\n# Runtime Agents\n")
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "fab-workflow", "runtime", "index.md"),
+		"---\ndescription: \"Runtime tier\"\n---\n# Runtime Documentation\n")
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "index.md"), "# Memory Index\n")
+
+	origWd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(repo); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(origWd) })
+
+	cmd := memoryIndexCmd()
+	cmd.SilenceUsage = true
+	cmd.SetArgs(nil)
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("first run failed: %v", err)
+	}
+
+	// The sub-domain index.md is generated with its topic row.
+	subIdx, err := os.ReadFile(filepath.Join(repo, "docs", "memory", "fab-workflow", "runtime", "index.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(subIdx), "| [runtime-agents](runtime-agents.md) | Agents |") {
+		t.Errorf("sub-domain index missing generated topic row:\n%s", subIdx)
+	}
+
+	// The parent domain index references the sub-domain.
+	domIdx, err := os.ReadFile(filepath.Join(repo, "docs", "memory", "fab-workflow", "index.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(domIdx), "## Sub-Domains") ||
+		!strings.Contains(string(domIdx), "| [runtime](runtime/index.md) | Runtime tier |") {
+		t.Errorf("parent domain index missing sub-domain reference:\n%s", domIdx)
+	}
+
+	// Idempotent: a second --check run is clean.
+	check := memoryIndexCmd()
+	check.SilenceUsage = true
+	check.SetArgs([]string{"--check"})
+	check.SetOut(&bytes.Buffer{})
+	check.SetErr(&bytes.Buffer{})
+	if err := check.Execute(); err != nil {
+		t.Errorf("--check should pass after a nested-tree regen (idempotent), got: %v", err)
+	}
+}
+
 func TestMemoryIndexCmd_CheckDetectsDrift(t *testing.T) {
 	setupFabRepo(t)
 	// Root index is stale (just "# Memory Index\n") and has never been

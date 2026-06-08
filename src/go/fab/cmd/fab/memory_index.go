@@ -16,8 +16,10 @@ func memoryIndexCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "memory-index",
 		Short: "Deterministically (re)generate docs/memory index files",
-		Long: "Regenerates the root docs/memory/index.md (domains-only) and " +
-			"every docs/memory/{domain}/index.md (file rows) from folder " +
+		Long: "Regenerates the root docs/memory/index.md (domains-only), " +
+			"every docs/memory/{domain}/index.md (file rows + a Sub-Domains " +
+			"reference table when sub-domains exist), and every " +
+			"docs/memory/{domain}/{sub-domain}/index.md (file rows) from folder " +
 			"contents, reading each file's H1 + `description:` frontmatter and " +
 			"stamping \"Last Updated\" from git. Output is byte-stable / " +
 			"idempotent across runs, so the indexes stop drifting and stop " +
@@ -56,6 +58,13 @@ func memoryIndexCmd() *cobra.Command {
 					path:    filepath.Join(memRoot, d.Name, "index.md"),
 					content: memoryindex.RenderDomain(d),
 				})
+				// Each sub-domain gets its own generated index one level down.
+				for _, sd := range d.SubDomains {
+					targets = append(targets, indexTarget{
+						path:    filepath.Join(memRoot, d.Name, sd.Name, "index.md"),
+						content: memoryindex.RenderDomain(sd),
+					})
+				}
 			}
 
 			if check {

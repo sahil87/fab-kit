@@ -33,9 +33,13 @@
 
 <!-- Which memory files will be created, modified, or removed by this change.
      Use kebab-case identifiers matching docs/memory/ paths. Mark each with (new), (modify), or (remove).
-     Only list if spec-level behavior changes — implementation-only changes don't need memory updates. -->
+     Only list if spec-level behavior changes — implementation-only changes don't need memory updates.
+     A file in a split (sub-domained) domain takes the optional 3-part form
+     `{domain}/{sub-domain}/{file-name}`; the flat `{domain}/{file-name}` form stays valid for
+     un-split domains. -->
 
 - `{domain}/{file-name}`: ({new|modify|remove}) {description}
+- `{domain}/{sub-domain}/{file-name}`: ({new|modify|remove}) {description}  <!-- optional 3-part form for sub-domained files -->
 
 ## Impact
 
