@@ -1,0 +1,35 @@
+id: oy0k
+name: 260607-oy0k-operator-multi-repo-skill
+created: 2026-06-07T17:54:17Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: ready
+    apply: pending
+    review: pending
+    hydrate: pending
+    ship: pending
+    review-pr: pending
+plan:
+    generated: false
+    task_count: 0
+    acceptance_count: 0
+    acceptance_completed: 0
+confidence:
+    certain: 5
+    confident: 3
+    tentative: 2
+    unresolved: 0
+    score: 2.1
+    fuzzy: true
+    dimensions:
+        signal: 82.9
+        reversibility: 66.0
+        competence: 80.2
+        disambiguation: 80.1
+stage_metrics:
+    intake: {started_at: "2026-06-07T17:54:17Z", driver: fab-new, iterations: 1}
+prs: []
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-07T17:55:28Z
