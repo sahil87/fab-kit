@@ -165,13 +165,13 @@ Each entry tracks: change ID, pane, **repo** (absolute main-worktree root), **se
 
 **Enrollment**: operator sends a command to a change, user requests monitoring, or operator triggers an automatic action (including autopilot and watch spawns). Read-only actions do not enroll. On enrollment, the change's `{ branch, repo }` pair is also recorded in the top-level `branch_map`.
 
-After writing the monitored entry to `.fab-operator.yaml`, the operator MUST prefix `»` (U+00BB) to the target tmux window's name via the `fab pane window-name ensure-prefix` primitive. The primitive enforces the idempotent literal-prefix check internally, so the rename applies to every enrollment path without the caller needing to guard:
+After writing the monitored entry to the server-keyed state file (§4), the operator MUST prefix `»` (U+00BB) to the target tmux window's name via the `fab pane window-name ensure-prefix` primitive. The primitive enforces the idempotent literal-prefix check internally, so the rename applies to every enrollment path without the caller needing to guard:
 
 ```sh
 fab pane window-name ensure-prefix <pane> »
 ```
 
-Windows that already carry `»` (operator-spawned windows from §6, `/clear`-restored entries, re-enrolled changes) no-op through the primitive's guard. A non-zero exit — pane vanished between refresh and rename (exit 2) or any other tmux error (exit 3, including tmux not running / socket unreachable) — causes the operator to log one line and continue. Enrollment itself is already durable from the preceding `.fab-operator.yaml` write:
+Windows that already carry `»` (operator-spawned windows from §6, `/clear`-restored entries, re-enrolled changes) no-op through the primitive's guard. A non-zero exit — pane vanished between refresh and rename (exit 2) or any other tmux error (exit 3, including tmux not running / socket unreachable) — causes the operator to log one line and continue. Enrollment itself is already durable from the preceding server-keyed state file write:
 
 ```
 {change}: window rename skipped ({error}).
@@ -195,7 +195,7 @@ The top-level `branch_map` persists change ID → `{ branch, repo }` mappings. E
 
 On each tick:
 
-1. **Snapshot** — run `fab operator tick-start` (increments `tick_count`, writes `last_tick_at`, outputs `tick: N` and `now: HH:MM`). Parse stdout for the tick number and current time. Then run `fab pane map --all-sessions --json` (the `--all-sessions` flag is required so the operator sees agents in **every** session on its server, not just its own; `--json` exposes the per-row `repo` field — the agent's absolute main-worktree root, or an em dash when the pane is not in a git repo) and read the server-keyed state file. **Group the rows first by `repo`, then by `session`** within each repo. Compute status for all tracked items: stage advances, completions, review failures, pane deaths, and watch statuses from the last persisted check (`last_checked` / `last_error` / last counts). Output the status frame:
+1. **Snapshot** — run `fab operator tick-start` (increments `tick_count`, writes `last_tick_at`, outputs `tick: N` and `now: HH:MM`). Parse stdout for the tick number and current time. Then run `fab pane map --all-sessions --json` (the `--all-sessions` flag is required so the operator sees agents in **every** session on its server, not just its own; `--json` exposes the per-row `repo` field — the agent's absolute main-worktree root, or `null` when the pane is not in a git repo) and read the server-keyed state file. **Group the rows first by `repo`, then by `session`** within each repo. Compute status for all tracked items: stage advances, completions, review failures, pane deaths, and watch statuses from the last persisted check (`last_checked` / `last_error` / last counts). Output the status frame:
 
 ```
 ── Operator ── 17:32 ── tick #47 ── 7 tracked ──
@@ -223,7 +223,7 @@ Changes are **grouped under repo-section headers** — one header line per repo 
 | Health | Status indicator — universal position across all types |
 | Detail | Type-specific status text |
 
-Watch rows carry an extra `→ <target_repo>` field between the name and the health glyph. A repo whose main-worktree root could not be resolved (em dash in the `repo` JSON field) renders under an `(unresolved repo)` header rather than being dropped.
+Watch rows carry an extra `→ <target_repo>` field between the name and the health glyph. A repo whose main-worktree root could not be resolved (`null` in the `repo` JSON field) renders under an `(unresolved repo)` header rather than being dropped.
 
 **Header**: `N tracked` is the total count of all entries (changes + watches). No per-type or per-repo counts.
 
