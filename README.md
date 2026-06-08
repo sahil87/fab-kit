@@ -16,6 +16,11 @@ AI agents write code fast. The bottleneck is now your clarity: did you define th
 
 Every change (a self-contained feature or fix with its own folder) moves through six stages:
 
+![Fab Kit 6-stage pipeline: 1 Intake → Execution (2 Apply → 3 Review) → Completion (4 Hydrate) → Shipping (5 Ship → 6 Review-PR)](https://raw.githubusercontent.com/sahil87/fab-kit/main/docs/img/pipeline-stages.svg)
+
+<details>
+<summary>Mermaid source</summary>
+
 ```mermaid
 flowchart TD
     B["1 INTAKE"]
@@ -42,7 +47,7 @@ flowchart TD
     style shipping fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
 ```
 
-![Fab Kit 6-stage pipeline: 1 Intake → Execution (2 Apply → 3 Review) → Completion (4 Hydrate) → Shipping (5 Ship → 6 Review-PR)](https://raw.githubusercontent.com/sahil87/fab-kit/main/docs/img/pipeline-stages.svg)
+</details>
 
 | # | Stage | Purpose | Artifact |
 |---|-------|---------|----------|
@@ -67,6 +72,8 @@ fab/changes/260101-abcd-add-spinner/
 ```
 
 ## Prerequisites
+
+> 📦 For the full, tool-specific install walkthrough — companion utilities, shell completion, and the new-project / existing-repo / upgrade flows — see the **[Install guide](docs/site/install.md)**.
 
 ### Using Fab Kit
 
@@ -205,6 +212,8 @@ fab sync
 > **Note:** `fab sync` runs automatically in every new worktree created by [`wt create`](https://github.com/sahil87/fab-kit/blob/main/docs/specs/companions.md#wt--worktree-isolation).
 
 ### 2. Your first change
+
+> 🛠️ For a task-oriented walkthrough of driving the pipeline — the per-stage command sequence, the apply⇄review auto-rework loop, `/fab-ff` vs `/fab-fff` vs `/fab-proceed`, and going parallel with worktrees — see the **[Workflows guide](docs/site/workflows.md)**.
 
 Fab Kit skills are slash commands you type into an AI agent's chat, not the terminal. Open a session in your project directory:
 
@@ -396,6 +405,8 @@ Grades aggregate into a **confidence score** that gates `/fab-ff`. If ambiguity 
 
 > **Prefix:** Use `/fab-*` in Claude Code, `$fab-*` in Codex.
 
+> 📖 The tables below are a quick reference. For the full, auto-generated command reference — every subcommand, flag, and usage string — see **[shll.ai/tools/fab-kit/commands](https://shll.ai/tools/fab-kit/commands/)**.
+
 ### Pipeline
 
 | Command | Purpose |
@@ -474,6 +485,11 @@ Which pipeline stages each command covers. Taller bars = more automation. Read l
 | 🟩 Green | Automated pipeline (multi-stage) | `/fab-new`, `/fab-ff`, `/fab-fff`, `/fab-proceed` |
 | ◻️ Grey | Fab pipeline stage (row label) | intake, change active, apply, review, hydrate |
 | ▶ | Typical entry point | `/fab-discuss`, `/fab-new` |
+
+![Stage coverage by command: a matrix of pipeline stages (rows) by command (columns), color-coded — cyan Explore, amber Manual, blue-grey dashed Git utilities, green Automated pipeline. fab-discuss covers context; fab-draft intake; fab-switch change active; git-branch branch name; fab-new intake/change active/branch name; fab-continue, fab-ff, fab-fff, fab-proceed each cover apply/review/hydrate; fab-fff and fab-proceed also ship and review-pr; git-pr ship; git-pr-review review-pr](https://raw.githubusercontent.com/sahil87/fab-kit/main/docs/img/stage-coverage.svg)
+
+<details>
+<summary>Mermaid source</summary>
 
 ```mermaid
 block-beta
@@ -580,7 +596,7 @@ block-beta
     style proceed_prreview fill:#81c784,stroke:#2E7D32,color:#1a1a1a,stroke-dasharray: 5 5
 ```
 
-![Stage coverage by command: a matrix of pipeline stages (rows) by command (columns), color-coded — cyan Explore, amber Manual, blue-grey dashed Git utilities, green Automated pipeline. fab-discuss covers context; fab-draft intake; fab-switch change active; git-branch branch name; fab-new intake/change active/branch name; fab-continue, fab-ff, fab-fff, fab-proceed each cover apply/review/hydrate; fab-fff and fab-proceed also ship and review-pr; git-pr ship; git-pr-review review-pr](https://raw.githubusercontent.com/sahil87/fab-kit/main/docs/img/stage-coverage.svg)
+</details>
 
 **Quick reference** — which stages does each command cover?
 
