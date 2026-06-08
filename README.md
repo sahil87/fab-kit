@@ -469,11 +469,7 @@ The operator (`/fab-operator`) is a long-running coordination layer that sits in
 | `fab batch switch` | Open tmux tabs in worktrees for one or more changes |
 | `fab batch archive` | Archive multiple completed changes in one session |
 
-## Development
-
-> The sections below are GitHub-oriented reference material — a full command/stage coverage matrix, the companion-tool catalog, and a deep-dive link index. They live on GitHub for contributors and power users.
-
-### Stage Coverage by Command
+## Stage Coverage by Command
 
 Which pipeline stages each command covers. Taller bars = more automation. Read left-to-right from most manual to most automated. **▶** marks typical entry points — start with `/fab-discuss` (exploratory) or `/fab-new` (ready to build). Arrows show the typical path from idea to PR. Dashed borders indicate optional/utility stages. Empty cells = not covered by that command.
 
@@ -612,7 +608,7 @@ block-beta
 | ship | | | | | | | | ✅ | | ✅ | ✅ |
 | review-pr | | | | | | | | | ✅ | ✅ | ✅ |
 
-### Companion tools
+## Companion tools
 
 fab-kit's Homebrew formula declares **wt** and **idea** as dependencies, so `brew install sahil87/tap/fab-kit` installs all four CLIs (`fab`, `fab-kit`, `wt`, `idea`) on PATH transitively. They're independent projects with their own release cadences:
 
@@ -623,7 +619,7 @@ fab-kit's Homebrew formula declares **wt** and **idea** as dependencies, so `bre
 
 See [companions.md](docs/specs/companions.md) for the integration architecture.
 
-### Learn More
+## Learn More
 
 - **[The Assembly Line](docs/specs/assembly-line.md)** - batch scripts, Gantt charts, and the full numbers behind parallel development
 - **[Design & Workflow Details](docs/specs/overview.md)** - principles, detailed stage descriptions, example workflows
@@ -632,3 +628,15 @@ See [companions.md](docs/specs/companions.md) for the integration architecture.
 - **[SRAD Autonomy Framework](docs/specs/srad.md)** - how the pipeline handles ambiguity, confidence scoring, and autonomous execution gates
 - **[Glossary](docs/specs/glossary.md)** - all Fab terminology defined
 - **[Contributing](CONTRIBUTING.md)** - developing, extending, and releasing Fab Kit
+
+## Development
+
+Building Fab Kit from source requires Go and `just` (see [Developing Fab Kit](#developing-fab-kit) above).
+
+```bash
+just test                      # run all Go tests (fab + fab-kit)
+just build                     # build binaries for your platform → dist/bin/
+release.sh [patch|minor|major] # cut a release (bumps VERSION, tags, pushes, creates GitHub Release)
+```
+
+Full contributor guide: [CONTRIBUTING.md](CONTRIBUTING.md).
