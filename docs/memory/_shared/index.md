@@ -7,5 +7,5 @@ description: "Cross-cutting concerns spanning all domains — config.yaml/consti
 
 | File | Description | Last Updated |
 |------|-------------|-------------|
-| [configuration](configuration.md) | `config.yaml` schema (incl. `fab_version`, `review_tools`, `true_impact_exclude`, `test_paths`, `stage_directives` with `spec` relocated to `apply` in j6cs), companion files (`context.md`, `code-quality.md`, `code-review.md` incl. `## Parsimony Pass` toggle), `constitution.md` governance, 5 Cs of Quality, lifecycle management | — |
-| [context-loading](context-loading.md) | Smart context loading convention — 7-file always-load layer, standard subagent context, selective domain loading, SRAD protocol, state-keyed Next Steps Convention | — |
+| [configuration](configuration.md) | `config.yaml` schema (incl. `fab_version`, `review_tools`, `true_impact_exclude`, `test_paths`, `stage_directives` with `spec` relocated to `apply` in j6cs), companion files (`context.md`, `code-quality.md`, `code-review.md` incl. `## Parsimony Pass` toggle), `constitution.md` governance, 5 Cs of Quality, lifecycle management | 2026-06-08 |
+| [context-loading](context-loading.md) | Smart context loading convention — 7-file always-load layer, standard subagent context, selective domain loading, SRAD protocol, state-keyed Next Steps Convention | 2026-06-08 |
