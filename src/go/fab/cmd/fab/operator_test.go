@@ -264,10 +264,11 @@ func TestSlugify(t *testing.T) {
 		in   string
 		want string
 	}{
-		{"typical socket path", "/tmp/tmux-1000/default", "tmp-tmux-1000-default"},
-		{"custom label socket", "/private/tmp/tmux-501/work", "private-tmp-tmux-501-work"},
-		{"no leading separator", "tmp/tmux-1000/default", "tmp-tmux-1000-default"},
+		{"typical socket path", "/tmp/tmux-1000/default", "tmp-tmux--1000-default"},
+		{"custom label socket", "/private/tmp/tmux-501/work", "private-tmp-tmux--501-work"},
+		{"no leading separator", "tmp/tmux-1000/default", "tmp-tmux--1000-default"},
 		{"empty falls back to default", "", "default"},
+		{"separator vs literal dash do not collide", "/tmp/tmux/1000/default", "tmp-tmux-1000-default"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -292,6 +293,9 @@ func TestSlugify(t *testing.T) {
 			"/tmp/tmux-1000/work",
 			"/tmp/tmux-1001/default",
 			"/private/tmp/tmux-501/default",
+			// Separator-vs-literal-dash pair that collided before "-" escaping:
+			// without doubling "-", both slugified to "tmp-tmux-1000-default".
+			"/tmp/tmux/1000/default",
 		}
 		seen := make(map[string]string)
 		for _, p := range paths {

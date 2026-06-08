@@ -2,12 +2,12 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/runtime"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
-	"os"
 )
 
 // operatorStatePathOverride is used in tests to redirect operator state-file

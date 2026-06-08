@@ -90,10 +90,15 @@ func stateDir() (string, error) {
 }
 
 // slugify converts a tmux socket path into a filesystem-safe, deterministic,
-// collision-free slug. The rule: strip the leading separator, then replace any
-// remaining path separators with "-". Distinct socket paths produce distinct
-// slugs because the separator-to-dash mapping preserves the path's structure.
+// collision-free slug. The rule: escape literal "-" by doubling it ("-" → "--")
+// FIRST, then strip the leading separator and replace remaining path separators
+// with a single "-". Escaping before substitution makes the mapping injective —
+// a lone "-" in the output is always a former separator, a "--" is always a
+// literal "-" from the source — so distinct socket paths produce distinct slugs
+// (e.g. "/tmp/tmux-1000/default" → "tmp-tmux--1000-default" and
+// "/tmp/tmux/1000/default" → "tmp-tmux-1000-default" no longer collide).
 func slugify(s string) string {
+	s = strings.ReplaceAll(s, "-", "--")
 	s = strings.TrimPrefix(s, string(os.PathSeparator))
 	s = strings.TrimPrefix(s, "/")
 	s = strings.ReplaceAll(s, string(os.PathSeparator), "-")

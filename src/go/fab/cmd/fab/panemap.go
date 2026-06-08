@@ -114,10 +114,14 @@ func runPaneMap(cmd *cobra.Command, args []string) error {
 }
 
 // mainRootForPane returns the main-worktree root for the repo that owns cwd,
-// caching the result keyed by the pane's git worktree root so panes sharing a
-// repo reuse a single `git worktree list` lookup. Returns "" when cwd is not in
-// a git repo (the same fallback FindMainWorktreeRoot uses for unresolvable
-// paths), letting WorktreeDisplayPath fall back to basename display.
+// caching the result so panes sharing a repo reuse a single `git worktree list`
+// lookup. The cache key depends on the path: in the git case it is the pane's
+// git worktree root (so all panes in the same repo share one entry); in the
+// non-git/error case it is cwd itself (no worktree root is available, so each
+// distinct cwd is cached separately to avoid retrying the failed lookup).
+// Returns "" when cwd is not in a git repo (the same fallback
+// FindMainWorktreeRoot uses for unresolvable paths), letting
+// WorktreeDisplayPath fall back to basename display.
 func mainRootForPane(cwd string, cache map[string]string) string {
 	wtRoot, err := pane.GitWorktreeRoot(cwd)
 	if err != nil {
