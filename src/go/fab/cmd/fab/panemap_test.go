@@ -797,7 +797,8 @@ func initGitRepo(t *testing.T) string {
 }
 
 // TestParsePRNumber verifies the trailing /pull/<n> segment parse, including
-// the trailing-path-tolerated and unparseable edge cases.
+// trailing path/query/fragment tolerance, last-/pull/-wins, non-positive
+// rejection, and the unparseable edge cases.
 func TestParsePRNumber(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -807,8 +808,14 @@ func TestParsePRNumber(t *testing.T) {
 	}{
 		{"canonical PR URL", "https://github.com/org/repo/pull/42", 42, true},
 		{"trailing path tolerated", "https://github.com/org/repo/pull/42/files", 42, true},
+		{"query string tolerated", "https://github.com/org/repo/pull/42?w=1", 42, true},
+		{"fragment tolerated", "https://github.com/org/repo/pull/42#issuecomment-99", 42, true},
+		{"query before fragment tolerated", "https://github.com/org/repo/pull/42?w=1#diff", 42, true},
+		{"last /pull/ wins", "https://github.com/pull/owner/pull/7", 7, true},
 		{"no /pull/ segment", "https://github.com/org/repo/issues/42", 0, false},
 		{"non-numeric segment", "https://github.com/org/repo/pull/abc", 0, false},
+		{"zero rejected", "https://github.com/org/repo/pull/0", 0, false},
+		{"negative rejected", "https://github.com/org/repo/pull/-1", 0, false},
 		{"empty string", "", 0, false},
 		{"trailing slash only", "https://github.com/org/repo/pull/", 0, false},
 	}

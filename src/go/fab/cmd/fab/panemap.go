@@ -378,20 +378,24 @@ func toNullable(s string) *string {
 // parsePRNumber extracts the PR number from a GitHub PR URL's trailing
 // /pull/<n> segment. Returns (n, true) on success, (0, false) when the URL
 // has no parseable /pull/<n> segment (no /pull/, non-numeric segment, or an
-// empty URL). A trailing path after the number (e.g. /pull/42/files) is
-// tolerated — only the segment up to the next "/" is parsed.
+// empty URL, or a non-positive number). A trailing path, query string, or
+// fragment after the number (e.g. /pull/42/files, /pull/42?w=1,
+// /pull/42#issuecomment-1) is tolerated — only the digits immediately after
+// the last "/pull/" are parsed. The last "/pull/" wins so a repo or org path
+// segment named "pull" cannot shadow the real PR segment.
 func parsePRNumber(url string) (int, bool) {
 	const marker = "/pull/"
-	i := strings.Index(url, marker)
+	i := strings.LastIndex(url, marker)
 	if i < 0 {
 		return 0, false
 	}
 	seg := url[i+len(marker):]
-	if slash := strings.IndexByte(seg, '/'); slash >= 0 {
-		seg = seg[:slash]
+	// Cut the number off at the first path, query, or fragment delimiter.
+	if cut := strings.IndexAny(seg, "/?#"); cut >= 0 {
+		seg = seg[:cut]
 	}
 	n, err := strconv.Atoi(seg)
-	if err != nil {
+	if err != nil || n <= 0 {
 		return 0, false
 	}
 	return n, true
