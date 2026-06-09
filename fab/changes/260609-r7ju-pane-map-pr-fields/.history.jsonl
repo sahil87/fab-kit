@@ -1,0 +1,19 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-09T13:15:13Z"}
+{"args":"Add PR URL and number to fab pane map JSON output","cmd":"fab-new","event":"command","ts":"2026-06-09T13:15:13Z"}
+{"delta":"+2.4","event":"confidence","score":2.4,"trigger":"calc-score","ts":"2026-06-09T13:16:19Z"}
+{"delta":"+0.0","event":"confidence","score":2.4,"trigger":"calc-score","ts":"2026-06-09T13:16:28Z"}
+{"delta":"+0.0","event":"confidence","score":2.4,"trigger":"calc-score","ts":"2026-06-09T13:16:47Z"}
+{"delta":"+1.0","event":"confidence","score":3.4,"trigger":"calc-score","ts":"2026-06-09T13:16:53Z"}
+{"delta":"+0.0","event":"confidence","score":3.4,"trigger":"calc-score","ts":"2026-06-09T13:21:47Z"}
+{"delta":"+0.0","event":"confidence","score":3.4,"trigger":"calc-score","ts":"2026-06-09T13:21:56Z"}
+{"delta":"+0.0","event":"confidence","score":3.4,"trigger":"calc-score","ts":"2026-06-09T13:22:05Z"}
+{"delta":"+0.0","event":"confidence","score":3.4,"trigger":"calc-score","ts":"2026-06-09T13:22:14Z"}
+{"delta":"+1.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-06-09T13:22:22Z"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-06-09T13:22:28Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-09T13:38:32Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-06-09T13:39:27Z"}
+{"action":"enter","driver":"fab-continue","event":"stage-transition","stage":"review","ts":"2026-06-09T13:44:47Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-06-09T13:48:18Z"}
+{"event":"review","result":"passed","ts":"2026-06-09T13:48:18Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-06-09T13:49:16Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-09T13:49:59Z"}

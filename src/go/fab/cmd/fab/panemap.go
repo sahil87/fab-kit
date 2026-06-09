@@ -51,6 +51,7 @@ type paneRow struct {
 	change      string
 	stage       string
 	agent       string
+	prURL       string // last entry in .status.yaml prs:, "" when absent/empty/unresolved
 }
 
 func runPaneMap(cmd *cobra.Command, args []string) error {
@@ -313,6 +314,7 @@ func resolvePane(p paneEntry, mainRoot, server string, runtimeCache map[string]i
 
 	changeName := emDash
 	stageName := emDash
+	prURL := ""
 	var folderName string
 	if !fabDirMissing {
 		changeName, folderName = pane.ReadFabCurrent(wtRoot)
@@ -321,6 +323,9 @@ func resolvePane(p paneEntry, mainRoot, server string, runtimeCache map[string]i
 			if statusFile, err := sf.Load(statusPath); err == nil {
 				stage, _ := status.DisplayStage(statusFile)
 				stageName = stage
+				if n := len(statusFile.PRs); n > 0 {
+					prURL = statusFile.PRs[n-1] // last = most recent
+				}
 			}
 		}
 	}
@@ -340,6 +345,7 @@ func resolvePane(p paneEntry, mainRoot, server string, runtimeCache map[string]i
 		change:      changeName,
 		stage:       stageName,
 		agent:       agentState,
+		prURL:       prURL,
 	}, true
 }
 
@@ -355,14 +361,40 @@ type paneJSON struct {
 	Stage             *string `json:"stage"`
 	AgentState        *string `json:"agent_state"`
 	AgentIdleDuration *string `json:"agent_idle_duration"`
+	PRURL             *string `json:"pr_url"`
+	PRNumber          *int    `json:"pr_number"`
 }
 
 // toNullable converts a table display string to a *string for JSON output.
+// The unresolved sentinels \u2014 em dash, "(no change)", and the empty string \u2014
+// all map to JSON null.
 func toNullable(s string) *string {
-	if s == "\u2014" || s == "(no change)" {
+	if s == "\u2014" || s == "(no change)" || s == "" {
 		return nil
 	}
 	return &s
+}
+
+// parsePRNumber extracts the PR number from a GitHub PR URL's trailing
+// /pull/<n> segment. Returns (n, true) on success, (0, false) when the URL
+// has no parseable /pull/<n> segment (no /pull/, non-numeric segment, or an
+// empty URL). A trailing path after the number (e.g. /pull/42/files) is
+// tolerated — only the segment up to the next "/" is parsed.
+func parsePRNumber(url string) (int, bool) {
+	const marker = "/pull/"
+	i := strings.Index(url, marker)
+	if i < 0 {
+		return 0, false
+	}
+	seg := url[i+len(marker):]
+	if slash := strings.IndexByte(seg, '/'); slash >= 0 {
+		seg = seg[:slash]
+	}
+	n, err := strconv.Atoi(seg)
+	if err != nil {
+		return 0, false
+	}
+	return n, true
 }
 
 // splitAgentState splits the combined agent display string into separate
@@ -385,6 +417,10 @@ func printPaneJSON(cmd *cobra.Command, rows []paneRow) error {
 	out := make([]paneJSON, len(rows))
 	for i, r := range rows {
 		agentState, idleDur := splitAgentState(r.agent)
+		var prNum *int
+		if n, ok := parsePRNumber(r.prURL); ok {
+			prNum = &n
+		}
 		out[i] = paneJSON{
 			Session:           r.session,
 			WindowIndex:       r.windowIndex,
@@ -396,6 +432,8 @@ func printPaneJSON(cmd *cobra.Command, rows []paneRow) error {
 			Stage:             toNullable(r.stage),
 			AgentState:        agentState,
 			AgentIdleDuration: idleDur,
+			PRURL:             toNullable(r.prURL),
+			PRNumber:          prNum,
 		}
 	}
 	enc := json.NewEncoder(cmd.OutOrStdout())

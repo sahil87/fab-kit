@@ -158,7 +158,7 @@ All tmux panes with pipeline state. Non-git/non-fab panes included with `---` fa
 
 | Flag | Description |
 |------|-------------|
-| `--json` | JSON array (snake_case: `session`, `window_index`, `pane`, `tab`, `worktree`, `repo`, `change`, `stage`, `agent_state`, `agent_idle_duration`). `repo` is the absolute main-worktree root for the pane's repo (`null` when unresolved) — `--json` only, no human-table column. |
+| `--json` | JSON array (snake_case: `session`, `window_index`, `pane`, `tab`, `worktree`, `repo`, `change`, `stage`, `agent_state`, `agent_idle_duration`, `pr_url`, `pr_number`). `repo` is the absolute main-worktree root for the pane's repo (`null` when unresolved) — `--json` only, no human-table column. `pr_url` (`string\|null`) is the last entry of the change's `.status.yaml` `prs:` list (most recent), `null` when the list is absent/empty or the pane has no resolvable change; `pr_number` (`number\|null`) is parsed from the URL's trailing `/pull/<n>` segment, `null` when there is no URL or it is unparseable. Both are `--json` only (no table column), sourced from the already-loaded status file — **no `gh`/`git`, no network, no PR status (open/merged/CI)**; consumers fetch live PR state themselves. |
 | `--session <name>` | Target specific session (skips `$TMUX` check) |
 | `--all-sessions` | Query all sessions (skips `$TMUX` check; mutually exclusive with `--session`) |
 

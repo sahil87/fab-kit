@@ -3,9 +3,11 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -794,6 +796,248 @@ func initGitRepo(t *testing.T) string {
 	return dir
 }
 
+// TestParsePRNumber verifies the trailing /pull/<n> segment parse, including
+// the trailing-path-tolerated and unparseable edge cases.
+func TestParsePRNumber(t *testing.T) {
+	tests := []struct {
+		name    string
+		url     string
+		wantNum int
+		wantOK  bool
+	}{
+		{"canonical PR URL", "https://github.com/org/repo/pull/42", 42, true},
+		{"trailing path tolerated", "https://github.com/org/repo/pull/42/files", 42, true},
+		{"no /pull/ segment", "https://github.com/org/repo/issues/42", 0, false},
+		{"non-numeric segment", "https://github.com/org/repo/pull/abc", 0, false},
+		{"empty string", "", 0, false},
+		{"trailing slash only", "https://github.com/org/repo/pull/", 0, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gotNum, gotOK := parsePRNumber(tc.url)
+			if gotNum != tc.wantNum || gotOK != tc.wantOK {
+				t.Errorf("parsePRNumber(%q) = (%d, %t), want (%d, %t)", tc.url, gotNum, gotOK, tc.wantNum, tc.wantOK)
+			}
+		})
+	}
+}
+
+// TestPrintPaneJSONPRFields verifies the pr_url / pr_number JSON fields: a
+// valid URL is surfaced with its parsed number, an empty URL yields both null,
+// and a malformed URL keeps pr_url but nulls pr_number.
+func TestPrintPaneJSONPRFields(t *testing.T) {
+	t.Run("valid PR URL surfaces pr_url and parsed pr_number", func(t *testing.T) {
+		var buf bytes.Buffer
+		cmd := &cobra.Command{}
+		cmd.SetOut(&buf)
+
+		rows := []paneRow{
+			{session: "runK", windowIndex: 0, pane: "%3", tab: "alpha", worktree: "(main)", change: "260306-r3m7-x", stage: "ship", agent: "active", prURL: "https://github.com/org/repo/pull/42"},
+		}
+		if err := printPaneJSON(cmd, rows); err != nil {
+			t.Fatal(err)
+		}
+
+		var result []paneJSON
+		if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+			t.Fatalf("invalid JSON: %v\n%s", err, buf.String())
+		}
+		r := result[0]
+		if r.PRURL == nil || *r.PRURL != "https://github.com/org/repo/pull/42" {
+			t.Errorf("pr_url = %v, want the URL", ptrStr(r.PRURL))
+		}
+		if r.PRNumber == nil || *r.PRNumber != 42 {
+			t.Errorf("pr_number = %v, want 42", ptrInt(r.PRNumber))
+		}
+	})
+
+	t.Run("empty PR URL yields both null", func(t *testing.T) {
+		var buf bytes.Buffer
+		cmd := &cobra.Command{}
+		cmd.SetOut(&buf)
+
+		rows := []paneRow{
+			{session: "runK", windowIndex: 0, pane: "%3", tab: "alpha", worktree: "(main)", change: "260306-r3m7-x", stage: "apply", agent: "active", prURL: ""},
+		}
+		if err := printPaneJSON(cmd, rows); err != nil {
+			t.Fatal(err)
+		}
+
+		var result []paneJSON
+		if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+			t.Fatalf("invalid JSON: %v", err)
+		}
+		r := result[0]
+		if r.PRURL != nil {
+			t.Errorf("pr_url should be null for empty URL, got %v", ptrStr(r.PRURL))
+		}
+		if r.PRNumber != nil {
+			t.Errorf("pr_number should be null for empty URL, got %v", ptrInt(r.PRNumber))
+		}
+	})
+
+	t.Run("malformed PR URL keeps pr_url but nulls pr_number", func(t *testing.T) {
+		var buf bytes.Buffer
+		cmd := &cobra.Command{}
+		cmd.SetOut(&buf)
+
+		rows := []paneRow{
+			{session: "runK", windowIndex: 0, pane: "%3", tab: "alpha", worktree: "(main)", change: "260306-r3m7-x", stage: "ship", agent: "active", prURL: "https://github.com/org/repo/issues/7"},
+		}
+		if err := printPaneJSON(cmd, rows); err != nil {
+			t.Fatal(err)
+		}
+
+		var result []paneJSON
+		if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+			t.Fatalf("invalid JSON: %v", err)
+		}
+		r := result[0]
+		if r.PRURL == nil || *r.PRURL != "https://github.com/org/repo/issues/7" {
+			t.Errorf("pr_url = %v, want the malformed URL preserved", ptrStr(r.PRURL))
+		}
+		if r.PRNumber != nil {
+			t.Errorf("pr_number should be null for unparseable URL, got %v", ptrInt(r.PRNumber))
+		}
+	})
+
+	t.Run("pr_url and pr_number JSON field names present", func(t *testing.T) {
+		var buf bytes.Buffer
+		cmd := &cobra.Command{}
+		cmd.SetOut(&buf)
+
+		rows := []paneRow{
+			{session: "s", windowIndex: 0, pane: "%1", tab: "t", worktree: "w/", change: "c", stage: "apply", agent: "active", prURL: "https://github.com/org/repo/pull/1"},
+		}
+		if err := printPaneJSON(cmd, rows); err != nil {
+			t.Fatal(err)
+		}
+		output := buf.String()
+		for _, field := range []string{"pr_url", "pr_number"} {
+			if !strings.Contains(output, "\""+field+"\"") {
+				t.Errorf("JSON output missing field %q:\n%s", field, output)
+			}
+		}
+	})
+}
+
+// TestResolvePanePRURL verifies resolvePane surfaces the LAST entry of the
+// .status.yaml prs: list (sourced from the already-loaded status file), and
+// leaves prURL empty when the list is absent/empty.
+func TestResolvePanePRURL(t *testing.T) {
+	// writeChangeStatus sets up a git repo with a fab change whose .status.yaml
+	// carries the given prs body, plus the .fab-status.yaml symlink. Returns the
+	// worktree root (used as the pane cwd).
+	writeChangeStatus := func(t *testing.T, prsBody string) string {
+		t.Helper()
+		wtRoot := initGitRepo(t)
+		folder := "260609-r7ju-pane-map-pr-fields"
+		changeDir := filepath.Join(wtRoot, "fab", "changes", folder)
+		if err := os.MkdirAll(changeDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		statusYAML := "id: r7ju\nname: " + folder + "\nprogress:\n  intake:\n    state: done\n  apply:\n    state: active\n" + prsBody
+		statusPath := filepath.Join(changeDir, ".status.yaml")
+		if err := os.WriteFile(statusPath, []byte(statusYAML), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		// .fab-status.yaml symlink points at the change's .status.yaml (relative
+		// target matches the ExtractFolderFromSymlink contract).
+		symlinkTarget := filepath.Join("fab", "changes", folder, ".status.yaml")
+		symlinkPath := filepath.Join(wtRoot, ".fab-status.yaml")
+		if err := os.Symlink(symlinkTarget, symlinkPath); err != nil {
+			t.Fatal(err)
+		}
+		return wtRoot
+	}
+
+	t.Run("prURL is the last entry of a multi-URL prs list", func(t *testing.T) {
+		prsBody := "prs:\n  - https://github.com/org/repo/pull/41\n  - https://github.com/org/repo/pull/42\n"
+		wtRoot := writeChangeStatus(t, prsBody)
+
+		p := paneEntry{id: "%1", tab: "alpha", cwd: wtRoot, session: "runK", index: 0}
+		row, ok := resolvePane(p, wtRoot, "", make(map[string]interface{}))
+		if !ok {
+			t.Fatal("resolvePane returned ok=false")
+		}
+		if row.prURL != "https://github.com/org/repo/pull/42" {
+			t.Errorf("prURL = %q, want the LAST URL (pull/42)", row.prURL)
+		}
+	})
+
+	t.Run("prURL empty when prs list absent", func(t *testing.T) {
+		wtRoot := writeChangeStatus(t, "")
+
+		p := paneEntry{id: "%1", tab: "alpha", cwd: wtRoot, session: "runK", index: 0}
+		row, ok := resolvePane(p, wtRoot, "", make(map[string]interface{}))
+		if !ok {
+			t.Fatal("resolvePane returned ok=false")
+		}
+		if row.prURL != "" {
+			t.Errorf("prURL = %q, want empty for absent prs list", row.prURL)
+		}
+	})
+
+	t.Run("prURL empty when prs list empty", func(t *testing.T) {
+		wtRoot := writeChangeStatus(t, "prs: []\n")
+
+		p := paneEntry{id: "%1", tab: "alpha", cwd: wtRoot, session: "runK", index: 0}
+		row, ok := resolvePane(p, wtRoot, "", make(map[string]interface{}))
+		if !ok {
+			t.Fatal("resolvePane returned ok=false")
+		}
+		if row.prURL != "" {
+			t.Errorf("prURL = %q, want empty for empty prs list", row.prURL)
+		}
+	})
+}
+
+// TestPrintPaneTablePRFieldsUnchanged asserts the table output is unaffected by
+// the JSON-only PR fields: no pr_url/pr_number columns, and the column set is
+// byte-identical to the pre-change table for the same rows.
+func TestPrintPaneTablePRFieldsUnchanged(t *testing.T) {
+	rows := []paneRow{
+		{session: "runK", windowIndex: 2, pane: "%3", tab: "alpha", worktree: "myrepo.worktrees/alpha/", change: "260306-r3m7-add-retry-logic", stage: "ship", agent: "active", prURL: "https://github.com/org/repo/pull/42"},
+		{session: "dev", windowIndex: 1, pane: "%5", tab: "scratch", worktree: "downloads/", change: "(no change)", stage: "—", agent: "—", prURL: ""},
+	}
+
+	var withPR bytes.Buffer
+	cmdWith := &cobra.Command{}
+	cmdWith.SetOut(&withPR)
+	printPaneTable(cmdWith, rows, true)
+
+	// Identical rows but with prURL cleared — the table must render the same
+	// bytes, proving prURL never reaches the table.
+	rowsNoPR := make([]paneRow, len(rows))
+	copy(rowsNoPR, rows)
+	for i := range rowsNoPR {
+		rowsNoPR[i].prURL = ""
+	}
+	var withoutPR bytes.Buffer
+	cmdWithout := &cobra.Command{}
+	cmdWithout.SetOut(&withoutPR)
+	printPaneTable(cmdWithout, rowsNoPR, true)
+
+	if withPR.String() != withoutPR.String() {
+		t.Errorf("table output differs when prURL is set vs cleared:\nwith:\n%s\nwithout:\n%s", withPR.String(), withoutPR.String())
+	}
+
+	output := withPR.String()
+	for _, absent := range []string{"pr_url", "pr_number", "PR", "https://github.com"} {
+		if strings.Contains(output, absent) {
+			t.Errorf("table output should not contain %q (JSON-only field leaked into table):\n%s", absent, output)
+		}
+	}
+	// Header carries exactly the existing columns and no PR column.
+	header := strings.Split(strings.TrimRight(output, "\n"), "\n")[0]
+	for _, col := range []string{"Session", "Pane", "WinIdx", "Tab", "Worktree", "Change", "Stage", "Agent"} {
+		if !strings.Contains(header, col) {
+			t.Errorf("header missing expected column %q: %q", col, header)
+		}
+	}
+}
+
 func TestPaneMapMutualExclusion(t *testing.T) {
 	t.Run("session and all-sessions are mutually exclusive", func(t *testing.T) {
 		cmd := paneMapCmd()
@@ -820,6 +1064,13 @@ func ptrStr(p *string) string {
 		return "<nil>"
 	}
 	return *p
+}
+
+func ptrInt(p *int) string {
+	if p == nil {
+		return "<nil>"
+	}
+	return strconv.Itoa(*p)
 }
 
 func ptrEq(a, b *string) bool {

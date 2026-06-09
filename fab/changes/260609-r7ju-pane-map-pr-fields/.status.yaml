@@ -1,0 +1,53 @@
+id: r7ju
+name: 260609-r7ju-pane-map-pr-fields
+created: 2026-06-09T13:15:13Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 10
+    acceptance_count: 19
+    acceptance_completed: 19
+confidence:
+    certain: 8
+    confident: 2
+    tentative: 0
+    unresolved: 0
+    score: 4.4
+    fuzzy: true
+    dimensions:
+        signal: 94.6
+        reversibility: 86.8
+        competence: 92.7
+        disambiguation: 93.6
+stage_metrics:
+    intake: {started_at: "2026-06-09T13:15:13Z", driver: fab-new, iterations: 1, completed_at: "2026-06-09T13:38:32Z"}
+    apply: {started_at: "2026-06-09T13:38:32Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-09T13:44:47Z"}
+    review: {started_at: "2026-06-09T13:44:47Z", driver: fab-continue, iterations: 1, completed_at: "2026-06-09T13:48:18Z"}
+    hydrate: {started_at: "2026-06-09T13:48:18Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-09T13:49:59Z"}
+    ship: {started_at: "2026-06-09T13:49:59Z", driver: fab-fff, iterations: 1}
+prs: []
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-06-09T13:49:59Z"
+    computed_at_stage: hydrate
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-09T13:49:59Z
