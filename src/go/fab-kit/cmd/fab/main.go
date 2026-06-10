@@ -15,11 +15,12 @@ var version = "dev"
 
 // fabKitArgs is the static allowlist of arguments routed to fab-kit.
 var fabKitArgs = map[string]bool{
-	"init":         true,
-	"upgrade-repo": true,
-	"sync":         true,
-	"update":       true,
-	"doctor":       true,
+	"init":              true,
+	"upgrade-repo":      true,
+	"sync":              true,
+	"update":            true,
+	"doctor":            true,
+	"migrations-status": true,
 }
 
 func main() {
@@ -107,6 +108,7 @@ func printHelp() {
 	fmt.Println("  sync          Sync workspace (skills, directories, scaffold)")
 	fmt.Println("  update        Update fab-kit itself via Homebrew")
 	fmt.Println("  doctor        Validate fab-kit prerequisites")
+	fmt.Println("  migrations-status  Report which migrations apply (local vs engine)")
 	fmt.Println()
 
 	// Show workflow commands. Inside a fab repo, use the project-pinned version.

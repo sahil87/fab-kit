@@ -1,0 +1,53 @@
+id: 9733
+name: 260610-9733-migration-detection-upgrade-repo
+created: 2026-06-10T10:22:25Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 10
+    acceptance_count: 28
+    acceptance_completed: 28
+confidence:
+    certain: 9
+    confident: 0
+    tentative: 0
+    unresolved: 0
+    score: 5.0
+    fuzzy: true
+    dimensions:
+        signal: 96.0
+        reversibility: 77.2
+        competence: 84.4
+        disambiguation: 82.8
+stage_metrics:
+    intake: {started_at: "2026-06-10T10:22:25Z", driver: fab-new, iterations: 1, completed_at: "2026-06-10T11:03:25Z"}
+    apply: {started_at: "2026-06-10T11:03:25Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-10T11:14:47Z"}
+    review: {started_at: "2026-06-10T11:14:47Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-10T11:20:37Z"}
+    hydrate: {started_at: "2026-06-10T11:20:37Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-10T11:25:01Z"}
+    ship: {started_at: "2026-06-10T11:25:01Z", driver: fab-fff, iterations: 1}
+prs: []
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-06-10T11:25:01Z"
+    computed_at_stage: hydrate
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-10T11:25:01Z

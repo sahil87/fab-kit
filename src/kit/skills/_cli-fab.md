@@ -194,6 +194,22 @@ fab doctor [--porcelain]
 
 ---
 
+## fab migrations-status
+
+Migration discovery. Lives in `fab-kit` (registered in the router's `fabKitArgs` allowlist). Resolves `fab/.kit-migration-version` (local) and the engine `VERSION` from the cached kit for `fab_version`, scans the engine `migrations/` dir, and runs the discovery algorithm. Consumed by both `/fab-setup migrations` (via `--json`) and as a standalone query.
+
+```
+fab migrations-status [--json]
+```
+
+**Human output**: `Local version` / `Engine version`, then either `No migrations apply.` or `Migrations to apply (N):` with an ordered `[i/N] FROM -> TO (file)` list, followed by any gap-skip lines and any overlap warning.
+
+**`--json` output**: `{local, engine, applicable:[{from,to,file}], gap_skips, overlaps}` — `applicable` is the ordered chain to apply (FROM ascending), `gap_skips` are skip log lines, `overlaps` are conflicting filename pairs (non-empty = malformed migration set).
+
+**Exit code**: `0` on any clean query — including the no-op case AND the overlap case (overlap is surfaced via the `overlaps` field). Non-zero only on a genuine error (missing `fab/.kit-migration-version`, missing engine `VERSION`, unreadable migrations dir). Read-only — never writes `fab/.kit-migration-version`.
+
+---
+
 ## fab kit-path
 
 ```

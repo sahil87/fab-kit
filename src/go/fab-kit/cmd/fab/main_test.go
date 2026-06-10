@@ -9,7 +9,7 @@ import (
 
 func TestFabKitArgs(t *testing.T) {
 	// Verify the allowlist contains exactly the fab-kit commands
-	expected := []string{"init", "upgrade-repo", "sync", "update"}
+	expected := []string{"init", "upgrade-repo", "sync", "update", "migrations-status"}
 	for _, cmd := range expected {
 		if !fabKitArgs[cmd] {
 			t.Errorf("expected fabKitArgs to contain %q", cmd)

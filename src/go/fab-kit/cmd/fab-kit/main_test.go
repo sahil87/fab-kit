@@ -6,7 +6,7 @@ import (
 
 func TestFabKitCommands(t *testing.T) {
 	// Verify fabKitCommands map contains the expected entries
-	expected := []string{"init", "upgrade-repo", "sync"}
+	expected := []string{"init", "upgrade-repo", "sync", "migrations-status"}
 	for _, cmd := range expected {
 		if !fabKitCommands[cmd] {
 			t.Errorf("expected fabKitCommands to contain %q", cmd)

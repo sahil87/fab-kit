@@ -27,7 +27,7 @@ The standalone `wt` and `idea` formulas in `sahil87/homebrew-tap` SHALL declare 
 
 #### Router Architecture (System `fab` Binary)
 
-The system `fab` binary acts as a router using negative-match dispatch. It maintains a static allowlist of fab-kit commands (`init`, `upgrade-repo`, `sync`, `update`, `doctor`) that are dispatched to `fab-kit` via `syscall.Exec`. A separate set of inline commands (`--version`, `-v`, `--help`, `-h`, `help`) are handled directly by the router without exec'ing any sub-binary. All other commands are dispatched to the version-resolved `fab-go` — the router applies an **always-route policy** with no `config.yaml` gate.
+The system `fab` binary acts as a router using negative-match dispatch. It maintains a static allowlist of fab-kit commands (`init`, `upgrade-repo`, `sync`, `update`, `doctor`, `migrations-status`) that are dispatched to `fab-kit` via `syscall.Exec`. A separate set of inline commands (`--version`, `-v`, `--help`, `-h`, `help`) are handled directly by the router without exec'ing any sub-binary. All other commands are dispatched to the version-resolved `fab-go` — the router applies an **always-route policy** with no `config.yaml` gate.
 
 For fab-go dispatch, the router SHALL:
 
