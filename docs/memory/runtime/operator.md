@@ -107,22 +107,35 @@ Ancestor-pruning (`git merge-base --is-ancestor`) is scoped to the **same-repo s
 
 **`/loop` lifecycle**: Start when first change enrolled (no loop running) — `/loop 3m "operator tick"`. Stop when monitored set empty. One-loop invariant: at most one active `/loop` at any time.
 
-**Tick snapshot is server-wide.** The tick's snapshot step uses `fab pane map --all-sessions --json` (not bare `fab pane map`), so the operator sees agents in **every** session on its server, not just its own. `--json` exposes the per-row `repo` field (the agent's absolute main-worktree root, `null` when the pane is not in a git repo — see [pane-commands.md](pane-commands.md)). Rows are grouped first by `repo`, then by `session`. The health glyph *semantics* (which glyph means which state), the autopilot `▶` marker, and the `⚠` stuck marker are unchanged by the multi-repo work — that change altered only the grouping. (Their *coloring* was later broadened by the structural-color model — see **Frame color** below.)
+**Tick snapshot is server-wide.** The tick's snapshot step uses `fab pane map --all-sessions --json` (not bare `fab pane map`), so the operator sees agents in **every** session on its server, not just its own. `--json` exposes the per-row `repo` field (the agent's absolute main-worktree root, `null` when the pane is not in a git repo — see [pane-commands.md](pane-commands.md)). Rows are grouped first by `repo`, then by `session`. The `pr_url`/`pr_number` JSON fields (added in change `260610` — see [pane-commands.md](pane-commands.md)) surface the change's PR once it ships. The multi-repo work altered only the grouping; the frame's *presentation* (markdown tables + emoji health) is defined by the **Frame rendering** model below.
 
-**Repo-section status frame.** The status frame renders **repo-section headers** — one header line per repo, formatted `<repo-path> · <session>` (no literal "session:" word) with the repo's change rows indented beneath — rather than per-row `repo`/`session` columns (chosen for scannability). Watches render after all repo sections in a flat list, each annotated with its `target_repo` (`→ ~/code/foo`). A pane whose main-worktree root could not be resolved renders under an `(unresolved repo)` header rather than being dropped. Example (color stripped here; see the **Frame color** model below):
+**Repo-section status frame.** The status frame renders one **repo section** per repo — an anchor line `📂 **{repo-path}** · {session}` followed by a markdown table of that repo's changes — then a **Watches** section. Grouping by repo (not per-row repo/session columns) is chosen for scannability. A pane whose main-worktree root could not be resolved renders under a `📂 **(unresolved repo)**` anchor rather than being dropped. Example (the literal markdown the operator emits):
 
 ```
-── Operator ── 17:32 ── tick #47 ── 7 tracked ──
+🛰️ **Operator** · 17:32 · tick #47 · **7 tracked**
 
-  ~/code/foo · work
-    [change]  r3m7   ▶ ● apply → review
-    [change]  ab12     ✓ hydrate
-  ~/code/bar · side
-    [change]  k8ds   ▶ ◌ review · idle 8m
-  [watch]   linear-bugs  → ~/code/foo   ● 2 known · 1 completed · 3m ago
+📂 **~/code/foo** · work
+
+| | ID | Health | Stage | PR |
+|:--:|---|:--:|---|---|
+| ▶ | `r3m7` | 🟢 | apply → review | |
+| | `ab12` | ✅ | hydrate | https://github.com/acme/foo/pull/412 |
+
+📂 **~/code/bar** · side
+
+| | ID | Health | Stage | PR |
+|:--:|---|:--:|---|---|
+| ▶ | `k8ds` | 🟡 | review · idle 8m | |
+| | `ef56` | 🔴 | apply · idle 32m ⚠️ | |
+
+👁️ **Watches**
+
+| Watch | Target | Health | Status |
+|---|---|:--:|---|
+| `linear-bugs` | ~/code/foo | 🟢 | 2 known · 1 completed · 3m ago |
 ```
 
-**Frame color (structural color model).** The frame colors the *structure*, not just the health signal — the guiding principle is **dim the noise, not brighten the signal**. The health glyph keeps its status color (green active/healthy/complete, yellow idle/new-items, red stuck/errored, grey/default paused); the surrounding chrome (`[change]`/`[watch]` type prefixes, `→` arrows, detail/idle/metadata text, the divider, and the header's `── tick #N ──` segment) is **dimmed** (`\e[2m`); the scannable anchors are **emphasized** — repo-section paths in **bold cyan** (`\e[1;36m`), change/watch IDs and the header `── Operator ──`/`N tracked` in **bold** (`\e[1m`), the header time in **cyan** (`\e[36m`). The autopilot `▶` marker is **cyan** (a mode marker, semantically distinct from health). Receding the boilerplate makes the colored glyphs and bold IDs pop without any new loud color. **No-color degradation is preserved**: the health glyph stays a single-width BMP character that alone disambiguates every state and `[change]`/`[watch]` stay literal words, so stripping color loses only emphasis, never information. See `fab-operator.md` §4 → "Frame color" for the authoritative per-field SGR table.
+**Frame rendering (markdown-native).** The frame is emitted as an assistant message and rendered by the agent harness as GitHub-flavored markdown — **ANSI escapes do not survive this path** (stripped as literal text *and* as real ESC bytes; empirically verified), and markdown **headings** (`#`/`##`/`###`) render as literal text and are unusable. The only channels that render are tables, **emoji**, **bold**, *italic*, `code spans`, and links. So the frame uses: a header line `🛰️ **Operator** · {HH:MM} · tick #{N} · **{N} tracked**`; a `📂 **{repo}** · {session}` anchor + change table per repo; a `👁️ **Watches**` anchor + table. Emoji are the sole color channel — health is 🟢 active/healthy · 🟡 idle/new-items · 🔴 stuck/errored · ✅ complete · ⚪ paused (geometric glyphs like `●◌✗` render monochrome and are not used). Change-table columns: autopilot `▶` (own column) · `ID` (code span) · Health (emoji) · Stage (with `⚠️` trailing on stuck rows) · PR (full `pr_url` as plain text — *not* a `[#N](url)` link, so it is selectable/copyable in a plain xterm; blank until shipped). The 🛰️/📂/👁️ emoji are the prominence/landmark anchors that headings would otherwise provide. Degrades cleanly: strip emoji and the Stage text still names the state; the URL is plain text regardless. See `fab-operator.md` §4 for the authoritative column spec and example.
 
 **Monitoring tick** (on each `/loop` tick or "any updates?"):
 
@@ -358,10 +371,17 @@ The operator is launched via `fab operator` — a `fab-go` subcommand (source: `
 **Rejected**: Halt-all (conservative, throttles independent repos — the earlier lean, superseded during clarify). Halt-only-failing-repo (ignores cross-repo ordering barriers, would merge a dependent ahead of its failed barrier).
 *Introduced by*: 260607-oy0k-operator-multi-repo-skill
 
+### Status Frame = Markdown Tables + Emoji (ANSI does not render)
+**Decision**: The operator status frame is rendered as **markdown** — a header line, one `📂` repo-anchor + change table per repo, and a `👁️` Watches table. Health is shown with **emoji** (🟢🟡🔴✅⚪); IDs are `code spans`; the header/repo anchors use emoji + **bold**; the PR column holds the **full `pr_url` as plain text**. Earlier specs colored an ANSI-wrapped glyph (`\e[32m●\e[0m`) and a later iteration broadened ANSI to many fields ("structural color"). **Both were non-functional**: the frame is an assistant message rendered as markdown by the agent harness, and ANSI escapes are stripped on that path — verified empirically that neither literal `\e[` text nor real ESC bytes render, and that markdown headings also render as literal text. Emoji (glyphs, not escapes) are the only surviving color channel; markdown tables give real column alignment and absorb the wide PR URL.
+**Why**: The operator never writes to a TTY directly — it emits text that the harness markdown-renders. Color/visual hierarchy therefore must come from channels that survive that render (emoji, tables, bold, italic, code spans), not ANSI or headings. PR URLs are surfaced as plain text (not `[#N](url)` links) so they are selectable/copyable in a plain xterm, which shows only the link display text, not the target.
+**Rejected**: ANSI SGR codes (stripped by the markdown renderer — the bug this fixes). Markdown headings for the header/sections (render as literal `##` text). `[#N](url)` markdown links for PRs (xterm shows only `#N`, not a copyable URL). A sparse dedicated-then-folded PR cell / footnote block (chose a full-URL column for always-copyable PRs at the cost of table width). Geometric glyphs `●◌✗` for health (render monochrome — no color).
+*Introduced by*: PR #387 follow-up (markdown-native operator frame; supersedes the merged-but-non-functional "structural color" ANSI spec)
+
 
 ## Changelog
 
 | Change | Date | Summary |
 |--------|------|---------|
+| PR #387 follow-up | 2026-06-10 | Replaced the operator status frame's ANSI-based styling with a **markdown-native** design: header line + `📂` repo-anchor + per-repo change table + `👁️` Watches table, **emoji** health (🟢🟡🔴✅⚪), `code-span` IDs, and a **full-URL PR column** (from the `pr_url` JSON field). Roots out the non-functional "structural color" ANSI spec (escapes are stripped by the agent's markdown render path; headings render as literal text) — see the "Status Frame = Markdown Tables + Emoji" decision. Skill + memory + spec change only; no behavior change beyond rendering. |
 | 260608-memory-domain-restructure | 2026-06-08 | Created `runtime/operator.md` by extracting the operator coordination content from `pipeline/execution-skills.md` (the `/fab-operator4` historical section, Monitoring System, tick lifecycle via `fab operator tick-start`/`time`, and the operator design-decision lineage from "Auto-Answer Model with Strategic Escalation" through "Done-Marker Swap on Removal"). Part of the memory-domain restructure that replaced the single `fab-workflow/` pseudo-domain with `pipeline/`, `memory-docs/`, `distribution/`, `runtime/`, and `_shared/`. The per-change history of these design decisions is preserved in `execution-skills.md`'s changelog (where the content lived when those changes shipped); this row records the extraction only. No operator behavior changed. |
 | 260607-oy0k-operator-multi-repo-skill | 2026-06-08 | Re-framed `/fab-operator` for **multi-repo / multi-session coordination on one tmux server**. Addressing moved to the `(session, repo, pane)` tuple (pane ID stays primary key; `repo` + `session` are added dimensions). Resolved the h3jk deferral note and rewrote the repo-rooted "Monitoring System" prose into a server-keyed model: one operator per server, one server-keyed state file `$XDG_STATE_HOME/fab/operator/<server-slug>.yaml` (no migration of old repo-rooted files), `monitored` entries gain `repo`+`session`, `branch_map` value becomes `{ branch, repo }`, watches gain `target_repo`. Tick snapshots via `fab pane map --all-sessions --json` grouped by repo→session with repo-section-header status frame. Added repo-targeted spawning (`wt create` in the target repo dir, `fab spawn-command --repo`), two-tier dependency resolution (same-repo cherry-pick / cross-repo ordering-only with the no-code caveat; ancestor-pruning scoped to same-repo subset), and repo-spanning autopilot with per-repo PR sequences and halt-dependents-only CI semantics (transitive over the cross-repo `depends_on` graph). Added three Design Decisions (tmux-server isolation / one-operator-per-server, cross-repo deps ordering-only, halt-dependents-only CI). Skill+specs change only; consumes change 1's (`260607-h3jk`) Go primitives, whose mechanism docs live in [kit-architecture.md](../distribution/kit-architecture.md) and [pane-commands.md](pane-commands.md). |
