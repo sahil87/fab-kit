@@ -109,18 +109,20 @@ Ancestor-pruning (`git merge-base --is-ancestor`) is scoped to the **same-repo s
 
 **Tick snapshot is server-wide.** The tick's snapshot step uses `fab pane map --all-sessions --json` (not bare `fab pane map`), so the operator sees agents in **every** session on its server, not just its own. `--json` exposes the per-row `repo` field (the agent's absolute main-worktree root, `null` when the pane is not in a git repo — see [pane-commands.md](pane-commands.md)). Rows are grouped first by `repo`, then by `session`. The health glyphs, autopilot `▶` marker, and `⚠` stuck marker are unchanged — only the grouping changes.
 
-**Repo-section status frame.** The status frame renders **repo-section headers** — one header line per repo (noting the session) with the repo's change rows indented beneath — rather than per-row `repo`/`session` columns (chosen for scannability). Watches render after all repo sections in a flat list, each annotated with its `target_repo` (`→ ~/code/foo`). A pane whose main-worktree root could not be resolved renders under an `(unresolved repo)` header rather than being dropped. Example:
+**Repo-section status frame.** The status frame renders **repo-section headers** — one header line per repo, formatted `<repo-path> · <session>` (no literal "session:" word) with the repo's change rows indented beneath — rather than per-row `repo`/`session` columns (chosen for scannability). Watches render after all repo sections in a flat list, each annotated with its `target_repo` (`→ ~/code/foo`). A pane whose main-worktree root could not be resolved renders under an `(unresolved repo)` header rather than being dropped. Example (color stripped here; see the **Frame color** model below):
 
 ```
 ── Operator ── 17:32 ── tick #47 ── 7 tracked ──
 
-  ~/code/foo (session: work)
+  ~/code/foo · work
     [change]  r3m7   ▶ ● apply → review
     [change]  ab12     ✓ hydrate
-  ~/code/bar (session: side)
+  ~/code/bar · side
     [change]  k8ds   ▶ ◌ review · idle 8m
   [watch]   linear-bugs  → ~/code/foo   ● 2 known · 1 completed · 3m ago
 ```
+
+**Frame color (structural color model).** The frame colors the *structure*, not just the health signal — the guiding principle is **dim the noise, not brighten the signal**. The health glyph keeps its status color (green active/healthy/complete, yellow idle/new-items, red stuck/errored, grey/default paused); the surrounding chrome (`[change]`/`[watch]` type prefixes, `→` arrows, detail/idle/metadata text, the divider, and the header's `── tick #N ──` segment) is **dimmed** (`\e[2m`); the scannable anchors are **emphasized** — repo-section paths in **bold cyan** (`\e[1;36m`), change/watch IDs and the header `── Operator ──`/`N tracked` in **bold** (`\e[1m`), the header time in **cyan** (`\e[36m`). The autopilot `▶` marker is **cyan** (a mode marker, semantically distinct from health). Receding the boilerplate makes the colored glyphs and bold IDs pop without any new loud color. **No-color degradation is preserved**: the health glyph stays a single-width BMP character that alone disambiguates every state and `[change]`/`[watch]` stay literal words, so stripping color loses only emphasis, never information. See `fab-operator.md` §4 → "Frame color" for the authoritative per-field SGR table.
 
 **Monitoring tick** (on each `/loop` tick or "any updates?"):
 
