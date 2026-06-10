@@ -24,11 +24,12 @@ func displayVersion(v string) string {
 
 // fabKitCommands lists the commands owned by fab-kit (used by tests).
 var fabKitCommands = map[string]bool{
-	"init":         true,
-	"upgrade-repo": true,
-	"sync":         true,
-	"update":       true,
-	"doctor":       true,
+	"init":              true,
+	"upgrade-repo":      true,
+	"sync":              true,
+	"update":            true,
+	"doctor":            true,
+	"migrations-status": true,
 }
 
 func main() {
@@ -46,6 +47,7 @@ func main() {
 		syncCmd(),
 		updateCmd(),
 		doctorCmd(),
+		migrationsStatusCmd(),
 	)
 
 	if err := root.Execute(); err != nil {

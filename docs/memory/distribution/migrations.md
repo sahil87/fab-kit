@@ -1,5 +1,5 @@
 ---
-description: "Migration system — dual-version model, migration file format, `/fab-setup migrations` subcommand, brew-install migration, `1.8.0-to-1.9.0` migration (tasks-stage collapse + plan.md), `1.9.1-to-1.9.2` migration (`true_impact_exclude` config field), `1.9.7-to-1.10.0` migration (spec-stage collapse, four-state spec.md→plan.md case table), version drift detection, `fab/.kit-migration-version` creation"
+description: "Migration system — dual-version model, migration file format, binary-owned discovery (`fab migrations-status [--json]` / `DiscoverMigrations`), `/fab-setup migrations` subcommand (delegates discovery, applies LLM-driven), brew-install migration, `1.8.0-to-1.9.0` migration (tasks-stage collapse + plan.md), `1.9.1-to-1.9.2` migration (`true_impact_exclude` config field), `1.9.7-to-1.10.0` migration (spec-stage collapse, four-state spec.md→plan.md case table), version drift detection (`upgrade-repo` mechanical detection + silent self-stamp + TTY-gated styled reminder), `fab/.kit-migration-version` creation"
 ---
 # Migrations
 
@@ -52,22 +52,33 @@ Migration files are pure markdown instructions (Constitution I — Pure Prompt P
 
 Migration ranges are determined by the release author, not by version bump type. Any release (patch, minor, or major) can ship a migration file if it changes project-level files. Wide-range migrations (e.g., `0.2.0-to-0.4.0.md`) cover multiple intermediate releases.
 
-Migration file ranges MUST NOT overlap. `/fab-setup migrations` validates this before applying.
+Migration file ranges MUST NOT overlap. Overlap detection is owned by the binary (`fab migrations-status`), which surfaces conflicting filename pairs in its `overlaps` field; both `/fab-setup migrations` and `fab upgrade-repo` refuse to apply (or stamp) when `overlaps` is non-empty.
+
+### Binary-Owned Discovery — `fab migrations-status`
+
+Discovery (the scan/parse/validate-non-overlap/sort + the applicability walk) lives in the `fab-kit` binary, implemented in `src/go/fab-kit/internal/migrations.go`:
+
+- `parseMigrationFilename(name)` — matches `{FROM}-to-{TO}.md`, parses both parts as semver, returns false for non-matching names (`.gitkeep`, `README.md`, malformed).
+- `DiscoverMigrations(migrationsDir, local, engine)` — scans the dir, detects overlaps (`A.From < B.To && B.From < A.To`), sorts by FROM ascending, walks the discovery loop, and returns a `DiscoverResult{Local, Engine, Applicable, GapSkips, Overlaps}`. It reuses the existing `parseSemver`/`compareSemver` helpers in `sync.go` (no new semver dependency). The convenience predicate "migrations needed" is `len(Applicable) > 0`.
+
+`fab migrations-status [--json]` exposes this as a queryable command (registered in the router's `fabKitArgs` allowlist so it routes to `fab-kit`). It resolves `fab/.kit-migration-version` (local) and the engine `VERSION` from the cached kit, runs `DiscoverMigrations`, and reports the result. Human output lists local/engine, the ordered applicable list (or "No migrations apply."), gap-skips, and overlaps. `--json` emits `{local, engine, applicable:[{from,to,file}], gap_skips, overlaps}`. Exit code is `0` on any clean query — including the no-op case AND the overlap case (overlap is surfaced via the `overlaps` field); non-zero only on a genuine error (missing version file, unreadable dir). The command is read-only — it never writes `fab/.kit-migration-version`.
 
 ### `/fab-setup migrations` Subcommand
 
-The migration runner, now a subcommand of `/fab-setup` (previously the standalone `/fab-update` skill). It:
+The migration runner, a subcommand of `/fab-setup` (previously the standalone `/fab-update` skill). It:
 
-1. Compares `fab/.kit-migration-version` to `$(fab kit-path)/VERSION`
-2. Scans `$(fab kit-path)/migrations/` for applicable files
-3. Validates non-overlapping ranges
-4. Applies migrations sequentially (sorted by FROM ascending)
-5. Updates `fab/.kit-migration-version` after each successful migration
+1. Runs `fab migrations-status --json` (binary-owned discovery — no manual scan/parse/validate/sort in skill prose)
+2. STOPs and reports if `overlaps` is non-empty
+3. Surfaces any `gap_skips` lines, then applies each file in `applicable` sequentially (FROM ascending, already chained by the binary)
+4. Reads each migration file and executes its Pre-check/Changes/Verification (application stays LLM-driven per Constitution I)
+5. Writes the migration's `TO` to `fab/.kit-migration-version` after each successful migration
 
-**Discovery algorithm**:
-1. Find first migration where `FROM <= current < TO` → apply, set current = TO
-2. If no match but a later migration exists with `FROM > current` → skip to that FROM (log skip)
-3. If no match and no later migrations → set `fab/.kit-migration-version` to engine version
+Only *discovery* moved into the binary; *application* of each migration instruction file remains an LLM activity in the skill.
+
+**Discovery loop** (now implemented in `DiscoverMigrations`):
+1. Find first migration where `FROM <= current < TO` → append to `Applicable`, set current = TO
+2. If no match but a later migration exists with `FROM > current` → record a gap-skip, advance current to that FROM
+3. If no match and no later migrations → done (empty `Applicable` = no-op; `fab upgrade-repo` self-stamps the engine version in this case)
 
 **Failure handling**: stops immediately on failure, `fab/.kit-migration-version` reflects last successful migration, suggests re-running `/fab-setup migrations`.
 
@@ -90,7 +101,11 @@ A migration file for the transition to the system shim model. The migration:
 
 ### Version Drift Detection
 
-- **`fab upgrade-repo`**: prints drift reminder when `fab/.kit-migration-version` < engine after upgrade; prints init guidance if `fab/.kit-migration-version` missing
+- **`fab upgrade-repo`**: after sync, runs `DiscoverMigrations` against the target version's cached `migrations/` dir and the current `fab/.kit-migration-version` (mechanical relevance check, not string inequality). Three terminal cases:
+  - **Overlap** → warns naming the conflicting files + "Run '/fab-setup migrations' to resolve."; does NOT stamp.
+  - **Applicable non-empty** → prints `Run '/fab-setup migrations' to update project files ({LOCAL} -> {TARGET})`, styled bold+yellow (`\033[1;33m…\033[0m`) when `os.Stdout` is a character device and plain when piped/redirected (TTY detection is dependency-free via `os.ModeCharDevice`); does NOT stamp (the skill owns the write after applying).
+  - **Applicable empty (no overlap)** → silently writes the target version to `fab/.kit-migration-version` (no migration line printed), stopping the drift that occurred when only the skill ever advanced the local version.
+  - **`fab/.kit-migration-version` missing** → preserves the existing init-guidance behavior.
 - **`/fab-status`**: displays `⚠ Version drift: local {X}, engine {Y} — run /fab-setup migrations` when versions differ
 - **`release.sh`**: warns when no migration targets the new release version; warns on overlapping migration ranges
 
@@ -128,6 +143,7 @@ Handled by `fab-sync.sh` during structural bootstrap:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260610-9733-migration-detection-upgrade-repo | 2026-06-10 | Moved migration **discovery** into the `fab-kit` binary (`src/go/fab-kit/internal/migrations.go`: `parseMigrationFilename`, `DiscoverMigrations` → `DiscoverResult{Local,Engine,Applicable,GapSkips,Overlaps}`; reuses `parseSemver`/`compareSemver` from `sync.go`, no new dep) and exposed it as the queryable command `fab migrations-status [--json]` (registered in the router's `fabKitArgs` allowlist; exit 0 on clean query incl. overlap, non-zero only on genuine error; read-only). `fab upgrade-repo` now mechanically detects relevance via `DiscoverMigrations` instead of string inequality: overlap → warn + don't stamp; applicable → TTY-gated bold+yellow reminder + don't stamp; empty/no-op → **silently** stamp `fab/.kit-migration-version` to the target (stops drift); missing file → preserve init guidance. TTY detection is dependency-free (`os.ModeCharDevice`). `/fab-setup migrations` Step 2-3 now consume `fab migrations-status --json` (STOP on `overlaps`, else apply each `applicable` file in order); *application* of each migration file stays LLM-driven (Constitution I). No `{FROM}-to-{TO}.md` file shipped — tool-behavior change only. Companions updated: `_cli-fab.md`, `SPEC-fab-setup.md`. |
 | 260601-j6cs-merge-spec-into-apply | 2026-06-01 | Added migration `1.9.7-to-1.10.0.md` for the spec-stage collapse (the direct sibling of `1.8.0-to-1.9.0.md`, which merged `tasks` into `apply`). `src/kit/VERSION` bumped to `1.10.0`. Walks every in-flight change folder under `fab/changes/` (excluding `archive/**`); idempotent and archive-safe. Per change: (1) rewrite `.status.yaml` to drop `progress.spec`, folding its activity level into `apply` (done/skipped → leave apply; active/ready → carry the level only if apply is still `pending`; pending/absent → leave apply); (2) **four-state spec.md→plan.md case table** — *spec.md only* → leave for on-apply ingestion, do NOT create a `plan.md` stub (a stub would trip the resumability skip-guard and deadlock plan generation); *plan.md only* → progress rewrite only; *both* → merge the `spec.md` requirement body into `plan.md`'s `## Requirements` (annotated `<!-- migrated from spec.md on {date} -->`, leaving `spec.md` with a "safe to delete" comment, NOT deleting it); *neither* → progress rewrite only. Idempotency sentinel: skip the merge if `plan.md` already has a `## Requirements` heading or the migration marker. Project-wide: relocate `stage_directives.spec` directives into `stage_directives.apply` (de-duplicated, order-preserving) rather than dropping them. Leaves any `confidence.indicative` key on disk untouched (the 1.10.0 binary tolerates it on read). Re-run is a complete no-op. |
 | 260507-asvz-git-pr-true-impact-line-count | 2026-05-07 | Added migration `1.9.1-to-1.9.2.md` — appends `true_impact_exclude: [fab/, docs/]` to `fab/project/config.yaml` when the field is absent (no-op idempotently when present with any value, or when the config file does not exist) so existing projects pick up the `/git-pr` true-impact block. |
 | 260423-qszh-merge-tasks-checklist | 2026-05-06 | Added migration `1.8.0-to-1.9.0.md` for the tasks-stage collapse and `plan.md` schema. Per change folder under `fab/changes/` (excluding `archive/`): (1) idempotent no-op when `plan.md` already exists; (2) when only legacy `tasks.md` and/or `checklist.md` are present, produce `plan.md` by concatenating bodies under `## Tasks` and `## Acceptance` headings (verbatim modulo the legacy file's H1 + frontmatter — subheadings, `T-NNN`/`CHK-NNN` IDs, `[P]` markers, body content all preserved); one-sided legacy state writes a placeholder + warning rather than failing; (3) rewrite `.status.yaml` — drop `progress.tasks` (preserve `progress.apply` if `tasks: done|skipped`; advance to `tasks`'s state if `active|ready`), replace `checklist:` block with `plan:` block (`generated: true`, `task_count` = count under `## Tasks`, `acceptance_count` = old `checklist.total`, `acceptance_completed` = old `checklist.completed`); (4) append `<!-- Migrated to plan.md on {DATE} — safe to delete. -->` to legacy files (do NOT delete); (5) prune `stage_directives.tasks` from user `config.yaml`. Archived changes under `fab/changes/archive/**` are untouched. `src/kit/VERSION` bumped to `1.9.0`. |

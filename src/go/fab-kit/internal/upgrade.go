@@ -89,14 +89,64 @@ func Upgrade(targetVersion string) error {
 		fmt.Printf("\nInstalled: %s\n", targetVersion)
 	}
 
-	// Migration reminder
+	// Migration detection + reminder.
+	//
+	// Mechanically discover whether any migration genuinely applies between the
+	// local version and the target, rather than comparing version strings. The
+	// three terminal cases (overlap / applicable / no-op) and the missing-file
+	// case mirror the /fab-setup migrations skill's discovery rules.
 	migrationVersionFile := filepath.Join(cfg.RepoRoot, "fab", ".kit-migration-version")
 	if data, err := os.ReadFile(migrationVersionFile); err == nil {
 		migVersion := strings.TrimSpace(string(data))
-		if migVersion != targetVersion {
-			fmt.Printf("\nRun '/fab-setup migrations' to update project files (%s -> %s)\n", migVersion, targetVersion)
+		migrationsDir := filepath.Join(CachedKitDir(targetVersion), "migrations")
+		result, derr := DiscoverMigrations(migrationsDir, migVersion, targetVersion)
+		switch {
+		case derr != nil:
+			// Discovery failure (e.g. missing migrations dir) is non-fatal to the
+			// upgrade itself — warn so the user knows discovery did not run, and
+			// skip the stamp (we cannot confirm there is nothing to migrate).
+			fmt.Fprintf(os.Stderr, "WARNING: migration discovery failed: %s\n", derr)
+		case len(result.Overlaps) > 0:
+			// Malformed migration set — warn with detail, do NOT stamp.
+			fmt.Printf("\nWARNING: overlapping migration ranges detected:\n")
+			for _, o := range result.Overlaps {
+				fmt.Printf("  %s\n", o)
+			}
+			fmt.Println("Run '/fab-setup migrations' to resolve.")
+		case len(result.Applicable) > 0:
+			// Migrations genuinely apply — print a styled reminder, do NOT stamp
+			// (the skill owns the write after it applies each file).
+			reminder := fmt.Sprintf("Run '/fab-setup migrations' to update project files (%s -> %s)", migVersion, targetVersion)
+			fmt.Printf("\n%s\n", boldYellow(reminder))
+		default:
+			// Nothing applies and no overlap — silently stamp to the target so the
+			// local version stops drifting behind the engine. Reuse the same-package
+			// helper rather than reimplementing the write inline.
+			if err := stampMigrationVersion(cfg.RepoRoot, targetVersion); err != nil {
+				fmt.Fprintf(os.Stderr, "WARNING: could not update .kit-migration-version: %s\n", err)
+			}
 		}
 	}
 
 	return nil
+}
+
+// isTTY reports whether f is a character device (an interactive terminal),
+// using only the standard library — no golang.org/x/term or go-isatty (per
+// Constitution I: minimal single-binary dependencies).
+func isTTY(f *os.File) bool {
+	info, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeCharDevice != 0
+}
+
+// boldYellow wraps s in bold-yellow ANSI codes when os.Stdout is a TTY, and
+// returns s unchanged otherwise (so logs and pipes stay free of escape codes).
+func boldYellow(s string) string {
+	if !isTTY(os.Stdout) {
+		return s
+	}
+	return "\033[1;33m" + s + "\033[0m"
 }

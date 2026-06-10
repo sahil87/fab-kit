@@ -53,14 +53,20 @@ User invokes /fab-setup [subcommand]
 │  └─ Edit: fab/project/constitution.md
 │
 └── migrations: Migrations ─────────────────────────────
-   ├─ Read: fab/.kit-migration-version, src/kit/VERSION
-   ├─ Glob: src/kit/migrations/*.md
-   ├─ For each applicable migration:
-   │  ├─ Read: migration file
+   ├─ Read: fab/.kit-migration-version, $(fab kit-path)/VERSION
+   ├─ Bash: fab migrations-status --json   (binary-owned discovery)
+   │  └─ STOP if `overlaps` non-empty (report conflict)
+   ├─ For each file in `applicable` (in order):
+   │  ├─ Read: $(fab kit-path)/migrations/{file}
    │  ├─ (execute pre-checks, changes, verification)
-   │  └─ Write: fab/.kit-migration-version
-   └─ Write: fab/.kit-migration-version (finalize)
+   │  └─ Write: fab/.kit-migration-version (TO)
+   └─ Finalize (version already at last TO; no-op case stamped by upgrade-repo)
 ```
+
+Discovery (scan/parse/validate-non-overlap/sort + the applicability walk) moved
+out of skill prose into the `fab-kit` binary (`fab migrations-status`). The skill
+now consumes the `--json` result and still owns *application* of each migration
+file (Pre-check/Changes/Verification + writing `TO`), per Constitution I.
 
 ### Tools used
 
@@ -69,8 +75,7 @@ User invokes /fab-setup [subcommand]
 | Read | Scaffold templates, project files, migration files |
 | Write | Project files, migration version |
 | Edit | Config, constitution, gitignore |
-| Bash | `fab doctor`, `fab-sync.sh`, `fab log command` |
-| Glob | Discover migration files |
+| Bash | `fab doctor`, `fab-sync.sh`, `fab log command`, `fab migrations-status --json` (migration discovery) |
 
 ### Sub-agents
 

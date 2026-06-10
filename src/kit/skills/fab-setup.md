@@ -325,7 +325,7 @@ When `[file]` is provided, read and apply that specific migration file directly,
 
 1. Read `fab/.kit-migration-version` and `$(fab kit-path)/VERSION`
 2. Read `fab/project/config.yaml` (Always Load layer — MUST exist). Skip Change Context.
-3. Scan `$(fab kit-path)/migrations/` for migration files
+3. Run `fab migrations-status --json` to discover which migrations apply (the binary owns the scan/parse/validate/sort — see Step 2)
 
 ### Migrations Pre-flight Checks
 
@@ -344,23 +344,26 @@ Before attempting any migration, verify:
 
 ### Migrations Step 2: Discover Migrations
 
-1. Scan `$(fab kit-path)/migrations/` for files matching `{FROM}-to-{TO}.md`
-2. Parse FROM and TO as semver from each filename
-3. **Validate non-overlapping ranges**: for every pair of migration files, check that their ranges do not overlap (`A.FROM < B.TO AND B.FROM < A.TO` means overlap). If overlap detected: STOP with error listing the conflicting files
-4. Sort migrations by FROM ascending
+Discovery is owned by the binary — do NOT scan, parse, validate, or sort the migrations directory by hand.
+
+1. Run `fab migrations-status --json` and parse the result. The shape is:
+   `{local, engine, applicable:[{from,to,file}], gap_skips, overlaps}`.
+   - `applicable` — the ordered list of migration files to apply, FROM ascending (already discovered, gap-skipped, and chained by the binary)
+   - `gap_skips` — human-readable "no migration needed for X -> Y, skipping" lines to surface in output
+   - `overlaps` — pairs of conflicting filenames; non-empty means the migrations directory is malformed
+2. **If `overlaps` is non-empty**: STOP and report the conflict (see [Overlapping Ranges](#overlapping-ranges)). Do NOT apply anything.
+3. **If `applicable` is empty** (and no overlap): nothing to do — report and stop (see [No Migrations Apply](#no-migrations-apply) / [Versions Already Equal](#versions-already-equal) as appropriate). `fab upgrade-repo` already stamps `fab/.kit-migration-version` silently in the no-op case, so this subcommand has no version to write.
 
 ### Migrations Step 3: Apply Migrations (Loop)
 
-Execute the migration discovery algorithm:
+Surface each `gap_skips` line, then apply each file in `applicable` IN ORDER:
 
-1. Find the first migration where `FROM <= current < TO`
-2. **If found**: apply it (see [Applying a Migration](#applying-a-migration)), set `current = TO`, repeat from (1)
-3. **If not found but a migration exists with `FROM > current`**: skip to that FROM — log: `No migration needed for {current} -> {FROM}, skipping.` — repeat from (1)
-4. **If not found and no later migrations exist**: set `fab/.kit-migration-version` to engine version, done
+1. For each `{from,to,file}` in `applicable`, apply it (see [Applying a Migration](#applying-a-migration)) — this reads the file at `$(fab kit-path)/migrations/{file}`, executes its Pre-check/Changes/Verification, and writes `to` to `fab/.kit-migration-version`.
+2. Continue until every `applicable` entry is applied.
 
 ### Migrations Step 4: Finalize
 
-- Write `fab/.kit-migration-version` with the engine version (should already match after migrations)
+- After applying the last `applicable` migration, `fab/.kit-migration-version` already holds that migration's `to` value (written per [Applying a Migration](#applying-a-migration)).
 - Output completion summary
 
 ---
@@ -426,13 +429,15 @@ Local version (fab/.kit-migration-version) is ahead of engine version ($(fab kit
 This is unexpected — check your kit cache installation.
 ```
 
-### No Migrations Exist
+### No Migrations Apply
 
 ```
 Local version:  {current}
 Engine version: {target}
-No migrations found. fab/.kit-migration-version updated to {target}.
+No migrations apply.
 ```
+
+(`fab migrations-status` returned an empty `applicable` list. `fab upgrade-repo` silently stamps `fab/.kit-migration-version` to the engine version in this no-op case, so there is nothing for this subcommand to write.)
 
 ### Overlapping Ranges
 
