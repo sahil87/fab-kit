@@ -115,6 +115,16 @@ func TestDiscoverMigrations(t *testing.T) {
 			wantApplicable: nil,
 		},
 		{
+			// Engine bound: a migration starting at or after engine is outside the
+			// local->engine window and must not be gap-skipped into and applied.
+			name:           "no gap-skip past engine into a later migration",
+			files:          []string{"0.5.0-to-0.6.0.md"},
+			local:          "0.2.0",
+			engine:         "0.3.0",
+			wantApplicable: nil,
+			wantGapSkips:   0,
+		},
+		{
 			name:           "no-op when local equals engine",
 			files:          []string{"0.2.0-to-0.3.0.md"},
 			local:          "0.3.0",

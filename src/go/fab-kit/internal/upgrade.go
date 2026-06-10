@@ -103,8 +103,8 @@ func Upgrade(targetVersion string) error {
 		switch {
 		case derr != nil:
 			// Discovery failure (e.g. missing migrations dir) is non-fatal to the
-			// upgrade itself — fall back to the plain reminder so the user is not
-			// silently left without guidance.
+			// upgrade itself — warn so the user knows discovery did not run, and
+			// skip the stamp (we cannot confirm there is nothing to migrate).
 			fmt.Fprintf(os.Stderr, "WARNING: migration discovery failed: %s\n", derr)
 		case len(result.Overlaps) > 0:
 			// Malformed migration set — warn with detail, do NOT stamp.

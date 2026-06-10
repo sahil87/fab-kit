@@ -77,9 +77,11 @@ func isSemver(s string) bool {
 // the discovery loop starting at local to produce the ordered applicable chain
 // and any gap-skips. The engine version is recorded on the result for callers.
 //
-// Discovery loop:
+// Discovery loop (bounded above by engine — ranges starting at or after engine
+// are outside the local->engine window and are never applied or gap-skipped into):
+//  0. if current >= engine -> done (reached the target)
 //  1. find the first migration where FROM <= current < TO -> append, current = TO, repeat
-//  2. else if a later migration exists with FROM > current -> record a gap-skip,
+//  2. else if a later migration exists with current < FROM < engine -> record a gap-skip,
 //     advance current to that FROM, repeat
 //  3. else -> done
 //
@@ -123,17 +125,23 @@ func DiscoverMigrations(migrationsDir, local, engine string) (DiscoverResult, er
 		}
 	}
 
-	// Walk the discovery loop.
+	// Walk the discovery loop, bounded above by engine: a migration whose FROM
+	// is >= engine lies outside the requested local->engine window and must not
+	// be applied or gap-skipped into.
 	current := local
 	for {
+		// (0) reached/passed the engine target — nothing further applies.
+		if compareSemver(current, engine) >= 0 {
+			break
+		}
 		// (1) first migration where FROM <= current < TO.
 		if r, ok := firstApplicable(ranges, current); ok {
 			result.Applicable = append(result.Applicable, r)
 			current = r.To
 			continue
 		}
-		// (2) a later migration with FROM > current.
-		if r, ok := nextAhead(ranges, current); ok {
+		// (2) a later migration with FROM > current, but still below engine.
+		if r, ok := nextAhead(ranges, current); ok && compareSemver(r.From, engine) < 0 {
 			result.GapSkips = append(result.GapSkips,
 				fmt.Sprintf("No migration needed for %s -> %s, skipping.", current, r.From))
 			current = r.From
