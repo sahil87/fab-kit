@@ -1,5 +1,16 @@
 # Archive Index
 
+- **260608-yfg8-shll-readme-extraction-conformance** — shll.ai README-Extraction Conformance (§9-ACTIVE follow-up)
+- **260607-tciy-memory-tree-shape-rebalance** — Memory Tree Shape & Rebalance
+- **260607-sx7a-reorg-memory-shape-rebalance** — Memory Rebalancer Apply Path (docs-reorg-memory)
+- **260607-oy0k-operator-multi-repo-skill** — Operator Multi-Repo Skill + Specs
+- **260607-h3jk-operator-multi-repo-go-primitives** — Operator Multi-Repo Go Primitives
+- **260607-8mrz-operator-status-color** — Restore Color to Operator Status Output
+- **260605-fcrp-readme-site-extraction-conformance** — README Site-Extraction Conformance
+- **260604-rj31-mechanical-pr-meta** — Mechanical PR Meta Block via `fab pr-meta`
+- **260603-mtf9-teardown-shll-push** — Tear Down Push-Side shll.ai Integration
+- **260602-xob7-cli-help-dump-shll-ai** — Build-Time CLI Help-Dump → shll.ai
+- **260602-s6q5-consolidate-gating-scoring-source** — Consolidate gating/scoring data into one source of truth
 - **260602-ytua-update-readme-six-stage** — Update README to the 6-stage pipeline
 - **260602-7x8u-git-pr-review-commit-status** — git-pr-review Commit Status Updates
 - **260602-7t5a-true-impact-test-split** — Split true-impact line count by implementation vs. tests
