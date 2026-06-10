@@ -197,23 +197,25 @@ On each tick:
 
 1. **Snapshot** — run `fab operator tick-start` (increments `tick_count`, writes `last_tick_at`, outputs `tick: N` and `now: HH:MM`). Parse stdout for the tick number and current time. Then run `fab pane map --all-sessions --json` (the `--all-sessions` flag is required so the operator sees agents in **every** session on its server, not just its own; `--json` exposes the per-row `repo` field — the agent's absolute main-worktree root, or `null` when the pane is not in a git repo) and read the server-keyed state file. **Group the rows first by `repo`, then by `session`** within each repo. Compute status for all tracked items: stage advances, completions, review failures, pane deaths, and watch statuses from the last persisted check (`last_checked` / `last_error` / last counts). Output the status frame:
 
+The frame uses **structural color** (§ Frame Color below): the glyph carries health, while the surrounding chrome is dimmed and the scannable anchors (repo paths, IDs) are emphasized — so the colored glyphs stand out against receded boilerplate rather than competing with it. SGR codes shown inline below (`\e[…m…\e[0m`):
+
 ```
-── Operator ── 17:32 ── tick #47 ── 7 tracked ──
+\e[1m── Operator ──\e[0m \e[36m17:32\e[0m \e[2m── tick #47 ──\e[0m \e[1m7 tracked\e[0m \e[2m──\e[0m
 
-  ~/code/foo (session: work)
-    [change]  r3m7   ▶ \e[32m●\e[0m apply → review
-    [change]  ab12     \e[32m✓\e[0m hydrate
-  ~/code/bar (session: side)
-    [change]  k8ds   ▶ \e[33m◌\e[0m review · idle 8m
-    [change]  ef56     \e[31m✗\e[0m apply · idle 32m ⚠
-  [watch]   gmail-deploys  → ~/code/foo   \e[33m◌\e[0m 1 new · 2m ago
-  [watch]   linear-bugs    → ~/code/foo   \e[32m●\e[0m 2 known · 1 completed · 3m ago
-  [watch]   slack-alerts   → ~/code/bar   \e[32m●\e[0m 0 new · 1m ago
+  \e[1;36m~/code/foo\e[0m \e[2m· work\e[0m
+    \e[2m[change]\e[0m  \e[1mr3m7\e[0m   \e[36m▶\e[0m \e[32m●\e[0m apply \e[2m→\e[0m review
+    \e[2m[change]\e[0m  \e[1mab12\e[0m     \e[32m✓\e[0m hydrate
+  \e[1;36m~/code/bar\e[0m \e[2m· side\e[0m
+    \e[2m[change]\e[0m  \e[1mk8ds\e[0m   \e[36m▶\e[0m \e[33m◌\e[0m review \e[2m· idle 8m\e[0m
+    \e[2m[change]\e[0m  \e[1mef56\e[0m     \e[31m✗\e[0m apply \e[2m· idle 32m\e[0m \e[31m⚠\e[0m
+  \e[2m[watch]\e[0m   \e[1mgmail-deploys\e[0m  \e[2m→\e[0m \e[36m~/code/foo\e[0m   \e[33m◌\e[0m \e[2m1 new · 2m ago\e[0m
+  \e[2m[watch]\e[0m   \e[1mlinear-bugs\e[0m    \e[2m→\e[0m \e[36m~/code/foo\e[0m   \e[32m●\e[0m \e[2m2 known · 1 completed · 3m ago\e[0m
+  \e[2m[watch]\e[0m   \e[1mslack-alerts\e[0m   \e[2m→\e[0m \e[36m~/code/bar\e[0m   \e[32m●\e[0m \e[2m0 new · 1m ago\e[0m
 
-───────────────────────────────────────────────────────────
+\e[2m───────────────────────────────────────────────────────────\e[0m
 ```
 
-Changes are **grouped under repo-section headers** — one header line per repo (noting the session), with the repo's change rows indented beneath it. This is preferred over per-row `repo`/`session` columns for scannability. Watches render after all repo sections in a flat list, each annotated with its `target_repo` (`→ ~/code/foo`). Every change row still follows a consistent column layout within its section:
+Changes are **grouped under repo-section headers** — one header line per repo, formatted `<repo-path> · <session>` (session label without the literal word "session:"), with the repo's change rows indented beneath it. This is preferred over per-row `repo`/`session` columns for scannability. Watches render after all repo sections in a flat list, each annotated with its `target_repo` (`→ ~/code/foo`). Every change row still follows a consistent column layout within its section:
 
 | Column | Content |
 |--------|---------|
@@ -229,13 +231,34 @@ Watch rows carry an extra `→ <target_repo>` field between the name and the hea
 
 **Ordering**: Repo sections first (repos sorted by path, sessions sorted by name within a repo, changes sorted by enrollment time within a session), then watches (sorted alphabetically by name).
 
-**Change health** (only the glyph is ANSI-colored): `●` active (green), `◌` idle (yellow), `✗` stuck (red, >15m idle at non-terminal), `✓` complete (green).
+**Change health** (glyph color per the Frame color table below): `●` active (green), `◌` idle (yellow), `✗` stuck (red, >15m idle at non-terminal), `✓` complete (green).
 
-**Watch health** (only the glyph is ANSI-colored): `●` healthy (green — last query succeeded, no new items), `◌` has new unprocessed items (yellow), `✗` errored (red, `last_error` set), `–` paused (grey/default — `enabled: false`).
+**Watch health** (glyph color per the Frame color table below): `●` healthy (green — last query succeeded, no new items), `◌` has new unprocessed items (yellow), `✗` errored (red, `last_error` set), `–` paused (grey/default — `enabled: false`).
 
-**Health color**: wrap each health glyph in an ANSI SGR color code — green `\e[32m…\e[0m` (active/healthy/complete), yellow `\e[33m…\e[0m` (idle/new-items), red `\e[31m…\e[0m` (stuck/errored), grey/default (paused — none or `\e[90m…\e[0m`). Only the health glyph is colored; the autopilot `▶`, type prefix, IDs, detail text, and the `⚠` marker stay uncolored. Terminals without color support degrade to the bare single-width BMP glyph (`● ◌ ✗ – ✓`) — the glyph alone still disambiguates every state, so color is redundant reinforcement, not the sole signal. This keeps the frame terminal-safe with zero color (the glyphs are unchanged single-width BMP, so no width corruption can recur).
+**Frame color**: the frame uses **structural color** — the health glyph carries the status signal, the surrounding chrome is dimmed, and the scannable anchors are emphasized. Wrap each field in the ANSI SGR code below:
 
-**Stuck marker**: `⚠` (uncolored) trails the detail text on any change row whose idle duration has exceeded the stuck threshold (§8, default 15m) at a non-terminal stage — the same condition that paints the health glyph red `✗`. It is a redundant inline flag drawing the eye to rows needing manual investigation; rows below the threshold carry no marker.
+| Field | SGR | Treatment |
+|-------|-----|-----------|
+| Header `── Operator ──`, `N tracked` | `\e[1m` | bold |
+| Header time (`17:32`) | `\e[36m` | cyan |
+| Header `── tick #N ──`, trailing `──` | `\e[2m` | dim |
+| Repo-section header path | `\e[1;36m` | bold cyan |
+| Repo session label (`· work`) | `\e[2m` | dim |
+| `[change]` / `[watch]` type prefix | `\e[2m` | dim |
+| Change / watch IDs | `\e[1m` | bold |
+| Autopilot `▶` marker | `\e[36m` | cyan |
+| `→` arrows, detail text (`· idle 8m`), watch metadata, divider | `\e[2m` | dim |
+| Health glyph — active/healthy/complete | `\e[32m` | green |
+| Health glyph — idle/new-items | `\e[33m` | yellow |
+| Health glyph — stuck/errored | `\e[31m` | red |
+| Health glyph — paused | none or `\e[90m` | grey/default |
+| Stuck `⚠` marker | `\e[31m` | red |
+
+The principle is **dim the noise, not brighten the signal** — receding the boilerplate (type prefixes, arrows, detail text, divider) to dim makes the colored glyphs and bold IDs stand out without adding loud color. Cyan repo paths are the section anchors the eye lands on first; the autopilot `▶` is cyan because it is a mode marker, semantically distinct from health.
+
+**No-color degradation**: every field's meaning survives color stripping. The health glyph remains a single-width BMP character (`● ◌ ✗ – ✓`) that alone disambiguates every state, and `[change]`/`[watch]` stay as literal words — so a no-color terminal, a piped capture, or `| less` loses only emphasis, never information. Color is redundant reinforcement, not the sole signal. The glyphs are unchanged single-width BMP, so no width corruption can recur.
+
+**Stuck marker**: `⚠` (red, per the Frame color table) trails the detail text on any change row whose idle duration has exceeded the stuck threshold (§8, default 15m) at a non-terminal stage — the same condition that paints the health glyph red `✗`. It is a redundant inline flag drawing the eye to rows needing manual investigation; rows below the threshold carry no marker. (It is the one non-glyph field that carries a status color rather than dim/emphasis chrome — it shares the `✗` red precisely because it marks the same stuck condition.)
 
 **Autopilot marker**: `▶` marks changes driven by the autopilot queue. Non-autopilot changes (manually enrolled or watch-spawned) show blank. Queue state is readable from the list — which entries have `▶`, which are complete.
 
