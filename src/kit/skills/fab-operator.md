@@ -199,7 +199,11 @@ On each tick:
 
 The frame is rendered as **markdown** — the operator emits it as an assistant message, which the agent harness renders as GitHub-flavored markdown in the terminal. **This is the binding constraint on every styling choice below.** ANSI SGR escapes (`\e[…m`) do NOT survive this path — they are stripped whether emitted as literal `\e[` text or as real ESC bytes (empirically verified). Markdown headings (`#`/`##`/`###`) also render as literal text in the harness and MUST NOT be used. The channels that DO render are: **tables**, **emoji** (the only color channel), **bold** (`**…**`), *italic*, `code spans`, and markdown links. The frame uses exactly these.
 
-The frame is: a **header line**, one **repo section** per repo (an anchor line + a change table), then a **Watches** section (anchor line + table). Example (this is the literal markdown the operator emits):
+The frame is: a **header line**, one **repo section** per repo (an anchor line + a change table), then a **Watches** section (anchor line + table).
+
+> **Emit the frame as bare markdown — do NOT wrap it in a ` ``` ` code fence.** The fenced block below is for *documentation* (so this skill file shows the literal source). At runtime the operator must emit the header, anchors, and tables directly into its message body. A fenced frame renders as literal text in the harness — the tables would not lay out and the emoji/bold would not style, recreating the exact failure this design fixes.
+
+Example (this is the literal markdown the operator emits, shown fenced here only to display the source):
 
 ```
 🛰️ **Operator** · 17:32 · tick #47 · **7 tracked**
