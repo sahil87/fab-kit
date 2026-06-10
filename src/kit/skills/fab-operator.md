@@ -197,68 +197,74 @@ On each tick:
 
 1. **Snapshot** — run `fab operator tick-start` (increments `tick_count`, writes `last_tick_at`, outputs `tick: N` and `now: HH:MM`). Parse stdout for the tick number and current time. Then run `fab pane map --all-sessions --json` (the `--all-sessions` flag is required so the operator sees agents in **every** session on its server, not just its own; `--json` exposes the per-row `repo` field — the agent's absolute main-worktree root, or `null` when the pane is not in a git repo) and read the server-keyed state file. **Group the rows first by `repo`, then by `session`** within each repo. Compute status for all tracked items: stage advances, completions, review failures, pane deaths, and watch statuses from the last persisted check (`last_checked` / `last_error` / last counts). Output the status frame:
 
-The frame uses **structural color** (§ Frame Color below): the glyph carries health, while the surrounding chrome is dimmed and the scannable anchors (repo paths, IDs) are emphasized — so the colored glyphs stand out against receded boilerplate rather than competing with it. SGR codes shown inline below (`\e[…m…\e[0m`):
+The frame is rendered as **markdown** — the operator emits it as an assistant message, which the agent harness renders as GitHub-flavored markdown in the terminal. **This is the binding constraint on every styling choice below.** ANSI SGR escapes (`\e[…m`) do NOT survive this path — they are stripped whether emitted as literal `\e[` text or as real ESC bytes (empirically verified). Markdown headings (`#`/`##`/`###`) also render as literal text in the harness and MUST NOT be used. The channels that DO render are: **tables**, **emoji** (the only color channel), **bold** (`**…**`), *italic*, `code spans`, and markdown links. The frame uses exactly these.
+
+The frame is: a **header line**, one **repo section** per repo (an anchor line + a change table), then a **Watches** section (anchor line + table).
+
+> **Emit the frame as bare markdown — do NOT wrap it in a ` ``` ` code fence.** The fenced block below is for *documentation* (so this skill file shows the literal source). At runtime the operator must emit the header, anchors, and tables directly into its message body. A fenced frame renders as literal text in the harness — the tables would not lay out and the emoji/bold would not style, recreating the exact failure this design fixes.
+
+Example (this is the literal markdown the operator emits, shown fenced here only to display the source):
 
 ```
-\e[1m── Operator ──\e[0m \e[36m17:32\e[0m \e[2m── tick #47 ──\e[0m \e[1m7 tracked\e[0m \e[2m──\e[0m
+🛰️ **Operator** · 17:32 · tick #47 · **7 tracked**
 
-  \e[1;36m~/code/foo\e[0m \e[2m· work\e[0m
-    \e[2m[change]\e[0m  \e[1mr3m7\e[0m   \e[36m▶\e[0m \e[32m●\e[0m apply \e[2m→\e[0m review
-    \e[2m[change]\e[0m  \e[1mab12\e[0m     \e[32m✓\e[0m hydrate
-  \e[1;36m~/code/bar\e[0m \e[2m· side\e[0m
-    \e[2m[change]\e[0m  \e[1mk8ds\e[0m   \e[36m▶\e[0m \e[33m◌\e[0m review \e[2m· idle 8m\e[0m
-    \e[2m[change]\e[0m  \e[1mef56\e[0m     \e[31m✗\e[0m apply \e[2m· idle 32m\e[0m \e[31m⚠\e[0m
-  \e[2m[watch]\e[0m   \e[1mgmail-deploys\e[0m  \e[2m→\e[0m \e[36m~/code/foo\e[0m   \e[33m◌\e[0m \e[2m1 new · 2m ago\e[0m
-  \e[2m[watch]\e[0m   \e[1mlinear-bugs\e[0m    \e[2m→\e[0m \e[36m~/code/foo\e[0m   \e[32m●\e[0m \e[2m2 known · 1 completed · 3m ago\e[0m
-  \e[2m[watch]\e[0m   \e[1mslack-alerts\e[0m   \e[2m→\e[0m \e[36m~/code/bar\e[0m   \e[32m●\e[0m \e[2m0 new · 1m ago\e[0m
+📂 **~/code/foo** · work
 
-\e[2m───────────────────────────────────────────────────────────\e[0m
+| | ID | Health | Stage | PR |
+|:--:|---|:--:|---|---|
+| ▶ | `r3m7` | 🟢 | apply → review | |
+| | `ab12` | ✅ | hydrate | https://github.com/acme/foo/pull/412 |
+
+📂 **~/code/bar** · side
+
+| | ID | Health | Stage | PR |
+|:--:|---|:--:|---|---|
+| ▶ | `k8ds` | 🟡 | review · idle 8m | |
+| | `ef56` | 🔴 | apply · idle 32m ⚠️ | |
+| | `cd34` | ✅ | review-pr | https://github.com/acme/bar/pull/408 |
+
+👁️ **Watches**
+
+| Watch | Target | Health | Status |
+|---|---|:--:|---|
+| `gmail-deploys` | ~/code/foo | 🟡 | 1 new · 2m ago |
+| `linear-bugs` | ~/code/foo | 🟢 | 2 known · 1 completed · 3m ago |
+| `slack-alerts` | ~/code/bar | 🟢 | 0 new · 1m ago |
 ```
 
-Changes are **grouped under repo-section headers** — one header line per repo, formatted `<repo-path> · <session>` (session label without the literal word "session:"), with the repo's change rows indented beneath it. This is preferred over per-row `repo`/`session` columns for scannability. Watches render after all repo sections in a flat list, each annotated with its `target_repo` (`→ ~/code/foo`). Every change row still follows a consistent column layout within its section:
+**Header line**: `🛰️ **Operator** · {HH:MM} · tick #{N} · **{N} tracked**`. The 🛰️ emoji and bold give it prominence (headings don't render, so emoji + bold is the prominence channel). `N tracked` is the total count of all entries (changes + watches) — no per-type or per-repo counts.
+
+**Repo-section anchor**: `📂 **{repo-path}** · {session}` — one per repo, with the repo's change table beneath it. The 📂 emoji is the section landmark the eye jumps to (replacing the role headings would play). The session label drops the literal word "session:". A repo whose main-worktree root could not be resolved (`null` in the `repo` JSON field) renders under a `📂 **(unresolved repo)**` anchor rather than being dropped.
+
+**Change table** columns (consistent across all repo sections):
 
 | Column | Content |
 |--------|---------|
-| Type | `[change]` — bracketed type prefix |
-| ID | Change ID (4-char) |
-| Autopilot | `▶` if autopilot-driven, blank otherwise |
-| Health | Status indicator — universal position across all types |
-| Detail | Type-specific status text |
+| (autopilot) | `▶` if autopilot-driven, blank otherwise. Center-aligned, header-less |
+| ID | Change ID (4-char) in a `code span` |
+| Health | Health emoji — universal position across all types |
+| Stage | Stage text (e.g. `apply → review`), with the `⚠️` stuck marker trailing when applicable |
+| PR | Full PR URL from the `pr_url` JSON field when present (ship/review-pr stages); blank otherwise |
 
-Watch rows carry an extra `→ <target_repo>` field between the name and the health glyph. A repo whose main-worktree root could not be resolved (`null` in the `repo` JSON field) renders under an `(unresolved repo)` header rather than being dropped.
+**Watches table** columns: `Watch` (name in `code span`), `Target` (the watch's `target_repo`), `Health` (emoji), `Status` (counts + relative timestamp). Watches render after all repo sections.
 
-**Header**: `N tracked` is the total count of all entries (changes + watches). No per-type or per-repo counts.
+**Ordering**: Repo sections first (repos sorted by path, sessions sorted by name within a repo, changes sorted by enrollment time within a session), then the Watches section (watches sorted alphabetically by name).
 
-**Ordering**: Repo sections first (repos sorted by path, sessions sorted by name within a repo, changes sorted by enrollment time within a session), then watches (sorted alphabetically by name).
+**Health emoji** (the only color channel that survives the render path — geometric glyphs like `●◌✗` render monochrome and are NOT used):
 
-**Change health** (glyph color per the Frame color table below): `●` active (green), `◌` idle (yellow), `✗` stuck (red, >15m idle at non-terminal), `✓` complete (green).
+| State | Change | Watch | Emoji |
+|-------|--------|-------|:-----:|
+| active / healthy | active | last query ok, no new items | 🟢 |
+| idle / new-items | idle | has new unprocessed items | 🟡 |
+| stuck / errored | >15m idle at non-terminal | `last_error` set | 🔴 |
+| complete | reached terminal/stop stage | — | ✅ |
+| paused | — | `enabled: false` | ⚪ |
 
-**Watch health** (glyph color per the Frame color table below): `●` healthy (green — last query succeeded, no new items), `◌` has new unprocessed items (yellow), `✗` errored (red, `last_error` set), `–` paused (grey/default — `enabled: false`).
+**Markdown styling**: emoji carry the health color; **bold** marks the header title, `N tracked`, and repo-path anchors; `code spans` mark change/watch IDs and watch names; the PR cell holds a **full URL as plain text** (selectable/copyable in any terminal, including a plain xterm — markdown `[#N](url)` link syntax is deliberately NOT used because xterm shows only the `#N` display text, not a copyable URL). The autopilot `▶` is a plain monochrome glyph in its own column.
 
-**Frame color**: the frame uses **structural color** — the health glyph carries the status signal, the surrounding chrome is dimmed, and the scannable anchors are emphasized. Wrap each field in the ANSI SGR code below:
+**Why emoji + table, not ANSI**: an earlier iteration colored an ANSI-wrapped glyph (`\e[32m●\e[0m`). That does not render through the operator's assistant-message → markdown path — the escapes are stripped. Emoji are glyphs, not escape codes, so they survive and carry color; the table gives real column alignment (no hand-spaced columns) and absorbs the wide PR URL without breaking layout. Both degrade cleanly: strip emoji and the Stage text still names the state; the URL is plain text regardless.
 
-| Field | SGR | Treatment |
-|-------|-----|-----------|
-| Header `── Operator ──`, `N tracked` | `\e[1m` | bold |
-| Header time (`17:32`) | `\e[36m` | cyan |
-| Header `── tick #N ──`, trailing `──` | `\e[2m` | dim |
-| Repo-section header path | `\e[1;36m` | bold cyan |
-| Repo session label (`· work`) | `\e[2m` | dim |
-| `[change]` / `[watch]` type prefix | `\e[2m` | dim |
-| Change / watch IDs | `\e[1m` | bold |
-| Autopilot `▶` marker | `\e[36m` | cyan |
-| `→` arrows, detail text (`· idle 8m`), watch metadata, divider | `\e[2m` | dim |
-| Health glyph — active/healthy/complete | `\e[32m` | green |
-| Health glyph — idle/new-items | `\e[33m` | yellow |
-| Health glyph — stuck/errored | `\e[31m` | red |
-| Health glyph — paused | none or `\e[90m` | grey/default |
-| Stuck `⚠` marker | `\e[31m` | red |
-
-The principle is **dim the noise, not brighten the signal** — receding the boilerplate (type prefixes, arrows, detail text, divider) to dim makes the colored glyphs and bold IDs stand out without adding loud color. Cyan repo paths are the section anchors the eye lands on first; the autopilot `▶` is cyan because it is a mode marker, semantically distinct from health.
-
-**No-color degradation**: every field's meaning survives color stripping. The health glyph remains a single-width BMP character (`● ◌ ✗ – ✓`) that alone disambiguates every state, and `[change]`/`[watch]` stay as literal words — so a no-color terminal, a piped capture, or `| less` loses only emphasis, never information. Color is redundant reinforcement, not the sole signal. The glyphs are unchanged single-width BMP, so no width corruption can recur.
-
-**Stuck marker**: `⚠` (red, per the Frame color table) trails the detail text on any change row whose idle duration has exceeded the stuck threshold (§8, default 15m) at a non-terminal stage — the same condition that paints the health glyph red `✗`. It is a redundant inline flag drawing the eye to rows needing manual investigation; rows below the threshold carry no marker. (It is the one non-glyph field that carries a status color rather than dim/emphasis chrome — it shares the `✗` red precisely because it marks the same stuck condition.)
+**Stuck marker**: `⚠️` trails the Stage cell text on any change row whose idle duration has exceeded the stuck threshold (§8, default 15m) at a non-terminal stage — the same condition that shows the 🔴 health emoji. It is a redundant inline flag drawing the eye to rows needing manual investigation; rows below the threshold carry no marker.
 
 **Autopilot marker**: `▶` marks changes driven by the autopilot queue. Non-autopilot changes (manually enrolled or watch-spawned) show blank. Queue state is readable from the list — which entries have `▶`, which are complete.
 
@@ -271,13 +277,13 @@ The principle is **dim the noise, not brighten the signal** — receding the boi
 6. **Persist** — write updated state to `.fab-operator.yaml`
 7. **Loop lifecycle** — if monitored set is empty, no autopilot, and no watches, stop the loop.
 
-Actions (nudges, removals, autopilot progress) print as plain lines below the frame as they happen:
+Actions (nudges, removals, autopilot progress) render as an *italic* footnote line below the frame as they happen, `·`-separated, keeping them visually subordinate to the table frame:
 
 ```
-k8ds: auto-answered 'Allow Bash: npm test?' → y
-Removed ab12 (complete), ef56 (pane gone)
-Autopilot: cd34 in progress · next: ef56
+*k8ds: auto-answered 'Allow Bash: npm test?' → y · Removed ab12 (complete), ef56 (pane gone) · Autopilot: cd34 → next ef56*
 ```
+
+When the action log is long, the operator MAY split it across several italic lines rather than one — but each remains italic to stay subordinate to the frame.
 
 ### Idle Message
 
