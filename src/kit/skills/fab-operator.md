@@ -231,9 +231,9 @@ Watch rows carry an extra `→ <target_repo>` field between the name and the hea
 
 **Ordering**: Repo sections first (repos sorted by path, sessions sorted by name within a repo, changes sorted by enrollment time within a session), then watches (sorted alphabetically by name).
 
-**Change health** (only the glyph is ANSI-colored): `●` active (green), `◌` idle (yellow), `✗` stuck (red, >15m idle at non-terminal), `✓` complete (green).
+**Change health** (glyph color per the Frame color table below): `●` active (green), `◌` idle (yellow), `✗` stuck (red, >15m idle at non-terminal), `✓` complete (green).
 
-**Watch health** (only the glyph is ANSI-colored): `●` healthy (green — last query succeeded, no new items), `◌` has new unprocessed items (yellow), `✗` errored (red, `last_error` set), `–` paused (grey/default — `enabled: false`).
+**Watch health** (glyph color per the Frame color table below): `●` healthy (green — last query succeeded, no new items), `◌` has new unprocessed items (yellow), `✗` errored (red, `last_error` set), `–` paused (grey/default — `enabled: false`).
 
 **Frame color**: the frame uses **structural color** — the health glyph carries the status signal, the surrounding chrome is dimmed, and the scannable anchors are emphasized. Wrap each field in the ANSI SGR code below:
 
@@ -258,7 +258,7 @@ The principle is **dim the noise, not brighten the signal** — receding the boi
 
 **No-color degradation**: every field's meaning survives color stripping. The health glyph remains a single-width BMP character (`● ◌ ✗ – ✓`) that alone disambiguates every state, and `[change]`/`[watch]` stay as literal words — so a no-color terminal, a piped capture, or `| less` loses only emphasis, never information. Color is redundant reinforcement, not the sole signal. The glyphs are unchanged single-width BMP, so no width corruption can recur.
 
-**Stuck marker**: `⚠` (uncolored) trails the detail text on any change row whose idle duration has exceeded the stuck threshold (§8, default 15m) at a non-terminal stage — the same condition that paints the health glyph red `✗`. It is a redundant inline flag drawing the eye to rows needing manual investigation; rows below the threshold carry no marker.
+**Stuck marker**: `⚠` (red, per the Frame color table) trails the detail text on any change row whose idle duration has exceeded the stuck threshold (§8, default 15m) at a non-terminal stage — the same condition that paints the health glyph red `✗`. It is a redundant inline flag drawing the eye to rows needing manual investigation; rows below the threshold carry no marker. (It is the one non-glyph field that carries a status color rather than dim/emphasis chrome — it shares the `✗` red precisely because it marks the same stuck condition.)
 
 **Autopilot marker**: `▶` marks changes driven by the autopilot queue. Non-autopilot changes (manually enrolled or watch-spawned) show blank. Queue state is readable from the list — which entries have `▶`, which are complete.
 
