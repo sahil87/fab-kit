@@ -19,7 +19,8 @@ Consumer skill reads _generation.md (via helpers: declaration)
 │  │  STATE TRANSFER document: the downstream apply-entry agent has
 │  │  no shared context beyond this file + always-loaded layers, so
 │  │  design decisions are reproduced verbatim, never summarized
-│  ├─ Append ## Assumptions per _preamble.md SRAD framework
+│  ├─ Append ## Assumptions per the SRAD framework (_srad.md,
+│  │  loaded via helpers: by all consumers of this procedure)
 │  │  (intake artifacts record all four grades)
 │  └─ Write: fab/changes/{name}/intake.md
 │

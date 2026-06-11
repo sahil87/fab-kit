@@ -1,12 +1,14 @@
 ---
 name: fab-continue
 description: "Advance the active change one pipeline stage — intake, apply, review, hydrate, ship, or review-pr — or reset to a given stage."
-helpers: [_generation, _review]
+helpers: [_srad]
 ---
 
 # /fab-continue [<change-name>] [<stage>]
 
 > Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.
+
+> **Stage-conditional helpers** (see `_preamble.md` § Skill Helper Declaration): `_generation` and `_review` are deliberately NOT in this skill's frontmatter `helpers:`. Read `.claude/skills/_generation/SKILL.md` only when generating an artifact (apply entry with no `plan.md`, or intake-`active` regeneration), and `.claude/skills/_review/SKILL.md` only when entering Review Behavior. Hydrate, ship, review-pr, and apply-resumes need neither.
 
 ---
 
@@ -47,7 +49,7 @@ Dispatch on preflight's derived `stage` and `display_state`. If progress is `pen
 | Derived stage | State | Action |
 |---------------|-------|--------|
 | `intake` | `ready` | finish intake (auto-activates apply) → execute apply (apply's entry sub-step generates `plan.md` — including its `## Requirements` — then runs tasks) |
-| `intake` | `active` | generate intake if missing → advance to `ready` |
+| `intake` | `active` | generate intake if missing (read `.claude/skills/_generation/SKILL.md` first — Intake Generation Procedure) → advance to `ready` |
 | `apply` | `active`/`ready` | Execute apply (entry: generate `plan.md` if absent; main: run tasks) → on completion run `finish <change> apply fab-continue` (auto-activates review) |
 | `review` | `active`/`ready` | Execute review → pass: run `finish <change> review fab-continue` (auto-activates hydrate). Fail: run `fail <change> review` then `reset <change> apply fab-continue` |
 | `hydrate` | `active`/`ready` | Execute hydrate → run `finish <change> hydrate fab-continue` |
@@ -61,12 +63,12 @@ Load per `_preamble.md` layers. Stage-specific additions: intake loads memory fi
 
 ### Step 3: SRAD + Generation
 
-**Intake only**: Apply SRAD (`_preamble.md`) before generating. Budget: 1-2 unresolved questions. Tentative decisions get `<!-- assumed: ... -->` markers. (Inside apply, under-specified requirements are resolved inline as graded SRAD assumptions in `plan.md` `## Assumptions` — not as questions or markers.)
+**Intake only**: Apply SRAD (`_srad.md`, loaded via `helpers:`) before generating. Budget: 1-2 unresolved questions. Tentative decisions get `<!-- assumed: ... -->` markers. (Inside apply, under-specified requirements are resolved inline as graded SRAD assumptions in `plan.md` `## Assumptions` — not as questions or markers.)
 
 | Stage | Procedure |
 |-------|-----------|
-| apply | [Apply Behavior](#apply-behavior) — entry sub-step invokes **Plan Generation Procedure** (`_generation.md`), which co-generates `## Requirements` + `## Tasks` + `## Acceptance` |
-| review | **Review Behavior** (`_review.md`) |
+| apply | [Apply Behavior](#apply-behavior) — entry sub-step invokes **Plan Generation Procedure** (`_generation.md`, read at point of use), which co-generates `## Requirements` + `## Tasks` + `## Acceptance` |
+| review | **Review Behavior** (`_review.md`, read at point of use) |
 | hydrate | [Hydrate Behavior](#hydrate-behavior) |
 
 **No scoring at any stage `/fab-continue` runs.** Intake scoring is authoritative and is performed by `/fab-new` / `/fab-clarify`; `/fab-continue` operates only at apply and later, where there is no scoring.
@@ -100,7 +102,7 @@ Apply runs as **two sub-steps in a single skill invocation**: a Plan Generation 
 ### Plan Generation (entry sub-step)
 
 1. **If `plan.md` already exists** with at least a `## Tasks` heading: skip generation entirely. Resumability path — the existing plan is authoritative; user-edited entries are preserved. To force regeneration, the user MUST delete `plan.md` before re-running `/fab-continue`.
-2. **Otherwise**: invoke the **Plan Generation Procedure** (`_generation.md`). Write `plan.md` to the change folder. The PostToolUse hook updates `plan.generated`, `plan.task_count`, and `plan.acceptance_count` on `.status.yaml` automatically.
+2. **Otherwise**: read `.claude/skills/_generation/SKILL.md` (if not already loaded), then invoke the **Plan Generation Procedure**. Write `plan.md` to the change folder. The PostToolUse hook updates `plan.generated`, `plan.task_count`, and `plan.acceptance_count` on `.status.yaml` automatically.
 3. Apply MUST ignore the `## Acceptance` section during the main sub-step — that section is consumed by review.
 
 ### Pattern Extraction
@@ -143,7 +145,7 @@ Plan Generation sub-step is skipped when `plan.md` already exists (idempotent on
 
 ## Review Behavior
 
-Follow **Review Behavior** (`_review.md`). The `_review.md` skill defines both sub-agent dispatches (inward + outward) run in parallel, their preconditions, validation steps, structured output format, and the findings merge procedure.
+Read `.claude/skills/_review/SKILL.md` (if not already loaded), then follow its **Review Behavior**. The `_review.md` skill defines both sub-agent dispatches (inward + outward) run in parallel, their preconditions, validation steps, structured output format, and the findings merge procedure.
 
 > **When invoked as a subagent** (dispatched by `/fab-ff`/`/fab-fff`): skip §Verdict entirely — do NOT run any `fab status` command; return the merged findings with pass/fail status only. The orchestrator owns the finish/fail/reset transitions (and the rework loop).
 

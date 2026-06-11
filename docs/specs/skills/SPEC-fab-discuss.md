@@ -9,8 +9,9 @@ Read-only context priming for exploratory discussion. Loads the always-load laye
 ```
 User invokes /fab-discuss
 │
-├─ Read: 7 always-load files (config, constitution, context,
-│        code-quality, code-review, memory index, specs index)
+├─ Read: always-load layer per _preamble.md §1 (full 7 files —
+│        config, constitution, context, code-quality,
+│        code-review, memory index, specs index)
 ├─ Bash: fab resolve --folder (check for active change)
 ├─ Bash: fab log command "fab-discuss"
 │

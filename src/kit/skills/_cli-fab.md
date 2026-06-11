@@ -90,6 +90,36 @@ See `_preamble.md` § Common fab Commands. Modes:
 | Normal | `fab score <change>` | Parse `intake.md` (the sole scoring source; `--stage` defaults to `intake`), compute, write `.status.yaml`. No `indicative` key is written (retired 1.10.0) |
 | Gate | `fab score --check-gate [--stage intake] <change>` | Read-only threshold compare; non-zero below the flat 3.0 intake gate (the single gate — `--stage` defaults to `intake`, so the flag is optional) |
 
+### Schema (in `.status.yaml`)
+
+```yaml
+confidence:
+  certain: 12      # count of Certain-graded SRAD decisions
+  confident: 3     # count of Confident-graded decisions
+  tentative: 2     # count of Tentative-graded decisions
+  unresolved: 0    # count of Unresolved-graded decisions
+  score: 2.1       # derived score (see formula below), computed from intake.md
+```
+
+> The `confidence.indicative` flag is retired (1.10.0): intake scoring is now authoritative, not indicative, so the flag's distinction is meaningless with one scoring source. It is no longer written; a legacy `indicative: true` key on disk is tolerated on read and harmlessly dropped on the next save.
+
+### Formula
+
+```
+if unresolved > 0:
+  score = 0.0
+else:
+  base = max(0.0, 5.0 - 0.3 * confident - 1.0 * tentative)
+  cover = min(1.0, total_decisions / expected_min)
+  score = base * cover
+```
+
+Where `total_decisions = certain + confident + tentative + unresolved` and `expected_min` is looked up by `change_type` from a single embedded table in `fab score` (`feat:7, refactor:6, fix:5`, default `3` for `docs`/`test`/`ci`/`chore`). The `cover` factor prevents thin intakes from getting inflated scores. When `total_decisions >= expected_min`, `cover = 1.0` and the formula degenerates to the base penalty. Range: 0.0 to 5.0. See `docs/specs/change-types.md` for the full `expected_min` table.
+
+### Template
+
+The `status.yaml` template (in the kit cache at `$(fab kit-path)/templates/status.yaml`) includes the confidence block initialized to zero counts and score 0.0. `/fab-new` writes the intake score after intake generation; `/fab-clarify` re-writes it after resolving intake assumptions.
+
 ---
 
 ## fab preflight (extended)

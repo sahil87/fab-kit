@@ -2,14 +2,16 @@
 
 ## Summary
 
-Refines the current stage artifact without advancing. Two modes: Suggest (interactive, user-invoked) and Auto (autonomous, called by fab-ff/fab-fff). Scans for gaps, `[NEEDS CLARIFICATION]` markers, and `<!-- assumed: ... -->` markers. Optionally recomputes confidence.
+Refines the intake artifact without advancing. Two modes: Suggest (interactive, user-invoked) and Auto (autonomous — retained for future use; no orchestrator currently invokes it). Scans for gaps, `[NEEDS CLARIFICATION]` markers, and `<!-- assumed: ... -->` markers. Always recomputes the intake confidence. Hosts the `[AUTO-MODE]` Skill Invocation Protocol definition (moved from `_preamble.md` in 260611-zc9m; the preamble keeps a pointer).
+
+**Helpers**: Declares `helpers: [_srad]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
 
 ## Flow
 
 ```
 User invokes /fab-clarify [change-name] [target-artifact]
   — OR —
-[AUTO-MODE] invoked by /fab-ff or /fab-fff
+[AUTO-MODE] invocation (defined in this skill's § Skill Invocation Protocol; no current orchestrator uses it)
 │
 ├─ Read: _preamble.md (always-load layer)
 ├─ Bash: fab preflight [change-name]
@@ -40,7 +42,7 @@ User invokes /fab-clarify [change-name] [target-artifact]
 │  └─ Step 7: Recompute Confidence
 │     └─ Bash: fab score <change>                    ◄── bookkeeping
 │
-├─── AUTO MODE (internal fab-ff call) ──────────────────
+├─── AUTO MODE (retained for future use) ───────────────
 │  │
 │  ├─ Read target artifact
 │  ├─ Autonomous gap resolution

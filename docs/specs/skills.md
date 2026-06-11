@@ -21,17 +21,19 @@ As of 1.10.0 the `spec` stage and the separate `spec.md` artifact are removed. R
 
 Every skill MAY declare additional helper files it needs to load via a `helpers:` frontmatter list. The agent reads each declared helper's `.claude/skills/{helper}/SKILL.md` after reading `_preamble` and before executing the skill body.
 
-**Allowed values** (4): `_generation`, `_review`, `_cli-fab`, `_cli-external`.
+**Allowed values** (5): `_generation`, `_review`, `_cli-fab`, `_cli-external`, `_srad`.
 
 **Default**: omitted (or `[]`) — the skill loads only `_preamble`.
+
+**Stage-conditional loading** (260611-zc9m): a skill MAY instead load a helper at its point of use via an explicit in-body read instruction; such a helper is intentionally absent from the frontmatter list. `/fab-continue` uses this for `_generation` (apply entry / intake regeneration) and `_review` (review stage).
 
 **Example**:
 
 ```yaml
 ---
-name: fab-continue
+name: fab-ff
 description: ...
-helpers: [_generation, _review]
+helpers: [_generation, _review, _srad]
 ---
 ```
 
@@ -39,14 +41,16 @@ helpers: [_generation, _review]
 
 **Implicit**: `_preamble` itself is loaded universally — never list it.
 
-**Current mapping** (post-2026-04-18):
+**Current mapping** (post-260611-zc9m):
 
 | Skill | `helpers:` |
 |-------|------------|
-| `fab-new`, `fab-draft` | `[_generation]` |
-| `fab-continue`, `fab-ff`, `fab-fff` | `[_generation, _review]` |
+| `fab-new`, `fab-draft` | `[_generation, _srad]` |
+| `fab-ff`, `fab-fff` | `[_generation, _review, _srad]` |
+| `fab-continue` | `[_srad]` (+ `_generation`/`_review` stage-conditionally, in-body) |
+| `fab-clarify` | `[_srad]` |
 | `fab-operator` | `[_cli-fab, _cli-external]` |
-| All other 19 skills | omitted (load only `_preamble`) |
+| All other skills | omitted (load only `_preamble`) |
 
 Validation is **convention-only** — `fab sync` does not reject skills with unknown helper values. Drift surfaces as runtime behavior (agent loads an unexpected file or fails to find a needed one).
 
@@ -56,7 +60,7 @@ Validation is **convention-only** — `fab sync` does not reject skills with unk
 
 Every skill that generates or validates artifacts MUST load relevant context before proceeding. This ensures agents produce accurate, grounded output rather than hallucinating requirements or ignoring existing patterns.
 
-**Always loaded** (by every skill except `/fab-setup`, `/fab-switch`, `/fab-status`, `/docs-hydrate-memory`):
+**Always loaded** — descriptive, not exhaustive: the layer applies unless the skill's own Context Loading section says otherwise (the skill file wins). Exceptions: `/fab-setup`, `/fab-switch`, `/fab-status`, and `/docs-hydrate-memory` skip it; `/fab-operator` loads only `config.yaml`, `constitution.md`, and `context.md`. The default layer:
 - `fab/project/config.yaml` — project configuration, naming conventions, model tiers
 - `fab/project/constitution.md` — project principles and constraints (MUST/SHOULD/MUST NOT rules)
 - `fab/project/context.md` — free-form project context: tech stack, conventions, architecture *(optional — no error if missing)*
@@ -87,7 +91,7 @@ Each skill section below lists its specific context requirements under a **Conte
 
 ## Next Steps Convention
 
-Every skill MUST end its output with a `Next:` line suggesting the available follow-up commands. This keeps the user oriented in the workflow without needing to memorize the stage graph.
+Skills MUST end their output with a `Next:` line suggesting the available follow-up commands, unless the skill's own Output or Key Properties section defines a different ending (e.g., `/fab-discuss`'s ready signal, `/fab-operator`'s status frame, the `/git-*` skills' own completion output) — the skill file wins, mirroring the context-loading contract. This keeps the user oriented in the workflow without needing to memorize the stage graph.
 
 **Format**: `Next: /fab-command` or `Next: /fab-commandA or /fab-commandB (description)`
 
@@ -115,10 +119,10 @@ Adding a skill to the kit touches eight integration points. Work through all of 
 
 1. **Frontmatter fields** — `name` (matches the filename) and `description` (the one-liner agents use for model invocation — name the actual behavior, including non-obvious modes like draft PRs or `--none` flags). Internal partials additionally set `user-invocable: false`, `disable-model-invocation: true`, and `metadata.internal: true`.
 2. **Preamble-read line** — the body opens with the standard blockquote: ``> Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.``
-3. **`helpers:` declaration** — list any additional partials the skill needs (`_generation`, `_review`, `_cli-fab`, `_cli-external`) in frontmatter; skills without the list load only `_preamble`. See § Skill Helpers.
+3. **`helpers:` declaration** — list any additional partials the skill needs (`_generation`, `_review`, `_cli-fab`, `_cli-external`, `_srad`) in frontmatter; skills without the list load only `_preamble`. See § Skill Helpers.
 4. **`Next:` line** — the skill's output ends with a state-derived `Next:` line per `_preamble.md` § Next Steps Convention (or documents an explicit opt-out, as `fab-discuss` and `fab-operator` do).
 5. **Error Handling + Key Properties tables** — the body closes with the two standard tables (skill-specific errors only; idempotency, write surface, stage effects).
-6. **SPEC mirror file** — create `docs/specs/skills/SPEC-{name}.md` (Summary + Flow + tool/sub-agent/bookkeeping tables). Partials keep their leading underscore in the SPEC filename (`SPEC-_review.md`, `SPEC-_preamble.md`, `SPEC-_generation.md`). **Exclusion policy**: the pure-reference partials `_cli-fab.md` and `_cli-external.md` carry no SPEC — their content mirrors the CLI surface rather than defining behavior, and the constitution already forces `_cli-fab.md` updates on every CLI change; a SPEC would be a third copy of the same tables. Every other skill file and behavioral partial gets a SPEC, and the constitution requires updating it on every skill edit.
+6. **SPEC mirror file** — create `docs/specs/skills/SPEC-{name}.md` (Summary + Flow + tool/sub-agent/bookkeeping tables). Partials keep their leading underscore in the SPEC filename (`SPEC-_review.md`, `SPEC-_preamble.md`, `SPEC-_generation.md`, `SPEC-_srad.md`). **Exclusion policy**: the pure-reference partials `_cli-fab.md` and `_cli-external.md` carry no SPEC — their content mirrors the CLI surface rather than defining behavior, and the constitution already forces `_cli-fab.md` updates on every CLI change; a SPEC would be a third copy of the same tables. Every other skill file and behavioral partial gets a SPEC, and the constitution requires updating it on every skill edit.
 7. **skills.md row** — add the skill's section to this file (and its `helpers:` row to § Skill Helpers when it declares any).
 8. **Help grouping** — add the skill to `skillToGroupMap` in `src/go/fab/cmd/fab/fabhelp.go` so `/fab-help` lists it under the right group (unmapped skills fall into the "Other" bucket).
 

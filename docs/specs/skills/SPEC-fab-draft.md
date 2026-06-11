@@ -6,7 +6,7 @@ Creates a new change intake without activating the change. Identical to `/fab-ne
 
 **Re-run contract** (Constitution III): a backlog/Linear-ID re-run detects the existing non-archived change and routes to resume (`/fab-switch {name}` + `/fab-continue`) instead of erroring; a natural-language re-run intentionally creates a new change each run. Declared in the skill's Key Properties section.
 
-**Helpers**: Declares `helpers: [_generation]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
+**Helpers**: Declares `helpers: [_generation, _srad]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
 
 ## Flow
 

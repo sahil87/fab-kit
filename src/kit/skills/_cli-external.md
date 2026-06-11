@@ -40,6 +40,28 @@ metadata:
 
 > **Repo-targeted spawning (operator).** `wt` operates on the **current working directory's** repo. For multi-repo coordination, the operator MUST run `wt create` **in the target repo's directory** (the agent's absolute main-worktree root), so the new worktree lands under `$(dirname <target-repo>)/<repo-name>.worktrees/` — not under the operator's own repo. The operator reads that target repo's spawn command separately via `fab spawn-command --repo <target-repo>` (see `_cli-fab.md`), never its own `config.yaml`.
 
+### Operator Spawning Rules
+
+When the operator creates a worktree for an agent, the naming strategy depends on whether the change already exists:
+
+#### Known change (already exists)
+
+Use the change folder name as the branch argument to `wt create`:
+
+```
+wt create --non-interactive --worktree-name <name> <change-folder-name>
+```
+
+The worktree gets a random name; the branch matches the change. No `/git-branch` needed.
+
+#### New change (from backlog)
+
+The change folder doesn't exist yet, so there's no branch name to use:
+
+1. `wt create --non-interactive` — auto-generates worktree name, creates on default branch
+2. Agent runs `/fab-new` to create the change folder
+3. Operator sends `/git-branch` to the agent after detecting the intake stage has advanced — this aligns the branch name with the newly created change folder name
+
 ---
 
 ## idea (Backlog Manager)
@@ -104,7 +126,7 @@ Terminal multiplexer commands used by the operator for agent observation and int
 - **Pane mapping across sessions**: The operator's tick snapshots **all** sessions on its tmux server via `fab pane map --all-sessions --json` (see `_cli-fab.md`), not just the operator's own session. The `--json` output carries a per-row `repo` field (the pane's absolute main-worktree root, `null` when unresolved) used to group the status frame by repo then session.
 - **Pane capture**: Use `fab pane capture` instead of raw `tmux capture-pane`. It provides fab context enrichment, validation, and structured output.
 - **Send keys**: Use `fab pane send` instead of raw `tmux send-keys`. It includes built-in pane existence and agent idle validation.
-- **`new-window`** is used for spawning new agent sessions: `tmux new-window -n "»<wt>" -c <worktree> "$SPAWN_CMD '<command>'"` where `<wt>` is the worktree name and `$SPAWN_CMD` is the **target repo's** `agent.spawn_command`, read via `fab spawn-command --repo <target-repo>` (not the operator's own `config.yaml`)
+- **`new-window`** is used for spawning new agent sessions: `tmux new-window -n "»<wt>" -c <worktree> "$SPAWN_CMD '<command>'"` where `<wt>` is the worktree name and `$SPAWN_CMD` is the target repo's spawn command (see the repo-targeted spawning note in the wt section above)
 
 ---
 

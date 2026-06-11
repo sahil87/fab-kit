@@ -1,7 +1,7 @@
 ---
 name: fab-fff
 description: "Full pipeline — implementation, sub-agent review, hydrate, ship, and PR review — gated on the single intake confidence gate, with autonomous rework with bounded retry."
-helpers: [_generation, _review]
+helpers: [_generation, _review, _srad]
 ---
 
 # /fab-fff [<change-name>] [--force]
