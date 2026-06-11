@@ -42,13 +42,13 @@ Setting `copilot` to `false` skips Phase 2 entirely. When the `review_tools` key
 │  │
 │  └─ Phase 2: Copilot Review Request (no reviews found)
 │     ├─ Read config: review_tools.copilot from fab/project/config.yaml
-│     ├─ [copilot: false] "No automated reviewer available" → STOP (clean finish)
+│     ├─ [copilot: false] "No automated reviewer available" → Step 6, outcome no-reviews (clean finish)
 │     ├─ Bash: gh pr edit {n} --add-reviewer copilot-pull-request-reviewer
 │     │  ├─ [success] Print "Copilot review requested. Waiting up to 10 minutes..."
 │     │  │  └─ Poll: gh pr view --json reviews every 30s, up to 20 attempts
 │     │  │     ├─ [review appears] → Step 3
-│     │  │     └─ [20 attempts, no review] "...not yet available. Re-run /git-pr-review..." → STOP (clean finish)
-│     │  └─ [failure] "No automated reviewer available..." → STOP (clean finish)
+│     │  │     └─ [20 attempts, no review] "...not yet available. Re-run /git-pr-review..." → Step 6, outcome timeout (stage left active — no finish, no fail)
+│     │  └─ [failure] "No automated reviewer available..." → Step 6, outcome no-reviews (clean finish)
 │
 ├─ Step 3: Fetch Comments (with id, node_id)
 │  └─ Bash: gh api .../pulls/{n}/comments
@@ -69,12 +69,16 @@ Setting `copilot` to `false` skips Phase 2 entirely. When the `review_tools` key
 │  ├─ Bash: gh api .../pulls/{n}/comments -f body=... -F in_reply_to=...
 │  └─ Best-effort: failed POSTs logged, not fatal
 │
-├─ Step 6: Update Review-PR Stage
-│  ├─ [pass] Bash: fab status finish <change> review-pr
-│  └─ [fail] Bash: fab status fail <change> review-pr
+├─ Step 6: Update Review-PR Stage (single exit point for every
+│  │        terminal path after Step 0 — Steps 1/2/4 route here
+│  │        with a named outcome; no bare STOPs)
+│  ├─ [success / no-reviews] Bash: fab status finish <change> review-pr
+│  ├─ [failure] Bash: fab status fail <change> review-pr
+│  └─ [timeout] stage left active — no finish, no fail
+│               (re-run picks up the still-active stage)
 │
 └─ Step 6.5: Commit Status Updates (mirrors git-pr Step 4c)
-   ├─ [gate] active change resolved AND Step 6 success/no-reviews path (skip on no-change / fail path)
+   ├─ [gate] active change resolved AND Step 6 success/no-reviews path (skip on no-change / fail / timeout path)
    ├─ Bash: git add fab/changes/{name}/.status.yaml fab/changes/{name}/.history.jsonl
    ├─ Bash: git diff --cached --quiet  (idempotency guard — re-run is a silent no-op)
    ├─ [staged changes] Bash: git commit -m "Update review-pr status" && git push
@@ -90,7 +94,7 @@ Phase 2 runs when Phase 1 finds no existing reviews with inline comments. It req
 
 | Tool | Type | Detection | On Success | On Failure |
 |------|------|-----------|------------|------------|
-| Copilot | Remote | Attempt `gh pr edit --add-reviewer copilot-pull-request-reviewer` | Poll 30s/attempt up to 20× — proceed to Step 3 when review appears; clean finish on timeout | Clean finish: "No automated reviewer available..." |
+| Copilot | Remote | Attempt `gh pr edit --add-reviewer copilot-pull-request-reviewer` | Poll 30s/attempt up to 20× — proceed to Step 3 when review appears; on timeout: Step 6 `timeout` outcome (stage stays active — no finish, no fail) | Clean finish (no-reviews): "No automated reviewer available..." |
 
 The `--tool copilot` flag forces the Copilot path regardless of config — the config check is skipped entirely when this flag is present. Without the flag, if `review_tools.copilot: false`, Phase 2 exits cleanly without attempting the request.
 

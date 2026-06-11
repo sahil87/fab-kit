@@ -2,7 +2,7 @@
 
 ## Summary
 
-Fast-forward apply → review → hydrate (everything after intake) in one invocation. Two gates: (1) the single intake confidence gate (flat 3.0, all types), checked before the bracket; (2) review rework capped at 3 cycles. No `/fab-clarify` runs inside the bracket — clarification is intake-only. Resumable — re-running picks up from the first incomplete stage. All sub-skill invocations dispatched as sub-agents. Accepts `--force` to bypass the intake gate.
+Fast-forward apply → review → hydrate (everything after intake) in one invocation. Two gates: (1) the single intake confidence gate (flat 3.0, all types), checked before the bracket; (2) review rework capped at 3 cycles. No `/fab-clarify` runs inside the bracket — clarification is intake-only. Resumable — re-running picks up from the first incomplete stage (incl. the review-`failed` recovery: `fab status start <change> review` before re-running Step 2). All sub-skill invocations dispatched as sub-agents; every `/fab-continue`-behavior subagent prompt includes "do NOT run `fab status` commands; return results only" — the orchestrator owns those stages' transitions (finish/fail/reset), including the hydrate finish (all of fab-ff's dispatched stages are `/fab-continue`-behavior; ship/review-pr belong to `/fab-fff`). Accepts `--force` to bypass the intake gate.
 
 **Helpers**: Declares `helpers: [_generation, _review]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
 
@@ -19,7 +19,8 @@ User invokes /fab-ff [change-name] [--force]
 │     └─ STOP if < 3.0
 │
 ├─ Step 1: Implementation (apply, with internal plan generation)
-│  ├─ Bash: fab status finish <change> intake fab-ff (auto-activates apply)
+│  ├─ Bash: fab status finish <change> intake fab-ff (if progress.intake
+│  │        is not done — auto-activates apply)
 │  └─ ┌──────────────────────────────────────────┐
 │     │ SUB-AGENT: /fab-continue (Apply)         │
 │     │  Entry sub-step (skip if plan.md exists):│
@@ -70,11 +71,12 @@ User invokes /fab-ff [change-name] [--force]
 │     └─ STOP after 3 failed cycles
 │
 ├─ Step 3: Hydrate
-│  └─ ┌──────────────────────────────────────────┐
-│     │ SUB-AGENT: /fab-continue (Hydrate)       │
-│     │  Read/Write/Edit: docs/memory/ files     │
-│     │  Bash: fab status finish <change> hydrate│
-│     └──────────────────────────────────────────┘
+│  ├─ ┌──────────────────────────────────────────┐
+│  │  │ SUB-AGENT: /fab-continue (Hydrate)       │
+│  │  │  Read/Write/Edit: docs/memory/ files     │
+│  │  │  (no fab status — returns results only)  │
+│  │  └──────────────────────────────────────────┘
+│  └─ Bash: fab status finish <change> hydrate fab-ff
 │
 └─ Pipeline complete.
 ```

@@ -4,6 +4,8 @@
 
 Creates a new change from a natural language description, Linear ticket, or backlog ID. Generates the change folder, writes `intake.md`, infers change type, computes the authoritative intake confidence (no `indicative` flag — 1.10.0), advances intake to `ready`, activates the change, and creates the matching git branch.
 
+**Re-run contract** (Constitution III): a backlog/Linear-ID re-run detects the existing non-archived change and routes to resume (`/fab-switch {name}` + `/fab-continue`) instead of erroring; a natural-language re-run intentionally creates a new change each run. Declared in the skill's Key Properties section.
+
 **Helpers**: Declares `helpers: [_generation]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
 
 ## Flow
@@ -25,6 +27,21 @@ User invokes /fab-new <description>
 │  └─ Read/Grep: existing skills, specs, memory
 │
 ├─ Step 3: Create Change
+│  ├─ [backlog ID detected] collision check first:
+│  │  Bash: fab change resolve {id}  (4-char ID is in the folder prefix)
+│  ├─ [Linear ID detected] collision check first:
+│  │  Bash: grep -l "{ISSUE_ID}" fab/changes/*/.status.yaml
+│  │  (Linear IDs never appear in folder names — they live in
+│  │   .status.yaml issues arrays; the single-level glob
+│  │   naturally excludes archive/)
+│  ├─ [existing non-archived change found by either check]
+│  │  → route to resume: report it + point to
+│  │    /fab-switch {name} then /fab-continue — STOP
+│  │    (no duplicate created; `Change ID already in use`
+│  │     stays as safety net for backlog IDs only — Linear
+│  │     re-runs pass no --change-id, so the scan is the
+│  │     only collision guard)
+│  │  (NL re-run intentionally creates a new change each run)
 │  └─ Bash: fab change new --slug <slug> --log-args <desc>
 │     └─ (creates folder, .status.yaml from template)
 │  └─ [if Linear] Bash: fab status add-issue <change> <id>
@@ -56,7 +73,14 @@ User invokes /fab-new <description>
    ├─ Bash: git branch --show-current
    ├─ Bash: git rev-parse --verify "{name}"        (target exists check)
    ├─ Bash: git config branch.{current}.remote     (upstream check)
-   └─ Bash: git checkout -b / git checkout / git branch -m   (per case)
+   ├─ [Case 4: local-only branch] rename guard (kept in sync
+   │  with git-branch.md Step 4):
+   │  Bash: fab change resolve "$(git branch --show-current)"
+   │  ├─ [resolves to no change] → git branch -m "{name}"
+   │  └─ [matches another change] → git checkout -b "{name}"
+   │     (other change's branch left intact; caveat: the new
+   │      branch inherits the old change's HEAD)
+   └─ Bash: git checkout -b / git checkout   (other cases)
 ```
 
 ### Tools used

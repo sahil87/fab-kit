@@ -59,7 +59,9 @@ Orchestrator (fab-continue / fab-ff / fab-fff) reads _review.md
    1. Collect all findings
    2. Deduplicate by file:line (keep higher severity)
    3. Merge by severity into unified set
-   4. Pass/fail: any must-fix → review fails
+   4. Pass/fail (deterministic): any must-fix → review fails;
+      no must-fix findings (including zero findings) → review passes
+      (should-fix / nice-to-have are reported but never block)
 ```
 
 ### Validation Steps Inventory (Inward Sub-Agent)

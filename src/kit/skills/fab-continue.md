@@ -37,22 +37,22 @@ Both may be provided in any order. Stage names are treated as reset targets; all
 
 ### Step 1: Determine Current Stage
 
-Dispatch on preflight's derived `stage` and `display_state`. If progress is `pending`, run `fab status start <change> <stage> fab-continue` before dispatching.
+Dispatch on preflight's derived `stage` and `display_state`. If progress is `pending`, run `fab status start <change> <stage> fab-continue` before dispatching. **Resume guard**: if `progress.review` is `failed` (an interrupted fail→reset sequence left review stranded), run `fab status start <change> review fab-continue` first — the review-specific failed→active transition exists exactly for this recovery — then dispatch.
 
 **State-based dispatch**: Intake is the only planning stage. `/fab-continue` consolidates work into a single invocation:
-- **`ready`** (intake) → Finish intake, start apply, then execute apply (its entry sub-step generates `plan.md`, then runs tasks)
+- **`ready`** (intake) → Finish intake (auto-activates apply), then execute apply (its entry sub-step generates `plan.md`, then runs tasks)
 - **`active`** (intake) → Generate intake if missing and advance to `ready` (backward compat for interrupted generations)
 - **`active`/`ready`** (execution) → Execute the stage's behavior and finish it
 
 | Derived stage | State | Action |
 |---------------|-------|--------|
-| `intake` | `ready` | finish intake → start apply → execute apply (apply's entry sub-step generates `plan.md` — including its `## Requirements` — then runs tasks) |
+| `intake` | `ready` | finish intake (auto-activates apply) → execute apply (apply's entry sub-step generates `plan.md` — including its `## Requirements` — then runs tasks) |
 | `intake` | `active` | generate intake if missing → advance to `ready` |
 | `apply` | `active`/`ready` | Execute apply (entry: generate `plan.md` if absent; main: run tasks) → on completion run `finish <change> apply fab-continue` (auto-activates review) |
-| `review` | `active`/`ready` | Execute review → pass: run `finish <change> review fab-continue` (auto-activates hydrate). Fail: run `fail <change> review` then `start <change> apply fab-continue` |
+| `review` | `active`/`ready` | Execute review → pass: run `finish <change> review fab-continue` (auto-activates hydrate). Fail: run `fail <change> review` then `reset <change> apply fab-continue` |
 | `hydrate` | `active`/`ready` | Execute hydrate → run `finish <change> hydrate fab-continue` |
-| `ship` | `active`/`ready` | Execute `/git-pr` behavior → on completion `finish <change> ship fab-continue` (auto-activates review-pr) |
-| `review-pr` | `active`/`ready` | Execute `/git-pr-review` behavior → pass: `finish <change> review-pr fab-continue`. Fail: `fail <change> review-pr` |
+| `ship` | `active`/`ready` | Execute `/git-pr` behavior → git-pr finishes ship internally (its Step 4b); only if the stage is still `active` after it returns, run `finish <change> ship fab-continue` (auto-activates review-pr) |
+| `review-pr` | `active`/`ready` | Execute `/git-pr-review` behavior → it routes all terminal paths through its Step 6 and runs its own transitions. Pass/no-reviews: only if the stage is still `active` after it returns, run `finish <change> review-pr fab-continue`. Timeout (Copilot review requested but not yet available): the stage is deliberately left `active` — report and stop, no re-finish. Fail: `fail <change> review-pr` |
 | all `done` | — | Block: "Change is complete." |
 
 ### Step 2: Load Context
@@ -90,6 +90,8 @@ Display summary. Include Assumptions summary for planning stages. End with `Next
 ## Apply Behavior
 
 Apply runs as **two sub-steps in a single skill invocation**: a Plan Generation entry sub-step that produces `plan.md`, followed by the Task Execution main sub-step.
+
+> **When invoked as a subagent** (dispatched by `/fab-ff`/`/fab-fff`): do NOT run any `fab status` command — skip the finish steps below and return results only. The orchestrator owns all status transitions.
 
 ### Preconditions
 
@@ -143,6 +145,8 @@ Plan Generation sub-step is skipped when `plan.md` already exists (idempotent on
 
 Follow **Review Behavior** (`_review.md`). The `_review.md` skill defines both sub-agent dispatches (inward + outward) run in parallel, their preconditions, validation steps, structured output format, and the findings merge procedure.
 
+> **When invoked as a subagent** (dispatched by `/fab-ff`/`/fab-fff`): skip §Verdict entirely — do NOT run any `fab status` command; return the merged findings with pass/fail status only. The orchestrator owns the finish/fail/reset transitions (and the rework loop).
+
 ### Verdict
 
 **Pass**: Run `fab status finish <change> review fab-continue` (auto-activates hydrate). Update acceptance progress via `fab status set-acceptance <change> acceptance_completed <N>`. Output report + `Next: {per state table}`.
@@ -161,6 +165,8 @@ The applying agent triages review comments by priority — not all comments need
 
 ## Hydrate Behavior
 
+> **When invoked as a subagent** (dispatched by `/fab-ff`/`/fab-fff`): skip step 5 (the finish) — do NOT run any `fab status` command; return completion status only. The orchestrator owns the transition.
+
 ### Preconditions
 
 - `progress.review` MUST be `done`. If not: STOP.
@@ -171,7 +177,7 @@ The applying agent triages review comments by priority — not all comments need
 1. Final validation: all `## Tasks` and `## Acceptance` items in `plan.md` are `[x]`
 2. Concurrent change check: warn on overlap with other changes referencing same memory paths
 3. **Read `## Deletion Candidates`** from `plan.md` when present — informational only. Hydrate MAY reference candidates in memory updates (e.g., a Design Decision noting follow-up cleanup). Hydrate MUST NOT generate or modify the section (generation is review's responsibility) and MUST treat an absent section as "no findings" without error
-4. Hydrate `docs/memory/`: create new files/domains (each carrying a `description:` frontmatter one-liner), update existing (Requirements, Design Decisions, Changelog, keep `description:` accurate), then run `fab memory-index` to regenerate the root (domains-only) and domain indexes — never hand-edit index rows or "Last Updated" cells. **Shape SHOULD guidance**: aim for ~5–12 files/folder, depth ≤3, introduce a sub-domain only for a cohesive ≥8-file cluster; `_shared/` and `_unsorted/` are width-exempt. Heed any non-fatal shape warnings `fab memory-index` prints (advisory only).
+4. Hydrate `docs/memory/`: create new files/domains (each carrying a `description:` frontmatter one-liner), update existing (Requirements, Design Decisions, Changelog, keep `description:` accurate). **Merge without duplication**: before appending to a target memory file, check it for an existing entry referencing this change (by change name) and update that entry in place instead of appending a duplicate — the same "replaced in place (not duplicated)" contract as `docs-hydrate-memory.md` and `_review.md`'s `## Deletion Candidates`. Then run `fab memory-index` to regenerate the root (domains-only) and domain indexes — never hand-edit index rows or "Last Updated" cells. **Shape SHOULD guidance**: aim for ~5–12 files/folder, depth ≤3, introduce a sub-domain only for a cohesive ≥8-file cluster; `_shared/` and `_unsorted/` are width-exempt. Heed any non-fatal shape warnings `fab memory-index` prints (advisory only).
 5. Run `fab status finish <change> hydrate fab-continue`
 6. **Pattern capture** *(optional)*: If the change introduced non-obvious implementation patterns that future changes should follow (e.g., a new error handling approach, a reusable abstraction), note them in the relevant memory file's Design Decisions section with the change name for traceability. Skip for implementations that follow existing patterns without introducing new ones
 
@@ -206,7 +212,7 @@ The applying agent triages review comments by priority — not all comments need
 
 | Property | Value |
 |----------|-------|
-| Idempotent? | Yes — planning regenerates, apply resumes, review re-validates |
+| Idempotent? | Yes — planning regenerates, apply resumes, review re-validates, hydrate merges without duplication (existing entries for this change are updated in place) |
 | Modifies source code? | Yes — during apply |
 | Modifies `docs/memory/`? | Yes — during hydrate |
 | Moves change folder / removes `.fab-status.yaml`? | No — use `/fab-archive` |

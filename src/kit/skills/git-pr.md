@@ -284,3 +284,14 @@ Shipped.
 | `chore` | Maintenance, cleanup, housekeeping |
 
 Derived from [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/), consolidated: `style` → `refactor`, `perf` → `feat`/`refactor`, `build` → `ci`.
+
+---
+
+## Key Properties
+
+| Property | Value |
+|----------|-------|
+| Idempotent? | Yes — re-run after ship is a no-op: the "already shipped" path (no uncommitted changes, no unpushed commits, PR exists) re-records the existing PR URL silently and stops; `fab status add-pr` is idempotent and the Step 4c status commit is guarded by `git diff --cached --quiet` |
+| Advances stage? | Yes — ship (start/finish, best-effort) |
+| Modifies `.fab-status.yaml`? | No |
+| Modifies git state? | Yes — commit, push, PR creation |

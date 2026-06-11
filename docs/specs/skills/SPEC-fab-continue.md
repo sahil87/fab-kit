@@ -19,6 +19,8 @@ User invokes /fab-continue [change-name] [stage]
 │     └─ (cascades downstream to pending)
 │
 ├─ Dispatch on current stage + state
+│  (resume guard: progress.review == failed →
+│   fab status start <change> review first)
 │
 │  ┌─────────────────────────────────────────────────┐
 │  │ INTAKE STAGE (the only planning stage)          │
@@ -29,7 +31,8 @@ User invokes /fab-continue [change-name] [stage]
 │  │  (no scoring here — intake score is written by  │
 │  │   /fab-new and /fab-clarify)                    │
 │  │  Bash: fab status advance <stage>               │
-│  │  (intake ready → finish intake, start apply)    │
+│  │  (intake ready → finish intake — auto-activates │
+│  │   apply; no start call)                         │
 │  └─────────────────────────────────────────────────┘
 │
 │  ┌─────────────────────────────────────────────────┐
@@ -96,7 +99,9 @@ User invokes /fab-continue [change-name] [stage]
 │  │                                                 │
 │  │  Read: docs/memory/ files, intake.md            │
 │  │  Write/Edit: docs/memory/{domain}/{file}.md     │
-│  │    (with description: frontmatter)              │
+│  │    (with description: frontmatter; merge        │
+│  │     without duplication — existing entries      │
+│  │     for this change are updated in place)       │
 │  │  Bash: fab memory-index (regenerates indexes)   │
 │  │  Bash: fab status finish <change> hydrate       │
 │  └─────────────────────────────────────────────────┘
@@ -108,7 +113,12 @@ User invokes /fab-continue [change-name] [stage]
 │
 │  ┌─────────────────────────────────────────────────┐
 │  │ REVIEW-PR STAGE                                 │
-│  │  (delegates to /git-pr-review behavior)         │
+│  │  (delegates to /git-pr-review behavior — it     │
+│  │   routes all terminal paths through its Step 6  │
+│  │   and runs its own transitions; finish only if  │
+│  │   the stage is still active after it returns;   │
+│  │   timeout outcome: stage deliberately left      │
+│  │   active — report and stop, no re-finish)       │
 │  └─────────────────────────────────────────────────┘
 │
 └─ Output: summary + Next: line
@@ -132,6 +142,8 @@ User invokes /fab-continue [change-name] [stage]
 | Outward diff review (`_review.md`) | review | Holistic diff review with full repo access via Codex→Claude cascade — dispatched in parallel with inward |
 
 > Review Behavior is delegated to `_review.md` (single source of truth for sub-agent dispatch and findings merge). `fab-continue.md` retains the Verdict section (pass/fail state transitions, rework options).
+
+> **Subagent rule** (f006): when the Apply/Review/Hydrate behavior sections are dispatched as subagents by `/fab-ff`/`/fab-fff`, the subagent skips the finish step / §Verdict and runs no `fab status` command — the orchestrator owns all status transitions. The ship dispatch row likewise only runs `finish <change> ship` if the stage is still `active` after `/git-pr` returns (git-pr finishes ship internally).
 
 ### Bookkeeping commands (hook candidates)
 

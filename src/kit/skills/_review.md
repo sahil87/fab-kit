@@ -150,9 +150,9 @@ After both sub-agents return, their findings are merged into a single prioritize
 1. **Collect**: Gather all findings from both sub-agents
 2. **Deduplicate**: If both sub-agents flag the same file:line issue, consolidate into a single finding (use the higher severity if they differ)
 3. **Merge by severity**: Combine into a unified must-fix / should-fix / nice-to-have list
-4. **Pass/fail determination**:
+4. **Pass/fail determination** (deterministic — no agent discretion):
    - If **any must-fix** finding exists (from either sub-agent) → review **fails**
-   - If only should-fix and/or nice-to-have findings remain (from either sub-agent) → review **may pass**
+   - **No must-fix findings (including zero findings) → review passes.** should-fix and nice-to-have findings are reported but never block.
 
 The merged findings set is returned to the orchestrator for verdict and rework decisions.
 

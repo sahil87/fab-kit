@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -26,15 +27,19 @@ var skillToGroupMap = map[string]string{
 	"fab-switch":          "Start & Navigate",
 	"fab-status":          "Start & Navigate",
 	"fab-discuss":         "Start & Navigate",
+	"git-branch":          "Start & Navigate",
 	"fab-continue":        "Planning",
 	"fab-ff":              "Planning",
 	"fab-fff":             "Planning",
+	"fab-proceed":         "Planning",
 	"fab-clarify":         "Planning",
 	"fab-archive":         "Completion",
 	"git-pr":              "Completion",
+	"git-pr-review":       "Completion",
 	"docs-hydrate-specs":  "Maintenance",
 	"docs-reorg-specs":    "Maintenance",
 	"docs-reorg-memory":   "Maintenance",
+	"fab-operator":        "Maintenance",
 	"fab-setup":           "Setup",
 	"fab-help":            "Setup",
 	"docs-hydrate-memory": "Setup",
@@ -95,13 +100,7 @@ func runFabHelp(cmd *cobra.Command, args []string) error {
 	// Render output
 	fmt.Fprintf(w, "Fab Kit v%s \u2014 Specification-Driven Development\n", version)
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "WORKFLOW")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "  /fab-new \u2500\u2192 /fab-continue (or /fab-ff) \u2500\u2192 /fab-archive")
-	fmt.Fprintln(w, "               \u2195 /fab-clarify")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "  Planning stages: spec \u2192 tasks")
-	fmt.Fprintln(w, "  Execution stages: apply \u2192 review \u2192 hydrate")
+	renderWorkflow(w)
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "COMMANDS")
 
@@ -163,6 +162,18 @@ func runFabHelp(cmd *cobra.Command, args []string) error {
 	fmt.Fprintln(w, "    Run <command> help for details.")
 
 	return nil
+}
+
+// renderWorkflow prints the WORKFLOW section: the command flow and the
+// canonical six-stage pipeline (constitution: intake is the sole gate;
+// there is no spec or tasks stage).
+func renderWorkflow(w io.Writer) {
+	fmt.Fprintln(w, "WORKFLOW")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "  /fab-new ─→ /fab-continue (or /fab-ff) ─→ /fab-archive")
+	fmt.Fprintln(w, "               ↕ /fab-clarify")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "  Pipeline stages: intake → apply → review → hydrate → ship → review-pr")
 }
 
 // skillEntry holds a discovered skill name and description.

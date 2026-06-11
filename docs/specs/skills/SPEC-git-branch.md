@@ -26,7 +26,12 @@ User invokes /git-branch [change-name]
 │  ├─ [target exists] → git checkout "<branch>"
 │  ├─ [on main/master] → git checkout -b "<branch>"
 │  └─ [on other branch]
-│     ├─ [no upstream] → git branch -m "<branch>"
+│     ├─ [no upstream] → rename guard:
+│     │  Bash: fab change resolve "$(git branch --show-current)"
+│     │  ├─ [resolves to no change] → git branch -m "<branch>"
+│     │  └─ [matches another change] → git checkout -b "<branch>"
+│     │     (other change's branch left intact; caveat: new
+│     │      branch inherits the old change's HEAD)
 │     └─ [has upstream] → git checkout -b "<branch>"
 │
 └─ Step 5: Report
@@ -36,7 +41,7 @@ User invokes /git-branch [change-name]
 
 | Tool | Purpose |
 |------|---------|
-| Bash | `fab change resolve`, all git operations |
+| Bash | `fab change resolve` (argument resolution + the Step 4 rename guard on the current branch), all git operations |
 
 ### Sub-agents
 

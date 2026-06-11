@@ -45,6 +45,15 @@ Check for existing mechanisms or scope concerns covering the idea. If covered: p
 
 ### Step 3: Create Change
 
+**Re-run / collision check** (only when a backlog or Linear ID was detected in Step 0): before creating, check whether a non-archived change already exists for that ID. The mechanism differs by ID type:
+
+- **Backlog ID** (4-char — embedded in the folder-name prefix): `fab change resolve {id} 2>/dev/null` — a successful resolution names the existing change.
+- **Linear ID** (never in folder names — slugs exclude issue IDs; the ID is recorded only in `.status.yaml` `issues` arrays): `grep -l "{ISSUE_ID}" fab/changes/*/.status.yaml 2>/dev/null` — the single-level glob naturally excludes `fab/changes/archive/`; a match's parent folder is the existing change.
+
+If a check finds an existing change, do NOT create a duplicate — **route to resume**: report `Change {name} already exists for [{id}].` and point the user to `/fab-switch {name}` then `/fab-continue` (whose intake-`active` dispatch row regenerates a missing intake, recovering an interrupted creation). STOP. (For backlog IDs, `fab change new`'s `Change ID already in use` error remains the safety net if this check is skipped; Linear re-runs have no CLI safety net — no `--change-id` is passed — so this scan is the only collision guard.)
+
+**Natural-language re-run semantics**: a natural-language description intentionally creates a **new change on every run** (fresh random ID) — there is no dedup for NL input.
+
 Run `fab change new` with appropriate flags:
 - `--slug <slug>` — the slug from Step 1 (descriptive only, no issue ID)
 - `--change-id <4char>` — only if a backlog ID was detected in Step 0 (the 4-char backlog ID becomes the change ID)
@@ -167,11 +176,25 @@ Check upstream tracking to choose between Case 4 and 5:
 upstream=$(git config "branch.$(git branch --show-current).remote" 2>/dev/null || true)
 ```
 
-**Case 4 — On a local-only branch** (`upstream` is empty):
+**Case 4 — On a local-only branch** (`upstream` is empty) — apply the same **rename guard** as `git-branch.md` Step 4 (these two are kept in sync): rename only when the current branch does not belong to another change. Check:
+
+```bash
+fab change resolve "$(git branch --show-current)" >/dev/null 2>&1
+```
+
+- **Resolution fails** (current branch matches no change — e.g., a disposable `wt create` name): rename the current branch:
+
 ```bash
 git branch -m "{name}"
 ```
 - Report: `Branch: {name} (renamed from {old_branch})`
+
+- **Resolution succeeds and matches a different change** (the current branch is another change's local-only branch — e.g., after `/fab-switch`): do NOT rename it away — create a new branch, leaving the current one intact (caveat: the new branch inherits the old change's HEAD):
+
+```bash
+git checkout -b "{name}"
+```
+- Report: `Branch: {name} (created, leaving {old_branch} intact)`
 
 **Case 5 — On a pushed branch** (`upstream` is non-empty):
 ```bash
@@ -218,13 +241,25 @@ Next: {per state table — intake state (no activation preamble)}
 | Config/constitution missing | Abort: "Run /fab-setup first." |
 | No description | Ask for one |
 | Intake template missing | Abort: "Kit may be corrupted." |
-| `fab change new` failure | Surface stderr output to user and stop |
+| `fab change new` collision (`Change ID already in use` — backlog IDs only; Linear collisions are caught by Step 3's issues-array scan) | Route to resume: point to `/fab-switch {existing-name}` then `/fab-continue` — do not retry creation (Step 3's collision check normally catches this first) |
+| `fab change new` failure (other) | Surface stderr output to user and stop |
 | `fab change switch` failure (Step 10) | Surface stderr output to user; intake is already at `ready` — user can manually run `/fab-switch {name}` to activate |
 | Not in a git repo (Step 11) | Warn and skip branch creation — change is still activated |
 | `git checkout` / `git branch` failure (Step 11) | Report the git error; change remains activated — user can run `/git-branch` manually |
 | Linear ticket not found / API error | Warn, treat as natural language |
 | Backlog ID not found | Abort with guidance |
 | `fab/backlog.md` missing | Abort: "Use natural language or Linear ID instead." |
+
+---
+
+## Key Properties
+
+| Property | Value |
+|----------|-------|
+| Idempotent? | Partially — re-running with the same backlog/Linear ID routes to resume (`/fab-switch {name}` + `/fab-continue`) instead of creating a duplicate; a natural-language re-run intentionally creates a new change each run |
+| Advances stage? | Yes — intake to `ready` |
+| Modifies `.fab-status.yaml`? | Yes — activates the new change (Step 10) |
+| Modifies git state? | Yes — creates/checks out the change branch (Step 11, non-fatal) |
 
 ---
 

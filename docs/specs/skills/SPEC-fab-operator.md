@@ -57,6 +57,12 @@ The snapshot uses `fab pane map --all-sessions --json` and groups rows by `repo`
 
 ---
 
+## Watches (§7)
+
+Per-tick source polling (Linear/Slack via MCP) with spawn dedup. **Dedup checks `known` plus `completed`**: when a watch-spawned agent reaches its `stop_stage`, the item ID moves from `known` to `completed`, but the source item may still match the watch query — items present in either list are skipped, so completed items are never respawned.
+
+---
+
 ## Auto-Nudge
 
 ### Question Detection

@@ -72,8 +72,8 @@ Each step is **idempotent** — skip if the artifact already exists and is valid
 
 #### 1a. `fab/project/config.yaml`
 
-If missing or raw template (contains `{PROJECT_NAME}`): execute **Config Behavior** (below) in create mode.
-If exists and not a raw template: report "config.yaml already exists — skipping".
+If missing, raw template (contains `{PROJECT_NAME}`), or missing the required fields `project.name`/`project.description` (the canonical `fab init` flow writes a `fab_version`-only config.yaml before sync's copy-if-absent runs): execute **Config Behavior** (below) in create mode.
+If exists with the required fields and not a raw template: report "config.yaml already exists — skipping".
 
 #### 1b. `fab/project/constitution.md`
 
@@ -178,18 +178,19 @@ Create a new `fab/project/config.yaml` interactively or update specific sections
 ### Config Pre-flight
 
 - **Update mode**: `fab/project/config.yaml` must exist. If missing (direct invocation): STOP with `fab/project/config.yaml not found. Run /fab-setup to create it.`
-- **Create mode** (from bootstrap): `fab/project/config.yaml` does not exist.
+- **Create mode** (from bootstrap): `fab/project/config.yaml` does not exist, is a raw template, or is missing the required fields `project.name`/`project.description` (e.g., a `fab init`-created, `fab_version`-only config).
 
 ### Config Create Mode
 
-When `fab/project/config.yaml` does not exist:
+When `fab/project/config.yaml` does not exist (or exists without the required `project.name`/`project.description` fields):
 
 1. Read the project's README, package.json, or other root-level files for context
 2. Ask the user: project name, description, source paths
 3. Read `$(fab kit-path)/scaffold/fab/project/config.yaml` as the starting template
 4. Substitute placeholders with user-provided values: `{PROJECT_NAME}`, `{PROJECT_DESCRIPTION}`, `{SOURCE_PATHS}`
-5. Write the result to `fab/project/config.yaml`
-6. Output: `Created fab/project/config.yaml`
+5. **Preserve `fab_version`**: if the existing config.yaml has a `fab_version` key (e.g., written by `fab init`), carry it into the new file unchanged — the scaffold template lacks it and the fab router errors without it
+6. Write the result to `fab/project/config.yaml`
+7. Output: `Created fab/project/config.yaml`
 
 ### Config Update Mode — Menu Flow
 

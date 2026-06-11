@@ -243,3 +243,56 @@ func TestToFolder_NoChangesDir(t *testing.T) {
 		t.Fatal("expected error when fab/changes/ does not exist")
 	}
 }
+
+// assertNoActiveChangeGuidance verifies the "No active change." error carries
+// the recovery guidance promised by _preamble.md (preflight stderr contains
+// the specific error and suggested fix).
+func assertNoActiveChangeGuidance(t *testing.T, err error) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("expected 'No active change' error, got nil")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "No active change.") {
+		t.Errorf("error = %q, want it to contain 'No active change.'", msg)
+	}
+	if !strings.Contains(msg, "/fab-new") {
+		t.Errorf("error = %q, want it to suggest /fab-new", msg)
+	}
+	if !strings.Contains(msg, "/fab-switch") {
+		t.Errorf("error = %q, want it to suggest /fab-switch", msg)
+	}
+}
+
+func TestToFolder_NoActiveChange_ZeroCandidates(t *testing.T) {
+	// changes/ exists but holds no change with a .status.yaml
+	fabRoot := setupFabRoot(t)
+
+	_, err := ToFolder(fabRoot, "")
+	assertNoActiveChangeGuidance(t, err)
+}
+
+func TestToFolder_NoActiveChange_MissingChangesDir(t *testing.T) {
+	dir := t.TempDir()
+	fabRoot := filepath.Join(dir, "fab")
+	os.MkdirAll(fabRoot, 0755)
+	// No changes/ directory, no .fab-status.yaml symlink
+
+	_, err := ToFolder(fabRoot, "")
+	assertNoActiveChangeGuidance(t, err)
+}
+
+func TestToFolder_NoActiveChange_MultipleCandidates(t *testing.T) {
+	// The multi-candidate variant keeps its own /fab-switch hint.
+	fabRoot := setupFabRoot(t)
+	createChange(t, fabRoot, "260310-abcd-my-change")
+	createChange(t, fabRoot, "260310-ef12-other")
+
+	_, err := ToFolder(fabRoot, "")
+	if err == nil {
+		t.Fatal("expected error for multiple candidates without a symlink")
+	}
+	if !strings.Contains(err.Error(), "multiple changes exist") || !strings.Contains(err.Error(), "/fab-switch") {
+		t.Errorf("error = %q, want the multiple-changes /fab-switch hint", err.Error())
+	}
+}

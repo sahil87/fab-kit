@@ -20,8 +20,10 @@ User invokes /fab-status [change-name]
    │  (or "Plan: not yet generated" when plan absent)
    ├─ Confidence line (from .status.yaml confidence block)
    ├─ Impact line (when .status.yaml `true_impact` present)
-   │  Yellow-highlighted when raw net > 100 OR excluding.net > 50
-   │  (thresholds hard-coded; not project-configurable)
+   │  ⚠️-prefixed + bold when raw net > 100 OR excluding.net > 50
+   │  (emoji + bold are the surviving channels — ANSI SGR is
+   │   stripped by the render path; thresholds hard-coded,
+   │   not project-configurable)
    ├─ Refactor-growth warning (soft, informational)
    │  Fires when change_type==refactor AND
    │  (excluding.net > 50 if present, else net > 50)

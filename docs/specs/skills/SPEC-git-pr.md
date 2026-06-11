@@ -4,6 +4,8 @@
 
 Autonomously commits, pushes, and creates a GitHub PR. No prompts, no questions. Resolves PR type from status/intake/diff. Generates PR body from fab artifacts when available. Records PR URL in `.status.yaml`.
 
+**Re-run contract** (Constitution III, declared in the skill's Key Properties section): re-run after ship is a no-op — the "already shipped" path (no uncommitted changes, no unpushed commits, PR exists) re-records the existing PR URL silently and stops; `fab status add-pr` is idempotent and the Step 4c status commit is guarded by `git diff --cached --quiet`.
+
 ## Flow
 
 ```

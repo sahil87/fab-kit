@@ -47,6 +47,15 @@ Check for existing mechanisms or scope concerns covering the idea. If covered: p
 
 ### Step 3: Create Change
 
+**Re-run / collision check** (only when a backlog or Linear ID was detected in Step 0): before creating, check whether a non-archived change already exists for that ID. The mechanism differs by ID type:
+
+- **Backlog ID** (4-char — embedded in the folder-name prefix): `fab change resolve {id} 2>/dev/null` — a successful resolution names the existing change.
+- **Linear ID** (never in folder names — slugs exclude issue IDs; the ID is recorded only in `.status.yaml` `issues` arrays): `grep -l "{ISSUE_ID}" fab/changes/*/.status.yaml 2>/dev/null` — the single-level glob naturally excludes `fab/changes/archive/`; a match's parent folder is the existing change.
+
+If a check finds an existing change, do NOT create a duplicate — **route to resume**: report `Change {name} already exists for [{id}].` and point the user to `/fab-switch {name}` then `/fab-continue` (whose intake-`active` dispatch row regenerates a missing intake, recovering an interrupted creation). STOP. (For backlog IDs, `fab change new`'s `Change ID already in use` error remains the safety net if this check is skipped; Linear re-runs have no CLI safety net — no `--change-id` is passed — so this scan is the only collision guard.)
+
+**Natural-language re-run semantics**: a natural-language description intentionally creates a **new change on every run** (fresh random ID) — there is no dedup for NL input.
+
 Run `fab change new` with appropriate flags:
 - `--slug <slug>` — the slug from Step 1 (descriptive only, no issue ID)
 - `--change-id <4char>` — only if a backlog ID was detected in Step 0 (the 4-char backlog ID becomes the change ID)
@@ -148,10 +157,22 @@ Next: /fab-switch {name} to make it active, then /fab-continue, /fab-fff, /fab-f
 | Config/constitution missing | Abort: "Run /fab-setup first." |
 | No description | Ask for one |
 | Intake template missing | Abort: "Kit may be corrupted." |
-| `fab change new` failure | Surface stderr output to user and stop |
+| `fab change new` collision (`Change ID already in use` — backlog IDs only; Linear collisions are caught by Step 3's issues-array scan) | Route to resume: point to `/fab-switch {existing-name}` then `/fab-continue` — do not retry creation (Step 3's collision check normally catches this first) |
+| `fab change new` failure (other) | Surface stderr output to user and stop |
 | Linear ticket not found / API error | Warn, treat as natural language |
 | Backlog ID not found | Abort with guidance |
 | `fab/backlog.md` missing | Abort: "Use natural language or Linear ID instead." |
+
+---
+
+## Key Properties
+
+| Property | Value |
+|----------|-------|
+| Idempotent? | Partially — re-running with the same backlog/Linear ID routes to resume (`/fab-switch {name}` + `/fab-continue`) instead of creating a duplicate; a natural-language re-run intentionally creates a new change each run |
+| Advances stage? | Yes — intake to `ready` |
+| Modifies `.fab-status.yaml`? | No — change is not activated |
+| Modifies git state? | No |
 
 ---
 

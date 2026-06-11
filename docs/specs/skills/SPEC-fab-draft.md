@@ -4,6 +4,8 @@
 
 Creates a new change intake without activating the change. Identical to `/fab-new` through Step 9, but stops there — no activation, no git branch. Used to queue changes for later without switching the active context. After creation, run `/fab-switch {name}` to activate.
 
+**Re-run contract** (Constitution III): a backlog/Linear-ID re-run detects the existing non-archived change and routes to resume (`/fab-switch {name}` + `/fab-continue`) instead of erroring; a natural-language re-run intentionally creates a new change each run. Declared in the skill's Key Properties section.
+
 **Helpers**: Declares `helpers: [_generation]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
 
 ## Flow
@@ -25,6 +27,21 @@ User invokes /fab-draft <description>
 │  └─ Read/Grep: existing skills, specs, memory
 │
 ├─ Step 3: Create Change
+│  ├─ [backlog ID detected] collision check first:
+│  │  Bash: fab change resolve {id}  (4-char ID is in the folder prefix)
+│  ├─ [Linear ID detected] collision check first:
+│  │  Bash: grep -l "{ISSUE_ID}" fab/changes/*/.status.yaml
+│  │  (Linear IDs never appear in folder names — they live in
+│  │   .status.yaml issues arrays; the single-level glob
+│  │   naturally excludes archive/)
+│  ├─ [existing non-archived change found by either check]
+│  │  → route to resume: report it + point to
+│  │    /fab-switch {name} then /fab-continue — STOP
+│  │    (no duplicate created; `Change ID already in use`
+│  │     stays as safety net for backlog IDs only — Linear
+│  │     re-runs pass no --change-id, so the scan is the
+│  │     only collision guard)
+│  │  (NL re-run intentionally creates a new change each run)
 │  └─ Bash: fab change new --slug <slug> --log-args <desc>
 │     └─ (creates folder, .status.yaml from template)
 │  └─ [if Linear] Bash: fab status add-issue <change> <id>

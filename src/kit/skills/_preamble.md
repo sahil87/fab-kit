@@ -257,6 +257,7 @@ These command families cover ~90% of skill usage. See `_cli-fab` for the full re
 - `fab status finish <change> review` auto-logs review `"passed"`; `fab status fail <change> review` auto-logs `"failed"`.
 - `fab log command` is best-effort — always trail with `2>/dev/null || true`.
 - `<change>` argument everywhere accepts 4-char ID, folder substring, or full folder name.
+- **Failure rule**: any fab command not explicitly marked best-effort (`2>/dev/null || true`) that exits non-zero → STOP and surface stderr; resumability handles the re-run. This rule defers to explicit per-skill handling where a skill intentionally branches on a non-zero exit.
 
 ---
 

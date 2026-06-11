@@ -119,11 +119,25 @@ git checkout -b "{branch_name}"
 upstream=$(git config "branch.$(git branch --show-current).remote" 2>/dev/null || true)
 ```
 
-- **No upstream** (local-only branch) — rename the current branch:
+- **No upstream** (local-only branch) — **rename guard**: rename only when the current branch does not belong to another change. Check whether the current branch name matches a change folder:
+
+```bash
+fab change resolve "$(git branch --show-current)" >/dev/null 2>&1
+```
+
+  - **Resolution fails** (current branch matches no change — e.g., a disposable `wt create` name): rename the current branch:
 
 ```bash
 git branch -m "{branch_name}"
 ```
+
+  - **Resolution succeeds and matches a different change** (the current branch is another change's local-only branch — e.g., after `/fab-switch`): do NOT rename it away. Create a new branch, leaving the current one intact:
+
+```bash
+git checkout -b "{branch_name}"
+```
+
+  > Known caveat: the `checkout -b` fallback inherits the old change's HEAD — unpushed commits from the previous change carry over onto the new branch.
 
 - **Has upstream** (branch has been pushed) — create a new branch, leaving the current one intact:
 
