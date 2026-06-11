@@ -89,7 +89,7 @@ The API SHALL return errors as JSON objects with `error`, `message`, and `code` 
 
 ## Assumptions Summary Block
 
-Every planning skill invocation SHALL end its output with an Assumptions summary and persist it as a trailing `## Assumptions` section in the generated artifact.
+Every planning skill invocation SHALL include an Assumptions summary as the final content block of its output — immediately before the closing `Next:` line required by `_preamble.md` § Next Steps Convention — and persist it as a trailing `## Assumptions` section in the generated artifact.
 
 **Output format** (displayed to user):
 
