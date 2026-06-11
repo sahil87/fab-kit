@@ -108,11 +108,11 @@ On success: `progress.ship` becomes `done`, `progress.review-pr` auto-activates.
 
 *(Skip if `progress.review-pr` is `done`.)*
 
-Dispatch `/git-pr-review` as subagent — change: `{id}`. The subagent detects existing reviews, triages comments, applies fixes, and pushes. If no reviews exist, prints a stop message and completes. Handles statusman integration internally (start/finish/fail review-pr stage). Returns completion status.
+Dispatch `/git-pr-review` as subagent — change: `{id}`. The subagent detects existing reviews, triages comments, applies fixes, and pushes. If no reviews exist, it requests a Copilot review and polls up to 10 minutes — see the timeout outcome below. Handles statusman integration internally (start/finish/fail review-pr stage). Returns completion status.
 
 **If review-pr fails** (no PR found, processing error): STOP with the error.
 
-**If no reviews found**: the stage completes as `done` — this is a successful no-op.
+**If no actionable reviews** (no automated reviewer available, or reviews with no inline comments to process): the stage completes as `done` — this is a successful no-op.
 
 **If timeout** (Copilot review requested but not available within 10 minutes — git-pr-review's Step 6 timeout outcome): the subagent deliberately leaves `review-pr` `active` (no finish, no fail). Report `Review-PR pending (Copilot review requested, timed out waiting) — re-run /git-pr-review when ready` **instead of** `Pipeline complete.` and stop.
 
