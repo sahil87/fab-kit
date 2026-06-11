@@ -2,7 +2,7 @@
 
 ## Summary
 
-Bootstraps a new project or manages config/constitution/migrations. Creates `fab/project/` files, `docs/memory/`, `docs/specs/`, skill symlinks, and gitignore entries. Safe to re-run.
+Bootstraps a new project or manages config/constitution/migrations. Creates `fab/project/` files and — via `fab sync` — `docs/memory/`, `docs/specs/`, deployed skill copies, and gitignore entries. Safe to re-run.
 
 ## Flow
 
@@ -34,18 +34,20 @@ User invokes /fab-setup [subcommand]
 │  │  ├─ (agent generates principles)
 │  │  └─ Write: fab/project/constitution.md
 │  │
-│  ├─ Phase 1c-1e: Optional project files
-│  │  └─ Write: context.md, code-quality.md, code-review.md (from scaffold)
-│  │
-│  ├─ Phase 1f-1g: docs directories
-│  │  └─ Write: docs/memory/index.md, docs/specs/index.md (from scaffold)
-│  │
-│  ├─ Phase 1i: Changes directory + sync
-│  │  └─ Bash: src/kit/scripts/fab-sync.sh
-│  │     └─ (creates directories, symlinks, migration version)
-│  │
-│  └─ Phase 1k: .gitignore
-│     └─ Edit: .gitignore (append .fab-status.yaml)
+│  └─ Phase 1c: fab sync (sync-first reorder, 260611-szxd f077 —
+│     │          moved from last [old 1j] to immediately after 1a/1b,
+│     │          since sync needs config.yaml's fab_version; outcome
+│     │          identical via idempotency. Old hand-scaffolding steps
+│     │          1c-1g/1i/1k are deleted — sync owns them all)
+│     └─ Bash: fab sync
+│        ├─ (copy-if-absent: context.md, code-quality.md, code-review.md,
+│        │   docs/memory/index.md, docs/specs/index.md)
+│        ├─ (directories: fab/changes/ + archive + .gitkeep)
+│        ├─ (fab/.kit-migration-version — version logic per 1d note)
+│        ├─ (skill deployment to .claude/skills/)
+│        ├─ (.gitignore line-ensure merge: .fab-* — subsumes the old
+│        │   literal .fab-status.yaml append)
+│        └─ [non-zero exit] STOP — surface sync output (failure guard)
 │
 ├── config: Config ──────────────────────────────────────
 │  ├─ Read: fab/project/config.yaml
@@ -58,9 +60,16 @@ User invokes /fab-setup [subcommand]
 │  └─ Edit: fab/project/constitution.md
 │
 └── migrations: Migrations ─────────────────────────────
-   ├─ Read: fab/.kit-migration-version, $(fab kit-path)/VERSION
-   ├─ Bash: fab migrations-status --json   (binary-owned discovery)
-   │  └─ STOP if `overlaps` non-empty (report conflict)
+   ├─ Bash: fab migrations-status --json   (binary-owned discovery —
+   │  │     incl. version read/parse/compare; 260611-szxd f080 deleted
+   │  │     the skill-side existence checks, integer parsing, manual
+   │  │     compare step, and Semver Comparison section. The binary
+   │  │     exits non-zero with remediation hints on missing version
+   │  │     files — skill surfaces stderr and stops)
+   │  ├─ STOP if `overlaps` non-empty (report conflict)
+   │  └─ `applicable` empty → branch on returned local/engine fields:
+   │     equal → "Already up to date"; local ahead → "Local Version
+   │     Ahead"; otherwise → "No Migrations Apply"
    ├─ For each file in `applicable` (in order):
    │  ├─ Read: $(fab kit-path)/migrations/{file}
    │  ├─ (execute pre-checks, changes, verification)
@@ -68,10 +77,10 @@ User invokes /fab-setup [subcommand]
    └─ Finalize (version already at last TO; no-op case stamped by upgrade-repo)
 ```
 
-Discovery (scan/parse/validate-non-overlap/sort + the applicability walk) moved
-out of skill prose into the `fab-kit` binary (`fab migrations-status`). The skill
-now consumes the `--json` result and still owns *application* of each migration
-file (Pre-check/Changes/Verification + writing `TO`), per Constitution I.
+Discovery (version read/parse/compare + scan/validate-non-overlap/sort + the
+applicability walk) is owned by the `fab-kit` binary (`fab migrations-status`).
+The skill consumes the `--json` result and still owns *application* of each
+migration file (Pre-check/Changes/Verification + writing `TO`), per Constitution I.
 
 ### Tools used
 
@@ -79,8 +88,8 @@ file (Pre-check/Changes/Verification + writing `TO`), per Constitution I.
 |------|---------|
 | Read | Scaffold templates, project files, migration files |
 | Write | Project files, migration version |
-| Edit | Config, constitution, gitignore |
-| Bash | `fab doctor`, `fab-sync.sh`, `fab log command`, `fab migrations-status --json` (migration discovery) |
+| Edit | Config, constitution (`.gitignore` is owned by `fab sync`'s line-ensure merge — no direct edit since the 1k deletion) |
+| Bash | `fab doctor`, `fab sync`, `fab log command`, `fab migrations-status --json` (migration discovery) |
 
 ### Sub-agents
 

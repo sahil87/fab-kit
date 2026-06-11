@@ -115,13 +115,12 @@ This captures comments from all submitted reviews regardless of reviewer. Track 
 
 For each fetched comment:
 
-1. **Classify**: Determine if the comment is **fixable** (identifies a specific code issue with an implied or explicit fix — e.g., "This variable is unused", "Missing null check", "Should use `const` instead of `let`"), **deferrable** (valid concern but out of scope for this PR — e.g., "This whole module needs better error handling"), **skippable** (nitpick, stale reference, or not applicable — e.g., "I'd name this differently", references code already changed), or **informational** (summary, praise, general observation, question without a clear fix action — e.g., "Looks good overall", "Why was this approach chosen?")
-2. **Skip** informational comments — no disposition, no reply
-3. **Assign disposition intent** to each non-informational comment:
-   - **`fix`** — the comment identifies a specific code issue and a fix will be applied
-   - **`defer`** — the comment raises a valid concern but it's out of scope for this PR
-   - **`skip`** — the comment is a nitpick, stale, or not applicable
-4. **For `fix` comments**:
+1. **Classify and assign disposition intent** in one pass (reply formats: see the Disposition Reference table — the single source):
+   - **`fix`** — identifies a specific code issue with an implied or explicit fix that will be applied (e.g., "This variable is unused", "Missing null check", "Should use `const` instead of `let`")
+   - **`defer`** — valid concern but out of scope for this PR (e.g., "This whole module needs better error handling")
+   - **`skip`** — nitpick, stale reference, or not applicable (e.g., "I'd name this differently", references code already changed)
+   - **informational** — summary, praise, general observation, or question without a clear fix action (e.g., "Looks good overall", "Why was this approach chosen?") — no disposition, no reply
+2. **For `fix` comments**:
    - Read the file at `{path}`
    - Understand the issue described in `{body}`
    - If `{line}` is non-null, focus on that area of the file
@@ -163,10 +162,7 @@ For each comment about to receive a reply, check if any fetched reply (where `in
 
 **For each comment with a disposition** that passes deduplication:
 
-1. Compose reply text based on disposition intent (replies use past-tense to confirm the outcome):
-   - `fix` → `Fixed — {description}. ({sha})` where `{sha}` is the short (7-char) commit SHA and `{description}` is the brief change summary recorded during triage
-   - `defer` → `Deferred — {reason}.`
-   - `skip` → `Skipped — {reason}.`
+1. Compose the reply text per the **Disposition Reference** table below (past-tense outcome confirmations). For `fix` replies, `{sha}` is the short (7-char) commit SHA from Step 5 and `{description}` is the brief change summary recorded during triage.
 
 2. Post reply via REST API:
    ```bash
@@ -228,12 +224,9 @@ The `reviewer` field is set when reviews are detected: `yq -i ".stage_metrics.\"
 ## Rules
 
 - Fully autonomous — never ask questions, never present options
-- Fail fast — if any step fails, report the error and stop immediately. Exceptions: best-effort status writes (Step 6), best-effort replies (Step 5.5), and the best-effort push of the status-commit step (Step 6.5), which report but do not abort.
-- No partial commits — for the code-fix path (Step 5), if the commit or push fails, no changes are left staged (`git reset` clears them). This applies to the code-fix commit only; the Step 6.5 status commit does not `git reset` on push failure (the local commit is retained for a later push).
+- Fail fast — if any step fails, report the error and stop immediately, except where a step explicitly declares best-effort handling (it reports but does not abort)
 - Targeted fixes only — do not modify code beyond what each comment addresses
 - Idempotent — re-running after fixes finds no new modifications and exits cleanly; re-running after replies skips already-replied comments; re-running after the status commit finds nothing staged (`git diff --cached --quiet`) and is a silent no-op
-- Best-effort replies — failed reply POSTs do not abort the skill or mark the stage as failed
-- Best-effort status commit (Step 6.5) — a transient `git push` failure is reported but does not abort a completed review cycle or fail the stage
 
 ---
 

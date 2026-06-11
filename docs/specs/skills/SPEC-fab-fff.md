@@ -2,27 +2,24 @@
 
 ## Summary
 
-Full pipeline gated on the single intake gate (identical to fab-ff). Extends through ship and review-pr (fab-ff stops at hydrate). No `/fab-clarify` runs inside the bracket — clarification is intake-only. Max 3 rework cycles on review failure with escalation rule. Like fab-ff, the orchestrator owns the `fab status` transitions for the `/fab-continue`-behavior subagents (apply/review/hydrate): their prompts include "do NOT run `fab status` commands; return results only" (incl. the hydrate finish), the intake finish runs when `progress.intake` is not `done`, and a review-`failed` state is recovered via `fab status start <change> review` before resuming. Ship and review-pr are self-managed: `/git-pr` and `/git-pr-review` run their own stage transitions internally. Accepts `--force` to bypass the intake gate.
+Full pipeline gated on the single intake gate (identical to fab-ff). Since 260611-szxd the skill file is a **thin wrapper over the shared pipeline bracket in `_pipeline.md`** (see `SPEC-_pipeline.md`) with the two bracket parameters — `{driver}` = `fab-fff`, `{terminal}` = `review-pr` — plus the fff-only Steps 4–5 (ship, review-pr), its own Output block, and the fff-only error rows. The bracket owns the gate, resumability, Steps 1–3, the auto-rework loop (3-cycle cap, explicit per-cycle choreography, exhaustion terminal state review `failed`), and the shared error rows. Ship and review-pr are self-managed: `/git-pr` and `/git-pr-review` run their own stage transitions internally (the dispatch exception is noted in `fab-fff.md`); `/git-pr-review`'s timeout outcome deliberately leaves `review-pr` `active` and replaces `Pipeline complete.` with a re-run pointer. Accepts `--force` to bypass the intake gate.
 
-**Helpers**: Declares `helpers: [_generation, _review, _srad]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
+**Helpers**: Declares `helpers: [_generation, _review, _srad, _pipeline]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
 
 ## Flow
 
 ```
 User invokes /fab-fff [change-name] [--force]
 │
-├─ Read: _preamble.md (always-load layer)
-├─ Bash: fab preflight [change-name]
+├─ Read: _preamble.md (always-load layer), helpers incl. _pipeline.md
 │
-├─ Gate: Intake Gate (skip if --force)
-│  └─ Bash: fab score --check-gate --stage intake <change>
-│     └─ STOP if < 3.0
-│
-├─ Steps 1-3: Same as /fab-ff Steps 1-3 (apply [plan.md co-gen + tasks], review, hydrate)
-│  └─ Driver argument is "fab-fff" instead of "fab-ff". No in-bracket clarify.
+├─ Execute the _pipeline.md bracket with {driver}=fab-fff, {terminal}=review-pr
+│  (see SPEC-_pipeline.md: pre-flight gate, Step 1 apply, Step 2 review with
+│   auto-rework loop, Step 3 hydrate)
 │
 ├─ Step 4: Ship
-│  └─ SUB-AGENT: /git-pr (commit, push, create PR)
+│  └─ SUB-AGENT: /git-pr (commit, push, create PR; manages its own
+│     ship-stage transitions)
 │
 └─ Step 5: Review-PR
    └─ SUB-AGENT: /git-pr-review (process PR review comments;
@@ -37,10 +34,8 @@ User invokes /fab-fff [change-name] [--force]
 
 ### Sub-agents
 
-Same as fab-ff: /fab-continue (Apply, Review, Hydrate), /git-pr, /git-pr-review. No clarify sub-agent (intake-only, runs before the bracket).
-
-> Step 2 review behavior (inward requirements + acceptance validation and outward holistic diff review) is defined in `_review.md`. `/fab-continue` Review Behavior delegates to `_review.md` — the authoritative source for inward + outward sub-agent dispatch and findings merge.
+Bracket sub-agents per `SPEC-_pipeline.md` (/fab-continue Apply, Review, Hydrate) plus /git-pr and /git-pr-review. No clarify sub-agent (intake-only, runs before the bracket).
 
 ### Bookkeeping commands (hook candidates)
 
-Same as fab-ff.
+Same as fab-ff (see `SPEC-fab-ff.md`); ship/review-pr transitions are run internally by /git-pr and /git-pr-review.

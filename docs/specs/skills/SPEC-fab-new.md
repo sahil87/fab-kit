@@ -71,19 +71,20 @@ User invokes /fab-new <description>
 ├─ Step 10: Activate Change
 │  └─ Bash: fab change switch "{name}"
 │
-└─ Step 11: Create Git Branch
+└─ Step 11: Create Git Branch (single first-match-wins table —
+   │         260611-szxd f032; kept in sync with git-branch.md Step 4
+   │         via an in-file comment; same five cases, commands, and
+   │         report strings)
    ├─ Bash: git rev-parse --is-inside-work-tree   (repo check — skip if fails)
-   ├─ Bash: git branch --show-current
-   ├─ Bash: git rev-parse --verify "{name}"        (target exists check)
-   ├─ Bash: git config branch.{current}.remote     (upstream check)
-   ├─ [Case 4: local-only branch] rename guard (kept in sync
-   │  with git-branch.md Step 4):
-   │  Bash: fab change resolve "$(git branch --show-current)"
-   │  ├─ [resolves to no change] → git branch -m "{name}"
-   │  └─ [matches another change] → git checkout -b "{name}"
-   │     (other change's branch left intact; caveat: the new
-   │      branch inherits the old change's HEAD)
-   └─ Bash: git checkout -b / git checkout   (other cases)
+   ├─ Context reads: git branch --show-current ·
+   │  git rev-parse --verify "{name}" ·
+   │  git config branch.{current}.remote ·
+   │  fab change resolve "$(git branch --show-current)"
+   └─ Evaluate the 5-row table in order, first match wins:
+      already-on-target (no-op) / target-exists (checkout) /
+      on-main (checkout -b) / local-only + rename guard passes
+      (branch -m) / other-change's local-only branch or pushed
+      branch (checkout -b, leaving {old_branch} intact)
 ```
 
 ### Tools used

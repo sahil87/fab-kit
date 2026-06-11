@@ -98,11 +98,11 @@ A skill MAY declare additional helper files it needs to load via frontmatter:
 ---
 name: fab-ff
 description: ...
-helpers: [_generation, _review, _srad]
+helpers: [_generation, _review, _srad, _pipeline]
 ---
 ```
 
-**Allowed values**: `_generation`, `_review`, `_cli-fab`, `_cli-external`, `_srad`.
+**Allowed values**: `_generation`, `_review`, `_cli-fab`, `_cli-external`, `_srad`, `_pipeline`.
 
 **Not allowed** (inlined into this preamble): `_naming`, `_cli-rk`.
 

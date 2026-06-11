@@ -195,13 +195,30 @@ The top-level `branch_map` persists change ID → `{ branch, repo }` mappings. E
 
 On each tick:
 
-1. **Snapshot** — run `fab operator tick-start` (increments `tick_count`, writes `last_tick_at`, outputs `tick: N` and `now: HH:MM`). Parse stdout for the tick number and current time. Then run `fab pane map --all-sessions --json` (the `--all-sessions` flag is required so the operator sees agents in **every** session on its server, not just its own; `--json` exposes the per-row `repo` field — the agent's absolute main-worktree root, or `null` when the pane is not in a git repo) and read the server-keyed state file. **Group the rows first by `repo`, then by `session`** within each repo. Compute status for all tracked items: stage advances, completions, review failures, pane deaths, and watch statuses from the last persisted check (`last_checked` / `last_error` / last counts). Output the status frame:
+1. **Snapshot** — run `fab operator tick-start` (increments `tick_count`, writes `last_tick_at`, outputs `tick: N` and `now: HH:MM`). Parse stdout for the tick number and current time. Then run `fab pane map --all-sessions --json` (the `--all-sessions` flag is required so the operator sees agents in **every** session on its server, not just its own; `--json` exposes the per-row `repo` field — the agent's absolute main-worktree root, or `null` when the pane is not in a git repo) and read the server-keyed state file. **Group the rows first by `repo`, then by `session`** within each repo. Compute status for all tracked items: stage advances, completions, review failures, pane deaths, and watch statuses from the last persisted check (`last_checked` / `last_error` / last counts). Output the status frame — see **Status Frame Format** below.
 
-The frame is rendered as **markdown** — the operator emits it as an assistant message, which the agent harness renders as GitHub-flavored markdown in the terminal. **This is the binding constraint on every styling choice below.** ANSI SGR escapes (`\e[…m`) do NOT survive this path — they are stripped whether emitted as literal `\e[` text or as real ESC bytes (empirically verified). Markdown headings (`#`/`##`/`###`) also render as literal text in the harness and MUST NOT be used. The channels that DO render are: **tables**, **emoji** (the only color channel), **bold** (`**…**`), *italic*, `code spans`, and markdown links. The frame uses exactly these.
+2. **Auto-nudge** — for each idle agent, run question detection (§5). If a newly-spawned agent advances past intake, send `/git-branch` to align the branch.
+3. **Watches** — for each watch, query the source, compare against `known` + `completed` (§7 step 2's dedupe rule), spawn on new matches (§7).
+4. **Autopilot dispatch** — if an autopilot queue is active, run the next autopilot action (§6). Autopilot-driven changes are visible in the frame via `▶`.
+5. **Removals** — remove completed changes (reached stop stage or terminal stage) and dead panes from the monitored set.
+6. **Persist** — write updated state to the operator state file
+7. **Loop lifecycle** — if monitored set is empty, no autopilot, and no watches, stop the loop.
+
+Actions (nudges, removals, autopilot progress) render as an *italic* footnote line below the frame as they happen, `·`-separated, keeping them visually subordinate to the table frame:
+
+```
+*k8ds: auto-answered 'Allow Bash: npm test?' → y · Removed ab12 (complete), ef56 (pane gone) · Autopilot: cd34 → next ef56*
+```
+
+When the action log is long, the operator MAY split it across several italic lines rather than one — but each remains italic to stay subordinate to the frame.
+
+### Status Frame Format
+
+The frame is emitted as an assistant message that the agent harness renders as GitHub-flavored markdown in the terminal. **Render rule** (the binding constraint on every styling choice below): emit **bare markdown** — no code fence, no headings, no ANSI escapes (none of these survive the render path); the channels that DO render are **tables**, **emoji** (the only color channel), **bold** (`**…**`), *italic*, `code spans`, and plain URLs. The frame uses exactly these.
 
 The frame is: a **header line**, one **repo section** per repo (an anchor line + a change table), then a **Watches** section (anchor line + table).
 
-> **Emit the frame as bare markdown — do NOT wrap it in a ` ``` ` code fence.** The fenced block below is for *documentation* (so this skill file shows the literal source). At runtime the operator must emit the header, anchors, and tables directly into its message body. A fenced frame renders as literal text in the harness — the tables would not lay out and the emoji/bold would not style, recreating the exact failure this design fixes.
+> **Runtime no-fence rule (agent-critical)**: do NOT wrap the frame in a ` ``` ` code fence. The fenced block below is for *documentation* (so this skill file shows the literal source). At runtime the operator must emit the header, anchors, and tables directly into its message body — a fenced frame renders as literal text (the tables would not lay out and the emoji/bold would not style).
 
 Example (this is the literal markdown the operator emits, shown fenced here only to display the source):
 
@@ -232,9 +249,9 @@ Example (this is the literal markdown the operator emits, shown fenced here only
 | `slack-alerts` | ~/code/bar | 🟢 | 0 new · 1m ago |
 ```
 
-**Header line**: `🛰️ **Operator** · {HH:MM} · tick #{N} · **{N} tracked**`. The 🛰️ emoji and bold give it prominence (headings don't render, so emoji + bold is the prominence channel). `N tracked` is the total count of all entries (changes + watches) — no per-type or per-repo counts.
+**Header line**: `🛰️ **Operator** · {HH:MM} · tick #{N} · **{N} tracked**`. The 🛰️ emoji and bold give it prominence. `N tracked` is the total count of all entries (changes + watches) — no per-type or per-repo counts.
 
-**Repo-section anchor**: `📂 **{repo-path}** · {session}` — one per repo, with the repo's change table beneath it. The 📂 emoji is the section landmark the eye jumps to (replacing the role headings would play). The session label drops the literal word "session:". A repo whose main-worktree root could not be resolved (`null` in the `repo` JSON field) renders under a `📂 **(unresolved repo)**` anchor rather than being dropped.
+**Repo-section anchor**: `📂 **{repo-path}** · {session}` — one per repo, with the repo's change table beneath it. The 📂 emoji is the section landmark the eye jumps to. The session label drops the literal word "session:". A repo whose main-worktree root could not be resolved (`null` in the `repo` JSON field) renders under a `📂 **(unresolved repo)**` anchor rather than being dropped.
 
 **Change table** columns (consistent across all repo sections):
 
@@ -250,7 +267,7 @@ Example (this is the literal markdown the operator emits, shown fenced here only
 
 **Ordering**: Repo sections first (repos sorted by path, sessions sorted by name within a repo, changes sorted by enrollment time within a session), then the Watches section (watches sorted alphabetically by name).
 
-**Health emoji** (the only color channel that survives the render path — geometric glyphs like `●◌✗` render monochrome and are NOT used):
+**Health emoji** (geometric glyphs like `●◌✗` render monochrome and are NOT used):
 
 | State | Change | Watch | Emoji |
 |-------|--------|-------|:-----:|
@@ -262,28 +279,11 @@ Example (this is the literal markdown the operator emits, shown fenced here only
 
 **Markdown styling**: emoji carry the health color; **bold** marks the header title, `N tracked`, and repo-path anchors; `code spans` mark change/watch IDs and watch names; the PR cell holds a **full URL as plain text** (selectable/copyable in any terminal, including a plain xterm — markdown `[#N](url)` link syntax is deliberately NOT used because xterm shows only the `#N` display text, not a copyable URL). The autopilot `▶` is a plain monochrome glyph in its own column.
 
-**Why emoji + table, not ANSI**: an earlier iteration colored an ANSI-wrapped glyph (`\e[32m●\e[0m`). That does not render through the operator's assistant-message → markdown path — the escapes are stripped. Emoji are glyphs, not escape codes, so they survive and carry color; the table gives real column alignment (no hand-spaced columns) and absorbs the wide PR URL without breaking layout. Both degrade cleanly: strip emoji and the Stage text still names the state; the URL is plain text regardless.
-
 **Stuck marker**: `⚠️` trails the Stage cell text on any change row whose idle duration has exceeded the stuck threshold (§8, default 15m) at a non-terminal stage — the same condition that shows the 🔴 health emoji. It is a redundant inline flag drawing the eye to rows needing manual investigation; rows below the threshold carry no marker.
 
 **Autopilot marker**: `▶` marks changes driven by the autopilot queue. Non-autopilot changes (manually enrolled or watch-spawned) show blank. Queue state is readable from the list — which entries have `▶`, which are complete.
 
 **Watch timestamps**: Relative format (`{N}m ago`) matching the idle duration format: `{N}s ago` (< 60s), `{N}m ago` (60s–59m), `{N}h ago` (>= 60m). Floor division.
-
-2. **Auto-nudge** — for each idle agent, run question detection (§5). If a newly-spawned agent advances past intake, send `/git-branch` to align the branch.
-3. **Watches** — for each watch, query the source, compare against `known` + `completed` (§7 step 2's dedupe rule), spawn on new matches (§7).
-4. **Autopilot dispatch** — if an autopilot queue is active, run the next autopilot action (§6). Autopilot-driven changes are visible in the frame via `▶`.
-5. **Removals** — remove completed changes (reached stop stage or terminal stage) and dead panes from the monitored set.
-6. **Persist** — write updated state to the operator state file
-7. **Loop lifecycle** — if monitored set is empty, no autopilot, and no watches, stop the loop.
-
-Actions (nudges, removals, autopilot progress) render as an *italic* footnote line below the frame as they happen, `·`-separated, keeping them visually subordinate to the table frame:
-
-```
-*k8ds: auto-answered 'Allow Bash: npm test?' → y · Removed ab12 (complete), ef56 (pane gone) · Autopilot: cd34 → next ef56*
-```
-
-When the action log is long, the operator MAY split it across several italic lines rather than one — but each remains italic to stay subordinate to the frame.
 
 ### Idle Message
 
@@ -456,33 +456,15 @@ Dependencies are declared through three conversational paths, all of which coexi
 
 > **Pipeline-first routing (§1):** All three work paths below MUST go through the fab pipeline. For *new* work, this means `/fab-new` followed by a pipeline command; for already-intaked changes, start from the appropriate pipeline command stage instead of repeating `/fab-new`. The operator MUST NOT send raw implementation instructions directly to agent panes. See the "Pipeline-first routing" principle in §1.
 
-The operator accepts work in three forms. All three run the repo-targeted spawn sequence above — establish the target repo first, create the worktree in that repo's directory, read `<spawn_cmd>` via `fab spawn-command --repo <target-repo>`, and enroll with `repo` + `session`:
+The operator accepts work in three forms. Each runs the §6 spawn sequence above (establish target repo → `wt create` in it → resolve dependencies → `fab spawn-command --repo <target-repo>` → open agent tab → enroll with `repo` + `session`); only the entry-form specifics below differ:
 
-**From existing change** (already has intake or further):
-1. Establish target repo (the change's `repo`) + create worktree in it (`wt create --non-interactive --worktree-name <wt>`)
-2. Resolve dependencies (same-repo cherry-pick, cross-repo ordering-only — see above)
-3. Spawn agent: `tmux new-window -n "»<wt>" -c <worktree-path> "<spawn_cmd> '/fab-switch <change> && /fab-proceed'"`
-4. Enroll in monitored set (with `repo` + `session`)
-5. On completion: PR ready, optionally archive
+| Entry form | Target repo / pre-step | Initial command (sent via the spawn sequence's agent tab) |
+|------------|------------------------|-----------------------------------------------------------|
+| **Existing change** (already has intake or further) | The change's `repo` (monitored entry or `branch_map`) | `/fab-switch <change> && /fab-proceed` — `/fab-switch` activates the target change so `/fab-proceed` knows which one to run; `/fab-proceed` then handles `/git-branch` → `/fab-fff` automatically |
+| **Raw text** (e.g., "fix login after password reset") | The repo the user names; default the operator's launch repo | `/fab-new <shell_escaped_description>` — the raw description safely shell-escaped for inclusion in a single-quoted shell argument (do NOT insert unescaped raw text directly) |
+| **Backlog ID or Linear issue** (structured) | Pre-step: look up the idea (`idea show <id>`) or resolve the Linear issue first | `/fab-new <id>` |
 
-`/fab-switch` activates the target change so `/fab-proceed` knows which one to run. `/fab-proceed` then handles `/git-branch` → `/fab-fff` automatically.
-
-**From raw text** (e.g., "fix login after password reset"):
-1. Establish target repo (the repo the user names; default the operator's launch repo) + create worktree in it (`wt create --non-interactive`)
-2. Resolve dependencies (same-repo cherry-pick, cross-repo ordering-only — see above)
-3. Spawn agent: `tmux new-window -n "»<wt>" -c <worktree-path> "<spawn_cmd> '/fab-new <shell_escaped_description>'"` — where `<shell_escaped_description>` is the raw description text safely shell-escaped for inclusion in a single-quoted shell argument (do not insert unescaped raw text directly)
-4. Enroll in monitored set (with `repo` + `session`)
-5. On completion: PR ready, optionally archive
-
-**From backlog ID or Linear issue** (structured):
-1. Look up the idea (`idea show <id>`) or resolve the Linear issue
-2. Establish target repo + create worktree in it (`wt create --non-interactive --worktree-name <wt>`)
-3. Resolve dependencies (same-repo cherry-pick, cross-repo ordering-only — see above)
-4. Spawn agent: `tmux new-window -n "»<wt>" -c <worktree-path> "<spawn_cmd> '/fab-new <id>'"`
-5. Enroll in monitored set (with `repo` + `session`)
-6. On completion: PR ready, optionally archive
-
-Both raw text and backlog paths use `/fab-new` to generate a proper intake with traceability. `/fab-new` captures the raw input in the intake's Origin section — the user just says "fix [description]" and the operator does the rest.
+On completion (all three): PR ready, optionally archive. Both raw text and backlog paths use `/fab-new` to generate a proper intake with traceability. `/fab-new` captures the raw input in the intake's Origin section — the user just says "fix [description]" and the operator does the rest.
 
 ### Autopilot
 
@@ -504,8 +486,8 @@ Queue ordering:
 
 The operator works each change through the pipeline, applying pre-send validation (§3) before dispatching:
 
-1. **Spawn** — establish the change's target repo, create worktree in it (`--reuse` for respawns)
-2. **Resolve dependencies** — same-repo `depends_on` entries cherry-pick into the worktree; cross-repo entries are ordering-only barriers (hold until the dep reaches its stop/terminal stage). Then read `<spawn_cmd>` via `fab spawn-command --repo <target-repo>`, open agent tab, and enroll with `repo` + `session`
+1. **Spawn** — run the §6 spawn sequence steps 1–2 (establish the change's target repo, create worktree in it; `--reuse` for respawns)
+2. **Resolve dependencies + open tab + enroll** — §6 spawn sequence steps 3–6 (same-repo cherry-pick / cross-repo ordering-only barriers per Dependency Resolution)
 3. **Gate** — check confidence score. If below threshold, flag and wait
 4. **Dispatch** — send `/fab-fff` (or appropriate command based on current stage)
 5. **Monitor** — normal tick detection handles progress
@@ -587,7 +569,7 @@ On each tick (step 3), for each enabled watch:
 2. **Deduplicate** — skip items in `known` **plus** `completed` lists (an item that reached `stop_stage` moves from `known` to `completed` but may still match the query — it MUST NOT be respawned). Update `last_checked`.
 3. **Evaluate instructions** — apply trigger conditions, label filters, concurrency limits (count monitored entries with `spawned_by: <watch-name>`), and any other criteria from `instructions`
 4. **Act** — for each item that passes:
-   - Run the repo-targeted spawn sequence (§6) with the watch's `target_repo` as the target repo: create the worktree in `target_repo`, read `<spawn_cmd>` via `fab spawn-command --repo <target_repo>`, open the agent tab, send the appropriate command (e.g., `/fab-new DEV-123`)
+   - Run the §6 spawn sequence with the watch's `target_repo` as the target repo, sending the appropriate initial command (e.g., `/fab-new DEV-123`)
    - Enroll in monitored set with `repo` (= `target_repo`), `session`, `stop_stage`, and `spawned_by` from the watch
    - Add item ID to `known` (only after successful spawn)
    - Prune `known` if over 200 entries (drop oldest)

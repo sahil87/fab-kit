@@ -157,5 +157,6 @@ After both sub-agents return, their findings are merged into a single prioritize
 The merged findings set is returned to the orchestrator for verdict and rework decisions.
 
 > **Note**: The rework loop (bounded retry, escalation rule, pass/fail state transitions) is defined
-> in the orchestrator (`fab-continue.md` Verdict section, `fab-ff.md` Step 3, `fab-fff.md` Step 3),
-> not in this file. This file defines only the dispatch and merge mechanics.
+> in the orchestrator (`fab-continue.md` Verdict section for manual rework; `_pipeline.md`
+> § Auto-Rework Loop for `/fab-ff`/`/fab-fff`), not in this file. This file defines only the
+> dispatch and merge mechanics.

@@ -1,5 +1,5 @@
 ---
-description: "`/fab-setup` skill — structural bootstrap, subcommand architecture (config, constitution, migrations), delegation pattern with `fab-kit sync`"
+description: "`/fab-setup` skill — structural bootstrap (sync-first order since szxd: doctor → config → constitution → `fab sync`), subcommand architecture (config, constitution, migrations — version handling delegated to a single `fab migrations-status --json` run), delegation pattern with `fab-kit sync`"
 ---
 # Setup
 
@@ -32,6 +32,10 @@ description: "`/fab-setup` skill — structural bootstrap, subcommand architectu
 ### Subcommands
 
 `/fab-setup` accepts three subcommands: `config [section]`, `constitution`, and `migrations [file]`. These provide ongoing management of initialization artifacts and version migrations without requiring separate commands. Validation is built into the `config` and `constitution` flows rather than exposed as a standalone subcommand.
+
+### Migrations Version Handling Delegated to the Binary (szxd)
+
+`/fab-setup migrations` no longer reads, parses, or compares the version files itself. The former triplicated version handling — pre-flight existence checks on `fab/.kit-migration-version` and the engine `VERSION`, a "Compare Versions" step, and a standalone Semver Comparison section — is deleted from `fab-setup.md`, along with the corresponding Context Loading item. The skill runs **`fab migrations-status --json` exactly once** (Step 1) and branches on its returned `local`/`engine` fields to pick the equal / local-ahead / no-op output; the binary owns version read/parse/compare as well as discovery (scan/validate/sort — see [migrations.md](migrations.md)), and exits non-zero with remediation hints on a missing version file, whose stderr the skill surfaces before stopping. Behavior is unchanged — only the duplicated hand-rolled checks are gone.
 
 ### Unrecognized Arguments Rejected
 
@@ -93,7 +97,7 @@ Each subcommand operates independently — they can be invoked directly without 
 | `config.yaml` | `/fab-setup config` (delegated by `/fab-setup`) | Reads `scaffold/config.yaml` template, substitutes placeholders with user-provided values |
 | `constitution.md` | `/fab-setup constitution` (delegated by `/fab-setup`) | Reads `scaffold/constitution.md` skeleton, generates principles from project context |
 
-`/fab-setup` invokes `fab-kit sync` (via `Sync()`) as step 1g of its bootstrap sequence. Steps 1c–1f in `/fab-setup` have idempotent guards so they gracefully skip artifacts already created by `fab-kit sync`.
+As of szxd, `/fab-setup` invokes `fab sync` as bootstrap step **1c — immediately after the interactive config (1a) and constitution (1b) steps** (sync requires `config.yaml`'s `fab_version`, which 1a guarantees), with a **sync-failure guard**: non-zero exit → STOP and surface sync's output, do not continue the bootstrap. The former hand-scaffolding steps are deleted — old 1c–1g (context.md / code-quality.md / code-review.md skeletons + both doc indexes), old 1i (`fab/changes/` + archive + `.gitkeep`), and old 1k (the `.gitignore` append) — because sync's `scaffoldTreeWalk` copy-if-absent installs, `scaffoldDirectories`, and the `.gitignore` fragment line-ensure merge (`.fab-*`, which subsumes `.fab-status.yaml`) already own all of them; the migration-version note (old 1h) is renumbered to 1d and its "step 1j" references repointed. Bootstrap order: doctor → 1a config → 1b constitution → 1c `fab sync` → 1d version note; the Bootstrap Output section was rewritten to surface sync's report. The resulting file tree is identical to the old sync-last order via idempotency — this reorder was the one explicit behavior-ORDER change in the szxd batch (f077).
 
 **Bootstrap path** (without `/fab-setup`): After `brew install fab-kit` and `fab init`, running `fab sync` alone creates a complete structural scaffold. `/fab-setup` is only needed to generate `config.yaml` and `constitution.md`.
 
@@ -138,6 +142,12 @@ Each subcommand operates independently — they can be invoked directly without 
 *Introduced by*: 260306-143f-setup-language-inference
 *Superseded by*: 260306-6bba-redesign-hooks-strategy — language-specific customization rejected entirely; fab-kit stays language-neutral. Step 1b-lang removed from bootstrap flow.
 
+### Sync-First Bootstrap Order; Hand-Scaffolding Steps Deleted (szxd)
+**Decision**: In the bare bootstrap, `fab sync` runs as step 1c — immediately after the interactive config (1a) and constitution (1b) steps and before anything else — guarded by a STOP on non-zero exit. The seven steps that hand-duplicated sync's scaffolding (old 1c–1g skeleton copies, old 1i directory creation, old 1k `.gitignore` append) are deleted; sync is the single owner of non-interactive structural setup. Sync cannot move before 1a because it requires `config.yaml`'s `fab_version` (the fab router errors without it).
+**Why**: Every scaffold artifact was described twice — once as a skill step, once inside sync — so each scaffold change had to land in both places, and the copies had already drifted in detail. Sync's operations are copy-if-absent / line-ensure merges, so running it earlier produces an identical file tree via idempotency. This was the szxd batch's one explicit behavior-ORDER change (f077), flagged in the PR description.
+**Rejected**: Keeping sync last with the hand-scaffolding steps as "idempotent guards" (the duplication is the maintenance cost, not the ordering). Moving sync before the interactive steps (sync hard-requires `fab_version` from 1a). Deleting the steps without a sync-failure guard (a failed sync would previously have been partially papered over by the hand-scaffolding; with single ownership, sync failure must stop the bootstrap).
+*Introduced by*: 260611-szxd-skills-twins-self-duplication-refactor
+
 ### Absorbed /fab-update into /fab-setup migrations
 **Decision**: `/fab-update` functionality is now available as `/fab-setup migrations`. Version migrations live under the same command namespace as the rest of project setup.
 **Why**: Reduces the dropped-ball two-step flow where users had to remember a separate `/fab-update` command after upgrading the kit. Makes migrations discoverable from the same command namespace as config and constitution management.
@@ -175,6 +185,7 @@ Each subcommand operates independently — they can be invoked directly without 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260611-szxd-skills-twins-self-duplication-refactor | 2026-06-12 | **Bootstrap sync-first reorder (f077 — the batch's one behavior-ORDER change)**: `fab sync` moved from last (old step 1j) to step 1c, immediately after the interactive 1a config / 1b constitution steps (sync requires `config.yaml` `fab_version`), with a sync-failure STOP guard; deleted the hand-scaffolding steps old 1c–1g (context/code-quality/code-review skeletons + both doc indexes), 1i (`fab/changes/` + archive + `.gitkeep`), and 1k (`.gitignore` append — sync's fragment merge adds `.fab-*`, subsuming it); old 1h renumbered to 1d with "step 1j" references repointed; Bootstrap Output rewritten to surface sync's report. Identical file tree via idempotency (copy-if-absent / line-ensure). **Migrations version handling single-sourced (f080)**: deleted fab-setup's triplicated version read/parse/compare (pre-flight checks 1/2/4, the Compare Versions step, the Semver Comparison section, and the version-files Context Loading item); the skill now runs `fab migrations-status --json` once (Step 1) and branches on its `local`/`engine` fields; the binary exits non-zero with remediation hints on missing version files. Steps renumbered (Discover → 1, Apply → 2, Finalize → 3). New design decision "Sync-First Bootstrap Order". `SPEC-fab-setup.md` mirror updated (incl. stale mechanism names: symlinks→copies, fab-sync.sh→`fab sync`). |
 | 260611-9u91-skills-correctness-idempotency-fixes | 2026-06-11 | Fixed the bootstrap trigger that never fired on the canonical install path (f024): step 1a broadened from "config.yaml doesn't exist" to "missing OR raw template OR missing required fields `project.name`/`project.description`" — `fab init` writes a `fab_version`-only config.yaml, so the old trigger was always false after `fab init` → `/fab-setup` and project configuration was silently skipped. The Config Pre-flight create-mode definition uses the same three-part condition. Config Create Mode now explicitly **preserves an existing `fab_version` key** when writing from the scaffold template (the scaffold lacks it; the fab router errors without it). Skill + `SPEC-fab-setup.md` updated. |
 | 260402-gnx5-relocate-kit-to-system-cache | 2026-04-02 | Updated delegation table to reflect cache-based resolution: all scaffold sources read from `{cache}/kit/` (no in-project `fab/.kit/`). Hook registration references `fab hook <subcommand>` inline commands instead of shell scripts. Bootstrap alternative references `kit.conf (removed)` for historical context. |
 | 260402-ktbg-sync-from-cache | 2026-04-02 | Updated delegation table: all `fab-sync.sh` references → `fab-kit sync`; scaffold sources now read from `{cache}/kit/` instead of `src/kit/`; hook registration absorbed into `fab-kit sync` step 4 (replaces `5-sync-hooks.sh` delegation). Updated overview and bootstrap path to reflect `fab-kit sync` with cache-based resolution. |
