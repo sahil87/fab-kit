@@ -16,7 +16,7 @@ Process GitHub PR review comments on the current branch's PR. Handles feedback f
 
 ### Step 0: Start Review-PR Stage
 
-If an active change resolves (`fab change resolve 2>/dev/null`), attempt to start the `review-pr` stage:
+If an active change resolves (`fab change resolve 2>/dev/null`), capture its output as `{name}` — the change folder name, used wherever later steps reference `<change>` in `fab status` commands and in the Step 6.5 `fab/changes/{name}/…` file paths — then attempt to start the `review-pr` stage:
 
 ```bash
 fab status start <change> review-pr git-pr-review 2>/dev/null || true

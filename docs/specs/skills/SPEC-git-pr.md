@@ -19,7 +19,7 @@ Autonomously commits, pushes, and creates a draft GitHub PR. No prompts, no ques
 │  └─ {change_type} — from fab/changes/{name}/.status.yaml
 │
 ├─ Step 0a: Start Ship Stage (if {has_fab})
-│  └─ Bash: fab status start <change> ship git-pr
+│  └─ Bash: fab status start {name} ship git-pr
 │
 ├─ Step 0b: Resolve PR Type
 │  ├─ {change_type} from Step 0 (status source)
@@ -70,7 +70,7 @@ Autonomously commits, pushes, and creates a draft GitHub PR. No prompts, no ques
 │  └─ Bash: fab status add-pr {name} <url>
 │
 ├─ Step 4b: Finish Ship Stage
-│  └─ Bash: fab status finish <change> ship git-pr
+│  └─ Bash: fab status finish {name} ship git-pr
 │
 └─ Step 4c: Commit Status Update
    ├─ Bash: git add fab/changes/{name}/.status.yaml fab/changes/{name}/.history.jsonl

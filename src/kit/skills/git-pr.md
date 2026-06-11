@@ -29,7 +29,7 @@ Resolve the active change **once** and derive four variables used throughout thi
 If `{has_fab}` and `progress.ship` is not `done`, attempt to start the `ship` stage:
 
 ```bash
-fab status start <change> ship git-pr 2>/dev/null || true
+fab status start {name} ship git-pr 2>/dev/null || true
 ```
 
 This is best-effort — failures are silently ignored. If the stage is already `active`, the call is a no-op. If `{has_fab}` is false, skip entirely.
@@ -240,7 +240,7 @@ This step MUST NOT block or fail the PR workflow. Any error is silently ignored.
 If `{has_fab}` (Step 0) and `progress.ship` was started in Step 0a (not already `done`):
 
 ```bash
-fab status finish <change> ship git-pr 2>/dev/null || true
+fab status finish {name} ship git-pr 2>/dev/null || true
 ```
 
 This marks `ship` as `done` and auto-activates `review-pr`. Best-effort — failures silently ignored.

@@ -25,6 +25,8 @@ Setting `copilot` to `false` skips Phase 2 entirely. When the `review_tools` key
 /git-pr-review [--tool <name>] invoked (user or sub-agent)
 │
 ├─ Step 0: Start Review-PR Stage
+│  ├─ Bash: fab change resolve 2>/dev/null → {name} (change folder
+│  │        name — instantiates <change> below and the Step 6.5 paths)
 │  └─ Bash: fab status start <change> review-pr git-pr-review
 │
 ├─ Step 1: Resolve PR
