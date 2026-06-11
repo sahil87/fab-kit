@@ -2,7 +2,6 @@
 
 **Change**: 260611-uliv-skills-staleness-sweep-frontmatter-fixes
 **Created**: 2026-06-11
-**Status**: Draft
 
 ## Origin
 
