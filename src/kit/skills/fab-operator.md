@@ -20,17 +20,17 @@ Start via `fab operator` (singleton tmux tab named `operator`).
 
 **Multi-repo aware.** The operator spans multiple repos and multiple tmux sessions on a **single tmux server** — one operator per server (§8). Every agent is addressed as a `(session, repo, pane)` tuple: the **pane ID is the primary key** (server-global and stable), with `repo` (the agent's absolute main-worktree root) and `session` (its tmux session name) layered on as dimensions, not replacements. Every monitored entry, every `branch_map` entry, and every watch is repo-qualified. State lives in one server-keyed file, not per-repo (§4, §9).
 
-**Spawn-in-worktree.** The operator's own pane is reserved for coordination state — pane maps, autopilot queue, `.fab-operator.yaml` bookkeeping. All pipeline work (`/fab-new`, `/fab-proceed`, `/fab-fff`, `/fab-ff`, `/fab-continue`, `/git-branch`, `/git-pr`) MUST run in a freshly spawned agent tab in its own worktree — never in the operator pane itself. The first action for any new request is `wt create --non-interactive`, then spawn the agent tab (see §5). Even a one-liner change gets its own worktree.
+**Spawn-in-worktree.** The operator's own pane is reserved for coordination state — pane maps, autopilot queue, operator state file bookkeeping (see §4). All pipeline work (`/fab-new`, `/fab-proceed`, `/fab-fff`, `/fab-ff`, `/fab-continue`, `/git-branch`, `/git-pr`) MUST run in a freshly spawned agent tab in its own worktree — never in the operator pane itself. The first action for any new request is `wt create --non-interactive`, then spawn the agent tab (see §5). Even a one-liner change gets its own worktree.
 
 **Automate the routine.** The operator exists to take work off the user's hands. Auto-answer prompts, nudge stuck agents, rebase stale PRs, spawn agents from backlog — act on the user's behalf for routine operational decisions. The PR review stage is the safety net. Never ask whether to monitor a spawned agent — if the operator spawned it, monitor it.
 
 **Not a lifecycle enforcer.** Individual agents self-govern via their own pipeline skills. The operator does not validate stage transitions or enforce pipeline rules. If an agent is at an unexpected stage, report it factually.
 
-**Context discipline.** The operator never reads change artifacts (intakes, specs, plans). Its context window is reserved for coordination state — pane maps, stage snapshots, `.fab-operator.yaml`. This keeps long-running sessions lean.
+**Context discipline.** The operator never reads change artifacts (intakes, specs, plans). Its context window is reserved for coordination state — pane maps, stage snapshots, the operator state file. This keeps long-running sessions lean.
 
 **State re-derivation.** Before every action, re-query live state via `fab pane map --all-sessions` (so every session on the server is seen, not just the operator's own). Panes die, stages advance, agents finish — stale state leads to wrong actions. Never rely on conversation memory for pane, repo, session, or stage values.
 
-**Self-manage context.** The operator is long-lived. When context approaches capacity, run `/clear` and restart the loop. Continuity is maintained via `.fab-operator.yaml` — the monitored set and autopilot queue survive a clear. After clearing, re-read context files, re-read `.fab-operator.yaml`, and resume.
+**Self-manage context.** The operator is long-lived. When context approaches capacity, run `/clear` and restart the loop. Continuity is maintained via the operator state file — the monitored set and autopilot queue survive a clear. After clearing, re-read context files, re-read the operator state file, and resume.
 
 **Pipeline-first routing.** The operator MUST route all new work through `/fab-new` (to generate intake) then a pipeline command (`/fab-fff`, `/fab-ff`, or `/fab-continue`). The operator MUST NOT dispatch raw inline implementation instructions (e.g., "fix the login bug by changing line 42 in auth.ts") directly to agent panes. The operator MUST NOT send `/fab-continue` to skip intake for new work — `/fab-new` is always the entry point. Exception: operational maintenance commands (see "Coordinate, don't execute" above) are coordination-level actions and remain direct.
 
@@ -114,11 +114,11 @@ When `fab resolve` fails during a **user-initiated** action (not monitoring tick
 
 The loop is the operator's heartbeat — a `/loop 3m "operator tick"` that runs as long as the monitored set is non-empty, an autopilot queue is active, or any watch is configured. When all three are empty, stop the loop. The loop starts when the first change is enrolled, an autopilot queue begins, or a watch is created. A user prompt can also restart it.
 
-### `.fab-operator.yaml`
+### Operator State File
 
-Persistent state, read on startup and every tick, written after every state change.
+Persistent state, read on startup and every tick, written after every state change. The term **operator state file** used throughout this skill refers to this file.
 
-The state file is **server-keyed**, not repo-rooted: it lives at `$XDG_STATE_HOME/fab/operator/<server-slug>.yaml` (falling back to `~/.local/state/fab/operator/<server-slug>.yaml` when `XDG_STATE_HOME` is unset), keyed by the tmux socket path so the one operator per server owns one file spanning every repo it coordinates (see §8, §9). The binary derives this path (`fab operator tick-start` reads/writes it); the operator never needs to compute it. Old repo-rooted `.fab-operator.yaml` files from before the server-keyed model are **not migrated** — they are abandoned in place (the monitored set is re-derivable from live `»`-prefixed panes).
+The operator state file is **server-keyed**, not repo-rooted: it lives at `$XDG_STATE_HOME/fab/operator/<server-slug>.yaml` (falling back to `~/.local/state/fab/operator/<server-slug>.yaml` when `XDG_STATE_HOME` is unset), keyed by the tmux socket path so the one operator per server owns one file spanning every repo it coordinates (see §8, §9). The binary derives this path (`fab operator tick-start` reads/writes it); the operator never needs to compute it. Old repo-rooted `.fab-operator.yaml` files from before the server-keyed model are **not migrated** — they are abandoned in place (the monitored set is re-derivable from live `»`-prefixed panes).
 
 ```yaml
 tick_count: 47
@@ -271,10 +271,10 @@ Example (this is the literal markdown the operator emits, shown fenced here only
 **Watch timestamps**: Relative format (`{N}m ago`) matching the idle duration format: `{N}s ago` (< 60s), `{N}m ago` (60s–59m), `{N}h ago` (>= 60m). Floor division.
 
 2. **Auto-nudge** — for each idle agent, run question detection (§5). If a newly-spawned agent advances past intake, send `/git-branch` to align the branch.
-3. **Watches** — for each watch, query the source, compare against `known`, spawn on new matches (§7).
+3. **Watches** — for each watch, query the source, compare against `known` + `completed` (§7 step 2's dedupe rule), spawn on new matches (§7).
 4. **Autopilot dispatch** — if an autopilot queue is active, run the next autopilot action (§6). Autopilot-driven changes are visible in the frame via `▶`.
 5. **Removals** — remove completed changes (reached stop stage or terminal stage) and dead panes from the monitored set.
-6. **Persist** — write updated state to `.fab-operator.yaml`
+6. **Persist** — write updated state to the operator state file
 7. **Loop lifecycle** — if monitored set is empty, no autopilot, and no watches, stop the loop.
 
 Actions (nudges, removals, autopilot progress) render as an *italic* footnote line below the frame as they happen, `·`-separated, keeping them visually subordinate to the table frame:
@@ -341,7 +341,7 @@ Before `tmux send-keys`: verify pane exists and agent is still idle (§3 steps 1
 
 When rule 4 above escalates a prompt as **Strategic**, the operator starts a per-prompt idle timer measured in real time from the moment the escalation log line is written. If the prompt remains idle for 30 minutes, the operator auto-answers the prompt and logs using the distinct `auto-defaulted` format (§5 Logging).
 
-**Threshold**: 30 minutes, hardcoded. No `.fab-operator.yaml` field, no per-change override, no environment variable exposes this value. The §4 `.fab-operator.yaml` schema is unchanged.
+**Threshold**: 30 minutes, hardcoded. No operator-state-file field, no per-change override, no environment variable exposes this value. The §4 operator state file schema is unchanged.
 
 **Idle clock reset**: the idle timer resets on any terminal-state change in the pane — new content appended by the agent, user keystrokes that alter the prompt display, or the prompt's own redraw. The timer is a watchdog on pane-idle-ness, not on escalation-open-ness. Tick cadence already provides sub-minute resolution via §4 Tick Behavior — no new polling infrastructure is required.
 
@@ -548,7 +548,7 @@ Report each merge with its repo: `"ab12: merged (foo 1/2)"`, `"cd34: merged (bar
 ab12: CI failed (~/code/foo). Halted: foo sub-sequence; bar (cross-repo dep into foo). Completed: baz sub-sequence (2 PRs merged). Fix foo and retry.
 ```
 
-Autopilot state (queue, current, completed) persists in `.fab-operator.yaml`.
+Autopilot state (queue, current, completed) persists in the operator state file.
 
 **Failures**: review exhausted → skip. Rebase conflict → skip (`--merge-on-complete` only; does not apply in default stack-then-review mode since there are no rebase steps). Cherry-pick conflict → escalate (do not skip). Pane dies → 1 respawn (`--reuse`), then skip. Stage timeout (>30m) → flag. Total timeout (>2h) → flag.
 
@@ -562,7 +562,7 @@ Watches are standing instructions to monitor an external source and take action 
 
 ### Schema
 
-Each watch in `.fab-operator.yaml` has:
+Each watch in the operator state file has:
 
 | Field | Description |
 |-------|-------------|
@@ -635,12 +635,12 @@ Session-scoped — resets on `/clear` or session restart.
 |----------|-------|
 | Requires active change? | No |
 | Runs preflight? | No |
-| Read-only? | No — sends commands, auto-answers, writes `.fab-operator.yaml` |
+| Read-only? | No — sends commands, auto-answers, writes the operator state file |
 | Idempotent? | Yes — state re-derived every tick |
 | Advances stage? | No |
 | Outputs `Next:` line? | No — ends with ready signal |
 | Loads change artifacts? | No — coordination context only |
 | Requires tmux? | Yes — hard stop without it |
 | Uses `/loop`? | Yes — 3m heartbeat |
-| Uses `.fab-operator.yaml`? | Yes — monitored set + autopilot queue + branch map persistence. **Server-keyed**, not repo-rooted: `$XDG_STATE_HOME/fab/operator/<server-slug>.yaml` (fallback `~/.local/state/fab/operator/<server-slug>.yaml`), keyed by the tmux socket path. The binary derives the path; old repo-rooted files are not migrated |
+| Uses the operator state file? | Yes — monitored set + autopilot queue + branch map persistence. **Server-keyed**, not repo-rooted: `$XDG_STATE_HOME/fab/operator/<server-slug>.yaml` (fallback `~/.local/state/fab/operator/<server-slug>.yaml`), keyed by the tmux socket path. The binary derives the path; old repo-rooted files are not migrated |
 | Multi-repo / multi-session? | Yes — one operator per tmux server spans all its sessions and repos via the `(session, repo, pane)` addressing tuple |

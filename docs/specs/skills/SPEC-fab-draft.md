@@ -30,7 +30,8 @@ User invokes /fab-draft <description>
 │  ├─ [backlog ID detected] collision check first:
 │  │  Bash: fab change resolve {id}  (4-char ID is in the folder prefix)
 │  ├─ [Linear ID detected] collision check first:
-│  │  Bash: grep -l "{ISSUE_ID}" fab/changes/*/.status.yaml
+│  │  Bash: grep -lw "{ISSUE_ID}" fab/changes/*/.status.yaml
+│  │  (-w word-anchors: DEV-123 won't match DEV-1234)
 │  │  (Linear IDs never appear in folder names — they live in
 │  │   .status.yaml issues arrays; the single-level glob
 │  │   naturally excludes archive/)
@@ -53,8 +54,10 @@ User invokes /fab-draft <description>
 │  ├─ Read: $(fab kit-path)/templates/intake.md
 │  └─ Write: fab/changes/{name}/intake.md          ◄── HOOK CANDIDATE
 │
-├─ Step 6: Infer Change Type
-│  └─ Bash: fab status set-change-type <change> <type>    ◄── bookkeeping
+├─ Step 6: Verify Change Type (hook-owned — the intake-write
+│  │        hook already set it in Step 5's Write)
+│  ├─ Bash: grep '^change_type:' fab/changes/{name}/.status.yaml
+│  └─ [only if wrong] Bash: fab status set-change-type <change> <type>
 │
 ├─ Step 7: Confidence (authoritative — intake is the sole scoring source)
 │  └─ Bash: fab score --stage intake <change>             ◄── bookkeeping (no indicative flag, 1.10.0)
@@ -73,7 +76,7 @@ User invokes /fab-draft <description>
 |------|---------|
 | Read | Load preamble, templates, backlog, project files |
 | Write | Write `intake.md` |
-| Bash | `fab change new`, `fab status set-change-type`, `fab score`, `fab status advance`, `fab status add-issue` |
+| Bash | `fab change new`, `fab status set-change-type` (override only), `fab score`, `fab status advance`, `fab status add-issue` |
 | MCP (Linear) | Fetch issue details (optional path) |
 
 ### Sub-agents
@@ -84,7 +87,7 @@ None.
 
 | Step | Command | Trigger |
 |------|---------|---------|
-| 6 | `fab status set-change-type` | After intake.md write |
+| 6 | `fab status set-change-type` | Only if the hook-inferred type is wrong (the intake-write hook owns `change_type`) |
 | 7 | `fab score --stage intake` | After intake.md write |
 | 9 | `fab status advance` | After all intake work complete |
 

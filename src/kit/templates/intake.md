@@ -2,7 +2,6 @@
 
 **Change**: {YYMMDD-XXXX-slug}
 **Created**: {DATE}
-**Status**: Draft
 
 ## Origin
 
@@ -26,7 +25,7 @@
 <!-- Be specific about new capabilities, modifications, or removals.
      Use subsections (### per change area) for multi-part changes.
      Include concrete examples: code blocks, config snippets, exact behavior.
-     This section is the primary input for spec generation — if a design decision
+     This section is the primary input for plan generation (apply entry) — if a design decision
      was made with specific values, include them here. Do not summarize or abstract. -->
 
 ## Affected Memory
@@ -43,12 +42,12 @@
 
 ## Impact
 
-<!-- Affected code areas, APIs, dependencies, systems. Helps scope the spec. -->
+<!-- Affected code areas, APIs, dependencies, systems. Helps scope the plan. -->
 
 ## Open Questions
 
 <!-- Clarifying questions the agent couldn't resolve from context alone.
-     SRAD handles prioritization at spec generation time — no need for explicit
+     SRAD handles prioritization at plan generation (apply entry) — no need for explicit
      blocking/deferred labels here. Just list the questions. -->
 
 - {question}
@@ -56,9 +55,9 @@
 ## Assumptions
 
 <!-- STATE TRANSFER: This table is the sole continuity mechanism between the intake-stage
-     agent and the spec-stage agent. Pipeline stages may execute in separate agent contexts
-     with no shared memory — this table is what gives downstream agents visibility into
-     what was decided, assumed, or left open. Every row must be substantive.
+     agent and the apply-entry agent (which co-generates plan.md). Pipeline stages may execute
+     in separate agent contexts with no shared memory — this table is what gives downstream
+     agents visibility into what was decided, assumed, or left open. Every row must be substantive.
 
      All four SRAD grades (Certain, Confident, Tentative, Unresolved) are recorded.
      Scores column is required for every row.

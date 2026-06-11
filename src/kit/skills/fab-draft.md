@@ -50,7 +50,7 @@ Check for existing mechanisms or scope concerns covering the idea. If covered: p
 **Re-run / collision check** (only when a backlog or Linear ID was detected in Step 0): before creating, check whether a non-archived change already exists for that ID. The mechanism differs by ID type:
 
 - **Backlog ID** (4-char — embedded in the folder-name prefix): `fab change resolve {id} 2>/dev/null` — a successful resolution names the existing change.
-- **Linear ID** (never in folder names — slugs exclude issue IDs; the ID is recorded only in `.status.yaml` `issues` arrays): `grep -l "{ISSUE_ID}" fab/changes/*/.status.yaml 2>/dev/null` — the single-level glob naturally excludes `fab/changes/archive/`; a match's parent folder is the existing change.
+- **Linear ID** (never in folder names — slugs exclude issue IDs; the ID is recorded only in `.status.yaml` `issues` arrays): `grep -lw "{ISSUE_ID}" fab/changes/*/.status.yaml 2>/dev/null` — `-w` anchors on word boundaries so `DEV-123` does not match `DEV-1234`; the single-level glob naturally excludes `fab/changes/archive/`; a match's parent folder is the existing change.
 
 If a check finds an existing change, do NOT create a duplicate — **route to resume**: report `Change {name} already exists for [{id}].` and point the user to `/fab-switch {name}` then `/fab-continue` (whose intake-`active` dispatch row regenerates a missing intake, recovering an interrupted creation). STOP. (For backlog IDs, `fab change new`'s `Change ID already in use` error remains the safety net if this check is skipped; Linear re-runs have no CLI safety net — no `--change-id` is passed — so this scan is the only collision guard.)
 
@@ -63,7 +63,7 @@ Run `fab change new` with appropriate flags:
 
 Capture the folder name from stdout. The command handles date generation, random ID generation (if no `--change-id`), collision detection, directory creation, `created_by` detection, `.status.yaml` initialization, and command logging (when `--log-args` is provided).
 
-If a Linear ticket was detected in Step 0, record the issue ID via statusman:
+If a Linear ticket was detected in Step 0, record the issue ID via `fab status`:
 `fab status add-issue {name} DEV-988` (using the actual detected ID).
 
 ### Step 4: Conversation Context Mining
@@ -83,26 +83,16 @@ If no prior discussion exists in the conversation, skip this step — behavior i
 
 Follow the **Intake Generation Procedure** (`_generation.md`). Load context per `_preamble.md` Layer 1 and generate from `$(fab kit-path)/templates/intake.md`. Incorporate any decisions extracted in Step 4.
 
-### Step 6: Infer Change Type
+### Step 6: Verify Change Type
 
-After generating `intake.md`, infer the change type from the intake content using keyword matching (case-insensitive, evaluated in order, first match wins):
+The PostToolUse intake-write hook owns `change_type`: it infers and writes the type to `.status.yaml` on **every** `intake.md` write, using word-boundary keyword regexes evaluated in order — `fix` → `refactor` (incl. "redesign") → `docs` → `test` → `ci` → `chore` — defaulting to `feat`. Do NOT run a manual keyword inference or an unconditional `set-change-type`: any later intake write (e.g., `/fab-clarify`) re-fires the hook and silently overwrites a skill-set value.
 
-1. Contains any of: "fix", "bug", "broken", "regression" → `fix`
-2. Contains any of: "refactor", "restructure", "consolidate", "split", "rename" → `refactor`
-3. Contains any of: "docs", "document", "readme", "guide" → `docs`
-4. Contains any of: "test", "spec", "coverage" → `test`
-5. Contains any of: "ci", "pipeline", "deploy", "build" → `ci`
-6. Contains any of: "chore", "cleanup", "maintenance", "housekeeping" → `chore`
-7. Otherwise → `feat`
-
-Write the inferred type to `.status.yaml`:
-```bash
-fab status set-change-type {name} <type>
-```
+1. **Verify** the hook's result by reading `change_type` from the change's `.status.yaml` (e.g., `grep '^change_type:' fab/changes/{name}/.status.yaml`) — `fab preflight` does not emit this field
+2. **Override only if wrong**: `fab status set-change-type {name} <type>` — and note that any subsequent intake edit re-fires the hook and overwrites the override, so re-verify after later intake writes
 
 ### Step 7: Confidence
 
-After generating `intake.md` and inferring the change type, persist and display the confidence score:
+After generating `intake.md` and verifying the change type, persist and display the confidence score:
 
 1. Call `fab score --stage intake <change>` (normal mode, **not** `--check-gate`)
 2. This writes the score to `.status.yaml` (no `indicative` flag is written — retired in 1.10.0; intake scoring is authoritative)
@@ -118,7 +108,7 @@ Apply SRAD (`_preamble.md`). No fixed question cap — SRAD scoring determines c
 
 ### Step 9: Advance Intake to Ready
 
-After all intake work is complete (generation, type inference, confidence, questions), advance intake to `ready`:
+After all intake work is complete (generation, type verification, confidence, questions), advance intake to `ready`:
 
 ```bash
 fab status advance {name} intake

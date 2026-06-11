@@ -2,7 +2,7 @@
 
 ## Summary
 
-Advances through the 6-stage pipeline one step at a time. Each invocation handles the current stage's work and transitions to the next. Supports reset to a given stage (legacy `tasks`/`spec` targets error with a pointer to `apply` / `/fab-clarify intake`). Handles intake (the only planning stage), execution (apply — co-generates `plan.md` `## Requirements` + `## Tasks` + `## Acceptance` at entry then runs tasks), review (sub-agent), and hydrate.
+Advances through the 6-stage pipeline one step at a time. Each invocation handles the current stage's work and transitions to the next. Supports reset to a given stage (legacy `tasks`/`spec` targets error with a pointer to `apply` / `/fab-clarify intake`). Handles all six stages: intake (the only planning stage), apply (co-generates `plan.md` `## Requirements` + `## Tasks` + `## Acceptance` at entry then runs tasks), review (sub-agent), hydrate, ship (delegates to `/git-pr` behavior), and review-pr (delegates to `/git-pr-review` behavior).
 
 **Helpers**: Declares `helpers: [_generation, _review]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
 
@@ -115,10 +115,10 @@ User invokes /fab-continue [change-name] [stage]
 │  │ REVIEW-PR STAGE                                 │
 │  │  (delegates to /git-pr-review behavior — it     │
 │  │   routes all terminal paths through its Step 6  │
-│  │   and runs its own transitions; finish only if  │
-│  │   the stage is still active after it returns;   │
-│  │   timeout outcome: stage deliberately left      │
-│  │   active — report and stop, no re-finish)       │
+│  │   and runs its own transitions; finish or fail  │
+│  │   only if the stage is still active after it    │
+│  │   returns; timeout outcome: stage deliberately  │
+│  │   left active — report and stop, no re-finish)  │
 │  └─────────────────────────────────────────────────┘
 │
 └─ Output: summary + Next: line
@@ -143,7 +143,7 @@ User invokes /fab-continue [change-name] [stage]
 
 > Review Behavior is delegated to `_review.md` (single source of truth for sub-agent dispatch and findings merge). `fab-continue.md` retains the Verdict section (pass/fail state transitions, rework options).
 
-> **Subagent rule** (f006): when the Apply/Review/Hydrate behavior sections are dispatched as subagents by `/fab-ff`/`/fab-fff`, the subagent skips the finish step / §Verdict and runs no `fab status` command — the orchestrator owns all status transitions. The ship dispatch row likewise only runs `finish <change> ship` if the stage is still `active` after `/git-pr` returns (git-pr finishes ship internally).
+> **Subagent rule** (f006): when the Apply/Review/Hydrate behavior sections are dispatched as subagents by `/fab-ff`/`/fab-fff`, the subagent skips the finish step / §Verdict and runs no `fab status` command — the orchestrator owns all status transitions. The ship dispatch row likewise only runs `finish <change> ship` if the stage is still `active` after `/git-pr` returns (git-pr finishes ship internally), and the review-pr row's Pass and Fail branches both carry the same only-if-still-active guard (git-pr-review's Step 6 runs its own finish/fail).
 
 ### Bookkeeping commands (hook candidates)
 

@@ -51,7 +51,7 @@ After context loading, log the command invocation:
 fab log command "fab-discuss" 2>/dev/null || true
 ```
 
-This is best-effort — logman resolves the active change via `.fab-status.yaml` if one exists. Failures are silently ignored.
+This is best-effort — `fab log` resolves the active change via `.fab-status.yaml` if one exists. Failures are silently ignored.
 
 ---
 

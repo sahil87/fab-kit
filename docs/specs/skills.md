@@ -109,6 +109,21 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 ---
 
+## New Skill Checklist
+
+Adding a skill to the kit touches eight integration points. Work through all of them — drift in any one is invisible until an agent hits it.
+
+1. **Frontmatter fields** — `name` (matches the filename) and `description` (the one-liner agents use for model invocation — name the actual behavior, including non-obvious modes like draft PRs or `--none` flags). Internal partials additionally set `user-invocable: false`, `disable-model-invocation: true`, and `metadata.internal: true`.
+2. **Preamble-read line** — the body opens with the standard blockquote: ``> Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.``
+3. **`helpers:` declaration** — list any additional partials the skill needs (`_generation`, `_review`, `_cli-fab`, `_cli-external`) in frontmatter; skills without the list load only `_preamble`. See § Skill Helpers.
+4. **`Next:` line** — the skill's output ends with a state-derived `Next:` line per `_preamble.md` § Next Steps Convention (or documents an explicit opt-out, as `fab-discuss` and `fab-operator` do).
+5. **Error Handling + Key Properties tables** — the body closes with the two standard tables (skill-specific errors only; idempotency, write surface, stage effects).
+6. **SPEC mirror file** — create `docs/specs/skills/SPEC-{name}.md` (Summary + Flow + tool/sub-agent/bookkeeping tables). Partials keep their leading underscore in the SPEC filename (`SPEC-_review.md`, `SPEC-_preamble.md`, `SPEC-_generation.md`). **Exclusion policy**: the pure-reference partials `_cli-fab.md` and `_cli-external.md` carry no SPEC — their content mirrors the CLI surface rather than defining behavior, and the constitution already forces `_cli-fab.md` updates on every CLI change; a SPEC would be a third copy of the same tables. Every other skill file and behavioral partial gets a SPEC, and the constitution requires updating it on every skill edit.
+7. **skills.md row** — add the skill's section to this file (and its `helpers:` row to § Skill Helpers when it declares any).
+8. **Help grouping** — add the skill to `skillToGroupMap` in `src/go/fab/cmd/fab/fabhelp.go` so `/fab-help` lists it under the right group (unmapped skills fall into the "Other" bucket).
+
+---
+
 ## `/fab-setup`
 
 **Purpose**: Bootstrap `fab/` in an existing project and manage ongoing configuration. Delegates structural setup to `fab-sync.sh` and adds interactive configuration on top. Safe to run repeatedly (idempotent). Also provides subcommands for config, constitution, and migrations.
@@ -125,7 +140,7 @@ Every skill MUST end its output with a `Next:` line suggesting the available fol
 
 When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fab-sync.sh` for structural setup, then delegates to `config` and `constitution` subcommands for any missing artifacts. Unrecognized arguments are rejected with a message listing valid subcommands.
 
-**Creates** (first run only — skipped if already present):
+**Creates** (idempotent — setup is re-runnable; whatever already exists is skipped):
 - `fab/project/config.yaml` — project configuration (via `/fab-setup config`)
 - `fab/project/constitution.md` — project principles and constraints (via `/fab-setup constitution`)
 - `fab/.kit-migration-version` — migration version (via `fab-sync.sh`)
@@ -276,7 +291,7 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 
 ## `/fab-continue [<stage>]`
 
-**Purpose**: Advance through the pipeline — finishing the current `ready` planning stage, generating the next artifact, and leaving it at `ready` for optional `/fab-clarify` refinement. Or, when called with a stage argument, reset to that stage and regenerate from there.
+**Purpose**: Advance the active change one pipeline stage — intake, apply (co-generates `plan.md` at entry then runs tasks), review, hydrate, ship (delegates to `/git-pr`), or review-pr (delegates to `/git-pr-review`). Or, when called with a stage argument, reset to that stage and re-run from there.
 
 **Arguments**:
 - `<stage>` *(optional)* — target stage to reset to (`apply` is the typical reset). The legacy `tasks` and `spec` targets are removed and error with a pointer to `apply` / `/fab-clarify intake`. Used after `/fab-continue` (review) identifies issues upstream. When provided, resets `.status.yaml` to this stage and re-runs from that point forward.
@@ -732,7 +747,7 @@ Next: Complete intake.md, then /fab-continue
 
 ## `/git-pr [type]`
 
-**Purpose**: Autonomously commit, push, and create a GitHub PR. No questions, no prompts. Covers stage 5 (Ship) of the pipeline.
+**Purpose**: Autonomously commit, push, and create a draft GitHub PR. No questions, no prompts. Covers stage 5 (Ship) of the pipeline.
 
 **Arguments**:
 - `[type]` *(optional)* — PR type prefix: `feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`. If omitted, type is inferred from `.status.yaml`, `intake.md`, or the diff (in that order).
@@ -770,7 +785,7 @@ Next: Complete intake.md, then /fab-continue
 **Purpose**: Process GitHub PR review comments on the current branch's PR. Handles feedback from any reviewer — human or bot. Covers stage 6 (Review-PR) of the pipeline.
 
 **Arguments**:
-- `--tool <name>` *(optional)* — force a specific review tool: `copilot`, `codex`, or `claude`. Bypasses the default cascade.
+- `--tool <name>` *(optional)* — force a specific review tool. Valid values: `copilot` (only). Bypasses the `review_tools` config check.
 
 **Example**:
 ```
@@ -782,17 +797,17 @@ Next: Complete intake.md, then /fab-continue
 
 **Behavior**:
 1. Resolve the PR for the current branch via `gh pr view`
-2. **If no reviews exist** — request an automated review via cascade: Copilot (remote) → Codex (local) → Claude (local). First available tool wins. Re-run after Copilot to process its comments.
+2. **If no reviews exist** — request a Copilot review (`gh pr edit --add-reviewer copilot-pull-request-reviewer`) and poll every 30 seconds for up to 10 minutes (20 attempts). If the review arrives, process its comments in the same run; if not, the timeout outcome leaves `review-pr` `active` with a re-run message. There is no Codex/Claude cascade — Copilot is the only automated reviewer, honoring `review_tools.copilot` (default enabled).
 3. **If reviews with inline comments exist** — fetch all comments, triage each:
    - **fix**: applies a targeted code change, then posts `Fixed — {description}. ({sha})` as a reply
    - **defer**: posts `Deferred — {reason}.`
    - **skip**: posts `Skipped — {reason}.`
    - **informational**: no reply
 4. Commit and push any fixes, then post all replies
-5. Mark the `review-pr` stage done in `.status.yaml`
+5. Route every terminal outcome through Step 6: success / no-reviews → `fab status finish review-pr`; failure → `fab status fail review-pr`; timeout → stage deliberately left `active` (no finish, no fail). Two direct-STOP exceptions never reach Step 6: invalid `--tool` value (Step 1.5) and commit/push failure (Step 5, after `git reset`).
 
 **Key properties**:
 - Fully autonomous — never asks questions, never presents options
 - Targeted fixes only — does not modify code beyond what each comment addresses
 - Idempotent — re-running after fixes finds no new modifications; re-running after replies skips already-replied comments
-- Cascade is configurable via `review_tools` in `fab/project/config.yaml`
+- The Copilot request honors `review_tools.copilot` in `fab/project/config.yaml` (absent key = enabled)

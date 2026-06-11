@@ -53,7 +53,7 @@ Resolve the active change and load its state by running the preflight script:
 
 1. **Run preflight**: Execute `fab preflight [change-name]` via Bash — pass the optional change-name argument if the skill received one
 2. **Check exit code**: If the script exits non-zero, STOP and surface the stderr message to the user (it contains the specific error and suggested fix)
-3. **Parse stdout YAML**: On success, parse the YAML output for `id`, `name`, `change_dir`, `stage`, `progress`, `plan`, and `confidence` fields — use these for all subsequent change context instead of re-reading `.status.yaml`. Use `id` (4-char change ID) for script invocations; use `name` for display, path construction, and artifact metadata.
+3. **Parse stdout YAML**: On success, parse the YAML output for `id`, `name`, `change_dir`, `stage`, `display_stage`, `display_state`, `progress`, `plan`, and `confidence` fields — use these for all subsequent change context instead of re-reading `.status.yaml`. Use `id` (4-char change ID) for script invocations; use `name` for display, path construction, and artifact metadata.
 4. **Log command**: Call `fab log command "<skill-name>" "<id>" 2>/dev/null || true` where `<skill-name>` is the invoking skill (e.g., `fab-continue`) and `<id>` is the `id` field from the preflight YAML output. This is best-effort — failures are silently ignored.
 5. Load all completed artifacts in the change folder (`intake.md`, `plan.md`) — read each file that exists so you have full context of what has been decided so far. (A leftover `spec.md` may exist in pre-1.10.0 changes; read it for context if present, but `spec.md` is no longer a generated artifact.)
 
@@ -244,12 +244,12 @@ These command families cover ~90% of skill usage. See `_cli-fab` for the full re
 
 | Command | Purpose | Canonical form |
 |---------|---------|----------------|
-| `fab preflight [<change>]` | Validate init + resolve active change; outputs YAML with `id`/`name`/`change_dir`/`stage`/`progress`/`plan`/`confidence`. Non-zero exit on error. | `fab preflight` |
+| `fab preflight [<change>]` | Validate init + resolve active change; outputs YAML with `id`/`name`/`change_dir`/`stage`/`display_stage`/`display_state`/`progress`/`plan`/`confidence`. Non-zero exit on error. | `fab preflight` |
 | `fab score [--check-gate] [--stage intake] <change>` | Compute SRAD confidence from `intake.md` (the sole scoring source). `--check-gate` returns non-zero below the single intake gate (flat 3.0 for all types). `--stage` defaults to `intake`. | `fab score --check-gate --stage intake <id>` |
 | `fab log command "<skill>" [<change>]` | Best-effort command telemetry. Failures silently ignored. | `fab log command "fab-continue" "<id>" 2>/dev/null \|\| true` |
 | `fab change <sub>` | Change lifecycle: `new --slug <slug>`, `switch <name>\|--none`, `resolve [<override>]`, `rename`, `list [--archive]`, `archive <change>`, `restore <change> [--switch]`. | `fab change resolve --folder` *(note: `fab resolve` is the pure-query alias)* |
 | `fab resolve [--id\|--folder\|--dir\|--status\|--pane] [<change>]` | Pure query — converts change reference to canonical output (4-char ID by default). No side effects. | `fab resolve --folder 2>/dev/null` |
-| `fab status <sub> <change>` | State machine + metadata. Key subcommands: `finish <stage>` (auto-activates next), `advance <stage>`, `start <stage>`, `reset <stage>`, `skip <stage>`, `fail <stage>` (review only), `set-change-type <type>`, `set-acceptance <field> <value>` (updates `plan:` block), `add-issue <id>`, `add-pr <url>`. | `fab status finish <id> <stage>` |
+| `fab status <sub> <change>` | State machine + metadata. Key subcommands: `finish <stage>` (auto-activates next), `advance <stage>`, `start <stage>`, `reset <stage>`, `skip <stage>`, `fail <stage>` (review/review-pr only), `set-change-type <type>`, `set-acceptance <field> <value>` (updates `plan:` block), `add-issue <id>`, `add-pr <url>`. | `fab status finish <id> <stage>` |
 
 **Key behaviors** to remember without loading `_cli-fab`:
 
@@ -407,9 +407,9 @@ Each decision produces an assumption graded on a 4-level scale:
 
 | Aspect | fab-new (adaptive) | fab-continue (deliberate) | fab-fff (full pipeline) | fab-ff (fast-forward) |
 |--------|-------------------|---------------------------|-------------------------|--------------------------|
-| **Posture** | SRAD-driven: 0 questions for clear inputs, conversational for vague; gap analysis before folder creation | Surface tentative, ask top ~3 unresolved | Gated on confidence; extends through ship + review-pr | Gated on confidence; stops at hydrate |
-| **Interruption budget** | SRAD-driven (no fixed cap); conversational mode for vague inputs | 1-2 per stage | 0 (autonomous rework, then stop) | 0 (autonomous rework, then stop) |
-| **Output** | Assumptions summary + "Run /fab-clarify to review" | Key Decisions block + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary + apply/review/hydrate/ship/review-pr output | Tasks + apply/review/hydrate output |
+| **Posture** | SRAD-driven: 0 questions for clear inputs, conversational for vague; gap analysis before folder creation | SRAD at intake only (the one asking stage); apply decides-and-records | Gated on confidence; extends through ship + review-pr | Gated on confidence; stops at hydrate |
+| **Interruption budget** | SRAD-driven (no fixed cap); conversational mode for vague inputs | 1-2 at intake; 0 at apply and later | 0 (autonomous rework, then stop) | 0 (autonomous rework, then stop) |
+| **Output** | Assumptions summary + "Run /fab-clarify to review" | Key Decisions block + Assumptions summary | Cumulative Assumptions summary + apply/review/hydrate/ship/review-pr output | Tasks + apply/review/hydrate output |
 | **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify`, `/fab-continue` (after rework cap) | `/fab-clarify`, `/fab-continue` (after rework cap) |
 | **Recomputes confidence?** | Yes (intake, via `fab score --stage intake`) | No (no scoring at apply — intake is authoritative) | No | No |
 
@@ -475,7 +475,7 @@ Every planning skill invocation SHALL end its output with an Assumptions summary
 **Artifact format** (persisted in the generated file): The same table is appended as the last section (`## Assumptions`) of the generated artifact. This ensures `/fab-clarify` can discover and scan assumptions from the artifact file.
 
 **Rules**:
-- Include all four grades (Certain, Confident, Tentative, Unresolved) in the summary. The Scores column (`S:nn R:nn A:nn D:nn`) is required for every row.
+- **Intake artifacts** include all four grades (Certain, Confident, Tentative, Unresolved). **plan.md `## Assumptions` excludes Unresolved** — three grades only, since apply decides-and-records (Unresolved is an intake-only construct). The Scores column (`S:nn R:nn A:nn D:nn`) is required for every row.
 - Unresolved rows MUST include status context in the Rationale column: `Asked — {outcome}` or `Deferred — {reason}`.
 - For `/fab-ff`, the output summary is **cumulative** across all generated stages. Each entry notes its source artifact (e.g., "in plan.md"). Per-artifact `## Assumptions` sections are persisted individually.
 - If 0 assumptions were made, omit the Assumptions summary entirely (no empty table).
