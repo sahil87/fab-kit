@@ -13,3 +13,6 @@
 {"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-11T16:47:25Z"}
 {"cmd":"git-pr","event":"command","ts":"2026-06-11T16:50:02Z"}
 {"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-06-11T16:52:24Z"}
+{"cmd":"git-pr-review","event":"command","ts":"2026-06-11T16:54:55Z"}
+{"delta":"+0.0","event":"confidence","score":3.1,"trigger":"calc-score","ts":"2026-06-11T17:06:17Z"}
+{"event":"review","result":"passed","ts":"2026-06-11T17:09:03Z"}
