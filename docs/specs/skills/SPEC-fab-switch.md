@@ -9,7 +9,7 @@ Switches the active change by creating the `.fab-status.yaml` symlink. Lists ava
 ```
 User invokes /fab-switch [change-name] [--none]
 │
-├─ Read: _preamble.md (config.yaml only)
+├─ Read: _preamble.md (no always-load files — §1 exception; config not required)
 │
 ├── No argument ─────────────────────────────────────────
 │  ├─ Bash: fab change list

@@ -4,7 +4,7 @@
 
 Condenses a skill (or, in batch mode, all skills) to its core — removing verbosity, redundant examples, and concepts re-explained from the shared partials — without losing any behavioral step, error case, or decision point. Evaluates each target against seven bloat signals (redundant re-explanation, excessive output examples, obvious instructions, redundant argument docs, over-specified error tables, verbose step narration, duplicate examples) and applies eight optimization rules (never remove functionality, preserve frontmatter, preserve H1 + preamble reference, reference shared docs, merge small steps, one output example max, keep error tables, preserve tone).
 
-All `_*.md` partials (`_preamble`, `_generation`, `_review`, `_cli-fab`, `_cli-external`) are reference context, never optimization targets. Writes require explicit user approval (AskUserQuestion) in both modes. Targets are the canonical sources at `src/kit/skills/` — never the deployed `.claude/skills/` copies. The skill source `src/kit/skills/internal-skill-optimize.md` is canonical.
+All `_*.md` partials (`_preamble`, `_generation`, `_review`, `_cli-fab`, `_cli-external`, `_srad`) are reference context, never optimization targets. Writes require explicit user approval (AskUserQuestion) in both modes. Targets are the canonical sources at `src/kit/skills/` — never the deployed `.claude/skills/` copies. The skill source `src/kit/skills/internal-skill-optimize.md` is canonical.
 
 ## Flow
 

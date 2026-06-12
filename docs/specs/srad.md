@@ -90,7 +90,7 @@ Planning skills use HTML comment markers to flag assumptions for downstream scan
 
 | Marker | Grade | Placed by | Scanned by |
 |--------|-------|-----------|------------|
-| `<!-- assumed: {description} -->` | Tentative | All planning skills (`/fab-new`, `/fab-continue`, `/fab-ff`) | `/fab-clarify` (suggest and auto modes) |
+| `<!-- assumed: {description} -->` | Tentative | All planning skills (`/fab-new`, `/fab-draft`, `/fab-continue`, `/fab-ff`, `/fab-fff`, `/fab-clarify`) | `/fab-clarify` (suggest and auto modes) |
 | `<!-- clarified: {description} -->` | Resolved | `/fab-clarify` | Informational — not scanned |
 
 Markers are placed inline in the artifact, immediately after the assumed content:

@@ -38,7 +38,7 @@ metadata:
    - Include concrete examples: code blocks, YAML snippets, specific file paths, exact behavior
    - The "What Changes" section should be the most detailed — use subsections per change area
    - If a design includes specific values (config structure, template content, validation questions), reproduce them in full
-4. Append `## Assumptions` section per `_preamble.md` SRAD framework
+4. Append `## Assumptions` section per the SRAD framework (`_srad.md`, loaded via `helpers:` by all consumers of this procedure)
 5. Write the completed intake to `fab/changes/{name}/intake.md`
 
 ---

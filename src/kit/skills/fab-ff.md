@@ -1,7 +1,7 @@
 ---
 name: fab-ff
 description: "Fast-forward through hydrate — confidence-gated pipeline from intake through hydrate, with sub-agent review, auto-rework loop, and stop on exhaustion."
-helpers: [_generation, _review]
+helpers: [_generation, _review, _srad]
 ---
 
 # /fab-ff [<change-name>] [--force]

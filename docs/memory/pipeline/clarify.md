@@ -1,5 +1,5 @@
 ---
-description: "`/fab-clarify` skill — intake-only (j6cs), dual modes (suggest/auto), intake taxonomy scan, structured questions, coverage reports, audit trail, grade reclassification, always-recompute intake score"
+description: "`/fab-clarify` skill — intake-only (j6cs), dual modes (suggest/auto), intake taxonomy scan, structured questions, coverage reports, audit trail, grade reclassification, always-recompute intake score; hosts the [AUTO-MODE] Skill Invocation Protocol and is sole bulk-confirm authority (zc9m)"
 ---
 # Clarify Skill
 
@@ -13,7 +13,7 @@ The `/fab-clarify` skill deepens and refines the **intake** artifact (`intake.md
 
 ### Dual-Mode Operation
 
-`/fab-clarify` SHALL support two modes, determined by the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (`_preamble.md`):
+`/fab-clarify` SHALL support two modes, determined by the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol — since 260611-zc9m the protocol (prefix placement, detection, transitivity) is defined in `fab-clarify.md` § Skill Invocation Protocol itself, its sole referencer; `_preamble.md` carries only a 2-line pointer, and the preamble's live § Subagent Dispatch references the new location instead of restating it:
 
 - **Suggest mode**: Activated when the `[AUTO-MODE]` prefix is **absent** (e.g., user invokes `/fab-clarify` directly). Interactive, presents structured questions one at a time with recommendations and options.
 - **Auto mode**: Activated when the `[AUTO-MODE]` prefix is **present**. Autonomous, resolves gaps without user interaction and returns a machine-readable result. Retained for future use — no orchestrator currently invokes it (j6cs removed the `/fab-ff`/`/fab-fff` auto-clarify steps).
@@ -89,6 +89,8 @@ Auto mode SHALL return a structured result: `{resolved: N, blocking: N, non_bloc
 
 When the confidence score is low primarily due to many Confident (not Tentative/Unresolved) assumptions, suggest mode SHALL offer a bulk confirm flow (Step 2) after the taxonomy scan and tentative resolution (Step 1.5). This displays all Confident assumptions in a numbered list and lets the user confirm, change, or request explanation in a single conversational turn.
 
+`fab-clarify.md` (Step 2, Suggest Mode) is the **sole authority** for the bulk-confirm trigger and semantics (260611-zc9m): the former `_preamble.md` § Bulk Confirm subsection — which duplicated the trigger condition, the S → 95 upgrade semantics, and the internal step numbering verbatim — was cut to a one-sentence pointer.
+
 #### Detection
 
 Bulk confirm triggers when BOTH conditions are met:
@@ -132,10 +134,16 @@ The pre-flight stage guard MUST allow only `intake`. At any post-intake stage (`
 *Introduced by*: 260601-j6cs-merge-spec-into-apply
 
 ### Mode Selection by `[AUTO-MODE]` Prefix
-**Decision**: Mode is determined by the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (`_preamble.md`). Prefix present = auto mode; absent = suggest mode. No flags.
+**Decision**: Mode is determined by the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (in `fab-clarify.md` itself since zc9m — see the next decision). Prefix present = auto mode; absent = suggest mode. No flags.
 **Why**: Makes the contract explicit and testable rather than relying on implicit call-context interpretation. Avoids a confusing `--suggest`/`--auto` flag pair with no clear use case for user-invoked auto mode.
 **Rejected**: Flag-based mode selection — adds complexity, no user scenario requires it. Implicit call-context detection — unreliable, not testable.
-*Updated by*: 260210-nan4-define-auto-mode-signaling
+*Updated by*: 260210-nan4-define-auto-mode-signaling; 260611-zc9m-preamble-context-diet (protocol definition relocated into `fab-clarify.md`)
+
+### `[AUTO-MODE]` Protocol Co-located with Its Sole Referencer (zc9m)
+**Decision**: The `[AUTO-MODE]` Skill Invocation Protocol (prefix, placement, detection, transitivity) moved from `_preamble.md` into `fab-clarify.md` § Skill Invocation Protocol — its sole referencer since j6cs removed the orchestrator auto-clarify steps. `_preamble.md` keeps a 2-line pointer, and its live § Subagent Dispatch section references the new location. `fab-clarify`'s Auto Mode is **retained** — zero behavior change.
+**Why**: The protocol is dormant (no skill currently invokes another with the prefix) yet was paid for by every skill on every invocation via the always-load preamble. Co-locating it with the only skill that consumes it keeps the contract fully specified while removing it from the universal tax. The user explicitly chose **move over delete** at intake: deleting both dormant halves (protocol + Auto Mode) would have been a behavior decision, and retention preserves the machine-readable auto-mode path for future orchestrators at zero cost.
+**Rejected**: Deleting the protocol and fab-clarify's Auto Mode (user decision — loses retained-for-future-use behavior). Leaving the protocol in the preamble (every skill pays for a protocol nothing live uses).
+*Introduced by*: 260611-zc9m-preamble-context-diet
 
 ### Max 5 Questions Per Invocation
 **Decision**: Cap suggest mode at 5 questions per invocation. Re-run for more.
@@ -168,6 +176,7 @@ The pre-flight stage guard MUST allow only `intake`. At any post-intake stage (`
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260611-zc9m-preamble-context-diet | 2026-06-11 | **fab-clarify becomes the protocol + bulk-confirm home** (skills-review batch 3/4). The `[AUTO-MODE]` Skill Invocation Protocol moved from `_preamble.md` into `fab-clarify.md` § Skill Invocation Protocol (sole referencer; 2-line pointer left in the preamble; the preamble's § Subagent Dispatch mention repointed). Auto Mode retained — user decision: move, not delete; zero behavior change. Bulk-confirm trigger (`confident >= 3` AND `confident > tentative + unresolved`) and semantics are now **single-homed** in `fab-clarify.md` Step 2 — the preamble's verbatim duplicate was cut to a one-sentence pointer. `fab-clarify.md` also gained its first frontmatter `helpers:` key (`[_srad]`) for the extracted SRAD framework. New design decision "`[AUTO-MODE]` Protocol Co-located with Its Sole Referencer"; "Mode Selection" decision updated. `SPEC-fab-clarify.md` mirror and `docs/specs/glossary.md` `[AUTO-MODE]` entry updated. |
 | 260601-j6cs-merge-spec-into-apply | 2026-06-01 | Made `/fab-clarify` **intake-only**. Removed the `spec` and `plan` targets (the spec stage is gone; under-spec at apply → inline SRAD assumptions in `plan.md`). Overview, dual-mode, taxonomy scan (single Intake taxonomy), auto-mode, machine-readable-result, and stage guard rewritten. Inverted the confidence-recompute step: always runs `fab score --stage intake`. Auto mode retained but no orchestrator invokes it (the `/fab-ff`/`/fab-fff` auto-clarify steps were removed). Post-intake stages STOP with a pointer to `/fab-continue` / editing `plan.md` `## Requirements`. Added "Clarify is Intake-Only" design decision. |
 | 260423-qszh-merge-tasks-checklist | 2026-05-06 | Updated target taxonomy: `tasks` removed, `plan` added (post-apply-entry; requires `plan.md` to exist; scans `## Tasks` for completeness/granularity/dependencies/file paths/`[P]` markers and `## Acceptance` for coverage of spec requirements). Added explicit "Intake" entry to the per-target taxonomy list. `/fab-clarify tasks` errors with `"tasks" target was removed — use plan (post-apply-entry) or spec (pre-apply).` Stage Guard rewritten to enumerate accepted targets and the apply-or-later requirement for `plan`. |
 | 260416-hyl6-clarify-tentative-first | 2026-04-16 | Reordered suggest mode flow — taxonomy scan (Step 1.5) now runs before bulk confirm (Step 2), so tentative assumptions are addressed before confident ones |

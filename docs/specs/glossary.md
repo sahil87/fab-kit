@@ -84,7 +84,7 @@
 
 | Term | Definition |
 |------|-----------|
-| **SRAD** | Autonomy framework for decision-making. Stands for **S**ignal strength, **R**eversibility, **A**gent competence, **D**isambiguation. Used to grade how confidently a skill can assume a decision without asking the user. |
+| **SRAD** | Autonomy framework for decision-making. Stands for **S**ignal strength, **R**eversibility, **A**gent competence, **D**isambiguation. Used to grade how confidently a skill can assume a decision without asking the user. Defined in the `_srad.md` helper, loaded by the six planning skills. |
 | **Certain** | SRAD grade. Decision deterministically answered by config, constitution, or codebase. No marker, not mentioned in output. |
 | **Confident** | SRAD grade. Strong signal, one obvious interpretation. No artifact marker; noted in Assumptions summary. |
 | **Tentative** | SRAD grade. Reasonable guess but multiple valid options. Marked with `<!-- assumed: ... -->` in the artifact. Resolvable by `/fab-clarify`. |
@@ -110,7 +110,7 @@
 
 | Term | Definition |
 |------|-----------|
-| **[AUTO-MODE]** | Prefix used when one skill invokes another internally (e.g., `/fab-ff` calling `/fab-clarify`). Signals autonomous mode — no user interaction, machine-readable result. |
+| **[AUTO-MODE]** | Prefix signaling autonomous mode when one skill invokes another internally — no user interaction, machine-readable result. Protocol defined in `fab-clarify.md` § Skill Invocation Protocol (moved from `_preamble.md` in 260611-zc9m); no skill currently invokes another with it. |
 | **Context loading** | The convention that every skill loads relevant project files (config, constitution, memory index, change artifacts) before generating output. Defined in `_preamble.md`. |
 | **Fast-forward** | Confidence-gated pipeline from intake through hydrate (`/fab-ff`). Proceeds autonomously with auto-clarify and rework loop. |
 | **Fast-forward-further** | Confidence-gated pipeline from intake through review-pr (`/fab-fff`). Same as fast-forward but extends through ship and PR review. |

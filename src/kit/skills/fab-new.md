@@ -1,7 +1,7 @@
 ---
 name: fab-new
 description: "Start a new change — creates the intake, activates it, and creates the git branch."
-helpers: [_generation]
+helpers: [_generation, _srad]
 ---
 
 # /fab-new <description>
@@ -102,7 +102,7 @@ The score is persisted to `.status.yaml` so that consumers (`/fab-switch`, `/fab
 
 ### Step 8: SRAD-Based Question Selection
 
-Apply SRAD (`_preamble.md`). No fixed question cap — SRAD scoring determines count. Zero questions for clear inputs. **Conversational mode**: when 5+ Unresolved, ask one at a time until resolved or user signals done.
+Apply SRAD (`_srad.md`, loaded via `helpers:`). No fixed question cap — SRAD scoring determines count. Zero questions for clear inputs. **Conversational mode**: when 5+ Unresolved, ask one at a time until resolved or user signals done.
 
 ### Step 9: Advance Intake to Ready
 

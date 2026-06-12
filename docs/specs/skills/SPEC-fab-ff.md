@@ -4,7 +4,7 @@
 
 Fast-forward apply → review → hydrate (everything after intake) in one invocation. Two gates: (1) the single intake confidence gate (flat 3.0, all types), checked before the bracket; (2) review rework capped at 3 cycles. No `/fab-clarify` runs inside the bracket — clarification is intake-only. Resumable — re-running picks up from the first incomplete stage (incl. the review-`failed` recovery: `fab status start <change> review` before re-running Step 2). All sub-skill invocations dispatched as sub-agents; every `/fab-continue`-behavior subagent prompt includes "do NOT run `fab status` commands; return results only" — the orchestrator owns those stages' transitions (finish/fail/reset), including the hydrate finish (all of fab-ff's dispatched stages are `/fab-continue`-behavior; ship/review-pr belong to `/fab-fff`). Accepts `--force` to bypass the intake gate.
 
-**Helpers**: Declares `helpers: [_generation, _review]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
+**Helpers**: Declares `helpers: [_generation, _review, _srad]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
 
 ## Flow
 

@@ -1,6 +1,7 @@
 ---
 name: fab-clarify
 description: "Refine the intake artifact — resolve gaps, ambiguities, or [NEEDS CLARIFICATION] markers without advancing."
+helpers: [_srad]
 ---
 
 # /fab-clarify [<change-name>]
@@ -16,7 +17,7 @@ Deepen and refine the **intake** artifact (`intake.md`) without advancing. Clari
 - **Suggest mode** (user invocation) — interactive question flow with recommendations
 - **Auto mode** — autonomous resolution, returns machine-readable result (the protocol is retained for future use; no orchestrator currently invokes clarify automatically)
 
-Mode determined by `[AUTO-MODE]` prefix (see `_preamble.md` > Skill Invocation Protocol). Safe to call multiple times.
+Mode determined by `[AUTO-MODE]` prefix (see § Skill Invocation Protocol below). Safe to call multiple times.
 
 ---
 
@@ -173,6 +174,33 @@ Always run `fab score --stage intake <change>` after resolving assumptions — i
 ### Step 8: Do NOT Advance Stage
 
 Only update `confidence` and `last_updated` in `.status.yaml`.
+
+---
+
+## Skill Invocation Protocol
+
+When one skill invokes another internally (e.g., `/fab-ff` invoking `/fab-clarify` between stages), the calling skill MUST signal the invocation mode explicitly using an instruction prefix. This makes the contract between skills explicit and testable rather than relying on implicit "call context" interpretation.
+
+### Protocol
+
+1. **Prefix**: `[AUTO-MODE]`
+2. **Placement**: The calling skill includes `[AUTO-MODE]` as the **first line** of the invocation prompt / instruction to the called skill.
+3. **Detection**: The called skill checks for the `[AUTO-MODE]` prefix at the start of its invocation context.
+   - **If present**: Enter autonomous mode (no user interaction, machine-readable result).
+   - **If absent**: Enter default/interactive mode (user-facing, structured questions).
+4. **Transitivity**: When skills chain, each link applies the prefix independently.
+
+### Currently Applicable
+
+No skill currently invokes another with the `[AUTO-MODE]` prefix. The former
+`/fab-fff` → `/fab-clarify` and `/fab-ff` → `/fab-clarify` auto-invocations were
+removed in 1.10.0: clarification is an intake-only, human-facing activity, so no
+clarify step runs inside the automated post-intake bracket (apply → review →
+hydrate → ship → review-pr). The protocol itself remains defined for future use.
+
+User-invoked skills never carry the `[AUTO-MODE]` prefix, so called skills default to interactive mode.
+
+To add new mode signals, define new bracketed prefixes (e.g., `[BATCH-MODE]`) here. Pattern: one prefix per mode, first-line placement, absence means default.
 
 ---
 

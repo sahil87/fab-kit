@@ -127,16 +127,7 @@ Relevance judgment is performed by the invoking agent inline — no external cla
 
 ### Subagent Dispatch (Prefix Steps)
 
-Each prefix step (`/fab-new`, `/fab-switch`, `/git-branch`) SHALL be dispatched as a subagent using the Agent tool (`subagent_type: "general-purpose"`) per `_preamble.md` § Subagent Dispatch. Each subagent prompt MUST include the standard subagent context files:
-
-**Required** (subagent reports error if missing):
-- `fab/project/config.yaml`
-- `fab/project/constitution.md`
-
-**Optional** (skip gracefully if missing):
-- `fab/project/context.md`
-- `fab/project/code-quality.md`
-- `fab/project/code-review.md`
+Each prefix step (`/fab-new`, `/fab-switch`, `/git-branch`) SHALL be dispatched as a subagent using the Agent tool (`subagent_type: "general-purpose"`) per `_preamble.md` § Subagent Dispatch. Each subagent prompt MUST instruct the subagent to read the standard subagent context files per `_preamble.md` § Standard Subagent Context.
 
 #### fab-new Dispatch
 

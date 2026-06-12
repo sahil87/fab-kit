@@ -23,15 +23,7 @@ None.
 
 ## Context Loading
 
-Load the **always-load layer** from `_preamble.md` §1 — the same 7 files every skill loads:
-
-1. `fab/project/config.yaml` — **required**
-2. `fab/project/constitution.md` — **required**
-3. `fab/project/context.md` — *optional* (skip gracefully if missing)
-4. `fab/project/code-quality.md` — *optional* (skip gracefully if missing)
-5. `fab/project/code-review.md` — *optional* (skip gracefully if missing)
-6. `docs/memory/index.md` — **required**
-7. `docs/specs/index.md` — **required**
+Load the **always-load layer** per `_preamble.md` §1 (the full 7-file layer — this skill's primary output IS that layer).
 
 Do **not** run preflight. Do **not** load change-specific artifacts.
 
@@ -57,7 +49,7 @@ This is best-effort — `fab log` resolves the active change via `.fab-status.ya
 
 ## Behavior
 
-1. Read all 7 always-load files (skip optional files gracefully)
+1. Load the always-load layer per `_preamble.md` §1 (skip optional files gracefully)
 2. Resolve active change via `fab resolve`
 3. Output the **Orientation Summary** (see format below)
 

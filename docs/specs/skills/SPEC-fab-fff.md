@@ -4,7 +4,7 @@
 
 Full pipeline gated on the single intake gate (identical to fab-ff). Extends through ship and review-pr (fab-ff stops at hydrate). No `/fab-clarify` runs inside the bracket — clarification is intake-only. Max 3 rework cycles on review failure with escalation rule. Like fab-ff, the orchestrator owns the `fab status` transitions for the `/fab-continue`-behavior subagents (apply/review/hydrate): their prompts include "do NOT run `fab status` commands; return results only" (incl. the hydrate finish), the intake finish runs when `progress.intake` is not `done`, and a review-`failed` state is recovered via `fab status start <change> review` before resuming. Ship and review-pr are self-managed: `/git-pr` and `/git-pr-review` run their own stage transitions internally. Accepts `--force` to bypass the intake gate.
 
-**Helpers**: Declares `helpers: [_generation, _review]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
+**Helpers**: Declares `helpers: [_generation, _review, _srad]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
 
 ## Flow
 

@@ -2,7 +2,7 @@
 
 ## Summary
 
-Shared context preamble loaded by every Fab skill. Defines path conventions, context loading layers (always-load, change context, memory lookup, source code), the **Skill Helper Declaration** frontmatter convention, inlined **Naming Conventions**, inlined **Run-Kit (rk) Reference**, the **Common fab Commands** headline table, next-steps convention with state table, skill invocation protocol, subagent dispatch pattern with standard subagent context, SRAD autonomy framework, and confidence scoring.
+Shared context preamble loaded by every Fab skill. Defines path conventions, context loading layers (always-load — descriptive, with a skill-file-wins override and listed exceptions; change context; memory lookup; source code), the **Skill Helper Declaration** frontmatter convention (including stage-conditional in-body loading), inlined **Naming Conventions**, inlined **Run-Kit (rk) Reference**, the **Common fab Commands** headline table, the next-steps convention (with a skill-file-declared ending opt-out) with state table, a pointer to the skill invocation protocol (defined in `fab-clarify.md` since 260611-zc9m), subagent dispatch pattern with standard subagent context, a pointer to the SRAD autonomy framework (extracted to `_srad.md` in 260611-zc9m), and slimmed confidence scoring (gate threshold + invocation; schema/formula/template moved to `_cli-fab.md` § fab score).
 
 This is an internal partial (`user-invocable: false`) — it is never invoked directly. Skills reference it via the opening instruction: "Read `src/kit/skills/_preamble.md` first."
 
@@ -12,8 +12,8 @@ Post-260418-or0o, `_preamble.md` contains four additional subsections inlined fr
 
 | Subsection | Purpose | Canonical source |
 |------------|---------|------------------|
-| `## Skill Helper Declaration` | Documents the per-skill `helpers:` frontmatter field, its 4 allowed values (`_generation`, `_review`, `_cli-fab`, `_cli-external`), semantics (read each helper after `_preamble`, before body), and default (empty → load only `_preamble`). Explicitly states that `_naming` and `_cli-rk` are inlined (not allowed as values) and that `_preamble` is implicit. | `_preamble.md` itself |
-| `## Naming Conventions` | Change folder pattern (`{YYMMDD}-{XXXX}-{slug}`), git branch naming (matches folder name), worktree directory naming (`{adjective}-{noun}`), and operator spawning rules (known change vs new from backlog). | `_preamble.md` (inlined from the deleted `_naming.md`) |
+| `## Skill Helper Declaration` | Documents the per-skill `helpers:` frontmatter field, its 5 allowed values (`_generation`, `_review`, `_cli-fab`, `_cli-external`, `_srad`), semantics (read each helper after `_preamble`, before body), stage-conditional in-body loading (point-of-use reads — used by `fab-continue` for `_generation`/`_review`), and default (empty → load only `_preamble`). Explicitly states that `_naming` and `_cli-rk` are inlined (not allowed as values) and that `_preamble` is implicit. | `_preamble.md` itself |
+| `## Naming Conventions` | Change folder pattern (`{YYMMDD}-{XXXX}-{slug}`), git branch naming (matches folder name), worktree directory naming (`{adjective}-{noun}`). The operator spawning rules moved to `_cli-external.md`'s wt section (260611-zc9m). | `_preamble.md` (inlined from the deleted `_naming.md`) |
 | `## Run-Kit (rk) Reference` | Silent-fail detection (`command -v rk`), iframe window creation, proxy URL pattern, server URL discovery at use-time, 4-step visual display recipe. | `_preamble.md` (inlined from the deleted `_cli-rk.md`) |
 | `## Common fab Commands` | Headline table of 6 most-used fab command families (`preflight`, `score`, `log command`, `change`, `resolve`, `status`) with purpose and canonical invocation form. Cross-references `_cli-fab` for exhaustive flag documentation. Its "Key behaviors" list includes the generic failure rule: any fab command not explicitly marked best-effort (`2>/dev/null \|\| true`) that exits non-zero → STOP and surface stderr (deferring to explicit per-skill handling where a skill intentionally branches on a non-zero exit). | `_preamble.md` |
 
@@ -26,7 +26,10 @@ Skill reads _preamble.md
 │  (all paths relative to repo root)
 │
 ├─ Context Loading
-│  ├─ Layer 1: Always Load
+│  ├─ Layer 1: Always Load (descriptive — the skill's own
+│  │  Context Loading section wins; exceptions: fab-setup,
+│  │  fab-status, fab-switch, docs-hydrate-memory skip it,
+│  │  fab-operator loads config/constitution/context only)
 │  │  Read: config.yaml, constitution.md,
 │  │        context.md*, code-quality.md*,
 │  │        code-review.md*, memory/index.md,
@@ -52,11 +55,12 @@ Skill reads _preamble.md
 ├─ Skill Helper Declaration
 │  (defines the `helpers:` frontmatter field —
 │   allowed: _generation, _review,
-│            _cli-fab, _cli-external)
+│            _cli-fab, _cli-external, _srad;
+│   plus stage-conditional in-body loading)
 │
 ├─ Naming Conventions (inlined from _naming)
-│  (change folder / git branch / worktree /
-│   operator spawning patterns)
+│  (change folder / git branch / worktree patterns —
+│   operator spawning rules live in _cli-external.md)
 │
 ├─ Run-Kit (rk) Reference (inlined from _cli-rk)
 │  (detection, iframe, proxy, server URL,
@@ -68,10 +72,12 @@ Skill reads _preamble.md
 │   resolve, status — see _cli-fab for rest)
 │
 ├─ Next Steps Convention
-│  (state table lookup → "Next:" line)
+│  (state table lookup → "Next:" line — skills whose
+│   Output/Key Properties declare a different ending
+│   are exempt; the skill file wins)
 │
-├─ Skill Invocation Protocol
-│  ([AUTO-MODE] prefix for inter-skill calls)
+├─ Skill Invocation Protocol (pointer)
+│  (protocol defined in fab-clarify.md)
 │
 ├─ Subagent Dispatch
 │  ├─ Dispatch pattern (6 items)
@@ -81,12 +87,13 @@ Skill reads _preamble.md
 │           code-review.md*
 │     (applied at every nesting level)
 │
-├─ SRAD Autonomy Framework
-│  (scoring, grades, artifact markers)
+├─ SRAD Autonomy Framework (pointer)
+│  (framework extracted to _srad.md — loaded via
+│   helpers: by the six planning skills)
 │
-└─ Confidence Scoring
+└─ Confidence Scoring (gate threshold + invocation only;
+   schema/formula/template in _cli-fab.md § fab score)
    Bash: fab score <change>
-   (gate thresholds for fab-ff / fab-fff)
 
 * = optional, skip if missing
 ```

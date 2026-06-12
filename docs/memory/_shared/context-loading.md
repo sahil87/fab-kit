@@ -1,5 +1,5 @@
 ---
-description: "Smart context loading convention — 7-file always-load layer, standard subagent context, selective domain loading, SRAD protocol, state-keyed Next Steps Convention, generic fab-command failure rule (non-best-effort non-zero exit → STOP)"
+description: "Smart context loading convention — descriptive 7-file always-load layer (skill file wins), opt-in skill helpers incl. `_srad` + stage-conditional loading, standard subagent context, selective domain loading, SRAD protocol pointer, scoped Next Steps Convention, generic fab-command failure rule (non-best-effort non-zero exit → STOP)"
 ---
 # Context Loading
 
@@ -11,9 +11,11 @@ The context loading convention defines how fab skills load project context befor
 
 ## Requirements
 
-### Always Load Layer
+### Always Load Layer (Descriptive — Skill File Wins)
 
-Every skill (except `/fab-setup`, `/fab-switch`, `/fab-status`, `/docs-hydrate-memory`) reads seven files as baseline context:
+The always-load layer is the **default** every skill inherits **unless the skill's own Context Loading section says otherwise** — the skill file wins (made explicit by 260611-zc9m; the contract is descriptive, not exhaustive, so self-exempting skills no longer contradict the preamble). Override is opt-in, not opt-out-by-silence: a skill with no Context Loading section still defaults to the full layer. Current exceptions named in `_preamble.md` §1: `/fab-setup`, `/fab-status`, `/fab-switch`, and `/docs-hydrate-memory` skip the layer entirely (the former preamble claim that `fab-switch` "loads only config.yaml" was dropped — `fab-switch.md`'s own Context Loading says config is not required, and the skill file wins); `/fab-operator` loads only `config.yaml`, `constitution.md`, and `context.md` (3 files — see [runtime/operator.md](../runtime/operator.md)).
+
+Skills on the default path read seven files as baseline context:
 
 1. `fab/project/config.yaml` — project configuration, naming conventions, model tiers
 2. `fab/project/constitution.md` — project principles and constraints (MUST/SHOULD/MUST NOT rules)
@@ -29,16 +31,20 @@ The only universal helper beyond the 7 project files is `_preamble.md`. Addition
 
 ### Skill Helper Declaration (Opt-In)
 
-Skills declare additional helper files via the `helpers:` frontmatter list. Allowed values: `_generation`, `_review`, `_cli-fab`, `_cli-external`. The agent MUST read `.claude/skills/{helper}/SKILL.md` for each declared helper after reading `_preamble` and before executing the skill body.
+Skills declare additional helper files via the `helpers:` frontmatter list. Allowed values (five since 260611-zc9m): `_generation`, `_review`, `_cli-fab`, `_cli-external`, `_srad`. The agent MUST read `.claude/skills/{helper}/SKILL.md` for each declared helper after reading `_preamble` and before executing the skill body.
 
-Current mapping (post-2026-04-18):
+**Stage-conditional loading** (260611-zc9m): a skill MAY instead load a helper at its point of use via an explicit in-body read instruction (e.g., "read `.claude/skills/_review/SKILL.md` before entering Review Behavior"). Frontmatter `helpers:` declares unconditional pre-body loads; in-body read instructions declare conditional ones — a helper loaded this way is intentionally absent from the frontmatter list, so the frontmatter contract stays honest. `/fab-continue` is the sole current user: `_generation` at apply entry / intake-`active` regeneration, `_review` at Review Behavior entry (see [pipeline/execution-skills.md](../pipeline/execution-skills.md)).
+
+Current mapping (post-260611-zc9m):
 
 | Skill(s) | `helpers:` |
 |----------|------------|
-| `fab-new`, `fab-draft` | `[_generation]` |
-| `fab-continue`, `fab-ff`, `fab-fff` | `[_generation, _review]` |
+| `fab-new`, `fab-draft` | `[_generation, _srad]` |
+| `fab-continue` | `[_srad]` (+ point-of-use in-body reads of `_generation`/`_review`) |
+| `fab-ff`, `fab-fff` | `[_generation, _review, _srad]` (orchestrator-level rework edits `plan.md` sections directly, so `_generation` stays unconditional — finding f074 refuted) |
+| `fab-clarify` | `[_srad]` |
 | `fab-operator` | `[_cli-fab, _cli-external]` |
-| All others (19 skills) | omitted / `[]` (load only `_preamble`) |
+| All others (17 skills) | omitted / `[]` (load only `_preamble`) |
 
 `_naming` and `_cli-rk` are NOT allowed values — their content is inlined into `_preamble`. `_preamble` itself is implicit and never listed.
 
@@ -94,44 +100,49 @@ This is a subset of the Always Load layer — it includes the 5 `fab/project/**`
 
 **Relationship to Always Load**: The Always Load layer is what the parent agent reads. The Standard Subagent Context is what the parent agent instructs its subagents to read. The parent does not re-pass `docs/memory/index.md` or `docs/specs/index.md` to subagents — those are for the parent's own domain awareness.
 
-### SRAD Protocol
+### SRAD Protocol (via the `_srad` Helper)
 
-The shared context preamble (`_preamble.md`) includes the SRAD autonomy framework, which all planning skills reference during artifact generation. The framework defines:
+The SRAD autonomy framework lives in the dedicated `_srad.md` helper (extracted from `_preamble.md` in 260611-zc9m), declared via frontmatter `helpers:` by the six planning skills — `fab-new`, `fab-draft`, `fab-continue`, `fab-ff`, `fab-fff`, `fab-clarify`. It is **no longer part of the always-load layer**: `_preamble.md` retains only a ~3-line pointer (§ SRAD Autonomy Framework (pointer)), so non-planning skills do not pay for the framework. The framework defines:
 - **SRAD scoring table** — four dimensions evaluated on a continuous 0–100 scale per decision point
 - **Fuzzy-to-grade mapping** — composite score via weighted mean (w_S=0.25, w_R=0.30, w_A=0.25, w_D=0.20), mapped to grades via trapezoidal thresholds (Certain: 85–100, Confident: 60–84, Tentative: 30–59, Unresolved: 0–29)
 - **Critical Rule override** — R < 25 AND A < 25 forces Unresolved regardless of composite
 - **Confidence grades** — Certain, Confident, Tentative, Unresolved with corresponding artifact markers
-- **Worked examples** — demonstrating how numeric dimension scores interact to produce grades
+- **Worked examples** — Example 1 compressed to the one-liner style of Examples 2/3 during the extraction; semantics preserved
 - **Artifact markers** — `<!-- assumed: ... -->` for Tentative, `<!-- clarified: ... -->` for resolved assumptions
 - **Assumptions Summary Block** — standard format with required `Scores` column for per-dimension data; all four grades (Certain, Confident, Tentative, Unresolved) recorded
-- **Dynamic gate thresholds** — `/fab-fff` threshold varies by change type (bugfix=2.0, feature/refactor=3.0, architecture=4.0)
 
-`calc-score.sh` parses per-dimension scores from the required `Scores` column in the spec's Assumptions table and writes aggregate dimension statistics (`fuzzy: true`, `dimensions:` block) to `.status.yaml`.
+The companion confidence-scoring internals — the `.status.yaml` `confidence:` schema, the score formula (incl. the `expected_min` coverage factor), and the status-template notes — live in `_cli-fab.md` § fab score (extended), also moved out of the preamble by 260611-zc9m. Agents never compute the score: `fab score` (Go) does, reading `intake.md` as the sole scoring source. `_preamble.md` § Confidence Scoring keeps only the **Gate Threshold** (single flat-3.0 intake gate via `fab score --check-gate --stage intake`) and **Invocation** (who scores, when). The preamble's former Bulk Confirm subsection is likewise a one-sentence pointer — `fab-clarify.md` (Step 2, Suggest Mode) is the sole authority for the trigger and semantics (see [pipeline/clarify.md](../pipeline/clarify.md)).
 
-This protocol is loaded as part of the "Always Load" layer via `_preamble.md` and does not require separate file loading.
+### Next Steps Convention (State Table, Scoped MUST)
 
-### Next Steps Convention (State Table)
+The `_preamble.md` preamble defines a **state-keyed Next Steps Convention** that skills use to derive their `Next:` output lines. The MUST is **scoped** (260611-zc9m): it applies **unless the skill's own Output or Key Properties section defines a different ending** — the skill file wins, mirroring the §1 context-loading contract. The exemption basis is a skill-file-declared ending, not a "pipeline-state skill" classification (which contradicted its own examples — `/git-pr` advances ship and `/git-pr-review` runs review-pr transitions, yet both declare their own completion output; `/fab-discuss`'s ready signal and `/fab-operator`'s status frame are the other current exemptions). The convention includes:
 
-The `_preamble.md` preamble defines a **state-keyed Next Steps Convention** that all skills use to derive their `Next:` output lines. The convention includes:
-
-1. **State Table** — 9 states (none, initialized, intake, spec, tasks, apply, review pass, review fail, hydrate) each mapping to available commands and a default
+1. **State Table** — 10 states (none, initialized, intake, apply, review pass, review fail, hydrate, ship, review-pr pass, review-pr fail) each mapping to available commands and a default
 2. **State derivation rules** — how to determine the current state from `config.yaml` existence, `.fab-status.yaml`, and `.status.yaml` progress map
 3. **Lookup procedure** — determine state, look up in table, output default first
-4. **Activation preamble** — when a skill creates/restores a change without activating it (e.g., `/fab-new`, `/fab-archive restore` without `--switch`), the `Next:` line includes a `/fab-switch {name}` instruction before state-derived commands
+4. **Activation preamble** — when a skill creates/restores a change without activating it (`/fab-draft` always, `/fab-archive restore` without `--switch`), the `Next:` line includes a `/fab-switch {name}` instruction before state-derived commands (`/fab-new` auto-activates and does not need it)
 
-No skill duplicates or maintains its own suggestion logic — all derive from this single canonical table.
+No skill duplicates or maintains its own suggestion logic — skills on the default path derive from this single canonical table.
 
 ### Exception Skills
 
-The following skills skip the standard context loading layers:
+The following skills skip the standard context loading layers entirely:
 - `/fab-setup` — bootstraps structure, doesn't need project memory
-- `/fab-switch` — navigation only
+- `/fab-switch` — navigation only (requires no always-load files; the former preamble claim that it "loads only config.yaml" was dropped in 260611-zc9m — the skill file wins)
 - `/fab-status` — read-only status display
 - `/docs-hydrate-memory` — ingests sources, doesn't need to load them first
 
-**Special case**: `/fab-discuss` is *not* an exception — it loads the full 7-file always-load layer. However, it is the only skill whose entire purpose is to surface that layer. Other skills load the always-load layer as a preamble to generating or validating artifacts; `fab-discuss` loads it as its primary output, presenting an orientation summary for exploratory discussion sessions. It does not run preflight, does not require an active change, and does not advance any stage.
+**Partial exception**: `/fab-operator` loads only `config.yaml`, `constitution.md`, and `context.md` (260611-zc9m — code-quality, code-review, and both doc indexes serve artifact generation/review, which the operator never does, and a long-lived session re-pays every loaded file after each `/clear`). See [runtime/operator.md](../runtime/operator.md).
+
+**Special case**: `/fab-discuss` is *not* an exception — it loads the full 7-file always-load layer. However, it is the only skill whose entire purpose is to surface that layer. Other skills load the always-load layer as a preamble to generating or validating artifacts; `fab-discuss` loads it as its primary output, presenting an orientation summary for exploratory discussion sessions. It does not run preflight, does not require an active change, and does not advance any stage. Since 260611-zc9m its skill file no longer restates the 7-file list — it points at `_preamble.md` §1, keeping only its do-not-run-preflight / no-change-artifacts deltas (`fab-proceed.md`'s Standard Subagent Context list was replaced with a preamble pointer in the same change).
 
 ## Design Decisions
+
+### Preamble Context Diet — Consumer-Specific Content Moves to Opt-In Homes
+**Decision**: Content in the always-loaded `_preamble.md` that serves only a subset of skills (or no live skill) is relocated to opt-in homes, with short pointers left behind: the SRAD framework → new `_srad.md` helper (declared by the 6 planning skills); confidence-scoring schema/formula/template → `_cli-fab.md` § fab score (extended) (preamble keeps Gate Threshold + Invocation); Bulk Confirm → one-sentence pointer (`fab-clarify.md` Step 2 is sole authority); the dormant `[AUTO-MODE]` Skill Invocation Protocol → `fab-clarify.md` (its sole referencer; Auto Mode retained — user decision: move, not delete); Operator Spawning Rules → `_cli-external.md` wt section (one repo-targeting rule, duplicate dropped). The §1 always-load contract and the Next:-line MUST become **descriptive with a skill-file-wins override**, and the helper model gains **stage-conditional in-body loading** (used by `/fab-continue` for `_generation`/`_review`). Preamble: 32,790 → 22,313 B (−32.0%); every non-planning skill saves the full ~10.5KB per invocation; relocated content is paid only by its consumers.
+**Why**: The preamble was 2–26x the body of the skill being run and roughly a third of it served a small subset of skills. Duplicated copies (bulk-confirm trigger, spawning rules, restated context lists in fab-proceed/fab-discuss) had already drifted once. The existing `helpers:` mechanism plus `sync.go listSkills` auto-deploy meant the reduction needed zero Go changes and zero semantic loss — content moves, it doesn't disappear.
+**Rejected**: Deleting the dormant `[AUTO-MODE]`/Auto-Mode pair (user chose move-over-delete — preserves behavior). Prose compression alone (saves far less, leaves the wrong-audience placement problem). An explicit exempt-skill list for the Next:-line MUST (goes stale with every new skill; a skill-file-declared-ending basis is self-maintaining — and the "pipeline-state skill" basis contradicted its own examples, since `/git-pr`/`/git-pr-review` do advance pipeline state).
+*Introduced by*: 260611-zc9m-preamble-context-diet
 
 ### External Sub-Domain Addressing (Up-to-3-Hop Selective Load)
 **Decision**: When an over-wide domain is split into sub-domains, the sub-domain file is addressed **externally** — the Affected Memory contract, the always-load layer, and selective loading all gain a `{domain}/{sub-domain}/{file}` form. Selective domain loading becomes an up-to-3-hop walk: domain index → (only if the entry is sub-domained) sub-domain index → file. A flat domain stays the degenerate 2-hop case (no sub-domain index hop, byte-identical to pre-change behavior).
@@ -180,6 +191,7 @@ The following skills skip the standard context loading layers:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260611-zc9m-preamble-context-diet | 2026-06-11 | **Preamble context diet** (skills-review batch 3/4, −32.0%: 32,790 → 22,313 B). Helper model gains `_srad` (allowed values now five: `_generation`, `_review`, `_cli-fab`, `_cli-external`, `_srad`) and **stage-conditional in-body loading** (frontmatter = unconditional pre-body; in-body read = conditional point-of-use — `/fab-continue` uses it for `_generation`/`_review`). Helper mapping updated: fab-new/fab-draft `[_generation, _srad]`, fab-continue `[_srad]` + point-of-use reads, fab-ff/fab-fff `[_generation, _review, _srad]` (f074 refuted — orchestrator rework needs `_generation`), fab-clarify `[_srad]` (gained a helpers key), fab-operator unchanged. §1 always-load contract is now **descriptive** ("unless the skill's own Context Loading section says otherwise" — skill file wins) with exceptions fab-setup/fab-status/fab-switch (none — "loads only config.yaml" claim dropped)/docs-hydrate-memory, and fab-operator at 3 files. SRAD Protocol section repointed: framework lives in `_srad.md` (no longer always-loaded); scoring schema/formula/template live in `_cli-fab.md` § fab score (extended); preamble keeps Gate Threshold + Invocation; Bulk Confirm cut to a pointer (fab-clarify.md sole authority). `[AUTO-MODE]` protocol moved to fab-clarify.md; Operator Spawning Rules moved to `_cli-external.md` wt section. Next:-line MUST scoped to skills without a skill-file-declared ending; State Table description refreshed (10 states, 6-stage pipeline); activation-preamble example corrected (`/fab-draft`, not `/fab-new`). fab-proceed/fab-discuss restated context lists replaced with preamble pointers. New design decision "Preamble Context Diet". |
 | 260611-9u91-skills-correctness-idempotency-fixes | 2026-06-11 | Added the generic fab-command failure rule (g2-2) to `_preamble.md` § Common fab Commands "Key behaviors": any fab command not explicitly marked best-effort (`2>/dev/null \|\| true`) that exits non-zero → STOP and surface stderr (resumability handles the re-run), deferring to explicit per-skill handling where a skill intentionally branches on non-zero exits (fab-proceed, fab-discuss, git-pr, fab-archive do so by design). New "Generic fab-Command Failure Rule" requirements section; `SPEC-preamble.md` mirror updated. |
 | 260607-sx7a-reorg-memory-shape-rebalance | 2026-06-07 | Selective Domain Loading rewritten from a flat 2-hop walk to an **up-to-3-hop walk** (domain index → conditional sub-domain index → file), matching `_preamble.md` § Memory File Lookup and `SPEC-preamble.md`. An Affected Memory entry is now either flat (`{domain}/{name}`) or sub-domained (`{domain}/{sub-domain}/{name}`, used after a split); the sub-domain index hop is taken only for the 3-part form, so flat domains stay the degenerate 2-hop case (byte-identical behavior). Always Load layer description for `docs/memory/index.md` now notes a domain may contain sub-domains (surfaced via the domain index's `## Sub-Domains` table). New design decision "External Sub-Domain Addressing (Up-to-3-Hop Selective Load)". |
 | 260418-or0o-flatten-skill-helpers | 2026-04-18 | Flattened helper include tree. Removed three "Also read" fanout directives from `_preamble.md`. Inlined `_naming.md` (76 lines) and `_cli-rk.md` (91 lines) into `_preamble` as `## Naming Conventions` and `## Run-Kit (rk) Reference` subsections; deleted source files and SPEC-_cli-rk.md. Added `## Skill Helper Declaration` subsection defining the per-skill `helpers:` frontmatter (values: `_generation`, `_review`, `_cli-fab`, `_cli-external`). Added `## Common fab Commands` subsection with headline table for the 6 most-used command families (`preflight`, `score`, `log command`, `change`, `resolve`, `status`). Compressed `_cli-fab.md` from 773 to ≤300 lines via condensed flag/syntax tables while preserving all canonical flag behavior. Set `helpers:` on 6 skills: `fab-new`/`fab-draft` → `[_generation]`, `fab-continue`/`fab-ff`/`fab-fff` → `[_generation, _review]`, `fab-operator` → `[_cli-fab, _cli-external]`. Other 19 skills load only `_preamble`. Superseded "Always-Load `_cli-rk`" design decision. Closed backlog item `[84bh]`. |

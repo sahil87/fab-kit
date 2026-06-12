@@ -42,3 +42,10 @@ Tests MUST conform to the implementation spec — never the other way around. Wh
      into plan.md `## Requirements`. Dated + explained per the change's governance note;
      no new normative MUST-rule was added (the existing constraints already cover it). -->
 
+<!-- 2026-06-11 (260611-zc9m): Extended the skill helper model — new `_srad` helper
+     (SRAD framework extracted from `_preamble.md`, declared via `helpers:` by the six
+     planning skills) and stage-conditional in-body helper loading (used by fab-continue
+     for `_generation`/`_review`). Content relocation only, zero semantic loss; the
+     `_cli-fab.md` reference in the CLI constraint above is unaffected. No new normative
+     MUST-rule was added. -->
+
