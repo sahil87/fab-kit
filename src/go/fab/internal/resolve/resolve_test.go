@@ -150,34 +150,6 @@ func TestToFolder_Symlink(t *testing.T) {
 	}
 }
 
-func TestToDir(t *testing.T) {
-	fabRoot := setupFabRoot(t)
-	createChange(t, fabRoot, "260310-abcd-my-change")
-
-	got, err := ToDir(fabRoot, "abcd")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	want := "fab/changes/260310-abcd-my-change/"
-	if got != want {
-		t.Errorf("got %q, want %q", got, want)
-	}
-}
-
-func TestToStatus(t *testing.T) {
-	fabRoot := setupFabRoot(t)
-	createChange(t, fabRoot, "260310-abcd-my-change")
-
-	got, err := ToStatus(fabRoot, "abcd")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	want := "fab/changes/260310-abcd-my-change/.status.yaml"
-	if got != want {
-		t.Errorf("got %q, want %q", got, want)
-	}
-}
-
 func TestToAbsDir(t *testing.T) {
 	fabRoot := setupFabRoot(t)
 	createChange(t, fabRoot, "260310-abcd-my-change")

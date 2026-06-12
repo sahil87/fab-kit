@@ -273,11 +273,6 @@ func SwitchNone(fabRoot string) string {
 	return "No active change."
 }
 
-// List lists changes with stage info.
-func List(fabRoot string, archive bool) ([]string, error) {
-	return ListWithOptions(fabRoot, archive, false)
-}
-
 // ListWithOptions lists changes with stage info; when showStats is true,
 // appends a true_impact column to each row via impactColumn: the compact
 // "{impl}i+{tests}t={total}" split when a tests sub-block is present, else the

@@ -1,7 +1,6 @@
 package score
 
 import (
-	"bufio"
 	"os"
 	"path/filepath"
 	"sort"
@@ -9,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/lines"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
 )
 
@@ -119,7 +119,7 @@ func mustGetwd(t *testing.T) string {
 	return wd
 }
 
-// parseChangeTypeTable scans change-types.md line-by-line (bufio.Scanner +
+// parseChangeTypeTable reads change-types.md line-by-line (internal/lines +
 // pipe-split — no markdown library, per Constitution Principle I) and
 // extracts the pipe-delimited table under the given
 // section heading. It anchors on the heading rather than the column names because
@@ -128,20 +128,16 @@ func mustGetwd(t *testing.T) string {
 func parseChangeTypeTable(t *testing.T, docPath, heading string) map[string]string {
 	t.Helper()
 
-	f, err := os.Open(docPath)
+	body, err := lines.ReadFileLines(docPath)
 	if err != nil {
-		t.Fatalf("open %s: %v", docPath, err)
+		t.Fatalf("read %s: %v", docPath, err)
 	}
-	defer f.Close()
 
 	result := make(map[string]string)
 	inSection := false
 	headerSeen := false
-	scanner := bufio.NewScanner(f)
 
-	for scanner.Scan() {
-		line := scanner.Text()
-
+	for _, line := range body {
 		if strings.HasPrefix(line, heading) {
 			inSection = true
 			headerSeen = false
@@ -185,9 +181,6 @@ func parseChangeTypeTable(t *testing.T, docPath, heading string) map[string]stri
 		result[changeType] = value
 	}
 
-	if err := scanner.Err(); err != nil {
-		t.Fatalf("scan %s: %v", docPath, err)
-	}
 	if len(result) == 0 {
 		t.Fatalf("no table rows found under heading %q in %s", heading, docPath)
 	}

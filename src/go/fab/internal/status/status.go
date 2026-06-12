@@ -345,19 +345,19 @@ func ApplyAcceptance(statusFile *sf.StatusFile, field, value string) error {
 		}
 		statusFile.Plan.Generated = value == "true"
 	case "task_count":
-		n, err := parseInt(value)
+		n, err := sf.ParseIntStrict(value)
 		if err != nil {
 			return fmt.Errorf("Invalid value '%s' for field 'task_count' (expected non-negative integer)", value)
 		}
 		statusFile.Plan.TaskCount = n
 	case "acceptance_count":
-		n, err := parseInt(value)
+		n, err := sf.ParseIntStrict(value)
 		if err != nil {
 			return fmt.Errorf("Invalid value '%s' for field 'acceptance_count' (expected non-negative integer)", value)
 		}
 		statusFile.Plan.AcceptanceCount = n
 	case "acceptance_completed":
-		n, err := parseInt(value)
+		n, err := sf.ParseIntStrict(value)
 		if err != nil {
 			return fmt.Errorf("Invalid value '%s' for field 'acceptance_completed' (expected non-negative integer)", value)
 		}
@@ -705,18 +705,4 @@ func runStageHook(fabRoot, stage, phase string) error {
 	}
 
 	return hooks.Run(fabRoot, command)
-}
-
-func parseInt(s string) (int, error) {
-	if len(s) == 0 {
-		return 0, fmt.Errorf("empty string")
-	}
-	n := 0
-	for _, c := range s {
-		if c < '0' || c > '9' {
-			return 0, fmt.Errorf("not a number")
-		}
-		n = n*10 + int(c-'0')
-	}
-	return n, nil
 }

@@ -103,7 +103,10 @@ func ExtractContent(backlogPath, id string) (string, error) {
 // The item is flipped where it sits; it is never moved to another section.
 // MarkDone is idempotent.
 func MarkDone(backlogPath, id string) (string, error) {
-	data, err := os.ReadFile(backlogPath)
+	// internal/lines reuse (260612-tb6f, absorbing hv7t's deletion candidate):
+	// per-line "\r" trimming means a rewrite of a CRLF file normalizes line
+	// endings to LF — acceptable, backlog.md is fab-generated (LF).
+	body, err := lines.ReadFileLines(backlogPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "not_found", nil
@@ -114,14 +117,13 @@ func MarkDone(backlogPath, id string) (string, error) {
 	checkedRe := regexp.MustCompile(`^- \[x\] \[` + regexp.QuoteMeta(id) + `\]`)
 	uncheckedRe := regexp.MustCompile(`^- \[ \] \[` + regexp.QuoteMeta(id) + `\]`)
 
-	lines := strings.Split(string(data), "\n")
-	for i, line := range lines {
+	for i, line := range body {
 		if checkedRe.MatchString(line) {
 			return "already", nil
 		}
 		if uncheckedRe.MatchString(line) {
-			lines[i] = strings.Replace(line, "- [ ]", "- [x]", 1)
-			if err := os.WriteFile(backlogPath, []byte(strings.Join(lines, "\n")), 0644); err != nil {
+			body[i] = strings.Replace(line, "- [ ]", "- [x]", 1)
+			if err := os.WriteFile(backlogPath, []byte(strings.Join(body, "\n")), 0644); err != nil {
 				return "not_found", err
 			}
 			return "marked", nil

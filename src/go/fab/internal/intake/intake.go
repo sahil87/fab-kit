@@ -3,11 +3,11 @@
 package intake
 
 import (
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/lines"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 )
 
@@ -21,12 +21,16 @@ var wsRe = regexp.MustCompile(`\s+`)
 // first "# Intake: {title}" heading, with internal whitespace collapsed.
 // Returns "" on a missing/unreadable file or when no matching heading exists.
 func Title(changeDir string) string {
-	data, err := os.ReadFile(filepath.Join(changeDir, "intake.md"))
+	// internal/lines reuse (260612-tb6f, absorbing hv7t's deletion candidate).
+	// CRLF parity: lines.Split trims one trailing "\r" (vs the old TrimRight
+	// trimming runs of them) — equivalent for any realistic input, and the
+	// wsRe/TrimSpace normalization below absorbs pathological extras.
+	body, err := lines.ReadFileLines(filepath.Join(changeDir, "intake.md"))
 	if err != nil {
 		return ""
 	}
-	for _, line := range strings.Split(string(data), "\n") {
-		m := titleRe.FindStringSubmatch(strings.TrimRight(line, "\r"))
+	for _, line := range body {
+		m := titleRe.FindStringSubmatch(line)
 		if m != nil {
 			return strings.TrimSpace(wsRe.ReplaceAllString(m[1], " "))
 		}
