@@ -18,6 +18,10 @@ Hydrate `docs/memory/` from external sources or from codebase analysis.
 
 Mode is determined automatically by argument type. Safe to run repeatedly — content is merged without duplication or overwriting manually-added content.
 
+### Index Ownership
+
+Index files (`index.md` at the root, domain, and sub-domain tiers) are **generated artifacts** — `fab memory-index` is their single writer. The one hand-curated field is the `description:` frontmatter (on topic files and on domain/sub-domain indexes). When a new domain or sub-domain is created, its `index.md` **stub** — only the `description:` frontmatter one-liner, nothing else — is created **before** `fab memory-index` runs; the command fills in the generated body and round-trips the description. Never hand-edit generated index rows or "Last Updated" cells. Both modes below follow this model.
+
 ---
 
 ## Pre-flight Check
@@ -26,6 +30,12 @@ Mode is determined automatically by argument type. Safe to run repeatedly — co
 2. `docs/memory/index.md` must exist and be readable
 
 **If either fails, STOP**: `docs/memory/ not found. Run /fab-setup first to create the memory directory.` Do NOT create these.
+
+---
+
+## Context Loading
+
+Skips the always-load layer entirely (this section is the skill-file override the `_preamble.md` §1 contract keys on): the skill ingests or generates memory content — it does not need to pre-load the memory landscape, and it requires no config, constitution, or active change. Only the Pre-flight files above are read.
 
 ---
 
@@ -66,7 +76,7 @@ For each source: identify **domains** (logical topic areas) and **topics** withi
 
 For each topic:
 1. Create `docs/memory/{domain}/` if needed
-2. Create `docs/memory/{domain}/index.md` if needed — a domain index carrying a `description:` frontmatter one-liner for the domain (`fab memory-index` reads it into the root index row)
+2. Create `docs/memory/{domain}/index.md` if needed — a stub carrying only the `description:` frontmatter one-liner for the domain, created before Step 4 runs (`fab memory-index` reads it into the root index row — see Index Ownership). When placing a topic into a sub-domain, likewise create the `docs/memory/{domain}/{sub-domain}/index.md` stub if needed
 3. If target file doesn't exist → create with a leading `description:` frontmatter line, then Overview, Requirements, Design Decisions, Changelog sections
 4. If target file exists → **merge** new content, preserve existing/manually-added content; keep its `description:` frontmatter accurate
 
@@ -80,7 +90,7 @@ For each topic:
 
 ### Step 4: Regenerate Indexes (`fab memory-index`)
 
-Run `fab memory-index` once. It deterministically regenerates the root (domains-only) and every domain index from folder contents + `description:` frontmatter + git dates — byte-stable and idempotent. Never hand-edit index rows or "Last Updated" cells; the command is the single writer. Any non-fatal shape warnings it prints to stderr are advisory (over-wide / over-deep folders).
+Run `fab memory-index` once. It deterministically regenerates the root (domains-only), every domain index, and every sub-domain index from folder contents + `description:` frontmatter + git dates — byte-stable and idempotent. Never hand-edit index rows or "Last Updated" cells; the command is the single writer. Any non-fatal shape warnings it prints to stderr are advisory (over-wide / over-deep folders).
 
 ---
 
@@ -148,9 +158,11 @@ description: "One-line summary of this topic (source for the generated index row
 
 Mark ambiguous inferences with `[INFERRED]` inline near the relevant requirement.
 
+**Placement** follows the same rules as ingest-mode Step 3: target path is `docs/memory/{domain}/{topic}.md` (or `docs/memory/{domain}/{sub-domain}/{topic}.md`); create the domain folder and its `description:`-only index stub if needed — sub-domain stub likewise — before Step 4 runs (see Index Ownership); and the same shape bounds apply (~5–12 topic files per folder, max depth 3, a sub-domain only for a cohesive ≥8-file cluster, `_shared/`/`_unsorted/` width-exempt).
+
 ### Step 4: Regenerate Indexes
 
-Same as ingest mode Step 4 — run `fab memory-index` to regenerate the root (domains-only) and domain indexes from folder contents + frontmatter + git dates. Do not hand-edit index rows.
+Same as ingest mode Step 4 — run `fab memory-index` to regenerate the root (domains-only), domain, and sub-domain indexes from folder contents + frontmatter + git dates. Do not hand-edit index rows.
 
 ---
 

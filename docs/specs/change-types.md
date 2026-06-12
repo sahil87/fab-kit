@@ -81,7 +81,7 @@ PR titles always use the `{type}: {title}` prefix format.
 | 6 | chore, cleanup, maintenance, housekeeping | `chore` |
 | 7 | *(no match)* | `feat` |
 
-The inferred type is written to `.status.yaml` via `statusman.sh set-change-type`. `/git-pr` reads this value as step 2 in its resolution chain, avoiding re-inference.
+The inferred type is written to `.status.yaml` via `fab status set-change-type` (the `artifact-write` hook does this automatically on every `intake.md` write). `/git-pr` reads this value as step 2 in its resolution chain, avoiding re-inference.
 
 ---
 

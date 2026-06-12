@@ -9,7 +9,7 @@ description: "Show the fab workflow overview and a quick summary of all availabl
 
 ## Purpose
 
-Orient the user in the fab workflow. Show how the stages fit together and list every `/fab-*` command with a one-line description. Read-only — no files are created or modified.
+Orient the user in the fab workflow. Show how the stages fit together and list every deployed command with a one-line description — the `/fab-*`, `/git-*`, and `/docs-*` skills grouped by category, plus the `fab batch` operations and the companion packages (wt, idea). Read-only — no files are created or modified.
 
 ---
 

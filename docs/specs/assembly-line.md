@@ -2,7 +2,7 @@
 
 You've felt this: describe a change, wait while AI works, review, describe the next one. Repeat. Half your day is waiting. The other half is context-switching between "thinking about what to build" and "watching AI build it."
 
-FabKit breaks this loop. Every change is a self-contained folder with its own spec, tasks, and status. Hand an entire batch to AI — each change in its own git worktree — and start creating the next batch while it works. You're never waiting. AI is never idle.
+FabKit breaks this loop. Every change is a self-contained folder with its own intake, plan, and status. Hand an entire batch to AI — each change in its own git worktree — and start creating the next batch while it works. You're never waiting. AI is never idle.
 
 ---
 
@@ -118,7 +118,7 @@ fab batch switch --all
 # Run /fab-fff in each tab — AI takes over
 ```
 
-Each change runs the full pipeline (spec, tasks, apply, review, hydrate, then ship and review-pr) independently. Worktree isolation means zero conflicts between parallel changes.
+Each change runs the full pipeline (apply — plan generation + execution — then review, hydrate, ship, and review-pr) independently. Worktree isolation means zero conflicts between parallel changes.
 
 ### 3. While AI works, create the next batch
 

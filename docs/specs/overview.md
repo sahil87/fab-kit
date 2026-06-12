@@ -5,7 +5,7 @@
 ## Design Principles
 
 ### 1. Pure Prompt Play
-No system installation required. All workflow logic lives in `src/kit/` as markdown templates and skill definitions that any AI agent can execute.
+All workflow logic lives in markdown skill files that any AI agent can execute — no build steps, no runtime frameworks. The kit (skills, templates, migrations) is distributed via the system cache (`~/.fab-kit/versions/<version>/kit/`, managed by the `fab` binary from `brew install fab-kit`) and deployed into projects as `.claude/skills/` copies by `fab sync`.
 
 ### 2. Memory Is the Source of Truth
 Code serves documentation, not the other way around. The memory files (`docs/memory/`) are the source of truth for what the system does and why it works the way it does.
@@ -20,7 +20,7 @@ Always know where you are. Each change folder has a `.status.yaml` manifest that
 Use skills (not rigid commands) for better agent interoperability. Skills are more naturally invocable by AI agents.
 
 ### 6. Git-Optional
-Fab tracks changes in directories, not branches. A change folder is the unit of identity — the same change can be worked on across multiple branches, worktrees, or even repos. When git is available, `/fab-switch` offers to create or adopt a branch, but no branch information is stored in `.status.yaml`. Commits, pushes, and PRs remain your responsibility — Fab never couples its state to git state.
+Fab tracks changes in directories, not branches. A change folder is the unit of identity — the same change can be worked on across multiple branches, worktrees, or even repos. When git is available, `/git-branch` creates or adopts a matching branch (and `/fab-new` creates one inline), but no branch information is stored in `.status.yaml`. The ship path is the deliberate exception: `/git-pr` commits, pushes, and creates the PR, and `/git-pr-review` processes feedback — both guarded by a branch-matches-change STOP. Fab never merges or deletes branches.
 
 ---
 
@@ -34,9 +34,9 @@ After bootstrapping, use `/docs-hydrate-memory` to ingest existing documentation
 
 ---
 
-## The 4 Core Stages (6 with Ship + Review-PR)
+## The 6 Stages
 
-Changes progress through 4 core stages plus 2 PR-side stages (`ship`, `review-pr`). Intake is the only stage requiring human judgment (gated by the single intake confidence gate); everything after intake runs unattended unless review-rework exhausts or PR feedback arrives:
+Changes progress through 6 stages: `intake → apply → review → hydrate → ship → review-pr`. Intake is the only stage requiring human judgment (gated by the single intake confidence gate); everything after intake runs unattended unless review-rework exhausts or PR feedback arrives:
 
 ```mermaid
 flowchart TD
@@ -50,7 +50,7 @@ flowchart TD
     end
     subgraph completion ["Completion"]
         direction LR
-        AR["4 HYDRATE"] --> H[/"Hydrate into memory"/]
+        AR["4 HYDRATE"] --> SH["5 SHIP"] --> RP["6 REVIEW-PR"]
     end
 
     B --> A
@@ -69,8 +69,8 @@ flowchart TD
 | 2 | **Apply** | Generate plan + execute | `plan.md` + code changes | Entry sub-step: co-generate `plan.md` with `## Requirements`, `## Tasks`, and `## Acceptance` sections from `intake.md` in one pass. Main sub-step: execute the unchecked tasks under `## Tasks`, run tests, mark `[x]` |
 | 3 | **Review** | Validate via sub-agent | validation report | Sub-agent review with prioritized findings (must-fix / should-fix / nice-to-have); inward sub-agent inspects items under `plan.md` `## Acceptance` against `## Requirements` |
 | 4 | **Hydrate** | Complete & hydrate | memory updates | Hydrate the plan's requirements into memory files |
-
-The pipeline continues with `ship` (`/git-pr` creates the PR) and `review-pr` (`/git-pr-review` triages PR feedback) for a total of 6 stages end to end.
+| 5 | **Ship** | Commit, push, create PR | draft GitHub PR | `/git-pr` autonomously commits, pushes, and opens a draft PR (branch-matches-change guard; records the PR URL in `.status.yaml`) |
+| 6 | **Review-PR** | Process PR feedback | fixes + replies | `/git-pr-review` requests/fetches reviews (Copilot or human), triages each comment as fix/defer/skip, applies fixes, posts replies |
 
 ### User Flow
 
@@ -82,7 +82,7 @@ For detailed visual maps of how commands connect — including shortcuts, rework
 
 | Skill | Purpose | Creates |
 |-------|---------|---------|
-| `/fab-setup` | Bootstrap fab/ structure | `config.yaml`, `constitution.md`, `memory/`, skill symlinks (idempotent) |
+| `/fab-setup` | Bootstrap fab/ structure | `config.yaml`, `constitution.md`, `memory/`, deployed skill copies (idempotent) |
 | `/docs-hydrate-memory [sources...]` | Ingest external sources into docs/memory/ | Updated `docs/memory/` with indexes |
 | `/fab-new` | Start change (creates intake + activates) | `intake.md`, `.status.yaml` |
 | `/fab-draft` | Create change intake without activating | `intake.md`, `.status.yaml` |
@@ -93,10 +93,14 @@ For detailed visual maps of how commands connect — including shortcuts, rework
 | `/fab-continue` → apply | Implement | Code changes |
 | `/fab-continue` → review | Validate (sub-agent) | Prioritized findings report |
 | `/fab-continue` → hydrate | Complete & hydrate | Updated memory |
+| `/fab-proceed` | Context-aware orchestrator — runs needed prefix steps (fab-new, fab-switch, git-branch), then delegates to `/fab-fff` | Full pipeline from conversation context |
+| `/git-pr` | Ship — commit, push, create draft PR | Draft PR, `ship` done |
+| `/git-pr-review` | Process PR review comments (fix/defer/skip + replies) | Fix commits + replies, `review-pr` done |
 | `/fab-archive` | Archive completed change | Folder moved to archive/ |
 | `/fab-switch` | Change active change | Updated pointer file |
 | `/fab-status` | Check progress | Status display |
 | `/fab-discuss` | Prime agent with project context for discussion | — (read-only) |
+| `/fab-operator` | Multi-agent coordination across tmux panes — monitoring, auto-answering, autopilot queues | — (coordination state) |
 | `fab batch new` | Create changes from backlog items | Worktree + tmux tab per item |
 | `fab batch switch` | Switch to existing changes | Worktree + tmux tab per change |
 | `fab batch archive` | Archive completed changes | Folder(s) moved to archive/, backlog marked |
@@ -126,7 +130,15 @@ For detailed visual maps of how commands connect — including shortcuts, rework
 /fab-continue
 # → Saves learnings into docs/memory/
 
-# 6. Archive
+# 6. Ship
+/git-pr
+# → Commits, pushes, creates a draft PR
+
+# 7. Process PR feedback
+/git-pr-review
+# → Triages review comments, applies fixes, posts replies
+
+# 8. Archive
 /fab-archive
 # → Moves change folder to archive/
 ```

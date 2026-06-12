@@ -4,7 +4,7 @@
 
 Condenses a skill (or, in batch mode, all skills) to its core — removing verbosity, redundant examples, and concepts re-explained from the shared partials — without losing any behavioral step, error case, or decision point. Evaluates each target against seven bloat signals (redundant re-explanation, excessive output examples, obvious instructions, redundant argument docs, over-specified error tables, verbose step narration, duplicate examples) and applies eight optimization rules (never remove functionality, preserve frontmatter, preserve H1 + preamble reference, reference shared docs, merge small steps, one output example max, keep error tables, preserve tone).
 
-All `_*.md` partials (`_preamble`, `_generation`, `_review`, `_cli-fab`, `_cli-external`, `_srad`) are reference context, never optimization targets. Writes require explicit user approval (AskUserQuestion) in both modes. Targets are the canonical sources at `src/kit/skills/` — never the deployed `.claude/skills/` copies. The skill source `src/kit/skills/internal-skill-optimize.md` is canonical.
+Every `_*.md` file is a shared partial — reference context, never an optimization target; the set is derived by globbing `src/kit/skills/_*.md`, never from a hardcoded list (a list drifts as partials are added). Writes require explicit user approval (AskUserQuestion) in both modes. Targets are the canonical sources at `src/kit/skills/` — never the deployed `.claude/skills/` copies. The skill source `src/kit/skills/internal-skill-optimize.md` is canonical.
 
 ## Flow
 
@@ -12,8 +12,8 @@ All `_*.md` partials (`_preamble`, `_generation`, `_review`, `_cli-fab`, `_cli-e
 User invokes /internal-skill-optimize [<skill-name>]
 │
 ├─ Pre-flight
-│  ├─ Read: .claude/skills/ _*.md partials (reference context,
-│  │        not targets)
+│  ├─ Read: _*.md partials — set derived by globbing
+│  │        src/kit/skills/_*.md (reference context, not targets)
 │  └─ [named skill missing] STOP:
 │     "Skill not found: src/kit/skills/{skill-name}.md"
 │

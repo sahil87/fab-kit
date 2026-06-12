@@ -8,7 +8,7 @@ The operator (`/fab-operator`) is a long-running coordination layer that sits in
 
 ## Version History
 
-The current operator (v8) evolved through eight iterations:
+The current operator (v9) evolved through nine iterations:
 
 | Version | Key addition |
 |---------|-------------|

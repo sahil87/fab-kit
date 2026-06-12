@@ -10,7 +10,7 @@ Process GitHub PR review comments on the current branch's PR. Handles feedback f
 
 **`<change>` argument** *(optional)*: an explicit change to target instead of the active one — resolved transiently in Step 0 (`.fab-status.yaml` untouched). Arguments are classified by value: `--tool` and the value following it are consumed as the flag; any remaining positional argument is the change reference (a `--tool` value can never be misread as a change).
 
-**`--tool` flag**: Forces a specific review tool, bypassing automatic detection. Valid values: `copilot`. When provided, only that tool is attempted.
+**`--tool` flag**: Names the review tool Step 2 Phase 2 requests when no reviews exist, overriding the `review_tools` config check (a forced tool is attempted even when config disables it). Valid values: `copilot` — currently the only wired tool, and also the config default.
 
 ---
 
@@ -78,7 +78,7 @@ If the count is > 0, check for actual inline comments:
 gh api repos/{owner}/{repo}/pulls/{number}/comments --jq 'length'
 ```
 
-If comments exist → proceed directly to Step 3 (skip Phase 2 — the cascade does not run when existing reviews with comments are found).
+If comments exist → proceed directly to Step 3 (skip Phase 2 — no Copilot review is requested when existing reviews with comments are found).
 
 If reviews exist but no inline comments → print `Reviews exist but no actionable inline comments to process. Check the PR directly for reviewer feedback.` and go to Step 6 with outcome **no-reviews**. This prevents re-requesting automated reviews when a human reviewer left only a body-level comment (e.g., a summary in the review dialog).
 
@@ -119,7 +119,7 @@ If `review_tools.copilot` is `false` (and `--tool copilot` was **not** provided)
 Fetch all review comments on the PR:
 
 ```bash
-gh api --paginate repos/{owner}/{repo}/pulls/{number}/comments --jq '.[] | {id: .id, node_id: .node_id, path: .path, line: .line, body: .body, user: .user.login, in_reply_to_id: .in_reply_to_id}'
+gh api --paginate repos/{owner}/{repo}/pulls/{number}/comments --jq '.[] | {id: .id, path: .path, line: .line, body: .body, user: .user.login, in_reply_to_id: .in_reply_to_id}'
 ```
 
 This captures comments from all submitted reviews regardless of reviewer. Track the set of unique `user` values for the commit message in Step 5. Skip reply comments (`in_reply_to_id` is non-null) — these are conversational follow-ups, not new review findings.

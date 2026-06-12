@@ -30,7 +30,10 @@ User invokes /fab-proceed
 │     Single classifier — no "thin but non-empty" tier.
 │
 ├─ Step 4: Unactivated Intake Scan (only if no active change)
-│  └─ ls -d fab/changes/*/intake.md | grep -v archive/ | sort -t- -k1,1r
+│  └─ ls -d fab/changes/*/intake.md 2>/dev/null | grep -v archive/
+│     | sed 's|fab/changes/||;s|/intake.md||' | sort -r
+│     (full-folder-name descending — YYMMDD dominates, XXXX-slug
+│      tail makes same-day order deterministic)
 │     ├─ ≥1 candidate → retain full list for relevance check
 │     └─ none
 │
@@ -42,7 +45,8 @@ User invokes /fab-proceed
 │       • Clearly relevant = shared topic + overlapping terminology
 │         + consistent scope (partial/vague overlap does NOT qualify)
 │       • Ambiguous → not clearly relevant (asymmetric-bias rule)
-│       • Date-recency tiebreak ONLY among equally-relevant candidates
+│       • Date-descending full-folder-name tiebreak (sort -r | head -1,
+│         deterministic even same-day) ONLY among equally-relevant candidates
 │
 ├─ Prefix Dispatch (subagents)
 │  ├─ ┌──────────────────────────────────────────┐
@@ -106,7 +110,7 @@ Biasing toward the recoverable failure is the design intent.
 | /fab-switch | Substantive + clearly relevant intake, OR empty/thin + ≥1 intake | Activate the selected change |
 | /git-branch | Branch-mismatch row (active change, branch doesn't match) and the /fab-switch-prefixed rows — NOT the /fab-new rows (fab-new Step 11 creates the branch inline, 260612-w7dp) | Create or checkout the matching branch |
 
-### Output Format
+### Bypass Notes
 
 When bypassed drafts exist, emit one Note line per draft BEFORE any step reports:
 
@@ -118,7 +122,7 @@ Multiple Notes appear in date-descending order. No Notes on the activation path 
 
 ### Key differences from /fab-fff and /fab-ff
 
-- Does NOT load `_preamble.md` or run preflight — delegates that to `/fab-fff`
+- Reads `_preamble.md` (per skill convention) but skips preflight/context loading itself — pipeline context loading is delegated to `/fab-fff`
 - Does NOT accept arguments or flags — infers everything from state detection
 - Prefix steps are subagents; terminal `/fab-fff` is via Skill tool (not subagent)
 - Zero-prompt posture — relevance ambiguity is resolved by the asymmetric-bias rule, never by asking the user

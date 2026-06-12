@@ -2,7 +2,7 @@
 
 ## Summary
 
-Displays workflow overview and command reference. Delegates to `fab fab-help` Go subcommand. No context loading, no file modification.
+Displays workflow overview and command reference — the `/fab-*`, `/git-*`, and `/docs-*` skills grouped by category, plus the `fab batch` operations and the companion packages (wt, idea). Delegates to `fab fab-help` Go subcommand. No context loading, no file modification.
 
 ## Flow
 
@@ -11,7 +11,7 @@ User invokes /fab-help
 │
 ├─ Bash: fab log command "fab-help"
 └─ Bash: fab fab-help
-   └─ (scans src/kit/skills/*.md frontmatter, prints grouped help text)
+   └─ (reads kit version from cache, scans skill frontmatter, prints grouped help text)
 ```
 
 ### Tools used

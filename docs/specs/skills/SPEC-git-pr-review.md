@@ -7,7 +7,7 @@ Processes PR review comments from any reviewer (human or bot). Fully autonomous 
 ## Arguments
 
 - **`<change>`** *(optional, 260612-w7dp)* — explicit change to target instead of the active one (any non-flag argument). Resolved transiently in Step 0 (`.fab-status.yaml` untouched); an explicit argument that fails to resolve STOPs (caller error), while argless failure proceeds with no change context. `/fab-fff` Step 5 passes the change folder name through (`/git-pr-review {name}` — folder names never collide with git-pr's type tokens, so both dispatches use the same form).
-- **`--tool <name>`** *(optional)* — Forces a specific review tool. Valid values: `copilot` only.
+- **`--tool <name>`** *(optional)* — Names the review tool Step 2 Phase 2 requests, overriding the `review_tools` config check (a forced tool is attempted even when config disables it). Valid values: `copilot` — currently the only wired tool, and also the config default.
 
 ## Configuration
 
@@ -47,7 +47,10 @@ Setting `copilot` to `false` skips Phase 2 entirely. When the `review_tools` key
 │  ├─ Phase 1: Check existing reviews
 │  │  ├─ Bash: gh api .../pulls/{n}/reviews
 │  │  └─ Bash: gh api .../pulls/{n}/comments
-│  │     └─ [if comments exist] → Step 3
+│  │     ├─ [if comments exist] → Step 3 (no Copilot review is
+│  │     │  requested when existing reviews with comments are found)
+│  │     └─ [reviews but no inline comments] "no actionable inline
+│  │        comments" → Step 6, outcome no-reviews
 │  │
 │  └─ Phase 2: Copilot Review Request (no reviews found)
 │     ├─ Read config: review_tools.copilot from fab/project/config.yaml
@@ -59,8 +62,9 @@ Setting `copilot` to `false` skips Phase 2 entirely. When the `review_tools` key
 │     │  │     └─ [20 attempts, no review] "...not yet available. Re-run /git-pr-review..." (the suggested command names the explicit <change> when one was passed — an argless re-run resolves the active change, 260612-w7dp) → Step 6, outcome timeout (stage left active — no finish, no fail)
 │     │  └─ [failure] "No automated reviewer available..." → Step 6, outcome no-reviews (clean finish)
 │
-├─ Step 3: Fetch Comments (with id, node_id)
-│  └─ Bash: gh api .../pulls/{n}/comments
+├─ Step 3: Fetch Comments (jq projection: id, path, line, body,
+│  │        user, in_reply_to_id — reply comments skipped)
+│  └─ Bash: gh api --paginate .../pulls/{n}/comments
 │
 ├─ Step 4: Triage Comments (single classify-and-assign list —
 │  │        260611-szxd f098; the Disposition Reference table is the
@@ -109,7 +113,7 @@ Setting `copilot` to `false` skips Phase 2 entirely. When the `review_tools` key
    └─ [push fails] report error, do NOT STOP (best-effort push; local commit retained)
 
 Phase tracking (via yq directly on .status.yaml):
-  waiting → received → triaging → fixing → pushed → replying
+  received → triaging → fixing → pushed → replying
 ```
 
 ### Copilot Review Request (Phase 2)

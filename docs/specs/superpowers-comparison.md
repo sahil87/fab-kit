@@ -28,7 +28,7 @@ Superpowers' strict RED-GREEN-REFACTOR enforcement is its sharpest edge. Fab's a
 
 ### The "junior engineer" planning standard
 
-Superpowers' plans are described as "clear enough for an enthusiastic junior engineer with poor taste and no project context." This is a useful litmus test for task granularity — fab's `tasks.md` could adopt a similar explicitness bar (exact file paths, complete code specifications, not pseudo-code).
+Superpowers' plans are described as "clear enough for an enthusiastic junior engineer with poor taste and no project context." This is a useful litmus test for task granularity — fab's `plan.md` `## Tasks` section could adopt a similar explicitness bar (exact file paths, complete code specifications, not pseudo-code).
 
 ### Fresh-agent-per-task isolation
 

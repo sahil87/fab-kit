@@ -1,5 +1,22 @@
 # Archive Index
 
+- **260612-ye8r-cli-single-sourcing-doc-conformance** — CLI Single-Sourcing & Doc Conformance
+- **260612-w7dp-orchestrator-dispatch-review-pr-recovery** — Orchestrator Dispatch Targets + Review-PR Failure Recovery
+- **260612-tb6f-tests-ci-toolchain** — Tests, CI & Toolchain
+- **260612-pw3k-operator-pane-perf-error-surfacing** — Operator/Pane/Tmux Surface — Perf + Error Surfacing (Binary-Review B5)
+- **260612-mz4q-shared-state-concurrency-hook-hot-path** — Shared-State Concurrency & Hook Hot Path
+- **260612-k4ge-cli-exit-contract-conformance** — CLI Exit-Code Contract Conformance
+- **260612-hv7t-scanner-truncation-sweep-score-truth-telling** — Scanner-Truncation Sweep + Score Truth-Telling
+- **260612-g8st-git-state-hardening** — Git-State Hardening for Autonomous Skills
+- **260612-dn2c-fab-kit-download-lifecycle-hardening** — fab-kit Download & Lifecycle Hardening
+- **260612-dkn3-pane-map-display-state** — Pane Map Display State
+- **260612-c5tr-scaffold-config-truth-srad-coherence** — Scaffold/Config Truth + SRAD Scoring Coherence
+- **260611-zc9m-preamble-context-diet** — Preamble Context Diet — Skills Review Batch 3/4
+- **260611-uliv-skills-staleness-sweep-frontmatter-fixes** — Skills Staleness Sweep + Frontmatter Description Accuracy (Skills-Review Batch 2/4)
+- **260611-szxd-skills-twins-self-duplication-refactor** — Skills Twins & Self-Duplication Refactor
+- **260611-9u91-skills-correctness-idempotency-fixes** — Skills-Review Batch 1 — Surgical Correctness + Idempotency Fixes
+- **260610-9733-migration-detection-upgrade-repo** — Mechanical migration detection in `fab upgrade-repo`
+- **260609-r7ju-pane-map-pr-fields** — Add PR URL and Number to `fab pane map` JSON Output
 - **260608-yfg8-shll-readme-extraction-conformance** — shll.ai README-Extraction Conformance (§9-ACTIVE follow-up)
 - **260607-tciy-memory-tree-shape-rebalance** — Memory Tree Shape & Rebalance
 - **260607-sx7a-reorg-memory-shape-rebalance** — Memory Rebalancer Apply Path (docs-reorg-memory)

@@ -3,6 +3,8 @@ name: internal-retrospect
 description: "Analyze a completed session and produce a retrospective covering repetition, skill quality, context gaps, and workflow friction."
 ---
 
+# /internal-retrospect
+
 Review this session end-to-end and produce a retrospective covering these four areas. Be specific — cite actual moments from the conversation, not generic advice.
 
 ## 1. Scriptable Repetition

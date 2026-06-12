@@ -27,8 +27,10 @@ helpers: [_generation, _srad]
 3. **Output**: fab-new's Output block **minus** the `Activated: {name}` and `Branch: ...` lines, ending with the Activation Preamble `Next:` line (`_preamble.md` § Activation Preamble — `/fab-draft` always uses it):
 
    ```
-   Next: /fab-switch {name} to make it active, then /fab-continue, /fab-fff, /fab-ff, or /fab-clarify
+   Next: /fab-switch {name} to make it active, then /fab-continue, /fab-ff, /fab-fff, /fab-proceed, or /fab-clarify
    ```
+
+   (The command list after "then" is the state table's intake row, derived per `_preamble.md` § Lookup Procedure — default first, not hardcoded.)
 
 4. **Error Handling**: fab-new's table **minus** the activation/git rows (`fab change switch` failure, not-in-git-repo, `git checkout`/`git branch` failure) — those steps never run here.
 
@@ -45,4 +47,4 @@ helpers: [_generation, _srad]
 
 ---
 
-Next: `/fab-switch {name} to make it active, then /fab-continue, /fab-fff, /fab-ff, or /fab-clarify`
+Next: `/fab-switch {name} to make it active, then` {intake-state commands per `_preamble.md` § Lookup Procedure: `/fab-continue, /fab-ff, /fab-fff, /fab-proceed, or /fab-clarify`}

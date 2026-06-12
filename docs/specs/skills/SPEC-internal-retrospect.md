@@ -4,7 +4,7 @@
 
 Reviews the current session end-to-end and produces a retrospective across four areas: (1) scriptable repetition (manual steps repeated 2+ times), (2) skill & prompt quality (skills whose output needed correction or re-runs), (3) context & documentation gaps (wrong assumptions traceable to missing `docs/memory/`, `docs/specs/`, `_preamble.md`, `CLAUDE.md`, or `constitution.md` content), and (4) workflow friction (awkward stage transitions, unnecessary clarification loops). Findings cite actual conversation moments, not generic advice.
 
-Read-only and conversational: the skill writes no files and runs no commands — its output is the retrospective itself. The skill source `src/kit/skills/internal-retrospect.md` is canonical.
+Read-only and conversational: the skill writes no files and runs no commands — its output is the retrospective itself. The skill source `src/kit/skills/internal-retrospect.md` is canonical — a direct review prompt headed `# /internal-retrospect`, not a sectioned skill file (no Pre-flight/Behavior/Key Properties structure to mirror).
 
 ## Flow
 

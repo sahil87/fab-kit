@@ -1,74 +1,44 @@
 # Fab Architecture
 
-> Directory structure, conventions, configuration, and agent integration.
+> Directory structure, conventions, configuration, distribution, and agent integration.
 
 ---
 
 ## Directory Structure
 
+Kit content (skills, templates, migrations) does **not** live inside user projects. It is distributed to the system cache at `~/.fab-kit/versions/<version>/kit/`, managed by the `fab` binary (`brew install fab-kit`). A user project contains only its own configuration, changes, documentation, and deployed skill copies:
+
 ```
 project/
-├── .fab-status.yaml → fab/changes/{name}/.status.yaml  # Symlink to active change status
+├── .fab-status.yaml → fab/changes/{name}/.status.yaml  # Symlink to active change status (gitignored)
 ├── fab/
-│   ├── .kit/                       # Engine — replaceable upstream, rarely touched
-│   │   ├── VERSION                 # Engine version (semver, e.g. "0.1.0")
-│   │   ├── templates/
-│   │   │   ├── intake.md
-│   │   │   └── plan.md            # Apply-stage artifact (## Requirements + ## Tasks + ## Acceptance)
-│   │   ├── skills/                 # Skill definitions (markdown prompts)
-│   │   │   ├── fab-setup.md
-│   │   │   ├── docs-hydrate-memory.md
-│   │   │   ├── docs-hydrate-specs.md
-│   │   │   ├── docs-reorg-memory.md
-│   │   │   ├── docs-reorg-specs.md
-│   │   │   ├── fab-new.md
-│   │   │   ├── fab-continue.md
-│   │   │   ├── fab-ff.md
-│   │   │   ├── fab-fff.md
-│   │   │   ├── fab-clarify.md
-│   │   │   ├── fab-switch.md
-│   │   │   ├── fab-status.md
-│   │   │   ├── internal-consistency-check.md
-│   │   │   ├── internal-retrospect.md
-│   │   │   └── internal-skill-optimize.md
-│   │   └── scripts/                # Lightweight shell utilities
-│   │       ├── fab-help.sh         # Print Fab Kit help overview
-│   │       ├── fab-sync.sh         # Workspace sync orchestrator
-│   │       ├── fab-upgrade.sh      # Kit updater from GitHub Releases
-│   │       └── lib/                # Internal scripts
-│   │           ├── resolve.sh       # Change Resolver (pure query)
-│   │           ├── statusman.sh     # Status Manager CLI
-│   │           ├── logman.sh        # History Logger (append-only)
-│   │           ├── changeman.sh    # Change Manager CLI
-│   │           ├── preflight.sh    # Pre-flight validation
-│   │           └── calc-score.sh   # Confidence score computation
 │   ├── project/
-│   │   ├── config.yaml             # Project-specific configuration
-│   │   └── constitution.md         # Project principles & constraints
-│   ├── memory/                     # Centralized source of truth
-│   │   ├── index.md               # Top-level memory index (domains-only, generated)
-│   │   ├── auth/
-│   │   │   ├── index.md           # Domain index (files + any sub-domains, generated)
-│   │   │   └── authentication.md
-│   │   ├── payments/
-│   │   │   ├── index.md
-│   │   │   ├── checkout.md
-│   │   │   └── disputes/          # Sub-domain (depth 3; created by /docs-reorg-memory)
-│   │   │       ├── index.md       # Sub-domain index (generated)
-│   │   │       └── chargebacks.md
-│   │   └── ...
+│   │   ├── config.yaml             # Project-specific configuration (incl. fab_version pin)
+│   │   ├── constitution.md         # Project principles & constraints
+│   │   ├── context.md              # Free-form project context (optional)
+│   │   ├── code-quality.md         # Coding standards for apply/review (optional)
+│   │   └── code-review.md          # Review policy (optional)
+│   ├── backlog.md                  # Local backlog (consumed by fab batch new)
+│   ├── .kit-migration-version      # Version the project's file formats were written for
 │   └── changes/
 │       ├── 260115-a7k2-add-oauth/  # Active change
 │       │   ├── .status.yaml        # Stage tracking
+│       │   ├── .history.jsonl      # Append-only event log
 │       │   ├── intake.md
-│       │   └── plan.md              # Auto-generated at apply entry — ## Requirements + ## Tasks + ## Acceptance
-│       └── archive/                # Completed changes
-│           └── 250920-m3x1-add-2fa/
-└── .claude/                        # Agent-specific skill exports
+│       │   └── plan.md             # Co-generated at apply entry — ## Requirements + ## Tasks + ## Acceptance
+│       └── archive/                # Completed changes, date-bucketed
+│           ├── index.md            # Archive index (most-recent-first)
+│           └── 2026/01/250920-m3x1-add-2fa/
+├── docs/
+│   ├── memory/                     # Post-implementation source of truth (domain folders + generated indexes)
+│   └── specs/                      # Pre-implementation design intent (human-curated)
+└── .claude/                        # Agent skill deployments (gitignored)
     └── skills/
         └── fab-new/
-            └── SKILL.md → ../../../src/kit/skills/fab-new.md  # Symlinks into .kit
+            └── SKILL.md            # Copy deployed by `fab sync` from the kit cache
 ```
+
+In the **fab-kit dev repo**, `src/kit/` is the canonical source for all kit content (skills in `src/kit/skills/`, templates in `src/kit/templates/`, migrations, scaffold), and `src/go/` holds the Go binaries. Releases package `src/kit/` into the per-version cache archives — projects never carry a `.kit/` directory.
 
 ---
 
@@ -78,45 +48,20 @@ project/
 
 | Component | Generated by | Purpose | Example |
 |-----------|-------------|---------|---------|
-| `YYMMDD` | Agent (knows today's date) | Chronological sort, temporal context | `260115` |
-| `XXXX` | Agent (4 random lowercase alphanumeric) | Uniqueness guarantee | `a7k2` |
-| `slug` | Agent (2-6 words from description) | Human readability | `add-oauth` |
+| `YYMMDD` | `fab change new` (always today) | Chronological sort, temporal context | `260115` |
+| `XXXX` | `fab change new` (4 random lowercase alphanumeric) | Uniqueness guarantee | `a7k2` |
+| `slug` | Caller-provided via `--slug` (2-6 words from description) | Human readability | `add-oauth` |
 
 **Examples**: `260115-a7k2-add-oauth`, `260202-m3x1-fix-checkout-bug`, `260205-k8ui-refactor-auth`
 
-**Constraints**: All components are **lowercase only** — avoids collisions on case-insensitive filesystems (macOS default, Windows).
+**Constraints**: All components are **lowercase only** — avoids collisions on case-insensitive filesystems (macOS default, Windows). The `{YYMMDD}-{XXXX}` prefix is immutable; only the slug can be changed (`fab change rename`).
 
 **Why this format?**
 - **Unique by construction** — date + random token means no collision scanning needed
 - **Chronological `ls`** — folders sort by creation date naturally
 - **Stable across lifecycle** — same name from creation through archive (no rename on archive)
-- **Agent-generated, no script needed** — simple enough for the skill prompt to specify directly
 
----
-
-## Script Naming Convention
-
-Scripts in `src/kit/scripts/` follow a prefix convention to distinguish entry points from internal libraries:
-
-| Prefix | Role | Invoked by | Example |
-|--------|------|------------|---------|
-| `fab-` | User-facing entry point | Users via terminal | `fab-help.sh`, `fab-upgrade.sh` |
-| *(none — `lib/` subfolder)* | Internal scripts live in `scripts/lib/` | Skills, other scripts | `lib/resolve.sh`, `lib/statusman.sh`, `lib/logman.sh`, `lib/changeman.sh`, `lib/calc-score.sh`, `lib/preflight.sh` |
-| `batch-fab-` | Batch orchestration | Users via terminal | `batch-fab-new-backlog.sh` |
-
-**Why?** When `.kit/` is distributed via `cp -r`, the `_` prefix makes it immediately clear which scripts are internal plumbing vs. which are user-facing entry points. This matters for discoverability and prevents users from invoking internal scripts directly.
-
-### Batch Scripts
-
-Batch scripts follow the `batch-fab-{verb}-{entity}.sh` naming pattern. Each creates tmux tabs with Claude Code sessions running a specific skill, one per target entity.
-
-| Script | Purpose | Creates per entity |
-|--------|---------|--------------------|
-| `batch-fab-new-backlog.sh` | Create changes from backlog items | Worktree + tmux tab running `/fab-new <description>` |
-| `batch-fab-switch-change.sh` | Switch to existing changes | Worktree + tmux tab running `/fab-switch <change>` |
-| `fab batch archive` (in-process Go loop) | Archive completed changes (`hydrate:done\|skipped`) | Mechanical archive (move, index, backlog, pointer) per change — no worktree, no tmux tab, no spawned agent |
-
-All three support `--list` (show targets), `--all` (process all), and direct ID/name arguments with substring matching.
+For the full set of naming patterns (branches, worktrees, PRs, backlog entries), see `_preamble.md` § Naming Conventions and **[Naming](naming.md)**.
 
 ---
 
@@ -125,16 +70,10 @@ All three support `--list` (show targets), `--all` (process all), and direct ID/
 `.fab-status.yaml` is a symlink at the repo root that points to the active change's `.status.yaml` file (e.g., `fab/changes/260115-a7k2-add-oauth/.status.yaml`). It removes the need to scan `changes/` or remember folder names.
 
 **Lifecycle**:
-- **Created** by `/fab-switch` — symlink created pointing to the change's `.status.yaml` when a change is activated
+- **Created** by `/fab-new` (auto-activation via `fab change switch`) or `/fab-switch`
 - **Updated** by `/fab-switch` — symlink replaced to point to the new change's `.status.yaml`
-- **Read** by every other skill — `/fab-continue`, `/fab-clarify`, `/fab-status` all resolve the active change via `.fab-status.yaml` rather than requiring a name argument
-- **Removed** by `/fab-archive` — symlink is deleted after archiving (no active change)
-
-**Resolution pattern** (used by all skills):
-```
-# .fab-status.yaml → fab/changes/{name}/.status.yaml
-# Skills resolve the active change by following the symlink
-```
+- **Read** by every other skill — `/fab-continue`, `/fab-clarify`, `/fab-status` all resolve the active change via `.fab-status.yaml` rather than requiring a name argument (a transient `[change-name]` argument overrides it without modifying the symlink)
+- **Removed** by `/fab-archive` — symlink is deleted after archiving the active change (no active change)
 
 **Switching between changes**: If multiple change folders exist and you want to switch context:
 ```
@@ -144,16 +83,12 @@ All three support `--list` (show targets), `--all` (process all), and direct ID/
 
 `/fab-switch` accepts partial matches — the slug portion is enough to identify the change unambiguously.
 
-**Quick check from terminal**: For instant identification when switching between VS Code windows:
-```bash
-/fab-status
-```
-The skill outputs a formatted status block with version, change name, branch, stage progress, plan counts (tasks + acceptance), and suggested next command.
+**Quick check from terminal**: For instant identification when switching between editor windows, run `/fab-status` — it outputs a formatted status block with version, change name, branch, stage progress, plan counts (tasks + acceptance), and suggested next command.
 
 **Why a symlink?**
 - **Direct access** — reading `.fab-status.yaml` yields the active change's status directly, no intermediate lookup step
 - **Atomic pointer** — the symlink target encodes both the change name and the path to its status file
-- **Git-friendly** — add `.fab-status.yaml` to `.gitignore` since it's local working state
+- **Git-friendly** — `.fab-status.yaml` is gitignored since it's local working state
 
 ---
 
@@ -165,20 +100,23 @@ To discard a change that won't be completed:
 2. Remove the symlink (if it's the active change): `rm .fab-status.yaml`
 3. Optionally delete the associated git branch: `git branch -d {branch}`
 
-There is no `/fab-abandon` skill — this is a manual operation. If you want to preserve context about *why* the change was dropped, move the folder to `archive/` instead of deleting it and set `stage: abandoned` in `.status.yaml`.
+There is no `/fab-abandon` skill — this is a manual operation. If you want to preserve context about *why* the change was dropped, note the reason in the intake and archive the folder instead of deleting it (`/fab-archive` requires hydrate done; for a truly abandoned change, move the folder under `fab/changes/archive/{yyyy}/{mm}/` by hand).
 
 ---
 
 ## Status Tracking (.status.yaml)
 
-Every change folder contains a `.status.yaml` manifest:
+Every change folder contains a `.status.yaml` manifest (see **[Templates](templates.md#statusyaml)** for the full schema and field notes):
 
 **Example — intake stage** (plan not yet generated):
 
 ```yaml
+id: a7k2
 name: 260115-a7k2-add-oauth
 created: 2026-01-15T14:30:00Z
 created_by: Jane Smith
+change_type: feat
+issues: []
 progress:
   intake: active
   apply: pending
@@ -191,15 +129,26 @@ plan:
   task_count: 0
   acceptance_count: 0
   acceptance_completed: 0
+confidence:
+  certain: 0
+  confident: 0
+  tentative: 0
+  unresolved: 0
+  score: 0.0
+stage_metrics: {}
+prs: []
 last_updated: 2026-01-16T09:15:00Z
 ```
 
 **Example — review stage** (acceptance partially verified):
 
 ```yaml
+id: a7k2
 name: 260115-a7k2-add-oauth
 created: 2026-01-15T14:30:00Z
 created_by: Jane Smith
+change_type: feat
+issues: [DEV-907]
 progress:
   intake: done
   apply: done
@@ -212,21 +161,46 @@ plan:
   task_count: 8
   acceptance_count: 12
   acceptance_completed: 10
+confidence:
+  certain: 9
+  confident: 2
+  tentative: 0
+  unresolved: 0
+  score: 4.4
+stage_metrics:
+  intake: {started_at: "2026-01-15T14:30:00Z", driver: fab-new, iterations: 1, completed_at: "2026-01-15T15:02:11Z"}
+  apply: {started_at: "2026-01-15T15:02:11Z", driver: fab-fff, iterations: 1, completed_at: "2026-01-17T18:40:09Z"}
+  review: {started_at: "2026-01-17T18:40:09Z", driver: fab-fff, iterations: 1}
+prs: []
 last_updated: 2026-01-18T11:00:00Z
 ```
+
+All mutations go through the `fab` CLI (`fab status <event>`) or the `artifact-write` hook — skills never hand-edit the file. The current stage is derived from the `progress` map (the entry marked `active`); there is no separate `stage:` field.
 
 ---
 
 ## Configuration (config.yaml)
 
+The keys actually consumed by the binaries and skills:
+
 ```yaml
+fab_version: 2.1.6        # Project-pinned engine version — the router resolves
+                          # which cached fab-go to exec from this (set by fab init / fab upgrade-repo)
+
 project:
   name: "My App"
-  description: "App description"
+  description: "App description"          # read by skills for context
+  linear_workspace: myteam                # optional — enables Linear issue links in PR bodies
 
 # Directories containing implementation code (relative to repo root).
+# Read by skills for scoping; test_paths/true_impact_exclude feed `fab impact` / `fab pr-meta`.
 source_paths:
   - src/
+test_paths:
+  - '**/*_test.go'
+true_impact_exclude:
+  - fab/
+  - docs/
 
 # Project-specific categories appended to default plan-acceptance categories.
 # (Config key remains `checklist.extra_categories` for backward compatibility;
@@ -236,8 +210,21 @@ checklist:
     - performance
     - ux
 
+# Automated PR reviewer toggles consumed by /git-pr-review (absent key = enabled).
+review_tools:
+  copilot: true
+
+# Agent spawn command used by fab operator / fab batch / fab spawn-command
+# (falls back to `claude --dangerously-skip-permissions` when absent).
+agent:
+  spawn_command: claude --dangerously-skip-permissions
+
+# Optional branch prefix applied by fab batch switch when creating worktree branches.
+branch_prefix: ""
+
 # Optional pre/post shell commands honored by `fab status` (pre gates `start`,
-# post runs after `finish` saves — see _cli-fab.md § stage_hooks).
+# post runs after `finish` saves — see _cli-fab.md § stage_hooks). Not seeded
+# by the scaffold — add by hand.
 stage_hooks:
   apply:
     pre: ./scripts/check-clean-tree.sh
@@ -342,134 +329,109 @@ For the full taxonomy — confidence thresholds, expected decision counts, keywo
 
 **Two tiers**: Tier 1 (fab-linked) PRs include Summary, Changes, and Context sections with working links to `intake.md` and `plan.md`. Tier 2 (lightweight) PRs include an auto-generated summary and explicitly note "No design artifacts — housekeeping change." This signals to reviewers what level of scrutiny to apply.
 
-**Type resolution**: `/git-pr` resolves the type via a three-step chain: (1) explicit argument (`/git-pr chore`), (2) infer from intake content if a fab change exists, (3) infer from diff file paths when no fab change exists. The type appears as a conventional-commits prefix in the PR title: `feat: Smart change resolution`.
+**Type resolution**: `/git-pr` resolves the type via a four-step chain: (1) explicit argument (`/git-pr chore`), (2) `change_type` from `.status.yaml`, (3) infer from intake content if a fab change exists, (4) infer from diff file paths. The type appears as a conventional-commits prefix in the PR title: `feat: Smart change resolution`.
 
 ### `.gitignore` Guidance
 
-Add to your project's `.gitignore`:
+`fab sync` maintains the required entries (via the scaffold's `.gitignore` fragment):
 
 ```
 .fab-status.yaml     # Local working state — each developer has their own active change
+.fab-runtime.yaml    # Ephemeral agent runtime state (hooks)
+.claude/skills/      # Deployed skill copies — regenerated by fab sync
 ```
 
 **What to commit** (shared with team):
-- `fab/project/config.yaml`, `fab/project/constitution.md`, `docs/memory/`, `src/kit/` — project configuration and memory
-- `fab/changes/` — change artifacts (intakes, plans)
+- `fab/project/` — project configuration, constitution, context, quality/review policy
+- `fab/changes/` — change artifacts (intakes, plans, status)
+- `fab/backlog.md` — local backlog
+- `docs/memory/`, `docs/specs/` — documentation
 
 **What to ignore** (local state):
-- `.fab-status.yaml` — active change symlink (per-developer)
+- `.fab-status.yaml`, `.fab-runtime.yaml` — per-developer working state
+- Agent deployment folders (`.claude/skills/`, etc.) — regenerated from the kit cache
 
 ---
 
 ## Agent Integration
 
-Agent-specific skill files are **symlinks** pointing into `src/kit/skills/`. This means updating `.kit/` automatically updates all agent integrations — no re-export step needed.
+Skills are deployed to each detected agent by `fab sync`, sourcing from the kit cache (`~/.fab-kit/versions/<version>/kit/skills/`). Deployment is conditional — each agent's CLI is checked via PATH lookup before syncing.
 
-### Claude Code (`.claude/skills/`)
+| Agent | Deployment | Form |
+|-------|-----------|------|
+| Claude Code (`claude`) | `.claude/skills/{name}/SKILL.md` | Directory-based **copies** |
+| OpenCode (`opencode`) | `.opencode/commands/{name}.md` | Flat-file symlinks |
+| Codex (`codex`) | `.agents/skills/{name}/SKILL.md` | Directory-based copies |
+| Gemini CLI (`gemini`) | `.gemini/skills/{name}/SKILL.md` | Directory-based copies |
 
-`src/kit/scripts/fab-sync.sh` (via `sync/2-sync-workspace.sh`) creates skill subdirectories with symlinks:
-```
-.claude/skills/
-├── fab-setup/
-│   └── SKILL.md → ../../../src/kit/skills/fab-setup.md
-├── docs-hydrate-memory/
-│   └── SKILL.md → ../../../src/kit/skills/docs-hydrate-memory.md
-├── fab-new/
-│   └── SKILL.md → ../../../src/kit/skills/fab-new.md
-├── fab-continue/
-│   └── SKILL.md → ../../../src/kit/skills/fab-continue.md
-├── fab-ff/
-│   └── SKILL.md → ../../../src/kit/skills/fab-ff.md
-├── fab-clarify/
-│   └── SKILL.md → ../../../src/kit/skills/fab-clarify.md
-├── fab-switch/
-│   └── SKILL.md → ../../../src/kit/skills/fab-switch.md
-└── fab-status/
-    └── SKILL.md → ../../../src/kit/skills/fab-status.md
-```
+All `*.md` skill files are deployed, including underscore partials (`_preamble.md`, `_generation.md`, `_review.md`, `_srad.md`, `_pipeline.md`, `_cli-fab.md`, `_cli-external.md`), which carry `user-invocable: false` frontmatter to prevent direct invocation. The skill prompt files are agent-agnostic markdown; only the deployment locations and formats differ per agent.
 
-### Other agents (Cursor, Windsurf, etc.)
-Same pattern — symlinks from the agent's convention directory into `src/kit/skills/`. The skill prompt files are agent-agnostic markdown; only the symlink locations differ.
+Because Claude Code deployments are **copies** (not symlinks), they go stale when the kit updates — re-run `fab sync` after an upgrade (preflight warns when `$(fab kit-path)/VERSION` and the project's `fab_version` diverge). In the fab-kit dev repo, never edit `.claude/skills/` directly — `src/kit/skills/` is canonical and `fab sync` overwrites the copies.
 
 ---
 
-## Distribution & Bootstrapping
+## Distribution & Binaries
 
-`.kit/` is the only piece a new project needs from outside. Everything else is generated by `/fab-setup`. This section explains how `.kit/` reaches a project and what happens on first use.
+Fab ships as Homebrew-installed binaries plus cached kit content — no kit directory inside the repo, no per-project install step beyond `fab init`.
 
-### The Bootstrap Sequence
+### Three Binaries
+
+| Binary | Role | Distribution |
+|--------|------|-------------|
+| `fab` (router) | Thin dispatcher — routes each invocation to `fab-kit` or a version-resolved `fab-go` | Homebrew formula `sahil87/tap/fab-kit` |
+| `fab-kit` | Workspace lifecycle — `init`, `sync`, `upgrade-repo`, `update`, `doctor`, `migrations-status` | Homebrew formula `sahil87/tap/fab-kit` |
+| `fab-go` | Workflow engine — everything else (`status`, `score`, `change`, `preflight`, `pane`, `batch`, hooks, …) | Per-version cache, auto-fetched from GitHub releases |
+
+The formula also declares `depends_on` for the standalone `wt` (worktree management) and `idea` (backlog) companion CLIs — see **[Companions](companions.md)**.
+
+### Cache Layout
+
+Versioned artifacts live at `~/.fab-kit/versions/{version}/`:
+
+- `fab-go` — the workflow binary for the pinned version
+- `kit/` — full kit content (skills, templates, migrations, scaffold, VERSION)
+
+Multiple versions coexist; each repo pins its own via `fab_version` in `config.yaml`. Auto-download on cache miss is hardened: bounded HTTP timeouts, a version-keyed download lock (N racing processes perform one fetch), SHA-256 checksum verification against the release's `SHA256SUMS`, and atomic install (temp dir + rename).
+
+### Bootstrap Sequence
 
 ```
-1. User obtains .kit/  →  cp -r /path/to/fab-kit fab/.kit (or curl one-liner)
-2. User runs src/kit/scripts/fab-sync.sh  →  creates directories, symlinks, indexes, .envrc, .gitignore entries
-3. User runs /fab-setup  →  generates config.yaml, constitution.md (structural bootstrap)
-4. User optionally runs /docs-hydrate-memory  →  ingests external sources into docs/memory/
-5. User runs /fab-new  →  first change is created
+1. brew tap sahil87/tap && brew install fab-kit
+2. cd <repo> && fab init     →  pins fab_version, caches the release, runs sync
+3. /fab-setup                →  generates config.yaml, constitution.md (interactive)
+4. /docs-hydrate-memory      →  optionally ingests external docs into docs/memory/
+5. /fab-new <description>    →  first change
 ```
 
-Step 1 is manual. Step 2 is a shell script. Steps 3–5 are skill-driven.
+`fab init` requires a git repository and fails loudly before any download or write otherwise. `fab sync` (re-runnable any time) deploys skills to detected agents, scaffolds workspace files (directories, `.envrc`/`.gitignore` fragments, project file templates), registers Claude Code hooks (`fab hook sync`), and stamps version markers — all from the cache, never copying kit content into the repo.
 
-`src/kit/scripts/fab-sync.sh` is a thin orchestrator that iterates `src/kit/sync/*.sh` (kit-level scripts) then `fab/sync/*.sh` (project-specific scripts). It handles all structural setup (directories, symlinks, indexes, `.envrc`, `.gitignore`). `/fab-setup` delegates to `fab-sync.sh` and adds the interactive parts (config, constitution). `src/kit/scripts/fab-help.sh` dynamically reads skill names from YAML frontmatter — no manual updates needed when skills are added.
+### Updating
 
-**Re-running `/fab-setup`**: Setup is idempotent — safe to call at any time. On subsequent runs it verifies structure and repairs missing artifacts. To ingest external documentation into `docs/memory/`, use `/docs-hydrate-memory` — see [Skills Reference](skills.md#docs-hydrate-memory-sources) for details.
-
-### How to Obtain `.kit/`
-
-`.kit/` is a standalone directory — no package manager, no CLI binary, no system install. This preserves the "pure prompt play" principle. Options for getting it into your project:
-
-| Method | Command | When to use |
-|--------|---------|-------------|
-| **Copy from a reference project** | `cp -r ../other-project/fab/.kit fab/.kit` | Quick start, already have a Fab project |
-| **Clone the kit repo** | `git clone <kit-repo> fab/.kit && rm -rf src/kit/.git` | Clean start from canonical source |
-| **Download a release** | `curl -sL <release-url> \| tar -xz -C fab/` | CI/automation, pinned version |
-
-> When `.kit/` gets its own repository, the canonical source URL will be documented here.
-
-### Why Two Phases?
-
-`/fab-setup` is itself a skill defined inside `src/kit/skills/fab-setup.md`. It cannot run until `.kit/` exists. Rather than solving this chicken-and-egg with a special bootstrap script (which would violate "no system installation"), Fab splits setup into:
-
-1. **Manual step**: Get `.kit/` into the project (a directory copy or curl one-liner)
-2. **Shell step**: `fab-sync.sh` creates directories, symlinks, indexes (no LLM needed)
-3. **Skill step**: `/fab-setup` generates `config.yaml` and `constitution.md` (interactive, LLM-driven). Optionally, `/docs-hydrate-memory` ingests external sources.
-
-This keeps the workflow entirely prompt-driven after the one-time directory copy.
+`fab upgrade-repo [version]` resolves the target release, ensures it is cached, runs sync first, and stamps `fab_version` only after sync succeeds (a sync failure exits non-zero and leaves the pin unchanged, so a re-run retries). `fab update` upgrades the system binaries themselves via Homebrew. Project content (`fab/project/`, `fab/changes/`, `docs/memory/`, `docs/specs/`) is never touched by updates. When a release requires restructuring project data, it ships a migration in the kit's `migrations/` — applied via `/fab-setup migrations`, discovered by `fab migrations-status`.
 
 ### Version Tracking
 
-`.kit/` contains a `VERSION` file with a semver string (e.g., `0.1.0`). This enables:
-- `/fab-status` to display the engine version
-- Users to check whether they need to update
-- The update process to compare versions before replacing
+Three version locations:
 
----
+- **`$(fab kit-path)/VERSION`** — the cached engine version (per release)
+- **`fab/project/config.yaml` `fab_version`** — the project's pin; preflight warns when it diverges from the deployed engine ("skills may be out of sync — run fab sync")
+- **`fab/.kit-migration-version`** — the version the project's file formats were written for; drives migration discovery
 
-## Updating `.kit/`
+### Batch Operations
 
-`.kit/` is a self-contained engine directory. To update the workflow framework:
+Multi-change operations are `fab batch` subcommands (`fab batch <new|switch|archive> [--list] [--all] [targets...]`):
 
-1. Replace `src/kit/` contents with the latest version
-2. That's it — symlinks in `.claude/skills/` (and other agent directories) automatically resolve to the new files
-
-**What's preserved** (lives outside `.kit/`, never touched by updates):
-- `fab/project/config.yaml` — project configuration
-- `fab/project/constitution.md` — project principles and constraints
-- `docs/memory/` — memory files (post-implementation truth)
-- `fab/changes/` — active and archived changes
-- `.fab-status.yaml` — active change symlink
-
-**What's replaced** (lives inside `.kit/`):
-- `$(fab kit-path)/templates/` — artifact templates
-- `src/kit/skills/` — skill prompt definitions
-- `src/kit/scripts/` — shell utilities
-
-When `.kit/` is eventually extracted to its own repository, the update mechanism becomes a single pull or copy operation.
+| Subcommand | Purpose | Creates per target |
+|------------|---------|--------------------|
+| `fab batch new` | Create changes from pending backlog items | Worktree + tmux tab running `/fab-new <description>` |
+| `fab batch switch` | Switch to existing changes | Worktree + tmux tab running `/fab-switch <change>` |
+| `fab batch archive` | Archive completed changes (`hydrate: done\|skipped`) | Mechanical in-process archive (move, index, backlog, pointer) — no worktree, no tmux tab, no spawned agent |
 
 ---
 
 ## Router Dispatch (`fab` → `fab-go`)
 
-The `fab` binary (installed via `brew install fab-kit`) is a thin router. It dispatches workspace commands (`init`, `upgrade-repo`, `sync`, `update`, `doctor`, `migrations-status`) to `fab-kit`, and every other command to a version-resolved `fab-go` binary cached at `~/.fab-kit/versions/<version>/fab-go`.
+The `fab` binary (installed via `brew install fab-kit`) is a thin router. It dispatches workspace commands (`init`, `upgrade-repo`, `sync`, `update`, `doctor`, `migrations-status`) to `fab-kit`, and every other command to a version-resolved `fab-go` binary cached at `~/.fab-kit/versions/<version>/fab-go`. `--version`/`-v`/`--help`/`-h`/`help` are handled inline by the router itself.
 
 ### Always-Route Policy
 
@@ -493,42 +455,37 @@ A monorepo is one Fab project. Place a single `fab/` at the repository root — 
 
 ### Why One `fab/`
 
-- **Changes naturally span packages.** "Add user avatars" touches the API, the frontend, and shared types. One change folder, one spec — that's exactly how Fab works.
+- **Changes naturally span packages.** "Add user avatars" touches the API, the frontend, and shared types. One change folder, one plan — that's exactly how Fab works.
 - **Memory is domain-based, not package-based.** `docs/memory/auth/` describes authentication regardless of which package implements it. This is already the right abstraction for cross-cutting concerns.
 - **One developer, one change at a time.** `.fab-status.yaml` points to a single active change. In practice, AI-assisted development is sequential — you finish one change before starting the next.
-- **Simplicity.** Multiple `fab/` directories means multiple constitutions, multiple memory trees, symlink conflicts in `.claude/skills/`, and no natural home for cross-package changes.
+- **Simplicity.** Multiple `fab/` directories means multiple constitutions, multiple memory trees, conflicting skill deployments, and no natural home for cross-package changes.
 
 ### Structured Context for Mixed Tech Stacks
 
-The main friction point in a monorepo is the `context` field in `config.yaml`. A flat blob of all tech stacks is vague. Use labeled sections so skills can load relevant context for the packages a change touches:
+The main friction point in a monorepo is project context. A flat blob of all tech stacks is vague. Use labeled sections in `fab/project/context.md` so skills can load relevant context for the packages a change touches:
 
-```yaml
-project:
-  name: "My Platform"
-  description: "E-commerce platform monorepo"
+```markdown
+## packages/frontend
+React, TypeScript, Next.js, Tailwind CSS
+Server components preferred. Client components only for interactivity.
 
-context: |
-  ## packages/frontend
-  React, TypeScript, Next.js, Tailwind CSS
-  Server components preferred. Client components only for interactivity.
+## packages/backend
+Python, FastAPI, SQLAlchemy, PostgreSQL
+Async handlers everywhere. Pydantic models for validation.
 
-  ## packages/backend
-  Python, FastAPI, SQLAlchemy, PostgreSQL
-  Async handlers everywhere. Pydantic models for validation.
-
-  ## packages/shared
-  TypeScript types and Zod schemas
-  Shared between frontend and backend via npm workspace.
+## packages/shared
+TypeScript types and Zod schemas
+Shared between frontend and backend via npm workspace.
 ```
 
-Skills loading context will naturally scope to the relevant section based on what the change description and spec reference. No formal scoping mechanism is needed — the structure in the text is enough for the agent to focus.
+Skills loading context will naturally scope to the relevant section based on what the change description and plan reference. No formal scoping mechanism is needed — the structure in the text is enough for the agent to focus.
 
 ### What Works Without Changes
 
 | Concern | Status |
 |---------|--------|
 | `.fab-status.yaml` (single pointer) | Fine — one change at a time |
-| `fab/changes/` (flat) | Fine — changes reference affected packages in their spec |
+| `fab/changes/` (flat) | Fine — changes reference affected packages in their plan |
 | `docs/memory/` (domain-based) | Already monorepo-friendly |
 | `fab/project/constitution.md` | Shared principles apply repo-wide; use sections for package-specific conventions if needed |
 | `.claude/skills/` | One skill set per repo — correct for a single `fab/` |

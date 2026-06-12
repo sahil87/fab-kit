@@ -242,8 +242,8 @@ Print: `  ✓ push   — origin/<branch>`
    Print after body assembly: `  ✓ body  — meta + summary + changes` (skip the "meta" token when `$META` was empty/omitted).
 
 4. Create PR: `gh pr create --draft --title "{pr_title}" --body "<body>"` (where `{pr_title}` is the already-prefixed title from step 2; `<body>` is the assembled body from step 3 including the Meta block when `{has_fab}`)
-   - If PR creation fails → report the error and STOP
-   - Fall back to `gh pr create --draft --fill` if body generation fails for any reason (silent fallback)
+   - If body generation failed for any reason → create with `gh pr create --draft --fill` instead (silent fallback; evaluated before the creation attempt, so a body failure never reaches the STOP below)
+   - If PR creation itself fails → report the error and STOP
 5. Get the PR URL: `gh pr view --json url -q '.url'`
 
 Print: `  ✓ pr     — <PR URL>`

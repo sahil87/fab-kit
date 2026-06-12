@@ -11,6 +11,10 @@ description: "Analyze spec files for themes and suggest reorganization. Read-onl
 
 Read all spec files in `docs/specs/`, identify themes (up to 10), and propose a reorganization plan. Read-only by default — files only moved/rewritten with explicit user approval.
 
+### Reserved Paths (exempt from reorganization)
+
+`docs/specs/skills/SPEC-*.md` mirrors are constitution-pinned: their names derive mechanically from their `src/kit/skills/` sources (`SPEC-{source-filename}.md`), and the constitution requires every skill edit to update its mirror. Never propose renaming, moving, merging, or splitting them — they may be *read* for theme analysis, but a Migration Map row targeting a reserved path is invalid.
+
 ---
 
 ## Pre-flight
@@ -32,7 +36,7 @@ Loads `docs/specs/index.md` and every `.md` file in `docs/specs/`. Does NOT requ
 
 ### Step 1: Read All Spec Files
 
-Read `docs/specs/index.md` and every `.md` file. For each: extract `##`/`###` headings, brief section summaries, and approximate line count.
+Read `docs/specs/index.md` and every `.md` file, **recursing into subfolders** (e.g., `skills/`, `findings/`). For each: extract `##`/`###` headings, brief section summaries, and approximate line count. Reserved-path files (see Reserved Paths) are read for analysis only.
 
 ### Step 2: Identify Themes (up to 10)
 
@@ -66,7 +70,7 @@ Brief assessment (5-7 bullets max): what works well, pain points (too large, too
 (markdown preview)
 ```
 
-Constraints: prefer fewer files, preserve existing names, keep files under ~300 lines, say so if current structure is fine.
+Constraints: prefer fewer files, preserve existing names, keep files under ~300 lines, never migrate reserved paths (`docs/specs/skills/SPEC-*.md`), say so if current structure is fine.
 
 ### Step 5: User Confirmation
 

@@ -130,7 +130,7 @@ Adding a skill to the kit touches eight integration points. Work through all of 
 
 ## `/fab-setup`
 
-**Purpose**: Bootstrap `fab/` in an existing project and manage ongoing configuration. Delegates structural setup to `fab-sync.sh` and adds interactive configuration on top. Safe to run repeatedly (idempotent). Also provides subcommands for config, constitution, and migrations.
+**Purpose**: Bootstrap `fab/` in an existing project and manage ongoing configuration. Delegates structural setup to `fab sync` (the `fab-kit` Go binary) and adds interactive configuration on top. Safe to run repeatedly (idempotent). Also provides subcommands for config, constitution, and migrations.
 
 **Prerequisite**: Fab Kit must be installed (`brew install fab-kit`) and `fab init` or `fab sync` must have been run in the project.
 
@@ -142,24 +142,24 @@ Adding a skill to the kit touches eight integration points. Work through all of 
 | `/fab-setup constitution` | Create or amend `fab/project/constitution.md` with semantic versioning |
 | `/fab-setup migrations [file]` | Run version migrations against the current project |
 
-When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fab-sync.sh` for structural setup, then delegates to `config` and `constitution` subcommands for any missing artifacts. Unrecognized arguments are rejected with a message listing valid subcommands.
+When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fab sync` for structural setup, then delegates to `config` and `constitution` subcommands for any missing artifacts. Unrecognized arguments are rejected with a message listing valid subcommands.
 
 **Creates** (idempotent — setup is re-runnable; whatever already exists is skipped):
 - `fab/project/config.yaml` — project configuration (via `/fab-setup config`)
 - `fab/project/constitution.md` — project principles and constraints (via `/fab-setup constitution`)
-- `fab/.kit-migration-version` — migration version (via `fab-sync.sh`)
-- `docs/memory/index.md` — initial memory index (via `fab-sync.sh`)
-- `docs/specs/index.md` — specifications index (via `fab-sync.sh`)
-- `fab/changes/` — empty, ready for change folders (via `fab-sync.sh`)
-- `.claude/skills/` — symlinks pointing into `src/kit/skills/` (via `fab-sync.sh`)
+- `fab/.kit-migration-version` — migration version (via `fab sync`)
+- `docs/memory/index.md` — initial memory index (via `fab sync`)
+- `docs/specs/index.md` — specifications index (via `fab sync`)
+- `fab/changes/` — empty, ready for change folders (via `fab sync`)
+- `.claude/skills/` — deployed skill copies from the kit cache (via `fab sync`)
 
-**Delegation pattern**: `fab-sync.sh` handles all non-interactive structural setup (directories, symlinks, indexes, `.envrc`, `.gitignore`). `/fab-setup` adds the interactive parts (config, constitution). `fab-sync.sh` can be run independently (e.g., in CI or after bootstrap download) without requiring `/fab-setup`.
+**Delegation pattern**: `fab sync` handles all non-interactive structural setup (directories, scaffolding, skill deployment, hook registration, `.envrc`/`.gitignore` fragments). `/fab-setup` adds the interactive parts (config, constitution). `fab sync` can be run independently (e.g., in CI or after an upgrade) without requiring `/fab-setup`.
 
 **Examples**:
 ```
 # First run — full bootstrap
 /fab-setup
-→ "Running fab-sync.sh... structure created."
+→ "Running fab sync... structure created."
 → "What's the project name?"
 → "Describe the tech stack and conventions..."
 → "fab/ initialized with config, constitution, and empty memory index."
@@ -575,17 +575,17 @@ The applying agent triages review comments by priority — not all comments need
 **Example**:
 ```
 /fab-archive
-→ "Archived to fab/changes/archive/260115-a7k2-add-oauth/"
+→ "Archived to fab/changes/archive/2026/01/260115-a7k2-add-oauth/"
 → "Next: /fab-new <description>"
 ```
 
-**Behavior**:
-1. **Move change folder** — `fab/changes/{name}/` → `fab/changes/archive/{name}/`. Create `archive/` if needed. No rename.
-2. **Update archive index** — prepend entry to `fab/changes/archive/index.md` (create with backfill if missing). Format: `- **{folder-name}** — {1-2 sentence description}`. Most-recent-first.
-3. **Mark backlog items done** — exact-ID check (always), then keyword scan with interactive confirmation.
+**Behavior** — the skill delegates all mechanical operations to a single `fab change archive <change>` call and formats its YAML output into the report:
+1. **Move change folder** — `fab/changes/{name}/` → `fab/changes/archive/{yyyy}/{mm}/{name}/` (date-bucketed by the folder's embedded date). No rename.
+2. **Update archive index** — prepend entry to `fab/changes/archive/index.md` (create with backfill if missing). Format: `- **{folder-name}** — {1-2 sentence description}`. Most-recent-first. Description derived from the intake title (humanized-slug fallback).
+3. **Mark backlog item done** — exact change-ID match in `fab/backlog.md` (`- [ ]` → `- [x]`), in place; reported as `marked`/`already`/`not_found`.
 4. **Clear pointer** — remove `.fab-status.yaml` symlink only if the archived change is the active one.
 
-**Order of operations**: Steps 1–4 execute in this order for safety. Folder move first (recoverable if interrupted — re-run detects folder already in archive and completes remaining steps). Index after folder is in place. Backlog marking after index. Pointer last.
+**Order of operations**: the Go command executes move → index → backlog → pointer. Re-archiving an already-archived change is a soft skip (exit 0) that still re-attempts the backlog mark; interrupted runs are recovered by re-running.
 
 **Restore mode** (`/fab-archive restore <change-name> [--switch]`): Moves an archived change back to `fab/changes/`. Preserves all artifacts and `.status.yaml` without modification. Optionally activates via `--switch` flag.
 

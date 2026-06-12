@@ -1,5 +1,5 @@
 ---
-description: "`docs/specs/` directory — pre-implementation specs, distinction from memory, bootstrap and context integration, per-skill SPEC mirror coverage + naming policy (`SPEC-{source-filename}.md`; `_cli-fab`/`_cli-external` excluded — uliv)"
+description: "`docs/specs/` directory — pre-implementation specs, distinction from memory, bootstrap and context integration, per-skill SPEC mirror coverage + naming policy (`SPEC-{source-filename}.md`; `_cli-fab`/`_cli-external` excluded — uliv); mirrors are reserved paths for `docs-reorg-specs` (d9rs)"
 ---
 # Specs Index
 
@@ -34,10 +34,20 @@ Spec files are written and maintained by humans. No automated tooling creates or
 - **Naming**: mechanical `SPEC-{source-filename}.md` — partials keep their leading underscore (`SPEC-_review.md`, `SPEC-_preamble.md`, `SPEC-_generation.md`). The former outlier `SPEC-preamble.md` was renamed to `SPEC-_preamble.md` in uliv; the live reference in [`_shared/context-loading.md`](../_shared/context-loading.md) was updated, while historical changelog rows keep the old name.
 - **Coverage**: every user-invocable skill and every behavioral partial carries a SPEC. uliv closed the coverage gap with four new files: `SPEC-internal-consistency-check.md`, `SPEC-internal-retrospect.md`, `SPEC-internal-skill-optimize.md`, and `SPEC-_generation.md`.
 - **Exclusion policy**: the pure-reference partials `_cli-fab.md` and `_cli-external.md` carry **no** SPEC — their content mirrors the CLI surface rather than defining behavior, and the constitution already forces `_cli-fab.md` updates on every CLI change (a SPEC would be a third copy of the same tables). The policy and the naming convention are documented in `docs/specs/skills.md` § New Skill Checklist (the SPEC-mirror item) — the single home for both, alongside the checklist's other integration points (frontmatter fields, preamble-read line, `helpers:` declaration, `Next:` line, Error Handling + Key Properties tables, skills.md mapping row, fabhelp.go help grouping).
+- **Reserved paths for spec reorganization (d9rs)**: `docs-reorg-specs` treats the mirrors as constitution-pinned reserved paths — their names derive mechanically from their sources and the constitution requires every skill edit to update its mirror, so the skill never proposes renaming, moving, merging, or splitting them (a Migration Map row targeting a reserved path is invalid). They may be *read* for theme analysis; the skill's Step 1 also now recurses into `docs/specs/` subfolders (e.g., `skills/`, `findings/`).
+- **d9rs resync**: the docs-reality sweep resynced ~23 drifted mirrors against their post-batch sources (Theme 7c — e.g., SPEC-fab-operator's rejected Decision 2 recorded as current, SPEC-fab-continue writing a removed "Spec" artifact, SPEC-fab-clarify's removed `[target-artifact]` flow, SPEC-_preamble's misquoted opening instruction) and rewrote `SPEC-hooks.md` as-shipped (Go `fab hook` handlers; no deleted shell scripts, no shipped-behavior-as-proposal).
 
 ### Bootstrap Integration
 
 `/fab-setup` creates `docs/specs/index.md` during structural bootstrap (after memory/index.md). The creation is idempotent — if the file already exists, setup skips it with a status message.
+
+## Design Decisions
+
+### SPEC Mirrors Are Reserved Paths in Spec Reorganization
+**Decision**: `docs-reorg-specs` exempts `docs/specs/skills/SPEC-*.md` from reorganization — read for theme analysis only; any Migration Map row targeting a reserved path is invalid.
+**Why**: Mirror names derive mechanically from their `src/kit/skills/` sources (`SPEC-{source-filename}.md`) and the constitution pins the skill-edit ⇒ mirror-update rule. A reorg that renamed, moved, merged, or split a mirror would break the mechanical naming contract and orphan the constitution rule — the mirror set's structure is owned by the source tree, not by theme analysis.
+**Rejected**: Allowing migrations with link rewriting — the naming convention itself is the contract, not just the inbound links; rewriting links would preserve navigation while still breaking the source↔mirror correspondence.
+*Introduced by*: 260612-d9rs-docs-reality-sweep
 
 ### Context Loading Integration
 
@@ -47,6 +57,7 @@ Spec files are written and maintained by humans. No automated tooling creates or
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260612-d9rs-docs-reality-sweep | 2026-06-12 | **Reserved-path exemption** (skills-audit batch 5/5): `docs-reorg-specs` never proposes renaming/moving/merging/splitting the constitution-pinned `docs/specs/skills/SPEC-*.md` mirrors (read-only for theme analysis; reserved-path Migration Map rows invalid) and its Step 1 now recurses into `docs/specs/` subfolders. New "SPEC Mirrors Are Reserved Paths in Spec Reorganization" design decision. **Mirror resync recorded**: ~23 drifted mirrors resynced against post-batch sources (Theme 7c) and `SPEC-hooks.md` rewritten as-shipped (Go `fab hook` system; no deleted shell scripts, UserPromptSubmit registered). |
 | 260611-uliv-skills-staleness-sweep-frontmatter-fixes | 2026-06-11 | Added the "Per-Skill SPEC Mirrors" section (H): mechanical `SPEC-{source-filename}.md` naming with partials keeping the leading underscore (`SPEC-preamble.md` renamed to `SPEC-_preamble.md`; live ref in `_shared/context-loading.md` updated, historical changelog rows exempt); four new SPECs created (`internal-consistency-check`, `internal-retrospect`, `internal-skill-optimize`, `_generation`); explicit exclusion policy for the pure-reference partials `_cli-fab`/`_cli-external` (CLI mirrors, not behavior — a SPEC would be a third copy), documented in `docs/specs/skills.md` § New Skill Checklist together with the naming convention. |
 | 260218-5isu-fix-docs-consistency-drift | 2026-02-18 | Replaced stale `/fab-init` → `/fab-setup` in bootstrap integration reference |
 | 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Updated all path references from `fab/specs/` to `docs/specs/` |

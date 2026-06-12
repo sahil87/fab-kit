@@ -2,9 +2,9 @@
 
 ## Summary
 
-Shared context preamble loaded by every Fab skill. Defines path conventions, context loading layers (always-load — descriptive, with a skill-file-wins override and listed exceptions; change context; memory lookup; source code), the **Skill Helper Declaration** frontmatter convention (including stage-conditional in-body loading), inlined **Naming Conventions**, inlined **Run-Kit (rk) Reference**, the **Common fab Commands** headline table, the next-steps convention (with a skill-file-declared ending opt-out) with state table, a pointer to the skill invocation protocol (defined in `fab-clarify.md` since 260611-zc9m), subagent dispatch pattern with standard subagent context, a pointer to the SRAD autonomy framework (extracted to `_srad.md` in 260611-zc9m), and slimmed confidence scoring (gate threshold + invocation; schema/formula/template moved to `_cli-fab.md` § fab score).
+Shared context preamble loaded by every Fab skill. Defines path conventions, context loading layers (always-load — descriptive, with a skill-file-wins override and a derived, never-enumerated exception set; change context; memory lookup; source code), the **Skill Helper Declaration** frontmatter convention (including stage-conditional in-body loading), inlined **Naming Conventions**, inlined **Run-Kit (rk) Reference**, the **Common fab Commands** headline table, the next-steps convention (with a skill-file-declared ending opt-out) with state table, a pointer to the skill invocation protocol (defined in `fab-clarify.md` since 260611-zc9m), subagent dispatch pattern with standard subagent context, a pointer to the SRAD autonomy framework (extracted to `_srad.md` in 260611-zc9m), and slimmed confidence scoring (gate threshold + invocation; schema/formula/template moved to `_cli-fab.md` § fab score).
 
-This is an internal partial (`user-invocable: false`) — it is never invoked directly. Skills reference it via the opening instruction: "Read `src/kit/skills/_preamble.md` first."
+This is an internal partial (`user-invocable: false`) — it is never invoked directly. Skills reference it via the opening instruction: "Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding."
 
 ## Subsection Inventory
 
@@ -27,9 +27,10 @@ Skill reads _preamble.md
 │
 ├─ Context Loading
 │  ├─ Layer 1: Always Load (descriptive — the skill's own
-│  │  Context Loading section wins; exceptions: fab-setup,
-│  │  fab-status, fab-switch, docs-hydrate-memory skip it,
-│  │  fab-operator loads config/constitution/context only)
+│  │  Context Loading section wins; the exception set is
+│  │  derived from each skill file, never enumerated —
+│  │  e.g. fab-setup and docs-hydrate-memory skip the layer,
+│  │  fab-operator loads a reduced 3-file set)
 │  │  Read: config.yaml, constitution.md,
 │  │        context.md*, code-quality.md*,
 │  │        code-review.md*, memory/index.md,
@@ -102,7 +103,7 @@ Skill reads _preamble.md
 
 | Tool | Purpose |
 |------|---------|
-| Read | kit.conf (build guard), all context layer files |
+| Read | all context layer files |
 | Bash | `fab preflight`, `fab log command`, `fab score` |
 
 ### Sub-agents

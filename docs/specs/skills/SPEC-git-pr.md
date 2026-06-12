@@ -97,6 +97,9 @@ Autonomously commits, pushes, and creates a draft GitHub PR. No prompts, no ques
 │     │                 ## Summary (from intake ## Why), ## Changes (from intake ## What Changes)
 │     │                 (Meta block omitted entirely when {has_fab} is false or $META empty)
 │     └─ Bash: gh pr create --draft --title --body
+│        (body-generation failure → silent gh pr create --draft --fill
+│         fallback, evaluated BEFORE the creation-failure STOP — a body
+│         failure never reaches it; PR-creation failure → report + STOP)
 │
 ├─ Step 4a: Record PR URL (if {has_fab})
 │  └─ Bash: fab status add-pr {name} <url>

@@ -1,247 +1,87 @@
 # Hooks in Fab-Kit Skills
 
-## Current Hooks
+## Summary
 
-Two Claude Code hooks exist today, both registered via `src/kit/sync/5-sync-hooks.sh`:
+Fab's Claude Code hooks are Go subcommands of the `fab` binary — `fab hook <subcommand>` — registered as inline command entries in `.claude/settings.local.json` by `fab hook sync` (invoked during `fab sync`). There are four event handlers (`session-start`, `stop`, `user-prompt`, `artifact-write`) plus the setup-facing `sync`. All hook subcommands exit 0 so they can never block the agent: the event handlers swallow errors silently; `sync` surfaces failures on stderr but still exits 0. The former shell-script hooks (`on-stop.sh`, `on-session-start.sh`, registered by `5-sync-hooks.sh`) and the proposed `fab runtime` subcommands are gone — handlers call the internal `runtime` package directly, with no `yq` dependency anywhere on the hook path.
 
-| Hook | Event | File | Fires |
-|------|-------|------|-------|
-| Agent idle tracking | **Stop** | `src/kit/hooks/on-stop.sh` | Every agent response turn |
-| Agent session clear | **SessionStart** | `src/kit/hooks/on-session-start.sh` | Every new/resumed session |
+Canonical command reference: `src/kit/skills/_cli-fab.md` § fab hook. Go source: `src/go/fab/cmd/fab/hook.go` + `src/go/fab/internal/hooklib/`. Runtime-file schema: `docs/memory/runtime/runtime-agents.md`.
 
-**What they do**: Write/clear `agent.idle_since` in `.fab-runtime.yaml` (implemented in change 1lwf).
+## Registered Hooks
 
-**Problem**: Both hooks use `yq` directly instead of the `fab` CLI. If `yq` isn't installed, they silently do nothing (`command -v yq || exit 0`). See [yq Dependency](#yq-dependency-in-hooks) below.
+`fab hook sync` registers these mappings (one settings entry per row; `artifact-write` gets two — one per matcher):
 
----
+| Subcommand | Claude Code event | Matcher | What it does |
+|------------|-------------------|---------|--------------|
+| `session-start` | **SessionStart** | — | Delete `_agents[session_id]` from `.fab-runtime.yaml` |
+| `stop` | **Stop** | — | Write `_agents[session_id]` with `idle_since` plus optional `change`/`pid`/`tmux_server`/`tmux_pane`/`transcript_path` |
+| `user-prompt` | **UserPromptSubmit** | — | Remove only `idle_since` from `_agents[session_id]`; other fields preserved |
+| `artifact-write` | **PostToolUse** | `Write`, `Edit` | Per-artifact bookkeeping (see below) |
+| `sync` | n/a (setup) | — | Register the rows above in `.claude/settings.local.json`; idempotent |
 
-## Hooks Embedded in Skills (via yq, not fab CLI)
+The three session-scoped handlers (`session-start`, `stop`, `user-prompt`) read a JSON payload on stdin with at least `session_id` (and optionally `transcript_path`). Malformed JSON or a missing `session_id` is silently skipped. Each invocation also runs a throttled GC sweep (at most once per 180 s, tracked via `last_run_gc`) that prunes `_agents` entries whose stored `pid` no longer exists.
 
-`/git-pr-review` writes directly to `.status.yaml` using `yq -i` (bypassing the Go binary):
+## Runtime File (`.fab-runtime.yaml`)
 
-| Field | When | Why not fab CLI |
-|-------|------|-----------------|
-| `stage_metrics.review-pr.phase` | At each phase transition (waiting/received/triaging/fixing/pushed) | No `fab status` subcommand for arbitrary metric fields |
-| `stage_metrics.review-pr.reviewer` | When reviews detected | Same |
+Ephemeral per-worktree state written by the session-scoped hooks and consumed by `fab pane map` / `fab pane send` (agent idle detection):
 
-These are ephemeral runtime state (only meaningful during review-pr execution). Good candidate for `.fab-runtime.yaml`.
-
----
-
-## Bookkeeping Commands in Skills (hook candidates)
-
-These are `fab` CLI calls that skills instruct the agent to run after generating artifacts. They're fragile because the agent may forget or skip them.
-
-### Grouped by artifact trigger
-
-**After `intake.md` is written** (fab-new):
-| Command | Purpose | Hookable? |
-|---------|---------|-----------|
-| `fab status set-change-type <change> <type>` | Infer and record change type | Yes — hook reads content, does keyword match |
-| `fab score --stage intake <change>` | Compute the authoritative intake confidence (sole scoring source) | Yes — hook calls fab score |
-| `fab status advance <change> intake` | Signal intake artifact exists | **No** — must happen after SRAD questions (Step 8), not on write |
-
-**After `plan.md` is written** (fab-continue, fab-ff, fab-fff):
-| Command | Purpose | Hookable? |
-|---------|---------|-----------|
-| `fab status set-acceptance <change> generated true` | Mark plan as generated | Yes — hook detects `## Tasks` heading exists |
-| `fab status set-acceptance <change> task_count <N>` | Record task count | Yes — hook counts `- [ ]` + `- [x]` lines under `## Tasks` |
-| `fab status set-acceptance <change> acceptance_count <M>` | Record acceptance item count | Yes — hook counts items under `## Acceptance` |
-| `fab status set-acceptance <change> acceptance_completed <K>` | Record completed acceptance items | Yes — hook counts `- [x]` lines under `## Acceptance` |
-
-> **Removed in 1.10.0**: the `spec.md → fab score` hook rule. `spec.md` is no longer a recognized artifact (the matcher and `hook.go` `case "spec.md"` are both dropped), so editing a leftover `spec.md` does not fire scoring and cannot overwrite the authoritative intake confidence. Intake scoring is recomputed by `/fab-clarify` (intake-only) directly, not via a write hook.
-
----
-
-## Command Logging (every skill)
-
-Every skill per `_preamble.md` §2 runs:
-
-```bash
-fab log command "<skill-name>" "<change-id>"
+```yaml
+_agents:
+  "<session_id>":
+    idle_since: <unix-ts>       # present when the agent is idle
+    change: "<folder-name>"     # optional — absent in discussion mode
+    pid: <int>                  # optional — Claude's PID, used for GC liveness
+    tmux_server: "<label>"      # optional
+    tmux_pane: "%15"            # optional
+    transcript_path: "..."      # optional
+last_run_gc: <unix-ts>          # throttles GC sweeps
 ```
 
-This is best-effort (the command always exits 0; internal failures surface as a stderr warning only — no shell guard needed since 260612-ye8r), scattered across all skills. Not a hook candidate — skill invocation can't be detected from hook events (no matcher for "which skill is running").
+Per-session map keyed by `session_id` — not the legacy `agent.idle_since` singleton. Full schema: `docs/memory/runtime/runtime-agents.md`.
 
----
+## artifact-write Bookkeeping
 
-## Stage Transitions (NOT hook candidates)
+`artifact-write` parses a different payload shape — `tool_input.file_path` from the PostToolUse JSON — and does not participate in `_agents` writes. It pattern-matches the path against `fab/changes/{name}/intake.md|plan.md` (`spec.md` was dropped as a recognized artifact in 1.10.0), then mutates `.status.yaml` under the cross-process status lock:
 
-These are intentional agent decisions — the agent decides when a stage is complete:
+| Artifact written | Bookkeeping performed |
+|------------------|----------------------|
+| `intake.md` | Infer `change_type` from content (`fab status set-change-type` equivalent) + recompute the authoritative intake confidence (`fab score` equivalent) |
+| `plan.md` | Set `plan.generated: true` (when `## Tasks` exists), re-count `plan.task_count` (checkbox items under `## Tasks`), `plan.acceptance_count` / `plan.acceptance_completed` (under `## Acceptance`) |
 
-| Command | Skills | Why not a hook |
-|---------|--------|----------------|
-| `fab status finish <change> <stage>` | fab-continue, fab-ff, fab-fff, git-pr, git-pr-review | Agent must judge when work is actually complete |
-| `fab status start <change> <stage>` | fab-continue, git-pr, git-pr-review | Agent must decide when to begin |
-| `fab status advance <change> <stage>` | fab-new, fab-continue | Agent signals artifact readiness |
-| `fab status fail <change> <stage>` | fab-continue, fab-ff, fab-fff | Agent/sub-agent determines review failed |
-| `fab status reset <change> <stage>` | fab-continue, fab-ff, fab-fff | Agent decides to restart from a stage |
+Side effects: auto-stages the change's `.status.yaml` and `.history.jsonl` via `git add` (so status writes never block git operations), and emits `{"additionalContext": "Bookkeeping: ..."}` on stdout to inform the agent of what was recorded.
 
----
+This is why skills no longer carry post-write bookkeeping instructions for these fields — the hook owns them mechanically.
 
-## Possible Events to Use
+## Registration (`fab hook sync`)
 
-All 18 Claude Code hook events, assessed for fab-kit relevance.
+- Runs as part of `fab sync`; can be invoked standalone.
+- Merges the inline `fab hook <subcommand>` entries into `.claude/settings.local.json`, deduplicating by matcher + command pair — re-running is a no-op (`.claude/settings.local.json hooks: OK`).
+- Migrates old-style entries (`bash "$CLAUDE_PROJECT_DIR"/fab/.kit/hooks/on-*.sh` and relative variants) to the inline commands.
+- Output: `Created`, `Updated`, or the OK line; on failure (no fab root, unwritable settings) a `hook sync: {error}` line on stderr — exit code stays 0 either way.
 
-### Can block/deny actions (8 events)
+## What Stays in Skills (not hooks)
 
-| Event | Fires when | Matcher | Can block | Hook types | Fab-kit fit |
-|-------|-----------|---------|-----------|------------|-------------|
-| **PreToolUse** | Before any tool executes | Tool name (`Write`, `Bash`, `Edit`, `Glob`, `Grep`, `Agent`, `mcp__*`) | Yes — deny or modify input | Command, prompt, agent | No — guardrails belong in `project/*` files |
-| **PostToolUse** | After a tool succeeds | Tool name | No (tool already ran) — but can return `additionalContext` | Command, prompt, agent | **High** — detect artifact writes/edits, trigger bookkeeping automatically |
-| **UserPromptSubmit** | User submits a prompt, before Claude processes it | None (fires on every prompt) | Yes — block prompt | Command, prompt, agent | No — context injection is skill-level (preamble handles it) |
-| **PermissionRequest** | Permission dialog about to show | Tool name | Yes — allow/deny on behalf of user | Command, prompt, agent | No — fab-kit shouldn't auto-approve tool calls |
-| **Stop** | Agent finishes responding | None | Yes — force continuation | Command, prompt, agent | **In use** — idle tracking |
-| **SubagentStop** | Subagent finishes | Agent type (`Explore`, `Plan`, custom) | Yes — force continuation | Command, prompt, agent | No — skills already handle subagent results |
-| **TaskCompleted** | Todo item marked complete | None | Yes — force continuation | Command, prompt, agent | No — fab doesn't use Claude's built-in todos |
-| **ConfigChange** | Settings file changes | Config source (`user_settings`, `project_settings`, etc.) | Yes (except policy) | Command | No |
+Agent decisions remain skill-instructed; only mechanical bookkeeping moved into hooks:
 
-### Observe only, cannot block (10 events)
+| Command | Why not a hook |
+|---------|----------------|
+| `fab status finish/start/advance/fail/reset/skip` | Stage transitions are intentional agent judgments |
+| `fab log command "<skill>" "<change>"` | Skill invocation can't be detected from hook events (no "which skill is running" matcher); best-effort, always exits 0 |
 
-| Event | Fires when | Matcher | Hook types | Fab-kit fit |
-|-------|-----------|---------|------------|-------------|
-| **SessionStart** | Session begins/resumes/clears/compacts | Source (`startup`, `resume`, `clear`, `compact`) | Command only | **In use** — clear idle state |
-| **SessionEnd** | Session terminates | Exit reason (`clear`, `logout`, `prompt_input_exit`, etc.) | Command only | No — thin value, nowhere useful to log |
-| **PreCompact** | Before context compaction | Trigger (`manual`, `auto`) | Command only | No — change folder artifacts survive compaction |
-| **PostToolUseFailure** | After a tool fails | Tool name | Command, prompt, agent | No — not enough value to justify a hook |
-| **InstructionsLoaded** | CLAUDE.md or rules load | None (no matcher) | Command only | No |
-| **SubagentStart** | Subagent spawned | Agent type | Command only | No |
-| **Notification** | Notification sent | Type (`permission_prompt`, `idle_prompt`, etc.) | Command only | No |
-| **TeammateIdle** | Teammate about to idle | None | Command, prompt, agent | No |
-| **WorktreeCreate** | Worktree being created | None | Command only (must print path to stdout) | No |
-| **WorktreeRemove** | Worktree being removed | None | Command only | No |
+One skill still writes status YAML directly via `yq`: `/git-pr-review` tracks ephemeral sub-state in `stage_metrics.review-pr.phase` (`received` → `triaging` → `fixing` → `pushed` → `replying`) and `stage_metrics.review-pr.reviewer` — best-effort `yq -i` writes, since no `fab status` subcommand covers arbitrary metric fields.
 
-### Hook types available
+## Event Coverage
 
-| Type | How it works | Available for | Speed |
-|------|-------------|---------------|-------|
-| **Command** | Shell script, JSON on stdin, exit code controls decision | All 18 events | Fast |
-| **HTTP** | POST to endpoint, JSON body, response controls decision | All 18 events | Medium |
-| **Prompt** | Single LLM call (Haiku) for yes/no decision | PreToolUse, PostToolUse, PostToolUseFailure, UserPromptSubmit, PermissionRequest, Stop, SubagentStop, TaskCompleted | Slow |
-| **Agent** | Multi-turn subagent with Read/Grep/Glob tools | Same as Prompt | Slowest |
+Of the Claude Code hook events, fab-kit uses four. The rest were assessed and rejected:
 
-### Key data available in PostToolUse (Write/Edit)
+| Event | Status | Rationale |
+|-------|--------|-----------|
+| **Stop** | In use (`stop`) | Idle tracking |
+| **SessionStart** | In use (`session-start`) | Clear stale agent entry on session start/resume/clear |
+| **UserPromptSubmit** | In use (`user-prompt`) | Clear `idle_since` the moment the user engages (agent no longer idle) |
+| **PostToolUse** (Write/Edit) | In use (`artifact-write`) | Artifact bookkeeping + `additionalContext` |
+| PreToolUse | Not used | Guardrails belong in `fab/project/*` policy files |
+| PermissionRequest | Not used | Fab shouldn't auto-approve tool calls |
+| SubagentStop / SubagentStart | Not used | Skills already handle subagent results |
+| SessionEnd / PreCompact / Notification / others | Not used | Thin value; change-folder artifacts survive compaction |
 
-The primary hook for fab-kit's bookkeeping redesign:
-
-```json
-{
-  "hook_event_name": "PostToolUse",
-  "tool_name": "Write",
-  "tool_input": {
-    "file_path": "/path/to/fab/changes/260306-1lwf-extract-agent-runtime-file/intake.md",
-    "content": "..."
-  },
-  "tool_response": {
-    "filePath": "/path/...",
-    "success": true
-  }
-}
-```
-
-For `Edit`, `tool_input` contains `file_path`, `old_string`, `new_string` instead of `content`.
-
-The hook script can:
-1. Extract `file_path` from the JSON
-2. Pattern-match against `fab/changes/*/intake.md|plan.md` (spec.md dropped in 1.10.0)
-3. Derive the change name from path components
-4. Run the appropriate `fab` CLI bookkeeping commands
-5. Return `additionalContext` in stdout JSON to inform the agent
-
----
-
-## yq Dependency in Hooks
-
-### Problem
-
-Both existing hooks (`on-stop.sh`, `on-session-start.sh`) and `/git-pr-review` use `yq` directly to write YAML. This is problematic:
-
-1. **Silent failure** — hooks do `command -v yq || exit 0`. If yq isn't installed, they silently do nothing
-2. **Inconsistency** — every other status operation uses the `fab` CLI. Hooks bypassing it is an anomaly
-3. **Extra dependency** — the Go binary is always present (it's the kit's own binary). `yq` is an external tool
-
-### Current yq usage in src/kit/
-
-| Location | Uses | Purpose |
-|----------|------|---------|
-| `hooks/on-stop.sh` | 1 | Write `agent.idle_since` to `.fab-runtime.yaml` |
-| `hooks/on-session-start.sh` | 1 | Delete `agent` block from `.fab-runtime.yaml` |
-| `scripts/fab-doctor.sh` | 1 | Check yq is installed (diagnostic) |
-
-### Proposal: `fab runtime` subcommands
-
-Absorb the hook `yq` calls into the Go binary:
-
-| Command | Purpose | Replaces |
-|---------|---------|----------|
-| `fab runtime set-idle <change>` | Write `agent.idle_since` timestamp to `.fab-runtime.yaml` | `yq -i` in on-stop.sh |
-| `fab runtime clear-idle <change>` | Delete `agent` block from `.fab-runtime.yaml` | `yq -i del()` in on-session-start.sh |
-
-The hooks simplify from ~30 lines (with yq dependency check, file creation, quoting) to ~15 lines calling `fab runtime`.
-
-The pipeline orchestrator (`run.sh`, `dispatch.sh`) was removed in change o1tu, eliminating its ~43 `yq` calls.
-
----
-
-## Proposed Hook Architecture (Trimmed)
-
-```
-Claude Code Hook Events                    Fab-Kit Hook Scripts
-─────────────────────────                  ─────────────────────
-
-SessionStart ──────────► on-session-start.sh        (existing, updated)
-                         └─ fab runtime clear-idle <change>
-
-Stop ──────────────────► on-stop.sh                 (existing, updated)
-                         └─ fab runtime set-idle <change>
-
-PostToolUse (Write) ───► on-artifact-write.sh       ◄── NEW
-                         ├─ intake.md → fab status set-change-type + fab score --stage intake
-                         └─ plan.md → fab status set-acceptance generated + task_count + acceptance_count + acceptance_completed
-
-(spec.md is no longer a recognized artifact — 1.10.0 — so no PostToolUse rule fires on it)
-```
-
-**Dropped** (from earlier proposal):
-- ~~PreCompact~~ — change folder artifacts survive compaction
-- ~~SessionEnd~~ — thin value, nowhere useful to log
-- ~~SessionStart enhancement~~ — skills already handle context loading
-
-### What this changes in skills
-
-Skills that currently contain bookkeeping instructions can drop them:
-
-| Skill | Steps removed | Net effect |
-|-------|---------------|------------|
-| fab-new | Steps 6 (type inference), 7 (confidence) | Simpler, 2 fewer Bash calls |
-| fab-continue | set-acceptance after plan | Fewer bookkeeping instructions |
-| fab-ff | Plan-write set-acceptance calls | Cleaner pipeline |
-| fab-fff | Same as fab-ff | Cleaner pipeline |
-| fab-clarify | Step 7 (recompute confidence) | One fewer Bash call |
-| _generation.md | Plan generation post-write set-acceptance calls | Fewer Bash calls |
-
-**Stays in skills** (agent decisions, not mechanical bookkeeping):
-- `fab status advance` — agent signals artifact readiness (e.g., after SRAD questions)
-- `fab status finish/start/fail/reset` — stage transitions are intentional
-- `fab log command` — skill invocation logging (can't detect skill name from hooks)
-
-### Registration in 5-sync-hooks.sh
-
-The sync script needs updating to support **matchers** for PostToolUse hooks:
-
-```json
-{
-  "PostToolUse": [
-    {
-      "matcher": "Write",
-      "hooks": [{"type": "command", "command": "bash src/kit/hooks/on-artifact-write.sh"}]
-    },
-    {
-      "matcher": "Edit",
-      "hooks": [{"type": "command", "command": "bash src/kit/hooks/on-artifact-write.sh"}]
-    }
-  ]
-}
-```
-
-The current `map_event()` function maps filenames to events. This needs extending to handle event+matcher pairs.
+All handlers are command-type hooks (shell command, JSON on stdin) — fab uses no prompt/agent/HTTP hook types.
