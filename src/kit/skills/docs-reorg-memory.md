@@ -1,6 +1,6 @@
 ---
 name: docs-reorg-memory
-description: "Analyze memory files for themes and suggest reorganization. Read-only unless user approves changes."
+description: "Analyze memory files for themes and suggest reorganization. Read-only unless user approves changes. Also the memory rebalancer — diagnoses folder shape and splits/merges/flattens domains, rewriting links, on approval."
 ---
 
 # /docs-reorg-memory

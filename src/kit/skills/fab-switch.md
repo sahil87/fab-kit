@@ -1,6 +1,6 @@
 ---
 name: fab-switch
-description: "Switch the active change to a different one. Lists available changes when called with no argument."
+description: "Switch the active change to a different one. Lists available changes when called with no argument. Pass --none to deactivate the current change."
 ---
 
 # /fab-switch [change-name] [--none]

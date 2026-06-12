@@ -1,6 +1,6 @@
 ---
 name: fab-continue
-description: "Advance to the next pipeline stage — planning, implementation, review, or hydrate — or reset to a given stage."
+description: "Advance the active change one pipeline stage — intake, apply, review, hydrate, ship, or review-pr — or reset to a given stage."
 helpers: [_generation, _review]
 ---
 
@@ -52,7 +52,7 @@ Dispatch on preflight's derived `stage` and `display_state`. If progress is `pen
 | `review` | `active`/`ready` | Execute review → pass: run `finish <change> review fab-continue` (auto-activates hydrate). Fail: run `fail <change> review` then `reset <change> apply fab-continue` |
 | `hydrate` | `active`/`ready` | Execute hydrate → run `finish <change> hydrate fab-continue` |
 | `ship` | `active`/`ready` | Execute `/git-pr` behavior → git-pr finishes ship internally (its Step 4b); only if the stage is still `active` after it returns, run `finish <change> ship fab-continue` (auto-activates review-pr) |
-| `review-pr` | `active`/`ready` | Execute `/git-pr-review` behavior → it routes all terminal paths through its Step 6 and runs its own transitions. Pass/no-reviews: only if the stage is still `active` after it returns, run `finish <change> review-pr fab-continue`. Timeout (Copilot review requested but not yet available): the stage is deliberately left `active` — report and stop, no re-finish. Fail: `fail <change> review-pr` |
+| `review-pr` | `active`/`ready` | Execute `/git-pr-review` behavior → it routes all terminal paths through its Step 6 and runs its own transitions. Pass/no-reviews: only if the stage is still `active` after it returns, run `finish <change> review-pr fab-continue`. Timeout (Copilot review requested but not yet available): the stage is deliberately left `active` — report and stop, no re-finish. Fail: only if the stage is still `active` after it returns (its Step 6 normally runs `fail` itself), run `fail <change> review-pr` |
 | all `done` | — | Block: "Change is complete." |
 
 ### Step 2: Load Context
@@ -78,7 +78,7 @@ Use event commands via CLI to update `.status.yaml`. The `finish` command handle
 For other state changes, use the appropriate event command (driver is always optional):
 - `fab status start <change> <stage> fab-continue` — pending/failed → active
 - `fab status advance <change> <stage>` — active → ready
-- `fab status fail <change> <stage>` — active → failed (review only)
+- `fab status fail <change> <stage>` — active → failed (review/review-pr only)
 - `fab status reset <change> <stage> fab-continue` — done/ready → active (cascades downstream to pending)
 
 ### Step 5: Output

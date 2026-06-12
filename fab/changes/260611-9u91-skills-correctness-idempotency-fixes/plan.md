@@ -1,7 +1,6 @@
 # Plan: Skills-Review Batch 1 — Surgical Correctness + Idempotency Fixes
 
 **Change**: 260611-9u91-skills-correctness-idempotency-fixes
-**Status**: In Progress
 **Intake**: `intake.md`
 
 ## Requirements

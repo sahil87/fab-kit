@@ -1,7 +1,6 @@
 # Plan: {CHANGE_NAME}
 
 **Change**: {YYMMDD-XXXX-slug}
-**Status**: In Progress
 **Intake**: `intake.md`
 
 <!--
@@ -29,8 +28,10 @@
   it. Therefore:
     - Each ## Tasks item MUST carry a `<!-- R# -->` trace annotation naming the
       requirement it implements.
-    - Each ## Acceptance item MUST name the requirement it accepts
-      (e.g., `A-001 R2: {outcome}`).
+    - Each requirement-derived ## Acceptance item MUST name the requirement it
+      accepts (e.g., `A-001 R2: {outcome}`). Non-requirement-derived categories
+      (Code Quality, checklist.extra_categories) carry no R#:
+      `A-{NNN}: {outcome}` (an optional label may precede the colon).
 
   NO [NEEDS CLARIFICATION] MARKERS: those are an intake-only construct (they mean
   "a human still needs to decide this", and humans only decide at intake). An
@@ -50,7 +51,8 @@
   Tasks are grouped by phase. Phases execute sequentially.
   Within a phase, [P] tasks can execute in parallel.
 
-  ACCEPTANCE FORMAT: - [ ] A-{NNN} R#: {declarative outcome}
+  ACCEPTANCE FORMAT (requirement-derived categories): - [ ] A-{NNN} R#: {declarative outcome}
+  ACCEPTANCE FORMAT (Code Quality / extra categories):  - [ ] A-{NNN}: {declarative outcome}
 
   IDs are sequential and zero-padded: A-001, A-002, ...
   Acceptance items are declarative ("X is done and correct"), not imperative.
@@ -152,7 +154,8 @@
        1. ## Requirements — every requirement should have coverage
        2. Plan decisions — technical choices should be reflected in code
        3. Project constitution — project-wide quality standards
-     Each item MUST name the requirement it accepts (e.g., A-001 R1: ...).
+     Each requirement-derived item MUST name the requirement it accepts (e.g., A-001 R1: ...).
+     Code Quality and checklist.extra_categories items carry no R# (e.g., A-007 Pattern consistency: ...).
      /fab-continue (review) checks all items. ALL must pass before hydrate. -->
 
 ### Functional Completeness
@@ -211,8 +214,9 @@
 <!-- SCORING SOURCE NOTE: as of 1.10.0, `fab score` reads intake.md only — this
      ## Assumptions section is the apply-agent's record of graded decisions made
      while co-generating ## Requirements (under-specified points resolved inline),
-     NOT a scoring source. All four SRAD grades may appear; the Scores column is
-     required for every row. -->
+     NOT a scoring source. Three grades only (Certain/Confident/Tentative) —
+     Unresolved is intake-only; apply decides and records, it never leaves a
+     decision Unresolved. The Scores column is required for every row. -->
 
 | # | Grade | Decision | Rationale | Scores |
 |---|-------|----------|-----------|--------|

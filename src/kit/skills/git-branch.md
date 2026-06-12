@@ -1,6 +1,6 @@
 ---
 name: git-branch
-description: "Create or switch to the git branch matching the active (or specified) change."
+description: "Create or switch to the git branch matching the active (or specified) change. Unmatched explicit names fall back to a standalone branch with that literal name."
 allowed-tools: Bash(git:*)
 ---
 
@@ -52,7 +52,7 @@ fab change resolve
 
 If resolution fails:
 
-- **If no argument was provided**: display changeman's stderr and STOP.
+- **If no argument was provided**: display `fab change resolve`'s stderr and STOP.
 - **If an explicit argument was provided**: enter **standalone fallback** — use the raw argument as a literal branch name. Print:
 
 ```
@@ -166,7 +166,7 @@ Branch: {branch_name} (created|checked out|renamed from {old_branch}|created, le
 | Condition | Action |
 |-----------|--------|
 | Not in a git repo | Report and stop |
-| Change name resolution fails (no argument) | Display changeman's error and stop |
+| Change name resolution fails (no argument) | Display `fab change resolve`'s error and stop |
 | Change name resolution fails (explicit argument) | Standalone fallback — use literal argument as branch name |
 | `git checkout` fails (e.g., uncommitted conflicts) | Report the git error. No fab state modified. |
 

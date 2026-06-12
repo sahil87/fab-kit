@@ -1,0 +1,55 @@
+id: uliv
+name: 260611-uliv-skills-staleness-sweep-frontmatter-fixes
+created: 2026-06-11T15:39:40Z
+created_by: sahil-noon
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 32
+    acceptance_count: 41
+    acceptance_completed: 41
+confidence:
+    certain: 5
+    confident: 3
+    tentative: 1
+    unresolved: 0
+    score: 3.1
+    fuzzy: true
+    dimensions:
+        signal: 80.6
+        reversibility: 81.7
+        competence: 87.2
+        disambiguation: 82.2
+stage_metrics:
+    intake: {started_at: "2026-06-11T15:39:40Z", driver: fab-new, iterations: 1, completed_at: "2026-06-11T15:46:26Z"}
+    apply: {started_at: "2026-06-11T15:46:26Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-11T16:15:48Z"}
+    review: {started_at: "2026-06-11T16:15:48Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-11T16:34:57Z"}
+    hydrate: {started_at: "2026-06-11T16:34:57Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-11T16:47:25Z"}
+    ship: {started_at: "2026-06-11T16:47:25Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-11T16:52:24Z"}
+    review-pr: {started_at: "2026-06-11T16:52:24Z", driver: git-pr, iterations: 1, completed_at: "2026-06-11T17:09:03Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/391
+true_impact:
+    added: 2844
+    deleted: 116
+    net: 2728
+    excluding:
+        added: 256
+        deleted: 63
+        net: 193
+    tests:
+        added: 86
+        deleted: 4
+        net: 82
+    computed_at: "2026-06-11T16:47:26Z"
+    computed_at_stage: hydrate
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-11T17:09:03Z

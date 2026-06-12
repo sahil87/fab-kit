@@ -132,13 +132,13 @@ Restore an archived change back to the active changes folder. Inverse of the arc
 ## Pre-flight
 
 1. No standard preflight needed (no active change required).
-2. The script handles archive folder validation internally.
+2. The command handles archive folder validation internally.
 
 ---
 
 ## Context Loading
 
-None required — the script handles all file operations.
+None required — the command handles all file operations.
 
 ---
 
@@ -158,7 +158,7 @@ Parse the structured YAML output for the report. If the command exits non-zero:
 
 ### Step 2: Format Report
 
-Construct the user-facing report from the script's YAML output fields:
+Construct the user-facing report from the command's YAML output fields:
 
 | YAML field | Report line |
 |------------|-------------|
@@ -205,8 +205,8 @@ Next: {per state table — if --switch: restored change's state; otherwise: acti
 | Property | Value |
 |----------|-------|
 | Advances stage? | No — post-archive housekeeping |
-| Idempotent? | Yes — script detects already-restored folders |
+| Idempotent? | Yes — the command detects already-restored folders |
 | Modifies `.status.yaml`? | No |
-| Modifies `.fab-status.yaml`? | Only with `--switch` flag (via script) |
+| Modifies `.fab-status.yaml`? | Only with `--switch` flag (via the command) |
 | Modifies `docs/memory/`? | No |
 | Requires hydrate done? | No — restores any archived change regardless of state |

@@ -1,6 +1,6 @@
 ---
 name: git-pr
-description: "Autonomously commit, push, and create a GitHub PR — no prompts, no questions."
+description: "Autonomously commit, push, and create a draft GitHub PR — no prompts, no questions."
 allowed-tools: Bash(git:*), Bash(gh:*)
 ---
 
@@ -240,7 +240,7 @@ This marks `ship` as `done` and auto-activates `review-pr`. Best-effort — fail
 
 ### Step 4c: Commit and Push Status Update
 
-If Step 4a successfully recorded a PR URL (changeman resolved and statusman add-pr ran):
+If Step 4a successfully recorded a PR URL (`fab change resolve` succeeded and `fab status add-pr` ran):
 
 1. Stage the status and history files: `git add fab/changes/{name}/.status.yaml fab/changes/{name}/.history.jsonl`
 2. Check for changes: `git diff --cached --quiet`
@@ -249,7 +249,7 @@ If Step 4a successfully recorded a PR URL (changeman resolved and statusman add-
 
 Print (if committed): `  ✓ status — committed and pushed status updates (.status.yaml, .history.jsonl)`
 
-If Step 4a was skipped (no active change, changeman not found), skip this step silently.
+If Step 4a was skipped (no active change — `fab change resolve` found none), skip this step silently.
 
 ### Step 5: Report
 

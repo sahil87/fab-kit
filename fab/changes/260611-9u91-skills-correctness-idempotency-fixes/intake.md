@@ -2,7 +2,6 @@
 
 **Change**: 260611-9u91-skills-correctness-idempotency-fixes
 **Created**: 2026-06-11
-**Status**: Draft
 
 ## Origin
 

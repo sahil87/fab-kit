@@ -34,8 +34,7 @@ For each area, output one of:
 - **Clean** if nothing notable was found
 
 End with a **Suggested Actions** section listing concrete next steps, e.g.:
-- `Run /meta:scriptify` to extract {X}
-- `Run /meta:review {skill-file}` to fix {Y}
+- `Run /internal-skill-optimize {skill-file}` to condense {Y}
 - `Add {Z} to docs/memory/{domain}/{name}.md`
 - `Add {W} to CLAUDE.md`
 

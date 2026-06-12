@@ -1,6 +1,6 @@
 ---
 name: _generation
-description: "Artifact generation procedures — shared logic for intake and plan generation used by fab-continue and fab-ff."
+description: "Artifact generation procedures — Intake Generation (used by fab-new, fab-draft) and Plan Generation (used by fab-continue, fab-ff, fab-fff)."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -8,9 +8,11 @@ metadata:
 ---
 # Artifact Generation Procedures
 
-> This file defines the shared artifact generation logic used by both `/fab-continue` and `/fab-ff`.
-> Each skill references these procedures instead of inlining them, ensuring generation behavior
-> is authoritative in one location.
+> This file defines the shared artifact generation logic used by five skills: `/fab-new` and
+> `/fab-draft` follow the **Intake Generation Procedure**; `/fab-continue`, `/fab-ff`, and
+> `/fab-fff` follow the **Plan Generation Procedure** (at apply entry). Each skill references
+> these procedures instead of inlining them, ensuring generation behavior is authoritative in
+> one location.
 >
 > **Orchestration** (stage guards, question handling, design decisions, auto-clarify, resumability)
 > remains in each skill's own file. This partial covers only the mechanics of producing each artifact.
@@ -85,10 +87,11 @@ metadata:
    - The Acceptance entry goes under `## Acceptance` and describes *what must be true for
      review to pass* (a declarative outcome, not a step)
    - **Traceability is REQUIRED** (not optional): each `## Tasks` item MUST carry a `<!-- R# -->`
-     trace annotation naming the requirement it implements, and each `## Acceptance` item MUST name
-     the requirement it accepts (e.g., `A-001 R2: {outcome}`). The chain
-     `R# → T# → test → A#` is what lets the autonomous (apply ↔ review) loop localize a failing
-     acceptance item back to its requirement and converge.
+     trace annotation naming the requirement it implements, and each **requirement-derived**
+     `## Acceptance` item MUST name the requirement it accepts (e.g., `A-001 R2: {outcome}`).
+     Non-requirement-derived categories (Code Quality, `checklist.extra_categories`) are exempt —
+     see step 6. The chain `R# → T# → test → A#` is what lets the autonomous (apply ↔ review)
+     loop localize a failing acceptance item back to its requirement and converge.
 5. **Tasks subsection** (`## Tasks`):
    - Group by phase. Phases execute sequentially; within a phase, `[P]`-marked tasks may run
      in parallel:
@@ -119,8 +122,14 @@ metadata:
      - Security-relevant changes → **Security** items (only if applicable)
      - Additional categories from `fab/project/config.yaml` `checklist.extra_categories` (if
        any)
-   - Each item follows the format: `- [ ] A-{NNN} R#: {declarative outcome}` — naming the
-     requirement it accepts (REQUIRED)
+   - **Requirement-derived categories** (Functional Completeness, Behavioral Correctness,
+     Removal Verification, Scenario Coverage, Edge Cases & Error Handling, Security) follow the
+     format: `- [ ] A-{NNN} R#: {declarative outcome}` — naming the requirement it accepts
+     (REQUIRED)
+   - **Non-requirement-derived categories** (Code Quality, `checklist.extra_categories`) carry
+     no R# reference: `- [ ] A-{NNN}: {declarative outcome}` (an optional label may precede the
+     colon, e.g. `A-007 Pattern consistency: ...`) — these accept project-wide standards, not a
+     specific requirement
    - IDs are sequential, three-digit, zero-padded: A-001, A-002, ...
 7. Write the completed plan to `fab/changes/{name}/plan.md`. The PostToolUse hook updates
    `.status.yaml` `plan.generated`, `plan.task_count`, `plan.acceptance_count`, and

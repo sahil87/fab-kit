@@ -58,7 +58,7 @@ Full subcommand table (headline in `_preamble` § Common fab Commands):
 | `advance` | `advance <change> <stage> [driver]` | active → ready |
 | `reset` | `reset <change> <stage> [driver] [from] [reason]` | done/ready/skipped → active (cascades downstream to pending) |
 | `skip` | `skip <change> <stage> [driver]` | {pending,active} → skipped (cascades pending→skipped downstream) |
-| `fail` | `fail <change> <stage> [driver] [rework]` | active → failed (review only). Auto-logs `failed` |
+| `fail` | `fail <change> <stage> [driver] [rework]` | active → failed (review/review-pr only). Auto-logs `failed` |
 | `set-change-type` | `set-change-type <change> <type>` | |
 | `set-acceptance` | `set-acceptance <change> <field> <value>` | Updates `plan:` block. Valid fields: `generated` (bool), `task_count`, `acceptance_count`, `acceptance_completed` (int) |
 | `set-checklist` | `set-checklist [args...]` | **Removed** — exits 1 with `"set-checklist" is now "set-acceptance" — run fab status set-acceptance instead.` Use `set-acceptance` |
@@ -68,10 +68,16 @@ Full subcommand table (headline in `_preamble` § Common fab Commands):
 | `add-pr` / `get-prs` | `<change> <url>` / `<change>` | PR URL array — idempotent / one per line |
 | `progress-line` | `progress-line <change>` | Single-line visual progress |
 | `current-stage` | `current-stage <change>` | Detect active stage |
+| `all-stages` | `all-stages` | List all stage IDs in order (no `<change>` argument) |
+| `progress-map` | `progress-map <change>` | Extract `stage:state` pairs, one per line |
+| `display-stage` | `display-stage <change>` | Display stage as `stage:state` |
+| `plan` | `plan <change>` | Extract `plan:` fields — `generated`, `task_count`, `acceptance_count`, `acceptance_completed` (one `key:value` per line) |
+| `confidence` | `confidence <change>` | Extract `confidence:` fields — `certain`, `confident`, `tentative`, `unresolved`, `score` (one `key:value` per line) |
+| `validate-status-file` | `validate-status-file <change>` | Validate `.status.yaml` against the schema; non-zero exit on violation |
 
 **Side effects of `finish`**: `intake→apply`, `apply→review`, `review→hydrate` (+auto-log `passed`), `hydrate→ship`, `ship→review-pr`. Never call `start` after `finish`. Legacy `tasks` event invocations exit 1 with `"tasks" stage was removed — run "fab status <event> <change> apply" instead. plan.md is now generated at apply entry.` Legacy `spec` event invocations exit 1 with `"spec" stage was removed — spec.md is now generated at apply entry. Use "apply".`
 
-**Auto-logs**: `finish review`→`passed`; `fail review`→`failed`; every `active` transition is best-effort logged. Skills do NOT manually call `fab log review` or `fab log transition`.
+**Auto-logs**: `finish review|review-pr`→`passed`; `fail review|review-pr`→`failed`; every `active` transition is best-effort logged. Skills do NOT manually call `fab log review` or `fab log transition`.
 
 ---
 
@@ -82,14 +88,13 @@ See `_preamble.md` § Common fab Commands. Modes:
 | Mode | Usage | Behavior |
 |------|-------|----------|
 | Normal | `fab score <change>` | Parse `intake.md` (the sole scoring source; `--stage` defaults to `intake`), compute, write `.status.yaml`. No `indicative` key is written (retired 1.10.0) |
-| Gate | `fab score --check-gate <change>` | Read-only, threshold compare, non-zero below threshold |
-| Intake gate | `fab score --check-gate --stage intake <change>` | Flat threshold 3.0 for all types (the single gate) |
+| Gate | `fab score --check-gate [--stage intake] <change>` | Read-only threshold compare; non-zero below the flat 3.0 intake gate (the single gate — `--stage` defaults to `intake`, so the flag is optional) |
 
 ---
 
 ## fab preflight (extended)
 
-`fab preflight [<change-name>]` — validates config.yaml, constitution.md, active change resolution, `.status.yaml` existence. Outputs YAML with `name`, `change_dir`, `stage`, `progress`, `plan`, `confidence`. Non-zero exit on failure (error on stderr). Pure validation — no side effects.
+`fab preflight [<change-name>]` — validates config.yaml, constitution.md, active change resolution, `.status.yaml` existence. Outputs YAML with `id`, `name`, `change_dir`, `stage`, `display_stage`, `display_state`, `progress`, `plan`, `confidence`. Non-zero exit on failure (error on stderr). Pure validation — no side effects.
 
 ---
 
@@ -462,10 +467,13 @@ Multi-target operations: `fab batch <new|switch|archive> [--list] [--all] [targe
 
 ## Common Error Messages
 
+All strings below match `internal/resolve/resolve.go` verbatim (placeholders shown as `{arg}`):
+
 | Error | Cause | Fix |
 |-------|-------|-----|
-| `Status file not found: {path}` | Passed a path that doesn't exist | Use change ID or folder name |
-| `Cannot resolve change '{arg}'` | ID/name matches no folder in `fab/changes/` | Check `fab change list` |
-| `Multiple changes match` | Ambiguous substring matched multiple folders | Use a more specific identifier |
-| `No active changes found` | `.fab-status.yaml` symlink absent and no changes exist | Run `/fab-new` or `/fab-draft` |
-| `No active change. Run /fab-new <description> to start one, or /fab-switch to activate an existing one.` | `.fab-status.yaml` symlink absent and zero resolvable changes (no override given) | Follow the message — `/fab-new` or `/fab-switch` |
+| `No change matches "{arg}".` | An override was given but matches no folder in `fab/changes/` (exact match tried first, then substring — both case-insensitive) | Check `fab change list` |
+| `Multiple changes match "{arg}": {list}.` | Ambiguous substring matched multiple folders | Use a more specific identifier (4-char ID or full folder name) |
+| `No active changes found.` | An override was given but `fab/changes/` contains no change folders at all | Run `/fab-new` or `/fab-draft` |
+| `No active change. Run /fab-new <description> to start one, or /fab-switch to activate an existing one.` | No override, `.fab-status.yaml` symlink absent, and zero candidate changes (a single candidate would auto-resolve) | Follow the message — `/fab-new` or `/fab-switch` |
+| `No active change (multiple changes exist — use /fab-switch).` | No override, symlink absent, and multiple changes exist (no single-change guess possible) | Run `/fab-switch` |
+| `fab/changes/ not found.` | The `fab/changes/` directory is missing | Run `fab init` or check the CWD is the repo root |

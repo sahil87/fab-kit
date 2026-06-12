@@ -98,7 +98,7 @@ On success: run `fab status finish <change> hydrate fab-fff`.
 
 *(Skip if `progress.ship` is `done`.)*
 
-Dispatch `/git-pr` as subagent — change: `{id}`. The subagent commits, pushes, and creates a GitHub PR. Handles statusman integration internally (start/finish ship stage). Returns PR URL or error.
+Dispatch `/git-pr` as subagent — change: `{id}`. The subagent commits, pushes, and creates a GitHub PR. Handles `fab status` integration internally (start/finish ship stage). Returns PR URL or error.
 
 **If git-pr fails**: STOP with the error from git-pr. The ship stage remains `active` for user retry.
 
@@ -108,7 +108,7 @@ On success: `progress.ship` becomes `done`, `progress.review-pr` auto-activates.
 
 *(Skip if `progress.review-pr` is `done`.)*
 
-Dispatch `/git-pr-review` as subagent — change: `{id}`. The subagent detects existing reviews, triages comments, applies fixes, and pushes. If no reviews exist, it requests a Copilot review and polls up to 10 minutes — see the timeout outcome below. Handles statusman integration internally (start/finish/fail review-pr stage). Returns completion status.
+Dispatch `/git-pr-review` as subagent — change: `{id}`. The subagent detects existing reviews, triages comments, applies fixes, and pushes. If no reviews exist, it requests a Copilot review and polls up to 10 minutes — see the timeout outcome below. Handles `fab status` integration internally (start/finish/fail review-pr stage). Returns completion status.
 
 **If review-pr fails** (no PR found, processing error): STOP with the error.
 

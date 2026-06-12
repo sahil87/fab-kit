@@ -181,7 +181,7 @@ Print: `Replied to {N} comment(s): {F} fix, {D} defer, {S} skip`
 
 ### Step 6: Update Review-PR Stage
 
-**Step 6 is the single exit point for every terminal path after Step 0** — Steps 1, 2, and 4 route their terminal conditions here with a named outcome; no path STOPs before reaching this step.
+**Step 6 is the exit point for every terminal path after Step 0, with two exceptions** — Steps 1, 2, and 4 route their terminal conditions here with a named outcome. The exceptions STOP directly without reaching Step 6: **Step 1.5** (invalid `--tool` value — stops before any review processing) and **Step 5** (commit or push failure — stops after `git reset`, leaving no partial state).
 
 If an active change was resolved in Step 0, act on the outcome class:
 
@@ -190,7 +190,7 @@ If an active change was resolved in Step 0, act on the outcome class:
 3. **On no-reviews** (no reviews found, no inline comments to process, or no automated reviewer available): Call `fab status finish <change> review-pr git-pr-review 2>/dev/null || true` — a successful no-op outcome.
 4. **On timeout** (Copilot review requested but not yet available after 10 minutes): **leave the review-pr stage `active` — no finish, no fail.** The requested review is still pending; finishing here would mark the stage `done` with the review unprocessed, and `start` cannot reactivate a done stage. The earlier `Re-run /git-pr-review to process when ready.` message stands — the re-run picks up the still-`active` stage.
 
-All statusman calls are best-effort — failures silently ignored to avoid blocking the PR review workflow.
+All `fab status` calls are best-effort — failures silently ignored to avoid blocking the PR review workflow.
 
 ### Step 6.5: Commit Status Updates
 

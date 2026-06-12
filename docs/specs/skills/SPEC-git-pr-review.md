@@ -69,9 +69,11 @@ Setting `copilot` to `false` skips Phase 2 entirely. When the `review_tools` key
 │  ├─ Bash: gh api .../pulls/{n}/comments -f body=... -F in_reply_to=...
 │  └─ Best-effort: failed POSTs logged, not fatal
 │
-├─ Step 6: Update Review-PR Stage (single exit point for every
-│  │        terminal path after Step 0 — Steps 1/2/4 route here
-│  │        with a named outcome; no bare STOPs)
+├─ Step 6: Update Review-PR Stage (exit point for every terminal
+│  │        path after Step 0 — Steps 1/2/4 route here with a
+│  │        named outcome. Two direct-STOP exceptions: Step 1.5
+│  │        invalid --tool; Step 5 commit/push failure after
+│  │        git reset)
 │  ├─ [success / no-reviews] Bash: fab status finish <change> review-pr
 │  ├─ [failure] Bash: fab status fail <change> review-pr
 │  └─ [timeout] stage left active — no finish, no fail

@@ -16,9 +16,9 @@ Fab Kit's documentation is split into two categories:
 3. **[fab/project/constitution.md](fab/project/constitution.md)** — immutable project principles (MUST/SHOULD rules)
 4. **[docs/specs/architecture.md](docs/specs/architecture.md)** — directory structure, config, naming, agent integration
 5. **[docs/specs/skills.md](docs/specs/skills.md)** — detailed behavior for each `/fab-*` skill
-6. **[docs/memory/distribution/kit-architecture.md](docs/memory/distribution/kit-architecture.md)** — `.kit/` internals, scripts, distribution
+6. **[docs/memory/distribution/kit-architecture.md](docs/memory/distribution/kit-architecture.md)** — kit distribution: the system cache (`~/.fab-kit/versions/<version>/kit/`), `fab sync`, deployment
 7. **[docs/specs/templates.md](docs/specs/templates.md)** — artifact template system
-8. **[docs/memory/pipeline/schemas.md](docs/memory/pipeline/schemas.md)** — Stage Manager schemas and development guide
+8. **[docs/memory/pipeline/schemas.md](docs/memory/pipeline/schemas.md)** — pipeline stage schemas and `.status.yaml` development guide
 
 #### Spec Reader — "I want to understand the design rationale"
 
@@ -68,8 +68,8 @@ Fab Kit's documentation is split into two categories:
 | Document | Description |
 |----------|-------------|
 | [docs/specs/architecture.md](docs/specs/architecture.md) | Directory structure, config schema, naming conventions, agent integration |
-| [docs/memory/distribution/kit-architecture.md](docs/memory/distribution/kit-architecture.md) | `.kit/` directory structure, shell scripts, agent integration, distribution |
-| [docs/memory/pipeline/preflight.md](docs/memory/pipeline/preflight.md) | `preflight.sh` — validation script, structured YAML output, skill integration |
+| [docs/memory/distribution/kit-architecture.md](docs/memory/distribution/kit-architecture.md) | Kit distribution — system cache (`~/.fab-kit/versions/<version>/kit/`), `fab sync` deployment, agent integration |
+| [docs/memory/pipeline/preflight.md](docs/memory/pipeline/preflight.md) | `fab preflight` — validation, structured YAML output, skill integration |
 | [docs/memory/memory-docs/hydrate-generate.md](docs/memory/memory-docs/hydrate-generate.md) | `/docs-hydrate-memory` generate mode — codebase scanning, gap detection, doc generation |
 
 ### Index Files
@@ -80,36 +80,34 @@ Fab Kit's documentation is split into two categories:
 | [docs/memory/index.md](docs/memory/index.md) | Post-implementation centralized docs (what actually shipped) |
 | [docs/memory/index.md](docs/memory/index.md) | Domain index — links to each domain (pipeline, memory-docs, distribution, runtime, _shared); per-domain indexes list files with last-updated dates |
 
-## Stage Manager
+## Stage State & Queries (fab CLI)
 
-The kit includes **Stage Manager** (`stageman.sh`), a bash utility for querying workflow stages and states:
+Stage state lives in each change's `.status.yaml` and is owned by the **`fab` Go binary** (source in `src/go/fab/`). The pipeline is six stages: `intake → apply → review → hydrate → ship → review-pr`.
 
 ```bash
-# Query utility
-fab/.kit/scripts/lib/stageman.sh --help     # Show all available functions
-fab/.kit/scripts/lib/stageman.sh --version  # Show version
-fab/.kit/scripts/lib/stageman.sh --test     # Run self-tests
+# Resolve + summarize the active change (YAML: id, name, change_dir, stage, display_stage, display_state, progress, plan, confidence)
+fab preflight
 
-# Use in scripts
-source fab/.kit/scripts/lib/stageman.sh
-get_all_stages                          # List stages
-get_stage_number "spec"                 # Get position (2)
-validate_status_file .status.yaml       # Validate change status
+# Stage queries
+fab status all-stages                     # List stage IDs in order
+fab status progress-map <change>          # stage:state pairs
+fab status current-stage <change>         # Detect active stage
+fab status validate-status-file <change>  # Validate .status.yaml against the schema
+
+# Stage transitions (state machine)
+fab status start|advance|finish|reset|skip|fail <change> <stage>
 ```
 
 **Development & Testing:**
 
 ```bash
-# Run basic tests
-src/lib/stageman/test-simple.sh
-
-# View API documentation and development guide
-cat src/lib/stageman/README.md
+# Run the Go test suite
+cd src/go/fab && go test ./...
 ```
 
 For complete documentation, see:
-- [docs/memory/pipeline/schemas.md](docs/memory/pipeline/schemas.md) - Schema overview
-- [docs/memory/pipeline/schemas.md](docs/memory/pipeline/schemas.md) - Stage Manager schemas and API reference
+- [docs/memory/pipeline/schemas.md](docs/memory/pipeline/schemas.md) — stage/state schemas and `.status.yaml` reference
+- [src/kit/skills/_cli-fab.md](src/kit/skills/_cli-fab.md) — the full `fab` CLI reference (updated with every CLI change, per the constitution)
 
 ## Creating a Release
 
