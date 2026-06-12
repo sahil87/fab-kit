@@ -1,8 +1,8 @@
 // Package lines provides whole-file line reading for the small markdown/YAML
-// files fab parses. It replaces the unchecked bufio.Scanner idiom: os.ReadFile
-// is all-or-nothing, so a partial line list is impossible — the caller either
-// gets every line or an error, and bufio's 64KB MaxScanTokenSize line limit
-// does not apply.
+// files fab parses. It replaces the unchecked bufio.Scanner idiom: any read
+// error is treated as fatal and no lines are returned, so a partial line list
+// is impossible — the caller either gets every line or an error, and bufio's
+// 64KB MaxScanTokenSize line limit does not apply.
 package lines
 
 import (
