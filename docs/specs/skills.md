@@ -749,13 +749,13 @@ Next: Complete intake.md, then /fab-continue
 
 ---
 
-## `/git-pr [<change>] [type]`
+## `/git-pr [<change>] [<type>]`
 
 **Purpose**: Autonomously commit, push, and create a draft GitHub PR. No questions, no prompts. Covers stage 5 (Ship) of the pipeline.
 
 **Arguments** (both optional, in any order — classified by value):
 - `[<change>]` *(optional)* — explicit change to target instead of the active one: any argument that is NOT one of the 7 PR types. Resolved transiently (`.fab-status.yaml` untouched); an explicit argument that fails to resolve STOPs (caller error — never a silent fallback to the active change). Pass the change folder name, not a bare 4-char id: an id spelling a type word (`feat`, `docs`, `test`) would be classified as a type.
-- `[type]` *(optional)* — PR type prefix: `feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`. If omitted, type is inferred from `.status.yaml`, `intake.md`, or the diff (in that order).
+- `[<type>]` *(optional)* — PR type prefix: `feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`. If omitted, type is inferred from `.status.yaml`, `intake.md`, or the diff (in that order).
 
 **Example**:
 ```

@@ -21,7 +21,7 @@ Autonomously ship local changes to a GitHub PR. No questions, no prompts — jus
 Resolve the change **once** and derive four variables used throughout this skill. Later steps reference these variables and MUST NOT re-run `fab change resolve` — reuse this single resolution to avoid inconsistency.
 
 1. Resolve the change:
-   - **Explicit `<change>` argument provided** → run `fab change resolve <change> 2>/dev/null` (transient override — `.fab-status.yaml` is untouched; accepts 4-char ID, folder substring, or full folder name). **Succeeds** → `{has_fab} = true`, `{name}` = resolved change name. **Fails** → STOP with `Cannot resolve change '<change>'.` — a named target that doesn't resolve is a caller error; do NOT fall back to the active change.
+   - **Explicit `<change>` argument provided** (per the Arguments classification above — any argument that is NOT one of the 7 valid PR types) → run `fab change resolve <change> 2>/dev/null` (transient override — `.fab-status.yaml` is untouched; accepts 4-char ID, folder substring, or full folder name). **Succeeds** → `{has_fab} = true`, `{name}` = resolved change name. **Fails** → STOP with `Cannot resolve change '<change>'.` — a named target that doesn't resolve is a caller error; do NOT fall back to the active change.
    - **No `<change>` argument** → run `fab change resolve 2>/dev/null` (the active change). **Succeeds** → `{has_fab} = true`, `{name}` = resolved change name. **Fails** → `{has_fab} = false`; every step gated on `{has_fab}` is skipped silently.
 2. `{has_intake}` — whether `fab/changes/{name}/intake.md` exists *(only when `{has_fab}`)*.
 3. `{change_type}` — the `change_type` value from `fab/changes/{name}/.status.yaml` *(only when `{has_fab}`; may be null)*.
