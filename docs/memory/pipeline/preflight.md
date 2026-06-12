@@ -51,7 +51,7 @@ The script invokes `lib/changeman.sh` and `lib/statusman.sh` via CLI subprocess 
 
 - **Change resolution**: `$CHANGEMAN resolve [override]` handles both default mode (reads `.fab-status.yaml` symlink) and override mode (case-insensitive substring matching against `fab/changes/`). Returns resolved folder name to stdout; errors to stderr.
 - **Progress extraction**: `$STATUSMAN progress-map` returns `stage:state` pairs, consumed via `while IFS=: read -r`
-- **Stage derivation (routing)**: `$STATUSMAN current-stage` — returns the next stage to work on (three-tier fallback: first active, first pending after last done, hydrate)
+- **Stage derivation (routing)**: `$STATUSMAN current-stage` — returns the next stage to work on (three-tier fallback: first active, first pending after last done, review-pr if all done/skipped)
 - **Stage derivation (display)**: `$STATUSMAN display-stage` — returns `stage:state` for "where you are" (first active, or last done, or first stage with pending). Used for user-facing display in `/fab-status` and `/fab-switch`
 - **Checklist fields**: `$STATUSMAN checklist` returns `generated`, `completed`, `total` with defaults
 - **Confidence fields**: `$STATUSMAN confidence` returns `certain`, `confident`, `tentative`, `unresolved`, `score` with defaults
@@ -101,6 +101,7 @@ Skills exempt from preflight: `setup`, `new`, `switch`, `status`, `discuss`, `he
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260612-k4ge-cli-exit-contract-conformance | 2026-06-12 | Doc reconciliation only: the routing derivation's all-done fallback is `review-pr` (matches `CurrentStage` in status.go), not `hydrate` — same drift corrected in [schemas.md](schemas.md) and [change-lifecycle.md](change-lifecycle.md). No preflight behavior change. |
 | 260402-gnx5-relocate-kit-to-system-cache | 2026-04-02 | Updated sync staleness check: VERSION now read from exe-sibling kit in cache (`kitpath.KitDir()`) instead of `fab/.kit/VERSION`. Comparison logic unchanged — `$(fab kit-path)/VERSION` vs `fab_version` in `config.yaml`. |
 | 260302-9fnn-extract-logman-from-preflight | 2026-03-02 | Removed `--driver` flag, `LOGMAN` variable, and logman call from preflight — now purely validation + YAML output. Command logging moved to direct `logman.sh command` calls from skills (via `_preamble.md` §2 step 4 for preflight-calling skills, per-skill instructions for exempt skills). Updated Skill Integration section. |
 | 260402-0ak9-remove-sync-version-file | 2026-04-02 | Updated sync staleness check (step 1b) — now compares `$(fab kit-path)/VERSION` against `fab_version` in `config.yaml` instead of `fab/.kit-sync-version`. Single warning message with "project" label. |

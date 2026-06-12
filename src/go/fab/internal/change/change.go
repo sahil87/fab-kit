@@ -187,12 +187,14 @@ func Switch(fabRoot, name string) (string, error) {
 	displayState := "pending"
 	routingStage := "unknown"
 	confDisplay := "not yet scored"
+	allResolved := false
 
 	if statusFile, err := sf.Load(statusPath); err == nil {
 		ds, dstate := status.DisplayStage(statusFile)
 		displayStage = ds
 		displayState = dstate
 		routingStage = status.CurrentStage(statusFile)
+		allResolved = allStagesResolved(statusFile)
 
 		c := statusFile.Confidence
 		totalCounts := c.Certain + c.Confident + c.Tentative + c.Unresolved
@@ -214,15 +216,30 @@ func Switch(fabRoot, name string) (string, error) {
 	fmt.Fprintf(&output, "Stage:       %s (%d/%d) — %s\n", displayStage, dnum, total, displayState)
 	fmt.Fprintf(&output, "Confidence:  %s\n", confDisplay)
 
-	cmd := defaultCommand(routingStage)
-	nstage := sf.NextStage(routingStage)
-	if nstage != "" {
-		fmt.Fprintf(&output, "Next:        %s (via %s)", nstage, cmd)
+	// The Next: line mirrors /fab-status: the routing stage paired with the
+	// command that drives that stage. Only when every stage is resolved
+	// (done/skipped) does it collapse to the bare post-pipeline suggestion
+	// `/fab-archive` — CurrentStage's all-done fallback returns "review-pr",
+	// which previously mis-printed `/fab-archive` while review-pr work
+	// remained.
+	if allResolved {
+		fmt.Fprintf(&output, "Next:        /fab-archive")
 	} else {
-		fmt.Fprintf(&output, "Next:        %s", cmd)
+		fmt.Fprintf(&output, "Next:        %s (via %s)", routingStage, defaultCommand(routingStage))
 	}
 
 	return output.String(), nil
+}
+
+// allStagesResolved reports whether every pipeline stage is done or skipped.
+func allStagesResolved(statusFile *sf.StatusFile) bool {
+	for _, stage := range sf.StageOrder {
+		state := statusFile.GetProgress(stage)
+		if state != "done" && state != "skipped" {
+			return false
+		}
+	}
+	return true
 }
 
 // SwitchNone deactivates the current change.
@@ -424,16 +441,19 @@ func findCollision(changesDir, changeID string) string {
 	return ""
 }
 
+// defaultCommand maps a routing stage to the command that drives that
+// stage's work (aligned with /fab-status and the _preamble.md state table):
+// pipeline stages run via /fab-continue, ship via /git-pr, review-pr via
+// /git-pr-review. The all-done case is handled by the caller (allStagesResolved
+// → /fab-archive), not by this map.
 func defaultCommand(stage string) string {
 	switch stage {
-	case "intake", "apply", "review":
+	case "intake", "apply", "review", "hydrate":
 		return "/fab-continue"
-	case "hydrate":
-		return "/git-pr"
 	case "ship":
-		return "/git-pr-review"
+		return "/git-pr"
 	case "review-pr":
-		return "/fab-archive"
+		return "/git-pr-review"
 	default:
 		return "/fab-status"
 	}

@@ -307,9 +307,14 @@ func hookSyncCmd() *cobra.Command {
 		Short: "Register hook commands into .claude/settings.local.json",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// All hook subcommands exit 0 so they never block agent flows.
+			// Unlike the session-scoped handlers (which swallow errors
+			// silently), sync is setup-facing: failures are surfaced on
+			// stderr — but still exit 0.
 			fabRoot, err := resolve.FabRoot()
 			if err != nil {
-				return err
+				fmt.Fprintf(cmd.ErrOrStderr(), "hook sync: %v\n", err)
+				return nil
 			}
 
 			repoRoot := filepath.Dir(fabRoot)
@@ -317,7 +322,8 @@ func hookSyncCmd() *cobra.Command {
 
 			result, err := hooklib.Sync(settingsPath)
 			if err != nil {
-				return err
+				fmt.Fprintf(cmd.ErrOrStderr(), "hook sync: %v\n", err)
+				return nil
 			}
 
 			fmt.Fprintln(cmd.OutOrStdout(), result.Message)

@@ -15,11 +15,8 @@ func changeArchiveCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "archive <change>",
 		Short: "Archive a change",
-		Args:  cobra.MaximumNArgs(1),
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				return cmd.Help()
-			}
 			fabRoot, err := resolve.FabRoot()
 			if err != nil {
 				return err

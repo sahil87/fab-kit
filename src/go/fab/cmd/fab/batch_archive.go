@@ -63,8 +63,12 @@ func runBatchArchive(cmd *cobra.Command, args []string, listFlag, allFlag bool) 
 	if allFlag {
 		changes = allArchivableNames(changesDir)
 		if len(changes) == 0 {
-			fmt.Fprintln(errW, "No archivable changes found.")
-			os.Exit(1)
+			// A clean repo with nothing to archive is a benign no-op, not a
+			// failure — exit 0 so the generic non-zero-means-STOP failure
+			// rule does not escalate it.
+			fmt.Fprintln(w, "No archivable changes found.")
+			fmt.Fprintf(w, "\nArchived 0, skipped 0, failed 0.\n")
+			return nil
 		}
 		fmt.Fprintf(w, "Archiving %d changes...\n", len(changes))
 	} else {
@@ -76,6 +80,13 @@ func runBatchArchive(cmd *cobra.Command, args []string, listFlag, allFlag bool) 
 	for _, change := range changes {
 		match, err := resolve.ToFolder(fabRoot, change)
 		if err != nil {
+			// A name that no longer resolves may already be archived — pass
+			// it through so archiveLoop reports the soft skip (counted as
+			// skipped, exit 0) instead of warning into the exit-1 path.
+			if archivePkg.IsArchived(fabRoot, change) {
+				resolved = append(resolved, change)
+				continue
+			}
 			fmt.Fprintf(errW, "Warning: could not resolve '%s', skipping\n", change)
 			continue
 		}

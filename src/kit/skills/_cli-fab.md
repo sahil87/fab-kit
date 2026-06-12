@@ -43,7 +43,7 @@ See `_preamble.md` § Common fab Commands for the headline. Full subcommand tabl
 | `restore` | `restore <change> [--switch]` | Move from `archive/`, remove index entry, optionally activate |
 | `archive-list` | `archive-list` | List archived folder names |
 
-`archive` and `restore` output structured YAML to stdout — skills parse it for user-facing reports. The `archive` YAML adds a `backlog: {marked|already|not_found}` field alongside `action`, `name`, `move`, `index`, and `pointer`. **Exception**: on the soft-skip path (re-archiving an already-archived change), `archive` prints a plain `already archived: {change}` line instead of YAML and exits 0 — skills parsing stdout must handle this non-YAML case (the `/fab-archive` skill treats it as a clean no-op).
+`archive` and `restore` output structured YAML to stdout — skills parse it for user-facing reports. The `archive` YAML adds a `backlog: {marked|already|not_found}` field alongside `action`, `name`, `move`, `index`, and `pointer`. **Exception**: on the soft-skip path (re-archiving an already-archived change), `archive` prints a plain `already archived: {change}` line instead of YAML and exits 0 — skills parsing stdout must handle this non-YAML case (the `/fab-archive` skill treats it as a clean no-op). The soft skip covers both the half-completed case (archive destination already exists) and the genuinely-archived case (the change folder is gone from `fab/changes/` but matches an archive entry). **Partial failure**: when the archive move succeeds but the backlog mark fails (e.g., unreadable `fab/backlog.md`), `archive` prints the YAML report (so the completed move is visible) AND exits non-zero with the backlog error on stderr — the folder is already archived at that point; re-running soft-skips. `restore --switch` reports `pointer: {switched|failed}` — `failed` means the restore completed but activation could not create the `.fab-status.yaml` symlink (run `/fab-switch {name}` manually); `pointer: skipped` strictly means `--switch` was not requested.
 
 ---
 
@@ -55,9 +55,9 @@ Full subcommand table (headline in `_preamble` § Common fab Commands):
 |------------|-------|-------|
 | `finish` | `finish <change> <stage> [driver]` | Done + auto-activate next. Review auto-logs `passed` |
 | `start` | `start <change> <stage> [driver] [from] [reason]` | pending/failed → active |
-| `advance` | `advance <change> <stage> [driver]` | active → ready |
-| `reset` | `reset <change> <stage> [driver] [from] [reason]` | done/ready/skipped → active (cascades downstream to pending) |
-| `skip` | `skip <change> <stage> [driver]` | {pending,active} → skipped (cascades pending→skipped downstream) |
+| `advance` | `advance <change> <stage> [driver]` | active → ready. Rejected (non-zero, no write) for `ship`/`review-pr` — `ready` is not in those stages' allowed states |
+| `reset` | `reset <change> <stage> [driver] [from] [reason]` | done/ready/skipped → active (cascades downstream to pending; `stage_metrics` entries with a non-zero `iterations` keep that counter — only timing fields are cleared) |
+| `skip` | `skip <change> <stage> [driver]` | {pending,active} → skipped (cascades pending→skipped downstream). Rejected (non-zero, no write) for `intake` — `skipped` is not allowed for intake |
 | `fail` | `fail <change> <stage> [driver] [rework]` | active → failed (review/review-pr only). Auto-logs `failed` |
 | `set-change-type` | `set-change-type <change> <type>` | |
 | `set-acceptance` | `set-acceptance <change> <field> <value>` | Updates `plan:` block. Valid fields: `generated` (bool), `task_count`, `acceptance_count`, `acceptance_completed` (int) |
@@ -74,6 +74,8 @@ Full subcommand table (headline in `_preamble` § Common fab Commands):
 | `plan` | `plan <change>` | Extract `plan:` fields — `generated`, `task_count`, `acceptance_count`, `acceptance_completed` (one `key:value` per line) |
 | `confidence` | `confidence <change>` | Extract `confidence:` fields — `certain`, `confident`, `tentative`, `unresolved`, `score` (one `key:value` per line) |
 | `validate-status-file` | `validate-status-file <change>` | Validate `.status.yaml` against the schema; non-zero exit on violation |
+
+**Target-state validation**: every event command validates the resolved target state against the stage's allowed states — a schema-forbidden combination (e.g., `advance ship`, `advance review-pr`, `skip intake`) exits non-zero with `Cannot {event} stage '{stage}' — target state '{state}' is not allowed for this stage` and writes nothing, instead of bricking `fab preflight` with a permanently invalid `.status.yaml`.
 
 **Side effects of `finish`**: `intake→apply`, `apply→review`, `review→hydrate` (+auto-log `passed`), `hydrate→ship`, `ship→review-pr`. Never call `start` after `finish`. Legacy `tasks` event invocations exit 1 with `"tasks" stage was removed — run "fab status <event> <change> apply" instead. plan.md is now generated at apply entry.` Legacy `spec` event invocations exit 1 with `"spec" stage was removed — spec.md is now generated at apply entry. Use "apply".`
 
@@ -165,7 +167,7 @@ fab resolve [--id|--folder|--dir|--status|--pane] [<change>]
 
 ## fab hook
 
-Claude Code hook handlers. Each subcommand is registered as inline `fab hook <subcommand>` in `.claude/settings.local.json`. **All hook subcommands exit 0** — errors silently swallowed so they never block the agent.
+Claude Code hook handlers. Each subcommand is registered as inline `fab hook <subcommand>` in `.claude/settings.local.json`. **All hook subcommands exit 0** so they never block the agent — the four event handlers swallow errors silently; `sync` (setup-facing) surfaces failures on stderr but still exits 0.
 
 | Subcommand | Event | Purpose |
 |------------|-------|---------|
@@ -177,7 +179,7 @@ Claude Code hook handlers. Each subcommand is registered as inline `fab hook <su
 
 The three session-scoped hooks (`session-start`, `stop`, `user-prompt`) read a JSON payload on stdin with at least a `session_id` field (UUID) and optionally `transcript_path`. Malformed JSON or a missing `session_id` is silently skipped. Each handler also invokes a throttled GC sweep (≤ once per 180 s via `last_run_gc`) that prunes entries whose stored `pid` no longer exists (`kill(pid, 0)` returning ESRCH). `artifact-write` is unchanged — it parses a different payload shape (`tool_input.file_path`) and does not participate in `_agents` writes; it emits `{"additionalContext":"Bookkeeping: ..."}` on stdout.
 
-`sync` output: `Created`, `Updated`, or `.claude/settings.local.json hooks: OK`.
+`sync` output: `Created`, `Updated`, or `.claude/settings.local.json hooks: OK` on stdout; on failure (no fab root, unwritable settings) a `hook sync: {error}` line on stderr — exit code stays 0 either way.
 
 ---
 
@@ -491,7 +493,7 @@ Multi-target operations: `fab batch <new|switch|archive> [--list] [--all] [targe
 
 - **`new`** — parse `fab/backlog.md` pending items (`- [ ] [xxxx]`), create worktrees, open tmux windows, start agents with `/fab-new {description}`. No args → `--list`. IDs → one worktree tab each (`wt create --non-interactive --worktree-name {id}`, window `fab-{id}`, `{spawn_command} '/fab-new {description}'`). `--all` → all pending. Handles continuation lines.
 - **`switch`** — resolve change names, create worktrees with branch names (applying `branch_prefix` from config), start agents with `/fab-switch {change}`. No args → `--list`. `--all` → all active changes (excludes `archive/`). Branch naming: `{branch_prefix}{folder_name}`.
-- **`archive`** — find changes with `hydrate: done|skipped`, then archive each mechanically in a Go loop via `internal/archive.ArchiveWithBacklog` (move, index, backlog mark-done, pointer). No agent or Claude session is spawned; resolution uses `resolve.ToFolder` (no `fab`-on-PATH dependency). No args → `--all` (differs from new/switch). `--list` → show archivable only. Per change prints `{name} — archived` (with ` (backlog marked done)` when applicable), `already archived, skipping`, or `FAILED: {err}`; a single failure never aborts the batch. Footer: `Archived {N}, skipped {M}, failed {K}.`. Exits non-zero only when `failed > 0`.
+- **`archive`** — find changes with `hydrate: done|skipped`, then archive each mechanically in a Go loop via `internal/archive.ArchiveWithBacklog` (move, index, backlog mark-done, pointer). No agent or Claude session is spawned; resolution uses `resolve.ToFolder` (no `fab`-on-PATH dependency). No args → `--all` (differs from new/switch). `--list` → show archivable only. Per change prints `{name} — archived` (with ` (backlog marked done)` when applicable), `already archived, skipping` (covers genuinely-archived names — counted as skipped), or `FAILED: {err}`; a single failure never aborts the batch. Footer: `Archived {N}, skipped {M}, failed {K}.`. Exit semantics: an empty `--all`/no-args set is a benign no-op (`No archivable changes found.` + zero footer, exit 0); after the loop runs, non-zero only when `failed > 0`; one residual exit-1 path remains — explicitly named targets where none resolves to an active *or* archived change (`No valid changes to archive.`).
 
 ---
 

@@ -28,6 +28,13 @@ func scoreCmd() *cobra.Command {
 					return err
 				}
 				fmt.Println(score.FormatGateYAML(result))
+				if result.Gate == "fail" {
+					// The gate result must be observable via exit code — the
+					// /fab-ff and /fab-fff intake gate keys on it. The YAML
+					// report stays on stdout; the error reaches stderr via
+					// main's handler.
+					return fmt.Errorf("intake gate failed: score %.1f below threshold %.1f", result.Score, result.Threshold)
+				}
 				return nil
 			}
 

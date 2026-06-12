@@ -321,3 +321,66 @@ func TestHookUserPrompt_ClearsIdleOnly(t *testing.T) {
 		t.Errorf("change lost: %v", got["change"])
 	}
 }
+
+// --- fab hook sync exit contract (k4ge): all hook subcommands exit 0 ---
+
+func TestHookSync_FailureSurfacedButExitsZero(t *testing.T) {
+	repoRoot, _ := setupHookRepoRoot(t)
+	hookTestEnv(t, repoRoot, map[string]string{})
+
+	// Block the settings write: a directory at the settings.local.json path
+	// makes hooklib.Sync fail.
+	settingsPath := filepath.Join(repoRoot, ".claude", "settings.local.json")
+	if err := os.MkdirAll(settingsPath, 0o755); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	cmd := hookSyncCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("hook sync must exit 0 on failure, got: %v", err)
+	}
+	if !strings.Contains(errOut.String(), "hook sync:") {
+		t.Errorf("failure should be surfaced on stderr, got: %q", errOut.String())
+	}
+}
+
+func TestHookSync_NoFabRootExitsZero(t *testing.T) {
+	// A directory tree with no fab/ anywhere up to root would be needed to
+	// make resolve.FabRoot fail; t.TempDir() is safe as long as no ancestor
+	// has a fab/ dir — guard by skipping if resolution unexpectedly succeeds.
+	dir := t.TempDir()
+	hookTestEnv(t, dir, map[string]string{})
+
+	cmd := hookSyncCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("hook sync must exit 0 even without a fab root, got: %v", err)
+	}
+}
+
+func TestHookSync_SuccessOutputUnchanged(t *testing.T) {
+	repoRoot, _ := setupHookRepoRoot(t)
+	hookTestEnv(t, repoRoot, map[string]string{})
+
+	cmd := hookSyncCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("hook sync failed: %v", err)
+	}
+	if !strings.Contains(out.String(), "Created") {
+		t.Errorf("expected Created message on first sync, got: %q", out.String())
+	}
+	if errOut.Len() != 0 {
+		t.Errorf("no stderr expected on success, got: %q", errOut.String())
+	}
+}

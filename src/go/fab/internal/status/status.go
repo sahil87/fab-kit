@@ -61,12 +61,16 @@ var stageTransitions = map[string]map[string]Transition{
 }
 
 // lookupTransition finds the target state for an event on a stage with a given current state.
+// The resolved target is validated against AllowedStates for the stage: an
+// event whose target state the schema forbids (e.g. `advance ship` → ready,
+// `skip intake` → skipped) errors cleanly instead of writing a state that
+// permanently fails validation (and bricks `fab preflight`).
 func lookupTransition(event, stage, currentState string) (string, error) {
 	// Check stage-specific overrides first
 	if stageT, ok := stageTransitions[stage]; ok {
 		if t, ok := stageT[event]; ok {
 			if contains(t.From, currentState) {
-				return t.To, nil
+				return validateTarget(event, stage, t.To)
 			}
 			return "", fmt.Errorf("Cannot %s stage '%s' — current state is '%s', no valid transition", event, stage, currentState)
 		}
@@ -75,11 +79,20 @@ func lookupTransition(event, stage, currentState string) (string, error) {
 	// Check default transitions
 	if t, ok := defaultTransitions[event]; ok {
 		if contains(t.From, currentState) {
-			return t.To, nil
+			return validateTarget(event, stage, t.To)
 		}
 	}
 
 	return "", fmt.Errorf("Cannot %s stage '%s' — current state is '%s', no valid transition", event, stage, currentState)
+}
+
+// validateTarget rejects transitions whose target state is not in the
+// stage's AllowedStates.
+func validateTarget(event, stage, target string) (string, error) {
+	if allowed, ok := AllowedStates[stage]; ok && !contains(allowed, target) {
+		return "", fmt.Errorf("Cannot %s stage '%s' — target state '%s' is not allowed for this stage", event, stage, target)
+	}
+	return target, nil
 }
 
 // validateStage returns nil if the stage is part of the current pipeline,
@@ -569,7 +582,19 @@ func applyMetricsSideEffect(statusFile *sf.StatusFile, fabRoot, stage, state, dr
 		}
 
 	case "pending", "skipped":
-		delete(statusFile.StageMetrics, stage)
+		// Preserve the iterations counter across reset/skip cascades: the
+		// rework choreography's `fail review` + `reset apply` cascades
+		// review → pending, and deleting the entry would zero the cycle
+		// counter PR meta reports (stage_metrics.review.iterations,
+		// "incremented, not reset — tracks rework cycles"). Timing fields
+		// are cleared — the next activation rewrites them.
+		if sm, ok := statusFile.StageMetrics[stage]; ok && sm.Iterations > 0 {
+			sm.StartedAt = ""
+			sm.Driver = ""
+			sm.CompletedAt = ""
+		} else {
+			delete(statusFile.StageMetrics, stage)
+		}
 	}
 }
 

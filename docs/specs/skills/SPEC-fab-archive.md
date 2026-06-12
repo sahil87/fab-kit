@@ -28,6 +28,9 @@ User invokes /fab-archive [change-name]
    │
    ├─ Bash: fab change restore <name> [--switch]
    └─ Format report from YAML output
+      (pointer: switched | skipped | failed — `failed` means the restore
+       completed but --switch could not create the symlink; the report
+       points at /fab-switch {name} as manual recovery — 260612-k4ge)
 ```
 
 ### Tools used
