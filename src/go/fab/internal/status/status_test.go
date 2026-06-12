@@ -267,3 +267,170 @@ func TestIntakeFinishAutoActivatesApply(t *testing.T) {
 		}
 	}
 }
+
+// --- AllowedStates enforcement on transitions (k4ge) ---
+
+func TestLookupTransition_RejectsForbiddenTargets(t *testing.T) {
+	cases := []struct {
+		event, stage, from string
+	}{
+		{"advance", "ship", "active"},      // would write ready — forbidden for ship
+		{"advance", "review-pr", "active"}, // would write ready — forbidden for review-pr
+		{"skip", "intake", "active"},       // would write skipped — forbidden for intake
+		{"skip", "intake", "pending"},
+	}
+	for _, c := range cases {
+		_, err := lookupTransition(c.event, c.stage, c.from)
+		if err == nil {
+			t.Errorf("%s %s from %s: expected rejection, got nil", c.event, c.stage, c.from)
+			continue
+		}
+		if !strings.Contains(err.Error(), "not allowed for this stage") {
+			t.Errorf("%s %s: error should mention forbidden target, got: %v", c.event, c.stage, err)
+		}
+	}
+}
+
+func TestLookupTransition_AllowedTargetsUnchanged(t *testing.T) {
+	cases := []struct {
+		event, stage, from, want string
+	}{
+		{"start", "ship", "pending", "active"},
+		{"start", "review", "failed", "active"},
+		{"advance", "apply", "active", "ready"},
+		{"advance", "intake", "active", "ready"},
+		{"finish", "ship", "active", "done"},
+		{"finish", "review-pr", "active", "done"},
+		{"skip", "apply", "pending", "skipped"},
+		{"fail", "review", "active", "failed"},
+		{"fail", "review-pr", "active", "failed"},
+		{"reset", "apply", "done", "active"},
+	}
+	for _, c := range cases {
+		got, err := lookupTransition(c.event, c.stage, c.from)
+		if err != nil {
+			t.Errorf("%s %s from %s: unexpected error: %v", c.event, c.stage, c.from, err)
+			continue
+		}
+		if got != c.want {
+			t.Errorf("%s %s from %s = %q, want %q", c.event, c.stage, c.from, got, c.want)
+		}
+	}
+}
+
+func TestAdvanceShip_RejectedAndFileUntouched(t *testing.T) {
+	statusFile, path := loadFixture(t)
+	for _, s := range []string{"intake", "apply", "review", "hydrate"} {
+		statusFile.SetProgress(s, "done")
+	}
+	statusFile.SetProgress("ship", "active")
+	if err := statusFile.Save(path); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	err := Advance(statusFile, path, "ship", "test")
+	if err == nil {
+		t.Fatal("expected advance ship to be rejected")
+	}
+	if !strings.Contains(err.Error(), "not allowed for this stage") {
+		t.Errorf("error should mention forbidden target, got: %v", err)
+	}
+
+	reloaded, loadErr := sf.Load(path)
+	if loadErr != nil {
+		t.Fatalf("reload: %v", loadErr)
+	}
+	if got := reloaded.GetProgress("ship"); got != "active" {
+		t.Errorf("ship state on disk = %q, want active (unmodified)", got)
+	}
+	if err := Validate(reloaded); err != nil {
+		t.Errorf("status file should still validate, got: %v", err)
+	}
+}
+
+func TestSkipIntake_Rejected(t *testing.T) {
+	statusFile, path := loadFixture(t)
+	dir := filepath.Dir(path)
+
+	err := Skip(statusFile, path, dir, "intake", "test")
+	if err == nil {
+		t.Fatal("expected skip intake to be rejected")
+	}
+	if !strings.Contains(err.Error(), "not allowed for this stage") {
+		t.Errorf("error should mention forbidden target, got: %v", err)
+	}
+	if got := statusFile.GetProgress("intake"); got != "active" {
+		t.Errorf("intake state = %q, want active (unmodified)", got)
+	}
+}
+
+// --- stage_metrics iterations survive the fail+reset cascade (k4ge) ---
+
+func TestResetCascade_PreservesReviewIterations(t *testing.T) {
+	statusFile, path := loadFixture(t)
+	dir := filepath.Dir(path)
+
+	// intake → apply → review (review iterations = 1)
+	if err := Finish(statusFile, path, dir, "intake", "test"); err != nil {
+		t.Fatalf("Finish intake: %v", err)
+	}
+	if err := Finish(statusFile, path, dir, "apply", "test"); err != nil {
+		t.Fatalf("Finish apply: %v", err)
+	}
+	if sm := statusFile.StageMetrics["review"]; sm == nil || sm.Iterations != 1 {
+		t.Fatalf("review iterations after first activation = %v, want 1", statusFile.StageMetrics["review"])
+	}
+
+	// The rework choreography: fail review, then reset apply (cascades review → pending).
+	if err := Fail(statusFile, path, dir, "review", "test", ""); err != nil {
+		t.Fatalf("Fail review: %v", err)
+	}
+	if err := Reset(statusFile, path, dir, "apply", "test", "", ""); err != nil {
+		t.Fatalf("Reset apply: %v", err)
+	}
+
+	sm := statusFile.StageMetrics["review"]
+	if sm == nil {
+		t.Fatal("stage_metrics.review was deleted by the reset cascade — iterations counter lost")
+	}
+	if sm.Iterations != 1 {
+		t.Errorf("review iterations after fail+reset = %d, want 1 (preserved)", sm.Iterations)
+	}
+	if sm.StartedAt != "" || sm.Driver != "" || sm.CompletedAt != "" {
+		t.Errorf("timing fields should be cleared, got %+v", sm)
+	}
+
+	// Preservation must survive the save/load round trip.
+	reloaded, err := sf.Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if rm := reloaded.StageMetrics["review"]; rm == nil || rm.Iterations != 1 {
+		t.Fatalf("reloaded review iterations = %v, want 1", reloaded.StageMetrics["review"])
+	}
+
+	// Re-finishing apply re-activates review as a re-entry: iterations = 2.
+	if err := Finish(statusFile, path, dir, "apply", "test"); err != nil {
+		t.Fatalf("re-Finish apply: %v", err)
+	}
+	if sm := statusFile.StageMetrics["review"]; sm == nil || sm.Iterations != 2 {
+		t.Fatalf("review iterations after rework re-entry = %v, want 2", statusFile.StageMetrics["review"])
+	}
+}
+
+func TestResetCascade_DeletesZeroIterationEntries(t *testing.T) {
+	statusFile, path := loadFixture(t)
+	dir := filepath.Dir(path)
+
+	statusFile.SetProgress("intake", "done")
+	statusFile.SetProgress("apply", "done")
+	// An entry that was never activated (no iterations) must not linger.
+	statusFile.StageMetrics["hydrate"] = &sf.StageMetric{CompletedAt: "2026-03-10T12:00:00Z"}
+
+	if err := Reset(statusFile, path, dir, "apply", "test", "", ""); err != nil {
+		t.Fatalf("Reset apply: %v", err)
+	}
+	if _, ok := statusFile.StageMetrics["hydrate"]; ok {
+		t.Error("zero-iteration stage_metrics entry should be deleted by the cascade")
+	}
+}

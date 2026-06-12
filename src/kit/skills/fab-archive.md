@@ -151,6 +151,7 @@ Construct the user-facing report from the command's YAML output fields:
 | `index: not_found` | `Index:    — entry not found` |
 | `pointer: switched` | `Pointer:  ✓ .fab-status.yaml updated` |
 | `pointer: skipped` | `Pointer:  — not requested` |
+| `pointer: failed` | `Pointer:  ✗ activation failed — run /fab-switch {name} manually` |
 
 ### Output
 
@@ -159,7 +160,7 @@ Restore: {change name}
 
 Moved:    ✓ fab/changes/{name}/                  (or: ✓ already in changes)
 Index:    ✓ entry removed from archive/index.md  (or: — entry not found)
-Pointer:  ✓ .fab-status.yaml updated              (or: — not requested)
+Pointer:  ✓ .fab-status.yaml updated              (or: — not requested / ✗ activation failed — run /fab-switch {name} manually)
 
 Restore complete.
 

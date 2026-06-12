@@ -611,3 +611,102 @@ prs: []
 		t.Errorf("clamp impact column = %q, want 0i+150t=100 (no negative impl)", got[folderClamp])
 	}
 }
+
+// --- Switch Next: derivation (k4ge) ---
+
+// switchStatusYAML renders a .status.yaml with the given six progress states,
+// in pipeline order.
+func switchStatusYAML(intake, apply, review, hydrate, ship, reviewPR string) string {
+	return `id: abcd
+name: 260310-abcd-my-change
+created: "2026-03-10T12:00:00Z"
+created_by: test-user
+change_type: feat
+issues: []
+progress:
+  intake: ` + intake + `
+  apply: ` + apply + `
+  review: ` + review + `
+  hydrate: ` + hydrate + `
+  ship: ` + ship + `
+  review-pr: ` + reviewPR + `
+plan:
+  generated: false
+  task_count: 0
+  acceptance_count: 0
+  acceptance_completed: 0
+confidence:
+  certain: 0
+  confident: 0
+  tentative: 0
+  unresolved: 0
+  score: 0.0
+stage_metrics: {}
+prs: []
+last_updated: "2026-03-10T12:00:00Z"
+`
+}
+
+func TestSwitch_NextDerivation(t *testing.T) {
+	cases := []struct {
+		name     string
+		progress [6]string // intake, apply, review, hydrate, ship, review-pr
+		wantNext string
+	}{
+		{
+			name:     "intake ready routes to fab-continue",
+			progress: [6]string{"ready", "pending", "pending", "pending", "pending", "pending"},
+			wantNext: "Next:        intake (via /fab-continue)",
+		},
+		{
+			name:     "apply active routes to fab-continue",
+			progress: [6]string{"done", "active", "pending", "pending", "pending", "pending"},
+			wantNext: "Next:        apply (via /fab-continue)",
+		},
+		{
+			name:     "hydrate active routes to fab-continue, not git-pr",
+			progress: [6]string{"done", "done", "done", "active", "pending", "pending"},
+			wantNext: "Next:        hydrate (via /fab-continue)",
+		},
+		{
+			name:     "ship active routes to git-pr",
+			progress: [6]string{"done", "done", "done", "done", "active", "pending"},
+			wantNext: "Next:        ship (via /git-pr)",
+		},
+		{
+			name:     "review-pr active routes to git-pr-review, not fab-archive",
+			progress: [6]string{"done", "done", "done", "done", "done", "active"},
+			wantNext: "Next:        review-pr (via /git-pr-review)",
+		},
+		{
+			name:     "all done collapses to fab-archive",
+			progress: [6]string{"done", "done", "done", "done", "done", "done"},
+			wantNext: "Next:        /fab-archive",
+		},
+		{
+			name:     "hydrate done with trailing skipped collapses to fab-archive",
+			progress: [6]string{"done", "done", "done", "done", "skipped", "skipped"},
+			wantNext: "Next:        /fab-archive",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fabRoot := setupChangeFixture(t)
+			folder := "260310-abcd-my-change"
+			changeDir := filepath.Join(fabRoot, "changes", folder)
+			os.MkdirAll(changeDir, 0o755)
+			p := c.progress
+			os.WriteFile(filepath.Join(changeDir, ".status.yaml"),
+				[]byte(switchStatusYAML(p[0], p[1], p[2], p[3], p[4], p[5])), 0o644)
+
+			output, err := Switch(fabRoot, "abcd")
+			if err != nil {
+				t.Fatalf("Switch failed: %v", err)
+			}
+			if !strings.Contains(output, c.wantNext) {
+				t.Errorf("output missing %q, got:\n%s", c.wantNext, output)
+			}
+		})
+	}
+}

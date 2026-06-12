@@ -64,6 +64,13 @@ func Archive(fabRoot, changeArg, description string) (*ArchiveResult, error) {
 
 	folder, err := resolve.ToFolder(fabRoot, changeArg)
 	if err != nil {
+		// A change that no longer lives in fab/changes/ may already be in the
+		// archive — that is the idempotent re-archive soft skip (exit 0 at the
+		// cmd layer), not a resolution failure. Ambiguous or absent archive
+		// matches fall through to the original error.
+		if _, archivedDir, archErr := resolveArchive(fabRoot, changeArg); archErr == nil {
+			return nil, fmt.Errorf("%w: %s", ErrAlreadyArchived, archivedDir)
+		}
 		return nil, err
 	}
 
@@ -168,12 +175,16 @@ func Restore(fabRoot, changeArg string, doSwitch bool) (*RestoreResult, error) {
 	indexFile := filepath.Join(archiveDir, "index.md")
 	indexStatus := removeFromIndex(indexFile, folder)
 
-	// 3. Optionally switch
+	// 3. Optionally switch. A failed activation is surfaced as
+	// `pointer: failed` — rendering it as "skipped" would report the
+	// requested --switch as not requested.
 	pointerStatus := "skipped"
 	if doSwitch {
 		_, err := change.Switch(fabRoot, folder)
 		if err == nil {
 			pointerStatus = "switched"
+		} else {
+			pointerStatus = "failed"
 		}
 	}
 
@@ -184,6 +195,15 @@ func Restore(fabRoot, changeArg string, doSwitch bool) (*RestoreResult, error) {
 		Index:   indexStatus,
 		Pointer: pointerStatus,
 	}, nil
+}
+
+// IsArchived reports whether changeArg unambiguously matches an archived
+// change (flat or nested entry). Used by batch archive to route
+// genuinely-archived names to the soft-skip path instead of the
+// unresolvable-name warning.
+func IsArchived(fabRoot, changeArg string) bool {
+	_, _, err := resolveArchive(fabRoot, changeArg)
+	return err == nil
 }
 
 // List returns archived change folder names from both flat and nested entries.

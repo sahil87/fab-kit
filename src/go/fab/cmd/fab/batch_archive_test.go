@@ -192,3 +192,49 @@ func TestBatchArchiveCmd_Structure(t *testing.T) {
 		t.Error("missing --all flag")
 	}
 }
+
+// --- Empty-set and archived-name exit semantics (k4ge) ---
+
+func TestRunBatchArchive_EmptyAllSetIsBenignNoOp(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "fab", "changes"), 0o755)
+	hookTestEnv(t, root, map[string]string{})
+
+	cmd := batchArchiveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	if err := runBatchArchive(cmd, nil, false, true); err != nil {
+		t.Fatalf("empty --all set must be a benign no-op (exit 0), got: %v", err)
+	}
+	if !strings.Contains(out.String(), "No archivable changes found.") {
+		t.Errorf("missing notice, got:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "Archived 0, skipped 0, failed 0.") {
+		t.Errorf("missing zero footer, got:\n%s", out.String())
+	}
+}
+
+func TestRunBatchArchive_ArchivedNameSoftSkips(t *testing.T) {
+	root := t.TempDir()
+	folder := "260310-abcd-my-change"
+	archivedDir := filepath.Join(root, "fab", "changes", "archive", "2026", "03", folder)
+	os.MkdirAll(archivedDir, 0o755)
+	hookTestEnv(t, root, map[string]string{})
+
+	cmd := batchArchiveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	if err := runBatchArchive(cmd, []string{folder}, false, false); err != nil {
+		t.Fatalf("archived name must soft-skip (exit 0), got: %v", err)
+	}
+	if !strings.Contains(out.String(), folder+" — already archived, skipping") {
+		t.Errorf("expected soft-skip line, got:\n%s\nstderr:\n%s", out.String(), errOut.String())
+	}
+	if !strings.Contains(out.String(), "Archived 0, skipped 1, failed 0.") {
+		t.Errorf("footer should count it as skipped, got:\n%s", out.String())
+	}
+}

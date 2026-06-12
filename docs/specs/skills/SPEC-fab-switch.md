@@ -4,6 +4,8 @@
 
 Switches the active change by creating the `.fab-status.yaml` symlink. Lists available changes when called with no argument. Supports deactivation via `--none`.
 
+The status summary printed by `fab change switch` ends with `Next: {routing_stage} (via {default_command})`, where the command is the one that drives the routing stage (`intake`/`apply`/`review`/`hydrate` → `/fab-continue`, `ship` → `/git-pr`, `review-pr` → `/git-pr-review`), aligned with `/fab-status` and the `_preamble.md` state table; only when all stages are done/skipped does it collapse to `Next: /fab-archive` (post-review off-by-one fixed in 260612-k4ge).
+
 ## Flow
 
 ```

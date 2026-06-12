@@ -439,3 +439,83 @@ func TestFormatRestoreYAML(t *testing.T) {
 		}
 	}
 }
+
+// --- Re-archive soft skip for genuinely archived changes (k4ge) ---
+
+func TestArchive_GenuinelyArchivedSoftSkips(t *testing.T) {
+	fabRoot := setupArchiveFixture(t)
+
+	// First archive moves the folder out of fab/changes/ entirely.
+	if _, err := Archive(fabRoot, "abcd", "desc"); err != nil {
+		t.Fatalf("first archive failed: %v", err)
+	}
+
+	// Re-archive WITHOUT recreating the source folder — the documented
+	// soft-skip case the binary previously failed with "No change matches".
+	_, err := Archive(fabRoot, "abcd", "desc")
+	if !errors.Is(err, ErrAlreadyArchived) {
+		t.Errorf("expected ErrAlreadyArchived for genuinely archived change, got %v", err)
+	}
+}
+
+func TestArchive_UnknownChangePropagatesResolveError(t *testing.T) {
+	fabRoot := setupArchiveFixture(t)
+
+	_, err := Archive(fabRoot, "zzzz-no-such-change", "desc")
+	if err == nil {
+		t.Fatal("expected an error for an unknown change")
+	}
+	if errors.Is(err, ErrAlreadyArchived) {
+		t.Errorf("unknown change must not soft-skip, got %v", err)
+	}
+}
+
+func TestIsArchived(t *testing.T) {
+	fabRoot := setupArchiveFixture(t)
+
+	if IsArchived(fabRoot, "abcd") {
+		t.Error("change should not be archived before Archive runs")
+	}
+
+	if _, err := Archive(fabRoot, "abcd", "desc"); err != nil {
+		t.Fatalf("archive failed: %v", err)
+	}
+
+	if !IsArchived(fabRoot, "abcd") {
+		t.Error("change should be detected as archived after Archive")
+	}
+	if IsArchived(fabRoot, "zzzz-no-such-change") {
+		t.Error("unknown name must not be detected as archived")
+	}
+}
+
+// --- Restore --switch surfaces activation failure (k4ge) ---
+
+func TestRestore_WithSwitchActivationFailure(t *testing.T) {
+	fabRoot := setupArchiveFixture(t)
+	folder := "260310-abcd-my-change"
+
+	if _, err := Archive(fabRoot, "abcd", "desc"); err != nil {
+		t.Fatalf("archive failed: %v", err)
+	}
+
+	// Block symlink creation: a non-empty directory at the .fab-status.yaml
+	// path makes change.Switch's os.Remove + os.Symlink fail.
+	repoRoot := filepath.Dir(fabRoot)
+	pointerPath := filepath.Join(repoRoot, ".fab-status.yaml")
+	os.Remove(pointerPath) // drop the fixture's symlink first
+	if err := os.MkdirAll(filepath.Join(pointerPath, "block"), 0o755); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	result, err := Restore(fabRoot, folder, true)
+	if err != nil {
+		t.Fatalf("Restore failed: %v", err)
+	}
+	if result.Move != "restored" {
+		t.Errorf("Move = %q, want restored", result.Move)
+	}
+	if result.Pointer != "failed" {
+		t.Errorf("Pointer = %q, want failed (activation failure must be surfaced)", result.Pointer)
+	}
+}
