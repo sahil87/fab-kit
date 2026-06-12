@@ -19,8 +19,13 @@ User invokes /fab-continue [change-name] [stage]
 │     └─ (cascades downstream to pending)
 │
 ├─ Dispatch on current stage + state
-│  (resume guard: progress.review == failed →
-│   fab status start <change> review first)
+│  (review-failed dispatch — 260611-szxd f019: progress.review == failed
+│   [exhausted ff/fff rework or interrupted fail→reset] →
+│   fab status reset <change> apply fab-continue, then present the
+│   rework menu directly and stop for the user's choice — do NOT
+│   re-run review; orchestrators re-running /fab-ff//fab-fff recover
+│   via fab status start <change> review per _pipeline.md Resumability
+│   instead — that autonomous path is theirs, not this skill's)
 │
 │  ┌─────────────────────────────────────────────────┐
 │  │ INTAKE STAGE (the only planning stage)          │

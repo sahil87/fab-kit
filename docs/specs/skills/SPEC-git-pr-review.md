@@ -25,6 +25,8 @@ Setting `copilot` to `false` skips Phase 2 entirely. When the `review_tools` key
 /git-pr-review [--tool <name>] invoked (user or sub-agent)
 │
 ├─ Step 0: Start Review-PR Stage
+│  ├─ Bash: fab change resolve 2>/dev/null → {name} (change folder
+│  │        name — instantiates <change> below and the Step 6.5 paths)
 │  └─ Bash: fab status start <change> review-pr git-pr-review
 │
 ├─ Step 1: Resolve PR
@@ -53,10 +55,12 @@ Setting `copilot` to `false` skips Phase 2 entirely. When the `review_tools` key
 ├─ Step 3: Fetch Comments (with id, node_id)
 │  └─ Bash: gh api .../pulls/{n}/comments
 │
-├─ Step 4: Triage Comments
-│  ├─ Classify intent: fix, defer, skip, or informational
+├─ Step 4: Triage Comments (single classify-and-assign list —
+│  │        260611-szxd f098; the Disposition Reference table is the
+│  │        single reply-format source)
+│  ├─ Classify + assign intent in one pass: fix, defer, skip, or informational
 │  ├─ Read: source files at {path}
-│  └─ Edit: source files (targeted fixes for "fixed" comments)
+│  └─ Edit: source files (targeted fixes for "fix" comments)
 │
 ├─ Step 5: Commit and Push
 │  ├─ Bash: git add {files}

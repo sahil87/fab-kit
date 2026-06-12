@@ -6,6 +6,8 @@ Shared review dispatch logic invoked by `/fab-continue`, `/fab-ff`, and `/fab-ff
 
 This is an internal partial (`user-invocable: false`) — it is never invoked directly. Skills reference it via `helpers: [_review]` frontmatter and the opening instruction in their review-stage step.
 
+The rework loop is NOT defined here — the file's trailing note points at the orchestrators: `fab-continue.md`'s Verdict section for manual rework, and `_pipeline.md` § Auto-Rework Loop for `/fab-ff`/`/fab-fff` (pointer corrected in 260611-szxd; it previously cited "fab-ff.md/fab-fff.md Step 3").
+
 ## Flow
 
 ```

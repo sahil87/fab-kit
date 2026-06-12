@@ -58,7 +58,9 @@ This is best-effort — `fab log` resolves the active change via `.fab-status.ya
 
 ## Bootstrap Behavior
 
-When invoked with no arguments, perform the full structural bootstrap. `/fab-setup` delegates directory/symlink/skeleton creation to `fab sync` (step 1j) while handling interactive config/constitution generation itself.
+When invoked with no arguments, perform the full structural bootstrap. `/fab-setup` delegates directory/skeleton/deployment creation to `fab sync` (step 1c) while handling interactive config/constitution generation itself.
+
+> **Ordering note**: `fab sync` runs immediately after the interactive config/constitution steps (1a/1b) — it requires `config.yaml`'s `fab_version` to exist. Its scaffolding operations are copy-if-absent / line-ensure merges, so the outcome is identical to the former sync-last order via idempotency.
 
 ### Phase 0: Prerequisite Check
 
@@ -80,36 +82,23 @@ If exists with the required fields and not a raw template: report "config.yaml a
 If missing or raw template (contains `{Project Name}`): execute **Constitution Behavior** (below) in create mode.
 If exists and not a raw template: report "constitution.md already exists — skipping".
 
-#### 1c. `fab/project/context.md`
+#### 1c. `fab sync` — scaffold, directories, deployment, gitignore
 
-If missing: copy `$(fab kit-path)/scaffold/fab/project/context.md` to `fab/project/context.md`. Report "Created: fab/project/context.md".
-If exists: skip.
+Run `fab sync`. The command owns all non-interactive structural setup in one idempotent pass:
 
-#### 1d. `fab/project/code-quality.md`
+- **Skeleton files** (copy-if-absent from `$(fab kit-path)/scaffold/`): `fab/project/context.md`, `fab/project/code-quality.md`, `fab/project/code-review.md`, `docs/memory/index.md`, `docs/specs/index.md` (creating `docs/memory/` and `docs/specs/` as needed)
+- **Directories**: `fab/changes/`, `fab/changes/archive/`, `fab/changes/.gitkeep`
+- **`fab/.kit-migration-version`** (see 1d)
+- **Skill deployment**: copies skills from the cache kit to `.claude/skills/{name}/SKILL.md`
+- **`.gitignore`**: line-ensure merge of the kit's fragment (adds `.fab-*`, which covers `.fab-status.yaml`)
 
-If missing: copy `$(fab kit-path)/scaffold/fab/project/code-quality.md` to `fab/project/code-quality.md`. Report "Created: fab/project/code-quality.md".
-If exists: skip.
+**Sync-failure guard**: if `fab sync` exits non-zero, STOP immediately and surface its output — do not continue the bootstrap. (Sync requires `config.yaml`'s `fab_version`, which step 1a guarantees.)
 
-#### 1e. `fab/project/code-review.md`
+Report how many skills were created, repaired, or already valid, plus the scaffold files and directories sync created.
 
-If missing: copy `$(fab kit-path)/scaffold/fab/project/code-review.md` to `fab/project/code-review.md`. Report "Created: fab/project/code-review.md".
-If exists: skip.
+#### 1d. `fab/.kit-migration-version`
 
-#### 1f. `docs/memory/index.md`
-
-If missing, create `docs/memory/` directory and copy `$(fab kit-path)/scaffold/docs/memory/index.md` to `docs/memory/index.md`.
-
-If exists: skip.
-
-#### 1g. `docs/specs/index.md`
-
-If missing, create `docs/specs/` directory and copy `$(fab kit-path)/scaffold/docs/specs/index.md` to `docs/specs/index.md`.
-
-If exists: skip.
-
-#### 1h. `fab/.kit-migration-version`
-
-Handled by `fab sync` (step 1j). The sync command creates `fab/.kit-migration-version` with version logic based on project state:
+Handled by `fab sync` (step 1c). The sync command creates `fab/.kit-migration-version` with version logic based on project state:
 
 - **New project** (no `fab/project/config.yaml`): copies `$(fab kit-path)/VERSION` value (engine version)
 - **Existing project** (has `fab/project/config.yaml`, no `fab/.kit-migration-version`): writes `0.1.0` (base version, run `/fab-setup migrations` to migrate)
@@ -120,25 +109,6 @@ On bootstrap output:
 - Existing project: `Created: fab/.kit-migration-version (0.1.0 — existing project, run "/fab-setup migrations" to migrate)`
 - Re-run: `fab/.kit-migration-version` reported as part of scaffold output (no modification)
 
-#### 1i. `fab/changes/`
-
-If missing: create `fab/changes/`, `fab/changes/archive/`, and `fab/changes/.gitkeep`.
-If exists: ensure `fab/changes/archive/` exists, then skip.
-
-#### 1j. `.claude/skills/` Deployment
-
-Run `fab sync` to deploy skill copies from the cache kit and create directories and `fab/.kit-migration-version`. The sync command reads skills from the cache and deploys copies to `.claude/skills/`:
-
-```
-.claude/skills/fab-{name}/SKILL.md  (copied from cache kit)
-```
-
-Report how many skills were created, repaired, or already valid.
-
-#### 1k. `.gitignore` — append `.fab-status.yaml`
-
-Read `.gitignore` (create if missing). If `.fab-status.yaml` is not listed, append it.
-
 ### Bootstrap Output
 
 ```
@@ -147,21 +117,13 @@ Found kit v{VERSION}. Initializing project...
 {constitution.md generation}
 Created: fab/project/config.yaml
 Created: fab/project/constitution.md
-Created: fab/project/context.md
-Created: fab/project/code-quality.md
-Created: fab/project/code-review.md
-Created: fab/.kit-migration-version ({version})
-Created: docs/memory/index.md
-Created: docs/specs/index.md
-Created: fab/changes/
-Deployed skills to .claude/skills/
-Updated: .gitignore (added .fab-status.yaml)
+{fab sync report — scaffold files (context.md, code-quality.md, code-review.md, docs/memory/index.md, docs/specs/index.md), fab/changes/ (+ archive), fab/.kit-migration-version ({version}), skills deployed to .claude/skills/, .gitignore merge (.fab-*)}
 fab/ initialized successfully.
 
 Next: {per state table — initialized}
 ```
 
-On re-run, report each artifact as OK/repaired instead of Created, ending with `fab/ structure verified.`
+On re-run, report config/constitution as OK/repaired instead of Created and surface sync's idempotent report, ending with `fab/ structure verified.`
 
 ---
 
@@ -318,51 +280,36 @@ Show `Created fab/project/constitution.md (version 1.0.0) with {N} principles.` 
 
 ## Migrations Behavior
 
-Compare `fab/.kit-migration-version` (local project version) to `$(fab kit-path)/VERSION` (engine version), discover applicable migration files in `$(fab kit-path)/migrations/`, and apply them sequentially. Each migration is a markdown instruction file — the skill reads it and executes the steps as an LLM agent.
+Bring project files in sync with the installed kit version. Version reading, parsing, and comparison are owned by `fab migrations-status` — the skill runs it once and branches on its result, then applies each applicable migration file. Each migration is a markdown instruction file — the skill reads it and executes the steps as an LLM agent.
 
 When `[file]` is provided, read and apply that specific migration file directly, bypassing version range discovery.
 
 ### Migrations Context Loading
 
-1. Read `fab/.kit-migration-version` and `$(fab kit-path)/VERSION`
-2. Read `fab/project/config.yaml` (Always Load layer — MUST exist). Skip Change Context.
-3. Run `fab migrations-status --json` to discover which migrations apply (the binary owns the scan/parse/validate/sort — see Step 2)
+1. Read `fab/project/config.yaml` (Always Load layer — MUST exist; if missing: STOP with `fab/project/config.yaml not found. Run /fab-setup to create it.`). Skip Change Context.
+2. Migration discovery comes from the **single** `fab migrations-status --json` run in Step 1 (the binary owns version read/parse/compare and the scan/validate/sort) — no separate version read or second invocation here
 
-### Migrations Pre-flight Checks
+### Migrations Step 1: Discover Migrations
 
-Before attempting any migration, verify:
-
-1. **`fab/.kit-migration-version` exists** — if not: STOP with `fab/.kit-migration-version not found. Run fab sync to create it.`
-2. **`$(fab kit-path)/VERSION` exists** — if not: STOP with `$(fab kit-path)/VERSION not found — kit may be corrupted.`
-3. **`fab/project/config.yaml` exists** — if not: STOP with `fab/project/config.yaml not found. Run /fab-setup to create it.`
-4. Read both version strings and parse as `MAJOR.MINOR.PATCH` integers
-
-### Migrations Step 1: Compare Versions
-
-- Read `fab/.kit-migration-version` -> `current`
-- Read `$(fab kit-path)/VERSION` -> `target`
-- If `current` >= `target`: report and stop (see scenarios below)
-
-### Migrations Step 2: Discover Migrations
-
-Discovery is owned by the binary — do NOT scan, parse, validate, or sort the migrations directory by hand.
+Discovery is owned by the binary — do NOT read, parse, or compare the version files, and do NOT scan, validate, or sort the migrations directory by hand. The binary exits non-zero with remediation hints on a missing `fab/.kit-migration-version` or engine `VERSION` file — surface its stderr and stop.
 
 1. Run `fab migrations-status --json` and parse the result. The shape is:
    `{local, engine, applicable:[{from,to,file}], gap_skips, overlaps}`.
+   - `local` / `engine` — the project's `fab/.kit-migration-version` and the kit's `$(fab kit-path)/VERSION`, already read and parsed by the binary
    - `applicable` — the ordered list of migration files to apply, FROM ascending (already discovered, gap-skipped, and chained by the binary)
    - `gap_skips` — human-readable "no migration needed for X -> Y, skipping" lines to surface in output
    - `overlaps` — pairs of conflicting filenames; non-empty means the migrations directory is malformed
 2. **If `overlaps` is non-empty**: STOP and report the conflict (see [Overlapping Ranges](#overlapping-ranges)). Do NOT apply anything.
-3. **If `applicable` is empty** (and no overlap): nothing to do — report and stop (see [No Migrations Apply](#no-migrations-apply) / [Versions Already Equal](#versions-already-equal) as appropriate). `fab upgrade-repo` already stamps `fab/.kit-migration-version` silently in the no-op case, so this subcommand has no version to write.
+3. **If `applicable` is empty** (and no overlap): nothing to do — pick the output by comparing the returned `local`/`engine` fields: equal → [Versions Already Equal](#versions-already-equal); `local` ahead of `engine` → [Local Version Ahead](#local-version-ahead); otherwise → [No Migrations Apply](#no-migrations-apply). `fab upgrade-repo` already stamps `fab/.kit-migration-version` silently in the no-op case, so this subcommand has no version to write.
 
-### Migrations Step 3: Apply Migrations (Loop)
+### Migrations Step 2: Apply Migrations (Loop)
 
 Surface each `gap_skips` line, then apply each file in `applicable` IN ORDER:
 
 1. For each `{from,to,file}` in `applicable`, apply it (see [Applying a Migration](#applying-a-migration)) — this reads the file at `$(fab kit-path)/migrations/{file}`, executes its Pre-check/Changes/Verification, and writes `to` to `fab/.kit-migration-version`.
 2. Continue until every `applicable` entry is applied.
 
-### Migrations Step 4: Finalize
+### Migrations Step 3: Finalize
 
 - After applying the last `applicable` migration, `fab/.kit-migration-version` already holds that migration's `to` value (written per [Applying a Migration](#applying-a-migration)).
 - Output completion summary
@@ -455,12 +402,6 @@ FAIL: Migration failed at {Pre-check|Changes|Verification} step: {description}
 fab/.kit-migration-version remains at {current_version}.
 Fix the issue and re-run /fab-setup migrations to continue from {current_version}.
 ```
-
----
-
-## Semver Comparison
-
-To compare two semver strings, compare MAJOR, then MINOR, then PATCH as integers. `A >= B` means A.MAJOR > B.MAJOR, or (A.MAJOR == B.MAJOR and A.MINOR > B.MINOR), or (A.MAJOR == B.MAJOR and A.MINOR == B.MINOR and A.PATCH >= B.PATCH).
 
 ---
 

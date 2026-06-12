@@ -29,6 +29,8 @@ Archive a completed change after hydrate, or restore an archived change back to 
 
 **Mode detection**: If the first positional argument is `restore`, use restore mode. Otherwise, use archive mode.
 
+The sections below (Pre-flight through Key Properties) define **archive mode** — the default. Restore-specific behavior follows in **§ Restore Mode**.
+
 ---
 
 ## Pre-flight
@@ -114,37 +116,18 @@ Next: {per state table — initialized}
 
 ---
 
-# /fab-archive restore <change-name> [--switch]
+## Restore Mode
 
-## Purpose
+Restore an archived change back to the active changes folder — the inverse of the archive operation. Delegates entirely to `fab change restore`. Preserves all artifacts and status as-is — no status reset, no artifact regeneration. Arguments and mode detection are defined once in **§ Arguments** above (`<change-name>` is resolved by `fab change restore` via case-insensitive substring matching against `fab/changes/archive/`).
 
-Restore an archived change back to the active changes folder. Inverse of the archive operation. Delegates entirely to `fab change restore`. Preserves all artifacts and status as-is — no status reset, no artifact regeneration.
+### Pre-flight (mode-specific — opposite of archive mode)
 
----
+1. No standard preflight runs (no active change required), and the **hydrate guard is waived** — restore applies to any archived change regardless of state.
+2. No context loading is required — `fab change restore` handles archive folder validation and all file operations internally.
 
-## Arguments
+### Behavior
 
-- **`<change-name>`** *(required)* — name or substring of the archived change to restore. Resolved by `fab change restore` via case-insensitive substring matching against `fab/changes/archive/`.
-- **`--switch`** *(optional)* — activate the restored change by creating the `.fab-status.yaml` symlink.
-
----
-
-## Pre-flight
-
-1. No standard preflight needed (no active change required).
-2. The command handles archive folder validation internally.
-
----
-
-## Context Loading
-
-None required — the command handles all file operations.
-
----
-
-## Behavior
-
-### Step 1: Resolve and Restore
+#### Step 1: Resolve and Restore
 
 Call `fab change restore` in a single invocation:
 
@@ -156,7 +139,7 @@ Parse the structured YAML output for the report. If the command exits non-zero:
 - **"Multiple archives match"** → list the matches from stderr, ask user to pick, re-run with the selected name
 - **"No archive matches"** → call `fab change archive-list`, display available archives, inform user
 
-### Step 2: Format Report
+#### Step 2: Format Report
 
 Construct the user-facing report from the command's YAML output fields:
 
@@ -169,9 +152,7 @@ Construct the user-facing report from the command's YAML output fields:
 | `pointer: switched` | `Pointer:  ✓ .fab-status.yaml updated` |
 | `pointer: skipped` | `Pointer:  — not requested` |
 
----
-
-## Output
+### Output
 
 ```
 Restore: {change name}
@@ -185,9 +166,7 @@ Restore complete.
 Next: {per state table — if --switch: restored change's state; otherwise: activation preamble + restored change's state}
 ```
 
----
-
-## Error Handling
+### Error Handling
 
 | Condition | Action |
 |-----------|--------|
@@ -198,9 +177,7 @@ Next: {per state table — if --switch: restored change's state; otherwise: acti
 | Folder already in `fab/changes/` | Script handles — reports `already_in_changes` |
 | Index entry not found | Script handles — reports `not_found` |
 
----
-
-## Key Properties
+### Key Properties
 
 | Property | Value |
 |----------|-------|

@@ -138,59 +138,26 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1
 
 If this fails: warn `Not in a git repository — skipping branch creation` and continue. The change remains activated. This step is **non-fatal**.
 
-If inside a git repo, determine the current branch and apply the appropriate case:
+If inside a git repo, read the context the conditions below use:
 
 ```bash
-git branch --show-current   # current branch name
+git branch --show-current                                                                  # current branch name
+git rev-parse --verify "{name}" >/dev/null 2>&1                                            # does the target branch exist?
+upstream=$(git config "branch.$(git branch --show-current).remote" 2>/dev/null || true)    # empty = local-only branch
+fab change resolve "$(git branch --show-current)" >/dev/null 2>&1                          # does the current branch belong to a change?
 ```
 
-**Case 1 — Already on target branch** (current branch equals `{name}`):
-- No git operation needed
-- Report: `Branch: {name} (already active)`
+<!-- Keep this table in sync with git-branch.md Step 4 — same five cases, same commands, same report strings (incl. the local-only rename guard). -->
 
-**Case 2 — Target branch exists but is not current**:
-```bash
-git rev-parse --verify "{name}" >/dev/null 2>&1
-git checkout "{name}"
-```
-- Report: `Branch: {name} (checked out)`
+**Evaluate in order, first match wins:**
 
-**Case 3 — On `main` or `master`**:
-```bash
-git checkout -b "{name}"
-```
-- Report: `Branch: {name} (created)`
-
-Check upstream tracking to choose between Case 4 and 5:
-```bash
-upstream=$(git config "branch.$(git branch --show-current).remote" 2>/dev/null || true)
-```
-
-**Case 4 — On a local-only branch** (`upstream` is empty) — apply the same **rename guard** as `git-branch.md` Step 4 (these two are kept in sync): rename only when the current branch does not belong to another change. Check:
-
-```bash
-fab change resolve "$(git branch --show-current)" >/dev/null 2>&1
-```
-
-- **Resolution fails** (current branch matches no change — e.g., a disposable `wt create` name): rename the current branch:
-
-```bash
-git branch -m "{name}"
-```
-- Report: `Branch: {name} (renamed from {old_branch})`
-
-- **Resolution succeeds and matches a different change** (the current branch is another change's local-only branch — e.g., after `/fab-switch`): do NOT rename it away — create a new branch, leaving the current one intact (caveat: the new branch inherits the old change's HEAD):
-
-```bash
-git checkout -b "{name}"
-```
-- Report: `Branch: {name} (created, leaving {old_branch} intact)`
-
-**Case 5 — On a pushed branch** (`upstream` is non-empty):
-```bash
-git checkout -b "{name}"
-```
-- Report: `Branch: {name} (created, leaving {old_branch} intact)`
+| # | Condition | Command | Report |
+|---|-----------|---------|--------|
+| 1 | Current branch equals `{name}` | *(none)* | `Branch: {name} (already active)` |
+| 2 | Target branch `{name}` exists (`git rev-parse --verify` succeeds) | `git checkout "{name}"` | `Branch: {name} (checked out)` |
+| 3 | On `main` or `master` | `git checkout -b "{name}"` | `Branch: {name} (created)` |
+| 4 | Local-only branch (`upstream` empty) AND current branch belongs to no change (**rename guard**: `fab change resolve` fails — e.g., a disposable `wt create` name) | `git branch -m "{name}"` | `Branch: {name} (renamed from {old_branch})` |
+| 5 | Local-only branch belonging to a different change (`fab change resolve` succeeds — e.g., after `/fab-switch`; do NOT rename it away, caveat: the new branch inherits the old change's HEAD) OR pushed branch (`upstream` non-empty) | `git checkout -b "{name}"` | `Branch: {name} (created, leaving {old_branch} intact)` |
 
 If any git operation fails (e.g., uncommitted conflicts blocking checkout):
 - Report the git error message

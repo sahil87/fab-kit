@@ -2,94 +2,29 @@
 
 ## Summary
 
-Fast-forward apply → review → hydrate (everything after intake) in one invocation. Two gates: (1) the single intake confidence gate (flat 3.0, all types), checked before the bracket; (2) review rework capped at 3 cycles. No `/fab-clarify` runs inside the bracket — clarification is intake-only. Resumable — re-running picks up from the first incomplete stage (incl. the review-`failed` recovery: `fab status start <change> review` before re-running Step 2). All sub-skill invocations dispatched as sub-agents; every `/fab-continue`-behavior subagent prompt includes "do NOT run `fab status` commands; return results only" — the orchestrator owns those stages' transitions (finish/fail/reset), including the hydrate finish (all of fab-ff's dispatched stages are `/fab-continue`-behavior; ship/review-pr belong to `/fab-fff`). Accepts `--force` to bypass the intake gate.
+Fast-forward apply → review → hydrate (everything after intake) in one invocation. Since 260611-szxd the skill file is a **thin wrapper over the shared pipeline bracket in `_pipeline.md`** (see `SPEC-_pipeline.md`): it declares Purpose, Arguments, and the two bracket parameters — `{driver}` = `fab-ff`, `{terminal}` = `hydrate` — plus its own Output block. The bracket owns the single intake confidence gate (flat 3.0, all types), context loading, resumability (incl. the review-`failed` recovery via `fab status start <change> review`), Steps 1–3, the auto-rework loop (3-cycle cap, explicit per-cycle choreography, escalation after 2 consecutive fix-code), the exhaustion stop (terminal state: review `failed` — `/fab-continue`'s review-failed row presents the rework menu from there), and the shared error rows. No `/fab-clarify` runs inside the bracket — clarification is intake-only. All sub-skill invocations are dispatched as sub-agents with "do NOT run `fab status` commands; return results only" — the orchestrator owns those stages' transitions. Accepts `--force` to bypass the intake gate.
 
-**Helpers**: Declares `helpers: [_generation, _review, _srad]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
+**Helpers**: Declares `helpers: [_generation, _review, _srad, _pipeline]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
 
 ## Flow
 
 ```
 User invokes /fab-ff [change-name] [--force]
 │
-├─ Read: _preamble.md (always-load layer)
-├─ Bash: fab preflight [change-name]
+├─ Read: _preamble.md (always-load layer), helpers incl. _pipeline.md
 │
-├─ Gate: Intake Gate (skip if --force)
-│  └─ Bash: fab score --check-gate --stage intake <change>
-│     └─ STOP if < 3.0
-│
-├─ Step 1: Implementation (apply, with internal plan generation)
-│  ├─ Bash: fab status finish <change> intake fab-ff (if progress.intake
-│  │        is not done — auto-activates apply)
-│  └─ ┌──────────────────────────────────────────┐
-│     │ SUB-AGENT: /fab-continue (Apply)         │
-│     │  Entry sub-step (skip if plan.md exists):│
-│     │    Read: intake.md, _generation.md       │
-│     │    Write: plan.md            ◄── HOOK    │
-│     │      (## Requirements + ## Tasks +       │
-│     │       ## Acceptance, co-generated)       │
-│     │  (under-spec → inline SRAD assumption,   │
-│     │   no clarify step)                        │
-│     │  Main sub-step (Task Execution):         │
-│     │    Read: plan.md ## Tasks, source files  │
-│     │    Edit/Write: implementation files      │
-│     │    Bash: run tests                       │
-│     │    Edit: plan.md ## Tasks (mark [x])     │
-│     │    Returns: completion status            │
-│     └──────────────────────────────────────────┘
-│  └─ Bash: fab status finish <change> apply fab-ff
-│
-├─ Step 2: Review (with auto-rework loop, max 3 cycles)
-│  │  Review behavior is defined in `_review.md` (authoritative source
-│  │  for inward + outward sub-agent dispatch and findings merge).
-│  └─ ┌──────────────────────────────────────────┐
-│     │ SUB-AGENT: /fab-continue (Review)        │
-│     │  Reads _review.md for dispatch:          │
-│     │  ┌────────────────────────────────────┐  │
-│     │  │ NESTED SUB-AGENT (inward):         │  │
-│     │  │  Read: plan.md (## Requirements +  │  │
-│     │  │   ## Tasks + ## Acceptance)+source │  │
-│     │  │  Bash: run tests                   │  │
-│     │  │  Edit: plan.md ## Acceptance       │  │
-│     │  │  Returns: findings                 │  │
-│     │  └────────────────────────────────────┘  │
-│     │  ┌────────────────────────────────────┐  │
-│     │  │ NESTED SUB-AGENT (outward):        │  │
-│     │  │  Receives: diff + changed files    │  │
-│     │  │  Full repo access                  │  │
-│     │  │  Codex→Claude cascade              │  │
-│     │  │  Returns: findings                 │  │
-│     │  └────────────────────────────────────┘  │
-│     │  Merge findings → Returns: pass/fail     │
-│     └──────────────────────────────────────────┘
-│  ├─ Pass: Bash: fab status finish <change> review
-│  └─ Fail: Auto-rework loop
-│     ├─ Bash: fab status fail + reset
-│     ├─ Triage findings → fix code / revise plan / revise requirements
-│     ├─ Re-dispatch apply + review sub-agents
-│     ├─ Escalation rule: 2 consecutive fix-code → must escalate
-│     └─ STOP after 3 failed cycles
-│
-├─ Step 3: Hydrate
-│  ├─ ┌──────────────────────────────────────────┐
-│  │  │ SUB-AGENT: /fab-continue (Hydrate)       │
-│  │  │  Read/Write/Edit: docs/memory/ files     │
-│  │  │  (no fab status — returns results only)  │
-│  │  └──────────────────────────────────────────┘
-│  └─ Bash: fab status finish <change> hydrate fab-ff
-│
-└─ Pipeline complete.
+└─ Execute the _pipeline.md bracket with {driver}=fab-ff, {terminal}=hydrate
+   │  (see SPEC-_pipeline.md for the full bracket flow: pre-flight gate,
+   │   Step 1 apply [plan co-gen + tasks], Step 2 review [inward + outward
+   │   sub-agents via _review.md, auto-rework loop], Step 3 hydrate)
+   │
+   └─ {terminal}=hydrate → pipeline complete after Step 3
+      (no ship/review-pr steps — those are /fab-fff's)
 ```
 
 ### Sub-agents
 
-| Agent | Step | Purpose |
-|-------|------|---------|
-| /fab-continue (Apply) | 1 | Plan co-generation (entry sub-step — ## Requirements + ## Tasks + ## Acceptance) + task execution (main sub-step). No clarify sub-agent. |
-| /fab-continue (Review) | 2 | Review orchestration — reads `_review.md` to dispatch inward + outward sub-agents in parallel; merges findings |
-| /fab-continue (Hydrate) | 3 | Memory hydration |
-
-> Step 2 review behavior (inward requirements + acceptance validation and outward holistic diff review) is defined in `_review.md`. `/fab-continue` Review Behavior delegates to `_review.md`.
+Defined by the bracket — see `SPEC-_pipeline.md`: `/fab-continue` (Apply), `/fab-continue` (Review — dispatches `_review.md`'s inward + outward sub-agents in parallel), `/fab-continue` (Hydrate).
 
 ### Bookkeeping commands (hook candidates)
 

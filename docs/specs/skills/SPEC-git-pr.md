@@ -11,12 +11,19 @@ Autonomously commits, pushes, and creates a draft GitHub PR. No prompts, no ques
 ```
 /git-pr invoked (user or sub-agent)
 │
-├─ Step 0a: Start Ship Stage
-│  └─ Bash: fab status start <change> ship git-pr
+├─ Step 0: Resolve Change Context (260611-szxd f094 — the ONLY
+│  │        fab change resolve in the skill; later steps reference
+│  │        the variables and MUST NOT re-resolve)
+│  ├─ Bash: fab change resolve 2>/dev/null → {has_fab}, {name}
+│  ├─ {has_intake} — fab/changes/{name}/intake.md exists?
+│  └─ {change_type} — from fab/changes/{name}/.status.yaml
+│
+├─ Step 0a: Start Ship Stage (if {has_fab})
+│  └─ Bash: fab status start {name} ship git-pr
 │
 ├─ Step 0b: Resolve PR Type
-│  ├─ Read: fab/changes/{name}/.status.yaml (change_type)
-│  ├─ Read: fab/changes/{name}/intake.md (keyword match)
+│  ├─ {change_type} from Step 0 (status source)
+│  ├─ Read: fab/changes/{name}/intake.md (keyword match, if {has_intake})
 │  └─ Bash: git diff --name-only (fallback)
 │
 ├─ Step 1: Gather State
@@ -25,10 +32,9 @@ Autonomously commits, pushes, and creates a draft GitHub PR. No prompts, no ques
 │  ├─ Bash: git log --oneline -5
 │  ├─ Bash: git log --oneline @{u}..HEAD
 │  ├─ Bash: gh pr view --json
-│  └─ Bash: fab status get-issues <change>
+│  └─ Bash: fab status get-issues {name}   (if {has_fab})
 │
-├─ Step 1b: Branch Mismatch Nudge
-│  └─ Bash: fab change resolve
+├─ Step 1b: Branch Mismatch Nudge (compares branch vs {name}; skip if !{has_fab})
 │
 ├─ Step 2: Branch Guard (STOP if main/master)
 │
@@ -60,11 +66,11 @@ Autonomously commits, pushes, and creates a draft GitHub PR. No prompts, no ques
 │     │                 (Meta block omitted entirely when {has_fab} is false or $META empty)
 │     └─ Bash: gh pr create --draft --title --body
 │
-├─ Step 4a: Record PR URL
-│  └─ Bash: fab status add-pr <change> <url>
+├─ Step 4a: Record PR URL (if {has_fab})
+│  └─ Bash: fab status add-pr {name} <url>
 │
 ├─ Step 4b: Finish Ship Stage
-│  └─ Bash: fab status finish <change> ship git-pr
+│  └─ Bash: fab status finish {name} ship git-pr
 │
 └─ Step 4c: Commit Status Update
    ├─ Bash: git add fab/changes/{name}/.status.yaml fab/changes/{name}/.history.jsonl
