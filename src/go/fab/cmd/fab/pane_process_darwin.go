@@ -60,35 +60,47 @@ func discoverProcessTree(pid int) ([]ProcessNode, error) {
 		return nil, fmt.Errorf("PID %d not found in ps output", pid)
 	}
 
-	node := buildNodeFromPS(rootEntry, childrenMap)
+	// Second single pass: full command lines for every PID, joined by PID
+	// during the tree walk. Replaces the per-node `ps -o args= -p <pid>`
+	// spawns (N+1) and removes the TOCTOU window where a process exiting
+	// between the enumeration and the per-pid lookup yielded cmdline "".
+	// The two-pass pid=,args= form is used (not one-pass pid,ppid,comm,args)
+	// because comm may contain spaces (common for macOS app paths), which
+	// would mis-parse a combined listing.
+	cmdlines := getPSCmdlines()
+
+	node := buildNodeFromPS(rootEntry, childrenMap, cmdlines)
 	return []ProcessNode{node}, nil
 }
 
-// buildNodeFromPS recursively builds a ProcessNode from ps data.
-func buildNodeFromPS(entry psEntry, childrenMap map[int][]psEntry) ProcessNode {
-	cmdline := getPSCmdline(entry.pid)
-
+// buildNodeFromPS recursively builds a ProcessNode from ps data. cmdlines is
+// the PID→args map from getPSCmdlines; a PID missing from it (process exited
+// between the two ps passes) yields cmdline "" — the same degraded value the
+// per-pid spawn produced on failure.
+func buildNodeFromPS(entry psEntry, childrenMap map[int][]psEntry, cmdlines map[int]string) ProcessNode {
 	node := ProcessNode{
 		PID:            entry.pid,
 		PPID:           entry.ppid,
 		Comm:           entry.comm,
-		Cmdline:        cmdline,
+		Cmdline:        cmdlines[entry.pid],
 		Classification: ClassifyProcess(entry.comm),
 		Children:       []ProcessNode{},
 	}
 
 	for _, child := range childrenMap[entry.pid] {
-		node.Children = append(node.Children, buildNodeFromPS(child, childrenMap))
+		node.Children = append(node.Children, buildNodeFromPS(child, childrenMap, cmdlines))
 	}
 
 	return node
 }
 
-// getPSCmdline gets the full command line for a PID via ps.
-func getPSCmdline(pid int) string {
-	out, err := exec.Command("ps", "-o", "args=", "-p", strconv.Itoa(pid)).Output()
+// getPSCmdlines returns the full command line per PID via ONE
+// `ps -axo pid=,args=` pass. Returns an empty map on ps failure (every
+// node then degrades to cmdline "", matching the prior per-pid behavior).
+func getPSCmdlines() map[int]string {
+	out, err := exec.Command("ps", "-axo", "pid=,args=").Output()
 	if err != nil {
-		return ""
+		return map[int]string{}
 	}
-	return strings.TrimSpace(string(out))
+	return parsePSCmdlines(string(out))
 }

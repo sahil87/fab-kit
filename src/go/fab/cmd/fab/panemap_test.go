@@ -49,20 +49,20 @@ func TestListPanesArgs(t *testing.T) {
 	})
 }
 
-func TestListSessionsArgs(t *testing.T) {
-	t.Run("no server returns bare list-sessions args", func(t *testing.T) {
-		got := listSessionsArgs("")
-		want := []string{"list-sessions", "-F", "#{session_name}"}
+func TestListAllPanesArgs(t *testing.T) {
+	t.Run("no server returns single server-wide list-panes -a args", func(t *testing.T) {
+		got := listAllPanesArgs("")
+		want := []string{"list-panes", "-a", "-F", tmuxPaneFormat}
 		if !reflect.DeepEqual(got, want) {
-			t.Errorf("listSessionsArgs(\"\") = %v, want %v", got, want)
+			t.Errorf("listAllPanesArgs(\"\") = %v, want %v", got, want)
 		}
 	})
 
 	t.Run("server set prepends -L <server>", func(t *testing.T) {
-		got := listSessionsArgs("runKit")
-		want := []string{"-L", "runKit", "list-sessions", "-F", "#{session_name}"}
+		got := listAllPanesArgs("runKit")
+		want := []string{"-L", "runKit", "list-panes", "-a", "-F", tmuxPaneFormat}
 		if !reflect.DeepEqual(got, want) {
-			t.Errorf("listSessionsArgs(\"runKit\") = %v, want %v", got, want)
+			t.Errorf("listAllPanesArgs(\"runKit\") = %v, want %v", got, want)
 		}
 	})
 }
@@ -751,10 +751,13 @@ func TestMainRootForPane(t *testing.T) {
 	repoA := initGitRepo(t)
 	repoB := initGitRepo(t)
 
+	wtCache := make(map[string]string)
 	cache := make(map[string]string)
 
-	gotA := mainRootForPane(repoA, cache)
-	gotB := mainRootForPane(repoB, cache)
+	wtA := worktreeRootForPane(repoA, wtCache)
+	wtB := worktreeRootForPane(repoB, wtCache)
+	gotA := mainRootForPane(repoA, wtA, cache)
+	gotB := mainRootForPane(repoB, wtB, cache)
 
 	if gotA == "" || gotB == "" {
 		t.Fatalf("expected non-empty main roots, got A=%q B=%q", gotA, gotB)
@@ -767,14 +770,51 @@ func TestMainRootForPane(t *testing.T) {
 		t.Errorf("repoA main root = %q, want a path ending in %q", gotA, filepath.Base(repoA))
 	}
 
-	t.Run("non-git cwd yields empty and is cached", func(t *testing.T) {
-		nonGit := t.TempDir()
+	t.Run("non-git wtRoot short-circuits to empty main root", func(t *testing.T) {
 		c := make(map[string]string)
-		if got := mainRootForPane(nonGit, c); got != "" {
-			t.Errorf("non-git cwd should yield empty main root, got %q", got)
+		if got := mainRootForPane(t.TempDir(), "", c); got != "" {
+			t.Errorf("empty wtRoot should yield empty main root, got %q", got)
 		}
-		if _, ok := c[nonGit]; !ok {
-			t.Errorf("non-git cwd should be cached to avoid retries")
+		if len(c) != 0 {
+			t.Errorf("non-git path should not populate the mainRoot cache, got %v", c)
+		}
+	})
+}
+
+// TestWorktreeRootForPane verifies the cwd-keyed worktree-root cache: one
+// `git rev-parse` per distinct cwd, with the "" non-git sentinel cached so
+// failed lookups are never retried within an invocation.
+func TestWorktreeRootForPane(t *testing.T) {
+	t.Run("git cwd resolves and caches by cwd", func(t *testing.T) {
+		repo := initGitRepo(t)
+		cache := make(map[string]string)
+		got := worktreeRootForPane(repo, cache)
+		if got == "" {
+			t.Fatal("expected non-empty worktree root for a git repo")
+		}
+		if filepath.Base(got) != filepath.Base(repo) {
+			t.Errorf("worktree root = %q, want a path ending in %q", got, filepath.Base(repo))
+		}
+		cached, ok := cache[repo]
+		if !ok || cached != got {
+			t.Errorf("cache[%q] = (%q, %t), want (%q, true)", repo, cached, ok, got)
+		}
+		// Cache hit returns the same value (poison the cache to prove the
+		// hit path is taken instead of re-spawning git).
+		cache[repo] = "/poisoned"
+		if again := worktreeRootForPane(repo, cache); again != "/poisoned" {
+			t.Errorf("expected cache hit %q, got %q (git re-spawned?)", "/poisoned", again)
+		}
+	})
+
+	t.Run("non-git cwd yields empty sentinel and is cached", func(t *testing.T) {
+		nonGit := t.TempDir()
+		cache := make(map[string]string)
+		if got := worktreeRootForPane(nonGit, cache); got != "" {
+			t.Errorf("non-git cwd should yield empty sentinel, got %q", got)
+		}
+		if cached, ok := cache[nonGit]; !ok || cached != "" {
+			t.Errorf("non-git miss should be cached as \"\", got (%q, %t)", cached, ok)
 		}
 	})
 }
@@ -964,7 +1004,7 @@ func TestResolvePanePRURL(t *testing.T) {
 		wtRoot := writeChangeStatus(t, prsBody)
 
 		p := paneEntry{id: "%1", tab: "alpha", cwd: wtRoot, session: "runK", index: 0}
-		row, ok := resolvePane(p, wtRoot, "", make(map[string]interface{}))
+		row, ok := resolvePane(p, wtRoot, wtRoot, "", make(map[string]interface{}))
 		if !ok {
 			t.Fatal("resolvePane returned ok=false")
 		}
@@ -977,7 +1017,7 @@ func TestResolvePanePRURL(t *testing.T) {
 		wtRoot := writeChangeStatus(t, "")
 
 		p := paneEntry{id: "%1", tab: "alpha", cwd: wtRoot, session: "runK", index: 0}
-		row, ok := resolvePane(p, wtRoot, "", make(map[string]interface{}))
+		row, ok := resolvePane(p, wtRoot, wtRoot, "", make(map[string]interface{}))
 		if !ok {
 			t.Fatal("resolvePane returned ok=false")
 		}
@@ -990,7 +1030,7 @@ func TestResolvePanePRURL(t *testing.T) {
 		wtRoot := writeChangeStatus(t, "prs: []\n")
 
 		p := paneEntry{id: "%1", tab: "alpha", cwd: wtRoot, session: "runK", index: 0}
-		row, ok := resolvePane(p, wtRoot, "", make(map[string]interface{}))
+		row, ok := resolvePane(p, wtRoot, wtRoot, "", make(map[string]interface{}))
 		if !ok {
 			t.Fatal("resolvePane returned ok=false")
 		}
@@ -1187,7 +1227,7 @@ func TestResolvePaneDisplayState(t *testing.T) {
 		}
 
 		p := paneEntry{id: "%1", tab: "dkn3", cwd: wtRoot, session: "main", index: 0}
-		row, ok := resolvePane(p, wtRoot, "", make(map[string]interface{}))
+		row, ok := resolvePane(p, wtRoot, wtRoot, "", make(map[string]interface{}))
 		if !ok {
 			t.Fatal("resolvePane returned ok=false")
 		}
@@ -1207,7 +1247,7 @@ func TestResolvePaneDisplayState(t *testing.T) {
 		}
 
 		p := paneEntry{id: "%2", tab: "scratch", cwd: wtRoot, session: "main", index: 1}
-		row, ok := resolvePane(p, wtRoot, "", make(map[string]interface{}))
+		row, ok := resolvePane(p, wtRoot, wtRoot, "", make(map[string]interface{}))
 		if !ok {
 			t.Fatal("resolvePane returned ok=false")
 		}
@@ -1219,7 +1259,7 @@ func TestResolvePaneDisplayState(t *testing.T) {
 	t.Run("non-git pane early-return row carries the em-dash sentinel", func(t *testing.T) {
 		nonGit := t.TempDir()
 		p := paneEntry{id: "%3", tab: "misc", cwd: nonGit, session: "dev", index: 2}
-		row, ok := resolvePane(p, "", "", make(map[string]interface{}))
+		row, ok := resolvePane(p, "", "", "", make(map[string]interface{}))
 		if !ok {
 			t.Fatal("resolvePane returned ok=false")
 		}

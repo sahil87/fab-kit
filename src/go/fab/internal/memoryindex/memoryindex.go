@@ -217,6 +217,11 @@ func Gather(repoRoot string) (RootData, []DomainData, []Warning, error) {
 	var root RootData
 	var warnings []Warning
 
+	// One batched git-log pass over docs/memory replaces the per-file
+	// `git log -1` spawns (N files → N subprocesses, each a history walk).
+	// nil on failure → the per-file fallback inside dates.lookup.
+	dates := loadGitDates(repoRoot)
+
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
@@ -224,8 +229,8 @@ func Gather(repoRoot string) (RootData, []DomainData, []Warning, error) {
 		domainName := e.Name()
 		domainDir := filepath.Join(memRoot, domainName)
 
-		files := gatherFiles(repoRoot, domainDir)
-		subDomains := gatherSubDomains(repoRoot, domainDir)
+		files := gatherFiles(repoRoot, domainDir, dates)
+		subDomains := gatherSubDomains(repoRoot, domainDir, dates)
 		desc := domainDescription(domainDir)
 		domains = append(domains, DomainData{
 			Name:        domainName,
@@ -273,8 +278,9 @@ func Gather(repoRoot string) (RootData, []DomainData, []Warning, error) {
 }
 
 // gatherFiles reads the topic files (non-index .md) directly under domainDir,
-// sorted lexicographically by base name.
-func gatherFiles(repoRoot, domainDir string) []FileEntry {
+// sorted lexicographically by base name. dates is the batched git-date map
+// (nil when the batched pass failed — lookup then falls back per file).
+func gatherFiles(repoRoot, domainDir string, dates *gitDates) []FileEntry {
 	dirEntries, err := os.ReadDir(domainDir)
 	if err != nil {
 		return nil
@@ -294,7 +300,7 @@ func gatherFiles(repoRoot, domainDir string) []FileEntry {
 			Base:        base,
 			Title:       readH1(path),
 			Description: frontmatter.Field(path, "description"),
-			LastUpdated: gitLastUpdated(repoRoot, path),
+			LastUpdated: dates.lookup(repoRoot, path),
 		})
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Base < files[j].Base })
@@ -308,7 +314,7 @@ func gatherFiles(repoRoot, domainDir string) []FileEntry {
 // warning, not an additional generated index tier (the depth-3 bound is
 // {domain}/{sub-domain}/{topic}.md). An empty sub-folder (no .md) yields no
 // entry, so it never produces a spurious index.
-func gatherSubDomains(repoRoot, domainDir string) []DomainData {
+func gatherSubDomains(repoRoot, domainDir string, dates *gitDates) []DomainData {
 	dirEntries, err := os.ReadDir(domainDir)
 	if err != nil {
 		return nil
@@ -320,7 +326,7 @@ func gatherSubDomains(repoRoot, domainDir string) []DomainData {
 		}
 		subName := de.Name()
 		subDir := filepath.Join(domainDir, subName)
-		files := gatherFiles(repoRoot, subDir)
+		files := gatherFiles(repoRoot, subDir, dates)
 		if len(files) == 0 {
 			continue // no topic files → not a sub-domain, no index to generate
 		}
@@ -382,10 +388,96 @@ func titleCase(name string) string {
 	return strings.Join(parts, " ")
 }
 
+// gitDates is the result of the single batched git-log pass over
+// docs/memory: the most recent commit date per file, keyed by the path
+// relative to the git top-level (slash-separated, as git prints it).
+type gitDates struct {
+	top    string            // `git rev-parse --show-toplevel` for repoRoot
+	byPath map[string]string // repo-relative path → YYYY-MM-DD
+}
+
+// loadGitDates runs ONE `git log --date=short --name-only` pass over
+// docs/memory and records the first (= most recent, git log is newest-first)
+// date seen per path. Returns nil when git fails (not a repo, git missing) —
+// callers then fall back to the per-file gitLastUpdated. Equivalence with
+// the per-file `git log -1 -- <path>` defaults: --name-only skips
+// merge-commit file lists and does not follow renames, matching both
+// defaults; core.quotepath=off keeps non-ASCII paths unquoted so map keys
+// match filesystem paths.
+func loadGitDates(repoRoot string) *gitDates {
+	topCmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	if repoRoot != "" {
+		topCmd.Dir = repoRoot
+	}
+	topOut, err := topCmd.Output()
+	if err != nil {
+		return nil
+	}
+	top := strings.TrimSpace(string(topOut))
+
+	logCmd := exec.Command("git", "-c", "core.quotepath=off", "log",
+		"--date=short", "--format=%x00%ad", "--name-only", "--", "docs/memory")
+	if repoRoot != "" {
+		logCmd.Dir = repoRoot
+	}
+	out, err := logCmd.Output()
+	if err != nil {
+		return nil
+	}
+	return &gitDates{top: top, byPath: parseGitDates(string(out))}
+}
+
+// parseGitDates parses the `--format=%x00%ad --name-only` stream: a line
+// starting with NUL carries the commit date; subsequent non-empty lines are
+// the paths it touched. The FIRST date seen per path wins (newest-first
+// ordering). Pure function, extracted for unit tests.
+func parseGitDates(out string) map[string]string {
+	byPath := make(map[string]string)
+	current := ""
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "\x00") {
+			current = strings.TrimSpace(line[1:])
+			continue
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if _, seen := byPath[line]; !seen {
+			byPath[line] = current
+		}
+	}
+	return byPath
+}
+
+// lookup returns the last-updated date for path. With a populated batch map
+// (non-nil receiver) it is a pure map lookup — a missing key means the file
+// is uncommitted and yields "", exactly like the per-file call. With a nil
+// receiver (batched pass failed), or when path cannot be expressed relative
+// to the git top-level (e.g. symlinked temp dirs — git prints the resolved
+// top), it falls back to the per-file gitLastUpdated spawn.
+func (d *gitDates) lookup(repoRoot, path string) string {
+	if d == nil {
+		return gitLastUpdated(repoRoot, path)
+	}
+	rel, err := filepath.Rel(d.top, path)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		// Retry with symlinks resolved (git's top-level is always resolved).
+		if resolved, rerr := filepath.EvalSymlinks(path); rerr == nil {
+			if r2, e2 := filepath.Rel(d.top, resolved); e2 == nil && !strings.HasPrefix(r2, "..") {
+				return d.byPath[filepath.ToSlash(r2)]
+			}
+		}
+		return gitLastUpdated(repoRoot, path)
+	}
+	return d.byPath[filepath.ToSlash(rel)]
+}
+
 // gitLastUpdated returns `git log -1 --date=short --format=%ad <path>` run in
 // repoRoot, or "" when git produces no output (uncommitted file, worktree /
 // shallow-clone / squash / rebase context, or git unavailable). Mirrors how
-// internal/prmeta degrades on missing git context — never an error.
+// internal/prmeta degrades on missing git context — never an error. Kept as
+// the per-file FALLBACK for when the batched loadGitDates pass fails.
 func gitLastUpdated(repoRoot, path string) string {
 	cmd := exec.Command("git", "log", "-1", "--date=short", "--format=%ad", "--", path)
 	if repoRoot != "" {

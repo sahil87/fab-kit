@@ -25,18 +25,36 @@ func operatorCmd() *cobra.Command {
 
 func runOperator(cmd *cobra.Command, args []string) error {
 	w := cmd.OutOrStdout()
-	errW := cmd.ErrOrStderr()
 
 	// Must be inside tmux
 	if os.Getenv("TMUX") == "" {
-		fmt.Fprintln(errW, "Error: not inside a tmux session.")
-		os.Exit(1)
+		return fmt.Errorf("not inside a tmux session")
 	}
 
 	tabName := "operator"
 
-	// Singleton: switch to existing tab if it exists
-	if err := exec.Command("tmux", "select-window", "-t", tabName).Run(); err == nil {
+	// Singleton: exact, server-wide window-name match. The previous
+	// `select-window -t operator` guard was wrong on two axes: tmux target
+	// resolution falls back to name-prefix and glob matching (any
+	// `operator-*` window satisfied it), and it was session-scoped (an
+	// operator in another session on the same server was missed, breaking
+	// the per-SERVER singleton). Enumerating `list-windows -a` and comparing
+	// names exactly fixes both, and distinguishes "window absent" from
+	// "tmux error" instead of conflating them.
+	windows, stderr, err := pane.RunCmd("tmux", "list-windows", "-a", "-F", "#{window_id}\t#{window_name}")
+	if err != nil {
+		return pane.StderrError(fmt.Errorf("tmux list-windows: %w", err), stderr)
+	}
+	if windowID, found := findWindowExact(windows, tabName); found {
+		// Window IDs (@N) are server-global and exempt from target-grammar
+		// prefix/glob resolution, so selection is exact. select-window makes
+		// it the current window of its session; the best-effort switch-client
+		// moves the user's client there when the match is in another session
+		// (failure ignored — the singleton invariant is already preserved).
+		if _, stderr, err := pane.RunCmd("tmux", "select-window", "-t", windowID); err != nil {
+			return pane.StderrError(fmt.Errorf("tmux select-window: %w", err), stderr)
+		}
+		_, _, _ = pane.RunCmd("tmux", "switch-client", "-t", windowID)
 		fmt.Fprintf(w, "Switched to existing %s tab.\n", tabName)
 		return nil
 	}
@@ -57,21 +75,44 @@ func runOperator(cmd *cobra.Command, args []string) error {
 
 	// Create new tab running the operator skill
 	shellCmd := fmt.Sprintf("%s '/fab-operator'", spawnCmd)
-	if err := exec.Command("tmux", "new-window", "-c", repoRoot, "-n", tabName, shellCmd).Run(); err != nil {
-		return fmt.Errorf("tmux new-window failed: %w", err)
+	if _, stderr, err := pane.RunCmd("tmux", "new-window", "-c", repoRoot, "-n", tabName, shellCmd); err != nil {
+		return pane.StderrError(fmt.Errorf("tmux new-window failed: %w", err), stderr)
 	}
 
 	fmt.Fprintf(w, "Launched %s.\n", tabName)
 	return nil
 }
 
-// gitRepoRoot returns the git repo root for the current directory.
-func gitRepoRoot() (string, error) {
-	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
-	if err != nil {
-		return "", err
+// findWindowExact scans `tmux list-windows -a` output (format
+// `#{window_id}\t#{window_name}`) for a window whose name equals name
+// exactly, returning its server-global window ID. The format deliberately
+// carries NO leading #{session_name} field: an unused leading field would
+// let a tab inside a session name shift the columns and silently miss the
+// match. The name is the LAST field and is split with a bounded SplitN, so
+// window names containing tabs survive. Pure function, extracted for unit
+// tests.
+func findWindowExact(out, name string) (windowID string, found bool) {
+	for _, line := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		if parts[1] == name {
+			return parts[0], true
+		}
 	}
-	return strings.TrimSpace(string(out)), nil
+	return "", false
+}
+
+// gitRepoRoot returns the git repo root for the current directory. On
+// failure the error carries git's stderr detail (e.g. "fatal: not a git
+// repository ...") rather than a bare exit status.
+func gitRepoRoot() (string, error) {
+	out, stderr, err := pane.RunCmd("git", "rev-parse", "--show-toplevel")
+	if err != nil {
+		return "", pane.StderrError(err, stderr)
+	}
+	return strings.TrimSpace(out), nil
 }
 
 // stateDir returns the XDG state base dir, spec-compliant and uniform on Linux

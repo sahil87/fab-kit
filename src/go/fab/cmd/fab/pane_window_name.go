@@ -1,12 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -113,14 +111,11 @@ func runReplacePrefix(cmd *cobra.Command, args []string) error {
 }
 
 // renameWindow runs `tmux rename-window -t <pane> <newName>` with captured
-// stderr. Returns stderr bytes and any exec error. Callers map the error to an
-// exit code via tmuxExitCode.
+// stderr (via the shared pane.RunCmd capture helper). Returns stderr bytes
+// and any exec error. Callers map the error to an exit code via tmuxExitCode.
 func renameWindow(server, paneID, newName string) ([]byte, error) {
-	cmd := exec.Command("tmux", renameArgs(server, paneID, newName)...)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	return stderr.Bytes(), err
+	_, stderr, err := pane.RunCmd("tmux", renameArgs(server, paneID, newName)...)
+	return stderr, err
 }
 
 // renameArgs is the testable argv builder for `tmux rename-window`.
@@ -132,12 +127,10 @@ func renameArgs(server, paneID, newName string) []string {
 // tmuxExitCode maps tmux stderr content to the documented exit-code scheme.
 // Pane-missing messages (from display-message or rename-window on a vanished
 // pane) → 2; everything else — including tmux-not-running / socket errors /
-// permission denied / other tmux failures — → 3.
+// permission denied / other tmux failures — → 3. Pane-missing detection is
+// the shared pane.IsPaneMissing matcher (also used by pane.ValidatePane).
 func tmuxExitCode(stderr []byte) int {
-	s := strings.ToLower(string(stderr))
-	if strings.Contains(s, "can't find pane") ||
-		strings.Contains(s, "no such pane") ||
-		(strings.Contains(s, "pane") && strings.Contains(s, "not found")) {
+	if pane.IsPaneMissing(stderr) {
 		return 2
 	}
 	return 3

@@ -40,6 +40,51 @@ func TestClassifyProcess(t *testing.T) {
 	}
 }
 
+// TestParsePSCmdlines verifies the `ps -axo pid=,args=` parser that backs
+// the darwin single-pass cmdline join (F37): numeric-first PID, remainder is
+// args (robust against spaces in command paths), malformed lines skipped.
+func TestParsePSCmdlines(t *testing.T) {
+	t.Run("typical ps output", func(t *testing.T) {
+		out := "    1 /sbin/launchd\n" +
+			"  345 /Applications/Visual Studio Code.app/Contents/MacOS/Electron --type=renderer\n" +
+			" 8210 claude --dangerously-skip-permissions\n"
+		got := parsePSCmdlines(out)
+		want := map[int]string{
+			1:    "/sbin/launchd",
+			345:  "/Applications/Visual Studio Code.app/Contents/MacOS/Electron --type=renderer",
+			8210: "claude --dangerously-skip-permissions",
+		}
+		if len(got) != len(want) {
+			t.Fatalf("parsed %d entries, want %d: %v", len(got), len(want), got)
+		}
+		for pid, args := range want {
+			if got[pid] != args {
+				t.Errorf("parsePSCmdlines[%d] = %q, want %q", pid, got[pid], args)
+			}
+		}
+	})
+
+	t.Run("pid with no args yields empty cmdline", func(t *testing.T) {
+		got := parsePSCmdlines("  42\n")
+		if v, ok := got[42]; !ok || v != "" {
+			t.Errorf("parsePSCmdlines[42] = (%q, %t), want (\"\", true)", v, ok)
+		}
+	})
+
+	t.Run("malformed lines are skipped", func(t *testing.T) {
+		got := parsePSCmdlines("PID ARGS\nnotanumber /bin/x\n  7 /bin/y\n")
+		if len(got) != 1 || got[7] != "/bin/y" {
+			t.Errorf("parsePSCmdlines = %v, want only {7: /bin/y}", got)
+		}
+	})
+
+	t.Run("empty input yields empty map", func(t *testing.T) {
+		if got := parsePSCmdlines(""); len(got) != 0 {
+			t.Errorf("parsePSCmdlines(\"\") = %v, want empty", got)
+		}
+	})
+}
+
 func TestHasAgentInTree(t *testing.T) {
 	t.Run("agent at root", func(t *testing.T) {
 		nodes := []ProcessNode{

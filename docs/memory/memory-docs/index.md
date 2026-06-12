@@ -7,7 +7,7 @@ description: "Authoring docs/memory & docs/specs — the hydrate skills (ingest 
 
 | File | Description | Last Updated |
 |------|-------------|-------------|
-| [hydrate](hydrate.md) | `/docs-hydrate-memory` skill — argument routing, dual-mode (ingest + generate), hydration rules, mechanical index regen via `fab memory-index` | 2026-06-08 |
+| [hydrate](hydrate.md) | `/docs-hydrate-memory` skill — argument routing, dual-mode (ingest + generate), hydration rules, mechanical index regen via `fab memory-index` | 2026-06-12 |
 | [hydrate-generate](hydrate-generate.md) | `/docs-hydrate-memory` generate mode — codebase scanning, gap detection, interactive scoping, memory file generation | 2026-06-08 |
 | [hydrate-specs](hydrate-specs.md) | `/docs-hydrate-specs` skill — structural gap detection between memory and specs, interactive propose-then-apply | 2026-06-08 |
 | [specs-index](specs-index.md) | `docs/specs/` directory — pre-implementation specs, distinction from memory, bootstrap and context integration, per-skill SPEC mirror coverage + naming policy (`SPEC-{source-filename}.md`; `_cli-fab`/`_cli-external` excluded — uliv) | 2026-06-12 |

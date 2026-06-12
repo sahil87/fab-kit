@@ -92,10 +92,15 @@ func runPaneMap(cmd *cobra.Command, args []string) error {
 	// Cache main-worktree root per pane's git worktree root to avoid re-running
 	// `git worktree list` for every pane in the same repo.
 	mainRootCache := make(map[string]string)
+	// Cache the pane's git worktree root per cwd so each distinct cwd costs
+	// exactly one `git rev-parse` per invocation (previously 2 per pane:
+	// mainRootForPane and resolvePane each re-ran it).
+	wtRootCache := make(map[string]string)
 
 	for _, p := range panes {
-		mainRoot := mainRootForPane(p.cwd, mainRootCache)
-		row, ok := resolvePane(p, mainRoot, server, runtimeCache)
+		wtRoot := worktreeRootForPane(p.cwd, wtRootCache)
+		mainRoot := mainRootForPane(p.cwd, wtRoot, mainRootCache)
+		row, ok := resolvePane(p, wtRoot, mainRoot, server, runtimeCache)
 		if ok {
 			rows = append(rows, row)
 		}
@@ -115,23 +120,30 @@ func runPaneMap(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// mainRootForPane returns the main-worktree root for the repo that owns cwd,
-// caching the result so panes sharing a repo reuse a single `git worktree list`
-// lookup. The cache key depends on the path: in the git case it is the pane's
-// git worktree root (so all panes in the same repo share one entry); in the
-// non-git/error case it is cwd itself (no worktree root is available, so each
-// distinct cwd is cached separately to avoid retrying the failed lookup).
-// Returns "" when cwd is not in a git repo (the same fallback
-// FindMainWorktreeRoot uses for unresolvable paths), letting
-// WorktreeDisplayPath fall back to basename display.
-func mainRootForPane(cwd string, cache map[string]string) string {
-	wtRoot, err := pane.GitWorktreeRoot(cwd)
+// worktreeRootForPane returns the pane's git worktree root, "" when cwd is
+// not in a git repo, caching by cwd (hits AND misses) so each distinct cwd
+// costs at most one `git rev-parse --show-toplevel` per invocation. The ""
+// sentinel is load-bearing: resolvePane's non-git branch keys off it.
+func worktreeRootForPane(cwd string, cache map[string]string) string {
+	if wt, ok := cache[cwd]; ok {
+		return wt
+	}
+	wt, err := pane.GitWorktreeRoot(cwd)
 	if err != nil {
-		// Not in a git repo — no main root, cache by cwd to avoid retries.
-		if mr, ok := cache[cwd]; ok {
-			return mr
-		}
-		cache[cwd] = ""
+		wt = "" // not in a git repo
+	}
+	cache[cwd] = wt
+	return wt
+}
+
+// mainRootForPane returns the main-worktree root for the repo that owns cwd,
+// caching the result by the pane's (pre-resolved) git worktree root so panes
+// sharing a repo reuse a single `git worktree list` lookup. wtRoot is the
+// value from worktreeRootForPane — "" (not a git repo) short-circuits to ""
+// (the same fallback FindMainWorktreeRoot uses for unresolvable paths),
+// letting WorktreeDisplayPath fall back to basename display.
+func mainRootForPane(cwd, wtRoot string, cache map[string]string) string {
+	if wtRoot == "" {
 		return ""
 	}
 	if mr, ok := cache[wtRoot]; ok {
@@ -179,10 +191,11 @@ func listPanesArgs(name, server string) []string {
 	return pane.WithServer(server, args...)
 }
 
-// listSessionsArgs builds the tmux argv for `list-sessions -F ...`. When server
-// is non-empty, prepends `-L <server>`. Extracted for unit-testability.
-func listSessionsArgs(server string) []string {
-	return pane.WithServer(server, "list-sessions", "-F", "#{session_name}")
+// listAllPanesArgs builds the tmux argv for the single server-wide
+// `list-panes -a` enumeration used by --all-sessions. When server is
+// non-empty, prepends `-L <server>`. Extracted for unit-testability.
+func listAllPanesArgs(server string) []string {
+	return pane.WithServer(server, "list-panes", "-a", "-F", tmuxPaneFormat)
 }
 
 // discoverSessionPanes lists panes for a single session (or the current session if name is empty).
@@ -195,26 +208,18 @@ func discoverSessionPanes(name, server string) ([]paneEntry, error) {
 	return parsePaneLines(string(out))
 }
 
-// discoverAllSessions enumerates all tmux sessions, then lists panes for each.
-// When server is non-empty, every tmux invocation is scoped via `-L <server>`.
+// discoverAllSessions lists every pane on the server in ONE `list-panes -a`
+// call — tmuxPaneFormat already carries #{session_name}, so the per-session
+// loop (list-sessions + one list-panes per session) was N+1 subprocesses for
+// identical rows. The single call also sidesteps `-t <session>` target
+// resolution (exact-then-prefix matching) entirely. When server is
+// non-empty, the tmux invocation is scoped via `-L <server>`.
 func discoverAllSessions(server string) ([]paneEntry, error) {
-	out, err := exec.Command("tmux", listSessionsArgs(server)...).Output()
+	out, err := exec.Command("tmux", listAllPanesArgs(server)...).Output()
 	if err != nil {
-		return nil, fmt.Errorf("tmux list-sessions: %w", err)
+		return nil, fmt.Errorf("tmux list-panes: %w", err)
 	}
-	var all []paneEntry
-	for _, sess := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		sess = strings.TrimSpace(sess)
-		if sess == "" {
-			continue
-		}
-		panes, err := discoverSessionPanes(sess, server)
-		if err != nil {
-			return nil, err
-		}
-		all = append(all, panes...)
-	}
-	return all, nil
+	return parsePaneLines(string(out))
 }
 
 // parsePaneLines parses tmux list-panes output into paneEntry slices.
@@ -280,11 +285,13 @@ func matchPanesByFolder(panes []paneEntry, folder string, resolveFunc func(paneE
 // .fab-runtime.yaml — independent of whether a change is active. This is
 // the three-axis model: Change (from .fab-status.yaml), Agent (from
 // _agents), and (not shown here) Process (opt-in via `fab pane process`).
-func resolvePane(p paneEntry, mainRoot, server string, runtimeCache map[string]interface{}) (paneRow, bool) {
+// wtRoot is the pane's pre-resolved git worktree root from
+// worktreeRootForPane ("" = not a git repo) \u2014 threaded in, like mainRoot,
+// so resolvePane never re-spawns `git rev-parse`.
+func resolvePane(p paneEntry, wtRoot, mainRoot, server string, runtimeCache map[string]interface{}) (paneRow, bool) {
 	emDash := "\u2014"
 
-	wtRoot, err := pane.GitWorktreeRoot(p.cwd)
-	if err != nil {
+	if wtRoot == "" {
 		return paneRow{
 			session:      p.session,
 			windowIndex:  p.index,
