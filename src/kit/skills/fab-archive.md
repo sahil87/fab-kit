@@ -13,6 +13,8 @@ description: "Archive a completed change or restore an archived change — move 
 
 Archive a completed change after hydrate, or restore an archived change back to active. Archive mode delegates all mechanical operations (move, index, backlog, pointer) to `fab change archive`; the skill only formats the YAML output into a user-facing report. Restore mode delegates entirely to `fab change restore`. Both modes are safe to re-run after interruption.
 
+> **Dirty-tree disclosure**: "safe to re-run" covers fab state, not git state — both modes move tracked files and edit `fab/backlog.md` / `fab/changes/archive/index.md` with **no commit step**. Every archive or restore leaves uncommitted moves and backlog/index edits in the working tree for the caller to commit (e.g., via `/git-pr`). The skill deliberately does NOT commit autonomously — commit ownership stays with `/git-pr`.
+
 ---
 
 ## Arguments
@@ -108,7 +110,8 @@ Next: {per state table — initialized}
 | Property | Value |
 |----------|-------|
 | Advances stage? | No — post-pipeline housekeeping |
-| Idempotent? | Yes — re-archive is a soft skip; `fab change archive` marks the backlog idempotently (`already`) |
+| Idempotent? | Yes — re-archive is a soft skip that still re-attempts the backlog mark (recovering a previously-failed mark); `fab change archive` marks the backlog idempotently (`already`) |
+| Leaves uncommitted changes? | Yes — moved files + backlog/index edits, for the caller to commit (no autonomous commit step) |
 | Modifies `.status.yaml`? | No (may update `last_updated`) |
 | Modifies `.fab-status.yaml`? | Yes — conditionally removes symlink (via command) |
 | Modifies `docs/memory/`? | No |
@@ -186,6 +189,7 @@ Next: {per state table — if --switch: restored change's state; otherwise: acti
 |----------|-------|
 | Advances stage? | No — post-archive housekeeping |
 | Idempotent? | Yes — the command detects already-restored folders |
+| Leaves uncommitted changes? | Yes — moved files + archive-index edits, for the caller to commit (no autonomous commit step) |
 | Modifies `.status.yaml`? | No |
 | Modifies `.fab-status.yaml`? | Only with `--switch` flag (via the command) |
 | Modifies `docs/memory/`? | No |

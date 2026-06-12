@@ -53,7 +53,16 @@ fab change resolve
 If resolution fails:
 
 - **If no argument was provided**: display `fab change resolve`'s stderr and STOP.
-- **If an explicit argument was provided**: enter **standalone fallback** — use the raw argument as a literal branch name. Print:
+- **If an explicit argument was provided**, distinguish the two failure modes by stderr (both exit 1):
+  - **Ambiguous multi-match** — stderr contains `Multiple changes match`: matches exist, the reference was just ambiguous. STOP with the candidate list from stderr — do NOT create any branch:
+
+```
+Ambiguous change reference '{argument}' — multiple changes match:
+  {candidate list from stderr}
+Re-run /git-branch with a more specific name. No branch created.
+```
+
+  - **True no-match** — stderr contains `No change matches` (or any other resolution failure): enter **standalone fallback** — use the raw argument as a literal branch name. Print:
 
 ```
 No matching change found — using standalone branch '{name}'
@@ -77,17 +86,23 @@ branch_name = {resolved_change_name}
 
 ### Step 4: Context-Dependent Action
 
-Get the current branch:
+<!-- Keep these cases in sync with fab-new.md Step 11 — same cases, same commands, same report strings (incl. the rename guard, the remote-only --track case, and the dirty-tree note). One deliberate divergence lives OUTSIDE the shared cases: fab-new derives {dirty_count} excluding fab/changes/{name}/ (its own just-created artifacts); git-branch counts the full porcelain output. -->
+
+Get the current branch and the dirty-tree count:
 
 ```bash
 git branch --show-current
+git status --porcelain | wc -l    # {dirty_count} — used for the non-blocking note below
 ```
 
-Check if the target branch already exists locally:
+Check if the target branch already exists locally, and whether it exists on the remote:
 
 ```bash
 git rev-parse --verify "{branch_name}" >/dev/null 2>&1
+git rev-parse --verify "origin/{branch_name}" >/dev/null 2>&1
 ```
+
+> **Dirty-tree note** (non-blocking — never prompt, never stash): when `{dirty_count}` > 0 AND the action below creates or renames a branch (`git checkout -b` / `git branch -m`), the uncommitted work rides onto the new branch. Append to the Step 5 report line: ` — note: {dirty_count} uncommitted change(s) carried over from {old_branch}`.
 
 **If already on the target branch**: No git operation.
 
@@ -97,13 +112,23 @@ Branch: {branch_name} (already active)
 
 STOP.
 
-**If the target branch exists but is not current**: Switch to it.
+**If the target branch exists locally but is not current**: Switch to it.
 
 ```bash
 git checkout "{branch_name}"
 ```
 
 Report: `Branch: {branch_name} (checked out)`
+
+STOP.
+
+**If the target branch exists only on the remote** (local verify fails, `origin/{branch_name}` verify succeeds): check it out tracking the remote branch — do NOT recreate a divergent local with `checkout -b`.
+
+```bash
+git checkout --track "origin/{branch_name}"
+```
+
+Report: `Branch: {branch_name} (checked out, tracking origin/{branch_name})`
 
 STOP.
 
@@ -119,13 +144,13 @@ git checkout -b "{branch_name}"
 upstream=$(git config "branch.$(git branch --show-current).remote" 2>/dev/null || true)
 ```
 
-- **No upstream** (local-only branch) — **rename guard**: rename only when the current branch does not belong to another change. Check whether the current branch name matches a change folder:
+- **No upstream** (local-only branch) — **rename guard**: rename only when the current branch does not belong to a *different* change. Check what the current branch name resolves to:
 
 ```bash
-fab change resolve "$(git branch --show-current)" >/dev/null 2>&1
+fab change resolve "$(git branch --show-current)" 2>/dev/null
 ```
 
-  - **Resolution fails** (current branch matches no change — e.g., a disposable `wt create` name): rename the current branch:
+  - **Resolution fails** (current branch matches no change — e.g., a disposable `wt create` name) **or resolves to the SAME change being branched** (e.g., a worktree placeholder named with the change's own ID): rename the current branch:
 
 ```bash
 git branch -m "{branch_name}"
@@ -148,15 +173,17 @@ git checkout -b "{branch_name}"
 ### Step 5: Report
 
 ```
-Branch: {branch_name} (created|checked out|renamed from {old_branch}|created, leaving {old_branch} intact|already active)
+Branch: {branch_name} (created|checked out|checked out, tracking origin/{branch_name}|renamed from {old_branch}|created, leaving {old_branch} intact|already active)[ — note: {dirty_count} uncommitted change(s) carried over from {old_branch}]
 ```
+
+The trailing note appears only on the create/rename actions with a dirty tree (see Step 4's dirty-tree note).
 
 ---
 
 ## Output
 
 ```
-Branch: {branch_name} (created|checked out|renamed from {old_branch}|created, leaving {old_branch} intact|already active)
+Branch: {branch_name} (created|checked out|checked out, tracking origin/{branch_name}|renamed from {old_branch}|created, leaving {old_branch} intact|already active)[ — note: {dirty_count} uncommitted change(s) carried over from {old_branch}]
 ```
 
 ---
@@ -167,7 +194,8 @@ Branch: {branch_name} (created|checked out|renamed from {old_branch}|created, le
 |-----------|--------|
 | Not in a git repo | Report and stop |
 | Change name resolution fails (no argument) | Display `fab change resolve`'s error and stop |
-| Change name resolution fails (explicit argument) | Standalone fallback — use literal argument as branch name |
+| Resolution ambiguous (explicit argument, stderr `Multiple changes match`) | STOP with the candidate list — no branch created |
+| Change name resolution fails (explicit argument, no match) | Standalone fallback — use literal argument as branch name |
 | `git checkout` fails (e.g., uncommitted conflicts) | Report the git error. No fab state modified. |
 
 ---

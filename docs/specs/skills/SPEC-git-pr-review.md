@@ -62,11 +62,18 @@ Setting `copilot` to `false` skips Phase 2 entirely. When the `review_tools` key
 │  ├─ Read: source files at {path}
 │  └─ Edit: source files (targeted fixes for "fix" comments)
 │
-├─ Step 5: Commit and Push
+├─ Step 5: Commit and Push (failure handling split — 260612-g8st)
+│  ├─ [no modifications] → unpushed-commit re-run gate:
+│  │  git log @{u}..HEAD (no-upstream = unpushed) — push any commits
+│  │  stranded by a prior failed push, then Step 5.5 (replies cite the
+│  │  now-pushed SHA); only a clean gate prints "No changes needed"
 │  ├─ Bash: git add {files}
 │  ├─ Bash: git commit -m "fix: address review feedback"
 │  ├─ Bash: git push
-│  └─ [no modifications] → proceed to Step 5.5 (don't stop)
+│  ├─ [commit fails] → git reset, STOP (no partial state)
+│  └─ [push fails] → KEEP the commit, print recovery guidance
+│     (git pull --rebase && git push, then re-run), STOP without
+│     posting replies — no "Fixed" reply may cite an unpushed SHA
 │
 ├─ Step 5.5: Post Replies
 │  ├─ Deduplicate: skip comments with existing disposition replies
@@ -76,8 +83,10 @@ Setting `copilot` to `false` skips Phase 2 entirely. When the `review_tools` key
 ├─ Step 6: Update Review-PR Stage (exit point for every terminal
 │  │        path after Step 0 — Steps 1/2/4 route here with a
 │  │        named outcome. Two direct-STOP exceptions: Step 1.5
-│  │        invalid --tool; Step 5 commit/push failure after
-│  │        git reset)
+│  │        invalid --tool; Step 5 commit failure (after git reset,
+│  │        no partial state) or push failure (commit kept + recovery
+│  │        guidance, no replies — the re-run's unpushed gate completes
+│  │        the cycle))
 │  ├─ [success / no-reviews] Bash: fab status finish <change> review-pr
 │  ├─ [failure] Bash: fab status fail <change> review-pr
 │  └─ [timeout] stage left active — no finish, no fail

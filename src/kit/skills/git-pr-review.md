@@ -137,14 +137,30 @@ If all comments are informational → print `No actionable comments.` and go to 
 After all `fix` comments are processed:
 
 1. Check for modifications: `git status --porcelain`
-2. If no modifications → print `No changes needed.` and proceed to Step 5.5 (do NOT stop here)
+2. If no modifications → **unpushed-commit re-run gate**: before declaring "No changes needed", check for unpushed commits:
+
+   ```bash
+   git log --oneline @{u}..HEAD 2>/dev/null || echo "NO_UPSTREAM"
+   ```
+
+   Treat a missing upstream (`NO_UPSTREAM`) as unpushed. This catches a prior run whose commit succeeded but whose push failed — without it, the re-run would post "Fixed" replies citing a SHA that never reached the remote, permanently stranding the fix.
+   - **Unpushed commits exist** → push them (`git push`, or `git push -u origin $(git branch --show-current)` when no upstream). On push failure, apply step 7's push-failure handling. On success, print `Pushed {N} previously unpushed commit(s).` and proceed to Step 5.5 — replies cite the now-pushed SHA.
+   - **No unpushed commits** → print `No changes needed.` and proceed to Step 5.5 (do NOT stop here)
 3. Stage only the specific modified files: `git add {file1} {file2} ...` (NOT `git add -A`)
 4. Generate commit message based on reviewer source:
    - Comments from a single reviewer: `fix: address review feedback from @{username}`
    - Comments from multiple reviewers: `fix: address PR review feedback`
 5. Commit: `git commit -m "<message>"`
 6. Push: `git push`
-7. If commit or push fails → run `git reset` to clear any staged changes, then print the error and STOP (no partial state)
+7. The two failure modes differ — handle them separately:
+   - **Commit fails** → run `git reset` to clear any staged changes, then print the error and STOP (no partial state — true for a failed commit)
+   - **Push fails** → **KEEP the commit** (`git reset` cannot undo it, and discarding it would lose the fixes). Print the push error plus recovery guidance, then STOP **without posting replies** — no `Fixed` reply may cite an unpushed SHA:
+
+     ```
+     Push failed — the fix commit {sha} is kept locally.
+     Recover with: git pull --rebase && git push, then re-run /git-pr-review.
+     (The re-run detects the unpushed commit, pushes it, and posts the replies.)
+     ```
 
 Print: `Fixed {N} comment(s) across {M} file(s)`
 
@@ -177,7 +193,7 @@ Print: `Replied to {N} comment(s): {F} fix, {D} defer, {S} skip`
 
 ### Step 6: Update Review-PR Stage
 
-**Step 6 is the exit point for every terminal path after Step 0, with two exceptions** — Steps 1, 2, and 4 route their terminal conditions here with a named outcome. The exceptions STOP directly without reaching Step 6: **Step 1.5** (invalid `--tool` value — stops before any review processing) and **Step 5** (commit or push failure — stops after `git reset`, leaving no partial state).
+**Step 6 is the exit point for every terminal path after Step 0, with two exceptions** — Steps 1, 2, and 4 route their terminal conditions here with a named outcome. The exceptions STOP directly without reaching Step 6: **Step 1.5** (invalid `--tool` value — stops before any review processing) and **Step 5** (commit failure — stops after `git reset`, no partial state; push failure — stops keeping the commit, with recovery guidance and no replies posted — the re-run's unpushed-commit gate completes the cycle).
 
 If an active change was resolved in Step 0, act on the outcome class:
 
@@ -226,7 +242,7 @@ The `reviewer` field is set when reviews are detected: `yq -i ".stage_metrics.\"
 - Fully autonomous — never ask questions, never present options
 - Fail fast — if any step fails, report the error and stop immediately, except where a step explicitly declares best-effort handling (it reports but does not abort)
 - Targeted fixes only — do not modify code beyond what each comment addresses
-- Idempotent — re-running after fixes finds no new modifications and exits cleanly; re-running after replies skips already-replied comments; re-running after the status commit finds nothing staged (`git diff --cached --quiet`) and is a silent no-op
+- Idempotent — re-running after fixes finds no new modifications and exits cleanly; re-running after a failed push detects the kept commit via the Step 5 unpushed-commit gate and pushes it before replying; re-running after replies skips already-replied comments; re-running after the status commit finds nothing staged (`git diff --cached --quiet`) and is a silent no-op
 
 ---
 

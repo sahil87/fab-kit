@@ -75,18 +75,29 @@ User invokes /fab-new <description>
 │
 └─ Step 11: Create Git Branch (single first-match-wins table —
    │         260611-szxd f032; kept in sync with git-branch.md Step 4
-   │         via an in-file comment; same five cases, commands, and
+   │         via an in-file comment; same cases, commands, and
    │         report strings)
    ├─ Bash: git rev-parse --is-inside-work-tree   (repo check — skip if fails)
    ├─ Context reads: git branch --show-current ·
+   │  git status --porcelain | grep -v "fab/changes/{name}/" | wc -l
+   │  ({dirty_count} — fab-new-only divergence: excludes the change's own
+   │   just-created artifacts, which always exist uncommitted by Step 11;
+   │   git-branch counts the full porcelain output) ·
    │  git rev-parse --verify "{name}" ·
+   │  git rev-parse --verify "origin/{name}" ·
    │  git config branch.{current}.remote ·
    │  fab change resolve "$(git branch --show-current)"
-   └─ Evaluate the 5-row table in order, first match wins:
-      already-on-target (no-op) / target-exists (checkout) /
-      on-main (checkout -b) / local-only + rename guard passes
-      (branch -m) / other-change's local-only branch or pushed
-      branch (checkout -b, leaving {old_branch} intact)
+   ├─ Evaluate the 6-row table in order, first match wins (260612-g8st):
+   │  already-on-target (no-op) / target-exists-locally (checkout) /
+   │  target-on-remote-only (checkout --track origin/{name}) /
+   │  on-main (checkout -b) / local-only + rename guard passes —
+   │  resolves to no change OR to this SAME change (branch -m) /
+   │  different-change's local-only branch or pushed branch
+   │  (checkout -b, leaving {old_branch} intact)
+   └─ Dirty-tree note (260612-g8st): {dirty_count} > 0 on a
+      checkout -b / branch -m row appends a non-blocking
+      " — note: {N} uncommitted change(s) carried over from
+      {old_branch}" to the report line (warn, never stash-prompt)
 ```
 
 ### Tools used
@@ -96,7 +107,7 @@ User invokes /fab-new <description>
 | Read | Load preamble, templates, backlog, project files |
 | Write | Write `intake.md` |
 | Bash | `fab change new`, `fab status set-change-type` (override only), `fab score`, `fab status advance`, `fab status add-issue`, `fab change switch` |
-| Bash (git) | `git rev-parse --is-inside-work-tree`, `git branch --show-current`, `git rev-parse --verify`, `git config branch.{current}.remote`, `git checkout -b`, `git checkout`, `git branch -m` |
+| Bash (git) | `git rev-parse --is-inside-work-tree`, `git branch --show-current`, `git status --porcelain` (dirty count, excluding `fab/changes/{name}/`), `git rev-parse --verify` (local + `origin/{name}`), `git config branch.{current}.remote`, `git checkout -b`, `git checkout`, `git checkout --track`, `git branch -m` |
 | MCP (Linear) | Fetch issue details (optional path) |
 
 ### Sub-agents
@@ -111,4 +122,4 @@ None.
 | 7 | `fab score --stage intake` | After intake.md write |
 | 9 | `fab status advance` | After all intake work complete |
 | 10 | `fab change switch` | After intake advanced to ready |
-| 11 | `git checkout -b` / `git checkout` / `git branch -m` | After change activated |
+| 11 | `git checkout -b` / `git checkout` / `git checkout --track` / `git branch -m` | After change activated |

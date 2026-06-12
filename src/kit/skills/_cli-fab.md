@@ -52,7 +52,7 @@ See `_preamble.md` § Common fab Commands for the headline. Full subcommand tabl
 | `resolve` | `resolve [<override>]` | Passthrough to `fab resolve --folder` |
 | `switch` | `switch <name> \| --none` | Switch active change (writes `.fab-status.yaml` symlink) |
 | `list` | `list [--archive]` | List changes with stage info |
-| `archive` | `archive <change> [--description "..."]` | Move to `archive/`, update index, mark backlog item done, clear pointer. `--description` is optional — defaults to the intake title (humanized-slug fallback). Re-archiving an already-archived change is a soft skip (exit 0). |
+| `archive` | `archive <change> [--description "..."]` | Move to `archive/`, update index, mark backlog item done, clear pointer. `--description` is optional — defaults to the intake title (humanized-slug fallback). Re-archiving an already-archived change is a soft skip (exit 0) that still re-attempts the backlog mark (idempotent — recovers a previously-failed mark; silent, the plain soft-skip line is unchanged). |
 | `restore` | `restore <change> [--switch]` | Move from `archive/`, remove index entry, optionally activate |
 | `archive-list` | `archive-list` | List archived folder names |
 

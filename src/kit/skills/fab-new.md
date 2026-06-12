@@ -142,22 +142,29 @@ If inside a git repo, read the context the conditions below use:
 
 ```bash
 git branch --show-current                                                                  # current branch name
-git rev-parse --verify "{name}" >/dev/null 2>&1                                            # does the target branch exist?
+git status --porcelain | grep -v "fab/changes/{name}/" | wc -l                             # {dirty_count} — for the non-blocking note below
+git rev-parse --verify "{name}" >/dev/null 2>&1                                            # does the target branch exist locally?
+git rev-parse --verify "origin/{name}" >/dev/null 2>&1                                     # does it exist on the remote?
 upstream=$(git config "branch.$(git branch --show-current).remote" 2>/dev/null || true)    # empty = local-only branch
-fab change resolve "$(git branch --show-current)" >/dev/null 2>&1                          # does the current branch belong to a change?
+fab change resolve "$(git branch --show-current)" 2>/dev/null                              # which change (if any) does the current branch belong to?
 ```
 
-<!-- Keep this table in sync with git-branch.md Step 4 — same five cases, same commands, same report strings (incl. the local-only rename guard). -->
+> **fab-new-specific `{dirty_count}` derivation**: the porcelain count excludes `fab/changes/{name}/` — this change's own just-created artifacts (`intake.md`, `.status.yaml`, `.history.jsonl`) always exist uncommitted by Step 11, so counting them would fire the dirty-tree note on every run. Only *pre-existing* uncommitted work should trigger the note.
+
+<!-- Keep this table in sync with git-branch.md Step 4 — same cases, same commands, same report strings (incl. the rename guard, the remote-only --track case, and the dirty-tree note). One deliberate divergence lives OUTSIDE the shared rows: fab-new derives {dirty_count} excluding fab/changes/{name}/ (see the derivation note above); git-branch counts the full porcelain output. -->
 
 **Evaluate in order, first match wins:**
 
 | # | Condition | Command | Report |
 |---|-----------|---------|--------|
 | 1 | Current branch equals `{name}` | *(none)* | `Branch: {name} (already active)` |
-| 2 | Target branch `{name}` exists (`git rev-parse --verify` succeeds) | `git checkout "{name}"` | `Branch: {name} (checked out)` |
-| 3 | On `main` or `master` | `git checkout -b "{name}"` | `Branch: {name} (created)` |
-| 4 | Local-only branch (`upstream` empty) AND current branch belongs to no change (**rename guard**: `fab change resolve` fails — e.g., a disposable `wt create` name) | `git branch -m "{name}"` | `Branch: {name} (renamed from {old_branch})` |
-| 5 | Local-only branch belonging to a different change (`fab change resolve` succeeds — e.g., after `/fab-switch`; do NOT rename it away, caveat: the new branch inherits the old change's HEAD) OR pushed branch (`upstream` non-empty) | `git checkout -b "{name}"` | `Branch: {name} (created, leaving {old_branch} intact)` |
+| 2 | Target branch `{name}` exists locally (`git rev-parse --verify "{name}"` succeeds) | `git checkout "{name}"` | `Branch: {name} (checked out)` |
+| 3 | Target exists only on the remote (`origin/{name}` verify succeeds) — do NOT recreate a divergent local | `git checkout --track "origin/{name}"` | `Branch: {name} (checked out, tracking origin/{name})` |
+| 4 | On `main` or `master` | `git checkout -b "{name}"` | `Branch: {name} (created)` |
+| 5 | Local-only branch (`upstream` empty) AND the **rename guard** passes: the current branch belongs to no change (`fab change resolve` fails — e.g., a disposable `wt create` name) or resolves to this SAME change (e.g., a worktree placeholder named with the change's own ID) | `git branch -m "{name}"` | `Branch: {name} (renamed from {old_branch})` |
+| 6 | Local-only branch belonging to a different change (`fab change resolve` succeeds with another change — e.g., after `/fab-switch`; do NOT rename it away, caveat: the new branch inherits the old change's HEAD) OR pushed branch (`upstream` non-empty) | `git checkout -b "{name}"` | `Branch: {name} (created, leaving {old_branch} intact)` |
+
+> **Dirty-tree note** (non-blocking — never prompt, never stash): when `{dirty_count}` > 0 AND the matched row runs `git checkout -b` or `git branch -m`, the uncommitted work rides onto the new branch. Append to the report line: ` — note: {dirty_count} uncommitted change(s) carried over from {old_branch}`.
 
 If any git operation fails (e.g., uncommitted conflicts blocking checkout):
 - Report the git error message
@@ -182,7 +189,7 @@ Intake complete.
 Confidence: {score} / 5.0 ({N} decisions, cover: {cover})
 
 Activated: {name}
-Branch: {name} (created|created, leaving {old_branch} intact|checked out|renamed from {old_branch}|already active)
+Branch: {name} (created|created, leaving {old_branch} intact|checked out|checked out, tracking origin/{name}|renamed from {old_branch}|already active)[ — note: {dirty_count} uncommitted change(s) carried over from {old_branch}]
 
 {if assumptions: "## Assumptions\n\n| # | Grade | Decision | Rationale | Scores |\n..."}
 
