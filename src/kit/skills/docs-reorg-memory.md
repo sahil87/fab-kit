@@ -158,7 +158,7 @@ If no changes needed: `Current structure is well-organized — no reorganization
 | File write/move fails during apply | Report error, roll back that migration, continue |
 | Content verification fails | Warn, show missing heading, ask to proceed |
 | `fab memory-index` unavailable (older binary) | Warn; fall back to hand-updating affected `index.md` files (legacy path) and tell the user to upgrade `fab` |
-| Broken relative link remains after a move | **Hard block** — report the dangling link; do not finalize that migration until it is rewritten. If it cannot be rewritten, take the Step 5.5 abort escape: roll back that migration, regenerate indexes, continue with the rest |
+| Broken relative link remains after a move | **Hard block** — report the dangling link; do not finalize that migration until it is rewritten. If it cannot be rewritten, take the abort escape defined in Step 5's Verify item (apply item 5): roll back that migration, regenerate indexes, continue with the rest |
 
 ---
 

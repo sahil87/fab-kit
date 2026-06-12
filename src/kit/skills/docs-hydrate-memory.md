@@ -35,7 +35,7 @@ Index files (`index.md` at the root, domain, and sub-domain tiers) are **generat
 
 ## Context Loading
 
-Skips the always-load layer entirely (this section is the skill-file override the `_preamble.md` §1 contract keys on): the skill ingests or generates memory content — it does not need to pre-load the memory landscape, and it requires no config, constitution, or active change. Only the Pre-flight files above are read.
+Skips the always-load layer entirely (this section is the skill-file override the `_preamble.md` §1 contract keys on): the skill ingests or generates memory content — it does not need to pre-load the memory landscape, and it requires no config, constitution, or active change. Up-front, only the Pre-flight files above are read — the skill's own working inputs (ingest sources in Step 1, scanned codebase files in generate mode) are still read during execution; what is skipped is the always-load layer, nothing more.
 
 ---
 
