@@ -15,7 +15,7 @@ plan:
     generated: true
     task_count: 33
     acceptance_count: 33
-    acceptance_completed: 0
+    acceptance_completed: 33
 confidence:
     certain: 13
     confident: 0
@@ -52,4 +52,4 @@ true_impact:
     computed_at: "2026-06-12T12:26:26Z"
     computed_at_stage: hydrate
 # true_impact: lazily created on first apply-finish (no placeholder here).
-last_updated: 2026-06-12T12:28:56Z
+last_updated: 2026-06-12T12:29:41Z
