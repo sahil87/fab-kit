@@ -20,7 +20,10 @@ Orchestrator (fab-continue / fab-ff / fab-fff) reads _review.md
 │  │
 │  ├─ Inward Sub-Agent
 │  │  Context: plan.md (## Requirements + ## Tasks + ## Acceptance),
-│  │           touched source files, target memory files
+│  │           touched source files, target memory files,
+│  │           change_type (260612-w7dp — read from .status.yaml by
+│  │           the dispatching orchestrator and passed in the prompt;
+│  │           Steps 7–8 key their skip condition on it)
 │  │  Validation Steps (8):
 │  │    1. Tasks complete
 │  │    2. Acceptance items
@@ -68,7 +71,7 @@ Orchestrator (fab-continue / fab-ff / fab-fff) reads _review.md
 
 ### Validation Steps Inventory (Inward Sub-Agent)
 
-The inward sub-agent runs all eight checks. Steps 7 and 8 (added in 260507-ogf2) share a hard-coded skip list and a single project-level toggle.
+The inward sub-agent runs all eight checks. Steps 7 and 8 (added in 260507-ogf2) share a hard-coded skip list and a single project-level toggle. The `change_type` the skip list keys on is a defined prompt input since 260612-w7dp: the dispatching orchestrator reads it from the change's `.status.yaml` (preflight does not emit it) and passes it in the sub-agent prompt.
 
 | Step | Name | Skipped when | Severity surface |
 |------|------|--------------|------------------|

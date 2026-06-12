@@ -118,7 +118,7 @@
 | **Next steps convention** | The rule that every skill must end output with a `Next:` line suggesting follow-up commands. Keeps users oriented in the workflow. |
 | **Preflight** | Validation performed by `_preflight.sh` before skill execution. Checks project initialization, active change existence, and status file integrity. |
 | **Resumability** | The property that `/fab-continue`, `/fab-ff`, and `/fab-fff` can be interrupted and re-invoked, picking up from the first incomplete item. The markdown checkboxes in `plan.md` `## Tasks` are the progress state; plan generation is skipped when `plan.md` already exists. |
-| **Rework loop** | The review-to-apply feedback cycle. `/fab-continue` (review) can loop back to apply (fix code), revise the plan's `## Tasks`/`## Acceptance`, or revise the plan's `## Requirements` (for a fundamentally wrong intake, fix `intake.md` via `/fab-clarify intake` first). |
+| **Rework loop** | The review-to-apply feedback cycle. `/fab-continue` (review) can loop back to apply (fix code), revise the plan's `## Tasks`/`## Acceptance`, or revise the plan's `## Requirements` (for a fundamentally wrong intake, run `/fab-continue intake` then `/fab-clarify` first, deleting `plan.md` to force requirements regeneration). |
 
 ---
 

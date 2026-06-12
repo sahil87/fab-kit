@@ -12,8 +12,9 @@ metadata:
 > skill (the **driver**) declares two parameters before executing this bracket — read them from
 > the driver's own file:
 >
-> - **`{driver}`** — the driver name passed to every `fab status` event command and used in
->   re-run guidance: `fab-ff` or `fab-fff`
+> - **`{driver}`** — the driver name passed to the `fab status` event commands this bracket
+>   shows it on (the fail/recovery commands are deliberately driver-less — see the Behavior
+>   note below) and used in re-run guidance: `fab-ff` or `fab-fff`
 > - **`{terminal}`** — the bracket's terminal stage: `hydrate` for `/fab-ff` (the pipeline ends
 >   after Step 3), or `review-pr` for `/fab-fff` (the fff-only Steps 4–5 — ship and review-pr —
 >   live in `fab-fff.md` and run after this bracket's Step 3)
@@ -28,7 +29,7 @@ metadata:
 
 1. Run preflight per `_preamble.md` Section 2. Pass `<change-name>` if provided.
 2. **Intake prerequisite**: Verify `intake.md` exists. If not, STOP: `Intake not found. Run /fab-new to create the intake first.`
-3. **Intake gate** *(skip if `--force`)*: Run `fab score --check-gate --stage intake <change>`. If the gate fails → STOP: `Intake confidence is {score} of 5.0 (need >= 3.0). Run /fab-clarify to resolve, then retry.`
+3. **Intake gate** *(skip if `--force`)*: Run `fab score --check-gate --stage intake <change>`. If the gate fails → STOP: `Intake confidence is {score} of 5.0 (need >= 3.0). Run /fab-clarify <change> to resolve, then re-run /{driver} <change>.` (Both commands name the change — the run may be driving a non-active override.)
 
 This intake gate is the **single** confidence gate (flat 3.0 for all change types — see `_preamble.md` § Gate Threshold). There is no spec gate and no review gate; review failures are handled by the bounded auto-rework loop below, not by a gate.
 
@@ -58,7 +59,7 @@ Dispatch `/fab-continue` as subagent — Apply Behavior, change: `{id}` (prompt 
 
 No `/fab-clarify` runs here. Under-specified requirements are resolved inline by the apply agent as graded SRAD assumptions in `plan.md` `## Assumptions` — not via any clarify ceremony.
 
-**If task fails**: STOP with `Task {ID} failed: {reason}. Investigate and re-run /{driver}.`
+**If task fails**: STOP with `Task {ID} failed: {reason}. Investigate and re-run /{driver} <change>.`
 
 On success: run `fab status finish <change> apply {driver}`.
 
@@ -86,10 +87,10 @@ The agent triages the sub-agent's prioritized findings and autonomously selects 
 4. **Fresh re-review**: dispatch a **fresh** `/fab-continue` Review Behavior subagent, same prompt contract as Step 2. Never reuse a prior review subagent's context.
 5. **Verdict**: pass → run `fab status finish <change> review {driver}` and proceed to Step 3. Fail → if fewer than `{max_cycles}` cycles have run, start the next cycle at item 1 (the fail+reset pair fires again); after the `{max_cycles}`-th failed cycle, stop per **Stop** below.
 
-**Decision heuristics** (applied at item 2 of each cycle):
-- **Must-fix: test failures, requirements mismatches, acceptance violations** → "Fix code" — uncheck affected tasks in `plan.md` `## Tasks` with `<!-- rework: reason -->`
+**Decision heuristics** (applied at item 2 of each cycle — disjoint: each failure description routes to exactly one path):
+- **Must-fix: test failures, code that fails a correct requirement, acceptance violations** → "Fix code" — uncheck affected tasks in `plan.md` `## Tasks` with `<!-- rework: reason -->`
 - **Must-fix: missing functionality, incomplete coverage, wrong task breakdown** → "Revise plan" — edit `plan.md` (add/modify tasks under `## Tasks` and/or acceptance items under `## Acceptance`)
-- **Must-fix: requirements drift, requirements mismatch, fundamental approach issues** → "Revise requirements" — edit `plan.md` `## Requirements` plus the downstream `## Tasks`/`## Acceptance` it affects
+- **Must-fix: the requirement itself is wrong or has drifted, fundamental approach issues** → "Revise requirements" — edit `plan.md` `## Requirements` plus the downstream `## Tasks`/`## Acceptance` it affects
 
 **Escalation rule**: If the agent chooses "Fix code" and the subsequent sub-agent review fails again on the same or similar issues, the agent MUST escalate to "Revise plan" or "Revise requirements" after **2 consecutive "fix code" attempts**. This is a hard rule — the agent SHALL NOT choose "Fix code" a third time in a row, even if it believes another code fix would work. Non-fix-code actions (revise plan, revise requirements) reset the consecutive counter.
 
@@ -102,10 +103,10 @@ Review failed after {max_cycles} rework attempts. Summary:
   Cycle 1: {action} — {what was done}
   ...
   Cycle {max_cycles}: {action} — {what was done}
-Run /fab-continue for manual rework options.
+Run /fab-continue <change> for manual rework options.
 ```
 
-`/fab-continue` will detect the `failed` review state, reset apply, and present the rework menu (fix code / revise plan / revise requirements) directly for the user to choose from. Alternatively, the user can run `/fab-clarify intake` to deepen the intake (the apply-entry requirements regenerate from it) before re-running `/{driver}`.
+`/fab-continue <change>` will detect the `failed` review state, reset apply, and present the rework menu (fix code / revise plan / revise requirements) directly for the user to choose from. Alternatively, the user can deepen the intake: run `/fab-continue <change> intake` then `/fab-clarify <change>`, and delete `plan.md` (the documented force-regeneration mechanism — it is otherwise preserved on reset) so the apply-entry requirements regenerate from the deepened intake before re-running `/{driver}`. **Name the change in every command here** — this run may have been driving a non-active override, and an argless invocation would resolve the ACTIVE change instead (fab-continue accepts both arguments in any order; fab-clarify accepts a `<change-name>` override; the intake reset regenerates the intake).
 
 ### Step 3: Hydrate
 
@@ -128,5 +129,5 @@ These rows apply to both drivers; each driver's own file adds any driver-specifi
 | Preflight fails | Abort with stderr message |
 | `intake.md` missing | Abort: "Intake not found. Run /fab-new first." |
 | Intake gate fails (confidence < 3.0) | Stop with score and guidance |
-| Task fails | Stop: "Task {ID} failed: {reason}. Investigate and re-run /{driver}." |
+| Task fails | Stop: "Task {ID} failed: {reason}. Investigate and re-run /{driver} <change>." |
 | Review fails | Auto-rework loop: `{max_cycles}` cycles (default 3), each per the per-cycle choreography (fail+reset pair, one rework action, re-apply, fresh re-review), escalation after 2 consecutive fix-code. After `{max_cycles}` failed cycles: `fail` review (no reset) and stop with summary. Escalation paths: revise plan or revise requirements (both in `plan.md`). |

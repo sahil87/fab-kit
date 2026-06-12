@@ -1,0 +1,55 @@
+id: w7dp
+name: 260612-w7dp-orchestrator-dispatch-review-pr-recovery
+created: 2026-06-12T12:38:48Z
+created_by: sahil-noon
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 26
+    acceptance_count: 44
+    acceptance_completed: 44
+confidence:
+    certain: 3
+    confident: 6
+    tentative: 0
+    unresolved: 0
+    score: 3.2
+    fuzzy: true
+    dimensions:
+        signal: 70.0
+        reversibility: 82.8
+        competence: 80.6
+        disambiguation: 76.1
+stage_metrics:
+    intake: {started_at: "2026-06-12T12:38:48Z", driver: fab-new, iterations: 1, completed_at: "2026-06-12T12:51:52Z"}
+    apply: {started_at: "2026-06-12T15:21:44Z", driver: fab-continue, iterations: 6, completed_at: "2026-06-12T15:22:30Z"}
+    review: {started_at: "2026-06-12T15:22:30Z", driver: fab-continue, iterations: 1, completed_at: "2026-06-12T15:24:48Z"}
+    hydrate: {started_at: "2026-06-12T15:24:48Z", driver: fab-continue, iterations: 1, completed_at: "2026-06-12T15:45:12Z"}
+    ship: {started_at: "2026-06-12T15:45:12Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-12T15:48:13Z"}
+    review-pr: {started_at: "2026-06-12T15:48:13Z", driver: git-pr, iterations: 1, completed_at: "2026-06-12T15:58:18Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/404
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-06-12T15:45:12Z"
+    computed_at_stage: hydrate
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-12T15:58:18Z

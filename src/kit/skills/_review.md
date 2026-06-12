@@ -32,7 +32,7 @@ The inward sub-agent validates implementation against the plan's `## Requirement
 
 **Dispatch**: Via the Agent tool (`subagent_type: "general-purpose"`).
 
-**Context provided to the sub-agent**: Standard subagent context files (per `_preamble.md` § Standard Subagent Context), plus change-specific files: `plan.md` (containing `## Requirements`, `## Tasks`, and `## Acceptance` sections), relevant source files (files touched by the change), and target memory file(s) from `docs/memory/`.
+**Context provided to the sub-agent**: Standard subagent context files (per `_preamble.md` § Standard Subagent Context), plus change-specific files: `plan.md` (containing `## Requirements`, `## Tasks`, and `## Acceptance` sections), relevant source files (files touched by the change), and target memory file(s) from `docs/memory/`. The prompt MUST also carry the change's **`change_type`**: the dispatching orchestrator reads it from `fab/changes/{name}/.status.yaml` (e.g., `grep '^change_type:'` — `fab preflight` does not emit this field) and passes the value in the prompt; Steps 7–8 key their skip condition on it.
 
 ### Validation Steps
 
@@ -50,7 +50,7 @@ The inward sub-agent performs all of these checks:
    - Existing utilities reused where applicable
    - If `fab/project/code-quality.md` exists, check each applicable principle from `## Principles`
    - If `fab/project/code-quality.md` exists, check for violations listed in `## Anti-Patterns`
-7. **Parsimony pass** (skipped when `change_type` is `docs`, `chore`, or `ci`, or when `fab/project/code-review.md` `## Parsimony Pass` `Enabled: false`): Evaluate the apply-stage diff against the question *"Could the plan's `## Requirements` be satisfied with less code?"* Threshold for stricter scrutiny: **100 net added lines** (advisory, hard-coded — not project-configurable). Below threshold the pass still runs and MAY emit findings. Findings MUST cite specific file paths and line ranges; abstract findings (e.g., "the code could be smaller") MUST NOT be emitted. Each finding is classified into exactly one of these four categories with the mapped severity:
+7. **Parsimony pass** (skipped when `change_type` — supplied in the prompt, see Context above — is `docs`, `chore`, or `ci`, or when `fab/project/code-review.md` `## Parsimony Pass` `Enabled: false`): Evaluate the apply-stage diff against the question *"Could the plan's `## Requirements` be satisfied with less code?"* Threshold for stricter scrutiny: **100 net added lines** (advisory, hard-coded — not project-configurable). Below threshold the pass still runs and MAY emit findings. Findings MUST cite specific file paths and line ranges; abstract findings (e.g., "the code could be smaller") MUST NOT be emitted. Each finding is classified into exactly one of these four categories with the mapped severity:
 
    | Category | Finding shape | Severity |
    |----------|---------------|----------|

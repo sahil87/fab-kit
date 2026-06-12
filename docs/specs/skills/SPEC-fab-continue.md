@@ -2,7 +2,9 @@
 
 ## Summary
 
-Advances through the 6-stage pipeline one step at a time. Each invocation handles the current stage's work and transitions to the next. Supports reset to a given stage (legacy `tasks`/`spec` targets error with a pointer to `apply` / `/fab-clarify intake`). Handles all six stages: intake (the only planning stage), apply (co-generates `plan.md` `## Requirements` + `## Tasks` + `## Acceptance` at entry then runs tasks), review (sub-agent), hydrate, ship (delegates to `/git-pr` behavior), and review-pr (delegates to `/git-pr-review` behavior).
+Advances through the 6-stage pipeline one step at a time. Each invocation handles the current stage's work and transitions to the next. Supports reset to a given stage (legacy `tasks`/`spec` targets error with a pointer to the `apply` and `intake` reset routes). Handles all six stages: intake (the only planning stage), apply (co-generates `plan.md` `## Requirements` + `## Tasks` + `## Acceptance` at entry then runs tasks), review (sub-agent), hydrate, ship (delegates to `/git-pr` behavior), and review-pr (delegates to `/git-pr-review` behavior).
+
+**Failure recovery + idempotent reset** (260612-w7dp): a `review-pr`/`failed` dispatch row — keyed off `progress.review-pr == failed`, the same progress-map guard mechanism as the review row — re-executes `/git-pr-review` behavior (its Step 0 `start` accepts `failed → active` for review-pr; never `reset`, whose From-set `{done, ready, skipped}` excludes `failed`), so a failed PR review no longer falls through to "Change is complete." The ship and review-pr rows (incl. the failed row) pass the resolved change **explicitly** to `/git-pr`/`/git-pr-review` (`{name}` as the `<change>` argument — the explicit-arg contract); the ship and review-pr **`active`** rows key on `active` only — `ready` is not in either stage's AllowedStates — while the review-pr failed row keys on the progress map's `failed`. The Reset Flow handles all non-resettable target states (reset From-set `{done, ready, skipped}`): already-`active` → skip the call and proceed (re-running a reset is a state-wise no-op — Constitution III); `failed` → route via the matching failed dispatch row (`start` owns failed→active, review/review-pr only); `pending` → error with advance guidance. All recovery pointers are executable: the unexecutable `/fab-clarify intake` form is replaced by `/fab-continue intake` then argless `/fab-clarify` (argless is correct in fab-continue's own messages — the change reference of the current invocation is implied, active or `[change-name]` override, and an Error Handling note tells override users to re-run with the same `<change-name>`; cross-context sites like `_pipeline.md`'s stop guidance instead name the change in every command), with an explicit delete-`plan.md` note where plan regeneration is the intent; the `intake.md`-missing error points at `/fab-continue intake` instead of looping through plain `/fab-continue`. The Review Behavior call site reads `change_type` from `.status.yaml` and passes it in the inward sub-agent prompt per `_review.md`'s context contract.
 
 **Helpers**: Declares `helpers: [_srad]` in frontmatter; `_generation` and `_review` are loaded **stage-conditionally** at point of use (apply entry / intake regeneration → `_generation`; Review Behavior entry → `_review`) per `_preamble.md` § Skill Helper Declaration stage-conditional loading. Hydrate/ship/review-pr invocations and apply-resumes load neither.
 
@@ -16,6 +18,11 @@ User invokes /fab-continue [change-name] [stage]
 │
 ├─ [if reset arg] Reset Flow
 │  └─ Bash: fab status reset <change> <stage> fab-continue
+│     (non-resettable target states handled first, 260612-w7dp —
+│      reset From = {done, ready, skipped}: already-active → skip
+│      the call, proceed (re-run is a no-op); failed → route via the
+│      matching failed dispatch row (start owns failed→active);
+│      pending → error with advance guidance)
 │     └─ (cascades downstream to pending)
 │
 ├─ Dispatch on current stage + state
@@ -26,6 +33,10 @@ User invokes /fab-continue [change-name] [stage]
 │   re-run review; orchestrators re-running /fab-ff//fab-fff recover
 │   via fab status start <change> review per _pipeline.md Resumability
 │   instead — that autonomous path is theirs, not this skill's)
+│  (review-pr-failed dispatch — 260612-w7dp: progress.review-pr ==
+│   failed → re-execute /git-pr-review behavior; its Step 0 start
+│   recovers failed→active — never reset, and never falls through
+│   to "Change is complete.")
 │
 │  ┌─────────────────────────────────────────────────┐
 │  │ INTAKE STAGE (the only planning stage)          │
@@ -113,12 +124,16 @@ User invokes /fab-continue [change-name] [stage]
 │
 │  ┌─────────────────────────────────────────────────┐
 │  │ SHIP STAGE                                      │
-│  │  (delegates to /git-pr behavior)                │
+│  │  (delegates to /git-pr behavior, passing the    │
+│  │   resolved change as the explicit <change>      │
+│  │   argument — 260612-w7dp)                       │
 │  └─────────────────────────────────────────────────┘
 │
 │  ┌─────────────────────────────────────────────────┐
 │  │ REVIEW-PR STAGE                                 │
-│  │  (delegates to /git-pr-review behavior — it     │
+│  │  (delegates to /git-pr-review behavior, passing │
+│  │   the resolved change as the explicit <change>  │
+│  │   argument — 260612-w7dp; it                    │
 │  │   routes all terminal paths through its Step 6  │
 │  │   and runs its own transitions; finish or fail  │
 │  │   only if the stage is still active after it    │

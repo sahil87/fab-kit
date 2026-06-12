@@ -21,7 +21,7 @@ Advance through the 6-stage Fab pipeline one step at a time. Each invocation han
 ## Arguments
 
 - **`<change-name>`** *(optional)* — target a specific change instead of the active one resolved via `.fab-status.yaml`. Passed to preflight as `$1` (see `_preamble.md` §2).
-- **`<stage>`** *(optional)* — reset target: `intake`, `apply`, `review`, `hydrate`, `ship`, `review-pr`. The legacy `tasks` and `spec` targets error with a pointer to `apply` / `/fab-clarify intake` (see Error Handling).
+- **`<stage>`** *(optional)* — reset target: `intake`, `apply`, `review`, `hydrate`, `ship`, `review-pr`. The legacy `tasks` and `spec` targets error with a pointer to the `apply` and `intake` reset routes (see Error Handling).
 
 Both may be provided in any order. Stage names are treated as reset targets; all others as change-name overrides.
 
@@ -39,7 +39,7 @@ Both may be provided in any order. Stage names are treated as reset targets; all
 
 ### Step 1: Determine Current Stage
 
-Dispatch on preflight's derived `stage` and `display_state`. If progress is `pending`, run `fab status start <change> <stage> fab-continue` before dispatching. **Review-failed dispatch**: if `progress.review` is `failed` (an exhausted `/fab-ff`/`/fab-fff` rework loop, or an interrupted fail→reset sequence), do NOT re-run review — use the `review`/`failed` row below: present the rework menu directly. (Orchestrator re-runs of `/fab-ff`/`/fab-fff` instead recover via `fab status start <change> review` per `_pipeline.md` Resumability — that autonomous path is theirs, not this skill's.)
+Dispatch on preflight's derived `stage` and `display_state`. If progress is `pending`, run `fab status start <change> <stage> fab-continue` before dispatching. **Review-failed dispatch**: if `progress.review` is `failed` (an exhausted `/fab-ff`/`/fab-fff` rework loop, or an interrupted fail→reset sequence), do NOT re-run review — use the `review`/`failed` row below: present the rework menu directly. (Orchestrator re-runs of `/fab-ff`/`/fab-fff` instead recover via `fab status start <change> review` per `_pipeline.md` Resumability — that autonomous path is theirs, not this skill's.) **Review-pr-failed dispatch**: if `progress.review-pr` is `failed` (a failed PR-review run — `gh` missing, no PR found, or a processing error), use the `review-pr`/`failed` row below: re-execute `/git-pr-review` behavior — a FAILED PR review MUST NOT fall through to the "all `done`" row and read as complete.
 
 **State-based dispatch**: Intake is the only planning stage. `/fab-continue` consolidates work into a single invocation:
 - **`ready`** (intake) → Finish intake (auto-activates apply), then execute apply (its entry sub-step generates `plan.md`, then runs tasks)
@@ -52,10 +52,11 @@ Dispatch on preflight's derived `stage` and `display_state`. If progress is `pen
 | `intake` | `active` | generate intake if missing (read `.claude/skills/_generation/SKILL.md` first — Intake Generation Procedure) → advance to `ready` |
 | `apply` | `active`/`ready` | Execute apply (entry: generate `plan.md` if absent; main: run tasks) → on completion run `finish <change> apply fab-continue` (auto-activates review) |
 | `review` | `active`/`ready` | Execute review → pass: run `finish <change> review fab-continue` (auto-activates hydrate). Fail: run `fail <change> review` then `reset <change> apply fab-continue` |
-| `review` | `failed` | *(Keys on `progress.review == failed` via the guard above — preflight's derived stage/state never yields a `failed` tier, so this row is reached from the progress map, not the dispatch key.)* Run `reset <change> apply fab-continue` (the same post-fail reset the Verdict fail path runs — review cascades to `pending`, apply re-activates), then present the rework menu (Review Behavior § Verdict, **Fail** options table) directly and stop for the user's choice — do NOT re-run review first |
+| `review` | `failed` | *(Keys on `progress.review == failed` via the guard above. Preflight does surface a parked failure — `display_stage`/`display_state` read `review`/`failed` via DisplayStage's failed tier — but the derived routing `stage` lands on the next pending stage, so the progress map is the reliable key.)* Run `reset <change> apply fab-continue` (the same post-fail reset the Verdict fail path runs — review cascades to `pending`, apply re-activates), then present the rework menu (Review Behavior § Verdict, **Fail** options table) directly and stop for the user's choice — do NOT re-run review first |
 | `hydrate` | `active`/`ready` | Execute hydrate → run `finish <change> hydrate fab-continue` |
-| `ship` | `active`/`ready` | Execute `/git-pr` behavior → git-pr finishes ship internally (its Step 4b); only if the stage is still `active` after it returns, run `finish <change> ship fab-continue` (auto-activates review-pr) |
-| `review-pr` | `active`/`ready` | Execute `/git-pr-review` behavior → it routes all terminal paths through its Step 6 and runs its own transitions. Pass/no-reviews: only if the stage is still `active` after it returns, run `finish <change> review-pr fab-continue`. Timeout (Copilot review requested but not yet available): the stage is deliberately left `active` — report and stop, no re-finish. Fail: only if the stage is still `active` after it returns (its Step 6 normally runs `fail` itself), run `fail <change> review-pr` |
+| `ship` | `active` | *(`ready` is unreachable — ship's AllowedStates are `{pending, active, done, skipped}`.)* Execute `/git-pr` behavior **with the resolved change as the explicit `<change>` argument** (`/git-pr {name}` — transient override; its branch guard verifies the checked-out branch) → git-pr finishes ship internally (its Step 4b); only if the stage is still `active` after it returns, run `finish <change> ship fab-continue` (auto-activates review-pr) |
+| `review-pr` | `active` | *(`ready` is unreachable — review-pr's AllowedStates are `{pending, active, done, failed, skipped}`.)* Execute `/git-pr-review` behavior **with the resolved change as the explicit `<change>` argument** (`/git-pr-review {name}` — same transient-override + branch-guard contract) → it routes all terminal paths through its Step 6 and runs its own transitions. Pass/no-reviews: only if the stage is still `active` after it returns, run `finish <change> review-pr fab-continue`. Timeout (Copilot review requested but not yet available): the stage is deliberately left `active` — report and stop, no re-finish. Fail: only if the stage is still `active` after it returns (its Step 6 normally runs `fail` itself), run `fail <change> review-pr` |
+| `review-pr` | `failed` | *(Keys on `progress.review-pr == failed` via the guard above — the same progress-map mechanism as the `review`/`failed` row.)* Re-execute `/git-pr-review` behavior **with the resolved change as the explicit `<change>` argument** — its Step 0 runs `fab status start <change> review-pr`, and the CLI's review-pr `start` transition accepts `failed → active`; from there it routes terminal paths through its Step 6 with the same only-if-still-active guards as the row above. Do NOT route through `reset` — reset's From-set is `{done, ready, skipped}` (excludes `failed`); the CLI would error |
 | all `done` | — | Block: "Change is complete." |
 
 ### Step 2: Load Context
@@ -79,10 +80,10 @@ Load per `_preamble.md` layers. Stage-specific additions: intake loads memory fi
 Use event commands via CLI to update `.status.yaml`. The `finish` command handles the two-write transition atomically: `fab status finish <change> <completed-stage> fab-continue`. This sets `{completed}` → `done`, auto-activates the next pending stage, refreshes `last_updated`, and updates `stage_metrics`.
 
 For other state changes, use the appropriate event command (driver is always optional):
-- `fab status start <change> <stage> fab-continue` — pending/failed → active
+- `fab status start <change> <stage> fab-continue` — pending → active (plus failed → active for review/review-pr only)
 - `fab status advance <change> <stage>` — active → ready
 - `fab status fail <change> <stage>` — active → failed (review/review-pr only)
-- `fab status reset <change> <stage> fab-continue` — done/ready → active (cascades downstream to pending)
+- `fab status reset <change> <stage> fab-continue` — done/ready/skipped → active (cascades downstream to pending)
 
 ### Step 5: Output
 
@@ -146,7 +147,7 @@ Plan Generation sub-step is skipped when `plan.md` already exists (idempotent on
 
 ## Review Behavior
 
-Read `.claude/skills/_review/SKILL.md` (if not already loaded), then follow its **Review Behavior**. The `_review.md` skill defines both sub-agent dispatches (inward + outward) run in parallel, their preconditions, validation steps, structured output format, and the findings merge procedure.
+Read `.claude/skills/_review/SKILL.md` (if not already loaded), then follow its **Review Behavior**. The `_review.md` skill defines both sub-agent dispatches (inward + outward) run in parallel, their preconditions, validation steps, structured output format, and the findings merge procedure. When dispatching the inward sub-agent, read `change_type` from the change's `.status.yaml` and pass it in the prompt per `_review.md`'s context contract (its Steps 7–8 skip condition keys on it).
 
 > **When invoked as a subagent** (dispatched by `/fab-ff`/`/fab-fff`): skip §Verdict entirely — do NOT run any `fab status` command; return the merged findings with pass/fail status only. The orchestrator owns the finish/fail/reset transitions (and the rework loop).
 
@@ -160,7 +161,7 @@ Read `.claude/skills/_review/SKILL.md` (if not already loaded), then follow its 
 |--------|------|--------|
 | Fix code | Implementation bug (must-fix / should-fix items) | Uncheck affected tasks in `plan.md` `## Tasks` with `<!-- rework: {reason} -->`, run `/fab-continue` |
 | Revise plan | Missing/wrong tasks or acceptance items | Edit `plan.md` directly, run `/fab-continue` |
-| Revise requirements | Requirements wrong | Edit `plan.md` `## Requirements` plus the downstream `## Tasks`/`## Acceptance` it affects, then re-run `/fab-continue` (apply). For a fundamentally wrong intake, fix `intake.md` via `/fab-clarify intake` first. |
+| Revise requirements | Requirements wrong | Edit `plan.md` `## Requirements` plus the downstream `## Tasks`/`## Acceptance` it affects, then re-run `/fab-continue` (apply). For a fundamentally wrong intake, run `/fab-continue intake` first (resets to intake and regenerates it), refine via `/fab-clarify`, and delete `plan.md` so apply re-derives `## Requirements` from the revised intake. |
 
 The applying agent triages review comments by priority — not all comments need to be implemented. Must-fix items are always addressed. Should-fix items are addressed when clear and low-effort. Nice-to-have items may be acknowledged but deferred.
 
@@ -188,9 +189,13 @@ The applying agent triages review comments by priority — not all comments need
 
 ## Reset Flow (with stage argument)
 
-1. **Validate**: Must be one of the 6 stage names. If `tasks` or `spec` is passed, error with: `"tasks"/"spec" stages were removed — use /fab-continue apply (regenerates plan.md and re-runs) or /fab-clarify intake.`
+1. **Validate**: Must be one of the 6 stage names. If `tasks` or `spec` is passed, error with: `"tasks"/"spec" stages were removed — use /fab-continue apply to re-run apply (delete plan.md first to force regeneration), or /fab-continue intake then /fab-clarify to rework the intake.`
 2. **Load context** for the target stage
-3. **Reset `.status.yaml`**: Run `fab status reset <change> <stage> fab-continue`. This atomically sets the target stage → `active` and cascades all downstream stages → `pending`. Stages before the target are preserved.
+3. **Reset `.status.yaml`**: Reset's From-set is `{done, ready, skipped}` — handle the non-resettable current states first:
+   - Target already **`active`** (e.g., re-running an interrupted reset): skip this call — the state is already what the reset would produce; proceed directly to step 4 (re-running a reset is a state-wise no-op — Constitution III).
+   - Target **`failed`** (review/review-pr only — no other stage can hold it): do NOT reset — `failed` recovery belongs to `start` (failed → active). Stop the Reset Flow and follow the matching `failed` dispatch row in Step 1 instead (review → post-fail reset + rework menu; review-pr → re-execute `/git-pr-review` behavior).
+   - Target **`pending`**: error — `Stage '{stage}' has not run yet — nothing to reset. Run /fab-continue to advance to it.`
+   Otherwise run `fab status reset <change> <stage> fab-continue`. This atomically sets the target stage → `active` and cascades all downstream stages → `pending`. Stages before the target are preserved.
 4. **Execute**: Intake reset regenerates the intake artifact. Execution stages (apply onward) re-run (task checkboxes NOT reset; `plan.md` is also preserved on disk — to force plan regeneration the user MUST delete `plan.md` before re-running `/fab-continue`).
 5. **Invalidate downstream**: intake reset → all downstream pending. The `reset` command handles the status cascading automatically.
 6. **Post-execution**: For the **intake reset**, after regenerating the artifact, use `fab status advance <change> <stage>` to move intake back to `ready` and stop there — **do not** run `finish`, to avoid auto-activating apply. For **execution resets**, use the normal `finish` commands, which will auto-activate the next pending stage.
@@ -201,13 +206,15 @@ The applying agent triages review comments by priority — not all comments need
 
 | Condition | Action |
 |-----------|--------|
-| `intake.md` missing for apply entry | "No intake.md found. Run /fab-continue to generate the intake first." |
+| `intake.md` missing for apply entry | "No intake.md found. Run /fab-continue intake to regenerate the intake first." *(the intake reset route — plain `/fab-continue` would re-enter apply and hit this same error)* |
 | `plan.md` missing `## Acceptance` for review | "plan.md missing Acceptance section." |
 | Incomplete tasks for review | "{N} of {total} tasks incomplete." |
 | Review not passed for hydrate | "Review has not passed." |
-| Reset target `tasks` or `spec` | `"tasks"/"spec" stages were removed — use /fab-continue apply (regenerates plan.md and re-runs) or /fab-clarify intake.` |
+| Reset target `tasks` or `spec` | `"tasks"/"spec" stages were removed — use /fab-continue apply to re-run apply (delete plan.md first to force regeneration), or /fab-continue intake then /fab-clarify to rework the intake.` |
 | Unknown reset target | "Unknown stage. Valid: intake, apply, review, hydrate, ship, review-pr." |
 | Template file missing | "Template not found — kit may be corrupted." |
+
+> Recovery commands in these messages are shown argless: the change reference of the current invocation is implied (active, or the `[change-name]` override). When this invocation targeted an override change, re-run the suggested command with the same `<change-name>`.
 
 ---
 

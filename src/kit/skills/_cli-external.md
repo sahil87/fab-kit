@@ -59,8 +59,8 @@ The worktree gets a random name; the branch matches the change. No `/git-branch`
 The change folder doesn't exist yet, so there's no branch name to use:
 
 1. `wt create --non-interactive` — auto-generates worktree name, creates on default branch
-2. Agent runs `/fab-new` to create the change folder
-3. Operator sends `/git-branch` to the agent after detecting the intake stage has advanced — this aligns the branch name with the newly created change folder name
+2. Agent runs `/fab-new` to create the change folder — its Step 11 then renames the worktree's disposable branch to the change folder name inline (the rename guard passes: the `wt create` branch resolves to no change)
+3. No operator action needed — the branch already matches the change; the operator does NOT send `/git-branch` (the former post-intake send predates fab-new's inline branch creation)
 
 ---
 
