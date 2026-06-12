@@ -42,6 +42,46 @@ func WithServer(server string, args ...string) []string {
 	return append([]string{"-L", server}, args...)
 }
 
+// RunCmd executes an external command, capturing stdout and stderr
+// separately. Returns the raw stdout string (untrimmed — callers that need
+// trimming do it themselves, so capture-style output is never altered), the
+// raw stderr bytes, and the exec error. Generalizes the ReadWindowName
+// capture pattern for any subprocess (tmux, git, wt) so call sites stop
+// discarding the child's diagnostic.
+func RunCmd(name string, args ...string) (string, []byte, error) {
+	cmd := exec.Command(name, args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	return stdout.String(), stderr.Bytes(), err
+}
+
+// StderrError enriches err with the trimmed child stderr when present, so a
+// subprocess failure surfaces the child's diagnostic (the self-correction
+// signal for agent-facing CLI output) instead of a bare "exit status 1".
+// Returns err unchanged when stderr is empty; the original error remains
+// unwrappable via errors.Is/As.
+func StderrError(err error, stderr []byte) error {
+	msg := strings.TrimSpace(string(stderr))
+	if msg == "" {
+		return err
+	}
+	return fmt.Errorf("%w: %s", err, msg)
+}
+
+// IsPaneMissing reports whether tmux stderr indicates a missing pane (as
+// opposed to other tmux failures such as a dead server or socket error).
+// Matching is case-insensitive substring, mirroring tmux's "can't find pane"
+// / "no such pane" wording across versions. Shared by ValidatePane and the
+// window-name verbs' exit-code mapping.
+func IsPaneMissing(stderr []byte) bool {
+	s := strings.ToLower(string(stderr))
+	return strings.Contains(s, "can't find pane") ||
+		strings.Contains(s, "no such pane") ||
+		(strings.Contains(s, "pane") && strings.Contains(s, "not found"))
+}
+
 // PaneContext holds resolved fab context for a single tmux pane.
 type PaneContext struct {
 	Pane              string
@@ -54,20 +94,42 @@ type PaneContext struct {
 	AgentIdleDuration *string // nil if not idle
 }
 
-// ValidatePane checks that a tmux pane exists by running `tmux list-panes -a`
-// and verifying the pane ID appears in the output. If server is non-empty, the
-// tmux invocation is scoped to that server via `-L <server>`.
+// ValidatePane checks that a tmux pane exists and that the argument is its
+// exact pane ID, via a single targeted probe:
+//
+//	tmux display-message -t <pane> -p '#{pane_id}'
+//
+// comparing the probe output to the argument. The comparison preserves
+// ID-exactness: `-t` accepts the full tmux target grammar (window names,
+// session:win.pane), but any such target resolves to a real pane ID that
+// differs from the argument and is rejected — matching the previous
+// `list-panes -a` exact-ID semantics without the O(server) enumeration.
+//
+// Error-path equivalence (verified on tmux 3.6a): a missing pane yields the
+// same "pane <id> not found" error — on tmux ≥3.6 display-message exits 0
+// with empty output for a missing pane (caught by the comparison); older
+// tmux errors with "can't find pane" stderr (caught by the mapping). A dead
+// server still fails with exit 1, now carrying tmux's connection diagnostic.
+// If server is non-empty, the tmux invocation is scoped via `-L <server>`.
 func ValidatePane(paneID, server string) error {
-	out, err := exec.Command("tmux", WithServer(server, "list-panes", "-a", "-F", "#{pane_id}")...).Output()
+	out, stderr, err := RunCmd("tmux", WithServer(server, "display-message", "-t", paneID, "-p", "#{pane_id}")...)
+	return validatePaneResult(paneID, out, stderr, err)
+}
+
+// validatePaneResult is the pure decision half of ValidatePane: it maps the
+// probe's (stdout, stderr, exec error) to the validation outcome. Extracted
+// for unit-testability without a tmux server.
+func validatePaneResult(paneID, out string, stderr []byte, err error) error {
 	if err != nil {
-		return fmt.Errorf("tmux list-panes: %w", err)
-	}
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if strings.TrimSpace(line) == paneID {
-			return nil
+		if IsPaneMissing(stderr) {
+			return fmt.Errorf("pane %s not found", paneID)
 		}
+		return StderrError(fmt.Errorf("tmux display-message: %w", err), stderr)
 	}
-	return fmt.Errorf("pane %s not found", paneID)
+	if strings.TrimSpace(out) != paneID {
+		return fmt.Errorf("pane %s not found", paneID)
+	}
+	return nil
 }
 
 // ReadWindowName returns the current window name for a tmux pane via
@@ -77,12 +139,8 @@ func ValidatePane(paneID, server string) error {
 // error. If server is non-empty, the tmux invocation is scoped to that server
 // via `-L <server>`.
 func ReadWindowName(paneID, server string) (string, []byte, error) {
-	cmd := exec.Command("tmux", WithServer(server, "display-message", "-p", "-t", paneID, "#W")...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	return strings.TrimSpace(stdout.String()), stderr.Bytes(), err
+	out, stderr, err := RunCmd("tmux", WithServer(server, "display-message", "-p", "-t", paneID, "#W")...)
+	return strings.TrimSpace(out), stderr, err
 }
 
 // GetPanePID returns the shell PID of a tmux pane. If server is non-empty, the

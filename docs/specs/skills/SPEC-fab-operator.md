@@ -36,7 +36,7 @@ All tool references are in shared `_` files — operator4 does not duplicate too
 
 | Primitive | Reference |
 |-----------|-----------|
-| `fab pane map --all-sessions --json` (per-row `repo` field), `fab spawn-command --repo`, `fab resolve`, `fab change list`, `fab status`, `fab score`, `fab operator tick-start` (server-keyed state path) | `_cli-fab.md` |
+| `fab pane map --all-sessions --json` (per-row `repo` field; nullable per-row `display_state` — the change's stage state, `active|ready|done|pending|skipped`, `null` under the same conditions as `stage`; no `failed` value today — DisplayStage flattens a failed review/review-pr to the last done stage, a follow-up backlog item tracks a failed tier), `fab spawn-command --repo`, `fab resolve`, `fab change list`, `fab status`, `fab score`, `fab operator tick-start` (server-keyed state path) | `_cli-fab.md` |
 | `wt list`, `wt create` (run in the target repo's directory), `wt delete`, `tmux` commands, `/loop` | `_cli-external.md` |
 | Change folder, branch, worktree naming | `_preamble.md` § Naming Conventions |
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
@@ -53,6 +54,34 @@ func ClassifyProcess(comm string) string {
 	default:
 		return "other"
 	}
+}
+
+// parsePSCmdlines parses `ps -axo pid=,args=` output into a PID→args map.
+// Each line is a (right-aligned) numeric PID followed by the full command
+// line; pid is numeric-first and the remainder is args, so the parse is
+// robust against spaces inside the command line. Lines whose first field is
+// not a PID are skipped. Lives in this un-tagged file (consumed by the
+// darwin process discovery) so the parsing is unit-testable on every
+// platform.
+func parsePSCmdlines(out string) map[int]string {
+	m := make(map[int]string)
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		fields := strings.SplitN(line, " ", 2)
+		pid, err := strconv.Atoi(fields[0])
+		if err != nil {
+			continue
+		}
+		args := ""
+		if len(fields) == 2 {
+			args = strings.TrimSpace(fields[1])
+		}
+		m[pid] = args
+	}
+	return m
 }
 
 // hasAgentInTree checks recursively if any process is classified as "agent".

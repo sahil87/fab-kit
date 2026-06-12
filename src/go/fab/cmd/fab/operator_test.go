@@ -44,6 +44,101 @@ func TestOperatorCmd_Structure(t *testing.T) {
 	}
 }
 
+// TestRunOperator_NoTmux verifies the $TMUX guard returns an error through
+// RunE (previously os.Exit(1), which killed the test process) so main.go's
+// central handler formats it as `ERROR: not inside a tmux session`.
+func TestRunOperator_NoTmux(t *testing.T) {
+	t.Setenv("TMUX", "")
+
+	cmd := operatorCmd()
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error when $TMUX is unset, got nil")
+	}
+	if err.Error() != "not inside a tmux session" {
+		t.Errorf("error = %q, want %q", err.Error(), "not inside a tmux session")
+	}
+}
+
+// TestFindWindowExact verifies the exact, server-wide window-name matcher
+// that backs the operator singleton check: exact names only (no prefix/glob
+// false positives), first match wins, names containing tabs survive the
+// bounded split, and session names cannot shift columns (the format carries
+// no session field at all).
+func TestFindWindowExact(t *testing.T) {
+	// `list-windows -a -F '#{window_id}\t#{window_name}'` — windows from
+	// sessions _rk-ctl, alpha, and beta; the format emits no session field.
+	out := "@2\tzsh\n@0\toperator-logs\n@1\tzsh\n@3\toperator\n"
+
+	t.Run("exact match returns the window ID", func(t *testing.T) {
+		id, found := findWindowExact(out, "operator")
+		if !found || id != "@3" {
+			t.Errorf("findWindowExact = (%q, %t), want (@3, true)", id, found)
+		}
+	})
+
+	t.Run("prefix name is not a false positive", func(t *testing.T) {
+		// Only operator-logs present — the old `select-window -t operator`
+		// guard matched it by prefix; the exact matcher must not.
+		noReal := "@0\toperator-logs\n@1\tzsh\n"
+		if id, found := findWindowExact(noReal, "operator"); found {
+			t.Errorf("prefix window operator-logs must not match, got (%q, true)", id)
+		}
+	})
+
+	t.Run("cross-session window is found (server-wide)", func(t *testing.T) {
+		// The operator window lives in another session; enumeration is -a so
+		// it is visible regardless of the caller's session.
+		id, found := findWindowExact(out, "operator")
+		if !found || id != "@3" {
+			t.Errorf("cross-session match = (%q, %t), want (@3, true)", id, found)
+		}
+	})
+
+	t.Run("absent window returns not found", func(t *testing.T) {
+		if id, found := findWindowExact(out, "missing"); found {
+			t.Errorf("absent window must not match, got (%q, true)", id)
+		}
+	})
+
+	t.Run("window name containing a tab survives the bounded split", func(t *testing.T) {
+		tabbed := "@7\tweird\tname\n"
+		id, found := findWindowExact(tabbed, "weird\tname")
+		if !found || id != "@7" {
+			t.Errorf("tabbed-name match = (%q, %t), want (@7, true)", id, found)
+		}
+	})
+
+	t.Run("tab in session name cannot shift columns", func(t *testing.T) {
+		// A session named "we\tird" holding the operator window: under the
+		// old 3-field format ('#{session_name}\t#{window_id}\t#{window_name}')
+		// tmux emitted "we\tird\t@3\toperator", which SplitN-3 parsed as
+		// name "@3\toperator" — silently missing the match. The 2-field
+		// format emits only "@3\toperator" for that window, so the session
+		// name cannot influence the parse.
+		oldStyleLine := "we\tird\t@3\toperator\n"
+		if id, found := findWindowExact(oldStyleLine, "operator"); found && id == "@3" {
+			t.Errorf("3-field parsing regression check is vacuous — fixture matched as if session were present (got %q)", id)
+		}
+		newStyleLine := "@3\toperator\n"
+		id, found := findWindowExact(newStyleLine, "operator")
+		if !found || id != "@3" {
+			t.Errorf("2-field line for a tab-named session's window = (%q, %t), want (@3, true)", id, found)
+		}
+	})
+
+	t.Run("empty output returns not found", func(t *testing.T) {
+		if _, found := findWindowExact("", "operator"); found {
+			t.Error("empty output must not match")
+		}
+	})
+}
+
 // TestOperatorTickStart_IncrementsCount verifies that tick-start increments
 // an existing tick_count, writes last_tick_at, preserves other fields, and
 // outputs the correct stdout format.

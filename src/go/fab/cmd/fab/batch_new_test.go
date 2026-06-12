@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/backlog"
@@ -105,4 +107,169 @@ func TestBatchNewCmd_Structure(t *testing.T) {
 	if cmd.Flags().Lookup("all") == nil {
 		t.Error("missing --all flag")
 	}
+}
+
+// chdirBatchNewFixture creates a temp fab root (fab/backlog.md with the given
+// content) and chdirs into it so resolve.FabRoot() resolves to the fixture.
+// Restores the previous working directory on cleanup.
+func chdirBatchNewFixture(t *testing.T, backlogContent string) string {
+	t.Helper()
+	dir := t.TempDir()
+	fabDir := filepath.Join(dir, "fab")
+	if err := os.MkdirAll(fabDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(fabDir, "backlog.md"), []byte(backlogContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	prev, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(prev); err != nil {
+			t.Fatalf("restoring working directory: %v", err)
+		}
+	})
+	return dir
+}
+
+// stubBatchNewBinaries writes fake `wt` and `tmux` executables into a temp
+// dir prepended to $PATH, so runBatchNew's launch loop can be exercised
+// in-process without a tmux server. tmuxScript/wtScript are POSIX sh bodies.
+func stubBatchNewBinaries(t *testing.T, wtScript, tmuxScript string) {
+	t.Helper()
+	bin := t.TempDir()
+	for name, body := range map[string]string{"wt": wtScript, "tmux": tmuxScript} {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+// runBatchNewCmd executes `fab batch new <args...>` in-process and returns
+// (stdout, stderr, err).
+func runBatchNewCmd(t *testing.T, args ...string) (string, string, error) {
+	t.Helper()
+	cmd := batchNewCmd()
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
+	var out, errBuf bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs(args)
+	err := cmd.Execute()
+	return out.String(), errBuf.String(), err
+}
+
+// TestRunBatchNew_NoTmux verifies the $TMUX guard returns an error through
+// RunE (previously os.Exit(1)) — stderr becomes `ERROR: not inside a tmux
+// session` via main.go's central handler.
+func TestRunBatchNew_NoTmux(t *testing.T) {
+	chdirBatchNewFixture(t, testBacklog)
+	t.Setenv("TMUX", "")
+
+	_, _, err := runBatchNewCmd(t, "90g5")
+	if err == nil {
+		t.Fatal("expected error when $TMUX is unset, got nil")
+	}
+	if err.Error() != "not inside a tmux session" {
+		t.Errorf("error = %q, want %q", err.Error(), "not inside a tmux session")
+	}
+}
+
+// TestRunBatchNew_NoPendingItems verifies the --all empty-backlog guard
+// returns an error through RunE (previously os.Exit(1)). The error string is
+// the intake-pinned deliberate output change: `ERROR: No pending backlog
+// items found.` after the central handler's prefix.
+func TestRunBatchNew_NoPendingItems(t *testing.T) {
+	chdirBatchNewFixture(t, "# Backlog\n\n- [x] [done] 2026-03-30: Fix login page styling\n")
+	t.Setenv("TMUX", "/tmp/tmux-fake/default,123,0")
+
+	_, _, err := runBatchNewCmd(t, "--all")
+	if err == nil {
+		t.Fatal("expected error for empty pending backlog, got nil")
+	}
+	if err.Error() != "No pending backlog items found." {
+		t.Errorf("error = %q, want %q", err.Error(), "No pending backlog items found.")
+	}
+}
+
+// TestRunBatchNew_LaunchFailures exercises the launch loop with PATH-stubbed
+// wt/tmux binaries: a tmux new-window failure must produce a per-item FAILED
+// line naming the already-created worktree path, and a non-nil error (→
+// non-zero exit) — never the silent exit 0 that orphaned worktrees before.
+func TestRunBatchNew_LaunchFailures(t *testing.T) {
+	t.Run("tmux failure: FAILED line + worktree path + non-nil error", func(t *testing.T) {
+		chdirBatchNewFixture(t, testBacklog)
+		t.Setenv("TMUX", "/tmp/tmux-fake/default,123,0")
+		stubBatchNewBinaries(t,
+			"echo /fake/worktrees/90g5",
+			"echo 'boom: create window failed' 1>&2; exit 1")
+
+		_, stderr, err := runBatchNewCmd(t, "90g5")
+		if err == nil {
+			t.Fatal("expected non-nil error when a launch fails, got nil (silent exit 0 regression)")
+		}
+		if want := "1 of 1 item(s) failed to launch"; err.Error() != want {
+			t.Errorf("error = %q, want %q", err.Error(), want)
+		}
+		for _, fragment := range []string{"[90g5] FAILED: tmux new-window:", "boom: create window failed", "worktree already created at /fake/worktrees/90g5"} {
+			if !strings.Contains(stderr, fragment) {
+				t.Errorf("stderr missing %q:\n%s", fragment, stderr)
+			}
+		}
+	})
+
+	t.Run("wt create failure: FAILED line with wt stderr + non-nil error", func(t *testing.T) {
+		chdirBatchNewFixture(t, testBacklog)
+		t.Setenv("TMUX", "/tmp/tmux-fake/default,123,0")
+		stubBatchNewBinaries(t,
+			"echo 'worktree 90g5 already exists' 1>&2; exit 1",
+			"exit 0")
+
+		_, stderr, err := runBatchNewCmd(t, "90g5")
+		if err == nil {
+			t.Fatal("expected non-nil error when wt create fails, got nil")
+		}
+		for _, fragment := range []string{"[90g5] FAILED: wt create:", "worktree 90g5 already exists"} {
+			if !strings.Contains(stderr, fragment) {
+				t.Errorf("stderr missing %q:\n%s", fragment, stderr)
+			}
+		}
+	})
+
+	t.Run("all launches succeed: nil error", func(t *testing.T) {
+		chdirBatchNewFixture(t, testBacklog)
+		t.Setenv("TMUX", "/tmp/tmux-fake/default,123,0")
+		stubBatchNewBinaries(t,
+			"echo /fake/worktrees/90g5",
+			"exit 0")
+
+		out, _, err := runBatchNewCmd(t, "90g5")
+		if err != nil {
+			t.Fatalf("expected nil error for successful launch, got %v", err)
+		}
+		if !strings.Contains(out, "[90g5]") {
+			t.Errorf("stdout missing launched item line:\n%s", out)
+		}
+	})
+
+	t.Run("unknown backlog id stays warn-and-skip (no failure exit)", func(t *testing.T) {
+		chdirBatchNewFixture(t, testBacklog)
+		t.Setenv("TMUX", "/tmp/tmux-fake/default,123,0")
+		stubBatchNewBinaries(t, "echo /fake/wt", "exit 0")
+
+		_, stderr, err := runBatchNewCmd(t, "zzzz")
+		if err != nil {
+			t.Fatalf("backlog-lookup misses are skips, not failures; got error %v", err)
+		}
+		if !strings.Contains(stderr, "Warning: [zzzz] not found in backlog, skipping") {
+			t.Errorf("stderr missing skip warning:\n%s", stderr)
+		}
+	})
 }

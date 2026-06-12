@@ -2,6 +2,7 @@ package memoryindex
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -446,5 +447,115 @@ func TestGather_SubDomainRenderIdempotent(t *testing.T) {
 	}
 	if RenderDomain(domains[0]) != RenderDomain(domains2[0]) {
 		t.Error("re-gathering the same tree produced a different parent render")
+	}
+}
+
+// --- Batched git-date pass (F34) -------------------------------------------
+
+func TestParseGitDates(t *testing.T) {
+	t.Run("first (most recent) date per path wins", func(t *testing.T) {
+		out := "\x002026-06-10\n\ndocs/memory/auth/x.md\ndocs/memory/auth/y.md\n\n" +
+			"\x002026-05-01\n\ndocs/memory/auth/x.md\ndocs/memory/pay/z.md\n"
+		got := parseGitDates(out)
+		want := map[string]string{
+			"docs/memory/auth/x.md": "2026-06-10", // newest-first: first seen wins
+			"docs/memory/auth/y.md": "2026-06-10",
+			"docs/memory/pay/z.md":  "2026-05-01",
+		}
+		for path, date := range want {
+			if got[path] != date {
+				t.Errorf("parseGitDates[%q] = %q, want %q", path, got[path], date)
+			}
+		}
+		if len(got) != len(want) {
+			t.Errorf("parseGitDates returned %d entries, want %d: %v", len(got), len(want), got)
+		}
+	})
+
+	t.Run("empty input yields empty map", func(t *testing.T) {
+		if got := parseGitDates(""); len(got) != 0 {
+			t.Errorf("parseGitDates(\"\") = %v, want empty", got)
+		}
+	})
+}
+
+// gitDateRun runs a git command in dir with a deterministic identity,
+// skipping the test when git is unavailable.
+func gitDateRun(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	cmd.Env = append(os.Environ(),
+		"GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=t@example.com",
+		"GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=t@example.com")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Skipf("git %v failed (git unavailable?): %v\n%s", args, err, out)
+	}
+}
+
+// TestLoadGitDates_BatchEqualsPerFile pins commit author dates in a real git
+// repo and asserts the batched pass yields exactly the dates the per-file
+// `git log -1` calls produce — the F34 equivalence contract.
+func TestLoadGitDates_BatchEqualsPerFile(t *testing.T) {
+	repo := t.TempDir()
+	gitDateRun(t, repo, "init")
+	writeFile(t, repo, "docs/memory/auth/x.md", "# X\n")
+	gitDateRun(t, repo, "add", ".")
+	gitDateRun(t, repo, "commit", "-m", "first", "--date", "2026-01-15T12:00:00 +0000")
+	writeFile(t, repo, "docs/memory/auth/y.md", "# Y\n")
+	gitDateRun(t, repo, "add", ".")
+	gitDateRun(t, repo, "commit", "-m", "second", "--date", "2026-03-02T12:00:00 +0000")
+	// x.md touched again later — most recent date must win.
+	writeFile(t, repo, "docs/memory/auth/x.md", "# X updated\n")
+	gitDateRun(t, repo, "add", ".")
+	gitDateRun(t, repo, "commit", "-m", "third", "--date", "2026-04-20T12:00:00 +0000")
+	// Uncommitted file: present on disk, absent from the batch map → "".
+	writeFile(t, repo, "docs/memory/auth/uncommitted.md", "# U\n")
+
+	dates := loadGitDates(repo)
+	if dates == nil {
+		t.Fatal("loadGitDates returned nil in a real git repo")
+	}
+
+	wantDates := map[string]string{
+		filepath.Join(repo, "docs/memory/auth/x.md"):           "2026-04-20",
+		filepath.Join(repo, "docs/memory/auth/y.md"):           "2026-03-02",
+		filepath.Join(repo, "docs/memory/auth/uncommitted.md"): "",
+	}
+	for path, want := range wantDates {
+		if got := dates.lookup(repo, path); got != want {
+			t.Errorf("batched lookup(%q) = %q, want %q", path, got, want)
+		}
+		// Equivalence: the per-file fallback must agree.
+		if perFile := gitLastUpdated(repo, path); perFile != want {
+			t.Errorf("per-file gitLastUpdated(%q) = %q, want %q (fixture broken?)", path, perFile, want)
+		}
+	}
+
+	// Gather threads the same dates into FileEntry.LastUpdated.
+	_, domains, _, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byBase := map[string]string{}
+	for _, f := range domains[0].Files {
+		byBase[f.Base] = f.LastUpdated
+	}
+	if byBase["x"] != "2026-04-20" || byBase["y"] != "2026-03-02" || byBase["uncommitted"] != "" {
+		t.Errorf("Gather dates mismatch: %v", byBase)
+	}
+}
+
+// TestGitDatesLookup_NilReceiverFallsBack verifies the nil-receiver fallback
+// path used when the batched git pass fails (non-git dir, git missing).
+func TestGitDatesLookup_NilReceiverFallsBack(t *testing.T) {
+	var d *gitDates
+	nonGit := t.TempDir()
+	writeFile(t, nonGit, "docs/memory/auth/x.md", "# X\n")
+	// Non-git dir → per-file fallback also degrades to "".
+	if got := d.lookup(nonGit, filepath.Join(nonGit, "docs/memory/auth/x.md")); got != "" {
+		t.Errorf("nil-receiver lookup = %q, want \"\" via per-file fallback", got)
+	}
+	if loadGitDates(nonGit) != nil {
+		t.Error("loadGitDates should return nil outside a git repo")
 	}
 }

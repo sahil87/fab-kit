@@ -1,9 +1,11 @@
 package pane
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -62,6 +64,134 @@ func TestWithServer(t *testing.T) {
 		want2 := []string{"-L", "socket_1", "list-panes"}
 		if !reflect.DeepEqual(got2, want2) {
 			t.Errorf("WithServer(\"socket_1\", ...) = %v, want %v", got2, want2)
+		}
+	})
+}
+
+func TestRunCmd(t *testing.T) {
+	t.Run("captures stdout and stderr separately", func(t *testing.T) {
+		out, stderr, err := RunCmd("sh", "-c", "printf 'out\\n'; printf 'diag\\n' 1>&2")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != "out\n" {
+			t.Errorf("stdout = %q, want %q (raw, untrimmed)", out, "out\n")
+		}
+		if string(stderr) != "diag\n" {
+			t.Errorf("stderr = %q, want %q", string(stderr), "diag\n")
+		}
+	})
+
+	t.Run("returns exec error with captured stderr on failure", func(t *testing.T) {
+		out, stderr, err := RunCmd("sh", "-c", "printf 'partial' ; printf 'boom\\n' 1>&2; exit 3")
+		if err == nil {
+			t.Fatal("expected error for exit 3")
+		}
+		if out != "partial" {
+			t.Errorf("stdout = %q, want %q", out, "partial")
+		}
+		if string(stderr) != "boom\n" {
+			t.Errorf("stderr = %q, want %q", string(stderr), "boom\n")
+		}
+	})
+}
+
+func TestStderrError(t *testing.T) {
+	t.Run("appends trimmed stderr to the error", func(t *testing.T) {
+		base := os.ErrNotExist
+		got := StderrError(base, []byte("  can't find pane: %99\n"))
+		if got.Error() != base.Error()+": can't find pane: %99" {
+			t.Errorf("StderrError = %q, want %q", got.Error(), base.Error()+": can't find pane: %99")
+		}
+		// Wrapping preserved for errors.Is.
+		if !errors.Is(got, base) {
+			t.Error("StderrError must wrap the original error (errors.Is failed)")
+		}
+	})
+
+	t.Run("empty stderr returns the error unchanged", func(t *testing.T) {
+		base := os.ErrPermission
+		if got := StderrError(base, nil); got != base {
+			t.Errorf("StderrError with nil stderr = %v, want the original error", got)
+		}
+		if got := StderrError(base, []byte("  \n")); got != base {
+			t.Errorf("StderrError with whitespace stderr = %v, want the original error", got)
+		}
+	})
+}
+
+func TestIsPaneMissing(t *testing.T) {
+	tests := []struct {
+		name   string
+		stderr string
+		want   bool
+	}{
+		{"can't find pane", "can't find pane: %99\n", true},
+		{"no such pane", "no such pane: %99", true},
+		{"pane + not found", "pane %99 not found", true},
+		{"case insensitive", "Can't Find Pane: %99", true},
+		{"dead server", "error connecting to /tmp/tmux-1001/x (No such file or directory)", false},
+		{"no server running", "no server running on /tmp/tmux-1001/default", false},
+		{"empty", "", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := IsPaneMissing([]byte(tc.stderr)); got != tc.want {
+				t.Errorf("IsPaneMissing(%q) = %t, want %t", tc.stderr, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestValidatePaneResult exercises the pure decision half of the targeted
+// display-message probe — every branch verified against real tmux behavior:
+// tmux ≥3.6 exits 0 with EMPTY output for a missing pane (comparison branch);
+// older tmux errors with "can't find pane" stderr (mapping branch); a dead
+// server fails with a connection diagnostic; a window-name target resolves
+// to a real pane ID that differs from the argument (ID-exactness).
+func TestValidatePaneResult(t *testing.T) {
+	mkErr := errors.New("exit status 1")
+
+	t.Run("exact match passes", func(t *testing.T) {
+		if err := validatePaneResult("%5", "%5\n", nil, nil); err != nil {
+			t.Errorf("expected nil for exact match, got %v", err)
+		}
+	})
+
+	t.Run("missing pane on tmux>=3.6: exit 0, empty output", func(t *testing.T) {
+		err := validatePaneResult("%99", "\n", nil, nil)
+		if err == nil || err.Error() != "pane %99 not found" {
+			t.Errorf("expected 'pane %%99 not found', got %v", err)
+		}
+	})
+
+	t.Run("missing pane on older tmux: can't-find-pane stderr", func(t *testing.T) {
+		err := validatePaneResult("%99", "", []byte("can't find pane: %99\n"), mkErr)
+		if err == nil || err.Error() != "pane %99 not found" {
+			t.Errorf("expected 'pane %%99 not found', got %v", err)
+		}
+	})
+
+	t.Run("window-name target rejected (ID-exactness)", func(t *testing.T) {
+		// `-t mywindow` resolves to that window's active pane — the probe
+		// output is a real pane ID that differs from the argument.
+		err := validatePaneResult("mywindow", "%0\n", nil, nil)
+		if err == nil || err.Error() != "pane mywindow not found" {
+			t.Errorf("expected 'pane mywindow not found', got %v", err)
+		}
+	})
+
+	t.Run("dead server surfaces the tmux diagnostic", func(t *testing.T) {
+		stderr := []byte("error connecting to /tmp/tmux-1001/x (No such file or directory)\n")
+		err := validatePaneResult("%5", "", stderr, mkErr)
+		if err == nil {
+			t.Fatal("expected error for dead server")
+		}
+		if !strings.Contains(err.Error(), "tmux display-message") || !strings.Contains(err.Error(), "error connecting") {
+			t.Errorf("dead-server error should name display-message and carry the diagnostic, got %q", err.Error())
+		}
+		if !errors.Is(err, mkErr) {
+			t.Error("dead-server error must wrap the exec error")
 		}
 	})
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/spf13/cobra"
@@ -57,14 +56,14 @@ func runPaneSend(cmd *cobra.Command, args []string) error {
 	// The trailing Enter keystroke (if needed) is sent as a separate command.
 	tmuxArgs := sendTextArgs(server, paneID, text)
 
-	if err := exec.Command("tmux", tmuxArgs...).Run(); err != nil {
-		return fmt.Errorf("tmux send-keys: %w", err)
+	if _, stderr, err := pane.RunCmd("tmux", tmuxArgs...); err != nil {
+		return pane.StderrError(fmt.Errorf("tmux send-keys to %s: %w", paneID, err), stderr)
 	}
 
 	// Send Enter as a separate non-literal key press
 	if !noEnter {
-		if err := exec.Command("tmux", sendEnterArgs(server, paneID)...).Run(); err != nil {
-			return fmt.Errorf("tmux send-keys (Enter): %w", err)
+		if _, stderr, err := pane.RunCmd("tmux", sendEnterArgs(server, paneID)...); err != nil {
+			return pane.StderrError(fmt.Errorf("tmux send-keys (Enter) to %s: %w", paneID, err), stderr)
 		}
 	}
 

@@ -220,11 +220,11 @@ Without `--session`/`--all-sessions` → current session only (`-s` scope, requi
 
 ### send — `fab pane send <pane> <text> [--no-enter] [--force] [--server <name>]`
 
-Validation pipeline: (1) pane exists via `tmux list-panes -a`; (2) agent is idle (rejects `active`/`unknown` unless `--force`); (3) `tmux send-keys`. `--no-enter` skips the trailing Enter. `--force` bypasses idle check only — pane-existence still enforced. Agent resolution matches `_agents[*].tmux_pane` in `.fab-runtime.yaml` at the worktree root; a pane with no matching entry = `unknown` (non-idle). Change state is independent — panes in discussion mode (no active change) now accept sends when idle, instead of being rejected as `unknown`. Success: `Sent to <pane>`.
+Validation pipeline: (1) pane exists via a single targeted probe — `tmux display-message -t <pane> -p '#{pane_id}'`, output must equal the argument exactly (ID-exact: window names / target-grammar args resolve to a different pane ID and are rejected; no server-wide enumeration); (2) agent is idle (rejects `active`/`unknown` unless `--force`); (3) `tmux send-keys`. `--no-enter` skips the trailing Enter. `--force` bypasses idle check only — pane-existence still enforced. Agent resolution matches `_agents[*].tmux_pane` in `.fab-runtime.yaml` at the worktree root; a pane with no matching entry = `unknown` (non-idle). Change state is independent — panes in discussion mode (no active change) now accept sends when idle, instead of being rejected as `unknown`. Success: `Sent to <pane>`.
 
 ### process — `fab pane process <pane> [--json] [--server <name>]`
 
-OS-level process tree. Linux: walks `/proc/<pid>/task/<tid>/children`, reads `/proc/<pid>/comm` + `/cmdline`. macOS: `ps -o pid,ppid,comm -ax` PPID traversal, `ps -o args= -p <pid>` for full cmdline. Classification: `claude`/`claude-code` → `agent`, `node` → `node`, `git`/`gh` → `git`, else `other`. JSON: `{pane, pane_pid, processes (tree), has_agent}`. Pane not found → exit 1. `--server` scopes tmux lookup only; `/proc`/`ps` walk is socket-independent.
+OS-level process tree. Linux: walks `/proc/<pid>/task/<tid>/children`, reads `/proc/<pid>/comm` + `/cmdline`. macOS: `ps -o pid,ppid,comm -ax` PPID traversal, plus one batched `ps -axo pid=,args=` pass joined by PID for full cmdlines (two `ps` spawns total — no per-node lookups; a process exiting between the passes degrades to cmdline `""`). Classification: `claude`/`claude-code` → `agent`, `node` → `node`, `git`/`gh` → `git`, else `other`. JSON: `{pane, pane_pid, processes (tree), has_agent}`. Pane not found → exit 1. `--server` scopes tmux lookup only; `/proc`/`ps` walk is socket-independent.
 
 ---
 
@@ -375,10 +375,12 @@ What it writes:
 Data sourcing (all read by the command itself):
 - Each topic file's **H1** (first `# ` line) and **`description:` frontmatter** (via
   `internal/frontmatter`). A file with no `description:` renders `—` in that cell (never errors).
-- **"Last Updated"** from `git log -1 --date=short --format=%ad -- <file>`, run at the repo
-  root. Degrades to `—` when git returns nothing — uncommitted file, worktree, shallow clone,
-  squash/rebase, or git unavailable — mirroring how `fab pr-meta` degrades on missing git/gh
-  context.
+- **"Last Updated"** from ONE batched `git log --date=short --name-only -- docs/memory` pass
+  (newest-first; the first date seen per path wins — equivalent to the old per-file
+  `git log -1 --date=short --format=%ad -- <file>` defaults, which is kept only as the
+  per-file fallback when the batched call fails). Degrades to `—` when git records nothing
+  for a file — uncommitted file, worktree, shallow clone, squash/rebase, or git
+  unavailable — mirroring how `fab pr-meta` degrades on missing git/gh context.
 
 Shape warnings (non-fatal, stderr — the "detect" half of the memory-tree-shape work):
 - `⚠ docs/memory/<domain> has <N> topic files (soft bound: ~12) — consider splitting into sub-domains`
@@ -456,7 +458,7 @@ Per node: `name=cmd.Name()`, `path=cmd.CommandPath()`, `short=cmd.Short`, `usage
 fab operator
 ```
 
-Singleton tmux-tab launcher for `/fab-operator`. Requires `$TMUX`. If window `operator` exists → select it (`Switched to existing operator tab.`); else create one in the repo root running `{spawn_command} '/fab-operator'` (`Launched operator.`).
+Singleton tmux-tab launcher for `/fab-operator`. Requires `$TMUX` (else exit 1, `ERROR: not inside a tmux session`). The singleton check is an **exact, server-wide** window-name match: `tmux list-windows -a` enumerated and compared exactly (never tmux target resolution, whose prefix/glob fallback would let e.g. `operator-logs` mask the real check; `-a` enforces the one-operator-per-SERVER invariant across sessions). If a window named exactly `operator` exists anywhere on the server → select it by window ID, switching the client to its session when needed (`Switched to existing operator tab.`); else create one in the repo root running `{spawn_command} '/fab-operator'` (`Launched operator.`).
 
 **Spawn command resolution**: `agent.spawn_command` from `fab/project/config.yaml`; falls back to `claude --dangerously-skip-permissions` if missing/null/empty.
 
@@ -504,7 +506,7 @@ Prints a repo's configured agent spawn command to stdout. With `--repo <path>`, 
 
 Multi-target operations: `fab batch <new|switch|archive> [--list] [--all] [targets...]`. The `new` and `switch` subcommands create tmux windows and require `$TMUX`; `archive` runs in-process and does not.
 
-- **`new`** — parse `fab/backlog.md` pending items (`- [ ] [xxxx]`), create worktrees, open tmux windows, start agents with `/fab-new {description}`. No args → `--list`. IDs → one worktree tab each (`wt create --non-interactive --worktree-name {id}`, window `fab-{id}`, `{spawn_command} '/fab-new {description}'`). `--all` → all pending. Handles continuation lines.
+- **`new`** — parse `fab/backlog.md` pending items (`- [ ] [xxxx]`), create worktrees, open tmux windows, start agents with `/fab-new {description}`. No args → `--list`. IDs → one worktree tab each (`wt create --non-interactive --worktree-name {id}`, window `fab-{id}`, `{spawn_command} '/fab-new {description}'`). `--all` → all pending. Handles continuation lines. Launch failures are surfaced per item: a failed `wt create` or `tmux new-window` prints `[{id}] FAILED: ...` (the tmux line names the already-created worktree path as the cleanup/recovery hint) with the child's stderr included, never aborts the remaining items, and the command exits non-zero when any item failed (`ERROR: {N} of {M} item(s) failed to launch`). Unknown/empty backlog IDs remain warn-and-skip (exit 0). Requires `$TMUX` (else exit 1, `ERROR: not inside a tmux session`); empty pending backlog with `--all` → exit 1, `ERROR: No pending backlog items found.`.
 - **`switch`** — resolve change names, create worktrees with branch names (applying `branch_prefix` from config), start agents with `/fab-switch {change}`. No args → `--list`. `--all` → all active changes (excludes `archive/`). Branch naming: `{branch_prefix}{folder_name}`.
 - **`archive`** — find changes with `hydrate: done|skipped`, then archive each mechanically in a Go loop via `internal/archive.ArchiveWithBacklog` (move, index, backlog mark-done, pointer). No agent or Claude session is spawned; resolution uses `resolve.ToFolder` (no `fab`-on-PATH dependency). No args → `--all` (differs from new/switch). `--list` → show archivable only. Per change prints `{name} — archived` (with ` (backlog marked done)` when applicable), `already archived, skipping` (covers genuinely-archived names — counted as skipped), or `FAILED: {err}`; a single failure never aborts the batch. Footer: `Archived {N}, skipped {M}, failed {K}.`. Exit semantics: an empty `--all`/no-args set is a benign no-op (`No archivable changes found.` + zero footer, exit 0); after the loop runs, non-zero only when `failed > 0`; one residual exit-1 path remains — explicitly named targets where none resolves to an active *or* archived change (`No valid changes to archive.`).
 

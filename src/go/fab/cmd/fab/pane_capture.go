@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
@@ -103,14 +102,16 @@ func capturePaneArgs(server, paneID string, lines int) []string {
 	return pane.WithServer(server, "capture-pane", "-t", paneID, "-p", "-S", fmt.Sprintf("-%d", lines))
 }
 
-// capturePaneContent runs tmux capture-pane and returns the captured text.
+// capturePaneContent runs tmux capture-pane and returns the captured text
+// (raw — never trimmed, so --raw output stays byte-identical to tmux's). On
+// failure the error names the pane and carries tmux's stderr diagnostic.
 // When server is non-empty, the tmux invocation is scoped via `-L <server>`.
 func capturePaneContent(server, paneID string, lines int) (string, error) {
-	out, err := exec.Command("tmux", capturePaneArgs(server, paneID, lines)...).Output()
+	out, stderr, err := pane.RunCmd("tmux", capturePaneArgs(server, paneID, lines)...)
 	if err != nil {
-		return "", err
+		return "", pane.StderrError(fmt.Errorf("pane %s: %w", paneID, err), stderr)
 	}
-	return string(out), nil
+	return out, nil
 }
 
 // printCaptureHeader prints the human-readable header block.

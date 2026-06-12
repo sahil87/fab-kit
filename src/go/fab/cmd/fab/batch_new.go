@@ -3,11 +3,11 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/backlog"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/spawn"
 	"github.com/spf13/cobra"
@@ -56,8 +56,7 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 
 	// Check tmux
 	if os.Getenv("TMUX") == "" {
-		fmt.Fprintln(errW, "Error: not inside a tmux session")
-		os.Exit(1)
+		return fmt.Errorf("not inside a tmux session")
 	}
 
 	// Collect IDs
@@ -65,8 +64,7 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 	if allFlag {
 		items := backlog.ParsePending(backlogPath)
 		if len(items) == 0 {
-			fmt.Fprintln(errW, "No pending backlog items found.")
-			os.Exit(1)
+			return fmt.Errorf("No pending backlog items found.")
 		}
 		for _, item := range items {
 			ids = append(ids, item.ID)
@@ -80,7 +78,12 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 	configPath := filepath.Join(fabRoot, "project", "config.yaml")
 	spawnCmd := spawn.Command(configPath)
 
-	// Process each ID
+	// Process each ID. Launch failures (wt create, tmux new-window) are
+	// reported per item with a failure count and a non-zero exit when any
+	// item failed — never a silent exit 0 leaving an orphaned worktree.
+	// Pattern precedent: batch_archive.go archiveLoop. Backlog lookup
+	// problems remain warn-and-skip (user-input issues, not launch failures).
+	failed := 0
 	for _, id := range ids {
 		content, err := backlog.ExtractContent(backlogPath, id)
 		if err != nil {
@@ -100,21 +103,31 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 		fmt.Fprintf(w, "  [%s] %s\n", id, display)
 
 		// Create worktree
-		wtOut, err := exec.Command("wt", "create", "--non-interactive", "--worktree-name", id).Output()
+		wtOut, wtStderr, err := pane.RunCmd("wt", "create", "--non-interactive", "--worktree-name", id)
 		if err != nil {
-			fmt.Fprintf(errW, "Error: failed to create worktree for [%s], skipping\n", id)
+			fmt.Fprintf(errW, "  [%s] FAILED: wt create: %v\n", id, pane.StderrError(err, wtStderr))
+			failed++
 			continue
 		}
-		wtPath := strings.TrimSpace(string(wtOut))
+		wtPath := strings.TrimSpace(wtOut)
 
 		// Escape single quotes for shell
 		safe := strings.ReplaceAll(content, "'", "'\\''")
 
-		// Open tmux window
+		// Open tmux window. The worktree already exists at this point, so a
+		// launch failure names it as the recovery/cleanup hint.
 		shellCmd := fmt.Sprintf("%s '/fab-new %s'", spawnCmd, safe)
-		exec.Command("tmux", "new-window", "-n", "fab-"+id, "-c", wtPath, shellCmd).Run()
+		if _, stderr, err := pane.RunCmd("tmux", "new-window", "-n", "fab-"+id, "-c", wtPath, shellCmd); err != nil {
+			fmt.Fprintf(errW, "  [%s] FAILED: tmux new-window: %v (worktree already created at %s)\n",
+				id, pane.StderrError(err, stderr), wtPath)
+			failed++
+			continue
+		}
 	}
 
+	if failed > 0 {
+		return fmt.Errorf("%d of %d item(s) failed to launch", failed, len(ids))
+	}
 	return nil
 }
 
