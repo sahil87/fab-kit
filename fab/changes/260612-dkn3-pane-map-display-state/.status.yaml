@@ -1,0 +1,55 @@
+id: dkn3
+name: 260612-dkn3-pane-map-display-state
+created: 2026-06-12T05:07:41Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 5
+    acceptance_count: 10
+    acceptance_completed: 10
+confidence:
+    certain: 9
+    confident: 0
+    tentative: 0
+    unresolved: 0
+    score: 5.0
+    fuzzy: true
+    dimensions:
+        signal: 94.4
+        reversibility: 85.0
+        competence: 83.9
+        disambiguation: 77.8
+stage_metrics:
+    intake: {started_at: "2026-06-12T05:07:41Z", driver: fab-new, iterations: 1, completed_at: "2026-06-12T05:22:01Z"}
+    apply: {started_at: "2026-06-12T05:22:01Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-12T05:29:14Z"}
+    review: {started_at: "2026-06-12T05:29:14Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-12T05:40:34Z"}
+    hydrate: {started_at: "2026-06-12T05:40:34Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-12T05:46:47Z"}
+    ship: {started_at: "2026-06-12T05:46:47Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-12T05:48:39Z"}
+    review-pr: {started_at: "2026-06-12T05:48:39Z", driver: git-pr, iterations: 1, completed_at: "2026-06-12T06:14:01Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/394
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-06-12T05:46:47Z"
+    computed_at_stage: hydrate
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-12T06:14:01Z

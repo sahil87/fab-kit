@@ -18,8 +18,8 @@ The preflight script (`src/kit/scripts/lib/preflight.sh`) validates the active c
 - `name` — the change folder name (resolved via `lib/changeman.sh resolve`)
 - `change_dir` — path to `fab/changes/{name}/`, relative to `fab/`
 - `stage` — routing stage: what `/fab-continue` will produce next (derived via `get_current_stage` from `lib/statusman.sh`)
-- `display_stage` — display stage: "where you are" in the pipeline (derived via `get_display_stage` from `lib/statusman.sh`). Returns first `active` stage, or last `done` stage, or `intake` if nothing started
-- `display_state` — the state of the display stage (`active`, `done`, or `pending`)
+- `display_stage` — display stage: "where you are" in the pipeline (derived via `get_display_stage` from `lib/statusman.sh`). Five-tier walk: first `active`, else first `failed` (tier added in dkn3 so parked review/review-pr failures surface instead of falling through to the last done stage), else first `ready`, else last `done`/`skipped`, else first `pending` (`intake` if nothing started) — see [change-lifecycle.md](change-lifecycle.md) "Deriving display stage"
+- `display_state` — the state of the display stage: `active`, `ready`, `done`, `failed`, `pending`, or `skipped`
 - `progress` — full progress map (all 6 stages with their status, via `get_progress_map`)
 - `checklist.generated` — boolean (via `get_checklist`)
 - `checklist.completed` — integer
@@ -52,7 +52,7 @@ The script invokes `lib/changeman.sh` and `lib/statusman.sh` via CLI subprocess 
 - **Change resolution**: `$CHANGEMAN resolve [override]` handles both default mode (reads `.fab-status.yaml` symlink) and override mode (case-insensitive substring matching against `fab/changes/`). Returns resolved folder name to stdout; errors to stderr.
 - **Progress extraction**: `$STATUSMAN progress-map` returns `stage:state` pairs, consumed via `while IFS=: read -r`
 - **Stage derivation (routing)**: `$STATUSMAN current-stage` — returns the next stage to work on (three-tier fallback: first active, first pending after last done, review-pr if all done/skipped)
-- **Stage derivation (display)**: `$STATUSMAN display-stage` — returns `stage:state` for "where you are" (first active, or last done, or first stage with pending). Used for user-facing display in `/fab-status` and `/fab-switch`
+- **Stage derivation (display)**: `$STATUSMAN display-stage` — returns `stage:state` for "where you are" (five-tier walk: first active, else first failed, else first ready, else last done/skipped, else first pending). Used for user-facing display in `/fab-status` and `/fab-switch`
 - **Checklist fields**: `$STATUSMAN checklist` returns `generated`, `completed`, `total` with defaults
 - **Confidence fields**: `$STATUSMAN confidence` returns `certain`, `confident`, `tentative`, `unresolved`, `score` with defaults
 - **Schema validation**: `$STATUSMAN validate-status-file` for structural correctness
@@ -101,6 +101,7 @@ Skills exempt from preflight: `setup`, `new`, `switch`, `status`, `discuss`, `he
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260612-dkn3-pane-map-display-state | 2026-06-12 | Corrected the `display_stage`/`display_state` field docs to the actual derivation: `display_state` draws from the full six-value set (`active`, `ready`, `done`, `failed`, `pending`, `skipped`) — the prior "(`active`, `done`, or `pending`)" was stale — and `display_stage` is the five-tier walk now including the `failed` tier added in dkn3 (first active, else first failed, else first ready, else last done/skipped, else first pending). Preflight output for a review-failed change with nothing active is now `display_stage: review` / `display_state: failed` instead of `apply`/`done`. No preflight-side code change — the value flows from `status.DisplayStage` (see [change-lifecycle.md](change-lifecycle.md)). |
 | 260612-k4ge-cli-exit-contract-conformance | 2026-06-12 | Doc reconciliation only: the routing derivation's all-done fallback is `review-pr` (matches `CurrentStage` in status.go), not `hydrate` — same drift corrected in [schemas.md](schemas.md) and [change-lifecycle.md](change-lifecycle.md). No preflight behavior change. |
 | 260402-gnx5-relocate-kit-to-system-cache | 2026-04-02 | Updated sync staleness check: VERSION now read from exe-sibling kit in cache (`kitpath.KitDir()`) instead of `fab/.kit/VERSION`. Comparison logic unchanged — `$(fab kit-path)/VERSION` vs `fab_version` in `config.yaml`. |
 | 260302-9fnn-extract-logman-from-preflight | 2026-03-02 | Removed `--driver` flag, `LOGMAN` variable, and logman call from preflight — now purely validation + YAML output. Command logging moved to direct `logman.sh command` calls from skills (via `_preamble.md` §2 step 4 for preflight-calling skills, per-skill instructions for exempt skills). Updated Skill Integration section. |

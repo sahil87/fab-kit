@@ -42,16 +42,17 @@ type paneEntry struct {
 
 // paneRow holds the resolved data for a single output row.
 type paneRow struct {
-	session     string
-	windowIndex int
-	pane        string
-	tab         string
-	worktree    string
-	repo        string // absolute main-worktree root for this pane's repo (em dash when unresolved)
-	change      string
-	stage       string
-	agent       string
-	prURL       string // last entry in .status.yaml prs:, "" when absent/empty/unresolved
+	session      string
+	windowIndex  int
+	pane         string
+	tab          string
+	worktree     string
+	repo         string // absolute main-worktree root for this pane's repo (em dash when unresolved)
+	change       string
+	stage        string
+	displayState string // state half of status.DisplayStage (em dash when unresolved)
+	agent        string
+	prURL        string // last entry in .status.yaml prs:, "" when absent/empty/unresolved
 }
 
 func runPaneMap(cmd *cobra.Command, args []string) error {
@@ -285,15 +286,16 @@ func resolvePane(p paneEntry, mainRoot, server string, runtimeCache map[string]i
 	wtRoot, err := pane.GitWorktreeRoot(p.cwd)
 	if err != nil {
 		return paneRow{
-			session:     p.session,
-			windowIndex: p.index,
-			pane:        p.id,
-			tab:         p.tab,
-			worktree:    filepath.Base(p.cwd) + "/",
-			repo:        emDash,
-			change:      emDash,
-			stage:       emDash,
-			agent:       emDash,
+			session:      p.session,
+			windowIndex:  p.index,
+			pane:         p.id,
+			tab:          p.tab,
+			worktree:     filepath.Base(p.cwd) + "/",
+			repo:         emDash,
+			change:       emDash,
+			stage:        emDash,
+			displayState: emDash,
+			agent:        emDash,
 		}, true
 	}
 
@@ -314,6 +316,7 @@ func resolvePane(p paneEntry, mainRoot, server string, runtimeCache map[string]i
 
 	changeName := emDash
 	stageName := emDash
+	stageState := emDash
 	prURL := ""
 	var folderName string
 	if !fabDirMissing {
@@ -321,8 +324,9 @@ func resolvePane(p paneEntry, mainRoot, server string, runtimeCache map[string]i
 		if folderName != "" {
 			statusPath := filepath.Join(fabDir, "changes", folderName, ".status.yaml")
 			if statusFile, err := sf.Load(statusPath); err == nil {
-				stage, _ := status.DisplayStage(statusFile)
+				stage, state := status.DisplayStage(statusFile)
 				stageName = stage
+				stageState = state
 				if n := len(statusFile.PRs); n > 0 {
 					prURL = statusFile.PRs[n-1] // last = most recent
 				}
@@ -336,16 +340,17 @@ func resolvePane(p paneEntry, mainRoot, server string, runtimeCache map[string]i
 	agentState := pane.ResolveAgentStateWithCache(wtRoot, p.id, server, runtimeCache)
 
 	return paneRow{
-		session:     p.session,
-		windowIndex: p.index,
-		pane:        p.id,
-		tab:         p.tab,
-		worktree:    wtDisplay,
-		repo:        repoRoot,
-		change:      changeName,
-		stage:       stageName,
-		agent:       agentState,
-		prURL:       prURL,
+		session:      p.session,
+		windowIndex:  p.index,
+		pane:         p.id,
+		tab:          p.tab,
+		worktree:     wtDisplay,
+		repo:         repoRoot,
+		change:       changeName,
+		stage:        stageName,
+		displayState: stageState,
+		agent:        agentState,
+		prURL:        prURL,
 	}, true
 }
 
@@ -359,6 +364,7 @@ type paneJSON struct {
 	Repo              *string `json:"repo"`
 	Change            *string `json:"change"`
 	Stage             *string `json:"stage"`
+	DisplayState      *string `json:"display_state"`
 	AgentState        *string `json:"agent_state"`
 	AgentIdleDuration *string `json:"agent_idle_duration"`
 	PRURL             *string `json:"pr_url"`
@@ -434,6 +440,7 @@ func printPaneJSON(cmd *cobra.Command, rows []paneRow) error {
 			Repo:              toNullable(r.repo),
 			Change:            toNullable(r.change),
 			Stage:             toNullable(r.stage),
+			DisplayState:      toNullable(r.displayState),
 			AgentState:        agentState,
 			AgentIdleDuration: idleDur,
 			PRURL:             toNullable(r.prURL),
