@@ -136,10 +136,16 @@ func resolveFromCurrent(fabRoot, changesDir string) (string, error) {
 			// single-change logic below so callers get the actionable
 			// /fab-switch guidance instead of a silently stale folder (mz4q
 			// F08). The link is left in place — resolve is a pure query with
-			// no side effects.
+			// no side effects. Only genuine absence falls through: any other
+			// stat failure (permission, I/O) surfaces with its cause instead
+			// of masquerading as "no active change" (mz4q F06 posture).
 			statusPath := filepath.Join(changesDir, name, ".status.yaml")
-			if _, err := os.Stat(statusPath); err == nil {
+			_, statErr := os.Stat(statusPath)
+			if statErr == nil {
 				return name, nil
+			}
+			if !os.IsNotExist(statErr) {
+				return "", fmt.Errorf("stat active change target %s: %w", statusPath, statErr)
 			}
 		}
 	}

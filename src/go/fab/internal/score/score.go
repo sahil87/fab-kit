@@ -104,7 +104,12 @@ func CheckGate(fabRoot, changeArg, stage string) (*GateResult, error) {
 
 	content, err := os.ReadFile(scoreFile)
 	if err != nil {
-		return nil, fmt.Errorf("%s not found in %s", filepath.Base(scoreFile), changeDir)
+		// Friendly not-found text only for genuine absence; other read
+		// failures (permission, I/O) keep their cause (mz4q F06 posture).
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("%s not found in %s", filepath.Base(scoreFile), changeDir)
+		}
+		return nil, fmt.Errorf("read %s: %w", scoreFile, err)
 	}
 
 	gc := countGrades(content)
@@ -144,7 +149,12 @@ func Compute(fabRoot, changeArg, stage string) (*ScoreResult, error) {
 	scoreFile := filepath.Join(changeDir, "intake.md")
 	content, err := os.ReadFile(scoreFile)
 	if err != nil {
-		return nil, fmt.Errorf("intake.md required for scoring")
+		// Friendly guidance only for genuine absence; other read failures
+		// (permission, I/O) keep their cause (mz4q F06 posture).
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("intake.md required for scoring")
+		}
+		return nil, fmt.Errorf("read %s: %w", scoreFile, err)
 	}
 
 	var result *ScoreResult

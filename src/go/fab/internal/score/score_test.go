@@ -424,3 +424,47 @@ func TestComputeWithStatus_MutatesInMemoryWithoutSaving(t *testing.T) {
 		t.Errorf("expected confidence event logged to .history.jsonl: %v", err)
 	}
 }
+
+func TestCheckGate_UnreadableIntakeClassified(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root — permission bits are not enforced")
+	}
+	fabRoot := setupScoreFixture(t, "feat", specWithAssumptions("| 1 | Certain | D1 | R1 | |"))
+	intakePath := filepath.Join(fabRoot, "changes", "260310-abcd-my-change", "intake.md")
+	if err := os.Chmod(intakePath, 0o000); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := CheckGate(fabRoot, "abcd", "intake")
+	if err == nil {
+		t.Fatal("expected error for unreadable intake.md")
+	}
+	if strings.Contains(err.Error(), "not found") {
+		t.Errorf("permission failure must not masquerade as absence: %v", err)
+	}
+	if !strings.Contains(err.Error(), "read") || !strings.Contains(err.Error(), "permission denied") {
+		t.Errorf("expected cause-bearing read error, got: %v", err)
+	}
+}
+
+func TestCompute_UnreadableIntakeClassified(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root — permission bits are not enforced")
+	}
+	fabRoot := setupScoreFixture(t, "feat", specWithAssumptions("| 1 | Certain | D1 | R1 | |"))
+	intakePath := filepath.Join(fabRoot, "changes", "260310-abcd-my-change", "intake.md")
+	if err := os.Chmod(intakePath, 0o000); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Compute(fabRoot, "abcd", "intake")
+	if err == nil {
+		t.Fatal("expected error for unreadable intake.md")
+	}
+	if strings.Contains(err.Error(), "required for scoring") {
+		t.Errorf("permission failure must not masquerade as a missing intake: %v", err)
+	}
+	if !strings.Contains(err.Error(), "read") || !strings.Contains(err.Error(), "permission denied") {
+		t.Errorf("expected cause-bearing read error, got: %v", err)
+	}
+}

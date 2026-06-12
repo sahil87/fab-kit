@@ -376,3 +376,36 @@ func TestToFolder_SymlinkTargetMissingStatusFile(t *testing.T) {
 		t.Errorf("got %q, want fallback to the one valid change", got)
 	}
 }
+
+func TestToFolder_UnreadableSymlinkTargetClassified(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root — permission bits are not enforced")
+	}
+	fabRoot := setupFabRoot(t)
+	changeDir := createChange(t, fabRoot, "260310-abcd-my-change")
+	createChange(t, fabRoot, "260311-ef12-other-change")
+
+	repoRoot := filepath.Dir(fabRoot)
+	if err := os.Symlink("fab/changes/260310-abcd-my-change/.status.yaml", filepath.Join(repoRoot, ".fab-status.yaml")); err != nil {
+		t.Fatal(err)
+	}
+
+	// A non-traversable change dir makes the target stat fail with EACCES —
+	// not absence. That must surface with its cause, not fall through to the
+	// misleading no-active-change / multiple-changes guidance.
+	if err := os.Chmod(changeDir, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(changeDir, 0o755) })
+
+	_, err := ToFolder(fabRoot, "")
+	if err == nil {
+		t.Fatal("expected error for unreadable pointer target")
+	}
+	if strings.Contains(err.Error(), "No active change") {
+		t.Errorf("permission failure must not masquerade as no-active-change: %v", err)
+	}
+	if !strings.Contains(err.Error(), "stat active change target") || !strings.Contains(err.Error(), "permission denied") {
+		t.Errorf("expected cause-bearing stat error, got: %v", err)
+	}
+}
