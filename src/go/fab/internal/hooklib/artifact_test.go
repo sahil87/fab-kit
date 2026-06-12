@@ -334,6 +334,29 @@ func TestCountSectionItemsBounded_StopsAtNextHeading(t *testing.T) {
 	}
 }
 
+func TestCountSectionItemsBounded_OversizedLineInsideSection(t *testing.T) {
+	// The old in-memory scanner hit bufio.ErrTooLong on a >64KB line and
+	// silently stopped, undercounting items — wrong counts were *persisted*
+	// into .status.yaml by the artifact-write hook, not just displayed.
+	long := strings.Repeat("x", 70*1024)
+	content := "## Tasks\n\n" +
+		"- [ ] T001 before the long line\n" +
+		"- [x] T002 " + long + "\n" +
+		"- [ ] T003 after the long line\n" +
+		"\n## Acceptance\n\n" +
+		"- [x] A-001 met\n"
+
+	if got := CountSectionItemsBounded(content, SectionTasks); got != 3 {
+		t.Errorf("Tasks count: got %d, want 3 (items after the oversized line must be counted)", got)
+	}
+	if got := CountCompletedSectionItemsBounded(content, SectionTasks); got != 1 {
+		t.Errorf("Tasks completed: got %d, want 1 (the oversized item itself)", got)
+	}
+	if !HasSectionHeading(content, SectionAcceptance) {
+		t.Error("Acceptance heading after the oversized line must be found")
+	}
+}
+
 func TestCountSectionItemsBounded_MissingSectionReturnsZero(t *testing.T) {
 	content := `# Plan: example
 

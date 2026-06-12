@@ -1,16 +1,17 @@
 package archive
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/atomicfile"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/backlog"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/change"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/intake"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/lines"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 )
 
@@ -110,12 +111,19 @@ func Archive(fabRoot, changeArg, description string) (*ArchiveResult, error) {
 		return nil, fmt.Errorf("move to archive: %w", err)
 	}
 
-	// 2. Update index
+	// 2. Update index, then backfill unindexed entries from the just-written
+	// content (no post-write re-read). A failed index write must not report
+	// "updated" — the YAML result carries the honest status and the error
+	// propagates alongside the (non-nil) result, since the move has already
+	// happened.
 	indexFile := filepath.Join(archiveDir, "index.md")
-	indexStatus := updateIndex(indexFile, folder, description)
-
-	// Backfill unindexed
-	backfillIndex(archiveDir, indexFile)
+	indexStatus, indexContent, indexErr := updateIndex(indexFile, folder, description)
+	if indexErr == nil {
+		indexErr = backfillIndex(archiveDir, indexFile, indexContent)
+	}
+	if indexErr != nil {
+		indexStatus = "failed"
+	}
 
 	// 3. Clear pointer if active (captured pre-rename above)
 	pointerStatus := "skipped"
@@ -124,13 +132,17 @@ func Archive(fabRoot, changeArg, description string) (*ArchiveResult, error) {
 		pointerStatus = "cleared"
 	}
 
-	return &ArchiveResult{
+	result := &ArchiveResult{
 		Action:  "archive",
 		Name:    folder,
 		Move:    "moved",
 		Index:   indexStatus,
 		Pointer: pointerStatus,
-	}, nil
+	}
+	if indexErr != nil {
+		return result, fmt.Errorf("change moved to archive but index update failed: %w", indexErr)
+	}
+	return result, nil
 }
 
 // ArchiveWithBacklog runs Archive, then marks the originating backlog item
@@ -141,19 +153,22 @@ func Archive(fabRoot, changeArg, description string) (*ArchiveResult, error) {
 // (MarkDone returns "not_found", nil), but a genuine read/write failure
 // (permissions, disk full) is propagated so callers don't report a misleading
 // success. The archive move has already happened by then, so result is
-// returned alongside the error.
+// returned alongside the error. A partial Archive result (move succeeded,
+// index update failed) still gets its backlog mark — the move is
+// irreversible and a re-run soft-skips, so skipping the mark would strand
+// the item — with both errors joined.
 func ArchiveWithBacklog(fabRoot, changeArg, description string) (*ArchiveResult, error) {
-	result, err := Archive(fabRoot, changeArg, description)
-	if err != nil {
-		return nil, err
+	result, archiveErr := Archive(fabRoot, changeArg, description)
+	if result == nil {
+		return nil, archiveErr
 	}
 	id := resolve.ExtractID(result.Name)
 	status, markErr := backlog.MarkDone(backlog.Path(fabRoot), id)
 	result.Backlog = status
 	if markErr != nil {
-		return result, fmt.Errorf("archive succeeded but marking backlog item %q done failed: %w", id, markErr)
+		markErr = fmt.Errorf("archive succeeded but marking backlog item %q done failed: %w", id, markErr)
 	}
-	return result, nil
+	return result, errors.Join(archiveErr, markErr)
 }
 
 // Restore moves a change from the archive back to active.
@@ -181,9 +196,12 @@ func Restore(fabRoot, changeArg string, doSwitch bool) (*RestoreResult, error) {
 		}
 	}
 
-	// 2. Remove from index
+	// 2. Remove from index. A failed read/rewrite is surfaced as
+	// `index: failed` with the error returned alongside the (non-nil)
+	// result — the move has already happened, mirroring ArchiveWithBacklog's
+	// partial-success contract.
 	indexFile := filepath.Join(archiveDir, "index.md")
-	indexStatus := removeFromIndex(indexFile, folder)
+	indexStatus, indexErr := removeFromIndex(indexFile, folder)
 
 	// 3. Optionally switch. A failed activation is surfaced as
 	// `pointer: failed` — rendering it as "skipped" would report the
@@ -198,13 +216,17 @@ func Restore(fabRoot, changeArg string, doSwitch bool) (*RestoreResult, error) {
 		}
 	}
 
-	return &RestoreResult{
+	result := &RestoreResult{
 		Action:  "restore",
 		Name:    folder,
 		Move:    moveStatus,
 		Index:   indexStatus,
 		Pointer: pointerStatus,
-	}, nil
+	}
+	if indexErr != nil {
+		return result, fmt.Errorf("change restored but index update failed: %w", indexErr)
+	}
+	return result, nil
 }
 
 // IsArchived reports whether changeArg unambiguously matches an archived
@@ -373,11 +395,19 @@ func isYearDir(name string) bool {
 	return true
 }
 
-func updateIndex(indexFile, folder, description string) string {
+// updateIndex inserts the new entry below the index header and atomically
+// rewrites the file. It returns the index status ("updated"/"created"), the
+// rewritten content (consumed by backfillIndex, which must not re-read the
+// file), and any read/write error — never an unconditional success status.
+func updateIndex(indexFile, folder, description string) (string, string, error) {
 	indexStatus := "updated"
-	if _, err := os.Stat(indexFile); os.IsNotExist(err) {
-		os.WriteFile(indexFile, []byte("# Archive Index\n\n"), 0644)
+	data, err := os.ReadFile(indexFile)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return "", "", fmt.Errorf("read archive index: %w", err)
+		}
 		indexStatus = "created"
+		data = []byte("# Archive Index\n\n")
 	}
 
 	// Normalize description
@@ -391,40 +421,36 @@ func updateIndex(indexFile, folder, description string) string {
 
 	newEntry := fmt.Sprintf("- **%s** — %s", folder, description)
 
-	data, _ := os.ReadFile(indexFile)
-	lines := strings.Split(string(data), "\n")
+	indexLines := lines.Split(string(data))
 
 	var result []string
-	if len(lines) >= 2 {
-		result = append(result, lines[0], lines[1])
-	} else if len(lines) == 1 {
-		result = append(result, lines[0], "")
+	if len(indexLines) >= 2 {
+		result = append(result, indexLines[0], indexLines[1])
 	} else {
-		result = append(result, "# Archive Index", "")
+		result = append(result, indexLines[0], "")
 	}
 	result = append(result, newEntry)
-	if len(lines) > 2 {
-		result = append(result, lines[2:]...)
+	if len(indexLines) > 2 {
+		result = append(result, indexLines[2:]...)
 	}
 
-	os.WriteFile(indexFile, []byte(strings.Join(result, "\n")), 0644)
-	return indexStatus
+	content := strings.Join(result, "\n")
+	if err := atomicfile.WriteFile(indexFile, []byte(content), 0o644); err != nil {
+		return "", "", fmt.Errorf("write archive index: %w", err)
+	}
+	return indexStatus, content, nil
 }
 
-func backfillIndex(archiveDir, indexFile string) {
-	indexData, _ := os.ReadFile(indexFile)
-	indexContent := string(indexData)
-
-	f, err := os.OpenFile(indexFile, os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-
+// backfillIndex appends entries for archived folders missing from the index.
+// indexContent is the content updateIndex just wrote — passed in so the
+// function never re-reads the file it derives from. When entries are
+// missing, the whole file is rewritten atomically.
+func backfillIndex(archiveDir, indexFile, indexContent string) error {
+	var missing []string
 	backfillEntry := func(name string) {
 		marker := fmt.Sprintf("**%s**", name)
 		if !strings.Contains(indexContent, marker) {
-			fmt.Fprintf(f, "- **%s** — (no description — pre-index archive)\n", name)
+			missing = append(missing, fmt.Sprintf("- **%s** — (no description — pre-index archive)", name))
 		}
 	}
 
@@ -457,37 +483,55 @@ func backfillIndex(archiveDir, indexFile string) {
 			}
 		}
 	}
+
+	if len(missing) == 0 {
+		return nil
+	}
+
+	content := indexContent
+	if !strings.HasSuffix(content, "\n") {
+		content += "\n"
+	}
+	content += strings.Join(missing, "\n") + "\n"
+	if err := atomicfile.WriteFile(indexFile, []byte(content), 0o644); err != nil {
+		return fmt.Errorf("backfill archive index: %w", err)
+	}
+	return nil
 }
 
-func removeFromIndex(indexFile, folder string) string {
-	if _, err := os.Stat(indexFile); os.IsNotExist(err) {
-		return "not_found"
+// removeFromIndex deletes the index entry for folder and atomically
+// rewrites the file. The rewrite is always derived from the complete file —
+// this is the one index function that writes back what it read, so a
+// partial read would silently delete every entry after the abort point.
+// Read/write failures return "failed" with the error; a missing file or
+// absent entry stays the benign ("not_found", nil).
+func removeFromIndex(indexFile, folder string) (string, error) {
+	indexLines, err := lines.ReadFileLines(indexFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "not_found", nil
+		}
+		return "failed", fmt.Errorf("read archive index: %w", err)
 	}
 
 	marker := fmt.Sprintf("**%s**", folder)
 
-	f, err := os.Open(indexFile)
-	if err != nil {
-		return "not_found"
-	}
-
 	var found bool
-	var lines []string
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
+	var kept []string
+	for _, line := range indexLines {
 		if strings.Contains(line, marker) {
 			found = true
 			continue
 		}
-		lines = append(lines, line)
+		kept = append(kept, line)
 	}
-	f.Close()
 
 	if !found {
-		return "not_found"
+		return "not_found", nil
 	}
 
-	os.WriteFile(indexFile, []byte(strings.Join(lines, "\n")), 0644)
-	return "removed"
+	if err := atomicfile.WriteFile(indexFile, []byte(strings.Join(kept, "\n")), 0o644); err != nil {
+		return "failed", fmt.Errorf("write archive index: %w", err)
+	}
+	return "removed", nil
 }

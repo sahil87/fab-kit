@@ -22,7 +22,9 @@ User invokes /fab-archive [change-name]
 │  │     └─ (derive description from intake title, move, update
 │  │         index, mark backlog item done, clear pointer)
 │  │
-│  └─ Step 2: Format report (incl. backlog: field)
+│  └─ Step 2: Format report (incl. backlog: field; index: failed
+│      renders ✗ with a see-stderr pointer — the move already
+│      succeeded, command exits non-zero — 260612-hv7t)
 │
 └── Restore Mode (/fab-archive restore <name> [--switch])
    │
@@ -30,7 +32,9 @@ User invokes /fab-archive [change-name]
    └─ Format report from YAML output
       (pointer: switched | skipped | failed — `failed` means the restore
        completed but --switch could not create the symlink; the report
-       points at /fab-switch {name} as manual recovery — 260612-k4ge)
+       points at /fab-switch {name} as manual recovery — 260612-k4ge.
+       index: removed | not_found | failed — `failed` means the entry
+       removal write failed; restore completed, exit non-zero — 260612-hv7t)
 ```
 
 ### Tools used

@@ -1,16 +1,15 @@
 package main
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 
 	archivePkg "github.com/sahil87/fab-kit/src/go/fab/internal/archive"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
 	"github.com/spf13/cobra"
 )
 
@@ -31,9 +30,6 @@ func batchArchiveCmd() *cobra.Command {
 
 	return cmd
 }
-
-// hydrateStatusRe matches hydrate: done or hydrate: skipped in .status.yaml
-var hydrateStatusRe = regexp.MustCompile(`^\s*hydrate:\s*(done|skipped)`)
 
 func runBatchArchive(cmd *cobra.Command, args []string, listFlag, allFlag bool) error {
 	w := cmd.OutOrStdout()
@@ -127,10 +123,10 @@ func archiveLoop(w, errW io.Writer, fabRoot string, resolved []string) (archived
 				continue
 			}
 			// A non-nil result means the archive move succeeded but a
-			// post-archive step (backlog mark) failed. The folder is already
-			// archived and the move is irreversible within this loop, so count
-			// it as archived and surface the backlog failure as a warning
-			// rather than failing the change.
+			// post-archive step (index update or backlog mark) failed. The
+			// folder is already archived and the move is irreversible within
+			// this loop, so count it as archived and surface the failure as
+			// a warning rather than failing the change.
 			if result != nil {
 				fmt.Fprintf(w, "  %s — archived\n", name)
 				fmt.Fprintf(errW, "    warning: %v\n", err)
@@ -187,19 +183,15 @@ func allArchivableNames(changesDir string) []string {
 	return names
 }
 
-// isArchivable checks if a .status.yaml file has hydrate: done or hydrate: skipped.
+// isArchivable checks if a .status.yaml file has progress.hydrate done or
+// skipped. It goes through internal/statusfile — the package that owns the
+// .status.yaml schema — rather than a private line-scan, so batch archive
+// applies the same parsing semantics as every other consumer.
 func isArchivable(statusPath string) bool {
-	f, err := os.Open(statusPath)
+	sf, err := statusfile.Load(statusPath)
 	if err != nil {
 		return false
 	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		if hydrateStatusRe.MatchString(scanner.Text()) {
-			return true
-		}
-	}
-	return false
+	progress := sf.GetProgress("hydrate")
+	return progress == "done" || progress == "skipped"
 }

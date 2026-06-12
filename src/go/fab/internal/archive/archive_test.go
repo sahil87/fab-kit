@@ -489,6 +489,179 @@ func TestIsArchived(t *testing.T) {
 	}
 }
 
+// --- Index truncation-safety and honest error reporting (hv7t) ---
+
+func TestRemoveFromIndex_PreservesEntriesAfterOversizedLine(t *testing.T) {
+	// The old scanner aborted on a >64KB line; with found=true the rewrite
+	// then silently deleted every entry after the abort point. The rewrite
+	// must always derive from the complete file.
+	dir := t.TempDir()
+	indexFile := filepath.Join(dir, "index.md")
+	long := "- **260101-zzzz-long** — " + strings.Repeat("x", 70*1024)
+	content := "# Archive Index\n\n" +
+		"- **260310-abcd-my-change** — target entry\n" +
+		long + "\n" +
+		"- **260311-wxyz-survivor** — must survive\n"
+	os.WriteFile(indexFile, []byte(content), 0o644)
+
+	status, err := removeFromIndex(indexFile, "260310-abcd-my-change")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if status != "removed" {
+		t.Errorf("status = %q, want removed", status)
+	}
+
+	data, _ := os.ReadFile(indexFile)
+	out := string(data)
+	if strings.Contains(out, "**260310-abcd-my-change**") {
+		t.Error("target entry should be removed")
+	}
+	if !strings.Contains(out, "**260311-wxyz-survivor**") {
+		t.Error("entry after the oversized line must survive the rewrite")
+	}
+	if !strings.Contains(out, "**260101-zzzz-long**") {
+		t.Error("the oversized entry itself must survive the rewrite")
+	}
+}
+
+func TestRemoveFromIndex_MissingFileIsBenign(t *testing.T) {
+	status, err := removeFromIndex(filepath.Join(t.TempDir(), "index.md"), "260310-abcd-my-change")
+	if err != nil {
+		t.Fatalf("missing index must stay a benign not_found, got error: %v", err)
+	}
+	if status != "not_found" {
+		t.Errorf("status = %q, want not_found", status)
+	}
+}
+
+func TestRemoveFromIndex_ReadFailureReturnsError(t *testing.T) {
+	// A directory at the index path makes os.ReadFile fail with a
+	// non-IsNotExist error — previously reported as "not_found".
+	dir := t.TempDir()
+	indexFile := filepath.Join(dir, "index.md")
+	os.Mkdir(indexFile, 0o755)
+
+	status, err := removeFromIndex(indexFile, "260310-abcd-my-change")
+	if err == nil {
+		t.Fatal("expected error for unreadable index, got nil")
+	}
+	if status != "failed" {
+		t.Errorf("status = %q, want failed", status)
+	}
+}
+
+func TestRestore_IndexFailureSurfacedHonestly(t *testing.T) {
+	fabRoot := setupArchiveFixture(t)
+	folder := "260310-abcd-my-change"
+
+	if _, err := Archive(fabRoot, "abcd", "desc"); err != nil {
+		t.Fatalf("archive failed: %v", err)
+	}
+
+	// Replace the index with a directory: removeFromIndex's read fails.
+	indexFile := filepath.Join(fabRoot, "changes", "archive", "index.md")
+	os.Remove(indexFile)
+	os.Mkdir(indexFile, 0o755)
+
+	result, err := Restore(fabRoot, folder, false)
+	if err == nil {
+		t.Fatal("expected error when the index update fails, got nil")
+	}
+	if result == nil {
+		t.Fatal("result must be non-nil — the restore move succeeded before the index failure")
+	}
+	if result.Move != "restored" {
+		t.Errorf("Move = %q, want restored", result.Move)
+	}
+	if result.Index != "failed" {
+		t.Errorf("Index = %q, want failed", result.Index)
+	}
+}
+
+func TestArchive_IndexFailureSurfacedHonestly(t *testing.T) {
+	fabRoot := setupArchiveFixture(t)
+
+	// A directory at the index path makes updateIndex's read fail with a
+	// non-IsNotExist error — previously swallowed with an unconditional
+	// "updated" return.
+	archiveDir := filepath.Join(fabRoot, "changes", "archive")
+	os.MkdirAll(archiveDir, 0o755)
+	os.Mkdir(filepath.Join(archiveDir, "index.md"), 0o755)
+
+	result, err := Archive(fabRoot, "abcd", "desc")
+	if err == nil {
+		t.Fatal("expected error when the index update fails, got nil")
+	}
+	if result == nil {
+		t.Fatal("result must be non-nil — the move succeeded before the index failure")
+	}
+	if result.Move != "moved" {
+		t.Errorf("Move = %q, want moved (the move completed)", result.Move)
+	}
+	if result.Index != "failed" {
+		t.Errorf("Index = %q, want failed", result.Index)
+	}
+
+	// The folder must actually be in the archive despite the index failure.
+	if _, statErr := os.Stat(filepath.Join(archiveDir, "2026", "03", "260310-abcd-my-change")); statErr != nil {
+		t.Errorf("archived folder should exist despite index failure: %v", statErr)
+	}
+}
+
+func TestArchiveWithBacklog_IndexFailureStillMarksBacklog(t *testing.T) {
+	fabRoot := setupArchiveFixture(t)
+
+	backlogBody := "# Backlog\n\n- [ ] [abcd] 2026-03-10: make my change\n"
+	os.WriteFile(filepath.Join(fabRoot, "backlog.md"), []byte(backlogBody), 0o644)
+
+	archiveDir := filepath.Join(fabRoot, "changes", "archive")
+	os.MkdirAll(archiveDir, 0o755)
+	os.Mkdir(filepath.Join(archiveDir, "index.md"), 0o755)
+
+	result, err := ArchiveWithBacklog(fabRoot, "abcd", "desc")
+	if err == nil {
+		t.Fatal("expected the index failure to propagate, got nil")
+	}
+	if result == nil {
+		t.Fatal("result must be non-nil for a partial archive")
+	}
+	// The move is irreversible and a re-run soft-skips, so the backlog mark
+	// must still have happened.
+	if result.Backlog != "marked" {
+		t.Errorf("Backlog = %q, want marked despite the index failure", result.Backlog)
+	}
+	data, _ := os.ReadFile(filepath.Join(fabRoot, "backlog.md"))
+	if !strings.Contains(string(data), "- [x] [abcd]") {
+		t.Errorf("backlog line should be flipped to [x], got:\n%s", string(data))
+	}
+}
+
+func TestUpdateIndex_BackfillDerivesFromWrittenContent(t *testing.T) {
+	// backfillIndex receives the content updateIndex just wrote — verify an
+	// archive op both inserts the new entry and backfills a pre-index folder
+	// in one pass.
+	fabRoot := setupArchiveFixture(t)
+	archiveDir := filepath.Join(fabRoot, "changes", "archive")
+
+	// A pre-index archived folder with no index entry.
+	preIndexed := "260201-old1-pre-index-change"
+	os.MkdirAll(filepath.Join(archiveDir, "2026", "02", preIndexed), 0o755)
+
+	if _, err := Archive(fabRoot, "abcd", "fresh entry"); err != nil {
+		t.Fatalf("archive failed: %v", err)
+	}
+
+	data, _ := os.ReadFile(filepath.Join(archiveDir, "index.md"))
+	out := string(data)
+	if !strings.Contains(out, "**260310-abcd-my-change** — fresh entry") {
+		t.Errorf("new entry missing from index:\n%s", out)
+	}
+	if !strings.Contains(out, "**"+preIndexed+"** — (no description — pre-index archive)") {
+		t.Errorf("pre-index folder not backfilled:\n%s", out)
+	}
+}
+
 // --- Restore --switch surfaces activation failure (k4ge) ---
 
 func TestRestore_WithSwitchActivationFailure(t *testing.T) {

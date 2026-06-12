@@ -1,8 +1,6 @@
 package score
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"math"
 	"os"
@@ -11,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/lines"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/lockfile"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/log"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
@@ -159,20 +158,28 @@ func Compute(fabRoot, changeArg, stage string) (*ScoreResult, error) {
 
 	var result *ScoreResult
 	err = lockfile.WithLock(statusPath, func() error {
-		// Load status file once for change type, previous score, and writing back.
+		// Load status file once for change type, previous score, and writing
+		// back. A load failure is a hard error for explicit scoring: the
+		// documented contract is "compute, write .status.yaml" — silently
+		// skipping the write-back (and defaulting change_type to feat) would
+		// report success while persisting nothing (hv7t F11). The
+		// artifact-write hook keeps its best-effort posture by calling
+		// ComputeWithStatus directly under its own err == nil guard.
 		statusFile, loadErr := sf.Load(statusPath)
 		if loadErr != nil {
-			// Tolerated (legacy posture): score without persisting or logging.
-			result = buildResult(content, "feat", 0.0)
-			return nil
+			return loadErr
 		}
 
 		r, err := ComputeWithStatus(fabRoot, changeDir, content, statusFile)
 		if err != nil {
 			return err
 		}
-		// Persistence is best-effort, matching the prior swallow posture.
-		_ = statusFile.Save(statusPath)
+		// Persistence failures propagate — printing a score while silently
+		// persisting nothing would leave stale confidence for preflight,
+		// fab status confidence, fab change view/list, and pr-meta (hv7t F11).
+		if err := statusFile.Save(statusPath); err != nil {
+			return fmt.Errorf("persist confidence: %w", err)
+		}
 		result = r
 		return nil
 	})
@@ -203,7 +210,12 @@ func ComputeWithStatus(fabRoot, changeDir string, intakeContent []byte, statusFi
 		status.ApplyConfidence(statusFile, result.Certain, result.Confident, result.Tentative, result.Unresolved, result.Score)
 	}
 
-	_ = log.ConfidenceLog(changeDir, result.Score, result.Delta, "calc-score")
+	// The history append is part of this entry point's contract; callers
+	// choose the posture — Compute propagates (hv7t F11), the hook guards
+	// with err == nil and stays best-effort.
+	if err := log.ConfidenceLog(changeDir, result.Score, result.Delta, "calc-score"); err != nil {
+		return nil, fmt.Errorf("log confidence: %w", err)
+	}
 
 	return result, nil
 }
@@ -270,16 +282,16 @@ func FormatScoreYAML(r *ScoreResult) string {
 
 // countGrades scans already-read intake content for the ## Assumptions table.
 // Taking the content (not a path) lets the artifact-write hook reuse its
-// single intake.md read (mz4q F02).
+// single intake.md read (mz4q F02). Lines come from lines.Split — not a
+// bufio.Scanner — so an over-long line can never silently truncate the table
+// and flip the gate by dropping graded rows (hv7t F09); a partial count must
+// never be scored.
 func countGrades(content []byte) GradeCount {
 	gc := GradeCount{}
 	inSection := false
 	headerSeen := false
-	scanner := bufio.NewScanner(bytes.NewReader(content))
 
-	for scanner.Scan() {
-		line := scanner.Text()
-
+	for _, line := range lines.Split(string(content)) {
 		if strings.HasPrefix(line, "## Assumptions") {
 			inSection = true
 			headerSeen = false

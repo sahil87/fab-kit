@@ -3,6 +3,7 @@ package frontmatter
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -108,6 +109,29 @@ description: 'Single quoted value'
 
 	if got := Field(path, "description"); got != "Single quoted value" {
 		t.Errorf("Field(description) = %q, want %q", got, "Single quoted value")
+	}
+}
+
+func TestField_AfterOversizedLineFound(t *testing.T) {
+	// The old scanner aborted on a >64KB frontmatter line, reporting every
+	// later field as silently absent — dropping skills from fab help
+	// listings and descriptions from fab memory-index.
+	long := strings.Repeat("x", 70*1024)
+	path := writeTestFile(t, "---\nname: fab-test\nnotes: \""+long+"\"\ndescription: \"Found me\"\n---\n# Content")
+
+	if got := Field(path, "description"); got != "Found me" {
+		t.Errorf("Field(description) = %q, want %q (field after oversized line)", got, "Found me")
+	}
+}
+
+func TestField_EmptyFile(t *testing.T) {
+	path := writeTestFile(t, "")
+
+	if got := Field(path, "name"); got != "" {
+		t.Errorf("Field(name) = %q, want empty for empty file", got)
+	}
+	if HasFrontmatter(path) {
+		t.Error("HasFrontmatter() = true, want false for empty file")
 	}
 }
 

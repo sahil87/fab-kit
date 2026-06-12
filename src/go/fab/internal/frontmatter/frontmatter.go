@@ -1,32 +1,28 @@
 package frontmatter
 
 import (
-	"bufio"
-	"os"
 	"strings"
+
+	"github.com/sahil87/fab-kit/src/go/fab/internal/lines"
 )
 
 // Field extracts a named field from YAML frontmatter (between --- markers)
 // at the start of a file. It handles quoted and unquoted values and strips
-// inline comments. Returns empty string if the field is not found or the
-// file has no frontmatter.
+// inline comments. Returns empty string if the field is not found, the file
+// has no frontmatter, or the file cannot be read.
 func Field(filePath, fieldName string) string {
-	f, err := os.Open(filePath)
+	fileLines, err := lines.ReadFileLines(filePath)
 	if err != nil {
 		return ""
 	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
 
 	// First line must be "---"
-	if !scanner.Scan() || strings.TrimSpace(scanner.Text()) != "---" {
+	if len(fileLines) == 0 || strings.TrimSpace(fileLines[0]) != "---" {
 		return ""
 	}
 
 	// Scan until closing "---"
-	for scanner.Scan() {
-		line := scanner.Text()
+	for _, line := range fileLines[1:] {
 		if strings.TrimSpace(line) == "---" {
 			break
 		}
@@ -53,17 +49,11 @@ func Field(filePath, fieldName string) string {
 
 // HasFrontmatter checks whether a file starts with a "---" frontmatter marker.
 func HasFrontmatter(filePath string) bool {
-	f, err := os.Open(filePath)
-	if err != nil {
+	fileLines, err := lines.ReadFileLines(filePath)
+	if err != nil || len(fileLines) == 0 {
 		return false
 	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	if !scanner.Scan() {
-		return false
-	}
-	return strings.TrimSpace(scanner.Text()) == "---"
+	return strings.TrimSpace(fileLines[0]) == "---"
 }
 
 // stripInlineComment removes a trailing # comment from a value string.

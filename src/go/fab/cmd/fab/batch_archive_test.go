@@ -53,18 +53,44 @@ func TestIsArchivable_MissingFile(t *testing.T) {
 	}
 }
 
+func TestIsArchivable_HydrateKeyOutsideProgressBlock(t *testing.T) {
+	// The deleted regex matched a `hydrate:` key at any indentation anywhere
+	// in the document. statusfile semantics only honor progress.hydrate.
+	dir := t.TempDir()
+	statusPath := filepath.Join(dir, ".status.yaml")
+	os.WriteFile(statusPath, []byte(`progress:
+  hydrate: pending
+stage_metrics:
+  hydrate: done
+`), 0o644)
+
+	if isArchivable(statusPath) {
+		t.Error("hydrate key outside progress: must not make a change archivable")
+	}
+}
+
+func TestIsArchivable_InvalidYAML(t *testing.T) {
+	dir := t.TempDir()
+	statusPath := filepath.Join(dir, ".status.yaml")
+	os.WriteFile(statusPath, []byte("not: [valid: yaml"), 0o644)
+
+	if isArchivable(statusPath) {
+		t.Error("expected not archivable for unparseable .status.yaml")
+	}
+}
+
 func TestAllArchivableNames(t *testing.T) {
 	dir := t.TempDir()
 
 	// Archivable change
 	changeDir := filepath.Join(dir, "260401-ab12-done-change")
 	os.MkdirAll(changeDir, 0o755)
-	os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte("  hydrate: done\n"), 0o644)
+	os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte("progress:\n  hydrate: done\n"), 0o644)
 
 	// Non-archivable change
 	pendingDir := filepath.Join(dir, "260401-cd34-pending-change")
 	os.MkdirAll(pendingDir, 0o755)
-	os.WriteFile(filepath.Join(pendingDir, ".status.yaml"), []byte("  hydrate: pending\n"), 0o644)
+	os.WriteFile(filepath.Join(pendingDir, ".status.yaml"), []byte("progress:\n  hydrate: pending\n"), 0o644)
 
 	// Archive directory (should be excluded)
 	os.MkdirAll(filepath.Join(dir, "archive"), 0o755)
@@ -82,7 +108,7 @@ func TestAllArchivableNames_NoEligible(t *testing.T) {
 	dir := t.TempDir()
 	changeDir := filepath.Join(dir, "260401-ab12-pending")
 	os.MkdirAll(changeDir, 0o755)
-	os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte("  hydrate: active\n"), 0o644)
+	os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte("progress:\n  hydrate: active\n"), 0o644)
 
 	names := allArchivableNames(dir)
 	if len(names) != 0 {
@@ -94,7 +120,7 @@ func TestListArchivable(t *testing.T) {
 	dir := t.TempDir()
 	changeDir := filepath.Join(dir, "260401-ab12-done")
 	os.MkdirAll(changeDir, 0o755)
-	os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte("  hydrate: done\n"), 0o644)
+	os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte("progress:\n  hydrate: done\n"), 0o644)
 
 	var buf bytes.Buffer
 	listArchivable(&buf, dir)
