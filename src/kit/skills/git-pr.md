@@ -77,6 +77,7 @@ git log --oneline @{u}..HEAD 2>/dev/null || echo "NO_UPSTREAM"
 gh pr view --json number,state,url 2>/dev/null || echo "NO_PR"
 default_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
 [ -n "$default_branch" ] || default_branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
+[ -n "$default_branch" ] || default_branch=$(git rev-parse --verify -q refs/remotes/origin/main >/dev/null && echo main || echo master)
 ```
 
 If `{has_fab}` (Step 0), read issues via `fab status get-issues {name}` and capture the output (one ID per line, may be empty).
@@ -87,7 +88,7 @@ Determine:
 - **has_unpushed** — whether there are commits ahead of upstream (or no upstream at all)
 - **pr_state** — the `state` field from `gh pr view` (`OPEN`, `CLOSED`, or `MERGED`), or `none` when no PR exists. Step 3 branches on this explicitly — a CLOSED or MERGED PR is NOT treated as "the branch already has a PR"
 - **number** / **url** — the `number` and `url` fields from `gh pr view` (unset when no PR exists). Interpolated by Step 3's MERGED STOP and the "already shipped" output
-- **default_branch** — the resolved default branch from the commands above (symbolic-ref first, `gh repo view` fallback). If both fail (empty), fall back to treating literal `main`/`master` as the default
+- **default_branch** — the resolved default branch from the commands above (symbolic-ref first, `gh repo view` fallback, then the probed literal fallback: `main` when `refs/remotes/origin/main` exists, else `master` — mirroring the operator's strategy). Always non-empty, so every later `{default_branch}` interpolation is meaningful
 - **issues** — the issue IDs from `fab status get-issues` (space-joined), or empty if none
 
 ### Step 1b: Branch Mismatch Nudge
@@ -115,7 +116,7 @@ Then proceed to Step 2 normally. If `{has_fab}` is false, skip this step silentl
 Cannot ship from a detached HEAD — check out a branch first (run /git-branch).
 ```
 
-**Default-branch guard**: if the current branch is `{default_branch}` (or literal `main`/`master` when Step 1's resolution failed), STOP immediately.
+**Default-branch guard**: if the current branch is `{default_branch}` (or literal `main`/`master` when Step 1 fell back to the probed literal — the probe picks one name, so the other literal stays a safety net), STOP immediately.
 
 If `{has_fab}` (Step 0), enhance the message:
 

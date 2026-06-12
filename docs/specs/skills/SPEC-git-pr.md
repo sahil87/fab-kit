@@ -4,7 +4,7 @@
 
 Autonomously commits, pushes, and creates a draft GitHub PR. No prompts, no questions. Resolves PR type from status/intake/diff. Generates PR body from fab artifacts when available. Records PR URL in `.status.yaml`.
 
-**State hardening** (260612-g8st): verifies git state before mutating — detached-HEAD STOP before any commit/push; the branch guard uses the *resolved* default branch (symbolic-ref → `gh repo view` → literal `main`/`master`); staging is scoped (`git add -u` + expected-area guard for untracked files — never `git add -A`); Step 3 branches on the PR's `state` (OPEN short-circuit / CLOSED fresh PR / MERGED STOP).
+**State hardening** (260612-g8st): verifies git state before mutating — detached-HEAD STOP before any commit/push; the branch guard uses the *resolved* default branch (symbolic-ref → `gh repo view` → probed literal `main`/`master`; always non-empty); staging is scoped (`git add -u` + expected-area guard for untracked files — never `git add -A`); Step 3 branches on the PR's `state` (OPEN short-circuit / CLOSED fresh PR / MERGED STOP).
 
 **Re-run contract** (Constitution III, declared in the skill's Key Properties section): re-run after ship is a no-op — the "already shipped" path (no uncommitted changes, no unpushed commits, an **OPEN** PR exists) re-records the existing PR URL silently and stops; `fab status add-pr` is idempotent and the Step 4c status commit is guarded by `git diff --cached --quiet`.
 
@@ -37,7 +37,9 @@ Autonomously commits, pushes, and creates a draft GitHub PR. No prompts, no ques
 │  │        → {pr_state} (OPEN/CLOSED/MERGED/none), {number}, {url}
 │  │          ({number}/{url} feed the Step 3 MERGED STOP + already-shipped output)
 │  ├─ Bash: git symbolic-ref --short refs/remotes/origin/HEAD → {default_branch}
-│  │        (fallbacks: gh repo view --json defaultBranchRef, then literal main/master)
+│  │        (fallbacks: gh repo view --json defaultBranchRef, then the probed
+│  │         literal — main if refs/remotes/origin/main exists, else master;
+│  │         always non-empty)
 │  └─ Bash: fab status get-issues {name}   (if {has_fab})
 │
 ├─ Step 1b: Branch Mismatch Nudge (compares branch vs {name}; skip if !{has_fab}
@@ -47,7 +49,8 @@ Autonomously commits, pushes, and creates a draft GitHub PR. No prompts, no ques
 ├─ Step 2: Branch Guard (260612-g8st)
 │  ├─ detached HEAD (empty branch) → STOP before any commit/push:
 │  │  "Cannot ship from a detached HEAD — check out a branch first"
-│  └─ on {default_branch} (resolved; literal main/master fallback) → STOP
+│  └─ on {default_branch} (resolved; probed fallback keeps the other
+│     literal as a safety net) → STOP
 │
 ├─ Step 3: Execute Pipeline (branches on {pr_state} — 260612-g8st:
 │  │        MERGED → STOP with new-change/branch guidance, no git mutations;

@@ -156,7 +156,10 @@ func Archive(fabRoot, changeArg, description string) (*ArchiveResult, error) {
 // returned alongside the error. A partial Archive result (move succeeded,
 // index update failed) still gets its backlog mark — the move is
 // irreversible and a re-run soft-skips, so skipping the mark would strand
-// the item — with both errors joined.
+// the item — with both errors joined. Those mark-failure and partial-archive
+// cases are the only ones where a non-nil result is returned alongside an
+// error; when Archive itself errors (including ErrAlreadyArchived), the
+// result is nil.
 //
 // On ErrAlreadyArchived the backlog mark is still attempted (best-effort) so a
 // re-run recovers a previously-failed mark — MarkDone is idempotent and returns
