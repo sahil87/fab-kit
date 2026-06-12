@@ -10,7 +10,17 @@ import (
 )
 
 // Init handles `fab init` — scaffolds a new fab project or updates an existing one.
-func Init() error {
+// systemVersion is the embedded version of the fab-kit binary, threaded into
+// Sync so the version guard compares against the real binary version.
+func Init(systemVersion string) error {
+	// 0. Precondition: must be inside a git repository — checked BEFORE any
+	// download or config write, so a failed init leaves no stale artifacts
+	// behind (sync would fail on this anyway, but only after downloading the
+	// release and writing config.yaml).
+	if _, err := gitRepoRoot(); err != nil {
+		return fmt.Errorf("fab init requires a git repository — run 'git init' first (%w)", err)
+	}
+
 	// 1. Resolve latest version
 	fmt.Println("Resolving latest fab-kit version...")
 	latest, err := LatestVersion()
@@ -46,9 +56,10 @@ func Init() error {
 		return err
 	}
 
-	// 6. Run sync
+	// 6. Run sync — the kit version is passed explicitly; systemVersion (the
+	// embedded binary version) feeds the version guard (F22).
 	fmt.Println("Setting up project...")
-	if err := Sync(latest, false, false); err != nil {
+	if err := runSync(systemVersion, latest, false, false); err != nil {
 		return fmt.Errorf("sync failed: %w", err)
 	}
 

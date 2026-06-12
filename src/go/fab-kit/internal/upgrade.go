@@ -7,8 +7,17 @@ import (
 	"strings"
 )
 
-// Upgrade handles `fab upgrade-repo [version]` — updates fab_version in config.yaml and re-syncs skills.
-func Upgrade(targetVersion string) error {
+// Upgrade handles `fab upgrade-repo [version]` — re-syncs skills to the
+// target version and then updates fab_version in config.yaml.
+// systemVersion is the embedded version of the fab-kit binary, threaded into
+// Sync so the version guard compares against the real binary version (F22).
+//
+// Ordering contract (F18): Sync runs FIRST (with the kit version passed
+// explicitly) and fab_version is stamped only after Sync succeeds. A failed
+// sync therefore exits non-zero, leaves config.yaml on the old version, and
+// a re-run retries instead of short-circuiting on "Already on the latest
+// version".
+func Upgrade(systemVersion, targetVersion string) error {
 	// Must be in a fab repo
 	cfg, err := ResolveConfig()
 	if err != nil {
@@ -71,15 +80,18 @@ func Upgrade(targetVersion string) error {
 
 	fmt.Printf("Upgrading to %s...\n", targetVersion)
 
-	// Update fab_version in config.yaml
-	if err := setFabVersion(cfg.ConfigPath, targetVersion); err != nil {
-		return fmt.Errorf("cannot update config.yaml: %w", err)
+	// Run sync FIRST, passing the kit version explicitly. On failure,
+	// propagate the error (non-zero exit) without stamping fab_version or
+	// printing a success line — config.yaml stays on the old version, so a
+	// re-run of `fab upgrade-repo` retries the upgrade.
+	fmt.Println("Running sync...")
+	if err := runSync(systemVersion, targetVersion, false, false); err != nil {
+		return fmt.Errorf("sync failed: %w — run 'fab sync' to repair, then re-run 'fab upgrade-repo'", err)
 	}
 
-	// Run sync
-	fmt.Println("Running sync...")
-	if err := Sync(targetVersion, false, false); err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: sync failed: %s\n", err)
+	// Stamp fab_version in config.yaml only after a successful sync (F18)
+	if err := setFabVersion(cfg.ConfigPath, targetVersion); err != nil {
+		return fmt.Errorf("cannot update config.yaml: %w", err)
 	}
 
 	// Display result

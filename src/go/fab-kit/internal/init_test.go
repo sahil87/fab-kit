@@ -1,8 +1,13 @@
 package internal
 
 import (
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -132,5 +137,79 @@ func TestCopyDir(t *testing.T) {
 	}
 	if string(data) != "# Test\n" {
 		t.Errorf("unexpected skill content: %s", string(data))
+	}
+}
+
+func TestInit_RequiresGitRepoBeforeAnyWork(t *testing.T) {
+	requireGit(t)
+	dir := t.TempDir() // not a git repository
+	chdir(t, dir)
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("GIT_CEILING_DIRECTORIES", filepath.Dir(dir)) // never walk up into an outer repo
+
+	// Any network call would mean the precondition ran too late.
+	var apiHits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		apiHits++
+		io.WriteString(w, `{"tag_name": "v9.9.9"}`)
+	}))
+	defer srv.Close()
+	origAPI := githubAPIURL
+	githubAPIURL = srv.URL
+	defer func() { githubAPIURL = origAPI }()
+
+	err := Init("1.5.0")
+	if err == nil {
+		t.Fatal("expected Init to fail outside a git repository")
+	}
+	if !strings.Contains(err.Error(), "git repository") {
+		t.Errorf("expected git-repository precondition error, got: %v", err)
+	}
+	if apiHits != 0 {
+		t.Errorf("Init performed %d network call(s) before the git check", apiHits)
+	}
+	if _, statErr := os.Stat(filepath.Join(dir, "fab")); !os.IsNotExist(statErr) {
+		t.Error("Init left fab/ artifacts behind despite failing the precondition")
+	}
+}
+
+func TestInit_ThreadsVersionsIntoSync(t *testing.T) {
+	requireGit(t)
+	dir := t.TempDir()
+	if out, err := exec.Command("git", "init", dir).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+	chdir(t, dir)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	const latest = "0.51.0"
+	populateRemoteCache(t, home, latest)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"tag_name": "v`+latest+`"}`)
+	}))
+	defer srv.Close()
+	origAPI := githubAPIURL
+	githubAPIURL = srv.URL
+	defer func() { githubAPIURL = origAPI }()
+
+	var gotSystem, gotKit string
+	stubRunSync(t, func(systemVersion, kitVersion string, shimOnly, projectOnly bool) error {
+		gotSystem, gotKit = systemVersion, kitVersion
+		return nil
+	})
+
+	if err := Init("1.5.0"); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+	if gotSystem != "1.5.0" || gotKit != latest {
+		t.Errorf("Sync called with (system=%q, kit=%q), want (1.5.0, %s)", gotSystem, gotKit, latest)
+	}
+	v, err := readFabVersion(filepath.Join(dir, "fab", "project", "config.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v != latest {
+		t.Errorf("fab_version = %q, want %s", v, latest)
 	}
 }

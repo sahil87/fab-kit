@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,13 +13,18 @@ import (
 
 const brewFormula = "fab-kit"
 
+// ErrNotBrewInstalled is returned by Update when fab-kit was not installed
+// via Homebrew, so callers (the `fab update` command, versionGuard) can
+// distinguish "cannot self-update" from a successful update.
+var ErrNotBrewInstalled = errors.New("fab-kit was not installed via Homebrew")
+
 // Update self-updates the fab-kit binary via Homebrew.
 func Update(currentVersion string, skipBrewUpdate bool) error {
 	// Guard: only works if installed via Homebrew
 	if !isBrewInstalled() {
 		fmt.Printf("fab-kit v%s was not installed via Homebrew.\n", currentVersion)
 		fmt.Println("Update manually, or reinstall with: brew install sahil87/tap/fab-kit")
-		return nil
+		return ErrNotBrewInstalled
 	}
 
 	fmt.Printf("Current version: v%s\n", currentVersion)
@@ -95,6 +101,28 @@ var isBrewInstalled = func() bool {
 		return false
 	}
 	return strings.Contains(real, "/Cellar/")
+}
+
+// installedBinaryVersion queries the fab-kit binary on PATH for its version
+// (the post-state check versionGuard relies on instead of trusting Update's
+// return value — after `brew upgrade`, the PATH symlink points at the new
+// Cellar binary even though the running process is still the old one).
+// Output format is cobra's stable `fab-kit version vX.Y.Z`. Package-level var
+// so tests can override (same seam pattern as isBrewInstalled).
+var installedBinaryVersion = func() (string, error) {
+	path, err := exec.LookPath("fab-kit")
+	if err != nil {
+		return "", fmt.Errorf("fab-kit not found on PATH: %w", err)
+	}
+	out, err := exec.Command(path, "--version").Output()
+	if err != nil {
+		return "", fmt.Errorf("cannot query fab-kit version: %w", err)
+	}
+	fields := strings.Fields(strings.TrimSpace(string(out)))
+	if len(fields) == 0 {
+		return "", fmt.Errorf("cannot parse fab-kit --version output %q", string(out))
+	}
+	return strings.TrimPrefix(fields[len(fields)-1], "v"), nil
 }
 
 // runWithTimeout runs a command with a timeout.

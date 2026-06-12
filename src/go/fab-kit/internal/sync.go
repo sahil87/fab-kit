@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,6 +15,10 @@ import (
 // requiredTools lists prerequisites that must be available on PATH.
 var requiredTools = []string{"git", "bash", "yq", "direnv"}
 
+// runSync indirects Sync for Init/Upgrade so tests can stub the sync step
+// (full Sync needs git/yq/direnv/network). Same seam pattern as isBrewInstalled.
+var runSync = Sync
+
 // agentConfig describes how to deploy skills to a specific AI agent.
 type agentConfig struct {
 	Label   string // display name
@@ -24,9 +29,14 @@ type agentConfig struct {
 }
 
 // Sync performs the full workspace sync using the cached kit directory.
-// systemVersion is the embedded version of the fab-kit binary.
+// systemVersion is the embedded version of the fab-kit binary (feeds the
+// version guard). kitVersion is the kit content version to sync; when empty
+// (the plain `fab sync` path) it is read from fab_version in config.yaml.
+// Init and Upgrade pass kitVersion explicitly so config.yaml can be stamped
+// only AFTER a successful sync (and so the guard compares the real binary
+// version, not the kit version against itself).
 // shimOnly runs steps 1-5 only; projectOnly runs step 6 only.
-func Sync(systemVersion string, shimOnly, projectOnly bool) error {
+func Sync(systemVersion, kitVersion string, shimOnly, projectOnly bool) error {
 	// Resolve repo root via git
 	repoRoot, err := gitRepoRoot()
 	if err != nil {
@@ -35,15 +45,22 @@ func Sync(systemVersion string, shimOnly, projectOnly bool) error {
 
 	fabDir := filepath.Join(repoRoot, "fab")
 
-	// Resolve fab_version from config.yaml
-	cfg, err := ResolveConfig()
-	if err != nil {
-		return err
+	// Resolve the kit version from config.yaml unless the caller provided it
+	fabVersion := kitVersion
+	if fabVersion == "" {
+		cfg, err := ResolveConfig()
+		if err != nil {
+			return err
+		}
+		if cfg == nil {
+			return fmt.Errorf("not in a fab-managed repo. Run 'fab init' to set one up")
+		}
+		fabVersion = cfg.FabVersion
 	}
-	if cfg == nil {
-		return fmt.Errorf("not in a fab-managed repo. Run 'fab init' to set one up")
-	}
-	fabVersion := cfg.FabVersion
+
+	// Collected (non-aborting) deployment failure — sync continues its
+	// remaining repair steps but MUST exit non-zero at the end.
+	var deployErr error
 
 	if !projectOnly {
 		// Step 1: Prerequisites check
@@ -63,10 +80,11 @@ func Sync(systemVersion string, shimOnly, projectOnly bool) error {
 		}
 
 		cachedKitDir := CachedKitDir(fabVersion)
-		kitVersion := fabVersion
 
 		// Step 4: Workspace scaffolding (all from cache)
-		scaffoldDirectories(repoRoot, fabDir, cachedKitDir, kitVersion)
+		if err := scaffoldDirectories(repoRoot, fabDir, cachedKitDir, fabVersion); err != nil {
+			return fmt.Errorf("scaffolding failed: %w", err)
+		}
 
 		scaffoldDir := filepath.Join(cachedKitDir, "scaffold")
 		if dirExists(scaffoldDir) {
@@ -75,7 +93,7 @@ func Sync(systemVersion string, shimOnly, projectOnly bool) error {
 			}
 		}
 
-		deploySkills(repoRoot, cachedKitDir)
+		deployErr = deploySkills(repoRoot, cachedKitDir)
 
 		// Hook sync — registers inline fab hook commands
 		settingsPath := filepath.Join(repoRoot, ".claude", "settings.local.json")
@@ -99,30 +117,52 @@ func Sync(systemVersion string, shimOnly, projectOnly bool) error {
 		}
 	}
 
+	if deployErr != nil {
+		return fmt.Errorf("skill deployment failed: %w", deployErr)
+	}
+
 	fmt.Println("Done.")
 	return nil
 }
 
 // versionGuard ensures fab_version <= system fab-kit version.
-// If the system version is too old, attempts auto-update via Update().
+// If the system version is too old, attempts auto-update via Update() and
+// then verifies POST-STATE: it re-checks the installed binary version on PATH
+// instead of trusting Update's return value (which is nil on the brew
+// release-lag no-op, and used to be nil on the not-brew path too).
+//
+// When the guard trips, it ALWAYS returns an error — either "updated,
+// re-run 'fab sync'" (the on-disk binary is now new enough, but this process
+// still runs the old code) or actionable too-old instructions. It never
+// continues the current sync on a binary known to be older than fab_version.
 func versionGuard(fabVersion, systemVersion string) error {
 	if systemVersion == "dev" {
 		return nil // dev build, skip guard
 	}
-	cmp := compareSemver(fabVersion, systemVersion)
-	if cmp <= 0 {
+	if compareSemver(fabVersion, systemVersion) <= 0 {
 		return nil // fab_version <= system version
 	}
 
 	fmt.Printf("Project needs v%s but system has v%s. Attempting update...\n", fabVersion, systemVersion)
-	if err := Update(systemVersion, false); err != nil {
-		return fmt.Errorf("system fab-kit v%s is older than project fab_version %s. Run 'fab update' manually: %w",
-			systemVersion, fabVersion, err)
+	updateErr := Update(systemVersion, false)
+
+	// Post-state check: what version is actually installed now?
+	installed, verErr := installedBinaryVersion()
+	if verErr == nil && compareSemver(fabVersion, installed) <= 0 {
+		return fmt.Errorf("fab-kit was updated to v%s — re-run 'fab sync'", installed)
 	}
 
-	// After update, we can't re-check the version in-process (the binary hasn't reloaded).
-	// Trust that brew upgraded to latest. If still insufficient, next run will catch it.
-	return nil
+	manualHint := "update fab-kit manually (brew upgrade fab-kit, or reinstall: brew install sahil87/tap/fab-kit), then re-run 'fab sync'"
+	if updateErr != nil {
+		return fmt.Errorf("system fab-kit v%s is older than project fab_version %s and auto-update did not succeed (%v) — %s",
+			systemVersion, fabVersion, updateErr, manualHint)
+	}
+	if verErr != nil {
+		return fmt.Errorf("system fab-kit v%s is older than project fab_version %s and the installed version could not be verified after update (%v) — %s",
+			systemVersion, fabVersion, verErr, manualHint)
+	}
+	return fmt.Errorf("installed fab-kit v%s is still older than project fab_version %s after update — the Homebrew tap may lag the release; %s",
+		installed, fabVersion, manualHint)
 }
 
 // compareSemver compares two semver strings. Returns -1, 0, or 1.
@@ -201,7 +241,9 @@ func checkPrerequisites() error {
 }
 
 // scaffoldDirectories creates required directories and .gitkeep files.
-func scaffoldDirectories(repoRoot, fabDir, kitDir, kitVersion string) {
+// Write failures are propagated — a silently failed .kit-migration-version
+// write would silently disable migration discovery in Upgrade.
+func scaffoldDirectories(repoRoot, fabDir, kitDir, kitVersion string) error {
 	docsDir := filepath.Join(repoRoot, "docs")
 	dirs := []string{
 		filepath.Join(fabDir, "changes"),
@@ -212,8 +254,10 @@ func scaffoldDirectories(repoRoot, fabDir, kitDir, kitVersion string) {
 
 	for _, dir := range dirs {
 		if !dirExists(dir) {
-			os.MkdirAll(dir, 0755)
 			rel, _ := filepath.Rel(repoRoot, dir)
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return fmt.Errorf("cannot create %s: %w", rel, err)
+			}
 			fmt.Printf("Created: %s\n", rel)
 		}
 	}
@@ -224,7 +268,9 @@ func scaffoldDirectories(repoRoot, fabDir, kitDir, kitVersion string) {
 		filepath.Join(fabDir, "changes", "archive", ".gitkeep"),
 	} {
 		if _, err := os.Stat(name); os.IsNotExist(err) {
-			os.WriteFile(name, nil, 0644)
+			if err := os.WriteFile(name, nil, 0644); err != nil {
+				return fmt.Errorf("cannot write %s: %w", name, err)
+			}
 		}
 	}
 
@@ -238,11 +284,15 @@ func scaffoldDirectories(repoRoot, fabDir, kitDir, kitVersion string) {
 		oldVerStr := strings.TrimSpace(string(oldVer))
 		if _, err := os.Stat(migrationVersionFile); err == nil {
 			// Both exist — new file takes precedence, remove old
-			os.Remove(oldVersionFile)
+			if err := os.Remove(oldVersionFile); err != nil {
+				return fmt.Errorf("cannot remove stale fab/project/VERSION: %w", err)
+			}
 			fmt.Println("Cleaned: stale fab/project/VERSION (migrated to fab/.kit-migration-version)")
 		} else {
 			// Old exists, new doesn't — migrate
-			os.Rename(oldVersionFile, migrationVersionFile)
+			if err := os.Rename(oldVersionFile, migrationVersionFile); err != nil {
+				return fmt.Errorf("cannot migrate fab/project/VERSION to fab/.kit-migration-version: %w", err)
+			}
 			fmt.Printf("Migrated: fab/project/VERSION -> fab/.kit-migration-version (%s)\n", oldVerStr)
 		}
 	}
@@ -252,15 +302,24 @@ func scaffoldDirectories(repoRoot, fabDir, kitDir, kitVersion string) {
 		fmt.Printf("fab/.kit-migration-version: OK (%s)\n", strings.TrimSpace(string(content)))
 	} else if _, err := os.Stat(filepath.Join(fabDir, "project", "config.yaml")); err == nil {
 		// Existing project: set base version
-		os.WriteFile(migrationVersionFile, []byte("0.1.0\n"), 0644)
+		if err := os.WriteFile(migrationVersionFile, []byte("0.1.0\n"), 0644); err != nil {
+			return fmt.Errorf("cannot write fab/.kit-migration-version: %w", err)
+		}
 		fmt.Println("Created: fab/.kit-migration-version (0.1.0 — existing project, run `/fab-setup migrations` to migrate)")
 	} else {
 		// New project: match engine version
 		versionSrc := filepath.Join(kitDir, "VERSION")
-		data, _ := os.ReadFile(versionSrc)
-		os.WriteFile(migrationVersionFile, data, 0644)
+		data, err := os.ReadFile(versionSrc)
+		if err != nil {
+			return fmt.Errorf("cannot read kit VERSION (%s): %w", versionSrc, err)
+		}
+		if err := os.WriteFile(migrationVersionFile, data, 0644); err != nil {
+			return fmt.Errorf("cannot write fab/.kit-migration-version: %w", err)
+		}
 		fmt.Printf("Created: fab/.kit-migration-version (%s)\n", kitVersion)
 	}
+
+	return nil
 }
 
 // scaffoldTreeWalk walks the scaffold directory and dispatches by filename convention.
@@ -506,12 +565,14 @@ func lineEnsureMerge(source, dest, label string) error {
 }
 
 // deploySkills deploys skill files to agent-specific directories.
-func deploySkills(repoRoot, kitDir string) {
+// Returns a non-nil error when any agent's deployment had write failures,
+// so Sync exits non-zero instead of reporting stale skills as success.
+func deploySkills(repoRoot, kitDir string) error {
 	// Collect canonical skill list
 	skillsDir := filepath.Join(kitDir, "skills")
 	skills := listSkills(skillsDir)
 	if len(skills) == 0 {
-		return
+		return nil
 	}
 
 	// Define agent configurations
@@ -523,13 +584,16 @@ func deploySkills(repoRoot, kitDir string) {
 	}
 
 	agentsFound := 0
+	var errs []error
 	for _, agent := range agents {
 		if !agentAvailable(agent.CLI) {
 			fmt.Printf("Skipping %s: %s not found in PATH\n", agent.Label, agent.CLI)
 			continue
 		}
 
-		syncAgentSkills(agent, skills, skillsDir)
+		if err := syncAgentSkills(agent, skills, skillsDir); err != nil {
+			errs = append(errs, err)
+		}
 		cleanStaleSkills(agent.BaseDir, agent.Format, skills, repoRoot)
 		agentsFound++
 	}
@@ -537,6 +601,8 @@ func deploySkills(repoRoot, kitDir string) {
 	if agentsFound == 0 {
 		fmt.Println("Warning: No agent CLIs found in PATH. Skills were not deployed to any agent.")
 	}
+
+	return errors.Join(errs...)
 }
 
 // listSkills returns the base names (without .md) of all skill files.
@@ -574,10 +640,24 @@ func agentAvailable(cli string) bool {
 }
 
 // syncAgentSkills deploys skills to an agent's directory.
-func syncAgentSkills(agent agentConfig, skills []string, skillsDir string) {
-	os.MkdirAll(agent.BaseDir, 0755)
+// Write/symlink/read failures are counted per-skill (never as created/
+// repaired), surfaced on stderr, and returned as a non-nil error so Sync
+// exits non-zero — deployed skills are the instructions agents execute, and
+// a silent deploy failure means agents run stale skill versions.
+func syncAgentSkills(agent agentConfig, skills []string, skillsDir string) error {
+	if err := os.MkdirAll(agent.BaseDir, 0755); err != nil {
+		return fmt.Errorf("%s: cannot create %s: %w", agent.Label, agent.BaseDir, err)
+	}
 
-	created, repaired, ok := 0, 0, 0
+	created, repaired, ok, failed := 0, 0, 0, 0
+	var firstErr error
+	fail := func(skill string, err error) {
+		failed++
+		if firstErr == nil {
+			firstErr = err
+		}
+		fmt.Fprintf(os.Stderr, "WARN: %s: failed to deploy %s: %v\n", agent.Label, skill, err)
+	}
 
 	for _, skill := range skills {
 		src := filepath.Join(skillsDir, skill+".md")
@@ -588,7 +668,10 @@ func syncAgentSkills(agent agentConfig, skills []string, skillsDir string) {
 
 		var dest string
 		if agent.Format == "directory" {
-			os.MkdirAll(filepath.Join(agent.BaseDir, skill), 0755)
+			if err := os.MkdirAll(filepath.Join(agent.BaseDir, skill), 0755); err != nil {
+				fail(skill, err)
+				continue
+			}
 			dest = filepath.Join(agent.BaseDir, skill, "SKILL.md")
 		} else {
 			dest = filepath.Join(agent.BaseDir, skill+".md")
@@ -597,6 +680,7 @@ func syncAgentSkills(agent agentConfig, skills []string, skillsDir string) {
 		if agent.Mode == "copy" {
 			srcData, err := os.ReadFile(src)
 			if err != nil {
+				fail(skill, fmt.Errorf("cannot read source: %w", err))
 				continue
 			}
 
@@ -605,17 +689,22 @@ func syncAgentSkills(agent agentConfig, skills []string, skillsDir string) {
 				destData, _ := os.ReadFile(dest)
 				if string(srcData) == string(destData) {
 					ok++
+				} else if err := os.WriteFile(dest, srcData, 0644); err != nil {
+					fail(skill, err)
 				} else {
-					os.WriteFile(dest, srcData, 0644)
 					repaired++
 				}
 			} else if _, err := os.Lstat(dest); err == nil {
 				// Exists as symlink or something else — replace
 				os.Remove(dest)
-				os.WriteFile(dest, srcData, 0644)
-				repaired++
+				if err := os.WriteFile(dest, srcData, 0644); err != nil {
+					fail(skill, err)
+				} else {
+					repaired++
+				}
+			} else if err := os.WriteFile(dest, srcData, 0644); err != nil {
+				fail(skill, err)
 			} else {
-				os.WriteFile(dest, srcData, 0644)
 				created++
 			}
 		} else {
@@ -627,23 +716,36 @@ func syncAgentSkills(agent agentConfig, skills []string, skillsDir string) {
 					ok++
 				} else {
 					os.Remove(dest)
-					os.Symlink(target, dest)
-					repaired++
+					if err := os.Symlink(target, dest); err != nil {
+						fail(skill, err)
+					} else {
+						repaired++
+					}
 				}
 			} else if _, err := os.Lstat(dest); err == nil {
 				os.Remove(dest)
-				os.Symlink(target, dest)
-				repaired++
+				if err := os.Symlink(target, dest); err != nil {
+					fail(skill, err)
+				} else {
+					repaired++
+				}
+			} else if err := os.Symlink(target, dest); err != nil {
+				fail(skill, err)
 			} else {
-				os.Symlink(target, dest)
 				created++
 			}
 		}
 	}
 
 	total := created + repaired + ok
+	if failed > 0 {
+		fmt.Printf("%-12s %d/%d (created %d, repaired %d, already valid %d, failed %d)\n",
+			agent.Label+":", total, len(skills), created, repaired, ok, failed)
+		return fmt.Errorf("%s: %d skill deployment(s) failed (first: %w)", agent.Label, failed, firstErr)
+	}
 	fmt.Printf("%-12s %d/%d (created %d, repaired %d, already valid %d)\n",
 		agent.Label+":", total, len(skills), created, repaired, ok)
+	return nil
 }
 
 // cleanStaleSkills removes skill entries not present in the canonical skills list.

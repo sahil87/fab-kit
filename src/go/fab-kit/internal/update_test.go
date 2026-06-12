@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -72,5 +73,37 @@ func TestUpdateSkipBrewUpdateGating(t *testing.T) {
 				t.Errorf("brew log must contain %q (log: %q)", "upgrade", log)
 			}
 		})
+	}
+}
+
+func TestUpdate_NotBrewInstalledReturnsSentinel(t *testing.T) {
+	orig := isBrewInstalled
+	isBrewInstalled = func() bool { return false }
+	defer func() { isBrewInstalled = orig }()
+
+	err := Update("1.0.0", true)
+	if err == nil {
+		t.Fatal("expected ErrNotBrewInstalled, got nil (fab update would exit 0 having updated nothing)")
+	}
+	if !errors.Is(err, ErrNotBrewInstalled) {
+		t.Errorf("expected errors.Is(err, ErrNotBrewInstalled), got: %v", err)
+	}
+}
+
+func TestInstalledBinaryVersion_ParsesPathBinary(t *testing.T) {
+	tmpDir := t.TempDir()
+	fake := filepath.Join(tmpDir, "fab-kit")
+	script := "#!/bin/sh\nprintf 'fab-kit version v9.9.9\\n'\n"
+	if err := os.WriteFile(fake, []byte(script), 0755); err != nil {
+		t.Fatalf("write fake fab-kit: %v", err)
+	}
+	t.Setenv("PATH", tmpDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	got, err := installedBinaryVersion()
+	if err != nil {
+		t.Fatalf("installedBinaryVersion failed: %v", err)
+	}
+	if got != "9.9.9" {
+		t.Errorf("expected 9.9.9, got %q", got)
 	}
 }

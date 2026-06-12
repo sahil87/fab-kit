@@ -76,6 +76,11 @@ jobs:
       - name: Package brew archives
         run: just package-brew
 
+      # Checksums for the kit-* archives — verified by the shim's Download
+      # before extraction (brew-* archives are verified by Homebrew itself).
+      - name: Generate SHA256SUMS
+        run: (cd dist && sha256sum kit-*.tar.gz > SHA256SUMS)
+
       - name: Generate release notes
         run: just release-notes "${{ steps.version.outputs.tag }}"
 
@@ -92,6 +97,7 @@ jobs:
             dist/kit-darwin-amd64.tar.gz \
             dist/kit-linux-arm64.tar.gz \
             dist/kit-linux-amd64.tar.gz \
+            dist/SHA256SUMS \
             dist/brew-darwin-arm64.tar.gz \
             dist/brew-darwin-amd64.tar.gz \
             dist/brew-linux-arm64.tar.gz \
