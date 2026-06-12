@@ -1040,154 +1040,6 @@ func TestResolvePanePRURL(t *testing.T) {
 	})
 }
 
-// TestPrintPaneJSONDisplayState verifies the nullable display_state JSON
-// field ([dkn3]): populated alongside stage, null under the same conditions
-// as stage, and present by name in the encoded output.
-func TestPrintPaneJSONDisplayState(t *testing.T) {
-	t.Run("populated display_state accompanies stage", func(t *testing.T) {
-		var buf bytes.Buffer
-		cmd := &cobra.Command{}
-		cmd.SetOut(&buf)
-
-		rows := []paneRow{
-			{session: "runK", windowIndex: 0, pane: "%3", tab: "alpha", worktree: "(main)", change: "260306-r3m7-x", stage: "apply", displayState: "active", agent: "active"},
-		}
-		if err := printPaneJSON(cmd, rows); err != nil {
-			t.Fatal(err)
-		}
-
-		var result []paneJSON
-		if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
-			t.Fatalf("invalid JSON: %v\n%s", err, buf.String())
-		}
-		r := result[0]
-		if r.Stage == nil || *r.Stage != "apply" {
-			t.Errorf("stage = %v, want apply", ptrStr(r.Stage))
-		}
-		if r.DisplayState == nil || *r.DisplayState != "active" {
-			t.Errorf("display_state = %v, want active", ptrStr(r.DisplayState))
-		}
-	})
-
-	t.Run("display_state null exactly when stage null", func(t *testing.T) {
-		var buf bytes.Buffer
-		cmd := &cobra.Command{}
-		cmd.SetOut(&buf)
-
-		rows := []paneRow{
-			{session: "dev", windowIndex: 0, pane: "%5", tab: "scratch", worktree: "downloads/", change: "—", stage: "—", displayState: "", agent: "—"},
-		}
-		if err := printPaneJSON(cmd, rows); err != nil {
-			t.Fatal(err)
-		}
-
-		var result []paneJSON
-		if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
-			t.Fatalf("invalid JSON: %v", err)
-		}
-		r := result[0]
-		if r.Stage != nil {
-			t.Errorf("stage should be null, got %v", ptrStr(r.Stage))
-		}
-		if r.DisplayState != nil {
-			t.Errorf("display_state should be null when stage is null, got %v", ptrStr(r.DisplayState))
-		}
-	})
-
-	t.Run("display_state JSON field name present", func(t *testing.T) {
-		var buf bytes.Buffer
-		cmd := &cobra.Command{}
-		cmd.SetOut(&buf)
-
-		rows := []paneRow{
-			{session: "s", windowIndex: 0, pane: "%1", tab: "t", worktree: "w/", change: "c", stage: "apply", displayState: "ready", agent: "active"},
-		}
-		if err := printPaneJSON(cmd, rows); err != nil {
-			t.Fatal(err)
-		}
-		if !strings.Contains(buf.String(), "\"display_state\"") {
-			t.Errorf("JSON output missing field \"display_state\":\n%s", buf.String())
-		}
-	})
-}
-
-// TestResolvePaneDisplayState verifies resolvePane populates displayState
-// from the state half of status.DisplayStage (previously discarded), and
-// leaves it empty when the pane has no resolvable change.
-func TestResolvePaneDisplayState(t *testing.T) {
-	t.Run("active apply stage yields display_state active", func(t *testing.T) {
-		wtRoot := initGitRepo(t)
-		folder := "260612-pw3k-display-state"
-		changeDir := filepath.Join(wtRoot, "fab", "changes", folder)
-		if err := os.MkdirAll(changeDir, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		statusYAML := "id: pw3k\nname: " + folder + "\nprogress:\n  intake: done\n  apply: active\n"
-		if err := os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte(statusYAML), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		symlinkTarget := filepath.Join("fab", "changes", folder, ".status.yaml")
-		if err := os.Symlink(symlinkTarget, filepath.Join(wtRoot, ".fab-status.yaml")); err != nil {
-			t.Fatal(err)
-		}
-
-		p := paneEntry{id: "%1", tab: "alpha", cwd: wtRoot, session: "runK", index: 0}
-		row, ok := resolvePane(p, wtRoot, wtRoot, "", make(map[string]interface{}))
-		if !ok {
-			t.Fatal("resolvePane returned ok=false")
-		}
-		if row.stage != "apply" {
-			t.Errorf("stage = %q, want apply", row.stage)
-		}
-		if row.displayState != "active" {
-			t.Errorf("displayState = %q, want active", row.displayState)
-		}
-	})
-
-	t.Run("no resolvable change leaves displayState empty", func(t *testing.T) {
-		wtRoot := initGitRepo(t)
-		p := paneEntry{id: "%1", tab: "alpha", cwd: wtRoot, session: "runK", index: 0}
-		row, ok := resolvePane(p, wtRoot, wtRoot, "", make(map[string]interface{}))
-		if !ok {
-			t.Fatal("resolvePane returned ok=false")
-		}
-		if row.displayState != "" {
-			t.Errorf("displayState = %q, want empty for no resolvable change", row.displayState)
-		}
-	})
-}
-
-// TestPrintPaneTableDisplayStateUnchanged asserts the table output is
-// unaffected by the JSON-only display_state field: no new column, identical
-// bytes whether or not displayState is set.
-func TestPrintPaneTableDisplayStateUnchanged(t *testing.T) {
-	rows := []paneRow{
-		{session: "runK", windowIndex: 2, pane: "%3", tab: "alpha", worktree: "(main)", change: "260306-r3m7-x", stage: "apply", displayState: "active", agent: "active"},
-	}
-
-	var withState bytes.Buffer
-	cmdWith := &cobra.Command{}
-	cmdWith.SetOut(&withState)
-	printPaneTable(cmdWith, rows, true)
-
-	rowsNoState := make([]paneRow, len(rows))
-	copy(rowsNoState, rows)
-	for i := range rowsNoState {
-		rowsNoState[i].displayState = ""
-	}
-	var withoutState bytes.Buffer
-	cmdWithout := &cobra.Command{}
-	cmdWithout.SetOut(&withoutState)
-	printPaneTable(cmdWithout, rowsNoState, true)
-
-	if withState.String() != withoutState.String() {
-		t.Errorf("table output differs when displayState is set vs cleared:\nwith:\n%s\nwithout:\n%s", withState.String(), withoutState.String())
-	}
-	if strings.Contains(withState.String(), "display_state") {
-		t.Errorf("table output should not contain display_state column:\n%s", withState.String())
-	}
-}
-
 // TestPrintPaneTablePRFieldsUnchanged asserts the table output is unaffected by
 // the JSON-only PR fields: no pr_url/pr_number columns, and the column set is
 // byte-identical to the pre-change table for the same rows.
@@ -1375,7 +1227,7 @@ func TestResolvePaneDisplayState(t *testing.T) {
 		}
 
 		p := paneEntry{id: "%1", tab: "dkn3", cwd: wtRoot, session: "main", index: 0}
-		row, ok := resolvePane(p, wtRoot, "", make(map[string]interface{}))
+		row, ok := resolvePane(p, wtRoot, wtRoot, "", make(map[string]interface{}))
 		if !ok {
 			t.Fatal("resolvePane returned ok=false")
 		}
@@ -1395,7 +1247,7 @@ func TestResolvePaneDisplayState(t *testing.T) {
 		}
 
 		p := paneEntry{id: "%2", tab: "scratch", cwd: wtRoot, session: "main", index: 1}
-		row, ok := resolvePane(p, wtRoot, "", make(map[string]interface{}))
+		row, ok := resolvePane(p, wtRoot, wtRoot, "", make(map[string]interface{}))
 		if !ok {
 			t.Fatal("resolvePane returned ok=false")
 		}
@@ -1407,7 +1259,7 @@ func TestResolvePaneDisplayState(t *testing.T) {
 	t.Run("non-git pane early-return row carries the em-dash sentinel", func(t *testing.T) {
 		nonGit := t.TempDir()
 		p := paneEntry{id: "%3", tab: "misc", cwd: nonGit, session: "dev", index: 2}
-		row, ok := resolvePane(p, "", "", make(map[string]interface{}))
+		row, ok := resolvePane(p, "", "", "", make(map[string]interface{}))
 		if !ok {
 			t.Fatal("resolvePane returned ok=false")
 		}

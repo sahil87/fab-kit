@@ -247,6 +247,7 @@ Exactly three sites MUST replace `Fprintln(errW)` + `os.Exit(1)` with `return fm
 
 ## Notes
 
+- **Rebase reconciliation (2026-06-12, onto origin/main after PRs #394–#397 merged)**: [dkn3] shipped standalone as `260612-dkn3-pane-map-display-state` (PR #394) **including the DisplayStage `failed` tier** this change's review (MF-2) had identified as out-of-scope. Consequences folded in during the rebase: pw3k's duplicate `display_state` implementation/tests/docs yielded to main's (R7/T009/T016's display_state portions are upstream-superseded; the perf work R5/R6 and everything else stands); the `failed`-flattening caveats were removed from `fab-operator.md`/`SPEC-fab-operator.md` (the full domain incl. `failed` is now correct per main's `_cli-fab.md` row); follow-up backlog item [fj3d] was withdrawn as moot; [dkn3] marked shipped in `fab/backlog.md`.
 - Apply-time verification: full `just test` green (26 packages, both modules); `gofmt`/`go vet` clean on linux and `GOOS=darwin`; live smoke on a scratch tmux 3.6a server confirmed `display_state` end-to-end, all three ValidatePane error paths, the operator false-positive fix, the cross-session singleton match, and `fab memory-index --check` byte-equivalence of batched vs per-file dates on this repo's real history
 - Check items as you review: `- [x]`
 - All acceptance items must pass before `/fab-continue` (hydrate)
