@@ -1,8 +1,10 @@
 package runtime
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -152,7 +154,7 @@ func TestWriteAgent_CreatesFile(t *testing.T) {
 		TranscriptPath: "/home/user/.claude/uuid-new.jsonl",
 	}
 
-	if err := WriteAgent(fabRoot, sessionID, entry); err != nil {
+	if err := WriteAgent(fabRoot, sessionID, entry, NoGC); err != nil {
 		t.Fatalf("WriteAgent failed: %v", err)
 	}
 
@@ -196,7 +198,7 @@ func TestWriteAgent_OmitsEmptyFields(t *testing.T) {
 		IdleSince: int64Ptr(1741193400),
 	}
 
-	if err := WriteAgent(fabRoot, sessionID, entry); err != nil {
+	if err := WriteAgent(fabRoot, sessionID, entry, NoGC); err != nil {
 		t.Fatalf("WriteAgent failed: %v", err)
 	}
 
@@ -227,7 +229,7 @@ func TestWriteAgent_DiscussionMode(t *testing.T) {
 		TmuxPane:  "%7",
 	}
 
-	if err := WriteAgent(fabRoot, sessionID, entry); err != nil {
+	if err := WriteAgent(fabRoot, sessionID, entry, NoGC); err != nil {
 		t.Fatalf("WriteAgent failed: %v", err)
 	}
 
@@ -251,12 +253,12 @@ func TestWriteAgent_Overwrites(t *testing.T) {
 	sessionID := "uuid-over"
 
 	first := AgentEntry{IdleSince: int64Ptr(1000), TmuxPane: "%5"}
-	if err := WriteAgent(fabRoot, sessionID, first); err != nil {
+	if err := WriteAgent(fabRoot, sessionID, first, NoGC); err != nil {
 		t.Fatal(err)
 	}
 
 	second := AgentEntry{IdleSince: int64Ptr(2000), TmuxPane: "%6"}
-	if err := WriteAgent(fabRoot, sessionID, second); err != nil {
+	if err := WriteAgent(fabRoot, sessionID, second, NoGC); err != nil {
 		t.Fatal(err)
 	}
 
@@ -271,10 +273,10 @@ func TestClearAgent_RemovesEntry(t *testing.T) {
 	fabRoot := setupFabRoot(t)
 	sessionID := "uuid-1"
 
-	if err := WriteAgent(fabRoot, sessionID, AgentEntry{IdleSince: int64Ptr(1000)}); err != nil {
+	if err := WriteAgent(fabRoot, sessionID, AgentEntry{IdleSince: int64Ptr(1000)}, NoGC); err != nil {
 		t.Fatal(err)
 	}
-	if err := ClearAgent(fabRoot, sessionID); err != nil {
+	if err := ClearAgent(fabRoot, sessionID, NoGC); err != nil {
 		t.Fatalf("ClearAgent failed: %v", err)
 	}
 
@@ -288,7 +290,7 @@ func TestClearAgent_RemovesEntry(t *testing.T) {
 func TestClearAgent_FileNotExists(t *testing.T) {
 	fabRoot := setupFabRoot(t)
 
-	if err := ClearAgent(fabRoot, "uuid-1"); err != nil {
+	if err := ClearAgent(fabRoot, "uuid-1", NoGC); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	// Should not have created the file as a side effect.
@@ -301,13 +303,13 @@ func TestClearAgent_Idempotent(t *testing.T) {
 	fabRoot := setupFabRoot(t)
 	sessionID := "uuid-1"
 
-	if err := WriteAgent(fabRoot, sessionID, AgentEntry{IdleSince: int64Ptr(1000)}); err != nil {
+	if err := WriteAgent(fabRoot, sessionID, AgentEntry{IdleSince: int64Ptr(1000)}, NoGC); err != nil {
 		t.Fatal(err)
 	}
-	if err := ClearAgent(fabRoot, sessionID); err != nil {
+	if err := ClearAgent(fabRoot, sessionID, NoGC); err != nil {
 		t.Fatalf("first ClearAgent failed: %v", err)
 	}
-	if err := ClearAgent(fabRoot, sessionID); err != nil {
+	if err := ClearAgent(fabRoot, sessionID, NoGC); err != nil {
 		t.Fatalf("second ClearAgent failed: %v", err)
 	}
 }
@@ -324,11 +326,11 @@ func TestClearAgentIdle_PreservesFields(t *testing.T) {
 		TmuxPane:       "%15",
 		TranscriptPath: "/tmp/t.jsonl",
 	}
-	if err := WriteAgent(fabRoot, sessionID, entry); err != nil {
+	if err := WriteAgent(fabRoot, sessionID, entry, NoGC); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := ClearAgentIdle(fabRoot, sessionID); err != nil {
+	if err := ClearAgentIdle(fabRoot, sessionID, NoGC); err != nil {
 		t.Fatalf("ClearAgentIdle failed: %v", err)
 	}
 
@@ -359,15 +361,15 @@ func TestClearAgentIdle_MissingEntry(t *testing.T) {
 	fabRoot := setupFabRoot(t)
 
 	// File does not exist — no-op.
-	if err := ClearAgentIdle(fabRoot, "uuid-nope"); err != nil {
+	if err := ClearAgentIdle(fabRoot, "uuid-nope", NoGC); err != nil {
 		t.Fatalf("unexpected error on missing file: %v", err)
 	}
 
 	// File exists but entry missing — no-op.
-	if err := WriteAgent(fabRoot, "uuid-other", AgentEntry{IdleSince: int64Ptr(1000)}); err != nil {
+	if err := WriteAgent(fabRoot, "uuid-other", AgentEntry{IdleSince: int64Ptr(1000)}, NoGC); err != nil {
 		t.Fatal(err)
 	}
-	if err := ClearAgentIdle(fabRoot, "uuid-nope"); err != nil {
+	if err := ClearAgentIdle(fabRoot, "uuid-nope", NoGC); err != nil {
 		t.Fatalf("unexpected error on missing entry: %v", err)
 	}
 }
@@ -533,5 +535,139 @@ func TestPidAlive(t *testing.T) {
 		} else {
 			t.Error("pidAlive(999999999) should be false")
 		}
+	}
+}
+
+// --- Merged mutation+GC behavior (mz4q F01/F04) ---
+
+func TestUpdateAgent_MergedWriteAndGC(t *testing.T) {
+	fabRoot := setupFabRoot(t)
+	rtPath := FilePath(fabRoot)
+	now := time.Now().Unix()
+
+	seed := map[string]interface{}{
+		"_agents": map[string]interface{}{
+			"uuid-dead": map[string]interface{}{
+				"pid":        999999999,
+				"idle_since": now - 100,
+			},
+		},
+		"last_run_gc": now - 300, // past the 180s window — GC due
+	}
+	if err := SaveFile(rtPath, seed); err != nil {
+		t.Fatal(err)
+	}
+
+	// One call: the entry write and the due GC sweep land in the same save.
+	entry := AgentEntry{IdleSince: int64Ptr(now), TmuxPane: "%3"}
+	if err := WriteAgent(fabRoot, "uuid-new", entry, 180*time.Second); err != nil {
+		t.Fatalf("WriteAgent failed: %v", err)
+	}
+
+	m, _ := LoadFile(rtPath)
+	agents := m["_agents"].(map[string]interface{})
+	if _, present := agents["uuid-new"]; !present {
+		t.Error("expected new entry to be written")
+	}
+	if _, present := agents["uuid-dead"]; present {
+		t.Error("expected dead entry to be swept in the same merged call")
+	}
+	if lastRun, _ := asInt64(m["last_run_gc"]); lastRun < now {
+		t.Errorf("expected last_run_gc updated, got %v", m["last_run_gc"])
+	}
+}
+
+func TestUpdateAgent_GCOnNoOpMutation(t *testing.T) {
+	fabRoot := setupFabRoot(t)
+	rtPath := FilePath(fabRoot)
+	now := time.Now().Unix()
+
+	seed := map[string]interface{}{
+		"_agents": map[string]interface{}{
+			"uuid-dead": map[string]interface{}{
+				"pid": 999999999,
+			},
+		},
+		"last_run_gc": now - 300, // GC due
+	}
+	if err := SaveFile(rtPath, seed); err != nil {
+		t.Fatal(err)
+	}
+
+	// ClearAgent for an absent session is a mutation no-op — GC must still run.
+	if err := ClearAgent(fabRoot, "uuid-absent", 180*time.Second); err != nil {
+		t.Fatalf("ClearAgent failed: %v", err)
+	}
+
+	m, _ := LoadFile(rtPath)
+	agents := m["_agents"].(map[string]interface{})
+	if _, present := agents["uuid-dead"]; present {
+		t.Error("expected GC to sweep dead entry even when the mutation was a no-op")
+	}
+	if lastRun, _ := asInt64(m["last_run_gc"]); lastRun < now {
+		t.Errorf("expected last_run_gc updated, got %v", m["last_run_gc"])
+	}
+}
+
+func TestUpdateAgent_SkipsSaveWhenUnchanged(t *testing.T) {
+	fabRoot := setupFabRoot(t)
+	rtPath := FilePath(fabRoot)
+	now := time.Now().Unix()
+
+	seed := map[string]interface{}{
+		"_agents": map[string]interface{}{
+			"uuid-active": map[string]interface{}{
+				"tmux_pane": "%9", // no idle_since
+			},
+		},
+		"last_run_gc": now - 60, // GC throttled
+	}
+	if err := SaveFile(rtPath, seed); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(rtPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// No-op mutation (no idle_since to clear) + throttled GC → no write at all.
+	if err := ClearAgentIdle(fabRoot, "uuid-active", 180*time.Second); err != nil {
+		t.Fatalf("ClearAgentIdle failed: %v", err)
+	}
+
+	after, err := os.ReadFile(rtPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Error("expected no write when neither the mutation nor GC changed anything")
+	}
+}
+
+func TestUpdateAgent_ConcurrentWritersNoLostUpdates(t *testing.T) {
+	fabRoot := setupFabRoot(t)
+
+	const writers = 12
+	var wg sync.WaitGroup
+	for i := 0; i < writers; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			sessionID := fmt.Sprintf("uuid-%d", n)
+			entry := AgentEntry{IdleSince: int64Ptr(int64(1000 + n))}
+			if err := WriteAgent(fabRoot, sessionID, entry, NoGC); err != nil {
+				t.Errorf("WriteAgent(%s) failed: %v", sessionID, err)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	m, err := LoadFile(FilePath(fabRoot))
+	if err != nil {
+		t.Fatal(err)
+	}
+	agents, _ := m["_agents"].(map[string]interface{})
+	if len(agents) != writers {
+		t.Errorf("lost updates: expected %d entries, got %d", writers, len(agents))
 	}
 }

@@ -1,0 +1,55 @@
+id: mz4q
+name: 260612-mz4q-shared-state-concurrency-hook-hot-path
+created: 2026-06-12T05:36:49Z
+created_by: sahil-noon
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 19
+    acceptance_count: 32
+    acceptance_completed: 32
+confidence:
+    certain: 4
+    confident: 4
+    tentative: 0
+    unresolved: 0
+    score: 3.8
+    fuzzy: true
+    dimensions:
+        signal: 81.9
+        reversibility: 81.9
+        competence: 88.8
+        disambiguation: 80.0
+stage_metrics:
+    intake: {started_at: "2026-06-12T05:36:49Z", driver: fab-new, iterations: 1, completed_at: "2026-06-12T05:42:08Z"}
+    apply: {started_at: "2026-06-12T06:37:46Z", driver: fab-fff, iterations: 2, completed_at: "2026-06-12T06:40:25Z"}
+    review: {started_at: "2026-06-12T06:40:25Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-12T06:55:08Z"}
+    hydrate: {started_at: "2026-06-12T06:55:08Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-12T07:07:10Z"}
+    ship: {started_at: "2026-06-12T07:07:10Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-12T07:09:24Z"}
+    review-pr: {started_at: "2026-06-12T07:09:24Z", driver: git-pr, iterations: 1, completed_at: "2026-06-12T07:31:11Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/396
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-06-12T07:07:10Z"
+    computed_at_stage: hydrate
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-12T07:31:11Z

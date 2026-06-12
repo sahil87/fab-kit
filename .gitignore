@@ -1,6 +1,10 @@
 .fab-status.yaml
 .fab-backend
 .fab-runtime.yaml
+# Lock siblings for the shared-state flock guards (mz4q): .fab-runtime.yaml.lock
+# at each worktree root, .status.yaml.lock next to each fab/changes/*/.status.yaml
+.fab-runtime.yaml.lock
+.status.yaml.lock
 # fab/backlog.md
 /.agents
 /.claude

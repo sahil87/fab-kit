@@ -1,5 +1,6 @@
 # Fab Specific
 .fab-*
+.status.yaml.lock
 
 # Optional - ignore agent specific folders
 /.agents

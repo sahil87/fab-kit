@@ -162,7 +162,7 @@ func TestReview(t *testing.T) {
 func TestConfidenceLog(t *testing.T) {
 	fabRoot, folder := setupLogFixture(t)
 
-	err := ConfidenceLog(fabRoot, folder, 4.2, "+0.3", "intake")
+	err := ConfidenceLog(filepath.Join(fabRoot, "changes", folder), 4.2, "+0.3", "intake")
 	if err != nil {
 		t.Fatalf("ConfidenceLog failed: %v", err)
 	}

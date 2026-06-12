@@ -57,7 +57,11 @@ func logConfidenceCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("invalid score: %s", args[1])
 			}
-			return log.ConfidenceLog(fabRoot, args[0], score, args[2], args[3])
+			changeDir, err := resolve.ToAbsDir(fabRoot, args[0])
+			if err != nil {
+				return err
+			}
+			return log.ConfidenceLog(changeDir, score, args[2], args[3])
 		},
 	}
 }

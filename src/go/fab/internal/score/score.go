@@ -2,6 +2,7 @@ package score
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"math"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/lockfile"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/log"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
@@ -100,11 +102,17 @@ func CheckGate(fabRoot, changeArg, stage string) (*GateResult, error) {
 	scoreFile := filepath.Join(changeDir, "intake.md")
 	threshold := getGateThreshold(changeType)
 
-	if _, err := os.Stat(scoreFile); os.IsNotExist(err) {
-		return nil, fmt.Errorf("%s not found in %s", filepath.Base(scoreFile), changeDir)
+	content, err := os.ReadFile(scoreFile)
+	if err != nil {
+		// Friendly not-found text only for genuine absence; other read
+		// failures (permission, I/O) keep their cause (mz4q F06 posture).
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("%s not found in %s", filepath.Base(scoreFile), changeDir)
+		}
+		return nil, fmt.Errorf("read %s: %w", scoreFile, err)
 	}
 
-	gc := countGrades(scoreFile)
+	gc := countGrades(content)
 	total := gc.Certain + gc.Confident + gc.Tentative + gc.Unresolved
 	score := computeScore(gc.Certain, gc.Confident, gc.Tentative, gc.Unresolved, total, getExpectedMin(changeType))
 
@@ -125,7 +133,9 @@ func CheckGate(fabRoot, changeArg, stage string) (*GateResult, error) {
 	}, nil
 }
 
-// Compute runs the normal scoring mode.
+// Compute runs the normal scoring mode. The .status.yaml load-mutate-save
+// cycle runs under the cross-process status lock so concurrent writers (the
+// artifact-write hook, fab status in other panes) serialize (mz4q F03).
 func Compute(fabRoot, changeArg, stage string) (*ScoreResult, error) {
 	changeDir, err := resolve.ToAbsDir(fabRoot, changeArg)
 	if err != nil {
@@ -137,23 +147,71 @@ func Compute(fabRoot, changeArg, stage string) (*ScoreResult, error) {
 	// Scoring always reads intake.md (1.10.0): intake is the sole scoring
 	// source now that the spec stage and spec.md are retired.
 	scoreFile := filepath.Join(changeDir, "intake.md")
-	if _, err := os.Stat(scoreFile); os.IsNotExist(err) {
-		return nil, fmt.Errorf("intake.md required for scoring")
-	}
-
-	// Load status file once for change type, previous score, and writing back
-	statusFile, loadErr := sf.Load(statusPath)
-
-	changeType := "feat"
-	prevScore := 0.0
-	if loadErr == nil {
-		if ct := statusFile.ChangeType; ct != "" && ct != "null" {
-			changeType = ct
+	content, err := os.ReadFile(scoreFile)
+	if err != nil {
+		// Friendly guidance only for genuine absence; other read failures
+		// (permission, I/O) keep their cause (mz4q F06 posture).
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("intake.md required for scoring")
 		}
-		prevScore = statusFile.Confidence.Score
+		return nil, fmt.Errorf("read %s: %w", scoreFile, err)
 	}
 
-	gc := countGrades(scoreFile)
+	var result *ScoreResult
+	err = lockfile.WithLock(statusPath, func() error {
+		// Load status file once for change type, previous score, and writing back.
+		statusFile, loadErr := sf.Load(statusPath)
+		if loadErr != nil {
+			// Tolerated (legacy posture): score without persisting or logging.
+			result = buildResult(content, "feat", 0.0)
+			return nil
+		}
+
+		r, err := ComputeWithStatus(fabRoot, changeDir, content, statusFile)
+		if err != nil {
+			return err
+		}
+		// Persistence is best-effort, matching the prior swallow posture.
+		_ = statusFile.Save(statusPath)
+		result = r
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// ComputeWithStatus is the single-load scoring entry point (mz4q F02): it
+// reuses the caller's already-resolved changeDir, already-read intake.md
+// content, and already-loaded StatusFile. It mutates statusFile.Confidence in
+// memory and appends the confidence event to .history.jsonl, but does NOT
+// save — the caller owns persistence and locking. Used by the artifact-write
+// hook (inside its lock+single-Save cycle) and by Compute.
+func ComputeWithStatus(fabRoot, changeDir string, intakeContent []byte, statusFile *sf.StatusFile) (*ScoreResult, error) {
+	changeType := "feat"
+	if ct := statusFile.ChangeType; ct != "" && ct != "null" {
+		changeType = ct
+	}
+	prevScore := statusFile.Confidence.Score
+
+	result := buildResult(intakeContent, changeType, prevScore)
+
+	if result.HasFuzzy {
+		status.ApplyConfidenceFuzzy(statusFile, result.Certain, result.Confident, result.Tentative, result.Unresolved, result.Score, result.MeanS, result.MeanR, result.MeanA, result.MeanD)
+	} else {
+		status.ApplyConfidence(statusFile, result.Certain, result.Confident, result.Tentative, result.Unresolved, result.Score)
+	}
+
+	_ = log.ConfidenceLog(changeDir, result.Score, result.Delta, "calc-score")
+
+	return result, nil
+}
+
+// buildResult counts grades in the intake content and assembles a ScoreResult
+// for the given change type and previous score. Pure — no I/O, no mutation.
+func buildResult(intakeContent []byte, changeType string, prevScore float64) *ScoreResult {
+	gc := countGrades(intakeContent)
 	total := gc.Certain + gc.Confident + gc.Tentative + gc.Unresolved
 	score := computeScore(gc.Certain, gc.Confident, gc.Tentative, gc.Unresolved, total, getExpectedMin(changeType))
 
@@ -166,34 +224,19 @@ func Compute(fabRoot, changeArg, stage string) (*ScoreResult, error) {
 		meanD = roundTo1(float64(gc.SumD) / float64(gc.DimCount))
 	}
 
-	delta := score - prevScore
-	deltaStr := fmt.Sprintf("%+.1f", delta)
-
-	// Write to .status.yaml
-	if loadErr == nil {
-		if gc.HasFuzzy {
-			_ = status.SetConfidenceFuzzy(statusFile, statusPath, gc.Certain, gc.Confident, gc.Tentative, gc.Unresolved, score, meanS, meanR, meanA, meanD)
-		} else {
-			_ = status.SetConfidence(statusFile, statusPath, gc.Certain, gc.Confident, gc.Tentative, gc.Unresolved, score)
-		}
-
-		folder := filepath.Base(changeDir)
-		_ = log.ConfidenceLog(fabRoot, folder, score, deltaStr, "calc-score")
-	}
-
 	return &ScoreResult{
 		Certain:    gc.Certain,
 		Confident:  gc.Confident,
 		Tentative:  gc.Tentative,
 		Unresolved: gc.Unresolved,
 		Score:      score,
-		Delta:      deltaStr,
+		Delta:      fmt.Sprintf("%+.1f", score-prevScore),
 		HasFuzzy:   gc.HasFuzzy,
 		MeanS:      meanS,
 		MeanR:      meanR,
 		MeanA:      meanA,
 		MeanD:      meanD,
-	}, nil
+	}
 }
 
 // FormatGateYAML formats a GateResult as YAML.
@@ -225,17 +268,14 @@ func FormatScoreYAML(r *ScoreResult) string {
 	return b.String()
 }
 
-func countGrades(file string) GradeCount {
-	f, err := os.Open(file)
-	if err != nil {
-		return GradeCount{}
-	}
-	defer f.Close()
-
+// countGrades scans already-read intake content for the ## Assumptions table.
+// Taking the content (not a path) lets the artifact-write hook reuse its
+// single intake.md read (mz4q F02).
+func countGrades(content []byte) GradeCount {
 	gc := GradeCount{}
 	inSection := false
 	headerSeen := false
-	scanner := bufio.NewScanner(f)
+	scanner := bufio.NewScanner(bytes.NewReader(content))
 
 	for scanner.Scan() {
 		line := scanner.Text()

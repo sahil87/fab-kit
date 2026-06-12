@@ -149,21 +149,43 @@ func Rename(fabRoot, currentFolder, newSlug string) (string, error) {
 		_ = statusFile.Save(statusPath)
 	}
 
-	// Update .fab-status.yaml symlink if it points to old folder
+	// Update .fab-status.yaml symlink if it points to old folder. Best-effort
+	// as before, but via the atomic swap: a failure now leaves the OLD pointer
+	// in place (a dangling link that resolve's target validation falls through
+	// gracefully) instead of permanently leaving no pointer at all (mz4q F05).
 	repoRoot := filepath.Dir(fabRoot)
 	symlinkPath := filepath.Join(repoRoot, ".fab-status.yaml")
 	if target, err := os.Readlink(symlinkPath); err == nil {
 		expectedOld := fmt.Sprintf("fab/changes/%s/.status.yaml", currentFolder)
 		if target == expectedOld {
 			newTarget := fmt.Sprintf("fab/changes/%s/.status.yaml", newName)
-			os.Remove(symlinkPath)
-			_ = os.Symlink(newTarget, symlinkPath)
+			_ = setActivePointer(repoRoot, newTarget)
 		}
 	}
 
 	_ = log.Command(fabRoot, "changeman-rename", newName, "--folder "+currentFolder+" --slug "+newSlug)
 
 	return newName, nil
+}
+
+// setActivePointer atomically points .fab-status.yaml at target: the symlink
+// is created under a unique temp name and renamed over the pointer — rename
+// replaces the old link atomically on POSIX, so concurrent readers never
+// observe a missing pointer and concurrent switches never race into EEXIST
+// (mz4q F05). Shared by Switch and Rename, matching the temp+rename
+// convention of statusfile.Save and runtime.SaveFile.
+func setActivePointer(repoRoot, target string) error {
+	symlinkPath := filepath.Join(repoRoot, ".fab-status.yaml")
+	tmpPath := filepath.Join(repoRoot, fmt.Sprintf(".fab-status.yaml.%d.tmp", os.Getpid()))
+	_ = os.Remove(tmpPath) // stale temp from a crashed prior attempt
+	if err := os.Symlink(target, tmpPath); err != nil {
+		return fmt.Errorf("create .fab-status.yaml symlink: %w", err)
+	}
+	if err := os.Rename(tmpPath, symlinkPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("activate .fab-status.yaml symlink: %w", err)
+	}
+	return nil
 }
 
 // Switch changes the active change pointer.
@@ -174,11 +196,9 @@ func Switch(fabRoot, name string) (string, error) {
 	}
 
 	repoRoot := filepath.Dir(fabRoot)
-	symlinkPath := filepath.Join(repoRoot, ".fab-status.yaml")
 	target := fmt.Sprintf("fab/changes/%s/.status.yaml", folder)
-	os.Remove(symlinkPath)
-	if err := os.Symlink(target, symlinkPath); err != nil {
-		return "", fmt.Errorf("create .fab-status.yaml symlink: %w", err)
+	if err := setActivePointer(repoRoot, target); err != nil {
+		return "", err
 	}
 
 	// Derive display info
@@ -298,7 +318,10 @@ func ListWithOptions(fabRoot string, archive, showStats bool) ([]string, error) 
 				row += ":—"
 			}
 			results = append(results, row)
-			fmt.Fprintf(os.Stderr, "Warning: .status.yaml not found for %s\n", e.Name())
+			// Echo the actual load error (mz4q F06): a YAML parse failure on
+			// an existing file (e.g. git merge-conflict markers — the file is
+			// git-tracked) must be distinguishable from absence.
+			fmt.Fprintf(os.Stderr, "Warning: failed to load .status.yaml for %s: %v\n", e.Name(), loadErr)
 			continue
 		}
 

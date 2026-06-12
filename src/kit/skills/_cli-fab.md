@@ -506,6 +506,6 @@ All strings below match `internal/resolve/resolve.go` verbatim (placeholders sho
 | `No change matches "{arg}".` | An override was given but matches no folder in `fab/changes/` (exact match tried first, then substring — both case-insensitive) | Check `fab change list` |
 | `Multiple changes match "{arg}": {list}.` | Ambiguous substring matched multiple folders | Use a more specific identifier (4-char ID or full folder name) |
 | `No active changes found.` | An override was given but `fab/changes/` contains no change folders at all | Run `/fab-new` or `/fab-draft` |
-| `No active change. Run /fab-new <description> to start one, or /fab-switch to activate an existing one.` | No override, `.fab-status.yaml` symlink absent, and zero candidate changes (a single candidate would auto-resolve) | Follow the message — `/fab-new` or `/fab-switch` |
-| `No active change (multiple changes exist — use /fab-switch).` | No override, symlink absent, and multiple changes exist (no single-change guess possible) | Run `/fab-switch` |
+| `No active change. Run /fab-new <description> to start one, or /fab-switch to activate an existing one.` | No override, `.fab-status.yaml` symlink absent **or dangling** (its target `.status.yaml` no longer exists — e.g. change archived/deleted underneath), and zero candidate changes (a single candidate would auto-resolve) | Follow the message — `/fab-new` or `/fab-switch` |
+| `No active change (multiple changes exist — use /fab-switch).` | No override, symlink absent **or dangling**, and multiple changes exist (no single-change guess possible) | Run `/fab-switch` |
 | `fab/changes/ not found.` | The `fab/changes/` directory is missing | Run `fab init` or check the CWD is the repo root |

@@ -48,13 +48,11 @@ func Command(fabRoot, cmd, changeArg, args string) error {
 	return appendJSON(changeDir, entry)
 }
 
-// ConfidenceLog logs a confidence score change.
-func ConfidenceLog(fabRoot, changeArg string, score float64, delta, trigger string) error {
-	changeDir, err := resolve.ToAbsDir(fabRoot, changeArg)
-	if err != nil {
-		return err
-	}
-
+// ConfidenceLog logs a confidence score change. changeDir is the
+// already-resolved absolute change directory — callers resolve once and pass
+// it through instead of triggering another fab/changes directory scan on the
+// hook hot path (mz4q F02).
+func ConfidenceLog(changeDir string, score float64, delta, trigger string) error {
 	entry := map[string]interface{}{
 		"ts":      nowISO(),
 		"event":   "confidence",

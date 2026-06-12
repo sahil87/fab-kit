@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/lockfile"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
 	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
@@ -45,6 +46,9 @@ func statusCmd() *cobra.Command {
 	return cmd
 }
 
+// loadStatus resolves and loads a .status.yaml for read-only subcommands.
+// Readers stay lock-free — Save's temp+rename atomicity guarantees they never
+// observe a torn document. Mutating subcommands go through withStatusLock.
 func loadStatus(changeArg string) (*sf.StatusFile, string, string, error) {
 	fabRoot, err := resolve.FabRoot()
 	if err != nil {
@@ -59,6 +63,30 @@ func loadStatus(changeArg string) (*sf.StatusFile, string, string, error) {
 		return nil, "", "", err
 	}
 	return statusFile, statusPath, fabRoot, nil
+}
+
+// withStatusLock resolves the change, then runs fn with a freshly loaded
+// StatusFile while holding the .status.yaml sibling flock, so the whole
+// load-mutate-save cycle serializes against concurrent writers — the
+// artifact-write hook and fab status invocations in other panes — instead of
+// last-writer-wins over the whole document (mz4q F03). Every mutating
+// subcommand routes through here.
+func withStatusLock(changeArg string, fn func(statusFile *sf.StatusFile, statusPath, fabRoot string) error) error {
+	fabRoot, err := resolve.FabRoot()
+	if err != nil {
+		return err
+	}
+	statusPath, err := resolve.ToAbsStatus(fabRoot, changeArg)
+	if err != nil {
+		return err
+	}
+	return lockfile.WithLock(statusPath, func() error {
+		statusFile, err := sf.Load(statusPath)
+		if err != nil {
+			return err
+		}
+		return fn(statusFile, statusPath, fabRoot)
+	})
 }
 
 func statusAllStagesCmd() *cobra.Command {
@@ -206,12 +234,10 @@ func statusStartCmd() *cobra.Command {
 		Short: "{pending,failed} → active",
 		Args:  cobra.RangeArgs(2, 5),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sf, statusPath, fabRoot, err := loadStatus(args[0])
-			if err != nil {
-				return err
-			}
 			driver, from, reason := optArg(args, 2), optArg(args, 3), optArg(args, 4)
-			return status.Start(sf, statusPath, fabRoot, args[1], driver, from, reason)
+			return withStatusLock(args[0], func(st *sf.StatusFile, statusPath, fabRoot string) error {
+				return status.Start(st, statusPath, fabRoot, args[1], driver, from, reason)
+			})
 		},
 	}
 }
@@ -222,12 +248,10 @@ func statusAdvanceCmd() *cobra.Command {
 		Short: "active → ready",
 		Args:  cobra.RangeArgs(2, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sf, statusPath, _, err := loadStatus(args[0])
-			if err != nil {
-				return err
-			}
 			driver := optArg(args, 2)
-			return status.Advance(sf, statusPath, args[1], driver)
+			return withStatusLock(args[0], func(st *sf.StatusFile, statusPath, _ string) error {
+				return status.Advance(st, statusPath, args[1], driver)
+			})
 		},
 	}
 }
@@ -238,12 +262,10 @@ func statusFinishCmd() *cobra.Command {
 		Short: "{active,ready} → done (+auto-activate next)",
 		Args:  cobra.RangeArgs(2, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sf, statusPath, fabRoot, err := loadStatus(args[0])
-			if err != nil {
-				return err
-			}
 			driver := optArg(args, 2)
-			return status.Finish(sf, statusPath, fabRoot, args[1], driver)
+			return withStatusLock(args[0], func(st *sf.StatusFile, statusPath, fabRoot string) error {
+				return status.Finish(st, statusPath, fabRoot, args[1], driver)
+			})
 		},
 	}
 }
@@ -254,12 +276,10 @@ func statusResetCmd() *cobra.Command {
 		Short: "{done,ready,skipped} → active (+cascade)",
 		Args:  cobra.RangeArgs(2, 5),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sf, statusPath, fabRoot, err := loadStatus(args[0])
-			if err != nil {
-				return err
-			}
 			driver, from, reason := optArg(args, 2), optArg(args, 3), optArg(args, 4)
-			return status.Reset(sf, statusPath, fabRoot, args[1], driver, from, reason)
+			return withStatusLock(args[0], func(st *sf.StatusFile, statusPath, fabRoot string) error {
+				return status.Reset(st, statusPath, fabRoot, args[1], driver, from, reason)
+			})
 		},
 	}
 }
@@ -270,12 +290,10 @@ func statusSkipCmd() *cobra.Command {
 		Short: "{pending,active} → skipped (+cascade)",
 		Args:  cobra.RangeArgs(2, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sf, statusPath, fabRoot, err := loadStatus(args[0])
-			if err != nil {
-				return err
-			}
 			driver := optArg(args, 2)
-			return status.Skip(sf, statusPath, fabRoot, args[1], driver)
+			return withStatusLock(args[0], func(st *sf.StatusFile, statusPath, fabRoot string) error {
+				return status.Skip(st, statusPath, fabRoot, args[1], driver)
+			})
 		},
 	}
 }
@@ -286,12 +304,10 @@ func statusFailCmd() *cobra.Command {
 		Short: "active → failed (review/review-pr only)",
 		Args:  cobra.RangeArgs(2, 4),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sf, statusPath, fabRoot, err := loadStatus(args[0])
-			if err != nil {
-				return err
-			}
 			driver, rework := optArg(args, 2), optArg(args, 3)
-			return status.Fail(sf, statusPath, fabRoot, args[1], driver, rework)
+			return withStatusLock(args[0], func(st *sf.StatusFile, statusPath, fabRoot string) error {
+				return status.Fail(st, statusPath, fabRoot, args[1], driver, rework)
+			})
 		},
 	}
 }
@@ -302,11 +318,9 @@ func statusSetChangeTypeCmd() *cobra.Command {
 		Short: "Set change_type",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sf, statusPath, _, err := loadStatus(args[0])
-			if err != nil {
-				return err
-			}
-			return status.SetChangeType(sf, statusPath, args[1])
+			return withStatusLock(args[0], func(st *sf.StatusFile, statusPath, _ string) error {
+				return status.SetChangeType(st, statusPath, args[1])
+			})
 		},
 	}
 }
@@ -317,11 +331,9 @@ func statusSetAcceptanceCmd() *cobra.Command {
 		Short: "Update plan field",
 		Args:  cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sf, statusPath, _, err := loadStatus(args[0])
-			if err != nil {
-				return err
-			}
-			return status.SetAcceptance(sf, statusPath, args[1], args[2])
+			return withStatusLock(args[0], func(st *sf.StatusFile, statusPath, _ string) error {
+				return status.SetAcceptance(st, statusPath, args[1], args[2])
+			})
 		},
 	}
 }
@@ -350,10 +362,6 @@ func statusSetConfidenceCmd() *cobra.Command {
 		Short: "Replace confidence block",
 		Args:  cobra.ExactArgs(6),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sf, statusPath, _, err := loadStatus(args[0])
-			if err != nil {
-				return err
-			}
 			certain, err := strconv.Atoi(args[1])
 			if err != nil {
 				return fmt.Errorf("invalid value for 'certain' (%q): %w", args[1], err)
@@ -374,7 +382,9 @@ func statusSetConfidenceCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("invalid value for 'score' (%q): %w", args[5], err)
 			}
-			return status.SetConfidence(sf, statusPath, certain, confident, tentative, unresolved, score)
+			return withStatusLock(args[0], func(st *sf.StatusFile, statusPath, _ string) error {
+				return status.SetConfidence(st, statusPath, certain, confident, tentative, unresolved, score)
+			})
 		},
 	}
 
@@ -392,10 +402,6 @@ func statusSetConfidenceFuzzyCmd() *cobra.Command {
 		Short: "Replace confidence block with dimensions",
 		Args:  cobra.ExactArgs(10),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sf, statusPath, _, err := loadStatus(args[0])
-			if err != nil {
-				return err
-			}
 			certain, err := strconv.Atoi(args[1])
 			if err != nil {
 				return fmt.Errorf("invalid value for 'certain' (%q): %w", args[1], err)
@@ -432,7 +438,9 @@ func statusSetConfidenceFuzzyCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("invalid value for 'mean_d' (%q): %w", args[9], err)
 			}
-			return status.SetConfidenceFuzzy(sf, statusPath, certain, confident, tentative, unresolved, score, meanS, meanR, meanA, meanD)
+			return withStatusLock(args[0], func(st *sf.StatusFile, statusPath, _ string) error {
+				return status.SetConfidenceFuzzy(st, statusPath, certain, confident, tentative, unresolved, score, meanS, meanR, meanA, meanD)
+			})
 		},
 	}
 
@@ -447,11 +455,9 @@ func statusAddIssueCmd() *cobra.Command {
 		Short: "Append issue ID (idempotent)",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sf, statusPath, _, err := loadStatus(args[0])
-			if err != nil {
-				return err
-			}
-			return status.AddIssue(sf, statusPath, args[1])
+			return withStatusLock(args[0], func(st *sf.StatusFile, statusPath, _ string) error {
+				return status.AddIssue(st, statusPath, args[1])
+			})
 		},
 	}
 }
@@ -480,11 +486,9 @@ func statusAddPRCmd() *cobra.Command {
 		Short: "Append PR URL (idempotent)",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sf, statusPath, _, err := loadStatus(args[0])
-			if err != nil {
-				return err
-			}
-			return status.AddPR(sf, statusPath, args[1])
+			return withStatusLock(args[0], func(st *sf.StatusFile, statusPath, _ string) error {
+				return status.AddPR(st, statusPath, args[1])
+			})
 		},
 	}
 }

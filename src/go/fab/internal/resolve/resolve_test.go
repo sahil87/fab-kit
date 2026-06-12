@@ -296,3 +296,116 @@ func TestToFolder_NoActiveChange_MultipleCandidates(t *testing.T) {
 		t.Errorf("error = %q, want the multiple-changes /fab-switch hint", err.Error())
 	}
 }
+
+// --- Dangling pointer target validation (mz4q F08): the symlink is trusted
+// only when its target .status.yaml still exists; otherwise resolution falls
+// through to the no-active-change / single-change logic, leaving the link in
+// place (resolve is a pure query). ---
+
+func danglingSymlink(t *testing.T, fabRoot string) {
+	t.Helper()
+	repoRoot := filepath.Dir(fabRoot)
+	symlinkPath := filepath.Join(repoRoot, ".fab-status.yaml")
+	if err := os.Symlink("fab/changes/260301-gone-archived-change/.status.yaml", symlinkPath); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestToFolder_DanglingSymlinkMultipleCandidates(t *testing.T) {
+	fabRoot := setupFabRoot(t)
+	createChange(t, fabRoot, "260310-abcd-my-change")
+	createChange(t, fabRoot, "260311-ef12-other-change")
+	danglingSymlink(t, fabRoot)
+
+	_, err := ToFolder(fabRoot, "")
+	if err == nil {
+		t.Fatal("expected error: a dangling pointer must not resolve to the stale folder")
+	}
+	if !strings.Contains(err.Error(), "multiple changes exist") {
+		t.Errorf("expected multiple-changes guidance, got: %v", err)
+	}
+
+	// The stale link is left in place — resolve has no side effects.
+	repoRoot := filepath.Dir(fabRoot)
+	if _, err := os.Lstat(filepath.Join(repoRoot, ".fab-status.yaml")); err != nil {
+		t.Errorf("expected stale symlink to be left in place: %v", err)
+	}
+}
+
+func TestToFolder_DanglingSymlinkSingleCandidate(t *testing.T) {
+	fabRoot := setupFabRoot(t)
+	createChange(t, fabRoot, "260310-abcd-my-change")
+	danglingSymlink(t, fabRoot)
+
+	got, err := ToFolder(fabRoot, "")
+	if err != nil {
+		t.Fatalf("expected single-change fallback, got error: %v", err)
+	}
+	if got != "260310-abcd-my-change" {
+		t.Errorf("got %q, want single-change fallback to 260310-abcd-my-change", got)
+	}
+}
+
+func TestToFolder_DanglingSymlinkZeroCandidates(t *testing.T) {
+	fabRoot := setupFabRoot(t)
+	danglingSymlink(t, fabRoot)
+
+	_, err := ToFolder(fabRoot, "")
+	if err == nil {
+		t.Fatal("expected error with zero candidates")
+	}
+	if !strings.Contains(err.Error(), "No active change. Run /fab-new") {
+		t.Errorf("expected actionable no-active-change guidance, got: %v", err)
+	}
+}
+
+func TestToFolder_SymlinkTargetMissingStatusFile(t *testing.T) {
+	fabRoot := setupFabRoot(t)
+	// Folder exists but its .status.yaml was deleted — still a stale pointer.
+	os.MkdirAll(filepath.Join(fabRoot, "changes", "260310-abcd-my-change"), 0755)
+	createChange(t, fabRoot, "260311-ef12-other-change")
+
+	repoRoot := filepath.Dir(fabRoot)
+	os.Symlink("fab/changes/260310-abcd-my-change/.status.yaml", filepath.Join(repoRoot, ".fab-status.yaml"))
+
+	got, err := ToFolder(fabRoot, "")
+	if err != nil {
+		t.Fatalf("expected single-change fallback, got error: %v", err)
+	}
+	if got != "260311-ef12-other-change" {
+		t.Errorf("got %q, want fallback to the one valid change", got)
+	}
+}
+
+func TestToFolder_UnreadableSymlinkTargetClassified(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root — permission bits are not enforced")
+	}
+	fabRoot := setupFabRoot(t)
+	changeDir := createChange(t, fabRoot, "260310-abcd-my-change")
+	createChange(t, fabRoot, "260311-ef12-other-change")
+
+	repoRoot := filepath.Dir(fabRoot)
+	if err := os.Symlink("fab/changes/260310-abcd-my-change/.status.yaml", filepath.Join(repoRoot, ".fab-status.yaml")); err != nil {
+		t.Fatal(err)
+	}
+
+	// A non-traversable change dir makes the target stat fail with EACCES —
+	// not absence. That must surface with its cause, not fall through to the
+	// misleading no-active-change / multiple-changes guidance.
+	if err := os.Chmod(changeDir, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(changeDir, 0o755) })
+
+	_, err := ToFolder(fabRoot, "")
+	if err == nil {
+		t.Fatal("expected error for unreadable pointer target")
+	}
+	if strings.Contains(err.Error(), "No active change") {
+		t.Errorf("permission failure must not masquerade as no-active-change: %v", err)
+	}
+	if !strings.Contains(err.Error(), "stat active change target") || !strings.Contains(err.Error(), "permission denied") {
+		t.Errorf("expected cause-bearing stat error, got: %v", err)
+	}
+}

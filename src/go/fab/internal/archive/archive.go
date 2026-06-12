@@ -84,6 +84,17 @@ func Archive(fabRoot, changeArg, description string) (*ArchiveResult, error) {
 	archiveDir := filepath.Join(changesDir, "archive")
 	changeDir := filepath.Join(changesDir, folder)
 
+	// Capture whether the archived change is the active one BEFORE the folder
+	// moves: resolve validates the pointer target (mz4q F08), so a post-rename
+	// resolution would see a dangling pointer and never report the archived
+	// change as active — the pointer would silently stay behind. Read the link
+	// directly; exact folder match only.
+	repoRoot := filepath.Dir(fabRoot)
+	pointerWasActive := false
+	if target, err := os.Readlink(filepath.Join(repoRoot, ".fab-status.yaml")); err == nil {
+		pointerWasActive = resolve.ExtractFolderFromSymlink(target) == folder
+	}
+
 	// 1. Move to archive/yyyy/mm/
 	bucketYear, bucketMonth, err := parseDateBucket(folder)
 	if err != nil {
@@ -106,10 +117,9 @@ func Archive(fabRoot, changeArg, description string) (*ArchiveResult, error) {
 	// Backfill unindexed
 	backfillIndex(archiveDir, indexFile)
 
-	// 3. Clear pointer if active
+	// 3. Clear pointer if active (captured pre-rename above)
 	pointerStatus := "skipped"
-	activeFolder, err := resolve.ToFolder(fabRoot, "")
-	if err == nil && activeFolder == folder {
+	if pointerWasActive {
 		change.SwitchNone(fabRoot)
 		pointerStatus = "cleared"
 	}
