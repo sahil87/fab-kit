@@ -174,7 +174,7 @@ Which section to update? (1-7)
 ```
 
 2. Process selection -> **Edit Section Flow**
-3. After editing: "Update another section? (1-6 or 'done')"
+3. After editing: "Update another section? (1-7 or 'done')"
 4. Loop until Done
 
 When invoked with a section argument: validate against valid sections (error if invalid), go directly to **Edit Section Flow**, then offer to update another section.
