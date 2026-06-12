@@ -40,10 +40,10 @@ After loading the always-load layer, check for an active change:
 After context loading, log the command invocation:
 
 ```bash
-fab log command "fab-discuss" 2>/dev/null || true
+fab log command "fab-discuss"
 ```
 
-This is best-effort — `fab log` resolves the active change via `.fab-status.yaml` if one exists. Failures are silently ignored.
+This is best-effort — the command always exits 0 (failures surface only as a stderr warning) and resolves the active change via `.fab-status.yaml` if one exists.
 
 ---
 

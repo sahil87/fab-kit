@@ -332,12 +332,13 @@ func Gather(fabRoot, changeArg, prType, issues string) (Data, bool, error) {
 
 	d.HasIntake = fileExists(filepath.Join(changeDir, "intake.md"))
 
-	// Config: impact excludes + test paths + linear workspace.
+	// Config: impact excludes + test paths + linear workspace — one shared
+	// config.Load, no second parse of the same file (260612-ye8r).
 	cfg, _ := config.Load(fabRoot)
 	if cfg != nil {
 		d.Excludes = cfg.TrueImpactExclude
 	}
-	d.LinearWorkspace = readLinearWorkspace(fabRoot)
+	d.LinearWorkspace = cfg.GetLinearWorkspace()
 
 	// Git/gh context (degrades gracefully).
 	repoDir := filepath.Dir(fabRoot)
@@ -452,26 +453,6 @@ func tallyCheckbox(line string) (int, int) {
 		return 0, 1
 	}
 	return 0, 0
-}
-
-// readLinearWorkspace reads project.linear_workspace from
-// fab/project/config.yaml. The shared internal/config.Config struct does not
-// model this nested field (it is prmeta-specific), so it is parsed locally to
-// avoid widening the shared config surface. Returns "" when absent.
-func readLinearWorkspace(fabRoot string) string {
-	data, err := os.ReadFile(filepath.Join(fabRoot, "project", "config.yaml"))
-	if err != nil {
-		return ""
-	}
-	var doc struct {
-		Project struct {
-			LinearWorkspace string `yaml:"linear_workspace"`
-		} `yaml:"project"`
-	}
-	if err := yaml.Unmarshal(data, &doc); err != nil {
-		return ""
-	}
-	return doc.Project.LinearWorkspace
 }
 
 // hasConfidenceBlock reports whether .status.yaml actually carries a populated

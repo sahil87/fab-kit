@@ -82,6 +82,19 @@ func IsPaneMissing(stderr []byte) bool {
 		(strings.Contains(s, "pane") && strings.Contains(s, "not found"))
 }
 
+// PaneNotFoundError reports a missing tmux pane. It carries the 2-vs-3
+// exit-code classification for the pane-family scheme (2 = pane missing,
+// 3 = other tmux failure) on the error VALUE — call sites detect it via
+// errors.As instead of string matching. The message is byte-identical to the
+// historical "pane <id> not found" string.
+type PaneNotFoundError struct {
+	Pane string
+}
+
+func (e *PaneNotFoundError) Error() string {
+	return fmt.Sprintf("pane %s not found", e.Pane)
+}
+
 // PaneContext holds resolved fab context for a single tmux pane.
 type PaneContext struct {
 	Pane              string
@@ -122,12 +135,12 @@ func ValidatePane(paneID, server string) error {
 func validatePaneResult(paneID, out string, stderr []byte, err error) error {
 	if err != nil {
 		if IsPaneMissing(stderr) {
-			return fmt.Errorf("pane %s not found", paneID)
+			return &PaneNotFoundError{Pane: paneID}
 		}
 		return StderrError(fmt.Errorf("tmux display-message: %w", err), stderr)
 	}
 	if strings.TrimSpace(out) != paneID {
-		return fmt.Errorf("pane %s not found", paneID)
+		return &PaneNotFoundError{Pane: paneID}
 	}
 	return nil
 }

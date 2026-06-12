@@ -144,26 +144,20 @@ func changeListCmd() *cobra.Command {
 	return cmd
 }
 
+// changeResolveCmd is a thin wrapper over the shared resolve implementation
+// (runResolve in resolve.go) with the folder output mode fixed — the same
+// code path as `fab resolve --folder`, so the two spellings can never drift.
 func changeResolveCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "resolve [override]",
 		Short: "Resolve a change name",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fabRoot, err := resolve.FabRoot()
-			if err != nil {
-				return err
-			}
 			override := ""
 			if len(args) > 0 {
 				override = args[0]
 			}
-			folder, err := change.Resolve(fabRoot, override)
-			if err != nil {
-				return err
-			}
-			fmt.Println(folder)
-			return nil
+			return runResolve(cmd, override, "folder", "")
 		},
 	}
 }

@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/spawn"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 func batchSwitchCmd() *cobra.Command {
@@ -55,8 +55,7 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag bool) e
 
 	// Check tmux
 	if os.Getenv("TMUX") == "" {
-		fmt.Fprintln(errW, "Error: not inside a tmux session")
-		os.Exit(1)
+		return fmt.Errorf("not inside a tmux session")
 	}
 
 	// Collect change names
@@ -64,8 +63,7 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag bool) e
 	if allFlag {
 		changes = allChangeNames(changesDir)
 		if len(changes) == 0 {
-			fmt.Fprintln(errW, "No changes found.")
-			os.Exit(1)
+			return fmt.Errorf("No changes found.")
 		}
 		fmt.Fprintf(w, "Opening %d tabs for all changes...\n", len(changes))
 	} else {
@@ -75,17 +73,19 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag bool) e
 	// Read spawn command and branch prefix
 	configPath := filepath.Join(fabRoot, "project", "config.yaml")
 	spawnCmd := spawn.Command(configPath)
-	branchPrefix := getBranchPrefix(configPath)
+	cfg, _ := config.Load(fabRoot)
+	branchPrefix := cfg.GetBranchPrefix()
 
 	// Process each change
 	for _, change := range changes {
-		// Resolve via fab change resolve
-		out, err := exec.Command("fab", "change", "resolve", change).Output()
+		// Resolve in-process — the canonical resolver, same as batch archive.
+		// No `fab change resolve` subprocess (PATH dependency, shim round-trip,
+		// stderr-detail loss); the warning surfaces the specific error.
+		match, err := resolve.ToFolder(fabRoot, change)
 		if err != nil {
-			fmt.Fprintf(errW, "Warning: could not resolve '%s', skipping\n", change)
+			fmt.Fprintf(errW, "Warning: could not resolve '%s' (%v), skipping\n", change, err)
 			continue
 		}
-		match := strings.TrimSpace(string(out))
 
 		fmt.Fprintf(w, "  %s\n", match)
 
@@ -140,19 +140,4 @@ func allChangeNames(changesDir string) []string {
 		names = append(names, name)
 	}
 	return names
-}
-
-// getBranchPrefix reads branch_prefix from config.yaml.
-func getBranchPrefix(configPath string) string {
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return ""
-	}
-	var cfg struct {
-		BranchPrefix string `yaml:"branch_prefix"`
-	}
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return ""
-	}
-	return cfg.BranchPrefix
 }

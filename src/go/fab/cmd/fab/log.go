@@ -25,22 +25,39 @@ func logCommandCmd() *cobra.Command {
 		Short: "Log a skill invocation",
 		Args:  cobra.RangeArgs(1, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fabRoot, err := resolve.FabRoot()
-			if err != nil {
-				return err
+			// `fab log command` is pure telemetry and OWNS its best-effort
+			// contract: it always exits 0, printing a one-line warning on
+			// internal failure (no fab root, bad explicit change arg,
+			// unwritable .history.jsonl). Call sites need no shell guard — a
+			// telemetry hiccup can never become a pipeline failure mode.
+			// `log review`/`log confidence`/`log transition` keep their
+			// fail-loud behavior.
+			if err := runLogCommand(args); err != nil {
+				fmt.Fprintf(cmd.ErrOrStderr(), "Warning: fab log command: %v\n", err)
 			}
-			cmdName := args[0]
-			changeArg := ""
-			extraArgs := ""
-			if len(args) >= 2 {
-				changeArg = args[1]
-			}
-			if len(args) >= 3 {
-				extraArgs = args[2]
-			}
-			return log.Command(fabRoot, cmdName, changeArg, extraArgs)
+			return nil
 		},
 	}
+}
+
+// runLogCommand performs the actual telemetry append; extracted so the
+// always-exit-0 wrapper above stays trivially auditable and the failure paths
+// stay unit-testable.
+func runLogCommand(args []string) error {
+	fabRoot, err := resolve.FabRoot()
+	if err != nil {
+		return err
+	}
+	cmdName := args[0]
+	changeArg := ""
+	extraArgs := ""
+	if len(args) >= 2 {
+		changeArg = args[1]
+	}
+	if len(args) >= 3 {
+		extraArgs = args[2]
+	}
+	return log.Command(fabRoot, cmdName, changeArg, extraArgs)
 }
 
 func logConfidenceCmd() *cobra.Command {

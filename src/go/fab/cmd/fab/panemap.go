@@ -71,8 +71,7 @@ func runPaneMap(cmd *cobra.Command, args []string) error {
 
 	// $TMUX guard only when neither --session nor --all-sessions is set
 	if mode == sessionDefault && os.Getenv("TMUX") == "" {
-		fmt.Fprintln(cmd.ErrOrStderr(), "Error: not inside a tmux session")
-		os.Exit(1)
+		return fmt.Errorf("not inside a tmux session")
 	}
 
 	// Discover tmux panes

@@ -37,7 +37,7 @@ Agents consume this output by running the script via Bash and parsing the stdout
 The script validates in this order, stopping at the first failure:
 
 1. `fab/project/config.yaml` and `fab/project/constitution.md` exist (project initialized)
-1b. Sync staleness check (non-blocking) — compares `$(fab kit-path)/VERSION` against `fab_version` in `fab/project/config.yaml`; emits stderr warning if they differ, silently skips if either is unreadable. Does NOT exit or alter stdout
+1b. Sync staleness check (non-blocking) — compares `$(fab kit-path)/VERSION` against `fab_version` in `fab/project/config.yaml` (read via the shared `internal/config` accessor since 260612-ye8r — no local one-off parser); emits stderr warning if they differ, silently skips if either is unreadable. Does NOT exit or alter stdout
 2. Change name resolves (via `lib/changeman.sh resolve` — from `$1` override or `.fab-status.yaml`)
 3. Change directory `fab/changes/{name}/` exists
 4. `.status.yaml` exists within the change directory
@@ -73,9 +73,9 @@ All internal paths resolve relative to the script's own location via `$(dirname 
 
 ### Skill Integration
 
-Skills that perform pre-flight checks (ff, apply, review, archive, continue, clarify) reference `lib/preflight.sh` instead of inline validation. On non-zero exit, the agent stops and surfaces the stderr message. On success, the agent uses the stdout YAML for change context. After preflight, skills log the command invocation via a direct `logman.sh command` call (per `_preamble.md` §2 step 4).
+Skills that perform pre-flight checks (ff, apply, review, archive, continue, clarify) reference `lib/preflight.sh` instead of inline validation. On non-zero exit, the agent stops and surfaces the stderr message. On success, the agent uses the stdout YAML for change context. After preflight, skills log the command invocation via a direct `fab log command "<skill>" "<id>"` call (per `_preamble.md` §2 step 4) — best-effort: the command always exits 0 given valid usage, so no shell guard is needed (260612-ye8r).
 
-Skills exempt from preflight: `setup`, `new`, `switch`, `status`, `discuss`, `help`. Exempt skills call `logman.sh command` directly in their own skill files for best-effort logging.
+Skills exempt from preflight: `setup`, `new`, `switch`, `status`, `discuss`, `help`. Exempt skills call `fab log command` directly in their own skill files for best-effort logging.
 
 ## Design Decisions
 
@@ -101,6 +101,7 @@ Skills exempt from preflight: `setup`, `new`, `switch`, `status`, `discuss`, `he
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260612-ye8r-cli-single-sourcing-doc-conformance | 2026-06-12 | Wording-only sync with the config-parser consolidation (binary-review B4, F26): `checkSyncStaleness` now reads `fab_version` through the shared `internal/config` loader (`config.Load(fabRoot)` + nil-safe `GetFabVersion()`) instead of a local anonymous-struct parse. Silent-skip semantics unchanged — any read/parse failure or empty value still means no warning, advisory only. Also (F28): the Skill Integration section's command-telemetry references updated from the long-deleted `logman.sh command` to `fab log command` (best-effort — always exits 0 given valid usage, no shell guard needed). |
 | 260612-dkn3-pane-map-display-state | 2026-06-12 | Corrected the `display_stage`/`display_state` field docs to the actual derivation: `display_state` draws from the full six-value set (`active`, `ready`, `done`, `failed`, `pending`, `skipped`) — the prior "(`active`, `done`, or `pending`)" was stale — and `display_stage` is the five-tier walk now including the `failed` tier added in dkn3 (first active, else first failed, else first ready, else last done/skipped, else first pending). Preflight output for a review-failed change with nothing active is now `display_stage: review` / `display_state: failed` instead of `apply`/`done`. No preflight-side code change — the value flows from `status.DisplayStage` (see [change-lifecycle.md](change-lifecycle.md)). |
 | 260612-k4ge-cli-exit-contract-conformance | 2026-06-12 | Doc reconciliation only: the routing derivation's all-done fallback is `review-pr` (matches `CurrentStage` in status.go), not `hydrate` — same drift corrected in [schemas.md](schemas.md) and [change-lifecycle.md](change-lifecycle.md). No preflight behavior change. |
 | 260402-gnx5-relocate-kit-to-system-cache | 2026-04-02 | Updated sync staleness check: VERSION now read from exe-sibling kit in cache (`kitpath.KitDir()`) instead of `fab/.kit/VERSION`. Comparison logic unchanged — `$(fab kit-path)/VERSION` vs `fab_version` in `config.yaml`. |

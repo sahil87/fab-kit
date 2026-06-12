@@ -56,7 +56,7 @@ Resolve the active change and load its state by running the preflight script:
 1. **Run preflight**: Execute `fab preflight [change-name]` via Bash — pass the optional change-name argument if the skill received one
 2. **Check exit code**: If the script exits non-zero, STOP and surface the stderr message to the user (it contains the specific error and suggested fix)
 3. **Parse stdout YAML**: On success, parse the YAML output for `id`, `name`, `change_dir`, `stage`, `display_stage`, `display_state`, `progress`, `plan`, and `confidence` fields — use these for all subsequent change context instead of re-reading `.status.yaml`. Use `id` (4-char change ID) for script invocations; use `name` for display, path construction, and artifact metadata.
-4. **Log command**: Call `fab log command "<skill-name>" "<id>" 2>/dev/null || true` where `<skill-name>` is the invoking skill (e.g., `fab-continue`) and `<id>` is the `id` field from the preflight YAML output. This is best-effort — failures are silently ignored.
+4. **Log command**: Call `fab log command "<skill-name>" "<id>"` where `<skill-name>` is the invoking skill (e.g., `fab-continue`) and `<id>` is the `id` field from the preflight YAML output. This is best-effort — the command always exits 0 given valid usage (internal failures surface only as a stderr warning; cobra arg-count errors exit non-zero before RunE), so no shell guard is needed.
 5. Load all completed artifacts in the change folder (`intake.md`, `plan.md`) — read each file that exists so you have full context of what has been decided so far. (A leftover `spec.md` may exist in pre-1.10.0 changes; read it for context if present, but `spec.md` is no longer a generated artifact.)
 
 > **Change-name override**: When a `[change-name]` argument is passed to the preflight script, it resolves the change using case-insensitive substring matching against `fab/changes/` folder names (excluding `archive/`) instead of reading the `.fab-status.yaml` symlink. The override is **transient** — `.fab-status.yaml` is never modified. This enables parallel workflows where multiple tabs target different changes concurrently. Supports full folder names, partial slugs, or 4-char IDs (e.g., `r3m7`).
@@ -228,8 +228,8 @@ These command families cover ~90% of skill usage. See `_cli-fab` for the full re
 |---------|---------|----------------|
 | `fab preflight [<change>]` | Validate init + resolve active change; outputs YAML with `id`/`name`/`change_dir`/`stage`/`display_stage`/`display_state`/`progress`/`plan`/`confidence`. Non-zero exit on error. | `fab preflight` |
 | `fab score [--check-gate] [--stage intake] <change>` | Compute SRAD confidence from `intake.md` (the sole scoring source). `--check-gate` returns non-zero below the single intake gate (flat 3.0 for all types). `--stage` defaults to `intake`. | `fab score --check-gate --stage intake <id>` |
-| `fab log command "<skill>" [<change>]` | Best-effort command telemetry. Failures silently ignored. | `fab log command "fab-continue" "<id>" 2>/dev/null \|\| true` |
-| `fab change <sub>` | Change lifecycle: `new --slug <slug>`, `switch <name>\|--none`, `resolve [<override>]`, `rename`, `list [--archive]`, `archive <change>`, `restore <change> [--switch]`. | `fab resolve --folder` *(note: the query flags live on top-level `fab resolve` only — `fab change resolve` takes a bare `[<override>]`, no flags)* |
+| `fab log command "<skill>" [<change>]` | Best-effort command telemetry — always exits 0 given valid usage (internal failures become a stderr warning, never an error; cobra arg-count errors exit non-zero before RunE). No shell guard needed. | `fab log command "fab-continue" "<id>"` |
+| `fab change <sub>` | Change lifecycle: `new --slug <slug>`, `switch <name>\|--none`, `resolve [<override>]`, `rename`, `list [--archive] [--show-stats]`, `archive <change>`, `restore <change> [--switch]`. | `fab resolve --folder` *(note: the query flags live on top-level `fab resolve` only — `fab change resolve` takes a bare `[<override>]`, no flags)* |
 | `fab resolve [--id\|--folder\|--dir\|--status\|--pane] [<change>]` | Pure query — converts change reference to canonical output (4-char ID by default). No side effects. | `fab resolve --folder 2>/dev/null` |
 | `fab status <sub> <change>` | State machine + metadata. Key subcommands: `finish <stage>` (auto-activates next), `advance <stage>`, `start <stage>`, `reset <stage>`, `skip <stage>`, `fail <stage>` (review/review-pr only), `set-change-type <type>`, `set-acceptance <field> <value>` (updates `plan:` block), `add-issue <id>`, `add-pr <url>`. | `fab status finish <id> <stage>` |
 
@@ -237,9 +237,9 @@ These command families cover ~90% of skill usage. See `_cli-fab` for the full re
 
 - `fab status finish <change> <stage>` auto-activates the next pending stage — never call `start` after `finish`.
 - `fab status finish <change> review` auto-logs review `"passed"`; `fab status fail <change> review` auto-logs `"failed"`.
-- `fab log command` is best-effort — always trail with `2>/dev/null || true`.
+- `fab log command` is best-effort and always exits 0 (given valid usage — cobra arg-count errors exit non-zero before RunE) — no shell guard needed (internal failures print a stderr warning only).
 - `<change>` argument everywhere accepts 4-char ID, folder substring, or full folder name.
-- **Failure rule**: any fab command not explicitly marked best-effort (`2>/dev/null || true`) that exits non-zero → STOP and surface stderr; resumability handles the re-run. This rule defers to explicit per-skill handling where a skill intentionally branches on a non-zero exit.
+- **Failure rule**: any fab command that exits non-zero → STOP and surface stderr; resumability handles the re-run. (`fab log command` can never trip this rule through internal failure — it owns its best-effort contract and exits 0 given valid usage; a cobra arg-count error still exits non-zero before RunE.) This rule defers to explicit per-skill handling where a skill intentionally branches on a non-zero exit.
 
 ---
 

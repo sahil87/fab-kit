@@ -469,7 +469,7 @@ When `.kit/` is eventually extracted to its own repository, the update mechanism
 
 ## Router Dispatch (`fab` → `fab-go`)
 
-The `fab` binary (installed via `brew install fab-kit`) is a thin router. It dispatches workspace commands (`init`, `upgrade-repo`, `sync`, `update`, `doctor`) to `fab-kit`, and every other command to a version-resolved `fab-go` binary cached at `~/.fab-kit/versions/<version>/fab-go`.
+The `fab` binary (installed via `brew install fab-kit`) is a thin router. It dispatches workspace commands (`init`, `upgrade-repo`, `sync`, `update`, `doctor`, `migrations-status`) to `fab-kit`, and every other command to a version-resolved `fab-go` binary cached at `~/.fab-kit/versions/<version>/fab-go`.
 
 ### Always-Route Policy
 

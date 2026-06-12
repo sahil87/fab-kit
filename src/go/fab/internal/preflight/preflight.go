@@ -6,12 +6,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/kitpath"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
 	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
-	"gopkg.in/yaml.v3"
 )
 
 // Result holds the structured preflight output.
@@ -134,19 +134,14 @@ func checkSyncStaleness(fabRoot string) {
 		return
 	}
 
-	configPath := filepath.Join(fabRoot, "project", "config.yaml")
-	configData, err := os.ReadFile(configPath)
+	// fab_version via the shared internal/config loader (single config.yaml
+	// parser). Silent-skip semantics preserved: any read/parse failure or an
+	// empty value means no warning — the check is advisory only.
+	cfg, err := config.Load(fabRoot)
 	if err != nil {
 		return
 	}
-
-	var cfg struct {
-		FabVersion string `yaml:"fab_version"`
-	}
-	if err := yaml.Unmarshal(configData, &cfg); err != nil {
-		return
-	}
-	configVersion := strings.TrimSpace(cfg.FabVersion)
+	configVersion := strings.TrimSpace(cfg.GetFabVersion())
 	if configVersion == "" {
 		return
 	}

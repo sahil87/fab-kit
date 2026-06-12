@@ -64,10 +64,10 @@ The skill displays the command's stdout directly.
 After a successful switch (not `--none`), log the command invocation:
 
 ```bash
-fab log command "fab-switch" 2>/dev/null || true
+fab log command "fab-switch"
 ```
 
-This is best-effort — the logger resolves the active change via `.fab-status.yaml` (just created by the switch command). Failures are silently ignored.
+This is best-effort — the command always exits 0 (failures surface only as a stderr warning) and resolves the active change via `.fab-status.yaml` (just created by the switch command).
 
 ### Hint Line
 

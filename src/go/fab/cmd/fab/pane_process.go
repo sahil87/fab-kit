@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"strconv"
 	"strings"
 
@@ -102,10 +101,10 @@ func runPaneProcess(cmd *cobra.Command, args []string) error {
 	jsonFlag, _ := cmd.Flags().GetBool("json")
 	server, _ := cmd.Flags().GetString("server")
 
-	// Validate pane exists
+	// Validate pane exists — a plain failure path, funneled through RunE so it
+	// flows through the single main.go ERROR formatter (exit 1).
 	if err := pane.ValidatePane(paneID, server); err != nil {
-		fmt.Fprintf(cmd.ErrOrStderr(), "Error: %s\n", err)
-		os.Exit(1)
+		return err
 	}
 
 	// Get pane PID

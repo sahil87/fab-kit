@@ -22,17 +22,15 @@ func displayVersion(v string) string {
 	return "v" + v
 }
 
-// fabKitCommands lists the commands owned by fab-kit (used by tests).
-var fabKitCommands = map[string]bool{
-	"init":              true,
-	"upgrade-repo":      true,
-	"sync":              true,
-	"update":            true,
-	"doctor":            true,
-	"migrations-status": true,
-}
+// fabKitCommands lists the commands owned by fab-kit (used by tests), derived
+// from the shared internal.LifecycleCommands table — the single source of
+// truth also feeding the router's allowlist and help section.
+var fabKitCommands = internal.LifecycleCommandSet()
 
-func main() {
+// rootCmd assembles the fab-kit root command with all subcommands registered.
+// Extracted from main() so tests can cross-check the registered command set
+// (names and Shorts) against internal.LifecycleCommands.
+func rootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "fab-kit",
 		Short:         "Fab Kit — workspace lifecycle (init, upgrade-repo, sync)",
@@ -50,7 +48,11 @@ func main() {
 		migrationsStatusCmd(),
 	)
 
-	if err := root.Execute(); err != nil {
+	return root
+}
+
+func main() {
+	if err := rootCmd().Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err)
 		os.Exit(1)
 	}

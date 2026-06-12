@@ -13,15 +13,10 @@ import (
 
 var version = "dev"
 
-// fabKitArgs is the static allowlist of arguments routed to fab-kit.
-var fabKitArgs = map[string]bool{
-	"init":              true,
-	"upgrade-repo":      true,
-	"sync":              true,
-	"update":            true,
-	"doctor":            true,
-	"migrations-status": true,
-}
+// fabKitArgs is the static allowlist of arguments routed to fab-kit, derived
+// from the shared internal.LifecycleCommands table (the single source of
+// truth for the workspace command set).
+var fabKitArgs = internal.LifecycleCommandSet()
 
 func main() {
 	if len(os.Args) < 2 {
@@ -99,16 +94,23 @@ func execFabGo(args []string) {
 	}
 }
 
-// printHelp composes help output from both sub-binaries.
+// printHelp composes help output from both sub-binaries. The workspace
+// section is rendered in-process from the shared LifecycleCommands table —
+// deliberately NOT by exec'ing `fab-kit --help` — so it renders even when the
+// fab-kit binary is absent, and its Shorts can never drift from the cobra
+// registrations (enforced by test in cmd/fab-kit).
 func printHelp() {
 	fmt.Printf("fab %s — workspace & workflow toolkit\n\n", version)
 	fmt.Println("Workspace commands:")
-	fmt.Println("  init          Initialize fab in the current repo")
-	fmt.Println("  upgrade-repo  Upgrade to a specific or latest version")
-	fmt.Println("  sync          Sync workspace (skills, directories, scaffold)")
-	fmt.Println("  update        Update fab-kit itself via Homebrew")
-	fmt.Println("  doctor        Validate fab-kit prerequisites")
-	fmt.Println("  migrations-status  Report which migrations apply (local vs engine)")
+	nameWidth := 0
+	for _, c := range internal.LifecycleCommands {
+		if len(c.Name) > nameWidth {
+			nameWidth = len(c.Name)
+		}
+	}
+	for _, c := range internal.LifecycleCommands {
+		fmt.Printf("  %-*s  %s\n", nameWidth, c.Name, c.Short)
+	}
 	fmt.Println()
 
 	// Show workflow commands. Inside a fab repo, use the project-pinned version.
