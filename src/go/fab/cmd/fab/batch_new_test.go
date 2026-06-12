@@ -259,6 +259,24 @@ func TestRunBatchNew_LaunchFailures(t *testing.T) {
 		}
 	})
 
+	t.Run("skipped items excluded from the failure denominator", func(t *testing.T) {
+		chdirBatchNewFixture(t, testBacklog)
+		t.Setenv("TMUX", "/tmp/tmux-fake/default,123,0")
+		stubBatchNewBinaries(t,
+			"echo /fake/worktrees/90g5",
+			"echo 'boom: create window failed' 1>&2; exit 1")
+
+		// zzzz is warn-and-skip (never launch-attempted); 90g5 fails launch.
+		// The summary denominator counts attempts, not requested IDs.
+		_, _, err := runBatchNewCmd(t, "zzzz", "90g5")
+		if err == nil {
+			t.Fatal("expected non-nil error when a launch fails, got nil")
+		}
+		if want := "1 of 1 item(s) failed to launch"; err.Error() != want {
+			t.Errorf("error = %q, want %q", err.Error(), want)
+		}
+	})
+
 	t.Run("unknown backlog id stays warn-and-skip (no failure exit)", func(t *testing.T) {
 		chdirBatchNewFixture(t, testBacklog)
 		t.Setenv("TMUX", "/tmp/tmux-fake/default,123,0")

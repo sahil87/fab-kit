@@ -82,7 +82,9 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 	// reported per item with a failure count and a non-zero exit when any
 	// item failed — never a silent exit 0 leaving an orphaned worktree.
 	// Pattern precedent: batch_archive.go archiveLoop. Backlog lookup
-	// problems remain warn-and-skip (user-input issues, not launch failures).
+	// problems remain warn-and-skip (user-input issues, not launch failures)
+	// and don't count toward the launch-attempt total.
+	attempted := 0
 	failed := 0
 	for _, id := range ids {
 		content, err := backlog.ExtractContent(backlogPath, id)
@@ -94,6 +96,8 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 			fmt.Fprintf(errW, "Warning: [%s] has empty content, skipping\n", id)
 			continue
 		}
+
+		attempted++
 
 		// Truncate display
 		display := content
@@ -126,7 +130,7 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 	}
 
 	if failed > 0 {
-		return fmt.Errorf("%d of %d item(s) failed to launch", failed, len(ids))
+		return fmt.Errorf("%d of %d item(s) failed to launch", failed, attempted)
 	}
 	return nil
 }
