@@ -1,11 +1,14 @@
 package status
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/lockfile"
 	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
 )
 
@@ -547,4 +550,213 @@ func TestDisplayStage_FailedTier(t *testing.T) {
 			t.Errorf("DisplayStage = (%q, %q), want (\"apply\", \"done\")", stage, state)
 		}
 	})
+}
+
+// --- Non-saving Apply variants (mz4q F02): mutate in memory only,
+// validate-before-mutate preserved. ---
+
+func TestApplyAcceptance_MutatesWithoutSaving(t *testing.T) {
+	statusFile, path := loadFixture(t)
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ApplyAcceptance(statusFile, "task_count", "7"); err != nil {
+		t.Fatalf("ApplyAcceptance: %v", err)
+	}
+	if statusFile.Plan.TaskCount != 7 {
+		t.Errorf("TaskCount = %d, want 7", statusFile.Plan.TaskCount)
+	}
+
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Error("ApplyAcceptance must not write to disk — caller owns persistence")
+	}
+}
+
+func TestApplyAcceptance_ValidatesBeforeMutate(t *testing.T) {
+	statusFile, _ := loadFixture(t)
+	prior := statusFile.Plan.TaskCount
+
+	if err := ApplyAcceptance(statusFile, "task_count", "not-a-number"); err == nil {
+		t.Fatal("expected error for invalid value")
+	}
+	if statusFile.Plan.TaskCount != prior {
+		t.Error("invalid value must not mutate the in-memory StatusFile")
+	}
+}
+
+func TestApplyChangeType_MutatesWithoutSaving(t *testing.T) {
+	statusFile, path := loadFixture(t)
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ApplyChangeType(statusFile, "fix"); err != nil {
+		t.Fatalf("ApplyChangeType: %v", err)
+	}
+	if statusFile.ChangeType != "fix" {
+		t.Errorf("ChangeType = %q, want fix", statusFile.ChangeType)
+	}
+
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Error("ApplyChangeType must not write to disk — caller owns persistence")
+	}
+}
+
+func TestApplyChangeType_ValidatesBeforeMutate(t *testing.T) {
+	statusFile, _ := loadFixture(t)
+
+	if err := ApplyChangeType(statusFile, "bogus"); err == nil {
+		t.Fatal("expected error for invalid change type")
+	}
+	if statusFile.ChangeType != "feat" {
+		t.Errorf("invalid type must not mutate ChangeType, got %q", statusFile.ChangeType)
+	}
+}
+
+func TestApplyConfidence_MutatesWithoutSaving(t *testing.T) {
+	statusFile, path := loadFixture(t)
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ApplyConfidence(statusFile, 3, 2, 1, 0, 3.7)
+	if statusFile.Confidence.Score != 3.7 || statusFile.Confidence.Certain != 3 {
+		t.Errorf("Confidence not applied: %+v", statusFile.Confidence)
+	}
+
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Error("ApplyConfidence must not write to disk — caller owns persistence")
+	}
+}
+
+// --- F07 (mz4q): transitions on sparse/malformed progress maps either
+// persist (missing stage key created) or fail loudly (malformed shape) —
+// never an exit-0 dropped write. ---
+
+func TestStart_CreatesMissingStageKey(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	sparse := `id: sp4r
+name: 260310-sp4r-sparse-change
+created: "2026-03-10T12:00:00Z"
+progress:
+  intake: done
+last_updated: "2026-03-10T12:00:00Z"
+`
+	if err := os.WriteFile(path, []byte(sparse), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	statusFile, err := sf.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	// apply is absent from the progress map: GetProgress defaults it to
+	// pending, the transition validates, and the key must be created and
+	// persisted (previously a silent no-op while stage_metrics and
+	// .history.jsonl did persist — an inconsistent state).
+	if err := Start(statusFile, path, dir, "apply", "test", "", ""); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	reloaded, err := sf.Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if got := reloaded.GetProgress("apply"); got != "active" {
+		t.Errorf("apply = %q after Start on sparse file, want active (dropped write)", got)
+	}
+}
+
+func TestStart_MalformedProgressErrors(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	malformed := `id: sp4r
+name: 260310-sp4r-no-progress
+created: "2026-03-10T12:00:00Z"
+last_updated: "2026-03-10T12:00:00Z"
+`
+	if err := os.WriteFile(path, []byte(malformed), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	statusFile, err := sf.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = Start(statusFile, path, dir, "apply", "test", "", "")
+	if err == nil {
+		t.Fatal("expected malformed-shape error when progress: is absent")
+	}
+	if !strings.Contains(err.Error(), "progress is missing or not a mapping") {
+		t.Errorf("unexpected error text: %v", err)
+	}
+
+	// Nothing persisted — no half-consistent state.
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Error("malformed-shape failure must not persist anything")
+	}
+}
+
+// --- Lock-serialized load-mutate-save (mz4q F03): concurrent writers running
+// the full cycle under lockfile.WithLock (the composition used by
+// withStatusLock in cmd/fab and by the artifact-write hook) cannot lose each
+// other's updates to the shared document. ---
+
+func TestConcurrentLockedMutatorsNoLostUpdates(t *testing.T) {
+	statusFile, path := loadFixture(t)
+	_ = statusFile
+
+	const writers = 10
+	var wg sync.WaitGroup
+	for i := 0; i < writers; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			err := lockfile.WithLock(path, func() error {
+				st, err := sf.Load(path)
+				if err != nil {
+					return err
+				}
+				return AddPR(st, path, fmt.Sprintf("https://github.com/o/r/pull/%d", n))
+			})
+			if err != nil {
+				t.Errorf("locked AddPR cycle %d failed: %v", n, err)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	reloaded, err := sf.Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if len(reloaded.PRs) != writers {
+		t.Errorf("lost updates: expected %d PRs, got %d (%v)", writers, len(reloaded.PRs), reloaded.PRs)
+	}
 }

@@ -22,8 +22,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/lockfile"
 	"gopkg.in/yaml.v3"
 )
+
+// NoGC disables the inline GC sweep when passed as the gcInterval of
+// UpdateAgent / WriteAgent / ClearAgent / ClearAgentIdle. Any interval <= 0
+// skips GC entirely.
+const NoGC time.Duration = 0
 
 // Top-level field and schema key constants. Centralizing these avoids
 // scattering magic strings across load/save/GC paths.
@@ -96,6 +102,13 @@ func LoadFile(path string) (map[string]interface{}, error) {
 }
 
 // SaveFile marshals the map and writes it atomically via temp+rename.
+//
+// No fsync: the runtime file is ephemeral, fully re-derivable state ("state
+// re-populates on next hook event") and this write sits on every hook
+// event's latency path. Rename atomicity alone prevents torn files; lost
+// durability after a crash is self-healing (mz4q F04). Contrast
+// statusfile.Save, which fsyncs because .status.yaml is the pipeline's
+// source of truth.
 func SaveFile(path string, m map[string]interface{}) error {
 	data, err := yaml.Marshal(m)
 	if err != nil {
@@ -119,9 +132,6 @@ func SaveFile(path string, m map[string]interface{}) error {
 	}()
 
 	if _, err := tmpFile.Write(data); err != nil {
-		return err
-	}
-	if err := tmpFile.Sync(); err != nil {
 		return err
 	}
 	if err := tmpFile.Close(); err != nil {
@@ -176,58 +186,84 @@ func agentsMap(m map[string]interface{}) map[string]interface{} {
 	return existing
 }
 
+// UpdateAgent is the merged mutate-and-GC entry point used by hook handlers
+// (mz4q F01/F04). Under the cross-process .fab-runtime.yaml.lock it loads the
+// file once, applies the entry mutation, runs the GC sweep inline when due
+// (GC runs even when the mutation half was a no-op), and saves once. The save
+// is skipped entirely when neither the mutation nor GC changed anything, so
+// write-free paths stay write-free.
+//
+// mutate receives the full loaded map and reports whether it changed it (nil
+// is allowed for GC-only calls). gcInterval <= 0 (NoGC) disables the sweep.
+// When createIfMissing is false and the file is absent, the call is a
+// complete no-op — the established ClearAgent/ClearAgentIdle/GCIfDue posture;
+// the stop-hook write path passes true and creates the file.
+func UpdateAgent(fabRoot string, createIfMissing bool, mutate func(m map[string]interface{}) bool, gcInterval time.Duration) error {
+	rtPath := FilePath(fabRoot)
+	return lockfile.WithLock(rtPath, func() error {
+		if !createIfMissing {
+			if _, err := os.Stat(rtPath); os.IsNotExist(err) {
+				return nil
+			}
+		}
+
+		m, err := LoadFile(rtPath)
+		if err != nil {
+			return err
+		}
+
+		changed := false
+		if mutate != nil && mutate(m) {
+			changed = true
+		}
+		if gcInterval > 0 && gcSweepIfDue(m, gcInterval) {
+			changed = true
+		}
+
+		if !changed {
+			return nil
+		}
+		return SaveFile(rtPath, m)
+	})
+}
+
 // WriteAgent writes (or overwrites) the _agents[sessionID] entry with the
 // provided AgentEntry. Any pre-existing entry is replaced in full — callers
 // that want field-level preservation should use ClearAgentIdle instead.
-// The runtime file is created if it does not exist.
-func WriteAgent(fabRoot, sessionID string, entry AgentEntry) error {
+// The runtime file is created if it does not exist. When gcInterval > 0 the
+// GC sweep piggybacks on the same load/save round-trip (pass NoGC to skip).
+func WriteAgent(fabRoot, sessionID string, entry AgentEntry, gcInterval time.Duration) error {
 	if sessionID == "" {
 		return fmt.Errorf("WriteAgent: empty sessionID")
 	}
 
-	rtPath := FilePath(fabRoot)
-	m, err := LoadFile(rtPath)
-	if err != nil {
-		return err
-	}
-
-	agents := agentsMap(m)
-	agents[sessionID] = agentEntryToMap(entry)
-	m[agentsKey] = agents
-
-	return SaveFile(rtPath, m)
+	return UpdateAgent(fabRoot, true, func(m map[string]interface{}) bool {
+		agents := agentsMap(m)
+		agents[sessionID] = agentEntryToMap(entry)
+		return true
+	}, gcInterval)
 }
 
 // ClearAgent deletes the _agents[sessionID] entry entirely. No-op when the
-// runtime file is absent or the session ID is not present.
-func ClearAgent(fabRoot, sessionID string) error {
+// runtime file is absent or the session ID is not present (no write occurs
+// unless an inline GC sweep was due and changed something).
+func ClearAgent(fabRoot, sessionID string, gcInterval time.Duration) error {
 	if sessionID == "" {
 		return nil
 	}
 
-	rtPath := FilePath(fabRoot)
-	if _, err := os.Stat(rtPath); os.IsNotExist(err) {
-		return nil
-	}
-
-	m, err := LoadFile(rtPath)
-	if err != nil {
-		return err
-	}
-
-	agents, ok := m[agentsKey].(map[string]interface{})
-	if !ok {
-		return nil
-	}
-
-	if _, present := agents[sessionID]; !present {
-		return nil
-	}
-
-	delete(agents, sessionID)
-	m[agentsKey] = agents
-
-	return SaveFile(rtPath, m)
+	return UpdateAgent(fabRoot, false, func(m map[string]interface{}) bool {
+		agents, ok := m[agentsKey].(map[string]interface{})
+		if !ok {
+			return false
+		}
+		if _, present := agents[sessionID]; !present {
+			return false
+		}
+		delete(agents, sessionID)
+		m[agentsKey] = agents
+		return true
+	}, gcInterval)
 }
 
 // ClearAgentIdle removes only the `idle_since` key from _agents[sessionID],
@@ -235,41 +271,30 @@ func ClearAgent(fabRoot, sessionID string) error {
 // transcript_path). Used by the user-prompt hook to mark the agent active
 // again without losing pane-map correlation properties.
 //
-// No-op when the runtime file or the entry is absent.
-func ClearAgentIdle(fabRoot, sessionID string) error {
+// No-op when the runtime file or the entry is absent (no write occurs unless
+// an inline GC sweep was due and changed something).
+func ClearAgentIdle(fabRoot, sessionID string, gcInterval time.Duration) error {
 	if sessionID == "" {
 		return nil
 	}
 
-	rtPath := FilePath(fabRoot)
-	if _, err := os.Stat(rtPath); os.IsNotExist(err) {
-		return nil
-	}
-
-	m, err := LoadFile(rtPath)
-	if err != nil {
-		return err
-	}
-
-	agents, ok := m[agentsKey].(map[string]interface{})
-	if !ok {
-		return nil
-	}
-
-	entry, ok := agents[sessionID].(map[string]interface{})
-	if !ok {
-		return nil
-	}
-
-	if _, present := entry[idleSinceKey]; !present {
-		return nil
-	}
-
-	delete(entry, idleSinceKey)
-	agents[sessionID] = entry
-	m[agentsKey] = agents
-
-	return SaveFile(rtPath, m)
+	return UpdateAgent(fabRoot, false, func(m map[string]interface{}) bool {
+		agents, ok := m[agentsKey].(map[string]interface{})
+		if !ok {
+			return false
+		}
+		entry, ok := agents[sessionID].(map[string]interface{})
+		if !ok {
+			return false
+		}
+		if _, present := entry[idleSinceKey]; !present {
+			return false
+		}
+		delete(entry, idleSinceKey)
+		agents[sessionID] = entry
+		m[agentsKey] = agents
+		return true
+	}, gcInterval)
 }
 
 // asInt64 coerces a YAML-decoded numeric value to int64. Returns ok=false
@@ -293,29 +318,30 @@ func asInt64(v interface{}) (int64, bool) {
 //
 // Behavior:
 //  1. If the runtime file is absent, return nil (no-op).
-//  2. If `now - last_run_gc < interval`, return nil (throttled).
+//  2. If `now - last_run_gc < interval`, return nil (throttled, no write).
 //  3. Otherwise, for each agent entry with a non-nil `pid`, issue
 //     kill(pid, 0). If the call returns ESRCH, delete the entry.
 //     Entries without a `pid` field are preserved regardless.
 //  4. Update `last_run_gc = now()` and save atomically.
 //
-// The caller is expected to pass a fixed interval (180s is the canonical
-// value used by hook handlers).
+// The interval must be positive (180s is the canonical value used by hook
+// handlers — which fold this sweep into their mutation call via UpdateAgent
+// rather than calling GCIfDue separately).
 func GCIfDue(fabRoot string, interval time.Duration) error {
-	rtPath := FilePath(fabRoot)
-	if _, err := os.Stat(rtPath); os.IsNotExist(err) {
-		return nil
-	}
+	return UpdateAgent(fabRoot, false, nil, interval)
+}
 
-	m, err := LoadFile(rtPath)
-	if err != nil {
-		return err
-	}
-
+// gcSweepIfDue runs the GC sweep on the already-loaded map when the
+// `last_run_gc` throttle has expired: entries whose pid is dead are deleted,
+// pid-less entries are preserved, and `last_run_gc` is set to now. Returns
+// true when the sweep ran (the map changed — at minimum `last_run_gc`),
+// false when throttled. Pure in-memory aside from kill(pid, 0) probes — the
+// caller owns load, save, and locking.
+func gcSweepIfDue(m map[string]interface{}, interval time.Duration) bool {
 	now := time.Now().Unix()
 	if lastRun, ok := asInt64(m[lastRunGCKey]); ok {
 		if now-lastRun < int64(interval.Seconds()) {
-			return nil
+			return false
 		}
 	}
 
@@ -341,7 +367,7 @@ func GCIfDue(fabRoot string, interval time.Duration) error {
 	}
 
 	m[lastRunGCKey] = now
-	return SaveFile(rtPath, m)
+	return true
 }
 
 // pidAlive returns true when kill(pid, 0) succeeds or returns EPERM (the

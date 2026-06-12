@@ -572,3 +572,234 @@ last_updated: "2026-04-23T05:02:32Z"
 		t.Errorf("saved file lost authoritative plan values. content:\n%s", rawStr)
 	}
 }
+
+// --- Write-time key insertion + SetProgress shape errors (mz4q F07):
+// mutations against sparse legacy documents must persist (keys created on
+// write), and a malformed progress shape must error instead of silently
+// dropping the transition. ---
+
+// sparseYAML mimics a restored pre-0.24.0 archive / hand-edited file: no
+// prs:, stage_metrics:, confidence:, plan:, change_type:, and a progress map
+// missing the apply stage key.
+const sparseYAML = `id: sp4r
+name: 260310-sp4r-sparse-change
+created: "2026-03-10T12:00:00Z"
+progress:
+  intake: done
+last_updated: "2026-03-10T12:00:00Z"
+`
+
+func loadSparse(t *testing.T) (*StatusFile, string) {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	if err := os.WriteFile(path, []byte(sparseYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sf, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	return sf, path
+}
+
+func TestSparseFile_AddPRPersists(t *testing.T) {
+	sf, path := loadSparse(t)
+
+	sf.PRs = append(sf.PRs, "https://github.com/o/r/pull/1")
+	if err := sf.Save(path); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	reloaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if len(reloaded.PRs) != 1 || reloaded.PRs[0] != "https://github.com/o/r/pull/1" {
+		t.Errorf("PR write dropped on sparse file: %v", reloaded.PRs)
+	}
+}
+
+func TestSparseFile_ChangeTypeAndConfidencePersist(t *testing.T) {
+	sf, path := loadSparse(t)
+
+	sf.ChangeType = "fix"
+	sf.Confidence.Certain = 3
+	sf.Confidence.Score = 4.2
+	if err := sf.Save(path); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	reloaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.ChangeType != "fix" {
+		t.Errorf("change_type dropped: %q", reloaded.ChangeType)
+	}
+	if reloaded.Confidence.Certain != 3 || reloaded.Confidence.Score != 4.2 {
+		t.Errorf("confidence dropped: %+v", reloaded.Confidence)
+	}
+}
+
+func TestSparseFile_StageMetricsAndPlanPersist(t *testing.T) {
+	sf, path := loadSparse(t)
+
+	sf.Plan.Generated = true
+	sf.Plan.TaskCount = 5
+	sf.StageMetrics["apply"] = &StageMetric{StartedAt: "2026-03-10T13:00:00Z", Iterations: 1}
+	if err := sf.Save(path); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	reloaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if !reloaded.Plan.Generated || reloaded.Plan.TaskCount != 5 {
+		t.Errorf("plan dropped: %+v", reloaded.Plan)
+	}
+	sm, ok := reloaded.StageMetrics["apply"]
+	if !ok || sm.Iterations != 1 {
+		t.Errorf("stage_metrics dropped: %+v", reloaded.StageMetrics)
+	}
+}
+
+func TestSetProgress_CreatesMissingStageKey(t *testing.T) {
+	sf, path := loadSparse(t)
+
+	if err := sf.SetProgress("apply", "active"); err != nil {
+		t.Fatalf("SetProgress: %v", err)
+	}
+	if err := sf.Save(path); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	reloaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if got := reloaded.GetProgress("apply"); got != "active" {
+		t.Errorf("missing stage key not created: apply = %q, want active", got)
+	}
+	if got := reloaded.GetProgress("intake"); got != "done" {
+		t.Errorf("existing stage disturbed: intake = %q, want done", got)
+	}
+}
+
+func TestSetProgress_MalformedProgressErrors(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	noProgress := "id: ab12\nname: x\nlast_updated: \"2026-03-10T12:00:00Z\"\n"
+	if err := os.WriteFile(path, []byte(noProgress), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sf, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	err = sf.SetProgress("apply", "active")
+	if err == nil {
+		t.Fatal("expected malformed-shape error when progress: is absent")
+	}
+	if !strings.Contains(err.Error(), "progress is missing or not a mapping") {
+		t.Errorf("unexpected error text: %v", err)
+	}
+}
+
+func TestSparseFile_LastUpdatedInserted(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	noLastUpdated := "id: ab12\nname: x\nprogress:\n  intake: done\n"
+	if err := os.WriteFile(path, []byte(noLastUpdated), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sf, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	if err := sf.Save(path); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	reloaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.LastUpdated == "" {
+		t.Error("last_updated not inserted on a file missing the key")
+	}
+}
+
+// --- Classified read errors (mz4q F06): only genuine absence reports "not
+// found"; other read failures carry the real cause. ---
+
+func TestLoad_NotFoundKeepsFriendlyText(t *testing.T) {
+	_, err := Load(filepath.Join(t.TempDir(), ".status.yaml"))
+	if err == nil {
+		t.Fatal("expected error for missing file")
+	}
+	if !strings.Contains(err.Error(), "status file not found:") {
+		t.Errorf("expected friendly not-found text, got: %v", err)
+	}
+}
+
+func TestLoad_PermissionDeniedClassified(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root — permission bits are not enforced")
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	if err := os.WriteFile(path, []byte(testYAML), 0o000); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for unreadable file")
+	}
+	if strings.Contains(err.Error(), "not found") {
+		t.Errorf("permission failure must not masquerade as absence: %v", err)
+	}
+	if !strings.Contains(err.Error(), "read status file") || !strings.Contains(err.Error(), "permission denied") {
+		t.Errorf("expected cause-bearing read error, got: %v", err)
+	}
+}
+
+func TestLoad_IsADirectoryClassified(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	if err := os.Mkdir(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for directory path")
+	}
+	if strings.Contains(err.Error(), "not found") {
+		t.Errorf("is-a-directory failure must not masquerade as absence: %v", err)
+	}
+}
+
+func TestLoad_ParseErrorDistinctFromAbsence(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	// Git merge-conflict markers — the file is git-tracked, so this happens.
+	conflicted := "id: ab12\n<<<<<<< HEAD\nname: a\n=======\nname: b\n>>>>>>> theirs\n"
+	if err := os.WriteFile(path, []byte(conflicted), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected parse error for conflicted file")
+	}
+	if strings.Contains(err.Error(), "not found") {
+		t.Errorf("corruption must be distinguishable from absence: %v", err)
+	}
+	if !strings.Contains(err.Error(), "invalid YAML") {
+		t.Errorf("expected invalid-YAML classification, got: %v", err)
+	}
+}

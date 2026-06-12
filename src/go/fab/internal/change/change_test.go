@@ -710,3 +710,61 @@ func TestSwitch_NextDerivation(t *testing.T) {
 		})
 	}
 }
+
+// --- Atomic active-pointer swap (mz4q F05): setActivePointer replaces an
+// existing symlink via temp+rename — no Remove-then-Symlink window, no EEXIST
+// race, and a concurrent reader always sees either the old or new pointer. ---
+
+func TestSwitch_ReplacesExistingPointerAtomically(t *testing.T) {
+	fabRoot := setupChangeFixture(t)
+	for _, folder := range []string{"260310-abcd-my-change", "260311-ef12-other-change"} {
+		changeDir := filepath.Join(fabRoot, "changes", folder)
+		os.MkdirAll(changeDir, 0755)
+		os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte(existingStatusYAML), 0644)
+	}
+
+	if _, err := Switch(fabRoot, "abcd"); err != nil {
+		t.Fatalf("first Switch failed: %v", err)
+	}
+	// Second switch over the existing pointer must succeed (the old
+	// Remove+Symlink pair could race into EEXIST here).
+	if _, err := Switch(fabRoot, "ef12"); err != nil {
+		t.Fatalf("second Switch over existing pointer failed: %v", err)
+	}
+
+	repoRoot := filepath.Dir(fabRoot)
+	target, err := os.Readlink(filepath.Join(repoRoot, ".fab-status.yaml"))
+	if err != nil {
+		t.Fatalf("failed to read symlink: %v", err)
+	}
+	if target != "fab/changes/260311-ef12-other-change/.status.yaml" {
+		t.Errorf("symlink target = %q, want the second change", target)
+	}
+
+	// No temp link left behind.
+	entries, err := os.ReadDir(repoRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".fab-status.yaml.") {
+			t.Errorf("leftover temp pointer artifact: %s", e.Name())
+		}
+	}
+}
+
+func TestSetActivePointer_FreshCreate(t *testing.T) {
+	fabRoot := setupChangeFixture(t)
+	repoRoot := filepath.Dir(fabRoot)
+
+	if err := setActivePointer(repoRoot, "fab/changes/260310-abcd-my-change/.status.yaml"); err != nil {
+		t.Fatalf("setActivePointer failed: %v", err)
+	}
+	target, err := os.Readlink(filepath.Join(repoRoot, ".fab-status.yaml"))
+	if err != nil {
+		t.Fatalf("failed to read symlink: %v", err)
+	}
+	if target != "fab/changes/260310-abcd-my-change/.status.yaml" {
+		t.Errorf("symlink target = %q", target)
+	}
+}

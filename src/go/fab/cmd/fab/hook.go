@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/hooklib"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/lockfile"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/proc"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/runtime"
@@ -19,8 +20,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// gcInterval is the throttle window for GCIfDue calls from hook handlers.
-// Matches the 180-second value documented in the spec.
+// gcInterval is the throttle window for the inline GC sweep folded into each
+// hook handler's runtime mutation (runtime.UpdateAgent). Matches the
+// 180-second value documented in the spec.
 const gcInterval = 180 * time.Second
 
 // envTmux is the environment variable name for the tmux socket path.
@@ -119,8 +121,8 @@ func hookSessionStartCmd() *cobra.Command {
 				return nil // swallow
 			}
 
-			_ = runtime.ClearAgent(fabRoot, payload.SessionID)
-			_ = runtime.GCIfDue(fabRoot, gcInterval)
+			// Single merged call: entry clear + inline GC in one load/save.
+			_ = runtime.ClearAgent(fabRoot, payload.SessionID, gcInterval)
 			return nil
 		},
 	}
@@ -144,8 +146,8 @@ func hookStopCmd() *cobra.Command {
 
 			now := time.Now().Unix()
 			entry := buildAgentEntry(fabRoot, &now, payload.TranscriptPath)
-			_ = runtime.WriteAgent(fabRoot, payload.SessionID, entry)
-			_ = runtime.GCIfDue(fabRoot, gcInterval)
+			// Single merged call: entry write + inline GC in one load/save.
+			_ = runtime.WriteAgent(fabRoot, payload.SessionID, entry, gcInterval)
 			return nil
 		},
 	}
@@ -167,8 +169,8 @@ func hookUserPromptCmd() *cobra.Command {
 				return nil // swallow
 			}
 
-			_ = runtime.ClearAgentIdle(fabRoot, payload.SessionID)
-			_ = runtime.GCIfDue(fabRoot, gcInterval)
+			// Single merged call: idle clear + inline GC in one load/save.
+			_ = runtime.ClearAgentIdle(fabRoot, payload.SessionID, gcInterval)
 			return nil
 		},
 	}
@@ -200,20 +202,35 @@ func hookArtifactWriteCmd() *cobra.Command {
 				return nil // swallow
 			}
 
-			// Verify the change folder resolves
+			// Verify the change folder resolves (the only fab/changes
+			// directory scan on this path — downstream consumers reuse the
+			// exact folder name, mz4q F02).
 			_, err = resolve.ToFolder(fabRoot, match.ChangeFolder)
 			if err != nil {
 				return nil // swallow
 			}
 
-			// Load status file
+			// Load → mutate in memory → exactly one Save, all under the
+			// cross-process status lock so the bookkeeping cannot revert a
+			// concurrent fab status transition from another pane (mz4q
+			// F02/F03).
 			statusPath := filepath.Join(fabRoot, "changes", match.ChangeFolder, ".status.yaml")
-			statusFile, err := sf.Load(statusPath)
-			if err != nil {
+			var contextParts []string
+			lockErr := lockfile.WithLock(statusPath, func() error {
+				statusFile, err := sf.Load(statusPath)
+				if err != nil {
+					return err
+				}
+				parts, dirty := artifactBookkeeping(fabRoot, filePath, match, statusFile)
+				contextParts = parts
+				if dirty {
+					return statusFile.Save(statusPath)
+				}
+				return nil
+			})
+			if lockErr != nil {
 				return nil // swallow
 			}
-
-			contextParts := artifactBookkeeping(fabRoot, filePath, match, statusFile, statusPath)
 
 			// Auto-stage status files so they don't block git operations
 			changeDir := filepath.Join(fabRoot, "changes", match.ChangeFolder)
@@ -238,9 +255,14 @@ func hookArtifactWriteCmd() *cobra.Command {
 	}
 }
 
-// artifactBookkeeping performs per-artifact bookkeeping and returns context description parts.
-func artifactBookkeeping(fabRoot, filePath string, match hooklib.ArtifactMatch, statusFile *sf.StatusFile, statusPath string) []string {
+// artifactBookkeeping performs per-artifact bookkeeping by mutating the
+// in-memory StatusFile only. It returns context description parts and whether
+// anything was mutated — the caller persists with exactly one Save (mz4q
+// F02). The intake branch reuses the already-resolved folder and the single
+// intake.md read for scoring (score.ComputeWithStatus).
+func artifactBookkeeping(fabRoot, filePath string, match hooklib.ArtifactMatch, statusFile *sf.StatusFile) ([]string, bool) {
 	var contextParts []string
+	dirty := false
 
 	// Resolve absolute path for reading file content
 	repoRoot := filepath.Dir(fabRoot)
@@ -259,11 +281,15 @@ func artifactBookkeeping(fabRoot, filePath string, match hooklib.ArtifactMatch, 
 		}
 
 		changeType := hooklib.InferChangeType(string(content))
-		_ = status.SetChangeType(statusFile, statusPath, changeType)
+		if err := status.ApplyChangeType(statusFile, changeType); err == nil {
+			dirty = true
+		}
 		contextParts = append(contextParts, "type: "+changeType)
 
-		result, err := score.Compute(fabRoot, match.ChangeFolder, "intake")
+		changeDir := filepath.Join(fabRoot, "changes", match.ChangeFolder)
+		result, err := score.ComputeWithStatus(fabRoot, changeDir, content, statusFile)
 		if err == nil {
+			dirty = true
 			contextParts = append(contextParts, fmt.Sprintf("score: %.1f", result.Score))
 		}
 
@@ -278,13 +304,17 @@ func artifactBookkeeping(fabRoot, filePath string, match hooklib.ArtifactMatch, 
 
 		// Always set generated=true if the file exists with at least the ## Tasks heading.
 		if hasTasks {
-			_ = status.SetAcceptance(statusFile, statusPath, "generated", "true")
+			if err := status.ApplyAcceptance(statusFile, "generated", "true"); err == nil {
+				dirty = true
+			}
 		}
 
 		// Defensive: only update task_count when ## Tasks is present.
 		if hasTasks {
 			taskCount := hooklib.CountSectionItemsBounded(string(content), hooklib.SectionTasks)
-			_ = status.SetAcceptance(statusFile, statusPath, "task_count", fmt.Sprintf("%d", taskCount))
+			if err := status.ApplyAcceptance(statusFile, "task_count", fmt.Sprintf("%d", taskCount)); err == nil {
+				dirty = true
+			}
 			contextParts = append(contextParts, fmt.Sprintf("plan tasks: %d", taskCount))
 		}
 
@@ -292,13 +322,17 @@ func artifactBookkeeping(fabRoot, filePath string, match hooklib.ArtifactMatch, 
 		if hasAcceptance {
 			acceptanceCount := hooklib.CountSectionItemsBounded(string(content), hooklib.SectionAcceptance)
 			acceptanceCompleted := hooklib.CountCompletedSectionItemsBounded(string(content), hooklib.SectionAcceptance)
-			_ = status.SetAcceptance(statusFile, statusPath, "acceptance_count", fmt.Sprintf("%d", acceptanceCount))
-			_ = status.SetAcceptance(statusFile, statusPath, "acceptance_completed", fmt.Sprintf("%d", acceptanceCompleted))
+			if err := status.ApplyAcceptance(statusFile, "acceptance_count", fmt.Sprintf("%d", acceptanceCount)); err == nil {
+				dirty = true
+			}
+			if err := status.ApplyAcceptance(statusFile, "acceptance_completed", fmt.Sprintf("%d", acceptanceCompleted)); err == nil {
+				dirty = true
+			}
 			contextParts = append(contextParts, fmt.Sprintf("plan acceptance: %d/%d", acceptanceCompleted, acceptanceCount))
 		}
 	}
 
-	return contextParts
+	return contextParts, dirty
 }
 
 func hookSyncCmd() *cobra.Command {

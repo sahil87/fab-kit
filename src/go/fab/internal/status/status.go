@@ -130,7 +130,9 @@ func Start(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver, from, 
 		return err
 	}
 
-	statusFile.SetProgress(stage, targetState)
+	if err := statusFile.SetProgress(stage, targetState); err != nil {
+		return err
+	}
 	applyMetricsSideEffect(statusFile, fabRoot, stage, targetState, driver, from, reason)
 
 	return statusFile.Save(statusPath)
@@ -148,7 +150,9 @@ func Advance(statusFile *sf.StatusFile, statusPath, stage, driver string) error 
 		return err
 	}
 
-	statusFile.SetProgress(stage, targetState)
+	if err := statusFile.SetProgress(stage, targetState); err != nil {
+		return err
+	}
 
 	return statusFile.Save(statusPath)
 }
@@ -167,7 +171,9 @@ func Finish(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver string
 		return err
 	}
 
-	statusFile.SetProgress(stage, targetState)
+	if err := statusFile.SetProgress(stage, targetState); err != nil {
+		return err
+	}
 	applyMetricsSideEffect(statusFile, fabRoot, stage, targetState, "", "", "")
 
 	// Auto-activate next pending stage
@@ -175,7 +181,9 @@ func Finish(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver string
 	if nextStage != "" {
 		nextState := statusFile.GetProgress(nextStage)
 		if nextState == "pending" {
-			statusFile.SetProgress(nextStage, "active")
+			if err := statusFile.SetProgress(nextStage, "active"); err != nil {
+				return err
+			}
 			applyMetricsSideEffect(statusFile, fabRoot, nextStage, "active", driver, "", "")
 		}
 	}
@@ -212,14 +220,18 @@ func Reset(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver, from, 
 		return err
 	}
 
-	statusFile.SetProgress(stage, targetState)
+	if err := statusFile.SetProgress(stage, targetState); err != nil {
+		return err
+	}
 	applyMetricsSideEffect(statusFile, fabRoot, stage, targetState, driver, from, reason)
 
 	// Cascade downstream to pending
 	foundTarget := false
 	for _, s := range sf.StageOrder {
 		if foundTarget {
-			statusFile.SetProgress(s, "pending")
+			if err := statusFile.SetProgress(s, "pending"); err != nil {
+				return err
+			}
 			applyMetricsSideEffect(statusFile, fabRoot, s, "pending", "", "", "")
 		}
 		if s == stage {
@@ -242,7 +254,9 @@ func Skip(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver string) 
 		return err
 	}
 
-	statusFile.SetProgress(stage, targetState)
+	if err := statusFile.SetProgress(stage, targetState); err != nil {
+		return err
+	}
 	applyMetricsSideEffect(statusFile, fabRoot, stage, targetState, "", "", "")
 
 	// Forward cascade: downstream pending → skipped
@@ -250,7 +264,9 @@ func Skip(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver string) 
 	for _, s := range sf.StageOrder {
 		if foundTarget {
 			if statusFile.GetProgress(s) == "pending" {
-				statusFile.SetProgress(s, "skipped")
+				if err := statusFile.SetProgress(s, "skipped"); err != nil {
+					return err
+				}
 				applyMetricsSideEffect(statusFile, fabRoot, s, "skipped", "", "", "")
 			}
 		}
@@ -274,7 +290,9 @@ func Fail(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver, rework 
 		return err
 	}
 
-	statusFile.SetProgress(stage, targetState)
+	if err := statusFile.SetProgress(stage, targetState); err != nil {
+		return err
+	}
 
 	if err := statusFile.Save(statusPath); err != nil {
 		return err
@@ -288,8 +306,11 @@ func Fail(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver, rework 
 	return nil
 }
 
-// SetChangeType sets the change_type field.
-func SetChangeType(statusFile *sf.StatusFile, statusPath, changeType string) error {
+// ApplyChangeType validates and sets the change_type field on the in-memory
+// StatusFile without saving. Validation happens before any mutation. Callers
+// own persistence — the artifact-write hook batches several Apply* mutations
+// into a single Save (mz4q F02).
+func ApplyChangeType(statusFile *sf.StatusFile, changeType string) error {
 	valid := false
 	for _, t := range ValidChangeTypes {
 		if t == changeType {
@@ -301,13 +322,22 @@ func SetChangeType(statusFile *sf.StatusFile, statusPath, changeType string) err
 		return fmt.Errorf("Invalid change type '%s' (valid: %s)", changeType, strings.Join(ValidChangeTypes, ", "))
 	}
 	statusFile.ChangeType = changeType
+	return nil
+}
+
+// SetChangeType sets the change_type field and persists.
+func SetChangeType(statusFile *sf.StatusFile, statusPath, changeType string) error {
+	if err := ApplyChangeType(statusFile, changeType); err != nil {
+		return err
+	}
 	return statusFile.Save(statusPath)
 }
 
-// SetAcceptance updates a field on the plan: block of .status.yaml.
-// Valid fields: generated (bool), task_count (int), acceptance_count (int),
-// acceptance_completed (int).
-func SetAcceptance(statusFile *sf.StatusFile, statusPath, field, value string) error {
+// ApplyAcceptance updates a field on the in-memory plan: block without
+// saving. Valid fields: generated (bool), task_count (int), acceptance_count
+// (int), acceptance_completed (int). Validation happens before any mutation.
+// Callers own persistence (see ApplyChangeType).
+func ApplyAcceptance(statusFile *sf.StatusFile, field, value string) error {
 	switch field {
 	case "generated":
 		if value != "true" && value != "false" {
@@ -335,6 +365,16 @@ func SetAcceptance(statusFile *sf.StatusFile, statusPath, field, value string) e
 	default:
 		return fmt.Errorf("Invalid plan field '%s' (expected: generated, task_count, acceptance_count, acceptance_completed)", field)
 	}
+	return nil
+}
+
+// SetAcceptance updates a field on the plan: block of .status.yaml and
+// persists. Valid fields: generated (bool), task_count (int),
+// acceptance_count (int), acceptance_completed (int).
+func SetAcceptance(statusFile *sf.StatusFile, statusPath, field, value string) error {
+	if err := ApplyAcceptance(statusFile, field, value); err != nil {
+		return err
+	}
 	return statusFile.Save(statusPath)
 }
 
@@ -346,8 +386,9 @@ func SetChecklistRemovedError() error {
 	return fmt.Errorf("\"set-checklist\" is now \"set-acceptance\" — run fab status set-acceptance instead.")
 }
 
-// SetConfidence replaces the confidence block.
-func SetConfidence(statusFile *sf.StatusFile, statusPath string, certain, confident, tentative, unresolved int, score float64) error {
+// ApplyConfidence replaces the in-memory confidence block without saving.
+// Callers own persistence (see ApplyChangeType).
+func ApplyConfidence(statusFile *sf.StatusFile, certain, confident, tentative, unresolved int, score float64) {
 	statusFile.Confidence = sf.Confidence{
 		Certain:    certain,
 		Confident:  confident,
@@ -355,11 +396,17 @@ func SetConfidence(statusFile *sf.StatusFile, statusPath string, certain, confid
 		Unresolved: unresolved,
 		Score:      score,
 	}
+}
+
+// SetConfidence replaces the confidence block and persists.
+func SetConfidence(statusFile *sf.StatusFile, statusPath string, certain, confident, tentative, unresolved int, score float64) error {
+	ApplyConfidence(statusFile, certain, confident, tentative, unresolved, score)
 	return statusFile.Save(statusPath)
 }
 
-// SetConfidenceFuzzy replaces the confidence block with dimension data.
-func SetConfidenceFuzzy(statusFile *sf.StatusFile, statusPath string, certain, confident, tentative, unresolved int, score, meanS, meanR, meanA, meanD float64) error {
+// ApplyConfidenceFuzzy replaces the in-memory confidence block with dimension
+// data without saving. Callers own persistence (see ApplyChangeType).
+func ApplyConfidenceFuzzy(statusFile *sf.StatusFile, certain, confident, tentative, unresolved int, score, meanS, meanR, meanA, meanD float64) {
 	statusFile.Confidence = sf.Confidence{
 		Certain:    certain,
 		Confident:  confident,
@@ -374,6 +421,12 @@ func SetConfidenceFuzzy(statusFile *sf.StatusFile, statusPath string, certain, c
 			Disambiguation: meanD,
 		},
 	}
+}
+
+// SetConfidenceFuzzy replaces the confidence block with dimension data and
+// persists.
+func SetConfidenceFuzzy(statusFile *sf.StatusFile, statusPath string, certain, confident, tentative, unresolved int, score, meanS, meanR, meanA, meanD float64) error {
+	ApplyConfidenceFuzzy(statusFile, certain, confident, tentative, unresolved, score, meanS, meanR, meanA, meanD)
 	return statusFile.Save(statusPath)
 }
 

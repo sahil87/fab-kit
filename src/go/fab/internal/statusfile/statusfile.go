@@ -110,11 +110,18 @@ type StatusFile struct {
 	raw *yaml.Node
 }
 
-// Load reads and parses a .status.yaml file.
+// Load reads and parses a .status.yaml file. Read failures are classified
+// (mz4q F06): only a genuinely missing file reports "not found" — permission
+// denied, is-a-directory, and I/O errors wrap the real cause so callers (and
+// agents routing recovery off error text) are not sent down a wrong
+// re-create/re-switch path.
 func Load(path string) (*StatusFile, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("status file not found: %s", path)
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("status file not found: %s", path)
+		}
+		return nil, fmt.Errorf("read status file %s: %w", path, err)
 	}
 
 	var doc yaml.Node
@@ -305,6 +312,15 @@ func (sf *StatusFile) Save(path string) error {
 		os.Remove(tmpPath)
 		return fmt.Errorf("write temp file: %w", err)
 	}
+	// Sync before rename: .status.yaml is the pipeline state machine's source
+	// of truth — a crash must never leave an empty/torn file behind the
+	// rename (mz4q F03). Contrast runtime.SaveFile, which skips fsync for the
+	// ephemeral, re-derivable runtime file.
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("sync temp file: %w", err)
+	}
 	if err := tmp.Close(); err != nil {
 		os.Remove(tmpPath)
 		return fmt.Errorf("close temp file: %w", err)
@@ -331,17 +347,26 @@ func (sf *StatusFile) GetProgress(stage string) string {
 	return "pending"
 }
 
-// SetProgress sets the state of a stage in the progress map.
-func (sf *StatusFile) SetProgress(stage, state string) {
+// SetProgress sets the state of a stage in the progress map, creating the
+// stage key when absent (appended at the end of the mapping). It returns an
+// error when the document shape is malformed — `progress:` missing or not a
+// mapping — so callers cannot report success on a write that would be
+// silently dropped (mz4q F07).
+func (sf *StatusFile) SetProgress(stage, state string) error {
 	if sf.Progress.Kind != yaml.MappingNode {
-		return
+		return fmt.Errorf("malformed .status.yaml: progress is missing or not a mapping")
 	}
 	for i := 0; i+1 < len(sf.Progress.Content); i += 2 {
 		if sf.Progress.Content[i].Value == stage {
 			sf.Progress.Content[i+1].Value = state
-			return
+			return nil
 		}
 	}
+	sf.Progress.Content = append(sf.Progress.Content,
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: stage},
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: state},
+	)
+	return nil
 }
 
 // GetProgressMap returns an ordered slice of stage:state pairs.
@@ -360,14 +385,24 @@ type StageState struct {
 }
 
 // syncToRaw updates the raw yaml.Node from the struct fields.
+//
+// Write-time key insertion (mz4q F07): struct fields whose key is absent from
+// the parsed document are inserted instead of silently dropped. Sparse
+// documents are real — restored pre-0.24.0 archives (migrations never touch
+// fab/changes/archive/**) and hand-edited files — and exit-0 commands whose
+// write vanished feed wrong state into autonomous pipelines. Command-mutated
+// keys (issues, prs, plan, confidence, stage_metrics, last_updated) are
+// always ensured; identity scalars (name, change_type) only when non-empty,
+// to avoid materializing empty strings.
 func (sf *StatusFile) syncToRaw() {
 	root := sf.raw.Content[0]
 
-	hasTrueImpact := false
+	seen := make(map[string]bool)
 
 	for i := 0; i+1 < len(root.Content); i += 2 {
 		key := root.Content[i].Value
 		val := root.Content[i+1]
+		seen[key] = true
 
 		switch key {
 		case "id":
@@ -395,7 +430,6 @@ func (sf *StatusFile) syncToRaw() {
 		case "stage_metrics":
 			encodeStageMetrics(val, sf.StageMetrics)
 		case "true_impact":
-			hasTrueImpact = true
 			if sf.TrueImpact == nil {
 				dropKeyAt(root, i)
 				i -= 2
@@ -405,8 +439,48 @@ func (sf *StatusFile) syncToRaw() {
 		}
 	}
 
-	if !hasTrueImpact && sf.TrueImpact != nil {
-		insertTrueImpact(root, sf.TrueImpact)
+	if !seen["name"] && sf.Name != "" {
+		insertKey(root, "name", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: sf.Name})
+	}
+	if !seen["change_type"] && sf.ChangeType != "" {
+		insertKey(root, "change_type", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: sf.ChangeType})
+	}
+	if !seen["issues"] {
+		node := &yaml.Node{}
+		encodeStringSlice(node, sf.Issues)
+		insertKey(root, "issues", node)
+	}
+	if !seen["plan"] {
+		node := &yaml.Node{}
+		encodePlan(node, &sf.Plan)
+		insertKey(root, "plan", node)
+	}
+	if !seen["confidence"] {
+		node := &yaml.Node{}
+		encodeConfidence(node, &sf.Confidence)
+		insertKey(root, "confidence", node)
+	}
+	if !seen["stage_metrics"] {
+		node := &yaml.Node{}
+		encodeStageMetrics(node, sf.StageMetrics)
+		insertKey(root, "stage_metrics", node)
+	}
+	if !seen["prs"] {
+		node := &yaml.Node{}
+		encodeStringSlice(node, sf.PRs)
+		insertKey(root, "prs", node)
+	}
+	if !seen["true_impact"] && sf.TrueImpact != nil {
+		node := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+		encodeTrueImpact(node, sf.TrueImpact)
+		insertKey(root, "true_impact", node)
+	}
+	// last_updated goes last so the keys above land before it.
+	if !seen["last_updated"] {
+		root.Content = append(root.Content,
+			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "last_updated"},
+			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: sf.LastUpdated, Style: yaml.DoubleQuotedStyle},
+		)
 	}
 }
 
@@ -415,12 +489,12 @@ func dropKeyAt(root *yaml.Node, i int) {
 	root.Content = append(root.Content[:i], root.Content[i+2:]...)
 }
 
-// insertTrueImpact appends a true_impact mapping immediately before the
-// last_updated key (or at the end if last_updated is absent).
-func insertTrueImpact(root *yaml.Node, ti *TrueImpact) {
-	keyNode := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "true_impact"}
-	valNode := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-	encodeTrueImpact(valNode, ti)
+// insertKey inserts a key/value pair immediately before the last_updated key
+// (or at the end when last_updated is absent). Generalized from the original
+// true_impact-only insertion helper so any mutated key absent from a sparse
+// legacy document is created on write instead of silently dropped (mz4q F07).
+func insertKey(root *yaml.Node, key string, valNode *yaml.Node) {
+	keyNode := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key}
 
 	for i := 0; i+1 < len(root.Content); i += 2 {
 		if root.Content[i].Value == "last_updated" {

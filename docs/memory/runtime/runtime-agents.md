@@ -1,5 +1,5 @@
 ---
-description: "`.fab-runtime.yaml` schema — `_agents[session_id]` keying, hook write/clear pipeline (stop/session-start/user-prompt), throttled GC via `last_run_gc`, grandparent PID walker, pane-map matching rule"
+description: "`.fab-runtime.yaml` schema — `_agents[session_id]` keying, hook write/clear pipeline (stop/session-start/user-prompt) with one flock-serialized `UpdateAgent` call per event (GC folded in, skip-save-when-unchanged, no fsync), throttled GC via `last_run_gc`, grandparent PID walker, pane-map matching rule"
 ---
 # Runtime Agents
 
@@ -68,23 +68,25 @@ The `user-prompt` clear-idle-only semantics preserve pane-map correlation proper
 
 Writes are **independent of active-change state**. An agent running in discussion mode (no `.fab-status.yaml` symlink) still produces an `_agents` entry; the `change` field is simply absent or empty.
 
-Every hook handler calls `runtime.GCIfDue(fabRoot, 180*time.Second)` after its write/clear operation — cheap no-op when throttled, sub-100µs when actually sweeping.
+Each hook handler makes exactly **one** runtime call — `WriteAgent` / `ClearAgent` / `ClearAgentIdle` with `gcInterval = 180*time.Second` — which is a thin typed wrapper over `runtime.UpdateAgent(fabRoot, createIfMissing, mutate, gcInterval)`: load once (under the lock), apply the entry mutation, run the GC sweep inline when due, save once. Passing `gcInterval <= 0` (`runtime.NoGC`) disables the sweep. Before mz4q each handler ran a second, independent `GCIfDue` load-modify-save cycle after its mutation; the sweep is now folded into the same round-trip. When `createIfMissing` is false (clear paths, GC-only) and the file is absent, the call is a complete no-op; the stop-hook write path passes true and creates the file.
 
 **Tmux env handling**: Hooks read `$TMUX_PANE` and `$TMUX` from the environment. `$TMUX_PANE` writes verbatim to `tmux_pane` (including the `%` prefix). `$TMUX` is parsed — the first comma-separated component is a socket path, and its basename writes to `tmux_server`. When either env var is absent, the corresponding field is omitted. Claude Code's `sh -c` wrapper preserves both env vars into hook subprocesses (probe-verified on Linux).
 
-**Atomic writes**: All writes use the existing `SaveFile` path (temp file + rename) so the file is never partially written, even under concurrent hook invocations.
+**Concurrency & durability**: All writes use the `SaveFile` path (temp file + rename), so a reader never observes a torn file — but rename atomicity does NOT prevent **lost updates**: two unlocked load-mutate-save cycles are last-writer-wins over the whole document (the realistic race is multiple Claude sessions hooking in the *same* worktree, e.g. a lost `ClearAgentIdle` letting the operator inject keystrokes into a busy agent, or a lost `WriteAgent` blocking `fab pane send`). Since mz4q every mutator runs its full load-mutate-save cycle holding an exclusive advisory flock on the sibling `.fab-runtime.yaml.lock` (shared `internal/lockfile` helper: `O_CREATE` + `LOCK_EX|LOCK_NB` retry, ~10s bounded acquisition; the lock file is gitignored and never deleted — flock state, not file existence, carries the lock). The save is **skipped entirely when nothing changed** (no entry to clear, no `idle_since` to remove, GC throttled), so write-free paths stay write-free. `SaveFile` deliberately does NOT fsync: the file is ephemeral, fully re-derivable state ("re-populates on next hook event") and the fsync sat on every hook event's latency path — durability follows criticality (contrast `statusfile.Save`, which fsyncs because `.status.yaml` is the pipeline's source of truth).
 
 ### Garbage Collection
 
-`runtime.GCIfDue(fabRoot string, interval time.Duration) error` is invoked from every hook handler with `interval = 180 * time.Second`. Behavior:
+The GC sweep runs **inline inside `runtime.UpdateAgent`** (`gcSweepIfDue` — pure in-memory aside from `kill(pid, 0)` probes; the caller owns load, save, and locking) whenever a hook handler's merged call passes `gcInterval = 180 * time.Second`. `GCIfDue(fabRoot, interval)` survives only as a one-line GC-only wrapper — `UpdateAgent(fabRoot, false, nil, interval)` — with **zero production call sites** (exercised by runtime tests). Behavior:
 
-1. Load `.fab-runtime.yaml`. If the file is missing, return nil (no-op).
-2. Read `last_run_gc`. If `now - last_run_gc < interval`, return nil (throttled — the hook just wrote the entry, no sweep needed).
-3. Iterate `_agents`. For each entry with a non-nil `pid` field, send signal 0 via `syscall.Kill(pid, 0)`. If the result is `syscall.ESRCH` (no such process), delete the entry. Entries with live PIDs are preserved.
+1. Load `.fab-runtime.yaml` (once, shared with the entry mutation). If the file is missing, the call is a no-op.
+2. Read `last_run_gc`. If `now - last_run_gc < interval`, skip the sweep (throttled — no GC-driven write).
+3. Iterate `_agents`. For each entry with a non-nil `pid` field, send signal 0 via `syscall.Kill(pid, 0)`. If the process is gone (ESRCH; EPERM counts as alive), delete the entry. Entries with live PIDs are preserved.
 4. Entries **without** a `pid` field are preserved regardless of any other signal.
-5. Update `last_run_gc = now()` and save atomically.
+5. Update `last_run_gc = now()` and save — in the same single write as the entry mutation.
 
-**180-second throttle**: Matches the "once per 3 mins or so" cadence directed during design. The write-half of each hook invocation already absorbs the common-case cost; the GC sweep piggybacks on the same file read + write round-trip when it's actually due.
+**GC-on-no-op**: the sweep runs even when the mutation half of the merged call was a no-op (e.g. `ClearAgent` for an absent session while the throttle has expired) — and a due sweep always dirties the map (at minimum `last_run_gc`), so it alone triggers the save.
+
+**180-second throttle**: Matches the "once per 3 mins or so" cadence directed during design. The write-half of each hook invocation already absorbs the common-case cost; the GC sweep piggybacks on the same file read + write round-trip when it's actually due. (Since mz4q the implementation matches this description literally — previously the sweep was a second, independent read + write cycle per hook event.)
 
 **`kill(pid, 0)` liveness**: POSIX-standard; no subprocess spawn; server-agnostic (does not depend on tmux sockets or platform-specific process tables). ESRCH means the PID is definitively gone. PID reuse is an accepted risk — the window (GC interval vs. OS PID reuse horizon) is small enough that the simplicity win dominates.
 
@@ -158,7 +160,19 @@ This mirrors the established `internal/pane/pane_process_{linux,darwin}.go` patt
 **Decision**: GC runs from every hook handler, throttled by a top-level `last_run_gc` timestamp with a 180s interval. No `fab runtime gc` subcommand is exposed.
 **Why**: Hooks already hold the "something happened" signal that justifies a sweep; piggybacking on their file I/O is free. 180s matches the ≈3-minute cadence directed in design. `kill(pid, 0)` is cheap and server-agnostic. No operational surface to document, cron, or monitor.
 **Rejected**: Separate `fab runtime gc` subcommand + cron/systemd — adds operational complexity. Per-entry TTL — requires per-entry timestamps and wall-clock comparison without liveness signal. Cross-server tmux enumeration GC — platform-specific, brittle, doesn't cover non-tmux entries.
-*Source*: 260419-o5ej-agents-runtime-unified
+*Source*: 260419-o5ej-agents-runtime-unified; *Updated by*: 260612-mz4q-shared-state-concurrency-hook-hot-path (sweep folded into the mutator's own `UpdateAgent` load/save round-trip; `GCIfDue` reduced to a test-facing one-line wrapper with zero production call sites)
+
+### Lost-update protection via sibling flock, not rename alone
+**Decision**: Every `.fab-runtime.yaml` load-mutate-save cycle runs while holding an exclusive advisory flock on the sibling `.fab-runtime.yaml.lock`, taken inside `runtime.UpdateAgent` via the shared `internal/lockfile` helper (`O_CREATE` + `LOCK_EX|LOCK_NB` retry loop, bounded ~10s acquisition; lock files are gitignored and never deleted). The save is skipped when neither the mutation nor GC changed anything.
+**Why**: Temp+rename only prevents torn files; it does not serialize concurrent load-mutate-save cycles, which are last-writer-wins over the whole document. The realistic race surface is multiple Claude sessions hooking in the same worktree plus the cross-process GC clobber — concrete failure modes were a lost `ClearAgentIdle` (operator injects keystrokes into a busy agent) and a lost `WriteAgent` (idle agent unmatched, `pane send` blocked until the next hook fire). One helper wrapping the whole cycle fixes the class at its root. Bounded (non-blocking + retry) acquisition converts a pathological holder into a clear error instead of an indefinite deadlock; the uncontended path is a single syscall. `flock` works on both supported GOOS (linux + darwin) — no build-tag split.
+**Rejected**: Per-call-site patches (fixes instances, not the class). Unbounded blocking `LOCK_EX` (silent deadlock risk in unattended pipelines). Deleting lock files after release (racy — flock state, not file existence, carries the lock).
+*Source*: 260612-mz4q-shared-state-concurrency-hook-hot-path
+
+### Durability follows criticality — runtime fsync dropped
+**Decision**: `runtime.SaveFile` no longer fsyncs the temp file before rename; `statusfile.Save` gained the fsync in the same change.
+**Why**: The runtime file is ephemeral, fully re-derivable state ("re-populates on next hook event"), and the per-write fsync sat on every hook event's latency path — exactly the hot path the merged `UpdateAgent` exists to thin out. `.status.yaml`, by contrast, is the pipeline state machine's source of truth, where a crash leaving an empty/torn file is unacceptable. A one-line revert if the posture proves wrong.
+**Rejected**: fsync both files (taxes every hook event for state that self-heals). fsync neither (risks the pipeline's source of truth).
+*Source*: 260612-mz4q-shared-state-concurrency-hook-hot-path
 
 ### Clean-slate migration, not faithful conversion
 **Decision**: The 1.4.0 → 1.5.0 migration deletes any existing `.fab-runtime.yaml` at each user worktree's repo root.
@@ -188,4 +202,5 @@ This mirrors the established `internal/pane/pane_process_{linux,darwin}.go` patt
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260612-mz4q-shared-state-concurrency-hook-hot-path | 2026-06-12 | **Flock-serialized, single-round-trip runtime mutations** (binary-review B1, F01/F04 + the F03/F07 durability swap). New `internal/lockfile` package (sibling `<path>.lock`, `O_CREATE` + `Flock(LOCK_EX\|LOCK_NB)` retry, ~10s bounded timeout) wraps every `.fab-runtime.yaml` load-mutate-save cycle, fixing the lost-update race between concurrent hook invocations in one worktree (the prior "atomic even under concurrent hook invocations" claim conflated torn-write protection with race safety). New merged core `runtime.UpdateAgent(fabRoot, createIfMissing, mutate, gcInterval)`: load once, mutate, GC sweep inline when due (`gcSweepIfDue`, pure in-memory; GC-on-no-op preserved), save once — skip-save-when-unchanged keeps the historical write-free paths write-free. `WriteAgent`/`ClearAgent`/`ClearAgentIdle` became wrappers gaining a `gcInterval` param (`NoGC` ≤ 0 disables); hook handlers (`stop`/`session-start`/`user-prompt`) now make ONE runtime call each, replacing the per-handler mutator+`GCIfDue` pairs; `GCIfDue` survives only as a test-facing `UpdateAgent` wrapper with zero production call sites (deletion candidate). `SaveFile` dropped its per-write fsync (ephemeral re-derivable file; `statusfile.Save` gained fsync instead — durability follows criticality). `.fab-runtime.yaml.lock` added to `.gitignore` explicitly; concurrency integration tests cover parallel writers losing no entries. |
 | 260419-o5ej-agents-runtime-unified | 2026-04-19 | Created `runtime-agents.md`. Restructured `.fab-runtime.yaml` to a top-level `_agents` map keyed by Claude's `session_id` (UUID from hook stdin), with `change`, `pid`, `tmux_server`, `tmux_pane`, `transcript_path` as optional entry properties. Added top-level `last_run_gc` field throttling a 180-second GC sweep that prunes entries whose `pid` is dead (`kill(pid, 0)` → ESRCH) and preserves pid-less entries. Rewrote hook handlers (`fab hook stop|session-start|user-prompt`) to parse stdin JSON for `session_id`, write/clear `_agents[session_id]` independent of active-change state, and call `runtime.GCIfDue` inline. Added grandparent PID walker in `internal/proc/{proc_linux.go, proc_darwin.go}` (Linux reads `/proc/$PPID/status`, macOS execs `ps -o ppid= -p $PPID`) to resolve Claude's PID past the `sh -c` wrapper. Rewrote `ResolvePaneContext` and `ResolveAgentStateWithCache` in `internal/pane/pane.go` to match entries by `_agents[*].tmux_pane == paneID` (with `tmux_server` disambiguation), independent of change. `fab pane map` Agent column now populates for discussion-mode panes (previously blank); `fab pane send` inherits the fix (previously rejected discussion-mode panes as `unknown`). Removed legacy `SetIdle`/`ClearIdle` APIs and per-folder `agent:` schema. Clean-slate migration in `src/kit/migrations/1.4.0-to-1.5.0.md` deletes old `.fab-runtime.yaml` at each worktree; state re-populates on next hook event. |

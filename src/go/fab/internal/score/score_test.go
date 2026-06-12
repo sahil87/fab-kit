@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
 )
 
 const statusTemplate = `id: abcd
@@ -364,5 +366,61 @@ func TestConstants(t *testing.T) {
 	}
 	if getExpectedMin("docs") != 3 {
 		t.Errorf("getExpectedMin(docs) = %d, want 3 (default)", getExpectedMin("docs"))
+	}
+}
+
+// --- ComputeWithStatus (mz4q F02): single-load entry point — mutates the
+// loaded StatusFile in memory, never saves; the caller owns persistence. ---
+
+func TestComputeWithStatus_MutatesInMemoryWithoutSaving(t *testing.T) {
+	spec := specWithAssumptions(
+		"| 1 | Certain | D1 | R1 | |",
+		"| 2 | Confident | D2 | R2 | |",
+		"| 3 | Certain | D3 | R3 | |",
+		"| 4 | Certain | D4 | R4 | |",
+		"| 5 | Certain | D5 | R5 | |",
+	)
+	fabRoot := setupScoreFixture(t, "fix", spec)
+	changeDir := filepath.Join(fabRoot, "changes", "260310-abcd-my-change")
+	statusPath := filepath.Join(changeDir, ".status.yaml")
+
+	statusFile, err := sf.Load(statusPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(statusPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(changeDir, "intake.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := ComputeWithStatus(fabRoot, changeDir, content, statusFile)
+	if err != nil {
+		t.Fatalf("ComputeWithStatus failed: %v", err)
+	}
+
+	// 4 certain + 1 confident, fix expectedMin=5: score = (5.0 - 0.3) * 1.0 = 4.7
+	assertApproxEqual(t, "Score", result.Score, 4.7)
+	assertApproxEqual(t, "Confidence.Score (in memory)", statusFile.Confidence.Score, 4.7)
+	if statusFile.Confidence.Certain != 4 || statusFile.Confidence.Confident != 1 {
+		t.Errorf("in-memory confidence counts = %+v", statusFile.Confidence)
+	}
+
+	// No save: .status.yaml on disk is untouched.
+	after, err := os.ReadFile(statusPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Error("ComputeWithStatus must not save — caller owns persistence")
+	}
+
+	// The confidence event is logged against the resolved changeDir.
+	if _, err := os.Stat(filepath.Join(changeDir, ".history.jsonl")); err != nil {
+		t.Errorf("expected confidence event logged to .history.jsonl: %v", err)
 	}
 }
