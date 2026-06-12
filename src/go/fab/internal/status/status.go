@@ -486,7 +486,7 @@ func DisplayStage(statusFile *sf.StatusFile) (string, string) {
 
 	// Tier 2: first failed — a parked failure outranks ready/done so it
 	// surfaces instead of being masked by the last-done fallback. Only
-	// review and review-pr can hold "failed" (ValidStates).
+	// review and review-pr can hold "failed" (AllowedStates).
 	for _, ss := range pm {
 		if ss.State == "failed" {
 			return ss.Stage, "failed"
