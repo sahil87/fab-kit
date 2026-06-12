@@ -157,9 +157,31 @@ func Archive(fabRoot, changeArg, description string) (*ArchiveResult, error) {
 // index update failed) still gets its backlog mark — the move is
 // irreversible and a re-run soft-skips, so skipping the mark would strand
 // the item — with both errors joined.
+//
+// On ErrAlreadyArchived the backlog mark is still attempted (best-effort) so a
+// re-run recovers a previously-failed mark — MarkDone is idempotent and returns
+// "already" when the item was marked before. ErrAlreadyArchived propagates
+// unchanged with a nil result, keeping the callers' soft-skip exit semantics
+// untouched.
 func ArchiveWithBacklog(fabRoot, changeArg, description string) (*ArchiveResult, error) {
 	result, archiveErr := Archive(fabRoot, changeArg, description)
 	if result == nil {
+		if errors.Is(archiveErr, ErrAlreadyArchived) {
+			// Re-archive soft skip: still attempt the mark so a re-run recovers
+			// a previously-failed one. The folder is re-derived from whichever
+			// location the change lives in now — fab/changes/ (destination-
+			// exists case) or the archive (the usual soft-skip path, where
+			// resolve.ToFolder fails because the source folder is gone). The
+			// mark outcome is deliberately not propagated: the soft-skip
+			// contract is the caller-visible behavior.
+			folder, rerr := resolve.ToFolder(fabRoot, changeArg)
+			if rerr != nil {
+				folder, _, rerr = resolveArchive(fabRoot, changeArg)
+			}
+			if rerr == nil {
+				_, _ = backlog.MarkDone(backlog.Path(fabRoot), resolve.ExtractID(folder))
+			}
+		}
 		return nil, archiveErr
 	}
 	id := resolve.ExtractID(result.Name)

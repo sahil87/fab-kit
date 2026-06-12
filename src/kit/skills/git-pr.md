@@ -75,24 +75,30 @@ git status --porcelain
 git log --oneline -5
 git log --oneline @{u}..HEAD 2>/dev/null || echo "NO_UPSTREAM"
 gh pr view --json number,state,url 2>/dev/null || echo "NO_PR"
+default_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+[ -n "$default_branch" ] || default_branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
 ```
 
 If `{has_fab}` (Step 0), read issues via `fab status get-issues {name}` and capture the output (one ID per line, may be empty).
 
 Determine:
-- **branch** — current branch name
+- **branch** — current branch name. An **empty** value means a detached HEAD (`git symbolic-ref -q HEAD` exits 1) — handled by the Step 2 guard before any commit or push
 - **has_uncommitted** — whether `git status --porcelain` has output
 - **has_unpushed** — whether there are commits ahead of upstream (or no upstream at all)
-- **has_pr** — whether a PR already exists
+- **pr_state** — the `state` field from `gh pr view` (`OPEN`, `CLOSED`, or `MERGED`), or `none` when no PR exists. Step 3 branches on this explicitly — a CLOSED or MERGED PR is NOT treated as "the branch already has a PR"
+- **number** / **url** — the `number` and `url` fields from `gh pr view` (unset when no PR exists). Interpolated by Step 3's MERGED STOP and the "already shipped" output
+- **default_branch** — the resolved default branch from the commands above (symbolic-ref first, `gh repo view` fallback). If both fail (empty), fall back to treating literal `main`/`master` as the default
 - **issues** — the issue IDs from `fab status get-issues` (space-joined), or empty if none
 
 ### Step 1b: Branch Mismatch Nudge
+
+If `branch` from Step 1 is **empty** (detached HEAD), skip this step silently — Step 2's detached-HEAD guard STOPs anyway, and a nudge comparing an empty branch name would be noise.
 
 If `{has_fab}` (Step 0), compare the current branch against `{name}`.
 
 A match is: (1) exact string equality between current branch and change name, or (2) the change name appears as a substring of the current branch.
 
-If there is **no match** and the current branch is **not** `main`/`master`, show a non-blocking nudge before proceeding:
+If there is **no match** and the current branch is **not** the default branch (`{default_branch}`, falling back to literal `main`/`master` — Step 1), show a non-blocking nudge before proceeding:
 
 ```
 Note: branch '{current_branch}' doesn't match active change '{change_name}'.
@@ -103,28 +109,45 @@ Then proceed to Step 2 normally. If `{has_fab}` is false, skip this step silentl
 
 ### Step 2: Branch Guard
 
-If the current branch is `main` or `master`, STOP immediately.
+**Detached-HEAD guard** (checked first): if `branch` from Step 1 is **empty** (detached HEAD — `git symbolic-ref -q HEAD` exits 1), STOP immediately, before any commit or push:
+
+```
+Cannot ship from a detached HEAD — check out a branch first (run /git-branch).
+```
+
+**Default-branch guard**: if the current branch is `{default_branch}` (or literal `main`/`master` when Step 1's resolution failed), STOP immediately.
 
 If `{has_fab}` (Step 0), enhance the message:
 
 ```
-Cannot create PR from main/master branch.
+Cannot create PR from the default branch ({default_branch}).
 Tip: run /git-branch to switch to the change's branch first.
 ```
 
 If `{has_fab}` is false:
 
 ```
-Cannot create PR from main/master branch.
+Cannot create PR from the default branch ({default_branch}).
 ```
 
 Do NOT run any git operations.
 
 ### Step 3: Execute Pipeline
 
-Run each step in order, skipping steps that aren't needed.
+Branch on `pr_state` (Step 1) before doing anything else:
 
-**If nothing to do** (no uncommitted changes, no unpushed commits, PR exists):
+**If the branch's PR is MERGED** (`pr_state` = `MERGED`): STOP immediately — do NOT commit or push:
+
+```
+PR #{number} for this branch is already merged — {url}
+New work needs a new change/branch. Run /fab-new to start one (or /git-branch <name> for a standalone branch).
+```
+
+**If the branch's PR is CLOSED** (`pr_state` = `CLOSED`): proceed — a closed PR does not block creation. Step 3c creates a fresh PR (`gh pr create` works after a closed PR; shipping intent is explicit — `/git-pr` was just invoked).
+
+If the MERGED STOP did not fire, run each step in order, skipping steps that aren't needed.
+
+**If nothing to do** (no uncommitted changes, no unpushed commits, an **OPEN** PR exists):
 ```
 /git-pr — already shipped
 
@@ -142,14 +165,22 @@ Before stopping, attempt to record the existing PR URL per Steps 4a–4c (silent
 
 #### 3a. Commit (if has_uncommitted)
 
-1. Stage all changes: `git add -A`
-2. Read `git log --oneline -5` for commit message style
-3. Read `git diff --stat HEAD` for change scope
-4. Generate a concise commit message matching the repo's existing style
+1. **Expected-area guard for untracked files** (evaluated FIRST, before anything is staged — the STOP path must leave no staged index): list untracked files (`git status --porcelain` lines starting `??`) and derive the expected write areas — each `source_paths` entry from `fab/project/config.yaml`, plus `docs/` and `fab/` (when `config.yaml` is absent, `docs/` and `fab/` only). If any untracked file falls **outside** the expected areas → STOP with the list (nothing staged, nothing committed):
+
+   ```
+   Unexpected untracked file(s) outside the expected write areas ({areas}):
+     {file list}
+   Stage, remove, or .gitignore them, then re-run /git-pr.
+   ```
+2. Stage tracked changes: `git add -u` (NOT `git add -A` — an autonomous run must never sweep unrelated untracked files into a pushed commit)
+3. Stage the untracked files **inside** the expected areas (enumerated by the guard in step 1): `git add <file> ...`
+4. Read `git log --oneline -5` for commit message style
+5. Read `git diff --stat HEAD` for change scope
+6. Generate a concise commit message matching the repo's existing style
    - Subject line only (unless changes warrant a body)
    - Do NOT include "Co-Authored-By" lines
-5. Commit: `git commit -m "<message>"`
-6. If commit fails → report error and STOP
+7. Commit: `git commit -m "<message>"`
+8. If commit fails → report error and STOP
 
 Print: `  ✓ commit — "<commit subject>"`
 
@@ -162,7 +193,7 @@ Print: `  ✓ commit — "<commit subject>"`
 
 Print: `  ✓ push   — origin/<branch>`
 
-#### 3c. Create PR (if no PR exists)
+#### 3c. Create PR (if no OPEN PR exists — `pr_state` is `none` or `CLOSED`)
 
 1. Verify `gh` is available: `command -v gh`
    - If missing → print `gh CLI not found — cannot create PR` and STOP
@@ -224,7 +255,7 @@ Print: `  ✓ push   — origin/<branch>`
 
 Print: `  ✓ pr     — <PR URL>`
 
-**If PR already exists** (from Step 1), just print: `  ✓ pr     — <existing PR URL> (existing)`
+**If an OPEN PR already exists** (from Step 1), just print: `  ✓ pr     — <existing PR URL> (existing)`
 
 ### Step 4a: Record PR URL
 
@@ -272,7 +303,7 @@ Shipped.
 
 - Fully autonomous — never ask questions, never present options
 - Fail fast — if any step fails, report the error and stop immediately
-- Skip steps that are already done (no uncommitted → skip commit, PR exists → skip create)
+- Skip steps that are already done (no uncommitted → skip commit, OPEN PR exists → skip create)
 - Always operate on CWD — no repo detection
 - No merge support — stop at PR creation
 
@@ -298,7 +329,7 @@ Derived from [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.
 
 | Property | Value |
 |----------|-------|
-| Idempotent? | Yes — re-run after ship is a no-op: the "already shipped" path (no uncommitted changes, no unpushed commits, PR exists) re-records the existing PR URL silently and stops; `fab status add-pr` is idempotent and the Step 4c status commit is guarded by `git diff --cached --quiet` |
+| Idempotent? | Yes — re-run after ship is a no-op: the "already shipped" path (no uncommitted changes, no unpushed commits, an OPEN PR exists) re-records the existing PR URL silently and stops; `fab status add-pr` is idempotent and the Step 4c status commit is guarded by `git diff --cached --quiet` |
 | Advances stage? | Yes — ship (start/finish, best-effort) |
 | Modifies `.fab-status.yaml`? | No |
 | Modifies git state? | Yes — commit, push, PR creation |

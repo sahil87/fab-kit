@@ -376,7 +376,7 @@ intake → apply → review → hydrate → ship → review-pr
 
 **Pipeline commands**: `/fab-proceed` (auto-detect state, run `/fab-new` → `/git-branch` as needed, then `/fab-fff`), `/fab-continue` (one stage), `/fab-fff` (full pipeline), `/fab-ff` (fast-forward to hydrate), `/git-pr` (commit, push, create PR)
 
-**Maintenance**: rebase onto `origin/main`, merge PR (`gh pr merge`), `/fab-archive`
+**Maintenance**: rebase onto `origin/{default_branch}` (resolved per Dependency Resolution step 0), merge PR (`gh pr merge`), `/fab-archive`
 
 ### Spawning an Agent
 
@@ -402,9 +402,21 @@ Dependency resolution is **two-tier**, split by repo. Each entry in `depends_on`
 - **Same-repo dependency** (`dep.repo == change.repo`) → **cherry-pick** the dependency's code into the worktree, exactly as today.
 - **Cross-repo dependency** (`dep.repo != change.repo`) → **ordering-only barrier**: the operator waits until the dependency reaches its `stop_stage` (a terminal stage when `stop_stage` is null), then spawns the dependent agent. **No code is merged.**
 
-> **REQUIRED caveat — cross-repo deps give the dependent agent NO code.** An ordering-only cross-repo dependency is a pure *sequencing* constraint: the dependent worktree receives nothing from the dependency. This is correct only for **logical** dependencies (e.g., "don't start the frontend change until the API change merges to its repo's main"), never for **code-level** dependencies. Cross-repo branches share no common `origin/main` base to cherry-pick across, so there is no sound way to make the dependency's code available — do not expect cross-repo `depends_on` to do so. For code sharing across repos, the dependency must merge and be consumed as a normal upstream artifact (package, vendored copy), outside the operator's scope.
+> **REQUIRED caveat — cross-repo deps give the dependent agent NO code.** An ordering-only cross-repo dependency is a pure *sequencing* constraint: the dependent worktree receives nothing from the dependency. This is correct only for **logical** dependencies (e.g., "don't start the frontend change until the API change merges to its repo's main"), never for **code-level** dependencies. Cross-repo branches share no common default-branch base to cherry-pick across, so there is no sound way to make the dependency's code available — do not expect cross-repo `depends_on` to do so. For code sharing across repos, the dependency must merge and be consumed as a normal upstream artifact (package, vendored copy), outside the operator's scope.
 
 **Same-repo resolution.** For the same-repo subset of `depends_on`, before opening the agent tab:
+
+0. **Fetch and resolve the base** — in the target worktree, refresh the remote and resolve the repo's **actual default branch** (never assume `main`):
+
+   ```bash
+   git fetch origin
+   default_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+   [ -n "$default_branch" ] || default_branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
+   # Literal fallback when both commands fail: probe the just-fetched refs — main when origin/main exists, else master
+   [ -n "$default_branch" ] || default_branch=$(git rev-parse --verify -q origin/main >/dev/null && echo main || echo master)
+   ```
+
+   `origin/{default_branch}` is the cherry-pick base in step 3 below. Fetching first prevents a stale base even on correctly-defaulted repos; resolving the name makes autopilot usable on repos whose default branch isn't `main`.
 
 1. **Resolve same-repo dependency branches** — For each same-repo change ID, look up its branch:
    - First from the monitored entry's `branch` field (if the dep is still active).
@@ -426,12 +438,12 @@ Dependency resolution is **two-tier**, split by repo. Each entry in `depends_on`
       ```
       If the dep branch is already an ancestor of `HEAD`, skip this dependency's cherry-pick.
 
-   b. **Cherry-pick** — if not already present, in the worktree directory:
+   b. **Cherry-pick** — if not already present, in the worktree directory (using the `{default_branch}` resolved in step 0):
       ```bash
-      git cherry-pick --no-commit origin/main..<dep-branch> && \
+      git cherry-pick --no-commit origin/{default_branch}..<dep-branch> && \
       git commit -m "operator: cherry-pick <dep-change> dependency"
       ```
-      This cherry-picks all commits unique to the dependency branch since it diverged from `origin/main`, stages them without individual commits, and squashes into a single operator commit.
+      This cherry-picks all commits unique to the dependency branch since it diverged from `origin/{default_branch}`, stages them without individual commits, and squashes into a single operator commit.
 
    c. **On conflict** — abort immediately, do not spawn:
       ```bash
@@ -442,7 +454,7 @@ Dependency resolution is **two-tier**, split by repo. Each entry in `depends_on`
 
 **Cross-repo resolution.** For each cross-repo dependency, do not cherry-pick. Instead, before spawning, verify the dependency has reached its `stop_stage` (or terminal stage). If it has not, hold the spawn and let the loop re-check on subsequent ticks; spawn once every cross-repo barrier clears. Log the wait: `"{change}: waiting on cross-repo dependency {dep} (in {dep.repo}) to reach {stop_stage}."`
 
-**Why `origin/main` as base (same-repo only)**: Each same-repo dependency branch carries its full transitive same-repo dependency content. When the operator spawned dep B, it cherry-picked dep A into B's worktree first. B's branch therefore contains A's commits. So `origin/main..<B-branch>` gives the complete transitive closure within the repo — no need to chase transitive same-repo deps manually. This is why only direct/leaf same-repo dependencies need cherry-picking. (Cross-repo deps carry no such transitive content — they are ordering-only.)
+**Why `origin/{default_branch}` as base (same-repo only)**: Each same-repo dependency branch carries its full transitive same-repo dependency content. When the operator spawned dep B, it cherry-picked dep A into B's worktree first. B's branch therefore contains A's commits. So `origin/{default_branch}..<B-branch>` gives the complete transitive closure within the repo — no need to chase transitive same-repo deps manually. This is why only direct/leaf same-repo dependencies need cherry-picking. (Cross-repo deps carry no such transitive content — they are ordering-only.)
 
 ### Dependency Declaration
 
@@ -482,7 +494,7 @@ Queue ordering:
 | Confidence-based | Sort by confidence score descending. Highest-confidence first (independent changes) |
 | Hybrid | User provides constraints (partial order); operator sorts unconstrained by confidence |
 
-**`--merge-on-complete`** — opt-in flag that reverts to the previous merge-as-you-go behavior: merge each PR on completion, rebase next change onto `origin/main`. Implicit `--base` chaining is disabled under this flag — each change rebases onto `origin/main` independently instead of stacking on the previous change's branch. Natural language equivalents: "merge as you go", "merge on complete", "merge each when done". Without this flag, the default is stack-then-review: PRs are created but not merged until the user explicitly requests merging, and implicit `--base` chaining is active (every change after the first gets `depends_on: [<prev-change-id>]`).
+**`--merge-on-complete`** — opt-in flag that reverts to the previous merge-as-you-go behavior: merge each PR on completion, then `git fetch origin` and rebase the next change onto `origin/{default_branch}` (the default branch resolved per Dependency Resolution step 0 — never a hardcoded `origin/main`). Implicit `--base` chaining is disabled under this flag — each change rebases onto `origin/{default_branch}` independently instead of stacking on the previous change's branch. Natural language equivalents: "merge as you go", "merge on complete", "merge each when done". Without this flag, the default is stack-then-review: PRs are created but not merged until the user explicitly requests merging, and implicit `--base` chaining is active (every change after the first gets `depends_on: [<prev-change-id>]`).
 
 The operator works each change through the pipeline, applying pre-send validation (§3) before dispatching:
 
@@ -496,7 +508,7 @@ The operator works each change through the pipeline, applying pre-send validatio
 8. **Report** — `"ab12: PR ready. 1 of 3 complete. Starting cd34."`
 9. **(After all complete) Summary** — list all PR links with per-repo dependency annotations and per-repo merge order suggestion (see Queue Completion Summary below)
 
-When `--merge-on-complete` is active, steps 6–9 revert to the previous merge-as-you-go behavior: merge PR on completion, rebase next change onto `origin/main`, report merge.
+When `--merge-on-complete` is active, steps 6–9 revert to the previous merge-as-you-go behavior: merge PR on completion, `git fetch origin`, rebase next change onto `origin/{default_branch}` (resolved per Dependency Resolution step 0), report merge.
 
 Autopilot-driven changes display `▶` in the status frame (§4). Queue progress is visible from the list — entries with `▶` that show ✓ (green) are complete, the one showing ● (green) / ◌ (yellow) is current.
 

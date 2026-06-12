@@ -403,6 +403,56 @@ func TestArchiveWithBacklog_MarkErrorPropagates(t *testing.T) {
 	}
 }
 
+// TestArchiveWithBacklog_ReRunRecoversBacklogMark covers the re-run recovery
+// contract: ErrAlreadyArchived must still attempt the backlog mark.
+//
+// Why the test reconstructs the source folder: reaching ErrAlreadyArchived
+// requires Archive to resolve the change first, but on the *natural*
+// archive-ok/mark-failed path the folder has already moved out of
+// fab/changes/, so resolve.ToFolder fails with "No change matches" (exit 1)
+// before Archive can return ErrAlreadyArchived. That resolution gap — making
+// the soft skip CLI-unreachable — is the adjacent defect owned by change k4ge.
+// Recreating the source folder sidesteps it so the package-level contract is
+// testable now; the path becomes CLI-observable once k4ge lands.
+func TestArchiveWithBacklog_ReRunRecoversBacklogMark(t *testing.T) {
+	fabRoot := setupArchiveFixture(t)
+	folder := "260310-abcd-my-change"
+
+	// First run: archive succeeds but the backlog mark fails (backlog.md is a
+	// directory, so MarkDone's read errors). The folder is moved; the mark is not.
+	if err := os.Mkdir(filepath.Join(fabRoot, "backlog.md"), 0o755); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if _, err := ArchiveWithBacklog(fabRoot, "abcd", "desc"); err == nil {
+		t.Fatal("expected the first run to fail on the backlog mark")
+	}
+
+	// Repair the backlog and recreate the source folder so resolution succeeds
+	// (see the function comment; mirrors TestArchive_ErrAlreadyArchivedOnReArchive).
+	if err := os.Remove(filepath.Join(fabRoot, "backlog.md")); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	backlogBody := "# Backlog\n\n- [ ] [abcd] 2026-03-10: make my change\n"
+	os.WriteFile(filepath.Join(fabRoot, "backlog.md"), []byte(backlogBody), 0o644)
+	changeDir := filepath.Join(fabRoot, "changes", folder)
+	os.MkdirAll(changeDir, 0o755)
+	os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte(testStatusYAML), 0o644)
+
+	// Re-run: Archive yields ErrAlreadyArchived, which must propagate unchanged
+	// (soft-skip exit semantics untouched) — but the backlog mark must recover.
+	result, err := ArchiveWithBacklog(fabRoot, folder, "desc")
+	if !errors.Is(err, ErrAlreadyArchived) {
+		t.Errorf("expected ErrAlreadyArchived, got %v", err)
+	}
+	if result != nil {
+		t.Errorf("result should remain nil on the already-archived path, got %+v", result)
+	}
+	data, _ := os.ReadFile(filepath.Join(fabRoot, "backlog.md"))
+	if !strings.Contains(string(data), "- [x] [abcd]") {
+		t.Errorf("re-run should recover the backlog mark, got:\n%s", string(data))
+	}
+}
+
 func TestArchive_ErrAlreadyArchivedOnReArchive(t *testing.T) {
 	fabRoot := setupArchiveFixture(t)
 	folder := "260310-abcd-my-change"
