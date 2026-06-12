@@ -565,7 +565,7 @@ func TestPrintPaneJSON(t *testing.T) {
 		}
 
 		output := buf.String()
-		for _, field := range []string{"session", "window_index", "pane", "tab", "worktree", "repo", "change", "stage", "agent_state", "agent_idle_duration"} {
+		for _, field := range []string{"session", "window_index", "pane", "tab", "worktree", "repo", "change", "stage", "display_state", "agent_state", "agent_idle_duration"} {
 			if !strings.Contains(output, "\""+field+"\"") {
 				t.Errorf("JSON output missing field %q:\n%s", field, output)
 			}
@@ -1088,4 +1088,175 @@ func ptrEq(a, b *string) bool {
 		return false
 	}
 	return *a == *b
+}
+
+// TestPrintPaneJSONDisplayState verifies the display_state JSON field: a
+// change-bearing row surfaces the state half of DisplayStage, an em-dash
+// sentinel row (no resolvable change) emits null, and the field sits
+// immediately after stage in the output.
+func TestPrintPaneJSONDisplayState(t *testing.T) {
+	t.Run("change-bearing pane surfaces display_state", func(t *testing.T) {
+		var buf bytes.Buffer
+		cmd := &cobra.Command{}
+		cmd.SetOut(&buf)
+
+		// Parked shipped change — the motivating case: stage review-pr, state done.
+		rows := []paneRow{
+			{session: "main", windowIndex: 2, pane: "%5", tab: "dkn3", worktree: "fab-kit.worktrees/dkn3/", change: "260612-dkn3-pane-map-display-state", stage: "review-pr", displayState: "done", agent: "—"},
+		}
+		if err := printPaneJSON(cmd, rows); err != nil {
+			t.Fatal(err)
+		}
+
+		var result []paneJSON
+		if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+			t.Fatalf("invalid JSON: %v\n%s", err, buf.String())
+		}
+		r := result[0]
+		if r.Stage == nil || *r.Stage != "review-pr" {
+			t.Errorf("stage = %v, want review-pr", ptrStr(r.Stage))
+		}
+		if r.DisplayState == nil || *r.DisplayState != "done" {
+			t.Errorf("display_state = %v, want done", ptrStr(r.DisplayState))
+		}
+	})
+
+	t.Run("pane without a change emits null display_state", func(t *testing.T) {
+		var buf bytes.Buffer
+		cmd := &cobra.Command{}
+		cmd.SetOut(&buf)
+
+		rows := []paneRow{
+			{session: "dev", windowIndex: 0, pane: "%7", tab: "scratch", worktree: "downloads/", change: "—", stage: "—", displayState: "—", agent: "—"},
+		}
+		if err := printPaneJSON(cmd, rows); err != nil {
+			t.Fatal(err)
+		}
+
+		var result []paneJSON
+		if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+			t.Fatalf("invalid JSON: %v", err)
+		}
+		if result[0].DisplayState != nil {
+			t.Errorf("display_state should be null, got %v", ptrStr(result[0].DisplayState))
+		}
+	})
+
+	t.Run("display_state key placed immediately after stage", func(t *testing.T) {
+		var buf bytes.Buffer
+		cmd := &cobra.Command{}
+		cmd.SetOut(&buf)
+
+		rows := []paneRow{
+			{session: "s", windowIndex: 0, pane: "%1", tab: "t", worktree: "w/", change: "c", stage: "apply", displayState: "active", agent: "active"},
+		}
+		if err := printPaneJSON(cmd, rows); err != nil {
+			t.Fatal(err)
+		}
+		output := buf.String()
+		stageIdx := strings.Index(output, "\"stage\"")
+		dsIdx := strings.Index(output, "\"display_state\"")
+		agentIdx := strings.Index(output, "\"agent_state\"")
+		if stageIdx < 0 || dsIdx < 0 || agentIdx < 0 {
+			t.Fatalf("missing expected keys in output:\n%s", output)
+		}
+		if !(stageIdx < dsIdx && dsIdx < agentIdx) {
+			t.Errorf("key order wrong: stage@%d display_state@%d agent_state@%d — want stage < display_state < agent_state", stageIdx, dsIdx, agentIdx)
+		}
+	})
+}
+
+// TestResolvePaneDisplayState verifies resolvePane captures the state half of
+// status.DisplayStage for a change-bearing pane and leaves the em-dash
+// sentinel when the worktree has no fab change.
+func TestResolvePaneDisplayState(t *testing.T) {
+	t.Run("change-bearing pane captures DisplayStage state", func(t *testing.T) {
+		wtRoot := initGitRepo(t)
+		folder := "260612-dkn3-pane-map-display-state"
+		changeDir := filepath.Join(wtRoot, "fab", "changes", folder)
+		if err := os.MkdirAll(changeDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		statusYAML := "id: dkn3\nname: " + folder + "\nprogress:\n  intake: done\n  apply: active\n  review: pending\n  hydrate: pending\n  ship: pending\n  review-pr: pending\n"
+		if err := os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte(statusYAML), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		symlinkTarget := filepath.Join("fab", "changes", folder, ".status.yaml")
+		if err := os.Symlink(symlinkTarget, filepath.Join(wtRoot, ".fab-status.yaml")); err != nil {
+			t.Fatal(err)
+		}
+
+		p := paneEntry{id: "%1", tab: "dkn3", cwd: wtRoot, session: "main", index: 0}
+		row, ok := resolvePane(p, wtRoot, "", make(map[string]interface{}))
+		if !ok {
+			t.Fatal("resolvePane returned ok=false")
+		}
+		if row.stage != "apply" {
+			t.Errorf("stage = %q, want apply", row.stage)
+		}
+		if row.displayState != "active" {
+			t.Errorf("displayState = %q, want active", row.displayState)
+		}
+	})
+
+	t.Run("fab worktree without a change keeps the em-dash sentinel", func(t *testing.T) {
+		wtRoot := initGitRepo(t)
+		// fab/ dir exists but no change and no .fab-status.yaml symlink.
+		if err := os.MkdirAll(filepath.Join(wtRoot, "fab", "changes"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		p := paneEntry{id: "%2", tab: "scratch", cwd: wtRoot, session: "main", index: 1}
+		row, ok := resolvePane(p, wtRoot, "", make(map[string]interface{}))
+		if !ok {
+			t.Fatal("resolvePane returned ok=false")
+		}
+		if row.displayState != "—" {
+			t.Errorf("displayState = %q, want em-dash sentinel", row.displayState)
+		}
+	})
+
+	t.Run("non-git pane early-return row carries the em-dash sentinel", func(t *testing.T) {
+		nonGit := t.TempDir()
+		p := paneEntry{id: "%3", tab: "misc", cwd: nonGit, session: "dev", index: 2}
+		row, ok := resolvePane(p, "", "", make(map[string]interface{}))
+		if !ok {
+			t.Fatal("resolvePane returned ok=false")
+		}
+		if row.displayState != "—" {
+			t.Errorf("displayState = %q, want em-dash sentinel", row.displayState)
+		}
+	})
+}
+
+// TestPrintPaneTableDisplayStateUnchanged asserts the table output is
+// unaffected by the JSON-only display_state field: rendering identical rows
+// with displayState set vs cleared yields byte-identical tables.
+func TestPrintPaneTableDisplayStateUnchanged(t *testing.T) {
+	rows := []paneRow{
+		{session: "main", windowIndex: 2, pane: "%5", tab: "dkn3", worktree: "fab-kit.worktrees/dkn3/", change: "260612-dkn3-pane-map-display-state", stage: "review-pr", displayState: "done", agent: "—"},
+		{session: "dev", windowIndex: 1, pane: "%7", tab: "scratch", worktree: "downloads/", change: "—", stage: "—", displayState: "—", agent: "—"},
+	}
+
+	var withState bytes.Buffer
+	cmdWith := &cobra.Command{}
+	cmdWith.SetOut(&withState)
+	printPaneTable(cmdWith, rows, true)
+
+	rowsNoState := make([]paneRow, len(rows))
+	copy(rowsNoState, rows)
+	for i := range rowsNoState {
+		rowsNoState[i].displayState = ""
+	}
+	var withoutState bytes.Buffer
+	cmdWithout := &cobra.Command{}
+	cmdWithout.SetOut(&withoutState)
+	printPaneTable(cmdWithout, rowsNoState, true)
+
+	if withState.String() != withoutState.String() {
+		t.Errorf("table output differs when displayState is set vs cleared:\nwith:\n%s\nwithout:\n%s", withState.String(), withoutState.String())
+	}
+	if strings.Contains(withState.String(), "display_state") {
+		t.Errorf("table output should not contain a display_state column:\n%s", withState.String())
+	}
 }

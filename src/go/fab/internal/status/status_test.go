@@ -434,3 +434,117 @@ func TestResetCascade_DeletesZeroIterationEntries(t *testing.T) {
 		t.Error("zero-iteration stage_metrics entry should be deleted by the cascade")
 	}
 }
+
+// displayStageFixture builds a .status.yaml in a temp dir with the given
+// progress block and loads it, following the loadFixture YAML+Load pattern
+// (StatusFile.Progress is a raw-backed yaml.Node, not directly constructible).
+func displayStageFixture(t *testing.T, progress string) *sf.StatusFile {
+	t.Helper()
+	yaml := `id: dkn3
+name: 260612-dkn3-pane-map-display-state
+created: "2026-06-12T12:00:00Z"
+created_by: test-user
+change_type: feat
+issues: []
+progress:
+` + progress + `plan:
+  generated: false
+  task_count: 0
+  acceptance_count: 0
+  acceptance_completed: 0
+confidence:
+  certain: 0
+  confident: 0
+  tentative: 0
+  unresolved: 0
+  score: 0.0
+stage_metrics: {}
+prs: []
+last_updated: "2026-06-12T12:00:00Z"
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	if err := os.WriteFile(path, []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	statusFile, err := sf.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	return statusFile
+}
+
+// TestDisplayStage_FailedTier verifies the failed tier inserted between the
+// active and ready tiers: precedence is active → failed → ready → last
+// done/skipped → first pending.
+func TestDisplayStage_FailedTier(t *testing.T) {
+	t.Run("review failed with nothing active returns review/failed", func(t *testing.T) {
+		statusFile := displayStageFixture(t, `  intake: done
+  apply: done
+  review: failed
+  hydrate: pending
+  ship: pending
+  review-pr: pending
+`)
+		stage, state := DisplayStage(statusFile)
+		if stage != "review" || state != "failed" {
+			t.Errorf("DisplayStage = (%q, %q), want (\"review\", \"failed\")", stage, state)
+		}
+	})
+
+	t.Run("failed plus a later active stage returns the active stage", func(t *testing.T) {
+		statusFile := displayStageFixture(t, `  intake: done
+  apply: done
+  review: failed
+  hydrate: active
+  ship: pending
+  review-pr: pending
+`)
+		stage, state := DisplayStage(statusFile)
+		if stage != "hydrate" || state != "active" {
+			t.Errorf("DisplayStage = (%q, %q), want (\"hydrate\", \"active\")", stage, state)
+		}
+	})
+
+	t.Run("failed outranks ready", func(t *testing.T) {
+		statusFile := displayStageFixture(t, `  intake: done
+  apply: ready
+  review: failed
+  hydrate: pending
+  ship: pending
+  review-pr: pending
+`)
+		stage, state := DisplayStage(statusFile)
+		if stage != "review" || state != "failed" {
+			t.Errorf("DisplayStage = (%q, %q), want (\"review\", \"failed\")", stage, state)
+		}
+	})
+
+	t.Run("no failed stage preserves pre-change derivation", func(t *testing.T) {
+		// ready wins over done when nothing is active or failed.
+		statusFile := displayStageFixture(t, `  intake: done
+  apply: ready
+  review: pending
+  hydrate: pending
+  ship: pending
+  review-pr: pending
+`)
+		stage, state := DisplayStage(statusFile)
+		if stage != "apply" || state != "ready" {
+			t.Errorf("DisplayStage = (%q, %q), want (\"apply\", \"ready\")", stage, state)
+		}
+
+		// Last done wins when nothing is active, failed, or ready.
+		statusFile = displayStageFixture(t, `  intake: done
+  apply: done
+  review: pending
+  hydrate: pending
+  ship: pending
+  review-pr: pending
+`)
+		stage, state = DisplayStage(statusFile)
+		if stage != "apply" || state != "done" {
+			t.Errorf("DisplayStage = (%q, %q), want (\"apply\", \"done\")", stage, state)
+		}
+	})
+}

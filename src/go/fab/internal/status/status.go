@@ -477,21 +477,30 @@ func CurrentStage(statusFile *sf.StatusFile) string {
 func DisplayStage(statusFile *sf.StatusFile) (string, string) {
 	pm := statusFile.GetProgressMap()
 
-	// Tier 1: first active
+	// Tier 1: first active — in-progress work supersedes a parked failure.
 	for _, ss := range pm {
 		if ss.State == "active" {
 			return ss.Stage, "active"
 		}
 	}
 
-	// Tier 2: first ready
+	// Tier 2: first failed — a parked failure outranks ready/done so it
+	// surfaces instead of being masked by the last-done fallback. Only
+	// review and review-pr can hold "failed" (ValidStates).
+	for _, ss := range pm {
+		if ss.State == "failed" {
+			return ss.Stage, "failed"
+		}
+	}
+
+	// Tier 3: first ready
 	for _, ss := range pm {
 		if ss.State == "ready" {
 			return ss.Stage, "ready"
 		}
 	}
 
-	// Tier 3: last done/skipped
+	// Tier 4: last done/skipped
 	lastDone := ""
 	lastDoneState := ""
 	for _, ss := range pm {
@@ -504,7 +513,7 @@ func DisplayStage(statusFile *sf.StatusFile) (string, string) {
 		return lastDone, lastDoneState
 	}
 
-	// Tier 4: first pending
+	// Tier 5: first pending
 	if len(sf.StageOrder) > 0 {
 		return sf.StageOrder[0], "pending"
 	}
