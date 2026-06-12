@@ -1,11 +1,12 @@
 package hooklib
 
 import (
-	"bufio"
 	"encoding/json"
 	"io"
 	"regexp"
 	"strings"
+
+	"github.com/sahil87/fab-kit/src/go/fab/internal/lines"
 )
 
 // postToolUsePayload represents the relevant fields of a Claude Code PostToolUse JSON payload.
@@ -130,9 +131,7 @@ const (
 // untouched.
 func HasSectionHeading(content string, section PlanSection) bool {
 	target := "## " + string(section)
-	scanner := bufio.NewScanner(strings.NewReader(content))
-	for scanner.Scan() {
-		line := scanner.Text()
+	for _, line := range lines.Split(content) {
 		// Match exactly "## Tasks" or "## Tasks ..." (allow trailing
 		// whitespace) but not "## TasksAndOther".
 		if line == target || strings.HasPrefix(line, target+" ") {
@@ -164,9 +163,7 @@ func scanSectionItems(content string, section PlanSection, itemRegex *regexp.Reg
 	target := "## " + string(section)
 	count := 0
 	inSection := false
-	scanner := bufio.NewScanner(strings.NewReader(content))
-	for scanner.Scan() {
-		line := scanner.Text()
+	for _, line := range lines.Split(content) {
 		if !inSection {
 			if line == target || strings.HasPrefix(line, target+" ") {
 				inSection = true

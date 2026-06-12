@@ -32,7 +32,10 @@ func writeTestBacklog(t *testing.T) string {
 func TestParsePendingItems(t *testing.T) {
 	path := writeTestBacklog(t)
 
-	items := backlog.ParsePending(path)
+	items, err := backlog.ParsePending(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if len(items) != 3 {
 		t.Fatalf("expected 3 pending items, got %d", len(items))
 	}
@@ -91,6 +94,14 @@ func TestExtractBacklogContent_BugPrefix(t *testing.T) {
 	}
 	if content != "Fix memory leak in worker pool" {
 		t.Errorf("content = %q, want %q", content, "Fix memory leak in worker pool")
+	}
+}
+
+func TestListPendingItems_MissingBacklogReturnsError(t *testing.T) {
+	var buf strings.Builder
+	err := listPendingItems(&buf, filepath.Join(t.TempDir(), "backlog.md"))
+	if err == nil {
+		t.Fatal("expected error for unreadable backlog, got nil (previously listed nothing)")
 	}
 }
 

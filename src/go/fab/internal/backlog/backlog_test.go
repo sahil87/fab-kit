@@ -37,7 +37,10 @@ func TestPath(t *testing.T) {
 func TestParsePending(t *testing.T) {
 	path := writeTestBacklog(t)
 
-	items := ParsePending(path)
+	items, err := ParsePending(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if len(items) != 3 {
 		t.Fatalf("expected 3 pending items, got %d", len(items))
 	}
@@ -50,6 +53,69 @@ func TestParsePending(t *testing.T) {
 	}
 	if items[2].ID != "ab12" {
 		t.Errorf("items[2].ID = %q, want %q", items[2].ID, "ab12")
+	}
+}
+
+func TestParsePending_MissingFileReturnsError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "backlog.md") // not written
+
+	items, err := ParsePending(path)
+	if err == nil {
+		t.Fatal("expected error for missing backlog, got nil (previously swallowed)")
+	}
+	if items != nil {
+		t.Errorf("items = %v, want nil on error", items)
+	}
+}
+
+func TestParsePending_ItemsBelowOversizedLineSurvive(t *testing.T) {
+	// The old scanner aborted on a >64KB line, silently dropping every
+	// pending item below it from batch new --list/--all.
+	long := "- [ ] [big1] 2026-04-01: " + strings.Repeat("x", 70*1024)
+	body := "# Backlog\n\n" +
+		long + "\n" +
+		"- [ ] [aft1] 2026-04-02: item after the long line\n"
+	path := filepath.Join(t.TempDir(), "backlog.md")
+	os.WriteFile(path, []byte(body), 0o644)
+
+	items, err := ParsePending(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected 2 items (oversized + after), got %d", len(items))
+	}
+	if items[1].ID != "aft1" {
+		t.Errorf("items[1].ID = %q, want %q (item below long line must survive)", items[1].ID, "aft1")
+	}
+}
+
+func TestExtractContent_IDAfterOversizedLineFound(t *testing.T) {
+	long := "- [ ] [big1] 2026-04-01: " + strings.Repeat("x", 70*1024)
+	body := "# Backlog\n\n" +
+		long + "\n" +
+		"- [ ] [aft1] 2026-04-02: item after the long line\n"
+	path := filepath.Join(t.TempDir(), "backlog.md")
+	os.WriteFile(path, []byte(body), 0o644)
+
+	content, err := ExtractContent(path, "aft1")
+	if err != nil {
+		t.Fatalf("ID after the long line must be found, got: %v", err)
+	}
+	if content != "item after the long line" {
+		t.Errorf("content = %q, want %q", content, "item after the long line")
+	}
+}
+
+func TestExtractContent_ReadErrorIsNotMisreportedAsNotFound(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "backlog.md") // not written
+
+	_, err := ExtractContent(path, "90g5")
+	if err == nil {
+		t.Fatal("expected error for missing backlog, got nil")
+	}
+	if strings.Contains(err.Error(), "not found in backlog") {
+		t.Errorf("read failure must not be reported as a missing ID, got %q", err.Error())
 	}
 }
 

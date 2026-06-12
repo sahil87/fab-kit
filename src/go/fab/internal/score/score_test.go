@@ -334,6 +334,146 @@ func TestFormatScoreYAML(t *testing.T) {
 	}
 }
 
+// --- Scanner-truncation and error-surfacing coverage (hv7t) ---
+
+func TestCheckGate_OversizedLineInsideTableCountsAllRows(t *testing.T) {
+	// The old default-buffer scanner aborted on a >64KB line, dropping every
+	// row after it — including the Unresolved row that forces score 0.0, so
+	// a hard-fail intake could flip to gate: pass. All rows must count.
+	long := "| 6 | Certain | " + strings.Repeat("x", 70*1024) + " | R | |"
+	intake := specWithAssumptions(
+		"| 1 | Certain | D1 | R1 | |",
+		"| 2 | Certain | D2 | R2 | |",
+		"| 3 | Certain | D3 | R3 | |",
+		"| 4 | Certain | D4 | R4 | |",
+		"| 5 | Certain | D5 | R5 | |",
+		long,
+		"| 7 | Unresolved | D7 | R7 | |",
+	)
+	fabRoot := setupScoreFixture(t, "feat", intake)
+
+	result, err := CheckGate(fabRoot, "abcd", "intake")
+	if err != nil {
+		t.Fatalf("CheckGate failed: %v", err)
+	}
+
+	if result.Unresolved != 1 {
+		t.Errorf("Unresolved = %d, want 1 (row after oversized line must be counted)", result.Unresolved)
+	}
+	if result.Certain != 6 {
+		t.Errorf("Certain = %d, want 6 (oversized row itself must be counted)", result.Certain)
+	}
+	if result.Gate != "fail" {
+		t.Errorf("Gate = %q, want fail — truncation must not flip the gate", result.Gate)
+	}
+	if result.Score != 0.0 {
+		t.Errorf("Score = %.1f, want 0.0 (unresolved present)", result.Score)
+	}
+}
+
+func TestCompute_OversizedLineInsideTableCountsAllRows(t *testing.T) {
+	long := "| 2 | Certain | " + strings.Repeat("y", 70*1024) + " | R | |"
+	intake := specWithAssumptions(
+		"| 1 | Certain | D1 | R1 | |",
+		long,
+		"| 3 | Tentative | D3 | R3 | |",
+	)
+	fabRoot := setupScoreFixture(t, "feat", intake)
+
+	result, err := Compute(fabRoot, "abcd", "")
+	if err != nil {
+		t.Fatalf("Compute failed: %v", err)
+	}
+	if result.Certain != 2 || result.Tentative != 1 {
+		t.Errorf("counts = %d certain / %d tentative, want 2/1 (no truncation)", result.Certain, result.Tentative)
+	}
+}
+
+func TestCompute_StatusLoadFailureReturnsError(t *testing.T) {
+	fabRoot := setupScoreFixture(t, "feat", specWithAssumptions("| 1 | Certain | D | R | |"))
+
+	// Corrupt .status.yaml: previously Compute silently skipped the
+	// write-back, defaulted change_type to feat, and reported success.
+	statusPath := filepath.Join(fabRoot, "changes", "260310-abcd-my-change", ".status.yaml")
+	os.WriteFile(statusPath, []byte("not: [valid: yaml"), 0644)
+
+	if _, err := Compute(fabRoot, "abcd", ""); err == nil {
+		t.Fatal("expected error for unloadable .status.yaml, got nil")
+	}
+}
+
+func TestCompute_MissingStatusFileReturnsError(t *testing.T) {
+	fabRoot := setupScoreFixture(t, "feat", specWithAssumptions("| 1 | Certain | D | R | |"))
+
+	statusPath := filepath.Join(fabRoot, "changes", "260310-abcd-my-change", ".status.yaml")
+	os.Remove(statusPath)
+
+	if _, err := Compute(fabRoot, "abcd", ""); err == nil {
+		t.Fatal("expected error for missing .status.yaml, got nil")
+	}
+}
+
+func TestCompute_PersistFailureReturnsError(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("permission-denied semantics do not apply to root")
+	}
+
+	fabRoot := setupScoreFixture(t, "feat", specWithAssumptions("| 1 | Certain | D | R | |"))
+
+	// A read-only change directory lets .status.yaml load but makes the
+	// atomic save's CreateTemp fail — previously discarded via `_ =`.
+	// Pre-create the sibling lock file and the history log so Compute's lock
+	// acquisition and ComputeWithStatus's .history.jsonl append (both only
+	// need to open an existing writable file) succeed, and the failure
+	// surfaces from the Save itself.
+	changeDir := filepath.Join(fabRoot, "changes", "260310-abcd-my-change")
+	if err := os.WriteFile(filepath.Join(changeDir, ".status.yaml.lock"), nil, 0o644); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(changeDir, ".history.jsonl"), nil, 0o644); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if err := os.Chmod(changeDir, 0o555); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	t.Cleanup(func() { os.Chmod(changeDir, 0o755) })
+
+	_, err := Compute(fabRoot, "abcd", "")
+	if err == nil {
+		t.Fatal("expected persistence error, got nil")
+	}
+	if !strings.Contains(err.Error(), "persist confidence") {
+		t.Errorf("error = %q, want it to mention confidence persistence", err.Error())
+	}
+}
+
+func TestScore_ReadFailureDistinguishableFromEmptyTable(t *testing.T) {
+	// countGrades parses caller-read content and cannot fail; read-failure
+	// surfacing lives in CheckGate/Compute's os.ReadFile (mz4q F06 posture).
+	// An unreadable intake.md must be an error — never a zero-count result.
+	if os.Geteuid() == 0 {
+		t.Skip("permission-denied fixtures do not bind as root")
+	}
+	fabRoot := setupScoreFixture(t, "feat", specWithAssumptions("| 1 | Certain | D | R | |"))
+	intakePath := filepath.Join(fabRoot, "changes", "260310-abcd-my-change", "intake.md")
+	if err := os.Chmod(intakePath, 0o000); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	t.Cleanup(func() { os.Chmod(intakePath, 0o644) })
+
+	if _, err := CheckGate(fabRoot, "abcd", "intake"); err == nil {
+		t.Fatal("expected read error from CheckGate, got nil")
+	}
+	if _, err := Compute(fabRoot, "abcd", ""); err == nil {
+		t.Fatal("expected read error from Compute, got nil")
+	}
+
+	// No Assumptions table → zero GradeCount (the legitimate empty case).
+	if gc := countGrades([]byte("# Intake\n\nNo table here.\n")); gc != (GradeCount{}) {
+		t.Errorf("gc = %+v, want zero GradeCount for table-less intake", gc)
+	}
+}
+
 func TestConstants(t *testing.T) {
 	// Verify the penalty constants match the spec
 	if wCertain != 0.0 {

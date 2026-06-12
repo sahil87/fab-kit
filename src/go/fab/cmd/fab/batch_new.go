@@ -62,7 +62,10 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 	// Collect IDs
 	var ids []string
 	if allFlag {
-		items := backlog.ParsePending(backlogPath)
+		items, err := backlog.ParsePending(backlogPath)
+		if err != nil {
+			return fmt.Errorf("reading backlog: %w", err)
+		}
 		if len(items) == 0 {
 			return fmt.Errorf("No pending backlog items found.")
 		}
@@ -89,7 +92,9 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 	for _, id := range ids {
 		content, err := backlog.ExtractContent(backlogPath, id)
 		if err != nil {
-			fmt.Fprintf(errW, "Warning: [%s] not found in backlog, skipping\n", id)
+			// Warn-and-skip per ID; the error is accurate now — "not found
+			// in backlog" for a missing ID, the real read error otherwise.
+			fmt.Fprintf(errW, "Warning: [%s] %v, skipping\n", id, err)
 			continue
 		}
 		if content == "" {
@@ -137,7 +142,10 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 
 // listPendingItems prints pending backlog items.
 func listPendingItems(w interface{ Write([]byte) (int, error) }, backlogPath string) error {
-	items := backlog.ParsePending(backlogPath)
+	items, err := backlog.ParsePending(backlogPath)
+	if err != nil {
+		return fmt.Errorf("reading backlog: %w", err)
+	}
 	fmt.Fprintln(w, "Pending backlog items:")
 	fmt.Fprintln(w)
 	for _, item := range items {

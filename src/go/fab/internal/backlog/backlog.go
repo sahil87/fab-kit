@@ -4,12 +4,13 @@
 package backlog
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/sahil87/fab-kit/src/go/fab/internal/lines"
 )
 
 // Item holds a parsed pending backlog entry.
@@ -29,18 +30,18 @@ func Path(fabRoot string) string {
 	return filepath.Join(fabRoot, "backlog.md")
 }
 
-// ParsePending reads the backlog file and returns its pending items.
-func ParsePending(backlogPath string) []Item {
-	f, err := os.Open(backlogPath)
+// ParsePending reads the backlog file and returns its pending items. Read
+// failures (including a missing file) are returned as errors rather than an
+// empty list, so callers can distinguish "no pending items" from "could not
+// read the backlog".
+func ParsePending(backlogPath string) ([]Item, error) {
+	fileLines, err := lines.ReadFileLines(backlogPath)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	defer f.Close()
 
 	var items []Item
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
+	for _, line := range fileLines {
 		m := backlogItemRe.FindStringSubmatch(line)
 		if m == nil {
 			continue
@@ -49,29 +50,27 @@ func ParsePending(backlogPath string) []Item {
 		desc := backlogPrefixRe.ReplaceAllString(line, "")
 		items = append(items, Item{ID: id, Desc: desc})
 	}
-	return items
+	return items, nil
 }
 
 // ExtractContent extracts the full description for a backlog ID, including
-// continuation lines.
+// continuation lines. Read failures return the real error; a genuinely
+// missing ID returns "not found in backlog".
 func ExtractContent(backlogPath, id string) (string, error) {
-	f, err := os.Open(backlogPath)
+	fileLines, err := lines.ReadFileLines(backlogPath)
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
 
 	// itemLineRe matches a line whose ID field is [<id>]
 	itemLineRe := regexp.MustCompile(`^- \[[x ]\] \[` + regexp.QuoteMeta(id) + `\]`)
 	// newItemRe matches a new list item (used to detect end of continuation)
 	newItemRe := regexp.MustCompile(`^\s*- \[`)
 
-	scanner := bufio.NewScanner(f)
 	found := false
 	var content string
 
-	for scanner.Scan() {
-		line := scanner.Text()
+	for _, line := range fileLines {
 		if !found {
 			if itemLineRe.MatchString(line) {
 				content = backlogPrefixRe.ReplaceAllString(line, "")
@@ -90,7 +89,7 @@ func ExtractContent(backlogPath, id string) (string, error) {
 	}
 
 	if !found {
-		return "", fmt.Errorf("not found")
+		return "", fmt.Errorf("not found in backlog")
 	}
 	return content, nil
 }

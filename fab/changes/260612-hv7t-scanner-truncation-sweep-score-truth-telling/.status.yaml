@@ -1,0 +1,53 @@
+id: hv7t
+name: 260612-hv7t-scanner-truncation-sweep-score-truth-telling
+created: 2026-06-12T06:49:14Z
+created_by: sahil-noon
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 14
+    acceptance_count: 27
+    acceptance_completed: 27
+confidence:
+    certain: 6
+    confident: 5
+    tentative: 0
+    unresolved: 0
+    score: 3.5
+    fuzzy: true
+    dimensions:
+        signal: 80.9
+        reversibility: 85.9
+        competence: 86.8
+        disambiguation: 76.4
+stage_metrics:
+    intake: {started_at: "2026-06-12T06:49:14Z", driver: fab-new, iterations: 1, completed_at: "2026-06-12T06:56:52Z"}
+    apply: {started_at: "2026-06-12T06:56:52Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-12T07:22:26Z"}
+    review: {started_at: "2026-06-12T07:22:26Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-12T07:44:39Z"}
+    hydrate: {started_at: "2026-06-12T07:44:39Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-12T07:53:12Z"}
+    ship: {started_at: "2026-06-12T07:53:12Z", driver: fab-fff, iterations: 1}
+prs: []
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-06-12T07:53:12Z"
+    computed_at_stage: hydrate
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-12T07:53:12Z

@@ -119,9 +119,9 @@ func mustGetwd(t *testing.T) string {
 	return wd
 }
 
-// parseChangeTypeTable scans change-types.md line-by-line (the same bufio.Scanner
-// + pipe-split idiom used by countGrades in score.go — no markdown library, per
-// Constitution Principle I) and extracts the pipe-delimited table under the given
+// parseChangeTypeTable scans change-types.md line-by-line (bufio.Scanner +
+// pipe-split — no markdown library, per Constitution Principle I) and
+// extracts the pipe-delimited table under the given
 // section heading. It anchors on the heading rather than the column names because
 // both tables share a "Type" first column. Returns {type → raw value string}; the
 // caller converts to int/float64 at comparison time.

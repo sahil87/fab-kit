@@ -20,7 +20,6 @@
 package memoryindex
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
@@ -29,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/frontmatter"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/lines"
 )
 
 // Shape bounds. The upper width bound and max depth are enforced as non-fatal
@@ -360,14 +360,12 @@ func domainDescription(domainDir string) string {
 
 // readH1 returns the first `# ` heading text in the file, or "".
 func readH1(path string) string {
-	f, err := os.Open(path)
+	fileLines, err := lines.ReadFileLines(path)
 	if err != nil {
 		return ""
 	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
+	for _, l := range fileLines {
+		line := strings.TrimSpace(l)
 		if strings.HasPrefix(line, "# ") {
 			return strings.TrimSpace(line[2:])
 		}

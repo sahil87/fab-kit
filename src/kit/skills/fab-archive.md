@@ -75,6 +75,7 @@ Construct the user-facing report from the command's YAML output fields:
 | `move: moved` | `Moved:    ✓ fab/changes/archive/yyyy/mm/{name}/` |
 | `index: created` | `Index:    ✓ fab/changes/archive/index.md created` |
 | `index: updated` | `Index:    ✓ fab/changes/archive/index.md updated` |
+| `index: failed` | `Index:    ✗ index update failed — see stderr` |
 | `backlog: marked` | `Backlog:  ✓ [ID] marked done` |
 | `backlog: already` | `Backlog:  — already done` |
 | `backlog: not_found` | `Backlog:  — no match` |
@@ -91,7 +92,7 @@ All report lines are sourced from the command's YAML output — the skill perfor
 Archive: {change name}
 
 Moved:    ✓ fab/changes/archive/yyyy/mm/{name}/
-Index:    ✓ fab/changes/archive/index.md updated (or: created)
+Index:    ✓ fab/changes/archive/index.md updated (or: created / ✗ index update failed — see stderr)
 Backlog:  ✓ [ID] marked done                   (or: — already done / — no match)
 Pointer:  ✓ .fab-status.yaml removed             (or: — skipped, not active)
 
@@ -149,6 +150,7 @@ Construct the user-facing report from the command's YAML output fields:
 | `move: already_in_changes` | `Moved:    ✓ already in changes` |
 | `index: removed` | `Index:    ✓ entry removed from archive/index.md` |
 | `index: not_found` | `Index:    — entry not found` |
+| `index: failed` | `Index:    ✗ entry removal failed — see stderr` |
 | `pointer: switched` | `Pointer:  ✓ .fab-status.yaml updated` |
 | `pointer: skipped` | `Pointer:  — not requested` |
 | `pointer: failed` | `Pointer:  ✗ activation failed — run /fab-switch {name} manually` |
@@ -159,7 +161,7 @@ Construct the user-facing report from the command's YAML output fields:
 Restore: {change name}
 
 Moved:    ✓ fab/changes/{name}/                  (or: ✓ already in changes)
-Index:    ✓ entry removed from archive/index.md  (or: — entry not found)
+Index:    ✓ entry removed from archive/index.md  (or: — entry not found / ✗ entry removal failed — see stderr)
 Pointer:  ✓ .fab-status.yaml updated              (or: — not requested / ✗ activation failed — run /fab-switch {name} manually)
 
 Restore complete.

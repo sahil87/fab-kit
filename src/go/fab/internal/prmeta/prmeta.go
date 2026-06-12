@@ -13,7 +13,6 @@
 package prmeta
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
@@ -22,6 +21,7 @@ import (
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/impact"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/lines"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
 	"gopkg.in/yaml.v3"
@@ -390,19 +390,16 @@ func fileExists(path string) bool {
 
 // countCheckboxesInTasksSection counts "- [x]" vs "- [ ]" lines within the
 // `## Tasks` section of plan.md (content between `## Tasks` and the next `## `
-// heading). Returns (done, total).
+// heading). Returns (done, total); (0, 0) when the file is unreadable.
 func countCheckboxesInTasksSection(path string) (int, int) {
-	f, err := os.Open(path)
+	fileLines, err := lines.ReadFileLines(path)
 	if err != nil {
 		return 0, 0
 	}
-	defer f.Close()
 
 	done, total := 0, 0
 	inSection := false
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
+	for _, line := range fileLines {
 		// Match the heading exactly — "## Tasks" or "## Tasks ..." (trailing
 		// text/whitespace) — but never "## TasksAndStuff". Mirrors the
 		// canonical bound in hooklib.HasSectionHeading / scanSectionItems.
@@ -427,18 +424,17 @@ func countCheckboxesInTasksSection(path string) (int, int) {
 const tasksHeading = "## Tasks"
 
 // countCheckboxes counts "- [x]" vs "- [ ]" across an entire file (legacy
-// tasks.md, which has no `## Tasks` section wrapper). Returns (done, total).
+// tasks.md, which has no `## Tasks` section wrapper). Returns (done, total);
+// (0, 0) when the file is unreadable.
 func countCheckboxes(path string) (int, int) {
-	f, err := os.Open(path)
+	fileLines, err := lines.ReadFileLines(path)
 	if err != nil {
 		return 0, 0
 	}
-	defer f.Close()
 
 	done, total := 0, 0
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		d, t := tallyCheckbox(scanner.Text())
+	for _, line := range fileLines {
+		d, t := tallyCheckbox(line)
 		done += d
 		total += t
 	}
