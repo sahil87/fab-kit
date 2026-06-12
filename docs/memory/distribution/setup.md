@@ -65,8 +65,10 @@ The subcommands manage the lifecycle of Fab's setup artifacts and migrations:
 
 `/fab-setup` delegates artifact creation to the subcommands:
 
-- Step 1a: If `config.yaml` doesn't exist → invokes `/fab-setup config` in create mode
-- Step 1b: If `constitution.md` doesn't exist → invokes `/fab-setup constitution` in create mode
+- Step 1a: If `config.yaml` is missing, is a raw template (contains `{PROJECT_NAME}`), OR is missing the required fields `project.name`/`project.description` → invokes `/fab-setup config` in create mode. The required-fields clause is load-bearing for the canonical install path: `fab init` writes a `fab_version`-only `config.yaml` before sync's copy-if-absent runs, so an existence-only trigger never fired there and project configuration was silently skipped. The Config Pre-flight create-mode definition uses the same three-part condition
+- Step 1b: If `constitution.md` doesn't exist or is a raw template (contains `{Project Name}`) → invokes `/fab-setup constitution` in create mode
+
+**Config Create Mode preserves `fab_version`**: whether reached from bootstrap step 1a or invoked directly, create mode carries an existing `fab_version` key into the newly written `config.yaml` unchanged — the scaffold template lacks the key and the fab router errors without it (config.go).
 
 This ensures each subcommand is the single source of truth for its artifact's generation logic. `/fab-setup` retains ownership of structural orchestration (directories, symlinks, `.gitignore`).
 
@@ -173,6 +175,7 @@ Each subcommand operates independently — they can be invoked directly without 
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260611-9u91-skills-correctness-idempotency-fixes | 2026-06-11 | Fixed the bootstrap trigger that never fired on the canonical install path (f024): step 1a broadened from "config.yaml doesn't exist" to "missing OR raw template OR missing required fields `project.name`/`project.description`" — `fab init` writes a `fab_version`-only config.yaml, so the old trigger was always false after `fab init` → `/fab-setup` and project configuration was silently skipped. The Config Pre-flight create-mode definition uses the same three-part condition. Config Create Mode now explicitly **preserves an existing `fab_version` key** when writing from the scaffold template (the scaffold lacks it; the fab router errors without it). Skill + `SPEC-fab-setup.md` updated. |
 | 260402-gnx5-relocate-kit-to-system-cache | 2026-04-02 | Updated delegation table to reflect cache-based resolution: all scaffold sources read from `{cache}/kit/` (no in-project `fab/.kit/`). Hook registration references `fab hook <subcommand>` inline commands instead of shell scripts. Bootstrap alternative references `kit.conf (removed)` for historical context. |
 | 260402-ktbg-sync-from-cache | 2026-04-02 | Updated delegation table: all `fab-sync.sh` references → `fab-kit sync`; scaffold sources now read from `{cache}/kit/` instead of `src/kit/`; hook registration absorbed into `fab-kit sync` step 4 (replaces `5-sync-hooks.sh` delegation). Updated overview and bootstrap path to reflect `fab-kit sync` with cache-based resolution. |
 | 260402-41gc-migrate-kit-scripts | 2026-04-02 | Updated doctor reference: `/fab-setup` Phase 0 gate now calls `fab doctor` (a `fab-kit` Go subcommand) instead of `fab-doctor.sh` shell script. |

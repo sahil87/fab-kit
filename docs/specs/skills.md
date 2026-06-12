@@ -295,7 +295,7 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 
 **Behavior** (no argument — normal forward flow):
 1. Read `.status.yaml` to determine current stage and state
-2. Intake in `ready` state: finish intake, start apply, then execute apply
+2. Intake in `ready` state: finish intake (auto-activates apply), then execute apply
 3. Intake in `active` state (backward compat): generate intake if missing, advance to `ready`
 4. For execution stages: execute the stage's behavior and finish it
 5. Load relevant template + context (including `fab/project/constitution.md` for project principles)
@@ -501,7 +501,7 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 - **Should-fix**: Code quality issues, pattern inconsistencies — addressed when clear and low-effort
 - **Nice-to-have**: Style suggestions, minor improvements — may be skipped
 
-**Pass/fail**: If any must-fix findings exist, the review fails. If only should-fix/nice-to-have remain, the review may pass.
+**Pass/fail** (deterministic): If any must-fix findings exist, the review fails. No must-fix findings (including zero findings) → the review passes; should-fix and nice-to-have findings are reported but never block.
 
 **On failure** (manual rework in `/fab-continue`), the findings are presented with priority annotations and the user chooses where to loop back:
 
@@ -609,7 +609,7 @@ The applying agent triages review comments by priority — not all comments need
    - **Already on target** → no-op
    - **Target branch exists** → switch to it (`git checkout`)
    - **On `main`/`master`** → auto-create branch
-   - **On other branch, no upstream** → rename current branch (`git branch -m`)
+   - **On other branch, no upstream** → rename guard: rename the current branch (`git branch -m`) only when it resolves to no other change (`fab change resolve <current-branch>` fails); if it belongs to another change, create a new branch instead (`git checkout -b`, leaving the other change's branch intact — caveat: the new branch inherits its HEAD)
    - **On other branch, has upstream** → create new branch (leaving current intact)
 5. Report result
 

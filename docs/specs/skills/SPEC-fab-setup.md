@@ -18,10 +18,15 @@ User invokes /fab-setup [subcommand]
 │  │  └─ STOP if non-zero
 │  │
 │  ├─ Phase 1a: config.yaml
+│  │  (create mode when missing, raw template, OR missing
+│  │   project.name/project.description — the canonical
+│  │   fab init flow writes a fab_version-only config.yaml)
 │  │  ├─ Read: README, package.json (project context)
 │  │  ├─ Read: src/kit/scaffold/fab/project/config.yaml
 │  │  ├─ (interactive: ask name, description, source_paths)
 │  │  └─ Write: fab/project/config.yaml
+│  │     (preserves an existing fab_version key — the scaffold
+│  │      template lacks it and the router errors without it)
 │  │
 │  ├─ Phase 1b: constitution.md
 │  │  ├─ Read: src/kit/scaffold/fab/project/constitution.md

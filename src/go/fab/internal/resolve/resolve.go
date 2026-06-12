@@ -136,7 +136,7 @@ func resolveFromCurrent(fabRoot, changesDir string) (string, error) {
 
 	// Fallback: single-change guess
 	if _, err := os.Stat(changesDir); os.IsNotExist(err) {
-		return "", fmt.Errorf("No active change.")
+		return "", fmt.Errorf("No active change. Run /fab-new <description> to start one, or /fab-switch to activate an existing one.")
 	}
 
 	var candidates []string
@@ -156,7 +156,7 @@ func resolveFromCurrent(fabRoot, changesDir string) (string, error) {
 		return candidates[0], nil
 	}
 	if len(candidates) == 0 {
-		return "", fmt.Errorf("No active change.")
+		return "", fmt.Errorf("No active change. Run /fab-new <description> to start one, or /fab-switch to activate an existing one.")
 	}
 	return "", fmt.Errorf("No active change (multiple changes exist — use /fab-switch).")
 }

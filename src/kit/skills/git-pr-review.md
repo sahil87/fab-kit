@@ -27,11 +27,11 @@ This is best-effort — failures are silently ignored. The `start` command handl
 ### Step 1: Resolve PR
 
 1. Verify `gh` is available: `command -v gh`
-   - If missing → print `gh CLI not found.` and STOP
+   - If missing → print `gh CLI not found.` and go to Step 6 with outcome **failure**
 2. Get current branch: `git branch --show-current`
 3. Look up PR with `gh pr view --json number,url`, capturing its exit code and any stderr output.
-   - If the command fails with a "no pull requests found" error → print `No PR found on this branch.` and STOP.
-   - If the command fails for any other reason → print the `gh` error output and STOP.
+   - If the command fails with a "no pull requests found" error → print `No PR found on this branch.` and go to Step 6 with outcome **failure**.
+   - If the command fails for any other reason → print the `gh` error output and go to Step 6 with outcome **failure**.
 4. If the command succeeds, capture `{number}` and `{url}` from the response.
 5. Get owner/repo: `gh repo view --json nameWithOwner -q '.nameWithOwner'`
 
@@ -63,7 +63,7 @@ gh api repos/{owner}/{repo}/pulls/{number}/comments --jq 'length'
 
 If comments exist → proceed directly to Step 3 (skip Phase 2 — the cascade does not run when existing reviews with comments are found).
 
-If reviews exist but no inline comments → print `Reviews exist but no actionable inline comments to process. Check the PR directly for reviewer feedback.` and STOP. This prevents re-requesting automated reviews when a human reviewer left only a body-level comment (e.g., a summary in the review dialog).
+If reviews exist but no inline comments → print `Reviews exist but no actionable inline comments to process. Check the PR directly for reviewer feedback.` and go to Step 6 with outcome **no-reviews**. This prevents re-requesting automated reviews when a human reviewer left only a body-level comment (e.g., a summary in the review dialog).
 
 If no reviews at all → proceed to Phase 2.
 
@@ -80,7 +80,7 @@ review_tools:
   copilot: true
 ```
 
-If `review_tools.copilot` is `false` (and `--tool copilot` was **not** provided): print `No automated reviewer available. Run /git-pr-review when reviews are added.` and STOP (clean finish).
+If `review_tools.copilot` is `false` (and `--tool copilot` was **not** provided): print `No automated reviewer available. Run /git-pr-review when reviews are added.` and go to Step 6 with outcome **no-reviews** (clean finish).
 
 **Copilot request and poll**:
 
@@ -92,10 +92,10 @@ If `review_tools.copilot` is `false` (and `--tool copilot` was **not** provided)
      gh pr view {number} --json reviews -q '.reviews | map(select(.author.login == "copilot-pull-request-reviewer")) | length'
      ```
    - When Copilot review count > 0: proceed to Step 3 (Fetch Comments)
-   - If 20 attempts exhausted without a Copilot-authored review: print `Copilot review requested but not yet available. Re-run /git-pr-review to process when ready.` and STOP (clean finish — no error, no fail event)
+   - If 20 attempts exhausted without a Copilot-authored review: print `Copilot review requested but not yet available. Re-run /git-pr-review to process when ready.` and go to Step 6 with outcome **timeout** (no error, no fail event — the requested review is still pending)
 3. **On failure** (non-zero exit from `gh pr edit`):
    - Print: `No automated reviewer available. Run /git-pr-review when reviews are added.`
-   - STOP (clean finish — no error, no fail event)
+   - Go to Step 6 with outcome **no-reviews** (clean finish — no error, no fail event)
 
 ### Step 3: Fetch Comments
 
@@ -131,7 +131,7 @@ For each fetched comment:
 
 Print: `{N} comments triaged: {F} fix, {D} defer, {S} skip, {I} informational (no reply)`
 
-If all comments are informational → print `No actionable comments.` and STOP.
+If all comments are informational → print `No actionable comments.` and go to Step 6 with outcome **success**.
 
 ### Step 5: Commit and Push
 
@@ -181,17 +181,20 @@ Print: `Replied to {N} comment(s): {F} fix, {D} defer, {S} skip`
 
 ### Step 6: Update Review-PR Stage
 
-If an active change was resolved in Step 0:
+**Step 6 is the single exit point for every terminal path after Step 0** — Steps 1, 2, and 4 route their terminal conditions here with a named outcome; no path STOPs before reaching this step.
+
+If an active change was resolved in Step 0, act on the outcome class:
 
 1. **On success** (comments processed and pushed, or no actionable comments): Call `fab status finish <change> review-pr git-pr-review 2>/dev/null || true`.
-2. **On failure** (no PR found, processing error): Call `fab status fail <change> review-pr git-pr-review 2>/dev/null || true`.
-3. **On no reviews** (no reviews found): Call `fab status finish <change> review-pr git-pr-review 2>/dev/null || true` — a successful no-op outcome.
+2. **On failure** (gh missing, no PR found, processing error): Call `fab status fail <change> review-pr git-pr-review 2>/dev/null || true`.
+3. **On no-reviews** (no reviews found, no inline comments to process, or no automated reviewer available): Call `fab status finish <change> review-pr git-pr-review 2>/dev/null || true` — a successful no-op outcome.
+4. **On timeout** (Copilot review requested but not yet available after 10 minutes): **leave the review-pr stage `active` — no finish, no fail.** The requested review is still pending; finishing here would mark the stage `done` with the review unprocessed, and `start` cannot reactivate a done stage. The earlier `Re-run /git-pr-review to process when ready.` message stands — the re-run picks up the still-`active` stage.
 
 All statusman calls are best-effort — failures silently ignored to avoid blocking the PR review workflow.
 
 ### Step 6.5: Commit Status Updates
 
-If an active change was resolved in Step 0 **and** Step 6 took its success / no-reviews path (i.e., `fab status finish` ran — not the `fail` path), commit the bookkeeping writes that `fab status finish` produced (`.status.yaml` review-pr active→done, `completed_at`, `last_updated`; appended `review:passed` event in `.history.jsonl`). This mirrors `git-pr.md` Step 4c.
+If an active change was resolved in Step 0 **and** Step 6 took its success / no-reviews path (i.e., `fab status finish` ran — not the `fail` or `timeout` path), commit the bookkeeping writes that `fab status finish` produced (`.status.yaml` review-pr active→done, `completed_at`, `last_updated`; appended `review:passed` event in `.history.jsonl`). This mirrors `git-pr.md` Step 4c.
 
 1. Stage the status and history files: `git add fab/changes/{name}/.status.yaml fab/changes/{name}/.history.jsonl`
 2. Check for staged changes: `git diff --cached --quiet`
@@ -200,7 +203,7 @@ If an active change was resolved in Step 0 **and** Step 6 took its success / no-
 
 Print (if committed): `  ✓ status — committed and pushed status updates (.status.yaml, .history.jsonl)`
 
-**Skip this step silently** when no active change was resolved, or when Step 6 took the `fail` path — the fail path MUST NOT commit a half-finished state.
+**Skip this step silently** when no active change was resolved, or when Step 6 took the `fail` or `timeout` path — neither path ran `finish`, and the fail path MUST NOT commit a half-finished state.
 
 **Failure handling** (best-effort push): If the commit fails, report the error. If `git push` fails (e.g., a transient network error), report the error but do **not** STOP the skill or mark the stage as failed — a completed review cycle must not be aborted by a transient push failure. The local commit is retained and a later re-run / push reconciles it. (This softens git-pr's fail-fast push specifically for the terminal stage, consistent with git-pr-review's best-effort status-write ethos.)
 

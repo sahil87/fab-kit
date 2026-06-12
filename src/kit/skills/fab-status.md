@@ -50,7 +50,7 @@ Use `fab preflight` and `fab status` for validation and data retrieval. The skil
   Impact: +{net} (raw {added}/-{deleted}, excluding fab/docs +{excl_net} ({excl_added}/-{excl_deleted}))
   ```
 
-  When `excluding` is absent in the block (project's `true_impact_exclude` is empty), render only the raw figures: `Impact: +{net} ({added}/-{deleted})`. When `true_impact` is absent entirely, omit the line — no "not yet computed" placeholder. The line MUST be highlighted in yellow (terminal `\e[33m...\e[0m` or equivalent) when EITHER `true_impact.net > 100` OR `true_impact.excluding.net > 50` (when `excluding` is present). Both thresholds are hard-coded; they MUST NOT be project-configurable.
+  When `excluding` is absent in the block (project's `true_impact_exclude` is empty), render only the raw figures: `Impact: +{net} ({added}/-{deleted})`. When `true_impact` is absent entirely, omit the line — no "not yet computed" placeholder. The line MUST be prefixed with a warning emoji (⚠️) and rendered **bold** when EITHER `true_impact.net > 100` OR `true_impact.excluding.net > 50` (when `excluding` is present) — mirroring fab-operator's health-emoji convention. ANSI SGR escapes (e.g., `\e[33m`) MUST NOT be used: they do not survive the assistant-message render path (verified empirically in fab-operator §4); emoji + bold are the surviving channels. Both thresholds are hard-coded; they MUST NOT be project-configurable.
 - **Refactor-growth soft warning** — when ALL of the following hold, emit a single line below the impact line: (a) `change_type == refactor`, (b) `true_impact.excluding.net > 50` if `excluding` is present, else `true_impact.net > 50`, (c) `true_impact` block is present (from any stage). Warning text (exact, hard-coded):
 
   ```

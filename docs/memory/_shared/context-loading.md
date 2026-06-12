@@ -1,5 +1,5 @@
 ---
-description: "Smart context loading convention — 7-file always-load layer, standard subagent context, selective domain loading, SRAD protocol, state-keyed Next Steps Convention"
+description: "Smart context loading convention — 7-file always-load layer, standard subagent context, selective domain loading, SRAD protocol, state-keyed Next Steps Convention, generic fab-command failure rule (non-best-effort non-zero exit → STOP)"
 ---
 # Context Loading
 
@@ -53,6 +53,10 @@ The script validates project initialization, the change directory, and `.status.
 Since the preflight script validates `config.yaml` and `constitution.md` existence, skills using preflight don't need separate existence checks for these files — they only need to read them for content.
 
 The existing 4-step inline validation sequence (check current, check directory, check .status.yaml, check config/constitution) remains documented in `_preamble.md` as reference for what the script validates internally.
+
+### Generic fab-Command Failure Rule
+
+`_preamble.md` § Common fab Commands "Key behaviors" carries a generic failure rule covering every fab invocation, not just preflight: **any fab command not explicitly marked best-effort (`2>/dev/null || true`) that exits non-zero → STOP and surface stderr** — resumability handles the re-run. The rule **defers to explicit per-skill handling** where a skill intentionally branches on a non-zero exit by design (e.g., `fab-proceed`'s active-change probe, `fab-discuss`'s context probe, `git-pr`'s already-shipped check, `fab-archive`'s archive-state check) — those carve-outs are unaffected. This closes the gap where only preflight (§2 step 2) had a stated non-zero-exit STOP and a mid-pipeline failure of any other fab command (e.g., `fab status finish`) had no defined handling, risking skills proceeding with silently diverged state.
 
 ### Selective Domain Loading
 
@@ -176,6 +180,7 @@ The following skills skip the standard context loading layers:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260611-9u91-skills-correctness-idempotency-fixes | 2026-06-11 | Added the generic fab-command failure rule (g2-2) to `_preamble.md` § Common fab Commands "Key behaviors": any fab command not explicitly marked best-effort (`2>/dev/null \|\| true`) that exits non-zero → STOP and surface stderr (resumability handles the re-run), deferring to explicit per-skill handling where a skill intentionally branches on non-zero exits (fab-proceed, fab-discuss, git-pr, fab-archive do so by design). New "Generic fab-Command Failure Rule" requirements section; `SPEC-preamble.md` mirror updated. |
 | 260607-sx7a-reorg-memory-shape-rebalance | 2026-06-07 | Selective Domain Loading rewritten from a flat 2-hop walk to an **up-to-3-hop walk** (domain index → conditional sub-domain index → file), matching `_preamble.md` § Memory File Lookup and `SPEC-preamble.md`. An Affected Memory entry is now either flat (`{domain}/{name}`) or sub-domained (`{domain}/{sub-domain}/{name}`, used after a split); the sub-domain index hop is taken only for the 3-part form, so flat domains stay the degenerate 2-hop case (byte-identical behavior). Always Load layer description for `docs/memory/index.md` now notes a domain may contain sub-domains (surfaced via the domain index's `## Sub-Domains` table). New design decision "External Sub-Domain Addressing (Up-to-3-Hop Selective Load)". |
 | 260418-or0o-flatten-skill-helpers | 2026-04-18 | Flattened helper include tree. Removed three "Also read" fanout directives from `_preamble.md`. Inlined `_naming.md` (76 lines) and `_cli-rk.md` (91 lines) into `_preamble` as `## Naming Conventions` and `## Run-Kit (rk) Reference` subsections; deleted source files and SPEC-_cli-rk.md. Added `## Skill Helper Declaration` subsection defining the per-skill `helpers:` frontmatter (values: `_generation`, `_review`, `_cli-fab`, `_cli-external`). Added `## Common fab Commands` subsection with headline table for the 6 most-used command families (`preflight`, `score`, `log command`, `change`, `resolve`, `status`). Compressed `_cli-fab.md` from 773 to ≤300 lines via condensed flag/syntax tables while preserving all canonical flag behavior. Set `helpers:` on 6 skills: `fab-new`/`fab-draft` → `[_generation]`, `fab-continue`/`fab-ff`/`fab-fff` → `[_generation, _review]`, `fab-operator` → `[_cli-fab, _cli-external]`. Other 19 skills load only `_preamble`. Superseded "Always-Load `_cli-rk`" design decision. Closed backlog item `[84bh]`. |
 | 260416-mgsm-add-cli-rk-skill | 2026-04-16 | Added `_cli-rk.md` as optional always-load skill — run-kit iframe windows, proxy, visual display recipe. Separate from `_cli-external.md` (which remains operator-only). Silent fail when rk unavailable. Added design decision for centralized recipe approach. |

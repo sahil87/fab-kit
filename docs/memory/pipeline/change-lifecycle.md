@@ -52,7 +52,7 @@ All components MUST be lowercase. The name is unique by construction (date + ran
 2. If `.fab-status.yaml` is absent or broken, attempt single-change guessing:
    - Enumerate non-archive folders in `fab/changes/` that contain a valid `.status.yaml`
    - Exactly 1 candidate → return it, emit `(resolved from single active change)` to stderr
-   - 0 candidates → exit 1 with `No active change.`
+   - 0 candidates → exit 1 with `No active change. Run /fab-new <description> to start one, or /fab-switch to activate an existing one.` (the missing-`fab/changes/`-directory path emits the same actionable message — honoring `_preamble.md`'s promise that preflight stderr contains the specific error and suggested fix)
    - 2+ candidates → exit 1 with `No active change (multiple changes exist — use /fab-switch).`
 3. Guessing is transparent to callers — `preflight.sh`, `/git-branch`, and `/git-pr` all call `fab resolve` and benefit automatically
 
@@ -133,6 +133,8 @@ After hydrate completes, the change folder remains in `fab/changes/`. To move it
 
 **Pipeline shortcuts**: `/fab-ff` fast-forwards from intake through hydrate, gated on a single intake confidence gate (flat 3.0 for all change types via `fab score --check-gate --stage intake`), with autonomous rework on review failure (3-cycle cap). `/fab-fff` extends the same pipeline further through ship and review-pr — same single intake gate, same rework behavior, wider scope. The former second (spec) gate was removed in j6cs along with the spec stage. Both accept `--force` to bypass the gate. After either pipeline completes, run `/fab-archive` to move the change to archive.
 
+**Non-terminal review-pr outcome (Copilot timeout)**: One review-pr outcome is deliberately non-terminal: when `/git-pr-review` requests a Copilot review and it does not arrive within 10 minutes, the review-pr stage is **left `active`** — no finish, no fail, NOT a clean finish — so a later `/git-pr-review` re-run can process the pending review (`start` cannot reactivate a `done` stage). `/fab-fff` surfaces this as `Review-PR pending (Copilot review requested, timed out waiting) — re-run /git-pr-review when ready` instead of `Pipeline complete.`
+
 ### Git Integration (Optional)
 
 Fab works without git. Change folders are the unit of identity, not branches — the same change can be worked on across multiple branches, worktrees, or even repos. Fab never couples its state to git state — no `branch:` field is stored in `.status.yaml`.
@@ -146,8 +148,11 @@ Fab works without git. Change folders are the unit of identity, not branches —
 | **Already on target** | No git operation | `(already active)` |
 | **Target branch exists** | `git checkout` to it | `(checked out)` |
 | **On `main`/`master`** | `git checkout -b` (auto-create) | `(created)` |
-| **On other branch, no upstream** | `git branch -m` (rename) | `(renamed from {old})` |
+| **On other branch, no upstream, resolves to no other change** | `git branch -m` (rename) | `(renamed from {old})` |
+| **On other branch, no upstream, matches another change** | `git checkout -b` (create new — never rename another change's branch away) | `(created, leaving {old} intact)` |
 | **On other branch, has upstream** | `git checkout -b` (create new) | `(created, leaving {old} intact)` |
+
+The local-only rename is **guarded**: before renaming, the skill checks `fab change resolve "$(git branch --show-current)"`. If the current branch resolves to another change's folder (e.g., sitting on change B's unpushed branch after `/fab-switch` to change A), that branch is left intact and a new branch is created instead — known caveat: the `checkout -b` fallback inherits the old change's HEAD, so unpushed commits carry over onto the new branch. Disposable branches that resolve to no change (e.g., `wt create` random names) still take the rename path. `/fab-new` Step 11 Case 4 carries the same guard — the two twins are kept in sync.
 
 `/fab-switch` suggests `/git-branch` after activation. `/fab-status` displays the current branch via `git branch --show-current`. `/git-pr` nudges when the current branch doesn't match the active change. Fab never commits, pushes, merges, or deletes branches — that remains the user's responsibility (or `/git-pr`'s for shipping).
 
@@ -194,6 +199,8 @@ Used by `/fab-switch` (no-argument flow) and `/fab-status` to enumerate changes 
 
 The skill uses `lib/preflight.sh` for data retrieval (including `display_stage` and `display_state` fields), then formats the output. The "Stage:" line shows the display stage (where you are) with a state qualifier (e.g., `Stage: intake (1/6) — done`). The "Next:" line shows the routing stage with the default command (e.g., `Next: apply (via /fab-continue)`). It uses `git branch --show-current` for live branch display.
 
+**Impact line over-threshold channel**: When `.status.yaml` carries a `true_impact` block, an Impact line renders under the change summary (omitted entirely when the block is absent — no placeholder). The over-threshold highlight is a **warning-emoji (⚠️) prefix plus bold**, applied when `true_impact.net > 100` OR `true_impact.excluding.net > 50` (when `excluding` is present) — both thresholds hard-coded, not project-configurable — mirroring fab-operator's health-emoji convention. ANSI SGR escapes (e.g., `\e[33m`) MUST NOT be used: they do not survive the assistant-message render path (verified empirically in fab-operator §4); emoji + bold are the surviving channels.
+
 ### `/fab-switch [change-name] [--none]`
 
 `/fab-switch` changes the active change pointer. It does not perform git operations — branch management is handled by the separate `/git-branch` command.
@@ -220,7 +227,7 @@ The skill uses `lib/preflight.sh` for data retrieval (including `display_stage` 
    - **Already on target** → no-op ("already active")
    - **Target branch exists** → switch to it (`git checkout`)
    - **On `main`/`master`** → auto-create branch
-   - **On other branch, no upstream** → rename current branch (`git branch -m`)
+   - **On other branch, no upstream** → rename guard: if the current branch resolves to no other change (`fab change resolve` fails), rename it (`git branch -m`); if it matches another change's folder, create a new branch instead (`git checkout -b`), leaving it intact
    - **On other branch, has upstream** → create new branch, leaving current intact
 4. Report result
 
@@ -298,6 +305,7 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260611-9u91-skills-correctness-idempotency-fixes | 2026-06-11 | **git-branch rename guard (f100)**: the local-only-branch case no longer renames unconditionally — `git branch -m` only when the current branch resolves to no other change (`fab change resolve "$(git branch --show-current)"` fails); a branch matching another change diverts to `git checkout -b`, leaving it intact (caveat: the new branch inherits the old change's HEAD). Git Integration table split the no-upstream row into guarded rename vs create-new; the same guard is mirrored in `/fab-new` Step 11 Case 4 (twins kept in sync). **Actionable resolve errors (f124)**: the zero-candidate and missing-`fab/changes/` paths now exit with `No active change. Run /fab-new <description> to start one, or /fab-switch to activate an existing one.` (resolve.go; `_cli-fab.md` rows updated for the changed strings only). **fab-status over-threshold channel (f047)**: documented the Impact line's highlight as ⚠️ prefix + bold (`net > 100` or `excluding.net > 50`, hard-coded) — the prior ANSI-yellow mandate was unsatisfiable (SGR escapes are stripped by the assistant-message render path). **Review-pr timeout (f015/f016)**: documented the Copilot-timeout outcome as non-terminal — stage left `active` for re-run, NOT a clean finish. Also documented under "Pipeline shortcuts" the `/fab-fff` pending message. Go test updates shipped alongside (resolve_test.go; fabhelp_test.go for the six-stage `fab fab-help` pipeline render + 4 new skillToGroupMap entries). |
 | 260601-j6cs-merge-spec-into-apply | 2026-06-01 | Pipeline reduced from 7 stages to 6 — `spec` stage removed; requirement capture absorbed into apply entry as `plan.md`'s `## Requirements` section (artifact flow now `intake.md → plan.md → code`). Renamed "The 7 Stages" → "The 6 Stages" and updated the phase split (Planning: 1 = intake only; Execution: 2-3 = apply, review; Hydration: 4; Integration: 5-6). `progress` map description dropped the `spec` key (orphan `progress.spec` tolerated on read, removed only by migration). Confidence field rewritten: `confidence.indicative` flag **retired** (no longer written; decode-tolerant `Indicative *bool` field kept so legacy `indicative: true` round-trips); `fab score` reads `intake.md` only; single intake gate at flat 3.0 (per-type spec gate removed). `fab change list` row format dropped the trailing `:indicative` field → `name:display_stage:display_state:score`. Review-failure backward movement now targets `apply` only (no `spec`). `/fab-status` `(1/7)` → `(1/6)`, `Next: spec` → `Next: apply`; `/fab-switch` `({N}/7)` → `({N}/6)`, dropped indicative suffix. Stage-transition event example repointed from `spec` to `apply`. Shipped migration `1.9.7-to-1.10.0` + VERSION bump to `1.10.0`. |
 | 260423-qszh-merge-tasks-checklist | 2026-05-06 | Pipeline reduced from 8 stages to 7 — `tasks` stage removed entirely; plan generation absorbed into apply. Renamed "The 6 Stages" → "The 7 Stages"; updated phase split (Planning: 1-2, Execution: 3-4, Hydration: 5, Integration: 6-7). `.status.yaml` schema: dropped `progress.tasks` key; replaced `checklist:` block with `plan:` block (`generated`, `task_count`, `acceptance_count`, `acceptance_completed`; dropped `path`). `/fab-status` and `/fab-switch` stage counters updated `(N/8)` → `(N/7)` and `(N/6)` → `(N/7)`. Added qszh Migration sub-section under Migration Note documenting the `1.8.0-to-1.9.0` migration scope, idempotency, and legacy-tolerance in `Load()`. |
 | 260326-1tch-rename-blank-to-none | 2026-03-26 | Renamed `--blank` flag to `--none` in `fab change switch`. Renamed `SwitchBlank` → `SwitchNone`. Updated output string from "already blank" to "already deactivated". Updated `fab-switch.md`, `_cli-fab.md`, `SPEC-fab-switch.md`. |

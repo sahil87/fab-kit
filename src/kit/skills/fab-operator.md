@@ -584,7 +584,7 @@ Structured fields handle machine-readable concerns; `instructions` handles every
 On each tick (step 3), for each enabled watch:
 
 1. **Query source** — Linear via MCP (`mcp__claude_ai_Linear__list_issues`), Slack via MCP (`mcp__claude_ai_Slack__slack_read_channel`), using `query` as the API filter. On failure: set `last_error`, skip this watch for this tick. After 3 consecutive failures: disable the watch, alert user.
-2. **Deduplicate** — skip items in `known` list. Update `last_checked`.
+2. **Deduplicate** — skip items in `known` **plus** `completed` lists (an item that reached `stop_stage` moves from `known` to `completed` but may still match the query — it MUST NOT be respawned). Update `last_checked`.
 3. **Evaluate instructions** — apply trigger conditions, label filters, concurrency limits (count monitored entries with `spawned_by: <watch-name>`), and any other criteria from `instructions`
 4. **Act** — for each item that passes:
    - Run the repo-targeted spawn sequence (§6) with the watch's `target_repo` as the target repo: create the worktree in `target_repo`, read `<spawn_cmd>` via `fab spawn-command --repo <target_repo>`, open the agent tab, send the appropriate command (e.g., `/fab-new DEV-123`)

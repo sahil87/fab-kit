@@ -118,15 +118,44 @@ func TestComputeMaxNameLen(t *testing.T) {
 func TestFabHelp_GroupMapping(t *testing.T) {
 	// Verify all expected skills are mapped
 	expectedMapped := []string{
-		"fab-new", "fab-draft", "fab-switch", "fab-status", "fab-discuss",
-		"fab-continue", "fab-ff", "fab-fff", "fab-clarify",
-		"fab-archive", "git-pr",
-		"docs-hydrate-specs", "docs-reorg-specs", "docs-reorg-memory",
+		"fab-new", "fab-draft", "fab-switch", "fab-status", "fab-discuss", "git-branch",
+		"fab-continue", "fab-ff", "fab-fff", "fab-proceed", "fab-clarify",
+		"fab-archive", "git-pr", "git-pr-review",
+		"docs-hydrate-specs", "docs-reorg-specs", "docs-reorg-memory", "fab-operator",
 		"fab-setup", "fab-help", "docs-hydrate-memory",
 	}
 	for _, name := range expectedMapped {
 		if _, ok := skillToGroupMap[name]; !ok {
 			t.Errorf("skill %q is not in skillToGroupMap", name)
+		}
+	}
+
+	// Verify every mapped group is a known display group
+	knownGroups := make(map[string]bool)
+	for _, g := range groupOrder {
+		knownGroups[g] = true
+	}
+	for name, group := range skillToGroupMap {
+		if !knownGroups[group] {
+			t.Errorf("skill %q maps to unknown group %q", name, group)
+		}
+	}
+}
+
+func TestRenderWorkflow_SixStagePipeline(t *testing.T) {
+	var buf strings.Builder
+	renderWorkflow(&buf)
+	out := buf.String()
+
+	want := "Pipeline stages: intake → apply → review → hydrate → ship → review-pr"
+	if !strings.Contains(out, want) {
+		t.Errorf("workflow output missing %q, got:\n%s", want, out)
+	}
+
+	// The retired pre-1.10.0 pipeline must not be rendered.
+	for _, retired := range []string{"Planning stages", "Execution stages", "spec", "tasks"} {
+		if strings.Contains(out, retired) {
+			t.Errorf("workflow output contains retired pipeline text %q:\n%s", retired, out)
 		}
 	}
 }

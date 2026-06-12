@@ -2,7 +2,7 @@
 
 ## Summary
 
-Full pipeline gated on the single intake gate (identical to fab-ff). Extends through ship and review-pr (fab-ff stops at hydrate). No `/fab-clarify` runs inside the bracket — clarification is intake-only. Max 3 rework cycles on review failure with escalation rule. Accepts `--force` to bypass the intake gate.
+Full pipeline gated on the single intake gate (identical to fab-ff). Extends through ship and review-pr (fab-ff stops at hydrate). No `/fab-clarify` runs inside the bracket — clarification is intake-only. Max 3 rework cycles on review failure with escalation rule. Like fab-ff, the orchestrator owns the `fab status` transitions for the `/fab-continue`-behavior subagents (apply/review/hydrate): their prompts include "do NOT run `fab status` commands; return results only" (incl. the hydrate finish), the intake finish runs when `progress.intake` is not `done`, and a review-`failed` state is recovered via `fab status start <change> review` before resuming. Ship and review-pr are self-managed: `/git-pr` and `/git-pr-review` run their own stage transitions internally. Accepts `--force` to bypass the intake gate.
 
 **Helpers**: Declares `helpers: [_generation, _review]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
 
@@ -25,7 +25,14 @@ User invokes /fab-fff [change-name] [--force]
 │  └─ SUB-AGENT: /git-pr (commit, push, create PR)
 │
 └─ Step 5: Review-PR
-   └─ SUB-AGENT: /git-pr-review (process PR review comments)
+   └─ SUB-AGENT: /git-pr-review (process PR review comments;
+      manages its own review-pr stage transitions)
+      ├─ [success / no-reviews] stage done
+      ├─ [failure] STOP with the error
+      └─ [timeout — Copilot review requested, not yet available]
+         stage deliberately left active; report "Review-PR pending
+         (Copilot review requested, timed out waiting) — re-run
+         /git-pr-review when ready" instead of "Pipeline complete."
 ```
 
 ### Sub-agents

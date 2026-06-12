@@ -468,3 +468,4 @@ Multi-target operations: `fab batch <new|switch|archive> [--list] [--all] [targe
 | `Cannot resolve change '{arg}'` | ID/name matches no folder in `fab/changes/` | Check `fab change list` |
 | `Multiple changes match` | Ambiguous substring matched multiple folders | Use a more specific identifier |
 | `No active changes found` | `.fab-status.yaml` symlink absent and no changes exist | Run `/fab-new` or `/fab-draft` |
+| `No active change. Run /fab-new <description> to start one, or /fab-switch to activate an existing one.` | `.fab-status.yaml` symlink absent and zero resolvable changes (no override given) | Follow the message — `/fab-new` or `/fab-switch` |
