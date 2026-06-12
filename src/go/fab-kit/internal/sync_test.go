@@ -2,8 +2,10 @@ package internal
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -362,7 +364,9 @@ func TestScaffoldDirectories_FreshProject(t *testing.T) {
 	fabDir := filepath.Join(repoRoot, "fab")
 	kitDir := scaffoldKitDir(t, "1.6.1")
 
-	scaffoldDirectories(repoRoot, fabDir, kitDir, "1.6.1")
+	if err := scaffoldDirectories(repoRoot, fabDir, kitDir, "1.6.1"); err != nil {
+		t.Fatalf("scaffoldDirectories failed: %v", err)
+	}
 
 	got, err := os.ReadFile(filepath.Join(fabDir, ".kit-migration-version"))
 	if err != nil {
@@ -389,7 +393,9 @@ func TestScaffoldDirectories_PreExistingMigrationVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	scaffoldDirectories(repoRoot, fabDir, kitDir, "1.6.1")
+	if err := scaffoldDirectories(repoRoot, fabDir, kitDir, "1.6.1"); err != nil {
+		t.Fatalf("scaffoldDirectories failed: %v", err)
+	}
 
 	// Pre-existing .kit-migration-version must be preserved, not overwritten with 0.1.0.
 	got, _ := os.ReadFile(filepath.Join(fabDir, ".kit-migration-version"))
@@ -412,7 +418,9 @@ func TestScaffoldDirectories_ExistingProjectWithoutMigrationVersion(t *testing.T
 		t.Fatal(err)
 	}
 
-	scaffoldDirectories(repoRoot, fabDir, kitDir, "1.6.1")
+	if err := scaffoldDirectories(repoRoot, fabDir, kitDir, "1.6.1"); err != nil {
+		t.Fatalf("scaffoldDirectories failed: %v", err)
+	}
 
 	got, _ := os.ReadFile(filepath.Join(fabDir, ".kit-migration-version"))
 	if want := "0.1.0\n"; string(got) != want {
@@ -438,5 +446,232 @@ func TestCleanStaleSkills_Flat(t *testing.T) {
 	// fab-new.md should still exist
 	if _, err := os.Stat(filepath.Join(baseDir, "fab-new.md")); err != nil {
 		t.Error("expected fab-new.md to still exist")
+	}
+}
+
+// overrideGuardSeams overrides the two versionGuard seams and restores them on cleanup.
+func overrideGuardSeams(t *testing.T, brewInstalled bool, installedVersion string, installedErr error) {
+	t.Helper()
+	origBrew := isBrewInstalled
+	origInstalled := installedBinaryVersion
+	isBrewInstalled = func() bool { return brewInstalled }
+	installedBinaryVersion = func() (string, error) { return installedVersion, installedErr }
+	t.Cleanup(func() {
+		isBrewInstalled = origBrew
+		installedBinaryVersion = origInstalled
+	})
+}
+
+func TestVersionGuard_NotBrewInstalledFails(t *testing.T) {
+	// Non-brew install: Update returns ErrNotBrewInstalled, installed binary
+	// stays old — the guard must fail with actionable instructions (it used
+	// to silently pass on Update's old nil return).
+	overrideGuardSeams(t, false, "0.9.0", nil)
+
+	err := versionGuard("1.0.0", "0.9.0")
+	if err == nil {
+		t.Fatal("expected guard to fail for non-brew install with too-old binary")
+	}
+	if !strings.Contains(err.Error(), "manually") {
+		t.Errorf("expected actionable manual-update instructions, got: %v", err)
+	}
+}
+
+func TestVersionGuard_PostStateUpdatedFailsCurrentSync(t *testing.T) {
+	// The installed binary on PATH is new enough after the update attempt —
+	// post-state decides (even though Update itself errored). The guard must
+	// still fail the CURRENT sync so the next run uses the new binary.
+	overrideGuardSeams(t, false, "1.0.0", nil)
+
+	err := versionGuard("1.0.0", "0.9.0")
+	if err == nil {
+		t.Fatal("expected guard to fail the current sync after a successful update")
+	}
+	if !strings.Contains(err.Error(), "re-run 'fab sync'") {
+		t.Errorf("expected re-run guidance, got: %v", err)
+	}
+}
+
+func TestVersionGuard_BrewReleaseLagFails(t *testing.T) {
+	// Brew-installed, but the tap's latest equals the current version
+	// (release lag): Update returns nil having upgraded nothing. The
+	// post-state check must catch the still-old binary.
+	tmpDir := t.TempDir()
+	brewScript := "#!/bin/sh\nif [ \"$1\" = \"info\" ]; then printf '%s' '{\"formulae\":[{\"versions\":{\"stable\":\"0.9.0\"}}]}'; fi\nexit 0\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "brew"), []byte(brewScript), 0755); err != nil {
+		t.Fatalf("write fake brew: %v", err)
+	}
+	t.Setenv("PATH", tmpDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	overrideGuardSeams(t, true, "0.9.0", nil)
+
+	err := versionGuard("1.0.0", "0.9.0")
+	if err == nil {
+		t.Fatal("expected guard to fail on brew release lag (Update no-op, binary still old)")
+	}
+	if !strings.Contains(err.Error(), "still older") {
+		t.Errorf("expected release-lag error, got: %v", err)
+	}
+}
+
+func TestVersionGuard_UnverifiablePostStateFails(t *testing.T) {
+	// If the installed version cannot be verified after the update attempt,
+	// the guard must fail rather than trust the nil return.
+	overrideGuardSeams(t, false, "", fmt.Errorf("fab-kit not found on PATH"))
+
+	err := versionGuard("1.0.0", "0.9.0")
+	if err == nil {
+		t.Fatal("expected guard to fail when post-state cannot be verified")
+	}
+}
+
+func TestScaffoldDirectories_MissingKitVersionFails(t *testing.T) {
+	repoRoot := t.TempDir()
+	fabDir := filepath.Join(repoRoot, "fab")
+	kitDir := t.TempDir() // no VERSION file
+
+	// New-project branch (no config.yaml) reads kit VERSION — a failed read
+	// must propagate, not silently stamp an empty .kit-migration-version.
+	err := scaffoldDirectories(repoRoot, fabDir, kitDir, "1.6.1")
+	if err == nil {
+		t.Fatal("expected error when kit VERSION is unreadable")
+	}
+	if !strings.Contains(err.Error(), "VERSION") {
+		t.Errorf("expected kit VERSION read error, got: %v", err)
+	}
+}
+
+// roDir makes dir read-only for the duration of the test.
+func roDir(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.Chmod(dir, 0555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0755) })
+}
+
+func TestSyncAgentSkills_CopyWriteFailureCounted(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("file permissions do not apply to root")
+	}
+	skillsDir := t.TempDir()
+	os.WriteFile(filepath.Join(skillsDir, "fab-new.md"), []byte("# New\n"), 0644)
+
+	baseDir := filepath.Join(t.TempDir(), "commands")
+	os.MkdirAll(baseDir, 0755)
+	roDir(t, baseDir) // flat copy into read-only dir fails
+
+	agent := agentConfig{Label: "Test", BaseDir: baseDir, Format: "flat", Mode: "copy"}
+	err := syncAgentSkills(agent, []string{"fab-new"}, skillsDir)
+	if err == nil {
+		t.Fatal("expected write failure to surface as an error (was silently counted as created)")
+	}
+	if !strings.Contains(err.Error(), "failed") {
+		t.Errorf("expected failure count in error, got: %v", err)
+	}
+}
+
+func TestSyncAgentSkills_FailedReplaceDoesNotWriteThroughSymlink(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("file permissions do not apply to root")
+	}
+	skillsDir := t.TempDir()
+	os.WriteFile(filepath.Join(skillsDir, "fab-new.md"), []byte("# New\n"), 0644)
+
+	// dest is a symlink pointing at a cache file; its directory is read-only
+	// so the replace's os.Remove fails. WriteFile must not follow the
+	// leftover symlink and modify its target.
+	target := filepath.Join(t.TempDir(), "cached.md")
+	os.WriteFile(target, []byte("# Cached\n"), 0644)
+	baseDir := filepath.Join(t.TempDir(), "commands")
+	os.MkdirAll(baseDir, 0755)
+	if err := os.Symlink(target, filepath.Join(baseDir, "fab-new.md")); err != nil {
+		t.Fatal(err)
+	}
+	roDir(t, baseDir)
+
+	agent := agentConfig{Label: "Test", BaseDir: baseDir, Format: "flat", Mode: "copy"}
+	err := syncAgentSkills(agent, []string{"fab-new"}, skillsDir)
+	if err == nil {
+		t.Fatal("expected the failed replace to surface as an error")
+	}
+	got, readErr := os.ReadFile(target)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if string(got) != "# Cached\n" {
+		t.Errorf("symlink target was modified (write-through): %q", string(got))
+	}
+}
+
+func TestSyncAgentSkills_SymlinkFailureCounted(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("file permissions do not apply to root")
+	}
+	skillsDir := t.TempDir()
+	os.WriteFile(filepath.Join(skillsDir, "fab-new.md"), []byte("# New\n"), 0644)
+
+	baseDir := filepath.Join(t.TempDir(), "commands")
+	os.MkdirAll(baseDir, 0755)
+	roDir(t, baseDir)
+
+	agent := agentConfig{Label: "Test", BaseDir: baseDir, Format: "flat", Mode: "symlink"}
+	err := syncAgentSkills(agent, []string{"fab-new"}, skillsDir)
+	if err == nil {
+		t.Fatal("expected symlink failure to surface as an error")
+	}
+}
+
+func TestSyncAgentSkills_UnreadableSourceCounted(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("file permissions do not apply to root")
+	}
+	skillsDir := t.TempDir()
+	src := filepath.Join(skillsDir, "fab-new.md")
+	os.WriteFile(src, []byte("# New\n"), 0644)
+	os.Chmod(src, 0000)
+	t.Cleanup(func() { os.Chmod(src, 0644) })
+
+	baseDir := filepath.Join(t.TempDir(), "skills")
+	agent := agentConfig{Label: "Test", BaseDir: baseDir, Format: "flat", Mode: "copy"}
+	err := syncAgentSkills(agent, []string{"fab-new"}, skillsDir)
+	if err == nil {
+		t.Fatal("expected unreadable source to be counted as a failure (was a silent continue)")
+	}
+}
+
+func TestSyncAgentSkills_BaseDirCreationFailure(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("file permissions do not apply to root")
+	}
+	skillsDir := t.TempDir()
+	os.WriteFile(filepath.Join(skillsDir, "fab-new.md"), []byte("# New\n"), 0644)
+
+	parent := t.TempDir()
+	roDir(t, parent)
+	agent := agentConfig{Label: "Test", BaseDir: filepath.Join(parent, "skills"), Format: "flat", Mode: "copy"}
+	err := syncAgentSkills(agent, []string{"fab-new"}, skillsDir)
+	if err == nil {
+		t.Fatal("expected BaseDir MkdirAll failure to surface as an error")
+	}
+}
+
+func TestDeploySkills_PropagatesAgentFailure(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("file permissions do not apply to root")
+	}
+	kitDir := t.TempDir()
+	os.MkdirAll(filepath.Join(kitDir, "skills"), 0755)
+	os.WriteFile(filepath.Join(kitDir, "skills", "fab-new.md"), []byte("# New\n"), 0644)
+
+	repoRoot := t.TempDir()
+	// .claude exists read-only so MkdirAll(.claude/skills) fails for the claude agent.
+	claudeDir := filepath.Join(repoRoot, ".claude")
+	os.MkdirAll(claudeDir, 0755)
+	roDir(t, claudeDir)
+
+	t.Setenv("FAB_AGENTS", "claude")
+	err := deploySkills(repoRoot, kitDir)
+	if err == nil {
+		t.Fatal("expected deploySkills to propagate the agent deployment failure (Sync must exit non-zero)")
 	}
 }

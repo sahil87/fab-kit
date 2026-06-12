@@ -18,6 +18,19 @@ metadata:
 
 `fab -h` composes help from both binaries. `fab --version` prints the system binary version; inside a fab repo a second line shows the project-pinned version.
 
+### Workspace Command Exit Semantics
+
+Lifecycle commands fail loudly — a non-zero exit is the failure signal scripts and skills rely on:
+
+| Command | Failure behavior |
+|---------|------------------|
+| `init` | Requires a git repository — exits non-zero with `fab init requires a git repository — run 'git init' first` BEFORE any download or config write. Sync failure during init also exits non-zero |
+| `update` | Exits non-zero with `fab-kit was not installed via Homebrew` when the binary is not brew-installed (go-install/manual/CI); brew failures also exit non-zero |
+| `upgrade-repo` | Runs sync first and stamps `fab_version` only AFTER sync succeeds. On sync failure: exits non-zero with `sync failed: ... — run 'fab sync' to repair, then re-run 'fab upgrade-repo'`, never prints `Updated: x -> y`, and a re-run retries (no "Already on the latest version" short-circuit of the broken state) |
+| `sync` | Exits non-zero when any skill deployment write fails (per-skill `WARN:` lines on stderr, `failed N` in the agent tally) or when scaffolding writes fail. The version guard exits non-zero whenever it trips: either `fab-kit was updated to vX — re-run 'fab sync'` (auto-update landed; the current run still ran old code) or actionable too-old instructions (non-brew install, Homebrew tap release lag) — it never continues on a binary older than `fab_version` |
+
+The auto-download path (any uncached `fab <cmd>`) is bounded by HTTP timeouts, serialized per version via an advisory lock, installed atomically (temp dir + rename), and verified against the release's `SHA256SUMS` asset — checksum mismatch refuses to install; releases predating checksum publishing install with a stderr warning.
+
 ### `<change>` Argument
 
 All commands accept the unified `<change>`: 4-char ID (`yobi`), folder substring (`fix-kit`), or full folder name (`260227-yobi-fix-kit-scripts`). Bare directory paths and `.status.yaml` paths are NOT accepted.

@@ -61,7 +61,7 @@ func initCmd() *cobra.Command {
 		Use:   "init",
 		Short: "Initialize fab in the current repo",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return internal.Init()
+			return internal.Init(version)
 		},
 	}
 }
@@ -76,7 +76,7 @@ func upgradeCmd() *cobra.Command {
 			if len(args) > 0 {
 				targetVersion = args[0]
 			}
-			return internal.Upgrade(targetVersion)
+			return internal.Upgrade(version, targetVersion)
 		},
 	}
 }
@@ -90,7 +90,7 @@ func syncCmd() *cobra.Command {
 			if shimOnly && projectOnly {
 				return fmt.Errorf("--shim and --project are mutually exclusive")
 			}
-			return internal.Sync(version, shimOnly, projectOnly)
+			return internal.Sync(version, "", shimOnly, projectOnly)
 		},
 	}
 	cmd.Flags().BoolVar(&shimOnly, "shim", false, "Run shim steps only (prerequisites, version guard, cache, scaffold, direnv)")
