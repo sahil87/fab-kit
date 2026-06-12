@@ -27,10 +27,12 @@ func runPaneSend(cmd *cobra.Command, args []string) error {
 	force, _ := cmd.Flags().GetBool("force")
 	server, _ := cmd.Flags().GetString("server")
 
-	// Step 1: Validate pane exists
+	// Step 1: Validate pane exists. Exit codes follow the pane-family scheme
+	// shared with window-name: 2 = pane missing, 3 = other tmux failure. The
+	// in-handler os.Exit stays because non-1 codes are genuinely needed here.
 	if err := pane.ValidatePane(paneID, server); err != nil {
 		fmt.Fprintf(cmd.ErrOrStderr(), "Error: %s\n", err)
-		os.Exit(1)
+		os.Exit(paneValidationExitCode(err))
 	}
 
 	// Step 2: Validate agent idle (unless --force)
@@ -46,8 +48,7 @@ func runPaneSend(cmd *cobra.Command, args []string) error {
 		}
 
 		if state != "idle" {
-			fmt.Fprintf(cmd.ErrOrStderr(), "Error: agent in pane %s is not idle (state: %s)\n", paneID, state)
-			os.Exit(1)
+			return fmt.Errorf("agent in pane %s is not idle (state: %s)", paneID, state)
 		}
 	}
 

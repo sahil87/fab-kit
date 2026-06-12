@@ -16,79 +16,117 @@ func resolveCmd() *cobra.Command {
 		Short: "Resolve a change reference to a canonical output",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fabRoot, err := resolve.FabRoot()
-			if err != nil {
-				return err
-			}
-
 			changeArg := ""
 			if len(args) > 0 {
 				changeArg = args[0]
 			}
-
-			folder, err := resolve.ToFolder(fabRoot, changeArg)
-			if err != nil {
-				return err
-			}
-
-			switch outputMode {
-			case "id":
-				fmt.Println(resolve.ExtractID(folder))
-			case "folder":
-				fmt.Println(folder)
-			case "dir":
-				fmt.Printf("fab/changes/%s/\n", folder)
-			case "status":
-				fmt.Printf("fab/changes/%s/.status.yaml\n", folder)
-			case "pane":
-				if os.Getenv("TMUX") == "" {
-					fmt.Fprintln(cmd.ErrOrStderr(), "Error: not inside a tmux session")
-					os.Exit(1)
-				}
-
-				panes, err := discoverPanes(sessionDefault, "", "")
-				if err != nil {
-					return err
-				}
-
-				matches, warning := matchPanesByFolder(panes, folder, resolvePaneChange)
-
-				if len(matches) == 0 {
-					fmt.Fprintf(cmd.ErrOrStderr(), "no tmux pane found for change %q\n", folder)
-					os.Exit(1)
-				}
-
-				if warning != "" {
-					fmt.Fprintln(cmd.ErrOrStderr(), warning)
-				}
-
-				fmt.Println(matches[0])
-			}
-			return nil
+			server, _ := cmd.Flags().GetString("server")
+			return runResolve(cmd, changeArg, outputMode, server)
 		},
 	}
 
-	// Register the --id, --folder, --dir, --status, --pane flags matching the bash interface
+	// Register the --id, --folder, --dir, --status, --pane flags matching the
+	// bash interface. The five booleans encode a single output enum, so they
+	// are mutually exclusive — conflicting flags fail loudly instead of being
+	// silently resolved by a priority chain.
 	cmd.Flags().Bool("id", false, "Output 4-char change ID (default)")
 	cmd.Flags().Bool("folder", false, "Output full folder name")
 	cmd.Flags().Bool("dir", false, "Output directory path")
 	cmd.Flags().Bool("status", false, "Output .status.yaml path")
 	cmd.Flags().Bool("pane", false, "Output tmux pane ID")
+	cmd.Flags().StringP("server", "L", "", "Target tmux socket label for --pane (passed as 'tmux -L <name>'). Defaults to $TMUX / tmux default socket.")
+	cmd.MarkFlagsMutuallyExclusive("id", "folder", "dir", "status", "pane")
 
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-		if f, _ := cmd.Flags().GetBool("folder"); f {
+		switch {
+		case mustBool(cmd, "id"):
+			outputMode = "id"
+		case mustBool(cmd, "folder"):
 			outputMode = "folder"
-		} else if f, _ := cmd.Flags().GetBool("dir"); f {
+		case mustBool(cmd, "dir"):
 			outputMode = "dir"
-		} else if f, _ := cmd.Flags().GetBool("status"); f {
+		case mustBool(cmd, "status"):
 			outputMode = "status"
-		} else if f, _ := cmd.Flags().GetBool("pane"); f {
+		case mustBool(cmd, "pane"):
 			outputMode = "pane"
-		} else {
+		default:
 			outputMode = "id"
 		}
 		return nil
 	}
 
 	return cmd
+}
+
+// mustBool reads a bool flag, ignoring the lookup error (flags are registered
+// statically above — a typo would fail every test immediately).
+func mustBool(cmd *cobra.Command, name string) bool {
+	v, _ := cmd.Flags().GetBool(name)
+	return v
+}
+
+// runResolve is the single shared resolve implementation. Both `fab resolve`
+// and the thin `fab change resolve` wrapper (folder mode) execute it, so the
+// two spellings of the same operation can never drift in behavior, help, or
+// error strings.
+func runResolve(cmd *cobra.Command, changeArg, outputMode, server string) error {
+	fabRoot, err := resolve.FabRoot()
+	if err != nil {
+		return err
+	}
+
+	folder, err := resolve.ToFolder(fabRoot, changeArg)
+	if err != nil {
+		return err
+	}
+
+	w := cmd.OutOrStdout()
+	switch outputMode {
+	case "id":
+		fmt.Fprintln(w, resolve.ExtractID(folder))
+	case "folder":
+		fmt.Fprintln(w, folder)
+	case "dir":
+		fmt.Fprintf(w, "fab/changes/%s/\n", folder)
+	case "status":
+		fmt.Fprintf(w, "fab/changes/%s/.status.yaml\n", folder)
+	case "pane":
+		return resolvePaneOutput(cmd, folder, server)
+	}
+	return nil
+}
+
+// resolvePaneOutput resolves the tmux pane ID for a change's worktree. With
+// --server set, discovery targets that socket SERVER-WIDE and the $TMUX guard
+// is skipped — "current session" is undefined on a foreign socket, and the
+// callers that need cross-socket lookup (daemons) are not inside that server.
+// Without --server, behavior is unchanged: current-session discovery, $TMUX
+// required.
+func resolvePaneOutput(cmd *cobra.Command, folder, server string) error {
+	mode := sessionDefault
+	if server == "" {
+		if os.Getenv("TMUX") == "" {
+			return fmt.Errorf("not inside a tmux session")
+		}
+	} else {
+		mode = sessionAll
+	}
+
+	panes, err := discoverPanes(mode, "", server)
+	if err != nil {
+		return err
+	}
+
+	matches, warning := matchPanesByFolder(panes, folder, resolvePaneChange)
+
+	if len(matches) == 0 {
+		return fmt.Errorf("no tmux pane found for change %q", folder)
+	}
+
+	if warning != "" {
+		fmt.Fprintln(cmd.ErrOrStderr(), warning)
+	}
+
+	fmt.Fprintln(cmd.OutOrStdout(), matches[0])
+	return nil
 }

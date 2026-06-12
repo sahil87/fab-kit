@@ -2,6 +2,7 @@ package pane
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -651,4 +652,42 @@ func TestFindAgentByPane(t *testing.T) {
 			t.Errorf("got idle_since=%v, want newer (2000)", ts)
 		}
 	})
+}
+
+// TestValidatePaneResult_PaneNotFoundErrorType: the missing-pane branches
+// return the typed PaneNotFoundError (detectable via errors.As for the
+// pane-family 2-vs-3 exit-code mapping) with the historical message intact.
+func TestValidatePaneResult_PaneNotFoundErrorType(t *testing.T) {
+	cases := []struct {
+		name   string
+		out    string
+		stderr []byte
+		err    error
+	}{
+		{"missing pane via stderr", "", []byte("can't find pane: %9"), fmt.Errorf("exit status 1")},
+		{"missing pane via empty output (tmux >=3.6)", "", nil, nil},
+		{"target-grammar mismatch", "%4", nil, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validatePaneResult("%9", tc.out, tc.stderr, tc.err)
+			if err == nil {
+				t.Fatal("expected an error")
+			}
+			var nf *PaneNotFoundError
+			if !errors.As(err, &nf) {
+				t.Fatalf("expected PaneNotFoundError, got %T: %v", err, err)
+			}
+			if err.Error() != "pane %9 not found" {
+				t.Errorf("message drifted: %q", err.Error())
+			}
+		})
+	}
+
+	// Non-missing tmux failures stay untyped (mapped to exit 3 by callers).
+	err := validatePaneResult("%9", "", []byte("no server running on /tmp/x"), fmt.Errorf("exit status 1"))
+	var nf *PaneNotFoundError
+	if errors.As(err, &nf) {
+		t.Errorf("dead-server failure must NOT be PaneNotFoundError, got: %v", err)
+	}
 }

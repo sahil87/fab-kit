@@ -14,7 +14,7 @@ metadata:
 
 ## Calling Convention
 
-`fab <command> <subcommand> [args...]`. `fab` is a router dispatching workspace commands (`init`, `upgrade-repo`, `sync`, `update`, `doctor`) to `fab-kit` and everything else to the per-version `fab-go` binary resolved from `fab_version` in `fab/project/config.yaml`. `--version`/`-v`/`--help`/`-h`/`help` are handled inline. `fab-go` auto-fetches from GitHub releases on cache miss.
+`fab <command> <subcommand> [args...]`. `fab` is a router dispatching workspace commands (`init`, `upgrade-repo`, `sync`, `update`, `doctor`, `migrations-status`) to `fab-kit` and everything else to the per-version `fab-go` binary resolved from `fab_version` in `fab/project/config.yaml`. `--version`/`-v`/`--help`/`-h`/`help` are handled inline. `fab-go` auto-fetches from GitHub releases on cache miss.
 
 `fab -h` composes help from both binaries. `fab --version` prints the system binary version; inside a fab repo a second line shows the project-pinned version.
 
@@ -37,7 +37,7 @@ All commands accept the unified `<change>`: 4-char ID (`yobi`), folder substring
 
 ### Commands covered in `_preamble` Common fab Commands
 
-`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab hook`, `fab pane`, `fab doctor`, `fab kit-path`, `fab impact`, `fab pr-meta`, `fab fab-help`, `fab help-dump`, `fab operator`, `fab spawn-command`, `fab batch`) and extended flag details for the above.
+`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab hook`, `fab pane`, `fab doctor`, `fab kit-path`, `fab shell-init`, `fab impact`, `fab pr-meta`, `fab fab-help`, `fab help-dump`, `fab operator`, `fab spawn-command`, `fab batch`) and extended flag details for the above.
 
 ---
 
@@ -49,9 +49,9 @@ See `_preamble.md` § Common fab Commands for the headline. Full subcommand tabl
 |------------|-------|---------|
 | `new` | `new --slug <slug> [--change-id <4char>] [--log-args <desc>]` | Create new change |
 | `rename` | `rename --folder <current-folder> --slug <new-slug>` | Rename slug (prefix immutable) |
-| `resolve` | `resolve [<override>]` | Passthrough to `fab resolve --folder` |
+| `resolve` | `resolve [<override>]` | Thin wrapper over `fab resolve --folder` — the same shared implementation, identical output and error strings |
 | `switch` | `switch <name> \| --none` | Switch active change (writes `.fab-status.yaml` symlink) |
-| `list` | `list [--archive]` | List changes with stage info |
+| `list` | `list [--archive] [--show-stats]` | List changes with stage info; `--show-stats` appends the `true_impact` net column |
 | `archive` | `archive <change> [--description "..."]` | Move to `archive/`, update index, mark backlog item done, clear pointer. `--description` is optional — defaults to the intake title (humanized-slug fallback). Re-archiving an already-archived change is a soft skip (exit 0) that still re-attempts the backlog mark (idempotent — recovers a previously-failed mark; silent, the plain soft-skip line is unchanged). |
 | `restore` | `restore <change> [--switch]` | Move from `archive/`, remove index entry, optionally activate |
 | `archive-list` | `archive-list` | List archived folder names |
@@ -174,7 +174,7 @@ fab log review <change> <result> [rework]
 fab log transition <change> <stage> <action> [from] [reason] [driver]
 ```
 
-`command` resolves active change from `.fab-status.yaml` when `[change]` omitted; exits 0 silently if resolution fails (dangling/absent symlink). When `[change]` IS provided and doesn't resolve → exits 1.
+`command` is pure telemetry and **always exits 0** (given valid usage — cobra arg-count errors exit non-zero before RunE) — it owns its best-effort contract. On any internal failure (no fab root, an explicit `[change]` that doesn't resolve, unwritable `.history.jsonl`) it prints a one-line `Warning: fab log command: …` to stderr and still exits 0, so call sites need no `2>/dev/null || true` guard and a telemetry hiccup can never become a pipeline failure mode. When `[change]` is omitted, the active change resolves from `.fab-status.yaml` (silent no-op if absent/dangling). `review`/`confidence`/`transition` keep fail-loud non-zero exits (they are auto-logged by `fab status`/`fab score` — skills never call them directly).
 
 **Common callers** — skills per `_preamble.md` Context Loading §2 (`fab log command "<skill>" "<change>"`); `finish/fail review` auto-log; `score` auto-logs confidence; `change new`/`change rename` auto-log.
 
@@ -185,7 +185,7 @@ fab log transition <change> <stage> <action> [from] [reason] [driver]
 Pure query, no side effects.
 
 ```
-fab resolve [--id|--folder|--dir|--status|--pane] [<change>]
+fab resolve [--id|--folder|--dir|--status|--pane] [--server <name>] [<change>]
 ```
 
 | Flag | Output |
@@ -194,7 +194,10 @@ fab resolve [--id|--folder|--dir|--status|--pane] [<change>]
 | `--folder` | Full folder name |
 | `--dir` | Directory path (`fab/changes/.../`) |
 | `--status` | `.status.yaml` path |
-| `--pane` | Tmux pane ID (requires `$TMUX`; errors if no matching pane) |
+| `--pane` | Tmux pane ID (errors `ERROR: no tmux pane found for change "<folder>"` if no matching pane) |
+| `--server <name>` / `-L <name>` | Pane mode only: target tmux socket (`tmux -L <name>`), searched server-wide across all sessions; skips the `$TMUX` requirement. Without it, pane lookup is current-session-only and requires `$TMUX` (`ERROR: not inside a tmux session` otherwise) |
+
+The five output-mode flags are **mutually exclusive** — passing two (e.g. `--status --folder`) exits non-zero with a flags-group error instead of silently picking one. `fab change resolve` is a thin wrapper over this same implementation with `--folder` mode fixed.
 
 ---
 
@@ -218,7 +221,9 @@ The three session-scoped hooks (`session-start`, `stop`, `user-prompt`) read a J
 
 ## fab pane
 
-Tmux pane operations with fab context enrichment. `fab pane <map|capture|send|process> [flags...]`
+Tmux pane operations with fab context enrichment. `fab pane <map|capture|send|process|window-name> [flags...]`
+
+**Pane-family exit codes** (capture, send, window-name): pane validation failures use a shared scheme so callers can branch on cause — `2` = pane missing, `3` = any other tmux failure (dead server, bad socket). `map` and `process` use plain `ERROR:`-formatted exit 1. (Non-tmux usage errors — bad flag values, cobra arg-count — exit 1 per command; see the per-verb rows.)
 
 **Persistent flag** (all subcommands): `--server <name>` / `-L <name>` (default `""`) — target tmux socket (`tmux -L <name>`). Defaults to `$TMUX` / tmux default. Lets daemons on one tmux server inspect panes on another.
 
@@ -232,19 +237,32 @@ All tmux panes with pipeline state. Non-git/non-fab panes included with `---` fa
 | `--session <name>` | Target specific session (skips `$TMUX` check) |
 | `--all-sessions` | Query all sessions (skips `$TMUX` check; mutually exclusive with `--session`) |
 
-Without `--session`/`--all-sessions` → current session only (`-s` scope, requires `$TMUX`). Table columns: `Session` (only with `--all-sessions`), `Pane`, `WinIdx`, `Tab`, `Worktree` (relative; `(main)` for main; `basename/` non-git), `Change`, `Stage`, `Agent`. The `Worktree` relative path is computed **per repo** — each pane's display path is relative to its own repo's main-worktree root (cached by git worktree root), so panes from multiple repos render correct paths. Agent: `active`, `idle ({dur})`, or `—` (em dash). Change: folder name, `(no change)` for fab worktree with no active change, or `—` for non-fab panes. Idle duration: `{N}s`/`{N}m`/`{N}h` floor division. Change and Agent resolve on independent axes: Change comes from `.fab-status.yaml`; Agent comes from `_agents[*].tmux_pane` matching in `.fab-runtime.yaml` — so a pane with a running Claude in discussion mode (no active change) now shows `(no change)` in Change but a populated Agent column. `$TMUX` unset without targeting flag → exit 1. No panes → exit 0 `No tmux panes found.`
+Without `--session`/`--all-sessions` → current session only (`-s` scope, requires `$TMUX`). Table columns: `Session` (only with `--all-sessions`), `Pane`, `WinIdx`, `Tab`, `Worktree` (relative; `(main)` for main; `basename/` non-git), `Change`, `Stage`, `Agent`. The `Worktree` relative path is computed **per repo** — each pane's display path is relative to its own repo's main-worktree root (cached by git worktree root), so panes from multiple repos render correct paths. Agent: `active`, `idle ({dur})`, or `—` (em dash). Change: folder name, `(no change)` for fab worktree with no active change, or `—` for non-fab panes. Idle duration: `{N}s`/`{N}m`/`{N}h` floor division. Change and Agent resolve on independent axes: Change comes from `.fab-status.yaml`; Agent comes from `_agents[*].tmux_pane` matching in `.fab-runtime.yaml` — so a pane with a running Claude in discussion mode (no active change) now shows `(no change)` in Change but a populated Agent column. `$TMUX` unset without targeting flag → exit 1 (`ERROR: not inside a tmux session`). No panes → exit 0 `No tmux panes found.`
 
 ### capture — `fab pane capture <pane> [-l N] [--json] [--raw] [--server <name>]`
 
-`<pane>` required (e.g., `%5`). `-l/--lines N` (default 50). `--json` = content + metadata (`worktree`/`change`/`stage`/`agent_state`/`agent_idle_duration`). `--raw` = plain `tmux capture-pane -p`, no enrichment. `--json`/`--raw` mutually exclusive. Pane not found → exit 1.
+`<pane>` required (e.g., `%5`). `-l/--lines N` (default 50). `--json` = content + metadata (`worktree`/`change`/`stage`/`agent_state`/`agent_idle_duration`). `--raw` = plain `tmux capture-pane -p`, no enrichment. `--json`/`--raw` mutually exclusive. Pane not found → exit 2 (`Error: pane <id> not found`); other tmux validation failure → exit 3. `--lines < 1` → exit 1 (`ERROR: --lines must be >= 1`).
 
 ### send — `fab pane send <pane> <text> [--no-enter] [--force] [--server <name>]`
 
-Validation pipeline: (1) pane exists via a single targeted probe — `tmux display-message -t <pane> -p '#{pane_id}'`, output must equal the argument exactly (ID-exact: window names / target-grammar args resolve to a different pane ID and are rejected; no server-wide enumeration); (2) agent is idle (rejects `active`/`unknown` unless `--force`); (3) `tmux send-keys`. `--no-enter` skips the trailing Enter. `--force` bypasses idle check only — pane-existence still enforced. Agent resolution matches `_agents[*].tmux_pane` in `.fab-runtime.yaml` at the worktree root; a pane with no matching entry = `unknown` (non-idle). Change state is independent — panes in discussion mode (no active change) now accept sends when idle, instead of being rejected as `unknown`. Success: `Sent to <pane>`.
+Validation pipeline: (1) pane exists via a single targeted probe — `tmux display-message -t <pane> -p '#{pane_id}'`, output must equal the argument exactly (ID-exact: window names / target-grammar args resolve to a different pane ID and are rejected; no server-wide enumeration) — pane missing → exit 2 (`Error: pane <id> not found`), other tmux failure → exit 3; (2) agent is idle (rejects `active`/`unknown` unless `--force`) — not idle → exit 1 (`ERROR: agent in pane <id> is not idle (state: <state>)`); (3) `tmux send-keys`. `--no-enter` skips the trailing Enter. `--force` bypasses idle check only — pane-existence still enforced. Agent resolution matches `_agents[*].tmux_pane` in `.fab-runtime.yaml` at the worktree root; a pane with no matching entry = `unknown` (non-idle). Change state is independent — panes in discussion mode (no active change) now accept sends when idle, instead of being rejected as `unknown`. Success: `Sent to <pane>`.
 
 ### process — `fab pane process <pane> [--json] [--server <name>]`
 
-OS-level process tree. Linux: walks `/proc/<pid>/task/<tid>/children`, reads `/proc/<pid>/comm` + `/cmdline`. macOS: `ps -o pid,ppid,comm -ax` PPID traversal, plus one batched `ps -axo pid=,args=` pass joined by PID for full cmdlines (two `ps` spawns total — no per-node lookups; a process exiting between the passes degrades to cmdline `""`). Classification: `claude`/`claude-code` → `agent`, `node` → `node`, `git`/`gh` → `git`, else `other`. JSON: `{pane, pane_pid, processes (tree), has_agent}`. Pane not found → exit 1. `--server` scopes tmux lookup only; `/proc`/`ps` walk is socket-independent.
+OS-level process tree. Linux: walks `/proc/<pid>/task/<tid>/children`, reads `/proc/<pid>/comm` + `/cmdline`. macOS: `ps -o pid,ppid,comm -ax` PPID traversal, plus one batched `ps -axo pid=,args=` pass joined by PID for full cmdlines (two `ps` spawns total — no per-node lookups; a process exiting between the passes degrades to cmdline `""`). Classification: `claude`/`claude-code` → `agent`, `node` → `node`, `git`/`gh` → `git`, else `other`. JSON: `{pane, pane_pid, processes (tree), has_agent}`. Pane not found → exit 1 (`ERROR: pane <id> not found`). `--server` scopes tmux lookup only; `/proc`/`ps` walk is socket-independent.
+
+### window-name — `fab pane window-name <ensure-prefix|replace-prefix> [--json] [--server <name>]`
+
+Guarded, idempotent rewrites of the tmux window name — used by `/fab-operator` to mark enrolled (`»`) and done-monitoring (`›`) windows.
+
+| Verb | Usage | Behavior |
+|------|-------|----------|
+| `ensure-prefix` | `ensure-prefix <pane> <char>` | Idempotent prepend: if the window name already begins with the literal `<char>`, no-op; else `rename-window` to `<char><name>`. `<char>` must be non-empty (else exit 3) |
+| `replace-prefix` | `replace-prefix <pane> <from> <to>` | Atomic guarded swap: if the name begins with `<from>`, rename to `<to><name-without-from>`; else silent no-op (the user-rename-mid-monitoring guard). `<to>` may be empty (prefix strip); `<from>` must be non-empty (else exit 3) |
+
+**Exit codes** (both verbs): `0` = renamed OR no-op; `2` = pane missing (tmux stderr propagated); `3` = any other tmux failure (tmux not running, socket error, rename failed, argument usage error — e.g., empty `<char>` or `<from>`). The 2/3 split lets `/fab-operator`'s removal path treat "pane gone" (exit 2) as successful removal. No `$TMUX` gate — tmux's own exec failure surfaces as exit 3, so the verbs work via `--server` targeting from outside a tmux client.
+
+**Output**: plain `renamed: <old> -> <new>` on rename, empty stdout on no-op; `--json` always emits one `{"pane","old","new","action"}` object (`action`: `renamed`|`noop`).
 
 ---
 
@@ -287,6 +305,16 @@ fab kit-path
 ```
 
 Prints absolute path to the resolved kit directory (exe-sibling `kit/` next to `fab-go`). No trailing newline, no decoration. Exit 0 on success; non-zero with stderr error on failure. Used by skills to reference kit content: `$(fab kit-path)/templates/`, `$(fab kit-path)/migrations/`, etc.
+
+---
+
+## fab shell-init
+
+```
+fab shell-init <bash|zsh|fish>
+```
+
+Emits the shell-completion script for the given shell on stdout — the `tu`-style verb equivalent of (and delegated to) Cobra's auto-generated `fab completion <shell>`. Recommended install: add `eval "$(fab shell-init zsh)"` to `~/.zshrc` (or the bash/fish equivalent). Config-independent — works outside a fab repo. Human-setup-facing; no skill invokes it.
 
 ---
 
@@ -527,8 +555,8 @@ Prints a repo's configured agent spawn command to stdout. With `--repo <path>`, 
 Multi-target operations: `fab batch <new|switch|archive> [--list] [--all] [targets...]`. The `new` and `switch` subcommands create tmux windows and require `$TMUX`; `archive` runs in-process and does not.
 
 - **`new`** — parse `fab/backlog.md` pending items (`- [ ] [xxxx]`), create worktrees, open tmux windows, start agents with `/fab-new {description}`. No args → `--list`. IDs → one worktree tab each (`wt create --non-interactive --worktree-name {id}`, window `fab-{id}`, `{spawn_command} '/fab-new {description}'`). `--all` → all pending. Handles continuation lines. Launch failures are surfaced per item: a failed `wt create` or `tmux new-window` prints `[{id}] FAILED: ...` (the tmux line names the already-created worktree path as the cleanup/recovery hint) with the child's stderr included, never aborts the remaining items, and the command exits non-zero when any item failed (`ERROR: {N} of {M} item(s) failed to launch`). Unknown/empty backlog IDs remain warn-and-skip (exit 0). Requires `$TMUX` (else exit 1, `ERROR: not inside a tmux session`); empty pending backlog with `--all` → exit 1, `ERROR: No pending backlog items found.`.
-- **`switch`** — resolve change names, create worktrees with branch names (applying `branch_prefix` from config), start agents with `/fab-switch {change}`. No args → `--list`. `--all` → all active changes (excludes `archive/`). Branch naming: `{branch_prefix}{folder_name}`.
-- **`archive`** — find changes with `hydrate: done|skipped`, then archive each mechanically in a Go loop via `internal/archive.ArchiveWithBacklog` (move, index, backlog mark-done, pointer). No agent or Claude session is spawned; resolution uses `resolve.ToFolder` (no `fab`-on-PATH dependency). No args → `--all` (differs from new/switch). `--list` → show archivable only. Per change prints `{name} — archived` (with ` (backlog marked done)` when applicable; when a post-archive step — index update or backlog mark — fails, the change still prints `archived` plus a stderr `warning:` line and counts as archived, not failed), `already archived, skipping` (covers genuinely-archived names — counted as skipped), or `FAILED: {err}`; a single failure never aborts the batch. Footer: `Archived {N}, skipped {M}, failed {K}.`. Exit semantics: an empty `--all`/no-args set is a benign no-op (`No archivable changes found.` + zero footer, exit 0); after the loop runs, non-zero only when `failed > 0`; one residual exit-1 path remains — explicitly named targets where none resolves to an active *or* archived change (`No valid changes to archive.`).
+- **`switch`** — resolve change names (in-process via `resolve.ToFolder`, like the rest of the family — no `fab`-on-PATH dependency; an unresolvable name warns with the resolver's specific error, e.g. `Multiple changes match…`, and skips), create worktrees with branch names (applying `branch_prefix` from config), start agents with `/fab-switch {change}`. No args → `--list`. `--all` → all active changes (excludes `archive/`); empty set → exit 1, `ERROR: No changes found.`. Branch naming: `{branch_prefix}{folder_name}`. Requires `$TMUX` (else exit 1, `ERROR: not inside a tmux session`).
+- **`archive`** — find changes with `hydrate: done|skipped`, then archive each mechanically in a Go loop via `internal/archive.ArchiveWithBacklog` (move, index, backlog mark-done, pointer). No agent or Claude session is spawned; resolution uses `resolve.ToFolder` (no `fab`-on-PATH dependency). No args → `--list` (aligned with new/switch; the bulk action requires explicit `--all` — archive moves are effectively irreversible within the loop). Per change prints `{name} — archived` (with ` (backlog marked done)` when applicable; when a post-archive step — index update or backlog mark — fails, the change still prints `archived` plus a stderr `warning:` line and counts as archived, not failed), `already archived, skipping` (covers genuinely-archived names — counted as skipped), or `FAILED: {err}`; a single failure never aborts the batch. Footer: `Archived {N}, skipped {M}, failed {K}.`. Exit semantics: an empty `--all` set is a benign no-op (`No archivable changes found.` + zero footer, exit 0); after the loop runs, non-zero when `failed > 0` (`ERROR: {K} change(s) failed to archive`); explicitly named targets where none resolves to an active *or* archived change → exit 1, `ERROR: No valid changes to archive.`.
 
 ---
 

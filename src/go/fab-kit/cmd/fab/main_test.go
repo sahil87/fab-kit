@@ -7,20 +7,18 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab-kit/internal"
 )
 
-func TestFabKitArgs(t *testing.T) {
-	// Verify the allowlist contains exactly the fab-kit commands
-	expected := []string{"init", "upgrade-repo", "sync", "update", "doctor", "migrations-status"}
-	for _, cmd := range expected {
-		if !fabKitArgs[cmd] {
-			t.Errorf("expected fabKitArgs to contain %q", cmd)
-		}
+func TestFabKitArgsDerivedFromLifecycleTable(t *testing.T) {
+	// fabKitArgs must be exactly the LifecycleCommands name set — the router
+	// allowlist has no hand-maintained copy of its own. (Real drift guards:
+	// the registration cross-check in cmd/fab-kit, the _cli-fab.md router-line
+	// contract test, and the fab module's collision test.)
+	if len(fabKitArgs) != len(internal.LifecycleCommands) {
+		t.Fatalf("fabKitArgs has %d entries, LifecycleCommands has %d",
+			len(fabKitArgs), len(internal.LifecycleCommands))
 	}
-
-	// Verify workflow commands are not in the allowlist (they go to fab-go)
-	workflow := []string{"status", "preflight", "resolve", "log", "change", "score"}
-	for _, cmd := range workflow {
-		if fabKitArgs[cmd] {
-			t.Errorf("expected fabKitArgs to NOT contain %q (belongs to fab-go)", cmd)
+	for _, c := range internal.LifecycleCommands {
+		if !fabKitArgs[c.Name] {
+			t.Errorf("fabKitArgs missing lifecycle command %q", c.Name)
 		}
 	}
 }

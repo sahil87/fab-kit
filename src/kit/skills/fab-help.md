@@ -18,7 +18,7 @@ Orient the user in the fab workflow. Show how the stages fit together and list e
 When invoked, log the command and execute the help subcommand:
 
 ```bash
-fab log command "fab-help" 2>/dev/null || true
+fab log command "fab-help"
 fab fab-help
 ```
 

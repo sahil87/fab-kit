@@ -58,10 +58,10 @@ These are `fab` CLI calls that skills instruct the agent to run after generating
 Every skill per `_preamble.md` §2 runs:
 
 ```bash
-fab log command "<skill-name>" "<change-id>" 2>/dev/null || true
+fab log command "<skill-name>" "<change-id>"
 ```
 
-This is best-effort, scattered across all skills. Not a hook candidate — skill invocation can't be detected from hook events (no matcher for "which skill is running").
+This is best-effort (the command always exits 0; internal failures surface as a stderr warning only — no shell guard needed since 260612-ye8r), scattered across all skills. Not a hook candidate — skill invocation can't be detected from hook events (no matcher for "which skill is running").
 
 ---
 

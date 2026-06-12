@@ -45,9 +45,13 @@ func runBatchArchive(cmd *cobra.Command, args []string, listFlag, allFlag bool) 
 		return fmt.Errorf("changes directory not found at %s", changesDir)
 	}
 
-	// No args defaults to --all (different from new/switch which default to --list)
-	if len(args) == 0 && !listFlag {
-		allFlag = true
+	// No args defaults to --list, aligned with new/switch. The bulk action —
+	// the one bulk-mutating member of the batch family, whose moves are
+	// effectively irreversible within archiveLoop — requires explicit --all
+	// (260612-ye8r; the previous implicit --all default was a deliberate UX
+	// choice, flipped here in the safer direction for family consistency).
+	if len(args) == 0 && !allFlag {
+		listFlag = true
 	}
 
 	if listFlag {
@@ -97,13 +101,12 @@ func runBatchArchive(cmd *cobra.Command, args []string, listFlag, allFlag bool) 
 	}
 
 	if len(resolved) == 0 {
-		fmt.Fprintln(errW, "No valid changes to archive.")
-		os.Exit(1)
+		return fmt.Errorf("No valid changes to archive.")
 	}
 
 	_, _, failed := archiveLoop(w, errW, fabRoot, resolved)
 	if failed > 0 {
-		os.Exit(1)
+		return fmt.Errorf("%d change(s) failed to archive", failed)
 	}
 	return nil
 }

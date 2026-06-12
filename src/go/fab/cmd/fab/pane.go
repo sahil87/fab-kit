@@ -1,8 +1,23 @@
 package main
 
 import (
+	"errors"
+
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/spf13/cobra"
 )
+
+// paneValidationExitCode maps a pane.ValidatePane failure to the pane-family
+// exit-code scheme shared with window-name's tmuxExitCode: 2 = pane missing,
+// 3 = any other tmux failure (dead server, bad socket). Classification rides
+// on the error value (pane.PaneNotFoundError) — no string matching.
+func paneValidationExitCode(err error) int {
+	var nf *pane.PaneNotFoundError
+	if errors.As(err, &nf) {
+		return 2
+	}
+	return 3
+}
 
 func paneCmd() *cobra.Command {
 	cmd := &cobra.Command{

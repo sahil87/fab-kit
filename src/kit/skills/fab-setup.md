@@ -49,10 +49,10 @@ Before doing anything else, verify the kit is accessible:
 After the pre-flight check passes, log the command invocation:
 
 ```bash
-fab log command "fab-setup" 2>/dev/null || true
+fab log command "fab-setup"
 ```
 
-This is best-effort — `fab log` resolves the active change via `.fab-status.yaml` if one exists. Failures are silently ignored.
+This is best-effort — the command always exits 0 (failures surface only as a stderr warning) and resolves the active change via `.fab-status.yaml` if one exists.
 
 ---
 

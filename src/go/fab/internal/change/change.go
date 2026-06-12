@@ -381,11 +381,6 @@ func formatNet(n int) string {
 	return fmt.Sprintf("%d", n)
 }
 
-// Resolve is a passthrough to resolve.ToFolder with --folder mode.
-func Resolve(fabRoot, override string) (string, error) {
-	return resolve.ToFolder(fabRoot, override)
-}
-
 func detectCreatedBy() string {
 	// Try gh api user
 	out, err := exec.Command("gh", "api", "user", "--jq", ".login").Output()

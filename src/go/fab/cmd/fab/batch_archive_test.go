@@ -264,3 +264,59 @@ func TestRunBatchArchive_ArchivedNameSoftSkips(t *testing.T) {
 		t.Errorf("footer should count it as skipped, got:\n%s", out.String())
 	}
 }
+
+// TestRunBatchArchive_NoArgsDefaultsToList: the no-arg default flipped to
+// --list in 260612-ye8r (aligned with new/switch) — the bulk action requires
+// explicit --all.
+func TestRunBatchArchive_NoArgsDefaultsToList(t *testing.T) {
+	root := t.TempDir()
+	folder := "260310-abcd-my-change"
+	changeDir := filepath.Join(root, "fab", "changes", folder)
+	os.MkdirAll(changeDir, 0o755)
+	os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte(`name: `+folder+`
+progress:
+  hydrate: done
+`), 0o644)
+	hookTestEnv(t, root, map[string]string{})
+
+	cmd := batchArchiveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	if err := runBatchArchive(cmd, nil, false, false); err != nil {
+		t.Fatalf("no-arg run must list, got error: %v", err)
+	}
+	if !strings.Contains(out.String(), "Archivable changes") {
+		t.Errorf("no-arg run must print the archivable list, got:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), folder) {
+		t.Errorf("list must include the archivable change, got:\n%s", out.String())
+	}
+	// Nothing archived: the change folder is still in place.
+	if _, err := os.Stat(changeDir); err != nil {
+		t.Errorf("no-arg run must not archive anything: %v", err)
+	}
+}
+
+// TestRunBatchArchive_NoValidChangesReturnsError: the explicit-targets
+// nothing-resolves path returns an error through RunE (previously
+// os.Exit(1)) — stderr becomes `ERROR: No valid changes to archive.`.
+func TestRunBatchArchive_NoValidChangesReturnsError(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "fab", "changes"), 0o755)
+	hookTestEnv(t, root, map[string]string{})
+
+	cmd := batchArchiveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	err := runBatchArchive(cmd, []string{"zzzz-nope"}, false, false)
+	if err == nil {
+		t.Fatal("expected error when no target resolves")
+	}
+	if !strings.Contains(err.Error(), "No valid changes to archive.") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
