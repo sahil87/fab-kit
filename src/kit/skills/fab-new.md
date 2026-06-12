@@ -229,4 +229,4 @@ Next: {per state table — intake state (no activation preamble)}
 
 ---
 
-Next: `/fab-continue, /fab-fff, /fab-ff, or /fab-clarify`
+Next: {derive at runtime per `_preamble.md` § Lookup Procedure — intake state, default first: `/fab-continue, /fab-ff, /fab-fff, /fab-proceed, or /fab-clarify`}

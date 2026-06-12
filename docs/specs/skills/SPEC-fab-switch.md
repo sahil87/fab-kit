@@ -18,6 +18,7 @@ User invokes /fab-switch [change-name] [--none]
 │  ├─ (display numbered list with stages)
 │  └─ (wait for user selection)
 │     └─ Bash: fab change switch "<selected>"
+│        (display its stdout — same handling as the change-name flow)
 │
 ├── --none ─────────────────────────────────────────────
 │  └─ Bash: fab change switch --none

@@ -20,7 +20,7 @@ Start via `fab operator` (singleton tmux tab named `operator`).
 
 **Multi-repo aware.** The operator spans multiple repos and multiple tmux sessions on a **single tmux server** — one operator per server (§8). Every agent is addressed as a `(session, repo, pane)` tuple: the **pane ID is the primary key** (server-global and stable), with `repo` (the agent's absolute main-worktree root) and `session` (its tmux session name) layered on as dimensions, not replacements. Every monitored entry, every `branch_map` entry, and every watch is repo-qualified. State lives in one server-keyed file, not per-repo (§4, §9).
 
-**Spawn-in-worktree.** The operator's own pane is reserved for coordination state — pane maps, autopilot queue, operator state file bookkeeping (see §4). All pipeline work (`/fab-new`, `/fab-proceed`, `/fab-fff`, `/fab-ff`, `/fab-continue`, `/git-branch`, `/git-pr`) MUST run in a freshly spawned agent tab in its own worktree — never in the operator pane itself. The first action for any new request is `wt create --non-interactive`, then spawn the agent tab (see §5). Even a one-liner change gets its own worktree.
+**Spawn-in-worktree.** The operator's own pane is reserved for coordination state — pane maps, autopilot queue, operator state file bookkeeping (see §4). All pipeline work (`/fab-new`, `/fab-proceed`, `/fab-fff`, `/fab-ff`, `/fab-continue`, `/git-branch`, `/git-pr`) MUST run in a freshly spawned agent tab in its own worktree — never in the operator pane itself. The first action for any new request is `wt create --non-interactive`, then spawn the agent tab (see §6). Even a one-liner change gets its own worktree.
 
 **Automate the routine.** The operator exists to take work off the user's hands. Auto-answer prompts, nudge stuck agents, rebase stale PRs, spawn agents from backlog — act on the user's behalf for routine operational decisions. The PR review stage is the safety net. Never ask whether to monitor a spawned agent — if the operator spawned it, monitor it.
 
@@ -189,7 +189,7 @@ The primitive's literal-prefix guard protects user-renamed windows (if the user 
 
 ### Branch Map
 
-The top-level `branch_map` persists change ID → `{ branch, repo }` mappings. Entries are added when changes are enrolled in the monitored set. Entries persist after changes leave the monitored set (merged, archived, pane died) — this is necessary so downstream changes can still look up dependency branches for cherry-picking. The `repo` is required to disambiguate a dependency's branch across repos and to decide same-repo (cherry-pick) vs. cross-repo (ordering-only) resolution per §6. Entries persist until the operator session ends or the user explicitly clears them.
+The top-level `branch_map` persists change ID → `{ branch, repo }` mappings. Entries are added when changes are enrolled in the monitored set. Entries persist after changes leave the monitored set (merged, archived, pane died) — this is necessary so downstream changes can still look up dependency branches for cherry-picking. The `repo` is required to disambiguate a dependency's branch across repos and to decide same-repo (cherry-pick) vs. cross-repo (ordering-only) resolution per §6. Entries persist until the user explicitly clears them — the server-keyed state file survives operator sessions, so there is no session-end expiry.
 
 ### Tick Behavior
 
@@ -223,7 +223,7 @@ The frame is: a **header line**, one **repo section** per repo (an anchor line +
 Example (this is the literal markdown the operator emits, shown fenced here only to display the source):
 
 ```
-🛰️ **Operator** · 17:32 · tick #47 · **7 tracked**
+🛰️ **Operator** · 17:32 · tick #47 · **8 tracked**
 
 📂 **~/code/foo** · work
 
@@ -244,7 +244,7 @@ Example (this is the literal markdown the operator emits, shown fenced here only
 
 | Watch | Target | Health | Status |
 |---|---|:--:|---|
-| `gmail-deploys` | ~/code/foo | 🟡 | 1 new · 2m ago |
+| `slack-deploys` | ~/code/foo | 🟡 | 1 new · 2m ago |
 | `linear-bugs` | ~/code/foo | 🟢 | 2 known · 1 completed · 3m ago |
 | `slack-alerts` | ~/code/bar | 🟢 | 0 new · 1m ago |
 ```

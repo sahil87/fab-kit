@@ -75,4 +75,4 @@ Use `fab preflight` and `fab status` for validation and data retrieval. The skil
 | Modifies `.fab-status.yaml`? | **No** |
 | Modifies `.status.yaml`? | **No** |
 | Modifies source code? | **No** |
-| Requires config/constitution? | **No** |
+| Requires config/constitution? | **Exists-only** — `fab preflight` validates both files exist (it exits non-zero without them); their *content* is never loaded |

@@ -33,7 +33,7 @@ Before generating or validating any artifact, load the relevant context layers b
 
 ### 1. Always Load
 
-This layer applies to every skill **unless the skill's own Context Loading section says otherwise** — the skill file wins. Current exceptions: `/fab-setup`, `/fab-status`, `/fab-switch`, and `/docs-hydrate-memory` skip the layer entirely; `/fab-operator` loads only `config.yaml`, `constitution.md`, and `context.md`.
+This layer applies to every skill **unless the skill's own Context Loading section says otherwise** — the skill file wins. The exception set is **derived, never enumerated here**: consult the skill file itself (its `## Context Loading` section, or an explicit context note near its header) for any override — e.g., `/fab-setup` and `/docs-hydrate-memory` skip the layer entirely, `/fab-operator` loads a reduced 3-file set. A skill that declares no override loads the full layer.
 
 Read these files first — they define the project's identity, constraints, and documentation landscape:
 
@@ -298,7 +298,7 @@ The `[AUTO-MODE]` inter-skill invocation protocol (prefix signaling autonomous m
 
 ## Subagent Dispatch (Orchestrator Skills)
 
-Orchestrator skills (`/fab-ff`, `/fab-fff`) run multi-stage pipelines that invoke other skills as sub-operations. To preserve the orchestrator's pipeline context, sub-skills are dispatched as **subagents** using the Agent tool (`subagent_type: "general-purpose"`) — never the Skill tool.
+Orchestrator skills (`/fab-ff`, `/fab-fff`, and the prefix-step orchestrator `/fab-proceed`) invoke other skills as sub-operations — `/fab-ff`/`/fab-fff` run multi-stage pipelines; `/fab-proceed` runs prefix steps (`/fab-new`, `/fab-switch`, `/git-branch`) before delegating. To preserve the orchestrator's pipeline context, sub-skills are dispatched as **subagents** using the Agent tool (`subagent_type: "general-purpose"`) — never the Skill tool.
 
 **Why not the Skill tool?** The Skill tool expands the sub-skill's prompt into the orchestrator's execution context. After the sub-skill completes, the pipeline context is lost and execution halts. The Agent tool runs the sub-skill in a **separate context** and returns a structured result, keeping the pipeline intact.
 
@@ -355,8 +355,8 @@ See `docs/specs/change-types.md` for the full taxonomy.
 ### Invocation
 
 Confidence is computed by `fab score` (reading `intake.md`), invoked by:
-- `/fab-new` (after intake generation, `--stage intake`) — persists the intake score
-- `/fab-clarify` (intake target, suggest mode) — re-persists the intake score after resolving assumptions
+- `/fab-new` and `/fab-draft` (after intake generation, `--stage intake`) — persist the intake score
+- `/fab-clarify` (**both modes** — Suggest Step 7 and Auto Mode step 4) — re-persists the intake score after resolving assumptions
 
 `/fab-continue` does NOT score at apply entry — intake is authoritative, and there is no scoring at any post-intake stage.
 

@@ -50,6 +50,8 @@ User invokes /fab-new <description>
 │  │     only collision guard)
 │  │  (NL re-run intentionally creates a new change each run)
 │  └─ Bash: fab change new --slug <slug> --log-args <desc>
+│     │     [--change-id <4char> — only when a backlog ID
+│     │      was detected in Step 0]
 │     └─ (creates folder, .status.yaml from template)
 │  └─ [if Linear] Bash: fab status add-issue <change> <id>
 │

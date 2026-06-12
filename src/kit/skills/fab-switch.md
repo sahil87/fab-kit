@@ -31,6 +31,7 @@ Loads matched change's `.status.yaml`. Name resolution and switch logic are dele
 1. Scan `fab/changes/` (exclude `archive/`)
 2. If no folders: `No active changes found. Run /fab-new <description> to start one, or /fab-draft <description> to create without activating.`
 3. If folders exist: list with stages as numbered options, wait for selection
+4. After selection, run `fab change switch "<selected>"` and display its stdout output (same handling as the Argument Flow)
 
 ### Argument Flow
 

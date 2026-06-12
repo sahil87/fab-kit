@@ -14,10 +14,12 @@ Since 260611-szxd (f087) the skill file is a **single document**: mode detection
 User invokes /fab-archive [change-name]
 │
 ├─ Read: _preamble.md (always-load layer)
-├─ Bash: fab preflight [change-name]
-├─ Guard: progress.hydrate must be done
 │
 ├── Archive Mode ────────────────────────────────────────
+│  │
+│  ├─ Bash: fab preflight [change-name]
+│  ├─ Guard: progress.hydrate must be done
+│  │  (archive mode only — restore waives both)
 │  │
 │  ├─ Step 1: Run archive
 │  │  └─ Bash: fab change archive <change>   (no --description)
@@ -29,7 +31,8 @@ User invokes /fab-archive [change-name]
 │      succeeded, command exits non-zero — 260612-hv7t)
 │
 └── Restore Mode (/fab-archive restore <name> [--switch])
-   │
+   │  (no standard preflight, hydrate guard waived —
+   │   restores any archived change regardless of state)
    ├─ Bash: fab change restore <name> [--switch]
    └─ Format report from YAML output
       (pointer: switched | skipped | failed — `failed` means the restore

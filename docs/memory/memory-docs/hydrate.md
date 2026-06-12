@@ -1,5 +1,5 @@
 ---
-description: "`/docs-hydrate-memory` skill — argument routing, dual-mode (ingest + generate), hydration rules, mechanical index regen via `fab memory-index`"
+description: "`/docs-hydrate-memory` skill — argument routing, dual-mode (ingest + generate), hydration rules, mechanical index regen via `fab memory-index`, and the index-ownership model (`description:` frontmatter = single hand-curated field; stub before index — d9rs)"
 ---
 # Hydrate
 
@@ -7,7 +7,7 @@ description: "`/docs-hydrate-memory` skill — argument routing, dual-mode (inge
 
 ## Overview
 
-`/docs-hydrate-memory [sources...|folders...]` is a standalone skill that operates in two modes: **ingest mode** (fetching URLs or reading `.md` files into `docs/memory/`) and **generate mode** (scanning the codebase for undocumented areas and producing structured memory files). Mode is determined automatically by argument type — no flags needed. It requires `docs/memory/` to exist (created by `/fab-setup`). See [hydrate-generate](hydrate-generate.md) for full generate mode requirements.
+`/docs-hydrate-memory [sources...|folders...]` is a standalone skill that operates in two modes: **ingest mode** (fetching URLs or reading `.md` files into `docs/memory/`) and **generate mode** (scanning the codebase for undocumented areas and producing structured memory files). Mode is determined automatically by argument type — no flags needed. It requires `docs/memory/` to exist (created by `/fab-setup`). See [hydrate-generate](hydrate-generate.md) for full generate mode requirements. Since d9rs the skill file carries an explicit `## Context Loading` override section (it skips the always-load layer — the skill-file override the `_preamble.md` §1 derivation rule keys on; see [_shared/context-loading](../_shared/context-loading.md)) and hosts the canonical **Index Ownership** model (its `### Index Ownership` section — see Index Ownership Model below).
 
 > **Distinct from pipeline hydrate**: This file documents the standalone `/docs-hydrate-memory` skill. The `/fab-continue` pipeline hydrate stage (which advances a change from `review: done` to `hydrate: done` and updates `docs/memory/` from the change's spec/plan) is documented in [execution-skills](../pipeline/execution-skills.md) under "Hydrate Behavior (via `/fab-continue`)". The pipeline hydrate stage reads `## Deletion Candidates` from `plan.md` informationally (per execution-skills Hydrate Behavior Step 3) — see that file for the authoritative behavior.
 
@@ -37,7 +37,8 @@ When arguments route to ingest mode:
 - Fetches/reads each source independently
 - Analyzes content and maps to domains
 - Creates or merges memory files in `docs/memory/{domain}/`, authoring each file's `description:` frontmatter
-- Regenerates all indexes (root + every domain) mechanically via `fab memory-index` — never by hand-editing rows
+- For a new domain (or sub-domain), creates the `index.md` **stub** — only the `description:` frontmatter one-liner — **before** `fab memory-index` runs (see Index Ownership Model below)
+- Regenerates all indexes (root + every domain + every sub-domain) mechanically via `fab memory-index` — never by hand-editing rows
 - Multiple sources are processed in a single pass; `fab memory-index` runs once at the end
 
 ### Generate Mode Behavior
@@ -56,12 +57,23 @@ Safe to run repeatedly with the same sources:
 - Manually-added content in memory files is preserved
 - No duplication of requirements on re-hydration
 
+### Index Ownership Model (defined once — d9rs)
+
+The skill file's `### Index Ownership` section states the ownership model **once**, and every index-touching skill follows it:
+
+- Index files (`index.md` at the root, domain, and sub-domain tiers) are **generated artifacts** — `fab memory-index` is their single writer. Generated content (file rows, `## Sub-Domains` tables, "Last Updated" cells) is never hand-edited.
+- The **one hand-curated field** is the `description:` frontmatter — on topic files and on domain/sub-domain index files alike.
+- When a new domain or sub-domain is created, its `index.md` **stub** — only the `description:` frontmatter one-liner, nothing else — is created **BEFORE** `fab memory-index` runs; the command fills in the generated body and round-trips the description.
+
+Both modes of this skill follow the model, and d9rs propagated it to the other index-touching surfaces: `docs-reorg-memory` Step 5.3/5.4 (the former contradiction — Step 5.3 hand-editing a sub-domain index that Step 5.4 both generated and forbade editing — is resolved via the same stub-before-index pattern; see [templates](templates.md) § Memory Tree Shape) and `/fab-continue`'s hydrate step, whose index-regeneration tier wording now names all three tiers (root, domain, sub-domain).
+
 ### Index Maintenance
 
 Every hydration operation regenerates the navigable indexes **mechanically** via `fab memory-index` — the skill never hand-edits index rows:
 - **Top-level** (`docs/memory/index.md`): domains-only — `| Domain | Description |`. The legacy inlined per-file "Memory Files" column was dropped (tciy); per-domain descriptions come from each domain `index.md`'s `description:` frontmatter (round-tripped by the generator).
 - **Domain-level** (`docs/memory/{domain}/index.md`): file rows — `| File | Description | Last Updated |`. Each row's Description is read from the topic file's `description:` frontmatter; "Last Updated" is git-stamped from ONE batched `git -c core.quotepath=off log --date=short --format=%x00%ad --name-only -- docs/memory` pass (newest-first; the first date seen per path wins, keyed relative to the git top-level — output-equivalent to the old per-file `git log -1 --date=short` defaults, which is retained solely as the fallback when the batched call fails), degrading to `—` for uncommitted files; never hand-stamped (pw3k).
-- The command is the single writer of both index levels — output is byte-stable / idempotent, so re-running produces no diff and any post-merge conflict auto-resolves by re-running `fab memory-index`.
+- **Sub-domain-level** (`docs/memory/{domain}/{sub-domain}/index.md`): same file-row contract as a domain index, generated for every sub-domain directory holding ≥1 non-index `.md` (sx7a; the skill's tier descriptions name all three tiers since d9rs).
+- The command is the single writer of all index levels — output is byte-stable / idempotent, so re-running produces no diff and any post-merge conflict auto-resolves by re-running `fab memory-index`.
 - Memory writers MUST author the `description:` frontmatter on every new/modified topic file so the regenerated index has content.
 - Formats follow `docs/specs/templates.md`
 
@@ -89,6 +101,7 @@ Every hydration operation regenerates the navigable indexes **mechanically** via
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260612-d9rs-docs-reality-sweep | 2026-06-12 | **Index Ownership model stated once** (skills-audit batch 5/5, Theme 8): the skill file gained an `### Index Ownership` section — indexes at all three tiers are generated artifacts (`fab memory-index` single writer); `description:` frontmatter is the **single hand-curated field**; a new domain/sub-domain `index.md` **stub** (description-only) is created **BEFORE** `fab memory-index` runs, which fills the body and round-trips the description. Both modes follow it; propagated to `docs-reorg-memory` Step 5.3/5.4 (stub-before-index resolves the edit-vs-forbid contradiction) and `/fab-continue`'s hydrate step. Ingest Step 3.2 now instructs the stub (incl. sub-domain stubs); index-regeneration tier wording names root + domain + **sub-domain** in both modes. The skill file also gained an explicit `## Context Loading` override section (skips the always-load layer — the override the `_preamble.md` §1 derivation rule keys on). |
 | 260612-pw3k-operator-pane-perf-error-surfacing | 2026-06-12 | Index Maintenance "Last Updated" date-sourcing corrected to the shipped mechanism (binary-review B5, F34): `fab memory-index` now sources dates from ONE batched `git -c core.quotepath=off log --date=short --format=%x00%ad --name-only -- docs/memory` pass (newest-first, first date per path wins, keyed relative to the git top-level) instead of one `git log -1` spawn per memory file; the per-file call is kept solely as fallback when the batched call fails (a per-path miss = uncommitted → `—`, as before). Rendered index output is byte-identical. Mechanism description only — no skill-behavior change. |
 | 260607-tciy-memory-tree-shape-rebalance | 2026-06-07 | Index Maintenance rewired to a mechanical `fab memory-index` call — the skill no longer hand-edits index rows. Ingest-mode behavior bullets updated (author `description:` frontmatter on files; run `fab memory-index` once at end). Index Maintenance requirement: root index is now **domains-only** (`\| Domain \| Description \|`; the inlined per-file "Memory Files" / `file-list` column is dropped), domain rows are `\| File \| Description \| Last Updated \|` with descriptions from each file's `description:` frontmatter and git-stamped "Last Updated". Renamed the "Index Maintenance Embedded in Skill Instructions" design decision → "Memory Index Maintenance is a Mechanical `fab memory-index` Call" (superseded — the hand-maintained rows were the merge-conflict + drift source). |
 | 260507-ogf2-restrain-ai-code-bloat | 2026-05-07 | Added Overview disambiguation: this file documents the standalone `/docs-hydrate-memory` skill; the `/fab-continue` pipeline hydrate stage (now reads `## Deletion Candidates` from `plan.md` informationally as Step 3) is documented in [execution-skills](../pipeline/execution-skills.md). No changes to `/docs-hydrate-memory` behavior. |

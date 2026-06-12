@@ -179,7 +179,7 @@ Only update `confidence` and `last_updated` in `.status.yaml`.
 
 ## Skill Invocation Protocol
 
-When one skill invokes another internally (e.g., `/fab-ff` invoking `/fab-clarify` between stages), the calling skill MUST signal the invocation mode explicitly using an instruction prefix. This makes the contract between skills explicit and testable rather than relying on implicit "call context" interpretation.
+When one skill invokes another internally, the calling skill MUST signal the invocation mode explicitly using an instruction prefix. This makes the contract between skills explicit and testable rather than relying on implicit "call context" interpretation. (No live flow currently does this — see Currently Applicable below.)
 
 ### Protocol
 

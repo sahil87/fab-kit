@@ -14,7 +14,7 @@ Creates a new change intake without activating the change. Since 260611-szxd (f0
 |---|-------|
 | 1 | **Step 9 tail**: after `fab status advance {name} intake`, the change is NOT activated — the user must run `/fab-switch {name}` (replaces fab-new's Step 9 closing sentence about Step 10) |
 | 2 | **Skip Steps 10–11 entirely** — no `fab change switch`, no `git` command. Stated explicitly and prominently in the skill body (the known failure mode of the delta form is an agent running activation by momentum; the body instructs a re-check before any `fab change switch`/`git` invocation) |
-| 3 | **Output**: fab-new's Output block minus the `Activated:` and `Branch:` lines; `Next:` per the Activation Preamble convention (`_preamble.md` § Activation Preamble — names `/fab-draft`) |
+| 3 | **Output**: fab-new's Output block minus the `Activated:` and `Branch:` lines; `Next:` per the Activation Preamble convention (`_preamble.md` § Activation Preamble — names `/fab-draft`; the intake-state command list is derived per § Lookup Procedure and includes `/fab-proceed`) |
 | 4 | **Error Handling**: fab-new's table minus the activation/git rows |
 
 ## Flow
@@ -57,4 +57,4 @@ None.
 - **No Step 10** — change is not activated (`.fab-status.yaml` symlink is not created)
 - **No Step 11** — git branch is not created
 
-The output `Next:` line uses the activation preamble: `/fab-switch {name} to make it active, then /fab-continue, /fab-fff, /fab-ff, or /fab-clarify`.
+The output `Next:` line uses the activation preamble: `/fab-switch {name} to make it active, then /fab-continue, /fab-ff, /fab-fff, /fab-proceed, or /fab-clarify` — the command list after "then" is the state table's intake row, derived per `_preamble.md` § Lookup Procedure (default first, not hardcoded).

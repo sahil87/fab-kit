@@ -30,7 +30,7 @@ Do **not** run preflight. Do **not** load change-specific artifacts.
 After loading the always-load layer, check for an active change:
 
 1. Run `fab resolve --folder 2>/dev/null` — if it exits non-zero, note "No active change"
-2. If resolution succeeds, use the returned folder name to read `fab/changes/{name}/.status.yaml` for the current stage
+2. If resolution succeeds, use the returned folder name to read `fab/changes/{name}/.status.yaml` and derive the current stage from its `progress` map — the stage holding `active` or `ready` (or `failed` for a parked review/review-pr); all stages `done`/`skipped` means the change is complete
 3. Do **not** load change artifacts (intake, spec, plan)
 
 ---

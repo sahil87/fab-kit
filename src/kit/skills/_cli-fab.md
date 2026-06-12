@@ -37,7 +37,7 @@ All commands accept the unified `<change>`: 4-char ID (`yobi`), folder substring
 
 ### Commands covered in `_preamble` Common fab Commands
 
-`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab hook`, `fab pane`, `fab doctor`, `fab kit-path`, `fab shell-init`, `fab impact`, `fab pr-meta`, `fab fab-help`, `fab help-dump`, `fab operator`, `fab spawn-command`, `fab batch`) and extended flag details for the above.
+`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab hook`, `fab pane`, `fab doctor`, `fab migrations-status`, `fab kit-path`, `fab shell-init`, `fab impact`, `fab pr-meta`, `fab memory-index`, `fab fab-help`, `fab help-dump`, `fab operator`, `fab spawn-command`, `fab batch`) and extended flag details for the above.
 
 ---
 
@@ -213,7 +213,7 @@ Claude Code hook handlers. Each subcommand is registered as inline `fab hook <su
 | `artifact-write` | PostToolUse (Write/Edit) | Per-artifact bookkeeping from stdin JSON |
 | `sync` | n/a | Register inline hook entries in `.claude/settings.local.json`; migrates old-style bash scripts; idempotent |
 
-The three session-scoped hooks (`session-start`, `stop`, `user-prompt`) read a JSON payload on stdin with at least a `session_id` field (UUID) and optionally `transcript_path`. Malformed JSON or a missing `session_id` is silently skipped. Each handler also invokes a throttled GC sweep (≤ once per 180 s via `last_run_gc`) that prunes entries whose stored `pid` no longer exists (`kill(pid, 0)` returning ESRCH). `artifact-write` is unchanged — it parses a different payload shape (`tool_input.file_path`) and does not participate in `_agents` writes; it emits `{"additionalContext":"Bookkeeping: ..."}` on stdout.
+The three session-scoped hooks (`session-start`, `stop`, `user-prompt`) read a JSON payload on stdin with at least a `session_id` field (UUID) and optionally `transcript_path`. Malformed JSON or a missing `session_id` is silently skipped. Each handler also invokes a throttled GC sweep (≤ once per 180 s via `last_run_gc`) that prunes entries whose stored `pid` no longer exists (`kill(pid, 0)` returning ESRCH). `artifact-write` is unchanged — it parses a different payload shape (`tool_input.file_path`) and does not participate in `_agents` writes; it emits `{"additionalContext":"Bookkeeping: ..."}` on stdout. After bookkeeping it **auto-stages the change's `.status.yaml` and `.history.jsonl`** (best-effort `git add`, errors ignored) so hook-driven bookkeeping writes never block subsequent git operations.
 
 `sync` output: `Created`, `Updated`, or `.claude/settings.local.json hooks: OK` on stdout; on failure (no fab root, unwritable settings) a `hook sync: {error}` line on stderr — exit code stays 0 either way.
 

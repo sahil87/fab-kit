@@ -74,8 +74,8 @@ User invokes /fab-continue [change-name] [stage]
 │
 │  ┌─────────────────────────────────────────────────┐
 │  │ REVIEW STAGE                                    │
-│  │  (delegates to _review.md for sub-agent dispatch│
-│  │   and findings merge; orchestration below)      │
+│  │  (executes _review.md's Shared Review Dispatch  │
+│  │   end-to-end; orchestration below)              │
 │  │                                                 │
 │  │  ┌──────────────────────────────────────────┐   │
 │  │  │ SUB-AGENT (inward): Requirements/Accept. │   │
@@ -118,7 +118,8 @@ User invokes /fab-continue [change-name] [stage]
 │  │    (with description: frontmatter; merge        │
 │  │     without duplication — existing entries      │
 │  │     for this change are updated in place)       │
-│  │  Bash: fab memory-index (regenerates indexes)   │
+│  │  Bash: fab memory-index — regenerates the root  │
+│  │  (domains-only), domain, and sub-domain indexes │
 │  │  Bash: fab status finish <change> hydrate       │
 │  └─────────────────────────────────────────────────┘
 │
@@ -149,19 +150,19 @@ User invokes /fab-continue [change-name] [stage]
 | Tool | Purpose |
 |------|---------|
 | Read | Preamble, templates, artifacts, source files, memory |
-| Write | Spec, plan, memory files |
+| Write | Plan (`plan.md`), memory files |
 | Edit | Plan (mark `## Tasks` and `## Acceptance` items [x]), memory files |
-| Bash | All `fab status` transitions, `fab score`, `fab preflight`, test execution |
+| Bash | All `fab status` transitions, `fab preflight`, `fab memory-index`, test execution — no `fab score` (no scoring at any stage `/fab-continue` runs; intake scoring belongs to `/fab-new`/`/fab-clarify`) |
 | Agent | Review validation sub-agent (general-purpose) |
 
 ### Sub-agents
 
 | Agent | Stage | Purpose |
 |-------|-------|---------|
-| Inward review validation (`_review.md`) | review | Spec + plan.md validation (`## Tasks` + `## Acceptance`) with test execution — dispatched in parallel with outward |
+| Inward review validation (`_review.md`) | review | `plan.md` validation (`## Requirements` + `## Tasks` + `## Acceptance`) with test execution — dispatched in parallel with outward |
 | Outward diff review (`_review.md`) | review | Holistic diff review with full repo access via Codex→Claude cascade — dispatched in parallel with inward |
 
-> Review Behavior is delegated to `_review.md` (single source of truth for sub-agent dispatch and findings merge). `fab-continue.md` retains the Verdict section (pass/fail state transitions, rework options).
+> Review Behavior reads `.claude/skills/_review/SKILL.md` (if not already loaded) and executes its **Shared Review Dispatch** end-to-end (Preconditions → Inward + Outward Sub-Agent Dispatch → Parallel Dispatch → Findings Merge) — `_review.md` is the single source of truth for sub-agent dispatch and findings merge. `fab-continue.md` retains the Verdict section (pass/fail state transitions, rework options).
 
 > **Subagent rule** (f006): when the Apply/Review/Hydrate behavior sections are dispatched as subagents by `/fab-ff`/`/fab-fff`, the subagent skips the finish step / §Verdict and runs no `fab status` command — the orchestrator owns all status transitions. The ship dispatch row likewise only runs `finish <change> ship` if the stage is still `active` after `/git-pr` returns (git-pr finishes ship internally), and the review-pr row's Pass and Fail branches both carry the same only-if-still-active guard (git-pr-review's Step 6 runs its own finish/fail).
 

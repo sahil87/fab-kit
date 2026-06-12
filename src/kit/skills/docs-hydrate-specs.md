@@ -70,11 +70,15 @@ For each gap:
 Add this to `{spec_file}`? (yes / no / done)
 ```
 
+**No-target branch**: when no existing spec file is a suitable home for the gap, the Target line proposes a **new** spec file instead — `**Target**: docs/specs/{kebab-topic}.md (new file)` — and the preview shows the full proposed file content, matching sibling specs' tone. The same per-gap confirmation gates it; specs stay human-curated (Constitution VI).
+
 ### Step 6: Interactive Confirmation
 
-- **yes** → insert at specified location (preserve existing content)
+The handler accepts exactly the tokens Step 5 offers (plus one alias):
+
+- **yes** → insert at the specified location (preserve existing content); for a no-target gap, create the proposed new spec file and add its row to `docs/specs/index.md` (the one index edit this skill makes)
 - **no** → skip, show next
-- **done** / **skip rest** → proceed to summary
+- **done** (alias: **skip rest**) → proceed to summary
 
 ### Step 7: Summary
 

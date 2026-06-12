@@ -12,13 +12,13 @@ Condense a skill (or all skills) to their core — remove verbosity, redundant e
 ## Arguments
 
 - **`<skill-name>`** *(optional)* — name of a single skill to optimize (e.g., `fab-new`, `fab-continue`). Resolves to `src/kit/skills/{skill-name}.md`.
-- If omitted, process **all** `.md` files in `src/kit/skills/` except the `_*.md` partials (`_preamble.md`, `_generation.md`, `_review.md`, `_cli-fab.md`, `_cli-external.md`, `_srad.md` — shared helpers, not skills).
+- If omitted, process **all** `.md` files in `src/kit/skills/` except the `_*.md` partials. The rule, not a list: **every `_*.md` file is a shared partial — reference context, never an optimization target.**
 
 ---
 
 ## Pre-flight
 
-1. Read the `_*.md` partials (deployed to `.claude/skills/`) — `_preamble`, `_generation`, `_review`, `_cli-fab`, `_cli-external`, `_srad`. They are the shared reference context, never optimization targets. Anything fully defined in a partial does NOT need re-explaining inside individual skills.
+1. Read the `_*.md` partials (deployed to `.claude/skills/`) — derive the set by globbing `src/kit/skills/_*.md`, never from a hardcoded list (it drifts as partials are added). They are the shared reference context, never optimization targets. Anything fully defined in a partial does NOT need re-explaining inside individual skills.
 2. If a specific skill was requested, verify the file exists. If not, STOP with: `Skill not found: src/kit/skills/{skill-name}.md`
 
 ---
@@ -83,5 +83,5 @@ For each skill file, read it fully and evaluate against these bloat signals:
 - DO NOT change the logical behavior of any skill
 - DO NOT remove error handling or edge case coverage
 - DO NOT merge skills or move content between skills (beyond referencing `_preamble.md`)
-- DO NOT touch any `_*.md` partial (`_preamble.md`, `_generation.md`, `_review.md`, `_cli-fab.md`, `_cli-external.md`, `_srad.md`) — they're the reference, not the target
+- DO NOT touch any `_*.md` partial — every `_*.md` file is a shared partial: the reference, not the target
 - If a skill is already under 80 lines, report it as "Already lean — skipped" and move on

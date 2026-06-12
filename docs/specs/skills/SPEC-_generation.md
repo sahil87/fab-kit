@@ -2,7 +2,7 @@
 
 ## Summary
 
-Shared artifact generation procedures used by five skills, split across two disjoint consumer groups: `/fab-new` and `/fab-draft` follow the **Intake Generation Procedure**; `/fab-continue`, `/fab-ff`, and `/fab-fff` follow the **Plan Generation Procedure** (invoked at apply entry, before any task executes). Each skill references these procedures instead of inlining them, so generation behavior is authoritative in one location. Orchestration (stage guards, question handling, resumability) stays in each consuming skill's own file.
+Shared artifact generation procedures used by five skills across two consumer groups: `/fab-new`, `/fab-draft`, and `/fab-continue` (its intake-`active` regeneration row) follow the **Intake Generation Procedure**; `/fab-continue`, `/fab-ff`, and `/fab-fff` follow the **Plan Generation Procedure** (invoked at apply entry, before any task executes) — `/fab-continue` belongs to both groups. Each skill references these procedures instead of inlining them, so generation behavior is authoritative in one location. Orchestration (stage guards, question handling, design decisions, resumability) stays in each consuming skill's own file.
 
 This is an internal partial (`user-invocable: false`) — never invoked directly. Skills load it via `helpers: [_generation]` frontmatter.
 
@@ -11,7 +11,8 @@ This is an internal partial (`user-invocable: false`) — never invoked directly
 ```
 Consumer skill reads _generation.md (via helpers: declaration)
 │
-├─ Intake Generation Procedure (fab-new, fab-draft)
+├─ Intake Generation Procedure (fab-new, fab-draft,
+│                                fab-continue's intake regeneration)
 │  ├─ Read: $(fab kit-path)/templates/intake.md
 │  ├─ Fill metadata ({CHANGE_NAME}, {YYMMDD-XXXX-slug}, {DATE})
 │  ├─ Write every section substantively (Origin, Why, What Changes,

@@ -71,10 +71,10 @@ Anything else — greeting-only, chatty, literally empty — is **empty/thin**. 
 Enumerate candidate intakes:
 
 ```bash
-ls -d fab/changes/*/intake.md 2>/dev/null | grep -v archive/ | sed 's|fab/changes/||;s|/intake.md||' | sort -t- -k1,1r
+ls -d fab/changes/*/intake.md 2>/dev/null | grep -v archive/ | sed 's|fab/changes/||;s|/intake.md||' | sort -r
 ```
 
-The pipeline lists change folders with intakes, excludes archived changes, extracts folder names, and sorts by `YYMMDD` date prefix in descending order. Retain the full list — the date-descending sort is used only for tiebreaks in Step 5, not to pre-pick a single candidate.
+The pipeline lists change folders with intakes, excludes archived changes, extracts folder names, and sorts the full folder names in descending order — the `YYMMDD` prefix dominates, and the `XXXX-slug` tail makes the order among same-day changes deterministic. Retain the full list — the date-descending sort is used only for tiebreaks in Step 5, not to pre-pick a single candidate.
 
 ### Step 5: Dispatch Decision
 
@@ -107,8 +107,8 @@ For each candidate intake, score its topical relevance to the current conversati
 1. Read the candidate's `intake.md`: title heading, `## Origin`, `## Why`, and `## What Changes` sections (at minimum). Do not rely on the folder slug alone — slugs are terse and routinely misrepresent content.
 2. Judge topical overlap between each intake and the conversation. "Clearly relevant" requires shared topic, overlapping terminology, and consistent scope. Partial, vague, or tangential overlap MUST NOT qualify.
 3. Classify each candidate as **clearly relevant** or **not clearly relevant**.
-4. If ≥1 candidate is clearly relevant: select the best match. If multiple candidates are equally clearly relevant, use the date-descending prefix tiebreak (`sort -t- -k1,1r | head -1`).
-5. If no candidate is clearly relevant: fall through to `/fab-new`, and surface every scanned draft as a bypass note (see Output Format).
+4. If ≥1 candidate is clearly relevant: select the best match. If multiple candidates are equally clearly relevant, use the date-descending full-folder-name tiebreak (`sort -r | head -1` — deterministic even among same-day changes).
+5. If no candidate is clearly relevant: fall through to `/fab-new`, and surface every scanned draft as a bypass note (see Bypass Notes).
 
 ### Asymmetric-Bias Rule
 

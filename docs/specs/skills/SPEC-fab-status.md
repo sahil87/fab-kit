@@ -10,7 +10,7 @@ Read-only status display. Shows change name, branch, stage progress (out of 6 to
 User invokes /fab-status [change-name]
 │
 ├─ Bash: fab preflight [change-name]
-├─ Read: src/kit/VERSION, fab/.kit-migration-version
+├─ Read: kit VERSION (via fab kit-path), fab/.kit-migration-version (if exists)
 ├─ Bash: git branch --show-current
 │
 └─ Render status display

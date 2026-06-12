@@ -15,7 +15,7 @@
 | **Constitution** | The file `fab/project/constitution.md`. Defines immutable project principles using MUST/SHOULD/MUST NOT keywords. Loaded as context by most skills; violations are flagged during review. |
 | **Domain** | A topic area in `docs/memory/` (e.g., `auth/`, `payments/`). Each domain has its own `index.md` and one or more memory files. |
 | **Hydration** | The process of integrating knowledge into `docs/memory/`. Two modes: (1) **pipeline hydration** — merging change artifacts (`plan.md` `## Requirements`) into memory files via `/fab-continue` (hydrate stage) on change completion, and (2) **source hydration** — ingesting external documentation or generating from codebase analysis via `/docs-hydrate-memory` (supports both ingest and generate modes). |
-| **Kit** | The `src/kit/` directory containing the Fab engine — templates, skill definitions, and scripts. Replaceable upstream; everything outside `.kit/` is project-specific. |
+| **Kit** | The Fab engine content — templates, skill definitions, and migrations. Distributed to the system cache at `~/.fab-kit/versions/<version>/kit/` (managed by the `fab` binary); canonical source is `src/kit/` in the fab-kit dev repo. User projects contain only deployed copies — everything outside the kit is project-specific. |
 | **Pointer file** | `.fab-status.yaml` — a symlink at repo root pointing to the active change's `fab/changes/{name}/.status.yaml`. Read by all skills to resolve the working context. Removed by `/fab-archive`. |
 | **Skill** | A markdown prompt file in `src/kit/skills/` that defines behavior for an AI agent. Skills are the primary interface to Fab — invoked as `/fab-*` commands. |
 | **Design specs** | Human-curated, pre-implementation design documents in `docs/specs/`. Capture architectural intent, design rationale, and the "why" behind the system. Not managed by Fab tooling — organized however makes sense for the project. Contrast with **memory files** (post-implementation, AI-maintained via hydration). |
@@ -42,11 +42,11 @@
 
 | Term | Definition |
 |------|-----------|
-| `/fab-setup` | Bootstraps the `fab/` structure in a project. Generates `config.yaml`, `constitution.md`, `memory/`, skill symlinks. Provides subcommands for config, constitution, and migrations. Idempotent. |
+| `/fab-setup` | Bootstraps the `fab/` structure in a project. Generates `config.yaml`, `constitution.md`, `memory/`, and skill deployments (via `fab sync`). Provides subcommands for config, constitution, and migrations. Idempotent. |
 | `/docs-hydrate-memory` | Ingests external documentation (Notion, Linear, local files) into `docs/memory/` with domain mapping. Dual-mode: ingest from sources or generate from codebase analysis. |
 | `/fab-new` | Starts a new change from a description. Creates the change folder, `.status.yaml`, and `intake.md`. Adaptive SRAD-driven questioning with gap analysis and conversational mode. |
 | `/fab-continue` | Advances to the next stage, or resets to a given stage and regenerates from there. The step-by-step progression skill. |
-| `/fab-ff` | Fast-forward — confidence-gated pipeline from intake through hydrate. Auto-clarify between planning stages, autonomous rework with bounded retry. Resumable. |
+| `/fab-ff` | Fast-forward — confidence-gated pipeline from intake through hydrate. Single intake gate, no clarify steps inside the bracket (`/fab-clarify` is the user-invoked escape valve before the gate); sub-agent review with autonomous rework and bounded retry. Resumable. |
 | `/fab-fff` | Fast-forward-further — confidence-gated pipeline from intake through review-pr (extends ff through ship and PR review). Same gates and behavior as ff, wider scope. Resumable. |
 | `/fab-clarify` | Deepens and refines the **intake** artifact (intake-only, 1.10.0) without advancing. Resolves `[NEEDS CLARIFICATION]` markers and `<!-- assumed: ... -->` comments, then recomputes the intake score. Idempotent and non-advancing. |
 | `/fab-continue` (apply) | Co-generates `plan.md` (`## Requirements` from `intake.md` + `## Tasks` + `## Acceptance`) at the entry sub-step and executes the unchecked tasks under `## Tasks` (main sub-step). Resumable — re-invoking skips plan generation when `plan.md` already exists and picks up from the first unchecked task. |
@@ -71,12 +71,12 @@
 | `plan.md` | Auto-generated apply-stage artifact. Contains both `## Tasks` (consumed by apply) and `## Acceptance` (consumed by review) sections. Replaces the legacy `tasks.md` + `checklist.md` pair. Section headings are the parser contract; phase/category subheadings under each are presentational. |
 | `.fab-status.yaml` | Symlink at repo root pointing to the active change's `.status.yaml`. Read by every skill; created by `/fab-switch`; removed by `/fab-archive`. |
 | `fab/changes/` | Directory holding all active change folders. Completed changes are moved to `fab/changes/archive/`. |
-| `fab/changes/archive/` | Directory holding completed change folders. Folder names are unchanged (date is already embedded). |
+| `fab/changes/archive/` | Directory holding completed change folders, date-bucketed as `archive/{yyyy}/{mm}/{name}/` with a top-level `index.md`. Folder names are unchanged (no rename on archive). |
 | `docs/memory/` | Memory files. Organized by domain with index files. The authoritative post-implementation source of truth. |
 | `docs/specs/` | Human-curated pre-implementation design specifications. Flat structure, not managed by Fab tooling. |
-| `src/kit/` | The Fab engine directory — templates, skills, scripts. Replaceable upstream without affecting project-specific files. |
+| `src/kit/` | The canonical kit source in the fab-kit dev repo — templates, skills, migrations, scaffold. Distributed to user projects via the system cache + `fab sync` (never copied into the repo). |
 | `$(fab kit-path)/templates/` | Markdown scaffolds that skills fill with concrete content. Includes templates for all artifact types. |
-| `src/kit/scripts/` | Shell utilities — `fab-sync.sh` (workspace sync orchestrator), `fab-help.sh` (skill catalog), `fab-upgrade.sh` (kit updater), plus `lib/` for internal scripts (`resolve.sh`, `statusman.sh`, `logman.sh`, `changeman.sh`, `calc-score.sh`, `preflight.sh`). |
+| `fab` CLI | The Go binary surface that replaced the legacy kit shell scripts — `fab preflight`, `fab status`, `fab change`, `fab score`, `fab log`, `fab sync`, `fab batch`, and more. See `_cli-fab.md` for the full reference. |
 
 ---
 
@@ -112,11 +112,11 @@
 |------|-----------|
 | **[AUTO-MODE]** | Prefix signaling autonomous mode when one skill invokes another internally — no user interaction, machine-readable result. Protocol defined in `fab-clarify.md` § Skill Invocation Protocol (moved from `_preamble.md` in 260611-zc9m); no skill currently invokes another with it. |
 | **Context loading** | The convention that every skill loads relevant project files (config, constitution, memory index, change artifacts) before generating output. Defined in `_preamble.md`. |
-| **Fast-forward** | Confidence-gated pipeline from intake through hydrate (`/fab-ff`). Proceeds autonomously with auto-clarify and rework loop. |
+| **Fast-forward** | Confidence-gated pipeline from intake through hydrate (`/fab-ff`). Proceeds autonomously once the single intake gate passes — no clarify steps inside the bracket; ambiguity is resolved inline as graded SRAD assumptions, with a sub-agent review + auto-rework loop. |
 | **Fast-forward-further** | Confidence-gated pipeline from intake through review-pr (`/fab-fff`). Same as fast-forward but extends through ship and PR review. |
 | **Gap analysis** | Evaluation performed by `/fab-new` before creating an intake. Checks whether the change is already covered by existing mechanisms. |
 | **Next steps convention** | The rule that every skill must end output with a `Next:` line suggesting follow-up commands. Keeps users oriented in the workflow. |
-| **Preflight** | Validation performed by `_preflight.sh` before skill execution. Checks project initialization, active change existence, and status file integrity. |
+| **Preflight** | Validation performed by `fab preflight` before skill execution. Checks project initialization, active change resolution, and status file existence; outputs the change context as YAML. |
 | **Resumability** | The property that `/fab-continue`, `/fab-ff`, and `/fab-fff` can be interrupted and re-invoked, picking up from the first incomplete item. The markdown checkboxes in `plan.md` `## Tasks` are the progress state; plan generation is skipped when `plan.md` already exists. |
 | **Rework loop** | The review-to-apply feedback cycle. `/fab-continue` (review) can loop back to apply (fix code), revise the plan's `## Tasks`/`## Acceptance`, or revise the plan's `## Requirements` (for a fundamentally wrong intake, run `/fab-continue intake` then `/fab-clarify` first, deleting `plan.md` to force requirements regeneration). |
 
@@ -130,8 +130,7 @@
 | **RFC 2119 keywords** | MUST/SHALL (mandatory), SHOULD (recommended), MAY (optional). Used in the plan's `## Requirements`, memory, and constitution to express requirement strength. |
 | **GIVEN/WHEN/THEN** | Scenario format used in `plan.md` `## Requirements` and memory files. Structured as precondition, action, expected outcome. |
 | **[NEEDS CLARIFICATION]** | Inline marker for unresolved ambiguities — an **intake-only** construct (1.10.0). Resolved by `/fab-clarify`. Never appears in `plan.md`. |
-| **[BLOCKING]** | Priority marker for open questions in intakes. Must resolve before the intake gate passes. Max 3 per intake. |
-| **[DEFERRED]** | Priority marker for open questions in intakes. Can be deferred but still informs apply-time SRAD assumptions. |
+| **[BLOCKING]** / **[DEFERRED]** | Legacy priority markers for intake open questions — removed from the intake template in 1.10.0 (SRAD grading handles prioritization; open questions are now listed unlabeled). May still appear in archived intakes. |
 | **[P]** | Task marker in `plan.md` `## Tasks` indicating the task is parallelizable — can execute alongside other `[P]` tasks in the same phase. |
 | **A-###** | Acceptance item ID in `plan.md` `## Acceptance` (e.g., A-001). Sequential, three-digit, zero-padded. Verified by `/fab-continue` (review). |
 | **CHK-###** | Legacy acceptance item ID preserved verbatim by the migration for in-flight changes that pre-date `plan.md`. New plans use `A-###`. |

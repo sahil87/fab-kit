@@ -2,9 +2,9 @@
 
 ## Summary
 
-Shared review dispatch logic invoked by `/fab-continue`, `/fab-ff`, and `/fab-fff` at the review stage. Defines the inward sub-agent (validates implementation against spec/plan with eight validation checks, including the parsimony pass and deletion-candidate prompt) and the outward sub-agent (Codex→Claude cascade with full repo access for holistic diff review). Both sub-agents are dispatched in parallel; their findings are merged into a single prioritized set with three severity tiers.
+Shared review dispatch logic invoked by `/fab-continue`, `/fab-ff`, and `/fab-fff` at the review stage. Defines the inward sub-agent (validates implementation against `plan.md`'s `## Requirements`, `## Tasks`, and `## Acceptance` with eight validation checks, including the parsimony pass and deletion-candidate prompt) and the outward sub-agent (Codex→Claude cascade with full repo access for holistic diff review). Both sub-agents are dispatched in parallel; their findings are merged into a single prioritized set with three severity tiers.
 
-This is an internal partial (`user-invocable: false`) — it is never invoked directly. Skills reference it via `helpers: [_review]` frontmatter and the opening instruction in their review-stage step.
+This is an internal partial (`user-invocable: false`) — it is never invoked directly. Skills reference it via `helpers:` frontmatter (`/fab-ff`, `/fab-fff`) or a stage-conditional in-body read at review entry (`/fab-continue` — deliberately absent from its frontmatter list, per `_preamble.md` § Skill Helper Declaration).
 
 The rework loop is NOT defined here — the file's trailing note points at the orchestrators: `fab-continue.md`'s Verdict section for manual rework, and `_pipeline.md` § Auto-Rework Loop for `/fab-ff`/`/fab-fff` (pointer corrected in 260611-szxd; it previously cited "fab-ff.md/fab-fff.md Step 3").
 
@@ -110,7 +110,7 @@ Output appended (or replaced on rework) as a top-level `## Deletion Candidates` 
 
 ### Sub-agents
 
-- **Inward Sub-Agent** (`subagent_type: "general-purpose"`) — validates implementation against spec/plan; emits structured three-tier findings.
+- **Inward Sub-Agent** (`subagent_type: "general-purpose"`) — validates implementation against `plan.md`'s `## Requirements`, `## Tasks`, and `## Acceptance`; emits structured three-tier findings.
 - **Outward Sub-Agent** (`subagent_type: "general-purpose"`) — Codex→Claude cascade for holistic diff review; emits structured three-tier findings.
 
 ### Bookkeeping commands (hook candidates)

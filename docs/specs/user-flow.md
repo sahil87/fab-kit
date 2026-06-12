@@ -81,7 +81,7 @@ flowchart TD
 
 ## 3. Change State Diagram
 
-The complete state machine showing how a change progresses through all stages. Each stage can be in one of five states: `pending`, `active`, `ready`, `done`, or `failed` (review only). The diagram shows normal forward flow, shortcuts, rework paths, and the commands that cause each transition.
+The complete state machine showing how a change progresses through all stages. Each stage can be in one of six states: `pending`, `active`, `ready`, `done`, `skipped`, or `failed` (review and review-pr only). The diagram shows normal forward flow, shortcuts, rework paths, and the commands that cause each transition.
 
 ```mermaid
 stateDiagram-v2
@@ -153,7 +153,7 @@ stateDiagram-v2
 
 ## 4. Per-Stage State Machine
 
-Section 3 shows which *stage* a change is at. This section shows how each individual stage transitions between *states*. Every stage tracks its own progress as one of: `pending`, `active`, `ready`, `done` (and `failed` for review). The events that drive transitions are issued by `statusman.sh`.
+Section 3 shows which *stage* a change is at. This section shows how each individual stage transitions between *states*. Every stage tracks its own progress as one of: `pending`, `active`, `ready`, `done`, `skipped` (and `failed` for review and review-pr; `ready` is not an allowed state for ship or review-pr — `advance` is rejected there). The events that drive transitions are issued by `fab status`.
 
 ```mermaid
 stateDiagram-v2
@@ -180,7 +180,8 @@ stateDiagram-v2
     skipped --> [*]
 
     note right of failed
-        ¹ Review stage only
+        ¹ Review and review-pr
+           stages only
     end note
 
     note right of skipped

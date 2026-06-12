@@ -1,5 +1,5 @@
 ---
-description: "`/docs-hydrate-memory` generate mode — codebase scanning, gap detection, interactive scoping, memory file generation"
+description: "`/docs-hydrate-memory` generate mode — codebase scanning, gap detection, interactive scoping, memory file generation + placement rules (target path, domain/sub-domain index stubs, shape bounds — d9rs)"
 ---
 # Hydrate: Generate Mode
 
@@ -70,12 +70,20 @@ If only 1-3 gaps are found, the skill MAY skip the interactive prompt and procee
 
 For each selected gap, the skill SHALL generate a memory file in `docs/memory/{domain}/{topic}.md` following the memory file format: a leading `description:` frontmatter line (a curated one-line summary, consumed by the generated domain index) above the `# H1`, then Overview, Requirements with RFC 2119 keywords, Design Decisions, and Changelog. Generated files SHALL synthesize one file per gap (not per source file). When behavior is ambiguous, files SHOULD include `[INFERRED]` markers inline with explanations.
 
+### Placement Rules (d9rs)
+
+Before d9rs, placement rules (target path, domain creation, index stubs, shape bounds) were defined only under ingest mode; generate mode now states them explicitly, mirroring ingest Step 3:
+
+- **Target path**: `docs/memory/{domain}/{topic}.md` — or `docs/memory/{domain}/{sub-domain}/{topic}.md` when the topic belongs to an existing sub-domain
+- **Domain creation**: create the domain folder if needed, plus its `description:`-only `index.md` **stub** — the sub-domain stub likewise — **before** the index-regeneration step runs (see [hydrate](hydrate.md) § Index Ownership Model)
+- **Shape bounds** (same SHOULD guidance as ingest): ~5–12 topic files per folder, max depth 3, introduce a sub-domain only for a cohesive ≥8-file cluster; `_shared/` and `_unsorted/` are width-exempt
+
 ### Index Maintenance
 
 Generate mode SHALL reuse the same mechanical index regeneration as ingest mode — `fab memory-index`, never hand-edited rows:
 
 1. Author the `description:` frontmatter on every generated topic file (the generated index reads its row Description from this field).
-2. Run `fab memory-index` once after generation. It regenerates the root `docs/memory/index.md` (domains-only — `| Domain | Description |`) and every `docs/memory/{domain}/index.md` (file rows — `| File | Description | Last Updated |`) deterministically from folder contents + frontmatter + `git log` dates.
+2. Run `fab memory-index` once after generation. It regenerates the root `docs/memory/index.md` (domains-only — `| Domain | Description |`), every `docs/memory/{domain}/index.md` (file rows — `| File | Description | Last Updated |`), and every sub-domain `index.md` deterministically from folder contents + frontmatter + `git log` dates.
 3. The command is the single writer; its output is byte-stable, all links are relative, and entries are derived from disk (so a file present on disk is always listed — there is no manual "do not remove entries" rule to forget).
 
 ### Idempotent Generation
@@ -129,6 +137,7 @@ Generate mode SHALL be safe to re-run:
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260612-d9rs-docs-reality-sweep | 2026-06-12 | **Generate mode gains explicit placement rules** (skills-audit batch 5/5, Theme 8): target path (`{domain}/{topic}.md` or sub-domained), domain-folder creation with a `description:`-only index stub created before index regen (sub-domain stub likewise — the stub-before-index pattern of the Index Ownership model in [hydrate](hydrate.md)), and the same shape bounds as ingest (~5–12/folder, depth ≤3, ≥8-file cluster for a sub-domain, `_shared`/`_unsorted` exempt). Previously these rules existed only under ingest mode. Index Maintenance step 2 now names the sub-domain index tier. |
 | 260607-tciy-memory-tree-shape-rebalance | 2026-06-07 | Index Maintenance rewired: generate mode now runs the mechanical `fab memory-index` (root = domains-only; domain rows = `\| File \| Description \| Last Updated \|`) once after generation instead of hand-updating `docs/memory/index.md` "with new domains and file lists". Structured Memory Output now requires a leading `description:` frontmatter line on each generated file (consumed by the generated domain index). |
 | 260207-sawf-fix-command-format | 2026-02-07 | Fixed command references from `/fab-xxx` colon format to `/fab-xxx` hyphen format |
 | 260207-k5od-hydrate-generate-mode | 2026-02-07 | Created — generate mode requirements and design decisions for `/docs-hydrate-memory` |

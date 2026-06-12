@@ -20,7 +20,7 @@ This is also the **memory rebalancer**: when a domain folder grows too wide or t
 | Folder width | **~12 topic files (soft upper)** | Over this, propose splitting the folder into cohesive sub-domains |
 | Sub-domain worth | **≥8 cohesive files** | A sub-domain earns its own `index.md` only once a real cluster this size exists — don't pre-build hierarchy |
 | Folder floor | **~5 files (soft lower)** | Trivially-small sibling folders are split candidates for *merging*, not keeping |
-| Tree depth | **≤3** (`{domain}/{sub-domain}/{topic}.md`) | Deeper than this, propose flattening |
+| Tree depth | **≤3 path segments** under `docs/memory/` (`{domain}/{sub-domain}/{topic}.md`) — equivalently, **folder depth ≤2** | Deeper than this, propose flattening |
 
 Bounds are **soft SHOULD guidance**, not hard gates — a folder at 13 files is fine if the files don't cluster. Split *reactively* when a genuine cluster emerges, never prophylactically.
 
@@ -53,7 +53,7 @@ Loads `docs/memory/index.md`, all domain (and sub-domain) `index.md` files, and 
 
 ### Step 1: Read All Memory Files
 
-Read `docs/memory/index.md` and every domain directory (recursing into sub-domain folders). For each memory file: extract `##`/`###` headings, brief section summaries, and approximate line count. For each folder, record its **topic-file count** (excluding `index.md`) and its **depth** relative to `docs/memory/`. Exclude `_shared/` and `_unsorted/` from shape measurement.
+Read `docs/memory/index.md` and every domain directory (recursing into sub-domain folders). For each memory file: extract `##`/`###` headings, brief section summaries, and approximate line count. For each folder, record its **topic-file count** (excluding `index.md`) and its **depth** in folder levels relative to `docs/memory/` (a domain is depth 1, a sub-domain depth 2). Exclude `_shared/` and `_unsorted/` from shape measurement.
 
 ### Step 2: Identify Themes (up to 10)
 
@@ -81,7 +81,7 @@ Then emit an explicit **Shape Report** flagging every folder that violates the I
 | <domain>/<sub> | 3 | 2 | ⚠ under floor (~5) | merge into sibling |
 ```
 
-A folder is `✓ ok`, `⚠ over width`, `⚠ over depth`, or `⚠ under floor`. Reserved domains (`_shared`, `_unsorted`) are listed as `— exempt`. If every folder is within bounds, say so and skip straight to "structure is fine".
+A folder is `✓ ok`, `⚠ over width`, `⚠ over depth`, or `⚠ under floor`. The `Depth` column counts folder levels (domain = 1, sub-domain = 2); since the ≤3 bound counts the *topic file's* path segments, `⚠ over depth` fires for any folder deeper than 2 — its files sit at ≥4 segments. Reserved domains (`_shared`, `_unsorted`) are listed as `— exempt`. If every folder is within bounds, say so and skip straight to "structure is fine".
 
 ### Step 4: Propose Reorganization
 
@@ -122,9 +122,9 @@ On approval, for each approved migration:
 
 1. **Move files / sections.** Execute section moves (`move-section`) and file moves (`split-domain` / `merge-domain` / `flatten` / `move`) to their new paths. Use `git mv` semantics where possible to preserve history; a plain move is acceptable when `git mv` is unavailable.
 2. **Rewrite relative links** broken by the move — every link in the proposal's **Link Impact** note, in both directions (links *from* moved files and links *to* moved files). Edit each link to its computed new relative target so no cross-file reference dangles.
-3. **Add `description:` frontmatter** to any new file or new sub-domain `index.md` a split creates — the generated index reads it. Copy or synthesize it from the source file's existing description; for a new sub-domain, write a one-line `description:` summarizing the cluster.
-4. **Regenerate indexes**: run `fab memory-index`. It rewrites the root, every domain `index.md`, AND every sub-domain `index.md` from folder contents (including the new sub-domain reference rows in the parent). Do **not** hand-edit index files — they are generated.
-5. **Verify (no-dangling-link guard).** Confirm no headings were lost AND no broken relative link remains. **A remaining dangling relative link is a hard block** — do NOT finalize that migration until every broken link is rewritten. Report any dangling link found and the file it is in.
+3. **Author `description:` frontmatter** — the single hand-curated index field. For any new topic file a split creates, add a `description:` frontmatter line (copy or synthesize from the source file's existing description). For each **new sub-domain**, create a **stub `index.md` BEFORE `fab memory-index` runs (step 4)**: the stub is only the `description:` frontmatter block (a one-liner summarizing the cluster), nothing else — the same stub-before-index pattern as `/docs-hydrate-memory`. Step 4's regeneration fills in the generated body and round-trips the description.
+4. **Regenerate indexes**: run `fab memory-index`. It rewrites the root, every domain `index.md`, AND every sub-domain `index.md` from folder contents (including the new sub-domain reference rows in the parent). Generated index content (file rows, "Last Updated" cells) is never hand-edited — the `description:` frontmatter authored in step 3 (including the sub-domain stubs) is the only hand-curated part of any index file.
+5. **Verify (no-dangling-link guard).** Confirm no headings were lost AND no broken relative link remains. **A remaining dangling relative link is a hard block** — do NOT finalize that migration until every broken link is rewritten. Report any dangling link found and the file it is in. **Abort escape**: if a dangling link cannot be rewritten (its target is genuinely gone, or the correct target is ambiguous), abort that migration instead of blocking indefinitely — roll back its moves and link rewrites (restore original paths), re-run `fab memory-index`, report the rollback, and continue with the remaining approved migrations.
 
 Present a change summary after all approved migrations are finalized.
 
@@ -158,7 +158,7 @@ If no changes needed: `Current structure is well-organized — no reorganization
 | File write/move fails during apply | Report error, roll back that migration, continue |
 | Content verification fails | Warn, show missing heading, ask to proceed |
 | `fab memory-index` unavailable (older binary) | Warn; fall back to hand-updating affected `index.md` files (legacy path) and tell the user to upgrade `fab` |
-| Broken relative link remains after a move | **Hard block** — report the dangling link; do not finalize that migration until it is rewritten |
+| Broken relative link remains after a move | **Hard block** — report the dangling link; do not finalize that migration until it is rewritten. If it cannot be rewritten, take the abort escape defined in Step 5's Verify item (apply item 5): roll back that migration, regenerate indexes, continue with the rest |
 
 ---
 

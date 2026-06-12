@@ -31,7 +31,7 @@ metadata:
 |------|---------|
 | `--non-interactive` | Required for operator use — suppresses prompts |
 | `--worktree-name <name>` | Override the auto-generated worktree directory name |
-| `--reuse` | Reuse an existing worktree if one matches. Useful for autopilot respawns |
+| `--reuse` | Reuse an existing worktree if one matches — requires `--worktree-name <name>` (the match key). Useful for autopilot respawns |
 | `--base <ref>` | Branch from a specific ref instead of the default. Used for sequenced autopilot (branch from prior change) |
 | `[branch]` | Positional — the git branch to create/checkout in the worktree |
 

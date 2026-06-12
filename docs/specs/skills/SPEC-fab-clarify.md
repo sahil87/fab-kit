@@ -9,7 +9,7 @@ Refines the intake artifact without advancing. Two modes: Suggest (interactive, 
 ## Flow
 
 ```
-User invokes /fab-clarify [change-name] [target-artifact]
+User invokes /fab-clarify [change-name]
   — OR —
 [AUTO-MODE] invocation (defined in this skill's § Skill Invocation Protocol; no current orchestrator uses it)
 │
@@ -21,7 +21,7 @@ User invokes /fab-clarify [change-name] [target-artifact]
 ├─── SUGGEST MODE (user invocation) ────────────────────
 │  │
 │  ├─ Step 1: Read target artifact
-│  │  └─ Read: fab/changes/{name}/{artifact}.md
+│  │  └─ Read: fab/changes/{name}/intake.md
 │  │
 │  ├─ Step 1.5: Taxonomy Scan
 │  │  └─ (agent reasoning — scan for gaps, markers)
@@ -34,29 +34,31 @@ User invokes /fab-clarify [change-name] [target-artifact]
 │  │  │ tentative + unresolved; evaluated before any zero-gaps exit —
 │  │  │ not-triggered + empty queue → "artifact looks solid" stop)
 │  │  └─ Display Confident assumptions → user responds
-│  │  └─ Edit: {artifact}.md (S → 95, then recompute the composite
+│  │  └─ Edit: intake.md (S → 95, then recompute the composite
 │  │     per _srad § SRAD Scoring and grade by its half-open
 │  │     thresholds — not fiat-Certain; no weights/threshold numbers
 │  │     restated in fab-clarify.md;
 │  │     audit trail uses the same placement/append rules as Step 5)
 │  │
 │  ├─ Step 3-4: Ask Questions, Process Answers
-│  │  └─ Edit: {artifact}.md (resolve markers, update Assumptions)
+│  │  └─ Edit: intake.md (resolve markers, update Assumptions)
 │  │
 │  ├─ Step 5: Audit Trail
-│  │  └─ Edit: {artifact}.md (append ## Clarifications session)
+│  │  └─ Edit: intake.md (append ## Clarifications session)
 │  │
 │  ├─ Step 6: Coverage Summary
 │  │
 │  └─ Step 7: Recompute Confidence
-│     └─ Bash: fab score <change>                    ◄── bookkeeping
+│     └─ Bash: fab score --stage intake <change>     ◄── bookkeeping
 │
 ├─── AUTO MODE (retained for future use) ───────────────
 │  │
-│  ├─ Read target artifact
+│  ├─ Read intake.md
 │  ├─ Autonomous gap resolution
-│  │  └─ Edit: {artifact}.md
-│  └─ Returns: {resolved, blocking, non_blocking}
+│  │  └─ Edit: intake.md
+│  ├─ Returns: {resolved, blocking, non_blocking}
+│  └─ Step 4: Recompute Confidence (non-advancing)
+│     └─ Bash: fab score --stage intake <change>     ◄── bookkeeping
 │
 └─ Does NOT advance stage
 ```
@@ -77,4 +79,4 @@ None.
 
 | Step | Command | Trigger |
 |------|---------|---------|
-| 7 (always) | `fab score --stage intake <change>` | After intake.md edits (intake is the sole scoring source) |
+| Suggest Step 7 / Auto Mode step 4 (always, both modes) | `fab score --stage intake <change>` | After intake.md edits (intake is the sole scoring source) |
