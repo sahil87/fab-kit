@@ -1,6 +1,6 @@
 ---
 name: _pipeline
-description: "Shared ff/fff pipeline bracket — intake gate, apply → review → hydrate steps, auto-rework loop with explicit per-cycle choreography, and the exhaustion stop. Parameterized by driver name and terminal stage."
+description: "Shared ff/fff pipeline bracket — intake gate, apply → review → hydrate steps, auto-rework loop with explicit per-cycle choreography (cycle cap from code-review.md Rework Budget, default 3), and the exhaustion stop. Parameterized by driver name and terminal stage."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -72,7 +72,9 @@ Dispatch `/fab-continue` as subagent — Review Behavior, change: `{id}` (prompt
 
 **Fail**: enter the Auto-Rework Loop below.
 
-#### Auto-Rework Loop (up to 3 cycles)
+#### Auto-Rework Loop (up to `{max_cycles}` cycles)
+
+> **`{max_cycles}`** — the rework-cycle cap: the integer from the `Max cycles: {N}` line under `## Rework Budget` in `fab/project/code-review.md` (already loaded via the always-load layer). Default **3** when the file, the section, or the line is absent. Only the cycle cap is configurable — the escalation threshold (2 consecutive fix-code attempts) is fixed.
 
 The agent triages the sub-agent's prioritized findings and autonomously selects the rework path — no user interaction. Must-fix items are always addressed; should-fix items when clear and low-effort; nice-to-have items may be skipped.
 
@@ -82,7 +84,7 @@ The agent triages the sub-agent's prioritized findings and autonomously selects 
 2. **Triage + rework action**: triage the prioritized findings, select exactly one path per the decision heuristics below, and apply its edits (uncheck tasks / edit `plan.md` / edit `## Requirements`).
 3. **Re-dispatch apply**: dispatch `/fab-continue` as a subagent — Apply Behavior, same prompt contract as Step 1 (do NOT run `fab status`; return results only). On success, run `fab status finish <change> apply {driver}` (auto-activates review).
 4. **Fresh re-review**: dispatch a **fresh** `/fab-continue` Review Behavior subagent, same prompt contract as Step 2. Never reuse a prior review subagent's context.
-5. **Verdict**: pass → run `fab status finish <change> review {driver}` and proceed to Step 3. Fail → if fewer than 3 cycles have run, start the next cycle at item 1 (the fail+reset pair fires again); after the 3rd failed cycle, stop per **Stop** below.
+5. **Verdict**: pass → run `fab status finish <change> review {driver}` and proceed to Step 3. Fail → if fewer than `{max_cycles}` cycles have run, start the next cycle at item 1 (the fail+reset pair fires again); after the `{max_cycles}`-th failed cycle, stop per **Stop** below.
 
 **Decision heuristics** (applied at item 2 of each cycle):
 - **Must-fix: test failures, requirements mismatches, acceptance violations** → "Fix code" — uncheck affected tasks in `plan.md` `## Tasks` with `<!-- rework: reason -->`
@@ -91,15 +93,15 @@ The agent triages the sub-agent's prioritized findings and autonomously selects 
 
 **Escalation rule**: If the agent chooses "Fix code" and the subsequent sub-agent review fails again on the same or similar issues, the agent MUST escalate to "Revise plan" or "Revise requirements" after **2 consecutive "fix code" attempts**. This is a hard rule — the agent SHALL NOT choose "Fix code" a third time in a row, even if it believes another code fix would work. Non-fix-code actions (revise plan, revise requirements) reset the consecutive counter.
 
-#### Stop (after 3 failed cycles)
+#### Stop (after `{max_cycles}` failed cycles)
 
-After the 3rd cycle's re-review fails, run `fab status fail <change> review` only — **no reset**. The exact terminal state at exhaustion is `review: failed` (apply remains `done`); this is the resting state `/fab-continue`'s review-failed dispatch handles. Then **STOP** with a per-cycle summary:
+After the `{max_cycles}`-th cycle's re-review fails, run `fab status fail <change> review` only — **no reset**. The exact terminal state at exhaustion is `review: failed` (apply remains `done`); this is the resting state `/fab-continue`'s review-failed dispatch handles. Then **STOP** with a per-cycle summary:
 
 ```
-Review failed after 3 rework attempts. Summary:
+Review failed after {max_cycles} rework attempts. Summary:
   Cycle 1: {action} — {what was done}
-  Cycle 2: {action} — {what was done}
-  Cycle 3: {action} — {what was done}
+  ...
+  Cycle {max_cycles}: {action} — {what was done}
 Run /fab-continue for manual rework options.
 ```
 
@@ -127,4 +129,4 @@ These rows apply to both drivers; each driver's own file adds any driver-specifi
 | `intake.md` missing | Abort: "Intake not found. Run /fab-new first." |
 | Intake gate fails (confidence < 3.0) | Stop with score and guidance |
 | Task fails | Stop: "Task {ID} failed: {reason}. Investigate and re-run /{driver}." |
-| Review fails | Auto-rework loop: 3 cycles, each per the per-cycle choreography (fail+reset pair, one rework action, re-apply, fresh re-review), escalation after 2 consecutive fix-code. After 3 failed cycles: `fail` review (no reset) and stop with summary. Escalation paths: revise plan or revise requirements (both in `plan.md`). |
+| Review fails | Auto-rework loop: `{max_cycles}` cycles (default 3), each per the per-cycle choreography (fail+reset pair, one rework action, re-apply, fresh re-review), escalation after 2 consecutive fix-code. After `{max_cycles}` failed cycles: `fail` review (no reset) and stop with summary. Escalation paths: revise plan or revise requirements (both in `plan.md`). |

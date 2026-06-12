@@ -236,22 +236,12 @@ checklist:
     - performance
     - ux
 
-# Per-stage directives for artifact generation. The apply stage now owns
-# requirement generation (former spec-stage directives relocate here in 1.10.0).
-stage_directives:
-  intake: []
+# Optional pre/post shell commands honored by `fab status` (pre gates `start`,
+# post runs after `finish` saves — see _cli-fab.md § stage_hooks).
+stage_hooks:
   apply:
-    - Use GIVEN/WHEN/THEN for scenarios
-    - Document breaking changes explicitly
-  review: []
-  hydrate: []
-
-# Maps tier names to provider-specific model identifiers.
-model_tiers:
-  fast:
-    claude: haiku
-  capable:
-    claude: null
+    pre: ./scripts/check-clean-tree.sh
+    post: make test
 ```
 
 ---
@@ -293,7 +283,7 @@ The constitution is the **architectural DNA** of a Fab project. It defines immut
 - Constitution violations found during review are flagged as high-severity issues
 
 **Relationship to `config.yaml`**:
-- `config.yaml` holds **factual project context** (tech stack, naming conventions, stage configuration)
+- `config.yaml` holds **factual project context** (identity, source/test paths, review tooling, agent spawn command)
 - `constitution.md` holds **principles and constraints** (what MUST/SHOULD/MUST NOT happen)
 - Think: config says *what you use*, constitution says *how you use it*
 

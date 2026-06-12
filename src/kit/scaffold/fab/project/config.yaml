@@ -26,17 +26,6 @@ true_impact_exclude: [fab/, docs/]
 checklist:
   extra_categories: []
 
-# Extra instructions the agent follows when generating each stage's artifact.
-# Add directives to shape how the agent writes specs, plans (apply entry), code, etc.
-stage_directives:
-  intake: []
-  spec:
-    - Use GIVEN/WHEN/THEN for scenarios
-    - "Mark ambiguities with [NEEDS CLARIFICATION]"
-  apply: []
-  review: []
-  hydrate: []
-
 agent:
   # Base command for spawning agent sessions in scripts and operators.
   # Shell expansions (e.g., $(basename "$(pwd)")) expand at invocation time.

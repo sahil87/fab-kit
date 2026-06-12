@@ -37,7 +37,7 @@ This layer applies to every skill **unless the skill's own Context Loading secti
 
 Read these files first — they define the project's identity, constraints, and documentation landscape:
 
-- **`fab/project/config.yaml`** — project configuration, naming conventions, model tiers
+- **`fab/project/config.yaml`** — project configuration: identity (name/description), `source_paths`/`test_paths`, true-impact excludes, plan-acceptance extra categories, `review_tools` toggles, agent spawn command, optional `stage_hooks`
 - **`fab/project/constitution.md`** — project principles and constraints (MUST/SHOULD/MUST NOT rules)
 - **`fab/project/context.md`** — free-form project context: tech stack, conventions, architecture *(optional — no error if missing)*
 - **`fab/project/code-quality.md`** — coding standards for apply/review: principles, anti-patterns, test strategy *(optional — no error if missing)*

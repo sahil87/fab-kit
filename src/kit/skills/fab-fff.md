@@ -12,7 +12,7 @@ helpers: [_generation, _review, _srad, _pipeline]
 
 ## Purpose
 
-Run the entire automated Fab pipeline — apply → review → hydrate → ship → review-pr — in a single invocation (everything after intake). Gated on the single intake confidence gate (flat 3.0, all types), checked before the bracket; review failures get a bounded auto-rework loop (3 cycles) and then stop. No `/fab-clarify` runs inside the bracket — clarification is intake-only. Resumable — re-running picks up from the first incomplete stage. The difference from `/fab-ff` is scope only: `/fab-fff` extends through ship and review-pr; `/fab-ff` stops at hydrate. Both have the identical single intake gate.
+Run the entire automated Fab pipeline — apply → review → hydrate → ship → review-pr — in a single invocation (everything after intake). Gated on the single intake confidence gate (flat 3.0, all types), checked before the bracket; review failures get a bounded auto-rework loop (`{max_cycles}` cycles — the `Max cycles:` knob in `fab/project/code-review.md` § Rework Budget, default 3) and then stop. No `/fab-clarify` runs inside the bracket — clarification is intake-only. Resumable — re-running picks up from the first incomplete stage. The difference from `/fab-ff` is scope only: `/fab-fff` extends through ship and review-pr; `/fab-ff` stops at hydrate. Both have the identical single intake gate.
 
 ---
 

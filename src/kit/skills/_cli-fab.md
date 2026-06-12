@@ -94,6 +94,26 @@ Full subcommand table (headline in `_preamble` § Common fab Commands):
 
 **Auto-logs**: `finish review|review-pr`→`passed`; `fail review|review-pr`→`failed`; every `active` transition is best-effort logged. Skills do NOT manually call `fab log review` or `fab log transition`.
 
+### stage_hooks (project-config pre/post stage commands)
+
+`fab status start` and `fab status finish` honor an optional `stage_hooks` map in `fab/project/config.yaml` (not seeded by the scaffold — add the key by hand; not to be confused with `fab hook`, the Claude Code harness handlers below):
+
+```yaml
+stage_hooks:
+  apply:
+    pre: ./scripts/check-clean-tree.sh   # any sh -c command line
+    post: make test
+```
+
+| Hook | Fires | On failure (non-zero exit) |
+|------|-------|---------------------------|
+| `pre` | Before `start`'s transition is applied | **Blocks the stage from starting** — the transition is not applied, the command errors |
+| `post` | After `finish`'s transition **is saved** (stage already `done`, next stage already auto-activated) | The command errors, but the saved transition stands |
+
+- **Execution**: `sh -c "<command>"` from the repo root, stdout/stderr passed through. An empty/absent hook (or a missing config file) is a silent no-op.
+- **Auto-activation caveat**: pre hooks fire only on an explicit `fab status start` — `finish`'s auto-activation of the next pending stage does NOT run that stage's pre hook.
+- **Failing-post-hook re-run trap**: by the time a post hook runs, the stage is already `done` — re-running `fab status finish <change> <stage>` after fixing the hook does NOT re-fire it (`done` is not a valid `finish` source state; the re-run errors). Run the hook command by hand instead, or `reset` the stage first if the transition genuinely needs replaying.
+
 ---
 
 ## fab score (extended)

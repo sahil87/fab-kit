@@ -25,8 +25,10 @@ User invokes /fab-setup [subcommand]
 │  │  ├─ Read: src/kit/scaffold/fab/project/config.yaml
 │  │  ├─ (interactive: ask name, description, source_paths)
 │  │  └─ Write: fab/project/config.yaml
-│  │     (preserves an existing fab_version key — the scaffold
-│  │      template lacks it and the router errors without it)
+│  │     (preserves an existing fab_version key; on a fresh create
+│  │      with no prior key, stamps the engine version from
+│  │      $(fab kit-path)/VERSION — the scaffold template lacks it
+│  │      and the router/fab sync error without it, c5tr)
 │  │
 │  ├─ Phase 1b: constitution.md
 │  │  ├─ Read: src/kit/scaffold/fab/project/constitution.md
@@ -51,7 +53,10 @@ User invokes /fab-setup [subcommand]
 │
 ├── config: Config ──────────────────────────────────────
 │  ├─ Read: fab/project/config.yaml
-│  ├─ (interactive: menu → edit section)
+│  ├─ (interactive: menu → edit section; sections: project /
+│  │   source_paths / checklist / context.md / code-quality.md /
+│  │   code-review.md — the dead stage_directives editor was
+│  │   removed in c5tr, nothing ever read the key)
 │  └─ Edit: fab/project/config.yaml
 │
 ├── constitution: Constitution ──────────────────────────
@@ -70,6 +75,9 @@ User invokes /fab-setup [subcommand]
    │  └─ `applicable` empty → branch on returned local/engine fields:
    │     equal → "Already up to date"; local ahead → "Local Version
    │     Ahead"; otherwise → "No Migrations Apply"
+   │     (one-line semver rule restored at this branch in c5tr —
+   │      compare MAJOR/MINOR/PATCH as integers, not lexicographically;
+   │      f080 had deleted it with the rest of the Semver section)
    ├─ For each file in `applicable` (in order):
    │  ├─ Read: $(fab kit-path)/migrations/{file}
    │  ├─ (execute pre-checks, changes, verification)

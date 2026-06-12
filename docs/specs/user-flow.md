@@ -198,7 +198,7 @@ stateDiagram-v2
 | **reset** | All downstream stages are cascaded to `pending` |
 | **skip** | All downstream `pending` stages are cascaded to `skipped` |
 
-Source of truth: [`src/kit/schemas/workflow.yaml`](../../src/kit/schemas/workflow.yaml)
+Source of truth: the Go state machine — transitions and side-effects in [`src/go/fab/internal/status`](../../src/go/fab/internal/status/status.go), stage order and progress schema in [`src/go/fab/internal/statusfile`](../../src/go/fab/internal/statusfile/statusfile.go). (The former declarative `src/kit/schemas/workflow.yaml` was retired in 260612-c5tr — it had drifted to the pre-1.10.0 7-stage pipeline and nothing consumed it.)
 
 ---
 

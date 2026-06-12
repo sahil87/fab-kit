@@ -15,15 +15,6 @@ review_tools:
     copilot: true
 source_paths:
     - src/
-stage_directives:
-    apply:
-        - Use GIVEN/WHEN/THEN for scenarios
-        - Mark ambiguities with [NEEDS CLARIFICATION]
-        - Document impacts on existing research docs
-        - Note any methodology comparisons or synthesis
-    hydrate: []
-    intake: []
-    review: []
 test_paths:
     - '**/*_test.go'
 true_impact_exclude:

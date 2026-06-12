@@ -2,7 +2,7 @@
 
 ## Summary
 
-SRAD autonomy framework helper — the decision framework planning skills apply when generating artifacts: four-dimension scoring (Signal Strength, Reversibility, Agent Competence, Disambiguation Type) on a continuous 0–100 scale, weighted-mean aggregation to confidence grades (Certain/Confident/Tentative/Unresolved), the Critical Rule override (R < 25 AND A < 25 → Unresolved, must ask), skill-specific autonomy levels, worked examples, artifact markers (`<!-- assumed: ... -->` / `<!-- clarified: ... -->`), and the Assumptions Summary block format.
+SRAD autonomy framework helper — the decision framework planning skills apply when generating artifacts: four-dimension scoring (Signal Strength, Reversibility, Agent Competence, Disambiguation Type) on a continuous 0–100 scale, weighted-mean aggregation to confidence grades via half-open thresholds (≥85 Certain / ≥60 Confident / ≥30 Tentative / else Unresolved — closed bands left continuous composites ungraded until 260612-c5tr), the Critical Rule override (R < 25 AND A < 25 → Unresolved, must ask — the single numeric definition), skill-specific autonomy levels covering all six declaring skills (4 columns + a fab-draft/fab-clarify covering note), worked examples, artifact markers (`<!-- assumed: ... -->` / `<!-- clarified: ... -->`), and the Assumptions Summary block format (omit-when-zero scoped to displayed output only — artifacts always carry `## Assumptions`).
 
 Extracted from `_preamble.md` § SRAD Autonomy Framework in 260611-zc9m (the preamble keeps a 3-line pointer). This is an internal partial (`user-invocable: false`) — never invoked directly. It is loaded via the frontmatter `helpers:` list of the six planning skills: `fab-new`, `fab-draft`, `fab-continue`, `fab-ff`, `fab-fff`, `fab-clarify`. Non-planning skills do not load it.
 
@@ -20,23 +20,30 @@ Planning skill declares helpers: [..., _srad]
 │   0.25*S + 0.30*R + 0.25*A + 0.20*D)
 │
 ├─ Confidence Grades
-│  (Certain 85–100 / Confident 60–84 /
-│   Tentative 30–59 / Unresolved 0–29)
+│  (half-open: ≥85 Certain / ≥60 Confident /
+│   ≥30 Tentative / else Unresolved)
 │
 ├─ Critical Rule
-│  (low R + low A → always ask)
+│  (R < 25 AND A < 25 → always Unresolved, always ask —
+│   the single numeric definition)
 │
 ├─ Skill-Specific Autonomy Levels
-│  (fab-new / fab-continue / fab-fff / fab-ff postures)
+│  (fab-new / fab-continue / fab-fff / fab-ff postures
+│   + covering note: fab-draft = fab-new's column,
+│   fab-clarify = the escape valve itself)
 │
-├─ Worked Examples (3, one-liner style)
+├─ Worked Examples (3, one-liner style — each
+│  example's arithmetic reaches the grade it teaches)
 │
 ├─ Artifact Markers
 │  (<!-- assumed --> / <!-- clarified -->)
 │
 └─ Assumptions Summary Block
    (table format, Scores column required;
-    intake: 4 grades; plan.md: no Unresolved)
+    intake: 4 grades; plan.md: no Unresolved;
+    omit-when-zero = displayed output only — artifacts
+    ALWAYS carry ## Assumptions, "0 assumptions." footer
+    when empty)
 ```
 
 ### Tools used

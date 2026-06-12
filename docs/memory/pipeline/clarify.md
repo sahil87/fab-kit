@@ -1,5 +1,5 @@
 ---
-description: "`/fab-clarify` skill — intake-only (j6cs), dual modes (suggest/auto), intake taxonomy scan, structured questions, coverage reports, audit trail, grade reclassification, always-recompute intake score; hosts the [AUTO-MODE] Skill Invocation Protocol and is sole bulk-confirm authority (zc9m)"
+description: "`/fab-clarify` skill — intake-only (j6cs), dual modes (suggest/auto), intake taxonomy scan, structured questions, coverage reports, audit trail, grade reclassification, always-recompute intake score; hosts the [AUTO-MODE] Skill Invocation Protocol and is sole bulk-confirm authority (zc9m); bulk confirm evaluated before the zero-gaps exit, confirmations graded by recomputed composite (no fiat Certain), unified audit-trail placement rules (c5tr)"
 ---
 # Clarify Skill
 
@@ -61,7 +61,7 @@ The user MAY terminate early by responding with "done", "good", or "no more" (ca
 
 #### Clarifications Audit Trail
 
-Each suggest-mode session SHALL append an audit trail to the artifact under `## Clarifications > ### Session {YYYY-MM-DD}` with `Q:` / `A:` entries for each resolved question. Multiple sessions accumulate — new sessions are appended, never replacing previous ones.
+Each suggest-mode session SHALL append an audit trail to the artifact under `## Clarifications > ### Session {YYYY-MM-DD}` with `Q:` / `A:` entries for each resolved question. Multiple sessions accumulate — new sessions are appended, never replacing previous ones. Both audit-trail writers (Step 2 bulk confirm, Step 5 Q&A) state **identical placement/append rules** (c5tr): append to the existing `## Clarifications` section if present; create it immediately before `## Assumptions` if not; skip when the session resolved nothing.
 
 #### Coverage Summary
 
@@ -75,7 +75,7 @@ In auto mode, the skill SHALL resolve gaps in `intake.md` using available contex
 
 #### Grade Reclassification
 
-When a Tentative or Confident assumption is resolved or confirmed during a suggest-mode session, the skill SHALL update the corresponding entry's Grade column in the artifact's `## Assumptions` table to `Certain`. The user's confirmation eliminates ambiguity, making the decision deterministic. This reclassification occurs immediately after each answer, before the next question is presented.
+When an assumption is resolved through the Step 3–4 Q&A path (a structured question answered directly by the user), the skill SHALL update the corresponding entry's Grade column in the artifact's `## Assumptions` table to `Certain` — answering the question eliminates the ambiguity entirely. This reclassification occurs immediately after each answer, before the next question is presented. **Bulk-confirmed rows are NOT relabeled by fiat** (c5tr): the bulk-confirm Artifact Update sets S → 95 (R, A, D unchanged), recomputes the composite per `_srad.md` § SRAD Scoring, and assigns the grade by its half-open thresholds — a confirmed row whose recomputed composite stays below the Certain band remains Confident, with the confirmation recorded in Rationale. The skill restates no weights or thresholds — the formula is referenced, not inlined (inlining it was exactly the drift class the c5tr batch fixed).
 
 #### Confidence Recomputation
 
@@ -89,6 +89,8 @@ Auto mode SHALL return a structured result: `{resolved: N, blocking: N, non_bloc
 
 When the confidence score is low primarily due to many Confident (not Tentative/Unresolved) assumptions, suggest mode SHALL offer a bulk confirm flow (Step 2) after the taxonomy scan and tentative resolution (Step 1.5). This displays all Confident assumptions in a numbered list and lets the user confirm, change, or request explanation in a single conversational turn.
 
+**Bulk confirm is evaluated before the zero-gaps exit** (c5tr): Step 1.5 builds the prioritized question queue **without stopping** — the "No gaps found — artifact looks solid." early exit moved into Step 2's not-triggered branch, emitted only when the bulk-confirm trigger did not fire AND the Step 1.5 queue is empty. This makes bulk confirm reachable in its primary scenario — a marker-free, Confident-only intake sitting below the 3.0 gate has zero gaps, so the old Step 1.5 exit dead-ended it at "artifact looks solid" with no path to raise the score.
+
 `fab-clarify.md` (Step 2, Suggest Mode) is the **sole authority** for the bulk-confirm trigger and semantics (260611-zc9m): the former `_preamble.md` § Bulk Confirm subsection — which duplicated the trigger condition, the S → 95 upgrade semantics, and the internal step numbering verbatim — was cut to a one-sentence pointer.
 
 #### Detection
@@ -97,15 +99,15 @@ Bulk confirm triggers when BOTH conditions are met:
 - `confident >= 3` (enough to materially affect the score)
 - `confident > tentative + unresolved` (Confident is the dominant drag)
 
-When not triggered, the skill proceeds directly to Step 3 (remaining taxonomy questions).
+When not triggered: if Step 1.5's question queue is also empty (zero gaps), the skill outputs "No gaps found — artifact looks solid." with the `Next:` line and stops — the zero-gaps exit lives here, in Step 2's not-triggered branch (c5tr), not in Step 1.5. Otherwise the skill proceeds directly to Step 3 (remaining taxonomy questions).
 
 #### Flow
 
 1. Display all Confident assumptions using original `#` column from the Assumptions table, with Decision and Rationale. Do NOT use `AskUserQuestion` — the list is plain text, and the user's next conversational message is the response.
 2. Parse the response: confirm (`✓`/`ok`/`yes`/bare number), change (free text), explain (`?`), range (`{start}-{end}`), or all (`all ✓`). Case-insensitive for keywords.
 3. For explanation requests: provide a brief inline explanation, then re-prompt for only the unexplained items (one round max).
-4. Update the Assumptions table in place: confirmed/changed items → Certain, Rationale updated (e.g., `Clarified — user confirmed`), S dimension → 95 (R, A, D unchanged). Unmentioned items stay Confident.
-5. Append to Clarifications audit trail as `### Session {date} (bulk confirm)`.
+4. Update the Assumptions table in place: confirmed/changed items set S → 95 (R, A, D unchanged), Rationale updated (e.g., `Clarified — user confirmed`), and the **grade is assigned by the recomputed composite, not by fiat** (c5tr) — recompute per `_srad.md` § SRAD Scoring and map via its half-open thresholds; a row whose recomputed composite stays < 85 remains Confident. Unmentioned items stay Confident.
+5. Append to Clarifications audit trail as `### Session {date} (bulk confirm)` — same placement/append rules as Step 5's Q&A trail (c5tr): append to an existing `## Clarifications` section; create it immediately before `## Assumptions` if absent; skip when 0 items were resolved.
 
 After bulk confirm completes, proceed to Step 3 (remaining taxonomy questions from Step 1.5's queue).
 
@@ -145,6 +147,12 @@ The pre-flight stage guard MUST allow only `intake`. At any post-intake stage (`
 **Rejected**: Deleting the protocol and fab-clarify's Auto Mode (user decision — loses retained-for-future-use behavior). Leaving the protocol in the preamble (every skill pays for a protocol nothing live uses).
 *Introduced by*: 260611-zc9m-preamble-context-diet
 
+### Bulk Confirm Before the Zero-Gaps Exit; Grade by Recomputed Composite (c5tr)
+**Decision**: Step 1.5 (taxonomy scan) builds the prioritized question queue without stopping; the "No gaps found — artifact looks solid." early exit moved into Step 2's not-triggered branch — emitted only when bulk confirm did not trigger AND the queue is empty. The bulk-confirm Artifact Update grades by the recomputed composite (S → 95, then recompute per `_srad.md` § SRAD Scoring and map via its half-open thresholds — no weights or thresholds restated in `fab-clarify.md`), and both audit-trail writers (Step 2 bulk confirm, Step 5 Q&A) state identical placement/append rules.
+**Why**: The old order made bulk confirm unreachable in its primary scenario — a marker-free, Confident-only intake below the 3.0 gate has zero gaps, so Step 1.5 dead-ended at "artifact looks solid" with no path to raise the score. Relocating the exit (rather than deleting it) is the smallest reorder that preserves the solid-artifact UX for genuinely clean intakes. Grading by recomputed composite stops the S→95 upgrade from labeling rows Certain whose composite still sits below 85 — `fab score` reads the table, so fiat labels misstated the gate input. Referencing (not inlining) the formula removes a duplicate of `_srad.md`'s aggregation line — the exact drift class the c5tr batch fixes.
+**Rejected**: Deleting the early exit (forces empty question rounds on genuinely clean artifacts). Labeling confirmed rows Certain by fiat (misstates the composite; corrupts scoring inputs). Inlining the composite formula in the update table (re-creates the `_srad` duplication).
+*Introduced by*: 260612-c5tr-scaffold-config-truth-srad-coherence
+
 ### Max 5 Questions Per Invocation
 **Decision**: Cap suggest mode at 5 questions per invocation. Re-run for more.
 **Why**: Beyond 5 questions, diminishing returns and user fatigue. The skill is idempotent — running it again is free and reprioritizes.
@@ -176,6 +184,7 @@ The pre-flight stage guard MUST allow only `intake`. At any post-intake stage (`
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260612-c5tr-scaffold-config-truth-srad-coherence | 2026-06-12 | **Escape-valve fixes** (skills-audit batch 4/5, Theme 6, must-fix). (1) **Bulk confirm evaluated before the zero-gaps exit**: Step 1.5 builds the question queue without stopping; the "No gaps found — artifact looks solid." exit relocated into Step 2's not-triggered branch (fires only when bulk confirm didn't trigger AND the queue is empty) — a marker-free, Confident-only intake below the 3.0 gate now reaches bulk confirm instead of dead-ending. (2) **Grade by recomputed composite**: the bulk-confirm Artifact Update sets S → 95 then recomputes per `_srad.md` § SRAD Scoring and grades by its half-open thresholds — sub-85 rows stay Confident (no fiat Certain; the inlined composite formula/threshold duplicate at fab-clarify.md:118 was replaced with the `_srad` reference). The Step 3–4 Q&A path's resolve-to-Certain is unchanged. (3) **Audit-trail symmetry**: Step 2 (bulk confirm) and Step 5 (Q&A) now state identical placement/append rules — append to existing `## Clarifications`, create it immediately before `## Assumptions` if absent, skip when nothing was resolved. New design decision "Bulk Confirm Before the Zero-Gaps Exit; Grade by Recomputed Composite". `SPEC-fab-clarify.md` mirror updated (incl. the de-inlined formula reference form). |
 | 260611-zc9m-preamble-context-diet | 2026-06-11 | **fab-clarify becomes the protocol + bulk-confirm home** (skills-review batch 3/4). The `[AUTO-MODE]` Skill Invocation Protocol moved from `_preamble.md` into `fab-clarify.md` § Skill Invocation Protocol (sole referencer; 2-line pointer left in the preamble; the preamble's § Subagent Dispatch mention repointed). Auto Mode retained — user decision: move, not delete; zero behavior change. Bulk-confirm trigger (`confident >= 3` AND `confident > tentative + unresolved`) and semantics are now **single-homed** in `fab-clarify.md` Step 2 — the preamble's verbatim duplicate was cut to a one-sentence pointer. `fab-clarify.md` also gained its first frontmatter `helpers:` key (`[_srad]`) for the extracted SRAD framework. New design decision "`[AUTO-MODE]` Protocol Co-located with Its Sole Referencer"; "Mode Selection" decision updated. `SPEC-fab-clarify.md` mirror and `docs/specs/glossary.md` `[AUTO-MODE]` entry updated. |
 | 260601-j6cs-merge-spec-into-apply | 2026-06-01 | Made `/fab-clarify` **intake-only**. Removed the `spec` and `plan` targets (the spec stage is gone; under-spec at apply → inline SRAD assumptions in `plan.md`). Overview, dual-mode, taxonomy scan (single Intake taxonomy), auto-mode, machine-readable-result, and stage guard rewritten. Inverted the confidence-recompute step: always runs `fab score --stage intake`. Auto mode retained but no orchestrator invokes it (the `/fab-ff`/`/fab-fff` auto-clarify steps were removed). Post-intake stages STOP with a pointer to `/fab-continue` / editing `plan.md` `## Requirements`. Added "Clarify is Intake-Only" design decision. |
 | 260423-qszh-merge-tasks-checklist | 2026-05-06 | Updated target taxonomy: `tasks` removed, `plan` added (post-apply-entry; requires `plan.md` to exist; scans `## Tasks` for completeness/granularity/dependencies/file paths/`[P]` markers and `## Acceptance` for coverage of spec requirements). Added explicit "Intake" entry to the per-target taxonomy list. `/fab-clarify tasks` errors with `"tasks" target was removed — use plan (post-apply-entry) or spec (pre-apply).` Stage Guard rewritten to enumerate accepted targets and the apply-or-later requirement for `plan`. |

@@ -2,7 +2,7 @@
 
 SRAD is the decision-making framework that governs how Fab planning skills handle ambiguity. When a skill encounters a decision point not explicitly addressed by user input, SRAD determines whether the skill should assume an answer, ask the user, or flag it for later resolution.
 
-SRAD also produces a **confidence score** — a numeric measure of how well-resolved a change's decisions are. This score gates `/fab-ff` (the fast-forward pipeline), ensuring it only runs when ambiguity is low enough for safe execution.
+SRAD also produces a **confidence score** — a numeric measure of how well-resolved a change's decisions are. This score gates `/fab-ff` and `/fab-fff` (the fast-forward and full pipelines), ensuring they only run when ambiguity is low enough for safe execution.
 
 ---
 
@@ -28,7 +28,7 @@ Each dimension is evaluated on a **continuous 0–100 scale** (100 = fully safe 
 
 ### Fuzzy-to-Grade Mapping
 
-The four per-dimension scores are aggregated into a single **composite score** using a weighted mean, then mapped to a confidence grade via trapezoidal thresholds.
+The four per-dimension scores are aggregated into a single **composite score** using a weighted mean, then mapped to a confidence grade via half-open thresholds.
 
 **Aggregation formula**:
 
@@ -38,25 +38,25 @@ composite = 0.25 * S + 0.30 * R + 0.25 * A + 0.20 * D
 
 The higher weight on Reversibility (0.30 vs 0.25 for others) encodes the Critical Rule's intent: low-R decisions have disproportionate blast radius.
 
-**Grade thresholds**:
+**Grade thresholds** (half-open — composites are continuous, so values like 59.85 or 84.5 must grade deterministically):
 
-| Grade | Composite Range | Interpretation |
-|-------|----------------|----------------|
-| **Certain** | 85–100 | All dimensions strongly favor assumption |
-| **Confident** | 60–84 | Most dimensions favor assumption; minor gaps |
-| **Tentative** | 30–59 | Mixed signals; reasonable guess but alternatives exist |
-| **Unresolved** | 0–29 | Too ambiguous to assume safely |
+| Grade | Composite (half-open) | Interpretation |
+|-------|----------------------|----------------|
+| **Certain** | composite ≥ 85 | All dimensions strongly favor assumption |
+| **Confident** | 60 ≤ composite < 85 | Most dimensions favor assumption; minor gaps |
+| **Tentative** | 30 ≤ composite < 60 | Mixed signals; reasonable guess but alternatives exist |
+| **Unresolved** | composite < 30 | Too ambiguous to assume safely |
 
-**Critical Rule override**: Regardless of composite score, if R < 25 AND A < 25, the grade MUST be Unresolved.
+**Critical Rule override**: Regardless of composite score, if R < 25 AND A < 25, the grade MUST be Unresolved. This is the Critical Rule's single numeric definition.
 
 ### Dimension Score Persistence
 
-When planning skills use fuzzy evaluation, per-decision scores are recorded in the Assumptions table's optional `Scores` column:
+Per-decision scores are recorded in the Assumptions table's **required** `Scores` column — mandatory for every row, of every grade (`fab score` parses it and writes aggregate dimension statistics to `.status.yaml`):
 
 ```markdown
-| # | Grade | Scores | Decision | Rationale |
-|---|-------|--------|----------|-----------|
-| 1 | Confident | S:75 R:80 A:65 D:70 | Use OAuth2 | Config shows REST API |
+| # | Grade | Decision | Rationale | Scores |
+|---|-------|----------|-----------|--------|
+| 1 | Confident | Use OAuth2 | Config shows REST API | S:75 R:80 A:65 D:70 |
 ```
 
 Aggregate dimension statistics are stored in `.status.yaml`:
@@ -79,10 +79,10 @@ Each decision point produces an assumption graded on a 4-level scale:
 
 | Grade | When to assign | Artifact marker | Output visibility |
 |-------|---------------|----------------|-------------------|
-| **Certain** | Deterministically answered by config, constitution, or template rules | None | Not mentioned — not worth noting |
-| **Confident** | Strong signal with one obvious interpretation | None | Listed in Assumptions summary |
-| **Tentative** | Reasonable guess, but multiple valid options exist | `<!-- assumed: {description} -->` | Listed in Assumptions summary; resolvable by `/fab-clarify` |
-| **Unresolved** | Cannot determine; incompatible interpretations | None — always asked or bailed | Asked as a blocking question (never silently assumed) |
+| **Certain** | Deterministically answered by config, constitution, or template rules | None | Noted in Assumptions summary |
+| **Confident** | Strong signal with one obvious interpretation | None | Noted in Assumptions summary |
+| **Tentative** | Reasonable guess, but multiple valid options exist | `<!-- assumed: {description} -->` | Noted in Assumptions summary; resolvable by `/fab-clarify` |
+| **Unresolved** | Cannot determine; incompatible interpretations | None — always asked or bailed | Asked as a blocking question (never silently assumed) AND noted in Assumptions summary |
 
 ### Artifact Markers
 
@@ -102,20 +102,27 @@ The API SHALL return errors as JSON objects with `error`, `message`, and `code` 
 
 ### Assumptions Summary
 
-Every planning skill invocation that makes Confident or Tentative assumptions appends an `## Assumptions` section to the generated artifact:
+Every planning skill invocation appends an `## Assumptions` section to the generated artifact, recording **every graded decision** (canonical contract: `_srad.md` § Assumptions Summary Block):
 
 ```markdown
 ## Assumptions
 
-| # | Grade | Decision | Rationale |
-|---|-------|----------|-----------|
-| 1 | Confident | OAuth2 over SAML | Config shows REST API stack |
-| 2 | Tentative | Google + GitHub providers | Most common OSS combination |
+| # | Grade | Decision | Rationale | Scores |
+|---|-------|----------|-----------|--------|
+| 1 | Certain | Use the existing test runner | Config deterministically answers this | S:50 R:95 A:100 D:100 |
+| 2 | Confident | OAuth2 over SAML | Config shows REST API stack | S:75 R:80 A:65 D:70 |
+| 3 | Tentative | Google + GitHub providers | Most common OSS combination | S:40 R:70 A:45 D:40 |
+| 4 | Unresolved | Replace or supplement existing auth | Asked — user chose replace | S:15 R:10 A:20 D:20 |
 
-2 assumptions made (1 confident, 1 tentative). Run /fab-clarify to review.
+4 assumptions (1 certain, 1 confident, 1 tentative, 1 unresolved). Run /fab-clarify to review.
 ```
 
-Certain grades are omitted (not worth mentioning). Unresolved grades are asked as questions, not assumed.
+Rules:
+
+- **All four grades are recorded in intake artifacts** — Certain rows included (`fab score` counts them toward `certain` and coverage; omitting them deflates the gate input). Unresolved rows are still asked as questions and carry status context in Rationale (`Asked — {outcome}` or `Deferred — {reason}`).
+- **`plan.md` `## Assumptions` excludes Unresolved** — three grades only; apply decides-and-records (Unresolved is an intake-only construct).
+- **The Scores column is required on every row.**
+- **Omit-when-zero applies to displayed output only**: a skill's output omits the summary block when 0 assumptions were made, but generated artifacts ALWAYS carry the `## Assumptions` section — with a `0 assumptions.` footer and no table rows when empty — keeping `fab score` parsing uniform.
 
 ---
 
@@ -223,13 +230,13 @@ When the user runs `/fab-ff`:
 
 ## The Critical Rule
 
-**Unresolved decisions with low Reversibility AND low Agent Competence MUST always be asked as questions** — even when the skill's question budget is otherwise exhausted.
+**Decisions with R < 25 AND A < 25 — the single numeric override defined in the grade mapping above — are always Unresolved and MUST always be asked as questions**, even when the skill's question budget is otherwise exhausted. (The threshold is `< 25` on both dimensions; the rubric's 0–39 "Low" band is descriptive guidance, not the override's definition.)
 
 These are high-blast-radius decisions where:
-- Getting it wrong cascades through multiple artifacts (low R)
-- The agent has no good basis for guessing — it requires business context, user preferences, or political knowledge the agent doesn't have (low A)
+- Getting it wrong cascades through multiple artifacts (R < 25)
+- The agent has no good basis for guessing — it requires business context, user preferences, or political knowledge the agent doesn't have (A < 25)
 
-The existence of `/fab-clarify` as an escape valve does **not** justify silently assuming these. `/fab-clarify` is designed for Tentative assumptions (reasonable guesses that might be wrong). Unresolved decisions with low R + low A are not reasonable guesses — they are genuine unknowns.
+The existence of `/fab-clarify` as an escape valve does **not** justify silently assuming these. `/fab-clarify` is designed for Tentative assumptions (reasonable guesses that might be wrong). Unresolved decisions with R < 25 AND A < 25 are not reasonable guesses — they are genuine unknowns.
 
 ---
 
@@ -244,8 +251,8 @@ Two words, no detail on mechanism, scope, or integration.
 | Decision point | S | R | A | D | Composite | Grade |
 |---------------|---|---|---|---|-----------|-------|
 | Auth mechanism (OAuth2 vs SAML vs API keys) | 10 | 15 | 10 | 15 | 12.5 | **Unresolved** (12.5 < 30) |
-| Replace or supplement existing auth | 15 | 10 | 20 | 20 | 15.5 | **Unresolved** (R=10 < 25, A=20 < 25 → Critical Rule) |
-| Session storage (JWT vs server-side) | 20 | 50 | 55 | 45 | 42.0 | **Tentative** (30 ≤ 42.0 < 60) |
+| Replace or supplement existing auth | 15 | 10 | 20 | 20 | 15.75 | **Unresolved** (R=10 < 25, A=20 < 25 → Critical Rule) |
+| Session storage (JWT vs server-side) | 20 | 50 | 55 | 45 | 42.75 | **Tentative** (30 ≤ 42.75 < 60) |
 
 **Confidence counts**: Certain: 2, Confident: 1, Tentative: 1, Unresolved: 2
 
@@ -263,7 +270,7 @@ Detailed description specifying the component, location, trigger, and behavior.
 |---------------|---|---|---|---|-----------|-------|
 | Which spinner component | 95 | 90 | 95 | 100 | 94.5 | **Certain** (94.5 ≥ 85) |
 | When to show/hide spinner | 90 | 92 | 88 | 95 | 91.1 | **Certain** (91.1 ≥ 85) |
-| Double-submission prevention | 95 | 95 | 90 | 98 | 94.3 | **Certain** (94.3 ≥ 85) |
+| Double-submission prevention | 95 | 95 | 90 | 98 | 94.35 | **Certain** (94.35 ≥ 85) |
 
 **Confidence counts**: Certain: 8, Confident: 2, Tentative: 0, Unresolved: 0
 
@@ -275,12 +282,14 @@ Detailed description specifying the component, location, trigger, and behavior.
 
 ## Skill-Specific Autonomy Levels
 
-SRAD manifests differently depending on which skill is running. Skills closer to the "explore" end ask freely; skills closer to the "autonomous" end minimize interruption:
+SRAD manifests differently depending on which skill is running. Skills closer to the "explore" end ask freely; skills closer to the "autonomous" end minimize interruption (canonical table: `_srad.md` § Skill-Specific Autonomy Levels):
 
-| Aspect | `/fab-new` | `/fab-continue` | `/fab-ff` | `/fab-fff` |
+| Aspect | `/fab-new` (adaptive) | `/fab-continue` (deliberate) | `/fab-fff` (full pipeline) | `/fab-ff` (fast-forward) |
 |--------|------------|-----------------|-----------|-----------|
-| **Posture** | SRAD-driven adaptive questioning, gap analysis, conversational mode, intake-only output | Surface tentative, ask top ~3 unresolved | Gated on confidence; stops at hydrate | Gated on confidence; extends through ship + review-pr |
-| **Interruption budget** | Adaptive — SRAD-driven (no fixed cap) | 1–2 per stage | 0 (interactive rework on failure) | 0 (interactive rework on failure) |
-| **Output** | Intake + confidence score + assumptions summary | Key Decisions + Assumptions summary + [NEEDS CLARIFICATION] count | Cumulative Assumptions summary + apply/review/hydrate output | Cumulative Assumptions summary + apply/review/hydrate/ship/review-pr output |
-| **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` | `/fab-clarify` |
-| **Recomputes confidence?** | Yes (intake) | No (no scoring at apply — intake is authoritative) | No | No |
+| **Posture** | SRAD-driven: 0 questions for clear inputs, conversational for vague; gap analysis before folder creation | SRAD at intake only (the one asking stage); apply decides-and-records | Gated on confidence; extends through ship + review-pr | Gated on confidence; stops at hydrate |
+| **Interruption budget** | SRAD-driven (no fixed cap); conversational mode for vague inputs | 1–2 at intake; 0 at apply and later | 0 (autonomous rework, then stop) | 0 (autonomous rework, then stop) |
+| **Output** | Assumptions summary + "Run /fab-clarify to review" | Key Decisions block + Assumptions summary | Cumulative Assumptions summary + apply/review/hydrate/ship/review-pr output | Tasks + apply/review/hydrate output |
+| **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify`, `/fab-continue` (after rework cap) | `/fab-clarify`, `/fab-continue` (after rework cap) |
+| **Recomputes confidence?** | Yes (intake, via `fab score --stage intake`) | No (no scoring at apply — intake is authoritative) | No | No |
+
+The remaining two skills that declare `_srad` are covered by these columns: **`/fab-draft`** follows the `/fab-new` column exactly (a thin delta over fab-new Steps 0–9 — same SRAD posture and budget, minus activation/branch). **`/fab-clarify`** is the escape valve itself: suggest-mode questions are SRAD-prioritized (max 5 per invocation), resolved assumptions are re-graded in the artifact's table, and the intake score is always recomputed.

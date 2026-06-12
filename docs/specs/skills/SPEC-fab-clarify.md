@@ -2,7 +2,7 @@
 
 ## Summary
 
-Refines the intake artifact without advancing. Two modes: Suggest (interactive, user-invoked) and Auto (autonomous — retained for future use; no orchestrator currently invokes it). Scans for gaps, `[NEEDS CLARIFICATION]` markers, and `<!-- assumed: ... -->` markers. Always recomputes the intake confidence. Hosts the `[AUTO-MODE]` Skill Invocation Protocol definition (moved from `_preamble.md` in 260611-zc9m; the preamble keeps a pointer).
+Refines the intake artifact without advancing. Two modes: Suggest (interactive, user-invoked) and Auto (autonomous — retained for future use; no orchestrator currently invokes it). Scans for gaps, `[NEEDS CLARIFICATION]` markers, and `<!-- assumed: ... -->` markers. Always recomputes the intake confidence. Hosts the `[AUTO-MODE]` Skill Invocation Protocol definition (moved from `_preamble.md` in 260611-zc9m; the preamble keeps a pointer). As of 260612-c5tr the bulk-confirm trigger is evaluated **before** the zero-gaps early exit (a below-gate, Confident-only intake no longer dead-ends at "artifact looks solid"), bulk-confirmed rows are re-graded by recomputed composite (S → 95) rather than labeled Certain by fiat, and both audit-trail writers share one placement/append rule.
 
 **Helpers**: Declares `helpers: [_srad]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
 
@@ -26,10 +26,19 @@ User invokes /fab-clarify [change-name] [target-artifact]
 │  ├─ Step 1.5: Taxonomy Scan
 │  │  └─ (agent reasoning — scan for gaps, markers)
 │  │  └─ Present tentative assumption questions first
+│  │  └─ (never stops on zero gaps — the early exit lives in
+│  │     Step 2's not-triggered branch, AFTER the bulk-confirm
+│  │     trigger is evaluated, 260612-c5tr)
 │  │
-│  ├─ Step 2: Bulk Confirm (if confident >= 3, after tentative resolution)
+│  ├─ Step 2: Bulk Confirm (if confident >= 3 AND confident >
+│  │  │ tentative + unresolved; evaluated before any zero-gaps exit —
+│  │  │ not-triggered + empty queue → "artifact looks solid" stop)
 │  │  └─ Display Confident assumptions → user responds
-│  │  └─ Edit: {artifact}.md (upgrade grades in Assumptions table)
+│  │  └─ Edit: {artifact}.md (S → 95, then recompute the composite
+│  │     per _srad § SRAD Scoring and grade by its half-open
+│  │     thresholds — not fiat-Certain; no weights/threshold numbers
+│  │     restated in fab-clarify.md;
+│  │     audit trail uses the same placement/append rules as Step 5)
 │  │
 │  ├─ Step 3-4: Ask Questions, Process Answers
 │  │  └─ Edit: {artifact}.md (resolve markers, update Assumptions)
