@@ -29,7 +29,7 @@ Execute the **shared pipeline bracket** (`_pipeline.md`, loaded via `helpers:`) 
 
 | Parameter | Value |
 |-----------|-------|
-| `{driver}` | `fab-ff` — passed to every `fab status` event command and used in re-run guidance |
+| `{driver}` | `fab-ff` — passed to the `fab status` event commands the bracket shows it on (the fail/recovery commands are deliberately driver-less — see `_pipeline.md`'s Behavior note) and used in re-run guidance |
 | `{terminal}` | `hydrate` — the pipeline ends after the bracket's Step 3; there are no ship/review-pr steps |
 
 The bracket defines everything else: pre-flight (intake prerequisite + intake gate), context loading, resumability, Steps 1–3 (apply → review → hydrate), the auto-rework loop with its per-cycle choreography, and the exhaustion stop.

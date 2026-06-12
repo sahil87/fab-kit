@@ -293,16 +293,16 @@ The constitution is the **architectural DNA** of a Fab project. It defines immut
 
 ## Git Integration (Optional)
 
-Fab works without git. Change folders are the unit of identity, not branches — the same change can be worked on across multiple branches, worktrees, or even repos. When git is available, Fab offers a lightweight convenience link, but this is strictly informational. Fab never couples its state to git state.
+Fab works without git. Change folders are the unit of identity, not branches — the same change can be worked on across multiple branches, worktrees, or even repos. When git is available, Fab offers a lightweight convenience link. For **state bookkeeping** that link stays informational — no branch information is stored in `.status.yaml`, and no stage transition is derived from which branch is checked out. The **ship path is the deliberate exception**: `/git-pr` and `/git-pr-review` enforce branch↔change correspondence with a pre-mutation STOP (the branch-matches-change guard), so an autonomous run can never push one change's branch while recording another change's status.
 
-### Why Decoupled
+### Why Decoupled (During Development)
 
-A change folder captures *what* is being built (intake, plan). Where that work happens in git is a separate concern:
+A change folder captures *what* is being built (intake, plan). Where that work happens in git is a separate concern while the work is in flight:
 - A developer might work on the same change across multiple worktrees
-- A change might span multiple branches (feature branch + hotfix backport)
+- A change might span multiple branches during development (feature branch + hotfix backport) — at ship time, though, the checked-out branch must match the change being shipped; `/git-branch` aligns it before `/git-pr`
 - A change might start on one branch and move to another after a rebase
 
-Fab stays out of this. No branch information is stored in `.status.yaml` — `/fab-status` uses `git branch --show-current` for live display.
+Fab stays out of this during development. No branch information is stored in `.status.yaml` — `/fab-status` uses `git branch --show-current` for live display. The decoupling governs storage and stage state; the ship-time guard governs mutation (see How It Works).
 
 ### How It Works
 
@@ -311,16 +311,16 @@ Fab stays out of this. No branch information is stored in `.status.yaml` — `/f
 | Option | When to use | What happens |
 |--------|-------------|--------------|
 | **Create branch** | On `main`/`master` (auto) or any non-target branch (prompted) | `/git-branch` creates branch named after the change folder (e.g., `260115-a7k2-add-oauth`) |
-| **Adopt current branch** | Already on a feature branch | No git operation — acknowledge the current branch |
+| **Adopt current branch** | Already on a feature branch | No git operation — acknowledge the current branch. A foreign-named branch (one that does not contain the change folder name) fails the ship-time guard: align via `/git-branch` before `/git-pr` — the guard STOPs on mismatch rather than checking anything out |
 | **Skip** | Non-git repo, or user prefers manual control | No branch operation |
 
-`/fab-switch` suggests `/git-branch` after every switch. `/fab-new` does not handle branches. `/fab-status` always displays the current branch via `git branch --show-current`. `/git-pr` nudges when the current branch doesn't match the active change. Fab never commits, pushes, merges, or deletes branches — that remains the user's responsibility (or `/git-pr`'s for shipping).
+`/fab-switch` suggests `/git-branch` after every switch. `/fab-new` creates or checks out the matching branch inline (its Step 11). `/fab-status` always displays the current branch via `git branch --show-current`. `/git-pr` and `/git-pr-review` enforce a branch-matches-change guard: when a change is resolved, the current branch must equal its folder name (or contain it as a substring) — a mismatch STOPs before any status mutation, commit, or push, with `/git-branch`//`/fab-switch` guidance and no autonomous checkout. Fab never merges or deletes branches — that remains the user's responsibility (committing and pushing is `/git-pr`'s for shipping).
 
 ### Branch Naming
 
 When Fab creates a branch, it uses the change folder name directly: `260115-a7k2-add-oauth`. This gives you a 1:1 mapping between `fab/changes/` and `git branch`.
 
-When adopting an existing branch (e.g., `feature/dev-907-oauth` from Linear, or an exploratory worktree branch), Fab stores whatever name it finds — no rename.
+When adopting an existing branch (e.g., `feature/dev-907-oauth` from Linear, or an exploratory worktree branch), Fab keeps whatever name it finds — no rename, nothing stored. Shipping from such a branch requires aligning first: the `/git-pr`//`git-pr-review` guard accepts only a branch that equals the change folder name or contains it as a substring (`feature/260115-a7k2-add-oauth` passes; `feature/dev-907-oauth` STOPs) — run `/git-branch` to create the matching branch.
 
 ### PR Types
 

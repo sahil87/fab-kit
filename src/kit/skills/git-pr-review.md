@@ -4,9 +4,11 @@ description: "Process PR review comments — triage and fix feedback from any re
 allowed-tools: Bash(git:*), Bash(gh:*), Bash(command:*)
 ---
 
-# /git-pr-review [--tool <name>]
+# /git-pr-review [<change>] [--tool <name>]
 
 Process GitHub PR review comments on the current branch's PR. Handles feedback from any reviewer — human or bot. When no reviews exist, requests an automated Copilot review and polls for up to 10 minutes for it to appear. Fully autonomous — no questions, no prompts.
+
+**`<change>` argument** *(optional)*: an explicit change to target instead of the active one — resolved transiently in Step 0 (`.fab-status.yaml` untouched). Arguments are classified by value: `--tool` and the value following it are consumed as the flag; any remaining positional argument is the change reference (a `--tool` value can never be misread as a change).
 
 **`--tool` flag**: Forces a specific review tool, bypassing automatic detection. Valid values: `copilot`. When provided, only that tool is attempted.
 
@@ -16,7 +18,22 @@ Process GitHub PR review comments on the current branch's PR. Handles feedback f
 
 ### Step 0: Start Review-PR Stage
 
-If an active change resolves (`fab change resolve 2>/dev/null`), capture its output as `{name}` — the change folder name, used wherever later steps reference `<change>` in `fab status` commands and in the Step 6.5 `fab/changes/{name}/…` file paths — then attempt to start the `review-pr` stage:
+Resolve the change first:
+
+- **Explicit `<change>` argument provided** → run `fab change resolve <change> 2>/dev/null` (transient override — `.fab-status.yaml` is untouched; accepts 4-char ID, folder substring, or full folder name). On failure, STOP with `Cannot resolve change '<change>'.` — a named target that doesn't resolve is a caller error; do NOT fall back to the active change.
+- **No `<change>` argument** → run `fab change resolve 2>/dev/null` (the active change). On failure, proceed with no change context — every `fab status` step below is skipped silently.
+
+On success, capture the output as `{name}` — the change folder name, used wherever later steps reference `<change>` in `fab status` commands and in the Step 6.5 `fab/changes/{name}/…` file paths.
+
+**Branch-matches-change guard** *(only when a change resolved; runs BEFORE the `fab status start` below — no status mutation on the STOP path)*: run `git branch --show-current`. If the output is **empty** (detached HEAD), STOP with `Cannot process PR reviews from a detached HEAD — check out the change's branch first (run /git-branch).` Otherwise the current branch MUST match `{name}`: exact string equality, or `{name}` appearing as a substring of the branch. On mismatch, STOP — do NOT check out another branch autonomously:
+
+```
+Branch '{current_branch}' does not match change '{name}'.
+Run /git-branch to switch to the change's branch, /fab-switch to change the active change,
+or pass the intended change explicitly: /git-pr-review <change>.
+```
+
+Then attempt to start the `review-pr` stage:
 
 ```bash
 fab status start <change> review-pr git-pr-review 2>/dev/null || true
@@ -92,7 +109,7 @@ If `review_tools.copilot` is `false` (and `--tool copilot` was **not** provided)
      gh pr view {number} --json reviews -q '.reviews | map(select(.author.login == "copilot-pull-request-reviewer")) | length'
      ```
    - When Copilot review count > 0: proceed to Step 3 (Fetch Comments)
-   - If 20 attempts exhausted without a Copilot-authored review: print `Copilot review requested but not yet available. Re-run /git-pr-review to process when ready.` and go to Step 6 with outcome **timeout** (no error, no fail event — the requested review is still pending)
+   - If 20 attempts exhausted without a Copilot-authored review: print `Copilot review requested but not yet available. Re-run /git-pr-review to process when ready.` — when an explicit `<change>` was passed in Step 0, include it in the suggested command (`Re-run /git-pr-review <change> …`; an argless re-run would resolve the active change instead) — and go to Step 6 with outcome **timeout** (no error, no fail event — the requested review is still pending)
 3. **On failure** (non-zero exit from `gh pr edit`):
    - Print: `No automated reviewer available. Run /git-pr-review when reviews are added.`
    - Go to Step 6 with outcome **no-reviews** (clean finish — no error, no fail event)
@@ -162,6 +179,8 @@ After all `fix` comments are processed:
      (The re-run detects the unpushed commit, pushes it, and posts the replies.)
      ```
 
+     When an explicit `<change>` was passed in Step 0, include it in the recovery's re-run command (`… then re-run /git-pr-review <change>.`) — an argless re-run would resolve the active change instead.
+
 Print: `Fixed {N} comment(s) across {M} file(s)`
 
 ### Step 5.5: Post Replies
@@ -195,18 +214,18 @@ Print: `Replied to {N} comment(s): {F} fix, {D} defer, {S} skip`
 
 **Step 6 is the exit point for every terminal path after Step 0, with two exceptions** — Steps 1, 2, and 4 route their terminal conditions here with a named outcome. The exceptions STOP directly without reaching Step 6: **Step 1.5** (invalid `--tool` value — stops before any review processing) and **Step 5** (commit failure — stops after `git reset`, no partial state; push failure — stops keeping the commit, with recovery guidance and no replies posted — the re-run's unpushed-commit gate completes the cycle).
 
-If an active change was resolved in Step 0, act on the outcome class:
+If a change was resolved in Step 0 (active or explicit), act on the outcome class:
 
 1. **On success** (comments processed and pushed, or no actionable comments): Call `fab status finish <change> review-pr git-pr-review 2>/dev/null || true`.
 2. **On failure** (gh missing, no PR found, processing error): Call `fab status fail <change> review-pr git-pr-review 2>/dev/null || true`.
 3. **On no-reviews** (no reviews found, no inline comments to process, or no automated reviewer available): Call `fab status finish <change> review-pr git-pr-review 2>/dev/null || true` — a successful no-op outcome.
-4. **On timeout** (Copilot review requested but not yet available after 10 minutes): **leave the review-pr stage `active` — no finish, no fail.** The requested review is still pending; finishing here would mark the stage `done` with the review unprocessed, and `start` cannot reactivate a done stage. The earlier `Re-run /git-pr-review to process when ready.` message stands — the re-run picks up the still-`active` stage.
+4. **On timeout** (Copilot review requested but not yet available after 10 minutes): **leave the review-pr stage `active` — no finish, no fail.** The requested review is still pending; finishing here would mark the stage `done` with the review unprocessed, and `start` cannot reactivate a done stage. The earlier re-run message stands (naming the explicit `<change>` when one was passed in Step 0) — the re-run picks up the still-`active` stage.
 
 All `fab status` calls are best-effort — failures silently ignored to avoid blocking the PR review workflow.
 
 ### Step 6.5: Commit Status Updates
 
-If an active change was resolved in Step 0 **and** Step 6 took its success / no-reviews path (i.e., `fab status finish` ran — not the `fail` or `timeout` path), commit the bookkeeping writes that `fab status finish` produced (`.status.yaml` review-pr active→done, `completed_at`, `last_updated`; appended `review:passed` event in `.history.jsonl`). This mirrors `git-pr.md` Step 4c.
+If a change was resolved in Step 0 (active or explicit) **and** Step 6 took its success / no-reviews path (i.e., `fab status finish` ran — not the `fail` or `timeout` path), commit the bookkeeping writes that `fab status finish` produced (`.status.yaml` review-pr active→done, `completed_at`, `last_updated`; appended `review:passed` event in `.history.jsonl`). This mirrors `git-pr.md` Step 4c.
 
 1. Stage the status and history files: `git add fab/changes/{name}/.status.yaml fab/changes/{name}/.history.jsonl`
 2. Check for staged changes: `git diff --cached --quiet`
@@ -215,13 +234,13 @@ If an active change was resolved in Step 0 **and** Step 6 took its success / no-
 
 Print (if committed): `  ✓ status — committed and pushed status updates (.status.yaml, .history.jsonl)`
 
-**Skip this step silently** when no active change was resolved, or when Step 6 took the `fail` or `timeout` path — neither path ran `finish`, and the fail path MUST NOT commit a half-finished state.
+**Skip this step silently** when no change was resolved in Step 0, or when Step 6 took the `fail` or `timeout` path — neither path ran `finish`, and the fail path MUST NOT commit a half-finished state.
 
 **Failure handling** (best-effort push): If the commit fails, report the error. If `git push` fails (e.g., a transient network error), report the error but do **not** STOP the skill or mark the stage as failed — a completed review cycle must not be aborted by a transient push failure. The local commit is retained and a later re-run / push reconciles it. (This softens git-pr's fail-fast push specifically for the terminal stage, consistent with git-pr-review's best-effort status-write ethos.)
 
 ### Phase Sub-State Tracking
 
-When an active change is resolved, update `stage_metrics.review-pr.phase` at key points during the workflow. Phase values track the skill's progress through its steps:
+When a change is resolved (active or explicit), update `stage_metrics.review-pr.phase` at key points during the workflow. Phase values track the skill's progress through its steps:
 
 | Phase | When set |
 |-------|----------|

@@ -26,6 +26,13 @@ Planning skill declares helpers: [..., _srad]
 ├─ Critical Rule
 │  (R < 25 AND A < 25 → always Unresolved, always ask —
 │   the single numeric definition)
+│  (promptless-dispatch carve-out, 260612-w7dp: under
+│   /fab-proceed's defer-and-surface contract there is no
+│   user to ask — would-be-asked Unresolved decisions become
+│   "Deferred — promptless dispatch" rows surfaced by the
+│   dispatcher; the intake gate backstops — fab score returns
+│   0.0 whenever any Unresolved row exists. MUST-ask applies
+│   unchanged wherever a user is reachable)
 │
 ├─ Skill-Specific Autonomy Levels
 │  (fab-new / fab-continue / fab-fff / fab-ff postures

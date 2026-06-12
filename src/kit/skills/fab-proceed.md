@@ -86,11 +86,13 @@ Combine the signals from Steps 1–4 per the dispatch table below.
 |----------------|-----------------|--------------|---------------------|-----------|--------------|
 | Yes | Yes | — | — | — | `/fab-fff` only |
 | Yes | No | — | — | — | `/git-branch` → `/fab-fff` |
-| No | — | Substantive | None | — | `/fab-new` → `/git-branch` → `/fab-fff` |
+| No | — | Substantive | None | — | `/fab-new` → `/fab-fff` |
 | No | — | Substantive | ≥1 | Clearly relevant | `/fab-switch` → `/git-branch` → `/fab-fff` |
-| No | — | Substantive | ≥1 | Not clearly relevant | `/fab-new` → `/git-branch` → `/fab-fff` (emit bypass notes) |
+| No | — | Substantive | ≥1 | Not clearly relevant | `/fab-new` → `/fab-fff` (emit bypass notes) |
 | No | — | Empty/thin | ≥1 | — | `/fab-switch` → `/git-branch` → `/fab-fff` (pick by date-recency) |
 | No | — | Empty/thin | None | — | Error — stop |
+
+The `/fab-new`-prefixed rows do NOT chain `/git-branch`: `/fab-new` Step 11 creates or checks out the matching branch inline, so a trailing `/git-branch` would be a guaranteed no-op. The `/fab-switch`-prefixed rows keep it — switching activates a change but creates no branch.
 
 The `Relevant?` column is evaluated only when Conversation is Substantive AND Unactivated intake is ≥1. In the Empty/thin + ≥1 intake row, no relevance check runs — pick the most-recent by `YYMMDD` prefix. This preserves the "resume yesterday's draft" flow, and is safe because an empty/thin conversation carries no competing signal that could conflict with the intake's content.
 
@@ -134,8 +136,9 @@ Each prefix step (`/fab-new`, `/fab-switch`, `/git-branch`) SHALL be dispatched 
 Runs when the dispatch table selects `/fab-new`: either substantive conversation + no intake, or substantive conversation + ≥1 intake but none clearly relevant.
 
 1. Synthesize a description from the conversation (see Conversation Context Synthesis below). The synthesis MUST NOT pull from bypassed drafts — only the live conversation is the source.
-2. Dispatch subagent: read `.claude/skills/fab-new/SKILL.md`, invoke `/fab-new` with the synthesized description
-3. Capture the created change folder name from the subagent result
+2. Dispatch subagent: read `.claude/skills/fab-new/SKILL.md`, invoke `/fab-new` with the synthesized description. The dispatch is promptless — there is no interactive relay — so the prompt MUST include the **defer-and-surface contract**: ask NO questions; any decision SRAD would normally ask (Unresolved) is instead recorded in the intake's `## Assumptions` table as an Unresolved row with Rationale `Deferred — promptless dispatch`, and listed in the subagent result. (This is the `_srad.md` § Critical Rule **promptless-dispatch carve-out** — the MUST-ask is satisfied by deferring and surfacing, not by silently assuming.)
+3. Capture the created change folder name **and any deferred Unresolved decisions** from the subagent result
+4. **Surface deferred decisions**: before delegating to `/fab-fff`, emit one line per deferred decision (informational — `/fab-proceed` stays zero-prompt). The intake gate is the structural backstop: `fab score` returns 0.0 whenever **any** Unresolved row exists, so even a single deferral fails the `/fab-fff` gate and the pipeline stops normally for the user to resolve via `/fab-clarify`.
 
 #### fab-switch Dispatch
 
@@ -146,7 +149,7 @@ Runs when the dispatch table selects `/fab-switch` (substantive + clearly releva
 
 #### git-branch Dispatch
 
-Runs when the dispatch table selects `/git-branch` (all non-error branches except the "active change + matching branch" one).
+Runs when the dispatch table selects `/git-branch`: the branch-mismatch row (active change, branch doesn't match) and the `/fab-switch`-prefixed rows. The `/fab-new`-prefixed rows do NOT include it — `/fab-new` Step 11 creates or checks out the matching branch inline.
 
 1. Dispatch subagent: read `.claude/skills/git-branch/SKILL.md`, follow its behavior for the active change
 2. Capture the branch creation/checkout result from the subagent result
@@ -216,6 +219,7 @@ Only for steps actually executed:
 - `Created intake: {change-name}` (when `/fab-new` ran)
 - `Activated: {change-name}` (when `/fab-switch` ran)
 - `Branch: {branch-name} ({action})` (when `/git-branch` ran; action = created / checked out / already active)
+- `Deferred: {decision summary}` (one line per Unresolved decision the fab-new subagent recorded as `Deferred — promptless dispatch` — emitted after the step reports, before the handoff line)
 
 When only `/fab-fff` is needed (active change + matching branch), output shows only the detecting-state line and the handoff line before `/fab-fff` output.
 

@@ -16,6 +16,9 @@ User invokes /fab-status [change-name]
 └─ Render status display
    ├─ Stage line: "Stage: {stage} ({n}/6) — {state}"
    ├─ Progress table (6 rows: intake, apply, review, hydrate, ship, review-pr)
+   │  Glyphs: ✓ done, ● active, ◷ ready, ○ pending, ✗ failed,
+   │  ⏭ skipped (260612-w7dp — skipped glyph matches the Go
+   │  renderer's ProgressLine)
    ├─ Plan counts: "Tasks: {plan.task_count}", "Acceptance: {plan.acceptance_completed}/{plan.acceptance_count}"
    │  (or "Plan: not yet generated" when plan absent)
    ├─ Confidence line (from .status.yaml confidence block)

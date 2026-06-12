@@ -4,11 +4,13 @@ description: "Autonomously commit, push, and create a draft GitHub PR — no pro
 allowed-tools: Bash(git:*), Bash(gh:*)
 ---
 
-# /git-pr
+# /git-pr [<change>] [<type>]
 
 > Branch naming conventions are defined in `_preamble.md` § Naming Conventions.
 
 Autonomously ship local changes to a GitHub PR. No questions, no prompts — just execute.
+
+**Arguments** (both optional, in any order — classified by value): an argument matching one of the 7 valid PR types (case-insensitive) is the `<type>` argument (Step 0b); any other argument is the `<change>` argument — an explicit change to target instead of the active one (Step 0). Callers SHOULD pass the change **folder name** (or a distinctive substring), not a bare 4-char id: an id that happens to spell a type word (`feat`, `docs`, `test`) would be classified as a type.
 
 ---
 
@@ -16,13 +18,20 @@ Autonomously ship local changes to a GitHub PR. No questions, no prompts — jus
 
 ### Step 0: Resolve Change Context
 
-Resolve the active change **once** and derive four variables used throughout this skill. Later steps reference these variables and MUST NOT re-run `fab change resolve` — reuse this single resolution to avoid inconsistency.
+Resolve the change **once** and derive four variables used throughout this skill. Later steps reference these variables and MUST NOT re-run `fab change resolve` — reuse this single resolution to avoid inconsistency.
 
-1. Run `fab change resolve 2>/dev/null`:
-   - **Succeeds** → `{has_fab} = true`, `{name}` = resolved change name.
-   - **Fails** → `{has_fab} = false`; every step gated on `{has_fab}` is skipped silently.
+1. Resolve the change:
+   - **Explicit `<change>` argument provided** → run `fab change resolve <change> 2>/dev/null` (transient override — `.fab-status.yaml` is untouched; accepts 4-char ID, folder substring, or full folder name). **Succeeds** → `{has_fab} = true`, `{name}` = resolved change name. **Fails** → STOP with `Cannot resolve change '<change>'.` — a named target that doesn't resolve is a caller error; do NOT fall back to the active change.
+   - **No `<change>` argument** → run `fab change resolve 2>/dev/null` (the active change). **Succeeds** → `{has_fab} = true`, `{name}` = resolved change name. **Fails** → `{has_fab} = false`; every step gated on `{has_fab}` is skipped silently.
 2. `{has_intake}` — whether `fab/changes/{name}/intake.md` exists *(only when `{has_fab}`)*.
 3. `{change_type}` — the `change_type` value from `fab/changes/{name}/.status.yaml` *(only when `{has_fab}`; may be null)*.
+4. **Branch-matches-change guard** *(only when `{has_fab}`)* — run `git branch --show-current`. If the output is **empty** (detached HEAD), STOP immediately with Step 2's detached-HEAD message (`Cannot ship from a detached HEAD — check out a branch first (run /git-branch).`) — before Step 0a's status mutation (verify-before-mutate; Step 2's own guard still covers the `{has_fab} = false` path, where this guard never runs). Otherwise the current branch MUST match `{name}`: exact string equality, or `{name}` appearing as a substring of the branch. On mismatch, STOP **before any status mutation, commit, or push** (Step 0a has not run yet) — do NOT check out another branch autonomously:
+
+   ```
+   Branch '{current_branch}' does not match change '{name}'.
+   Run /git-branch to switch to the change's branch, /fab-switch to change the active change,
+   or pass the intended change explicitly: /git-pr <change>.
+   ```
 
 ### Step 0a: Start Ship Stage
 
@@ -42,7 +51,7 @@ Determine the PR type before gathering state. The type controls the PR title pre
 
 **Resolution chain** (evaluated in order, first match wins):
 
-1. **Explicit argument**: If the user invoked `/git-pr {type}` where `{type}` is one of the 7 valid types (case-insensitive), normalize to lowercase and use it. If the argument is not a valid type, ignore it and fall through to step 2.
+1. **Explicit argument**: If the invocation includes an argument that is one of the 7 valid types (case-insensitive), normalize to lowercase and use it. An argument that is not a valid type is the `<change>` argument — it was consumed by Step 0 and does NOT count as a type; fall through to step 2.
 
 2. **Read from `.status.yaml`**: If `{has_fab}` (Step 0) and `{change_type}` is non-null and one of the 7 valid types (`feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`), use `{change_type}`. Fall through if `{has_fab}` is false, `{change_type}` is null, or `{change_type}` is not a valid type.
 
@@ -90,23 +99,6 @@ Determine:
 - **number** / **url** — the `number` and `url` fields from `gh pr view` (unset when no PR exists). Interpolated by Step 3's MERGED STOP and the "already shipped" output
 - **default_branch** — the resolved default branch from the commands above (symbolic-ref first, `gh repo view` fallback, then the probed literal fallback: `main` when `refs/remotes/origin/main` exists, else `master` — mirroring the operator's strategy). Always non-empty, so every later `{default_branch}` interpolation is meaningful
 - **issues** — the issue IDs from `fab status get-issues` (space-joined), or empty if none
-
-### Step 1b: Branch Mismatch Nudge
-
-If `branch` from Step 1 is **empty** (detached HEAD), skip this step silently — Step 2's detached-HEAD guard STOPs anyway, and a nudge comparing an empty branch name would be noise.
-
-If `{has_fab}` (Step 0), compare the current branch against `{name}`.
-
-A match is: (1) exact string equality between current branch and change name, or (2) the change name appears as a substring of the current branch.
-
-If there is **no match** and the current branch is **not** the default branch (`{default_branch}`, falling back to literal `main`/`master` — Step 1), show a non-blocking nudge before proceeding:
-
-```
-Note: branch '{current_branch}' doesn't match active change '{change_name}'.
-Run /git-branch to switch, or continue if this is intentional.
-```
-
-Then proceed to Step 2 normally. If `{has_fab}` is false, skip this step silently.
 
 ### Step 2: Branch Guard
 
@@ -260,7 +252,7 @@ Print: `  ✓ pr     — <PR URL>`
 
 ### Step 4a: Record PR URL
 
-After the PR URL is known (from step 3c or from the existing PR in step 1), attempt to record it in the active change's `.status.yaml`:
+After the PR URL is known (from step 3c or from the existing PR in step 1), attempt to record it in the resolved change's `.status.yaml` (`{name}` from Step 0 — the active change or the explicit override):
 
 1. If `{has_fab}` (Step 0), call: `fab status add-pr {name} <pr_url>`
 2. If `{has_fab}` is false, skip silently — do not print any error or warning

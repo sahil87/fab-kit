@@ -8,17 +8,28 @@ Autonomously commits, pushes, and creates a draft GitHub PR. No prompts, no ques
 
 **Re-run contract** (Constitution III, declared in the skill's Key Properties section): re-run after ship is a no-op — the "already shipped" path (no uncommitted changes, no unpushed commits, an **OPEN** PR exists) re-records the existing PR URL silently and stops; `fab status add-pr` is idempotent and the Step 4c status commit is guarded by `git diff --cached --quiet`.
 
+**Dispatch-target hardening** (260612-w7dp): accepts an optional explicit `<change>` argument (any argument that isn't one of the 7 PR types), resolved transiently in Step 0 — `.fab-status.yaml` untouched; an explicit argument that fails to resolve STOPs (caller error), while argless failure keeps the silent `{has_fab}=false` degradation. Callers SHOULD pass the change folder name, not a bare 4-char id (an id spelling a type word — `feat`/`docs`/`test` — would classify as a type); `/fab-fff` Step 4 passes the folder name through (`/git-pr {name}`). Step 0 ends with a **branch-matches-change guard** (exact folder-name equality, or the folder name as a branch substring) that STOPs before any status mutation, commit, or push on mismatch — no autonomous checkout; an empty branch (detached HEAD) likewise STOPs there, before Step 0a's `fab status start` (verify-before-mutate parity with git-pr-review — Step 2's own guard still covers the no-fab path). It supersedes the former Step 1b non-blocking nudge, which is removed.
+
 ## Flow
 
 ```
-/git-pr invoked (user or sub-agent)
+/git-pr [<change>] [<type>] invoked (user or sub-agent)
 │
 ├─ Step 0: Resolve Change Context (260611-szxd f094 — the ONLY
 │  │        fab change resolve in the skill; later steps reference
 │  │        the variables and MUST NOT re-resolve)
-│  ├─ Bash: fab change resolve 2>/dev/null → {has_fab}, {name}
+│  ├─ Bash: fab change resolve [<change>] 2>/dev/null → {has_fab}, {name}
+│  │        (explicit <change> = transient override, 260612-w7dp;
+│  │         explicit-arg resolution failure → STOP, never a silent
+│  │         fallback to the active change; argless failure → {has_fab}=false)
 │  ├─ {has_intake} — fab/changes/{name}/intake.md exists?
-│  └─ {change_type} — from fab/changes/{name}/.status.yaml
+│  ├─ {change_type} — from fab/changes/{name}/.status.yaml
+│  └─ Branch-matches-change guard (260612-w7dp, if {has_fab}):
+│     branch must equal {name} or contain it as a substring →
+│     mismatch STOPs BEFORE Step 0a's status mutation (guidance:
+│     /git-branch, /fab-switch, or /git-pr <change>); empty branch
+│     (detached HEAD) STOPs here too — before Step 0a — with Step 2's
+│     detached-HEAD message (Step 2's guard covers the no-fab path)
 │
 ├─ Step 0a: Start Ship Stage (if {has_fab})
 │  └─ Bash: fab status start {name} ship git-pr
@@ -42,9 +53,8 @@ Autonomously commits, pushes, and creates a draft GitHub PR. No prompts, no ques
 │  │         always non-empty)
 │  └─ Bash: fab status get-issues {name}   (if {has_fab})
 │
-├─ Step 1b: Branch Mismatch Nudge (compares branch vs {name}; skip if !{has_fab}
-│           or branch empty (detached HEAD — Step 2 STOPs anyway);
-│           keys on {default_branch}, not literal main/master)
+├─ (Step 1b removed in 260612-w7dp — the non-blocking mismatch nudge is
+│   superseded by Step 0's hard branch-matches-change guard)
 │
 ├─ Step 2: Branch Guard (260612-g8st)
 │  ├─ detached HEAD (empty branch) → STOP before any commit/push:

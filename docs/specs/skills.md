@@ -298,7 +298,7 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 **Purpose**: Advance the active change one pipeline stage — intake, apply (co-generates `plan.md` at entry then runs tasks), review, hydrate, ship (delegates to `/git-pr`), or review-pr (delegates to `/git-pr-review`). Or, when called with a stage argument, reset to that stage and re-run from there.
 
 **Arguments**:
-- `<stage>` *(optional)* — target stage to reset to (`apply` is the typical reset). The legacy `tasks` and `spec` targets are removed and error with a pointer to `apply` / `/fab-clarify intake`. Used after `/fab-continue` (review) identifies issues upstream. When provided, resets `.status.yaml` to this stage and re-runs from that point forward.
+- `<stage>` *(optional)* — target stage to reset to (`apply` is the typical reset). The legacy `tasks` and `spec` targets are removed and error with a pointer to the `apply` and `intake` reset routes (`/fab-continue apply` to re-run apply — delete `plan.md` first to force regeneration — or `/fab-continue intake` then `/fab-clarify` to rework the intake). Used after `/fab-continue` (review) identifies issues upstream. When provided, resets `.status.yaml` to this stage and re-runs from that point forward.
 
 **Context** (varies by target stage):
 - **Apply stage**: config, constitution, `intake.md` (used to co-generate `plan.md` at apply entry); plus the resumable plan + source code on subsequent invocations
@@ -322,8 +322,8 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 7. Update `.status.yaml`
 
 **Behavior** (with stage argument — reset and regenerate):
-1. **Guard**: target stage must be a valid 6-pipeline stage (typically `apply`). Reset to `tasks` or `spec` errors with `"tasks"/"spec" stages were removed — use /fab-continue apply (regenerates plan.md and re-runs) or /fab-clarify intake.`
-2. Reset `.status.yaml` stage to the target. Mark all stages from target onward as `pending`.
+1. **Guard**: target stage must be a valid 6-pipeline stage (typically `apply`). Reset to `tasks` or `spec` errors with `"tasks"/"spec" stages were removed — use /fab-continue apply to re-run apply (delete plan.md first to force regeneration), or /fab-continue intake then /fab-clarify to rework the intake.`
+2. Reset `.status.yaml`: the target stage → `active`; all stages **after** it → `pending` (stages before the target are preserved). Non-resettable current states are handled first (reset From-set is `{done, ready, skipped}`): target already `active` → skip the call and proceed (a reset re-run is a state-wise no-op); target `failed` → handled by the failed dispatch rows instead (`start` owns failed→active, review/review-pr only); target `pending` → error with advance guidance.
 3. For an intake reset, regenerate the intake artifact in place; for execution resets, re-run from that stage.
 4. Downstream artifacts are invalidated only by re-running apply: `plan.md` persists across resets (deleting it forces regeneration); task checkboxes are NOT auto-cleared.
 5. For an intake reset, advance intake to `ready` (not `done`) to preserve the `/fab-clarify` opportunity.
@@ -531,7 +531,7 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
   Missing or wrong tasks/acceptance items. The agent adds/modifies entries in `plan.md` (new tasks get the next sequential ID; new acceptance items use the next `A-NNN`). Completed tasks that are unaffected stay `[x]`. Only new or revised tasks are executed.
 
 - **Revise requirements** → edit `plan.md` `## Requirements`, then `/fab-continue` (apply)
-  Requirements were wrong or incomplete. The agent edits the `## Requirements` section plus the downstream `## Tasks`/`## Acceptance` it affects, then re-runs apply. For a fundamentally wrong intake, fix `intake.md` via `/fab-clarify intake` first (then re-enter apply, which regenerates requirements from the corrected intake).
+  Requirements were wrong or incomplete. The agent edits the `## Requirements` section plus the downstream `## Tasks`/`## Acceptance` it affects, then re-runs apply. For a fundamentally wrong intake, run `/fab-continue intake` first (resets to intake and regenerates it), refine via `/fab-clarify`, and delete `plan.md` so re-entering apply re-derives `## Requirements` from the revised intake — `plan.md` is otherwise preserved on reset; there is no automatic regeneration.
 
 The applying agent triages review comments by priority — not all comments need to be implemented. The `.status.yaml` stage is reset to the chosen re-entry point. The general rule: **artifacts at and after the re-entry point are regenerated or updated; artifacts before it are preserved.**
 
@@ -749,11 +749,12 @@ Next: Complete intake.md, then /fab-continue
 
 ---
 
-## `/git-pr [type]`
+## `/git-pr [<change>] [type]`
 
 **Purpose**: Autonomously commit, push, and create a draft GitHub PR. No questions, no prompts. Covers stage 5 (Ship) of the pipeline.
 
-**Arguments**:
+**Arguments** (both optional, in any order — classified by value):
+- `[<change>]` *(optional)* — explicit change to target instead of the active one: any argument that is NOT one of the 7 PR types. Resolved transiently (`.fab-status.yaml` untouched); an explicit argument that fails to resolve STOPs (caller error — never a silent fallback to the active change). Pass the change folder name, not a bare 4-char id: an id spelling a type word (`feat`, `docs`, `test`) would be classified as a type.
 - `[type]` *(optional)* — PR type prefix: `feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`. If omitted, type is inferred from `.status.yaml`, `intake.md`, or the diff (in that order).
 
 **Example**:
@@ -777,6 +778,7 @@ Next: Complete intake.md, then /fab-continue
 **Key properties**:
 - Requires `gh` CLI authenticated (`gh auth login`)
 - Stops immediately on `main`/`master` branch — run `/git-branch` first
+- Branch-matches-change guard: when a change is resolved, the current branch must equal its folder name (or contain it as a substring) — a mismatch STOPs before any status mutation, commit, or push; no autonomous checkout
 - Idempotent — skips steps already done (no PR created if one exists)
 - Marks the `ship` stage done, auto-activates `review-pr`
 
@@ -784,11 +786,12 @@ Next: Complete intake.md, then /fab-continue
 
 ---
 
-## `/git-pr-review [--tool <name>]`
+## `/git-pr-review [<change>] [--tool <name>]`
 
 **Purpose**: Process GitHub PR review comments on the current branch's PR. Handles feedback from any reviewer — human or bot. Covers stage 6 (Review-PR) of the pipeline.
 
 **Arguments**:
+- `[<change>]` *(optional)* — explicit change to target instead of the active one: any positional (non-flag) argument; `--tool` and its value are consumed as the flag, never as a change reference. Resolved transiently (`.fab-status.yaml` untouched); an explicit argument that fails to resolve STOPs (caller error), while argless resolution failure proceeds with no change context. When a change is resolved, the branch-matches-change guard STOPs on mismatch before any status mutation.
 - `--tool <name>` *(optional)* — force a specific review tool. Valid values: `copilot` (only). Bypasses the `review_tools` config check.
 
 **Example**:

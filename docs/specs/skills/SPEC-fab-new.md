@@ -30,7 +30,11 @@ User invokes /fab-new <description>
 │
 ├─ Step 3: Create Change
 │  ├─ [backlog ID detected] collision check first:
-│  │  Bash: fab change resolve {id}  (4-char ID is in the folder prefix)
+│  │  Bash: fab resolve --id {id} → compare stdout for EQUALITY
+│  │  with {id} (260612-w7dp — resolution is substring-based, so a
+│  │  hit inside another change's slug resolves with a DIFFERENT
+│  │  canonical ID and must NOT route to resume); on an exact match,
+│  │  fab resolve --folder {id} names the existing change
 │  ├─ [Linear ID detected] collision check first:
 │  │  Bash: grep -lw "{ISSUE_ID}" fab/changes/*/.status.yaml
 │  │  (-w word-anchors: DEV-123 won't match DEV-1234)
@@ -106,7 +110,7 @@ User invokes /fab-new <description>
 |------|---------|
 | Read | Load preamble, templates, backlog, project files |
 | Write | Write `intake.md` |
-| Bash | `fab change new`, `fab status set-change-type` (override only), `fab score`, `fab status advance`, `fab status add-issue`, `fab change switch` |
+| Bash | `fab change new`, `fab resolve --id`/`--folder` (backlog-ID collision pre-check), `fab status set-change-type` (override only), `fab score`, `fab status advance`, `fab status add-issue`, `fab change switch` |
 | Bash (git) | `git rev-parse --is-inside-work-tree`, `git branch --show-current`, `git status --porcelain` (dirty count, excluding `fab/changes/{name}/`), `git rev-parse --verify` (local + `origin/{name}`), `git config branch.{current}.remote`, `git checkout -b`, `git checkout`, `git checkout --track`, `git branch -m` |
 | MCP (Linear) | Fetch issue details (optional path) |
 

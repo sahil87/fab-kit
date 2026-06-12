@@ -51,7 +51,12 @@ User invokes /fab-proceed
 │  │  │  Input: synthesized description          │
 │  │  │    (from conversation ONLY —             │
 │  │  │     never from bypassed drafts)          │
+│  │  │  Prompt: defer-and-surface — ask NO      │
+│  │  │   questions; Unresolved → intake row     │
+│  │  │   "Deferred — promptless dispatch"       │
 │  │  │  Returns: created change folder name     │
+│  │  │   + deferred Unresolved decisions        │
+│  │  │   (surfaced before /fab-fff)             │
 │  │  └──────────────────────────────────────────┘
 │  ├─ ┌──────────────────────────────────────────┐
 │  │  │ SUB-AGENT: /fab-switch (if dispatched)   │
@@ -76,11 +81,13 @@ User invokes /fab-proceed
 |----------------|-----------------|--------------|---------------------|-----------|--------------|----------|
 | Yes | Yes | — | — | — | (none) | /fab-fff |
 | Yes | No | — | — | — | /git-branch | /fab-fff |
-| No | — | Substantive | None | — | /fab-new → /git-branch | /fab-fff |
+| No | — | Substantive | None | — | /fab-new | /fab-fff |
 | No | — | Substantive | ≥1 | Clearly relevant | /fab-switch → /git-branch | /fab-fff |
-| No | — | Substantive | ≥1 | Not clearly relevant | /fab-new → /git-branch (emit bypass notes) | /fab-fff |
+| No | — | Substantive | ≥1 | Not clearly relevant | /fab-new (emit bypass notes) | /fab-fff |
 | No | — | Empty/thin | ≥1 | — | /fab-switch → /git-branch (pick by date-recency) | /fab-fff |
 | No | — | Empty/thin | None | — | (error — stop) | — |
+
+The `/fab-new`-prefixed rows stopped chaining `/git-branch` in 260612-w7dp — `/fab-new` Step 11 creates or checks out the matching branch inline, so the trailing dispatch was a guaranteed no-op. `/fab-switch` rows keep it (switching activates but creates no branch).
 
 ### Asymmetric-Bias Rule
 
@@ -95,9 +102,9 @@ Biasing toward the recoverable failure is the design intent.
 
 | Agent | When | Purpose |
 |-------|------|---------|
-| /fab-new | Substantive + no intake, OR substantive + ≥1 intake but none clearly relevant | Create change from synthesized description (conversation only — never bypassed drafts) |
+| /fab-new | Substantive + no intake, OR substantive + ≥1 intake but none clearly relevant | Create change from synthesized description (conversation only — never bypassed drafts). Promptless **defer-and-surface contract** (260612-w7dp): the prompt forbids questions; would-be-asked Unresolved decisions land in the intake's `## Assumptions` as `Deferred — promptless dispatch` rows, are returned in the result, and `/fab-proceed` surfaces them before delegating to `/fab-fff` (whose intake gate is the structural backstop — `fab score` returns 0.0 whenever any Unresolved row exists, so even a single deferral fails the gate). This is the `_srad.md` § Critical Rule promptless-dispatch carve-out — defer-and-surface satisfies the MUST-ask when no user is reachable |
 | /fab-switch | Substantive + clearly relevant intake, OR empty/thin + ≥1 intake | Activate the selected change |
-| /git-branch | Any non-error row except "active + matching branch" | Create or checkout the matching branch |
+| /git-branch | Branch-mismatch row (active change, branch doesn't match) and the /fab-switch-prefixed rows — NOT the /fab-new rows (fab-new Step 11 creates the branch inline, 260612-w7dp) | Create or checkout the matching branch |
 
 ### Output Format
 
