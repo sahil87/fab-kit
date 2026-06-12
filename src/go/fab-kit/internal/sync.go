@@ -695,9 +695,13 @@ func syncAgentSkills(agent agentConfig, skills []string, skillsDir string) error
 					repaired++
 				}
 			} else if _, err := os.Lstat(dest); err == nil {
-				// Exists as symlink or something else — replace
-				os.Remove(dest)
-				if err := os.WriteFile(dest, srcData, 0644); err != nil {
+				// Exists as symlink or something else — replace. A failed
+				// remove must not fall through to WriteFile: writing through
+				// a leftover symlink would modify its target (e.g. the kit
+				// cache) instead of replacing the entry.
+				if err := os.Remove(dest); err != nil {
+					fail(skill, fmt.Errorf("cannot replace existing entry: %w", err))
+				} else if err := os.WriteFile(dest, srcData, 0644); err != nil {
 					fail(skill, err)
 				} else {
 					repaired++

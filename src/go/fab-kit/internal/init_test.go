@@ -213,3 +213,49 @@ func TestInit_ThreadsVersionsIntoSync(t *testing.T) {
 		t.Errorf("fab_version = %q, want %s", v, latest)
 	}
 }
+
+func TestInit_FromSubdirectoryWritesAtRepoRoot(t *testing.T) {
+	requireGit(t)
+	root := t.TempDir()
+	if out, err := exec.Command("git", "init", root).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+	subdir := filepath.Join(root, "docs")
+	if err := os.MkdirAll(subdir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	chdir(t, subdir)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	const latest = "0.51.0"
+	populateRemoteCache(t, home, latest)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"tag_name": "v`+latest+`"}`)
+	}))
+	defer srv.Close()
+	origAPI := githubAPIURL
+	githubAPIURL = srv.URL
+	defer func() { githubAPIURL = origAPI }()
+
+	stubRunSync(t, func(systemVersion, kitVersion string, shimOnly, projectOnly bool) error {
+		return nil
+	})
+
+	if err := Init("1.5.0"); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(subdir, "fab")); !os.IsNotExist(err) {
+		t.Error("Init wrote fab/ into the subdirectory instead of the repo root")
+	}
+	v, err := readFabVersion(filepath.Join(root, "fab", "project", "config.yaml"))
+	if err != nil {
+		t.Fatalf("config.yaml not at repo root: %v", err)
+	}
+	if v != latest {
+		t.Errorf("fab_version = %q, want %s", v, latest)
+	}
+	if _, err := os.Stat(filepath.Join(root, "fab", ".kit-migration-version")); err != nil {
+		t.Errorf(".kit-migration-version not at repo root: %v", err)
+	}
+}

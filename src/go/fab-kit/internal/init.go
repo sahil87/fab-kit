@@ -16,8 +16,11 @@ func Init(systemVersion string) error {
 	// 0. Precondition: must be inside a git repository — checked BEFORE any
 	// download or config write, so a failed init leaves no stale artifacts
 	// behind (sync would fail on this anyway, but only after downloading the
-	// release and writing config.yaml).
-	if _, err := gitRepoRoot(); err != nil {
+	// release and writing config.yaml). The resolved root anchors all init
+	// writes, so `fab init` from a subdirectory targets the repo root —
+	// matching Sync, which resolves the same root internally.
+	repoRoot, err := gitRepoRoot()
+	if err != nil {
 		return fmt.Errorf("fab init requires a git repository — run 'git init' first (%w)", err)
 	}
 
@@ -35,28 +38,22 @@ func Init(systemVersion string) error {
 		return err
 	}
 
-	// 3. Get CWD as repo root
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("cannot determine working directory: %w", err)
-	}
-
-	// 4. Create/update config.yaml with fab_version
-	configPath := filepath.Join(cwd, "fab", "project", "config.yaml")
+	// 3. Create/update config.yaml with fab_version, at the repo root
+	configPath := filepath.Join(repoRoot, "fab", "project", "config.yaml")
 	if err := setFabVersion(configPath, latest); err != nil {
 		return fmt.Errorf("cannot update config.yaml: %w", err)
 	}
 	fmt.Printf("Set fab_version: %s in config.yaml\n", latest)
 
-	// 5. Stamp .kit-migration-version to the engine version. This must happen
+	// 4. Stamp .kit-migration-version to the engine version. This must happen
 	// before Sync — otherwise scaffoldDirectories sees the just-written
 	// config.yaml and classifies the project as "existing", writing 0.1.0
 	// and triggering a spurious migration prompt on every fresh init.
-	if err := stampMigrationVersion(cwd, latest); err != nil {
+	if err := stampMigrationVersion(repoRoot, latest); err != nil {
 		return err
 	}
 
-	// 6. Run sync — the kit version is passed explicitly; systemVersion (the
+	// 5. Run sync — the kit version is passed explicitly; systemVersion (the
 	// embedded binary version) feeds the version guard (F22).
 	fmt.Println("Setting up project...")
 	if err := runSync(systemVersion, latest, false, false); err != nil {

@@ -570,6 +570,39 @@ func TestSyncAgentSkills_CopyWriteFailureCounted(t *testing.T) {
 	}
 }
 
+func TestSyncAgentSkills_FailedReplaceDoesNotWriteThroughSymlink(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("file permissions do not apply to root")
+	}
+	skillsDir := t.TempDir()
+	os.WriteFile(filepath.Join(skillsDir, "fab-new.md"), []byte("# New\n"), 0644)
+
+	// dest is a symlink pointing at a cache file; its directory is read-only
+	// so the replace's os.Remove fails. WriteFile must not follow the
+	// leftover symlink and modify its target.
+	target := filepath.Join(t.TempDir(), "cached.md")
+	os.WriteFile(target, []byte("# Cached\n"), 0644)
+	baseDir := filepath.Join(t.TempDir(), "commands")
+	os.MkdirAll(baseDir, 0755)
+	if err := os.Symlink(target, filepath.Join(baseDir, "fab-new.md")); err != nil {
+		t.Fatal(err)
+	}
+	roDir(t, baseDir)
+
+	agent := agentConfig{Label: "Test", BaseDir: baseDir, Format: "flat", Mode: "copy"}
+	err := syncAgentSkills(agent, []string{"fab-new"}, skillsDir)
+	if err == nil {
+		t.Fatal("expected the failed replace to surface as an error")
+	}
+	got, readErr := os.ReadFile(target)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if string(got) != "# Cached\n" {
+		t.Errorf("symlink target was modified (write-through): %q", string(got))
+	}
+}
+
 func TestSyncAgentSkills_SymlinkFailureCounted(t *testing.T) {
 	if os.Getuid() == 0 {
 		t.Skip("file permissions do not apply to root")
