@@ -38,7 +38,7 @@ metadata:
    - Include concrete examples: code blocks, YAML snippets, specific file paths, exact behavior
    - The "What Changes" section should be the most detailed — use subsections per change area
    - If a design includes specific values (config structure, template content, validation questions), reproduce them in full
-4. Append `## Assumptions` section per the SRAD framework (`_srad.md`, loaded via `helpers:` by all consumers of this procedure)
+4. Append `## Assumptions` section per the SRAD framework (`_srad.md`, loaded via `helpers:` by all consumers of this procedure). The section is always present in the artifact — `_srad.md`'s omit-when-zero rule applies to the displayed output summary only; when no assumptions were made, keep the section with the footer `0 assumptions.` and no table rows
 5. Write the completed intake to `fab/changes/{name}/intake.md`
 
 ---
@@ -131,7 +131,15 @@ metadata:
      colon, e.g. `A-007 Pattern consistency: ...`) — these accept project-wide standards, not a
      specific requirement
    - IDs are sequential, three-digit, zero-padded: A-001, A-002, ...
-7. Write the completed plan to `fab/changes/{name}/plan.md`. The PostToolUse hook updates
+7. **Assumptions section** (`## Assumptions`): persist every graded SRAD assumption made during
+   steps 3–6 (each under-specified point decided inline) as a row of the template's trailing
+   `## Assumptions` table, per `_srad.md` § Assumptions Summary Block: three grades only
+   (Certain/Confident/Tentative — Unresolved is intake-only), the `Scores` column required on
+   every row, and the footer `{N} assumptions ({Ce} certain, {Co} confident, {T} tentative).`
+   The section is ALWAYS present in the artifact — if zero assumptions were made, keep the
+   section with no table rows and the footer `0 assumptions.` (`_srad.md`'s omit-when-zero rule
+   applies to the displayed output summary only, never to artifacts).
+8. Write the completed plan to `fab/changes/{name}/plan.md`. The PostToolUse hook updates
    `.status.yaml` `plan.generated`, `plan.task_count`, `plan.acceptance_count`, and
    `plan.acceptance_completed` automatically; no manual `fab status set-acceptance` calls
    are required at generation time. Skills that wish to assert the counts explicitly MAY

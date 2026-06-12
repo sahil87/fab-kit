@@ -12,7 +12,7 @@ helpers: [_generation, _review, _srad, _pipeline]
 
 ## Purpose
 
-Fast-forward through hydrate: apply → review → hydrate (everything after intake, stopping before the PR stages). Gated on the single intake confidence gate (flat 3.0, all types), checked before the bracket; review failures get a bounded auto-rework loop (3 cycles) and then stop. On any stop, the user can intervene then re-run. Resumable — re-running picks up from the first incomplete stage. No `/fab-clarify` runs inside the bracket — clarification is intake-only.
+Fast-forward through hydrate: apply → review → hydrate (everything after intake, stopping before the PR stages). Gated on the single intake confidence gate (flat 3.0, all types), checked before the bracket; review failures get a bounded auto-rework loop (`{max_cycles}` cycles — the `Max cycles:` knob in `fab/project/code-review.md` § Rework Budget, default 3) and then stop. On any stop, the user can intervene then re-run. Resumable — re-running picks up from the first incomplete stage. No `/fab-clarify` runs inside the bracket — clarification is intake-only.
 
 ---
 

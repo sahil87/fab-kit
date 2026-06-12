@@ -11,6 +11,8 @@ Shared pipeline bracket executed by `/fab-ff` and `/fab-fff` (added in 260611-sz
 | `{driver}` — passed to every `fab status` event command and used in re-run guidance | `fab-ff` | `fab-fff` |
 | `{terminal}` — the bracket's terminal stage | `hydrate` (pipeline ends after Step 3) | `review-pr` (fff-only Steps 4–5 live in `fab-fff.md`) |
 
+A third value, **`{max_cycles}`**, is defined by the bracket itself (260612-c5tr — the formerly dead "Max cycles" knob is wired): the integer from the `Max cycles: {N}` line under `## Rework Budget` in `fab/project/code-review.md` (always-load layer), defaulting to **3** when the file, section, or line is absent. Only the cycle cap is configurable; the escalation threshold (2 consecutive fix-code) stays fixed.
+
 This is an internal partial (`user-invocable: false`) — never invoked directly. Drivers declare it via `helpers: [_pipeline]` frontmatter.
 
 ## Per-Cycle Rework Choreography (f071)
@@ -21,9 +23,9 @@ Stated exactly once, in the Auto-Rework Loop. Every cycle (the initial Step 2 fa
 2. **Triage + one rework action**: fix code / revise plan / revise requirements per the decision heuristics
 3. **Re-dispatch apply**: fresh `/fab-continue` Apply Behavior subagent (no-`fab status` prompt contract); on success `fab status finish <change> apply {driver}`
 4. **Fresh re-review**: a new `/fab-continue` Review Behavior subagent — never reuse a prior review subagent's context
-5. **Verdict**: pass → `finish review {driver}`, proceed to Step 3; fail → next cycle at item 1, or stop after the 3rd failed cycle
+5. **Verdict**: pass → `finish review {driver}`, proceed to Step 3; fail → next cycle at item 1, or stop after the `{max_cycles}`-th failed cycle
 
-**Exhaustion terminal state** (f019/f071): after the 3rd cycle's re-review fails, run `fab status fail <change> review` only — **no reset**. Terminal state is `review: failed` (apply `done`), the resting state `/fab-continue`'s review-failed dispatch row handles (reset apply + rework menu). The stop message tells the user exactly that, plus the `/fab-clarify intake` alternative.
+**Exhaustion terminal state** (f019/f071): after the `{max_cycles}`-th cycle's re-review fails, run `fab status fail <change> review` only — **no reset**. Terminal state is `review: failed` (apply `done`), the resting state `/fab-continue`'s review-failed dispatch row handles (reset apply + rework menu). The stop message tells the user exactly that, plus the `/fab-clarify intake` alternative.
 
 **Escalation rule**: after 2 consecutive "fix code" attempts, MUST escalate to "Revise plan" or "Revise requirements"; non-fix-code actions reset the counter.
 
@@ -48,7 +50,8 @@ Driver (fab-ff / fab-fff) reads _pipeline.md with {driver}/{terminal} bound
 ├─ Step 2: Review (subagent: /fab-continue Review Behavior → _review.md
 │  │        inward + outward dispatch, merged findings, pass/fail)
 │  ├─ Pass: fab status finish <change> review {driver} → Step 3
-│  └─ Fail: Auto-Rework Loop (≤3 cycles, per-cycle choreography above)
+│  └─ Fail: Auto-Rework Loop (≤{max_cycles} cycles — code-review.md
+│     Rework Budget knob, default 3; per-cycle choreography above)
 │     └─ Exhaustion: fab status fail <change> review (no reset) → STOP
 │
 ├─ Step 3: Hydrate (subagent: /fab-continue Hydrate Behavior)

@@ -52,7 +52,7 @@ Scan `intake.md` for gaps, `[NEEDS CLARIFICATION]`, and `<!-- assumed: ... -->` 
 
 For `<!-- assumed: ... -->` markers, frame current assumption as recommended option with alternatives.
 
-Build **prioritized question queue** (max 5). Present tentative assumption questions (from `<!-- assumed: ... -->` markers) first. If zero gaps: "No gaps found — artifact looks solid." with Next line, stop.
+Build **prioritized question queue** (max 5). Present tentative assumption questions (from `<!-- assumed: ... -->` markers) first. Do NOT stop here when the queue is empty — bulk confirm (Step 2) is evaluated first; the zero-gaps early exit lives in Step 2's not-triggered branch. (A below-gate, Confident-only intake has zero gaps but still needs the bulk-confirm flow.)
 
 ### Step 2: Bulk Confirm (Confident Assumptions)
 
@@ -63,7 +63,7 @@ After the taxonomy scan, parse the `## Assumptions` table and count assumptions 
 1. `confident >= 3`
 2. `confident > tentative + unresolved`
 
-If NOT triggered, skip to Step 3.
+If NOT triggered: when Step 1.5's queue is also empty (zero gaps), output "No gaps found — artifact looks solid." with the Next line and stop; otherwise skip to Step 3.
 
 #### Display
 
@@ -109,17 +109,17 @@ At most one round of re-prompting. After the re-prompt response, unresolved item
 
 For each resolved item, update the `## Assumptions` table in place:
 
-| Action | Grade | Rationale | Scores |
-|--------|-------|-----------|--------|
-| Confirmed | → Certain | `Clarified — user confirmed` | S → 95 |
-| Changed | → Certain | `Clarified — user changed to {value}` | S → 95 |
-| Explained then confirmed | → Certain | `Clarified — user confirmed after explanation` | S → 95 |
+| Action | Scores | Grade | Rationale |
+|--------|--------|-------|-----------|
+| Confirmed | S → 95 | recompute composite, grade by threshold | `Clarified — user confirmed` |
+| Changed | S → 95 | recompute composite, grade by threshold | `Clarified — user changed to {value}` |
+| Explained then confirmed | S → 95 | recompute composite, grade by threshold | `Clarified — user confirmed after explanation` |
 
-For changed items, also update the Decision column with the user's new value. Only the S dimension changes to 95; R, A, D remain unchanged.
+For changed items, also update the Decision column with the user's new value. Only the S dimension changes to 95; R, A, D remain unchanged. **Grade by the recomputed composite, not by fiat**: recompute the composite per `_srad.md` § SRAD Scoring (with the new S) and grade by its half-open thresholds. A confirmed row whose recomputed composite still falls short of the Certain band remains Confident — the Rationale still records the confirmation.
 
 #### Audit Trail
 
-Append to `## Clarifications` (create before `## Assumptions` if it doesn't exist):
+Append a `### Session {YYYY-MM-DD} (bulk confirm)` block under `## Clarifications` — same placement/append rules as Step 5: append to the existing `## Clarifications` section if present; create it (immediately before `## Assumptions`) if not; skip if 0 items were resolved:
 
 ```markdown
 ### Session {YYYY-MM-DD} (bulk confirm)
@@ -150,7 +150,7 @@ Allow the user to accept the recommendation, pick an alternative, provide a free
 
 ### Step 5: Audit Trail
 
-Append `## Clarifications > ### Session {YYYY-MM-DD}` with Q&A pairs. Append to existing section if present; create if not; skip if 0 answers.
+Append `## Clarifications > ### Session {YYYY-MM-DD}` with Q&A pairs — same placement/append rules as Step 2's bulk-confirm trail: append to the existing `## Clarifications` section if present; create it (immediately before `## Assumptions`) if not; skip if 0 answers.
 
 ### Step 6: Coverage Summary
 

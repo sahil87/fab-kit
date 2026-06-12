@@ -1,5 +1,5 @@
 ---
-description: "`config.yaml` schema (incl. `fab_version`, `review_tools`, `true_impact_exclude`, `test_paths`, `stage_directives` with `spec` relocated to `apply` in j6cs), companion files (`context.md`, `code-quality.md`, `code-review.md` incl. `## Parsimony Pass` toggle), `constitution.md` governance, 5 Cs of Quality, lifecycle management"
+description: "`config.yaml` schema (incl. `fab_version`, `review_tools`, `true_impact_exclude`, `test_paths`, `stage_hooks`; `stage_directives` + `model_tiers` removed in c5tr via migration 2.1.6-to-2.2.0), companion files (`context.md`, `code-quality.md`, `code-review.md` incl. `## Parsimony Pass` toggle and the wired `## Rework Budget` Max-cycles knob), `constitution.md` governance, 5 Cs of Quality, lifecycle management"
 ---
 # Configuration
 
@@ -34,7 +34,7 @@ model_tiers:
   fast:
     claude: haiku   # or sonnet, etc.
 ```
-When absent, `fab-sync.sh` falls back to `haiku` for the fast tier. (Note: the model-tier system was later eliminated — all skills now run on the session's default model and no `model_tiers:` section is read. This subsection documents historical behavior; the former `model-tiers.md` memory file was removed in the 260608 domain restructure.)
+When absent, `fab-sync.sh` falls back to `haiku` for the fast tier. (Note: the model-tier system was later eliminated — all skills now run on the session's default model and no `model_tiers:` section is read. This subsection documents historical behavior; the former `model-tiers.md` memory file was removed in the 260608 domain restructure. As of c5tr the always-load descriptor no longer advertises "model tiers", and migration `2.1.6-to-2.2.0.md` defensively drops any re-appeared `model_tiers:` key.)
 
 #### `checklist`
 - `extra_categories` — Project-specific quality categories added to the default checklist categories (functional_completeness, behavioral_correctness, scenario_coverage, edge_cases, code_quality, security)
@@ -66,16 +66,11 @@ Optional top-level field (7t5a). A YAML sequence of glob/pathspec patterns ident
 
 Consumed by the impact engine (`internal/impact/`, via `ComputeForRepo`) and rendered by the `/git-pr` PR body (three-row impl/tests/total breakdown) and `fab change list --show-stats` (compact `{impl}i+{tests}t={total}` column). See the `true_impact` block in [schemas.md](../pipeline/schemas.md) for the `tests` sub-block schema and the render-time `impl = max(0, total − tests)` residual.
 
-#### `stage_directives`
-Per-stage directives that customize artifact generation. Keys are stage IDs (`intake`, `apply`, `review`, `hydrate`), values are lists of instruction strings. The `spec` key was removed in j6cs (the spec stage merged into apply); the `1.9.7-to-1.10.0` migration **relocates** any `stage_directives.spec` directives into `stage_directives.apply` rather than dropping them, since apply now owns requirement generation (this diverges from the `1.8.0-to-1.9.0` migration, which pruned the empty `tasks: []`). Example:
-```yaml
-stage_directives:
-  apply:
-    - Use GIVEN/WHEN/THEN for scenarios   # relocated from spec
-    - Mark ambiguities with [NEEDS CLARIFICATION]
-  review:
-    - Flag any function longer than 50 lines
-```
+#### `stage_directives` (removed in c5tr)
+Removed from the config surface in 260612-c5tr. The key promised per-stage artifact-generation directives but had **zero readers, ever** — the scaffold seeded it, `/fab-setup` edited it, three migrations preserved/relocated it (j6cs's `1.9.7-to-1.10.0` relocated `spec` directives into `apply`), yet no skill or binary consumed it: directives placed there were silently ignored. Worse, `fab init` stamps `fab_version` past all migrations, so freshly scaffolded projects kept the zombie block permanently — including a `[NEEDS CLARIFICATION]` directive that contradicted the intake-only marker rule (post-1.10.0) and a GIVEN/WHEN/THEN directive redundant with `_generation.md`'s mandated scenarios. Disposition: remove-dead (the wire alternative — having `_generation`/`_review` consume `stage_directives.{stage}` — would have added prompt surface to every generation for a feature nobody had ever successfully used). The scaffold no longer seeds it, `/fab-setup config` no longer offers it, the always-load descriptor no longer mentions it, and migration `2.1.6-to-2.2.0.md` drops it (plus a defensive `model_tiers`) from existing user configs — see [migrations.md](../distribution/migrations.md). No directive was relocated; nothing replaces the key.
+
+#### `stage_hooks`
+Optional map of per-stage pre/post shell commands honored by `fab status start`/`finish` — live Go behavior (`config.go`, `status.go`) first documented in c5tr; `_cli-fab.md` § stage_hooks is the canonical reference. Not seeded by the scaffold — add the key by hand. Shape: `stage_hooks.{stage}.pre/post`, each value a command line executed as `sh -c` from the repo root with stdout/stderr passthrough; absent/empty hooks (or a missing config file) are silent no-ops. A failing `pre` hook **blocks `fab status start`** (the transition is not applied); a `post` hook runs after `finish`'s transition is saved (stage already `done`, next stage already auto-activated). Caveats: `finish`'s auto-activation does NOT fire the next stage's pre hook, and a failing post hook cannot be re-fired by re-running `finish` (done→done is rejected — run the hook command by hand, or `reset` the stage first). Migration `2.1.6-to-2.2.0.md` explicitly preserves the key. See [pipeline/change-lifecycle.md](../pipeline/change-lifecycle.md) for the lifecycle-side summary.
 
 #### `review_tools`
 Controls which automated reviewer is requested in `/git-pr-review` Phase 2 (post-PR). As of `1.3.0-to-1.4.0` migration, only one key is valid:
@@ -109,7 +104,7 @@ Optional — skills proceed without error if missing. Generated by `/fab-setup` 
 - `## Severity Definitions` — Three-tier priority scheme: must-fix, should-fix, nice-to-have. Overrides the hardcoded defaults in the skill prompt when present
 - `## Review Scope` — What the sub-agent inspects (changed files only, exclusions for generated code/vendors)
 - `## False Positive Policy` — How to suppress findings (inline `<!-- review-ignore: {reason} -->` comments)
-- `## Rework Budget` — Max auto-rework cycles before escalation (default: 3)
+- `## Rework Budget` — rework-cycle budget for the `/fab-ff`/`/fab-fff` auto-rework loop. The `Max cycles: {N}` line is **consumed** since c5tr: `_pipeline.md` reads it at bracket entry as the `{max_cycles}` cycle cap, defaulting to 3 when the file, section, or line is absent (pre-c5tr the knob existed but nothing read it — `_pipeline` hard-coded 3). Only the cap is configurable; the escalation threshold (2 consecutive fix-code attempts) stays fixed
 - `## Project-Specific Review Rules` — Project-specific validation rules
 - `## Parsimony Pass` *(optional)* — Single field `Enabled: true|false` (default `true` when section absent or field unset). When `true`, the inward sub-agent's parsimony validation step runs (per [execution-skills](../pipeline/execution-skills.md) Validation Step 7). When `false`, the parsimony step is silently skipped (treated identically to a skip-list match — other validation checks still run). This is the **only** parsimony-related project-level knob — the 100-line advisory threshold and the `[docs, chore, ci]` skip list are intentionally hard-coded in the kit (per intake rationale: "until real-world usage shows the defaults are wrong, a single set of numbers across projects keeps the surface area small")
 
@@ -164,7 +159,7 @@ Semantic versioning — MAJOR for principle removals, MINOR for additions, PATCH
 
 ### Relationship Between Configuration Files
 
-- `config.yaml` holds **project settings** (model tiers, checklist categories, stage_directives)
+- `config.yaml` holds **project settings** (identity, source/test paths, true-impact excludes, plan-acceptance categories, `review_tools` toggles, agent spawn command, optional `stage_hooks` — the real consumed surface, per the c5tr descriptor truth-up)
 - `constitution.md` holds **principles and constraints** (MUST/SHOULD/MUST NOT rules)
 - `context.md` holds **free-form project context** (tech stack, conventions, architecture)
 - `code-quality.md` holds **coding standards** (principles, anti-patterns, test strategy)
@@ -175,18 +170,17 @@ Semantic versioning — MAJOR for principle removals, MINOR for additions, PATCH
 
 ### Updating Config
 
-Run `/fab-setup config` to see all editable sections:
+Run `/fab-setup config` to see all editable sections (menu renumbered in c5tr — the former `stage_directives` and `model_tiers` items are gone with their keys):
 
 1. `project` — name and description
 2. `source_paths` — implementation code directories
-3. `stage_directives` — per-stage generation directives
-4. `checklist` — extra quality categories
-5. `model_tiers` — provider-specific model identifiers
-6. `context.md` — free-form project context
-7. `code-quality.md` — coding standards for apply/review
-8. `code-review.md` — review policy for validation sub-agent
+3. `checklist` — extra plan-acceptance categories
+4. `context.md` — free-form project context
+5. `code-quality.md` — coding standards for apply/review
+6. `code-review.md` — review policy for validation sub-agent
+7. Done
 
-Skip the menu with `/fab-setup config <section>` (e.g., `/fab-setup config context`).
+Skip the menu with `/fab-setup config <section>` (e.g., `/fab-setup config context`); `stage_directives` is rejected as an unknown section.
 
 Updates use targeted string replacement on the specific section being edited. Comments and formatting in other sections are preserved. This is important because `config.yaml` relies on inline comments for self-documentation.
 
@@ -259,10 +253,10 @@ See [setup](../distribution/setup.md) for the complete command suite.
 *Source*: doc/fab-spec/TEMPLATES.md
 
 ### Stage Graph in Schema, Not Config
-**Decision**: The stage pipeline is defined in `$(fab kit-path)/schemas/workflow.yaml` (the authoritative schema), not in `config.yaml`. The `stages:` section was removed from config in v0.8.0 because no skill ever consumed it — all skills derive stage ordering from the schema or their own hardcoded logic.
+**Decision**: The stage pipeline is defined by the workflow schema authority — since c5tr the Go state machine (`src/go/fab/internal/status` + `statusfile`; the former declarative `$(fab kit-path)/schemas/workflow.yaml` was itself retired with zero consumers — see [pipeline/schemas.md](../pipeline/schemas.md)) — not in `config.yaml`. The `stages:` section was removed from config in v0.8.0 because no skill ever consumed it — all skills derive stage ordering from the state machine's CLI surface or their own hardcoded logic.
 **Why**: The stages section was dead config. Removing it reduces config surface area without losing functionality.
 **Superseded**: Earlier design placed stages in config for inspectability. In practice, this was never used.
-*Source*: 260218-bb93-restructure-config-yaml
+*Source*: 260218-bb93-restructure-config-yaml; *Updated by*: 260612-c5tr-scaffold-config-truth-srad-coherence (the workflow.yaml the decision pointed at was retired; the stage graph lives in the Go state machine)
 
 ### Author-vs-Critic Split (code-quality.md vs code-review.md)
 **Decision**: Separate coding standards for the writing agent (`code-quality.md`) from review policy for the validating sub-agent (`code-review.md`).
@@ -280,6 +274,7 @@ See [setup](../distribution/setup.md) for the complete command suite.
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260612-c5tr-scaffold-config-truth-srad-coherence | 2026-06-12 | **Config surface truth-up** (skills-audit batch 4/5, Theme 5). `stage_directives` **removed everywhere** — zero readers ever: dropped from the scaffold (block + descriptive comment), `/fab-setup`'s editor surface (menu renumbered to 7 items; section argument rejected), the `_preamble.md` always-load descriptor, this doc's schema, and existing user configs via migration `2.1.6-to-2.2.0.md` (which also defensively drops `model_tiers` — see [migrations.md](../distribution/migrations.md)). The always-load `config.yaml` descriptor now enumerates the **real consumed surface** — identity, `source_paths`/`test_paths`, true-impact excludes, plan-acceptance extra categories, `review_tools` toggles, agent spawn command, optional `stage_hooks` — with the same dead-surface cleanup in `docs/specs/skills.md`, `glossary.md`, and `architecture.md`'s config example. New **`stage_hooks` schema section**: live `fab status start`/`finish` pre/post behavior, first documented in c5tr (canonical reference `_cli-fab.md` § stage_hooks; pre blocks start, post runs after save, auto-activation skips the next pre, failing-post-hook re-run trap). `code-review.md`'s `## Rework Budget` `Max cycles:` line is now **consumed** as `_pipeline.md`'s `{max_cycles}` cap (default 3; escalation threshold stays fixed). "Stage Graph in Schema, Not Config" decision repointed at the Go state machine (workflow.yaml retired). |
 | 260607-tciy-memory-tree-shape-rebalance | 2026-06-07 | Added a "Hardcoded Kit Knobs (Not Configurable)" subsection recording that the memory-tree shape bounds (~12 width / ~5 floor / depth ≤3 / ≥8-file sub-domain cluster; `_shared`/`_unsorted` width-exempt) are deliberately hardcoded SHOULD guidance (`internal/memoryindex` `WidthWarnThreshold`/`MaxDepth`), NOT a `config.yaml` field — a config surface was explicitly deferred (YAGNI). Folded in the pre-existing parsimony-threshold hardcoding under the same heading for consistency. No `config.yaml` schema change. |
 | 260602-s6q5-consolidate-gating-scoring-source | 2026-06-03 | Scoring-data direction-of-truth settled (data lives in `score.go`, not `config.yaml`): the `expectedMin` (`feat:7, refactor:6, fix:5`, default 3) and `gateThresholds` (flat 3.0) maps are now the **canonical source**, and the "Expected Minimum Decisions" / "Gate Thresholds" tables in `docs/specs/change-types.md` are a **verified mirror** — a new test in `internal/score` (`changetypes_doc_test.go`, `TestDocTablesMatchScoringMaps`) fails on drift between the two. This supersedes the doc's prior self-contradictory "these values are the source of truth and are embedded in `score.go`" claim, which was reworded to name the code maps canonical and the doc tables their guarded mirror. No threshold values changed; behavior is byte-for-byte identical. (Doc/test specifics live in [kit-architecture.md](../distribution/kit-architecture.md) Testing.) |
 | 260602-7t5a-true-impact-test-split | 2026-06-02 | Added optional top-level `test_paths` field (YAML sequence of glob/pathspec patterns; `config.Config.TestPaths`). Purpose is *attribution, not exclusion* — it attributes the scaffolding-excluded universe to tests vs. impl rather than stripping lines (adding test patterns to `true_impact_exclude` was explicitly rejected). No kit default (Portability, principle V) — no universal test-file pattern; scaffold ships only a commented `# test_paths: []` placeholder. Includes are applied as `:(glob)<pattern>` magic pathspecs so `**/*_test.go` matches root-level test files. Absent/null/empty collapses gracefully to today's single-number display. Drives the `tests` sub-block in `.status.yaml` `true_impact` and the three-row `/git-pr` breakdown / compact `change list --show-stats` column. |

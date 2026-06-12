@@ -41,7 +41,7 @@
      Applies to /fab-fff and /fab-ff auto-rework loops. -->
 
 - Max cycles: 3
-- After 2 consecutive "fix code" attempts on the same issue, escalate to "revise plan" or "revise spec"
+- After 2 consecutive "fix code" attempts on the same issue, escalate to "revise plan" or "revise requirements"
 
 ## Parsimony Pass
 

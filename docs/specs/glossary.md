@@ -67,7 +67,7 @@
 | Term | Definition |
 |------|-----------|
 | `.status.yaml` | The status manifest inside each change folder. Tracks progress of all stages, plan counts (tasks + acceptance), and confidence score. Current stage is derived from the `active` entry in the progress map. Single source of truth for where a change is. |
-| `config.yaml` | Project configuration at `fab/project/config.yaml`. Defines project identity, source paths, plan-acceptance categories (`checklist.extra_categories` for backward-compat), stage directives, and model tiers. |
+| `config.yaml` | Project configuration at `fab/project/config.yaml`. Defines project identity, source/test paths, true-impact excludes, plan-acceptance categories (`checklist.extra_categories` for backward-compat), `review_tools` toggles, the agent spawn command, and optional stage hooks. |
 | `plan.md` | Auto-generated apply-stage artifact. Contains both `## Tasks` (consumed by apply) and `## Acceptance` (consumed by review) sections. Replaces the legacy `tasks.md` + `checklist.md` pair. Section headings are the parser contract; phase/category subheadings under each are presentational. |
 | `.fab-status.yaml` | Symlink at repo root pointing to the active change's `.status.yaml`. Read by every skill; created by `/fab-switch`; removed by `/fab-archive`. |
 | `fab/changes/` | Directory holding all active change folders. Completed changes are moved to `fab/changes/archive/`. |

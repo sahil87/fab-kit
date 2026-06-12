@@ -61,7 +61,7 @@ Validation is **convention-only** — `fab sync` does not reject skills with unk
 Every skill that generates or validates artifacts MUST load relevant context before proceeding. This ensures agents produce accurate, grounded output rather than hallucinating requirements or ignoring existing patterns.
 
 **Always loaded** — descriptive, not exhaustive: the layer applies unless the skill's own Context Loading section says otherwise (the skill file wins). Exceptions: `/fab-setup`, `/fab-switch`, `/fab-status`, and `/docs-hydrate-memory` skip it; `/fab-operator` loads only `config.yaml`, `constitution.md`, and `context.md`. The default layer:
-- `fab/project/config.yaml` — project configuration, naming conventions, model tiers
+- `fab/project/config.yaml` — project configuration: identity (name/description), `source_paths`/`test_paths`, true-impact excludes, plan-acceptance extra categories, `review_tools` toggles, agent spawn command, optional `stage_hooks`
 - `fab/project/constitution.md` — project principles and constraints (MUST/SHOULD/MUST NOT rules)
 - `fab/project/context.md` — free-form project context: tech stack, conventions, architecture *(optional — no error if missing)*
 - `fab/project/code-quality.md` — coding standards for apply/review: principles, anti-patterns, test strategy *(optional — no error if missing)*
@@ -99,7 +99,7 @@ Skills MUST end their output with a `Next:` line suggesting the available follow
 
 | After | Stage reached | Next line |
 |-------|---------------|-----------|
-| `/fab-setup` | initialized | `Next: /fab-new <description> or /docs-hydrate-memory <sources>` |
+| `/fab-setup` | initialized | `Next: /fab-new <description>, /fab-proceed, or /docs-hydrate-memory <sources>` |
 | `/docs-hydrate-memory` | memory hydrated | `Next: /fab-new <description> or /docs-hydrate-memory <more-sources>` |
 | `/fab-new` | intake ready (activated) | `Next: /fab-continue or /fab-clarify (refine intake) or /fab-ff or /fab-fff` |
 | `/fab-draft` | intake ready (not activated) | `Next: /fab-switch {name} to make it active, then /fab-continue or /fab-clarify or /fab-ff or /fab-fff` |
@@ -332,7 +332,7 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 
 ## `/fab-ff` (Fast Forward)
 
-**Purpose**: Fast-forward apply → review → hydrate (everything after intake). Gated on the single intake confidence gate (flat 3.0), with sub-agent review, auto-rework loop (up to 3 cycles with prioritized findings), and stop on exhaustion. Accepts `--force` to bypass the gate. No `/fab-clarify` runs inside the bracket.
+**Purpose**: Fast-forward apply → review → hydrate (everything after intake). Gated on the single intake confidence gate (flat 3.0), with sub-agent review, auto-rework loop (up to `{max_cycles}` cycles — the code-review.md Rework Budget knob, default 3 — with prioritized findings), and stop on exhaustion. Accepts `--force` to bypass the gate. No `/fab-clarify` runs inside the bracket.
 
 **Context**: config, constitution, `intake.md`, target memory file(s) from `docs/memory/` (loaded once for the apply → hydrate run)
 
@@ -354,14 +354,14 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 2. Run apply (single subagent invocation): co-generate `plan.md` (## Requirements from `intake.md` + ## Tasks + ## Acceptance), then execute unchecked tasks under `## Tasks` in dependency order, running tests after each. Under-specified requirements are resolved inline as graded SRAD assumptions in `plan.md` — no clarify step.
 3. **Review** — dispatch to sub-agent (fresh context). Sub-agent returns prioritized findings (must-fix / should-fix / nice-to-have); inward sub-agent inspects items under `plan.md` `## Acceptance` against `## Requirements`
 4. **On pass** — advance to hydrate
-5. **On fail** — auto-rework loop (up to 3 cycles): triage findings by priority, autonomously select rework path (fix code, revise plan, revise requirements), re-apply, spawn fresh sub-agent for re-review. Escalation after 2 consecutive fix-code attempts. Stop after 3 failed cycles with summary.
+5. **On fail** — auto-rework loop (up to `{max_cycles}` cycles, default 3): triage findings by priority, autonomously select rework path (fix code, revise plan, revise requirements), re-apply, spawn fresh sub-agent for re-review. Escalation after 2 consecutive fix-code attempts. Stop after `{max_cycles}` failed cycles with summary.
 6. Hydrate into `docs/memory/`
 
 ---
 
 ## `/fab-fff` (Full Autonomous Pipeline)
 
-**Purpose**: Run the entire automated Fab pipeline — apply → review → hydrate → ship → review-pr — in a single invocation (everything after intake). Gated on the single intake confidence gate (flat 3.0, same as `/fab-ff`). No `/fab-clarify` runs inside the bracket. Autonomously reworks on review failure using sub-agent review with prioritized findings (3-cycle retry cap, escalation after 2 consecutive fix-code failures). Accepts `--force` to bypass the gate.
+**Purpose**: Run the entire automated Fab pipeline — apply → review → hydrate → ship → review-pr — in a single invocation (everything after intake). Gated on the single intake confidence gate (flat 3.0, same as `/fab-ff`). No `/fab-clarify` runs inside the bracket. Autonomously reworks on review failure using sub-agent review with prioritized findings (`{max_cycles}`-cycle retry cap — code-review.md Rework Budget knob, default 3 — escalation after 2 consecutive fix-code failures). Accepts `--force` to bypass the gate.
 
 **Prerequisite**: Active change with completed `intake.md`.
 
@@ -387,12 +387,12 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 1. **Intake gate** (skip if `--force`): Check confidence >= 3.0 (flat). Abort if below threshold.
 2. **Resumability**: Check `progress` map — skip any stage already marked `done` or `skipped`. Re-invoking after interruption picks up from the first incomplete stage.
 3. **Step 1 — Implementation**: Run apply (one subagent call) — co-generate `plan.md` (## Requirements from `intake.md` + ## Tasks + ## Acceptance), then execute unchecked tasks under `## Tasks` in dependency order, running tests after each. Under-specified requirements are resolved inline as graded SRAD assumptions — no clarify step.
-4. **Step 2 — Review**: Dispatch to review sub-agent (fresh context, prioritized findings). On failure, triage findings by priority and autonomously select rework path (fix code, revise plan, revise requirements). Re-review via fresh sub-agent. Retry up to 3 cycles (escalation after 2 consecutive fix-code). Bail with summary after 3 failed cycles.
+4. **Step 2 — Review**: Dispatch to review sub-agent (fresh context, prioritized findings). On failure, triage findings by priority and autonomously select rework path (fix code, revise plan, revise requirements). Re-review via fresh sub-agent. Retry up to `{max_cycles}` cycles (default 3; escalation after 2 consecutive fix-code). Bail with summary after `{max_cycles}` failed cycles.
 5. **Step 3 — Hydrate**: Hydrate into memory.
 6. **Step 4 — Ship**: Dispatch `/git-pr` to commit, push, and create PR.
 7. **Step 5 — Review-PR**: Dispatch `/git-pr-review` to process PR review comments.
 
-**Key difference from `/fab-ff`**: The difference is scope only. `/fab-fff` extends through ship and review-pr; `/fab-ff` stops at hydrate. Both have the identical single intake gate, no in-bracket clarify, and identical auto-rework (3-cycle cap with escalation). Both accept `--force` to bypass the gate.
+**Key difference from `/fab-ff`**: The difference is scope only. `/fab-fff` extends through ship and review-pr; `/fab-ff` stops at hydrate. Both have the identical single intake gate, no in-bracket clarify, and identical auto-rework (`{max_cycles}`-cycle cap with escalation, default 3). Both accept `--force` to bypass the gate.
 
 ---
 

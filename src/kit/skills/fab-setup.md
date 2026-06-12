@@ -15,7 +15,7 @@ description: "Set up a new project, manage config/constitution, or apply version
 ## Arguments
 
 - **No arguments** — full structural bootstrap (default behavior)
-- **`config [section]`** — create or update `fab/project/config.yaml` interactively. Optional `[section]` skips the menu and edits that section directly. Valid sections: `project`, `source_paths`, `stage_directives`, `checklist`.
+- **`config [section]`** — create or update `fab/project/config.yaml` interactively. Optional `[section]` skips the menu and edits that section directly. Valid sections: `project`, `source_paths`, `checklist`.
 - **`constitution`** — create or amend `fab/project/constitution.md` with semantic versioning
 - **`migrations [file]`** — apply version migrations to bring project files in sync with the installed kit version (absorbed from fab-update)
 - **`validate`** — redirect message: "Validation is built into `/fab-setup config` and `/fab-setup constitution` — each validates after every edit."
@@ -135,7 +135,7 @@ Create a new `fab/project/config.yaml` interactively or update specific sections
 
 ### Config Arguments
 
-- **`[section]`** *(optional)* — section to edit directly, skipping the menu. Valid values: `project`, `source_paths`, `stage_directives`, `checklist`, `context`, `code-quality`, `code-review`.
+- **`[section]`** *(optional)* — section to edit directly, skipping the menu. Valid values: `project`, `source_paths`, `checklist`, `context`, `code-quality`, `code-review`.
 
 ### Config Pre-flight
 
@@ -150,7 +150,7 @@ When `fab/project/config.yaml` does not exist (or exists without the required `p
 2. Ask the user: project name, description, source paths
 3. Read `$(fab kit-path)/scaffold/fab/project/config.yaml` as the starting template
 4. Substitute placeholders with user-provided values: `{PROJECT_NAME}`, `{PROJECT_DESCRIPTION}`, `{SOURCE_PATHS}`
-5. **Preserve `fab_version`**: if the existing config.yaml has a `fab_version` key (e.g., written by `fab init`), carry it into the new file unchanged — the scaffold template lacks it and the fab router errors without it
+5. **Preserve `fab_version`**: if the existing config.yaml has a `fab_version` key (e.g., written by `fab init`), carry it into the new file unchanged — the scaffold template lacks it and the fab router errors without it. **Fallback (fresh create)**: if no `fab_version` key exists (no prior config.yaml at all), stamp the engine version into the new file — `fab_version: "$(cat "$(fab kit-path)/VERSION")"` — so the guarantee that `fab_version` exists after step 1a holds on every path
 6. Write the result to `fab/project/config.yaml`
 7. Output: `Created fab/project/config.yaml`
 
@@ -164,14 +164,13 @@ When invoked without a section argument:
 fab/project/config.yaml sections:
 1. project            — name and description
 2. source_paths       — implementation code directories
-3. stage_directives   — per-stage artifact generation directives
-4. checklist          — extra plan-acceptance categories (config key remains `checklist.extra_categories`)
-5. context.md         — free-form project context
-6. code-quality.md    — coding standards for apply/review
-7. code-review.md     — review policy for validation sub-agent
-8. Done
+3. checklist          — extra plan-acceptance categories (config key remains `checklist.extra_categories`)
+4. context.md         — free-form project context
+5. code-quality.md    — coding standards for apply/review
+6. code-review.md     — review policy for validation sub-agent
+7. Done
 
-Which section to update? (1-8)
+Which section to update? (1-7)
 ```
 
 2. Process selection -> **Edit Section Flow**
@@ -300,7 +299,7 @@ Discovery is owned by the binary — do NOT read, parse, or compare the version 
    - `gap_skips` — human-readable "no migration needed for X -> Y, skipping" lines to surface in output
    - `overlaps` — pairs of conflicting filenames; non-empty means the migrations directory is malformed
 2. **If `overlaps` is non-empty**: STOP and report the conflict (see [Overlapping Ranges](#overlapping-ranges)). Do NOT apply anything.
-3. **If `applicable` is empty** (and no overlap): nothing to do — pick the output by comparing the returned `local`/`engine` fields: equal → [Versions Already Equal](#versions-already-equal); `local` ahead of `engine` → [Local Version Ahead](#local-version-ahead); otherwise → [No Migrations Apply](#no-migrations-apply). `fab upgrade-repo` already stamps `fab/.kit-migration-version` silently in the no-op case, so this subcommand has no version to write.
+3. **If `applicable` is empty** (and no overlap): nothing to do — pick the output by comparing the returned `local`/`engine` fields: equal → [Versions Already Equal](#versions-already-equal); `local` ahead of `engine` → [Local Version Ahead](#local-version-ahead); otherwise → [No Migrations Apply](#no-migrations-apply). (Semver comparison: compare MAJOR, then MINOR, then PATCH as integers — `2.10.0` > `2.9.7`; never compare lexicographically.) `fab upgrade-repo` already stamps `fab/.kit-migration-version` silently in the no-op case, so this subcommand has no version to write.
 
 ### Migrations Step 2: Apply Migrations (Loop)
 
@@ -429,8 +428,6 @@ All paths are safe to re-run. Structural artifacts are created once (skipped on 
 
 All `Next:` lines are derived from the state table in `_preamble.md`:
 
-- After bootstrap: state = `initialized` → `/fab-new <description> or /docs-hydrate-memory <sources>`
-- After config create: state = `initialized` → `/fab-new <description> or /docs-hydrate-memory <sources>`
-- After config/constitution update: (no further action needed — validation is automatic)
-- After constitution create: state = `initialized` → `/fab-new <description> or /docs-hydrate-memory <sources>`
-- After migrations: state = `initialized` → `/fab-new <description> or /docs-hydrate-memory <sources>`
+- After bootstrap, config create, or constitution create: state = `initialized` → `Next: /fab-new <description>, /fab-proceed, or /docs-hydrate-memory <sources>`
+- After config/constitution update: (no state change, no further action needed — validation is automatic)
+- After migrations: re-derive from the current state — `initialized` (no active change) → `Next: /fab-new <description>, /fab-proceed, or /docs-hydrate-memory <sources>`; with an active change, use that change's stage row instead

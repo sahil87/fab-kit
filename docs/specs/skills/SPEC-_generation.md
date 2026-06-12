@@ -21,7 +21,9 @@ Consumer skill reads _generation.md (via helpers: declaration)
 │  │  design decisions are reproduced verbatim, never summarized
 │  ├─ Append ## Assumptions per the SRAD framework (_srad.md,
 │  │  loaded via helpers: by all consumers of this procedure)
-│  │  (intake artifacts record all four grades)
+│  │  (intake artifacts record all four grades; section always
+│  │   present — "0 assumptions." footer when empty, the
+│  │   omit-when-zero rule is displayed-output-only)
 │  └─ Write: fab/changes/{name}/intake.md
 │
 └─ Plan Generation Procedure (fab-continue, fab-ff, fab-fff @ apply entry)
@@ -52,6 +54,10 @@ Consumer skill reads _generation.md (via helpers: declaration)
    │  Verification, Scenario Coverage, Edge Cases & Error Handling,
    │  Security) plus Code Quality (baseline 2 items, expanded by
    │  fab/project/code-quality.md) and checklist.extra_categories
+   ├─ ## Assumptions: persist the graded SRAD rows decided inline
+   │  during the walk (explicit step — 3 grades, Scores required,
+   │  footer; ALWAYS present in the artifact, "0 assumptions."
+   │  footer when empty; omit-when-zero is displayed-output-only)
    └─ Write: fab/changes/{name}/plan.md
       (PostToolUse hook updates .status.yaml plan.* counters —
        no manual fab status set-acceptance needed at generation time)

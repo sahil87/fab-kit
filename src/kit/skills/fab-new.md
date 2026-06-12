@@ -179,15 +179,17 @@ Created fab/changes/{name}/
 
 Intake complete.
 
-{if assumptions: "## Assumptions\n\n| # | Grade | Decision | Rationale | Scores |\n..."}
-
 Confidence: {score} / 5.0 ({N} decisions, cover: {cover})
 
 Activated: {name}
 Branch: {name} (created|created, leaving {old_branch} intact|checked out|renamed from {old_branch}|already active)
 
+{if assumptions: "## Assumptions\n\n| # | Grade | Decision | Rationale | Scores |\n..."}
+
 Next: {per state table — intake state (no activation preamble)}
 ```
+
+> The Assumptions summary is the **final content block immediately before `Next:`** (per `_srad.md` § Assumptions Summary Block); omit it from the output only when 0 assumptions were made (the artifact's `## Assumptions` section is always present regardless).
 
 ---
 
