@@ -33,6 +33,21 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.ref }}
 
+      # Set up Go toolchain. Single source of truth for the Go version is the
+      # module go.mod (both modules declare the same line) — same as ci.yml.
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: src/go/fab/go.mod
+
+      # Install just command runner
+      - uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2
+
+      # Test gate: nothing ships untested. Runs BEFORE the manual-dispatch
+      # tag creation, so a red suite never even mints the tag — and before
+      # any build/package/release step on the tag-push path.
+      - name: Run tests
+        run: just test
+
       # On manual dispatch, run scripts/release.sh — it bumps
       # src/kit/VERSION, commits, tags, and pushes both the commit and tag.
       - name: Create tag (manual dispatch)
@@ -54,14 +69,6 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
-
-      # Set up Go toolchain
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
-        with:
-          go-version: '1.22'
-
-      # Install just command runner
-      - uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2
 
       # Full build pipeline (same steps you'd run locally)
       - name: Assemble dist/kit/

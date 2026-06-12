@@ -46,24 +46,6 @@ func ExtractID(folder string) string {
 	return ""
 }
 
-// ToDir returns the directory path relative to repo root.
-func ToDir(fabRoot, override string) (string, error) {
-	folder, err := ToFolder(fabRoot, override)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("fab/changes/%s/", folder), nil
-}
-
-// ToStatus returns the .status.yaml path relative to repo root.
-func ToStatus(fabRoot, override string) (string, error) {
-	folder, err := ToFolder(fabRoot, override)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("fab/changes/%s/.status.yaml", folder), nil
-}
-
 // ToAbsDir returns the absolute directory path.
 func ToAbsDir(fabRoot, override string) (string, error) {
 	folder, err := ToFolder(fabRoot, override)

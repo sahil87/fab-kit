@@ -56,7 +56,17 @@ jobs:
 
       - name: go test
         working-directory: ${{ matrix.module }}
-        run: go test ./... -count=1
+        run: go test ./... -count=1 -race
+
+      # Cross-compile darwin so the build-constrained *_darwin.go files are
+      # type-checked on every PR instead of first compiling inside the release
+      # workflow (after the tag is already pushed). No macOS runner needed —
+      # build + vet only, tests still run on linux above.
+      - name: darwin cross-compile (build + vet)
+        working-directory: ${{ matrix.module }}
+        run: |
+          GOOS=darwin GOARCH=arm64 go build ./...
+          GOOS=darwin GOARCH=arm64 go vet ./...
 
   # Single stable status check to pin branch protection to. Pinning the
   # ruleset to this job (rather than the matrix legs directly) means the

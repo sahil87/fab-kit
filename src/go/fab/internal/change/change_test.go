@@ -321,7 +321,7 @@ func TestList(t *testing.T) {
 	statusYAML2 = strings.Replace(statusYAML2, "260310-efgh-old-name", folder2, 1)
 	os.WriteFile(filepath.Join(changeDir2, ".status.yaml"), []byte(statusYAML2), 0644)
 
-	results, err := List(fabRoot, false)
+	results, err := ListWithOptions(fabRoot, false, false)
 	if err != nil {
 		t.Fatalf("List failed: %v", err)
 	}
@@ -343,7 +343,7 @@ func TestList(t *testing.T) {
 func TestList_EmptyChanges(t *testing.T) {
 	fabRoot := setupChangeFixture(t)
 
-	results, err := List(fabRoot, false)
+	results, err := ListWithOptions(fabRoot, false, false)
 	if err != nil {
 		t.Fatalf("List failed: %v", err)
 	}

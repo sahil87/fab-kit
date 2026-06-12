@@ -1,0 +1,16 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-12T12:56:32Z"}
+{"args":"Binary-review batch B6/6 — tests, CI \u0026 toolchain","cmd":"fab-new","event":"command","ts":"2026-06-12T12:56:32Z"}
+{"delta":"+2.6","event":"confidence","score":2.6,"trigger":"calc-score","ts":"2026-06-12T12:59:35Z"}
+{"delta":"+0.0","event":"confidence","score":2.6,"trigger":"calc-score","ts":"2026-06-12T12:59:59Z"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-06-12T13:06:12Z"}
+{"delta":"+2.4","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-06-12T13:08:49Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-06-12T13:09:01Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-06-12T13:12:15Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-12T13:12:30Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-06-12T13:13:46Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-12T13:50:06Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-06-12T13:51:12Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-06-12T14:08:04Z"}
+{"event":"review","result":"passed","ts":"2026-06-12T14:08:04Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-12T14:21:34Z"}
+{"cmd":"git-pr","event":"command","ts":"2026-06-12T14:23:25Z"}

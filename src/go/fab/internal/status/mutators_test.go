@@ -1,0 +1,336 @@
+package status
+
+// Tests for the previously-untested persisting mutators and read-side helpers
+// (260612-tb6f, F39): SetChangeType, AddIssue, ProgressMap, ProgressLine,
+// AllStages, SetConfidence/SetConfidenceFuzzy, CurrentStage, and Advance's
+// remaining branches — plus the stage_metrics iterations accumulation
+// regression across repeated rework cycles.
+
+import (
+	"strings"
+	"testing"
+
+	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
+)
+
+// --- SetChangeType ---
+
+func TestSetChangeType_PersistsValidType(t *testing.T) {
+	statusFile, path := loadFixture(t)
+
+	if err := SetChangeType(statusFile, path, "refactor"); err != nil {
+		t.Fatalf("SetChangeType: %v", err)
+	}
+	if statusFile.ChangeType != "refactor" {
+		t.Errorf("ChangeType = %q, want refactor", statusFile.ChangeType)
+	}
+
+	reloaded, err := sf.Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.ChangeType != "refactor" {
+		t.Errorf("persisted ChangeType = %q, want refactor", reloaded.ChangeType)
+	}
+}
+
+func TestSetChangeType_InvalidTypeErrorsWithoutWrite(t *testing.T) {
+	statusFile, path := loadFixture(t)
+	priorUpdated := statusFile.LastUpdated
+
+	err := SetChangeType(statusFile, path, "banana")
+	if err == nil {
+		t.Fatal("expected invalid change type to error")
+	}
+	if !strings.Contains(err.Error(), "Invalid change type") {
+		t.Errorf("want invalid-type error, got: %v", err)
+	}
+
+	// Validation happens before mutation/persist — file untouched.
+	reloaded, loadErr := sf.Load(path)
+	if loadErr != nil {
+		t.Fatalf("reload: %v", loadErr)
+	}
+	if reloaded.ChangeType != "feat" {
+		t.Errorf("on-disk ChangeType = %q, want feat (unchanged)", reloaded.ChangeType)
+	}
+	if reloaded.LastUpdated != priorUpdated {
+		t.Error("last_updated should not be refreshed on a rejected mutation")
+	}
+}
+
+// --- AddIssue ---
+
+func TestAddIssue_AppendsAndPersists(t *testing.T) {
+	statusFile, path := loadFixture(t)
+
+	if err := AddIssue(statusFile, path, "DEV-101"); err != nil {
+		t.Fatalf("AddIssue: %v", err)
+	}
+	if err := AddIssue(statusFile, path, "DEV-102"); err != nil {
+		t.Fatalf("AddIssue: %v", err)
+	}
+
+	reloaded, err := sf.Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if len(reloaded.Issues) != 2 || reloaded.Issues[0] != "DEV-101" || reloaded.Issues[1] != "DEV-102" {
+		t.Errorf("persisted issues = %v, want [DEV-101 DEV-102]", reloaded.Issues)
+	}
+}
+
+func TestAddIssue_IdempotentOnDuplicate(t *testing.T) {
+	statusFile, path := loadFixture(t)
+
+	if err := AddIssue(statusFile, path, "DEV-101"); err != nil {
+		t.Fatalf("AddIssue: %v", err)
+	}
+	// Duplicate: no second entry, but the call still succeeds (refreshes
+	// last_updated like the other idempotent mutators).
+	if err := AddIssue(statusFile, path, "DEV-101"); err != nil {
+		t.Fatalf("duplicate AddIssue: %v", err)
+	}
+
+	if len(statusFile.Issues) != 1 {
+		t.Errorf("issues = %v, want exactly one DEV-101 entry", statusFile.Issues)
+	}
+	reloaded, err := sf.Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if len(reloaded.Issues) != 1 {
+		t.Errorf("persisted issues = %v, want exactly one entry", reloaded.Issues)
+	}
+}
+
+// --- ProgressMap / ProgressLine / AllStages / CurrentStage ---
+
+func TestProgressMap_OrderedPairs(t *testing.T) {
+	statusFile, _ := loadFixture(t)
+	statusFile.SetProgress("intake", "done")
+	statusFile.SetProgress("apply", "active")
+
+	pm := ProgressMap(statusFile)
+	if len(pm) != len(sf.StageOrder) {
+		t.Fatalf("ProgressMap returned %d pairs, want %d", len(pm), len(sf.StageOrder))
+	}
+	for i, ss := range pm {
+		if ss.Stage != sf.StageOrder[i] {
+			t.Errorf("pair %d stage = %q, want %q (pipeline order)", i, ss.Stage, sf.StageOrder[i])
+		}
+	}
+	if pm[0].State != "done" || pm[1].State != "active" || pm[2].State != "pending" {
+		t.Errorf("states = %v, want done/active/pending...", pm)
+	}
+}
+
+func TestProgressLine_RendersEachStateGlyph(t *testing.T) {
+	statusFile, _ := loadFixture(t)
+	statusFile.SetProgress("intake", "done")
+	statusFile.SetProgress("apply", "ready")
+	statusFile.SetProgress("review", "failed")
+	statusFile.SetProgress("hydrate", "skipped")
+	statusFile.SetProgress("ship", "active")
+	// review-pr stays pending → omitted from the line, suppresses the ✓.
+
+	got := ProgressLine(statusFile)
+	want := "intake → apply ◷ → review ✗ → hydrate ⏭ → ship ⏳"
+	if got != want {
+		t.Errorf("ProgressLine = %q, want %q", got, want)
+	}
+}
+
+func TestProgressLine_AllPendingIsEmpty(t *testing.T) {
+	statusFile, _ := loadFixture(t)
+	statusFile.SetProgress("intake", "pending") // fixture starts intake active
+
+	if got := ProgressLine(statusFile); got != "" {
+		t.Errorf("ProgressLine for all-pending = %q, want empty", got)
+	}
+}
+
+func TestProgressLine_CompleteGetsCheckmark(t *testing.T) {
+	statusFile, _ := loadFixture(t)
+	for _, stage := range sf.StageOrder {
+		statusFile.SetProgress(stage, "done")
+	}
+
+	got := ProgressLine(statusFile)
+	if !strings.HasSuffix(got, " ✓") {
+		t.Errorf("ProgressLine for all-done = %q, want trailing ✓", got)
+	}
+}
+
+func TestAllStages_PipelineOrder(t *testing.T) {
+	got := AllStages()
+	want := []string{"intake", "apply", "review", "hydrate", "ship", "review-pr"}
+	if len(got) != len(want) {
+		t.Fatalf("AllStages = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("AllStages[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestCurrentStage_Tiers(t *testing.T) {
+	statusFile, _ := loadFixture(t)
+
+	// Tier 1: first active/ready.
+	if got := CurrentStage(statusFile); got != "intake" {
+		t.Errorf("CurrentStage with intake active = %q, want intake", got)
+	}
+	statusFile.SetProgress("intake", "done")
+	statusFile.SetProgress("apply", "ready")
+	if got := CurrentStage(statusFile); got != "apply" {
+		t.Errorf("CurrentStage with apply ready = %q, want apply", got)
+	}
+
+	// Tier 2: first pending after the last done/skipped.
+	statusFile.SetProgress("apply", "done")
+	statusFile.SetProgress("review", "skipped")
+	if got := CurrentStage(statusFile); got != "hydrate" {
+		t.Errorf("CurrentStage fallback = %q, want hydrate", got)
+	}
+
+	// Tier 3: all done → review-pr (the documented routing fallback).
+	for _, stage := range sf.StageOrder {
+		statusFile.SetProgress(stage, "done")
+	}
+	if got := CurrentStage(statusFile); got != "review-pr" {
+		t.Errorf("CurrentStage all-done = %q, want review-pr", got)
+	}
+}
+
+// --- SetConfidence / SetConfidenceFuzzy ---
+
+func TestSetConfidence_Persists(t *testing.T) {
+	statusFile, path := loadFixture(t)
+
+	if err := SetConfidence(statusFile, path, 5, 2, 1, 0, 3.4); err != nil {
+		t.Fatalf("SetConfidence: %v", err)
+	}
+	reloaded, err := sf.Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	c := reloaded.Confidence
+	if c.Certain != 5 || c.Confident != 2 || c.Tentative != 1 || c.Unresolved != 0 || c.Score != 3.4 {
+		t.Errorf("persisted confidence = %+v, want 5/2/1/0 score 3.4", c)
+	}
+	if c.Fuzzy != nil {
+		t.Errorf("non-fuzzy SetConfidence should not set fuzzy, got %v", *c.Fuzzy)
+	}
+}
+
+func TestSetConfidenceFuzzy_PersistsDimensions(t *testing.T) {
+	statusFile, path := loadFixture(t)
+
+	if err := SetConfidenceFuzzy(statusFile, path, 5, 2, 1, 0, 3.4, 82.5, 74.0, 88.0, 71.5); err != nil {
+		t.Fatalf("SetConfidenceFuzzy: %v", err)
+	}
+	reloaded, err := sf.Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	c := reloaded.Confidence
+	if c.Fuzzy == nil || !*c.Fuzzy {
+		t.Fatal("fuzzy flag not persisted")
+	}
+	if c.Dimensions == nil {
+		t.Fatal("dimensions block not persisted")
+	}
+	d := c.Dimensions
+	if d.Signal != 82.5 || d.Reversibility != 74.0 || d.Competence != 88.0 || d.Disambiguation != 71.5 {
+		t.Errorf("persisted dimensions = %+v, want 82.5/74.0/88.0/71.5", d)
+	}
+}
+
+// --- Advance remaining branches ---
+
+func TestAdvance_ActiveToReadyPersists(t *testing.T) {
+	statusFile, path := loadFixture(t)
+
+	if err := Advance(statusFile, path, "intake", "test"); err != nil {
+		t.Fatalf("Advance intake: %v", err)
+	}
+	reloaded, err := sf.Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if got := reloaded.GetProgress("intake"); got != "ready" {
+		t.Errorf("intake = %q, want ready", got)
+	}
+}
+
+func TestAdvance_FromPendingErrors(t *testing.T) {
+	statusFile, path := loadFixture(t)
+
+	err := Advance(statusFile, path, "apply", "test")
+	if err == nil {
+		t.Fatal("expected Advance from pending to error")
+	}
+	if !strings.Contains(err.Error(), "no valid transition") {
+		t.Errorf("want no-valid-transition error, got: %v", err)
+	}
+}
+
+func TestAdvance_InvalidStageErrors(t *testing.T) {
+	statusFile, path := loadFixture(t)
+
+	if err := Advance(statusFile, path, "bogus", "test"); err == nil {
+		t.Fatal("expected Advance on invalid stage to error")
+	}
+	if err := Advance(statusFile, path, "tasks", "test"); err == nil || !strings.Contains(err.Error(), "removed") {
+		t.Fatal("expected the removed-stage strict error for tasks")
+	}
+}
+
+// --- stage_metrics iterations accumulation regression (F39 / intake assumption #6) ---
+
+// TestStageMetrics_IterationsAccumulateAcrossReworkCycles drives the full
+// fail→reset→re-finish rework choreography TWICE after the initial activation
+// and asserts stage_metrics.review.iterations reads 3 — in memory and on
+// disk. This is the spec'd behavior #395 (k4ge) implemented ("incremented,
+// not reset — tracks rework cycles"); the observed PR-meta "1 cycle for a
+// 3-cycle review" anomaly (2026-06-12) would show here as a reset to 1 if it
+// lived in the state machine.
+func TestStageMetrics_IterationsAccumulateAcrossReworkCycles(t *testing.T) {
+	statusFile, path := loadFixture(t)
+	dir := t.TempDir()
+
+	// intake → apply → review active (iterations = 1)
+	if err := Finish(statusFile, path, dir, "intake", "test"); err != nil {
+		t.Fatalf("Finish intake: %v", err)
+	}
+	if err := Finish(statusFile, path, dir, "apply", "test"); err != nil {
+		t.Fatalf("Finish apply: %v", err)
+	}
+
+	for cycle := 2; cycle <= 3; cycle++ {
+		if err := Fail(statusFile, path, dir, "review", "test", ""); err != nil {
+			t.Fatalf("cycle %d Fail review: %v", cycle, err)
+		}
+		if err := Reset(statusFile, path, dir, "apply", "test", "", ""); err != nil {
+			t.Fatalf("cycle %d Reset apply: %v", cycle, err)
+		}
+		if err := Finish(statusFile, path, dir, "apply", "test"); err != nil {
+			t.Fatalf("cycle %d re-Finish apply: %v", cycle, err)
+		}
+		if sm := statusFile.StageMetrics["review"]; sm == nil || sm.Iterations != cycle {
+			t.Fatalf("after rework cycle %d: review iterations = %v, want %d (accumulated, not reset)",
+				cycle, statusFile.StageMetrics["review"], cycle)
+		}
+	}
+
+	// The accumulated count must be what a fresh reader (fab pr-meta) sees.
+	reloaded, err := sf.Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if sm := reloaded.StageMetrics["review"]; sm == nil || sm.Iterations != 3 {
+		t.Fatalf("persisted review iterations = %v, want 3", reloaded.StageMetrics["review"])
+	}
+}

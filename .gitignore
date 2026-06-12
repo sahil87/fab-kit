@@ -16,12 +16,6 @@
 /ToBeDeleted/
 /dist/
 .tmp
-
-# Benchmark build artifacts
-src/benchmark/statusman-rust/target/
-src/benchmark/statusman-node/node_modules/
-src/benchmark/statusman-go/statusman
-src/benchmark/results/*.json
 src/go/fab/wt
 
 # Rust build artifacts

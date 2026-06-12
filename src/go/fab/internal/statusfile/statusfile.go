@@ -235,11 +235,11 @@ func decodeLegacyChecklist(n *yaml.Node) Plan {
 		case "generated":
 			p.Generated = val == "true"
 		case "completed":
-			if v, err := parseIntStrict(val); err == nil {
+			if v, err := ParseIntStrict(val); err == nil {
 				p.AcceptanceCompleted = v
 			}
 		case "total":
-			if v, err := parseIntStrict(val); err == nil {
+			if v, err := ParseIntStrict(val); err == nil {
 				p.AcceptanceCount = v
 			}
 		}
@@ -274,9 +274,11 @@ func dropChecklistRaw(root *yaml.Node) {
 	}
 }
 
-// parseIntStrict parses a non-negative integer string. Empty / non-numeric
-// inputs return an error and the caller should leave the destination at zero.
-func parseIntStrict(s string) (int, error) {
+// ParseIntStrict parses a non-negative integer string (digits only). Empty /
+// non-numeric inputs return an error and the caller should leave the
+// destination at zero. Exported as the package's single digit-only parser —
+// internal/status reuses it instead of carrying a duplicate (260612-tb6f, F47).
+func ParseIntStrict(s string) (int, error) {
 	if s == "" {
 		return 0, fmt.Errorf("empty")
 	}

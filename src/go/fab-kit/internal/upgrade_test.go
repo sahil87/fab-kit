@@ -201,3 +201,169 @@ func requireGit(t *testing.T) {
 		t.Skip("git not available")
 	}
 }
+
+// --- Remaining Upgrade branches (260612-tb6f, F45) ---
+
+func TestUpgrade_MissingKitVersionFileFails(t *testing.T) {
+	repo := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	// Cache resolvable (fab-go present) but the kit carries no VERSION file.
+	dir := filepath.Join(home, ".fab-kit", "versions", "2.0.0")
+	if err := os.MkdirAll(filepath.Join(dir, "kit"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "fab-go"), []byte("#!/bin/sh\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	configDir := filepath.Join(repo, "fab", "project")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte("fab_version: \"1.0.0\"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	chdir(t, repo)
+
+	stubRunSync(t, func(string, string, bool, bool) error {
+		t.Error("sync must not run when the cached kit has no VERSION file")
+		return nil
+	})
+
+	err := Upgrade("1.5.0", "2.0.0")
+	if err == nil {
+		t.Fatal("expected Upgrade to fail on a VERSION-less cached kit")
+	}
+	if !strings.Contains(err.Error(), "missing VERSION file") {
+		t.Errorf("expected VERSION-file error, got: %v", err)
+	}
+}
+
+// migrationsDirFor returns the cached kit migrations dir for a version under
+// the current (test) HOME.
+func migrationsDirFor(t *testing.T, version string) string {
+	t.Helper()
+	return filepath.Join(os.Getenv("HOME"), ".fab-kit", "versions", version, "kit", "migrations")
+}
+
+func TestUpgrade_MigrationReminderWhenApplicable(t *testing.T) {
+	repo := setupUpgradeRepo(t, "1.0.0", "2.0.0")
+	stubRunSync(t, func(string, string, bool, bool) error { return nil })
+
+	// Local migration version 1.0.0 + an applicable 1.0.0-to-2.0.0 migration.
+	if err := os.WriteFile(filepath.Join(repo, "fab", ".kit-migration-version"), []byte("1.0.0\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	migDir := migrationsDirFor(t, "2.0.0")
+	if err := os.MkdirAll(migDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(migDir, "1.0.0-to-2.0.0.md"), []byte("# migration\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var err error
+	out := captureStdout(t, func() { err = Upgrade("1.5.0", "2.0.0") })
+	if err != nil {
+		t.Fatalf("Upgrade: %v", err)
+	}
+	if !strings.Contains(out, "/fab-setup migrations") {
+		t.Errorf("expected migration reminder, output:\n%s", out)
+	}
+
+	// The skill owns the stamp — upgrade must NOT have stamped it.
+	got, _ := os.ReadFile(filepath.Join(repo, "fab", ".kit-migration-version"))
+	if string(got) != "1.0.0\n" {
+		t.Errorf(".kit-migration-version = %q, want 1.0.0 (unstamped — migrations apply)", got)
+	}
+}
+
+func TestUpgrade_SilentStampWhenNoMigrationsApply(t *testing.T) {
+	repo := setupUpgradeRepo(t, "1.0.0", "2.0.0")
+	stubRunSync(t, func(string, string, bool, bool) error { return nil })
+
+	if err := os.WriteFile(filepath.Join(repo, "fab", ".kit-migration-version"), []byte("1.0.0\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Migrations dir exists but nothing applies.
+	if err := os.MkdirAll(migrationsDirFor(t, "2.0.0"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	var err error
+	out := captureStdout(t, func() { err = Upgrade("1.5.0", "2.0.0") })
+	if err != nil {
+		t.Fatalf("Upgrade: %v", err)
+	}
+	if strings.Contains(out, "/fab-setup migrations") {
+		t.Errorf("no reminder expected when nothing applies, output:\n%s", out)
+	}
+
+	// Silent self-stamp to the target stops version drift.
+	got, _ := os.ReadFile(filepath.Join(repo, "fab", ".kit-migration-version"))
+	if string(got) != "2.0.0\n" {
+		t.Errorf(".kit-migration-version = %q, want 2.0.0 (silently stamped)", got)
+	}
+}
+
+func TestUpgrade_DiscoveryFailureWarnsWithoutStamp(t *testing.T) {
+	repo := setupUpgradeRepo(t, "1.0.0", "2.0.0")
+	stubRunSync(t, func(string, string, bool, bool) error { return nil })
+
+	// .kit-migration-version present but the cached kit has NO migrations dir
+	// — discovery errors; the upgrade itself must still succeed, and the
+	// stamp must be skipped (cannot confirm nothing applies).
+	if err := os.WriteFile(filepath.Join(repo, "fab", ".kit-migration-version"), []byte("1.0.0\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var err error
+	captureStdout(t, func() { err = Upgrade("1.5.0", "2.0.0") })
+	if err != nil {
+		t.Fatalf("Upgrade must not fail on discovery failure: %v", err)
+	}
+
+	got, _ := os.ReadFile(filepath.Join(repo, "fab", ".kit-migration-version"))
+	if string(got) != "1.0.0\n" {
+		t.Errorf(".kit-migration-version = %q, want 1.0.0 (no stamp on discovery failure)", got)
+	}
+}
+
+func TestUpgrade_NoFabVersionInstallPath(t *testing.T) {
+	repo := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	populateRemoteCache(t, home, "2.0.0")
+
+	// config.yaml exists but has no fab_version — the recovery branch
+	// proceeds and prints "Installed:" instead of "Updated:".
+	configDir := filepath.Join(repo, "fab", "project")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte("project:\n    name: test\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	chdir(t, repo)
+
+	stubRunSync(t, func(string, string, bool, bool) error { return nil })
+
+	var err error
+	out := captureStdout(t, func() { err = Upgrade("1.5.0", "2.0.0") })
+	if err != nil {
+		t.Fatalf("Upgrade: %v", err)
+	}
+	if !strings.Contains(out, "Installed: 2.0.0") {
+		t.Errorf("expected 'Installed: 2.0.0' line, output:\n%s", out)
+	}
+
+	v, err := readFabVersion(filepath.Join(configDir, "config.yaml"))
+	if err != nil {
+		t.Fatalf("readFabVersion: %v", err)
+	}
+	if v != "2.0.0" {
+		t.Errorf("fab_version = %q, want 2.0.0", v)
+	}
+}

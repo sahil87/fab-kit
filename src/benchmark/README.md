@@ -1,5 +1,14 @@
 # statusman.sh Benchmark: Bash vs Optimized Bash vs Node vs Rust
 
+> **Historical decision record.** The benchmark implementations, harness
+> (`bench.sh`), and fixtures were removed in 260612-tb6f (F47) — they were
+> never compiled or tested by any workflow or justfile recipe after the
+> decision they informed (Go backend, see [RESULTS.md](RESULTS.md)) shipped.
+> This README and RESULTS.md are kept as the record of that decision; the
+> summary also lives in `docs/memory/distribution/kit-architecture.md`
+> § Performance Benchmark. The setup/run instructions below reference the
+> deleted tree and are preserved verbatim for provenance only.
+
 Compares 4 implementations of core `statusman.sh` operations to inform the runtime choice for kit script rewrites.
 
 ## Prerequisites
