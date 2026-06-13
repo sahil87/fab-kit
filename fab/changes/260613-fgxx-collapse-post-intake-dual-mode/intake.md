@@ -260,13 +260,15 @@ grow a small Go test component; it MUST NOT modify Go production code.
   (fail+reset on every rework cycle) is enforced by the call sequence and is caller-identity-blind —
   byte-identical state regardless of foreground vs. dispatched origin; only the recorded `driver`
   differs. Modify only if the spike adds/clarifies a Go test that the memory should reference.
-- `runtime/operator.md`: (modify, **only if relevant**) If the operator's multi-agent dispatch
-  model documents or assumes the foreground execution path for post-intake stages, reconcile it with
-  the single-dispatch model. The description flags runtime "(subagent dispatch) if relevant" — treat
-  this as conditional; do not force a change if operator behavior is unaffected.
+- `runtime/operator.md`: (modify) Reconcile the operator's multi-agent dispatch model with the
+  single-dispatch post-intake model. **Committed via /fab-clarify (2026-06-13, Assumption #8)** — the
+  operator coordinates post-intake agent dispatch, so it is expected to need alignment. Hydrate
+  verifies the precise edit; if operator.md turns out to make no foreground-path assumption, hydrate
+  records that and the edit is a no-op — but the entry is no longer conditional.
 
-> Determine the final set during hydrate against the actual edits. The two `pipeline/*` entries are
-> high-confidence; the `runtime/operator.md` entry is conditional.
+> Determine the precise edits during hydrate against the actual diff. All three entries
+> (`pipeline/execution-skills.md`, `pipeline/schemas.md`, `runtime/operator.md`) are now committed
+> targets; `runtime/operator.md`'s exact change is hydrate-verified per Assumption #8.
 
 ## Impact
 
@@ -335,11 +337,16 @@ grow a small Go test component; it MUST NOT modify Go production code.
   determine whether this change is mostly **deletion in `fab-continue.md`** + **light prose
   alignment elsewhere**, or whether `_pipeline.md` needs structural change. (Leaning: mostly
   fab-continue.md deletion + alignment.)
-- Does `runtime/operator.md` actually assume the foreground post-intake path anywhere? If not, drop
-  the conditional `runtime` memory entry.
-- Is `TestStageMetrics_IterationsAccumulateAcrossReworkCycles` already sufficient to pin the
-  history-shape invariant, making the § 5 spike a confirmation (no new Go code) rather than a new
-  test? Decide during the planning/spike step.
+- ~~Does `runtime/operator.md` actually assume the foreground post-intake path anywhere?~~
+  **RESOLVED (/fab-clarify 2026-06-13): operator.md WILL be reconciled** to the single-dispatch model
+  (Assumption #8, now Confident). Hydrate verifies the specific edit; if operator.md makes no
+  foreground assumption, hydrate records that and the edit is a no-op — but the direction (reconcile,
+  not "decide later") is decided.
+- ~~Is `TestStageMetrics_IterationsAccumulateAcrossReworkCycles` already sufficient to pin the
+  history-shape invariant, making the § 5 spike a confirmation rather than a new test?~~
+  **RESOLVED (/fab-clarify 2026-06-13): a new test IS added** in `mutators_test.go` regardless of
+  spike outcome (Assumption #7, now Certain). The spike only informs the exact assertion shape, not
+  whether the test exists. No production Go change — test-only.
 - What is the right resting shape of the `_preamble.md` "Foreground is advisory-only" paragraph and
   the `stage-models.md` foreground section, given that full uniform-tier closure is deferred to
   Change C? (Minimum: stop contradicting single-mode; do not over-reach into Change C's territory.)
@@ -393,8 +400,26 @@ Memory note carried forward: **fresh-worktree `.claude/skills` lag `src/kit` —
 `src/kit`** (and run `fab sync` to redeploy before exercising the changed skills). Favor **small,
 independently-revertable steps**: the natural ordering is (1) delete the three conditionals + rewrite
 `fab-continue.md` post-intake dispatch, (2) align `_pipeline.md` / wrappers / `_preamble.md` /
-`stage-models.md` prose, (3) update the SPEC-*.md mirrors, (4) the optional Go-test spike — each a
-revertable unit.
+`stage-models.md` prose, (3) update the SPEC-*.md mirrors, (4) the Go history-shape test (now a
+committed test, not optional — see Assumption #7) — each a revertable unit.
+
+## Clarifications
+
+### Session 2026-06-13 (bulk confirm)
+
+| # | Action | Detail |
+|---|--------|--------|
+| 4 | Confirmed | — |
+| 5 | Confirmed | — |
+| 6 | Confirmed | — |
+| 9 | Confirmed | After explanation (minimal-reconcile vs. full rewrite; A neutralizes contradiction, C writes the uniform-tiering story) |
+
+### Session 2026-06-13 (tentative resolution)
+
+| # | Q | A |
+|---|---|---|
+| 7 | Add a new Go history-shape test, or rely on the existing iteration test? | **Add a new test** in `mutators_test.go` regardless of spike outcome — promoted Tentative → Certain. |
+| 8 | Update `runtime/operator.md`, or leave it? | **Reconcile it** (will-update direction) — promoted Tentative → Confident on a follow-up pass; hydrate verifies the precise edit. |
 
 ## Assumptions
 
@@ -403,11 +428,11 @@ revertable unit.
 | 1 | Certain | Slug `collapse-post-intake-dual-mode`; change type `refactor` | Description is prefixed `refactor:` and is a behavior reorganization; the intake-write hook infers `refactor` from the keyword. Determined by template/hook rules. | S:95 R:90 A:95 D:95 |
 | 2 | Certain | `src/kit/skills/*.md` edited (never `.claude/skills/`); SPEC-*.md mirrors updated; `stage-models.md` reconciled | Constitution mandates canonical-source-only edits and SPEC updates for skill changes. No interpretation needed. | S:90 R:85 A:100 D:95 |
 | 3 | Certain | No new `fab` CLI commands; `_cli-fab.md` unchanged; no Go production-code change | Description states explicitly "behavior reorganization, not new commands"; Go evidence shows the state machine is already caller-agnostic. | S:95 R:90 A:95 D:90 |
-| 4 | Confident | The three conditionals to remove are at lines ~100 / 156 / 176 of `fab-continue.md` (source and deployed copy verified to match) | Verified by grep against `src/kit/skills/fab-continue.md` during intake; line numbers may drift slightly as edits land but the three blockquotes are uniquely identifiable by their text. | S:90 R:80 A:85 D:85 |
-| 5 | Confident | Orchestrator owns `fab status` + `fab resolve-agent`; the block never owns transitions (orchestrator-as-pure-sequencer) | The finding's open-seam #3 recommends this; `_pipeline.md` already implements it. One obvious front-runner consistent with the Lego model. | S:80 R:70 A:85 D:80 |
-| 6 | Confident | Interactive Verdict menu (Path A) and autonomous Auto-Rework Loop (Paths B/C/D) both REMAIN as the invocation-level failure-policy fork; no "skip §Verdict when subagent" flag is reintroduced | Description § 4 and finding open-seam #1 state this explicitly as a hard constraint. | S:90 R:75 A:90 D:85 |
-| 7 | Tentative | A small Go test (history-shape-under-uniform-dispatch) is ADDED, hosted in `mutators_test.go` near `TestStageMetrics_IterationsAccumulateAcrossReworkCycles` | Description recommends a Go-side spike but says the change "MAY grow a small Go test"; whether new code is needed vs. confirming the existing iteration test depends on the spike outcome. Reversible — a test-only addition. <!-- assumed: Go test added in mutators_test.go pending spike; existing iteration test may already suffice --> | S:55 R:80 A:70 D:55 |
-| 8 | Tentative | `runtime/operator.md` memory is touched only if the operator actually assumes a foreground post-intake path; otherwise the runtime memory entry is dropped | Description marks runtime "(subagent dispatch) if relevant" — conditional. Determined during hydrate against actual edits. <!-- assumed: runtime/operator.md conditional — modify only if operator presumes foreground post-intake execution --> | S:50 R:80 A:65 D:60 |
-| 9 | Tentative | `_preamble.md` "Foreground is advisory-only" paragraph and `stage-models.md` foreground section are minimally reconciled (stop contradicting single-mode) rather than fully rewritten — full uniform-tier closure is deferred to Change C | The two findings sequence A→C; this change closes Gap 1a structurally but the tiering-prose rewrite is C's job. Minimal-reconcile is the conservative interpretation. <!-- assumed: minimal reconcile of advisory-only prose; full tiering rewrite deferred to Change C --> | S:55 R:65 A:70 D:55 |
+| 4 | Confident | The three conditionals to remove are at lines ~100 / 156 / 176 of `fab-continue.md` (source and deployed copy verified to match) | Clarified — user confirmed (2026-06-13). Verified by grep against `src/kit/skills/fab-continue.md`; line numbers may drift but the three blockquotes are uniquely identifiable by their text. | S:95 R:80 A:85 D:85 |
+| 5 | Confident | Orchestrator owns `fab status` + `fab resolve-agent`; the block never owns transitions (orchestrator-as-pure-sequencer) | Clarified — user confirmed (2026-06-13). The finding's open-seam #3 recommends this; `_pipeline.md` already implements it. | S:95 R:70 A:85 D:80 |
+| 6 | Confident | Interactive Verdict menu (Path A) and autonomous Auto-Rework Loop (Paths B/C/D) both REMAIN as the invocation-level failure-policy fork; no "skip §Verdict when subagent" flag is reintroduced | Clarified — user confirmed (2026-06-13). Description § 4 and finding open-seam #1 state this explicitly as a hard constraint. | S:95 R:75 A:90 D:85 |
+| 7 | Certain | A new Go test (history-shape-under-uniform-dispatch) **IS added**, hosted in `mutators_test.go` near `TestStageMetrics_IterationsAccumulateAcrossReworkCycles` — it drives the rework sequence with `driver=""` and `driver="fab-fff"` and asserts the `.history.jsonl` entries are identical except the optional `driver` field. This is no longer contingent on the spike outcome: the test is added regardless; the spike only informs its exact assertion shape. | Clarified — user confirmed (2026-06-13): commit to adding the new test rather than relying on the existing iteration test. A test-only addition, no production Go change. <!-- clarified: new Go history-shape test committed — user-decided 2026-06-13 --> | S:95 R:85 A:90 D:90 |
+| 8 | Confident | `runtime/operator.md` **will be reconciled** to the single-dispatch post-intake model — the operator coordinates post-intake agent dispatch, so it almost certainly documents/assumes how those stages run and must align with uniform dispatch. Hydrate verifies and performs the reconcile; if hydrate finds operator.md genuinely makes no foreground-path assumption, it records that and the edit is a no-op (the direction, not a contingency, is what's now decided). | Clarified — user confirmed (2026-06-13): commit to reconciling operator.md rather than leaving it a hydrate-time if/else. Direction decided; hydrate is the verifier, not the decider. <!-- clarified: operator.md reconcile committed (will-update direction) — user-decided 2026-06-13; hydrate verifies --> | S:80 R:75 A:70 D:75 |
+| 9 | Confident | `_preamble.md` "Foreground is advisory-only" paragraph and `stage-models.md` foreground section are minimally reconciled (stop contradicting single-mode) rather than fully rewritten — full uniform-tier closure is deferred to Change C | Clarified — user confirmed after explanation (2026-06-13): minimal-reconcile is the chosen approach; A must neutralize the contradiction but NOT write Change C's uniform-tiering story (avoids docs-ahead-of-code + edit-collision with C). Wording is an apply-time judgment band, hence Confident not Certain. <!-- clarified: minimal reconcile of advisory-only prose; full tiering rewrite deferred to Change C — user-confirmed 2026-06-13 --> | S:95 R:75 A:80 D:80 |
 
-9 assumptions (3 certain, 3 confident, 3 tentative).
+9 assumptions (4 certain, 5 confident, 0 tentative). All resolved via /fab-clarify (2026-06-13): row 7 (Go history-shape test) → Certain (test committed regardless of spike outcome); row 8 (`runtime/operator.md`) → Confident (reconcile committed in the will-update direction; hydrate verifies). No Tentative or Unresolved rows remain.

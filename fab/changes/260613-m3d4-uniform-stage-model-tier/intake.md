@@ -225,10 +225,11 @@ skill mechanism for it.
 - `pipeline/planning-skills`: (modify) only if the `_preamble` Per-Stage Model Resolution contract
   reframing (effort-via-prompt; Gap 1a removed) touches planning-skill-documented behavior — likely a
   light touch or none; confirm during hydrate.
-- `distribution/distribution` or `runtime/*`: (modify, **only if relevant**) the request flags
-  "distribution/runtime if relevant to resolve-agent". `fab resolve-agent` itself is unchanged, so a
-  runtime-memory touch is unlikely; include only if hydrate finds the per-stage-model-resolution
-  behavior is documented there and needs reconciliation. <!-- assumed: runtime/distribution memory likely untouched since resolve-agent's signature/behavior is unchanged — flagged as conditional per the request's "if relevant" wording -->
+- `distribution/distribution` or `runtime/*`: **OUT OF SCOPE — not modified.** Resolved via
+  /fab-clarify (2026-06-13, Assumption #8): `fab resolve-agent`'s signature and behavior are
+  unchanged and C touches no execution path, so no per-stage-model behavior in runtime/distribution
+  memory needs reconciliation. (Contrast Change A, which removed the foreground path and so does
+  touch `runtime/operator.md`.)
 
 ## Impact
 
@@ -272,6 +273,23 @@ finding/stage-models docs.
   `fab-continue.md`). Since C is gated on A, A's edits should already be in place; reconcile rather than
   re-introduce.
 
+## Clarifications
+
+### Session 2026-06-13 (bulk confirm)
+
+| # | Action | Detail |
+|---|--------|--------|
+| 5 | Confirmed | — |
+| 6 | Confirmed | — |
+| 7 | Confirmed | — |
+| 9 | Confirmed | — |
+
+### Session 2026-06-13 (tentative resolution)
+
+| # | Q | A |
+|---|---|---|
+| 8 | Update `runtime`/`distribution` memory, or leave it? | **Out of scope (Confident-skip)** — C changes only how skills consume the resolved tier, not `fab resolve-agent` itself, so no runtime/distribution memory needs reconciliation. Promoted Tentative → Confident. |
+
 ## Assumptions
 
 <!-- STATE TRANSFER: see template note. All four SRAD grades recorded; Scores required on every row. -->
@@ -282,10 +300,10 @@ finding/stage-models docs.
 | 2 | Certain | Edit ONLY `src/kit/skills/*` (canonical), never `.claude/skills/*` (gitignored deployed copies) | Constitution Principle V + Additional Constraints; project context.md | S:100 R:70 A:100 D:100 |
 | 3 | Certain | Skill-file edits MUST update their `SPEC-*.md` mirrors: `SPEC-_pipeline.md`, `SPEC-_preamble.md`, `SPEC-fab-fff.md`, `SPEC-fab-continue.md` | Constitution Additional Constraint (skill changes → SPEC update); files confirmed to exist | S:90 R:75 A:95 D:90 |
 | 4 | Certain | Scope is Gap 1b + Gap 2-effort + doc updates only; Gap 1a is closed by Change A (not duplicated here) | Request "IMPORTANT DEPENDENCY" section + both finding docs state Gap 1a disappears under A | S:95 R:70 A:90 D:90 |
-| 5 | Confident | Gap 1b visibility = emit/log resolved `model=/effort=` at each dispatch site; Gap 2 effort = inject "operate at X effort" into the subagent prompt | Request items 1–2 prescribe these seams explicitly; the only available seam for effort (no Agent-tool effort param) | S:90 R:70 A:85 D:80 |
-| 6 | Confident | Per-stage dispatch sites are `_pipeline.md` Steps 1–3 + Auto-Rework items 3/4 (review resolves once → both reviewers + merge) and `fab-fff.md` Steps 4–5 | Located them directly in source during context loading; request names `_pipeline.md` and `fab-fff.md Steps 4–5` | S:85 R:75 A:90 D:85 |
-| 7 | Confident | Harness ask (per-subagent `effort` param on Agent tool) is document-only — do NOT build | Request item 4 + finding § Suggested directions item 4; out of fab's control | S:95 R:90 A:90 D:90 |
-| 8 | Tentative | runtime/distribution memory is likely untouched (resolver unchanged); include only if hydrate finds documented per-stage-model behavior there needing reconciliation | Request says "distribution/runtime if relevant"; conditional — defer the call to hydrate | S:55 R:75 A:60 D:60 |
-| 9 | Tentative | A lightweight Gap 1b guard (prose assertion that resolved lines are non-empty before dispatch) MAY be added if cleanly feasible; otherwise visibility-in-output alone suffices | Request says "consider whether a lightweight guard is feasible"; no Go, prose-level only — decision deferred to apply | S:50 R:70 A:60 D:55 |
+| 5 | Confident | Gap 1b visibility = emit/log resolved `model=/effort=` at each dispatch site; Gap 2 effort = inject "operate at X effort" into the subagent prompt | Clarified — user confirmed (2026-06-13). Request items 1–2 prescribe these seams explicitly; the only available seam for effort (no Agent-tool effort param). | S:95 R:70 A:85 D:80 |
+| 6 | Confident | Per-stage dispatch sites are `_pipeline.md` Steps 1–3 + Auto-Rework items 3/4 (review resolves once → both reviewers + merge) and `fab-fff.md` Steps 4–5 | Clarified — user confirmed (2026-06-13). Located directly in source during context loading; request names `_pipeline.md` and `fab-fff.md Steps 4–5`. | S:95 R:75 A:90 D:85 |
+| 7 | Confident | Harness ask (per-subagent `effort` param on Agent tool) is document-only — do NOT build | Clarified — user confirmed (2026-06-13). Request item 4 + finding § Suggested directions item 4; out of fab's control. | S:95 R:90 A:90 D:90 |
+| 8 | Confident | `runtime` / `distribution` memory is **out of scope** — not touched. C changes only how skills *consume* the resolved tier (effort-via-prompt, visibility/guard); `fab resolve-agent`'s signature and behavior are unchanged, so no per-stage-model behavior in runtime/distribution memory needs reconciliation. | Clarified — user confirmed (2026-06-13): Confident-skip. Distinct from Change A's operator.md case — A removed the foreground path (implicating runtime memory); C touches neither the resolver nor any execution path, so the no-touch case is strong. <!-- clarified: runtime/distribution memory out of scope (Confident-skip) — user-decided 2026-06-13 --> | S:80 R:80 A:75 D:75 |
+| 9 | Confident | Add the lightweight Gap 1b guard (prose assertion that resolved `model=/effort=` lines are non-empty before dispatch) when cleanly feasible; fall back to visibility-in-output alone if a guard would add awkward control flow | Clarified — user confirmed (2026-06-13): the guard-if-feasible-else-visibility plan is the chosen approach. Prose-level only, no Go. <!-- decided: add lightweight non-empty guard if clean, else visibility-in-output — user-confirmed 2026-06-13 --> | S:95 R:75 A:75 D:75 |
 
-9 assumptions (4 certain, 3 confident, 2 tentative, 0 unresolved).
+9 assumptions (4 certain, 5 confident, 0 tentative, 0 unresolved). All resolved via /fab-clarify (2026-06-13): rows 5/6/7/9 bulk-confirmed; row 8 (`runtime`/`distribution` memory) → Confident-skip (out of scope — C does not change the resolver or any execution path). No Tentative or Unresolved rows remain.

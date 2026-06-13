@@ -2,3 +2,15 @@
 {"args":"fix: Apply per-stage model tier uniformly + inject effort via subagent prompt (Change C of the per-stage-model-tier / intake-context-boundary refactor trio; gated on Change A)","cmd":"fab-new","event":"command","ts":"2026-06-13T11:25:53Z"}
 {"delta":"+2.1","event":"confidence","score":2.1,"trigger":"calc-score","ts":"2026-06-13T11:27:36Z"}
 {"delta":"+0.0","event":"confidence","score":2.1,"trigger":"calc-score","ts":"2026-06-13T11:27:41Z"}
+{"delta":"+0.7","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-06-13T12:20:50Z"}
+{"delta":"+0.0","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-06-13T12:21:16Z"}
+{"delta":"+0.0","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-06-13T12:21:26Z"}
+{"delta":"+0.0","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-06-13T12:21:34Z"}
+{"delta":"+0.0","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-06-13T12:21:34Z"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-06-13T12:28:52Z"}
+{"delta":"+0.7","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-06-13T12:30:31Z"}
+{"delta":"+0.0","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-06-13T12:30:42Z"}
+{"delta":"+0.0","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-06-13T12:31:08Z"}
+{"delta":"+0.0","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-06-13T12:31:17Z"}
+{"delta":"+0.0","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-06-13T12:31:25Z"}
+{"delta":"+0.0","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-06-13T12:31:31Z"}

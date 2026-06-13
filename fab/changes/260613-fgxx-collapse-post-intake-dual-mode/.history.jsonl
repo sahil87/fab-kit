@@ -2,3 +2,22 @@
 {"args":"refactor: Collapse post-intake dual execution mode — one execution mode, orchestrators as sequencers (Change A of intake-is-the-context-boundary refactor trilogy)","cmd":"fab-new","event":"command","ts":"2026-06-13T11:28:12Z"}
 {"delta":"+1.1","event":"confidence","score":1.1,"trigger":"calc-score","ts":"2026-06-13T11:30:29Z"}
 {"delta":"+0.0","event":"confidence","score":1.1,"trigger":"calc-score","ts":"2026-06-13T11:30:44Z"}
+{"delta":"+0.7","event":"confidence","score":1.8,"trigger":"calc-score","ts":"2026-06-13T12:20:34Z"}
+{"delta":"+0.0","event":"confidence","score":1.8,"trigger":"calc-score","ts":"2026-06-13T12:21:16Z"}
+{"delta":"+0.0","event":"confidence","score":1.8,"trigger":"calc-score","ts":"2026-06-13T12:21:26Z"}
+{"delta":"+0.0","event":"confidence","score":1.8,"trigger":"calc-score","ts":"2026-06-13T12:21:34Z"}
+{"delta":"+0.0","event":"confidence","score":1.8,"trigger":"calc-score","ts":"2026-06-13T12:21:34Z"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-06-13T12:22:12Z"}
+{"delta":"+1.0","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-06-13T12:23:31Z"}
+{"delta":"+0.0","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-06-13T12:23:38Z"}
+{"delta":"+0.0","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-06-13T12:23:48Z"}
+{"delta":"+0.0","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-06-13T12:26:00Z"}
+{"delta":"+0.0","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-06-13T12:26:08Z"}
+{"delta":"+0.0","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-06-13T12:26:21Z"}
+{"delta":"+0.0","event":"confidence","score":2.8,"trigger":"calc-score","ts":"2026-06-13T12:26:26Z"}
+{"delta":"+0.7","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-06-13T12:27:57Z"}
+{"delta":"+0.0","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-06-13T12:28:05Z"}
+{"delta":"+0.0","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-06-13T12:28:11Z"}
+{"delta":"+0.0","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-06-13T12:28:19Z"}
+{"delta":"+0.0","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-06-13T12:28:29Z"}
+{"delta":"+0.0","event":"confidence","score":3.5,"trigger":"calc-score","ts":"2026-06-13T12:28:33Z"}
