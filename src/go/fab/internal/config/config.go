@@ -26,7 +26,7 @@ type TierProfile struct {
 // AgentConfig models the `agent:` section of config.yaml.
 //
 // Tiers is the sole per-stage-model override surface: a map of tier name
-// (thinking/doing/ship) → profile. The stage→tier mapping itself is fab-owned
+// (thinking/doing/fast) → profile. The stage→tier mapping itself is fab-owned
 // and NOT user-overridable (no stage_tiers, no per-stage escape hatch); users
 // override only what each tier *means*. An omitted tier — or an omitted field
 // within a tier — falls back to fab-kit's built-in default (per-field merge,

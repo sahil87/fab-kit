@@ -219,10 +219,10 @@ review_tools:
 #
 # agent.tiers (optional) is the per-stage-model override surface. A tier is a
 # named {model, effort} profile; fab owns a FIXED, non-overridable stage→tier
-# mapping (thinking: intake, review / doing: apply, review-pr, hydrate / ship:
+# mapping (thinking: intake, review / doing: apply, review-pr, hydrate / fast:
 # ship) and you override only what each tier MEANS. Omit any tier (or the whole
 # tiers: block) to use fab-kit's built-in defaults
-# (thinking: opus-4-8/xhigh, doing: opus-4-8/high, ship: sonnet-4-6/low).
+# (thinking: opus-4-8/xhigh, doing: opus-4-8/high, fast: sonnet-4-6/low).
 # Resolved per stage by `fab resolve-agent <stage>` at sub-agent dispatch time;
 # see docs/specs/stage-models.md.
 agent:
