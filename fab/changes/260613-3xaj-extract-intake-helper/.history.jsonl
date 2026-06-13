@@ -1,0 +1,10 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-13T11:24:43Z"}
+{"args":"refactor: Extract _intake.md shared helper for pre-boundary intake creation (Change B from intake-is-the-context-boundary finding)","cmd":"fab-new","event":"command","ts":"2026-06-13T11:24:43Z"}
+{"delta":"+2.5","event":"confidence","score":2.5,"trigger":"calc-score","ts":"2026-06-13T11:26:23Z"}
+{"delta":"+0.0","event":"confidence","score":2.5,"trigger":"calc-score","ts":"2026-06-13T11:26:36Z"}
+{"delta":"+0.7","event":"confidence","score":3.2,"trigger":"calc-score","ts":"2026-06-13T12:21:10Z"}
+{"delta":"+0.0","event":"confidence","score":3.2,"trigger":"calc-score","ts":"2026-06-13T12:21:16Z"}
+{"delta":"+0.0","event":"confidence","score":3.2,"trigger":"calc-score","ts":"2026-06-13T12:21:26Z"}
+{"delta":"+0.0","event":"confidence","score":3.2,"trigger":"calc-score","ts":"2026-06-13T12:21:29Z"}
+{"delta":"+0.0","event":"confidence","score":3.2,"trigger":"calc-score","ts":"2026-06-13T12:21:34Z"}
+{"delta":"+0.0","event":"confidence","score":3.2,"trigger":"calc-score","ts":"2026-06-13T12:21:34Z"}
