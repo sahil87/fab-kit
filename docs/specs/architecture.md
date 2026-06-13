@@ -216,8 +216,19 @@ review_tools:
 
 # Agent spawn command used by fab operator / fab batch / fab spawn-command
 # (falls back to `claude --dangerously-skip-permissions` when absent).
+#
+# agent.tiers (optional) is the per-stage-model override surface. A tier is a
+# named {model, effort} profile; fab owns a FIXED, non-overridable stage→tier
+# mapping (thinking: intake, review / doing: apply, review-pr, hydrate / ship:
+# ship) and you override only what each tier MEANS. Omit any tier (or the whole
+# tiers: block) to use fab-kit's built-in defaults
+# (thinking: opus-4-8/xhigh, doing: opus-4-8/high, ship: sonnet-4-6/low).
+# Resolved per stage by `fab resolve-agent <stage>` at sub-agent dispatch time;
+# see docs/specs/stage-models.md.
 agent:
   spawn_command: claude --dangerously-skip-permissions
+  tiers:
+    doing: { model: claude-sonnet-4-6, effort: medium }   # example: run the doing tier cheaper
 
 # Optional branch prefix applied by fab batch switch when creating worktree branches.
 branch_prefix: ""

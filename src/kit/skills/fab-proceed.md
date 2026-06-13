@@ -131,6 +131,8 @@ Relevance judgment is performed by the invoking agent inline — no external cla
 
 Each prefix step (`/fab-new`, `/fab-switch`, `/git-branch`) SHALL be dispatched as a subagent using the Agent tool (`subagent_type: "general-purpose"`) per `_preamble.md` § Subagent Dispatch. Each subagent prompt MUST instruct the subagent to read the standard subagent context files per `_preamble.md` § Standard Subagent Context.
 
+> **Per-stage model**: the prefix steps are NOT pipeline stages, so they take **no** `fab resolve-agent` resolution — they dispatch at the inherited model. Per-stage model selection belongs to the pipeline `/fab-proceed` delegates to: the final `/fab-fff` invocation (run via the Skill tool in the current context) resolves `fab resolve-agent <stage>` for each of its own stages per `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution.
+
 #### fab-new Dispatch
 
 Runs when the dispatch table selects `/fab-new`: either substantive conversation + no intake, or substantive conversation + ≥1 intake but none clearly relevant.

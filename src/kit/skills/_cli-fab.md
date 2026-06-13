@@ -201,6 +201,34 @@ The five output-mode flags are **mutually exclusive** — passing two (e.g. `--s
 
 ---
 
+## fab resolve-agent
+
+Pure query (no side effects) — resolves a pipeline stage to its `{model, effort}` agent profile for sub-agent dispatch. Consumed by the orchestrators (`/fab-ff`, `/fab-fff`, `/fab-proceed`) and `/fab-continue`'s sub-agent dispatch, which call it immediately before dispatching each stage's sub-agent.
+
+```
+fab resolve-agent <stage>
+```
+
+`<stage>` is one of the six pipeline stages: `intake`, `apply`, `review`, `hydrate`, `ship`, `review-pr`.
+
+**Resolution**: maps the stage → its tier via the FIXED fab-owned stage→tier mapping (`thinking`: intake, review / `doing`: apply, review-pr, hydrate / `ship`: ship — NOT user-overridable), then resolves the tier → `{model, effort}`: the project's `agent.tiers.<tier>` override **per-field merged** over fab-kit's built-in default (`thinking`: claude-opus-4-8/xhigh, `doing`: claude-opus-4-8/high, `ship`: claude-sonnet-4-6/low), else the default. `agent.tiers` is the sole override surface — there is no `stage_tiers` and no per-stage escape hatch. See `docs/specs/stage-models.md`.
+
+**Output** (two stdout lines, byte-stable for the same config):
+
+```
+model=<id>
+effort=<level>
+```
+
+- The `effort=` line is **omitted** when the resolved tier has no effort (empty/absent).
+- An **empty model** emits an empty `model=` line — signals "inherit the session/orchestrator model" (today's foreground/no-override behavior). Callers omit the dispatch `model` param in that case.
+
+**No validation — verbatim pass-through**: `fab resolve-agent` does NOT validate the model or effort against any provider's accepted set (provider neutrality, Constitution I). It echoes both strings as-is — `xhigh`, `reasoning_effort:high`, an empty effort, whatever. A misconfigured pair (e.g. Sonnet + `xhigh`) is NOT corrected by fab; it surfaces as a dispatch-time error in the harness. There is no effort-enum enforcement and no degrade-gracefully drop.
+
+**Exit code**: non-zero only on a real error — an unreadable/malformed config, or an unknown stage name. A stage resolving to a default is success (exit 0).
+
+---
+
 ## fab hook
 
 Claude Code hook handlers. Each subcommand is registered as inline `fab hook <subcommand>` in `.claude/settings.local.json`. **All hook subcommands exit 0** so they never block the agent — the four event handlers swallow errors silently; `sync` (setup-facing) surfaces failures on stderr but still exits 0.
