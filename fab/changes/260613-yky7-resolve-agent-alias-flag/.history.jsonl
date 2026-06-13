@@ -1,0 +1,4 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-13T12:44:37Z"}
+{"args":"Add --alias flag to fab resolve-agent that emits Claude-Code short model alias (opus/sonnet/haiku/fable) instead of full model ID, fixing Agent-tool dispatch enum rejection","cmd":"fab-new","event":"command","ts":"2026-06-13T12:44:37Z"}
+{"delta":"+3.8","event":"confidence","score":3.8,"trigger":"calc-score","ts":"2026-06-13T12:45:53Z"}
+{"delta":"+0.0","event":"confidence","score":3.8,"trigger":"calc-score","ts":"2026-06-13T12:45:58Z"}
