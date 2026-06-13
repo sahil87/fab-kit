@@ -34,7 +34,7 @@ Execute the **shared pipeline bracket** (`_pipeline.md`, loaded via `helpers:`) 
 
 The bracket defines everything else: pre-flight (intake prerequisite + intake gate), context loading, resumability, Steps 1–3 (apply → review → hydrate), the auto-rework loop with its per-cycle choreography, and the exhaustion stop.
 
-> **Per-stage model**: each stage dispatch in the bracket resolves `fab resolve-agent <stage>` first and passes the resolved model+effort to the Agent dispatch (empty ⇒ omit/inherit) — see `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution.
+> **Per-stage model**: each stage dispatch in the bracket resolves `fab resolve-agent <stage>` first, surfaces the resolved `model=/effort=` (so a skipped or mis-resolved tier is visible, not silent), then dispatches through the two seams — model via the Agent tool's `model` param (empty ⇒ omit/inherit) and effort via an imperative instruction in the dispatch prompt (``Operate at `<effort>` reasoning effort for this task.``; empty effort ⇒ omit, since the Agent tool has no effort param) — see `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution.
 
 ---
 

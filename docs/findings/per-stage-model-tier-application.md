@@ -2,7 +2,7 @@
 
 **Date**: 2026-06-13
 **Area**: subagent dispatch, per-stage model resolution (`fab resolve-agent`)
-**Status**: open
+**Status**: largely addressed — Gap 1a closed by `260613-fgxx` (intake-is-the-context-boundary); Gap 1b (compliance visibility) and Gap 2's effort half (effort injected via the subagent prompt) closed by `260613-m3d4` (uniform-stage-model-tier). **Residual**: a first-class per-sub-agent `effort` parameter on the Claude Code Agent tool (§ Suggested directions item 4) — a harness ask outside fab's control.
 **Severity**: medium — correctness-of-execution gap (stages may silently run on the wrong model/effort), not a crash
 
 ---
@@ -25,19 +25,19 @@ $ fab resolve-agent review  →  model=claude-opus-4-8  effort=xhigh
 $ fab resolve-agent ship    →  model=claude-sonnet-4-6 effort=low
 ```
 
-But the resolved profile is **only ever applied at the Agent-tool dispatch seam**. This produces two distinct gaps — one a *compliance* gap (orchestrator can skip the resolution step), one an *architectural* gap (the harness adapter has no effort knob).
+The resolved profile is applied at the Agent-tool dispatch seam. This finding originally identified two distinct gaps — one a *compliance* gap (orchestrator can skip the resolution step), one an *architectural* gap (the harness adapter has no effort knob). **All three sub-gaps below are now closed or addressed** (`260613-fgxx` closed Gap 1a; `260613-m3d4` addressed Gap 1b + Gap 2's effort half via visibility + prompt-injection); the lone residual is the harness ask in § Suggested directions item 4. Sections below are retained with their resolution annotations for the historical record.
 
 ---
 
 ## Gap 1 — Compliance: foreground stages and skipped resolution inherit the session model
 
-### 1a. Foreground stages can't be tiered at all (by design, but easy to forget)
+### 1a. Foreground stages can't be tiered at all — CLOSED by `260613-fgxx`
 
-`_preamble.md` § Per-Stage Model Resolution and `fab-continue.md`'s header note both state that per-stage selection is honored **only on orchestrated/sub-agent dispatch**. When a stage runs **directly in the foreground** — i.e. plain `/fab-continue` for apply or hydrate — `fab` cannot switch the session model mid-run, so the configured tier is **advisory only**. The skill "MAY note 'this stage is configured for X; you're on Y' but MUST NOT attempt to switch."
+**Historical (pre-`260613-fgxx`)**: `_preamble.md` § Per-Stage Model Resolution and `fab-continue.md`'s header note both stated that per-stage selection was honored **only on orchestrated/sub-agent dispatch**. When a stage ran **directly in the foreground** — i.e. plain `/fab-continue` for apply or hydrate — `fab` could not switch the session model mid-run, so the configured tier was **advisory only**.
 
-Net effect, by path:
+Net effect *at the time*, by path:
 
-| Stage | resolve-agent tier | Path A: `/fab-continue` (manual) | Paths B/C/D: `/fab-ff`, `/fab-fff`, `/fab-proceed` |
+| Stage | resolve-agent tier | Path A: `/fab-continue` (then-foreground) | Paths B/C/D: `/fab-ff`, `/fab-fff`, `/fab-proceed` |
 |-------|--------------------|----------------------------------|-----------------------------------------------------|
 | apply | opus + high | foreground → **session model** (advisory) | subagent → tier applied |
 | review | opus + xhigh | subagents → tier applied | subagents → tier applied |
@@ -45,19 +45,17 @@ Net effect, by path:
 | ship | sonnet + low | foreground → session model | subagent → tier applied |
 | review-pr | opus + high | foreground → session model | subagent → tier applied |
 
-(In Path A, `review` is the lone exception: `_review.md` mandates inward+outward **subagents**, so the tier *is* applied there even in the manual path.)
+> **CLOSED by [intake-is-the-context-boundary](intake-is-the-context-boundary.md), landed as `260613-fgxx`.** That change collapsed the post-intake dual execution mode: **every** post-intake stage now dispatches a sub-agent regardless of A/B/C/D — plain `/fab-continue` is a one-stage sequencer that resolves `fab resolve-agent <stage>` and dispatches its stage's block just like an orchestrator. With **no foreground execution path left**, `fab resolve-agent` applies uniformly across apply/review/hydrate and Gap 1a is gone — the per-path split above no longer exists (every cell is "subagent → tier applied"). The only residual "advisory" case is a stage skill genuinely run with no dispatch at all, which `fab` cannot switch mid-run by design. This finding's Gap 1b and Gap 2-effort were then closed by `260613-m3d4` (below).
 
-This is intended behavior — but it means "did apply run on opus+high?" has a different answer depending on whether the user ran `/fab-continue` or an orchestrator. Worth stating plainly in user-facing docs.
+### 1b. Orchestrators can silently skip the mandated `resolve-agent` call — ADDRESSED by `260613-m3d4`
 
-> **Closed by [intake-is-the-context-boundary](intake-is-the-context-boundary.md)**: if every post-intake stage dispatches a subagent regardless of A/B/C/D (the principle in that finding), there is no foreground execution path left to be the exception — `fab resolve-agent` applies uniformly and Gap 1a disappears. Only Gap 2 (below) survives. The two findings should be planned together.
-
-### 1b. Orchestrators can silently skip the mandated `resolve-agent` call
-
-`_pipeline.md` Steps 1/2/3 (and `fab-fff.md` Steps 4/5) each mandate:
+`_pipeline.md` Steps 1/2/3 (and `fab-fff.md` Steps 4/5) each mandated (the original Gap-1b prose, since refined by `260613-m3d4` — see below):
 
 > immediately **before** dispatching each stage's sub-agent, run `fab resolve-agent <stage>` and pass the resolved model AND effort into the Agent dispatch.
 
 If an orchestrator agent **omits** that call and dispatches with no `model` param, the subagent inherits the **session** model/effort instead of being pinned to the stage tier. Nothing enforces the call — it's a prose instruction, not a code-level guard. Observed in the wild: an orchestrated run dispatched apply/review subagents with no model override and the subagents ran on the inherited session profile rather than `opus+high` / `opus+xhigh`. The agent's self-diagnosis correctly identified the symptom ("subagents ran on inherited session settings"), but mis-attributed cause to "in-process Agent dispatch doesn't route through resolve-agent" — the routing *is* defined; the run simply didn't execute the step.
+
+> **ADDRESSED by `260613-m3d4` (compliance visibility).** A true code-level guard is impossible (dispatch is harness-internal — `fab` cannot observe Agent-tool calls). The available seam is **visibility**: every per-stage dispatch site now **surfaces** the resolved `model=/effort=` lines (carried into the dispatch prompt and/or echoed in the orchestrator's step output), so a *skipped* `fab resolve-agent` call — where the sub-agent silently inherits the session profile — is **visible in output rather than silent**. The canonical contract (`_preamble.md` § Per-Stage Model Resolution) also notes that an all-empty resolution is worth surfacing/asserting rather than dispatching blind. This does not *prevent* a skip (no enforcement seam exists) but makes one *detectable* — the cheap, prose-level fix the finding called for.
 
 ---
 
@@ -70,7 +68,9 @@ Even a fully compliant orchestrator that calls `fab resolve-agent apply` and get
 - The **model** half of the tier can be pinned per-subagent. ✅
 - The **effort** half (`xhigh` vs `high` vs `low`) **cannot** be injected per-subagent through the current Agent-tool adapter. ❌ The subagent runs at whatever effort the session/harness governs.
 
-This is a real harness-adapter limitation, not a compliance miss. It means the `effort=` line `fab resolve-agent` emits is currently **unconsumable** on the per-subagent dispatch path in Claude Code, regardless of orchestrator correctness.
+This is a real harness-adapter limitation, not a compliance miss. It means the `effort=` line `fab resolve-agent` emits is **unconsumable through a dispatch *parameter*** in Claude Code, regardless of orchestrator correctness.
+
+> **Effort half ADDRESSED by `260613-m3d4` (effort-via-prompt); the clean fix remains the residual.** Since the Agent tool has no `effort` param, `260613-m3d4` injects the resolved effort into the **subagent prompt** as an explicit imperative instruction (e.g., ``Operate at `xhigh` reasoning effort for this task.``; omitted when the resolved effort is empty) at every per-stage dispatch site, so the sub-agent self-selects its reasoning effort. The model half stays on the Agent tool's `model` param (unchanged). This is **imperfect** — it relies on the sub-agent honoring the instruction rather than the harness enforcing it — but it is the only per-sub-agent effort seam available today. The clean fix — a first-class per-sub-agent `effort` parameter on the Agent tool (§ Suggested directions item 4) — is **out of fab's control** and remains the **residual** after this change.
 
 ---
 
@@ -80,12 +80,12 @@ The whole point of `doing` vs `thinking` tiers is cost/quality calibration — a
 
 ---
 
-## Suggested directions (not yet decided)
+## Suggested directions
 
-1. **Close Gap 1b with a self-check.** Have orchestrators emit the resolved `model=/effort=` lines into the dispatch prompt and/or log them, so a skipped resolution is visible in output rather than silent. Cheap, prose-level.
-2. **Close Gap 2's effort half via the prompt.** Since the Agent tool can't take an effort param, inject the resolved effort into the **subagent prompt** as an explicit instruction ("operate at `xhigh` reasoning effort"), so the subagent self-selects. Imperfect (relies on the subagent honoring it) but it's the only seam available today.
-3. **Document the foreground-advisory reality (Gap 1a)** in user-facing docs so users know manual `/fab-continue` does not tier apply/hydrate/ship.
-4. **Harness ask**: a per-subagent `effort` parameter on the Agent tool would make Gap 2 closable cleanly. Out of fab's control — flag upstream.
+1. **Close Gap 1b with a self-check.** ✅ **Done (`260613-m3d4`).** Orchestrators emit/surface the resolved `model=/effort=` lines (into the dispatch prompt and/or step output), so a skipped resolution is visible in output rather than silent. Cheap, prose-level — as proposed.
+2. **Close Gap 2's effort half via the prompt.** ✅ **Done (`260613-m3d4`).** Since the Agent tool can't take an effort param, the resolved effort is injected into the **subagent prompt** as an explicit instruction (``Operate at `xhigh` reasoning effort for this task.``; omitted when empty), so the subagent self-selects. Imperfect (relies on the subagent honoring it) but it's the only seam available today.
+3. **Document the foreground-advisory reality (Gap 1a).** ✅ **Superseded by `260613-fgxx`.** There is no longer a foreground-advisory path to document for apply/hydrate/ship — every post-intake stage dispatches a sub-agent and is tiered uniformly. The narrow residual ("a stage skill run with no dispatch at all") is captured in `docs/specs/stage-models.md` § Foreground limitation.
+4. **Harness ask** *(residual — not built)*: a per-subagent `effort` parameter on the Claude Code Agent tool would make Gap 2 closable cleanly — injecting effort directly at the dispatch seam instead of via prose in the prompt. This is **out of fab's control** — flag upstream. It is the **only residual** after `260613-fgxx` + `260613-m3d4`; fab builds nothing for it.
 
 ---
 

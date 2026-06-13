@@ -203,15 +203,18 @@ override a tier to Haiku (pass-through doesn't forbid it); fab just doesn't ship
 ## Skill wiring — orchestrator/dispatch consume `fab resolve-agent`
 
 The orchestrators (`/fab-ff`, `/fab-fff`, `/fab-proceed`) and `/fab-continue`'s sub-agent dispatch call
-`fab resolve-agent <stage>` immediately before dispatching each stage's sub-agent, and pass the
-resolved **model AND effort** to the Agent dispatch:
+`fab resolve-agent <stage>` immediately before dispatching each stage's sub-agent, **surface** the
+resolved `model=/effort=` lines (so a skipped or mis-resolved tier is visible in output rather than
+silent — the available stand-in for an enforcement guard, since dispatch is harness-internal), and
+apply the resolved **model AND effort** through their two seams:
 
-- Empty model → omit the model param (inherit session/orchestrator model — today's behavior).
-- Empty effort → omit the effort flag.
+- **Model → the Agent tool's `model` param.** Empty model → omit it (inherit session/orchestrator model — today's behavior).
+- **Effort → an explicit instruction in the subagent prompt.** The Agent tool has no `effort` param, so the resolved effort is injected as an imperative line in the dispatched prompt (e.g., ``Operate at `xhigh` reasoning effort for this task.``) and the sub-agent self-selects. Empty effort → omit the instruction. (The effort half is therefore **no longer dropped** — earlier wiring had no seam for it; it now rides the prompt. The clean fix, a first-class per-sub-agent effort parameter on the Agent tool, is a harness ask outside fab's control — see § Foreground limitation's scope note.)
 
 The **`review` stage resolves once** and applies the same `{model, effort}` to BOTH reviewer sub-agents
-(inward + outward) and the merge — a consequence of stage(/tier)-granularity, documented as a known
-tradeoff (the mechanical merge runs at the reviewer's tier; acceptable for config simplicity).
+(inward + outward) and the merge — the same model param and the same effort-prompt instruction for all
+three; a consequence of stage(/tier)-granularity, documented as a known tradeoff (the mechanical merge
+runs at the reviewer's tier; acceptable for config simplicity).
 
 `_cli-fab.md` documents the `fab resolve-agent` command signature (Constitution constraint: CLI changes
 MUST update `_cli-fab.md`). `architecture.md` documents the `agent.tiers` config block alongside the
@@ -227,11 +230,15 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   provider's model IDs and effort vocabulary (`gpt-5 / reasoning_effort:high`, `gemini-* / <its-knob>`)
   and nothing in fab rejects it.
 - *Harness-specific layer (the adapter):* injecting the resolved model+effort into the actual
-  sub-agent dispatch is harness behavior. **For Claude Code that is the Agent tool's `model`
-  parameter** — the skill wiring names this explicitly as the Claude-Code adapter, not as universal
-  truth. This coupling is **not introduced by this feature** — fab's entire existing subagent-dispatch
-  design (`_preamble.md` § Subagent Dispatch) is already Claude-Code-shaped. Per-stage selection is
-  exactly as portable as fab's existing dispatch: no more, no less.
+  sub-agent dispatch is harness behavior, and the two halves use **two different seams** in Claude
+  Code. **The model rides the Agent tool's `model` parameter** (which takes a short alias —
+  `opus`/`sonnet`/`haiku`/`fable` — not the full versioned id `fab resolve-agent` emits, so the
+  orchestrator maps id → alias at the seam); **the effort rides an instruction in the subagent prompt**
+  (the Agent tool exposes no effort parameter). The skill wiring names both explicitly as the
+  Claude-Code adapter, not as universal truth. This coupling is **not introduced by this feature** —
+  fab's entire existing subagent-dispatch design (`_preamble.md` § Subagent Dispatch) is already
+  Claude-Code-shaped. Per-stage selection is exactly as portable as fab's existing dispatch: no more,
+  no less.
 - *Claude-flavored data (overridable):* fab-kit's shipped default table uses Claude model IDs/effort.
   These are documented as "fab-kit's Claude defaults," fully replaceable via `agent.tiers`.
 - *v1 scope is architecture-neutral + documented — NOT shipped/tested against a non-Claude harness.* No
@@ -282,10 +289,12 @@ There fab cannot switch the session model mid-run, so the configured tier is **a
 skill MAY note "this stage is configured for X; you're on Y" but MUST NOT attempt to switch models.
 
 > **Scope note**: this section reconciles the foreground limitation with the single post-intake
-> execution mode (260613-fgxx, Change A). **Full uniform-tier closure** — the per-sub-agent effort
-> knob (the model-tier finding's Gap 2, a Claude Code Agent-tool limitation) and the complete
-> uniform-tiering narrative — is a **separate follow-up change (Change C)** and is intentionally NOT
-> written here.
+> execution mode (260613-fgxx, Change A). The **effort half** of per-stage tiering — injected into the
+> subagent prompt as an explicit instruction (since the Claude Code Agent tool has no effort parameter)
+> — and the **compliance-visibility** behavior (surfacing the resolved `model=/effort=` at each
+> dispatch site) are written in by 260613-m3d4 (Change C); see § Skill wiring above. The **lone
+> residual** is a first-class per-sub-agent `effort` parameter on the Agent tool (the model-tier
+> finding's Gap 2 clean fix) — a harness ask outside fab's control, deliberately not built here.
 
 ---
 
