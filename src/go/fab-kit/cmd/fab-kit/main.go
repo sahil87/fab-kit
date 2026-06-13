@@ -69,18 +69,21 @@ func initCmd() *cobra.Command {
 }
 
 func upgradeCmd() *cobra.Command {
-	return &cobra.Command{
+	var useLatest bool
+	cmd := &cobra.Command{
 		Use:   "upgrade-repo [version]",
-		Short: "Upgrade to a specific or latest version",
+		Short: "Upgrade the repo's kit to the installed binary's version (or --latest / an explicit version)",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			targetVersion := ""
 			if len(args) > 0 {
 				targetVersion = args[0]
 			}
-			return internal.Upgrade(version, targetVersion)
+			return internal.Upgrade(version, targetVersion, useLatest)
 		},
 	}
+	cmd.Flags().BoolVar(&useLatest, "latest", false, "Resolve the newest published release from GitHub instead of the installed binary version")
+	return cmd
 }
 
 func syncCmd() *cobra.Command {
