@@ -2,7 +2,7 @@
 
 ## Summary
 
-Shared pipeline bracket executed by `/fab-ff` and `/fab-fff` (added in 260611-szxd — f007/f071). The bracket is a **pure sequencer** (affirmed 260613-fgxx): dispatch block → read returned status/findings → decide proceed / loop / stop; it owns the `fab status` transitions and `fab resolve-agent <stage>` resolution and never reaches into block internals. The subagent dispatch note's "do NOT run `fab status`; return results only" instruction is the **universal block contract** for post-intake `/fab-continue` blocks (Apply/Review/Hydrate) — not an override this orchestrator imposes — because plain `/fab-continue` is itself a one-stage sequencer that dispatches those blocks identically and runs their transitions after they return (see `SPEC-fab-continue.md`). Single authoritative source for everything the two drivers share: pre-flight (intake prerequisite + the single intake confidence gate, flat 3.0), context loading, the subagent dispatch note ("do NOT run `fab status`; return results only"), resumability (skip `done` stages; review-`failed` recovery via `fab status start <change> review`), Steps 1–3 (apply with internal plan generation → review → hydrate — each preceded by `fab resolve-agent <stage>` per-stage model resolution since 260613-l3ja, and since 260613-m3d4 each site **surfaces** the resolved `model=/effort=` (visibility — a skipped resolution is then detectable, not silent) and dispatches via two seams: model on the Agent `model` param, effort as an imperative instruction in the dispatch prompt (no Agent effort param; omitted when empty); review resolves once and applies the same model + same effort-prompt instruction to both reviewers + merge; rework items 3/4 re-resolve, re-surface, and re-inject before re-dispatch), the auto-rework loop with its **explicit per-cycle choreography**, the exhaustion stop, and the shared error rows. All user-facing stop/re-run guidance in the bracket (gate-fail, task-fail, exhaustion stop) names the change in the suggested commands — the run may be driving a non-active override, and argless re-runs would resolve the active change (260612-w7dp).
+Shared pipeline bracket executed by `/fab-ff` and `/fab-fff` (added in 260611-szxd — f007/f071). The bracket is a **pure sequencer** (affirmed 260613-fgxx): dispatch block → read returned status/findings → decide proceed / loop / stop; it owns the `fab status` transitions and `fab resolve-agent <stage>` resolution and never reaches into block internals. The subagent dispatch note's "do NOT run `fab status`; return results only" instruction is the **universal block contract** for post-intake `/fab-continue` blocks (Apply/Review/Hydrate) — not an override this orchestrator imposes — because plain `/fab-continue` is itself a one-stage sequencer that dispatches those blocks identically and runs their transitions after they return (see `SPEC-fab-continue.md`). Single authoritative source for everything the two drivers share: pre-flight (intake prerequisite + the single intake confidence gate, flat 3.0), context loading, the subagent dispatch note ("do NOT run `fab status`; return results only"), resumability (skip `done` stages; review-`failed` recovery via `fab status start <change> review`), Steps 1–3 (apply with internal plan generation → review → hydrate — each preceded by `fab resolve-agent <stage> --alias` per-stage model resolution since 260613-l3ja (`--alias` since 260613-yky7 — emits the Agent-tool-valid short alias on the `model=` line), and since 260613-m3d4 each site **surfaces** the resolved `model=/effort=` (visibility — a skipped resolution is then detectable, not silent) and dispatches via two seams: model on the Agent `model` param, effort as an imperative instruction in the dispatch prompt (no Agent effort param; omitted when empty); review resolves once and applies the same model + same effort-prompt instruction to both reviewers + merge; rework items 3/4 re-resolve, re-surface, and re-inject before re-dispatch), the auto-rework loop with its **explicit per-cycle choreography**, the exhaustion stop, and the shared error rows. All user-facing stop/re-run guidance in the bracket (gate-fail, task-fail, exhaustion stop) names the change in the suggested commands — the run may be driving a non-active override, and argless re-runs would resolve the active change (260612-w7dp).
 
 **Parameters** (declared by each driver's own file):
 
@@ -43,18 +43,19 @@ Driver (fab-ff / fab-fff) reads _pipeline.md with {driver}/{terminal} bound
 ├─ Resumability: skip done stages; {terminal}: done → already complete;
 │  review failed → fab status start <change> review, resume from Step 2
 │
-│  (each stage dispatch first runs `fab resolve-agent <stage>`, surfaces the
-│   resolved model=/effort= (visibility — 260613-m3d4), then dispatches via two
+│  (each stage dispatch first runs `fab resolve-agent <stage> --alias`, surfaces
+│   the resolved model=/effort= (visibility — 260613-m3d4), then dispatches via two
 │   seams: model → Agent `model` param (empty ⇒ omit/inherit), effort → imperative
 │   instruction in the dispatch prompt (no Agent effort param; empty ⇒ omit;
-│   260613-m3d4) — 260613-l3ja established the resolve call; see _preamble.md
-│   § Subagent Dispatch → Per-Stage Model Resolution)
+│   260613-m3d4) — 260613-l3ja established the resolve call, 260613-yky7 added
+│   `--alias` (emits the Agent-tool-valid short alias on the model= line); see
+│   _preamble.md § Subagent Dispatch → Per-Stage Model Resolution)
 │
-├─ Step 1: Apply (fab resolve-agent apply → subagent: /fab-continue Apply Behavior — plan co-gen + tasks)
+├─ Step 1: Apply (fab resolve-agent apply --alias → subagent: /fab-continue Apply Behavior — plan co-gen + tasks)
 │  ├─ fab status finish <change> intake {driver}  (if intake not done)
 │  └─ fab status finish <change> apply {driver}   (on success)
 │
-├─ Step 2: Review (fab resolve-agent review ONCE for both reviewers + merge →
+├─ Step 2: Review (fab resolve-agent review --alias ONCE for both reviewers + merge →
 │  │        subagent: /fab-continue Review Behavior → _review.md
 │  │        inward + outward dispatch, merged findings, pass/fail)
 │  ├─ Pass: fab status finish <change> review {driver} → Step 3
@@ -63,7 +64,7 @@ Driver (fab-ff / fab-fff) reads _pipeline.md with {driver}/{terminal} bound
 │     items 3/4 re-resolve apply/review before re-dispatch)
 │     └─ Exhaustion: fab status fail <change> review (no reset) → STOP
 │
-├─ Step 3: Hydrate (fab resolve-agent hydrate → subagent: /fab-continue Hydrate Behavior)
+├─ Step 3: Hydrate (fab resolve-agent hydrate --alias → subagent: /fab-continue Hydrate Behavior)
 │  └─ fab status finish <change> hydrate {driver}
 │
 └─ {terminal} = hydrate → complete; {terminal} = review-pr → driver Steps 4–5

@@ -162,7 +162,11 @@ func TestModelAlias(t *testing.T) {
 		"some-unrecognized-model-id": "some-unrecognized-model-id",
 	}
 	for in, want := range cases {
-		t.Run(in, func(t *testing.T) {
+		name := in
+		if name == "" {
+			name = "empty" // avoid an empty subtest name (TestModelAlias/)
+		}
+		t.Run(name, func(t *testing.T) {
 			if got := ModelAlias(in); got != want {
 				t.Errorf("ModelAlias(%q) = %q, want %q", in, got, want)
 			}
