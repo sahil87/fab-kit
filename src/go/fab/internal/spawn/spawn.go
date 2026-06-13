@@ -1,6 +1,8 @@
 package spawn
 
 import (
+	"strings"
+
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 )
 
@@ -23,4 +25,27 @@ func Command(configPath string) string {
 		return cmd
 	}
 	return DefaultSpawnCommand
+}
+
+// WithProfile appends --model/--effort to the END of spawnCmd (last-wins),
+// omitting each flag when its value is empty. Model is appended before effort.
+// Appending last is deliberate: the configured spawn_command may already pin a
+// --model/--effort, and a trailing occurrence wins on the claude CLI (duplicate
+// --effort is accepted without a parse error), so the caller's deliberate tier
+// choice overrides whatever the spawn_command defaulted to. An empty value
+// mirrors the documented `empty ⇒ omit` convention (_preamble.md § Per-Stage
+// Model Resolution): empty model ⇒ omit --model (inherit), empty effort ⇒ omit
+// --effort.
+func WithProfile(spawnCmd, model, effort string) string {
+	var b strings.Builder
+	b.WriteString(spawnCmd)
+	if model != "" {
+		b.WriteString(" --model ")
+		b.WriteString(model)
+	}
+	if effort != "" {
+		b.WriteString(" --effort ")
+		b.WriteString(effort)
+	}
+	return b.String()
 }

@@ -10,7 +10,10 @@ helpers: [_cli-fab, _cli-external]
 
 Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across all sessions on its tmux server via `fab pane map --all-sessions`, routes commands via `tmux send-keys`, monitors progress via `/loop`. Spans multiple repos and sessions on one server. The loop is the heart of the operator.
 
-Start via `fab operator` (singleton tmux tab named `operator`).
+Start via `fab operator` (singleton tmux tab named `operator`). The launcher requires **neither a git repo nor a resolvable `fab/` project** — matching the per-server, cross-repo singleton model, whose natural launch point is a neutral parent directory (e.g. `~/code`) with no `fab/` project. The degraded behavior is exact:
+- **Window cwd**: the repo root when launched inside a git repo, else `os.Getwd()` (the current directory). It errors only if both resolutions fail.
+- **Spawn command**: `agent.spawn_command` from the project's `fab/project/config.yaml` when a `fab/` project is resolvable, else the built-in default `spawn.DefaultSpawnCommand` (`claude --dangerously-skip-permissions`). When launched `fab/`-less, **no project `agent.spawn_command`/`agent.tiers` is read** — there is no project to customize from.
+- **Doing-tier model**: the launcher resolves the **doing-tier** `{model, effort}` (via `fab resolve-agent apply`) and appends `--model`/`--effort` to the spawn command, so the coordinating agent runs on a deliberately-chosen model rather than whatever the spawn command happened to specify. With no resolvable `fab/` project (or any other failure) the doing tier resolves to its built-in default `{claude-opus-4-8, high}` — so a `fab/`-less launch composes a fully-defaulted command (default spawn command + doing default).
 
 ---
 
@@ -634,6 +637,9 @@ Session-scoped — resets on `/clear` or session restart.
 | Outputs `Next:` line? | No — ends with ready signal |
 | Loads change artifacts? | No — coordination context only |
 | Requires tmux? | Yes — hard stop without it |
+| Requires a git repo? | No — `fab operator` opens its window in the repo root inside a repo, else `os.Getwd()` (neutral parent dir). Errors only if both fail |
+| Requires a `fab/` project? | No — spawn command comes from the project's `agent.spawn_command` when `fab/` is resolvable, else `spawn.DefaultSpawnCommand` (`claude --dangerously-skip-permissions`). No project `agent.spawn_command`/`agent.tiers` is read on a `fab/`-less launch |
+| Coordinating-agent model | Doing tier — `fab operator` resolves `fab resolve-agent apply` (canonical doing-tier stage), appends `--model`/`--effort`; falls back to the built-in `{claude-opus-4-8, high}` on any failure (incl. no resolvable `fab/` project) |
 | Uses `/loop`? | Yes — 3m heartbeat |
 | Uses the operator state file? | Yes — monitored set + autopilot queue + branch map persistence. **Server-keyed**, not repo-rooted: `$XDG_STATE_HOME/fab/operator/<server-slug>.yaml` (fallback `~/.local/state/fab/operator/<server-slug>.yaml`), keyed by the tmux socket path. The binary derives the path; old repo-rooted files are not migrated |
 | Multi-repo / multi-session? | Yes — one operator per tmux server spans all its sessions and repos via the `(session, repo, pane)` addressing tuple |

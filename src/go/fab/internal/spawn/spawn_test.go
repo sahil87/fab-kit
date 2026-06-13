@@ -62,3 +62,50 @@ func TestCommand_InvalidYAML(t *testing.T) {
 		t.Errorf("Command() = %q, want %q", got, DefaultSpawnCommand)
 	}
 }
+
+// TestWithProfile verifies the doing-tier flag injection: both flags appended at
+// the END in order model→effort (last-wins), each flag omitted entirely when its
+// value is empty, and an all-empty profile leaving spawnCmd untouched.
+func TestWithProfile(t *testing.T) {
+	const base = "claude --dangerously-skip-permissions --effort xhigh"
+
+	tests := []struct {
+		name   string
+		model  string
+		effort string
+		want   string
+	}{
+		{
+			name:   "both present appended in order at end",
+			model:  "claude-opus-4-8",
+			effort: "high",
+			want:   base + " --model claude-opus-4-8 --effort high",
+		},
+		{
+			name:   "empty model only appends just effort",
+			model:  "",
+			effort: "high",
+			want:   base + " --effort high",
+		},
+		{
+			name:   "empty effort only appends just model",
+			model:  "claude-opus-4-8",
+			effort: "",
+			want:   base + " --model claude-opus-4-8",
+		},
+		{
+			name:   "both empty leaves spawnCmd unchanged",
+			model:  "",
+			effort: "",
+			want:   base,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := WithProfile(base, tc.model, tc.effort)
+			if got != tc.want {
+				t.Errorf("WithProfile(%q, %q, %q) = %q, want %q", base, tc.model, tc.effort, got, tc.want)
+			}
+		})
+	}
+}
