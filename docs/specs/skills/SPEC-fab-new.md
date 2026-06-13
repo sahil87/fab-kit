@@ -2,13 +2,15 @@
 
 ## Summary
 
-Creates a new change from a natural language description, Linear ticket, or backlog ID. Generates the change folder, writes `intake.md`, verifies the hook-inferred change type (the PostToolUse intake-write hook owns `change_type`; the skill overrides via `set-change-type` only if wrong), computes the authoritative intake confidence (no `indicative` flag — 1.10.0), advances intake to `ready`, activates the change, and creates the matching git branch.
+Creates a new change from a natural language description, Linear ticket, or backlog ID. Since 260613-3xaj (extract-intake-helper) the skill is a **thin call-site** over the shared `_intake` Create-Intake Procedure: its body reads `.claude/skills/_intake/SKILL.md` and executes the **Create-Intake Procedure** (Steps 0–9) with `{questioning-mode} = interactive`, then runs its own **Steps 10–11 tail** (activate + git branch). The procedure generates the change folder, writes `intake.md`, verifies the hook-inferred change type (the PostToolUse intake-write hook owns `change_type`; the skill overrides via `set-change-type` only if wrong), computes the authoritative intake confidence (no `indicative` flag — 1.10.0), and advances intake to `ready`; `/fab-new`'s tail then activates the change and creates the matching git branch.
 
-**Re-run contract** (Constitution III): a backlog/Linear-ID re-run detects the existing non-archived change and routes to resume (`/fab-switch {name}` + `/fab-continue`) instead of erroring; a natural-language re-run intentionally creates a new change each run. Declared in the skill's Key Properties section.
+**Extraction boundary** (260613-3xaj): Steps 0–9 are NOT inlined here — they live in `_intake.md` (see `SPEC-_intake.md`). Only the activate (Step 10) + branch (Step 11) tail, Output block, and activation/git error rows stay in `fab-new.md` — a different responsibility (make the change active + checked out) that is NOT a questioning-mode parameter.
+
+**Re-run contract** (Constitution III): a backlog/Linear-ID re-run detects the existing non-archived change and routes to resume (`/fab-switch {name}` + `/fab-continue`) instead of erroring; a natural-language re-run intentionally creates a new change each run. Implemented in the shared procedure's Step 3; declared in the skill's Key Properties section.
 
 **Output ordering** (260612-c5tr): the Output template ends with the Assumptions summary as the final content block immediately before the `Next:` line, per `_srad.md` § Assumptions Summary Block (order: intake → Confidence → Activated → Branch → Assumptions → `Next:`); the block is omitted from output only when 0 assumptions were made.
 
-**Helpers**: Declares `helpers: [_generation, _srad]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
+**Helpers**: Declares `helpers: [_generation, _srad, _intake]` in frontmatter per `docs/specs/skills.md § Skill Helpers` (`_intake` added in 260613-3xaj; `_generation`/`_srad` kept declared directly, mirroring the `_pipeline` precedent where consumers declare underlying helpers alongside the orchestration helper).
 
 ## Flow
 
@@ -16,65 +18,13 @@ Creates a new change from a natural language description, Linear ticket, or back
 User invokes /fab-new <description>
 │
 ├─ Read: _preamble.md (always-load layer: 7 project files)
+├─ Read: .claude/skills/_intake/SKILL.md   (helpers: declaration — also _generation, _srad)
 │
-├─ Step 0: Parse Input
-│  ├─ Linear ID? ──► MCP: mcp__claude_ai_Linear__get_issue
-│  ├─ Backlog ID? ──► Read: fab/backlog.md
-│  └─ Natural language ──► use as-is
-│
-├─ Step 1: Generate Slug
-│  └─ (agent reasoning — no tools)
-│
-├─ Step 2: Gap Analysis
-│  └─ Read/Grep: existing skills, specs, memory
-│
-├─ Step 3: Create Change
-│  ├─ [backlog ID detected] collision check first:
-│  │  Bash: fab resolve --id {id} → compare stdout for EQUALITY
-│  │  with {id} (260612-w7dp — resolution is substring-based, so a
-│  │  hit inside another change's slug resolves with a DIFFERENT
-│  │  canonical ID and must NOT route to resume); on an exact match,
-│  │  fab resolve --folder {id} names the existing change
-│  ├─ [Linear ID detected] collision check first:
-│  │  Bash: grep -lw "{ISSUE_ID}" fab/changes/*/.status.yaml
-│  │  (-w word-anchors: DEV-123 won't match DEV-1234)
-│  │  (Linear IDs never appear in folder names — they live in
-│  │   .status.yaml issues arrays; the single-level glob
-│  │   naturally excludes archive/)
-│  ├─ [existing non-archived change found by either check]
-│  │  → route to resume: report it + point to
-│  │    /fab-switch {name} then /fab-continue — STOP
-│  │    (no duplicate created; `Change ID already in use`
-│  │     stays as safety net for backlog IDs only — Linear
-│  │     re-runs pass no --change-id, so the scan is the
-│  │     only collision guard)
-│  │  (NL re-run intentionally creates a new change each run)
-│  └─ Bash: fab change new --slug <slug> --log-args <desc>
-│     │     [--change-id <4char> — only when a backlog ID
-│     │      was detected in Step 0]
-│     └─ (creates folder, .status.yaml from template)
-│  └─ [if Linear] Bash: fab status add-issue <change> <id>
-│
-├─ Step 4: Conversation Context Mining
-│  └─ (agent reasoning — scans conversation history)
-│
-├─ Step 5: Generate intake.md
-│  ├─ Read: $(fab kit-path)/templates/intake.md
-│  └─ Write: fab/changes/{name}/intake.md          ◄── HOOK CANDIDATE
-│
-├─ Step 6: Verify Change Type (hook-owned — the intake-write
-│  │        hook already set it in Step 5's Write)
-│  ├─ Bash: grep '^change_type:' fab/changes/{name}/.status.yaml
-│  └─ [only if wrong] Bash: fab status set-change-type <change> <type>
-│
-├─ Step 7: Confidence (authoritative — intake is the sole scoring source)
-│  └─ Bash: fab score --stage intake <change>             ◄── bookkeeping (no indicative flag, 1.10.0)
-│
-├─ Step 8: SRAD Questions
-│  └─ (agent reasoning, possible user interaction)
-│
-├─ Step 9: Advance Intake to Ready
-│  └─ Bash: fab status advance <change> intake
+├─ Steps 0–9: Create-Intake Procedure (_intake.md, {questioning-mode} = interactive)
+│  │  (parse input → slug → gap analysis → create change [collision check]
+│  │   → conversation mining → intake.md write ◄── HOOK → verify change type
+│  │   → confidence score → SRAD questions [interactive] → advance to ready)
+│  └─ see SPEC-_intake.md for the per-step tool detail
 │
 ├─ Step 10: Activate Change
 │  └─ Bash: fab change switch "{name}"
@@ -108,13 +58,13 @@ User invokes /fab-new <description>
 
 ### Tools used
 
+Steps 0–9 tool usage now lives in the shared procedure — see `SPEC-_intake.md` § Tools used (Read templates/backlog/project files, Write `intake.md`, Bash `fab change new`/`fab resolve`/`fab status set-change-type`/`fab score`/`fab status advance`/`fab status add-issue`, MCP Linear). `fab-new`'s own tail (Steps 10–11) uses:
+
 | Tool | Purpose |
 |------|---------|
-| Read | Load preamble, templates, backlog, project files |
-| Write | Write `intake.md` |
-| Bash | `fab change new`, `fab resolve --id`/`--folder` (backlog-ID collision pre-check), `fab status set-change-type` (override only), `fab score`, `fab status advance`, `fab status add-issue`, `fab change switch` |
-| Bash (git) | `git rev-parse --is-inside-work-tree`, `git branch --show-current`, `git status --porcelain` (dirty count, excluding `fab/changes/{name}/`), `git rev-parse --verify` (local + `origin/{name}`), `git config branch.{current}.remote`, `git checkout -b`, `git checkout`, `git checkout --track`, `git branch -m` |
-| MCP (Linear) | Fetch issue details (optional path) |
+| Read | `.claude/skills/_intake/SKILL.md` and the `helpers:` files (`_generation`, `_srad`); always-load layer |
+| Bash | `fab change switch` (Step 10) |
+| Bash (git) | `git rev-parse --is-inside-work-tree`, `git branch --show-current`, `git status --porcelain` (dirty count, excluding `fab/changes/{name}/`), `git rev-parse --verify` (local + `origin/{name}`), `git config branch.{current}.remote`, `git checkout -b`, `git checkout`, `git checkout --track`, `git branch -m` (Step 11) |
 
 ### Sub-agents
 
@@ -122,10 +72,9 @@ None.
 
 ### Bookkeeping commands (hook candidates)
 
+Steps 6/7/9 bookkeeping (`fab status set-change-type` override-only, `fab score --stage intake`, `fab status advance`) now belong to the shared procedure — see `SPEC-_intake.md`. `fab-new`'s tail:
+
 | Step | Command | Trigger |
 |------|---------|---------|
-| 6 | `fab status set-change-type` | Only if the hook-inferred type is wrong (the intake-write hook owns `change_type`) |
-| 7 | `fab score --stage intake` | After intake.md write |
-| 9 | `fab status advance` | After all intake work complete |
-| 10 | `fab change switch` | After intake advanced to ready |
+| 10 | `fab change switch` | After the Create-Intake Procedure advanced intake to ready |
 | 11 | `git checkout -b` / `git checkout` / `git checkout --track` / `git branch -m` | After change activated |
