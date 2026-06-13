@@ -2,7 +2,7 @@
 
 ## Summary
 
-Shared context preamble loaded by every Fab skill. Defines path conventions, context loading layers (always-load — descriptive, with a skill-file-wins override and a derived, never-enumerated exception set; change context; memory lookup; source code), the **Skill Helper Declaration** frontmatter convention (including stage-conditional in-body loading), inlined **Naming Conventions**, inlined **Run-Kit (rk) Reference**, the **Common fab Commands** headline table, the next-steps convention (with a skill-file-declared ending opt-out) with state table, a pointer to the skill invocation protocol (defined in `fab-clarify.md` since 260611-zc9m), subagent dispatch pattern with standard subagent context, a pointer to the SRAD autonomy framework (extracted to `_srad.md` in 260611-zc9m), and slimmed confidence scoring (gate threshold + invocation; schema/formula/template moved to `_cli-fab.md` § fab score).
+Shared context preamble loaded by every Fab skill. Defines path conventions, context loading layers (always-load — descriptive, with a skill-file-wins override and a derived, never-enumerated exception set; change context; memory lookup; source code), the **Skill Helper Declaration** frontmatter convention (including stage-conditional in-body loading), inlined **Naming Conventions**, inlined **Run-Kit (rk) Reference**, the **Common fab Commands** headline table, the next-steps convention (with a skill-file-declared ending opt-out) with state table, a pointer to the skill invocation protocol (defined in `fab-clarify.md` since 260611-zc9m), subagent dispatch pattern with standard subagent context and **Per-Stage Model Resolution** (260613-l3ja — `fab resolve-agent <stage>` before each pipeline-stage dispatch; resolved model+effort passed to the Agent dispatch with empty ⇒ omit/inherit; Claude Code adapter = Agent tool `model` param while resolution stays provider-neutral; review resolves once for both reviewers + merge; foreground advisory-only), a pointer to the SRAD autonomy framework (extracted to `_srad.md` in 260611-zc9m), and slimmed confidence scoring (gate threshold + invocation; schema/formula/template moved to `_cli-fab.md` § fab score).
 
 This is an internal partial (`user-invocable: false`) — it is never invoked directly. Skills reference it via the opening instruction: "Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding."
 
@@ -82,11 +82,20 @@ Skill reads _preamble.md
 │
 ├─ Subagent Dispatch
 │  ├─ Dispatch pattern (6 items)
-│  └─ Standard Subagent Context
-│     Read: config.yaml, constitution.md,
-│           context.md*, code-quality.md*,
-│           code-review.md*
-│     (applied at every nesting level)
+│  ├─ Standard Subagent Context
+│  │  Read: config.yaml, constitution.md,
+│  │        context.md*, code-quality.md*,
+│  │        code-review.md*
+│  │  (applied at every nesting level)
+│  └─ Per-Stage Model Resolution (260613-l3ja)
+│     Bash: fab resolve-agent <stage> before each
+│           pipeline-stage sub-agent dispatch; pass
+│           model+effort to the Agent dispatch
+│           (empty model ⇒ omit/inherit; empty effort ⇒ omit).
+│     Claude Code adapter = Agent tool `model` param
+│           (resolution itself is provider-neutral);
+│           review resolves once for both reviewers + merge;
+│           foreground is advisory-only.
 │
 ├─ SRAD Autonomy Framework (pointer)
 │  (framework extracted to _srad.md — loaded via

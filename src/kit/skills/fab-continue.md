@@ -16,6 +16,8 @@ helpers: [_srad]
 
 Advance through the 6-stage Fab pipeline one step at a time. Each invocation handles the current stage's work and transitions to the next. When called with a stage argument, resets to that stage and re-runs from there.
 
+> **Per-stage model (foreground = advisory-only)**: per-stage model selection (`fab resolve-agent <stage>` → `agent.tiers`, see `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution) is honored fully only on **orchestrated/sub-agent** dispatch — which is where `/fab-continue` consumes it: its Review Behavior resolves the reviewer sub-agents' profile. When `/fab-continue` itself runs a stage **directly in the foreground**, fab cannot switch the session model mid-run, so the configured tier is **advisory only** — the skill MAY note "this stage is configured for X; you're on Y" but MUST NOT attempt to switch. By design.
+
 ---
 
 ## Arguments
@@ -148,6 +150,8 @@ Plan Generation sub-step is skipped when `plan.md` already exists (idempotent on
 ## Review Behavior
 
 Read `.claude/skills/_review/SKILL.md` (if not already loaded), then execute its **Shared Review Dispatch** end-to-end (Preconditions → Inward + Outward Sub-Agent Dispatch → Parallel Dispatch → Findings Merge). The `_review.md` skill defines both sub-agent dispatches (inward + outward) run in parallel, their preconditions, validation steps, structured output format, and the findings merge procedure. When dispatching the inward sub-agent, read `change_type` from the change's `.status.yaml` and pass it in the prompt per `_review.md`'s context contract (its Steps 7–8 skip condition keys on it).
+
+> **Per-stage model resolution**: before dispatching the reviewer sub-agents, run `fab resolve-agent review` **once** and apply the resolved model/effort to BOTH reviewers (inward + outward) and the merge (empty model ⇒ omit/inherit; empty effort ⇒ omit) — per `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution. The Claude Code adapter is the Agent tool `model` parameter; the resolution itself is provider-neutral.
 
 > **When invoked as a subagent** (dispatched by `/fab-ff`/`/fab-fff`): skip §Verdict entirely — do NOT run any `fab status` command; return the merged findings with pass/fail status only. The orchestrator owns the finish/fail/reset transitions (and the rework loop).
 

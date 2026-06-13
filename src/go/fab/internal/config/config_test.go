@@ -124,6 +124,90 @@ project:
 	}
 }
 
+func TestLoad_WithAgentTiers(t *testing.T) {
+	dir := t.TempDir()
+	projectDir := filepath.Join(dir, "project")
+	os.MkdirAll(projectDir, 0o755)
+
+	configYAML := `
+agent:
+  spawn_command: "claude --effort xhigh"
+  tiers:
+    doing: { model: claude-sonnet-4-6, effort: medium }
+    ship: { effort: low }
+`
+	os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(configYAML), 0o644)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	doing, ok := cfg.GetAgentTier("doing")
+	if !ok {
+		t.Fatal("expected a 'doing' tier override")
+	}
+	if doing.Model != "claude-sonnet-4-6" || doing.Effort != "medium" {
+		t.Errorf("doing = %+v, want {claude-sonnet-4-6 medium}", doing)
+	}
+
+	// A partial override (only effort set) round-trips with an empty model —
+	// the per-field merge over the default is internal/agent's job, not the
+	// accessor's.
+	ship, ok := cfg.GetAgentTier("ship")
+	if !ok {
+		t.Fatal("expected a 'ship' tier override")
+	}
+	if ship.Model != "" || ship.Effort != "low" {
+		t.Errorf("ship = %+v, want {<empty> low}", ship)
+	}
+
+	// An unconfigured tier reports no override.
+	if _, ok := cfg.GetAgentTier("thinking"); ok {
+		t.Error("expected no override for the unconfigured 'thinking' tier")
+	}
+
+	// spawn_command still parses alongside the new tiers block.
+	if got := cfg.GetSpawnCommand(); got != "claude --effort xhigh" {
+		t.Errorf("GetSpawnCommand = %q, want %q", got, "claude --effort xhigh")
+	}
+}
+
+func TestLoad_NoAgentTiers(t *testing.T) {
+	dir := t.TempDir()
+	projectDir := filepath.Join(dir, "project")
+	os.MkdirAll(projectDir, 0o755)
+
+	// A config with no agent.tiers block must load cleanly (yaml ignores
+	// unknown keys; widening AgentConfig is free for existing configs).
+	configYAML := `
+agent:
+  spawn_command: "claude"
+project:
+  name: "test"
+`
+	os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(configYAML), 0o644)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if _, ok := cfg.GetAgentTier("doing"); ok {
+		t.Error("expected no tier override when agent.tiers is absent")
+	}
+}
+
+func TestGetAgentTier_NilAndEmptyConfig(t *testing.T) {
+	var nilCfg *Config
+	if _, ok := nilCfg.GetAgentTier("doing"); ok {
+		t.Error("nil-config GetAgentTier must report no override")
+	}
+	empty := &Config{}
+	if _, ok := empty.GetAgentTier("doing"); ok {
+		t.Error("empty-config GetAgentTier must report no override")
+	}
+}
+
 func TestAccessors_NilConfig(t *testing.T) {
 	var cfg *Config
 	if cfg.GetBranchPrefix() != "" || cfg.GetFabVersion() != "" ||

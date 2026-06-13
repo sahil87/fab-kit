@@ -13,9 +13,28 @@ type StageHook struct {
 	Post string `yaml:"post"`
 }
 
+// TierProfile is a named `{model, effort}` agent profile. Either field MAY be
+// empty: an empty Model signals "inherit the session/orchestrator model" and
+// an empty Effort omits the effort entirely. Both strings are pass-through —
+// fab applies NO validation against any provider's accepted set (provider
+// neutrality, Constitution Principle I). See internal/agent for resolution.
+type TierProfile struct {
+	Model  string `yaml:"model"`
+	Effort string `yaml:"effort"`
+}
+
 // AgentConfig models the `agent:` section of config.yaml.
+//
+// Tiers is the sole per-stage-model override surface: a map of tier name
+// (thinking/doing/ship) → profile. The stage→tier mapping itself is fab-owned
+// and NOT user-overridable (no stage_tiers, no per-stage escape hatch); users
+// override only what each tier *means*. An omitted tier — or an omitted field
+// within a tier — falls back to fab-kit's built-in default (per-field merge,
+// performed by internal/agent). yaml.v3 ignores unknown keys, so adding Tiers
+// is free for existing configs (the same property that made stage_hooks free).
 type AgentConfig struct {
-	SpawnCommand string `yaml:"spawn_command"`
+	SpawnCommand string                 `yaml:"spawn_command"`
+	Tiers        map[string]TierProfile `yaml:"tiers"`
 }
 
 // ProjectConfig models the `project:` section of config.yaml.
@@ -107,6 +126,20 @@ func (c *Config) GetSpawnCommand() string {
 		return ""
 	}
 	return c.Agent.SpawnCommand
+}
+
+// GetAgentTier returns the configured override profile for a tier name and
+// whether one was set. Nil-safe: a nil *Config, an absent agent.tiers block, or
+// an unconfigured tier all report (zero, false). The bool lets a caller
+// distinguish "no override" from "override present but with empty fields" — the
+// distinction internal/agent.Resolve relies on for per-field merge over the
+// fab-kit default.
+func (c *Config) GetAgentTier(tier string) (TierProfile, bool) {
+	if c == nil || c.Agent.Tiers == nil {
+		return TierProfile{}, false
+	}
+	p, ok := c.Agent.Tiers[tier]
+	return p, ok
 }
 
 // GetLinearWorkspace returns project.linear_workspace, or "" when unset (nil-safe).

@@ -328,6 +328,27 @@ Every subagent prompt MUST instruct the subagent to read the following project f
 
 `general-purpose` subagents have full tool access (Read, Edit, Write, Bash, Agent) and can execute any skill behavior including file modifications and nested subagent dispatch.
 
+### Per-Stage Model Resolution
+
+Per-stage model selection is wired into the dispatch seam. **Immediately before dispatching each pipeline stage's sub-agent**, the dispatching skill (the orchestrators `/fab-ff`, `/fab-fff`, `/fab-proceed`, and `/fab-continue`'s own sub-agent dispatch) runs:
+
+```sh
+fab resolve-agent <stage>
+```
+
+and passes the resolved profile into the Agent dispatch:
+
+- Output is two byte-stable stdout lines, `model=<id>` and `effort=<level>` (the `effort=` line is omitted when the tier has no effort). See `_cli-fab.md` § fab resolve-agent.
+- **Empty model** ⇒ omit the dispatch `model` param entirely (inherit the orchestrator/session model — today's behavior). **Empty effort** ⇒ omit the effort.
+- The resolver maps `<stage>` → its fixed fab-owned tier → a `{model, effort}` profile (`agent.tiers` project override per-field-merged over fab-kit's default). The stage→tier mapping is NOT user-overridable; `agent.tiers` (tier redefinition) is the sole override surface. Full design: `docs/specs/stage-models.md`.
+- **No validation**: the resolved strings are passed through verbatim — fab enforces no effort enum and corrects no incompatible pair. Compatibility is the harness's concern.
+
+**Harness-adapter boundary (Claude Code).** The resolution (stage→tier→`{model, effort}`) is **provider-neutral**. Injecting the resolved model into the actual dispatch is **harness-specific**: for Claude Code that adapter is the **Agent tool's `model` parameter**. This is named explicitly as the Claude-Code adapter, not as universal truth — and the coupling is not new (fab's entire subagent-dispatch design is already Claude-Code-shaped).
+
+**Review resolves once.** The `review` stage spawns two reviewer sub-agents (inward + outward) plus a merge. Resolve `fab resolve-agent review` **once** and apply the same profile to all three — the mechanical merge runs at the reviewer's tier (an accepted stage-granularity tradeoff).
+
+**Foreground is advisory-only.** Per-stage selection is a property of orchestrated/sub-agent runs. A stage skill run **directly in the foreground** (e.g. `/fab-continue` with no orchestrator) runs in the current session's model, which fab cannot switch mid-run; the configured tier is advisory there — a skill MAY note "this stage is configured for X; you're on Y" but MUST NOT attempt to switch. By design.
+
 ---
 
 ## SRAD Autonomy Framework (pointer)

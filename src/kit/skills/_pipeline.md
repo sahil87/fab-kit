@@ -46,6 +46,8 @@ Load per `_preamble.md` Sections 1-3 (config, constitution, intake, memory index
 > **Note**: All `.status.yaml` mutations in this bracket use `fab status` event commands (`start`, `advance`, `finish`, `reset`, `fail`, `set-acceptance`) rather than direct file edits. The driver argument is optional in the CLI; this bracket passes `{driver}` wherever a command below shows it (the Resumability `fab status start <change> review` recovery, preserved verbatim from the pre-extraction drivers, passes none).
 >
 > **Dispatch**: All sub-skill invocations use the Agent tool (`general-purpose` subagent) per `_preamble.md` § Subagent Dispatch. Each subagent reads the target skill file, follows the specified behavior, and returns a structured result to the pipeline. Every `/fab-continue`-behavior subagent prompt MUST include: **"do NOT run `fab status` commands; return results only"** — the orchestrator runs those stages' transitions (finish/fail/reset) itself.
+>
+> **Per-stage model resolution** (see `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution for the canonical contract): immediately **before** dispatching each stage's sub-agent, run `fab resolve-agent <stage>` and pass the resolved model AND effort into the Agent dispatch. Empty model ⇒ omit the dispatch `model` param (inherit the orchestrator/session model — today's behavior); empty effort ⇒ omit the effort. The Claude Code adapter is the Agent tool's `model` parameter; the resolution itself is provider-neutral. The `review` stage (Step 2) resolves **once** and applies the same profile to both reviewer sub-agents AND the merge.
 
 ### Resumability
 
@@ -55,7 +57,7 @@ Check `progress` from preflight. Skip stages already `done`. If `{terminal}: don
 
 *(Skip if `progress.apply` is `done`.)* Since the intake gate already passed in pre-flight, if `progress.intake` is not `done`, finish intake: `fab status finish <change> intake {driver}` (auto-activates apply).
 
-Dispatch `/fab-continue` as subagent — Apply Behavior, change: `{id}` (prompt includes: do NOT run `fab status`; return results only). The subagent runs both apply sub-steps in a single invocation: (1) Plan Generation — co-generate `plan.md` (`## Requirements` + `## Tasks` + `## Acceptance`) from `intake.md` per **Plan Generation Procedure** (`_generation.md`), unless `plan.md` already exists; (2) Task Execution — parse unchecked tasks under `## Tasks`, execute in dependency order, run tests, mark `[x]` on completion. Returns completion status or failure with task ID and reason.
+Resolve the apply model: run `fab resolve-agent apply` and apply the resolved model/effort to the dispatch below (empty model ⇒ omit/inherit; empty effort ⇒ omit). Dispatch `/fab-continue` as subagent — Apply Behavior, change: `{id}` (prompt includes: do NOT run `fab status`; return results only). The subagent runs both apply sub-steps in a single invocation: (1) Plan Generation — co-generate `plan.md` (`## Requirements` + `## Tasks` + `## Acceptance`) from `intake.md` per **Plan Generation Procedure** (`_generation.md`), unless `plan.md` already exists; (2) Task Execution — parse unchecked tasks under `## Tasks`, execute in dependency order, run tests, mark `[x]` on completion. Returns completion status or failure with task ID and reason.
 
 No `/fab-clarify` runs here. Under-specified requirements are resolved inline by the apply agent as graded SRAD assumptions in `plan.md` `## Assumptions` — not via any clarify ceremony.
 
@@ -67,7 +69,7 @@ On success: run `fab status finish <change> apply {driver}`.
 
 *(Skip if `progress.review` is `done`.)*
 
-Dispatch `/fab-continue` as subagent — Review Behavior, change: `{id}` (prompt includes: do NOT run `fab status`; return results only — verdict transitions belong to this orchestrator). The subagent reads `_review.md` for review dispatch instructions — both inward and outward sub-agents are defined there. It dispatches both sub-agents in parallel, merges their findings, and returns structured findings (must-fix / should-fix / nice-to-have) with pass/fail status.
+Resolve the review model **once**: run `fab resolve-agent review` and apply the resolved model/effort to the review subagent dispatch — the same profile governs both reviewer sub-agents (inward + outward) and the merge (empty model ⇒ omit/inherit; empty effort ⇒ omit). Dispatch `/fab-continue` as subagent — Review Behavior, change: `{id}` (prompt includes: do NOT run `fab status`; return results only — verdict transitions belong to this orchestrator). The subagent reads `_review.md` for review dispatch instructions — both inward and outward sub-agents are defined there. It dispatches both sub-agents in parallel, merges their findings, and returns structured findings (must-fix / should-fix / nice-to-have) with pass/fail status.
 
 **Pass**: run `fab status finish <change> review {driver}`. Proceed to Step 3 (Hydrate).
 
@@ -83,8 +85,8 @@ The agent triages the sub-agent's prioritized findings and autonomously selects 
 
 1. **Status pair**: run `fab status fail <change> review` then `fab status reset <change> apply {driver}`. This fail+reset pair repeats on **every** failed review verdict that starts a new cycle — not just the first failure — so every conforming run leaves the same `.status.yaml` history shape.
 2. **Triage + rework action**: triage the prioritized findings, select exactly one path per the decision heuristics below, and apply its edits (uncheck tasks / edit `plan.md` / edit `## Requirements`).
-3. **Re-dispatch apply**: dispatch `/fab-continue` as a subagent — Apply Behavior, same prompt contract as Step 1 (do NOT run `fab status`; return results only). On success, run `fab status finish <change> apply {driver}` (auto-activates review).
-4. **Fresh re-review**: dispatch a **fresh** `/fab-continue` Review Behavior subagent, same prompt contract as Step 2. Never reuse a prior review subagent's context.
+3. **Re-dispatch apply**: re-run `fab resolve-agent apply` and apply the resolved model/effort, then dispatch `/fab-continue` as a subagent — Apply Behavior, same prompt contract as Step 1 (do NOT run `fab status`; return results only). On success, run `fab status finish <change> apply {driver}` (auto-activates review).
+4. **Fresh re-review**: re-run `fab resolve-agent review` (once, governing both reviewers + merge) and apply the resolved model/effort, then dispatch a **fresh** `/fab-continue` Review Behavior subagent, same prompt contract as Step 2. Never reuse a prior review subagent's context.
 5. **Verdict**: pass → run `fab status finish <change> review {driver}` and proceed to Step 3. Fail → if fewer than `{max_cycles}` cycles have run, start the next cycle at item 1 (the fail+reset pair fires again); after the `{max_cycles}`-th failed cycle, stop per **Stop** below.
 
 **Decision heuristics** (applied at item 2 of each cycle — disjoint: each failure description routes to exactly one path):
@@ -112,7 +114,7 @@ Run /fab-continue <change> for manual rework options.
 
 *(Skip if `progress.hydrate` is `done`.)*
 
-Dispatch `/fab-continue` as subagent — Hydrate Behavior, change: `{id}` (prompt includes: do NOT run `fab status`; return results only). The subagent validates review passed, hydrates into `docs/memory/`, and returns completion status.
+Resolve the hydrate model: run `fab resolve-agent hydrate` and apply the resolved model/effort to the dispatch below (empty model ⇒ omit/inherit; empty effort ⇒ omit). Dispatch `/fab-continue` as subagent — Hydrate Behavior, change: `{id}` (prompt includes: do NOT run `fab status`; return results only). The subagent validates review passed, hydrates into `docs/memory/`, and returns completion status.
 
 On success: run `fab status finish <change> hydrate {driver}`.
 

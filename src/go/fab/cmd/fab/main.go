@@ -24,6 +24,7 @@ func newRootCmd() *cobra.Command {
 
 	root.AddCommand(
 		resolveCmd(),
+		resolveAgentCmd(),
 		logCmd(),
 		statusCmd(),
 		preflightCmd(),
