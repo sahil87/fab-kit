@@ -450,8 +450,9 @@ func driveReworkSequence(t *testing.T, driver string, cycles int) (entries []tra
 // behind collapsing the post-intake dual execution mode (260613-fgxx): the
 // foreground/manual path (driver="") and the dispatched orchestrator path
 // (driver="fab-fff") issue the SAME fab status call sequence, so the
-// .status.yaml transition history they leave is byte-identical EXCEPT the
-// optional driver annotation. The Go state machine is already caller-agnostic
+// .history.jsonl transition entries they leave agree on every
+// caller-blind field (stage/action/from/reason) — equal modulo the per-run
+// ts timestamp and the optional driver annotation. The Go state machine is already caller-agnostic
 // (driver flows only into applyMetricsSideEffect, never into a transition
 // decision — status.go), so this holds today; the test guards against a future
 // skills-layer regression that diverges the two call sequences.
