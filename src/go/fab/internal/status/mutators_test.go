@@ -7,6 +7,10 @@ package status
 // regression across repeated rework cycles.
 
 import (
+	"bufio"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -332,5 +336,165 @@ func TestStageMetrics_IterationsAccumulateAcrossReworkCycles(t *testing.T) {
 	}
 	if sm := reloaded.StageMetrics["review"]; sm == nil || sm.Iterations != 3 {
 		t.Fatalf("persisted review iterations = %v, want 3", reloaded.StageMetrics["review"])
+	}
+}
+
+// --- history-shape is identical regardless of driver (260613-fgxx) ---
+
+// loadFixtureInFabRoot lays out a real fab/changes/{name}/ tree so that
+// log.Transition (which resolves the change dir via resolve.ToAbsDir(fabRoot,
+// statusFile.Name) = {fabRoot}/changes/{folder}) actually writes
+// .history.jsonl where the test can read it back. The plain loadFixture helper
+// puts .status.yaml in a bare temp dir, so the best-effort transition log
+// silently no-ops there — that shape cannot assert on history.
+func loadFixtureInFabRoot(t *testing.T) (statusFile *sf.StatusFile, statusPath, fabRoot, changeDir string) {
+	t.Helper()
+	fabRoot = t.TempDir()
+	// statusFile.Name in the fixture is "260310-abcd-my-change".
+	changeDir = filepath.Join(fabRoot, "changes", "260310-abcd-my-change")
+	if err := os.MkdirAll(changeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	statusPath = filepath.Join(changeDir, ".status.yaml")
+	if err := os.WriteFile(statusPath, []byte(setAcceptanceFixture), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var err error
+	statusFile, err = sf.Load(statusPath)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	return statusFile, statusPath, fabRoot, changeDir
+}
+
+// transitionEntry is the caller-identity-blind subset of a .history.jsonl
+// stage-transition entry: everything EXCEPT the timestamp (ts) and the
+// intentionally-driver-dependent driver field. Two conforming runs must agree
+// on every field here.
+type transitionEntry struct {
+	Stage  string `json:"stage"`
+	Action string `json:"action"`
+	From   string `json:"from"`
+	Reason string `json:"reason"`
+}
+
+// readTransitions parses {changeDir}/.history.jsonl and returns, in order, the
+// caller-blind subset of every stage-transition entry plus the parallel slice
+// of recorded driver strings (empty when the entry omitted the optional field).
+func readTransitions(t *testing.T, changeDir string) (entries []transitionEntry, drivers []string) {
+	t.Helper()
+	f, err := os.Open(filepath.Join(changeDir, ".history.jsonl"))
+	if err != nil {
+		t.Fatalf("open .history.jsonl: %v", err)
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var raw map[string]any
+		if err := json.Unmarshal([]byte(line), &raw); err != nil {
+			t.Fatalf("unmarshal history line %q: %v", line, err)
+		}
+		if raw["event"] != "stage-transition" {
+			continue
+		}
+		var te transitionEntry
+		if err := json.Unmarshal([]byte(line), &te); err != nil {
+			t.Fatalf("unmarshal transition entry %q: %v", line, err)
+		}
+		driver, _ := raw["driver"].(string) // absent ⇒ "" (the optional-field contract)
+		entries = append(entries, te)
+		drivers = append(drivers, driver)
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("scan .history.jsonl: %v", err)
+	}
+	return entries, drivers
+}
+
+// driveReworkSequence runs the canonical rework choreography
+//
+//	Finish(intake) → Finish(apply) → [Fail(review) → Reset(apply) → Finish(apply)]×cycles
+//
+// with the given driver string, returning the recorded .history.jsonl
+// transitions (caller-blind subset) and the parallel recorded-driver slice.
+func driveReworkSequence(t *testing.T, driver string, cycles int) (entries []transitionEntry, drivers []string) {
+	t.Helper()
+	statusFile, statusPath, fabRoot, changeDir := loadFixtureInFabRoot(t)
+
+	if err := Finish(statusFile, statusPath, fabRoot, "intake", driver); err != nil {
+		t.Fatalf("Finish intake: %v", err)
+	}
+	if err := Finish(statusFile, statusPath, fabRoot, "apply", driver); err != nil {
+		t.Fatalf("Finish apply: %v", err)
+	}
+	for c := 1; c <= cycles; c++ {
+		if err := Fail(statusFile, statusPath, fabRoot, "review", driver, ""); err != nil {
+			t.Fatalf("cycle %d Fail review: %v", c, err)
+		}
+		if err := Reset(statusFile, statusPath, fabRoot, "apply", driver, "", ""); err != nil {
+			t.Fatalf("cycle %d Reset apply: %v", c, err)
+		}
+		if err := Finish(statusFile, statusPath, fabRoot, "apply", driver); err != nil {
+			t.Fatalf("cycle %d re-Finish apply: %v", c, err)
+		}
+	}
+	return readTransitions(t, changeDir)
+}
+
+// TestHistoryShape_IdenticalRegardlessOfDriver pins the load-bearing invariant
+// behind collapsing the post-intake dual execution mode (260613-fgxx): the
+// foreground/manual path (driver="") and the dispatched orchestrator path
+// (driver="fab-fff") issue the SAME fab status call sequence, so the
+// .history.jsonl transition entries they leave agree on every
+// caller-blind field (stage/action/from/reason) — equal modulo the per-run
+// ts timestamp and the optional driver annotation. The Go state machine is already caller-agnostic
+// (driver flows only into applyMetricsSideEffect, never into a transition
+// decision — status.go), so this holds today; the test guards against a future
+// skills-layer regression that diverges the two call sequences.
+func TestHistoryShape_IdenticalRegardlessOfDriver(t *testing.T) {
+	const cycles = 2
+
+	manualEntries, manualDrivers := driveReworkSequence(t, "", cycles)
+	dispatchEntries, dispatchDrivers := driveReworkSequence(t, "fab-fff", cycles)
+
+	// Identical in count.
+	if len(manualEntries) != len(dispatchEntries) {
+		t.Fatalf("transition count differs: manual=%d dispatched=%d", len(manualEntries), len(dispatchEntries))
+	}
+	if len(manualEntries) == 0 {
+		t.Fatal("no stage-transition entries recorded — the history log did not resolve/write")
+	}
+
+	// Identical in stage, action, from, reason — for every entry, in order.
+	for i := range manualEntries {
+		if manualEntries[i] != dispatchEntries[i] {
+			t.Errorf("transition %d differs (stage/action/from/reason):\n  manual     = %+v\n  dispatched = %+v",
+				i, manualEntries[i], dispatchEntries[i])
+		}
+	}
+
+	// The ONLY permitted difference: the recorded driver. Manual records no
+	// driver (the optional field is omitted ⇒ ""); the dispatched run records
+	// "fab-fff" on each driver-carrying entry. Where the dispatched run records
+	// a driver, the manual run records none on the same entry.
+	sawDispatchDriver := false
+	for i := range manualDrivers {
+		if manualDrivers[i] != "" {
+			t.Errorf("manual (driver=\"\") run unexpectedly recorded driver %q on transition %d", manualDrivers[i], i)
+		}
+		if dispatchDrivers[i] != "" {
+			sawDispatchDriver = true
+			if dispatchDrivers[i] != "fab-fff" {
+				t.Errorf("dispatched transition %d recorded driver %q, want fab-fff", i, dispatchDrivers[i])
+			}
+		}
+	}
+	if !sawDispatchDriver {
+		t.Error("dispatched run recorded no driver on any transition — the driver annotation is not being written")
 	}
 }
