@@ -25,8 +25,15 @@ import (
 // model emits an empty `model=` line, signaling "inherit the session/orchestrator
 // model". Non-zero exit only on a real error: malformed/unreadable config, or an
 // unknown stage name. A stage resolving to a default is success.
+//
+// The optional `--alias` flag is the Claude-Code Agent-tool adapter: when set,
+// the resolved model is mapped to its short alias (opus/sonnet/haiku/fable) on the
+// `model=` line via agent.ModelAlias, since the Agent tool's `model` enum rejects
+// full IDs. Default (absent) is byte-identical to today (full ID). The `effort=`
+// line is unaffected by `--alias`; empty/non-Claude models pass through verbatim.
 func resolveAgentCmd() *cobra.Command {
-	return &cobra.Command{
+	var alias bool
+	cmd := &cobra.Command{
 		Use:   "resolve-agent <stage>",
 		Short: "Resolve a pipeline stage to its {model, effort} agent profile",
 		Args:  cobra.ExactArgs(1),
@@ -46,10 +53,16 @@ func resolveAgentCmd() *cobra.Command {
 				return err
 			}
 
+			if alias {
+				profile.Model = agent.ModelAlias(profile.Model)
+			}
+
 			fmt.Fprint(cmd.OutOrStdout(), formatAgentProfile(profile))
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&alias, "alias", false, "emit the Claude-Code short model alias (opus/sonnet/haiku/fable) on the model= line instead of the full ID (Agent-tool adapter)")
+	return cmd
 }
 
 // formatAgentProfile renders a resolved profile as the byte-stable stdout

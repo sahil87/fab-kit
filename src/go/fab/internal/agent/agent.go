@@ -98,6 +98,33 @@ func StageNames() []string {
 	return names
 }
 
+// modelAliasPrefixes maps a Claude full-ID family prefix to the Claude-Code
+// short alias the Agent tool's `model` enum accepts (opus/sonnet/haiku/fable).
+// Prefix-matched so dated/versioned variants (claude-haiku-4-5-20251001) resolve
+// to their family alias.
+var modelAliasPrefixes = []struct{ prefix, alias string }{
+	{"claude-opus-", "opus"},
+	{"claude-sonnet-", "sonnet"},
+	{"claude-haiku-", "haiku"},
+	{"claude-fable-", "fable"},
+}
+
+// ModelAlias maps a full Claude model ID to its Claude-Code short alias (the
+// Agent tool's `model` enum: opus/sonnet/haiku/fable). Returns the input VERBATIM
+// when no mapping applies — an empty string (preserving the "inherit the session
+// model" signal) or an unrecognized/non-Claude ID. This keeps the alias adapter
+// from becoming a Claude-only validator (provider neutrality): a tier overridden
+// to another provider's model still gets its string through unchanged. Matched by
+// family prefix so claude-haiku-4-5-20251001 → haiku.
+func ModelAlias(model string) string {
+	for _, m := range modelAliasPrefixes {
+		if strings.HasPrefix(model, m.prefix) {
+			return m.alias
+		}
+	}
+	return model
+}
+
 // Resolve maps a stage → its fixed tier → a concrete {model, effort} profile.
 //
 // The tier profile is the project's agent.tiers.<tier> override PER-FIELD merged

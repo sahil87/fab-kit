@@ -143,6 +143,51 @@ func TestResolveAgentPrintsEmptyEffortOmitted(t *testing.T) {
 	}
 }
 
+// TestResolveAgentAliasEmitsShortAlias: with --alias, a doing stage emits the
+// short alias on the model= line while the effort= line is unaffected.
+func TestResolveAgentAliasEmitsShortAlias(t *testing.T) {
+	resolveAgentTestRepo(t, "project:\n  name: test\n")
+
+	out, err := runResolveAgentCmd(t, "apply", "--alias")
+	if err != nil {
+		t.Fatalf("resolve-agent apply --alias: %v", err)
+	}
+	if out != "model=opus\neffort=high\n" {
+		t.Errorf("output = %q, want %q", out, "model=opus\neffort=high\n")
+	}
+}
+
+// TestResolveAgentNoAliasEmitsFullID: without --alias the default output is the
+// full model ID, byte-identical to today (regression guard against the alias
+// transform leaking into the default path).
+func TestResolveAgentNoAliasEmitsFullID(t *testing.T) {
+	resolveAgentTestRepo(t, "project:\n  name: test\n")
+
+	out, err := runResolveAgentCmd(t, "apply")
+	if err != nil {
+		t.Fatalf("resolve-agent apply: %v", err)
+	}
+	if out != "model=claude-opus-4-8\neffort=high\n" {
+		t.Errorf("output = %q, want %q", out, "model=claude-opus-4-8\neffort=high\n")
+	}
+}
+
+// TestResolveAgentAliasEmptyModelInheritSignal: under --alias, an empty resolved
+// model still yields an empty model= line (the inherit signal is preserved —
+// ModelAlias("") is ""). Asserted at the alias+formatter level, because today's
+// configs never RESOLVE to an empty model (an empty override is a no-op merge
+// that keeps the default — see agent.TestResolveEmptyModelInherit), the same
+// reason TestResolveAgentPrintsEmptyEffortOmitted tests the empty effort branch
+// at the formatter level.
+func TestResolveAgentAliasEmptyModelInheritSignal(t *testing.T) {
+	if got := agent.ModelAlias(""); got != "" {
+		t.Fatalf("ModelAlias(\"\") = %q, want empty (inherit signal preserved under --alias)", got)
+	}
+	if got := formatAgentProfile(agent.Profile{Model: agent.ModelAlias(""), Effort: "high"}); got != "model=\neffort=high\n" {
+		t.Errorf("empty model under --alias = %q, want %q", got, "model=\neffort=high\n")
+	}
+}
+
 // TestResolveAgentByteStable: repeated resolution of the same stage on the same
 // config is byte-identical.
 func TestResolveAgentByteStable(t *testing.T) {

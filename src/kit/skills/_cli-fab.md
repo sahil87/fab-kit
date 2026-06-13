@@ -219,7 +219,7 @@ The five output-mode flags are **mutually exclusive** — passing two (e.g. `--s
 Pure query (no side effects) — resolves a pipeline stage to its `{model, effort}` agent profile for sub-agent dispatch. Consumed by the orchestrators (`/fab-ff`, `/fab-fff`, `/fab-proceed`) and `/fab-continue`'s sub-agent dispatch, which call it immediately before dispatching each stage's sub-agent.
 
 ```
-fab resolve-agent <stage>
+fab resolve-agent <stage> [--alias]
 ```
 
 `<stage>` is one of the six pipeline stages: `intake`, `apply`, `review`, `hydrate`, `ship`, `review-pr`.
@@ -235,6 +235,18 @@ effort=<level>
 
 - The `effort=` line is **omitted** when the resolved tier has no effort (empty/absent).
 - An **empty model** emits an empty `model=` line — signals "inherit the session/orchestrator model" (today's foreground/no-override behavior). Callers omit the dispatch `model` param in that case.
+
+**`--alias` (Claude-Code Agent-tool adapter)**: when set, the `model=` line emits the Claude-Code **short alias** (`opus` / `sonnet` / `haiku` / `fable`) instead of the full versioned ID. This exists because the Claude Code **Agent tool's `model` parameter is a hard enum** that rejects full IDs — sub-agent dispatch must pass an alias. The mapping is prefix-based (`claude-opus-` → `opus`, etc.), so dated variants like `claude-haiku-4-5-20251001` resolve to `haiku`. The **default (flag absent) is unchanged** — the full ID, byte-identical to today (the `claude` CLI `--model` flag, used by the operator launcher, accepts full IDs and keeps resolving WITHOUT `--alias`). The **`effort=` line is unaffected** by `--alias`. **Empty / non-Claude models pass through verbatim** (an empty `model=` line stays empty — the inherit signal; an unrecognized/non-Claude ID like `gpt-5` is emitted unchanged) — `--alias` is a best-effort adapter, not a Claude-only validator.
+
+```
+$ fab resolve-agent apply
+model=claude-opus-4-8
+effort=high
+
+$ fab resolve-agent apply --alias
+model=opus
+effort=high
+```
 
 **No validation — verbatim pass-through**: `fab resolve-agent` does NOT validate the model or effort against any provider's accepted set (provider neutrality, Constitution I). It echoes both strings as-is — `xhigh`, `reasoning_effort:high`, an empty effort, whatever. A misconfigured pair (e.g. Sonnet + `xhigh`) is NOT corrected by fab; it surfaces as a dispatch-time error in the harness. There is no effort-enum enforcement and no degrade-gracefully drop.
 
