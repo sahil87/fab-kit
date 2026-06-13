@@ -1,0 +1,4 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-13T11:28:12Z"}
+{"args":"refactor: Collapse post-intake dual execution mode — one execution mode, orchestrators as sequencers (Change A of intake-is-the-context-boundary refactor trilogy)","cmd":"fab-new","event":"command","ts":"2026-06-13T11:28:12Z"}
+{"delta":"+1.1","event":"confidence","score":1.1,"trigger":"calc-score","ts":"2026-06-13T11:30:29Z"}
+{"delta":"+0.0","event":"confidence","score":1.1,"trigger":"calc-score","ts":"2026-06-13T11:30:44Z"}

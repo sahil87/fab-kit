@@ -1,0 +1,4 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-13T11:25:53Z"}
+{"args":"fix: Apply per-stage model tier uniformly + inject effort via subagent prompt (Change C of the per-stage-model-tier / intake-context-boundary refactor trio; gated on Change A)","cmd":"fab-new","event":"command","ts":"2026-06-13T11:25:53Z"}
+{"delta":"+2.1","event":"confidence","score":2.1,"trigger":"calc-score","ts":"2026-06-13T11:27:36Z"}
+{"delta":"+0.0","event":"confidence","score":2.1,"trigger":"calc-score","ts":"2026-06-13T11:27:41Z"}
