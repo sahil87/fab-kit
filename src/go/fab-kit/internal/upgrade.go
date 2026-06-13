@@ -7,17 +7,26 @@ import (
 	"strings"
 )
 
-// Upgrade handles `fab upgrade-repo [version]` — re-syncs skills to the
-// target version and then updates fab_version in config.yaml.
+// Upgrade handles `fab upgrade-repo [version] [--latest]` — re-syncs skills to
+// the target version and then updates fab_version in config.yaml.
 // systemVersion is the embedded version of the fab-kit binary, threaded into
 // Sync so the version guard compares against the real binary version (F22).
+//
+// Target resolution precedence (first match wins):
+//   - an explicit targetVersion arg always wins (the GitHub API is not called);
+//   - else useLatest queries GitHub via LatestVersion() (opt-in network call —
+//     the pre-change default);
+//   - else the running binary's own systemVersion (offline, authoritative) when
+//     it is a real release tag (not empty and not "dev");
+//   - else a network fallback via LatestVersion() for a "dev"/unstamped binary,
+//     which has no real release tag to sync to.
 //
 // Ordering contract (F18): Sync runs FIRST (with the kit version passed
 // explicitly) and fab_version is stamped only after Sync succeeds. A failed
 // sync therefore exits non-zero, leaves config.yaml on the old version, and
 // a re-run retries instead of short-circuiting on "Already on the latest
 // version".
-func Upgrade(systemVersion, targetVersion string) error {
+func Upgrade(systemVersion, targetVersion string, useLatest bool) error {
 	// Must be in a fab repo
 	cfg, err := ResolveConfig()
 	if err != nil {
@@ -44,14 +53,32 @@ func Upgrade(systemVersion, targetVersion string) error {
 
 	currentVersion := cfg.FabVersion
 
-	// Resolve target version
+	// Resolve target version.
+	//   - explicit arg wins
+	//   - --latest queries GitHub (opt-in network call)
+	//   - default: the running binary's own version (offline, authoritative)
 	if targetVersion == "" {
-		fmt.Println("Resolving latest version...")
-		latest, err := LatestVersion()
-		if err != nil {
-			return fmt.Errorf("cannot resolve latest version: %w", err)
+		switch {
+		case useLatest:
+			fmt.Println("Resolving latest version...")
+			latest, err := LatestVersion()
+			if err != nil {
+				return fmt.Errorf("cannot resolve latest version: %w", err)
+			}
+			targetVersion = latest
+		case systemVersion != "" && systemVersion != "dev":
+			targetVersion = systemVersion
+		default:
+			// A dev/just-built shim (version == "dev") or an unstamped binary has no
+			// real release tag to sync to — fall back to the network so it can still
+			// resolve a published release.
+			fmt.Println("Resolving latest version...")
+			latest, err := LatestVersion()
+			if err != nil {
+				return fmt.Errorf("cannot resolve latest version: %w", err)
+			}
+			targetVersion = latest
 		}
-		targetVersion = latest
 	}
 	targetVersion = strings.TrimPrefix(targetVersion, "v")
 

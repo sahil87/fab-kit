@@ -22,7 +22,7 @@ type LifecycleCommand struct {
 // cmd/fab-kit must register the same Short, enforced by test.
 var LifecycleCommands = []LifecycleCommand{
 	{Name: "init", Short: "Initialize fab in the current repo"},
-	{Name: "upgrade-repo", Short: "Upgrade to a specific or latest version"},
+	{Name: "upgrade-repo", Short: "Upgrade the repo's kit to the installed binary's version (or --latest / an explicit version)"},
 	{Name: "sync", Short: "Sync workspace (skills, directories, scaffold)"},
 	{Name: "update", Short: "Update fab-kit itself via Homebrew"},
 	{Name: "doctor", Short: "Validate fab-kit prerequisites"},

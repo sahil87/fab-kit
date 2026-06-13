@@ -3,6 +3,8 @@ package internal
 import (
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -95,7 +97,7 @@ func TestUpgrade_SyncFailureExitsNonZeroWithoutStamping(t *testing.T) {
 
 	var err error
 	out := captureStdout(t, func() {
-		err = Upgrade("1.5.0", "2.0.0")
+		err = Upgrade("1.5.0", "2.0.0", false)
 	})
 
 	if err == nil {
@@ -129,7 +131,7 @@ func TestUpgrade_RerunAfterFailureRetries(t *testing.T) {
 
 	// First attempt fails — stamp must not land.
 	stubRunSync(t, func(string, string, bool, bool) error { return fmt.Errorf("boom") })
-	if err := Upgrade("1.5.0", "2.0.0"); err == nil {
+	if err := Upgrade("1.5.0", "2.0.0", false); err == nil {
 		t.Fatal("expected first upgrade attempt to fail")
 	}
 
@@ -137,7 +139,7 @@ func TestUpgrade_RerunAfterFailureRetries(t *testing.T) {
 	// version" short-circuit of the broken state) and stamp on success.
 	synced := false
 	stubRunSync(t, func(string, string, bool, bool) error { synced = true; return nil })
-	if err := Upgrade("1.5.0", "2.0.0"); err != nil {
+	if err := Upgrade("1.5.0", "2.0.0", false); err != nil {
 		t.Fatalf("re-run after failed upgrade should succeed, got: %v", err)
 	}
 	if !synced {
@@ -167,7 +169,7 @@ func TestUpgrade_SuccessStampsAfterSync(t *testing.T) {
 
 	var err error
 	out := captureStdout(t, func() {
-		err = Upgrade("1.5.0", "2.0.0")
+		err = Upgrade("1.5.0", "2.0.0", false)
 	})
 	if err != nil {
 		t.Fatalf("Upgrade failed: %v", err)
@@ -189,7 +191,7 @@ func TestUpgrade_AlreadyOnTargetShortCircuits(t *testing.T) {
 		t.Error("sync must not run when already on the target version")
 		return nil
 	})
-	if err := Upgrade("1.5.0", "2.0.0"); err != nil {
+	if err := Upgrade("1.5.0", "2.0.0", false); err != nil {
 		t.Fatalf("expected no-op success, got: %v", err)
 	}
 }
@@ -232,7 +234,7 @@ func TestUpgrade_MissingKitVersionFileFails(t *testing.T) {
 		return nil
 	})
 
-	err := Upgrade("1.5.0", "2.0.0")
+	err := Upgrade("1.5.0", "2.0.0", false)
 	if err == nil {
 		t.Fatal("expected Upgrade to fail on a VERSION-less cached kit")
 	}
@@ -265,7 +267,7 @@ func TestUpgrade_MigrationReminderWhenApplicable(t *testing.T) {
 	}
 
 	var err error
-	out := captureStdout(t, func() { err = Upgrade("1.5.0", "2.0.0") })
+	out := captureStdout(t, func() { err = Upgrade("1.5.0", "2.0.0", false) })
 	if err != nil {
 		t.Fatalf("Upgrade: %v", err)
 	}
@@ -293,7 +295,7 @@ func TestUpgrade_SilentStampWhenNoMigrationsApply(t *testing.T) {
 	}
 
 	var err error
-	out := captureStdout(t, func() { err = Upgrade("1.5.0", "2.0.0") })
+	out := captureStdout(t, func() { err = Upgrade("1.5.0", "2.0.0", false) })
 	if err != nil {
 		t.Fatalf("Upgrade: %v", err)
 	}
@@ -320,7 +322,7 @@ func TestUpgrade_DiscoveryFailureWarnsWithoutStamp(t *testing.T) {
 	}
 
 	var err error
-	captureStdout(t, func() { err = Upgrade("1.5.0", "2.0.0") })
+	captureStdout(t, func() { err = Upgrade("1.5.0", "2.0.0", false) })
 	if err != nil {
 		t.Fatalf("Upgrade must not fail on discovery failure: %v", err)
 	}
@@ -351,7 +353,7 @@ func TestUpgrade_NoFabVersionInstallPath(t *testing.T) {
 	stubRunSync(t, func(string, string, bool, bool) error { return nil })
 
 	var err error
-	out := captureStdout(t, func() { err = Upgrade("1.5.0", "2.0.0") })
+	out := captureStdout(t, func() { err = Upgrade("1.5.0", "2.0.0", false) })
 	if err != nil {
 		t.Fatalf("Upgrade: %v", err)
 	}
@@ -365,5 +367,132 @@ func TestUpgrade_NoFabVersionInstallPath(t *testing.T) {
 	}
 	if v != "2.0.0" {
 		t.Errorf("fab_version = %q, want 2.0.0", v)
+	}
+}
+
+// --- Target resolution precedence (260613-1hmj, offline-first default) ---
+
+// stubGitHubAPINever points githubAPIURL at a server that fails the test if the
+// releases/latest endpoint is hit, proving an offline resolution path.
+func stubGitHubAPINever(t *testing.T) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("GitHub API must not be called for this resolution path, got request: %s", r.URL.Path)
+		http.NotFound(w, r)
+	}))
+	orig := githubAPIURL
+	githubAPIURL = srv.URL
+	t.Cleanup(func() {
+		githubAPIURL = orig
+		srv.Close()
+	})
+}
+
+// stubGitHubAPILatest points githubAPIURL at a server that returns the given tag
+// from releases/latest and records whether it was hit.
+func stubGitHubAPILatest(t *testing.T, tag string, hit *bool) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/"+githubRepo+"/releases/latest" {
+			http.NotFound(w, r)
+			return
+		}
+		if hit != nil {
+			*hit = true
+		}
+		io.WriteString(w, fmt.Sprintf(`{"tag_name": %q}`, tag))
+	}))
+	orig := githubAPIURL
+	githubAPIURL = srv.URL
+	t.Cleanup(func() {
+		githubAPIURL = orig
+		srv.Close()
+	})
+}
+
+func TestUpgrade_DefaultResolvesToSystemVersionNoNetwork(t *testing.T) {
+	// systemVersion is a real release tag → resolve offline to it, never
+	// touching the GitHub API. Cache the systemVersion (2.3.1) as the target so
+	// EnsureCached is satisfied without networking.
+	repo := setupUpgradeRepo(t, "1.0.0", "2.3.1")
+	stubGitHubAPINever(t)
+	stubRunSync(t, func(string, string, bool, bool) error { return nil })
+
+	var err error
+	out := captureStdout(t, func() { err = Upgrade("2.3.1", "", false) })
+	if err != nil {
+		t.Fatalf("Upgrade: %v", err)
+	}
+	if strings.Contains(out, "Resolving latest version...") {
+		t.Errorf("default path must not resolve via the network, output:\n%s", out)
+	}
+
+	// The repo must have been upgraded to the systemVersion.
+	v, _ := readFabVersion(filepath.Join(repo, "fab", "project", "config.yaml"))
+	if v != "2.3.1" {
+		t.Errorf("fab_version = %q, want 2.3.1 (resolved to systemVersion)", v)
+	}
+}
+
+func TestUpgrade_LatestFlagCallsAPI(t *testing.T) {
+	// --latest resolves via LatestVersion(). The cache is populated for the tag
+	// the stubbed API returns (2.0.0) so EnsureCached is satisfied.
+	repo := setupUpgradeRepo(t, "1.0.0", "2.0.0")
+	hit := false
+	stubGitHubAPILatest(t, "v2.0.0", &hit)
+	stubRunSync(t, func(string, string, bool, bool) error { return nil })
+
+	var err error
+	captureStdout(t, func() { err = Upgrade("2.3.1", "", true) })
+	if err != nil {
+		t.Fatalf("Upgrade: %v", err)
+	}
+	if !hit {
+		t.Error("--latest must resolve via the GitHub API, but it was not called")
+	}
+
+	v, _ := readFabVersion(filepath.Join(repo, "fab", "project", "config.yaml"))
+	if v != "2.0.0" {
+		t.Errorf("fab_version = %q, want 2.0.0 (resolved via --latest)", v)
+	}
+}
+
+func TestUpgrade_DevBinaryFallsBackToAPI(t *testing.T) {
+	// A "dev" systemVersion has no real release tag → fall back to the API.
+	repo := setupUpgradeRepo(t, "1.0.0", "2.0.0")
+	hit := false
+	stubGitHubAPILatest(t, "v2.0.0", &hit)
+	stubRunSync(t, func(string, string, bool, bool) error { return nil })
+
+	var err error
+	captureStdout(t, func() { err = Upgrade("dev", "", false) })
+	if err != nil {
+		t.Fatalf("Upgrade: %v", err)
+	}
+	if !hit {
+		t.Error("a dev binary must fall back to the GitHub API, but it was not called")
+	}
+
+	v, _ := readFabVersion(filepath.Join(repo, "fab", "project", "config.yaml"))
+	if v != "2.0.0" {
+		t.Errorf("fab_version = %q, want 2.0.0 (dev fallback to API)", v)
+	}
+}
+
+func TestUpgrade_ExplicitArgIgnoresLatest(t *testing.T) {
+	// An explicit arg wins; --latest is ignored and the API is never called.
+	repo := setupUpgradeRepo(t, "1.0.0", "2.2.0")
+	stubGitHubAPINever(t)
+	stubRunSync(t, func(string, string, bool, bool) error { return nil })
+
+	var err error
+	captureStdout(t, func() { err = Upgrade("2.3.1", "2.2.0", true) })
+	if err != nil {
+		t.Fatalf("Upgrade: %v", err)
+	}
+
+	v, _ := readFabVersion(filepath.Join(repo, "fab", "project", "config.yaml"))
+	if v != "2.2.0" {
+		t.Errorf("fab_version = %q, want 2.2.0 (explicit arg wins over --latest)", v)
 	}
 }

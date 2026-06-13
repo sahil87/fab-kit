@@ -31,6 +31,19 @@ Lifecycle commands fail loudly — a non-zero exit is the failure signal scripts
 
 The auto-download path (any uncached `fab <cmd>`) is bounded by HTTP timeouts, serialized per version via an advisory lock, installed atomically (temp dir + rename), and verified against the release's `SHA256SUMS` asset — checksum mismatch refuses to install; releases predating checksum publishing install with a stderr warning.
 
+### `upgrade-repo` Version Resolution
+
+`fab upgrade-repo` resolves its target version by this precedence (first match wins):
+
+| Invocation | Resolves to | Network? |
+|------------|-------------|----------|
+| `fab upgrade-repo <version>` | the explicit `<version>` (wins over everything; `--latest` is ignored when an arg is given) | No |
+| `fab upgrade-repo --latest` | the newest published GitHub release (`releases/latest`) — the pre-2.3.x default, now opt-in | Yes |
+| `fab upgrade-repo` (no arg) | the **installed binary's own version** (offline, authoritative) — reconciles the repo's kit to the `brew`-installed `fab-kit` | No |
+| `fab upgrade-repo` when the binary is `dev`/unstamped | falls back to the newest GitHub release (a `just build` shim has no real release tag to sync to) | Yes |
+
+The no-arg default is offline-first: it answers "match my repo to the installed binary" without a GitHub round-trip, avoiding the unauthenticated API rate limit (60 req/hr/IP, surfaced as a misleading `HTTP 403`). Use `--latest` to deliberately discover and jump to the newest upstream release. The *fetch* of a resolved-but-uncached target still downloads on demand; only *resolution* is offline.
+
 ### `<change>` Argument
 
 All commands accept the unified `<change>`: 4-char ID (`yobi`), folder substring (`fix-kit`), or full folder name (`260227-yobi-fix-kit-scripts`). Bare directory paths and `.status.yaml` paths are NOT accepted.
