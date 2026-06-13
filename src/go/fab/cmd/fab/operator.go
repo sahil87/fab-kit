@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/spawn"
@@ -59,23 +60,51 @@ func runOperator(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Resolve repo root
-	repoRoot, err := gitRepoRoot()
+	// Resolve the new window's working directory. The git repo root is
+	// incidental, not essential: it is used ONLY as the tmux window's -c <dir>.
+	// The operator is a per-tmux-server singleton for cross-repo coordination, so
+	// its natural launch point is a neutral parent directory with no git. Try the
+	// repo root (preserves "start in repo root" inside a repo); on failure fall
+	// back to os.Getwd() ("start where I am"). Error only when both fail — a
+	// failing os.Getwd() means a genuinely broken environment.
+	windowDir, err := gitRepoRoot()
 	if err != nil {
-		return fmt.Errorf("cannot determine repo root: %w", err)
+		windowDir, err = os.Getwd()
+		if err != nil {
+			return fmt.Errorf("cannot determine working directory: %w", err)
+		}
 	}
 
-	// Read spawn command from config
-	fabRoot, err := resolve.FabRoot()
-	if err != nil {
-		return err
+	// Read the spawn command from the project config when a fab/ project is
+	// resolvable. The operator is a per-tmux-server cross-repo coordinator and may
+	// be launched from a neutral directory with no fab/ project (e.g. ~/code), so a
+	// missing project is NOT an error — fall back to the default spawn command.
+	// (The doing-tier resolution below likewise degrades to its built-in default
+	// when no project is resolvable, so a no-fab/ launch is fully defaulted.)
+	spawnCmd := spawn.DefaultSpawnCommand
+	if fabRoot, err := resolve.FabRoot(); err == nil {
+		spawnCmd = spawn.Command(filepath.Join(fabRoot, "project", "config.yaml"))
 	}
-	configPath := filepath.Join(fabRoot, "project", "config.yaml")
-	spawnCmd := spawn.Command(configPath)
+
+	// Resolve the doing-tier {model, effort} so the operator launches its
+	// coordinating agent on a deliberately-chosen model. We probe `apply` (NOT a
+	// tier name) because `fab resolve-agent` takes a STAGE, and `apply` is the
+	// canonical member of the fab-owned, FIXED stage→tier mapping's `doing` tier.
+	// This couples to that internal mapping on purpose: if `apply` is ever
+	// remapped to a different tier, this dependency must surface here. On ANY
+	// failure — the command erroring (an installed `fab` predating resolve-agent,
+	// or no resolvable fab project) or empty/unparseable output — resolveDoingProfile
+	// falls back to the in-process built-in doing default (pass "" on error).
+	out, _, resolveErr := pane.RunCmd("fab", "resolve-agent", "apply")
+	if resolveErr != nil {
+		out = ""
+	}
+	profile := resolveDoingProfile(out)
+	spawnCmd = spawn.WithProfile(spawnCmd, profile.Model, profile.Effort)
 
 	// Create new tab running the operator skill
 	shellCmd := fmt.Sprintf("%s '/fab-operator'", spawnCmd)
-	if _, stderr, err := pane.RunCmd("tmux", "new-window", "-c", repoRoot, "-n", tabName, shellCmd); err != nil {
+	if _, stderr, err := pane.RunCmd("tmux", "new-window", "-c", windowDir, "-n", tabName, shellCmd); err != nil {
 		return pane.StderrError(fmt.Errorf("tmux new-window failed: %w", err), stderr)
 	}
 
@@ -102,6 +131,38 @@ func findWindowExact(out, name string) (windowID string, found bool) {
 		}
 	}
 	return "", false
+}
+
+// resolveDoingProfile parses `fab resolve-agent apply` stdout — the byte-stable
+// lines `model=<id>` and optional `effort=<level>` — into an agent.Profile,
+// falling back to fab-kit's built-in doing default on empty or unparseable
+// output. It is a PURE function: the caller does the live shell-out and passes
+// the captured stdout (or "" when the command itself errored — e.g. an installed
+// `fab` that predates `resolve-agent`), so the parse+fallback is unit-testable
+// without exec. Empty/garbage stdout ⇒ the doing default, so the caller can pass
+// "" on any command error.
+func resolveDoingProfile(stdout string) agent.Profile {
+	// defaultTiers always carries TierDoing (guarded by the agent drift-guard
+	// test), so the ok return is unconditionally true here.
+	def, _ := agent.DefaultTier(agent.TierDoing)
+
+	var p agent.Profile
+	for _, line := range strings.Split(stdout, "\n") {
+		switch {
+		case strings.HasPrefix(line, "model="):
+			p.Model = strings.TrimPrefix(line, "model=")
+		case strings.HasPrefix(line, "effort="):
+			p.Effort = strings.TrimPrefix(line, "effort=")
+		}
+	}
+
+	// A valid resolve-agent run always emits a model= line, so a parsed model is
+	// the signal that the output was real; anything else (empty stdout, garbage,
+	// command error routed in as "") falls back to the built-in doing default.
+	if p.Model == "" {
+		return def
+	}
+	return p
 }
 
 // gitRepoRoot returns the git repo root for the current directory. On

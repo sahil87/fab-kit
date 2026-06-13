@@ -139,6 +139,55 @@ func TestFindWindowExact(t *testing.T) {
 	})
 }
 
+// TestResolveDoingProfile verifies the pure parse-or-default helper that backs
+// the operator's doing-tier model selection: well-formed model+effort stdout
+// parses to that profile, a model-only line yields an empty effort, and empty or
+// unparseable output (including the "" the caller passes when the shell-out
+// itself errors — e.g. an installed fab predating resolve-agent) falls back to
+// the built-in doing default {claude-opus-4-8, high}.
+func TestResolveDoingProfile(t *testing.T) {
+	tests := []struct {
+		name       string
+		stdout     string
+		wantModel  string
+		wantEffort string
+	}{
+		{
+			name:       "well-formed model and effort",
+			stdout:     "model=claude-sonnet-4-6\neffort=low\n",
+			wantModel:  "claude-sonnet-4-6",
+			wantEffort: "low",
+		},
+		{
+			name:       "model line only (no effort) keeps effort empty",
+			stdout:     "model=claude-sonnet-4-6\n",
+			wantModel:  "claude-sonnet-4-6",
+			wantEffort: "",
+		},
+		{
+			name:       "empty output falls back to doing default",
+			stdout:     "",
+			wantModel:  "claude-opus-4-8",
+			wantEffort: "high",
+		},
+		{
+			name:       "garbage output falls back to doing default",
+			stdout:     "unknown command\nfab: command not found\n",
+			wantModel:  "claude-opus-4-8",
+			wantEffort: "high",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := resolveDoingProfile(tc.stdout)
+			if got.Model != tc.wantModel || got.Effort != tc.wantEffort {
+				t.Errorf("resolveDoingProfile(%q) = {%q, %q}, want {%q, %q}",
+					tc.stdout, got.Model, got.Effort, tc.wantModel, tc.wantEffort)
+			}
+		})
+	}
+}
+
 // TestOperatorTickStart_IncrementsCount verifies that tick-start increments
 // an existing tick_count, writes last_tick_at, preserves other fields, and
 // outputs the correct stdout format.
