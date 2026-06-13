@@ -21,7 +21,7 @@ This is the **only** behavioral fork in intake creation, and it is legitimately 
 
 **Self-name genericization** (260613-3xaj): the lifted Step 4 refers to "the invoking skill" / "this invocation" rather than "this `/fab-new` invocation", structurally retiring `fab-draft`'s former "read self-name mentions as `/fab-draft`" prose instruction. No `{self-name}` parameter — the text is invocation-agnostic, not invocation-named.
 
-**Helpers**: carries NO `helpers:` frontmatter. It references `_generation` (Step 5) and `_srad` (Steps 4, 8) in-body and relies on the consumer having loaded them — the consumer-declared model, matching `_pipeline`/`_review`/`_generation` (none of which carry `helpers:`). `/fab-new` and `/fab-draft` declare `helpers: [_generation, _srad, _intake]`; `/fab-proceed` declares none and dispatches `_intake` to a subagent that loads them.
+**Helpers**: carries NO `helpers:` frontmatter. It references `_generation` (Step 5) and `_srad` (Step 8) in-body and relies on the consumer having loaded them — the consumer-declared model, matching `_pipeline`/`_review`/`_generation` (none of which carry `helpers:`). `/fab-new` and `/fab-draft` declare `helpers: [_generation, _srad, _intake]`; `/fab-proceed` declares none and dispatches `_intake` to a subagent that loads them.
 
 This is an internal partial (`user-invocable: false`, `disable-model-invocation: true`, `metadata: internal: true`) — never invoked directly. Canonical source is the flat `src/kit/skills/_intake.md`; `fab sync` deploys it to `.claude/skills/_intake/SKILL.md`.
 
@@ -76,7 +76,7 @@ Consumer (fab-new / fab-draft / fab-proceed dispatch) reads _intake.md with {que
 
 | Tool | Purpose |
 |------|---------|
-| Read | `_generation.md`, templates, backlog, project files |
+| Read | `_generation.md` (Step 5), `_srad.md` (Step 8 — both questioning modes), templates, backlog, project files |
 | Write | `intake.md` (via the Intake Generation Procedure) |
 | Bash | `fab change new`, `fab resolve --id`/`--folder` (collision pre-check), `fab status set-change-type` (override only), `fab score`, `fab status advance`, `fab status add-issue` |
 | MCP (Linear) | Fetch issue details (optional path) |

@@ -9,7 +9,8 @@ metadata:
 # Shared Create-Intake Procedure
 
 > This file defines the shared **pre-boundary** intake-creation logic used by three skills:
-> `/fab-new`, `/fab-draft`, and `/fab-proceed` (its fab-new subagent dispatch). The calling skill
+> `/fab-new`, `/fab-draft`, and `/fab-proceed` (its create-new subagent dispatch — `/fab-proceed`
+> dispatches `_intake` directly, not `/fab-new`). The calling skill
 > (the **consumer**) binds one parameter before executing this procedure — read it from the
 > consumer's own file:
 >
@@ -29,7 +30,7 @@ metadata:
 > git branch — `/fab-new`'s Steps 10–11 tail). This procedure is purely "given I've decided to
 > create an intake, do it (Steps 0–9)."
 >
-> This procedure references `_generation.md` (Step 5) and `_srad.md` (Steps 4, 8) in-body; it carries
+> This procedure references `_generation.md` (Step 5) and `_srad.md` (Step 8) in-body; it carries
 > no `helpers:` frontmatter of its own — every consumer already declares both helpers (the
 > consumer-declared model), or, for `/fab-proceed`, dispatches this procedure to a subagent that loads
 > them. Mirror the proven `_pipeline.md` shape: shared body parameterized by one knob, call-site
