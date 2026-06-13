@@ -2,20 +2,27 @@
 
 ## Summary
 
-Creates a new change intake without activating the change. Since 260611-szxd (f031) the skill file is a **thin delta over `/fab-new`**: its body instructs the agent to read `.claude/skills/fab-new/SKILL.md` and execute its Pre-flight, Arguments, and Steps 0–9 exactly as written there (self-name mentions read as `/fab-draft`), with four deltas — there is no duplicated copy of the shared steps. Used to queue changes for later without switching the active context. After creation, run `/fab-switch {name}` to activate.
+Creates a new change intake without activating the change. Since 260613-3xaj (extract-intake-helper) the skill is a **thin call-site** over the shared `_intake` Create-Intake Procedure: its body reads `.claude/skills/_intake/SKILL.md` and executes the **Create-Intake Procedure** (Steps 0–9) with `{questioning-mode} = interactive`, then **stops at intake `ready`** — no activation (no Step 10), no git branch (no Step 11). Used to queue changes for later without switching the active context. After creation, run `/fab-switch {name}` to activate.
 
-**Re-run contract** (Constitution III): inherited from fab-new Steps 0–9 — a backlog/Linear-ID re-run detects the existing non-archived change and routes to resume (`/fab-switch {name}` + `/fab-continue`) instead of erroring; a natural-language re-run intentionally creates a new change each run. Declared in the skill's Key Properties section (kept locally — it IS the delta).
+Before 260613-3xaj, `fab-draft` was a thin *delta over `/fab-new`* (read `fab-new/SKILL.md`, execute its Steps 0–9, skip 10–11). That form carried a **momentum warning** — "running activation/branch by momentum is the known failure mode of this delta" — precisely because the steps it must NOT run (activate/branch) lived in the same `fab-new.md` body it executed. With Steps 0–9 lifted into `_intake.md`, the warning **evaporates**: `fab-draft` now reads `_intake.md` (Steps 0–9 only), and Steps 10–11 live solely in `fab-new.md`'s tail, which `fab-draft` never reads. There is no longer any body containing the not-to-run steps, so there is no momentum hazard.
 
-**Helpers**: Declares `helpers: [_generation, _srad]` in frontmatter per `docs/specs/skills.md § Skill Helpers` (the executed fab-new steps need both).
+**Re-run contract** (Constitution III): inherited from the shared procedure's Step 3 — a backlog/Linear-ID re-run detects the existing non-archived change and routes to resume (`/fab-switch {name}` + `/fab-continue`) instead of erroring; a natural-language re-run intentionally creates a new change each run. Declared in the skill's Key Properties section.
 
-## Delta over /fab-new
+**Helpers**: Declares `helpers: [_generation, _srad, _intake]` in frontmatter per `docs/specs/skills.md § Skill Helpers` (`_intake` added in 260613-3xaj; the executed Create-Intake Procedure references `_generation`/`_srad` in-body, so the consumer keeps declaring both directly — the `_pipeline` precedent).
 
-| # | Delta |
-|---|-------|
-| 1 | **Step 9 tail**: after `fab status advance {name} intake`, the change is NOT activated — the user must run `/fab-switch {name}` (replaces fab-new's Step 9 closing sentence about Step 10) |
-| 2 | **Skip Steps 10–11 entirely** — no `fab change switch`, no `git` command. Stated explicitly and prominently in the skill body (the known failure mode of the delta form is an agent running activation by momentum; the body instructs a re-check before any `fab change switch`/`git` invocation) |
-| 3 | **Output**: fab-new's Output block minus the `Activated:` and `Branch:` lines; `Next:` per the Activation Preamble convention (`_preamble.md` § Activation Preamble — names `/fab-draft`; the intake-state command list is derived per § Lookup Procedure and includes `/fab-proceed`) |
-| 4 | **Error Handling**: fab-new's table minus the activation/git rows |
+## Difference from /fab-new
+
+`/fab-draft` and `/fab-new` run the **same** shared Create-Intake Procedure with the **same** `{questioning-mode} = interactive`. The only difference is the tail:
+
+| | `/fab-new` | `/fab-draft` |
+|---|-----------|--------------|
+| Steps 0–9 | `_intake(interactive)` | `_intake(interactive)` |
+| Step 10 (activate) | Yes (`fab change switch`) | **No** — `.fab-status.yaml` symlink not created |
+| Step 11 (git branch) | Yes | **No** |
+| Output | with `Activated:`/`Branch:` lines | minus those lines; `Next:` per Activation Preamble |
+| Error Handling | + activation/git rows | shared-procedure rows only (no activation/git — those steps never run) |
+
+The output `Next:` line uses the activation preamble: `/fab-switch {name} to make it active, then /fab-continue, /fab-ff, /fab-fff, /fab-proceed, or /fab-clarify` — the command list after "then" is the state table's intake row, derived per `_preamble.md` § Lookup Procedure (default first, not hardcoded).
 
 ## Flow
 
@@ -23,21 +30,21 @@ Creates a new change intake without activating the change. Since 260611-szxd (f0
 User invokes /fab-draft <description>
 │
 ├─ Read: _preamble.md (always-load layer: 7 project files)
-├─ Read: .claude/skills/fab-new/SKILL.md   ◄── the delta indirection
+├─ Read: .claude/skills/_intake/SKILL.md   (helpers: declaration — also _generation, _srad)
 │
-├─ Execute fab-new Pre-flight, Arguments, Steps 0–9
+├─ Steps 0–9: Create-Intake Procedure (_intake.md, {questioning-mode} = interactive)
 │  (parse input → slug → gap analysis → create change [collision check]
 │   → conversation mining → intake.md write ◄── HOOK → verify change type
-│   → confidence score → SRAD questions → advance intake to ready)
-│  — see SPEC-fab-new.md for the per-step tool detail
+│   → confidence score → SRAD questions [interactive] → advance intake to ready)
+│  — see SPEC-_intake.md for the per-step tool detail
 │
-└─ STOP after Step 9 (deltas 1–2: no activation, no git branch;
+└─ STOP after Step 9 (no activation, no git branch;
    .fab-status.yaml symlink is NOT created)
 ```
 
 ### Tools used
 
-Same as `/fab-new` Steps 0–9 (see `SPEC-fab-new.md`): Read, Write (`intake.md`), Bash (`fab change new`, `fab status set-change-type` override-only, `fab score`, `fab status advance`, `fab status add-issue`), MCP (Linear, optional). No `fab change switch`, no git commands.
+Same as the shared Create-Intake Procedure Steps 0–9 (see `SPEC-_intake.md`): Read, Write (`intake.md`), Bash (`fab change new`, `fab status set-change-type` override-only, `fab score`, `fab status advance`, `fab status add-issue`), MCP (Linear, optional). No `fab change switch`, no git commands.
 
 ### Sub-agents
 
@@ -45,16 +52,4 @@ None.
 
 ### Bookkeeping commands (hook candidates)
 
-| Step | Command | Trigger |
-|------|---------|---------|
-| 6 | `fab status set-change-type` | Only if the hook-inferred type is wrong (the intake-write hook owns `change_type`) |
-| 7 | `fab score --stage intake` | After intake.md write |
-| 9 | `fab status advance` | After all intake work complete |
-
-### Difference from /fab-new
-
-`/fab-draft` omits Steps 10 and 11 from `/fab-new`:
-- **No Step 10** — change is not activated (`.fab-status.yaml` symlink is not created)
-- **No Step 11** — git branch is not created
-
-The output `Next:` line uses the activation preamble: `/fab-switch {name} to make it active, then /fab-continue, /fab-ff, /fab-fff, /fab-proceed, or /fab-clarify` — the command list after "then" is the state table's intake row, derived per `_preamble.md` § Lookup Procedure (default first, not hardcoded).
+All bookkeeping belongs to the shared procedure — see `SPEC-_intake.md` (Step 6 `fab status set-change-type` override-only, Step 7 `fab score --stage intake`, Step 9 `fab status advance`). `fab-draft` adds none (no Step 10/11).

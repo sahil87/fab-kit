@@ -2,7 +2,9 @@
 
 ## Summary
 
-Context-aware orchestrator — detects pipeline state via a 5-step detection pipeline, runs prefix steps (fab-new, fab-switch, git-branch) as subagents, then delegates to `/fab-fff` via the Skill tool. No arguments, no flags — infers everything from context. Idempotent — re-running detects completed steps and skips them. Reads `_preamble.md` (per skill convention) but skips running preflight and defers project-context loading to `/fab-fff`. **Per-stage model** (260613-l3ja): the prefix steps are NOT pipeline stages and take no `fab resolve-agent` resolution (they dispatch at the inherited model); per-stage model selection belongs to the delegated `/fab-fff`, which resolves each of its own stages per `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution.
+Context-aware orchestrator — detects pipeline state via a 5-step detection pipeline, runs prefix steps (create-intake via `_intake`, fab-switch, git-branch) as subagents, then delegates to `/fab-fff` via the Skill tool. No arguments, no flags — infers everything from context. Idempotent — re-running detects completed steps and skips them. Reads `_preamble.md` (per skill convention) but skips running preflight and defers project-context loading to `/fab-fff`. **Per-stage model** (260613-l3ja): the prefix steps are NOT pipeline stages and take no `fab resolve-agent` resolution (they dispatch at the inherited model); per-stage model selection belongs to the delegated `/fab-fff`, which resolves each of its own stages per `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution.
+
+**Create-intake dispatch via `_intake` (260613-3xaj)**: the create-new path no longer dispatches the full `/fab-new` skill. It dispatches the shared `_intake` Create-Intake Procedure (read `.claude/skills/_intake/SKILL.md`) with `{questioning-mode} = promptless-defer` — `promptless-defer` IS the defer-and-surface contract (Unresolved decisions → `Deferred — promptless dispatch` rows, surfaced before `/fab-fff`; the intake gate is the structural backstop). `/fab-proceed`'s state-detection + relevance-assessment logic — *whether* to create an intake vs. activate an existing draft — STAYS in `fab-proceed.md` (it decides whether to call `_intake`, not how to create one). Because `_intake` stops at intake `ready` and does NOT activate or branch (those are `/fab-new`'s call-site tail, omitted here), the create-new dispatch-table rows now chain `_intake` → `/fab-switch` → `/git-branch` to reach the same end state (active change + matching branch) the prior full-`/fab-new` dispatch produced inline — a parity-preserving consequence of the extraction.
 
 Conversation context is the interpretive lens for any unactivated intakes: an unactivated intake is only resumed when it is clearly relevant to the current conversation or there is no competing conversation signal. An unrelated draft never hijacks the pipeline when the current conversation is about a different topic.
 
@@ -50,14 +52,19 @@ User invokes /fab-proceed
 │
 ├─ Prefix Dispatch (subagents)
 │  ├─ ┌──────────────────────────────────────────┐
-│  │  │ SUB-AGENT: /fab-new (if dispatched)      │
-│  │  │  Read: .claude/skills/fab-new/SKILL.md   │
+│  │  │ SUB-AGENT: _intake (if create-new path)  │
+│  │  │  Read: .claude/skills/_intake/SKILL.md   │
+│  │  │  Procedure: Create-Intake Steps 0–9      │
+│  │  │   {questioning-mode} = promptless-defer  │
 │  │  │  Input: synthesized description          │
 │  │  │    (from conversation ONLY —             │
 │  │  │     never from bypassed drafts)          │
-│  │  │  Prompt: defer-and-surface — ask NO      │
-│  │  │   questions; Unresolved → intake row     │
+│  │  │  promptless-defer = ask NO questions;    │
+│  │  │   Unresolved → intake row                │
 │  │  │   "Deferred — promptless dispatch"       │
+│  │  │  Stops at intake ready (no activate/      │
+│  │  │   branch — chained as /fab-switch +      │
+│  │  │   /git-branch below)                     │
 │  │  │  Returns: created change folder name     │
 │  │  │   + deferred Unresolved decisions        │
 │  │  │   (surfaced before /fab-fff)             │
@@ -85,13 +92,13 @@ User invokes /fab-proceed
 |----------------|-----------------|--------------|---------------------|-----------|--------------|----------|
 | Yes | Yes | — | — | — | (none) | /fab-fff |
 | Yes | No | — | — | — | /git-branch | /fab-fff |
-| No | — | Substantive | None | — | /fab-new | /fab-fff |
+| No | — | Substantive | None | — | _intake → /fab-switch → /git-branch | /fab-fff |
 | No | — | Substantive | ≥1 | Clearly relevant | /fab-switch → /git-branch | /fab-fff |
-| No | — | Substantive | ≥1 | Not clearly relevant | /fab-new (emit bypass notes) | /fab-fff |
+| No | — | Substantive | ≥1 | Not clearly relevant | _intake → /fab-switch → /git-branch (emit bypass notes) | /fab-fff |
 | No | — | Empty/thin | ≥1 | — | /fab-switch → /git-branch (pick by date-recency) | /fab-fff |
 | No | — | Empty/thin | None | — | (error — stop) | — |
 
-The `/fab-new`-prefixed rows stopped chaining `/git-branch` in 260612-w7dp — `/fab-new` Step 11 creates or checks out the matching branch inline, so the trailing dispatch was a guaranteed no-op. `/fab-switch` rows keep it (switching activates but creates no branch).
+**Create-new chaining (260613-3xaj)**: the create-new rows chain `_intake` → `/fab-switch` → `/git-branch`. Before 3xaj they dispatched the full `/fab-new` skill, whose Steps 10–11 activated + branched inline (so 260612-w7dp dropped the redundant trailing `/git-branch`). Now `_intake` stops at intake `ready` without activating or branching (the EXTRACTION BOUNDARY keeps activate/branch as `fab-new.md`'s tail), so `/fab-proceed` runs the dedicated `/fab-switch` (activate) + `/git-branch` prefix steps — which it already has — to reach the same end state. This makes the create-new rows symmetric with the relevant-intake rows.
 
 ### Asymmetric-Bias Rule
 
@@ -106,9 +113,9 @@ Biasing toward the recoverable failure is the design intent.
 
 | Agent | When | Purpose |
 |-------|------|---------|
-| /fab-new | Substantive + no intake, OR substantive + ≥1 intake but none clearly relevant | Create change from synthesized description (conversation only — never bypassed drafts). Promptless **defer-and-surface contract** (260612-w7dp): the prompt forbids questions; would-be-asked Unresolved decisions land in the intake's `## Assumptions` as `Deferred — promptless dispatch` rows, are returned in the result, and `/fab-proceed` surfaces them before delegating to `/fab-fff` (whose intake gate is the structural backstop — `fab score` returns 0.0 whenever any Unresolved row exists, so even a single deferral fails the gate). This is the `_srad.md` § Critical Rule promptless-dispatch carve-out — defer-and-surface satisfies the MUST-ask when no user is reachable |
-| /fab-switch | Substantive + clearly relevant intake, OR empty/thin + ≥1 intake | Activate the selected change |
-| /git-branch | Branch-mismatch row (active change, branch doesn't match) and the /fab-switch-prefixed rows — NOT the /fab-new rows (fab-new Step 11 creates the branch inline, 260612-w7dp) | Create or checkout the matching branch |
+| _intake (Create-Intake Procedure) | Substantive + no intake, OR substantive + ≥1 intake but none clearly relevant | Create change from synthesized description (conversation only — never bypassed drafts) via the shared procedure (read `.claude/skills/_intake/SKILL.md`) with `{questioning-mode} = promptless-defer` (260613-3xaj — replaces the prior full-`/fab-new` dispatch). `promptless-defer` IS the **defer-and-surface contract** (260612-w7dp): asks no questions; would-be-asked Unresolved decisions land in the intake's `## Assumptions` as `Deferred — promptless dispatch` rows, are returned in the result, and `/fab-proceed` surfaces them before delegating to `/fab-fff` (whose intake gate is the structural backstop — `fab score` returns 0.0 whenever any Unresolved row exists, so even a single deferral fails the gate). This is the `_srad.md` § Critical Rule promptless-dispatch carve-out — defer-and-surface satisfies the MUST-ask when no user is reachable. The procedure stops at intake `ready` (no activate/branch), so the create-new rows chain `/fab-switch` + `/git-branch` after it |
+| /fab-switch | Substantive + clearly relevant intake, OR empty/thin + ≥1 intake, OR after `_intake` on the create-new rows (activate the just-created change) | Activate the selected change |
+| /git-branch | Branch-mismatch row (active change, branch doesn't match), the /fab-switch-prefixed relevant-intake rows, AND the `_intake`-prefixed create-new rows (since `_intake` stops at `ready` without branching — 260613-3xaj; before 3xaj the create-new path used full `/fab-new` whose Step 11 branched inline, so 260612-w7dp had dropped the trailing /git-branch there) | Create or checkout the matching branch |
 
 ### Bypass Notes
 

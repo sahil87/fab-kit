@@ -1,7 +1,7 @@
 ---
 name: fab-draft
 description: "Create a change intake without activating it."
-helpers: [_generation, _srad]
+helpers: [_generation, _srad, _intake]
 ---
 
 # /fab-draft <description>
@@ -16,23 +16,49 @@ helpers: [_generation, _srad]
 
 ---
 
-## Behavior (delta over /fab-new)
+## Pre-flight
 
-`/fab-draft` is a **thin delta over `/fab-new`**. Read `.claude/skills/fab-new/SKILL.md` and execute its **Pre-flight**, **Arguments**, and **Steps 0–9** exactly as written there (self-name mentions read as `/fab-draft` — e.g., Step 4's "preceded this `/fab-new` invocation"), with these deltas:
+1. Verify `fab/project/config.yaml` and `fab/project/constitution.md` exist
+2. **If either missing, STOP**: `fab/ is not initialized. Run /fab-setup first to bootstrap the project.`
 
-1. **Step 9 tail**: after `fab status advance {name} intake`, the change is **NOT activated** — the user must run `/fab-switch {name}` to make it active before proceeding. (This replaces fab-new's Step 9 closing sentence about Step 10 activating the change.)
+---
 
-2. **SKIP Steps 10–11 ENTIRELY — no activation, no git branch.** Do NOT run `fab change switch`. Do NOT run any `git` command. Stop after Step 9. This is the defining difference from `/fab-new`; running activation or branch creation by momentum is the known failure mode of this delta form — before any `fab change switch` or `git` invocation, re-check that you are executing `/fab-draft`.
+## Arguments
 
-3. **Output**: fab-new's Output block **minus** the `Activated: {name}` and `Branch: ...` lines, ending with the Activation Preamble `Next:` line (`_preamble.md` § Activation Preamble — `/fab-draft` always uses it):
+- **`<description>`** *(required)* — natural language, Linear ticket ID (`DEV-988`), or backlog ID (`90g5`)
 
-   ```
-   Next: /fab-switch {name} to make it active, then /fab-continue, /fab-ff, /fab-fff, /fab-proceed, or /fab-clarify
-   ```
+If no description: ask *"What change do you want to make?"*
 
-   (The command list after "then" is the state table's intake row, derived per `_preamble.md` § Lookup Procedure — default first, not hardcoded.)
+---
 
-4. **Error Handling**: fab-new's table **minus** the activation/git rows (`fab change switch` failure, not-in-git-repo, `git checkout`/`git branch` failure) — those steps never run here.
+## Behavior
+
+### Steps 0–9: Create the Intake
+
+Read `.claude/skills/_intake/SKILL.md` and execute the **Create-Intake Procedure** (Steps 0–9) with:
+
+- **`{questioning-mode} = interactive`** — Step 8 asks the user via SRAD (no fixed cap; conversational mode when 5+ Unresolved). Same intake-creation behavior as `/fab-new`.
+
+Then **STOP after the procedure's Step 9** (intake at `ready`):
+
+- Do **NOT** activate the change — there is no Step 10. The `.fab-status.yaml` symlink is NOT created; the user must run `/fab-switch {name}` to make it active before proceeding.
+- Do **NOT** create a git branch — there is no Step 11. Run no `fab change switch` and no `git` command.
+
+This is the only difference between `/fab-draft` and `/fab-new`: `/fab-draft` calls the shared Create-Intake Procedure and stops at `ready`, while `/fab-new` follows the same procedure with its own Steps 10–11 tail (activate + branch). Because those steps live only in `fab-new.md`'s tail — which `/fab-draft` never reads — there is no "run activation by momentum" hazard here.
+
+### Output
+
+Use fab-new's Output block **minus** the `Activated: {name}` and `Branch: ...` lines, ending with the Activation Preamble `Next:` line (`_preamble.md` § Activation Preamble — `/fab-draft` always uses it):
+
+```
+Next: /fab-switch {name} to make it active, then /fab-continue, /fab-ff, /fab-fff, /fab-proceed, or /fab-clarify
+```
+
+(The command list after "then" is the state table's intake row, derived per `_preamble.md` § Lookup Procedure — default first, not hardcoded.)
+
+### Error Handling
+
+The Create-Intake Procedure's own error conditions apply (config/constitution missing, no description, intake template missing, `fab change new` collision/failure, Linear/backlog lookup failures). `/fab-draft` adds **no** activation/git rows — `fab change switch`, not-in-git-repo, and `git checkout`/`git branch` failures cannot occur here because those steps never run.
 
 ---
 

@@ -21,7 +21,7 @@ As of 1.10.0 the `spec` stage and the separate `spec.md` artifact are removed. R
 
 Every skill MAY declare additional helper files it needs to load via a `helpers:` frontmatter list. The agent reads each declared helper's `.claude/skills/{helper}/SKILL.md` after reading `_preamble` and before executing the skill body.
 
-**Allowed values** (6): `_generation`, `_review`, `_cli-fab`, `_cli-external`, `_srad`, `_pipeline`.
+**Allowed values** (7): `_generation`, `_review`, `_cli-fab`, `_cli-external`, `_srad`, `_pipeline`, `_intake`.
 
 **Default**: omitted (or `[]`) — the skill loads only `_preamble`.
 
@@ -45,7 +45,7 @@ helpers: [_generation, _review, _srad, _pipeline]
 
 | Skill | `helpers:` |
 |-------|------------|
-| `fab-new`, `fab-draft` | `[_generation, _srad]` |
+| `fab-new`, `fab-draft` | `[_generation, _srad, _intake]` |
 | `fab-ff`, `fab-fff` | `[_generation, _review, _srad, _pipeline]` (the shared bracket lives in `_pipeline.md`) |
 | `fab-continue` | `[_srad]` (+ `_generation`/`_review` stage-conditionally, in-body) |
 | `fab-clarify` | `[_srad]` |
@@ -122,7 +122,7 @@ Adding a skill to the kit touches eight integration points. Work through all of 
 3. **`helpers:` declaration** — list any additional partials the skill needs (`_generation`, `_review`, `_cli-fab`, `_cli-external`, `_srad`, `_pipeline`) in frontmatter; skills without the list load only `_preamble`. See § Skill Helpers.
 4. **`Next:` line** — the skill's output ends with a state-derived `Next:` line per `_preamble.md` § Next Steps Convention (or documents an explicit opt-out, as `fab-discuss` and `fab-operator` do).
 5. **Error Handling + Key Properties tables** — the body closes with the two standard tables (skill-specific errors only; idempotency, write surface, stage effects).
-6. **SPEC mirror file** — create `docs/specs/skills/SPEC-{name}.md` (Summary + Flow + tool/sub-agent/bookkeeping tables). Partials keep their leading underscore in the SPEC filename (`SPEC-_review.md`, `SPEC-_preamble.md`, `SPEC-_generation.md`, `SPEC-_srad.md`, `SPEC-_pipeline.md`). **Exclusion policy**: the pure-reference partials `_cli-fab.md` and `_cli-external.md` carry no SPEC — their content mirrors the CLI surface rather than defining behavior, and the constitution already forces `_cli-fab.md` updates on every CLI change; a SPEC would be a third copy of the same tables. Every other skill file and behavioral partial gets a SPEC, and the constitution requires updating it on every skill edit.
+6. **SPEC mirror file** — create `docs/specs/skills/SPEC-{name}.md` (Summary + Flow + tool/sub-agent/bookkeeping tables). Partials keep their leading underscore in the SPEC filename (`SPEC-_review.md`, `SPEC-_preamble.md`, `SPEC-_generation.md`, `SPEC-_srad.md`, `SPEC-_pipeline.md`, `SPEC-_intake.md`). **Exclusion policy**: the pure-reference partials `_cli-fab.md` and `_cli-external.md` carry no SPEC — their content mirrors the CLI surface rather than defining behavior, and the constitution already forces `_cli-fab.md` updates on every CLI change; a SPEC would be a third copy of the same tables. Every other skill file and behavioral partial gets a SPEC, and the constitution requires updating it on every skill edit.
 7. **skills.md row** — add the skill's section to this file (and its `helpers:` row to § Skill Helpers when it declares any).
 8. **Help grouping** — add the skill to `skillToGroupMap` in `src/go/fab/cmd/fab/fabhelp.go` so `/fab-help` lists it under the right group (unmapped skills fall into the "Other" bucket).
 
