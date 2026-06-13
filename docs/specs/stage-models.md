@@ -25,8 +25,13 @@ pipeline cannot fit in one context window, so each stage runs in a fresh context
 structured result. That same dispatch seam is the natural injection point for a per-stage model: the
 orchestrator sets the sub-agent's model **at dispatch time**.
 
-This makes per-stage model selection fundamentally a property of **orchestrated / sub-agent runs**
-(`/fab-ff`, `/fab-fff`, `/fab-proceed`). See § Foreground limitation for the one case it cannot cover.
+This makes per-stage model selection fundamentally a property of **dispatched sub-agent runs**. Since
+260613-fgxx collapsed the post-intake dual execution mode, **every** post-intake stage dispatches a
+sub-agent — including plain `/fab-continue`, which is now a one-stage sequencer that resolves the tier
+and dispatches its stage's block (`/fab-ff`, `/fab-fff`, `/fab-proceed` orchestrate the same way). So
+per-stage selection applies uniformly to apply/review/hydrate regardless of which command drove them.
+See § Foreground limitation for the narrow case (a stage skill run with no dispatch at all) it cannot
+cover.
 
 ---
 
@@ -262,14 +267,25 @@ opts **out** of fab's upgrade curve for that tier (correct behavior — naming i
 
 ## Foreground limitation (advisory only)
 
-A sub-agent's model is set at dispatch time by the orchestrator. But when a user runs a stage skill
-**directly in the foreground** (e.g. `/fab-continue` with no orchestrator), the stage runs in the
-**current session's model**, which fab cannot switch mid-session.
+A sub-agent's model is set at dispatch time by the orchestrator. Per-stage model selection is honored
+on dispatched sub-agent runs.
 
-For foreground runs the configured tier is **advisory only**: the skill MAY note "this stage is
-configured for X; you're on Y" but MUST NOT attempt to switch models. Per-stage model selection is
-honored fully only on orchestrated / sub-agent runs. This asymmetry is by design, not a gap to paper
-over.
+**Post-intake stages no longer have a foreground path (260613-fgxx).** The post-intake dual execution
+mode was collapsed: apply/review/hydrate always dispatch a sub-agent, and plain `/fab-continue` is a
+one-stage sequencer that resolves `fab resolve-agent <stage>` and dispatches the stage's block just
+like an orchestrator. So `fab resolve-agent` applies uniformly across those stages regardless of
+caller — this closes **Gap 1a** of the model-tier finding (foreground stages can't be tiered). Intake
+is pre-boundary: it runs in the main session and is not tiered.
+
+The residual advisory-only case is narrow: a stage skill genuinely run with **no dispatch at all**.
+There fab cannot switch the session model mid-run, so the configured tier is **advisory only** — the
+skill MAY note "this stage is configured for X; you're on Y" but MUST NOT attempt to switch models.
+
+> **Scope note**: this section reconciles the foreground limitation with the single post-intake
+> execution mode (260613-fgxx, Change A). **Full uniform-tier closure** — the per-sub-agent effort
+> knob (the model-tier finding's Gap 2, a Claude Code Agent-tool limitation) and the complete
+> uniform-tiering narrative — is a **separate follow-up change (Change C)** and is intentionally NOT
+> written here.
 
 ---
 
