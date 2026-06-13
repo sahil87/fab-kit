@@ -42,7 +42,7 @@ Three tiers form the vocabulary, grouped by **cognitive mode**:
 |------|----------------|
 | `thinking` | **Generative judgment** — intake *discovers* requirements; review *discovers* bugs. Deliberation directly buys quality. |
 | `doing` | **Execution that must not err** — apply writes the diff; review-pr fixes already-articulated feedback (responsive, not generative); hydrate writes memory. |
-| `ship` | **Speed on near-mechanical work** — commit/push/PR mechanics plus a faithful PR-description summary. |
+| `fast` | **Speed on near-mechanical work** — commit/push/PR mechanics plus a faithful PR-description summary. |
 
 ### Default tier profiles
 
@@ -53,14 +53,14 @@ fab-kit ships a default `{model, effort}` per tier. This table is **owned by the
 |------|-------|--------|
 | `thinking` | `claude-opus-4-8` | `xhigh` |
 | `doing` | `claude-opus-4-8` | `high` |
-| `ship` | `claude-sonnet-4-6` | `low` |
+| `fast` | `claude-sonnet-4-6` | `low` |
 
 This is the verified mirror of the `defaultTiers` map in
 `src/go/fab/internal/agent/agent.go`. A drift-guard test fails if the two disagree (see § Drift guard).
 
 **Why these defaults.** Two of three tiers are Opus; the differentiation between `thinking` and
 `doing` is **effort** (`xhigh` → `high`), not model. The single model boundary sits at the bottom
-(`ship` → Sonnet). Five of six stages run on Opus — quality-first, with the primary spend lever being
+(`fast` → Sonnet). Five of six stages run on Opus — quality-first, with the primary spend lever being
 effort and one model downgrade at the mechanical floor. Cost-conscious projects opt the `doing` tier
 down to Sonnet themselves (see § Config schema).
 
@@ -79,7 +79,7 @@ determinism). Users override what a tier *costs* (budget), never which stages be
 | `apply` | `doing` |
 | `review-pr` | `doing` |
 | `hydrate` | `doing` |
-| `ship` | `ship` |
+| `ship` | `fast` |
 
 This is the verified mirror of the `stageTiers` map in `src/go/fab/internal/agent/agent.go`
 (drift-guarded). The mapping is exhaustive — every one of the six pipeline stages belongs to exactly
@@ -110,18 +110,18 @@ agent:
   # here only as reference so you know which stages each tier governs:
   #   thinking: intake, review            (generative judgment)
   #   doing:    apply, review-pr, hydrate  (execution that must not err)
-  #   ship:     ship                       (speed on near-mechanical work)
+  #   fast:     ship                       (speed on near-mechanical work)
   #
   # You override only WHAT EACH TIER MEANS (model + effort). Omit any tier to
   # use fab-kit's built-in default. fab-kit defaults today are:
   #   thinking: { model: claude-opus-4-8,   effort: xhigh }
   #   doing:    { model: claude-opus-4-8,   effort: high  }
-  #   ship:     { model: claude-sonnet-4-6, effort: low   }
+  #   fast:     { model: claude-sonnet-4-6, effort: low   }
   tiers:
     doing: { model: claude-sonnet-4-6, effort: medium }   # example: run the doing tier cheaper
 ```
 
-- Keys under `tiers:` are tier names: `thinking`, `doing`, `ship`.
+- Keys under `tiers:` are tier names: `thinking`, `doing`, `fast`.
 - Each value is a `{model, effort}` object. Either field MAY be set; an omitted field falls back to
   the fab-kit default for that tier (**per-field merge**).
 - A tier omitted entirely (or an absent `tiers:` block) uses fab-kit's built-in default for that tier.
@@ -188,10 +188,10 @@ fab's default choices, not a rule the resolver enforces on user overrides.
 ### Haiku excluded from the defaults (not forbidden)
 
 Haiku is **absent from the default tiers**, for two reasons: it has no effort parameter (passing
-effort 400s), and the one stage that might want a fast/cheap model (`ship`) needs faithful
-PR-description comprehension that Haiku does unreliably — so the `ship` default is Sonnet/low. This is
-**exclusion from the defaults, not a prohibition**: a user MAY still override a tier to Haiku
-(pass-through doesn't forbid it); fab just doesn't ship it as a default.
+effort 400s), and the one stage that might want a fast/cheap model (the `ship` stage, governed by the
+`fast` tier) needs faithful PR-description comprehension that Haiku does unreliably — so the `fast`
+default is Sonnet/low. This is **exclusion from the defaults, not a prohibition**: a user MAY still
+override a tier to Haiku (pass-through doesn't forbid it); fab just doesn't ship it as a default.
 
 ---
 

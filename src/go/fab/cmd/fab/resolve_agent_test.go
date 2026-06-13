@@ -102,7 +102,7 @@ func TestResolveAgentEmptyOverrideEffortInheritsDefault(t *testing.T) {
 func TestResolveAgentVerbatimNoValidation(t *testing.T) {
 	resolveAgentTestRepo(t, `agent:
   tiers:
-    ship: { model: claude-sonnet-4-6, effort: xhigh }
+    fast: { model: claude-sonnet-4-6, effort: xhigh }
 `)
 	out, err := runResolveAgentCmd(t, "ship")
 	if err != nil {

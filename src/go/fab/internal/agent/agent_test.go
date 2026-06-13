@@ -21,7 +21,7 @@ func TestResolveDefaults(t *testing.T) {
 		"apply":     {Model: "claude-opus-4-8", Effort: "high"},  // doing
 		"review-pr": {Model: "claude-opus-4-8", Effort: "high"},  // doing
 		"hydrate":   {Model: "claude-opus-4-8", Effort: "high"},  // doing
-		"ship":      {Model: "claude-sonnet-4-6", Effort: "low"}, // ship
+		"ship":      {Model: "claude-sonnet-4-6", Effort: "low"}, // fast
 	}
 	for stage, want := range cases {
 		t.Run(stage, func(t *testing.T) {
@@ -79,7 +79,7 @@ func TestResolvePerFieldMerge(t *testing.T) {
 
 	// Only model overridden → default effort survives.
 	cfg = cfgWithTiers(map[string]config.TierProfile{
-		"ship": {Model: "claude-haiku-4-5"},
+		"fast": {Model: "claude-haiku-4-5"},
 	})
 	got, err = Resolve(cfg, "ship")
 	if err != nil {
@@ -95,7 +95,7 @@ func TestResolvePerFieldMerge(t *testing.T) {
 // fab does NOT validate or correct. The harness is the safety net.
 func TestResolveVerbatimNoValidation(t *testing.T) {
 	cfg := cfgWithTiers(map[string]config.TierProfile{
-		"ship": {Model: "claude-sonnet-4-6", Effort: "xhigh"},
+		"fast": {Model: "claude-sonnet-4-6", Effort: "xhigh"},
 	})
 	got, err := Resolve(cfg, "ship")
 	if err != nil {

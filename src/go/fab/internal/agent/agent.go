@@ -29,7 +29,7 @@ import (
 const (
 	TierThinking = "thinking" // generative judgment (intake discovers requirements; review discovers bugs)
 	TierDoing    = "doing"    // execution that must not err (apply writes the diff; review-pr fixes feedback; hydrate writes memory)
-	TierShip     = "ship"     // speed on near-mechanical work (commit/push/PR mechanics + PR-description summary)
+	TierFast     = "fast"     // speed on near-mechanical work (commit/push/PR mechanics + PR-description summary)
 )
 
 // Profile is a concrete {model, effort} pair. An empty Model signals "inherit
@@ -45,7 +45,7 @@ type Profile struct {
 var defaultTiers = map[string]Profile{
 	TierThinking: {Model: "claude-opus-4-8", Effort: "xhigh"},
 	TierDoing:    {Model: "claude-opus-4-8", Effort: "high"},
-	TierShip:     {Model: "claude-sonnet-4-6", Effort: "low"},
+	TierFast:     {Model: "claude-sonnet-4-6", Effort: "low"},
 }
 
 // stageTiers is the FIXED, fab-owned stage→tier mapping. Exhaustive over the six
@@ -59,7 +59,7 @@ var stageTiers = map[string]string{
 	"apply":     TierDoing,
 	"review-pr": TierDoing,
 	"hydrate":   TierDoing,
-	"ship":      TierShip,
+	"ship":      TierFast,
 }
 
 // DefaultTier returns the built-in default profile for a tier name and whether
