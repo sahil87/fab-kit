@@ -208,7 +208,7 @@ resolved `model=/effort=` lines (so a skipped or mis-resolved tier is visible in
 silent — the available stand-in for an enforcement guard, since dispatch is harness-internal), and
 apply the resolved **model AND effort** through their two seams:
 
-- **Model → the Agent tool's `model` param.** Empty model → omit it (inherit session/orchestrator model — today's behavior).
+- **Model → the Agent tool's `model` param.** The Agent `model` param is a hard enum of short aliases (`opus`/`sonnet`/`haiku`/`fable`) that rejects full IDs, so the model half is resolved with `fab resolve-agent <stage> --alias` — the `--alias` flag emits the Agent-tool-valid short alias directly on the `model=` line (see § Harness-adapter boundary). Empty model → omit it (inherit session/orchestrator model — today's behavior).
 - **Effort → an explicit instruction in the subagent prompt.** The Agent tool has no `effort` param, so the resolved effort is injected as an imperative line in the dispatched prompt (e.g., ``Operate at `xhigh` reasoning effort for this task.``) and the sub-agent self-selects. Empty effort → omit the instruction. (The effort half is therefore **no longer dropped** — earlier wiring had no seam for it; it now rides the prompt. The clean fix, a first-class per-sub-agent effort parameter on the Agent tool, is a harness ask outside fab's control — see § Foreground limitation's scope note.)
 
 The **`review` stage resolves once** and applies the same `{model, effort}` to BOTH reviewer sub-agents
@@ -231,14 +231,21 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   and nothing in fab rejects it.
 - *Harness-specific layer (the adapter):* injecting the resolved model+effort into the actual
   sub-agent dispatch is harness behavior, and the two halves use **two different seams** in Claude
-  Code. **The model rides the Agent tool's `model` parameter** (which takes a short alias —
-  `opus`/`sonnet`/`haiku`/`fable` — not the full versioned id `fab resolve-agent` emits, so the
-  orchestrator maps id → alias at the seam); **the effort rides an instruction in the subagent prompt**
-  (the Agent tool exposes no effort parameter). The skill wiring names both explicitly as the
-  Claude-Code adapter, not as universal truth. This coupling is **not introduced by this feature** —
-  fab's entire existing subagent-dispatch design (`_preamble.md` § Subagent Dispatch) is already
-  Claude-Code-shaped. Per-stage selection is exactly as portable as fab's existing dispatch: no more,
-  no less.
+  Code. **The model rides the Agent tool's `model` parameter** — a hard enum that takes a short alias
+  (`opus`/`sonnet`/`haiku`/`fable`), not the full versioned id the plain resolver emits — so the model
+  half is resolved with **`fab resolve-agent <stage> --alias`**, the deterministic Agent-tool adapter:
+  the `--alias` flag maps the resolved full ID to its short alias on the `model=` line (prefix-matched,
+  so dated variants like `claude-haiku-4-5-20251001` resolve to `haiku`; empty ⇒ empty inherit-signal;
+  a non-Claude override passes through verbatim). This replaces the earlier prompt-side hand-mapping
+  instruction (where the orchestrator was told to translate the id by hand on every dispatch — brittle
+  and easy to fumble) with a Go-side translation that cannot be skipped. **The effort rides an
+  instruction in the subagent prompt** (the Agent tool exposes no effort parameter). The skill wiring
+  names both explicitly as the Claude-Code adapter, not as universal truth. This coupling is **not
+  introduced by this feature** — fab's entire existing subagent-dispatch design (`_preamble.md` §
+  Subagent Dispatch) is already Claude-Code-shaped. Per-stage selection is exactly as portable as fab's
+  existing dispatch: no more, no less. *(The operator launcher path is the deliberate exception — it
+  appends `--model <full-id>` to a `claude` CLI invocation, which accepts full IDs, so it resolves
+  WITHOUT `--alias`.)*
 - *Claude-flavored data (overridable):* fab-kit's shipped default table uses Claude model IDs/effort.
   These are documented as "fab-kit's Claude defaults," fully replaceable via `agent.tiers`.
 - *v1 scope is architecture-neutral + documented — NOT shipped/tested against a non-Claude harness.* No

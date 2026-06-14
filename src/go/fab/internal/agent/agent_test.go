@@ -148,6 +148,32 @@ func TestResolveUnknownStage(t *testing.T) {
 	}
 }
 
+// TestModelAlias: full Claude IDs (incl. dated variants) map to their family
+// alias by prefix; empty and unmapped/non-Claude inputs pass through verbatim.
+func TestModelAlias(t *testing.T) {
+	cases := map[string]string{
+		"claude-opus-4-8":            "opus",
+		"claude-sonnet-4-6":          "sonnet",
+		"claude-haiku-4-5":           "haiku",
+		"claude-fable-1":             "fable",
+		"claude-haiku-4-5-20251001":  "haiku", // dated variant resolves by prefix
+		"":                           "",      // empty in, empty out (inherit signal)
+		"gpt-5":                      "gpt-5", // non-Claude passes through verbatim
+		"some-unrecognized-model-id": "some-unrecognized-model-id",
+	}
+	for in, want := range cases {
+		name := in
+		if name == "" {
+			name = "empty" // avoid an empty subtest name (TestModelAlias/)
+		}
+		t.Run(name, func(t *testing.T) {
+			if got := ModelAlias(in); got != want {
+				t.Errorf("ModelAlias(%q) = %q, want %q", in, got, want)
+			}
+		})
+	}
+}
+
 // TestTablesExhaustive: every stage's tier has a default profile, and the stage
 // set is exactly the six pipeline stages.
 func TestTablesExhaustive(t *testing.T) {
