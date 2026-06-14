@@ -1,0 +1,53 @@
+id: 5ewp
+name: 260614-5ewp-reorg-memory-backfill-orchestration
+created: 2026-06-14T19:42:39Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 13
+    acceptance_count: 26
+    acceptance_completed: 0
+confidence:
+    certain: 5
+    confident: 5
+    tentative: 0
+    unresolved: 0
+    score: 3.5
+    fuzzy: true
+    dimensions:
+        signal: 95.5
+        reversibility: 74.5
+        competence: 84.5
+        disambiguation: 89.0
+stage_metrics:
+    intake: {started_at: "2026-06-14T19:42:39Z", driver: fab-new, iterations: 1, completed_at: "2026-06-14T19:55:55Z"}
+    apply: {started_at: "2026-06-14T19:55:55Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-14T20:05:35Z"}
+    review: {started_at: "2026-06-14T20:05:35Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-14T20:11:21Z"}
+    hydrate: {started_at: "2026-06-14T20:11:21Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-14T20:15:23Z"}
+    ship: {started_at: "2026-06-14T20:15:23Z", driver: fab-fff, iterations: 1}
+prs: []
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-06-14T20:15:23Z"
+    computed_at_stage: hydrate
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-14T20:15:23Z
