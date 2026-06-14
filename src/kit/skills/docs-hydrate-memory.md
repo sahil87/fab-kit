@@ -57,6 +57,8 @@ Skips the always-load layer entirely (this section is the skill-file override th
 
 **Mode disambiguation** — backfill is checked first: it is reached only by the explicit `backfill` keyword or a reorg dispatch, so it never collides with bare ingest/generate routing. The two are otherwise distinct by intent: **generate** *creates* memory files from source-code gaps; **backfill** *adds `description:` frontmatter to existing* memory files (no new content). All non-backfill arguments must classify to the same mode. **Mixed-mode → reject**: `Cannot mix ingest sources (URLs, .md files) with generate targets (folders). Run separately.`
 
+**Backfill takes no extra arguments** — backfill is an independent re-scan of `docs/memory/` with no caller manifest (see Backfill Mode Step 1), so any positional argument after the `backfill` keyword is meaningless. If `backfill` is the first argument **and** any further argument follows, **reject**: `backfill takes no arguments — it re-scans docs/memory/ itself. Run /docs-hydrate-memory backfill with no further arguments.` (The reorg-dispatch form never supplies extra args — it names only the operation.)
+
 Folder paths must exist — abort with `Folder not found: {path}` if not.
 
 ---
@@ -243,6 +245,7 @@ Safe to re-run. New files created on first run, merged on subsequent. Existing c
 |-----------|--------|
 | `docs/memory/` or `docs/memory/index.md` missing | Abort with init guidance |
 | Mixed-mode arguments | Reject with explanation |
+| `backfill` keyword followed by extra arguments | Reject: "backfill takes no arguments — it re-scans docs/memory/ itself. Run /docs-hydrate-memory backfill with no further arguments." |
 | Folder path doesn't exist | Abort: "Folder not found: {path}" |
 | Source URL unreachable / content unreadable | Report error, continue with remaining |
 | Domain/file already exists | Use/merge (don't recreate) |
