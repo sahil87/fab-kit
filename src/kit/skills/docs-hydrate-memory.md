@@ -15,8 +15,9 @@ Hydrate `docs/memory/` from external sources or from codebase analysis.
 
 - **Ingest mode** (URLs, `.md` files): Fetches/reads sources, identifies domains and topics, creates or merges memory files, maintains indexes.
 - **Generate mode** (folders, no arguments): Scans codebase for undocumented areas, presents interactive gap report, generates memory files.
+- **Backfill mode** (`backfill` keyword, or dispatched by `/docs-reorg-memory`): Re-scans an existing `docs/memory/` tree for topic files that lack `description:` frontmatter and adds it — **body-preserving** (only prepends/edits frontmatter). Used to migrate a pre-fab-kit, hand-curated tree to the fab-kit convention so `fab memory-index` stops rendering `—` for every row. Unlike generate mode (which *creates* files from source-code gaps), backfill *adds frontmatter to existing* files.
 
-Mode is determined automatically by argument type. Safe to run repeatedly — content is merged without duplication or overwriting manually-added content.
+Mode is determined automatically by argument type (ingest/generate) or by the explicit `backfill` keyword / reorg dispatch. Safe to run repeatedly — content is merged without duplication or overwriting manually-added content; backfill skips files that already have `description:`.
 
 ### Index Ownership
 
@@ -42,17 +43,21 @@ Skips the always-load layer entirely (this section is the skill-file override th
 ## Arguments
 
 - **`[sources...|folders...]`** *(optional)* — zero or more URLs, local `.md` paths, or folder paths.
+- **`backfill`** *(keyword)* — routes to **Backfill mode** (see below). Also entered when `/docs-reorg-memory` dispatches this skill as its compatibility sub-agent.
 
 ### Argument Classification & Mode Routing
 
 | Argument type | Detection | Mode |
 |---|---|---|
+| `backfill` keyword | First argument is the literal `backfill`, OR the invocation is a `/docs-reorg-memory` dispatch naming the operation | **Backfill** (re-scan existing tree for files missing `description:`) |
 | No arguments | Empty list | **Generate** (scan from project root) |
 | URL | `notion.so`, `notion.site`, `linear.app`, or `http(s)://` | **Ingest** |
 | Markdown file | Path ends `.md` | **Ingest** |
 | Folder | Resolves to existing directory | **Generate** |
 
-All arguments must classify to the same mode. **Mixed-mode → reject**: `Cannot mix ingest sources (URLs, .md files) with generate targets (folders). Run separately.`
+**Mode disambiguation** — backfill is checked first: it is reached only by the explicit `backfill` keyword or a reorg dispatch, so it never collides with bare ingest/generate routing. The two are otherwise distinct by intent: **generate** *creates* memory files from source-code gaps; **backfill** *adds `description:` frontmatter to existing* memory files (no new content). All non-backfill arguments must classify to the same mode. **Mixed-mode → reject**: `Cannot mix ingest sources (URLs, .md files) with generate targets (folders). Run separately.`
+
+**Backfill takes no extra arguments** — backfill is an independent re-scan of `docs/memory/` with no caller manifest (see Backfill Mode Step 1), so any positional argument after the `backfill` keyword is meaningless. If `backfill` is the first argument **and** any further argument follows, **reject**: `backfill takes no arguments — it re-scans docs/memory/ itself. Run /docs-hydrate-memory backfill with no further arguments.` (The reorg-dispatch form never supplies extra args — it names only the operation.)
 
 Folder paths must exist — abort with `Folder not found: {path}` if not.
 
@@ -166,6 +171,38 @@ Same as ingest mode Step 4 — run `fab memory-index` to regenerate the root (do
 
 ---
 
+## Backfill Mode Behavior
+
+Backfill migrates an **existing** hand-curated `docs/memory/` tree (typically pre-fab-kit) to the convention `fab memory-index` depends on: each topic file leads with a `description:` frontmatter line. Without it, the generator (which reads descriptions exclusively from frontmatter) renders `—` for every row, wiping curated descriptions on the first regen. Backfill is the one-time fix. It is invoked directly (`/docs-hydrate-memory backfill`) or dispatched by `/docs-reorg-memory` as the second step of its compatibility orchestration.
+
+> **Scope**: Backfill is a **pure frontmatter operation** — it adds `description:` to existing files and creates missing `description:`-only index stubs. It does NOT detect or relocate tombstone rows, flatten custom groupings, or move files; those structural concerns belong to `/docs-reorg-memory`. The body of every file is preserved byte-for-byte.
+
+### Step 1: Re-scan `docs/memory/` (no caller manifest)
+
+Backfill **walks `docs/memory/` itself** to find every topic file (a non-`index.md` `.md` file) lacking a `description:` frontmatter field — it does **not** receive a file list from its caller. This holds for both forms: the direct-user invocation and the reorg dispatch (reorg's prompt names the operation — "backfill this tree" — not the files). A file with no frontmatter, or frontmatter without a `description:` key, counts as missing (the same `frontmatter.Field` semantics `fab memory-index` uses). The walk is the loose, idempotent seam between the two independently-invocable skills.
+
+### Step 2: Synthesize and write `description:` frontmatter (body-preserving)
+
+For each discovered topic file missing `description:`:
+
+1. Read the file's **own content** — Overview, first section, or `# H1` — and synthesize a concise one-line summary.
+2. **Prefer a curated index row** where one maps to this file. If an existing hand-curated index file (e.g., a pre-fab-kit `index.md` whose rows line up file-by-file with the topic files) has a row whose description text describes this file, use that curated text as the source — it is higher quality than re-synthesis.
+3. Write the `description:` as the **leading frontmatter block** of the file (the same `---\ndescription: "..."\n---` shape ingest/generate use). **Preserve the body byte-for-byte** — backfill only prepends or edits the frontmatter, never the content below it.
+4. **Skip files that already have a `description:`** — backfill never overwrites an existing one. This makes a second pass a no-op (idempotency, Constitution III).
+
+### Step 3: Create missing index stubs (stub-before-index)
+
+For any domain/sub-domain folder lacking an `index.md` (or whose `index.md` lacks `description:`), create the `description:`-only `index.md` **stub** the same way ingest/generate modes do — only the `description:` frontmatter one-liner, nothing else, created **before** any index regeneration (see Index Ownership above). This gives `fab memory-index` the domain description to read.
+
+### Step 4: Caller-aware index regeneration
+
+Backfill is **caller-aware** about `fab memory-index`:
+
+- **Dispatched by `/docs-reorg-memory`** (the dispatch prompt carries the reorg-dispatched / defer-regen signal): do **NOT** run `fab memory-index`. reorg runs it exactly once at the end of its orchestration (after rebalance), so a regen here would be redundant work and would race reorg's single regen.
+- **Invoked directly by a user** (no reorg signal): run `fab memory-index` as the final step, exactly like ingest and generate modes — root (domains-only) + every domain + every sub-domain index, regenerated from folder contents + frontmatter + git dates.
+
+---
+
 ## Output
 
 Canonical format (ingest mode):
@@ -181,11 +218,24 @@ Hydration complete — {N} files created, {M} updated.
 
 Generate mode replaces "Hydrating" with "Scanning codebase for memory gaps..." and includes the gap report before generation output. Re-hydration shows "merged new content" for updated files. Zero gaps stops after the scan summary.
 
+Backfill mode reports the re-scan and per-file frontmatter additions, e.g.:
+
+```
+Scanning docs/memory/ for files missing description: frontmatter...
+Backfilled: docs/memory/{domain}/{topic}.md   (description: added; body unchanged)
+Skipped:    docs/memory/{domain}/{other}.md   (already has description:)
+Backfill complete — {N} files backfilled, {M} skipped, {S} index stubs created.
+```
+
+When dispatched by reorg, backfill appends `(index regen deferred to caller)`; when invoked directly, it runs `fab memory-index` and appends the regenerated-index lines like the other modes.
+
 ---
 
 ## Idempotency
 
 Safe to re-run. New files created on first run, merged on subsequent. Existing content preserved. Indexes are regenerated by `fab memory-index` (byte-stable — a re-run with no content change produces no index diff). `[INFERRED]` markers and manual edits to memory files survive re-generation; index files are generated artifacts and are not hand-edited.
+
+**Backfill mode** is idempotent on file presence of `description:`: files that already carry a `description:` field are skipped, so a second backfill pass over an already-converted tree is a no-op (no frontmatter rewrites, no body changes, byte-stable index). Backfill never touches a file's body — only its leading frontmatter — so re-running cannot corrupt or lose curated content.
 
 ---
 
@@ -195,9 +245,12 @@ Safe to re-run. New files created on first run, merged on subsequent. Existing c
 |-----------|--------|
 | `docs/memory/` or `docs/memory/index.md` missing | Abort with init guidance |
 | Mixed-mode arguments | Reject with explanation |
+| `backfill` keyword followed by extra arguments | Reject: "backfill takes no arguments — it re-scans docs/memory/ itself. Run /docs-hydrate-memory backfill with no further arguments." |
 | Folder path doesn't exist | Abort: "Folder not found: {path}" |
 | Source URL unreachable / content unreadable | Report error, continue with remaining |
 | Domain/file already exists | Use/merge (don't recreate) |
+| Backfill: file already has `description:` | Skip (idempotent) — never overwrite an existing description |
+| Backfill: every topic file already has `description:` | Report `No files missing description: frontmatter — tree is already on the convention.` and stop (no regen when reorg-dispatched; a direct invocation may still run `fab memory-index`, which is a no-op) |
 
 ---
 

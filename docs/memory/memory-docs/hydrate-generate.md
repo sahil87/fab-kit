@@ -7,7 +7,9 @@ description: "`/docs-hydrate-memory` generate mode — codebase scanning, gap de
 
 ## Overview
 
-`/docs-hydrate-memory` supports a generate mode that scans the codebase for undocumented areas, presents an interactive gap report, and generates structured documentation into `docs/memory/`. Generate mode is triggered when no arguments are provided (scans project root) or when folder paths are passed as arguments (scans those folders). It complements ingest mode, which handles URLs and `.md` files.
+`/docs-hydrate-memory` supports a generate mode that scans the codebase for undocumented areas, presents an interactive gap report, and generates structured documentation into `docs/memory/`. Generate mode is triggered when no arguments are provided (scans project root) or when folder paths are passed as arguments (scans those folders). It complements ingest mode (URLs and `.md` files) and backfill mode.
+
+> **Generate vs. backfill (5ewp)**: generate **creates** new memory files from source-code gaps (synthesizing both body content and the leading `description:` frontmatter). Backfill mode (see [hydrate](hydrate.md) § Backfill Mode Behavior) **adds `description:` frontmatter to existing** memory files without changing their body — the pre-fab-kit migration path. Both follow the stub-before-index placement rules below; only generate authors file bodies.
 
 ## Requirements
 

@@ -15,6 +15,8 @@ Read all spec files in `docs/specs/`, identify themes (up to 10), and propose a 
 
 `docs/specs/skills/SPEC-*.md` mirrors are constitution-pinned: their names derive mechanically from their `src/kit/skills/` sources (`SPEC-{source-filename}.md`), and the constitution requires every skill edit to update its mirror. Never propose renaming, moving, merging, or splitting them — they may be *read* for theme analysis, but a Migration Map row targeting a reserved path is invalid.
 
+> **No compatibility/backfill step for specs.** Unlike `/docs-reorg-memory` (which detects pre-fab-kit memory trees missing `description:` frontmatter and orchestrates a frontmatter backfill), `/docs-reorg-specs` has **no** compatibility or frontmatter-backfill step — and intentionally so. There is no specs-index generator (no counterpart to `fab memory-index`); the specs index is hand-rewritten (Step 5), so a spec missing frontmatter breaks nothing downstream — there is no compatibility contract to violate. Constitution VI keeps specs human-curated. Do not "fix the asymmetry" by adding a specs backfill — it would invent a non-problem and push specs toward the generated-index model the constitution rejects.
+
 ---
 
 ## Pre-flight

@@ -1,5 +1,5 @@
 ---
-description: "`docs/specs/` directory — pre-implementation specs, distinction from memory, bootstrap and context integration, per-skill SPEC mirror coverage + naming policy (`SPEC-{source-filename}.md`; `_cli-fab`/`_cli-external` excluded — uliv); mirrors are reserved paths for `docs-reorg-specs` (d9rs)"
+description: "`docs/specs/` directory — pre-implementation specs, distinction from memory, bootstrap and context integration, per-skill SPEC mirror coverage + naming policy (`SPEC-{source-filename}.md`; `_cli-fab`/`_cli-external` excluded — uliv); mirrors are reserved paths for `docs-reorg-specs` (d9rs); specs are out of scope for compatibility/frontmatter backfill — no specs-index generator, hand-rewritten index, `docs-reorg-specs` carries an explicit no-symmetry note (5ewp)"
 ---
 # Specs Index
 
@@ -26,6 +26,16 @@ The specs index does not prescribe a domain-based directory hierarchy. Spec file
 ### Human-Curated Ownership
 
 Spec files are written and maintained by humans. No automated tooling creates or enforces structure in `docs/specs/`. `/docs-hydrate-specs` provides assisted reverse-hydration — it identifies structural gaps between memory and specs and proposes concise additions, but every insertion requires explicit user confirmation. Spec files remain human-curated.
+
+### No Compatibility/Backfill Step for Specs (5ewp)
+
+Specs are **out of scope** for the pre-fab-kit compatibility/frontmatter backfill that `/docs-reorg-memory` orchestrates (detect missing `description:` frontmatter → dispatch `/docs-hydrate-memory` backfill). The asymmetry is verified and intentional:
+
+- **No specs-index generator** — there is no counterpart to `fab memory-index` (`internal/memoryindex`) for specs. A spec missing `description:` frontmatter breaks nothing downstream, because nothing generates the specs index from frontmatter.
+- **Hand-rewritten index** — `docs/specs/index.md` is rewritten by hand (`docs-reorg-specs` Step 5), not regenerated. There is no compatibility contract for a backfill to satisfy.
+- **Constitution VI** keeps specs human-curated, pre-implementation design intent. Adding a specs backfill would invent a non-problem and push specs toward the generated-index model the constitution rejects.
+
+`docs-reorg-specs.md` carries an explicit one-line **no-symmetry note** stating all of the above, so a future contributor does not "fix the asymmetry" by adding a specs backfill step.
 
 ### Per-Skill SPEC Mirrors (`docs/specs/skills/`)
 
@@ -57,6 +67,7 @@ Spec files are written and maintained by humans. No automated tooling creates or
 
 | Change | Date | Summary |
 |--------|------|---------|
+| 260614-5ewp-reorg-memory-backfill-orchestration | 2026-06-14 | **No compatibility/backfill step for specs** recorded (new Requirements subsection): specs are out of scope for the pre-fab-kit frontmatter backfill `/docs-reorg-memory` orchestrates — verified asymmetry (no specs-index generator, hand-rewritten index, Constitution VI human-curated). `docs-reorg-specs.md` now carries an explicit one-line no-symmetry note so a future contributor does not "fix the asymmetry" by adding a specs backfill. |
 | 260612-d9rs-docs-reality-sweep | 2026-06-12 | **Reserved-path exemption** (skills-audit batch 5/5): `docs-reorg-specs` never proposes renaming/moving/merging/splitting the constitution-pinned `docs/specs/skills/SPEC-*.md` mirrors (read-only for theme analysis; reserved-path Migration Map rows invalid) and its Step 1 now recurses into `docs/specs/` subfolders. New "SPEC Mirrors Are Reserved Paths in Spec Reorganization" design decision. **Mirror resync recorded**: ~23 drifted mirrors resynced against post-batch sources (Theme 7c) and `SPEC-hooks.md` rewritten as-shipped (Go `fab hook` system; no deleted shell scripts, UserPromptSubmit registered). |
 | 260611-uliv-skills-staleness-sweep-frontmatter-fixes | 2026-06-11 | Added the "Per-Skill SPEC Mirrors" section (H): mechanical `SPEC-{source-filename}.md` naming with partials keeping the leading underscore (`SPEC-preamble.md` renamed to `SPEC-_preamble.md`; live ref in `_shared/context-loading.md` updated, historical changelog rows exempt); four new SPECs created (`internal-consistency-check`, `internal-retrospect`, `internal-skill-optimize`, `_generation`); explicit exclusion policy for the pure-reference partials `_cli-fab`/`_cli-external` (CLI mirrors, not behavior — a SPEC would be a third copy), documented in `docs/specs/skills.md` § New Skill Checklist together with the naming convention. |
 | 260218-5isu-fix-docs-consistency-drift | 2026-02-18 | Replaced stale `/fab-init` → `/fab-setup` in bootstrap integration reference |
