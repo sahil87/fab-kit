@@ -99,12 +99,21 @@ review_tools:
 
 If `review_tools.copilot` is `false` (and `--tool copilot` was **not** provided): print `No automated reviewer available. Run /git-pr-review when reviews are added.` and go to Step 6 with outcome **no-reviews** (clean finish).
 
+> **Two distinct logins — do NOT conflate** (getting these backwards is the #1 cause of a poll never seeing a review that has in fact landed):
+> - The review-**request** side: you add the reviewer via `gh pr edit --add-reviewer copilot-pull-request-reviewer`, but the entry that then appears under the PR's **requested reviewers** surfaces with login `Copilot`. (Apparent oddity, documented as the empirically-observed reality: the value you `--add-reviewer` with happens to match the *landed-review* author login below, while `requested_reviewers` shows `Copilot`.)
+> - The **landed-review** side: once a Copilot review actually lands, the review object in the `reviews` array carries `author.login == "copilot-pull-request-reviewer"` (commonly seen as `copilot-pull-request-reviewer[bot]`). This is the login the poll MUST match.
+>
+> The poll that detects a **landed review** MUST therefore match `author.login == "copilot-pull-request-reviewer"` (the review-author login on the `reviews` array), **not** `Copilot` (the login that surfaces under `requested_reviewers`) — a predicate keyed on the request-side login never matches a landed review object and the poll would time out even though the review arrived. This matches the established, deliberately-set behavior (`docs/memory/pipeline/execution-skills.md`: n30u documents `"Copilot"` in `requested_reviewers` vs `"copilot-pull-request-reviewer[bot]"` in `reviews`; u1m1 set the Phase 2 `.author.login` filter to `copilot-pull-request-reviewer` so incoming Copilot reviews are detected). Confirming the **request** itself succeeded is a separate question: GitHub's GraphQL `reviewRequests` field **omits bot/app reviewers** like Copilot, so a request confirmation MUST use REST `requested_reviewers` (`gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers`), never a GraphQL `reviewRequests` field.
+
+> **Synchronous-poll discipline — the subagent MUST NOT yield mid-poll.** When `/git-pr-review` runs as a dispatched subagent (e.g. from `/fab-fff` Step 5), the Copilot poll below MUST run **synchronously to completion within this single invocation**: the subagent MUST NOT yield, return, or hand back control while the poll is pending — it stays in the poll loop until either a Copilot review appears or all 20 attempts (the full 30s × 20 / 10-minute window) are exhausted, and only then proceeds to Step 3 or the timeout exit. This is a permanent, non-negotiable directive: in prior efforts the subagent stalled or died mid-poll **4 times**, leaving `review-pr` stuck `active`. Copilot reviews land ~4.5–6.5 min after the request — comfortably inside the 10-minute window — so the correct behavior is **patience-to-completion**, never an early return.
+
 **Copilot request and poll**:
 
-1. Attempt: `gh pr edit {number} --add-reviewer copilot-pull-request-reviewer`
+1. Attempt: `gh pr edit {number} --add-reviewer copilot-pull-request-reviewer` (the value `--add-reviewer` takes — correct here; note this is the same string as the landed-review author login, even though the resulting `requested_reviewers` entry surfaces as login `Copilot` — see the two-login note above).
 2. **On success** (exit 0):
    - Print: `Copilot review requested. Waiting up to 10 minutes...`
-   - Poll every 30 seconds, up to 20 attempts:
+   - *(Optional request confirmation — GraphQL omits bot reviewers, so use REST if confirming:* `gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers` *should now list the Copilot reviewer surfacing under login `Copilot`.)*
+   - Poll every 30 seconds, up to 20 attempts (run this loop **synchronously to completion** — do NOT yield or return between attempts, per the discipline note above). The predicate matches the **review-author** login `copilot-pull-request-reviewer` (the login on the landed `reviews` object — NOT the `Copilot` login that surfaces under `requested_reviewers`):
      ```bash
      gh pr view {number} --json reviews -q '.reviews | map(select(.author.login == "copilot-pull-request-reviewer")) | length'
      ```

@@ -57,7 +57,10 @@ Setting `copilot` to `false` skips Phase 2 entirely. When the `review_tools` key
 │     ├─ [copilot: false] "No automated reviewer available" → Step 6, outcome no-reviews (clean finish)
 │     ├─ Bash: gh pr edit {n} --add-reviewer copilot-pull-request-reviewer
 │     │  ├─ [success] Print "Copilot review requested. Waiting up to 10 minutes..."
-│     │  │  └─ Poll: gh pr view --json reviews every 30s, up to 20 attempts
+│     │  │  └─ Poll SYNCHRONOUSLY (no yield mid-poll): gh pr view --json reviews
+│     │  │     every 30s, up to 20 attempts; predicate
+│     │  │     author.login == "copilot-pull-request-reviewer" (the landed
+│     │  │     review-author login, NOT the "Copilot" login under requested_reviewers)
 │     │  │     ├─ [review appears] → Step 3
 │     │  │     └─ [20 attempts, no review] "...not yet available. Re-run /git-pr-review..." (the suggested command names the explicit <change> when one was passed — an argless re-run resolves the active change, 260612-w7dp) → Step 6, outcome timeout (stage left active — no finish, no fail)
 │     │  └─ [failure] "No automated reviewer available..." → Step 6, outcome no-reviews (clean finish)
@@ -125,6 +128,12 @@ Phase 2 runs when Phase 1 finds no existing reviews with inline comments. It req
 | Copilot | Remote | Attempt `gh pr edit --add-reviewer copilot-pull-request-reviewer` | Poll 30s/attempt up to 20× — proceed to Step 3 when review appears; on timeout: Step 6 `timeout` outcome (stage stays active — no finish, no fail) | Clean finish (no-reviews): "No automated reviewer available..." |
 
 The `--tool copilot` flag forces the Copilot path regardless of config — the config check is skipped entirely when this flag is present. Without the flag, if `review_tools.copilot: false`, Phase 2 exits cleanly without attempting the request.
+
+**Poll discipline + query semantics (260615-qg64)**:
+
+- **Synchronous to completion — no yield mid-poll**: when `/git-pr-review` runs as a dispatched subagent (e.g. `/fab-fff` Step 5), the poll MUST run synchronously within the single invocation — the subagent MUST NOT yield, return, or hand back control while the poll is pending; it stays in the loop until a review appears or all 20 attempts (30s × 20 / 10-minute window) are exhausted. This is permanent: the subagent stalled/died mid-poll 4× in prior efforts, leaving `review-pr` stuck `active`; Copilot lands ~4.5–6.5 min (inside the window), so patience-to-completion is correct, not an early return. Cadence is unchanged (30s × 20).
+- **Two distinct logins — do not conflate**: you add the reviewer with `gh pr edit --add-reviewer copilot-pull-request-reviewer`, but the entry that then surfaces under the PR's **requested reviewers** carries login `Copilot`; the **landed-review** object in the `reviews` array carries `author.login == "copilot-pull-request-reviewer"` (`[bot]`). The landed-review poll predicate MUST match `author.login == "copilot-pull-request-reviewer"` (the review-author login), NOT `Copilot` (the requested-reviewer login) — a predicate keyed on the requested-reviewer login never matches a landed review object and times out spuriously. (Apparent oddity, recorded as empirical reality: the value passed to `--add-reviewer` matches the landed-review author login, while `requested_reviewers` shows `Copilot`.) This matches the established, deliberately-set behavior (`docs/memory/pipeline/execution-skills.md`: n30u — `"Copilot"` in `requested_reviewers` vs `"copilot-pull-request-reviewer[bot]"` in `reviews`; u1m1 — Phase 2 `.author.login` filter set to `copilot-pull-request-reviewer` so incoming Copilot reviews are detected).
+- **GraphQL omits bot reviewers**: confirming the **request** succeeded MUST use REST `requested_reviewers` (`gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers`), since GraphQL `reviewRequests` omits bot/app reviewers like Copilot.
 
 ### Disposition taxonomy
 
