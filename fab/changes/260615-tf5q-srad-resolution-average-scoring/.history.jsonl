@@ -1,0 +1,11 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-15T06:15:16Z"}
+{"args":"Replace SRAD confidence-scoring formula with Resolution Average (per-row composite mean of S:R:A:D dimensions) and lower fix expectedMin from 5 to 3. Reshapes the existing confidence gate to reward thoroughness instead of penalizing it; preserves Critical Rule, Unresolved=0.0, coverage term, 0-5 scale, and flat 3.0 gate.","cmd":"fab-new","event":"command","ts":"2026-06-15T06:15:16Z"}
+{"delta":"+2.3","event":"confidence","score":2.3,"trigger":"calc-score","ts":"2026-06-15T06:16:58Z"}
+{"delta":"+0.0","event":"confidence","score":2.3,"trigger":"calc-score","ts":"2026-06-15T06:17:14Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-06-15T06:18:32Z"}
+{"delta":"+0.0","event":"confidence","score":2.3,"trigger":"calc-score","ts":"2026-06-15T06:18:50Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-15T06:20:55Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-15T06:33:02Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-06-15T06:40:13Z"}
+{"event":"review","result":"passed","ts":"2026-06-15T06:40:13Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-15T06:45:22Z"}

@@ -650,11 +650,11 @@ This is a fix for a bug.
 
 | # | Grade | Decision | Rationale | Scores |
 |---|-------|----------|-----------|--------|
-| 1 | Certain | D1 | R1 | |
-| 2 | Certain | D2 | R2 | |
-| 3 | Certain | D3 | R3 | |
-| 4 | Certain | D4 | R4 | |
-| 5 | Certain | D5 | R5 | |
+| 1 | Certain | D1 | R1 | S:100 R:100 A:100 D:100 |
+| 2 | Certain | D2 | R2 | S:100 R:100 A:100 D:100 |
+| 3 | Certain | D3 | R3 | S:100 R:100 A:100 D:100 |
+| 4 | Certain | D4 | R4 | S:100 R:100 A:100 D:100 |
+| 5 | Certain | D5 | R5 | S:100 R:100 A:100 D:100 |
 `
 	intakePath := filepath.Join(fabRoot, "changes", folder, "intake.md")
 	if err := os.WriteFile(intakePath, []byte(intakeMD), 0o644); err != nil {
