@@ -82,18 +82,22 @@ triage synchronously) — the wait is NOT moved to the orchestrator (intake Assu
 
 #### R6: The poll MUST use correct GitHub query semantics (request login vs. comment-author login; REST for request confirmation)
 
-`git-pr-review.md` Step 2 Phase 2 MUST encode the correct GitHub semantics: the review-**request**
-assignee login is `copilot-pull-request-reviewer` (used by `gh pr edit --add-reviewer …`), but the
-**comment-author** login on a posted Copilot review object is `Copilot`. The poll predicate that
-detects a *landed review* MUST match the review object's author login `Copilot` (NOT the request
-login). The skill MUST NOT conflate the two logins and MUST document the distinction inline. Because
-GraphQL `reviewRequests` omits bot/app reviewers, confirming the **request** succeeded MUST use REST
-`requested_reviewers` (`gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers`), not a
-GraphQL `reviewRequests` field. Poll cadence is unchanged: 30s × 20 (10-minute window).
+`git-pr-review.md` Step 2 Phase 2 MUST encode the correct GitHub semantics: the value passed to
+`gh pr edit --add-reviewer …` is `copilot-pull-request-reviewer`, and that same string is the
+**landed-review author login** — once a Copilot review lands, the review object in the `reviews`
+array carries `author.login == "copilot-pull-request-reviewer"` (commonly surfaced as
+`copilot-pull-request-reviewer[bot]`). The entry that surfaces under the PR's `requested_reviewers`
+(the request side) carries the *different* login `Copilot`. The poll predicate that detects a
+*landed review* MUST match the review object's author login `copilot-pull-request-reviewer` (NOT the
+`Copilot` login that surfaces under `requested_reviewers`). The skill MUST NOT conflate the two
+logins and MUST document the distinction inline. Because GraphQL `reviewRequests` omits bot/app
+reviewers, confirming the **request** succeeded MUST use REST `requested_reviewers`
+(`gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers`), not a GraphQL `reviewRequests`
+field. Poll cadence is unchanged: 30s × 20 (10-minute window).
 
 - **GIVEN** a Copilot review has been requested and the poll is running
 - **WHEN** the poll checks whether the review has landed
-- **THEN** it selects review objects whose `author.login == "Copilot"` (the comment-author login), not `copilot-pull-request-reviewer`
+- **THEN** it selects review objects whose `author.login == "copilot-pull-request-reviewer"` (the landed-review author login on the `reviews` array), not `Copilot` (the login under `requested_reviewers`)
 - **AND** request confirmation uses REST `requested_reviewers` (GraphQL omits bot reviewers)
 - **AND** the poll cadence remains 30s × 20
 
