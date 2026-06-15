@@ -14,7 +14,10 @@ func TestGolden_RenderRoot_FullDocument(t *testing.T) {
 		{Name: "auth", Description: "Authentication & session handling"},
 		{Name: "billing", Description: ""}, // missing description degrades
 	}})
-	want := "# Memory Index\n" +
+	want := "---\n" +
+		"fkf_version: \"0.1\"\n" +
+		"---\n" +
+		"# Memory Index\n" +
 		"\n" +
 		"> **Memory files are post-implementation artifacts** — what actually *happened*. They are the\n" +
 		"> authoritative source of truth for system behavior and design decisions, maintained by\n" +

@@ -1,0 +1,55 @@
+id: bmzo
+name: 260615-bmzo-memory-index-log-fkf-frontmatter
+created: 2026-06-15T12:01:34Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 13
+    acceptance_count: 21
+    acceptance_completed: 21
+confidence:
+    certain: 4
+    confident: 8
+    tentative: 0
+    unresolved: 0
+    score: 3.9
+    fuzzy: true
+    dimensions:
+        signal: 89.6
+        reversibility: 71.3
+        competence: 78.8
+        disambiguation: 74.6
+stage_metrics:
+    intake: {started_at: "2026-06-15T12:01:34Z", driver: fab-new, iterations: 1, completed_at: "2026-06-15T16:52:09Z"}
+    apply: {started_at: "2026-06-15T17:13:55Z", driver: fab-fff, iterations: 2, completed_at: "2026-06-15T17:21:20Z"}
+    review: {started_at: "2026-06-15T17:21:20Z", driver: fab-fff, iterations: 2, completed_at: "2026-06-15T17:26:49Z"}
+    hydrate: {started_at: "2026-06-15T17:26:49Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-15T17:33:34Z"}
+    ship: {started_at: "2026-06-15T17:33:34Z", driver: fab-fff, iterations: 1}
+prs: []
+change_type_source: explicit
+true_impact:
+    added: 905
+    deleted: 7
+    net: 898
+    excluding:
+        added: 300
+        deleted: 2
+        net: 298
+    tests:
+        added: 165
+        deleted: 0
+        net: 165
+    computed_at: "2026-06-15T17:33:34Z"
+    computed_at_stage: hydrate
+summary: 'teach fab memory-index to emit per-folder C-lite log.md + stamp FKF frontmatter (fkf_version root, type: memory round-trip)'
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-15T17:33:34Z

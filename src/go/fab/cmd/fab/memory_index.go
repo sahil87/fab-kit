@@ -18,21 +18,26 @@ func memoryIndexCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "memory-index",
 		Short: "Deterministically (re)generate docs/memory index files",
-		Long: "Regenerates the root docs/memory/index.md (domains-only), " +
-			"every docs/memory/{domain}/index.md (file rows + a Sub-Domains " +
-			"reference table when sub-domains exist), and every " +
-			"docs/memory/{domain}/{sub-domain}/index.md (file rows) from folder " +
+		Long: "Regenerates the root docs/memory/index.md (domains-only, with the " +
+			"FKF fkf_version: \"0.1\" frontmatter), every docs/memory/{domain}/index.md " +
+			"(file rows + a Sub-Domains reference table when sub-domains exist), and " +
+			"every docs/memory/{domain}/{sub-domain}/index.md (file rows) from folder " +
 			"contents, reading each file's H1 + `description:` frontmatter and " +
-			"stamping \"Last Updated\" from git. Output is byte-stable / " +
-			"idempotent across runs, so the indexes stop drifting and stop " +
-			"generating merge conflicts. Also emits non-fatal stderr warnings " +
-			"when a folder exceeds the soft width bound (~12 files) or depth 3 " +
-			"(reserved domains _shared/ and _unsorted/ are width-exempt). With " +
-			"--check, writes nothing and classifies drift by severity in the " +
-			"exit code: 0 = clean, 1 = benign drift (regen changes content but " +
-			"destroys nothing), 2 = destructive loss (regen would wipe a curated " +
-			"description, drop a tombstone row, or flatten a custom grouping). " +
-			"--json emits the loss report machine-readably (with --check).",
+			"stamping \"Last Updated\" from git. It also emits a per-folder FKF " +
+			"log.md (C-lite change history: one batched git-log pass joined with each " +
+			"change's .status.yaml summary, change-id recovered from the git history " +
+			"and gated against the fab/changes registry; unattributable commits " +
+			"degrade gracefully). Output is byte-stable / idempotent across runs, so " +
+			"the indexes and logs stop drifting and stop generating merge conflicts. " +
+			"Also emits non-fatal stderr warnings when a folder exceeds the soft " +
+			"width bound (~12 files) or depth 3 (reserved domains _shared/ and " +
+			"_unsorted/ are width-exempt). With --check, writes nothing and " +
+			"classifies drift by severity in the exit code: 0 = clean, 1 = benign " +
+			"drift (regen changes content but destroys nothing — all log.md / FKF " +
+			"frontmatter drift is benign), 2 = destructive loss (regen would wipe a " +
+			"curated description, drop a tombstone row, or flatten a custom grouping " +
+			"— index-only categories). --json emits the loss report machine-readably " +
+			"(with --check).",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fabRoot, err := resolve.FabRoot()
@@ -72,6 +77,20 @@ func memoryIndexCmd() *cobra.Command {
 				}
 			}
 
+			// FKF per-folder log.md targets (C-lite — git history + per-change
+			// summaries). Gathered from the SAME batched git pass + the change
+			// registry; degrades to no targets when git history is unavailable.
+			// They flow through the same byte-stable write / --check loops as the
+			// indexes, but are classified as benign-drift-only (isLog) so the
+			// index-row loss detectors never false-positive on log list content.
+			logTargets, err := memoryindex.GatherLogs(repoRoot, fabRoot)
+			if err != nil {
+				return err
+			}
+			for _, lt := range logTargets {
+				targets = append(targets, indexTarget{path: lt.Path, content: lt.Content, isLog: true})
+			}
+
 			if check {
 				// Build the classifier inputs from the same targets the write
 				// path uses — reusing the rendered-vs-existing comparison, never
@@ -90,6 +109,7 @@ func memoryIndexCmd() *cobra.Command {
 						Existing: string(existing),
 						Rendered: t.content,
 						IsRoot:   t.path == filepath.Join(memRoot, "index.md"),
+						IsLog:    t.isLog,
 						LinkBase: linkBase,
 					})
 				}
@@ -182,6 +202,7 @@ func emitCheckReport(cmd *cobra.Command, report memoryindex.LossReport, jsonOut 
 type indexTarget struct {
 	path    string
 	content string
+	isLog   bool // a log.md target — benign-drift-only (no destructive-loss detectors)
 }
 
 func rel(repoRoot, path string) string {

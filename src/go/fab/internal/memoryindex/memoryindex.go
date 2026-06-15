@@ -29,6 +29,7 @@ import (
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/frontmatter"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/lines"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
 )
 
 // Shape bounds. The upper width bound and max depth are enforced as non-fatal
@@ -127,11 +128,17 @@ func (w Warning) String() string {
 // matching internal/prmeta's "—" convention for missing data.
 const missingCell = "—"
 
+// rootFrontmatter is the FKF version block RenderRoot prepends to the root
+// docs/memory/index.md — the ONLY index.md permitted frontmatter beyond the
+// generator's own output (FKF §8). No domain/sub-domain index carries it.
+const rootFrontmatter = "---\nfkf_version: \"0.1\"\n---\n"
+
 // RenderRoot assembles the complete root docs/memory/index.md markdown for d.
 // It is pure: identical RootData always yields identical output. The table is
 // domains-only — the legacy inlined per-file "Memory Files" column is dropped.
 func RenderRoot(d RootData) string {
 	var b strings.Builder
+	b.WriteString(rootFrontmatter)
 	b.WriteString("# Memory Index\n\n")
 	b.WriteString("> **Memory files are post-implementation artifacts** — what actually *happened*. They are the\n")
 	b.WriteString("> authoritative source of truth for system behavior and design decisions, maintained by\n")
@@ -280,6 +287,12 @@ func Gather(repoRoot string) (RootData, []DomainData, []Warning, error) {
 // gatherFiles reads the topic files (non-index .md) directly under domainDir,
 // sorted lexicographically by base name. dates is the batched git-date map
 // (nil when the batched pass failed — lookup then falls back per file).
+//
+// index.md and log.md are both generated, single-writer artifacts — not topic
+// files — so they are skipped. (gatherLogEntries applies the identical skip;
+// excluding log.md here is what keeps a freshly-generated tree idempotent: a
+// second `fab memory-index` run must not read the just-written log.md back as a
+// topic row and add a spurious `[log](log.md)` line to the domain index.)
 func gatherFiles(repoRoot, domainDir string, dates *gitDates) []FileEntry {
 	dirEntries, err := os.ReadDir(domainDir)
 	if err != nil {
@@ -291,7 +304,7 @@ func gatherFiles(repoRoot, domainDir string, dates *gitDates) []FileEntry {
 			continue
 		}
 		name := de.Name()
-		if !strings.HasSuffix(name, ".md") || name == "index.md" {
+		if !strings.HasSuffix(name, ".md") || name == "index.md" || name == "log.md" {
 			continue
 		}
 		path := filepath.Join(domainDir, name)
@@ -388,20 +401,54 @@ func titleCase(name string) string {
 
 // gitDates is the result of the single batched git-log pass over
 // docs/memory: the most recent commit date per file, keyed by the path
-// relative to the git top-level (slash-separated, as git prints it).
+// relative to the git top-level (slash-separated, as git prints it). The same
+// pass also captures the full per-path commit list (commitsByPath) that the
+// log.md generator joins with the change registry — both projections come from
+// ONE `git log` invocation (no per-file spawns; pw3k F34).
 type gitDates struct {
-	top    string            // `git rev-parse --show-toplevel` for repoRoot
-	byPath map[string]string // repo-relative path → YYYY-MM-DD
+	top           string                // `git rev-parse --show-toplevel` for repoRoot
+	byPath        map[string]string     // repo-relative path → newest YYYY-MM-DD
+	commitsByPath map[string][]gitTouch // repo-relative path → commits touching it, newest-first
 }
 
-// loadGitDates runs ONE `git log --date=short --name-only` pass over
-// docs/memory and records the first (= most recent, git log is newest-first)
-// date seen per path. Returns nil when git fails (not a repo, git missing) —
-// callers then fall back to the per-file gitLastUpdated. Equivalence with
-// the per-file `git log -1 -- <path>` defaults: --name-only skips
-// merge-commit file lists and does not follow renames, matching both
-// defaults; core.quotepath=off keeps non-ASCII paths unquoted so map keys
-// match filesystem paths.
+// gitTouch is one (commit, file) tuple from the batched name-status pass: the
+// commit's date and message (for change-id attribution) plus this file's
+// per-commit status code (for verb derivation). It is the C-lite log's raw
+// git input before the registry join.
+type gitTouch struct {
+	Date    string // commit date, YYYY-MM-DD
+	Subject string // commit subject line (first line)
+	Status  string // this file's name-status code in this commit (A/D/M/R.../C...)
+}
+
+// gitLogRecordSep / gitLogFieldSep are the bytes git EMITS to delimit the
+// batched `git log` stream so the commit header (date + subject) is
+// unambiguously separable from the name-status path lines, even when a subject
+// contains arbitrary text. NUL (record) and US (unit) are bytes git never emits
+// inside a one-line subject. NOTE: the `--format` string MUST use git's own
+// `%x00` / `%x1f` escapes (gitLogFormat), NOT these literal bytes — a literal
+// leading-NUL format gets swallowed when combined with --name-status, dropping
+// the header line entirely (the original date-only pass used %x00 for the same
+// reason). The parser splits on these emitted bytes.
+const (
+	gitLogRecordSep = "\x00"
+	gitLogFieldSep  = "\x1f"
+)
+
+// gitLogFormat is the --format argument (git escapes, not literal bytes):
+// "<NUL>%ad<US>%s" — record-separated date + subject header per commit.
+const gitLogFormat = "%x00%ad%x1f%s"
+
+// loadGitDates runs ONE `git log --date=short --name-status` pass over
+// docs/memory and records (a) the first (= most recent, git log is
+// newest-first) date seen per path and (b) the ordered per-path commit list
+// the log generator consumes. Returns nil when git fails (not a repo, git
+// missing) — callers then fall back to the per-file gitLastUpdated and emit no
+// log.md. Equivalence with the per-file `git log -1 -- <path>` date defaults:
+// merge commits contribute no file list (no -m), renames are not followed,
+// matching both defaults; core.quotepath=off keeps non-ASCII paths unquoted so
+// map keys match filesystem paths. --name-status (vs the former --name-only)
+// is a superset — the date projection is unchanged; the status column is new.
 func loadGitDates(repoRoot string) *gitDates {
 	topCmd := exec.Command("git", "rev-parse", "--show-toplevel")
 	if repoRoot != "" {
@@ -414,7 +461,8 @@ func loadGitDates(repoRoot string) *gitDates {
 	top := strings.TrimSpace(string(topOut))
 
 	logCmd := exec.Command("git", "-c", "core.quotepath=off", "log",
-		"--date=short", "--format=%x00%ad", "--name-only", "--", "docs/memory")
+		"--date=short", "--format="+gitLogFormat,
+		"--name-status", "--", "docs/memory")
 	if repoRoot != "" {
 		logCmd.Dir = repoRoot
 	}
@@ -422,30 +470,62 @@ func loadGitDates(repoRoot string) *gitDates {
 	if err != nil {
 		return nil
 	}
-	return &gitDates{top: top, byPath: parseGitDates(string(out))}
+	byPath, commitsByPath := parseGitLog(string(out))
+	return &gitDates{top: top, byPath: byPath, commitsByPath: commitsByPath}
 }
 
-// parseGitDates parses the `--format=%x00%ad --name-only` stream: a line
-// starting with NUL carries the commit date; subsequent non-empty lines are
-// the paths it touched. The FIRST date seen per path wins (newest-first
-// ordering). Pure function, extracted for unit tests.
-func parseGitDates(out string) map[string]string {
-	byPath := make(map[string]string)
-	current := ""
+// parseGitLog parses the batched `--format=<NUL>%ad<US>%s --name-status` stream
+// into both projections the package needs from ONE pass:
+//   - byPath: the newest date per path (FIRST date seen wins, git being
+//     newest-first) — the index's "Last Updated" source, unchanged in behavior.
+//   - commitsByPath: the ordered (newest-first) list of (date, subject, status)
+//     tuples per path — the C-lite log's raw git input.
+//
+// A record begins with a NUL line carrying "<date><US><subject>"; the following
+// name-status lines are "<status>\t<path>" (or "<status>\t<oldpath>\t<newpath>"
+// for renames/copies — the LAST tab-field is the current path). Pure function,
+// extracted for unit tests.
+func parseGitLog(out string) (byPath map[string]string, commitsByPath map[string][]gitTouch) {
+	byPath = make(map[string]string)
+	commitsByPath = make(map[string][]gitTouch)
+	curDate, curSubject := "", ""
 	for _, line := range strings.Split(out, "\n") {
-		if strings.HasPrefix(line, "\x00") {
-			current = strings.TrimSpace(line[1:])
+		if strings.HasPrefix(line, gitLogRecordSep) {
+			header := strings.TrimPrefix(line, gitLogRecordSep)
+			if i := strings.Index(header, gitLogFieldSep); i >= 0 {
+				curDate = strings.TrimSpace(header[:i])
+				curSubject = header[i+len(gitLogFieldSep):]
+			} else {
+				curDate = strings.TrimSpace(header)
+				curSubject = ""
+			}
 			continue
 		}
-		line = strings.TrimSpace(line)
-		if line == "" {
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		if _, seen := byPath[line]; !seen {
-			byPath[line] = current
+		// name-status row: "<status>\t<path>[\t<newpath>]". Tab-split; the
+		// status is field 0, the current path is the LAST field (handles
+		// rename/copy's old→new pair).
+		fields := strings.Split(line, "\t")
+		if len(fields) < 2 {
+			continue
 		}
+		status := strings.TrimSpace(fields[0])
+		path := strings.TrimSpace(fields[len(fields)-1])
+		if path == "" {
+			continue
+		}
+		if _, seen := byPath[path]; !seen {
+			byPath[path] = curDate
+		}
+		commitsByPath[path] = append(commitsByPath[path], gitTouch{
+			Date:    curDate,
+			Subject: curSubject,
+			Status:  status,
+		})
 	}
-	return byPath
+	return byPath, commitsByPath
 }
 
 // lookup returns the last-updated date for path. With a populated batch map
@@ -486,6 +566,279 @@ func gitLastUpdated(repoRoot, path string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// --- C-lite log.md: change registry + commit attribution + gathering --------
+
+// changeMeta is one registered change's identity + log inputs, keyed by its
+// 4-char id in the registry. Folder is the YYMMDD-XXXX-slug folder name; Slug
+// is the trailing slug (the §6.3 summary-absent fallback); Summary is the
+// `.status.yaml` summary: field ("" when unset).
+type changeMeta struct {
+	Folder  string
+	Slug    string
+	Summary string
+}
+
+// gatherChangeRegistry enumerates every change under fab/changes/* and
+// fab/changes/archive/** to build the canonical {id → changeMeta} map the log
+// generator joins commits against. The change owns its own identity (the folder
+// IS the registry — FKF/intake assumption #12), so this is authoritative. Each
+// change's `.status.yaml` summary: is read here (the C-lite "what"). A missing
+// fab/changes dir yields an empty (non-nil) registry — the log then degrades to
+// id-less / slug-less entries rather than erroring.
+func gatherChangeRegistry(fabRoot string) map[string]changeMeta {
+	reg := map[string]changeMeta{}
+	if fabRoot == "" {
+		return reg
+	}
+	changesDir := filepath.Join(fabRoot, "changes")
+
+	// Active changes: direct children of fab/changes/ (skip the archive dir).
+	if entries, err := os.ReadDir(changesDir); err == nil {
+		for _, e := range entries {
+			if e.IsDir() && e.Name() != "archive" {
+				registerChange(reg, changesDir, e.Name())
+			}
+		}
+	}
+	// Archived changes: fab/changes/archive/{YYYY}/{MM}/{folder} (walk for any
+	// folder holding a .status.yaml, so the bucketing layout is not hard-coded).
+	archiveDir := filepath.Join(changesDir, "archive")
+	_ = filepath.Walk(archiveDir, func(p string, info os.FileInfo, err error) error {
+		if err != nil || !info.IsDir() {
+			return nil
+		}
+		if _, statErr := os.Stat(filepath.Join(p, ".status.yaml")); statErr == nil {
+			registerChange(reg, filepath.Dir(p), filepath.Base(p))
+		}
+		return nil
+	})
+	return reg
+}
+
+// registerChange adds one folder (under parentDir) to the registry, keyed by its
+// extracted id. A folder with no parseable id is skipped (it cannot be a join
+// target). The `.status.yaml` summary: is read via internal/statusfile.
+func registerChange(reg map[string]changeMeta, parentDir, folder string) {
+	id, slug := extractIDSlug(folder)
+	if id == "" {
+		return
+	}
+	summary := ""
+	if st, err := statusfile.Load(filepath.Join(parentDir, folder, ".status.yaml")); err == nil {
+		summary = st.Summary
+	}
+	reg[id] = changeMeta{Folder: folder, Slug: slug, Summary: summary}
+}
+
+// extractIDSlug splits a YYMMDD-XXXX-slug folder name into its 4-char id and the
+// trailing slug. Mirrors internal/resolve.ExtractID's SplitN(folder,"-",3)
+// convention (kept local to avoid importing the cmd-oriented resolve package).
+// Returns ("","") when the name does not match the change-folder shape.
+func extractIDSlug(folder string) (id, slug string) {
+	parts := strings.SplitN(folder, "-", 3)
+	if len(parts) < 2 {
+		return "", ""
+	}
+	id = parts[1]
+	if len(parts) == 3 {
+		slug = parts[2]
+	}
+	return id, slug
+}
+
+// attributeCommit recovers the registered change a commit belongs to by scanning
+// its subject for a token that resolves to a registry id, returning ("", false)
+// when the commit cannot be attributed (FKF graceful degradation: a direct edit
+// on main, a pre-FKF historical commit, or a squash-merge whose branch token was
+// dropped). Two token shapes are recognized, both registry-GATED (a token only
+// counts when it maps to a known change — never raw prose):
+//   - a full YYMMDD-XXXX-slug folder name embedded in the subject (the
+//     merge-commit branch token, "Merge pull request #N from owner/<folder>");
+//   - a bare 4-char id that exactly matches a registry key.
+//
+// Gating on the registry keeps the join authoritative and false-positive-free.
+func attributeCommit(subject string, reg map[string]changeMeta) (string, bool) {
+	// 1. Full folder-name token → its id (only if that id is registered AND the
+	//    registered folder matches, so a coincidental slug can't mis-attribute).
+	for _, tok := range strings.FieldsFunc(subject, func(r rune) bool {
+		return r == ' ' || r == '/' || r == '\t' || r == '(' || r == ')' || r == ':'
+	}) {
+		id, _ := extractIDSlug(tok)
+		if id == "" {
+			continue
+		}
+		if meta, ok := reg[id]; ok && meta.Folder == tok {
+			return id, true
+		}
+	}
+	// 2. Bare registered id appearing as a standalone token.
+	for _, tok := range strings.FieldsFunc(subject, func(r rune) bool {
+		return r == ' ' || r == '/' || r == '\t' || r == '(' || r == ')' || r == ':'
+	}) {
+		if _, ok := reg[tok]; ok {
+			return tok, true
+		}
+	}
+	return "", false
+}
+
+// LogTarget is one folder's rendered log.md: its path and content, built by
+// GatherLogs. The cmd appends these to its byte-stable write / --check loop.
+type LogTarget struct {
+	Path    string // absolute log.md path
+	Content string // rendered RenderLog output
+}
+
+// GatherLogs builds the log.md targets for every domain and sub-domain folder
+// with attributable git history under repoRoot. It reuses the single batched git
+// pass (loadGitDates' commitsByPath) and the change registry (gatherChangeRegistry
+// over fabRoot), so it spawns no extra git processes. A folder with zero commits
+// touching its files is SKIPPED (no empty log.md — Design Decision 4). When the
+// batched git pass fails (non-git dir, git missing) it returns nil targets, no
+// error — the log surface degrades gracefully exactly like the index dates do.
+func GatherLogs(repoRoot, fabRoot string) ([]LogTarget, error) {
+	memRoot := filepath.Join(repoRoot, "docs", "memory")
+	entries, err := os.ReadDir(memRoot)
+	if err != nil {
+		return nil, fmt.Errorf("docs/memory not found under %s: %w", repoRoot, err)
+	}
+
+	dates := loadGitDates(repoRoot)
+	if dates == nil || dates.commitsByPath == nil {
+		return nil, nil // no git history → no logs (graceful, not an error)
+	}
+	reg := gatherChangeRegistry(fabRoot)
+
+	var targets []LogTarget
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		domainName := e.Name()
+		domainDir := filepath.Join(memRoot, domainName)
+
+		// Domain-tier log.
+		if t, ok := buildLogTarget(repoRoot, dates, reg, domainDir, domainName, ""); ok {
+			targets = append(targets, t)
+		}
+		// Sub-domain logs (one level down, mirroring the index tiers).
+		for _, sd := range gatherSubDomains(repoRoot, domainDir, dates) {
+			subDir := filepath.Join(domainDir, sd.Name)
+			if t, ok := buildLogTarget(repoRoot, dates, reg, subDir, domainName+"/"+sd.Name, sd.Title); ok {
+				targets = append(targets, t)
+			}
+		}
+	}
+	sort.Slice(targets, func(i, j int) bool { return targets[i].Path < targets[j].Path })
+	return targets, nil
+}
+
+// buildLogTarget assembles one folder's LogData → log.md target. bundleRel is
+// the folder's bundle-relative base ("distribution" or "fab-workflow/runtime").
+// titleOverride (when non-empty) is the gathered sub-domain Title; for a domain
+// it is "" and the Title is read from the folder's index.md / synthesized.
+// Returns ok=false when the folder has no attributable commits (skip, no file).
+func buildLogTarget(repoRoot string, dates *gitDates, reg map[string]changeMeta, folderDir, bundleRel, titleOverride string) (LogTarget, bool) {
+	entries := gatherLogEntries(repoRoot, dates, reg, folderDir, bundleRel)
+	if len(entries) == 0 {
+		return LogTarget{}, false
+	}
+	title := titleOverride
+	if title == "" {
+		title = domainTitle(folderDir, filepath.Base(folderDir))
+	}
+	return LogTarget{
+		Path:    filepath.Join(folderDir, "log.md"),
+		Content: RenderLog(LogData{Title: title, Entries: entries}),
+	}, true
+}
+
+// gatherLogEntries projects the batched commit history for one folder's direct
+// topic files into LogEntry values, attributing each commit to a registered
+// change (slug/summary fallback per §6.3) and deriving the verb from the
+// per-commit name-status. Entries are returned newest-commit-first (git's order),
+// with a stable secondary sort (file base then change-id) so same-date entries
+// are byte-stable across runs. Only direct topic files are considered — a
+// sub-domain's history belongs to the sub-domain's own log.
+func gatherLogEntries(repoRoot string, dates *gitDates, reg map[string]changeMeta, folderDir, bundleRel string) []LogEntry {
+	dirEntries, err := os.ReadDir(folderDir)
+	if err != nil {
+		return nil
+	}
+	var entries []LogEntry
+	for _, de := range dirEntries {
+		if de.IsDir() {
+			continue
+		}
+		name := de.Name()
+		if !strings.HasSuffix(name, ".md") || name == "index.md" || name == "log.md" {
+			continue
+		}
+		base := strings.TrimSuffix(name, ".md")
+		bundlePath := "/" + bundleRel + "/" + base + ".md"
+		rel := gitRelPath(dates, repoRoot, filepath.Join(folderDir, name))
+		for _, touch := range dates.commitsByPath[rel] {
+			summary, id := "", ""
+			if cid, ok := attributeCommit(touch.Subject, reg); ok {
+				id = cid
+				if meta := reg[cid]; meta.Summary != "" {
+					summary = meta.Summary // §6.3 the curated "what"
+				} else {
+					summary = meta.Slug // §6.3 slug fallback (summary unset)
+				}
+			} else {
+				// Unattributable commit (direct main edit, pre-FKF history, or a
+				// squash-merge that dropped the branch token): degrade gracefully
+				// per FKF §6 / R7 — omit the (change-id) and use the commit subject
+				// as the descriptive line (a git projection, still conflict-free).
+				// Falls through to the renderer's "—" when even the subject is empty.
+				summary = strings.TrimSpace(touch.Subject)
+			}
+			entries = append(entries, LogEntry{
+				Date:          touch.Date,
+				Verb:          nameStatusVerb(touch.Status),
+				FileBase:      base,
+				BundleRelPath: bundlePath,
+				Summary:       summary,
+				ChangeID:      id,
+			})
+		}
+	}
+	// Stable deterministic order: newest date first, then file base, then id —
+	// independent of os.ReadDir order so the output is byte-stable.
+	sort.SliceStable(entries, func(i, j int) bool {
+		if entries[i].Date != entries[j].Date {
+			return entries[i].Date > entries[j].Date
+		}
+		if entries[i].FileBase != entries[j].FileBase {
+			return entries[i].FileBase < entries[j].FileBase
+		}
+		return entries[i].ChangeID < entries[j].ChangeID
+	})
+	return entries
+}
+
+// gitRelPath returns path expressed relative to the git top-level in the
+// slash-separated form parseGitLog keyed commitsByPath by (matching how git
+// prints paths). Falls back to a docs/memory-relative guess when the top is
+// unknown.
+func gitRelPath(dates *gitDates, repoRoot, path string) string {
+	if dates != nil && dates.top != "" {
+		if rel, err := filepath.Rel(dates.top, path); err == nil && !strings.HasPrefix(rel, "..") {
+			return filepath.ToSlash(rel)
+		}
+		if resolved, rerr := filepath.EvalSymlinks(path); rerr == nil {
+			if rel, err := filepath.Rel(dates.top, resolved); err == nil && !strings.HasPrefix(rel, "..") {
+				return filepath.ToSlash(rel)
+			}
+		}
+	}
+	if rel, err := filepath.Rel(repoRoot, path); err == nil {
+		return filepath.ToSlash(rel)
+	}
+	return filepath.ToSlash(path)
 }
 
 // depthWarnings walks domainDir for any .md file whose depth under docs/memory/

@@ -27,8 +27,8 @@ func TestRenderRoot_DomainsOnly(t *testing.T) {
 	if !strings.HasSuffix(got, wantRows) {
 		t.Fatalf("RenderRoot table mismatch.\n--- got ---\n%s\n--- want suffix ---\n%s", got, wantRows)
 	}
-	if !strings.HasPrefix(got, "# Memory Index\n") {
-		t.Errorf("RenderRoot should start with the Memory Index H1, got:\n%s", got)
+	if !strings.HasPrefix(got, "---\nfkf_version: \"0.1\"\n---\n# Memory Index\n") {
+		t.Errorf("RenderRoot should start with the fkf_version frontmatter + Memory Index H1, got:\n%s", got)
 	}
 	if strings.Contains(got, "Memory Files") {
 		t.Error("RenderRoot must NOT contain the legacy 'Memory Files' per-file column")
@@ -452,29 +452,65 @@ func TestGather_SubDomainRenderIdempotent(t *testing.T) {
 
 // --- Batched git-date pass (F34) -------------------------------------------
 
-func TestParseGitDates(t *testing.T) {
-	t.Run("first (most recent) date per path wins", func(t *testing.T) {
-		out := "\x002026-06-10\n\ndocs/memory/auth/x.md\ndocs/memory/auth/y.md\n\n" +
-			"\x002026-05-01\n\ndocs/memory/auth/x.md\ndocs/memory/pay/z.md\n"
-		got := parseGitDates(out)
-		want := map[string]string{
+func TestParseGitLog(t *testing.T) {
+	// New batched format: a record line "<NUL><date><US><subject>", then
+	// "<status>\t<path>" name-status rows.
+	rec := func(date, subject string) string {
+		return gitLogRecordSep + date + gitLogFieldSep + subject + "\n"
+	}
+	t.Run("first (most recent) date per path wins; commits captured per path", func(t *testing.T) {
+		out := rec("2026-06-10", "feat: thing (#420)") +
+			"M\tdocs/memory/auth/x.md\nA\tdocs/memory/auth/y.md\n\n" +
+			rec("2026-05-01", "Merge pull request #1 from o/260501-aaaa-slug") +
+			"M\tdocs/memory/auth/x.md\nM\tdocs/memory/pay/z.md\n"
+		byPath, commits := parseGitLog(out)
+
+		wantDates := map[string]string{
 			"docs/memory/auth/x.md": "2026-06-10", // newest-first: first seen wins
 			"docs/memory/auth/y.md": "2026-06-10",
 			"docs/memory/pay/z.md":  "2026-05-01",
 		}
-		for path, date := range want {
-			if got[path] != date {
-				t.Errorf("parseGitDates[%q] = %q, want %q", path, got[path], date)
+		for path, date := range wantDates {
+			if byPath[path] != date {
+				t.Errorf("parseGitLog byPath[%q] = %q, want %q", path, byPath[path], date)
 			}
 		}
-		if len(got) != len(want) {
-			t.Errorf("parseGitDates returned %d entries, want %d: %v", len(got), len(want), got)
+		if len(byPath) != len(wantDates) {
+			t.Errorf("parseGitLog byPath returned %d entries, want %d: %v", len(byPath), len(wantDates), byPath)
+		}
+		// x.md was touched by both commits, newest-first; status + subject captured.
+		xc := commits["docs/memory/auth/x.md"]
+		if len(xc) != 2 {
+			t.Fatalf("x.md should have 2 commits, got %d: %+v", len(xc), xc)
+		}
+		if xc[0].Date != "2026-06-10" || xc[0].Status != "M" || xc[0].Subject != "feat: thing (#420)" {
+			t.Errorf("x.md newest commit mismatch: %+v", xc[0])
+		}
+		if xc[1].Subject != "Merge pull request #1 from o/260501-aaaa-slug" {
+			t.Errorf("x.md older commit subject mismatch: %+v", xc[1])
+		}
+		// y.md was an addition.
+		if yc := commits["docs/memory/auth/y.md"]; len(yc) != 1 || yc[0].Status != "A" {
+			t.Errorf("y.md should have 1 added commit, got %+v", yc)
 		}
 	})
 
-	t.Run("empty input yields empty map", func(t *testing.T) {
-		if got := parseGitDates(""); len(got) != 0 {
-			t.Errorf("parseGitDates(\"\") = %v, want empty", got)
+	t.Run("rename row uses the new (last) path", func(t *testing.T) {
+		out := rec("2026-06-08", "docs: reorg (#381)") +
+			"R099\tdocs/memory/old/foo.md\tdocs/memory/new/foo.md\n"
+		byPath, commits := parseGitLog(out)
+		if _, ok := byPath["docs/memory/new/foo.md"]; !ok {
+			t.Errorf("rename should key the NEW path, got %v", byPath)
+		}
+		if c := commits["docs/memory/new/foo.md"]; len(c) != 1 || c[0].Status != "R099" {
+			t.Errorf("rename status should be preserved on the new path, got %+v", c)
+		}
+	})
+
+	t.Run("empty input yields empty maps", func(t *testing.T) {
+		byPath, commits := parseGitLog("")
+		if len(byPath) != 0 || len(commits) != 0 {
+			t.Errorf("parseGitLog(\"\") = (%v,%v), want empty", byPath, commits)
 		}
 	})
 }
