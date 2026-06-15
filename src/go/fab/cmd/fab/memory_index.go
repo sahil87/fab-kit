@@ -125,10 +125,15 @@ func memoryIndexCmd() *cobra.Command {
 	return cmd
 }
 
-// backfillPointer is the remediation pointer appended to the tier-2 human
-// report — the refuse-before-regen escape hatch for a pre-fab-kit tree.
-const backfillPointer = "→ run /docs-hydrate-memory (backfill mode) to backfill description: " +
-	"frontmatter and relocate removal-history rows before regenerating."
+// remediationPointer is the remediation pointer appended to the tier-2 human
+// report — the refuse-before-regen escape hatch for a pre-fab-kit tree. It
+// names /docs-reorg-memory, the orchestrator that handles all three tier-2
+// categories: it relocates removal-history (tombstone) rows itself and
+// dispatches /docs-hydrate-memory backfill mode for description: frontmatter
+// (backfill alone does NOT relocate tombstones — that is reorg's job).
+const remediationPointer = "→ run /docs-reorg-memory to remediate (it relocates removal-history rows " +
+	"to _shared/removed-domains.md and backfills description: frontmatter via " +
+	"/docs-hydrate-memory) before regenerating."
 
 // emitCheckReport renders the --check report and maps the severity tier onto
 // the process exit code. Tier 0 returns nil (cobra → exit 0); tier 1 returns a
@@ -155,7 +160,7 @@ func emitCheckReport(cmd *cobra.Command, report memoryindex.LossReport, jsonOut 
 			for _, l := range report.Losses {
 				fmt.Fprintf(err, "  [%s] %s: %s\n", l.Category, l.Path, l.Detail)
 			}
-			fmt.Fprintln(err, backfillPointer)
+			fmt.Fprintln(err, remediationPointer)
 		}
 		os.Exit(2)
 		return nil // unreachable

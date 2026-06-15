@@ -515,8 +515,11 @@ Tiered `--check` exit codes (loss is a strict subset of drift — one render pas
   whose `docs/memory/`-relative link target is absent on disk (external/absolute links excluded —
   no false positives); (3) a custom structural **grouping** heading in the root `index.md` beyond
   the domains-only table. Writes nothing; enumerates each loss to stderr by category; the
-  human-readable output ends with the pointer `→ run /docs-hydrate-memory (backfill mode) to
-  backfill description: frontmatter and relocate removal-history rows before regenerating.`
+  human-readable output ends with the pointer `→ run /docs-reorg-memory to remediate (it relocates
+  removal-history rows to _shared/removed-domains.md and backfills description: frontmatter via
+  /docs-hydrate-memory) before regenerating.` (`/docs-reorg-memory` is the orchestrator that handles
+  all three categories — it relocates tombstone rows itself and dispatches `/docs-hydrate-memory`
+  backfill mode for the descriptions; backfill alone does not relocate tombstones.)
 
 Callers pick a threshold: **CI / pre-commit** fails on exit ≥ 1 (any drift); the **hydrate /
 reorg refuse-before-regen guards** fail only on exit == 2. A **born-compatible fab-kit tree is
@@ -524,7 +527,10 @@ provably never exit 2** (frontmatter present, no off-disk rows, domains-only roo
 refuse-before-regen guards are no-ops on native trees and only ever fire on a pre-fab-kit tree.
 
 Other exit codes:
-- non-zero (1) — `docs/memory/` not found or a write failed (non-`--check` runs).
+- non-zero (1) — an operational error: `docs/memory/` not found (or another `Gather` failure), or a
+  write failed. `Gather` runs before the `--check` branch, so a `--check` run also exits 1 on these —
+  the exit-1 / exit-2 *tier* codes above apply only once gather succeeds and the comparison runs.
+  Writes happen only on non-`--check` runs, so a write failure is non-`--check`-only.
 
 Consumers: the hydrate skills (`/docs-hydrate-memory` Step 4 + its refuse-before-regen guard,
 `/fab-continue` hydrate + its defense-in-depth guard) and `/docs-reorg-memory` (compatibility

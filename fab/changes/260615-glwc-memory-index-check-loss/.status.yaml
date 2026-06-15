@@ -2,7 +2,7 @@ id: glwc
 name: 260615-glwc-memory-index-check-loss
 created: 2026-06-15T03:22:13Z
 created_by: sahil-noon
-change_type: feat
+change_type: fix
 issues: []
 progress:
     intake: done
@@ -52,4 +52,4 @@ true_impact:
     computed_at: "2026-06-15T05:04:57Z"
     computed_at_stage: hydrate
 # true_impact: lazily created on first apply-finish (no placeholder here).
-last_updated: 2026-06-15T05:06:35Z
+last_updated: 2026-06-15T05:17:02Z

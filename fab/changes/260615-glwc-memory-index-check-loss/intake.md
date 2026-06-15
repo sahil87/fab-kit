@@ -41,7 +41,7 @@ Rather than a separate `--check-loss` flag, **extend the existing `--check` flag
 
 - **Exit 0** — indexes clean (no regen needed).
 - **Exit 1** — benign drift only (regen would change something, but destroys nothing — e.g. an *improved* description, a refreshed `Last Updated`). This is the current "out of date" condition.
-- **Exit 2** — destructive loss (regen would wipe curated/historical content). Writes nothing; enumerates each loss to stderr by category; ends with the pointer `→ run /docs-hydrate-memory (backfill mode) ...`.
+- **Exit 2** — destructive loss (regen would wipe curated/historical content). Writes nothing; enumerates each loss to stderr by category; ends with the pointer `→ run /docs-reorg-memory to remediate ...` (the orchestrator that relocates tombstone rows and dispatches `/docs-hydrate-memory` backfill mode for descriptions).
 
 Loss is a **strict subset of drift**, so one render pass + one comparison serves both tiers — no second flag, no `--check --check-loss` ambiguity. Callers pick their threshold: **CI / pre-commit** fails on exit ≥ 1 (any drift — the existing contract, now tiered); the **hydrate guard and reorg** fail only on exit == 2 (destructive loss). Existing `--check` consumers that treat "non-zero = out of date" keep working unchanged (any drift is still non-zero); only the *granularity* of the code is new. An optional **`--json`** form (decision #13) emits the loss report machine-readably for reorg to parse robustly (mirrors `fab migrations-status [--json]`).
 
