@@ -1,0 +1,54 @@
+id: mmmt
+name: 260615-mmmt-non-blocking-operator-escalation
+created: 2026-06-15T17:04:32Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 5
+    acceptance_count: 15
+    acceptance_completed: 0
+confidence:
+    certain: 4
+    confident: 6
+    tentative: 2
+    unresolved: 0
+    score: 4.1
+    fuzzy: true
+    dimensions:
+        signal: 81.7
+        reversibility: 78.8
+        competence: 84.2
+        disambiguation: 80.0
+stage_metrics:
+    intake: {started_at: "2026-06-15T17:04:32Z", driver: fab-new, iterations: 1, completed_at: "2026-06-15T20:32:50Z"}
+    apply: {started_at: "2026-06-15T20:46:51Z", driver: fab-fff, iterations: 2, completed_at: "2026-06-15T20:50:04Z"}
+    review: {started_at: "2026-06-15T20:50:04Z", driver: fab-fff, iterations: 2, completed_at: "2026-06-15T20:54:36Z"}
+    hydrate: {started_at: "2026-06-15T20:54:36Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-15T20:58:37Z"}
+    ship: {started_at: "2026-06-15T20:58:37Z", driver: fab-fff, iterations: 1}
+prs: []
+change_type_source: explicit
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-06-15T20:58:38Z"
+    computed_at_stage: hydrate
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-15T20:58:38Z

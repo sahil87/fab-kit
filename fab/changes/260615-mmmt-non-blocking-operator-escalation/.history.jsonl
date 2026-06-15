@@ -1,0 +1,22 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-15T17:04:32Z"}
+{"args":"Non-blocking operator question-handling: make strategic escalation non-blocking (post out-of-band, keep ticking), adaptive heartbeat on interactive menu, configurable shorter auto-default, auto-pick-and-notify, notification channel (ntfy.sh primary, explore alternatives). Updates fab-operator §4/§5/§8 + SPEC mirror.","cmd":"fab-new","event":"command","ts":"2026-06-15T17:04:32Z"}
+{"delta":"+4.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-06-15T17:37:36Z"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-06-15T17:37:41Z"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-06-15T20:31:02Z"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-06-15T20:31:25Z"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-06-15T20:31:34Z"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-06-15T20:31:41Z"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-06-15T20:31:48Z"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-06-15T20:32:03Z"}
+{"delta":"+0.1","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-15T20:32:13Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-15T20:32:18Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-15T20:32:25Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-06-15T20:32:43Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-15T20:32:50Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-15T20:40:20Z"}
+{"event":"review","result":"failed","ts":"2026-06-15T20:46:51Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-15T20:46:51Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-15T20:50:04Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-06-15T20:54:36Z"}
+{"event":"review","result":"passed","ts":"2026-06-15T20:54:36Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-15T20:58:38Z"}
