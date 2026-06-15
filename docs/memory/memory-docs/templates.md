@@ -1,5 +1,6 @@
 ---
-description: "Artifact templates (intake, plan), skill frontmatter (incl. `helpers:` + the one-shared-helper-per-phase decomposition `_generation`/`_review`/`_intake`/`_pipeline`, symmetry completed by 3xaj), and memory file format (incl. `description:` frontmatter + generated domains-only index, tciy; FKF `type: memory`/`fkf_version` frontmatter + generated per-folder C-lite `log.md`, bmzo). `plan.md` (`## Requirements` + `## Tasks` + `## Acceptance` + optional review-owned `## Deletion Candidates`) absorbs the former `spec.md` (j6cs) and the prior `tasks.md` + `checklist.md` pair; acceptance R# mandate scoped to requirement-derived categories, plan Assumptions = three grades, no Status header lines (uliv). Memory Tree Shape also homes `docs-reorg-memory`'s file-moving rebalancer + pre-fab-kit compatibility orchestration (detect missing frontmatter/tombstones/groupings → relocate tombstones to `_shared/removed-domains.md` → dispatch hydrate backfill → single regen — 5ewp; detection now MECHANICAL via `fab memory-index --check --json` with older-binary prose fallback — glwc)"
+type: memory
+description: "Artifact templates (intake, plan), skill frontmatter (incl. `helpers:` + the one-shared-helper-per-phase decomposition `_generation`/`_review`/`_intake`/`_pipeline`, symmetry completed by 3xaj), and memory file format (incl. `description:` frontmatter + generated domains-only index, tciy; FKF `type: memory`/`fkf_version` frontmatter + generated per-folder C-lite `log.md`, bmzo; doc skills now author `type: memory`, stop writing per-file `## Changelog` (record via `fab status set-summary`), and use bundle-relative links — 8fr5). `plan.md` (`## Requirements` + `## Tasks` + `## Acceptance` + optional review-owned `## Deletion Candidates`) absorbs the former `spec.md` (j6cs) and the prior `tasks.md` + `checklist.md` pair; acceptance R# mandate scoped to requirement-derived categories, plan Assumptions = three grades, no Status header lines (uliv). Memory Tree Shape also homes `docs-reorg-memory`'s file-moving rebalancer + pre-fab-kit compatibility orchestration (detect missing frontmatter/tombstones/groupings → relocate tombstones to `_shared/removed-domains.md` → dispatch hydrate backfill → single regen — 5ewp; detection now MECHANICAL via `fab memory-index --check --json` with older-binary prose fallback — glwc)"
 ---
 # Templates
 
@@ -117,11 +118,19 @@ The symmetry was **completed by 3xaj**: `_intake` (pre-boundary intake creation)
 
 Memory files are the source of truth for system behavior and design decisions. Structure:
 
-- **`description:` frontmatter** — a leading YAML frontmatter block (`---\ndescription: "..."\n---`) above the `# H1`, carrying a curated one-line summary. Load-bearing: the generated domain index reads each row's Description from this field (auto-deriving it from the H1/Overview is lossy — see the design decision below). Authored by every memory writer (hydrate, `/docs-hydrate-memory`, `docs-reorg-memory`). Under **FKF** ([fkf.md](../../specs/fkf.md) §3.1) the frontmatter block also carries `type: memory` — the constant FKF type on every memory (concept) file. As of bmzo `fab memory-index` understands this field as a **preserve-when-present round-trip mechanism** (it keeps `type: memory` on a file it round-trips and never strips it), but it does **not** author or bulk-stamp `type:` into topic files — authoring it onto new files is a later FKF skill change (3/4) and bulk-stamping the existing ~20 files is the FKF tree migration (4/4). So today most existing memory files do **not** yet carry `type: memory`; that is benign (FKF consumers degrade gracefully) and is corrected by the later migration, not by the generator
+- **`type: memory` + `description:` frontmatter** — a leading YAML frontmatter block above the `# H1` carrying the two required FKF fields ([fkf.md](../../specs/fkf.md) §2 items 1–2):
+  ```yaml
+  ---
+  type: memory
+  description: "One-line summary used by the generated domain-index row."
+  ---
+  ```
+  - **`type: memory`** (FKF §3.1) — the constant FKF type stamped on every memory (concept) file. It is machine-stamped by every memory writer, never hand-curated. As of **8fr5** the doc skills **author it onto every new/backfilled memory file** — `/fab-continue` hydrate and all three `/docs-hydrate-memory` modes (ingest authors it, generate's template carries it, backfill stamps it body-preservingly). `fab memory-index` provides only the **preserve-when-present round-trip** (bmzo — keeps `type: memory` on a file it round-trips, never strips it); it does **not** bulk-stamp the existing ~20 files (that is the FKF tree migration, 4/4). So today most *pre-existing* files do not yet carry `type: memory` — benign (FKF consumers degrade gracefully), corrected by the later bulk migration, not the generator
+  - **`description:`** (FKF §3.2) — a curated one-line summary. Load-bearing: the generated domain index reads each row's Description from this field (auto-deriving it from the H1/Overview is lossy — see the design decision below). Authored and kept accurate by every memory writer (hydrate, `/docs-hydrate-memory`, `docs-reorg-memory`)
 - **Overview** — 1-2 sentences describing what the file covers
 - **Requirements** — Using RFC 2119 keywords, with GIVEN/WHEN/THEN scenarios
 - **Design Decisions** — Durable architectural decisions extracted from specs during hydration. Each includes decision, rationale, rejected alternatives, and the introducing change name
-- **Changelog** — A hand-maintained, most-recent-first table appended by `/fab-continue` (hydrate). **FKF replaces this per-file table with a generated per-folder `log.md`** (see Generated `log.md` below), but the strip is **not done yet** — the per-file `## Changelog` table is still authored at hydrate today, and removing it across the tree is a later FKF change (3/4). bmzo only ships the `log.md` generator; it does not touch the existing per-file tables
+- **No `## Changelog` section** — FKF removes the per-file changelog table (§3.3); change history lives in the generated per-folder `log.md` (see Generated `log.md` below). As of **8fr5** the doc skills **stop writing new `## Changelog` sections** — `/fab-continue` hydrate and `/docs-hydrate-memory` no longer author one; instead they record the one-line what-changed once via `fab status set-summary {change} "..."` (the C-lite `summary:` source field, §6.3, that `fab memory-index` joins with git history to generate `log.md`). The **bulk strip** of the `## Changelog` tables from the existing ~20 files is a separate later FKF change (4/4) — 8fr5 only stops *new* writes; backfill stays body-preserving and never strips an existing changelog body. Memory↔memory cross-links written into a file body use the **bundle-relative `/...` form** (§7); links out of the bundle stay repo-relative/absolute-URL
 
 #### Index Hierarchy (generated — never hand-edited)
 
@@ -134,7 +143,7 @@ All index levels (and, since bmzo, the per-folder `log.md` documented below) are
 
 #### Generated `log.md` (FKF C-lite — bmzo)
 
-Alongside the index tiers, `fab memory-index` emits a **per-folder `log.md`** for every domain **and** sub-domain folder with attributable git history (FKF §6, shipped in bmzo). Like `index.md`, `log.md` is a **single-writer, byte-stable generated artifact** — agents never hand-edit it. It is the C-lite change log that FKF designates to replace the per-file `## Changelog` tables (the table strip itself is a later FKF change — see the Changelog bullet above).
+Alongside the index tiers, `fab memory-index` emits a **per-folder `log.md`** for every domain **and** sub-domain folder with attributable git history (FKF §6, shipped in bmzo). Like `index.md`, `log.md` is a **single-writer, byte-stable generated artifact** — agents never hand-edit it. It is the C-lite change log that FKF designates to replace the per-file `## Changelog` tables: as of **8fr5** the doc skills stop *writing* new changelog rows (recording the what-changed via `fab status set-summary` instead — see the No-`## Changelog` bullet above and Hydration Rule 5), and the **bulk strip** of the existing per-file tables is a separate later FKF change (4/4).
 
 Generated shape (FKF §6.2):
 
@@ -171,11 +180,11 @@ Beyond the file-moving rebalance, `docs-reorg-memory` is also the **single front
 #### Hydration Rules
 
 When `/fab-continue` (hydrate) hydrates into memory files:
-1. **New file**: Create from template (including the `description:` frontmatter). If the domain is new, create the domain folder
-2. **Existing file**: Compare spec requirements against current file. Update Requirements section semantically. Minimize edits to unchanged sections. Keep the `description:` frontmatter accurate
+1. **New file**: Create from template (including the FKF frontmatter — both `type: memory` and a curated `description:`). If the domain is new, create the domain folder
+2. **Existing file**: Compare spec requirements against current file. Update Requirements section semantically. Minimize edits to unchanged sections. Keep the `description:` frontmatter accurate (and stamp `type: memory` if the pre-existing file lacks it). Memory↔memory cross-links written use the bundle-relative `/...` form (FKF §7)
 3. **Design decisions**: Extract durable decisions from spec. Skip tactical details. Add with change name for traceability
 4. **Index + log updates**: Run `fab memory-index` — it regenerates the root (domains-only) + every domain + every sub-domain index, and (since bmzo) the per-folder `log.md` files and the root-index `fkf_version` frontmatter, deterministically from folder contents + frontmatter + git history. Never hand-edit index rows, "Last Updated" cells, or `log.md`; the command is the single writer of all of them
-5. **Changelog row**: Append to the file's per-file `## Changelog` table with change name, date, summary (still hand-maintained today — FKF's generated `log.md` is the eventual replacement but the per-file table is not stripped until a later FKF change)
+5. **What-changed summary (not a changelog row)**: As of **8fr5**, hydrate no longer appends a per-file `## Changelog` row. Instead it records the one-line what-changed **once** via `fab status set-summary {change} "<one-line what-changed>"` — the C-lite `summary:` source field (FKF §6.3) that `fab memory-index` joins with git history to generate the per-folder `log.md`. The summary lives in the change's own `.status.yaml` (zero conflict surface), authored once at hydrate
 
 ## Design Decisions
 

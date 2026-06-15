@@ -12,6 +12,8 @@ Advances through the 6-stage pipeline one step at a time. Each invocation handle
 
 **Helpers**: Declares `helpers: [_srad]` in frontmatter; `_generation` and `_review` are loaded **stage-conditionally** at point of use (apply entry / intake regeneration → `_generation`; Review Behavior entry → `_review`) per `_preamble.md` § Skill Helper Declaration stage-conditional loading. Hydrate/ship/review-pr invocations and apply-resumes load neither.
 
+**FKF hydrate prose** (260615-8fr5): Hydrate Behavior authors memory files to the FKF contract (`docs/specs/fkf.md`). New memory files carry the FKF frontmatter pair — `type: memory` (constant, §3.1) plus a curated `description:` one-liner (§3.2) — not `description:` alone. Hydrate no longer writes a per-file `## Changelog` section (§3.3): it records what changed once via `fab status set-summary {change} "<one-line what-changed>"` (the C-lite `summary:` source line, §6.3, authored once at hydrate), which `fab memory-index` joins with git history to generate the per-folder `log.md` (§6). Memory↔memory cross-links use the bundle-relative `/...` form (§7); links out of the bundle stay repo-relative/absolute-URL. The "update existing" section list drops `Changelog` (now Requirements/Design Decisions only); the merge-without-duplication contract is unchanged. When hydrate edits an existing/legacy memory file missing `type: memory`, it stamps the constant in so the touched file becomes FKF-conforming (§2/§3.1 require `type: memory` on every memory file, stamped by every memory writer — not just on creation). This is FKF migration Change 3/4 — it stops *new* changelog writes; the strip of the 20 existing `## Changelog` sections is Change 4/4.
+
 ## Flow
 
 ```
@@ -119,9 +121,15 @@ User invokes /fab-continue [change-name] [stage]
 │  │                                                 │
 │  │  Read: docs/memory/ files, intake.md            │
 │  │  Write/Edit: docs/memory/{domain}/{file}.md     │
-│  │    (with description: frontmatter; merge        │
-│  │     without duplication — existing entries      │
-│  │     for this change are updated in place)       │
+│  │    (FKF frontmatter: type: memory + curated     │
+│  │     description:; NO per-file ## Changelog —    │
+│  │     bundle-relative /... memory↔memory links;   │
+│  │     merge without duplication — existing        │
+│  │     entries for this change updated in place)   │
+│  │  Bash: fab status set-summary <change> "<one-   │
+│  │     line what-changed>"  (C-lite summary:       │
+│  │     source; fab memory-index joins it with git  │
+│  │     history into the per-folder log.md)         │
 │  │  Bash: fab memory-index --check (refuse-before- │
 │  │   regen guard, defense-in-depth: refuse on exit │
 │  │   2; no-op on born-compatible trees) →          │
@@ -161,7 +169,7 @@ User invokes /fab-continue [change-name] [stage]
 | Read | Preamble, templates, artifacts, source files, memory |
 | Write | Plan (`plan.md`), memory files |
 | Edit | Plan (mark `## Tasks` and `## Acceptance` items [x]), memory files |
-| Bash | All `fab status` transitions, `fab preflight`, `fab memory-index` (+ a `fab memory-index --check` refuse-before-regen guard at the hydrate stage — defense-in-depth, refuses on exit 2, a no-op on born-compatible trees), test execution — no `fab score` (no scoring at any stage `/fab-continue` runs; intake scoring belongs to `/fab-new`/`/fab-clarify`) |
+| Bash | All `fab status` transitions, `fab preflight`, `fab status set-summary` (hydrate — the C-lite `summary:` source for the generated `log.md`), `fab memory-index` (+ a `fab memory-index --check` refuse-before-regen guard at the hydrate stage — defense-in-depth, refuses on exit 2, a no-op on born-compatible trees), test execution — no `fab score` (no scoring at any stage `/fab-continue` runs; intake scoring belongs to `/fab-new`/`/fab-clarify`) |
 | Agent | Review validation sub-agent (general-purpose) |
 
 ### Sub-agents
