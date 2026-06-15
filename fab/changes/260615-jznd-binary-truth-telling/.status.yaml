@@ -1,0 +1,53 @@
+id: jznd
+name: 260615-jznd-binary-truth-telling
+created: 2026-06-15T04:45:42Z
+created_by: sahil-noon
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 14
+    acceptance_count: 18
+    acceptance_completed: 18
+confidence:
+    certain: 1
+    confident: 7
+    tentative: 0
+    unresolved: 0
+    score: 2.9
+    fuzzy: true
+    dimensions:
+        signal: 95.0
+        reversibility: 68.6
+        competence: 78.6
+        disambiguation: 74.3
+stage_metrics:
+    intake: {started_at: "2026-06-15T04:45:42Z", driver: fab-new, iterations: 1, completed_at: "2026-06-15T05:07:10Z"}
+    apply: {started_at: "2026-06-15T05:07:10Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-15T05:23:04Z"}
+    review: {started_at: "2026-06-15T05:23:04Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-15T05:30:53Z"}
+    hydrate: {started_at: "2026-06-15T05:30:53Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-15T05:38:48Z"}
+    ship: {started_at: "2026-06-15T05:38:48Z", driver: fab-fff, iterations: 1}
+prs: []
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-06-15T05:38:48Z"
+    computed_at_stage: hydrate
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-15T05:38:48Z

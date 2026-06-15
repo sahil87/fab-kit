@@ -65,12 +65,16 @@ func Archive(fabRoot, changeArg, description string) (*ArchiveResult, error) {
 
 	folder, err := resolve.ToFolder(fabRoot, changeArg)
 	if err != nil {
-		// A change that no longer lives in fab/changes/ may already be in the
-		// archive — that is the idempotent re-archive soft skip (exit 0 at the
-		// cmd layer), not a resolution failure. Ambiguous or absent archive
-		// matches fall through to the original error.
-		if _, archivedDir, archErr := resolveArchive(fabRoot, changeArg); archErr == nil {
-			return nil, fmt.Errorf("%w: %s", ErrAlreadyArchived, archivedDir)
+		// Only a genuine not-found (the name matches no active change) may mean
+		// "already archived" — that is the idempotent re-archive soft skip
+		// (exit 0 at the cmd layer). An ambiguous name is a real user error and
+		// MUST surface as-is, not be silently soft-skipped by guessing against
+		// the archive (jznd (d)). Ambiguous or absent archive matches fall
+		// through to the original error.
+		if errors.Is(err, resolve.ErrNotFound) {
+			if _, archivedDir, archErr := resolveArchive(fabRoot, changeArg); archErr == nil {
+				return nil, fmt.Errorf("%w: %s", ErrAlreadyArchived, archivedDir)
+			}
 		}
 		return nil, err
 	}

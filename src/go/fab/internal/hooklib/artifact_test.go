@@ -159,6 +159,42 @@ func TestInferChangeType_Fix(t *testing.T) {
 	}
 }
 
+// TestInferChangeType_MustFixNonMatch covers jznd (a): a feature intake that
+// merely mentions "must-fix"/"must fix" in passing must NOT be misclassified
+// as `fix` just because RE2 treats the hyphen as a word boundary.
+func TestInferChangeType_MustFixNonMatch(t *testing.T) {
+	tests := []struct {
+		content string
+		want    string
+	}{
+		{"Add a widget; reviewers flagged it must-fix before merge", "feat"},
+		{"This is a must fix item per the rubric, but it adds a feature", "feat"},
+		{"A must-fix checklist gate for the new dashboard", "feat"},
+	}
+	for _, tt := range tests {
+		got := InferChangeType(tt.content)
+		if got != tt.want {
+			t.Errorf("InferChangeType(%q) = %q, want %q (must-fix should not trigger fix)", tt.content, got, tt.want)
+		}
+	}
+}
+
+// TestInferChangeType_HyphenatedFixCompounds covers jznd (a): fix-describing
+// compounds still classify `fix`. bug-fix/bug-free match via the standalone
+// `bug` token; hot-fix matches via `fix` (no `must` directive guard applies).
+func TestInferChangeType_HyphenatedFixCompounds(t *testing.T) {
+	tests := []string{
+		"Ship the bug-fix for the parser",
+		"Apply the hot-fix to production",
+		"Make the allocator bug-free",
+	}
+	for _, content := range tests {
+		if got := InferChangeType(content); got != "fix" {
+			t.Errorf("InferChangeType(%q) = %q, want fix", content, got)
+		}
+	}
+}
+
 func TestInferChangeType_Refactor(t *testing.T) {
 	tests := []struct {
 		content string

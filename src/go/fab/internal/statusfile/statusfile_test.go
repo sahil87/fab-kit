@@ -642,6 +642,74 @@ func TestSparseFile_ChangeTypeAndConfidencePersist(t *testing.T) {
 	}
 }
 
+// TestChangeTypeSource_AbsentDefaultsInferred covers jznd (2/a): a status file
+// with no change_type_source key loads as empty (== inferred) and stays absent
+// on round-trip (back-compat — no empty scalar emitted).
+func TestChangeTypeSource_AbsentDefaultsInferred(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	os.WriteFile(path, []byte(testYAML), 0644)
+
+	sf, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if sf.ChangeTypeSource != "" {
+		t.Errorf("absent change_type_source should load empty (== inferred), got %q", sf.ChangeTypeSource)
+	}
+
+	out := filepath.Join(dir, ".status-out.yaml")
+	if err := sf.Save(out); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	data, _ := os.ReadFile(out)
+	if strings.Contains(string(data), "change_type_source:") {
+		t.Errorf("empty change_type_source must not be serialized, got:\n%s", data)
+	}
+}
+
+// TestChangeTypeSource_ExplicitRoundTrips covers jznd (2/a): setting the source
+// explicit persists and reloads, including on a sparse document (insert-when-
+// absent path).
+func TestChangeTypeSource_ExplicitRoundTrips(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	os.WriteFile(path, []byte(testYAML), 0644)
+
+	sf, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	sf.ChangeType = "feat"
+	sf.ChangeTypeSource = SourceExplicit
+	if err := sf.Save(path); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	reloaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.ChangeTypeSource != SourceExplicit {
+		t.Errorf("change_type_source dropped: %q", reloaded.ChangeTypeSource)
+	}
+}
+
+func TestSparseFile_ChangeTypeSourceInserts(t *testing.T) {
+	sf, path := loadSparse(t)
+	sf.ChangeType = "fix"
+	sf.ChangeTypeSource = SourceExplicit
+	if err := sf.Save(path); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	reloaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.ChangeTypeSource != SourceExplicit {
+		t.Errorf("change_type_source not inserted on sparse file: %q", reloaded.ChangeTypeSource)
+	}
+}
+
 func TestSparseFile_StageMetricsAndPlanPersist(t *testing.T) {
 	sf, path := loadSparse(t)
 

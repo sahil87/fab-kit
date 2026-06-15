@@ -89,11 +89,17 @@ func MatchArtifactPath(filePath string) (ArtifactMatch, bool) {
 
 // changeTypePatterns defines keyword patterns for inferring change type.
 // Order matters: first match wins.
+//
+// The "fix" entry has a nil Pattern: its matching is special-cased in
+// InferChangeType via fixSignal (see below), because Go's RE2 has no
+// lookbehind and a plain `\bfix\b` treats a hyphen as a word boundary — so
+// it false-matches "must-fix" in an otherwise-feature intake. The other
+// entries match on their Pattern directly.
 var changeTypePatterns = []struct {
 	Type    string
 	Pattern *regexp.Regexp
 }{
-	{"fix", regexp.MustCompile(`(?i)\b(fix|bug|broken|regression)\b`)},
+	{"fix", nil},
 	{"refactor", regexp.MustCompile(`(?i)\b(refactor|restructure|consolidate|split|rename|redesign)\b`)},
 	{"docs", regexp.MustCompile(`(?i)\b(docs|document|readme|guide)\b`)},
 	{"test", regexp.MustCompile(`(?i)\b(test|spec|coverage)\b`)},
@@ -101,10 +107,41 @@ var changeTypePatterns = []struct {
 	{"chore", regexp.MustCompile(`(?i)\b(chore|cleanup|maintenance|housekeeping)\b`)},
 }
 
+// fixCandidateRegex finds fix-signalling tokens. `bug`/`broken`/`regression`
+// independently signal fix work; `fix` does too (including in fix-describing
+// compounds like `bug-fix`/`hot-fix`). Hyphens are non-word chars in RE2 so
+// `\bfix\b` matches `fix` inside any hyphenated compound.
+var fixCandidateRegex = regexp.MustCompile(`(?i)\b(fix|bug|broken|regression)\b`)
+
+// fixDirectiveRegex matches the passing-directive form `must-fix` / `must fix`
+// (the only fix-adjacent token a feature intake legitimately carries without
+// being a fix). RE2 has no lookbehind, so rather than guard the boundary in
+// fixCandidateRegex we blank these occurrences out before testing for any
+// remaining fix signal — `bug-fix`/`hot-fix`/`bug-free` and standalone `fix`
+// survive and still classify `fix`.
+var fixDirectiveRegex = regexp.MustCompile(`(?i)\bmust[- ]fix\b`)
+
+// fixSignal reports whether content signals fix work, after discounting any
+// passing `must-fix`/`must fix` directive. A `bug`/`broken`/`regression`
+// token, a fix-describing compound (`bug-fix`, `hot-fix`), or a standalone
+// `fix` still counts; a `must-fix` mentioned in a feature intake does not.
+func fixSignal(content string) bool {
+	// Remove must-fix/must fix directives so they cannot supply the only
+	// fix signal, then look for any remaining fix-candidate token.
+	discounted := fixDirectiveRegex.ReplaceAllString(content, " ")
+	return fixCandidateRegex.MatchString(discounted)
+}
+
 // InferChangeType determines the change type from intake content via keyword matching.
 // Returns "feat" as the default if no keywords match.
 func InferChangeType(content string) string {
 	for _, p := range changeTypePatterns {
+		if p.Type == "fix" {
+			if fixSignal(content) {
+				return "fix"
+			}
+			continue
+		}
 		if p.Pattern.MatchString(content) {
 			return p.Type
 		}

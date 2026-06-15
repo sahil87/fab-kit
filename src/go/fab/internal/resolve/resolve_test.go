@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -117,6 +118,14 @@ func TestToFolder_Ambiguous(t *testing.T) {
 	if !strings.Contains(err.Error(), "Multiple changes match") {
 		t.Errorf("expected 'Multiple changes match' error, got: %v", err)
 	}
+	// jznd (d): the documented message is preserved verbatim AND classified as
+	// ErrAmbiguous so archive soft-skip can branch on it.
+	if !errors.Is(err, ErrAmbiguous) {
+		t.Errorf("ambiguous match must be errors.Is(ErrAmbiguous), got: %v", err)
+	}
+	if errors.Is(err, ErrNotFound) {
+		t.Error("ambiguous match must NOT be errors.Is(ErrNotFound)")
+	}
 }
 
 func TestToFolder_NoMatch(t *testing.T) {
@@ -129,6 +138,14 @@ func TestToFolder_NoMatch(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "No change matches") {
 		t.Errorf("expected 'No change matches' error, got: %v", err)
+	}
+	// jznd (d): classified as ErrNotFound (the "maybe already archived"
+	// soft-skip path), not ErrAmbiguous.
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("no match must be errors.Is(ErrNotFound), got: %v", err)
+	}
+	if errors.Is(err, ErrAmbiguous) {
+		t.Error("no match must NOT be errors.Is(ErrAmbiguous)")
 	}
 }
 

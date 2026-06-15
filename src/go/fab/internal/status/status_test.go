@@ -624,6 +624,42 @@ func TestApplyChangeType_ValidatesBeforeMutate(t *testing.T) {
 	}
 }
 
+// TestSetChangeType_MarksExplicit covers jznd (2/a): a human running
+// set-change-type marks the source explicit and persists it, so the
+// PostToolUse intake-write hook stops re-inferring/overwriting the type.
+func TestSetChangeType_MarksExplicit(t *testing.T) {
+	statusFile, path := loadFixture(t)
+
+	if err := SetChangeType(statusFile, path, "feat"); err != nil {
+		t.Fatalf("SetChangeType: %v", err)
+	}
+	if statusFile.ChangeTypeSource != sf.SourceExplicit {
+		t.Errorf("ChangeTypeSource = %q, want %q", statusFile.ChangeTypeSource, sf.SourceExplicit)
+	}
+
+	reloaded, err := sf.Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.ChangeType != "feat" || reloaded.ChangeTypeSource != sf.SourceExplicit {
+		t.Errorf("explicit marker not persisted: type=%q source=%q", reloaded.ChangeType, reloaded.ChangeTypeSource)
+	}
+}
+
+// TestApplyChangeType_DoesNotMarkExplicit covers jznd (2/a): the hook's
+// inference path (ApplyChangeType) must NOT set the explicit marker — only
+// set-change-type does — so re-inference stays allowed on inferred changes.
+func TestApplyChangeType_DoesNotMarkExplicit(t *testing.T) {
+	statusFile, _ := loadFixture(t)
+
+	if err := ApplyChangeType(statusFile, "fix"); err != nil {
+		t.Fatalf("ApplyChangeType: %v", err)
+	}
+	if statusFile.ChangeTypeSource == sf.SourceExplicit {
+		t.Error("ApplyChangeType must not mark source explicit (only set-change-type does)")
+	}
+}
+
 func TestApplyConfidence_MutatesWithoutSaving(t *testing.T) {
 	statusFile, path := loadFixture(t)
 	before, err := os.ReadFile(path)

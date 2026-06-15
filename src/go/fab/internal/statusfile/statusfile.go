@@ -14,6 +14,15 @@ var StageOrder = []string{
 	"intake", "apply", "review", "hydrate", "ship", "review-pr",
 }
 
+// change_type_source enum values. An absent/empty field is treated as
+// SourceInferred (back-compat): pre-existing changes with no field behave
+// exactly as before — re-inference allowed. set-change-type marks SourceExplicit
+// so the intake-write hook stops overwriting a human's correction.
+const (
+	SourceInferred = "inferred"
+	SourceExplicit = "explicit"
+)
+
 // StageNumber returns the 1-indexed position of a stage.
 func StageNumber(stage string) int {
 	for i, s := range StageOrder {
@@ -92,19 +101,23 @@ type TrueImpact struct {
 
 // StatusFile represents the .status.yaml structure.
 type StatusFile struct {
-	ID           string                  `yaml:"id"`
-	Name         string                  `yaml:"name"`
-	Created      string                  `yaml:"created"`
-	CreatedBy    string                  `yaml:"created_by"`
-	ChangeType   string                  `yaml:"change_type"`
-	Issues       []string                `yaml:"issues"`
-	Progress     yaml.Node               `yaml:"-"`
-	Plan         Plan                    `yaml:"plan"`
-	Confidence   Confidence              `yaml:"confidence"`
-	StageMetrics map[string]*StageMetric `yaml:"-"`
-	PRs          []string                `yaml:"prs"`
-	TrueImpact   *TrueImpact             `yaml:"true_impact,omitempty"`
-	LastUpdated  string                  `yaml:"last_updated"`
+	ID         string `yaml:"id"`
+	Name       string `yaml:"name"`
+	Created    string `yaml:"created"`
+	CreatedBy  string `yaml:"created_by"`
+	ChangeType string `yaml:"change_type"`
+	// ChangeTypeSource records how ChangeType was set: "inferred" (the
+	// PostToolUse hook may re-infer and overwrite) or "explicit" (a human ran
+	// set-change-type — the hook must not clobber it). Empty == inferred.
+	ChangeTypeSource string                  `yaml:"change_type_source,omitempty"`
+	Issues           []string                `yaml:"issues"`
+	Progress         yaml.Node               `yaml:"-"`
+	Plan             Plan                    `yaml:"plan"`
+	Confidence       Confidence              `yaml:"confidence"`
+	StageMetrics     map[string]*StageMetric `yaml:"-"`
+	PRs              []string                `yaml:"prs"`
+	TrueImpact       *TrueImpact             `yaml:"true_impact,omitempty"`
+	LastUpdated      string                  `yaml:"last_updated"`
 
 	// raw holds the full parsed document for field-preserving serialization
 	raw *yaml.Node
@@ -162,6 +175,8 @@ func Load(path string) (*StatusFile, error) {
 			sf.CreatedBy = val.Value
 		case "change_type":
 			sf.ChangeType = val.Value
+		case "change_type_source":
+			sf.ChangeTypeSource = val.Value
 		case "last_updated":
 			sf.LastUpdated = val.Value
 		case "issues":
@@ -417,6 +432,15 @@ func (sf *StatusFile) syncToRaw() {
 			val.Value = sf.CreatedBy
 		case "change_type":
 			val.Value = sf.ChangeType
+		case "change_type_source":
+			// Empty == inferred default: drop the key rather than emit an empty
+			// scalar, so an absent field stays absent (back-compat round-trip).
+			if sf.ChangeTypeSource == "" {
+				dropKeyAt(root, i)
+				i -= 2
+			} else {
+				val.Value = sf.ChangeTypeSource
+			}
 		case "last_updated":
 			val.Value = sf.LastUpdated
 		case "issues":
@@ -446,6 +470,9 @@ func (sf *StatusFile) syncToRaw() {
 	}
 	if !seen["change_type"] && sf.ChangeType != "" {
 		insertKey(root, "change_type", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: sf.ChangeType})
+	}
+	if !seen["change_type_source"] && sf.ChangeTypeSource != "" {
+		insertKey(root, "change_type_source", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: sf.ChangeTypeSource})
 	}
 	if !seen["issues"] {
 		node := &yaml.Node{}

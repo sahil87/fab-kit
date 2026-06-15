@@ -270,6 +270,35 @@ func TestRender_Impact(t *testing.T) {
 			t.Errorf("expected no Impact line for +0/−0, got %q", got)
 		}
 	})
+
+	// jznd (e): a test-heavy PR where tests exceed the total drives impl net
+	// negative. The displayed net stays clamped at +0 (downstream consumers may
+	// assume non-negative), but the impl row MUST annotate the true negative
+	// value rather than silently hiding the net-deletion-in-production.
+	t.Run("annotates true value when impl net clamps", func(t *testing.T) {
+		d := baseData()
+		// total = excluding pass = 10/2 (net 8); tests = 50/3 (net 47).
+		// impl raw = -40/-1 (net -39) → all clamp to 0.
+		d.Impact.Excluding = &impact.Pair{Added: 10, Deleted: 2, Net: 8}
+		d.Impact.Tests = &impact.Pair{Added: 50, Deleted: 3, Net: 47}
+		got := renderImpact(d)
+		if !strings.Contains(got, "impl:  +0/−0  (net +0)") {
+			t.Errorf("expected clamped impl display value, got:\n%s", got)
+		}
+		if !strings.Contains(got, "clamped from net -39") {
+			t.Errorf("expected clamp annotation naming the true negative net, got:\n%s", got)
+		}
+		if !strings.Contains(got, "added -40") || !strings.Contains(got, "deleted -1") {
+			t.Errorf("expected clamp annotation naming clamped added/deleted, got:\n%s", got)
+		}
+	})
+
+	t.Run("no clamp annotation when impl net is non-negative", func(t *testing.T) {
+		got := renderImpact(baseData())
+		if strings.Contains(got, "clamped from") {
+			t.Errorf("did not expect a clamp annotation for non-negative impl, got:\n%s", got)
+		}
+	})
 }
 
 // TestRender_FullBlock asserts overall block structure (blank-line separation

@@ -80,10 +80,17 @@ func runBatchArchive(cmd *cobra.Command, args []string, listFlag, allFlag bool) 
 	for _, change := range changes {
 		match, err := resolve.ToFolder(fabRoot, change)
 		if err != nil {
-			// A name that no longer resolves may already be archived — pass
-			// it through so archiveLoop reports the soft skip (counted as
-			// skipped, exit 0) instead of warning into the exit-1 path.
-			if archivePkg.IsArchived(fabRoot, change) {
+			// Distinguish not-found from ambiguous (jznd (d)). A genuine
+			// not-found name may already be archived — pass it through so
+			// archiveLoop reports the idempotent soft skip (counted as skipped,
+			// exit 0). An AMBIGUOUS name is a real user error: surface it as its
+			// own warning instead of misreporting it as "could not resolve" or
+			// silently soft-skipping it as already-archived.
+			if errors.Is(err, resolve.ErrAmbiguous) {
+				fmt.Fprintf(errW, "Warning: %v — skipping (use a 4-char ID or full folder name)\n", err)
+				continue
+			}
+			if errors.Is(err, resolve.ErrNotFound) && archivePkg.IsArchived(fabRoot, change) {
 				resolved = append(resolved, change)
 				continue
 			}
