@@ -52,5 +52,6 @@ true_impact:
         net: 0
     computed_at: "2026-06-15T11:43:53Z"
     computed_at_stage: hydrate
+summary: ""
 # true_impact: lazily created on first apply-finish (no placeholder here).
 last_updated: 2026-06-15T11:51:58Z
