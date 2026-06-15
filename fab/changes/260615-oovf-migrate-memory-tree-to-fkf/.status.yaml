@@ -10,7 +10,7 @@ progress:
     review: done
     hydrate: done
     ship: done
-    review-pr: active
+    review-pr: done
 plan:
     generated: true
     task_count: 20
@@ -34,7 +34,7 @@ stage_metrics:
     review: {started_at: "2026-06-15T20:02:37Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-15T20:13:06Z"}
     hydrate: {started_at: "2026-06-15T20:13:06Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-15T20:17:59Z"}
     ship: {started_at: "2026-06-15T20:17:59Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-15T20:20:04Z"}
-    review-pr: {started_at: "2026-06-15T20:20:04Z", driver: git-pr, iterations: 1}
+    review-pr: {started_at: "2026-06-15T20:20:04Z", driver: git-pr, iterations: 1, completed_at: "2026-06-15T20:28:28Z"}
 prs:
     - https://github.com/sahil87/fab-kit/pull/425
 true_impact:
@@ -53,4 +53,4 @@ true_impact:
     computed_at_stage: hydrate
 summary: 'FKF cutover (4/4): fab memory-index gains a per-folder log.seed.md seed-merge (curated sidecar merged beneath git-projected log.md entries, idempotent, benign loss tier); migrated all 20 docs/memory topic files onto FKF (stripped ## Changelog, preserved 651 rows as log.seed.md, bundle-relative links, type: memory); made docs-reorg-memory/specs FKF-aware'
 # true_impact: lazily created on first apply-finish (no placeholder here).
-last_updated: 2026-06-15T20:20:04Z
+last_updated: 2026-06-15T20:28:28Z
