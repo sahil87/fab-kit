@@ -17,7 +17,7 @@
   <!-- arrow INTAKE -> Execution group -->
   <line x1="380" y1="68" x2="380" y2="96" stroke="#555555" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <!-- Execution group (orange) -->
+  <!-- Execution group (amber) -->
   <rect x="180" y="100" width="400" height="74" rx="8" fill="#ffb74d" stroke="#E65100" stroke-width="2"/>
   <text x="200" y="120" text-anchor="start" font-size="13" font-weight="700" fill="#1a1a1a">Execution</text>
   <rect x="218" y="124" width="130" height="40" rx="6" fill="#ffffff" stroke="#E65100" stroke-width="1.5"/>
@@ -29,21 +29,21 @@
   <!-- arrow Execution -> Completion group -->
   <line x1="380" y1="174" x2="380" y2="202" stroke="#555555" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <!-- Completion group (green) -->
-  <rect x="288" y="206" width="184" height="74" rx="8" fill="#81c784" stroke="#2E7D32" stroke-width="2"/>
+  <!-- Completion group (orange) -->
+  <rect x="288" y="206" width="184" height="74" rx="8" fill="#ff9800" stroke="#E65100" stroke-width="2"/>
   <text x="308" y="226" text-anchor="start" font-size="13" font-weight="700" fill="#1a1a1a">Completion</text>
-  <rect x="315" y="230" width="130" height="40" rx="6" fill="#ffffff" stroke="#2E7D32" stroke-width="1.5"/>
+  <rect x="315" y="230" width="130" height="40" rx="6" fill="#ffffff" stroke="#E65100" stroke-width="1.5"/>
   <text x="380" y="255" text-anchor="middle" font-size="15" font-weight="600" fill="#1a1a1a">4 HYDRATE</text>
 
   <!-- arrow Completion -> Shipping group -->
   <line x1="472" y1="243" x2="540" y2="243" stroke="#555555" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <!-- Shipping group (purple) -->
-  <rect x="544" y="206" width="200" height="74" rx="8" fill="#ce93d8" stroke="#7B1FA2" stroke-width="2"/>
+  <!-- Shipping group (green) -->
+  <rect x="544" y="206" width="200" height="74" rx="8" fill="#81c784" stroke="#2E7D32" stroke-width="2"/>
   <text x="556" y="226" text-anchor="start" font-size="12" font-weight="700" fill="#1a1a1a">Shipping</text>
-  <rect x="552" y="230" width="86" height="40" rx="6" fill="#ffffff" stroke="#7B1FA2" stroke-width="1.5"/>
+  <rect x="552" y="230" width="86" height="40" rx="6" fill="#ffffff" stroke="#2E7D32" stroke-width="1.5"/>
   <text x="595" y="255" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1a1a">5 SHIP</text>
   <line x1="638" y1="250" x2="652" y2="250" stroke="#555555" stroke-width="2" marker-end="url(#arrow)"/>
-  <rect x="650" y="230" width="86" height="40" rx="6" fill="#ffffff" stroke="#7B1FA2" stroke-width="1.5"/>
+  <rect x="650" y="230" width="86" height="40" rx="6" fill="#ffffff" stroke="#2E7D32" stroke-width="1.5"/>
   <text x="693" y="254" text-anchor="middle" font-size="12" font-weight="600" fill="#1a1a1a">6 REVIEW-PR</text>
 </svg>

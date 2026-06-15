@@ -43,8 +43,8 @@ flowchart TD
 
     style B fill:#64b5f6,stroke:#1565C0,color:#1a1a1a
     style execution fill:#ffb74d,stroke:#E65100,color:#1a1a1a
-    style completion fill:#81c784,stroke:#2E7D32,color:#1a1a1a
-    style shipping fill:#ce93d8,stroke:#7B1FA2,color:#1a1a1a
+    style completion fill:#ff9800,stroke:#E65100,color:#1a1a1a
+    style shipping fill:#81c784,stroke:#2E7D32,color:#1a1a1a
 ```
 
 </details>
