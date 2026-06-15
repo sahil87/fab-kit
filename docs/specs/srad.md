@@ -135,11 +135,11 @@ The confidence score is a **Resolution Average**: it reuses the per-row S:R:A:D 
 ```
 for each Assumptions row with parseable dimensions:
   composite = 0.25 * S + 0.30 * R + 0.25 * A + 0.20 * D   # the grade-mapping weights, unchanged
-  if R < 25 AND A < 25:  score = 0.0   # Critical Rule, per-row, on raw dimensions → hard fail
-if any row is Unresolved:  score = 0.0  # genuine unknown → hard fail
+  if R < 25 AND A < 25:  return 0.0   # Critical Rule, per-row, on raw dimensions → hard fail
+if any row is Unresolved:  return 0.0  # genuine unknown → hard fail
 mean  = average(composite over rows that have parseable dimensions)
 cover = min(1.0, total_decisions / expected_min)
-score = (mean / 20.0) * cover
+return (mean / 20.0) * cover
 ```
 
 Where `total_decisions = certain + confident + tentative + unresolved` (ALL graded rows) and `expected_min` is looked up by `change_type` from a single embedded table in `fab score`. See [change-types.md](change-types.md) for the full `expected_min` table.
