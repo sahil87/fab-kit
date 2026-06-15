@@ -23,6 +23,8 @@ Mode is determined automatically by argument type (ingest/generate) or by the ex
 
 Index files (`index.md` at the root, domain, and sub-domain tiers) are **generated artifacts** — `fab memory-index` is their single writer. The one hand-curated field is the `description:` frontmatter (on topic files and on domain/sub-domain indexes). When a new domain or sub-domain is created, its `index.md` **stub** — only the `description:` frontmatter one-liner, nothing else — is created **before** `fab memory-index` runs; the command fills in the generated body and round-trips the description. Never hand-edit generated index rows or "Last Updated" cells. Both modes below follow this model.
 
+> **Refuse-before-regen guard (destructive-loss).** Before any `fab memory-index` regeneration step below, consult `fab memory-index --check`: on **exit 2** (destructive loss — a curated description would regenerate to `—`, a tombstone row would drop, or a custom grouping would flatten), **refuse to regenerate** and surface the pointer `→ run /docs-hydrate-memory (backfill mode) to backfill description: frontmatter and relocate removal-history rows before regenerating.` This is the primary pre-fab-kit-tree entry point, so the guard protects the *first* regen of a legacy tree. **No-op on born-compatible fab-kit trees** — they are always exit 0/1, never 2, so the guard never fires (do not mistake it for dead code). It only ever fires on a pre-fab-kit tree reached via ingest/generate before the tree has been backfilled. (Backfill mode itself never destroys content — it only adds frontmatter — so when *it* runs the regen, the guard has by then become a no-op.)
+
 ---
 
 ## Pre-flight Check

@@ -122,6 +122,9 @@ User invokes /fab-continue [change-name] [stage]
 │  │    (with description: frontmatter; merge        │
 │  │     without duplication — existing entries      │
 │  │     for this change are updated in place)       │
+│  │  Bash: fab memory-index --check (refuse-before- │
+│  │   regen guard, defense-in-depth: refuse on exit │
+│  │   2; no-op on born-compatible trees) →          │
 │  │  Bash: fab memory-index — regenerates the root  │
 │  │  (domains-only), domain, and sub-domain indexes │
 │  │  Bash: fab status finish <change> hydrate       │
@@ -158,7 +161,7 @@ User invokes /fab-continue [change-name] [stage]
 | Read | Preamble, templates, artifacts, source files, memory |
 | Write | Plan (`plan.md`), memory files |
 | Edit | Plan (mark `## Tasks` and `## Acceptance` items [x]), memory files |
-| Bash | All `fab status` transitions, `fab preflight`, `fab memory-index`, test execution — no `fab score` (no scoring at any stage `/fab-continue` runs; intake scoring belongs to `/fab-new`/`/fab-clarify`) |
+| Bash | All `fab status` transitions, `fab preflight`, `fab memory-index` (+ a `fab memory-index --check` refuse-before-regen guard at the hydrate stage — defense-in-depth, refuses on exit 2, a no-op on born-compatible trees), test execution — no `fab score` (no scoring at any stage `/fab-continue` runs; intake scoring belongs to `/fab-new`/`/fab-clarify`) |
 | Agent | Review validation sub-agent (general-purpose) |
 
 ### Sub-agents

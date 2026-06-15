@@ -2,7 +2,7 @@
 
 ## Summary
 
-Hydrates `docs/memory/` from external sources (URLs, .md files), generates from codebase analysis, or **backfills** an existing tree's missing `description:` frontmatter. Ingest mode fetches/reads sources and creates memory files. Generate mode scans for undocumented areas interactively. **Backfill mode** (third mode — `backfill` keyword or `/docs-reorg-memory` dispatch) re-scans `docs/memory/` for topic files lacking `description:` frontmatter and adds it body-preserving (only prepends/edits frontmatter), migrating a pre-fab-kit hand-curated tree to the convention `fab memory-index` depends on. New/updated memory files carry a `description:` frontmatter one-liner; indexes are regenerated mechanically by `fab memory-index` (the single index writer — never hand-edited). The `description:` frontmatter is the single hand-curated index field: a new domain or sub-domain gets a `description:`-only `index.md` stub created before `fab memory-index` runs, and the generator round-trips it. Placement follows the memory-tree shape SHOULD guidance (~5–12 files/folder, depth ≤3, sub-domain at a ≥8-file cluster; `_shared`/`_unsorted` width-exempt).
+Hydrates `docs/memory/` from external sources (URLs, .md files), generates from codebase analysis, or **backfills** an existing tree's missing `description:` frontmatter. Ingest mode fetches/reads sources and creates memory files. Generate mode scans for undocumented areas interactively. **Backfill mode** (third mode — `backfill` keyword or `/docs-reorg-memory` dispatch) re-scans `docs/memory/` for topic files lacking `description:` frontmatter and adds it body-preserving (only prepends/edits frontmatter), migrating a pre-fab-kit hand-curated tree to the convention `fab memory-index` depends on. New/updated memory files carry a `description:` frontmatter one-liner; indexes are regenerated mechanically by `fab memory-index` (the single index writer — never hand-edited). **Refuse-before-regen guard**: every `fab memory-index` regen step is preceded by `fab memory-index --check`; on **exit 2** (destructive loss — curated description→`—`, dropped tombstone row, or flattened grouping) the skill refuses to regenerate and points to backfill mode. As the primary pre-fab-kit-tree entry point, this protects the *first* regen of a legacy tree. The guard is a **no-op on born-compatible fab-kit trees** (provably never exit 2) — it is not dead code; it only fires on a pre-fab-kit tree reached via ingest/generate before backfill. (Backfill mode only *adds* frontmatter, never destroys, so by the time *it* regenerates the guard is already satisfied.) The `description:` frontmatter is the single hand-curated index field: a new domain or sub-domain gets a `description:`-only `index.md` stub created before `fab memory-index` runs, and the generator round-trips it. Placement follows the memory-tree shape SHOULD guidance (~5–12 files/folder, depth ≤3, sub-domain at a ≥8-file cluster; `_shared`/`_unsorted` width-exempt).
 
 ### Backfill Mode
 
@@ -29,21 +29,24 @@ User invokes /docs-hydrate-memory [sources...|folders...|backfill]   (or /docs-r
 │  ├─ (identify domains and topics)
 │  ├─ Write: docs/memory/{domain}/{file}.md (with description: frontmatter)
 │  ├─ Write: new domain/sub-domain index.md stubs (description: only, before memory-index)
-│  └─ Bash: fab memory-index   (regenerates root, domain, and sub-domain indexes)
+│  └─ Bash: fab memory-index --check (refuse-before-regen: refuse on exit 2; no-op on
+│           born-compatible trees) → fab memory-index (regenerates root, domain, sub-domain indexes)
 │
 ├── Generate Mode (folders or no args) ──────────────────
 │  ├─ Glob/Read: scan codebase
 │  ├─ (interactive: present gap report)
 │  ├─ Write: docs/memory/{domain}/{file}.md (with description: frontmatter)
 │  ├─ Write: new domain/sub-domain index.md stubs (description: only, before memory-index)
-│  └─ Bash: fab memory-index   (regenerates root, domain, and sub-domain indexes)
+│  └─ Bash: fab memory-index --check (refuse-before-regen: refuse on exit 2; no-op on
+│           born-compatible trees) → fab memory-index (regenerates root, domain, sub-domain indexes)
 │
 └── Backfill Mode (backfill keyword / reorg dispatch) ───
    ├─ Glob/Read: re-scan docs/memory/ itself (no caller manifest) for topic files missing description:
    ├─ Read: each file's own content (+ matching curated index row if any)
    ├─ Edit: prepend description: frontmatter (body byte-preserved); skip files already having it (idempotent)
    ├─ Write: missing domain/sub-domain index.md stubs (description: only)
-   └─ Bash: fab memory-index — ONLY when invoked directly (reorg-dispatched ⇒ defer regen to reorg)
+   └─ Bash: fab memory-index --check (refuse-before-regen, no-op on born-compatible) →
+            fab memory-index — ONLY when invoked directly (reorg-dispatched ⇒ defer regen to reorg)
 ```
 
 ### Tools used
@@ -52,7 +55,7 @@ User invokes /docs-hydrate-memory [sources...|folders...|backfill]   (or /docs-r
 |------|---------|
 | Read | Sources, existing memory files, codebase |
 | Write/Edit | New memory files (with `description:` frontmatter), `description:`-only index stubs, and backfilled leading frontmatter on existing files (body preserved) |
-| Bash | `fab memory-index` to regenerate indexes (skipped in backfill mode when reorg-dispatched) |
+| Bash | `fab memory-index --check` refuse-before-regen guard (refuse on exit 2; no-op on born-compatible trees) before each regen; `fab memory-index` to regenerate indexes (skipped in backfill mode when reorg-dispatched) |
 | WebFetch | Fetch URL sources |
 | Glob/Grep | Codebase scanning; backfill's independent `docs/memory/` re-scan |
 

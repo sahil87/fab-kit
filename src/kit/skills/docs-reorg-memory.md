@@ -55,13 +55,20 @@ Loads `docs/memory/index.md`, all domain (and sub-domain) `index.md` files, and 
 
 Read `docs/memory/index.md` and every domain directory (recursing into sub-domain folders). For each memory file: extract `##`/`###` headings, brief section summaries, and approximate line count. For each folder, record its **topic-file count** (excluding `index.md`) and its **depth** in folder levels relative to `docs/memory/` (a domain is depth 1, a sub-domain depth 2). Exclude `_shared/` and `_unsorted/` from shape measurement.
 
-**Compatibility detection (pre-fab-kit tree).** The read-all-files pass already reads every file, so during it also detect the three ways a hand-curated, pre-fab-kit tree diverges from the convention `fab memory-index` depends on — these are shape diagnoses, surfaced in the findings report (Step 3) for approval like any other:
+**Compatibility detection (pre-fab-kit tree) — mechanical, via `fab memory-index --check --json`.** Detection of the three ways a hand-curated, pre-fab-kit tree diverges from the convention `fab memory-index` depends on is a **Go primitive**, not prose the agent re-derives. Run:
 
-- **Missing `description:` frontmatter.** A topic file (a non-`index.md` `.md` file) that has no frontmatter, or frontmatter without a `description:` key, counts as **missing** — the same `frontmatter.Field` semantics `fab memory-index` uses. The generator reads descriptions exclusively from this field, so a missing one renders `—` (wiping any curated description) on the next regen.
-- **Tombstone rows.** A row in an *existing* hand-curated index file whose **`docs/memory/`-relative link target is absent on disk** is a tombstone candidate — the removal-history rows the generator silently drops (it walks only folders that exist). The unresolved relative-link target is the **primary signal**; strikethrough syntax (`~~lib-bdash~~`) is a **corroborating hint** that raises confidence but is **not required** — un-struck tombstones are still caught. Scope the signal to `docs/memory/`-relative paths only, so intentional external links (URLs, absolute paths) never false-positive. Tombstone candidates are **surfaced for explicit user confirmation** before any relocation (Step 5).
-- **Custom structural groupings.** Structural headings in the existing root `index.md` beyond the generated domains-only table (e.g., `### Apps`, `### Packages`, `### Cross-cutting`) — content the domains-only regen will flatten.
+```sh
+fab memory-index --check --json
+```
 
-Record these as compatibility findings alongside the shape measurements; they feed the findings report in Step 3.
+and read its exit code + JSON loss report (see `_cli-fab` § fab memory-index):
+
+- **Exit 0** (clean) / **exit 1** (benign drift): **no compatibility findings** — nothing to relocate or backfill. Skip the Compatibility report (Step 3) entirely. This is the born-compatible fab-kit case.
+- **Exit 2** (destructive loss): the JSON `losses[]` enumerates each divergence by `category` — `description` (a curated description that would regenerate to `—`), `tombstone` (a row whose `docs/memory/`-relative link target is absent on disk — the removal-history rows the generator drops; external/absolute links are already excluded by the primitive), and `grouping` (a custom structural heading in the root `index.md` the domains-only regen would flatten). Each loss carries `path` (the index file) and `detail` (the lost text / dropped link target / flattened heading). Map these directly into the findings report (Step 3); tombstone candidates are still **surfaced for explicit user confirmation** before any relocation (Step 5).
+
+The primitive is the single source of truth for what regen would destroy — reorg consumes its classification rather than re-implementing `frontmatter.Field` semantics, tombstone heuristics, or the flatten rule in prose. Record the parsed findings alongside the shape measurements; they feed the findings report in Step 3.
+
+> **Older-binary fallback.** If `fab memory-index` does not support `--check`'s loss tiers / `--json` (an older binary — `--json` is unknown or the exit code is binary clean/dirty with no tier 2), fall back to the **legacy prose detection** during the read-all-files pass: a topic file with no frontmatter or no `description:` key is a missing-description finding (`frontmatter.Field` semantics); a row in an existing index whose `docs/memory/`-relative link target is absent on disk is a tombstone candidate (relative-target-absent is the primary signal, strikethrough `~~...~~` a non-required corroborating hint, external/absolute links excluded); a `### Apps`/`### Packages`-style heading in the root `index.md` beyond the domains-only table is a custom-grouping finding. Then warn the user to upgrade `fab` so detection becomes mechanical.
 
 ### Step 2: Identify Themes (up to 10)
 
@@ -202,6 +209,7 @@ If no changes needed: `Current structure is well-organized — no reorganization
 | File write/move fails during apply | Report error, roll back that migration, continue |
 | Content verification fails | Warn, show missing heading, ask to proceed |
 | `fab memory-index` unavailable (older binary) | Warn; fall back to hand-updating affected `index.md` files (legacy path) and tell the user to upgrade `fab` |
+| `fab memory-index --check --json` loss tiers / `--json` unavailable (older binary) | Fall back to the **legacy prose compatibility detection** (Step 1 older-binary fallback) and warn the user to upgrade `fab` so detection becomes mechanical |
 | Broken relative link remains after a move | **Hard block** — report the dangling link; do not finalize that migration until it is rewritten. If it cannot be rewritten, take the abort escape defined in Step 5's Verify item (apply item 5): roll back that migration, regenerate indexes, continue with the rest |
 
 ---
@@ -216,7 +224,7 @@ If no changes needed: `Current structure is well-organized — no reorganization
 | Modifies memory files? | Yes — moves + link rewrites, only with explicit confirmation. On compatibility approval also authors the ONE mechanical file `docs/memory/_shared/removed-domains.md` (tombstone relocation); per-file `description:` synthesis is delegated to the `/docs-hydrate-memory` backfill sub-agent, not authored here |
 | Requires config/constitution? | No |
 | Is the memory rebalancer? | Yes — supersedes any separate `/fab-rebalance-memory`; shape diagnosis + split/merge/flatten + the file-moving apply path live here |
-| Orchestrates a pre-fab-kit compatibility migration? | Yes — detects missing `description:` frontmatter, tombstone rows, and custom groupings; on approval relocates tombstones (`_shared/removed-domains.md`), dispatches `/docs-hydrate-memory` backfill mode as a sub-agent, then rebalances + regenerates once. Decline = report and stop, no mutation |
+| Orchestrates a pre-fab-kit compatibility migration? | Yes — detects divergence **mechanically** via `fab memory-index --check --json` (exit 2 + `losses[]`: `description`/`tombstone`/`grouping`; older-binary fallback = legacy prose detection); on approval relocates tombstones (`_shared/removed-domains.md`), dispatches `/docs-hydrate-memory` backfill mode as a sub-agent, then rebalances + regenerates once. Decline = report and stop, no mutation |
 | Dispatches sub-agents? | Yes — `/docs-hydrate-memory` backfill mode (general-purpose sub-agent, standard subagent context) for per-file description synthesis during compatibility orchestration |
 | Link rewriting | Skill-driven (the agent edits links per the Link Impact list) — NOT a `fab` subcommand |
 | Indexes hand-edited? | No — regenerated by `fab memory-index` (domain + sub-domain tiers) |
