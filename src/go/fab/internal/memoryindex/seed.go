@@ -112,9 +112,11 @@ func parseSeedEntry(line, date string) (LogEntry, bool) {
 
 // splitTrailingID peels a trailing `(id)` token off a descriptive line, returning
 // the bare id and the summary without it. The id token is recognized only when it
-// is the LAST parenthesized group AND looks like a change-id token (no spaces) —
-// so an in-prose "(#42)" PR ref or a "(some note)" aside is NOT mistaken for the
-// id, matching how the renderer only appends a (ChangeID) when one is present.
+// is the LAST parenthesized group AND looks like a change-id token: non-empty, no
+// spaces, and not a `#`-prefixed PR ref. So an in-prose "(#42)" PR ref or a
+// "(some note)" aside is NOT mistaken for the id — matching both the renderer
+// (which only appends a (ChangeID) when one is present) and the git-projection
+// side's attributeCommit (which never attributes a `#NNN` PR ref to a change).
 // A missing-cell "—" summary round-trips to "".
 func splitTrailingID(desc string) (id, summary string) {
 	summary = strings.TrimSpace(desc)
@@ -122,7 +124,7 @@ func splitTrailingID(desc string) (id, summary string) {
 		open := strings.LastIndex(summary, "(")
 		if open >= 0 {
 			tok := summary[open+1 : len(summary)-1]
-			if tok != "" && !strings.ContainsAny(tok, " \t") {
+			if tok != "" && !strings.ContainsAny(tok, " \t") && !strings.HasPrefix(tok, "#") {
 				id = tok
 				summary = strings.TrimSpace(summary[:open])
 			}

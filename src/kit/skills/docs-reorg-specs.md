@@ -80,7 +80,7 @@ Constraints: prefer fewer files, preserve existing names, keep files under ~300 
 
 Options: **Apply all**, **Cherry-pick** (select specific migrations), **Skip** (keep analysis only).
 
-On approval: execute migrations (a moved spec keeps its exact bytes — **no FKF frontmatter is stamped**, per the Reserved Paths note), rewrite `docs/specs/index.md`, verify no headings lost, present change summary.
+On approval: execute migrations (a moved spec keeps its exact bytes — **no FKF frontmatter is stamped**, per the "No FKF frontmatter on specs" note above — §9 / Constitution VI), rewrite `docs/specs/index.md`, verify no headings lost, present change summary.
 
 ---
 

@@ -79,7 +79,7 @@ func TestParseSeedLog_PreservesSeedDateAndLinkInSummary(t *testing.T) {
 func TestSplitTrailingID_NotMisledByInProseParens(t *testing.T) {
 	cases := []struct{ desc, wantID, wantSummary string }{
 		{"a normal line (d9rs)", "d9rs", "a normal line"},
-		{"fixed the thing (#420)", "#420", "fixed the thing"}, // single-token paren → treated as id (renderer-symmetric)
+		{"fixed the thing (#420)", "", "fixed the thing (#420)"}, // a `#NNN` PR ref is NOT a change-id (spec §6.2; matches attributeCommit)
 		{"a line with (multi word) aside", "", "a line with (multi word) aside"},
 		{"no parens at all", "", "no parens at all"},
 		{missingCell, "", ""},
