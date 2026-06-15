@@ -34,6 +34,8 @@ func statusCmd() *cobra.Command {
 		statusSkipCmd(),
 		statusFailCmd(),
 		statusSetChangeTypeCmd(),
+		statusSetSummaryCmd(),
+		statusGetSummaryCmd(),
 		statusSetAcceptanceCmd(),
 		statusSetChecklistRemovedCmd(),
 		statusSetConfidenceCmd(),
@@ -518,6 +520,37 @@ func statusGetPRsCmd() *cobra.Command {
 			for _, url := range sf.PRs {
 				fmt.Println(url)
 			}
+			return nil
+		},
+	}
+}
+
+func statusSetSummaryCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "set-summary <change> <text>",
+		Short: "Set the per-change log summary",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return withStatusLock(args[0], func(st *sf.StatusFile, statusPath, _ string) error {
+				return status.SetSummary(st, statusPath, args[1])
+			})
+		},
+	}
+}
+
+func statusGetSummaryCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "get-summary <change>",
+		Short: "Print the per-change log summary",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			sf, _, _, err := loadStatus(args[0])
+			if err != nil {
+				return err
+			}
+			// Empty summary prints an empty line (graceful absence — the FKF
+			// log.md generator falls back to the change slug).
+			fmt.Println(sf.Summary)
 			return nil
 		},
 	}

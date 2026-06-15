@@ -63,6 +63,52 @@ func TestSetChangeType_InvalidTypeErrorsWithoutWrite(t *testing.T) {
 	}
 }
 
+// --- SetSummary ---
+
+func TestSetSummary_PersistsAndRoundTrips(t *testing.T) {
+	statusFile, path := loadFixture(t)
+	priorUpdated := statusFile.LastUpdated
+
+	if err := SetSummary(statusFile, path, "added the summary field"); err != nil {
+		t.Fatalf("SetSummary: %v", err)
+	}
+	if statusFile.Summary != "added the summary field" {
+		t.Errorf("Summary = %q, want \"added the summary field\"", statusFile.Summary)
+	}
+	if statusFile.LastUpdated == priorUpdated {
+		t.Error("last_updated should be refreshed")
+	}
+
+	reloaded, err := sf.Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.Summary != "added the summary field" {
+		t.Errorf("persisted Summary = %q, want \"added the summary field\"", reloaded.Summary)
+	}
+}
+
+func TestSetSummary_EmptyClearsKey(t *testing.T) {
+	statusFile, path := loadFixture(t)
+	if err := SetSummary(statusFile, path, "temporary"); err != nil {
+		t.Fatalf("SetSummary: %v", err)
+	}
+	reloaded, err := sf.Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if err := SetSummary(reloaded, path, ""); err != nil {
+		t.Fatalf("SetSummary (clear): %v", err)
+	}
+	final, err := sf.Load(path)
+	if err != nil {
+		t.Fatalf("reload after clear: %v", err)
+	}
+	if final.Summary != "" {
+		t.Errorf("cleared Summary should be empty, got %q", final.Summary)
+	}
+}
+
 // --- AddIssue ---
 
 func TestAddIssue_AppendsAndPersists(t *testing.T) {

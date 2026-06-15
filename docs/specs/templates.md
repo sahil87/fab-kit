@@ -55,6 +55,7 @@ confidence:
   score: 0.0                       # derived score (0.0–5.0)
 stage_metrics: {}                  # populated by the fab status CLI as stages progress
 prs: []                            # PR URLs (fab status add-pr — idempotent)
+summary: ""                        # per-change one-line log summary (FKF C-lite log.md source, §6.3) — optional, omitempty
 # true_impact: lazily created on first apply-finish (no placeholder here).
 last_updated: {ISO_8601_DATETIME}
 ```
@@ -70,6 +71,7 @@ last_updated: {ISO_8601_DATETIME}
 - `confidence` block initializes to zero counts and score 0.0 — a new change has no assessed confidence. Computed by `fab score --stage intake` (via `/fab-new`, `/fab-clarify`, and the artifact-write hook on intake writes); intake scoring is authoritative. When SRAD dimensions are recorded (`fab status set-confidence-fuzzy`), the block also carries `fuzzy: true` and a `dimensions:` map (`signal`/`reversibility`/`competence`/`disambiguation`).
 - `stage_metrics` is populated by the `fab status` CLI as stages progress — tracks `started_at`, `completed_at`, `driver`, and `iterations` per stage (`/git-pr-review` additionally writes `review-pr` `phase`/`reviewer` sub-state).
 - `true_impact` is written lazily by the apply-finish and hydrate-finish hooks (line counts from `fab impact`); the template carries no placeholder.
+- `summary` is the per-change one-line log summary — the FKF C-lite source line `fab memory-index` joins with git history to generate `log.md` (see [fkf.md](fkf.md) §6.3). Optional (`yaml:"summary,omitempty"`, modeled on `change_type_source`): an empty/absent summary serializes to nothing and degrades gracefully (the generator falls back to the change slug). Written via `fab status set-summary <change> <text>` / read via `get-summary` — the conflict-free write path (each change touches only its own `.status.yaml`). The template seeds `summary: ""` to document the field; no stage auto-populates it (authoring wiring is a later FKF change).
 - `last_updated` is refreshed on every status change.
 
 ---
