@@ -85,7 +85,7 @@ For each topic:
 1. Create `docs/memory/{domain}/` if needed
 2. Create `docs/memory/{domain}/index.md` if needed — a stub carrying only the `description:` frontmatter one-liner for the domain, created before Step 4 runs (`fab memory-index` reads it into the root index row — see Index Ownership). When placing a topic into a sub-domain, likewise create the `docs/memory/{domain}/{sub-domain}/index.md` stub if needed
 3. If target file doesn't exist → create with leading FKF frontmatter (`type: memory` constant + a `description:` one-liner, per `docs/specs/fkf.md` §3.1–§3.2), then Overview, Requirements, Design Decisions sections. **No `## Changelog` section** — memory files no longer carry one (FKF §3.3); change history lives in the per-folder generated `log.md` (§6).
-4. If target file exists → **merge** new content, preserve existing/manually-added content; keep its `description:` frontmatter accurate
+4. If target file exists → **merge** new content, preserve existing/manually-added content; keep its `description:` frontmatter accurate, and **stamp the `type: memory` constant when the existing/legacy file is missing it** so the merge leaves an FKF-conforming file (FKF §2/§3.1 require `type: memory` on every memory file)
 
 **Author the FKF frontmatter** on every file you create or whose summary changes — the `type: memory` constant (§3.1) plus the `description:` one-liner (§3.2) that is the source for the generated index row (Step 4). Do NOT hand-write index rows. **Bundle-relative cross-links**: any memory↔memory link you write MUST use the bundle-relative `/...` form (resolved from `docs/memory/`, FKF §7); links *out* of the bundle (source, specs, URLs) stay repo-relative/absolute-URL.
 
