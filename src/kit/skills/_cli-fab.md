@@ -153,16 +153,19 @@ confidence:
 
 ### Formula
 
+Resolution Average — the score is the mean of the per-row S:R:A:D composites (the same dimensions on every Assumptions row), rescaled onto 0–5 and attenuated by coverage:
+
 ```
-if unresolved > 0:
-  score = 0.0
-else:
-  base = max(0.0, 5.0 - 0.3 * confident - 1.0 * tentative)
-  cover = min(1.0, total_decisions / expected_min)
-  score = base * cover
+for each Assumptions row with parseable dimensions:
+  composite = 0.25 * S + 0.30 * R + 0.25 * A + 0.20 * D
+  if R < 25 AND A < 25:  return 0.0   # Critical Rule, per-row, on raw dimensions → hard fail
+if any row is Unresolved:  return 0.0  # genuine unknown → hard fail
+mean  = average(composite over rows with parseable dimensions)
+cover = min(1.0, total_decisions / expected_min)
+return (mean / 20.0) * cover
 ```
 
-Where `total_decisions = certain + confident + tentative + unresolved` and `expected_min` is looked up by `change_type` from a single embedded table in `fab score` (`feat:7, refactor:6, fix:5`, default `3` for `docs`/`test`/`ci`/`chore`). The `cover` factor prevents thin intakes from getting inflated scores. When `total_decisions >= expected_min`, `cover = 1.0` and the formula degenerates to the base penalty. Range: 0.0 to 5.0. See `docs/specs/change-types.md` for the full `expected_min` table.
+Where `total_decisions = certain + confident + tentative + unresolved` (all graded rows) and `expected_min` is looked up by `change_type` from a single embedded table in `fab score` (`feat:7, refactor:6, fix:3`, default `3` for `docs`/`test`/`ci`/`chore`). The composite weights are the same as the SRAD grade-mapping aggregation; the `/20` divisor rescales the 0–100 composite mean onto 0–5, so a 3.0 gate equals a mean composite of 60 (the Confident floor). The `cover` factor prevents thin intakes from getting inflated scores; the mean restricts to rows with parseable dimensions while `total_decisions` counts all graded rows. Range: 0.0 to 5.0. See `docs/specs/change-types.md` for the full `expected_min` table.
 
 ### Template
 

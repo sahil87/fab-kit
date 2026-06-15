@@ -62,12 +62,13 @@ func setupScoreCmdFixture(t *testing.T, assumptionRows ...string) string {
 }
 
 func TestScoreCmd_CheckGateFail_ReturnsError(t *testing.T) {
-	// 3 confident decisions on a fix change: base = 5.0 - 0.3*3 = 4.1,
-	// cover = 3/5 → score 2.5 < 3.0 threshold → gate fail.
+	// Resolution Average on a fix change (expectedMin=3, threshold 3.0). Weak
+	// dimensions: composite for S:50 R:50 A:50 D:50 = 50.0 → mean 50.0,
+	// cover=3/3=1.0, score = round1((50.0/20)*1.0) = 2.5 < 3.0 → gate fail.
 	setupScoreCmdFixture(t,
-		"| 1 | Confident | D1 | R1 | |",
-		"| 2 | Confident | D2 | R2 | |",
-		"| 3 | Confident | D3 | R3 | |",
+		"| 1 | Confident | D1 | R1 | S:50 R:50 A:50 D:50 |",
+		"| 2 | Confident | D2 | R2 | S:50 R:50 A:50 D:50 |",
+		"| 3 | Confident | D3 | R3 | S:50 R:50 A:50 D:50 |",
 	)
 
 	cmd := scoreCmd()
@@ -85,13 +86,13 @@ func TestScoreCmd_CheckGateFail_ReturnsError(t *testing.T) {
 }
 
 func TestScoreCmd_CheckGatePass_ExitsZero(t *testing.T) {
-	// 5 certain decisions on a fix change: score 5.0 >= 3.0 → gate pass.
+	// Resolution Average on a fix change (expectedMin=3, threshold 3.0). Strong
+	// dimensions: composite for S:95 R:95 A:95 D:95 = 95.0 → mean 95.0,
+	// cover=1.0, score = round1((95.0/20)*1.0) = 4.8 >= 3.0 → gate pass.
 	setupScoreCmdFixture(t,
-		"| 1 | Certain | D1 | R1 | |",
-		"| 2 | Certain | D2 | R2 | |",
-		"| 3 | Certain | D3 | R3 | |",
-		"| 4 | Certain | D4 | R4 | |",
-		"| 5 | Certain | D5 | R5 | |",
+		"| 1 | Certain | D1 | R1 | S:95 R:95 A:95 D:95 |",
+		"| 2 | Certain | D2 | R2 | S:95 R:95 A:95 D:95 |",
+		"| 3 | Certain | D3 | R3 | S:95 R:95 A:95 D:95 |",
 	)
 
 	cmd := scoreCmd()

@@ -17,19 +17,33 @@ import (
 	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
 )
 
-// Penalty weights per decision grade.
+// SRAD composite weights — the per-row dimension aggregation, identical to the
+// `_srad.md`/`srad.md` grade-mapping weights: composite = 0.25*S + 0.30*R +
+// 0.25*A + 0.20*D (on the 0–100 dimension scale). The higher R weight encodes
+// the Critical Rule's intent (low-reversibility decisions carry more risk).
 const (
-	wCertain   = 0.0
-	wConfident = 0.3
-	wTentative = 1.0
+	wS = 0.25
+	wR = 0.30
+	wA = 0.25
+	wD = 0.20
 )
+
+// compositeToScore rescales a 0–100 composite mean onto the 0–5 confidence
+// scale. A 3.0 gate on 0–5 therefore equals a mean composite of 60 — the
+// existing "Confident" floor in srad.md — so the gate stays principled.
+const compositeToScore = 20.0
+
+// criticalDim is the per-dimension threshold for the Critical Rule: a row with
+// R < criticalDim AND A < criticalDim is a genuine-unknown hard fail (matches
+// srad.md's single numeric Critical Rule definition).
+const criticalDim = 25
 
 // Expected minimum decisions by change type. Single table seeded from the old
 // spec-gate values; types without an explicit entry (docs/test/ci/chore) use
 // the default of 3. The intake gate is now the sole authoritative gate, so it
 // demands spec-level decision coverage.
 var expectedMin = map[string]int{
-	"feat": 7, "refactor": 6, "fix": 5,
+	"feat": 7, "refactor": 6, "fix": 3,
 }
 
 // Gate thresholds by change type. Flat 3.0 for all seven types (1.10.0). The
@@ -41,7 +55,10 @@ var gateThresholds = map[string]float64{
 
 var scoresRegex = regexp.MustCompile(`S:(\d+)\s+R:(\d+)\s+A:(\d+)\s+D:(\d+)`)
 
-// GradeCount holds parsed assumption counts.
+// GradeCount holds parsed assumption counts and the per-row dimension data the
+// Resolution-Average score is built from. countGrades is the single parse pass
+// over the Assumptions table — it accumulates the per-row composite sum and the
+// Critical-Rule hard-fail flag here so computeScore never needs a second scan.
 type GradeCount struct {
 	Certain                int
 	Confident              int
@@ -50,6 +67,13 @@ type GradeCount struct {
 	HasFuzzy               bool
 	DimCount               int
 	SumS, SumR, SumA, SumD int
+	// SumComposite is the running sum of per-row composites (0.25*S + 0.30*R +
+	// 0.25*A + 0.20*D) over the DimCount rows that have parseable dimensions.
+	// The Resolution-Average score is (SumComposite/DimCount)/20 * cover.
+	SumComposite float64
+	// CriticalRowSeen is set when any row has R < criticalDim AND A < criticalDim
+	// on its raw dimensions — a per-row Critical-Rule hard fail (score 0.0).
+	CriticalRowSeen bool
 }
 
 // GateResult holds the gate check output.
@@ -113,7 +137,7 @@ func CheckGate(fabRoot, changeArg, stage string) (*GateResult, error) {
 
 	gc := countGrades(content)
 	total := gc.Certain + gc.Confident + gc.Tentative + gc.Unresolved
-	score := computeScore(gc.Certain, gc.Confident, gc.Tentative, gc.Unresolved, total, getExpectedMin(changeType))
+	score := computeScore(gc, total, getExpectedMin(changeType))
 
 	gate := "pass"
 	if score < threshold {
@@ -225,7 +249,7 @@ func ComputeWithStatus(fabRoot, changeDir string, intakeContent []byte, statusFi
 func buildResult(intakeContent []byte, changeType string, prevScore float64) *ScoreResult {
 	gc := countGrades(intakeContent)
 	total := gc.Certain + gc.Confident + gc.Tentative + gc.Unresolved
-	score := computeScore(gc.Certain, gc.Confident, gc.Tentative, gc.Unresolved, total, getExpectedMin(changeType))
+	score := computeScore(gc, total, getExpectedMin(changeType))
 
 	// Compute dimension means
 	var meanS, meanR, meanA, meanD float64
@@ -352,6 +376,12 @@ func countGrades(content []byte) GradeCount {
 				gc.SumR += r
 				gc.SumA += a
 				gc.SumD += d
+				gc.SumComposite += wS*float64(s) + wR*float64(r) + wA*float64(a) + wD*float64(d)
+				// Per-row Critical Rule on raw dimensions: a single low-R/low-A
+				// row is a genuine-unknown hard fail for the whole intake.
+				if r < criticalDim && a < criticalDim {
+					gc.CriticalRowSeen = true
+				}
 			}
 		}
 	}
@@ -372,15 +402,27 @@ func isTableSeparator(line string) bool {
 	return true
 }
 
-func computeScore(certain, confident, tentative, unresolved, total, expectedMin int) float64 {
-	if unresolved > 0 {
+// computeScore is the Resolution-Average confidence score. The intake is scored
+// from the per-row S:R:A:D composites already parsed into gc by countGrades —
+// not from grade-count penalties. The per-row mean composite is rescaled onto
+// the 0–5 scale (/20) and attenuated by coverage. Hard fails short-circuit to
+// 0.0 before the mean: any Unresolved row (genuine unknown) or any row failing
+// the Critical Rule (R < 25 AND A < 25 on raw dimensions). `total` is ALL graded
+// rows (certain+confident+tentative+unresolved) so a dimensionless malformed row
+// still counts toward coverage even though it is excluded from the mean.
+func computeScore(gc GradeCount, total, expectedMin int) float64 {
+	if gc.Unresolved > 0 || gc.CriticalRowSeen {
 		return 0.0
 	}
 
-	base := 5.0 - wCertain*float64(certain) - wConfident*float64(confident) - wTentative*float64(tentative)
-	if base < 0 {
-		base = 0
+	// No parseable dimensions → nothing to average; score 0.0 (the Scores
+	// column is required on every row, so a fully dimensionless table is a
+	// malformed intake that should not pass the gate).
+	if gc.DimCount == 0 {
+		return 0.0
 	}
+
+	meanComposite := gc.SumComposite / float64(gc.DimCount)
 
 	cover := 1.0
 	if expectedMin > 0 {
@@ -390,7 +432,7 @@ func computeScore(certain, confident, tentative, unresolved, total, expectedMin 
 		}
 	}
 
-	return roundTo1(base * cover)
+	return roundTo1((meanComposite / compositeToScore) * cover)
 }
 
 func getExpectedMin(changeType string) int {

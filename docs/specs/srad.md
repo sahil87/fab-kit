@@ -128,41 +128,48 @@ Rules:
 
 ## Confidence Scoring
 
+The confidence score is a **Resolution Average**: it reuses the per-row S:R:A:D dimensions already recorded on every Assumptions row (the same dimensions the grade mapping above uses), averages their composites, and rescales that mean onto the 0–5 scale. Thoroughness is rewarded — a richer, more honestly-graded intake with strong dimensions scores *higher*, never lower.
+
 ### Formula
 
 ```
-if unresolved > 0:
-  score = 0.0
-else:
-  base = max(0.0, 5.0 - 0.3 * confident - 1.0 * tentative)
-  cover = min(1.0, total_decisions / expected_min)
-  score = base * cover
+for each Assumptions row with parseable dimensions:
+  composite = 0.25 * S + 0.30 * R + 0.25 * A + 0.20 * D   # the grade-mapping weights, unchanged
+  if R < 25 AND A < 25:  return 0.0   # Critical Rule, per-row, on raw dimensions → hard fail
+if any row is Unresolved:  return 0.0  # genuine unknown → hard fail
+mean  = average(composite over rows that have parseable dimensions)
+cover = min(1.0, total_decisions / expected_min)
+return (mean / 20.0) * cover
 ```
 
-Where `total_decisions = certain + confident + tentative + unresolved` and `expected_min` is looked up by `change_type` from a single embedded table in `fab score`. See [change-types.md](change-types.md) for the full `expected_min` table.
+Where `total_decisions = certain + confident + tentative + unresolved` (ALL graded rows) and `expected_min` is looked up by `change_type` from a single embedded table in `fab score`. See [change-types.md](change-types.md) for the full `expected_min` table.
 
-### Penalty Weights
+The per-row composite uses the **same weights** as the grade-mapping aggregation (`0.25 * S + 0.30 * R + 0.25 * A + 0.20 * D`) — no new constant is introduced. The `/20` divisor rescales the 0–100 composite mean onto the 0–5 scale, so a 3.0 gate equals a mean composite of 60 — exactly the "Confident" floor in the grade mapping. The threshold therefore stays principled and needs no tuning.
 
-| Grade | Penalty | Rationale |
-|-------|---------|-----------|
-| **Certain** | 0.0 | Deterministic — no ambiguity whatsoever |
-| **Confident** | 0.3 | Moderate — strong signal but still an assumption; accumulates meaningfully |
-| **Tentative** | 1.0 | Meaningful — reasonable guess but multiple valid options; could be wrong |
-| **Unresolved** | Hard zero | Cannot run autonomously with unresolved decisions; any single Unresolved sets score to 0.0 |
+### Hard Fails
+
+Two conditions short-circuit the score to `0.0` *before* the mean is taken:
+
+| Condition | Scope | Rationale |
+|-----------|-------|-----------|
+| **Critical Rule** (`R < 25 AND A < 25`) | Per row, on raw dimensions | A single high-blast-radius, low-competence decision is a genuine unknown — the intake cannot run autonomously regardless of how strong the other rows are |
+| **Unresolved** | Any Unresolved-graded row | An unresolved decision is an unanswered question; any single one sets the score to 0.0 |
+
+Both are evaluated per row, so they hard-fail even when the averaged-in composites would otherwise be strong — a weak row cannot hide behind a high mean.
 
 ### Coverage Factor
 
-The `cover` component attenuates the score when the total number of decisions is less than the expected minimum for the change type. This prevents thin intakes (e.g., 2 decisions scoring 5.0) from getting inflated scores.
+The `cover` component attenuates the score when the total number of decisions is less than the expected minimum for the change type. This prevents thin intakes (e.g., 2 strong decisions) from getting inflated scores.
 
-When `total_decisions >= expected_min`, `cover = 1.0` and the formula degenerates to the base penalty only. When `total_decisions < expected_min`, the score is proportionally reduced.
+`total_decisions` counts **all graded rows** (`certain + confident + tentative + unresolved`), while the mean is taken only over rows with parseable dimensions. A dimensionless row (no `Scores` column — a malformed intake, since the column is required) is therefore excluded from the mean but still counted toward coverage. When `total_decisions >= expected_min`, `cover = 1.0` and the score is the rescaled mean alone. When `total_decisions < expected_min`, the score is proportionally reduced.
 
 ### Range
 
-- **5.0**: All decisions are Certain AND decision count meets or exceeds `expected_min`
-- **3.0**: The single intake gate threshold (flat, all types — see below)
-- **0.0**: Any Unresolved decision exists, OR penalties + low coverage reduce the score to zero
+- **5.0**: Mean composite is 100 (all dimensions perfect) AND decision count meets or exceeds `expected_min`
+- **3.0**: The single intake gate threshold (flat, all types — see below) — equivalently, a mean composite of 60 at full coverage
+- **0.0**: Any Unresolved decision exists, any row trips the Critical Rule, OR a weak mean / low coverage reduces the score to zero
 
-The `max(0.0, ...)` floor clamps the base — if penalties exceed 5.0, the base is 0.0, not negative.
+The score is clamped to the 0–5 scale by the bounded inputs: composites are 0–100 and `cover` is 0–1, so `(mean / 20) * cover` cannot exceed 5.0 or fall below 0.0.
 
 ### Storage
 
@@ -197,18 +204,15 @@ The per-type map is retained in code (`getGateThreshold`) so future divergence i
 
 ### What 3.0 Allows
 
-With the formula `score = base * cover` where `base = 5.0 - 0.3 * confident - 1.0 * tentative`:
+With the formula `score = (mean / 20.0) * cover`, a 3.0 gate at full coverage (`cover = 1.0`, i.e., `total_decisions >= expected_min`) is exactly a **mean composite of 60** — the "Confident" floor in the grade mapping. So the gate passes iff the intake's decisions average out to at least Confident-grade resolution:
 
-Assuming full coverage (`cover = 1.0`, i.e., `total_decisions >= expected_min`):
+- **Mean composite ≥ 60** (all rows ~Confident or better): score ≥ 3.0 (passes)
+- **Mean composite < 60** (the rows average below Confident): score < 3.0 (fails — too many weak guesses)
+- **A single weak row drags the mean**: one low-composite row pulls the average down toward failure — thoroughness with strong dimensions is what clears the gate, not row count
+- **Any row with `R < 25 AND A < 25`**: score = 0.0 (Critical Rule hard fail — always fails)
+- **Any Unresolved row**: score = 0.0 (always fails)
 
-- **0 Tentative, up to 6 Confident**: base = 5.0 – 1.8 = 3.2 (passes)
-- **0 Tentative, 7 Confident**: base = 5.0 – 2.1 = 2.9 (fails)
-- **1 Tentative, up to 3 Confident**: base = 5.0 – 1.0 – 0.9 = 3.1 (passes)
-- **2 Tentative, 0 Confident**: base = 5.0 – 2.0 = 3.0 (passes, barely)
-- **3+ Tentative**: base ≤ 2.0 (fails — too many guesses)
-- **Any Unresolved**: score = 0.0 (always fails)
-
-With low coverage (e.g., 2 of 7 expected decisions for `feat`): `cover = 0.29`, even a perfect base of 5.0 yields only 1.4. This prevents thin intakes from passing the gate.
+With low coverage (e.g., 2 of 7 expected decisions for `feat`): `cover = 0.29`, so even a perfect mean composite of 100 yields only `(100 / 20) * 0.29 = 1.4`. This prevents thin intakes from passing the gate regardless of how strong the few recorded decisions are.
 
 ### Gate Behavior
 
@@ -274,9 +278,9 @@ Detailed description specifying the component, location, trigger, and behavior.
 
 **Confidence counts**: Certain: 8, Confident: 2, Tentative: 0, Unresolved: 0
 
-**Score**: `base = max(0.0, 5.0 - 0.6) = 4.4`, `cover = min(1.0, 10 / 6) = 1.0`, `score = 4.4 * 1.0 = 4.4`
+**Score**: Resolution Average over the per-row composites. The three rows above average `(94.5 + 91.1 + 94.35) / 3 = 93.32`; with 10 decisions and `feat` `expected_min = 7`, `cover = min(1.0, 10 / 7) = 1.0`. `score = (93.32 / 20.0) * 1.0 = 4.7`. No row trips the Critical Rule and none is Unresolved, so there is no hard fail.
 
-**Outcome**: `/fab-ff` gate passes (4.4 >= 3.0 `feat` threshold). The fast-forward pipeline can run with high confidence.
+**Outcome**: `/fab-ff` gate passes (4.7 >= 3.0 `feat` threshold). The fast-forward pipeline can run with high confidence — strong, thoroughly-recorded dimensions produce a high score.
 
 ---
 

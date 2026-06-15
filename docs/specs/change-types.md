@@ -28,7 +28,7 @@ The `expected_min` threshold defines how many SRAD decisions a change should hav
 |------|----------------|
 | `feat` | 7 |
 | `refactor` | 6 |
-| `fix` | 5 |
+| `fix` | 3 |
 | `docs` | 3 |
 | `test` | 3 |
 | `ci` | 3 |
