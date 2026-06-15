@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,73 @@ func TestMemoryIndexCmd_RegisteredWithExpectedUse(t *testing.T) {
 	}
 	if cmd.Flags().Lookup("check") == nil {
 		t.Error("memoryIndexCmd missing --check flag")
+	}
+	if cmd.Flags().Lookup("json") == nil {
+		t.Error("memoryIndexCmd missing --json flag")
+	}
+}
+
+// runMemoryIndex executes a fresh memory-index cmd with the given args and
+// returns the RunE error plus captured stdout/stderr.
+func runMemoryIndex(t *testing.T, args ...string) (error, string, string) {
+	t.Helper()
+	cmd := memoryIndexCmd()
+	cmd.SilenceUsage = true
+	cmd.SetArgs(args)
+	var out, errBuf bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errBuf)
+	err := cmd.Execute()
+	return err, out.String(), errBuf.String()
+}
+
+func TestMemoryIndexCmd_CheckTier0_CleanReturnsNil(t *testing.T) {
+	setupFabRepo(t)
+	// Regenerate so the tree is byte-stable, then --check must be clean (nil).
+	if err, _, _ := runMemoryIndex(t); err != nil {
+		t.Fatalf("regen failed: %v", err)
+	}
+	if err, _, _ := runMemoryIndex(t, "--check"); err != nil {
+		t.Errorf("clean tree --check should return nil (exit 0), got: %v", err)
+	}
+}
+
+func TestMemoryIndexCmd_CheckTier1_BenignDriftReturnsError(t *testing.T) {
+	repo := setupFabRepo(t)
+	if err, _, _ := runMemoryIndex(t); err != nil {
+		t.Fatalf("regen failed: %v", err)
+	}
+	// Improve login.md's description: regen would render the new text. The file
+	// still has frontmatter and is on disk → benign drift (tier 1), not loss.
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "auth", "login.md"),
+		"---\ndescription: \"Improved login flow\"\n---\n# Login\n")
+	err, _, _ := runMemoryIndex(t, "--check")
+	if err == nil {
+		t.Error("benign drift --check should return an error (exit 1)")
+	}
+}
+
+func TestMemoryIndexCmd_CheckJSON_CleanEmitsTier0(t *testing.T) {
+	setupFabRepo(t)
+	if err, _, _ := runMemoryIndex(t); err != nil {
+		t.Fatalf("regen failed: %v", err)
+	}
+	err, out, _ := runMemoryIndex(t, "--check", "--json")
+	if err != nil {
+		t.Errorf("clean --check --json should return nil, got: %v", err)
+	}
+	var report struct {
+		Tier   int  `json:"tier"`
+		Drift  bool `json:"drift"`
+		Losses []struct {
+			Category string `json:"category"`
+		} `json:"losses"`
+	}
+	if jerr := json.Unmarshal([]byte(out), &report); jerr != nil {
+		t.Fatalf("--json stdout must be a parseable object, got %q (err %v)", out, jerr)
+	}
+	if report.Tier != 0 || report.Drift {
+		t.Errorf("clean tree → {tier:0, drift:false}, got tier=%d drift=%v", report.Tier, report.Drift)
 	}
 }
 

@@ -447,7 +447,7 @@ Consumers: `/git-pr` Step 3c (renders the PR body `## Meta` block, pasted verbat
 ## fab memory-index
 
 ```
-fab memory-index [--check]
+fab memory-index [--check [--json]]
 ```
 
 Deterministically (re)generates the `docs/memory/` index files so agents never hand-edit
@@ -493,16 +493,49 @@ Shape warnings (non-fatal, stderr — the "detect" half of the memory-tree-shape
   index output (so a regen-with-warnings is still idempotent).
 
 Flags:
-- `--check` — write nothing; exit non-zero (listing the out-of-date files on stderr) if any
-  index file differs from what would be generated. Useful as a staleness guard (CI / preflight).
+- `--check` — write nothing; classify the rendered-vs-existing drift by **severity** and encode
+  it in the **exit code** (see Exit codes). Useful as a staleness guard (CI / preflight) AND as a
+  destructive-loss guard (refuse-before-regen). The drift detection is the same byte-compare the
+  write path uses; the new half is a loss classifier + a small parser over the *existing* index
+  rows/headings (pure functions in `internal/memoryindex`, unit-tested like `RenderRoot`/`Gather`).
+- `--json` (with `--check`) — emit the loss report as a single JSON object on **stdout** and
+  suppress the human-readable text; the exit code is unchanged. Mirrors the `fab pane` /
+  `fab migrations-status` `--json` convention (snake_case). Shape:
+  `{"tier": 0|1|2, "drift": bool, "losses": [{"category": "description"|"tombstone"|"grouping", "path": "<repo-rel index>", "detail": "<lost text | dropped link target | flattened heading>"}]}`.
+  Consumed by `/docs-reorg-memory`'s compatibility detection.
 
-Exit codes:
-- `0` — success (indexes written or already up to date; `--check` clean).
-- non-zero — `docs/memory/` not found, a write failed, or (`--check`) an index is out of date.
+Tiered `--check` exit codes (loss is a strict subset of drift — one render pass serves both):
+- **`0`** — clean: every index file is byte-identical to its regenerated form (no regen needed).
+- **`1`** — **benign drift**: regen would change content but destroy nothing (e.g. an *improved*
+  `description:`, a refreshed `Last Updated` date). This is the former "out of date" condition —
+  existing consumers treating "non-zero = stale" still work unchanged.
+- **`2`** — **destructive loss**: regen would wipe curated/historical content. Three categories,
+  the mechanical form of `/docs-reorg-memory`'s prose signals: (1) a curated **description** that
+  would regenerate to `—` (the file lacks `description:` frontmatter); (2) a **tombstone** row
+  whose `docs/memory/`-relative link target is absent on disk (external/absolute links excluded —
+  no false positives); (3) a custom structural **grouping** heading in the root `index.md` beyond
+  the domains-only table. Writes nothing; enumerates each loss to stderr by category; the
+  human-readable output ends with the pointer `→ run /docs-reorg-memory to remediate (it relocates
+  removal-history rows to _shared/removed-domains.md and backfills description: frontmatter via
+  /docs-hydrate-memory) before regenerating.` (`/docs-reorg-memory` is the orchestrator that handles
+  all three categories — it relocates tombstone rows itself and dispatches `/docs-hydrate-memory`
+  backfill mode for the descriptions; backfill alone does not relocate tombstones.)
 
-Consumers: the hydrate skills (`/docs-hydrate-memory` Step 4, `/fab-continue` hydrate) and
-`/docs-reorg-memory` (index regen after diagnosis) — all call `fab memory-index` instead of
-hand-maintaining index rows.
+Callers pick a threshold: **CI / pre-commit** fails on exit ≥ 1 (any drift); the **hydrate /
+reorg refuse-before-regen guards** fail only on exit == 2. A **born-compatible fab-kit tree is
+provably never exit 2** (frontmatter present, no off-disk rows, domains-only root) — so the
+refuse-before-regen guards are no-ops on native trees and only ever fire on a pre-fab-kit tree.
+
+Other exit codes:
+- non-zero (1) — an operational error: `docs/memory/` not found (or another `Gather` failure), or a
+  write failed. `Gather` runs before the `--check` branch, so a `--check` run also exits 1 on these —
+  the exit-1 / exit-2 *tier* codes above apply only once gather succeeds and the comparison runs.
+  Writes happen only on non-`--check` runs, so a write failure is non-`--check`-only.
+
+Consumers: the hydrate skills (`/docs-hydrate-memory` Step 4 + its refuse-before-regen guard,
+`/fab-continue` hydrate + its defense-in-depth guard) and `/docs-reorg-memory` (compatibility
+detection via `--check --json`, index regen after diagnosis) — all call `fab memory-index`
+instead of hand-maintaining index rows.
 
 ---
 
