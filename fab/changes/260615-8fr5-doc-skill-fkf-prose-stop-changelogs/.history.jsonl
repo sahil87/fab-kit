@@ -1,0 +1,10 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-15T18:21:39Z"}
+{"args":"FKF Change 3/4 (refactor): Doc-skill prose → author FKF frontmatter, stop writing per-file changelogs, call fab status set-summary, bundle-relative links","cmd":"fab-new","event":"command","ts":"2026-06-15T18:21:39Z"}
+{"delta":"+4.2","event":"confidence","score":4.2,"trigger":"calc-score","ts":"2026-06-15T18:23:05Z"}
+{"delta":"+0.0","event":"confidence","score":4.2,"trigger":"calc-score","ts":"2026-06-15T18:23:14Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-06-15T18:25:46Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-15T18:25:53Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-15T18:31:44Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-06-15T18:36:45Z"}
+{"event":"review","result":"passed","ts":"2026-06-15T18:36:45Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-15T18:43:27Z"}

@@ -15,7 +15,7 @@ Hydrate `docs/memory/` from external sources or from codebase analysis.
 
 - **Ingest mode** (URLs, `.md` files): Fetches/reads sources, identifies domains and topics, creates or merges memory files, maintains indexes.
 - **Generate mode** (folders, no arguments): Scans codebase for undocumented areas, presents interactive gap report, generates memory files.
-- **Backfill mode** (`backfill` keyword, or dispatched by `/docs-reorg-memory`): Re-scans an existing `docs/memory/` tree for topic files that lack `description:` frontmatter and adds it — **body-preserving** (only prepends/edits frontmatter). Used to migrate a pre-fab-kit, hand-curated tree to the fab-kit convention so `fab memory-index` stops rendering `—` for every row. Unlike generate mode (which *creates* files from source-code gaps), backfill *adds frontmatter to existing* files.
+- **Backfill mode** (`backfill` keyword, or dispatched by `/docs-reorg-memory`): Re-scans an existing `docs/memory/` tree for topic files that lack `description:` frontmatter and adds the FKF frontmatter (`type: memory` + `description:`) — **body-preserving** (only prepends/edits leading frontmatter; never strips an existing `## Changelog` body). Used to migrate a pre-fab-kit, hand-curated tree to the fab-kit convention so `fab memory-index` stops rendering `—` for every row. Unlike generate mode (which *creates* files from source-code gaps), backfill *adds frontmatter to existing* files.
 
 Mode is determined automatically by argument type (ingest/generate) or by the explicit `backfill` keyword / reorg dispatch. Safe to run repeatedly — content is merged without duplication or overwriting manually-added content; backfill skips files that already have `description:`.
 
@@ -84,10 +84,10 @@ For each source: identify **domains** (logical topic areas) and **topics** withi
 For each topic:
 1. Create `docs/memory/{domain}/` if needed
 2. Create `docs/memory/{domain}/index.md` if needed — a stub carrying only the `description:` frontmatter one-liner for the domain, created before Step 4 runs (`fab memory-index` reads it into the root index row — see Index Ownership). When placing a topic into a sub-domain, likewise create the `docs/memory/{domain}/{sub-domain}/index.md` stub if needed
-3. If target file doesn't exist → create with a leading `description:` frontmatter line, then Overview, Requirements, Design Decisions, Changelog sections
+3. If target file doesn't exist → create with leading FKF frontmatter (`type: memory` constant + a `description:` one-liner, per `docs/specs/fkf.md` §3.1–§3.2), then Overview, Requirements, Design Decisions sections. **No `## Changelog` section** — memory files no longer carry one (FKF §3.3); change history lives in the per-folder generated `log.md` (§6).
 4. If target file exists → **merge** new content, preserve existing/manually-added content; keep its `description:` frontmatter accurate
 
-**Author the `description:` frontmatter** on every file you create or whose summary changes — it is the source for the generated index row (Step 4). Do NOT hand-write index rows.
+**Author the FKF frontmatter** on every file you create or whose summary changes — the `type: memory` constant (§3.1) plus the `description:` one-liner (§3.2) that is the source for the generated index row (Step 4). Do NOT hand-write index rows. **Bundle-relative cross-links**: any memory↔memory link you write MUST use the bundle-relative `/...` form (resolved from `docs/memory/`, FKF §7); links *out* of the bundle (source, specs, URLs) stay repo-relative/absolute-URL.
 
 **Shape bounds (SHOULD guidance)** when placing topics into domains:
 - Aim for **~5–12 topic files per folder**. Past ~12, `fab memory-index` warns — consider a sub-domain.
@@ -144,6 +144,7 @@ For each selected gap: read **all source files** in scope, synthesize into **one
 
 ```markdown
 ---
+type: memory
 description: "One-line summary of this topic (source for the generated index row)."
 ---
 # {Topic}
@@ -156,12 +157,9 @@ description: "One-line summary of this topic (source for the generated index row
 
 ## Design Decisions
 {Architectural choices with rationale where inferable.}
-
-## Changelog
-| Date | Change |
-|------|--------|
-| {DATE} | Generated from code analysis |
 ```
+
+The frontmatter carries the FKF pair (`type: memory` constant + curated `description:`, `docs/specs/fkf.md` §3.1–§3.2). **No `## Changelog` section** — memory files no longer carry one (§3.3); change history lives in the per-folder generated `log.md` (§6, populated from git history + the `.status.yaml` `summary:` field). Any memory↔memory cross-link uses the bundle-relative `/...` form (§7).
 
 Mark ambiguous inferences with `[INFERRED]` inline near the relevant requirement.
 
@@ -177,7 +175,7 @@ Same as ingest mode Step 4 — run `fab memory-index` to regenerate the root (do
 
 Backfill migrates an **existing** hand-curated `docs/memory/` tree (typically pre-fab-kit) to the convention `fab memory-index` depends on: each topic file leads with a `description:` frontmatter line. Without it, the generator (which reads descriptions exclusively from frontmatter) renders `—` for every row, wiping curated descriptions on the first regen. Backfill is the one-time fix. It is invoked directly (`/docs-hydrate-memory backfill`) or dispatched by `/docs-reorg-memory` as the second step of its compatibility orchestration.
 
-> **Scope**: Backfill is a **pure frontmatter operation** — it adds `description:` to existing files and creates missing `description:`-only index stubs. It does NOT detect or relocate tombstone rows, flatten custom groupings, or move files; those structural concerns belong to `/docs-reorg-memory`. The body of every file is preserved byte-for-byte.
+> **Scope**: Backfill is a **pure frontmatter operation** — it adds the FKF frontmatter (`type: memory` + `description:`) to existing files and creates missing `description:`-only index stubs. It does NOT detect or relocate tombstone rows, flatten custom groupings, move files, or strip existing `## Changelog` bodies; those structural concerns belong to `/docs-reorg-memory` (and the `## Changelog` strip to FKF migration Change 4). The body of every file is preserved byte-for-byte.
 
 ### Step 1: Re-scan `docs/memory/` (no caller manifest)
 
@@ -189,8 +187,8 @@ For each discovered topic file missing `description:`:
 
 1. Read the file's **own content** — Overview, first section, or `# H1` — and synthesize a concise one-line summary.
 2. **Prefer a curated index row** where one maps to this file. If an existing hand-curated index file (e.g., a pre-fab-kit `index.md` whose rows line up file-by-file with the topic files) has a row whose description text describes this file, use that curated text as the source — it is higher quality than re-synthesis.
-3. Write the `description:` as the **leading frontmatter block** of the file (the same `---\ndescription: "..."\n---` shape ingest/generate use). **Preserve the body byte-for-byte** — backfill only prepends or edits the frontmatter, never the content below it.
-4. **Skip files that already have a `description:`** — backfill never overwrites an existing one. This makes a second pass a no-op (idempotency, Constitution III).
+3. Write the FKF frontmatter as the **leading frontmatter block** of the file — the `type: memory` constant (`docs/specs/fkf.md` §3.1) plus the synthesized `description:` (§3.2), the same `---\ntype: memory\ndescription: "..."\n---` shape ingest/generate use, so the backfilled file is FKF-conforming (§2 item 2). **Preserve the body byte-for-byte** — backfill only prepends or edits the leading frontmatter, never the content below it. In particular, it does **NOT** strip any existing `## Changelog` section from the body (removing the 20 existing per-file changelogs is a separate change, FKF §10 item 2); backfill stays a pure frontmatter operation.
+4. **Skip files that already have a `description:`** — backfill never overwrites an existing one (and stamps `type: memory` only when it is adding the frontmatter for the first time). This makes a second pass a no-op (idempotency, Constitution III).
 
 ### Step 3: Create missing index stubs (stub-before-index)
 
