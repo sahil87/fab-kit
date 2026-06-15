@@ -337,6 +337,16 @@ func SetChangeType(statusFile *sf.StatusFile, statusPath, changeType string) err
 	return statusFile.Save(statusPath)
 }
 
+// SetSummary sets the per-change log summary field and persists. Unlike
+// SetChangeType it has no source/sticky side effect — summary has no inferring
+// hook to guard against; it is set once during the change (authored at hydrate
+// or carried from the intake) and read by the FKF log.md generator (§6.3). An
+// empty text clears the field (drop-when-empty round-trip via syncToRaw).
+func SetSummary(statusFile *sf.StatusFile, statusPath, text string) error {
+	statusFile.Summary = text
+	return statusFile.Save(statusPath)
+}
+
 // ApplyAcceptance updates a field on the in-memory plan: block without
 // saving. Valid fields: generated (bool), task_count (int), acceptance_count
 // (int), acceptance_completed (int). Validation happens before any mutation.

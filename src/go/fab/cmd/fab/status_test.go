@@ -52,3 +52,32 @@ func TestStatusCmd_RegistersBothChecklistRemovedAndSetAcceptance(t *testing.T) {
 		t.Error("statusCmd missing set-checklist removed-error subcommand")
 	}
 }
+
+func TestStatusSummaryCmds_RegisteredWithExpectedUse(t *testing.T) {
+	if !strings.HasPrefix(statusSetSummaryCmd().Use, "set-summary ") {
+		t.Errorf("statusSetSummaryCmd Use = %q, want prefix \"set-summary \"", statusSetSummaryCmd().Use)
+	}
+	if !strings.HasPrefix(statusGetSummaryCmd().Use, "get-summary ") {
+		t.Errorf("statusGetSummaryCmd Use = %q, want prefix \"get-summary \"", statusGetSummaryCmd().Use)
+	}
+}
+
+func TestStatusCmd_RegistersSummaryVerbs(t *testing.T) {
+	root := statusCmd()
+	hasSetSummary := false
+	hasGetSummary := false
+	for _, sub := range root.Commands() {
+		switch {
+		case strings.HasPrefix(sub.Use, "set-summary"):
+			hasSetSummary = true
+		case strings.HasPrefix(sub.Use, "get-summary"):
+			hasGetSummary = true
+		}
+	}
+	if !hasSetSummary {
+		t.Error("statusCmd missing set-summary subcommand")
+	}
+	if !hasGetSummary {
+		t.Error("statusCmd missing get-summary subcommand")
+	}
+}

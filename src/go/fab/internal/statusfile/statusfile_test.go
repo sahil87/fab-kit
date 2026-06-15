@@ -710,6 +710,96 @@ func TestSparseFile_ChangeTypeSourceInserts(t *testing.T) {
 	}
 }
 
+// TestSummary_AbsentStaysAbsent covers 5943: a status file with no summary key
+// loads as empty and stays absent on round-trip (back-compat — no empty scalar
+// emitted, matching omitempty and the change_type_source posture).
+func TestSummary_AbsentStaysAbsent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	os.WriteFile(path, []byte(testYAML), 0644)
+
+	sf, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if sf.Summary != "" {
+		t.Errorf("absent summary should load empty, got %q", sf.Summary)
+	}
+
+	out := filepath.Join(dir, ".status-out.yaml")
+	if err := sf.Save(out); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	data, _ := os.ReadFile(out)
+	if strings.Contains(string(data), "summary:") {
+		t.Errorf("empty summary must not be serialized, got:\n%s", data)
+	}
+}
+
+// TestSummary_RoundTrips covers 5943: setting a non-empty summary persists and
+// reloads.
+func TestSummary_RoundTrips(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	os.WriteFile(path, []byte(testYAML), 0644)
+
+	sf, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	sf.Summary = "added the summary field"
+	if err := sf.Save(path); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	reloaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.Summary != "added the summary field" {
+		t.Errorf("summary dropped: %q", reloaded.Summary)
+	}
+}
+
+// TestSummary_SetToEmptyDropsKey covers 5943: clearing a previously-set summary
+// removes the key on the next Save (drop-when-empty).
+func TestSummary_SetToEmptyDropsKey(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	os.WriteFile(path, []byte(testYAML), 0644)
+
+	sf, _ := Load(path)
+	sf.Summary = "temporary"
+	if err := sf.Save(path); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	reloaded, _ := Load(path)
+	reloaded.Summary = ""
+	if err := reloaded.Save(path); err != nil {
+		t.Fatalf("Save (clear): %v", err)
+	}
+	data, _ := os.ReadFile(path)
+	if strings.Contains(string(data), "summary:") {
+		t.Errorf("cleared summary must drop the key, got:\n%s", data)
+	}
+}
+
+// TestSparseFile_SummaryInserts covers 5943: a summary set on a sparse document
+// that lacks the key is inserted on write (before last_updated).
+func TestSparseFile_SummaryInserts(t *testing.T) {
+	sf, path := loadSparse(t)
+	sf.Summary = "sparse summary"
+	if err := sf.Save(path); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	reloaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.Summary != "sparse summary" {
+		t.Errorf("summary not inserted on sparse file: %q", reloaded.Summary)
+	}
+}
+
 func TestSparseFile_StageMetricsAndPlanPersist(t *testing.T) {
 	sf, path := loadSparse(t)
 

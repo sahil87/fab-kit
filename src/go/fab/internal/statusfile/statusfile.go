@@ -117,7 +117,12 @@ type StatusFile struct {
 	StageMetrics     map[string]*StageMetric `yaml:"-"`
 	PRs              []string                `yaml:"prs"`
 	TrueImpact       *TrueImpact             `yaml:"true_impact,omitempty"`
-	LastUpdated      string                  `yaml:"last_updated"`
+	// Summary is the per-change one-line log summary — the C-lite source line
+	// the FKF log.md generator joins with git history (FKF §6.3). Optional:
+	// empty == no summary (drop-when-empty round-trip, like ChangeTypeSource),
+	// and a change with no summary degrades gracefully to its slug in the log.
+	Summary     string `yaml:"summary,omitempty"`
+	LastUpdated string `yaml:"last_updated"`
 
 	// raw holds the full parsed document for field-preserving serialization
 	raw *yaml.Node
@@ -177,6 +182,8 @@ func Load(path string) (*StatusFile, error) {
 			sf.ChangeType = val.Value
 		case "change_type_source":
 			sf.ChangeTypeSource = val.Value
+		case "summary":
+			sf.Summary = val.Value
 		case "last_updated":
 			sf.LastUpdated = val.Value
 		case "issues":
@@ -441,6 +448,15 @@ func (sf *StatusFile) syncToRaw() {
 			} else {
 				val.Value = sf.ChangeTypeSource
 			}
+		case "summary":
+			// Empty == no summary: drop the key rather than emit an empty
+			// scalar, so an absent field stays absent (back-compat round-trip).
+			if sf.Summary == "" {
+				dropKeyAt(root, i)
+				i -= 2
+			} else {
+				val.Value = sf.Summary
+			}
 		case "last_updated":
 			val.Value = sf.LastUpdated
 		case "issues":
@@ -473,6 +489,9 @@ func (sf *StatusFile) syncToRaw() {
 	}
 	if !seen["change_type_source"] && sf.ChangeTypeSource != "" {
 		insertKey(root, "change_type_source", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: sf.ChangeTypeSource})
+	}
+	if !seen["summary"] && sf.Summary != "" {
+		insertKey(root, "summary", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: sf.Summary})
 	}
 	if !seen["issues"] {
 		node := &yaml.Node{}

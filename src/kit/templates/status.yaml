@@ -24,5 +24,6 @@ confidence:
   score: 0.0
 stage_metrics: {}
 prs: []
+summary: ""
 # true_impact: lazily created on first apply-finish (no placeholder here).
 last_updated: {CREATED}

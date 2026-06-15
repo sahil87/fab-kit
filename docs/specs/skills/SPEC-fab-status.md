@@ -45,3 +45,19 @@ User invokes /fab-status [change-name]
 ### Sub-agents
 
 None.
+
+## Related `fab status` CLI verbs
+
+Beyond the read-only `/fab-status` display skill above, the `fab status` CLI carries
+the per-change `summary:` write/read verbs (kept in sync with `_cli-fab.md` § fab
+status):
+
+| Verb | Usage | Notes |
+|------|-------|-------|
+| `set-summary` | `set-summary <change> <text>` | Sets the `.status.yaml` `summary:` field — the per-change one-line log summary (FKF C-lite `log.md` source, see `docs/specs/fkf.md` §6.3). Conflict-free write path: each change touches only its own `.status.yaml`. An empty text clears the field (drop-when-empty round-trip via `omitempty`) |
+| `get-summary` | `get-summary <change>` | Prints the `summary:` field. An absent/empty summary prints an empty line (graceful absence — the `log.md` generator falls back to the change slug) |
+
+No stage auto-populates `summary` — it is set once during the change (authored at
+hydrate, or carried from the intake) via the CLI. The `summary:` field models exactly
+on the optional-string `change_type_source` field (`yaml:"summary,omitempty"`,
+drop-when-empty, insert-when-absent before `last_updated`).
