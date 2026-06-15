@@ -86,6 +86,14 @@ type CheckTarget struct {
 	// IsRoot marks the root docs/memory/index.md (grouping detection only runs
 	// there — domain/sub-domain indexes have no custom-grouping category).
 	IsRoot bool
+	// IsLog marks a generated log.md target (FKF §6). A log.md is a C-lite git
+	// projection, not a row-table index, so its drift is always BENIGN (tier 1):
+	// the description/tombstone/grouping detectors are index-row-shaped and would
+	// be meaningless on log list entries. No new tier-2 category is introduced
+	// for log.md / FKF frontmatter (intake OQ4 / assumption #9) — a born-FKF tree
+	// is provably never tier 2, so drift on a generated log.md is a stale-regen
+	// signal, never destructive loss.
+	IsLog bool
 	// LinkBase is the index file's directory relative to docs/memory/ (""
 	// for the root, "<domain>" for a domain index, "<domain>/<sub>" for a
 	// sub-domain index). A row link target is resolved against it to a
@@ -107,6 +115,13 @@ func Classify(targets []CheckTarget, memExists func(relPath string) bool) LossRe
 			continue // byte-identical — no drift for this file
 		}
 		report.Drift = true
+
+		// A log.md is a generated C-lite projection, not a row-table index — its
+		// drift is always benign (tier 1). Skip the index-row destructive-loss
+		// detectors for it (intake OQ4 / assumption #9: no new tier-2 category).
+		if t.IsLog {
+			continue
+		}
 
 		// Destructive-loss detectors run only when this file actually drifts.
 		report.Losses = append(report.Losses, descriptionLosses(t)...)

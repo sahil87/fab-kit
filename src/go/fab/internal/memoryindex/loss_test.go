@@ -264,6 +264,55 @@ func TestClassify_Invariants_Tier2HasLoss_Tier1HasDrift(t *testing.T) {
 	}
 }
 
+// --- log.md targets: always benign drift, never tier 2 (FKF, OQ4) ---------
+
+func TestClassify_LogDrift_IsBenign(t *testing.T) {
+	// A drifted log.md (stale C-lite projection) is benign drift (tier 1) — its
+	// list entries are not index table rows, and no new tier-2 category exists.
+	existing := "# Log — Auth\n<!-- gen -->\n\n## 2026-01-01\n- [login](/auth/login.md) — old summary (abcd)\n"
+	rendered := "# Log — Auth\n<!-- gen -->\n\n## 2026-06-15\n- [login](/auth/login.md) — new summary (abcd)\n"
+	report := Classify([]CheckTarget{
+		{Path: "docs/memory/auth/log.md", Existing: existing, Rendered: rendered, LinkBase: "auth", IsLog: true},
+	}, setExists(map[string]bool{"auth/login.md": true}))
+
+	if report.Tier != TierBenignDrift {
+		t.Errorf("drifted log.md → TierBenignDrift, got %d (losses %v)", report.Tier, report.Losses)
+	}
+	if len(report.Losses) != 0 {
+		t.Errorf("log.md drift must produce no destructive losses, got %v", report.Losses)
+	}
+}
+
+func TestClassify_LogHandText_NotTier2(t *testing.T) {
+	// A hand-curated log the C-lite projection can't reproduce is STILL benign —
+	// the log surface introduces no tier-2 category (intake assumption #9 / OQ4).
+	// (Crafted so that, were the index detectors to run, the bundle-relative /-
+	// link could not even false-positive; the IsLog guard is what guarantees it.)
+	existing := "# Log — Auth\n\n## 2026-01-01\n- Curated prose entry a human wrote (xyz1)\n"
+	rendered := "# Log — Auth\n<!-- gen -->\n\n## 2026-06-15\n- [login](/auth/login.md) — generated (abcd)\n"
+	report := Classify([]CheckTarget{
+		{Path: "docs/memory/auth/log.md", Existing: existing, Rendered: rendered, LinkBase: "auth", IsLog: true},
+	}, setExists(map[string]bool{"auth/login.md": true}))
+
+	if report.Tier == TierDestructiveLoss {
+		t.Errorf("log.md drift must never be tier 2, got losses %v", report.Losses)
+	}
+	if report.Tier != TierBenignDrift {
+		t.Errorf("hand-edited log.md → TierBenignDrift, got %d", report.Tier)
+	}
+}
+
+func TestClassify_LogClean_NoDrift(t *testing.T) {
+	// A born-FKF log.md (byte-identical to its regenerated form) is tier 0.
+	content := "# Log — Auth\n<!-- gen -->\n\n## 2026-06-15\n- [login](/auth/login.md) — s (abcd)\n"
+	report := Classify([]CheckTarget{
+		{Path: "docs/memory/auth/log.md", Existing: content, Rendered: content, IsLog: true},
+	}, setExists(map[string]bool{}))
+	if report.Tier != TierClean || report.Drift {
+		t.Errorf("byte-identical log.md → TierClean, got tier %d drift %v", report.Tier, report.Drift)
+	}
+}
+
 // --- Parser unit tests -----------------------------------------------------
 
 func TestParseIndexRows_GeneratedShapes(t *testing.T) {

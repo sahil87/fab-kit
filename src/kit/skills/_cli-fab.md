@@ -458,15 +458,20 @@ Consumers: `/git-pr` Step 3c (renders the PR body `## Meta` block, pasted verbat
 fab memory-index [--check [--json]]
 ```
 
-Deterministically (re)generates the `docs/memory/` index files so agents never hand-edit
-them — the deterministic replacement for the hand-maintained index rows that previously lived
-in the hydrate / `docs-reorg-memory` skill prose. Modeled on `fab pr-meta` (pure
-`RenderRoot`/`RenderDomain` + a `Gather` I/O orchestrator in `internal/memoryindex`), so the
-output is byte-for-byte stable across runs and stops the per-row merge conflicts on the hot
-`description` / `Last Updated` cells.
+Deterministically (re)generates the `docs/memory/` index **and log** files so agents never
+hand-edit them — the deterministic replacement for the hand-maintained index rows (and per-file
+`## Changelog` tables) that previously lived in the hydrate / `docs-reorg-memory` skill prose.
+Modeled on `fab pr-meta` (pure `RenderRoot`/`RenderDomain`/`RenderLog` + a `Gather` I/O
+orchestrator in `internal/memoryindex`), so the output is byte-for-byte stable across runs and
+stops the per-row / per-changelog-row merge conflicts on the hot `description` / `Last Updated`
+cells. It produces the generated half of the **FKF** format (Fab Knowledge Format — see
+`docs/specs/fkf.md`): per-folder `log.md`, the `type: memory` round-trip mechanism, and the
+root-index `fkf_version` frontmatter.
 
 What it writes:
-- **Root `docs/memory/index.md`** — **domains-only** (`| Domain | Description |`). The legacy
+- **Root `docs/memory/index.md`** — **domains-only** (`| Domain | Description |`), prefixed with
+  the FKF `fkf_version: "0.1"` frontmatter block (the **only** `index.md` permitted frontmatter
+  beyond the generator's own output — FKF §8; no domain/sub-domain index carries it). The legacy
   inlined per-file "Memory Files" column is dropped (it silently drifts). Each domain row's
   Description is read from that domain `index.md`'s `description:` frontmatter.
 - **Every `docs/memory/{domain}/index.md`** — file rows (`| File | Description | Last Updated |`)
@@ -480,16 +485,50 @@ What it writes:
   the sub-domain folder). Recursion is one level only: `{domain}/{sub-domain}/{topic}.md`
   (depth 3, the max bound). Deeper nesting is surfaced as a depth warning, not an extra index
   tier. An empty sub-folder (no `.md`) is skipped — no spurious index.
+- **A per-folder `log.md`** (FKF §6, **C-lite**) for every domain **and** sub-domain folder that
+  has attributable git history — `# Log — {Title}` + a `Do not hand-edit` generated-comment
+  header, then date-grouped (`## YYYY-MM-DD`, newest first) entries. Each entry is an optional
+  leading bold **verb** (`**Creation**` / `**Deprecation**` / `**Update**`, derived from the
+  commit's git name-status: `A`→Creation, `D`→Deprecation, `M`/`R`/`C`→Update; omitted when
+  ambiguous), a **bundle-relative** link `[base](/{domain}[/{sub}]/base.md)` (beginning with `/`,
+  FKF §7), the change's one-line **summary**, and the `(change-id)` in parens. A folder with no
+  attributable history is skipped (no empty `log.md`). `log.md` is a single-writer generated
+  artifact, same discipline as `index.md` — it replaces the per-file `## Changelog` tables FKF
+  removes.
+- **`type: memory` frontmatter** is **preserved** (round-tripped) when present on a file the
+  generator owns — this change ships the *mechanism* only. It does **not** author or bulk-stamp
+  `type:` into topic files, and there is **no** memory-file template carrying `type: memory` yet
+  (`src/kit/templates/` holds only the intake/plan/status templates). Authoring `type: memory`
+  onto a template / new files and bulk-stamping the existing tree are separate, later
+  FKF-adoption changes — this change provides the preserve-when-present round-trip, not the
+  authoring.
 
 Data sourcing (all read by the command itself):
 - Each topic file's **H1** (first `# ` line) and **`description:` frontmatter** (via
   `internal/frontmatter`). A file with no `description:` renders `—` in that cell (never errors).
-- **"Last Updated"** from ONE batched `git log --date=short --name-only -- docs/memory` pass
-  (newest-first; the first date seen per path wins — equivalent to the old per-file
-  `git log -1 --date=short --format=%ad -- <file>` defaults, which is kept only as the
-  per-file fallback when the batched call fails). Degrades to `—` when git records nothing
-  for a file — uncommitted file, worktree, shallow clone, squash/rebase, or git
-  unavailable — mirroring how `fab pr-meta` degrades on missing git/gh context.
+- **"Last Updated"** and the **`log.md` history** both come from ONE batched
+  `git log --date=short --name-status -- docs/memory` pass (newest-first). The index takes the
+  first date seen per path (equivalent to the old per-file `git log -1 --date=short --format=%ad
+  -- <file>` defaults, kept only as the per-file fallback when the batched call fails); the log
+  takes the full per-path commit list (date + subject + name-status) from the **same** pass — no
+  per-file `git log` spawns. "Last Updated" degrades to `—` when git records nothing for a file —
+  uncommitted file, worktree, shallow clone, squash/rebase, or git unavailable — mirroring how
+  `fab pr-meta` degrades on missing git/gh context; when the whole batched pass fails, **no
+  `log.md` is written** (the log surface degrades to absent, never an error).
+- The **`log.md` summary + change-id** are joined from two sources, neither hand-edited (FKF §6):
+  each change's `.status.yaml` **`summary:`** field (the *what* — set via `fab status
+  set-summary`; absent → the change **slug** is projected instead, FKF §6.3), and the
+  **change-id** recovered from the commit and **gated against the change registry**
+  (`fab/changes/*` + `fab/changes/archive/**` give the canonical `(id, folder)` set). The id is
+  recovered from a `{YYMMDD}-{XXXX}-{slug}` (or registered `{XXXX}`) token in the commit message.
+  The merge-commit branch token (`Merge pull request #N from owner/<folder>`) is the **only
+  recoverable token shape**, and it is effective **only on legacy true-merge history** — against
+  this repo's now-squash-merged history it recovers ≈0 change-ids in practice, so most entries
+  take the degraded path. A commit that resolves to no registered change (a direct edit on
+  `main`, pre-FKF history, or — the common case here — a squash-merge whose subject is
+  `feat: … (#NNN)` with no branch token) **degrades gracefully**: the `(change-id)` token is
+  **omitted** and the descriptive line falls back to the **commit subject** (still a
+  conflict-free git projection), or to `—` when even that is empty.
 
 Shape warnings (non-fatal, stderr — the "detect" half of the memory-tree-shape work):
 - `⚠ docs/memory/<domain> has <N> topic files (soft bound: ~12) — consider splitting into sub-domains`
@@ -501,38 +540,49 @@ Shape warnings (non-fatal, stderr — the "detect" half of the memory-tree-shape
   index output (so a regen-with-warnings is still idempotent).
 
 Flags:
-- `--check` — write nothing; classify the rendered-vs-existing drift by **severity** and encode
-  it in the **exit code** (see Exit codes). Useful as a staleness guard (CI / preflight) AND as a
-  destructive-loss guard (refuse-before-regen). The drift detection is the same byte-compare the
-  write path uses; the new half is a loss classifier + a small parser over the *existing* index
-  rows/headings (pure functions in `internal/memoryindex`, unit-tested like `RenderRoot`/`Gather`).
+- `--check` — write nothing; classify the rendered-vs-existing drift (across every index **and
+  `log.md`** target) by **severity** and encode it in the **exit code** (see Exit codes). Useful
+  as a staleness guard (CI / preflight) AND as a destructive-loss guard (refuse-before-regen). The
+  drift detection is the same byte-compare the write path uses; the destructive-loss half is a
+  classifier + a small parser over the *existing* index rows/headings (pure functions in
+  `internal/memoryindex`, unit-tested like `RenderRoot`/`Gather`) — and is skipped for `log.md`
+  targets (always benign drift).
 - `--json` (with `--check`) — emit the loss report as a single JSON object on **stdout** and
   suppress the human-readable text; the exit code is unchanged. Mirrors the `fab pane` /
   `fab migrations-status` `--json` convention (snake_case). Shape:
   `{"tier": 0|1|2, "drift": bool, "losses": [{"category": "description"|"tombstone"|"grouping", "path": "<repo-rel index>", "detail": "<lost text | dropped link target | flattened heading>"}]}`.
   Consumed by `/docs-reorg-memory`'s compatibility detection.
 
-Tiered `--check` exit codes (loss is a strict subset of drift — one render pass serves both):
-- **`0`** — clean: every index file is byte-identical to its regenerated form (no regen needed).
+Tiered `--check` exit codes (loss is a strict subset of drift — one render pass serves both;
+`log.md` and the root `index.md` `fkf_version` frontmatter are classified too, but only ever as
+benign drift — see below):
+- **`0`** — clean: every index **and `log.md`** file is byte-identical to its regenerated form
+  (no regen needed).
 - **`1`** — **benign drift**: regen would change content but destroy nothing (e.g. an *improved*
-  `description:`, a refreshed `Last Updated` date). This is the former "out of date" condition —
-  existing consumers treating "non-zero = stale" still work unchanged.
-- **`2`** — **destructive loss**: regen would wipe curated/historical content. Three categories,
-  the mechanical form of `/docs-reorg-memory`'s prose signals: (1) a curated **description** that
-  would regenerate to `—` (the file lacks `description:` frontmatter); (2) a **tombstone** row
-  whose `docs/memory/`-relative link target is absent on disk (external/absolute links excluded —
-  no false positives); (3) a custom structural **grouping** heading in the root `index.md` beyond
-  the domains-only table. Writes nothing; enumerates each loss to stderr by category; the
-  human-readable output ends with the pointer `→ run /docs-reorg-memory to remediate (it relocates
-  removal-history rows to _shared/removed-domains.md and backfills description: frontmatter via
-  /docs-hydrate-memory) before regenerating.` (`/docs-reorg-memory` is the orchestrator that handles
-  all three categories — it relocates tombstone rows itself and dispatches `/docs-hydrate-memory`
-  backfill mode for the descriptions; backfill alone does not relocate tombstones.)
+  `description:`, a refreshed `Last Updated` date, a stale `log.md`, or absent/changed FKF
+  frontmatter). This is the former "out of date" condition — existing consumers treating
+  "non-zero = stale" still work unchanged. **All `log.md` and FKF-frontmatter drift is benign
+  (tier 1)** — a `log.md` is a C-lite git projection, not a row-table index, so the three
+  destructive-loss detectors below are skipped for it, and FKF added **no new tier-2 category**
+  (FKF / OQ4 decision).
+- **`2`** — **destructive loss**: regen would wipe curated/historical content. Three
+  **index-only** categories, the mechanical form of `/docs-reorg-memory`'s prose signals: (1) a
+  curated **description** that would regenerate to `—` (the file lacks `description:` frontmatter);
+  (2) a **tombstone** row whose `docs/memory/`-relative link target is absent on disk
+  (external/absolute links excluded — no false positives); (3) a custom structural **grouping**
+  heading in the root `index.md` beyond the domains-only table. (`log.md` targets never reach
+  these.) Writes nothing; enumerates each loss to stderr by category; the human-readable output
+  ends with the pointer `→ run /docs-reorg-memory to remediate (it relocates removal-history rows
+  to _shared/removed-domains.md and backfills description: frontmatter via /docs-hydrate-memory)
+  before regenerating.` (`/docs-reorg-memory` is the orchestrator that handles all three categories
+  — it relocates tombstone rows itself and dispatches `/docs-hydrate-memory` backfill mode for the
+  descriptions; backfill alone does not relocate tombstones.)
 
 Callers pick a threshold: **CI / pre-commit** fails on exit ≥ 1 (any drift); the **hydrate /
-reorg refuse-before-regen guards** fail only on exit == 2. A **born-compatible fab-kit tree is
-provably never exit 2** (frontmatter present, no off-disk rows, domains-only root) — so the
-refuse-before-regen guards are no-ops on native trees and only ever fire on a pre-fab-kit tree.
+reorg refuse-before-regen guards** fail only on exit == 2. A **born-FKF / born-compatible fab-kit
+tree is provably never exit 2** (frontmatter present, no off-disk rows, domains-only root, native
+`log.md` exactly what the generator produces) — so the refuse-before-regen guards are no-ops on
+native trees and only ever fire on a pre-fab-kit tree.
 
 Other exit codes:
 - non-zero (1) — an operational error: `docs/memory/` not found (or another `Gather` failure), or a
