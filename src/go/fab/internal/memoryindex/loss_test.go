@@ -313,6 +313,29 @@ func TestClassify_LogClean_NoDrift(t *testing.T) {
 	}
 }
 
+// TestClassify_SeedMergeLogDrift_IsBenign pins R5 (oovf): a log.md whose drift is
+// driven by a seed-merge — the rendered content gains preserved pre-FKF seed
+// entries the existing on-disk file lacks — is BENIGN drift (tier 1), never tier 2.
+// The merged seed must NOT be reported as destructive loss; the IsLog guard keeps
+// the index-row detectors from ever running on the log's list entries.
+func TestClassify_SeedMergeLogDrift_IsBenign(t *testing.T) {
+	// On-disk: only the git-projected entry. Rendered: the seed entry (an older,
+	// authored date carrying pre-FKF history) merged beneath it.
+	existing := "# Log — Auth\n<!-- gen -->\n\n## 2026-06-15\n- **Update** [login](/auth/login.md) — recent (abcd)\n"
+	rendered := "# Log — Auth\n<!-- gen -->\n\n## 2026-06-15\n- **Update** [login](/auth/login.md) — recent (abcd)\n" +
+		"\n## 2026-02-09\n- **Creation** [login](/auth/login.md) — initial pre-FKF creation (h3v7)\n"
+	report := Classify([]CheckTarget{
+		{Path: "docs/memory/auth/log.md", Existing: existing, Rendered: rendered, LinkBase: "auth", IsLog: true},
+	}, setExists(map[string]bool{"auth/login.md": true}))
+
+	if report.Tier != TierBenignDrift {
+		t.Errorf("seed-merge log.md drift → TierBenignDrift, got %d (losses %v)", report.Tier, report.Losses)
+	}
+	if len(report.Losses) != 0 {
+		t.Errorf("a preserved seed must never be reported as destructive loss, got %v", report.Losses)
+	}
+}
+
 // --- Parser unit tests -----------------------------------------------------
 
 func TestParseIndexRows_GeneratedShapes(t *testing.T) {

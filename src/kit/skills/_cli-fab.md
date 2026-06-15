@@ -495,6 +495,20 @@ What it writes:
   attributable history is skipped (no empty `log.md`). `log.md` is a single-writer generated
   artifact, same discipline as `index.md` — it replaces the per-file `## Changelog` tables FKF
   removes.
+- **Seed-merge (FKF §6 — `log.seed.md`).** A folder MAY carry a curated `log.seed.md` sidecar in
+  the §6.2 entry format (`## YYYY-MM-DD` headings + `- {**Verb** }[base](/bundle/rel.md) — summary
+  ({id})` lines). It is a **read-only input** — like `description:` frontmatter — never written by
+  the generator, so the single-writer discipline holds (`fab memory-index` remains the sole writer
+  of `log.md`; the seed is just another gathered input). Its entries are parsed and **merged
+  beneath the git-projected entries** into the generated `log.md`: unioned by date (newest first;
+  within a date the git-projected lines render before the seed lines), de-duplicating any seed entry
+  byte-equal to a projected one. The merge is **idempotent** — a seed entry that already matches a
+  projected entry is dropped, so a re-run is byte-stable and `--check` stays clean. The seed
+  preserves its OWN authored dates (independent of git), which is why it can carry pre-FKF history
+  that no live `.status.yaml` `summary:` could regenerate (the oovf cutover seeds the pre-FKF
+  `## Changelog` rows here — DECISION b). A folder whose only history is a `log.seed.md` (no
+  attributable git commits) still emits a `log.md`; `log.seed.md` is excluded from topic-file
+  gathering (never an index row), exactly like `index.md` / `log.md`.
 - **`type: memory` frontmatter** is **preserved** (round-tripped) when present on a file the
   generator owns — this change ships the *mechanism* only. It does **not** author or bulk-stamp
   `type:` into topic files, and there is **no** memory-file template carrying `type: memory` yet
@@ -559,12 +573,13 @@ benign drift — see below):
 - **`0`** — clean: every index **and `log.md`** file is byte-identical to its regenerated form
   (no regen needed).
 - **`1`** — **benign drift**: regen would change content but destroy nothing (e.g. an *improved*
-  `description:`, a refreshed `Last Updated` date, a stale `log.md`, or absent/changed FKF
-  frontmatter). This is the former "out of date" condition — existing consumers treating
-  "non-zero = stale" still work unchanged. **All `log.md` and FKF-frontmatter drift is benign
-  (tier 1)** — a `log.md` is a C-lite git projection, not a row-table index, so the three
-  destructive-loss detectors below are skipped for it, and FKF added **no new tier-2 category**
-  (FKF / OQ4 decision).
+  `description:`, a refreshed `Last Updated` date, a stale `log.md`, a `log.md` gaining merged
+  `log.seed.md` entries, or absent/changed FKF frontmatter). This is the former "out of date"
+  condition — existing consumers treating "non-zero = stale" still work unchanged. **All `log.md`
+  and FKF-frontmatter drift is benign (tier 1)** — a `log.md` is a C-lite git projection (plus any
+  merged seed), not a row-table index, so the three destructive-loss detectors below are skipped for
+  it, and FKF added **no new tier-2 category** (FKF / OQ4 decision); a preserved seed is never
+  reported as destructive loss.
 - **`2`** — **destructive loss**: regen would wipe curated/historical content. Three
   **index-only** categories, the mechanical form of `/docs-reorg-memory`'s prose signals: (1) a
   curated **description** that would regenerate to `—` (the file lacks `description:` frontmatter);
