@@ -1,5 +1,6 @@
 # Archive Index
 
+- **260612-d9rs-docs-reality-sweep** — Docs Reality Sweep
 - **260612-ye8r-cli-single-sourcing-doc-conformance** — CLI Single-Sourcing & Doc Conformance
 - **260612-w7dp-orchestrator-dispatch-review-pr-recovery** — Orchestrator Dispatch Targets + Review-PR Failure Recovery
 - **260612-tb6f-tests-ci-toolchain** — Tests, CI & Toolchain
