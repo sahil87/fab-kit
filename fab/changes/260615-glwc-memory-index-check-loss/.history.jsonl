@@ -28,3 +28,4 @@
 {"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-15T05:04:57Z"}
 {"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-06-15T05:06:35Z"}
 {"delta":"+0.0","event":"confidence","score":3.2,"trigger":"calc-score","ts":"2026-06-15T05:17:02Z"}
+{"event":"review","result":"passed","ts":"2026-06-15T05:18:29Z"}
