@@ -6,6 +6,8 @@ Analyzes spec files for themes and suggests reorganization. Read-only unless use
 
 **No compatibility/backfill step.** Unlike `docs-reorg-memory` (which detects pre-fab-kit memory trees missing `description:` frontmatter and orchestrates a backfill), `docs-reorg-specs` has **no** compatibility or frontmatter-backfill step, intentionally: there is no specs-index generator (no counterpart to `fab memory-index`), the specs index is hand-rewritten (Step 5), and Constitution VI keeps specs human-curated — so a spec missing frontmatter breaks nothing and there is no compatibility contract to violate. The skill carries an explicit note so a future contributor does not "fix the asymmetry."
 
+**No FKF frontmatter on spec moves (docs/specs/fkf.md §9).** FKF (`type: memory` + `description:`) governs `docs/memory/` only; specs are out of FKF scope and stay frontmatter-free, human-curated (Constitution VI). When the skill moves a spec file it MUST NOT stamp, add, or synthesize `type:` / `description:` frontmatter — a moved spec carries exactly its prior bytes (only its path and the `index.md` row change). This is the deliberate mirror of `docs-reorg-memory`'s frontmatter-*preserving* moves: memory moves keep FKF frontmatter, spec moves add none. The optional FKF §9 generated-index borrow for `docs/specs/index.md` is **not adopted** — no `fab specs-index` generator; the specs index stays hand-rewritten and spec links stay ordinary repo-relative.
+
 ## Flow
 
 ```
@@ -17,8 +19,8 @@ User invokes /docs-reorg-specs
 ├─ (present plan, ask for approval)
 │
 └─ [if approved]
-   ├─ Write/Edit: reorganized spec files
-   └─ Edit: docs/specs/index.md
+   ├─ Write/Edit: reorganized spec files (moved bytes verbatim — no FKF frontmatter stamped, §9 / Constitution VI)
+   └─ Edit: docs/specs/index.md (hand-rewritten — no specs-index generator)
 ```
 
 ### Tools used

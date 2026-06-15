@@ -1,0 +1,56 @@
+id: oovf
+name: 260615-oovf-migrate-memory-tree-to-fkf
+created: 2026-06-15T18:55:30Z
+created_by: sahil-noon
+change_type: refactor
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 20
+    acceptance_count: 25
+    acceptance_completed: 25
+confidence:
+    certain: 5
+    confident: 4
+    tentative: 2
+    unresolved: 0
+    score: 4.1
+    fuzzy: true
+    dimensions:
+        signal: 83.6
+        reversibility: 71.8
+        competence: 90.9
+        disambiguation: 85.0
+stage_metrics:
+    intake: {started_at: "2026-06-15T18:55:30Z", driver: fab-new, iterations: 1, completed_at: "2026-06-15T19:39:57Z"}
+    apply: {started_at: "2026-06-15T19:39:57Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-15T20:02:37Z"}
+    review: {started_at: "2026-06-15T20:02:37Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-15T20:13:06Z"}
+    hydrate: {started_at: "2026-06-15T20:13:06Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-15T20:17:59Z"}
+    ship: {started_at: "2026-06-15T20:17:59Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-15T20:20:04Z"}
+    review-pr: {started_at: "2026-06-15T20:20:04Z", driver: git-pr, iterations: 1, completed_at: "2026-06-15T20:28:28Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/425
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-06-15T20:17:59Z"
+    computed_at_stage: hydrate
+summary: 'FKF cutover (4/4): fab memory-index gains a per-folder log.seed.md seed-merge (curated sidecar merged beneath git-projected log.md entries, idempotent, benign loss tier); migrated all 20 docs/memory topic files onto FKF (stripped ## Changelog, preserved 651 rows as log.seed.md, bundle-relative links, type: memory); made docs-reorg-memory/specs FKF-aware'
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-15T20:28:28Z

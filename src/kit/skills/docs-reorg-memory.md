@@ -11,7 +11,9 @@ description: "Analyze memory files for themes and suggest reorganization. Read-o
 
 Read all memory files across all domains in `docs/memory/`, identify themes (up to 10), diagnose **tree shape** (fan-out and depth), and propose a reorganization plan. Read-only by default — files only moved/rewritten with explicit user approval.
 
-This is also the **memory rebalancer**: when a domain folder grows too wide or too deep, this skill proposes splitting it into sub-domains (or merging trivially-small siblings) and, on approval, **performs the moves**, rewrites the relative links they break, and regenerates indexes via `fab memory-index`. The ideal-shape bounds below are the trigger.
+This is also the **memory rebalancer**: when a domain folder grows too wide or too deep, this skill proposes splitting it into sub-domains (or merging trivially-small siblings) and, on approval, **performs the moves**, rewrites the **bundle-relative** links they break, and regenerates indexes via `fab memory-index`. The ideal-shape bounds below are the trigger.
+
+> **FKF-aware moves (docs/specs/fkf.md §7).** Memory↔memory links are **bundle-relative** (`](/{domain}[/{sub}]/{file}.md)`, resolved from `docs/memory/`), so a moved file's *inbound* links only need the path-after-`/` updated when the file changes domain/sub-domain, and **sibling-relative breakage largely disappears** — that is the §7 rationale ("reorg rewrites *far* fewer links"). Every move MUST **preserve the moved file's FKF frontmatter** (`type: memory` + `description:`) verbatim — never strip or regenerate it. The bulk of link rewriting under FKF is updating bundle-relative targets *to* a moved file; bare/relative sibling links no longer dominate the blast radius.
 
 ### Ideal Shape Bounds
 
@@ -131,16 +133,16 @@ List the tombstone candidates explicitly (with their source index and link targe
 
 `Kind` is one of: `move-section` (relocate a `##`/`###` block between files), `split-domain` (fan out an over-width folder into sub-domains), `merge-domain` (fold an under-floor folder into a sibling), `flatten` (reduce depth > 3), `move` (relocate a single file between domains/sub-domains without a split/merge/flatten).
 
-For any `split-domain` / `merge-domain` / `flatten` / `move` row (any move-bearing migration), the proposal MUST also list, in a **Link Impact** note, **every relative link that would break** when files move — in BOTH directions: links *from* moved files to their (now-relocated) siblings, and links *to* moved files from elsewhere in the domain. Each entry pairs the current link with its rewrite, so the user sees the full blast radius before approving:
+For any `split-domain` / `merge-domain` / `flatten` / `move` row (any move-bearing migration), the proposal MUST also list, in a **Link Impact** note, **every bundle-relative link that would break** when files move. Under FKF the dominant case is links *to* a moved file (their path-after-`/` changes when the file changes domain/sub-domain); links *from* a moved file to its siblings only break when the *sibling's* bundle path also changes. Each entry pairs the current link with its rewrite, so the user sees the full blast radius before approving:
 
 ```
 ## Link Impact
-{N} intra-domain relative links point at files being moved. They are rewritten on apply:
-- in `execution-skills.md`: `](runtime-agents.md)` → `](runtime/runtime-agents.md)`
-- in `runtime/runtime-agents.md`: `](../execution-skills.md)` (link target preserved — file moved deeper, sibling did not)
+{N} bundle-relative links point at files whose bundle path changes. They are rewritten on apply:
+- in `execution-skills.md`: `](/pipeline/runtime-agents.md)` → `](/pipeline/runtime/runtime-agents.md)`
+- in `clarify.md`: `](/pipeline/runtime-agents.md#gc)` → `](/pipeline/runtime/runtime-agents.md#gc)` (anchor preserved)
 ```
 
-If a move-bearing migration breaks zero links, state "Link Impact: none" explicitly so approval is informed.
+A bundle-relative link from a moved file to a sibling that did NOT move needs no rewrite — the sibling's bundle path is unchanged. This is the §7 payoff: a same-domain reshuffle that keeps files in the domain rewrites nothing; only files that actually change domain/sub-domain touch the link graph. If a move-bearing migration breaks zero links, state "Link Impact: none" explicitly so approval is informed.
 
 Constraints: prefer fewer files per domain; preserve existing domain names where possible; keep files under ~300 lines; respect the Ideal Shape Bounds (split over-width, merge under-floor, flatten over-depth) but only when a genuine cluster justifies it; never touch `_shared`/`_unsorted`; say so if the current structure is fine.
 
@@ -168,11 +170,11 @@ After this orchestration completes (or if there were no compatibility findings),
 
 On approval, for each approved migration:
 
-1. **Move files / sections.** Execute section moves (`move-section`) and file moves (`split-domain` / `merge-domain` / `flatten` / `move`) to their new paths. Use `git mv` semantics where possible to preserve history; a plain move is acceptable when `git mv` is unavailable.
-2. **Rewrite relative links** broken by the move — every link in the proposal's **Link Impact** note, in both directions (links *from* moved files and links *to* moved files). Edit each link to its computed new relative target so no cross-file reference dangles.
-3. **Author `description:` frontmatter** — the single hand-curated index field. For any new topic file a split creates, add a `description:` frontmatter line (copy or synthesize from the source file's existing description). For each **new sub-domain**, create a **stub `index.md` BEFORE `fab memory-index` runs (step 4)**: the stub is only the `description:` frontmatter block (a one-liner summarizing the cluster), nothing else — the same stub-before-index pattern as `/docs-hydrate-memory`. Step 4's regeneration fills in the generated body and round-trips the description.
-4. **Regenerate indexes**: run `fab memory-index`. It rewrites the root, every domain `index.md`, AND every sub-domain `index.md` from folder contents (including the new sub-domain reference rows in the parent). Generated index content (file rows, "Last Updated" cells) is never hand-edited — the `description:` frontmatter authored in step 3 (including the sub-domain stubs) is the only hand-curated part of any index file.
-5. **Verify (no-dangling-link guard).** Confirm no headings were lost AND no broken relative link remains. **A remaining dangling relative link is a hard block** — do NOT finalize that migration until every broken link is rewritten. Report any dangling link found and the file it is in. **Abort escape**: if a dangling link cannot be rewritten (its target is genuinely gone, or the correct target is ambiguous), abort that migration instead of blocking indefinitely — roll back its moves and link rewrites (restore original paths), re-run `fab memory-index`, report the rollback, and continue with the remaining approved migrations.
+1. **Move files / sections, preserving FKF frontmatter.** Execute section moves (`move-section`) and file moves (`split-domain` / `merge-domain` / `flatten` / `move`) to their new paths. Use `git mv` semantics where possible to preserve history; a plain move is acceptable when `git mv` is unavailable. **A moved file keeps its FKF frontmatter (`type: memory` + `description:`) byte-for-byte** — moving never strips, regenerates, or re-stamps it (FKF §3; only `fab memory-index` round-trips index/log frontmatter, never topic-file `type:`).
+2. **Rewrite bundle-relative links** broken by the move — every link in the proposal's **Link Impact** note. Edit each link's path-after-`/` to the moved file's new bundle path (`](/{new-domain}[/{sub}]/{file}.md)`), preserving any `#anchor`. A link to a sibling whose bundle path did NOT change needs no edit (§7). The guard below confirms no `](/…)` memory link dangles.
+3. **Author `description:` frontmatter** — the single hand-curated index field. For any new topic file a split creates, add a `description:` frontmatter line (copy or synthesize from the source file's existing description) **alongside `type: memory`** (the FKF constant — stamp it on any genuinely new topic file so it is FKF-conforming; a *moved* file already carries it from step 1). For each **new sub-domain**, create a **stub `index.md` BEFORE `fab memory-index` runs (step 4)**: the stub is only the `description:` frontmatter block (a one-liner summarizing the cluster), nothing else — the same stub-before-index pattern as `/docs-hydrate-memory` (FKF §5 stub-before-index). Step 4's regeneration fills in the generated body and round-trips the description.
+4. **Regenerate indexes (and logs)**: run `fab memory-index`. It rewrites the root, every domain `index.md`, AND every sub-domain `index.md` from folder contents (including the new sub-domain reference rows in the parent), and regenerates each folder's `log.md` (merging any `log.seed.md` seed input beneath the git-projected entries — FKF §6). Generated index/log content is never hand-edited — the `description:` frontmatter authored in step 3 (including the sub-domain stubs) is the only hand-curated part of any index file.
+5. **Verify (no-dangling-link guard).** Confirm no headings were lost AND no broken bundle-relative link remains. **A remaining dangling `](/…)` memory link is a hard block** — do NOT finalize that migration until every broken link is rewritten. Report any dangling link found and the file it is in. **Abort escape**: if a dangling link cannot be rewritten (its target is genuinely gone, or the correct target is ambiguous), abort that migration instead of blocking indefinitely — roll back its moves and link rewrites (restore original paths), re-run `fab memory-index`, report the rollback, and continue with the remaining approved migrations.
 
 Present a change summary after all approved migrations are finalized.
 
@@ -210,7 +212,7 @@ If no changes needed: `Current structure is well-organized — no reorganization
 | Content verification fails | Warn, show missing heading, ask to proceed |
 | `fab memory-index` unavailable (older binary) | Warn; fall back to hand-updating affected `index.md` files (legacy path) and tell the user to upgrade `fab` |
 | `fab memory-index --check --json` loss tiers / `--json` unavailable (older binary) | Fall back to the **legacy prose compatibility detection** (Step 1 older-binary fallback) and warn the user to upgrade `fab` so detection becomes mechanical |
-| Broken relative link remains after a move | **Hard block** — report the dangling link; do not finalize that migration until it is rewritten. If it cannot be rewritten, take the abort escape defined in Step 5's Verify item (apply item 5): roll back that migration, regenerate indexes, continue with the rest |
+| Broken bundle-relative link remains after a move | **Hard block** — report the dangling `](/…)` link; do not finalize that migration until it is rewritten. If it cannot be rewritten, take the abort escape defined in Step 5's Verify item (apply item 5): roll back that migration, regenerate indexes, continue with the rest |
 
 ---
 
@@ -221,7 +223,8 @@ If no changes needed: `Current structure is well-organized — no reorganization
 | Advances stage? | No |
 | Requires active change? | No |
 | Idempotent? | Yes — a balanced tree proposes nothing; re-running `fab memory-index` is byte-stable; an already-converted tree re-runs as a no-op (no duplicate tombstone rows in `removed-domains.md`, backfill skips frontmatter-present files) |
-| Modifies memory files? | Yes — moves + link rewrites, only with explicit confirmation. On compatibility approval also authors the ONE mechanical file `docs/memory/_shared/removed-domains.md` (tombstone relocation); per-file `description:` synthesis is delegated to the `/docs-hydrate-memory` backfill sub-agent, not authored here |
+| Modifies memory files? | Yes — moves + bundle-relative link rewrites, only with explicit confirmation. Moved files keep their FKF frontmatter (`type: memory` + `description:`) verbatim. On compatibility approval also authors the ONE mechanical file `docs/memory/_shared/removed-domains.md` (tombstone relocation); per-file `description:` synthesis is delegated to the `/docs-hydrate-memory` backfill sub-agent, not authored here |
+| FKF-aware moves? | Yes — links are **bundle-relative** (`](/{domain}[/{sub}]/{file}.md)`, FKF §7); a move rewrites only links whose bundle path changes (far fewer than relative links would), preserves the moved file's `type: memory` + `description:` frontmatter, and stamps `type: memory` on any genuinely new topic file |
 | Requires config/constitution? | No |
 | Is the memory rebalancer? | Yes — supersedes any separate `/fab-rebalance-memory`; shape diagnosis + split/merge/flatten + the file-moving apply path live here |
 | Orchestrates a pre-fab-kit compatibility migration? | Yes — detects divergence **mechanically** via `fab memory-index --check --json` (exit 2 + `losses[]`: `description`/`tombstone`/`grouping`; older-binary fallback = legacy prose detection); on approval relocates tombstones (`_shared/removed-domains.md`), dispatches `/docs-hydrate-memory` backfill mode as a sub-agent, then rebalances + regenerates once. Decline = report and stop, no mutation |

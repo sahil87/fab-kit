@@ -304,7 +304,7 @@ func gatherFiles(repoRoot, domainDir string, dates *gitDates) []FileEntry {
 			continue
 		}
 		name := de.Name()
-		if !strings.HasSuffix(name, ".md") || name == "index.md" || name == "log.md" {
+		if !strings.HasSuffix(name, ".md") || name == "index.md" || name == "log.md" || name == seedFileName {
 			continue
 		}
 		path := filepath.Join(domainDir, name)
@@ -705,10 +705,11 @@ func GatherLogs(repoRoot, fabRoot string) ([]LogTarget, error) {
 		return nil, fmt.Errorf("docs/memory not found under %s: %w", repoRoot, err)
 	}
 
+	// dates may be nil when git is entirely unavailable (non-repo, git missing):
+	// the git-projection surface then degrades to empty, but any per-folder
+	// log.seed.md still produces a log.md (seed entries are git-independent — the
+	// pre-FKF history they preserve has no live git/`.status.yaml` to project from).
 	dates := loadGitDates(repoRoot)
-	if dates == nil || dates.commitsByPath == nil {
-		return nil, nil // no git history → no logs (graceful, not an error)
-	}
 	reg := gatherChangeRegistry(fabRoot)
 
 	var targets []LogTarget
@@ -739,12 +740,24 @@ func GatherLogs(repoRoot, fabRoot string) ([]LogTarget, error) {
 // the folder's bundle-relative base ("distribution" or "fab-workflow/runtime").
 // titleOverride (when non-empty) is the gathered sub-domain Title; for a domain
 // it is "" and the Title is read from the folder's index.md / synthesized.
-// Returns ok=false when the folder has no attributable commits (skip, no file).
+// Returns ok=false when the folder has neither attributable commits NOR seed
+// entries (skip, no file). The folder's `log.seed.md` (FKF §6 seed input) is
+// parsed and merged beneath the git-projected entries (DECISION b — preserve
+// pre-FKF changelog history); the merge is byte-stable and idempotent (a seed
+// entry equal to a projected one is de-duplicated).
 func buildLogTarget(repoRoot string, dates *gitDates, reg map[string]changeMeta, folderDir, bundleRel, titleOverride string) (LogTarget, bool) {
-	entries := gatherLogEntries(repoRoot, dates, reg, folderDir, bundleRel)
+	projected := gatherLogEntries(repoRoot, dates, reg, folderDir, bundleRel)
+	seed := readSeedEntries(folderDir)
+	entries := mergeSeedEntries(projected, seed)
 	if len(entries) == 0 {
 		return LogTarget{}, false
 	}
+	// Re-apply the stable order (date desc, file base, change-id) over the merged
+	// set so seed and projected entries interleave deterministically. mergeSeedEntries
+	// keeps projected entries ahead of seed entries in slice order, and a stable
+	// sort preserves that for entries equal under the comparator — so within a date
+	// the git-projected lines render before the seed lines.
+	sortLogEntries(entries)
 	title := titleOverride
 	if title == "" {
 		title = domainTitle(folderDir, filepath.Base(folderDir))
@@ -753,6 +766,32 @@ func buildLogTarget(repoRoot string, dates *gitDates, reg map[string]changeMeta,
 		Path:    filepath.Join(folderDir, "log.md"),
 		Content: RenderLog(LogData{Title: title, Entries: entries}),
 	}, true
+}
+
+// readSeedEntries reads and parses the folder's `log.seed.md` seed input (FKF §6
+// seed-merge). A missing seed file yields no entries (the pure git-projection
+// path, unchanged). The seed is read, never written — single-writer discipline.
+func readSeedEntries(folderDir string) []LogEntry {
+	data, err := os.ReadFile(filepath.Join(folderDir, seedFileName))
+	if err != nil {
+		return nil
+	}
+	return parseSeedLog(string(data))
+}
+
+// sortLogEntries applies the package's stable log order (newest date first, then
+// file base, then change-id) in place — the same comparator gatherLogEntries uses
+// for its git-only set, lifted here so the seed-merged set is ordered identically.
+func sortLogEntries(entries []LogEntry) {
+	sort.SliceStable(entries, func(i, j int) bool {
+		if entries[i].Date != entries[j].Date {
+			return entries[i].Date > entries[j].Date
+		}
+		if entries[i].FileBase != entries[j].FileBase {
+			return entries[i].FileBase < entries[j].FileBase
+		}
+		return entries[i].ChangeID < entries[j].ChangeID
+	})
 }
 
 // gatherLogEntries projects the batched commit history for one folder's direct
@@ -773,11 +812,14 @@ func gatherLogEntries(repoRoot string, dates *gitDates, reg map[string]changeMet
 			continue
 		}
 		name := de.Name()
-		if !strings.HasSuffix(name, ".md") || name == "index.md" || name == "log.md" {
+		if !strings.HasSuffix(name, ".md") || name == "index.md" || name == "log.md" || name == seedFileName {
 			continue
 		}
 		base := strings.TrimSuffix(name, ".md")
 		bundlePath := "/" + bundleRel + "/" + base + ".md"
+		if dates == nil {
+			continue // no git history → no projected entries (seed merge still applies upstream)
+		}
 		rel := gitRelPath(dates, repoRoot, filepath.Join(folderDir, name))
 		for _, touch := range dates.commitsByPath[rel] {
 			summary, id := "", ""
@@ -808,15 +850,7 @@ func gatherLogEntries(repoRoot string, dates *gitDates, reg map[string]changeMet
 	}
 	// Stable deterministic order: newest date first, then file base, then id —
 	// independent of os.ReadDir order so the output is byte-stable.
-	sort.SliceStable(entries, func(i, j int) bool {
-		if entries[i].Date != entries[j].Date {
-			return entries[i].Date > entries[j].Date
-		}
-		if entries[i].FileBase != entries[j].FileBase {
-			return entries[i].FileBase < entries[j].FileBase
-		}
-		return entries[i].ChangeID < entries[j].ChangeID
-	})
+	sortLogEntries(entries)
 	return entries
 }
 

@@ -1,4 +1,5 @@
 ---
+type: memory
 description: "`/docs-hydrate-specs` skill — structural gap detection between memory and specs, interactive propose-then-apply (incl. the no-target new-spec-file branch and aligned prompt/handler tokens — d9rs)"
 ---
 # Hydrate Specs
@@ -50,13 +51,3 @@ The skill SHALL verify `docs/memory/index.md` and `docs/specs/index.md` exist be
 **Why**: Constitution principle VI says specs are human-curated and MUST NOT be auto-generated. Per-gap confirmation keeps humans in control of spec content and tone.
 **Rejected**: Batch-apply with undo — too easy to accidentally bloat specs.
 *Introduced by*: 260209-h3v7-fab-backfill
-
-## Changelog
-
-| Change | Date | Summary |
-|--------|------|---------|
-| 260612-d9rs-docs-reality-sweep | 2026-06-12 | **No-target branch added** (skills-audit batch 5/5, Theme 8): when no existing spec file suits a gap, Step 5 proposes a new `docs/specs/{kebab-topic}.md` (full-content preview, sibling tone); on `yes` the file is created and its row added to `docs/specs/index.md` — still gated per-gap, specs stay human-curated. **Prompt/handler tokens aligned**: handler accepts exactly `yes`/`no`/`done` (the tokens Step 5 offers), `skip rest` demoted to a `done` alias (previously handled but never offered). |
-| 260218-5isu-fix-docs-consistency-drift | 2026-02-18 | Replaced stale `/fab-init` → `/fab-setup` in pre-flight check guidance |
-| 260214-m3v8-relocate-docs-dev-scripts | 2026-02-14 | Updated path references from `fab/memory/` and `fab/specs/` to `docs/memory/` and `docs/specs/` |
-| 260209-h3v7-fab-backfill | 2026-02-09 | Initial creation — `/docs-hydrate-specs` skill for detecting and hydrating structural gaps from memory to specs |
-| 260212-akhp-rename-fab-backfill | 2026-02-12 | Renamed from `/fab-backfill` to `/docs-hydrate-specs` for semantic consistency with `/fab-hydrate` |
