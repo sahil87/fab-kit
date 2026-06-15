@@ -457,6 +457,99 @@ func runArtifactWriteHook(t *testing.T, relPath string) string {
 	return out.String()
 }
 
+// TestHookArtifactWrite_RespectsExplicitChangeType covers jznd (2/a): when a
+// human has set change_type_source: explicit, the intake-write hook must NOT
+// re-infer/overwrite change_type — even though the intake prose ("fix a bug")
+// would infer "fix". This is the F02 re-clobber bug fixed.
+func TestHookArtifactWrite_RespectsExplicitChangeType(t *testing.T) {
+	repoRoot, fabRoot := setupHookRepoRoot(t)
+	hookTestEnv(t, repoRoot, map[string]string{envTmux: "", envTmuxPane: ""})
+	folder := setupHookChange(t, fabRoot)
+
+	// Mark the change_type explicit (as `fab status set-change-type` would).
+	statusPath := filepath.Join(fabRoot, "changes", folder, ".status.yaml")
+	st, err := sf.Load(statusPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.ChangeType = "feat"
+	st.ChangeTypeSource = sf.SourceExplicit
+	if err := st.Save(statusPath); err != nil {
+		t.Fatal(err)
+	}
+
+	// Intake prose that WOULD infer "fix".
+	intakeMD := `# Intake: A new feature
+
+This change fixes a bug while adding the widget.
+
+## Assumptions
+
+| # | Grade | Decision | Rationale | Scores |
+|---|-------|----------|-----------|--------|
+| 1 | Certain | D1 | R1 | |
+`
+	intakePath := filepath.Join(fabRoot, "changes", folder, "intake.md")
+	if err := os.WriteFile(intakePath, []byte(intakeMD), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out := runArtifactWriteHook(t, "fab/changes/"+folder+"/intake.md")
+	var ctx map[string]string
+	if err := json.Unmarshal([]byte(out), &ctx); err != nil {
+		t.Fatalf("expected additionalContext JSON, got %q: %v", out, err)
+	}
+	if !strings.Contains(ctx["additionalContext"], "explicit, kept") {
+		t.Errorf("additionalContext = %q, want explicit-kept note", ctx["additionalContext"])
+	}
+
+	reloaded, err := sf.Load(statusPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.ChangeType != "feat" {
+		t.Errorf("change_type = %q, want feat (explicit type must survive a re-infer write)", reloaded.ChangeType)
+	}
+	if reloaded.ChangeTypeSource != sf.SourceExplicit {
+		t.Errorf("change_type_source = %q, want explicit", reloaded.ChangeTypeSource)
+	}
+}
+
+// TestHookArtifactWrite_InferredChangeTypeStillReinfers is the back-compat
+// complement: a change with no/inferred source still gets re-inferred by the
+// hook (the default behavior is unchanged).
+func TestHookArtifactWrite_InferredChangeTypeStillReinfers(t *testing.T) {
+	repoRoot, fabRoot := setupHookRepoRoot(t)
+	hookTestEnv(t, repoRoot, map[string]string{envTmux: "", envTmuxPane: ""})
+	folder := setupHookChange(t, fabRoot)
+
+	intakeMD := `# Intake: Fix the broken widget
+
+This is a fix for a bug.
+
+## Assumptions
+
+| # | Grade | Decision | Rationale | Scores |
+|---|-------|----------|-----------|--------|
+| 1 | Certain | D1 | R1 | |
+`
+	intakePath := filepath.Join(fabRoot, "changes", folder, "intake.md")
+	if err := os.WriteFile(intakePath, []byte(intakeMD), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runArtifactWriteHook(t, "fab/changes/"+folder+"/intake.md")
+
+	statusPath := filepath.Join(fabRoot, "changes", folder, ".status.yaml")
+	reloaded, err := sf.Load(statusPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.ChangeType != "fix" {
+		t.Errorf("change_type = %q, want fix (inferred source must re-infer)", reloaded.ChangeType)
+	}
+}
+
 func TestHookArtifactWrite_PlanSingleSave(t *testing.T) {
 	repoRoot, fabRoot := setupHookRepoRoot(t)
 	hookTestEnv(t, repoRoot, map[string]string{envTmux: "", envTmuxPane: ""})

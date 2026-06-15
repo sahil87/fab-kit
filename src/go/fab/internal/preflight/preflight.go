@@ -77,6 +77,17 @@ func Run(fabRoot, changeOverride string) (*Result, error) {
 
 	relChangeDir := "fab/changes/" + folder
 
+	// Acceptance truth: derive done/total live from plan.md `## Acceptance`
+	// checkboxes so a hook-bypassing edit (sed, direct file edit) cannot leave
+	// preflight reporting a stale .status.yaml counter. The persisted counter
+	// stays as the write-time cache and the fallback when plan.md / its
+	// ## Acceptance section is absent. (b)
+	plan := statusFile.Plan
+	if done, total, ok := status.LiveAcceptance(changeDir); ok {
+		plan.AcceptanceCompleted = done
+		plan.AcceptanceCount = total
+	}
+
 	return &Result{
 		ID:           id,
 		Name:         folder,
@@ -85,7 +96,7 @@ func Run(fabRoot, changeOverride string) (*Result, error) {
 		DisplayStage: displayStage,
 		DisplayState: displayState,
 		Progress:     statusFile.GetProgressMap(),
-		Plan:         statusFile.Plan,
+		Plan:         plan,
 		Confidence:   statusFile.Confidence,
 	}, nil
 }

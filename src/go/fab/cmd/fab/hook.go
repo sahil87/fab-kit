@@ -280,11 +280,20 @@ func artifactBookkeeping(fabRoot, filePath string, match hooklib.ArtifactMatch, 
 			content = []byte{}
 		}
 
-		changeType := hooklib.InferChangeType(string(content))
-		if err := status.ApplyChangeType(statusFile, changeType); err == nil {
-			dirty = true
+		// Respect an explicitly-set change_type: when a human ran
+		// `fab status set-change-type`, change_type_source is "explicit" and
+		// the hook must NOT re-infer/overwrite it (the F02 re-clobber bug,
+		// which silently reverted feat→fix on the next intake edit). Absent or
+		// "inferred" source = re-inference allowed (back-compat default).
+		if statusFile.ChangeTypeSource == sf.SourceExplicit {
+			contextParts = append(contextParts, "type: "+statusFile.ChangeType+" (explicit, kept)")
+		} else {
+			changeType := hooklib.InferChangeType(string(content))
+			if err := status.ApplyChangeType(statusFile, changeType); err == nil {
+				dirty = true
+			}
+			contextParts = append(contextParts, "type: "+changeType)
 		}
-		contextParts = append(contextParts, "type: "+changeType)
 
 		changeDir := filepath.Join(fabRoot, "changes", match.ChangeFolder)
 		result, err := score.ComputeWithStatus(fabRoot, changeDir, content, statusFile)

@@ -23,6 +23,7 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/impact"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/lines"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
+	statuspkg "github.com/sahil87/fab-kit/src/go/fab/internal/status"
 	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
 	"gopkg.in/yaml.v3"
 )
@@ -227,14 +228,25 @@ func renderImpact(d Data) string {
 
 	if d.Impact.Tests != nil {
 		tests := *d.Impact.Tests
+		// Raw (pre-clamp) impl figures: total minus tests. On a test-heavy PR
+		// these can go negative (tests added/deleted exceed the total),
+		// meaning the change is net-deletion in production code.
+		rawAdded := total.Added - tests.Added
+		rawDeleted := total.Deleted - tests.Deleted
+		rawNet := total.Net - tests.Net
 		impl := impact.Pair{
-			Added:   clampNonNeg(total.Added - tests.Added),
-			Deleted: clampNonNeg(total.Deleted - tests.Deleted),
-			Net:     clampNonNeg(total.Net - tests.Net),
+			Added:   clampNonNeg(rawAdded),
+			Deleted: clampNonNeg(rawDeleted),
+			Net:     clampNonNeg(rawNet),
 		}
 		var b strings.Builder
 		b.WriteString("**Impact**:\n")
-		fmt.Fprintf(&b, "  impl:  +%d/−%d  (net +%d)\n", impl.Added, impl.Deleted, impl.Net)
+		// Keep the clamped (non-negative) display value, but annotate the true
+		// pre-clamp value when the clamp engages — otherwise PR-meta silently
+		// hides a net-deletion-in-production PR (jznd (e); clamp kept because
+		// downstream consumers may assume non-negative).
+		fmt.Fprintf(&b, "  impl:  +%d/−%d  (net +%d)%s\n",
+			impl.Added, impl.Deleted, impl.Net, clampAnnotation(rawAdded, rawDeleted, rawNet))
 		fmt.Fprintf(&b, "  tests: +%d/−%d  (net +%d)\n", tests.Added, tests.Deleted, tests.Net)
 		fmt.Fprintf(&b, "  total: +%d/−%d  (net +%d)", total.Added, total.Deleted, total.Net)
 		if hasExcludes {
@@ -257,6 +269,42 @@ func clampNonNeg(n int) int {
 		return 0
 	}
 	return n
+}
+
+// clampAnnotation returns a trailing " (clamped from …)" note naming the true
+// pre-clamp impl figures whenever any of them was negative (so the clamp
+// changed the displayed value), or "" when no clamping occurred. Only the
+// fields that were actually clamped are listed, using a minus sign for the
+// real negative value so the honest impl impact is visible alongside the
+// non-negative display value (jznd (e)).
+func clampAnnotation(rawAdded, rawDeleted, rawNet int) string {
+	var clamped []string
+	if rawNet < 0 {
+		clamped = append(clamped, fmt.Sprintf("net %d", rawNet))
+	}
+	if rawAdded < 0 {
+		clamped = append(clamped, fmt.Sprintf("added %d", rawAdded))
+	}
+	if rawDeleted < 0 {
+		clamped = append(clamped, fmt.Sprintf("deleted %d", rawDeleted))
+	}
+	if len(clamped) == 0 {
+		return ""
+	}
+	return "  (clamped from " + strings.Join(clamped, ", ") + ")"
+}
+
+// liveAcceptance returns acceptance (done, total) preferring the live count
+// derived from plan.md `## Acceptance` checkboxes over the persisted
+// .status.yaml counter. The persisted counter is the write-time cache and the
+// fallback when plan.md / its ## Acceptance section is absent — so a
+// hook-bypassing edit (sed, direct edit) cannot make the PR Meta block report
+// a stale count. (b)
+func liveAcceptance(changeDir string, status *sf.StatusFile) (done, total int) {
+	if d, t, ok := statuspkg.LiveAcceptance(changeDir); ok {
+		return d, t
+	}
+	return status.Plan.AcceptanceCompleted, status.Plan.AcceptanceCount
 }
 
 // backtickList joins values with ", ", each wrapped in single backticks
@@ -318,16 +366,14 @@ func Gather(fabRoot, changeArg, prType, issues string) (Data, bool, error) {
 		d.HasApply = true
 		applyFile = "plan.md"
 		d.TasksDone, d.TasksTotal = countCheckboxesInTasksSection(planPath)
-		d.AcceptanceDone = status.Plan.AcceptanceCompleted
-		d.AcceptanceTotal = status.Plan.AcceptanceCount
+		d.AcceptanceDone, d.AcceptanceTotal = liveAcceptance(changeDir, status)
 	} else if fileExists(tasksPath) {
 		// Legacy fallback for pre-1.9.0 changes (one-release back-compat).
 		d.HasPlan = true
 		d.HasApply = true
 		applyFile = "tasks.md"
 		d.TasksDone, d.TasksTotal = countCheckboxes(tasksPath)
-		d.AcceptanceDone = status.Plan.AcceptanceCompleted
-		d.AcceptanceTotal = status.Plan.AcceptanceCount
+		d.AcceptanceDone, d.AcceptanceTotal = liveAcceptance(changeDir, status)
 	}
 
 	d.HasIntake = fileExists(filepath.Join(changeDir, "intake.md"))

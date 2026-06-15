@@ -1,11 +1,46 @@
 package resolve
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 )
+
+// Typed resolution sentinels. Callers use errors.Is to distinguish
+// "this reference matches no active change" (ErrNotFound — may be already
+// archived, an idempotent soft skip) from "this reference is ambiguous"
+// (ErrAmbiguous — a real user error that must surface). Without these,
+// callers re-resolve against the archive to guess, which itself cannot tell
+// not-found from ambiguous (jznd (d); precedent: archive.ErrAlreadyArchived).
+var (
+	ErrNotFound  = errors.New("no matching change")
+	ErrAmbiguous = errors.New("ambiguous change reference")
+)
+
+// classifiedError pairs a sentinel kind with a user-facing message. Its
+// Error() returns the message verbatim — the documented Common Error Messages
+// strings are preserved unchanged — while errors.Is(err, kind) matches the
+// sentinel, so callers can branch on not-found vs ambiguous without parsing
+// the text.
+type classifiedError struct {
+	kind error
+	msg  string
+}
+
+func (e *classifiedError) Error() string { return e.msg }
+func (e *classifiedError) Unwrap() error { return e.kind }
+
+// notFoundf / ambiguousf build a classifiedError whose surfaced text is the
+// formatted message and whose sentinel is ErrNotFound / ErrAmbiguous.
+func notFoundf(format string, a ...any) error {
+	return &classifiedError{kind: ErrNotFound, msg: fmt.Sprintf(format, a...)}
+}
+
+func ambiguousf(format string, a ...any) error {
+	return &classifiedError{kind: ErrAmbiguous, msg: fmt.Sprintf(format, a...)}
+}
 
 // FabRoot returns the fab/ directory path by searching upward from cwd.
 func FabRoot() (string, error) {
@@ -74,7 +109,7 @@ func resolveOverride(changesDir, override string) (string, error) {
 		return "", err
 	}
 	if len(folders) == 0 {
-		return "", fmt.Errorf("No active changes found.")
+		return "", notFoundf("No active changes found.")
 	}
 
 	overrideLower := strings.ToLower(override)
@@ -98,10 +133,10 @@ func resolveOverride(changesDir, override string) (string, error) {
 		return partials[0], nil
 	}
 	if len(partials) > 1 {
-		return "", fmt.Errorf("Multiple changes match \"%s\": %s.", override, strings.Join(partials, ", "))
+		return "", ambiguousf("Multiple changes match \"%s\": %s.", override, strings.Join(partials, ", "))
 	}
 
-	return "", fmt.Errorf("No change matches \"%s\".", override)
+	return "", notFoundf("No change matches \"%s\".", override)
 }
 
 func resolveFromCurrent(fabRoot, changesDir string) (string, error) {
@@ -134,7 +169,7 @@ func resolveFromCurrent(fabRoot, changesDir string) (string, error) {
 
 	// Fallback: single-change guess
 	if _, err := os.Stat(changesDir); os.IsNotExist(err) {
-		return "", fmt.Errorf("No active change. Run /fab-new <description> to start one, or /fab-switch to activate an existing one.")
+		return "", notFoundf("No active change. Run /fab-new <description> to start one, or /fab-switch to activate an existing one.")
 	}
 
 	var candidates []string
@@ -154,9 +189,9 @@ func resolveFromCurrent(fabRoot, changesDir string) (string, error) {
 		return candidates[0], nil
 	}
 	if len(candidates) == 0 {
-		return "", fmt.Errorf("No active change. Run /fab-new <description> to start one, or /fab-switch to activate an existing one.")
+		return "", notFoundf("No active change. Run /fab-new <description> to start one, or /fab-switch to activate an existing one.")
 	}
-	return "", fmt.Errorf("No active change (multiple changes exist — use /fab-switch).")
+	return "", ambiguousf("No active change (multiple changes exist — use /fab-switch).")
 }
 
 // ExtractFolderFromSymlink extracts the change folder name from a symlink target path.

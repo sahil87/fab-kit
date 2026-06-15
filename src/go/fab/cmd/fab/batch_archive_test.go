@@ -299,6 +299,49 @@ progress:
 	}
 }
 
+// TestRunBatchArchive_AmbiguousNameSurfaces: jznd (d) end-to-end guard. An
+// ambiguous override (matches 2+ live changes) must surface a distinct
+// ambiguity warning on stderr and NOT be misreported as already-archived
+// (the ErrNotFound soft-skip path) — the resolve sentinels let runBatchArchive
+// branch ErrAmbiguous → warn vs ErrNotFound → maybe-soft-skip. Unit-level
+// classification is covered in internal/resolve/resolve_test.go; this asserts
+// the call-site behavior through runBatchArchive.
+func TestRunBatchArchive_AmbiguousNameSurfaces(t *testing.T) {
+	root := t.TempDir()
+	changesDir := filepath.Join(root, "fab", "changes")
+	// Two live changes sharing the "report" substring → an "report" override
+	// is ambiguous.
+	for _, folder := range []string{"260401-aa11-report-alpha", "260401-bb22-report-beta"} {
+		cd := filepath.Join(changesDir, folder)
+		os.MkdirAll(cd, 0o755)
+		os.WriteFile(filepath.Join(cd, ".status.yaml"), []byte("progress:\n  hydrate: done\n"), 0o644)
+	}
+	hookTestEnv(t, root, map[string]string{})
+
+	cmd := batchArchiveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	// The only target is ambiguous → nothing resolves → RunE returns the
+	// no-valid-changes error (exit 1), but the ambiguity must be reported
+	// distinctly, NOT as "could not resolve" or as an already-archived skip.
+	err := runBatchArchive(cmd, []string{"report"}, false, false)
+	if err == nil {
+		t.Fatal("expected error: the sole target is ambiguous, nothing resolves")
+	}
+	stderr := errOut.String()
+	if !strings.Contains(stderr, "Multiple changes match") {
+		t.Errorf("ambiguous name must surface the ambiguity warning, got stderr:\n%s", stderr)
+	}
+	if strings.Contains(stderr, "could not resolve") {
+		t.Errorf("ambiguous name must NOT be misreported as a plain resolve failure, got stderr:\n%s", stderr)
+	}
+	if strings.Contains(out.String(), "already archived, skipping") {
+		t.Errorf("ambiguous name must NOT be soft-skipped as already-archived, got stdout:\n%s", out.String())
+	}
+}
+
 // TestRunBatchArchive_NoValidChangesReturnsError: the explicit-targets
 // nothing-resolves path returns an error through RunE (previously
 // os.Exit(1)) — stderr becomes `ERROR: No valid changes to archive.`.

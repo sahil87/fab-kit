@@ -10,8 +10,13 @@ import (
 )
 
 // scaffoldDirectories creates required directories and .gitkeep files.
-// Write failures are propagated — a silently failed .kit-migration-version
-// write would silently disable migration discovery in Upgrade.
+// Write failures are propagated (return err) — a silently failed
+// .kit-migration-version write would disable migration discovery in Upgrade.
+// This is the contract across the scaffold walk: scaffoldTreeWalk,
+// jsonMergePermissions, and lineEnsureMerge all return their os.WriteFile /
+// append errors rather than swallowing them, so a half-scaffolded tree
+// (disk full, permissions, read-only mount) surfaces as a setup failure
+// instead of looking successful.
 func scaffoldDirectories(repoRoot, fabDir, kitDir, kitVersion string) error {
 	docsDir := filepath.Join(repoRoot, "docs")
 	dirs := []string{
@@ -270,7 +275,9 @@ func lineEnsureMerge(source, dest, label string) error {
 		resolved, _ := os.ReadFile(dest)
 		os.Remove(dest)
 		if len(resolved) > 0 {
-			os.WriteFile(dest, resolved, 0644)
+			if err := os.WriteFile(dest, resolved, 0644); err != nil {
+				return fmt.Errorf("cannot write %s: %w", label, err)
+			}
 		}
 		fmt.Printf("%s: migrated from symlink to file\n", label)
 	}
@@ -291,7 +298,9 @@ func lineEnsureMerge(source, dest, label string) error {
 
 		if _, err := os.Stat(dest); os.IsNotExist(err) {
 			// Create the file with this entry
-			os.WriteFile(dest, []byte(entry+"\n"), 0644)
+			if err := os.WriteFile(dest, []byte(entry+"\n"), 0644); err != nil {
+				return fmt.Errorf("cannot write %s: %w", label, err)
+			}
 			added = append(added, entry)
 		} else {
 			// Check if entry already exists
@@ -313,8 +322,13 @@ func lineEnsureMerge(source, dest, label string) error {
 				if err != nil {
 					return err
 				}
-				fmt.Fprintf(f, "\n%s\n", entry)
-				f.Close()
+				if _, err := fmt.Fprintf(f, "\n%s\n", entry); err != nil {
+					f.Close()
+					return fmt.Errorf("cannot append to %s: %w", label, err)
+				}
+				if err := f.Close(); err != nil {
+					return fmt.Errorf("cannot close %s: %w", label, err)
+				}
 				added = append(added, entry)
 			}
 		}

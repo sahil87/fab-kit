@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/lockfile"
@@ -179,14 +180,25 @@ func statusPlanCmd() *cobra.Command {
 		Short: "Extract plan fields",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sf, _, _, err := loadStatus(args[0])
+			sf, statusPath, _, err := loadStatus(args[0])
 			if err != nil {
 				return err
 			}
+			// Acceptance truth: prefer the live count from plan.md `## Acceptance`
+			// checkboxes over the persisted counter (the write-time cache), so a
+			// hook-bypassing edit (sed, direct edit) cannot make `status plan`
+			// report stale acceptance progress. Falls back to the cache when
+			// plan.md / its ## Acceptance section is absent. (b)
+			acceptanceCompleted := sf.Plan.AcceptanceCompleted
+			acceptanceCount := sf.Plan.AcceptanceCount
+			if done, total, ok := status.LiveAcceptance(filepath.Dir(statusPath)); ok {
+				acceptanceCompleted = done
+				acceptanceCount = total
+			}
 			fmt.Printf("generated:%v\n", sf.Plan.Generated)
 			fmt.Printf("task_count:%d\n", sf.Plan.TaskCount)
-			fmt.Printf("acceptance_count:%d\n", sf.Plan.AcceptanceCount)
-			fmt.Printf("acceptance_completed:%d\n", sf.Plan.AcceptanceCompleted)
+			fmt.Printf("acceptance_count:%d\n", acceptanceCount)
+			fmt.Printf("acceptance_completed:%d\n", acceptanceCompleted)
 			return nil
 		},
 	}

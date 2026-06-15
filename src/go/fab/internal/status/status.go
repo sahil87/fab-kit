@@ -325,11 +325,15 @@ func ApplyChangeType(statusFile *sf.StatusFile, changeType string) error {
 	return nil
 }
 
-// SetChangeType sets the change_type field and persists.
+// SetChangeType sets the change_type field and persists. It also marks the
+// source explicit so the PostToolUse intake-write hook stops re-inferring and
+// overwriting the type on the next intake edit (the F02 re-clobber bug). The
+// hook only re-infers when change_type_source is absent or "inferred".
 func SetChangeType(statusFile *sf.StatusFile, statusPath, changeType string) error {
 	if err := ApplyChangeType(statusFile, changeType); err != nil {
 		return err
 	}
+	statusFile.ChangeTypeSource = sf.SourceExplicit
 	return statusFile.Save(statusPath)
 }
 

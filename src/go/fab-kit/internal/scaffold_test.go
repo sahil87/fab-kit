@@ -178,6 +178,55 @@ func TestLineEnsureMerge_CreateNew(t *testing.T) {
 	}
 }
 
+// TestLineEnsureMerge_PropagatesWriteError covers jznd (c): a failed
+// os.WriteFile during the create-new path must propagate up the call chain
+// instead of being silently swallowed (the F21-residue bug). We force the
+// failure by making dest's parent a regular file, so creating dest fails with
+// ENOTDIR.
+func TestLineEnsureMerge_PropagatesWriteError(t *testing.T) {
+	srcDir := t.TempDir()
+	destDir := t.TempDir()
+
+	src := filepath.Join(srcDir, "gitignore")
+	os.WriteFile(src, []byte("node_modules/\n"), 0644)
+
+	// Make a regular file, then try to write a child path "under" it.
+	notADir := filepath.Join(destDir, "blocker")
+	os.WriteFile(notADir, []byte("x"), 0644)
+	dest := filepath.Join(notADir, ".gitignore") // parent is a file → write fails
+
+	err := lineEnsureMerge(src, dest, ".gitignore")
+	if err == nil {
+		t.Fatal("expected lineEnsureMerge to propagate the os.WriteFile error, got nil")
+	}
+	if !strings.Contains(err.Error(), ".gitignore") {
+		t.Errorf("error should reference the label, got: %v", err)
+	}
+}
+
+// TestScaffoldTreeWalk_PropagatesFragmentWriteError covers jznd (c) at the
+// call-chain level: a write failure inside lineEnsureMerge surfaces from
+// scaffoldTreeWalk rather than being swallowed.
+func TestScaffoldTreeWalk_PropagatesFragmentWriteError(t *testing.T) {
+	scaffoldDir := t.TempDir()
+	repoRoot := t.TempDir()
+
+	// A fragment file produces a dest of repoRoot/<name>; block it by making
+	// repoRoot/.gitignore's parent unwritable is awkward — instead use a
+	// fragment whose dest parent is a regular file.
+	// Layout: scaffold/blocker/fragment-.gitignore → dest repoRoot/blocker/.gitignore
+	os.WriteFile(filepath.Join(repoRoot, "blocker"), []byte("x"), 0644)
+	if err := os.MkdirAll(filepath.Join(scaffoldDir, "blocker"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(scaffoldDir, "blocker", "fragment-.gitignore"), []byte("node_modules/\n"), 0644)
+
+	err := scaffoldTreeWalk(scaffoldDir, repoRoot)
+	if err == nil {
+		t.Fatal("expected scaffoldTreeWalk to propagate the fragment write error, got nil")
+	}
+}
+
 func TestLineEnsureMerge_AppendNew(t *testing.T) {
 	srcDir := t.TempDir()
 	destDir := t.TempDir()
