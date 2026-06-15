@@ -354,7 +354,7 @@ In both branches the operator **continues ticking**. The user answers asynchrono
 
 ### Notification Send
 
-The notification is a single out-of-band shell send the operator runs when it auto-picks or leaves open a Strategic prompt. The **default channel is `rk notify`** — a run-kit external contract: `rk notify <message> [--title string]` (run-kit Web Push, released in `rk v2.3.2`). The send is gated on `command -v rk` and runs fail-silent per `_preamble.md` § Run-Kit Reference (which documents the gate and the fail-silent discipline, not the `notify` subcommand itself):
+The notification is a single out-of-band shell send the operator runs when it auto-picks or leaves open a Strategic prompt. The **default channel is `rk notify`** — a run-kit external contract: `rk notify <message> [--title string]` (run-kit Web Push, released in `rk v2.3.2`). The send is gated on `command -v rk` and runs fail-silent per `_preamble.md` § Run-Kit (rk) Reference (which documents the gate and the fail-silent discipline, not the `notify` subcommand itself):
 
 ```sh
 command -v rk >/dev/null 2>&1 && rk notify "{change}: {summary} ({repo})" --title "Operator: strategic question"
@@ -369,7 +369,7 @@ command -v rk >/dev/null 2>&1 && rk notify "{change}: {summary} ({repo})" --titl
 - **`PushNotification`** (built-in Claude Code harness tool) — zero infra, no topic secret to leak, headless-safe; a *personal* push to the user's Claude apps, not a shared searchable feed. Good "just ping me" fallback.
 - **Slack MCP** (`mcp__claude_ai_Slack__slack_send_message`) — searchable channel feed, mobile push; caveat: an interactively-authed MCP may be **absent in headless/cron** runs, so it cannot be a headless default.
 
-**All notify sends fail silently.** A notification that cannot be delivered (`rk`/run-kit server unreachable, channel down, no subscriptions, `curl`/tool missing) MUST NOT crash or stall the loop — the operator logs one line and keeps ticking. `rk notify` is already fail-silent by contract; the fallback path matches it. This mirrors the `_preamble.md` § Run-Kit Reference "fail silently" discipline.
+**All notify sends fail silently.** A notification that cannot be delivered (`rk`/run-kit server unreachable, channel down, no subscriptions, `curl`/tool missing) MUST NOT crash or stall the loop — the operator logs one line and keeps ticking. `rk notify` is already fail-silent by contract; the fallback path matches it. This mirrors the `_preamble.md` § Run-Kit (rk) Reference "fail silently" discipline.
 
 ### Sending Auto-Answers
 
