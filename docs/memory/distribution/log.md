@@ -3,7 +3,6 @@
 
 ## 2026-06-16
 - **Update** [distribution](/distribution/distribution.md) — refactor: FKF Change 4/4 — Migrate docs/memory/ Tree to FKF + FKF-Aware Reorg Skills (#425)
-- **Update** [kit-architecture](/distribution/kit-architecture.md) — refactor: Ship Memory-File Template in Kit Cache (#432)
 - **Update** [kit-architecture](/distribution/kit-architecture.md) — fix: Ship FKF normative contract to kit cache, repoint skill citations (#430)
 - **Update** [kit-architecture](/distribution/kit-architecture.md) — refactor: FKF Change 4/4 — Migrate docs/memory/ Tree to FKF + FKF-Aware Reorg Skills (#425)
 - **Update** [migrations](/distribution/migrations.md) — refactor: FKF Change 4/4 — Migrate docs/memory/ Tree to FKF + FKF-Aware Reorg Skills (#425)
