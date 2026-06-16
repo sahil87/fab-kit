@@ -513,8 +513,10 @@ What it writes:
   generator owns — `fab memory-index` ships the *mechanism* only. It does **not** author or
   bulk-stamp `type:` into topic files. Authoring is the memory writers' job: the canonical
   memory-file template (`$(fab kit-path)/templates/memory.md`) carries the `type: memory`
-  constant, and every memory writer (hydrate, `/docs-hydrate-memory`, `docs-reorg-memory`)
-  stamps it onto new/edited files (FKF §3.1). Bulk-stamping the existing tree is a separate,
+  constant, which hydrate and `/docs-hydrate-memory` stamp onto the new files they author, and
+  `docs-reorg-memory` stamps onto any genuinely new topic file a split creates — while
+  **preserving** the `type: memory`/`description:` frontmatter byte-for-byte on moved files
+  (a move never re-stamps; FKF §3.1, §7). Bulk-stamping the existing tree is a separate,
   later FKF-adoption change — `fab memory-index` provides the preserve-when-present round-trip,
   not the authoring.
 
