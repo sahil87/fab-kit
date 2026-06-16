@@ -159,7 +159,7 @@ Random adjective-noun combo from predefined word lists. Overridable via `--workt
 
 > All rk usage MUST fail silently if rk is not installed — check `command -v rk` before any rk operation. Do not surface errors or warnings to the user when rk is absent.
 
-### Detection
+### Detection (universal rule)
 
 Before using any rk capability, check availability:
 
@@ -168,55 +168,11 @@ command -v rk >/dev/null 2>&1 || return  # in functions
 command -v rk >/dev/null 2>&1            # in conditionals
 ```
 
-If `rk` is not available, skip all rk operations silently. Never error, never warn.
+If `rk` is not available, skip all rk operations silently. Never error, never warn. This fail-silent discipline applies to every rk command.
 
-### Iframe Windows
+### Command Reference (full body in `_cli-external.md`)
 
-Create a tmux window that displays a web page instead of a terminal:
-
-```sh
-tmux new-window -n <name>
-tmux set-option -w @rk_type iframe
-tmux set-option -w @rk_url <url>
-```
-
-Change the URL of an existing iframe window:
-
-```sh
-tmux set-option -w @rk_url <new-url>
-```
-
-The rk server detects `@rk_type` and `@rk_url` changes automatically via SSE polling — no manual refresh needed.
-
-### Proxy
-
-Access local services through the rk server using the proxy URL pattern:
-
-```
-{server_url}/proxy/{port}/...
-```
-
-For example, a service on port 8080 is available at `{server_url}/proxy/8080/`.
-
-### Server URL Discovery
-
-Discover the server URL at **use-time** by running:
-
-```sh
-rk context 2>/dev/null | grep 'Server URL' | awk '{print $NF}'
-```
-
-Never hardcode the server URL — it can change between sessions.
-
-### Visual Display Recipe
-
-The canonical recipe for displaying HTML content in an iframe window is documented by `rk context` — run-kit owns this workflow because every step (loopback HTTP server, relative `/proxy/<port>/...` path, `@rk_type`/`@rk_url` tmux options) is run-kit-specific. Keeping the recipe in one place eliminates drift between fab-kit and run-kit.
-
-At use-time, call `rk context` and read the `### Visual Display Recipe` subsection of the output for the current 4-step flow (generate HTML → loopback HTTP server → iframe window with relative `@rk_url` → fail silently). Any step SHALL fail silently if its prerequisite is unavailable (rk missing, port in use, server start fails) — skip remaining steps without surfacing an error.
-
-#### Visual-Explainer Integration
-
-When the `visual-explainer` plugin is available, skills MAY delegate HTML generation to it (Step 1 of the `rk context` recipe), then follow the remaining steps to display the result. If `visual-explainer` is not available, skip the visual display entirely — no error, no fallback.
+The full `rk` command reference — `rk context` (server-URL discovery, iframe windows, the proxy pattern, and the Visual Display Recipe) and `rk notify` (the operator's default notification send) — lives in **`_cli-external.md` § rk (run-kit)**. That helper is loaded by operator skills only (not the always-load layer), so any skill that needs an rk command beyond the detection gate above reads it there. The detection/fail-silent rule above is the only rk content every skill carries inline.
 
 ---
 

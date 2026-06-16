@@ -1,6 +1,6 @@
 ---
 name: _cli-external
-description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), tmux, and /loop. Loaded by operator skills only."
+description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), tmux, rk (run-kit: context/iframe/proxy/visual-display + notify), and /loop. Loaded by operator skills only."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -127,6 +127,76 @@ Terminal multiplexer commands used by the operator for agent observation and int
 - **Pane capture**: Use `fab pane capture` instead of raw `tmux capture-pane`. It provides fab context enrichment, validation, and structured output.
 - **Send keys**: Use `fab pane send` instead of raw `tmux send-keys`. It includes built-in pane existence and agent idle validation.
 - **`new-window`** is used for spawning new agent sessions: `tmux new-window -n "»<wt>" -c <worktree> "$SPAWN_CMD '<command>'"` where `<wt>` is the worktree name and `$SPAWN_CMD` is the target repo's spawn command (see the repo-targeted spawning note in the wt section above)
+
+---
+
+## rk (run-kit)
+
+run-kit is the tmux session manager with a web UI that hosts the operator's session. All commands below are subject to the **detection / fail-silent rule** stated once in `_preamble.md` § Run-Kit (rk) Reference — check `command -v rk` first and skip silently when rk is absent (never error, never warn). This section is the full body the preamble points to.
+
+### Notifications
+
+`rk notify` sends a Web Push notification via the local run-kit server to every subscribed browser/device:
+
+```sh
+rk notify <message> [--title string]
+```
+
+- **Fail-silent by contract**: on any error (server unreachable, no subscriptions, bad request) `rk notify` exits 0 and prints nothing, so it never stalls a calling loop. This is run-kit's own guarantee — it composes with the preamble's detection rule for an end-to-end silent send.
+- **Operator default channel**: the operator's non-blocking Strategic escalation (`fab-operator.md` §5) uses `rk notify` as its default out-of-band notification send, gated on `command -v rk`:
+
+  ```sh
+  command -v rk >/dev/null 2>&1 && rk notify "{change}: {summary} ({repo})" --title "Operator: strategic question"
+  ```
+- **Delivery model**: a real background mobile/desktop Web Push (run-kit holds the VAPID keypair and the device subscriptions). One user's subscriptions form a single feed across every operator on the box. `rk notify` itself reports nothing; the underlying `POST /api/notify` returns a `{"sent":N,"pruned":M}` summary if a caller needs delivery visibility (the operator does not — it relies on the fail-silent contract).
+
+### Server URL Discovery
+
+Discover the server URL at **use-time** by running:
+
+```sh
+rk context 2>/dev/null | grep 'Server URL' | awk '{print $NF}'
+```
+
+Never hardcode the server URL — it can change between sessions.
+
+### Iframe Windows
+
+Create a tmux window that displays a web page instead of a terminal:
+
+```sh
+tmux new-window -n <name>
+tmux set-option -w @rk_type iframe
+tmux set-option -w @rk_url <url>
+```
+
+Change the URL of an existing iframe window:
+
+```sh
+tmux set-option -w @rk_url <new-url>
+```
+
+The rk server detects `@rk_type` and `@rk_url` changes automatically via SSE polling — no manual refresh needed.
+
+### Proxy
+
+Access local services through the rk server using the proxy URL pattern:
+
+```
+{server_url}/proxy/{port}/...
+```
+
+For example, a service on port 8080 is available at `{server_url}/proxy/8080/`.
+
+### Visual Display Recipe
+
+The canonical recipe for displaying HTML content in an iframe window is documented by `rk context` — run-kit owns this workflow because every step (loopback HTTP server, relative `/proxy/<port>/...` path, `@rk_type`/`@rk_url` tmux options) is run-kit-specific. Keeping the recipe in one place eliminates drift between fab-kit and run-kit.
+
+At use-time, call `rk context` and read the `### Visual Display Recipe` subsection of the output for the current 4-step flow (generate HTML → loopback HTTP server → iframe window with relative `@rk_url` → fail silently). Any step SHALL fail silently if its prerequisite is unavailable (rk missing, port in use, server start fails) — skip remaining steps without surfacing an error.
+
+#### Visual-Explainer Integration
+
+When the `visual-explainer` plugin is available, skills MAY delegate HTML generation to it (Step 1 of the `rk context` recipe), then follow the remaining steps to display the result. If `visual-explainer` is not available, skip the visual display entirely — no error, no fallback.
 
 ---
 

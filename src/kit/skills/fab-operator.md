@@ -354,7 +354,7 @@ In both branches the operator **continues ticking**. The user answers asynchrono
 
 ### Notification Send
 
-The notification is a single out-of-band shell send the operator runs when it auto-picks or leaves open a Strategic prompt. The **default channel is `rk notify`** — a run-kit external contract: `rk notify <message> [--title string]` (run-kit Web Push, released in `rk v2.3.2`). The send is gated on `command -v rk` and runs fail-silent per `_preamble.md` § Run-Kit (rk) Reference (which documents the gate and the fail-silent discipline, not the `notify` subcommand itself):
+The notification is a single out-of-band shell send the operator runs when it auto-picks or leaves open a Strategic prompt. The **default channel is `rk notify`** — a run-kit external contract: `rk notify <message> [--title string]` (run-kit Web Push, released in `rk v2.3.2`; full command reference in `_cli-external.md` § rk (run-kit)). The send is gated on `command -v rk` and runs fail-silent per `_preamble.md` § Run-Kit (rk) Reference (which documents the gate and the fail-silent discipline; the `notify` subcommand itself is documented in `_cli-external.md` § rk):
 
 ```sh
 command -v rk >/dev/null 2>&1 && rk notify "{change}: {summary} ({repo})" --title "Operator: strategic question"
