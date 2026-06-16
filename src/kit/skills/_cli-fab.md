@@ -510,12 +510,15 @@ What it writes:
   attributable git commits) still emits a `log.md`; `log.seed.md` is excluded from topic-file
   gathering (never an index row), exactly like `index.md` / `log.md`.
 - **`type: memory` frontmatter** is **preserved** (round-tripped) when present on a file the
-  generator owns — this change ships the *mechanism* only. It does **not** author or bulk-stamp
-  `type:` into topic files, and there is **no** memory-file template carrying `type: memory` yet
-  (`src/kit/templates/` holds only the intake/plan/status templates). Authoring `type: memory`
-  onto a template / new files and bulk-stamping the existing tree are separate, later
-  FKF-adoption changes — this change provides the preserve-when-present round-trip, not the
-  authoring.
+  generator owns — `fab memory-index` ships the *mechanism* only. It does **not** author or
+  bulk-stamp `type:` into topic files. Authoring is the memory writers' job: the canonical
+  memory-file template (`$(fab kit-path)/templates/memory.md`) carries the `type: memory`
+  constant, which hydrate and `/docs-hydrate-memory` stamp onto the new files they author, and
+  `docs-reorg-memory` stamps onto any genuinely new topic file a split creates — while
+  **preserving** the `type: memory`/`description:` frontmatter byte-for-byte on moved files
+  (a move never re-stamps; FKF §3.1, §7). Bulk-stamping the existing tree is a separate,
+  later FKF-adoption change — `fab memory-index` provides the preserve-when-present round-trip,
+  not the authoring.
 
 Data sourcing (all read by the command itself):
 - Each topic file's **H1** (first `# ` line) and **`description:` frontmatter** (via

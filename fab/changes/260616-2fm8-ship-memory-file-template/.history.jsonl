@@ -1,0 +1,12 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-16T05:01:40Z"}
+{"args":"Ship a canonical memory-file template at src/kit/templates/memory.md and repoint doc skills to read it instead of inlining the FKF memory shape (backlog 2fm8)","cmd":"fab-new","event":"command","ts":"2026-06-16T05:01:40Z"}
+{"delta":"+4.1","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-16T05:03:01Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-16T05:03:17Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-06-16T05:04:40Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-16T05:04:46Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-16T05:11:47Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-06-16T05:19:54Z"}
+{"event":"review","result":"passed","ts":"2026-06-16T05:19:54Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-16T05:33:05Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-06-16T05:35:00Z"}
+{"event":"review","result":"passed","ts":"2026-06-16T05:41:54Z"}
