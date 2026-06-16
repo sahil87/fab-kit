@@ -121,6 +121,21 @@ func renderLogEntry(e LogEntry) string {
 	return b.String()
 }
 
+// parseLog is the inverse of RenderLog: it parses a rendered log.md body back
+// into LogEntry values, so an existing on-disk log.md can be read back into the
+// frozen, authoritative entry set that freeze-on-write generation preserves
+// (R1/R5). It shares parseSeedLog's entry-line grammar — both consume the
+// identical FKF §6.2 rendered shape (`## YYYY-MM-DD` date headings + the
+// `- {**Verb** }[base](/bundle/rel.md) — summary{ (id)}` bullets) — so the round
+// trip parseLog(RenderLog(entries)) recovers the same entry set (set-wise;
+// RenderLog re-sorts newest-first). The generated `# Log — Title` H1 and the
+// `Do not hand-edit` comment are non-date / non-bullet lines and are skipped, as
+// are blank lines and any stray prose. Malformed entry bullets degrade gracefully
+// (skipped, never a panic) — the same discipline parseSeedLog applies. Pure.
+func parseLog(content string) []LogEntry {
+	return parseLogBody(content)
+}
+
 // nameStatusVerb maps a git name-status code to the leading bold log verb.
 // The status is the first whitespace-delimited token of a --name-status line:
 // "A" added → Creation, "D" deleted → Deprecation, "M"/"R{score}"/"C{score}"

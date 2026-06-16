@@ -147,7 +147,7 @@ func TestGatherLogs_SeedMerge(t *testing.T) {
 		"--date", "2026-06-01T12:00:00 +0000")
 
 	fabRoot := filepath.Join(repo, "fab")
-	targets, err := GatherLogs(repo, fabRoot)
+	targets, err := GatherLogs(repo, fabRoot, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestGatherLogs_SeedMerge(t *testing.T) {
 	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	second, err := GatherLogs(repo, fabRoot)
+	second, err := GatherLogs(repo, fabRoot, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +207,7 @@ func TestGatherLogs_SeedOnlyFolderEmitsLog(t *testing.T) {
 	writeFile(t, repo, "docs/memory/seeded/log.seed.md",
 		"## 2026-03-03\n- **Update** [b](/seeded/b.md) — seeded history (zzzz)\n")
 
-	targets, err := GatherLogs(repo, filepath.Join(repo, "fab"))
+	targets, err := GatherLogs(repo, filepath.Join(repo, "fab"), false)
 	if err != nil {
 		t.Fatal(err)
 	}

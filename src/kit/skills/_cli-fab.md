@@ -455,7 +455,7 @@ Consumers: `/git-pr` Step 3c (renders the PR body `## Meta` block, pasted verbat
 ## fab memory-index
 
 ```
-fab memory-index [--check [--json]]
+fab memory-index [--check [--json]] [--rebuild]
 ```
 
 Deterministically (re)generates the `docs/memory/` index **and log** files so agents never
@@ -495,6 +495,24 @@ What it writes:
   attributable history is skipped (no empty `log.md`). `log.md` is a single-writer generated
   artifact, same discipline as `index.md` — it replaces the per-file `## Changelog` tables FKF
   removes.
+- **Freeze-on-write `log.md` (FKF §6.4).** The existing `log.md` is **authoritative and
+  write-once** — a pure projection of *live* git is not deterministic (squash-merge rewrites commit
+  subjects/counts and branch-delete makes the originals unreachable), so a from-scratch regen churns
+  every contributor's `log.md`. Instead, `fab memory-index` reads the existing `log.md` back into
+  entries (parsing the §6.2 render — same grammar as `log.seed.md`), treats those entries as
+  **immutable** (never reworded / re-dated / dropped), and **appends only** newly-discovered entries.
+  The append/dedup key is **`(file-base, change-id)`** (NOT the commit hash `%H` — squash +
+  branch-delete makes the hash unreachable, the exact operation being defended; the change-id
+  survives in the folder name + registry): an attributable projected entry is appended only when no
+  existing entry already records that `(file-base, change-id)` pair, so a re-run, or a re-projection
+  after a squash that preserved the change token, is a no-op. **Unattributable commits are frozen,
+  not re-projected**: an entry with no registry change-id already in `log.md` stays verbatim, and a
+  NEW unattributable commit (a migration, a direct-`main` edit, a squash that dropped the branch
+  token) is NOT projected after first write (accepted tradeoff: tooling commits leave no log trace).
+  **Bootstrap is not a special mode** — the first run on a folder with no `log.md` is just the first
+  append into an empty log (unattributable commits ARE projected and frozen there); there is no
+  `--first-generation` flag, and bootstrap shares one code path with every later run. The
+  `log.seed.md` seed-merge is preserved (merged beneath the projection at first write / `--rebuild`).
 - **Seed-merge (FKF §6 — `log.seed.md`).** A folder MAY carry a curated `log.seed.md` sidecar in
   the §6.2 entry format (`## YYYY-MM-DD` headings + `- {**Verb** }[base](/bundle/rel.md) — summary
   ({id})` lines). It is a **read-only input** — like `description:` frontmatter — never written by
@@ -569,6 +587,16 @@ Flags:
   `fab migrations-status` `--json` convention (snake_case). Shape:
   `{"tier": 0|1|2, "drift": bool, "losses": [{"category": "description"|"tombstone"|"grouping", "path": "<repo-rel index>", "detail": "<lost text | dropped link target | flattened heading>"}]}`.
   Consumed by `/docs-reorg-memory`'s compatibility detection.
+- `--rebuild` — **DESTRUCTIVE** freeze-on-write escape hatch (FKF §6.4): discard the accumulated
+  frozen `log.md` state and re-project every `log.md` from current git (the pre-freeze behavior, made
+  explicit and opt-in — it re-projects unattributable commits too). It can rewrite or drop frozen
+  lines, so use it only for a corrupted frozen log or a deliberate re-baseline — never the default
+  path. The `log.seed.md` seed-merge still applies beneath the re-projection. **Ignored with
+  `--check`** (which never writes): `--check` always compares against the non-destructive
+  freeze-on-write merge. The 2.5.5→2.6.0 re-baseline migration runs `fab memory-index --rebuild` +
+  commit once to move an existing project onto freeze-on-write, after a pre-check that the running
+  binary understands `--rebuild` (probe `fab memory-index --help`; abort with "upgrade the binary
+  first" if absent).
 
 Tiered `--check` exit codes (loss is a strict subset of drift — one render pass serves both;
 `log.md` and the root `index.md` `fkf_version` frontmatter are classified too, but only ever as
@@ -582,7 +610,14 @@ benign drift — see below):
   and FKF-frontmatter drift is benign (tier 1)** — a `log.md` is a C-lite git projection (plus any
   merged seed), not a row-table index, so the three destructive-loss detectors below are skipped for
   it, and FKF added **no new tier-2 category** (FKF / OQ4 decision); a preserved seed is never
-  reported as destructive loss.
+  reported as destructive loss. **Under freeze-on-write (FKF §6.4) `--check` compares the committed
+  `log.md` against the freeze-on-write MERGE, not a from-scratch projection**: a committed log that
+  is a valid **superset** of the merge (it carries frozen lines the live history no longer shows)
+  **PASSES** (the case byte-equality false-fails today). A `log.md` benign FAIL (tier 1) means the
+  committed log is **missing** a projected attributable `(file-base, change-id)` entry (forgot to
+  regenerate-and-commit), or a frozen line was **hand-edited** in a render-unstable way (single-writer
+  discipline violated — a clean reword that round-trips through the §6.2 grammar is accepted as the
+  new frozen truth).
 - **`2`** — **destructive loss**: regen would wipe curated/historical content. Three
   **index-only** categories, the mechanical form of `/docs-reorg-memory`'s prose signals: (1) a
   curated **description** that would regenerate to `—` (the file lacks `description:` frontmatter);
