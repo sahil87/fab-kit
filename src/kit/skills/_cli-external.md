@@ -1,6 +1,6 @@
 ---
 name: _cli-external
-description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), tmux, rk (run-kit: context/iframe/proxy/visual-display + notify), and /loop. Loaded by operator skills only."
+description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), hop (multi-repo navigator), tmux, rk (run-kit: context/iframe/proxy/visual-display + notify), and /loop. Hand-authored gist (operator-critical commands/flags + integration semantics) per tool; the exhaustive command/flag surface is delegated to each tool's `help-dump` at use-time. Loaded by operator skills only."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -9,6 +9,77 @@ metadata:
 # External CLI Tool Reference
 
 > Loaded by operator skills only (not part of the always-load layer). Documents non-fab CLI tools used for multi-agent coordination.
+
+---
+
+## Reference Model
+
+This file documents a hand-authored **gist** per tool — what each tool *is*, the
+commands and flags the operator's correctness depends on, and the integration
+semantics that tie the tools to fab. It is deliberately **not** an exhaustive
+command reference: the full command/flag surface is delegated to each tool's
+`help-dump` (below), so this file never goes stale against a tool's release cadence.
+
+### The `help-dump` contract
+
+Each owned tool — `wt`, `idea`, `rk`, `hop` (and `fab` itself) — exposes a **hidden
+but stable** `help-dump` subcommand that emits its entire command tree as JSON. It
+is not listed in `--help`, but the shape is stable across all of them:
+
+```json
+{
+  "tool": "idea",
+  "version": "v0.0.13",
+  "captured_at": "2026-06-16T04:33:36Z",
+  "schema_version": 1,
+  "root": {
+    "name": "idea",
+    "path": "idea",
+    "short": "Backlog idea management (current worktree; use --main for main worktree)",
+    "usage": "idea [flags]",
+    "text": "...full help text...",
+    "commands": [
+      { "name": "add", "path": "idea add", "short": "...", "usage": "idea add <text> [flags]", "text": "...", "commands": [] }
+    ]
+  }
+}
+```
+
+Fields: `tool`, `version`, `captured_at` (part of the contract; may be empty or
+omitted on some tools — e.g. `wt` omits it, `hop` emits it empty), `schema_version`
+(currently `1`), and a recursive `root` → `commands[]` tree where each node carries
+`name`, `path`, `short`, `usage`, and `text`. The tree is recursive — `commands[]`
+nests for subcommand groups.
+
+**Use it at use-time.** For any flag or subcommand **not** in the gist below, run
+`<tool> help-dump` (or `<tool> <cmd> --help`) and treat *that*, not this file, as
+authoritative for the exhaustive surface. The inlined gist tables are a deliberately
+curated subset (the operator-critical commands/flags + integration semantics).
+
+> The `help-dump` delegation scopes to the **four owned binaries** (`wt`, `idea`,
+> `rk`, `hop`). `tmux` is third-party and has no `help-dump`; `/loop` is a Claude
+> Code skill, not a binary — neither is covered by the instruction above.
+
+### Absent-binary discipline (two install classes)
+
+The four owned binaries fall into two classes by install guarantee, and the
+fail-silent rule applies **asymmetrically**:
+
+- **Assumed-present — `wt`, `idea`.** These are Homebrew `depends_on` of `fab-kit`
+  (they land together via `brew install fab-kit`). Invoke them **bare**; no
+  `command -v` gate is required.
+- **Genuinely-optional — `rk`, `hop`.** Each is a separate sibling formula the user
+  may or may not have installed (`rk` is run-kit; `hop` is the multi-repo
+  navigator). **Every `rk`/`hop` invocation — including `help-dump` — MUST be
+  `command -v`-gated and fail silently** (never surface `command not found` or any
+  error/warning when the tool is absent). Do NOT generalize this gate to `wt`/`idea`.
+
+```sh
+command -v hop >/dev/null 2>&1 && hop help-dump   # rk/hop: gated, fail silently
+command -v rk  >/dev/null 2>&1 && rk help-dump    # rk/hop: gated, fail silently
+wt help-dump                                       # wt/idea: assumed present, bare
+idea help-dump                                     # wt/idea: assumed present, bare
+```
 
 ---
 
@@ -37,6 +108,8 @@ metadata:
 
 **Example — known change**: `wt create --non-interactive --worktree-name <name> <change-folder-name>`
 **Example — autopilot respawn**: `wt create --non-interactive --reuse --worktree-name <name> <branch> --base <prev-change>`
+
+> The gist above is the operator-used subset. The full `wt` surface (e.g. `init`, `open`, `shell-init`, `update`) and the complete flag set for each command are available via `wt help-dump` (assumed present — bare, per § Reference Model).
 
 > **Repo-targeted spawning (operator).** `wt` operates on the **current working directory's** repo. For multi-repo coordination, the operator MUST run `wt create` **in the target repo's directory** (the agent's absolute main-worktree root), so the new worktree lands under `$(dirname <target-repo>)/<repo-name>.worktrees/` — not under the operator's own repo. The operator reads that target repo's spawn command separately via `fab spawn-command --repo <target-repo>` (see `_cli-fab.md`), never its own `config.yaml`.
 
@@ -83,6 +156,8 @@ idea <subcommand> [flags...]
 | `edit` | `edit <query> <new-text> [--id <4char>] [--date <YYYY-MM-DD>]` | Modify an idea |
 | `rm` | `rm <query> --force` | Delete an idea (requires --force) |
 
+> The verbs above are the operator-used subset. The full `idea` surface (e.g. `fmt`, `prune`, `shell-init`, `update`) is available via `idea help-dump` (assumed present — bare, per § Reference Model).
+
 ### Persistent Flags
 
 | Flag | Purpose |
@@ -111,6 +186,30 @@ By default, `idea` operates on the **current worktree's** `fab/backlog.md` (reso
 
 ---
 
+## hop (Multi-Repo Navigator)
+
+`hop` is a **genuinely-optional** binary — a separate sibling formula, not a `fab-kit` Homebrew dependency, so it can legitimately be absent. Every `hop` invocation (including `hop help-dump`) MUST be `command -v hop`-gated and skip silently when absent (per § Reference Model — never surface `command not found` or any error/warning). This mirrors the `rk` fail-silent discipline.
+
+```sh
+command -v hop >/dev/null 2>&1 && hop ls   # gate every hop call, fail silently
+```
+
+**What it is.** `hop` is the **discovery front-end to the same repo/worktree space `wt` operates on**: it locates, opens, and operates on repos registered in a `hop.yaml` registry (default `~/.config/hop/hop.yaml`). The grammar is `hop <selection> <action>` — selection is a repo name (substring → fzf on ambiguity), a `repo/worktree`, a group, or `--all`; action is a builtin verb (`cd`/`open`/`where`), a batch verb (`pull`/`push`/`sync`), or any PATH binary. Where `wt` enumerates the worktrees *within* a repo, `hop` enumerates the *repos* themselves.
+
+### Repo/worktree discovery (the operator-relevant subset)
+
+| Command | Usage | Purpose |
+|---------|-------|---------|
+| `ls` | `hop ls` | List all registered repos as aligned name/path columns — the most useful command for discovering where sibling repos live on disk (`--json` for machine-readable output) |
+| `ls --trees` | `hop ls --trees` | List repos **with worktree summaries**, fanning out to `wt list --json` per repo. This is the explicit `hop`↔`wt` seam: `hop` enumerates repos, `wt` enumerates each repo's worktrees |
+| `where` | `hop <name> where` | Echo the absolute path of a matching repo. `hop <name>/<wt> where` resolves a specific worktree (via `wt list --json`) |
+
+**Why it matters to the operator.** Multi-repo coordination needs the absolute main-worktree root of a *sibling* repo — e.g. to spawn an agent into it (see the **Repo-targeted spawning** note in the `wt` section, which requires running `wt create` in the target repo's directory and reading `fab spawn-command --repo <target-repo>`). `hop ls` / `hop <name> where` is how an agent **discovers** those locations rather than hardcoding paths.
+
+**Full surface.** The rest of `hop` — `add`, `clone`, `rm`, `config` (`init`/`where`/`print`), `shell-init`, `update`, the batch verbs (`pull`/`push`/`sync`), and `--all` fan-out — is available via `command -v hop >/dev/null 2>&1 && hop help-dump`. The gist above covers only discovery.
+
+---
+
 ## tmux
 
 Terminal multiplexer commands used by the operator for agent observation and interaction.
@@ -132,7 +231,9 @@ Terminal multiplexer commands used by the operator for agent observation and int
 
 ## rk (run-kit)
 
-run-kit is the tmux session manager with a web UI that hosts the operator's session. All commands below are subject to the **detection / fail-silent rule** stated once in `_preamble.md` § Run-Kit (rk) Reference — check `command -v rk` first and skip silently when rk is absent (never error, never warn). This section is the full body the preamble points to.
+run-kit is the tmux session manager with a web UI that hosts the operator's session. All commands below are subject to the **detection / fail-silent rule** stated once in `_preamble.md` § Run-Kit (rk) Reference — check `command -v rk` first and skip silently when rk is absent (never error, never warn). This section is the full operator-facing body the preamble points to; the exhaustive command surface is delegated to `rk help-dump` (see below).
+
+The gist below is the operator-used subset. The full `rk` surface (`daemon`, `doctor`, `serve`, `reaper`, `riff`, `init-conf`, `status`, `update`, …) is available via `command -v rk >/dev/null 2>&1 && rk help-dump` — gated and fail-silent like every other `rk` invocation (per § Reference Model and the `_preamble.md` rule above).
 
 ### Notifications
 
