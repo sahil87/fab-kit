@@ -203,7 +203,7 @@ The applying agent triages review comments by priority — not all comments need
 1. **Validate**: Must be one of the 6 stage names. If `tasks` or `spec` is passed, error with: `"tasks"/"spec" stages were removed — use /fab-continue apply to re-run apply (delete plan.md first to force regeneration), or /fab-continue intake then /fab-clarify to rework the intake.`
 2. **Load context** for the target stage
 3. **Reset `.status.yaml`**: Reset's From-set is `{done, ready, skipped}` — handle the non-resettable current states first:
-   - Target already **`active`** (e.g., re-running an interrupted reset): skip this call — the state is already what the reset would produce; proceed directly to step 4 (re-running a reset is a state-wise no-op — Constitution III).
+   - Target already **`active`** (e.g., re-running an interrupted reset): skip this call — the state is already what the reset would produce; proceed directly to step 4 (re-running a reset is a state-wise no-op — idempotency, a fab-kit design principle).
    - Target **`failed`** (review/review-pr only — no other stage can hold it): do NOT reset — `failed` recovery belongs to `start` (failed → active). Stop the Reset Flow and follow the matching `failed` dispatch row in Step 1 instead (review → post-fail reset + rework menu; review-pr → re-execute `/git-pr-review` behavior).
    - Target **`pending`**: error — `Stage '{stage}' has not run yet — nothing to reset. Run /fab-continue to advance to it.`
    Otherwise run `fab status reset <change> <stage> fab-continue`. This atomically sets the target stage → `active` and cascades all downstream stages → `pending`. Stages before the target are preserved.

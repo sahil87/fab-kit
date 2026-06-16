@@ -252,7 +252,7 @@ model=opus
 effort=high
 ```
 
-**No validation — verbatim pass-through**: `fab resolve-agent` does NOT validate the model or effort against any provider's accepted set (provider neutrality, Constitution I). It echoes both strings as-is — `xhigh`, `reasoning_effort:high`, an empty effort, whatever. A misconfigured pair (e.g. Sonnet + `xhigh`) is NOT corrected by fab; it surfaces as a dispatch-time error in the harness. There is no effort-enum enforcement and no degrade-gracefully drop.
+**No validation — verbatim pass-through**: `fab resolve-agent` does NOT validate the model or effort against any provider's accepted set (provider neutrality — a fab-kit design principle). It echoes both strings as-is — `xhigh`, `reasoning_effort:high`, an empty effort, whatever. A misconfigured pair (e.g. Sonnet + `xhigh`) is NOT corrected by fab; it surfaces as a dispatch-time error in the harness. There is no effort-enum enforcement and no degrade-gracefully drop.
 
 **Exit code**: non-zero only on a real error — an unreadable/malformed config, or an unknown stage name. A stage resolving to a default is success (exit 0).
 

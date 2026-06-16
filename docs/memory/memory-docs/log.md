@@ -7,6 +7,7 @@
 - **Update** [hydrate-generate](/memory-docs/hydrate-generate.md) — refactor: FKF Change 4/4 — Migrate docs/memory/ Tree to FKF + FKF-Aware Reorg Skills (#425)
 - **Update** [hydrate-specs](/memory-docs/hydrate-specs.md) — refactor: FKF Change 4/4 — Migrate docs/memory/ Tree to FKF + FKF-Aware Reorg Skills (#425)
 - **Update** [specs-index](/memory-docs/specs-index.md) — refactor: FKF Change 4/4 — Migrate docs/memory/ Tree to FKF + FKF-Aware Reorg Skills (#425)
+- **Update** [templates](/memory-docs/templates.md) — refactor: Ship Memory-File Template in Kit Cache (#432)
 - **Update** [templates](/memory-docs/templates.md) — refactor: FKF Change 4/4 — Migrate docs/memory/ Tree to FKF + FKF-Aware Reorg Skills (#425)
 - **Update** [templates](/memory-docs/templates.md) — refactor: FKF Change 3/4 — doc-skill prose authors FKF frontmatter, stops per-file changelog writes (#423)
 

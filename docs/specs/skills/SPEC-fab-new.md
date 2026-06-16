@@ -6,7 +6,7 @@ Creates a new change from a natural language description, Linear ticket, or back
 
 **Extraction boundary** (260613-3xaj): Steps 0–9 are NOT inlined here — they live in `_intake.md` (see `SPEC-_intake.md`). Only the activate (Step 10) + branch (Step 11) tail, Output block, and activation/git error rows stay in `fab-new.md` — a different responsibility (make the change active + checked out) that is NOT a questioning-mode parameter.
 
-**Re-run contract** (Constitution III): a backlog/Linear-ID re-run detects the existing non-archived change and routes to resume (`/fab-switch {name}` + `/fab-continue`) instead of erroring; a natural-language re-run intentionally creates a new change each run. Implemented in the shared procedure's Step 3; declared in the skill's Key Properties section.
+**Re-run contract** (idempotency — a fab-kit design principle): a backlog/Linear-ID re-run detects the existing non-archived change and routes to resume (`/fab-switch {name}` + `/fab-continue`) instead of erroring; a natural-language re-run intentionally creates a new change each run. Implemented in the shared procedure's Step 3; declared in the skill's Key Properties section.
 
 **Output ordering** (260612-c5tr): the Output template ends with the Assumptions summary as the final content block immediately before the `Next:` line, per `_srad.md` § Assumptions Summary Block (order: intake → Confidence → Activated → Branch → Assumptions → `Next:`); the block is omitted from output only when 0 assumptions were made.
 

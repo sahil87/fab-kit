@@ -10,7 +10,7 @@
 >
 > **Scope: `docs/memory/` only.** FKF governs the post-implementation memory tree. It does **not**
 > apply to `docs/specs/` — specs remain human-curated, frontmatter-free, and free-form per
-> Constitution VI. See [§9 Non-Scope](#9-non-scope-docsspecs).
+> a fab-kit design principle (specs are human-curated). See [§9 Non-Scope](#9-non-scope-docsspecs).
 
 > **Shipped normative extract.** This file is the dev-repo design doc (rationale + history). The
 > **normative subset** an agent must follow (§2/§3/§5/§6/§7/§8, original anchors preserved) is
@@ -346,7 +346,7 @@ SHOULD attempt best-effort consumption rather than refusing an unknown version.
 FKF governs `docs/memory/` only. `docs/specs/` is **out of scope** and unchanged:
 
 - Specs remain **human-curated** and MUST NOT be auto-generated or overwritten by tooling
-  (Constitution VI).
+  (a fab-kit design principle).
 - Specs carry **no frontmatter** and are deliberately flat and free-form.
 - The `docs/specs/skills/SPEC-*.md` mirrors stay constitution-pinned (names derive mechanically
   from `src/kit/skills/` sources).
