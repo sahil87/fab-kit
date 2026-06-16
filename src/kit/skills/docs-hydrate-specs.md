@@ -70,7 +70,7 @@ For each gap:
 Add this to `{spec_file}`? (yes / no / done)
 ```
 
-**No-target branch**: when no existing spec file is a suitable home for the gap, the Target line proposes a **new** spec file instead — `**Target**: docs/specs/{kebab-topic}.md (new file)` — and the preview shows the full proposed file content, matching sibling specs' tone. The same per-gap confirmation gates it; specs stay human-curated (Constitution VI).
+**No-target branch**: when no existing spec file is a suitable home for the gap, the Target line proposes a **new** spec file instead — `**Target**: docs/specs/{kebab-topic}.md (new file)` — and the preview shows the full proposed file content, matching sibling specs' tone. The same per-gap confirmation gates it; specs stay human-curated (a fab-kit design principle).
 
 ### Step 6: Interactive Confirmation
 

@@ -1,0 +1,17 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-16T04:39:50Z"}
+{"args":"scrub numbered-constitution citations from shipped skills","cmd":"fab-new","event":"command","ts":"2026-06-16T04:39:50Z"}
+{"delta":"+4.2","event":"confidence","score":4.2,"trigger":"calc-score","ts":"2026-06-16T04:40:46Z"}
+{"delta":"+0.0","event":"confidence","score":4.2,"trigger":"calc-score","ts":"2026-06-16T04:40:55Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-06-16T04:59:10Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-16T04:59:15Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-16T05:07:41Z"}
+{"event":"review","result":"failed","ts":"2026-06-16T05:53:58Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-16T05:53:58Z"}
+{"delta":"+0.0","event":"confidence","score":4.2,"trigger":"calc-score","ts":"2026-06-16T05:55:35Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-06-16T06:00:27Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-16T06:00:49Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-06-16T06:06:29Z"}
+{"event":"review","result":"passed","ts":"2026-06-16T06:06:29Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-16T06:08:48Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-06-16T06:10:20Z"}
+{"event":"review","result":"passed","ts":"2026-06-16T06:16:12Z"}

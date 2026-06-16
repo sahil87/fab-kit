@@ -18,7 +18,7 @@
 >
 > **Scope: `docs/memory/` only.** FKF governs the post-implementation memory tree. It does **not**
 > apply to `docs/specs/` — specs remain human-curated, frontmatter-free, and free-form per
-> Constitution VI.
+> a fab-kit design principle (specs are human-curated).
 
 ---
 

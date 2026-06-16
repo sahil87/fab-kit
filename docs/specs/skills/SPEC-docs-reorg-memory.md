@@ -27,7 +27,7 @@ On **explicit approval** (decline = report findings and stop, no mutation), the 
 2. **Dispatch `/docs-hydrate-memory` backfill mode** as a **general-purpose sub-agent** (standard subagent context). The dispatch **names the operation** ("backfill this tree"), passes **no file manifest** (backfill re-scans `docs/memory/` itself — the loose seam), and **signals the defer-regen caller form** so the sub-agent does not run `fab memory-index`.
 3. **Rebalance + regenerate** — the existing split/merge/flatten apply, then `fab memory-index` **once** (reorg owns the single regen; the sub-agent ran zero). With compatibility findings only (no structural migrations), reorg runs `fab memory-index` once directly.
 
-The competence seam: reorg's job stays structural (detect, relocate the mechanical row file, rebalance); **per-file description synthesis lives in hydrate's backfill mode**, which reorg *calls* rather than absorbs. Idempotency (Constitution III): re-running on an already-converted tree is a no-op — no duplicate tombstone rows, backfill skips frontmatter-present files, byte-stable index.
+The competence seam: reorg's job stays structural (detect, relocate the mechanical row file, rebalance); **per-file description synthesis lives in hydrate's backfill mode**, which reorg *calls* rather than absorbs. Idempotency (a fab-kit design principle): re-running on an already-converted tree is a no-op — no duplicate tombstone rows, backfill skips frontmatter-present files, byte-stable index.
 
 ## Apply Path
 
@@ -43,7 +43,7 @@ For any move-bearing migration the skill, on approval:
 
 For any `split-domain` / `merge-domain` / `flatten` / `move` migration (any move-bearing `Kind`), the proposal MUST list every bundle-relative link that would break, each paired with its rewrite (e.g. `](/pipeline/runtime-agents.md)` → `](/pipeline/runtime/runtime-agents.md)`), so the blast radius is visible before the user approves. Under FKF §7 this radius is small — only links whose bundle path changes are listed; same-domain reshuffles that keep files in the domain break nothing. A migration that breaks no links states "Link Impact: none" explicitly.
 
-Link rewriting is **skill-driven** (the agent edits each link per the Link Impact list) — it is NOT a `fab` Go subcommand (Constitution I, Pure Prompt Play).
+Link rewriting is **skill-driven** (the agent edits each link per the Link Impact list) — it is NOT a `fab` Go subcommand (Pure Prompt Play — a fab-kit design principle).
 
 ### External Sub-Domain Addressing
 

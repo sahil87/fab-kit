@@ -88,7 +88,7 @@ User invokes /fab-setup [subcommand]
 Discovery (version read/parse/compare + scan/validate-non-overlap/sort + the
 applicability walk) is owned by the `fab-kit` binary (`fab migrations-status`).
 The skill consumes the `--json` result and still owns *application* of each
-migration file (Pre-check/Changes/Verification + writing `TO`), per Constitution I.
+migration file (Pre-check/Changes/Verification + writing `TO`), per Pure Prompt Play — a fab-kit design principle.
 
 ### Tools used
 
