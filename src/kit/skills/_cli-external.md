@@ -45,8 +45,8 @@ is not listed in `--help`, but the shape is stable across all of them:
 }
 ```
 
-Fields: `tool`, `version`, `captured_at` (present in the contract; may be empty or
-absent on some tools — e.g. `wt` omits it, `hop` emits it empty), `schema_version`
+Fields: `tool`, `version`, `captured_at` (part of the contract; may be empty or
+omitted on some tools — e.g. `wt` omits it, `hop` emits it empty), `schema_version`
 (currently `1`), and a recursive `root` → `commands[]` tree where each node carries
 `name`, `path`, `short`, `usage`, and `text`. The tree is recursive — `commands[]`
 nests for subcommand groups.
@@ -231,7 +231,7 @@ Terminal multiplexer commands used by the operator for agent observation and int
 
 ## rk (run-kit)
 
-run-kit is the tmux session manager with a web UI that hosts the operator's session. All commands below are subject to the **detection / fail-silent rule** stated once in `_preamble.md` § Run-Kit (rk) Reference — check `command -v rk` first and skip silently when rk is absent (never error, never warn). This section is the full body the preamble points to.
+run-kit is the tmux session manager with a web UI that hosts the operator's session. All commands below are subject to the **detection / fail-silent rule** stated once in `_preamble.md` § Run-Kit (rk) Reference — check `command -v rk` first and skip silently when rk is absent (never error, never warn). This section is the full operator-facing body the preamble points to; the exhaustive command surface is delegated to `rk help-dump` (see below).
 
 The gist below is the operator-used subset. The full `rk` surface (`daemon`, `doctor`, `serve`, `reaper`, `riff`, `init-conf`, `status`, `update`, …) is available via `command -v rk >/dev/null 2>&1 && rk help-dump` — gated and fail-silent like every other `rk` invocation (per § Reference Model and the `_preamble.md` rule above).
 
