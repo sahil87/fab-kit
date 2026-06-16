@@ -68,8 +68,8 @@ Error: operator requires tmux. Start a tmux session first.
 1. Read the server-keyed operator state file (`$XDG_STATE_HOME/fab/operator/<server-slug>.yaml`, fallback `~/.local/state/...`; the binary derives the path via `fab operator tick-start` — the operator does not compute it). If missing, it is created with empty `monitored: {}`, `autopilot: null`, and `branch_map: {}`. Old repo-rooted `.fab-operator.yaml` files are not read or migrated
 2. Restore monitored set, autopilot queue, and branch_map from the file (supports `/clear` recovery)
 3. Run `fab pane map --all-sessions` and display the output (all sessions on this server, not just the operator's own)
-4. If any tracked items exist (monitored changes, active autopilot, or watches), start the loop: `/loop 3m "operator tick"`
-5. Output: `Operator ready.` (+ `Loop active (3m).` if loop started)
+4. If any tracked items exist (monitored changes, active autopilot, or watches), start the loop at the cadence the current state warrants (§4 Adaptive cadence): `/loop 90s "operator tick"` if any restored agent is already menu-waiting, else `/loop 3m "operator tick"`
+5. Output: `Operator ready.` (+ `Loop active ({interval}).` if loop started)
 
 ---
 
@@ -115,7 +115,14 @@ When `fab resolve` fails during a **user-initiated** action (not monitoring tick
 
 ## 4. The Loop
 
-The loop is the operator's heartbeat — a `/loop 3m "operator tick"` that runs as long as the monitored set is non-empty, an autopilot queue is active, or any watch is configured. When all three are empty, stop the loop. The loop starts when the first change is enrolled, an autopilot queue begins, or a watch is created. A user prompt can also restart it.
+The loop is the operator's heartbeat — a `/loop "operator tick"` that runs as long as the monitored set is non-empty, an autopilot queue is active, or any watch is configured. When all three are empty, stop the loop. The loop starts when the first change is enrolled, an autopilot queue begins, or a watch is created. A user prompt can also restart it.
+
+**Adaptive cadence.** The heartbeat interval is **not fixed** — it adapts to whether any monitored agent is waiting on an interactive menu:
+
+- **Normal cadence: `3m`** (the default). Used when no monitored agent is input-waiting.
+- **Tightened cadence: `90s`** (§8, overridable). The moment a tick detects **any** monitored agent sitting on an interactive menu (input-waiting per §5 Question Detection), the operator tightens the heartbeat to bound worst-case detection/pickup latency. When a later tick finds no monitored agent menu-waiting, it relaxes back to `3m`.
+- **One-loop invariant preserved.** Adapting cadence means **re-establishing the single loop at the new interval** (e.g. restart `/loop 90s "operator tick"`), never running two loops concurrently (`_cli-external.md` § /loop — "one loop at a time"). The operator changes the interval of *the* loop; it does not add a second.
+- **Autopilot composes unchanged.** When an autopilot queue is driving, autopilot's own cadence (default `2m`, `_cli-external.md`) governs the loop; the menu-tightening applies to the monitoring loop's `3m`/`90s` band, not autopilot's `2m`.
 
 ### Operator State File
 
@@ -205,7 +212,7 @@ On each tick:
 4. **Autopilot dispatch** — if an autopilot queue is active, run the next autopilot action (§6). Autopilot-driven changes are visible in the frame via `▶`.
 5. **Removals** — remove completed changes (reached stop stage or terminal stage) and dead panes from the monitored set.
 6. **Persist** — write updated state to the operator state file
-7. **Loop lifecycle** — if monitored set is empty, no autopilot, and no watches, stop the loop.
+7. **Loop lifecycle** — if monitored set is empty, no autopilot, and no watches, stop the loop. Otherwise **adapt the cadence** (§4 Adaptive cadence): if any monitored agent was detected menu-waiting this tick (step 2) and the loop is not already at the tightened interval, re-establish the single loop at `90s` (§8); if no monitored agent is menu-waiting and the loop is tightened, relax it back to `3m`. Re-establishing the loop replaces the interval of the one loop — it never starts a second (`_cli-external.md` § /loop). Autopilot's own cadence governs when a queue is driving (§6).
 
 Actions (nudges, removals, autopilot progress) render as an *italic* footnote line below the frame as they happen, `·`-separated, keeping them visually subordinate to the table frame:
 
@@ -296,7 +303,7 @@ Between ticks, the operator displays an idle message with the current time and n
 Waiting for next tick. Time: 08:26 · next tick: 08:29
 ```
 
-Run `fab operator time --interval {interval}` (where `{interval}` is the current loop interval, e.g. `3m`) to get the `now:` and `next:` values to fill in the message. This lets the user gauge staleness at a glance without scrolling to the last tick frame.
+Run `fab operator time --interval {interval}` (where `{interval}` is the **currently active** loop interval — `3m` normally, `90s` when the cadence is tightened per §4 Adaptive cadence) to get the `now:` and `next:` values to fill in the message. A tightened cadence therefore shows the nearer next-tick time. This lets the user gauge staleness at a glance without scrolling to the last tick frame.
 
 ---
 
@@ -331,10 +338,38 @@ Evaluate in order:
 4. Numbered menu:
    - Classify the prompt as **Routine** or **Strategic** using LLM judgment over the terminal capture. Signals: option text length, semantic distinctness of options, surrounding agent context, reversibility of the choice. No hardcoded keyword list.
      - **Routine** (tool/permission prompts, binary-framed menus, synonymous-option menus) → `1` (first/default).
-     - **Strategic** (multi-option choices representing materially different directions — scope, PR split, pipeline shape, commit organization, spec/approach decisions) → escalate to user.
-   - On classification uncertainty, treat as Strategic and escalate. False-negative strategic commits the queue to an unchosen direction; false-positive strategic costs at most a user nudge, which the 30-minute idle auto-default (below) will resolve.
+     - **Strategic** (multi-option choices representing materially different directions — scope, PR split, pipeline shape, commit organization, spec/approach decisions) → **non-blocking** handling, split by whether a defensible recommendation exists (see **Non-Blocking Strategic Handling** below). A Strategic classification **never** ends the operator's turn.
+   - On classification uncertainty, treat as Strategic. False-negative strategic commits the queue to an unchosen direction; false-positive strategic costs at most a notification (and, if auto-picked, a reversal at PR review — §1).
 5. Open-ended, answer determinable from visible context → send that answer
-6. Cannot determine keystrokes → escalate to user
+6. Cannot determine keystrokes → escalate to user (left open). Rule-6 escalations are **excluded** from auto-pick and from the 30m idle auto-default — the operator does not know the correct keystrokes, so sending a guess would emit nonsense into the pane.
+
+### Non-Blocking Strategic Handling
+
+A Strategic classification (rule 4 above) **MUST NOT block the loop**. The operator handles the prompt out-of-band within the current tick and proceeds to the next monitored change in the **same** tick — one strategic question on one change no longer freezes the queue. Two branches:
+
+- **Strategic + defensible recommendation** → **auto-pick-and-notify.** The operator picks its recommended option (LLM judgment over the capture — the same signals rule 4 lists: option text, distinctness, surrounding context, reversibility), sends it (after the **Sending Auto-Answers** re-capture guard below), fires a notification (see **Notification Send**), and keeps ticking. The PR review stage is the reversal point (§1 "The PR review stage is the safety net").
+- **Strategic + no defensible default** → **leave open and notify.** The operator leaves the prompt open for the user, fires a notification, and keeps ticking. The 30m **Idle Auto-Default** (below) remains the backstop for these left-open prompts.
+
+In both branches the operator **continues ticking**. The user answers asynchronously — by responding to the notification's guidance or by typing directly into the agent's pane — and the operator **picks up the resolution on a later tick** via its normal re-capture/re-detection (**Sending Auto-Answers** already re-captures before any send). No new pickup mechanism is added.
+
+### Notification Send
+
+The notification is a single out-of-band shell send the operator runs when it auto-picks or leaves open a Strategic prompt. The **default channel is `rk notify`** — a run-kit external contract: `rk notify <message> [--title string]` (run-kit Web Push, released in `rk v2.3.2`). The send is gated on `command -v rk` and runs fail-silent per `_preamble.md` § Run-Kit (rk) Reference (which documents the gate and the fail-silent discipline, not the `notify` subcommand itself):
+
+```sh
+command -v rk >/dev/null 2>&1 && rk notify "{change}: {summary} ({repo})" --title "Operator: strategic question"
+```
+
+`rk notify` delivers a real background mobile/desktop Web Push to every subscribed device and is **fail-silent by contract** (exits 0 / prints nothing on any error — server unreachable, no subscriptions — so it can never stall the loop).
+
+**When `rk` is absent** (operator running where run-kit isn't installed), fall back to the first available **documented alternative**, configurable via the §8 `Notify channel` setting:
+
+- **ntfy.sh** — `curl -d "{change}: {summary} ({repo})" ntfy.sh/<high-entropy-topic>`. No account, curl-from-shell, cross-repo aggregator, mobile push. **High-entropy topic REQUIRED** — public topics are world-readable to anyone who knows the name (the topic name is the only secret), so use a long random topic (e.g. `op-9f3a2c7e-strat`) and never put secrets in the body. The strongest no-run-kit fallback.
+- **Discord webhook** — `curl -H 'Content-Type: application/json' -d '{"content":"…"}' <webhook>`. No account, one webhook = one channel, indefinite searchable history, mobile push.
+- **`PushNotification`** (built-in Claude Code harness tool) — zero infra, no topic secret to leak, headless-safe; a *personal* push to the user's Claude apps, not a shared searchable feed. Good "just ping me" fallback.
+- **Slack MCP** (`mcp__claude_ai_Slack__slack_send_message`) — searchable channel feed, mobile push; caveat: an interactively-authed MCP may be **absent in headless/cron** runs, so it cannot be a headless default.
+
+**All notify sends fail silently.** A notification that cannot be delivered (`rk`/run-kit server unreachable, channel down, no subscriptions, `curl`/tool missing) MUST NOT crash or stall the loop — the operator logs one line and keeps ticking. `rk notify` is already fail-silent by contract; the fallback path matches it. This mirrors the `_preamble.md` § Run-Kit (rk) Reference "fail silently" discipline.
 
 ### Sending Auto-Answers
 
@@ -342,7 +377,7 @@ Before `tmux send-keys`: verify pane exists and agent is still idle (§3 steps 1
 
 ### Idle Auto-Default on Strategic Escalations
 
-When rule 4 above escalates a prompt as **Strategic**, the operator starts a per-prompt idle timer measured in real time from the moment the escalation log line is written. If the prompt remains idle for 30 minutes, the operator auto-answers the prompt and logs using the distinct `auto-defaulted` format (§5 Logging).
+This is the watchdog for a **left-open** Strategic prompt — the no-defensible-default branch of **Non-Blocking Strategic Handling** above. (Auto-picked Strategic prompts are already resolved, so the watchdog has nothing to act on for them.) When rule 4 leaves a prompt open as **Strategic**, the operator starts a per-prompt idle timer measured in real time from the moment the left-open log line is written. If the prompt remains idle for 30 minutes, the operator auto-answers the prompt and logs using the distinct `auto-defaulted` format (§5 Logging). The timer runs in the background — it does **not** block the loop; the operator keeps ticking and fires the auto-default on whatever later tick crosses the 30-minute mark.
 
 **Threshold**: 30 minutes, hardcoded. No operator-state-file field, no per-change override, no environment variable exposes this value. The §4 operator state file schema is unchanged.
 
@@ -355,13 +390,16 @@ When rule 4 above escalates a prompt as **Strategic**, the operator starts a per
 
 This matches rule 4's existing "first/default" semantics for routine menus.
 
-**Scope (hard exclusion)**: the idle auto-default applies ONLY to escalations produced by rule 4's Strategic classification path. Escalations produced by rule 6 ("cannot determine keystrokes") MUST NOT trigger the idle auto-default — the operator does not know what the correct keystrokes are, so sending `1` or the stated default would emit nonsense into the pane. Rule-6 escalations remain open pending user action regardless of idle duration.
+**Scope (hard exclusion)**: the idle auto-default applies ONLY to **left-open** Strategic prompts from rule 4's no-defensible-default branch. It does NOT apply to auto-picked Strategic prompts (already resolved) and MUST NOT apply to rule 6 escalations ("cannot determine keystrokes") — the operator does not know what the correct keystrokes are, so sending `1` or the stated default would emit nonsense into the pane. Rule-6 escalations remain open pending user action regardless of idle duration.
 
 ### Logging
 
-- Auto-answer: `"{change}: auto-answered '{summary}' → {answer}"`
-- Escalation: `"{change}: can't determine answer for '{summary}'. Please respond."`
-- Auto-default (after 30m idle on strategic escalation): `"{change}: auto-defaulted after 30m idle: '{summary}' → {answer}"`
+- Auto-answer (routine): `"{change}: auto-answered '{summary}' → {answer}"`
+- Auto-pick strategic (defensible recommendation): `"{change}: auto-picked strategic '{summary}' → {answer} · notified"`
+- Left-open strategic (no defensible default): `"{change}: strategic '{summary}' left open · notified. Please respond."`
+- Escalation (rule 6 — cannot determine keystrokes): `"{change}: can't determine answer for '{summary}'. Please respond."`
+- Auto-default (after 30m idle on a left-open strategic prompt): `"{change}: auto-defaulted after 30m idle: '{summary}' → {answer}"`
+- Notification send failure (fail-silent — logged, loop continues): `"{change}: notify failed ({channel}). Continuing."`
 
 ---
 
@@ -620,8 +658,10 @@ The isolation unit is the **tmux server**. There is exactly **one operator per t
 |---------|---------|------------------------------|
 | Loop interval | 3m | "check every {N}m" |
 | Stuck threshold | 15m | "flag agents stuck for more than {N}m" |
+| Menu-detected heartbeat | 90s | "tighten to {N}s when an agent is on a menu" |
+| Notify channel | `rk` (run-kit Web Push; auto-fallback when `rk` absent) | "notify via ntfy topic {topic}" / "notify via discord {url}" / "notify via push" |
 
-Session-scoped — resets on `/clear` or session restart.
+Session-scoped — resets on `/clear` or session restart. The §4 operator state-file schema is **unchanged** (these are session settings, consistent with the loop-interval / stuck-threshold rows). The **strategic auto-default threshold stays hardcoded at 30m** (§5) — there is deliberately **no** setting for it.
 
 ---
 
@@ -640,6 +680,6 @@ Session-scoped — resets on `/clear` or session restart.
 | Requires a git repo? | No — `fab operator` opens its window in the repo root inside a repo, else `os.Getwd()` (neutral parent dir). Errors only if both fail |
 | Requires a `fab/` project? | No — spawn command comes from the project's `agent.spawn_command` when `fab/` is resolvable, else `spawn.DefaultSpawnCommand` (`claude --dangerously-skip-permissions`). No project `agent.spawn_command`/`agent.tiers` is read on a `fab/`-less launch |
 | Coordinating-agent model | Doing tier — `fab operator` resolves `fab resolve-agent apply` (canonical doing-tier stage), appends `--model`/`--effort`; falls back to the built-in `{claude-opus-4-8, high}` on any failure (incl. no resolvable `fab/` project) |
-| Uses `/loop`? | Yes — 3m heartbeat |
+| Uses `/loop`? | Yes — adaptive heartbeat: `3m` normally, tightens to `90s` (§8) when any monitored agent is menu-waiting, relaxes back to `3m`; one loop at a time |
 | Uses the operator state file? | Yes — monitored set + autopilot queue + branch map persistence. **Server-keyed**, not repo-rooted: `$XDG_STATE_HOME/fab/operator/<server-slug>.yaml` (fallback `~/.local/state/fab/operator/<server-slug>.yaml`), keyed by the tmux socket path. The binary derives the path; old repo-rooted files are not migrated |
 | Multi-repo / multi-session? | Yes — one operator per tmux server spans all its sessions and repos via the `(session, repo, pane)` addressing tuple |
