@@ -1,0 +1,19 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-16T03:49:06Z"}
+{"args":"ship the FKF normative contract into the kit cache and repoint skill citations from docs/specs/fkf.md to $(fab kit-path)","cmd":"fab-new","event":"command","ts":"2026-06-16T03:49:06Z"}
+{"delta":"+4.1","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-16T03:50:35Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-16T03:50:44Z"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-06-16T03:56:06Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-16T03:58:08Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-16T03:58:18Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-06-16T03:58:29Z"}
+{"delta":"+0.1","event":"confidence","score":4.2,"trigger":"calc-score","ts":"2026-06-16T03:58:37Z"}
+{"delta":"+0.0","event":"confidence","score":4.2,"trigger":"calc-score","ts":"2026-06-16T03:59:02Z"}
+{"delta":"+0.0","event":"confidence","score":4.2,"trigger":"calc-score","ts":"2026-06-16T03:59:10Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-16T03:59:35Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-16T04:08:53Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-06-16T04:16:27Z"}
+{"event":"review","result":"passed","ts":"2026-06-16T04:16:27Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-06-16T04:17:16Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-16T04:19:00Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-06-16T04:21:01Z"}
+{"event":"review","result":"passed","ts":"2026-06-16T04:25:59Z"}

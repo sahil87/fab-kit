@@ -1,45 +1,24 @@
-# FKF — Fab Knowledge Format (v0.1)
+# FKF — Fab Knowledge Format (v0.1) — Shipped Normative Extract
 
-> **What this is.** FKF is the format fab-kit uses for the `docs/memory/` knowledge tree:
-> a directory bundle of markdown files with YAML frontmatter, plus generated index and log
-> files. FKF is a **profile of [OKF v0.1](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)**
-> (Open Knowledge Format, GoogleCloudPlatform/knowledge-catalog): every FKF bundle is a
-> conforming OKF bundle, and FKF additionally *requires* and *fixes* a handful of things OKF
-> leaves open. A generic OKF consumer can read an FKF bundle; fab's tooling enforces more than
-> OKF requires.
+> **Single-sourcing note.** This file is the **shipped normative extract** of the dev-repo design
+> doc `docs/specs/fkf.md` (in the fab-kit repository). It ships inside the kit so it is reachable in
+> every user repo via `$(fab kit-path)/reference/fkf.md`, and it carries only the rules an agent
+> must follow (the normative subset — §2/§3/§5/§6/§7/§8). The "why" and history (OKF lineage, prose
+> rationale, Non-Scope, adoption/migration, glossary) live only in `docs/specs/fkf.md`.
+>
+> **When you change FKF normative rules, update BOTH files** — this extract and
+> `docs/specs/fkf.md` — so they cannot silently diverge. The original `docs/specs/fkf.md` section
+> numbers are preserved here so citations resolve identically against either file.
+
+> **What this is.** FKF is the format fab-kit uses for the `docs/memory/` knowledge tree: a
+> directory bundle of markdown files with YAML frontmatter, plus generated index and log files. FKF
+> is a profile of OKF v0.1 (Open Knowledge Format) — every FKF bundle is a conforming OKF bundle,
+> and FKF additionally requires and fixes a handful of things OKF leaves open. (Full OKF lineage and
+> rationale: `docs/specs/fkf.md` §1.)
 >
 > **Scope: `docs/memory/` only.** FKF governs the post-implementation memory tree. It does **not**
 > apply to `docs/specs/` — specs remain human-curated, frontmatter-free, and free-form per
-> Constitution VI. See [§9 Non-Scope](#9-non-scope-docsspecs).
-
-> **Shipped normative extract.** This file is the dev-repo design doc (rationale + history). The
-> **normative subset** an agent must follow (§2/§3/§5/§6/§7/§8, original anchors preserved) is
-> shipped to the kit cache as `src/kit/reference/fkf.md`, reachable in every user repo via
-> `$(fab kit-path)/reference/fkf.md`; that is the file deployed skills cite. **Any change to FKF
-> normative rules MUST update both files** so they cannot silently diverge.
-
----
-
-## 1. Relationship to OKF
-
-FKF is a **profile**: a base format plus a set of additional constraints. The split:
-
-| Concern | OKF v0.1 says | FKF additionally requires |
-|---------|---------------|---------------------------|
-| Substrate | dir tree of markdown + YAML frontmatter | same |
-| Directory organization | producer's choice | maps to fab's `{domain}/{sub-domain}/` (§4) |
-| Required frontmatter | `type` (non-empty) | `type` **fixed to the constant `memory`** (§3.1) |
-| `description` frontmatter | *recommended* | **required**, curated one-liner (§3.2) |
-| Body | free-form; conventional headings | conventional headings *recommended, not mandated* (§3.3) |
-| `index.md` | may be hand-written, auto-generated, or synthesized | **generated, single-writer, byte-stable, hand-edit forbidden** (§5) |
-| `log.md` | optional, hand-appended, prose entries | **generated** from git + per-change summaries (C-lite, §6) |
-| Cross-links | absolute (bundle-relative) recommended, or relative | **bundle-relative `/...` required** (§7) |
-| Versioning | `okf_version` in root `index.md` | emit **`fkf_version`** instead (§8) |
-
-FKF is **stricter** than OKF on indexes and links (it forbids what OKF merely discourages) and
-**narrower** on `type` and frontmatter (it fixes/requires what OKF leaves to the producer). Both
-directions keep FKF inside OKF conformance — OKF explicitly permits generated indexes, required
-custom keys, and additional frontmatter.
+> Constitution VI.
 
 ---
 
@@ -77,13 +56,6 @@ distinguishing signal and is **fixed to the constant `memory`**. The value is st
 (the memory-file template and every memory writer), never hand-curated — so "required" costs the
 author nothing.
 
-> **Why a constant, not sub-types.** A per-file kind (`requirements` vs `design-decision` vs
-> `reference`) was rejected: a single memory file legitimately *mixes* requirements, design
-> decisions, and history in one document, so a per-file type would misrepresent it. The
-> organizing axis fab actually uses is the **domain** (the folder), not a `type`. If a genuinely
-> distinct second kind of memory document ever appears, FKF v0.2 may widen the `type` vocabulary
-> — driven by a real distinction, not anticipated up front.
-
 ### 3.2 `description` (required, curated)
 
 ```yaml
@@ -95,10 +67,10 @@ domain index reads each file's row Description from this field, and the always-l
 routes on it. It is the one hand-curated frontmatter field — authored by every memory writer
 (hydrate, `/docs-hydrate-memory`, `docs-reorg-memory`) and kept accurate on every edit.
 
-Co-locating the description with the file (rather than in the index) is deliberate — the
-**Starlight lesson**: editing a description never touches the hot, churn-prone index row. It
-cannot be auto-derived from the H1/Overview without loss (Overview prose contains literal `|`
-pipes that break index tables, and an extracted first sentence degrades the routing signal).
+Co-locating the description with the file (rather than in the index) is deliberate: editing a
+description never touches the hot, churn-prone index row. It cannot be auto-derived from the
+H1/Overview without loss (Overview prose contains literal `|` pipes that break index tables, and an
+extracted first sentence degrades the routing signal).
 
 ### 3.3 Body (conventional headings, recommended — not mandated)
 
@@ -135,17 +107,15 @@ description: "One-line summary used by the generated domain-index row."
 *Introduced by*: {change-name}
 ```
 
-> **Why recommended, not mandated.** The pipeline's hydrate step *writes into* `## Requirements`
-> and `## Design Decisions`, and review/intake *read from* them — so these headings remain the
-> target shape and SHOULD be used wherever the content warrants. But a small reference-pointer
-> file should not be forced to invent a GIVEN/WHEN/THEN scenario. FKF relaxes the former
-> *MUST-have-these-sections* rule to *SHOULD-use-these-conventional-headings-where-they-apply*,
-> which keeps the hydrate-writes / review-reads contract working without imposing ceremony on
-> files that don't need it.
+The pipeline's hydrate step *writes into* `## Requirements` and `## Design Decisions`, and
+review/intake *read from* them — so these headings remain the target shape and SHOULD be used
+wherever the content warrants. But a small reference-pointer file need not invent a GIVEN/WHEN/THEN
+scenario: the rule is *SHOULD-use-these-conventional-headings-where-they-apply*, not
+*MUST-have-these-sections*.
 
 > **No `## Changelog` section.** Per-file changelog tables are **removed** in FKF — change history
 > lives in the per-folder generated `log.md` (§6). This is the single biggest FKF divergence from
-> the pre-FKF memory format; see [§6](#6-log-files-logmd) and the migration note in [§10](#10-adoption--migration).
+> the pre-FKF memory format.
 
 ### 3.4 Optional frontmatter
 
@@ -153,38 +123,6 @@ FKF neither requires nor forbids the other OKF-recommended fields (`title`, `tag
 `timestamp`, `resource`). `resource` (a URI to an underlying asset) is typically **absent** —
 memory files document *behavior*, not addressable assets. Per OKF, consumers MUST preserve
 unknown frontmatter keys on round-trip and MUST NOT reject a file for carrying them.
-
----
-
-## 4. Bundle Organization (domains = directories)
-
-The `docs/memory/` tree **is** an OKF bundle directory tree. fab's existing structure maps
-directly:
-
-```
-docs/memory/                         # bundle root
-├── index.md                         # root index (generated, domains-only)
-├── {domain}/
-│   ├── index.md                     # domain index (generated)
-│   ├── log.md                       # domain log (generated, FKF)
-│   ├── {topic}.md                   # memory file
-│   └── {sub-domain}/                # split cluster (≥8 cohesive files)
-│       ├── index.md                 # sub-domain index (generated)
-│       ├── log.md                   # sub-domain log (generated, FKF)
-│       └── {topic}.md
-```
-
-- A **domain** is a top-level folder under `docs/memory/`.
-- A **sub-domain** is one level deeper (`{domain}/{sub-domain}/{topic}.md` — **depth 3, the max**),
-  created reactively by `docs-reorg-memory` when an over-wide domain holds a real cluster of
-  ≥8 cohesive files. Un-split domains stay flat.
-- Reserved domains `_shared/` (cross-cutting) and `_unsorted/` (staging) are width-exempt.
-
-**Shape bounds (SHOULD guidance, advisory — never enforced):** ~12 topic files per folder (soft
-upper bound; `fab memory-index` warns over it), ~5 lower floor before a sub-domain earns its own
-index, max depth 3. These surface as non-fatal `fab memory-index` warnings and the
-`docs-reorg-memory` Shape Report. Acting on them (split/merge/flatten) is `docs-reorg-memory`'s
-job; the index command only detects and warns.
 
 ---
 
@@ -249,15 +187,6 @@ tables that FKF removes from memory files (§3.3).
 The generator joins them: for each commit touching a file in the folder, it emits one entry
 under that commit's date, carrying the file, the change's `summary`, and the change ID.
 
-> **Why C-lite, not a hand-appended log or a slug-only projection.** A hand-appended `log.md`
-> (OKF's literal convention) just *relocates* the changelog merge-conflict from N memory files
-> into the folder's `log.md` — two same-day changes in one domain still collide. A pure git
-> projection (slug only, no summary) is conflict-free but loses the *what-changed* signal an
-> agent needs for archaeology ("where did `cssMarker` go?") and migration-trajectory questions.
-> C-lite keeps the descriptive line **and** stays conflict-free, because the line lives in the
-> per-change `.status.yaml`, not in the shared `log.md`. The cost is one curated line per change
-> and generator plumbing in `fab memory-index`.
-
 ### 6.2 Format
 
 ```markdown
@@ -293,9 +222,8 @@ summary: "surfaces the optional agent.tiers per-stage-model override as a commen
 - Written once during the change (authored at hydrate, or carried from the intake), via the fab
   CLI — single-change-touched, so conflict-free.
 - Read by `fab memory-index` when generating `log.md`.
-- Adding this field is a `.status.yaml` **schema change** → it MUST ship with a migration file in
-  `src/kit/migrations/` (per the project's data-migration rule). Absence degrades gracefully: a
-  change with no `summary` projects with the change slug in place of the descriptive line.
+- Absence degrades gracefully: a change with no `summary` projects with the change slug in place of
+  the descriptive line.
 
 ---
 
@@ -332,63 +260,8 @@ fkf_version: "0.1"
 ```
 
 FKF emits **`fkf_version`**, not OKF's `okf_version`, because an FKF bundle is a *superset* of
-OKF — claiming bare `okf_version` would under-state what the bundle guarantees. The FKF↔OKF
-lineage lives in this spec (§1), not in a version field. `fab memory-index` writes
-`fkf_version` into the root index on generation.
+OKF — claiming bare `okf_version` would under-state what the bundle guarantees. `fab memory-index`
+writes `fkf_version` into the root index on generation.
 
 Minor versions add backward-compatible features; major versions may break. Per OKF, consumers
 SHOULD attempt best-effort consumption rather than refusing an unknown version.
-
----
-
-## 9. Non-Scope: `docs/specs/`
-
-FKF governs `docs/memory/` only. `docs/specs/` is **out of scope** and unchanged:
-
-- Specs remain **human-curated** and MUST NOT be auto-generated or overwritten by tooling
-  (Constitution VI).
-- Specs carry **no frontmatter** and are deliberately flat and free-form.
-- The `docs/specs/skills/SPEC-*.md` mirrors stay constitution-pinned (names derive mechanically
-  from `src/kit/skills/` sources).
-
-The one idea FKF's neighbours may borrow independently is **generated index files** — a
-`fab specs-index` style generator for `docs/specs/index.md` would be a separate, optional
-convenience and is **not** part of FKF. Adopting FKF frontmatter (`type`/`description`) on specs
-would require a constitution amendment and is explicitly **not** proposed here.
-
----
-
-## 10. Adoption / Migration
-
-Moving the existing `docs/memory/` tree onto FKF is a data migration with these mechanical parts
-(each tracked as its own pipeline change — FKF is the contract; these are its implementations):
-
-1. **Add `type: memory`** frontmatter to every memory file (alongside the existing `description:`).
-2. **Strip the `## Changelog` section** from every memory file (the per-file changelog tables) and
-   **generate per-folder `log.md`** from git history + the new `summary:` field.
-3. **Convert memory↔memory cross-links** from relative to bundle-relative (`/...`).
-4. **Teach `fab memory-index`** to: stamp `type: memory` (template), emit `log.md` (C-lite
-   projection joining git history + `.status.yaml` `summary`), write `fkf_version` into the root
-   index, and validate/round-trip the FKF frontmatter.
-5. **Add the `.status.yaml` `summary:` field** + its migration file (`src/kit/migrations/`).
-6. **Update the doc skills** (`docs-hydrate-memory`, `docs-reorg-*`, and the `/fab-continue`
-   hydrate path) to author FKF frontmatter, stop writing per-file changelogs, and rely on the
-   generated `log.md` — with the corresponding `SPEC-*.md` mirror updates per the constitution.
-
-Per OKF's permissive model, a partially-migrated tree still functions: a file missing `type` or
-a folder missing `log.md` degrades gracefully rather than breaking consumers.
-
----
-
-## 11. Glossary
-
-| Term | Meaning |
-|------|---------|
-| **FKF** | Fab Knowledge Format — this spec; a profile of OKF v0.1 governing `docs/memory/`. |
-| **OKF** | Open Knowledge Format v0.1 (GoogleCloudPlatform/knowledge-catalog) — the base FKF profiles. |
-| **Bundle** | The `docs/memory/` directory tree, as an OKF/FKF knowledge bundle. |
-| **Concept document / memory file** | A `{domain}[/{sub-domain}]/{topic}.md` file: FKF frontmatter + markdown body. |
-| **Reserved filename** | `index.md` / `log.md` — generated, single-writer, not concept documents. |
-| **C-lite** | The `log.md` generation model: git history (when/which/id) joined with a per-change `.status.yaml` `summary:` line (what), generated — descriptive *and* conflict-free. |
-| **Stub-before-index** | Creating a new folder's `index.md` `description:`-only stub before `fab memory-index` runs (Index Ownership model). |
-| **Bundle-relative link** | A memory↔memory link beginning with `/`, resolved from `docs/memory/`. |

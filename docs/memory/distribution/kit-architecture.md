@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "`src/kit/` structure (binary-free; `spec.md` template removed in j6cs; `schemas/` removed in c5tr — scaffold no longer seeds `stage_directives`), three-binary architecture (fab router + fab-kit + fab-go), router always-route policy + shared `LifecycleCommands` allowlist table with contract/collision drift tests (ye8r), `fab-kit sync` (post-state version guard, fail-loud deployment writes, version threading from init/upgrade, stamp-after-success upgrade), agent integration, versioning, monorepos, underscore file ecosystem, `fab pane` command group, `fab shell-init`, hidden `fab help-dump`, shared `internal/lines` + `internal/atomicfile` helpers (hv7t), widened `internal/config` single config.yaml parser (ye8r); tb6f: Go 1.26 + cobra v1.10 toolchain, fab-kit `sync.go` split (semver/prereqs/scaffold/skills + orchestrator), golden byte-stability suite as the standing yaml parity arbiter, yaml.v3-stays-pinned decision, `src/benchmark/` tombstoned"
+description: "`src/kit/` structure (binary-free; `spec.md` template removed in j6cs; `schemas/` removed in c5tr — scaffold no longer seeds `stage_directives`), three-binary architecture (fab router + fab-kit + fab-go), router always-route policy + shared `LifecycleCommands` allowlist table with contract/collision drift tests (ye8r), `fab-kit sync` (post-state version guard, fail-loud deployment writes, version threading from init/upgrade, stamp-after-success upgrade), agent integration, versioning, monorepos, underscore file ecosystem, `fab pane` command group, `fab shell-init`, hidden `fab help-dump`, shared `internal/lines` + `internal/atomicfile` helpers (hv7t), widened `internal/config` single config.yaml parser (ye8r); tb6f: Go 1.26 + cobra v1.10 toolchain, fab-kit `sync.go` split (semver/prereqs/scaffold/skills + orchestrator), golden byte-stability suite as the standing yaml parity arbiter, yaml.v3-stays-pinned decision, `src/benchmark/` tombstoned; frlo: new `reference/` shipped content dir (read via `$(fab kit-path)/reference/...`, holds the `fkf.md` normative extract) + the whole-`src/kit/`-copied-verbatim packaging invariant (new kit content ships with no Go/packaging change)"
 ---
 # Kit Architecture
 
@@ -57,6 +57,8 @@ src/kit/
 │   ├── intake.md
 │   ├── plan.md             # Unified ## Requirements + ## Tasks + ## Acceptance — apply-stage artifact (spec.md absorbed in j6cs)
 │   └── status.yaml         # .status.yaml template (6-stage progress, plan: block, stage_metrics: {}, issues: [], prs: [])
+├── reference/              # Reference-to-read contracts shipped to the cache, read via $(fab kit-path)/reference/... (frlo)
+│   └── fkf.md              # Shipped FKF normative extract (§2/§3/§5/§6/§7/§8); deployed skills cite $(fab kit-path)/reference/fkf.md
 ├── scaffold/               # Overlay tree — paths mirror repo root destinations
 │   ├── fragment-.envrc     # .envrc required entries (line-ensuring merge)
 │   ├── fragment-.gitignore # .gitignore entries (line-ensuring merge)
@@ -192,6 +194,10 @@ All `*.md` files in `$(fab kit-path)/skills/` are deployed, including underscore
 
 `.kit/` is a content-only directory — no binaries. The system binaries (`fab`, `fab-kit`, installed via `brew install fab-kit`) provide version-aware execution and workspace lifecycle management. `.kit/` provides content (skills, templates, configuration).
 
+#### Packaging invariant — the whole `src/kit/` tree is copied verbatim
+
+New kit content ships automatically with **no Go/binary, packaging-list, or `release.yml` change**: both distribution paths copy the entire `src/kit/` tree verbatim. `just install` runs `rsync -a --delete src/kit/ {{local_cache}}/kit/`; `just dist-kit` runs `cp -a src/kit/. dist/kit/` and then archives the whole `dist/kit/` tree. Neither enumerates individual files, so adding a new file or directory under `src/kit/` (e.g. `src/kit/reference/fkf.md` — frlo) ships to the cache on the next `just install` / release with zero packaging edits. This is why the shipped FKF contract is a pure content change.
+
 #### Bootstrap Sequence
 
 **Primary method** (recommended):
@@ -240,7 +246,7 @@ Run `fab upgrade-repo` to update to the latest release. The fab-kit subcommand d
 Skill deployments in `.claude/skills/`, `.opencode/commands/`, `.agents/skills/`, and `.gemini/skills/` are refreshed by `fab-kit sync` after the update. OpenCode symlinks resolve automatically; copies for Claude Code, Codex, and Gemini are re-copied.
 
 **Preserved** (lives outside `.kit/`): `config.yaml`, `constitution.md`, `docs/memory/`, `docs/specs/`, `changes/`, `.fab-status.yaml`, `.kit-migration-version`
-**Replaced** (lives inside `.kit/`): `templates/`, `skills/`, `sync/`, `migrations/`, `packages/` (idea shell package), `bin/` (`.gitkeep` only), `VERSION`
+**Replaced** (lives inside `.kit/`): `templates/`, `reference/` (shipped read-only contracts, e.g. `reference/fkf.md` — frlo), `skills/`, `sync/`, `migrations/`, `packages/` (idea shell package), `bin/` (`.gitkeep` only), `VERSION`
 
 ### Portability
 
