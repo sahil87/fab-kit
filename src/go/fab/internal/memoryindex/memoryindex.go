@@ -692,12 +692,15 @@ type LogTarget struct {
 }
 
 // GatherLogs builds the log.md targets for every domain and sub-domain folder
-// with attributable git history under repoRoot. It reuses the single batched git
-// pass (loadGitDates' commitsByPath) and the change registry (gatherChangeRegistry
-// over fabRoot), so it spawns no extra git processes. A folder with zero commits
-// touching its files is SKIPPED (no empty log.md — Design Decision 4). When the
-// batched git pass fails (non-git dir, git missing) it returns nil targets, no
-// error — the log surface degrades gracefully exactly like the index dates do.
+// under repoRoot. It reuses the single batched git pass (loadGitDates'
+// commitsByPath) and the change registry (gatherChangeRegistry over fabRoot), so
+// it spawns no extra git processes. A folder is included when it has ANY entries
+// after the freeze-on-write merge: an existing frozen log.md, a per-folder
+// log.seed.md, and/or freshly attributable git commits. A folder that nets zero
+// entries is SKIPPED (no empty log.md — Design Decision 4). When the batched git
+// pass fails (non-git dir, git missing) the git-projection surface degrades to
+// empty, but frozen log.md and log.seed.md entries still produce targets — so
+// the result is nil only when no folder has any frozen/seed/git entry at all.
 //
 // rebuild selects the freeze-on-write mode (R6): false (the default,
 // `fab memory-index`) reads each existing log.md and appends-only; true

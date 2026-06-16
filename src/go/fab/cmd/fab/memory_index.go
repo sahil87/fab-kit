@@ -92,7 +92,10 @@ func memoryIndexCmd() *cobra.Command {
 
 			// FKF per-folder log.md targets (C-lite — git history + per-change
 			// summaries). Gathered from the SAME batched git pass + the change
-			// registry; degrades to no targets when git history is unavailable.
+			// registry. When git history is unavailable the git-projection surface
+			// degrades to empty, but existing frozen log.md and/or log.seed.md
+			// entries still emit targets (freeze-on-write — GatherLogs nets to no
+			// targets only when no folder has any frozen/seed/git entry).
 			// They flow through the same byte-stable write / --check loops as the
 			// indexes, but are classified as benign-drift-only (isLog) so the
 			// index-row loss detectors never false-positive on log list content.
