@@ -82,6 +82,68 @@ func TestRenderLog_Idempotent(t *testing.T) {
 	}
 }
 
+// --- parseLog: the freeze-on-write read-back (inverse of RenderLog) --------
+
+// TestParseLog_RoundTripsRenderLog (TC5) pins the parse∘render identity for the
+// freeze-on-write reader: parseLog(RenderLog(entries)) recovers the same entry set
+// (set-wise; RenderLog re-sorts newest-first) across the full grammar — verb,
+// bundle-relative path, summary, and the trailing (id) token, plus the verb-less /
+// id-less / empty-summary degraded shape. It is the log.go analogue of seed.go's
+// TestParseSeedLog_RoundTripsRenderLog (both now delegate to parseLogBody).
+func TestParseLog_RoundTripsRenderLog(t *testing.T) {
+	entries := []LogEntry{
+		{Date: "2026-06-13", Verb: verbUpdate, FileBase: "migrations", BundleRelPath: "/distribution/migrations.md",
+			Summary: "surfaces the optional agent.tiers override as a commented config block", ChangeID: "l3ja"},
+		{Date: "2026-06-12", Verb: verbCreation, FileBase: "setup", BundleRelPath: "/distribution/setup.md",
+			Summary: "adds the setup doc", ChangeID: "tb6f"},
+		{Date: "2026-06-12", Verb: "", FileBase: "orphan", BundleRelPath: "/distribution/orphan.md",
+			Summary: "", ChangeID: ""}, // no verb / no id / empty summary → renders "—"
+	}
+	rendered := RenderLog(LogData{Title: "Distribution", Entries: entries})
+	got := parseLog(rendered)
+	if len(got) != len(entries) {
+		t.Fatalf("round-trip count mismatch: parsed %d, want %d\nrendered:\n%s", len(got), len(entries), rendered)
+	}
+	want := map[string]LogEntry{}
+	for _, e := range entries {
+		want[e.Date+"|"+e.FileBase] = e
+	}
+	for _, e := range got {
+		w, ok := want[e.Date+"|"+e.FileBase]
+		if !ok {
+			t.Fatalf("parsed an entry with no counterpart: %+v", e)
+		}
+		if e != w {
+			t.Errorf("round-trip entry mismatch:\n got  %+v\n want %+v", e, w)
+		}
+	}
+}
+
+// TestParseLog_MalformedDegradesGracefully (TC5) pins that parseLog skips the
+// generated header / comment / blank lines and any malformed bullet without a
+// panic, recovering only the well-formed entries. A bullet missing the ` — `
+// descriptive separator or the link cell is not a well-formed §6.2 entry.
+func TestParseLog_MalformedDegradesGracefully(t *testing.T) {
+	content := "# Log — D\n" + logHeaderComment + "\n" +
+		"\n## 2026-06-13\n" +
+		"- **Update** [good](/d/good.md) — a well-formed entry (aaaa)\n" +
+		"- this bullet has no link cell and no separator\n" +
+		"- [bad](/d/bad.md) missing the em-dash separator (bbbb)\n" +
+		"some stray prose line\n"
+	var got []LogEntry
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("parseLog panicked on malformed input: %v", r)
+			}
+		}()
+		got = parseLog(content)
+	}()
+	if len(got) != 1 || got[0].FileBase != "good" || got[0].ChangeID != "aaaa" {
+		t.Errorf("only the well-formed entry should parse, got %+v", got)
+	}
+}
+
 // --- Verb derivation -------------------------------------------------------
 
 func TestNameStatusVerb(t *testing.T) {
@@ -206,7 +268,7 @@ func TestGatherLogs_RealRepo(t *testing.T) {
 	gitDateRun(t, repo, "add", ".")
 	gitDateRun(t, repo, "commit", "-m", "fix: tweak login (#42)", "--date", "2026-04-01T12:00:00 +0000")
 
-	targets, err := GatherLogs(repo, filepath.Join(repo, "fab"))
+	targets, err := GatherLogs(repo, filepath.Join(repo, "fab"), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +313,7 @@ func TestGatherLogs_SlugFallbackWhenNoSummary(t *testing.T) {
 	gitDateRun(t, repo, "commit", "-m", "Merge pull request #1 from o/260301-bbbb-slug-only-change",
 		"--date", "2026-03-01T12:00:00 +0000")
 
-	targets, err := GatherLogs(repo, filepath.Join(repo, "fab"))
+	targets, err := GatherLogs(repo, filepath.Join(repo, "fab"), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,7 +332,7 @@ func TestGatherLogs_NonGitDirNoTargets(t *testing.T) {
 	// Outside a git repo the batched pass fails → no log targets, no error.
 	repo := t.TempDir()
 	writeFile(t, repo, "docs/memory/d/topic.md", "# T\n")
-	targets, err := GatherLogs(repo, filepath.Join(repo, "fab"))
+	targets, err := GatherLogs(repo, filepath.Join(repo, "fab"), false)
 	if err != nil {
 		t.Fatalf("non-git dir should degrade gracefully, got err: %v", err)
 	}
@@ -290,7 +352,7 @@ func TestGatherLogs_EmptyFolderSkipped(t *testing.T) {
 	// Uncommitted-only folder: present on disk, absent from git history.
 	writeFile(t, repo, "docs/memory/uncommitted/b.md", "# B\n")
 
-	targets, err := GatherLogs(repo, filepath.Join(repo, "fab"))
+	targets, err := GatherLogs(repo, filepath.Join(repo, "fab"), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -404,7 +466,7 @@ func TestMemoryIndex_GenerateThenGenerateIsByteStable(t *testing.T) {
 				out[filepath.Join(memRoot, d.Name, sd.Name, "index.md")] = RenderDomain(sd)
 			}
 		}
-		logTargets, err := GatherLogs(repo, fabRoot)
+		logTargets, err := GatherLogs(repo, fabRoot, false)
 		if err != nil {
 			t.Fatal(err)
 		}

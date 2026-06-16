@@ -698,7 +698,14 @@ type LogTarget struct {
 // touching its files is SKIPPED (no empty log.md — Design Decision 4). When the
 // batched git pass fails (non-git dir, git missing) it returns nil targets, no
 // error — the log surface degrades gracefully exactly like the index dates do.
-func GatherLogs(repoRoot, fabRoot string) ([]LogTarget, error) {
+//
+// rebuild selects the freeze-on-write mode (R6): false (the default,
+// `fab memory-index`) reads each existing log.md and appends-only; true
+// (`fab memory-index --rebuild`) discards the frozen state and re-projects every
+// log.md from current git (destructive). --check passes rebuild=false so the
+// rendered content is the freeze-on-write merge the classifier byte-compares
+// against (R7–R9).
+func GatherLogs(repoRoot, fabRoot string, rebuild bool) ([]LogTarget, error) {
 	memRoot := filepath.Join(repoRoot, "docs", "memory")
 	entries, err := os.ReadDir(memRoot)
 	if err != nil {
@@ -721,13 +728,13 @@ func GatherLogs(repoRoot, fabRoot string) ([]LogTarget, error) {
 		domainDir := filepath.Join(memRoot, domainName)
 
 		// Domain-tier log.
-		if t, ok := buildLogTarget(repoRoot, dates, reg, domainDir, domainName, ""); ok {
+		if t, ok := buildLogTarget(repoRoot, dates, reg, domainDir, domainName, "", rebuild); ok {
 			targets = append(targets, t)
 		}
 		// Sub-domain logs (one level down, mirroring the index tiers).
 		for _, sd := range gatherSubDomains(repoRoot, domainDir, dates) {
 			subDir := filepath.Join(domainDir, sd.Name)
-			if t, ok := buildLogTarget(repoRoot, dates, reg, subDir, domainName+"/"+sd.Name, sd.Title); ok {
+			if t, ok := buildLogTarget(repoRoot, dates, reg, subDir, domainName+"/"+sd.Name, sd.Title, rebuild); ok {
 				targets = append(targets, t)
 			}
 		}
@@ -736,36 +743,109 @@ func GatherLogs(repoRoot, fabRoot string) ([]LogTarget, error) {
 	return targets, nil
 }
 
-// buildLogTarget assembles one folder's LogData → log.md target. bundleRel is
-// the folder's bundle-relative base ("distribution" or "fab-workflow/runtime").
-// titleOverride (when non-empty) is the gathered sub-domain Title; for a domain
-// it is "" and the Title is read from the folder's index.md / synthesized.
-// Returns ok=false when the folder has neither attributable commits NOR seed
-// entries (skip, no file). The folder's `log.seed.md` (FKF §6 seed input) is
-// parsed and merged beneath the git-projected entries (DECISION b — preserve
-// pre-FKF changelog history); the merge is byte-stable and idempotent (a seed
-// entry equal to a projected one is de-duplicated).
-func buildLogTarget(repoRoot string, dates *gitDates, reg map[string]changeMeta, folderDir, bundleRel, titleOverride string) (LogTarget, bool) {
-	projected := gatherLogEntries(repoRoot, dates, reg, folderDir, bundleRel)
+// buildLogTarget assembles one folder's LogData → log.md target under the
+// freeze-on-write model (R1–R4, R6). bundleRel is the folder's bundle-relative
+// base ("distribution" or "fab-workflow/runtime"). titleOverride (when non-empty)
+// is the gathered sub-domain Title; for a domain it is "" and the Title is read
+// from the folder's index.md / synthesized. Returns ok=false when the folder has
+// no entries at all (skip, no file).
+//
+// Freeze-on-write flow:
+//  1. Read the EXISTING log.md and parse it back into the frozen, authoritative
+//     entry set (R1). bootstrap is true when no existing log.md is present.
+//  2. Project the live git history (gatherLogEntries). Unattributable commits are
+//     projected only at bootstrap or under rebuild (R3 gate).
+//  3. Append-only merge (R2): existing entries are kept verbatim; a projected
+//     ATTRIBUTABLE entry is appended only when its (FileBase, ChangeID) pair is
+//     absent from the existing set. Re-running, or re-projecting a squash that
+//     preserved the change-id token, is a no-op.
+//  4. Merge the folder's `log.seed.md` (FKF §6 seed input) beneath (R4) —
+//     de-duplicated against the running set, byte-stable / idempotent.
+//
+// Under rebuild the existing log is DISCARDED and every entry re-projected from
+// current git (the pre-freeze behavior, made explicit and destructive — R6),
+// with the seed merged beneath as at bootstrap.
+func buildLogTarget(repoRoot string, dates *gitDates, reg map[string]changeMeta, folderDir, bundleRel, titleOverride string, rebuild bool) (LogTarget, bool) {
+	logPath := filepath.Join(folderDir, "log.md")
+
+	// Existing frozen log — authoritative on a normal run, discarded under rebuild.
+	var existing []LogEntry
+	if !rebuild {
+		if data, err := os.ReadFile(logPath); err == nil {
+			existing = parseLog(string(data))
+		}
+	}
+	bootstrap := len(existing) == 0
+
+	// Project live git; the unattributable branch is gated to bootstrap / rebuild.
+	projected := gatherLogEntries(repoRoot, dates, reg, folderDir, bundleRel, bootstrap || rebuild)
+
+	// Append-only merge: existing entries are immutable; only NEW attributable
+	// (FileBase, ChangeID) pairs are appended (R1/R2). At bootstrap/rebuild the
+	// existing set is empty, so this is the full projection.
+	entries := appendNewEntries(existing, projected)
+
+	// Seed merge beneath (R4) — de-duplicated against the running set.
 	seed := readSeedEntries(folderDir)
-	entries := mergeSeedEntries(projected, seed)
+	entries = mergeSeedEntries(entries, seed)
 	if len(entries) == 0 {
 		return LogTarget{}, false
 	}
 	// Re-apply the stable order (date desc, file base, change-id) over the merged
-	// set so seed and projected entries interleave deterministically. mergeSeedEntries
-	// keeps projected entries ahead of seed entries in slice order, and a stable
-	// sort preserves that for entries equal under the comparator — so within a date
-	// the git-projected lines render before the seed lines.
+	// set so existing / appended / seed entries interleave deterministically.
+	// mergeSeedEntries keeps the running (existing+appended) entries ahead of seed
+	// entries in slice order, and a stable sort preserves that for entries equal
+	// under the comparator — so within a date the frozen + git-projected lines
+	// render before the seed lines.
 	sortLogEntries(entries)
 	title := titleOverride
 	if title == "" {
 		title = domainTitle(folderDir, filepath.Base(folderDir))
 	}
 	return LogTarget{
-		Path:    filepath.Join(folderDir, "log.md"),
+		Path:    logPath,
 		Content: RenderLog(LogData{Title: title, Entries: entries}),
 	}, true
+}
+
+// appendNewEntries implements the freeze-on-write append-only merge (R1/R2): it
+// returns the existing (frozen, authoritative) entries verbatim, followed by each
+// projected entry whose append key is not already present. The append key is the
+// `(FileBase, ChangeID)` pair (R2 — the only identity that survives squash +
+// branch-delete, intake Origin #4).
+//
+// Only ATTRIBUTABLE projected entries (ChangeID != "") participate: an
+// unattributable projected entry has no change-id to key on and, per R3, is only
+// ever produced at bootstrap / --rebuild (when the existing set is empty), so it
+// is appended unconditionally there. The existing set's keys seed the seen-map so
+// a re-projection of an already-frozen change is a no-op (idempotence — R1, TC1/TC3).
+func appendNewEntries(existing, projected []LogEntry) []LogEntry {
+	out := make([]LogEntry, 0, len(existing)+len(projected))
+	seen := make(map[string]bool, len(existing))
+	for _, e := range existing {
+		out = append(out, e)
+		if e.ChangeID != "" {
+			seen[appendKey(e)] = true
+		}
+	}
+	for _, p := range projected {
+		if p.ChangeID != "" {
+			key := appendKey(p)
+			if seen[key] {
+				continue // (file-base, change-id) already frozen → no-op
+			}
+			seen[key] = true
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+// appendKey is the freeze-on-write dedup key: the `(FileBase, ChangeID)` pair
+// (R2). The US byte (never present in a file base or a 4-char id) joins the two
+// fields unambiguously.
+func appendKey(e LogEntry) string {
+	return e.FileBase + "\x1f" + e.ChangeID
 }
 
 // readSeedEntries reads and parses the folder's `log.seed.md` seed input (FKF §6
@@ -801,7 +881,17 @@ func sortLogEntries(entries []LogEntry) {
 // with a stable secondary sort (file base then change-id) so same-date entries
 // are byte-stable across runs. Only direct topic files are considered — a
 // sub-domain's history belongs to the sub-domain's own log.
-func gatherLogEntries(repoRoot string, dates *gitDates, reg map[string]changeMeta, folderDir, bundleRel string) []LogEntry {
+//
+// projectUnattributable gates the unattributable branch (a commit attributeCommit
+// cannot resolve to a registry change-id — a direct main edit, pre-FKF history, or
+// a squash-merge whose branch token was dropped). Under freeze-on-write (R3) an
+// unattributable commit has no change-id to key an append on, so it is projected
+// ONLY at bootstrap (the folder has no existing log.md yet) or under --rebuild —
+// when projectUnattributable is true. On a normal regeneration with an existing
+// log.md it is false, and new unattributable commits are simply not projected
+// (the frozen lines already on disk are preserved by the caller's append-only
+// merge; re-projecting a squash-reworded subject would otherwise churn the log).
+func gatherLogEntries(repoRoot string, dates *gitDates, reg map[string]changeMeta, folderDir, bundleRel string, projectUnattributable bool) []LogEntry {
 	dirEntries, err := os.ReadDir(folderDir)
 	if err != nil {
 		return nil
@@ -832,10 +922,18 @@ func gatherLogEntries(repoRoot string, dates *gitDates, reg map[string]changeMet
 				}
 			} else {
 				// Unattributable commit (direct main edit, pre-FKF history, or a
-				// squash-merge that dropped the branch token): degrade gracefully
-				// per FKF §6 / R7 — omit the (change-id) and use the commit subject
-				// as the descriptive line (a git projection, still conflict-free).
-				// Falls through to the renderer's "—" when even the subject is empty.
+				// squash-merge that dropped the branch token). Under freeze-on-write
+				// (R3) it is projected ONLY at bootstrap / --rebuild — when
+				// projectUnattributable is true. On a normal regen (existing log.md
+				// present) it is dropped: it has no change-id to key an append on,
+				// and the frozen line (if any) is already preserved by the caller's
+				// append-only merge. When projected, degrade gracefully per FKF §6 —
+				// omit the (change-id) and use the commit subject as the descriptive
+				// line (still a conflict-free git projection); falls through to the
+				// renderer's "—" when even the subject is empty.
+				if !projectUnattributable {
+					continue
+				}
 				summary = strings.TrimSpace(touch.Subject)
 			}
 			entries = append(entries, LogEntry{

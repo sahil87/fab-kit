@@ -38,7 +38,23 @@ const seedFileName = "log.seed.md"
 // as the entry Date (the pre-FKF changelog `Date` column, independent of git).
 // Lines that are not a date heading or an entry bullet are ignored (the
 // generated header comment, blank lines, stray prose). Pure function.
+//
+// parseSeedLog and parseLog (log.go) are the SAME grammar over the SAME §6.2
+// rendered shape — a seed sidecar and a generated log.md are byte-identical in
+// structure — so both delegate to parseLogBody to single-source the entry-line
+// grammar (the round-trip discipline this file pioneered, now shared with the
+// freeze-on-write reader).
 func parseSeedLog(content string) []LogEntry {
+	return parseLogBody(content)
+}
+
+// parseLogBody is the shared §6.2 entry-line walker behind both parseSeedLog and
+// parseLog: it tracks the current `## YYYY-MM-DD` date heading and parses each
+// `- …` bullet beneath it via parseSeedEntry. Non-date / non-bullet lines (the
+// generated `# Log — Title` H1, the `Do not hand-edit` comment, blank lines,
+// stray prose) are ignored; a malformed bullet is skipped (parseSeedEntry returns
+// ok=false), never a panic. Pure function.
+func parseLogBody(content string) []LogEntry {
 	var entries []LogEntry
 	curDate := ""
 	for _, raw := range strings.Split(content, "\n") {

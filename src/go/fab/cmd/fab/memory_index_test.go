@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -19,6 +20,9 @@ func TestMemoryIndexCmd_RegisteredWithExpectedUse(t *testing.T) {
 	}
 	if cmd.Flags().Lookup("json") == nil {
 		t.Error("memoryIndexCmd missing --json flag")
+	}
+	if cmd.Flags().Lookup("rebuild") == nil {
+		t.Error("memoryIndexCmd missing --rebuild flag")
 	}
 }
 
@@ -240,5 +244,131 @@ func TestMemoryIndexCmd_CheckDetectsDrift(t *testing.T) {
 	cmd.SetErr(&bytes.Buffer{})
 	if err := cmd.Execute(); err == nil {
 		t.Error("--check should fail when indexes are out of date")
+	}
+}
+
+// TestMemoryIndexCmd_RebuildProbeInHelp (TC11) pins the contract the 2.5.5→2.6.0
+// re-baseline migration's pre-check relies on: the migration probes
+// `fab memory-index --help` for the `--rebuild` flag and ABORTS (rewriting nothing)
+// when it is absent — i.e. against an old binary that predates the flag. This test
+// confirms the probe is reliable on a 2.6.0 binary: the rendered help text exposes
+// `--rebuild`, so the probe succeeds here and would fail (→ abort) on any binary
+// lacking the flag. Spawning a real old binary in CI is infeasible, so the probe's
+// positive case + the migration's documented abort path are the TC11 realization.
+func TestMemoryIndexCmd_RebuildProbeInHelp(t *testing.T) {
+	cmd := memoryIndexCmd()
+	help := cmd.UsageString()
+	if !strings.Contains(help, "--rebuild") {
+		t.Errorf("the migration pre-check probes `fab memory-index --help` for --rebuild; "+
+			"it must appear in the usage text, got:\n%s", help)
+	}
+	// And the flag must be a real registered bool (an old binary errors on it).
+	if f := cmd.Flags().Lookup("rebuild"); f == nil || f.Value.Type() != "bool" {
+		t.Errorf("--rebuild must be a registered bool flag, got %+v", f)
+	}
+}
+
+// gitRun runs a git command in dir with a deterministic identity, skipping the
+// test when git is unavailable (mirrors the package-level gitDateRun helper).
+func gitRun(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	cmd.Env = append(os.Environ(),
+		"GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=t@example.com",
+		"GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=t@example.com")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Skipf("git %v failed (git unavailable?): %v\n%s", args, err, out)
+	}
+}
+
+// setupGitFabRepo builds a git-backed fab repo with one attributable memory
+// commit, chdirs in, and returns the repo root. Used by the freeze-on-write
+// end-to-end --check / --rebuild cmd tests (log.md targets need real git history).
+func setupGitFabRepo(t *testing.T) string {
+	t.Helper()
+	repo := t.TempDir()
+	gitRun(t, repo, "init")
+	mustWrite(t, filepath.Join(repo, "fab", "changes", "260401-bbbb-live", ".status.yaml"),
+		"id: bbbb\nname: 260401-bbbb-live\nsummary: \"the live change\"\n")
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "d", "topic.md"),
+		"---\ndescription: \"a topic\"\n---\n# Topic\n")
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "d", "index.md"),
+		"---\ndescription: \"d domain\"\n---\n# D Documentation\n")
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "index.md"), "# Memory Index\n")
+	gitRun(t, repo, "add", ".")
+	gitRun(t, repo, "commit", "-m", "Merge pull request #2 from o/260401-bbbb-live",
+		"--date", "2026-04-01T12:00:00 +0000")
+
+	origWd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(repo); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(origWd) })
+	return repo
+}
+
+// TestMemoryIndexCmd_FreezeOnWrite_CheckSupersetPasses (R7, end-to-end) confirms
+// the cmd's --check exits 0 (returns nil) when the committed log.md is a valid
+// SUPERSET of the freeze-on-write merge — a frozen squash-stale line the live
+// history no longer shows must NOT make --check fail.
+func TestMemoryIndexCmd_FreezeOnWrite_CheckSupersetPasses(t *testing.T) {
+	repo := setupGitFabRepo(t)
+	// Generate the baseline (writes index + log).
+	if err, _, _ := runMemoryIndex(t); err != nil {
+		t.Fatalf("baseline regen failed: %v", err)
+	}
+	// Append a frozen squash-stale line to the committed log (a superset).
+	logPath := filepath.Join(repo, "docs", "memory", "d", "log.md")
+	existing, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	superset := string(existing) +
+		"\n## 2026-01-01\n- **Update** [topic](/d/topic.md) — squash-stale frozen history (cccc)\n"
+	if err := os.WriteFile(logPath, []byte(superset), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// --check must still pass (the merge reproduces the superset byte-for-byte).
+	if err, _, _ := runMemoryIndex(t, "--check"); err != nil {
+		t.Errorf("R7: --check on a valid superset log.md should pass (exit 0), got: %v", err)
+	}
+	// A plain regen preserves the frozen line (freeze-on-write, not a rewrite).
+	if err, _, _ := runMemoryIndex(t); err != nil {
+		t.Fatalf("regen failed: %v", err)
+	}
+	after, _ := os.ReadFile(logPath)
+	if !strings.Contains(string(after), "squash-stale frozen history (cccc)") {
+		t.Errorf("R1: a plain regen must preserve the frozen line, got:\n%s", after)
+	}
+}
+
+// TestMemoryIndexCmd_Rebuild_DropsStaleLine (R6, end-to-end) confirms the cmd's
+// --rebuild discards the frozen state and re-projects from current git, dropping a
+// now-unreachable frozen line.
+func TestMemoryIndexCmd_Rebuild_DropsStaleLine(t *testing.T) {
+	repo := setupGitFabRepo(t)
+	if err, _, _ := runMemoryIndex(t); err != nil {
+		t.Fatalf("baseline regen failed: %v", err)
+	}
+	logPath := filepath.Join(repo, "docs", "memory", "d", "log.md")
+	existing, _ := os.ReadFile(logPath)
+	stale := string(existing) +
+		"\n## 2026-01-01\n- **Update** [topic](/d/topic.md) — squash-stale frozen history (cccc)\n"
+	if err := os.WriteFile(logPath, []byte(stale), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// --rebuild re-projects, dropping the unreachable cccc line.
+	if err, _, _ := runMemoryIndex(t, "--rebuild"); err != nil {
+		t.Fatalf("--rebuild failed: %v", err)
+	}
+	after, _ := os.ReadFile(logPath)
+	if strings.Contains(string(after), "squash-stale frozen history (cccc)") {
+		t.Errorf("R6: --rebuild must drop the unreachable frozen line, got:\n%s", after)
+	}
+	if !strings.Contains(string(after), "the live change (bbbb)") {
+		t.Errorf("R6: --rebuild must re-project the live entry, got:\n%s", after)
 	}
 }

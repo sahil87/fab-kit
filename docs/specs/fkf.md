@@ -297,6 +297,76 @@ summary: "surfaces the optional agent.tiers per-stage-model override as a commen
   `src/kit/migrations/` (per the project's data-migration rule). Absence degrades gracefully: a
   change with no `summary` projects with the change slug in place of the descriptive line.
 
+### 6.4 Freeze-on-write generation
+
+`log.md` generation is **freeze-on-write**: the existing `log.md` is **authoritative and
+write-once**. A pure projection of *live* git history is not deterministic — squash-merge rewrites
+commit subjects and counts, and branch-deletion makes the original commits unreachable — so
+re-projecting from scratch on every run produces a different result per contributor and across time
+(merely touching `docs/memory/` would churn dozens of unrelated `log.md` files and keep `--check`
+permanently red, a Constitution III violation in practice). Freeze-on-write inverts the model from
+*"`log.md` is a pure function of git+status; regenerate freely"* to *"the existing log is
+authoritative; never re-derive what's already written."* It generalizes the `log.seed.md` mechanism
+(§6, the seed-merge): after first write the whole `log.md` behaves like the seed — a frozen,
+git-independent store the generator reads but never rewrites.
+
+The regeneration flow:
+
+1. **Read** the existing `log.md` and parse it back into entries (the inverse of the §6.2 render —
+   the same grammar `log.seed.md` uses).
+2. **Treat existing entries as immutable** — never reworded, re-dated, or dropped.
+3. **Project** current git history, but use the projection only to discover **new** entries to append.
+4. **Append only** entries whose identity is not already recorded.
+5. **Re-render** (§6.2) over the merged `existing ∪ appended ∪ seed` set.
+
+**Append/dedup key = `(file-base, change-id)`.** An *attributable* projected entry (its commit
+resolves to a registered change-id) is appended only when no existing entry already records that
+`(file-base, change-id)` pair. Re-running, or re-projecting after a squash that *preserved* the
+change token, is a no-op. The git commit hash (`%H`) is deliberately **not** the key: squash +
+branch-delete makes the hash unreachable — the exact operation being defended against — whereas the
+change-id survives in the change folder name and the registry, independent of git.
+
+**Unattributable commits are frozen, not re-projected.** A commit with no registry change-id
+(migrations, docs-reorgs, direct-`main` edits, or a squash-merge whose branch token was dropped) has
+no key to append on. Unattributable entries **already present** in `log.md` stay verbatim (frozen);
+a **new** unattributable commit is **not** projected into the log after first write. *Accepted
+tradeoff*: future migration/reorg commits leave no log trace — those are tooling commits, not
+memory-domain history. Without this rule, a squashed unattributable commit (whose subject text
+changed) would look like a *new* entry and be appended alongside the frozen old line — additive churn.
+
+**Bootstrap is not a special mode.** The first run on a folder with no `log.md` is simply the first
+append into an empty log (plus the `log.seed.md` seed-merge). Unattributable commits *are* projected
+at bootstrap (and frozen on first write); there is no `--first-generation` flag (it would invite a
+re-run that re-introduces churn). Bootstrap and every later run share one code path.
+
+**`--rebuild` — the destructive escape hatch.** `fab memory-index --rebuild` discards the
+accumulated frozen state and re-projects every `log.md` from current git (the pre-freeze behavior,
+made explicit and opt-in: it re-projects unattributable commits too). It can rewrite or drop frozen
+lines, so it is **destructive** — for a corrupted frozen log or a deliberate re-baseline, never the
+default path.
+
+**`--check` semantics under freeze-on-write.** `--check` compares the committed `log.md` against the
+freeze-on-write **merge** (not a from-scratch projection):
+
+- **PASS** when the committed log is a valid **superset** of the merge — it may carry frozen lines
+  the live history no longer shows (the case byte-equality false-fails today).
+- **FAIL** (benign drift) when a projected attributable `(file-base, change-id)` entry is **missing**
+  from the committed log (someone forgot to regenerate-and-commit — the report surfaces the gap).
+- **FAIL** (benign drift) when a frozen line was **hand-edited** in a render-unstable way (the
+  single-writer discipline was violated; a clean reword that round-trips through the §6.2 grammar is,
+  by design, accepted as the new frozen truth).
+
+All `log.md` `--check` drift remains **benign (tier 1)** — `log.md` introduces **no** destructive-loss
+(tier 2) category; the three index-only detectors (description / tombstone / grouping) never run on a
+`log.md` target.
+
+**Migration.** Existing projects carry `log.md` files generated under the old pure-projection model;
+they re-baseline onto freeze-on-write via a one-time `fab memory-index --rebuild` + commit, shipped as
+a migration in `src/kit/migrations/` (the standard upgrade ordering — new binary first, then
+`/fab-setup migrations` — applies, and the migration's pre-check verifies the binary understands
+`--rebuild` before rewriting anything). That re-baseline commit is the last churn the repo sees from
+the non-determinism; every run afterward is append-only stable.
+
 ---
 
 ## 7. Cross-links — bundle-relative

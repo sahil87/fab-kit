@@ -14,6 +14,7 @@ import (
 func memoryIndexCmd() *cobra.Command {
 	var check bool
 	var jsonOut bool
+	var rebuild bool
 
 	cmd := &cobra.Command{
 		Use:   "memory-index",
@@ -27,17 +28,29 @@ func memoryIndexCmd() *cobra.Command {
 			"log.md (C-lite change history: one batched git-log pass joined with each " +
 			"change's .status.yaml summary, change-id recovered from the git history " +
 			"and gated against the fab/changes registry; unattributable commits " +
-			"degrade gracefully). Output is byte-stable / idempotent across runs, so " +
-			"the indexes and logs stop drifting and stop generating merge conflicts. " +
-			"Also emits non-fatal stderr warnings when a folder exceeds the soft " +
-			"width bound (~12 files) or depth 3 (reserved domains _shared/ and " +
-			"_unsorted/ are width-exempt). With --check, writes nothing and " +
-			"classifies drift by severity in the exit code: 0 = clean, 1 = benign " +
+			"degrade gracefully). log.md uses FREEZE-ON-WRITE generation: the existing " +
+			"log.md is authoritative and write-once — regeneration reads it back and " +
+			"APPENDS only new entries keyed on (file-base, change-id); existing entries " +
+			"are never reworded or re-dated, and a NEW unattributable commit (no " +
+			"registry change-id — a migration, a direct-main edit) is NOT projected " +
+			"after first write (frozen, not re-projected), so a squash + branch-delete " +
+			"that rewrites history no longer churns the log. Output is byte-stable / " +
+			"idempotent across runs, so the indexes and logs stop drifting and stop " +
+			"generating merge conflicts. Also emits non-fatal stderr warnings when a " +
+			"folder exceeds the soft width bound (~12 files) or depth 3 (reserved " +
+			"domains _shared/ and _unsorted/ are width-exempt). --rebuild is the " +
+			"destructive escape hatch: it discards the frozen state and re-projects " +
+			"every log.md from current git (the pre-freeze behavior, opt-in) — for a " +
+			"corrupted log or a deliberate re-baseline. With --check, writes nothing " +
+			"and classifies drift by severity in the exit code: 0 = clean, 1 = benign " +
 			"drift (regen changes content but destroys nothing — all log.md / FKF " +
-			"frontmatter drift is benign), 2 = destructive loss (regen would wipe a " +
-			"curated description, drop a tombstone row, or flatten a custom grouping " +
-			"— index-only categories). --json emits the loss report machine-readably " +
-			"(with --check).",
+			"frontmatter drift is benign; for log.md a benign FAIL means the committed " +
+			"log is missing a projected attributable (file-base, change-id) entry, or a " +
+			"frozen line was hand-edited render-unstably — a committed log that is a " +
+			"valid SUPERSET of the freeze-on-write merge PASSES), 2 = destructive loss " +
+			"(regen would wipe a curated description, drop a tombstone row, or flatten a " +
+			"custom grouping — index-only categories). --json emits the loss report " +
+			"machine-readably (with --check).",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fabRoot, err := resolve.FabRoot()
@@ -83,7 +96,13 @@ func memoryIndexCmd() *cobra.Command {
 			// They flow through the same byte-stable write / --check loops as the
 			// indexes, but are classified as benign-drift-only (isLog) so the
 			// index-row loss detectors never false-positive on log list content.
-			logTargets, err := memoryindex.GatherLogs(repoRoot, fabRoot)
+			//
+			// Freeze-on-write (R6): a write run honors --rebuild (re-project
+			// destructively when set). A --check run always uses rebuild=false so the
+			// rendered content is the freeze-on-write merge the classifier compares
+			// against (R7–R9) — --check never re-projects, so --check --rebuild would
+			// be meaningless and is treated as a plain --check.
+			logTargets, err := memoryindex.GatherLogs(repoRoot, fabRoot, rebuild && !check)
 			if err != nil {
 				return err
 			}
@@ -142,6 +161,7 @@ func memoryIndexCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&check, "check", false, "Write nothing; encode drift severity in the exit code (0 clean / 1 benign drift / 2 destructive loss)")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "With --check, emit the loss report as JSON on stdout (suppresses human-readable text)")
+	cmd.Flags().BoolVar(&rebuild, "rebuild", false, "DESTRUCTIVE: discard the frozen log.md state and re-project every log.md from current git (the pre-freeze behavior, opt-in). Ignored with --check (which never writes)")
 	return cmd
 }
 
