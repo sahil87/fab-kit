@@ -84,7 +84,7 @@ For each source: identify **domains** (logical topic areas) and **topics** withi
 For each topic:
 1. Create `docs/memory/{domain}/` if needed
 2. Create `docs/memory/{domain}/index.md` if needed — a stub carrying only the `description:` frontmatter one-liner for the domain, created before Step 4 runs (`fab memory-index` reads it into the root index row — see Index Ownership). When placing a topic into a sub-domain, likewise create the `docs/memory/{domain}/{sub-domain}/index.md` stub if needed
-3. If target file doesn't exist → create with leading FKF frontmatter (`type: memory` constant + a `description:` one-liner, per `$(fab kit-path)/reference/fkf.md` §3.1–§3.2), then Overview, Requirements, Design Decisions sections. **No `## Changelog` section** — memory files no longer carry one (FKF §3.3); change history lives in the per-folder generated `log.md` (§6).
+3. If target file doesn't exist → create it from the canonical memory-file shape — **read `$(fab kit-path)/templates/memory.md`** (the single source of truth, the same on-demand template read used for `$(fab kit-path)/templates/intake.md`) and fill its leading FKF frontmatter (`type: memory` constant + a `description:` one-liner, per `$(fab kit-path)/reference/fkf.md` §3.1–§3.2) and its Overview / Requirements / Design Decisions skeleton. **No `## Changelog` section** — the template carries none and memory files no longer carry one (FKF §3.3); change history lives in the per-folder generated `log.md` (§6).
 4. If target file exists → **merge** new content, preserve existing/manually-added content; keep its `description:` frontmatter accurate, and **stamp the `type: memory` constant when the existing/legacy file is missing it** so the merge leaves an FKF-conforming file (FKF §2/§3.1 require `type: memory` on every memory file)
 
 **Author the FKF frontmatter** on every file you create or whose summary changes — the `type: memory` constant (§3.1) plus the `description:` one-liner (§3.2) that is the source for the generated index row (Step 4). Do NOT hand-write index rows. **Bundle-relative cross-links**: any memory↔memory link you write MUST use the bundle-relative `/...` form (resolved from `docs/memory/`, FKF §7); links *out* of the bundle (source, specs, URLs) stay repo-relative/absolute-URL.
@@ -140,26 +140,9 @@ Cross-reference against existing memory — exclude already-covered areas.
 
 ### Step 3: Memory File Generation
 
-For each selected gap: read **all source files** in scope, synthesize into **one memory file per gap** using this format:
+For each selected gap: read **all source files** in scope, then synthesize into **one memory file per gap** using the canonical memory-file shape. **Read the shape from `$(fab kit-path)/templates/memory.md`** (the same on-demand template read `_generation.md`/`_intake.md` use for `$(fab kit-path)/templates/intake.md`) — it is the single source of truth for the FKF frontmatter pair (`type: memory` constant + curated `description:`, `$(fab kit-path)/reference/fkf.md` §3.1–§3.2) and the conventional body skeleton (Overview / Requirements + Scenario / Design Decisions, §3.3). Fill the scaffold from the analyzed code (Overview, Requirements as RFC 2119 statements derived from code not invented, Design Decisions where inferable) and strip the template's guidance comments.
 
-```markdown
----
-type: memory
-description: "One-line summary of this topic (source for the generated index row)."
----
-# {Topic}
-
-## Overview
-{What it does, inferred from code.}
-
-## Requirements
-{Key behaviors as RFC 2119 requirements. Derived from code, not invented.}
-
-## Design Decisions
-{Architectural choices with rationale where inferable.}
-```
-
-The frontmatter carries the FKF pair (`type: memory` constant + curated `description:`, `$(fab kit-path)/reference/fkf.md` §3.1–§3.2). **No `## Changelog` section** — memory files no longer carry one (§3.3); change history lives in the per-folder generated `log.md` (§6, populated from git history + the `.status.yaml` `summary:` field). Any memory↔memory cross-link uses the bundle-relative `/...` form (§7).
+The template carries **no `## Changelog` section** — memory files no longer carry one (§3.3); change history lives in the per-folder generated `log.md` (§6, populated from git history + the `.status.yaml` `summary:` field). Any memory↔memory cross-link uses the bundle-relative `/...` form (§7).
 
 Mark ambiguous inferences with `[INFERRED]` inline near the relevant requirement.
 
@@ -187,7 +170,7 @@ For each discovered topic file missing `description:`:
 
 1. Read the file's **own content** — Overview, first section, or `# H1` — and synthesize a concise one-line summary.
 2. **Prefer a curated index row** where one maps to this file. If an existing hand-curated index file (e.g., a pre-fab-kit `index.md` whose rows line up file-by-file with the topic files) has a row whose description text describes this file, use that curated text as the source — it is higher quality than re-synthesis.
-3. Write the FKF frontmatter as the **leading frontmatter block** of the file — the `type: memory` constant (`$(fab kit-path)/reference/fkf.md` §3.1) plus the synthesized `description:` (§3.2), the same `---\ntype: memory\ndescription: "..."\n---` shape ingest/generate use, so the backfilled file is FKF-conforming (§2 item 2). **Preserve the body byte-for-byte** — backfill only prepends or edits the leading frontmatter, never the content below it. In particular, it does **NOT** strip any existing `## Changelog` section from the body (removing the 20 existing per-file changelogs is a separate change, the FKF migration trajectory documented in the dev-repo design doc `docs/specs/fkf.md` §10 item 2); backfill stays a pure frontmatter operation.
+3. Write the FKF frontmatter as the **leading frontmatter block** of the file — the `type: memory` constant (`$(fab kit-path)/reference/fkf.md` §3.1) plus the synthesized `description:` (§3.2). Use the **frontmatter shape only** from `$(fab kit-path)/templates/memory.md` (the canonical `---\ntype: memory\ndescription: "..."\n---` block ingest/generate also draw from), so the backfilled file is FKF-conforming (§2 item 2). **Take only the frontmatter block from the template — never its body skeleton:** backfill is a pure-frontmatter operation and MUST **preserve the existing body byte-for-byte** — it only prepends or edits the leading frontmatter, never the content below it, and never imposes the template's Overview/Requirements/Design Decisions skeleton on an existing file. In particular, it does **NOT** strip any existing `## Changelog` section from the body (removing the 20 existing per-file changelogs is a separate change, the FKF migration trajectory documented in the dev-repo design doc `docs/specs/fkf.md` §10 item 2); backfill stays a pure frontmatter operation.
 4. **Skip files that already have a `description:`** — backfill never overwrites an existing one (and stamps `type: memory` only when it is adding the frontmatter for the first time). This makes a second pass a no-op (idempotency, Constitution III).
 
 ### Step 3: Create missing index stubs (stub-before-index)

@@ -12,7 +12,7 @@ Advances through the 6-stage pipeline one step at a time. Each invocation handle
 
 **Helpers**: Declares `helpers: [_srad]` in frontmatter; `_generation` and `_review` are loaded **stage-conditionally** at point of use (apply entry / intake regeneration → `_generation`; Review Behavior entry → `_review`) per `_preamble.md` § Skill Helper Declaration stage-conditional loading. Hydrate/ship/review-pr invocations and apply-resumes load neither.
 
-**FKF hydrate prose** (260615-8fr5): Hydrate Behavior authors memory files to the FKF contract — the shipped normative extract at `$(fab kit-path)/reference/fkf.md` (260616-frlo; mirror of the dev-repo design doc `docs/specs/fkf.md`). New memory files carry the FKF frontmatter pair — `type: memory` (constant, §3.1) plus a curated `description:` one-liner (§3.2) — not `description:` alone. Hydrate no longer writes a per-file `## Changelog` section (§3.3): it records what changed once via `fab status set-summary {change} "<one-line what-changed>"` (the C-lite `summary:` source line, §6.3, authored once at hydrate), which `fab memory-index` joins with git history to generate the per-folder `log.md` (§6). Memory↔memory cross-links use the bundle-relative `/...` form (§7); links out of the bundle stay repo-relative/absolute-URL. The "update existing" section list drops `Changelog` (now Requirements/Design Decisions only); the merge-without-duplication contract is unchanged. When hydrate edits an existing/legacy memory file missing `type: memory`, it stamps the constant in so the touched file becomes FKF-conforming (§2/§3.1 require `type: memory` on every memory file, stamped by every memory writer — not just on creation). This is FKF migration Change 3/4 — it stops *new* changelog writes; the strip of the 20 existing `## Changelog` sections is Change 4/4.
+**FKF hydrate prose** (260615-8fr5, 260616-2fm8): Hydrate Behavior authors memory files to the FKF contract — the shipped normative extract at `$(fab kit-path)/reference/fkf.md` (260616-frlo; mirror of the dev-repo design doc `docs/specs/fkf.md`). New memory files are created from the canonical memory-file template shipped at `$(fab kit-path)/templates/memory.md` (260616-2fm8) — read on demand the same way `_generation.md`/`_intake.md` read `$(fab kit-path)/templates/intake.md` — the single source of truth for the FKF frontmatter pair — `type: memory` (constant, §3.1) plus a curated `description:` one-liner (§3.2) — and the body skeleton; not `description:` alone. Hydrate no longer writes a per-file `## Changelog` section (§3.3): it records what changed once via `fab status set-summary {change} "<one-line what-changed>"` (the C-lite `summary:` source line, §6.3, authored once at hydrate), which `fab memory-index` joins with git history to generate the per-folder `log.md` (§6). Memory↔memory cross-links use the bundle-relative `/...` form (§7); links out of the bundle stay repo-relative/absolute-URL. The "update existing" section list drops `Changelog` (now Requirements/Design Decisions only); the merge-without-duplication contract is unchanged. When hydrate edits an existing/legacy memory file missing `type: memory`, it stamps the constant in so the touched file becomes FKF-conforming (§2/§3.1 require `type: memory` on every memory file, stamped by every memory writer — not just on creation). This is FKF migration Change 3/4 — it stops *new* changelog writes; the strip of the 20 existing `## Changelog` sections is Change 4/4.
 
 ## Flow
 
@@ -119,10 +119,11 @@ User invokes /fab-continue [change-name] [stage]
 │  ┌─────────────────────────────────────────────────┐
 │  │ HYDRATE STAGE                                   │
 │  │                                                 │
-│  │  Read: docs/memory/ files, intake.md            │
+│  │  Read: docs/memory/ files, intake.md,           │
+│  │    $(fab kit-path)/templates/memory.md (shape)  │
 │  │  Write/Edit: docs/memory/{domain}/{file}.md     │
-│  │    (FKF frontmatter: type: memory + curated     │
-│  │     description:; NO per-file ## Changelog —    │
+│  │    (from template: FKF frontmatter type: memory │
+│  │     + curated description:; NO ## Changelog —   │
 │  │     bundle-relative /... memory↔memory links;   │
 │  │     merge without duplication — existing        │
 │  │     entries for this change updated in place)   │
