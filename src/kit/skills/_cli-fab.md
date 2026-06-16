@@ -465,7 +465,7 @@ Modeled on `fab pr-meta` (pure `RenderRoot`/`RenderDomain`/`RenderLog` + a `Gath
 orchestrator in `internal/memoryindex`), so the output is byte-for-byte stable across runs and
 stops the per-row / per-changelog-row merge conflicts on the hot `description` / `Last Updated`
 cells. It produces the generated half of the **FKF** format (Fab Knowledge Format — see
-`docs/specs/fkf.md`): per-folder `log.md`, the `type: memory` round-trip mechanism, and the
+`$(fab kit-path)/reference/fkf.md`): per-folder `log.md`, the `type: memory` round-trip mechanism, and the
 root-index `fkf_version` frontmatter.
 
 What it writes:

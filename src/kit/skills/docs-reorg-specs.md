@@ -17,7 +17,7 @@ Read all spec files in `docs/specs/`, identify themes (up to 10), and propose a 
 
 > **No compatibility/backfill step for specs.** Unlike `/docs-reorg-memory` (which detects pre-fab-kit memory trees missing `description:` frontmatter and orchestrates a frontmatter backfill), `/docs-reorg-specs` has **no** compatibility or frontmatter-backfill step — and intentionally so. There is no specs-index generator (no counterpart to `fab memory-index`); the specs index is hand-rewritten (Step 5), so a spec missing frontmatter breaks nothing downstream — there is no compatibility contract to violate. Constitution VI keeps specs human-curated. Do not "fix the asymmetry" by adding a specs backfill — it would invent a non-problem and push specs toward the generated-index model the constitution rejects.
 
-> **No FKF frontmatter on specs — moves are frontmatter-neutral.** FKF (`type: memory` + `description:`, `docs/specs/fkf.md` §9) governs `docs/memory/` **only**; specs are out of FKF scope and stay frontmatter-free, human-curated (Constitution VI). When this skill moves a spec file, it MUST NOT stamp, add, or synthesize `type:` / `description:` frontmatter on it — a moved spec carries exactly the bytes it had before the move (only its path and the `index.md` row change). This is the mirror of `/docs-reorg-memory`'s frontmatter-*preserving* moves: memory moves keep FKF frontmatter, spec moves add none. There is no `fab specs-index` generator and the optional FKF §9 generated-index borrow is **not adopted** — specs links stay ordinary repo-relative, the index stays hand-rewritten.
+> **No FKF frontmatter on specs — moves are frontmatter-neutral (Constitution VI).** FKF (`type: memory` + `description:`) governs `docs/memory/` **only**; specs are out of FKF scope and stay frontmatter-free, human-curated per **Constitution VI** (specs MUST NOT be auto-generated or tool-planted). When this skill moves a spec file, it MUST NOT stamp, add, or synthesize `type:` / `description:` frontmatter on it — a moved spec carries exactly the bytes it had before the move (only its path and the `index.md` row change). This is the mirror of `/docs-reorg-memory`'s frontmatter-*preserving* moves: memory moves keep FKF frontmatter, spec moves add none. There is no `fab specs-index` generator and a generated-index model for specs is **not adopted** (Constitution VI) — specs links stay ordinary repo-relative, the index stays hand-rewritten.
 
 ---
 
@@ -80,7 +80,7 @@ Constraints: prefer fewer files, preserve existing names, keep files under ~300 
 
 Options: **Apply all**, **Cherry-pick** (select specific migrations), **Skip** (keep analysis only).
 
-On approval: execute migrations (a moved spec keeps its exact bytes — **no FKF frontmatter is stamped**, per the "No FKF frontmatter on specs" note above — §9 / Constitution VI), rewrite `docs/specs/index.md`, verify no headings lost, present change summary.
+On approval: execute migrations (a moved spec keeps its exact bytes — **no FKF frontmatter is stamped**, per the "No FKF frontmatter on specs" note above — Constitution VI), rewrite `docs/specs/index.md`, verify no headings lost, present change summary.
 
 ---
 
@@ -120,6 +120,6 @@ If no changes needed: `Current structure is well-organized — no reorganization
 | Advances stage? | No |
 | Requires active change? | No |
 | Idempotent? | Yes |
-| Modifies spec files? | Yes — only with explicit confirmation; a moved spec keeps its exact bytes (no FKF frontmatter stamped — specs are out of FKF scope, §9 / Constitution VI) |
-| Stamps FKF frontmatter? | No — never adds `type:`/`description:` to a spec; no `fab specs-index` generator and the optional FKF §9 generated-index borrow is not adopted (specs stay human-curated, hand-indexed) |
+| Modifies spec files? | Yes — only with explicit confirmation; a moved spec keeps its exact bytes (no FKF frontmatter stamped — specs are out of FKF scope, Constitution VI) |
+| Stamps FKF frontmatter? | No — never adds `type:`/`description:` to a spec; no `fab specs-index` generator and a generated-index model for specs is not adopted (Constitution VI — specs stay human-curated, hand-indexed) |
 | Requires config/constitution? | No |

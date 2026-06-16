@@ -1,0 +1,54 @@
+id: frlo
+name: 260616-frlo-ship-fkf-contract-to-kit-cache
+created: 2026-06-16T03:49:06Z
+created_by: sahil-noon
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 14
+    acceptance_count: 15
+    acceptance_completed: 0
+confidence:
+    certain: 3
+    confident: 7
+    tentative: 0
+    unresolved: 0
+    score: 4.2
+    fuzzy: true
+    dimensions:
+        signal: 89.5
+        reversibility: 76.0
+        competence: 85.5
+        disambiguation: 82.5
+stage_metrics:
+    intake: {started_at: "2026-06-16T03:49:06Z", driver: fab-new, iterations: 1, completed_at: "2026-06-16T03:59:35Z"}
+    apply: {started_at: "2026-06-16T03:59:35Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-16T04:08:53Z"}
+    review: {started_at: "2026-06-16T04:08:53Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-16T04:16:27Z"}
+    hydrate: {started_at: "2026-06-16T04:16:27Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-16T04:19:00Z"}
+    ship: {started_at: "2026-06-16T04:19:00Z", driver: fab-fff, iterations: 1}
+prs: []
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-06-16T04:19:00Z"
+    computed_at_stage: hydrate
+summary: ships the FKF normative contract to src/kit/reference/fkf.md (read via $(fab kit-path)) and repoints the dangling docs/specs/fkf.md skill citations
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-16T04:19:00Z

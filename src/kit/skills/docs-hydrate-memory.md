@@ -84,7 +84,7 @@ For each source: identify **domains** (logical topic areas) and **topics** withi
 For each topic:
 1. Create `docs/memory/{domain}/` if needed
 2. Create `docs/memory/{domain}/index.md` if needed — a stub carrying only the `description:` frontmatter one-liner for the domain, created before Step 4 runs (`fab memory-index` reads it into the root index row — see Index Ownership). When placing a topic into a sub-domain, likewise create the `docs/memory/{domain}/{sub-domain}/index.md` stub if needed
-3. If target file doesn't exist → create with leading FKF frontmatter (`type: memory` constant + a `description:` one-liner, per `docs/specs/fkf.md` §3.1–§3.2), then Overview, Requirements, Design Decisions sections. **No `## Changelog` section** — memory files no longer carry one (FKF §3.3); change history lives in the per-folder generated `log.md` (§6).
+3. If target file doesn't exist → create with leading FKF frontmatter (`type: memory` constant + a `description:` one-liner, per `$(fab kit-path)/reference/fkf.md` §3.1–§3.2), then Overview, Requirements, Design Decisions sections. **No `## Changelog` section** — memory files no longer carry one (FKF §3.3); change history lives in the per-folder generated `log.md` (§6).
 4. If target file exists → **merge** new content, preserve existing/manually-added content; keep its `description:` frontmatter accurate, and **stamp the `type: memory` constant when the existing/legacy file is missing it** so the merge leaves an FKF-conforming file (FKF §2/§3.1 require `type: memory` on every memory file)
 
 **Author the FKF frontmatter** on every file you create or whose summary changes — the `type: memory` constant (§3.1) plus the `description:` one-liner (§3.2) that is the source for the generated index row (Step 4). Do NOT hand-write index rows. **Bundle-relative cross-links**: any memory↔memory link you write MUST use the bundle-relative `/...` form (resolved from `docs/memory/`, FKF §7); links *out* of the bundle (source, specs, URLs) stay repo-relative/absolute-URL.
@@ -159,7 +159,7 @@ description: "One-line summary of this topic (source for the generated index row
 {Architectural choices with rationale where inferable.}
 ```
 
-The frontmatter carries the FKF pair (`type: memory` constant + curated `description:`, `docs/specs/fkf.md` §3.1–§3.2). **No `## Changelog` section** — memory files no longer carry one (§3.3); change history lives in the per-folder generated `log.md` (§6, populated from git history + the `.status.yaml` `summary:` field). Any memory↔memory cross-link uses the bundle-relative `/...` form (§7).
+The frontmatter carries the FKF pair (`type: memory` constant + curated `description:`, `$(fab kit-path)/reference/fkf.md` §3.1–§3.2). **No `## Changelog` section** — memory files no longer carry one (§3.3); change history lives in the per-folder generated `log.md` (§6, populated from git history + the `.status.yaml` `summary:` field). Any memory↔memory cross-link uses the bundle-relative `/...` form (§7).
 
 Mark ambiguous inferences with `[INFERRED]` inline near the relevant requirement.
 
@@ -187,7 +187,7 @@ For each discovered topic file missing `description:`:
 
 1. Read the file's **own content** — Overview, first section, or `# H1` — and synthesize a concise one-line summary.
 2. **Prefer a curated index row** where one maps to this file. If an existing hand-curated index file (e.g., a pre-fab-kit `index.md` whose rows line up file-by-file with the topic files) has a row whose description text describes this file, use that curated text as the source — it is higher quality than re-synthesis.
-3. Write the FKF frontmatter as the **leading frontmatter block** of the file — the `type: memory` constant (`docs/specs/fkf.md` §3.1) plus the synthesized `description:` (§3.2), the same `---\ntype: memory\ndescription: "..."\n---` shape ingest/generate use, so the backfilled file is FKF-conforming (§2 item 2). **Preserve the body byte-for-byte** — backfill only prepends or edits the leading frontmatter, never the content below it. In particular, it does **NOT** strip any existing `## Changelog` section from the body (removing the 20 existing per-file changelogs is a separate change, FKF §10 item 2); backfill stays a pure frontmatter operation.
+3. Write the FKF frontmatter as the **leading frontmatter block** of the file — the `type: memory` constant (`$(fab kit-path)/reference/fkf.md` §3.1) plus the synthesized `description:` (§3.2), the same `---\ntype: memory\ndescription: "..."\n---` shape ingest/generate use, so the backfilled file is FKF-conforming (§2 item 2). **Preserve the body byte-for-byte** — backfill only prepends or edits the leading frontmatter, never the content below it. In particular, it does **NOT** strip any existing `## Changelog` section from the body (removing the 20 existing per-file changelogs is a separate change, the FKF migration trajectory documented in the dev-repo design doc `docs/specs/fkf.md` §10 item 2); backfill stays a pure frontmatter operation.
 4. **Skip files that already have a `description:`** — backfill never overwrites an existing one (and stamps `type: memory` only when it is adding the frontmatter for the first time). This makes a second pass a no-op (idempotency, Constitution III).
 
 ### Step 3: Create missing index stubs (stub-before-index)
