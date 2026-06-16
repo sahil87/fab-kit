@@ -139,7 +139,7 @@ run-kit is the tmux session manager with a web UI that hosts the operator's sess
 `rk notify` sends a Web Push notification via the local run-kit server to every subscribed browser/device:
 
 ```sh
-rk notify <message> [--title <title>]
+rk notify <message> [--title string]
 ```
 
 - **Fail-silent by contract**: on any error (server unreachable, no subscriptions, bad request) `rk notify` exits 0 and prints nothing, so it never stalls a calling loop. This is run-kit's own guarantee — it composes with the preamble's detection rule for an end-to-end silent send.
