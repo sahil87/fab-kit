@@ -14,7 +14,7 @@ Post-260418-or0o, `_preamble.md` contains four additional subsections inlined fr
 |------------|---------|------------------|
 | `## Skill Helper Declaration` | Documents the per-skill `helpers:` frontmatter field, its 7 allowed values (`_generation`, `_review`, `_cli-fab`, `_cli-external`, `_srad`, `_pipeline`, `_intake` — `_intake` added in 260613-3xaj for the pre-boundary Create-Intake Procedure consumed by `fab-new`/`fab-draft`), semantics (read each helper after `_preamble`, before body), stage-conditional in-body loading (point-of-use reads — used by `fab-continue` for `_generation`/`_review`), and default (empty → load only `_preamble`). Explicitly states that `_naming` and `_cli-rk` are inlined (not allowed as values) and that `_preamble` is implicit. | `_preamble.md` itself |
 | `## Naming Conventions` | Change folder pattern (`{YYMMDD}-{XXXX}-{slug}`), git branch naming (matches folder name), worktree directory naming (`{adjective}-{noun}`). The operator spawning rules moved to `_cli-external.md`'s wt section (260611-zc9m). | `_preamble.md` (inlined from the deleted `_naming.md`) |
-| `## Run-Kit (rk) Reference` | Silent-fail detection (`command -v rk`), iframe window creation, proxy URL pattern, server URL discovery at use-time, 4-step visual display recipe. | `_preamble.md` (inlined from the deleted `_cli-rk.md`) |
+| `## Run-Kit (rk) Reference` | The universal silent-fail **detection rule** (`command -v rk`, skip silently when absent) plus a **pointer**: the full `rk` command body — `rk context` (server-URL discovery, iframe windows, proxy URL pattern, 4-step Visual Display Recipe) and `rk notify` — was relocated to `_cli-external.md` § rk (run-kit), so only operator skills (which load `_cli-external`) pay for the reference detail; every skill still carries the inline detection/fail-silent rule. | `_preamble.md` (detection rule; full body now in `_cli-external.md` § rk) |
 | `## Common fab Commands` | Headline table of 6 most-used fab command families (`preflight`, `score`, `log command`, `change`, `resolve`, `status`) with purpose and canonical invocation form. Cross-references `_cli-fab` for exhaustive flag documentation. Its "Key behaviors" list includes the generic failure rule: any fab command that exits non-zero → STOP and surface stderr (deferring to explicit per-skill handling where a skill intentionally branches on a non-zero exit; `fab log command` can never trip the rule through internal failure — given valid usage it always exits 0, surfacing internal failures as a stderr warning only (cobra arg-count errors exit non-zero before RunE), so the former `2>/dev/null \|\| true` guard boilerplate is retired as of 260612-ye8r). The `fab change` row's canonical form is `fab resolve --folder` — the query flags exist only on top-level `fab resolve`; `fab change resolve` takes a bare `[<override>]` (the former `fab change resolve --folder` canonical form was an invalid command, fixed in 260612-k4ge). | `_preamble.md` |
 
 ## Flow
@@ -63,9 +63,10 @@ Skill reads _preamble.md
 │  (change folder / git branch / worktree patterns —
 │   operator spawning rules live in _cli-external.md)
 │
-├─ Run-Kit (rk) Reference (inlined from _cli-rk)
-│  (detection, iframe, proxy, server URL,
-│   4-step visual display recipe — fail silent)
+├─ Run-Kit (rk) Reference
+│  (detection / fail-silent rule + pointer;
+│   full body — context, iframe, proxy, server
+│   URL, visual recipe, notify — in _cli-external § rk)
 │
 ├─ Common fab Commands
 │  (headline table for 6 most-used families:
