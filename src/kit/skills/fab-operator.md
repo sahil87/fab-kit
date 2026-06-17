@@ -433,7 +433,10 @@ The spawn sequence is:
    # In the newly created worktree directory, only when the change already exists.
    # `fab resolve --folder <change>` succeeds iff a non-archived change folder matches.
    if fab resolve --folder "<change>" >/dev/null 2>&1; then
-     fab change switch "<change>"   # writes this worktree's own .fab-status.yaml
+     # Fail-soft: swallow a switch failure and log one line, so a set -e context
+     # does not abort the spawn (the pointer write is an ergonomic enhancement).
+     fab change switch "<change>" \
+       || echo "<change>: pointer activation failed (fab change switch); continuing." >&2
    fi
    ```
 
