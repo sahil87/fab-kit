@@ -8,6 +8,7 @@
 - **Update** [execution-skills](/pipeline/execution-skills.md) — refactor: FKF Change 3/4 — doc-skill prose authors FKF frontmatter, stops per-file changelog writes (#423)
 - **Update** [planning-skills](/pipeline/planning-skills.md) — refactor: FKF Change 4/4 — Migrate docs/memory/ Tree to FKF + FKF-Aware Reorg Skills (#425)
 - **Update** [preflight](/pipeline/preflight.md) — refactor: FKF Change 4/4 — Migrate docs/memory/ Tree to FKF + FKF-Aware Reorg Skills (#425)
+- **Update** [schemas](/pipeline/schemas.md) — fix: Freeze-on-write log.md generation to eliminate squash-merge churn (#434)
 - **Update** [schemas](/pipeline/schemas.md) — refactor: FKF Change 4/4 — Migrate docs/memory/ Tree to FKF + FKF-Aware Reorg Skills (#425)
 
 ## 2026-06-15
