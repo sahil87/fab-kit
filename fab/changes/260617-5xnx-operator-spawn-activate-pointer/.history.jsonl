@@ -1,0 +1,13 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-17T04:47:34Z"}
+{"args":"Operator spawn sequence should activate the change pointer (fab change switch) in the newly created worktree whenever the change folder/intake already exists","cmd":"fab-new","event":"command","ts":"2026-06-17T04:47:34Z"}
+{"delta":"+4.4","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-06-17T04:48:43Z"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-06-17T04:48:49Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-06-17T04:54:03Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-17T04:54:13Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-17T04:58:39Z"}
+{"event":"review","result":"failed","ts":"2026-06-17T05:04:16Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-17T05:04:16Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-17T05:05:12Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-06-17T05:12:27Z"}
+{"event":"review","result":"passed","ts":"2026-06-17T05:12:27Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-17T05:15:51Z"}
