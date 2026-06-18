@@ -85,9 +85,9 @@ func assertApproxEqual(t *testing.T, name string, got, want float64) {
 }
 
 func TestCompute_AllStrongDimensions(t *testing.T) {
-	// Resolution Average: 7 rows all at S:80 R:80 A:80 D:80 → composite 80.0
-	// each → mean 80.0. total=7, expectedMin for feat=7, cover=1.0.
-	// score = round1((80.0/20)*1.0) = 4.0
+	// Demerit model: 7 rows all at S:80 R:80 A:80 D:80 → composite
+	// 0.20*80+0.30*80+0.30*80+0.20*80 = 80.0 each → penalty 0 (Certain, c>=80).
+	// score = clamp(5.0 - 0, 0, 5) = 5.0. No coverage attenuation.
 	spec := specWithAssumptions(
 		"| 1 | Certain | D1 | R1 | S:80 R:80 A:80 D:80 |",
 		"| 2 | Certain | D2 | R2 | S:80 R:80 A:80 D:80 |",
@@ -104,7 +104,8 @@ func TestCompute_AllStrongDimensions(t *testing.T) {
 		t.Fatalf("Compute failed: %v", err)
 	}
 
-	assertApproxEqual(t, "Score", result.Score, 4.0)
+	assertApproxEqual(t, "Score", result.Score, 5.0)
+	// Grades are derived from the composite: c=80 → Certain.
 	if result.Certain != 7 {
 		t.Errorf("Certain = %d, want 7", result.Certain)
 	}
@@ -114,8 +115,8 @@ func TestCompute_AllStrongDimensions(t *testing.T) {
 }
 
 func TestCompute_PerfectDimensionsScoreFive(t *testing.T) {
-	// All dimensions at 100 → composite 100.0 → mean 100.0, cover=1.0.
-	// score = round1((100.0/20)*1.0) = 5.0 (the 0–5 ceiling)
+	// All dimensions at 100 → composite 100.0 → penalty 0 each (Certain).
+	// score = clamp(5.0 - 0, 0, 5) = 5.0 (the 0–5 ceiling)
 	spec := specWithAssumptions(
 		"| 1 | Certain | D1 | R1 | S:100 R:100 A:100 D:100 |",
 		"| 2 | Certain | D2 | R2 | S:100 R:100 A:100 D:100 |",
@@ -135,14 +136,13 @@ func TestCompute_PerfectDimensionsScoreFive(t *testing.T) {
 	assertApproxEqual(t, "Score", result.Score, 5.0)
 }
 
-func TestCompute_MeanComposite_MixedRows(t *testing.T) {
-	// Mixed dimensions. Per-row composite = 0.25*S+0.30*R+0.25*A+0.20*D.
-	//  r1 S:90 R:85 A:88 D:80: 22.5+25.5+22.0+16.0 = 86.0
-	//  r2 S:70 R:60 A:65 D:55: 17.5+18.0+16.25+11.0 = 62.75
-	//  r3 S:80 R:75 A:78 D:70: 20.0+22.5+19.5+14.0 = 76.0
-	// mean = (86.0+62.75+76.0)/3 = 224.75/3 = 74.9167
-	// total=3, expectedMin for refactor=6, cover=3/6=0.5
-	// score = round1((74.9167/20)*0.5) = round1(1.8729) = 1.9
+func TestCompute_MixedRows_PenaltySum(t *testing.T) {
+	// Mixed dimensions. Per-row composite = 0.20*S+0.30*R+0.30*A+0.20*D, then
+	// the demerit penalty is summed (no mean, no coverage).
+	//  r1 S:90 R:85 A:88 D:80: 18+25.5+26.4+16 = 85.9  → c>=80 → penalty 0
+	//  r2 S:70 R:60 A:65 D:55: 14+18+19.5+11   = 62.5  → (80-62.5)/30*0.5 = 0.2917
+	//  r3 S:80 R:75 A:78 D:70: 16+22.5+23.4+14 = 75.9  → (80-75.9)/30*0.5 = 0.0683
+	// Σ penalty = 0.36 → score = round1(5.0 - 0.36) = 4.6
 	spec := specWithAssumptions(
 		"| 1 | Certain | D1 | R1 | S:90 R:85 A:88 D:80 |",
 		"| 2 | Confident | D2 | R2 | S:70 R:60 A:65 D:55 |",
@@ -155,15 +155,22 @@ func TestCompute_MeanComposite_MixedRows(t *testing.T) {
 		t.Fatalf("Compute failed: %v", err)
 	}
 
-	assertApproxEqual(t, "Score", result.Score, 1.9)
+	assertApproxEqual(t, "Score", result.Score, 4.6)
+	// Grades derived from composite: 85.9→Certain, 62.5/75.9→Confident.
+	if result.Certain != 1 || result.Confident != 2 {
+		t.Errorf("grades = %d certain / %d confident, want 1/2 (derived from composite)", result.Certain, result.Confident)
+	}
 }
 
-func TestCompute_UnresolvedZero(t *testing.T) {
-	// Any Unresolved row hard-fails to 0.0, even with strong dimensions.
+func TestCompute_SingleUnresolvedBlocks(t *testing.T) {
+	// No hard-fail short-circuit: a single genuinely-Unresolved row (composite
+	// < 20) blocks the gate purely via the curve. Six strong rows penalize 0;
+	// the weak row S:10 R:10 A:10 D:10 → composite 10 → penalty
+	// 0.50 + (50-10)/50*2.50 = 0.50 + 2.0 = 2.5. score = 5.0 - 2.5 = 2.5 (fails).
 	spec := specWithAssumptions(
 		"| 1 | Certain | D1 | R1 | S:90 R:90 A:90 D:90 |",
 		"| 2 | Certain | D2 | R2 | S:90 R:90 A:90 D:90 |",
-		"| 3 | Unresolved | D3 | R3 | S:90 R:90 A:90 D:90 |",
+		"| 3 | Unresolved | D3 | R3 | S:10 R:10 A:10 D:10 |",
 		"| 4 | Certain | D4 | R4 | S:90 R:90 A:90 D:90 |",
 		"| 5 | Certain | D5 | R5 | S:90 R:90 A:90 D:90 |",
 		"| 6 | Certain | D6 | R6 | S:90 R:90 A:90 D:90 |",
@@ -176,17 +183,22 @@ func TestCompute_UnresolvedZero(t *testing.T) {
 		t.Fatalf("Compute failed: %v", err)
 	}
 
-	if result.Score != 0.0 {
-		t.Errorf("Score = %.1f, want 0.0 (unresolved present)", result.Score)
+	assertApproxEqual(t, "Score", result.Score, 2.5)
+	if result.Score >= 3.0 {
+		t.Errorf("Score = %.1f, want < 3.0 (single Unresolved row must block)", result.Score)
 	}
+	// Grade is derived from composite: c=10 → Unresolved (no longer a hard fail).
 	if result.Unresolved != 1 {
-		t.Errorf("Unresolved = %d, want 1", result.Unresolved)
+		t.Errorf("Unresolved = %d, want 1 (derived from composite < 20)", result.Unresolved)
 	}
 }
 
-func TestCompute_CriticalRuleHardFail(t *testing.T) {
-	// A single row with R < 25 AND A < 25 (raw dimensions) hard-fails the whole
-	// intake to 0.0 — even though every other row is perfect.
+func TestCompute_NoCriticalRuleHardFail(t *testing.T) {
+	// The old R<25 AND A<25 Critical Rule is removed. A row at S:40 R:20 A:20
+	// D:40 → composite 0.20*40+0.30*20+0.30*20+0.20*40 = 8+6+6+8 = 28
+	// (Tentative). penalty = 0.50 + (50-28)/50*2.50 = 0.50 + 1.10 = 1.60. The
+	// six strong rows penalize 0. score = 5.0 - 1.60 = 3.4 — PASSES, where the
+	// old Critical Rule would have hard-failed it to 0.0.
 	spec := specWithAssumptions(
 		"| 1 | Certain | D1 | R1 | S:90 R:90 A:90 D:90 |",
 		"| 2 | Certain | D2 | R2 | S:90 R:90 A:90 D:90 |",
@@ -203,41 +215,19 @@ func TestCompute_CriticalRuleHardFail(t *testing.T) {
 		t.Fatalf("Compute failed: %v", err)
 	}
 
-	if result.Score != 0.0 {
-		t.Errorf("Score = %.1f, want 0.0 (Critical Rule: R<25 AND A<25 row)", result.Score)
+	assertApproxEqual(t, "Score", result.Score, 3.4)
+	if result.Tentative != 1 {
+		t.Errorf("Tentative = %d, want 1 (c=28 derived grade)", result.Tentative)
 	}
 }
 
-func TestCompute_CriticalRuleBoundaryDoesNotFail(t *testing.T) {
-	// R=25 and A=25 are NOT below the threshold (< 25 is strict), so the
-	// Critical Rule does not fire. Mean is computed normally.
-	//  composite = 0.25*60+0.30*25+0.25*25+0.20*60 = 15+7.5+6.25+12 = 40.75
-	// 3 identical rows → mean 40.75, refactor expectedMin=6, cover=3/6=0.5
-	// score = round1((40.75/20)*0.5) = round1(1.0188) = 1.0
+func TestCompute_ThinButStrong(t *testing.T) {
+	// Coverage / expected_min is dropped: a thin 2-row all-Certain intake is NOT
+	// punished for being short. Both rows S:90 R:90 A:90 D:90 → composite 90 →
+	// penalty 0. score = clamp(5.0 - 0, 0, 5) = 5.0 (feat had expectedMin 7).
 	spec := specWithAssumptions(
-		"| 1 | Tentative | D1 | R1 | S:60 R:25 A:25 D:60 |",
-		"| 2 | Tentative | D2 | R2 | S:60 R:25 A:25 D:60 |",
-		"| 3 | Tentative | D3 | R3 | S:60 R:25 A:25 D:60 |",
-	)
-	fabRoot := setupScoreFixture(t, "refactor", spec)
-
-	result, err := Compute(fabRoot, "abcd", "")
-	if err != nil {
-		t.Fatalf("Compute failed: %v", err)
-	}
-
-	assertApproxEqual(t, "Score", result.Score, 1.0)
-}
-
-func TestCompute_CoverFactor(t *testing.T) {
-	// Only 3 decisions for a feat change (expectedMin=7). Strong dimensions but
-	// thin coverage attenuates the score.
-	//  composite for S:80 R:80 A:80 D:80 = 80.0 each → mean 80.0
-	// cover = 3/7 ≈ 0.4286, score = round1((80.0/20)*(3/7)) = round1(1.714) = 1.7
-	spec := specWithAssumptions(
-		"| 1 | Certain | D1 | R1 | S:80 R:80 A:80 D:80 |",
-		"| 2 | Certain | D2 | R2 | S:80 R:80 A:80 D:80 |",
-		"| 3 | Certain | D3 | R3 | S:80 R:80 A:80 D:80 |",
+		"| 1 | Certain | D1 | R1 | S:90 R:90 A:90 D:90 |",
+		"| 2 | Certain | D2 | R2 | S:90 R:90 A:90 D:90 |",
 	)
 	fabRoot := setupScoreFixture(t, "feat", spec)
 
@@ -246,7 +236,7 @@ func TestCompute_CoverFactor(t *testing.T) {
 		t.Fatalf("Compute failed: %v", err)
 	}
 
-	assertApproxEqual(t, "Score", result.Score, 1.7)
+	assertApproxEqual(t, "Score", result.Score, 5.0)
 }
 
 func TestCompute_DimensionlessRowsScoreZero(t *testing.T) {
@@ -270,14 +260,12 @@ func TestCompute_DimensionlessRowsScoreZero(t *testing.T) {
 	}
 }
 
-func TestCompute_DimensionlessRowStillCountsTowardCoverage(t *testing.T) {
-	// The mean restricts to DimCount rows, but coverage's total counts ALL
-	// graded rows. Here 2 rows have dimensions and 1 is dimensionless.
-	//  composite for S:80 R:80 A:80 D:80 = 80.0 each → mean over 2 rows = 80.0
-	// total = 3 (all graded rows), feat expectedMin=7, cover=3/7≈0.4286
-	// score = round1((80.0/20)*(3/7)) = round1(1.714) = 1.7
-	// If the dimensionless row were dropped from total, cover would be 2/7 and
-	// the score would be lower — this asserts it is NOT dropped.
+func TestCompute_DimensionlessRowIgnoredByDemerit(t *testing.T) {
+	// Coverage is dropped, and grades are derived from the composite — so a
+	// dimensionless row (no parseable Scores) has no composite, contributes no
+	// penalty, and is not grade-counted. The two dimensioned rows S:80 R:80
+	// A:80 D:80 → composite 80 → penalty 0 each. score = clamp(5.0 - 0, 0, 5) =
+	// 5.0; only the two parseable rows count toward grades.
 	spec := specWithAssumptions(
 		"| 1 | Certain | D1 | R1 | S:80 R:80 A:80 D:80 |",
 		"| 2 | Certain | D2 | R2 | S:80 R:80 A:80 D:80 |",
@@ -290,7 +278,10 @@ func TestCompute_DimensionlessRowStillCountsTowardCoverage(t *testing.T) {
 		t.Fatalf("Compute failed: %v", err)
 	}
 
-	assertApproxEqual(t, "Score", result.Score, 1.7)
+	assertApproxEqual(t, "Score", result.Score, 5.0)
+	if result.Certain != 2 {
+		t.Errorf("Certain = %d, want 2 (dimensionless row is not grade-counted)", result.Certain)
+	}
 }
 
 func TestCompute_DimensionParsing(t *testing.T) {
@@ -325,11 +316,9 @@ func TestCompute_DimensionParsing(t *testing.T) {
 }
 
 func TestCheckGate_Pass(t *testing.T) {
-	// fix change type now has expectedMin=3 (lowered from 5) and the flat gate
-	// threshold 3.0 (1.10.0). Strong dimensions over 3 rows.
-	//  composite for S:90 R:88 A:90 D:85 = 22.5+26.4+22.5+17.0 = 88.4 each
-	// mean=88.4, total=3, expectedMin for fix=3, cover=1.0
-	// score = round1((88.4/20)*1.0) = round1(4.42) = 4.4, threshold 3.0 => pass
+	// Flat gate threshold 3.0 (all types). Strong dimensions over 3 rows.
+	//  composite for S:90 R:88 A:90 D:85 = 18+26.4+27+17 = 88.4 each → c>=80 →
+	//  penalty 0. score = clamp(5.0 - 0, 0, 5) = 5.0, threshold 3.0 => pass.
 	intake := specWithAssumptions(
 		"| 1 | Certain | D1 | R1 | S:90 R:88 A:90 D:85 |",
 		"| 2 | Certain | D2 | R2 | S:90 R:88 A:90 D:85 |",
@@ -351,14 +340,15 @@ func TestCheckGate_Pass(t *testing.T) {
 }
 
 func TestCheckGate_Fail(t *testing.T) {
-	// feat change type, threshold 3.0, only 3 decisions (cover factor low).
-	//  composite for S:70 R:70 A:70 D:70 = 70.0 each → mean 70.0
-	// cover = 3/7 ≈ 0.4286, score = round1((70.0/20)*(3/7)) = round1(1.5) = 1.5
-	// threshold for feat = 3.0 => fail
+	// feat change type, threshold 3.0. Three deep-Tentative rows accumulate
+	// enough penalty to fail (no coverage factor — the failure is the penalties).
+	//  composite for S:30 R:30 A:30 D:30 = 6+9+9+6 = 30 each (Tentative) →
+	//  penalty 0.50 + (50-30)/50*2.50 = 0.50 + 1.0 = 1.5 each.
+	// Σ penalty = 4.5 → score = clamp(5.0 - 4.5, 0, 5) = 0.5 → fail.
 	intake := specWithAssumptions(
-		"| 1 | Confident | D1 | R1 | S:70 R:70 A:70 D:70 |",
-		"| 2 | Confident | D2 | R2 | S:70 R:70 A:70 D:70 |",
-		"| 3 | Confident | D3 | R3 | S:70 R:70 A:70 D:70 |",
+		"| 1 | Tentative | D1 | R1 | S:30 R:30 A:30 D:30 |",
+		"| 2 | Tentative | D2 | R2 | S:30 R:30 A:30 D:30 |",
+		"| 3 | Tentative | D3 | R3 | S:30 R:30 A:30 D:30 |",
 	)
 	fabRoot := setupScoreFixture(t, "feat", intake)
 
@@ -370,6 +360,7 @@ func TestCheckGate_Fail(t *testing.T) {
 	if result.Gate != "fail" {
 		t.Errorf("Gate = %q, want fail (score=%.1f, threshold=%.1f)", result.Gate, result.Score, result.Threshold)
 	}
+	assertApproxEqual(t, "Score", result.Score, 0.5)
 }
 
 func TestCheckGate_IntakeStage(t *testing.T) {
@@ -382,13 +373,13 @@ func TestCheckGate_IntakeStage(t *testing.T) {
 	statusYAML := strings.Replace(statusTemplate, "%s", "feat", 1)
 	os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte(statusYAML), 0644)
 
-	// Write intake.md with assumptions scoring below 3.0 (thin coverage).
-	//  composite for S:80 R:80 A:80 D:80 = 80.0 → mean 80.0
-	// total=2, expectedMin for feat=7, cover=2/7≈0.2857
-	// score = round1((80.0/20)*(2/7)) = round1(1.143) = 1.1 => fail
+	// Write intake.md with assumptions scoring below the flat 3.0 gate. Two
+	// weak rows S:30 R:20 A:20 D:30 → composite 6+6+6+6 = 24 (Tentative) →
+	// penalty 0.50 + (50-24)/50*2.50 = 0.50 + 1.30 = 1.80 each.
+	// Σ penalty = 3.6 → score = clamp(5.0 - 3.6, 0, 5) = 1.4 => fail.
 	intakeContent := specWithAssumptions(
-		"| 1 | Confident | D1 | R1 | S:80 R:80 A:80 D:80 |",
-		"| 2 | Confident | D2 | R2 | S:80 R:80 A:80 D:80 |",
+		"| 1 | Tentative | D1 | R1 | S:30 R:20 A:20 D:30 |",
+		"| 2 | Tentative | D2 | R2 | S:30 R:20 A:20 D:30 |",
 	)
 	os.WriteFile(filepath.Join(changeDir, "intake.md"), []byte(intakeContent), 0644)
 
@@ -454,17 +445,21 @@ func TestFormatScoreYAML(t *testing.T) {
 
 func TestCheckGate_OversizedLineInsideTableCountsAllRows(t *testing.T) {
 	// The old default-buffer scanner aborted on a >64KB line, dropping every
-	// row after it — including the Unresolved row that forces score 0.0, so
-	// a hard-fail intake could flip to gate: pass. All rows must count.
-	long := "| 6 | Certain | " + strings.Repeat("x", 70*1024) + " | R | |"
+	// row after it — including the Unresolved row whose penalty fails the gate,
+	// so a failing intake could flip to gate: pass. All rows must still parse.
+	// Rows carry dimensions (the v2 score derives grades from the composite and
+	// drops dimensionless rows). Five strong rows + the oversized strong row →
+	// penalty 0; the final Unresolved row S:10 R:10 A:10 D:10 (composite 10) →
+	// penalty 2.5. score = 5.0 - 2.5 = 2.5 → fail.
+	long := "| 6 | Certain | " + strings.Repeat("x", 70*1024) + " | R | S:90 R:90 A:90 D:90 |"
 	intake := specWithAssumptions(
-		"| 1 | Certain | D1 | R1 | |",
-		"| 2 | Certain | D2 | R2 | |",
-		"| 3 | Certain | D3 | R3 | |",
-		"| 4 | Certain | D4 | R4 | |",
-		"| 5 | Certain | D5 | R5 | |",
+		"| 1 | Certain | D1 | R1 | S:90 R:90 A:90 D:90 |",
+		"| 2 | Certain | D2 | R2 | S:90 R:90 A:90 D:90 |",
+		"| 3 | Certain | D3 | R3 | S:90 R:90 A:90 D:90 |",
+		"| 4 | Certain | D4 | R4 | S:90 R:90 A:90 D:90 |",
+		"| 5 | Certain | D5 | R5 | S:90 R:90 A:90 D:90 |",
 		long,
-		"| 7 | Unresolved | D7 | R7 | |",
+		"| 7 | Unresolved | D7 | R7 | S:10 R:10 A:10 D:10 |",
 	)
 	fabRoot := setupScoreFixture(t, "feat", intake)
 
@@ -482,17 +477,18 @@ func TestCheckGate_OversizedLineInsideTableCountsAllRows(t *testing.T) {
 	if result.Gate != "fail" {
 		t.Errorf("Gate = %q, want fail — truncation must not flip the gate", result.Gate)
 	}
-	if result.Score != 0.0 {
-		t.Errorf("Score = %.1f, want 0.0 (unresolved present)", result.Score)
-	}
+	assertApproxEqual(t, "Score", result.Score, 2.5)
 }
 
 func TestCompute_OversizedLineInsideTableCountsAllRows(t *testing.T) {
-	long := "| 2 | Certain | " + strings.Repeat("y", 70*1024) + " | R | |"
+	// The oversized strong row (composite 90 → Certain) and the rows around it
+	// must all parse. r1/r2 Certain, r3 Tentative (S:30 R:30 A:30 D:30 →
+	// composite 30).
+	long := "| 2 | Certain | " + strings.Repeat("y", 70*1024) + " | R | S:90 R:90 A:90 D:90 |"
 	intake := specWithAssumptions(
-		"| 1 | Certain | D1 | R1 | |",
+		"| 1 | Certain | D1 | R1 | S:90 R:90 A:90 D:90 |",
 		long,
-		"| 3 | Tentative | D3 | R3 | |",
+		"| 3 | Tentative | D3 | R3 | S:30 R:30 A:30 D:30 |",
 	)
 	fabRoot := setupScoreFixture(t, "feat", intake)
 
@@ -591,16 +587,16 @@ func TestScore_ReadFailureDistinguishableFromEmptyTable(t *testing.T) {
 }
 
 func TestConstants(t *testing.T) {
-	// Verify the SRAD composite weights match srad.md's aggregation formula
-	// (0.25*S + 0.30*R + 0.25*A + 0.20*D — they MUST sum to 1.0).
-	if wS != 0.25 {
-		t.Errorf("wS = %f, want 0.25", wS)
+	// Verify the v2 SRAD composite weights match srad.md § The Composite
+	// (0.20*S + 0.30*R + 0.30*A + 0.20*D — R and A up-weighted; MUST sum to 1.0).
+	if wS != 0.20 {
+		t.Errorf("wS = %f, want 0.20", wS)
 	}
 	if wR != 0.30 {
 		t.Errorf("wR = %f, want 0.30", wR)
 	}
-	if wA != 0.25 {
-		t.Errorf("wA = %f, want 0.25", wA)
+	if wA != 0.30 {
+		t.Errorf("wA = %f, want 0.30", wA)
 	}
 	if wD != 0.20 {
 		t.Errorf("wD = %f, want 0.20", wD)
@@ -609,13 +605,15 @@ func TestConstants(t *testing.T) {
 		t.Errorf("composite weights sum = %f, want 1.0", sum)
 	}
 
-	// The 0–100 composite mean is rescaled onto the 0–5 scale via /20, so a 3.0
-	// gate equals a mean composite of 60 (the Confident floor).
-	if compositeToScore != 20.0 {
-		t.Errorf("compositeToScore = %f, want 20.0", compositeToScore)
+	// Verify the demerit penalty-curve constants (srad.md § Confidence Scoring).
+	if freeKnee != 80.0 {
+		t.Errorf("freeKnee = %f, want 80.0", freeKnee)
 	}
-	if criticalDim != 25 {
-		t.Errorf("criticalDim = %d, want 25", criticalDim)
+	if confidentFloorPenalty != 0.50 {
+		t.Errorf("confidentFloorPenalty = %f, want 0.50", confidentFloorPenalty)
+	}
+	if aggressiveSlopeCoeff != 2.50 {
+		t.Errorf("aggressiveSlopeCoeff = %f, want 2.50", aggressiveSlopeCoeff)
 	}
 
 	// Verify gate thresholds — flat 3.0 for all types (1.10.0)
@@ -644,13 +642,163 @@ func TestConstants(t *testing.T) {
 	}
 }
 
+// --- Demerit penalty curve + grade derivation (srad.md § Confidence Scoring,
+// § Grades) — pure-function coverage of the four bands and the band joins. ---
+
+func TestPenaltyCurve_Bands(t *testing.T) {
+	cases := []struct {
+		name string
+		c    float64
+		want float64
+	}{
+		{"Certain ceiling (c=100)", 100, 0.0},
+		{"Certain knee (c=80)", 80, 0.0},
+		{"Confident mid (c=65)", 65, 0.25},                // (80-65)/30*0.50
+		{"Confident/Tentative join (c=50)", 50, 0.50},     // both slopes meet
+		{"Tentative mid (c=35)", 35, 1.25},                // 0.50 + (50-35)/50*2.50
+		{"Tentative/Unresolved boundary (c=20)", 20, 2.0}, // exactly 2.0
+		{"Unresolved (c=10)", 10, 2.5},
+		{"Unresolved floor (c=0)", 0, 3.0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := penalty(tc.c)
+			if math.Abs(got-tc.want) > 1e-9 {
+				t.Errorf("penalty(%.1f) = %.4f, want %.4f", tc.c, got, tc.want)
+			}
+		})
+	}
+	// Continuity at the joins: per-row penalty ∈ [0.0, 3.0], monotically
+	// decreasing as composite rises.
+	if penalty(80) != 0.0 {
+		t.Errorf("penalty(80) = %.4f, want 0.0 (Certain knee)", penalty(80))
+	}
+	if math.Abs(penalty(50)-0.50) > 1e-9 {
+		t.Errorf("penalty(50) = %.4f, want 0.50 (slopes meet)", penalty(50))
+	}
+}
+
+func TestGradeFromComposite_Bands(t *testing.T) {
+	cases := []struct {
+		c    float64
+		want string
+	}{
+		{100, "Certain"}, {80, "Certain"},
+		{79.9, "Confident"}, {50, "Confident"},
+		{49.9, "Tentative"}, {20, "Tentative"},
+		{19.9, "Unresolved"}, {0, "Unresolved"},
+	}
+	for _, tc := range cases {
+		if got := gradeFromComposite(tc.c); got != tc.want {
+			t.Errorf("gradeFromComposite(%.1f) = %q, want %q", tc.c, got, tc.want)
+		}
+	}
+}
+
+func TestComputeScore_C20BoundaryPasses(t *testing.T) {
+	// srad.md edge case: a single row at exactly composite 20.000
+	// (S:0 R:0 A:0 D:100 → 0+0+0+20 = 20) penalizes exactly 2.0, leaving a
+	// one-row intake at exactly 3.0 — a pass (gate is >= 3.0).
+	spec := specWithAssumptions(
+		"| 1 | Tentative | D1 | R1 | S:0 R:0 A:0 D:100 |",
+	)
+	fabRoot := setupScoreFixture(t, "feat", spec)
+
+	result, err := CheckGate(fabRoot, "abcd", "intake")
+	if err != nil {
+		t.Fatalf("CheckGate failed: %v", err)
+	}
+	assertApproxEqual(t, "Score", result.Score, 3.0)
+	if result.Gate != "pass" {
+		t.Errorf("Gate = %q, want pass (c=20 boundary scores exactly 3.0)", result.Gate)
+	}
+}
+
+func TestComputeScore_SurviveOneBlockTwo(t *testing.T) {
+	// One isolated shaky decision survives; two block (srad.md § What 3.0
+	// Allows). A Tentative row S:30 R:30 A:30 D:30 → composite 30 → penalty 1.5.
+	// One such row: score 3.5 (pass). Two: 2.0 (fail).
+	one := specWithAssumptions(
+		"| 1 | Certain | D1 | R1 | S:90 R:90 A:90 D:90 |",
+		"| 2 | Tentative | D2 | R2 | S:30 R:30 A:30 D:30 |",
+	)
+	fabRoot := setupScoreFixture(t, "feat", one)
+	result, err := CheckGate(fabRoot, "abcd", "intake")
+	if err != nil {
+		t.Fatalf("CheckGate (one) failed: %v", err)
+	}
+	assertApproxEqual(t, "Score (survive one)", result.Score, 3.5)
+	if result.Gate != "pass" {
+		t.Errorf("one shaky row: Gate = %q, want pass (score %.1f)", result.Gate, result.Score)
+	}
+
+	two := specWithAssumptions(
+		"| 1 | Certain | D1 | R1 | S:90 R:90 A:90 D:90 |",
+		"| 2 | Tentative | D2 | R2 | S:30 R:30 A:30 D:30 |",
+		"| 3 | Tentative | D3 | R3 | S:30 R:30 A:30 D:30 |",
+	)
+	fabRoot2 := setupScoreFixture(t, "feat", two)
+	result2, err := CheckGate(fabRoot2, "abcd", "intake")
+	if err != nil {
+		t.Fatalf("CheckGate (two) failed: %v", err)
+	}
+	assertApproxEqual(t, "Score (block two)", result2.Score, 2.0)
+	if result2.Gate != "fail" {
+		t.Errorf("two shaky rows: Gate = %q, want fail (score %.1f)", result2.Gate, result2.Score)
+	}
+}
+
+func TestComputeScore_FourBandsPenalties(t *testing.T) {
+	// One row per band, demonstrating the penalty each band contributes:
+	//  Certain    S:90 R:90 A:90 D:90 → composite 90 → penalty 0
+	//  Confident  S:65 R:65 A:65 D:65 → composite 65 → (80-65)/30*0.50 = 0.25
+	//  Tentative  S:35 R:35 A:35 D:35 → composite 35 → 0.50 + (50-35)/50*2.50 = 1.25
+	//  Unresolved S:10 R:10 A:10 D:10 → composite 10 → 0.50 + (50-10)/50*2.50 = 2.50
+	// Σ penalty = 0 + 0.25 + 1.25 + 2.50 = 4.0 → score = 5.0 - 4.0 = 1.0.
+	spec := specWithAssumptions(
+		"| 1 | Certain | D1 | R1 | S:90 R:90 A:90 D:90 |",
+		"| 2 | Confident | D2 | R2 | S:65 R:65 A:65 D:65 |",
+		"| 3 | Tentative | D3 | R3 | S:35 R:35 A:35 D:35 |",
+		"| 4 | Unresolved | D4 | R4 | S:10 R:10 A:10 D:10 |",
+	)
+	fabRoot := setupScoreFixture(t, "feat", spec)
+
+	result, err := Compute(fabRoot, "abcd", "")
+	if err != nil {
+		t.Fatalf("Compute failed: %v", err)
+	}
+	assertApproxEqual(t, "Score", result.Score, 1.0)
+	if result.Certain != 1 || result.Confident != 1 || result.Tentative != 1 || result.Unresolved != 1 {
+		t.Errorf("derived grades = %d/%d/%d/%d, want 1/1/1/1 (one per band)",
+			result.Certain, result.Confident, result.Tentative, result.Unresolved)
+	}
+}
+
+func TestCountGrades_GradeDerivedNotReadFromColumn(t *testing.T) {
+	// The hand-written Grade column is ignored — the grade is derived from the
+	// composite. Here every row is LABELLED "Certain" but the dimensions place
+	// each in a different band.
+	content := specWithAssumptions(
+		"| 1 | Certain | D1 | R1 | S:90 R:90 A:90 D:90 |", // c=90 → Certain
+		"| 2 | Certain | D2 | R2 | S:65 R:65 A:65 D:65 |", // c=65 → Confident
+		"| 3 | Certain | D3 | R3 | S:35 R:35 A:35 D:35 |", // c=35 → Tentative
+		"| 4 | Certain | D4 | R4 | S:10 R:10 A:10 D:10 |", // c=10 → Unresolved
+	)
+	gc := countGrades([]byte(content))
+	if gc.Certain != 1 || gc.Confident != 1 || gc.Tentative != 1 || gc.Unresolved != 1 {
+		t.Errorf("counts = %d/%d/%d/%d, want 1/1/1/1 — grade must derive from composite, not the Grade column",
+			gc.Certain, gc.Confident, gc.Tentative, gc.Unresolved)
+	}
+}
+
 // --- ComputeWithStatus (mz4q F02): single-load entry point — mutates the
 // loaded StatusFile in memory, never saves; the caller owns persistence. ---
 
 func TestComputeWithStatus_MutatesInMemoryWithoutSaving(t *testing.T) {
 	// 5 rows all at S:88 R:90 A:92 D:90 → composite
-	// 0.25*88+0.30*90+0.25*92+0.20*90 = 22+27+23+18 = 90.0 each → mean 90.0.
-	// fix expectedMin=3, total=5 → cover=1.0. score = round1((90.0/20)*1.0) = 4.5
+	// 0.20*88+0.30*90+0.30*92+0.20*90 = 17.6+27+27.6+18 = 90.2 each → c>=80 →
+	// penalty 0. score = clamp(5.0 - 0, 0, 5) = 5.0. Grades are derived from the
+	// composite, so all five count as Certain regardless of the Grade column.
 	spec := specWithAssumptions(
 		"| 1 | Certain | D1 | R1 | S:88 R:90 A:92 D:90 |",
 		"| 2 | Confident | D2 | R2 | S:88 R:90 A:92 D:90 |",
@@ -681,10 +829,10 @@ func TestComputeWithStatus_MutatesInMemoryWithoutSaving(t *testing.T) {
 		t.Fatalf("ComputeWithStatus failed: %v", err)
 	}
 
-	assertApproxEqual(t, "Score", result.Score, 4.5)
-	assertApproxEqual(t, "Confidence.Score (in memory)", statusFile.Confidence.Score, 4.5)
-	if statusFile.Confidence.Certain != 4 || statusFile.Confidence.Confident != 1 {
-		t.Errorf("in-memory confidence counts = %+v", statusFile.Confidence)
+	assertApproxEqual(t, "Score", result.Score, 5.0)
+	assertApproxEqual(t, "Confidence.Score (in memory)", statusFile.Confidence.Score, 5.0)
+	if statusFile.Confidence.Certain != 5 || statusFile.Confidence.Confident != 0 {
+		t.Errorf("in-memory confidence counts = %+v, want 5 certain / 0 confident (derived from composite)", statusFile.Confidence)
 	}
 
 	// No save: .status.yaml on disk is untouched.

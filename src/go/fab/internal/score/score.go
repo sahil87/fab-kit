@@ -18,30 +18,54 @@ import (
 )
 
 // SRAD composite weights — the per-row dimension aggregation, identical to the
-// `_srad.md`/`srad.md` grade-mapping weights: composite = 0.25*S + 0.30*R +
-// 0.25*A + 0.20*D (on the 0–100 dimension scale). The higher R weight encodes
-// the Critical Rule's intent (low-reversibility decisions carry more risk).
+// `_srad.md`/`srad.md` grade-mapping weights: composite = 0.20*S + 0.30*R +
+// 0.30*A + 0.20*D (on the 0–100 dimension scale). R and A carry the highest
+// weight (0.30 each): the decisions that produce unusable work are the ones
+// that are hard to undo (low R) and the agent cannot reliably answer (low A),
+// so the composite itself becomes the risk proxy and the penalty curve inherits
+// the risk-weighting for free. The four weights MUST sum to 1.0.
 const (
-	wS = 0.25
+	wS = 0.20
 	wR = 0.30
-	wA = 0.25
+	wA = 0.30
 	wD = 0.20
 )
 
-// compositeToScore rescales a 0–100 composite mean onto the 0–5 confidence
-// scale. A 3.0 gate on 0–5 therefore equals a mean composite of 60 — the
-// existing "Confident" floor in srad.md — so the gate stays principled.
-const compositeToScore = 20.0
+// Demerit penalty-curve constants (srad.md § Confidence Scoring). The curve is
+// a single piecewise function of the composite c; the slopes are derived from
+// the band-boundary penalties, not tuned freely — the penalty IS the grade
+// boundary, so reading a grade tells you the row's penalty range.
+const (
+	// freeKnee is the composite at/above which a decision is "Certain" and
+	// incurs no penalty.
+	freeKnee = 80.0
+	// confidentFloorPenalty is the penalty at c = 50 — the hinge where the
+	// Confident and Tentative slopes meet (continuous at 0.50).
+	confidentFloorPenalty = 0.50
+	// aggressiveSlopeCoeff scales the sub-50 ramp: a c = 0 row adds
+	// confidentFloorPenalty + aggressiveSlopeCoeff = 3.0 total.
+	aggressiveSlopeCoeff = 2.50
+	// confidentKnee is the composite at which the Confident band begins; below
+	// freeKnee and at/above this the row rides the Confident slope (0 → 0.50).
+	confidentKnee = 50.0
+)
 
-// criticalDim is the per-dimension threshold for the Critical Rule: a row with
-// R < criticalDim AND A < criticalDim is a genuine-unknown hard fail (matches
-// srad.md's single numeric Critical Rule definition).
-const criticalDim = 25
+// Grade band thresholds (srad.md § Grades) — INDICATIVE ONLY: the grade is
+// derived from the composite and shown to the reader as a hint; it is never an
+// input to the score (the score depends only on the composite). Half-open
+// bands: Certain c≥80, Confident 50≤c<80, Tentative 20≤c<50, Unresolved c<20.
+const (
+	certainBand   = 80.0
+	confidentBand = 50.0
+	tentativeBand = 20.0
+)
 
-// Expected minimum decisions by change type. Single table seeded from the old
-// spec-gate values; types without an explicit entry (docs/test/ci/chore) use
-// the default of 3. The intake gate is now the sole authoritative gate, so it
-// demands spec-level decision coverage.
+// Expected minimum decisions by change type. DOCUMENTATION-ONLY as of the v2
+// demerit score: it no longer feeds computeScore (coverage was dropped — see
+// srad.md § Gate Threshold "no coverage factor"). It is retained solely as the
+// canonical source for the change-types.md doc-drift guard
+// (changetypes_doc_test.go's TestDocTablesMatchScoringMaps). Types without an
+// explicit entry (docs/test/ci/chore) resolve to the default of 3.
 var expectedMin = map[string]int{
 	"feat": 7, "refactor": 6, "fix": 3,
 }
@@ -56,9 +80,11 @@ var gateThresholds = map[string]float64{
 var scoresRegex = regexp.MustCompile(`S:(\d+)\s+R:(\d+)\s+A:(\d+)\s+D:(\d+)`)
 
 // GradeCount holds parsed assumption counts and the per-row dimension data the
-// Resolution-Average score is built from. countGrades is the single parse pass
-// over the Assumptions table — it accumulates the per-row composite sum and the
-// Critical-Rule hard-fail flag here so computeScore never needs a second scan.
+// demerit score is built from. countGrades is the single parse pass over the
+// Assumptions table — it accumulates the running penalty sum here so
+// computeScore never needs a second scan. Grade counts are DERIVED from each
+// row's composite (the bands in gradeFromComposite), not read from the
+// hand-written Grade column, so the label can never contradict its dimensions.
 type GradeCount struct {
 	Certain                int
 	Confident              int
@@ -67,13 +93,10 @@ type GradeCount struct {
 	HasFuzzy               bool
 	DimCount               int
 	SumS, SumR, SumA, SumD int
-	// SumComposite is the running sum of per-row composites (0.25*S + 0.30*R +
-	// 0.25*A + 0.20*D) over the DimCount rows that have parseable dimensions.
-	// The Resolution-Average score is (SumComposite/DimCount)/20 * cover.
-	SumComposite float64
-	// CriticalRowSeen is set when any row has R < criticalDim AND A < criticalDim
-	// on its raw dimensions — a per-row Critical-Rule hard fail (score 0.0).
-	CriticalRowSeen bool
+	// SumPenalty is the running sum of per-row demerit penalties (penalty(c)
+	// for each composite c) over the DimCount rows with parseable dimensions.
+	// The demerit score is clamp(5.0 - SumPenalty, 0, 5).
+	SumPenalty float64
 }
 
 // GateResult holds the gate check output.
@@ -136,8 +159,7 @@ func CheckGate(fabRoot, changeArg, stage string) (*GateResult, error) {
 	}
 
 	gc := countGrades(content)
-	total := gc.Certain + gc.Confident + gc.Tentative + gc.Unresolved
-	score := computeScore(gc, total, getExpectedMin(changeType))
+	score := computeScore(gc)
 
 	gate := "pass"
 	if score < threshold {
@@ -248,8 +270,7 @@ func ComputeWithStatus(fabRoot, changeDir string, intakeContent []byte, statusFi
 // for the given change type and previous score. Pure — no I/O, no mutation.
 func buildResult(intakeContent []byte, changeType string, prevScore float64) *ScoreResult {
 	gc := countGrades(intakeContent)
-	total := gc.Certain + gc.Confident + gc.Tentative + gc.Unresolved
-	score := computeScore(gc, total, getExpectedMin(changeType))
+	score := computeScore(gc)
 
 	// Compute dimension means
 	var meanS, meanR, meanA, meanD float64
@@ -346,25 +367,13 @@ func countGrades(content []byte) GradeCount {
 				continue
 			}
 
-			grade := strings.TrimSpace(cols[2])
-			gradeLower := strings.ToLower(grade)
+			scoresCol := strings.TrimSpace(cols[5])
 
-			switch gradeLower {
-			case "certain":
-				gc.Certain++
-			case "confident":
-				gc.Confident++
-			case "tentative":
-				gc.Tentative++
-			case "unresolved":
-				gc.Unresolved++
-			}
-
-			scoresCol := ""
-			if len(cols) >= 6 {
-				scoresCol = strings.TrimSpace(cols[5])
-			}
-
+			// Grade counts are DERIVED from the row's composite (srad.md §
+			// Grades — indicative only), not read from the hand-written Grade
+			// column. A row with no parseable Scores column has no composite to
+			// derive a grade from, so it is uncounted (and the required Scores
+			// column is missing — a malformed row).
 			if m := scoresRegex.FindStringSubmatch(scoresCol); len(m) == 5 {
 				gc.HasFuzzy = true
 				gc.DimCount++
@@ -376,11 +385,18 @@ func countGrades(content []byte) GradeCount {
 				gc.SumR += r
 				gc.SumA += a
 				gc.SumD += d
-				gc.SumComposite += wS*float64(s) + wR*float64(r) + wA*float64(a) + wD*float64(d)
-				// Per-row Critical Rule on raw dimensions: a single low-R/low-A
-				// row is a genuine-unknown hard fail for the whole intake.
-				if r < criticalDim && a < criticalDim {
-					gc.CriticalRowSeen = true
+				composite := wS*float64(s) + wR*float64(r) + wA*float64(a) + wD*float64(d)
+				gc.SumPenalty += penalty(composite)
+
+				switch gradeFromComposite(composite) {
+				case "Certain":
+					gc.Certain++
+				case "Confident":
+					gc.Confident++
+				case "Tentative":
+					gc.Tentative++
+				case "Unresolved":
+					gc.Unresolved++
 				}
 			}
 		}
@@ -402,39 +418,69 @@ func isTableSeparator(line string) bool {
 	return true
 }
 
-// computeScore is the Resolution-Average confidence score. The intake is scored
-// from the per-row S:R:A:D composites already parsed into gc by countGrades —
-// not from grade-count penalties. The per-row mean composite is rescaled onto
-// the 0–5 scale (/20) and attenuated by coverage. Hard fails short-circuit to
-// 0.0 before the mean: any Unresolved row (genuine unknown) or any row failing
-// the Critical Rule (R < 25 AND A < 25 on raw dimensions). `total` is ALL graded
-// rows (certain+confident+tentative+unresolved) so a dimensionless malformed row
-// still counts toward coverage even though it is excluded from the mean.
-func computeScore(gc GradeCount, total, expectedMin int) float64 {
-	if gc.Unresolved > 0 || gc.CriticalRowSeen {
-		return 0.0
-	}
-
-	// No parseable dimensions → nothing to average; score 0.0 (the Scores
-	// column is required on every row, so a fully dimensionless table is a
-	// malformed intake that should not pass the gate).
+// computeScore is the demerit confidence score (srad.md § Confidence Scoring):
+// a change starts at a perfect 5.0 and each decision subtracts a penalty keyed
+// on its composite, clamped to [0, 5]. The per-row penalties are already summed
+// into gc.SumPenalty by countGrades. There are NO hard-fail short-circuits — no
+// "Unresolved → 0.0", no "R<25 AND A<25" Critical Rule — blocking is emergent
+// from the curve (a composite < 20 row penalizes ≥ 2.0). There is no coverage
+// factor: a thin-but-strong intake is not punished for being short.
+func computeScore(gc GradeCount) float64 {
+	// No parseable dimensions → a fully dimensionless Assumptions table. The
+	// Scores column is required on every row, so this is a malformed intake
+	// that must not pass the gate (there is nothing to score). Distinct from a
+	// genuinely strong intake, which has parseable rows that each penalize 0.
 	if gc.DimCount == 0 {
 		return 0.0
 	}
 
-	meanComposite := gc.SumComposite / float64(gc.DimCount)
-
-	cover := 1.0
-	if expectedMin > 0 {
-		cover = float64(total) / float64(expectedMin)
-		if cover > 1.0 {
-			cover = 1.0
-		}
+	score := 5.0 - gc.SumPenalty
+	if score < 0.0 {
+		score = 0.0
 	}
-
-	return roundTo1((meanComposite / compositeToScore) * cover)
+	if score > 5.0 {
+		score = 5.0
+	}
+	return roundTo1(score)
 }
 
+// penalty is the per-row demerit curve (srad.md § Confidence Scoring). It is a
+// single continuous piecewise function of the composite c (0–100); the slopes
+// are derived from the band-boundary penalties. Per-row penalty ∈ [0.0, 3.0].
+func penalty(c float64) float64 {
+	switch {
+	case c >= freeKnee:
+		// Certain: free.
+		return 0.0
+	case c >= confidentKnee:
+		// Confident: ramps 0 → 0.50 as c falls from 80 to 50.
+		return (freeKnee - c) / (freeKnee - confidentKnee) * confidentFloorPenalty
+	default:
+		// Tentative / Unresolved: ramps 0.50 → 3.0 as c falls from 50 to 0.
+		return confidentFloorPenalty + (confidentKnee-c)/confidentKnee*aggressiveSlopeCoeff
+	}
+}
+
+// gradeFromComposite derives the indicative grade label from a composite via
+// the half-open bands (srad.md § Grades). The label is a reader hint only — it
+// is never an input to computeScore, which depends solely on the composite.
+func gradeFromComposite(c float64) string {
+	switch {
+	case c >= certainBand:
+		return "Certain"
+	case c >= confidentBand:
+		return "Confident"
+	case c >= tentativeBand:
+		return "Tentative"
+	default:
+		return "Unresolved"
+	}
+}
+
+// getExpectedMin resolves the expected-minimum decisions for a change type.
+// DOCUMENTATION-ONLY as of the v2 demerit score — it no longer feeds
+// computeScore; it backs the change-types.md doc-drift guard
+// (changetypes_doc_test.go) only.
 func getExpectedMin(changeType string) int {
 	if v, ok := expectedMin[changeType]; ok {
 		return v

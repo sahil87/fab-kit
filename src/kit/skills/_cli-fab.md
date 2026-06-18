@@ -143,30 +143,33 @@ See `_preamble.md` § Common fab Commands. Modes:
 
 ```yaml
 confidence:
-  certain: 12      # count of Certain-graded SRAD decisions
+  certain: 12      # count of Certain-graded SRAD decisions (grade DERIVED from composite)
   confident: 3     # count of Confident-graded decisions
   tentative: 2     # count of Tentative-graded decisions
   unresolved: 0    # count of Unresolved-graded decisions
   score: 2.1       # derived score (see formula below), computed from intake.md
 ```
 
+> The grade counts are **derived** from each row's composite (the 80/50/20 bands), not read from the hand-written Grade column, and are informational — only `score` gates the pipeline.
+
 > The `confidence.indicative` flag is retired (1.10.0): intake scoring is now authoritative, not indicative, so the flag's distinction is meaningless with one scoring source. It is no longer written; a legacy `indicative: true` key on disk is tolerated on read and harmlessly dropped on the next save.
 
 ### Formula
 
-Resolution Average — the score is the mean of the per-row S:R:A:D composites (the same dimensions on every Assumptions row), rescaled onto 0–5 and attenuated by coverage:
+Demerit model — the score starts at a perfect 5.0 and each decision subtracts a **penalty** keyed on its composite. Strong decisions cost nothing; weak ones cost, and the cost cannot be refunded by surrounding strong rows (so a single risky decision stays visible, never averaged away):
 
 ```
 for each Assumptions row with parseable dimensions:
-  composite = 0.25 * S + 0.30 * R + 0.25 * A + 0.20 * D
-  if R < 25 AND A < 25:  return 0.0   # Critical Rule, per-row, on raw dimensions → hard fail
-if any row is Unresolved:  return 0.0  # genuine unknown → hard fail
-mean  = average(composite over rows with parseable dimensions)
-cover = min(1.0, total_decisions / expected_min)
-return (mean / 20.0) * cover
+  composite = 0.20 * S + 0.30 * R + 0.30 * A + 0.20 * D            # 0–100; R and A up-weighted
+
+  penalty(c) =  0                            if c >= 80            # Certain  → free
+                (80 - c) / 30 * 0.50         if 50 <= c < 80       # Confident → ≤ 0.5
+                0.50 + (50 - c)/50 * 2.50    if c < 50             # Tentative / Unresolved
+
+score = clamp(5.0 - Σ penalty(composite), 0.0, 5.0)               # sum over parseable rows
 ```
 
-Where `total_decisions = certain + confident + tentative + unresolved` (all graded rows) and `expected_min` is looked up by `change_type` from a single embedded table in `fab score` (`feat:7, refactor:6, fix:3`, default `3` for `docs`/`test`/`ci`/`chore`). The composite weights are the same as the SRAD grade-mapping aggregation; the `/20` divisor rescales the 0–100 composite mean onto 0–5, so a 3.0 gate equals a mean composite of 60 (the Confident floor). The `cover` factor prevents thin intakes from getting inflated scores; the mean restricts to rows with parseable dimensions while `total_decisions` counts all graded rows. Range: 0.0 to 5.0. See `docs/specs/change-types.md` for the full `expected_min` table.
+There are **no hard-fail short-circuits** — no `Unresolved → 0.0` and no `R<25 ∧ A<25` Critical Rule. Blocking is emergent from the curve: a `composite < 20` row penalizes ≥ 2.0, which alone drops a change to the 3.0 gate or below. Reversibility is carried by its 0.30 weight in the composite (low-R decisions land in a worse band and are penalized harder), not by a separate rule. There is **no coverage factor and no minimum-decision requirement** — a thin-but-strong intake (two well-resolved decisions) genuinely scores 5.0; quality is measured per decision, so row count is not a proxy for it. The grade (Certain/Confident/Tentative/Unresolved) is **derived from the composite** (bands 80/50/20) and is indicative only — never read by the formula. Range: 0.0 to 5.0. `expected_min` (in `docs/specs/change-types.md`) is no longer part of the score path; it remains documented only.
 
 ### Template
 

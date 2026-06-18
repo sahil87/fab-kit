@@ -11,7 +11,7 @@ Shared pre-boundary **Create-Intake Procedure** (fab-new Steps 0–9) used by th
 | `{questioning-mode}` — how Step 8 resolves ambiguity | `interactive` | `interactive` | `promptless-defer` |
 
 - **`interactive`** — Step 8 asks the user via SRAD (no fixed cap; conversational mode when 5+ Unresolved). The existing `/fab-new`/`/fab-draft` behavior.
-- **`promptless-defer`** — Step 8 records each would-be-asked Unresolved decision as an Unresolved row with Rationale `Deferred — promptless dispatch` instead of asking, per the `_srad.md` § Critical Rule promptless-dispatch carve-out (quoted verbatim in the helper). The intake gate (`fab score` → 0.0 on any Unresolved row) is the structural backstop.
+- **`promptless-defer`** — Step 8 records each would-be-asked Unresolved decision as an Unresolved row with Rationale `Deferred — promptless dispatch` instead of asking, per the `_srad.md` § Critical Rule promptless-dispatch carve-out (quoted verbatim in the helper). The intake gate is the structural backstop: a deferred decision blocks only when its composite is below 20 (emergent from the demerit curve, no special gate) — so a genuine unknown must be scored with honestly-low dimensions to land it there.
 
 This is the **only** behavioral fork in intake creation, and it is legitimately invocation-level (who resolves ambiguity: human-now vs. defer-and-surface) — exactly parallel to the post-boundary autonomy fork.
 
