@@ -41,7 +41,9 @@ User invokes /fab-clarify [change-name]
 │  │     audit trail uses the same placement/append rules as Step 5)
 │  │
 │  ├─ Step 3-4: Ask Questions, Process Answers
-│  │  └─ Edit: intake.md (resolve markers, update Assumptions)
+│  │  └─ Edit: intake.md (resolve markers, update Assumptions;
+│  │     re-grade the row by recomputed composite (S → 95) per
+│  │     _srad § SRAD Scoring — not fiat-Certain, same as Step 2)
 │  │
 │  ├─ Step 5: Audit Trail
 │  │  └─ Edit: intake.md (append ## Clarifications session)

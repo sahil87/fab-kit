@@ -668,7 +668,7 @@ func TestPenaltyCurve_Bands(t *testing.T) {
 			}
 		})
 	}
-	// Continuity at the joins: per-row penalty ∈ [0.0, 3.0], monotically
+	// Continuity at the joins: per-row penalty ∈ [0.0, 3.0], monotonically
 	// decreasing as composite rises.
 	if penalty(80) != 0.0 {
 		t.Errorf("penalty(80) = %.4f, want 0.0 (Certain knee)", penalty(80))

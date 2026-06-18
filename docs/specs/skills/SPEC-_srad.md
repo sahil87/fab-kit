@@ -33,10 +33,12 @@ Planning skill declares helpers: [..., _srad]
 │   /fab-proceed's defer-and-surface contract there is no
 │   user to ask — would-be-asked Unresolved decisions become
 │   "Deferred — promptless dispatch" rows surfaced by the
-│   dispatcher; a deferred decision blocks the gate only when
-│   its composite is below 20 — emergent from the curve, score
-│   genuine unknowns with honestly-low dimensions. MUST-ask
-│   applies unchanged wherever a user is reachable)
+│   dispatcher; a deferred decision blocks the gate by itself
+│   only when its composite is below 20 — a composite ≥ 20 row
+│   still adds penalty and can help fail the gate alongside
+│   other weak rows. Emergent from the curve, score genuine
+│   unknowns with honestly-low dimensions. MUST-ask applies
+│   unchanged wherever a user is reachable)
 │
 ├─ Skill-Specific Autonomy Levels
 │  (fab-new / fab-continue / fab-fff / fab-ff postures

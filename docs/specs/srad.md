@@ -270,7 +270,7 @@ The existence of `/fab-clarify` as an escape valve does **not** justify silently
 There is **no separate gate** for unknown or deferred decisions — blocking is enforced *solely by the scoring curve*. A genuine unknown scores `composite < 20`, whose penalty (≥ 2.0) drops the change below the 3.0 gate. So:
 
 - An **asked-and-answered** decision is re-scored after the answer; once resolved, its composite rises and it no longer blocks.
-- A **deferred** decision blocks **only if its composite is below 20.** This is the intended contract: a decision genuinely too ambiguous to assume should be scored with honestly-low dimensions (low S and A, often low R), placing it under 20 so the curve blocks the automated bracket until it is resolved via `/fab-clarify`. A decision scored at composite ≥ 20 does *not* block — it is, by its own dimensions, resolved enough to proceed.
+- A **deferred** decision blocks **by itself only if its composite is below 20.** This is the intended contract: a decision genuinely too ambiguous to assume should be scored with honestly-low dimensions (low S and A, often low R), placing it under 20 so the curve blocks the automated bracket until it is resolved via `/fab-clarify`. A decision scored at composite ≥ 20 does not block *on its own* — but it still adds a penalty and can contribute to a failing total alongside other weak rows (e.g. two Tentative rows at composite 35 sum to 2.5 penalty → score 2.5 → fail). The special property of `composite < 20` is that its penalty (≥ 2.0) clears the gate margin single-handedly.
 
 This is the whole mechanism: surface genuine unknowns as low-composite Unresolved rows, and the penalty curve does the blocking. No override, no special case.
 
