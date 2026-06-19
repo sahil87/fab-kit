@@ -2,7 +2,12 @@
 
 SRAD is the decision-making framework that governs how Fab planning skills handle ambiguity. When a skill encounters a decision point not explicitly addressed by user input, SRAD determines whether the skill should assume an answer, ask the user, or flag it for later resolution.
 
-SRAD also produces a **confidence score** — a numeric measure of how well-resolved a change's decisions are. This score gates `/fab-ff` and `/fab-fff` (the fast-forward and full pipelines), ensuring they only run when ambiguity is low enough for safe execution.
+SRAD also produces a **confidence score** — a numeric 0–5 measure of how well-resolved a change's decisions are. This score gates `/fab-ff` and `/fab-fff` (the fast-forward and full pipelines), ensuring they only run when ambiguity is low enough for safe autonomous execution.
+
+The framework has two layers, both built from the same four per-decision dimensions:
+
+1. **Per-decision grading** — each decision point is scored on four dimensions, aggregated into a single **composite** (0–100), and labelled with an **indicative grade** (Certain / Confident / Tentative / Unresolved) that is a *hint for the reader*.
+2. **Change-level confidence** — every decision's composite contributes a **penalty**; the change's score is `5.0` minus the sum of penalties. This is the number the gate checks.
 
 ---
 
@@ -17,7 +22,7 @@ SRAD also produces a **confidence score** — a numeric measure of how well-reso
 
 ### Evaluation Criteria
 
-Each dimension is evaluated on a **continuous 0–100 scale** (100 = fully safe to assume, 0 = must ask). The following rubric provides guidance for scoring:
+Each dimension is scored on a **continuous 0–100 scale** (100 = fully safe to assume, 0 = must ask). The following rubric provides guidance:
 
 | Dimension | High (75–100) | Medium (40–74) | Low (0–39) |
 |-----------|--------------|----------------|------------|
@@ -26,32 +31,36 @@ Each dimension is evaluated on a **continuous 0–100 scale** (100 = fully safe 
 | **A — Agent Competence** | Config, constitution, codebase give clear answer | Partial codebase signals, some inference needed | Business priorities, user preferences, political context |
 | **D — Disambiguation Type** | One obvious default interpretation | 2–3 options with a clear front-runner | Multiple valid interpretations with different tradeoffs |
 
-### Fuzzy-to-Grade Mapping
+### The Composite
 
-The four per-dimension scores are aggregated into a single **composite score** using a weighted mean, then mapped to a confidence grade via half-open thresholds.
-
-**Aggregation formula**:
+The four dimensions aggregate into a single **composite** via a weighted mean:
 
 ```
-composite = 0.25 * S + 0.30 * R + 0.25 * A + 0.20 * D
+composite = 0.20·S + 0.30·R + 0.30·A + 0.20·D
 ```
 
-The higher weight on Reversibility (0.30 vs 0.25 for others) encodes the Critical Rule's intent: low-R decisions have disproportionate blast radius.
+**Reversibility and Agent Competence carry the highest weight (0.30 each).** This is deliberate: the decisions that produce unusable work are the ones that are *hard to undo* (low R) and that the agent *cannot reliably answer* (low A). By weighting R and A above S and D, the composite itself becomes the proxy for "how risky is it to assume this" — so the downstream penalty inherits the risk-weighting for free, with no separate risk rule.
 
-**Grade thresholds** (half-open — composites are continuous, so values like 59.85 or 84.5 must grade deterministically):
+The composite is a continuous 0–100 value. There are **no special-case overrides** — a decision's risk is fully expressed by where its composite lands.
 
-| Grade | Composite (half-open) | Interpretation |
-|-------|----------------------|----------------|
-| **Certain** | composite ≥ 85 | All dimensions strongly favor assumption |
-| **Confident** | 60 ≤ composite < 85 | Most dimensions favor assumption; minor gaps |
-| **Tentative** | 30 ≤ composite < 60 | Mixed signals; reasonable guess but alternatives exist |
-| **Unresolved** | composite < 30 | Too ambiguous to assume safely |
+### Grades (indicative only)
 
-**Critical Rule override**: Regardless of composite score, if R < 25 AND A < 25, the grade MUST be Unresolved. This is the Critical Rule's single numeric definition.
+The composite maps to a four-level grade via half-open thresholds:
+
+| Grade | Composite | Interpretation |
+|-------|-----------|----------------|
+| **Certain** | composite ≥ 80 | All dimensions strongly favor assumption |
+| **Confident** | 50 ≤ composite < 80 | Most dimensions favor assumption; minor gaps |
+| **Tentative** | 20 ≤ composite < 50 | Mixed signals; reasonable guess but alternatives exist |
+| **Unresolved** | composite < 20 | Too ambiguous to assume safely |
+
+**Grades are purely indicative — a human-readable hint, never an input to any formula.** The confidence score is computed entirely from composites (see § Confidence Scoring); the grade is a label *derived from* the composite and shown to the reader so they can scan an Assumptions table at a glance. Because the grade is derived, it can never contradict its own dimensions.
+
+Agents record `S:R:A:D` for every decision; the grade is computed from those numbers by `fab score`, not asserted by hand.
 
 ### Dimension Score Persistence
 
-Per-decision scores are recorded in the Assumptions table's **required** `Scores` column — mandatory for every row, of every grade (`fab score` parses it and writes aggregate dimension statistics to `.status.yaml`):
+Per-decision scores are recorded in the Assumptions table's **required** `Scores` column — mandatory for every row, of every grade (`fab score` parses it to compute the confidence score and to derive grades):
 
 ```markdown
 | # | Grade | Decision | Rationale | Scores |
@@ -73,20 +82,16 @@ confidence:
 
 ---
 
-## Confidence Grades
+## Artifact Markers
 
-Each decision point produces an assumption graded on a 4-level scale:
+Planning skills use HTML comment markers to flag assumptions for downstream scanning by `/fab-clarify`:
 
 | Grade | When to assign | Artifact marker | Output visibility |
 |-------|---------------|----------------|-------------------|
 | **Certain** | Deterministically answered by config, constitution, or template rules | None | Noted in Assumptions summary |
 | **Confident** | Strong signal with one obvious interpretation | None | Noted in Assumptions summary |
 | **Tentative** | Reasonable guess, but multiple valid options exist | `<!-- assumed: {description} -->` | Noted in Assumptions summary; resolvable by `/fab-clarify` |
-| **Unresolved** | Cannot determine; incompatible interpretations | None — always asked or bailed | Asked as a blocking question (never silently assumed) AND noted in Assumptions summary |
-
-### Artifact Markers
-
-Planning skills use HTML comment markers to flag assumptions for downstream scanning by `/fab-clarify`:
+| **Unresolved** | Cannot determine; incompatible interpretations | None — always asked or deferred | Asked as a blocking question (or deferred and surfaced) AND noted in Assumptions summary |
 
 | Marker | Grade | Placed by | Scanned by |
 |--------|-------|-----------|------------|
@@ -100,7 +105,9 @@ The API SHALL return errors as JSON objects with `error`, `message`, and `code` 
 <!-- assumed: JSON error format — config shows REST/JSON stack, consistent with existing patterns -->
 ```
 
-### Assumptions Summary
+---
+
+## Assumptions Summary
 
 Every planning skill invocation appends an `## Assumptions` section to the generated artifact, recording **every graded decision** (canonical contract: `_srad.md` § Assumptions Summary Block):
 
@@ -119,57 +126,70 @@ Every planning skill invocation appends an `## Assumptions` section to the gener
 
 Rules:
 
-- **All four grades are recorded in intake artifacts** — Certain rows included (`fab score` counts them toward `certain` and coverage; omitting them deflates the gate input). Unresolved rows are still asked as questions and carry status context in Rationale (`Asked — {outcome}` or `Deferred — {reason}`).
+- **All four grades are recorded in intake artifacts** — Certain rows included (`fab score` counts them and uses their composites; omitting strong rows does not change the score, but omitting any row loses information). Unresolved rows are still asked as questions (or deferred — see § The Critical Rule) and carry status context in Rationale (`Asked — {outcome}` or `Deferred — {reason}`).
 - **`plan.md` `## Assumptions` excludes Unresolved** — three grades only; apply decides-and-records (Unresolved is an intake-only construct).
-- **The Scores column is required on every row.**
+- **The Scores column is required on every row** — it is the sole input to scoring and to grade derivation.
 - **Omit-when-zero applies to displayed output only**: a skill's output omits the summary block when 0 assumptions were made, but generated artifacts ALWAYS carry the `## Assumptions` section — with a `0 assumptions.` footer and no table rows when empty — keeping `fab score` parsing uniform.
 
 ---
 
 ## Confidence Scoring
 
-The confidence score is a **Resolution Average**: it reuses the per-row S:R:A:D dimensions already recorded on every Assumptions row (the same dimensions the grade mapping above uses), averages their composites, and rescales that mean onto the 0–5 scale. Thoroughness is rewarded — a richer, more honestly-graded intake with strong dimensions scores *higher*, never lower.
+The confidence score is a **demerit model**: a change starts at a perfect `5.0`, and each decision subtracts a **penalty** determined by its composite. Strong decisions cost nothing; weak ones cost, and the cost **cannot be refunded** by surrounding strong decisions. This makes a single risky decision visible — it is not averaged away by a thorough intake.
+
+Agents never compute the score — `fab score` (Go) does, reading `intake.md` (the sole scoring source).
 
 ### Formula
 
 ```
-for each Assumptions row with parseable dimensions:
-  composite = 0.25 * S + 0.30 * R + 0.25 * A + 0.20 * D   # the grade-mapping weights, unchanged
-  if R < 25 AND A < 25:  return 0.0   # Critical Rule, per-row, on raw dimensions → hard fail
-if any row is Unresolved:  return 0.0  # genuine unknown → hard fail
-mean  = average(composite over rows that have parseable dimensions)
-cover = min(1.0, total_decisions / expected_min)
-return (mean / 20.0) * cover
+for each Assumptions row:
+    c = 0.20·S + 0.30·R + 0.30·A + 0.20·D                  # composite, 0–100
+
+    penalty(c) =  0                            if c ≥ 80    # Certain  → free
+                  (80 − c) / 30 · 0.50         if 50 ≤ c < 80   # Confident → ≤ 0.5
+                  0.50 + (50 − c)/50 · 2.50    if c < 50    # Tentative / Unresolved
+
+score = clamp( 5.0 − Σ penalty(c),  0.0,  5.0 )
 ```
 
-Where `total_decisions = certain + confident + tentative + unresolved` (ALL graded rows) and `expected_min` is looked up by `change_type` from a single embedded table in `fab score`. See [change-types.md](change-types.md) for the full `expected_min` table.
+The penalty curve and the grade bands are the **same object** — the penalty at each band boundary equals the band's stated cost, so reading a grade tells you the row's penalty range:
 
-The per-row composite uses the **same weights** as the grade-mapping aggregation (`0.25 * S + 0.30 * R + 0.25 * A + 0.20 * D`) — no new constant is introduced. The `/20` divisor rescales the 0–100 composite mean onto the 0–5 scale, so a 3.0 gate equals a mean composite of 60 — exactly the "Confident" floor in the grade mapping. The threshold therefore stays principled and needs no tuning.
+| Band | Composite | Penalty range | Effect |
+|------|-----------|---------------|--------|
+| **Certain** | `c ≥ 80` | `0.00` | free |
+| **Confident** | `50 ≤ c < 80` | `0.00 → 0.50` | low |
+| **Tentative** | `20 ≤ c < 50` | `0.50 → 2.00` | high |
+| **Unresolved** | `c < 20` | `2.00 → 3.00` | a single row alone blocks the gate |
 
-### Hard Fails
+The curve is continuous at both joins (`c=50`: both slopes meet at 0.50; `c=80`: meets 0.0). Per-row penalty ∈ `[0.0, 3.0]`.
 
-Two conditions short-circuit the score to `0.0` *before* the mean is taken:
+### No hard-fail rules
 
-| Condition | Scope | Rationale |
-|-----------|-------|-----------|
-| **Critical Rule** (`R < 25 AND A < 25`) | Per row, on raw dimensions | A single high-blast-radius, low-competence decision is a genuine unknown — the intake cannot run autonomously regardless of how strong the other rows are |
-| **Unresolved** | Any Unresolved-graded row | An unresolved decision is an unanswered question; any single one sets the score to 0.0 |
+There are **no short-circuit rules** — no "Unresolved → 0.0" and no reversibility override. Blocking is *emergent* from the penalty curve:
 
-Both are evaluated per row, so they hard-fail even when the averaged-in composites would otherwise be strong — a weak row cannot hide behind a high mean.
+- A genuinely **Unresolved** decision scores `composite < 20`, so its penalty is `≥ 2.00`. A single such row drops a one-row intake to `≤ 3.0` (at the gate or below), and any deeper or additional weak row pushes it under. Unresolved decisions therefore block the gate **because the curve makes them block**, not because a separate rule forces zero.
+- **Reversibility is handled by its 0.30 weight in the composite**, not by a separate rule. An irreversible decision scores a lower composite → lands in a worse band → is penalized harder, automatically.
 
-### Coverage Factor
+This keeps the framework uniform: every decision flows through one curve, and there is exactly one number (the composite) that governs both its grade and its penalty.
 
-The `cover` component attenuates the score when the total number of decisions is less than the expected minimum for the change type. This prevents thin intakes (e.g., 2 strong decisions) from getting inflated scores.
-
-`total_decisions` counts **all graded rows** (`certain + confident + tentative + unresolved`), while the mean is taken only over rows with parseable dimensions. A dimensionless row (no `Scores` column — a malformed intake, since the column is required) is therefore excluded from the mean but still counted toward coverage. When `total_decisions >= expected_min`, `cover = 1.0` and the score is the rescaled mean alone. When `total_decisions < expected_min`, the score is proportionally reduced.
+> **Edge case**: a decision at *exactly* `composite = 20.000` (e.g. `S:0 R:0 A:0 D:100`) scores a penalty of exactly `2.00`, leaving a one-row intake at exactly `3.0` — a pass. This profile is degenerate and effectively never occurs; it is accepted in exchange for round penalty coefficients. Any composite below 20 blocks.
 
 ### Range
 
-- **5.0**: Mean composite is 100 (all dimensions perfect) AND decision count meets or exceeds `expected_min`
-- **3.0**: The single intake gate threshold (flat, all types — see below) — equivalently, a mean composite of 60 at full coverage
-- **0.0**: Any Unresolved decision exists, any row trips the Critical Rule, OR a weak mean / low coverage reduces the score to zero
+- **5.0**: Every decision has `composite ≥ 80` (all Certain) — zero total penalty.
+- **3.0**: The single intake gate threshold (flat, all types). Reached when accumulated penalties total exactly 2.0 — e.g. four Confident-floor rows, or one deep-Tentative row, or one Unresolved row.
+- **0.0**: Penalties total ≥ 5.0 — many weak decisions, or several Unresolved ones.
 
-The score is clamped to the 0–5 scale by the bounded inputs: composites are 0–100 and `cover` is 0–1, so `(mean / 20) * cover` cannot exceed 5.0 or fall below 0.0.
+The score is clamped to `[0.0, 5.0]`.
+
+### Worked Range Intuition
+
+| Intake shape | Penalty sum | Score | Gate |
+|--------------|-------------|-------|------|
+| 10 decisions, all `c ≥ 80` | 0.00 | 5.00 | pass |
+| 9 strong + 1 weak (`c=35`) | 1.25 | 3.75 | pass (one shaky decision survives) |
+| 9 strong + 2 weak (`c=35`) | 2.50 | 2.50 | **fail** (two shaky decisions block) |
+| 1 Unresolved (`c=10`) anywhere | ≥ 2.50 | ≤ 2.50 | **fail** (single unknown blocks) |
 
 ### Storage
 
@@ -177,18 +197,20 @@ The confidence score is stored in `.status.yaml` within each change folder:
 
 ```yaml
 confidence:
-  certain: 12      # count of Certain-graded decisions
+  certain: 12      # count of Certain-graded decisions (derived from composite)
   confident: 3     # count of Confident-graded decisions
   tentative: 2     # count of Tentative-graded decisions
   unresolved: 0    # count of Unresolved-graded decisions
-  score: 2.1       # derived score from formula above
+  score: 4.6       # derived score from the demerit formula above
 ```
+
+The grade counts are **derived** from each row's composite (not from a hand-written grade column) and are informational — only `score` gates the pipeline.
 
 ---
 
 ## Gate Threshold
 
-There is exactly **one** confidence gate, evaluated at **intake** (the score is computed from `intake.md`, the sole scoring source). Both `/fab-ff` and `/fab-fff` require `confidence.score >= threshold` before entering the automated bracket. The `--force` flag on either skill bypasses it. The threshold is **flat 3.0 for all seven change types** (1.10.0): collapsing the former two-gate model (fixed-3.0 intake + per-type spec gate) to one gate at 3.0 keeps every type's bar ≥ both old gates — no silent relaxation.
+There is exactly **one** confidence gate, evaluated at **intake** (the score is computed from `intake.md`, the sole scoring source). Both `/fab-ff` and `/fab-fff` require `confidence.score >= threshold` before entering the automated bracket. The `--force` flag on either skill bypasses it. The threshold is **flat 3.0 for all seven change types**.
 
 | Change Type | Gate Threshold |
 |-------------|---------------|
@@ -202,23 +224,23 @@ There is exactly **one** confidence gate, evaluated at **intake** (the score is 
 
 The per-type map is retained in code (`getGateThreshold`) so future divergence is a data-only change. Change type is stored as `change_type:` in `.status.yaml` (default: `feat`). The gate check is performed by `fab score --check-gate --stage intake`. See [change-types.md](change-types.md) for the full taxonomy.
 
+There is **no coverage factor and no minimum-decision requirement.** A thin intake is not penalized for being short — a change with two strong, well-resolved decisions genuinely passes at 5.0. Quality is measured per decision, so row count is not a proxy for it: a lazy thin intake has weak decisions, and the penalty curve catches them directly.
+
 ### What 3.0 Allows
 
-With the formula `score = (mean / 20.0) * cover`, a 3.0 gate at full coverage (`cover = 1.0`, i.e., `total_decisions >= expected_min`) is exactly a **mean composite of 60** — the "Confident" floor in the grade mapping. So the gate passes iff the intake's decisions average out to at least Confident-grade resolution:
+The gate passes iff accumulated penalties total at most `2.0`. In grade terms:
 
-- **Mean composite ≥ 60** (all rows ~Confident or better): score ≥ 3.0 (passes)
-- **Mean composite < 60** (the rows average below Confident): score < 3.0 (fails — too many weak guesses)
-- **A single weak row drags the mean**: one low-composite row pulls the average down toward failure — thoroughness with strong dimensions is what clears the gate, not row count
-- **Any row with `R < 25 AND A < 25`**: score = 0.0 (Critical Rule hard fail — always fails)
-- **Any Unresolved row**: score = 0.0 (always fails)
-
-With low coverage (e.g., 2 of 7 expected decisions for `feat`): `cover = 0.29`, so even a perfect mean composite of 100 yields only `(100 / 20) * 0.29 = 1.4`. This prevents thin intakes from passing the gate regardless of how strong the few recorded decisions are.
+- **All decisions Confident or better**: each costs ≤ 0.50, so up to four can sit at the Confident floor and still pass; anything stronger passes comfortably.
+- **One isolated shaky decision survives**: a single Tentative row (penalty 0.50–2.00) leaves the score at 3.0–4.5 — a reasonable guess on one point does not block the pipeline.
+- **Two shaky decisions block**: two deep-Tentative rows total ≥ 2.5 penalty → score ≤ 2.5 → fail.
+- **Any single Unresolved decision blocks**: `composite < 20` → penalty ≥ 2.0 → score ≤ 3.0 and (for any composite strictly below 20) below it.
 
 ### Gate Behavior
 
-When the user runs `/fab-ff`:
-- **Score >= threshold**: Pipeline enters the automated bracket — apply (co-generating `plan.md`), review, and hydrate — unattended
-- **Score < threshold**: Pipeline refuses to execute and reports the score, suggesting `/fab-clarify` (intake-only) to resolve Tentative assumptions or answer Unresolved questions before retrying
+When the user runs `/fab-ff` or `/fab-fff`:
+
+- **Score ≥ threshold**: Pipeline enters the automated bracket — apply (co-generating `plan.md`), review, and hydrate (plus ship + review-pr for `/fab-fff`) — unattended.
+- **Score < threshold**: Pipeline refuses to execute and reports the score, suggesting `/fab-clarify` (intake-only) to resolve Tentative assumptions or answer Unresolved questions before retrying.
 
 ---
 
@@ -226,21 +248,31 @@ When the user runs `/fab-ff`:
 
 | Event | Trigger | Action |
 |-------|---------|--------|
-| Computation | `/fab-new` (after intake generation) | `fab score --stage intake` scans `intake.md`, writes to `.status.yaml` |
-| Recomputation | `/fab-clarify` (intake-only, suggest mode) | `fab score --stage intake` re-scans after resolved assumptions |
+| Computation | `/fab-new`, `/fab-draft` (after intake generation) | `fab score --stage intake` scans `intake.md`, writes to `.status.yaml` |
+| Recomputation | `/fab-clarify` (intake-only, both modes) | `fab score --stage intake` re-scans after resolved assumptions |
 | Gate check | `/fab-ff`, `/fab-fff` | `fab score --check-gate --stage intake` reads/compares against the flat 3.0 gate |
+
+`/fab-continue` does NOT score at apply entry — intake is authoritative, and there is no scoring at any post-intake stage.
 
 ---
 
 ## The Critical Rule
 
-**Decisions with R < 25 AND A < 25 — the single numeric override defined in the grade mapping above — are always Unresolved and MUST always be asked as questions**, even when the skill's question budget is otherwise exhausted. (The threshold is `< 25` on both dimensions; the rubric's 0–39 "Low" band is descriptive guidance, not the override's definition.)
+**A decision the agent cannot answer — a genuine unknown — MUST be surfaced, never silently assumed.** Such a decision scores low on Reversibility and/or Agent Competence, lands at `composite < 20` (Unresolved), and is handled one of two ways:
 
-These are high-blast-radius decisions where:
-- Getting it wrong cascades through multiple artifacts (R < 25)
-- The agent has no good basis for guessing — it requires business context, user preferences, or political knowledge the agent doesn't have (A < 25)
+1. **Asked** — when a user is reachable, the decision is asked as a blocking question. Recorded as an Unresolved row with Rationale `Asked — {outcome}`.
+2. **Deferred** — when no user is reachable (the promptless-dispatch path under `/fab-proceed`), the decision is recorded as an Unresolved row with Rationale `Deferred — {reason}` and surfaced to the user by the dispatcher.
 
-The existence of `/fab-clarify` as an escape valve does **not** justify silently assuming these. `/fab-clarify` is designed for Tentative assumptions (reasonable guesses that might be wrong). Unresolved decisions with R < 25 AND A < 25 are not reasonable guesses — they are genuine unknowns.
+The existence of `/fab-clarify` as an escape valve does **not** justify silently assuming a genuine unknown. `/fab-clarify` is for Tentative assumptions (reasonable guesses that might be wrong); Unresolved decisions are not reasonable guesses.
+
+### How blocking is enforced
+
+There is **no separate gate** for unknown or deferred decisions — blocking is enforced *solely by the scoring curve*. A genuine unknown scores `composite < 20`, whose penalty (≥ 2.0) drops the change below the 3.0 gate. So:
+
+- An **asked-and-answered** decision is re-scored after the answer; once resolved, its composite rises and it no longer blocks.
+- A **deferred** decision blocks **by itself only if its composite is below 20.** This is the intended contract: a decision genuinely too ambiguous to assume should be scored with honestly-low dimensions (low S and A, often low R), placing it under 20 so the curve blocks the automated bracket until it is resolved via `/fab-clarify`. A decision scored at composite ≥ 20 does not block *on its own* — but it still adds a penalty and can contribute to a failing total alongside other weak rows (e.g. two Tentative rows at composite 35 sum to 2.5 penalty → score 2.5 → fail). The special property of `composite < 20` is that its penalty (≥ 2.0) clears the gate margin single-handedly.
+
+This is the whole mechanism: surface genuine unknowns as low-composite Unresolved rows, and the penalty curve does the blocking. No override, no special case.
 
 ---
 
@@ -254,15 +286,15 @@ Two words, no detail on mechanism, scope, or integration.
 
 | Decision point | S | R | A | D | Composite | Grade |
 |---------------|---|---|---|---|-----------|-------|
-| Auth mechanism (OAuth2 vs SAML vs API keys) | 10 | 15 | 10 | 15 | 12.5 | **Unresolved** (12.5 < 30) |
-| Replace or supplement existing auth | 15 | 10 | 20 | 20 | 15.75 | **Unresolved** (R=10 < 25, A=20 < 25 → Critical Rule) |
-| Session storage (JWT vs server-side) | 20 | 50 | 55 | 45 | 42.75 | **Tentative** (30 ≤ 42.75 < 60) |
+| Auth mechanism (OAuth2 vs SAML vs API keys) | 10 | 15 | 10 | 15 | 12.5 | **Unresolved** (< 20) |
+| Replace or supplement existing auth | 15 | 10 | 20 | 20 | 16.0 | **Unresolved** (< 20) |
+| Session storage (JWT vs server-side) | 20 | 50 | 55 | 45 | 44.5 | **Tentative** (20–50) |
 
-**Confidence counts**: Certain: 2, Confident: 1, Tentative: 1, Unresolved: 2
+**Penalties**: Unresolved rows at composite 12.5 and 16.0 → penalties `0.50 + (37.5/50)·2.50 = 2.375` and `0.50 + (34/50)·2.50 = 2.20`. Tentative row at 44.5 → `0.50 + (5.5/50)·2.50 = 0.775`. Sum = `5.35`.
 
-**Score**: `0.0` — any Unresolved decision produces a hard zero.
+**Score**: `clamp(5.0 − 5.35, 0, 5) = 0.0`.
 
-**Outcome**: `/fab-ff` gate blocks (0.0 < 3.0 `feat` threshold). The user must answer the Unresolved questions or use `/fab-clarify` to resolve Tentative assumptions before the fast-forward pipeline can run.
+**Outcome**: `/fab-ff` gate blocks (0.0 < 3.0). The two unknowns must be asked (or deferred and resolved) before the fast-forward pipeline can run.
 
 ### Example 2: Low-Ambiguity Intake
 
@@ -272,15 +304,28 @@ Detailed description specifying the component, location, trigger, and behavior.
 
 | Decision point | S | R | A | D | Composite | Grade |
 |---------------|---|---|---|---|-----------|-------|
-| Which spinner component | 95 | 90 | 95 | 100 | 94.5 | **Certain** (94.5 ≥ 85) |
-| When to show/hide spinner | 90 | 92 | 88 | 95 | 91.1 | **Certain** (91.1 ≥ 85) |
-| Double-submission prevention | 95 | 95 | 90 | 98 | 94.35 | **Certain** (94.35 ≥ 85) |
+| Which spinner component | 95 | 90 | 95 | 100 | 94.5 | **Certain** (≥ 80) |
+| When to show/hide spinner | 90 | 92 | 88 | 95 | 90.4 | **Certain** (≥ 80) |
+| Double-submission prevention | 95 | 95 | 90 | 98 | 93.7 | **Certain** (≥ 80) |
 
-**Confidence counts**: Certain: 8, Confident: 2, Tentative: 0, Unresolved: 0
+**Penalties**: all three rows are `composite ≥ 80` → penalty 0 each. Sum = `0.0`.
 
-**Score**: Resolution Average over the per-row composites. The three rows above average `(94.5 + 91.1 + 94.35) / 3 = 93.32`; with 10 decisions and `feat` `expected_min = 7`, `cover = min(1.0, 10 / 7) = 1.0`. `score = (93.32 / 20.0) * 1.0 = 4.7`. No row trips the Critical Rule and none is Unresolved, so there is no hard fail.
+**Score**: `clamp(5.0 − 0.0, 0, 5) = 5.0`.
 
-**Outcome**: `/fab-ff` gate passes (4.7 >= 3.0 `feat` threshold). The fast-forward pipeline can run with high confidence — strong, thoroughly-recorded dimensions produce a high score.
+**Outcome**: `/fab-ff` gate passes (5.0 ≥ 3.0). The fast-forward pipeline runs with high confidence — strong, thoroughly-recorded dimensions produce a perfect score.
+
+### Example 3: One Risky Decision in a Thorough Intake
+
+> **Input**: A detailed refactor with 11 well-specified decisions, but one of them is an irreversible behavior change the agent is only moderately sure about.
+
+| Decision point | S | R | A | D | Composite | Grade |
+|---------------|---|---|---|---|-----------|-------|
+| 10 well-specified decisions | (all) | | | | ≥ 85 | **Certain** |
+| Quick-drag now pans (irreversible widening) | 95 | 35 | 55 | 45 | 60.0 | **Confident** (just) |
+
+**Penalties**: ten Certain rows → 0. The risky row at composite 60 → `(80−60)/30·0.50 = 0.33`. Sum = `0.33`.
+
+**Score**: `5.0 − 0.33 = 4.67` → passes. *But its low R (35) pulled its composite down from where S alone would put it* — had the agent scored R lower (e.g. R:15, composite 54), the penalty rises and the row visibly dents the score. The point: the **R weight surfaces the risk into the number**, where a strength-averaging scheme would hide it.
 
 ---
 

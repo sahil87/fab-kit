@@ -27,26 +27,28 @@ For each decision point, evaluate four dimensions on a **continuous 0–100 scal
 | **A — Agent Competence** | Config, constitution, codebase give clear answer | Partial signals, some inference | Business priorities, user preferences, political context |
 | **D — Disambiguation Type** | One obvious default interpretation | 2–3 options, clear front-runner | Multiple valid interpretations with different tradeoffs |
 
-**Aggregation**: Compute a composite score via weighted mean: `composite = 0.25*S + 0.30*R + 0.25*A + 0.20*D`. Map to grade using half-open thresholds (composites are continuous — 59.85 and 84.5 must grade deterministically): composite ≥ 85 → Certain, ≥ 60 → Confident, ≥ 30 → Tentative, else Unresolved. Critical Rule override: R < 25 AND A < 25 → always Unresolved.
+**Aggregation**: Compute a composite score via weighted mean: `composite = 0.20*S + 0.30*R + 0.30*A + 0.20*D` (R and A up-weighted to 0.30 each — the decisions that produce unusable work are the ones that are hard to undo and the agent cannot reliably answer, so the composite itself carries the risk-weighting). Map to grade using half-open thresholds (composites are continuous — 49.85 and 79.5 must grade deterministically): composite ≥ 80 → Certain, ≥ 50 → Confident, ≥ 20 → Tentative, else Unresolved. **No overrides** — the grade is fully determined by the composite; there is no Critical Rule short-circuit.
 
-Record per-dimension scores in the Assumptions table's required `Scores` column (e.g., `S:75 R:80 A:65 D:70`). The Scores column is mandatory for every row. `fab score` parses these and writes aggregate dimension statistics to `.status.yaml`.
+Record per-dimension scores in the Assumptions table's required `Scores` column (e.g., `S:75 R:80 A:65 D:70`). The Scores column is mandatory for every row. `fab score` parses these, derives the grade from the composite (the grade column is output, not input), and writes aggregate dimension statistics to `.status.yaml`.
 
 ## Confidence Grades
 
-Each decision produces an assumption graded on a 4-level scale:
+Each decision is labelled with an **indicative grade** derived from its composite (the bands above). The grade is a reader hint — it is **never** an input to the score (`fab score` computes the score from the composite alone and derives the grade from it, so the label can never contradict its own dimensions):
 
-| Grade | Meaning | Artifact Marker | Output Visibility |
-|-------|---------|----------------|-------------------|
-| **Certain** | Determined by config/constitution/template rules | None | Noted in Assumptions summary |
-| **Confident** | Strong signal, one obvious interpretation | None | Noted in Assumptions summary |
-| **Tentative** | Reasonable guess, multiple valid options | `<!-- assumed: {description} -->` | Noted in Assumptions summary, `/fab-clarify` suggested |
-| **Unresolved** | Cannot determine, incompatible interpretations | None — always asked or bailed | Asked as question AND noted in Assumptions summary |
+| Grade | Composite | Meaning | Artifact Marker | Output Visibility |
+|-------|-----------|---------|----------------|-------------------|
+| **Certain** | ≥ 80 | Determined by config/constitution/template rules | None | Noted in Assumptions summary |
+| **Confident** | 50–80 | Strong signal, one obvious interpretation | None | Noted in Assumptions summary |
+| **Tentative** | 20–50 | Reasonable guess, multiple valid options | `<!-- assumed: {description} -->` | Noted in Assumptions summary, `/fab-clarify` suggested |
+| **Unresolved** | < 20 | Cannot determine, incompatible interpretations | None — always asked or deferred | Asked as question (or deferred) AND noted in Assumptions summary |
 
 ## Critical Rule
 
-**Decisions with R < 25 AND A < 25 (the override in the aggregation rule above — the Critical Rule's single numeric definition) are always Unresolved and MUST always be asked** — even in `/fab-new` and `/fab-continue`. These count toward the skill's question budget (max ~3). The existence of `/fab-clarify` as an escape valve does NOT justify silently assuming high-blast-radius decisions. `/fab-clarify` is for Tentative assumptions, not for Unresolved ones.
+**A decision the agent cannot answer — a genuine unknown — MUST be surfaced, never silently assumed.** Such a decision scores low on Reversibility and/or Agent Competence, lands at `composite < 20` (Unresolved), and MUST always be asked — even in `/fab-new` and `/fab-continue`. These count toward the skill's question budget (max ~3). The existence of `/fab-clarify` as an escape valve does NOT justify silently assuming high-blast-radius decisions. `/fab-clarify` is for Tentative assumptions, not for Unresolved ones.
 
-**Promptless-dispatch carve-out**: when a planning skill runs as a promptless subagent under `/fab-proceed`'s defer-and-surface contract (`fab-proceed.md` § Create-Intake Dispatch), there is no user to ask. The MUST-ask is satisfied by **deferring and surfacing**, never by silently assuming: each would-be-asked Unresolved decision is recorded as an Unresolved row with Rationale `Deferred — promptless dispatch` and surfaced to the user by the dispatcher. The intake gate is the structural backstop — `fab score` returns 0.0 whenever any Unresolved row exists, so a deferred decision always blocks the automated bracket until resolved via `/fab-clarify`. Everywhere a user is reachable, the MUST-ask applies unchanged.
+**Blocking is emergent from the scoring curve — there is no hard-fail short-circuit and no `R<25 ∧ A<25` override.** A genuine unknown scored at `composite < 20` penalizes ≥ 2.0, which alone drops a change to the 3.0 gate or below. Reversibility is handled by its 0.30 weight in the composite (an irreversible decision lands in a worse band and is penalized harder), not by a separate rule. Surface genuine unknowns as low-composite Unresolved rows and the penalty curve does the blocking.
+
+**Promptless-dispatch carve-out**: when a planning skill runs as a promptless subagent under `/fab-proceed`'s defer-and-surface contract (`fab-proceed.md` § Create-Intake Dispatch), there is no user to ask. The MUST-ask is satisfied by **deferring and surfacing**, never by silently assuming: each would-be-asked Unresolved decision is recorded as an Unresolved row with Rationale `Deferred — promptless dispatch` and surfaced to the user by the dispatcher. **A deferred decision blocks the gate by itself only when its composite is below 20** (a composite ≥ 20 row still adds penalty and can help fail the gate alongside other weak rows) — there is no special gate for deferred decisions; blocking is emergent from the curve, exactly like any other Unresolved row. The author therefore MUST score a genuine unknown with honestly-low dimensions (low A, usually low R/S) so its composite lands under 20 and the curve blocks the automated bracket until it is resolved via `/fab-clarify`. Everywhere a user is reachable, the MUST-ask applies unchanged.
 
 ## Skill-Specific Autonomy Levels
 
@@ -64,15 +66,15 @@ The remaining two declaring skills are covered by these columns: **fab-draft** f
 
 ### Example 1: Auth provider selection
 
-> "Add auth." Which provider — OAuth2, SAML, API keys? → S/R/A/D: all Low (one word, no mechanism detail; auth architecture cascades into DB schema, middleware, API contracts; provider relationships are a user preference; multiple valid options with different tradeoffs). **Unresolved** — MUST be asked (Critical Rule applies: R < 25 AND A < 25).
+> "Add auth." Which provider — OAuth2, SAML, API keys? → S/R/A/D all Low (one word, no mechanism detail; auth architecture cascades into DB schema, middleware, API contracts; provider relationships are a user preference; multiple valid options with different tradeoffs). E.g. `S:10 R:15 A:10 D:15` → composite 12.5 → **Unresolved** (< 20). MUST be asked. Its penalty (≥ 2.0 at composite < 20) blocks the gate on its own — no hard-fail rule, just the curve.
 
 ### Example 2: Error response format
 
-> "Handle errors" in a REST API → S: Medium, R/A/D: High (S:55 R:80 A:85 D:90 → composite 77). **Confident** — codebase signal is strong, easily reversed, one obvious default. Note in Assumptions summary, don't ask.
+> "Handle errors" in a REST API → S: Medium, R/A/D: High (S:55 R:80 A:85 D:90 → composite 78.5). **Confident** — codebase signal is strong, easily reversed, one obvious default. Note in Assumptions summary, don't ask.
 
 ### Example 3: Test framework selection
 
-> "Which test framework?" → S: Medium (terse but unambiguous in scope), R/A/D: High (S:50 R:95 A:100 D:100 → composite 86). **Certain** — config deterministically answers this (use existing runner). No marker; recorded in the Assumptions summary like every graded decision.
+> "Which test framework?" → S: Medium (terse but unambiguous in scope), R/A/D: High (S:50 R:95 A:100 D:100 → composite 88.5). **Certain** — config deterministically answers this (use existing runner). No marker; recorded in the Assumptions summary like every graded decision.
 
 ## Artifact Markers
 

@@ -123,7 +123,7 @@ This is the sole step that varies by `{questioning-mode}`.
 
 - **`{questioning-mode} = promptless-defer`** (used by `/fab-proceed`'s dispatch): there is no user to ask. Apply SRAD, but instead of asking, record each would-be-asked Unresolved decision as a deferred Unresolved row, per the `_srad.md` § Critical Rule **promptless-dispatch carve-out** (verbatim):
 
-  > each would-be-asked Unresolved decision is recorded as an Unresolved row with Rationale `Deferred — promptless dispatch` and surfaced to the user by the dispatcher. The intake gate is the structural backstop — `fab score` returns 0.0 whenever any Unresolved row exists, so a deferred decision always blocks the automated bracket until resolved via `/fab-clarify`.
+  > each would-be-asked Unresolved decision is recorded as an Unresolved row with Rationale `Deferred — promptless dispatch` and surfaced to the user by the dispatcher. A deferred decision blocks the gate **by itself only when its composite is below 20** (a composite ≥ 20 row still adds penalty and can help fail the gate alongside other weak rows) — there is no special gate for deferred decisions; blocking is emergent from the demerit penalty curve, exactly like any other Unresolved row. So a genuine unknown MUST be scored with honestly-low dimensions (low A, usually low R/S) to land it under 20, where its penalty (≥ 2.0) blocks the automated bracket until resolved via `/fab-clarify`.
 
   Return the deferred Unresolved decisions in the subagent result so the dispatcher (`/fab-proceed`) can surface them. The MUST-ask is satisfied by deferring and surfacing, never by silently assuming.
 

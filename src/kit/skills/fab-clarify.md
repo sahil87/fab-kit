@@ -145,7 +145,7 @@ Allow the user to accept the recommendation, pick an alternative, provide a free
 ### Step 4: Process Answer and Update
 
 1. Update artifact in place: replace markers with resolved content, add `<!-- clarified: ... -->` for significant changes
-2. Reclassify resolved entry to `Certain` in `## Assumptions` table
+2. Re-grade the resolved entry's row in the `## Assumptions` table **by recomputed composite, not by fiat** — same rule as bulk confirm (Step 2): set S → 95 (R, A, D unchanged), recompute the composite per `_srad.md` § SRAD Scoring, and assign the grade by its half-open thresholds. A direct answer typically lands the row in Certain, but a row whose recomputed composite stays below the Certain band keeps its banded grade — the grade is derived from the dimensions, never forced.
 3. Present next question or proceed to Step 5 after queue exhaustion / 5th answer / early termination
 
 ### Step 5: Audit Trail

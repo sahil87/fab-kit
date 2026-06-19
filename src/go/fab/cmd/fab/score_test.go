@@ -62,13 +62,14 @@ func setupScoreCmdFixture(t *testing.T, assumptionRows ...string) string {
 }
 
 func TestScoreCmd_CheckGateFail_ReturnsError(t *testing.T) {
-	// Resolution Average on a fix change (expectedMin=3, threshold 3.0). Weak
-	// dimensions: composite for S:50 R:50 A:50 D:50 = 50.0 → mean 50.0,
-	// cover=3/3=1.0, score = round1((50.0/20)*1.0) = 2.5 < 3.0 → gate fail.
+	// Demerit model, flat 3.0 gate. Weak dimensions: composite for
+	// S:30 R:30 A:30 D:30 = 6+9+9+6 = 30 (Tentative) → penalty
+	// 0.50 + (50-30)/50*2.50 = 1.5 each. Σ penalty = 4.5 → score = 0.5 < 3.0
+	// → gate fail.
 	setupScoreCmdFixture(t,
-		"| 1 | Confident | D1 | R1 | S:50 R:50 A:50 D:50 |",
-		"| 2 | Confident | D2 | R2 | S:50 R:50 A:50 D:50 |",
-		"| 3 | Confident | D3 | R3 | S:50 R:50 A:50 D:50 |",
+		"| 1 | Tentative | D1 | R1 | S:30 R:30 A:30 D:30 |",
+		"| 2 | Tentative | D2 | R2 | S:30 R:30 A:30 D:30 |",
+		"| 3 | Tentative | D3 | R3 | S:30 R:30 A:30 D:30 |",
 	)
 
 	cmd := scoreCmd()
@@ -86,9 +87,9 @@ func TestScoreCmd_CheckGateFail_ReturnsError(t *testing.T) {
 }
 
 func TestScoreCmd_CheckGatePass_ExitsZero(t *testing.T) {
-	// Resolution Average on a fix change (expectedMin=3, threshold 3.0). Strong
-	// dimensions: composite for S:95 R:95 A:95 D:95 = 95.0 → mean 95.0,
-	// cover=1.0, score = round1((95.0/20)*1.0) = 4.8 >= 3.0 → gate pass.
+	// Demerit model, flat 3.0 gate. Strong dimensions: composite for
+	// S:95 R:95 A:95 D:95 = 95.0 (Certain) → penalty 0 each. Σ penalty = 0 →
+	// score = clamp(5.0 - 0, 0, 5) = 5.0 >= 3.0 → gate pass.
 	setupScoreCmdFixture(t,
 		"| 1 | Certain | D1 | R1 | S:95 R:95 A:95 D:95 |",
 		"| 2 | Certain | D2 | R2 | S:95 R:95 A:95 D:95 |",
