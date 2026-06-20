@@ -87,7 +87,7 @@ Autonomously commits, pushes, and creates a draft GitHub PR. No prompts, no ques
 │  │      silent no-op when {has_fab} false → standalone /git-pr unaffected;
 │  │      no-drift regen → diff guard suppresses an empty commit;
 │  │      regen/commit failure → report + STOP, 3a commit intact, no torn state)
-│  ├─ 3b. Push (if unpushed)
+│  ├─ 3b. Push (if has_unpushed or just committed)
 │  │  └─ Bash: git push [-u origin <branch>]  (pushes 3a + 3a-bis commits together)
 │  └─ 3c. Create PR (if no OPEN PR exists — {pr_state} none or CLOSED)
 │     ├─ Read: intake.md (PR title + Summary + Changes)
