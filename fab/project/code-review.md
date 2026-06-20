@@ -45,8 +45,12 @@
 
 ## Project-Specific Review Rules
 
-<!-- Add project-specific review rules here. Examples:
-     - All public APIs need integration tests
-     - No new dependencies without justification in the spec
-     - Database migrations must be reversible
-     - All user-facing strings must be internationalized -->
+<!-- These are must-fix unless noted. They encode the constitution's Additional
+     Constraints and the recurring rework causes for this repo. -->
+
+- **SPEC-mirror sync** — a `src/kit/skills/*.md` change MUST carry the matching `docs/specs/skills/SPEC-*.md` update. Treat the *whole* mirror class as in-scope, not just files with the literal changed phrase (reviewers read this strictly). See code-quality.md § Sibling & Mirror Sweeps.
+- **CLI ⇒ docs + tests** — a change to the `fab` Go binary's command signatures MUST update `src/kit/skills/_cli-fab.md` and include corresponding test updates.
+- **Canonical source only** — flag any edit under `.claude/skills/` (gitignored deployed copies); kit changes belong in `src/kit/`.
+- **Migrations for user-data restructuring** — changes touching config/`.status.yaml`/archive layout MUST ship a `src/kit/migrations/` file, not an ad-hoc script.
+- **Go changes ship tests** — a `.go` change without accompanying test updates is a must-fix gap; tests conform to the spec, never the reverse (Constitution VII).
+- **Markdown-only artifacts** — no binary/proprietary formats; standard CommonMark.
