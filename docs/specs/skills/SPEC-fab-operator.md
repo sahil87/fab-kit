@@ -1,5 +1,17 @@
 # fab-operator
 
+## Contents
+
+- Summary
+- Section Structure
+- Primitives
+- Monitoring Tick
+- Watches (§7)
+- Auto-Nudge
+- Autopilot
+- Key Properties
+- Resolved Design Decisions
+
 ## Summary
 
 Standalone multi-agent coordination layer with proactive monitoring and auto-nudge. Runs in a dedicated tmux pane, observes all running fab agents across every session on its tmux server via `fab pane map --all-sessions`, routes commands via `tmux send-keys`, monitors progress via `/loop`, auto-answers routine agent questions, and drives autopilot queues through the full pipeline.
@@ -11,6 +23,8 @@ Self-contained — does not inherit from any other operator skill. All behavior 
 Not a lifecycle enforcer — the operator coordinates across agents and proxies routine user input, not advancing stages or making pipeline decisions.
 
 **Helpers**: Declares `helpers: [_cli-fab, _cli-external]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
+
+**Prose optimization** (260620-skop): skill content trimmed to remove re-explanation of partial-owned concepts (launcher degraded behavior → `_cli-fab.md` § fab operator + §9; state-file path/migration → §2/§9; tick-step field semantics → `_cli-fab.md` § fab pane map; `rk notify` contract → `_cli-external.md` § rk + `_preamble.md` § Run-Kit; implicit `--base` chaining defined once in Queue ordering) and a `## Contents` TOC added; no behavioral change (Flow / Tools / Sub-agents unchanged). A `## Contents` TOC was also added to this SPEC (>100 lines, structural rule).
 
 ---
 

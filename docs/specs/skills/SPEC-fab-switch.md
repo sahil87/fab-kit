@@ -6,6 +6,8 @@ Switches the active change by creating the `.fab-status.yaml` symlink. Lists ava
 
 The status summary printed by `fab change switch` ends with `Next: {routing_stage} (via {default_command})`, where the command is the one that drives the routing stage (`intake`/`apply`/`review`/`hydrate` → `/fab-continue`, `ship` → `/git-pr`, `review-pr` → `/git-pr-review`), aligned with `/fab-status` and the `_preamble.md` state table; only when all stages are done/skipped does it collapse to `Next: /fab-archive` (post-review off-by-one fixed in 260612-k4ge). The `Stage:` line's `{state}` qualifier enumerates all six states the `display_state` derivation can emit — `active`, `failed`, `ready`, `done`, `skipped`, `pending` (260612-w7dp; the skill formerly documented only done/active/pending).
 
+**Prose optimization** (260620-skop): skill content trimmed (Output prose compressed, the redundant `### Switch Flow` sub-section folded into Argument Flow, the "config.yaml not found → No impact" error row dropped as it duplicates Key Properties) and a `## Contents` TOC added; no behavioral change (Flow / Tools / Sub-agents unchanged).
+
 ## Flow
 
 ```

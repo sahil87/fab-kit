@@ -18,6 +18,11 @@ metadata:
 > **Orchestration** (stage guards, question handling, design decisions, resumability)
 > remains in each skill's own file. This partial covers only the mechanics of producing each artifact.
 
+## Contents
+
+- Intake Generation Procedure
+- Plan Generation Procedure
+
 ---
 
 ## Intake Generation Procedure

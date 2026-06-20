@@ -6,6 +6,8 @@ Refines the intake artifact without advancing. Two modes: Suggest (interactive, 
 
 **Helpers**: Declares `helpers: [_srad]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
 
+**Prose optimization** (260620-skop): skill content trimmed to remove re-explanation of partial-owned concepts — the post-intake/missing-intake STOP messages now point to the canonical Error Handling table, the re-grade-by-composite rule is stated once (Step 2's Artifact Update) and referenced from Step 4, the shared audit-trail placement/append rule is stated once and referenced, and the dormant "retained for future use" statement is consolidated to § Skill Invocation Protocol → Currently Applicable; a `## Contents` TOC added to the skill. No behavioral change (Flow / Tools / Sub-agents unchanged).
+
 ## Flow
 
 ```

@@ -10,6 +10,16 @@ helpers: [_generation, _review, _srad, _pipeline]
 
 ---
 
+## Contents
+
+- Purpose
+- Arguments
+- Behavior
+- Output
+- Error Handling
+
+---
+
 ## Purpose
 
 Run the entire automated Fab pipeline — apply → review → hydrate → ship → review-pr — in a single invocation (everything after intake). Gated on the single intake confidence gate (flat 3.0, all types), checked before the bracket; review failures get a bounded auto-rework loop (`{max_cycles}` cycles — the `Max cycles:` knob in `fab/project/code-review.md` § Rework Budget, default 3) and then stop. No `/fab-clarify` runs inside the bracket — clarification is intake-only. Resumable — re-running picks up from the first incomplete stage. The difference from `/fab-ff` is scope only: `/fab-fff` extends through ship and review-pr; `/fab-ff` stops at hydrate. Both have the identical single intake gate.
@@ -44,7 +54,7 @@ The bracket defines pre-flight (intake prerequisite + intake gate), context load
 
 *(Skip if `progress.ship` is `done`.)*
 
-Resolve the ship model: run `fab resolve-agent ship --alias` (the `--alias` flag emits the Agent-tool-valid short alias on the `model=` line), surface the resolved `model=/effort=`, and apply both halves to the dispatch below — model via the Agent `model` param (empty ⇒ omit/inherit), effort via the imperative prompt instruction ``Operate at `<effort>` reasoning effort for this task.`` (empty effort ⇒ omit) — per `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution. Dispatch `/git-pr` as subagent — the prompt instructs it to invoke `/git-pr {name}` (the **explicit change argument**, using the folder name per the `{name}` note above: git-pr resolves it as a transient override, so the subagent targets this pipeline's change rather than self-resolving the active one, and its branch-matches-change guard verifies the checked-out branch before mutating anything). The subagent commits, pushes, and creates a GitHub PR. Handles `fab status` integration internally (start/finish ship stage). Returns PR URL or error.
+Resolve the ship model per the Per-stage model note above (`fab resolve-agent ship --alias`, surface `model=/effort=`, dispatch via both seams), then dispatch `/git-pr` as subagent — the prompt instructs it to invoke `/git-pr {name}` (the **explicit change argument**, using the folder name per the `{name}` note above: git-pr resolves it as a transient override, so the subagent targets this pipeline's change rather than self-resolving the active one, and its branch-matches-change guard verifies the checked-out branch before mutating anything). The subagent commits, pushes, and creates a GitHub PR. Handles `fab status` integration internally (start/finish ship stage). Returns PR URL or error.
 
 **If git-pr fails**: STOP with the error from git-pr. The ship stage remains `active` for user retry.
 
@@ -54,15 +64,15 @@ On success: `progress.ship` becomes `done`, `progress.review-pr` auto-activates.
 
 *(Skip if `progress.review-pr` is `done`.)*
 
-Resolve the review-pr model: run `fab resolve-agent review-pr --alias` (the `--alias` flag emits the Agent-tool-valid short alias on the `model=` line), surface the resolved `model=/effort=`, and apply both halves to the dispatch below — model via the Agent `model` param (empty ⇒ omit/inherit), effort via the imperative prompt instruction ``Operate at `<effort>` reasoning effort for this task.`` (empty effort ⇒ omit) — per `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution. Dispatch `/git-pr-review` as subagent — the prompt instructs it to invoke `/git-pr-review {name}` (the **explicit change argument**, same transient-override + branch-guard contract as Step 4). The subagent detects existing reviews, triages comments, applies fixes, and pushes. If no reviews exist, it requests a Copilot review and polls up to 10 minutes — see the timeout outcome below. Handles `fab status` integration internally (start/finish/fail review-pr stage). Returns completion status.
+Resolve the review-pr model per the Per-stage model note above (`fab resolve-agent review-pr --alias`, surface `model=/effort=`, dispatch via both seams), then dispatch `/git-pr-review` as subagent — the prompt instructs it to invoke `/git-pr-review {name}` (the **explicit change argument**, same transient-override + branch-guard contract as Step 4). The subagent detects existing reviews, triages comments, applies fixes, and pushes. If no reviews exist, it requests a Copilot review and polls up to 10 minutes — see the timeout outcome below. Handles `fab status` integration internally (start/finish/fail review-pr stage). Returns completion status.
 
-> **Synchronous-poll directive (bake into the dispatch prompt).** The review-pr dispatch prompt MUST instruct the `/git-pr-review` subagent to **complete the Copilot poll synchronously and not yield mid-poll**: if it requests a Copilot review and enters the 30s × 20 (10-minute) poll, it MUST stay in that poll loop within the single invocation — never yielding, returning, or handing back control while the poll is pending — until a review appears or all 20 attempts are exhausted. The poll **stays inside `/git-pr-review`** (the subagent owns request + poll + triage synchronously); the wait is NOT relocated to this orchestrator. Rationale to carry in the prompt: the subagent stalled or died mid-poll 4× in prior efforts, and Copilot lands ~4.5–6.5 min — comfortably inside the window — so patience-to-completion is correct, not an early return. (This mirrors `git-pr-review.md` Step 2 Phase 2's own synchronous-poll discipline note into the dispatch seam.)
+> **Synchronous-poll directive (bake into the dispatch prompt).** The review-pr dispatch prompt MUST instruct the `/git-pr-review` subagent to **complete the Copilot poll synchronously and not yield mid-poll**: if it requests a Copilot review and enters the 30s × 20 (10-minute) poll, it MUST stay in that poll loop within the single invocation — never yielding, returning, or handing back control while the poll is pending — until a review appears or all 20 attempts are exhausted. The poll **stays inside `/git-pr-review`** (the subagent owns request + poll + triage synchronously); the wait is NOT relocated to this orchestrator. Carry the rationale in the prompt — see `git-pr-review.md` Step 2 Phase 2's synchronous-poll discipline note (it mirrors that note into the dispatch seam).
 
 **If review-pr fails** (no PR found, processing error): STOP with the error.
 
 **If no actionable reviews** (no automated reviewer available, or reviews with no inline comments to process): the stage completes as `done` — this is a successful no-op.
 
-**If timeout** (Copilot review requested but not available within 10 minutes — git-pr-review's Step 6 timeout outcome): the subagent deliberately leaves `review-pr` `active` (no finish, no fail). Report `Review-PR pending (Copilot review requested, timed out waiting) — re-run /git-pr-review {name} when ready` **instead of** `Pipeline complete.` and stop.
+**If timeout** (Copilot review requested but not available within 10 minutes — git-pr-review's Step 6 timeout outcome): the subagent deliberately leaves `review-pr` `active` (no finish, no fail); report the pending message **instead of** `Pipeline complete.` and stop — see the Review-PR timeout row in Error Handling for the exact string.
 
 On success: `progress.review-pr` becomes `done`.
 
@@ -96,7 +106,7 @@ Pipeline complete.
 Next: {per state table}
 ```
 
-Resuming shows `(resuming)...` header and `Skipping {stage} — already done.` for completed stages. Bail/failure stops at the relevant stage with `Next:` derived from the state reached per state table in `_preamble.md`. On the Step 5 timeout outcome, the closing line is `Review-PR pending (Copilot review requested, timed out waiting) — re-run /git-pr-review {name} when ready` instead of `Pipeline complete.`
+Resuming shows `(resuming)...` header and `Skipping {stage} — already done.` for completed stages. Bail/failure stops at the relevant stage with `Next:` derived from the state reached per state table in `_preamble.md`. On the Step 5 timeout outcome, the closing line replaces `Pipeline complete.` with the pending message (exact string in the Error Handling Review-PR timeout row).
 
 ---
 

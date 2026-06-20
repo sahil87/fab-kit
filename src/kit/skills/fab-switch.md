@@ -9,6 +9,17 @@ description: "Switch the active change to a different one. Lists available chang
 
 ---
 
+## Contents
+
+- Arguments
+- Context Loading
+- Behavior
+- Output
+- Error Handling
+- Key Properties
+
+---
+
 ## Arguments
 
 - **`<change-name>`** *(optional)* — full or partial name of the change to switch to. Supports full folder names, partial slug matches, or any substring. Case-insensitive.
@@ -47,18 +58,11 @@ If the command exits 1 and stderr contains "Multiple changes match": parse the c
 
 If the command exits 1 and stderr contains "No change matches": list all available changes, inform user.
 
+`fab change switch` handles the full flow internally (resolves the name, creates the `.fab-status.yaml` symlink, outputs a structured summary with stage and next command); the skill displays its stdout directly.
+
 ### Deactivation Flow (`--none`)
 
 Run `fab change switch --none`. Display the command's stdout output.
-
-### Switch Flow
-
-`fab change switch` handles the full flow internally:
-1. Resolves the change name
-2. Creates `.fab-status.yaml` symlink
-3. Outputs structured summary with stage and next command
-
-The skill displays the command's stdout directly.
 
 ### Command Logging
 
@@ -93,9 +97,9 @@ Next:        {routing_stage} (via {default_command})
 Tip: run /git-branch to create or switch to the matching branch
 ```
 
-Where `{display_stage}` is "where you are" (last active or last done stage) and `{routing_stage}` is "what's next" — the stage whose work runs next (first active/ready stage). `{default_command}` is the command that drives that stage (`intake`/`apply`/`review`/`hydrate` → `/fab-continue`, `ship` → `/git-pr`, `review-pr` → `/git-pr-review`), matching `/fab-status` and the `_preamble.md` state table. The `{state}` qualifier is any state the `display_state` derivation can emit: `active`, `failed`, `ready`, `done`, `skipped`, or `pending` — `ready` is the standard state of a freshly switched draft, `failed` surfaces a parked review/review-pr failure, `skipped` a skipped trailing stage. When all stages are done (or trailing stages skipped), `Next:` shows only `/fab-archive`. The pipeline has six stages; the `confidence.indicative` suffix is retired (1.10.0) — intake scoring is authoritative, so confidence is shown without qualifier. When score is `0.0` and no assumptions exist, shows `not yet scored`.
+`{display_stage}` is "where you are" (last active/done stage); `{routing_stage}` is "what's next" (first active/ready stage), driven by `{default_command}` (`intake`/`apply`/`review`/`hydrate` → `/fab-continue`, `ship` → `/git-pr`, `review-pr` → `/git-pr-review`), matching `/fab-status` and the `_preamble.md` state table. When all stages are done (or trailing stages skipped), `Next:` shows only `/fab-archive`. `{state}` is any state `display_state` can emit: `active`, `failed`, `ready`, `done`, `skipped`, `pending` (`ready` = freshly switched draft, `failed` = parked review/review-pr failure, `skipped` = skipped trailing stage). Confidence has no qualifier (six-stage pipeline; the `confidence.indicative` suffix was retired in 1.10.0 — intake scoring is authoritative); score `0.0` with no assumptions shows `not yet scored`.
 
-For the no-argument flow (listing changes), the skill reads `fab change list` output (format `name:display_stage:display_state:score` — the `:indicative` 5th field was dropped in 1.10.0) and displays confidence info alongside stage info in the numbered list.
+No-argument flow: the skill reads `fab change list` output (format `name:display_stage:display_state:score` — the `:indicative` 5th field dropped in 1.10.0) and shows confidence alongside stage in the numbered list.
 
 Tip line omitted for `--none`. Deactivation shows `No active change.`. Already-deactivated shows `No active change (already deactivated).`
 
@@ -108,7 +112,6 @@ Tip line omitted for `--none`. Deactivation shows `No active change.`. Already-d
 | No changes exist | "No active changes found. Run /fab-new or /fab-draft." |
 | Matched folder missing `.status.yaml` | Switch anyway, warn: "Warning: .status.yaml not found — change may be corrupted." |
 | `fab/changes/` doesn't exist | "fab/changes/ not found. Run /fab-setup." |
-| `fab/project/config.yaml` not found | No impact (config not required) |
 
 ---
 

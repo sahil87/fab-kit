@@ -17,6 +17,14 @@ metadata:
 > remains in each orchestrator's own file. This partial covers only the mechanics of dispatching
 > the review sub-agents and merging their findings.
 
+## Contents
+
+- Preconditions
+- Inward Sub-Agent Dispatch
+- Outward Sub-Agent Dispatch
+- Parallel Dispatch
+- Findings Merge
+
 ---
 
 ## Preconditions

@@ -8,6 +8,15 @@ helpers: [_generation, _srad, _intake]
 
 > Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.
 
+## Contents
+
+- Pre-flight
+- Arguments
+- Behavior
+- Output
+- Error Handling
+- Key Properties
+
 ---
 
 ## Pre-flight

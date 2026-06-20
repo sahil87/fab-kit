@@ -9,6 +9,17 @@ Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`).
 
 > `/fab-proceed` follows `_preamble.md` conventions but skips preflight/context loading itself — it delegates all pipeline context loading to `/fab-fff`.
 
+## Contents
+
+- Purpose
+- Arguments
+- State Detection
+- Relevance Assessment
+- Dispatch Behavior
+- Error Handling
+- Output
+- Key Properties
+
 ---
 
 ## Purpose
@@ -74,7 +85,7 @@ Enumerate candidate intakes:
 ls -d fab/changes/*/intake.md 2>/dev/null | grep -v archive/ | sed 's|fab/changes/||;s|/intake.md||' | sort -r
 ```
 
-The pipeline lists change folders with intakes, excludes archived changes, extracts folder names, and sorts the full folder names in descending order — the `YYMMDD` prefix dominates, and the `XXXX-slug` tail makes the order among same-day changes deterministic. Retain the full list — the date-descending sort is used only for tiebreaks in Step 5, not to pre-pick a single candidate.
+This lists non-archived change folders with intakes, full names sorted date-descending (deterministic tiebreak: `YYMMDD` prefix dominates, `XXXX-slug` tail breaks same-day ties). Retain the full list — the sort is used only for tiebreaks in Step 5, not to pre-pick a single candidate.
 
 ### Step 5: Dispatch Decision
 
@@ -116,8 +127,8 @@ When a candidate's relevance is genuinely ambiguous (neither clearly relevant no
 
 The failure modes are asymmetric:
 
-- **False positive** (activate unrelated draft): corrupts the draft's content, wastes its original intent, conflates two unrelated features in pipeline output. Recovery requires manual rollback.
-- **False negative** (create new when draft was relevant): leaves the draft intact and recoverable. The user sees the bypass note, and can run `/fab-switch <name>` to recover.
+- **False positive** (activate unrelated draft): corrupts the draft and conflates two unrelated features in pipeline output — recovery requires manual rollback.
+- **False negative** (create new when draft was relevant): leaves the draft intact — the user sees the bypass note and can run `/fab-switch <name>` to recover.
 
 Biasing toward the recoverable failure is the design intent.
 
@@ -129,18 +140,18 @@ Relevance judgment is performed by the invoking agent inline — no external cla
 
 ### Subagent Dispatch (Prefix Steps)
 
-Each prefix step (the `_intake` Create-Intake Procedure, `/fab-switch`, `/git-branch`) SHALL be dispatched as a subagent using the Agent tool (`subagent_type: "general-purpose"`) per `_preamble.md` § Subagent Dispatch. Each subagent prompt MUST instruct the subagent to read the standard subagent context files per `_preamble.md` § Standard Subagent Context.
+Each prefix step (the `_intake` Create-Intake Procedure, `/fab-switch`, `/git-branch`) SHALL be dispatched as a subagent per `_preamble.md` § Subagent Dispatch (Agent tool, `subagent_type: "general-purpose"`, reading the standard subagent context files).
 
-> **Per-stage model**: the prefix steps are NOT pipeline stages, so they take **no** `fab resolve-agent` resolution — they dispatch at the inherited model. Per-stage model selection belongs to the pipeline `/fab-proceed` delegates to: the final `/fab-fff` invocation (run via the Skill tool in the current context) resolves `fab resolve-agent <stage>` for each of its own stages per `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution.
+> **Per-stage model**: the prefix steps are NOT pipeline stages, so they take **no** `fab resolve-agent` resolution — they dispatch at the inherited model. Per-stage model selection belongs to the pipeline `/fab-proceed` delegates to: the final `/fab-fff` invocation resolves `fab resolve-agent <stage>` for each of its own stages per `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution.
 
 #### Create-Intake Dispatch
 
 Runs when the dispatch table selects the create-new path (`_intake`): either substantive conversation + no intake, or substantive conversation + ≥1 intake but none clearly relevant. The create-an-intake sub-operation is routed through the shared `_intake` Create-Intake Procedure (the same Steps 0–9 `/fab-new` runs) in its `promptless-defer` mode — `/fab-proceed` decides *whether* to create an intake; `_intake` performs it. After it returns (intake at `ready`, not activated), the dispatch table chains `/fab-switch` → `/git-branch` to activate and branch.
 
 1. Synthesize a description from the conversation (see Conversation Context Synthesis below). The synthesis MUST NOT pull from bypassed drafts — only the live conversation is the source.
-2. Dispatch subagent: read `.claude/skills/_intake/SKILL.md`, execute the **Create-Intake Procedure** with `{questioning-mode} = promptless-defer` and the synthesized description. The dispatch is promptless — there is no interactive relay — and `promptless-defer` is exactly the **defer-and-surface contract**: the procedure asks NO questions; any decision SRAD would normally ask (Unresolved) is instead recorded in the intake's `## Assumptions` table as an Unresolved row with Rationale `Deferred — promptless dispatch`, and listed in the subagent result. (This is the `_srad.md` § Critical Rule **promptless-dispatch carve-out** — the MUST-ask is satisfied by deferring and surfacing, not by silently assuming.) The procedure stops at intake `ready`; it does NOT activate or branch (those are `/fab-new`'s tail, not part of the shared procedure) — the `/fab-switch`/`/git-branch` prefix steps are dispatched separately per the dispatch table when needed.
+2. Dispatch subagent: read `.claude/skills/_intake/SKILL.md`, execute the **Create-Intake Procedure** with `{questioning-mode} = promptless-defer` and the synthesized description. `promptless-defer` is the defer-and-surface contract per `_srad.md` § Critical Rule (promptless-dispatch carve-out): the procedure asks NO questions; any would-be-asked decision lands in the intake's `## Assumptions` table as an Unresolved row with Rationale `Deferred — promptless dispatch`, and is listed in the subagent result. The procedure stops at intake `ready`; it does NOT activate or branch (those are `/fab-new`'s tail) — the `/fab-switch`/`/git-branch` prefix steps are dispatched separately per the dispatch table.
 3. Capture the created change folder name **and any deferred Unresolved decisions** from the subagent result
-4. **Surface deferred decisions**: before delegating to `/fab-fff`, emit one line per deferred decision (informational — `/fab-proceed` stays zero-prompt). The intake gate is the structural backstop: a deferred decision blocks the gate **by itself only when its composite is below 20** (a composite ≥ 20 row still adds penalty and can help fail the gate alongside other weak rows) — there is no special gate for deferrals; blocking is emergent from the demerit curve. Because a genuine unknown is scored with honestly-low dimensions (composite < 20, penalty ≥ 2.0), such a deferral fails the `/fab-fff` gate and the pipeline stops normally for the user to resolve via `/fab-clarify`.
+4. **Surface deferred decisions**: before delegating to `/fab-fff`, emit one line per deferred decision (informational — `/fab-proceed` stays zero-prompt). The intake gate is the structural backstop: deferred Unresolved rows penalize the gate per `_preamble.md` § Confidence Scoring; a genuine unknown (scored with honestly-low dimensions) fails it and the pipeline stops normally for the user to resolve via `/fab-clarify`.
 
 #### fab-switch Dispatch
 
@@ -151,7 +162,7 @@ Runs when the dispatch table selects `/fab-switch` (substantive + clearly releva
 
 #### git-branch Dispatch
 
-Runs when the dispatch table selects `/git-branch`: the branch-mismatch row (active change, branch doesn't match), the `/fab-switch`-prefixed relevant-intake rows, and the `_intake`-prefixed create-new rows (since `_intake` stops at `ready` without branching, `/git-branch` creates the matching branch after `/fab-switch` activates).
+Runs when the dispatch table selects `/git-branch`: the branch-mismatch row (active change, branch doesn't match), the `/fab-switch`-prefixed relevant-intake rows, and the `_intake`-prefixed create-new rows (which chain `/git-branch` after `/fab-switch` — see the dispatch-table note above).
 
 1. Dispatch subagent: read `.claude/skills/git-branch/SKILL.md`, follow its behavior for the active change
 2. Capture the branch creation/checkout result from the subagent result

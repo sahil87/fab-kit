@@ -7,6 +7,17 @@ description: "Archive a completed change or restore an archived change — move 
 
 > Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.
 
+## Contents
+
+- Purpose
+- Arguments
+- Pre-flight
+- Context Loading
+- Behavior
+- Output
+- Key Properties
+- Restore Mode
+
 ---
 
 ## Purpose
@@ -111,7 +122,7 @@ Next: {per state table — initialized}
 |----------|-------|
 | Advances stage? | No — post-pipeline housekeeping |
 | Idempotent? | Yes — re-archive is a soft skip that still re-attempts the backlog mark (recovering a previously-failed mark); `fab change archive` marks the backlog idempotently (`already`) |
-| Leaves uncommitted changes? | Yes — moved files + backlog/index edits, for the caller to commit (no autonomous commit step) |
+| Leaves uncommitted changes? | Yes — moved files + backlog/index edits (see Dirty-tree disclosure in § Purpose) |
 | Modifies `.status.yaml`? | No (may update `last_updated`) |
 | Modifies `.fab-status.yaml`? | Yes — conditionally removes symlink (via command) |
 | Modifies `docs/memory/`? | No |
@@ -139,9 +150,7 @@ Call `fab change restore` in a single invocation:
 fab change restore <change-name> [--switch]
 ```
 
-Parse the structured YAML output for the report. If the command exits non-zero:
-- **"Multiple archives match"** → list the matches from stderr, ask user to pick, re-run with the selected name
-- **"No archive matches"** → call `fab change archive-list`, display available archives, inform user
+Parse the structured YAML output for the report. On non-zero exit, handle per § Error Handling (multiple-match, no-match, etc.).
 
 #### Step 2: Format Report
 
@@ -189,7 +198,7 @@ Next: {per state table — if --switch: restored change's state; otherwise: acti
 |----------|-------|
 | Advances stage? | No — post-archive housekeeping |
 | Idempotent? | Yes — the command detects already-restored folders |
-| Leaves uncommitted changes? | Yes — moved files + archive-index edits, for the caller to commit (no autonomous commit step) |
+| Leaves uncommitted changes? | Yes — moved files + archive-index edits (see Dirty-tree disclosure in § Purpose) |
 | Modifies `.status.yaml`? | No |
 | Modifies `.fab-status.yaml`? | Only with `--switch` flag (via the command) |
 | Modifies `docs/memory/`? | No |

@@ -1,5 +1,10 @@
 # _review
 
+## Contents
+
+- Summary
+- Flow
+
 ## Summary
 
 Shared review dispatch logic invoked by `/fab-continue`, `/fab-ff`, and `/fab-fff` at the review stage. Defines the inward sub-agent (validates implementation against `plan.md`'s `## Requirements`, `## Tasks`, and `## Acceptance` with eight validation checks, including the parsimony pass and deletion-candidate prompt) and the outward sub-agent (Codex→Claude cascade with full repo access for holistic diff review). Both sub-agents are dispatched in parallel; their findings are merged into a single prioritized set with three severity tiers.
@@ -7,6 +12,8 @@ Shared review dispatch logic invoked by `/fab-continue`, `/fab-ff`, and `/fab-ff
 This is an internal partial (`user-invocable: false`) — it is never invoked directly. Skills reference it via `helpers:` frontmatter (`/fab-ff`, `/fab-fff`) or a stage-conditional in-body read at review entry (`/fab-continue` — deliberately absent from its frontmatter list, per `_preamble.md` § Skill Helper Declaration).
 
 The rework loop is NOT defined here — the file's trailing note points at the orchestrators: `fab-continue.md`'s Verdict section for manual rework, and `_pipeline.md` § Auto-Rework Loop for `/fab-ff`/`/fab-fff` (pointer corrected in 260611-szxd; it previously cited "fab-ff.md/fab-fff.md Step 3").
+
+**Prose optimization** (260620-skop): a `## Contents` TOC added to `_review.md` (structural check, file >100 lines); no prose trimmed and no behavioral change (Flow unchanged). This SPEC also received a `## Contents` block under the same structural check.
 
 ## Flow
 

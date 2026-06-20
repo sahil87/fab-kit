@@ -36,6 +36,10 @@ metadata:
 > them. Mirror the proven `_pipeline.md` shape: shared body parameterized by one knob, call-site
 > tails stay in the call-site files.
 
+## Contents
+
+- Create-Intake Procedure (Steps 0–9)
+
 ---
 
 ## Create-Intake Procedure (Steps 0–9)

@@ -10,6 +10,32 @@ metadata:
 
 > Loaded selectively via a skill's `helpers: [_cli-fab]` frontmatter. See `_preamble.md` § Common fab Commands for the 6 most-used commands (`preflight`, `score`, `log command`, `change`, `resolve`, `status`). This file documents the remaining commands and exhaustive flag details.
 
+## Contents
+
+- Calling Convention
+- fab change (extended subcommand details)
+- fab status (extended subcommand details)
+- fab score (extended)
+- fab preflight (extended)
+- fab log (extended)
+- fab resolve (extended)
+- fab resolve-agent
+- fab hook
+- fab pane
+- fab doctor
+- fab migrations-status
+- fab kit-path
+- fab shell-init
+- fab impact
+- fab pr-meta
+- fab memory-index
+- fab fab-help
+- fab help-dump
+- fab operator
+- fab spawn-command
+- fab batch
+- Common Error Messages
+
 ---
 
 ## Calling Convention

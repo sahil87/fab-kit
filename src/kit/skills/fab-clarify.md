@@ -10,12 +10,25 @@ helpers: [_srad]
 
 ---
 
+## Contents
+
+- [Purpose](#purpose)
+- [Arguments](#arguments)
+- [Pre-flight & Stage Guard](#pre-flight--stage-guard)
+- [Suggest Mode (User Invocation)](#suggest-mode-user-invocation)
+- [Skill Invocation Protocol](#skill-invocation-protocol)
+- [Auto Mode](#auto-mode)
+- [Error Handling](#error-handling)
+- [Key Properties](#key-properties)
+
+---
+
 ## Purpose
 
 Deepen and refine the **intake** artifact (`intake.md`) without advancing. Clarification is an intake-only, human-facing activity: it is where the developer's decisions and disambiguation happen, gated by the single intake confidence gate. There is no post-intake clarify — inside apply, the agent resolves ambiguity inline as graded SRAD assumptions in `plan.md`, not via this skill. Two modes:
 
 - **Suggest mode** (user invocation) — interactive question flow with recommendations
-- **Auto mode** — autonomous resolution, returns machine-readable result (the protocol is retained for future use; no orchestrator currently invokes clarify automatically)
+- **Auto mode** — autonomous resolution, returns machine-readable result (retained for future use; see § Skill Invocation Protocol → Currently Applicable)
 
 Mode determined by `[AUTO-MODE]` prefix (see § Skill Invocation Protocol below). Safe to call multiple times.
 
@@ -25,7 +38,7 @@ Mode determined by `[AUTO-MODE]` prefix (see § Skill Invocation Protocol below)
 
 - **`<change-name>`** *(optional)* — target a specific change (see `_preamble.md` > Change-name override). `.fab-status.yaml` unchanged.
 
-`/fab-clarify` operates only on `intake.md`. The legacy `spec`, `plan`, and `tasks` targets were removed: `spec` and `plan` no longer exist as clarify targets (the spec stage is gone; under-specified requirements at apply become inline SRAD assumptions, not clarify sessions). Any positional argument is treated as a change name.
+`/fab-clarify` operates only on `intake.md`; the legacy `spec`/`plan`/`tasks` targets were removed (the spec stage is gone; under-specified requirements at apply become inline SRAD assumptions). Any positional argument is treated as a change name.
 
 ---
 
@@ -34,7 +47,7 @@ Mode determined by `[AUTO-MODE]` prefix (see § Skill Invocation Protocol below)
 Run preflight per `_preamble.md` §2.
 
 - **Intake** is the only stage `/fab-clarify` operates at. With `intake` state `active` or `ready`, scan `intake.md` (scope boundaries, affected areas, blocking questions, impact, memory coverage).
-- **Post-intake stages** (`apply`, `review`, `hydrate`, `ship`, `review-pr`): `/fab-clarify` does not apply. STOP with: "Clarification is intake-only. At apply or later, run /fab-continue for rework, or edit plan.md `## Requirements` directly. To re-clarify the intake, reset with /fab-continue intake first." If `intake.md` is missing entirely: STOP with "No intake.md found. Run /fab-new to create the intake first."
+- **Post-intake stages** (`apply`, `review`, `hydrate`, `ship`, `review-pr`): `/fab-clarify` does not apply — STOP (see Error Handling for the message). If `intake.md` is missing entirely, STOP with the missing-intake message (Error Handling).
 
 ---
 
@@ -42,7 +55,7 @@ Run preflight per `_preamble.md` §2.
 
 ### Step 1: Read Target Artifact
 
-Read `intake.md`. If missing: STOP with "No intake.md found. Run /fab-new to create the intake first."
+Read `intake.md`. If missing: STOP (missing-intake message, see Error Handling).
 
 ### Step 1.5: Taxonomy Scan
 
@@ -119,7 +132,7 @@ For changed items, also update the Decision column with the user's new value. On
 
 #### Audit Trail
 
-Append a `### Session {YYYY-MM-DD} (bulk confirm)` block under `## Clarifications` — same placement/append rules as Step 5: append to the existing `## Clarifications` section if present; create it (immediately before `## Assumptions`) if not; skip if 0 items were resolved:
+Append a `### Session {YYYY-MM-DD} (bulk confirm)` block under `## Clarifications`. **Placement/append rule** (shared with Step 5): append to the existing `## Clarifications` section if present; create it (immediately before `## Assumptions`) if not; skip if 0 items were resolved.
 
 ```markdown
 ### Session {YYYY-MM-DD} (bulk confirm)
@@ -145,12 +158,12 @@ Allow the user to accept the recommendation, pick an alternative, provide a free
 ### Step 4: Process Answer and Update
 
 1. Update artifact in place: replace markers with resolved content, add `<!-- clarified: ... -->` for significant changes
-2. Re-grade the resolved entry's row in the `## Assumptions` table **by recomputed composite, not by fiat** — same rule as bulk confirm (Step 2): set S → 95 (R, A, D unchanged), recompute the composite per `_srad.md` § SRAD Scoring, and assign the grade by its half-open thresholds. A direct answer typically lands the row in Certain, but a row whose recomputed composite stays below the Certain band keeps its banded grade — the grade is derived from the dimensions, never forced.
+2. Re-grade the resolved entry's row in the `## Assumptions` table **by recomputed composite, not by fiat** — the same rule as Step 2's Artifact Update (set S → 95, R/A/D unchanged; recompute per `_srad.md` § SRAD Scoring; grade by the half-open thresholds). A direct answer typically lands the row in Certain, but a row whose recomputed composite stays below the Certain band keeps its banded grade.
 3. Present next question or proceed to Step 5 after queue exhaustion / 5th answer / early termination
 
 ### Step 5: Audit Trail
 
-Append `## Clarifications > ### Session {YYYY-MM-DD}` with Q&A pairs — same placement/append rules as Step 2's bulk-confirm trail: append to the existing `## Clarifications` section if present; create it (immediately before `## Assumptions`) if not; skip if 0 answers.
+Append `## Clarifications > ### Session {YYYY-MM-DD}` with Q&A pairs — same placement/append rule as Step 2's bulk-confirm trail (skip if 0 answers).
 
 ### Step 6: Coverage Summary
 
@@ -206,7 +219,7 @@ To add new mode signals, define new bracketed prefixes (e.g., `[BATCH-MODE]`) he
 
 ## Auto Mode
 
-> **Note**: Bulk confirm (Step 2) is Suggest Mode only. Auto Mode skips it — there is no user to confirm with. No orchestrator currently invokes clarify automatically (the former `/fab-ff` and `/fab-fff` auto-clarify steps were removed in 1.10.0); this section is retained for future use and operates on `intake.md` only.
+> **Note**: Bulk confirm (Step 2) is Suggest Mode only. Auto Mode skips it — there is no user to confirm with. Retained for future use only (see § Skill Invocation Protocol → Currently Applicable); operates on `intake.md` only.
 
 1. **Read `intake.md`** (same as Suggest Step 1)
 2. **Autonomous gap resolution**: Same intake taxonomy scan. Resolvable from context → resolve + `<!-- clarified: ... -->`. Needs user input → `<!-- blocking: ... -->`. Minor → leave as-is.

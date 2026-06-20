@@ -8,12 +8,21 @@ helpers: [_cli-fab, _cli-external]
 
 > Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.
 
+## Contents
+
+- 1. Principles
+- 2. Startup
+- 3. Safety
+- 4. The Loop
+- 5. Auto-Nudge
+- 6. Coordination Patterns
+- 7. Watches
+- 8. Configuration
+- 9. Key Properties
+
 Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across all sessions on its tmux server via `fab pane map --all-sessions`, routes commands via `tmux send-keys`, monitors progress via `/loop`. Spans multiple repos and sessions on one server. The loop is the heart of the operator.
 
-Start via `fab operator` (singleton tmux tab named `operator`). The launcher requires **neither a git repo nor a resolvable `fab/` project** — matching the per-server, cross-repo singleton model, whose natural launch point is a neutral parent directory (e.g. `~/code`) with no `fab/` project. The degraded behavior is exact:
-- **Window cwd**: the repo root when launched inside a git repo, else `os.Getwd()` (the current directory). It errors only if both resolutions fail.
-- **Spawn command**: `agent.spawn_command` from the project's `fab/project/config.yaml` when a `fab/` project is resolvable, else the built-in default `spawn.DefaultSpawnCommand` (`claude --dangerously-skip-permissions`). When launched `fab/`-less, **no project `agent.spawn_command`/`agent.tiers` is read** — there is no project to customize from.
-- **Doing-tier model**: the launcher resolves the **doing-tier** `{model, effort}` (via `fab resolve-agent apply`) and appends `--model`/`--effort` to the spawn command, so the coordinating agent runs on a deliberately-chosen model rather than whatever the spawn command happened to specify. With no resolvable `fab/` project (or any other failure) the doing tier resolves to its built-in default `{claude-opus-4-8, high}` — so a `fab/`-less launch composes a fully-defaulted command (default spawn command + doing default).
+Start via `fab operator` (singleton tmux tab named `operator`). The launcher requires **neither a git repo nor a resolvable `fab/` project** — matching the per-server, cross-repo singleton model, whose natural launch point is a neutral parent directory (e.g. `~/code`). Its exact degraded behavior (window cwd, spawn command, doing-tier model resolution and built-in defaults) is documented in `_cli-fab.md` § fab operator and is the canonical §9 Key Properties rows below.
 
 ---
 
@@ -126,9 +135,7 @@ The loop is the operator's heartbeat — a `/loop "operator tick"` that runs as 
 
 ### Operator State File
 
-Persistent state, read on startup and every tick, written after every state change. The term **operator state file** used throughout this skill refers to this file.
-
-The operator state file is **server-keyed**, not repo-rooted: it lives at `$XDG_STATE_HOME/fab/operator/<server-slug>.yaml` (falling back to `~/.local/state/fab/operator/<server-slug>.yaml` when `XDG_STATE_HOME` is unset), keyed by the tmux socket path so the one operator per server owns one file spanning every repo it coordinates (see §8, §9). The binary derives this path (`fab operator tick-start` reads/writes it); the operator never needs to compute it. Old repo-rooted `.fab-operator.yaml` files from before the server-keyed model are **not migrated** — they are abandoned in place (the monitored set is re-derivable from live `»`-prefixed panes).
+Persistent state, read on startup and every tick, written after every state change. The term **operator state file** used throughout this skill refers to this file. It is **server-keyed**, not repo-rooted — one file per tmux server spanning every repo it coordinates (path, XDG fallback, binary-derivation, and the no-migration of old repo-rooted `.fab-operator.yaml` files: see §2 Init step 1 and §9).
 
 ```yaml
 tick_count: 47
@@ -205,7 +212,7 @@ The top-level `branch_map` persists change ID → `{ branch, repo }` mappings. E
 
 On each tick:
 
-1. **Snapshot** — run `fab operator tick-start` (increments `tick_count`, writes `last_tick_at`, outputs `tick: N` and `now: HH:MM`). Parse stdout for the tick number and current time. Then run `fab pane map --all-sessions --json` (the `--all-sessions` flag is required so the operator sees agents in **every** session on its server, not just its own; `--json` exposes the per-row `repo` field — the agent's absolute main-worktree root, or `null` when the pane is not in a git repo — and the nullable per-row `display_state` field — `active|ready|done|failed|pending|skipped`, `null` under the same conditions as `stage` — an honest attention-state axis alongside `stage` (`failed` is reachable since the DisplayStage failed tier shipped with 260612-dkn3)) and read the server-keyed state file. **Group the rows first by `repo`, then by `session`** within each repo. Compute status for all tracked items: stage advances, completions, review failures, pane deaths, and watch statuses from the last persisted check (`last_checked` / `last_error` / last counts). Output the status frame — see **Status Frame Format** below.
+1. **Snapshot** — run `fab operator tick-start` (increments `tick_count`, writes `last_tick_at`, outputs `tick: N` and `now: HH:MM`). Parse stdout for the tick number and current time. Then run `fab pane map --all-sessions --json` (flag/field semantics — `--all-sessions`, the per-row `repo` and nullable `display_state` fields — in `_cli-fab.md` § fab pane map) and read the server-keyed state file. **Group the rows first by `repo`, then by `session`** within each repo. Compute status for all tracked items: stage advances, completions, review failures, pane deaths, and watch statuses from the last persisted check (`last_checked` / `last_error` / last counts). Output the status frame — see **Status Frame Format** below.
 
 2. **Auto-nudge** — for each idle agent, run question detection (§5). (No post-intake `/git-branch` nudge — `/fab-new` Step 11 creates or renames the branch inline; only a detected branch/change mismatch warrants a `/git-branch` send, per §3 pre-send validation item 4.)
 3. **Watches** — for each watch, query the source, compare against `known` + `completed` (§7 step 2's dedupe rule), spawn on new matches (§7).
@@ -354,13 +361,11 @@ In both branches the operator **continues ticking**. The user answers asynchrono
 
 ### Notification Send
 
-The notification is a single out-of-band shell send the operator runs when it auto-picks or leaves open a Strategic prompt. The **default channel is `rk notify`** — a run-kit external contract: `rk notify <message> [--title string]` (run-kit Web Push, released in `rk v2.3.2`; full command reference in `_cli-external.md` § rk (run-kit)). The send is gated on `command -v rk` and runs fail-silent per `_preamble.md` § Run-Kit (rk) Reference (which documents the gate and the fail-silent discipline; the `notify` subcommand itself is documented in `_cli-external.md` § rk):
+The notification is a single out-of-band shell send the operator runs when it auto-picks or leaves open a Strategic prompt. The **default channel is `rk notify`** (contract, gate, and fail-silent discipline per `_cli-external.md` § rk (run-kit) and `_preamble.md` § Run-Kit (rk) Reference). The operator-specific send — gated on `command -v rk`, with the operator's message/title template — is:
 
 ```sh
 command -v rk >/dev/null 2>&1 && rk notify "{change}: {summary} ({repo})" --title "Operator: strategic question"
 ```
-
-`rk notify` delivers a real background mobile/desktop Web Push to every subscribed device and is **fail-silent by contract** (exits 0 / prints nothing on any error — server unreachable, no subscriptions — so it can never stall the loop).
 
 **When `rk` is absent** (operator running where run-kit isn't installed), fall back to the first available **documented alternative**, configurable via the §8 `Notify channel` setting:
 
@@ -369,7 +374,7 @@ command -v rk >/dev/null 2>&1 && rk notify "{change}: {summary} ({repo})" --titl
 - **`PushNotification`** (built-in Claude Code harness tool) — zero infra, no topic secret to leak, headless-safe; a *personal* push to the user's Claude apps, not a shared searchable feed. Good "just ping me" fallback.
 - **Slack MCP** (`mcp__claude_ai_Slack__slack_send_message`) — searchable channel feed, mobile push; caveat: an interactively-authed MCP may be **absent in headless/cron** runs, so it cannot be a headless default.
 
-**All notify sends fail silently.** A notification that cannot be delivered (`rk`/run-kit server unreachable, channel down, no subscriptions, `curl`/tool missing) MUST NOT crash or stall the loop — the operator logs one line and keeps ticking. `rk notify` is already fail-silent by contract; the fallback path matches it. This mirrors the `_preamble.md` § Run-Kit (rk) Reference "fail silently" discipline.
+**All notify sends fail silently** (the fallback path matches `rk notify`'s contract per `_preamble.md` § Run-Kit (rk) Reference). A notification that cannot be delivered (server unreachable, channel down, no subscriptions, `curl`/tool missing) MUST NOT crash or stall the loop — the operator logs one line and keeps ticking.
 
 ### Sending Auto-Answers
 
@@ -518,12 +523,12 @@ Dependency resolution is **two-tier**, split by repo. Each entry in `depends_on`
 Dependencies are declared through three conversational paths, all of which coexist:
 
 1. **Explicit**: "cd34 depends on ab12" — operator sets `depends_on: [ab12]` on the monitored entry
-2. **Autopilot queue (implicit)**: user-provided ordering implies `--base` chaining by default — every change after the first automatically gets `depends_on: [<nearest-same-repo-predecessor>]`: the closest earlier queue entry in the **same repo** (cherry-picked), falling back to the immediately previous entry when no earlier entry shares the repo (cross-repo → ordering-only barrier, no code)
+2. **Autopilot queue (implicit)**: user-provided ordering implies `--base` chaining by default — every change after the first gets `depends_on: [<nearest-same-repo-predecessor>]` (definition + cross-repo fallback in § Autopilot → Queue ordering, "User-provided")
 3. **`--base` flag (explicit)**: autopilot `--base <prev-change>` explicitly sets `depends_on: [<prev-change-id>]` for the subsequent change (matches path 2's pick when the previous entry is same-repo; available for ad-hoc overrides)
 
 ### Working a Change
 
-> **Pipeline-first routing (§1):** All three work paths below MUST go through the fab pipeline. For *new* work, this means `/fab-new` followed by a pipeline command; for already-intaked changes, start from the appropriate pipeline command stage instead of repeating `/fab-new`. The operator MUST NOT send raw implementation instructions directly to agent panes. See the "Pipeline-first routing" principle in §1.
+> **Pipeline-first routing (§1):** all three work paths below MUST go through the fab pipeline (`/fab-new` then a pipeline command for new work; the appropriate stage for already-intaked changes) — never raw implementation instructions to agent panes.
 
 The operator accepts work in three forms. Each runs the §6 spawn sequence above (establish target repo → `wt create` in it → existence-guarded pointer activation → resolve dependencies → `fab spawn-command --repo <target-repo>` → open agent tab → enroll with `repo` + `session`); only the entry-form specifics below differ:
 
@@ -541,7 +546,7 @@ User provides a queue of changes. Confirmation prompt reflects the active mode:
 - **Default (stack-then-review):** "Confirm upfront (creates PRs — merge after review)."
 - **`--merge-on-complete`:** "Confirm upfront (merges PRs on completion)."
 
-A queue **may span repos**. The dependency semantics are mixed: implicit `--base` chaining (and explicit `depends_on`) cherry-picks **within a repo** and **degrades to an ordering-only barrier across repo boundaries** (per Dependency Resolution above). Implicit chaining picks each change's **nearest same-repo predecessor** — not blindly the previous queue entry, which would silently break same-repo stacking whenever a cross-repo entry sits in between (a cross-repo dep contributes no code). So a chain `ab12 → cd34 → ef56` where `cd34` lives in a different repo means: `cd34` gets `depends_on: [ab12]` (cross-repo — waits for `ab12` to reach its stop/terminal stage, no code), and `ef56` (back in `ab12`'s repo) gets `depends_on: [ab12]` — its nearest same-repo predecessor — and cherry-picks from it; queue order still runs `ef56` after `cd34`.
+A queue **may span repos**, with mixed dependency semantics: implicit `--base` chaining (and explicit `depends_on`) cherry-picks **within a repo** and **degrades to an ordering-only barrier across repo boundaries** (per Dependency Resolution above; the nearest-same-repo-predecessor rule is defined in Queue ordering below). Worked example — a chain `ab12 → cd34 → ef56` where `cd34` lives in a different repo: `cd34` gets `depends_on: [ab12]` (cross-repo — waits for `ab12` to reach its stop/terminal stage, no code), and `ef56` (back in `ab12`'s repo) gets `depends_on: [ab12]` — its nearest same-repo predecessor — and cherry-picks from it; queue order still runs `ef56` after `cd34`.
 
 Queue ordering:
 
@@ -551,7 +556,7 @@ Queue ordering:
 | Confidence-based | Sort by confidence score descending. Highest-confidence first (independent changes) |
 | Hybrid | User provides constraints (partial order); operator sorts unconstrained by confidence |
 
-**`--merge-on-complete`** — opt-in flag that reverts to the previous merge-as-you-go behavior: merge each PR on completion, then `git fetch origin` and rebase the next change onto `origin/{default_branch}` (the default branch resolved per Dependency Resolution step 0 — never a hardcoded `origin/main`). Implicit `--base` chaining is disabled under this flag — each change rebases onto `origin/{default_branch}` independently instead of stacking on the previous change's branch. Natural language equivalents: "merge as you go", "merge on complete", "merge each when done". Without this flag, the default is stack-then-review: PRs are created but not merged until the user explicitly requests merging, and implicit `--base` chaining is active (every change after the first gets `depends_on: [<nearest-same-repo-predecessor>]`, falling back to the immediately previous entry across repo boundaries).
+**`--merge-on-complete`** — opt-in flag that reverts to the previous merge-as-you-go behavior: merge each PR on completion, then `git fetch origin` and rebase the next change onto `origin/{default_branch}` (the default branch resolved per Dependency Resolution step 0 — never a hardcoded `origin/main`). Implicit `--base` chaining is disabled under this flag — each change rebases onto `origin/{default_branch}` independently instead of stacking on the previous change's branch. Natural language equivalents: "merge as you go", "merge on complete", "merge each when done". Without this flag, the default is stack-then-review: PRs are created but not merged until the user explicitly requests merging, and implicit `--base` chaining is active (per Queue ordering, "User-provided").
 
 The operator works each change through the pipeline. Pre-send validation (§3) applies to any command sent to an existing pane; the initial pipeline command itself is **embedded at spawn** (§6 step 6) — the single dispatch point:
 

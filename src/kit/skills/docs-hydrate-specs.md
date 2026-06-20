@@ -9,6 +9,18 @@ description: "Identify structural gaps between memory and specs, propose concise
 
 ---
 
+## Contents
+
+- Purpose
+- Arguments
+- Pre-flight
+- Context Loading
+- Behavior
+- Error Handling
+- Key Properties
+
+---
+
 ## Purpose
 
 Detect structural gaps between `docs/memory/` and `docs/specs/` — topics memory covers but specs don't — and propose concise additions back to specs. Top 3 gaps ranked by impact, with exact markdown previews and per-gap user confirmation.
@@ -25,8 +37,7 @@ This is the reverse of hydrate (specs → memory): hydrate-specs flows memory �
 
 ## Pre-flight
 
-1. `docs/memory/index.md` must exist. If not: STOP with `docs/memory/index.md not found. Run /fab-setup first.`
-2. `docs/specs/index.md` must exist. If not: STOP with `docs/specs/index.md not found. Run /fab-setup first.`
+Both index files must exist (see Error Handling); if one is missing, STOP with `{path} not found. Run /fab-setup first.` — i.e. `docs/memory/index.md not found. Run /fab-setup first.` or `docs/specs/index.md not found. Run /fab-setup first.`
 
 ---
 

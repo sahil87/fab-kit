@@ -6,6 +6,8 @@ Full pipeline gated on the single intake gate (identical to fab-ff). Since 26061
 
 **Helpers**: Declares `helpers: [_generation, _review, _srad, _pipeline]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
 
+**Prose optimization** (260620-skop): skill content trimmed — the per-stage model recipe duplicated in the Step 4 and Step 5 preambles collapsed to one reference to the top-of-Behavior "Per-stage model" blockquote (matching `fab-ff.md`'s single-reference pattern), the Step 5 timeout outcome stated 3× reduced to one canonical literal in the Error Handling row (Step 5 and Output now reference it), and the synchronous-poll blockquote's rationale recap trimmed to a one-line pointer to `git-pr-review.md` while keeping the dispatch-seam MUST instruction itself; a `## Contents` TOC added. No behavioral change (Flow / Sub-agents / synchronous-poll directive / `{name}`-vs-`{id}` rule unchanged).
+
 ## Flow
 
 ```

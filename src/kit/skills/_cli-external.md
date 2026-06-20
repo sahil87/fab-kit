@@ -10,6 +10,16 @@ metadata:
 
 > Loaded by operator skills only (not part of the always-load layer). Documents non-fab CLI tools used for multi-agent coordination.
 
+## Contents
+
+- Reference Model
+- wt (Worktree Manager)
+- idea (Backlog Manager)
+- hop (Multi-Repo Navigator)
+- tmux
+- rk (run-kit)
+- /loop
+
 ---
 
 ## Reference Model

@@ -6,6 +6,8 @@ SRAD autonomy framework helper — the decision framework planning skills apply 
 
 Extracted from `_preamble.md` § SRAD Autonomy Framework in 260611-zc9m (the preamble keeps a 3-line pointer). This is an internal partial (`user-invocable: false`) — never invoked directly. It is loaded via the frontmatter `helpers:` list of the six planning skills: `fab-new`, `fab-draft`, `fab-continue`, `fab-ff`, `fab-fff`, `fab-clarify`. Non-planning skills do not load it.
 
+**Prose optimization** (260620-skop): a `## Contents` TOC added to `_srad.md` (structural check, file >100 lines); no prose trimmed and no behavioral change (Flow unchanged).
+
 ## Flow
 
 ```
