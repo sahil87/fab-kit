@@ -1,4 +1,4 @@
-# sddr Constitution
+# fab-kit Constitution
 
 ## Core Principles
 
