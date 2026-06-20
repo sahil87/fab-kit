@@ -1,8 +1,17 @@
 # git-pr-review
 
+## Contents
+
+- Summary
+- Arguments
+- Configuration
+- Flow
+
 ## Summary
 
 Processes PR review comments from any reviewer (human or bot). Fully autonomous — detects reviews, requests an automated Copilot review and polls up to 10 minutes for it to appear when no existing reviews are found, triages comments with disposition intent (fix/defer/skip), applies fixes, commits, pushes, and posts reply comments confirming outcomes.
+
+**Prose optimization** (260620-skop): skill content trimmed to remove re-explanation of partial-owned concepts (the `fab change resolve` ID/substring/name forms) and to collapse the triplicated two-login and synchronous-poll restatements to a single statement each (the `copilot-pull-request-reviewer`-on-`reviews` predicate, the REST-not-GraphQL confirmation rule, the MUST-NOT-yield directive, and the n30u/u1m1 memory citation are all preserved), and a `## Contents` TOC added; no behavioral change (Flow / Tools / Sub-agents unchanged).
 
 ## Arguments
 

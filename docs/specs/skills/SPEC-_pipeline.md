@@ -15,6 +15,8 @@ A third value, **`{max_cycles}`**, is defined by the bracket itself (260612-c5tr
 
 This is an internal partial (`user-invocable: false`) — never invoked directly. Drivers declare it via `helpers: [_pipeline]` frontmatter.
 
+**Prose optimization** (260620-skop): a `## Contents` TOC added to `_pipeline.md` (structural check, file >100 lines); no prose trimmed and no behavioral change (Per-Cycle Rework Choreography / Flow unchanged).
+
 ## Per-Cycle Rework Choreography (f071)
 
 Stated exactly once, in the Auto-Rework Loop. Every cycle (the initial Step 2 failure and each later re-review failure alike):

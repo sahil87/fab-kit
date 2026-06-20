@@ -4,6 +4,8 @@
 
 Creates or switches to the git branch matching the active or specified change. Falls back to creating a standalone branch if the argument doesn't match any change — but an *ambiguous* multi-match STOPs with the candidate list instead of creating a junk branch (260612-g8st). Remote-only target branches are checked out with `--track` rather than recreated as divergent locals; a dirty tree adds a non-blocking carried-over note to create/rename reports. Does not modify fab state.
 
+**Prose optimization** (260620-skop): a `## Contents` TOC added to the skill file (>100 lines, per the mechanical structural rule); no content trimmed (the skill is already lean) and no behavioral change (Flow / Tools / Sub-agents unchanged).
+
 ## Flow
 
 ```

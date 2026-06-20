@@ -7,6 +7,19 @@ description: "Hydrate memory from external sources or generate from codebase ana
 
 > Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.
 
+## Contents
+
+- Purpose
+- Pre-flight Check
+- Context Loading
+- Arguments
+- Ingest Mode Behavior
+- Generate Mode Behavior
+- Backfill Mode Behavior
+- Output
+- Idempotency
+- Error Handling
+
 ---
 
 ## Purpose
@@ -23,7 +36,7 @@ Mode is determined automatically by argument type (ingest/generate) or by the ex
 
 Index files (`index.md` at the root, domain, and sub-domain tiers) are **generated artifacts** — `fab memory-index` is their single writer. The one hand-curated field is the `description:` frontmatter (on topic files and on domain/sub-domain indexes). When a new domain or sub-domain is created, its `index.md` **stub** — only the `description:` frontmatter one-liner, nothing else — is created **before** `fab memory-index` runs; the command fills in the generated body and round-trips the description. Never hand-edit generated index rows or "Last Updated" cells. Both modes below follow this model.
 
-> **Refuse-before-regen guard (destructive-loss).** Before any `fab memory-index` regeneration step below, consult `fab memory-index --check`: on **exit 2** (destructive loss — a curated description would regenerate to `—`, a tombstone row would drop, or a custom grouping would flatten), **refuse to regenerate** and surface the pointer `→ run /docs-reorg-memory to remediate (it relocates removal-history rows to _shared/removed-domains.md and backfills description: frontmatter via /docs-hydrate-memory) before regenerating.` (`/docs-reorg-memory` is the orchestrator for all three tier-2 categories — it relocates tombstone rows itself and dispatches *this* skill's backfill mode for the descriptions; backfill alone does NOT relocate tombstones.) This is the primary pre-fab-kit-tree entry point, so the guard protects the *first* regen of a legacy tree. **No-op on born-compatible fab-kit trees** — they are always exit 0/1, never 2, so the guard never fires (do not mistake it for dead code). It only ever fires on a pre-fab-kit tree reached via ingest/generate before the tree has been backfilled. (Backfill mode itself never destroys content — it only adds frontmatter — so when *it* runs the regen, the guard has by then become a no-op.)
+> **Refuse-before-regen guard (destructive-loss).** Before any `fab memory-index` regeneration step below, consult `fab memory-index --check`: on **exit 2** (destructive loss — a curated description would regenerate to `—`, a tombstone row would drop, or a custom grouping would flatten), **refuse to regenerate** and surface the pointer `→ run /docs-reorg-memory to remediate (it relocates removal-history rows to _shared/removed-domains.md and backfills description: frontmatter via /docs-hydrate-memory) before regenerating.` (`/docs-reorg-memory` is the orchestrator for all three tier-2 categories — it relocates tombstone rows itself and dispatches *this* skill's backfill mode; backfill alone does NOT relocate tombstones.) **No-op on born-compatible fab-kit trees** (always exit 0/1, never 2 — not dead code); it fires only on a pre-fab-kit tree reached via ingest/generate before backfill. Backfill mode itself only adds frontmatter, never destroys, so by the time *it* regenerates the guard is already a no-op.
 
 ---
 
@@ -57,9 +70,9 @@ Skips the always-load layer entirely (this section is the skill-file override th
 | Markdown file | Path ends `.md` | **Ingest** |
 | Folder | Resolves to existing directory | **Generate** |
 
-**Mode disambiguation** — backfill is checked first: it is reached only by the explicit `backfill` keyword or a reorg dispatch, so it never collides with bare ingest/generate routing. The two are otherwise distinct by intent: **generate** *creates* memory files from source-code gaps; **backfill** *adds `description:` frontmatter to existing* memory files (no new content). All non-backfill arguments must classify to the same mode. **Mixed-mode → reject**: `Cannot mix ingest sources (URLs, .md files) with generate targets (folders). Run separately.`
+**Mode disambiguation** — backfill is checked first: it is reached only by the explicit `backfill` keyword or a reorg dispatch, so it never collides with bare ingest/generate routing. The two are otherwise distinct by intent: **generate** *creates* memory files from source-code gaps; **backfill** *adds `description:` frontmatter to existing* memory files (no new content). All non-backfill arguments must classify to the same mode — **mixed-mode → reject** (Error Handling).
 
-**Backfill takes no extra arguments** — backfill is an independent re-scan of `docs/memory/` with no caller manifest (see Backfill Mode Step 1), so any positional argument after the `backfill` keyword is meaningless. If `backfill` is the first argument **and** any further argument follows, **reject**: `backfill takes no arguments — it re-scans docs/memory/ itself. Run /docs-hydrate-memory backfill with no further arguments.` (The reorg-dispatch form never supplies extra args — it names only the operation.)
+**Backfill takes no extra arguments** — it is an independent re-scan of `docs/memory/` with no caller manifest (see Backfill Mode Step 1), so any positional argument after the `backfill` keyword is meaningless; `backfill` first **and** any further argument → **reject** (Error Handling). The reorg-dispatch form never supplies extra args — it names only the operation.
 
 Folder paths must exist — abort with `Folder not found: {path}` if not.
 
@@ -97,7 +110,7 @@ For each topic:
 
 ### Step 4: Regenerate Indexes (`fab memory-index`)
 
-Run `fab memory-index` once. It deterministically regenerates the root (domains-only), every domain index, and every sub-domain index from folder contents + `description:` frontmatter + git dates — byte-stable and idempotent. Never hand-edit index rows or "Last Updated" cells; the command is the single writer. Any non-fatal shape warnings it prints to stderr are advisory (over-wide / over-deep folders).
+Run `fab memory-index` once to regenerate the root (domains-only), every domain index, and every sub-domain index from folder contents + `description:` frontmatter + git dates (the single writer — see Index Ownership; never hand-edit rows or "Last Updated" cells). Any non-fatal shape warnings it prints to stderr are advisory (over-wide / over-deep folders).
 
 ---
 
@@ -140,13 +153,11 @@ Cross-reference against existing memory — exclude already-covered areas.
 
 ### Step 3: Memory File Generation
 
-For each selected gap: read **all source files** in scope, then synthesize into **one memory file per gap** using the canonical memory-file shape. **Read the shape from `$(fab kit-path)/templates/memory.md`** (the same on-demand template read `_generation.md`/`_intake.md` use for `$(fab kit-path)/templates/intake.md`) — it is the single source of truth for the FKF frontmatter pair (`type: memory` constant + curated `description:`, `$(fab kit-path)/reference/fkf.md` §3.1–§3.2) and the conventional body skeleton (Overview / Requirements + Scenario / Design Decisions, §3.3). Fill the scaffold from the analyzed code (Overview, Requirements as RFC 2119 statements derived from code not invented, Design Decisions where inferable) and strip the template's guidance comments.
-
-The template carries **no `## Changelog` section** — memory files no longer carry one (§3.3); change history lives in the per-folder generated `log.md` (§6, populated from git history + the `.status.yaml` `summary:` field). Any memory↔memory cross-link uses the bundle-relative `/...` form (§7).
+For each selected gap: read **all source files** in scope, then synthesize into **one memory file per gap** from the canonical memory-file shape — **read `$(fab kit-path)/templates/memory.md`** and fill its full skeleton, per ingest Step 3 (FKF frontmatter pair `type: memory` + `description:`; **no `## Changelog`**; bundle-relative `/...` cross-links). Fill the scaffold from the analyzed code: Overview, Requirements as RFC 2119 statements derived from code not invented, Design Decisions where inferable; strip the template's guidance comments.
 
 Mark ambiguous inferences with `[INFERRED]` inline near the relevant requirement.
 
-**Placement** follows the same rules as ingest-mode Step 3: target path is `docs/memory/{domain}/{topic}.md` (or `docs/memory/{domain}/{sub-domain}/{topic}.md`); create the domain folder and its `description:`-only index stub if needed — sub-domain stub likewise — before Step 4 runs (see Index Ownership); and the same shape bounds apply (~5–12 topic files per folder, max depth 3, a sub-domain only for a cohesive ≥8-file cluster, `_shared/`/`_unsorted/` width-exempt).
+**Placement** follows ingest-mode Step 3 exactly: target path `docs/memory/{domain}/{topic}.md` (or `.../{sub-domain}/{topic}.md`); create the domain folder and its `description:`-only index stub (sub-domain stub likewise) before Step 4 runs (see Index Ownership); and the same **Shape bounds** apply (see ingest Step 3).
 
 ### Step 4: Regenerate Indexes
 
@@ -170,7 +181,7 @@ For each discovered topic file missing `description:`:
 
 1. Read the file's **own content** — Overview, first section, or `# H1` — and synthesize a concise one-line summary.
 2. **Prefer a curated index row** where one maps to this file. If an existing hand-curated index file (e.g., a pre-fab-kit `index.md` whose rows line up file-by-file with the topic files) has a row whose description text describes this file, use that curated text as the source — it is higher quality than re-synthesis.
-3. Write the FKF frontmatter as the **leading frontmatter block** of the file — the `type: memory` constant (`$(fab kit-path)/reference/fkf.md` §3.1) plus the synthesized `description:` (§3.2). Use the **frontmatter shape only** from `$(fab kit-path)/templates/memory.md` (the canonical `---\ntype: memory\ndescription: "..."\n---` block ingest/generate also draw from), so the backfilled file is FKF-conforming (§2 item 2). **Take only the frontmatter block from the template — never its body skeleton:** backfill is a pure-frontmatter operation and MUST **preserve the existing body byte-for-byte** — it only prepends or edits the leading frontmatter, never the content below it, and never imposes the template's Overview/Requirements/Design Decisions skeleton on an existing file. In particular, it does **NOT** strip any existing `## Changelog` section from the body (removing the 20 existing per-file changelogs is a separate change, the FKF migration trajectory documented in the dev-repo design doc `docs/specs/fkf.md` §10 item 2); backfill stays a pure frontmatter operation.
+3. Write the FKF frontmatter (`type: memory` + synthesized `description:`, per ingest Step 3) as the **leading frontmatter block** — but take the **frontmatter shape only** from `$(fab kit-path)/templates/memory.md`, **never its body skeleton.** Backfill is a pure-frontmatter operation: **preserve the existing body byte-for-byte** — only prepend/edit the leading frontmatter, never the content below, never impose the template's Overview/Requirements/Design Decisions skeleton. In particular it does **NOT** strip an existing `## Changelog` section (removing the 20 existing per-file changelogs is a separate change — the FKF migration trajectory in the dev-repo design doc `docs/specs/fkf.md` §10 item 2).
 4. **Skip files that already have a `description:`** — backfill never overwrites an existing one (and stamps `type: memory` only when it is adding the frontmatter for the first time). This makes a second pass a no-op (idempotency — a fab-kit design principle).
 
 ### Step 3: Create missing index stubs (stub-before-index)

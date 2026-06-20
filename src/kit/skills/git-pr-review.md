@@ -14,13 +14,21 @@ Process GitHub PR review comments on the current branch's PR. Handles feedback f
 
 ---
 
+## Contents
+
+- Behavior
+- Rules
+- Disposition Reference
+
+---
+
 ## Behavior
 
 ### Step 0: Start Review-PR Stage
 
-Resolve the change first:
+Resolve the change first (`fab change resolve` accepts a 4-char ID, folder substring, or full folder name — see `_cli-fab.md` § fab change):
 
-- **Explicit `<change>` argument provided** → run `fab change resolve <change> 2>/dev/null` (transient override — `.fab-status.yaml` is untouched; accepts 4-char ID, folder substring, or full folder name). On failure, STOP with `Cannot resolve change '<change>'.` — a named target that doesn't resolve is a caller error; do NOT fall back to the active change.
+- **Explicit `<change>` argument provided** → run `fab change resolve <change> 2>/dev/null` (transient override — `.fab-status.yaml` is untouched). On failure, STOP with `Cannot resolve change '<change>'.` — a named target that doesn't resolve is a caller error; do NOT fall back to the active change.
 - **No `<change>` argument** → run `fab change resolve 2>/dev/null` (the active change). On failure, proceed with no change context — every `fab status` step below is skipped silently.
 
 On success, capture the output as `{name}` — the change folder name, used wherever later steps reference `<change>` in `fab status` commands and in the Step 6.5 `fab/changes/{name}/…` file paths.
@@ -99,13 +107,11 @@ review_tools:
 
 If `review_tools.copilot` is `false` (and `--tool copilot` was **not** provided): print `No automated reviewer available. Run /git-pr-review when reviews are added.` and go to Step 6 with outcome **no-reviews** (clean finish).
 
-> **Two distinct logins — do NOT conflate** (getting these backwards is the #1 cause of a poll never seeing a review that has in fact landed):
-> - The review-**request** side: you add the reviewer via `gh pr edit --add-reviewer copilot-pull-request-reviewer`, but the entry that then appears under the PR's **requested reviewers** surfaces with login `Copilot`. (Apparent oddity, documented as the empirically-observed reality: the value you `--add-reviewer` with happens to match the *landed-review* author login below, while `requested_reviewers` shows `Copilot`.)
-> - The **landed-review** side: once a Copilot review actually lands, the review object in the `reviews` array carries `author.login == "copilot-pull-request-reviewer"` (commonly seen as `copilot-pull-request-reviewer[bot]`). This is the login the poll MUST match.
+> **Two distinct logins — do NOT conflate** (getting these backwards is the #1 cause of a poll never seeing a review that has in fact landed): you add the reviewer via `gh pr edit --add-reviewer copilot-pull-request-reviewer`, but the entry that then surfaces under the PR's **requested reviewers** has login `Copilot`; once a review actually lands, the object in the `reviews` array carries `author.login == "copilot-pull-request-reviewer"` (commonly `copilot-pull-request-reviewer[bot]`). (Apparent oddity, recorded as empirical reality: the value you `--add-reviewer` with matches the landed-review author login, while `requested_reviewers` shows `Copilot`.)
 >
-> The poll that detects a **landed review** MUST therefore match `author.login == "copilot-pull-request-reviewer"` (the review-author login on the `reviews` array), **not** `Copilot` (the login that surfaces under `requested_reviewers`) — a predicate keyed on the request-side login never matches a landed review object and the poll would time out even though the review arrived. This matches the established, deliberately-set behavior (`docs/memory/pipeline/execution-skills.md`: n30u documents `"Copilot"` in `requested_reviewers` vs `"copilot-pull-request-reviewer[bot]"` in `reviews`; u1m1 set the Phase 2 `.author.login` filter to `copilot-pull-request-reviewer` so incoming Copilot reviews are detected). Confirming the **request** itself succeeded is a separate question: GitHub's GraphQL `reviewRequests` field **omits bot/app reviewers** like Copilot, so a request confirmation MUST use REST `requested_reviewers` (`gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers`), never a GraphQL `reviewRequests` field.
+> The landed-review poll MUST therefore match `author.login == "copilot-pull-request-reviewer"` (the review-author login on the `reviews` array), **not** `Copilot` (the `requested_reviewers` login) — a predicate keyed on the request-side login never matches a landed review object and would time out even though the review arrived. This matches the established, deliberately-set behavior (`docs/memory/pipeline/execution-skills.md`: n30u documents `"Copilot"` in `requested_reviewers` vs `"copilot-pull-request-reviewer[bot]"` in `reviews`; u1m1 set the Phase 2 `.author.login` filter to `copilot-pull-request-reviewer` so incoming Copilot reviews are detected). Confirming the **request** itself succeeded is separate: GraphQL `reviewRequests` **omits bot/app reviewers** like Copilot, so a request confirmation MUST use REST `requested_reviewers` (`gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers`), never GraphQL.
 
-> **Synchronous-poll discipline — the subagent MUST NOT yield mid-poll.** When `/git-pr-review` runs as a dispatched subagent (e.g. from `/fab-fff` Step 5), the Copilot poll below MUST run **synchronously to completion within this single invocation**: the subagent MUST NOT yield, return, or hand back control while the poll is pending — it stays in the poll loop until either a Copilot review appears or all 20 attempts (the full 30s × 20 / 10-minute window) are exhausted, and only then proceeds to Step 3 or the timeout exit. This is a permanent, non-negotiable directive: in prior efforts the subagent stalled or died mid-poll **4 times**, leaving `review-pr` stuck `active`. Copilot reviews land ~4.5–6.5 min after the request — comfortably inside the 10-minute window — so the correct behavior is **patience-to-completion**, never an early return.
+> **Synchronous-poll discipline — the subagent MUST NOT yield mid-poll.** When `/git-pr-review` runs as a dispatched subagent (e.g. from `/fab-fff` Step 5), the Copilot poll below MUST run **synchronously to completion within this single invocation**: the subagent MUST NOT yield, return, or hand back control while the poll is pending — it stays in the loop until a review appears or all 20 attempts (30s × 20 / 10-minute window) are exhausted, then proceeds to Step 3 or the timeout exit. This is a permanent, non-negotiable directive (prior efforts stalled mid-poll and left `review-pr` stuck `active`). Copilot reviews land ~4.5–6.5 min after the request — inside the window — so patience-to-completion is correct, never an early return.
 
 **Copilot request and poll**:
 
@@ -221,7 +227,7 @@ Print: `Replied to {N} comment(s): {F} fix, {D} defer, {S} skip`
 
 ### Step 6: Update Review-PR Stage
 
-**Step 6 is the exit point for every terminal path after Step 0, with two exceptions** — Steps 1, 2, and 4 route their terminal conditions here with a named outcome. The exceptions STOP directly without reaching Step 6: **Step 1.5** (invalid `--tool` value — stops before any review processing) and **Step 5** (commit failure — stops after `git reset`, no partial state; push failure — stops keeping the commit, with recovery guidance and no replies posted — the re-run's unpushed-commit gate completes the cycle).
+Step 6 is the exit point for every terminal path after Step 0: Steps 1, 2, and 4 route here with a named outcome. The two direct-STOP exceptions that never reach Step 6 are **Step 1.5** (invalid `--tool`) and **Step 5** (commit failure after `git reset`; push failure keeping the commit with recovery guidance and no replies).
 
 If a change was resolved in Step 0 (active or explicit), act on the outcome class:
 

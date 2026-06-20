@@ -25,6 +25,8 @@ This is the **only** behavioral fork in intake creation, and it is legitimately 
 
 This is an internal partial (`user-invocable: false`, `disable-model-invocation: true`, `metadata: internal: true`) — never invoked directly. Canonical source is the flat `src/kit/skills/_intake.md`; `fab sync` deploys it to `.claude/skills/_intake/SKILL.md`.
 
+**Prose optimization** (260620-skop): a single-entry `## Contents` TOC added to `_intake.md` (structural check, file >100 lines, applied mechanically though the file has one `##` section); no prose trimmed and no behavioral change (Flow unchanged).
+
 ## Flow
 
 ```

@@ -11,6 +11,20 @@ metadata:
 > This file defines shared conventions for all Fab skills. Each skill file should begin with:
 > ``Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.``
 
+## Contents
+
+- Path Convention
+- Context Loading
+- Skill Helper Declaration
+- Naming Conventions
+- Run-Kit (rk) Reference
+- Common fab Commands
+- Next Steps Convention
+- Skill Invocation Protocol (pointer)
+- Subagent Dispatch (Orchestrator Skills)
+- SRAD Autonomy Framework (pointer)
+- Confidence Scoring
+
 ---
 
 ## Path Convention

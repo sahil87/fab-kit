@@ -6,6 +6,8 @@ Shared artifact generation procedures used by five skills across two consumer gr
 
 This is an internal partial (`user-invocable: false`) — never invoked directly. Skills load it via `helpers: [_generation]` frontmatter.
 
+**Prose optimization** (260620-skop): a `## Contents` TOC added to `_generation.md` (structural check, file >100 lines); no prose trimmed and no behavioral change (Flow unchanged).
+
 ## Flow
 
 ```

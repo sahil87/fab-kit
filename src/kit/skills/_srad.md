@@ -14,6 +14,16 @@ metadata:
 
 When generating artifacts, planning skills encounter decision points not explicitly addressed by user input. The SRAD framework provides a principled method for deciding when to ask, when to assume, and when to surface assumptions.
 
+## Contents
+
+- SRAD Scoring
+- Confidence Grades
+- Critical Rule
+- Skill-Specific Autonomy Levels
+- Worked Examples
+- Artifact Markers
+- Assumptions Summary Block
+
 ---
 
 ## SRAD Scoring

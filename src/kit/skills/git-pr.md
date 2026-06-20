@@ -14,14 +14,23 @@ Autonomously ship local changes to a GitHub PR. No questions, no prompts — jus
 
 ---
 
+## Contents
+
+- Behavior
+- Rules
+- PR Type Reference
+- Key Properties
+
+---
+
 ## Behavior
 
 ### Step 0: Resolve Change Context
 
 Resolve the change **once** and derive four variables used throughout this skill. Later steps reference these variables and MUST NOT re-run `fab change resolve` — reuse this single resolution to avoid inconsistency.
 
-1. Resolve the change:
-   - **Explicit `<change>` argument provided** (per the Arguments classification above — any argument that is NOT one of the 7 valid PR types) → run `fab change resolve <change> 2>/dev/null` (transient override — `.fab-status.yaml` is untouched; accepts 4-char ID, folder substring, or full folder name). **Succeeds** → `{has_fab} = true`, `{name}` = resolved change name. **Fails** → STOP with `Cannot resolve change '<change>'.` — a named target that doesn't resolve is a caller error; do NOT fall back to the active change.
+1. Resolve the change (`fab change resolve` accepts a 4-char ID, folder substring, or full folder name — see `_cli-fab.md` § fab change):
+   - **Explicit `<change>` argument provided** (per the Arguments classification above — any argument that is NOT one of the 7 valid PR types) → run `fab change resolve <change> 2>/dev/null` (transient override — `.fab-status.yaml` is untouched). **Succeeds** → `{has_fab} = true`, `{name}` = resolved change name. **Fails** → STOP with `Cannot resolve change '<change>'.` — a named target that doesn't resolve is a caller error; do NOT fall back to the active change.
    - **No `<change>` argument** → run `fab change resolve 2>/dev/null` (the active change). **Succeeds** → `{has_fab} = true`, `{name}` = resolved change name. **Fails** → `{has_fab} = false`; every step gated on `{has_fab}` is skipped silently.
 2. `{has_intake}` — whether `fab/changes/{name}/intake.md` exists *(only when `{has_fab}`)*.
 3. `{change_type}` — the `change_type` value from `fab/changes/{name}/.status.yaml` *(only when `{has_fab}`; may be null)*.
@@ -51,7 +60,7 @@ Determine the PR type before gathering state. The type controls the PR title pre
 
 **Resolution chain** (evaluated in order, first match wins):
 
-1. **Explicit argument**: If the invocation includes an argument that is one of the 7 valid types (case-insensitive), normalize to lowercase and use it. An argument that is not a valid type is the `<change>` argument — it was consumed by Step 0 and does NOT count as a type; fall through to step 2.
+1. **Explicit argument**: If the invocation includes an argument that is one of the 7 valid types (case-insensitive), normalize to lowercase and use it (non-type arguments are the `<change>` argument, consumed by Step 0 — see Arguments above); else fall through to step 2.
 
 2. **Read from `.status.yaml`**: If `{has_fab}` (Step 0) and `{change_type}` is non-null and one of the 7 valid types (`feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`), use `{change_type}`. Fall through if `{has_fab}` is false, `{change_type}` is null, or `{change_type}` is not a valid type.
 
@@ -92,13 +101,13 @@ default_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null |
 If `{has_fab}` (Step 0), read issues via `fab status get-issues {name}` and capture the output (one ID per line, may be empty).
 
 Determine:
-- **branch** — current branch name. An **empty** value means a detached HEAD (`git symbolic-ref -q HEAD` exits 1) — handled by the Step 2 guard before any commit or push
-- **has_uncommitted** — whether `git status --porcelain` has output
-- **has_unpushed** — whether there are commits ahead of upstream (or no upstream at all)
-- **pr_state** — the `state` field from `gh pr view` (`OPEN`, `CLOSED`, or `MERGED`), or `none` when no PR exists. Step 3 branches on this explicitly — a CLOSED or MERGED PR is NOT treated as "the branch already has a PR"
-- **number** / **url** — the `number` and `url` fields from `gh pr view` (unset when no PR exists). Interpolated by Step 3's MERGED STOP and the "already shipped" output
-- **default_branch** — the resolved default branch from the commands above (symbolic-ref first, `gh repo view` fallback, then the probed literal fallback: `main` when `refs/remotes/origin/main` exists, else `master` — mirroring the operator's strategy). Always non-empty, so every later `{default_branch}` interpolation is meaningful
-- **issues** — the issue IDs from `fab status get-issues` (space-joined), or empty if none
+- **branch** — current branch name; **empty** = detached HEAD (handled by the Step 2 guard before any commit or push)
+- **has_uncommitted** — `git status --porcelain` has output
+- **has_unpushed** — commits ahead of upstream, or no upstream at all
+- **pr_state** — `state` from `gh pr view` (`OPEN`, `CLOSED`, `MERGED`), or `none` when no PR exists. Step 3 branches on this explicitly — a CLOSED or MERGED PR is NOT treated as "the branch already has a PR"
+- **number** / **url** — from `gh pr view` (unset when no PR exists); interpolated by Step 3's MERGED STOP and the "already shipped" output
+- **default_branch** — resolved by the commands above (always non-empty), so every later `{default_branch}` interpolation is meaningful
+- **issues** — issue IDs from `fab status get-issues` (space-joined), or empty
 
 ### Step 2: Branch Guard
 
@@ -108,7 +117,7 @@ Determine:
 Cannot ship from a detached HEAD — check out a branch first (run /git-branch).
 ```
 
-**Default-branch guard**: if the current branch is `{default_branch}` (or literal `main`/`master` when Step 1 fell back to the probed literal — the probe picks one name, so the other literal stays a safety net), STOP immediately.
+**Default-branch guard**: if the current branch is `{default_branch}` (or literal `main`/`master` — whichever literal Step 1's probe did not pick stays a safety net), STOP immediately.
 
 If `{has_fab}` (Step 0), enhance the message:
 
@@ -201,7 +210,7 @@ fi
 
 Print (ONLY when a follow-up commit was actually made): `  ✓ commit — "docs: refresh memory indexes"`
 
-> **Why here, why gated.** This is the first moment `git log` reports the change's real commit date — `fab memory-index` stamps each index row's "Last Updated" cell from `git log` (committed dates only), and 3a's content commit only just landed. The step lives in **ship** (not hydrate) because hydrate is entirely pre-commit, so no in-hydrate regen can see the change's own commit. There is no push here — 3b ("if has_unpushed or just committed") pushes both the 3a content commit and this index-refresh commit together. When `/git-pr` runs standalone outside a fab project (`{has_fab}` false), this sub-step is a **silent no-op**, so general-purpose standalone use is unaffected.
+> **Why here, why gated.** This is the first moment `git log` reports the change's real commit date (`fab memory-index` stamps "Last Updated" from committed dates), so the step lives in **ship** not hydrate — hydrate is entirely pre-commit, so no in-hydrate regen can see the change's own commit. There is no push here; 3b pushes both commits together. When `/git-pr` runs standalone (`{has_fab}` false) this sub-step is a **silent no-op**.
 
 #### 3b. Push (if has_unpushed or just committed)
 
@@ -348,7 +357,7 @@ Derived from [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.
 
 | Property | Value |
 |----------|-------|
-| Idempotent? | Yes — re-run after ship is a no-op: the "already shipped" path (no uncommitted changes, no unpushed commits, an OPEN PR exists) re-records the existing PR URL silently and stops; `fab status add-pr` is idempotent and the Step 4c status commit is guarded by `git diff --cached --quiet`. Sub-step 3a-bis (memory-index refresh) is gated on 3a having **just committed this invocation**, so a re-run on the no-commit path skips it entirely; even if reached, `fab memory-index` is byte-stable and the `git diff --quiet -- docs/memory` guard suppresses an empty follow-up commit |
+| Idempotent? | Yes — re-run after ship is a no-op. The "already shipped" path (no uncommitted changes, no unpushed commits, an OPEN PR exists) re-records the existing PR URL silently and stops; `fab status add-pr` is idempotent and the Step 4c status commit is guarded by `git diff --cached --quiet`. Sub-step 3a-bis is gated on 3a having just committed this invocation, so a re-run skips it; even if reached it is byte-stable with the `git diff --quiet -- docs/memory` guard suppressing an empty commit (see 3a-bis, 4c guards) |
 | Advances stage? | Yes — ship (start/finish, best-effort) |
 | Modifies `.fab-status.yaml`? | No |
 | Modifies git state? | Yes — commit, push, PR creation |

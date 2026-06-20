@@ -12,11 +12,26 @@ helpers: [_srad]
 
 ---
 
+## Contents
+
+- [Purpose](#purpose)
+- [Arguments](#arguments)
+- [Pre-flight](#pre-flight)
+- [Normal Flow](#normal-flow)
+- [Apply Behavior](#apply-behavior)
+- [Review Behavior](#review-behavior)
+- [Hydrate Behavior](#hydrate-behavior)
+- [Reset Flow (with stage argument)](#reset-flow-with-stage-argument)
+- [Error Handling](#error-handling)
+- [Key Properties](#key-properties)
+
+---
+
 ## Purpose
 
 Advance through the 6-stage Fab pipeline one step at a time. Each invocation handles the current stage's work and transitions to the next. When called with a stage argument, resets to that stage and re-runs from there.
 
-> **Per-stage model (one-stage sequencer)**: post-intake `/fab-continue` is a **one-stage sequencer** — it dispatches its stage as a sub-agent (see Normal Flow Step 1), and per-stage model selection (`fab resolve-agent <stage>` → `agent.tiers`, see `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution) is resolved **once, immediately before that dispatch**, surfaced (so a skipped/mis-resolved tier is visible), and applied through both seams — model via the Agent tool's `model` param (resolved with `fab resolve-agent <stage> --alias` so the alias is Agent-tool-valid), effort via an imperative instruction in the sub-agent's prompt (empty effort ⇒ omit). There is no foreground execution path for apply/review/hydrate to leave the tier merely advisory: every post-intake stage runs dispatched, so `fab resolve-agent <stage>` applies uniformly. (Intake is pre-boundary — it runs in the main session and is not tiered by `/fab-continue`.)
+> **Per-stage model (one-stage sequencer)**: post-intake `/fab-continue` is a **one-stage sequencer** — it dispatches its stage as a sub-agent (see Normal Flow Step 1) and resolves that stage's model once immediately before the dispatch. Mechanics in Step 1's dispatch contract; selection rules in `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution. Every post-intake stage runs dispatched, so the tier applies uniformly and is never merely advisory. (Intake is pre-boundary — it runs in the main session and is not tiered by `/fab-continue`.)
 
 ---
 
@@ -43,7 +58,7 @@ Both may be provided in any order. Stage names are treated as reset targets; all
 
 Dispatch on preflight's derived `stage` and `display_state`. If progress is `pending`, run `fab status start <change> <stage> fab-continue` before dispatching. **Review-failed dispatch**: if `progress.review` is `failed` (an exhausted `/fab-ff`/`/fab-fff` rework loop, or an interrupted fail→reset sequence), do NOT re-run review — use the `review`/`failed` row below: present the rework menu directly. (Orchestrator re-runs of `/fab-ff`/`/fab-fff` instead recover via `fab status start <change> review` per `_pipeline.md` Resumability — that autonomous path is theirs, not this skill's.) **Review-pr-failed dispatch**: if `progress.review-pr` is `failed` (a failed PR-review run — `gh` missing, no PR found, or a processing error), use the `review-pr`/`failed` row below: re-execute `/git-pr-review` behavior — a FAILED PR review MUST NOT fall through to the "all `done`" row and read as complete.
 
-**State-based dispatch**: Intake is the only planning stage, and the only stage `/fab-continue` runs in the main session. **Every post-intake stage (apply / review / hydrate) is dispatched as a sub-agent** — `/fab-continue` is a one-stage sequencer for those stages: it resolves the stage's model, dispatches the block, reads the returned status/findings, and owns the `fab status` transition itself. (Ship/review-pr delegate to `/git-pr` / `/git-pr-review`, which self-manage their transitions — see their rows.) The dispatch is the SAME one the orchestrators (`_pipeline.md`) perform; the sequencer/block split is identical whether the caller is manual `/fab-continue` or an orchestrator.
+**State-based dispatch**: Intake is the only planning stage, and the only stage `/fab-continue` runs in the main session. **Every post-intake stage (apply / review / hydrate) is dispatched as a sub-agent** — `/fab-continue` is a one-stage sequencer for those stages (full contract below). (Ship/review-pr delegate to `/git-pr` / `/git-pr-review`, which self-manage their transitions — see their rows.) The dispatch is the SAME one the orchestrators (`_pipeline.md`) perform; the sequencer/block split is identical whether the caller is manual `/fab-continue` or an orchestrator.
 
 - **`ready`** (intake) → Finish intake (auto-activates apply), then run the apply sequencer (resolve + dispatch the apply sub-agent — its entry sub-step generates `plan.md`, then runs tasks — then finish apply)
 - **`active`** (intake) → Generate intake if missing and advance to `ready` (backward compat for interrupted generations) — main session, no dispatch
@@ -72,19 +87,13 @@ Load per `_preamble.md` layers. Stage-specific additions: intake loads memory fi
 
 **Intake only** (main session — the only non-dispatched stage): Apply SRAD (`_srad.md`, loaded via `helpers:`) before generating. Budget: 1-2 unresolved questions. Tentative decisions get `<!-- assumed: ... -->` markers. (Inside apply, under-specified requirements are resolved inline as graded SRAD assumptions in `plan.md` `## Assumptions` — not as questions or markers.)
 
-For post-intake stages the procedure below runs **inside the dispatched sub-agent** (per the dispatch contract in Step 1); the sub-agent reads the named Behavior section and any stage-conditional helper at its point of use. The sequencer does not run the procedure itself.
-
-| Stage | Procedure (runs in the dispatched sub-agent) |
-|-------|-----------|
-| apply | [Apply Behavior](#apply-behavior) — entry sub-step invokes **Plan Generation Procedure** (`_generation.md`, read at point of use), which co-generates `## Requirements` + `## Tasks` + `## Acceptance` |
-| review | **Review Behavior** (`_review.md`, read at point of use) |
-| hydrate | [Hydrate Behavior](#hydrate-behavior) |
+**Post-intake stages** run their procedure **inside the dispatched sub-agent** (per the dispatch contract in Step 1), not in the sequencer: apply → [Apply Behavior](#apply-behavior) (entry reads `_generation.md` at point of use), review → [Review Behavior](#review-behavior) (reads `_review.md` at point of use), hydrate → [Hydrate Behavior](#hydrate-behavior). The sub-agent reads its Behavior section and any stage-conditional helper at its point of use.
 
 **No scoring at any stage `/fab-continue` runs.** Intake scoring is authoritative and is performed by `/fab-new` / `/fab-clarify`; `/fab-continue` operates only at apply and later, where there is no scoring.
 
 ### Step 4: Update `.status.yaml`
 
-Use event commands via CLI to update `.status.yaml`. The `finish` command handles the two-write transition atomically: `fab status finish <change> <completed-stage> fab-continue`. This sets `{completed}` → `done`, auto-activates the next pending stage, refreshes `last_updated`, and updates `stage_metrics`.
+Use event commands via CLI to update `.status.yaml`. The `finish` command handles the transition atomically: `fab status finish <change> <completed-stage> fab-continue` (sets `{completed}` → `done`, auto-activates the next pending stage, refreshes `last_updated` + `stage_metrics`).
 
 For other state changes, use the appropriate event command (driver is always optional):
 - `fab status start <change> <stage> fab-continue` — pending → active (plus failed → active for review/review-pr only)
@@ -100,7 +109,7 @@ Display summary. Include Assumptions summary for planning stages. End with `Next
 
 ## Apply Behavior
 
-> **This section is the apply block — it always runs in a dispatched sub-agent** (the one-stage sequencer in Normal Flow Step 1 dispatches it; orchestrators dispatch it identically). The block does NOT run any `fab status` command — it returns results only; the orchestrator (the sequencer in the manual path, `_pipeline.md` in the auto path) owns the `finish`/`fail`/`reset` transitions. The `finish` steps below are the **sequencer's** responsibility after this block returns; they are shown here for the end-to-end picture, not as block actions.
+> **This section is the apply block — it always runs in a dispatched sub-agent** per the sub-agent dispatch contract in Normal Flow Step 1: the block runs no `fab status` command and returns results only; the sequencer owns the `finish`/`fail`/`reset` transitions. The `finish` steps below are the sequencer's, shown for the end-to-end picture.
 
 Apply runs as **two sub-steps in a single dispatch**: a Plan Generation entry sub-step that produces `plan.md`, followed by the Task Execution main sub-step.
 
@@ -154,15 +163,15 @@ Plan Generation sub-step is skipped when `plan.md` already exists (idempotent on
 
 ## Review Behavior
 
-> **This section is the review block — it always runs in a dispatched sub-agent** (the sequencer in Normal Flow Step 1 dispatches it; orchestrators dispatch it identically). The block's job is identical regardless of caller: review the diff, **return** pass/fail + prioritized must-fix / should-fix / nice-to-have findings. **Findings are the block's return value, not conversation.** The block runs no `fab status` command and takes no §Verdict-style decision itself — it never branches on caller. Who acts on a fail verdict is the orchestrator's concern: the interactive § Verdict menu below (Path A, run by the manual `/fab-continue` sequencer) or `_pipeline.md`'s autonomous Auto-Rework Loop (Paths B/C/D). The § Verdict transitions below are the **sequencer's** actions on the returned verdict, shown here for the end-to-end picture.
+> **This section is the review block — it always runs in a dispatched sub-agent** per the sub-agent dispatch contract in Normal Flow Step 1. Its job: review the diff and **return** pass/fail + prioritized must-fix / should-fix / nice-to-have findings. **Findings are the block's return value, not conversation.** It takes no §Verdict-style decision itself and never branches on caller. Who acts on a fail verdict is the orchestrator's concern: the interactive § Verdict menu below (Path A, run by the manual `/fab-continue` sequencer) or `_pipeline.md`'s autonomous Auto-Rework Loop (Paths B/C/D). The § Verdict transitions below are the sequencer's actions on the returned verdict.
 
 Read `.claude/skills/_review/SKILL.md` (if not already loaded), then execute its **Shared Review Dispatch** end-to-end (Preconditions → Inward + Outward Sub-Agent Dispatch → Parallel Dispatch → Findings Merge). The `_review.md` skill defines both sub-agent dispatches (inward + outward) run in parallel, their preconditions, validation steps, structured output format, and the findings merge procedure. When dispatching the inward sub-agent, read `change_type` from the change's `.status.yaml` and pass it in the prompt per `_review.md`'s context contract (its Steps 7–8 skip condition keys on it).
 
-> **Per-stage model resolution (nested reviewers)**: before dispatching the inward + outward reviewer sub-agents, run `fab resolve-agent review --alias` **once** (the `--alias` flag emits the Agent-tool-valid short alias on the `model=` line), surface the resolved `model=/effort=`, and apply both halves to BOTH reviewers and the merge — the same model via the Agent `model` param (empty ⇒ omit/inherit) and the same imperative effort instruction (``Operate at `<effort>` reasoning effort for this task.``) in each reviewer's prompt (empty effort ⇒ omit) — per `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution. (This is the review block resolving the tier for its own nested sub-agents; it is independent of the sequencer's resolution of the `review` stage when it dispatched this block.) The Claude Code adapter is the Agent tool `model` parameter (effort rides the prompt); the resolution itself is provider-neutral.
+> **Per-stage model resolution (nested reviewers)**: before dispatching the inward + outward reviewer sub-agents, run `fab resolve-agent review --alias` **once** and apply the resolved tier to BOTH reviewers and the merge via the same two seams as Step 1's dispatch contract (model on the Agent `model` param, effort via an imperative prompt instruction; per `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution). This is the review block resolving the tier for its own nested sub-agents — independent of the sequencer's resolution of the `review` stage when it dispatched this block.
 
 ### Verdict
 
-> The Verdict transitions are run by the **sequencer** (the manual `/fab-continue` invocation in Path A) on the verdict this block returns — not by the dispatched review block. In Paths B/C/D the orchestrator's Auto-Rework Loop (`_pipeline.md`) takes the equivalent actions autonomously.
+> Verdict transitions are the **sequencer's** (manual `/fab-continue`, Path A), not the dispatched block's. In Paths B/C/D the orchestrator's Auto-Rework Loop (`_pipeline.md`) takes the equivalent actions autonomously.
 
 **Pass**: Run `fab status finish <change> review fab-continue` (auto-activates hydrate). Update acceptance progress via `fab status set-acceptance <change> acceptance_completed <N>`. Output report + `Next: {per state table}`.
 
@@ -180,7 +189,7 @@ The applying agent triages review comments by priority — not all comments need
 
 ## Hydrate Behavior
 
-> **This section is the hydrate block — it always runs in a dispatched sub-agent** (the sequencer in Normal Flow Step 1 dispatches it; orchestrators dispatch it identically). The block does NOT run any `fab status` command — it returns completion status only; the sequencer (manual path) or `_pipeline.md` (auto path) runs the `finish` transition after the block returns. Step 5 below is the **sequencer's** action, shown for the end-to-end picture.
+> **This section is the hydrate block — it always runs in a dispatched sub-agent** per the sub-agent dispatch contract in Normal Flow Step 1: the block runs no `fab status` command and returns completion status only; the sequencer runs the `finish` transition. Step 5 below is the sequencer's, shown for the end-to-end picture.
 
 ### Preconditions
 
@@ -192,7 +201,14 @@ The applying agent triages review comments by priority — not all comments need
 1. Final validation: all `## Tasks` and `## Acceptance` items in `plan.md` are `[x]`
 2. Concurrent change check: warn on overlap with other changes referencing same memory paths
 3. **Read `## Deletion Candidates`** from `plan.md` when present — informational only. Hydrate MAY reference candidates in memory updates (e.g., a Design Decision noting follow-up cleanup). Hydrate MUST NOT generate or modify the section (generation is review's responsibility) and MUST treat an absent section as "no findings" without error
-4. Hydrate `docs/memory/`: create new files/domains from the canonical memory-file shape — **read `$(fab kit-path)/templates/memory.md`** (the single source of truth for the shape, the same on-demand template read used for `$(fab kit-path)/templates/intake.md`) and fill its FKF frontmatter (`type: memory` constant plus a curated `description:` one-liner, per `$(fab kit-path)/reference/fkf.md` §3.1–§3.2) and body skeleton — update existing (Requirements, Design Decisions, keep `description:` accurate, and **stamp the `type: memory` constant when an edited legacy file is missing it** so the file you touch becomes FKF-conforming — FKF §2/§3.1 require `type: memory` on every memory file, stamped by every memory writer). **No per-file `## Changelog`**: memory files no longer carry a `## Changelog` section (FKF §3.3) — instead, record what changed once via `fab status set-summary {change} "<one-line what-changed>"` (the C-lite `summary:` source line, FKF §6.3, authored once at hydrate; `fab memory-index` joins it with git history to generate the per-folder `log.md`). **Bundle-relative cross-links**: any memory↔memory link you write MUST use the bundle-relative `/...` form (resolved from `docs/memory/`, FKF §7); links *out* of the bundle (to source, specs, URLs) stay repo-relative/absolute-URL. **Merge without duplication**: before appending to a target memory file, check it for an existing entry referencing this change (by change name) and update that entry in place instead of appending a duplicate — the same "replaced in place (not duplicated)" contract as `docs-hydrate-memory.md` and `_review.md`'s `## Deletion Candidates`. Then run `fab memory-index` to regenerate the root (domains-only), domain, and sub-domain indexes — never hand-edit index rows or "Last Updated" cells. **Refuse-before-regen guard (defense-in-depth)**: before that regen, consult `fab memory-index --check`; on **exit 2** (destructive loss) refuse to regenerate and surface the pointer `→ run /docs-reorg-memory to remediate ...` (the orchestrator that relocates tombstone rows and dispatches `/docs-hydrate-memory` backfill mode for descriptions; backfill alone does not relocate tombstones). This guard is a **no-op for born-compatible fab-kit trees** — a tree hydrated by the pipeline is always exit 0/1, never 2, so the guard never fires here (do not mistake it for dead code or remove it); it is defense-in-depth for the pathological case of a pre-fab-kit tree reaching the pipeline's hydrate stage. **Shape SHOULD guidance**: aim for ~5–12 files/folder, depth ≤3, introduce a sub-domain only for a cohesive ≥8-file cluster; `_shared/` and `_unsorted/` are width-exempt. Heed any non-fatal shape warnings `fab memory-index` prints (advisory only).
+4. Hydrate `docs/memory/`:
+   - **FKF frontmatter (from template)**: create new files/domains from the canonical memory-file shape — **read `$(fab kit-path)/templates/memory.md`** (the single source of truth for the shape, the same on-demand template read used for `$(fab kit-path)/templates/intake.md`) and fill its FKF frontmatter (`type: memory` constant plus a curated `description:` one-liner, per `$(fab kit-path)/reference/fkf.md` §3.1–§3.2) and body skeleton. Update existing files (Requirements, Design Decisions, keep `description:` accurate, and **stamp the `type: memory` constant when an edited legacy file is missing it** so the file you touch becomes FKF-conforming — FKF §2/§3.1 require `type: memory` on every memory file, stamped by every memory writer).
+   - **No per-file `## Changelog`**: memory files no longer carry a `## Changelog` section (FKF §3.3) — instead, record what changed once via `fab status set-summary {change} "<one-line what-changed>"` (the C-lite `summary:` source line, FKF §6.3, authored once at hydrate; `fab memory-index` joins it with git history to generate the per-folder `log.md`).
+   - **Bundle-relative cross-links**: any memory↔memory link you write MUST use the bundle-relative `/...` form (resolved from `docs/memory/`, FKF §7); links *out* of the bundle (to source, specs, URLs) stay repo-relative/absolute-URL.
+   - **Merge without duplication**: before appending to a target memory file, check it for an existing entry referencing this change (by change name) and update that entry in place instead of appending a duplicate — the same "replaced in place (not duplicated)" contract as `docs-hydrate-memory.md` and `_review.md`'s `## Deletion Candidates`.
+   - **Regenerate indexes**: run `fab memory-index` to regenerate the root (domains-only), domain, and sub-domain indexes — never hand-edit index rows or "Last Updated" cells.
+   - **Refuse-before-regen guard (defense-in-depth)**: before that regen, consult `fab memory-index --check`; on **exit 2** (destructive loss) refuse to regenerate and surface the pointer `→ run /docs-reorg-memory to remediate ...` (the orchestrator that relocates tombstone rows and dispatches `/docs-hydrate-memory` backfill mode for descriptions; backfill alone does not relocate tombstones). This guard is a **no-op for born-compatible fab-kit trees** — a tree hydrated by the pipeline is always exit 0/1, never 2, so the guard never fires here (do not mistake it for dead code or remove it); it is defense-in-depth for the pathological case of a pre-fab-kit tree reaching the pipeline's hydrate stage.
+   - **Shape SHOULD guidance**: aim for ~5–12 files/folder, depth ≤3, introduce a sub-domain only for a cohesive ≥8-file cluster; `_shared/` and `_unsorted/` are width-exempt. Heed any non-fatal shape warnings `fab memory-index` prints (advisory only).
 5. Return completion status — the sequencer runs `fab status finish <change> hydrate fab-continue` after the block returns (the block runs no `fab status` command)
 6. **Pattern capture** *(optional)*: If the change introduced non-obvious implementation patterns that future changes should follow (e.g., a new error handling approach, a reusable abstraction), note them in the relevant memory file's Design Decisions section with the change name for traceability. Skip for implementations that follow existing patterns without introducing new ones
 

@@ -1,5 +1,10 @@
 # fab-proceed
 
+## Contents
+
+- Summary
+- Flow
+
 ## Summary
 
 Context-aware orchestrator — detects pipeline state via a 5-step detection pipeline, runs prefix steps (create-intake via `_intake`, fab-switch, git-branch) as subagents, then delegates to `/fab-fff` via the Skill tool. No arguments, no flags — infers everything from context. Idempotent — re-running detects completed steps and skips them. Reads `_preamble.md` (per skill convention) but skips running preflight and defers project-context loading to `/fab-fff`. **Per-stage model** (260613-l3ja): the prefix steps are NOT pipeline stages and take no `fab resolve-agent` resolution (they dispatch at the inherited model); per-stage model selection belongs to the delegated `/fab-fff`, which resolves each of its own stages per `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution.
@@ -7,6 +12,8 @@ Context-aware orchestrator — detects pipeline state via a 5-step detection pip
 **Create-intake dispatch via `_intake` (260613-3xaj)**: the create-new path no longer dispatches the full `/fab-new` skill. It dispatches the shared `_intake` Create-Intake Procedure (read `.claude/skills/_intake/SKILL.md`) with `{questioning-mode} = promptless-defer` — `promptless-defer` IS the defer-and-surface contract (Unresolved decisions → `Deferred — promptless dispatch` rows, surfaced before `/fab-fff`; the intake gate is the structural backstop). `/fab-proceed`'s state-detection + relevance-assessment logic — *whether* to create an intake vs. activate an existing draft — STAYS in `fab-proceed.md` (it decides whether to call `_intake`, not how to create one). Because `_intake` stops at intake `ready` and does NOT activate or branch (those are `/fab-new`'s call-site tail, omitted here), the create-new dispatch-table rows now chain `_intake` → `/fab-switch` → `/git-branch` to reach the same end state (active change + matching branch) the prior full-`/fab-new` dispatch produced inline — a parity-preserving consequence of the extraction.
 
 Conversation context is the interpretive lens for any unactivated intakes: an unactivated intake is only resumed when it is clearly relevant to the current conversation or there is no competing conversation signal. An unrelated draft never hijacks the pipeline when the current conversation is about a different topic.
+
+**Prose optimization** (260620-skop): skill content trimmed to remove re-explanation of partial-owned concepts (Subagent Dispatch, the promptless-defer carve-out per `_srad.md`, gate-blocking mechanics per `_preamble.md` § Confidence Scoring, the `_intake`-stops-at-ready chaining) and a `## Contents` TOC added; a `## Contents` TOC was also added to this SPEC (>100 lines); no behavioral change (Flow / Tools / Sub-agents unchanged).
 
 ## Flow
 

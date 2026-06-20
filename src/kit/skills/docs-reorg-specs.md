@@ -7,17 +7,28 @@ description: "Analyze spec files for themes and suggest reorganization. Read-onl
 
 ---
 
+## Contents
+
+- Purpose
+- Pre-flight
+- Context Loading
+- Behavior
+- Output
+- Error Handling
+- Key Properties
+
+---
+
 ## Purpose
 
 Read all spec files in `docs/specs/`, identify themes (up to 10), and propose a reorganization plan. Read-only by default — files only moved/rewritten with explicit user approval.
 
 ### Reserved Paths (exempt from reorganization)
 
-`docs/specs/skills/SPEC-*.md` mirrors are constitution-pinned: their names derive mechanically from their `src/kit/skills/` sources (`SPEC-{source-filename}.md`), and the constitution requires every skill edit to update its mirror. Never propose renaming, moving, merging, or splitting them — they may be *read* for theme analysis, but a Migration Map row targeting a reserved path is invalid.
-
-> **No compatibility/backfill step for specs.** Unlike `/docs-reorg-memory` (which detects pre-fab-kit memory trees missing `description:` frontmatter and orchestrates a frontmatter backfill), `/docs-reorg-specs` has **no** compatibility or frontmatter-backfill step — and intentionally so. There is no specs-index generator (no counterpart to `fab memory-index`); the specs index is hand-rewritten (Step 5), so a spec missing frontmatter breaks nothing downstream — there is no compatibility contract to violate. Keeping specs human-curated is a fab-kit design principle. Do not "fix the asymmetry" by adding a specs backfill — it would invent a non-problem and push specs toward the generated-index model that human-curated principle rejects.
-
-> **No FKF frontmatter on specs — moves are frontmatter-neutral (specs are human-curated — a fab-kit design principle).** FKF (`type: memory` + `description:`) governs `docs/memory/` **only**; specs are out of FKF scope and stay frontmatter-free, human-curated per that **fab-kit design principle** (specs MUST NOT be auto-generated or tool-planted). When this skill moves a spec file, it MUST NOT stamp, add, or synthesize `type:` / `description:` frontmatter on it — a moved spec carries exactly the bytes it had before the move (only its path and the `index.md` row change). This is the mirror of `/docs-reorg-memory`'s frontmatter-*preserving* moves: memory moves keep FKF frontmatter, spec moves add none. There is no `fab specs-index` generator and a generated-index model for specs is **not adopted** (specs are human-curated — a fab-kit design principle) — specs links stay ordinary repo-relative, the index stays hand-rewritten.
+> **Specs are human-curated (a fab-kit design principle), which drives three rules:**
+> 1. **Reserved paths.** `docs/specs/skills/SPEC-*.md` mirrors are constitution-pinned: their names derive mechanically from their `src/kit/skills/` sources (`SPEC-{source-filename}.md`), and the constitution requires every skill edit to update its mirror. Never propose renaming, moving, merging, or splitting them — they may be *read* for theme analysis, but a Migration Map row targeting a reserved path is invalid.
+> 2. **No compatibility/backfill step.** Unlike `/docs-reorg-memory` (which detects pre-fab-kit memory trees missing `description:` frontmatter and orchestrates a frontmatter backfill), `/docs-reorg-specs` has **no** compatibility or frontmatter-backfill step. There is no specs-index generator (no counterpart to `fab memory-index`); the specs index is hand-rewritten (Step 5), so a spec missing frontmatter breaks nothing downstream — there is no compatibility contract to violate, and no generated-index model for specs. Do not "fix the asymmetry" by adding a specs backfill — it would invent a non-problem and push specs toward the generated-index model the human-curated principle rejects.
+> 3. **Frontmatter-neutral moves — no FKF on specs.** FKF (`type: memory` + `description:`) governs `docs/memory/` **only**; specs are out of FKF scope and stay frontmatter-free. When this skill moves a spec it MUST NOT stamp, add, or synthesize `type:` / `description:` frontmatter — a moved spec carries exactly the bytes it had before (only its path and the `index.md` row change). This mirrors `/docs-reorg-memory`'s frontmatter-*preserving* moves: memory moves keep FKF frontmatter, spec moves add none. Spec links stay ordinary repo-relative; the index stays hand-rewritten.
 
 ---
 
@@ -80,7 +91,7 @@ Constraints: prefer fewer files, preserve existing names, keep files under ~300 
 
 Options: **Apply all**, **Cherry-pick** (select specific migrations), **Skip** (keep analysis only).
 
-On approval: execute migrations (a moved spec keeps its exact bytes — **no FKF frontmatter is stamped**, per the "No FKF frontmatter on specs" note above — specs are human-curated, a fab-kit design principle), rewrite `docs/specs/index.md`, verify no headings lost, present change summary.
+On approval: execute migrations (a moved spec keeps its exact bytes — no FKF frontmatter stamped, per Reserved Paths rule 3), rewrite `docs/specs/index.md`, verify no headings lost, present change summary.
 
 ---
 
@@ -120,6 +131,6 @@ If no changes needed: `Current structure is well-organized — no reorganization
 | Advances stage? | No |
 | Requires active change? | No |
 | Idempotent? | Yes |
-| Modifies spec files? | Yes — only with explicit confirmation; a moved spec keeps its exact bytes (no FKF frontmatter stamped — specs are out of FKF scope, a fab-kit design principle) |
-| Stamps FKF frontmatter? | No — never adds `type:`/`description:` to a spec; no `fab specs-index` generator and a generated-index model for specs is not adopted (specs stay human-curated, hand-indexed — a fab-kit design principle) |
+| Modifies spec files? | Yes — only with explicit confirmation; a moved spec keeps its exact bytes (no FKF stamped — Reserved Paths rule 3) |
+| Stamps FKF frontmatter? | No — never adds `type:`/`description:` to a spec; no `fab specs-index` generator and no generated-index model for specs (Reserved Paths rules 2–3) |
 | Requires config/constitution? | No |

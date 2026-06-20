@@ -23,6 +23,13 @@ metadata:
 > Output blocks and error rows) stays in each driver's own file. This partial is the single
 > authoritative source for everything the two drivers share.
 
+## Contents
+
+- Pre-flight
+- Context Loading
+- Behavior
+- Shared Error Handling
+
 ---
 
 ## Pre-flight

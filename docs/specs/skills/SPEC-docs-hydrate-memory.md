@@ -16,6 +16,8 @@ Distinct from generate mode (which *creates* files from source-code gaps), backf
 - **Caller-aware regen**: when dispatched by reorg (defer-regen signal in the prompt), it does NOT run `fab memory-index` (reorg runs it once at the end); when invoked directly, it runs `fab memory-index` as the final step like the other modes.
 - **Scope**: pure frontmatter operation — does NOT detect/relocate tombstone rows, flatten groupings, move files, or strip existing `## Changelog` bodies; those structural concerns belong to `/docs-reorg-memory` (and the changelog strip to FKF Change 4).
 
+**Prose optimization** (260620-skop): skill content trimmed to remove re-explanation of partial-owned concepts (the `templates/memory.md` read + FKF frontmatter + no-`## Changelog` rule + shape bounds now stated once in ingest Step 3 and referenced from generate/backfill; refuse-before-regen guard and arg-classification reject strings compressed to pointers) and a `## Contents` TOC added; no behavioral change (Flow / Tools / Sub-agents unchanged).
+
 ## Flow
 
 ```

@@ -12,6 +12,8 @@ Creates a new change from a natural language description, Linear ticket, or back
 
 **Helpers**: Declares `helpers: [_generation, _srad, _intake]` in frontmatter per `docs/specs/skills.md § Skill Helpers` (`_intake` added in 260613-3xaj; `_generation`/`_srad` kept declared directly, mirroring the `_pipeline` precedent where consumers declare underlying helpers alongside the orchestration helper).
 
+**Prose optimization** (260620-skop): a `## Contents` TOC added to the skill file (>100 lines); no content trimmed (the skill is already thin post-`_intake` extraction) and no behavioral change (Flow / Tools / Sub-agents unchanged).
+
 ## Flow
 
 ```

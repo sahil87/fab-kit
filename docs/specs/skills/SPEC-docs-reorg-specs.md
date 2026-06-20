@@ -8,6 +8,8 @@ Analyzes spec files for themes and suggests reorganization. Read-only unless use
 
 **No FKF frontmatter on spec moves (specs are human-curated — a fab-kit design principle).** FKF (`type: memory` + `description:`) governs `docs/memory/` only; specs are out of FKF scope and stay frontmatter-free, human-curated per that **fab-kit design principle**. When the skill moves a spec file it MUST NOT stamp, add, or synthesize `type:` / `description:` frontmatter — a moved spec carries exactly its prior bytes (only its path and the `index.md` row change). This is the deliberate mirror of `docs-reorg-memory`'s frontmatter-*preserving* moves: memory moves keep FKF frontmatter, spec moves add none. A generated-index model for `docs/specs/index.md` is **not adopted** (specs are human-curated — a fab-kit design principle) — no `fab specs-index` generator; the specs index stays hand-rewritten and spec links stay ordinary repo-relative.
 
+**Prose optimization** (260620-skop): skill content trimmed — the three reserved-path / no-backfill / no-FKF blockquotes collapsed to one consolidated `### Reserved Paths` blockquote stating the human-curated principle plus its three rules, with Step 5 and the Key-Properties rows reduced to back-refs — and a `## Contents` TOC added; no behavioral change (Flow / Tools / Sub-agents unchanged).
+
 ## Flow
 
 ```

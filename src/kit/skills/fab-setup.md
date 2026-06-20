@@ -10,14 +10,28 @@ description: "Set up a new project, manage config/constitution, or apply version
 > - **bare / config / constitution**: Skip the "Always Load" context layer if files don't exist (first-run). Load them only if they already exist (re-run scenario).
 > - **migrations**: Load `fab/project/config.yaml` (MUST exist). Skip Change Context loading — migrations operate on project-level files, not a specific change.
 
+## Contents
+
+- [Arguments](#arguments)
+- [Pre-flight Check](#pre-flight-check)
+- [Bootstrap Behavior](#bootstrap-behavior)
+- [Config Behavior](#config-behavior)
+- [Constitution Behavior](#constitution-behavior)
+- [Migrations Behavior](#migrations-behavior)
+- [Applying a Migration](#applying-a-migration)
+- [Migrations Output Format](#migrations-output-format)
+- [Idempotency](#idempotency)
+- [Key Properties](#key-properties)
+- [Next Steps Reference](#next-steps-reference)
+
 ---
 
 ## Arguments
 
-- **No arguments** — full structural bootstrap (default behavior)
-- **`config [section]`** — create or update `fab/project/config.yaml` interactively. Optional `[section]` skips the menu and edits that section directly. Valid sections: `project`, `source_paths`, `checklist`.
-- **`constitution`** — create or amend `fab/project/constitution.md` with semantic versioning
-- **`migrations [file]`** — apply version migrations to bring project files in sync with the installed kit version (absorbed from fab-update)
+- **No arguments** — full structural bootstrap
+- **`config [section]`** — create/update `fab/project/config.yaml` interactively; optional `[section]` edits one section directly (valid: `project`, `source_paths`, `checklist`)
+- **`constitution`** — create/amend `fab/project/constitution.md` with semantic versioning
+- **`migrations [file]`** — apply version migrations to sync project files with the installed kit (absorbed from fab-update)
 - **`validate`** — redirect message: "Validation is built into `/fab-setup config` and `/fab-setup constitution` — each validates after every edit."
 
 Any unrecognized argument triggers: "Unknown subcommand: {arg}. Valid: config, constitution, migrations. Run `/fab-setup` with no arguments for full setup."
@@ -74,7 +88,7 @@ Each step is **idempotent** — skip if the artifact already exists and is valid
 
 #### 1a. `fab/project/config.yaml`
 
-If missing, raw template (contains `{PROJECT_NAME}`), or missing the required fields `project.name`/`project.description` (the canonical `fab init` flow writes a `fab_version`-only config.yaml before sync's copy-if-absent runs): execute **Config Behavior** (below) in create mode.
+If the create-mode trigger holds (see [Config Create Mode](#config-create-mode)): execute **Config Behavior** (below) in create mode.
 If exists with the required fields and not a raw template: report "config.yaml already exists — skipping".
 
 #### 1b. `fab/project/constitution.md`
@@ -98,32 +112,26 @@ Report how many skills were created, repaired, or already valid, plus the scaffo
 
 #### 1d. `fab/.kit-migration-version`
 
-Handled by `fab sync` (step 1c). The sync command creates `fab/.kit-migration-version` with version logic based on project state:
+Handled by `fab sync` (step 1c) — version logic by project state, with the matching bootstrap output line:
 
-- **New project** (no `fab/project/config.yaml`): copies `$(fab kit-path)/VERSION` value (engine version)
-- **Existing project** (has `fab/project/config.yaml`, no `fab/.kit-migration-version`): writes `0.1.0` (base version, run `/fab-setup migrations` to migrate)
-- **Already exists**: preserves existing `fab/.kit-migration-version` — no overwrite
-
-On bootstrap output:
-- New project: `Created: fab/.kit-migration-version ({engine_version})`
-- Existing project: `Created: fab/.kit-migration-version (0.1.0 — existing project, run "/fab-setup migrations" to migrate)`
-- Re-run: `fab/.kit-migration-version` reported as part of scaffold output (no modification)
+- **New project** (no `fab/project/config.yaml`): copies `$(fab kit-path)/VERSION` (engine version) → `Created: fab/.kit-migration-version ({engine_version})`
+- **Existing project** (has `fab/project/config.yaml`, no `fab/.kit-migration-version`): writes `0.1.0` (base; run `/fab-setup migrations` to migrate) → `Created: fab/.kit-migration-version (0.1.0 — existing project, run "/fab-setup migrations" to migrate)`
+- **Already exists**: preserves existing value, no overwrite → reported as part of scaffold output (no modification)
 
 ### Bootstrap Output
 
 ```
 Found kit v{VERSION}. Initializing project...
-{config.yaml prompts and creation}
-{constitution.md generation}
+{config.yaml + constitution.md interactive creation}
 Created: fab/project/config.yaml
 Created: fab/project/constitution.md
-{fab sync report — scaffold files (context.md, code-quality.md, code-review.md, docs/memory/index.md, docs/specs/index.md), fab/changes/ (+ archive), fab/.kit-migration-version ({version}), skills deployed to .claude/skills/, .gitignore merge (.fab-*)}
+{fab sync report — scaffold files, fab/changes/ (+ archive), fab/.kit-migration-version ({version}), skills to .claude/skills/, .gitignore merge (.fab-*)}
 fab/ initialized successfully.
 
 Next: {per state table — initialized}
 ```
 
-On re-run, report config/constitution as OK/repaired instead of Created and surface sync's idempotent report, ending with `fab/ structure verified.`
+Re-run variant: report config/constitution as OK/repaired instead of `Created`, surface sync's idempotent report, and end with `fab/ structure verified.`
 
 ---
 
@@ -140,11 +148,13 @@ Create a new `fab/project/config.yaml` interactively or update specific sections
 ### Config Pre-flight
 
 - **Update mode**: `fab/project/config.yaml` must exist. If missing (direct invocation): STOP with `fab/project/config.yaml not found. Run /fab-setup to create it.`
-- **Create mode** (from bootstrap): `fab/project/config.yaml` does not exist, is a raw template, or is missing the required fields `project.name`/`project.description` (e.g., a `fab init`-created, `fab_version`-only config).
+- **Create mode** (from bootstrap): the create-mode trigger holds (see [Config Create Mode](#config-create-mode)).
 
 ### Config Create Mode
 
-When `fab/project/config.yaml` does not exist (or exists without the required `project.name`/`project.description` fields):
+**Create-mode trigger** (canonical): `fab/project/config.yaml` is missing, is a raw template (contains `{PROJECT_NAME}`), OR is missing the required fields `project.name`/`project.description` — e.g. the canonical `fab init` flow writes a `fab_version`-only config.yaml before sync's copy-if-absent runs.
+
+When that trigger holds:
 
 1. Read the project's README, package.json, or other root-level files for context
 2. Ask the user: project name, description, source paths
@@ -290,14 +300,9 @@ When `[file]` is provided, read and apply that specific migration file directly,
 
 ### Migrations Step 1: Discover Migrations
 
-Discovery is owned by the binary — do NOT read, parse, or compare the version files, and do NOT scan, validate, or sort the migrations directory by hand. The binary exits non-zero with remediation hints on a missing `fab/.kit-migration-version` or engine `VERSION` file — surface its stderr and stop.
+Discovery is binary-owned (per the Migrations Behavior intro and Context Loading) — do nothing by hand. The binary exits non-zero with remediation hints on a missing `fab/.kit-migration-version` or engine `VERSION` file — surface its stderr and stop.
 
-1. Run `fab migrations-status --json` and parse the result. The shape is:
-   `{local, engine, applicable:[{from,to,file}], gap_skips, overlaps}`.
-   - `local` / `engine` — the project's `fab/.kit-migration-version` and the kit's `$(fab kit-path)/VERSION`, already read and parsed by the binary
-   - `applicable` — the ordered list of migration files to apply, FROM ascending (already discovered, gap-skipped, and chained by the binary)
-   - `gap_skips` — human-readable "no migration needed for X -> Y, skipping" lines to surface in output
-   - `overlaps` — pairs of conflicting filenames; non-empty means the migrations directory is malformed
+1. Run `fab migrations-status --json` and parse the result. Shape: `{local, engine, applicable:[{from,to,file}], gap_skips, overlaps}` — `local`/`engine` are the parsed project + kit versions; `applicable` is the ordered (FROM-ascending, gap-skipped, chained) list of files to apply; `gap_skips` are human-readable "no migration needed for X -> Y, skipping" lines to surface; `overlaps` are conflicting-filename pairs (non-empty = malformed migrations directory).
 2. **If `overlaps` is non-empty**: STOP and report the conflict (see [Overlapping Ranges](#overlapping-ranges)). Do NOT apply anything.
 3. **If `applicable` is empty** (and no overlap): nothing to do — pick the output by comparing the returned `local`/`engine` fields: equal → [Versions Already Equal](#versions-already-equal); `local` ahead of `engine` → [Local Version Ahead](#local-version-ahead); otherwise → [No Migrations Apply](#no-migrations-apply). (Semver comparison: compare MAJOR, then MINOR, then PATCH as integers — `2.10.0` > `2.9.7`; never compare lexicographically.) `fab upgrade-repo` already stamps `fab/.kit-migration-version` silently in the no-op case, so this subcommand has no version to write.
 
@@ -329,7 +334,7 @@ For each migration file:
 
 ## Migrations Output Format
 
-### Successful Multi-Step Migration
+Canonical happy path (successful multi-step migration). The header scaffolding (`Local version:` / `Engine version:` / `Migrations found:`) and per-step block below are reused by the variants noted after it:
 
 ```
 Local version:  {current}
@@ -347,60 +352,23 @@ Migrations found: {N}
 All migrations complete. fab/.kit-migration-version: {original} -> {final}
 ```
 
-### Migration with Gap Skip
+**Variants** (same header scaffolding unless noted; every literal below is exact):
 
-```
-Local version:  {current}
-Engine version: {target}
-Migrations found: {N}
-
-No migration needed for {current} -> {FROM}, skipping.
-
-[1/{N}] Applying {FROM} -> {TO}...
-{migration output}
--> fab/.kit-migration-version updated to {TO}
-
-All migrations complete. fab/.kit-migration-version: {original} -> {final}
-```
-
-### Versions Already Equal
-
-```
-Already up to date ({version}).
-```
-
-### Local Version Ahead
-
-```
-Local version (fab/.kit-migration-version) is ahead of engine version ($(fab kit-path)/VERSION): {local} > {engine}.
-This is unexpected — check your kit cache installation.
-```
-
-### No Migrations Apply
-
-```
-Local version:  {current}
-Engine version: {target}
-No migrations apply.
-```
-
-(`fab migrations-status` returned an empty `applicable` list. `fab upgrade-repo` silently stamps `fab/.kit-migration-version` to the engine version in this no-op case, so there is nothing for this subcommand to write.)
-
-### Overlapping Ranges
-
-```
-Overlapping migration ranges detected: {file1} and {file2}. Fix the migrations directory.
-```
-
-### Mid-Chain Failure
-
-```
-[{N}/{total}] Applying {FROM} -> {TO}...
-{partial output}
-FAIL: Migration failed at {Pre-check|Changes|Verification} step: {description}
-fab/.kit-migration-version remains at {current_version}.
-Fix the issue and re-run /fab-setup migrations to continue from {current_version}.
-```
+- **Gap skip**: before the first `[1/{N}]` block (and after the header), insert: `No migration needed for {current} -> {FROM}, skipping.`
+- **Versions already equal**: `Already up to date ({version}).`
+- **Local version ahead**:
+  `Local version (fab/.kit-migration-version) is ahead of engine version ($(fab kit-path)/VERSION): {local} > {engine}.`
+  `This is unexpected — check your kit cache installation.`
+- **No migrations apply**: header scaffolding (just `Local version:` / `Engine version:`, no `Migrations found:`) followed by `No migrations apply.` (`fab migrations-status` returned an empty `applicable` list. `fab upgrade-repo` silently stamps `fab/.kit-migration-version` to the engine version in this no-op case, so there is nothing for this subcommand to write.)
+- **Overlapping ranges**: `Overlapping migration ranges detected: {file1} and {file2}. Fix the migrations directory.`
+- **Mid-chain failure** (replaces the per-step block from the failing step onward):
+  ```
+  [{N}/{total}] Applying {FROM} -> {TO}...
+  {partial output}
+  FAIL: Migration failed at {Pre-check|Changes|Verification} step: {description}
+  fab/.kit-migration-version remains at {current_version}.
+  Fix the issue and re-run /fab-setup migrations to continue from {current_version}.
+  ```
 
 ---
 
