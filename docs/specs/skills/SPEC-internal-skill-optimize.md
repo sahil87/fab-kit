@@ -28,7 +28,7 @@ User invokes /internal-skill-optimize [<skill-name>]
 │
 └─ Batch mode (no argument)
    ├─ Read: all src/kit/skills/*.md, sorted by line count descending
-   ├─ Content trim skips files under 80 lines ("Already lean") AND
+   ├─ Content trim skips files under 80 lines ("Already lean — skipped") AND
    │  skips _*.md partials; STRUCTURAL checks run on EVERY file
    │  (incl. partials + sub-80-line files)
    ├─ Present consolidated summary table
@@ -55,7 +55,7 @@ None.
 - Never change logical behavior, remove error handling, or move content between skills
 - **Content optimization** never touches a `_*.md` partial; **structural checks are the sole exception** — TOC insertion may add a `## Contents` block to a partial, and the depth check may report on one (neither trims a partial's prose)
 - The reference-depth check is **report-only** — never restructures or moves content (flattening a deep chain is a separate change)
-- Files under 80 lines are skipped for **content** optimization (reported "Already lean") but still receive **structural** checks
+- Files under 80 lines are skipped for **content** optimization (reported "Already lean — skipped") but still receive **structural** checks
 
 ### Bookkeeping commands (hook candidates)
 

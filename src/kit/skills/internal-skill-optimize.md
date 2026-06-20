@@ -18,9 +18,9 @@ This skill runs two distinct kinds of pass with **different scoping rules**:
 
 - Arguments
 - Pre-flight
-- Analysis (per skill) — content signals + structural signals
+- Analysis (per skill)
 - Optimization Rules
-- Execution — single skill mode / batch mode
+- Execution
 - Constraints
 
 ## Arguments
@@ -57,7 +57,7 @@ For each skill file, read it fully and evaluate against these bloat signals.
 
 | Signal | What to look for | Fix |
 |--------|-----------------|-----|
-| **Missing table of contents** | A file **over 100 lines** with no `## Contents` (or `## Table of Contents`) block near the top. Anthropic's guidance: long files need a TOC so a partial read (`head -100`) still reveals the full scope. | Insert a `## Contents` bullet list of the file's `##`-level section headings, immediately after the H1 (and after the `_preamble.md` blockquote / frontmatter if present). List section titles only — no prose. |
+| **Missing table of contents** | A file **over 100 lines** with no `## Contents` (or `## Table of Contents`) block near the top. Anthropic's guidance: long files need a TOC so a partial read (`head -100`) still reveals the full scope. | Insert a `## Contents` bullet list of the file's `##`-level section headings. Placement, in document order: frontmatter → H1 → the `_preamble.md` blockquote (if present) → **`## Contents`** → first section. List the section titles **verbatim** (identical to the actual `##` headings) — no prose, so the TOC can't drift from the headings. |
 | **Reference depth > 1 level** | A file whose link/`helpers:` reference points to another file that *itself* points onward to a third file holding content the reader needs (SKILL → A → B). Claude may `head`-preview nested files and miss content. | **Report only — do not auto-restructure.** Flag the chain (`{file} → {mid} → {leaf}`) so the maintainer can flatten it (link the leaf directly from the top file). Restructuring moves content and is out of scope for an automatic write. |
 
 ---
@@ -112,4 +112,4 @@ For each skill file, read it fully and evaluate against these bloat signals.
 - DO NOT merge skills or move content between skills (beyond referencing `_preamble.md`)
 - **Content optimization** DO NOT touch any `_*.md` partial — every `_*.md` file is a shared partial: the reference, not the target. **Structural checks are the sole exception**: a TOC insertion may add a `## Contents` block to a partial, and the depth check may *report* on a partial — neither trims a partial's prose.
 - The reference-depth check is **report-only** — it never restructures or moves content (flattening a deep chain is a separate, content-moving change).
-- If a skill is already under 80 lines, report it as "Already lean — skipped" for **content** optimization — but still run the **structural** checks on it (a 90-line file can still need a TOC if it crosses 100 lines later; the depth check applies regardless of length).
+- If a skill is already under 80 lines, report it as "Already lean — skipped" for **content** optimization — but still run the **structural** checks on it. (The TOC check is a no-op below 100 lines — it adds nothing — while the depth check applies at any length; so a sub-80-line file is only ever flagged for a deep reference chain, never for a missing TOC.)
