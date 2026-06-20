@@ -177,6 +177,32 @@ Before stopping, attempt to record the existing PR URL per Steps 4a–4c (silent
 
 Print: `  ✓ commit — "<commit subject>"`
 
+#### 3a-bis. Refresh Memory Indexes (if {has_fab} AND 3a just committed)
+
+Gated on BOTH conditions — skip the entire sub-step otherwise:
+
+- `{has_fab}` (Step 0) is true, AND
+- step 3a **just committed this invocation** — i.e. the `has_uncommitted` path in 3a ran and produced a commit. It is NOT reached on the "already shipped" / no-changes re-run paths (where 3a did not commit).
+
+When both hold, regenerate the memory indexes and conditionally commit them in a **separate** follow-up commit:
+
+```bash
+fab memory-index
+if ! git diff --quiet -- docs/memory; then
+  git add docs/memory
+  git commit -m "docs: refresh memory indexes"
+fi
+```
+
+1. Run `fab memory-index` (byte-stable; writes only `docs/memory/` index + log files; a no-op when nothing drifted).
+2. If `docs/memory/` changed (`git diff --quiet -- docs/memory` exits non-zero): `git add docs/memory`, then a **SEPARATE** follow-up commit `git commit -m "docs: refresh memory indexes"`. Do **NOT** use `--amend` — keep 3a's authored content commit intact; squash collapses the pair on merge anyway.
+3. If `git diff --quiet -- docs/memory` exits 0 (nothing drifted): make **no** commit — the guard suppresses an empty follow-up commit (Constitution III idempotency).
+4. If the regen OR the commit fails → report the error and STOP. The 3a content commit is already made and intact; a failed refresh leaves a benign stale-date index, recoverable by re-running `fab memory-index` — never a torn state.
+
+Print (ONLY when a follow-up commit was actually made): `  ✓ commit — "docs: refresh memory indexes"`
+
+> **Why here, why gated.** This is the first moment `git log` reports the change's real commit date — `fab memory-index` stamps each index row's "Last Updated" cell from `git log` (committed dates only), and 3a's content commit only just landed. The step lives in **ship** (not hydrate) because hydrate is entirely pre-commit, so no in-hydrate regen can see the change's own commit. There is no push here — 3b ("if has_unpushed or just committed") pushes both the 3a content commit and this index-refresh commit together. When `/git-pr` runs standalone outside a fab project (`{has_fab}` false), this sub-step is a **silent no-op**, so general-purpose standalone use is unaffected.
+
 #### 3b. Push (if has_unpushed or just committed)
 
 1. Check if upstream exists: `git rev-parse --abbrev-ref @{u} 2>/dev/null`
@@ -322,7 +348,7 @@ Derived from [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.
 
 | Property | Value |
 |----------|-------|
-| Idempotent? | Yes — re-run after ship is a no-op: the "already shipped" path (no uncommitted changes, no unpushed commits, an OPEN PR exists) re-records the existing PR URL silently and stops; `fab status add-pr` is idempotent and the Step 4c status commit is guarded by `git diff --cached --quiet` |
+| Idempotent? | Yes — re-run after ship is a no-op: the "already shipped" path (no uncommitted changes, no unpushed commits, an OPEN PR exists) re-records the existing PR URL silently and stops; `fab status add-pr` is idempotent and the Step 4c status commit is guarded by `git diff --cached --quiet`. Sub-step 3a-bis (memory-index refresh) is gated on 3a having **just committed this invocation**, so a re-run on the no-commit path skips it entirely; even if reached, `fab memory-index` is byte-stable and the `git diff --quiet -- docs/memory` guard suppresses an empty follow-up commit |
 | Advances stage? | Yes — ship (start/finish, best-effort) |
 | Modifies `.fab-status.yaml`? | No |
 | Modifies git state? | Yes — commit, push, PR creation |

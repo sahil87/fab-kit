@@ -10,6 +10,8 @@ Autonomously commits, pushes, and creates a draft GitHub PR. No prompts, no ques
 
 **Dispatch-target hardening** (260612-w7dp): accepts an optional explicit `<change>` argument (any argument that isn't one of the 7 PR types), resolved transiently in Step 0 — `.fab-status.yaml` untouched; an explicit argument that fails to resolve STOPs (caller error), while argless failure keeps the silent `{has_fab}=false` degradation. Callers SHOULD pass the change folder name, not a bare 4-char id (an id spelling a type word — `feat`/`docs`/`test` — would classify as a type); `/fab-fff` Step 4 passes the folder name through (`/git-pr {name}`). Step 0 ends with a **branch-matches-change guard** (exact folder-name equality, or the folder name as a branch substring) that STOPs before any status mutation, commit, or push on mismatch — no autonomous checkout; an empty branch (detached HEAD) likewise STOPs there, before Step 0a's `fab status start` (verify-before-mutate parity with git-pr-review — Step 2's own guard still covers the no-fab path). It supersedes the former Step 1b non-blocking nudge, which is removed.
 
+**Memory-index date-drift fix** (260620-o203): a new sub-step **3a-bis. Refresh Memory Indexes** sits between 3a (Commit) and 3b (Push). `fab memory-index` stamps each `index.md` row's "Last Updated" cell from `git log` (committed dates only); the hydrate-stage regen runs entirely pre-commit, so every file the change touched is stamped one regen behind until the content commit lands — a benign tier-1 `fab memory-index --check` drift at review-pr. 3a-bis closes the gap at the only pipeline position where `git log` already knows the change's real commit date: immediately after 3a commits, before 3b pushes. It regenerates byte-stably and, when `docs/memory/` actually drifted (`git diff --quiet -- docs/memory` non-zero), makes a **separate** `docs: refresh memory indexes` follow-up commit (never `--amend` — squash collapses the pair on merge); a no-drift regen produces no diff and no commit (Constitution III). It performs no push of its own — 3b's "if has_unpushed or just committed" trigger pushes both commits together. It is **gated on `{has_fab}` AND 3a-having-just-committed**, so it is a silent no-op for standalone `/git-pr` (`{has_fab}` false) and for the no-change re-run paths. On regen/commit failure it reports + STOPs with the 3a content commit intact (a benign stale-date index recoverable by re-running `fab memory-index` — never a torn state).
+
 ## Flow
 
 ```
@@ -74,8 +76,19 @@ Autonomously commits, pushes, and creates a draft GitHub PR. No prompts, no ques
 │  │  ├─ Bash: git add -u   (never git add -A)
 │  │  ├─ Bash: git add <in-area untracked files from the guard>
 │  │  └─ Bash: git commit -m "<message>"
+│  ├─ 3a-bis. Refresh Memory Indexes (260620-o203 — if {has_fab} AND 3a just committed)
+│  │  ├─ Bash: fab memory-index  (byte-stable; writes only docs/memory/ index + log files)
+│  │  └─ Bash: if ! git diff --quiet -- docs/memory; then
+│  │           git add docs/memory && git commit -m "docs: refresh memory indexes"
+│  │     (no --amend — keeps 3a's content commit; squash collapses on merge;
+│  │      first moment git log knows the real commit date; lives in ship not
+│  │      hydrate because hydrate is entirely pre-commit; no push here — 3b
+│  │      ("if has_unpushed or just committed") pushes both commits together;
+│  │      silent no-op when {has_fab} false → standalone /git-pr unaffected;
+│  │      no-drift regen → diff guard suppresses an empty commit;
+│  │      regen/commit failure → report + STOP, 3a commit intact, no torn state)
 │  ├─ 3b. Push (if unpushed)
-│  │  └─ Bash: git push [-u origin <branch>]
+│  │  └─ Bash: git push [-u origin <branch>]  (pushes 3a + 3a-bis commits together)
 │  └─ 3c. Create PR (if no OPEN PR exists — {pr_state} none or CLOSED)
 │     ├─ Read: intake.md (PR title + Summary + Changes)
 │     ├─ Render ## Meta block (gated on {has_fab}):

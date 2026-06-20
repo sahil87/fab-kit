@@ -1,0 +1,13 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-20T06:34:11Z"}
+{"args":"Refresh memory indexes post-commit in /git-pr (fix index date drift) — add sub-step 3a-bis between Commit (3a) and Push (3b), {has_fab}-gated and gated on 3a having just committed, runs fab memory-index and makes a separate 'docs: refresh memory indexes' follow-up commit when docs/memory changed. Skill-prose + SPEC-mirror only, no Go change. Change type: fix.","cmd":"fab-new","event":"command","ts":"2026-06-20T06:34:11Z"}
+{"delta":"+5.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-06-20T06:35:41Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-06-20T06:35:45Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-06-20T06:36:02Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-06-20T06:36:06Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-06-20T06:36:56Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-06-20T06:38:06Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-20T06:41:49Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-20T06:41:49Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-06-20T06:46:47Z"}
+{"event":"review","result":"passed","ts":"2026-06-20T06:46:47Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-20T06:49:12Z"}
