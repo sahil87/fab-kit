@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 14
@@ -33,8 +33,8 @@ stage_metrics:
     apply: {started_at: "2026-06-25T09:09:55Z", driver: fab-fff, iterations: 2, completed_at: "2026-06-25T09:20:07Z"}
     review: {started_at: "2026-06-25T09:20:07Z", driver: fab-fff, iterations: 2, completed_at: "2026-06-25T09:27:31Z"}
     hydrate: {started_at: "2026-06-25T09:27:31Z", driver: fab-fff, iterations: 2, completed_at: "2026-06-25T09:30:56Z"}
-    ship: {started_at: "2026-06-25T09:30:56Z", driver: fab-fff, iterations: 2}
-    review-pr: {iterations: 1}
+    ship: {started_at: "2026-06-25T09:30:56Z", driver: fab-fff, iterations: 2, completed_at: "2026-06-25T09:31:52Z"}
+    review-pr: {started_at: "2026-06-25T09:31:52Z", driver: git-pr, iterations: 2}
 prs:
     - https://github.com/sahil87/fab-kit/pull/444
 true_impact:
@@ -53,4 +53,4 @@ true_impact:
     computed_at_stage: hydrate
 summary: Normalized the fab pr-meta Meta Impact block to a single Scope|+/−|Net table with the raw/true/impl/tests/excluded taxonomy and a binary-version provenance caption, fixing the total-flips-meaning bug
 # true_impact: lazily created on first apply-finish (no placeholder here).
-last_updated: 2026-06-25T09:30:56Z
+last_updated: 2026-06-25T09:31:52Z
