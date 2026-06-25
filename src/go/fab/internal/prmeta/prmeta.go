@@ -73,9 +73,14 @@ type Data struct {
 	LinearWorkspace string   // project.linear_workspace; "" → bare IDs
 
 	// Impact
-	HasImpact bool          // false → omit the Impact line entirely
-	Impact    impact.Result // total = Excluding when present, else raw
-	Excludes  []string      // true_impact_exclude (for the ← excludes annotation)
+	HasImpact bool          // false → omit the Impact block entirely
+	Impact    impact.Result // true = Excluding when present, else raw
+	Excludes  []string      // true_impact_exclude (named in the provenance caption)
+
+	// Provenance: the running fab-kit binary version (main.go `version`).
+	// Populated by the command (cmd/fab/pr_meta.go), NOT by Gather, so Render
+	// stays a pure function of Data. "dev" renders honestly as "fab-kit vdev".
+	Version string
 }
 
 // Render assembles the complete `## Meta` block markdown for d. It is a pure
@@ -205,63 +210,117 @@ func renderIssues(d Data) string {
 	return "**Issues**: " + strings.Join(rendered, ", ")
 }
 
-// renderImpact renders the **Impact** line(s), or "" when the line must be
-// omitted (no impact, or a +0/−0 total). When a tests pair is present it renders
-// the three-row impl/tests/total breakdown; otherwise the single-line form.
+// Impact-table render literals. The Meta block normalizes the Impact section to
+// ONE shape (a single markdown table) that adapts by DROPPING rows, never by
+// reshaping — so a reader comparing two PRs sees the same columns every time and
+// every label means exactly one thing (pnao).
+const (
+	impactLeadIn   = "**Impact**:"
+	impactHeader   = "| Scope | + / − | Net |"
+	impactSepRow   = "|---|--:|--:|" // Scope left-aligned; numeric cols right-aligned
+	nestedLabelPfx = "└ "            // tree glyph prefixing the impl/tests rows
+)
+
+// renderImpact renders the **Impact** block — a single markdown table plus an
+// italic provenance caption — or "" when the block must be omitted (no impact,
+// or a +0/−0 `true` diff).
+//
+// Taxonomy (pnao): raw = true + excluded, true = impl + tests.
+//   - raw      — every changed line, all paths (the unfiltered diff). Shown only
+//     when it differs from `true` (i.e. excludes engaged and changed the count).
+//   - true     — the post-exclude diff (Excluding when present, else raw). ALWAYS
+//     shown, bold in every cell. This is the fix for the prior "total flips
+//     meaning" bug: `true` is unambiguously the meaningful diff.
+//   - impl     — production code = true − tests, per component, clamped non-neg.
+//   - tests    — test-path lines measured within `true`. impl/tests appear only
+//     when a tests pair is present, nested under `true` with a `└ ` glyph.
+//   - excluded — raw − true; named only in the caption, never a headline row.
 func renderImpact(d Data) string {
 	if !d.HasImpact {
 		return ""
 	}
 
-	// total = the excluding pass when present, else the raw pass.
-	total := impact.Pair{Added: d.Impact.Added, Deleted: d.Impact.Deleted, Net: d.Impact.Net}
+	// true = the excluding pass when present, else the raw pass.
+	trueDiff := impact.Pair{Added: d.Impact.Added, Deleted: d.Impact.Deleted, Net: d.Impact.Net}
 	if d.Impact.Excluding != nil {
-		total = *d.Impact.Excluding
+		trueDiff = *d.Impact.Excluding
 	}
 
-	// Omit entirely on a no-op total — never render +0/−0.
-	if total.Added == 0 && total.Deleted == 0 {
+	// Omit entirely on a no-op `true` diff — never render +0/−0.
+	if trueDiff.Added == 0 && trueDiff.Deleted == 0 {
 		return ""
 	}
 
-	hasExcludes := len(d.Excludes) > 0
+	raw := impact.Pair{Added: d.Impact.Added, Deleted: d.Impact.Deleted, Net: d.Impact.Net}
 
+	var b strings.Builder
+	b.WriteString(impactLeadIn)
+	b.WriteString("\n\n")
+	b.WriteString(impactHeader)
+	b.WriteString("\n")
+	b.WriteString(impactSepRow)
+	b.WriteString("\n")
+
+	// raw row — only when it differs from `true` (excludes engaged and changed
+	// the figures). A configured-but-no-op exclude does not earn a duplicate row.
+	if raw != trueDiff {
+		b.WriteString(impactRow("raw", raw, false, ""))
+	}
+
+	// true row — always present, bold in every cell.
+	b.WriteString(impactRow("true", trueDiff, true, ""))
+
+	// impl + tests rows — only when a tests pair is present, nested under true.
 	if d.Impact.Tests != nil {
 		tests := *d.Impact.Tests
-		// Raw (pre-clamp) impl figures: total minus tests. On a test-heavy PR
-		// these can go negative (tests added/deleted exceed the total),
-		// meaning the change is net-deletion in production code.
-		rawAdded := total.Added - tests.Added
-		rawDeleted := total.Deleted - tests.Deleted
-		rawNet := total.Net - tests.Net
+		// Pre-clamp impl figures: true minus tests. On a test-heavy PR these can
+		// go negative (tests exceed `true`), meaning net-deletion in production
+		// code. The clamp keeps the display non-negative (downstream consumers
+		// may assume so) but the annotation surfaces the true value (jznd (e)).
+		preAdded := trueDiff.Added - tests.Added
+		preDeleted := trueDiff.Deleted - tests.Deleted
+		preNet := trueDiff.Net - tests.Net
 		impl := impact.Pair{
-			Added:   clampNonNeg(rawAdded),
-			Deleted: clampNonNeg(rawDeleted),
-			Net:     clampNonNeg(rawNet),
+			Added:   clampNonNeg(preAdded),
+			Deleted: clampNonNeg(preDeleted),
+			Net:     clampNonNeg(preNet),
 		}
-		var b strings.Builder
-		b.WriteString("**Impact**:\n")
-		// Keep the clamped (non-negative) display value, but annotate the true
-		// pre-clamp value when the clamp engages — otherwise PR-meta silently
-		// hides a net-deletion-in-production PR (jznd (e); clamp kept because
-		// downstream consumers may assume non-negative).
-		fmt.Fprintf(&b, "  impl:  +%d/−%d  (net +%d)%s\n",
-			impl.Added, impl.Deleted, impl.Net, clampAnnotation(rawAdded, rawDeleted, rawNet))
-		fmt.Fprintf(&b, "  tests: +%d/−%d  (net +%d)\n", tests.Added, tests.Deleted, tests.Net)
-		fmt.Fprintf(&b, "  total: +%d/−%d  (net +%d)", total.Added, total.Deleted, total.Net)
-		if hasExcludes {
-			fmt.Fprintf(&b, "  ← excludes %s", backtickList(d.Excludes))
-		}
-		return b.String()
+		b.WriteString(impactRow(nestedLabelPfx+"impl", impl, false, clampAnnotation(preAdded, preDeleted, preNet)))
+		b.WriteString(impactRow(nestedLabelPfx+"tests", tests, false, ""))
 	}
 
-	// Single-line form. The trailing `total` pair is the raw measurement; the
-	// leading `code` pair is the scaffolding-excluded total.
-	if hasExcludes {
-		return fmt.Sprintf("**Impact**: +%d/−%d code (excluding %s) · +%d/−%d total",
-			total.Added, total.Deleted, backtickList(d.Excludes), d.Impact.Added, d.Impact.Deleted)
+	b.WriteString("\n")
+	b.WriteString(impactCaption(d))
+	return b.String()
+}
+
+// impactRow renders one `| Scope | +A/−B | +N |` table row. When bold is set,
+// every cell is wrapped in `**…**` (the `true` row's emphasis — bold survives
+// GitHub's Markdown sanitizer; row backgrounds / text color do not, pnao). A
+// non-empty annotation (the impl-clamp note) is appended inside the Scope cell.
+func impactRow(label string, p impact.Pair, bold bool, annotation string) string {
+	scope := label + annotation
+	plusMinus := fmt.Sprintf("+%d/−%d", p.Added, p.Deleted)
+	net := fmt.Sprintf("+%d", p.Net)
+	if bold {
+		scope = "**" + scope + "**"
+		plusMinus = "**" + plusMinus + "**"
+		net = "**" + net + "**"
 	}
-	return fmt.Sprintf("**Impact**: +%d/−%d total", total.Added, total.Deleted)
+	return fmt.Sprintf("| %s | %s | %s |\n", scope, plusMinus, net)
+}
+
+// impactCaption renders the italic provenance caption co-locating the excludes
+// note and the binary version stamp, e.g.
+// `*excludes `fab/`, `docs/` · generated by fab-kit v2.6.6*`. The excludes
+// clause is omitted when no excludes are configured; the version stamp is always
+// present (dev builds render `fab-kit vdev` honestly).
+func impactCaption(d Data) string {
+	stamp := "generated by fab-kit v" + d.Version
+	if len(d.Excludes) > 0 {
+		return fmt.Sprintf("*excludes %s · %s*", backtickList(d.Excludes), stamp)
+	}
+	return fmt.Sprintf("*%s*", stamp)
 }
 
 func clampNonNeg(n int) int {

@@ -37,6 +37,11 @@ func prMetaCmd() *cobra.Command {
 				return fmt.Errorf("no fab context for %q (change unresolved or .status.yaml absent)", args[0])
 			}
 
+			// Stamp the running binary's version into the Meta block's
+			// provenance caption. Sourced here (not in Gather) so Render stays a
+			// pure function of Data — `version` is private to package main (pnao).
+			data.Version = version
+
 			fmt.Print(prmeta.Render(data))
 			return nil
 		},
