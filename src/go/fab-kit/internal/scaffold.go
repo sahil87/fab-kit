@@ -263,7 +263,68 @@ func setPermissionsAllow(obj map[string]interface{}, allow []interface{}) {
 	perms["allow"] = allow
 }
 
+// gitignoreNormalize reduces a gitignore line to its core directory token by
+// stripping a single leading "/" and a single trailing "/*" or "/". It is the
+// shared primitive for the gitignore-aware dedup: a deeper nested path like
+// "/.claude/commands/" normalizes to ".claude/commands" (which still contains a
+// slash) and therefore never equals a directory token like ".claude". The
+// caller compares normalized forms for exact equality, so the residual slash is
+// what keeps deeper paths from spuriously "covering" the directory entry.
+func gitignoreNormalize(line string) string {
+	s := strings.TrimRight(line, "\r")
+	s = strings.TrimPrefix(s, "/")
+	if strings.HasSuffix(s, "/*") {
+		s = strings.TrimSuffix(s, "/*")
+	} else {
+		s = strings.TrimSuffix(s, "/")
+	}
+	return s
+}
+
+// gitignoreCovers reports whether an existing .gitignore line already covers the
+// fragment entry under directory-token equivalence. For an entry like "/.claude"
+// the covering set is { /.claude, /.claude/, /.claude/*, .claude, .claude/,
+// .claude/* } — leading slash optional, optional trailing "/" or "/*". A deeper
+// nested path (e.g. "/.claude/commands/") does NOT cover the entry (its
+// normalized form retains an internal slash and so differs from the core token).
+func gitignoreCovers(existingLine, entry string) bool {
+	return gitignoreNormalize(existingLine) == gitignoreNormalize(entry)
+}
+
+// gitignoreHasNegation reports whether any destination line negates the entry's
+// core directory token (a line like "!/.claude/..." or "!.claude/..."). It is
+// the binding Guardrail B hard-stop: when present, sync must never append a
+// broader ignore for that entry — regardless of whether a broader "/.claude/*"
+// exclusion precedes the negation, and regardless of the variant-coverage check.
+func gitignoreHasNegation(destLines []string, entry string) bool {
+	token := gitignoreNormalize(entry)
+	if token == "" {
+		return false
+	}
+	for _, dl := range destLines {
+		s := strings.TrimRight(dl, "\r")
+		if !strings.HasPrefix(s, "!") {
+			continue
+		}
+		// Strip the "!" then a single leading "/", and check whether the
+		// remainder is the token itself or a path under it (token + "/").
+		neg := strings.TrimPrefix(strings.TrimPrefix(s, "!"), "/")
+		if neg == token || strings.HasPrefix(neg, token+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 // lineEnsureMerge appends non-duplicate, non-comment lines from source to dest.
+//
+// Dedup is literal string equality except for a destination whose basename is
+// ".gitignore", where it is gitignore-aware: a fragment entry is treated as
+// already present when an existing line covers it under directory-token
+// equivalence (gitignoreCovers), and the append is suppressed outright when the
+// destination already negates the entry's core token (gitignoreHasNegation,
+// Guardrail B). Non-.gitignore destinations (e.g. .envrc) keep strict literal
+// equality (Guardrail A).
 func lineEnsureMerge(source, dest, label string) error {
 	srcData, err := os.ReadFile(source)
 	if err != nil {
@@ -309,11 +370,25 @@ func lineEnsureMerge(source, dest, label string) error {
 				return err
 			}
 			destLines := strings.Split(string(destData), "\n")
+			isGitignore := filepath.Base(label) == ".gitignore"
 			found := false
+			// Guardrail B (.gitignore only): a present negation for the entry's
+			// core token is a hard stop — never append a broader ignore.
+			if isGitignore && gitignoreHasNegation(destLines, entry) {
+				found = true
+			}
 			for _, dl := range destLines {
-				if strings.TrimRight(dl, "\r") == entry {
-					found = true
+				if found {
 					break
+				}
+				if isGitignore {
+					// Gitignore-aware coverage (directory-token equivalence).
+					if gitignoreCovers(dl, entry) {
+						found = true
+					}
+				} else if strings.TrimRight(dl, "\r") == entry {
+					// Non-.gitignore (e.g. .envrc): strict literal equality.
+					found = true
 				}
 			}
 			if !found {
