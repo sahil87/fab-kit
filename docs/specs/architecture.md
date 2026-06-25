@@ -430,7 +430,7 @@ Three version locations:
 
 ### Batch Operations
 
-Multi-change operations are `fab batch` subcommands (`fab batch <new|switch|archive> [--list] [--all] [targets...]`):
+Multi-change operations are `fab batch` subcommands (`fab batch <new|switch|archive> [flags] [targets...]` — `new`/`switch` take `[--list] [--all]`; `archive` takes `[--yes|-y] [--dry-run]`, having diverged to a list-then-confirm-with-`--yes`-escape-hatch model for the one irreversible-within-loop bulk mutation):
 
 | Subcommand | Purpose | Creates per target |
 |------------|---------|--------------------|
