@@ -232,8 +232,12 @@ const (
 // impact, or a +0/−0 `true` diff).
 //
 // Taxonomy (pnao): raw = true + excluded, true = impl + tests.
-//   - raw      — every changed line, all paths (the unfiltered diff). Shown only
-//     when it differs from `true` (i.e. excludes engaged and changed the count).
+//   - raw      — every changed line, all paths (the unfiltered diff). Shown
+//     whenever excludes are configured (Excluding != nil) — even when its
+//     numbers equal `true` (a configured-but-no-op exclude still earns its own
+//     row, so a reader always sees raw alongside true when excludes apply).
+//     With NO excludes (Excluding == nil), `true` is definitionally identical
+//     to raw, so the separate raw row is dropped — no redundant duplicate.
 //   - true     — the post-exclude diff (Excluding when present, else raw). ALWAYS
 //     shown, bold in every cell. This is the fix for the prior "total flips
 //     meaning" bug: `true` is unambiguously the meaningful diff.
@@ -265,9 +269,12 @@ func renderImpact(d Data) string {
 	b.WriteString(impactSepRow)
 	b.WriteString("\n")
 
-	// raw row — only when it differs from `true` (excludes engaged and changed
-	// the figures). A configured-but-no-op exclude does not earn a duplicate row.
-	if raw != trueDiff {
+	// raw row — shown whenever excludes are configured (the Excluding pass is
+	// present), EVEN IF its numbers equal `true`: with excludes applied, a reader
+	// always sees raw alongside true. With NO excludes, `true` is definitionally
+	// identical to raw (trueDiff == raw above), so a separate raw row would be a
+	// redundant duplicate and is dropped.
+	if d.Impact.Excluding != nil {
 		b.WriteString(impactRow("raw", raw, false, ""))
 	}
 
