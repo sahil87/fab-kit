@@ -43,6 +43,7 @@ func baseData() Data {
 			Tests:     &impact.Pair{Added: 40, Deleted: 0, Net: 40},
 		},
 		Excludes: []string{"fab/", "docs/"},
+		Version:  "2.6.6", // fixed so the provenance caption is byte-stable
 	}
 }
 
@@ -56,7 +57,7 @@ func TestRender_Table(t *testing.T) {
 		{
 			name:   "complete plan, review done 2 cycles",
 			mutate: func(d *Data) {},
-			want:   "| rj31 | feat | 4.2/5.0 | 8/8 tasks, 9/9 acceptance ✓ | ✓ 2 cycles |",
+			want:   "| `rj31` | feat | 4.2/5.0 | 8/8 tasks, 9/9 acceptance ✓ | ✓ 2 cycles |",
 		},
 		{
 			name: "no plan, pending review",
@@ -65,10 +66,10 @@ func TestRender_Table(t *testing.T) {
 				d.ReviewState = "pending"
 				d.ReviewIterations = 0
 			},
-			want: "| rj31 | feat | 4.2/5.0 | — | — |",
+			want: "| `rj31` | feat | 4.2/5.0 | — | — |",
 		},
 		{
-			name: "missing id and confidence",
+			name: "missing id and confidence (bare em-dash, no backticks)",
 			mutate: func(d *Data) {
 				d.ID = ""
 				d.HasConfidence = false
@@ -81,7 +82,7 @@ func TestRender_Table(t *testing.T) {
 				d.TasksDone = 5
 				d.AcceptanceDone = 3
 			},
-			want: "| rj31 | feat | 4.2/5.0 | 5/8 tasks, 3/9 acceptance | ✓ 2 cycles |",
+			want: "| `rj31` | feat | 4.2/5.0 | 5/8 tasks, 3/9 acceptance | ✓ 2 cycles |",
 		},
 		{
 			name: "review failed 1 cycle (singular)",
@@ -89,14 +90,14 @@ func TestRender_Table(t *testing.T) {
 				d.ReviewState = "failed"
 				d.ReviewIterations = 1
 			},
-			want: "| rj31 | feat | 4.2/5.0 | 8/8 tasks, 9/9 acceptance ✓ | ✗ 1 cycle |",
+			want: "| `rj31` | feat | 4.2/5.0 | 8/8 tasks, 9/9 acceptance ✓ | ✗ 1 cycle |",
 		},
 		{
 			name: "review done, no iteration count → bare check",
 			mutate: func(d *Data) {
 				d.ReviewIterations = 0
 			},
-			want: "| rj31 | feat | 4.2/5.0 | 8/8 tasks, 9/9 acceptance ✓ | ✓ |",
+			want: "| `rj31` | feat | 4.2/5.0 | 8/8 tasks, 9/9 acceptance ✓ | ✓ |",
 		},
 	}
 
@@ -116,8 +117,8 @@ func TestRender_TableHeader(t *testing.T) {
 	got := Render(baseData())
 	for _, want := range []string{
 		"## Meta\n\n",
-		"| ID | Type | Confidence | Plan | Review |\n",
-		"|----|------|-----------|------|--------|\n",
+		"| Change ID | Type | Confidence | Plan | Review |\n",
+		"|-----------|------|------------|------|--------|\n",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q\nfull output:\n%s", want, got)
@@ -129,7 +130,7 @@ func TestRender_TableHeader(t *testing.T) {
 func TestRender_Pipeline(t *testing.T) {
 	t.Run("hyperlinked with done markers", func(t *testing.T) {
 		got := renderPipeline(baseData())
-		want := "**Pipeline**: [intake](https://github.com/o/r/blob/b/fab/changes/260604-rj31-mechanical-pr-meta/intake.md) ✓ → " +
+		want := "**Pipeline:** [intake](https://github.com/o/r/blob/b/fab/changes/260604-rj31-mechanical-pr-meta/intake.md) ✓ → " +
 			"[apply](https://github.com/o/r/blob/b/fab/changes/260604-rj31-mechanical-pr-meta/plan.md) ✓ → " +
 			"review ✓ → hydrate → ship → review-pr"
 		if got != want {
@@ -142,7 +143,7 @@ func TestRender_Pipeline(t *testing.T) {
 		d.IntakeURL = ""
 		d.ApplyURL = ""
 		got := renderPipeline(d)
-		want := "**Pipeline**: intake ✓ → apply ✓ → review ✓ → hydrate → ship → review-pr"
+		want := "**Pipeline:** intake ✓ → apply ✓ → review ✓ → hydrate → ship → review-pr"
 		if got != want {
 			t.Errorf("pipeline =\n%q\nwant\n%q", got, want)
 		}
@@ -177,81 +178,104 @@ func TestRender_Issues(t *testing.T) {
 		}
 	})
 
-	t.Run("issues line positioned between pipeline and impact", func(t *testing.T) {
+	t.Run("issues line positioned between impact and pipeline", func(t *testing.T) {
 		d := baseData()
 		d.Issues = []string{"DEV-1"}
 		got := Render(d)
-		pipeIdx := strings.Index(got, "**Pipeline**:")
+		// 260625 layout: table → Impact → Issues → Pipeline (last). The Impact
+		// table self-labels via its `| Impact |` header (no `**Impact**:` lead-in).
+		impIdx := strings.Index(got, "| Impact | +/− | Net |")
 		issIdx := strings.Index(got, "**Issues**:")
-		impIdx := strings.Index(got, "**Impact**:")
-		if !(pipeIdx < issIdx && issIdx < impIdx) {
-			t.Errorf("ordering wrong: pipeline=%d issues=%d impact=%d\n%s", pipeIdx, issIdx, impIdx, got)
+		pipeIdx := strings.Index(got, "**Pipeline:**")
+		if !(impIdx < issIdx && issIdx < pipeIdx) {
+			t.Errorf("ordering wrong: impact=%d issues=%d pipeline=%d\n%s", impIdx, issIdx, pipeIdx, got)
 		}
 	})
 }
 
-// TestRender_Impact covers the three-row form, single-line form, omission, and
-// the per-component clamp / Unicode minus / backtick excludes.
+// TestRender_Impact covers the single-table Option A render (pnao): the four
+// (excludes ± tests) combinations, the omission cases, the dev-version caption,
+// the row-drop rules, and the per-component impl clamp / annotation.
 func TestRender_Impact(t *testing.T) {
-	t.Run("three-row form with excludes", func(t *testing.T) {
+	// Header + right-aligned separator shared by every non-omitted render. The
+	// 260625 layout drops the `**Impact**:` lead-in (the `| Impact |` header
+	// self-labels) and compacts the `+/−` header.
+	const head = "| Impact | +/− | Net |\n" +
+		"|--------|----:|----:|\n"
+
+	t.Run("excludes + tests: raw, bold true, nested impl/tests, caption", func(t *testing.T) {
 		got := renderImpact(baseData())
-		want := "**Impact**:\n" +
-			"  impl:  +47/−38  (net +9)\n" +
-			"  tests: +40/−0  (net +40)\n" +
-			"  total: +87/−38  (net +49)  ← excludes `fab/`, `docs/`"
+		// raw=142/38 (104) ≠ true=87/38 (49) → raw row shown.
+		// impl = true−tests = 47/38 (9); tests = 40/0 (40).
+		want := head +
+			"| raw | +142 / −38 | +104 |\n" +
+			"| **true** | **+87 / −38** | **+49** |\n" +
+			"| └ impl | +47 / −38 | +9 |\n" +
+			"| └ tests | +40 / −0 | +40 |\n" +
+			"\n<sub>excludes `fab/`, `docs/` · generated by fab-kit v2.6.6</sub>"
 		if got != want {
 			t.Errorf("impact =\n%q\nwant\n%q", got, want)
 		}
 	})
 
-	t.Run("three-row form clamps negative impl components to zero", func(t *testing.T) {
-		d := baseData()
-		// tests exceeds total in every component → impl clamps to 0/0/0.
-		d.Impact.Excluding = &impact.Pair{Added: 10, Deleted: 2, Net: 8}
-		d.Impact.Tests = &impact.Pair{Added: 40, Deleted: 5, Net: 35}
-		got := renderImpact(d)
-		if !strings.Contains(got, "impl:  +0/−0  (net +0)") {
-			t.Errorf("expected clamped impl row, got:\n%s", got)
-		}
-	})
-
-	t.Run("three-row form omits annotation when no excludes", func(t *testing.T) {
+	t.Run("no excludes + tests: raw row dropped, no-excludes caption", func(t *testing.T) {
 		d := baseData()
 		d.Excludes = nil
-		d.Impact.Excluding = nil // no excluding pass → total = raw
+		d.Impact.Excluding = nil // no excluding pass → true = raw → raw row dropped
 		got := renderImpact(d)
-		// total degenerates to raw (142/38); impl = 142-40 / 38-0.
-		want := "**Impact**:\n" +
-			"  impl:  +102/−38  (net +64)\n" +
-			"  tests: +40/−0  (net +40)\n" +
-			"  total: +142/−38  (net +104)"
+		// true = raw = 142/38 (104); impl = 102/38 (64); tests = 40/0 (40).
+		want := head +
+			"| **true** | **+142 / −38** | **+104** |\n" +
+			"| └ impl | +102 / −38 | +64 |\n" +
+			"| └ tests | +40 / −0 | +40 |\n" +
+			"\n<sub>generated by fab-kit v2.6.6</sub>"
 		if got != want {
 			t.Errorf("impact =\n%q\nwant\n%q", got, want)
 		}
-		if strings.Contains(got, "← excludes") {
-			t.Errorf("expected no excludes annotation, got:\n%s", got)
+		if strings.Contains(got, "| raw |") {
+			t.Errorf("expected no raw row when raw == true, got:\n%s", got)
+		}
+		if strings.Contains(got, "excludes") {
+			t.Errorf("expected no excludes clause in caption, got:\n%s", got)
 		}
 	})
 
-	t.Run("single-line form with excludes", func(t *testing.T) {
+	t.Run("excludes + no tests: raw + bold true only", func(t *testing.T) {
 		d := baseData()
 		d.Impact.Tests = nil
 		got := renderImpact(d)
-		want := "**Impact**: +87/−38 code (excluding `fab/`, `docs/`) · +142/−38 total"
+		want := head +
+			"| raw | +142 / −38 | +104 |\n" +
+			"| **true** | **+87 / −38** | **+49** |\n" +
+			"\n<sub>excludes `fab/`, `docs/` · generated by fab-kit v2.6.6</sub>"
 		if got != want {
-			t.Errorf("impact = %q\nwant %q", got, want)
+			t.Errorf("impact =\n%q\nwant\n%q", got, want)
+		}
+		if strings.Contains(got, "└ impl") || strings.Contains(got, "└ tests") {
+			t.Errorf("expected no nested rows without a tests pair, got:\n%s", got)
 		}
 	})
 
-	t.Run("single-line form without excludes", func(t *testing.T) {
+	t.Run("no excludes + no tests: bold true row only", func(t *testing.T) {
 		d := baseData()
 		d.Impact.Tests = nil
 		d.Impact.Excluding = nil
 		d.Excludes = nil
 		got := renderImpact(d)
-		want := "**Impact**: +142/−38 total"
+		want := head +
+			"| **true** | **+142 / −38** | **+104** |\n" +
+			"\n<sub>generated by fab-kit v2.6.6</sub>"
 		if got != want {
-			t.Errorf("impact = %q\nwant %q", got, want)
+			t.Errorf("impact =\n%q\nwant\n%q", got, want)
+		}
+	})
+
+	t.Run("dev build renders fab-kit vdev honestly", func(t *testing.T) {
+		d := baseData()
+		d.Version = "dev"
+		got := renderImpact(d)
+		if !strings.HasSuffix(got, "generated by fab-kit vdev</sub>") {
+			t.Errorf("expected honest dev version stamp, got:\n%s", got)
 		}
 	})
 
@@ -259,37 +283,31 @@ func TestRender_Impact(t *testing.T) {
 		d := baseData()
 		d.HasImpact = false
 		if got := renderImpact(d); got != "" {
-			t.Errorf("expected no Impact line, got %q", got)
+			t.Errorf("expected no Impact block, got %q", got)
 		}
 	})
 
-	t.Run("omitted on +0/−0 total", func(t *testing.T) {
+	t.Run("omitted on +0/−0 true", func(t *testing.T) {
 		d := baseData()
 		d.Impact = impact.Result{Added: 0, Deleted: 0, Net: 0, Excluding: &impact.Pair{}}
 		if got := renderImpact(d); got != "" {
-			t.Errorf("expected no Impact line for +0/−0, got %q", got)
+			t.Errorf("expected no Impact block for +0/−0, got %q", got)
 		}
 	})
 
-	// jznd (e): a test-heavy PR where tests exceed the total drives impl net
-	// negative. The displayed net stays clamped at +0 (downstream consumers may
-	// assume non-negative), but the impl row MUST annotate the true negative
-	// value rather than silently hiding the net-deletion-in-production.
-	t.Run("annotates true value when impl net clamps", func(t *testing.T) {
+	// jznd (e): a test-heavy PR where tests exceed `true` drives impl net
+	// negative. The displayed figures stay clamped at +0 (downstream consumers
+	// may assume non-negative), but the └ impl row MUST annotate the true
+	// negative value rather than silently hiding net-deletion-in-production.
+	t.Run("clamps negative impl and annotates the true value", func(t *testing.T) {
 		d := baseData()
-		// total = excluding pass = 10/2 (net 8); tests = 50/3 (net 47).
-		// impl raw = -40/-1 (net -39) → all clamp to 0.
+		// true = excluding = 10/2 (net 8); tests = 50/3 (net 47).
+		// impl pre = -40/-1 (net -39) → all clamp to 0.
 		d.Impact.Excluding = &impact.Pair{Added: 10, Deleted: 2, Net: 8}
 		d.Impact.Tests = &impact.Pair{Added: 50, Deleted: 3, Net: 47}
 		got := renderImpact(d)
-		if !strings.Contains(got, "impl:  +0/−0  (net +0)") {
-			t.Errorf("expected clamped impl display value, got:\n%s", got)
-		}
-		if !strings.Contains(got, "clamped from net -39") {
-			t.Errorf("expected clamp annotation naming the true negative net, got:\n%s", got)
-		}
-		if !strings.Contains(got, "added -40") || !strings.Contains(got, "deleted -1") {
-			t.Errorf("expected clamp annotation naming clamped added/deleted, got:\n%s", got)
+		if !strings.Contains(got, "| └ impl  (clamped from net -39, added -40, deleted -1) | +0 / −0 | +0 |") {
+			t.Errorf("expected clamped impl row with annotation, got:\n%s", got)
 		}
 	})
 
@@ -309,15 +327,25 @@ func TestRender_FullBlock(t *testing.T) {
 	d.LinearWorkspace = "acme"
 	got := Render(d)
 
+	// 260625 layout order: heading → table → Impact table + <sub> caption →
+	// Issues → Pipeline (last), each block blank-line separated.
 	for _, want := range []string{
-		"## Meta\n\n| ID | Type",
-		"|\n\n**Pipeline**:", // table ends, blank line, pipeline
-		"\n\n**Issues**:",
-		"\n\n**Impact**:",
+		"## Meta\n\n| Change ID | Type",
+		"|\n\n| Impact | +/− | Net |", // table ends, blank line, Impact table
+		"</sub>\n\n**Issues**:",       // caption ends, blank line, issues
+		"\n\n**Pipeline:**",           // issues end, blank line, pipeline (last)
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing structural marker %q\nfull output:\n%s", want, got)
 		}
+	}
+
+	// Hard ordering assertion: Impact precedes Issues precedes Pipeline.
+	impIdx := strings.Index(got, "| Impact | +/− | Net |")
+	issIdx := strings.Index(got, "**Issues**:")
+	pipeIdx := strings.Index(got, "**Pipeline:**")
+	if !(impIdx < issIdx && issIdx < pipeIdx) {
+		t.Errorf("ordering wrong: impact=%d issues=%d pipeline=%d\n%s", impIdx, issIdx, pipeIdx, got)
 	}
 }
 

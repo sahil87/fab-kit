@@ -1,0 +1,17 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-06-25T08:10:13Z"}
+{"args":"Normalize the ## Meta Impact block in /git-pr (prmeta package) to one consistent table shape with a fixed metric taxonomy (raw/true/impl/tests/excluded), fix the 'total means two things' semantic bug (true always = post-exclude diff), and stamp the fab-kit binary version into the Meta block provenance caption.","cmd":"fab-new","event":"command","ts":"2026-06-25T08:10:13Z"}
+{"delta":"+4.9","event":"confidence","score":4.9,"trigger":"calc-score","ts":"2026-06-25T08:11:59Z"}
+{"delta":"+0.0","event":"confidence","score":4.9,"trigger":"calc-score","ts":"2026-06-25T08:12:10Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-25T08:14:47Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-25T08:21:57Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-06-25T08:26:57Z"}
+{"event":"review","result":"passed","ts":"2026-06-25T08:26:57Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-25T08:30:59Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-06-25T08:32:46Z"}
+{"event":"review","result":"passed","ts":"2026-06-25T08:40:00Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-06-25T09:09:55Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-06-25T09:20:07Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-06-25T09:27:31Z"}
+{"event":"review","result":"passed","ts":"2026-06-25T09:27:31Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-06-25T09:30:56Z"}
+{"action":"re-entry","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-06-25T09:31:52Z"}

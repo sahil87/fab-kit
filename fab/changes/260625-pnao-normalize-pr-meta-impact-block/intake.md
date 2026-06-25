@@ -1,0 +1,228 @@
+# Intake: Normalize the PR Meta Impact block
+
+**Change**: 260625-pnao-normalize-pr-meta-impact-block
+**Created**: 2026-06-25
+
+## Origin
+
+<!-- How was this change initiated? -->
+
+> Synthesized from a completed design conversation (one-shot dispatch under `/fab-proceed`,
+> `{questioning-mode} = promptless-defer`). All key decisions are LOCKED. The conversation verified
+> the problem against two real PRs — #1846 and #442 — and locked a metric taxonomy, a single render
+> shape (Option A), a version-stamp source/threading approach, and the GitHub-Markdown fidelity
+> ceiling (empirically checked against the GitHub Markdown API).
+
+Raw synthesized request: *Normalize the `## Meta` Impact block in `/git-pr` (rendered by `fab pr-meta`
+/ the `prmeta` package) to one consistent shape with a fixed metric taxonomy, fix the "total means two
+different things" semantic bug, and stamp the fab-kit binary version into the Meta block as
+provenance.*
+
+## Why
+
+**Problem (verified against PRs #1846 and #442):**
+
+1. **Three render shapes for one concept.** `prmeta.renderImpact` (src/go/fab/internal/prmeta/prmeta.go
+   lines 211–265) renders the Impact section in THREE different shapes depending on
+   `(tests present?) × (excludes present?)`:
+   - a 3-row `impl` / `tests` / `total` breakdown (tests present),
+   - a single-line `+A/−B code (excluding …) · +C/−D total` form (no tests, excludes present),
+   - a bare `+A/−B total` form (no tests, no excludes).
+
+2. **"total" denotes two different quantities — a correctness bug, not cosmetics.** In the single-line
+   form, `total` = the **raw** diff (e.g. +175/−20) and `code` = the **excluding** pass. In the 3-row
+   form, `total` = the **excluding** pass (e.g. +239/−2) and the raw diff is hidden entirely. The same
+   label means two different things across forms. A reader comparing two PRs cannot trust the word
+   "total".
+
+3. **No provenance.** The Meta block carries no indication of WHICH fab-kit version rendered it. When
+   two PRs' blocks differ in shape, you cannot tell whether that is a format change across versions or
+   just different inputs (the two example PRs were from different repos / possibly different installed
+   `fab` versions).
+
+**Consequence if unfixed:** the Impact block stays untrustworthy for cross-PR comparison (the very
+purpose `prmeta` exists for — a byte-stable, drift-free Meta block), and the "total flips meaning" bug
+silently mis-reports diff size.
+
+**Why this approach:** Option A (single table + fixed taxonomy + provenance caption) gives one shape
+that adapts by DROPPING rows (never reshaping), a locked vocabulary where every label means exactly one
+thing, auto-aligned columns, and co-located provenance (excludes note + version stamp). Alternatives B
+and C were considered and rejected (see Design Decisions in Assumptions / What Changes).
+
+## What Changes
+
+### 1. Metric taxonomy — locked vocabulary `raw / true / impl / tests / excluded`
+
+Identities: `raw = true + excluded` and `true = impl + tests`.
+
+| Term | Definition | Source |
+|------|-----------|--------|
+| `raw` | every changed line, all paths (unfiltered diff) | `impact.Result.Added/Deleted/Net` (the raw pass) |
+| `true` | meaningful diff = `raw − true_impact_exclude` paths. **ALWAYS the post-exclude diff** — this is the fix for the "total flips meaning" bug. Name chosen to match the existing `true_impact_exclude` config key. | `impact.Result.Excluding` when present, else the raw pass |
+| `impl` | production code = `true − tests` (per-component residual, clamped non-negative) | derived at render time |
+| `tests` | test-path lines measured **within** `true` (no leakage — matches `impact.Compute`'s test pass, which combines test includes with the same excludes) | `impact.Result.Tests` |
+| `excluded` | `raw − true` (the `true_impact_exclude` paths, e.g. `fab/`, `docs/`). Named in the **caption**, NOT a headline row. | derived; surfaced only in caption |
+
+`impl` is chosen over "code" to avoid the ambiguity that tests are also code. `true` ALWAYS means the
+post-exclude diff — eliminating the dual meaning of "total".
+
+### 2. One consistent shape — Option A (table + provenance caption)
+
+Render Impact as a SINGLE markdown table with fixed columns `Scope | + / − | Net`. Rows adapt by
+**DROPPING** (never reshaping):
+
+- **`raw`** row — shown ONLY when it differs from `true` (i.e. when excludes engaged).
+- **`true`** row — ALWAYS present; emphasized in **bold** (`**true**` in every cell of that row).
+- **`impl`** + **`tests`** rows — ONLY when a tests pair is present; rendered nested under `true` with a
+  `└ ` tree-glyph prefix on the label (e.g. `└ impl`, `└ tests`).
+
+Rules:
+- Numeric columns RIGHT-aligned — the separator row uses `|--:|` for the `+ / −` and `Net` columns.
+- **Net column KEPT** for every row (`added − deleted`).
+- Below the table, an **italic provenance caption** line co-locating the excludes note and version
+  stamp, e.g.:
+  `*excludes `fab/`, `docs/` · generated by fab-kit vX.Y.Z*`
+  The excludes list is built from the actual `true_impact_exclude` config values (each backtick-wrapped
+  via the existing `backtickList` helper), NEVER hardcoded. When there are no excludes, the table has no
+  `raw` row and the caption omits the `excludes …` clause (keeping only the `generated by fab-kit …`
+  stamp).
+
+Example rendered shape (tests + excludes present):
+
+```markdown
+**Impact**:
+
+| Scope | + / − | Net |
+|---|--:|--:|
+| raw | +241/−4 | +237 |
+| **true** | **+239/−2** | **+237** |
+| └ impl | +180/−2 | +178 |
+| └ tests | +59/−0 | +59 |
+
+*excludes `fab/`, `docs/` · generated by fab-kit v2.6.6*
+```
+
+### 3. Version stamp — provenance (binary version)
+
+- Stamp the **fab-kit BINARY version** (the running binary's version — `main.go`'s `version` var,
+  surfaced by `fab --version`) into the Meta block's provenance caption. Source = **binary version**,
+  NOT config `fab_version` — the binary is what actually rendered the block.
+- **Threading:** `version` is private to `package main` (src/go/fab/cmd/fab/main.go line 10:
+  `var version = "dev"`). Add a new `Version string` field on `prmeta.Data`, populated in
+  `cmd/fab/pr_meta.go`'s `RunE` (which can see `version`). Do NOT read it inside `prmeta.Gather`. This
+  keeps `prmeta.Render` a PURE function of `Data` (preserving byte-stable testability — tests pass a
+  fixed `Version`).
+- **Dev builds render honestly:** when `version == "dev"`, render `fab-kit vdev` — do NOT suppress the
+  line.
+
+### 4. GitHub Markdown fidelity (empirically verified via the GitHub Markdown API)
+
+- GitHub's sanitizer strips `style`/`class` from `<tr>`/`<td>`/`<span>`, so a highlighted row background
+  and colored +/− numbers are NOT possible in a PR body.
+- Therefore: emphasis on the `true` row is via **bold** only; numbers render monochrome. Right-aligned
+  columns, `└ impl`/`└ tests` tree glyphs, links, inline code, italics ALL survive the sanitizer.
+- **Rejected (do not adopt):** `<mark>` (fixed yellow text-highlight, not a row band),
+  `$\textcolor{}$` math (math font, verbose source), and a ```diff code block (gives color but cannot be
+  a table).
+
+### 5. Code touch points (src/go)
+
+- **`src/go/fab/internal/prmeta/prmeta.go`** — rewrite `renderImpact` to the single-table + caption
+  Option A shape using the new taxonomy. Add `Version` field to `Data`. Preserve the existing
+  `clampNonNeg` + `clampAnnotation` behavior: a negative `impl` net is annotated (the rename from
+  `impl`-residual must keep the clamp annotation working for the `impl` row). Reuse `backtickList` for
+  the excludes caption.
+- **`src/go/fab/cmd/fab/pr_meta.go`** — populate `data.Version = version` in `RunE` before calling
+  `prmeta.Render`.
+- **`src/go/fab/internal/impact/impact.go`** — read-only dependency (taxonomy maps onto its existing
+  `Result.Added/Deleted/Net`, `.Excluding`, `.Tests`). No change expected unless a helper is needed; the
+  measured-passes contract is unchanged.
+
+### 6. Tests (constitution-required for a Go change)
+
+- **`src/go/fab/internal/prmeta/prmeta_test.go`** — update golden assertions for the new table render
+  across all combinations: no-excludes/no-tests, excludes/no-tests, excludes+tests, and the negative-net
+  `impl` clamp-annotation case. Tests pass a fixed `Version` to keep the render byte-stable.
+- **`src/go/fab/cmd/fab/pr_meta_test.go`** — update if the cmd wiring (`Version` population) is exercised.
+
+### 7. Documentation — skills + SPEC mirrors + memory (sibling/mirror sweep)
+
+Observable `fab pr-meta` output changes (NOT a command-signature change — no new flag/arg), so per the
+constitution and code-quality § Sibling & Mirror Sweeps, update the whole mirror class up front:
+
+- **`src/kit/skills/_cli-fab.md`** — § `fab pr-meta` "Output" describes the three-row impl/tests/total
+  form (line ~472) and single-line form; rewrite to the single-table + provenance-caption shape and the
+  `raw/true/impl/tests/excluded` taxonomy. The `← excludes` annotation prose moves into the caption.
+- **`docs/specs/skills/SPEC-_cli-fab.md`** — its SPEC mirror.
+- **`src/kit/skills/git-pr.md`** — Step 3 describes the Meta block + `fab pr-meta` contract (the Impact
+  line description, line ~251 graceful-degradation note about `+0/−0` dropping the Impact line); update
+  to the new shape.
+- **`docs/specs/skills/SPEC-git-pr.md`** — its SPEC mirror (lines ~110–114, ~141 describe the three-row
+  vs single total form — must be rewritten).
+- **`docs/memory/pipeline/execution-skills.md`** — documents `/git-pr`/`pr-meta` behavior; update the
+  Impact-block description at hydrate. Also check **`docs/memory/pipeline/schemas.md`** for any
+  Impact/Meta-shape prose (the `true_impact` schema itself is unchanged — taxonomy is a render concern,
+  not a `.status.yaml` schema change).
+
+## Affected Memory
+
+<!-- spec-level behavior changes -->
+
+- `pipeline/execution-skills.md`: (modify) update the `/git-pr` + `fab pr-meta` Impact-block description
+  to the single-table Option A shape, the `raw/true/impl/tests/excluded` taxonomy (and the "total no
+  longer flips meaning" fix), and the new version-stamp provenance caption.
+- `pipeline/schemas.md`: (modify) check/adjust any Impact-or-Meta-shape prose. The `.status.yaml`
+  `true_impact` schema itself is NOT changing (the taxonomy is a render-layer concern); modify only if
+  it restates the rendered Impact shape.
+
+## Impact
+
+<!-- Affected code areas, APIs, dependencies, systems -->
+
+- **Code (Go):** `src/go/fab/internal/prmeta/prmeta.go` (rewrite `renderImpact`, add `Data.Version`),
+  `src/go/fab/cmd/fab/pr_meta.go` (populate `Version` from `main.version`). `internal/impact/impact.go`
+  is a read-only dependency (no schema change). Run the `prmeta` and `cmd/fab` package tests; widen only
+  if cross-cutting.
+- **Tests:** `prmeta_test.go` golden assertions (required); `pr_meta_test.go` if cmd wiring is exercised.
+- **Docs / skills / specs (mirror class):** `src/kit/skills/git-pr.md` + `docs/specs/skills/SPEC-git-pr.md`;
+  `src/kit/skills/_cli-fab.md` + `docs/specs/skills/SPEC-_cli-fab.md`.
+- **Memory:** `docs/memory/pipeline/execution-skills.md` (and check `schemas.md`).
+- **Constraints:** `prmeta.Render` MUST stay a pure function of `Data` (Version is a `Data` field; never
+  read inside `Gather`). Byte-stable render contract preserved (tests pass a fixed `Version`). Preserve
+  `clampNonNeg` + `clampAnnotation` (negative `impl` net is annotated). Edit ONLY `src/kit/skills/` —
+  never the gitignored `.claude/skills/` deployed copies.
+- **Out of scope (non-goals):** no new CLI flag/arg on `fab pr-meta`; no change to the `internal/impact`
+  measured-passes contract or the `.status.yaml` `true_impact` schema; no migration (no user-data
+  restructuring); no color/highlight in the PR body (sanitizer-blocked — bold only).
+
+## Open Questions
+
+<!-- None blocking — all key decisions were LOCKED in the design conversation. The two items below are
+     low-risk render-detail refinements deferred to apply (decide-and-record), not genuine unknowns. -->
+
+- Exact caption byte-format (separator glyph ` · `, the literal `excludes`/`generated by fab-kit`
+  wording, and the `v` prefix on the version). Locked to the example above; apply finalizes the exact
+  bytes against the golden tests.
+- Whether the `**Impact**:` lead-in line and a blank line precede the table (matching the current
+  three-row form's `**Impact**:\n` header). Assume yes — preserve the existing lead-in for visual
+  consistency with the rest of the Meta block.
+
+## Assumptions
+
+<!-- STATE TRANSFER: continuity between intake and apply-entry. All four grades recorded; Scores required. -->
+
+| # | Grade | Decision | Rationale | Scores |
+|---|-------|----------|-----------|--------|
+| 1 | Certain | Metric taxonomy is the locked vocabulary `raw / true / impl / tests / excluded` with `raw = true + excluded` and `true = impl + tests`; `true` ALWAYS = post-exclude diff (the bug fix). | Locked in design conversation; maps directly onto `impact.Result` fields; names chosen to match `true_impact_exclude` config key. | S:98 R:80 A:95 D:95 |
+| 2 | Certain | Render shape = Option A: single markdown table `Scope \| + / − \| Net`, numeric cols right-aligned (`\|--:\|`), Net column KEPT, rows DROP (never reshape): `raw` only when it differs from `true`, `true` always (bold), `impl`+`tests` only when tests present (nested with `└ ` glyph). | Locked; chosen over B (one kv-table, large blast radius) and C (text form) explicitly. | S:95 R:75 A:90 D:92 |
+| 3 | Certain | Version stamp uses the BINARY version (`main.go` `version` var) threaded via a new `prmeta.Data.Version` field populated in `cmd/fab/pr_meta.go` RunE — NOT read inside `Gather`, NOT config `fab_version`. `Render` stays a pure function of `Data`. | Locked; `version` is private to `package main`; purity/byte-stability is the package's design invariant. | S:98 R:85 A:98 D:98 |
+| 4 | Certain | Dev builds render honestly: `version == "dev"` → `fab-kit vdev` (line NOT suppressed). | Locked explicitly in the design conversation. | S:97 R:90 A:95 D:97 |
+| 5 | Certain | Provenance caption is an italic line below the table co-locating the excludes note + version stamp; excludes list built from actual `true_impact_exclude` via `backtickList`, never hardcoded; `excludes …` clause omitted when no excludes. | Locked; reuses existing helper; matches current never-hardcode discipline. | S:95 R:80 A:92 D:90 |
+| 6 | Certain | Emphasis on the `true` row is **bold** only; no color/highlight/`<mark>`/`$\textcolor{}$`/```diff (GitHub sanitizer strips style/class, verified via the Markdown API). | Locked + empirically verified; agent cannot beat the sanitizer. | S:96 R:88 A:95 D:96 |
+| 7 | Certain | Preserve `clampNonNeg` + `clampAnnotation` — a negative `impl` net stays annotated under the new taxonomy (the `impl` row carries the clamp note). | Locked constraint; existing tested behavior must survive the rename. | S:95 R:80 A:95 D:95 |
+| 8 | Certain | Go change ships test updates: `prmeta_test.go` golden assertions for all combinations (incl. clamp case) with a fixed `Version`; `pr_meta_test.go` if cmd wiring exercised. | Constitution VII + code-review "Go changes ship tests" (must-fix). | S:95 R:85 A:98 D:97 |
+| 9 | Certain | Sibling/mirror sweep: update `git-pr.md`+`SPEC-git-pr.md` and `_cli-fab.md`+`SPEC-_cli-fab.md` (observable output change), plus `pipeline/execution-skills.md` at hydrate; check `pipeline/schemas.md`. Edit `src/kit/skills/` only, never `.claude/skills/`. | Constitution Additional Constraints + code-quality § Sibling & Mirror Sweeps (single most common rework cause; reviewers read strictly). | S:95 R:75 A:95 D:92 |
+| 10 | Confident | No new CLI flag/arg — this is an observable-output change to `fab pr-meta`, not a command-signature change; no migration (no user-data restructuring); `internal/impact` measured-passes contract and `.status.yaml` `true_impact` schema unchanged. | Strongly implied by the locked design (render-only); reversible if a flag is later wanted. | S:90 R:78 A:88 D:85 |
+| 11 | Tentative | Exact caption byte-format (` · ` separator, literal `excludes`/`generated by fab-kit` wording, `v` prefix) and whether the `**Impact**:` lead-in + blank line precede the table — finalize at apply against the golden tests; assume lead-in preserved. | Render-detail not byte-pinned in the conversation; cheaply reversible via golden-test iteration; one obvious default (preserve existing lead-in, follow the example shape). | S:60 R:75 A:80 D:70 |
+
+11 assumptions (9 certain, 1 confident, 1 tentative, 0 unresolved).
