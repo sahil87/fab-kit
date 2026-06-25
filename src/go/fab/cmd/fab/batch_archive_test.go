@@ -249,8 +249,12 @@ func makeArchivable(t *testing.T, root, folder string) string {
 	if err := os.MkdirAll(changeDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte("name: "+folder+"\nprogress:\n  hydrate: done\n"), 0o644)
-	os.WriteFile(filepath.Join(changeDir, "intake.md"), []byte("# Intake: "+folder+"\n"), 0o644)
+	if err := os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte("name: "+folder+"\nprogress:\n  hydrate: done\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(changeDir, "intake.md"), []byte("# Intake: "+folder+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	return changeDir
 }
 
@@ -526,11 +530,14 @@ func TestRunBatchArchive_NonTTYWithoutYesRefuses(t *testing.T) {
 	if err == nil {
 		t.Fatal("non-TTY without --yes must refuse with a non-zero exit")
 	}
-	if !strings.Contains(errOut.String(), "refusing to prompt for confirmation on a non-interactive stdin") {
-		t.Errorf("expected refusal guidance on stderr, got:\n%s", errOut.String())
+	// The refusal guidance is carried on the returned error (which main()
+	// prints once, prefixed with "ERROR:"), not emitted to stderr by the
+	// handler — so the one failure path produces a single ERROR: line.
+	if !strings.Contains(err.Error(), "refusing to prompt for confirmation on a non-interactive stdin") {
+		t.Errorf("expected refusal guidance in returned error, got:\n%v", err)
 	}
-	if !strings.Contains(errOut.String(), "--yes") {
-		t.Errorf("guidance must point at --yes, got:\n%s", errOut.String())
+	if !strings.Contains(err.Error(), "--yes") {
+		t.Errorf("guidance must point at --yes, got:\n%v", err)
 	}
 	if strings.Contains(out.String(), "[y/N]") {
 		t.Errorf("non-TTY path must NOT prompt, got:\n%s", out.String())

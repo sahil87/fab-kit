@@ -788,7 +788,7 @@ Multi-target operations: `fab batch <new|switch|archive> [flags] [targets...]`. 
   - **bare invocation (interactive stdin)** → lists the archivable set, then prompts `Archive these N? [y/N]` with **default No** — a bare Enter or any non-`y`/`yes` (case-insensitive) answer aborts (exit 0, nothing archived); `y`/`yes` archives all.
   - **`--yes` / `-y`** → archives all archivable changes with no prompt (the non-interactive escape hatch; resolved behavior of the former `--all`).
   - **`--dry-run`** → lists what would be archived; no prompt, no action (the former `--list`).
-  - **non-TTY stdin without `--yes`** → refuses rather than hangs: prints `ERROR: refusing to prompt for confirmation on a non-interactive stdin.` + `Re-run with --yes to archive non-interactively.` to stderr and exits non-zero. This matters because the tmux/operator runtime is frequently non-interactive — those call sites pass `--yes`.
+  - **non-TTY stdin without `--yes`** → refuses rather than hangs: returns a single multi-line error so `main()`'s centralized printer emits it once as `ERROR: refusing to prompt for confirmation on a non-interactive stdin.` followed by `Re-run with --yes to archive non-interactively` on stderr, then exits non-zero (the handler does not print its own `ERROR:` lines, avoiding a doubled prefix). This matters because the tmux/operator runtime is frequently non-interactive — those call sites pass `--yes`.
   - **explicit args** (`fab batch archive foo bar`) → archive the named changes with **no prompt and no TTY guard** (naming them IS the opt-in; the prompt applies only to the bare/archive-all path).
   - **`--dry-run --yes`** → mutually exclusive → exits non-zero (`ERROR: --dry-run and --yes are mutually exclusive`).
 

@@ -54,7 +54,6 @@ func batchArchiveCmd() *cobra.Command {
 
 func runBatchArchive(cmd *cobra.Command, args []string, yesFlag, dryRunFlag bool) error {
 	w := cmd.OutOrStdout()
-	errW := cmd.ErrOrStderr()
 
 	// --dry-run (preview-only) and --yes (assume-yes and do it) are
 	// contradictory. Error rather than silently picking one.
@@ -92,7 +91,7 @@ func runBatchArchive(cmd *cobra.Command, args []string, yesFlag, dryRunFlag bool
 	// invocation lists the set and prompts (default No), while --yes/-y is the
 	// non-interactive escape hatch (replacing the old --all). This is the
 	// well-understood list-then-confirm-with-a-yes-escape-hatch pattern
-	// (apt/npm/gh); it replaces the 260612-ye8r explicit---all model, giving
+	// (apt/npm/gh); it replaces the 260612-ye8r explicit-or---all model, giving
 	// zero-flag ergonomics for the common case without firing a destructive-ish
 	// bulk op on a bare command (--dry-run replaces the old --list preview).
 	changes := allArchivableNames(changesDir)
@@ -112,16 +111,18 @@ func runBatchArchive(cmd *cobra.Command, args []string, yesFlag, dryRunFlag bool
 		// where stdin is frequently not a tty — so refuse with guidance and a
 		// non-zero exit instead. --yes is the automation escape hatch.
 		if !isStdinTTY(cmd.InOrStdin()) {
-			fmt.Fprintln(errW, "ERROR: refusing to prompt for confirmation on a non-interactive stdin.")
-			fmt.Fprintln(errW, "Re-run with --yes to archive non-interactively.")
-			return fmt.Errorf("non-interactive stdin: pass --yes to archive")
+			// Return a single (multi-line) error and let main()'s centralized
+			// "ERROR: %s" printing own the prefix — emitting our own ERROR:
+			// lines here would double the prefix on this one failure path.
+			return fmt.Errorf("refusing to prompt for confirmation on a non-interactive stdin.\n" +
+				"Re-run with --yes to archive non-interactively")
 		}
 
 		// List the set, then prompt with default No — a bare Enter (or any
-		// non-y/yes answer) is the safe abort.
-		if err := listArchivable(w, changesDir); err != nil {
-			return err
-		}
+		// non-y/yes answer) is the safe abort. Print the already-computed
+		// `changes` slice (not a fresh scan) so the listed set and the prompt
+		// count below cannot disagree.
+		printArchivable(w, changes)
 		fmt.Fprintf(w, "Archive these %d? [y/N] ", len(changes))
 		reader := bufio.NewReader(cmd.InOrStdin())
 		line, _ := reader.ReadString('\n')
@@ -228,12 +229,21 @@ func archiveLoop(w, errW io.Writer, fabRoot string, resolved []string) (archived
 	return archived, skipped, failed
 }
 
-// listArchivable prints archivable changes.
+// listArchivable scans for archivable changes and prints them. Used by the
+// --dry-run path, which has no precomputed set.
 func listArchivable(w interface{ Write([]byte) (int, error) }, changesDir string) error {
+	printArchivable(w, allArchivableNames(changesDir))
+	return nil
+}
+
+// printArchivable renders an already-computed set of archivable change names.
+// The bare-prompt path passes the same slice it counts for "Archive these N?"
+// so the listed set and the prompt count come from a single scan (no second
+// filesystem read that could disagree if the set changes mid-command).
+func printArchivable(w interface{ Write([]byte) (int, error) }, names []string) {
 	fmt.Fprintln(w, "Archivable changes (hydrate done|skipped):")
 	fmt.Fprintln(w)
 
-	names := allArchivableNames(changesDir)
 	if len(names) == 0 {
 		fmt.Fprintln(w, "  (none)")
 	} else {
@@ -241,7 +251,6 @@ func listArchivable(w interface{ Write([]byte) (int, error) }, changesDir string
 			fmt.Fprintf(w, "  %s\n", name)
 		}
 	}
-	return nil
 }
 
 // allArchivableNames returns change names where hydrate is done or skipped.
