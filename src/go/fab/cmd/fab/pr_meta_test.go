@@ -69,12 +69,15 @@ func TestPrMetaCmd_NoFabContextExitsNonZero(t *testing.T) {
 	}
 }
 
-// TestPrMetaCmd_VersionThreadedIntoProvenance pins the cmd-wiring contract: the
-// package main `version` var is stamped into the Meta block's provenance caption
-// (pnao). prmeta.Render stays a pure function of Data — the command is the sole
-// populator of Data.Version — so this asserts the same value RunE assigns
-// (`data.Version = version`) reaches the rendered caption. The default build
-// value is "dev", which must render honestly as `fab-kit vdev`.
+// TestPrMetaCmd_VersionThreadedIntoProvenance pins the render half of the
+// version-provenance contract: feeding the package main `version` var through
+// Data.Version surfaces it in the Meta block's provenance caption (pnao).
+// prmeta.Render stays a pure function of Data, and RunE is its sole populator
+// (`data.Version = version`, see prMetaCmd); this test exercises Render
+// directly with that same `version` value rather than driving RunE (which needs
+// a live fab context), so it verifies the caption wiring, not the RunE
+// assignment itself. The default build value is "dev", which must render
+// honestly as `fab-kit vdev`.
 func TestPrMetaCmd_VersionThreadedIntoProvenance(t *testing.T) {
 	d := prmeta.Data{
 		HasImpact: true,

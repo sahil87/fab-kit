@@ -301,7 +301,7 @@ func renderImpact(d Data) string {
 func impactRow(label string, p impact.Pair, bold bool, annotation string) string {
 	scope := label + annotation
 	plusMinus := fmt.Sprintf("+%d/−%d", p.Added, p.Deleted)
-	net := fmt.Sprintf("+%d", p.Net)
+	net := formatNet(p.Net)
 	if bold {
 		scope = "**" + scope + "**"
 		plusMinus = "**" + plusMinus + "**"
@@ -328,6 +328,18 @@ func clampNonNeg(n int) int {
 		return 0
 	}
 	return n
+}
+
+// formatNet renders a signed net delta. Non-negative values get an explicit
+// `+` prefix; negative values keep their own `-` (so a net-deletion `true`/raw/
+// tests row reads `-3`, never `+-3`). Mirrors the local convention in
+// internal/change/change.go. The `impl` row is pre-clamped non-negative, but
+// raw/true/tests pass through unclamped Net values that can go negative.
+func formatNet(n int) string {
+	if n >= 0 {
+		return fmt.Sprintf("+%d", n)
+	}
+	return fmt.Sprintf("%d", n)
 }
 
 // clampAnnotation returns a trailing " (clamped from …)" note naming the true
