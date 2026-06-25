@@ -492,8 +492,9 @@ hand-edit them — the deterministic replacement for the hand-maintained index r
 `## Changelog` tables) that previously lived in the hydrate / `docs-reorg-memory` skill prose.
 Modeled on `fab pr-meta` (pure `RenderRoot`/`RenderDomain`/`RenderLog` + a `Gather` I/O
 orchestrator in `internal/memoryindex`), so the output is byte-for-byte stable across runs and
-stops the per-row / per-changelog-row merge conflicts on the hot `description` / `Last Updated`
-cells. It produces the generated half of the **FKF** format (Fab Knowledge Format — see
+stops the per-row / per-changelog-row merge conflicts on the hot `description` cells. The index
+is a pure function of content (no git dates), so it is branch-independent and idempotent. It
+produces the generated half of the **FKF** format (Fab Knowledge Format — see
 `$(fab kit-path)/reference/fkf.md`): per-folder `log.md`, the `type: memory` round-trip mechanism, and the
 root-index `fkf_version` frontmatter.
 
@@ -503,7 +504,7 @@ What it writes:
   beyond the generator's own output — FKF §8; no domain/sub-domain index carries it). The legacy
   inlined per-file "Memory Files" column is dropped (it silently drifts). Each domain row's
   Description is read from that domain `index.md`'s `description:` frontmatter.
-- **Every `docs/memory/{domain}/index.md`** — file rows (`| File | Description | Last Updated |`)
+- **Every `docs/memory/{domain}/index.md`** — file rows (`| File | Description |`)
   for each non-`index` `.md` file, plus a `description:` frontmatter line carrying the domain's
   curated one-liner (round-tripped so the root row survives regen). When the domain contains
   sub-domains, a `## Sub-Domains` table is appended referencing each (`[sub](sub/index.md)`) —
@@ -570,14 +571,11 @@ What it writes:
 Data sourcing (all read by the command itself):
 - Each topic file's **H1** (first `# ` line) and **`description:` frontmatter** (via
   `internal/frontmatter`). A file with no `description:` renders `—` in that cell (never errors).
-- **"Last Updated"** and the **`log.md` history** both come from ONE batched
-  `git log --date=short --name-status -- docs/memory` pass (newest-first). The index takes the
-  first date seen per path (equivalent to the old per-file `git log -1 --date=short --format=%ad
-  -- <file>` defaults, kept only as the per-file fallback when the batched call fails); the log
-  takes the full per-path commit list (date + subject + name-status) from the **same** pass — no
-  per-file `git log` spawns. "Last Updated" degrades to `—` when git records nothing for a file —
-  uncommitted file, worktree, shallow clone, squash/rebase, or git unavailable — mirroring how
-  `fab pr-meta` degrades on missing git/gh context; when the whole batched pass fails, **no
+- The **`log.md` history** comes from ONE batched
+  `git log --date=short --name-status -- docs/memory` pass (newest-first): the log takes the
+  full per-path commit list (date + subject + name-status) — no per-file `git log` spawns. The
+  **index** consumes none of this — it carries no dates (a pure function of content), so the
+  batched pass now serves `log.md` only. When the whole batched pass fails, **no
   `log.md` is written** (the log surface degrades to absent, never an error).
 - The **`log.md` summary + change-id** are joined from two sources, neither hand-edited (FKF §6):
   each change's `.status.yaml` **`summary:`** field (the *what* — set via `fab status
@@ -633,7 +631,7 @@ benign drift — see below):
 - **`0`** — clean: every index **and `log.md`** file is byte-identical to its regenerated form
   (no regen needed).
 - **`1`** — **benign drift**: regen would change content but destroy nothing (e.g. an *improved*
-  `description:`, a refreshed `Last Updated` date, a stale `log.md`, a `log.md` gaining merged
+  `description:`, a stale `log.md`, a `log.md` gaining merged
   `log.seed.md` entries, or absent/changed FKF frontmatter). This is the former "out of date"
   condition — existing consumers treating "non-zero = stale" still work unchanged. **All `log.md`
   and FKF-frontmatter drift is benign (tier 1)** — a `log.md` is a C-lite git projection (plus any
