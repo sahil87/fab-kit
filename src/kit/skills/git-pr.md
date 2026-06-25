@@ -206,11 +206,11 @@ fi
 1. Run `fab memory-index` (byte-stable; writes only `docs/memory/` index + log files; a no-op when nothing drifted).
 2. If `docs/memory/` changed (`git diff --quiet -- docs/memory` exits non-zero): `git add docs/memory`, then a **SEPARATE** follow-up commit `git commit -m "docs: refresh memory indexes"`. Do **NOT** use `--amend` — keep 3a's authored content commit intact; squash collapses the pair on merge anyway.
 3. If `git diff --quiet -- docs/memory` exits 0 (nothing drifted): make **no** commit — the guard suppresses an empty follow-up commit (Constitution III idempotency).
-4. If the regen OR the commit fails → report the error and STOP. The 3a content commit is already made and intact; a failed refresh leaves a benign stale-date index, recoverable by re-running `fab memory-index` — never a torn state.
+4. If the regen OR the commit fails → report the error and STOP. The 3a content commit is already made and intact; a failed refresh leaves a benign stale `log.md`, recoverable by re-running `fab memory-index` — never a torn state.
 
 Print (ONLY when a follow-up commit was actually made): `  ✓ commit — "docs: refresh memory indexes"`
 
-> **Why here, why gated.** This is the first moment `git log` reports the change's real commit date (`fab memory-index` stamps "Last Updated" from committed dates), so the step lives in **ship** not hydrate — hydrate is entirely pre-commit, so no in-hydrate regen can see the change's own commit. There is no push here; 3b pushes both commits together. When `/git-pr` runs standalone (`{has_fab}` false) this sub-step is a **silent no-op**.
+> **Why here, why gated.** This is the first moment `git log` reports the change's own content commit (`log.md` is a freeze-on-write projection of committed history, so it must capture this change's entry *now*, while the commit is still reachable — pre-squash). The step lives in **ship** not hydrate — hydrate is entirely pre-commit, so no in-hydrate regen can see the change's own commit. The **index** no longer depends on commit timing (it carries no dates — pure content), so its regen half is a reliable no-op here; `log.md` is the sole reason 3a-bis remains. There is no push here; 3b pushes both commits together. When `/git-pr` runs standalone (`{has_fab}` false) this sub-step is a **silent no-op**.
 
 #### 3b. Push (if has_unpushed or just committed)
 

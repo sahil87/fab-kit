@@ -86,7 +86,7 @@ Before d9rs, placement rules (target path, domain creation, index stubs, shape b
 Generate mode SHALL reuse the same mechanical index regeneration as ingest mode — `fab memory-index`, never hand-edited rows:
 
 1. Author the `description:` frontmatter on every generated topic file (the generated index reads its row Description from this field).
-2. Run `fab memory-index` once after generation. It regenerates the root `docs/memory/index.md` (domains-only — `| Domain | Description |`), every `docs/memory/{domain}/index.md` (file rows — `| File | Description | Last Updated |`), and every sub-domain `index.md` deterministically from folder contents + frontmatter + `git log` dates.
+2. Run `fab memory-index` once after generation. It regenerates the root `docs/memory/index.md` (domains-only — `| Domain | Description |`), every `docs/memory/{domain}/index.md` (file rows — `| File | Description |`), and every sub-domain `index.md` deterministically from folder contents + frontmatter (content-only — the index carries no dates since ugde).
 3. The command is the single writer; its output is byte-stable, all links are relative, and entries are derived from disk (so a file present on disk is always listed — there is no manual "do not remove entries" rule to forget).
 
 ### Idempotent Generation

@@ -36,13 +36,13 @@ func TestClassify_Clean_NoDrift(t *testing.T) {
 
 func TestClassify_BenignDrift_ImprovedDescription(t *testing.T) {
 	existing := "" +
-		"| File | Description | Last Updated |\n" +
-		"|------|-------------|-------------|\n" +
-		"| [login](login.md) | old desc | 2026-01-01 |\n"
+		"| File | Description |\n" +
+		"|------|-------------|\n" +
+		"| [login](login.md) | old desc |\n"
 	rendered := "" +
-		"| File | Description | Last Updated |\n" +
-		"|------|-------------|-------------|\n" +
-		"| [login](login.md) | improved desc | 2026-06-15 |\n"
+		"| File | Description |\n" +
+		"|------|-------------|\n" +
+		"| [login](login.md) | improved desc |\n"
 	report := Classify([]CheckTarget{
 		{Path: "docs/memory/auth/index.md", Existing: existing, Rendered: rendered, LinkBase: "auth"},
 	}, setExists(map[string]bool{"auth/login.md": true}))
@@ -62,14 +62,14 @@ func TestClassify_BenignDrift_ImprovedDescription(t *testing.T) {
 
 func TestClassify_DescriptionLoss(t *testing.T) {
 	existing := "" +
-		"| File | Description | Last Updated |\n" +
-		"|------|-------------|-------------|\n" +
-		"| [login](login.md) | Curated login flow | 2026-01-01 |\n"
+		"| File | Description |\n" +
+		"|------|-------------|\n" +
+		"| [login](login.md) | Curated login flow |\n"
 	// Regen: same row, but description gone to "—" (frontmatter missing).
 	rendered := "" +
-		"| File | Description | Last Updated |\n" +
-		"|------|-------------|-------------|\n" +
-		"| [login](login.md) | — | 2026-01-01 |\n"
+		"| File | Description |\n" +
+		"|------|-------------|\n" +
+		"| [login](login.md) | — |\n"
 	report := Classify([]CheckTarget{
 		{Path: "docs/memory/auth/index.md", Existing: existing, Rendered: rendered, LinkBase: "auth"},
 	}, setExists(map[string]bool{"auth/login.md": true}))
@@ -86,21 +86,24 @@ func TestClassify_DescriptionLoss(t *testing.T) {
 }
 
 func TestClassify_DescriptionAlreadyMissing_NotALoss(t *testing.T) {
-	// Existing already "—" → nothing curated to lose even though the row drifts.
+	// The login row's description is already "—" → nothing curated to lose, even
+	// though the file drifts (a sibling row's description improved).
 	existing := "" +
-		"| File | Description | Last Updated |\n" +
-		"|------|-------------|-------------|\n" +
-		"| [login](login.md) | — | 2026-01-01 |\n"
+		"| File | Description |\n" +
+		"|------|-------------|\n" +
+		"| [login](login.md) | — |\n" +
+		"| [signup](signup.md) | old desc |\n"
 	rendered := "" +
-		"| File | Description | Last Updated |\n" +
-		"|------|-------------|-------------|\n" +
-		"| [login](login.md) | — | 2026-06-15 |\n"
+		"| File | Description |\n" +
+		"|------|-------------|\n" +
+		"| [login](login.md) | — |\n" +
+		"| [signup](signup.md) | improved desc |\n"
 	report := Classify([]CheckTarget{
 		{Path: "docs/memory/auth/index.md", Existing: existing, Rendered: rendered, LinkBase: "auth"},
-	}, setExists(map[string]bool{"auth/login.md": true}))
+	}, setExists(map[string]bool{"auth/login.md": true, "auth/signup.md": true}))
 
 	if report.Tier != TierBenignDrift {
-		t.Errorf("existing already — (date drift only) → TierBenignDrift, got %d", report.Tier)
+		t.Errorf("login already — (sibling improvement drift only) → TierBenignDrift, got %d", report.Tier)
 	}
 }
 
@@ -233,10 +236,10 @@ func TestClassify_SubDomainsHeading_NotGrouping(t *testing.T) {
 
 func TestClassify_HighestTierWins(t *testing.T) {
 	// One file benign-drifts, another has a destructive loss → tier 2 overall.
-	benignExisting := "| [x](x.md) | old | d |\n"
-	benignRendered := "| [x](x.md) | new | d |\n"
-	lossExisting := "| [y](y.md) | Curated | d |\n"
-	lossRendered := "| [y](y.md) | — | d |\n"
+	benignExisting := "| [x](x.md) | old |\n"
+	benignRendered := "| [x](x.md) | new |\n"
+	lossExisting := "| [y](y.md) | Curated |\n"
+	lossRendered := "| [y](y.md) | — |\n"
 	report := Classify([]CheckTarget{
 		{Path: "a/index.md", Existing: benignExisting, Rendered: benignRendered, LinkBase: "a"},
 		{Path: "b/index.md", Existing: lossExisting, Rendered: lossRendered, LinkBase: "b"},
@@ -250,14 +253,14 @@ func TestClassify_HighestTierWins(t *testing.T) {
 func TestClassify_Invariants_Tier2HasLoss_Tier1HasDrift(t *testing.T) {
 	// Tier 2 ⇒ at least one loss; tier 1 ⇒ drift true, zero losses.
 	loss := Classify([]CheckTarget{
-		{Path: "b/index.md", Existing: "| [y](y.md) | Curated | d |\n", Rendered: "| [y](y.md) | — | d |\n", LinkBase: "b"},
+		{Path: "b/index.md", Existing: "| [y](y.md) | Curated |\n", Rendered: "| [y](y.md) | — |\n", LinkBase: "b"},
 	}, setExists(map[string]bool{"b/y.md": true}))
 	if loss.Tier == TierDestructiveLoss && len(loss.Losses) == 0 {
 		t.Error("tier 2 must carry at least one loss")
 	}
 
 	benign := Classify([]CheckTarget{
-		{Path: "a/index.md", Existing: "| [x](x.md) | old | d |\n", Rendered: "| [x](x.md) | new | d |\n", LinkBase: "a"},
+		{Path: "a/index.md", Existing: "| [x](x.md) | old |\n", Rendered: "| [x](x.md) | new |\n", LinkBase: "a"},
 	}, setExists(map[string]bool{"a/x.md": true}))
 	if benign.Tier == TierBenignDrift && (!benign.Drift || len(benign.Losses) != 0) {
 		t.Errorf("tier 1 must have Drift=true and zero losses, got Drift=%v losses=%v", benign.Drift, benign.Losses)
@@ -343,9 +346,15 @@ func TestParseIndexRows_GeneratedShapes(t *testing.T) {
 	if len(rootRow) != 1 || rootRow[0].Target != "auth/index.md" || rootRow[0].Description != "Auth domain" {
 		t.Errorf("root row parse mismatch: %+v", rootRow)
 	}
-	domRow := parseIndexRows("| [login](login.md) | Login flow | 2026-06-01 |\n")
+	domRow := parseIndexRows("| [login](login.md) | Login flow |\n")
 	if len(domRow) != 1 || domRow[0].Text != "login" || domRow[0].Target != "login.md" || domRow[0].Description != "Login flow" {
 		t.Errorf("domain row parse mismatch: %+v", domRow)
+	}
+	// A legacy 3-column domain row (a not-yet-migrated committed index) still
+	// parses to the same link + description — the extra trailing cell is ignored.
+	legacyRow := parseIndexRows("| [login](login.md) | Login flow | 2026-06-01 |\n")
+	if len(legacyRow) != 1 || legacyRow[0].Target != "login.md" || legacyRow[0].Description != "Login flow" {
+		t.Errorf("legacy 3-column row parse mismatch: %+v", legacyRow)
 	}
 }
 

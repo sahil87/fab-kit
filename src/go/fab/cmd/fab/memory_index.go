@@ -23,8 +23,9 @@ func memoryIndexCmd() *cobra.Command {
 			"FKF fkf_version: \"0.1\" frontmatter), every docs/memory/{domain}/index.md " +
 			"(file rows + a Sub-Domains reference table when sub-domains exist), and " +
 			"every docs/memory/{domain}/{sub-domain}/index.md (file rows) from folder " +
-			"contents, reading each file's H1 + `description:` frontmatter and " +
-			"stamping \"Last Updated\" from git. It also emits a per-folder FKF " +
+			"contents, reading each file's H1 + `description:` frontmatter. The index " +
+			"is a pure function of content (no git dates), so its output is " +
+			"branch-independent and idempotent. It also emits a per-folder FKF " +
 			"log.md (C-lite change history: one batched git-log pass joined with each " +
 			"change's .status.yaml summary, change-id recovered from the git history " +
 			"and gated against the fab/changes registry; unattributable commits " +
@@ -43,8 +44,9 @@ func memoryIndexCmd() *cobra.Command {
 			"every log.md from current git (the pre-freeze behavior, opt-in) — for a " +
 			"corrupted log or a deliberate re-baseline. With --check, writes nothing " +
 			"and classifies drift by severity in the exit code: 0 = clean, 1 = benign " +
-			"drift (regen changes content but destroys nothing — all log.md / FKF " +
-			"frontmatter drift is benign; for log.md a benign FAIL means the committed " +
+			"drift (regen changes content but destroys nothing — e.g. an improved " +
+			"`description:`, or any log.md / FKF frontmatter drift; for log.md a " +
+			"benign FAIL means the committed " +
 			"log is missing a projected attributable (file-base, change-id) entry, or a " +
 			"frozen line was hand-edited render-unstably — a committed log that is a " +
 			"valid SUPERSET of the freeze-on-write merge PASSES), 2 = destructive loss " +

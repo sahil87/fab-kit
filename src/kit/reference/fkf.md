@@ -34,8 +34,8 @@ A `docs/memory/` tree conforms to **FKF v0.1** if all of the following hold:
 
 Items 1–2 are the OKF conformance floor (specialized: `type` is fixed, `description` is promoted
 to required). Items 3–4 are FKF's added strictness. As in OKF, consumers SHOULD degrade
-gracefully — a missing optional body section, an unknown extra frontmatter key, or a stale
-"Last Updated" cell does not make a file non-conforming.
+gracefully — a missing optional body section or an unknown extra frontmatter key does not make a
+file non-conforming.
 
 ---
 
@@ -130,8 +130,8 @@ unknown frontmatter keys on round-trip and MUST NOT reject a file for carrying t
 
 Every directory holding ≥1 non-index `.md` carries a generated `index.md`. **All index tiers are
 generated artifacts written solely by `fab memory-index`** — agents never hand-edit index rows.
-The render is a pure function of (folder contents + each file's `description:` frontmatter + git
-dates), so the output is **byte-stable / idempotent**: two branches cannot produce conflicting
+The render is a pure function of folder contents + each file's `description:` frontmatter — so
+the output is **byte-stable / idempotent**: two branches cannot produce conflicting
 hand-edits to the same row, and any residual textual conflict auto-resolves by re-running
 `fab memory-index` post-merge.
 
@@ -143,10 +143,10 @@ Three tiers:
 - **Root** (`docs/memory/index.md`) — **domains-only**: `| Domain | Description |`. Each domain
   row's Description is read from that domain `index.md`'s `description:` frontmatter
   (round-tripped by the generator). No inlined per-file column (it silently drifts).
-- **Domain** (`docs/memory/{domain}/index.md`) — file rows: `| File | Description | Last Updated |`.
-  Description from each topic file's frontmatter; "Last Updated" git-stamped (degrades to `—` when
-  uncommitted / in a worktree / shallow clone), never hand-stamped. Carries its own
-  `description:` frontmatter (the source for the root row). When sub-domains exist, appends a
+- **Domain** (`docs/memory/{domain}/index.md`) — file rows: `| File | Description |`.
+  Description from each topic file's frontmatter. The index carries no dates — it is a pure
+  function of content, so it is branch-independent and idempotent (recency lives in `log.md`).
+  Carries its own `description:` frontmatter (the source for the root row). When sub-domains exist, appends a
   `## Sub-Domains` table (`| Sub-Domain | Description |`) — emitted **only when sub-domains
   exist**, so a flat domain index is byte-identical to a sub-domain-free one.
 - **Sub-domain** (`docs/memory/{domain}/{sub-domain}/index.md`) — same file-row contract as a
@@ -178,8 +178,8 @@ tables that FKF removes from memory files (§3.3).
 `log.md` is assembled from **two sources**, neither of which any agent hand-edits:
 
 1. **Git history**, keyed to the folder — the *when*, the *which file*, and the change ID. This is
-   a projection of `git log` (the same date source the index uses), so it is always accurate and
-   never conflicts.
+   a projection of `git log` (the sole consumer of the batched git pass, now that the index is
+   dateless), so it is always accurate and never conflicts.
 2. **A per-change one-line summary** — the *what*, written **once** into the change's own
    `.status.yaml` `summary:` field (§6.3). Because each change touches only *its own*
    `.status.yaml`, the summary has **zero conflict surface**.

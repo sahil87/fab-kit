@@ -4,10 +4,10 @@ package memoryindex
 //
 // The existing --check branch already computes the rendered-vs-existing drift
 // per index file (a string compare). What it cannot do is *classify* that
-// drift: distinguish a benign improvement (a better description, a refreshed
-// date) from a destructive loss (a curated description wiped to "—", a
-// tombstone row silently dropped, a custom grouping flattened). This file adds
-// that classifier as pure functions — the mechanical form of the three prose
+// drift: distinguish a benign improvement (a better description) from a
+// destructive loss (a curated description wiped to "—", a tombstone row
+// silently dropped, a custom grouping flattened). This file adds that
+// classifier as pure functions — the mechanical form of the three prose
 // signals 5ewp's /docs-reorg-memory detected by eye.
 //
 // All functions here are pure except the on-disk tombstone existence check,

@@ -26,9 +26,11 @@ type indexRow struct {
 
 // parseIndexRows extracts the table rows of an index file. It recognizes the
 // generated shapes — root `| [name](name/index.md) | desc |` and domain
-// `| [base](base.md) | desc | date |` — plus any hand-curated row of the same
-// `| [text](target) | desc | ... |` form. Header rows (`| Domain |`),
-// separator rows (`|---|`), and non-row lines are ignored.
+// `| [base](base.md) | desc |` — plus any hand-curated row of the same
+// `| [text](target) | desc | ... |` form (extra trailing cells are ignored, so
+// a legacy 3-column domain row still parses to the same link + description).
+// Header rows (`| Domain |`), separator rows (`|---|`), and non-row lines are
+// ignored.
 func parseIndexRows(content string) []indexRow {
 	var rows []indexRow
 	for _, line := range strings.Split(content, "\n") {

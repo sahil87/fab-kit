@@ -34,7 +34,7 @@ Mode is determined automatically by argument type (ingest/generate) or by the ex
 
 ### Index Ownership
 
-Index files (`index.md` at the root, domain, and sub-domain tiers) are **generated artifacts** — `fab memory-index` is their single writer. The one hand-curated field is the `description:` frontmatter (on topic files and on domain/sub-domain indexes). When a new domain or sub-domain is created, its `index.md` **stub** — only the `description:` frontmatter one-liner, nothing else — is created **before** `fab memory-index` runs; the command fills in the generated body and round-trips the description. Never hand-edit generated index rows or "Last Updated" cells. Both modes below follow this model.
+Index files (`index.md` at the root, domain, and sub-domain tiers) are **generated artifacts** — `fab memory-index` is their single writer. The one hand-curated field is the `description:` frontmatter (on topic files and on domain/sub-domain indexes). When a new domain or sub-domain is created, its `index.md` **stub** — only the `description:` frontmatter one-liner, nothing else — is created **before** `fab memory-index` runs; the command fills in the generated body and round-trips the description. Never hand-edit generated index rows. Both modes below follow this model.
 
 > **Refuse-before-regen guard (destructive-loss).** Before any `fab memory-index` regeneration step below, consult `fab memory-index --check`: on **exit 2** (destructive loss — a curated description would regenerate to `—`, a tombstone row would drop, or a custom grouping would flatten), **refuse to regenerate** and surface the pointer `→ run /docs-reorg-memory to remediate (it relocates removal-history rows to _shared/removed-domains.md and backfills description: frontmatter via /docs-hydrate-memory) before regenerating.` (`/docs-reorg-memory` is the orchestrator for all three tier-2 categories — it relocates tombstone rows itself and dispatches *this* skill's backfill mode; backfill alone does NOT relocate tombstones.) **No-op on born-compatible fab-kit trees** (always exit 0/1, never 2 — not dead code); it fires only on a pre-fab-kit tree reached via ingest/generate before backfill. Backfill mode itself only adds frontmatter, never destroys, so by the time *it* regenerates the guard is already a no-op.
 
@@ -110,7 +110,7 @@ For each topic:
 
 ### Step 4: Regenerate Indexes (`fab memory-index`)
 
-Run `fab memory-index` once to regenerate the root (domains-only), every domain index, and every sub-domain index from folder contents + `description:` frontmatter + git dates (the single writer — see Index Ownership; never hand-edit rows or "Last Updated" cells). Any non-fatal shape warnings it prints to stderr are advisory (over-wide / over-deep folders).
+Run `fab memory-index` once to regenerate the root (domains-only), every domain index, and every sub-domain index from folder contents + `description:` frontmatter (the single writer — see Index Ownership; never hand-edit rows). The index carries no dates — it is a pure function of content. Any non-fatal shape warnings it prints to stderr are advisory (over-wide / over-deep folders).
 
 ---
 
@@ -161,7 +161,7 @@ Mark ambiguous inferences with `[INFERRED]` inline near the relevant requirement
 
 ### Step 4: Regenerate Indexes
 
-Same as ingest mode Step 4 — run `fab memory-index` to regenerate the root (domains-only), domain, and sub-domain indexes from folder contents + frontmatter + git dates. Do not hand-edit index rows.
+Same as ingest mode Step 4 — run `fab memory-index` to regenerate the root (domains-only), domain, and sub-domain indexes from folder contents + frontmatter. Do not hand-edit index rows.
 
 ---
 
@@ -193,7 +193,7 @@ For any domain/sub-domain folder lacking an `index.md` (or whose `index.md` lack
 Backfill is **caller-aware** about `fab memory-index`:
 
 - **Dispatched by `/docs-reorg-memory`** (the dispatch prompt carries the reorg-dispatched / defer-regen signal): do **NOT** run `fab memory-index`. reorg runs it exactly once at the end of its orchestration (after rebalance), so a regen here would be redundant work and would race reorg's single regen.
-- **Invoked directly by a user** (no reorg signal): run `fab memory-index` as the final step, exactly like ingest and generate modes — root (domains-only) + every domain + every sub-domain index, regenerated from folder contents + frontmatter + git dates.
+- **Invoked directly by a user** (no reorg signal): run `fab memory-index` as the final step, exactly like ingest and generate modes — root (domains-only) + every domain + every sub-domain index, regenerated from folder contents + frontmatter.
 
 ---
 
