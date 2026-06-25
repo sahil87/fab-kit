@@ -263,7 +263,95 @@ func setPermissionsAllow(obj map[string]interface{}, allow []interface{}) {
 	perms["allow"] = allow
 }
 
+// gitignoreNormalize reduces a gitignore line to its core directory token by
+// stripping a single leading "/" and a single trailing "/*" or "/". It is the
+// shared primitive for the gitignore-aware dedup: a deeper nested path like
+// "/.claude/commands/" normalizes to ".claude/commands" (which still contains a
+// slash) and therefore never equals a directory token like ".claude". The
+// caller compares normalized forms for exact equality, so the residual slash is
+// what keeps deeper paths from spuriously "covering" the directory entry.
+func gitignoreNormalize(line string) string {
+	s := strings.TrimRight(line, "\r")
+	s = strings.TrimPrefix(s, "/")
+	if strings.HasSuffix(s, "/*") {
+		s = strings.TrimSuffix(s, "/*")
+	} else {
+		s = strings.TrimSuffix(s, "/")
+	}
+	return s
+}
+
+// gitignoreIsDirectoryToken reports whether a fragment entry is a directory-style
+// token eligible for gitignore-aware coverage (the agent-directory entries like
+// "/.claude" or ".claude/"). A directory token is anchored with a leading "/" OR
+// written in trailing-slash directory form, and carries no glob metacharacter.
+// Non-directory patterns shipped in the same fragment — the at-any-depth file
+// ".status.yaml.lock" and the unanchored glob ".fab-*" — are NOT directory tokens:
+// they must use strict literal dedup, because the directory-token equivalence
+// (leading-slash optional, trailing "/" or "/*" stripped) would wrongly treat an
+// anchored existing line like "/.status.yaml.lock" as covering the unanchored
+// fragment ".status.yaml.lock" (and a negation like "!/.status.yaml.lock" as a
+// hard stop), suppressing the broader ignore and letting nested
+// fab/changes/**/.status.yaml.lock files be committed.
+func gitignoreIsDirectoryToken(entry string) bool {
+	s := strings.TrimRight(entry, "\r")
+	if strings.Contains(s, "*") {
+		return false
+	}
+	return strings.HasPrefix(s, "/") || strings.HasSuffix(s, "/")
+}
+
+// gitignoreCovers reports whether an existing .gitignore line already covers the
+// fragment entry under directory-token equivalence. For an entry like "/.claude"
+// the covering set is { /.claude, /.claude/, /.claude/*, .claude, .claude/,
+// .claude/* } — leading slash optional, optional trailing "/" or "/*". A deeper
+// nested path (e.g. "/.claude/commands/") does NOT cover the entry (its
+// normalized form retains an internal slash and so differs from the core token).
+// Callers gate this on gitignoreIsDirectoryToken(entry) — it is only applied to
+// directory-style entries, never to non-directory patterns like ".status.yaml.lock".
+func gitignoreCovers(existingLine, entry string) bool {
+	return gitignoreNormalize(existingLine) == gitignoreNormalize(entry)
+}
+
+// gitignoreHasNegation reports whether any destination line negates the entry's
+// core directory token (a line like "!/.claude/..." or "!.claude/..."). It is
+// the binding Guardrail B hard-stop: when present, sync must never append a
+// broader ignore for that entry — regardless of whether a broader "/.claude/*"
+// exclusion precedes the negation, and regardless of the variant-coverage check.
+// Callers gate this on gitignoreIsDirectoryToken(entry) — Guardrail B applies only
+// to directory-style entries, never to non-directory patterns like ".status.yaml.lock"
+// (whose unanchored at-any-depth coverage must not be hard-stopped by a "!/.status.yaml.lock").
+func gitignoreHasNegation(destLines []string, entry string) bool {
+	token := gitignoreNormalize(entry)
+	if token == "" {
+		return false
+	}
+	for _, dl := range destLines {
+		s := strings.TrimRight(dl, "\r")
+		if !strings.HasPrefix(s, "!") {
+			continue
+		}
+		// Strip the "!" then a single leading "/", and check whether the
+		// remainder is the token itself or a path under it (token + "/").
+		neg := strings.TrimPrefix(strings.TrimPrefix(s, "!"), "/")
+		if neg == token || strings.HasPrefix(neg, token+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 // lineEnsureMerge appends non-duplicate, non-comment lines from source to dest.
+//
+// Dedup is literal string equality except for a directory-style fragment entry
+// (e.g. "/.claude") merged into a destination whose basename is ".gitignore",
+// where it is gitignore-aware: such an entry is treated as already present when
+// an existing line covers it under directory-token equivalence (gitignoreCovers),
+// and the append is suppressed outright when the destination already negates the
+// entry's core token (gitignoreHasNegation, Guardrail B). Non-.gitignore
+// destinations (e.g. .envrc) keep strict literal equality (Guardrail A), and so
+// do non-directory .gitignore patterns shipped in the same fragment (".fab-*",
+// ".status.yaml.lock") — gitignoreIsDirectoryToken gates the gitignore-aware path.
 func lineEnsureMerge(source, dest, label string) error {
 	srcData, err := os.ReadFile(source)
 	if err != nil {
@@ -309,11 +397,32 @@ func lineEnsureMerge(source, dest, label string) error {
 				return err
 			}
 			destLines := strings.Split(string(destData), "\n")
+			// Gitignore-aware dedup applies only to a .gitignore destination AND
+			// only to directory-style entries (e.g. "/.claude"). Non-directory
+			// patterns shipped in the same fragment (".fab-*", ".status.yaml.lock")
+			// fall back to strict literal equality, so an anchored "/.status.yaml.lock"
+			// or a "!/.status.yaml.lock" negation does not suppress the broader,
+			// at-any-depth ignore the fragment intends.
+			gitignoreAware := filepath.Base(label) == ".gitignore" && gitignoreIsDirectoryToken(entry)
 			found := false
+			// Guardrail B (directory-token .gitignore entries only): a present
+			// negation for the entry's core token is a hard stop — never append
+			// a broader ignore.
+			if gitignoreAware && gitignoreHasNegation(destLines, entry) {
+				found = true
+			}
 			for _, dl := range destLines {
-				if strings.TrimRight(dl, "\r") == entry {
-					found = true
+				if found {
 					break
+				}
+				if gitignoreAware {
+					// Gitignore-aware coverage (directory-token equivalence).
+					if gitignoreCovers(dl, entry) {
+						found = true
+					}
+				} else if strings.TrimRight(dl, "\r") == entry {
+					// Strict literal equality (.envrc, and non-directory .gitignore patterns).
+					found = true
 				}
 			}
 			if !found {

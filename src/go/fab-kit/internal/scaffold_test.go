@@ -270,6 +270,212 @@ func TestLineEnsureMerge_SkipComments(t *testing.T) {
 	}
 }
 
+// TestLineEnsureMerge_GitignoreVariantCoverage covers R1: a .gitignore that
+// already carries any directory-token variant of the fragment entry must not
+// gain an appended /.claude — the dedup is gitignore-aware, not literal.
+func TestLineEnsureMerge_GitignoreVariantCoverage(t *testing.T) {
+	variants := []string{
+		"/.claude/",
+		"/.claude/*",
+		".claude",
+		".claude/",
+		".claude/*",
+	}
+	for _, variant := range variants {
+		t.Run(variant, func(t *testing.T) {
+			srcDir := t.TempDir()
+			destDir := t.TempDir()
+			src := filepath.Join(srcDir, "gitignore")
+			dest := filepath.Join(destDir, ".gitignore")
+
+			os.WriteFile(src, []byte("/.claude\n"), 0644)
+			os.WriteFile(dest, []byte(variant+"\n"), 0644)
+
+			if err := lineEnsureMerge(src, dest, ".gitignore"); err != nil {
+				t.Fatalf("lineEnsureMerge failed: %v", err)
+			}
+
+			data, _ := os.ReadFile(dest)
+			if strings.Count(string(data), ".claude") != 1 {
+				t.Errorf("variant %q should already cover /.claude (no append); got:\n%s", variant, data)
+			}
+		})
+	}
+}
+
+// TestLineEnsureMerge_GitignoreGenuineMissAppends covers R3: a .gitignore with
+// none of the variants still gets /.claude appended (happy path unchanged).
+func TestLineEnsureMerge_GitignoreGenuineMissAppends(t *testing.T) {
+	srcDir := t.TempDir()
+	destDir := t.TempDir()
+	src := filepath.Join(srcDir, "gitignore")
+	dest := filepath.Join(destDir, ".gitignore")
+
+	os.WriteFile(src, []byte("/.claude\n"), 0644)
+	os.WriteFile(dest, []byte("node_modules/\n.env\n"), 0644)
+
+	if err := lineEnsureMerge(src, dest, ".gitignore"); err != nil {
+		t.Fatalf("lineEnsureMerge failed: %v", err)
+	}
+
+	data, _ := os.ReadFile(dest)
+	if !strings.Contains(string(data), "/.claude") {
+		t.Errorf("genuine miss should append /.claude; got:\n%s", data)
+	}
+}
+
+// TestLineEnsureMerge_GitignoreDeeperPathDoesNotCover covers R2: a deeper nested
+// path like /.claude/commands/ does NOT normalize to the core token, so the
+// entry is still appended (directory-token-only normalization).
+func TestLineEnsureMerge_GitignoreDeeperPathDoesNotCover(t *testing.T) {
+	srcDir := t.TempDir()
+	destDir := t.TempDir()
+	src := filepath.Join(srcDir, "gitignore")
+	dest := filepath.Join(destDir, ".gitignore")
+
+	os.WriteFile(src, []byte("/.claude\n"), 0644)
+	os.WriteFile(dest, []byte("/.claude/commands/\n"), 0644)
+
+	if err := lineEnsureMerge(src, dest, ".gitignore"); err != nil {
+		t.Fatalf("lineEnsureMerge failed: %v", err)
+	}
+
+	data, _ := os.ReadFile(dest)
+	if !strings.Contains(string(data), "\n/.claude\n") && !strings.HasSuffix(string(data), "\n/.claude\n") {
+		t.Errorf("deeper path must not cover /.claude — entry should be appended; got:\n%s", data)
+	}
+}
+
+// TestLineEnsureMerge_GitignoreNegationSurvives covers R4 (Guardrail B): a
+// present negation for the entry's core token is a hard stop — sync never
+// appends a broader /.claude. Holds both with a preceding /.claude/* exclusion
+// and for the lone-negation case (no preceding exclusion).
+func TestLineEnsureMerge_GitignoreNegationSurvives(t *testing.T) {
+	cases := map[string]string{
+		"exclusion+negation": "/.claude/*\n!/.claude/commands/\n",
+		"lone-negation":      "!/.claude/commands/\n",
+		"no-slash-negation":  "!.claude/commands/\n",
+	}
+	for name, initial := range cases {
+		t.Run(name, func(t *testing.T) {
+			srcDir := t.TempDir()
+			destDir := t.TempDir()
+			src := filepath.Join(srcDir, "gitignore")
+			dest := filepath.Join(destDir, ".gitignore")
+
+			os.WriteFile(src, []byte("/.claude\n"), 0644)
+			os.WriteFile(dest, []byte(initial), 0644)
+
+			if err := lineEnsureMerge(src, dest, ".gitignore"); err != nil {
+				t.Fatalf("lineEnsureMerge failed: %v", err)
+			}
+
+			data, _ := os.ReadFile(dest)
+			if string(data) != initial {
+				t.Errorf("negation must suppress append (file unchanged); want:\n%s\ngot:\n%s", initial, data)
+			}
+		})
+	}
+}
+
+// TestLineEnsureMerge_EnvrcStrictEquality covers R5 (Guardrail A): semantic
+// matching must NOT leak to .envrc — a literally-different line still appends,
+// even though it might look "gitignore-similar".
+func TestLineEnsureMerge_EnvrcStrictEquality(t *testing.T) {
+	srcDir := t.TempDir()
+	destDir := t.TempDir()
+	src := filepath.Join(srcDir, "envrc")
+	dest := filepath.Join(destDir, ".envrc")
+
+	// Entry differs literally from the existing line; under gitignore-aware
+	// normalization "/.claude" and ".claude/" would match, but .envrc must use
+	// strict equality, so a literally-different entry appends.
+	os.WriteFile(src, []byte("/.claude\n"), 0644)
+	os.WriteFile(dest, []byte(".claude/\n"), 0644)
+
+	if err := lineEnsureMerge(src, dest, ".envrc"); err != nil {
+		t.Fatalf("lineEnsureMerge failed: %v", err)
+	}
+
+	data, _ := os.ReadFile(dest)
+	if !strings.Contains(string(data), "/.claude") {
+		t.Errorf(".envrc must use strict equality — literally-different entry should append; got:\n%s", data)
+	}
+}
+
+// TestLineEnsureMerge_GitignoreNonDirectoryStrictDedup covers R6 (Guardrail C):
+// non-directory fragment patterns (".fab-*", ".status.yaml.lock") use STRICT
+// literal dedup even in a .gitignore — the directory-token equivalence must not
+// leak to them. An anchored existing line like "/.status.yaml.lock" only ignores
+// the file at repo root, whereas the unanchored fragment ".status.yaml.lock"
+// must match at any depth (fab/changes/**/.status.yaml.lock); treating them as
+// equivalent would suppress the broader ignore and let nested lock files be
+// committed, so the fragment entry must still be appended.
+func TestLineEnsureMerge_GitignoreNonDirectoryStrictDedup(t *testing.T) {
+	cases := map[string]struct {
+		fragment string // unanchored, non-directory fragment entry
+		existing string // a pre-existing .gitignore line that must NOT cover it
+	}{
+		"anchored-lock-does-not-cover-unanchored": {
+			fragment: ".status.yaml.lock",
+			existing: "/.status.yaml.lock\n",
+		},
+		"glob-fragment-not-covered-by-anchored": {
+			fragment: ".fab-*",
+			existing: "/.fab-state\n",
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			srcDir := t.TempDir()
+			destDir := t.TempDir()
+			src := filepath.Join(srcDir, "gitignore")
+			dest := filepath.Join(destDir, ".gitignore")
+
+			os.WriteFile(src, []byte(tc.fragment+"\n"), 0644)
+			os.WriteFile(dest, []byte(tc.existing), 0644)
+
+			if err := lineEnsureMerge(src, dest, ".gitignore"); err != nil {
+				t.Fatalf("lineEnsureMerge failed: %v", err)
+			}
+
+			data, _ := os.ReadFile(dest)
+			// The unanchored, non-directory fragment must be appended (strict
+			// literal dedup) — the anchored existing line does not cover it.
+			if !strings.Contains(string(data), "\n"+tc.fragment+"\n") &&
+				!strings.HasSuffix(string(data), "\n"+tc.fragment+"\n") {
+				t.Errorf("non-directory pattern %q must use strict dedup and append (anchored %q does not cover it); got:\n%s",
+					tc.fragment, strings.TrimSpace(tc.existing), data)
+			}
+		})
+	}
+}
+
+// TestLineEnsureMerge_GitignoreNonDirectoryNegationDoesNotHardStop covers R7
+// (Guardrail B is directory-token-only): a negation for a non-directory pattern
+// (e.g. "!/.status.yaml.lock") must NOT hard-stop appending the unanchored
+// fragment ".status.yaml.lock". Guardrail B is scoped to directory-style entries;
+// applying it here would weaken the lock-file ignore coverage at depth.
+func TestLineEnsureMerge_GitignoreNonDirectoryNegationDoesNotHardStop(t *testing.T) {
+	srcDir := t.TempDir()
+	destDir := t.TempDir()
+	src := filepath.Join(srcDir, "gitignore")
+	dest := filepath.Join(destDir, ".gitignore")
+
+	os.WriteFile(src, []byte(".status.yaml.lock\n"), 0644)
+	os.WriteFile(dest, []byte("!/.status.yaml.lock\n"), 0644)
+
+	if err := lineEnsureMerge(src, dest, ".gitignore"); err != nil {
+		t.Fatalf("lineEnsureMerge failed: %v", err)
+	}
+
+	data, _ := os.ReadFile(dest)
+	if !strings.Contains(string(data), "\n.status.yaml.lock\n") &&
+		!strings.HasSuffix(string(data), "\n.status.yaml.lock\n") {
+		t.Errorf("a non-directory negation must not hard-stop the unanchored fragment append; got:\n%s", data)
+	}
+}
+
 // scaffoldKitDir builds a minimal cached-kit layout under tmp with the given VERSION.
 func scaffoldKitDir(t *testing.T, version string) string {
 	t.Helper()

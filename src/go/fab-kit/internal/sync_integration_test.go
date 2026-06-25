@@ -219,6 +219,35 @@ func TestSync_SecondRunIsContentIdenticalNoop(t *testing.T) {
 	}
 }
 
+// TestSync_GitignoreNegationSurvivesFullSync covers R4 end-to-end (260625-mqiq):
+// a user's /.claude/* + !/.claude/commands/ re-inclusion block must survive a
+// full `fab sync`. The harness fragment ships ".claude/" (core token .claude),
+// which the gitignore-aware dedup must treat as already-negated and NOT append a
+// broader ignore that would clobber the negation (git's last-match rule).
+func TestSync_GitignoreNegationSurvivesFullSync(t *testing.T) {
+	repo := setupSyncRepo(t)
+
+	gitignore := filepath.Join(repo, ".gitignore")
+	initial := "/.claude/*\n!/.claude/commands/\n"
+	if err := os.WriteFile(gitignore, []byte(initial), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var err error
+	captureStdout(t, func() { err = Sync("dev", "dev", false, false) })
+	if err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	data, _ := os.ReadFile(gitignore)
+	if string(data) != initial {
+		t.Errorf("negation block must survive full sync (unchanged); want:\n%s\ngot:\n%s", initial, data)
+	}
+	if strings.Contains(string(data), ".claude/\n.claude/") || strings.Count(string(data), ".claude") != 2 {
+		t.Errorf("sync must not append a broader .claude ignore; got:\n%s", data)
+	}
+}
+
 func TestSync_ProjectOnlyRunsOnlyProjectScripts(t *testing.T) {
 	repo := setupSyncRepo(t)
 
