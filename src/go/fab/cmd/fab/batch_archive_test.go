@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -211,17 +212,51 @@ func TestBatchArchiveCmd_Structure(t *testing.T) {
 		t.Errorf("Use = %q, want %q", cmd.Use, "archive [change...]")
 	}
 
-	if cmd.Flags().Lookup("list") == nil {
-		t.Error("missing --list flag")
+	if cmd.Flags().Lookup("yes") == nil {
+		t.Error("missing --yes flag")
 	}
-	if cmd.Flags().Lookup("all") == nil {
-		t.Error("missing --all flag")
+	if cmd.Flags().ShorthandLookup("y") == nil {
+		t.Error("missing -y shorthand for --yes")
+	}
+	if cmd.Flags().Lookup("dry-run") == nil {
+		t.Error("missing --dry-run flag")
+	}
+	if cmd.Flags().ShorthandLookup("d") != nil {
+		t.Error("--dry-run must not have a short alias")
+	}
+	if cmd.Flags().Lookup("all") != nil {
+		t.Error("--all flag must be removed")
+	}
+	if cmd.Flags().Lookup("list") != nil {
+		t.Error("--list flag must be removed")
 	}
 }
 
-// --- Empty-set and archived-name exit semantics (k4ge) ---
+// forceTTY overrides the package-level isStdinTTY seam for the duration of a
+// test so the prompt / non-TTY-guard branches are exercised deterministically.
+func forceTTY(t *testing.T, tty bool) {
+	t.Helper()
+	orig := isStdinTTY
+	isStdinTTY = func(io.Reader) bool { return tty }
+	t.Cleanup(func() { isStdinTTY = orig })
+}
 
-func TestRunBatchArchive_EmptyAllSetIsBenignNoOp(t *testing.T) {
+// makeArchivable writes an archivable (hydrate: done) change folder under
+// {root}/fab/changes/{folder}.
+func makeArchivable(t *testing.T, root, folder string) string {
+	t.Helper()
+	changeDir := filepath.Join(root, "fab", "changes", folder)
+	if err := os.MkdirAll(changeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte("name: "+folder+"\nprogress:\n  hydrate: done\n"), 0o644)
+	os.WriteFile(filepath.Join(changeDir, "intake.md"), []byte("# Intake: "+folder+"\n"), 0o644)
+	return changeDir
+}
+
+// --- Empty-set and archived-name exit semantics (k4ge / 753q) ---
+
+func TestRunBatchArchive_EmptyYesSetIsBenignNoOp(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "fab", "changes"), 0o755)
 	hookTestEnv(t, root, map[string]string{})
@@ -231,14 +266,38 @@ func TestRunBatchArchive_EmptyAllSetIsBenignNoOp(t *testing.T) {
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)
 
-	if err := runBatchArchive(cmd, nil, false, true); err != nil {
-		t.Fatalf("empty --all set must be a benign no-op (exit 0), got: %v", err)
+	// --yes over an empty set must be a benign no-op (exit 0) — the empty-set
+	// check runs before the prompt/guard.
+	if err := runBatchArchive(cmd, nil, true, false); err != nil {
+		t.Fatalf("empty --yes set must be a benign no-op (exit 0), got: %v", err)
 	}
 	if !strings.Contains(out.String(), "No archivable changes found.") {
 		t.Errorf("missing notice, got:\n%s", out.String())
 	}
 	if !strings.Contains(out.String(), "Archived 0, skipped 0, failed 0.") {
 		t.Errorf("missing zero footer, got:\n%s", out.String())
+	}
+}
+
+func TestRunBatchArchive_EmptyBareSetIsBenignNoOpBeforeGuard(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "fab", "changes"), 0o755)
+	hookTestEnv(t, root, map[string]string{})
+	// Even with a non-TTY stdin and no --yes, the empty-set no-op must win
+	// over the non-TTY guard (the F49 check happens first).
+	forceTTY(t, false)
+
+	cmd := batchArchiveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	cmd.SetIn(strings.NewReader(""))
+
+	if err := runBatchArchive(cmd, nil, false, false); err != nil {
+		t.Fatalf("empty bare set must be a benign no-op (exit 0) before the guard, got: %v", err)
+	}
+	if !strings.Contains(out.String(), "No archivable changes found.") {
+		t.Errorf("missing notice, got:\n%s", out.String())
 	}
 }
 
@@ -254,6 +313,7 @@ func TestRunBatchArchive_ArchivedNameSoftSkips(t *testing.T) {
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)
 
+	// Explicit-args path: an archived name soft-skips with no prompt.
 	if err := runBatchArchive(cmd, []string{folder}, false, false); err != nil {
 		t.Fatalf("archived name must soft-skip (exit 0), got: %v", err)
 	}
@@ -265,18 +325,12 @@ func TestRunBatchArchive_ArchivedNameSoftSkips(t *testing.T) {
 	}
 }
 
-// TestRunBatchArchive_NoArgsDefaultsToList: the no-arg default flipped to
-// --list in 260612-ye8r (aligned with new/switch) — the bulk action requires
-// explicit --all.
-func TestRunBatchArchive_NoArgsDefaultsToList(t *testing.T) {
+// TestRunBatchArchive_DryRunListsOnly: --dry-run lists the archivable set,
+// prompts nothing, and archives nothing (replaces the old --list).
+func TestRunBatchArchive_DryRunListsOnly(t *testing.T) {
 	root := t.TempDir()
 	folder := "260310-abcd-my-change"
-	changeDir := filepath.Join(root, "fab", "changes", folder)
-	os.MkdirAll(changeDir, 0o755)
-	os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte(`name: `+folder+`
-progress:
-  hydrate: done
-`), 0o644)
+	changeDir := makeArchivable(t, root, folder)
 	hookTestEnv(t, root, map[string]string{})
 
 	cmd := batchArchiveCmd()
@@ -284,18 +338,233 @@ progress:
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)
 
-	if err := runBatchArchive(cmd, nil, false, false); err != nil {
-		t.Fatalf("no-arg run must list, got error: %v", err)
+	if err := runBatchArchive(cmd, nil, false, true); err != nil {
+		t.Fatalf("--dry-run must list, got error: %v", err)
 	}
 	if !strings.Contains(out.String(), "Archivable changes") {
-		t.Errorf("no-arg run must print the archivable list, got:\n%s", out.String())
+		t.Errorf("--dry-run must print the archivable list, got:\n%s", out.String())
 	}
 	if !strings.Contains(out.String(), folder) {
 		t.Errorf("list must include the archivable change, got:\n%s", out.String())
 	}
+	if strings.Contains(out.String(), "[y/N]") {
+		t.Errorf("--dry-run must not prompt, got:\n%s", out.String())
+	}
 	// Nothing archived: the change folder is still in place.
 	if _, err := os.Stat(changeDir); err != nil {
-		t.Errorf("no-arg run must not archive anything: %v", err)
+		t.Errorf("--dry-run must not archive anything: %v", err)
+	}
+}
+
+// TestRunBatchArchive_DryRunYesMutuallyExclusive: --dry-run --yes errors.
+func TestRunBatchArchive_DryRunYesMutuallyExclusive(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "fab", "changes"), 0o755)
+	hookTestEnv(t, root, map[string]string{})
+
+	cmd := batchArchiveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	err := runBatchArchive(cmd, nil, true, true)
+	if err == nil {
+		t.Fatal("expected error for --dry-run --yes (mutually exclusive)")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// TestRunBatchArchive_YesArchivesAllNoPrompt: --yes archives every archivable
+// change with no prompt (replaces the old --all).
+func TestRunBatchArchive_YesArchivesAllNoPrompt(t *testing.T) {
+	root := t.TempDir()
+	fabRoot := filepath.Join(root, "fab")
+	f1 := makeArchivable(t, root, "260401-aa11-first")
+	f2 := makeArchivable(t, root, "260401-bb22-second")
+	hookTestEnv(t, root, map[string]string{})
+
+	cmd := batchArchiveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	if err := runBatchArchive(cmd, nil, true, false); err != nil {
+		t.Fatalf("--yes must archive all, got error: %v\nstderr:\n%s", err, errOut.String())
+	}
+	if strings.Contains(out.String(), "[y/N]") {
+		t.Errorf("--yes must not prompt, got:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "Archived 2, skipped 0, failed 0.") {
+		t.Errorf("expected both archived, got:\n%s", out.String())
+	}
+	// Both source folders gone (moved into archive/).
+	for _, d := range []string{f1, f2} {
+		if _, err := os.Stat(d); !os.IsNotExist(err) {
+			t.Errorf("%s should be removed from changes/ after --yes archive", d)
+		}
+	}
+	_ = fabRoot
+}
+
+// TestRunBatchArchive_BarePromptYesArchives: bare + TTY, answering "y" archives
+// all archivable changes.
+func TestRunBatchArchive_BarePromptYesArchives(t *testing.T) {
+	root := t.TempDir()
+	folder := "260401-aa11-first"
+	changeDir := makeArchivable(t, root, folder)
+	hookTestEnv(t, root, map[string]string{})
+	forceTTY(t, true)
+
+	cmd := batchArchiveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	cmd.SetIn(strings.NewReader("y\n"))
+
+	if err := runBatchArchive(cmd, nil, false, false); err != nil {
+		t.Fatalf("bare prompt + 'y' must archive, got error: %v\nstderr:\n%s", err, errOut.String())
+	}
+	if !strings.Contains(out.String(), "Archive these 1? [y/N]") {
+		t.Errorf("expected prompt, got:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "Archived 1, skipped 0, failed 0.") {
+		t.Errorf("expected the change archived, got:\n%s", out.String())
+	}
+	if _, err := os.Stat(changeDir); !os.IsNotExist(err) {
+		t.Errorf("%s should be removed after a 'y' confirm", changeDir)
+	}
+}
+
+// TestRunBatchArchive_BarePromptYesWordArchives: the full word "yes" also
+// confirms (case-insensitive).
+func TestRunBatchArchive_BarePromptYesWordArchives(t *testing.T) {
+	root := t.TempDir()
+	makeArchivable(t, root, "260401-aa11-first")
+	hookTestEnv(t, root, map[string]string{})
+	forceTTY(t, true)
+
+	cmd := batchArchiveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	cmd.SetIn(strings.NewReader("YES\n"))
+
+	if err := runBatchArchive(cmd, nil, false, false); err != nil {
+		t.Fatalf("bare prompt + 'YES' must archive, got error: %v", err)
+	}
+	if !strings.Contains(out.String(), "Archived 1, skipped 0, failed 0.") {
+		t.Errorf("expected the change archived, got:\n%s", out.String())
+	}
+}
+
+// TestRunBatchArchive_BarePromptEnterAborts: bare + TTY, a bare Enter (default
+// No) aborts — exit 0, nothing archived.
+func TestRunBatchArchive_BarePromptEnterAborts(t *testing.T) {
+	root := t.TempDir()
+	folder := "260401-aa11-first"
+	changeDir := makeArchivable(t, root, folder)
+	hookTestEnv(t, root, map[string]string{})
+	forceTTY(t, true)
+
+	cmd := batchArchiveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	cmd.SetIn(strings.NewReader("\n")) // bare Enter
+
+	if err := runBatchArchive(cmd, nil, false, false); err != nil {
+		t.Fatalf("bare prompt + Enter must abort with exit 0, got error: %v", err)
+	}
+	if strings.Contains(out.String(), "Archived 1") {
+		t.Errorf("Enter must not archive anything, got:\n%s", out.String())
+	}
+	if _, err := os.Stat(changeDir); err != nil {
+		t.Errorf("Enter must leave the change in place: %v", err)
+	}
+}
+
+// TestRunBatchArchive_BarePromptNoAborts: an explicit "n" aborts too.
+func TestRunBatchArchive_BarePromptNoAborts(t *testing.T) {
+	root := t.TempDir()
+	folder := "260401-aa11-first"
+	changeDir := makeArchivable(t, root, folder)
+	hookTestEnv(t, root, map[string]string{})
+	forceTTY(t, true)
+
+	cmd := batchArchiveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	cmd.SetIn(strings.NewReader("n\n"))
+
+	if err := runBatchArchive(cmd, nil, false, false); err != nil {
+		t.Fatalf("'n' must abort with exit 0, got error: %v", err)
+	}
+	if _, err := os.Stat(changeDir); err != nil {
+		t.Errorf("'n' must leave the change in place: %v", err)
+	}
+}
+
+// TestRunBatchArchive_NonTTYWithoutYesRefuses: non-TTY stdin + no --yes must
+// refuse with guidance and a non-zero exit (it must NOT prompt or hang).
+func TestRunBatchArchive_NonTTYWithoutYesRefuses(t *testing.T) {
+	root := t.TempDir()
+	folder := "260401-aa11-first"
+	changeDir := makeArchivable(t, root, folder)
+	hookTestEnv(t, root, map[string]string{})
+	forceTTY(t, false)
+
+	cmd := batchArchiveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	cmd.SetIn(strings.NewReader("")) // non-interactive, would EOF
+
+	err := runBatchArchive(cmd, nil, false, false)
+	if err == nil {
+		t.Fatal("non-TTY without --yes must refuse with a non-zero exit")
+	}
+	if !strings.Contains(errOut.String(), "refusing to prompt for confirmation on a non-interactive stdin") {
+		t.Errorf("expected refusal guidance on stderr, got:\n%s", errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "--yes") {
+		t.Errorf("guidance must point at --yes, got:\n%s", errOut.String())
+	}
+	if strings.Contains(out.String(), "[y/N]") {
+		t.Errorf("non-TTY path must NOT prompt, got:\n%s", out.String())
+	}
+	if _, err := os.Stat(changeDir); err != nil {
+		t.Errorf("refusal must archive nothing: %v", err)
+	}
+}
+
+// TestRunBatchArchive_ExplicitArgsNoPrompt: explicit-args archiving never
+// prompts and never consults the TTY guard, even on a non-TTY stdin.
+func TestRunBatchArchive_ExplicitArgsNoPrompt(t *testing.T) {
+	root := t.TempDir()
+	folder := "260401-aa11-first"
+	changeDir := makeArchivable(t, root, folder)
+	hookTestEnv(t, root, map[string]string{})
+	forceTTY(t, false) // explicit args must ignore the guard
+
+	cmd := batchArchiveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	if err := runBatchArchive(cmd, []string{folder}, false, false); err != nil {
+		t.Fatalf("explicit args must archive without prompting, got error: %v\nstderr:\n%s", err, errOut.String())
+	}
+	if strings.Contains(out.String(), "[y/N]") {
+		t.Errorf("explicit args must not prompt, got:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "Archived 1, skipped 0, failed 0.") {
+		t.Errorf("expected the named change archived, got:\n%s", out.String())
+	}
+	if _, err := os.Stat(changeDir); !os.IsNotExist(err) {
+		t.Errorf("%s should be removed after explicit-args archive", changeDir)
 	}
 }
 

@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	archivePkg "github.com/sahil87/fab-kit/src/go/fab/internal/archive"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
@@ -13,27 +15,52 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// isStdinTTY reports whether the command's input is an interactive terminal.
+// It is a package-level seam so tests can force the TTY / non-TTY branches
+// deterministically (a cobra test sets cmd.SetIn(buf), which is never a tty).
+// The default uses only the standard library — no golang.org/x/term or
+// go-isatty — mirroring src/go/fab-kit/internal/upgrade.go's isTTY (Constitution
+// I: minimal single-binary dependencies). A non-*os.File reader (the test
+// buffer) is treated as non-interactive.
+var isStdinTTY = func(in io.Reader) bool {
+	f, ok := in.(*os.File)
+	if !ok {
+		return false
+	}
+	info, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeCharDevice != 0
+}
+
 func batchArchiveCmd() *cobra.Command {
-	var listFlag, allFlag bool
+	var yesFlag, dryRunFlag bool
 
 	cmd := &cobra.Command{
 		Use:   "archive [change...]",
 		Short: "Archive multiple completed changes in one pass",
 		Long:  "Archives completed changes (hydrate done|skipped) mechanically (move, index, backlog, pointer) in a Go loop — no agent or Claude session is spawned.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runBatchArchive(cmd, args, listFlag, allFlag)
+			return runBatchArchive(cmd, args, yesFlag, dryRunFlag)
 		},
 	}
 
-	cmd.Flags().BoolVar(&listFlag, "list", false, "Show archivable changes without archiving")
-	cmd.Flags().BoolVar(&allFlag, "all", false, "Archive all archivable changes")
+	cmd.Flags().BoolVarP(&yesFlag, "yes", "y", false, "Archive all archivable changes without prompting")
+	cmd.Flags().BoolVar(&dryRunFlag, "dry-run", false, "Show what would be archived without archiving")
 
 	return cmd
 }
 
-func runBatchArchive(cmd *cobra.Command, args []string, listFlag, allFlag bool) error {
+func runBatchArchive(cmd *cobra.Command, args []string, yesFlag, dryRunFlag bool) error {
 	w := cmd.OutOrStdout()
 	errW := cmd.ErrOrStderr()
+
+	// --dry-run (preview-only) and --yes (assume-yes and do it) are
+	// contradictory. Error rather than silently picking one.
+	if dryRunFlag && yesFlag {
+		return fmt.Errorf("--dry-run and --yes are mutually exclusive")
+	}
 
 	fabRoot, err := resolve.FabRoot()
 	if err != nil {
@@ -45,35 +72,78 @@ func runBatchArchive(cmd *cobra.Command, args []string, listFlag, allFlag bool) 
 		return fmt.Errorf("changes directory not found at %s", changesDir)
 	}
 
-	// No args defaults to --list, aligned with new/switch. The bulk action —
-	// the one bulk-mutating member of the batch family, whose moves are
-	// effectively irreversible within archiveLoop — requires explicit --all
-	// (260612-ye8r; the previous implicit --all default was a deliberate UX
-	// choice, flipped here in the safer direction for family consistency).
-	if len(args) == 0 && !allFlag {
-		listFlag = true
-	}
-
-	if listFlag {
+	// --dry-run lists what would be archived; no prompt, no action.
+	if dryRunFlag {
 		return listArchivable(w, changesDir)
 	}
 
-	// Collect change names
-	var changes []string
-	if allFlag {
-		changes = allArchivableNames(changesDir)
-		if len(changes) == 0 {
-			// A clean repo with nothing to archive is a benign no-op, not a
-			// failure — exit 0 so the generic non-zero-means-STOP failure
-			// rule does not escalate it.
-			fmt.Fprintln(w, "No archivable changes found.")
-			fmt.Fprintf(w, "\nArchived 0, skipped 0, failed 0.\n")
+	// Explicit args are their own opt-in: naming the changes IS the
+	// confirmation, so we archive them directly — no prompt, no TTY guard
+	// (preserves the pre-redesign explicit-args behavior, incl. warn-and-skip
+	// and the No-valid-changes exit-1).
+	if len(args) > 0 {
+		return archiveResolvedNames(cmd, fabRoot, changesDir, args)
+	}
+
+	// Bare / --yes path: archive ALL archivable changes. archive is the one
+	// bulk-mutating member of the batch family whose moves are effectively
+	// irreversible within archiveLoop, so — unlike new/switch which stay
+	// list-by-default behind --all — it earns an interactive confirm: a bare
+	// invocation lists the set and prompts (default No), while --yes/-y is the
+	// non-interactive escape hatch (replacing the old --all). This is the
+	// well-understood list-then-confirm-with-a-yes-escape-hatch pattern
+	// (apt/npm/gh); it replaces the 260612-ye8r explicit---all model, giving
+	// zero-flag ergonomics for the common case without firing a destructive-ish
+	// bulk op on a bare command (--dry-run replaces the old --list preview).
+	changes := allArchivableNames(changesDir)
+	if len(changes) == 0 {
+		// A clean repo with nothing to archive is a benign no-op, not a
+		// failure — exit 0 (before any prompt or non-TTY guard) so the generic
+		// non-zero-means-STOP failure rule does not escalate it (finding F49).
+		fmt.Fprintln(w, "No archivable changes found.")
+		fmt.Fprintf(w, "\nArchived 0, skipped 0, failed 0.\n")
+		return nil
+	}
+
+	if !yesFlag {
+		// Without --yes we need a human to confirm the bulk move. Prompting
+		// against a non-interactive stdin would hang on EOF (or read an empty
+		// line and silently abort) — both wrong for the tmux/operator runtime,
+		// where stdin is frequently not a tty — so refuse with guidance and a
+		// non-zero exit instead. --yes is the automation escape hatch.
+		if !isStdinTTY(cmd.InOrStdin()) {
+			fmt.Fprintln(errW, "ERROR: refusing to prompt for confirmation on a non-interactive stdin.")
+			fmt.Fprintln(errW, "Re-run with --yes to archive non-interactively.")
+			return fmt.Errorf("non-interactive stdin: pass --yes to archive")
+		}
+
+		// List the set, then prompt with default No — a bare Enter (or any
+		// non-y/yes answer) is the safe abort.
+		if err := listArchivable(w, changesDir); err != nil {
+			return err
+		}
+		fmt.Fprintf(w, "Archive these %d? [y/N] ", len(changes))
+		reader := bufio.NewReader(cmd.InOrStdin())
+		line, _ := reader.ReadString('\n')
+		answer := strings.ToLower(strings.TrimSpace(line))
+		if answer != "y" && answer != "yes" {
+			fmt.Fprintln(w, "Aborted; nothing archived.")
 			return nil
 		}
-		fmt.Fprintf(w, "Archiving %d changes...\n", len(changes))
-	} else {
-		changes = args
 	}
+
+	fmt.Fprintf(w, "Archiving %d changes...\n", len(changes))
+	return archiveResolvedNames(cmd, fabRoot, changesDir, changes)
+}
+
+// archiveResolvedNames resolves and validates each named change, then archives
+// the valid ones via archiveLoop. It is shared by the explicit-args path and
+// the bare/--yes archive-all path (the latter passes pre-filtered archivable
+// folder names). Unresolvable/not-ready names warn-and-skip; if nothing
+// resolves it returns the No-valid-changes error (exit 1).
+func archiveResolvedNames(cmd *cobra.Command, fabRoot, changesDir string, changes []string) error {
+	w := cmd.OutOrStdout()
+	errW := cmd.ErrOrStderr()
 
 	// Resolve and validate each change
 	var resolved []string

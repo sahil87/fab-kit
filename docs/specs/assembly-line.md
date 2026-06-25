@@ -125,8 +125,9 @@ Each change runs the full pipeline (apply — plan generation + execution — th
 Go back to step 1. When AI finishes, review the results, merge, and archive:
 
 ```bash
-fab batch archive --all
-# Archives all completed changes in one pass
+fab batch archive --yes
+# Archives all completed changes in one pass (--yes skips the confirm prompt;
+# a bare `fab batch archive` lists then prompts `Archive these N? [y/N]`)
 ```
 
 Then send the next batch. The cycle repeats — you're never waiting, AI is never idle.
