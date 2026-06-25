@@ -44,9 +44,9 @@ func memoryIndexCmd() *cobra.Command {
 			"every log.md from current git (the pre-freeze behavior, opt-in) — for a " +
 			"corrupted log or a deliberate re-baseline. With --check, writes nothing " +
 			"and classifies drift by severity in the exit code: 0 = clean, 1 = benign " +
-			"drift (regen changes content but destroys nothing — an improved " +
-			"description:, all log.md / FKF " +
-			"frontmatter drift is benign; for log.md a benign FAIL means the committed " +
+			"drift (regen changes content but destroys nothing — e.g. an improved " +
+			"`description:`, or any log.md / FKF frontmatter drift; for log.md a " +
+			"benign FAIL means the committed " +
 			"log is missing a projected attributable (file-base, change-id) entry, or a " +
 			"frozen line was hand-edited render-unstably — a committed log that is a " +
 			"valid SUPERSET of the freeze-on-write merge PASSES), 2 = destructive loss " +
