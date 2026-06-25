@@ -9,11 +9,11 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: done
-    review-pr: done
+    ship: active
+    review-pr: pending
 plan:
     generated: true
-    task_count: 8
+    task_count: 14
     acceptance_count: 17
     acceptance_completed: 0
 confidence:
@@ -30,27 +30,27 @@ confidence:
         disambiguation: 91.5
 stage_metrics:
     intake: {started_at: "2026-06-25T08:10:13Z", driver: fab-new, iterations: 1, completed_at: "2026-06-25T08:14:47Z"}
-    apply: {started_at: "2026-06-25T08:14:47Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-25T08:21:57Z"}
-    review: {started_at: "2026-06-25T08:21:57Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-25T08:26:57Z"}
-    hydrate: {started_at: "2026-06-25T08:26:57Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-25T08:30:59Z"}
-    ship: {started_at: "2026-06-25T08:30:59Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-25T08:32:46Z"}
-    review-pr: {started_at: "2026-06-25T08:32:46Z", driver: git-pr, iterations: 1, completed_at: "2026-06-25T08:40:00Z"}
+    apply: {started_at: "2026-06-25T09:09:55Z", driver: fab-fff, iterations: 2, completed_at: "2026-06-25T09:20:07Z"}
+    review: {started_at: "2026-06-25T09:20:07Z", driver: fab-fff, iterations: 2, completed_at: "2026-06-25T09:27:31Z"}
+    hydrate: {started_at: "2026-06-25T09:27:31Z", driver: fab-fff, iterations: 2, completed_at: "2026-06-25T09:30:56Z"}
+    ship: {started_at: "2026-06-25T09:30:56Z", driver: fab-fff, iterations: 2}
+    review-pr: {iterations: 1}
 prs:
     - https://github.com/sahil87/fab-kit/pull/444
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 716
+    deleted: 111
+    net: 605
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 215
+        deleted: 96
+        net: 119
     tests:
-        added: 0
-        deleted: 0
-        net: 0
-    computed_at: "2026-06-25T08:30:59Z"
+        added: 94
+        deleted: 51
+        net: 43
+    computed_at: "2026-06-25T09:30:56Z"
     computed_at_stage: hydrate
 summary: Normalized the fab pr-meta Meta Impact block to a single Scope|+/−|Net table with the raw/true/impl/tests/excluded taxonomy and a binary-version provenance caption, fixing the total-flips-meaning bug
 # true_impact: lazily created on first apply-finish (no placeholder here).
-last_updated: 2026-06-25T08:40:00Z
+last_updated: 2026-06-25T09:30:56Z

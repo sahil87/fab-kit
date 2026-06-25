@@ -64,6 +64,20 @@ The `clampNonNeg` + `clampAnnotation` behavior MUST be preserved for the `impl` 
 - **WHEN** the `└ impl` row renders
 - **THEN** its displayed figures are clamped to non-negative AND a clamp annotation names the true negative value(s)
 
+### prmeta: Layout revision (260625 follow-up)
+
+#### R8: Revised `## Meta` block layout (GitHub-verified)
+A second-pass layout revision (verified to render on GitHub via the Markdown API) changes the rendered block as follows, on top of R1–R7:
+- **Table header**: `ID` → `Change ID`. The id value is wrapped in backticks (`` `pnao` ``) ONLY when a real id is present; the `—` empty-fallback stays bare (no backticks).
+- **Impact table header**: the `**Impact**:` lead-in line is REMOVED (the table self-labels). The first column header is `Scope` → `Impact`. The `+ / −` header becomes the compact `+/−` (no surrounding spaces). Right-alignment separator unchanged.
+- **Caption**: italic `*…*` → `<sub>…</sub>` (same content; excludes clause conditional; version always incl. `vdev`).
+- **Element ordering**: the block reorders to `table → Impact-table + caption → optional Issues → Pipeline`. Pipeline becomes the LAST element; the optional Issues line sits just above Pipeline. Blank-line separators keep each table/paragraph distinct.
+- `Render` stays a PURE function of `Data`; `Version` populated only in `cmd/fab/pr_meta.go`. Emphasis stays bold-only (no `style`/color HTML — sanitizer strips it).
+
+- **GIVEN** the full happy-path `Data`
+- **WHEN** `Render` runs
+- **THEN** the output is `## Meta` → `Change ID` table (backticked id) → `Impact` table (`Impact | +/− | Net`, no lead-in) → `<sub>` caption → (optional Issues) → `**Pipeline:**`
+
 ### Documentation: sibling/mirror sweep
 
 #### R7: Skill + SPEC mirror prose reflects the new shape
@@ -109,6 +123,15 @@ The observable `fab pr-meta` Impact output prose MUST be updated across the whol
 
 - [x] T007 [P] Update the `**Impact**` Output bullet in `src/kit/skills/_cli-fab.md` (line ~472) to the single-table + provenance-caption shape and the `raw/true/impl/tests/excluded` taxonomy; verify `docs/specs/skills/SPEC-_cli-fab.md` (inventory row only) stays accurate. <!-- R7 -->
 - [x] T008 [P] Update the Meta-block Impact description in `src/kit/skills/git-pr.md` (Step 3, line ~242/251) and its mirror `docs/specs/skills/SPEC-git-pr.md` (lines ~110–114, ~141) to the new single-table + caption shape; retire all three-row/single-line/`← excludes`/`code (excluding …)` phrasings in the class. <!-- R7 -->
+
+### Phase 5: Layout revision (260625 follow-up)
+
+- [x] T009 `renderTable`: header `ID` → `Change ID`; wrap the id value in backticks only when a real id is present (bare `—` fallback). <!-- R8 -->
+- [x] T010 `renderImpact`: remove the `**Impact**:` lead-in line; first-column header `Scope` → `Impact`; `+ / −` header → compact `+/−`; keep right-align separator + all row logic. <!-- R8 -->
+- [x] T011 `impactCaption`: change italic `*…*` wrapper to `<sub>…</sub>`; same content/conditionals. <!-- R8 -->
+- [x] T012 `Render`: reorder block to `table → Impact-table+caption → optional Issues → Pipeline` (Pipeline last, Issues just above it); mind blank-line separators so each table/paragraph renders distinctly. <!-- R8 -->
+- [x] T013 Update `prmeta_test.go` goldens to the new layout (new headers, no lead-in, `<sub>` caption, new element ordering incl. `TestRender_FullBlock`); run `go test ./internal/prmeta/... ./cmd/fab/...`, `gofmt -l`, `go vet ./...` clean. <!-- R8 -->
+- [x] T014 [P] Doc sweep for the revised layout: `_cli-fab.md`, `git-pr.md`, `SPEC-git-pr.md` (new `Change ID`/`Impact` headers, `+/−`, `<sub>` caption, new ordering); grep the class for stale `**Impact**:` lead-in / `Scope` column / `ID |` header / italic-caption / "Pipeline … then Impact" phrasings. <!-- R7 R8 -->
 
 ## Execution Order
 

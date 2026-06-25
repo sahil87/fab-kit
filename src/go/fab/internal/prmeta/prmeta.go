@@ -85,31 +85,36 @@ type Data struct {
 
 // Render assembles the complete `## Meta` block markdown for d. It is a pure
 // function: identical Data always yields identical output. The block always
-// contains the heading, table, and Pipeline line; the Issues and Impact lines
-// are conditional.
+// contains the heading, table, and Pipeline line; the Issues and Impact blocks
+// are conditional. Element order (260625 layout revision): heading → table →
+// Impact-table + caption → optional Issues → Pipeline (last). Each table and
+// paragraph is separated by a blank line so GitHub renders them as distinct
+// elements.
 func Render(d Data) string {
 	var b strings.Builder
 	b.WriteString("## Meta\n\n")
 	b.WriteString(renderTable(d))
-	b.WriteString("\n")
-	b.WriteString(renderPipeline(d))
 
+	if block := renderImpact(d); block != "" {
+		b.WriteString("\n")
+		b.WriteString(block)
+	}
 	if line := renderIssues(d); line != "" {
 		b.WriteString("\n\n")
 		b.WriteString(line)
 	}
-	if line := renderImpact(d); line != "" {
-		b.WriteString("\n\n")
-		b.WriteString(line)
-	}
+	b.WriteString("\n\n")
+	b.WriteString(renderPipeline(d))
 	return b.String()
 }
 
 // renderTable renders the 5-column Meta table (header + separator + single row).
+// A present id is wrapped in backticks (`pnao`); the empty-fallback `—` stays
+// bare (no backticks) so the em-dash reads as a placeholder, not code.
 func renderTable(d Data) string {
-	id := d.ID
-	if id == "" {
-		id = "—"
+	id := "—"
+	if d.ID != "" {
+		id = "`" + d.ID + "`"
 	}
 
 	confidence := "—"
@@ -118,8 +123,8 @@ func renderTable(d Data) string {
 	}
 
 	var b strings.Builder
-	b.WriteString("| ID | Type | Confidence | Plan | Review |\n")
-	b.WriteString("|----|------|-----------|------|--------|\n")
+	b.WriteString("| Change ID | Type | Confidence | Plan | Review |\n")
+	b.WriteString("|-----------|------|------------|------|--------|\n")
 	fmt.Fprintf(&b, "| %s | %s | %s | %s | %s |\n",
 		id, d.Type, confidence, planCell(d), reviewCell(d))
 	return b.String()
@@ -168,9 +173,10 @@ func pluralCycle(n int) string {
 	return "cycles"
 }
 
-// renderPipeline renders the **Pipeline** line: the six stages in fixed order
-// joined by " → ", with " ✓" appended after each done stage. intake/apply
-// labels hyperlink to their blob URLs when available; the rest are plain text.
+// renderPipeline renders the **Pipeline:** line (colon inside the bold span,
+// per the 260625 layout): the six stages in fixed order joined by " → ", with
+// " ✓" appended after each done stage. intake/apply labels hyperlink to their
+// blob URLs when available; the rest are plain text.
 func renderPipeline(d Data) string {
 	parts := make([]string, 0, len(pipelineStages))
 	for _, stage := range pipelineStages {
@@ -190,7 +196,7 @@ func renderPipeline(d Data) string {
 		}
 		parts = append(parts, label)
 	}
-	return "**Pipeline**: " + strings.Join(parts, " → ")
+	return "**Pipeline:** " + strings.Join(parts, " → ")
 }
 
 // renderIssues renders the **Issues** line, or "" when there are no issues.
@@ -215,15 +221,15 @@ func renderIssues(d Data) string {
 // reshaping — so a reader comparing two PRs sees the same columns every time and
 // every label means exactly one thing (pnao).
 const (
-	impactLeadIn   = "**Impact**:"
-	impactHeader   = "| Scope | + / − | Net |"
-	impactSepRow   = "|---|--:|--:|" // Scope left-aligned; numeric cols right-aligned
-	nestedLabelPfx = "└ "            // tree glyph prefixing the impl/tests rows
+	impactHeader   = "| Impact | +/− | Net |"
+	impactSepRow   = "|--------|----:|----:|" // Impact left-aligned; numeric cols right-aligned
+	nestedLabelPfx = "└ "                     // tree glyph prefixing the impl/tests rows
 )
 
-// renderImpact renders the **Impact** block — a single markdown table plus an
-// italic provenance caption — or "" when the block must be omitted (no impact,
-// or a +0/−0 `true` diff).
+// renderImpact renders the Impact block — a single self-labeling markdown table
+// (the first-column header is `Impact`, so no separate lead-in line is needed)
+// plus a `<sub>` provenance caption — or "" when the block must be omitted (no
+// impact, or a +0/−0 `true` diff).
 //
 // Taxonomy (pnao): raw = true + excluded, true = impl + tests.
 //   - raw      — every changed line, all paths (the unfiltered diff). Shown only
@@ -254,8 +260,6 @@ func renderImpact(d Data) string {
 	raw := impact.Pair{Added: d.Impact.Added, Deleted: d.Impact.Deleted, Net: d.Impact.Net}
 
 	var b strings.Builder
-	b.WriteString(impactLeadIn)
-	b.WriteString("\n\n")
 	b.WriteString(impactHeader)
 	b.WriteString("\n")
 	b.WriteString(impactSepRow)
@@ -294,13 +298,15 @@ func renderImpact(d Data) string {
 	return b.String()
 }
 
-// impactRow renders one `| Scope | +A/−B | +N |` table row. When bold is set,
-// every cell is wrapped in `**…**` (the `true` row's emphasis — bold survives
-// GitHub's Markdown sanitizer; row backgrounds / text color do not, pnao). A
-// non-empty annotation (the impl-clamp note) is appended inside the Scope cell.
+// impactRow renders one `| Impact | +A / −B | +N |` table row (the figure cell
+// is spaced — `+A / −B` — per the 260625 authoritative template; only the
+// column header stays compact `+/−`). When bold is set, every cell is wrapped
+// in `**…**` (the `true` row's emphasis — bold survives GitHub's Markdown
+// sanitizer; row backgrounds / text color do not, pnao). A non-empty annotation
+// (the impl-clamp note) is appended inside the label cell.
 func impactRow(label string, p impact.Pair, bold bool, annotation string) string {
 	scope := label + annotation
-	plusMinus := fmt.Sprintf("+%d/−%d", p.Added, p.Deleted)
+	plusMinus := fmt.Sprintf("+%d / −%d", p.Added, p.Deleted)
 	net := formatNet(p.Net)
 	if bold {
 		scope = "**" + scope + "**"
@@ -310,17 +316,19 @@ func impactRow(label string, p impact.Pair, bold bool, annotation string) string
 	return fmt.Sprintf("| %s | %s | %s |\n", scope, plusMinus, net)
 }
 
-// impactCaption renders the italic provenance caption co-locating the excludes
+// impactCaption renders the `<sub>` provenance caption co-locating the excludes
 // note and the binary version stamp, e.g.
-// `*excludes `fab/`, `docs/` · generated by fab-kit v2.6.6*`. The excludes
-// clause is omitted when no excludes are configured; the version stamp is always
-// present (dev builds render `fab-kit vdev` honestly).
+// `<sub>excludes `fab/`, `docs/` · generated by fab-kit v2.6.6</sub>`. The
+// excludes clause is omitted when no excludes are configured; the version stamp
+// is always present (dev builds render `fab-kit vdev` honestly). `<sub>` is on
+// GitHub's HTML allowlist (unlike style/class, which the sanitizer strips), so
+// the caption renders as small text while emphasis elsewhere stays bold-only.
 func impactCaption(d Data) string {
 	stamp := "generated by fab-kit v" + d.Version
 	if len(d.Excludes) > 0 {
-		return fmt.Sprintf("*excludes %s · %s*", backtickList(d.Excludes), stamp)
+		return fmt.Sprintf("<sub>excludes %s · %s</sub>", backtickList(d.Excludes), stamp)
 	}
-	return fmt.Sprintf("*%s*", stamp)
+	return fmt.Sprintf("<sub>%s</sub>", stamp)
 }
 
 func clampNonNeg(n int) int {
