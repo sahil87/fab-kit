@@ -194,7 +194,11 @@ Two steps — one in the terminal, one in your AI agent:
    fab upgrade-repo 0.44.0       # upgrades to a specific version
    ```
 
-2. **In your AI agent** — apply any data migrations:
+   `fab upgrade-repo` tells you whether step 2 is needed. If a data migration is pending, the output ends with a highlighted line — `Run '/fab-setup migrations' to update project files` — and **that** step runs in your AI agent, not the terminal. No highlighted line means you're already up to date: skip step 2.
+
+   ![Terminal output of `fab upgrade-repo` upgrading 2.6.6 → 2.7.1, ending with a highlighted line that reads "Run '/fab-setup migrations' to update project files (2.6.6 -> 2.7.1)"](https://raw.githubusercontent.com/sahil87/fab-kit/main/docs/img/upgrade-repo-output.png)
+
+2. **In your AI agent** (only if step 1 flagged a migration) — apply it:
 
    ```
    /fab-setup migrations    # Claude Code
@@ -202,6 +206,8 @@ Two steps — one in the terminal, one in your AI agent:
    ```
 
    Safe to re-run — no-op if no migrations are pending.
+
+   ![Claude Code running the /fab-setup migrations slash command, replying that it will follow the fab-setup migrations flow](https://raw.githubusercontent.com/sahil87/fab-kit/main/docs/img/fab-setup-migrations.png)
 
 To re-deploy skills, scaffold structure, and sync hooks without changing the pinned version (useful after cloning):
 
