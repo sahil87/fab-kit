@@ -157,12 +157,32 @@ Create a new `fab/project/config.yaml` interactively or update specific sections
 When that trigger holds:
 
 1. Read the project's README, package.json, or other root-level files for context
-2. Ask the user: project name, description, source paths
+2. Ask the user: project name, description, source paths. Then **detect `test_paths` non-interactively** (do NOT prompt for it — the value is inferred from on-disk marker files):
+   - **Detection sub-step**: read the on-disk marker files and derive an anchored `test_paths` pattern from the table below. Multi-marker repos take the **union** of matched pattern sets. The anchoring (suffix/prefix/infix/source-root) is what makes the test/impl classification reliable — never substitute a bare substring like `**/*test*` (it miscounts production code such as `attestation.go` or `latest.go`).
+
+     | Detected marker | Ecosystem | `test_paths` |
+     |---|---|---|
+     | `go.mod` | Go | `**/*_test.go` |
+     | `pytest.ini` / `pyproject.toml` / `setup.cfg` | Python (pytest) | `**/test_*.py`, `**/*_test.py` |
+     | `package.json` with jest/vitest dep, or `*.spec.ts`/`*.test.ts`/`*.spec.js`/`*.test.js` present | JS/TS | `**/*.spec.ts`, `**/*.test.ts`, `**/*.spec.js`, `**/*.test.js` |
+     | `pom.xml` / `build.gradle` | Java/Kotlin (Maven/Gradle) | `**/src/test/**` |
+     | `*.csproj` referencing a test SDK | .NET | `**/*Tests.cs`, `**/*Test.cs` |
+     | `Cargo.toml` | Rust | *(none — Rust tests are inline `#[cfg(test)]`; not glob-addressable)* → leave empty, note why |
+     | *(no marker / unrecognized)* | — | leave empty; standing examples remain the reference |
+
+     Record the detected ecosystem + pattern set (or "no convention detected") for the substitution in step 4 and the note in step 7.
 3. Read `$(fab kit-path)/scaffold/fab/project/config.yaml` as the starting template
-4. Substitute placeholders with user-provided values: `{PROJECT_NAME}`, `{PROJECT_DESCRIPTION}`, `{SOURCE_PATHS}`
+4. Substitute placeholders with user-provided values: `{PROJECT_NAME}`, `{PROJECT_DESCRIPTION}`, `{SOURCE_PATHS}`, `{TEST_PATHS}`. **For `{TEST_PATHS}`**: the scaffold carries a standing example comment block above the active key — preserve it intact and replace only the `{TEST_PATHS}` line. When detection matched an ecosystem, substitute the active key with the detected list, e.g.:
+   ```yaml
+   test_paths:
+     - "**/*_test.go"
+   ```
+   When no ecosystem was recognized (or the stack uses inline tests like Rust), substitute the commented placeholder line `# test_paths: []` so the key stays empty and the breakdown collapses to a single total (today's behavior).
 5. **Preserve `fab_version`**: if the existing config.yaml has a `fab_version` key (e.g., written by `fab init`), carry it into the new file unchanged — the scaffold template lacks it and the fab router errors without it. **Fallback (fresh create)**: if no `fab_version` key exists (no prior config.yaml at all), stamp the engine version into the new file — `fab_version: "$(cat "$(fab kit-path)/VERSION")"` — so the guarantee that `fab_version` exists after step 1a holds on every path
 6. Write the result to `fab/project/config.yaml`
-7. Output: `Created fab/project/config.yaml`
+7. Output: `Created fab/project/config.yaml`, then a **test_paths detection note**:
+   - **Detected**: `Detected {ecosystem} — set test_paths to {patterns}. Edit fab/project/config.yaml if wrong.`
+   - **Not detected**: `No test convention detected — test_paths left empty (impact breakdown will show a single total). Set it later if desired.`
 
 ### Config Update Mode — Menu Flow
 
@@ -201,7 +221,7 @@ If no changes made, output: `No changes made. config.yaml unchanged.`
 
 ### Config Output
 
-Show `Created fab/project/config.yaml` (create mode), `{N} sections updated in fab/project/config.yaml` (update mode), or `No changes made` (no-op). Next steps: `/fab-new` after create.
+Show `Created fab/project/config.yaml` (create mode), `{N} sections updated in fab/project/config.yaml` (update mode), or `No changes made` (no-op). In create mode, follow `Created` with the **test_paths detection note** (per Config Create Mode step 7 — detected ecosystem + patterns, or "no test convention detected → left empty"). Next steps: `/fab-new` after create.
 
 ### Config Error Handling
 
