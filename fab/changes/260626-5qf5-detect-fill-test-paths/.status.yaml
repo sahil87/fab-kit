@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 8
@@ -33,8 +33,10 @@ stage_metrics:
     apply: {started_at: "2026-06-26T11:23:45Z", driver: fab-fff, iterations: 2, completed_at: "2026-06-26T11:24:38Z"}
     review: {started_at: "2026-06-26T11:24:38Z", driver: fab-fff, iterations: 2, completed_at: "2026-06-26T11:29:09Z"}
     hydrate: {started_at: "2026-06-26T11:29:09Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-26T11:31:14Z"}
-    ship: {started_at: "2026-06-26T11:31:14Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-06-26T11:31:14Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-26T11:32:46Z"}
+    review-pr: {started_at: "2026-06-26T11:32:46Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/450
 change_type_source: explicit
 true_impact:
     added: 0
@@ -52,4 +54,4 @@ true_impact:
     computed_at_stage: hydrate
 summary: Detect & fill test_paths at setup from on-disk markers (anchored table) + 2.7.1-to-2.8.0 backfill migration; refresh scaffold example block.
 # true_impact: lazily created on first apply-finish (no placeholder here).
-last_updated: 2026-06-26T11:31:14Z
+last_updated: 2026-06-26T11:32:46Z
