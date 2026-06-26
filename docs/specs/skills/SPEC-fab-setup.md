@@ -37,8 +37,9 @@ User invokes /fab-setup [subcommand]
 │  │  │   marker files → derive an anchored {TEST_PATHS} pattern from
 │  │  │   the marker→ecosystem table: go.mod→**/*_test.go,
 │  │  │   pyproject.toml/pytest.ini→**/test_*.py+**/*_test.py,
-│  │  │   jest/vitest→**/*.spec|test.ts|js, pom.xml/build.gradle→
-│  │  │   **/src/test/**, *.csproj→**/*Tests.cs+**/*Test.cs;
+│  │  │   jest/vitest→**/*.spec.ts+**/*.test.ts+**/*.spec.js+**/*.test.js,
+│  │  │   pom.xml/build.gradle→**/src/test/**,
+│  │  │   *.csproj→**/*Tests.cs+**/*Test.cs;
 │  │  │   Rust/unrecognized → leave empty. NO prompt. Substituted as
 │  │  │   the {TEST_PATHS} placeholder in step 4, preserving the
 │  │  │   scaffold's standing example comment block; visible note in
