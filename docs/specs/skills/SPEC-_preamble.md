@@ -85,6 +85,11 @@ Skill reads _preamble.md
 │  (state table lookup → "Next:" line — skills whose
 │   Output/Key Properties declare a different ending
 │   are exempt; the skill file wins)
+│  (adoption note 260630-t54n: /fab-adopt needs no new
+│   row — it enters with apply skipped + review active and
+│   drives review→hydrate→ship→review-pr, states the table
+│   already covers; a skipped stage is passed over by the
+│   lookup exactly like a done stage)
 │
 ├─ Skill Invocation Protocol (pointer)
 │  (protocol defined in fab-clarify.md)

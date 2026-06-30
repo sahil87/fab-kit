@@ -94,6 +94,7 @@ For detailed visual maps of how commands connect — including shortcuts, rework
 | `/fab-continue` → review | Validate (sub-agent) | Prioritized findings report |
 | `/fab-continue` → hydrate | Complete & hydrate | Updated memory |
 | `/fab-proceed` | Context-aware orchestrator — runs needed prefix steps (fab-new, fab-switch, git-branch), then delegates to `/fab-fff` | Full pipeline from conversation context |
+| `/fab-adopt` | Adopt a completed off-pipeline change (OPEN/not-yet-created PR) — reconstruct intake + plan from the diff, run review (outward-only) → hydrate → ship → review-pr with apply `skipped` | Reconstructed intake + thin plan; pipeline entered late |
 | `/git-pr` | Ship — commit, push, create draft PR | Draft PR, `ship` done |
 | `/git-pr-review` | Process PR review comments (fix/defer/skip + replies) | Fix commits + replies, `review-pr` done |
 | `/fab-archive` | Archive completed change | Folder moved to archive/ |

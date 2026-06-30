@@ -202,7 +202,7 @@ override a tier to Haiku (pass-through doesn't forbid it); fab just doesn't ship
 
 ## Skill wiring — orchestrator/dispatch consume `fab resolve-agent`
 
-The orchestrators (`/fab-ff`, `/fab-fff`, `/fab-proceed`) and `/fab-continue`'s sub-agent dispatch call
+The orchestrators (`/fab-ff`, `/fab-fff`, `/fab-proceed`, `/fab-adopt`) and `/fab-continue`'s sub-agent dispatch call
 `fab resolve-agent <stage>` immediately before dispatching each stage's sub-agent, **surface** the
 resolved `model=/effort=` lines (so a skipped or mis-resolved tier is visible in output rather than
 silent — the available stand-in for an enforcement guard, since dispatch is harness-internal), and

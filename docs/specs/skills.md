@@ -47,6 +47,7 @@ helpers: [_generation, _review, _srad, _pipeline]
 |-------|------------|
 | `fab-new`, `fab-draft` | `[_generation, _srad, _intake]` |
 | `fab-ff`, `fab-fff` | `[_generation, _review, _srad, _pipeline]` (the shared bracket lives in `_pipeline.md`) |
+| `fab-adopt` | `[_srad, _generation, _review, _pipeline]` (orchestrator — reuses the diff-generation procedures, outward-only review, and the auto-rework budget) |
 | `fab-continue` | `[_srad]` (+ `_generation`/`_review` stage-conditionally, in-body) |
 | `fab-clarify` | `[_srad]` |
 | `fab-operator` | `[_cli-fab, _cli-external]` |
@@ -427,6 +428,31 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 - Idempotent — re-running detects completed steps and skips them
 - Does not run preflight or load `_preamble.md` context — delegates to `/fab-fff`
 - Errors on empty context + no intake: "Nothing to proceed with — start a discussion or run /fab-new (or /fab-draft) first."
+
+---
+
+## `/fab-adopt`
+
+**Purpose**: Bring a **completed-but-off-pipeline** change into the Fab pipeline (scenario B — a feature branch authored without fab, with an **OPEN** or **not-yet-created** PR). It is the *real* pipeline entered late, with **apply** marked `skipped` (the only stage that cannot meaningfully re-run when the code already exists); intake/review/hydrate/ship/review-pr all genuinely run. A **MERGED** PR (scenario A — retroactive backfill) is out of scope and STOPs at Step 0. A thin orchestrator on the `/fab-proceed`/`/fab-ff` pattern — `helpers: [_srad, _generation, _review, _pipeline]`.
+
+**Prerequisite**: An active branch (not detached HEAD, not the default branch) with a non-empty diff against the default-branch merge-base, and no fab change already mapping to that branch.
+
+**Context**: config, constitution; the branch diff (`git diff {base}...HEAD`) and PR body — read once in the one main-session generation pass.
+
+**Behavior**:
+1. **Step 0 — Guards & diff base**: reuse `/git-pr`'s guard idioms — STOP on detached HEAD / default branch / MERGED PR (scenario A) / branch-already-maps-to-a-change (point at `/fab-continue`) / empty diff. `OPEN` and `none` PR states proceed. Resolve `base=$(git merge-base HEAD origin/{default})` and capture the diff.
+2. **Steps 1+2 — one main-session generation pass** (same agent, not dispatched): `fab change new --slug {slug}` + activate (branch exists — `/fab-new` Step 11 row 1/2); reconstruct `intake.md` via the **Intake-from-Diff Procedure** (`_generation.md`); **human-confirmation checkpoint** (confirm/correct the reconstructed intent — the late deliberation the bypass skipped) → `fab status advance/finish {name} intake`; write a deliberately MINIMAL `plan.md` via the **Plan-from-Diff Procedure**.
+3. **Step 2 (state)**: `fab status skip {name} apply` (cascades downstream → skipped) then `fab status reset {name} review fab-adopt` (skipped → active, downstream → pending) — yields `apply=skipped, review=active`, **no Go change**; record the fact via `fab status set-summary`.
+4. **Step 3 — Review** (dispatched, `mode: outward-only` — the new `_review.md` parameter): the orchestrator owns the verdict (pass incl. zero-findings best-effort → `finish review`; fail → auto-rework per `_pipeline.md` budget when autonomous, hand findings back when interactive).
+5. **Step 4 — Hydrate** (dispatched, verbatim per `_pipeline.md` Step 3): the permanent-loss recovery — `docs/memory/` finally reflects what shipped → `finish hydrate`.
+6. **Step 5 — Ship**: `/git-pr {name}` retrofits `## Meta` onto the OPEN PR (its Step 3d, gated on body-lacks-`## Meta`) or creates the PR fresh when `none`; `finish ship` auto-activates review-pr.
+7. **Step 6**: land in review-pr; print the honest-state summary and `Next: /git-pr-review`.
+
+**Key properties**:
+- Only **apply** is `skipped`; every other stage runs for real (just late)
+- Outward-only review via the general `mode` parameter on `_review.md` — not an adopt-specific branch
+- State composed from existing `skip`/`reset` transitions; PR Meta retrofit reuses `fab pr-meta` + `gh pr edit` — **no Go change**
+- Idempotent guards: re-run after the change is created routes to `/fab-continue` via the collision guard; the Meta retrofit is body-gated
 
 ---
 

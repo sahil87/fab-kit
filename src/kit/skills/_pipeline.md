@@ -1,6 +1,6 @@
 ---
 name: _pipeline
-description: "Shared ff/fff pipeline bracket — intake gate, apply → review → hydrate steps, auto-rework loop with explicit per-cycle choreography (cycle cap from code-review.md Rework Budget, default 3), and the exhaustion stop. Parameterized by driver name and terminal stage."
+description: "Shared ff/fff pipeline bracket — intake gate, apply → review → hydrate steps, auto-rework loop with explicit per-cycle choreography (cycle cap from code-review.md Rework Budget, default 3), and the exhaustion stop. Parameterized by driver name and terminal stage. Full bracket used by /fab-ff and /fab-fff; /fab-adopt is a partial consumer (reuses the auto-rework loop + hydrate dispatch, not the full bracket)."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -11,6 +11,11 @@ metadata:
 > This file defines the shared pipeline bracket used by `/fab-ff` and `/fab-fff`. The calling
 > skill (the **driver**) declares two parameters before executing this bracket — read them from
 > the driver's own file:
+>
+> **Partial consumer**: `/fab-adopt` declares `_pipeline` as a helper but does NOT execute the
+> full bracket — it runs its own Steps 0–6 and reuses only the § Auto-Rework Loop (for its
+> outward-only review verdict) and Step 3's hydrate dispatch. It is not a `{driver}` of the full
+> apply → review → hydrate sequence.
 >
 > - **`{driver}`** — the driver name passed to the `fab status` event commands this bracket
 >   shows it on (the fail/recovery commands are deliberately driver-less — see the Behavior

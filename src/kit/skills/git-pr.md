@@ -157,7 +157,7 @@ If the MERGED STOP did not fire, run each step in order, skipping steps that are
 
 Nothing to do.
 ```
-Before stopping, attempt to record the existing PR URL per Steps 4a–4c (silently, no errors). Then STOP.
+Before stopping, run **Step 3d** (Meta retrofit — the body may still lack `## Meta` even when the code is already shipped), then attempt to record the existing PR URL per Steps 4a–4c (silently, no errors). Then STOP. (Step 3d is itself idempotent — a body that already has `## Meta` is a no-op — so the "already shipped" path stays a clean re-run.)
 
 **Otherwise**, print the header and execute:
 
@@ -283,7 +283,33 @@ Print: `  ✓ push   — origin/<branch>`
 
 Print: `  ✓ pr     — <PR URL>`
 
-**If an OPEN PR already exists** (from Step 1), just print: `  ✓ pr     — <existing PR URL> (existing)`
+**If an OPEN PR already exists** (from Step 1), just print: `  ✓ pr     — <existing PR URL> (existing)`, then run **Step 3d** (Meta retrofit).
+
+#### 3d. Retrofit `## Meta` onto an existing OPEN PR (if `{has_fab}` AND an OPEN PR already existed)
+
+`/git-pr` injects `## Meta` only on PR **create** (Step 3c). An OPEN PR authored off-pipeline (or created before fab adopted this branch) therefore has a body with **no `## Meta` block**. This sub-step closes that gap — it is the ship-stage Meta retrofit `/fab-adopt` relies on, but it is general: any OPEN-PR ship benefits.
+
+Gated on BOTH — skip the entire sub-step otherwise:
+
+- `{has_fab}` (Step 0) is true, AND
+- the PR was **already OPEN** at Step 1 (`pr_state` = `OPEN`) — i.e. Step 3c did NOT just create it (a freshly created PR already carries `## Meta` from 3c, so retrofitting would be redundant).
+
+When both hold:
+
+1. Fetch the current PR body: `gh pr view --json body -q '.body'`.
+2. **Idempotency guard**: if the body already contains a `## Meta` heading, make **no** edit — print nothing and continue (a second run is a no-op; Constitution III).
+3. Otherwise render the Meta block via `fab pr-meta` (reusing Step 3c's mechanism — same `{name}`, resolved `{type}`, space-joined `{issues}`):
+   ```bash
+   META=$(fab pr-meta "{name}" --type {type} --issues "{issues}" 2>/dev/null) || META=""
+   ```
+   - If exit non-zero or `META` is empty (no fab context / change unresolved / `.status.yaml` absent): make **no** edit and continue silently — same graceful degradation as Step 3c's Meta omission.
+4. Prepend the rendered Meta block to the existing body (Meta first, then a blank line, then the original body verbatim) and apply it via stdin (avoids shell-quoting issues with multi-line bodies):
+   ```bash
+   printf '%s\n\n%s\n' "$META" "$existing_body" | gh pr edit --body-file -
+   ```
+5. If the `gh pr edit` fails → report the error and STOP.
+
+Print (ONLY when an edit was actually made): `  ✓ meta   — retrofitted ## Meta onto existing PR`
 
 ### Step 4a: Record PR URL
 
@@ -357,7 +383,7 @@ Derived from [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.
 
 | Property | Value |
 |----------|-------|
-| Idempotent? | Yes — re-run after ship is a no-op. The "already shipped" path (no uncommitted changes, no unpushed commits, an OPEN PR exists) re-records the existing PR URL silently and stops; `fab status add-pr` is idempotent and the Step 4c status commit is guarded by `git diff --cached --quiet`. Sub-step 3a-bis is gated on 3a having just committed this invocation, so a re-run skips it; even if reached it is byte-stable with the `git diff --quiet -- docs/memory` guard suppressing an empty commit (see 3a-bis, 4c guards) |
+| Idempotent? | Yes — re-run after ship is a no-op. The "already shipped" path (no uncommitted changes, no unpushed commits, an OPEN PR exists) re-records the existing PR URL silently and stops; `fab status add-pr` is idempotent and the Step 4c status commit is guarded by `git diff --cached --quiet`. Sub-step 3a-bis is gated on 3a having just committed this invocation, so a re-run skips it; even if reached it is byte-stable with the `git diff --quiet -- docs/memory` guard suppressing an empty commit (see 3a-bis, 4c guards). Sub-step 3d (Meta retrofit onto an existing OPEN PR) is guarded on the body lacking a `## Meta` heading, so a second run is a no-op |
 | Advances stage? | Yes — ship (start/finish, best-effort) |
 | Modifies `.fab-status.yaml`? | No |
 | Modifies git state? | Yes — commit, push, PR creation |

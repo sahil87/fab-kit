@@ -1,6 +1,6 @@
 ---
 name: _review
-description: "Review behavior — inward sub-agent (plan requirements/acceptance) and outward sub-agent (Codex→Claude cascade with full repo access), dispatched in parallel during the review stage."
+description: "Review behavior — inward sub-agent (plan requirements/acceptance) and outward sub-agent (Codex→Claude cascade with full repo access), dispatched in parallel during the review stage; a `mode` parameter (full | outward-only) selects which sub-agents run (full dispatches both in parallel; outward-only runs the outward sub-agent alone, used by fab-adopt)."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -19,6 +19,7 @@ metadata:
 
 ## Contents
 
+- Review Mode
 - Preconditions
 - Inward Sub-Agent Dispatch
 - Outward Sub-Agent Dispatch
@@ -27,7 +28,24 @@ metadata:
 
 ---
 
+## Review Mode
+
+The orchestrator MAY pass a **`mode`** parameter in the review dispatch. It selects which sub-agents run:
+
+| `mode` | Sub-agents dispatched | Preconditions checked | Used by |
+|--------|-----------------------|-----------------------|---------|
+| `full` (default — param omitted) | inward + outward | yes (see Preconditions) | `/fab-continue`, `/fab-ff`, `/fab-fff` |
+| `outward-only` | outward only | no (skipped — nothing for inward to validate) | `/fab-adopt` |
+
+- **Default is `full`** when the param is omitted, so every existing caller is unaffected — the mode concept is purely additive.
+- There is **no `inward-only` value** — no caller needs it today (parsimony). Do not add one speculatively.
+- `mode` gates two steps below: **Preconditions** (checked only in `full`) and **Parallel Dispatch** (dispatches only the selected sub-agent(s)). **Findings Merge** and the pass/fail rule are identical for both modes — "any must-fix → fail" works with a single source, and an empty result set (zero findings) passes.
+
+---
+
 ## Preconditions
+
+> **Gated on `mode` (see Review Mode).** These preconditions are checked **only** in `full` mode — they validate the inward sub-agent's inputs. In `outward-only` mode they are **skipped** entirely (there is no inward sub-agent and nothing for it to validate; the outward sub-agent reads the diff directly, not `plan.md`).
 
 - `plan.md` MUST exist with both `## Tasks` and `## Acceptance` sections populated. If `## Acceptance` is missing, STOP with "plan.md missing Acceptance section."
 - All tasks under `## Tasks` MUST be `[x]`. If not: STOP with "{N} of {total} tasks are incomplete."
@@ -147,16 +165,19 @@ Each finding includes: severity tier, description, and file:line reference where
 
 ## Parallel Dispatch
 
-Both sub-agents (inward and outward) are dispatched **in parallel**. The orchestrator waits for both to return before proceeding to the Findings Merge step.
+Dispatch the sub-agent(s) selected by `mode` (see Review Mode):
+
+- **`full`** (default): both sub-agents (inward and outward) are dispatched **in parallel**. The orchestrator waits for both to return before proceeding to the Findings Merge step.
+- **`outward-only`**: dispatch the outward sub-agent only. There is no inward sub-agent to wait for; proceed to Findings Merge once the outward sub-agent returns.
 
 ---
 
 ## Findings Merge
 
-After both sub-agents return, their findings are merged into a single prioritized set:
+After the dispatched sub-agent(s) return, their findings are merged into a single prioritized set. In `outward-only` mode there is a single source (the outward sub-agent); the merge steps below operate on that one source, and the deduplication step (2) is a no-op. The pass/fail rule (4) is identical in both modes — including that **zero findings passes**, so an empty `outward-only` result (e.g. all `review_tools` disabled or unavailable) **passes** (best-effort; adoption must not hard-block when no external reviewer is available).
 
-1. **Collect**: Gather all findings from both sub-agents
-2. **Deduplicate**: If both sub-agents flag the same file:line issue, consolidate into a single finding (use the higher severity if they differ)
+1. **Collect**: Gather all findings from the dispatched sub-agent(s) — both in `full` mode, the outward sub-agent only in `outward-only`
+2. **Deduplicate**: If both sub-agents flag the same file:line issue, consolidate into a single finding (use the higher severity if they differ). (No-op in `outward-only` — a single source cannot collide with itself.)
 3. **Merge by severity**: Combine into a unified must-fix / should-fix / nice-to-have list
 4. **Pass/fail determination** (deterministic — no agent discretion):
    - If **any must-fix** finding exists (from either sub-agent) → review **fails**
