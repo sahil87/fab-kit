@@ -1,0 +1,57 @@
+id: t54n
+name: 260630-t54n-adopt-off-pipeline-change
+created: 2026-06-30T01:13:11Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 15
+    acceptance_count: 18
+    acceptance_completed: 18
+confidence:
+    certain: 9
+    confident: 1
+    tentative: 0
+    unresolved: 0
+    score: 4.9
+    fuzzy: true
+    dimensions:
+        signal: 89.5
+        reversibility: 84.0
+        competence: 86.5
+        disambiguation: 87.0
+stage_metrics:
+    intake: {started_at: "2026-06-30T01:13:11Z", driver: fab-new, iterations: 1, completed_at: "2026-06-30T02:10:23Z"}
+    apply: {started_at: "2026-06-30T02:10:23Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-30T02:23:04Z"}
+    review: {started_at: "2026-06-30T02:23:04Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-30T02:32:57Z"}
+    hydrate: {started_at: "2026-06-30T02:32:57Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-30T02:38:33Z"}
+    ship: {started_at: "2026-06-30T02:38:33Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-30T02:45:17Z"}
+    review-pr: {started_at: "2026-06-30T02:45:17Z", driver: git-pr, iterations: 1, completed_at: "2026-06-30T02:52:27Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/451
+change_type_source: explicit
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-06-30T02:38:33Z"
+    computed_at_stage: hydrate
+summary: documented /fab-adopt adoption orchestrator, _review.md outward-only mode, /git-pr Meta body-retrofit, and the skip-apply+reset-review state composition
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-30T02:52:27Z

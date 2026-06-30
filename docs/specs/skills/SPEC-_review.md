@@ -7,9 +7,11 @@
 
 ## Summary
 
-Shared review dispatch logic invoked by `/fab-continue`, `/fab-ff`, and `/fab-fff` at the review stage. Defines the inward sub-agent (validates implementation against `plan.md`'s `## Requirements`, `## Tasks`, and `## Acceptance` with eight validation checks, including the parsimony pass and deletion-candidate prompt) and the outward sub-agent (Codex→Claude cascade with full repo access for holistic diff review). Both sub-agents are dispatched in parallel; their findings are merged into a single prioritized set with three severity tiers.
+Shared review dispatch logic invoked by `/fab-continue`, `/fab-ff`, `/fab-fff`, and `/fab-adopt` at the review stage. Defines the inward sub-agent (validates implementation against `plan.md`'s `## Requirements`, `## Tasks`, and `## Acceptance` with eight validation checks, including the parsimony pass and deletion-candidate prompt) and the outward sub-agent (Codex→Claude cascade with full repo access for holistic diff review). The dispatched sub-agents are run in parallel; their findings are merged into a single prioritized set with three severity tiers.
 
-This is an internal partial (`user-invocable: false`) — it is never invoked directly. Skills reference it via `helpers:` frontmatter (`/fab-ff`, `/fab-fff`) or a stage-conditional in-body read at review entry (`/fab-continue` — deliberately absent from its frontmatter list, per `_preamble.md` § Skill Helper Declaration).
+**Review Mode** (general `mode` parameter, added for `/fab-adopt`): the orchestrator MAY pass `mode` to select which sub-agents run — `full` (default — inward + outward) or `outward-only` (outward sub-agent only, for adopted changes that have no forward requirements for inward to validate). There is deliberately **no `inward-only`** value (no caller needs it — parsimony). `mode` gates exactly two steps: **Preconditions** (the inward `plan.md` checks — `## Tasks`/`## Acceptance` present, all tasks `[x]`) are checked **only** in `full` mode and skipped in `outward-only`; **Parallel Dispatch** dispatches only the sub-agent(s) the mode selects. **Findings Merge** and the deterministic pass/fail rule are identical for both modes — "any must-fix → fail", and zero findings passes (so an empty `outward-only` result, e.g. all `review_tools` disabled/unavailable, **passes** best-effort). Default is `full` when the param is omitted, so every existing caller is unaffected — the mode concept is purely additive.
+
+This is an internal partial (`user-invocable: false`) — it is never invoked directly. Skills reference it via `helpers:` frontmatter (`/fab-ff`, `/fab-fff`, `/fab-adopt`) or a stage-conditional in-body read at review entry (`/fab-continue` — deliberately absent from its frontmatter list, per `_preamble.md` § Skill Helper Declaration).
 
 The rework loop is NOT defined here — the file's trailing note points at the orchestrators: `fab-continue.md`'s Verdict section for manual rework, and `_pipeline.md` § Auto-Rework Loop for `/fab-ff`/`/fab-fff` (pointer corrected in 260611-szxd; it previously cited "fab-ff.md/fab-fff.md Step 3").
 
@@ -18,14 +20,17 @@ The rework loop is NOT defined here — the file's trailing note points at the o
 ## Flow
 
 ```
-Orchestrator (fab-continue / fab-ff / fab-fff) reads _review.md
+Orchestrator (fab-continue / fab-ff / fab-fff / fab-adopt) reads _review.md
 │
-├─ Preconditions
+├─ Review Mode: full (default — inward + outward) | outward-only (outward only)
+│  (no inward-only value; default full → existing callers unaffected)
+│
+├─ Preconditions  [checked only in mode=full; skipped in outward-only]
 │  Read: plan.md (## Tasks all [x], ## Acceptance present)
 │
-├─ Parallel Dispatch (Agent tool)
+├─ Parallel Dispatch (Agent tool — dispatches only the sub-agent(s) the mode selects)
 │  │
-│  ├─ Inward Sub-Agent
+│  ├─ Inward Sub-Agent   [full only]
 │  │  Context: plan.md (## Requirements + ## Tasks + ## Acceptance),
 │  │           touched source files, target memory files,
 │  │           change_type (260612-w7dp — read from .status.yaml by
@@ -54,7 +59,7 @@ Orchestrator (fab-continue / fab-ff / fab-fff) reads _review.md
 │  │  Output: structured findings (must-fix /
 │  │          should-fix / nice-to-have)
 │  │
-│  └─ Outward Sub-Agent
+│  └─ Outward Sub-Agent   [both modes — the sole sub-agent in outward-only]
 │     Context: full diff (git diff <base>...HEAD),
 │              changed file paths, full repo access
 │     Cascade: Codex → Claude (controlled by
@@ -67,13 +72,14 @@ Orchestrator (fab-continue / fab-ff / fab-fff) reads _review.md
 │     Output: structured findings (must-fix /
 │             should-fix / nice-to-have)
 │
-└─ Findings Merge
-   1. Collect all findings
-   2. Deduplicate by file:line (keep higher severity)
+└─ Findings Merge  [identical for both modes]
+   1. Collect all findings (both sub-agents in full; outward only in outward-only)
+   2. Deduplicate by file:line (keep higher severity) — no-op in outward-only (single source)
    3. Merge by severity into unified set
    4. Pass/fail (deterministic): any must-fix → review fails;
       no must-fix findings (including zero findings) → review passes
-      (should-fix / nice-to-have are reported but never block)
+      (should-fix / nice-to-have are reported but never block;
+       an empty outward-only result — no available external reviewer — passes best-effort)
 ```
 
 ### Validation Steps Inventory (Inward Sub-Agent)

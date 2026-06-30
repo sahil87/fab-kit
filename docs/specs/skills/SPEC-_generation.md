@@ -2,7 +2,7 @@
 
 ## Summary
 
-Shared artifact generation procedures used by five skills across two consumer groups: `/fab-new`, `/fab-draft`, and `/fab-continue` (its intake-`active` regeneration row) follow the **Intake Generation Procedure**; `/fab-continue`, `/fab-ff`, and `/fab-fff` follow the **Plan Generation Procedure** (invoked at apply entry, before any task executes) — `/fab-continue` belongs to both groups. Each skill references these procedures instead of inlining them, so generation behavior is authoritative in one location. Orchestration (stage guards, question handling, design decisions, resumability) stays in each consuming skill's own file.
+Shared artifact generation procedures. The two **forward** procedures are used by five skills across two consumer groups: `/fab-new`, `/fab-draft`, and `/fab-continue` (its intake-`active` regeneration row) follow the **Intake Generation Procedure**; `/fab-continue`, `/fab-ff`, and `/fab-fff` follow the **Plan Generation Procedure** (invoked at apply entry, before any task executes) — `/fab-continue` belongs to both groups. Two **-from-Diff** procedures are the adoption variants used by `/fab-adopt` only: **Intake-from-Diff** reconstructs `intake.md` from a fixed existing branch diff + PR body (Origin = `adopted from {PR/branch}`, Affected Memory inferred from touched `docs/memory/` domains), and **Plan-from-Diff** writes a deliberately thin `plan.md` — plain-language `## Requirements` (the only part hydrate reads), all-`[x]` `## Tasks`/`## Acceptance` stubs, and **no** R#/T#/A# scaffolding or GIVEN/WHEN/THEN (the apply↔review traceability loop never runs for an adopted change). `/fab-adopt` runs both diff procedures in **one main-session pass** (same agent, reads the diff once). Each skill references these procedures instead of inlining them, so generation behavior is authoritative in one location. Orchestration (stage guards, the human-confirmation checkpoint, question handling, design decisions, resumability) stays in each consuming skill's own file.
 
 This is an internal partial (`user-invocable: false`) — never invoked directly. Skills load it via `helpers: [_generation]` frontmatter.
 
@@ -64,6 +64,30 @@ Consumer skill reads _generation.md (via helpers: declaration)
    └─ Write: fab/changes/{name}/plan.md
       (PostToolUse hook updates .status.yaml plan.* counters —
        no manual fab status set-acceptance needed at generation time)
+
+── Adoption variants (fab-adopt only — one main-session pass, diff read once) ──
+
+├─ Intake-from-Diff Procedure
+│  Inputs: git diff {base}...HEAD, --name-only, PR body/title (or branch)
+│  ├─ Origin = "adopted from {PR url or branch}"
+│  ├─ Why / What Changes synthesised from the diff + PR body (descriptive)
+│  ├─ Affected Memory inferred from which docs/memory/ domains the paths touch
+│  ├─ Impact from changed paths; apply SRAD + fab score
+│  └─ Write: fab/changes/{name}/intake.md
+│     (human-confirmation checkpoint is fab-adopt orchestration, not this proc)
+│
+└─ Plan-from-Diff Procedure (deliberately MINIMAL — sole consumer is hydrate)
+   ├─ Header note: "Adopted change — code authored off-pipeline. Apply was
+   │  skipped; this plan is reverse-engineered from the branch diff to feed hydrate."
+   ├─ ## Requirements — plain-language restatement of intake's What-Changes,
+   │  grouped by area (NO R# IDs, no RFC-2119 ceremony, no GIVEN/WHEN/THEN)
+   ├─ ## Tasks — single all-[x] stub (no T# / phases / [P] / <!-- R# -->)
+   ├─ ## Acceptance — single all-[x] stub (no A# / R#)
+   ├─ ## Assumptions — present ("0 assumptions." when none; diff-reading
+   │  assumptions live on the intake, not duplicated here)
+   └─ Write: fab/changes/{name}/plan.md
+      (parser contract = only the three heading literals — confirmed against
+       templates/plan.md; omitting R#/T#/A# is correct, the loop never runs)
 ```
 
 ### Tools used

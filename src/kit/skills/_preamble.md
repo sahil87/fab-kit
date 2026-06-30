@@ -242,6 +242,8 @@ Skills MUST end their output with a `Next:` line derived from the State Table be
 - **review (fail)**: `progress.review == failed`
 - **hydrate**: `progress.hydrate == done`
 
+> **Adoption note**: `/fab-adopt` (bring an off-pipeline change in) needs no new State Table row. It enters the pipeline late with `apply: skipped` and an `active` review, then drives review → hydrate → ship → review-pr — all states the table already covers. `apply: skipped` is not itself a `Next:` lookup target: the lookup keys on the stage that is `active`/`ready`, which after adoption is review (then the normal tail). The skipped apply stage is simply passed over by the lookup, exactly as a `done` stage is.
+
 ### Lookup Procedure
 
 1. Determine the state reached after the skill's action
