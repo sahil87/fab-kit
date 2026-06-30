@@ -53,7 +53,7 @@ default_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null |
 gh pr view --json number,state,url 2>/dev/null || echo "NO_PR"
 ```
 
-1. **Detached HEAD / default-branch guard** (reuse `/git-pr`'s messages):
+1. **Detached HEAD / default-branch guard** (reuse `/git-pr`'s guard idioms; the detached-HEAD message is verbatim, the default-branch message is adapted to the adopt context):
    - `branch` empty (detached HEAD) → STOP: `Cannot ship from a detached HEAD — check out a branch first (run /git-branch).`
    - `branch` is the default branch (or literal `main`/`master`) → STOP: `Cannot adopt from the default branch ({default_branch}).`
 2. **PR-state guard**: from `gh pr view`:

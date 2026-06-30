@@ -132,11 +132,11 @@ Autonomously commits, pushes, and creates a draft GitHub PR. No prompts, no ques
 ├─ Step 3d: Retrofit ## Meta onto existing OPEN PR (260630-t54n —
 │  │        if {has_fab} AND PR was already OPEN at Step 1; runs on the
 │  │        normal existing-OPEN-PR path AND the "already shipped" short-circuit)
-│  ├─ Bash: gh pr view --json body -q '.body'  (fetch current body)
+│  ├─ Bash: existing_body=$(gh pr view --json body -q '.body')  (fetch current body)
 │  ├─ Idempotency guard: body already has a ## Meta heading → no edit, continue
 │  ├─ Bash: META=$(fab pr-meta {name} --type {type} --issues "{issues}")
 │  │        (non-zero / empty → no edit, continue — same graceful degradation as 3c)
-│  └─ Bash: printf '%s\n\n%s\n' "$META" "$body" | gh pr edit --body-file -
+│  └─ Bash: printf '%s\n\n%s\n' "$META" "$existing_body" | gh pr edit --body-file -
 │           (prepend Meta to the existing body; gh edit failure → report + STOP)
 │
 ├─ Step 4a: Record PR URL (if {has_fab})

@@ -296,7 +296,7 @@ Gated on BOTH — skip the entire sub-step otherwise:
 
 When both hold:
 
-1. Fetch the current PR body: `gh pr view --json body -q '.body'`.
+1. Fetch the current PR body into `existing_body`: `existing_body=$(gh pr view --json body -q '.body')`.
 2. **Idempotency guard**: if the body already contains a `## Meta` heading, make **no** edit — print nothing and continue (a second run is a no-op; Constitution III).
 3. Otherwise render the Meta block via `fab pr-meta` (reusing Step 3c's mechanism — same `{name}`, resolved `{type}`, space-joined `{issues}`):
    ```bash
