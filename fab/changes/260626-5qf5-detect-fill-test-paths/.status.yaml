@@ -1,0 +1,57 @@
+id: 5qf5
+name: 260626-5qf5-detect-fill-test-paths
+created: 2026-06-26T11:08:50Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 8
+    acceptance_count: 21
+    acceptance_completed: 0
+confidence:
+    certain: 4
+    confident: 2
+    tentative: 0
+    unresolved: 0
+    score: 4.8
+    fuzzy: true
+    dimensions:
+        signal: 80.0
+        reversibility: 79.2
+        competence: 82.5
+        disambiguation: 77.5
+stage_metrics:
+    intake: {started_at: "2026-06-26T11:08:50Z", driver: fab-new, iterations: 1, completed_at: "2026-06-26T11:12:39Z"}
+    apply: {started_at: "2026-06-26T11:23:45Z", driver: fab-fff, iterations: 2, completed_at: "2026-06-26T11:24:38Z"}
+    review: {started_at: "2026-06-26T11:24:38Z", driver: fab-fff, iterations: 2, completed_at: "2026-06-26T11:29:09Z"}
+    hydrate: {started_at: "2026-06-26T11:29:09Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-26T11:31:14Z"}
+    ship: {started_at: "2026-06-26T11:31:14Z", driver: fab-fff, iterations: 1, completed_at: "2026-06-26T11:32:46Z"}
+    review-pr: {started_at: "2026-06-26T11:32:46Z", driver: git-pr, iterations: 1, completed_at: "2026-06-26T11:39:09Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/450
+change_type_source: explicit
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-06-26T11:31:14Z"
+    computed_at_stage: hydrate
+summary: Detect & fill test_paths at setup from on-disk markers (anchored table) + 2.7.1-to-2.8.0 backfill migration; refresh scaffold example block.
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-06-26T11:39:09Z

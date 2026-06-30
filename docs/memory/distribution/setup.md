@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "`/fab-setup` skill — structural bootstrap (sync-first order since szxd: doctor → config → constitution → `fab sync`), subcommand architecture (config, constitution, migrations — version handling delegated to a single `fab migrations-status --json` run), delegation pattern with `fab-kit sync`; stage_directives editor removed, semver one-liner restored at the three-way branch, fab_version fresh-create fallback, Next Steps re-aligned to the State Table (c5tr); scaffold fragment merge fails loudly (jznd) and its `.gitignore` dedup is gitignore-aware — variant coverage + negation hard-stop, `.envrc` stays literal (mqiq)"
+description: "`/fab-setup` skill — structural bootstrap (sync-first order since szxd: doctor → config → constitution → `fab sync`), subcommand architecture (config, constitution, migrations — version handling delegated to a single `fab migrations-status --json` run), delegation pattern with `fab-kit sync`; stage_directives editor removed, semver one-liner restored at the three-way branch, fab_version fresh-create fallback, Next Steps re-aligned to the State Table (c5tr); scaffold fragment merge fails loudly (jznd) and its `.gitignore` dedup is gitignore-aware — variant coverage + negation hard-stop, `.envrc` stays literal (mqiq); Config Create-Mode non-interactively detects + fills `test_paths` from on-disk markers via the `{TEST_PATHS}` placeholder, with a visible note (5qf5)"
 ---
 # Setup
 
@@ -29,6 +29,23 @@ description: "`/fab-setup` skill — structural bootstrap (sync-first order sinc
 - Creates skill deployments via `fab-kit sync`
 - Creates `.gitignore` entries
 - Safe to re-run (idempotent — skips existing files)
+
+### Config Create-Mode Detects & Fills `test_paths` (5qf5)
+
+As of 260626-5qf5, `/fab-setup config` **create mode** auto-detects and fills `test_paths` from on-disk marker files — **non-interactively** (no prompt). After asking for project name/description/source_paths (step 2), it reads markers and derives an **anchored** test-path pattern from a marker→ecosystem table:
+
+| Detected marker | Ecosystem | `test_paths` |
+|---|---|---|
+| `go.mod` | Go | `**/*_test.go` |
+| `pytest.ini` / `pyproject.toml` / `setup.cfg` | Python (pytest) | `**/test_*.py`, `**/*_test.py` |
+| `package.json` (jest/vitest), or `*.spec`/`*.test` `.ts`/`.js` present | JS/TS | `**/*.spec.ts`, `**/*.test.ts`, `**/*.spec.js`, `**/*.test.js` |
+| `pom.xml` / `build.gradle` | Java/Kotlin | `**/src/test/**` |
+| `*.csproj` (test SDK) | .NET | `**/*Tests.cs`, `**/*Test.cs` |
+| `Cargo.toml` (Rust) / *(no marker)* | — | leave empty (Rust tests are inline `#[cfg(test)]`, not glob-addressable) |
+
+The derived value is substituted as the new `{TEST_PATHS}` placeholder (step 4, alongside `{PROJECT_NAME}`/`{PROJECT_DESCRIPTION}`/`{SOURCE_PATHS}`), **preserving the scaffold's standing example comment block** and replacing only the active key line. Config Output surfaces a visible note: `Detected {ecosystem} — set test_paths to {patterns}. Edit fab/project/config.yaml if wrong.` when filled, or `No test convention detected — test_paths left empty (impact breakdown will show a single total). Set it later if desired.` for Rust/unrecognized stacks. Multi-marker repos take the union of pattern sets.
+
+**Why anchored, not a substring**: `test_paths` drives the `/git-pr` impact breakdown's test/impl split (`impl = total − tests`). A bare substring (`**/*test*`) miscounts production code like `attestation.go`/`latest.go` — a confidently-wrong number is worse than the absent (collapsed-to-single-total) breakdown, so unrecognized stacks are left empty. The `2.7.1-to-2.8.0` migration backfills the same detection for existing repos (see [migrations.md](/distribution/migrations.md)).
 
 ### Subcommands
 

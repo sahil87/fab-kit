@@ -11,6 +11,8 @@ Bootstraps a new project or manages config/constitution/migrations. Creates `fab
 
 **Prose optimization** (260620-skop): skill content trimmed to remove re-explanation of partial-owned concepts and consolidate the seven Migrations Output Format blocks to one canonical block plus exact-string variant notes, and a `## Contents` TOC added; no behavioral change (Flow / Tools / Sub-agents unchanged).
 
+**test_paths detection** (260626-5qf5): Config Create-Mode gains a **non-interactive** detection sub-step (step 2) that reads on-disk marker files (`go.mod`, `pyproject.toml`/`pytest.ini`, jest/vitest deps, `pom.xml`/`build.gradle`, `*.csproj`) and derives an anchored `test_paths` pattern, substituted as the new `{TEST_PATHS}` placeholder (step 4, alongside `{PROJECT_NAME}`/`{PROJECT_DESCRIPTION}`/`{SOURCE_PATHS}`) while preserving the scaffold's standing example comment block. It never prompts; Config Output surfaces the detected ecosystem+patterns (or "no test convention detected → left empty" for Rust/unrecognized stacks). The `2.7.1-to-2.8.0` migration backfills the same detection + comment refresh for existing repos.
+
 ## Flow
 
 ```
@@ -31,6 +33,18 @@ User invokes /fab-setup [subcommand]
 │  │  ├─ Read: README, package.json (project context)
 │  │  ├─ Read: src/kit/scaffold/fab/project/config.yaml
 │  │  ├─ (interactive: ask name, description, source_paths)
+│  │  ├─ (NON-INTERACTIVE test_paths detection, 5qf5 — read on-disk
+│  │  │   marker files → derive an anchored {TEST_PATHS} pattern from
+│  │  │   the marker→ecosystem table: go.mod→**/*_test.go,
+│  │  │   pyproject.toml/pytest.ini→**/test_*.py+**/*_test.py,
+│  │  │   jest/vitest→**/*.spec.ts+**/*.test.ts+**/*.spec.js+**/*.test.js,
+│  │  │   pom.xml/build.gradle→**/src/test/**,
+│  │  │   *.csproj→**/*Tests.cs+**/*Test.cs;
+│  │  │   Rust/unrecognized → leave empty. NO prompt. Substituted as
+│  │  │   the {TEST_PATHS} placeholder in step 4, preserving the
+│  │  │   scaffold's standing example comment block; visible note in
+│  │  │   Config Output: detected ecosystem+patterns, or "no convention
+│  │  │   detected → empty")
 │  │  └─ Write: fab/project/config.yaml
 │  │     (preserves an existing fab_version key; on a fresh create
 │  │      with no prior key, stamps the engine version from
