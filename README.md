@@ -279,6 +279,7 @@ Run `fab doctor` to check all prerequisites (git, yq, direnv hook, etc.) and dia
 - **A stage fails mid-way** - run `/fab-continue` to resume from the last checkpoint. All stage artifacts are persisted, so no progress is lost.
 - **AI produces bad code** - the review sub-agent catches it. `/fab-ff` and `/fab-fff` auto-loop between apply and review (up to 3 cycles) before escalating to you.
 - **Abandon a change** - delete the change folder, or run `/fab-archive` to move it to the archive.
+- **You built something without Fab and opened a PR** - run `/fab-adopt` on the branch to bring it into the pipeline mid-flight. It reconstructs the intake and plan from the diff, runs review and hydrate (so `docs/memory/` stays the source of truth), and retro-fits the PR's `## Meta` block — only `apply` is marked skipped, since the code already exists.
 
 ## Why Fab Kit
 
@@ -423,6 +424,7 @@ Grades aggregate into a **confidence score** that gates `/fab-ff`. If ambiguity 
 | `/fab-ff` | Fast-forward through hydrate — confidence-gated, auto-rework loop |
 | `/fab-fff` | Fast-forward further through ship + PR review — same gates as ff |
 | `/fab-clarify` | Refine the current artifact — resolve gaps without advancing |
+| `/fab-adopt` | Adopt an off-pipeline change — reconstruct intake + plan from an open PR's branch diff, then run review, hydrate, and PR decoration retroactively |
 | `/fab-archive` | Archive a completed change (or restore an archived one) |
 | `/fab-proceed` | Context-aware orchestrator — detects state, runs setup steps, then delegates to `/fab-fff` |
 
@@ -484,7 +486,7 @@ Which pipeline stages each command covers. Taller bars = more automation. Read l
 | 🟦 Cyan | Explore (read-only) | `/fab-discuss` |
 | 🟧 Amber | Manual (single action) | `/fab-draft`, `/fab-switch`, `/fab-continue` |
 | ⬜ Blue-grey (dashed) | Git utilities | `/git-branch`, `/git-pr`, `/git-pr-review` |
-| 🟩 Green | Automated pipeline (multi-stage) | `/fab-new`, `/fab-ff`, `/fab-fff`, `/fab-proceed` |
+| 🟩 Green | Automated pipeline (multi-stage) | `/fab-new`, `/fab-ff`, `/fab-fff`, `/fab-proceed`, `/fab-adopt` |
 | ◻️ Grey | Fab pipeline stage (row label) | intake, change active, apply, review, hydrate |
 | ▶ | Typical entry point | `/fab-discuss`, `/fab-new` |
 
