@@ -492,6 +492,8 @@ Which pipeline stages each command covers. Taller bars = more automation. Read l
 
 ![Stage coverage by command: a matrix of pipeline stages (rows) by command (columns), color-coded — cyan Explore, amber Manual, blue-grey dashed Git utilities, green Automated pipeline. fab-discuss covers context; fab-draft intake; fab-switch change active; git-branch branch name; fab-new intake/change active/branch name; fab-continue, fab-ff, fab-fff, fab-proceed each cover apply/review/hydrate; fab-fff and fab-proceed also ship and review-pr; git-pr ship; git-pr-review review-pr](https://raw.githubusercontent.com/sahil87/fab-kit/main/docs/img/stage-coverage.svg)
 
+> The diagram shows the forward idea→PR commands. `/fab-adopt` — which enters the pipeline mid-flight with `apply` skipped — is an alternate retroactive entry; see the Quick reference table below.
+
 <details>
 <summary>Mermaid source</summary>
 
@@ -604,17 +606,19 @@ block-beta
 
 **Quick reference** — which stages does each command cover?
 
-| Stage | `/fab-discuss` | `/fab-draft` | `/fab-switch` | `/git-branch` | `/fab-new` | `/fab-continue` | `/fab-ff` | `/git-pr` | `/git-pr-review` | `/fab-fff` | `/fab-proceed` |
-|-------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| context | ✅ | | | | | | | | | | |
-| intake | | ✅ | | | ✅ | | | | | | ✅ |
-| change active | | | ✅ | | ✅ | | | | | | ✅ |
-| branch name | | | | ✅ | ✅ | | | | | | ✅ |
-| apply | | | | | | ✅ | ✅ | | | ✅ | ✅ |
-| review | | | | | | ✅ | ✅ | | | ✅ | ✅ |
-| hydrate | | | | | | ✅ | ✅ | | | ✅ | ✅ |
-| ship | | | | | | | | ✅ | | ✅ | ✅ |
-| review-pr | | | | | | | | | ✅ | ✅ | ✅ |
+| Stage | `/fab-discuss` | `/fab-draft` | `/fab-switch` | `/git-branch` | `/fab-new` | `/fab-continue` | `/fab-ff` | `/git-pr` | `/git-pr-review` | `/fab-fff` | `/fab-proceed` | `/fab-adopt` |
+|-------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| context | ✅ | | | | | | | | | | | |
+| intake | | ✅ | | | ✅ | | | | | | ✅ | ✅ |
+| change active | | | ✅ | | ✅ | | | | | | ✅ | ✅ |
+| branch name | | | | ✅ | ✅ | | | | | | ✅ | |
+| apply | | | | | | ✅ | ✅ | | | ✅ | ✅ | ⏭️ |
+| review | | | | | | ✅ | ✅ | | | ✅ | ✅ | ✅ |
+| hydrate | | | | | | ✅ | ✅ | | | ✅ | ✅ | ✅ |
+| ship | | | | | | | | ✅ | | ✅ | ✅ | ✅ |
+| review-pr | | | | | | | | | ✅ | ✅ | ✅ | ✅ |
+
+`/fab-adopt` enters the pipeline mid-flight on an existing branch/PR: it reconstructs intake from the diff and runs review → hydrate → ship → review-pr, but marks `apply` **skipped** (⏭️) since the code already exists.
 
 ## Companion tools
 
