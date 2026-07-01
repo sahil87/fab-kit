@@ -279,6 +279,7 @@ Run `fab doctor` to check all prerequisites (git, yq, direnv hook, etc.) and dia
 - **A stage fails mid-way** - run `/fab-continue` to resume from the last checkpoint. All stage artifacts are persisted, so no progress is lost.
 - **AI produces bad code** - the review sub-agent catches it. `/fab-ff` and `/fab-fff` auto-loop between apply and review (up to 3 cycles) before escalating to you.
 - **Abandon a change** - delete the change folder, or run `/fab-archive` to move it to the archive.
+- **You built something without Fab and opened a PR** - run `/fab-adopt` on the branch to bring it into the pipeline mid-flight. It reconstructs the intake and plan from the diff, runs review and hydrate (so `docs/memory/` stays the source of truth), and retro-fits the PR's `## Meta` block — only `apply` is marked skipped, since the code already exists.
 
 ## Why Fab Kit
 
@@ -423,6 +424,7 @@ Grades aggregate into a **confidence score** that gates `/fab-ff`. If ambiguity 
 | `/fab-ff` | Fast-forward through hydrate — confidence-gated, auto-rework loop |
 | `/fab-fff` | Fast-forward further through ship + PR review — same gates as ff |
 | `/fab-clarify` | Refine the current artifact — resolve gaps without advancing |
+| `/fab-adopt` | Adopt an off-pipeline change — reconstruct intake + plan from an open PR's branch diff, then run review, hydrate, and PR decoration retroactively |
 | `/fab-archive` | Archive a completed change (or restore an archived one) |
 | `/fab-proceed` | Context-aware orchestrator — detects state, runs setup steps, then delegates to `/fab-fff` |
 
@@ -484,32 +486,34 @@ Which pipeline stages each command covers. Taller bars = more automation. Read l
 | 🟦 Cyan | Explore (read-only) | `/fab-discuss` |
 | 🟧 Amber | Manual (single action) | `/fab-draft`, `/fab-switch`, `/fab-continue` |
 | ⬜ Blue-grey (dashed) | Git utilities | `/git-branch`, `/git-pr`, `/git-pr-review` |
-| 🟩 Green | Automated pipeline (multi-stage) | `/fab-new`, `/fab-ff`, `/fab-fff`, `/fab-proceed` |
+| 🟩 Green | Automated pipeline (multi-stage) | `/fab-new`, `/fab-ff`, `/fab-fff`, `/fab-proceed`, `/fab-adopt` |
 | ◻️ Grey | Fab pipeline stage (row label) | intake, change active, apply, review, hydrate |
 | ▶ | Typical entry point | `/fab-discuss`, `/fab-new` |
 
-![Stage coverage by command: a matrix of pipeline stages (rows) by command (columns), color-coded — cyan Explore, amber Manual, blue-grey dashed Git utilities, green Automated pipeline. fab-discuss covers context; fab-draft intake; fab-switch change active; git-branch branch name; fab-new intake/change active/branch name; fab-continue, fab-ff, fab-fff, fab-proceed each cover apply/review/hydrate; fab-fff and fab-proceed also ship and review-pr; git-pr ship; git-pr-review review-pr](https://raw.githubusercontent.com/sahil87/fab-kit/main/docs/img/stage-coverage.svg)
+![Stage coverage by command: a matrix of pipeline stages (rows) by command (columns), color-coded — cyan Explore, amber Manual, blue-grey dashed Git utilities, green Automated pipeline, hatched grey Stage skipped. fab-discuss covers context; fab-draft intake; fab-switch change active; git-branch branch name; fab-new intake/change active/branch name; fab-continue, fab-ff, fab-fff, fab-proceed each cover apply/review/hydrate; fab-fff and fab-proceed also ship and review-pr; git-pr ship; git-pr-review review-pr; fab-adopt enters mid-flight covering intake/review/hydrate/ship/review-pr with apply skipped](https://raw.githubusercontent.com/sahil87/fab-kit/main/docs/img/stage-coverage.svg)
+
+> `/fab-adopt` (rightmost column) enters the pipeline mid-flight on an existing branch/PR: it reconstructs intake from the diff and skips `apply` since the code already exists.
 
 <details>
 <summary>Mermaid source</summary>
 
 ```mermaid
 block-beta
-    columns 13
+    columns 14
 
-    hdr_label["wt create →"]:1 hdr_discuss["▶ /fab-discuss"] hdr_draft["/fab-draft"] hdr_switch["/fab-switch"] hdr_branch["/git-branch"] hdr_new["▶ /fab-new"] hdr_continue["/fab-continue"] hdr_ff["/fab-ff"] hdr_gitpr["/git-pr"] hdr_gitprreview["/git-pr-review"] hdr_fff["/fab-fff"] hdr_proceed["/fab-proceed"] space:1
+    hdr_label["wt create →"]:1 hdr_discuss["▶ /fab-discuss"] hdr_draft["/fab-draft"] hdr_switch["/fab-switch"] hdr_branch["/git-branch"] hdr_new["▶ /fab-new"] hdr_continue["/fab-continue"] hdr_ff["/fab-ff"] hdr_gitpr["/git-pr"] hdr_gitprreview["/git-pr-review"] hdr_fff["/fab-fff"] hdr_proceed["/fab-proceed"] hdr_adopt["/fab-adopt"] space:1
 
-    space:13
+    space:14
 
-    row_ctx["context"]:1 discuss_ctx["project context"]:1 space:11
-    row_intake["intake"]:1 space:1 draft_intake["intake"]:1 space:2 new_intake["intake"]:1 space:5 proceed_intake["intake"]:1 space:1
-    row_active["change active"]:1 space:2 switch_active["change active"]:1 space:1 new_active["change active"]:1 space:5 proceed_active["change active"]:1 space:1
-    row_branch["branch name"]:1 space:3 branch_branch["branch name"]:1 new_branch["branch name"]:1 space:5 proceed_branch["branch name"]:1 space:1
-    row_apply["apply"]:1 space:5 cont_apply["one stage"]:1 ff_apply["apply"]:1 space:2 fff_apply["apply"]:1 proceed_apply["apply"]:1 space:1
-    row_review["review"]:1 space:5 cont_review["one stage"]:1 ff_review["review"]:1 space:2 fff_review["review"]:1 proceed_review["review"]:1 space:1
-    row_hydrate["hydrate"]:1 space:5 cont_hydrate["one stage"]:1 ff_hydrate["hydrate"]:1 space:2 fff_hydrate["hydrate"]:1 proceed_hydrate["hydrate"]:1 space:1
-    row_ship["ship"]:1 space:5 space:1 space:1 gitpr_ship["PR raised"]:1 space:1 fff_ship["PR raised"]:1 proceed_ship["PR raised"]:1 space:1
-    row_prreview["review-pr"]:1 space:5 space:1 space:1 space:1 gitprreview_prreview["PR reviewed"]:1 fff_prreview["PR reviewed"]:1 proceed_prreview["PR reviewed"]:1 space:1
+    row_ctx["context"]:1 discuss_ctx["project context"]:1 space:12
+    row_intake["intake"]:1 space:1 draft_intake["intake"]:1 space:2 new_intake["intake"]:1 space:5 proceed_intake["intake"]:1 adopt_intake["from diff"]:1 space:1
+    row_active["change active"]:1 space:2 switch_active["change active"]:1 space:1 new_active["change active"]:1 space:5 proceed_active["change active"]:1 space:2
+    row_branch["branch name"]:1 space:3 branch_branch["branch name"]:1 new_branch["branch name"]:1 space:5 proceed_branch["branch name"]:1 space:2
+    row_apply["apply"]:1 space:5 cont_apply["one stage"]:1 ff_apply["apply"]:1 space:2 fff_apply["apply"]:1 proceed_apply["apply"]:1 adopt_apply["skipped"]:1 space:1
+    row_review["review"]:1 space:5 cont_review["one stage"]:1 ff_review["review"]:1 space:2 fff_review["review"]:1 proceed_review["review"]:1 adopt_review["review"]:1 space:1
+    row_hydrate["hydrate"]:1 space:5 cont_hydrate["one stage"]:1 ff_hydrate["hydrate"]:1 space:2 fff_hydrate["hydrate"]:1 proceed_hydrate["hydrate"]:1 adopt_hydrate["hydrate"]:1 space:1
+    row_ship["ship"]:1 space:5 space:1 space:1 gitpr_ship["PR raised"]:1 space:1 fff_ship["PR raised"]:1 proceed_ship["PR raised"]:1 adopt_ship["PR meta"]:1 space:1
+    row_prreview["review-pr"]:1 space:5 space:1 space:1 space:1 gitprreview_prreview["PR reviewed"]:1 fff_prreview["PR reviewed"]:1 proceed_prreview["PR reviewed"]:1 adopt_prreview["PR reviewed"]:1 space:1
 
     %% Arrows — multiple paths from top-left to bottom-right
     discuss_ctx --> draft_intake
@@ -535,6 +539,7 @@ block-beta
     style hdr_gitprreview fill:#b0bec5,stroke:#546e7a,color:#1a1a1a,stroke-dasharray: 5 5
     style hdr_fff fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style hdr_proceed fill:#81c784,stroke:#2E7D32,color:#1a1a1a
+    style hdr_adopt fill:#81c784,stroke:#2E7D32,color:#1a1a1a
 
     %% Row labels — grey for fab pipeline stages, blue-grey dashed for git stages
     style row_ctx fill:#bdbdbd,stroke:#757575,color:#1a1a1a
@@ -596,23 +601,33 @@ block-beta
     style proceed_hydrate fill:#81c784,stroke:#2E7D32,color:#1a1a1a
     style proceed_ship fill:#81c784,stroke:#2E7D32,color:#1a1a1a,stroke-dasharray: 5 5
     style proceed_prreview fill:#81c784,stroke:#2E7D32,color:#1a1a1a,stroke-dasharray: 5 5
+
+    %% fab-adopt (Automation — green; enters mid-flight, apply skipped)
+    style adopt_intake fill:#81c784,stroke:#2E7D32,color:#1a1a1a
+    style adopt_apply fill:#e0e0e0,stroke:#9e9e9e,color:#616161,stroke-dasharray: 5 5
+    style adopt_review fill:#81c784,stroke:#2E7D32,color:#1a1a1a
+    style adopt_hydrate fill:#81c784,stroke:#2E7D32,color:#1a1a1a
+    style adopt_ship fill:#81c784,stroke:#2E7D32,color:#1a1a1a,stroke-dasharray: 5 5
+    style adopt_prreview fill:#81c784,stroke:#2E7D32,color:#1a1a1a,stroke-dasharray: 5 5
 ```
 
 </details>
 
 **Quick reference** — which stages does each command cover?
 
-| Stage | `/fab-discuss` | `/fab-draft` | `/fab-switch` | `/git-branch` | `/fab-new` | `/fab-continue` | `/fab-ff` | `/git-pr` | `/git-pr-review` | `/fab-fff` | `/fab-proceed` |
-|-------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| context | ✅ | | | | | | | | | | |
-| intake | | ✅ | | | ✅ | | | | | | ✅ |
-| change active | | | ✅ | | ✅ | | | | | | ✅ |
-| branch name | | | | ✅ | ✅ | | | | | | ✅ |
-| apply | | | | | | ✅ | ✅ | | | ✅ | ✅ |
-| review | | | | | | ✅ | ✅ | | | ✅ | ✅ |
-| hydrate | | | | | | ✅ | ✅ | | | ✅ | ✅ |
-| ship | | | | | | | | ✅ | | ✅ | ✅ |
-| review-pr | | | | | | | | | ✅ | ✅ | ✅ |
+| Stage | `/fab-discuss` | `/fab-draft` | `/fab-switch` | `/git-branch` | `/fab-new` | `/fab-continue` | `/fab-ff` | `/git-pr` | `/git-pr-review` | `/fab-fff` | `/fab-proceed` | `/fab-adopt` |
+|-------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| context | ✅ | | | | | | | | | | | |
+| intake | | ✅ | | | ✅ | | | | | | ✅ | ✅ |
+| change active | | | ✅ | | ✅ | | | | | | ✅ | ✅ |
+| branch name | | | | ✅ | ✅ | | | | | | ✅ | |
+| apply | | | | | | ✅ | ✅ | | | ✅ | ✅ | ⏭️ |
+| review | | | | | | ✅ | ✅ | | | ✅ | ✅ | ✅ |
+| hydrate | | | | | | ✅ | ✅ | | | ✅ | ✅ | ✅ |
+| ship | | | | | | | | ✅ | | ✅ | ✅ | ✅ |
+| review-pr | | | | | | | | | ✅ | ✅ | ✅ | ✅ |
+
+`/fab-adopt` enters the pipeline mid-flight on an existing branch/PR: it reconstructs intake from the diff and runs review → hydrate → ship → review-pr, but marks `apply` **skipped** (⏭️) since the code already exists.
 
 ## Companion tools
 
