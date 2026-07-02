@@ -1,5 +1,6 @@
 # Archive Index
 
+- **260702-y022-status-refresh-drop-artifact-hook** — Pull-based artifact state — `fab status refresh` + self-healing transitions, drop the artifact-write hook
 - **260630-t54n-adopt-off-pipeline-change** — Adopt an off-pipeline change into the Fab pipeline
 - **260626-5qf5-detect-fill-test-paths** — Detect & Fill test_paths at Setup
 - **260625-ugde-memory-index-drop-date-column** — Drop the "Last Updated" column from generated memory indexes
