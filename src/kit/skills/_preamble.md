@@ -308,7 +308,7 @@ Per-stage model selection is wired into the dispatch seam. **Immediately before 
 fab resolve-agent <stage>
 ```
 
-and passes the resolved profile into the Agent dispatch:
+and passes the resolved profile into the dispatch (the Agent tool on the native path, else the `fab dispatch` CLI adapter — branch on `spawn=` per the bullets below):
 
 - Output is two byte-stable stdout lines, `model=<id>` and `effort=<level>` (the `effort=` line is omitted when the tier has no effort), **plus an optional third `spawn=<command>` line** emitted only when the resolved tier carries a `spawn_command` (the per-tier CLI-dispatch opt-in — its absence means native Agent-tool dispatch, with NO fallback to `agent.spawn_command`). **Dispatch-seam skills branch on `spawn=` presence** (see § CLI-Adapter Dispatch below): absent ⇒ the native Agent-tool path (`model=`/`effort=` consumed through the two seams below, byte-preserving); present ⇒ the CLI adapter (`fab dispatch`), where the profile rides the `spawn=` command itself. See `_cli-fab.md` § fab resolve-agent.
 - **Empty model** ⇒ omit the dispatch `model` param entirely (inherit the orchestrator/session model — today's behavior). **Empty effort** ⇒ omit the effort instruction (below).

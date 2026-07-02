@@ -125,7 +125,7 @@ Skill reads _preamble.md
 │  │   absent  ⇒ native Agent-tool dispatch (two seams above)
 │  │   present ⇒ fab dispatch (start-on-stdin → sleep 30 poll →
 │  │             five states running/done/failed/
-│  │             failed(no-result)/orphaned; profile rides the
+│  │             failed (no-result)/orphaned; profile rides the
 │  │             spawn= command so Agent-tool seams don't apply;
 │  │             NO fallback to agent.spawn_command; no cleanup
 │  │             after done). Sites reference this, don't restate

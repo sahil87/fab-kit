@@ -56,7 +56,7 @@ User invokes /fab-adopt [<slug>]
 │  ├─ Bash: fab status reset {name} review fab-adopt (skipped → active, downstream → pending)
 │  └─ Bash: fab status set-summary {name} "adopted off-pipeline change; apply skipped"
 │
-├─ Step 3: Review — dispatched, mode: outward-only (Agent tool, general-purpose)
+├─ Step 3: Review — dispatched, mode: outward-only (resolve + branch on spawn= — native Agent tool / CLI adapter)
 │  ├─ Bash: fab resolve-agent review --alias (surface model=/effort=/spawn=;
 │  │        branch on spawn= — native or CLI adapter, 260702-aetz)
 │  ├─ Dispatch /fab-continue Review Behavior, mode: outward-only
