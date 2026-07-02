@@ -152,6 +152,23 @@ func TestConfigReferenceCommandPrintsAndExitsZero(t *testing.T) {
 	}
 }
 
+// TestConfigReferenceMentionsSpawnPlaceholders guards the coordination contract
+// between `fab config reference` (6nke) and spawn_command template mode (6tmi):
+// the reference's spawn_command comment must document the optional
+// {model}/{effort} placeholders. (The tiers comment's "{model, effort}" profile
+// notation would not satisfy these exact-token checks.)
+func TestConfigReferenceMentionsSpawnPlaceholders(t *testing.T) {
+	out, err := configref.Render()
+	if err != nil {
+		t.Fatalf("Render returned an error: %v", err)
+	}
+	for _, placeholder := range []string{"{model}", "{effort}"} {
+		if !strings.Contains(out, placeholder) {
+			t.Errorf("reference spawn_command comment must document the optional %s placeholder", placeholder)
+		}
+	}
+}
+
 // yamlKeySegments walks a struct type and returns the set of every yaml key
 // segment reachable from it. Descends into nested structs and map value types
 // (a map's value type contributes its own struct's segments). Returns segments
