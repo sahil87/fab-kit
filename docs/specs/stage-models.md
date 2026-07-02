@@ -147,10 +147,13 @@ unmarshalling ignores unknown keys, so existing configs are unaffected (the same
 providers:
   claude:
     session_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")"'
-    # no dispatch_command → claude's stages dispatch natively via the Agent tool
+    # dispatch_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'   # uncomment to flip claude's stages from native Agent-tool dispatch to headless CLI
   # codex:
   #   session_command: 'codex -m {model} -c model_reasoning_effort={effort}'
   #   dispatch_command: 'codex exec -m {model} -c model_reasoning_effort={effort}'
+  # gemini:
+  #   session_command: 'gemini -m {model}'
+  #   dispatch_command: 'gemini -m {model}'   # no {effort} flag; no -p (fab dispatch pipes the prompt to stdin)
 
 agent:
   # The stage→tier mapping is OWNED BY FAB-KIT and is NOT overridable — shown

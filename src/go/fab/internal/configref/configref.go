@@ -154,19 +154,40 @@ checklist:
 #                       appended instead.
 #   dispatch_command — runs ONE headless stage task via fab dispatch. ABSENT →
 #                      native Agent-tool dispatch (the default). There is NO
-#                      fallback from dispatch_command to session_command.
+#                      fallback from dispatch_command to session_command. fab
+#                      dispatch pipes the stage prompt to the command's STDIN.
 # Provider names are opaque, user-chosen strings — fab NEVER infers a provider
 # from a model string. The one footgun (documented, not validated): if you
 # override a tier's model to another provider, override that tier's provider too.
-# fab-kit ships the claude provider as the built-in default (shown live below);
-# add or override providers here (codex shown commented as an example).
+#
+# fab-kit ships the claude provider as the built-in default (session_command
+# shown LIVE below). codex and gemini are shown fully commented as a starter
+# TEMPLATE — uncomment and adapt a block to add that provider. Anything whose
+# uncommenting would change default BEHAVIOR ships commented: claude's
+# dispatch_command (uncommenting flips claude's stages from native Agent-tool
+# dispatch to headless CLI dispatch) and the whole codex/gemini blocks (opt-in
+# providers). No new built-in providers are added in Go — codex/gemini are
+# template text only until you uncomment them.
+#
+# Per-provider notes (kept out of the blocks below so uncommenting a whole block
+# yields valid YAML — strip the leading '# ' from every line of a block):
+#   claude.dispatch_command — claude -p reads the prompt from stdin; uncommenting
+#     runs claude's stages as headless CLI processes instead of native sub-agents.
+#   codex — codex exec reads the prompt from stdin. Substitute a current model ID
+#     for {model} (e.g. gpt-5.3-codex); {model}/{effort} come from the tier.
+#   gemini — no {effort} (the gemini CLI has no reasoning-effort flag) and no -p:
+#     gemini's -p takes prompt TEXT (appended after stdin), whereas fab dispatch
+#     pipes the prompt to stdin, which gemini reads as the prompt in non-TTY mode.
 providers:
   claude:
     session_command: '{{ .SessionCommand }}'
-    # no dispatch_command → claude's stages dispatch natively via the Agent tool
+    # dispatch_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'
   # codex:
   #   session_command: 'codex -m {model} -c model_reasoning_effort={effort}'
   #   dispatch_command: 'codex exec -m {model} -c model_reasoning_effort={effort}'
+  # gemini:
+  #   session_command: 'gemini -m {model}'
+  #   dispatch_command: 'gemini -m {model}'   # no {effort} flag; no -p (fab dispatch pipes the prompt to stdin)
 
 # agent.tiers — per-stage model override. A "tier" is a named
 # {provider, model, effort} profile (the invocation command lives on the provider,
