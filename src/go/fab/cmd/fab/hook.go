@@ -188,7 +188,7 @@ func hookUserPromptCmd() *cobra.Command {
 func hookArtifactWriteCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:    "artifact-write",
-		Short:  "Deprecated no-op — bookkeeping moved to `fab status refresh` (removed by 2.11.0 migration)",
+		Short:  "Deprecated no-op — bookkeeping moved to `fab status refresh`; hook registration removed by the 2.11.0 migration, shim kept for one release",
 		Args:   cobra.NoArgs,
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
