@@ -175,7 +175,7 @@ prs: []
 last_updated: 2026-01-18T11:00:00Z
 ```
 
-All mutations go through the `fab` CLI (`fab status <event>`) or the `artifact-write` hook — skills never hand-edit the file. The current stage is derived from the `progress` map (the entry marked `active`); there is no separate `stage:` field.
+All mutations go through the `fab` CLI (`fab status <event>`, including the pull-based `fab status refresh` self-healed at the transition seams) — skills never hand-edit the file. The current stage is derived from the `progress` map (the entry marked `active`); there is no separate `stage:` field.
 
 ---
 

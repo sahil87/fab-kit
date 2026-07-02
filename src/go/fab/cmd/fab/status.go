@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/lockfile"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/refresh"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
 	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
@@ -30,6 +31,7 @@ func statusCmd() *cobra.Command {
 		statusStartCmd(),
 		statusAdvanceCmd(),
 		statusFinishCmd(),
+		statusRefreshCmd(),
 		statusResetCmd(),
 		statusSkipCmd(),
 		statusFailCmd(),
@@ -263,7 +265,13 @@ func statusAdvanceCmd() *cobra.Command {
 		Args:  cobra.RangeArgs(2, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			driver := optArg(args, 2)
-			return withStatusLock(args[0], func(st *sf.StatusFile, statusPath, _ string) error {
+			return withStatusLock(args[0], func(st *sf.StatusFile, statusPath, fabRoot string) error {
+				// Self-heal artifact-derived fields before the forward
+				// transition, so a just-written intake.md/plan.md is reflected
+				// before the next stage reads them (the pull-based successor to
+				// the removed artifact-write hook). The recompute and the
+				// transition persist in this same locked load/Save.
+				selfHealRefresh(fabRoot, statusPath, st)
 				return status.Advance(st, statusPath, args[1], driver)
 			})
 		},
@@ -278,10 +286,56 @@ func statusFinishCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			driver := optArg(args, 2)
 			return withStatusLock(args[0], func(st *sf.StatusFile, statusPath, fabRoot string) error {
+				// Self-heal artifact-derived fields before the forward
+				// transition (see statusAdvanceCmd). Finish's own Save persists
+				// both the heal and the transition.
+				selfHealRefresh(fabRoot, statusPath, st)
 				return status.Finish(st, statusPath, fabRoot, args[1], driver)
 			})
 		},
 	}
+}
+
+// statusRefreshCmd recomputes the artifact-derived .status.yaml fields
+// (change_type + confidence from intake.md; plan.generated/task_count/
+// acceptance counts from plan.md) from the on-disk artifacts. It is the
+// pull-based successor to the removed artifact-write PostToolUse hook: a
+// hook-bypassing edit (sed, direct write) or a non-Claude agent that never
+// fires the hook can no longer leave these fields stale. Respects
+// change_type_source: explicit; a missing artifact is a safe no-op.
+func statusRefreshCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "refresh <change>",
+		Short: "Recompute change_type/confidence (intake.md) + plan counts (plan.md) from artifacts",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return withStatusLock(args[0], func(st *sf.StatusFile, statusPath, fabRoot string) error {
+				changeDir := filepath.Dir(statusPath)
+				dirty, err := refresh.Refresh(fabRoot, changeDir, st)
+				if err != nil {
+					return err
+				}
+				if dirty {
+					return st.Save(statusPath)
+				}
+				return nil
+			})
+		},
+	}
+}
+
+// selfHealRefresh runs the artifact-derived recompute inside a transition's
+// already-held status lock, mutating the in-memory StatusFile so the following
+// transition's own Save persists both the heal and the transition in one write
+// (no second Save). It is best-effort: a refresh error MUST NOT abort the
+// transition (advance/finish own the state machine; a scoring hiccup on a
+// just-written artifact should not block a stage move), matching the removed
+// hook's swallow-on-error posture. The dirty flag is intentionally ignored —
+// the transition Saves unconditionally, and refresh's in-memory mutations ride
+// along.
+func selfHealRefresh(fabRoot, statusPath string, st *sf.StatusFile) {
+	changeDir := filepath.Dir(statusPath)
+	_, _ = refresh.Refresh(fabRoot, changeDir, st)
 }
 
 func statusResetCmd() *cobra.Command {

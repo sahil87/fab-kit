@@ -56,7 +56,7 @@ User invokes /fab-continue [change-name] [stage]
 │  │                                                 │
 │  │  Read: templates, intake, memory files          │
 │  │  (agent generates intake artifact via SRAD)     │
-│  │  Write: intake.md                       ◄── HOOK CANDIDATE
+│  │  Write: intake.md                               │
 │  │  (no scoring here — intake score is written by  │
 │  │   /fab-new and /fab-clarify)                    │
 │  │  Bash: fab status advance <stage>               │
@@ -69,7 +69,7 @@ User invokes /fab-continue [change-name] [stage]
 │  │                                                 │
 │  │  Entry sub-step (skip if plan.md exists):       │
 │  │    Read: intake.md, _generation.md              │
-│  │    Write: plan.md                       ◄── HOOK CANDIDATE
+│  │    Write: plan.md                               │
 │  │      (## Requirements + ## Tasks +              │
 │  │       ## Acceptance, R#/T###/A-### IDs)         │
 │  │      (under-spec → inline SRAD assumption)      │
@@ -195,5 +195,5 @@ User invokes /fab-continue [change-name] [stage]
 
 | Step | Command | Trigger |
 |------|---------|---------|
-| Plan generation | PostToolUse hook recomputes `plan.task_count`, `plan.acceptance_count`, sets `plan.generated=true` | After plan.md write (no scoring at apply — intake is authoritative) |
+| Plan generation | `fab status refresh` recomputes `plan.task_count`, `plan.acceptance_count`, sets `plan.generated=true` | Self-healed at the next advance/finish/preflight after plan.md write (no scoring at apply — intake is authoritative) |
 | Review pass | `fab status set-acceptance <change> acceptance_completed N` | After review validation |

@@ -62,8 +62,9 @@ Consumer skill reads _generation.md (via helpers: declaration)
    │  footer; ALWAYS present in the artifact, "0 assumptions."
    │  footer when empty; omit-when-zero is displayed-output-only)
    └─ Write: fab/changes/{name}/plan.md
-      (PostToolUse hook updates .status.yaml plan.* counters —
-       no manual fab status set-acceptance needed at generation time)
+      (fab status refresh recomputes .status.yaml plan.* counters,
+       self-healed at advance/finish/preflight — no manual
+       fab status set-acceptance needed at generation time)
 
 ── Adoption variants (fab-adopt only — one main-session pass, diff read once) ──
 
@@ -105,4 +106,4 @@ None — procedures run inside the consuming skill's context (one skill call, on
 
 | Command | Trigger |
 |---------|---------|
-| *(none — writes only)* | The `plan.md`/`intake.md` Write fires the PostToolUse artifact hook, which updates `.status.yaml` (`plan.*` counters on plan writes; `change_type` + intake score on intake writes) |
+| *(none — writes only)* | `fab status refresh`, self-healed at the transition seams (`advance`/`finish`/`preflight`), recomputes `.status.yaml` from the artifacts on disk (`plan.*` counters from `plan.md`; `change_type` + intake score from `intake.md`) |

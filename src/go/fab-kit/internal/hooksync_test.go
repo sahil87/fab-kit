@@ -38,8 +38,8 @@ func TestSyncHooks_CreateNew(t *testing.T) {
 	if len(hooks["UserPromptSubmit"]) != 1 {
 		t.Errorf("expected 1 UserPromptSubmit hook, got %d", len(hooks["UserPromptSubmit"]))
 	}
-	if len(hooks["PostToolUse"]) != 2 {
-		t.Errorf("expected 2 PostToolUse hooks (Write + Edit), got %d", len(hooks["PostToolUse"]))
+	if len(hooks["PostToolUse"]) != 0 {
+		t.Errorf("expected 0 PostToolUse hooks (artifact-write removed), got %d", len(hooks["PostToolUse"]))
 	}
 
 	// Verify inline command format
@@ -155,7 +155,10 @@ func TestSyncHooks_MigratesOldRelativePaths(t *testing.T) {
 	}
 }
 
-func TestSyncHooks_ArtifactWriteDoubleMapping(t *testing.T) {
+// TestSyncHooks_NoArtifactWriteRegistration is the inversion of the former
+// double-mapping test: the artifact-write PostToolUse rows were removed, so a
+// fresh sync registers no PostToolUse entry at all.
+func TestSyncHooks_NoArtifactWriteRegistration(t *testing.T) {
 	settingsDir := t.TempDir()
 	settingsPath := filepath.Join(settingsDir, "settings.local.json")
 
@@ -168,7 +171,7 @@ func TestSyncHooks_ArtifactWriteDoubleMapping(t *testing.T) {
 		t.Errorf("expected Created message, got: %s", msg)
 	}
 
-	// Verify both Write and Edit matchers exist
+	// Verify no PostToolUse entries are registered (artifact-write removed).
 	data, _ := os.ReadFile(settingsPath)
 	var settings map[string]json.RawMessage
 	json.Unmarshal(data, &settings)
@@ -176,7 +179,7 @@ func TestSyncHooks_ArtifactWriteDoubleMapping(t *testing.T) {
 	var hooks map[string][]hookEntry
 	json.Unmarshal(settings["hooks"], &hooks)
 
-	if len(hooks["PostToolUse"]) != 2 {
-		t.Errorf("expected 2 PostToolUse hooks (Write + Edit), got %d", len(hooks["PostToolUse"]))
+	if len(hooks["PostToolUse"]) != 0 {
+		t.Errorf("expected 0 PostToolUse hooks (artifact-write removed), got %d", len(hooks["PostToolUse"]))
 	}
 }

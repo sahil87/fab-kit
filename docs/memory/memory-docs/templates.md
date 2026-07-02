@@ -85,7 +85,7 @@ plan:
   acceptance_completed: 0
 ```
 
-This block replaces the prior `checklist:` block. Field migration: `total → acceptance_count`, `completed → acceptance_completed`; new `task_count` field; the prior `path` field is dropped (location is fixed at change root). Counts are maintained by the PostToolUse `artifactBookkeeping` hook, which parses `plan.md` section-by-section (heading-bounded count of `- [ ]` and `- [x]` items between `## Tasks`/`## Acceptance` and the next `##` heading) on every write. The hook is defensive — missing sections do not zero out valid values.
+This block replaces the prior `checklist:` block. Field migration: `total → acceptance_count`, `completed → acceptance_completed`; new `task_count` field; the prior `path` field is dropped (location is fixed at change root). Counts are recomputed by `fab status refresh`/`internal/refresh.Refresh`, self-healed at the transition seams (`fab status advance`/`finish`, `fab preflight`) rather than a PostToolUse hook (removed in y022), which parses `plan.md` section-by-section (heading-bounded count of `- [ ]` and `- [x]` items between `## Tasks`/`## Acceptance` and the next `##` heading). It is defensive — missing sections do not zero out valid values.
 
 The confidence block initializes to zero counts and score 0.0 — a new change has no assessed confidence. The score is computed by `fab score` from `intake.md` (the sole scoring source as of j6cs), persisted by `/fab-new` and recomputed by `/fab-clarify`. The `confidence.indicative` flag is no longer written (retired in j6cs); the template carries no `indicative` key.
 

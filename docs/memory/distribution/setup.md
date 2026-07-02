@@ -111,7 +111,7 @@ Each subcommand operates independently — they can be invoked directly without 
 | Skill deployment (Claude Code, OpenCode, Codex, Gemini) | `fab-kit sync` | Deploys from `{cache}/kit/skills/`; conditional on agent CLI availability |
 | `.envrc` entries | `fab-kit sync` | Line-ensuring merge from `{cache}/kit/scaffold/fragment-.envrc` |
 | `.gitignore` entries | `fab-kit sync` | Line-ensuring merge from `{cache}/kit/scaffold/fragment-.gitignore` |
-| Hook registration | `fab-kit sync` (step 4) | Registers `{cache}/kit/hooks/on-*.sh` into `.claude/settings.local.json` hooks; supports tool-name matchers for PostToolUse events; idempotent merge (hooklib replicated in fab-kit) |
+| Hook registration | `fab-kit sync` (step 4) | Registers `{cache}/kit/hooks/on-*.sh` into `.claude/settings.local.json` hooks for the three session-scoped events (`SessionStart`, `Stop`, `UserPromptSubmit`); idempotent merge (hooklib replicated in fab-kit). The former `artifact-write` PostToolUse (Write/Edit) registration was removed in y022 — that state is now pull-based via `fab status refresh` |
 | `config.yaml` | `/fab-setup config` (delegated by `/fab-setup`) | Reads `scaffold/config.yaml` template, substitutes placeholders with user-provided values |
 | `constitution.md` | `/fab-setup constitution` (delegated by `/fab-setup`) | Reads `scaffold/constitution.md` skeleton, generates principles from project context |
 

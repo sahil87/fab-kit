@@ -2,7 +2,7 @@
 
 ## Summary
 
-Shared pre-boundary **Create-Intake Procedure** (fab-new Steps 0–9) used by three skills: `/fab-new`, `/fab-draft`, and `/fab-proceed`'s create-new dispatch (added in 260613-3xaj — extract-intake-helper). It completes the helper symmetry: the pre-boundary skill family (intake creation, which runs in the main session context because it needs the live conversation) now has a single shared body, mirroring the post-boundary `_pipeline.md`. Single authoritative source for Steps 0 (parse input) · 1 (generate slug) · 2 (gap analysis) · 3 (create change, incl. backlog/Linear collision pre-checks and `fab change new` flags) · 4 (conversation context mining — the load-bearing context-flush at the boundary) · 5 (generate `intake.md`, delegating to `_generation.md` § Intake Generation Procedure) · 6 (verify hook-owned `change_type`) · 7 (confidence, `fab score --stage intake`) · 8 (SRAD-based question selection — *the parameterized step*) · 9 (advance intake to `ready`).
+Shared pre-boundary **Create-Intake Procedure** (fab-new Steps 0–9) used by three skills: `/fab-new`, `/fab-draft`, and `/fab-proceed`'s create-new dispatch (added in 260613-3xaj — extract-intake-helper). It completes the helper symmetry: the pre-boundary skill family (intake creation, which runs in the main session context because it needs the live conversation) now has a single shared body, mirroring the post-boundary `_pipeline.md`. Single authoritative source for Steps 0 (parse input) · 1 (generate slug) · 2 (gap analysis) · 3 (create change, incl. backlog/Linear collision pre-checks and `fab change new` flags) · 4 (conversation context mining — the load-bearing context-flush at the boundary) · 5 (generate `intake.md`, delegating to `_generation.md` § Intake Generation Procedure) · 6 (verify `change_type` — recomputed by `fab status refresh`, self-healed at the transition seams) · 7 (confidence, `fab score --stage intake`) · 8 (SRAD-based question selection — *the parameterized step*) · 9 (advance intake to `ready`).
 
 **Parameter** (bound by each consumer's own file):
 
@@ -56,9 +56,9 @@ Consumer (fab-new / fab-draft / fab-proceed dispatch) reads _intake.md with {que
 │     (genericized: "the invoking skill", not "this /fab-new invocation")
 │
 ├─ Step 5: Generate intake.md
-│  └─ Delegate to _generation.md § Intake Generation Procedure   ◄── HOOK CANDIDATE (intake write)
+│  └─ Delegate to _generation.md § Intake Generation Procedure
 │
-├─ Step 6: Verify Change Type (hook-owned — the intake-write hook set it in Step 5)
+├─ Step 6: Verify Change Type (recomputed by `fab status refresh`, self-healed at the transition seams)
 │  ├─ Bash: grep '^change_type:' fab/changes/{name}/.status.yaml
 │  └─ [only if wrong] Bash: fab status set-change-type <change> <type>
 │
@@ -91,6 +91,6 @@ None — the procedure runs inside the consuming skill's (or dispatched subagent
 
 | Step | Command | Trigger |
 |------|---------|---------|
-| 6 | `fab status set-change-type` | Only if the hook-inferred type is wrong (the intake-write hook owns `change_type`) |
+| 6 | `fab status set-change-type` | Only if the inferred type is wrong (`fab status refresh` recomputes `change_type`, self-healed at the transition seams) |
 | 7 | `fab score --stage intake` | After intake.md write |
 | 9 | `fab status advance` | After all intake work complete |

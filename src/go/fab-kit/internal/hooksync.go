@@ -16,21 +16,21 @@ type hookMapping struct {
 	Matcher    string
 }
 
-// defaultHookMappings maps fab hook subcommands to Claude Code events.
+// defaultHookMappings maps fab hook subcommands to Claude Code events. Kept in
+// lockstep with hooklib.DefaultMappings in the fab binary. The former
+// `artifact-write` PostToolUse rows were removed — artifact-derived state is now
+// pull-based (`fab status refresh`); see that table's comment.
 var defaultHookMappings = []hookMapping{
 	{Subcommand: "session-start", Event: "SessionStart", Matcher: ""},
 	{Subcommand: "stop", Event: "Stop", Matcher: ""},
 	{Subcommand: "user-prompt", Event: "UserPromptSubmit", Matcher: ""},
-	{Subcommand: "artifact-write", Event: "PostToolUse", Matcher: "Write"},
-	{Subcommand: "artifact-write", Event: "PostToolUse", Matcher: "Edit"},
 }
 
 // oldScriptToSubcommand maps old hook script names to new subcommand names for migration.
 var oldScriptToSubcommand = map[string]string{
-	"on-session-start.sh":  "session-start",
-	"on-stop.sh":           "stop",
-	"on-user-prompt.sh":    "user-prompt",
-	"on-artifact-write.sh": "artifact-write",
+	"on-session-start.sh": "session-start",
+	"on-stop.sh":          "stop",
+	"on-user-prompt.sh":   "user-prompt",
 }
 
 type hookEntry struct {

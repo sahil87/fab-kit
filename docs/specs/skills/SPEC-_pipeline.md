@@ -87,5 +87,5 @@ Driver (fab-ff / fab-fff) reads _pipeline.md with {driver}/{terminal} bound
 | Step | Command | Trigger |
 |------|---------|---------|
 | pre | `fab score --check-gate --stage intake` | Before the bracket (intake gate) |
-| 1 | PostToolUse hook recomputes plan counts; sets `plan.generated=true` | After plan.md write/edit |
+| 1 | `fab status refresh` recomputes plan counts; sets `plan.generated=true` | Self-healed at advance/finish/preflight after plan.md write/edit |
 | rework | `fail` + `reset` pair, `finish apply`, `finish review` | Per cycle, per the choreography |

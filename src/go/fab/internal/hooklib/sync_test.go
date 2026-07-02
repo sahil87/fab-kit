@@ -36,7 +36,9 @@ func TestSync_FreshSettings(t *testing.T) {
 		t.Fatalf("failed to parse hooks: %v", err)
 	}
 
-	// Should have SessionStart, Stop, UserPromptSubmit, PostToolUse
+	// Should have the three session hooks only — the artifact-write PostToolUse
+	// rows were removed (artifact-derived state is now pull-based via
+	// `fab status refresh`).
 	if len(hooks["SessionStart"]) != 1 {
 		t.Errorf("SessionStart entries = %d, want 1", len(hooks["SessionStart"]))
 	}
@@ -46,8 +48,8 @@ func TestSync_FreshSettings(t *testing.T) {
 	if len(hooks["UserPromptSubmit"]) != 1 {
 		t.Errorf("UserPromptSubmit entries = %d, want 1", len(hooks["UserPromptSubmit"]))
 	}
-	if len(hooks["PostToolUse"]) != 2 {
-		t.Errorf("PostToolUse entries = %d, want 2 (Write + Edit)", len(hooks["PostToolUse"]))
+	if len(hooks["PostToolUse"]) != 0 {
+		t.Errorf("PostToolUse entries = %d, want 0 (artifact-write hook removed)", len(hooks["PostToolUse"]))
 	}
 }
 
