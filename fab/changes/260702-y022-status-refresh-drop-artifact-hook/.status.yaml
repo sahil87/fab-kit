@@ -1,0 +1,29 @@
+id: y022
+name: 260702-y022-status-refresh-drop-artifact-hook
+created: 2026-07-02T09:22:53Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: active
+    apply: pending
+    review: pending
+    hydrate: pending
+    ship: pending
+    review-pr: pending
+plan:
+    generated: false
+    task_count: 0
+    acceptance_count: 0
+    acceptance_completed: 0
+confidence:
+    certain: 0
+    confident: 0
+    tentative: 0
+    unresolved: 0
+    score: 0.0
+stage_metrics:
+    intake: {started_at: "2026-07-02T09:22:53Z", driver: fab-new, iterations: 1}
+prs: []
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-07-02T09:22:53Z
