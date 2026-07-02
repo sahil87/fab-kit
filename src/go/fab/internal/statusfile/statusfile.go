@@ -87,8 +87,9 @@ type TrueImpactPair struct {
 }
 
 // TrueImpact is the true_impact block in .status.yaml. Created lazily on
-// first apply-finish (no template placeholder). Excluding is omitted when
-// true_impact_exclude is absent/null/empty in fab/project/config.yaml.
+// first stage-finish that computes it (no template placeholder). Excluding is
+// omitted when true_impact_exclude is absent/null/empty in
+// fab/project/config.yaml.
 type TrueImpact struct {
 	Added           int             `yaml:"added"`
 	Deleted         int             `yaml:"deleted"`

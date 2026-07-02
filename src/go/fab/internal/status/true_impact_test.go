@@ -169,6 +169,89 @@ func TestWriteTrueImpact_HydrateOverwritesBlock(t *testing.T) {
 	}
 }
 
+// TestWriteTrueImpact_ShipRecomputesAfterCommit reproduces the h65d timing
+// bug: in the standard pipeline nothing is committed until /git-pr (ship), so
+// apply-finish and hydrate-finish run when HEAD == merge-base and the
+// three-dot diff is empty (0/0/0). The ship-finish recompute — run after
+// /git-pr commits and pushes the branch — is the authoritative write and must
+// supersede the earlier zeros with the real PR-diff counts and
+// computed_at_stage: ship.
+func TestWriteTrueImpact_ShipRecomputesAfterCommit(t *testing.T) {
+	// Fresh repo whose HEAD == origin/main (no divergent commit yet) — the
+	// clean-tree state the standard pipeline sits in during apply/hydrate.
+	repoRoot := t.TempDir()
+	fabRoot := filepath.Join(repoRoot, "fab")
+
+	run := func(args ...string) {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = repoRoot
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v: %s", args, out)
+		}
+	}
+	run("git", "init", "-q", "-b", "main")
+	run("git", "config", "user.email", "test@example.com")
+	run("git", "config", "user.name", "test")
+	run("git", "config", "commit.gpgsign", "false")
+	os.MkdirAll(filepath.Join(fabRoot, "project"), 0o755)
+	os.WriteFile(filepath.Join(fabRoot, "project", "config.yaml"), []byte("stage_hooks: {}\n"), 0o644)
+	os.WriteFile(filepath.Join(repoRoot, "a.txt"), []byte("hello\n"), 0o644)
+	run("git", "add", "-A")
+	run("git", "commit", "-q", "-m", "initial")
+	// origin/main == HEAD: the branch has no commits of its own yet.
+	run("git", "update-ref", "refs/remotes/origin/main", "HEAD")
+
+	statusPath := filepath.Join(t.TempDir(), ".status.yaml")
+	os.WriteFile(statusPath, []byte(minimalStatusYAML()), 0o644)
+
+	withCwd(t, repoRoot, func() {
+		// apply-finish and hydrate-finish run while HEAD == merge-base: the
+		// three-dot diff is empty, so the block records zeros.
+		sfp, _ := sf.Load(statusPath)
+		_ = WriteTrueImpact(sfp, statusPath, fabRoot, "apply")
+		reloaded, _ := sf.Load(statusPath)
+		_ = WriteTrueImpact(reloaded, statusPath, fabRoot, "hydrate")
+
+		afterHydrate, _ := sf.Load(statusPath)
+		if afterHydrate.TrueImpact == nil {
+			t.Fatal("expected a true_impact block after hydrate")
+		}
+		if afterHydrate.TrueImpact.ComputedAtStage != "hydrate" {
+			t.Errorf("computed_at_stage = %q, want hydrate", afterHydrate.TrueImpact.ComputedAtStage)
+		}
+		if afterHydrate.TrueImpact.Added != 0 || afterHydrate.TrueImpact.Deleted != 0 {
+			t.Errorf("expected zeros at apply/hydrate (HEAD == merge-base), got added=%d deleted=%d",
+				afterHydrate.TrueImpact.Added, afterHydrate.TrueImpact.Deleted)
+		}
+
+		// /git-pr commits + pushes: the branch tip now diverges from
+		// origin/main. Simulate that commit.
+		os.WriteFile(filepath.Join(repoRoot, "a.txt"), []byte("hello\nworld\nfoo\nbar\n"), 0o644)
+		run("git", "add", "-A")
+		run("git", "commit", "-q", "-m", "feature work")
+
+		// ship-finish recompute: measures the real base...HEAD diff.
+		afterHydrate2, _ := sf.Load(statusPath)
+		if err := WriteTrueImpact(afterHydrate2, statusPath, fabRoot, "ship"); err != nil {
+			t.Fatalf("WriteTrueImpact(ship): %v", err)
+		}
+	})
+
+	final, err := sf.Load(statusPath)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if final.TrueImpact == nil {
+		t.Fatal("expected true_impact block after ship")
+	}
+	if final.TrueImpact.ComputedAtStage != "ship" {
+		t.Errorf("computed_at_stage = %q, want ship (should supersede hydrate)", final.TrueImpact.ComputedAtStage)
+	}
+	if final.TrueImpact.Added <= 0 {
+		t.Errorf("expected non-zero Added at ship (branch tip exists), got %d", final.TrueImpact.Added)
+	}
+}
+
 func TestWriteTrueImpact_NoMergeBaseLeavesUntouched(t *testing.T) {
 	// Set up a repo WITHOUT origin/main so merge-base resolution fails.
 	repoRoot := t.TempDir()
