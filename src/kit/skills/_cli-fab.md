@@ -259,7 +259,7 @@ fab resolve-agent <stage> [--alias]
 
 `<stage>` is one of the six pipeline stages: `intake`, `apply`, `review`, `hydrate`, `ship`, `review-pr`.
 
-**Resolution**: maps the stage → its tier via the FIXED fab-owned stage→tier mapping (`thinking`: intake, review / `doing`: apply, review-pr, hydrate / `fast`: ship — NOT user-overridable), then resolves the tier → `{model, effort}`: the project's `agent.tiers.<tier>` override **per-field merged** over fab-kit's built-in default (`thinking`: claude-opus-4-8/xhigh, `doing`: claude-opus-4-8/high, `fast`: claude-sonnet-4-6/low), else the default. `agent.tiers` is the sole override surface — there is no `stage_tiers` and no per-stage escape hatch. See `docs/specs/stage-models.md`.
+**Resolution**: maps the stage → its tier via the FIXED fab-owned stage→tier mapping (`thinking`: intake, review / `doing`: apply, review-pr, hydrate / `fast`: ship — NOT user-overridable), then resolves the tier → `{model, effort, spawn_command}` (the third field drives the optional `spawn=` line): the project's `agent.tiers.<tier>` override **per-field merged** over fab-kit's built-in default (`thinking`: claude-opus-4-8/xhigh, `doing`: claude-opus-4-8/high, `fast`: claude-sonnet-4-6/low), else the default. `agent.tiers` is the sole override surface — there is no `stage_tiers` and no per-stage escape hatch. See `docs/specs/stage-models.md`.
 
 **Output** (two stdout lines, plus an optional third `spawn=` line; byte-stable for the same config):
 
