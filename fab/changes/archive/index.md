@@ -1,5 +1,6 @@
 # Archive Index
 
+- **260702-aetz-cli-dispatch-skill-wiring** — CLI Dispatch Skill Wiring (3d)
 - **260702-6sgj-fab-dispatch-command** — `fab dispatch` — headless process manager for CLI-dispatched pipeline stages
 - **260702-24ec-tier-spawn-command** — Per-Tier spawn_command — Cross-Harness Stage Dispatch Opt-In
 - **260702-y022-status-refresh-drop-artifact-hook** — Pull-based artifact state — `fab status refresh` + self-healing transitions, drop the artifact-write hook
