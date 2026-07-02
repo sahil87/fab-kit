@@ -18,7 +18,10 @@ const scaffoldConfigRelPath = "src/kit/scaffold/fab/project/config.yaml"
 // parses cleanly via the same internal/config loader real project configs use.
 // A malformed reference (bad indentation, an un-quoted value) would fail here.
 func TestConfigReferenceRoundTrips(t *testing.T) {
-	out := configref.Render()
+	out, err := configref.Render()
+	if err != nil {
+		t.Fatalf("Render returned an error: %v", err)
+	}
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
@@ -62,7 +65,10 @@ func TestConfigReferenceRoundTrips(t *testing.T) {
 // test time. Injected default *values* need no drift test (no second copy), but
 // key *presence* is guarded here.
 func TestConfigReferenceCoversBinaryKeys(t *testing.T) {
-	out := configref.Render()
+	out, err := configref.Render()
+	if err != nil {
+		t.Fatalf("Render returned an error: %v", err)
+	}
 
 	segments := yamlKeySegments(reflect.TypeOf(config.Config{}))
 	if len(segments) == 0 {
@@ -81,7 +87,10 @@ func TestConfigReferenceCoversBinaryKeys(t *testing.T) {
 // guards the skill-consumed keys (source_paths, checklist, review_tools,
 // project.name/description) that Go reflection over Config cannot see.
 func TestConfigReferenceSupersetsScaffoldKeys(t *testing.T) {
-	out := configref.Render()
+	out, err := configref.Render()
+	if err != nil {
+		t.Fatalf("Render returned an error: %v", err)
+	}
 
 	scaffoldPath := findRepoFile(t, scaffoldConfigRelPath)
 	scaffoldKeys := scaffoldKeyTokens(t, scaffoldPath)
@@ -99,7 +108,15 @@ func TestConfigReferenceSupersetsScaffoldKeys(t *testing.T) {
 // TestConfigReferenceByteStable: repeated renders are byte-identical (the
 // byte-stable stdout contract the docs/website pointer relies on).
 func TestConfigReferenceByteStable(t *testing.T) {
-	if first, second := configref.Render(), configref.Render(); first != second {
+	first, err := configref.Render()
+	if err != nil {
+		t.Fatalf("Render returned an error: %v", err)
+	}
+	second, err := configref.Render()
+	if err != nil {
+		t.Fatalf("Render returned an error: %v", err)
+	}
+	if first != second {
 		t.Errorf("`fab config reference` output is not byte-stable across renders")
 	}
 }
@@ -116,7 +133,11 @@ func TestConfigReferenceCommandPrintsAndExitsZero(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("`config reference` returned an error: %v", err)
 	}
-	if out.String() != configref.Render() {
+	want, err := configref.Render()
+	if err != nil {
+		t.Fatalf("Render returned an error: %v", err)
+	}
+	if out.String() != want {
 		t.Error("`config reference` stdout does not match configref.Render()")
 	}
 

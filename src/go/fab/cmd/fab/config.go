@@ -26,8 +26,10 @@ func configCmd() *cobra.Command {
 // configReferenceCmd implements `fab config reference` — a pure query (no side
 // effects, no file writes) in the same family as `fab resolve` / `fab
 // resolve-agent`. It prints the fully-commented reference config.yaml to
-// stdout and exits 0. The output is GENERATED from Go constants (see
-// internal/configref) and byte-stable for a given binary version. No flags.
+// stdout and exits 0 on success (a usage error — e.g. an extra positional arg,
+// rejected by cobra.NoArgs — exits non-zero, as does the unreachable render
+// error). The output is GENERATED from Go constants (see internal/configref)
+// and byte-stable for a given binary version. No flags.
 func configReferenceCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "reference",
@@ -42,7 +44,11 @@ func configReferenceCmd() *cobra.Command {
 			"query — writes no file.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			fmt.Fprint(cmd.OutOrStdout(), configref.Render())
+			out, err := configref.Render()
+			if err != nil {
+				return err
+			}
+			fmt.Fprint(cmd.OutOrStdout(), out)
 			return nil
 		},
 	}

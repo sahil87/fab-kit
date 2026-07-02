@@ -19,6 +19,7 @@ package configref
 
 import (
 	"bytes"
+	"fmt"
 	"text/template"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
@@ -56,13 +57,27 @@ var tierStages = map[string]string{
 // gatherData builds the injected data from the canonical constants. Ordering is
 // deterministic: agent.TierNames and agent.StageNames both return sorted slices,
 // so the rendered output is byte-stable across invocations.
-func gatherData() refData {
+//
+// It fails loudly on a broken invariant rather than silently emitting a degraded
+// reference: agent.DefaultTier must know every tier agent.TierNames reports, and
+// tierStages (a separate map maintained here) must carry a stage grouping for
+// each tier. Adding a tier to agent.defaultTiers without a matching tierStages
+// entry — the one drift these two maps allow — is caught here, not shipped as an
+// empty grouping in the reference.
+func gatherData() (refData, error) {
 	tiers := make([]tierDefault, 0, len(agent.TierNames()))
 	for _, name := range agent.TierNames() {
-		p, _ := agent.DefaultTier(name)
+		p, ok := agent.DefaultTier(name)
+		if !ok {
+			return refData{}, fmt.Errorf("configref: tier %q from agent.TierNames has no agent.DefaultTier profile", name)
+		}
+		stages, ok := tierStages[name]
+		if !ok {
+			return refData{}, fmt.Errorf("configref: tier %q has no tierStages grouping (add one when adding a tier)", name)
+		}
 		tiers = append(tiers, tierDefault{
 			Name:   name,
-			Stages: tierStages[name],
+			Stages: stages,
 			Model:  p.Model,
 			Effort: p.Effort,
 		})
@@ -72,7 +87,7 @@ func gatherData() refData {
 		SpawnCommand: spawn.DefaultSpawnCommand,
 		Tiers:        tiers,
 		Stages:       agent.StageNames(),
-	}
+	}, nil
 }
 
 // referenceTemplate is the fixed body of the reference config.yaml. Baseline
@@ -190,11 +205,20 @@ var tmpl = template.Must(template.New("configref").Parse(referenceTemplate))
 
 // Render returns the fully-commented reference config.yaml. The output is
 // byte-stable for a given binary version and is what `fab config reference`
-// prints to stdout.
-func Render() string {
+// prints to stdout. It returns an error rather than emitting partial/degraded
+// output if an invariant breaks: gatherData surfaces a tier map drift, and
+// tmpl.Execute surfaces a template/data mismatch (both are today unreachable
+// given template.Must at init and the constant-sourced data, but are propagated
+// so a future edit that breaks the invariant fails loudly instead of silently
+// shipping a malformed reference).
+func Render() (string, error) {
+	data, err := gatherData()
+	if err != nil {
+		return "", err
+	}
 	var buf bytes.Buffer
-	// Execute cannot fail: the template is parsed at init via template.Must and
-	// refData exposes only the fields the template references.
-	_ = tmpl.Execute(&buf, gatherData())
-	return buf.String()
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("configref: rendering reference template: %w", err)
+	}
+	return buf.String(), nil
 }

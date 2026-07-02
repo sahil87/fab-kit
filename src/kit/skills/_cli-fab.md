@@ -304,7 +304,7 @@ No flags, no arguments (`fab config reference extra-arg` is rejected). Runs from
 
 **Output**: byte-stable for a given binary version (same convention as `fab resolve` / `fab resolve-agent`). The emitted document round-trips — its live keys parse cleanly back into `Config`.
 
-**Exit code**: always 0 (pure query — no error paths). Writes no file.
+**Exit code**: 0 on success (pure query — no runtime error paths). A usage error (e.g. an extra positional argument, rejected by `cobra.NoArgs`) exits non-zero. Writes no file.
 
 ---
 
