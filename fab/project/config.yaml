@@ -1,24 +1,37 @@
-# Full reference of all available options: fab config reference
-providers:
-    claude:
-        session_command: claude --dangerously-skip-permissions -n "$(basename "$(pwd)")"
-        # no dispatch_command → claude's stages dispatch natively via the Agent tool
 agent:
     tiers:
-        default:  { provider: claude, model: claude-fable-5,  effort: xhigh }
-        operator: { provider: claude, model: claude-sonnet-5, effort: medium }
-        doing:    { provider: claude, model: claude-opus-4-8, effort: xhigh }
-        review:   { provider: claude, model: claude-fable-5,  effort: xhigh }
-        fast:     { provider: claude, model: claude-sonnet-5, effort: low }
+        default:
+            effort: xhigh
+            model: claude-fable-5
+            provider: claude
+        doing:
+            effort: xhigh
+            model: claude-opus-4-8
+            provider: claude
+        fast:
+            effort: low
+            model: claude-sonnet-5
+            provider: claude
+        operator:
+            effort: medium
+            model: claude-sonnet-5
+            provider: claude
+        review:
+            effort: xhigh
+            model: claude-fable-5
+            provider: claude
 checklist:
     extra_categories:
         - documentation_accuracy
         - cross_references
-fab_version: 2.12.1
+fab_version: 2.13.0
 project:
     description: FAB Kit — Tooling for Specification-Driven Development
     linear_workspace: null
     name: fab-kit
+providers:
+    claude:
+        session_command: claude --dangerously-skip-permissions -n "$(basename "$(pwd)")"
 source_paths:
     - src/
 test_paths:
