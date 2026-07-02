@@ -10,7 +10,7 @@ progress:
     review: done
     hydrate: done
     ship: done
-    review-pr: active
+    review-pr: done
 plan:
     generated: true
     task_count: 18
@@ -34,7 +34,7 @@ stage_metrics:
     review: {started_at: "2026-07-02T13:24:11Z", driver: fab-fff, iterations: 2, completed_at: "2026-07-02T13:30:49Z"}
     hydrate: {started_at: "2026-07-02T13:30:49Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-02T13:33:45Z"}
     ship: {started_at: "2026-07-02T13:33:45Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-02T13:35:14Z"}
-    review-pr: {started_at: "2026-07-02T13:35:14Z", driver: git-pr, iterations: 1}
+    review-pr: {started_at: "2026-07-02T13:35:14Z", driver: git-pr, iterations: 1, completed_at: "2026-07-02T13:42:46Z"}
 prs:
     - https://github.com/sahil87/fab-kit/pull/463
 change_type_source: explicit
@@ -54,4 +54,4 @@ true_impact:
     computed_at_stage: hydrate
 summary: wires the CLI dispatch adapter (fab dispatch) into the skill dispatch seam — sites branch on the resolved spawn= line (native Agent-tool vs CLI adapter), the block-contract carve-out permits the terminal fab status refresh, and the {stage}-result.yaml status-vs-verdict schema is recorded
 # true_impact: lazily created on first apply-finish (no placeholder here).
-last_updated: 2026-07-02T13:35:14Z
+last_updated: 2026-07-02T13:42:46Z
