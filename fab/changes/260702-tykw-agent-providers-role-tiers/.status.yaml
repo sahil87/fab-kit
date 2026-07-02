@@ -10,7 +10,7 @@ progress:
     review: done
     hydrate: done
     ship: done
-    review-pr: active
+    review-pr: done
 plan:
     generated: true
     task_count: 25
@@ -34,7 +34,7 @@ stage_metrics:
     review: {started_at: "2026-07-02T18:45:32Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-02T18:56:41Z"}
     hydrate: {started_at: "2026-07-02T18:56:41Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-02T19:14:38Z"}
     ship: {started_at: "2026-07-02T19:14:38Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-02T19:16:24Z"}
-    review-pr: {started_at: "2026-07-02T19:16:24Z", driver: git-pr, iterations: 1}
+    review-pr: {started_at: "2026-07-02T19:16:24Z", driver: git-pr, iterations: 1, completed_at: "2026-07-02T19:24:03Z"}
 prs:
     - https://github.com/sahil87/fab-kit/pull/466
 true_impact:
@@ -53,4 +53,4 @@ true_impact:
     computed_at_stage: ship
 summary: 'Agent config v3: extract top-level providers: (session_command/dispatch_command; claude built-in, absent dispatch_command = native), replace thinking/doing/fast with five role tiers default/operator/doing/review/fast as {provider,model,effort} with per-field default inheritance, retire review_tools into code-review.md § Review Tools, add fab agent [tier] [--print] retiring fab spawn-command, rename resolve-agent spawn=→dispatch= + gain tier-name/provider= output, dispatch start resolves providers.<name>.dispatch_command, operator resolves the operator tier; migration 2.12.1-to-2.13.0'
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-07-02T19:16:24Z
+last_updated: 2026-07-02T19:24:03Z
