@@ -181,6 +181,8 @@ All mutations go through the `fab` CLI (`fab status <event>`) or the `artifact-w
 
 ## Configuration (config.yaml)
 
+> **Canonical full reference**: run `fab config reference` to print a fully-commented `config.yaml` documenting every available option (both binary-consumed and skill-consumed keys), generated from the binary's own constants so the shown defaults cannot drift. The excerpt below illustrates the key relationships; the command is the authoritative, always-current reference.
+
 The keys actually consumed by the binaries and skills:
 
 ```yaml

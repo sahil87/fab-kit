@@ -20,6 +20,7 @@ metadata:
 - fab log (extended)
 - fab resolve (extended)
 - fab resolve-agent
+- fab config reference
 - fab hook
 - fab pane
 - fab doctor
@@ -284,6 +285,26 @@ effort=high
 **No validation — verbatim pass-through**: `fab resolve-agent` does NOT validate the model or effort against any provider's accepted set (provider neutrality — a fab-kit design principle). It echoes both strings as-is — `xhigh`, `reasoning_effort:high`, an empty effort, whatever. A misconfigured pair (e.g. Sonnet + `xhigh`) is NOT corrected by fab; it surfaces as a dispatch-time error in the harness. There is no effort-enum enforcement and no degrade-gracefully drop.
 
 **Exit code**: non-zero only on a real error — an unreadable/malformed config, or an unknown stage name. A stage resolving to a default is success (exit 0).
+
+---
+
+## fab config reference
+
+Pure query (no side effects, no file writes) — prints a **fully-commented reference `config.yaml`** to stdout, documenting every available option so users can discover the whole schema from one place. `config` is a command group (leaving room for a future `fab config validate`); `reference` is its only subcommand today.
+
+```
+fab config reference
+```
+
+No flags, no arguments (`fab config reference extra-arg` is rejected). Runs from any directory — it reads no project config and depends on no environment state.
+
+**Generated, not hand-written**: the reference is produced from a Go template with all default/example values injected from the binary's own constants (`spawn.DefaultSpawnCommand`, the default tier profiles via `internal/agent`, the pipeline stage names). Because there is no second copy of those values, the shown defaults **cannot drift** — this is strictly stronger than a drift-guard test on hand-written copies.
+
+**Full schema coverage**: covers BOTH the binary-consumed keys (modeled on the `Config` struct) AND the skill-consumed keys (read by markdown skills, invisible to Go reflection) — `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, `review_tools.*`, `agent.spawn_command`, `agent.tiers.*`, `stage_hooks.*`, `branch_prefix`, `fab_version`. Baseline keys appear live with example values; the opt-in override blocks (`agent.tiers`, `stage_hooks`, `branch_prefix`) appear commented-out with fab-kit's built-in defaults shown, so uncommenting is opting in.
+
+**Output**: byte-stable for a given binary version (same convention as `fab resolve` / `fab resolve-agent`). The emitted document round-trips — its live keys parse cleanly back into `Config`.
+
+**Exit code**: 0 on success (pure query — no runtime error paths). A usage error (e.g. an extra positional argument, rejected by `cobra.NoArgs`) exits non-zero. Writes no file.
 
 ---
 
