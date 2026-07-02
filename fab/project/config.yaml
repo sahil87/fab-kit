@@ -4,7 +4,7 @@ checklist:
     extra_categories:
         - documentation_accuracy
         - cross_references
-fab_version: 2.7.1
+fab_version: 2.9.2
 project:
     description: FAB Kit — Tooling for Specification-Driven Development
     linear_workspace: null
@@ -15,6 +15,20 @@ review_tools:
     copilot: true
 source_paths:
     - src/
+# Glob/pathspec patterns identifying test files. Used by the true-impact
+# breakdown to attribute lines to tests vs. implementation (impl = total − tests).
+# Language-specific — no kit default. Patterns are :(glob) magic pathspecs, so
+# `**` matches across directories and `*` does NOT match `/`. Anchor to your
+# language's test convention rather than a bare substring (a substring like
+# `*test*` miscounts production code such as `attestation.go` or `latest.go`).
+# When absent/empty, the breakdown collapses to a single total line.
+#
+# Examples (uncomment/adapt the line for your stack):
+#   - "**/*_test.go"                  # Go   — `_test.go` suffix
+#   - "**/test_*.py"                  # Python (pytest) — `test_` prefix
+#   - "**/*.spec.ts"                  # JS/TS (Jest/Vitest) — `.spec` infix
+#   - "**/*.test.ts"                  # JS/TS — `.test` infix
+#   - "**/src/test/**"                # Java/Kotlin (Maven/Gradle) — test source root
 test_paths:
     - '**/*_test.go'
 true_impact_exclude:
