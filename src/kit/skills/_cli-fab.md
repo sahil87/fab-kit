@@ -462,7 +462,7 @@ Exit codes:
 - `0` — success; YAML document on stdout.
 - non-zero — `<base>` is empty/invalid or `git diff` failed; actionable message on stderr (e.g., `base ref is empty`). The subcommand does not run `git merge-base` itself — callers must resolve the merge-base upstream and pass the result. The caller decides whether to abort or skip.
 
-Consumers: `fab pr-meta` (which renders the PR body `**Impact**` line via the same `internal/impact` package) and the apply-finish + hydrate-finish hooks (write the result into `.status.yaml` `true_impact`). `/git-pr` no longer calls `fab impact` directly — it delegates the whole `## Meta` block to `fab pr-meta`.
+Consumers: `fab pr-meta` (which renders the PR body `**Impact**` line via the same `internal/impact` package) and the apply-finish, hydrate-finish, and ship-finish hooks (write the result into `.status.yaml` `true_impact`; ship-finish is the authoritative write in the standard pipeline — the earlier writes see `HEAD == merge-base` until commits exist). `/git-pr` no longer calls `fab impact` directly — it delegates the whole `## Meta` block to `fab pr-meta`.
 
 ---
 

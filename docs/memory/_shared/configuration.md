@@ -85,7 +85,7 @@ Semantics:
 - **No fab context** (`fab/project/config.yaml` does not exist) — the block is omitted silently, preserving `/git-pr`'s fab-optional behavior.
 - **True-impact pass returns zero** (every modified file falls inside an excluded path) — the entire block is omitted to avoid a misleading `+0 / −0` line.
 
-Consumed by the impact engine (`internal/impact`) and its consumers: the `fab pr-meta` subcommand (which renders the PR `## Meta` block Impact line for `/git-pr` as of rj31 — `/git-pr` no longer assembles it inline), the `fab impact` CLI, and the apply/hydrate `true_impact` write path. The exclude values are wrapped per-element in backticks in the rendered Impact line (never hardcoded).
+Consumed by the impact engine (`internal/impact`) and its consumers: the `fab pr-meta` subcommand (which renders the PR `## Meta` block Impact line for `/git-pr` as of rj31 — `/git-pr` no longer assembles it inline), the `fab impact` CLI, and the apply/hydrate/ship `true_impact` write path. The exclude values are wrapped per-element in backticks in the rendered Impact line (never hardcoded).
 
 #### `test_paths`
 Optional top-level field (7t5a). A YAML sequence of glob/pathspec patterns identifying test files, mirroring the `source_paths` / `true_impact_exclude` style (top-level list of strings). Read into `config.Config` as `TestPaths []string` (`yaml:"test_paths"`).

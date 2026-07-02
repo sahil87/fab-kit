@@ -16,11 +16,16 @@ import (
 // writes it into .status.yaml. Best-effort: failures emit a one-line stderr
 // warning and return nil so the caller's stage transition is unaffected.
 //
-// Stage MUST be one of: "apply", "hydrate". Other stages are silently
-// ignored — only the apply-finish and hydrate-finish hooks compute the
-// block per spec assumption #16.
+// Stage MUST be one of: "apply", "hydrate", "ship". Other stages are silently
+// ignored. In the standard pipeline nothing is committed until /git-pr (ship),
+// so at apply-finish and hydrate-finish HEAD == merge-base and the three-dot
+// diff is empty (0/0/0); the ship-finish recompute — run after /git-pr commits
+// and pushes the branch — is the authoritative write, superseding the earlier
+// zeros in place via computed_at_stage. The apply/hydrate writes are kept
+// because they carry real values in non-standard flows where commits already
+// exist before ship (adopted off-pipeline changes, manual mid-apply commits).
 func WriteTrueImpact(statusFile *sf.StatusFile, statusPath, fabRoot, stage string) error {
-	if stage != "apply" && stage != "hydrate" {
+	if stage != "apply" && stage != "hydrate" && stage != "ship" {
 		return nil
 	}
 
