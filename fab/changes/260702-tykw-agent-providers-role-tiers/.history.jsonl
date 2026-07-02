@@ -1,3 +1,10 @@
 {"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-02T17:29:29Z"}
 {"args":"agent config v3 — providers + role tiers: split provider config out of agent config, replace thinking/doing/fast with five role tiers (default/operator/doing/review/fast), retire review_tools, rename spawn_command surfaces, add fab agent command retiring fab spawn-command","cmd":"fab-new","event":"command","ts":"2026-07-02T17:29:29Z"}
 {"delta":"+3.7","event":"confidence","score":3.7,"trigger":"calc-score","ts":"2026-07-02T17:33:02Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-02T18:01:20Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-02T18:02:24Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-02T18:03:21Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-02T18:45:32Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-02T18:56:41Z"}
+{"event":"review","result":"passed","ts":"2026-07-02T18:56:41Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-02T19:14:38Z"}

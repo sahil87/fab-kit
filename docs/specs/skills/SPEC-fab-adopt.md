@@ -56,9 +56,9 @@ User invokes /fab-adopt [<slug>]
 │  ├─ Bash: fab status reset {name} review fab-adopt (skipped → active, downstream → pending)
 │  └─ Bash: fab status set-summary {name} "adopted off-pipeline change; apply skipped"
 │
-├─ Step 3: Review — dispatched, mode: outward-only (resolve + branch on spawn= — native Agent tool / CLI adapter)
-│  ├─ Bash: fab resolve-agent review --alias (surface model=/effort=/spawn=;
-│  │        branch on spawn= — native or CLI adapter, 260702-aetz)
+├─ Step 3: Review — dispatched, mode: outward-only (resolve + branch on dispatch= — native Agent tool / CLI adapter)
+│  ├─ Bash: fab resolve-agent review --alias (surface model=/effort=/dispatch=;
+│  │        branch on dispatch= — native or CLI adapter, 260702-aetz)
 │  ├─ Dispatch /fab-continue Review Behavior, mode: outward-only
 │  │        (prompt carries the block-contract carve-out: no fab status
 │  │         TRANSITION commands, terminal fab status refresh required,
@@ -69,7 +69,7 @@ User invokes /fab-adopt [<slug>]
 │        fail → auto-rework per _pipeline.md budget (autonomous) /
 │               hand findings back (interactive default for hand-authored code)
 │
-├─ Step 4: Hydrate — dispatched, verbatim (_pipeline.md Step 3; resolve + branch on spawn=)
+├─ Step 4: Hydrate — dispatched, verbatim (_pipeline.md Step 3; resolve + branch on dispatch=)
 │  └─ Dispatch /fab-continue Hydrate Behavior (same block-contract carve-out) → on success fab status finish {name} hydrate fab-adopt
 │        (the permanent-loss recovery — docs/memory/ finally reflects what shipped)
 │

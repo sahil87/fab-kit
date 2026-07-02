@@ -16,18 +16,19 @@ Processes PR review comments from any reviewer (human or bot). Fully autonomous 
 ## Arguments
 
 - **`<change>`** *(optional, 260612-w7dp)* — explicit change to target instead of the active one (any non-flag argument). Resolved transiently in Step 0 (`.fab-status.yaml` untouched); an explicit argument that fails to resolve STOPs (caller error), while argless failure proceeds with no change context. `/fab-fff` Step 5 passes the change folder name through (`/git-pr-review {name}` — folder names never collide with git-pr's type tokens, so both dispatches use the same form).
-- **`--tool <name>`** *(optional)* — Names the review tool Step 2 Phase 2 requests, overriding the `review_tools` config check (a forced tool is attempted even when config disables it). Valid values: `copilot` — currently the only wired tool, and also the config default.
+- **`--tool <name>`** *(optional)* — Names the review tool Step 2 Phase 2 requests, overriding the `code-review.md` § Review Tools check (a forced tool is attempted even when that section disables it). Valid values: `copilot` — currently the only wired tool, and also the default.
 
 ## Configuration
 
-The `review_tools` block in `fab/project/config.yaml` controls whether Copilot is attempted:
+The `copilot` entry in `fab/project/code-review.md` § Review Tools controls whether Copilot is attempted. An absent section — or an absent `copilot` entry — means Copilot is enabled; it is disabled only when the section lists it as `false`:
 
-```yaml
-review_tools:
-  copilot: true    # try GitHub Copilot (remote) — default when key is absent
+```markdown
+## Review Tools
+
+- copilot: false    # skip the GitHub Copilot (remote) review request
 ```
 
-Setting `copilot` to `false` skips Phase 2 entirely. When the `review_tools` key is absent, Copilot defaults to enabled.
+Setting `copilot` to `false` skips Phase 2 entirely. When the § Review Tools section (or the `copilot` entry) is absent, Copilot defaults to enabled.
 
 ## Flow
 
@@ -62,7 +63,7 @@ Setting `copilot` to `false` skips Phase 2 entirely. When the `review_tools` key
 │  │        comments" → Step 6, outcome no-reviews
 │  │
 │  └─ Phase 2: Copilot Review Request (no reviews found)
-│     ├─ Read config: review_tools.copilot from fab/project/config.yaml
+│     ├─ Read config: copilot entry from fab/project/code-review.md § Review Tools
 │     ├─ [copilot: false] "No automated reviewer available" → Step 6, outcome no-reviews (clean finish)
 │     ├─ Bash: gh pr edit {n} --add-reviewer copilot-pull-request-reviewer
 │     │  ├─ [success] Print "Copilot review requested. Waiting up to 10 minutes..."
@@ -136,7 +137,7 @@ Phase 2 runs when Phase 1 finds no existing reviews with inline comments. It req
 |------|------|-----------|------------|------------|
 | Copilot | Remote | Attempt `gh pr edit --add-reviewer copilot-pull-request-reviewer` | Poll 30s/attempt up to 20× — proceed to Step 3 when review appears; on timeout: Step 6 `timeout` outcome (stage stays active — no finish, no fail) | Clean finish (no-reviews): "No automated reviewer available..." |
 
-The `--tool copilot` flag forces the Copilot path regardless of config — the config check is skipped entirely when this flag is present. Without the flag, if `review_tools.copilot: false`, Phase 2 exits cleanly without attempting the request.
+The `--tool copilot` flag forces the Copilot path regardless of config — the § Review Tools check is skipped entirely when this flag is present. Without the flag, if `code-review.md` § Review Tools lists `copilot: false`, Phase 2 exits cleanly without attempting the request.
 
 **Poll discipline + query semantics (260615-qg64)**:
 

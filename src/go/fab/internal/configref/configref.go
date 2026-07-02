@@ -5,11 +5,12 @@
 // skill-consumed keys (read by markdown skills, invisible to Go reflection).
 //
 // GENERATED, NOT HAND-WRITTEN. Every default/example value that has a canonical
-// Go constant is injected from that constant — spawn.DefaultSpawnCommand, the
-// per-tier default profiles via agent.DefaultTier over agent.TierNames, and the
-// pipeline stage names via agent.StageNames. There is no second copy of these
-// values to drift, so no drift-guard test is needed for them (unlike the
-// hand-written 2.2.0-to-2.3.0 migration block this supersedes).
+// Go constant is injected from that constant — the default provider session
+// command (agent.DefaultSessionCommand), the per-tier default profiles via
+// agent.DefaultTier over agent.TierNames, and the pipeline stage names via
+// agent.StageNames. There is no second copy of these values to drift, so no
+// drift-guard test is needed for them (unlike the hand-written 2.2.0-to-2.3.0
+// migration block this supersedes).
 //
 // Render() output is BYTE-STABLE for a given binary version: the template body
 // is fixed, the injected tier/stage lists come from the already-sorted
@@ -23,34 +24,37 @@ import (
 	"text/template"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
-	"github.com/sahil87/fab-kit/src/go/fab/internal/spawn"
 )
 
 // tierDefault is one row of the injected default-tier table: the tier name, its
 // fixed stage grouping (for the reference comment), and its default profile.
 type tierDefault struct {
-	Name   string
-	Stages string
-	Model  string
-	Effort string
+	Name     string
+	Stages   string
+	Provider string
+	Model    string
+	Effort   string
 }
 
 // refData carries every value injected into the reference template. Populated
 // from the canonical constants in gatherData — nothing here is a literal that
 // duplicates a Go constant.
 type refData struct {
-	SpawnCommand string
-	Tiers        []tierDefault
-	Stages       []string
+	SessionCommand string
+	Tiers          []tierDefault
+	Stages         []string
 }
 
 // tierStages is the human-readable stage grouping shown next to each tier in the
 // reference comment. It restates the FIXED stage→tier mapping owned by
-// internal/agent (thinking={intake,review}, doing={apply,review-pr,hydrate},
-// fast={ship}) — reference prose only, not a behavioral second source.
+// internal/agent (default={intake advisory}, operator={fab operator},
+// doing={apply,review-pr,hydrate}, review={review}, fast={ship}) — reference prose
+// only, not a behavioral second source.
 var tierStages = map[string]string{
-	agent.TierThinking: "intake, review",
+	agent.TierDefault:  "intake (advisory), fab batch, fab agent",
+	agent.TierOperator: "fab operator (coordinator session)",
 	agent.TierDoing:    "apply, review-pr, hydrate",
+	agent.TierReview:   "review",
 	agent.TierFast:     "ship",
 }
 
@@ -76,17 +80,18 @@ func gatherData() (refData, error) {
 			return refData{}, fmt.Errorf("configref: tier %q has no tierStages grouping (add one when adding a tier)", name)
 		}
 		tiers = append(tiers, tierDefault{
-			Name:   name,
-			Stages: stages,
-			Model:  p.Model,
-			Effort: p.Effort,
+			Name:     name,
+			Stages:   stages,
+			Provider: p.Provider,
+			Model:    p.Model,
+			Effort:   p.Effort,
 		})
 	}
 
 	return refData{
-		SpawnCommand: spawn.DefaultSpawnCommand,
-		Tiers:        tiers,
-		Stages:       agent.StageNames(),
+		SessionCommand: agent.DefaultSessionCommand,
+		Tiers:          tiers,
+		Stages:         agent.StageNames(),
 	}, nil
 }
 
@@ -140,63 +145,50 @@ true_impact_exclude:
 checklist:
   extra_categories: []               # example: [performance, accessibility, i18n]
 
-# review_tools — automated PR reviewer toggles consumed by /git-pr-review. An
-# absent key defaults to enabled. (codex/claude are legacy keys, silently
-# ignored by /git-pr-review Phase 2; the pre-ship review-stage cascade is not
-# configurable here.)
-review_tools:
-  claude: true
-  codex: true
-  copilot: true
+# providers — named agent invocation grammars. Each provider MAY carry two
+# command fields (they are NOT merged — session and dispatch are different
+# invocations of the same binary):
+#   session_command  — opens an interactive agent SESSION (fab operator /
+#                       fab batch / fab agent). {model}/{effort} placeholders are
+#                       substituted; a plain Claude command has --model/--effort
+#                       appended instead.
+#   dispatch_command — runs ONE headless stage task via fab dispatch. ABSENT →
+#                      native Agent-tool dispatch (the default). There is NO
+#                      fallback from dispatch_command to session_command.
+# Provider names are opaque, user-chosen strings — fab NEVER infers a provider
+# from a model string. The one footgun (documented, not validated): if you
+# override a tier's model to another provider, override that tier's provider too.
+# fab-kit ships the claude provider as the built-in default (shown live below);
+# add or override providers here (codex shown commented as an example).
+providers:
+  claude:
+    session_command: '{{ .SessionCommand }}'
+    # no dispatch_command → claude's stages dispatch natively via the Agent tool
+  # codex:
+  #   session_command: 'codex -m {model} -c model_reasoning_effort={effort}'
+  #   dispatch_command: 'codex exec -m {model} -c model_reasoning_effort={effort}'
 
-# agent — agent spawn command and the optional per-stage model override.
+# agent.tiers — per-stage model override. A "tier" is a named
+# {provider, model, effort} profile (the invocation command lives on the provider,
+# above — NOT on the tier). fab-kit owns the FIXED, non-overridable stage→tier
+# mapping below; you override only WHAT EACH TIER MEANS. Omit any tier (or the
+# whole tiers: block) to use fab-kit's built-in default. An omitted field within a
+# tier inherits the project's ` + "`default`" + ` tier, then fab-kit's built-in; an empty
+# model means "inherit the session model". Resolved per stage by
+# ` + "`fab resolve-agent <stage>`" + ` at sub-agent dispatch time. Values pass through
+# verbatim — fab does no provider validation. See docs/specs/stage-models.md.
+#
+# FIXED stage→tier mapping (fab-owned, NOT overridable — shown for reference):
+{{- range .Tiers }}
+#   {{ printf "%-9s" .Name }} {{ .Stages }}
+{{- end }}
+#
+# fab-kit's built-in default profiles (today):
 agent:
-  # spawn_command — base command used by fab operator / fab batch /
-  # fab spawn-command to spawn agent sessions. Shell expansions (e.g.
-  # $(basename "$(pwd)")) expand at invocation time. Optional {model}/{effort}
-  # placeholders make it provider-forgiving: when either is present, the
-  # resolved profile is SUBSTITUTED in place (e.g.
-  # 'codex -m {model} -c model_reasoning_effort={effort}') and an empty value
-  # drops the placeholder's token plus a preceding -flag; with no placeholder,
-  # Claude-style --model/--effort are appended. Falls back to
-  # ` + "`{{ .SpawnCommand }}`" + ` when absent.
-  spawn_command: 'claude --dangerously-skip-permissions --effort xhigh -n "$(basename "$(pwd)")"'
-
-  # agent.tiers — per-stage model override (optional). A "tier" is a named
-  # {model, effort, spawn_command} profile. fab-kit owns the FIXED,
-  # non-overridable stage→tier mapping below; you override only WHAT EACH TIER
-  # MEANS (model + effort + optional spawn_command).
-  # Omit any tier (or the whole tiers: block) to use fab-kit's built-in default.
-  # An omitted field within a tier inherits that tier's default; an empty model
-  # means "inherit the session model". Resolved per stage by
-  # ` + "`fab resolve-agent <stage>`" + ` at sub-agent dispatch time. Values pass through
-  # verbatim — fab does no provider validation. See docs/specs/stage-models.md.
-  #
-  # FIXED stage→tier mapping (fab-owned, NOT overridable — shown for reference):
+  tiers:
 {{- range .Tiers }}
-  #   {{ printf "%-9s" .Name }} {{ .Stages }}
+    {{ printf "%-9s" (printf "%s:" .Name) }} { provider: {{ .Provider }}, model: {{ .Model }}, effort: {{ .Effort }} }
 {{- end }}
-  #
-  # fab-kit's built-in default profiles (today — none carry a spawn_command):
-{{- range .Tiers }}
-  #   {{ printf "%-9s" .Name }} { model: {{ .Model }}, effort: {{ .Effort }} }
-{{- end }}
-  #
-  # spawn_command (per-tier, opt-in) — the CROSS-HARNESS STAGE-DISPATCH knob.
-  # PRESENT on a tier → that tier's stages are dispatched by RUNNING this command
-  # (e.g. codex); ABSENT → native Agent-tool dispatch (the default). This is
-  # INDEPENDENT of agent.spawn_command above (which opens whole agent SESSIONS):
-  # there is NO fallback from a tier to agent.spawn_command. {model}/{effort}
-  # placeholders are substituted at resolve time (the {model} always the FULL
-  # model ID, never an alias). Emitted as the ` + "`spawn=`" + ` line of
-  # ` + "`fab resolve-agent`" + ` when set.
-  #
-  # Override shape (uncomment + edit any tier):
-  # tiers:
-  #   doing:
-  #     model: claude-sonnet-4-6
-  #     effort: medium                # example: run doing cheaper
-  #     # spawn_command: codex exec -m {model} -c model_reasoning_effort={effort}
 
 # stage_hooks — optional per-stage pre/post shell commands honored by
 # ` + "`fab status start`" + ` / ` + "`fab status finish`" + `. Each command runs as ` + "`sh -c`" + ` from

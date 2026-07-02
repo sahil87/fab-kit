@@ -1,13 +1,15 @@
 # Full reference of all available options: fab config reference
+providers:
+    claude:
+        session_command: claude --dangerously-skip-permissions -n "$(basename "$(pwd)")"
+        # no dispatch_command → claude's stages dispatch natively via the Agent tool
 agent:
-    spawn_command: claude --dangerously-skip-permissions --effort xhigh -n "$(basename "$(pwd)")"
-    # agent.tiers.<tier>.spawn_command — per-stage CLI dispatch (optional, opt-in).
-    # PRESENT on a tier → that tier's stages are dispatched by RUNNING this command
-    # (cross-harness, e.g. codex); ABSENT → native Agent-tool dispatch (default).
-    # INDEPENDENT of agent.spawn_command above (which opens whole agent SESSIONS):
-    # there is NO fallback from a tier to agent.spawn_command. {model}/{effort}
-    # placeholders are substituted at resolve time (the {model} always the FULL
-    # model ID, never an alias). See: fab config reference.
+    tiers:
+        default:  { provider: claude, model: claude-fable-5,  effort: xhigh }
+        operator: { provider: claude, model: claude-sonnet-5, effort: medium }
+        doing:    { provider: claude, model: claude-opus-4-8, effort: xhigh }
+        review:   { provider: claude, model: claude-fable-5,  effort: xhigh }
+        fast:     { provider: claude, model: claude-sonnet-5, effort: low }
 checklist:
     extra_categories:
         - documentation_accuracy
@@ -17,10 +19,6 @@ project:
     description: FAB Kit — Tooling for Specification-Driven Development
     linear_workspace: null
     name: fab-kit
-review_tools:
-    claude: true
-    codex: true
-    copilot: true
 source_paths:
     - src/
 test_paths:

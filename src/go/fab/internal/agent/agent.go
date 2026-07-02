@@ -1,20 +1,23 @@
 // Package agent owns fab-kit's per-stage model selection: the default
-// tier→{model, effort} table, the FIXED stage→tier mapping, and the resolution
-// cascade consumed by `fab resolve-agent <stage>`.
+// tier→{provider, model, effort} table, the FIXED stage→tier mapping, the
+// built-in provider table, and the resolution cascade consumed by
+// `fab resolve-agent <stage>`, `fab agent`, and the operator launcher.
 //
-// The two tables here are fab-kit's curated judgment. The stage→tier mapping is
-// NOT user-overridable (there is no stage_tiers config and no per-stage escape
+// The tables here are fab-kit's curated judgment. The stage→tier mapping is NOT
+// user-overridable (there is no stage_tiers config and no per-stage escape
 // hatch); the default tier→profile table is the single place to bump when a new
-// top model lands (the "Fable upgrade path"). Users override only what each
-// tier MEANS, via agent.tiers in config.yaml (per-field merge over the default).
+// top model lands (the "Fable upgrade path"). Users override only what each tier
+// MEANS, via agent.tiers in config.yaml (per-field merge over the default), and
+// which command grammars exist, via the top-level providers: table.
 //
-// Resolution applies NO validation — it echoes the resolved {model, effort}
-// verbatim, whatever they are (provider neutrality, Constitution Principle I).
-// Compatibility is the runtime/harness's concern, not fab's.
+// Resolution applies NO validation — it echoes the resolved {provider, model,
+// effort} verbatim, whatever they are (provider neutrality, Constitution
+// Principle I). Compatibility is the runtime/harness's concern, not fab's.
 //
-// These tables are mirrored in docs/specs/stage-models.md and guarded against
-// drift by TestDocTablesMatchAgentMaps (stagemodels_doc_test.go), the same
-// pattern internal/score uses for change-types.md.
+// The two tables (defaultTiers, stageTiers) are mirrored in
+// docs/specs/stage-models.md and guarded against drift by
+// TestDocTablesMatchAgentMaps (stagemodels_doc_test.go), the same pattern
+// internal/score uses for change-types.md.
 package agent
 
 import (
@@ -25,51 +28,74 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 )
 
-// Tier names. Three tiers grouped by cognitive mode.
+// Role-tier names. Five roles with concrete referents, replacing the old
+// thinking/doing/fast cognitive-mode vocabulary.
 const (
-	TierThinking = "thinking" // generative judgment (intake discovers requirements; review discovers bugs)
-	TierDoing    = "doing"    // execution that must not err (apply writes the diff; review-pr fixes feedback; hydrate writes memory)
-	TierFast     = "fast"     // speed on near-mechanical work (commit/push/PR mechanics + PR-description summary)
+	TierDefault  = "default"  // spawned worker sessions, `fab agent` with no tier, intake (advisory); per-field fallback for every other tier
+	TierOperator = "operator" // the operator coordinator session (`fab operator`)
+	TierDoing    = "doing"    // apply, review-pr, hydrate — execution that must not err
+	TierReview   = "review"   // review — author/critic separation
+	TierFast     = "fast"     // ship — speed on near-mechanical work
 )
 
-// Profile is a concrete {model, effort, spawn_command} triple. An empty Model
-// signals "inherit the session/orchestrator model"; an empty Effort omits effort
-// entirely; an empty SpawnCommand signals "native Agent-tool dispatch" (the
-// default). SpawnCommand is the per-stage CLI-dispatch opt-in, populated ONLY
-// from a project's agent.tiers.<tier>.spawn_command — fab-kit's defaultTiers
-// carry none, and there is NO fallback to agent.spawn_command (the whole-session
-// boundary). See Resolve.
+// DefaultProviderName is the built-in provider a fresh config resolves to when a
+// tier declares no provider and the project sets no `default` tier provider.
+const DefaultProviderName = "claude"
+
+// DefaultSessionCommand is the built-in claude provider's session command — the
+// relocated agent.spawn_command default. Kept here (not internal/spawn) because
+// the provider table is agent-owned; internal/spawn re-exports the string for its
+// own no-config fallback.
+const DefaultSessionCommand = `claude --dangerously-skip-permissions -n "$(basename "$(pwd)")"`
+
+// Profile is a concrete {provider, model, effort} triple. An empty Provider names
+// no provider (resolution falls through to the built-in default provider at
+// command-composition time); an empty Model signals "inherit the
+// session/orchestrator model"; an empty Effort omits effort entirely.
 type Profile struct {
-	Model        string
-	Effort       string
-	SpawnCommand string
+	Provider string
+	Model    string
+	Effort   string
 }
 
-// defaultTiers is fab-kit's built-in tier→profile table (today). This is the
-// ONE place bumped when a new top model lands. Mirrored in
+// defaultProviders is fab-kit's built-in provider table: the claude provider,
+// explicit and shipped as the default, with the default session command and NO
+// dispatch_command (native Agent-tool dispatch). A project extends/overrides via
+// its own providers: block, per-field merged over this.
+var defaultProviders = map[string]config.ProviderConfig{
+	DefaultProviderName: {SessionCommand: DefaultSessionCommand},
+}
+
+// defaultTiers is fab-kit's built-in tier→profile table (today). This is the ONE
+// place bumped when a new top model lands. Provider is written explicitly on
+// every line (documented style; inheritance is the safety net). Mirrored in
 // docs/specs/stage-models.md § default-tier table (drift-guarded).
 var defaultTiers = map[string]Profile{
-	TierThinking: {Model: "claude-opus-4-8", Effort: "xhigh"},
-	TierDoing:    {Model: "claude-opus-4-8", Effort: "high"},
-	TierFast:     {Model: "claude-sonnet-4-6", Effort: "low"},
+	TierDefault:  {Provider: "claude", Model: "claude-fable-5", Effort: "xhigh"},
+	TierOperator: {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
+	TierDoing:    {Provider: "claude", Model: "claude-opus-4-8", Effort: "xhigh"},
+	TierReview:   {Provider: "claude", Model: "claude-fable-5", Effort: "xhigh"},
+	TierFast:     {Provider: "claude", Model: "claude-sonnet-5", Effort: "low"},
 }
 
 // stageTiers is the FIXED, fab-owned stage→tier mapping. Exhaustive over the six
 // pipeline stages (each stage belongs to exactly one tier). NOT user-overridable.
-// Note review (generative → thinking) and review-pr (responsive → doing) are in
-// DIFFERENT tiers despite sharing the word "review". Mirrored in
-// docs/specs/stage-models.md § stage→tier table (drift-guarded).
+// Note review (own tier — author/critic separation) and review-pr (responsive →
+// doing) are in DIFFERENT tiers despite sharing the word "review". intake maps to
+// default but is ADVISORY only — it runs foreground in the user's own session,
+// which fab cannot re-model. Mirrored in docs/specs/stage-models.md
+// § stage→tier table (drift-guarded).
 var stageTiers = map[string]string{
-	"intake":    TierThinking,
-	"review":    TierThinking,
+	"intake":    TierDefault,
 	"apply":     TierDoing,
-	"review-pr": TierDoing,
+	"review":    TierReview,
 	"hydrate":   TierDoing,
 	"ship":      TierFast,
+	"review-pr": TierDoing,
 }
 
 // DefaultTier returns the built-in default profile for a tier name and whether
-// the tier is known. Exposed for the drift-guard test.
+// the tier is known. Exposed for the drift-guard test and the operator launcher.
 func DefaultTier(tier string) (Profile, bool) {
 	p, ok := defaultTiers[tier]
 	return p, ok
@@ -80,6 +106,14 @@ func DefaultTier(tier string) (Profile, bool) {
 func TierForStage(stage string) (string, bool) {
 	t, ok := stageTiers[stage]
 	return t, ok
+}
+
+// IsTierName reports whether name is one of the known role-tier names. Used by
+// `fab resolve-agent` to accept a tier name positionally alongside a stage name
+// (the two sets are disjoint).
+func IsTierName(name string) bool {
+	_, ok := defaultTiers[name]
+	return ok
 }
 
 // TierNames returns the known tier names, sorted (stable for the drift-guard
@@ -131,43 +165,80 @@ func ModelAlias(model string) string {
 	return model
 }
 
-// Resolve maps a stage → its fixed tier → a concrete {model, effort,
-// spawn_command} profile.
+// ResolveTier resolves a tier name → a concrete {provider, model, effort} profile
+// via per-field inheritance:
 //
-// The tier profile is the project's agent.tiers.<tier> override PER-FIELD merged
-// over the fab-kit default: an override field that is set wins; an omitted
-// override field inherits the default for that field. A tier with no override
-// resolves to the default unchanged.
+//	built-in tier default  ←  project `default` tier  ←  project <tier> override
 //
-// SpawnCommand is opt-in-only: defaultTiers carry none, so a resolved profile
-// has a non-empty SpawnCommand ONLY when the project's tier override sets it.
-// There is NO cross-fallback to agent.spawn_command (the whole-session boundary)
-// — the absence of a resolved tier spawn_command is the signal for native
-// Agent-tool dispatch.
+// (later wins per field). An unset field on the requested tier's override falls
+// back to the project's `default` tier for that field, then to fab-kit's built-in
+// default for the requested tier. This is why commands moved to providers:
+// inheriting {provider, model, effort} is safe; the dangerous cross-semantics
+// command inheritance can no longer happen.
 //
-// NO validation: the resolved model, effort, and spawn_command are returned
-// verbatim, whatever they are. An unknown stage is the only resolution-side error.
+// NO validation: the resolved fields are returned verbatim. An unknown tier is
+// the only tier-resolution error.
+func ResolveTier(cfg *config.Config, tier string) (Profile, error) {
+	resolved, ok := defaultTiers[tier]
+	if !ok {
+		return Profile{}, fmt.Errorf("unknown tier %q (valid: %s)", tier, strings.Join(TierNames(), ", "))
+	}
+
+	// The project's `default` tier fills any field the built-in leaves unset AND
+	// any field the requested tier's own override leaves unset. Apply it as the
+	// middle layer (below the requested tier's override, above the built-in).
+	if def, ok := cfg.GetAgentTier(TierDefault); ok {
+		mergeTierField(&resolved.Provider, def.Provider)
+		mergeTierField(&resolved.Model, def.Model)
+		mergeTierField(&resolved.Effort, def.Effort)
+	}
+
+	if override, ok := cfg.GetAgentTier(tier); ok {
+		mergeTierField(&resolved.Provider, override.Provider)
+		mergeTierField(&resolved.Model, override.Model)
+		mergeTierField(&resolved.Effort, override.Effort)
+	}
+
+	return resolved, nil
+}
+
+// mergeTierField overwrites *dst with v only when v is non-empty (per-field merge:
+// a set override field wins; an empty field inherits).
+func mergeTierField(dst *string, v string) {
+	if v != "" {
+		*dst = v
+	}
+}
+
+// Resolve maps a stage → its fixed tier → a concrete {provider, model, effort}
+// profile (via ResolveTier). An unknown stage is the only resolution-side error.
 func Resolve(cfg *config.Config, stage string) (Profile, error) {
 	tier, ok := stageTiers[stage]
 	if !ok {
 		return Profile{}, fmt.Errorf("unknown stage %q (valid: %s)", stage, strings.Join(StageNames(), ", "))
 	}
+	// stageTiers only ever names tiers present in defaultTiers (guarded by the
+	// drift-guard test), so ResolveTier cannot miss on a known stage.
+	return ResolveTier(cfg, tier)
+}
 
-	// defaultTiers always has an entry for every tier in stageTiers (guarded by
-	// the drift-guard test), so this lookup cannot miss.
-	resolved := defaultTiers[tier]
+// ResolveProvider returns the {session_command, dispatch_command} for a provider
+// name: the project's providers.<name> override PER-FIELD merged over fab-kit's
+// built-in provider table (an override field that is set wins; an omitted field
+// inherits the built-in). A provider present in neither the project config nor the
+// built-in table resolves to a zero ProviderConfig with ok=false — the caller
+// decides whether that is an error (a session with no session_command, or a
+// dispatch with no dispatch_command, are the two failure surfaces).
+//
+// NO validation: command strings are returned verbatim.
+func ResolveProvider(cfg *config.Config, name string) (config.ProviderConfig, bool) {
+	resolved, known := defaultProviders[name]
 
-	if override, ok := cfg.GetAgentTier(tier); ok {
-		if override.Model != "" {
-			resolved.Model = override.Model
-		}
-		if override.Effort != "" {
-			resolved.Effort = override.Effort
-		}
-		if override.SpawnCommand != "" {
-			resolved.SpawnCommand = override.SpawnCommand
-		}
+	if override, ok := cfg.GetProvider(name); ok {
+		known = true
+		mergeTierField(&resolved.SessionCommand, override.SessionCommand)
+		mergeTierField(&resolved.DispatchCommand, override.DispatchCommand)
 	}
 
-	return resolved, nil
+	return resolved, known
 }

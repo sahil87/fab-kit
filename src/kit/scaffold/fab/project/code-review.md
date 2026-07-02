@@ -51,6 +51,27 @@
 
 - Enabled: true
 
+## Review Tools
+
+<!-- Toggles for the automated reviewers. This section is the home of the retired
+     `review_tools` config block. An ABSENT section (or an absent key) = ENABLED —
+     so an all-enabled setup needs nothing here. List a tool as `false` only to
+     DISABLE it.
+
+     - codex / claude — the review-stage outward-reviewer Codex → Claude cascade
+       (read by /fab-continue review). Codex is tried first, Claude is the
+       fallback; set either to false to skip it.
+     - copilot — the /git-pr-review Phase 2 Copilot request. Set to false to skip
+       requesting a Copilot review. (The `--tool copilot` flag force-overrides
+       this toggle.)
+
+     Uncomment and set to false to disable a tool: -->
+<!--
+- codex: false
+- claude: false
+- copilot: false
+-->
+
 ## Project-Specific Review Rules
 
 <!-- Add project-specific review rules here. Examples:

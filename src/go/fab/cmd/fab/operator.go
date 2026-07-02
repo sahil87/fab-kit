@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/spawn"
@@ -75,32 +76,16 @@ func runOperator(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Read the spawn command from the project config when a fab/ project is
-	// resolvable. The operator is a per-tmux-server cross-repo coordinator and may
-	// be launched from a neutral directory with no fab/ project (e.g. ~/code), so a
-	// missing project is NOT an error — fall back to the default spawn command.
-	// (The doing-tier resolution below likewise degrades to its built-in default
-	// when no project is resolvable, so a no-fab/ launch is fully defaulted.)
-	spawnCmd := spawn.DefaultSpawnCommand
-	if fabRoot, err := resolve.FabRoot(); err == nil {
-		spawnCmd = spawn.Command(filepath.Join(fabRoot, "project", "config.yaml"))
-	}
-
-	// Resolve the doing-tier {model, effort} so the operator launches its
-	// coordinating agent on a deliberately-chosen model. We probe `apply` (NOT a
-	// tier name) because `fab resolve-agent` takes a STAGE, and `apply` is the
-	// canonical member of the fab-owned, FIXED stage→tier mapping's `doing` tier.
-	// This couples to that internal mapping on purpose: if `apply` is ever
-	// remapped to a different tier, this dependency must surface here. On ANY
-	// failure — the command erroring (an installed `fab` predating resolve-agent,
-	// or no resolvable fab project) or empty/unparseable output — resolveDoingProfile
-	// falls back to the in-process built-in doing default (pass "" on error).
-	out, _, resolveErr := pane.RunCmd("fab", "resolve-agent", "apply")
-	if resolveErr != nil {
-		out = ""
-	}
-	profile := resolveDoingProfile(out)
-	spawnCmd = spawn.WithProfile(spawnCmd, profile.Model, profile.Effort)
+	// Resolve the operator-tier {provider, model, effort} so the operator launches
+	// its coordinating agent on a deliberately-chosen profile. This names the seam
+	// properly — the operator has its OWN tier (previously it borrowed the doing
+	// tier). The operator is a per-tmux-server cross-repo coordinator and may be
+	// launched from a neutral directory with no fab/ project (e.g. ~/code), so a
+	// missing project is NOT an error: config.Load returns an empty config, and
+	// agent.ResolveTier/ResolveProvider then degrade to fab-kit's built-in
+	// operator tier + built-in claude provider — a no-fab/ launch is fully
+	// defaulted.
+	spawnCmd := operatorSpawnCommand()
 
 	// Create new tab running the operator skill
 	shellCmd := fmt.Sprintf("%s '/fab-operator'", spawnCmd)
@@ -133,36 +118,40 @@ func findWindowExact(out, name string) (windowID string, found bool) {
 	return "", false
 }
 
-// resolveDoingProfile parses `fab resolve-agent apply` stdout — the byte-stable
-// lines `model=<id>` and optional `effort=<level>` — into an agent.Profile,
-// falling back to fab-kit's built-in doing default on empty or unparseable
-// output. It is a PURE function: the caller does the live shell-out and passes
-// the captured stdout (or "" when the command itself errored — e.g. an installed
-// `fab` that predates `resolve-agent`), so the parse+fallback is unit-testable
-// without exec. Empty/garbage stdout ⇒ the doing default, so the caller can pass
-// "" on any command error.
-func resolveDoingProfile(stdout string) agent.Profile {
-	// defaultTiers always carries TierDoing (guarded by the agent drift-guard
-	// test), so the ok return is unconditionally true here.
-	def, _ := agent.DefaultTier(agent.TierDoing)
-
-	var p agent.Profile
-	for _, line := range strings.Split(stdout, "\n") {
-		switch {
-		case strings.HasPrefix(line, "model="):
-			p.Model = strings.TrimPrefix(line, "model=")
-		case strings.HasPrefix(line, "effort="):
-			p.Effort = strings.TrimPrefix(line, "effort=")
-		}
+// operatorSpawnCommand resolves the operator tier's session command in-process:
+// the operator tier → its provider → that provider's session_command, with
+// {model}/{effort} substituted via internal/spawn. A missing/unreadable fab
+// project degrades to fab-kit's built-in operator tier + built-in claude provider
+// (config.Load returns an empty config; agent.ResolveTier/ResolveProvider both
+// fall back to the built-ins), so a neutral-directory launch is fully defaulted.
+// A provider without a session_command falls back to spawn.DefaultSpawnCommand
+// (still profile-substituted) rather than erroring — the operator must always
+// launch.
+func operatorSpawnCommand() string {
+	var cfg *config.Config
+	if fabRoot, err := resolve.FabRoot(); err == nil {
+		cfg, _ = config.Load(fabRoot) // nil on error → nil-safe accessors below
 	}
 
-	// A valid resolve-agent run always emits a model= line, so a parsed model is
-	// the signal that the output was real; anything else (empty stdout, garbage,
-	// command error routed in as "") falls back to the built-in doing default.
-	if p.Model == "" {
-		return def
+	profile := operatorProfile(cfg)
+
+	sessionCmd := spawn.DefaultSpawnCommand
+	if prov, ok := agent.ResolveProvider(cfg, profile.Provider); ok && prov.SessionCommand != "" {
+		sessionCmd = prov.SessionCommand
 	}
-	return p
+	return spawn.WithProfile(sessionCmd, profile.Model, profile.Effort)
+}
+
+// operatorProfile resolves the operator-tier profile from cfg, degrading to the
+// built-in operator default when cfg is nil or the tier cannot be resolved. Pure
+// (no exec / no filesystem), so the fallback is unit-testable.
+func operatorProfile(cfg *config.Config) agent.Profile {
+	if p, err := agent.ResolveTier(cfg, agent.TierOperator); err == nil {
+		return p
+	}
+	// defaultTiers always carries TierOperator (guarded by the drift-guard test).
+	def, _ := agent.DefaultTier(agent.TierOperator)
+	return def
 }
 
 // gitRepoRoot returns the git repo root for the current directory. On

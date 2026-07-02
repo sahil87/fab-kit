@@ -16,12 +16,12 @@ func cfgWithTiers(tiers map[string]config.TierProfile) *config.Config {
 // tier's built-in default profile.
 func TestResolveDefaults(t *testing.T) {
 	cases := map[string]Profile{
-		"intake":    {Model: "claude-opus-4-8", Effort: "xhigh"}, // thinking
-		"review":    {Model: "claude-opus-4-8", Effort: "xhigh"}, // thinking
-		"apply":     {Model: "claude-opus-4-8", Effort: "high"},  // doing
-		"review-pr": {Model: "claude-opus-4-8", Effort: "high"},  // doing
-		"hydrate":   {Model: "claude-opus-4-8", Effort: "high"},  // doing
-		"ship":      {Model: "claude-sonnet-4-6", Effort: "low"}, // fast
+		"intake":    {Provider: "claude", Model: "claude-fable-5", Effort: "xhigh"},  // default (advisory)
+		"apply":     {Provider: "claude", Model: "claude-opus-4-8", Effort: "xhigh"}, // doing
+		"review":    {Provider: "claude", Model: "claude-fable-5", Effort: "xhigh"},  // review
+		"hydrate":   {Provider: "claude", Model: "claude-opus-4-8", Effort: "xhigh"}, // doing
+		"ship":      {Provider: "claude", Model: "claude-sonnet-5", Effort: "low"},   // fast
+		"review-pr": {Provider: "claude", Model: "claude-opus-4-8", Effort: "xhigh"}, // doing
 	}
 	for stage, want := range cases {
 		t.Run(stage, func(t *testing.T) {
@@ -36,36 +36,36 @@ func TestResolveDefaults(t *testing.T) {
 	}
 }
 
-// TestReviewVsReviewPrSplit: review (thinking) and review-pr (doing) must NOT be
-// grouped — the cognitive-mode distinction is load-bearing.
+// TestReviewVsReviewPrSplit: review (its own tier) and review-pr (doing) must NOT
+// be grouped — the author/critic distinction is load-bearing.
 func TestReviewVsReviewPrSplit(t *testing.T) {
-	if tier, _ := TierForStage("review"); tier != TierThinking {
-		t.Errorf("review tier = %q, want %q", tier, TierThinking)
+	if tier, _ := TierForStage("review"); tier != TierReview {
+		t.Errorf("review tier = %q, want %q", tier, TierReview)
 	}
 	if tier, _ := TierForStage("review-pr"); tier != TierDoing {
 		t.Errorf("review-pr tier = %q, want %q", tier, TierDoing)
 	}
 }
 
-// TestResolveFullOverride: an override sets both model and effort.
+// TestResolveFullOverride: an override sets provider, model, and effort.
 func TestResolveFullOverride(t *testing.T) {
 	cfg := cfgWithTiers(map[string]config.TierProfile{
-		"doing": {Model: "claude-sonnet-4-6", Effort: "medium"},
+		"doing": {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
 	})
 	got, err := Resolve(cfg, "apply") // apply ∈ doing
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	want := Profile{Model: "claude-sonnet-4-6", Effort: "medium"}
+	want := Profile{Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"}
 	if got != want {
 		t.Errorf("Resolve(apply) = %+v, want %+v", got, want)
 	}
 }
 
 // TestResolvePerFieldMerge: an override that sets only effort keeps the default
-// model (per-field merge), and vice versa.
+// provider+model (per-field merge), and vice versa.
 func TestResolvePerFieldMerge(t *testing.T) {
-	// Only effort overridden → default model survives.
+	// Only effort overridden → default provider+model survive.
 	cfg := cfgWithTiers(map[string]config.TierProfile{
 		"doing": {Effort: "medium"},
 	})
@@ -73,8 +73,8 @@ func TestResolvePerFieldMerge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if got.Model != "claude-opus-4-8" || got.Effort != "medium" {
-		t.Errorf("Resolve(hydrate) = %+v, want default model + medium effort", got)
+	if got.Provider != "claude" || got.Model != "claude-opus-4-8" || got.Effort != "medium" {
+		t.Errorf("Resolve(hydrate) = %+v, want default provider+model + medium effort", got)
 	}
 
 	// Only model overridden → default effort survives.
@@ -90,12 +90,53 @@ func TestResolvePerFieldMerge(t *testing.T) {
 	}
 }
 
-// TestResolveVerbatimNoValidation: a deliberately-incompatible override (Sonnet
-// + xhigh, which Sonnet rejects at dispatch) is echoed verbatim with no error —
-// fab does NOT validate or correct. The harness is the safety net.
+// TestResolveDefaultTierInheritance: a field unset on both the requested tier's
+// override AND its built-in inherits from the project's `default` tier. Here the
+// project default tier sets a provider, and the doing override sets only effort;
+// the resolved provider comes from the project default tier (which sits between
+// the requested-tier override and the built-in in the merge cascade).
+func TestResolveDefaultTierInheritance(t *testing.T) {
+	cfg := cfgWithTiers(map[string]config.TierProfile{
+		"default": {Provider: "codex"},
+		"doing":   {Model: "gpt-5", Effort: "high"},
+	})
+	got, err := Resolve(cfg, "apply") // apply ∈ doing
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	// provider inherits from the project `default` tier; model/effort from the
+	// doing override.
+	want := Profile{Provider: "codex", Model: "gpt-5", Effort: "high"}
+	if got != want {
+		t.Errorf("Resolve(apply) = %+v, want %+v (provider inherited from default tier)", got, want)
+	}
+}
+
+// TestResolveOverrideBeatsDefaultTier: a field set on the requested tier's
+// override wins over the project `default` tier for that field.
+func TestResolveOverrideBeatsDefaultTier(t *testing.T) {
+	cfg := cfgWithTiers(map[string]config.TierProfile{
+		"default": {Provider: "codex", Effort: "medium"},
+		"doing":   {Provider: "claude", Model: "claude-opus-4-8"},
+	})
+	got, err := Resolve(cfg, "apply")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	// provider from doing override (beats default tier's codex); model from doing
+	// override; effort inherits from the default tier (doing did not set it).
+	want := Profile{Provider: "claude", Model: "claude-opus-4-8", Effort: "medium"}
+	if got != want {
+		t.Errorf("Resolve(apply) = %+v, want %+v", got, want)
+	}
+}
+
+// TestResolveVerbatimNoValidation: a deliberately-incompatible override (Sonnet +
+// xhigh, which Sonnet rejects at dispatch) is echoed verbatim with no error — fab
+// does NOT validate or correct. The harness is the safety net.
 func TestResolveVerbatimNoValidation(t *testing.T) {
 	cfg := cfgWithTiers(map[string]config.TierProfile{
-		"fast": {Model: "claude-sonnet-4-6", Effort: "xhigh"},
+		"fast": {Model: "claude-sonnet-5", Effort: "xhigh"},
 	})
 	got, err := Resolve(cfg, "ship")
 	if err != nil {
@@ -107,24 +148,20 @@ func TestResolveVerbatimNoValidation(t *testing.T) {
 
 	// A non-Claude provider's vocabulary passes through untouched too.
 	cfg = cfgWithTiers(map[string]config.TierProfile{
-		"thinking": {Model: "gpt-5", Effort: "reasoning_effort:high"},
+		"review": {Provider: "codex", Model: "gpt-5", Effort: "reasoning_effort:high"},
 	})
-	got, err = Resolve(cfg, "intake")
+	got, err = Resolve(cfg, "review")
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if got.Model != "gpt-5" || got.Effort != "reasoning_effort:high" {
-		t.Errorf("Resolve(intake) = %+v, want verbatim non-Claude profile", got)
+	if got.Provider != "codex" || got.Model != "gpt-5" || got.Effort != "reasoning_effort:high" {
+		t.Errorf("Resolve(review) = %+v, want verbatim non-Claude profile", got)
 	}
 }
 
-// TestResolveEmptyModelInherit: a tier overridden to an empty model is allowed —
-// it signals "inherit". (An override entry present but with both fields empty is
-// a no-op merge that keeps the default; an explicit empty model is only reachable
-// when the user wants inherit, which is the documented signal.)
-func TestResolveEmptyModelInherit(t *testing.T) {
-	// Override present but empty → no-op merge, keeps default (the override has
-	// nothing to contribute).
+// TestResolveEmptyOverrideKeepsDefault: an override entry present but with all
+// fields empty is a no-op merge that keeps the built-in default.
+func TestResolveEmptyOverrideKeepsDefault(t *testing.T) {
 	cfg := cfgWithTiers(map[string]config.TierProfile{
 		"doing": {},
 	})
@@ -132,74 +169,92 @@ func TestResolveEmptyModelInherit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if got.Model != "claude-opus-4-8" || got.Effort != "high" {
-		t.Errorf("Resolve(apply) with empty override = %+v, want default", got)
+	want := Profile{Provider: "claude", Model: "claude-opus-4-8", Effort: "xhigh"}
+	if got != want {
+		t.Errorf("Resolve(apply) with empty override = %+v, want built-in default %+v", got, want)
 	}
 }
 
-// TestResolveSpawnCommand: a tier's opt-in spawn_command flows into the resolved
-// profile; a default tier (no override) resolves to an empty SpawnCommand (the
-// field is user-config-only — defaultTiers carry none).
-func TestResolveSpawnCommand(t *testing.T) {
-	cfg := cfgWithTiers(map[string]config.TierProfile{
-		"doing": {Model: "claude-opus-4-8", Effort: "high", SpawnCommand: "codex exec -m {model}"},
-	})
-	got, err := Resolve(cfg, "apply") // apply ∈ doing
+// TestResolveTier: a tier name resolves directly (the path fab agent / operator
+// use), independent of any stage.
+func TestResolveTier(t *testing.T) {
+	got, err := ResolveTier(nil, TierOperator)
 	if err != nil {
-		t.Fatalf("Resolve: %v", err)
+		t.Fatalf("ResolveTier(operator): %v", err)
 	}
-	if got.SpawnCommand != "codex exec -m {model}" {
-		t.Errorf("Resolve(apply).SpawnCommand = %q, want the override's spawn_command", got.SpawnCommand)
+	want := Profile{Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"}
+	if got != want {
+		t.Errorf("ResolveTier(operator) = %+v, want %+v", got, want)
 	}
 
-	// A default tier (no override) resolves to an empty SpawnCommand.
-	got, err = Resolve(nil, "apply")
-	if err != nil {
-		t.Fatalf("Resolve: %v", err)
-	}
-	if got.SpawnCommand != "" {
-		t.Errorf("default Resolve(apply).SpawnCommand = %q, want empty (opt-in only)", got.SpawnCommand)
+	if _, err := ResolveTier(nil, "bogus"); err == nil {
+		t.Fatal("expected an error for an unknown tier")
 	}
 }
 
-// TestResolveSpawnCommandPerFieldMerge: an override that sets ONLY spawn_command
-// keeps the tier's default model and effort (per-field merge) — spawn_command is
-// merged on the same footing as model/effort.
-func TestResolveSpawnCommandPerFieldMerge(t *testing.T) {
-	cfg := cfgWithTiers(map[string]config.TierProfile{
-		"doing": {SpawnCommand: "codex exec -m {model} -c model_reasoning_effort={effort}"},
-	})
-	got, err := Resolve(cfg, "hydrate") // hydrate ∈ doing
-	if err != nil {
-		t.Fatalf("Resolve: %v", err)
+// TestIsTierName: the five role-tier names report true; stage names and unknowns
+// report false (disjoint sets — the resolve-agent positional-arg contract).
+func TestIsTierName(t *testing.T) {
+	for _, tier := range TierNames() {
+		if !IsTierName(tier) {
+			t.Errorf("IsTierName(%q) = false, want true", tier)
+		}
 	}
-	if got.Model != "claude-opus-4-8" || got.Effort != "high" {
-		t.Errorf("Resolve(hydrate) = %+v, want default model + effort with only spawn_command overridden", got)
-	}
-	if got.SpawnCommand != "codex exec -m {model} -c model_reasoning_effort={effort}" {
-		t.Errorf("Resolve(hydrate).SpawnCommand = %q, want the override's spawn_command", got.SpawnCommand)
+	for _, notTier := range []string{"apply", "review-pr", "ship", "frobnicate", ""} {
+		if IsTierName(notTier) {
+			t.Errorf("IsTierName(%q) = true, want false", notTier)
+		}
 	}
 }
 
-// TestResolveNoCrossFallbackToAgentSpawnCommand: the project-wide
-// agent.spawn_command is NEVER consulted by Resolve — a config that sets
-// agent.spawn_command but no tier spawn_command resolves to an empty profile
-// SpawnCommand (the load-bearing no-cross-fallback semantic).
-func TestResolveNoCrossFallbackToAgentSpawnCommand(t *testing.T) {
-	cfg := &config.Config{Agent: config.AgentConfig{
-		SpawnCommand: "claude --dangerously-skip-permissions",
-		Tiers:        map[string]config.TierProfile{"doing": {Effort: "medium"}},
+// TestResolveProvider: the built-in claude provider resolves with its default
+// session command and no dispatch command; a project override per-field merges;
+// an unknown provider reports ok=false.
+func TestResolveProvider(t *testing.T) {
+	// Built-in claude, no project config.
+	prov, ok := ResolveProvider(nil, "claude")
+	if !ok {
+		t.Fatal("built-in claude provider must resolve")
+	}
+	if prov.SessionCommand != DefaultSessionCommand {
+		t.Errorf("claude.SessionCommand = %q, want the built-in default", prov.SessionCommand)
+	}
+	if prov.DispatchCommand != "" {
+		t.Errorf("claude.DispatchCommand = %q, want empty (native dispatch)", prov.DispatchCommand)
+	}
+
+	// Project override adds a dispatch_command; the session_command inherits the
+	// built-in (per-field merge).
+	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
+		"claude": {DispatchCommand: "claude -p"},
 	}}
-	got, err := Resolve(cfg, "apply")
-	if err != nil {
-		t.Fatalf("Resolve: %v", err)
+	prov, ok = ResolveProvider(cfg, "claude")
+	if !ok {
+		t.Fatal("claude provider must resolve with a project override")
 	}
-	if got.SpawnCommand != "" {
-		t.Errorf("Resolve(apply).SpawnCommand = %q, want empty — Resolve must NOT fall back to agent.spawn_command", got.SpawnCommand)
+	if prov.SessionCommand != DefaultSessionCommand {
+		t.Errorf("session_command = %q, want the inherited built-in", prov.SessionCommand)
+	}
+	if prov.DispatchCommand != "claude -p" {
+		t.Errorf("dispatch_command = %q, want the override", prov.DispatchCommand)
+	}
+
+	// A project-only provider (not in the built-in table) resolves as known.
+	cfg = &config.Config{Providers: map[string]config.ProviderConfig{
+		"codex": {SessionCommand: "codex", DispatchCommand: "codex exec"},
+	}}
+	prov, ok = ResolveProvider(cfg, "codex")
+	if !ok || prov.DispatchCommand != "codex exec" {
+		t.Errorf("codex provider = %+v, ok=%v, want the project entry", prov, ok)
+	}
+
+	// An unknown provider reports ok=false.
+	if _, ok := ResolveProvider(nil, "gemini"); ok {
+		t.Error("unknown provider must report ok=false")
 	}
 }
 
-// TestResolveUnknownStage: an unknown stage is the only resolution-side error.
+// TestResolveUnknownStage: an unknown stage is the only Resolve-side error.
 func TestResolveUnknownStage(t *testing.T) {
 	_, err := Resolve(nil, "frobnicate")
 	if err == nil {
@@ -215,9 +270,9 @@ func TestResolveUnknownStage(t *testing.T) {
 func TestModelAlias(t *testing.T) {
 	cases := map[string]string{
 		"claude-opus-4-8":            "opus",
-		"claude-sonnet-4-6":          "sonnet",
+		"claude-sonnet-5":            "sonnet",
 		"claude-haiku-4-5":           "haiku",
-		"claude-fable-1":             "fable",
+		"claude-fable-5":             "fable",
 		"claude-haiku-4-5-20251001":  "haiku", // dated variant resolves by prefix
 		"":                           "",      // empty in, empty out (inherit signal)
 		"gpt-5":                      "gpt-5", // non-Claude passes through verbatim
@@ -249,5 +304,12 @@ func TestTablesExhaustive(t *testing.T) {
 	want := "apply,hydrate,intake,review,review-pr,ship"
 	if stages != want {
 		t.Errorf("stage set = %q, want %q", stages, want)
+	}
+
+	// The tier set is exactly the five role tiers.
+	tiers := strings.Join(TierNames(), ",")
+	wantTiers := "default,doing,fast,operator,review"
+	if tiers != wantTiers {
+		t.Errorf("tier set = %q, want %q", tiers, wantTiers)
 	}
 }

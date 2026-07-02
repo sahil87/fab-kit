@@ -212,34 +212,39 @@ checklist:
     - performance
     - ux
 
-# Automated PR reviewer toggles consumed by /git-pr-review (absent key = enabled).
-review_tools:
-  copilot: true
+# Provider command grammar (top-level). Each provider maps an opaque, user-chosen
+# name to up to two command fields. session_command opens an interactive agent
+# SESSION (fab operator / fab batch / fab agent); dispatch_command runs ONE
+# headless STAGE task via `fab dispatch`. ABSENT dispatch_command → that provider's
+# stages dispatch natively via the Agent tool (there is NO fallback to
+# session_command). fab-kit ships the `claude` provider as the built-in default;
+# override/extend per-field via your own providers: block.
+# (Automated PR reviewer toggles moved to code-review.md § Review Tools — absent = enabled.)
+providers:
+  claude:
+    session_command: claude --dangerously-skip-permissions -n "$(basename "$(pwd)")"
+    # no dispatch_command → claude's stages dispatch natively via the Agent tool
+  # codex:
+  #   session_command: codex -m {model} -c model_reasoning_effort={effort}
+  #   dispatch_command: codex exec -m {model} -c model_reasoning_effort={effort}
 
-# Agent spawn command used by fab operator / fab batch / fab spawn-command
-# (falls back to `claude --dangerously-skip-permissions` when absent).
-#
-# agent.tiers (optional) is the per-stage-model override surface. A tier is a
-# named {model, effort, spawn_command} profile; fab owns a FIXED, non-overridable
-# stage→tier mapping (thinking: intake, review / doing: apply, review-pr, hydrate
-# / fast: ship) and you override only what each tier MEANS. Omit any tier (or the
-# whole tiers: block) to use fab-kit's built-in defaults
-# (thinking: opus-4-8/xhigh, doing: opus-4-8/high, fast: sonnet-4-6/low).
-# Resolved per stage by `fab resolve-agent <stage>` at sub-agent dispatch time;
-# see docs/specs/stage-models.md.
-#
-# spawn_command (per-tier, opt-in) is the CROSS-HARNESS stage-dispatch knob:
-# PRESENT on a tier → that tier's stages are dispatched by running the command
-# (e.g. codex), surfaced as the `spawn=` line of `fab resolve-agent`; ABSENT →
-# native Agent-tool dispatch. INDEPENDENT of agent.spawn_command above (whole
-# agent sessions) — there is NO fallback from a tier to agent.spawn_command.
+# agent.tiers (optional) is the per-role-model override surface. A tier is a named
+# {provider, model, effort} profile (the invocation command lives on the provider,
+# not the tier). fab owns a FIXED, non-overridable stage→tier mapping
+# (default: intake advisory / doing: apply, review-pr, hydrate / review: review /
+# fast: ship; operator: the fab operator coordinator session) and you override only
+# what each tier MEANS. Omit any tier (or the whole tiers: block) to use fab-kit's
+# built-in defaults. Any omitted field falls back to the project's `default` tier,
+# then fab-kit's built-in (per-field merge with default-tier inheritance).
+# Resolved per stage/tier by `fab resolve-agent <stage|tier>` at sub-agent dispatch
+# time; see docs/specs/stage-models.md.
 agent:
-  spawn_command: claude --dangerously-skip-permissions
   tiers:
-    doing:
-      model: claude-sonnet-4-6
-      effort: medium                # example: run the doing tier cheaper
-      # spawn_command: codex exec -m {model} -c model_reasoning_effort={effort}
+    default:  { provider: claude, model: claude-fable-5,  effort: xhigh }
+    operator: { provider: claude, model: claude-sonnet-5, effort: medium }
+    doing:    { provider: claude, model: claude-opus-4-8, effort: xhigh }
+    review:   { provider: claude, model: claude-fable-5,  effort: xhigh }
+    fast:     { provider: claude, model: claude-sonnet-5, effort: low }
 
 # Optional branch prefix applied by fab batch switch when creating worktree branches.
 branch_prefix: ""
@@ -292,7 +297,7 @@ The constitution is the **architectural DNA** of a Fab project. It defines immut
 - Constitution violations found during review are flagged as high-severity issues
 
 **Relationship to `config.yaml`**:
-- `config.yaml` holds **factual project context** (identity, source/test paths, review tooling, agent spawn command)
+- `config.yaml` holds **factual project context** (identity, source/test paths, provider session/dispatch commands (`providers:`), agent tiers)
 - `constitution.md` holds **principles and constraints** (what MUST/SHOULD/MUST NOT happen)
 - Think: config says *what you use*, constitution says *how you use it*
 

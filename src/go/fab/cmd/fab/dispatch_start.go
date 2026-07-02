@@ -29,11 +29,11 @@ func dispatchStartCmd() *cobra.Command {
 	return cmd
 }
 
-// runDispatchStart resolves the tier spawn command, refuses if a dispatch for
-// this (change, stage) is already running, launches the command detached, and
-// persists {stage}.yaml. The prompt is read from stdin (cmd.InOrStdin) into
-// {stage}-prompt.md. A resolved tier with no spawn_command is an error (no
-// fallback to agent.spawn_command).
+// runDispatchStart resolves the stage's tier → provider → dispatch_command,
+// refuses if a dispatch for this (change, stage) is already running, launches the
+// command detached, and persists {stage}.yaml. The prompt is read from stdin
+// (cmd.InOrStdin) into {stage}-prompt.md. A resolved tier whose provider has no
+// dispatch_command is an error (no fallback to a session command).
 func runDispatchStart(cmd *cobra.Command, changeArg, stage string, timeout int) error {
 	fabRoot, err := resolve.FabRoot()
 	if err != nil {
@@ -50,7 +50,7 @@ func runDispatchStart(cmd *cobra.Command, changeArg, stage string, timeout int) 
 	repoRoot := filepath.Dir(fabRoot)
 	dir := dispatch.DirFor(repoRoot, id)
 
-	// Resolve the tier's spawn command (per-tier profile from 3b), substituting
+	// Resolve the stage's tier → provider → dispatch_command, substituting
 	// {model}/{effort} via internal/spawn — the same path fab resolve-agent uses.
 	cfg, err := config.Load(fabRoot)
 	if err != nil {
@@ -60,11 +60,12 @@ func runDispatchStart(cmd *cobra.Command, changeArg, stage string, timeout int) 
 	if err != nil {
 		return err
 	}
-	if profile.SpawnCommand == "" {
+	prov, _ := agent.ResolveProvider(cfg, profile.Provider)
+	if prov.DispatchCommand == "" {
 		tier, _ := agent.TierForStage(stage)
-		return fmt.Errorf("stage %q resolves to tier %q, which has no spawn_command; configure agent.tiers.%s.spawn_command to dispatch this stage", stage, tier, tier)
+		return fmt.Errorf("stage %q resolves to tier %q (provider %q), which has no dispatch_command; configure providers.%s.dispatch_command to dispatch this stage", stage, tier, profile.Provider, profile.Provider)
 	}
-	resolvedCmd := spawn.WithProfile(profile.SpawnCommand, profile.Model, profile.Effort)
+	resolvedCmd := spawn.WithProfile(prov.DispatchCommand, profile.Model, profile.Effort)
 
 	// Refuse-if-running: a live prior dispatch for this exact (change, stage)
 	// must be killed first. A completed prior attempt (done/failed/orphaned) is

@@ -11,9 +11,11 @@ import (
 )
 
 // setupDispatchRepo builds a repo with one active change and a config whose
-// `doing` tier (apply's tier) carries a spawn_command, then chdirs into it so
-// resolve.FabRoot() resolves. Returns the repo root and the 4-char change ID.
-func setupDispatchRepo(t *testing.T, spawnCmd string) (repoRoot, id string) {
+// `doing` tier (apply's tier) points at a provider carrying a dispatch_command,
+// then chdirs into it so resolve.FabRoot() resolves. When dispatchCmd is empty,
+// no dispatch_command is configured (the resolved provider — the built-in claude —
+// has none). Returns the repo root and the 4-char change ID.
+func setupDispatchRepo(t *testing.T, dispatchCmd string) (repoRoot, id string) {
 	t.Helper()
 	repoRoot = t.TempDir()
 	folder := "260310-abcd-my-change"
@@ -29,8 +31,10 @@ func setupDispatchRepo(t *testing.T, spawnCmd string) (repoRoot, id string) {
 	projectDir := filepath.Join(repoRoot, "fab", "project")
 	mustMkdir(t, projectDir)
 	body := "project:\n  name: test\n"
-	if spawnCmd != "" {
-		body += "agent:\n  tiers:\n    doing:\n      spawn_command: \"" + spawnCmd + "\"\n"
+	if dispatchCmd != "" {
+		// A cli provider carries the dispatch_command; the doing tier points at it.
+		body += "providers:\n  cli:\n    dispatch_command: \"" + dispatchCmd + "\"\n"
+		body += "agent:\n  tiers:\n    doing: { provider: cli }\n"
 	}
 	mustWrite(t, filepath.Join(projectDir, "config.yaml"), body)
 
@@ -93,7 +97,7 @@ func TestDispatchStart_LaunchesAndPersistsState(t *testing.T) {
 	}
 	// spawn.WithProfile appends the resolved --model/--effort to a non-templated
 	// command (append mode), so the persisted spawn_cmd carries the doing-tier
-	// profile (claude-opus-4-8 / high) appended to the base command.
+	// profile (claude-opus-4-8 / xhigh) appended to the base command.
 	if !strings.HasPrefix(rec.SpawnCmd, "sh -c 'exit 0'") {
 		t.Errorf("spawn_cmd = %q, want the base command as prefix", rec.SpawnCmd)
 	}
@@ -102,19 +106,19 @@ func TestDispatchStart_LaunchesAndPersistsState(t *testing.T) {
 	}
 }
 
-func TestDispatchStart_NoSpawnCommandErrors(t *testing.T) {
-	setupDispatchRepo(t, "") // no tier spawn_command
+func TestDispatchStart_NoDispatchCommandErrors(t *testing.T) {
+	setupDispatchRepo(t, "") // resolved provider (built-in claude) has no dispatch_command
 
 	_, err := runStart(t, "prompt", "abcd", "apply")
 	if err == nil {
-		t.Fatal("expected an error when the resolved tier has no spawn_command")
+		t.Fatal("expected an error when the resolved provider has no dispatch_command")
 	}
 	msg := err.Error()
-	if !strings.Contains(msg, "doing") || !strings.Contains(msg, "spawn_command") {
-		t.Errorf("error = %q, want mention of tier 'doing' and spawn_command", msg)
+	if !strings.Contains(msg, "doing") || !strings.Contains(msg, "dispatch_command") {
+		t.Errorf("error = %q, want mention of tier 'doing' and dispatch_command", msg)
 	}
-	// Must name the config key to set (no fallback to agent.spawn_command).
-	if !strings.Contains(msg, "agent.tiers.doing.spawn_command") {
+	// Must name the config key to set (no fallback to a session command).
+	if !strings.Contains(msg, "providers.claude.dispatch_command") {
 		t.Errorf("error = %q, want the config-key hint", msg)
 	}
 }

@@ -9,7 +9,6 @@ import (
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
-	"github.com/sahil87/fab-kit/src/go/fab/internal/spawn"
 	"github.com/spf13/cobra"
 )
 
@@ -70,13 +69,12 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag bool) e
 		changes = args
 	}
 
-	// Read spawn command and branch prefix. Strip any {model}/{effort}
-	// placeholders (empty-profile resolution) — the composed command is
-	// interpolated raw into a tmux new-window shell command with no profile
-	// injection, so literal braces must not reach tmux (a non-templated command
-	// is unchanged).
+	// Compose the worker spawn command from the default tier's provider
+	// session_command with the default tier's {model}/{effort} profile SUBSTITUTED
+	// (workers finally spawn WITH a profile). Substitution resolves all
+	// placeholders so no literal braces reach the tmux new-window shell command.
 	configPath := filepath.Join(fabRoot, "project", "config.yaml")
-	spawnCmd := spawn.StripPlaceholders(spawn.Command(configPath))
+	spawnCmd := defaultTierSpawnCommand(configPath)
 	cfg, _ := config.Load(fabRoot)
 	branchPrefix := cfg.GetBranchPrefix()
 

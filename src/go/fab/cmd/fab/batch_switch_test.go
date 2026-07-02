@@ -118,9 +118,10 @@ func TestBatchSwitchCmd_Structure(t *testing.T) {
 }
 
 // batchSwitchFixture creates a fab root with one change folder and a
-// fab/project/config.yaml carrying the given agent.spawn_command, chdirs into
-// it (via hookTestEnv, TMUX set), and returns the resolvable change name.
-func batchSwitchFixture(t *testing.T, spawnCommand string) (root, change string) {
+// fab/project/config.yaml carrying the given providers.claude.session_command
+// (the default tier's provider), chdirs into it (via hookTestEnv, TMUX set), and
+// returns the resolvable change name.
+func batchSwitchFixture(t *testing.T, sessionCommand string) (root, change string) {
 	t.Helper()
 	root = t.TempDir()
 	change = "260401-ab12-add-feature"
@@ -131,7 +132,7 @@ func batchSwitchFixture(t *testing.T, spawnCommand string) (root, change string)
 	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := "agent:\n  spawn_command: \"" + spawnCommand + "\"\n"
+	body := "providers:\n  claude:\n    session_command: \"" + sessionCommand + "\"\n"
 	if err := os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -160,12 +161,13 @@ func stubBatchSwitchTmuxCapture(t *testing.T) string {
 	return capture
 }
 
-// TestRunBatchSwitch_SpawnCommandPlaceholderStripping verifies that a templated
-// agent.spawn_command has its {model}/{effort} placeholders stripped before it
-// is interpolated into the tmux new-window shell command (no literal braces
-// reach tmux), and that a non-templated command passes through verbatim.
-func TestRunBatchSwitch_SpawnCommandPlaceholderStripping(t *testing.T) {
-	t.Run("templated spawn_command stripped, no literal braces reach tmux", func(t *testing.T) {
+// TestRunBatchSwitch_SpawnCommandProfileInjection verifies that the worker spawn
+// command carries the default tier's {model}/{effort} PROFILE — substituted into a
+// templated session_command (no literal braces reach tmux), or appended as
+// --model/--effort to a non-templated command. The default tier resolves to
+// claude/claude-fable-5/xhigh.
+func TestRunBatchSwitch_SpawnCommandProfileInjection(t *testing.T) {
+	t.Run("templated session_command substituted with the default profile", func(t *testing.T) {
 		_, change := batchSwitchFixture(t, "codex -m {model} -c model_reasoning_effort={effort}")
 		capture := stubBatchSwitchTmuxCapture(t)
 
@@ -185,12 +187,12 @@ func TestRunBatchSwitch_SpawnCommandPlaceholderStripping(t *testing.T) {
 		if strings.Contains(got, "{model}") || strings.Contains(got, "{effort}") {
 			t.Errorf("literal placeholder braces reached tmux:\n%s", got)
 		}
-		if !strings.Contains(got, "codex '/fab-switch") {
-			t.Errorf("composed spawn command not stripped to `codex`:\n%s", got)
+		if !strings.Contains(got, "codex -m claude-fable-5 -c model_reasoning_effort=xhigh '/fab-switch") {
+			t.Errorf("templated session_command not substituted with the default profile:\n%s", got)
 		}
 	})
 
-	t.Run("non-templated spawn_command passes through verbatim", func(t *testing.T) {
+	t.Run("non-templated session_command has the profile appended", func(t *testing.T) {
 		_, change := batchSwitchFixture(t, "claude --dangerously-skip-permissions")
 		capture := stubBatchSwitchTmuxCapture(t)
 
@@ -206,8 +208,8 @@ func TestRunBatchSwitch_SpawnCommandPlaceholderStripping(t *testing.T) {
 		if err != nil {
 			t.Fatalf("reading tmux capture: %v", err)
 		}
-		if !strings.Contains(string(args), "claude --dangerously-skip-permissions '/fab-switch") {
-			t.Errorf("non-templated spawn command not passed through verbatim:\n%s", string(args))
+		if !strings.Contains(string(args), "claude --dangerously-skip-permissions --model claude-fable-5 --effort xhigh '/fab-switch") {
+			t.Errorf("non-templated session_command missing the appended default profile:\n%s", string(args))
 		}
 	})
 }

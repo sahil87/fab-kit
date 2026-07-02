@@ -12,8 +12,8 @@ each stage, so judgment-heavy stages (intake, review) run at a high-end model + 
 mechanical stage (ship) runs on a cheaper, lower-effort tier.
 
 The control surface is deliberately small: fab owns *which* stages cluster into *which* tier (a fixed,
-non-overridable taxonomy), and a project overrides only *what each tier means* (the `{model, effort}`
-profile).
+non-overridable taxonomy), and a project overrides only *what each tier means* (the
+`{provider, model, effort}` profile).
 
 ---
 
@@ -35,39 +35,52 @@ cover.
 
 ---
 
-## Tiers are `{model, effort}` profiles
+## Tiers are `{provider, model, effort}` profiles
 
-A tier is a **named profile of `{model, effort}`** — not a bare model. Effort is a first-class spend
-dial (the project's current `spawn_command` already runs `--effort xhigh`), and what a user means by a
-tier is the model *and* how hard it thinks. Bundling them keeps the tier name honest.
+A tier is a **named profile of `{provider, model, effort}`** — not a bare model. The invocation
+**command** does NOT live on the tier: it lives on the **provider** the tier names (see
+[§ Providers](#providers)), so a tier is pure budget/role policy. Effort is a first-class spend dial,
+and what a user means by a tier is the provider, the model, *and* how hard it thinks. Bundling them
+keeps the tier name honest.
 
-Three tiers form the vocabulary, grouped by **cognitive mode**:
+Five **role tiers** form the vocabulary — concrete referents ("the operator", "the reviewer"), not
+cognitive modes:
 
-| Tier | Cognitive mode |
-|------|----------------|
-| `thinking` | **Generative judgment** — intake *discovers* requirements; review *discovers* bugs. Deliberation directly buys quality. |
-| `doing` | **Execution that must not err** — apply writes the diff; review-pr fixes already-articulated feedback (responsive, not generative); hydrate writes memory. |
-| `fast` | **Speed on near-mechanical work** — commit/push/PR mechanics plus a faithful PR-description summary. |
+| Tier | Role |
+|------|------|
+| `default` | Spawned worker sessions (`fab batch`), `fab agent` with no tier, intake (advisory only — foreground). Also the **per-field fallback for every other tier**. |
+| `operator` | The operator coordinator session (`fab operator`). |
+| `doing` | **Execution that must not err** — apply writes the diff; review-pr fixes already-articulated feedback; hydrate writes memory. |
+| `review` | **The critic** — review reads a diff and discovers what's wrong. Split from `doing` for author/critic separation (a different agent checks the work than does it). |
+| `fast` | **Speed on near-mechanical work** — ship's commit/push/PR mechanics plus a faithful PR-description summary. |
+
+`thinking` is **removed**, not split: with `review` its own tier, `thinking`'s only remaining stage
+would be intake, which never dispatches (it is pre-boundary, foreground). Intake rides `default`,
+honestly — it runs wherever the interactive session runs.
 
 ### Default tier profiles
 
-fab-kit ships a default `{model, effort}` per tier. This table is **owned by the Go binary**
+fab-kit ships a default `{provider, model, effort}` per tier. This table is **owned by the Go binary**
 (`internal/agent`), versioned with the kit, and the single place to bump when a new model ships.
+Provider is written explicitly on every line (documented style — per-line readability; inheritance is
+the safety net, not the style).
 
-| Tier | Model | Effort |
-|------|-------|--------|
-| `thinking` | `claude-opus-4-8` | `xhigh` |
-| `doing` | `claude-opus-4-8` | `high` |
-| `fast` | `claude-sonnet-4-6` | `low` |
+| Tier | Provider | Model | Effort |
+|------|----------|-------|--------|
+| `default` | `claude` | `claude-fable-5` | `xhigh` |
+| `operator` | `claude` | `claude-sonnet-5` | `medium` |
+| `doing` | `claude` | `claude-opus-4-8` | `xhigh` |
+| `review` | `claude` | `claude-fable-5` | `xhigh` |
+| `fast` | `claude` | `claude-sonnet-5` | `low` |
 
 This is the verified mirror of the `defaultTiers` map in
 `src/go/fab/internal/agent/agent.go`. A drift-guard test fails if the two disagree (see § Drift guard).
 
-**Why these defaults.** Two of three tiers are Opus; the differentiation between `thinking` and
-`doing` is **effort** (`xhigh` → `high`), not model. The single model boundary sits at the bottom
-(`fast` → Sonnet). Five of six stages run on Opus — quality-first, with the primary spend lever being
-effort and one model downgrade at the mechanical floor. Cost-conscious projects opt the `doing` tier
-down to Sonnet themselves (see § Config schema).
+**Why these defaults.** `doing` runs Opus (the coupled apply/review-pr/hydrate work — see
+§ apply↔review coupling); `default` and `review` run Fable at `xhigh` (the Fable upgrade curve);
+`operator` runs Sonnet/medium (highest-volume coordinator, pattern-matching work, escalation
+discipline makes the cheaper model safe); `fast` sits at the mechanical floor on Sonnet/low.
+Cost-conscious projects opt any tier down themselves (see § Config schema).
 
 ---
 
@@ -79,8 +92,8 @@ determinism). Users override what a tier *costs* (budget), never which stages be
 
 | Stage | Tier |
 |-------|------|
-| `intake` | `thinking` |
-| `review` | `thinking` |
+| `intake` | `default` |
+| `review` | `review` |
 | `apply` | `doing` |
 | `review-pr` | `doing` |
 | `hydrate` | `doing` |
@@ -88,12 +101,13 @@ determinism). Users override what a tier *costs* (budget), never which stages be
 
 This is the verified mirror of the `stageTiers` map in `src/go/fab/internal/agent/agent.go`
 (drift-guarded). The mapping is exhaustive — every one of the six pipeline stages belongs to exactly
-one tier.
+one tier. `intake → default` is **advisory only**: intake runs foreground in the user's own session,
+which fab cannot re-model (see § Foreground limitation).
 
-**Critical distinction — `review` vs `review-pr`.** They share the word "review" but not the cognitive
-mode. `review` is **generative** (reads a diff and discovers what's wrong from nothing → `thinking`);
-`review-pr` is **responsive** (triages and fixes feedback someone else already generated → `doing`).
-They are deliberately in **different tiers** — do not group them.
+**Critical distinction — `review` vs `review-pr`.** They share the word "review" but not the role.
+`review` is **the critic** (reads a diff and discovers what's wrong from nothing → its own `review`
+tier); `review-pr` is **responsive** (triages and fixes feedback someone else already generated →
+`doing`). They are deliberately in **different tiers** — do not group them.
 
 There is **no `stage_tiers` config** (stage→tier reassignment is not a user knob) and **no per-stage
 escape hatch** (a stage cannot be pinned individually outside its tier). Disagreement with the tiering
@@ -101,81 +115,112 @@ is an upstream fab-kit issue, not a project knob.
 
 ---
 
-## Config schema — `agent.tiers` (the ONLY override surface)
+## Providers
 
-A new optional `agent.tiers` map in `fab/project/config.yaml`, under the existing `agent:` block. The
-Go `Config` struct widens freely — yaml unmarshalling ignores unknown keys, so existing configs are
-unaffected (the same property that made `stage_hooks` free to add).
+The invocation **command grammar** lives in a top-level `providers:` table, not on the tiers. Each
+provider is an opaque, user-chosen name mapping to up to two command fields:
+
+- **`session_command`** — opens an interactive agent **session** (`fab operator` / `fab batch` /
+  `fab agent`). This is the relocated `agent.spawn_command`.
+- **`dispatch_command`** — runs ONE headless **stage task** via `fab dispatch`. **ABSENT
+  `dispatch_command` = native Agent-tool dispatch** (the default). There is **NO fallback** between the
+  two fields — absence of `dispatch_command` signals native dispatch, never "use `session_command`".
+
+The two fields are deliberately **not merged** into one `command`: session and dispatch are different
+invocations of the same binary (claude interactive `-n` vs headless `-p`; codex TUI vs `codex exec`),
+and no single template expresses both. fab-kit ships the **`claude` provider as the built-in default**
+(session command shown below, no `dispatch_command` → native). A project extends/overrides via its own
+`providers:` block, per-field merged over the built-in.
+
+**Provider names are opaque — fab NEVER infers a provider from a model string** (`claude-*` → claude
+would need a provider registry, which the no-validation/provider-neutrality contract refuses). The one
+footgun is documented, not validated: **override a tier's `model` cross-provider ⇒ override its
+`provider` too**.
+
+## Config schema — `providers:` + `agent.tiers` (the override surfaces)
+
+Both are optional maps in `fab/project/config.yaml`. The Go `Config` struct widens freely — yaml
+unmarshalling ignores unknown keys, so existing configs are unaffected (the same property that made
+`stage_hooks` free to add).
 
 ```yaml
-agent:
-  spawn_command: claude --dangerously-skip-permissions --effort xhigh -n "$(basename "$(pwd)")"
+providers:
+  claude:
+    session_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")"'
+    # no dispatch_command → claude's stages dispatch natively via the Agent tool
+  # codex:
+  #   session_command: 'codex -m {model} -c model_reasoning_effort={effort}'
+  #   dispatch_command: 'codex exec -m {model} -c model_reasoning_effort={effort}'
 
+agent:
   # The stage→tier mapping is OWNED BY FAB-KIT and is NOT overridable — shown
   # here only as reference so you know which stages each tier governs:
-  #   thinking: intake, review            (generative judgment)
-  #   doing:    apply, review-pr, hydrate  (execution that must not err)
-  #   fast:     ship                       (speed on near-mechanical work)
+  #   default:  intake (advisory), fab batch, fab agent   (+ per-field fallback)
+  #   operator: fab operator (coordinator session)
+  #   doing:    apply, review-pr, hydrate                 (execution that must not err)
+  #   review:   review                                    (the critic)
+  #   fast:     ship                                      (near-mechanical work)
   #
-  # You override only WHAT EACH TIER MEANS (model + effort). Omit any tier to
-  # use fab-kit's built-in default. fab-kit defaults today are:
-  #   thinking: { model: claude-opus-4-8,   effort: xhigh }
-  #   doing:    { model: claude-opus-4-8,   effort: high  }
-  #   fast:     { model: claude-sonnet-4-6, effort: low   }
+  # You override only WHAT EACH TIER MEANS (provider + model + effort). Omit any
+  # tier to use fab-kit's built-in default. fab-kit defaults today are:
+  #   default:  { provider: claude, model: claude-fable-5,  effort: xhigh }
+  #   operator: { provider: claude, model: claude-sonnet-5, effort: medium }
+  #   doing:    { provider: claude, model: claude-opus-4-8, effort: xhigh }
+  #   review:   { provider: claude, model: claude-fable-5,  effort: xhigh }
+  #   fast:     { provider: claude, model: claude-sonnet-5, effort: low }
   tiers:
-    doing: { model: claude-sonnet-4-6, effort: medium }   # example: run the doing tier cheaper
+    doing: { provider: claude, model: claude-sonnet-5, effort: medium }   # example: run doing cheaper
 ```
 
-- Keys under `tiers:` are tier names: `thinking`, `doing`, `fast`.
-- Each value is a `{model, effort, spawn_command}` object. Any field MAY be set; an omitted field
-  falls back to the fab-kit default for that tier (**per-field merge**).
+- Keys under `tiers:` are the five role-tier names: `default`, `operator`, `doing`, `review`, `fast`.
+- Each value is a `{provider, model, effort}` object (the command lives on the provider). Any field MAY
+  be set; an omitted field falls back to the project's `default` tier, then fab-kit's built-in for that
+  tier (**per-field merge with default-tier inheritance**).
 - A tier omitted entirely (or an absent `tiers:` block) uses fab-kit's built-in default for that tier.
-- An **empty model** signals "inherit the session/orchestrator model" (today's behavior).
-- **`spawn_command` (per-tier, opt-in) — the cross-harness stage-dispatch knob.** PRESENT on a
-  resolved tier → that tier's stages are dispatched by **running the command** (cross-harness, e.g.
-  `codex exec …`); ABSENT → **native Agent-tool dispatch** (the default). fab-kit's built-in default
-  tiers carry **no** `spawn_command` — the field is populated **exclusively** from user config, so the
-  default behavior is unchanged. It is **INDEPENDENT of `agent.spawn_command`** (which opens whole
-  agent *sessions* for `fab operator` / `fab batch` / `fab spawn-command`): **there is NO fallback
-  from a tier to `agent.spawn_command`** — the absence of a resolved tier `spawn_command` is itself
-  the native-dispatch signal. (Mental model: `agent.spawn_command` hires an employee; a tier
-  `spawn_command` outsources one task.) The `{model}`/`{effort}` placeholders are substituted at
-  resolve time via the same `internal/spawn` template machinery. *This spec covers only the config
-  schema and the `spawn=` resolution output; the dispatch that RUNS the command (`fab dispatch`, 3c)
-  and the skill dispatch-seam wiring (3d) both shipped — the cross-adapter contract they share is
-  fixed by [`harness-adapters.md`](harness-adapters.md).*
+- An **empty model** signals "inherit the session/orchestrator model" once resolution bottoms out.
+- **Provider is written explicitly on every tier line** (documented style — per-line readability);
+  inheritance is the safety net, not the style. Inheriting `{provider, model, effort}` is safe
+  *because commands moved to `providers:`* — the dangerous cross-semantics command inheritance can no
+  longer happen.
+- The `{model}`/`{effort}` placeholders in a provider command are substituted at resolve time via the
+  same `internal/spawn` template machinery. *This spec covers the config schema and the `dispatch=`
+  resolution output; the dispatch that RUNS a `dispatch_command` (`fab dispatch`) and the skill
+  dispatch-seam wiring share the cross-adapter contract fixed by
+  [`harness-adapters.md`](harness-adapters.md).*
 
 ---
 
-## Resolution — `fab resolve-agent <stage>`
+## Resolution — `fab resolve-agent <stage|tier>`
 
 Resolution lives in **Go**, not in the prompt — the cascade is volatile logic that would drift across
-skill files if reasoned about in markdown. A pure-query command returns the concrete `{model, effort}`
-for a stage; skills inject the result and reason about nothing.
+skill files if reasoned about in markdown. A pure-query command returns the concrete
+`{provider, model, effort}` for a stage (or tier); skills inject the result and reason about nothing.
 
 ```
-fab resolve-agent <stage>
+fab resolve-agent <stage|tier> [--alias]
 ```
 
-(Named `resolve-agent`, not `resolve-model`, because it resolves both the model and the effort the
-agent dispatch needs.)
+(Named `resolve-agent`, not `resolve-model`, because it resolves the provider, the model, and the
+effort the agent dispatch needs.)
 
-1. Take a stage name (`intake`/`apply`/`review`/`hydrate`/`ship`/`review-pr`).
-2. Map the stage → its tier via the fixed stage→tier mapping.
-3. Resolve the tier → `{model, effort, spawn_command}`: the project's `agent.tiers.<tier>` override
-   **per-field merged** over fab-kit's default if present, else the default. `spawn_command` merges on
-   the same footing as model/effort (override wins when set); defaults carry none.
-4. **Emit verbatim — NO validation** (see § No validation). fab does not check the model, effort, or
-   spawn_command against any provider's accepted set; it echoes the resolved strings as-is.
-5. Output: two stdout lines, `model=<id>` and `effort=<level>`, **plus an optional third line
-   `spawn=<command>`**. The `effort=` line is **omitted** when the resolved tier has no effort. An
-   empty model emits an empty `model=` line (the "inherit" signal). The `spawn=` line is emitted
-   **ONLY when the resolved tier carries a `spawn_command`** (mirroring the effort-omit rule); its
-   **absence signals native Agent-tool dispatch**, and there is **NO fallback to
-   `agent.spawn_command`** — `resolve-agent` never consults the whole-session field. The `spawn=`
-   command's `{model}`/`{effort}` placeholders are substituted via `internal/spawn`'s template
-   resolution (reused, not reimplemented), using the tier's own resolved model/effort — and the
-   `{model}` is **always the full model ID**, even under `--alias` (see § Harness-adapter boundary).
+1. Take a **stage** name (`intake`/`apply`/`review`/`hydrate`/`ship`/`review-pr`) or a **role-tier**
+   name (`default`/`operator`/`doing`/`review`/`fast`) — the two sets are disjoint, so the positional
+   argument accepts either. A stage maps through the fixed stage→tier mapping; a tier resolves directly
+   (the path `fab agent` and the operator launcher use).
+2. Resolve the tier → `{provider, model, effort}`: the project's `agent.tiers.<tier>` override
+   **per-field merged** over the project's `default` tier, over fab-kit's built-in. Any field wins in
+   that order.
+3. **Emit verbatim — NO validation** (see § No validation). fab does not check the provider, model, or
+   effort against any provider's accepted set; it echoes the resolved strings as-is.
+4. Output: a `model=<id>` line always, then optional `effort=<level>`, `provider=<name>`, and
+   `dispatch=<command>` lines. The `effort=`/`provider=` lines are **omitted** when empty. An empty
+   model emits an empty `model=` line (the "inherit" signal). The `dispatch=` line is emitted **ONLY
+   when the resolved tier's provider carries a `dispatch_command`** (mirroring the effort-omit rule);
+   its **absence signals native Agent-tool dispatch**, and there is **NO fallback to a session
+   command**. The `dispatch=` command's `{model}`/`{effort}` placeholders are substituted via
+   `internal/spawn`'s template resolution (reused, not reimplemented), using the tier's own resolved
+   model/effort — and the `{model}` is **always the full model ID**, even under `--alias` (see
+   § Harness-adapter boundary).
 6. **Byte-stable** for the same config (like other `fab resolve` queries). Non-zero exit only on a
    real error: an unreadable/malformed config, or an unknown stage name. A stage that resolves to a
    default is success, not an error.
@@ -225,31 +270,33 @@ override a tier to Haiku (pass-through doesn't forbid it); fab just doesn't ship
 
 The orchestrators (`/fab-ff`, `/fab-fff`, `/fab-proceed`, `/fab-adopt`) and `/fab-continue`'s sub-agent dispatch call
 `fab resolve-agent <stage>` immediately before dispatching each stage's sub-agent, **surface** the
-resolved `model=/effort=` lines (so a skipped or mis-resolved tier is visible in output rather than
-silent — the available stand-in for an enforcement guard, since dispatch is harness-internal), and
-apply the resolved **model AND effort** through their two seams:
+resolved `model=/effort=/provider=/dispatch=` lines (so a skipped or mis-resolved tier — or a CLI
+dispatch — is visible in output rather than silent, the available stand-in for an enforcement guard
+since dispatch is harness-internal), and apply the resolved **model AND effort** through their two
+seams:
 
 - **Model → the Agent tool's `model` param.** The Agent `model` param is a hard enum of short aliases (`opus`/`sonnet`/`haiku`/`fable`) that rejects full IDs, so the model half is resolved with `fab resolve-agent <stage> --alias` — the `--alias` flag emits the Agent-tool-valid short alias directly on the `model=` line (see § Harness-adapter boundary). Empty model → omit it (inherit session/orchestrator model — today's behavior).
 - **Effort → an explicit instruction in the subagent prompt.** The Agent tool has no `effort` param, so the resolved effort is injected as an imperative line in the dispatched prompt (e.g., ``Operate at `xhigh` reasoning effort for this task.``) and the sub-agent self-selects. Empty effort → omit the instruction. (The effort half is therefore **no longer dropped** — earlier wiring had no seam for it; it now rides the prompt. The clean fix, a first-class per-sub-agent effort parameter on the Agent tool, is a harness ask outside fab's control — see § Foreground limitation's scope note.)
 
-The **`review` stage resolves once** and applies the same `{model, effort}` to BOTH reviewer sub-agents
-(inward + outward) and the merge — the same model param and the same effort-prompt instruction for all
-three; a consequence of stage(/tier)-granularity, documented as a known tradeoff (the mechanical merge
-runs at the reviewer's tier; acceptable for config simplicity).
+The **`review` stage resolves once** (on its own `review` tier) and applies the same
+`{provider, model, effort}` to BOTH reviewer sub-agents (inward + outward) and the merge — the same
+model param and the same effort-prompt instruction for all three; a consequence of
+stage(/tier)-granularity, documented as a known tradeoff (the mechanical merge runs at the reviewer's
+tier; acceptable for config simplicity).
 
 `_cli-fab.md` documents the `fab resolve-agent` command signature (Constitution constraint: CLI changes
-MUST update `_cli-fab.md`). `architecture.md` documents the `agent.tiers` config block alongside the
-existing `stage_hooks` example.
+MUST update `_cli-fab.md`). `architecture.md` documents the `providers:` + `agent.tiers` config blocks
+alongside the existing `stage_hooks` example.
 
 ### Harness-adapter boundary (the only Claude-Code-specific layer)
 
 Per-stage selection is **provider-neutral by construction**, not Claude-locked:
 
-- *Portable layers (no provider knowledge):* the `agent.tiers` config schema, and the entire
-  `fab resolve-agent` resolution path (stage→tier→`{model, effort}`). The resolver does no validation
-  and echoes strings verbatim, so a project can switch agents by overriding `agent.tiers` with another
-  provider's model IDs and effort vocabulary (`gpt-5 / reasoning_effort:high`, `gemini-* / <its-knob>`)
-  and nothing in fab rejects it.
+- *Portable layers (no provider knowledge):* the `providers:` + `agent.tiers` config schema, and the
+  entire `fab resolve-agent` resolution path (stage→tier→`{provider, model, effort}`). The resolver
+  does no validation and echoes strings verbatim, so a project can switch agents by adding a provider
+  and overriding `agent.tiers` with another provider's model IDs and effort vocabulary
+  (`gpt-5 / reasoning_effort:high`, `gemini-* / <its-knob>`) and nothing in fab rejects it.
 - *Harness-specific layer (the adapter):* injecting the resolved model+effort into the actual
   sub-agent dispatch is harness behavior, and the two halves use **two different seams** in Claude
   Code. **The model rides the Agent tool's `model` parameter** — a hard enum that takes a short alias
@@ -265,24 +312,25 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   introduced by this feature** — fab's entire existing subagent-dispatch design (`_preamble.md` §
   Subagent Dispatch) is already Claude-Code-shaped. Per-stage selection is exactly as portable as fab's
   existing dispatch: no more, no less. *(The operator launcher path is the deliberate exception — it
-  resolves the doing-tier profile WITHOUT `--alias`, because `spawn.WithProfile` composes a `claude`
-  CLI invocation, which accepts full IDs. `WithProfile` is grammar-forgiving: it **appends**
-  `--model <full-id> --effort <level>` to a plain Claude `spawn_command` (no placeholder), and
-  **substitutes** the resolved values into a `{model}`/`{effort}` **template** `spawn_command` (e.g. a
+  resolves the **operator**-tier profile WITHOUT `--alias`, because `spawn.WithProfile` composes a
+  `claude` CLI invocation, which accepts full IDs. `WithProfile` is grammar-forgiving: it **appends**
+  `--model <full-id> --effort <level>` to a plain Claude `session_command` (no placeholder), and
+  **substitutes** the resolved values into a `{model}`/`{effort}` **template** `session_command` (e.g. a
   codex command) instead — all-or-nothing, an empty value dropping the placeholder's token and a
   preceding `-`-flag — so a non-Claude worker CLI is configurable without the launcher emitting
   Claude-only flags; 260702-6tmi.)*
-- *Cross-harness stage dispatch (the `spawn=` adapter):* a tier's optional `spawn_command` is the
-  seam for handing one stage to a **different CLI harness** (e.g. `codex exec …`) instead of a native
-  Agent-tool sub-agent. When a resolved tier carries it, `fab resolve-agent` emits a third
-  `spawn=<command>` line — its `{model}`/`{effort}` substituted via `internal/spawn`. This adapter is
-  the **inverse aliasing rule** from the Agent-tool `model` param: the `spawn=` command **ALWAYS
+- *Cross-harness stage dispatch (the `dispatch=` adapter):* a provider's optional `dispatch_command` is
+  the seam for handing one stage to a **different CLI harness** (e.g. `codex exec …`) instead of a
+  native Agent-tool sub-agent. When a resolved tier's provider carries it, `fab resolve-agent` emits a
+  `dispatch=<command>` line — its `{model}`/`{effort}` substituted via `internal/spawn`. This adapter is
+  the **inverse aliasing rule** from the Agent-tool `model` param: the `dispatch=` command **ALWAYS
   embeds the FULL model ID, never an alias**, because an external CLI's `--model` flag takes a full ID
   — CLI dispatch never aliases. So under `--alias` the `model=` line is aliased (Agent-tool half) while
-  the `spawn=` line carries the full ID (CLI half). The field is **independent of** `agent.spawn_command`
-  (the whole-session boundary) with **no cross-fallback** — absence of a resolved tier `spawn_command`
-  is the native-dispatch signal. *`fab resolve-agent` emits the line; the dispatch that RUNS it
-  (`fab dispatch`, 3c) and the skill dispatch-seam wiring that consumes it (3d) both shipped.* **The
+  the `dispatch=` line carries the full ID (CLI half). The field is **independent of** a provider's
+  `session_command` (which opens whole sessions) with **no cross-fallback** — absence of a resolved
+  provider `dispatch_command` is the native-dispatch signal. *`fab resolve-agent` emits the line; the
+  dispatch that RUNS it (`fab dispatch`) and the skill dispatch-seam wiring that consumes it both
+  shipped.* **The
   native Agent-tool adapter described in this section is now one of *two* dispatch adapters catalogued
   in [`harness-adapters.md`](harness-adapters.md)** — the CLI adapter (`fab dispatch`, 3c) is the
   other, and that spec fixes the cross-adapter dispatch protocol (dispatch-prompt obligations, the
@@ -314,11 +362,12 @@ output volume (which argues for the cheaper model), but the coupling argues loud
 
 ## Fable upgrade path
 
-When Fable access lands, fab bumps the default tier→profile table in **one place** — `thinking` →
-Fable/xhigh, `doing` → Opus/xhigh — and every non-overriding project upgrades for free. Note the
-`doing` tier's effort also rises (`high` → `xhigh`) under Fable: the tier→profile table is fab's
-curated judgment per release, not a fixed effort-per-tier-rank rule. A project that overrides a tier
-opts **out** of fab's upgrade curve for that tier (correct behavior — naming it here).
+Fable has landed: `default` and `review` now run `claude-fable-5`/`xhigh`, and `doing` runs
+Opus/`xhigh` (its effort rose to `xhigh` on the Fable curve). fab bumps the default tier→profile table
+in **one place** (the `defaultTiers` map) each release, and every non-overriding project upgrades for
+free. The tier→profile table is fab's curated judgment per release, not a fixed effort-per-tier-rank
+rule. A project that overrides a tier opts **out** of fab's upgrade curve for that tier (correct
+behavior — naming it here).
 
 ---
 

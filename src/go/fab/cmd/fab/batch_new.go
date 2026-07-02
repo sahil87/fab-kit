@@ -9,7 +9,6 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/backlog"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
-	"github.com/sahil87/fab-kit/src/go/fab/internal/spawn"
 	"github.com/spf13/cobra"
 )
 
@@ -77,12 +76,13 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 		ids = args
 	}
 
-	// Read spawn command. Strip any {model}/{effort} placeholders (empty-profile
-	// resolution) — the composed command is interpolated raw into a tmux
-	// new-window shell command with no profile injection, so literal braces must
-	// not reach tmux (a non-templated command is unchanged).
+	// Compose the worker spawn command from the default tier's provider
+	// session_command with the default tier's {model}/{effort} profile SUBSTITUTED
+	// (workers finally spawn WITH a profile). The composed command is interpolated
+	// into a tmux new-window shell command; substitution resolves all placeholders
+	// so no literal braces reach tmux.
 	configPath := filepath.Join(fabRoot, "project", "config.yaml")
-	spawnCmd := spawn.StripPlaceholders(spawn.Command(configPath))
+	spawnCmd := defaultTierSpawnCommand(configPath)
 
 	// Process each ID. Launch failures (wt create, tmux new-window) are
 	// reported per item with a failure count and a non-zero exit when any

@@ -124,20 +124,13 @@ The outward sub-agent performs a holistic diff review with full repository acces
 - Standard subagent context files (per `_preamble.md` § Standard Subagent Context)
 - Full tool access (Read, Bash, Agent) — the sub-agent MAY read any file in the repo
 
-**Cascade**: The outward sub-agent uses a **Codex → Claude cascade**, controlled by `review_tools` in `fab/project/config.yaml`:
+**Cascade**: The outward sub-agent uses a **Codex → Claude cascade**, controlled by the `codex` and `claude` entries in `fab/project/code-review.md` § Review Tools:
 
-```yaml
-review_tools:
-    codex: true    # first in cascade — set to false to skip
-    claude: true   # fallback — set to false to skip
-    copilot: true  # used by /git-pr-review only, not this cascade
-```
+The `## Review Tools` section (prose) lists each reviewer tool that is disabled. An **absent section — or an absent entry** — means the tool is **enabled**; a tool is disabled only when the section lists it as `false` (e.g. `- codex: false`). So an all-enabled setup needs nothing in this section. The `copilot` entry in the same section is read by `/git-pr-review` only, not this cascade.
 
-When `review_tools` is absent, all tools default to `true`.
-
-1. **Check config**: Read `review_tools.codex` — if `false`, skip Codex
+1. **Check config**: Read the `codex` entry from `code-review.md` § Review Tools — if listed as `false`, skip Codex
 2. **Attempt Codex**: `command -v codex` — if found and enabled, run Codex as the reviewer
-3. **Check config**: Read `review_tools.claude` — if `false`, skip Claude
+3. **Check config**: Read the `claude` entry from `code-review.md` § Review Tools — if listed as `false`, skip Claude
 4. **If Codex unavailable/disabled or fails**, attempt Claude: `command -v claude` — if found and enabled, run Claude as the reviewer
 5. If all enabled tools are unavailable or fail, return an empty findings set (graceful no-op — not an error condition). The review stage continues normally.
 
@@ -183,7 +176,7 @@ Dispatch the sub-agent(s) selected by `mode` (see Review Mode):
 
 ## Findings Merge
 
-After the dispatched sub-agent(s) return, their findings are merged into a single prioritized set. In `outward-only` mode there is a single source (the outward sub-agent); the merge steps below operate on that one source, and the deduplication step (2) is a no-op. The pass/fail rule (4) is identical in both modes — including that **zero findings passes**, so an empty `outward-only` result (e.g. all `review_tools` disabled or unavailable) **passes** (best-effort; adoption must not hard-block when no external reviewer is available).
+After the dispatched sub-agent(s) return, their findings are merged into a single prioritized set. In `outward-only` mode there is a single source (the outward sub-agent); the merge steps below operate on that one source, and the deduplication step (2) is a no-op. The pass/fail rule (4) is identical in both modes — including that **zero findings passes**, so an empty `outward-only` result (e.g. all reviewer tools disabled via `code-review.md` § Review Tools, or unavailable) **passes** (best-effort; adoption must not hard-block when no external reviewer is available).
 
 1. **Collect**: Gather all findings from the dispatched sub-agent(s) — both in `full` mode, the outward sub-agent only in `outward-only`
 2. **Deduplicate**: If both sub-agents flag the same file:line issue, consolidate into a single finding (use the higher severity if they differ). (No-op in `outward-only` — a single source cannot collide with itself.)

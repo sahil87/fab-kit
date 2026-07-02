@@ -121,7 +121,7 @@ idea help-dump                                     # wt/idea: assumed present, b
 
 > The gist above is the operator-used subset. The full `wt` surface (e.g. `init`, `open`, `shell-init`, `update`) and the complete flag set for each command are available via `wt help-dump` (assumed present — bare, per § Reference Model).
 
-> **Repo-targeted spawning (operator).** `wt` operates on the **current working directory's** repo. For multi-repo coordination, the operator MUST run `wt create` **in the target repo's directory** (the agent's absolute main-worktree root), so the new worktree lands under `$(dirname <target-repo>)/<repo-name>.worktrees/` — not under the operator's own repo. The operator reads that target repo's spawn command separately via `fab spawn-command --repo <target-repo>` (see `_cli-fab.md`), never its own `config.yaml`.
+> **Repo-targeted spawning (operator).** `wt` operates on the **current working directory's** repo. For multi-repo coordination, the operator MUST run `wt create` **in the target repo's directory** (the agent's absolute main-worktree root), so the new worktree lands under `$(dirname <target-repo>)/<repo-name>.worktrees/` — not under the operator's own repo. The operator reads that target repo's session command separately via `fab agent --print --repo <target-repo>` (see `_cli-fab.md`), never its own `config.yaml`.
 
 ### Operator Spawning Rules
 
@@ -214,7 +214,7 @@ command -v hop >/dev/null 2>&1 && hop ls   # gate every hop call, fail silently
 | `ls --trees` | `hop ls --trees` | List repos **with worktree summaries**, fanning out to `wt list --json` per repo. This is the explicit `hop`↔`wt` seam: `hop` enumerates repos, `wt` enumerates each repo's worktrees |
 | `where` | `hop <name> where` | Echo the absolute path of a matching repo. `hop <name>/<wt> where` resolves a specific worktree (via `wt list --json`) |
 
-**Why it matters to the operator.** Multi-repo coordination needs the absolute main-worktree root of a *sibling* repo — e.g. to spawn an agent into it (see the **Repo-targeted spawning** note in the `wt` section, which requires running `wt create` in the target repo's directory and reading `fab spawn-command --repo <target-repo>`). `hop ls` / `hop <name> where` is how an agent **discovers** those locations rather than hardcoding paths.
+**Why it matters to the operator.** Multi-repo coordination needs the absolute main-worktree root of a *sibling* repo — e.g. to spawn an agent into it (see the **Repo-targeted spawning** note in the `wt` section, which requires running `wt create` in the target repo's directory and reading `fab agent --print --repo <target-repo>`). `hop ls` / `hop <name> where` is how an agent **discovers** those locations rather than hardcoding paths.
 
 **Full surface.** The rest of `hop` — `add`, `clone`, `rm`, `config` (`init`/`where`/`print`), `shell-init`, `update`, the batch verbs (`pull`/`push`/`sync`), and `--all` fan-out — is available via `command -v hop >/dev/null 2>&1 && hop help-dump`. The gist above covers only discovery.
 
@@ -235,7 +235,7 @@ Terminal multiplexer commands used by the operator for agent observation and int
 - **Pane mapping across sessions**: The operator's tick snapshots **all** sessions on its tmux server via `fab pane map --all-sessions --json` (see `_cli-fab.md`), not just the operator's own session. The `--json` output carries a per-row `repo` field (the pane's absolute main-worktree root, `null` when unresolved) used to group the status frame by repo then session.
 - **Pane capture**: Use `fab pane capture` instead of raw `tmux capture-pane`. It provides fab context enrichment, validation, and structured output.
 - **Send keys**: Use `fab pane send` instead of raw `tmux send-keys`. It includes built-in pane existence and agent idle validation.
-- **`new-window`** is used for spawning new agent sessions: `tmux new-window -n "»<wt>" -c <worktree> "$SPAWN_CMD '<command>'"` where `<wt>` is the worktree name and `$SPAWN_CMD` is the target repo's spawn command (see the repo-targeted spawning note in the wt section above)
+- **`new-window`** is used for spawning new agent sessions: `tmux new-window -n "»<wt>" -c <worktree> "$SPAWN_CMD '<command>'"` where `<wt>` is the worktree name and `$SPAWN_CMD` is the target repo's session command (see the repo-targeted spawning note in the wt section above)
 
 ---
 

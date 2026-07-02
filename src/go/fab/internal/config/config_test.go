@@ -98,8 +98,9 @@ func TestLoad_WidenedKeys(t *testing.T) {
 	os.MkdirAll(filepath.Join(fabRoot, "project"), 0o755)
 	content := `fab_version: 1.2.3
 branch_prefix: "feature/"
-agent:
-  spawn_command: "claude --effort high"
+providers:
+  claude:
+    session_command: "claude --effort high"
 project:
   name: test
   linear_workspace: acme
@@ -116,11 +117,78 @@ project:
 	if got := cfg.GetBranchPrefix(); got != "feature/" {
 		t.Errorf("GetBranchPrefix = %q, want %q", got, "feature/")
 	}
-	if got := cfg.GetSpawnCommand(); got != "claude --effort high" {
-		t.Errorf("GetSpawnCommand = %q, want %q", got, "claude --effort high")
+	prov, ok := cfg.GetProvider("claude")
+	if !ok {
+		t.Fatal("expected a 'claude' provider entry")
+	}
+	if prov.SessionCommand != "claude --effort high" {
+		t.Errorf("claude.session_command = %q, want %q", prov.SessionCommand, "claude --effort high")
 	}
 	if got := cfg.GetLinearWorkspace(); got != "acme" {
 		t.Errorf("GetLinearWorkspace = %q, want %q", got, "acme")
+	}
+}
+
+// TestLoad_WithProviders: the top-level providers table round-trips both command
+// fields, and a provider with only a session_command yields an empty
+// DispatchCommand (the native-dispatch signal). The accessor is a pure
+// pass-through; the built-in merge is internal/agent's job.
+func TestLoad_WithProviders(t *testing.T) {
+	dir := t.TempDir()
+	projectDir := filepath.Join(dir, "project")
+	os.MkdirAll(projectDir, 0o755)
+
+	configYAML := `
+providers:
+  claude:
+    session_command: 'claude --dangerously-skip-permissions'
+  codex:
+    session_command: 'codex -m {model} -c model_reasoning_effort={effort}'
+    dispatch_command: 'codex exec -m {model} -c model_reasoning_effort={effort}'
+`
+	os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(configYAML), 0o644)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	claude, ok := cfg.GetProvider("claude")
+	if !ok {
+		t.Fatal("expected a 'claude' provider")
+	}
+	if claude.SessionCommand != "claude --dangerously-skip-permissions" {
+		t.Errorf("claude.SessionCommand = %q", claude.SessionCommand)
+	}
+	if claude.DispatchCommand != "" {
+		t.Errorf("claude.DispatchCommand = %q, want empty (native dispatch)", claude.DispatchCommand)
+	}
+
+	codex, ok := cfg.GetProvider("codex")
+	if !ok {
+		t.Fatal("expected a 'codex' provider")
+	}
+	if codex.SessionCommand != "codex -m {model} -c model_reasoning_effort={effort}" {
+		t.Errorf("codex.SessionCommand = %q", codex.SessionCommand)
+	}
+	if codex.DispatchCommand != "codex exec -m {model} -c model_reasoning_effort={effort}" {
+		t.Errorf("codex.DispatchCommand = %q", codex.DispatchCommand)
+	}
+
+	// An unconfigured provider reports no entry.
+	if _, ok := cfg.GetProvider("gemini"); ok {
+		t.Error("expected no entry for the unconfigured 'gemini' provider")
+	}
+}
+
+func TestGetProvider_NilAndEmptyConfig(t *testing.T) {
+	var nilCfg *Config
+	if _, ok := nilCfg.GetProvider("claude"); ok {
+		t.Error("nil-config GetProvider must report no entry")
+	}
+	empty := &Config{}
+	if _, ok := empty.GetProvider("claude"); ok {
+		t.Error("empty-config GetProvider must report no entry")
 	}
 }
 
@@ -130,11 +198,13 @@ func TestLoad_WithAgentTiers(t *testing.T) {
 	os.MkdirAll(projectDir, 0o755)
 
 	configYAML := `
+providers:
+  claude:
+    session_command: "claude --effort xhigh"
 agent:
-  spawn_command: "claude --effort xhigh"
   tiers:
-    doing: { model: claude-sonnet-4-6, effort: medium }
-    ship: { effort: low }
+    doing: { provider: claude, model: claude-sonnet-5, effort: medium }
+    fast: { effort: low }
 `
 	os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(configYAML), 0o644)
 
@@ -147,77 +217,30 @@ agent:
 	if !ok {
 		t.Fatal("expected a 'doing' tier override")
 	}
-	if doing.Model != "claude-sonnet-4-6" || doing.Effort != "medium" {
-		t.Errorf("doing = %+v, want {claude-sonnet-4-6 medium}", doing)
+	if doing.Provider != "claude" || doing.Model != "claude-sonnet-5" || doing.Effort != "medium" {
+		t.Errorf("doing = %+v, want {claude claude-sonnet-5 medium}", doing)
 	}
 
-	// A partial override (only effort set) round-trips with an empty model —
-	// the per-field merge over the default is internal/agent's job, not the
+	// A partial override (only effort set) round-trips with empty provider/model —
+	// the per-field merge over the default tier is internal/agent's job, not the
 	// accessor's.
-	ship, ok := cfg.GetAgentTier("ship")
+	fast, ok := cfg.GetAgentTier("fast")
 	if !ok {
-		t.Fatal("expected a 'ship' tier override")
+		t.Fatal("expected a 'fast' tier override")
 	}
-	if ship.Model != "" || ship.Effort != "low" {
-		t.Errorf("ship = %+v, want {<empty> low}", ship)
+	if fast.Provider != "" || fast.Model != "" || fast.Effort != "low" {
+		t.Errorf("fast = %+v, want {<empty> <empty> low}", fast)
 	}
 
 	// An unconfigured tier reports no override.
-	if _, ok := cfg.GetAgentTier("thinking"); ok {
-		t.Error("expected no override for the unconfigured 'thinking' tier")
+	if _, ok := cfg.GetAgentTier("review"); ok {
+		t.Error("expected no override for the unconfigured 'review' tier")
 	}
 
-	// spawn_command still parses alongside the new tiers block.
-	if got := cfg.GetSpawnCommand(); got != "claude --effort xhigh" {
-		t.Errorf("GetSpawnCommand = %q, want %q", got, "claude --effort xhigh")
-	}
-}
-
-// TestLoad_TierSpawnCommand: a tier's optional spawn_command round-trips through
-// GetAgentTier, and a tier without one yields an empty SpawnCommand. The field is
-// the per-stage CLI-dispatch opt-in — the accessor is a pure pass-through; the
-// no-cross-fallback semantic and per-field merge are internal/agent's job.
-func TestLoad_TierSpawnCommand(t *testing.T) {
-	dir := t.TempDir()
-	projectDir := filepath.Join(dir, "project")
-	os.MkdirAll(projectDir, 0o755)
-
-	configYAML := `
-agent:
-  spawn_command: "claude --dangerously-skip-permissions"
-  tiers:
-    doing:
-      model: claude-opus-4-8
-      effort: high
-      spawn_command: "codex exec -m {model} -c model_reasoning_effort={effort}"
-    ship: { effort: low }
-`
-	os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(configYAML), 0o644)
-
-	cfg, err := Load(dir)
-	if err != nil {
-		t.Fatalf("Load failed: %v", err)
-	}
-
-	doing, ok := cfg.GetAgentTier("doing")
-	if !ok {
-		t.Fatal("expected a 'doing' tier override")
-	}
-	if doing.SpawnCommand != "codex exec -m {model} -c model_reasoning_effort={effort}" {
-		t.Errorf("doing.SpawnCommand = %q, want the codex template verbatim", doing.SpawnCommand)
-	}
-	if doing.Model != "claude-opus-4-8" || doing.Effort != "high" {
-		t.Errorf("doing = %+v, want the model/effort alongside spawn_command", doing)
-	}
-
-	// A tier without a spawn_command yields an empty SpawnCommand (opt-in — the
-	// zero value means native Agent-tool dispatch).
-	ship, ok := cfg.GetAgentTier("ship")
-	if !ok {
-		t.Fatal("expected a 'ship' tier override")
-	}
-	if ship.SpawnCommand != "" {
-		t.Errorf("ship.SpawnCommand = %q, want empty (no spawn_command set)", ship.SpawnCommand)
+	// providers still parse alongside the tiers block.
+	prov, ok := cfg.GetProvider("claude")
+	if !ok || prov.SessionCommand != "claude --effort xhigh" {
+		t.Errorf("claude provider = %+v, ok=%v, want session_command 'claude --effort xhigh'", prov, ok)
 	}
 }
 
@@ -229,8 +252,9 @@ func TestLoad_NoAgentTiers(t *testing.T) {
 	// A config with no agent.tiers block must load cleanly (yaml ignores
 	// unknown keys; widening AgentConfig is free for existing configs).
 	configYAML := `
-agent:
-  spawn_command: "claude"
+providers:
+  claude:
+    session_command: "claude"
 project:
   name: "test"
 `
@@ -259,16 +283,22 @@ func TestGetAgentTier_NilAndEmptyConfig(t *testing.T) {
 func TestAccessors_NilConfig(t *testing.T) {
 	var cfg *Config
 	if cfg.GetBranchPrefix() != "" || cfg.GetFabVersion() != "" ||
-		cfg.GetSpawnCommand() != "" || cfg.GetLinearWorkspace() != "" {
+		cfg.GetLinearWorkspace() != "" {
 		t.Error("nil-config accessors must all return empty strings")
+	}
+	if _, ok := cfg.GetProvider("claude"); ok {
+		t.Error("nil-config GetProvider must report no entry")
 	}
 }
 
 func TestAccessors_EmptyConfig(t *testing.T) {
 	cfg := &Config{}
 	if cfg.GetBranchPrefix() != "" || cfg.GetFabVersion() != "" ||
-		cfg.GetSpawnCommand() != "" || cfg.GetLinearWorkspace() != "" {
+		cfg.GetLinearWorkspace() != "" {
 		t.Error("empty-config accessors must all return empty strings")
+	}
+	if _, ok := cfg.GetProvider("claude"); ok {
+		t.Error("empty-config GetProvider must report no entry")
 	}
 }
 
@@ -277,8 +307,8 @@ func TestLoadPath_MissingFileReturnsEmptyConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("missing file must not error, got: %v", err)
 	}
-	if cfg.GetSpawnCommand() != "" {
-		t.Error("missing file must yield empty config")
+	if _, ok := cfg.GetProvider("claude"); ok {
+		t.Error("missing file must yield empty config (no providers)")
 	}
 }
 
@@ -290,11 +320,12 @@ func TestLoadPath_MalformedCoupledFailure(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
 	// branch_prefix has a type error (mapping where a scalar is expected);
-	// agent.spawn_command is perfectly fine — but the single Unmarshal fails.
+	// providers is perfectly fine — but the single Unmarshal fails.
 	content := `branch_prefix:
   oops: true
-agent:
-  spawn_command: "claude"
+providers:
+  claude:
+    session_command: "claude"
 `
 	os.WriteFile(path, []byte(content), 0o644)
 
@@ -306,7 +337,7 @@ agent:
 		t.Fatal("malformed config must return nil *Config")
 	}
 	// Nil-safe accessors deliver the documented fallbacks.
-	if cfg.GetSpawnCommand() != "" {
-		t.Error("nil-safe accessor must return the empty fallback")
+	if _, ok := cfg.GetProvider("claude"); ok {
+		t.Error("nil-safe accessor must report no entry")
 	}
 }

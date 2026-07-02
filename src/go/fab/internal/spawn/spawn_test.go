@@ -6,11 +6,13 @@ import (
 	"testing"
 )
 
-func TestCommand_WithSpawnCommand(t *testing.T) {
+func TestCommand_WithSessionCommand(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
-	os.WriteFile(configPath, []byte(`agent:
-  spawn_command: "custom-claude --model opus"
+	// The default tier's provider (claude by default) supplies the session command.
+	os.WriteFile(configPath, []byte(`providers:
+  claude:
+    session_command: "custom-claude --model opus"
 `), 0o644)
 
 	got := Command(configPath)
@@ -19,11 +21,31 @@ func TestCommand_WithSpawnCommand(t *testing.T) {
 	}
 }
 
-func TestCommand_EmptySpawnCommand(t *testing.T) {
+// TestCommand_CustomDefaultProvider: the default tier can point at a non-claude
+// provider; Command then reads THAT provider's session command.
+func TestCommand_CustomDefaultProvider(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
-	os.WriteFile(configPath, []byte(`agent:
-  spawn_command: ""
+	os.WriteFile(configPath, []byte(`providers:
+  codex:
+    session_command: "codex --tui"
+agent:
+  tiers:
+    default: { provider: codex }
+`), 0o644)
+
+	got := Command(configPath)
+	if got != "codex --tui" {
+		t.Errorf("Command() = %q, want %q", got, "codex --tui")
+	}
+}
+
+func TestCommand_EmptySessionCommand(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	os.WriteFile(configPath, []byte(`providers:
+  claude:
+    session_command: ""
 `), 0o644)
 
 	got := Command(configPath)
@@ -32,7 +54,7 @@ func TestCommand_EmptySpawnCommand(t *testing.T) {
 	}
 }
 
-func TestCommand_NoAgentSection(t *testing.T) {
+func TestCommand_NoProvidersSection(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	os.WriteFile(configPath, []byte(`project:
