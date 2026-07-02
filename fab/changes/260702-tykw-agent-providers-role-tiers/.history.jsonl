@@ -1,0 +1,3 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-02T17:29:29Z"}
+{"args":"agent config v3 — providers + role tiers: split provider config out of agent config, replace thinking/doing/fast with five role tiers (default/operator/doing/review/fast), retire review_tools, rename spawn_command surfaces, add fab agent command retiring fab spawn-command","cmd":"fab-new","event":"command","ts":"2026-07-02T17:29:29Z"}
+{"delta":"+3.7","event":"confidence","score":3.7,"trigger":"calc-score","ts":"2026-07-02T17:33:02Z"}
