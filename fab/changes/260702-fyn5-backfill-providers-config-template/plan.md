@@ -37,7 +37,7 @@ The migration's Pre-check SHALL (a) skip entirely when `fab/project/config.yaml`
 - **AND WHEN** the config exists but has no top-level `providers:` key
 - **THEN** the migration STOPs and directs the user to run the `2.12.1-to-2.13.0` migration first
 - **AND WHEN** the config already contains a `codex`/`gemini` key or `# codex:`/`# gemini:` marker
-- **THEN** the migration prints `Skipped: codex/gemini provider template already present.` and makes no edit (re-run no-op)
+- **THEN** the migration makes no edit (re-run no-op), printing `Skipped: codex/gemini provider template already present.` for the commented-marker case and `Skipped: codex/gemini provider already configured — leaving config untouched.` for the live-key case
 
 ### Migration: Changes (comment-only content)
 
@@ -84,7 +84,7 @@ The migration SHALL add no live key and remove/modify none — all live keys, va
 ### Migration: Verification section
 
 #### R9: Verification steps documented in the migration file
-The migration file's `## Verification` section SHALL document: YAML still parses; live `.providers`/`.agent` semantics unchanged; the per-provider-notes detection line, commented claude `dispatch_command` (when a claude provider exists), and `# codex:` / `# gemini:` markers present; a mechanical uncomment-and-parse round-trip of a starter block yields valid YAML; and re-run is a complete no-op (sentinel trips).
+The migration file's `## Verification` section SHALL document: YAML still parses; live `.providers`/`.agent` semantics unchanged; the per-provider-notes detection line, commented claude `dispatch_command` (only when a claude provider exists and carried no `dispatch_command` — live or commented — pre-migration, mirroring R5's gate), and `# codex:` / `# gemini:` markers present; a mechanical uncomment-and-parse round-trip of a starter block yields valid YAML; and re-run is a complete no-op (sentinel trips).
 
 - **GIVEN** a reader applying or auditing the migration
 - **WHEN** they read the `## Verification` section
@@ -119,12 +119,12 @@ The migration file's `## Verification` section SHALL document: YAML still parses
 ### Phase 1: Migration file
 
 - [x] T001 Create `src/kit/migrations/2.13.1-to-2.13.2.md` with the `# Migration: 2.13.1 to 2.13.2` title and a `## Summary` section describing the comment-only providers-template backfill (header + commented claude `dispatch_command` + codex/gemini starter blocks), sentinel-guarded, config-only, patch bump, referencing the comment-only precedents (`2.9.2-to-2.10.0`, `2.11.0-to-2.12.0`) and the comment-sentinel precedent (`2.2.0-to-2.3.0`) <!-- R1 -->
-- [x] T002 Write the `## Pre-check` section: (1) skip when `fab/project/config.yaml` absent (`Skipped: fab/project/config.yaml not present.`); (2) STOP with run-`2.12.1-to-2.13.0`-first guidance when no top-level `providers:` key; (3) sentinel skip when a `codex`/`gemini` key or `# codex:`/`# gemini:` marker is already present (`Skipped: codex/gemini provider template already present.`) <!-- R3 -->
+- [x] T002 Write the `## Pre-check` section: (1) skip when `fab/project/config.yaml` absent (`Skipped: fab/project/config.yaml not present.`); (2) STOP with run-`2.12.1-to-2.13.0`-first guidance when no top-level `providers:` key; (3) sentinel skip when a `codex`/`gemini` key or `# codex:`/`# gemini:` marker is already present (commented-marker case: `Skipped: codex/gemini provider template already present.`; live-key case: `Skipped: codex/gemini provider already configured — leaving config untouched.`) <!-- R3 -->
 - [x] T003 Write `## Changes` step 1 (header refresh/insert): detect the per-provider-notes line; replace a pre-#467 header when the distinctive old line is present, else insert the full v2.13.1 header above `providers:` when no header exists; embed the verbatim scaffold header block <!-- R4 -->
 - [x] T004 Write `## Changes` step 2 (claude commented `dispatch_command`): append the commented line after claude's `session_command` (replace the old `# no dispatch_command →` note when present); skip when no `claude:` provider exists; embed the exact line <!-- R5 -->
 - [x] T005 Write `## Changes` step 3 (codex/gemini starter blocks): append after the last `providers:` entry; embed the exact 2-space scaffold blocks <!-- R6 -->
 - [x] T006 Write `## Changes` step 4 (indent adaptation): detect the file's mapping indent from `providers:` children; emit commented lines so `# `-stripping yields valid YAML at the file's own indent; include the 4-space worked example. Add step 5 (value preservation): comment-only, `yq '.providers'` semantically identical before/after; use an atomic temp+rename write <!-- R7 -->
-- [x] T007 Write the `## Verification` section: (1) `yq '.' fab/project/config.yaml` parses; (2) `.providers`/`.agent` semantics unchanged; (3) per-provider-notes detection line + commented claude `dispatch_command` (when claude exists) + `# codex:`/`# gemini:` markers present; (4) uncomment-a-block-and-parse round-trip yields valid YAML; (5) re-run is a complete no-op <!-- R9 -->
+- [x] T007 Write the `## Verification` section: (1) `yq '.' fab/project/config.yaml` parses; (2) `.providers`/`.agent` semantics unchanged; (3) per-provider-notes detection line + commented claude `dispatch_command` (when claude exists and carried no `dispatch_command` pre-migration — R5's gate) + `# codex:`/`# gemini:` markers present; (4) uncomment-a-block-and-parse round-trip yields valid YAML; (5) re-run is a complete no-op <!-- R9 -->
 
 ### Phase 2: VERSION bump
 
