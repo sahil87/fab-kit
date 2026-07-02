@@ -16,14 +16,14 @@ The partial is organized as one `##` section per command (or command group), plu
 |---------|--------|
 | Calling Convention | How fab commands are invoked (paths relative to repo root), exit-code/stderr contract, the best-effort vs. fail-fast distinction |
 | fab change (extended subcommand details) | Lifecycle subcommands beyond the preamble headline (`new`, `switch`, `rename`, `list`, `archive`, `restore`, `resolve`) |
-| fab status (extended subcommand details) | State-machine subcommands beyond the headline (`finish`, `advance`, `start`, `reset`, `skip`, `fail`, `set-*`, `add-issue`, `add-pr`, …) and their state transitions |
+| fab status (extended subcommand details) | State-machine subcommands beyond the headline (`finish`, `advance`, `start`, `reset`, `skip`, `fail`, `refresh`, `set-*`, `add-issue`, `add-pr`, …) and their state transitions. `refresh` recomputes artifact-derived fields from `intake.md`/`plan.md` (pull-based successor to the removed artifact-write hook), self-healed at `advance`/`finish`/`preflight` |
 | fab score (extended) | The confidence formula, the SRAD `.status.yaml` schema, `--check-gate` / `--stage` semantics, status-template details |
 | fab preflight (extended) | The structured-YAML output fields and internal validation steps |
 | fab log (extended) | Append-only `.history.jsonl` logging beyond the `log command` headline |
 | fab resolve (extended) | Query flags (`--id` / `--folder` / `--dir` / `--status` / `--pane`) and canonical-output forms |
 | fab resolve-agent | Per-stage model/effort tier resolution (`<stage>` → tier → `{model, effort}`); `--alias` for the Agent-tool short alias |
 | fab config reference | Prints the fully-commented reference config.yaml (all available options — binary- and skill-consumed keys), generated from the binary's constants; pure query, no flags, byte-stable stdout, exit 0 on success (a usage error from cobra.NoArgs exits non-zero) |
-| fab hook | Claude Code hook subcommands (PostToolUse artifact hooks, etc.) |
+| fab hook | Claude Code hook subcommands — the three session-scoped runtime-telemetry handlers (`session-start`, `stop`, `user-prompt`) plus `sync`. Artifact bookkeeping is no longer a hook — it is pull-based via `fab status refresh` |
 | fab pane | Tmux pane operations (`map`, `--all-sessions`, `--json`) used by the operator |
 | fab doctor | Prerequisite validation |
 | fab migrations-status | Which migrations apply between local and engine versions |

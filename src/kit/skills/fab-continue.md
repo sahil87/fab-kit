@@ -120,7 +120,7 @@ Apply runs as **two sub-steps in a single dispatch**: a Plan Generation entry su
 ### Plan Generation (entry sub-step)
 
 1. **If `plan.md` already exists** with at least a `## Tasks` heading: skip generation entirely. Resumability path — the existing plan is authoritative; user-edited entries are preserved. To force regeneration, the user MUST delete `plan.md` before re-running `/fab-continue`.
-2. **Otherwise**: read `.claude/skills/_generation/SKILL.md` (if not already loaded), then invoke the **Plan Generation Procedure**. Write `plan.md` to the change folder. The PostToolUse hook updates `plan.generated`, `plan.task_count`, and `plan.acceptance_count` on `.status.yaml` automatically.
+2. **Otherwise**: read `.claude/skills/_generation/SKILL.md` (if not already loaded), then invoke the **Plan Generation Procedure**. Write `plan.md` to the change folder. `fab status refresh` recomputes `plan.generated`, `plan.task_count`, and `plan.acceptance_count` on `.status.yaml`, self-healed at the next `advance`/`finish`/`preflight` — no manual call needed.
 3. Apply MUST ignore the `## Acceptance` section during the main sub-step — that section is consumed by review.
 
 ### Pattern Extraction

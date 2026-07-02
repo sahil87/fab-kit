@@ -2,15 +2,12 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/runtime"
-	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
 )
 
 func TestParseTmuxServer(t *testing.T) {
@@ -388,305 +385,48 @@ func TestHookSync_SuccessOutputUnchanged(t *testing.T) {
 	}
 }
 
-// --- artifact-write bookkeeping (mz4q F02): in-memory mutation + exactly one
-// Save under the status lock; external contract (additionalContext shape,
-// final .status.yaml state, exit-0) unchanged. ---
+// --- artifact-write no-op shim ---
+//
+// Artifact bookkeeping is no longer hook-owned: the change_type/confidence/
+// plan-count recompute moved to the pull-based `fab status refresh`
+// (internal/refresh, tested in internal/refresh/refresh_test.go) and is
+// self-healed at the transition seams. `fab hook artifact-write` is retained
+// for one release as a silent no-op shim for un-migrated projects whose
+// settings still register it — it MUST exit 0 and emit nothing on stdout (a
+// PostToolUse entry parses stdout as additionalContext JSON, so any output
+// would be noisy on an un-migrated project).
 
-const hookStatusFixture = `id: abcd
-name: %s
-created: "2026-03-10T12:00:00Z"
-created_by: test-user
-change_type: feat
-issues: []
-progress:
-  intake: active
-  apply: pending
-  review: pending
-  hydrate: pending
-  ship: pending
-  review-pr: pending
-plan:
-  generated: false
-  task_count: 0
-  acceptance_count: 0
-  acceptance_completed: 0
-confidence:
-  certain: 0
-  confident: 0
-  tentative: 0
-  unresolved: 0
-  score: 0.0
-stage_metrics: {}
-prs: []
-last_updated: "2026-03-10T12:00:00Z"
-`
-
-// setupHookChange creates a change folder with a .status.yaml fixture under
-// the given fabRoot and returns the folder name.
-func setupHookChange(t *testing.T, fabRoot string) string {
-	t.Helper()
-	folder := "260310-abcd-my-change"
-	changeDir := filepath.Join(fabRoot, "changes", folder)
-	if err := os.MkdirAll(changeDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	statusYAML := strings.Replace(hookStatusFixture, "%s", folder, 1)
-	if err := os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte(statusYAML), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(fabRoot, "project"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(fabRoot, "project", "config.yaml"), []byte("project:\n  name: test\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return folder
-}
-
-func runArtifactWriteHook(t *testing.T, relPath string) string {
-	t.Helper()
+func TestHookArtifactWrite_ShimIsSilentNoOp(t *testing.T) {
 	cmd := hookArtifactWriteCmd()
-	payload := fmt.Sprintf(`{"tool_name":"Write","tool_input":{"file_path":"%s"}}`, relPath)
-	cmd.SetIn(strings.NewReader(payload))
-	var out bytes.Buffer
+	// Feed a well-formed PostToolUse payload that the old hook would have acted
+	// on; the shim must ignore it entirely.
+	cmd.SetIn(strings.NewReader(`{"tool_name":"Write","tool_input":{"file_path":"fab/changes/260310-abcd-x/intake.md"}}`))
+	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
-	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetErr(&errOut)
+
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("artifact-write hook returned error: %v", err)
+		t.Fatalf("artifact-write shim must exit 0, got: %v", err)
 	}
-	return out.String()
-}
-
-// TestHookArtifactWrite_RespectsExplicitChangeType covers jznd (2/a): when a
-// human has set change_type_source: explicit, the intake-write hook must NOT
-// re-infer/overwrite change_type — even though the intake prose ("fix a bug")
-// would infer "fix". This is the F02 re-clobber bug fixed.
-func TestHookArtifactWrite_RespectsExplicitChangeType(t *testing.T) {
-	repoRoot, fabRoot := setupHookRepoRoot(t)
-	hookTestEnv(t, repoRoot, map[string]string{envTmux: "", envTmuxPane: ""})
-	folder := setupHookChange(t, fabRoot)
-
-	// Mark the change_type explicit (as `fab status set-change-type` would).
-	statusPath := filepath.Join(fabRoot, "changes", folder, ".status.yaml")
-	st, err := sf.Load(statusPath)
-	if err != nil {
-		t.Fatal(err)
+	if out.Len() != 0 {
+		t.Errorf("shim must emit nothing on stdout (PostToolUse parses it as additionalContext JSON), got: %q", out.String())
 	}
-	st.ChangeType = "feat"
-	st.ChangeTypeSource = sf.SourceExplicit
-	if err := st.Save(statusPath); err != nil {
-		t.Fatal(err)
-	}
-
-	// Intake prose that WOULD infer "fix".
-	intakeMD := `# Intake: A new feature
-
-This change fixes a bug while adding the widget.
-
-## Assumptions
-
-| # | Grade | Decision | Rationale | Scores |
-|---|-------|----------|-----------|--------|
-| 1 | Certain | D1 | R1 | |
-`
-	intakePath := filepath.Join(fabRoot, "changes", folder, "intake.md")
-	if err := os.WriteFile(intakePath, []byte(intakeMD), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	out := runArtifactWriteHook(t, "fab/changes/"+folder+"/intake.md")
-	var ctx map[string]string
-	if err := json.Unmarshal([]byte(out), &ctx); err != nil {
-		t.Fatalf("expected additionalContext JSON, got %q: %v", out, err)
-	}
-	if !strings.Contains(ctx["additionalContext"], "explicit, kept") {
-		t.Errorf("additionalContext = %q, want explicit-kept note", ctx["additionalContext"])
-	}
-
-	reloaded, err := sf.Load(statusPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if reloaded.ChangeType != "feat" {
-		t.Errorf("change_type = %q, want feat (explicit type must survive a re-infer write)", reloaded.ChangeType)
-	}
-	if reloaded.ChangeTypeSource != sf.SourceExplicit {
-		t.Errorf("change_type_source = %q, want explicit", reloaded.ChangeTypeSource)
+	if errOut.Len() != 0 {
+		t.Errorf("shim must emit nothing on stderr, got: %q", errOut.String())
 	}
 }
 
-// TestHookArtifactWrite_InferredChangeTypeStillReinfers is the back-compat
-// complement: a change with no/inferred source still gets re-inferred by the
-// hook (the default behavior is unchanged).
-func TestHookArtifactWrite_InferredChangeTypeStillReinfers(t *testing.T) {
-	repoRoot, fabRoot := setupHookRepoRoot(t)
-	hookTestEnv(t, repoRoot, map[string]string{envTmux: "", envTmuxPane: ""})
-	folder := setupHookChange(t, fabRoot)
+func TestHookArtifactWrite_ShimToleratesJunkInput(t *testing.T) {
+	cmd := hookArtifactWriteCmd()
+	cmd.SetIn(strings.NewReader("not-json"))
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
 
-	intakeMD := `# Intake: Fix the broken widget
-
-This is a fix for a bug.
-
-## Assumptions
-
-| # | Grade | Decision | Rationale | Scores |
-|---|-------|----------|-----------|--------|
-| 1 | Certain | D1 | R1 | |
-`
-	intakePath := filepath.Join(fabRoot, "changes", folder, "intake.md")
-	if err := os.WriteFile(intakePath, []byte(intakeMD), 0o644); err != nil {
-		t.Fatal(err)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("artifact-write shim must exit 0 on junk input, got: %v", err)
 	}
-
-	runArtifactWriteHook(t, "fab/changes/"+folder+"/intake.md")
-
-	statusPath := filepath.Join(fabRoot, "changes", folder, ".status.yaml")
-	reloaded, err := sf.Load(statusPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if reloaded.ChangeType != "fix" {
-		t.Errorf("change_type = %q, want fix (inferred source must re-infer)", reloaded.ChangeType)
-	}
-}
-
-func TestHookArtifactWrite_PlanSingleSave(t *testing.T) {
-	repoRoot, fabRoot := setupHookRepoRoot(t)
-	hookTestEnv(t, repoRoot, map[string]string{envTmux: "", envTmuxPane: ""})
-	folder := setupHookChange(t, fabRoot)
-
-	planMD := `# Plan
-
-## Tasks
-
-- [ ] T001 first
-- [x] T002 second
-- [ ] T003 third
-
-## Acceptance
-
-- [x] A-001 done thing
-- [ ] A-002 open thing
-`
-	planPath := filepath.Join(fabRoot, "changes", folder, "plan.md")
-	if err := os.WriteFile(planPath, []byte(planMD), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	out := runArtifactWriteHook(t, "fab/changes/"+folder+"/plan.md")
-
-	// additionalContext JSON shape preserved.
-	var ctx map[string]string
-	if err := json.Unmarshal([]byte(out), &ctx); err != nil {
-		t.Fatalf("expected additionalContext JSON on stdout, got %q: %v", out, err)
-	}
-	if !strings.Contains(ctx["additionalContext"], "plan tasks: 3") {
-		t.Errorf("additionalContext = %q, want plan tasks: 3", ctx["additionalContext"])
-	}
-	if !strings.Contains(ctx["additionalContext"], "plan acceptance: 1/2") {
-		t.Errorf("additionalContext = %q, want plan acceptance: 1/2", ctx["additionalContext"])
-	}
-
-	// All four plan fields persisted by the single Save.
-	statusPath := filepath.Join(fabRoot, "changes", folder, ".status.yaml")
-	reloaded, err := sf.Load(statusPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reloaded.Plan.Generated {
-		t.Error("plan.generated not persisted")
-	}
-	if reloaded.Plan.TaskCount != 3 {
-		t.Errorf("task_count = %d, want 3", reloaded.Plan.TaskCount)
-	}
-	if reloaded.Plan.AcceptanceCount != 2 {
-		t.Errorf("acceptance_count = %d, want 2", reloaded.Plan.AcceptanceCount)
-	}
-	if reloaded.Plan.AcceptanceCompleted != 1 {
-		t.Errorf("acceptance_completed = %d, want 1", reloaded.Plan.AcceptanceCompleted)
-	}
-}
-
-func TestHookArtifactWrite_PlanNoSectionsNoWrite(t *testing.T) {
-	repoRoot, fabRoot := setupHookRepoRoot(t)
-	hookTestEnv(t, repoRoot, map[string]string{envTmux: "", envTmuxPane: ""})
-	folder := setupHookChange(t, fabRoot)
-
-	planPath := filepath.Join(fabRoot, "changes", folder, "plan.md")
-	if err := os.WriteFile(planPath, []byte("# Plan without sections\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	statusPath := filepath.Join(fabRoot, "changes", folder, ".status.yaml")
-	before, err := os.ReadFile(statusPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	out := runArtifactWriteHook(t, "fab/changes/"+folder+"/plan.md")
-	if out != "" {
-		t.Errorf("expected no additionalContext output, got %q", out)
-	}
-
-	after, err := os.ReadFile(statusPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(before) != string(after) {
-		t.Error("expected no .status.yaml write when nothing was mutated")
-	}
-}
-
-func TestHookArtifactWrite_IntakeSingleLoadAndSave(t *testing.T) {
-	repoRoot, fabRoot := setupHookRepoRoot(t)
-	hookTestEnv(t, repoRoot, map[string]string{envTmux: "", envTmuxPane: ""})
-	folder := setupHookChange(t, fabRoot)
-
-	intakeMD := `# Intake: Fix the broken widget
-
-This is a fix for a bug.
-
-## Assumptions
-
-| # | Grade | Decision | Rationale | Scores |
-|---|-------|----------|-----------|--------|
-| 1 | Certain | D1 | R1 | S:100 R:100 A:100 D:100 |
-| 2 | Certain | D2 | R2 | S:100 R:100 A:100 D:100 |
-| 3 | Certain | D3 | R3 | S:100 R:100 A:100 D:100 |
-| 4 | Certain | D4 | R4 | S:100 R:100 A:100 D:100 |
-| 5 | Certain | D5 | R5 | S:100 R:100 A:100 D:100 |
-`
-	intakePath := filepath.Join(fabRoot, "changes", folder, "intake.md")
-	if err := os.WriteFile(intakePath, []byte(intakeMD), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	out := runArtifactWriteHook(t, "fab/changes/"+folder+"/intake.md")
-
-	var ctx map[string]string
-	if err := json.Unmarshal([]byte(out), &ctx); err != nil {
-		t.Fatalf("expected additionalContext JSON on stdout, got %q: %v", out, err)
-	}
-	if !strings.Contains(ctx["additionalContext"], "type: fix") {
-		t.Errorf("additionalContext = %q, want type: fix", ctx["additionalContext"])
-	}
-	if !strings.Contains(ctx["additionalContext"], "score: 5.0") {
-		t.Errorf("additionalContext = %q, want score: 5.0", ctx["additionalContext"])
-	}
-
-	// Change type and confidence both landed in the single Save.
-	statusPath := filepath.Join(fabRoot, "changes", folder, ".status.yaml")
-	reloaded, err := sf.Load(statusPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if reloaded.ChangeType != "fix" {
-		t.Errorf("change_type = %q, want fix", reloaded.ChangeType)
-	}
-	if reloaded.Confidence.Score != 5.0 {
-		t.Errorf("confidence.score = %v, want 5.0", reloaded.Confidence.Score)
-	}
-	if reloaded.Confidence.Certain != 5 {
-		t.Errorf("confidence.certain = %d, want 5", reloaded.Confidence.Certain)
+	if out.Len() != 0 {
+		t.Errorf("shim must emit nothing on stdout, got: %q", out.String())
 	}
 }

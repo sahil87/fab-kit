@@ -102,10 +102,10 @@ Follow the **Intake Generation Procedure** (`_generation.md`). Load context per 
 
 ### Step 6: Verify Change Type
 
-The PostToolUse intake-write hook owns `change_type`: it infers and writes the type to `.status.yaml` on **every** `intake.md` write, using word-boundary keyword regexes evaluated in order — `fix` → `refactor` (incl. "redesign") → `docs` → `test` → `ci` → `chore` — defaulting to `feat`. Do NOT run a manual keyword inference or an unconditional `set-change-type`: any later intake write (e.g., `/fab-clarify`) re-fires the hook and silently overwrites a skill-set value.
+`change_type` is recomputed by `fab status refresh` (self-healed at the transition seams — `fab status advance`/`finish`, `fab preflight`), using word-boundary keyword regexes evaluated in order — `fix` → `refactor` (incl. "redesign") → `docs` → `test` → `ci` → `chore` — defaulting to `feat`. Do NOT run a manual keyword inference: refresh only re-infers when `change_type_source` is absent or `inferred`, so an explicit override sticks.
 
-1. **Verify** the hook's result by reading `change_type` from the change's `.status.yaml` (e.g., `grep '^change_type:' fab/changes/{name}/.status.yaml`) — `fab preflight` does not emit this field
-2. **Override only if wrong**: `fab status set-change-type {name} <type>` — and note that any subsequent intake edit re-fires the hook and overwrites the override, so re-verify after later intake writes
+1. **Verify** the result by reading `change_type` from the change's `.status.yaml` (e.g., `grep '^change_type:' fab/changes/{name}/.status.yaml`) — `fab preflight` does not emit this field
+2. **Override only if wrong**: `fab status set-change-type {name} <type>` — this marks `change_type_source: explicit`, which `fab status refresh` never overwrites
 
 ### Step 7: Confidence
 

@@ -54,7 +54,7 @@ last_run_gc: 1729450200                          # top-level — throttles GC sw
 
 Claude Code invokes hooks as `claude → sh -c '<command>' → fab hook <event>`. The `sh -c` wrapper means `os.Getppid()` inside the hook returns the `sh` PID, not Claude's. Claude's PID is at depth 2 and is resolved by a grandparent walk in `internal/proc/` (see §Grandparent PID Walker below).
 
-All three session-scoped hooks (`fab hook stop|session-start|user-prompt`) parse stdin as a JSON object and extract `session_id` (required) and `transcript_path` (optional). Malformed JSON or missing `session_id` causes the hook to exit 0 silently — matching the existing swallow-on-error pattern. The fourth hook, `fab hook artifact-write`, parses a different payload shape (file path) and does not participate in `_agents` writes.
+There are three session-scoped hooks (`fab hook stop|session-start|user-prompt`), all push-by-nature runtime telemetry; each parses stdin as a JSON object and extracts `session_id` (required) and `transcript_path` (optional). Malformed JSON or missing `session_id` causes the hook to exit 0 silently — matching the existing swallow-on-error pattern. A former fourth handler, `fab hook artifact-write` (PostToolUse Write/Edit, recomputing artifact-derived `.status.yaml` state), was **removed in y022**: a hook fires only in the Claude harness, so that correctness-critical state is now pull-based via `fab status refresh` (self-healed at the transition seams) instead. It never participated in `_agents` writes. A one-release no-op shim `fab hook artifact-write` is retained for un-migrated settings (exits 0, emits nothing); the `2.10.1-to-2.11.0` migration removes the settings entry.
 
 Per-event write/clear semantics:
 
@@ -63,7 +63,7 @@ Per-event write/clear semantics:
 | `fab hook stop` | Stop (turn end, agent now idle) | **Write full entry**: `idle_since = now()`, `change`, `pid`, `tmux_server`, `tmux_pane`, `transcript_path` (each present when available) |
 | `fab hook session-start` | SessionStart (fresh session beginning) | **Delete entry entirely** — old session state is gone |
 | `fab hook user-prompt` | UserPromptSubmit (agent about to become active) | **Remove only `idle_since`** — preserve `change`, `pid`, `tmux_server`, `tmux_pane`, `transcript_path` |
-| `fab hook artifact-write` | PostToolUse (Write/Edit) | No-op on `_agents` — unrelated artifact bookkeeping path |
+| `fab hook artifact-write` *(deprecated no-op shim)* | Formerly PostToolUse (Write/Edit); removed in y022 | No-op — never participated in `_agents`; artifact bookkeeping is now `fab status refresh` |
 
 The `user-prompt` clear-idle-only semantics preserve pane-map correlation properties across the idle → active transition: `fab pane map` can immediately show "active agent here" without waiting for the next Stop event to reconstruct the entry.
 

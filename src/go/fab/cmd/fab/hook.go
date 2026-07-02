@@ -1,22 +1,16 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/hooklib"
-	"github.com/sahil87/fab-kit/src/go/fab/internal/lockfile"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/proc"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/runtime"
-	"github.com/sahil87/fab-kit/src/go/fab/internal/score"
-	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
-	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
 	"github.com/spf13/cobra"
 )
 
@@ -176,172 +170,32 @@ func hookUserPromptCmd() *cobra.Command {
 	}
 }
 
-// hookArtifactWriteCmd handles the PostToolUse hook for Write/Edit tools.
-// Unlike the three session-scoped hooks above, this handler parses a
-// different payload shape (tool_input.file_path) — see hooklib.ParsePayload.
-// It does not participate in _agents writes; it only manages artifact
-// bookkeeping and git staging for status/history files.
+// hookArtifactWriteCmd is a one-release no-op shim retained for un-migrated
+// projects whose .claude/settings.local.json still registers `fab hook
+// artifact-write` as a PostToolUse (Write/Edit) entry. Artifact bookkeeping is
+// no longer hook-owned: the change_type/confidence/plan-count recompute moved
+// to the pull-based `fab status refresh` (internal/refresh), self-healed at the
+// transition seams (fab status advance/finish, fab preflight). The registration
+// is dropped from DefaultMappings and removed from existing settings by the
+// 2.10.1-to-2.11.0 migration.
+//
+// The shim writes NOTHING to stdout and exits 0. This matters: an *unregistered*
+// `fab hook <x>` subcommand exits 0 but prints cobra help text to stdout, which
+// a still-registered PostToolUse entry feeds to Claude Code as additionalContext
+// (invalid JSON — noisy). The silent shim avoids that until the migration
+// removes the settings entry. It carries no bookkeeping, no payload parse, and
+// no git staging (status/history are staged by /git-pr at ship, not here).
 func hookArtifactWriteCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "artifact-write",
-		Short: "Artifact bookkeeping on PostToolUse Write/Edit",
-		Args:  cobra.NoArgs,
+		Use:    "artifact-write",
+		Short:  "Deprecated no-op — bookkeeping moved to `fab status refresh` (removed by 2.11.0 migration)",
+		Args:   cobra.NoArgs,
+		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			filePath, err := hooklib.ParsePayload(cmd.InOrStdin())
-			if err != nil || filePath == "" {
-				return nil // swallow
-			}
-
-			match, ok := hooklib.MatchArtifactPath(filePath)
-			if !ok {
-				return nil // not a fab artifact
-			}
-
-			fabRoot, err := resolve.FabRoot()
-			if err != nil {
-				return nil // swallow
-			}
-
-			// Verify the change folder resolves (the only fab/changes
-			// directory scan on this path — downstream consumers reuse the
-			// exact folder name, mz4q F02).
-			_, err = resolve.ToFolder(fabRoot, match.ChangeFolder)
-			if err != nil {
-				return nil // swallow
-			}
-
-			// Load → mutate in memory → exactly one Save, all under the
-			// cross-process status lock so the bookkeeping cannot revert a
-			// concurrent fab status transition from another pane (mz4q
-			// F02/F03).
-			statusPath := filepath.Join(fabRoot, "changes", match.ChangeFolder, ".status.yaml")
-			var contextParts []string
-			lockErr := lockfile.WithLock(statusPath, func() error {
-				statusFile, err := sf.Load(statusPath)
-				if err != nil {
-					return err
-				}
-				parts, dirty := artifactBookkeeping(fabRoot, filePath, match, statusFile)
-				contextParts = parts
-				if dirty {
-					return statusFile.Save(statusPath)
-				}
-				return nil
-			})
-			if lockErr != nil {
-				return nil // swallow
-			}
-
-			// Auto-stage status files so they don't block git operations
-			changeDir := filepath.Join(fabRoot, "changes", match.ChangeFolder)
-			repoRoot := filepath.Dir(fabRoot)
-			_ = exec.Command("git", "-C", repoRoot, "add",
-				filepath.Join(changeDir, ".status.yaml"),
-				filepath.Join(changeDir, ".history.jsonl"),
-			).Run()
-
-			// Output additionalContext JSON
-			if len(contextParts) > 0 {
-				ctx := "Bookkeeping: " + strings.Join(contextParts, ", ")
-				out := map[string]string{"additionalContext": ctx}
-				data, err := json.Marshal(out)
-				if err == nil {
-					fmt.Fprintln(cmd.OutOrStdout(), string(data))
-				}
-			}
-
+			// No-op: consume nothing, emit nothing, exit 0.
 			return nil
 		},
 	}
-}
-
-// artifactBookkeeping performs per-artifact bookkeeping by mutating the
-// in-memory StatusFile only. It returns context description parts and whether
-// anything was mutated — the caller persists with exactly one Save (mz4q
-// F02). The intake branch reuses the already-resolved folder and the single
-// intake.md read for scoring (score.ComputeWithStatus).
-func artifactBookkeeping(fabRoot, filePath string, match hooklib.ArtifactMatch, statusFile *sf.StatusFile) ([]string, bool) {
-	var contextParts []string
-	dirty := false
-
-	// Resolve absolute path for reading file content
-	repoRoot := filepath.Dir(fabRoot)
-	var absPath string
-	if filepath.IsAbs(filePath) {
-		absPath = filePath
-	} else {
-		absPath = filepath.Join(repoRoot, filePath)
-	}
-
-	switch match.Artifact {
-	case "intake.md":
-		content, err := os.ReadFile(absPath)
-		if err != nil {
-			content = []byte{}
-		}
-
-		// Respect an explicitly-set change_type: when a human ran
-		// `fab status set-change-type`, change_type_source is "explicit" and
-		// the hook must NOT re-infer/overwrite it (the F02 re-clobber bug,
-		// which silently reverted feat→fix on the next intake edit). Absent or
-		// "inferred" source = re-inference allowed (back-compat default).
-		if statusFile.ChangeTypeSource == sf.SourceExplicit {
-			contextParts = append(contextParts, "type: "+statusFile.ChangeType+" (explicit, kept)")
-		} else {
-			changeType := hooklib.InferChangeType(string(content))
-			if err := status.ApplyChangeType(statusFile, changeType); err == nil {
-				dirty = true
-			}
-			contextParts = append(contextParts, "type: "+changeType)
-		}
-
-		changeDir := filepath.Join(fabRoot, "changes", match.ChangeFolder)
-		result, err := score.ComputeWithStatus(fabRoot, changeDir, content, statusFile)
-		if err == nil {
-			dirty = true
-			contextParts = append(contextParts, fmt.Sprintf("score: %.1f", result.Score))
-		}
-
-	case "plan.md":
-		content, err := os.ReadFile(absPath)
-		if err != nil {
-			content = []byte{}
-		}
-
-		hasTasks := hooklib.HasSectionHeading(string(content), hooklib.SectionTasks)
-		hasAcceptance := hooklib.HasSectionHeading(string(content), hooklib.SectionAcceptance)
-
-		// Always set generated=true if the file exists with at least the ## Tasks heading.
-		if hasTasks {
-			if err := status.ApplyAcceptance(statusFile, "generated", "true"); err == nil {
-				dirty = true
-			}
-		}
-
-		// Defensive: only update task_count when ## Tasks is present.
-		if hasTasks {
-			taskCount := hooklib.CountSectionItemsBounded(string(content), hooklib.SectionTasks)
-			if err := status.ApplyAcceptance(statusFile, "task_count", fmt.Sprintf("%d", taskCount)); err == nil {
-				dirty = true
-			}
-			contextParts = append(contextParts, fmt.Sprintf("plan tasks: %d", taskCount))
-		}
-
-		// Defensive: only update acceptance counts when ## Acceptance is present.
-		if hasAcceptance {
-			acceptanceCount := hooklib.CountSectionItemsBounded(string(content), hooklib.SectionAcceptance)
-			acceptanceCompleted := hooklib.CountCompletedSectionItemsBounded(string(content), hooklib.SectionAcceptance)
-			if err := status.ApplyAcceptance(statusFile, "acceptance_count", fmt.Sprintf("%d", acceptanceCount)); err == nil {
-				dirty = true
-			}
-			if err := status.ApplyAcceptance(statusFile, "acceptance_completed", fmt.Sprintf("%d", acceptanceCompleted)); err == nil {
-				dirty = true
-			}
-			contextParts = append(contextParts, fmt.Sprintf("plan acceptance: %d/%d", acceptanceCompleted, acceptanceCount))
-		}
-	}
-
-	return contextParts, dirty
 }
 
 func hookSyncCmd() *cobra.Command {

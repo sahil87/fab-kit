@@ -179,8 +179,9 @@ func CheckGate(fabRoot, changeArg, stage string) (*GateResult, error) {
 }
 
 // Compute runs the normal scoring mode. The .status.yaml load-mutate-save
-// cycle runs under the cross-process status lock so concurrent writers (the
-// artifact-write hook, fab status in other panes) serialize (mz4q F03).
+// cycle runs under the cross-process status lock so concurrent writers (fab
+// status refresh / the self-healing advance/finish/preflight seams, fab status
+// in other panes) serialize (mz4q F03).
 func Compute(fabRoot, changeArg, stage string) (*ScoreResult, error) {
 	changeDir, err := resolve.ToAbsDir(fabRoot, changeArg)
 	if err != nil {
@@ -208,9 +209,10 @@ func Compute(fabRoot, changeArg, stage string) (*ScoreResult, error) {
 		// back. A load failure is a hard error for explicit scoring: the
 		// documented contract is "compute, write .status.yaml" — silently
 		// skipping the write-back (and defaulting change_type to feat) would
-		// report success while persisting nothing (hv7t F11). The
-		// artifact-write hook keeps its best-effort posture by calling
-		// ComputeWithStatus directly under its own err == nil guard.
+		// report success while persisting nothing (hv7t F11). The self-healing
+		// refresh path keeps its own best-effort posture by calling
+		// score.ApplyToStatus directly (no history append) under the caller's
+		// dirty-guarded Save.
 		statusFile, loadErr := sf.Load(statusPath)
 		if loadErr != nil {
 			return loadErr
@@ -239,9 +241,31 @@ func Compute(fabRoot, changeArg, stage string) (*ScoreResult, error) {
 // reuses the caller's already-resolved changeDir, already-read intake.md
 // content, and already-loaded StatusFile. It mutates statusFile.Confidence in
 // memory and appends the confidence event to .history.jsonl, but does NOT
-// save — the caller owns persistence and locking. Used by the artifact-write
-// hook (inside its lock+single-Save cycle) and by Compute.
+// save — the caller owns persistence and locking. Used by Compute (the explicit
+// `fab score` path). The confidence recompute inside `fab status refresh` uses
+// ApplyToStatus instead — it must NOT log a `confidence` event on every
+// self-healing transition/preflight (those run far more often than an explicit
+// re-score, and a no-delta re-log would spam .history.jsonl).
 func ComputeWithStatus(fabRoot, changeDir string, intakeContent []byte, statusFile *sf.StatusFile) (*ScoreResult, error) {
+	result := ApplyToStatus(intakeContent, statusFile)
+
+	// The history append is part of this entry point's contract; callers
+	// choose the posture — Compute propagates (hv7t F11).
+	if err := log.ConfidenceLog(changeDir, result.Score, result.Delta, "calc-score"); err != nil {
+		return nil, fmt.Errorf("log confidence: %w", err)
+	}
+
+	return result, nil
+}
+
+// ApplyToStatus recomputes the confidence block from intakeContent and mutates
+// statusFile.Confidence in memory, returning the result. It performs NO I/O: no
+// .status.yaml Save and — unlike ComputeWithStatus — no .history.jsonl append.
+// This is the entry point for `fab status refresh` and the self-healing
+// transitions: they heal the persisted confidence fields without logging a
+// spurious no-delta `confidence` event on every transition/preflight. The
+// caller owns persistence and locking.
+func ApplyToStatus(intakeContent []byte, statusFile *sf.StatusFile) *ScoreResult {
 	changeType := "feat"
 	if ct := statusFile.ChangeType; ct != "" && ct != "null" {
 		changeType = ct
@@ -256,14 +280,7 @@ func ComputeWithStatus(fabRoot, changeDir string, intakeContent []byte, statusFi
 		status.ApplyConfidence(statusFile, result.Certain, result.Confident, result.Tentative, result.Unresolved, result.Score)
 	}
 
-	// The history append is part of this entry point's contract; callers
-	// choose the posture — Compute propagates (hv7t F11), the hook guards
-	// with err == nil and stays best-effort.
-	if err := log.ConfidenceLog(changeDir, result.Score, result.Delta, "calc-score"); err != nil {
-		return nil, fmt.Errorf("log confidence: %w", err)
-	}
-
-	return result, nil
+	return result
 }
 
 // buildResult counts grades in the intake content and assembles a ScoreResult
@@ -326,8 +343,9 @@ func FormatScoreYAML(r *ScoreResult) string {
 }
 
 // countGrades scans already-read intake content for the ## Assumptions table.
-// Taking the content (not a path) lets the artifact-write hook reuse its
-// single intake.md read (mz4q F02). Lines come from lines.Split — not a
+// Taking the content (not a path) lets a caller reuse its single intake.md
+// read — e.g. fab status refresh reads intake.md once and passes the bytes to
+// ApplyToStatus (mz4q F02). Lines come from lines.Split — not a
 // bufio.Scanner — so an over-long line can never silently truncate the table
 // and flip the gate by dropping graded rows (hv7t F09); a partial count must
 // never be scored.

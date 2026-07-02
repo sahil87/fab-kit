@@ -2,20 +2,21 @@
 
 ## Summary
 
-Fab's Claude Code hooks are Go subcommands of the `fab` binary — `fab hook <subcommand>` — registered as inline command entries in `.claude/settings.local.json` by `fab hook sync` (invoked during `fab sync`). There are four event handlers (`session-start`, `stop`, `user-prompt`, `artifact-write`) plus the setup-facing `sync`. All hook subcommands exit 0 so they can never block the agent: the event handlers swallow errors silently; `sync` surfaces failures on stderr but still exits 0. The former shell-script hooks (`on-stop.sh`, `on-session-start.sh`, registered by `5-sync-hooks.sh`) and the proposed `fab runtime` subcommands are gone — handlers call the internal `runtime` package directly, with no `yq` dependency anywhere on the hook path.
+Fab's Claude Code hooks are Go subcommands of the `fab` binary — `fab hook <subcommand>` — registered as inline command entries in `.claude/settings.local.json` by `fab hook sync` (invoked during `fab sync`). There are three event handlers (`session-start`, `stop`, `user-prompt`) plus the setup-facing `sync`. All hook subcommands exit 0 so they can never block the agent: the event handlers swallow errors silently; `sync` surfaces failures on stderr but still exits 0. The former shell-script hooks (`on-stop.sh`, `on-session-start.sh`, registered by `5-sync-hooks.sh`) and the proposed `fab runtime` subcommands are gone — handlers call the internal `runtime` package directly, with no `yq` dependency anywhere on the hook path.
 
-Canonical command reference: `src/kit/skills/_cli-fab.md` § fab hook. Go source: `src/go/fab/cmd/fab/hook.go` + `src/go/fab/internal/hooklib/`. Runtime-file schema: `docs/memory/runtime/runtime-agents.md`.
+**Hooks may enhance, never own.** The three registered handlers are all push-by-nature runtime telemetry (liveness/idle tracking) — they own no correctness-critical state and degrade gracefully. The former fourth handler, `artifact-write` (a PostToolUse Write/Edit hook that recomputed artifact-derived `.status.yaml` state), was **removed**: a hook fires only in the Claude harness, so artifact-derived pipeline state (change type, intake confidence, plan counts) — which *is* correctness-critical — must be pull-based, not written only behind a hook. That recompute moved to the pull-based `fab status refresh`, self-healed at the transition seams (see § Artifact bookkeeping is pull-based).
+
+Canonical command reference: `src/kit/skills/_cli-fab.md` § fab hook. Go source: `src/go/fab/cmd/fab/hook.go` + `src/go/fab/internal/hooklib/` + `src/go/fab/internal/refresh/`. Runtime-file schema: `docs/memory/runtime/runtime-agents.md`.
 
 ## Registered Hooks
 
-`fab hook sync` registers these mappings (one settings entry per row; `artifact-write` gets two — one per matcher):
+`fab hook sync` registers these mappings (one settings entry per row):
 
 | Subcommand | Claude Code event | Matcher | What it does |
 |------------|-------------------|---------|--------------|
 | `session-start` | **SessionStart** | — | Delete `_agents[session_id]` from `.fab-runtime.yaml` |
 | `stop` | **Stop** | — | Write `_agents[session_id]` with `idle_since` plus optional `change`/`pid`/`tmux_server`/`tmux_pane`/`transcript_path` |
 | `user-prompt` | **UserPromptSubmit** | — | Remove only `idle_since` from `_agents[session_id]`; other fields preserved |
-| `artifact-write` | **PostToolUse** | `Write`, `Edit` | Per-artifact bookkeeping (see below) |
 | `sync` | n/a (setup) | — | Register the rows above in `.claude/settings.local.json`; idempotent |
 
 The three session-scoped handlers (`session-start`, `stop`, `user-prompt`) read a JSON payload on stdin with at least `session_id` (and optionally `transcript_path`). Malformed JSON or a missing `session_id` is silently skipped. Each invocation also runs a throttled GC sweep (at most once per 180 s, tracked via `last_run_gc`) that prunes `_agents` entries whose stored `pid` no longer exists.
@@ -38,18 +39,18 @@ last_run_gc: <unix-ts>          # throttles GC sweeps
 
 Per-session map keyed by `session_id` — not the legacy `agent.idle_since` singleton. Full schema: `docs/memory/runtime/runtime-agents.md`.
 
-## artifact-write Bookkeeping
+## Artifact bookkeeping is pull-based (not a hook)
 
-`artifact-write` parses a different payload shape — `tool_input.file_path` from the PostToolUse JSON — and does not participate in `_agents` writes. It pattern-matches the path against `fab/changes/{name}/intake.md|plan.md` (`spec.md` was dropped as a recognized artifact in 1.10.0), then mutates `.status.yaml` under the cross-process status lock:
+Artifact-derived `.status.yaml` state — `change_type` + `confidence` (from `intake.md`) and `plan.generated`/`plan.task_count`/`plan.acceptance_count`/`plan.acceptance_completed` (from `plan.md`) — is recomputed on demand by **`fab status refresh <change>`** (`src/go/fab/internal/refresh`), not by a hook. `refresh` inspects both artifacts on disk under the cross-process status lock (single load-mutate-save), respecting the `change_type_source: explicit` guard (a human's `set-change-type` is never overwritten) and leaving a field untouched when its section heading is absent:
 
-| Artifact written | Bookkeeping performed |
-|------------------|----------------------|
-| `intake.md` | Infer `change_type` from content (`fab status set-change-type` equivalent) + recompute the authoritative intake confidence (`fab score` equivalent) |
+| Artifact | Recomputed by `fab status refresh` |
+|----------|------------------------------------|
+| `intake.md` | Infer `change_type` from content (only when `change_type_source` is absent/`inferred`) + recompute the authoritative intake confidence (`fab score` equivalent) |
 | `plan.md` | Set `plan.generated: true` (when `## Tasks` exists), re-count `plan.task_count` (checkbox items under `## Tasks`), `plan.acceptance_count` / `plan.acceptance_completed` (under `## Acceptance`) |
 
-Side effects: auto-stages the change's `.status.yaml` and `.history.jsonl` via `git add` (so status writes never block git operations), and emits `{"additionalContext": "Bookkeeping: ..."}` on stdout to inform the agent of what was recorded.
+`refresh` is **self-healed at the transition seams** — `fab status advance`, `fab status finish`, and `fab preflight` each run it before their read/transition — so no skill has to remember to call it, and a hook-bypassing edit (sed, direct write) or a non-Claude agent's artifact write is reflected before the next stage reads the fields. This is why skills no longer carry post-write bookkeeping instructions for these fields, and why the removed hook did not need to be replaced with another hook.
 
-This is why skills no longer carry post-write bookkeeping instructions for these fields — the hook owns them mechanically.
+No git staging is performed on this path (the removed hook's best-effort `git add` of `.status.yaml`/`.history.jsonl` is dropped — `/git-pr` stages status/history at ship). A one-release no-op shim `fab hook artifact-write` is retained for un-migrated projects whose settings still register it (it exits 0 and emits nothing on stdout, so it cannot feed noisy non-JSON `additionalContext`); the `2.10.1-to-2.11.0` migration removes the settings entry.
 
 ## Registration (`fab hook sync`)
 
@@ -71,14 +72,14 @@ One skill still writes status YAML directly via `yq`: `/git-pr-review` tracks ep
 
 ## Event Coverage
 
-Of the Claude Code hook events, fab-kit uses four. The rest were assessed and rejected:
+Of the Claude Code hook events, fab-kit uses three. The rest were assessed and rejected:
 
 | Event | Status | Rationale |
 |-------|--------|-----------|
 | **Stop** | In use (`stop`) | Idle tracking |
 | **SessionStart** | In use (`session-start`) | Clear stale agent entry on session start/resume/clear |
 | **UserPromptSubmit** | In use (`user-prompt`) | Clear `idle_since` the moment the user engages (agent no longer idle) |
-| **PostToolUse** (Write/Edit) | In use (`artifact-write`) | Artifact bookkeeping + `additionalContext` |
+| **PostToolUse** (Write/Edit) | Not used (was `artifact-write`) | Artifact-derived state is correctness-critical, so it is pull-based (`fab status refresh`, self-healed at the transition seams), not owned by a hook that fires only in the Claude harness |
 | PreToolUse | Not used | Guardrails belong in `fab/project/*` policy files |
 | PermissionRequest | Not used | Fab shouldn't auto-approve tool calls |
 | SubagentStop / SubagentStart | Not used | Skills already handle subagent results |

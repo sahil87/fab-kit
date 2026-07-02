@@ -16,21 +16,26 @@ type HookMapping struct {
 	Matcher    string
 }
 
-// DefaultMappings is the mapping table from fab hook subcommands to Claude Code events.
+// DefaultMappings is the mapping table from fab hook subcommands to Claude Code
+// events. The three registered handlers are all session-scoped runtime
+// telemetry (push-by-nature — they degrade gracefully and own no
+// correctness-critical state). The former `artifact-write` PostToolUse rows
+// (Write + Edit matchers) were removed: artifact-derived pipeline state
+// (change_type, confidence, plan counts) is correctness-critical and MUST be
+// pull-based, so it moved to `fab status refresh` (self-healed at the
+// advance/finish/preflight seams). Existing settings entries are removed by the
+// 2.10.1-to-2.11.0 migration.
 var DefaultMappings = []HookMapping{
 	{Subcommand: "session-start", Event: "SessionStart", Matcher: ""},
 	{Subcommand: "stop", Event: "Stop", Matcher: ""},
 	{Subcommand: "user-prompt", Event: "UserPromptSubmit", Matcher: ""},
-	{Subcommand: "artifact-write", Event: "PostToolUse", Matcher: "Write"},
-	{Subcommand: "artifact-write", Event: "PostToolUse", Matcher: "Edit"},
 }
 
 // oldScriptToSubcommand maps old hook script names to new subcommand names for migration.
 var oldScriptToSubcommand = map[string]string{
-	"on-session-start.sh":  "session-start",
-	"on-stop.sh":           "stop",
-	"on-user-prompt.sh":    "user-prompt",
-	"on-artifact-write.sh": "artifact-write",
+	"on-session-start.sh": "session-start",
+	"on-stop.sh":          "stop",
+	"on-user-prompt.sh":   "user-prompt",
 }
 
 // hookEntry represents a single hook entry in settings.local.json.

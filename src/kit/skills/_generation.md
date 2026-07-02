@@ -149,12 +149,12 @@ metadata:
    The section is ALWAYS present in the artifact — if zero assumptions were made, keep the
    section with no table rows and the footer `0 assumptions.` (`_srad.md`'s omit-when-zero rule
    applies to the displayed output summary only, never to artifacts).
-8. Write the completed plan to `fab/changes/{name}/plan.md`. The PostToolUse hook updates
+8. Write the completed plan to `fab/changes/{name}/plan.md`. `fab status refresh` recomputes
    `.status.yaml` `plan.generated`, `plan.task_count`, `plan.acceptance_count`, and
-   `plan.acceptance_completed` automatically; no manual `fab status set-acceptance` calls
-   are required at generation time. Skills that wish to assert the counts explicitly MAY
-   call `fab status set-acceptance <change> <field> <value>` (valid fields: `generated`,
-   `task_count`, `acceptance_count`, `acceptance_completed`).
+   `plan.acceptance_completed`, self-healed at the next `advance`/`finish`/`preflight`; no
+   manual `fab status set-acceptance` calls are required at generation time. Skills that wish
+   to assert the counts explicitly MAY call `fab status set-acceptance <change> <field> <value>`
+   (valid fields: `generated`, `task_count`, `acceptance_count`, `acceptance_completed`).
 
 ---
 
@@ -228,6 +228,6 @@ name).
 > **Parser-contract guarantee**: the only stable contract the pipeline parses is the three heading
 > literals `## Requirements`, `## Tasks`, and `## Acceptance` (confirmed against
 > `templates/plan.md`). The thin plan keeps all three headings, so every downstream reader
-> (hydrate, the PostToolUse counters) parses it without special-casing. The R#/T#/A# IDs and
+> (hydrate, `fab status refresh`'s counters) parses it without special-casing. The R#/T#/A# IDs and
 > GIVEN/WHEN/THEN scenarios are presentational scaffolding the apply↔review loop needs — and that
 > loop never runs for an adopted change, so omitting them is correct, not a gap.
