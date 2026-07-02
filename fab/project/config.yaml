@@ -1,10 +1,18 @@
+# Full reference of all available options: fab config reference
 agent:
     spawn_command: claude --dangerously-skip-permissions --effort xhigh -n "$(basename "$(pwd)")"
+    # agent.tiers.<tier>.spawn_command — per-stage CLI dispatch (optional, opt-in).
+    # PRESENT on a tier → that tier's stages are dispatched by RUNNING this command
+    # (cross-harness, e.g. codex); ABSENT → native Agent-tool dispatch (default).
+    # INDEPENDENT of agent.spawn_command above (which opens whole agent SESSIONS):
+    # there is NO fallback from a tier to agent.spawn_command. {model}/{effort}
+    # placeholders are substituted at resolve time (the {model} always the FULL
+    # model ID, never an alias). See: fab config reference.
 checklist:
     extra_categories:
         - documentation_accuracy
         - cross_references
-fab_version: 2.9.2
+fab_version: 2.12.1
 project:
     description: FAB Kit — Tooling for Specification-Driven Development
     linear_workspace: null
@@ -15,20 +23,6 @@ review_tools:
     copilot: true
 source_paths:
     - src/
-# Glob/pathspec patterns identifying test files. Used by the true-impact
-# breakdown to attribute lines to tests vs. implementation (impl = total − tests).
-# Language-specific — no kit default. Patterns are :(glob) magic pathspecs, so
-# `**` matches across directories and `*` does NOT match `/`. Anchor to your
-# language's test convention rather than a bare substring (a substring like
-# `*test*` miscounts production code such as `attestation.go` or `latest.go`).
-# When absent/empty, the breakdown collapses to a single total line.
-#
-# Examples (uncomment/adapt the line for your stack):
-#   - "**/*_test.go"                  # Go   — `_test.go` suffix
-#   - "**/test_*.py"                  # Python (pytest) — `test_` prefix
-#   - "**/*.spec.ts"                  # JS/TS (Jest/Vitest) — `.spec` infix
-#   - "**/*.test.ts"                  # JS/TS — `.test` infix
-#   - "**/src/test/**"                # Java/Kotlin (Maven/Gradle) — test source root
 test_paths:
     - '**/*_test.go'
 true_impact_exclude:
