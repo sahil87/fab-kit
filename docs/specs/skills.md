@@ -607,11 +607,12 @@ The applying agent triages review comments by priority — not all comments need
 
 **Behavior** — the skill delegates all mechanical operations to a single `fab change archive <change>` call and formats its YAML output into the report:
 1. **Move change folder** — `fab/changes/{name}/` → `fab/changes/archive/{yyyy}/{mm}/{name}/` (date-bucketed by the folder's embedded date). No rename.
-2. **Update archive index** — prepend entry to `fab/changes/archive/index.md` (create with backfill if missing). Format: `- **{folder-name}** — {1-2 sentence description}`. Most-recent-first. Description derived from the intake title (humanized-slug fallback).
-3. **Mark backlog item done** — exact change-ID match in `fab/backlog.md` (`- [ ]` → `- [x]`), in place; reported as `marked`/`already`/`not_found`.
-4. **Clear pointer** — remove `.fab-status.yaml` symlink only if the archived change is the active one.
+2. **Delete dispatch state** — remove the change's `.fab-dispatch/{id}/` headless-dispatch state dir (transient comms, not history; one of the two `fab dispatch` cleanup paths, **not recreated on restore**; best-effort — an absent dir is a no-op).
+3. **Update archive index** — prepend entry to `fab/changes/archive/index.md` (create with backfill if missing). Format: `- **{folder-name}** — {1-2 sentence description}`. Most-recent-first. Description derived from the intake title (humanized-slug fallback).
+4. **Mark backlog item done** — exact change-ID match in `fab/backlog.md` (`- [ ]` → `- [x]`), in place; reported as `marked`/`already`/`not_found`.
+5. **Clear pointer** — remove `.fab-status.yaml` symlink only if the archived change is the active one.
 
-**Order of operations**: the Go command executes move → index → backlog → pointer. Re-archiving an already-archived change is a soft skip (exit 0) that still re-attempts the backlog mark; interrupted runs are recovered by re-running.
+**Order of operations**: the Go command executes move → dispatch-state deletion → index → backlog → pointer. Re-archiving an already-archived change is a soft skip (exit 0) that still re-attempts the backlog mark; interrupted runs are recovered by re-running.
 
 **Restore mode** (`/fab-archive restore <change-name> [--switch]`): Moves an archived change back to `fab/changes/`. Preserves all artifacts and `.status.yaml` without modification. Optionally activates via `--switch` flag.
 

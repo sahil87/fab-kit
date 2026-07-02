@@ -473,6 +473,59 @@ func TestArchive_ErrAlreadyArchivedOnReArchive(t *testing.T) {
 	}
 }
 
+// --- .fab-dispatch/{id}/ cleanup on archive (6sgj) ---
+
+func TestArchive_DeletesDispatchState(t *testing.T) {
+	fabRoot := setupArchiveFixture(t)
+	repoRoot := filepath.Dir(fabRoot)
+
+	// Seed a .fab-dispatch/abcd/ state dir (the change ID is abcd).
+	dispatchDir := filepath.Join(repoRoot, ".fab-dispatch", "abcd")
+	if err := os.MkdirAll(dispatchDir, 0o755); err != nil {
+		t.Fatalf("setup dispatch dir: %v", err)
+	}
+	os.WriteFile(filepath.Join(dispatchDir, "apply.yaml"), []byte("pid: 1\n"), 0o644)
+
+	if _, err := Archive(fabRoot, "abcd", "desc"); err != nil {
+		t.Fatalf("Archive failed: %v", err)
+	}
+
+	// The dispatch state dir must be gone after archive.
+	if _, err := os.Stat(dispatchDir); !os.IsNotExist(err) {
+		t.Error(".fab-dispatch/abcd/ should be deleted on archive")
+	}
+}
+
+func TestRestore_DoesNotRecreateDispatchState(t *testing.T) {
+	fabRoot := setupArchiveFixture(t)
+	repoRoot := filepath.Dir(fabRoot)
+
+	dispatchDir := filepath.Join(repoRoot, ".fab-dispatch", "abcd")
+	os.MkdirAll(dispatchDir, 0o755)
+	os.WriteFile(filepath.Join(dispatchDir, "apply.yaml"), []byte("pid: 1\n"), 0o644)
+
+	if _, err := Archive(fabRoot, "abcd", "desc"); err != nil {
+		t.Fatalf("Archive failed: %v", err)
+	}
+	if _, err := Restore(fabRoot, "abcd", false); err != nil {
+		t.Fatalf("Restore failed: %v", err)
+	}
+
+	// Restore must NOT recreate the dispatch state (transient comms, not history).
+	if _, err := os.Stat(dispatchDir); !os.IsNotExist(err) {
+		t.Error(".fab-dispatch/abcd/ must not be recreated on restore")
+	}
+}
+
+func TestArchive_NoDispatchStateIsBenign(t *testing.T) {
+	// Archiving a change with no .fab-dispatch/ dir must succeed (best-effort
+	// deletion is a no-op on an absent dir).
+	fabRoot := setupArchiveFixture(t)
+	if _, err := Archive(fabRoot, "abcd", "desc"); err != nil {
+		t.Fatalf("Archive should succeed with no dispatch state: %v", err)
+	}
+}
+
 func TestFormatRestoreYAML(t *testing.T) {
 	r := &RestoreResult{
 		Action:  "restore",

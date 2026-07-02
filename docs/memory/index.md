@@ -21,4 +21,4 @@ fkf_version: "0.1"
 | [distribution](distribution/index.md) | How the kit is packaged, shipped & configured — .kit/ structure, three-binary architecture, Homebrew, releases, migrations, /fab-setup bootstrap |
 | [memory-docs](memory-docs/index.md) | Authoring docs/memory & docs/specs — the hydrate skills (ingest + generate), spec backfill, artifact/memory templates, and the specs index |
 | [pipeline](pipeline/index.md) | The change pipeline — stage lifecycle & state machine, planning/clarify/execution skills, schemas, preflight (intake → apply → review → hydrate → ship → review-pr) |
-| [runtime](runtime/index.md) | tmux & multi-agent runtime — fab pane primitives, .fab-runtime.yaml agent tracking, and the operator coordination skill |
+| [runtime](runtime/index.md) | Agent & process runtime — fab pane primitives + .fab-runtime.yaml agent tracking + the operator coordination skill (tmux-bound interactive path), and fab dispatch, the tmux-independent headless process manager for CLI-dispatched pipeline stages |

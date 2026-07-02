@@ -271,6 +271,10 @@ Agent runtime state lives in `.fab-runtime.yaml` at the repository root (gitigno
 
 Each worktree has its own repo root, so each gets its own `.fab-runtime.yaml` — no cross-worktree contention. External tools can read this file to detect agent idle state and correlate agents to panes without relying on timing heuristics.
 
+### Dispatch State — `.fab-dispatch/{id}/` (6sgj)
+
+`fab dispatch` (the headless CLI-dispatch process manager) tracks each dispatched stage's state under `.fab-dispatch/{4-char-change-id}/` at the repository root (gitignored via the scaffold `.fab-*` pattern; keyed by the stable change ID, one dir per worktree). Like `.fab-runtime.yaml`, this is ephemeral runtime state — **NOT** part of the workflow state machine this doc describes, NOT initialized by templates, and NOT read by any pipeline transition. Per stage it holds `{stage}-prompt.md`, `{stage}.yaml`, `{stage}.log`, `{stage}.exit`, and `{stage}-result.yaml`. The `{stage}.yaml` schema is the `internal/dispatch.Dispatch` struct — `pid` / `pgid` / `spawn_cmd` / `started_at` / `timeout` (secs, `omitempty`), written via `internal/atomicfile`; file paths are derived from the dir convention, not stored. **See [runtime/dispatch.md](/runtime/dispatch.md) for the authoritative documentation** — the launch model, the five byte-stable status states, and the two cleanup paths.
+
 ## Future Enhancements
 
 1. **Custom workflows** — Allow `fab/project/config.yaml` to override or extend the stage graph

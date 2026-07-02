@@ -447,7 +447,7 @@ Multi-change operations are `fab batch` subcommands (`fab batch <new|switch|arch
 |------------|---------|--------------------|
 | `fab batch new` | Create changes from pending backlog items | Worktree + tmux tab running `/fab-new <description>` |
 | `fab batch switch` | Switch to existing changes | Worktree + tmux tab running `/fab-switch <change>` |
-| `fab batch archive` | Archive completed changes (`hydrate: done\|skipped`) | Mechanical in-process archive (move, index, backlog, pointer) — no worktree, no tmux tab, no spawned agent |
+| `fab batch archive` | Archive completed changes (`hydrate: done\|skipped`) | Mechanical in-process archive (move, `.fab-dispatch/{id}/` deletion, index, backlog, pointer) — no worktree, no tmux tab, no spawned agent |
 
 ---
 

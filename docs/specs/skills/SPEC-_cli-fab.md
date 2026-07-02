@@ -25,6 +25,7 @@ The partial is organized as one `##` section per command (or command group), plu
 | fab config reference | Prints the fully-commented reference config.yaml (all available options — binary- and skill-consumed keys), generated from the binary's constants; pure query, no flags, byte-stable stdout, exit 0 on success (a usage error from cobra.NoArgs exits non-zero) |
 | fab hook | Claude Code hook subcommands — the three session-scoped runtime-telemetry handlers (`session-start`, `stop`, `user-prompt`) plus `sync`. Artifact bookkeeping is no longer a hook — it is pull-based via `fab status refresh` |
 | fab pane | Tmux pane operations (`map`, `--all-sessions`, `--json`) used by the operator |
+| fab dispatch | Headless, tmux-independent process manager (`start`/`status`/`logs`/`kill`/`clean`) — the CLI adapter for cross-harness stage dispatch. `start` launches the resolved tier `spawn_command` detached via `sh -c` with `setsid` semantics (state under `.fab-dispatch/{id}/`, refuse-if-running + last-attempt-only, `--timeout` in-wrapper); `status` reports five byte-stable states (`running`/`done`/`failed`/`failed (no-result)`/`orphaned`); cleanup is archive-time deletion + `fab dispatch clean` only (no auto-GC); POSIX-only v1. Contract: `docs/specs/harness-adapters.md` |
 | fab doctor | Prerequisite validation |
 | fab migrations-status | Which migrations apply between local and engine versions |
 | fab kit-path | Resolve the kit directory path (`$(fab kit-path)/templates/…`) |

@@ -33,6 +33,7 @@ func newRootCmd() *cobra.Command {
 		scoreCmd(),
 		hookCmd(),
 		paneCmd(),
+		dispatchCmd(),
 		fabHelpCmd(),
 		operatorCmd(),
 		spawnCommandCmd(),

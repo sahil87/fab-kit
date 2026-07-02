@@ -2,7 +2,7 @@
 
 ## Summary
 
-Archives a completed change (post-hydrate) or restores an archived change. Delegates all mechanical operations — move, index, backlog mark-done, and pointer — to the `fab change archive` CLI; the skill only formats the YAML output. Backlog marking is mechanical (exact change-ID match, flipped in place), not interactive.
+Archives a completed change (post-hydrate) or restores an archived change. Delegates all mechanical operations — move, `.fab-dispatch/{id}/` state-dir deletion, index, backlog mark-done, and pointer — to the `fab change archive` CLI; the skill only formats the YAML output. Backlog marking is mechanical (exact change-ID match, flipped in place), not interactive. The dispatch state dir deleted on archive (one of the two `fab dispatch` cleanup paths — transient comms, not history) is **not recreated on restore** (6sgj).
 
 **Dirty-tree disclosure** (260612-g8st): "safe to re-run" covers fab state, not git state — both modes move tracked files and edit `fab/backlog.md` / the archive index with no commit step, leaving uncommitted changes for the caller to commit (commit ownership stays with `/git-pr`; no autonomous commit step). On the soft-skip path (re-archiving an already-archived change), `ArchiveWithBacklog` still re-attempts the idempotent backlog mark, so a re-run recovers a previously-failed mark — exit-code semantics unchanged (the adjacent exit-semantics seam belongs to change k4ge).
 
@@ -25,8 +25,9 @@ User invokes /fab-archive [change-name]
 │  │
 │  ├─ Step 1: Run archive
 │  │  └─ Bash: fab change archive <change>   (no --description)
-│  │     └─ (derive description from intake title, move, update
-│  │         index, mark backlog item done, clear pointer)
+│  │     └─ (derive description from intake title, move, delete
+│  │         .fab-dispatch/{id}/ state dir, update index, mark
+│  │         backlog item done, clear pointer)
 │  │
 │  └─ Step 2: Format report (incl. backlog: field; index: failed
 │      renders ✗ with a see-stderr pointer — the move already

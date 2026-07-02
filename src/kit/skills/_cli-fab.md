@@ -92,7 +92,7 @@ See `_preamble.md` § Common fab Commands for the headline. Full subcommand tabl
 | `resolve` | `resolve [<override>]` | Thin wrapper over `fab resolve --folder` — the same shared implementation, identical output and error strings |
 | `switch` | `switch <name> \| --none` | Switch active change (writes `.fab-status.yaml` symlink) |
 | `list` | `list [--archive] [--show-stats]` | List changes with stage info; `--show-stats` appends the `true_impact` net column |
-| `archive` | `archive <change> [--description "..."]` | Move to `archive/`, update index, mark backlog item done, clear pointer. `--description` is optional — defaults to the intake title (humanized-slug fallback). Re-archiving an already-archived change is a soft skip (exit 0) that still re-attempts the backlog mark (idempotent — recovers a previously-failed mark; silent, the plain soft-skip line is unchanged). |
+| `archive` | `archive <change> [--description "..."]` | Move to `archive/`, delete the change's `.fab-dispatch/{id}/` dispatch state (transient comms, not history — not recreated on restore; best-effort), update index, mark backlog item done, clear pointer. `--description` is optional — defaults to the intake title (humanized-slug fallback). Re-archiving an already-archived change is a soft skip (exit 0) that still re-attempts the backlog mark (idempotent — recovers a previously-failed mark; silent, the plain soft-skip line is unchanged). |
 | `restore` | `restore <change> [--switch]` | Move from `archive/`, remove index entry, optionally activate |
 | `archive-list` | `archive-list` | List archived folder names |
 
@@ -381,6 +381,65 @@ Guarded, idempotent rewrites of the tmux window name — used by `/fab-operator`
 **Exit codes** (both verbs): `0` = renamed OR no-op; `2` = pane missing (tmux stderr propagated); `3` = any other tmux failure (tmux not running, socket error, rename failed, argument usage error — e.g., empty `<char>` or `<from>`). The 2/3 split lets `/fab-operator`'s removal path treat "pane gone" (exit 2) as successful removal. No `$TMUX` gate — tmux's own exec failure surfaces as exit 3, so the verbs work via `--server` targeting from outside a tmux client.
 
 **Output**: plain `renamed: <old> -> <new>` on rename, empty stdout on no-op; `--json` always emits one `{"pane","old","new","action"}` object (`action`: `renamed`|`noop`).
+
+---
+
+## fab dispatch
+
+Headless, tmux-independent process manager for CLI-dispatched pipeline stages — the **CLI adapter** for cross-harness stage dispatch (a stage running headless on a different agent CLI). Parallel to and independent of `fab pane` / `fab operator` (which stay the interactive path). `fab dispatch <start|status|logs|kill|clean> [args...]`. **POSIX-only (v1)** — `start` errors clearly on Windows (`fab dispatch requires a POSIX shell (setsid/timeout); Windows is not supported in v1`) rather than half-working. Full cross-adapter contract: `docs/specs/harness-adapters.md`.
+
+**State layout** — `.fab-dispatch/{4-char-change-id}/` at the **repo root** (alongside `.fab-status.yaml` / `.fab-runtime.yaml`, already gitignored via the scaffold `.fab-*` pattern — no gitignore/scaffold/migration work). Keyed by the stable 4-char change ID (stable across `fab change rename`); one dir per worktree. Per-stage files:
+
+| File | Written by | Contents |
+|------|-----------|----------|
+| `{stage}-prompt.md` | `start` (from stdin) | the stage prompt piped to the dispatched command's stdin |
+| `{stage}.yaml` | `start` (via `internal/atomicfile`) | `pid`, `pgid`, `spawn_cmd` (resolved), `started_at`, `timeout` (secs, omitted when unset) |
+| `{stage}.log` | the wrapper | combined stdout+stderr of the dispatched command |
+| `{stage}.exit` | the wrapper | the exit code (`echo $? > ...`) — its presence is the "process finished" signal |
+| `{stage}-result.yaml` | the dispatched agent (contract) | the stage result; presence is required for `done` (see states) |
+
+### start — `fab dispatch start <change> <stage> [--timeout <secs>]`
+
+Resolves `<change>` → 4-char ID; reads the stage prompt on **stdin** → `{stage}-prompt.md`; resolves the stage's tier `spawn_command` internally (via `internal/agent` + `internal/spawn` `{model}`/`{effort}` substitution — the same resolution `fab resolve-agent` performs); launches it **DETACHED**, cwd = repo root:
+
+```sh
+sh -c '<resolved-cmd> < {stage}-prompt.md > {stage}.log 2>&1; echo $? > {stage}.exit'
+```
+
+The shell is launched with `setsid` semantics (Go's `SysProcAttr{Setsid:true}`, not a `setsid` binary prefix — prefixing it would double-fork and leave the recorded pid pointing at a process that exits immediately), detaching it into a new session/process group so the dispatch **survives the orchestrator dying** — no Go supervisor remains, the shell records the exit code itself and the recorded `pid`/`pgid` track the live worker. `start` writes `{stage}.yaml` before returning. `--timeout N` wraps the resolved command in POSIX `timeout N <cmd>` **inside the wrapper** (no Go timer/daemon); a timed-out command exits `124`, surfacing as `failed`.
+
+- **No `spawn_command` → error, no fallback**: if the resolved tier has no `spawn_command`, `start` errors (`stage <stage> resolves to tier <tier>, which has no spawn_command; configure agent.tiers.<tier>.spawn_command to dispatch this stage`) and does NOT fall back to the top-level `agent.spawn_command`.
+- **Concurrency = refuse-if-running + last-attempt-only**: refuses if a dispatch for the exact `(change, stage)` pair is already `running` (`a dispatch for <change>/<stage> is already running (pid N); run fab dispatch kill first`). A `start` over a **completed** prior attempt (done / failed / orphaned) **overwrites** its files — no per-attempt history. Different stages of the same change share `.fab-dispatch/{id}/` via distinct `{stage}.*` filenames and do not collide.
+
+### status — `fab dispatch status <change> <stage> [--json]`
+
+Byte-stable poll surface. Reads `{stage}.yaml` / `{stage}.exit`, probes `pid` liveness (POSIX `kill(pid,0)`), and reports exactly one of five states:
+
+| State | Condition |
+|-------|-----------|
+| `running` | pid alive AND `{stage}.exit` absent |
+| `done` | `{stage}.exit` == `0` AND `{stage}-result.yaml` present |
+| `failed` | `{stage}.exit` present AND != `0` (includes `124` timeout) |
+| `failed (no-result)` | `{stage}.exit` == `0` BUT `{stage}-result.yaml` absent — a **contract violation, NOT done** |
+| `orphaned` | pid dead AND `{stage}.exit` absent (reboot / `kill -9` / crash) |
+
+A clean exit (code 0) is necessary but **not sufficient** for `done` — the result file must exist. Human output is the bare state string on stdout; `--json` emits `{change, stage, state, pid, pgid, exit?}`.
+
+### logs — `fab dispatch logs <change> <stage> [--tail N]`
+
+Prints `.fab-dispatch/{id}/{stage}.log`. `--tail N` prints the last N lines (Go-side, no external `tail`). Missing log → `no dispatch log for <change>/<stage>`.
+
+### kill — `fab dispatch kill <change> <stage>`
+
+Sends `SIGTERM` to the **process group** (`pgid` from `{stage}.yaml`) so the detached command and its children die together. Idempotent: killing an already-dead dispatch is a benign no-op with a clear report (`dispatch <change>/<stage> already dead (pid N); nothing to kill`).
+
+### clean — `fab dispatch clean [<change>] [--orphans]`
+
+Manual cleanup — one of exactly **two** cleanup paths (the other is archive-time deletion; there is **no automatic GC** anywhere):
+
+- `fab dispatch clean <change>` — removes `.fab-dispatch/{id}/` for the named change.
+- `fab dispatch clean` (no arg) — removes all `.fab-dispatch/*/` dirs.
+- `fab dispatch clean --orphans` — prunes any `.fab-dispatch/{id}/` whose ID no longer resolves to a non-archived change (covers a change archived/deleted upstream leaving a local state dir orphaned).
 
 ---
 
