@@ -70,9 +70,13 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag bool) e
 		changes = args
 	}
 
-	// Read spawn command and branch prefix
+	// Read spawn command and branch prefix. Strip any {model}/{effort}
+	// placeholders (empty-profile resolution) — the composed command is
+	// interpolated raw into a tmux new-window shell command with no profile
+	// injection, so literal braces must not reach tmux (a non-templated command
+	// is unchanged).
 	configPath := filepath.Join(fabRoot, "project", "config.yaml")
-	spawnCmd := spawn.Command(configPath)
+	spawnCmd := spawn.StripPlaceholders(spawn.Command(configPath))
 	cfg, _ := config.Load(fabRoot)
 	branchPrefix := cfg.GetBranchPrefix()
 

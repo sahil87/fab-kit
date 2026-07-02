@@ -244,8 +244,13 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   introduced by this feature** — fab's entire existing subagent-dispatch design (`_preamble.md` §
   Subagent Dispatch) is already Claude-Code-shaped. Per-stage selection is exactly as portable as fab's
   existing dispatch: no more, no less. *(The operator launcher path is the deliberate exception — it
-  appends `--model <full-id>` to a `claude` CLI invocation, which accepts full IDs, so it resolves
-  WITHOUT `--alias`.)*
+  resolves the doing-tier profile WITHOUT `--alias`, because `spawn.WithProfile` composes a `claude`
+  CLI invocation, which accepts full IDs. `WithProfile` is grammar-forgiving: it **appends**
+  `--model <full-id> --effort <level>` to a plain Claude `spawn_command` (no placeholder), and
+  **substitutes** the resolved values into a `{model}`/`{effort}` **template** `spawn_command` (e.g. a
+  codex command) instead — all-or-nothing, an empty value dropping the placeholder's token and a
+  preceding `-`-flag — so a non-Claude worker CLI is configurable without the launcher emitting
+  Claude-only flags; 260702-6tmi.)*
 - *Claude-flavored data (overridable):* fab-kit's shipped default table uses Claude model IDs/effort.
   These are documented as "fab-kit's Claude defaults," fully replaceable via `agent.tiers`.
 - *v1 scope is architecture-neutral + documented — NOT shipped/tested against a non-Claude harness.* No

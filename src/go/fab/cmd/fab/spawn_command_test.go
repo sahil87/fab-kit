@@ -81,3 +81,24 @@ func TestSpawnCommandCmd_RepoMissingConfigFallsBack(t *testing.T) {
 		t.Errorf("spawn-command = %q, want default %q", got, spawn.DefaultSpawnCommand)
 	}
 }
+
+func TestSpawnCommandCmd_TemplatedConfigStripped(t *testing.T) {
+	// A templated spawn_command is resolved with an empty profile before print
+	// (leak prevention): placeholders and their flag tokens are stripped so no
+	// literal {model}/{effort} braces reach a worker spawn.
+	repo := writeRepoConfig(t, "agent:\n  spawn_command: \"codex -m {model} -c model_reasoning_effort={effort}\"\n")
+	got := runSpawnCommandCmd(t, repo)
+	if got != "codex" {
+		t.Errorf("spawn-command = %q, want %q", got, "codex")
+	}
+}
+
+func TestSpawnCommandCmd_NonTemplatedPrintsVerbatim(t *testing.T) {
+	// A non-templated command must print byte-for-byte as today (nothing appended).
+	const cmd = "claude --dangerously-skip-permissions --effort xhigh"
+	repo := writeRepoConfig(t, "agent:\n  spawn_command: \""+cmd+"\"\n")
+	got := runSpawnCommandCmd(t, repo)
+	if got != cmd {
+		t.Errorf("spawn-command = %q, want verbatim %q", got, cmd)
+	}
+}
