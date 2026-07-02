@@ -1,0 +1,3 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-02T23:06:37Z"}
+{"args":"Ship a kit migration that brings the v2.13.1 providers config template (#467) to existing projects: append the commented codex/gemini starter blocks, claude's commented dispatch_command line, and the providers explanatory comment header to fab/project/config.yaml when absent","cmd":"fab-new","event":"command","ts":"2026-07-02T23:06:37Z"}
+{"delta":"+4.3","event":"confidence","score":4.3,"trigger":"calc-score","ts":"2026-07-02T23:08:46Z"}
