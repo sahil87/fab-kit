@@ -11,6 +11,8 @@ Shared review dispatch logic invoked by `/fab-continue`, `/fab-ff`, `/fab-fff`, 
 
 **Review Mode** (general `mode` parameter, added for `/fab-adopt`): the orchestrator MAY pass `mode` to select which sub-agents run — `full` (default — inward + outward) or `outward-only` (outward sub-agent only, for adopted changes that have no forward requirements for inward to validate). There is deliberately **no `inward-only`** value (no caller needs it — parsimony). `mode` gates exactly two steps: **Preconditions** (the inward `plan.md` checks — `## Tasks`/`## Acceptance` present, all tasks `[x]`) are checked **only** in `full` mode and skipped in `outward-only`; **Parallel Dispatch** dispatches only the sub-agent(s) the mode selects. **Findings Merge** and the deterministic pass/fail rule are identical for both modes — "any must-fix → fail", and zero findings passes (so an empty `outward-only` result, e.g. all `review_tools` disabled/unavailable, **passes** best-effort). Default is `full` when the param is omitted, so every existing caller is unaffected — the mode concept is purely additive.
 
+**Nesting degradation** (260702-aetz / 3d): `review` is the one **nesting** stage (inward + outward reviewers + merge). On a harness WITH sub-agent support (native Agent-tool adapter, or a CLI harness offering sub-agents) those run as **parallel sub-agents**; on a harness WITHOUT sub-agent support (a CLI-dispatched review worker via `fab dispatch`) the worker runs them **sequentially inline in one context**. **Only the concurrency degrades — the outcome contract (same merged findings + pass/fail verdict) is identical.** The rule is fixed by `docs/specs/harness-adapters.md` § Nesting degradation; the canonical note lives in `_review.md` § Parallel Dispatch → Nesting degradation, and — because a cross-harness worker may never read fab's skill files beyond its prompt — the CLI-path review dispatch prompt also carries the degradation instruction (injected at the dispatch-seam sites `_preamble.md` § CLI-Adapter Dispatch / `fab-continue.md` Review Behavior / `_pipeline.md` Step 2).
+
 This is an internal partial (`user-invocable: false`) — it is never invoked directly. Skills reference it via `helpers:` frontmatter (`/fab-ff`, `/fab-fff`, `/fab-adopt`) or a stage-conditional in-body read at review entry (`/fab-continue` — deliberately absent from its frontmatter list, per `_preamble.md` § Skill Helper Declaration).
 
 The rework loop is NOT defined here — the file's trailing note points at the orchestrators: `fab-continue.md`'s Verdict section for manual rework, and `_pipeline.md` § Auto-Rework Loop for `/fab-ff`/`/fab-fff` (pointer corrected in 260611-szxd; it previously cited "fab-ff.md/fab-fff.md Step 3").
@@ -29,6 +31,11 @@ Orchestrator (fab-continue / fab-ff / fab-fff / fab-adopt) reads _review.md
 │  Read: plan.md (## Tasks all [x], ## Acceptance present)
 │
 ├─ Parallel Dispatch (Agent tool — dispatches only the sub-agent(s) the mode selects)
+│  │  (nesting degradation, 260702-aetz: harness WITH sub-agent support ⇒
+│  │   inward + outward run as parallel sub-agents; harness WITHOUT — a
+│  │   CLI-dispatched review worker — ⇒ inward + outward + merge run
+│  │   sequentially inline; only concurrency degrades, same merged
+│  │   findings + verdict; CLI-path prompt carries this instruction)
 │  │
 │  ├─ Inward Sub-Agent   [full only]
 │  │  Context: plan.md (## Requirements + ## Tasks + ## Acceptance),

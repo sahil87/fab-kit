@@ -141,8 +141,9 @@ agent:
   the native-dispatch signal. (Mental model: `agent.spawn_command` hires an employee; a tier
   `spawn_command` outsources one task.) The `{model}`/`{effort}` placeholders are substituted at
   resolve time via the same `internal/spawn` template machinery. *This spec covers only the config
-  schema and the `spawn=` resolution output; the dispatch that RUNS the command (`fab dispatch`) and
-  the skill dispatch-seam wiring are separate follow-up changes (3c/3d).*
+  schema and the `spawn=` resolution output; the dispatch that RUNS the command (`fab dispatch`, 3c)
+  and the skill dispatch-seam wiring (3d) both shipped — the cross-adapter contract they share is
+  fixed by [`harness-adapters.md`](harness-adapters.md).*
 
 ---
 
@@ -280,12 +281,14 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   — CLI dispatch never aliases. So under `--alias` the `model=` line is aliased (Agent-tool half) while
   the `spawn=` line carries the full ID (CLI half). The field is **independent of** `agent.spawn_command`
   (the whole-session boundary) with **no cross-fallback** — absence of a resolved tier `spawn_command`
-  is the native-dispatch signal. *v1 emits the line only; the dispatch that RUNS it (`fab dispatch`)
-  and the skill wiring are separate follow-ups (3c/3d).* **The native Agent-tool adapter described in
-  this section is now one of *two* dispatch adapters catalogued in
-  [`harness-adapters.md`](harness-adapters.md)** — the CLI adapter (`fab dispatch`, 3c) is the other,
-  and that spec fixes the cross-adapter dispatch protocol (dispatch-prompt obligations, the five-state
-  machine, `review` nesting degradation, hooks-enhance-never-own) both share.
+  is the native-dispatch signal. *`fab resolve-agent` emits the line; the dispatch that RUNS it
+  (`fab dispatch`, 3c) and the skill dispatch-seam wiring that consumes it (3d) both shipped.* **The
+  native Agent-tool adapter described in this section is now one of *two* dispatch adapters catalogued
+  in [`harness-adapters.md`](harness-adapters.md)** — the CLI adapter (`fab dispatch`, 3c) is the
+  other, and that spec fixes the cross-adapter dispatch protocol (dispatch-prompt obligations, the
+  five-state machine, `review` nesting degradation, hooks-enhance-never-own) both share; the skill
+  dispatch-seam wiring against it lives in `_preamble.md` § CLI-Adapter Dispatch + § Dispatch-Prompt
+  Obligations (3d).
 - *Claude-flavored data (overridable):* fab-kit's shipped default table uses Claude model IDs/effort.
   These are documented as "fab-kit's Claude defaults," fully replaceable via `agent.tiers`.
 - *v1 scope is architecture-neutral + documented — NOT shipped/tested against a non-Claude harness.* No

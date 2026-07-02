@@ -1,0 +1,57 @@
+id: aetz
+name: 260702-aetz-cli-dispatch-skill-wiring
+created: 2026-07-02T12:47:32Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 18
+    acceptance_count: 21
+    acceptance_completed: 21
+confidence:
+    certain: 8
+    confident: 5
+    tentative: 0
+    unresolved: 0
+    score: 4.6
+    fuzzy: true
+    dimensions:
+        signal: 80.8
+        reversibility: 85.0
+        competence: 87.7
+        disambiguation: 82.7
+stage_metrics:
+    intake: {started_at: "2026-07-02T12:47:32Z", driver: fab-new, iterations: 1, completed_at: "2026-07-02T12:53:55Z"}
+    apply: {started_at: "2026-07-02T13:18:25Z", driver: fab-fff, iterations: 2, completed_at: "2026-07-02T13:24:11Z"}
+    review: {started_at: "2026-07-02T13:24:11Z", driver: fab-fff, iterations: 2, completed_at: "2026-07-02T13:30:49Z"}
+    hydrate: {started_at: "2026-07-02T13:30:49Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-02T13:33:45Z"}
+    ship: {started_at: "2026-07-02T13:33:45Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-02T13:35:14Z"}
+    review-pr: {started_at: "2026-07-02T13:35:14Z", driver: git-pr, iterations: 1, completed_at: "2026-07-02T13:42:46Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/463
+change_type_source: explicit
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-07-02T13:33:45Z"
+    computed_at_stage: hydrate
+summary: wires the CLI dispatch adapter (fab dispatch) into the skill dispatch seam — sites branch on the resolved spawn= line (native Agent-tool vs CLI adapter), the block-contract carve-out permits the terminal fab status refresh, and the {stage}-result.yaml status-vs-verdict schema is recorded
+# true_impact: lazily created on first apply-finish (no placeholder here).
+last_updated: 2026-07-02T13:42:46Z
