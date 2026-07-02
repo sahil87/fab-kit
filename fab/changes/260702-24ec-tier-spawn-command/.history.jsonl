@@ -1,0 +1,3 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-02T09:26:05Z"}
+{"args":"Per-tier spawn_command in agent.tiers — the cross-harness opt-in for CLI stage dispatch, with resolve-agent spawn= output line and a commented-block migration","cmd":"fab-new","event":"command","ts":"2026-07-02T09:26:05Z"}
+{"delta":"+4.4","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-07-02T09:28:16Z"}

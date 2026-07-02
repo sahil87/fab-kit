@@ -1,6 +1,6 @@
-id: y022
-name: 260702-y022-status-refresh-drop-artifact-hook
-created: 2026-07-02T09:22:53Z
+id: 6sgj
+name: 260702-6sgj-fab-dispatch-command
+created: 2026-07-02T09:26:44Z
 created_by: sahil-noon
 change_type: feat
 issues: []
@@ -17,19 +17,19 @@ plan:
     acceptance_count: 0
     acceptance_completed: 0
 confidence:
-    certain: 11
-    confident: 3
-    tentative: 2
+    certain: 10
+    confident: 4
+    tentative: 1
     unresolved: 0
-    score: 3.3
+    score: 4.1
     fuzzy: true
     dimensions:
-        signal: 81.6
-        reversibility: 73.1
-        competence: 86.3
-        disambiguation: 80.6
+        signal: 87.0
+        reversibility: 69.3
+        competence: 85.3
+        disambiguation: 85.3
 stage_metrics:
-    intake: {started_at: "2026-07-02T09:22:53Z", driver: fab-new, iterations: 1}
+    intake: {started_at: "2026-07-02T09:26:44Z", driver: fab-new, iterations: 1}
 prs: []
 # true_impact: lazily created on first apply-finish (no placeholder here).
-last_updated: 2026-07-02T09:26:55Z
+last_updated: 2026-07-02T09:29:08Z
