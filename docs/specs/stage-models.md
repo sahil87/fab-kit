@@ -281,7 +281,11 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   the `spawn=` line carries the full ID (CLI half). The field is **independent of** `agent.spawn_command`
   (the whole-session boundary) with **no cross-fallback** — absence of a resolved tier `spawn_command`
   is the native-dispatch signal. *v1 emits the line only; the dispatch that RUNS it (`fab dispatch`)
-  and the skill wiring are separate follow-ups (3c/3d).*
+  and the skill wiring are separate follow-ups (3c/3d).* **The native Agent-tool adapter described in
+  this section is now one of *two* dispatch adapters catalogued in
+  [`harness-adapters.md`](harness-adapters.md)** — the CLI adapter (`fab dispatch`, 3c) is the other,
+  and that spec fixes the cross-adapter dispatch protocol (dispatch-prompt obligations, the five-state
+  machine, `review` nesting degradation, hooks-enhance-never-own) both share.
 - *Claude-flavored data (overridable):* fab-kit's shipped default table uses Claude model IDs/effort.
   These are documented as "fab-kit's Claude defaults," fully replaceable via `agent.tiers`.
 - *v1 scope is architecture-neutral + documented — NOT shipped/tested against a non-Claude harness.* No

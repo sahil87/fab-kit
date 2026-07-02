@@ -10,6 +10,7 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/atomicfile"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/backlog"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/change"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/intake"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/lines"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
@@ -113,6 +114,15 @@ func Archive(fabRoot, changeArg, description string) (*ArchiveResult, error) {
 	}
 	if err := os.Rename(changeDir, destPath); err != nil {
 		return nil, fmt.Errorf("move to archive: %w", err)
+	}
+
+	// 1b. Delete the change's .fab-dispatch/{id}/ state dir — dispatch artifacts
+	// are transient comms, not history, so they are removed on archive and NOT
+	// recreated on restore (one of the two deterministic cleanup paths; the
+	// other is `fab dispatch clean`, no automatic GC). Best-effort: an absent
+	// dir is a no-op, and a removal error must not undo the completed move.
+	if id := resolve.ExtractID(folder); id != "" {
+		_ = os.RemoveAll(dispatch.DirFor(repoRoot, id))
 	}
 
 	// 2. Update index, then backfill unindexed entries from the just-written
