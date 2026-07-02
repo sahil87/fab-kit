@@ -173,6 +173,54 @@ agent:
 	}
 }
 
+// TestLoad_TierSpawnCommand: a tier's optional spawn_command round-trips through
+// GetAgentTier, and a tier without one yields an empty SpawnCommand. The field is
+// the per-stage CLI-dispatch opt-in — the accessor is a pure pass-through; the
+// no-cross-fallback semantic and per-field merge are internal/agent's job.
+func TestLoad_TierSpawnCommand(t *testing.T) {
+	dir := t.TempDir()
+	projectDir := filepath.Join(dir, "project")
+	os.MkdirAll(projectDir, 0o755)
+
+	configYAML := `
+agent:
+  spawn_command: "claude --dangerously-skip-permissions"
+  tiers:
+    doing:
+      model: claude-opus-4-8
+      effort: high
+      spawn_command: "codex exec -m {model} -c model_reasoning_effort={effort}"
+    ship: { effort: low }
+`
+	os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(configYAML), 0o644)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	doing, ok := cfg.GetAgentTier("doing")
+	if !ok {
+		t.Fatal("expected a 'doing' tier override")
+	}
+	if doing.SpawnCommand != "codex exec -m {model} -c model_reasoning_effort={effort}" {
+		t.Errorf("doing.SpawnCommand = %q, want the codex template verbatim", doing.SpawnCommand)
+	}
+	if doing.Model != "claude-opus-4-8" || doing.Effort != "high" {
+		t.Errorf("doing = %+v, want the model/effort alongside spawn_command", doing)
+	}
+
+	// A tier without a spawn_command yields an empty SpawnCommand (opt-in — the
+	// zero value means native Agent-tool dispatch).
+	ship, ok := cfg.GetAgentTier("ship")
+	if !ok {
+		t.Fatal("expected a 'ship' tier override")
+	}
+	if ship.SpawnCommand != "" {
+		t.Errorf("ship.SpawnCommand = %q, want empty (no spawn_command set)", ship.SpawnCommand)
+	}
+}
+
 func TestLoad_NoAgentTiers(t *testing.T) {
 	dir := t.TempDir()
 	projectDir := filepath.Join(dir, "project")

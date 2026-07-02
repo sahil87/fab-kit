@@ -13,14 +13,25 @@ type StageHook struct {
 	Post string `yaml:"post"`
 }
 
-// TierProfile is a named `{model, effort}` agent profile. Either field MAY be
-// empty: an empty Model signals "inherit the session/orchestrator model" and
-// an empty Effort omits the effort entirely. Both strings are pass-through —
-// fab applies NO validation against any provider's accepted set (provider
-// neutrality, Constitution Principle I). See internal/agent for resolution.
+// TierProfile is a named `{model, effort, spawn_command}` agent profile. Every
+// field MAY be empty: an empty Model signals "inherit the session/orchestrator
+// model", an empty Effort omits the effort entirely, and an empty SpawnCommand
+// signals "native Agent-tool dispatch" (the default — the field is a pure opt-in
+// populated ONLY from user config; fab-kit's built-in default tiers carry none).
+//
+// SpawnCommand is the per-stage CLI-dispatch opt-in: PRESENT on a resolved tier →
+// that tier's stages are dispatched by running this command (cross-harness, e.g.
+// codex); ABSENT → native Agent-tool dispatch. It is INDEPENDENT of
+// AgentConfig.SpawnCommand (the whole-session boundary) — there is NO fallback
+// from a tier to agent.spawn_command (see internal/agent.Resolve).
+//
+// All strings are pass-through — fab applies NO validation against any provider's
+// accepted set (provider neutrality, Constitution Principle I). See internal/agent
+// for resolution.
 type TierProfile struct {
-	Model  string `yaml:"model"`
-	Effort string `yaml:"effort"`
+	Model        string `yaml:"model"`
+	Effort       string `yaml:"effort"`
+	SpawnCommand string `yaml:"spawn_command"`
 }
 
 // AgentConfig models the `agent:` section of config.yaml.

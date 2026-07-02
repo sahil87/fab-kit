@@ -127,10 +127,22 @@ agent:
 ```
 
 - Keys under `tiers:` are tier names: `thinking`, `doing`, `fast`.
-- Each value is a `{model, effort}` object. Either field MAY be set; an omitted field falls back to
-  the fab-kit default for that tier (**per-field merge**).
+- Each value is a `{model, effort, spawn_command}` object. Any field MAY be set; an omitted field
+  falls back to the fab-kit default for that tier (**per-field merge**).
 - A tier omitted entirely (or an absent `tiers:` block) uses fab-kit's built-in default for that tier.
 - An **empty model** signals "inherit the session/orchestrator model" (today's behavior).
+- **`spawn_command` (per-tier, opt-in) — the cross-harness stage-dispatch knob.** PRESENT on a
+  resolved tier → that tier's stages are dispatched by **running the command** (cross-harness, e.g.
+  `codex exec …`); ABSENT → **native Agent-tool dispatch** (the default). fab-kit's built-in default
+  tiers carry **no** `spawn_command` — the field is populated **exclusively** from user config, so the
+  default behavior is unchanged. It is **INDEPENDENT of `agent.spawn_command`** (which opens whole
+  agent *sessions* for `fab operator` / `fab batch` / `fab spawn-command`): **there is NO fallback
+  from a tier to `agent.spawn_command`** — the absence of a resolved tier `spawn_command` is itself
+  the native-dispatch signal. (Mental model: `agent.spawn_command` hires an employee; a tier
+  `spawn_command` outsources one task.) The `{model}`/`{effort}` placeholders are substituted at
+  resolve time via the same `internal/spawn` template machinery. *This spec covers only the config
+  schema and the `spawn=` resolution output; the dispatch that RUNS the command (`fab dispatch`) and
+  the skill dispatch-seam wiring are separate follow-up changes (3c/3d).*
 
 ---
 
@@ -149,12 +161,20 @@ agent dispatch needs.)
 
 1. Take a stage name (`intake`/`apply`/`review`/`hydrate`/`ship`/`review-pr`).
 2. Map the stage → its tier via the fixed stage→tier mapping.
-3. Resolve the tier → `{model, effort}`: the project's `agent.tiers.<tier>` override **per-field
-   merged** over fab-kit's default if present, else the default.
-4. **Emit verbatim — NO validation** (see § No validation). fab does not check the model or effort
-   against any provider's accepted set; it echoes the resolved strings as-is.
-5. Output: two stdout lines, `model=<id>` and `effort=<level>`. The `effort=` line is **omitted** when
-   the resolved tier has no effort. An empty model emits an empty `model=` line (the "inherit" signal).
+3. Resolve the tier → `{model, effort, spawn_command}`: the project's `agent.tiers.<tier>` override
+   **per-field merged** over fab-kit's default if present, else the default. `spawn_command` merges on
+   the same footing as model/effort (override wins when set); defaults carry none.
+4. **Emit verbatim — NO validation** (see § No validation). fab does not check the model, effort, or
+   spawn_command against any provider's accepted set; it echoes the resolved strings as-is.
+5. Output: two stdout lines, `model=<id>` and `effort=<level>`, **plus an optional third line
+   `spawn=<command>`**. The `effort=` line is **omitted** when the resolved tier has no effort. An
+   empty model emits an empty `model=` line (the "inherit" signal). The `spawn=` line is emitted
+   **ONLY when the resolved tier carries a `spawn_command`** (mirroring the effort-omit rule); its
+   **absence signals native Agent-tool dispatch**, and there is **NO fallback to
+   `agent.spawn_command`** — `resolve-agent` never consults the whole-session field. The `spawn=`
+   command's `{model}`/`{effort}` placeholders are substituted via `internal/spawn`'s template
+   resolution (reused, not reimplemented), using the tier's own resolved model/effort — and the
+   `{model}` is **always the full model ID**, even under `--alias` (see § Harness-adapter boundary).
 6. **Byte-stable** for the same config (like other `fab resolve` queries). Non-zero exit only on a
    real error: an unreadable/malformed config, or an unknown stage name. A stage that resolves to a
    default is success, not an error.
@@ -251,6 +271,17 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   codex command) instead — all-or-nothing, an empty value dropping the placeholder's token and a
   preceding `-`-flag — so a non-Claude worker CLI is configurable without the launcher emitting
   Claude-only flags; 260702-6tmi.)*
+- *Cross-harness stage dispatch (the `spawn=` adapter):* a tier's optional `spawn_command` is the
+  seam for handing one stage to a **different CLI harness** (e.g. `codex exec …`) instead of a native
+  Agent-tool sub-agent. When a resolved tier carries it, `fab resolve-agent` emits a third
+  `spawn=<command>` line — its `{model}`/`{effort}` substituted via `internal/spawn`. This adapter is
+  the **inverse aliasing rule** from the Agent-tool `model` param: the `spawn=` command **ALWAYS
+  embeds the FULL model ID, never an alias**, because an external CLI's `--model` flag takes a full ID
+  — CLI dispatch never aliases. So under `--alias` the `model=` line is aliased (Agent-tool half) while
+  the `spawn=` line carries the full ID (CLI half). The field is **independent of** `agent.spawn_command`
+  (the whole-session boundary) with **no cross-fallback** — absence of a resolved tier `spawn_command`
+  is the native-dispatch signal. *v1 emits the line only; the dispatch that RUNS it (`fab dispatch`)
+  and the skill wiring are separate follow-ups (3c/3d).*
 - *Claude-flavored data (overridable):* fab-kit's shipped default table uses Claude model IDs/effort.
   These are documented as "fab-kit's Claude defaults," fully replaceable via `agent.tiers`.
 - *v1 scope is architecture-neutral + documented — NOT shipped/tested against a non-Claude harness.* No

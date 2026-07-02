@@ -259,19 +259,21 @@ fab resolve-agent <stage> [--alias]
 
 `<stage>` is one of the six pipeline stages: `intake`, `apply`, `review`, `hydrate`, `ship`, `review-pr`.
 
-**Resolution**: maps the stage → its tier via the FIXED fab-owned stage→tier mapping (`thinking`: intake, review / `doing`: apply, review-pr, hydrate / `fast`: ship — NOT user-overridable), then resolves the tier → `{model, effort}`: the project's `agent.tiers.<tier>` override **per-field merged** over fab-kit's built-in default (`thinking`: claude-opus-4-8/xhigh, `doing`: claude-opus-4-8/high, `fast`: claude-sonnet-4-6/low), else the default. `agent.tiers` is the sole override surface — there is no `stage_tiers` and no per-stage escape hatch. See `docs/specs/stage-models.md`.
+**Resolution**: maps the stage → its tier via the FIXED fab-owned stage→tier mapping (`thinking`: intake, review / `doing`: apply, review-pr, hydrate / `fast`: ship — NOT user-overridable), then resolves the tier → `{model, effort, spawn_command}` (the third field drives the optional `spawn=` line): the project's `agent.tiers.<tier>` override **per-field merged** over fab-kit's built-in default (`thinking`: claude-opus-4-8/xhigh, `doing`: claude-opus-4-8/high, `fast`: claude-sonnet-4-6/low), else the default. `agent.tiers` is the sole override surface — there is no `stage_tiers` and no per-stage escape hatch. See `docs/specs/stage-models.md`.
 
-**Output** (two stdout lines, byte-stable for the same config):
+**Output** (two stdout lines, plus an optional third `spawn=` line; byte-stable for the same config):
 
 ```
 model=<id>
 effort=<level>
+spawn=<command>
 ```
 
 - The `effort=` line is **omitted** when the resolved tier has no effort (empty/absent).
 - An **empty model** emits an empty `model=` line — signals "inherit the session/orchestrator model" (today's foreground/no-override behavior). Callers omit the dispatch `model` param in that case.
+- The `spawn=` line is emitted **ONLY when the resolved tier carries a `spawn_command`** (the per-tier CLI-dispatch opt-in), mirroring the effort-omit rule. Its **absence** is the signal for **native Agent-tool dispatch** — and there is **NO fallback to `agent.spawn_command`** (the whole-session boundary is a separate, independent surface; `resolve-agent` never consults it). The emitted command has its `{model}`/`{effort}` placeholders **already substituted** via `internal/spawn`'s template resolution (reused, not reimplemented). Consumed by the 3c `fab dispatch` command family; dispatch-seam skills that only inject `model=`/`effort=` do not read it.
 
-**`--alias` (Claude-Code Agent-tool adapter)**: when set, the `model=` line emits the Claude-Code **short alias** (`opus` / `sonnet` / `haiku` / `fable`) instead of the full versioned ID. This exists because the Claude Code **Agent tool's `model` parameter is a hard enum** that rejects full IDs — sub-agent dispatch must pass an alias. The mapping is prefix-based (`claude-opus-` → `opus`, etc.), so dated variants like `claude-haiku-4-5-20251001` resolve to `haiku`. The **default (flag absent) is unchanged** — the full ID, byte-identical to today (the `claude` CLI `--model` flag, used by the operator launcher, accepts full IDs and keeps resolving WITHOUT `--alias`). The **`effort=` line is unaffected** by `--alias`. **Empty / non-Claude models pass through verbatim** (an empty `model=` line stays empty — the inherit signal; an unrecognized/non-Claude ID like `gpt-5` is emitted unchanged) — `--alias` is a best-effort adapter, not a Claude-only validator.
+**`--alias` (Claude-Code Agent-tool adapter)**: when set, the `model=` line emits the Claude-Code **short alias** (`opus` / `sonnet` / `haiku` / `fable`) instead of the full versioned ID. This exists because the Claude Code **Agent tool's `model` parameter is a hard enum** that rejects full IDs — sub-agent dispatch must pass an alias. The mapping is prefix-based (`claude-opus-` → `opus`, etc.), so dated variants like `claude-haiku-4-5-20251001` resolve to `haiku`. The **default (flag absent) is unchanged** — the full ID, byte-identical to today (the `claude` CLI `--model` flag, used by the operator launcher, accepts full IDs and keeps resolving WITHOUT `--alias`). The **`effort=` line is unaffected** by `--alias`. **Empty / non-Claude models pass through verbatim** (an empty `model=` line stays empty — the inherit signal; an unrecognized/non-Claude ID like `gpt-5` is emitted unchanged) — `--alias` is a best-effort adapter, not a Claude-only validator. The **`spawn=` line ALWAYS embeds the FULL model ID even under `--alias`** — CLI dispatch never aliases (an external CLI's `--model` flag takes a full ID); aliasing is the Agent-tool-only adaptation. So under `--alias` the `model=` line is aliased while the `spawn=` command still carries the full resolved ID.
 
 ```
 $ fab resolve-agent apply
@@ -281,6 +283,13 @@ effort=high
 $ fab resolve-agent apply --alias
 model=opus
 effort=high
+
+# with agent.tiers.doing.spawn_command set (apply ∈ doing) — the third line
+# appears, aliased model= but full-ID spawn=:
+$ fab resolve-agent apply --alias
+model=opus
+effort=high
+spawn=codex exec -m claude-opus-4-8 -c model_reasoning_effort=high
 ```
 
 **No validation — verbatim pass-through**: `fab resolve-agent` does NOT validate the model or effort against any provider's accepted set (provider neutrality — a fab-kit design principle). It echoes both strings as-is — `xhigh`, `reasoning_effort:high`, an empty effort, whatever. A misconfigured pair (e.g. Sonnet + `xhigh`) is NOT corrected by fab; it surfaces as a dispatch-time error in the harness. There is no effort-enum enforcement and no degrade-gracefully drop.
