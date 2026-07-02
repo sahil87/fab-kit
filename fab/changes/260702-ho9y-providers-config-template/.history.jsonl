@@ -1,0 +1,3 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-02T20:32:08Z"}
+{"args":"provider template defaults: fab config reference + scaffold show all three providers (claude, codex, gemini) with both session_command and dispatch_command filled, so users have a working template to adapt","cmd":"fab-new","event":"command","ts":"2026-07-02T20:32:08Z"}
+{"delta":"+4.4","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-07-02T20:33:08Z"}

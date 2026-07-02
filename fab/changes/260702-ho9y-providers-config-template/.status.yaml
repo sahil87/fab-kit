@@ -1,0 +1,35 @@
+id: ho9y
+name: 260702-ho9y-providers-config-template
+created: 2026-07-02T20:32:08Z
+created_by: sahil-noon
+change_type: refactor
+issues: []
+progress:
+    intake: ready
+    apply: pending
+    review: pending
+    hydrate: pending
+    ship: pending
+    review-pr: pending
+plan:
+    generated: false
+    task_count: 0
+    acceptance_count: 0
+    acceptance_completed: 0
+confidence:
+    certain: 4
+    confident: 3
+    tentative: 0
+    unresolved: 0
+    score: 4.4
+    fuzzy: true
+    dimensions:
+        signal: 69.3
+        reversibility: 85.0
+        competence: 80.0
+        disambiguation: 77.1
+stage_metrics:
+    intake: {started_at: "2026-07-02T20:32:08Z", driver: fab-new, iterations: 1}
+prs: []
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-07-02T20:33:08Z
