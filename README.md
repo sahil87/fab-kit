@@ -389,7 +389,7 @@ Five configuration files shape how AI works in your project. Each answers a diff
 
 Notice the author-vs-critic split: `code-quality.md` guides the **writing** agent during apply - coding standards, anti-patterns, test strategy. `code-review.md` guides the **reviewing** sub-agent during review - severity definitions, scope boundaries, rework budget. Different cognitive modes, different concerns, different files.
 
-All five are optional except `constitution.md` and `config.yaml`. They live in `fab/project/`. Run `/fab-setup` to generate them from scaffolds with sensible defaults.
+All five are optional except `constitution.md` and `config.yaml`. They live in `fab/project/`. Run `/fab-setup` to generate them from scaffolds with sensible defaults. For the full `config.yaml` schema — every available option, documented — run `fab config reference`.
 
 ### Structured Autonomy, Not Guesswork
 
@@ -470,6 +470,7 @@ The operator (`/fab-operator`) is a long-running coordination layer that sits in
 | Command | Purpose |
 |---------|---------|
 | `fab sync` | Repair symlinks, scaffold structure, deploy skills |
+| `fab config reference` | Print the fully-commented reference config.yaml — every available option |
 | `fab doctor` | Diagnose common setup issues |
 | `fab fab-help` | Print workflow overview to terminal |
 | `fab operator` | Launch operator in a dedicated tmux tab |

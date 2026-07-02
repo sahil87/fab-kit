@@ -1,3 +1,9 @@
 {"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-02T06:27:10Z"}
 {"args":"Add a fab config reference command that prints a fully-commented reference config.yaml (generated from real defaults in Go), plus scaffold pointer line","cmd":"fab-new","event":"command","ts":"2026-07-02T06:27:10Z"}
 {"delta":"+4.5","event":"confidence","score":4.5,"trigger":"calc-score","ts":"2026-07-02T06:29:19Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-02T06:42:08Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-02T06:42:41Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-02T06:54:43Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-02T07:00:59Z"}
+{"event":"review","result":"passed","ts":"2026-07-02T07:00:59Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-02T07:04:46Z"}

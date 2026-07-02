@@ -22,6 +22,7 @@ The partial is organized as one `##` section per command (or command group), plu
 | fab log (extended) | Append-only `.history.jsonl` logging beyond the `log command` headline |
 | fab resolve (extended) | Query flags (`--id` / `--folder` / `--dir` / `--status` / `--pane`) and canonical-output forms |
 | fab resolve-agent | Per-stage model/effort tier resolution (`<stage>` → tier → `{model, effort}`); `--alias` for the Agent-tool short alias |
+| fab config reference | Prints the fully-commented reference config.yaml (all available options — binary- and skill-consumed keys), generated from the binary's constants; pure query, no flags, byte-stable stdout, exit 0 |
 | fab hook | Claude Code hook subcommands (PostToolUse artifact hooks, etc.) |
 | fab pane | Tmux pane operations (`map`, `--all-sessions`, `--json`) used by the operator |
 | fab doctor | Prerequisite validation |
