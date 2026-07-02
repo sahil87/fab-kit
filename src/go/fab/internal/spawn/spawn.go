@@ -124,8 +124,15 @@ func isTemplate(spawnCmd string) bool {
 // token. Templated spawn_commands are expected to use plain value-carrying
 // flags (`-m`, `--model`, `--model=`, `-c key=`).
 func resolveTemplate(spawnCmd, model, effort string) string {
-	// All-non-empty path: preserve the raw string's whitespace exactly.
-	if model != "" && effort != "" {
+	// Whitespace-preserving fast path: taken when no placeholder that ACTUALLY
+	// APPEARS in spawnCmd would substitute an empty value. Gating on the present
+	// placeholders (not merely `model != "" && effort != ""`) means a command
+	// carrying only {model} with a non-empty model still preserves its raw
+	// whitespace even when effort is empty — the absent {effort} needs no
+	// token-drop, so tokenizing (which collapses whitespace runs) is unwarranted.
+	modelNeedsDrop := model == "" && strings.Contains(spawnCmd, modelPlaceholder)
+	effortNeedsDrop := effort == "" && strings.Contains(spawnCmd, effortPlaceholder)
+	if !modelNeedsDrop && !effortNeedsDrop {
 		out := strings.ReplaceAll(spawnCmd, modelPlaceholder, model)
 		return strings.ReplaceAll(out, effortPlaceholder, effort)
 	}
@@ -135,8 +142,11 @@ func resolveTemplate(spawnCmd, model, effort string) string {
 	out := make([]string, 0, len(tokens))
 
 	for _, tok := range tokens {
-		// A token carries at most one flavor of placeholder in the documented
-		// grammar; a token with no placeholder is kept verbatim.
+		// A token may carry either or both placeholder flavors (e.g.
+		// `--profile={model}-{effort}`), and the default branch substitutes
+		// every occurrence of each; a token with no placeholder is kept verbatim.
+		// Token-drop fires only when a placeholder present in the token has an
+		// empty substitution value.
 		switch {
 		case strings.Contains(tok, modelPlaceholder) && model == "",
 			strings.Contains(tok, effortPlaceholder) && effort == "":
