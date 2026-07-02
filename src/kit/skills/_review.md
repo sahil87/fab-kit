@@ -170,6 +170,15 @@ Dispatch the sub-agent(s) selected by `mode` (see Review Mode):
 - **`full`** (default): both sub-agents (inward and outward) are dispatched **in parallel**. The orchestrator waits for both to return before proceeding to the Findings Merge step.
 - **`outward-only`**: dispatch the outward sub-agent only. There is no inward sub-agent to wait for; proceed to Findings Merge once the outward sub-agent returns.
 
+### Nesting degradation (harness without sub-agent support)
+
+`review` is the **one nesting stage**: it spawns an inward reviewer + an outward reviewer + a merge. Concurrency depends on the running harness:
+
+- **Harness WITH sub-agent support** (the native Agent-tool adapter, and any CLI harness that offers sub-agents): the inward + outward reviewers run as **parallel sub-agents** exactly as described above.
+- **Harness WITHOUT sub-agent support** (a CLI-dispatched review worker on a harness that has no sub-agent primitive): the worker runs the inward reviewer, the outward reviewer, and the merge **sequentially inline in one context** instead of as parallel workers.
+
+**Only the concurrency degrades — the outcome contract is identical**: the same merged findings + pass/fail verdict (Findings Merge below) are produced either way. This is fixed by `docs/specs/harness-adapters.md` § Nesting degradation (review is the nesting stage; degrade concurrency, never the outcome). Because a cross-harness worker may never read fab's skill files beyond the prompt it is handed, the CLI-path review dispatch prompt **carries this degradation instruction** in addition to this canonical note (the dispatch-seam sites — `_preamble.md` § CLI-Adapter Dispatch, `fab-continue.md` Review Behavior, `_pipeline.md` Step 2 — inject it on the CLI branch).
+
 ---
 
 ## Findings Merge

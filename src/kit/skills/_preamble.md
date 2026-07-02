@@ -310,7 +310,7 @@ fab resolve-agent <stage>
 
 and passes the resolved profile into the Agent dispatch:
 
-- Output is two byte-stable stdout lines, `model=<id>` and `effort=<level>` (the `effort=` line is omitted when the tier has no effort), **plus an optional third `spawn=<command>` line** emitted only when the resolved tier carries a `spawn_command` (the per-tier CLI-dispatch opt-in — its absence means native Agent-tool dispatch, with NO fallback to `agent.spawn_command`). Dispatch-seam skills consume `model=`/`effort=` only; `spawn=` is for the cross-harness dispatch follow-ups (3c/3d), not read here. See `_cli-fab.md` § fab resolve-agent.
+- Output is two byte-stable stdout lines, `model=<id>` and `effort=<level>` (the `effort=` line is omitted when the tier has no effort), **plus an optional third `spawn=<command>` line** emitted only when the resolved tier carries a `spawn_command` (the per-tier CLI-dispatch opt-in — its absence means native Agent-tool dispatch, with NO fallback to `agent.spawn_command`). **Dispatch-seam skills branch on `spawn=` presence** (see § CLI-Adapter Dispatch below): absent ⇒ the native Agent-tool path (`model=`/`effort=` consumed through the two seams below, byte-preserving); present ⇒ the CLI adapter (`fab dispatch`), where the profile rides the `spawn=` command itself. See `_cli-fab.md` § fab resolve-agent.
 - **Empty model** ⇒ omit the dispatch `model` param entirely (inherit the orchestrator/session model — today's behavior). **Empty effort** ⇒ omit the effort instruction (below).
 - The resolver maps `<stage>` → its fixed fab-owned tier → a `{model, effort, spawn_command}` profile (the `spawn_command` field drives the optional `spawn=` line — its absence means native Agent-tool dispatch; `agent.tiers` project override per-field-merged over fab-kit's default). The stage→tier mapping is NOT user-overridable; `agent.tiers` (tier redefinition) is the sole override surface. Full design: `docs/specs/stage-models.md`.
 - **No validation**: the resolved strings are passed through verbatim — fab enforces no effort enum and corrects no incompatible pair. Compatibility is the harness's concern.
@@ -327,6 +327,73 @@ and passes the resolved profile into the Agent dispatch:
 **Review resolves once.** The `review` stage spawns two reviewer sub-agents (inward + outward) plus a merge. Resolve `fab resolve-agent review --alias` **once** (the `--alias` flag emits the Agent-tool-valid short alias on the `model=` line, per the Harness-adapter boundary note above) and apply the same profile to all three — the same model and the same effort-prompt instruction govern both reviewers and the merge; the mechanical merge runs at the reviewer's tier (an accepted stage-granularity tradeoff).
 
 **Per-stage selection applies on every post-intake stage.** Per-stage selection is a property of dispatched sub-agent runs — and **every post-intake stage now dispatches a sub-agent**, including plain `/fab-continue` (which is a one-stage sequencer that resolves `fab resolve-agent <stage>` and dispatches its stage's block — see `fab-continue.md` Normal Flow Step 1). So there is no post-intake foreground execution path left to be the exception; `fab resolve-agent` applies uniformly across apply/review/hydrate regardless of caller. Intake is pre-boundary (it runs in the main session and is not tiered by `/fab-continue`). The only residual "advisory" case is a stage skill genuinely run with no dispatch at all — fab cannot switch the session model mid-run, so such a skill MAY note "this stage is configured for X; you're on Y" but MUST NOT attempt to switch. *(The effort half of the tier is now injected via the subagent-prompt instruction described above — see "The two halves dispatch through different seams"; the lone remaining residual is a first-class per-sub-agent `effort` parameter on the Agent tool, which is a harness ask outside fab's control, not a fab gap.)*
+
+### CLI-Adapter Dispatch (the `spawn=` path)
+
+This is the **canonical** cross-harness dispatch procedure. Dispatch sites (`_pipeline.md`, `fab-continue.md`, `fab-adopt.md`) **reference this subsection** and do NOT restate the five-state machine. The full cross-adapter contract is `docs/specs/harness-adapters.md`; the runtime is `_cli-fab.md` § fab dispatch.
+
+**Branch at the single `fab resolve-agent <stage> --alias` call.** Every dispatch site already makes exactly one such call and surfaces the resolved profile (§ Compliance visibility). Branch on the resolved `spawn=` line:
+
+- **`spawn=` absent** ⇒ **native Agent-tool dispatch** — the two seams above (model on the Agent `model` param, effort via the prompt instruction). Unchanged; byte-preserving in behavior. This is the default for every fab-kit built-in tier.
+- **`spawn=` present** ⇒ the **CLI adapter** (`fab dispatch`). There is **NO fallback** to `agent.spawn_command` (the whole-session field is a separate, independent surface; the absence of a resolved *tier* `spawn_command` is itself the native-dispatch signal). The choice is per-stage/per-tier: one pipeline run can mix native and CLI dispatches across stages.
+
+**Model/effort seams do NOT apply on the CLI path.** The `spawn=` command ALWAYS embeds the FULL model ID and the substituted effort (via `internal/spawn` — even under `--alias`), so the Agent-tool seams (the `model` alias param + the imperative effort-prompt line) are **not** applied for a CLI dispatch — the profile rides the `spawn=` command itself. The site keeps its single `--alias` call and branches; it makes **no second resolve call**.
+
+**Compliance visibility extends to `spawn=`.** Each site MUST surface the resolved `spawn=` line alongside the `model=`/`effort=` surfacing, so a CLI dispatch (or a `spawn=` line resolved but not honored) is visible in orchestrator output rather than silent.
+
+**CLI-adapter procedure** (when `spawn=` is present):
+
+1. **Start.** `fab dispatch start <change> <stage>` with the full stage prompt on **stdin** — the same block prompt the Agent tool would receive, composed per § Dispatch-Prompt Obligations below. `start` resolves the tier `spawn_command` internally and launches it detached. **No `--timeout` in v1** (orphan detection + `fab dispatch kill` cover the failure modes).
+2. **Poll.** `fab dispatch status <change> <stage>` with `sleep 30` between polls (fixed cadence, no backoff in v1) until a terminal state.
+3. **Five-state handling** (observed via `fab dispatch status`):
+   - `running` → keep polling.
+   - `done` → read `.fab-dispatch/{4-char-change-id}/{stage}-result.yaml` as the block's returned result and proceed with the normal sequencer transition (finish/fail per the stage's contract). A review `verdict: fail` **inside** a `done` result is a **review outcome**, not a dispatch failure — the orchestrator takes the normal review-fail path.
+   - `failed` → infrastructure/worker failure (a non-zero exit, incl. `124` timeout) — NOT a review-verdict fail: surface `fab dispatch logs <change> <stage> --tail N` and stop per the stage's failure path.
+   - `failed (no-result)` → **contract violation** (clean exit, no result file); **NEVER treat as done** — surface logs and stop.
+   - `orphaned` → the worker died with no recorded exit (reboot / `kill -9` / crash): surface and stop with re-run guidance (`fab dispatch start` over a completed/orphaned attempt overwrites it).
+4. **No cleanup after `done`.** `.fab-dispatch/` is transient comms with **no automatic GC** — cleanup is archive-time deletion + explicit `fab dispatch clean` only. The wiring adds no cleanup call after a `done` dispatch.
+
+### Dispatch-Prompt Obligations (bind BOTH adapters)
+
+Per `docs/specs/harness-adapters.md` § Dispatch-prompt obligations, **whatever adapter dispatches a stage**, the prompt handed to the worker MUST:
+
+1. **Instruct the worker to produce `{stage}-result.yaml`** — for the **CLI adapter** a real file at `.fab-dispatch/{4-char-change-id}/{stage}-result.yaml`; for the **native adapter** the structural equivalent (the returned result). The result is the contract's success token — its **presence** is required for `done` (a clean exit without it is `failed (no-result)`). Minimal schema (3d):
+
+   ```yaml
+   # apply (mirrors "returns completion status or failure with task ID and reason")
+   stage: apply
+   status: success            # success | failure  — the WORKER/infra outcome
+   summary: "12/12 tasks complete, tests green"
+   # on failure only:
+   failed_task: T007
+   reason: "tests failing in internal/x after 3 attempts"
+   ```
+
+   ```yaml
+   # review (mirrors "merged prioritized findings + pass/fail verdict")
+   stage: review
+   status: success            # the review RAN to completion (infra outcome)
+   verdict: pass              # pass | fail  — the REVIEW outcome (distinct from status)
+   findings:
+     must_fix: []             # each finding a self-contained string (file/line refs inline)
+     should_fix:
+       - "src/x.md:41 — stale claim Y"
+     nice_to_have: []
+   summary: "2 should-fix, verdict pass"
+   ```
+
+   ```yaml
+   # hydrate (mirrors "returns completion status")
+   stage: hydrate
+   status: success
+   summary: "updated docs/memory/runtime/dispatch.md, regenerated indexes"
+   ```
+
+   The **`status` vs `verdict` split is load-bearing**: a completed review with `verdict: fail` is dispatch-state `done` (result present) — the orchestrator then takes the normal review-fail path. Dispatch-state `failed` is reserved for worker/infrastructure failure.
+2. **Carry the standard subagent context files** — `fab/project/config.yaml`, `fab/project/constitution.md`, and (optional) `context.md` / `code-quality.md` / `code-review.md` (§ Standard Subagent Context). Already true for native prompts; the CLI prompt content MUST carry the same instruction — a worker on a fresh harness has no other awareness of project principles.
+3. **End with a terminal `fab status refresh` epilogue** so the worker recomputes state from artifacts after finishing (the 3a pull-based recompute). This is the sole `fab status` command a dispatched block runs — see the block-contract carve-out below.
+
+**Block-contract carve-out.** The universal block-contract line the dispatch sites carry — "do NOT run `fab status` commands; return results only" — is refined to prohibit `fab status` **transition** commands (`start`/`advance`/`finish`/`reset`/`fail`/`skip`) while **REQUIRING** the terminal `fab status refresh`: refresh is a pull-based recompute, not a transition, so it does not violate the invariant that **the orchestrator (sequencer) owns all transitions**. Both adapters' block prompts carry this carve-out.
 
 ---
 

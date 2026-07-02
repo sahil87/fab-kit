@@ -95,9 +95,9 @@ fab status set-summary {name} "adopted off-pipeline change; apply skipped"
 
 ### Step 3 — Review (dispatched, `mode: outward-only`)
 
-Resolve the review model: run `fab resolve-agent review --alias`, surface the resolved `model=/effort=`, and apply both halves (model via the Agent `model` param; effort via the imperative prompt instruction) per `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution.
+Resolve the review model + adapter: run `fab resolve-agent review --alias`, surface the resolved `model=/effort=/spawn=`, then **branch on `spawn=`** — absent ⇒ native dispatch (model via the Agent `model` param; effort via the imperative prompt instruction); present ⇒ CLI dispatch via `fab dispatch` — per `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution / § CLI-Adapter Dispatch.
 
-Dispatch `/fab-continue` Review Behavior as a sub-agent (Agent tool, `general-purpose`), passing **`mode: outward-only`** (the `_review.md` parameter). The prompt MUST include the standard subagent context files and **"do NOT run `fab status` commands; return results only"** — this orchestrator owns the verdict transition. Outward review reads `git diff {base}...HEAD` natively, so no file-set prompt hack is needed; inward preconditions (`plan.md` tasks all `[x]`) are skipped in `outward-only` mode.
+Dispatch `/fab-continue` Review Behavior as a sub-agent (Agent tool, `general-purpose`), passing **`mode: outward-only`** (the `_review.md` parameter). The prompt MUST include the standard subagent context files and the **block-contract carve-out** (no `fab status` **transition** commands `start`/`advance`/`finish`/`reset`/`fail`/`skip`; **DO** end with a terminal `fab status refresh`; return results only, per `_preamble.md` § Dispatch-Prompt Obligations) — this orchestrator owns the verdict transition. Outward review reads `git diff {base}...HEAD` natively, so no file-set prompt hack is needed; inward preconditions (`plan.md` tasks all `[x]`) are skipped in `outward-only` mode.
 
 **Verdict** (owned here):
 - **Pass** (no must-fix, including zero findings — outward-only with no available external reviewer passes best-effort): `fab status finish {name} review {driver}`.
@@ -105,7 +105,7 @@ Dispatch `/fab-continue` Review Behavior as a sub-agent (Agent tool, `general-pu
 
 ### Step 4 — Hydrate (dispatched, verbatim)
 
-Reuse `_pipeline.md` Step 3 unchanged: resolve the hydrate model, dispatch `/fab-continue` Hydrate Behavior as a sub-agent (same prompt contract — do NOT run `fab status`; return results only). This is the permanent-loss recovery — `docs/memory/` finally reflects what shipped. On success: `fab status finish {name} hydrate {driver}`.
+Reuse `_pipeline.md` Step 3 unchanged: resolve the hydrate model + adapter (branch on `spawn=`), dispatch `/fab-continue` Hydrate Behavior as a sub-agent (same block-contract carve-out — no `fab status` transition commands; terminal `fab status refresh`; return results only). This is the permanent-loss recovery — `docs/memory/` finally reflects what shipped. On success: `fab status finish {name} hydrate {driver}`.
 
 ### Step 5 — Ship (retrofit Meta onto the existing PR)
 

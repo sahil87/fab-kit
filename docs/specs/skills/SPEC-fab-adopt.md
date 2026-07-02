@@ -57,18 +57,20 @@ User invokes /fab-adopt [<slug>]
 │  └─ Bash: fab status set-summary {name} "adopted off-pipeline change; apply skipped"
 │
 ├─ Step 3: Review — dispatched, mode: outward-only (Agent tool, general-purpose)
-│  ├─ Bash: fab resolve-agent review --alias (surface model=/effort=)
+│  ├─ Bash: fab resolve-agent review --alias (surface model=/effort=/spawn=;
+│  │        branch on spawn= — native or CLI adapter, 260702-aetz)
 │  ├─ Dispatch /fab-continue Review Behavior, mode: outward-only
-│  │        (prompt: do NOT run fab status; return results only;
-│  │         inward preconditions skipped in outward-only; outward reads
-│  │         git diff {base}...HEAD natively)
+│  │        (prompt carries the block-contract carve-out: no fab status
+│  │         TRANSITION commands, terminal fab status refresh required,
+│  │         return results only; inward preconditions skipped in
+│  │         outward-only; outward reads git diff {base}...HEAD natively)
 │  └─ Verdict (owned here):
 │        pass (incl. zero findings, best-effort) → fab status finish {name} review fab-adopt
 │        fail → auto-rework per _pipeline.md budget (autonomous) /
 │               hand findings back (interactive default for hand-authored code)
 │
-├─ Step 4: Hydrate — dispatched, verbatim (_pipeline.md Step 3)
-│  └─ Dispatch /fab-continue Hydrate Behavior → on success fab status finish {name} hydrate fab-adopt
+├─ Step 4: Hydrate — dispatched, verbatim (_pipeline.md Step 3; resolve + branch on spawn=)
+│  └─ Dispatch /fab-continue Hydrate Behavior (same block-contract carve-out) → on success fab status finish {name} hydrate fab-adopt
 │        (the permanent-loss recovery — docs/memory/ finally reflects what shipped)
 │
 ├─ Step 5: Ship — dispatch /git-pr {name} (folder name, not bare id)
