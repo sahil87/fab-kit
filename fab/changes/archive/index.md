@@ -1,5 +1,6 @@
 # Archive Index
 
+- **260702-24ec-tier-spawn-command** — Per-Tier spawn_command — Cross-Harness Stage Dispatch Opt-In
 - **260702-y022-status-refresh-drop-artifact-hook** — Pull-based artifact state — `fab status refresh` + self-healing transitions, drop the artifact-write hook
 - **260630-t54n-adopt-off-pipeline-change** — Adopt an off-pipeline change into the Fab pipeline
 - **260626-5qf5-detect-fill-test-paths** — Detect & Fill test_paths at Setup
