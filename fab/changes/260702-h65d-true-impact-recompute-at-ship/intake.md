@@ -81,7 +81,7 @@ No `_cli-fab.md` change expected: `WriteTrueImpact` is internal (no command sign
 
 ## Open Questions
 
-- None blocking. (Whether `review-pr`-finish should also recompute — capturing PR-review rework commits — is recorded as a Tentative assumption below, deferred as a follow-up rather than widened into this fix.)
+- None blocking. (Whether `review-pr`-finish should also recompute — capturing PR-review rework commits — is recorded as an assumption below, deferred as a follow-up rather than widened into this fix.)
 
 ## Assumptions
 
@@ -92,6 +92,6 @@ No `_cli-fab.md` change expected: `WriteTrueImpact` is internal (no command sign
 | 3 | Confident | Keep apply/hydrate-finish writes (ship supersedes via `computed_at_stage`) rather than removing them | Harmless in the standard flow; real values for early-commit flows (adopt, manual commits); report implied the same ("cleanly supersedes") | S:70 R:85 A:80 D:70 |
 | 4 | Confident | No backfill/migration for historical all-zero blocks | Merged branches are deleted — the diff is unrecoverable post-merge; block self-corrects for every future ship; no schema change to migrate | S:65 R:80 A:80 D:70 |
 | 5 | Confident | Embed the bug report verbatim in this intake instead of copying the handoff doc into `docs/findings/` | The handoff file lives on the reporter's machine and is not available here; Origin preserves its full substance plus verification deltas | S:65 R:90 A:80 D:75 |
-| 6 | Tentative | Ship-only recompute; do NOT also add `review-pr`-finish (which would capture PR-review rework commits) | Reporter's chosen scope; ship-time value is close to final and strictly better than zeros; widening later is trivial (same one-line gate) <!-- assumed: ship-only stage widening — review-pr-finish recompute deferred as follow-up --> | S:55 R:85 A:60 D:45 |
+| 6 | Confident | Ship-only recompute; do NOT also add `review-pr`-finish (which would capture PR-review rework commits) | Reporter's chosen scope; ship-time value is close to final and strictly better than zeros; widening later is trivial (same one-line gate) | S:55 R:85 A:60 D:45 |
 
-6 assumptions (2 certain, 3 confident, 1 tentative, 0 unresolved).
+6 assumptions (2 certain, 4 confident, 0 tentative, 0 unresolved).

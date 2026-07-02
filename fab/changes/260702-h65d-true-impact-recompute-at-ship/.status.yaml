@@ -2,10 +2,10 @@ id: h65d
 name: 260702-h65d-true-impact-recompute-at-ship
 created: 2026-07-02T06:35:26Z
 created_by: sahil-noon
-change_type: feat
+change_type: fix
 issues: []
 progress:
-    intake: active
+    intake: ready
     apply: pending
     review: pending
     hydrate: pending
@@ -31,5 +31,6 @@ confidence:
 stage_metrics:
     intake: {started_at: "2026-07-02T06:35:26Z", driver: fab-new, iterations: 1}
 prs: []
+change_type_source: explicit
 # true_impact: lazily created on first apply-finish (no placeholder here).
-last_updated: 2026-07-02T06:36:36Z
+last_updated: 2026-07-02T06:37:09Z
