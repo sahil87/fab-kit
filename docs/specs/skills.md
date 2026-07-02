@@ -62,7 +62,7 @@ Validation is **convention-only** — `fab sync` does not reject skills with unk
 Every skill that generates or validates artifacts MUST load relevant context before proceeding. This ensures agents produce accurate, grounded output rather than hallucinating requirements or ignoring existing patterns.
 
 **Always loaded** — descriptive, not exhaustive: the layer applies unless the skill's own Context Loading section says otherwise (the skill file wins). Exceptions: `/fab-setup`, `/fab-switch`, `/fab-status`, and `/docs-hydrate-memory` skip it; `/fab-operator` loads only `config.yaml`, `constitution.md`, and `context.md`. The default layer:
-- `fab/project/config.yaml` — project configuration: identity (name/description), `source_paths`/`test_paths`, true-impact excludes, plan-acceptance extra categories, `review_tools` toggles, agent spawn command, optional `stage_hooks`
+- `fab/project/config.yaml` — project configuration: identity (name/description), `source_paths`/`test_paths`, true-impact excludes, plan-acceptance extra categories, provider session/dispatch commands (`providers:`), agent role tiers (`agent.tiers`), optional `stage_hooks`
 - `fab/project/constitution.md` — project principles and constraints (MUST/SHOULD/MUST NOT rules)
 - `fab/project/context.md` — free-form project context: tech stack, conventions, architecture *(optional — no error if missing)*
 - `fab/project/code-quality.md` — coding standards for apply/review: principles, anti-patterns, test strategy *(optional — no error if missing)*
@@ -819,7 +819,7 @@ Next: Complete intake.md, then /fab-continue
 
 **Arguments**:
 - `[<change>]` *(optional)* — explicit change to target instead of the active one: any positional (non-flag) argument; `--tool` and its value are consumed as the flag, never as a change reference. Resolved transiently (`.fab-status.yaml` untouched); an explicit argument that fails to resolve STOPs (caller error), while argless resolution failure proceeds with no change context. When a change is resolved, the branch-matches-change guard STOPs on mismatch before any status mutation.
-- `--tool <name>` *(optional)* — force a specific review tool. Valid values: `copilot` (only). Bypasses the `review_tools` config check.
+- `--tool <name>` *(optional)* — force a specific review tool. Valid values: `copilot` (only). Bypasses the Review Tools check (`code-review.md` § Review Tools).
 
 **Example**:
 ```
@@ -831,7 +831,7 @@ Next: Complete intake.md, then /fab-continue
 
 **Behavior**:
 1. Resolve the PR for the current branch via `gh pr view`
-2. **If no reviews exist** — request a Copilot review (`gh pr edit --add-reviewer copilot-pull-request-reviewer`) and poll every 30 seconds for up to 10 minutes (20 attempts). If the review arrives, process its comments in the same run; if not, the timeout outcome leaves `review-pr` `active` with a re-run message. There is no Codex/Claude cascade — Copilot is the only automated reviewer, honoring `review_tools.copilot` (default enabled).
+2. **If no reviews exist** — request a Copilot review (`gh pr edit --add-reviewer copilot-pull-request-reviewer`) and poll every 30 seconds for up to 10 minutes (20 attempts). If the review arrives, process its comments in the same run; if not, the timeout outcome leaves `review-pr` `active` with a re-run message. There is no Codex/Claude cascade — Copilot is the only automated reviewer, honoring the Copilot toggle in `code-review.md` § Review Tools (absent = enabled).
 3. **If reviews with inline comments exist** — fetch all comments, triage each:
    - **fix**: applies a targeted code change, then posts `Fixed — {description}. ({sha})` as a reply
    - **defer**: posts `Deferred — {reason}.`
@@ -844,4 +844,4 @@ Next: Complete intake.md, then /fab-continue
 - Fully autonomous — never asks questions, never presents options
 - Targeted fixes only — does not modify code beyond what each comment addresses
 - Idempotent — re-running after fixes finds no new modifications; re-running after replies skips already-replied comments
-- The Copilot request honors `review_tools.copilot` in `fab/project/config.yaml` (absent key = enabled)
+- The Copilot request honors the Copilot toggle in `fab/project/code-review.md` § Review Tools (absent = enabled)

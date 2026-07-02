@@ -10,7 +10,7 @@ Process GitHub PR review comments on the current branch's PR. Handles feedback f
 
 **`<change>` argument** *(optional)*: an explicit change to target instead of the active one — resolved transiently in Step 0 (`.fab-status.yaml` untouched). Arguments are classified by value: `--tool` and the value following it are consumed as the flag; any remaining positional argument is the change reference (a `--tool` value can never be misread as a change).
 
-**`--tool` flag**: Names the review tool Step 2 Phase 2 requests when no reviews exist, overriding the `review_tools` config check (a forced tool is attempted even when config disables it). Valid values: `copilot` — currently the only wired tool, and also the config default.
+**`--tool` flag**: Names the review tool Step 2 Phase 2 requests when no reviews exist, overriding the `code-review.md` § Review Tools check (a forced tool is attempted even when that section disables it). Valid values: `copilot` — currently the only wired tool, and also the default.
 
 ---
 
@@ -98,14 +98,9 @@ Request an automated Copilot review and wait for it to appear.
 
 **Forced tool override**: If `--tool copilot` was provided (Step 1.5), skip the config check below and proceed directly to the Copilot request.
 
-**Configuration**: Read `review_tools` from `fab/project/config.yaml`. Only the `copilot` key is honored. When the `review_tools` key is absent, Copilot defaults to enabled.
+**Configuration**: Read the `copilot` entry from `fab/project/code-review.md` § Review Tools. Only the `copilot` entry is honored here. An absent § Review Tools section — or an absent `copilot` entry — means Copilot is enabled; it is disabled only when the section lists `- copilot: false`.
 
-```yaml
-review_tools:
-  copilot: true
-```
-
-If `review_tools.copilot` is `false` (and `--tool copilot` was **not** provided): print `No automated reviewer available. Run /git-pr-review when reviews are added.` and go to Step 6 with outcome **no-reviews** (clean finish).
+If the `copilot` entry is `false` (and `--tool copilot` was **not** provided): print `No automated reviewer available. Run /git-pr-review when reviews are added.` and go to Step 6 with outcome **no-reviews** (clean finish).
 
 > **Two distinct logins — do NOT conflate** (getting these backwards is the #1 cause of a poll never seeing a review that has in fact landed): you add the reviewer via `gh pr edit --add-reviewer copilot-pull-request-reviewer`, but the entry that then surfaces under the PR's **requested reviewers** has login `Copilot`; once a review actually lands, the object in the `reviews` array carries `author.login == "copilot-pull-request-reviewer"` (commonly `copilot-pull-request-reviewer[bot]`). (Apparent oddity, recorded as empirical reality: the value you `--add-reviewer` with matches the landed-review author login, while `requested_reviewers` shows `Copilot`.)
 >

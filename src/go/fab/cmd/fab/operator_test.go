@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"gopkg.in/yaml.v3"
 )
 
@@ -139,52 +140,25 @@ func TestFindWindowExact(t *testing.T) {
 	})
 }
 
-// TestResolveDoingProfile verifies the pure parse-or-default helper that backs
-// the operator's doing-tier model selection: well-formed model+effort stdout
-// parses to that profile, a model-only line yields an empty effort, and empty or
-// unparseable output (including the "" the caller passes when the shell-out
-// itself errors — e.g. an installed fab predating resolve-agent) falls back to
-// the built-in doing default {claude-opus-4-8, high}.
-func TestResolveDoingProfile(t *testing.T) {
-	tests := []struct {
-		name       string
-		stdout     string
-		wantModel  string
-		wantEffort string
-	}{
-		{
-			name:       "well-formed model and effort",
-			stdout:     "model=claude-sonnet-4-6\neffort=low\n",
-			wantModel:  "claude-sonnet-4-6",
-			wantEffort: "low",
-		},
-		{
-			name:       "model line only (no effort) keeps effort empty",
-			stdout:     "model=claude-sonnet-4-6\n",
-			wantModel:  "claude-sonnet-4-6",
-			wantEffort: "",
-		},
-		{
-			name:       "empty output falls back to doing default",
-			stdout:     "",
-			wantModel:  "claude-opus-4-8",
-			wantEffort: "high",
-		},
-		{
-			name:       "garbage output falls back to doing default",
-			stdout:     "unknown command\nfab: command not found\n",
-			wantModel:  "claude-opus-4-8",
-			wantEffort: "high",
-		},
+// TestOperatorProfile verifies the pure operator-tier resolver that backs the
+// operator's coordinating-agent model selection: a nil config resolves the
+// built-in operator default {claude, claude-sonnet-5, medium}, and a project
+// override is honored (per-field merge over the built-in).
+func TestOperatorProfile(t *testing.T) {
+	// nil config → built-in operator default.
+	got := operatorProfile(nil)
+	if got.Provider != "claude" || got.Model != "claude-sonnet-5" || got.Effort != "medium" {
+		t.Errorf("operatorProfile(nil) = %+v, want the built-in operator default", got)
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := resolveDoingProfile(tc.stdout)
-			if got.Model != tc.wantModel || got.Effort != tc.wantEffort {
-				t.Errorf("resolveDoingProfile(%q) = {%q, %q}, want {%q, %q}",
-					tc.stdout, got.Model, got.Effort, tc.wantModel, tc.wantEffort)
-			}
-		})
+
+	// A project override of the operator tier is honored (only effort here;
+	// provider+model inherit the built-in via per-field merge).
+	cfg := &config.Config{Agent: config.AgentConfig{Tiers: map[string]config.TierProfile{
+		"operator": {Effort: "high"},
+	}}}
+	got = operatorProfile(cfg)
+	if got.Provider != "claude" || got.Model != "claude-sonnet-5" || got.Effort != "high" {
+		t.Errorf("operatorProfile(override) = %+v, want effort=high with inherited provider+model", got)
 	}
 }
 

@@ -25,16 +25,16 @@ const (
 func TestDocTablesMatchAgentMaps(t *testing.T) {
 	docPath := findDocFile(t, stageModelsDocPath)
 
-	// Direction 1 — the default tier table: { tier → (model, effort) }.
+	// Direction 1 — the default tier table: { tier → (provider, model, effort) }.
 	tierTable := parseTierProfileTable(t, docPath, defaultTierHeading)
 	assertCoversSet(t, "Default tier profiles", keys(tierTable), TierNames())
 	for _, tier := range TierNames() {
 		t.Run("tier/"+tier, func(t *testing.T) {
 			want, _ := DefaultTier(tier)
 			got := tierTable[tier]
-			if got.Model != want.Model || got.Effort != want.Effort {
-				t.Errorf("stage-models.md default[%s] = {%s, %s}, code defaultTiers = {%s, %s} (doc drifted)",
-					tier, got.Model, got.Effort, want.Model, want.Effort)
+			if got.Provider != want.Provider || got.Model != want.Model || got.Effort != want.Effort {
+				t.Errorf("stage-models.md default[%s] = {%s, %s, %s}, code defaultTiers = {%s, %s, %s} (doc drifted)",
+					tier, got.Provider, got.Model, got.Effort, want.Provider, want.Model, want.Effort)
 			}
 		})
 	}
@@ -102,24 +102,28 @@ func parse2ColTable(t *testing.T, docPath, heading string) map[string]string {
 	return result
 }
 
-// parseTierProfileTable extracts the first pipe-delimited 3-column table
-// (Tier | Model | Effort) under the given heading: { tier → Profile }.
+// parseTierProfileTable extracts the first pipe-delimited 4-column table
+// (Tier | Provider | Model | Effort) under the given heading: { tier → Profile }.
 func parseTierProfileTable(t *testing.T, docPath, heading string) map[string]Profile {
 	t.Helper()
 	rows := tableRowsUnder(t, docPath, heading)
 	result := make(map[string]Profile)
 	for _, cols := range rows {
-		if len(cols) < 3 {
+		if len(cols) < 4 {
 			continue
 		}
 		tier := cleanCell(cols[0])
 		if tier == "" {
 			continue
 		}
-		result[tier] = Profile{Model: cleanCell(cols[1]), Effort: cleanCell(cols[2])}
+		result[tier] = Profile{
+			Provider: cleanCell(cols[1]),
+			Model:    cleanCell(cols[2]),
+			Effort:   cleanCell(cols[3]),
+		}
 	}
 	if len(result) == 0 {
-		t.Fatalf("no 3-column table rows found under heading %q in %s", heading, docPath)
+		t.Fatalf("no 4-column table rows found under heading %q in %s", heading, docPath)
 	}
 	return result
 }

@@ -3,26 +3,37 @@ package spawn
 import (
 	"strings"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 )
 
-// DefaultSpawnCommand is the fallback when config.yaml has no agent.spawn_command.
-const DefaultSpawnCommand = "claude --dangerously-skip-permissions"
+// DefaultSpawnCommand is the fallback session command when config.yaml resolves
+// no providers.claude.session_command. Re-exported from internal/agent (the
+// provider table's owner) so raw-consumer sites keep a single spelling.
+const DefaultSpawnCommand = agent.DefaultSessionCommand
 
-// Command reads agent.spawn_command from the given config.yaml path via the
-// shared internal/config loader (the single config.yaml parser). Returns the
-// configured command, or DefaultSpawnCommand if the key is missing, empty, or
-// the file cannot be read/parsed. The path-based signature is kept because
-// `fab spawn-command --repo <path>` builds the path from an arbitrary repo
-// root.
+// Command reads the default provider's session command from the given config.yaml
+// path via the shared internal/config loader (the single config.yaml parser).
+// Returns providers.<default-tier.provider>.session_command resolved over
+// fab-kit's built-in provider table, or DefaultSpawnCommand if it resolves empty
+// or the file cannot be read/parsed. The path-based signature is kept because
+// `fab agent --repo <path>` builds the path from an arbitrary repo root.
 func Command(configPath string) string {
 	cfg, err := config.LoadPath(configPath)
 	if err != nil {
 		return DefaultSpawnCommand
 	}
 
-	if cmd := cfg.GetSpawnCommand(); cmd != "" {
-		return cmd
+	// The session command lives on the default tier's provider. Resolve the
+	// default tier to find which provider, then that provider's session command.
+	profile, err := agent.ResolveTier(cfg, agent.TierDefault)
+	if err != nil {
+		return DefaultSpawnCommand
+	}
+	if prov, ok := agent.ResolveProvider(cfg, profile.Provider); ok {
+		if prov.SessionCommand != "" {
+			return prov.SessionCommand
+		}
 	}
 	return DefaultSpawnCommand
 }
@@ -72,18 +83,6 @@ func WithProfile(spawnCmd, model, effort string) string {
 		b.WriteString(effort)
 	}
 	return b.String()
-}
-
-// StripPlaceholders resolves a templated cmd with an EMPTY profile, degrading a
-// template to a clean invocation (placeholders and their flag tokens stripped
-// per the empty-value rule in resolveTemplate); a non-templated command is
-// returned verbatim. It is a thin named wrapper over WithProfile(cmd, "", "")
-// that states the intent at raw-consumer sites — code paths that interpolate
-// the configured agent.spawn_command into a shell command WITHOUT a resolved
-// profile (fab spawn-command, fab batch new, fab batch switch). Those sites
-// must not leak literal {model}/{effort} braces into the shell.
-func StripPlaceholders(cmd string) string {
-	return WithProfile(cmd, "", "")
 }
 
 // isTemplate reports whether spawnCmd contains at least one placeholder, which

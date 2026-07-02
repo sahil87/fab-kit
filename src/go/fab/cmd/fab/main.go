@@ -36,7 +36,7 @@ func newRootCmd() *cobra.Command {
 		dispatchCmd(),
 		fabHelpCmd(),
 		operatorCmd(),
-		spawnCommandCmd(),
+		agentCmd(),
 		batchCmd(),
 		kitPathCmd(),
 		impactCmd(),

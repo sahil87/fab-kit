@@ -37,13 +37,29 @@ true_impact_exclude: [fab/, docs/]
 checklist:
   extra_categories: []
 
+# providers — named agent invocation grammars. Each provider MAY carry a
+# session_command (opens an interactive session: fab operator / fab batch /
+# fab agent) and/or a dispatch_command (runs one headless stage task via fab
+# dispatch; ABSENT → native Agent-tool dispatch). The two are NOT merged.
+# {model}/{effort} placeholders are substituted from the resolved tier profile;
+# a plain Claude command has --model/--effort appended instead. Provider names
+# are opaque, user-chosen strings. See: fab config reference.
+providers:
+  claude:
+    session_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")"'
+    # no dispatch_command → claude's stages dispatch natively via the Agent tool
+
+# agent.tiers — per-stage model override. A tier is a named {provider, model,
+# effort} profile (the invocation command lives on the provider, above). fab-kit
+# owns the FIXED stage→tier mapping (intake→default, apply/review-pr/hydrate→
+# doing, review→review, ship→fast; default also governs fab batch / fab agent,
+# and operator governs fab operator). Omit any tier (or the whole block) to use
+# fab-kit's built-in default; an omitted field inherits the `default` tier.
+# Provider is written explicitly on every line as documented style.
 agent:
-  # Base command for spawning agent sessions in scripts and operators.
-  # Shell expansions (e.g., $(basename "$(pwd)")) expand at invocation time.
-  # Optional {model}/{effort} placeholders make this provider-forgiving: if the
-  # command contains either, the resolved tier profile is SUBSTITUTED in place
-  # (e.g. codex: 'codex -m {model} -c model_reasoning_effort={effort}') instead
-  # of Claude-style --model/--effort being appended; an empty value drops the
-  # placeholder's token and a preceding -flag. With no placeholder (as below),
-  # --model/--effort are appended (Claude grammar) — the default behavior.
-  spawn_command: 'claude --dangerously-skip-permissions --effort xhigh -n "$(basename "$(pwd)")"'
+  tiers:
+    default:  { provider: claude, model: claude-fable-5,  effort: xhigh }
+    operator: { provider: claude, model: claude-sonnet-5, effort: medium }
+    doing:    { provider: claude, model: claude-opus-4-8, effort: xhigh }
+    review:   { provider: claude, model: claude-fable-5,  effort: xhigh }
+    fast:     { provider: claude, model: claude-sonnet-5, effort: low }

@@ -26,8 +26,9 @@ observed via files. This spec catalogs both **adapters** and fixes the **protoco
 ## The two adapters
 
 An *adapter* is the mechanism that turns "run stage S as a worker" into an actual launched worker and,
-later, an observed result. The resolution that precedes dispatch (stage → tier → `{model, effort,
-spawn_command}`, via `fab resolve-agent`) is **provider-neutral and adapter-independent** — see
+later, an observed result. The resolution that precedes dispatch (stage → tier →
+`{provider, model, effort}`, via `fab resolve-agent`; the invocation command lives on the resolved
+provider) is **provider-neutral and adapter-independent** — see
 [`stage-models.md`](stage-models.md). Only the launch+observe step is adapter-specific.
 
 ### 1. Native Agent-tool adapter (in-harness)
@@ -46,7 +47,7 @@ The headless path: the worker is a **detached CLI process** (e.g. `claude …` o
 launched and observed via `fab dispatch` (see [`_cli-fab.md`](../../src/kit/skills/_cli-fab.md)
 § fab dispatch). It exists because the native path is **tmux/in-harness-bound** and cannot drive a
 stage on a CI box, a remote host, or a different agent CLI. `fab dispatch start` launches the resolved
-tier `spawn_command` detached via `sh -c '<cmd> < prompt > log 2>&1; echo $? > exit'` launched with
+provider `dispatch_command` detached via `sh -c '<cmd> < prompt > log 2>&1; echo $? > exit'` launched with
 `setsid` semantics (the shell is the supervisor — no Go process remains, so the dispatch survives the
 orchestrator dying), tracks it
 under `.fab-dispatch/{id}/`, and the orchestrator observes the five states **via `fab dispatch
@@ -155,10 +156,11 @@ authority.
 
 ## Relationship to `stage-models.md`
 
-[`stage-models.md`](stage-models.md) owns the **resolution** layer (stage → tier → `{model, effort,
-spawn_command}`, `fab resolve-agent`, verbatim pass-through, provider neutrality) and describes the
+[`stage-models.md`](stage-models.md) owns the **resolution** layer (stage → tier →
+`{provider, model, effort}`, the top-level `providers:` command grammar, `fab resolve-agent`, verbatim
+pass-through, provider neutrality) and describes the
 **native Agent-tool adapter** as its harness-specific injection layer. This spec catalogs that native
 adapter as **one of two** dispatch adapters and adds the **CLI adapter** (`fab dispatch`) alongside it,
-plus the cross-adapter protocol both share. The `spawn=` line `fab resolve-agent` emits (when a tier
-carries a `spawn_command`) is the seam the CLI adapter consumes; `stage-models.md` § Harness-adapter
-boundary points here for the runtime that RUNS it.
+plus the cross-adapter protocol both share. The `dispatch=` line `fab resolve-agent` emits (when the
+resolved tier's provider carries a `dispatch_command`) is the seam the CLI adapter consumes;
+`stage-models.md` § Harness-adapter boundary points here for the runtime that RUNS it.

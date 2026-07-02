@@ -5,17 +5,17 @@ created_by: sahil-noon
 change_type: fix
 issues: []
 progress:
-    intake: ready
-    apply: pending
-    review: pending
-    hydrate: pending
-    ship: pending
-    review-pr: pending
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
 plan:
-    generated: false
-    task_count: 0
-    acceptance_count: 0
-    acceptance_completed: 0
+    generated: true
+    task_count: 25
+    acceptance_count: 26
+    acceptance_completed: 26
 confidence:
     certain: 8
     confident: 8
@@ -29,7 +29,28 @@ confidence:
         competence: 82.1
         disambiguation: 78.8
 stage_metrics:
-    intake: {started_at: "2026-07-02T17:29:29Z", driver: fab-new, iterations: 1}
-prs: []
+    intake: {started_at: "2026-07-02T17:29:29Z", driver: fab-new, iterations: 1, completed_at: "2026-07-02T18:02:24Z"}
+    apply: {started_at: "2026-07-02T18:02:24Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-02T18:45:32Z"}
+    review: {started_at: "2026-07-02T18:45:32Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-02T18:56:41Z"}
+    hydrate: {started_at: "2026-07-02T18:56:41Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-02T19:14:38Z"}
+    ship: {started_at: "2026-07-02T19:14:38Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-02T19:16:24Z"}
+    review-pr: {started_at: "2026-07-02T19:16:24Z", driver: git-pr, iterations: 1, completed_at: "2026-07-02T19:24:03Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/466
+true_impact:
+    added: 2368
+    deleted: 1254
+    net: 1114
+    excluding:
+        added: 1506
+        deleted: 948
+        net: 558
+    tests:
+        added: 681
+        deleted: 485
+        net: 196
+    computed_at: "2026-07-02T19:16:24Z"
+    computed_at_stage: ship
+summary: 'Agent config v3: extract top-level providers: (session_command/dispatch_command; claude built-in, absent dispatch_command = native), replace thinking/doing/fast with five role tiers default/operator/doing/review/fast as {provider,model,effort} with per-field default inheritance, retire review_tools into code-review.md § Review Tools, add fab agent [tier] [--print] retiring fab spawn-command, rename resolve-agent spawn=→dispatch= + gain tier-name/provider= output, dispatch start resolves providers.<name>.dispatch_command, operator resolves the operator tier; migration 2.12.1-to-2.13.0'
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-07-02T17:33:10Z
+last_updated: 2026-07-02T19:24:03Z

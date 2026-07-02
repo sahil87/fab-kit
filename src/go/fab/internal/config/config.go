@@ -13,39 +13,61 @@ type StageHook struct {
 	Post string `yaml:"post"`
 }
 
-// TierProfile is a named `{model, effort, spawn_command}` agent profile. Every
-// field MAY be empty: an empty Model signals "inherit the session/orchestrator
-// model", an empty Effort omits the effort entirely, and an empty SpawnCommand
-// signals "native Agent-tool dispatch" (the default — the field is a pure opt-in
-// populated ONLY from user config; fab-kit's built-in default tiers carry none).
+// ProviderConfig models one entry of the top-level `providers:` table: a named
+// invocation grammar for an agent harness. Provider names are opaque, user-chosen
+// strings (fab never infers a provider from a model string).
 //
-// SpawnCommand is the per-stage CLI-dispatch opt-in: PRESENT on a resolved tier →
-// that tier's stages are dispatched by running this command (cross-harness, e.g.
-// codex); ABSENT → native Agent-tool dispatch. It is INDEPENDENT of
-// AgentConfig.SpawnCommand (the whole-session boundary) — there is NO fallback
-// from a tier to agent.spawn_command (see internal/agent.Resolve).
+//   - SessionCommand opens an interactive agent SESSION (the relocated
+//     agent.spawn_command semantics — consumed by fab operator / fab batch /
+//     fab agent).
+//   - DispatchCommand runs ONE headless stage task via fab dispatch (the relocated
+//     per-tier spawn_command semantics). ABSENT DispatchCommand = native
+//     Agent-tool dispatch (the default). There is NO fallback between the two
+//     fields: absence of DispatchCommand signals native dispatch, never "use
+//     SessionCommand".
 //
-// All strings are pass-through — fab applies NO validation against any provider's
-// accepted set (provider neutrality, Constitution Principle I). See internal/agent
-// for resolution.
+// The two fields are deliberately NOT merged into one command: session and
+// dispatch are different invocations of the same binary (claude interactive `-n`
+// vs headless `-p`; codex TUI vs `codex exec`), and no single template expresses
+// both. Both strings pass through verbatim — fab applies NO validation against any
+// provider's accepted set (provider neutrality, Constitution Principle I). The
+// {model}/{effort} placeholders are substituted at resolve time via internal/spawn.
+type ProviderConfig struct {
+	SessionCommand  string `yaml:"session_command"`
+	DispatchCommand string `yaml:"dispatch_command"`
+}
+
+// TierProfile is a named `{provider, model, effort}` agent profile. Every field
+// MAY be empty: an empty Provider/Model/Effort inherits from the project's
+// `default` tier, then from fab-kit's built-in (per-field merge, performed by
+// internal/agent). An empty Model additionally signals "inherit the
+// session/orchestrator model" once resolution bottoms out.
+//
+// Provider names the entry in the top-level `providers:` table whose command
+// grammar this tier's stages use. The command itself lives on the provider, NOT
+// the tier — inheriting {provider, model, effort} is safe precisely because the
+// dangerous cross-semantics command inheritance can no longer happen.
+//
+// All strings are pass-through — fab applies NO validation (provider neutrality,
+// Constitution Principle I). See internal/agent for resolution.
 type TierProfile struct {
-	Model        string `yaml:"model"`
-	Effort       string `yaml:"effort"`
-	SpawnCommand string `yaml:"spawn_command"`
+	Provider string `yaml:"provider"`
+	Model    string `yaml:"model"`
+	Effort   string `yaml:"effort"`
 }
 
 // AgentConfig models the `agent:` section of config.yaml.
 //
-// Tiers is the sole per-stage-model override surface: a map of tier name
-// (thinking/doing/fast) → profile. The stage→tier mapping itself is fab-owned
-// and NOT user-overridable (no stage_tiers, no per-stage escape hatch); users
-// override only what each tier *means*. An omitted tier — or an omitted field
-// within a tier — falls back to fab-kit's built-in default (per-field merge,
-// performed by internal/agent). yaml.v3 ignores unknown keys, so adding Tiers
-// is free for existing configs (the same property that made stage_hooks free).
+// Tiers is the sole per-stage-model override surface: a map of role-tier name
+// (default/operator/doing/review/fast) → profile. The stage→tier mapping itself
+// is fab-owned and NOT user-overridable (no stage_tiers, no per-stage escape
+// hatch); users override only what each tier *means*. An omitted tier — or an
+// omitted field within a tier — falls back to the project's `default` tier and
+// then fab-kit's built-in default (per-field merge, performed by internal/agent).
+// yaml.v3 ignores unknown keys, so adding Tiers is free for existing configs (the
+// same property that made stage_hooks free).
 type AgentConfig struct {
-	SpawnCommand string                 `yaml:"spawn_command"`
-	Tiers        map[string]TierProfile `yaml:"tiers"`
+	Tiers map[string]TierProfile `yaml:"tiers"`
 }
 
 // ProjectConfig models the `project:` section of config.yaml.
@@ -65,13 +87,14 @@ type ProjectConfig struct {
 // staleness skip). The documented per-caller fallbacks make this safe for
 // malformed configs — a deliberate, recorded semantic for the consolidation.
 type Config struct {
-	StageHooks        map[string]StageHook `yaml:"stage_hooks"`
-	TrueImpactExclude []string             `yaml:"true_impact_exclude"`
-	TestPaths         []string             `yaml:"test_paths"`
-	BranchPrefix      string               `yaml:"branch_prefix"`
-	FabVersion        string               `yaml:"fab_version"`
-	Agent             AgentConfig          `yaml:"agent"`
-	Project           ProjectConfig        `yaml:"project"`
+	StageHooks        map[string]StageHook      `yaml:"stage_hooks"`
+	TrueImpactExclude []string                  `yaml:"true_impact_exclude"`
+	TestPaths         []string                  `yaml:"test_paths"`
+	BranchPrefix      string                    `yaml:"branch_prefix"`
+	FabVersion        string                    `yaml:"fab_version"`
+	Providers         map[string]ProviderConfig `yaml:"providers"`
+	Agent             AgentConfig               `yaml:"agent"`
+	Project           ProjectConfig             `yaml:"project"`
 }
 
 // Load reads fab/project/config.yaml from fabRoot and returns the parsed config.
@@ -129,14 +152,18 @@ func (c *Config) GetFabVersion() string {
 	return c.FabVersion
 }
 
-// GetSpawnCommand returns agent.spawn_command, or "" when unset (nil-safe).
-// The default-command fallback lives with the spawn package's contract
-// (spawn.DefaultSpawnCommand), not here.
-func (c *Config) GetSpawnCommand() string {
-	if c == nil {
-		return ""
+// GetProvider returns the configured ProviderConfig for a provider name and
+// whether one was set. Nil-safe: a nil *Config, an absent providers block, or an
+// unconfigured name all report (zero, false). The bool lets a caller distinguish
+// "no provider entry" from "entry present but with empty fields" — the distinction
+// internal/agent relies on for per-field merge over fab-kit's built-in provider
+// table.
+func (c *Config) GetProvider(name string) (ProviderConfig, bool) {
+	if c == nil || c.Providers == nil {
+		return ProviderConfig{}, false
 	}
-	return c.Agent.SpawnCommand
+	p, ok := c.Providers[name]
+	return p, ok
 }
 
 // GetAgentTier returns the configured override profile for a tier name and

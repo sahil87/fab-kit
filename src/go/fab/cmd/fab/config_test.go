@@ -36,8 +36,9 @@ func TestConfigReferenceRoundTrips(t *testing.T) {
 
 	// The live baseline keys populate their Config fields (sanity that the
 	// live/commented split landed as intended — not just that it parsed).
-	if cfg.GetSpawnCommand() == "" {
-		t.Error("agent.spawn_command should be a live key with a value in the reference")
+	prov, ok := cfg.GetProvider("claude")
+	if !ok || prov.SessionCommand == "" {
+		t.Error("providers.claude.session_command should be a live key with a value in the reference")
 	}
 	if len(cfg.TestPaths) == 0 {
 		t.Error("test_paths should be a live key with a value in the reference")
@@ -45,11 +46,12 @@ func TestConfigReferenceRoundTrips(t *testing.T) {
 	if len(cfg.TrueImpactExclude) == 0 {
 		t.Error("true_impact_exclude should be a live key with a value in the reference")
 	}
-	// The opt-in override blocks must stay commented-out (uncommenting = opting
-	// in) — so they parse to their zero values, not populated maps.
-	if _, ok := cfg.GetAgentTier("doing"); ok {
-		t.Error("agent.tiers must be commented-out in the reference (parsed as an override)")
+	// The five agent.tiers are shown LIVE with explicit providers (documented
+	// style — provider written on every line). They must parse to a populated map.
+	if _, ok := cfg.GetAgentTier("doing"); !ok {
+		t.Error("agent.tiers must be live in the reference (five role tiers with explicit providers)")
 	}
+	// The opt-in override blocks must stay commented-out (uncommenting = opting in).
 	if len(cfg.StageHooks) != 0 {
 		t.Error("stage_hooks must be commented-out in the reference (parsed as live)")
 	}
@@ -84,7 +86,7 @@ func TestConfigReferenceCoversBinaryKeys(t *testing.T) {
 
 // TestConfigReferenceSupersetsScaffoldKeys is the SKILL-KEY coverage contract:
 // the reference's key set must be a superset of the scaffold's key set. This
-// guards the skill-consumed keys (source_paths, checklist, review_tools,
+// guards the skill-consumed keys (source_paths, checklist,
 // project.name/description) that Go reflection over Config cannot see.
 func TestConfigReferenceSupersetsScaffoldKeys(t *testing.T) {
 	out, err := configref.Render()
@@ -152,41 +154,54 @@ func TestConfigReferenceCommandPrintsAndExitsZero(t *testing.T) {
 	}
 }
 
-// TestConfigReferenceMentionsSpawnPlaceholders guards the coordination contract
-// between `fab config reference` (6nke) and spawn_command template mode (6tmi):
-// the reference's spawn_command comment must document the optional
-// {model}/{effort} placeholders. (The tiers comment's "{model, effort}" profile
-// notation would not satisfy these exact-token checks.)
-func TestConfigReferenceMentionsSpawnPlaceholders(t *testing.T) {
+// TestConfigReferenceMentionsCommandPlaceholders guards that the reference's
+// providers block documents the optional {model}/{effort} placeholders (the codex
+// example command carries them, showing template-substitution mode).
+func TestConfigReferenceMentionsCommandPlaceholders(t *testing.T) {
 	out, err := configref.Render()
 	if err != nil {
 		t.Fatalf("Render returned an error: %v", err)
 	}
 	for _, placeholder := range []string{"{model}", "{effort}"} {
 		if !strings.Contains(out, placeholder) {
-			t.Errorf("reference spawn_command comment must document the optional %s placeholder", placeholder)
+			t.Errorf("reference providers comment must document the optional %s placeholder", placeholder)
 		}
 	}
 }
 
-// TestConfigReferenceDocumentsTierSpawnCommand guards that the generated
-// reference documents the per-tier spawn_command opt-in and its load-bearing
-// no-cross-fallback semantic (present → CLI dispatch; absent → native; NO
-// fallback to agent.spawn_command). The reflection coverage test only asserts the
-// `spawn_command` token appears at all — this asserts the tier-level semantics are
-// actually spelled out, not just the whole-session agent.spawn_command comment.
-func TestConfigReferenceDocumentsTierSpawnCommand(t *testing.T) {
+// TestConfigReferenceDocumentsProviders guards that the generated reference
+// documents the providers table with both command fields and the load-bearing
+// no-cross-fallback semantic (absent dispatch_command → native dispatch; NO
+// fallback from dispatch_command to session_command).
+func TestConfigReferenceDocumentsProviders(t *testing.T) {
 	out, err := configref.Render()
 	if err != nil {
 		t.Fatalf("Render returned an error: %v", err)
 	}
-	// The tiers block must mention spawn_command in its override example.
-	if !strings.Contains(out, "# spawn_command:") {
-		t.Error("reference agent.tiers block must show a commented spawn_command override example")
+	for _, token := range []string{"providers:", "session_command", "dispatch_command"} {
+		if !strings.Contains(out, token) {
+			t.Errorf("reference must document %q in the providers block", token)
+		}
 	}
-	// The no-cross-fallback semantic must be documented.
-	if !strings.Contains(out, "NO fallback from a tier to agent.spawn_command") {
-		t.Error("reference must document that a tier spawn_command has NO fallback to agent.spawn_command")
+	// The no-cross-fallback semantic must be documented (the "NO" precedes on the
+	// prior comment line; assert on the stable tail phrase).
+	if !strings.Contains(out, "fallback from dispatch_command to session_command") {
+		t.Error("reference must document that dispatch_command has NO fallback to session_command")
+	}
+}
+
+// TestConfigReferenceRetiresLegacyKeys guards that the removed keys no longer
+// appear in the reference: review_tools (retired to code-review.md § Review Tools)
+// and agent.spawn_command (relocated to providers.claude.session_command).
+func TestConfigReferenceRetiresLegacyKeys(t *testing.T) {
+	out, err := configref.Render()
+	if err != nil {
+		t.Fatalf("Render returned an error: %v", err)
+	}
+	for _, gone := range []string{"review_tools", "spawn_command"} {
+		if containsKeyToken(out, gone) {
+			t.Errorf("retired key %q must not appear in the reference", gone)
+		}
 	}
 }
 
