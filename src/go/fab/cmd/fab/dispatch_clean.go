@@ -48,6 +48,13 @@ func runDispatchClean(cmd *cobra.Command, changeArg string, orphans bool) error 
 			return err
 		}
 		id := resolve.ExtractID(folder)
+		if id == "" {
+			// Guard against an empty ID: DirFor(repoRoot, "") would resolve to
+			// the root .fab-dispatch/ dir, and removeDispatchDir would then wipe
+			// ALL dispatch state instead of one change's. Mirrors the same guard
+			// in resolveDispatchDir (dispatch.go).
+			return fmt.Errorf("could not extract change ID from %q", folder)
+		}
 		dir := dispatch.DirFor(repoRoot, id)
 		return removeDispatchDir(cmd, dir, id)
 	}

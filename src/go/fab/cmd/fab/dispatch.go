@@ -35,7 +35,8 @@ func dispatchCmd() *cobra.Command {
 }
 
 // resolveDispatchDir resolves <change> to its 4-char ID and returns the
-// repo-root-relative .fab-dispatch/{id}/ directory plus the resolved ID. Shared
+// absolute .fab-dispatch/{id}/ directory (DirFor joins onto the absolute
+// repoRoot) plus the resolved ID. Shared
 // by start/status/logs/kill (clean has its own multi-dir resolution). fabRoot
 // is found via resolve.FabRoot; the repo root is its parent (the same
 // derivation internal/archive uses for the .fab-status.yaml pointer).

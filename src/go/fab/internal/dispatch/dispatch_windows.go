@@ -11,11 +11,10 @@ import "fmt"
 // syscalls live only in dispatch_posix.go — not a runtime GOOS string check.
 var errPOSIXOnly = fmt.Errorf("fab dispatch requires a POSIX shell (setsid/timeout); Windows is not supported in v1")
 
-// WrapperArgv is unused on Windows (Launch errors before it is needed) but is
-// defined so the platform-independent core still references a single signature.
-func WrapperArgv(cmd, promptPath, logPath, exitPath string, timeoutSecs int) []string {
-	return nil
-}
+// WrapperArgv lives in the platform-independent core (dispatch.go) — it is pure
+// string composition with no syscall dependency, so its argv contract is
+// identical on every platform even though Launch below is unsupported here.
+// Only the process launch/signal syscalls are Windows-stubbed.
 
 // Launch is unsupported on Windows — surfaces the POSIX-only error.
 func Launch(argv []string, cwd string) (pid, pgid int, err error) {

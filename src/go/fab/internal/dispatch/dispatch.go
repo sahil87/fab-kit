@@ -93,6 +93,50 @@ func DirFor(repoRoot, id string) string {
 	return filepath.Join(repoRoot, DirName, id)
 }
 
+// WrapperArgv composes the detached-launch argv:
+//
+//	sh -c '<cmd> < {prompt} > {log} 2>&1; echo $? > {exit}'
+//
+// With timeoutSecs > 0 the resolved command is wrapped in POSIX `timeout`:
+//
+//	sh -c 'timeout <secs> <cmd> < {prompt} > {log} 2>&1; echo $? > {exit}'
+//
+// The whole pipeline is a single `sh -c` script string so the SHELL is the
+// supervisor (it records $? itself) — no Go supervisor process remains in the
+// loop. The session detach the intake's `setsid sh -c` form describes is
+// performed by Launch via SysProcAttr{Setsid:true}, NOT by prefixing the
+// `setsid` binary: prefixing it would double-fork (setsid forks when its caller
+// is already a process-group leader, which SysProcAttr.Setsid makes the child),
+// leaving the Go-recorded pid pointing at a `setsid` process that exits
+// immediately while the real worker runs under an untracked pid — breaking
+// liveness/refuse-if-running/kill. One detach mechanism, the trackable one.
+// Timeout is enforced entirely inside the wrapper (no Go timer, no daemon); a
+// timed-out command exits 124 (POSIX convention), surfacing as `failed` via the
+// normal exit-code path. Paths are single-quoted defensively; cmd is the
+// resolved spawn command inserted verbatim (its own quoting is the
+// resolver's/user's concern, per the verbatim pass-through philosophy).
+//
+// This is pure string composition (no syscalls), so it lives in the
+// platform-independent core rather than the build-tagged launch files — the
+// argv contract is identical on every platform, even where Launch is
+// unsupported (Windows). Only the process launch/signal syscalls are split.
+func WrapperArgv(cmd, promptPath, logPath, exitPath string, timeoutSecs int) []string {
+	inner := cmd
+	if timeoutSecs > 0 {
+		inner = "timeout " + strconv.Itoa(timeoutSecs) + " " + cmd
+	}
+	script := fmt.Sprintf("%s < %s > %s 2>&1; echo $? > %s",
+		inner, shellQuote(promptPath), shellQuote(logPath), shellQuote(exitPath))
+	return []string{"sh", "-c", script}
+}
+
+// shellQuote wraps s in single quotes, escaping any embedded single quote via
+// the '\” idiom. State-dir paths are fab-controlled (repo root + .fab-dispatch
+// + stage name), so this is defensive rather than adversarial.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
 // PromptPath / YAMLPath / LogPath / ExitPath / ResultPath return the per-stage
 // file paths inside a dispatch dir. dir is a DirFor result.
 func PromptPath(dir, stage string) string { return filepath.Join(dir, stage+promptSuffix) }
