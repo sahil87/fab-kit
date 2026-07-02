@@ -109,3 +109,138 @@ func TestWithProfile(t *testing.T) {
 		})
 	}
 }
+
+// TestWithProfile_Template verifies template mode: a spawnCmd containing
+// {model}/{effort} is resolved by substitution (all-or-nothing — the append
+// fallback is disabled), and an empty value drops the placeholder token plus a
+// preceding `-`-prefixed flag token across every documented flag shape.
+func TestWithProfile_Template(t *testing.T) {
+	tests := []struct {
+		name   string
+		spawn  string
+		model  string
+		effort string
+		want   string
+	}{
+		// Both placeholders substituted.
+		{
+			name:   "both placeholders substituted",
+			spawn:  "codex -m {model} -c model_reasoning_effort={effort}",
+			model:  "gpt-5",
+			effort: "high",
+			want:   "codex -m gpt-5 -c model_reasoning_effort=high",
+		},
+		// Single placeholder: the other resolved value is NOT appended.
+		{
+			name:   "single {model} placeholder, effort not appended",
+			spawn:  "codex -m {model}",
+			model:  "gpt-5",
+			effort: "high",
+			want:   "codex -m gpt-5",
+		},
+		{
+			name:   "single {effort} placeholder, model not appended",
+			spawn:  "codex -c model_reasoning_effort={effort}",
+			model:  "gpt-5",
+			effort: "high",
+			want:   "codex -c model_reasoning_effort=high",
+		},
+		// Empty model, each token shape.
+		{
+			name:   "empty model drops -m and {model}",
+			spawn:  "codex -m {model} -c model_reasoning_effort={effort}",
+			model:  "",
+			effort: "high",
+			want:   "codex -c model_reasoning_effort=high",
+		},
+		{
+			name:   "empty model drops --model and {model}",
+			spawn:  "agent --model {model} --run",
+			model:  "",
+			effort: "",
+			want:   "agent --run",
+		},
+		{
+			name:   "empty model drops single --model={model} token, no preceding flag",
+			spawn:  "agent --model={model} --run",
+			model:  "",
+			effort: "",
+			want:   "agent --run",
+		},
+		// Empty effort, `-c key={effort}` shape drops the preceding -c.
+		{
+			name:   "empty effort drops model_reasoning_effort token and -c",
+			spawn:  "codex -m {model} -c model_reasoning_effort={effort}",
+			model:  "gpt-5",
+			effort: "",
+			want:   "codex -m gpt-5",
+		},
+		// Both empty.
+		{
+			name:   "both empty drops both flag pairs",
+			spawn:  "codex -m {model} -c model_reasoning_effort={effort}",
+			model:  "",
+			effort: "",
+			want:   "codex",
+		},
+		// Multiple occurrences of one placeholder — all substituted.
+		{
+			name:   "multiple {model} occurrences all substituted",
+			spawn:  "wrap {model} -- run --tag {model}",
+			model:  "gpt-5",
+			effort: "",
+			want:   "wrap gpt-5 -- run --tag gpt-5",
+		},
+		// Placeholder embedded mid-word (no surrounding flag).
+		{
+			name:   "placeholder embedded mid-word substituted",
+			spawn:  "agent --profile=pre-{model}-post",
+			model:  "gpt-5",
+			effort: "",
+			want:   "agent --profile=pre-gpt-5-post",
+		},
+		// Empty profile on a template (the fab spawn-command leak-prevention path).
+		{
+			name:   "empty profile strips a fully-templated command",
+			spawn:  "codex -m {model} -c model_reasoning_effort={effort}",
+			model:  "",
+			effort: "",
+			want:   "codex",
+		},
+		// All-non-empty substitution preserves the raw string's whitespace runs
+		// (no tokenize/rejoin — the plain-ReplaceAll path).
+		{
+			name:   "non-empty values preserve multi-space and tab whitespace",
+			spawn:  "codex  -m  {model}\t-c model_reasoning_effort={effort}",
+			model:  "gpt-5",
+			effort: "high",
+			want:   "codex  -m  gpt-5\t-c model_reasoning_effort=high",
+		},
+		// Placeholder as the FIRST token with an empty value: the drop must not
+		// touch a preceding token (exercises the `n > 0` guard in resolveTemplate).
+		{
+			name:   "empty value on first-token placeholder, no preceding token to drop",
+			spawn:  "{model} run",
+			model:  "",
+			effort: "",
+			want:   "run",
+		},
+		// A single token carrying BOTH placeholders, substituted together.
+		{
+			name:   "single token carries both placeholders",
+			spawn:  "agent --profile={model}-{effort}",
+			model:  "gpt-5",
+			effort: "high",
+			want:   "agent --profile=gpt-5-high",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := WithProfile(tc.spawn, tc.model, tc.effort)
+			if got != tc.want {
+				t.Errorf("WithProfile(%q, %q, %q) = %q, want %q", tc.spawn, tc.model, tc.effort, got, tc.want)
+			}
+		})
+	}
+}

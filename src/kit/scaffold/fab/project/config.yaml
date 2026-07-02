@@ -40,4 +40,10 @@ checklist:
 agent:
   # Base command for spawning agent sessions in scripts and operators.
   # Shell expansions (e.g., $(basename "$(pwd)")) expand at invocation time.
+  # Optional {model}/{effort} placeholders make this provider-forgiving: if the
+  # command contains either, the resolved tier profile is SUBSTITUTED in place
+  # (e.g. codex: 'codex -m {model} -c model_reasoning_effort={effort}') instead
+  # of Claude-style --model/--effort being appended; an empty value drops the
+  # placeholder's token and a preceding -flag. With no placeholder (as below),
+  # --model/--effort are appended (Claude grammar) — the default behavior.
   spawn_command: 'claude --dangerously-skip-permissions --effort xhigh -n "$(basename "$(pwd)")"'

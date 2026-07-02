@@ -1,3 +1,14 @@
 {"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-02T06:34:03Z"}
 {"args":"Make spawn_command provider-forgiving via {model}/{effort} placeholder substitution in spawn.WithProfile, with append fallback for back-compat","cmd":"fab-new","event":"command","ts":"2026-07-02T06:34:03Z"}
 {"delta":"+4.4","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-07-02T06:35:51Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-02T06:44:38Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-02T06:45:46Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-02T06:53:42Z"}
+{"event":"review","result":"failed","ts":"2026-07-02T07:06:03Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-02T07:06:03Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-02T07:13:28Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-02T07:19:26Z"}
+{"event":"review","result":"passed","ts":"2026-07-02T07:19:26Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-02T07:24:32Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-07-02T07:26:03Z"}
+{"event":"review","result":"passed","ts":"2026-07-02T07:32:23Z"}

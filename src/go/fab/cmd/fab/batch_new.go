@@ -77,9 +77,12 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 		ids = args
 	}
 
-	// Read spawn command
+	// Read spawn command. Strip any {model}/{effort} placeholders (empty-profile
+	// resolution) — the composed command is interpolated raw into a tmux
+	// new-window shell command with no profile injection, so literal braces must
+	// not reach tmux (a non-templated command is unchanged).
 	configPath := filepath.Join(fabRoot, "project", "config.yaml")
-	spawnCmd := spawn.Command(configPath)
+	spawnCmd := spawn.StripPlaceholders(spawn.Command(configPath))
 
 	// Process each ID. Launch failures (wt create, tmux new-window) are
 	// reported per item with a failure count and a non-zero exit when any

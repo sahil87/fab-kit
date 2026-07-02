@@ -153,7 +153,12 @@ review_tools:
 agent:
   # spawn_command — base command used by fab operator / fab batch /
   # fab spawn-command to spawn agent sessions. Shell expansions (e.g.
-  # $(basename "$(pwd)")) expand at invocation time. Falls back to
+  # $(basename "$(pwd)")) expand at invocation time. Optional {model}/{effort}
+  # placeholders make it provider-forgiving: when either is present, the
+  # resolved profile is SUBSTITUTED in place (e.g.
+  # 'codex -m {model} -c model_reasoning_effort={effort}') and an empty value
+  # drops the placeholder's token plus a preceding -flag; with no placeholder,
+  # Claude-style --model/--effort are appended. Falls back to
   # ` + "`{{ .SpawnCommand }}`" + ` when absent.
   spawn_command: 'claude --dangerously-skip-permissions --effort xhigh -n "$(basename "$(pwd)")"'
 

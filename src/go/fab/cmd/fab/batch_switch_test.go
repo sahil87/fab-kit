@@ -116,3 +116,98 @@ func TestBatchSwitchCmd_Structure(t *testing.T) {
 		t.Error("missing --all flag")
 	}
 }
+
+// batchSwitchFixture creates a fab root with one change folder and a
+// fab/project/config.yaml carrying the given agent.spawn_command, chdirs into
+// it (via hookTestEnv, TMUX set), and returns the resolvable change name.
+func batchSwitchFixture(t *testing.T, spawnCommand string) (root, change string) {
+	t.Helper()
+	root = t.TempDir()
+	change = "260401-ab12-add-feature"
+	if err := os.MkdirAll(filepath.Join(root, "fab", "changes", change), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	projectDir := filepath.Join(root, "fab", "project")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := "agent:\n  spawn_command: \"" + spawnCommand + "\"\n"
+	if err := os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	hookTestEnv(t, root, map[string]string{"TMUX": "/tmp/tmux-test/default,123,0"})
+	return root, change
+}
+
+// stubBatchSwitchTmuxCapture stubs `wt` (echoing a worktree path) and a `tmux`
+// that appends its full argument list to a capture file, prepended to $PATH.
+// runBatchSwitch invokes both via raw exec.Command (PATH-resolved). Returns the
+// capture file path.
+func stubBatchSwitchTmuxCapture(t *testing.T) string {
+	t.Helper()
+	bin := t.TempDir()
+	capture := filepath.Join(t.TempDir(), "tmux-args")
+	scripts := map[string]string{
+		"wt":   "echo /fake/worktrees/switch",
+		"tmux": `printf '%s\n' "$@" >> ` + capture,
+	}
+	for name, body := range scripts {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	return capture
+}
+
+// TestRunBatchSwitch_SpawnCommandPlaceholderStripping verifies that a templated
+// agent.spawn_command has its {model}/{effort} placeholders stripped before it
+// is interpolated into the tmux new-window shell command (no literal braces
+// reach tmux), and that a non-templated command passes through verbatim.
+func TestRunBatchSwitch_SpawnCommandPlaceholderStripping(t *testing.T) {
+	t.Run("templated spawn_command stripped, no literal braces reach tmux", func(t *testing.T) {
+		_, change := batchSwitchFixture(t, "codex -m {model} -c model_reasoning_effort={effort}")
+		capture := stubBatchSwitchTmuxCapture(t)
+
+		cmd := batchSwitchCmd()
+		var out, errOut bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&errOut)
+		if err := runBatchSwitch(cmd, []string{change}, false, false); err != nil {
+			t.Fatalf("expected nil error, got %v\nstderr: %s", err, errOut.String())
+		}
+
+		args, err := os.ReadFile(capture)
+		if err != nil {
+			t.Fatalf("reading tmux capture: %v", err)
+		}
+		got := string(args)
+		if strings.Contains(got, "{model}") || strings.Contains(got, "{effort}") {
+			t.Errorf("literal placeholder braces reached tmux:\n%s", got)
+		}
+		if !strings.Contains(got, "codex '/fab-switch") {
+			t.Errorf("composed spawn command not stripped to `codex`:\n%s", got)
+		}
+	})
+
+	t.Run("non-templated spawn_command passes through verbatim", func(t *testing.T) {
+		_, change := batchSwitchFixture(t, "claude --dangerously-skip-permissions")
+		capture := stubBatchSwitchTmuxCapture(t)
+
+		cmd := batchSwitchCmd()
+		var out, errOut bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&errOut)
+		if err := runBatchSwitch(cmd, []string{change}, false, false); err != nil {
+			t.Fatalf("expected nil error, got %v\nstderr: %s", err, errOut.String())
+		}
+
+		args, err := os.ReadFile(capture)
+		if err != nil {
+			t.Fatalf("reading tmux capture: %v", err)
+		}
+		if !strings.Contains(string(args), "claude --dangerously-skip-permissions '/fab-switch") {
+			t.Errorf("non-templated spawn command not passed through verbatim:\n%s", string(args))
+		}
+	})
+}

@@ -302,3 +302,79 @@ func TestRunBatchNew_LaunchFailures(t *testing.T) {
 		}
 	})
 }
+
+// writeBatchNewConfig writes fab/project/config.yaml under an existing fixture
+// root (from chdirBatchNewFixture) with the given agent.spawn_command, so
+// spawn.Command reads it instead of falling back to DefaultSpawnCommand.
+func writeBatchNewConfig(t *testing.T, root, spawnCommand string) {
+	t.Helper()
+	projectDir := filepath.Join(root, "fab", "project")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := "agent:\n  spawn_command: \"" + spawnCommand + "\"\n"
+	if err := os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// stubBatchNewTmuxCapture stubs `wt` (echoing a worktree path) and a `tmux`
+// that appends its full argument list to a capture file, so a test can inspect
+// the composed `tmux new-window` shell command (the last argument). Returns the
+// capture file path.
+func stubBatchNewTmuxCapture(t *testing.T) string {
+	t.Helper()
+	capture := filepath.Join(t.TempDir(), "tmux-args")
+	stubBatchNewBinaries(t,
+		"echo /fake/worktrees/wt",
+		`printf '%s\n' "$@" >> `+capture+`; exit 0`)
+	return capture
+}
+
+// TestRunBatchNew_SpawnCommandPlaceholderStripping verifies that a templated
+// agent.spawn_command has its {model}/{effort} placeholders stripped before it
+// is interpolated into the tmux new-window shell command (no literal braces
+// reach tmux), and that a non-templated command passes through verbatim.
+func TestRunBatchNew_SpawnCommandPlaceholderStripping(t *testing.T) {
+	t.Run("templated spawn_command stripped, no literal braces reach tmux", func(t *testing.T) {
+		root := chdirBatchNewFixture(t, testBacklog)
+		writeBatchNewConfig(t, root, "codex -m {model} -c model_reasoning_effort={effort}")
+		t.Setenv("TMUX", "/tmp/tmux-fake/default,123,0")
+		capture := stubBatchNewTmuxCapture(t)
+
+		if _, stderr, err := runBatchNewCmd(t, "90g5"); err != nil {
+			t.Fatalf("expected nil error, got %v\nstderr: %s", err, stderr)
+		}
+
+		args, err := os.ReadFile(capture)
+		if err != nil {
+			t.Fatalf("reading tmux capture: %v", err)
+		}
+		got := string(args)
+		if strings.Contains(got, "{model}") || strings.Contains(got, "{effort}") {
+			t.Errorf("literal placeholder braces reached tmux:\n%s", got)
+		}
+		if !strings.Contains(got, "codex '/fab-new") {
+			t.Errorf("composed spawn command not stripped to `codex`:\n%s", got)
+		}
+	})
+
+	t.Run("non-templated spawn_command passes through verbatim", func(t *testing.T) {
+		root := chdirBatchNewFixture(t, testBacklog)
+		writeBatchNewConfig(t, root, "claude --dangerously-skip-permissions")
+		t.Setenv("TMUX", "/tmp/tmux-fake/default,123,0")
+		capture := stubBatchNewTmuxCapture(t)
+
+		if _, stderr, err := runBatchNewCmd(t, "90g5"); err != nil {
+			t.Fatalf("expected nil error, got %v\nstderr: %s", err, stderr)
+		}
+
+		args, err := os.ReadFile(capture)
+		if err != nil {
+			t.Fatalf("reading tmux capture: %v", err)
+		}
+		if !strings.Contains(string(args), "claude --dangerously-skip-permissions '/fab-new") {
+			t.Errorf("non-templated spawn command not passed through verbatim:\n%s", string(args))
+		}
+	})
+}

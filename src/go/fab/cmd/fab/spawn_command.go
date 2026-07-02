@@ -15,6 +15,13 @@ import (
 // This lets the operator skill fetch a TARGET repo's spawn command rather than
 // only its own. Falls back to spawn.DefaultSpawnCommand when the key is
 // missing, empty, or the file cannot be read.
+//
+// A templated spawn_command (containing {model}/{effort}) is resolved with an
+// EMPTY profile before printing: the operator skill spawns workers from this
+// raw output with no profile injection, so printing literal placeholders would
+// leak `{model}`/`{effort}` braces into worker spawns. spawn.WithProfile with
+// empty values applies the empty-value token-drop rule, degrading a template to
+// a clean invocation; a non-templated command prints verbatim (nothing appended).
 func spawnCommandCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "spawn-command",
@@ -40,6 +47,9 @@ func runSpawnCommand(cmd *cobra.Command, args []string) error {
 		configPath = filepath.Join(fabRoot, "project", "config.yaml")
 	}
 
-	fmt.Fprintln(cmd.OutOrStdout(), spawn.Command(configPath))
+	// Resolve any template with an empty profile (leak prevention) before print;
+	// a non-templated command is returned verbatim.
+	resolved := spawn.StripPlaceholders(spawn.Command(configPath))
+	fmt.Fprintln(cmd.OutOrStdout(), resolved)
 	return nil
 }
