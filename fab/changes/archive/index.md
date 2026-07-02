@@ -1,5 +1,36 @@
 # Archive Index
 
+- **260630-t54n-adopt-off-pipeline-change** — Adopt an off-pipeline change into the Fab pipeline
+- **260626-5qf5-detect-fill-test-paths** — Detect & Fill test_paths at Setup
+- **260625-ugde-memory-index-drop-date-column** — Drop the "Last Updated" column from generated memory indexes
+- **260625-pnao-normalize-pr-meta-impact-block** — Normalize the PR Meta Impact block
+- **260625-mqiq-gitignore-aware-sync-dedup** — Gitignore-aware sync dedup
+- **260625-753q-batch-archive-confirm-ux** — Redesign `fab batch archive` confirmation & preview UX
+- **260620-o203-git-pr-refresh-memory-index** — Refresh memory indexes post-commit in /git-pr (fix index date drift)
+- **260618-4yi8-srad-v2-demerit-scoring** — SRAD v2 Demerit Confidence Scoring
+- **260617-5xnx-operator-spawn-activate-pointer** — Operator activates change pointer at spawn for existing changes
+- **260616-u4du-scrub-numbered-constitution-citations** — Scrub numbered-constitution citations from shipped skills
+- **260616-tayp-freeze-on-write-logs** — Freeze-on-write log.md generation
+- **260616-os8z-cli-external-volatility-split** — _cli-external.md Volatility Split + hop
+- **260616-frlo-ship-fkf-contract-to-kit-cache** — Ship FKF Normative Contract to Kit Cache
+- **260616-2fm8-ship-memory-file-template** — Ship Memory-File Template in Kit Cache
+- **260615-tf5q-srad-resolution-average-scoring** — SRAD Resolution-Average Confidence Scoring
+- **260615-qg64-pipeline-choreography-prose-fixes** — Pipeline Choreography Prose Fixes (Group B)
+- **260615-oovf-migrate-memory-tree-to-fkf** — FKF Change 4/4 — Migrate docs/memory/ Tree to FKF + FKF-Aware Reorg Skills
+- **260615-mmmt-non-blocking-operator-escalation** — Non-Blocking Operator Escalation
+- **260615-jznd-binary-truth-telling** — Binary Truth-Telling, Error-Surfacing & Inference Correctness
+- **260615-glwc-memory-index-check-loss** — `fab memory-index --check-loss` — Mechanical Destructive-Loss Detection
+- **260615-bmzo-memory-index-log-fkf-frontmatter** — FKF Change 2/4 — `fab memory-index` emits per-folder `log.md` + stamps FKF frontmatter
+- **260615-8fr5-doc-skill-fkf-prose-stop-changelogs** — FKF Change 3/4 — Doc-Skill Prose → Author FKF, Stop Writing Per-File Changelogs
+- **260615-5943-status-summary-field** — Add `.status.yaml` `summary:` field + migration
+- **260614-5ewp-reorg-memory-backfill-orchestration** — Reorg-Memory Orchestrates Frontmatter Backfill for Pre-fab-kit Trees
+- **260613-yky7-resolve-agent-alias-flag** — resolve-agent --alias flag (Claude-Code model alias adapter)
+- **260613-m3d4-uniform-stage-model-tier** — Apply per-stage model tier uniformly + inject effort via subagent prompt
+- **260613-l3ja-per-stage-model-tiers** — Per-Stage Model Selection via Named Tiers
+- **260613-fgxx-collapse-post-intake-dual-mode** — Collapse post-intake dual execution mode — one execution mode, orchestrators as sequencers
+- **260613-3xaj-extract-intake-helper** — Extract `_intake.md` Shared Helper for Pre-Boundary Intake Creation
+- **260613-2sdj-operator-doing-tier-no-git-dep** — Operator runs on the doing-tier model and drops its hard git-repo dependency
+- **260613-1hmj-upgrade-repo-offline-default** — Offline-first `upgrade-repo` (default to systemVersion)
 - **260612-d9rs-docs-reality-sweep** — Docs Reality Sweep
 - **260612-ye8r-cli-single-sourcing-doc-conformance** — CLI Single-Sourcing & Doc Conformance
 - **260612-w7dp-orchestrator-dispatch-review-pr-recovery** — Orchestrator Dispatch Targets + Review-PR Failure Recovery
