@@ -2,3 +2,4 @@
 {"args":"fab dispatch command family — tmux-independent headless process manager for CLI-dispatched pipeline stages (start/status/logs/kill/clean, .fab-dispatch/{id}/ state dir)","cmd":"fab-new","event":"command","ts":"2026-07-02T09:26:44Z"}
 {"delta":"+4.4","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-07-02T09:28:43Z"}
 {"delta":"-0.3","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-07-02T09:29:00Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-07-02T09:32:15Z"}
