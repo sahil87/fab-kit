@@ -1,3 +1,15 @@
 {"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-02T20:32:08Z"}
 {"args":"provider template defaults: fab config reference + scaffold show all three providers (claude, codex, gemini) with both session_command and dispatch_command filled, so users have a working template to adapt","cmd":"fab-new","event":"command","ts":"2026-07-02T20:32:08Z"}
 {"delta":"+4.4","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-07-02T20:33:08Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-02T20:41:05Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-02T20:42:12Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-02T20:43:11Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-02T20:51:27Z"}
+{"event":"review","result":"failed","ts":"2026-07-02T21:04:08Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-02T21:04:08Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-02T21:05:55Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-02T21:12:17Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-02T21:13:21Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-02T21:25:09Z"}
+{"event":"review","result":"passed","ts":"2026-07-02T21:25:09Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-02T21:28:27Z"}

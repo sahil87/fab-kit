@@ -215,18 +215,29 @@ checklist:
 # Provider command grammar (top-level). Each provider maps an opaque, user-chosen
 # name to up to two command fields. session_command opens an interactive agent
 # SESSION (fab operator / fab batch / fab agent); dispatch_command runs ONE
-# headless STAGE task via `fab dispatch`. ABSENT dispatch_command → that provider's
-# stages dispatch natively via the Agent tool (there is NO fallback to
-# session_command). fab-kit ships the `claude` provider as the built-in default;
-# override/extend per-field via your own providers: block.
+# headless STAGE task via `fab dispatch` (which pipes the stage prompt to the
+# command's STDIN). ABSENT dispatch_command → that provider's stages dispatch
+# natively via the Agent tool (there is NO fallback to session_command). fab-kit
+# ships the `claude` provider as the built-in default; codex and gemini are a
+# commented starter TEMPLATE (uncomment to add that provider). Anything whose
+# uncommenting changes default behavior ships commented: claude's dispatch_command
+# (flips claude native→headless CLI dispatch) and the codex/gemini blocks.
 # (Automated PR reviewer toggles moved to code-review.md § Review Tools — absent = enabled.)
+# Per-provider notes (kept out of the blocks below so uncommenting a whole block
+# stays valid YAML): claude -p and codex exec both read the prompt from stdin;
+# substitute a current codex model ID for {model} (e.g. gpt-5.3-codex); gemini
+# carries no {effort} (no reasoning-effort flag) and no -p (it reads the
+# stdin-piped prompt in non-TTY mode; -p would take prompt text appended after stdin).
 providers:
   claude:
     session_command: claude --dangerously-skip-permissions -n "$(basename "$(pwd)")"
-    # no dispatch_command → claude's stages dispatch natively via the Agent tool
+    # dispatch_command: claude -p --dangerously-skip-permissions --model {model} --effort {effort}
   # codex:
   #   session_command: codex -m {model} -c model_reasoning_effort={effort}
   #   dispatch_command: codex exec -m {model} -c model_reasoning_effort={effort}
+  # gemini:
+  #   session_command: gemini -m {model}
+  #   dispatch_command: gemini -m {model}   # no {effort} flag; no -p (fab dispatch pipes the prompt to stdin)
 
 # agent.tiers (optional) is the per-role-model override surface. A tier is a named
 # {provider, model, effort} profile (the invocation command lives on the provider,
