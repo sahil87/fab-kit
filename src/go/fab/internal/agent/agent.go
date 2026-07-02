@@ -32,11 +32,17 @@ const (
 	TierFast     = "fast"     // speed on near-mechanical work (commit/push/PR mechanics + PR-description summary)
 )
 
-// Profile is a concrete {model, effort} pair. An empty Model signals "inherit
-// the session/orchestrator model"; an empty Effort omits effort entirely.
+// Profile is a concrete {model, effort, spawn_command} triple. An empty Model
+// signals "inherit the session/orchestrator model"; an empty Effort omits effort
+// entirely; an empty SpawnCommand signals "native Agent-tool dispatch" (the
+// default). SpawnCommand is the per-stage CLI-dispatch opt-in, populated ONLY
+// from a project's agent.tiers.<tier>.spawn_command — fab-kit's defaultTiers
+// carry none, and there is NO fallback to agent.spawn_command (the whole-session
+// boundary). See Resolve.
 type Profile struct {
-	Model  string
-	Effort string
+	Model        string
+	Effort       string
+	SpawnCommand string
 }
 
 // defaultTiers is fab-kit's built-in tier→profile table (today). This is the
@@ -125,15 +131,22 @@ func ModelAlias(model string) string {
 	return model
 }
 
-// Resolve maps a stage → its fixed tier → a concrete {model, effort} profile.
+// Resolve maps a stage → its fixed tier → a concrete {model, effort,
+// spawn_command} profile.
 //
 // The tier profile is the project's agent.tiers.<tier> override PER-FIELD merged
 // over the fab-kit default: an override field that is set wins; an omitted
 // override field inherits the default for that field. A tier with no override
 // resolves to the default unchanged.
 //
-// NO validation: the resolved model and effort are returned verbatim, whatever
-// they are. An unknown stage is the only resolution-side error.
+// SpawnCommand is opt-in-only: defaultTiers carry none, so a resolved profile
+// has a non-empty SpawnCommand ONLY when the project's tier override sets it.
+// There is NO cross-fallback to agent.spawn_command (the whole-session boundary)
+// — the absence of a resolved tier spawn_command is the signal for native
+// Agent-tool dispatch.
+//
+// NO validation: the resolved model, effort, and spawn_command are returned
+// verbatim, whatever they are. An unknown stage is the only resolution-side error.
 func Resolve(cfg *config.Config, stage string) (Profile, error) {
 	tier, ok := stageTiers[stage]
 	if !ok {
@@ -150,6 +163,9 @@ func Resolve(cfg *config.Config, stage string) (Profile, error) {
 		}
 		if override.Effort != "" {
 			resolved.Effort = override.Effort
+		}
+		if override.SpawnCommand != "" {
+			resolved.SpawnCommand = override.SpawnCommand
 		}
 	}
 

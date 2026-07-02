@@ -21,7 +21,7 @@ The partial is organized as one `##` section per command (or command group), plu
 | fab preflight (extended) | The structured-YAML output fields and internal validation steps |
 | fab log (extended) | Append-only `.history.jsonl` logging beyond the `log command` headline |
 | fab resolve (extended) | Query flags (`--id` / `--folder` / `--dir` / `--status` / `--pane`) and canonical-output forms |
-| fab resolve-agent | Per-stage model/effort tier resolution (`<stage>` → tier → `{model, effort}`); `--alias` for the Agent-tool short alias |
+| fab resolve-agent | Per-stage model/effort tier resolution (`<stage>` → tier → `{model, effort, spawn_command}`); two stdout lines (`model=`/`effort=`) plus an optional third `spawn=` line emitted only when the resolved tier carries a `spawn_command` (the CLI-dispatch opt-in — absent ⇒ native Agent-tool dispatch, NO fallback to `agent.spawn_command`); `--alias` for the Agent-tool short alias on `model=`, while `spawn=` always embeds the full model ID |
 | fab config reference | Prints the fully-commented reference config.yaml (all available options — binary- and skill-consumed keys), generated from the binary's constants; pure query, no flags, byte-stable stdout, exit 0 on success (a usage error from cobra.NoArgs exits non-zero) |
 | fab hook | Claude Code hook subcommands — the three session-scoped runtime-telemetry handlers (`session-start`, `stop`, `user-prompt`) plus `sync`. Artifact bookkeeping is no longer a hook — it is pull-based via `fab status refresh` |
 | fab pane | Tmux pane operations (`map`, `--all-sessions`, `--json`) used by the operator |

@@ -310,7 +310,7 @@ fab resolve-agent <stage>
 
 and passes the resolved profile into the Agent dispatch:
 
-- Output is two byte-stable stdout lines, `model=<id>` and `effort=<level>` (the `effort=` line is omitted when the tier has no effort). See `_cli-fab.md` § fab resolve-agent.
+- Output is two byte-stable stdout lines, `model=<id>` and `effort=<level>` (the `effort=` line is omitted when the tier has no effort), **plus an optional third `spawn=<command>` line** emitted only when the resolved tier carries a `spawn_command` (the per-tier CLI-dispatch opt-in — its absence means native Agent-tool dispatch, with NO fallback to `agent.spawn_command`). Dispatch-seam skills consume `model=`/`effort=` only; `spawn=` is for the cross-harness dispatch follow-ups (3c/3d), not read here. See `_cli-fab.md` § fab resolve-agent.
 - **Empty model** ⇒ omit the dispatch `model` param entirely (inherit the orchestrator/session model — today's behavior). **Empty effort** ⇒ omit the effort instruction (below).
 - The resolver maps `<stage>` → its fixed fab-owned tier → a `{model, effort}` profile (`agent.tiers` project override per-field-merged over fab-kit's default). The stage→tier mapping is NOT user-overridable; `agent.tiers` (tier redefinition) is the sole override surface. Full design: `docs/specs/stage-models.md`.
 - **No validation**: the resolved strings are passed through verbatim — fab enforces no effort enum and corrects no incompatible pair. Compatibility is the harness's concern.

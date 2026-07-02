@@ -220,17 +220,26 @@ review_tools:
 # (falls back to `claude --dangerously-skip-permissions` when absent).
 #
 # agent.tiers (optional) is the per-stage-model override surface. A tier is a
-# named {model, effort} profile; fab owns a FIXED, non-overridable stage→tier
-# mapping (thinking: intake, review / doing: apply, review-pr, hydrate / fast:
-# ship) and you override only what each tier MEANS. Omit any tier (or the whole
-# tiers: block) to use fab-kit's built-in defaults
+# named {model, effort, spawn_command} profile; fab owns a FIXED, non-overridable
+# stage→tier mapping (thinking: intake, review / doing: apply, review-pr, hydrate
+# / fast: ship) and you override only what each tier MEANS. Omit any tier (or the
+# whole tiers: block) to use fab-kit's built-in defaults
 # (thinking: opus-4-8/xhigh, doing: opus-4-8/high, fast: sonnet-4-6/low).
 # Resolved per stage by `fab resolve-agent <stage>` at sub-agent dispatch time;
 # see docs/specs/stage-models.md.
+#
+# spawn_command (per-tier, opt-in) is the CROSS-HARNESS stage-dispatch knob:
+# PRESENT on a tier → that tier's stages are dispatched by running the command
+# (e.g. codex), surfaced as the `spawn=` line of `fab resolve-agent`; ABSENT →
+# native Agent-tool dispatch. INDEPENDENT of agent.spawn_command above (whole
+# agent sessions) — there is NO fallback from a tier to agent.spawn_command.
 agent:
   spawn_command: claude --dangerously-skip-permissions
   tiers:
-    doing: { model: claude-sonnet-4-6, effort: medium }   # example: run the doing tier cheaper
+    doing:
+      model: claude-sonnet-4-6
+      effort: medium                # example: run the doing tier cheaper
+      # spawn_command: codex exec -m {model} -c model_reasoning_effort={effort}
 
 # Optional branch prefix applied by fab batch switch when creating worktree branches.
 branch_prefix: ""

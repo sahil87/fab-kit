@@ -137,6 +137,68 @@ func TestResolveEmptyModelInherit(t *testing.T) {
 	}
 }
 
+// TestResolveSpawnCommand: a tier's opt-in spawn_command flows into the resolved
+// profile; a default tier (no override) resolves to an empty SpawnCommand (the
+// field is user-config-only — defaultTiers carry none).
+func TestResolveSpawnCommand(t *testing.T) {
+	cfg := cfgWithTiers(map[string]config.TierProfile{
+		"doing": {Model: "claude-opus-4-8", Effort: "high", SpawnCommand: "codex exec -m {model}"},
+	})
+	got, err := Resolve(cfg, "apply") // apply ∈ doing
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got.SpawnCommand != "codex exec -m {model}" {
+		t.Errorf("Resolve(apply).SpawnCommand = %q, want the override's spawn_command", got.SpawnCommand)
+	}
+
+	// A default tier (no override) resolves to an empty SpawnCommand.
+	got, err = Resolve(nil, "apply")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got.SpawnCommand != "" {
+		t.Errorf("default Resolve(apply).SpawnCommand = %q, want empty (opt-in only)", got.SpawnCommand)
+	}
+}
+
+// TestResolveSpawnCommandPerFieldMerge: an override that sets ONLY spawn_command
+// keeps the tier's default model and effort (per-field merge) — spawn_command is
+// merged on the same footing as model/effort.
+func TestResolveSpawnCommandPerFieldMerge(t *testing.T) {
+	cfg := cfgWithTiers(map[string]config.TierProfile{
+		"doing": {SpawnCommand: "codex exec -m {model} -c model_reasoning_effort={effort}"},
+	})
+	got, err := Resolve(cfg, "hydrate") // hydrate ∈ doing
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got.Model != "claude-opus-4-8" || got.Effort != "high" {
+		t.Errorf("Resolve(hydrate) = %+v, want default model + effort with only spawn_command overridden", got)
+	}
+	if got.SpawnCommand != "codex exec -m {model} -c model_reasoning_effort={effort}" {
+		t.Errorf("Resolve(hydrate).SpawnCommand = %q, want the override's spawn_command", got.SpawnCommand)
+	}
+}
+
+// TestResolveNoCrossFallbackToAgentSpawnCommand: the project-wide
+// agent.spawn_command is NEVER consulted by Resolve — a config that sets
+// agent.spawn_command but no tier spawn_command resolves to an empty profile
+// SpawnCommand (the load-bearing no-cross-fallback semantic).
+func TestResolveNoCrossFallbackToAgentSpawnCommand(t *testing.T) {
+	cfg := &config.Config{Agent: config.AgentConfig{
+		SpawnCommand: "claude --dangerously-skip-permissions",
+		Tiers:        map[string]config.TierProfile{"doing": {Effort: "medium"}},
+	}}
+	got, err := Resolve(cfg, "apply")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got.SpawnCommand != "" {
+		t.Errorf("Resolve(apply).SpawnCommand = %q, want empty — Resolve must NOT fall back to agent.spawn_command", got.SpawnCommand)
+	}
+}
+
 // TestResolveUnknownStage: an unknown stage is the only resolution-side error.
 func TestResolveUnknownStage(t *testing.T) {
 	_, err := Resolve(nil, "frobnicate")

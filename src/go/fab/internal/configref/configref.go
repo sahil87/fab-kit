@@ -163,8 +163,9 @@ agent:
   spawn_command: 'claude --dangerously-skip-permissions --effort xhigh -n "$(basename "$(pwd)")"'
 
   # agent.tiers — per-stage model override (optional). A "tier" is a named
-  # {model, effort} profile. fab-kit owns the FIXED, non-overridable stage→tier
-  # mapping below; you override only WHAT EACH TIER MEANS (model + effort).
+  # {model, effort, spawn_command} profile. fab-kit owns the FIXED,
+  # non-overridable stage→tier mapping below; you override only WHAT EACH TIER
+  # MEANS (model + effort + optional spawn_command).
   # Omit any tier (or the whole tiers: block) to use fab-kit's built-in default.
   # An omitted field within a tier inherits that tier's default; an empty model
   # means "inherit the session model". Resolved per stage by
@@ -176,14 +177,26 @@ agent:
   #   {{ printf "%-9s" .Name }} {{ .Stages }}
 {{- end }}
   #
-  # fab-kit's built-in default profiles (today):
+  # fab-kit's built-in default profiles (today — none carry a spawn_command):
 {{- range .Tiers }}
   #   {{ printf "%-9s" .Name }} { model: {{ .Model }}, effort: {{ .Effort }} }
 {{- end }}
   #
+  # spawn_command (per-tier, opt-in) — the CROSS-HARNESS STAGE-DISPATCH knob.
+  # PRESENT on a tier → that tier's stages are dispatched by RUNNING this command
+  # (e.g. codex); ABSENT → native Agent-tool dispatch (the default). This is
+  # INDEPENDENT of agent.spawn_command above (which opens whole agent SESSIONS):
+  # there is NO fallback from a tier to agent.spawn_command. {model}/{effort}
+  # placeholders are substituted at resolve time (the {model} always the FULL
+  # model ID, never an alias). Emitted as the ` + "`spawn=`" + ` line of
+  # ` + "`fab resolve-agent`" + ` when set.
+  #
   # Override shape (uncomment + edit any tier):
   # tiers:
-  #   doing: { model: claude-sonnet-4-6, effort: medium }   # example: run doing cheaper
+  #   doing:
+  #     model: claude-sonnet-4-6
+  #     effort: medium                # example: run doing cheaper
+  #     # spawn_command: codex exec -m {model} -c model_reasoning_effort={effort}
 
 # stage_hooks — optional per-stage pre/post shell commands honored by
 # ` + "`fab status start`" + ` / ` + "`fab status finish`" + `. Each command runs as ` + "`sh -c`" + ` from

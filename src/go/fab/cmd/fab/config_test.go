@@ -169,6 +169,27 @@ func TestConfigReferenceMentionsSpawnPlaceholders(t *testing.T) {
 	}
 }
 
+// TestConfigReferenceDocumentsTierSpawnCommand guards that the generated
+// reference documents the per-tier spawn_command opt-in and its load-bearing
+// no-cross-fallback semantic (present → CLI dispatch; absent → native; NO
+// fallback to agent.spawn_command). The reflection coverage test only asserts the
+// `spawn_command` token appears at all — this asserts the tier-level semantics are
+// actually spelled out, not just the whole-session agent.spawn_command comment.
+func TestConfigReferenceDocumentsTierSpawnCommand(t *testing.T) {
+	out, err := configref.Render()
+	if err != nil {
+		t.Fatalf("Render returned an error: %v", err)
+	}
+	// The tiers block must mention spawn_command in its override example.
+	if !strings.Contains(out, "# spawn_command:") {
+		t.Error("reference agent.tiers block must show a commented spawn_command override example")
+	}
+	// The no-cross-fallback semantic must be documented.
+	if !strings.Contains(out, "NO fallback from a tier to agent.spawn_command") {
+		t.Error("reference must document that a tier spawn_command has NO fallback to agent.spawn_command")
+	}
+}
+
 // yamlKeySegments walks a struct type and returns the set of every yaml key
 // segment reachable from it. Descends into nested structs and map value types
 // (a map's value type contributes its own struct's segments). Returns segments
