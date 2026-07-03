@@ -150,8 +150,10 @@ checklist:
 # invocations of the same binary):
 #   session_command  — opens an interactive agent SESSION (fab operator /
 #                       fab batch / fab agent). {model}/{effort} placeholders are
-#                       substituted; a plain Claude command has --model/--effort
-#                       appended instead.
+#                       substituted from the resolved tier profile (the built-in
+#                       claude default below is templated this way); a command
+#                       carrying NO placeholder instead gets --model/--effort
+#                       appended.
 #   dispatch_command — runs ONE headless stage task via fab dispatch. ABSENT →
 #                      native Agent-tool dispatch (the default). There is NO
 #                      fallback from dispatch_command to session_command. fab

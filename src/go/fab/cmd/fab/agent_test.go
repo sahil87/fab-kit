@@ -92,18 +92,20 @@ agent:
 }
 
 // TestAgentPrintBuiltinFallback: with no providers config, the built-in claude
-// provider supplies the default session command, profile appended.
+// provider supplies the templated default session command, into which the
+// default-tier profile is substituted (the constant is a {model}/{effort}
+// template, so this path resolves via substitution, not append).
 func TestAgentPrintBuiltinFallback(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
 	out, err := runAgentPrint(t)
 	if err != nil {
 		t.Fatalf("agent --print: %v", err)
 	}
-	if !strings.Contains(out, "claude --dangerously-skip-permissions") {
-		t.Errorf("output = %q, want the built-in claude session command", out)
-	}
-	if !strings.Contains(out, "--model claude-fable-5 --effort xhigh") {
-		t.Errorf("output = %q, want the default-tier profile appended", out)
+	// Pin the full resolved command: the built-in templated default with the
+	// default tier {claude-fable-5, xhigh} substituted into its placeholders.
+	want := "claude --dangerously-skip-permissions -n \"$(basename \"$(pwd)\")\" --model claude-fable-5 --effort xhigh\n"
+	if out != want {
+		t.Errorf("output = %q, want the default-tier profile substituted into the templated built-in command %q", out, want)
 	}
 }
 
