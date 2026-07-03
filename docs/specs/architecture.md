@@ -230,7 +230,7 @@ checklist:
 # stdin-piped prompt in non-TTY mode; -p would take prompt text appended after stdin).
 providers:
   claude:
-    session_command: claude --dangerously-skip-permissions -n "$(basename "$(pwd)")"
+    session_command: claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}
     # dispatch_command: claude -p --dangerously-skip-permissions --model {model} --effort {effort}
   # codex:
   #   session_command: codex -m {model} -c model_reasoning_effort={effort}

@@ -24,7 +24,7 @@ fab-kit ships the **`claude` provider as the built-in default** (`defaultProvide
 ```yaml
 providers:
   claude:
-    session_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")"'
+    session_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
     # no dispatch_command → claude's stages dispatch natively via the Agent tool
   codex:
     session_command: 'codex -m {model} -c model_reasoning_effort={effort}'

@@ -146,7 +146,7 @@ unmarshalling ignores unknown keys, so existing configs are unaffected (the same
 ```yaml
 providers:
   claude:
-    session_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")"'
+    session_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
     # dispatch_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'   # uncomment to flip claude's stages from native Agent-tool dispatch to headless CLI
   # codex:
   #   session_command: 'codex -m {model} -c model_reasoning_effort={effort}'
@@ -316,12 +316,17 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   Subagent Dispatch) is already Claude-Code-shaped. Per-stage selection is exactly as portable as fab's
   existing dispatch: no more, no less. *(The operator launcher path is the deliberate exception — it
   resolves the **operator**-tier profile WITHOUT `--alias`, because `spawn.WithProfile` composes a
-  `claude` CLI invocation, which accepts full IDs. `WithProfile` is grammar-forgiving: it **appends**
-  `--model <full-id> --effort <level>` to a plain Claude `session_command` (no placeholder), and
-  **substitutes** the resolved values into a `{model}`/`{effort}` **template** `session_command` (e.g. a
-  codex command) instead — all-or-nothing, an empty value dropping the placeholder's token and a
-  preceding `-`-flag — so a non-Claude worker CLI is configurable without the launcher emitting
-  Claude-only flags; 260702-6tmi.)*
+  `claude` CLI invocation, which accepts full IDs. `WithProfile` is grammar-forgiving: it
+  **substitutes** the resolved values into a `{model}`/`{effort}` **template** `session_command` —
+  including the built-in claude default, which is templated, and a codex command — all-or-nothing (any
+  placeholder disables the append entirely); an empty value drops the placeholder's token and a
+  preceding `-`-flag — and,
+  for a command carrying **no placeholder** (a plain-form config carried forward from before the
+  templated default), it instead **appends** `--model <full-id> --effort <level>` at the END (last-wins;
+  each flag omitted independently when its value is empty, per the `empty ⇒ omit` convention). Placing
+  the default's placeholders last makes substitution byte-identical to the former append — so a
+  non-Claude worker CLI is configurable without the launcher emitting Claude-only flags; 260702-6tmi,
+  templated default 260703-gvxd.)*
 - *Cross-harness stage dispatch (the `dispatch=` adapter):* a provider's optional `dispatch_command` is
   the seam for handing one stage to a **different CLI harness** (e.g. `codex exec …`) instead of a
   native Agent-tool sub-agent. When a resolved tier's provider carries it, `fab resolve-agent` emits a

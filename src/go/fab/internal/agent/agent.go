@@ -46,7 +46,15 @@ const DefaultProviderName = "claude"
 // relocated agent.spawn_command default. Kept here (not internal/spawn) because
 // the provider table is agent-owned; internal/spawn re-exports the string for its
 // own no-config fallback.
-const DefaultSessionCommand = `claude --dangerously-skip-permissions -n "$(basename "$(pwd)")"`
+//
+// It is a TEMPLATE: the trailing {model}/{effort} placeholders are substituted
+// with the resolved tier profile by spawn.WithProfile's template mode (see
+// internal/spawn). Placing them at the END makes the resolved command
+// byte-identical to what WithProfile's append mode produced for the former plain
+// form — zero behavior change, so the templated form is purely an explicitness
+// upgrade (the substitution point is now visible in the command itself, matching
+// the codex/gemini starter templates).
+const DefaultSessionCommand = `claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}`
 
 // Profile is a concrete {provider, model, effort} triple. An empty Provider names
 // no provider (resolution falls through to the built-in default provider at

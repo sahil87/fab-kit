@@ -1,0 +1,57 @@
+id: gvxd
+name: 260703-gvxd-templated-claude-session-command
+created: 2026-07-03T09:25:51Z
+created_by: sahil-noon
+change_type: refactor
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 15
+    acceptance_count: 18
+    acceptance_completed: 18
+confidence:
+    certain: 5
+    confident: 3
+    tentative: 0
+    unresolved: 0
+    score: 4.9
+    fuzzy: true
+    dimensions:
+        signal: 80.6
+        reversibility: 83.1
+        competence: 85.6
+        disambiguation: 81.9
+stage_metrics:
+    intake: {started_at: "2026-07-03T09:25:51Z", driver: fab-new, iterations: 1, completed_at: "2026-07-03T09:32:26Z"}
+    apply: {started_at: "2026-07-03T10:12:09Z", driver: fab-fff, iterations: 3, completed_at: "2026-07-03T10:15:30Z"}
+    review: {started_at: "2026-07-03T10:15:30Z", driver: fab-fff, iterations: 3, completed_at: "2026-07-03T10:23:44Z"}
+    hydrate: {started_at: "2026-07-03T10:23:44Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-03T10:27:04Z"}
+    ship: {started_at: "2026-07-03T10:27:04Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-03T10:28:19Z"}
+    review-pr: {started_at: "2026-07-03T10:28:19Z", driver: git-pr, iterations: 1, completed_at: "2026-07-03T10:36:00Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/469
+change_type_source: explicit
+true_impact:
+    added: 444
+    deleted: 41
+    net: 403
+    excluding:
+        added: 34
+        deleted: 18
+        net: 16
+    tests:
+        added: 8
+        deleted: 6
+        net: 2
+    computed_at: "2026-07-03T10:28:19Z"
+    computed_at_stage: ship
+summary: Templated the built-in claude session_command default (agent.DefaultSessionCommand / spawn.DefaultSpawnCommand) and the fab init scaffold with {model}/{effort} placeholders placed last — byte-identical resolution to the former plain-form + append mode; append mode retained for plain-form user configs, no migration.
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-07-03T10:36:00Z

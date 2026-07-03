@@ -42,8 +42,9 @@ checklist:
 # fab agent) and/or a dispatch_command (runs one headless stage task via fab
 # dispatch, which pipes the stage prompt to the command's STDIN; ABSENT →
 # native Agent-tool dispatch). The two are NOT merged. {model}/{effort}
-# placeholders are substituted from the resolved tier profile; a plain Claude
-# command has --model/--effort appended instead. Provider names are opaque,
+# placeholders are substituted from the resolved tier profile (the built-in
+# claude session_command below is templated this way); a command carrying NO
+# placeholder instead gets --model/--effort appended. Provider names are opaque,
 # user-chosen strings. See: fab config reference.
 #
 # claude is the built-in default (session_command shown live). codex and gemini
@@ -63,7 +64,7 @@ checklist:
 #     pipes the prompt to stdin, which gemini reads as the prompt in non-TTY mode.
 providers:
   claude:
-    session_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")"'
+    session_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
     # dispatch_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'
   # codex:
   #   session_command: 'codex -m {model} -c model_reasoning_effort={effort}'
