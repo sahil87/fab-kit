@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
 )
@@ -49,6 +50,25 @@ func setupDispatchRepo(t *testing.T, dispatchCmd string) (repoRoot, id string) {
 	return repoRoot, id
 }
 
+// waitDispatchDone blocks until the detached worker for dir/stage has written
+// its exit file — the wrapper's final write (`echo $? > exit`). Register it as
+// a cleanup after every real launch: the worker is detached, so without it a
+// test can return while the worker is still dropping files into the TempDir,
+// and the TempDir RemoveAll cleanup races it (a file landing between the
+// list-entries and unlinkat steps fails with ENOTEMPTY). Cleanups run LIFO, so
+// this always runs before the TempDir removal registered in setupDispatchRepo.
+func waitDispatchDone(t *testing.T, dir, stage string) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(dispatch.ExitPath(dir, stage)); err == nil {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Errorf("dispatch worker for %s/%s did not write its exit file before teardown", dir, stage)
+}
+
 // runStart executes `fab dispatch start` with a prompt piped on stdin.
 func runStart(t *testing.T, prompt string, args ...string) (string, error) {
 	t.Helper()
@@ -77,6 +97,7 @@ func TestDispatchStart_LaunchesAndPersistsState(t *testing.T) {
 	}
 
 	dir := dispatch.DirFor(repoRoot, id)
+	t.Cleanup(func() { waitDispatchDone(t, dir, "apply") })
 
 	// Prompt persisted.
 	promptData, err := os.ReadFile(dispatch.PromptPath(dir, "apply"))
@@ -162,6 +183,7 @@ func TestDispatchStart_OverwritesCompletedAttempt(t *testing.T) {
 	if _, err := runStart(t, "new prompt", "abcd", "apply"); err != nil {
 		t.Fatalf("start over a completed attempt should succeed: %v", err)
 	}
+	t.Cleanup(func() { waitDispatchDone(t, dir, "apply") })
 
 	// The stale exit/result/log are cleared so the new run's status is clean.
 	if _, err := os.Stat(dispatch.ExitPath(dir, "apply")); !os.IsNotExist(err) {
@@ -192,6 +214,7 @@ func TestDispatchStart_TimeoutWrapsCommand(t *testing.T) {
 		t.Fatalf("start with timeout failed: %v", err)
 	}
 	dir := dispatch.DirFor(repoRoot, id)
+	t.Cleanup(func() { waitDispatchDone(t, dir, "apply") })
 	rec, err := dispatch.Load(dir, "apply")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
