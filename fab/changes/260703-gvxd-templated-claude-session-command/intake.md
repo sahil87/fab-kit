@@ -97,7 +97,7 @@ Repo-wide grep for the literal `claude --dangerously-skip-permissions -n` (alrea
 
 - `runtime/providers-and-tiers`: (modify) config excerpt at line 27 quotes the plain claude `session_command` — update to the templated form
 - `_shared/configuration`: (modify) lines 59 and 65 quote the plain default as the built-in `session_command` value — update value + re-check surrounding append-mode prose
-- `runtime/operator`: (modify) line 291 quotes the `spawn.DefaultSessionCommand` fallback value — the constant changes, so the quoted fallback changes
+- `runtime/operator`: (modify) line 291 quotes the `spawn.DefaultSpawnCommand` fallback value — the constant changes, so the quoted fallback changes
 - `distribution/kit-architecture`: (modify) lines 122 and 327 quote the built-in claude fallback constant — update both
 
 ## Impact
