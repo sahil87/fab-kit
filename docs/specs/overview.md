@@ -67,7 +67,7 @@ flowchart TD
 |---|-------|---------|----------|----------|
 | 1 | **Intake** | Intent, scope, approach | `intake.md` | Created by `/fab-new` (auto-activates) or `/fab-draft` (no activation) with adaptive SRAD-driven questioning. The sole confidence gate (flat 3.0) is evaluated here. Refine with `/fab-clarify` (intake-only) |
 | 2 | **Apply** | Generate plan + execute | `plan.md` + code changes | Entry sub-step: co-generate `plan.md` with `## Requirements`, `## Tasks`, and `## Acceptance` sections from `intake.md` in one pass. Main sub-step: execute the unchecked tasks under `## Tasks`, run tests, mark `[x]` |
-| 3 | **Review** | Validate via sub-agent | validation report | Sub-agent review with prioritized findings (must-fix / should-fix / nice-to-have); inward sub-agent inspects items under `plan.md` `## Acceptance` against `## Requirements` |
+| 3 | **Review** | Validate via sub-agent | validation report | Single sub-agent review with prioritized findings (must-fix / should-fix / nice-to-have); it inspects items under `plan.md` `## Acceptance` against `## Requirements` and judges the diff on its own merits |
 | 4 | **Hydrate** | Complete & hydrate | memory updates | Hydrate the plan's requirements into memory files |
 | 5 | **Ship** | Commit, push, create PR | draft GitHub PR | `/git-pr` autonomously commits, pushes, and opens a draft PR (branch-matches-change guard; records the PR URL in `.status.yaml`) |
 | 6 | **Review-PR** | Process PR feedback | fixes + replies | `/git-pr-review` requests/fetches reviews (Copilot or human), triages each comment as fix/defer/skip, applies fixes, posts replies |
@@ -94,7 +94,7 @@ For detailed visual maps of how commands connect — including shortcuts, rework
 | `/fab-continue` → review | Validate (sub-agent) | Prioritized findings report |
 | `/fab-continue` → hydrate | Complete & hydrate | Updated memory |
 | `/fab-proceed` | Context-aware orchestrator — runs needed prefix steps (fab-new, fab-switch, git-branch), then delegates to `/fab-fff` | Full pipeline from conversation context |
-| `/fab-adopt` | Adopt a completed off-pipeline change (OPEN/not-yet-created PR) — reconstruct intake + plan from the diff, run review (outward-only) → hydrate → ship → review-pr with apply `skipped` | Reconstructed intake + thin plan; pipeline entered late |
+| `/fab-adopt` | Adopt a completed off-pipeline change (OPEN/not-yet-created PR) — reconstruct intake + plan from the diff, run review (diff-only) → hydrate → ship → review-pr with apply `skipped` | Reconstructed intake + thin plan; pipeline entered late |
 | `/git-pr` | Ship — commit, push, create draft PR | Draft PR, `ship` done |
 | `/git-pr-review` | Process PR review comments (fix/defer/skip + replies) | Fix commits + replies, `review-pr` done |
 | `/fab-archive` | Archive completed change | Folder moved to archive/ |

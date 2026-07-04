@@ -219,7 +219,7 @@ name).
    `- [x] Adopted: implementation authored outside the pipeline (see {PR or branch}).`
    No `T{NNN}` IDs, no phases, no `[P]` markers, no `<!-- R# -->` traces.
 5. **`## Acceptance`** — a single all-`[x]` stub, e.g.:
-   `- [x] Adopted: code already authored and (where applicable) PR-reviewed; outward review runs in this pipeline.`
+   `- [x] Adopted: code already authored and (where applicable) PR-reviewed; a diff-only review runs in this pipeline.`
    No `A-{NNN}` IDs, no `R#` references.
 6. **`## Assumptions`** — present per the artifact rule (footer `0 assumptions.` when none; the
    diff-reading assumptions are recorded on the **intake**, not duplicated here).

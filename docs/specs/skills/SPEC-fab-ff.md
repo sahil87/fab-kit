@@ -15,8 +15,8 @@ User invokes /fab-ff [change-name] [--force]
 │
 └─ Execute the _pipeline.md bracket with {driver}=fab-ff, {terminal}=hydrate
    │  (see SPEC-_pipeline.md for the full bracket flow: pre-flight gate,
-   │   Step 1 apply [plan co-gen + tasks], Step 2 review [inward + outward
-   │   sub-agents via _review.md, auto-rework loop], Step 3 hydrate)
+   │   Step 1 apply [plan co-gen + tasks], Step 2 review [single review
+   │   sub-agent via _review.md, auto-rework loop], Step 3 hydrate)
    │
    └─ {terminal}=hydrate → pipeline complete after Step 3
       (no ship/review-pr steps — those are /fab-fff's)
@@ -24,7 +24,7 @@ User invokes /fab-ff [change-name] [--force]
 
 ### Sub-agents
 
-Defined by the bracket — see `SPEC-_pipeline.md`: `/fab-continue` (Apply), `/fab-continue` (Review — dispatches `_review.md`'s inward + outward sub-agents in parallel), `/fab-continue` (Hydrate).
+Defined by the bracket — see `SPEC-_pipeline.md`: `/fab-continue` (Apply), `/fab-continue` (Review — dispatches `_review.md`'s single review sub-agent), `/fab-continue` (Hydrate).
 
 ### Bookkeeping commands (hook candidates)
 
