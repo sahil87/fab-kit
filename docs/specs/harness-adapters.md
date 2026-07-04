@@ -102,16 +102,6 @@ structurally (the Agent-tool handle):
 honoring the result obligation above. This is the crux the protocol exists to make observable — an
 orchestrator must never mistake a resultless clean exit for a completed stage.
 
-### Nesting degradation (the `review` stage)
-
-One stage nests sub-workers: **`review`** spawns an inward reviewer + an outward reviewer + a merge
-(`_preamble.md` § Review resolves once). On a harness **with** sub-agent support (native adapter), those
-run as parallel sub-agents. On a harness **without** sub-agent support, the adapter runs the nesting
-stage's parts **sequentially inline** in one context instead of as parallel workers. **Only the
-concurrency degrades — the outcome contract is identical**: the same merged findings + pass/fail
-verdict are produced either way. 3d implements the inline-sequential path; this spec fixes the rule
-(review is the nesting stage; degrade concurrency, never the outcome).
-
 ### Hooks may enhance, never own
 
 Harness hooks (Claude Code `PostToolUse`, telemetry, notifications, …) MAY add value *around* dispatch
@@ -142,9 +132,11 @@ The native adapter has no persisted state to clean (the sub-agent handle is in-p
 
 This spec is authored and the `fab dispatch` **runtime** ships in change 3c. The **skill-side dispatch
 seam** — the `/fab-*` skill logic that decides *when* to dispatch via `fab dispatch` vs. the native
-Agent-tool path, the dispatch-prompt *content* that satisfies the obligations above, and the
-nesting-degradation *implementation* — is **change 3d** (wiring-only). 3d implements against this fixed
-contract; it does not co-define it.
+Agent-tool path, and the dispatch-prompt *content* that satisfies the obligations above — is **change
+3d** (wiring-only). 3d implements against this fixed contract; it does not co-define it. *(3d also wired
+a review-stage nesting-degradation path; that machinery was removed in 260704-pag2 when review
+collapsed to a single sub-agent — with one worker running the whole review inline, native and CLI
+dispatch are structurally identical and there is nothing to degrade.)*
 
 **Amendments are explicit.** If 3d's wiring reveals a flaw in this contract, the fix is an **explicit
 amendment to this spec** (and to 3c's runtime code if the runtime is implicated), reviewed as a

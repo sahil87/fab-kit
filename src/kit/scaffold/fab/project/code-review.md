@@ -58,7 +58,7 @@
      so an all-enabled setup needs nothing here. List a tool as `false` only to
      DISABLE it.
 
-     - codex / claude — the review-stage outward-reviewer Codex → Claude cascade
+     - codex / claude — the review-stage Codex → Claude cascade
        (read by /fab-continue review). Codex is tried first, Claude is the
        fallback; set either to false to skip it.
      - copilot — the /git-pr-review Phase 2 Copilot request. Set to false to skip

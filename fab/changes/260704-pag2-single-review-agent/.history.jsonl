@@ -1,0 +1,19 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-04T04:48:45Z"}
+{"args":"Collapse the review stage's two parallel reviewer sub-agents (inward + outward) plus findings-merge step into a single review sub-agent whose prompt covers both checklists","cmd":"fab-new","event":"command","ts":"2026-07-04T04:48:45Z"}
+{"delta":"+4.6","event":"confidence","score":4.6,"trigger":"calc-score","ts":"2026-07-04T04:51:36Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-07-04T04:52:39Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-04T04:54:11Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-04T04:54:27Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-04T04:55:20Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-04T05:08:15Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-04T05:09:26Z"}
+{"event":"review","result":"failed","ts":"2026-07-04T05:26:14Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-04T05:26:14Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-04T05:35:09Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-04T05:36:02Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-04T05:43:16Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-04T05:50:24Z"}
+{"event":"review","result":"passed","ts":"2026-07-04T05:50:24Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-04T05:56:34Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-07-04T05:58:03Z"}
+{"event":"review","result":"passed","ts":"2026-07-04T06:05:36Z"}

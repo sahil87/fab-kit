@@ -47,7 +47,7 @@ helpers: [_generation, _review, _srad, _pipeline]
 |-------|------------|
 | `fab-new`, `fab-draft` | `[_generation, _srad, _intake]` |
 | `fab-ff`, `fab-fff` | `[_generation, _review, _srad, _pipeline]` (the shared bracket lives in `_pipeline.md`) |
-| `fab-adopt` | `[_srad, _generation, _review, _pipeline]` (orchestrator — reuses the diff-generation procedures, outward-only review, and the auto-rework budget) |
+| `fab-adopt` | `[_srad, _generation, _review, _pipeline]` (orchestrator — reuses the diff-generation procedures, diff-only review, and the auto-rework budget) |
 | `fab-continue` | `[_srad]` (+ `_generation`/`_review` stage-conditionally, in-body) |
 | `fab-clarify` | `[_srad]` |
 | `fab-operator` | `[_cli-fab, _cli-external]` |
@@ -353,7 +353,7 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 **Behavior**:
 1. Check the intake gate (confidence >= 3.0, flat). Abort if below threshold. Skip if `--force`.
 2. Run apply (single subagent invocation): co-generate `plan.md` (## Requirements from `intake.md` + ## Tasks + ## Acceptance), then execute unchecked tasks under `## Tasks` in dependency order, running tests after each. Under-specified requirements are resolved inline as graded SRAD assumptions in `plan.md` — no clarify step.
-3. **Review** — dispatch to sub-agent (fresh context). Sub-agent returns prioritized findings (must-fix / should-fix / nice-to-have); inward sub-agent inspects items under `plan.md` `## Acceptance` against `## Requirements`
+3. **Review** — dispatch to a single sub-agent (fresh context). The sub-agent returns prioritized findings (must-fix / should-fix / nice-to-have); it inspects items under `plan.md` `## Acceptance` against `## Requirements` and judges the diff on its own merits
 4. **On pass** — advance to hydrate
 5. **On fail** — auto-rework loop (up to `{max_cycles}` cycles, default 3): triage findings by priority, autonomously select rework path (fix code, revise plan, revise requirements), re-apply, spawn fresh sub-agent for re-review. Escalation after 2 consecutive fix-code attempts. Stop after `{max_cycles}` failed cycles with summary.
 6. Hydrate into `docs/memory/`
@@ -443,14 +443,14 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 1. **Step 0 — Guards & diff base**: reuse `/git-pr`'s guard idioms — STOP on detached HEAD / default branch / MERGED PR (scenario A) / branch-already-maps-to-a-change (point at `/fab-continue`) / empty diff. `OPEN` and `none` PR states proceed. Resolve `base=$(git merge-base HEAD origin/{default})` and capture the diff.
 2. **Steps 1+2 — one main-session generation pass** (same agent, not dispatched): `fab change new --slug {slug}` + activate (branch exists — `/fab-new` Step 11 row 1/2); reconstruct `intake.md` via the **Intake-from-Diff Procedure** (`_generation.md`); **human-confirmation checkpoint** (confirm/correct the reconstructed intent — the late deliberation the bypass skipped) → `fab status advance/finish {name} intake`; write a deliberately MINIMAL `plan.md` via the **Plan-from-Diff Procedure**.
 3. **Step 2 (state)**: `fab status skip {name} apply` (cascades downstream → skipped) then `fab status reset {name} review fab-adopt` (skipped → active, downstream → pending) — yields `apply=skipped, review=active`, **no Go change**; record the fact via `fab status set-summary`.
-4. **Step 3 — Review** (dispatched, `mode: outward-only` — the new `_review.md` parameter): the orchestrator owns the verdict (pass incl. zero-findings best-effort → `finish review`; fail → auto-rework per `_pipeline.md` budget when autonomous, hand findings back when interactive).
+4. **Step 3 — Review** (dispatched, `mode: diff-only` — the `_review.md` parameter): the orchestrator owns the verdict (pass incl. zero-findings best-effort → `finish review`; fail → auto-rework per `_pipeline.md` budget when autonomous, hand findings back when interactive).
 5. **Step 4 — Hydrate** (dispatched, verbatim per `_pipeline.md` Step 3): the permanent-loss recovery — `docs/memory/` finally reflects what shipped → `finish hydrate`.
 6. **Step 5 — Ship**: `/git-pr {name}` retrofits `## Meta` onto the OPEN PR (its Step 3d, gated on body-lacks-`## Meta`) or creates the PR fresh when `none`; `finish ship` auto-activates review-pr.
 7. **Step 6**: land in review-pr; print the honest-state summary and `Next: /git-pr-review`.
 
 **Key properties**:
 - Only **apply** is `skipped`; every other stage runs for real (just late)
-- Outward-only review via the general `mode` parameter on `_review.md` — not an adopt-specific branch
+- Diff-only review via the general `mode` parameter on `_review.md` — not an adopt-specific branch
 - State composed from existing `skip`/`reset` transitions; PR Meta retrofit reuses `fab pr-meta` + `gh pr edit` — **no Go change**
 - Idempotent guards: re-run after the change is created routes to `/fab-continue` via the collision guard; the Meta retrofit is body-gated
 

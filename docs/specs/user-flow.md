@@ -35,7 +35,7 @@ flowchart TD
 
 ## 2. The Same Flow, With Fab
 
-Each transition is now a `/fab-*` command. `/fab-ff` fast-forwards from intake through hydrate; `/fab-fff` fast-forwards further through ship and PR review. `/fab-archive` is a separate housekeeping step after the pipeline completes. `/fab-adopt` is the **alternate entry point** for work that bypassed the pipeline: a branch authored without fab (with an OPEN or not-yet-created PR) enters *late* — intake is reconstructed from the diff, **apply is `skipped`**, and review (outward-only) → hydrate → ship → review-pr run for real.
+Each transition is now a `/fab-*` command. `/fab-ff` fast-forwards from intake through hydrate; `/fab-fff` fast-forwards further through ship and PR review. `/fab-archive` is a separate housekeeping step after the pipeline completes. `/fab-adopt` is the **alternate entry point** for work that bypassed the pipeline: a branch authored without fab (with an OPEN or not-yet-created PR) enters *late* — intake is reconstructed from the diff, **apply is `skipped`**, and review (diff-only) → hydrate → ship → review-pr run for real.
 
 ```mermaid
 flowchart TD
@@ -61,7 +61,7 @@ flowchart TD
     OFF[off-pipeline branch
     + OPEN/no PR] -->|"/fab-adopt
     (reconstruct intake from diff,
-    apply skipped, outward-only review)"| R
+    apply skipped, diff-only review)"| R
     style OFF fill:#f3e5f5,stroke:#9C27B0
 
     %% Apply-review loop (sub-agent review with auto-rework)

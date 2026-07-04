@@ -281,11 +281,10 @@ seams:
 - **Model → the Agent tool's `model` param.** The Agent `model` param is a hard enum of short aliases (`opus`/`sonnet`/`haiku`/`fable`) that rejects full IDs, so the model half is resolved with `fab resolve-agent <stage> --alias` — the `--alias` flag emits the Agent-tool-valid short alias directly on the `model=` line (see § Harness-adapter boundary). Empty model → omit it (inherit session/orchestrator model — today's behavior).
 - **Effort → an explicit instruction in the subagent prompt.** The Agent tool has no `effort` param, so the resolved effort is injected as an imperative line in the dispatched prompt (e.g., ``Operate at `xhigh` reasoning effort for this task.``) and the sub-agent self-selects. Empty effort → omit the instruction. (The effort half is therefore **no longer dropped** — earlier wiring had no seam for it; it now rides the prompt. The clean fix, a first-class per-sub-agent effort parameter on the Agent tool, is a harness ask outside fab's control — see § Foreground limitation's scope note.)
 
-The **`review` stage resolves once** (on its own `review` tier) and applies the same
-`{provider, model, effort}` to BOTH reviewer sub-agents (inward + outward) and the merge — the same
-model param and the same effort-prompt instruction for all three; a consequence of
-stage(/tier)-granularity, documented as a known tradeoff (the mechanical merge runs at the reviewer's
-tier; acceptable for config simplicity).
+The **`review` stage resolves once** (on its own `review` tier) and applies the resolved
+`{provider, model, effort}` to its **single** review sub-agent — exactly like every other stage
+(260704-pag2 collapsed review to one sub-agent; there is no longer a second reviewer or a merge to
+resolve, so review carries no special resolution rule).
 
 `_cli-fab.md` documents the `fab resolve-agent` command signature (Constitution constraint: CLI changes
 MUST update `_cli-fab.md`). `architecture.md` documents the `providers:` + `agent.tiers` config blocks
@@ -342,7 +341,7 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   native Agent-tool adapter described in this section is now one of *two* dispatch adapters catalogued
   in [`harness-adapters.md`](harness-adapters.md)** — the CLI adapter (`fab dispatch`, 3c) is the
   other, and that spec fixes the cross-adapter dispatch protocol (dispatch-prompt obligations, the
-  five-state machine, `review` nesting degradation, hooks-enhance-never-own) both share; the skill
+  five-state machine, hooks-enhance-never-own) both share; the skill
   dispatch-seam wiring against it lives in `_preamble.md` § CLI-Adapter Dispatch + § Dispatch-Prompt
   Obligations (3d).
 - *Claude-flavored data (overridable):* fab-kit's shipped default table uses Claude model IDs/effort.
@@ -418,7 +417,7 @@ doc and fails if either disagrees with the code — same pattern as `TestDocTabl
 ## Out of scope (deferred)
 
 - **User (`~/.fab-kit`) config layer** — explicitly dropped.
-- **Role-granular keys** (`review.inward`, `review.merge`) — deferred; the stage/tier is the unit.
+- **Role-granular keys** — obsolete: review is now a single sub-agent (260704-pag2), so there are no per-role reviewer/merge tiers to key on; the stage/tier is the unit.
 - **Per-invocation `--model-<stage>` flags** on the orchestrators — deferred.
 - **Cost/latency telemetry** per tier — out of scope; this is selection only.
 - **Shipped/tested multi-provider support** — out of scope; v1 proves architecture-neutrality only.

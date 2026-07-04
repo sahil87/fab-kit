@@ -27,7 +27,7 @@ Bring a **completed-but-off-pipeline** change into the Fab pipeline. The trigger
 
 Of the six stages, exactly one — **apply** — cannot meaningfully re-run on an adopted change (the code already exists; there is nothing to generate). Every other stage *can* run for real, just *late*: intake reconstructed from the diff, review run on the diff before merge, hydrate writing memory before merge, ship retrofitting the PR decoration, review-pr resuming normally. So `/fab-adopt` is **not** a parallel "fake pipeline" — it is the *real* pipeline entered late, with apply skipped.
 
-`/fab-adopt` is a thin orchestrator: it reuses existing skills/procedures as sub-agents (the `/fab-proceed` / `/fab-ff` pattern) and introduces only what is genuinely new (the diff→intake and thin diff→plan procedures in `_generation.md`, and `_review.md`'s `outward-only` mode).
+`/fab-adopt` is a thin orchestrator: it reuses existing skills/procedures as sub-agents (the `/fab-proceed` / `/fab-ff` pattern) and introduces only what is genuinely new (the diff→intake and thin diff→plan procedures in `_generation.md`, and `_review.md`'s `diff-only` mode).
 
 **Scope** — `/fab-adopt` covers scenario B only. A **MERGED** PR (scenario A — retroactive backfill of already-merged work) is explicitly out of scope and STOPs at Step 0.
 
@@ -93,14 +93,14 @@ fab status set-summary {name} "adopted off-pipeline change; apply skipped"
 
 `{driver}` is `fab-adopt`. Net state: `apply: skipped`, `review: active`, `hydrate/ship/review-pr: pending`. (Verified transition composition: `skip` is `{pending,active}→skipped` with forward cascade; `reset` accepts `skipped→active` and cascades its downstream back to `pending`.)
 
-### Step 3 — Review (dispatched, `mode: outward-only`)
+### Step 3 — Review (dispatched, `mode: diff-only`)
 
 Resolve the review model + adapter: run `fab resolve-agent review --alias`, surface the resolved `model=/effort=/dispatch=`, then **branch on `dispatch=`** — absent ⇒ native dispatch (model via the Agent `model` param; effort via the imperative prompt instruction); present ⇒ CLI dispatch via `fab dispatch` — per `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution / § CLI-Adapter Dispatch.
 
-Dispatch `/fab-continue` Review Behavior as a sub-agent via the adapter the `dispatch=` branch above selected (native ⇒ Agent tool, `general-purpose`; CLI ⇒ `fab dispatch`), passing **`mode: outward-only`** (the `_review.md` parameter). The prompt MUST include the standard subagent context files and the **block-contract carve-out** (no `fab status` **transition** commands `start`/`advance`/`finish`/`reset`/`fail`/`skip`; **DO** end with a terminal `fab status refresh`; return results only, per `_preamble.md` § Dispatch-Prompt Obligations) — this orchestrator owns the verdict transition. Outward review reads `git diff {base}...HEAD` natively, so no file-set prompt hack is needed; inward preconditions (`plan.md` tasks all `[x]`) are skipped in `outward-only` mode.
+Dispatch `/fab-continue` Review Behavior as a sub-agent via the adapter the `dispatch=` branch above selected (native ⇒ Agent tool, `general-purpose`; CLI ⇒ `fab dispatch`), passing **`mode: diff-only`** (the `_review.md` parameter — the same single review dispatch with the plan-conformance steps omitted from the prompt). The prompt MUST include the standard subagent context files and the **block-contract carve-out** (no `fab status` **transition** commands `start`/`advance`/`finish`/`reset`/`fail`/`skip`; **DO** end with a terminal `fab status refresh`; return results only, per `_preamble.md` § Dispatch-Prompt Obligations) — this orchestrator owns the verdict transition. The review agent reads `git diff {base}...HEAD` natively, so no file-set prompt hack is needed; preconditions (`plan.md` tasks all `[x]`) are skipped in `diff-only` mode.
 
 **Verdict** (owned here):
-- **Pass** (no must-fix, including zero findings — outward-only with no available external reviewer passes best-effort): `fab status finish {name} review {driver}`.
+- **Pass** (no must-fix, including zero findings — a `diff-only` review with no available external reviewer passes best-effort): `fab status finish {name} review {driver}`.
 - **Fail**: auto-rework per `_pipeline.md` § Auto-Rework Loop budget when run autonomously; when run interactively, **hand the findings back** to the user rather than auto-editing a hand-authored branch (the default for adopted code is hand-back — see Key Properties). On exhaustion, stop per the bracket's exhaustion rule.
 
 ### Step 4 — Hydrate (dispatched, verbatim)
@@ -122,7 +122,7 @@ Adopted {name}.
 
   intake    ✓ ran (reconstructed from the diff)
   apply     — skipped (code authored off-pipeline)
-  review    ✓ ran (outward-only)
+  review    ✓ ran (diff-only)
   hydrate   ✓ ran (docs/memory/ updated)
   ship      ✓ ran (## Meta retrofitted onto the PR)
   review-pr → active
@@ -143,7 +143,7 @@ Only apply is skipped; every other stage genuinely ran (just late, after the cod
 --- State ---
 apply → skipped, review → active
 
---- Review (outward-only) ---
+--- Review (diff-only) ---
 {review output}
 
 --- Hydrate ---
