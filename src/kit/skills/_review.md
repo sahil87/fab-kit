@@ -71,7 +71,7 @@ Agent-tool dispatch here; the worker IS the single review agent.
 - Standard subagent context files (per `_preamble.md` § Standard Subagent Context)
 - The diff of all changed files: compute the merge-base against the default branch (`git merge-base HEAD origin/main` or the resolved default), then use `git diff <base>...HEAD`
 - The list of changed file paths: use the same resolved base with `git diff --name-only <base>...HEAD`
-- Full tool access (Read, Bash) — the worker MAY read any file in the repo
+- Full tool access (Read, Edit, Write, Bash, per `_preamble.md` § Standard Subagent Context) — the worker MAY read any file in the repo, and MAY modify `plan.md` (marking acceptance checkmarks in the Plan-Conformance Steps below)
 - **In `full` mode only**: `plan.md` (containing `## Requirements`, `## Tasks`, and `## Acceptance` sections), relevant source files (files touched by the change), target memory file(s) from `docs/memory/`, and the change's **`change_type`** — carried in the dispatch prompt by the sequencer (which reads it from `fab/changes/{name}/.status.yaml`, since `fab preflight` does not emit this field — see `fab-continue.md` Normal Flow / `_pipeline.md` Step 2); the parsimony/deletion-candidate steps key their skip condition on it.
 
 Keep the two checklists lean (checklist-fatigue mitigation): the tasks-all-`[x]` check is covered by Preconditions (in `full` mode) — the worker does not re-verify it as a checklist step — and the mechanical steps below stay compressed; do not pad the merged procedure with restated orchestration.
