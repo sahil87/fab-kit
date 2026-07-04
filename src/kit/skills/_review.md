@@ -161,4 +161,4 @@ The findings set is returned to the orchestrator for verdict and rework decision
 > **Note**: The rework loop (bounded retry, escalation rule, pass/fail state transitions) is defined
 > in the orchestrator (`fab-continue.md` Verdict section for manual rework; `_pipeline.md`
 > § Auto-Rework Loop for `/fab-ff`/`/fab-fff`), not in this file. This file defines only the
-> dispatch mechanics and the findings shape.
+> review procedure and the findings shape.
