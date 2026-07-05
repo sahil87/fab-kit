@@ -10,7 +10,7 @@ progress:
     review: done
     hydrate: done
     ship: done
-    review-pr: active
+    review-pr: done
 plan:
     generated: true
     task_count: 8
@@ -34,7 +34,7 @@ stage_metrics:
     review: {started_at: "2026-07-05T16:30:59Z", driver: fab-fff, iterations: 3, completed_at: "2026-07-05T16:38:09Z"}
     hydrate: {started_at: "2026-07-05T16:38:09Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-05T16:43:45Z"}
     ship: {started_at: "2026-07-05T16:43:45Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-05T17:39:00Z"}
-    review-pr: {started_at: "2026-07-05T17:39:00Z", driver: git-pr, iterations: 1}
+    review-pr: {started_at: "2026-07-05T17:39:00Z", driver: git-pr, iterations: 1, completed_at: "2026-07-05T17:44:31Z"}
 prs:
     - https://github.com/sahil87/fab-kit/pull/471
 true_impact:
@@ -53,4 +53,4 @@ true_impact:
     computed_at_stage: ship
 summary: fab sync/migrations-status emit a distinguishable exit 3 (internal.ExitNotManaged) for 'not a fab-managed repo' via a shared RequireManagedRepo() guard, distinct from generic exit 1; upgrade.go excluded
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-07-05T17:39:00Z
+last_updated: 2026-07-05T17:44:31Z
