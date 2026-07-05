@@ -8,6 +8,14 @@ import (
 	"testing"
 )
 
+// TestSync_FreshSettings verifies the divestment (ioku): with an empty
+// DefaultMappings, a fresh sync registers ZERO session-scoped hook entries.
+// The three session hooks (SessionStart/Stop/UserPromptSubmit) that wrote
+// `.fab-runtime.yaml` `_agents` state are gone (fab is a pure consumer of the
+// `@rk_agent_state` pane-option convention); the earlier artifact-write
+// PostToolUse rows were already removed. `Sync` itself is retained but no
+// longer migrates or registers anything, so with nothing to add it reports the
+// OK status.
 func TestSync_FreshSettings(t *testing.T) {
 	settingsPath := filepath.Join(t.TempDir(), ".claude", "settings.local.json")
 
@@ -16,11 +24,10 @@ func TestSync_FreshSettings(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if result.Status != "created" {
-		t.Errorf("Status = %q, want %q", result.Status, "created")
+	if result.Status != "ok" {
+		t.Errorf("Status = %q, want %q (nothing to register after divestment)", result.Status, "ok")
 	}
 
-	// Verify the file was created with hook entries
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
 		t.Fatalf("failed to read settings: %v", err)
@@ -36,20 +43,11 @@ func TestSync_FreshSettings(t *testing.T) {
 		t.Fatalf("failed to parse hooks: %v", err)
 	}
 
-	// Should have the three session hooks only — the artifact-write PostToolUse
-	// rows were removed (artifact-derived state is now pull-based via
-	// `fab status refresh`).
-	if len(hooks["SessionStart"]) != 1 {
-		t.Errorf("SessionStart entries = %d, want 1", len(hooks["SessionStart"]))
-	}
-	if len(hooks["Stop"]) != 1 {
-		t.Errorf("Stop entries = %d, want 1", len(hooks["Stop"]))
-	}
-	if len(hooks["UserPromptSubmit"]) != 1 {
-		t.Errorf("UserPromptSubmit entries = %d, want 1", len(hooks["UserPromptSubmit"]))
-	}
-	if len(hooks["PostToolUse"]) != 0 {
-		t.Errorf("PostToolUse entries = %d, want 0 (artifact-write hook removed)", len(hooks["PostToolUse"]))
+	// No session-scoped or PostToolUse registrations remain.
+	for _, event := range []string{"SessionStart", "Stop", "UserPromptSubmit", "PostToolUse"} {
+		if len(hooks[event]) != 0 {
+			t.Errorf("%s entries = %d, want 0 (all fab hooks divested)", event, len(hooks[event]))
+		}
 	}
 }
 
@@ -112,32 +110,54 @@ func TestSync_EmptySettings(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if result.Status != "created" {
-		t.Errorf("Status = %q, want %q", result.Status, "created")
+	// With an empty DefaultMappings there is nothing to add or migrate, so the
+	// status is OK (not "created").
+	if result.Status != "ok" {
+		t.Errorf("Status = %q, want %q", result.Status, "ok")
 	}
 }
 
-func TestSync_UsesInlineCommand(t *testing.T) {
-	settingsPath := filepath.Join(t.TempDir(), ".claude", "settings.local.json")
+// TestSync_LeavesLegacyScriptUntouched confirms the re-minting hazard is closed
+// (ioku cycle 2): the legacy on-*.sh rewrite rows were dropped from
+// `oldScriptToSubcommand`, so `Sync` no longer rewrites an old-style on-stop.sh
+// entry into `fab hook stop` — that would re-mint exactly one of the three
+// entries the 2.13.6-to-2.14.0 migration deletes. `Sync` has no removal path,
+// so it leaves the legacy entry as-is; the migration file is what removes it.
+func TestSync_LeavesLegacyScriptUntouched(t *testing.T) {
+	settingsDir := t.TempDir()
+	settingsPath := filepath.Join(settingsDir, "settings.local.json")
+	legacy := "bash fab/.kit/hooks/on-stop.sh"
+	oldSettings := `{
+  "hooks": {
+    "Stop": [{"matcher": "", "hooks": [{"type": "command", "command": "` + legacy + `"}]}]
+  }
+}`
+	os.WriteFile(settingsPath, []byte(oldSettings), 0o644)
 
-	_, err := Sync(settingsPath)
+	result, err := Sync(settingsPath)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	// Nothing to add or migrate — OK status, no re-minting.
+	if result.Status != "ok" {
+		t.Errorf("Status = %q, want %q (no migration after re-minting rows dropped)", result.Status, "ok")
+	}
+
 	hooks := readHooks(t, settingsPath)
-	cmd := hooks["Stop"][0].Hooks[0].Command
-	want := "fab hook stop"
-	if cmd != want {
-		t.Errorf("command = %q, want %q", cmd, want)
+	if got := hooks["Stop"][0].Hooks[0].Command; got != legacy {
+		t.Errorf("command = %q, want %q left untouched (must NOT re-mint fab hook stop)", got, legacy)
 	}
 }
 
-func TestSync_MigratesOldAbsolutePaths(t *testing.T) {
+// TestSync_DoesNotReMintAbsolutePathScripts is the absolute-path counterpart:
+// an old-format on-*.sh entry using the "$CLAUDE_PROJECT_DIR" absolute form is
+// likewise left untouched rather than rewritten to the inline `fab hook` form.
+func TestSync_DoesNotReMintAbsolutePathScripts(t *testing.T) {
 	settingsDir := t.TempDir()
 	settingsPath := filepath.Join(settingsDir, "settings.local.json")
-
-	// Write settings with old-format (absolute path) hooks
+	stopLegacy := `bash "$CLAUDE_PROJECT_DIR"/fab/.kit/hooks/on-stop.sh`
+	startLegacy := `bash "$CLAUDE_PROJECT_DIR"/fab/.kit/hooks/on-session-start.sh`
 	oldSettings := `{
   "hooks": {
     "Stop": [{"matcher": "", "hooks": [{"type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR\"/fab/.kit/hooks/on-stop.sh"}]}],
@@ -151,60 +171,30 @@ func TestSync_MigratesOldAbsolutePaths(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if result.Status != "updated" {
-		t.Errorf("Status = %q, want %q", result.Status, "updated")
+	if result.Status != "ok" {
+		t.Errorf("Status = %q, want %q (no migration)", result.Status, "ok")
 	}
-	if !strings.Contains(result.Message, "migrated") {
-		t.Errorf("Message should mention migration, got %q", result.Message)
-	}
-
-	// Verify commands were migrated to inline format
-	hooks := readHooks(t, settingsPath)
-	if hooks["Stop"][0].Hooks[0].Command != "fab hook stop" {
-		t.Errorf("Stop not migrated, got: %q", hooks["Stop"][0].Hooks[0].Command)
-	}
-	if hooks["SessionStart"][0].Hooks[0].Command != "fab hook session-start" {
-		t.Errorf("SessionStart not migrated, got: %q", hooks["SessionStart"][0].Hooks[0].Command)
-	}
-
-	// No duplicate entries — migration should update in place, not add new ones
-	if len(hooks["Stop"]) != 1 {
-		t.Errorf("Stop entries = %d, want 1 (no duplicates after migration)", len(hooks["Stop"]))
-	}
-}
-
-func TestSync_MigratesOldRelativePaths(t *testing.T) {
-	settingsDir := t.TempDir()
-	settingsPath := filepath.Join(settingsDir, "settings.local.json")
-
-	// Write settings with old-format (relative path) hooks
-	oldSettings := `{
-  "hooks": {
-    "Stop": [{"matcher": "", "hooks": [{"type": "command", "command": "bash fab/.kit/hooks/on-stop.sh"}]}]
-  }
-}`
-	os.WriteFile(settingsPath, []byte(oldSettings), 0o644)
-
-	result, err := Sync(settingsPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if result.Status != "updated" {
-		t.Errorf("Status = %q, want %q", result.Status, "updated")
+	if strings.Contains(result.Message, "migrated") {
+		t.Errorf("Message must NOT mention migration, got %q", result.Message)
 	}
 
 	hooks := readHooks(t, settingsPath)
-	if hooks["Stop"][0].Hooks[0].Command != "fab hook stop" {
-		t.Errorf("Stop not migrated from relative path, got: %q", hooks["Stop"][0].Hooks[0].Command)
+	if got := hooks["Stop"][0].Hooks[0].Command; got != stopLegacy {
+		t.Errorf("Stop = %q, want %q untouched (no re-mint)", got, stopLegacy)
+	}
+	if got := hooks["SessionStart"][0].Hooks[0].Command; got != startLegacy {
+		t.Errorf("SessionStart = %q, want %q untouched (no re-mint)", got, startLegacy)
 	}
 }
 
-func TestSync_MigratePreservesNonFabHooks(t *testing.T) {
+// TestSync_PreservesNonFabHooks confirms a custom (non-fab) hook is preserved
+// alongside an untouched legacy fab entry — `Sync` neither migrates the legacy
+// entry nor disturbs unrelated hooks.
+func TestSync_PreservesNonFabHooks(t *testing.T) {
 	settingsDir := t.TempDir()
 	settingsPath := filepath.Join(settingsDir, "settings.local.json")
+	legacy := `bash "$CLAUDE_PROJECT_DIR"/fab/.kit/hooks/on-stop.sh`
 
-	// Mix of fab hooks (old format) and non-fab hooks
 	oldSettings := `{
   "hooks": {
     "Stop": [
@@ -222,20 +212,26 @@ func TestSync_MigratePreservesNonFabHooks(t *testing.T) {
 
 	hooks := readHooks(t, settingsPath)
 	if len(hooks["Stop"]) != 2 {
-		t.Errorf("Stop entries = %d, want 2 (migrated fab + custom)", len(hooks["Stop"]))
+		t.Errorf("Stop entries = %d, want 2 (legacy left as-is + custom)", len(hooks["Stop"]))
 	}
 
-	// Find the custom hook — should be untouched
-	found := false
+	// Both the untouched legacy fab entry and the custom hook survive.
+	foundLegacy, foundCustom := false, false
 	for _, entry := range hooks["Stop"] {
 		for _, h := range entry.Hooks {
-			if h.Command == "echo custom stop hook" {
-				found = true
+			switch h.Command {
+			case legacy:
+				foundLegacy = true
+			case "echo custom stop hook":
+				foundCustom = true
 			}
 		}
 	}
-	if !found {
-		t.Error("custom non-fab hook was lost during migration")
+	if !foundLegacy {
+		t.Error("legacy fab entry should be left untouched (not re-minted, not dropped)")
+	}
+	if !foundCustom {
+		t.Error("custom non-fab hook was lost")
 	}
 }
 

@@ -93,7 +93,11 @@ func Sync(systemVersion, kitVersion string, shimOnly, projectOnly bool) error {
 
 		deployErr = deploySkills(repoRoot, cachedKitDir)
 
-		// Hook sync — registers inline fab hook commands
+		// Hook sync — now fully inert (agent-state hooks divested). The default
+		// mapping table is empty so it registers nothing, and the legacy on-*.sh
+		// rewrite rows were dropped so it no longer rewrites legacy shims (it
+		// cannot re-mint the entries the 2.13.6-to-2.14.0 migration deletes).
+		// Retained one release with no removal path.
 		settingsPath := filepath.Join(repoRoot, ".claude", "settings.local.json")
 		msg, err := syncHooks(settingsPath)
 		if err != nil {

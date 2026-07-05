@@ -173,7 +173,7 @@ func Rename(fabRoot, currentFolder, newSlug string) (string, error) {
 // replaces the old link atomically on POSIX, so concurrent readers never
 // observe a missing pointer and concurrent switches never race into EEXIST
 // (mz4q F05). Shared by Switch and Rename, matching the temp+rename
-// convention of statusfile.Save and runtime.SaveFile.
+// convention of statusfile.Save.
 func setActivePointer(repoRoot, target string) error {
 	symlinkPath := filepath.Join(repoRoot, ".fab-status.yaml")
 	tmpPath := filepath.Join(repoRoot, fmt.Sprintf(".fab-status.yaml.%d.tmp", os.Getpid()))

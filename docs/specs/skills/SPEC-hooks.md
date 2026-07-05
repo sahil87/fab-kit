@@ -2,42 +2,31 @@
 
 ## Summary
 
-Fab's Claude Code hooks are Go subcommands of the `fab` binary — `fab hook <subcommand>` — registered as inline command entries in `.claude/settings.local.json` by `fab hook sync` (invoked during `fab sync`). There are three event handlers (`session-start`, `stop`, `user-prompt`) plus the setup-facing `sync`. All hook subcommands exit 0 so they can never block the agent: the event handlers swallow errors silently; `sync` surfaces failures on stderr but still exits 0. The former shell-script hooks (`on-stop.sh`, `on-session-start.sh`, registered by `5-sync-hooks.sh`) and the proposed `fab runtime` subcommands are gone — handlers call the internal `runtime` package directly, with no `yq` dependency anywhere on the hook path.
+Fab's Claude Code hooks are Go subcommands of the `fab` binary — `fab hook <subcommand>` — historically registered as inline command entries in `.claude/settings.local.json` by `fab hook sync` (invoked during `fab sync`). **As of the agent-state divestment (`ioku`), fab registers no hooks at all.** The three former session-scoped event handlers (`session-start`, `stop`, `user-prompt`) that wrote agent active/idle state, plus the earlier `artifact-write` PostToolUse handler, are all removed. The subcommands survive one release as silent no-op shims for un-migrated settings; the setup-facing `sync` is retained one release but now fully inert — it registers nothing and no longer rewrites legacy scripts (the rewrite rows were dropped so sync cannot re-mint the entries the `2.13.6-to-2.14.0` migration deletes); it has no removal path. All hook subcommands exit 0 so they can never block the agent.
 
-**Hooks may enhance, never own.** The three registered handlers are all push-by-nature runtime telemetry (liveness/idle tracking) — they own no correctness-critical state and degrade gracefully. The former fourth handler, `artifact-write` (a PostToolUse Write/Edit hook that recomputed artifact-derived `.status.yaml` state), was **removed**: a hook fires only in the Claude harness, so artifact-derived pipeline state (change type, intake confidence, plan counts) — which *is* correctness-critical — must be pull-based, not written only behind a hook. That recompute moved to the pull-based `fab status refresh`, self-healed at the transition seams (see § Artifact bookkeeping is pull-based).
+**Hooks may enhance, never own — and fab now produces no agent state at all.** The three session handlers used to be push-by-nature runtime telemetry: they wrote `.fab-runtime.yaml` `_agents` entries (idle/active liveness) that the `fab pane` commands read. That whole *producer* subsystem was divested. Agent-state detection was never core fab — it is a tmux-context observation feature that got bolted onto fab because no owner existed. run-kit's `rk agent-setup` is that owner now. fab-kit stopped PRODUCING agent lifecycle state and became a pure CONSUMER of a shared tmux pane-option convention: the pane commands read `@rk_agent_state` (see `docs/specs/skills/SPEC-_cli-fab.md` § fab pane and `docs/memory/runtime/pane-commands.md`). The earlier `artifact-write` handler (a PostToolUse Write/Edit hook that recomputed artifact-derived `.status.yaml` state) was removed for a different reason: a hook fires only in the Claude harness, so correctness-critical pipeline state (change type, intake confidence, plan counts) must be pull-based via `fab status refresh`, not written only behind a hook (see § Artifact bookkeeping is pull-based).
 
-Canonical command reference: `src/kit/skills/_cli-fab.md` § fab hook. Go source: `src/go/fab/cmd/fab/hook.go` + `src/go/fab/internal/hooklib/` + `src/go/fab/internal/refresh/`. Runtime-file schema: `docs/memory/runtime/runtime-agents.md`.
+Canonical command reference: `src/kit/skills/_cli-fab.md` § fab hook. Go source: `src/go/fab/cmd/fab/hook.go` + `src/go/fab/internal/hooklib/` + `src/go/fab/internal/refresh/`. Agent-state convention (read side): `docs/memory/runtime/runtime-agents.md`.
 
 ## Registered Hooks
 
-`fab hook sync` registers these mappings (one settings entry per row):
+`fab hook sync` registers **no hook mappings** — `hooklib.DefaultMappings` is empty. `sync` is retained one release but now **fully inert** — it registers nothing and no longer rewrites legacy scripts (the rewrite rows were dropped so sync cannot re-mint the entries the `2.13.6-to-2.14.0` migration deletes); it has **no removal path** — it merges desired entries (now none) but never deletes stale fab-managed entries. Full removal of the `sync` path and the no-op subcommand shims is a follow-up.
 
-| Subcommand | Claude Code event | Matcher | What it does |
-|------------|-------------------|---------|--------------|
-| `session-start` | **SessionStart** | — | Delete `_agents[session_id]` from `.fab-runtime.yaml` |
-| `stop` | **Stop** | — | Write `_agents[session_id]` with `idle_since` plus optional `change`/`pid`/`tmux_server`/`tmux_pane`/`transcript_path` |
-| `user-prompt` | **UserPromptSubmit** | — | Remove only `idle_since` from `_agents[session_id]`; other fields preserved |
-| `sync` | n/a (setup) | — | Register the rows above in `.claude/settings.local.json`; idempotent |
+The deprecated no-op shims retained for one release:
 
-The three session-scoped handlers (`session-start`, `stop`, `user-prompt`) read a JSON payload on stdin with at least `session_id` (and optionally `transcript_path`). Malformed JSON or a missing `session_id` is silently skipped. Each invocation also runs a throttled GC sweep (at most once per 180 s, tracked via `last_run_gc`) that prunes `_agents` entries whose stored `pid` no longer exists.
+| Subcommand | Former Claude Code event | Current behavior |
+|------------|--------------------------|------------------|
+| `session-start` | SessionStart | No-op — exits 0, emits nothing |
+| `stop` | Stop | No-op — exits 0, emits nothing |
+| `user-prompt` | UserPromptSubmit | No-op — exits 0, emits nothing |
+| `artifact-write` | PostToolUse (Write/Edit) | No-op — exits 0, emits nothing (removed earlier, y022) |
+| `sync` | n/a (setup) | Fully inert — registers nothing (empty mapping table) and no longer rewrites legacy scripts; idempotent |
 
-## Runtime File (`.fab-runtime.yaml`)
+The silence matters: an *unregistered* `fab hook <x>` subcommand exits 0 but prints cobra help to stdout, which a still-registered hook entry would feed to Claude Code as noisy non-JSON `additionalContext`. Each shim emits nothing, avoiding that until the `2.13.6-to-2.14.0` migration removes the three session settings entries (the `2.10.1-to-2.11.0` migration removed the `artifact-write` entries earlier).
 
-Ephemeral per-worktree state written by the session-scoped hooks and consumed by `fab pane map` / `fab pane send` (agent idle detection):
+## Agent state is a consumed convention (not a produced hook)
 
-```yaml
-_agents:
-  "<session_id>":
-    idle_since: <unix-ts>       # present when the agent is idle
-    change: "<folder-name>"     # optional — absent in discussion mode
-    pid: <int>                  # optional — Claude's PID, used for GC liveness
-    tmux_server: "<label>"      # optional
-    tmux_pane: "%15"            # optional
-    transcript_path: "..."      # optional
-last_run_gc: <unix-ts>          # throttles GC sweeps
-```
-
-Per-session map keyed by `session_id` — not the legacy `agent.idle_since` singleton. Full schema: `docs/memory/runtime/runtime-agents.md`.
+Agent active/idle/waiting state is no longer written by a fab hook. The `fab pane` commands READ a tmux **pane user option** `@rk_agent_state` (`"<state>:<epoch_seconds>"`, `state ∈ active | waiting | idle`) written by run-kit's `rk agent-setup` global agent-harness hooks (which cover Claude Code, Codex, Copilot, Gemini, OpenCode — not just Claude). fab reads it with plain tmux commands (`tmux show-options -pv` / the `#{@rk_agent_state}` list-panes format field), so there is no dependency on run-kit software being installed. The deleted producer subsystem was: the three hook writes, `WriteAgent`/`ClearAgent`/`ClearAgentIdle`, the throttled GC sweep (`last_run_gc`), the grandparent PID walker (`internal/proc`), the runtime file (`internal/runtime` / `.fab-runtime.yaml`), and the `_agents` matching in `internal/pane`. See `docs/specs/skills/SPEC-_cli-fab.md` § fab pane and `docs/memory/runtime/runtime-agents.md` for the read-side contract.
 
 ## Artifact bookkeeping is pull-based (not a hook)
 
@@ -50,18 +39,18 @@ Artifact-derived `.status.yaml` state — `change_type` + `confidence` (from `in
 
 `refresh` is **self-healed at the transition seams** — `fab status advance`, `fab status finish`, and `fab preflight` each run it before their read/transition — so no skill has to remember to call it, and a hook-bypassing edit (sed, direct write) or a non-Claude agent's artifact write is reflected before the next stage reads the fields. This is why skills no longer carry post-write bookkeeping instructions for these fields, and why the removed hook did not need to be replaced with another hook.
 
-No git staging is performed on this path (the removed hook's best-effort `git add` of `.status.yaml`/`.history.jsonl` is dropped — `/git-pr` stages status/history at ship). A one-release no-op shim `fab hook artifact-write` is retained for un-migrated projects whose settings still register it (it exits 0 and emits nothing on stdout, so it cannot feed noisy non-JSON `additionalContext`); the `2.10.1-to-2.11.0` migration removes the settings entry.
+No git staging is performed on this path (the removed hook's best-effort `git add` of `.status.yaml`/`.history.jsonl` is dropped — `/git-pr` stages status/history at ship). A one-release no-op shim `fab hook artifact-write` is retained for un-migrated projects whose settings still register it (it exits 0 and emits nothing on stdout); the `2.10.1-to-2.11.0` migration removes the settings entry.
 
 ## Registration (`fab hook sync`)
 
 - Runs as part of `fab sync`; can be invoked standalone.
-- Merges the inline `fab hook <subcommand>` entries into `.claude/settings.local.json`, deduplicating by matcher + command pair — re-running is a no-op (`.claude/settings.local.json hooks: OK`).
-- Migrates old-style entries (`bash "$CLAUDE_PROJECT_DIR"/fab/.kit/hooks/on-*.sh` and relative variants) to the inline commands.
-- Output: `Created`, `Updated`, or the OK line; on failure (no fab root, unwritable settings) a `hook sync: {error}` line on stderr — exit code stays 0 either way.
+- Registers **no** inline `fab hook <subcommand>` entries — the mapping table is empty. Re-running is a no-op (`.claude/settings.local.json hooks: OK`).
+- Does **not** rewrite legacy old-style entries (`bash "$CLAUDE_PROJECT_DIR"/fab/.kit/hooks/on-*.sh` and relative variants) into inline `fab hook <sub>` commands — those rewrite rows were dropped so sync cannot re-mint the entries the `2.13.6-to-2.14.0` migration deletes. The `sync` path lives one more release only to tolerate un-migrated stale settings (it leaves them untouched), not to migrate anything.
+- Output: the OK line (the `Created`/`Updated` branches are unreachable with the empty mapping table — a fresh sync always reports OK, nothing to register); on failure (no fab root, unwritable settings) a `hook sync: {error}` line on stderr — exit code stays 0 either way.
 
 ## What Stays in Skills (not hooks)
 
-Agent decisions remain skill-instructed; only mechanical bookkeeping moved into hooks:
+Agent decisions remain skill-instructed; only mechanical bookkeeping ever moved into hooks (and that too is gone now):
 
 | Command | Why not a hook |
 |---------|----------------|
@@ -72,17 +61,17 @@ One skill still writes status YAML directly via `yq`: `/git-pr-review` tracks ep
 
 ## Event Coverage
 
-Of the Claude Code hook events, fab-kit uses three. The rest were assessed and rejected:
+fab-kit uses **no** Claude Code hook events. Every event was assessed; the two that were once in use are now divested:
 
 | Event | Status | Rationale |
 |-------|--------|-----------|
-| **Stop** | In use (`stop`) | Idle tracking |
-| **SessionStart** | In use (`session-start`) | Clear stale agent entry on session start/resume/clear |
-| **UserPromptSubmit** | In use (`user-prompt`) | Clear `idle_since` the moment the user engages (agent no longer idle) |
-| **PostToolUse** (Write/Edit) | Not used (was `artifact-write`) | Artifact-derived state is correctness-critical, so it is pull-based (`fab status refresh`, self-healed at the transition seams), not owned by a hook that fires only in the Claude harness |
+| **Stop** | Removed (`stop` now a no-op shim) | Agent active/idle state divested to run-kit's `@rk_agent_state` pane-option convention — fab is a consumer, not a producer |
+| **SessionStart** | Removed (`session-start` now a no-op shim) | Same — cleared the `_agents` entry, which no longer exists |
+| **UserPromptSubmit** | Removed (`user-prompt` now a no-op shim) | Same — cleared `idle_since`, which no longer exists |
+| **PostToolUse** (Write/Edit) | Removed (`artifact-write` no-op shim, y022) | Artifact-derived state is correctness-critical, so it is pull-based (`fab status refresh`, self-healed at the transition seams), not owned by a hook that fires only in the Claude harness |
 | PreToolUse | Not used | Guardrails belong in `fab/project/*` policy files |
 | PermissionRequest | Not used | Fab shouldn't auto-approve tool calls |
 | SubagentStop / SubagentStart | Not used | Skills already handle subagent results |
 | SessionEnd / PreCompact / Notification / others | Not used | Thin value; change-folder artifacts survive compaction |
 
-All handlers are command-type hooks (shell command, JSON on stdin) — fab uses no prompt/agent/HTTP hook types.
+The no-op shims are command-type hooks in name only — they consume no stdin and emit no stdout. Full removal of the shims and the `sync` registration path is a follow-up once the `2.13.6-to-2.14.0` migration has propagated.

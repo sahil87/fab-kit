@@ -1,12 +1,14 @@
 // Package lockfile provides bounded exclusive advisory locking for fab's
-// shared state files (.fab-runtime.yaml, .status.yaml).
+// shared state files — the current consumer is .status.yaml (via
+// cmd/fab/status.go, preflight.go, and internal/score). (It formerly also
+// guarded .fab-runtime.yaml; that file was removed when agent-state
+// production was divested — see cmd/fab/hook.go.)
 //
 // Concurrency posture: the existing temp+rename writes prevent torn files but
 // not lost updates — an unlocked load-mutate-save cycle from two processes
-// (Claude Code hooks firing from multiple sessions in one worktree, fab
-// status commands in other panes) is last-writer-wins over the whole
-// document. Every load-mutate-save cycle on a shared state file must
-// therefore run while holding this lock.
+// (e.g. fab status commands in different panes over one change) is
+// last-writer-wins over the whole document. Every load-mutate-save cycle on a
+// shared state file must therefore run while holding this lock.
 //
 // The lock is a sibling file (<guarded-path>.lock) held via flock(2) —
 // advisory, cross-process, and released automatically when the holding

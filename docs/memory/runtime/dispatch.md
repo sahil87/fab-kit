@@ -30,7 +30,7 @@ The `fab` binary SHALL expose a top-level command group `fab dispatch` with five
 
 ### Requirement: `.fab-dispatch/{id}/` state layout
 
-Each dispatch's state SHALL live under `.fab-dispatch/{4-char-change-id}/` at the **repository root** (`filepath.Dir(fabRoot)`), keyed by the stable 4-char change ID (not the slug, so it survives `fab change rename`). This sits alongside the `.fab-status.yaml` / `.fab-runtime.yaml` ephemeral-state convention, and each git worktree naturally gets its own dir. **No gitignore/scaffold/migration work is required** — the scaffold `fragment-.gitignore` `.fab-*` pattern already matches `.fab-dispatch/`. The dir name is the `internal/dispatch` named constant `DirName = ".fab-dispatch"`; per-stage filenames derive from named suffix constants (no magic strings).
+Each dispatch's state SHALL live under `.fab-dispatch/{4-char-change-id}/` at the **repository root** (`filepath.Dir(fabRoot)`), keyed by the stable 4-char change ID (not the slug, so it survives `fab change rename`). This sits alongside the `.fab-status.yaml` repo-root ephemeral-state convention (the `.fab-runtime.yaml` sibling that convention once also named was deleted in ioku when agent-state production was divested — see [runtime-agents.md](/runtime/runtime-agents.md)), and each git worktree naturally gets its own dir. **No gitignore/scaffold/migration work is required** — the scaffold `fragment-.gitignore` `.fab-*` pattern already matches `.fab-dispatch/`. The dir name is the `internal/dispatch` named constant `DirName = ".fab-dispatch"`; per-stage filenames derive from named suffix constants (no magic strings).
 
 Per-stage files under `.fab-dispatch/{id}/`:
 

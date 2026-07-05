@@ -2,10 +2,10 @@
 // temp-file + rename pattern: content lands in a temp file in the
 // destination directory (same filesystem, so the final rename is atomic),
 // then replaces the target in one step. It mirrors the statusfile.Save
-// pattern; statusfile.Save and runtime.SaveFile keep their own inline
-// variants because they carry deliberately different fsync postures
-// (mz4q F03/F04) — this always-fsync helper serves writers like the
-// archive index where durability is wanted and the path is cold.
+// pattern; statusfile.Save keeps its own inline variant because it carries a
+// deliberately different fsync posture (mz4q F03) — this always-fsync helper
+// serves cold-path writers like the archive index and the operator state
+// file where durability is wanted and the path is not hot.
 package atomicfile
 
 import (

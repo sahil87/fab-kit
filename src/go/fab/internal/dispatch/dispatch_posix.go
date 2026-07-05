@@ -40,9 +40,8 @@ func Launch(argv []string, cwd string) (pid, pgid int, err error) {
 }
 
 // Alive reports whether pid is a live process. It is the POSIX-standard
-// kill(pid, 0) liveness probe (same contract as internal/runtime.pidAlive):
-// nil means alive, EPERM means alive-but-unsignalable, anything else (ESRCH,
-// etc.) is dead.
+// kill(pid, 0) liveness probe: nil means alive, EPERM means
+// alive-but-unsignalable, anything else (ESRCH, etc.) is dead.
 func Alive(pid int) bool {
 	if pid <= 0 {
 		return false

@@ -143,6 +143,32 @@ func TestPrintCaptureHeader(t *testing.T) {
 		}
 	})
 
+	// R8 GIVEN/THEN: a pane with @rk_agent_state = waiting shows `agent: waiting`
+	// in the header — the waiting state carries no idle duration (ioku cycle 2).
+	t.Run("header shows waiting state without duration", func(t *testing.T) {
+		var buf bytes.Buffer
+		cmd := &cobra.Command{}
+		cmd.SetOut(&buf)
+
+		waiting := pane.AgentStateWaiting
+		ctx := &pane.PaneContext{
+			Pane:            "%5",
+			WorktreeDisplay: "repo.worktrees/alpha/",
+			AgentState:      &waiting,
+			// AgentIdleDuration intentionally nil — waiting has no duration.
+		}
+
+		printCaptureHeader(cmd, "%5", ctx)
+
+		output := buf.String()
+		if !strings.Contains(output, "agent: waiting") {
+			t.Errorf("header missing `agent: waiting`: %q", output)
+		}
+		if strings.Contains(output, "waiting (") {
+			t.Errorf("waiting state must not carry an idle duration: %q", output)
+		}
+	})
+
 	t.Run("header with no fab context", func(t *testing.T) {
 		var buf bytes.Buffer
 		cmd := &cobra.Command{}

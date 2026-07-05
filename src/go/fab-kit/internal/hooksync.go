@@ -17,21 +17,22 @@ type hookMapping struct {
 }
 
 // defaultHookMappings maps fab hook subcommands to Claude Code events. Kept in
-// lockstep with hooklib.DefaultMappings in the fab binary. The former
-// `artifact-write` PostToolUse rows were removed — artifact-derived state is now
-// pull-based (`fab status refresh`); see that table's comment.
-var defaultHookMappings = []hookMapping{
-	{Subcommand: "session-start", Event: "SessionStart", Matcher: ""},
-	{Subcommand: "stop", Event: "Stop", Matcher: ""},
-	{Subcommand: "user-prompt", Event: "UserPromptSubmit", Matcher: ""},
-}
+// lockstep with hooklib.DefaultMappings in the fab binary — now EMPTY. The
+// three session-scoped handlers (session-start / stop / user-prompt) that WROTE
+// `.fab-runtime.yaml` `_agents` state were divested: fab is a pure consumer of
+// run-kit's `@rk_agent_state` pane-option convention. The handlers survive one
+// release as no-op shims; the 2.13.6-to-2.14.0 migration removes the settings
+// entries. `syncHooks` is retained; with an empty table it registers nothing new.
+var defaultHookMappings = []hookMapping{}
 
-// oldScriptToSubcommand maps old hook script names to new subcommand names for migration.
-var oldScriptToSubcommand = map[string]string{
-	"on-session-start.sh": "session-start",
-	"on-stop.sh":          "stop",
-	"on-user-prompt.sh":   "user-prompt",
-}
+// oldScriptToSubcommand maps old hook script names to new subcommand names for
+// migration. It is now EMPTY: the three legacy session-hook rewrite rows
+// (on-{session-start,stop,user-prompt}.sh → fab hook …) were dropped because
+// they re-minted exactly the three settings entries the 2.13.6-to-2.14.0
+// migration deletes. `migrateOldHookCommands` is thus a no-op this release; the
+// migration itself removes both the legacy script entries and the inline
+// entries. Full removal of the sync path (including this map) is a follow-up.
+var oldScriptToSubcommand = map[string]string{}
 
 type hookEntry struct {
 	Matcher string     `json:"matcher"`
@@ -43,7 +44,7 @@ type hookSpec struct {
 	Command string `json:"command"`
 }
 
-// syncHooks registers inline `fab hook <subcommand>` commands in settingsPath. Idempotent.
+// syncHooks registers inline `fab hook <subcommand>` commands in settingsPath (now registers nothing — the mapping table is empty). Idempotent.
 func syncHooks(settingsPath string) (string, error) {
 	// Build desired hook entries from hardcoded mappings
 	type desiredEntry struct {

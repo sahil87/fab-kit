@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/sahil87/fab-kit/src/go/fab/internal/runtime"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/atomicfile"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -69,8 +69,14 @@ func runOperatorTickStart(cmd *cobra.Command, args []string) error {
 	data["tick_count"] = tickCount
 	data["last_tick_at"] = now.UTC().Format(time.RFC3339)
 
-	// Write back atomically via temp+rename
-	if err := runtime.SaveFile(yamlPath, data); err != nil {
+	// Write back atomically via temp+rename (shared atomicfile helper — the
+	// operator state file is a cold path, so the always-fsync variant is fine;
+	// replaces the deleted runtime.SaveFile now that internal/runtime is gone).
+	out, err := yaml.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("cannot marshal %s: %w", yamlPath, err)
+	}
+	if err := atomicfile.WriteFile(yamlPath, out, 0o644); err != nil {
 		return fmt.Errorf("cannot write %s: %w", yamlPath, err)
 	}
 

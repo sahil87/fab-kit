@@ -17,26 +17,34 @@ type HookMapping struct {
 }
 
 // DefaultMappings is the mapping table from fab hook subcommands to Claude Code
-// events. The three registered handlers are all session-scoped runtime
-// telemetry (push-by-nature — they degrade gracefully and own no
-// correctness-critical state). The former `artifact-write` PostToolUse rows
-// (Write + Edit matchers) were removed: artifact-derived pipeline state
-// (change_type, confidence, plan counts) is correctness-critical and MUST be
-// pull-based, so it moved to `fab status refresh` (self-healed at the
-// advance/finish/preflight seams). Existing settings entries are removed by the
-// 2.10.1-to-2.11.0 migration.
-var DefaultMappings = []HookMapping{
-	{Subcommand: "session-start", Event: "SessionStart", Matcher: ""},
-	{Subcommand: "stop", Event: "Stop", Matcher: ""},
-	{Subcommand: "user-prompt", Event: "UserPromptSubmit", Matcher: ""},
-}
+// events. It is now EMPTY: fab no longer registers any hook.
+//
+// The three former session-scoped handlers (session-start / stop /
+// user-prompt) WROTE `.fab-runtime.yaml` `_agents` agent-lifecycle state. That
+// production was divested wholesale — fab is now a pure CONSUMER of the
+// `@rk_agent_state` tmux pane-option convention written by run-kit's
+// `rk agent-setup`, read by the `fab pane` commands. The handlers survive one
+// release as silent no-op shims (see cmd/fab/hook.go) for un-migrated
+// settings; the 2.13.6-to-2.14.0 migration removes the three settings entries.
+//
+// The earlier `artifact-write` PostToolUse rows were removed likewise (y022,
+// 2.10.1-to-2.11.0) — artifact-derived state is pull-based via
+// `fab status refresh`.
+//
+// `Sync` itself is RETAINED (this release) — it merges the desired entries
+// into settings (deduplicating by matcher+command). It has NO removal path (it
+// never deletes stale fab-managed entries), so with an empty DefaultMappings it
+// registers nothing new. Full removal of the sync path is a follow-up.
+var DefaultMappings = []HookMapping{}
 
-// oldScriptToSubcommand maps old hook script names to new subcommand names for migration.
-var oldScriptToSubcommand = map[string]string{
-	"on-session-start.sh": "session-start",
-	"on-stop.sh":          "stop",
-	"on-user-prompt.sh":   "user-prompt",
-}
+// oldScriptToSubcommand maps old hook script names to new subcommand names for
+// migration. It is now EMPTY: the three legacy session-hook rewrite rows
+// (on-{session-start,stop,user-prompt}.sh → fab hook …) were dropped because
+// they re-minted exactly the three settings entries the 2.13.6-to-2.14.0
+// migration deletes. `migrateOldHookCommands` is thus a no-op this release; the
+// migration itself removes both the legacy script entries and the inline
+// entries. Full removal of the sync path (including this map) is a follow-up.
+var oldScriptToSubcommand = map[string]string{}
 
 // hookEntry represents a single hook entry in settings.local.json.
 type hookEntry struct {
@@ -56,7 +64,7 @@ type SyncResult struct {
 	Message string
 }
 
-// Sync registers inline `fab hook <subcommand>` commands in settingsPath. Idempotent.
+// Sync registers inline `fab hook <subcommand>` commands in settingsPath (now registers nothing — the mapping table is empty). Idempotent.
 func Sync(settingsPath string) (*SyncResult, error) {
 	// Build desired hook entries from hardcoded mappings
 	type desiredEntry struct {

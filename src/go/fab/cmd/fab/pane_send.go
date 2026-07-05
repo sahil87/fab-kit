@@ -35,20 +35,20 @@ func runPaneSend(cmd *cobra.Command, args []string) error {
 		os.Exit(paneValidationExitCode(err))
 	}
 
-	// Step 2: Validate agent idle (unless --force)
+	// Step 2: Validate agent state (unless --force). Reads @rk_agent_state
+	// via the shared reader. Three known states plus unknown:
+	//   idle           → send.
+	//   active/waiting → refuse, three-state-aware (state name in message).
+	//   unknown        → refuse with a DISTINCT message pointing at --force
+	//                    (absent option / unparseable / non-Claude pane with
+	//                    no instrumented agent).
 	if !force {
 		ctx, err := pane.ResolvePaneContext(paneID, "", server)
 		if err != nil {
 			return fmt.Errorf("resolve context: %w", err)
 		}
-
-		state := "unknown"
-		if ctx.AgentState != nil {
-			state = *ctx.AgentState
-		}
-
-		if state != "idle" {
-			return fmt.Errorf("agent in pane %s is not idle (state: %s)", paneID, state)
+		if err := idleGate(paneID, ctx.AgentState); err != nil {
+			return err
 		}
 	}
 
@@ -69,6 +69,25 @@ func runPaneSend(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Fprintf(cmd.OutOrStdout(), "Sent to %s\n", paneID)
+	return nil
+}
+
+// idleGate is the pure decision half of the pane-send state gate: given the
+// resolved agent state (nil = unknown), it reports whether a send is allowed
+// and, when refused, carries the exact error contract. Extracted from
+// runPaneSend so the three-state gate is unit-testable without the cobra/tmux
+// plumbing — behavior is identical to the inline switch it replaced.
+//
+//	nil (unknown)        → distinct "unknown" refusal naming --force
+//	active / waiting     → "not idle (state: <state>)" refusal (three-state aware)
+//	idle                 → nil (send permitted)
+func idleGate(paneID string, agentState *string) error {
+	switch {
+	case agentState == nil:
+		return fmt.Errorf("agent state for pane %s is unknown (missing or unparseable %s) — use --force to send anyway", paneID, pane.AgentStateOption)
+	case *agentState != pane.AgentStateIdle:
+		return fmt.Errorf("agent in pane %s is not idle (state: %s)", paneID, *agentState)
+	}
 	return nil
 }
 

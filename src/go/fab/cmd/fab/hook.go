@@ -2,28 +2,11 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
-	"time"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/hooklib"
-	"github.com/sahil87/fab-kit/src/go/fab/internal/proc"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
-	"github.com/sahil87/fab-kit/src/go/fab/internal/runtime"
 	"github.com/spf13/cobra"
-)
-
-// gcInterval is the throttle window for the inline GC sweep folded into each
-// hook handler's runtime mutation (runtime.UpdateAgent). Matches the
-// 180-second value documented in the spec.
-const gcInterval = 180 * time.Second
-
-// envTmux is the environment variable name for the tmux socket path.
-// envTmuxPane is the environment variable name for the current pane ID.
-const (
-	envTmux     = "TMUX"
-	envTmuxPane = "TMUX_PANE"
 )
 
 func hookCmd() *cobra.Command {
@@ -43,131 +26,49 @@ func hookCmd() *cobra.Command {
 	return cmd
 }
 
-// parseTmuxServer extracts the basename of the $TMUX socket path. A $TMUX
-// value looks like "/tmp/tmux-1001/fabKit,8671,0" — we take the first
-// comma-separated component and return its basename ("fabKit"). Returns
-// empty when $TMUX is unset or malformed.
-func parseTmuxServer(tmuxEnv string) string {
-	if tmuxEnv == "" {
-		return ""
-	}
-	first := tmuxEnv
-	if idx := strings.Index(first, ","); idx >= 0 {
-		first = first[:idx]
-	}
-	if first == "" {
-		return ""
-	}
-	return filepath.Base(first)
-}
-
-// resolveClaudePID returns a pointer to Claude's PID resolved via the
-// platform-split grandparent walker, or nil on failure. Nil is preserved in
-// the serialized entry so GC does not attempt liveness checks on an absent
-// field.
-func resolveClaudePID() *int {
-	pid, err := proc.ClaudePID()
-	if err != nil || pid <= 0 {
-		return nil
-	}
-	return &pid
-}
-
-// resolveActiveChangeFolder returns the folder name of the active change, or
-// empty string if none is active. Swallows all errors — discussion-mode
-// agents MUST NOT fail the hook just because no change is set.
-func resolveActiveChangeFolder(fabRoot string) string {
-	folder, err := resolve.ToFolder(fabRoot, "")
-	if err != nil {
-		return ""
-	}
-	return folder
-}
-
-// buildAgentEntry assembles an AgentEntry from the current hook invocation
-// context. Only IdleSince is set by the caller (Stop uses now; others pass
-// nil). All other fields are pulled from the environment and the grandparent
-// walker — missing fields are omitted from the written record.
-func buildAgentEntry(fabRoot string, idleSince *int64, transcriptPath string) runtime.AgentEntry {
-	return runtime.AgentEntry{
-		Change:         resolveActiveChangeFolder(fabRoot),
-		IdleSince:      idleSince,
-		PID:            resolveClaudePID(),
-		TmuxServer:     parseTmuxServer(os.Getenv(envTmux)),
-		TmuxPane:       os.Getenv(envTmuxPane),
-		TranscriptPath: transcriptPath,
+// noOpHookShim builds a session-scoped hook handler that consumes nothing,
+// emits nothing, and exits 0. The three session-scoped hooks
+// (stop / user-prompt / session-start) used to WRITE `.fab-runtime.yaml`
+// `_agents` state, but fab no longer PRODUCES agent lifecycle state — it is a
+// pure consumer of the `@rk_agent_state` tmux pane-option convention written
+// by run-kit's `rk agent-setup` (see internal/pane and the pane readers). The
+// `_agents` write pipeline (WriteAgent/ClearAgent/ClearAgentIdle, the inline
+// GC sweep, the grandparent PID walker, and the internal/runtime +
+// internal/proc packages) was deleted wholesale.
+//
+// These handlers survive for ONE release as silent no-op shims for
+// un-migrated projects whose `.claude/settings.local.json` still registers
+// them as SessionStart/Stop/UserPromptSubmit entries. The silence matters: an
+// *unregistered* `fab hook <x>` subcommand exits 0 but prints cobra help to
+// stdout, which a still-registered hook entry would feed to Claude Code as
+// noisy non-JSON additionalContext. The shim emits nothing, avoiding that
+// until the 2.13.6-to-2.14.0 migration removes the settings entries and
+// `hooklib.Sync` stops registering them. This mirrors the `artifact-write`
+// removal precedent (y022, 2.10.1-to-2.11.0). Full subcommand removal is a
+// follow-up.
+func noOpHookShim(use, short string) *cobra.Command {
+	return &cobra.Command{
+		Use:    use,
+		Short:  short,
+		Args:   cobra.NoArgs,
+		Hidden: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// No-op: consume nothing, emit nothing, exit 0.
+			return nil
+		},
 	}
 }
 
 func hookSessionStartCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "session-start",
-		Short: "Delete agent entry on session start",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := hooklib.ParseSessionPayload(cmd.InOrStdin())
-			if err != nil || payload.SessionID == "" {
-				return nil // swallow
-			}
-
-			fabRoot, err := resolve.FabRoot()
-			if err != nil {
-				return nil // swallow
-			}
-
-			// Single merged call: entry clear + inline GC in one load/save.
-			_ = runtime.ClearAgent(fabRoot, payload.SessionID, gcInterval)
-			return nil
-		},
-	}
+	return noOpHookShim("session-start", "Deprecated no-op — agent-state production divested to run-kit's @rk_agent_state convention; shim kept for one release")
 }
 
 func hookStopCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "stop",
-		Short: "Record agent idle entry on stop",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := hooklib.ParseSessionPayload(cmd.InOrStdin())
-			if err != nil || payload.SessionID == "" {
-				return nil // swallow
-			}
-
-			fabRoot, err := resolve.FabRoot()
-			if err != nil {
-				return nil // swallow
-			}
-
-			now := time.Now().Unix()
-			entry := buildAgentEntry(fabRoot, &now, payload.TranscriptPath)
-			// Single merged call: entry write + inline GC in one load/save.
-			_ = runtime.WriteAgent(fabRoot, payload.SessionID, entry, gcInterval)
-			return nil
-		},
-	}
+	return noOpHookShim("stop", "Deprecated no-op — agent-state production divested to run-kit's @rk_agent_state convention; shim kept for one release")
 }
 
 func hookUserPromptCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "user-prompt",
-		Short: "Clear idle_since on user prompt, preserving other entry fields",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := hooklib.ParseSessionPayload(cmd.InOrStdin())
-			if err != nil || payload.SessionID == "" {
-				return nil // swallow
-			}
-
-			fabRoot, err := resolve.FabRoot()
-			if err != nil {
-				return nil // swallow
-			}
-
-			// Single merged call: idle clear + inline GC in one load/save.
-			_ = runtime.ClearAgentIdle(fabRoot, payload.SessionID, gcInterval)
-			return nil
-		},
-	}
+	return noOpHookShim("user-prompt", "Deprecated no-op — agent-state production divested to run-kit's @rk_agent_state convention; shim kept for one release")
 }
 
 // hookArtifactWriteCmd is a one-release no-op shim retained for un-migrated
@@ -186,22 +87,13 @@ func hookUserPromptCmd() *cobra.Command {
 // removes the settings entry. It carries no bookkeeping, no payload parse, and
 // no git staging (status/history are staged by /git-pr at ship, not here).
 func hookArtifactWriteCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:    "artifact-write",
-		Short:  "Deprecated no-op — bookkeeping moved to `fab status refresh`; hook registration removed by the 2.11.0 migration, shim kept for one release",
-		Args:   cobra.NoArgs,
-		Hidden: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			// No-op: consume nothing, emit nothing, exit 0.
-			return nil
-		},
-	}
+	return noOpHookShim("artifact-write", "Deprecated no-op — bookkeeping moved to `fab status refresh`; hook registration removed by the 2.11.0 migration, shim kept for one release")
 }
 
 func hookSyncCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "sync",
-		Short: "Register hook commands into .claude/settings.local.json",
+		Short: "Deprecated no-op — registers nothing and rewrites nothing; retained one release",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// All hook subcommands exit 0 so they never block agent flows.
