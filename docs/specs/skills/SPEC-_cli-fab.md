@@ -14,7 +14,7 @@ The partial is organized as one `##` section per command (or command group), plu
 
 | Section | Covers |
 |---------|--------|
-| Calling Convention | How fab commands are invoked (paths relative to repo root), exit-code/stderr contract, the best-effort vs. fail-fast distinction |
+| Calling Convention | How fab commands are invoked (paths relative to repo root), exit-code/stderr contract, the best-effort vs. fail-fast distinction. Documents the Workspace Command Exit Semantics, including the exception where `sync` and `fab-kit migrations-status` reserve a distinct exit `3` ("not a fab-managed repo", `internal.ExitNotManaged`, shared via `RequireManagedRepo()`) — separate from the generic exit `1` = failure, and holding unconditionally including outside any git repository (the managed-repo check is a `config.yaml` walk-up gated before git-root resolution, so `sync` is symmetric with the git-precondition-free `migrations-status`) — while `upgrade-repo` is unaffected and still exits `1` in that scenario |
 | fab change (extended subcommand details) | Lifecycle subcommands beyond the preamble headline (`new`, `switch`, `rename`, `list`, `archive`, `restore`, `resolve`) |
 | fab status (extended subcommand details) | State-machine subcommands beyond the headline (`finish`, `advance`, `start`, `reset`, `skip`, `fail`, `refresh`, `set-*`, `add-issue`, `add-pr`, …) and their state transitions. `refresh` recomputes artifact-derived fields from `intake.md`/`plan.md` (pull-based successor to the removed artifact-write hook), self-healed at `advance`/`finish`/`preflight` |
 | fab score (extended) | The confidence formula, the SRAD `.status.yaml` schema, `--check-gate` / `--stage` semantics, status-template details |
@@ -27,7 +27,7 @@ The partial is organized as one `##` section per command (or command group), plu
 | fab pane | Tmux pane operations (`map`, `--all-sessions`, `--json`) used by the operator |
 | fab dispatch | Headless, tmux-independent process manager (`start`/`status`/`logs`/`kill`/`clean`) — the CLI adapter for cross-harness stage dispatch. `start` launches the resolved tier's provider `dispatch_command` detached via `sh -c` with `setsid` semantics (state under `.fab-dispatch/{id}/`, refuse-if-running + last-attempt-only, `--timeout` in-wrapper); `status` reports five byte-stable states (`running`/`done`/`failed`/`failed (no-result)`/`orphaned`); cleanup is archive-time deletion + `fab dispatch clean` only (no auto-GC); POSIX-only v1. Contract: `docs/specs/harness-adapters.md` |
 | fab doctor | Prerequisite validation |
-| fab migrations-status | Which migrations apply between local and engine versions |
+| fab migrations-status | Which migrations apply between local and engine versions; exits `3` ("not a fab-managed repo", shared with `sync` via `RequireManagedRepo()`) when run outside a managed repo, distinct from the generic exit `1` = failure |
 | fab kit-path | Resolve the kit directory path (`$(fab kit-path)/templates/…`) |
 | fab shell-init | Emit the shell-completion script |
 | fab impact | Git diff line-count math (added/deleted/net) between two refs |

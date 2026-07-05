@@ -1,0 +1,14 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-05T15:44:31Z"}
+{"args":"fab sync: emit a distinguishable 'not a fab-managed repo' outcome (distinct documented exit code, or an --if-managed no-op flag) instead of generic exit 1","cmd":"fab-new","event":"command","ts":"2026-07-05T15:44:31Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-07-05T15:45:28Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-05T15:53:30Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-05T15:53:30Z"}
+{"event":"review","result":"failed","ts":"2026-07-05T16:04:35Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-05T16:04:35Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-05T16:09:51Z"}
+{"event":"review","result":"failed","ts":"2026-07-05T16:24:38Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-05T16:24:38Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-05T16:30:59Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-05T16:38:09Z"}
+{"event":"review","result":"passed","ts":"2026-07-05T16:38:09Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-05T16:43:45Z"}

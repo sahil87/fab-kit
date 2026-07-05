@@ -114,3 +114,65 @@ func TestReadFabVersion_InvalidYAML(t *testing.T) {
 		t.Fatal("expected error for invalid YAML")
 	}
 }
+
+// TestExitNotManaged pins the distinct "not a fab-managed repo" exit code that
+// external callers (wt, hop, operators) branch on. Changing it is a documented-
+// contract break — the constant, not the literal 3, is what docs and consumers
+// reference (mirrors the fab binary's TestTmuxExitCode / TestPaneValidationExitCode
+// exit-scheme pins).
+func TestExitNotManaged(t *testing.T) {
+	if ExitNotManaged != 3 {
+		t.Errorf("ExitNotManaged = %d, want 3 (documented not-a-fab-managed-repo exit code)", ExitNotManaged)
+	}
+}
+
+// TestRequireManagedRepo_Managed: inside a managed repo, RequireManagedRepo
+// returns the resolved config unchanged and never exits.
+func TestRequireManagedRepo_Managed(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "fab", "project")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte("fab_version: \"1.2.3\"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(root)
+
+	cfg, err := RequireManagedRepo()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("expected non-nil config in a managed repo")
+	}
+	if cfg.FabVersion != "1.2.3" {
+		t.Errorf("expected FabVersion 1.2.3, got %s", cfg.FabVersion)
+	}
+}
+
+// TestRequireManagedRepo_RealError: a genuine ResolveConfig failure (config
+// present but fab_version missing) is propagated as an error for the caller to
+// return — it collapses to exit 1 in main(), NOT the ExitNotManaged path. This
+// is the R2 guarantee that real failures stay exit 1. (The (nil, nil) unmanaged
+// case calls os.Exit and is therefore the untested thin wrapper, mirroring the
+// os.Exit branches in the fab binary's memory_index.go / doctor.go.)
+func TestRequireManagedRepo_RealError(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "fab", "project")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte("project:\n  name: test\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(root)
+
+	cfg, err := RequireManagedRepo()
+	if err == nil {
+		t.Fatal("expected a real error for a config missing fab_version (must stay exit-1 path, not ExitNotManaged)")
+	}
+	if cfg != nil {
+		t.Errorf("expected nil config on error, got %+v", cfg)
+	}
+}

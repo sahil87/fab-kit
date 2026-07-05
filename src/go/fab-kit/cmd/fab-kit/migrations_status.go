@@ -46,12 +46,9 @@ func migrationsStatusCmd() *cobra.Command {
 // only on a genuine failure (missing version file, unreadable migrations dir);
 // an overlap is a clean result surfaced via the overlaps field, not an error.
 func runMigrationsStatus(cmd *cobra.Command, asJSON bool) error {
-	cfg, err := internal.ResolveConfig()
+	cfg, err := internal.RequireManagedRepo()
 	if err != nil {
 		return err
-	}
-	if cfg == nil {
-		return fmt.Errorf("not in a fab-managed repo. Run 'fab init' to set one up")
 	}
 
 	// Local version: fab/.kit-migration-version.

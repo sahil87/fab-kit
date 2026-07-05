@@ -29,26 +29,32 @@ var runSync = Sync
 // version, not the kit version against itself).
 // shimOnly runs steps 1-5 only; projectOnly runs step 6 only.
 func Sync(systemVersion, kitVersion string, shimOnly, projectOnly bool) error {
-	// Resolve repo root via git
+	// Resolve the kit version from config.yaml unless the caller provided it.
+	// The managed-repo check is a fab/project/config.yaml walk-up that does not
+	// depend on git, so it MUST gate before gitRepoRoot(): a directory that is
+	// neither git-tracked nor fab-managed exits with ExitNotManaged (3), the
+	// distinguishable "not a fab-managed repo" signal, rather than collapsing to
+	// the git-root-resolution error's generic exit 1. This keeps `fab sync`
+	// symmetric with `fab-kit migrations-status`, which has no git precondition
+	// and already exits 3 in the same directory. Init/Upgrade pass kitVersion
+	// explicitly (config.yaml is not yet stamped), so they skip this check.
+	fabVersion := kitVersion
+	if fabVersion == "" {
+		cfg, err := RequireManagedRepo()
+		if err != nil {
+			return err
+		}
+		fabVersion = cfg.FabVersion
+	}
+
+	// Resolve repo root via git. A managed repo without git context fails here
+	// with a genuine error → exit 1 (R2: real failures are unchanged).
 	repoRoot, err := gitRepoRoot()
 	if err != nil {
 		return fmt.Errorf("cannot determine repo root: %w", err)
 	}
 
 	fabDir := filepath.Join(repoRoot, "fab")
-
-	// Resolve the kit version from config.yaml unless the caller provided it
-	fabVersion := kitVersion
-	if fabVersion == "" {
-		cfg, err := ResolveConfig()
-		if err != nil {
-			return err
-		}
-		if cfg == nil {
-			return fmt.Errorf("not in a fab-managed repo. Run 'fab init' to set one up")
-		}
-		fabVersion = cfg.FabVersion
-	}
 
 	// Collected (non-aborting) deployment failure — sync continues its
 	// remaining repair steps but MUST exit non-zero at the end.
