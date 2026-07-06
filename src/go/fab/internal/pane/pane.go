@@ -13,17 +13,28 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
 	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
-	"gopkg.in/yaml.v3"
 )
 
-// Runtime schema keys — kept in sync with the canonical definitions in the
-// runtime package. Duplicating the constants here avoids a circular import
-// (runtime → pane would be circular).
+// AgentStateOption is the tmux pane user option that carries an agent's
+// lifecycle state, written by run-kit's `rk agent-setup` global agent-harness
+// hooks and read by the fab pane commands. Its value is
+// "<state>:<epoch_seconds>" where state is one of the AgentState* constants
+// below. fab is a pure CONSUMER of this convention — it never writes the
+// option (run-kit owns the schema); it reads it with plain tmux commands, so
+// there is no dependency on run-kit software being installed.
+const AgentStateOption = "@rk_agent_state"
+
+// Agent lifecycle states carried by AgentStateOption:
+//   - active  — turn in progress
+//   - waiting — blocked on a human (permission prompt / menu / elicitation)
+//   - idle    — turn complete
+//
+// An absent option, an unknown token, or a value without a parseable epoch
+// suffix is treated as unknown (no state).
 const (
-	agentsKey    = "_agents"
-	idleSinceKey = "idle_since"
-	tmuxPaneKey  = "tmux_pane"
-	tmuxSrvKey   = "tmux_server"
+	AgentStateActive  = "active"
+	AgentStateWaiting = "waiting"
+	AgentStateIdle    = "idle"
 )
 
 // WithServer prepends "-L <server>" to a tmux argument list when server is
@@ -174,12 +185,15 @@ func GetPanePID(paneID, server string) (int, error) {
 // mainRoot is the main worktree root used for computing relative display paths.
 // Pass "" if unknown — WorktreeDisplay will fall back to filepath.Base.
 // If server is non-empty, the tmux invocation is scoped to that server via
-// `-L <server>`; file reads, git-worktree detection, and runtime-file lookups
-// are independent of the tmux server.
+// `-L <server>`; file reads and git-worktree detection are independent of the
+// tmux server.
 //
-// Agent-state resolution is independent of whether a change is active — a
-// pane with a running Claude in "discussion mode" (no change) will still
-// populate AgentState if a matching `_agents` entry exists.
+// Agent-state resolution is independent of whether a change is active — a pane
+// running any instrumented agent in "discussion mode" (no change), a git repo
+// without a fab/ directory, or a non-git directory still populates AgentState
+// when the pane carries the @rk_agent_state option. It is resolved before the
+// git/fab early returns for exactly that reason (see the resolution block), so
+// send/map/capture agree on every pane class.
 func ResolvePaneContext(paneID, mainRoot, server string) (*PaneContext, error) {
 	// Get pane CWD
 	out, err := exec.Command("tmux", WithServer(server, "display-message", "-t", paneID, "-p", "#{pane_current_path}")...).Output()
@@ -191,6 +205,26 @@ func ResolvePaneContext(paneID, mainRoot, server string) (*PaneContext, error) {
 	ctx := &PaneContext{
 		Pane: paneID,
 		CWD:  cwd,
+	}
+
+	// Agent resolution — the AGENT axis is fully independent of the CHANGE
+	// axis, so it MUST be resolved BEFORE the not-a-git-repo / no-fab-dir
+	// early returns below. Otherwise a non-fab pane carrying @rk_agent_state
+	// would resolve to unknown here while `pane map` (which reads the option
+	// off every pane's list-panes row) shows its real state — the two readers
+	// would disagree, and `pane send` would refuse (as unknown) a pane the map
+	// reports as idle. Reading the option first keeps all three readers
+	// (send/map/capture) in agreement for every pane class: non-git, git but
+	// no fab/, and fab. Reads the @rk_agent_state pane option (written by
+	// run-kit's rk agent-setup), so discussion-mode panes and non-Claude
+	// agents (codex/copilot/gemini) are covered uniformly; an absent or
+	// unparseable option leaves AgentState nil (unknown).
+	state, idleDur := AgentDisplayFromOption(ReadAgentStateOption(paneID, server))
+	if state != "" {
+		ctx.AgentState = &state
+	}
+	if idleDur != "" {
+		ctx.AgentIdleDuration = &idleDur
 	}
 
 	// Resolve git worktree root
@@ -223,16 +257,6 @@ func ResolvePaneContext(paneID, mainRoot, server string) (*PaneContext, error) {
 			stage, _ := status.DisplayStage(statusFile)
 			ctx.Stage = &stage
 		}
-	}
-
-	// Agent resolution — independent of whether a change is active. Runs
-	// regardless of folderName so discussion-mode panes get populated.
-	state, idleDur := ResolveAgentState(wtRoot, paneID, server)
-	if state != "" {
-		ctx.AgentState = &state
-	}
-	if idleDur != "" {
-		ctx.AgentIdleDuration = &idleDur
 	}
 
 	return ctx, nil
@@ -296,180 +320,87 @@ func ReadFabCurrent(wtRoot string) (string, string) {
 	return folderName, folderName
 }
 
-// findAgentByPane scans the given `_agents` map for an entry matching
-// paneID (exact `tmux_pane` equality) AND tmux_server (if the entry has a
-// non-empty tmux_server, it must equal server; an entry with empty
-// tmux_server matches any server). Returns the matching entry map and true
-// on hit; nil, false otherwise.
-//
-// When multiple entries match, preference goes to: (1) an active entry (no
-// `idle_since`), then (2) the most recently idle entry (largest idle_since).
-// This gives "active agent here" priority over stale idle entries for the
-// same pane — matching the pane-map semantics in the spec.
-func findAgentByPane(rtData map[string]interface{}, paneID, server string) (map[string]interface{}, bool) {
-	agents, ok := rtData[agentsKey].(map[string]interface{})
-	if !ok {
-		return nil, false
+// parseAgentState parses the raw value of the @rk_agent_state pane option
+// ("<state>:<epoch_seconds>") into its state token and epoch. It returns
+// ok=false when the raw value is empty, has no ":epoch" suffix, carries a
+// non-integer epoch, or names a state token outside {active, waiting, idle}
+// — every "unknown" case collapses to ok=false so callers render a single
+// unknown sentinel. Pure (no tmux), so the grammar is unit-testable without
+// a tmux server.
+func parseAgentState(raw string) (state string, epoch int64, ok bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", 0, false
 	}
-
-	var activeMatch map[string]interface{}
-	var idleMatch map[string]interface{}
-	var idleMatchTs int64
-
-	for _, raw := range agents {
-		entry, ok := raw.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		entryPane, _ := entry[tmuxPaneKey].(string)
-		if entryPane != paneID {
-			continue
-		}
-		entrySrv, _ := entry[tmuxSrvKey].(string)
-		if entrySrv != "" && server != "" && entrySrv != server {
-			continue
-		}
-		// Entry matches — determine if active or idle.
-		if _, hasIdle := entry[idleSinceKey]; !hasIdle {
-			// Active entry wins immediately.
-			if activeMatch == nil {
-				activeMatch = entry
-			}
-			continue
-		}
-		// Idle entry — keep the most recent idle_since for disambiguation.
-		ts, _ := asInt64(entry[idleSinceKey])
-		if idleMatch == nil || ts > idleMatchTs {
-			idleMatch = entry
-			idleMatchTs = ts
-		}
+	idx := strings.LastIndex(raw, ":")
+	if idx < 0 {
+		return "", 0, false
 	}
-
-	if activeMatch != nil {
-		return activeMatch, true
+	state = raw[:idx]
+	switch state {
+	case AgentStateActive, AgentStateWaiting, AgentStateIdle:
+	default:
+		return "", 0, false
 	}
-	if idleMatch != nil {
-		return idleMatch, true
+	epoch, err := strconv.ParseInt(raw[idx+1:], 10, 64)
+	if err != nil {
+		return "", 0, false
 	}
-	return nil, false
+	return state, epoch, true
 }
 
-// ResolveAgentState determines the agent state and idle duration for a
-// pane by matching `_agents[*].tmux_pane` to paneID. Returns (state,
-// idleDuration). state is "active" or "idle". idleDuration is non-empty
-// only when state is "idle". Returns ("", "") when no entry matches.
-//
-// The pane-keyed resolution is independent of the active change — a pane
-// in discussion mode still returns "idle"/"active" when an entry matches,
-// enabling pane-map visibility for pre-intake work.
-func ResolveAgentState(wtRoot, paneID, server string) (string, string) {
-	if paneID == "" {
-		return "", ""
-	}
-
-	rtPath := filepath.Join(wtRoot, ".fab-runtime.yaml")
-	rtData, err := LoadRuntimeFile(rtPath)
-	if err != nil {
-		// Missing file or parse error — no match, no state.
-		return "", ""
-	}
-
-	entry, ok := findAgentByPane(rtData, paneID, server)
+// AgentDisplayFromOption converts a raw @rk_agent_state option value into a
+// display state and (for idle only) an idle-duration string. It returns
+// ("", "") for the unknown case (unparseable / absent / unknown token), which
+// callers map to the em-dash / JSON-null sentinel. Only the idle state
+// carries a duration — active/waiting describe an in-progress state with no
+// meaningful "idle for" measure, mirroring the pre-divestment active-has-no-
+// duration semantics.
+func AgentDisplayFromOption(raw string) (state, idleDuration string) {
+	st, epoch, ok := parseAgentState(raw)
 	if !ok {
 		return "", ""
 	}
-
-	idleVal, hasIdle := entry[idleSinceKey]
-	if !hasIdle {
-		return "active", ""
+	if st != AgentStateIdle {
+		return st, ""
 	}
-	ts, ok := asInt64(idleVal)
-	if !ok {
-		return "active", ""
-	}
-	elapsed := time.Now().Unix() - ts
+	elapsed := time.Now().Unix() - epoch
 	if elapsed < 0 {
 		elapsed = 0
 	}
-	return "idle", FormatIdleDuration(elapsed)
+	return AgentStateIdle, FormatIdleDuration(elapsed)
 }
 
-// ResolveAgentStateWithCache is the pane-map variant of ResolveAgentState
-// that uses a per-worktree cache to avoid re-reading .fab-runtime.yaml for
-// multiple panes in the same worktree. Returns the combined display string
-// used by pane map (e.g., "active", "idle (2m)", em dash for no match).
-func ResolveAgentStateWithCache(wtRoot, paneID, server string, cache map[string]interface{}) string {
-	emDash := "\u2014"
+// ReadAgentStateOption reads the raw @rk_agent_state pane user option for a
+// single pane via `tmux [-L <server>] show-options -pv -t <pane>
+// @rk_agent_state`. The `-v` flag returns the bare value when the option is
+// SET. An *unset* option is not an empty-stdout success: on tmux 3.6a
+// `show-options -pv` for a missing option exits 1 with an error on stderr and
+// no stdout — so the common "no state written for this pane" case surfaces as
+// a non-zero exit, handled by the error branch below (which also absorbs a
+// missing pane or dead server). The error branch therefore exists to map ALL
+// of these — unset option, missing pane, dead server — to the unknown state:
+// send/capture validate pane existence separately, so an option-read failure
+// degrades to unknown rather than erroring out.
+// If server is non-empty, the invocation is scoped via `-L <server>`.
+//
+// An empty paneID returns "" (unknown) without touching tmux: `show-options
+// -pv -t ""` would silently target the client's CURRENT pane, reading a
+// wrong-pane state rather than failing — so the empty case is refused up front.
+func ReadAgentStateOption(paneID, server string) string {
 	if paneID == "" {
-		return emDash
+		return ""
 	}
-
-	rtData, ok := loadRuntimeForCache(wtRoot, cache)
-	if !ok {
-		return emDash
-	}
-
-	entry, ok := findAgentByPane(rtData, paneID, server)
-	if !ok {
-		return emDash
-	}
-
-	idleVal, hasIdle := entry[idleSinceKey]
-	if !hasIdle {
-		return "active"
-	}
-	ts, ok := asInt64(idleVal)
-	if !ok {
-		return "active"
-	}
-	elapsed := time.Now().Unix() - ts
-	if elapsed < 0 {
-		elapsed = 0
-	}
-	return fmt.Sprintf("idle (%s)", FormatIdleDuration(elapsed))
-}
-
-// loadRuntimeForCache returns the parsed runtime map for wtRoot, using and
-// populating the shared cache. Returns (data, true) on a successful read,
-// (nil, false) when the file is missing or unreadable — the cache records
-// nil in either case to avoid retries.
-func loadRuntimeForCache(wtRoot string, cache map[string]interface{}) (map[string]interface{}, bool) {
-	if cached, present := cache[wtRoot]; present {
-		if m, ok := cached.(map[string]interface{}); ok {
-			return m, true
-		}
-		return nil, false
-	}
-
-	rtPath := filepath.Join(wtRoot, ".fab-runtime.yaml")
-	loaded, err := LoadRuntimeFile(rtPath)
+	out, _, err := RunCmd("tmux", WithServer(server, "show-options", "-pv", "-t", paneID, AgentStateOption)...)
 	if err != nil {
-		cache[wtRoot] = nil
-		return nil, false
+		return ""
 	}
-	cache[wtRoot] = loaded
-	return loaded, true
-}
-
-// LoadRuntimeFile reads and parses .fab-runtime.yaml.
-// Returns an error if the file doesn't exist.
-func LoadRuntimeFile(path string) (map[string]interface{}, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var m map[string]interface{}
-	if err := yaml.Unmarshal(data, &m); err != nil {
-		return nil, fmt.Errorf("parsing %s: %w", path, err)
-	}
-	if m == nil {
-		m = make(map[string]interface{})
-	}
-	return m, nil
+	return strings.TrimSpace(out)
 }
 
 // FormatIdleDuration formats elapsed seconds into a human-readable duration.
-// Uses floor division: <60s -> Ns, 60s-3599s -> Nm, >=3600s -> Nh.
+// Uses floor division: <60s -> Ns, 60s-3599s -> Nm, >=3600s -> Nh. Formats
+// the epoch-derived idle durations of the @rk_agent_state readers.
 func FormatIdleDuration(seconds int64) string {
 	if seconds < 60 {
 		return fmt.Sprintf("%ds", seconds)
@@ -478,19 +409,4 @@ func FormatIdleDuration(seconds int64) string {
 		return fmt.Sprintf("%dm", seconds/60)
 	}
 	return fmt.Sprintf("%dh", seconds/3600)
-}
-
-// asInt64 coerces a YAML-decoded numeric value to int64. Returns ok=false
-// when the value is missing or of an unexpected type.
-func asInt64(v interface{}) (int64, bool) {
-	switch n := v.(type) {
-	case int:
-		return int64(n), true
-	case int64:
-		return n, true
-	case float64:
-		return int64(n), true
-	default:
-		return 0, false
-	}
 }

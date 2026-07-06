@@ -77,7 +77,7 @@ Error: operator requires tmux. Start a tmux session first.
 1. Read the server-keyed operator state file (`$XDG_STATE_HOME/fab/operator/<server-slug>.yaml`, fallback `~/.local/state/...`; the binary derives the path via `fab operator tick-start` — the operator does not compute it). If missing, it is created with empty `monitored: {}`, `autopilot: null`, and `branch_map: {}`. Old repo-rooted `.fab-operator.yaml` files are not read or migrated
 2. Restore monitored set, autopilot queue, and branch_map from the file (supports `/clear` recovery)
 3. Run `fab pane map --all-sessions` and display the output (all sessions on this server, not just the operator's own)
-4. If any tracked items exist (monitored changes, active autopilot, or watches), start the loop at the cadence the current state warrants (§4 Adaptive cadence): `/loop 90s "operator tick"` if any restored agent is already menu-waiting, else `/loop 3m "operator tick"`
+4. If any tracked items exist (monitored changes, active autopilot, or watches), start the loop at the cadence the current state warrants (§4 Adaptive cadence): `/loop 90s "operator tick"` if any restored agent is `waiting` (or menu-waiting), else `/loop 3m "operator tick"`
 5. Output: `Operator ready.` (+ `Loop active ({interval}).` if loop started)
 
 ---
@@ -97,7 +97,7 @@ Error: operator requires tmux. Start a tmux session first.
 Before sending keys to any pane:
 
 1. **Verify pane exists** — refresh pane map. If gone: "Pane for {change} is gone." Do not send.
-2. **Check agent is idle** — if busy: "{change} is active. Sending may corrupt its work. Send anyway?" Only on explicit confirmation.
+2. **Check the agent is idle** — the Agent column is three-state now (`active` / `waiting` / `idle`) plus `—` unknown. Only `idle` is safe to send to unattended. If `active` or `waiting`: "{change} is {state}. Sending may corrupt its work / cut across a pending human answer. Send anyway?" — send only on explicit confirmation. If unknown (`—`, no `@rk_agent_state` on the pane): the agent isn't instrumented; confirm before sending (fab's own `fab pane send` refuses unknown without `--force`). This gate mirrors `fab pane send`'s three-state semantics (`_cli-fab.md` § fab pane → § agent state).
 3. **Check change is active** — if the target change isn't the active change in that tab, send `/fab-switch <change>` first.
 4. **Check branch alignment** — if the tab's git branch doesn't match the change folder name, send `/git-branch` to align it.
 
@@ -126,10 +126,10 @@ When `fab resolve` fails during a **user-initiated** action (not monitoring tick
 
 The loop is the operator's heartbeat — a `/loop "operator tick"` that runs as long as the monitored set is non-empty, an autopilot queue is active, or any watch is configured. When all three are empty, stop the loop. The loop starts when the first change is enrolled, an autopilot queue begins, or a watch is created. A user prompt can also restart it.
 
-**Adaptive cadence.** The heartbeat interval is **not fixed** — it adapts to whether any monitored agent is waiting on an interactive menu:
+**Adaptive cadence.** The heartbeat interval is **not fixed** — it adapts to whether any monitored agent is `waiting` (blocked on a human):
 
-- **Normal cadence: `3m`** (the default). Used when no monitored agent is input-waiting.
-- **Tightened cadence: `90s`** (§8, overridable). The moment a tick detects **any** monitored agent sitting on an interactive menu (input-waiting per §5 Question Detection), the operator tightens the heartbeat to bound worst-case detection/pickup latency. When a later tick finds no monitored agent menu-waiting, it relaxes back to `3m`.
+- **Normal cadence: `3m`** (the default). Used when no monitored agent is `waiting` (or input-waiting).
+- **Tightened cadence: `90s`** (§8, overridable). The moment a tick detects **any** monitored agent in the **`waiting`** Agent-column state (the pane's `@rk_agent_state` is `waiting` — the agent is blocked on a permission prompt / menu / elicitation), the operator tightens the heartbeat to bound worst-case detection/pickup latency. `waiting` is the primary, event-driven trigger — it makes menu/permission-blocked agents visible directly, where the old capture-based §5 menu detection remains a fallback for uninstrumented panes (`—`). When a later tick finds no monitored agent `waiting` (or menu-waiting), it relaxes back to `3m`.
 - **One-loop invariant preserved.** Adapting cadence means **re-establishing the single loop at the new interval** (e.g. restart `/loop 90s "operator tick"`), never running two loops concurrently (`_cli-external.md` § /loop — "one loop at a time"). The operator changes the interval of *the* loop; it does not add a second.
 - **Autopilot composes unchanged.** When an autopilot queue is driving, autopilot's own cadence (default `2m`, `_cli-external.md`) governs the loop; the menu-tightening applies to the monitoring loop's `3m`/`90s` band, not autopilot's `2m`.
 
@@ -214,12 +214,12 @@ On each tick:
 
 1. **Snapshot** — run `fab operator tick-start` (increments `tick_count`, writes `last_tick_at`, outputs `tick: N` and `now: HH:MM`). Parse stdout for the tick number and current time. Then run `fab pane map --all-sessions --json` (flag/field semantics — `--all-sessions`, the per-row `repo` and nullable `display_state` fields — in `_cli-fab.md` § fab pane map) and read the server-keyed state file. **Group the rows first by `repo`, then by `session`** within each repo. Compute status for all tracked items: stage advances, completions, review failures, pane deaths, and watch statuses from the last persisted check (`last_checked` / `last_error` / last counts). Output the status frame — see **Status Frame Format** below.
 
-2. **Auto-nudge** — for each idle agent, run question detection (§5). (No post-intake `/git-branch` nudge — `/fab-new` Step 11 creates or renames the branch inline; only a detected branch/change mismatch warrants a `/git-branch` send, per §3 pre-send validation item 4.)
+2. **Auto-nudge** — for each `waiting` agent (and each idle agent as fallback), run question detection (§5 — `waiting` is the primary signal). (No post-intake `/git-branch` nudge — `/fab-new` Step 11 creates or renames the branch inline; only a detected branch/change mismatch warrants a `/git-branch` send, per §3 pre-send validation item 4.)
 3. **Watches** — for each watch, query the source, compare against `known` + `completed` (§7 step 2's dedupe rule), spawn on new matches (§7).
 4. **Autopilot dispatch** — if an autopilot queue is active, run the next autopilot action (§6). Autopilot-driven changes are visible in the frame via `▶`.
 5. **Removals** — remove completed changes (reached stop stage or terminal stage) and dead panes from the monitored set.
 6. **Persist** — write updated state to the operator state file
-7. **Loop lifecycle** — if monitored set is empty, no autopilot, and no watches, stop the loop. Otherwise **adapt the cadence** (§4 Adaptive cadence): if any monitored agent was detected menu-waiting this tick (step 2) and the loop is not already at the tightened interval, re-establish the single loop at `90s` (§8); if no monitored agent is menu-waiting and the loop is tightened, relax it back to `3m`. Re-establishing the loop replaces the interval of the one loop — it never starts a second (`_cli-external.md` § /loop). Autopilot's own cadence governs when a queue is driving (§6).
+7. **Loop lifecycle** — if monitored set is empty, no autopilot, and no watches, stop the loop. Otherwise **adapt the cadence** (§4 Adaptive cadence): if any monitored agent is `waiting` (or was detected menu-waiting this tick, step 2) and the loop is not already at the tightened interval, re-establish the single loop at `90s` (§8); if none is `waiting`/menu-waiting and the loop is tightened, relax it back to `3m`. Re-establishing the loop replaces the interval of the one loop — it never starts a second (`_cli-external.md` § /loop). Autopilot's own cadence governs when a queue is driving (§6).
 
 Actions (nudges, removals, autopilot progress) render as an *italic* footnote line below the frame as they happen, `·`-separated, keeping them visually subordinate to the table frame:
 
@@ -289,7 +289,7 @@ Example (this is the literal markdown the operator emits, shown fenced here only
 | State | Change | Watch | Emoji |
 |-------|--------|-------|:-----:|
 | active / healthy | active | last query ok, no new items | 🟢 |
-| idle / new-items | idle | has new unprocessed items | 🟡 |
+| waiting / idle / new-items | `waiting` (blocked on a human) or idle | has new unprocessed items | 🟡 |
 | stuck / errored | >15m idle at non-terminal | `last_error` set | 🔴 |
 | complete | reached terminal/stop stage | — | ✅ |
 | paused | — | `enabled: false` | ⚪ |
@@ -316,7 +316,9 @@ Run `fab operator time --interval {interval}` (where `{interval}` is the **curre
 
 ## 5. Auto-Nudge
 
-The operator auto-answers routine prompts from monitored agents. Each idle agent is checked every tick.
+The operator auto-answers routine prompts from monitored agents. The per-tick question-detection population (tick step 2) is each `waiting` agent (the primary signal — see below) plus, as a fallback, each idle agent. The capture-based patterns below **remain applicable** to `active`/unknown (`—`) panes — an uninstrumented harness, or a mid-turn prompt not yet flipped to `waiting` — but those panes are **not swept every tick**; the per-tick sweep is `waiting`+idle only.
+
+**The `waiting` Agent-column state is the primary signal.** When a monitored pane's `@rk_agent_state` is `waiting`, the agent is blocked on a human (permission prompt / menu / elicitation) — this is event-driven and covers all instrumented harnesses (Claude/codex/copilot/gemini), so it is the first-class trigger for both the tightened cadence (§4) and question detection here. A `waiting` pane MUST be capture-scanned and run through the answer model, with each **idle** pane as the per-tick fallback (the population stated above).
 
 ### Question Detection
 
@@ -679,7 +681,7 @@ The isolation unit is the **tmux server**. There is exactly **one operator per t
 |---------|---------|------------------------------|
 | Loop interval | 3m | "check every {N}m" |
 | Stuck threshold | 15m | "flag agents stuck for more than {N}m" |
-| Menu-detected heartbeat | 90s | "tighten to {N}s when an agent is on a menu" |
+| Waiting/menu heartbeat | 90s | "tighten to {N}s when an agent is on a menu" |
 | Notify channel | `rk` (run-kit Web Push; auto-fallback when `rk` absent) | "notify via ntfy topic {topic}" / "notify via discord {url}" / "notify via push" |
 
 Session-scoped — resets on `/clear` or session restart. The §4 operator state-file schema is **unchanged** (these are session settings, consistent with the loop-interval / stuck-threshold rows). The **strategic auto-default threshold stays hardcoded at 30m** (§5) — there is deliberately **no** setting for it.
@@ -701,6 +703,6 @@ Session-scoped — resets on `/clear` or session restart. The §4 operator state
 | Requires a git repo? | No — `fab operator` opens its window in the repo root inside a repo, else `os.Getwd()` (neutral parent dir). Errors only if both fail |
 | Requires a `fab/` project? | No — session command comes from the project's `providers.claude.session_command` when `fab/` is resolvable, else `spawn.DefaultSpawnCommand` (the template `claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}`). No project `providers`/`agent.tiers` is read on a `fab/`-less launch |
 | Coordinating-agent model | Operator tier — `fab operator` resolves the `operator` tier (`agent.ResolveTier`), reads its provider's `session_command`, injects the profile via `spawn.WithProfile` (**substitutes** into a `{model}`/`{effort}` template — the built-in claude default is templated — or **appends** `--model`/`--effort` to a plain command carrying no placeholder); falls back to the built-in operator tier + built-in claude provider on any failure (incl. no resolvable `fab/` project) |
-| Uses `/loop`? | Yes — adaptive heartbeat: `3m` normally, tightens to `90s` (§8) when any monitored agent is menu-waiting, relaxes back to `3m`; one loop at a time |
+| Uses `/loop`? | Yes — adaptive heartbeat: `3m` normally, tightens to `90s` (§8) when any monitored agent is `waiting` (`@rk_agent_state`) or menu-waiting (capture fallback), relaxes back to `3m`; one loop at a time |
 | Uses the operator state file? | Yes — monitored set + autopilot queue + branch map persistence. **Server-keyed**, not repo-rooted: `$XDG_STATE_HOME/fab/operator/<server-slug>.yaml` (fallback `~/.local/state/fab/operator/<server-slug>.yaml`), keyed by the tmux socket path. The binary derives the path; old repo-rooted files are not migrated |
 | Multi-repo / multi-session? | Yes — one operator per tmux server spans all its sessions and repos via the `(session, repo, pane)` addressing tuple |

@@ -10,7 +10,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/spf13/cobra"
 )
@@ -402,25 +404,205 @@ func TestParsePaneLines(t *testing.T) {
 			t.Errorf("index = %d, want 0 for non-numeric input", panes[0].index)
 		}
 	})
+
+	t.Run("sixth field carries the agent-state option", func(t *testing.T) {
+		input := "%3\talpha\t/home/user/repo\trunK\t2\tidle:1751800000\n"
+		panes, err := parsePaneLines(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(panes) != 1 {
+			t.Fatalf("expected 1 pane, got %d", len(panes))
+		}
+		if panes[0].agentState != "idle:1751800000" {
+			t.Errorf("agentState = %q, want idle:1751800000", panes[0].agentState)
+		}
+	})
+
+	t.Run("trailing empty agent-state field is preserved (unset option)", func(t *testing.T) {
+		// tmux emits the sixth field even when @rk_agent_state is unset,
+		// leaving the line ending in a tab. Newline-only trimming must NOT
+		// eat that trailing empty field — the pane is still parsed with an
+		// empty agentState.
+		input := "%3\talpha\t/home/user/repo\trunK\t2\t\n"
+		panes, err := parsePaneLines(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(panes) != 1 {
+			t.Fatalf("expected 1 pane, got %d", len(panes))
+		}
+		if panes[0].id != "%3" {
+			t.Errorf("id = %q, want %%3", panes[0].id)
+		}
+		if panes[0].agentState != "" {
+			t.Errorf("agentState = %q, want empty for unset option", panes[0].agentState)
+		}
+	})
 }
 
-func TestSplitAgentState(t *testing.T) {
+func TestAgentColumn(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{"active", "active:1751800000", "active"},
+		{"waiting", "waiting:1751800000", "waiting"},
+		{"unset option → em dash", "", "—"},
+		{"unparseable → em dash", "idle:notanum", "—"},
+		{"unknown token → em dash", "bogus:1", "—"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := agentColumn(tc.raw); got != tc.want {
+				t.Errorf("agentColumn(%q) = %q, want %q", tc.raw, got, tc.want)
+			}
+		})
+	}
+
+	t.Run("idle renders with a duration", func(t *testing.T) {
+		epoch := time.Now().Unix() - 300 // ~5m ago
+		got := agentColumn("idle:" + strconv.FormatInt(epoch, 10))
+		if !strings.HasPrefix(got, "idle (") || !strings.HasSuffix(got, ")") {
+			t.Errorf("agentColumn(idle:...) = %q, want idle (<dur>) form", got)
+		}
+	})
+}
+
+// TestMapSendAgentAgreement_NonFabPane pins the invariant that ALL three
+// readers (pane map's resolvePane, and pane send/capture's ResolvePaneContext)
+// resolve the SAME agent state for a non-fab pane carrying @rk_agent_state.
+// The regression it guards: before the rework, resolvePane's non-git branch
+// hardcoded the em-dash while ResolvePaneContext read the option before its
+// git/fab early returns — so `pane map` could show `idle (…)` for a pane
+// `pane send` refused as unknown (and vice versa). Both readers now feed the
+// same parseAgentState grammar, so the agent column and the send-gate state
+// must agree for every raw option value.
+func TestMapSendAgentAgreement_NonFabPane(t *testing.T) {
+	// A non-git pane cwd — no worktree root, no fab/ dir. This is the class the
+	// old resolvePane branch hardcoded to em-dash.
+	nonGitCWD := t.TempDir()
+
+	idleRaw := "idle:" + strconv.FormatInt(time.Now().Unix()-300, 10)
+	cases := []string{
+		"active:1751800000",
+		"waiting:1751800000",
+		idleRaw,
+		"",                // unset → unknown
+		"bogus:1",         // unknown token → unknown
+		"idle:notanumber", // unparseable epoch → unknown
+	}
+
+	for _, raw := range cases {
+		t.Run("raw="+strconv.Quote(raw), func(t *testing.T) {
+			// MAP path: resolvePane's non-git branch (wtRoot == "").
+			p := paneEntry{id: "%9", tab: "scratch", cwd: nonGitCWD, session: "dev", agentState: raw}
+			row, ok := resolvePane(p, "", "")
+			if !ok {
+				t.Fatal("resolvePane returned ok=false")
+			}
+			// The map path now carries the RAW option through paneRow.agentOption
+			// (the JSON source of truth) — it must equal the value the pane holds.
+			if row.agentOption != raw {
+				t.Errorf("agentOption not threaded through: got %q, want %q", row.agentOption, raw)
+			}
+			mapState, mapDur := pane.AgentDisplayFromOption(row.agentOption)
+
+			// SEND/CAPTURE path: the shared display helper both consume via
+			// ResolvePaneContext. (ResolvePaneContext's own tmux read is covered
+			// by TestReadAgentStateOption_Integration in internal/pane; here we
+			// assert the two readers agree on the SAME raw value, which is the
+			// invariant the rework restored.)
+			sendState, sendDur := pane.AgentDisplayFromOption(raw)
+
+			if mapState != sendState {
+				t.Errorf("state disagreement for %q: map=%q send=%q", raw, mapState, sendState)
+			}
+			if mapDur != sendDur {
+				t.Errorf("duration disagreement for %q: map=%q send=%q", raw, mapDur, sendDur)
+			}
+		})
+	}
+}
+
+// TestMapSendAgentAgreement_Integration drives BOTH readers against a real
+// tmux pane whose cwd is a NON-FAB (non-git) directory, simulating the writer
+// via `tmux set-option -p`. It proves the map column (resolvePane) and the
+// send-gate state (ResolvePaneContext) agree end-to-end for a non-fab pane —
+// the exact cross-reader divergence the rework fixed. Skipped when tmux is
+// unavailable.
+func TestMapSendAgentAgreement_Integration(t *testing.T) {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not available")
+	}
+
+	nonGitCWD := t.TempDir() // pane cwd with no git repo / no fab dir
+
+	server := "fabtest-agree-" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	tmux := func(args ...string) (string, error) {
+		out, err := exec.Command("tmux", append([]string{"-L", server}, args...)...).CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+	if out, err := tmux("new-session", "-d", "-s", "s", "-x", "80", "-y", "24", "-c", nonGitCWD); err != nil {
+		t.Skipf("could not start tmux server (%v): %s", err, out)
+	}
+	t.Cleanup(func() { _, _ = tmux("kill-server") })
+
+	paneID, err := tmux("display-message", "-p", "-t", "s", "#{pane_id}")
+	if err != nil || paneID == "" {
+		t.Fatalf("resolve pane id: %v (%q)", err, paneID)
+	}
+
+	// Simulate the writer setting waiting on this non-fab pane.
+	if out, err := tmux("set-option", "-p", "-t", paneID, pane.AgentStateOption, "waiting:1751800000"); err != nil {
+		t.Fatalf("set-option: %v: %s", err, out)
+	}
+
+	// SEND/CAPTURE reader.
+	ctx, err := pane.ResolvePaneContext(paneID, "", server)
+	if err != nil {
+		t.Fatalf("ResolvePaneContext: %v", err)
+	}
+	if ctx.AgentState == nil || *ctx.AgentState != pane.AgentStateWaiting {
+		t.Fatalf("ResolvePaneContext AgentState = %v, want waiting (send/capture must see the option on a non-fab pane)", ctx.AgentState)
+	}
+
+	// MAP reader — resolve the option off the pane, then run the non-git branch.
+	raw := pane.ReadAgentStateOption(paneID, server)
+	row, ok := resolvePane(paneEntry{id: paneID, cwd: nonGitCWD, agentState: raw}, "", "")
+	if !ok {
+		t.Fatal("resolvePane returned ok=false")
+	}
+	if row.agent != pane.AgentStateWaiting {
+		t.Errorf("pane map Agent column = %q, want waiting — map must agree with send on a non-fab pane", row.agent)
+	}
+}
+
+// TestAgentJSONFields verifies the JSON agent_state / agent_idle_duration pair
+// is derived DIRECTLY from the raw @rk_agent_state option \u2014 not from the
+// human display string \u2014 so a display-format tweak in agentColumn cannot break
+// the run-kit-consumed JSON contract (ioku cycle 2, T006).
+func TestAgentJSONFields(t *testing.T) {
+	idleRaw := "idle:" + strconv.FormatInt(time.Now().Unix()-300, 10) // ~5m ago
 	tests := []struct {
 		name             string
-		agent            string
+		rawOption        string
 		wantState        *string
 		wantIdleDuration *string
 	}{
-		{"active", "active", strPtr("active"), nil},
-		{"em dash", "\u2014", nil, nil},
-		{"idle with duration", "idle (5m)", strPtr("idle"), strPtr("5m")},
-		{"idle with seconds", "idle (30s)", strPtr("idle"), strPtr("30s")},
-		{"idle with hours", "idle (2h)", strPtr("idle"), strPtr("2h")},
+		{"active", "active:1751800000", strPtr("active"), nil},
+		{"waiting", "waiting:1751800000", strPtr("waiting"), nil},
+		{"idle carries duration", idleRaw, strPtr("idle"), strPtr("5m")},
+		{"unset is null", "", nil, nil},
+		{"unknown token is null", "bogus:1", nil, nil},
+		{"unparseable epoch is null", "idle:notanumber", nil, nil},
+		{"missing epoch suffix is null", "idle", nil, nil},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			state, dur := splitAgentState(tc.agent)
+			state, dur := agentJSONFields(tc.rawOption)
 			if !ptrEq(state, tc.wantState) {
 				t.Errorf("state = %v, want %v", ptrStr(state), ptrStr(tc.wantState))
 			}
@@ -438,7 +620,7 @@ func TestPrintPaneJSON(t *testing.T) {
 		cmd.SetOut(&buf)
 
 		rows := []paneRow{
-			{session: "runK", windowIndex: 2, pane: "%3", tab: "alpha", worktree: "myrepo.worktrees/alpha/", change: "260306-r3m7-add-retry-logic", stage: "apply", agent: "active"},
+			{session: "runK", windowIndex: 2, pane: "%3", tab: "alpha", worktree: "myrepo.worktrees/alpha/", change: "260306-r3m7-add-retry-logic", stage: "apply", agent: "active", agentOption: "active:1751800000"},
 		}
 		if err := printPaneJSON(cmd, rows); err != nil {
 			t.Fatal(err)
@@ -481,7 +663,7 @@ func TestPrintPaneJSON(t *testing.T) {
 		cmd.SetOut(&buf)
 
 		rows := []paneRow{
-			{session: "dev", windowIndex: 0, pane: "%5", tab: "scratch", worktree: "downloads/", change: "\u2014", stage: "\u2014", agent: "\u2014"},
+			{session: "dev", windowIndex: 0, pane: "%5", tab: "scratch", worktree: "downloads/", change: "\u2014", stage: "\u2014", agent: "\u2014", agentOption: ""},
 		}
 		if err := printPaneJSON(cmd, rows); err != nil {
 			t.Fatal(err)
@@ -511,8 +693,9 @@ func TestPrintPaneJSON(t *testing.T) {
 		cmd := &cobra.Command{}
 		cmd.SetOut(&buf)
 
+		idleRaw := "idle:" + strconv.FormatInt(time.Now().Unix()-300, 10) // ~5m ago
 		rows := []paneRow{
-			{session: "runK", windowIndex: 1, pane: "%7", tab: "bravo", worktree: "(main)", change: "260306-ab12-refactor-auth", stage: "review", agent: "idle (5m)"},
+			{session: "runK", windowIndex: 1, pane: "%7", tab: "bravo", worktree: "(main)", change: "260306-ab12-refactor-auth", stage: "review", agent: "idle (5m)", agentOption: idleRaw},
 		}
 		if err := printPaneJSON(cmd, rows); err != nil {
 			t.Fatal(err)
@@ -691,8 +874,9 @@ func TestPrintPaneJSON_DiscussionMode(t *testing.T) {
 		cmd.SetOut(&buf)
 
 		// Discussion mode: change and stage are em-dash; agent is populated.
+		idleRaw := "idle:" + strconv.FormatInt(time.Now().Unix()-120, 10) // ~2m ago
 		rows := []paneRow{
-			{session: "main", windowIndex: 2, pane: "%15", tab: "scratch", worktree: "(main)", change: "(no change)", stage: "\u2014", agent: "idle (2m)"},
+			{session: "main", windowIndex: 2, pane: "%15", tab: "scratch", worktree: "(main)", change: "(no change)", stage: "\u2014", agent: "idle (2m)", agentOption: idleRaw},
 		}
 		if err := printPaneJSON(cmd, rows); err != nil {
 			t.Fatal(err)
@@ -723,7 +907,7 @@ func TestPrintPaneJSON_DiscussionMode(t *testing.T) {
 		cmd.SetOut(&buf)
 
 		rows := []paneRow{
-			{session: "main", windowIndex: 0, pane: "%15", tab: "scratch", worktree: "(main)", change: "(no change)", stage: "\u2014", agent: "active"},
+			{session: "main", windowIndex: 0, pane: "%15", tab: "scratch", worktree: "(main)", change: "(no change)", stage: "\u2014", agent: "active", agentOption: "active:1751800000"},
 		}
 		if err := printPaneJSON(cmd, rows); err != nil {
 			t.Fatal(err)
@@ -1004,7 +1188,7 @@ func TestResolvePanePRURL(t *testing.T) {
 		wtRoot := writeChangeStatus(t, prsBody)
 
 		p := paneEntry{id: "%1", tab: "alpha", cwd: wtRoot, session: "runK", index: 0}
-		row, ok := resolvePane(p, wtRoot, wtRoot, "", make(map[string]interface{}))
+		row, ok := resolvePane(p, wtRoot, wtRoot)
 		if !ok {
 			t.Fatal("resolvePane returned ok=false")
 		}
@@ -1017,7 +1201,7 @@ func TestResolvePanePRURL(t *testing.T) {
 		wtRoot := writeChangeStatus(t, "")
 
 		p := paneEntry{id: "%1", tab: "alpha", cwd: wtRoot, session: "runK", index: 0}
-		row, ok := resolvePane(p, wtRoot, wtRoot, "", make(map[string]interface{}))
+		row, ok := resolvePane(p, wtRoot, wtRoot)
 		if !ok {
 			t.Fatal("resolvePane returned ok=false")
 		}
@@ -1030,7 +1214,7 @@ func TestResolvePanePRURL(t *testing.T) {
 		wtRoot := writeChangeStatus(t, "prs: []\n")
 
 		p := paneEntry{id: "%1", tab: "alpha", cwd: wtRoot, session: "runK", index: 0}
-		row, ok := resolvePane(p, wtRoot, wtRoot, "", make(map[string]interface{}))
+		row, ok := resolvePane(p, wtRoot, wtRoot)
 		if !ok {
 			t.Fatal("resolvePane returned ok=false")
 		}
@@ -1227,7 +1411,7 @@ func TestResolvePaneDisplayState(t *testing.T) {
 		}
 
 		p := paneEntry{id: "%1", tab: "dkn3", cwd: wtRoot, session: "main", index: 0}
-		row, ok := resolvePane(p, wtRoot, wtRoot, "", make(map[string]interface{}))
+		row, ok := resolvePane(p, wtRoot, wtRoot)
 		if !ok {
 			t.Fatal("resolvePane returned ok=false")
 		}
@@ -1247,7 +1431,7 @@ func TestResolvePaneDisplayState(t *testing.T) {
 		}
 
 		p := paneEntry{id: "%2", tab: "scratch", cwd: wtRoot, session: "main", index: 1}
-		row, ok := resolvePane(p, wtRoot, wtRoot, "", make(map[string]interface{}))
+		row, ok := resolvePane(p, wtRoot, wtRoot)
 		if !ok {
 			t.Fatal("resolvePane returned ok=false")
 		}
@@ -1259,7 +1443,7 @@ func TestResolvePaneDisplayState(t *testing.T) {
 	t.Run("non-git pane early-return row carries the em-dash sentinel", func(t *testing.T) {
 		nonGit := t.TempDir()
 		p := paneEntry{id: "%3", tab: "misc", cwd: nonGit, session: "dev", index: 2}
-		row, ok := resolvePane(p, "", "", "", make(map[string]interface{}))
+		row, ok := resolvePane(p, "", "")
 		if !ok {
 			t.Fatal("resolvePane returned ok=false")
 		}

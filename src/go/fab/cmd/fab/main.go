@@ -31,7 +31,6 @@ func newRootCmd() *cobra.Command {
 		preflightCmd(),
 		changeCmd(),
 		scoreCmd(),
-		hookCmd(),
 		paneCmd(),
 		dispatchCmd(),
 		fabHelpCmd(),

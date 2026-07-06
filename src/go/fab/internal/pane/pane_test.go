@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
+	"os/exec"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestWithServer(t *testing.T) {
@@ -316,89 +318,42 @@ func TestReadFabCurrent(t *testing.T) {
 	})
 }
 
-func TestLoadRuntimeFile(t *testing.T) {
-	t.Run("missing file returns error", func(t *testing.T) {
-		_, err := LoadRuntimeFile("/nonexistent/path/.fab-runtime.yaml")
-		if err == nil {
-			t.Error("expected error for missing file")
-		}
-		if !os.IsNotExist(err) {
-			t.Errorf("expected IsNotExist error, got: %v", err)
-		}
-	})
-
-	t.Run("valid yaml file", func(t *testing.T) {
-		tmp := t.TempDir()
-		path := tmp + "/.fab-runtime.yaml"
-		content := "_agents:\n  uuid-1:\n    idle_since: 1234567890\n    tmux_pane: \"%5\"\n"
-		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		m, err := LoadRuntimeFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		agents, ok := m["_agents"].(map[string]interface{})
-		if !ok {
-			t.Fatal("expected _agents map")
-		}
-		if _, ok := agents["uuid-1"]; !ok {
-			t.Error("expected uuid-1 key in _agents")
-		}
-	})
-
-	t.Run("empty file returns empty map", func(t *testing.T) {
-		tmp := t.TempDir()
-		path := tmp + "/.fab-runtime.yaml"
-		if err := os.WriteFile(path, []byte(""), 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		m, err := LoadRuntimeFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(m) != 0 {
-			t.Errorf("expected empty map, got %d entries", len(m))
-		}
-	})
-}
-
-// writeRuntimeFixture writes a .fab-runtime.yaml into wtRoot with the given
-// content. Used by matching tests to seed fixtures.
-func writeRuntimeFixture(t *testing.T, wtRoot, content string) {
-	t.Helper()
-	path := filepath.Join(wtRoot, ".fab-runtime.yaml")
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
+func TestParseAgentState(t *testing.T) {
+	tests := []struct {
+		name      string
+		raw       string
+		wantState string
+		wantEpoch int64
+		wantOK    bool
+	}{
+		{"idle with epoch", "idle:1751800000", "idle", 1751800000, true},
+		{"active with epoch", "active:1751800000", "active", 1751800000, true},
+		{"waiting with epoch", "waiting:1751800000", "waiting", 1751800000, true},
+		{"surrounding whitespace trimmed", "  idle:1751800000\n", "idle", 1751800000, true},
+		{"empty value", "", "", 0, false},
+		{"no epoch suffix", "idle", "", 0, false},
+		{"non-integer epoch", "idle:notanum", "", 0, false},
+		{"unknown state token", "bogus:1751800000", "", 0, false},
+		{"empty state token", ":1751800000", "", 0, false},
+		{"trailing empty epoch", "idle:", "", 0, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			st, ep, ok := parseAgentState(tc.raw)
+			if ok != tc.wantOK {
+				t.Fatalf("parseAgentState(%q) ok = %t, want %t", tc.raw, ok, tc.wantOK)
+			}
+			if ok && (st != tc.wantState || ep != tc.wantEpoch) {
+				t.Errorf("parseAgentState(%q) = (%q, %d), want (%q, %d)", tc.raw, st, ep, tc.wantState, tc.wantEpoch)
+			}
+		})
 	}
 }
 
-func TestResolveAgentState(t *testing.T) {
-	t.Run("empty paneID returns empty", func(t *testing.T) {
-		state, dur := ResolveAgentState("/tmp", "", "")
-		if state != "" || dur != "" {
-			t.Errorf("got state=%q dur=%q, want empty", state, dur)
-		}
-	})
-
-	t.Run("missing runtime file returns empty state", func(t *testing.T) {
-		tmp := t.TempDir()
-		state, _ := ResolveAgentState(tmp, "%15", "")
-		if state != "" {
-			t.Errorf("state = %q, want empty", state)
-		}
-	})
-
-	t.Run("idle entry matched by pane", func(t *testing.T) {
-		tmp := t.TempDir()
-		writeRuntimeFixture(t, tmp, `_agents:
-  uuid-1:
-    idle_since: 1000
-    tmux_pane: "%15"
-`)
-		state, dur := ResolveAgentState(tmp, "%15", "")
+func TestAgentDisplayFromOption(t *testing.T) {
+	t.Run("idle carries an epoch-derived duration", func(t *testing.T) {
+		epoch := time.Now().Unix() - 125 // ~2m ago
+		state, dur := AgentDisplayFromOption("idle:" + strconv.FormatInt(epoch, 10))
 		if state != "idle" {
 			t.Errorf("state = %q, want idle", state)
 		}
@@ -407,249 +362,34 @@ func TestResolveAgentState(t *testing.T) {
 		}
 	})
 
-	t.Run("active entry matched by pane", func(t *testing.T) {
-		tmp := t.TempDir()
-		writeRuntimeFixture(t, tmp, `_agents:
-  uuid-1:
-    tmux_pane: "%15"
-    pid: 1000
-`)
-		state, _ := ResolveAgentState(tmp, "%15", "")
-		if state != "active" {
-			t.Errorf("state = %q, want active", state)
+	t.Run("active carries no duration", func(t *testing.T) {
+		state, dur := AgentDisplayFromOption("active:1751800000")
+		if state != "active" || dur != "" {
+			t.Errorf("got (%q, %q), want (active, \"\")", state, dur)
 		}
 	})
 
-	t.Run("no matching pane returns empty", func(t *testing.T) {
-		tmp := t.TempDir()
-		writeRuntimeFixture(t, tmp, `_agents:
-  uuid-1:
-    idle_since: 1000
-    tmux_pane: "%99"
-`)
-		state, _ := ResolveAgentState(tmp, "%15", "")
-		if state != "" {
-			t.Errorf("state = %q, want empty for no-match", state)
+	t.Run("waiting carries no duration", func(t *testing.T) {
+		state, dur := AgentDisplayFromOption("waiting:1751800000")
+		if state != "waiting" || dur != "" {
+			t.Errorf("got (%q, %q), want (waiting, \"\")", state, dur)
 		}
 	})
 
-	t.Run("discussion-mode agent (no change) still resolves", func(t *testing.T) {
-		tmp := t.TempDir()
-		writeRuntimeFixture(t, tmp, `_agents:
-  uuid-1:
-    idle_since: 1000
-    tmux_pane: "%15"
-`)
-		state, _ := ResolveAgentState(tmp, "%15", "")
-		if state != "idle" {
-			t.Errorf("expected idle state even without change; got %q", state)
+	t.Run("unknown/unparseable yields empty state (em-dash sentinel)", func(t *testing.T) {
+		for _, raw := range []string{"", "idle", "idle:nope", "bogus:1"} {
+			state, dur := AgentDisplayFromOption(raw)
+			if state != "" || dur != "" {
+				t.Errorf("AgentDisplayFromOption(%q) = (%q, %q), want empty", raw, state, dur)
+			}
 		}
 	})
 
-	t.Run("server disambiguation — wrong server is skipped", func(t *testing.T) {
-		tmp := t.TempDir()
-		writeRuntimeFixture(t, tmp, `_agents:
-  uuid-a:
-    idle_since: 1000
-    tmux_pane: "%3"
-    tmux_server: "fabKit"
-  uuid-b:
-    idle_since: 2000
-    tmux_pane: "%3"
-    tmux_server: "runKit"
-`)
-		_, dur := ResolveAgentState(tmp, "%3", "runKit")
-		// Duration should correspond to uuid-b (idle_since=2000, more recent).
-		// We don't check exact duration, only that a match was found.
-		if dur == "" {
-			t.Error("expected match for runKit server")
-		}
-	})
-
-	t.Run("active entry beats idle entry for same pane", func(t *testing.T) {
-		tmp := t.TempDir()
-		writeRuntimeFixture(t, tmp, `_agents:
-  uuid-idle:
-    idle_since: 1000
-    tmux_pane: "%5"
-  uuid-active:
-    tmux_pane: "%5"
-`)
-		state, _ := ResolveAgentState(tmp, "%5", "")
-		if state != "active" {
-			t.Errorf("state = %q, want active (active entry should win over idle)", state)
-		}
-	})
-}
-
-func TestResolveAgentStateWithCache(t *testing.T) {
-	t.Run("cache reuse across panes in same worktree", func(t *testing.T) {
-		tmp := t.TempDir()
-		writeRuntimeFixture(t, tmp, `_agents:
-  uuid-1:
-    idle_since: 1000
-    tmux_pane: "%15"
-  uuid-2:
-    tmux_pane: "%16"
-`)
-		cache := make(map[string]interface{})
-		s1 := ResolveAgentStateWithCache(tmp, "%15", "", cache)
-		s2 := ResolveAgentStateWithCache(tmp, "%16", "", cache)
-
-		if s1 != "idle (" && !isIdlePrefix(s1) {
-			// Formatting uses "idle (...)"; match prefix.
-			t.Errorf("s1 = %q, expected idle prefix", s1)
-		}
-		if s2 != "active" {
-			t.Errorf("s2 = %q, want active", s2)
-		}
-		if _, present := cache[tmp]; !present {
-			t.Error("expected cache to have been populated for worktree")
-		}
-	})
-
-	t.Run("no match returns em dash", func(t *testing.T) {
-		tmp := t.TempDir()
-		writeRuntimeFixture(t, tmp, `_agents:
-  uuid-1:
-    idle_since: 1000
-    tmux_pane: "%99"
-`)
-		cache := make(map[string]interface{})
-		got := ResolveAgentStateWithCache(tmp, "%15", "", cache)
-		if got != "\u2014" {
-			t.Errorf("got %q, want em dash", got)
-		}
-	})
-
-	t.Run("missing file returns em dash", func(t *testing.T) {
-		tmp := t.TempDir()
-		cache := make(map[string]interface{})
-		got := ResolveAgentStateWithCache(tmp, "%15", "", cache)
-		if got != "\u2014" {
-			t.Errorf("got %q, want em dash for missing file", got)
-		}
-	})
-
-	t.Run("empty paneID returns em dash", func(t *testing.T) {
-		cache := make(map[string]interface{})
-		got := ResolveAgentStateWithCache("/tmp", "", "", cache)
-		if got != "\u2014" {
-			t.Errorf("got %q, want em dash for empty paneID", got)
-		}
-	})
-}
-
-// isIdlePrefix reports whether s starts with "idle (" — used for loose
-// matching in tests where exact duration depends on wall-clock time.
-func isIdlePrefix(s string) bool {
-	return len(s) >= 6 && s[:6] == "idle ("
-}
-
-func TestFindAgentByPane(t *testing.T) {
-	t.Run("exact pane match, no server", func(t *testing.T) {
-		data := map[string]interface{}{
-			"_agents": map[string]interface{}{
-				"u-1": map[string]interface{}{
-					"tmux_pane":  "%5",
-					"idle_since": 1000,
-				},
-			},
-		}
-		entry, ok := findAgentByPane(data, "%5", "")
-		if !ok {
-			t.Fatal("expected match")
-		}
-		if entry["idle_since"] == nil {
-			t.Error("expected idle_since to be present")
-		}
-	})
-
-	t.Run("server disambiguation", func(t *testing.T) {
-		data := map[string]interface{}{
-			"_agents": map[string]interface{}{
-				"u-a": map[string]interface{}{
-					"tmux_pane":   "%3",
-					"tmux_server": "fabKit",
-					"idle_since":  1000,
-				},
-				"u-b": map[string]interface{}{
-					"tmux_pane":   "%3",
-					"tmux_server": "runKit",
-					"idle_since":  2000,
-				},
-			},
-		}
-		entry, ok := findAgentByPane(data, "%3", "runKit")
-		if !ok {
-			t.Fatal("expected match")
-		}
-		ts, _ := asInt64(entry["idle_since"])
-		if ts != 2000 {
-			t.Errorf("expected uuid-b (idle_since=2000), got %v", ts)
-		}
-	})
-
-	t.Run("empty server matches entries with any server", func(t *testing.T) {
-		data := map[string]interface{}{
-			"_agents": map[string]interface{}{
-				"u-a": map[string]interface{}{
-					"tmux_pane":   "%3",
-					"tmux_server": "fabKit",
-					"idle_since":  1000,
-				},
-			},
-		}
-		// Caller passes empty server — entry matches because empty-server
-		// caller matches any entry.
-		_, ok := findAgentByPane(data, "%3", "")
-		if !ok {
-			t.Error("expected match with empty caller server")
-		}
-	})
-
-	t.Run("entry with empty server matches any caller server", func(t *testing.T) {
-		data := map[string]interface{}{
-			"_agents": map[string]interface{}{
-				"u-a": map[string]interface{}{
-					"tmux_pane":  "%3",
-					"idle_since": 1000,
-				},
-			},
-		}
-		_, ok := findAgentByPane(data, "%3", "anything")
-		if !ok {
-			t.Error("expected match when entry has no tmux_server")
-		}
-	})
-
-	t.Run("no _agents map returns no match", func(t *testing.T) {
-		data := map[string]interface{}{}
-		if _, ok := findAgentByPane(data, "%3", ""); ok {
-			t.Error("expected no match when _agents absent")
-		}
-	})
-
-	t.Run("most-recent idle wins among idle entries", func(t *testing.T) {
-		data := map[string]interface{}{
-			"_agents": map[string]interface{}{
-				"u-old": map[string]interface{}{
-					"tmux_pane":  "%5",
-					"idle_since": 1000,
-				},
-				"u-new": map[string]interface{}{
-					"tmux_pane":  "%5",
-					"idle_since": 2000,
-				},
-			},
-		}
-		entry, ok := findAgentByPane(data, "%5", "")
-		if !ok {
-			t.Fatal("expected match")
-		}
-		ts, _ := asInt64(entry["idle_since"])
-		if ts != 2000 {
-			t.Errorf("got idle_since=%v, want newer (2000)", ts)
+	t.Run("future epoch clamps duration to 0s", func(t *testing.T) {
+		future := time.Now().Unix() + 3600
+		state, dur := AgentDisplayFromOption("idle:" + strconv.FormatInt(future, 10))
+		if state != "idle" || dur != "0s" {
+			t.Errorf("got (%q, %q), want (idle, 0s)", state, dur)
 		}
 	})
 }
@@ -689,5 +429,78 @@ func TestValidatePaneResult_PaneNotFoundErrorType(t *testing.T) {
 	var nf *PaneNotFoundError
 	if errors.As(err, &nf) {
 		t.Errorf("dead-server failure must NOT be PaneNotFoundError, got: %v", err)
+	}
+}
+
+// TestReadAgentStateOption_Integration drives the full reader against a real
+// tmux server, simulating run-kit's rk agent-setup writer via
+// `tmux set-option -p @rk_agent_state "<state>:<epoch>"` (the writer
+// simulation directed by the intake — the actual writer does not exist yet).
+// It covers the codex-pane scenario (a pane the old Claude-only _agents
+// pipeline could never see) and the unknown case (option unset). Skipped when
+// tmux is unavailable.
+func TestReadAgentStateOption_Integration(t *testing.T) {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not available")
+	}
+
+	// Ephemeral private server so the test never touches the user's tmux.
+	server := "fabtest-" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	tmux := func(args ...string) (string, error) {
+		out, err := exec.Command("tmux", append([]string{"-L", server}, args...)...).CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+
+	// Start a detached session; tmux creates the server on demand.
+	if out, err := tmux("new-session", "-d", "-s", "s", "-x", "80", "-y", "24"); err != nil {
+		t.Skipf("could not start tmux server (%v): %s", err, out)
+	}
+	t.Cleanup(func() { _, _ = tmux("kill-server") })
+
+	paneID, err := tmux("display-message", "-p", "-t", "s", "#{pane_id}")
+	if err != nil || paneID == "" {
+		t.Fatalf("resolve pane id: %v (%q)", err, paneID)
+	}
+
+	t.Run("unset option → unknown", func(t *testing.T) {
+		if raw := ReadAgentStateOption(paneID, server); raw != "" {
+			t.Errorf("expected empty raw option, got %q", raw)
+		}
+		state, dur := AgentDisplayFromOption(ReadAgentStateOption(paneID, server))
+		if state != "" || dur != "" {
+			t.Errorf("unset option should be unknown, got (%q, %q)", state, dur)
+		}
+	})
+
+	cases := []struct {
+		state string
+		epoch int64
+	}{
+		{AgentStateActive, 1751800000},
+		{AgentStateWaiting, 1751800000},
+		{AgentStateIdle, time.Now().Unix() - 125},
+	}
+	for _, tc := range cases {
+		t.Run(tc.state+" set via tmux set-option -p", func(t *testing.T) {
+			val := tc.state + ":" + strconv.FormatInt(tc.epoch, 10)
+			if out, err := tmux("set-option", "-p", "-t", paneID, AgentStateOption, val); err != nil {
+				t.Fatalf("set-option: %v: %s", err, out)
+			}
+			raw := ReadAgentStateOption(paneID, server)
+			if raw != val {
+				t.Fatalf("ReadAgentStateOption = %q, want %q", raw, val)
+			}
+			state, dur := AgentDisplayFromOption(raw)
+			if state != tc.state {
+				t.Errorf("state = %q, want %q", state, tc.state)
+			}
+			if tc.state == AgentStateIdle {
+				if dur == "" {
+					t.Error("idle must carry a duration")
+				}
+			} else if dur != "" {
+				t.Errorf("%s must carry no duration, got %q", tc.state, dur)
+			}
+		})
 	}
 }

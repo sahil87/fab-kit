@@ -339,8 +339,8 @@ func (sf *StatusFile) Save(path string) error {
 	}
 	// Sync before rename: .status.yaml is the pipeline state machine's source
 	// of truth — a crash must never leave an empty/torn file behind the
-	// rename (mz4q F03). Contrast runtime.SaveFile, which skips fsync for the
-	// ephemeral, re-derivable runtime file.
+	// rename (mz4q F03). Cold, re-derivable state files can skip this fsync;
+	// .status.yaml cannot.
 	if err := tmp.Sync(); err != nil {
 		tmp.Close()
 		os.Remove(tmpPath)

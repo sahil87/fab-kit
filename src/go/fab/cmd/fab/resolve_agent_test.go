@@ -22,7 +22,7 @@ func resolveAgentTestRepo(t *testing.T, configBody string) {
 	if err := os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(configBody), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	hookTestEnv(t, root, map[string]string{"TMUX": ""})
+	chdirTestEnv(t, root, map[string]string{"TMUX": ""})
 }
 
 // runResolveAgentCmd executes a fresh resolveAgentCmd with the given args.

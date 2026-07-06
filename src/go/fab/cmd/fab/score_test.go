@@ -57,7 +57,7 @@ func setupScoreCmdFixture(t *testing.T, assumptionRows ...string) string {
 	}
 	os.WriteFile(filepath.Join(changeDir, "intake.md"), []byte(b.String()), 0o644)
 
-	hookTestEnv(t, root, map[string]string{})
+	chdirTestEnv(t, root, map[string]string{})
 	return root
 }
 

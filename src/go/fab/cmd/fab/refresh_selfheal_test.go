@@ -104,7 +104,7 @@ func setupSelfHealFixture(t *testing.T, intakeStage string) string {
 	if err := os.WriteFile(filepath.Join(projDir, "constitution.md"), []byte("# Constitution\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	hookTestEnv(t, root, map[string]string{})
+	chdirTestEnv(t, root, map[string]string{})
 	return changeDir
 }
 

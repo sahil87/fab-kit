@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "`.fab-runtime.yaml` schema — `_agents[session_id]` keying, hook write/clear pipeline (stop/session-start/user-prompt) with one flock-serialized `UpdateAgent` call per event (GC folded in, skip-save-when-unchanged, no fsync), throttled GC via `last_run_gc`, grandparent PID walker, pane-map matching rule"
+description: "Agent-state divestment (ioku): fab reads the `@rk_agent_state` tmux pane option (value `state:epoch_seconds`, states active/waiting/idle, absent = unknown, epoch mandatory) via plain tmux `show-options`/`list-panes` — a data convention, NOT a run-kit software dependency; run-kit's `rk agent-setup` is the writer (not yet shipped). The whole former `.fab-runtime.yaml` `_agents` PRODUCER pipeline (hooks/GC/PID-walker/flock/`internal/runtime`+`internal/proc`) is deleted; fab is now a pure consumer. The pure `parseAgentState` parser + surviving `FormatIdleDuration`"
 ---
 # Runtime Agents
 
@@ -8,193 +8,92 @@ description: "`.fab-runtime.yaml` schema — `_agents[session_id]` keying, hook 
 
 ## Overview
 
-`.fab-runtime.yaml` is the ephemeral per-worktree state file that tracks Claude Code agents across tmux panes and worktrees. It lives at the repo root of each git worktree (one file per worktree, gitignored) and is written exclusively by `fab hook` subcommands invoked by Claude Code events (Stop, SessionStart, UserPromptSubmit). It is read by `fab pane map` (to populate the Agent column) and by `fab pane send` (to validate agent idleness before sending keystrokes).
+fab determines an agent's lifecycle state by **reading** a tmux pane user option, `@rk_agent_state`, with plain tmux commands. It does **not** produce that state, and it does **not** depend on run-kit software being installed — the option is a data convention in tmux, read with `tmux show-options`/`list-panes`, so fab reads it whether or not run-kit is present.
 
-Agents are first-class entries keyed by Claude's `session_id` (a UUID from the hook stdin JSON payload). Change folder name, PID, tmux server, tmux pane, and transcript path are all optional properties on the agent entry — they populate when available and are omitted otherwise. This cleanly separates the three orthogonal axes that `fab pane map` tracks: **Change** (from `.fab-status.yaml`), **Agent** (from `_agents`), and **Process** (opt-in via `fab pane process`).
+This is a divestment (ioku, 2026-07): fab-kit **stopped producing** agent active/idle lifecycle state and became a **pure consumer** of a shared convention. Agent-state detection was never core fab — it is a tmux-context observation feature that got bolted onto fab because no owner existed. run-kit is that owner now: its `rk agent-setup` global agent-harness hooks write `@rk_agent_state` for Claude Code, Codex, Copilot, Gemini, and OpenCode. fab reads it in three places — `fab pane map` (Agent column), `fab pane send` (idle gate), and `fab pane capture` (header). See [pane-commands.md](/runtime/pane-commands.md) for those readers and [hooks-may-enhance-never-own.md](/pipeline/hooks-may-enhance-never-own.md) for the principle this strengthens.
 
-Agents running in discussion mode (before `/fab-new`, no active change) are tracked the same way as change-associated agents — visibility in `fab pane map` no longer depends on whether a change is active.
+> **Release gate.** The writer does not exist yet. When ioku shipped, the installed `rk` had no `agent-setup` command and no pane carried `@rk_agent_state`. The change's PR is therefore **explicitly held** from merge/release until `rk agent-setup` exists on Sahil's machines — otherwise `fab pane send` gating and the operator's Agent column go blind everywhere (pane map all `—`, send refuses without `--force`). fab is the consumer; the schema draft below is the working contract, and fab reading a not-yet-written option degrades to "unknown" — the correct fallback.
 
 ## Requirements
 
-### Schema
+### Read Contract: `@rk_agent_state`
 
-`.fab-runtime.yaml` contains a single top-level `_agents` map keyed by Claude `session_id` (UUID string), plus a top-level `last_run_gc` timestamp that throttles the GC sweep.
+fab reads the tmux **pane user option** `@rk_agent_state`, whose value is `"<state>:<epoch_seconds>"`:
 
-```yaml
-_agents:
-  "d630bcf0-8820-4dd1-a99c-9bda5ea72c88":       # key: Claude session_id (UUID from hook stdin)
-    idle_since: 1729450100                       # unix ts — present when agent is idle
-    change: "260417-2fbb-pane-server-flag"       # optional — absent/empty in discussion mode
-    pid: 2356168                                 # optional — Claude's PID (for GC liveness)
-    tmux_server: "fabKit"                        # optional — basename of $TMUX socket
-    tmux_pane: "%15"                             # optional — from $TMUX_PANE (includes %)
-    transcript_path: "/home/.../d630bcf0-...jsonl"  # optional — from hook payload
-last_run_gc: 1729450200                          # top-level — throttles GC sweeps to every ~3 min
+```
+@rk_agent_state = "idle:1751800000"      # state ∈ active | waiting | idle
 ```
 
-**Required fields**: Entry key (`session_id`). All other fields are optional.
+| State | Meaning | Trigger (run-kit writer) |
+|-------|---------|--------------------------|
+| `active` | Turn in progress | UserPromptSubmit / PreToolUse fired, no terminal event since |
+| `waiting` | Blocked on a human | Notification: permission_prompt / elicitation_dialog / agent_needs_input; PermissionRequest for agents that have it |
+| `idle` | Turn complete | Stop; idle_prompt as a backstop |
+| *(option absent)* | No instrumented agent in this pane | render `—`, treat as **unknown** |
 
-**Field semantics**:
+- The **epoch suffix is mandatory.** Consumers compute idle duration from it (`now - epoch`, formatted by `FormatIdleDuration`) and can apply staleness heuristics (an Esc-interrupted agent can leave a stale `active`). A value without a parseable `:epoch` suffix is **unknown**, not a bare state.
+- **Absent / unparseable / unknown-token → unknown.** An absent option, an unknown state token (outside `{active, waiting, idle}`), or a missing/non-integer epoch all resolve to unknown — displayed as `—`, gated by `fab pane send` as a distinct "unknown" refusal (see [pane-commands.md](/runtime/pane-commands.md)).
 
-| Field | Type | Presence | Meaning |
-|-------|------|----------|---------|
-| `idle_since` | int (unix ts) | present → idle; absent → active | Set by the Stop hook; removed by the UserPromptSubmit hook |
-| `change` | string | optional — empty/absent in discussion mode | Change folder name the agent is working on |
-| `pid` | int | optional | Claude's PID (grandparent-walk resolved); used for GC liveness |
-| `tmux_server` | string | optional — absent outside tmux | Basename of `$TMUX` socket path |
-| `tmux_pane` | string | optional — absent outside tmux | Pane ID from `$TMUX_PANE` (e.g., `%15`) |
-| `transcript_path` | string | optional | Absolute path to Claude's transcript (`*.jsonl`) |
-| `last_run_gc` | int (unix ts) | top-level, not nested | Most recent GC sweep completion time |
+**Schema ownership is run-kit's.** The `"<state>:<epoch_seconds>"` grammar above is the current working contract (drafted in the ioku pickup doc, recorded in run-kit constitution Principle X "Hooks Carry Only the Underivable", v1.4.0). If run-kit changes the format later, adapting fab's reader is a follow-up change — the divergence risk is accepted.
 
-**Missing file semantics**: Read paths treat a missing `.fab-runtime.yaml` as `_agents: {}` — no error, no warning. The file is created on first hook write.
+**No run-kit software dependency.** fab reads the option with `tmux show-options -pv -t <pane> @rk_agent_state` (send/capture) and `#{@rk_agent_state}` in the `list-panes -F` format string (map). These are plain tmux commands against a pane option — a *data* convention, not a link against run-kit. fab works identically whether run-kit wrote the option or nobody did (nobody → unknown everywhere, the honest fallback). All commands behave identically **outside tmux** too: with no tmux server there is no pane to read, so there is simply no agent state — no runtime file is written or read anywhere.
 
-**Schema location invariants**: `.fab-runtime.yaml` lives at the repo root of each git worktree. Each worktree has its own file; there is no cross-worktree state or sharing.
+#### Scenario: idle pane resolves to a duration
 
-### Hook Pipeline
+- **GIVEN** a pane whose `@rk_agent_state` is `idle:1751800000`
+- **WHEN** any reader (`pane send`/`map`/`capture`) resolves that pane's state
+- **THEN** the state is `idle` and the idle duration is `now - 1751800000`, formatted via `FormatIdleDuration`
+- **AND** a pane with no `@rk_agent_state` option resolves to unknown (`—` / em-dash in displays)
 
-Claude Code invokes hooks as `claude → sh -c '<command>' → fab hook <event>`. The `sh -c` wrapper means `os.Getppid()` inside the hook returns the `sh` PID, not Claude's. Claude's PID is at depth 2 and is resolved by a grandparent walk in `internal/proc/` (see §Grandparent PID Walker below).
+### The Parser (`parseAgentState`) and Display Helper
 
-There are three session-scoped hooks (`fab hook stop|session-start|user-prompt`), all push-by-nature runtime telemetry; each parses stdin as a JSON object and extracts `session_id` (required) and `transcript_path` (optional). Malformed JSON or missing `session_id` causes the hook to exit 0 silently — matching the existing swallow-on-error pattern. A former fourth handler, `fab hook artifact-write` (PostToolUse Write/Edit, recomputing artifact-derived `.status.yaml` state), was **removed in y022**: a hook fires only in the Claude harness, so that correctness-critical state is now pull-based via `fab status refresh` (self-healed at the transition seams) instead. It never participated in `_agents` writes. A one-release no-op shim `fab hook artifact-write` is retained for un-migrated settings (exits 0, emits nothing); the `2.10.1-to-2.11.0` migration removes the settings entry.
+The `"<state>:<epoch>"` parse lives in a **single pure function** `parseAgentState(raw string) (state string, epoch int64, ok bool)` in `src/go/fab/internal/pane/pane.go`, reused by all three readers so there is one authority for the grammar and it is unit-testable without a tmux server. `ok` is false for an empty value, a missing `:epoch` suffix, a non-integer epoch, or a state token outside `{active, waiting, idle}`. State tokens and the option name are named constants (`AgentStateActive`/`AgentStateWaiting`/`AgentStateIdle`, `AgentStateOption = "@rk_agent_state"`) — no magic strings.
 
-Per-event write/clear semantics:
+`AgentDisplayFromOption(raw) (state, idleDuration string)` maps a raw option value to a display state plus an idle duration string (populated **only** for `idle`). `ResolvePaneContext` reads the raw option via `ReadAgentStateOption(paneID, server)` (a targeted `show-options -pv`, guarded against an empty paneID) and sets `AgentState` (`active`/`waiting`/`idle`, nil when unknown) + `AgentIdleDuration` (only for idle). Agent state is resolved for **every** pane class — before the not-a-git-repo / no-fab-dir early returns — so `send`/`map`/`capture` agree on non-fab panes.
 
-| Hook event | Claude event | Action on `_agents[session_id]` |
-|------------|--------------|----------------------------------|
-| `fab hook stop` | Stop (turn end, agent now idle) | **Write full entry**: `idle_since = now()`, `change`, `pid`, `tmux_server`, `tmux_pane`, `transcript_path` (each present when available) |
-| `fab hook session-start` | SessionStart (fresh session beginning) | **Delete entry entirely** — old session state is gone |
-| `fab hook user-prompt` | UserPromptSubmit (agent about to become active) | **Remove only `idle_since`** — preserve `change`, `pid`, `tmux_server`, `tmux_pane`, `transcript_path` |
-| `fab hook artifact-write` *(deprecated no-op shim)* | Formerly PostToolUse (Write/Edit); removed in y022 | No-op — never participated in `_agents`; artifact bookkeeping is now `fab status refresh` |
+**`FormatIdleDuration` survives** in `internal/pane/pane.go` — it formats the epoch-derived idle durations of the new readers (the one piece of the old code that carries forward, because idle duration is still meaningful).
 
-The `user-prompt` clear-idle-only semantics preserve pane-map correlation properties across the idle → active transition: `fab pane map` can immediately show "active agent here" without waiting for the next Stop event to reconstruct the entry.
+#### Scenario: only a well-formed value parses
 
-Writes are **independent of active-change state**. An agent running in discussion mode (no `.fab-status.yaml` symlink) still produces an `_agents` entry; the `change` field is simply absent or empty.
+- **GIVEN** raw values `""`, `"active"`, `"idle:notanum"`, `"bogus:123"`, `"idle:1751800000"`
+- **WHEN** `parseAgentState` runs on each
+- **THEN** only `"idle:1751800000"` returns `ok=true` (`idle`, `1751800000`); all others return `ok=false`
 
-Each hook handler makes exactly **one** runtime call — `WriteAgent` / `ClearAgent` / `ClearAgentIdle` with `gcInterval = 180*time.Second` — which is a thin typed wrapper over `runtime.UpdateAgent(fabRoot, createIfMissing, mutate, gcInterval)`: load once (under the lock), apply the entry mutation, run the GC sweep inline when due, save once. Passing `gcInterval <= 0` (`runtime.NoGC`) disables the sweep. Before mz4q each handler ran a second, independent `GCIfDue` load-modify-save cycle after its mutation; the sweep is now folded into the same round-trip. When `createIfMissing` is false (clear paths, GC-only) and the file is absent, the call is a complete no-op; the stop-hook write path passes true and creates the file.
+### The Deleted Producer Pipeline
 
-**Tmux env handling**: Hooks read `$TMUX_PANE` and `$TMUX` from the environment. `$TMUX_PANE` writes verbatim to `tmux_pane` (including the `%` prefix). `$TMUX` is parsed — the first comma-separated component is a socket path, and its basename writes to `tmux_server`. When either env var is absent, the corresponding field is omitted. Claude Code's `sh -c` wrapper preserves both env vars into hook subprocesses (probe-verified on Linux).
+The entire `.fab-runtime.yaml` `_agents` producer subsystem was **deleted wholesale** in ioku. What is gone:
 
-**Concurrency & durability**: All writes use the `SaveFile` path (temp file + rename), so a reader never observes a torn file — but rename atomicity does NOT prevent **lost updates**: two unlocked load-mutate-save cycles are last-writer-wins over the whole document (the realistic race is multiple Claude sessions hooking in the *same* worktree, e.g. a lost `ClearAgentIdle` letting the operator inject keystrokes into a busy agent, or a lost `WriteAgent` blocking `fab pane send`). Since mz4q every mutator runs its full load-mutate-save cycle holding an exclusive advisory flock on the sibling `.fab-runtime.yaml.lock` (shared `internal/lockfile` helper: `O_CREATE` + `LOCK_EX|LOCK_NB` retry, ~10s bounded acquisition; the lock file is gitignored and never deleted — flock state, not file existence, carries the lock). The save is **skipped entirely when nothing changed** (no entry to clear, no `idle_since` to remove, GC throttled), so write-free paths stay write-free. `SaveFile` deliberately does NOT fsync: the file is ephemeral, fully re-derivable state ("re-populates on next hook event") and the fsync sat on every hook event's latency path — durability follows criticality (contrast `statusfile.Save`, which fsyncs because `.status.yaml` is the pipeline's source of truth).
+- **The hook write pipeline** (`cmd/fab/hook.go`): the whole `fab hook` command family — `fab hook stop|session-start|user-prompt`, plus `artifact-write` and `sync` — was **removed outright** (no shim period; see [hooks-may-enhance-never-own.md](/pipeline/hooks-may-enhance-never-own.md)), including `WriteAgent`/`ClearAgent`/`ClearAgentIdle`/`UpdateAgent`, the throttled GC sweep + `last_run_gc`, and the grandparent PID walker. `cmd/fab/hook.go` and `internal/hooklib/sync.go` are deleted; the plan-parsing helpers in `internal/hooklib/artifact.go` (change-type inference, section counting) survive — they feed `fab status refresh`, not any hook.
+- **`internal/runtime/`** — the whole `_agents` map and `.fab-runtime.yaml` read/write. Nothing else lived in the file (only `_agents` + top-level `last_run_gc`), so the file concept died wholesale.
+- **`internal/proc/`** — the grandparent PID walker (`proc_linux.go`/`proc_darwin.go`). Its sole importer was `cmd/fab/hook.go`; the comment-only reference in `internal/dispatch/dispatch_posix.go` was swept.
+- **The `_agents` resolvers in `internal/pane/pane.go`**: `ResolveAgentState`, `ResolveAgentStateWithCache`, `findAgentByPane`, `loadRuntimeForCache`, `LoadRuntimeFile`, and the per-worktree runtime cache in pane map, plus the `_agents`/`idle_since`/`tmux_pane`/`tmux_server` schema-key constants.
+- **The three hook settings entries** (`SessionStart`/`Stop`/`UserPromptSubmit`) from `.claude/settings.local.json`, removed by the `2.13.6-to-2.14.0` migration, plus deletion of any lingering `.fab-runtime.yaml`/`.fab-runtime.yaml.lock` across worktrees.
 
-### Garbage Collection
+**`internal/lockfile` STAYS.** It is consumed by `cmd/fab/status.go`, `cmd/fab/preflight.go`, and `internal/score/score.go` for `.status.yaml` serialization. Only the **runtime** lock usage (`.fab-runtime.yaml.lock` in the deleted `internal/runtime`) went away with the runtime package.
 
-The GC sweep runs **inline inside `runtime.UpdateAgent`** (`gcSweepIfDue` — pure in-memory aside from `kill(pid, 0)` probes; the caller owns load, save, and locking) whenever a hook handler's merged call passes `gcInterval = 180 * time.Second`. `GCIfDue(fabRoot, interval)` survives only as a one-line GC-only wrapper — `UpdateAgent(fabRoot, false, nil, interval)` — with **zero production call sites** (exercised by runtime tests). Behavior:
+#### Scenario: hook commands are gone, readers agree everywhere
 
-1. Load `.fab-runtime.yaml` (once, shared with the entry mutation). If the file is missing, the call is a no-op.
-2. Read `last_run_gc`. If `now - last_run_gc < interval`, skip the sweep (throttled — no GC-driven write).
-3. Iterate `_agents`. For each entry with a non-nil `pid` field, send signal 0 via `syscall.Kill(pid, 0)`. If the process is gone (ESRCH; EPERM counts as alive), delete the entry. Entries with live PIDs are preserved.
-4. Entries **without** a `pid` field are preserved regardless of any other signal.
-5. Update `last_run_gc = now()` and save — in the same single write as the entry mutation.
-
-**GC-on-no-op**: the sweep runs even when the mutation half of the merged call was a no-op (e.g. `ClearAgent` for an absent session while the throttle has expired) — and a due sweep always dirties the map (at minimum `last_run_gc`), so it alone triggers the save.
-
-**180-second throttle**: Matches the "once per 3 mins or so" cadence directed during design. The write-half of each hook invocation already absorbs the common-case cost; the GC sweep piggybacks on the same file read + write round-trip when it's actually due. (Since mz4q the implementation matches this description literally — previously the sweep was a second, independent read + write cycle per hook event.)
-
-**`kill(pid, 0)` liveness**: POSIX-standard; no subprocess spawn; server-agnostic (does not depend on tmux sockets or platform-specific process tables). ESRCH means the PID is definitively gone. PID reuse is an accepted risk — the window (GC interval vs. OS PID reuse horizon) is small enough that the simplicity win dominates.
-
-**Pid-less entries preserved indefinitely**: Entries without a `pid` field (typically non-tmux agents whose grandparent walker failed, or edge cases) are never pruned by this GC. This is a self-limiting leak — low frequency in practice. A secondary mtime-based sweep is possible future work if unbounded growth is ever observed.
-
-### Pane-Map Matching Rule
-
-`fab pane map` resolves a pane's agent state by scanning `_agents` in the worktree's `.fab-runtime.yaml` for an entry where:
-
-- `tmux_pane == <pane_id>` (exact string equality, including the `%` prefix), **AND**
-- (`tmux_server` is empty/absent **OR** `tmux_server` equals the basename of the active `$TMUX` socket or the `--server <name>` flag value)
-
-Matched entry:
-
-- Without `idle_since` → Agent column shows `active`
-- With `idle_since` → Agent column shows `idle (<duration>)` (e.g., `idle (2m)`)
-
-No match → Agent column shows `—` (em-dash).
-
-**Independent of change**: This resolution path no longer short-circuits on whether the pane has an active change. An agent running in a discussion-mode worktree now populates the Agent column.
-
-**Server disambiguation**: When two worktrees on different tmux servers both use the same pane ID (tmux allocates pane IDs per-server), the `tmux_server` property disambiguates. A `fab pane map --server runKit` invocation matches only entries whose `tmux_server` is empty or equals `"runKit"`.
-
-**Cache discipline**: `ResolveAgentStateWithCache` reads each worktree's `.fab-runtime.yaml` at most once per `fab pane map` invocation, sharing the parsed map across all panes in that worktree.
-
-### Three-Axis Model
-
-`fab pane map` resolves three orthogonal axes independently:
-
-| Axis | Source | Column |
-|------|--------|--------|
-| **Change** | `.fab-status.yaml` symlink at the worktree root → `fab/changes/<folder>/.status.yaml` | `Change` / `Stage` |
-| **Agent** | `_agents` in `.fab-runtime.yaml` at the worktree root, matched by `tmux_pane` | `Agent` |
-| **Process** | OS process tree (`/proc` on Linux, `ps` on macOS) — opt-in via `fab pane process` | Not in `map` output |
-
-The axes do not share resolution code and do not gate each other. A pane may have:
-
-- Change but no Agent (change was created by a shell tool, no Claude running) → `260417-... / spec / —`
-- Agent but no Change (discussion mode) → `— / — / idle (2m)`
-- Neither (plain shell) → `— / — / —`
-- Both (normal working state) → `260417-... / spec / idle (2m)`
-
-The Process axis is intentionally separate (and opt-in) because `/proc` walks cost 5–10ms per pane and are unnecessary for the common `fab pane map` call path.
-
-### Grandparent PID Walker
-
-Claude invokes hooks via `sh -c '<command>'`. The hook process's parent is `sh`; its grandparent is Claude. `os.Getppid()` returns the `sh` PID — one level short. The `internal/proc/` package resolves Claude's PID by one additional step:
-
-- **Linux** (`proc_linux.go`, `//go:build linux`): reads `/proc/$PPID/status` and parses the `PPid:` line. Cheap; no subprocess.
-- **macOS** (`proc_darwin.go`, `//go:build darwin`): execs `ps -o ppid= -p $PPID` and parses the trimmed stdout. Same function signature as Linux.
-
-Both files export `ClaudePID() (int, error)`. Failure (e.g., parent already exited) causes the hook to write its entry without the `pid` field — the hook never fails on walker error.
-
-This mirrors the established `internal/pane/pane_process_{linux,darwin}.go` pattern: platform-split via Go build tags, identical signatures, isolation of platform-specific code.
+- **GIVEN** the `fab hook` command family was removed (no `stop`/`user-prompt`/`session-start`/`artifact-write`/`sync` subcommands)
+- **WHEN** an un-migrated `.claude/settings.local.json` still fires `fab hook <x>` (before the `2.13.6-to-2.14.0` migration runs)
+- **THEN** it errors with a cobra unknown-command message on stderr and a non-zero exit — no `.fab-runtime.yaml` is created (nothing writes it anymore); the migration then removes the entry
+- **AND** all three pane readers resolve agent state from `@rk_agent_state`, so a codex/copilot/gemini pane (previously invisible to the Claude-only pipeline) is now covered once its option is set
 
 ## Design Decisions
 
-### Session_id as identity key
-**Decision**: The `_agents` map is keyed by Claude's `session_id` UUID (from the hook stdin JSON payload).
-**Why**: `session_id` is stable across all hook fires within a session, is provided directly by Claude Code (no platform-specific lookup), is a UUID (zero collision risk across Claude restarts), and is human-correlatable with the transcript file. Probe-verified across Stop and UserPromptSubmit events.
-**Rejected**: PID-as-key — PID reuse creates stale-entry collisions across Claude restarts; requires platform-specific lookup for identity. Pane-ID-as-key — tmux-coupled, fails for non-tmux agents (IDE terminals, SSH, CI). Compound key `(session_id, tmux_pane)` — forces non-tmux agents to synthesize fake pane IDs; over-specifies identity.
-*Source*: 260419-o5ej-agents-runtime-unified
+### Consumer-not-producer: read a shared convention, own nothing
+**Decision**: fab-kit stops producing agent active/idle lifecycle state and becomes a pure **consumer** of the `@rk_agent_state` tmux pane-option convention. run-kit's `rk agent-setup` is the sole writer; fab reads with plain tmux commands and depends on no run-kit software.
+**Why**: **Independence** — fab-kit must function fully wherever it runs, with or without tmux, with or without run-kit. Agent-state detection was never core fab; it is a tmux-context observation feature bolted on because no owner existed. run-kit is that owner now. Reading a shared convention (a) drops a whole producer subsystem (hooks, GC, PID walker, flock, runtime file) that was **dead weight outside tmux** — hooks fired and wrote `_agents` entries nothing ever read (no `tmux_pane` to match) — and (b) fixes **Claude-only blindness for free**: the old pipeline tracked only Claude Code's hooks, so `fab pane send`'s gate was blind to codex/copilot/gemini agents; run-kit's harness hooks cover them all. It also adds a **richer `waiting` state** (blocked on a human) that the Stop-only pipeline could not observe (a mid-turn permission prompt fires no Stop). The read is a *data* convention in tmux, not a software link — so the independence principle holds: no run-kit binary need exist for fab to read (or degrade to unknown).
+**Rejected**: Keeping the producer subsystem (two writers' worth of drift risk, a per-hook-event latency tax, and permanent Claude-only blindness). Making run-kit a hard dependency (violates independence — fab must work with run-kit absent). Waiting for the writer before landing the reader (accepted: fab reads a not-yet-written option and degrades to unknown, the honest fallback; the PR is procedurally held from merge until the writer ships).
+*Introduced by*: 260705-ioku-divest-agent-state-production
 
-### Optional tmux properties, not part of key
-**Decision**: `tmux_server` and `tmux_pane` are entry properties, absent when fab runs outside tmux.
-**Why**: Fab does not require tmux — agents in IDE terminals, SSH sessions, CI jobs are still trackable. Storing these as properties keeps identity uniform across tmux and non-tmux contexts.
-**Rejected**: Requiring tmux for tracking — would lose coverage of major agent-running environments.
-*Source*: 260419-o5ej-agents-runtime-unified
+### Epoch suffix mandatory; unknown is a first-class outcome
+**Decision**: The read contract is `"<state>:<epoch_seconds>"` — the epoch is **required**, and an absent option / unknown token / missing-or-bad epoch all collapse to a single **unknown** outcome (rendered `—`, gated by a distinct `pane send` refusal).
+**Why**: The epoch lets consumers compute idle duration and apply staleness heuristics (an Esc-interrupted agent can leave a stale `active`), so a value without it carries no usable duration and is treated as unparseable rather than a bare state. Collapsing absent/unknown/unparseable into one "unknown" keeps the reader a simple, correct pure function (`parseAgentState`) and gives the operator/`pane send` one clean "no instrumented agent here" signal. No staleness heuristic ships in v1 — a stale `active` still refuses sends; `--force` is the escape hatch, and heuristics are a consumer follow-up.
+**Rejected**: Optional epoch (loses duration and the staleness signal). Distinct outcomes for absent-vs-malformed (no reader acts on the distinction; one "unknown" is enough). A v1 staleness heuristic (simplest correct reader wins; `--force` already covers the stuck-active case).
+*Introduced by*: 260705-ioku-divest-agent-state-production
 
-### Inline GC via throttle field, no CLI surface
-**Decision**: GC runs from every hook handler, throttled by a top-level `last_run_gc` timestamp with a 180s interval. No `fab runtime gc` subcommand is exposed.
-**Why**: Hooks already hold the "something happened" signal that justifies a sweep; piggybacking on their file I/O is free. 180s matches the ≈3-minute cadence directed in design. `kill(pid, 0)` is cheap and server-agnostic. No operational surface to document, cron, or monitor.
-**Rejected**: Separate `fab runtime gc` subcommand + cron/systemd — adds operational complexity. Per-entry TTL — requires per-entry timestamps and wall-clock comparison without liveness signal. Cross-server tmux enumeration GC — platform-specific, brittle, doesn't cover non-tmux entries.
-*Source*: 260419-o5ej-agents-runtime-unified; *Updated by*: 260612-mz4q-shared-state-concurrency-hook-hot-path (sweep folded into the mutator's own `UpdateAgent` load/save round-trip; `GCIfDue` reduced to a test-facing one-line wrapper with zero production call sites)
-
-### Lost-update protection via sibling flock, not rename alone
-**Decision**: Every `.fab-runtime.yaml` load-mutate-save cycle runs while holding an exclusive advisory flock on the sibling `.fab-runtime.yaml.lock`, taken inside `runtime.UpdateAgent` via the shared `internal/lockfile` helper (`O_CREATE` + `LOCK_EX|LOCK_NB` retry loop, bounded ~10s acquisition; lock files are gitignored and never deleted). The save is skipped when neither the mutation nor GC changed anything.
-**Why**: Temp+rename only prevents torn files; it does not serialize concurrent load-mutate-save cycles, which are last-writer-wins over the whole document. The realistic race surface is multiple Claude sessions hooking in the same worktree plus the cross-process GC clobber — concrete failure modes were a lost `ClearAgentIdle` (operator injects keystrokes into a busy agent) and a lost `WriteAgent` (idle agent unmatched, `pane send` blocked until the next hook fire). One helper wrapping the whole cycle fixes the class at its root. Bounded (non-blocking + retry) acquisition converts a pathological holder into a clear error instead of an indefinite deadlock; the uncontended path is a single syscall. `flock` works on both supported GOOS (linux + darwin) — no build-tag split.
-**Rejected**: Per-call-site patches (fixes instances, not the class). Unbounded blocking `LOCK_EX` (silent deadlock risk in unattended pipelines). Deleting lock files after release (racy — flock state, not file existence, carries the lock).
-*Source*: 260612-mz4q-shared-state-concurrency-hook-hot-path
-
-### Durability follows criticality — runtime fsync dropped
-**Decision**: `runtime.SaveFile` no longer fsyncs the temp file before rename; `statusfile.Save` gained the fsync in the same change.
-**Why**: The runtime file is ephemeral, fully re-derivable state ("re-populates on next hook event"), and the per-write fsync sat on every hook event's latency path — exactly the hot path the merged `UpdateAgent` exists to thin out. `.status.yaml`, by contrast, is the pipeline state machine's source of truth, where a crash leaving an empty/torn file is unacceptable. A one-line revert if the posture proves wrong.
-**Rejected**: fsync both files (taxes every hook event for state that self-heals). fsync neither (risks the pipeline's source of truth).
-*Source*: 260612-mz4q-shared-state-concurrency-hook-hot-path
-
-### Clean-slate migration, not faithful conversion
-**Decision**: The 1.4.0 → 1.5.0 migration deletes any existing `.fab-runtime.yaml` at each user worktree's repo root.
-**Why**: Old entries have no `session_id` (hooks didn't capture it before this change) and no correlation path to the current session. Runtime state is ephemeral — it self-heals within one hook cycle. The transient display cost (Agent column shows `—` for up to one hook cycle post-migration) is bounded and acceptable.
-**Rejected**: Synthesize `session_id` for legacy entries — no stable identity exists; fabricated UUIDs would go stale immediately. Dual-read (consume both schemas) — prolongs bifurcation forever.
-*Source*: 260419-o5ej-agents-runtime-unified
-
-### Platform-split grandparent walker under `internal/proc/`
-**Decision**: Platform-specific `proc_linux.go` (reads `/proc/$PPID/status`) and `proc_darwin.go` (execs `ps -o ppid= -p $PPID`) with Go build tags selecting at compile time. Both files export the same `ClaudePID() (int, error)` signature.
-**Why**: Mirrors the existing `internal/pane/pane_process_{linux,darwin}.go` convention. `/proc` is strictly cheaper on Linux (no subprocess). Build tags keep platform-specific code isolated and testable.
-**Rejected**: Shell-out to `ps` on both platforms — slower on Linux; no reason to avoid `/proc` where it's available.
-*Source*: 260419-o5ej-agents-runtime-unified
-
-### user-prompt clears only `idle_since`, preserves other entry properties
-**Decision**: `fab hook user-prompt` removes the `idle_since` key from `_agents[session_id]` and leaves `change`, `pid`, `tmux_server`, `tmux_pane`, `transcript_path` intact.
-**Why**: Preserves pane-map correlation across the idle → active transition, so `fab pane map` can show "active agent here" immediately. A full delete would create a brief window where the pane appears agentless until the next Stop event reconstructs the entry.
-**Rejected**: Full delete on user-prompt — wasteful (Stop will re-write the same properties) and creates a display gap.
-*Source*: 260419-o5ej-agents-runtime-unified
-
-### Pid-less entries preserved by GC
-**Decision**: GC skips entries without a `pid` field. Only entries with a `pid` are subject to `kill(pid, 0)` liveness checks.
-**Why**: Pid-less entries are low-frequency (non-tmux agents where the grandparent walker failed). Pruning them without a liveness signal would require an alternate signal (mtime, explicit TTL). The simpler invariant — "no pid → no pruning" — keeps GC focused on the dominant case.
-**Deferred work**: If pid-less entries grow unboundedly in practice, a secondary mtime-based sweep can be added later. Not required for the first cut.
-*Source*: 260419-o5ej-agents-runtime-unified
+### Single pure `parseAgentState`, reused by all three readers
+**Decision**: The `"<state>:<epoch>"` parse is one pure function in `internal/pane/pane.go`, consumed by `pane send`/`map`/`capture`; `map` reads via the `list-panes -F` format string, `send`/`capture` via a targeted `show-options -pv`.
+**Why**: A single grammar authority is tmux-free unit-testable and eliminates the three-drifting-copies anti-pattern. `map` already runs `list-panes -F`, so adding `#{@rk_agent_state}` is zero extra subprocesses (and the tmux-server disambiguation problem evaporates — a pane option lives on exactly one server's pane); `send`/`capture` operate on a single pane they already probe, so a targeted `show-options -pv` is the minimal read.
+**Rejected**: Parsing inline at each reader (three drifting copies). A `show-options` per pane in `map` (extra subprocess per pane — explicitly forbidden).
+*Introduced by*: 260705-ioku-divest-agent-state-production

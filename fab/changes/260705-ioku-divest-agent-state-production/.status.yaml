@@ -1,0 +1,57 @@
+id: ioku
+name: 260705-ioku-divest-agent-state-production
+created: 2026-07-05T19:08:38Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 22
+    acceptance_count: 26
+    acceptance_completed: 26
+confidence:
+    certain: 14
+    confident: 5
+    tentative: 0
+    unresolved: 0
+    score: 4.4
+    fuzzy: true
+    dimensions:
+        signal: 81.1
+        reversibility: 83.4
+        competence: 87.4
+        disambiguation: 85.0
+stage_metrics:
+    intake: {started_at: "2026-07-05T19:08:38Z", driver: fab-new, iterations: 1, completed_at: "2026-07-05T19:17:25Z"}
+    apply: {started_at: "2026-07-05T22:57:43Z", driver: fab-continue, iterations: 5, completed_at: "2026-07-05T23:08:59Z"}
+    review: {started_at: "2026-07-05T23:08:59Z", driver: fab-continue, iterations: 5, completed_at: "2026-07-05T23:21:39Z"}
+    hydrate: {started_at: "2026-07-05T23:21:39Z", driver: fab-continue, iterations: 1, completed_at: "2026-07-05T23:34:47Z"}
+    ship: {started_at: "2026-07-05T23:34:47Z", driver: fab-continue, iterations: 1, completed_at: "2026-07-05T23:36:34Z"}
+    review-pr: {started_at: "2026-07-05T23:36:34Z", driver: git-pr, iterations: 1, completed_at: "2026-07-05T23:43:52Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/472
+change_type_source: explicit
+true_impact:
+    added: 1942
+    deleted: 2756
+    net: -814
+    excluding:
+        added: 1262
+        deleted: 2480
+        net: -1218
+    tests:
+        added: 730
+        deleted: 1479
+        net: -749
+    computed_at: "2026-07-05T23:36:34Z"
+    computed_at_stage: ship
+summary: 'divested agent-state production: fab reads @rk_agent_state (consumer, not producer); deleted the _agents hook pipeline, internal/runtime+internal/proc, and the entire fab hook command family + hooklib (no shim period)'
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-07-06T08:22:08Z

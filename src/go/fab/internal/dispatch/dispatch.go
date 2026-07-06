@@ -5,8 +5,8 @@
 // exposes a byte-stable poll/logs/kill/clean surface.
 //
 // State layout — .fab-dispatch/{4-char-change-id}/ at the repository root
-// (alongside .fab-status.yaml / .fab-runtime.yaml, already gitignored via the
-// scaffold `.fab-*` pattern). The 4-char change ID keys the dir so it is stable
+// (alongside .fab-status.yaml, already gitignored via the scaffold `.fab-*`
+// pattern). The 4-char change ID keys the dir so it is stable
 // across `fab change rename`; each git worktree gets its own dir (repo-root
 // relative). Per-stage files:
 //
@@ -25,7 +25,7 @@
 // so the recorded pid tracks the live worker — see dispatch_posix.WrapperArgv.)
 // The process-launch and process-group-signal syscalls are POSIX-only and live in
 // the build-tagged dispatch_posix.go / dispatch_windows.go split (mirroring
-// cmd/fab/pane_process_{linux,darwin}.go and internal/proc). This file holds the
+// cmd/fab/pane_process_{linux,darwin}.go). This file holds the
 // platform-independent core: state types, the five-state derivation, path
 // helpers, and YAML load/save.
 package dispatch

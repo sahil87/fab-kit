@@ -31,13 +31,14 @@ func paneMapCmd() *cobra.Command {
 }
 
 // paneEntry holds a single tmux pane's ID, tab (window) name, current working directory,
-// session name, and window index.
+// session name, window index, and the raw @rk_agent_state pane option value.
 type paneEntry struct {
-	id      string
-	tab     string
-	cwd     string
-	session string
-	index   int
+	id         string
+	tab        string
+	cwd        string
+	session    string
+	index      int
+	agentState string // raw @rk_agent_state option ("<state>:<epoch>"), "" when unset
 }
 
 // paneRow holds the resolved data for a single output row.
@@ -51,7 +52,8 @@ type paneRow struct {
 	change       string
 	stage        string
 	displayState string // state half of status.DisplayStage (em dash when unresolved)
-	agent        string
+	agent        string // Agent-column DISPLAY string (agentColumn output); table-only
+	agentOption  string // raw @rk_agent_state option ("<state>:<epoch>", "" when unset); the JSON source of truth
 	prURL        string // last entry in .status.yaml prs:, "" when absent/empty/unresolved
 }
 
@@ -86,8 +88,6 @@ func runPaneMap(cmd *cobra.Command, args []string) error {
 	// worktree paths relative to their own repo's main root — not against a
 	// single shared root derived from the first parsable pane.
 	var rows []paneRow
-	// Cache runtime files per worktree root to avoid re-reading.
-	runtimeCache := make(map[string]interface{})
 	// Cache main-worktree root per pane's git worktree root to avoid re-running
 	// `git worktree list` for every pane in the same repo.
 	mainRootCache := make(map[string]string)
@@ -99,7 +99,7 @@ func runPaneMap(cmd *cobra.Command, args []string) error {
 	for _, p := range panes {
 		wtRoot := worktreeRootForPane(p.cwd, wtRootCache)
 		mainRoot := mainRootForPane(p.cwd, wtRoot, mainRootCache)
-		row, ok := resolvePane(p, wtRoot, mainRoot, server, runtimeCache)
+		row, ok := resolvePane(p, wtRoot, mainRoot)
 		if ok {
 			rows = append(rows, row)
 		}
@@ -162,8 +162,13 @@ const (
 	sessionAll                        // all sessions
 )
 
-// tmuxPaneFormat is the format string passed to tmux list-panes -F.
-const tmuxPaneFormat = "#{pane_id}\t#{window_name}\t#{pane_current_path}\t#{session_name}\t#{window_index}"
+// tmuxPaneFormat is the format string passed to tmux list-panes -F. The
+// trailing #{@rk_agent_state} carries the agent-state pane option so the
+// Agent column is resolved from the SAME list-panes call — zero extra
+// subprocesses (and the tmux_server disambiguation problem evaporates, since
+// a pane option lives on exactly one server's pane). tmux emits an empty
+// field when the option is unset.
+const tmuxPaneFormat = "#{pane_id}\t#{window_name}\t#{pane_current_path}\t#{session_name}\t#{window_index}\t#{@rk_agent_state}"
 
 // discoverPanes runs `tmux list-panes` with session targeting and parses the output.
 // Uses tab as the field delimiter so that window names containing spaces are handled correctly.
@@ -221,25 +226,36 @@ func discoverAllSessions(server string) ([]paneEntry, error) {
 	return parsePaneLines(string(out))
 }
 
-// parsePaneLines parses tmux list-panes output into paneEntry slices.
+// parsePaneLines parses tmux list-panes output into paneEntry slices. The
+// format string carries six tab-separated fields; the trailing
+// #{@rk_agent_state} field is empty when the option is unset. Trimming is
+// per-line and newline-only (never TrimSpace) so a trailing empty agent-state
+// field — which leaves the line ending in a tab — is preserved rather than
+// eaten. Lines with fewer than five fields are skipped; a five-field line
+// (no trailing agent-state field at all) is accepted with an empty state.
 func parsePaneLines(output string) ([]paneEntry, error) {
 	var panes []paneEntry
-	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.Trim(line, "\r\n")
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		parts := strings.SplitN(line, "\t", 5)
-		if len(parts) != 5 {
+		parts := strings.SplitN(line, "\t", 6)
+		if len(parts) < 5 {
 			continue
 		}
 		idx, _ := strconv.Atoi(parts[4])
+		agentState := ""
+		if len(parts) == 6 {
+			agentState = strings.TrimSpace(parts[5])
+		}
 		panes = append(panes, paneEntry{
-			id:      parts[0],
-			tab:     parts[1],
-			cwd:     parts[2],
-			session: parts[3],
-			index:   idx,
+			id:         parts[0],
+			tab:        parts[1],
+			cwd:        parts[2],
+			session:    parts[3],
+			index:      idx,
+			agentState: agentState,
 		})
 	}
 	return panes, nil
@@ -279,18 +295,24 @@ func matchPanesByFolder(panes []paneEntry, folder string, resolveFunc func(paneE
 	return matches, warning
 }
 
-// resolvePane resolves a pane entry into a table row. Agent state is
-// resolved by matching `_agents[*].tmux_pane` in the worktree's
-// .fab-runtime.yaml — independent of whether a change is active. This is
-// the three-axis model: Change (from .fab-status.yaml), Agent (from
-// _agents), and (not shown here) Process (opt-in via `fab pane process`).
+// resolvePane resolves a pane entry into a table row. Agent state comes from
+// the pane's @rk_agent_state option (carried in paneEntry.agentState from the
+// list-panes format string) — independent of whether a change is active.
+// This is the three-axis model: Change (from .fab-status.yaml), Agent (from
+// the pane option), and (not shown here) Process (opt-in via `fab pane process`).
 // wtRoot is the pane's pre-resolved git worktree root from
-// worktreeRootForPane ("" = not a git repo) \u2014 threaded in, like mainRoot,
+// worktreeRootForPane ("" = not a git repo) — threaded in, like mainRoot,
 // so resolvePane never re-spawns `git rev-parse`.
-func resolvePane(p paneEntry, wtRoot, mainRoot, server string, runtimeCache map[string]interface{}) (paneRow, bool) {
+func resolvePane(p paneEntry, wtRoot, mainRoot string) (paneRow, bool) {
 	emDash := "\u2014"
 
 	if wtRoot == "" {
+		// Non-git pane: the CHANGE axis is em-dash (no fab context), but the
+		// AGENT axis still comes from the pane's @rk_agent_state option — a
+		// non-git pane can run an instrumented agent. Hardcoding em-dash here
+		// would make `pane map` disagree with `pane send`/`capture` (which
+		// resolve the option regardless of git/fab context), so resolve it via
+		// the same agentColumn helper the git branch below uses.
 		return paneRow{
 			session:      p.session,
 			windowIndex:  p.index,
@@ -301,7 +323,8 @@ func resolvePane(p paneEntry, wtRoot, mainRoot, server string, runtimeCache map[
 			change:       emDash,
 			stage:        emDash,
 			displayState: emDash,
-			agent:        emDash,
+			agent:        agentColumn(p.agentState),
+			agentOption:  p.agentState,
 		}, true
 	}
 
@@ -340,10 +363,10 @@ func resolvePane(p paneEntry, wtRoot, mainRoot, server string, runtimeCache map[
 		}
 	}
 
-	// Agent resolution runs regardless of fabDir presence — the runtime
-	// file lives at the worktree root and can hold entries for
-	// discussion-mode agents with no associated change.
-	agentState := pane.ResolveAgentStateWithCache(wtRoot, p.id, server, runtimeCache)
+	// Agent resolution runs regardless of fabDir presence — the pane
+	// option describes the agent in this pane whether or not a change is
+	// active. active/waiting/idle-with-duration, em dash when unknown.
+	agentState := agentColumn(p.agentState)
 
 	return paneRow{
 		session:      p.session,
@@ -356,8 +379,25 @@ func resolvePane(p paneEntry, wtRoot, mainRoot, server string, runtimeCache map[
 		stage:        stageName,
 		displayState: stageState,
 		agent:        agentState,
+		agentOption:  p.agentState,
 		prURL:        prURL,
 	}, true
+}
+
+// agentColumn renders the raw @rk_agent_state option value into the Agent
+// column display string: "active" / "waiting" / "idle (<dur>)" / "—" (em dash
+// for the unknown case — absent option, unparseable value, or unknown token).
+// Idle carries the epoch-derived duration; active/waiting do not.
+func agentColumn(rawOption string) string {
+	state, idleDur := pane.AgentDisplayFromOption(rawOption)
+	switch {
+	case state == "":
+		return "—"
+	case state == pane.AgentStateIdle:
+		return fmt.Sprintf("idle (%s)", idleDur)
+	default:
+		return state
+	}
 }
 
 // paneJSON represents a single pane in JSON output.
@@ -413,26 +453,28 @@ func parsePRNumber(url string) (int, bool) {
 	return n, true
 }
 
-// splitAgentState splits the combined agent display string into separate
-// state and idle duration values for JSON output.
-func splitAgentState(agent string) (state *string, idleDuration *string) {
-	switch {
-	case agent == "\u2014":
+// agentJSONFields derives the JSON agent_state / agent_idle_duration pair
+// DIRECTLY from the raw @rk_agent_state option, NOT from the Agent-column
+// display string. This keeps the run-kit-consumed JSON contract independent of
+// the human display format: agent_state \u2208 {active, waiting, idle, null} and
+// agent_idle_duration is non-null only for idle. Unknown (unparseable / absent
+// / unknown token) maps both to null.
+func agentJSONFields(rawOption string) (state *string, idleDuration *string) {
+	st, dur := pane.AgentDisplayFromOption(rawOption)
+	if st == "" {
 		return nil, nil
-	case strings.HasPrefix(agent, "idle ("):
-		s := "idle"
-		dur := strings.TrimSuffix(strings.TrimPrefix(agent, "idle ("), ")")
-		return &s, &dur
-	default:
-		return &agent, nil
 	}
+	if dur == "" {
+		return &st, nil
+	}
+	return &st, &dur
 }
 
 // printPaneJSON marshals rows to a JSON array and writes to cmd's stdout.
 func printPaneJSON(cmd *cobra.Command, rows []paneRow) error {
 	out := make([]paneJSON, len(rows))
 	for i, r := range rows {
-		agentState, idleDur := splitAgentState(r.agent)
+		agentState, idleDur := agentJSONFields(r.agentOption)
 		var prNum *int
 		if n, ok := parsePRNumber(r.prURL); ok {
 			prNum = &n
