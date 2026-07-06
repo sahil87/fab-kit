@@ -154,7 +154,7 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 - `fab/changes/` — empty, ready for change folders (via `fab sync`)
 - `.claude/skills/` — deployed skill copies from the kit cache (via `fab sync`)
 
-**Delegation pattern**: `fab sync` handles all non-interactive structural setup (directories, scaffolding, skill deployment, `.envrc`/`.gitignore` fragments). It also runs `fab hook sync`, which since the agent-state divestment (`ioku`) is fully inert — the emptied mapping table means it registers no hooks, and it no longer rewrites legacy hook entries. `/fab-setup` adds the interactive parts (config, constitution). `fab sync` can be run independently (e.g., in CI or after an upgrade) without requiring `/fab-setup`.
+**Delegation pattern**: `fab sync` handles all non-interactive structural setup (directories, scaffolding, skill deployment, `.envrc`/`.gitignore` fragments). It performs no hook registration — the `fab hook` command family (and its sync step) was removed in 2.14.0 with the agent-state divestment (`ioku`), so `fab sync` no longer touches `.claude/settings.local.json`; cleanup of any lingering hook entries is done by the `2.13.6-to-2.14.0` migration. `/fab-setup` adds the interactive parts (config, constitution). `fab sync` can be run independently (e.g., in CI or after an upgrade) without requiring `/fab-setup`.
 
 **Examples**:
 ```

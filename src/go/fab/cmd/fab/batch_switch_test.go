@@ -44,7 +44,7 @@ func TestAllChangeNames_EmptyDir(t *testing.T) {
 func TestRunBatchSwitch_NoTmuxReturnsError(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "fab", "changes"), 0o755)
-	hookTestEnv(t, root, map[string]string{"TMUX": ""})
+	chdirTestEnv(t, root, map[string]string{"TMUX": ""})
 
 	cmd := batchSwitchCmd()
 	var out, errOut bytes.Buffer
@@ -67,7 +67,7 @@ func TestRunBatchSwitch_NoTmuxReturnsError(t *testing.T) {
 func TestRunBatchSwitch_UnresolvableWarnsAndSkips(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "fab", "changes", "260401-ab12-add-feature"), 0o755)
-	hookTestEnv(t, root, map[string]string{"TMUX": "/tmp/tmux-test/default,123,0"})
+	chdirTestEnv(t, root, map[string]string{"TMUX": "/tmp/tmux-test/default,123,0"})
 
 	cmd := batchSwitchCmd()
 	var out, errOut bytes.Buffer
@@ -119,7 +119,7 @@ func TestBatchSwitchCmd_Structure(t *testing.T) {
 
 // batchSwitchFixture creates a fab root with one change folder and a
 // fab/project/config.yaml carrying the given providers.claude.session_command
-// (the default tier's provider), chdirs into it (via hookTestEnv, TMUX set), and
+// (the default tier's provider), chdirs into it (via chdirTestEnv, TMUX set), and
 // returns the resolvable change name.
 func batchSwitchFixture(t *testing.T, sessionCommand string) (root, change string) {
 	t.Helper()
@@ -136,7 +136,7 @@ func batchSwitchFixture(t *testing.T, sessionCommand string) (root, change strin
 	if err := os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	hookTestEnv(t, root, map[string]string{"TMUX": "/tmp/tmux-test/default,123,0"})
+	chdirTestEnv(t, root, map[string]string{"TMUX": "/tmp/tmux-test/default,123,0"})
 	return root, change
 }
 

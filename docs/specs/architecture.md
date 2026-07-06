@@ -442,7 +442,7 @@ Multiple versions coexist; each repo pins its own via `fab_version` in `config.y
 5. /fab-new <description>    →  first change
 ```
 
-`fab init` requires a git repository and fails loudly before any download or write otherwise. `fab sync` (re-runnable any time) deploys skills to detected agents, scaffolds workspace files (directories, `.envrc`/`.gitignore` fragments, project file templates), runs `fab hook sync` (which since the agent-state divestment `ioku` is fully inert — the mapping table is empty so it registers nothing, and it no longer rewrites legacy hook entries; it has no removal path), and stamps version markers — all from the cache, never copying kit content into the repo.
+`fab init` requires a git repository and fails loudly before any download or write otherwise. `fab sync` (re-runnable any time) deploys skills to detected agents, scaffolds workspace files (directories, `.envrc`/`.gitignore` fragments, project file templates), and stamps version markers — all from the cache, never copying kit content into the repo. It performs no hook registration: the `fab hook` command family (and its sync step) was removed in 2.14.0 with the agent-state divestment (`ioku`), so `fab sync` no longer touches `.claude/settings.local.json` — cleanup of any lingering hook entries is done by the `2.13.6-to-2.14.0` migration.
 
 ### Updating
 

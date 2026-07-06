@@ -52,6 +52,6 @@ true_impact:
         net: -749
     computed_at: "2026-07-05T23:36:34Z"
     computed_at_stage: ship
-summary: 'divested agent-state production: fab now reads the @rk_agent_state tmux pane option (consumer, not producer); deleted the .fab-runtime.yaml _agents hook pipeline + internal/runtime+internal/proc'
+summary: 'divested agent-state production: fab reads @rk_agent_state (consumer, not producer); deleted the _agents hook pipeline, internal/runtime+internal/proc, and the entire fab hook command family + hooklib (no shim period)'
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-07-05T23:43:52Z
+last_updated: 2026-07-06T08:22:08Z

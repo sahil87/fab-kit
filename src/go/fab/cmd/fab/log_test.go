@@ -24,7 +24,7 @@ func execLogCommand(t *testing.T, args ...string) (error, string) {
 // best-effort contract (F28) — outside a fab repo it warns on stderr and
 // still exits 0, so an unguarded skill call can never STOP a pipeline.
 func TestLogCommand_NoFabRootExitsZeroWithWarning(t *testing.T) {
-	hookTestEnv(t, t.TempDir(), map[string]string{})
+	chdirTestEnv(t, t.TempDir(), map[string]string{})
 
 	err, stderr := execLogCommand(t, "fab-test")
 	if err != nil {
@@ -40,7 +40,7 @@ func TestLogCommand_NoFabRootExitsZeroWithWarning(t *testing.T) {
 func TestLogCommand_BadExplicitChangeExitsZeroWithWarning(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "fab", "changes"), 0o755)
-	hookTestEnv(t, root, map[string]string{})
+	chdirTestEnv(t, root, map[string]string{})
 
 	err, stderr := execLogCommand(t, "fab-test", "zzzz-no-such-change")
 	if err != nil {
@@ -57,7 +57,7 @@ func TestLogCommand_SuccessAppendsEntry(t *testing.T) {
 	root := t.TempDir()
 	changeDir := filepath.Join(root, "fab", "changes", "260401-ab12-add-feature")
 	os.MkdirAll(changeDir, 0o755)
-	hookTestEnv(t, root, map[string]string{})
+	chdirTestEnv(t, root, map[string]string{})
 
 	err, stderr := execLogCommand(t, "fab-test", "ab12")
 	if err != nil {
@@ -84,7 +84,7 @@ func TestLogCommand_UnwritableHistoryExitsZeroWithWarning(t *testing.T) {
 	os.MkdirAll(changeDir, 0o755)
 	// Make the history path unopenable by creating it as a directory.
 	os.MkdirAll(filepath.Join(changeDir, ".history.jsonl"), 0o755)
-	hookTestEnv(t, root, map[string]string{})
+	chdirTestEnv(t, root, map[string]string{})
 
 	err, stderr := execLogCommand(t, "fab-test", "ab12")
 	if err != nil {

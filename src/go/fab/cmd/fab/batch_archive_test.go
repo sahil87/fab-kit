@@ -263,7 +263,7 @@ func makeArchivable(t *testing.T, root, folder string) string {
 func TestRunBatchArchive_EmptyYesSetIsBenignNoOp(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "fab", "changes"), 0o755)
-	hookTestEnv(t, root, map[string]string{})
+	chdirTestEnv(t, root, map[string]string{})
 
 	cmd := batchArchiveCmd()
 	var out, errOut bytes.Buffer
@@ -286,7 +286,7 @@ func TestRunBatchArchive_EmptyYesSetIsBenignNoOp(t *testing.T) {
 func TestRunBatchArchive_EmptyBareSetIsBenignNoOpBeforeGuard(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "fab", "changes"), 0o755)
-	hookTestEnv(t, root, map[string]string{})
+	chdirTestEnv(t, root, map[string]string{})
 	// Even with a non-TTY stdin and no --yes, the empty-set no-op must win
 	// over the non-TTY guard (the F49 check happens first).
 	forceTTY(t, false)
@@ -310,7 +310,7 @@ func TestRunBatchArchive_ArchivedNameSoftSkips(t *testing.T) {
 	folder := "260310-abcd-my-change"
 	archivedDir := filepath.Join(root, "fab", "changes", "archive", "2026", "03", folder)
 	os.MkdirAll(archivedDir, 0o755)
-	hookTestEnv(t, root, map[string]string{})
+	chdirTestEnv(t, root, map[string]string{})
 
 	cmd := batchArchiveCmd()
 	var out, errOut bytes.Buffer
@@ -335,7 +335,7 @@ func TestRunBatchArchive_DryRunListsOnly(t *testing.T) {
 	root := t.TempDir()
 	folder := "260310-abcd-my-change"
 	changeDir := makeArchivable(t, root, folder)
-	hookTestEnv(t, root, map[string]string{})
+	chdirTestEnv(t, root, map[string]string{})
 
 	cmd := batchArchiveCmd()
 	var out, errOut bytes.Buffer
@@ -364,7 +364,7 @@ func TestRunBatchArchive_DryRunListsOnly(t *testing.T) {
 func TestRunBatchArchive_DryRunYesMutuallyExclusive(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "fab", "changes"), 0o755)
-	hookTestEnv(t, root, map[string]string{})
+	chdirTestEnv(t, root, map[string]string{})
 
 	cmd := batchArchiveCmd()
 	var out, errOut bytes.Buffer
@@ -387,7 +387,7 @@ func TestRunBatchArchive_YesArchivesAllNoPrompt(t *testing.T) {
 	fabRoot := filepath.Join(root, "fab")
 	f1 := makeArchivable(t, root, "260401-aa11-first")
 	f2 := makeArchivable(t, root, "260401-bb22-second")
-	hookTestEnv(t, root, map[string]string{})
+	chdirTestEnv(t, root, map[string]string{})
 
 	cmd := batchArchiveCmd()
 	var out, errOut bytes.Buffer
@@ -418,7 +418,7 @@ func TestRunBatchArchive_BarePromptYesArchives(t *testing.T) {
 	root := t.TempDir()
 	folder := "260401-aa11-first"
 	changeDir := makeArchivable(t, root, folder)
-	hookTestEnv(t, root, map[string]string{})
+	chdirTestEnv(t, root, map[string]string{})
 	forceTTY(t, true)
 
 	cmd := batchArchiveCmd()
@@ -446,7 +446,7 @@ func TestRunBatchArchive_BarePromptYesArchives(t *testing.T) {
 func TestRunBatchArchive_BarePromptYesWordArchives(t *testing.T) {
 	root := t.TempDir()
 	makeArchivable(t, root, "260401-aa11-first")
-	hookTestEnv(t, root, map[string]string{})
+	chdirTestEnv(t, root, map[string]string{})
 	forceTTY(t, true)
 
 	cmd := batchArchiveCmd()
@@ -469,7 +469,7 @@ func TestRunBatchArchive_BarePromptEnterAborts(t *testing.T) {
 	root := t.TempDir()
 	folder := "260401-aa11-first"
 	changeDir := makeArchivable(t, root, folder)
-	hookTestEnv(t, root, map[string]string{})
+	chdirTestEnv(t, root, map[string]string{})
 	forceTTY(t, true)
 
 	cmd := batchArchiveCmd()
@@ -494,7 +494,7 @@ func TestRunBatchArchive_BarePromptNoAborts(t *testing.T) {
 	root := t.TempDir()
 	folder := "260401-aa11-first"
 	changeDir := makeArchivable(t, root, folder)
-	hookTestEnv(t, root, map[string]string{})
+	chdirTestEnv(t, root, map[string]string{})
 	forceTTY(t, true)
 
 	cmd := batchArchiveCmd()
@@ -517,7 +517,7 @@ func TestRunBatchArchive_NonTTYWithoutYesRefuses(t *testing.T) {
 	root := t.TempDir()
 	folder := "260401-aa11-first"
 	changeDir := makeArchivable(t, root, folder)
-	hookTestEnv(t, root, map[string]string{})
+	chdirTestEnv(t, root, map[string]string{})
 	forceTTY(t, false)
 
 	cmd := batchArchiveCmd()
@@ -553,7 +553,7 @@ func TestRunBatchArchive_ExplicitArgsNoPrompt(t *testing.T) {
 	root := t.TempDir()
 	folder := "260401-aa11-first"
 	changeDir := makeArchivable(t, root, folder)
-	hookTestEnv(t, root, map[string]string{})
+	chdirTestEnv(t, root, map[string]string{})
 	forceTTY(t, false) // explicit args must ignore the guard
 
 	cmd := batchArchiveCmd()
@@ -592,7 +592,7 @@ func TestRunBatchArchive_AmbiguousNameSurfaces(t *testing.T) {
 		os.MkdirAll(cd, 0o755)
 		os.WriteFile(filepath.Join(cd, ".status.yaml"), []byte("progress:\n  hydrate: done\n"), 0o644)
 	}
-	hookTestEnv(t, root, map[string]string{})
+	chdirTestEnv(t, root, map[string]string{})
 
 	cmd := batchArchiveCmd()
 	var out, errOut bytes.Buffer
@@ -624,7 +624,7 @@ func TestRunBatchArchive_AmbiguousNameSurfaces(t *testing.T) {
 func TestRunBatchArchive_NoValidChangesReturnsError(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "fab", "changes"), 0o755)
-	hookTestEnv(t, root, map[string]string{})
+	chdirTestEnv(t, root, map[string]string{})
 
 	cmd := batchArchiveCmd()
 	var out, errOut bytes.Buffer

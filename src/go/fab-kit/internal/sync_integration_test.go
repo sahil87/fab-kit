@@ -163,9 +163,11 @@ func TestSync_FullRunProducesExpectedTree(t *testing.T) {
 		}
 	}
 
-	// Hook sync wrote agent settings.
-	if _, err := os.Stat(filepath.Join(repo, ".claude", "settings.local.json")); err != nil {
-		t.Errorf("expected hook sync to write settings.local.json: %v", err)
+	// No hook registration: the `fab hook` command family was removed, so sync
+	// no longer writes .claude/settings.local.json (settings cleanup is handled
+	// by the 2.13.6-to-2.14.0 migration, not by sync).
+	if _, err := os.Stat(filepath.Join(repo, ".claude", "settings.local.json")); !os.IsNotExist(err) {
+		t.Errorf("sync must not create settings.local.json (hook registration removed); stat err=%v", err)
 	}
 
 	// Project sync script ran.

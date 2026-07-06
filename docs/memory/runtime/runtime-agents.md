@@ -63,7 +63,7 @@ The `"<state>:<epoch>"` parse lives in a **single pure function** `parseAgentSta
 
 The entire `.fab-runtime.yaml` `_agents` producer subsystem was **deleted wholesale** in ioku. What is gone:
 
-- **The hook write pipeline** (`cmd/fab/hook.go`): the state-tracking purpose of `fab hook stop|session-start|user-prompt` (now silent no-op exit-0 shims — see [hooks-may-enhance-never-own.md](/pipeline/hooks-may-enhance-never-own.md)), including `WriteAgent`/`ClearAgent`/`ClearAgentIdle`/`UpdateAgent`, the throttled GC sweep + `last_run_gc`, and the grandparent PID walker.
+- **The hook write pipeline** (`cmd/fab/hook.go`): the whole `fab hook` command family — `fab hook stop|session-start|user-prompt`, plus `artifact-write` and `sync` — was **removed outright** (no shim period; see [hooks-may-enhance-never-own.md](/pipeline/hooks-may-enhance-never-own.md)), including `WriteAgent`/`ClearAgent`/`ClearAgentIdle`/`UpdateAgent`, the throttled GC sweep + `last_run_gc`, and the grandparent PID walker. `cmd/fab/hook.go` and `internal/hooklib/sync.go` are deleted; the plan-parsing helpers in `internal/hooklib/artifact.go` (change-type inference, section counting) survive — they feed `fab status refresh`, not any hook.
 - **`internal/runtime/`** — the whole `_agents` map and `.fab-runtime.yaml` read/write. Nothing else lived in the file (only `_agents` + top-level `last_run_gc`), so the file concept died wholesale.
 - **`internal/proc/`** — the grandparent PID walker (`proc_linux.go`/`proc_darwin.go`). Its sole importer was `cmd/fab/hook.go`; the comment-only reference in `internal/dispatch/dispatch_posix.go` was swept.
 - **The `_agents` resolvers in `internal/pane/pane.go`**: `ResolveAgentState`, `ResolveAgentStateWithCache`, `findAgentByPane`, `loadRuntimeForCache`, `LoadRuntimeFile`, and the per-worktree runtime cache in pane map, plus the `_agents`/`idle_since`/`tmux_pane`/`tmux_server` schema-key constants.
@@ -71,11 +71,11 @@ The entire `.fab-runtime.yaml` `_agents` producer subsystem was **deleted wholes
 
 **`internal/lockfile` STAYS.** It is consumed by `cmd/fab/status.go`, `cmd/fab/preflight.go`, and `internal/score/score.go` for `.status.yaml` serialization. Only the **runtime** lock usage (`.fab-runtime.yaml.lock` in the deleted `internal/runtime`) went away with the runtime package.
 
-#### Scenario: hooks no longer write, readers agree everywhere
+#### Scenario: hook commands are gone, readers agree everywhere
 
-- **GIVEN** any invocation of `fab hook stop`, `fab hook user-prompt`, or `fab hook session-start`
-- **WHEN** the shim runs (with any stdin, inside or outside tmux)
-- **THEN** it exits 0, writes nothing to stdout, and creates/touches no `.fab-runtime.yaml`
+- **GIVEN** the `fab hook` command family was removed (no `stop`/`user-prompt`/`session-start`/`artifact-write`/`sync` subcommands)
+- **WHEN** an un-migrated `.claude/settings.local.json` still fires `fab hook <x>` (before the `2.13.6-to-2.14.0` migration runs)
+- **THEN** it errors with a cobra unknown-command message on stderr and a non-zero exit — no `.fab-runtime.yaml` is created (nothing writes it anymore); the migration then removes the entry
 - **AND** all three pane readers resolve agent state from `@rk_agent_state`, so a codex/copilot/gemini pane (previously invisible to the Claude-only pipeline) is now covered once its option is set
 
 ## Design Decisions

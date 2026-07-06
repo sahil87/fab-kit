@@ -16,7 +16,7 @@ func resolveTestRepo(t *testing.T) {
 	t.Helper()
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "fab", "changes", resolveTestFolder), 0o755)
-	hookTestEnv(t, root, map[string]string{"TMUX": ""})
+	chdirTestEnv(t, root, map[string]string{"TMUX": ""})
 }
 
 // runResolveCmd executes a fresh resolveCmd with the given args, returning

@@ -21,7 +21,6 @@ metadata:
 - fab resolve (extended)
 - fab resolve-agent
 - fab config reference
-- fab hook
 - fab pane
 - fab doctor
 - fab migrations-status
@@ -77,7 +76,7 @@ All commands accept the unified `<change>`: 4-char ID (`yobi`), folder substring
 
 ### Commands covered in `_preamble` Common fab Commands
 
-`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab hook`, `fab pane`, `fab doctor`, `fab migrations-status`, `fab kit-path`, `fab shell-init`, `fab impact`, `fab pr-meta`, `fab memory-index`, `fab fab-help`, `fab help-dump`, `fab operator`, `fab agent`, `fab batch`) and extended flag details for the above.
+`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab pane`, `fab doctor`, `fab migrations-status`, `fab kit-path`, `fab shell-init`, `fab impact`, `fab pr-meta`, `fab memory-index`, `fab fab-help`, `fab help-dump`, `fab operator`, `fab agent`, `fab batch`) and extended flag details for the above.
 
 ---
 
@@ -138,7 +137,7 @@ Full subcommand table (headline in `_preamble` § Common fab Commands):
 
 ### stage_hooks (project-config pre/post stage commands)
 
-`fab status start` and `fab status finish` honor an optional `stage_hooks` map in `fab/project/config.yaml` (not seeded by the scaffold — add the key by hand; not to be confused with `fab hook`, the Claude Code harness handlers below):
+`fab status start` and `fab status finish` honor an optional `stage_hooks` map in `fab/project/config.yaml` (not seeded by the scaffold — add the key by hand). This is a pipeline-transition mechanism, unrelated to Claude Code settings hooks (the `fab hook` command family was removed in 2.14.0):
 
 ```yaml
 stage_hooks:
@@ -322,23 +321,13 @@ No flags, no arguments (`fab config reference extra-arg` is rejected). Runs from
 
 ---
 
-## fab hook
+## fab hook (removed in 2.14.0)
 
-Claude Code hook handlers. **fab now registers no hooks** — the mapping table (`hooklib.DefaultMappings`) is empty. The former session-scoped handlers survive one release as silent no-op shims for un-migrated `.claude/settings.local.json`; `sync` (setup-facing) is retained one release but now fully inert — it registers nothing and no longer rewrites legacy scripts (the rewrite rows were dropped so sync cannot re-mint the entries the `2.13.6-to-2.14.0` migration deletes); it has no removal path (it never deletes stale entries). **All hook subcommands exit 0** so they never block the agent — the shims emit nothing; `sync` surfaces failures on stderr but still exits 0.
+The `fab hook` command family — `session-start`, `stop`, `user-prompt`, `artifact-write`, and `sync` — was **removed outright** in 2.14.0 (no deprecation shim period). fab no longer registers, writes, or owns any Claude Code hook. An un-migrated `.claude/settings.local.json` that still invokes `fab hook <x>` will now get a cobra *unknown command* error (exit 1) until the `2.13.6-to-2.14.0` migration removes the entries; that migration strips the three session-scoped entries (both the inline `fab hook …` and legacy `on-*.sh` forms) and deletes the dead `.fab-runtime.yaml`/`.lock` files. Two facts that outlived the hooks:
 
-| Subcommand | Former event | Current behavior |
-|------------|--------------|------------------|
-| `session-start` | SessionStart | No-op shim — exits 0, emits nothing |
-| `stop` | Stop | No-op shim — exits 0, emits nothing |
-| `user-prompt` | UserPromptSubmit | No-op shim — exits 0, emits nothing |
-| `artifact-write` | PostToolUse (Write/Edit) | No-op shim — exits 0, emits nothing (removed earlier, y022) |
-| `sync` | n/a | Fully inert — registers nothing (empty mapping table) and no longer rewrites legacy scripts; idempotent |
+**Agent state is a consumed convention, not a produced hook (ioku).** The former `session-start`/`stop`/`user-prompt` handlers used to WRITE `.fab-runtime.yaml` `_agents` agent active/idle state that the `fab pane` commands read. That producer subsystem — the hook writes, the throttled GC sweep, the grandparent PID walker, the runtime file, and the `_agents` matching — was deleted wholesale. fab is now a pure CONSUMER of the `@rk_agent_state` tmux pane-option convention written by run-kit's `rk agent-setup` (see `fab pane` below).
 
-**Agent state is a consumed convention, not a produced hook (ioku).** The `session-start`/`stop`/`user-prompt` handlers used to WRITE `.fab-runtime.yaml` `_agents` agent active/idle state that the `fab pane` commands read. That producer subsystem — the hook writes, the throttled GC sweep, the grandparent PID walker, the runtime file, and the `_agents` matching — was deleted wholesale. fab is now a pure CONSUMER of the `@rk_agent_state` tmux pane-option convention written by run-kit's `rk agent-setup` (see `fab pane` below). The shims stay one release so an un-migrated settings file's still-registered entries stay silent (an unregistered `fab hook <x>` would print cobra help to stdout — noisy `additionalContext` for a still-registered entry); the `2.13.6-to-2.14.0` migration removes the three session settings entries.
-
-**Artifact bookkeeping is no longer a hook.** The former `artifact-write` PostToolUse handler that recomputed `change_type`/confidence (from `intake.md`) and the `plan.*` counts (from `plan.md`) is removed — that state is correctness-critical (a hook fires only in the Claude harness, so a sed edit or a non-Claude agent left it stale). It is now recomputed by the pull-based **`fab status refresh`** (see the `fab status` family above), self-healed at the transition seams (`fab status advance`/`finish`, `fab preflight`), which preserves the `change_type_source: explicit` guard. The plan counters remain a **write-time cache**: readers (`fab preflight`, `fab pr-meta`, `fab status plan`) prefer a **live count derived from `plan.md` `## Acceptance` checkboxes at read time** and fall back to the cached counter only when `plan.md` (or its `## Acceptance` section) is absent — so a hook-bypassing edit cannot make those readers report a stale acceptance count. (A one-release no-op shim `fab hook artifact-write` is retained for un-migrated settings — it exits 0 and emits nothing; the `2.10.1-to-2.11.0` migration removes the settings entry.)
-
-`sync` output: `.claude/settings.local.json hooks: OK` on stdout (the `Created`/`Updated` branches are unreachable with the empty mapping table — a fresh sync always reports OK, nothing to register); on failure (no fab root, unwritable settings) a `hook sync: {error}` line on stderr — exit code stays 0 either way.
+**Artifact bookkeeping is no longer a hook.** The former `artifact-write` PostToolUse handler that recomputed `change_type`/confidence (from `intake.md`) and the `plan.*` counts (from `plan.md`) is gone — that state is correctness-critical (a hook fires only in the Claude harness, so a sed edit or a non-Claude agent left it stale). It is now recomputed by the pull-based **`fab status refresh`** (see the `fab status` family above), self-healed at the transition seams (`fab status advance`/`finish`, `fab preflight`), which preserves the `change_type_source: explicit` guard. The plan counters remain a **write-time cache**: readers (`fab preflight`, `fab pr-meta`, `fab status plan`) prefer a **live count derived from `plan.md` `## Acceptance` checkboxes at read time** and fall back to the cached counter only when `plan.md` (or its `## Acceptance` section) is absent — so a hook-bypassing edit cannot make those readers report a stale acceptance count.
 
 ---
 
