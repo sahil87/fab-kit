@@ -166,6 +166,39 @@ agent:
 	}
 }
 
+// TestConfigShowOrigin_HigherLayerScalarReplacesSubtree: when a higher-precedence
+// layer replaces a map with a scalar, --origin must honor deepMerge precedence and
+// render the node as a single leaf at that layer's origin — NOT recurse into the
+// lower layers' map keys. Here the project sets `providers: oops` (a scalar) while
+// the built-in default provides a `providers` MAP; the effective value is the
+// project scalar, so --origin must show `providers = oops # <project>` and emit no
+// `providers.claude.*` leaves attributed to default. Regression for the flattenOrigin
+// map-vs-scalar precedence bug.
+func TestConfigShowOrigin_HigherLayerScalarReplacesSubtree(t *testing.T) {
+	repo, _ := setupConfigRepo(t, "providers: oops\n")
+	out, err := runConfig(t, "show", "--origin")
+	if err != nil {
+		t.Fatalf("config show --origin: %v", err)
+	}
+	projectPath := filepath.Join(repo, "fab", "project", "config.yaml")
+
+	sawProvidersLeaf := false
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, "providers.") {
+			t.Errorf("scalar project override must not recurse into default map keys, got: %q\nfull:\n%s", line, out)
+		}
+		if strings.Contains(line, "providers = oops") {
+			sawProvidersLeaf = true
+			if !strings.Contains(line, "# "+projectPath) {
+				t.Errorf("providers leaf should show the project origin, got: %q", line)
+			}
+		}
+	}
+	if !sawProvidersLeaf {
+		t.Errorf("expected a single `providers = oops` leaf at the project origin:\n%s", out)
+	}
+}
+
 // TestConfigInitSystem_WritesScaffoldAndRefusesOverwrite: `fab config init
 // --system` writes the ~/.fab-kit/config.yaml scaffold (only system/both fields,
 // all commented → parses as inert), and a second run refuses to overwrite.

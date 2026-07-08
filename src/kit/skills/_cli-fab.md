@@ -346,7 +346,7 @@ The two files merge by **per-field deep merge**: maps merge per-key (the `agent.
 
 ### fab config show `[--origin]`
 
-Pure query (no file writes) — resolves the effective config for the current repo and prints it. Without a flag it prints the merged effective config as YAML. With `--origin` it prints, per field, the effective value alongside its **provenance** — the project path, the system path, or `default` (the `git config --show-origin` precedent) — with **per-key drill-down for map-valued fields** (`agent.tiers`, `providers`), the honest granularity where maps merge per-key. `--origin` is the way to see *why* an override did or didn't take: a typo'd override (`agent.teirs:`) leaves the intended field showing origin `default`, surfacing a mistake that silently no-ops today.
+Pure query (no file writes) — resolves the config for the current repo and prints it. Without a flag it prints the merged config of the two **files** (project over system) as YAML; built-in defaults are **not** materialized into this output — they apply at point-of-use and are surfaced explicitly only by `--origin`. With `--origin` it prints, per field, the effective value (built-in defaults composed in) alongside its **provenance** — the project path, the system path, or `default` (the `git config --show-origin` precedent) — with **per-key drill-down for map-valued fields** (`agent.tiers`, `providers`), the honest granularity where maps merge per-key. `--origin` is the way to see *why* an override did or didn't take: a typo'd override (`agent.teirs:`) leaves the intended field showing origin `default`, surfacing a mistake that silently no-ops today.
 
 ```
 fab config show               # effective config as YAML

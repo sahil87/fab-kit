@@ -103,12 +103,15 @@ func configShowCmd() *cobra.Command {
 		Short: "Print the effective (post-cascade) config, optionally with per-field provenance",
 		Long: "Resolves the effective fab config across the cascade — project " +
 			"(fab/project/config.yaml) > system (~/.fab-kit/config.yaml) > built-in " +
-			"defaults — and prints it. Without a flag, prints the merged effective " +
-			"config as YAML. With --origin, prints each field's effective value and " +
-			"its provenance (project path / system path / default), drilling down " +
-			"per-key for map-valued fields (agent.tiers, providers). --origin surfaces " +
-			"a typo'd override, which shows origin `default` when a file was expected " +
-			"to win. Pure query — writes no file.",
+			"defaults — and prints it. Without a flag, prints the merged config of the " +
+			"two FILES (project over system) as YAML; built-in defaults are NOT " +
+			"materialized here — they apply at point-of-use and are only surfaced " +
+			"explicitly by --origin. With --origin, prints each field's effective value " +
+			"and its provenance (project path / system path / default), composing the " +
+			"built-in defaults into the listing and drilling down per-key for map-valued " +
+			"fields (agent.tiers, providers). --origin surfaces a typo'd override, which " +
+			"shows origin `default` when a file was expected to win. Pure query — writes " +
+			"no file.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			fabRoot, err := resolve.FabRoot()
@@ -284,37 +287,76 @@ func subtreeAt(m map[string]any, top string) any {
 // default. def/sys/proj are the three source values at this node (any of them
 // may be nil = absent at this layer). Map nodes recurse per-key (the honest
 // granularity where maps merge per-key); a scalar or list is a single leaf.
+//
+// Precedence is honored BEFORE the map/leaf decision, mirroring deepMerge: the
+// highest-precedence PRESENT layer decides the node's shape. When that layer is a
+// non-map (a scalar/list), it REPLACES the whole subtree — the node is a single
+// leaf at that layer's origin, and every lower layer is shadowed (its keys must
+// NOT leak in as phantom children). Only when the winning layer is a map do we
+// drill per-key; there a lower layer contributes only if it survived to the merge,
+// i.e. every higher-precedence present layer at this node was ALSO a map (a higher
+// non-map would have wiped it before the lower map could merge in), matching
+// deepMerge applied layer-by-layer.
 func flattenOrigin(prefix string, def, sys, proj any, systemOrigin, projectOrigin string) []originLine {
-	defMap, defIsMap := asGenericMap(def)
-	sysMap, sysIsMap := asGenericMap(sys)
-	projMap, projIsMap := asGenericMap(proj)
-
-	// If ANY layer presents a map at this node, drill down per-key (union of keys).
-	if defIsMap || sysIsMap || projIsMap {
-		keys := unionKeys(defMap, sysMap, projMap)
-		sort.Strings(keys)
-		var out []originLine
-		for _, k := range keys {
-			child := prefix + "." + k
-			out = append(out, flattenOrigin(child,
-				mapGet(defMap, k), mapGet(sysMap, k), mapGet(projMap, k),
-				systemOrigin, projectOrigin)...)
-		}
-		return out
-	}
-
-	// Leaf: pick the effective value + origin by precedence project > system > default.
+	// Highest-precedence present layer (project > system > default) sets the shape.
+	// A non-map winner replaces the whole subtree (deepMerge's map-vs-non-map rule).
 	switch {
 	case proj != nil:
-		return []originLine{{key: prefix, value: renderScalar(proj), origin: projectOrigin}}
+		if _, isMap := asGenericMap(proj); !isMap {
+			return []originLine{{key: prefix, value: renderScalar(proj), origin: projectOrigin}}
+		}
 	case sys != nil:
-		return []originLine{{key: prefix, value: renderScalar(sys), origin: systemOrigin}}
+		if _, isMap := asGenericMap(sys); !isMap {
+			return []originLine{{key: prefix, value: renderScalar(sys), origin: systemOrigin}}
+		}
 	case def != nil:
-		return []originLine{{key: prefix, value: renderScalar(def), origin: "default"}}
+		if _, isMap := asGenericMap(def); !isMap {
+			return []originLine{{key: prefix, value: renderScalar(def), origin: "default"}}
+		}
 	default:
-		// No layer sets this leaf and it has no built-in default — omit it.
+		// No layer sets this node at all — nothing to emit.
 		return nil
 	}
+
+	// The winning layer is a map ⇒ drill per-key. A layer joins the drill-down only
+	// if it is a map AND no higher-precedence present layer shadowed it with a
+	// non-map. Walk high→low: once a present layer is a non-map, every lower layer
+	// is shadowed (dropped); a present map lets lower layers keep merging.
+	projMap, projIsMap := asGenericMap(proj)
+	sysMap, sysIsMap := asGenericMap(sys)
+	defMap, defIsMap := asGenericMap(def)
+
+	shadowed := false // set once a higher present layer was a non-map
+	keepProj := proj != nil && projIsMap
+	if proj != nil && !projIsMap {
+		shadowed = true
+	}
+	keepSys := !shadowed && sys != nil && sysIsMap
+	if !shadowed && sys != nil && !sysIsMap {
+		shadowed = true
+	}
+	keepDef := !shadowed && def != nil && defIsMap
+
+	if !keepProj {
+		projMap = nil
+	}
+	if !keepSys {
+		sysMap = nil
+	}
+	if !keepDef {
+		defMap = nil
+	}
+
+	keys := unionKeys(defMap, sysMap, projMap)
+	sort.Strings(keys)
+	var out []originLine
+	for _, k := range keys {
+		child := prefix + "." + k
+		out = append(out, flattenOrigin(child,
+			mapGet(defMap, k), mapGet(sysMap, k), mapGet(projMap, k),
+			systemOrigin, projectOrigin)...)
+	}
+	return out
 }
 
 // asGenericMap coerces a decoded YAML value to map[string]any when it is a

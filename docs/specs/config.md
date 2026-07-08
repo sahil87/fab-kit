@@ -229,10 +229,12 @@ the loader and the registry `internal/configref` consume without an import cycle
 
 ### Visibility commands [Change 2 — landed]
 
-- `fab config show [--origin]` — a pure query that prints the effective (post-cascade) config;
-  `--origin` adds per-field provenance (project path / system path / `default`, the
-  `git config --show-origin` precedent) with per-key drill-down for map-valued fields. It surfaces
-  typo'd overrides that silently no-op today (the intended field shows origin `default`).
+- `fab config show [--origin]` — a pure query. Plain output prints the merge of the two FILES
+  (project over system) as YAML; built-in defaults are NOT materialized here (they apply at
+  point-of-use), surfaced explicitly only by `--origin`, which adds per-field provenance (project
+  path / system path / `default`, the `git config --show-origin` precedent) with per-key drill-down
+  for map-valued fields. It surfaces typo'd overrides that silently no-op today (the intended field
+  shows origin `default`).
 - `fab config init --system` — writes a `~/.fab-kit/config.yaml` scaffold containing ONLY
   `scope: system`/`both` fields, all commented — generated from this same table so it can't drift.
   Refuses to overwrite an existing file (no `--force`); bare `fab config init` is a usage error.
