@@ -93,10 +93,11 @@ change restructures it into a **per-field metadata table** — the single source
   regenerate it — **delete it**:
   - `fab init` writes the initial config.yaml from the registry (fab-kit shells out
     to the installed fab-go, e.g. `fab config init`, same one-brew-package skew +
-    fail-open discipline as decision 4). Open sub-decision: the skew fallback when
-    the installed `fab` predates the subcommand — a fresh repo *needs* config.yaml
-    to pass preflight, so fail-open here means a minimal embedded stub (tiny,
-    bounded second copy) vs a printed instruction; decide at implementation.
+    fail-open discipline as decision 4). **Resolved (user-confirmed 2026-07-08):**
+    when the installed `fab` predates the subcommand, fall back to a minimal
+    embedded stub config.yaml (tiny, bounded second copy of the A-class identity
+    fields) rather than a printed instruction — a fresh repo must never fail
+    preflight for lack of a config.yaml.
   - The registry gains **init/seed metadata**: which fields are written live at
     init (the A-class identity fields: `project.*`, `source_paths`, `test_paths`)
     and their value slots — `/fab-setup`'s `{PROJECT_NAME}`/`{SOURCE_PATHS}`/
