@@ -167,6 +167,8 @@ The existing `cp -r` distribution method SHALL continue to work, given the syste
 
 `fab upgrade-repo` MUST NOT modify project content. Its write surface is: `fab/project/config.yaml` (`fab_version` stamp, only after a successful sync), `fab/.kit-migration-version` (silent self-stamp only when no migrations apply), and the sync-managed workspace files (agent skill deployments, scaffolding). Preserved: `fab/project/constitution.md`, `docs/memory/`, `docs/specs/`, `fab/changes/`, `.fab-status.yaml`.
 
+The `fab_version` stamp is **byte-preserving** (260708-yogn): both `fab init` and `fab upgrade-repo` write it via a targeted `fab_version:` line splice (`setFabVersion` in `src/go/fab-kit/internal/init.go`) that touches only the one line it owns — every comment, key order, indentation, blank line, and comment-only mapping block in `config.yaml` is preserved verbatim. Previously the stamp unmarshalled the whole file into a `map[string]interface{}` and re-marshalled, which on **every upgrade** stripped all comments, alphabetized keys, normalized indentation to 4-space, and collapsed comment-only mapping keys to `null` (e.g. a backfilled commented `agent:` template block became `agent: null`) — a recurring loss that hand-restored user configs. See [kit-architecture.md](/distribution/kit-architecture.md) § Version Tracking.
+
 #### Deprecated: `fab-upgrade.sh`
 
 `src/kit/scripts/fab-upgrade.sh` has been removed. Use `fab upgrade-repo` instead.

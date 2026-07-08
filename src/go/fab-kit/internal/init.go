@@ -5,8 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 // Init handles `fab init` — scaffolds a new fab project or updates an existing one.
@@ -80,31 +78,75 @@ func stampMigrationVersion(repoRoot, version string) error {
 }
 
 // setFabVersion creates or updates config.yaml with the fab_version field.
+//
+// It owns exactly one line — the top-level `fab_version:` scalar — and touches
+// nothing else. Rather than unmarshalling the whole file into a map and
+// re-marshalling (which strips comments, alphabetizes keys, normalizes
+// indentation, and collapses comment-only mapping keys to null), it performs a
+// targeted line splice: the file is preserved byte-for-byte except the single
+// line this function owns. A trailing same-line comment on that line is kept.
+//
+// Behavior:
+//   - file missing        → create it (with parent dirs) containing just
+//     `fab_version: <version>`
+//   - top-level fab_version present → replace its value in place, preserving any
+//     trailing comment
+//   - top-level fab_version absent   → append `fab_version: <version>` as the
+//     final line, with exactly one trailing newline
+//
+// "Top-level" means a line whose key begins at column 0 (not indented, not a
+// `#` comment).
 func setFabVersion(path string, version string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
 
-	var data map[string]interface{}
-
 	content, err := os.ReadFile(path)
-	if err == nil {
-		if err := yaml.Unmarshal(content, &data); err != nil {
-			return fmt.Errorf("cannot parse existing config.yaml: %w", err)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// New file: write just the fab_version line.
+			return os.WriteFile(path, []byte("fab_version: "+version+"\n"), 0644)
+		}
+		// A genuine read error (permissions, etc.) still fails loudly.
+		return fmt.Errorf("cannot read existing config.yaml: %w", err)
+	}
+
+	lines := strings.Split(string(content), "\n")
+	for i, line := range lines {
+		if rest, ok := topLevelFabVersionValue(line); ok {
+			// Replace only the value token, preserving any trailing comment.
+			lines[i] = "fab_version: " + version + rest
+			return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0644)
 		}
 	}
 
-	if data == nil {
-		data = make(map[string]interface{})
+	// No top-level fab_version line: append one, ensuring exactly one trailing newline.
+	out := string(content)
+	if out != "" && !strings.HasSuffix(out, "\n") {
+		out += "\n"
 	}
-	data["fab_version"] = version
+	out += "fab_version: " + version + "\n"
+	return os.WriteFile(path, []byte(out), 0644)
+}
 
-	out, err := yaml.Marshal(data)
-	if err != nil {
-		return err
+// topLevelFabVersionValue reports whether line is a top-level `fab_version:`
+// entry — its key begins at column 0 (not indented, not commented). When it is,
+// ok is true and rest is the portion of the line to keep after the replacement
+// value: an empty string, or a preserved trailing comment (with its original
+// leading whitespace), e.g. "  # pinned" for `fab_version: 1.2.3  # pinned`.
+func topLevelFabVersionValue(line string) (rest string, ok bool) {
+	const key = "fab_version:"
+	if !strings.HasPrefix(line, key) {
+		return "", false
 	}
-
-	return os.WriteFile(path, out, 0644)
+	after := line[len(key):]
+	// Preserve a trailing `#` comment verbatim, including the whitespace that
+	// separates it from the value.
+	if idx := strings.IndexByte(after, '#'); idx >= 0 {
+		ws := len(strings.TrimRight(after[:idx], " \t"))
+		return after[ws:], true // whitespace run before '#' plus the comment
+	}
+	return "", true
 }
 
 // copyDir copies src directory to dst, creating dst if needed.

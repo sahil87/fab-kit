@@ -67,6 +67,185 @@ func TestSetFabVersion_ExistingFile(t *testing.T) {
 	}
 }
 
+// writeConfig creates fab/project/config.yaml under a fresh temp dir with the
+// given content and returns its path.
+func writeConfig(t *testing.T, content string) string {
+	t.Helper()
+	tmp := t.TempDir()
+	dir := filepath.Join(tmp, "fab", "project")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// TestSetFabVersion_PreservesEverythingButOwnedLine is the core regression: an
+// existing config.yaml with header comments, a comment-only mapping block,
+// non-alphabetical keys, inline comments, and 2-space nested indentation must be
+// byte-identical after the call except the single fab_version line.
+func TestSetFabVersion_PreservesEverythingButOwnedLine(t *testing.T) {
+	existing := "" +
+		"# Providers reference: run `fab config reference`\n" +
+		"# agent:\n" +
+		"#     tiers: ...\n" +
+		"fab_version: 2.13.1\n" +
+		"project:\n" +
+		"  name: my-repo   # my main repo\n" +
+		"  description: FAB Kit\n" +
+		"zeta: last\n"
+	path := writeConfig(t, existing)
+
+	if err := setFabVersion(path, "2.14.0"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strings.Replace(existing, "fab_version: 2.13.1\n", "fab_version: 2.14.0\n", 1)
+	if string(got) != want {
+		t.Errorf("byte-for-byte mismatch\n--- got ---\n%q\n--- want ---\n%q", string(got), want)
+	}
+
+	// The commented agent: block must NOT have been collapsed to `agent: null`.
+	if strings.Contains(string(got), "agent: null") {
+		t.Error("comment-only mapping block was collapsed to `agent: null`")
+	}
+	// Key order preserved: project must still precede zeta (non-alphabetical).
+	if idxProject, idxZeta := strings.Index(string(got), "project:"), strings.Index(string(got), "zeta:"); idxProject > idxZeta {
+		t.Error("key order was alphabetized (project should precede zeta)")
+	}
+	// Indentation untouched: the 2-space nested mapping survives.
+	if !strings.Contains(string(got), "  name: my-repo   # my main repo") {
+		t.Error("nested 2-space indentation or inline comment was altered")
+	}
+
+	v, err := readFabVersion(path)
+	if err != nil {
+		t.Fatalf("readback failed: %v", err)
+	}
+	if v != "2.14.0" {
+		t.Errorf("readback = %q, want 2.14.0", v)
+	}
+}
+
+func TestSetFabVersion_PreservesTrailingComment(t *testing.T) {
+	path := writeConfig(t, "fab_version: 1.2.3  # pinned\nproject:\n  name: x\n")
+
+	if err := setFabVersion(path, "2.14.0"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got, _ := os.ReadFile(path)
+	if want := "fab_version: 2.14.0  # pinned\nproject:\n  name: x\n"; string(got) != want {
+		t.Errorf("trailing comment not preserved\ngot:  %q\nwant: %q", string(got), want)
+	}
+}
+
+func TestSetFabVersion_QuotedValueReplaced(t *testing.T) {
+	path := writeConfig(t, "project:\n  name: test-project\nfab_version: \"0.42.0\"\n")
+
+	if err := setFabVersion(path, "0.43.0"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	v, err := readFabVersion(path)
+	if err != nil {
+		t.Fatalf("readback failed: %v", err)
+	}
+	if v != "0.43.0" {
+		t.Errorf("readback = %q, want 0.43.0", v)
+	}
+	// Everything but the fab_version line is preserved.
+	got, _ := os.ReadFile(path)
+	if !strings.Contains(string(got), "project:\n  name: test-project\n") {
+		t.Errorf("non-owned lines altered: %q", string(got))
+	}
+}
+
+func TestSetFabVersion_AppendsWhenMissing(t *testing.T) {
+	// Input intentionally lacks a trailing newline to exercise the
+	// exactly-one-trailing-newline guarantee.
+	path := writeConfig(t, "project:\n  name: my-repo\n# a trailing comment")
+
+	if err := setFabVersion(path, "2.14.0"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got, _ := os.ReadFile(path)
+	want := "project:\n  name: my-repo\n# a trailing comment\nfab_version: 2.14.0\n"
+	if string(got) != want {
+		t.Errorf("append case mismatch\ngot:  %q\nwant: %q", string(got), want)
+	}
+	if strings.HasSuffix(string(got), "\n\n") {
+		t.Error("file ends with a doubled trailing newline")
+	}
+
+	v, err := readFabVersion(path)
+	if err != nil {
+		t.Fatalf("readback failed: %v", err)
+	}
+	if v != "2.14.0" {
+		t.Errorf("readback = %q, want 2.14.0", v)
+	}
+}
+
+func TestSetFabVersion_AppendPreservesTrailingNewline(t *testing.T) {
+	// Input already ends with exactly one newline — the result must too.
+	path := writeConfig(t, "project:\n  name: my-repo\n")
+
+	if err := setFabVersion(path, "2.14.0"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got, _ := os.ReadFile(path)
+	if want := "project:\n  name: my-repo\nfab_version: 2.14.0\n"; string(got) != want {
+		t.Errorf("append (newline-terminated input) mismatch\ngot:  %q\nwant: %q", string(got), want)
+	}
+}
+
+// TestSetFabVersion_IgnoresIndentedAndCommentedOccurrences verifies that only a
+// column-0 fab_version: key is treated as top-level; an indented or commented
+// occurrence must be left untouched and the top-level line appended.
+func TestSetFabVersion_IgnoresIndentedAndCommentedOccurrences(t *testing.T) {
+	existing := "" +
+		"# fab_version: 9.9.9 (this is a comment, not the key)\n" +
+		"nested:\n" +
+		"  fab_version: 1.1.1\n"
+	path := writeConfig(t, existing)
+
+	if err := setFabVersion(path, "2.14.0"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got, _ := os.ReadFile(path)
+	// The commented and indented occurrences are untouched.
+	if !strings.Contains(string(got), "# fab_version: 9.9.9 (this is a comment, not the key)\n") {
+		t.Error("commented fab_version occurrence was altered")
+	}
+	if !strings.Contains(string(got), "  fab_version: 1.1.1\n") {
+		t.Error("indented fab_version occurrence was altered")
+	}
+	// A new top-level line was appended.
+	want := existing + "fab_version: 2.14.0\n"
+	if string(got) != want {
+		t.Errorf("expected top-level line appended\ngot:  %q\nwant: %q", string(got), want)
+	}
+
+	v, err := readFabVersion(path)
+	if err != nil {
+		t.Fatalf("readback failed: %v", err)
+	}
+	if v != "2.14.0" {
+		t.Errorf("readback = %q, want 2.14.0", v)
+	}
+}
+
 func TestStampMigrationVersion_FreshDir(t *testing.T) {
 	repoRoot := t.TempDir()
 
