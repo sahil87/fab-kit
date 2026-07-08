@@ -476,6 +476,111 @@ func TestLineEnsureMerge_GitignoreNonDirectoryNegationDoesNotHardStop(t *testing
 	}
 }
 
+// TestLineEnsureMerge_FabVersionNegationAppendedOnce covers R2/R3 (8ken): the
+// fragment's !fab/.fab-version negation is a NON-directory token (no leading "/",
+// no trailing "/", no "*"), so gitignoreIsDirectoryToken is false and it uses
+// strict literal dedup. On a fresh .gitignore it is appended exactly once.
+func TestLineEnsureMerge_FabVersionNegationAppendedOnce(t *testing.T) {
+	srcDir := t.TempDir()
+	destDir := t.TempDir()
+	src := filepath.Join(srcDir, "gitignore")
+	dest := filepath.Join(destDir, ".gitignore")
+
+	os.WriteFile(src, []byte("!fab/.fab-version\n"), 0644)
+	os.WriteFile(dest, []byte("node_modules/\n"), 0644)
+
+	if err := lineEnsureMerge(src, dest, ".gitignore"); err != nil {
+		t.Fatalf("lineEnsureMerge failed: %v", err)
+	}
+
+	data, _ := os.ReadFile(dest)
+	if strings.Count(string(data), "!fab/.fab-version") != 1 {
+		t.Errorf("negation should be appended exactly once; got:\n%s", data)
+	}
+}
+
+// TestLineEnsureMerge_FabVersionNegationIdempotent covers R3: re-merging when the
+// negation is already present appends nothing (strict literal dedup).
+func TestLineEnsureMerge_FabVersionNegationIdempotent(t *testing.T) {
+	srcDir := t.TempDir()
+	destDir := t.TempDir()
+	src := filepath.Join(srcDir, "gitignore")
+	dest := filepath.Join(destDir, ".gitignore")
+
+	os.WriteFile(src, []byte("!fab/.fab-version\n"), 0644)
+	initial := ".fab-*\n!fab/.fab-version\n"
+	os.WriteFile(dest, []byte(initial), 0644)
+
+	if err := lineEnsureMerge(src, dest, ".gitignore"); err != nil {
+		t.Fatalf("lineEnsureMerge failed: %v", err)
+	}
+
+	data, _ := os.ReadFile(dest)
+	if string(data) != initial {
+		t.Errorf("re-merge with the negation present must be a no-op; want:\n%s\ngot:\n%s", initial, data)
+	}
+	if strings.Count(string(data), "!fab/.fab-version") != 1 {
+		t.Errorf("negation must not be duplicated; got:\n%s", data)
+	}
+}
+
+// TestLineEnsureMerge_FabVersionFragmentAppendsNegationOnly covers R3: the shipped
+// fragment carries BOTH .fab-* and !fab/.fab-version. Merging onto a project
+// .gitignore that already has .fab-* (but not the negation) appends ONLY the
+// negation — .fab-* is already covered by strict literal dedup and survives. This
+// is the "existing repo self-heals on next sync" path.
+func TestLineEnsureMerge_FabVersionFragmentAppendsNegationOnly(t *testing.T) {
+	srcDir := t.TempDir()
+	destDir := t.TempDir()
+	src := filepath.Join(srcDir, "gitignore")
+	dest := filepath.Join(destDir, ".gitignore")
+
+	// Mirror the shipped fragment ordering: .fab-* then the negation.
+	os.WriteFile(src, []byte(".fab-*\n!fab/.fab-version\n"), 0644)
+	os.WriteFile(dest, []byte(".fab-*\n"), 0644)
+
+	if err := lineEnsureMerge(src, dest, ".gitignore"); err != nil {
+		t.Fatalf("lineEnsureMerge failed: %v", err)
+	}
+
+	data, _ := os.ReadFile(dest)
+	if strings.Count(string(data), ".fab-*") != 1 {
+		t.Errorf(".fab-* must not be duplicated (strict literal dedup covers it); got:\n%s", data)
+	}
+	if strings.Count(string(data), "!fab/.fab-version") != 1 {
+		t.Errorf("the negation must be appended exactly once; got:\n%s", data)
+	}
+}
+
+// TestLineEnsureMerge_FabVersionNegationDoesNotSuppressFabStarEnsure covers R3
+// (Guardrail-B not consulted): merging the full fragment onto a .gitignore that
+// ALREADY has the !fab/.fab-version negation but is MISSING .fab-* must still
+// append .fab-*. Because both lines are non-directory tokens, gitignoreHasNegation
+// (Guardrail B) is never consulted, so the present negation cannot hard-stop the
+// broader .fab-* ensure.
+func TestLineEnsureMerge_FabVersionNegationDoesNotSuppressFabStarEnsure(t *testing.T) {
+	srcDir := t.TempDir()
+	destDir := t.TempDir()
+	src := filepath.Join(srcDir, "gitignore")
+	dest := filepath.Join(destDir, ".gitignore")
+
+	os.WriteFile(src, []byte(".fab-*\n!fab/.fab-version\n"), 0644)
+	// Destination has the negation but NOT .fab-*.
+	os.WriteFile(dest, []byte("!fab/.fab-version\n"), 0644)
+
+	if err := lineEnsureMerge(src, dest, ".gitignore"); err != nil {
+		t.Fatalf("lineEnsureMerge failed: %v", err)
+	}
+
+	data, _ := os.ReadFile(dest)
+	if !strings.Contains(string(data), "\n.fab-*\n") && !strings.HasPrefix(string(data), ".fab-*\n") {
+		t.Errorf("the .fab-* ensure must not be suppressed by a present non-directory negation; got:\n%s", data)
+	}
+	if strings.Count(string(data), "!fab/.fab-version") != 1 {
+		t.Errorf("the negation must not be duplicated; got:\n%s", data)
+	}
+}
+
 // scaffoldKitDir builds a minimal cached-kit layout under tmp with the given VERSION.
 func scaffoldKitDir(t *testing.T, version string) string {
 	t.Helper()

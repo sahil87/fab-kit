@@ -364,6 +364,100 @@ func TestInit_ThreadsVersionsIntoSync(t *testing.T) {
 	}
 }
 
+// captureStderr redirects os.Stderr to a pipe for the duration of fn and returns
+// everything written to it. warnIfFabVersionIgnored writes directly to os.Stderr,
+// so this is how the warning-path tests observe (or confirm the absence of) the line.
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	orig := os.Stderr
+	os.Stderr = w
+	done := make(chan string, 1)
+	go func() {
+		data, _ := io.ReadAll(r)
+		done <- string(data)
+	}()
+	fn()
+	os.Stderr = orig
+	w.Close()
+	out := <-done
+	r.Close()
+	return out
+}
+
+// gitInitRepo creates a temp git repo with the given .gitignore content and a
+// fab/.fab-version file on disk. Returns the repo root. Skips when git is absent.
+func gitInitRepo(t *testing.T, gitignore string) string {
+	t.Helper()
+	requireGit(t)
+	root := t.TempDir()
+	if out, err := exec.Command("git", "init", root).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte(gitignore), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "fab"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "fab", ".fab-version"), []byte("2.15.2\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+// TestWarnIfFabVersionIgnored_FiresWhenIgnored: a .gitignore whose .fab-* line
+// swallows fab/.fab-version triggers the fail-open stderr warning.
+func TestWarnIfFabVersionIgnored_FiresWhenIgnored(t *testing.T) {
+	root := gitInitRepo(t, ".fab-*\n")
+	out := captureStderr(t, func() { warnIfFabVersionIgnored(root) })
+	if !strings.Contains(out, "fab: warning:") || !strings.Contains(out, "fab/.fab-version is gitignored") {
+		t.Errorf("expected the gitignored warning on stderr, got: %q", out)
+	}
+	if !strings.Contains(out, "!fab/.fab-version") {
+		t.Errorf("warning should advise the negation '!fab/.fab-version', got: %q", out)
+	}
+}
+
+// TestWarnIfFabVersionIgnored_SilentWhenNegated: a .gitignore that negates the
+// path (the fix) produces no warning.
+func TestWarnIfFabVersionIgnored_SilentWhenNegated(t *testing.T) {
+	root := gitInitRepo(t, ".fab-*\n!fab/.fab-version\n")
+	out := captureStderr(t, func() { warnIfFabVersionIgnored(root) })
+	if out != "" {
+		t.Errorf("expected no warning when the path is negated, got: %q", out)
+	}
+}
+
+// TestWarnIfFabVersionIgnored_SilentWhenNotIgnored: a .gitignore that never
+// ignores the path produces no warning.
+func TestWarnIfFabVersionIgnored_SilentWhenNotIgnored(t *testing.T) {
+	root := gitInitRepo(t, "node_modules/\n")
+	out := captureStderr(t, func() { warnIfFabVersionIgnored(root) })
+	if out != "" {
+		t.Errorf("expected no warning when the path is not ignored, got: %q", out)
+	}
+}
+
+// TestWarnIfFabVersionIgnored_SilentOutsideGitRepo: a plain (non-git) directory
+// produces no warning and no error — git check-ignore fails and is swallowed
+// (fail-open).
+func TestWarnIfFabVersionIgnored_SilentOutsideGitRepo(t *testing.T) {
+	requireGit(t)
+	dir := t.TempDir()                                     // not a git repo
+	t.Setenv("GIT_CEILING_DIRECTORIES", filepath.Dir(dir)) // never walk up into an outer repo
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte(".fab-*\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	out := captureStderr(t, func() { warnIfFabVersionIgnored(dir) })
+	if out != "" {
+		t.Errorf("expected no warning outside a git repo, got: %q", out)
+	}
+}
+
 func TestInit_FromSubdirectoryWritesAtRepoRoot(t *testing.T) {
 	requireGit(t)
 	root := t.TempDir()

@@ -45,6 +45,7 @@ func Init(systemVersion string) error {
 		return err
 	}
 	fmt.Printf("Set fab version %s in fab/.fab-version\n", latest)
+	warnIfFabVersionIgnored(repoRoot)
 
 	// 4. Generate config.yaml from the registry via the pinned fab-go
 	// (`fab config init --project`) — the scaffold config.yaml was retired. On a
@@ -104,6 +105,29 @@ func stampFabVersion(repoRoot, version string) error {
 		return fmt.Errorf("cannot write fab/.fab-version: %w", err)
 	}
 	return nil
+}
+
+// warnIfFabVersionIgnored prints a fail-open warning to stderr when the just-stamped
+// fab/.fab-version is gitignored, so the written-but-ignored version file (the
+// 2.15.x .fab-* class swallowing fab/.fab-version) can never go quiet again: a fresh
+// worktree/clone/CI would otherwise have no version source. Callers invoke this after
+// a successful stampFabVersion write.
+//
+// FAIL-OPEN (never an error, never a non-zero exit): silent when git is absent, when
+// repoRoot is not inside a git work tree, or when the path is not ignored. `git
+// check-ignore -q` exits 0 when the path IS ignored, 1 when it is not, and >1 on a
+// git error — only the exit-0 (ignored) case warns; everything else is silent (the rk
+// fail-silent discipline precedent).
+func warnIfFabVersionIgnored(repoRoot string) {
+	cmd := exec.Command("git", "check-ignore", "-q", dotFabVersionRelPath)
+	cmd.Dir = repoRoot
+	err := cmd.Run()
+	if err != nil {
+		// Exit 1 (not ignored) or any git error (git absent, not a repo) → silent.
+		return
+	}
+	// Exit 0 → the path is ignored.
+	fmt.Fprintf(os.Stderr, "fab: warning: %s is gitignored — commit it so worktrees/clones/CI see the version (add '!%s' to .gitignore)\n", dotFabVersionRelPath, dotFabVersionRelPath)
 }
 
 // generateProjectConfig writes the initial fab/project/config.yaml by shelling out

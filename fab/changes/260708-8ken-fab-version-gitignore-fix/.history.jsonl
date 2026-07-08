@@ -1,0 +1,10 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-08T16:19:11Z"}
+{"args":"Fix: fab/.fab-version is silently gitignored everywhere — the .fab-* pattern (repo .gitignore:29 and scaffold fragment-.gitignore:2, slash-less so it matches at any depth) swallows fab/.fab-version, defeating decision 1 (committed). Fresh clones/worktrees post-migration have no version source (config.yaml key parked/removed by fab config upgrade), so wt init / fab sync fail with \"no fab version found in fab/.fab-version or config.yaml\". Fix: 1) fab-kit own .gitignore gains !fab/.fab-version negation + commit fab/.fab-version (2.15.1); 2) scaffold fragment gains the same negation (verify against the mqiq negation hard-stop in the fragment merge); 3) migration hardening for existing repos (sentinel-guarded .gitignore negation append + commit instruction, since released fragments already shipped bare .fab-*) + stamp-path check-ignore warning. Tests + VERSION bump.","cmd":"fab-new","event":"command","ts":"2026-07-08T16:19:11Z"}
+{"delta":"+5.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-07-08T16:21:38Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-08T16:21:50Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-08T16:21:50Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-08T16:31:26Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-08T16:32:51Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-08T16:43:37Z"}
+{"event":"review","result":"passed","ts":"2026-07-08T16:43:37Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-08T16:47:11Z"}
