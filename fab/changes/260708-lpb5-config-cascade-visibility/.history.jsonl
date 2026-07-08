@@ -1,0 +1,12 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-08T06:45:46Z"}
+{"args":"Implement the three-layer config cascade (project fab/project/config.yaml \u003e system ~/.fab-kit/config.yaml \u003e built-in defaults) in fab config loader, using per-field deep merge: maps merge per-key (existing agent.tiers precedent), lists replace (never concatenate), scalars replace. Enforce scope: a project-scoped field present in the system file is ignored with a warning (fail-open, config must never brick). Add fab config show --origin showing effective config with per-field provenance (git config --show-origin precedent). Add fab config init --system that writes a ~/.fab-kit/config.yaml scaffold containing ONLY scope=system/both fields, all commented, generated from the same field-metadata table shipped in the prior change (260708-ff2v-config-reference-metadata-table) so it cannot drift. See fab/plans/sahil/config-upgrade.md Change 2 for full context.","cmd":"fab-new","event":"command","ts":"2026-07-08T06:45:46Z"}
+{"delta":"+3.1","event":"confidence","score":3.1,"trigger":"calc-score","ts":"2026-07-08T06:49:02Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-08T06:51:15Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-08T06:51:31Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-08T06:52:27Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-08T07:10:38Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-08T07:11:28Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-08T07:26:00Z"}
+{"event":"review","result":"passed","ts":"2026-07-08T07:26:00Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-08T07:26:49Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-08T07:32:23Z"}

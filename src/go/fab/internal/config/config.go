@@ -1,11 +1,39 @@
 package config
 
 import (
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/sahil87/fab-kit/src/go/fab/internal/configscope"
 )
+
+// homeDir resolves the current user's home directory. It is a package var (not a
+// direct os.UserHomeDir call) so tests can pin the system-config path with
+// t.Setenv("HOME", …) — os.UserHomeDir honors $HOME on unix, so the seam is the
+// env var, and this indirection also lets a test stub it if needed.
+var homeDir = os.UserHomeDir
+
+// warnw is where the loader writes fail-open scope/parse warnings. os.Stderr in
+// production; tests redirect it to capture the `fab: warning:` lines. Warnings
+// never affect the return value or exit code (fail-open — a broken personal
+// system file must not brick every repo on the machine).
+var warnw io.Writer = os.Stderr
+
+// systemConfigPath returns ~/.fab-kit/config.yaml, the system (user-global) config
+// layer. Co-located with the fab-kit version cache (decision 5; XDG rejected).
+// An error resolving the home dir yields ("", err) — the caller treats that as
+// "no system layer" (fail-open).
+func systemConfigPath() (string, error) {
+	home, err := homeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".fab-kit", "config.yaml"), nil
+}
 
 // StageHook holds pre/post shell commands for a pipeline stage.
 type StageHook struct {
@@ -103,29 +131,220 @@ func Load(fabRoot string) (*Config, error) {
 	return LoadPath(filepath.Join(fabRoot, "project", "config.yaml"))
 }
 
-// LoadPath reads a config.yaml at an explicit path. Callers that build the
-// path themselves (e.g. `fab spawn-command --repo <path>` reading a target
-// repo's config) use this directly; everyone else goes through Load.
-// Returns an empty config (no error) if the file doesn't exist.
+// LoadPath reads a config.yaml at an explicit path and returns the EFFECTIVE
+// config after resolving the three-layer cascade at this single seam:
+//
+//	project (the path given)  >  system (~/.fab-kit/config.yaml)  >  built-in defaults
+//
+// The two FILES merge here at the YAML map level (per-field deep merge: maps
+// merge per-key recursively, lists replace, scalars replace, project wins); the
+// built-in-defaults layer stays where it lives today — the point-of-use fallbacks
+// (internal/agent's tier/provider merge, the nil-safe accessors) — which composes
+// to identical three-layer semantics with zero per-caller change.
+//
+// Fail-open contract (config must never brick):
+//   - Absent system file ⇒ byte-identical to the pre-cascade single-file behavior
+//     (empty overlay, no error, no warning).
+//   - Malformed/unreadable system file ⇒ a `fab: warning:` on stderr and the
+//     system layer is SKIPPED (a broken personal file must not break every repo).
+//   - A project-scoped field appearing in the system file is PRUNED from the
+//     system layer with a `fab: warning:` (scope enforcement — decision 6).
+//   - A malformed PROJECT file keeps today's behavior: the parse error is returned.
+//
+// Callers that build the path themselves (e.g. `fab agent --repo <path>`) use
+// this directly; everyone else goes through Load. Returns an empty config (no
+// error) when neither file exists.
 func LoadPath(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+	projectMap, _, err := readYAMLMap(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return &Config{}, nil
-		}
+		// A malformed PROJECT file keeps today's error behavior.
 		return nil, err
 	}
 
+	systemMap := loadSystemLayer()
+
+	// Merge project OVER system (project wins per field). A nil project map (file
+	// absent) still lets the system layer through — the system layer is
+	// user-global and must apply even in a repo with no project config.
+	merged := deepMerge(systemMap, projectMap)
+
 	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, err
+	if len(merged) > 0 {
+		data, err := yaml.Marshal(merged)
+		if err != nil {
+			// Re-marshalling a map we just decoded should never fail; treat a
+			// failure as a project-side error (the merged tree is dominated by
+			// project content).
+			return nil, err
+		}
+		if err := yaml.Unmarshal(data, &cfg); err != nil {
+			return nil, err
+		}
 	}
 
 	if cfg.StageHooks == nil {
 		cfg.StageHooks = make(map[string]StageHook)
 	}
 
+	// Absent system layer + absent project file, or a project file that decoded
+	// to nothing, both leave `merged` empty and yield the zero Config — the
+	// byte-identical empty-config result the old missing-file path returned.
 	return &cfg, nil
+}
+
+// Layers holds the raw decoded config layers behind the effective config,
+// exposed for provenance queries (fab config show --origin). It is produced by
+// LoadLayers, which runs the SAME cascade LoadPath runs — same system-file
+// resolution, same scope pruning, same deep merge — so `show` cannot drift from
+// what consumers actually see. The maps are the decoded YAML trees (map-valued
+// fields are nested maps), enabling per-key provenance drill-down.
+type Layers struct {
+	// ProjectPath / SystemPath are the resolved file paths (SystemPath is "" only
+	// when the home dir could not be resolved). They are the origin labels
+	// `show --origin` prints.
+	ProjectPath string
+	SystemPath  string
+	// Project is the raw project-file map (nil when the file is absent/empty).
+	Project map[string]any
+	// System is the system-file map AFTER scope pruning (nil when absent/empty or
+	// skipped fail-open). Project-scoped keys are already removed, so a key present
+	// here is genuinely a system-layer contributor.
+	System map[string]any
+	// Effective is deepMerge(System, Project) — the merged tree LoadPath unmarshals.
+	Effective map[string]any
+}
+
+// LoadLayers resolves the cascade and returns the raw layers for provenance
+// display, without unmarshalling into Config. It shares the loader's fail-open
+// contract: a malformed system file is warned + skipped, project-scoped system
+// fields are pruned with a warning, and a malformed PROJECT file returns the
+// parse error (mirroring LoadPath). Used by `fab config show [--origin]`.
+func LoadLayers(projectPath string) (*Layers, error) {
+	projectMap, _, err := readYAMLMap(projectPath)
+	if err != nil {
+		return nil, err
+	}
+	systemMap := loadSystemLayer()
+	sysPath, _ := systemConfigPath() // "" only if HOME is unresolvable (fail-open)
+	return &Layers{
+		ProjectPath: projectPath,
+		SystemPath:  sysPath,
+		Project:     projectMap,
+		System:      systemMap,
+		Effective:   deepMerge(systemMap, projectMap),
+	}, nil
+}
+
+// readYAMLMap reads a config.yaml at path into a generic map for merging. Returns
+// (nil, false, nil) when the file does not exist (an absent layer, not an error),
+// (map, true, nil) on success, and (nil, false, err) on a read error other than
+// not-exist or a YAML decode error. An empty file decodes to a nil map with
+// exists=true (a present-but-empty layer).
+func readYAMLMap(path string) (map[string]any, bool, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	var m map[string]any
+	if err := yaml.Unmarshal(data, &m); err != nil {
+		return nil, false, err
+	}
+	return m, true, nil
+}
+
+// loadSystemLayer reads ~/.fab-kit/config.yaml, prunes project-scoped fields (with
+// a warning), and returns the resulting overlay map. It NEVER returns an error —
+// every failure mode is fail-open (config must never brick):
+//   - home-dir unresolvable, or file absent ⇒ nil (no system layer, silent).
+//   - unreadable or malformed ⇒ a `fab: warning:` on stderr, then nil (skip layer).
+func loadSystemLayer() map[string]any {
+	path, err := systemConfigPath()
+	if err != nil {
+		return nil // cannot resolve HOME — no system layer, silently (not the user's fault)
+	}
+	m, exists, err := readYAMLMap(path)
+	if err != nil {
+		// Unreadable or malformed system file — fail-open: warn and skip.
+		fmt.Fprintf(warnw, "fab: warning: ignoring malformed system config %s (%v)\n", path, err)
+		return nil
+	}
+	if !exists || m == nil {
+		return nil // absent or empty ⇒ byte-identical current behavior
+	}
+	pruneProjectScoped(m, path)
+	return m
+}
+
+// pruneProjectScoped removes project-scoped top-level keys from a system-layer map
+// in place, emitting a `fab: warning:` for each pruned key. A key whose scope is
+// `both` or `system` is honored (kept); an UNKNOWN top-level key is left in place
+// silently (matching project-file behavior — typo surfacing is `show --origin`'s
+// job, and yaml.v3 ignores unknown keys at unmarshal anyway). path names the
+// system file in the warning.
+func pruneProjectScoped(m map[string]any, path string) {
+	for key := range m {
+		scope, known := configscope.ScopeFor(key)
+		if !known {
+			continue // unknown key — ignored silently, like the project file
+		}
+		if scope == configscope.ScopeProject {
+			delete(m, key)
+			fmt.Fprintf(warnw, "fab: warning: ignoring project-scoped field %q in %s (project-scoped fields belong in fab/project/config.yaml)\n", key, path)
+		}
+	}
+}
+
+// deepMerge returns the per-field deep merge of two decoded YAML maps with
+// `over` winning: MAPS merge per-key recursively, LISTS replace (never
+// concatenate), SCALARS replace. It does not mutate `base` or `over` at the top
+// level (it builds a fresh result), so callers may reuse the inputs. A nil `over`
+// yields a shallow copy of `base`; a nil `base` yields a shallow copy of `over`.
+func deepMerge(base, over map[string]any) map[string]any {
+	out := make(map[string]any, len(base)+len(over))
+	for k, v := range base {
+		out[k] = v
+	}
+	for k, ov := range over {
+		if bv, ok := out[k]; ok {
+			if bm, bok := asStringMap(bv); bok {
+				if om, ook := asStringMap(ov); ook {
+					// Both sides are maps — merge per-key recursively.
+					out[k] = deepMerge(bm, om)
+					continue
+				}
+			}
+		}
+		// Lists replace, scalars replace, and a map-vs-non-map mismatch replaces:
+		// the `over` value wins wholesale.
+		out[k] = ov
+	}
+	return out
+}
+
+// asStringMap coerces a decoded YAML value to a map[string]any when it is one.
+// yaml.v3 decodes mappings into map[string]interface{} when the target is `any`,
+// so this is the only map shape encountered; it also tolerates map[any]any for
+// robustness against alternate decoders.
+func asStringMap(v any) (map[string]any, bool) {
+	switch m := v.(type) {
+	case map[string]any:
+		return m, true
+	case map[any]any:
+		out := make(map[string]any, len(m))
+		for k, val := range m {
+			ks, ok := k.(string)
+			if !ok {
+				return nil, false
+			}
+			out[ks] = val
+		}
+		return out, true
+	default:
+		return nil, false
+	}
 }
 
 // GetStageHook returns the hook config for a stage, or an empty hook if none configured.

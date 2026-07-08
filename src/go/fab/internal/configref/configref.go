@@ -55,34 +55,51 @@ import (
 	"strings"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/configscope"
 )
 
-// Scope is a field's override visibility across the config cascade layers. It is
-// data-only in this change (no behavioral consumer): the cascade resolver and
-// `fab config init --system` that key on it land in Change 2. See
-// docs/specs/config.md § Scope taxonomy.
-type Scope string
+// Scope is a field's override visibility across the config cascade layers. The
+// type and its three values are SINGLE-SOURCED in the leaf package
+// internal/configscope (the config loader consumes the same source cycle-free);
+// they are aliased here so the registry and the cascade share one definition. As
+// of Change 2 (lpb5) the cascade resolver PRUNES a project-scoped field found in
+// the system file (with a warning) and `fab config init --system` renders only
+// system/both fields. See docs/specs/config.md § Scope taxonomy.
+type Scope = configscope.Scope
 
 const (
 	// ScopeProject: overridable only in the project file (fab/project/config.yaml).
 	// Semantics-class fields stay repo-reproducible for teammates/CI.
-	ScopeProject Scope = "project"
+	ScopeProject = configscope.ScopeProject
 	// ScopeSystem: overridable only in the system file (~/.fab-kit/config.yaml).
-	// (No field is system-only today; the value exists for completeness/Change 2.)
-	ScopeSystem Scope = "system"
+	// (No field is system-only today; the value exists for completeness.)
+	ScopeSystem = configscope.ScopeSystem
 	// ScopeBoth: overridable in either layer (preference-class fields).
-	ScopeBoth Scope = "both"
+	ScopeBoth = configscope.ScopeBoth
 )
 
 // validScope reports whether s is one of the three known scope values. Used by
 // the registry lint (a scope outside this set is a fail-loud construction error).
+// Delegates to the single-source leaf package.
 func validScope(s Scope) bool {
-	switch s {
-	case ScopeProject, ScopeSystem, ScopeBoth:
-		return true
-	default:
-		return false
+	return configscope.Valid(s)
+}
+
+// scopeFor returns the scope for a registry row's dotted Key by collapsing it to
+// its top-level YAML key (e.g. "project.name" → "project") and consulting the
+// single-source leaf table. Every registry Key's top-level segment is a known
+// scope key; an unknown one is a construction bug and is caught by the lint
+// (scopeFor returns "" for unknown, which validScope rejects).
+func scopeFor(key string) Scope {
+	top := key
+	if i := strings.IndexByte(key, '.'); i >= 0 {
+		top = key[:i]
 	}
+	s, ok := configscope.ScopeFor(top)
+	if !ok {
+		return "" // lint rejects the empty scope, surfacing the missing taxonomy entry
+	}
+	return s
 }
 
 // Field is one row of the per-field metadata table — the single source the two
@@ -502,6 +519,14 @@ func lintFields(fields []Field) error {
 		}
 		if !validScope(f.Scope) {
 			return fmt.Errorf("configref: field %q has invalid scope %q (want one of project/system/both)", f.Key, f.Scope)
+		}
+		// Single-source guard: the row's Scope MUST equal the leaf-package
+		// taxonomy for the field's top-level key. The loader (internal/config)
+		// prunes the system layer on that same leaf table, so a divergence here
+		// would silently split the scope taxonomy in two. Fail loud at
+		// construction instead. See internal/configscope.
+		if want := scopeFor(f.Key); f.Scope != want {
+			return fmt.Errorf("configref: field %q has scope %q but internal/configscope says %q — the scope taxonomy is single-sourced in configscope; fix it there", f.Key, f.Scope, want)
 		}
 	}
 	return nil

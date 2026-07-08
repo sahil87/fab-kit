@@ -1,0 +1,55 @@
+id: lpb5
+name: 260708-lpb5-config-cascade-visibility
+created: 2026-07-08T06:45:46Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 14
+    acceptance_count: 19
+    acceptance_completed: 19
+confidence:
+    certain: 3
+    confident: 9
+    tentative: 0
+    unresolved: 0
+    score: 3.1
+    fuzzy: true
+    dimensions:
+        signal: 61.3
+        reversibility: 77.5
+        competence: 76.7
+        disambiguation: 69.2
+stage_metrics:
+    intake: {started_at: "2026-07-08T06:45:46Z", driver: fab-new, iterations: 1, completed_at: "2026-07-08T06:51:31Z"}
+    apply: {started_at: "2026-07-08T06:51:31Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-08T07:10:38Z"}
+    review: {started_at: "2026-07-08T07:10:38Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-08T07:26:00Z"}
+    hydrate: {started_at: "2026-07-08T07:26:00Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-08T07:32:23Z"}
+    ship: {started_at: "2026-07-08T07:32:23Z", driver: fab-fff, iterations: 1}
+prs: []
+change_type_source: explicit
+true_impact:
+    added: 1734
+    deleted: 198
+    net: 1536
+    excluding:
+        added: 795
+        deleted: 190
+        net: 605
+    tests:
+        added: 250
+        deleted: 0
+        net: 250
+    computed_at: "2026-07-08T07:32:23Z"
+    computed_at_stage: hydrate
+summary: Landed the three-layer config cascade (project > ~/.fab-kit/config.yaml > defaults) at internal/config.LoadPath with fail-open scope enforcement via the new leaf package internal/configscope, plus fab config show [--origin] and init --system
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-07-08T07:32:23Z
