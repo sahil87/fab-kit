@@ -73,43 +73,86 @@ func TestResolveConfigFrom_MissingFabVersion(t *testing.T) {
 	}
 }
 
-func TestReadFabVersion_Valid(t *testing.T) {
-	tmp := t.TempDir()
-	path := filepath.Join(tmp, "config.yaml")
-	if err := os.WriteFile(path, []byte("fab_version: \"0.43.0\"\nproject:\n  name: test\n"), 0644); err != nil {
+// TestReadFabVersion_FromDotFile: fab/.fab-version is authoritative and wins over
+// a (legacy) config.yaml fab_version: key (260708-j0qm relocation).
+func TestReadFabVersion_FromDotFile(t *testing.T) {
+	repoRoot := t.TempDir()
+	configDir := filepath.Join(repoRoot, "fab", "project")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "config.yaml")
+	// Stale config.yaml key + a .fab-version sibling — the sibling wins.
+	if err := os.WriteFile(configPath, []byte("fab_version: \"1.0.0\"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repoRoot, "fab", ".fab-version"), []byte("2.15.0\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	v, err := readFabVersion(path)
+	v, err := readFabVersion(repoRoot, configPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if v != "2.15.0" {
+		t.Errorf("expected 2.15.0 from fab/.fab-version, got %s", v)
+	}
+}
+
+// TestReadFabVersion_FallbackToConfig: with no fab/.fab-version (a not-yet-migrated
+// repo), readFabVersion falls back to the config.yaml fab_version: key.
+func TestReadFabVersion_FallbackToConfig(t *testing.T) {
+	repoRoot := t.TempDir()
+	configDir := filepath.Join(repoRoot, "fab", "project")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte("fab_version: \"0.43.0\"\nproject:\n  name: test\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	v, err := readFabVersion(repoRoot, configPath)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if v != "0.43.0" {
-		t.Errorf("expected 0.43.0, got %s", v)
+		t.Errorf("expected 0.43.0 (config.yaml fallback), got %s", v)
 	}
 }
 
-func TestReadFabVersion_MissingField(t *testing.T) {
-	tmp := t.TempDir()
-	path := filepath.Join(tmp, "config.yaml")
-	if err := os.WriteFile(path, []byte("project:\n  name: test\n"), 0644); err != nil {
+// TestReadFabVersion_MissingBothSources: neither fab/.fab-version nor a config.yaml
+// key ⇒ a real error (the router needs a pinned version).
+func TestReadFabVersion_MissingBothSources(t *testing.T) {
+	repoRoot := t.TempDir()
+	configDir := filepath.Join(repoRoot, "fab", "project")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte("project:\n  name: test\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	_, err := readFabVersion(path)
+	_, err := readFabVersion(repoRoot, configPath)
 	if err == nil {
-		t.Fatal("expected error for missing fab_version field")
+		t.Fatal("expected error when neither .fab-version nor a config.yaml key is present")
 	}
 }
 
 func TestReadFabVersion_InvalidYAML(t *testing.T) {
-	tmp := t.TempDir()
-	path := filepath.Join(tmp, "config.yaml")
-	if err := os.WriteFile(path, []byte("not: valid: yaml: ["), 0644); err != nil {
+	repoRoot := t.TempDir()
+	configDir := filepath.Join(repoRoot, "fab", "project")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "config.yaml")
+	// No .fab-version, so it falls through to parsing config.yaml, which is invalid.
+	if err := os.WriteFile(configPath, []byte("not: valid: yaml: ["), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	_, err := readFabVersion(path)
+	_, err := readFabVersion(repoRoot, configPath)
 	if err == nil {
 		t.Fatal("expected error for invalid YAML")
 	}

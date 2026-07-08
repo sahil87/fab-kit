@@ -116,13 +116,17 @@ func TestUpgrade_SyncFailureExitsNonZeroWithoutStamping(t *testing.T) {
 		t.Errorf("Sync called with (system=%q, kit=%q), want (1.5.0, 2.0.0)", gotSystem, gotKit)
 	}
 
-	// F18: fab_version must NOT be stamped on failure.
-	v, err := readFabVersion(filepath.Join(repo, "fab", "project", "config.yaml"))
+	// F18: the version must NOT be stamped on failure. On failure no .fab-version
+	// is written, so readFabVersion falls back to the config.yaml pin (1.0.0).
+	v, err := readFabVersion(repo, filepath.Join(repo, "fab", "project", "config.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if v != "1.0.0" {
-		t.Errorf("fab_version stamped to %q despite sync failure, want 1.0.0", v)
+		t.Errorf("version stamped to %q despite sync failure, want 1.0.0", v)
+	}
+	if _, statErr := os.Stat(filepath.Join(repo, "fab", ".fab-version")); statErr == nil {
+		t.Error("fab/.fab-version must not be written when sync fails")
 	}
 }
 
@@ -146,7 +150,7 @@ func TestUpgrade_RerunAfterFailureRetries(t *testing.T) {
 		t.Error("re-run short-circuited instead of retrying the sync")
 	}
 
-	v, _ := readFabVersion(filepath.Join(repo, "fab", "project", "config.yaml"))
+	v, _ := readFabVersion(repo, filepath.Join(repo, "fab", "project", "config.yaml"))
 	if v != "2.0.0" {
 		t.Errorf("fab_version = %q after successful upgrade, want 2.0.0", v)
 	}
@@ -155,14 +159,18 @@ func TestUpgrade_RerunAfterFailureRetries(t *testing.T) {
 func TestUpgrade_SuccessStampsAfterSync(t *testing.T) {
 	repo := setupUpgradeRepo(t, "1.0.0", "2.0.0")
 
-	// At sync time, the stamp must not have landed yet (stamp-after-success).
+	// At sync time, the stamp must not have landed yet (stamp-after-success): no
+	// .fab-version exists, so readFabVersion falls back to the config.yaml pin.
 	stubRunSync(t, func(string, string, bool, bool) error {
-		v, err := readFabVersion(filepath.Join(repo, "fab", "project", "config.yaml"))
+		if _, statErr := os.Stat(filepath.Join(repo, "fab", ".fab-version")); statErr == nil {
+			return fmt.Errorf("fab/.fab-version stamped before sync succeeded")
+		}
+		v, err := readFabVersion(repo, filepath.Join(repo, "fab", "project", "config.yaml"))
 		if err != nil {
 			return err
 		}
 		if v != "1.0.0" {
-			return fmt.Errorf("fab_version already stamped to %q before sync succeeded", v)
+			return fmt.Errorf("version already stamped to %q before sync succeeded", v)
 		}
 		return nil
 	})
@@ -178,9 +186,37 @@ func TestUpgrade_SuccessStampsAfterSync(t *testing.T) {
 		t.Errorf("expected success line, output:\n%s", out)
 	}
 
-	v, _ := readFabVersion(filepath.Join(repo, "fab", "project", "config.yaml"))
+	v, _ := readFabVersion(repo, filepath.Join(repo, "fab", "project", "config.yaml"))
 	if v != "2.0.0" {
 		t.Errorf("fab_version = %q, want 2.0.0", v)
+	}
+}
+
+// TestUpgrade_ConfigUpgradeFailsOpen: when the pinned fab-go's `fab config upgrade`
+// exits non-zero (a binary that predates the subcommand), the upgrade must still
+// succeed and stamp — an upgrade may never break on the config step (decision 4).
+func TestUpgrade_ConfigUpgradeFailsOpen(t *testing.T) {
+	repo := setupUpgradeRepo(t, "1.0.0", "2.0.0")
+	// Replace the cached fab-go with one that ALWAYS exits non-zero (mimics an
+	// unknown `config upgrade` subcommand on a predates-subcommand binary).
+	fabGo := filepath.Join(os.Getenv("HOME"), ".fab-kit", "versions", "2.0.0", "fab-go")
+	if err := os.WriteFile(fabGo, []byte("#!/bin/sh\necho 'unknown command \"upgrade\"' >&2\nexit 1\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	stubRunSync(t, func(string, string, bool, bool) error { return nil })
+
+	var err error
+	out := captureStdout(t, func() { err = Upgrade("1.5.0", "2.0.0", false) })
+	if err != nil {
+		t.Fatalf("Upgrade must fail open on a config-upgrade failure, got: %v", err)
+	}
+	if !strings.Contains(out, "could not auto-run") {
+		t.Errorf("expected a fail-open reminder for the config upgrade step, output:\n%s", out)
+	}
+	// The version stamp still landed (the config step failing does not roll it back).
+	v, _ := readFabVersion(repo, filepath.Join(repo, "fab", "project", "config.yaml"))
+	if v != "2.0.0" {
+		t.Errorf("version = %q, want 2.0.0 (stamp lands even when config upgrade fails open)", v)
 	}
 }
 
@@ -361,12 +397,14 @@ func TestUpgrade_NoFabVersionInstallPath(t *testing.T) {
 		t.Errorf("expected 'Installed: 2.0.0' line, output:\n%s", out)
 	}
 
-	v, err := readFabVersion(filepath.Join(configDir, "config.yaml"))
+	// The version is stamped into fab/.fab-version (config.yaml is no longer
+	// version-stamped), so readFabVersion resolves it from there.
+	v, err := readFabVersion(repo, filepath.Join(configDir, "config.yaml"))
 	if err != nil {
 		t.Fatalf("readFabVersion: %v", err)
 	}
 	if v != "2.0.0" {
-		t.Errorf("fab_version = %q, want 2.0.0", v)
+		t.Errorf("resolved fab version = %q, want 2.0.0", v)
 	}
 }
 
@@ -428,7 +466,7 @@ func TestUpgrade_DefaultResolvesToSystemVersionNoNetwork(t *testing.T) {
 	}
 
 	// The repo must have been upgraded to the systemVersion.
-	v, _ := readFabVersion(filepath.Join(repo, "fab", "project", "config.yaml"))
+	v, _ := readFabVersion(repo, filepath.Join(repo, "fab", "project", "config.yaml"))
 	if v != "2.3.1" {
 		t.Errorf("fab_version = %q, want 2.3.1 (resolved to systemVersion)", v)
 	}
@@ -451,7 +489,7 @@ func TestUpgrade_LatestFlagCallsAPI(t *testing.T) {
 		t.Error("--latest must resolve via the GitHub API, but it was not called")
 	}
 
-	v, _ := readFabVersion(filepath.Join(repo, "fab", "project", "config.yaml"))
+	v, _ := readFabVersion(repo, filepath.Join(repo, "fab", "project", "config.yaml"))
 	if v != "2.0.0" {
 		t.Errorf("fab_version = %q, want 2.0.0 (resolved via --latest)", v)
 	}
@@ -473,7 +511,7 @@ func TestUpgrade_DevBinaryFallsBackToAPI(t *testing.T) {
 		t.Error("a dev binary must fall back to the GitHub API, but it was not called")
 	}
 
-	v, _ := readFabVersion(filepath.Join(repo, "fab", "project", "config.yaml"))
+	v, _ := readFabVersion(repo, filepath.Join(repo, "fab", "project", "config.yaml"))
 	if v != "2.0.0" {
 		t.Errorf("fab_version = %q, want 2.0.0 (dev fallback to API)", v)
 	}
@@ -491,7 +529,7 @@ func TestUpgrade_ExplicitArgIgnoresLatest(t *testing.T) {
 		t.Fatalf("Upgrade: %v", err)
 	}
 
-	v, _ := readFabVersion(filepath.Join(repo, "fab", "project", "config.yaml"))
+	v, _ := readFabVersion(repo, filepath.Join(repo, "fab", "project", "config.yaml"))
 	if v != "2.2.0" {
 		t.Errorf("fab_version = %q, want 2.2.0 (explicit arg wins over --latest)", v)
 	}

@@ -3,6 +3,7 @@ package internal
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -30,20 +31,31 @@ func Init(systemVersion string) error {
 	}
 	fmt.Printf("Latest version: %s\n", latest)
 
-	// 2. Ensure cached
-	_, err = EnsureCached(latest)
+	// 2. Ensure cached — the returned path is the pinned fab-go binary used to
+	// generate config.yaml from the registry (single-writer discipline).
+	fabGoBin, err := EnsureCached(latest)
 	if err != nil {
 		return err
 	}
 
-	// 3. Create/update config.yaml with fab_version, at the repo root
-	configPath := filepath.Join(repoRoot, "fab", "project", "config.yaml")
-	if err := setFabVersion(configPath, latest); err != nil {
-		return fmt.Errorf("cannot update config.yaml: %w", err)
+	// 3. Stamp fab/.fab-version (the plain-text sibling that replaced the
+	// config.yaml fab_version: key — 260708-j0qm). config.yaml is no longer
+	// version-stamped; fab config upgrade is its only writer going forward.
+	if err := stampFabVersion(repoRoot, latest); err != nil {
+		return err
 	}
-	fmt.Printf("Set fab_version: %s in config.yaml\n", latest)
+	fmt.Printf("Set fab version %s in fab/.fab-version\n", latest)
 
-	// 4. Stamp .kit-migration-version to the engine version. This must happen
+	// 4. Generate config.yaml from the registry via the pinned fab-go
+	// (`fab config init --project`) — the scaffold config.yaml was retired. On a
+	// fab-go that predates the subcommand, fall back to a minimal embedded stub so
+	// a fresh repo never fails preflight for lack of a config.yaml (fail-open).
+	configPath := filepath.Join(repoRoot, "fab", "project", "config.yaml")
+	if err := generateProjectConfig(fabGoBin, repoRoot, configPath); err != nil {
+		return err
+	}
+
+	// 5. Stamp .kit-migration-version to the engine version. This must happen
 	// before Sync — otherwise scaffoldDirectories sees the just-written
 	// config.yaml and classifies the project as "existing", writing 0.1.0
 	// and triggering a spurious migration prompt on every fresh init.
@@ -51,7 +63,7 @@ func Init(systemVersion string) error {
 		return err
 	}
 
-	// 5. Run sync — the kit version is passed explicitly; systemVersion (the
+	// 6. Run sync — the kit version is passed explicitly; systemVersion (the
 	// embedded binary version) feeds the version guard (F22).
 	fmt.Println("Setting up project...")
 	if err := runSync(systemVersion, latest, false, false); err != nil {
@@ -77,76 +89,214 @@ func stampMigrationVersion(repoRoot, version string) error {
 	return nil
 }
 
-// setFabVersion creates or updates config.yaml with the fab_version field.
-//
-// It owns exactly one line — the top-level `fab_version:` scalar — and touches
-// nothing else. Rather than unmarshalling the whole file into a map and
-// re-marshalling (which strips comments, alphabetizes keys, normalizes
-// indentation, and collapses comment-only mapping keys to null), it performs a
-// targeted line splice: the file is preserved byte-for-byte except the single
-// line this function owns. A trailing same-line comment on that line is kept.
-//
-// Behavior:
-//   - file missing        → create it (with parent dirs) containing just
-//     `fab_version: <version>`
-//   - top-level fab_version present → replace its value in place, preserving any
-//     trailing comment
-//   - top-level fab_version absent   → append `fab_version: <version>` as the
-//     final line, with exactly one trailing newline
-//
-// "Top-level" means a line whose key begins at column 0 (not indented, not a
-// `#` comment).
-func setFabVersion(path string, version string) error {
+// stampFabVersion writes fab/.fab-version to the given version, creating fab/ if
+// needed. This is the sibling of stampMigrationVersion (same plain-text,
+// one-line-plus-newline shape) that replaced the old config.yaml fab_version:
+// stamp (260708-j0qm): deployed-kit version vs migration baseline are kept
+// distinct, and config.yaml is no longer written by init/upgrade — fab config
+// upgrade is its only writer going forward.
+func stampFabVersion(repoRoot, version string) error {
+	path := filepath.Join(repoRoot, dotFabVersionRelPath)
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return err
+		return fmt.Errorf("cannot create fab/ directory: %w", err)
 	}
-
-	content, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// New file: write just the fab_version line.
-			return os.WriteFile(path, []byte("fab_version: "+version+"\n"), 0644)
-		}
-		// A genuine read error (permissions, etc.) still fails loudly.
-		return fmt.Errorf("cannot read existing config.yaml: %w", err)
+	if err := os.WriteFile(path, []byte(version+"\n"), 0644); err != nil {
+		return fmt.Errorf("cannot write fab/.fab-version: %w", err)
 	}
-
-	lines := strings.Split(string(content), "\n")
-	for i, line := range lines {
-		if rest, ok := topLevelFabVersionValue(line); ok {
-			// Replace only the value token, preserving any trailing comment.
-			lines[i] = "fab_version: " + version + rest
-			return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0644)
-		}
-	}
-
-	// No top-level fab_version line: append one, ensuring exactly one trailing newline.
-	out := string(content)
-	if out != "" && !strings.HasSuffix(out, "\n") {
-		out += "\n"
-	}
-	out += "fab_version: " + version + "\n"
-	return os.WriteFile(path, []byte(out), 0644)
+	return nil
 }
 
-// topLevelFabVersionValue reports whether line is a top-level `fab_version:`
-// entry — its key begins at column 0 (not indented, not commented). When it is,
-// ok is true and rest is the portion of the line to keep after the replacement
-// value: an empty string, or a preserved trailing comment (with its original
-// leading whitespace), e.g. "  # pinned" for `fab_version: 1.2.3  # pinned`.
-func topLevelFabVersionValue(line string) (rest string, ok bool) {
-	const key = "fab_version:"
-	if !strings.HasPrefix(line, key) {
-		return "", false
+// generateProjectConfig writes the initial fab/project/config.yaml by shelling out
+// to the pinned fab-go binary's `fab config init --project` (which generates it
+// from the registry — the scaffold config.yaml was retired). fab-kit performs the
+// mechanical, non-interactive detection of the A-class identity seed (project name
+// from the repo folder, source_paths from common on-disk directories, test_paths
+// from ecosystem marker files) and passes it as `--name`/`--source-path`/
+// `--test-path` flags (R5.3), so the generated config carries LIVE identity fields
+// rather than an empty header+fence. /fab-setup's Config Create Mode later refines
+// this interactively (it asks the user and can override any detected value).
+//
+// FAIL-OPEN: if the pinned fab-go predates `fab config init --project` (non-zero
+// exit / unknown command), fall back to a minimal EMBEDDED STUB config.yaml — a
+// tiny bounded copy of the A-class identity fields, carrying the same detected seed
+// — rather than a printed instruction, so a fresh repo never fails preflight for
+// lack of a config.yaml (user-confirmed decision). A pre-existing config.yaml is
+// never overwritten (`fab config init --project` refuses; the stub path checks too).
+func generateProjectConfig(fabGoBin, repoRoot, configPath string) error {
+	if _, err := os.Stat(configPath); err == nil {
+		// Already present (e.g. re-run over an existing repo) — leave it untouched.
+		return nil
 	}
-	after := line[len(key):]
-	// Preserve a trailing `#` comment verbatim, including the whitespace that
-	// separates it from the value.
-	if idx := strings.IndexByte(after, '#'); idx >= 0 {
-		ws := len(strings.TrimRight(after[:idx], " \t"))
-		return after[ws:], true // whitespace run before '#' plus the comment
+
+	seed := detectProjectSeed(repoRoot)
+
+	args := []string{"config", "init", "--project"}
+	if seed.name != "" {
+		args = append(args, "--name", seed.name)
 	}
-	return "", true
+	for _, p := range seed.sourcePaths {
+		args = append(args, "--source-path", p)
+	}
+	for _, p := range seed.testPaths {
+		args = append(args, "--test-path", p)
+	}
+
+	cmd := exec.Command(fabGoBin, args...)
+	cmd.Dir = repoRoot
+	out, err := cmd.CombinedOutput()
+	// The shell-out is "successful generation" only when it exits 0 AND actually
+	// wrote the file — a fab-go that predates the subcommand may exit 0 for an
+	// unknown flag on some cobra versions, or exit non-zero. Either way, if no
+	// config.yaml landed, fall open to the embedded stub so init never bricks.
+	if err == nil {
+		if _, statErr := os.Stat(configPath); statErr == nil {
+			fmt.Println("Generated fab/project/config.yaml from the config registry")
+			return nil
+		}
+	}
+	fmt.Printf("Note: installed fab-go could not generate config.yaml (%s); writing a minimal stub. Run `fab config upgrade` after upgrading to refresh it.\n", strings.TrimSpace(string(out)))
+	return writeStubConfig(configPath, seed)
+}
+
+// projectSeed is the mechanically-detected A-class identity seed fab-kit passes to
+// `fab config init --project`. Every field may be empty (a field with no confident
+// detection is left to the fence to advertise, and refined later by /fab-setup).
+type projectSeed struct {
+	name        string
+	sourcePaths []string
+	testPaths   []string
+}
+
+// detectProjectSeed derives the identity seed non-interactively from the repo on
+// disk. It is deliberately conservative — it only emits a value it can infer
+// mechanically, leaving anything ambiguous empty for /fab-setup to fill:
+//   - name: the repo folder basename (the same signal the worktree/branch naming
+//     uses); an empty/"/" basename yields "".
+//   - source_paths: common implementation directories that actually exist (src/).
+//   - test_paths: the ecosystem test-glob for detected marker files, mirroring the
+//     /fab-setup Config Create Mode marker table. Multi-marker repos union their
+//     pattern sets (deduped, stable order).
+func detectProjectSeed(repoRoot string) projectSeed {
+	var seed projectSeed
+
+	if base := filepath.Base(repoRoot); base != "" && base != "." && base != string(filepath.Separator) {
+		seed.name = base
+	}
+
+	for _, dir := range []string{"src"} {
+		if fi, err := os.Stat(filepath.Join(repoRoot, dir)); err == nil && fi.IsDir() {
+			seed.sourcePaths = append(seed.sourcePaths, dir+"/")
+		}
+	}
+
+	seed.testPaths = detectTestPaths(repoRoot)
+	return seed
+}
+
+// testMarker pairs an on-disk marker file with the anchored test_paths patterns it
+// implies. The anchoring (suffix/prefix/infix/source-root) is what makes the
+// test/impl classification reliable — a bare substring like `**/*test*` miscounts
+// production code (attestation.go, latest.go). Mirrors the /fab-setup Config Create
+// Mode marker table so the Go detection and the skill agree.
+var testMarkers = []struct {
+	markers  []string
+	patterns []string
+}{
+	{markers: []string{"go.mod"}, patterns: []string{"**/*_test.go"}},
+	{markers: []string{"pytest.ini", "pyproject.toml", "setup.cfg"}, patterns: []string{"**/test_*.py", "**/*_test.py"}},
+	{markers: []string{"pom.xml", "build.gradle"}, patterns: []string{"**/src/test/**"}},
+	// Rust (Cargo.toml) uses inline #[cfg(test)] tests — not glob-addressable, so no
+	// pattern is emitted (left to the fence, matching the skill's "leave empty" row).
+}
+
+// detectTestPaths reads the repo's root marker files and returns the union of the
+// anchored test-glob pattern sets they imply (deduped, first-seen order). Empty when
+// no recognized marker is present (the impact breakdown then collapses to a single
+// total — today's behavior). JS/TS detection is intentionally omitted here: it
+// requires parsing package.json deps or globbing for *.spec/*.test files, which is
+// /fab-setup's interactive job — the Go layer stays to unambiguous single-file
+// markers.
+func detectTestPaths(repoRoot string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, tm := range testMarkers {
+		matched := false
+		for _, m := range tm.markers {
+			if _, err := os.Stat(filepath.Join(repoRoot, m)); err == nil {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
+		for _, p := range tm.patterns {
+			if !seen[p] {
+				seen[p] = true
+				out = append(out, p)
+			}
+		}
+	}
+	return out
+}
+
+// stubConfigHeader is the fixed banner of the minimal embedded fallback config.yaml,
+// written only when the pinned fab-go predates `fab config init --project`. The stub
+// is deliberately spare (no managed fence): its sole job is to exist so preflight
+// passes; the next `fab upgrade-repo` runs `fab config upgrade` and materializes the
+// full fence. /fab-setup refines the identity fields.
+const stubConfigHeader = `# fab/project/config.yaml — minimal stub written by ` + "`fab init`" + ` because the
+# installed fab-go predates registry-based generation. Run ` + "`fab config upgrade`" + `
+# (or ` + "`fab upgrade-repo`" + `) after upgrading to materialize the full reference fence.`
+
+// renderStubConfig builds the embedded stub from the detected seed, so the stub
+// (like the registry-generated file) carries the detected identity fields live
+// rather than a hardcoded placeholder. Missing seed values fall back to the standard
+// placeholders (name/description) or are omitted (source_paths/test_paths) so the
+// document always parses and always carries the required project.name/description.
+func renderStubConfig(seed projectSeed) string {
+	name := seed.name
+	if name == "" {
+		name = "My Project"
+	}
+	var b strings.Builder
+	b.WriteString(stubConfigHeader)
+	b.WriteString("\nproject:\n")
+	fmt.Fprintf(&b, "  name: %q\n", name)
+	b.WriteString("  description: \"One-line project description\"\n")
+
+	src := seed.sourcePaths
+	if len(src) == 0 {
+		src = []string{"src/"}
+	}
+	b.WriteString("\nsource_paths:\n")
+	for _, p := range src {
+		fmt.Fprintf(&b, "  - %s\n", p)
+	}
+
+	if len(seed.testPaths) > 0 {
+		b.WriteString("\ntest_paths:\n")
+		for _, p := range seed.testPaths {
+			fmt.Fprintf(&b, "  - %q\n", p)
+		}
+	}
+	return b.String()
+}
+
+// writeStubConfig writes the embedded stub (carrying the detected seed), creating
+// fab/project/ as needed. It refuses to overwrite an existing config.yaml (defensive
+// — the caller already checked, but the stub path must never clobber user data).
+func writeStubConfig(configPath string, seed projectSeed) error {
+	if _, err := os.Stat(configPath); err == nil {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		return fmt.Errorf("cannot create fab/project/ directory: %w", err)
+	}
+	if err := os.WriteFile(configPath, []byte(renderStubConfig(seed)), 0644); err != nil {
+		return fmt.Errorf("cannot write stub config.yaml: %w", err)
+	}
+	return nil
 }
 
 // copyDir copies src directory to dst, creating dst if needed.

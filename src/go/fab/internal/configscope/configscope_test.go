@@ -18,7 +18,6 @@ func TestScopeFor(t *testing.T) {
 		"agent":               ScopeBoth,
 		"stage_hooks":         ScopeProject,
 		"branch_prefix":       ScopeProject,
-		"fab_version":         ScopeProject,
 	}
 	for key, wantScope := range want {
 		got, ok := ScopeFor(key)
@@ -29,6 +28,17 @@ func TestScopeFor(t *testing.T) {
 		if got != wantScope {
 			t.Errorf("ScopeFor(%q) = %q, want %q", key, got, wantScope)
 		}
+	}
+
+	// fab_version left config.yaml for the plain-text sibling fab/.fab-version
+	// (260708-j0qm), so it is no longer a scoped config key — ScopeFor reports it
+	// unknown. In a PROJECT file a stale `fab_version:` is then ignored silently
+	// like any other unrecognized key; in the SYSTEM file the loader strips it as a
+	// named compat-window exception (repo-scoped state must not bleed in from a
+	// machine-global file — see internal/config.pruneProjectScoped). Either way the
+	// 2.14.0-to-2.15.0 migration eventually removes it from project files.
+	if s, ok := ScopeFor("fab_version"); ok {
+		t.Errorf("ScopeFor(\"fab_version\") = (%q, true), want unknown after the .fab-version relocation", s)
 	}
 }
 

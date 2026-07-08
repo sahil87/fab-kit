@@ -11,238 +11,195 @@ import (
 	"testing"
 )
 
-func TestSetFabVersion_NewFile(t *testing.T) {
-	tmp := t.TempDir()
-	path := filepath.Join(tmp, "fab", "project", "config.yaml")
+func TestStampFabVersion_FreshDir(t *testing.T) {
+	repoRoot := t.TempDir()
 
-	if err := setFabVersion(path, "0.43.0"); err != nil {
+	if err := stampFabVersion(repoRoot, "2.15.0"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	data, err := os.ReadFile(path)
+	got, err := os.ReadFile(filepath.Join(repoRoot, "fab", ".fab-version"))
 	if err != nil {
-		t.Fatalf("cannot read file: %v", err)
+		t.Fatalf("expected fab/.fab-version to be created: %v", err)
 	}
-
-	content := string(data)
-	if content == "" {
-		t.Fatal("file is empty")
-	}
-
-	// Verify the version can be read back
-	v, err := readFabVersion(path)
-	if err != nil {
-		t.Fatalf("cannot read back fab_version: %v", err)
-	}
-	if v != "0.43.0" {
-		t.Errorf("expected 0.43.0, got %s", v)
+	if want := "2.15.0\n"; string(got) != want {
+		t.Errorf("got %q, want %q", string(got), want)
 	}
 }
 
-func TestSetFabVersion_ExistingFile(t *testing.T) {
-	tmp := t.TempDir()
-	configDir := filepath.Join(tmp, "fab", "project")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+func TestStampFabVersion_OverwritesExisting(t *testing.T) {
+	repoRoot := t.TempDir()
+	path := filepath.Join(repoRoot, "fab", ".fab-version")
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(configDir, "config.yaml")
-
-	// Write existing content
-	existing := "project:\n  name: test-project\nfab_version: \"0.42.0\"\n"
-	if err := os.WriteFile(path, []byte(existing), 0644); err != nil {
+	if err := os.WriteFile(path, []byte("2.14.0\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := setFabVersion(path, "0.43.0"); err != nil {
+	if err := stampFabVersion(repoRoot, "2.15.0"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	// Verify version updated
-	v, err := readFabVersion(path)
-	if err != nil {
-		t.Fatalf("cannot read back fab_version: %v", err)
-	}
-	if v != "0.43.0" {
-		t.Errorf("expected 0.43.0, got %s", v)
+	got, _ := os.ReadFile(path)
+	if want := "2.15.0\n"; string(got) != want {
+		t.Errorf("got %q, want %q (expected overwrite)", string(got), want)
 	}
 }
 
-// writeConfig creates fab/project/config.yaml under a fresh temp dir with the
-// given content and returns its path.
-func writeConfig(t *testing.T, content string) string {
-	t.Helper()
-	tmp := t.TempDir()
-	dir := filepath.Join(tmp, "fab", "project")
-	if err := os.MkdirAll(dir, 0755); err != nil {
+// TestStampFabVersion_DoesNotWriteConfig confirms the relocation: stampFabVersion
+// writes only fab/.fab-version and never touches config.yaml (config.yaml is now
+// written solely by `fab config init/upgrade`).
+func TestStampFabVersion_DoesNotWriteConfig(t *testing.T) {
+	repoRoot := t.TempDir()
+	if err := stampFabVersion(repoRoot, "2.15.0"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(repoRoot, "fab", "project", "config.yaml")); !os.IsNotExist(err) {
+		t.Error("stampFabVersion must not create config.yaml — it owns only fab/.fab-version")
+	}
+}
+
+// TestGenerateProjectConfig_StubFallback: when the pinned fab-go writes no
+// config.yaml (a predates-subcommand stub binary), generateProjectConfig falls
+// open to the embedded stub so a fresh repo always has a config.yaml — carrying
+// the detected identity seed (the repo folder name).
+func TestGenerateProjectConfig_StubFallback(t *testing.T) {
+	repoRoot := filepath.Join(t.TempDir(), "my-cool-repo")
+	if err := os.MkdirAll(repoRoot, 0755); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(dir, "config.yaml")
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	// A stub fab-go that exits 0 but writes nothing (mimics a predates-subcommand
+	// binary that ignores the unknown `config init --project`).
+	binDir := t.TempDir()
+	fabGoBin := filepath.Join(binDir, "fab-go")
+	if err := os.WriteFile(fabGoBin, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	return path
+	configPath := filepath.Join(repoRoot, "fab", "project", "config.yaml")
+
+	if err := generateProjectConfig(fabGoBin, repoRoot, configPath); err != nil {
+		t.Fatalf("generateProjectConfig: %v", err)
+	}
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("stub fallback did not write a config.yaml: %v", err)
+	}
+	// The stub carries the A-class identity fields so preflight passes.
+	for _, want := range []string{"project:", "name:", "source_paths:"} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("stub config missing %q:\n%s", want, string(data))
+		}
+	}
+	// The detected repo folder name is seeded into the stub (not the placeholder).
+	if !strings.Contains(string(data), `name: "my-cool-repo"`) {
+		t.Errorf("stub must carry the detected repo name, got:\n%s", string(data))
+	}
 }
 
-// TestSetFabVersion_PreservesEverythingButOwnedLine is the core regression: an
-// existing config.yaml with header comments, a comment-only mapping block,
-// non-alphabetical keys, inline comments, and 2-space nested indentation must be
-// byte-identical after the call except the single fab_version line.
-func TestSetFabVersion_PreservesEverythingButOwnedLine(t *testing.T) {
-	existing := "" +
-		"# Providers reference: run `fab config reference`\n" +
-		"# agent:\n" +
-		"#     tiers: ...\n" +
-		"fab_version: 2.13.1\n" +
-		"project:\n" +
-		"  name: my-repo   # my main repo\n" +
-		"  description: FAB Kit\n" +
-		"zeta: last\n"
-	path := writeConfig(t, existing)
-
-	if err := setFabVersion(path, "2.14.0"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	got, err := os.ReadFile(path)
-	if err != nil {
+// TestGenerateProjectConfig_PassesDetectedSeed: on the success path (a fab-go that
+// honors `config init --project`), generateProjectConfig passes the detected
+// name/source_paths/test_paths as flags. A fake fab-go records its args so we can
+// assert the seed flags were passed; it then writes a config.yaml so the success
+// branch is taken.
+func TestGenerateProjectConfig_PassesDetectedSeed(t *testing.T) {
+	repoRoot := filepath.Join(t.TempDir(), "widget-service")
+	if err := os.MkdirAll(filepath.Join(repoRoot, "src"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	want := strings.Replace(existing, "fab_version: 2.13.1\n", "fab_version: 2.14.0\n", 1)
-	if string(got) != want {
-		t.Errorf("byte-for-byte mismatch\n--- got ---\n%q\n--- want ---\n%q", string(got), want)
+	// A Go marker so test_paths detection fires.
+	if err := os.WriteFile(filepath.Join(repoRoot, "go.mod"), []byte("module x\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(repoRoot, "fab", "project", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		t.Fatal(err)
 	}
 
-	// The commented agent: block must NOT have been collapsed to `agent: null`.
-	if strings.Contains(string(got), "agent: null") {
-		t.Error("comment-only mapping block was collapsed to `agent: null`")
-	}
-	// Key order preserved: project must still precede zeta (non-alphabetical).
-	if idxProject, idxZeta := strings.Index(string(got), "project:"), strings.Index(string(got), "zeta:"); idxProject > idxZeta {
-		t.Error("key order was alphabetized (project should precede zeta)")
-	}
-	// Indentation untouched: the 2-space nested mapping survives.
-	if !strings.Contains(string(got), "  name: my-repo   # my main repo") {
-		t.Error("nested 2-space indentation or inline comment was altered")
+	// A fake fab-go: records "$@" to an args file, then writes the config so the
+	// success branch (exit 0 AND file present) is taken.
+	binDir := t.TempDir()
+	fabGoBin := filepath.Join(binDir, "fab-go")
+	argsFile := filepath.Join(binDir, "args.txt")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > " + argsFile + "\ncat > " + configPath + " <<'YAML'\nproject:\n  name: from-fab-go\nYAML\nexit 0\n"
+	if err := os.WriteFile(fabGoBin, []byte(script), 0755); err != nil {
+		t.Fatal(err)
 	}
 
-	v, err := readFabVersion(path)
+	if err := generateProjectConfig(fabGoBin, repoRoot, configPath); err != nil {
+		t.Fatalf("generateProjectConfig: %v", err)
+	}
+	recorded, err := os.ReadFile(argsFile)
 	if err != nil {
-		t.Fatalf("readback failed: %v", err)
+		t.Fatalf("fake fab-go did not record args: %v", err)
 	}
-	if v != "2.14.0" {
-		t.Errorf("readback = %q, want 2.14.0", v)
-	}
-}
-
-func TestSetFabVersion_PreservesTrailingComment(t *testing.T) {
-	path := writeConfig(t, "fab_version: 1.2.3  # pinned\nproject:\n  name: x\n")
-
-	if err := setFabVersion(path, "2.14.0"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	got, _ := os.ReadFile(path)
-	if want := "fab_version: 2.14.0  # pinned\nproject:\n  name: x\n"; string(got) != want {
-		t.Errorf("trailing comment not preserved\ngot:  %q\nwant: %q", string(got), want)
+	args := string(recorded)
+	for _, want := range []string{"--project", "--name", "widget-service", "--source-path", "src/", "--test-path", "**/*_test.go"} {
+		if !strings.Contains(args, want) {
+			t.Errorf("expected the detected seed flag %q to be passed, got args:\n%s", want, args)
+		}
 	}
 }
 
-func TestSetFabVersion_QuotedValueReplaced(t *testing.T) {
-	path := writeConfig(t, "project:\n  name: test-project\nfab_version: \"0.42.0\"\n")
-
-	if err := setFabVersion(path, "0.43.0"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+// TestDetectProjectSeed covers the mechanical detection: repo-folder name,
+// existing src/ dir, and ecosystem test_paths from marker files.
+func TestDetectProjectSeed(t *testing.T) {
+	repoRoot := filepath.Join(t.TempDir(), "acme-app")
+	if err := os.MkdirAll(filepath.Join(repoRoot, "src"), 0755); err != nil {
+		t.Fatal(err)
 	}
-
-	v, err := readFabVersion(path)
-	if err != nil {
-		t.Fatalf("readback failed: %v", err)
+	if err := os.WriteFile(filepath.Join(repoRoot, "pyproject.toml"), []byte("[tool]\n"), 0644); err != nil {
+		t.Fatal(err)
 	}
-	if v != "0.43.0" {
-		t.Errorf("readback = %q, want 0.43.0", v)
+	seed := detectProjectSeed(repoRoot)
+	if seed.name != "acme-app" {
+		t.Errorf("name = %q, want acme-app", seed.name)
 	}
-	// Everything but the fab_version line is preserved.
-	got, _ := os.ReadFile(path)
-	if !strings.Contains(string(got), "project:\n  name: test-project\n") {
-		t.Errorf("non-owned lines altered: %q", string(got))
+	if len(seed.sourcePaths) != 1 || seed.sourcePaths[0] != "src/" {
+		t.Errorf("sourcePaths = %v, want [src/]", seed.sourcePaths)
 	}
-}
-
-func TestSetFabVersion_AppendsWhenMissing(t *testing.T) {
-	// Input intentionally lacks a trailing newline to exercise the
-	// exactly-one-trailing-newline guarantee.
-	path := writeConfig(t, "project:\n  name: my-repo\n# a trailing comment")
-
-	if err := setFabVersion(path, "2.14.0"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	got, _ := os.ReadFile(path)
-	want := "project:\n  name: my-repo\n# a trailing comment\nfab_version: 2.14.0\n"
-	if string(got) != want {
-		t.Errorf("append case mismatch\ngot:  %q\nwant: %q", string(got), want)
-	}
-	if strings.HasSuffix(string(got), "\n\n") {
-		t.Error("file ends with a doubled trailing newline")
-	}
-
-	v, err := readFabVersion(path)
-	if err != nil {
-		t.Fatalf("readback failed: %v", err)
-	}
-	if v != "2.14.0" {
-		t.Errorf("readback = %q, want 2.14.0", v)
+	if len(seed.testPaths) != 2 || seed.testPaths[0] != "**/test_*.py" || seed.testPaths[1] != "**/*_test.py" {
+		t.Errorf("testPaths = %v, want [**/test_*.py **/*_test.py]", seed.testPaths)
 	}
 }
 
-func TestSetFabVersion_AppendPreservesTrailingNewline(t *testing.T) {
-	// Input already ends with exactly one newline — the result must too.
-	path := writeConfig(t, "project:\n  name: my-repo\n")
-
-	if err := setFabVersion(path, "2.14.0"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+// TestDetectProjectSeed_NoMarkers: an empty repo yields the folder name only (no
+// source_paths, no test_paths — those stay fence-advertised).
+func TestDetectProjectSeed_NoMarkers(t *testing.T) {
+	repoRoot := filepath.Join(t.TempDir(), "bare")
+	if err := os.MkdirAll(repoRoot, 0755); err != nil {
+		t.Fatal(err)
 	}
-
-	got, _ := os.ReadFile(path)
-	if want := "project:\n  name: my-repo\nfab_version: 2.14.0\n"; string(got) != want {
-		t.Errorf("append (newline-terminated input) mismatch\ngot:  %q\nwant: %q", string(got), want)
+	seed := detectProjectSeed(repoRoot)
+	if seed.name != "bare" {
+		t.Errorf("name = %q, want bare", seed.name)
+	}
+	if len(seed.sourcePaths) != 0 {
+		t.Errorf("sourcePaths = %v, want empty", seed.sourcePaths)
+	}
+	if len(seed.testPaths) != 0 {
+		t.Errorf("testPaths = %v, want empty", seed.testPaths)
 	}
 }
 
-// TestSetFabVersion_IgnoresIndentedAndCommentedOccurrences verifies that only a
-// column-0 fab_version: key is treated as top-level; an indented or commented
-// occurrence must be left untouched and the top-level line appended.
-func TestSetFabVersion_IgnoresIndentedAndCommentedOccurrences(t *testing.T) {
-	existing := "" +
-		"# fab_version: 9.9.9 (this is a comment, not the key)\n" +
-		"nested:\n" +
-		"  fab_version: 1.1.1\n"
-	path := writeConfig(t, existing)
-
-	if err := setFabVersion(path, "2.14.0"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+// TestGenerateProjectConfig_NeverOverwrites: an existing config.yaml is left
+// untouched (generateProjectConfig is copy-if-absent for the file).
+func TestGenerateProjectConfig_NeverOverwrites(t *testing.T) {
+	repoRoot := t.TempDir()
+	configPath := filepath.Join(repoRoot, "fab", "project", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		t.Fatal(err)
+	}
+	existing := "project:\n  name: keep-me\n"
+	if err := os.WriteFile(configPath, []byte(existing), 0644); err != nil {
+		t.Fatal(err)
 	}
 
-	got, _ := os.ReadFile(path)
-	// The commented and indented occurrences are untouched.
-	if !strings.Contains(string(got), "# fab_version: 9.9.9 (this is a comment, not the key)\n") {
-		t.Error("commented fab_version occurrence was altered")
+	if err := generateProjectConfig("/nonexistent/fab-go", repoRoot, configPath); err != nil {
+		t.Fatalf("generateProjectConfig: %v", err)
 	}
-	if !strings.Contains(string(got), "  fab_version: 1.1.1\n") {
-		t.Error("indented fab_version occurrence was altered")
-	}
-	// A new top-level line was appended.
-	want := existing + "fab_version: 2.14.0\n"
-	if string(got) != want {
-		t.Errorf("expected top-level line appended\ngot:  %q\nwant: %q", string(got), want)
-	}
-
-	v, err := readFabVersion(path)
-	if err != nil {
-		t.Fatalf("readback failed: %v", err)
-	}
-	if v != "2.14.0" {
-		t.Errorf("readback = %q, want 2.14.0", v)
+	got, _ := os.ReadFile(configPath)
+	if string(got) != existing {
+		t.Errorf("existing config.yaml must be preserved, got:\n%s", string(got))
 	}
 }
 
@@ -384,12 +341,26 @@ func TestInit_ThreadsVersionsIntoSync(t *testing.T) {
 	if gotSystem != "1.5.0" || gotKit != latest {
 		t.Errorf("Sync called with (system=%q, kit=%q), want (1.5.0, %s)", gotSystem, gotKit, latest)
 	}
-	v, err := readFabVersion(filepath.Join(dir, "fab", "project", "config.yaml"))
+	// The version is stamped into fab/.fab-version (not config.yaml).
+	repoRoot := dir
+	v, err := readFabVersion(repoRoot, filepath.Join(dir, "fab", "project", "config.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if v != latest {
-		t.Errorf("fab_version = %q, want %s", v, latest)
+		t.Errorf("resolved fab version = %q, want %s", v, latest)
+	}
+	dotVer, err := os.ReadFile(filepath.Join(dir, "fab", ".fab-version"))
+	if err != nil {
+		t.Fatalf("fab/.fab-version not written: %v", err)
+	}
+	if strings.TrimSpace(string(dotVer)) != latest {
+		t.Errorf("fab/.fab-version = %q, want %s", strings.TrimSpace(string(dotVer)), latest)
+	}
+	// config.yaml exists (the stub fab-go writes nothing, so the embedded stub
+	// fallback fires — a fresh repo must always have a config.yaml).
+	if _, err := os.Stat(filepath.Join(dir, "fab", "project", "config.yaml")); err != nil {
+		t.Errorf("Init must leave a config.yaml (stub fallback): %v", err)
 	}
 }
 
@@ -427,12 +398,15 @@ func TestInit_FromSubdirectoryWritesAtRepoRoot(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(subdir, "fab")); !os.IsNotExist(err) {
 		t.Error("Init wrote fab/ into the subdirectory instead of the repo root")
 	}
-	v, err := readFabVersion(filepath.Join(root, "fab", "project", "config.yaml"))
+	v, err := readFabVersion(root, filepath.Join(root, "fab", "project", "config.yaml"))
 	if err != nil {
-		t.Fatalf("config.yaml not at repo root: %v", err)
+		t.Fatalf("version not resolvable at repo root: %v", err)
 	}
 	if v != latest {
-		t.Errorf("fab_version = %q, want %s", v, latest)
+		t.Errorf("resolved fab version = %q, want %s", v, latest)
+	}
+	if _, err := os.Stat(filepath.Join(root, "fab", ".fab-version")); err != nil {
+		t.Errorf("fab/.fab-version not at repo root: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(root, "fab", ".kit-migration-version")); err != nil {
 		t.Errorf(".kit-migration-version not at repo root: %v", err)

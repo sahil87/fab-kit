@@ -148,6 +148,49 @@ project:
 	}
 }
 
+// TestLoad_FabVersionFromDotFile pins the 260708-j0qm relocation: Load reads
+// fab_version from the plain-text sibling fab/.fab-version FIRST, and the value
+// there wins over any (legacy) fab_version: key still in config.yaml.
+func TestLoad_FabVersionFromDotFile(t *testing.T) {
+	isolateSystemConfig(t)
+	dir := t.TempDir()
+	fabRoot := filepath.Join(dir, "fab")
+	os.MkdirAll(filepath.Join(fabRoot, "project"), 0o755)
+	// A stale fab_version in config.yaml AND a .fab-version sibling: .fab-version wins.
+	os.WriteFile(filepath.Join(fabRoot, "project", "config.yaml"),
+		[]byte("fab_version: 1.0.0\nproject:\n  name: t\n"), 0o644)
+	os.WriteFile(filepath.Join(fabRoot, ".fab-version"), []byte("2.15.0\n"), 0o644)
+
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cfg.GetFabVersion(); got != "2.15.0" {
+		t.Errorf("GetFabVersion = %q, want %q (.fab-version wins over the config.yaml key)", got, "2.15.0")
+	}
+}
+
+// TestLoad_FabVersionFallbackToConfig pins the one-compat-window fallback: when
+// fab/.fab-version is absent (a not-yet-migrated repo), Load falls back to the
+// config.yaml fab_version: key with no error.
+func TestLoad_FabVersionFallbackToConfig(t *testing.T) {
+	isolateSystemConfig(t)
+	dir := t.TempDir()
+	fabRoot := filepath.Join(dir, "fab")
+	os.MkdirAll(filepath.Join(fabRoot, "project"), 0o755)
+	os.WriteFile(filepath.Join(fabRoot, "project", "config.yaml"),
+		[]byte("fab_version: 2.14.0\nproject:\n  name: t\n"), 0o644)
+	// No .fab-version file.
+
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cfg.GetFabVersion(); got != "2.14.0" {
+		t.Errorf("GetFabVersion = %q, want %q (config.yaml fallback when .fab-version absent)", got, "2.14.0")
+	}
+}
+
 // TestLoad_WithProviders: the top-level providers table round-trips both command
 // fields, and a provider with only a session_command yields an empty
 // DispatchCommand (the native-dispatch signal). The accessor is a pure
@@ -651,7 +694,10 @@ source_paths:
 
 // TestScope_PruneAllProjectScopedFields walks every project-scoped top-level key
 // through the pruner and asserts each is dropped with a warning, while the two
-// both-scoped keys survive.
+// both-scoped keys survive. A stale fab_version in the SYSTEM file (which left
+// config.yaml in 260708-j0qm) is a NAMED compat-window exception: it is stripped
+// SILENTLY (no warning) so a machine-global value never bleeds into a repo's
+// resolved version — it is migration residue, not a user error.
 func TestScope_PruneAllProjectScopedFields(t *testing.T) {
 	warnings := captureWarnings(t)
 	m := map[string]any{
@@ -662,13 +708,13 @@ func TestScope_PruneAllProjectScopedFields(t *testing.T) {
 		"checklist":           map[string]any{"extra_categories": []any{"d"}},
 		"stage_hooks":         map[string]any{"apply": map[string]any{"pre": "x"}},
 		"branch_prefix":       "p/",
-		"fab_version":         "1.0.0",
+		"fab_version":         "1.0.0", // compat-window residue — stripped silently
 		"agent":               map[string]any{"tiers": map[string]any{}},
 		"providers":           map[string]any{"claude": map[string]any{}},
 	}
 	pruneProjectScoped(m, "/fake/system.yaml")
 
-	for _, gone := range []string{"project", "source_paths", "test_paths", "true_impact_exclude", "checklist", "stage_hooks", "branch_prefix", "fab_version"} {
+	for _, gone := range []string{"project", "source_paths", "test_paths", "true_impact_exclude", "checklist", "stage_hooks", "branch_prefix"} {
 		if _, ok := m[gone]; ok {
 			t.Errorf("project-scoped key %q must be pruned from the system layer", gone)
 		}
@@ -678,7 +724,47 @@ func TestScope_PruneAllProjectScopedFields(t *testing.T) {
 			t.Errorf("both-scoped key %q must survive in the system layer", kept)
 		}
 	}
-	if c := strings.Count(warnings(), "fab: warning:"); c != 8 {
-		t.Errorf("expected 8 pruning warnings (one per project-scoped key), got %d", c)
+	// fab_version must be STRIPPED from the system layer (repo-scoped state must not
+	// bleed in from a machine-global file), but SILENTLY — no warning.
+	if _, ok := m["fab_version"]; ok {
+		t.Error("a system-file fab_version must be stripped (repo-scoped state, never a system-layer version source)")
+	}
+	if strings.Contains(warnings(), "fab_version") {
+		t.Errorf("the fab_version strip must be silent (migration residue, not a user error), got %q", warnings())
+	}
+	if c := strings.Count(warnings(), "fab: warning:"); c != 7 {
+		t.Errorf("expected 7 pruning warnings (one per project-scoped key), got %d", c)
+	}
+}
+
+// TestScope_SystemFabVersionDoesNotBleedIntoResolvedConfig is the end-to-end guard
+// for the compat-window strip: a fab_version in the system file must NOT become the
+// repo's Config.FabVersion, even when the project file (and .fab-version) carry none.
+func TestScope_SystemFabVersionDoesNotBleedIntoResolvedConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	sysDir := filepath.Join(home, ".fab-kit")
+	if err := os.MkdirAll(sysDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sysDir, "config.yaml"), []byte("fab_version: 9.9.9\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// A project file with no fab_version and no fab/.fab-version sibling.
+	fabRoot := filepath.Join(t.TempDir(), "fab")
+	if err := os.MkdirAll(filepath.Join(fabRoot, "project"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(fabRoot, "project", "config.yaml"), []byte("project:\n  name: t\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cfg.GetFabVersion(); got != "" {
+		t.Errorf("a system-file fab_version must not bleed into the resolved version, got %q", got)
 	}
 }
