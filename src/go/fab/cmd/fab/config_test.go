@@ -19,6 +19,11 @@ const scaffoldConfigRelPath = "src/kit/scaffold/fab/project/config.yaml"
 // parses cleanly via the same internal/config loader real project configs use.
 // A malformed reference (bad indentation, an un-quoted value) would fail here.
 func TestConfigReferenceRoundTrips(t *testing.T) {
+	// Isolate HOME so config.LoadPath does not merge the developer's real
+	// ~/.fab-kit/config.yaml over the reference (the cascade, lpb5, reads the
+	// system layer at every LoadPath). We assert the REFERENCE's own live keys.
+	t.Setenv("HOME", t.TempDir())
+
 	out, err := configref.Render()
 	if err != nil {
 		t.Fatalf("Render returned an error: %v", err)

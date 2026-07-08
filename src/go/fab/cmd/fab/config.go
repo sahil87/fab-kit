@@ -1,25 +1,40 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/configref"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/configscope"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
-// configCmd is the `fab config` command group. Today it holds a single
-// subcommand, `reference`; the group naming deliberately leaves room for a
-// future `fab config validate` (unknown-key/typo linting — a non-goal here).
-// Running the group with no subcommand shows its help (cobra default).
+// configCmd is the `fab config` command group. It holds the pure-query
+// `reference` and `show` subcommands and the file-writing `init --system`
+// scaffold generator; the group naming deliberately leaves room for a future
+// `fab config validate` (unknown-key/typo linting — a non-goal here). Running the
+// group with no subcommand shows its help (cobra default).
 func configCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Inspect fab project configuration",
-		Long: "Config-related queries. `fab config reference` prints the fully " +
-			"commented reference config.yaml (all available options). The group " +
-			"leaves room for future config subcommands (e.g. validate).",
+		Long: "Config-related queries and scaffolding. `fab config reference` prints " +
+			"the fully commented reference config.yaml (all available options); " +
+			"`fab config show [--origin]` prints the effective (post-cascade) config, " +
+			"optionally with per-field provenance; `fab config init --system` writes a " +
+			"~/.fab-kit/config.yaml scaffold of the system-overridable fields. The " +
+			"group leaves room for future config subcommands (e.g. validate).",
 	}
 	cmd.AddCommand(configReferenceCmd())
+	cmd.AddCommand(configShowCmd())
+	cmd.AddCommand(configInitCmd())
 	return cmd
 }
 
@@ -70,4 +85,449 @@ func renderReference(asJSON bool) (string, error) {
 		return configref.RenderJSON()
 	}
 	return configref.Render()
+}
+
+// configShowCmd implements `fab config show [--origin]` — a pure query (no file
+// writes) in the same family as `fab config reference`. It resolves the effective
+// (post-cascade) config for the current repo and prints it. Without a flag it
+// prints the merged effective config as YAML. With --origin it prints, per
+// registry field, the effective value alongside its provenance (the git config
+// --show-origin precedent): `project` file path, `system` file path, or `default`
+// — with per-key drill-down for map-valued fields (agent.tiers, providers), since
+// maps merge per-key. --origin surfaces a typo'd override: the field the user
+// meant to set shows `default` when their file was expected to win.
+func configShowCmd() *cobra.Command {
+	var withOrigin bool
+	cmd := &cobra.Command{
+		Use:   "show",
+		Short: "Print the effective (post-cascade) config, optionally with per-field provenance",
+		Long: "Resolves the effective fab config across the cascade — project " +
+			"(fab/project/config.yaml) > system (~/.fab-kit/config.yaml) > built-in " +
+			"defaults — and prints it. Without a flag, prints the merged config of the " +
+			"two FILES (project over system) as YAML; built-in defaults are NOT " +
+			"materialized here — they apply at point-of-use and are only surfaced " +
+			"explicitly by --origin. With --origin, prints each field's effective value " +
+			"and its provenance (project path / system path / default), composing the " +
+			"built-in defaults into the listing and drilling down per-key for map-valued " +
+			"fields (agent.tiers, providers). --origin surfaces a typo'd override, which " +
+			"shows origin `default` when a file was expected to win. Pure query — writes " +
+			"no file.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			fabRoot, err := resolve.FabRoot()
+			if err != nil {
+				return err
+			}
+			projectPath := filepath.Join(fabRoot, "project", "config.yaml")
+			layers, err := config.LoadLayers(projectPath)
+			if err != nil {
+				return err
+			}
+			out, err := renderShow(layers, withOrigin)
+			if err != nil {
+				return err
+			}
+			fmt.Fprint(cmd.OutOrStdout(), out)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&withOrigin, "origin", false, "Annotate each field with its provenance (project path / system path / default)")
+	return cmd
+}
+
+// renderShow renders the effective config, plain (merged YAML) or with per-field
+// provenance. It is factored out of the cobra RunE so it is unit-testable.
+func renderShow(layers *config.Layers, withOrigin bool) (string, error) {
+	if !withOrigin {
+		if len(layers.Effective) == 0 {
+			return "# (no effective config — no project or system config.yaml found)\n", nil
+		}
+		data, err := yaml.Marshal(layers.Effective)
+		if err != nil {
+			return "", err
+		}
+		return string(data), nil
+	}
+	return renderShowOrigin(layers)
+}
+
+// renderShowOrigin walks the field registry and prints each field's effective
+// leaf values with provenance. For every registry field it composes the field's
+// subtree from three sources — built-in default (from the registry) < system
+// layer < project layer — then flattens to leaves, printing `dotted.key = value
+// # origin` where origin is the HIGHEST layer that set the leaf.
+func renderShowOrigin(layers *config.Layers) (string, error) {
+	fields, err := configref.Fields()
+	if err != nil {
+		return "", err
+	}
+	// Origin labels. The system path may be "" (HOME unresolvable); it never
+	// contributes a set leaf in that case, so the label is only ever printed for a
+	// genuine system-layer leaf.
+	projectOrigin := layers.ProjectPath
+	systemOrigin := layers.SystemPath
+
+	var lines []originLine
+	seenKeyTop := map[string]bool{} // avoid re-walking a top-level key documented by multiple registry rows (project.name/description/…)
+	for _, f := range fields {
+		top := topLevelKey(f.Key)
+		// Registry rows like project.name / project.description / project.linear_workspace
+		// all map to the top-level `project` subtree; walk each top-level subtree once.
+		if seenKeyTop[top] {
+			continue
+		}
+		seenKeyTop[top] = true
+
+		defSub := defaultSubtree(fields, top)
+		projSub := subtreeAt(layers.Project, top)
+		sysSub := subtreeAt(layers.System, top)
+
+		lines = append(lines, flattenOrigin(top, defSub, sysSub, projSub, systemOrigin, projectOrigin)...)
+	}
+
+	// Deterministic output: registry order already governs the top-level walk;
+	// within a subtree flattenOrigin sorts leaf keys, so the whole thing is stable.
+	var b strings.Builder
+	width := 0
+	for _, ln := range lines {
+		if n := len(ln.left()); n > width {
+			width = n
+		}
+	}
+	for _, ln := range lines {
+		left := ln.left()
+		fmt.Fprintf(&b, "%-*s  # %s\n", width, left, ln.origin)
+	}
+	if b.Len() == 0 {
+		return "# (no fields resolved)\n", nil
+	}
+	return b.String(), nil
+}
+
+// originLine is one flattened leaf: its dotted key, rendered value, and origin.
+type originLine struct {
+	key    string
+	value  string
+	origin string
+}
+
+func (o originLine) left() string { return o.key + " = " + o.value }
+
+// topLevelKey collapses a dotted registry key to its top-level YAML key
+// ("agent.tiers" → "agent", "project.name" → "project", "source_paths" →
+// "source_paths").
+func topLevelKey(key string) string {
+	if i := strings.IndexByte(key, '.'); i >= 0 {
+		return key[:i]
+	}
+	return key
+}
+
+// defaultSubtree returns the built-in default value for a top-level key as a
+// generic value (map or scalar), sourced from the registry Field.Default of the
+// row whose key IS the top-level key (e.g. `providers`, `agent.tiers` → nested
+// under `agent`). Registry defaults are typed structs/maps; a YAML round-trip
+// normalizes them into the same map[string]any shape the layer maps use, so
+// merge/flatten treats all three sources uniformly. Returns nil when no row
+// carries a built-in default for the key (the common case — most fields are nil).
+func defaultSubtree(fields []configref.Field, top string) any {
+	for _, f := range fields {
+		if f.Default == nil {
+			continue
+		}
+		// A default lives on the row whose dotted key's FIRST segment is `top`.
+		// `agent.tiers` contributes the `tiers` sub-map under `agent`.
+		segs := strings.Split(f.Key, ".")
+		if segs[0] != top {
+			continue
+		}
+		normalized := normalizeToGeneric(f.Default)
+		// Nest the default under the remaining path segments (agent.tiers → the
+		// value sits at agent → tiers).
+		for i := len(segs) - 1; i >= 1; i-- {
+			normalized = map[string]any{segs[i]: normalized}
+		}
+		return normalized
+	}
+	return nil
+}
+
+// normalizeToGeneric round-trips a typed value (registry default struct/map)
+// into the generic map[string]any/[]any/scalar shape used by the layer maps, so
+// all three provenance sources merge and flatten uniformly. It marshals via JSON,
+// NOT YAML: the registry default structs (providerDefault, tierProfileDefault)
+// carry `json:` tags whose names match the real config keys (session_command,
+// provider, model, effort), whereas they carry no `yaml:` tags — a YAML marshal
+// would emit lowercased Go field names (sessioncommand) that would not line up
+// with the layer maps' snake_case keys, producing phantom leaves. Config values
+// are strings/lists/maps, so JSON's numeric widening is not a concern here.
+func normalizeToGeneric(v any) any {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return v
+	}
+	var out any
+	if err := json.Unmarshal(data, &out); err != nil {
+		return v
+	}
+	return out
+}
+
+// subtreeAt returns m[top] as a generic value, or nil when m is nil or the key
+// is absent.
+func subtreeAt(m map[string]any, top string) any {
+	if m == nil {
+		return nil
+	}
+	return m[top]
+}
+
+// flattenOrigin flattens the merged subtree at prefix into originLines, resolving
+// each leaf's origin as the highest layer that set it: project > system >
+// default. def/sys/proj are the three source values at this node (any of them
+// may be nil = absent at this layer). Map nodes recurse per-key (the honest
+// granularity where maps merge per-key); a scalar or list is a single leaf.
+//
+// Precedence is honored BEFORE the map/leaf decision, mirroring deepMerge: the
+// highest-precedence PRESENT layer decides the node's shape. When that layer is a
+// non-map (a scalar/list), it REPLACES the whole subtree — the node is a single
+// leaf at that layer's origin, and every lower layer is shadowed (its keys must
+// NOT leak in as phantom children). Only when the winning layer is a map do we
+// drill per-key; there a lower layer contributes only if it survived to the merge,
+// i.e. every higher-precedence present layer at this node was ALSO a map (a higher
+// non-map would have wiped it before the lower map could merge in), matching
+// deepMerge applied layer-by-layer.
+func flattenOrigin(prefix string, def, sys, proj any, systemOrigin, projectOrigin string) []originLine {
+	// Highest-precedence present layer (project > system > default) sets the shape.
+	// A non-map winner replaces the whole subtree (deepMerge's map-vs-non-map rule).
+	switch {
+	case proj != nil:
+		if _, isMap := asGenericMap(proj); !isMap {
+			return []originLine{{key: prefix, value: renderScalar(proj), origin: projectOrigin}}
+		}
+	case sys != nil:
+		if _, isMap := asGenericMap(sys); !isMap {
+			return []originLine{{key: prefix, value: renderScalar(sys), origin: systemOrigin}}
+		}
+	case def != nil:
+		if _, isMap := asGenericMap(def); !isMap {
+			return []originLine{{key: prefix, value: renderScalar(def), origin: "default"}}
+		}
+	default:
+		// No layer sets this node at all — nothing to emit.
+		return nil
+	}
+
+	// The winning layer is a map ⇒ drill per-key. A layer joins the drill-down only
+	// if it is a map AND no higher-precedence present layer shadowed it with a
+	// non-map. Walk high→low: once a present layer is a non-map, every lower layer
+	// is shadowed (dropped); a present map lets lower layers keep merging.
+	projMap, projIsMap := asGenericMap(proj)
+	sysMap, sysIsMap := asGenericMap(sys)
+	defMap, defIsMap := asGenericMap(def)
+
+	shadowed := false // set once a higher present layer was a non-map
+	keepProj := proj != nil && projIsMap
+	if proj != nil && !projIsMap {
+		shadowed = true
+	}
+	keepSys := !shadowed && sys != nil && sysIsMap
+	if !shadowed && sys != nil && !sysIsMap {
+		shadowed = true
+	}
+	keepDef := !shadowed && def != nil && defIsMap
+
+	if !keepProj {
+		projMap = nil
+	}
+	if !keepSys {
+		sysMap = nil
+	}
+	if !keepDef {
+		defMap = nil
+	}
+
+	keys := unionKeys(defMap, sysMap, projMap)
+	sort.Strings(keys)
+	var out []originLine
+	for _, k := range keys {
+		child := prefix + "." + k
+		out = append(out, flattenOrigin(child,
+			mapGet(defMap, k), mapGet(sysMap, k), mapGet(projMap, k),
+			systemOrigin, projectOrigin)...)
+	}
+	return out
+}
+
+// asGenericMap coerces a decoded YAML value to map[string]any when it is a
+// mapping (handling both map[string]any and map[any]any).
+func asGenericMap(v any) (map[string]any, bool) {
+	switch m := v.(type) {
+	case map[string]any:
+		return m, true
+	case map[any]any:
+		out := make(map[string]any, len(m))
+		for k, val := range m {
+			ks, ok := k.(string)
+			if !ok {
+				return nil, false
+			}
+			out[ks] = val
+		}
+		return out, true
+	default:
+		return nil, false
+	}
+}
+
+func mapGet(m map[string]any, k string) any {
+	if m == nil {
+		return nil
+	}
+	return m[k]
+}
+
+func unionKeys(maps ...map[string]any) []string {
+	seen := map[string]bool{}
+	var keys []string
+	for _, m := range maps {
+		for k := range m {
+			if !seen[k] {
+				seen[k] = true
+				keys = append(keys, k)
+			}
+		}
+	}
+	return keys
+}
+
+// renderScalar renders a leaf value (scalar or list) compactly for the origin
+// listing. Lists render as YAML flow ([a, b]); scalars via fmt.
+func renderScalar(v any) string {
+	switch v.(type) {
+	case []any, map[string]any, map[any]any:
+		data, err := yaml.Marshal(v)
+		if err == nil {
+			return strings.TrimSpace(strings.ReplaceAll(string(data), "\n", " "))
+		}
+	}
+	return fmt.Sprintf("%v", v)
+}
+
+// configInitCmd implements `fab config init [--system]`. In v1 the ONLY mode is
+// --system: it writes a ~/.fab-kit/config.yaml scaffold of the system-overridable
+// fields. Bare `fab config init` (no --system) is a usage error — project
+// bootstrap is /fab-setup's job, not this command's.
+func configInitCmd() *cobra.Command {
+	var system bool
+	cmd := &cobra.Command{
+		Use:   "init --system",
+		Short: "Write a ~/.fab-kit/config.yaml scaffold of the system-overridable fields",
+		Long: "With --system, writes a ~/.fab-kit/config.yaml scaffold containing ONLY " +
+			"the fields overridable at the system layer (scope system/both — today " +
+			"agent.tiers and providers), all commented, generated from the same " +
+			"per-field metadata table as `fab config reference` so it cannot drift. " +
+			"Refuses to overwrite an existing ~/.fab-kit/config.yaml (the file is " +
+			"user-owned once created; no --force in v1). Bare `fab config init` (no " +
+			"--system) is a usage error — project bootstrap is /fab-setup's job.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if !system {
+				return fmt.Errorf("`fab config init` requires --system (the only mode today). " +
+					"To scaffold a system config: `fab config init --system`. Project bootstrap is /fab-setup's job.")
+			}
+			return runConfigInitSystem(cmd)
+		},
+	}
+	cmd.Flags().BoolVar(&system, "system", false, "Write the ~/.fab-kit/config.yaml system-layer scaffold")
+	return cmd
+}
+
+// runConfigInitSystem writes the system-layer scaffold, refusing to overwrite an
+// existing file. Extracted so the overwrite/write logic is testable.
+func runConfigInitSystem(cmd *cobra.Command) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("cannot resolve home directory for the system config: %w", err)
+	}
+	dir := filepath.Join(home, ".fab-kit")
+	path := filepath.Join(dir, "config.yaml")
+
+	if _, err := os.Stat(path); err == nil {
+		return fmt.Errorf("refusing to overwrite existing system config %s (it is user-owned once created; edit it directly or remove it first)", path)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("checking for an existing system config %s: %w", path, err)
+	}
+
+	scaffold, err := renderSystemScaffold()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("creating %s: %w", dir, err)
+	}
+	if err := os.WriteFile(path, []byte(scaffold), 0o644); err != nil {
+		return fmt.Errorf("writing %s: %w", path, err)
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "Wrote system config scaffold to %s\n", path)
+	return nil
+}
+
+// systemScaffoldHeader is the fixed preamble of the ~/.fab-kit/config.yaml
+// scaffold — it explains the system layer's precedence and the scope restriction.
+const systemScaffoldHeader = `# ~/.fab-kit/config.yaml — system-level fab config (all repos on this machine).
+# Resolves BELOW any project's fab/project/config.yaml and ABOVE built-in
+# defaults. Only preference-class fields (scope: system/both) are honored here;
+# a project-scoped field placed in this file is ignored with a warning.
+#
+# This scaffold is generated by ` + "`fab config init --system`" + ` from the same
+# per-field metadata table as ` + "`fab config reference`" + `, so it cannot drift from
+# the schema. Every block below is COMMENTED — uncomment and edit a block to set
+# a system-level override.`
+
+// renderSystemScaffold generates the system-layer scaffold by walking the field
+// registry and emitting the commented Segment of each system-overridable field
+// (scope system/both — today agent.tiers and providers). The Segments are the
+// same rendered YAML blocks `fab config reference` uses, so the scaffold cannot
+// drift from the schema. A live (uncommented) Segment (e.g. providers' live
+// claude session_command line) is comment-normalized so the whole scaffold ships
+// inert — nothing takes effect until the user uncomments it.
+func renderSystemScaffold() (string, error) {
+	fields, err := configref.Fields()
+	if err != nil {
+		return "", err
+	}
+	var b strings.Builder
+	b.WriteString(systemScaffoldHeader)
+	for _, f := range fields {
+		if f.Segment == "" {
+			continue // a field rendered inside another's block carries no segment
+		}
+		if f.Scope != configscope.ScopeSystem && f.Scope != configscope.ScopeBoth {
+			continue // scope: project — never system-overridable
+		}
+		b.WriteString("\n\n")
+		b.WriteString(commentOutSegment(f.Segment))
+	}
+	b.WriteString("\n")
+	return b.String(), nil
+}
+
+// commentOutSegment ensures every line of a rendered reference Segment is a
+// comment, so the emitted scaffold is fully inert (nothing takes effect until the
+// user uncomments it). Lines already starting with `#` are left as-is; live lines
+// gain a leading `# `; blank lines stay blank.
+func commentOutSegment(segment string) string {
+	lines := strings.Split(segment, "\n")
+	for i, ln := range lines {
+		trimmed := strings.TrimSpace(ln)
+		if trimmed == "" {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		lines[i] = "# " + ln
+	}
+	return strings.Join(lines, "\n")
 }

@@ -5,9 +5,10 @@
 > written up in the config-upgrade effort's backlog doc (`fab/plans/sahil/config-upgrade.md`, all six
 > decisions user-confirmed). It is written across the **three-change** config-upgrade effort:
 > **Change 1** (260708-ff2v) — the per-field metadata table + `fab config reference` restructure +
-> `--json` — is landed here in authoritative detail. **Changes 2-3** (cascade resolution, visibility
-> commands, `fab config upgrade` + migration) are recorded as forward-looking intent, clearly marked
-> `[Change 2]` / `[Change 3]`, so the design authority lives in one place.
+> `--json` — and **Change 2** (260708-lpb5) — the three-layer cascade resolution + scope enforcement +
+> the `fab config show [--origin]` / `fab config init --system` visibility commands — are both landed
+> here in authoritative detail. **Change 3** (`fab config upgrade` + migration) is recorded as
+> forward-looking intent, clearly marked `[Change 3]`, so the design authority lives in one place.
 >
 > The canonical schema is the Go field table in `src/go/fab/internal/configref/`; this doc is its
 > human-readable rationale. Defaults that have a Go constant are sourced from that constant, never
@@ -112,9 +113,13 @@ teammates and CI.
 Fields the decision-6 taxonomy does not enumerate (`stage_hooks`, `branch_prefix`, `fab_version`)
 default to `project` — the conservative choice, since system-visibility is opt-in per the same
 rationale. `fab_version` is additionally machine-managed (it leaves `config.yaml` entirely in
-[Change 3]). Scope is **metadata-only in Change 1** — no code branches on it yet. Enforcement (a
-project-scoped field in the system file is *ignored with a warning*, fail-open) lands in [Change 2],
-so re-classifying a field is a one-line data change until then.
+[Change 3]). Scope was metadata-only in Change 1; **as of Change 2 it is enforced**: the cascade
+resolver prunes a project-scoped field found in the system file and emits a `fab: warning:` (fail-open —
+config must never brick), and `fab config init --system` scaffolds only the `system`/`both` fields. The
+scope enum and the key→scope taxonomy are single-sourced in the leaf package `internal/configscope`
+(consumed cycle-free by both the loader `internal/config` and the registry `internal/configref`, which
+cannot import each other), so the taxonomy has exactly one definition. Re-classifying a field is still a
+one-line data change (in `internal/configscope`).
 
 ---
 
@@ -196,31 +201,50 @@ carry-forward; `default` → `fab config show --origin`.
 
 ---
 
-## Forward-looking intent (Changes 2-3)
+## Cascade & visibility commands (Change 2 — landed)
 
-Recorded here so the config-system design lives in one place. These are **not** implemented in
-Change 1.
+The three-layer cascade, scope enforcement, and the two visibility commands landed in Change 2
+(260708-lpb5). Recorded here in authoritative detail alongside the Change 1 schema.
 
-### Override cascade [Change 2]
+### Override cascade [Change 2 — landed]
 
-Effective config resolves across three layers, highest precedence first:
+Effective config resolves across three layers, highest precedence first, at the single loader seam
+`internal/config.LoadPath` (so every consumer — preflight, impact, status, resolve-agent, dispatch,
+agent, operator, batch, spawn, prmeta — sees effective config with zero per-caller change):
 
 1. **project** — `fab/project/config.yaml`
 2. **system** — `~/.fab-kit/config.yaml` (co-located with the version cache; XDG path rejected — decision 5)
-3. **built-in defaults** — the Go field table in the `fab` binary (this spec's table)
+3. **built-in defaults** — the Go tables in the `fab` binary (this spec's table), applied at the
+   existing point-of-use seams (`internal/agent`'s tier/provider merge, the nil-safe accessors)
 
-Merge is **per-field deep merge**: maps merge per-key (the existing `agent.tiers` precedent), **lists
-replace** (never concatenate), scalars replace. Scope enforcement is **fail-open**: a project-scoped
-field appearing in the system file is ignored with a warning — config must never brick.
+The two **files** merge at the YAML map level, before unmarshal, by **per-field deep merge**: maps
+merge per-key (the existing `agent.tiers` precedent), **lists replace** (never concatenate), scalars
+replace — project wins. The cascade is **fail-open** (config must never brick): an absent system file
+is byte-identical to the pre-cascade single-file behavior; a malformed or unreadable system file emits
+a `fab: warning:` on stderr and is skipped; a malformed **project** file keeps today's error behavior.
+**Scope enforcement**: a project-scoped field appearing in the system file is pruned with a
+`fab: warning:` (only `scope: system`/`both` fields are honored there); unknown keys are ignored
+silently. The scope taxonomy is single-sourced in the leaf package `internal/configscope`, which both
+the loader and the registry `internal/configref` consume without an import cycle.
 
-### Visibility commands [Change 2]
+### Visibility commands [Change 2 — landed]
 
-- `fab config show --origin` — the effective config with per-field provenance (the
-  `git config --show-origin` precedent). It surfaces typo'd overrides that today silently no-op.
+- `fab config show [--origin]` — a pure query. Plain output prints the merge of the two FILES
+  (project over system) as YAML; built-in defaults are NOT materialized here (they apply at
+  point-of-use), surfaced explicitly only by `--origin`, which adds per-field provenance (project
+  path / system path / `default`, the `git config --show-origin` precedent) with per-key drill-down
+  for map-valued fields. It surfaces typo'd overrides that silently no-op today (the intended field
+  shows origin `default`).
 - `fab config init --system` — writes a `~/.fab-kit/config.yaml` scaffold containing ONLY
   `scope: system`/`both` fields, all commented — generated from this same table so it can't drift.
+  Refuses to overwrite an existing file (no `--force`); bare `fab config init` is a usage error.
 
-### Presence = intent [Change 2] (decision 2)
+## Forward-looking intent (Change 3)
+
+Recorded here so the config-system design lives in one place. The following is **not** yet implemented
+(it lands in Change 3, `fab config upgrade` + migration).
+
+### Presence = intent [Change 3] (decision 2)
 
 Any live field in a config file is an **override**, even if its value equals the default. `fab config
 upgrade` never auto-removes a live field; B-hygiene ("these fields equal current defaults — remove?")

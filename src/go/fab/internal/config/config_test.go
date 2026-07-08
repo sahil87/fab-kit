@@ -1,12 +1,28 @@
 package config
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
+// isolateSystemConfig points HOME at an empty temp dir so a test never picks up
+// the developer's real ~/.fab-kit/config.yaml. The cascade (added in lpb5) reads
+// the system layer at every Load/LoadPath, so tests that assert on the
+// project-only result MUST isolate the system layer first. os.UserHomeDir honors
+// $HOME on unix, so t.Setenv is the seam. Returns the fake home for tests that
+// want to WRITE a system config under it.
+func isolateSystemConfig(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	return home
+}
+
 func TestLoad_WithStageHooks(t *testing.T) {
+	isolateSystemConfig(t)
 	dir := t.TempDir()
 	projectDir := filepath.Join(dir, "project")
 	os.MkdirAll(projectDir, 0o755)
@@ -50,6 +66,7 @@ stage_hooks:
 }
 
 func TestLoad_NoStageHooks(t *testing.T) {
+	isolateSystemConfig(t)
 	dir := t.TempDir()
 	projectDir := filepath.Join(dir, "project")
 	os.MkdirAll(projectDir, 0o755)
@@ -72,6 +89,7 @@ project:
 }
 
 func TestLoad_MissingFile(t *testing.T) {
+	isolateSystemConfig(t)
 	dir := t.TempDir()
 
 	cfg, err := Load(dir)
@@ -93,6 +111,7 @@ func TestGetStageHook_NilConfig(t *testing.T) {
 }
 
 func TestLoad_WidenedKeys(t *testing.T) {
+	isolateSystemConfig(t)
 	dir := t.TempDir()
 	fabRoot := filepath.Join(dir, "fab")
 	os.MkdirAll(filepath.Join(fabRoot, "project"), 0o755)
@@ -134,6 +153,7 @@ project:
 // DispatchCommand (the native-dispatch signal). The accessor is a pure
 // pass-through; the built-in merge is internal/agent's job.
 func TestLoad_WithProviders(t *testing.T) {
+	isolateSystemConfig(t)
 	dir := t.TempDir()
 	projectDir := filepath.Join(dir, "project")
 	os.MkdirAll(projectDir, 0o755)
@@ -193,6 +213,7 @@ func TestGetProvider_NilAndEmptyConfig(t *testing.T) {
 }
 
 func TestLoad_WithAgentTiers(t *testing.T) {
+	isolateSystemConfig(t)
 	dir := t.TempDir()
 	projectDir := filepath.Join(dir, "project")
 	os.MkdirAll(projectDir, 0o755)
@@ -245,6 +266,7 @@ agent:
 }
 
 func TestLoad_NoAgentTiers(t *testing.T) {
+	isolateSystemConfig(t)
 	dir := t.TempDir()
 	projectDir := filepath.Join(dir, "project")
 	os.MkdirAll(projectDir, 0o755)
@@ -303,6 +325,7 @@ func TestAccessors_EmptyConfig(t *testing.T) {
 }
 
 func TestLoadPath_MissingFileReturnsEmptyConfig(t *testing.T) {
+	isolateSystemConfig(t)
 	cfg, err := LoadPath(filepath.Join(t.TempDir(), "nope", "config.yaml"))
 	if err != nil {
 		t.Fatalf("missing file must not error, got: %v", err)
@@ -317,6 +340,7 @@ func TestLoadPath_MissingFileReturnsEmptyConfig(t *testing.T) {
 // modeled key fails the single Unmarshal, so every accessor falls back. The
 // nil-safe accessors make this safe for callers that ignore the Load error.
 func TestLoadPath_MalformedCoupledFailure(t *testing.T) {
+	isolateSystemConfig(t)
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
 	// branch_prefix has a type error (mapping where a scalar is expected);
@@ -339,5 +363,322 @@ providers:
 	// Nil-safe accessors deliver the documented fallbacks.
 	if _, ok := cfg.GetProvider("claude"); ok {
 		t.Error("nil-safe accessor must report no entry")
+	}
+}
+
+// --- Cascade (lpb5): project > system (~/.fab-kit/config.yaml) > defaults ---
+
+// captureWarnings redirects the loader's warning writer for the duration of the
+// test and returns a function yielding what was written. The fail-open scope +
+// malformed-file warnings go through warnw (os.Stderr in production).
+func captureWarnings(t *testing.T) func() string {
+	t.Helper()
+	var buf bytes.Buffer
+	prev := warnw
+	warnw = &buf
+	t.Cleanup(func() { warnw = prev })
+	return buf.String
+}
+
+// writeSystemConfig writes a ~/.fab-kit/config.yaml under the isolated fake home
+// and returns its path.
+func writeSystemConfig(t *testing.T, home, content string) string {
+	t.Helper()
+	dir := filepath.Join(home, ".fab-kit")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// writeProjectConfig writes a project fab/project/config.yaml under dir and
+// returns the fabRoot (dir).
+func writeProjectConfig(t *testing.T, content string) string {
+	t.Helper()
+	fabRoot := t.TempDir()
+	projectDir := filepath.Join(fabRoot, "project")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return fabRoot
+}
+
+// TestCascade_MapsMergePerKey: agent.tiers merges per-key across the two files —
+// a project tier field and a system tier field compose, project wins on a
+// conflicting leaf, and a system-only tier survives alongside a project-only one.
+func TestCascade_MapsMergePerKey(t *testing.T) {
+	home := isolateSystemConfig(t)
+	writeSystemConfig(t, home, `
+agent:
+  tiers:
+    doing: { provider: claude, model: system-model, effort: low }
+    sysonly: { model: sys-only-model }
+`)
+	fabRoot := writeProjectConfig(t, `
+agent:
+  tiers:
+    doing: { model: project-model }
+    projonly: { model: proj-only-model }
+`)
+
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	// doing.model: project wins (project-model); doing.effort inherited from
+	// system (low); doing.provider inherited from system (claude).
+	doing, ok := cfg.GetAgentTier("doing")
+	if !ok {
+		t.Fatal("expected a merged 'doing' tier")
+	}
+	if doing.Model != "project-model" {
+		t.Errorf("doing.model = %q, want project-model (project wins)", doing.Model)
+	}
+	if doing.Effort != "low" {
+		t.Errorf("doing.effort = %q, want low (inherited from system layer)", doing.Effort)
+	}
+	if doing.Provider != "claude" {
+		t.Errorf("doing.provider = %q, want claude (inherited from system layer)", doing.Provider)
+	}
+
+	// A system-only tier survives (per-key merge, not whole-map replacement).
+	if sysonly, ok := cfg.GetAgentTier("sysonly"); !ok || sysonly.Model != "sys-only-model" {
+		t.Errorf("system-only tier lost in merge: %+v ok=%v", sysonly, ok)
+	}
+	// A project-only tier survives alongside it.
+	if projonly, ok := cfg.GetAgentTier("projonly"); !ok || projonly.Model != "proj-only-model" {
+		t.Errorf("project-only tier lost in merge: %+v ok=%v", projonly, ok)
+	}
+}
+
+// TestCascade_ScalarReplaceProjectWins: a scalar set in both layers takes the
+// project value (providers.claude.session_command is `both`-scoped, so it is a
+// valid system-file override to exercise end-to-end). A system-only provider
+// entry survives alongside it (per-key map merge). The list-replace rule is
+// exercised separately in TestCascade_ListReplace (lists are project-scoped, so
+// the generic rule is asserted on the merge helper directly).
+func TestCascade_ScalarReplaceProjectWins(t *testing.T) {
+	home := isolateSystemConfig(t)
+	writeSystemConfig(t, home, `
+providers:
+  claude:
+    session_command: system-session
+  codex:
+    dispatch_command: codex exec
+`)
+	fabRoot := writeProjectConfig(t, `
+providers:
+  claude:
+    session_command: project-session
+`)
+
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	claude, ok := cfg.GetProvider("claude")
+	if !ok || claude.SessionCommand != "project-session" {
+		t.Errorf("claude.session_command = %q ok=%v, want project-session (scalar: project wins)", claude.SessionCommand, ok)
+	}
+	// System-only provider survives (per-key map merge).
+	if codex, ok := cfg.GetProvider("codex"); !ok || codex.DispatchCommand != "codex exec" {
+		t.Errorf("system-only codex provider lost: %+v ok=%v", codex, ok)
+	}
+}
+
+// TestCascade_ListReplace: a list present in BOTH layers is replaced wholesale by
+// the higher layer (never concatenated). test_paths is project-scoped, so to
+// exercise the generic list-replace merge rule we build the layers directly via
+// deepMerge (the rule is field-agnostic — it operates on decoded YAML values,
+// before scope pruning or unmarshal).
+func TestCascade_ListReplace(t *testing.T) {
+	base := map[string]any{"xs": []any{"a", "b", "c"}}
+	over := map[string]any{"xs": []any{"z"}}
+	merged := deepMerge(base, over)
+	got, _ := merged["xs"].([]any)
+	if len(got) != 1 || got[0] != "z" {
+		t.Errorf("list merge = %v, want [z] (lists replace, never concatenate)", merged["xs"])
+	}
+}
+
+// TestCascade_AbsentSystemFile: with no ~/.fab-kit/config.yaml, Load returns a
+// result byte-identical to the pre-cascade single-file parse (no error, no
+// warning), and the project values are intact.
+func TestCascade_AbsentSystemFile(t *testing.T) {
+	isolateSystemConfig(t) // empty fake home ⇒ no system file
+	warnings := captureWarnings(t)
+	fabRoot := writeProjectConfig(t, `
+branch_prefix: "feature/"
+providers:
+  claude:
+    session_command: only-project
+`)
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.GetBranchPrefix() != "feature/" {
+		t.Errorf("branch_prefix = %q, want feature/", cfg.GetBranchPrefix())
+	}
+	if claude, ok := cfg.GetProvider("claude"); !ok || claude.SessionCommand != "only-project" {
+		t.Errorf("claude.session_command = %+v ok=%v, want only-project", claude, ok)
+	}
+	if w := warnings(); w != "" {
+		t.Errorf("absent system file must emit no warning, got %q", w)
+	}
+}
+
+// TestCascade_MalformedSystemFileFailsOpen: a malformed system file warns on
+// stderr and is SKIPPED — the project-over-defaults result is returned with no
+// error. Fail-open: a broken personal file must not brick the repo.
+func TestCascade_MalformedSystemFileFailsOpen(t *testing.T) {
+	home := isolateSystemConfig(t)
+	warnings := captureWarnings(t)
+	writeSystemConfig(t, home, "this: is: not: valid: yaml: [[[\n")
+	fabRoot := writeProjectConfig(t, `
+providers:
+  claude:
+    session_command: project-wins
+`)
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("malformed system file must be fail-open (no error), got: %v", err)
+	}
+	if claude, ok := cfg.GetProvider("claude"); !ok || claude.SessionCommand != "project-wins" {
+		t.Errorf("project layer must survive a skipped system layer: %+v ok=%v", claude, ok)
+	}
+	if w := warnings(); !strings.Contains(w, "fab: warning:") || !strings.Contains(w, "malformed system config") {
+		t.Errorf("expected a fail-open malformed-system warning, got %q", w)
+	}
+}
+
+// TestCascade_MalformedProjectFileStillErrors: a malformed PROJECT file keeps
+// today's error behavior — the parse error is returned (only the system layer is
+// fail-open).
+func TestCascade_MalformedProjectFileStillErrors(t *testing.T) {
+	isolateSystemConfig(t)
+	// A type error on a modeled key surfaces at the final unmarshal into Config.
+	fabRoot := writeProjectConfig(t, "branch_prefix:\n  oops: true\n")
+	if _, err := Load(fabRoot); err == nil {
+		t.Fatal("a malformed project file must still return an error (not fail-open)")
+	}
+}
+
+// TestCascade_ProjectAbsentSystemPresent: with no project file but a system file
+// present, the system layer alone forms the effective config (the system layer is
+// user-global and applies even where there is no project config).
+func TestCascade_ProjectAbsentSystemPresent(t *testing.T) {
+	home := isolateSystemConfig(t)
+	writeSystemConfig(t, home, `
+providers:
+  claude:
+    session_command: from-system
+`)
+	fabRoot := t.TempDir() // no project/config.yaml written
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if claude, ok := cfg.GetProvider("claude"); !ok || claude.SessionCommand != "from-system" {
+		t.Errorf("system layer must apply with no project file: %+v ok=%v", claude, ok)
+	}
+}
+
+// --- Scope enforcement (lpb5, decision 6) ---
+
+// TestScope_PruneProjectScopedFromSystem: a project-scoped field placed in the
+// system file is pruned (not applied) and a `fab: warning:` names it; a
+// both-scoped field (agent.tiers) is honored; an unknown key is ignored silently.
+func TestScope_PruneProjectScopedFromSystem(t *testing.T) {
+	home := isolateSystemConfig(t)
+	warnings := captureWarnings(t)
+	writeSystemConfig(t, home, `
+source_paths:
+  - system-only-src/
+agent:
+  tiers:
+    doing: { effort: high }
+totally_unknown_key: 42
+`)
+	fabRoot := writeProjectConfig(t, `
+source_paths:
+  - project-src/
+`)
+	projectPath := filepath.Join(fabRoot, "project", "config.yaml")
+
+	// source_paths is skill-consumed (not modeled in Config), so assert on the
+	// resolved LAYERS: the system layer must no longer carry source_paths after
+	// pruning, and the effective source_paths must be the project's.
+	layers, err := LoadLayers(projectPath)
+	if err != nil {
+		t.Fatalf("LoadLayers: %v", err)
+	}
+	if _, ok := layers.System["source_paths"]; ok {
+		t.Error("source_paths (scope project) must be pruned out of the system layer")
+	}
+	effSrc, _ := layers.Effective["source_paths"].([]any)
+	if len(effSrc) != 1 || effSrc[0] != "project-src/" {
+		t.Errorf("effective source_paths = %v, want [project-src/] (project wins; system layer pruned)", layers.Effective["source_paths"])
+	}
+
+	// agent.tiers (scope both) from the system file is honored end-to-end.
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if doing, ok := cfg.GetAgentTier("doing"); !ok || doing.Effort != "high" {
+		t.Errorf("both-scoped agent.tiers must be honored from the system layer: %+v ok=%v", doing, ok)
+	}
+
+	w := warnings()
+	wantWarn := `fab: warning: ignoring project-scoped field "source_paths"`
+	if !strings.Contains(w, wantWarn) {
+		t.Errorf("expected scope-pruning warning %q, got %q", wantWarn, w)
+	}
+	// The unknown key must NOT produce a warning (ignored silently).
+	if strings.Contains(w, "totally_unknown_key") {
+		t.Errorf("unknown system key must be ignored silently, but a warning mentioned it: %q", w)
+	}
+}
+
+// TestScope_PruneAllProjectScopedFields walks every project-scoped top-level key
+// through the pruner and asserts each is dropped with a warning, while the two
+// both-scoped keys survive.
+func TestScope_PruneAllProjectScopedFields(t *testing.T) {
+	warnings := captureWarnings(t)
+	m := map[string]any{
+		"project":             map[string]any{"name": "x"},
+		"source_paths":        []any{"a"},
+		"test_paths":          []any{"b"},
+		"true_impact_exclude": []any{"c"},
+		"checklist":           map[string]any{"extra_categories": []any{"d"}},
+		"stage_hooks":         map[string]any{"apply": map[string]any{"pre": "x"}},
+		"branch_prefix":       "p/",
+		"fab_version":         "1.0.0",
+		"agent":               map[string]any{"tiers": map[string]any{}},
+		"providers":           map[string]any{"claude": map[string]any{}},
+	}
+	pruneProjectScoped(m, "/fake/system.yaml")
+
+	for _, gone := range []string{"project", "source_paths", "test_paths", "true_impact_exclude", "checklist", "stage_hooks", "branch_prefix", "fab_version"} {
+		if _, ok := m[gone]; ok {
+			t.Errorf("project-scoped key %q must be pruned from the system layer", gone)
+		}
+	}
+	for _, kept := range []string{"agent", "providers"} {
+		if _, ok := m[kept]; !ok {
+			t.Errorf("both-scoped key %q must survive in the system layer", kept)
+		}
+	}
+	if c := strings.Count(warnings(), "fab: warning:"); c != 8 {
+		t.Errorf("expected 8 pruning warnings (one per project-scoped key), got %d", c)
 	}
 }
