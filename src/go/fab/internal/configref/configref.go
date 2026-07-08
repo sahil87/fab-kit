@@ -135,6 +135,14 @@ type Field struct {
 	// "" for every row today; the field serves FUTURE renames so they stop needing
 	// hand-written migrations. Omitted from the JSON dump when empty.
 	RenamedFrom string
+	// InitSeed marks an A-class IDENTITY field written LIVE at `fab config init
+	// --project` time from a seed value (the project's name/description/source/test
+	// paths). These are the only fields the generator writes above the managed
+	// fence on a fresh repo; every other field is fence territory from day one
+	// (presence=intent — an init-pinned tier would be an accidental override that
+	// stops tracking fab-kit's defaults). Consumed by the init generator; not part
+	// of the JSON schema dump.
+	InitSeed bool
 	// Segment is the rendered commented-YAML block that documents this field in
 	// the reference — the field's own lines (leading comment prose + the live or
 	// commented key), WITHOUT a trailing newline or the inter-field blank line.
@@ -268,6 +276,7 @@ func Fields() ([]Field, error) {
 			Description: "Project display name. Read by skills for orientation and PR bodies.",
 			Scope:       ScopeProject,
 			Advertise:   false,
+			InitSeed:    true,
 			Segment: `# project — identity and PR metadata.
 project:
   name: "My Project"                 # skills: orientation, PR bodies
@@ -282,6 +291,7 @@ project:
 			Description: "One-line project description. Read by skills for orientation and PR bodies.",
 			Scope:       ScopeProject,
 			Advertise:   false,
+			InitSeed:    true,
 			// Rendered inline in the project.name Segment (project is one YAML
 			// block); this row carries no Segment of its own.
 		},
@@ -299,6 +309,7 @@ project:
 			Description: "Directories containing implementation code (relative to repo root). Read by skills to scope apply context.",
 			Scope:       ScopeProject,
 			Advertise:   false,
+			InitSeed:    true,
 			Segment: `# source_paths — directories containing implementation code (relative to repo
 # root). Read by skills to scope apply context.
 source_paths:
@@ -310,11 +321,24 @@ source_paths:
 			Description: "Glob/pathspec patterns identifying test files. Used by the /git-pr true-impact breakdown to attribute lines to tests vs. implementation. No kit default.",
 			Scope:       ScopeProject,
 			Advertise:   true,
+			// InitSeed: written live at init ONLY when detection found a test
+			// convention (the seed value); otherwise it stays fence-advertised.
+			InitSeed: true,
 			Segment: "# test_paths — glob/pathspec patterns identifying test files. Used by the\n" +
 				"# /git-pr true-impact breakdown to attribute lines to tests vs. implementation\n" +
 				"# (impl = total − tests). Language-specific — no kit default. Patterns are\n" +
 				"# :(glob) magic pathspecs, so `**` matches across directories and `*` does\n" +
-				"# NOT match `/`. When absent/empty, the breakdown collapses to a single total.\n" +
+				"# NOT match `/`. Anchor to your language's test convention rather than a bare\n" +
+				"# substring (a substring like `*test*` miscounts production code such as\n" +
+				"# `attestation.go` or `latest.go`). When absent/empty, the breakdown collapses\n" +
+				"# to a single total.\n" +
+				"#\n" +
+				"# Examples per stack (uncomment/adapt the line for yours):\n" +
+				"#   - \"**/*_test.go\"                  # Go     — `_test.go` suffix\n" +
+				"#   - \"**/test_*.py\"                  # Python (pytest) — `test_` prefix\n" +
+				"#   - \"**/*.spec.ts\"                  # JS/TS  (Jest/Vitest) — `.spec` infix\n" +
+				"#   - \"**/*.test.ts\"                  # JS/TS  — `.test` infix\n" +
+				"#   - \"**/src/test/**\"               # Java/Kotlin (Maven/Gradle) — test source root\n" +
 				"test_paths:\n" +
 				"  - \"**/*_test.go\"                   # example (Go — `_test.go` suffix)",
 		},
@@ -378,17 +402,6 @@ checklist:
 				"# worktree branches (branch name = `{branch_prefix}{folder_name}`). Empty when\n" +
 				"# absent.\n" +
 				`# branch_prefix: ""`,
-		},
-		{
-			Key:         "fab_version",
-			Default:     nil,
-			Description: "MACHINE-MANAGED: the project-pinned engine version the router uses to resolve which cached fab-go binary to exec. Set by fab init and fab upgrade-repo — do NOT hand-edit.",
-			Scope:       ScopeProject,
-			Advertise:   false,
-			Segment: "# fab_version — MACHINE-MANAGED: the project-pinned engine version the router\n" +
-				"# uses to resolve which cached fab-go binary to exec. Set by `fab init` and\n" +
-				"# `fab upgrade-repo` — do NOT hand-edit.\n" +
-				`fab_version: "0.0.0"`,
 		},
 	}
 
@@ -543,6 +556,24 @@ func FieldKeys() ([]string, error) {
 	keys := make([]string, len(fields))
 	for i, f := range fields {
 		keys[i] = f.Key
+	}
+	return keys, nil
+}
+
+// InitSeedKeys returns the dotted keys of the A-class IDENTITY fields written live
+// at `fab config init --project` time (InitSeed rows), in table order. These are
+// the only fields the init generator emits above the managed fence; everything
+// else is fence territory from day one. Used by the init generator and its tests.
+func InitSeedKeys() ([]string, error) {
+	fields, err := Fields()
+	if err != nil {
+		return nil, err
+	}
+	var keys []string
+	for _, f := range fields {
+		if f.InitSeed {
+			keys = append(keys, f.Key)
+		}
 	}
 	return keys, nil
 }

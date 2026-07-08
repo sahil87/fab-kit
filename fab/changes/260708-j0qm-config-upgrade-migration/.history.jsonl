@@ -1,0 +1,16 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-08T09:03:36Z"}
+{"args":"Implement fab config upgrade plus the config.yaml migration (the risky one — user-data restructure). See fab/plans/sahil/config-upgrade.md Change 3 for full context, all decisions resolved there including today folded scope: 1) upgrader keeps live fields verbatim, parks unknown fields in a \"# removed in X.Y.Z, your value was:\" comment block, carries renames via renamed_from, regenerates the managed fence byte-stable and idempotent. 2) Move fab_version out of config.yaml to fab/.fab-version; delete setFabVersion; ship the migration; after this fab config upgrade is the only writer of config.yaml ever. 3) fab upgrade-repo auto-runs the upgrader after sync; fail-open printed reminder if installed fab predates the subcommand. 4) Scaffold config.yaml deleted — init generates from the registry (shells out to installed fab-go); embedded minimal stub fallback when installed fab predates fab config init; registry gains init/seed metadata; fold scaffold prose into registry descriptions; retire/replace TestConfigReferenceSupersetsScaffoldKeys. 5) HOME-hermeticity follow-up from Change 2 review before tests write real system configs. Obligations: migration file per constitution user-data-restructure rule, _cli-fab.md update, tests.","cmd":"fab-new","event":"command","ts":"2026-07-08T09:03:36Z"}
+{"delta":"+4.6","event":"confidence","score":4.6,"trigger":"calc-score","ts":"2026-07-08T09:13:59Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-08T09:16:56Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-08T09:17:04Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-08T09:57:15Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-08T09:58:21Z"}
+{"event":"review","result":"failed","ts":"2026-07-08T10:21:32Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-08T10:21:32Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-08T10:45:12Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-08T10:56:29Z"}
+{"event":"review","result":"passed","ts":"2026-07-08T10:56:29Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-08T10:57:09Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-08T11:05:48Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-07-08T11:07:22Z"}
+{"event":"review","result":"passed","ts":"2026-07-08T11:19:24Z"}

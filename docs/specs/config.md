@@ -5,10 +5,12 @@
 > written up in the config-upgrade effort's backlog doc (`fab/plans/sahil/config-upgrade.md`, all six
 > decisions user-confirmed). It is written across the **three-change** config-upgrade effort:
 > **Change 1** (260708-ff2v) — the per-field metadata table + `fab config reference` restructure +
-> `--json` — and **Change 2** (260708-lpb5) — the three-layer cascade resolution + scope enforcement +
-> the `fab config show [--origin]` / `fab config init --system` visibility commands — are both landed
-> here in authoritative detail. **Change 3** (`fab config upgrade` + migration) is recorded as
-> forward-looking intent, clearly marked `[Change 3]`, so the design authority lives in one place.
+> `--json` — **Change 2** (260708-lpb5) — the three-layer cascade resolution + scope enforcement +
+> the `fab config show [--origin]` / `fab config init --system` visibility commands — and **Change 3**
+> (260708-j0qm) — `fab config upgrade` + the managed fence + the `fab_version` → `fab/.fab-version`
+> relocation + the migration + registry-driven `fab config init --project` (scaffold config.yaml
+> deleted) — are all landed here in authoritative detail. The whole config-upgrade design authority
+> lives in one place.
 >
 > The canonical schema is the Go field table in `src/go/fab/internal/configref/`; this doc is its
 > human-readable rationale. Defaults that have a Go constant are sourced from that constant, never
@@ -52,6 +54,7 @@ lists replace, scalars replace).
 | `scope` | Override visibility across the cascade layers: `project` / `system` / `both`. See § Scope taxonomy. |
 | `advertise` | The "C flag": whether [Change 3]'s managed fence scaffolds this field as a commented reference when it is not overridden. See § Advertise semantics. |
 | `renamed_from` | Previous key path for mechanical rename carry-forward. `""` on every row today; serves *future* renames. See § renamed_from. |
+| `init-seed` | Whether the field is an A-class **identity** field written LIVE at `fab config init --project` time ([Change 3]) — `project.name`/`project.description`/`source_paths`/`test_paths`. The generator's live block above the fence; every other field is fence territory from day one. Consumed by the init generator, NOT exposed in the `--json` schema dump (like the rendered YAML segment). |
 
 ### Defaults are sourced from constants — no second copy
 
@@ -107,13 +110,18 @@ teammates and CI.
 | scope | Meaning | Fields |
 |-------|---------|--------|
 | `both` | Overridable in either the project or the system layer (preference-class). | `agent.tiers`, `providers` |
-| `project` | Overridable only in the project file (semantics-class, repo-reproducible). | `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, and (conservative default) `stage_hooks`, `branch_prefix`, `fab_version` |
+| `project` | Overridable only in the project file (semantics-class, repo-reproducible). | `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, and (conservative default) `stage_hooks`, `branch_prefix` |
 | `system` | Overridable only in the system layer. | *(none today; the value exists for completeness and [Change 2])* |
 
-Fields the decision-6 taxonomy does not enumerate (`stage_hooks`, `branch_prefix`, `fab_version`)
-default to `project` — the conservative choice, since system-visibility is opt-in per the same
-rationale. `fab_version` is additionally machine-managed (it leaves `config.yaml` entirely in
-[Change 3]). Scope was metadata-only in Change 1; **as of Change 2 it is enforced**: the cascade
+Fields the decision-6 taxonomy does not enumerate (`stage_hooks`, `branch_prefix`) default to `project`
+— the conservative choice, since system-visibility is opt-in per the same rationale. (`fab_version` was
+machine-managed and, as of [Change 3 — landed], left `config.yaml` entirely for the plain-text sibling
+`fab/.fab-version`; it is no longer a scoped/registry key and carries no scope — but it is not ignored: a
+stale `fab_version:` in a not-yet-migrated PROJECT file is still parsed by the loader and read as a legacy
+fallback when `fab/.fab-version` is absent (for one compat window, until the migration removes it), while a
+stale `fab_version:` in the SYSTEM file is stripped as a named compat-window exception so a machine-global
+value never bleeds into a repo's resolved version.) Scope was metadata-only in
+Change 1; **as of Change 2 it is enforced**: the cascade
 resolver prunes a project-scoped field found in the system file and emits a `fab: warning:` (fail-open —
 config must never brick), and `fab config init --system` scaffolds only the `system`/`both` fields. The
 scope enum and the key→scope taxonomy are single-sourced in the leaf package `internal/configscope`
@@ -135,11 +143,14 @@ model, at [Change 3]'s `fab config upgrade` time, every field is one of:
 
 `advertise: true` marks the C-eligible fields — the optional override surfaces a project has typically
 *not* set live: `agent.tiers`, `providers`, `checklist.extra_categories`, `true_impact_exclude`,
-`stage_hooks`, `branch_prefix`, `test_paths`. `advertise: false` marks scaffold-seeded identity fields
-(`project.*`, `source_paths`) and machine-managed `fab_version`, which are not re-advertised.
+`stage_hooks`, `branch_prefix`, `test_paths`. `advertise: false` marks the init-seeded identity fields
+(`project.*`, `source_paths`), which are written live at `fab config init --project` time and not
+re-advertised in the fence. (`fab_version` is no longer a config-file field — it left `config.yaml` for
+`fab/.fab-version` in [Change 3 — landed], so it is neither advertised nor init-seeded.)
 
-`advertise` has **no behavioral consumer in Change 1** — it is data + `--json` exposure only. The fence
-generator that reads it is [Change 3], so the set is cheap to revise until then.
+`advertise` had no behavioral consumer in Change 1 (data + `--json` exposure only); as of
+[Change 3 — landed] the `fab config upgrade` / `fab config init --project` **fence generator** reads it
+to decide which un-overridden fields to scaffold into the managed fence.
 
 ---
 
@@ -239,25 +250,80 @@ the loader and the registry `internal/configref` consume without an import cycle
   `scope: system`/`both` fields, all commented — generated from this same table so it can't drift.
   Refuses to overwrite an existing file (no `--force`); bare `fab config init` is a usage error.
 
-## Forward-looking intent (Change 3)
+## `fab config upgrade` + migration (Change 3 — landed)
 
-Recorded here so the config-system design lives in one place. The following is **not** yet implemented
-(it lands in Change 3, `fab config upgrade` + migration).
+The mechanical upgrader, the `fab_version` relocation, the scaffold retirement, and the migration
+landed in Change 3 (260708-j0qm). Recorded here in authoritative detail alongside Changes 1/2.
 
-### Presence = intent [Change 3] (decision 2)
+### Presence = intent [Change 3 — landed] (decision 2)
 
 Any live field in a config file is an **override**, even if its value equals the default. `fab config
 upgrade` never auto-removes a live field; B-hygiene ("these fields equal current defaults — remove?")
 is advisory only. A value-diff classifier cannot distinguish "deliberately pinned" from "never touched",
 and auto-dropping would silently change behavior when the default later moves.
 
-### The managed fence [Change 3] (decision 3)
+### The managed fence [Change 3 — landed] (decision 3)
 
-`fab config upgrade` regenerates a byte-stable, idempotent **managed fence** of commented C-fields
-(`advertise: true`, not currently overridden), delimited by byte-exact `>>>`/`<<<` splice anchors
-carrying a kit-version stamp. Upgrade rewrites ONLY between the markers; everything outside — including
-the user's own comments on A-fields — is the user's. Unknown fields are parked in a
-`# removed in X.Y.Z, your value was:` block below the fence, never silently deleted. After this change,
-`fab config upgrade` is the *only* writer of `config.yaml`, which retires the comment-clobbering
-`setFabVersion` bug class at the root. `fab_version` moves out of `config.yaml` to `fab/.fab-version`
-(decision 1), and `fab upgrade-repo` auto-runs the upgrader (decision 4, fail-open).
+`fab config upgrade` (the single, comment-aware writer of `config.yaml` going forward) regenerates a
+byte-stable, idempotent **managed fence** of commented C-fields (`advertise: true`, not currently
+overridden), delimited by byte-exact `>>>`/`<<<` splice anchors carrying a kit-version stamp
+(`# >>> fab reference (kit X.Y.Z) >>> …` / `# <<< end fab reference <<< …`, dash-padded). Upgrade
+rewrites ONLY between the markers; everything outside — including the user's own comments on A-fields —
+is the user's. Every scaffolded block is **fully commented including its parent keys** (a live `agent:`
+over comment-only children is exactly the `agent: null` the old whole-file masher produced); the fence
+**omits fields already overridden** above it. Omission is at **top-level-key granularity**: a live
+top-level key (e.g. `agent:`) suppresses the entire scaffolded block for every registry row under that
+key, since the override unit and the system-file merge both land at the top-level key — the fence never
+half-advertises a partially-overridden block. A legacy file with no fence gets one **appended at the
+bottom**. Everything OUTSIDE the fence is the user's and is **never dropped**: content the user places
+BELOW the fence (a live override appended after the END anchor) is **hoisted above** the fence on the
+next run and then classified like any other live key (kept if known, parked if unknown) — the layout is
+self-healing, not a silent-loss trap. Unknown fields (a live key no longer in the registry) are
+**parked** in a `# removed in … (parked by fab config upgrade — delete when done):` block below the
+fence, the value serialized in the comment — appended **exactly once**, never regenerated away. Before
+writing, the reconciled document is **validated as YAML** and a run that would produce an unparseable
+file is **refused** (the original left untouched) rather than bricking the repo. A live field matching a
+registry row's `renamed_from` is **carried** to the new key mechanically (value verbatim), replacing the
+per-rename hand-written-migration pattern. Output is byte-stable and idempotent (the `fab memory-index`
+discipline — golden + idempotence tests); the write is atomic (`internal/atomicfile`). After this change,
+`fab config upgrade` is the **only** writer of `config.yaml`, which retires the comment-clobbering
+`setFabVersion` bug class at the root. `fab upgrade-repo` **auto-runs** the upgrader after sync
+(decision 4, fail-open: a fab-go predating the subcommand prints a reminder and the upgrade continues).
+The kit-version stamp in the BEGIN line makes staleness visible and enables a *later* `--check` drift
+mode (not in this change).
+
+### `fab_version` → `fab/.fab-version` [Change 3 — landed] (decision 1)
+
+`fab_version` moves out of `config.yaml` entirely into a new plain-text sibling `fab/.fab-version`
+(one line, bare semver + newline, committed, sibling to `fab/.kit-migration-version`). This is what lets
+`fab config upgrade` be config.yaml's single writer — the one machine-managed field the old masher owned
+leaves the file. Both reader stacks (the fab-kit router's pinned-version resolution and the fab-go
+preflight staleness check) read `.fab-version` first, with a config.yaml `fab_version:` fallback for one
+compat window. The `fab_version` row is removed from the registry and from the `internal/configscope`
+taxonomy — a stale `fab_version:` in a not-yet-migrated PROJECT file is an unknown key, ignored silently
+by the loader until the migration removes it; a stale `fab_version:` in the SYSTEM file is stripped as a
+named compat-window exception (it is repo-scoped state and must never contribute a machine-global value to
+a repo's resolved version). The `2.14.0-to-2.15.0` migration (a user-data restructure per the
+constitution) moves the value and deletes the key; it is sentinel-guarded and idempotent. Historical
+comment-backfill migrations (e.g. `2.13.1-to-2.13.2`) are left untouched; that pattern is **retired going
+forward** — field adds/renames/removals are mechanical registry data reconciled by `fab config upgrade`.
+
+### Scaffold config.yaml deleted — init generates from the registry [Change 3 — landed]
+
+The hand-maintained scaffold `src/kit/scaffold/fab/project/config.yaml` (the last drift-prone copy of the
+defaults/comment prose) is **deleted**. `fab config init --project` generates the initial `config.yaml`
+from the registry: the **A-class identity fields** (`InitSeed` rows — `project.name`,
+`project.description`, `source_paths`, `test_paths`) written live above the managed fence, then the fence
+of commented C fields. `agent.tiers` is **not** pinned at init (presence=intent — an init-pinned tier
+would be an accidental override). `fab init` (the fab-kit binary) shells out to the pinned fab-go's
+`fab config init --project`; when that fab-go predates the subcommand, it falls open to a minimal
+**embedded stub** `config.yaml` (a fresh repo must never fail preflight for lack of a config.yaml — not a
+printed instruction). The registry carries the init/seed metadata (`InitSeed`) marking which fields are
+written live at init; fab-kit's mechanical detection — the repo folder name, an existing `src/`, and the
+ecosystem marker-table `test_paths` — becomes generator input, passed as `--name`/`--source-path`/
+`--test-path` flags so those A-class fields land live (`project.description` is not mechanically
+detectable and is added interactively by `/fab-setup`). An empty-seed `fab config init --project`
+(no flags) emits the header + fence only.
+The former `TestConfigReferenceSupersetsScaffoldKeys` guard is re-anchored to a registry-internal
+invariant (the init-seeded key set ⊆ the registry key set), since there is no scaffold file to compare
+against.

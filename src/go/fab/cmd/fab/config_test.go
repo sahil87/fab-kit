@@ -13,8 +13,6 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/configref"
 )
 
-const scaffoldConfigRelPath = "src/kit/scaffold/fab/project/config.yaml"
-
 // TestConfigReferenceRoundTrips is the VALIDITY contract: the emitted reference
 // parses cleanly via the same internal/config loader real project configs use.
 // A malformed reference (bad indentation, an un-quoted value) would fail here.
@@ -99,32 +97,98 @@ func TestConfigReferenceCoversBinaryKeys(t *testing.T) {
 		t.Fatal("reflection produced no yaml key segments — walk is broken")
 	}
 
+	// fab_version is a LEGACY-FALLBACK-ONLY field on Config (260708-j0qm): it moved
+	// out of config.yaml to the plain-text sibling fab/.fab-version, and the
+	// reference no longer documents it. Config keeps the `fab_version` yaml tag
+	// solely to parse a not-yet-migrated config.yaml for one compat window, so it
+	// is deliberately exempt from the reference-coverage guard (see the positive
+	// "not documented" assertion in TestConfigReferenceOmitsRelocatedFabVersion).
+	exempt := map[string]struct{}{"fab_version": {}}
+
 	for seg := range segments {
+		if _, skip := exempt[seg]; skip {
+			continue
+		}
 		if !containsKeyToken(out, seg) {
 			t.Errorf("binary-consumed config key %q (from Config yaml tags) is not documented in `fab config reference`", seg)
 		}
 	}
 }
 
-// TestConfigReferenceSupersetsScaffoldKeys is the SKILL-KEY coverage contract:
-// the reference's key set must be a superset of the scaffold's key set. This
-// guards the skill-consumed keys (source_paths, checklist,
-// project.name/description) that Go reflection over Config cannot see.
-func TestConfigReferenceSupersetsScaffoldKeys(t *testing.T) {
+// TestConfigReferenceOmitsRelocatedFabVersion pins the 260708-j0qm relocation:
+// fab_version left config.yaml for the plain-text sibling fab/.fab-version, so the
+// generated reference (and the registry it walks) must NOT document a fab_version
+// key. It is machine-managed and no longer a config-file field.
+func TestConfigReferenceOmitsRelocatedFabVersion(t *testing.T) {
 	out, err := configref.Render()
 	if err != nil {
 		t.Fatalf("Render returned an error: %v", err)
 	}
+	if containsKeyToken(out, "fab_version") {
+		t.Error("fab_version moved to fab/.fab-version and must not appear in the reference")
+	}
+	keys, err := configref.FieldKeys()
+	if err != nil {
+		t.Fatalf("FieldKeys returned an error: %v", err)
+	}
+	for _, k := range keys {
+		if k == "fab_version" {
+			t.Error("the registry must not carry a fab_version row (it left config.yaml)")
+		}
+	}
+}
 
-	scaffoldPath := findRepoFile(t, scaffoldConfigRelPath)
-	scaffoldKeys := scaffoldKeyTokens(t, scaffoldPath)
-	if len(scaffoldKeys) == 0 {
-		t.Fatal("parsed no keys from the scaffold config — parser is broken")
+// TestConfigInitSeedKeysSubsetOfRegistry is the SKILL-KEY coverage contract's new
+// anchor (260708-j0qm): the scaffold config.yaml was deleted — `fab config init
+// --project` now generates the initial config.yaml from the registry, so the
+// former "reference ⊇ scaffold keys" guard is re-anchored to a registry-internal
+// invariant. Every A-class identity key the init generator writes live (InitSeed)
+// must be a documented registry field, so a generated project config can never
+// carry a key the reference does not describe.
+func TestConfigInitSeedKeysSubsetOfRegistry(t *testing.T) {
+	seedKeys, err := configref.InitSeedKeys()
+	if err != nil {
+		t.Fatalf("InitSeedKeys returned an error: %v", err)
+	}
+	if len(seedKeys) == 0 {
+		t.Fatal("no InitSeed keys — the init generator would write no identity fields")
+	}
+	registryKeys, err := configref.FieldKeys()
+	if err != nil {
+		t.Fatalf("FieldKeys returned an error: %v", err)
+	}
+	known := map[string]bool{}
+	for _, k := range registryKeys {
+		known[k] = true
+	}
+	for _, k := range seedKeys {
+		if !known[k] {
+			t.Errorf("init-seeded key %q is not a documented registry field (would generate an undocumented key)", k)
+		}
 	}
 
-	for _, key := range scaffoldKeys {
-		if !containsKeyToken(out, key) {
-			t.Errorf("scaffold key %q is not documented in `fab config reference` (skill-consumed key gap)", key)
+	// The seeded identity set is the A-class fields the design fixes: the project
+	// identity, source_paths, and test_paths. Pin it so a future edit that seeds a
+	// preference-class field (e.g. agent.tiers — which presence=intent forbids
+	// pinning at init) fails here.
+	wantSeed := map[string]bool{
+		"project.name":        true,
+		"project.description": true,
+		"source_paths":        true,
+		"test_paths":          true,
+	}
+	got := map[string]bool{}
+	for _, k := range seedKeys {
+		got[k] = true
+	}
+	for k := range wantSeed {
+		if !got[k] {
+			t.Errorf("expected %q to be an init-seed identity field", k)
+		}
+	}
+	for k := range got {
+		if !wantSeed[k] {
+			t.Errorf("unexpected init-seed field %q (only A-class identity fields are seeded at init)", k)
 		}
 	}
 }
@@ -444,9 +508,10 @@ func TestConfigReferenceRegistryLint(t *testing.T) {
 
 // TestConfigReferenceScopeAssignments pins the decision-6 scope taxonomy: the
 // preference-class fields (agent.tiers, providers) are `both`; the
-// semantics-class fields and the three unenumerated fields (stage_hooks,
-// branch_prefix, fab_version) are `project`. Enforcement lands in Change 2, but
-// the assignments are recorded and consumed as data now, so they are pinned.
+// semantics-class fields and the two unenumerated fields (stage_hooks,
+// branch_prefix) are `project`. (fab_version left config.yaml in 260708-j0qm and
+// no longer carries a scope.) Enforcement landed in Change 2; the assignments are
+// consumed as data, so they are pinned.
 func TestConfigReferenceScopeAssignments(t *testing.T) {
 	fields, err := configref.Fields()
 	if err != nil {
@@ -468,7 +533,6 @@ func TestConfigReferenceScopeAssignments(t *testing.T) {
 		"agent.tiers":                configref.ScopeBoth,
 		"stage_hooks":                configref.ScopeProject,
 		"branch_prefix":              configref.ScopeProject,
-		"fab_version":                configref.ScopeProject,
 	}
 	for key, wantScope := range want {
 		gotScope, ok := got[key]
@@ -568,66 +632,10 @@ func yamlKeySegments(t reflect.Type) map[string]struct{} {
 	return segments
 }
 
-// scaffoldKeyLineRe matches a live (non-commented) `key:` line — top-level or
-// nested — capturing the key name. It deliberately ignores comment lines and
-// list items, so it collects exactly the scaffold's LIVE keys, which are the
-// skill-consumed set the reference must cover.
-var scaffoldKeyLineRe = regexp.MustCompile(`^\s*([A-Za-z_][A-Za-z0-9_]*):(\s|$)`)
-
-// scaffoldKeyTokens returns the scaffold config.yaml's live key names. The
-// scaffold is a TEMPLATE, not valid YAML — it carries `{PLACEHOLDER}` tokens
-// (`- {SOURCE_PATHS}`, a bare column-0 `{TEST_PATHS}` slot) that /fab-setup
-// substitutes at setup time, so it cannot be YAML-parsed as-is. A line scan for
-// `key:` lines (skipping `#` comments) is the robust way to extract the live
-// key set without depending on the placeholders being valid YAML.
-func scaffoldKeyTokens(t *testing.T, path string) []string {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read scaffold: %v", err)
-	}
-	keys := map[string]struct{}{}
-	for _, line := range strings.Split(string(data), "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "#") {
-			continue // commented example — not a live key
-		}
-		if m := scaffoldKeyLineRe.FindStringSubmatch(line); m != nil {
-			keys[m[1]] = struct{}{}
-		}
-	}
-	out := make([]string, 0, len(keys))
-	for k := range keys {
-		out = append(out, k)
-	}
-	return out
-}
-
 // keyTokenBoundary matches a word boundary for a config key token (letters,
 // digits, underscore). Used so `test_paths` matches `test_paths:` but a search
 // for `paths` would not spuriously match `test_paths`.
 func containsKeyToken(haystack, token string) bool {
 	re := regexp.MustCompile(`(^|[^A-Za-z0-9_])` + regexp.QuoteMeta(token) + `([^A-Za-z0-9_]|$)`)
 	return re.MatchString(haystack)
-}
-
-// findRepoFile walks up from the working directory until relPath resolves,
-// mirroring internal/agent's findDocFile (same repo-root-relative resolution
-// used by the stage-models drift test).
-func findRepoFile(t *testing.T, relPath string) string {
-	t.Helper()
-	dir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	for {
-		candidate := filepath.Join(dir, relPath)
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			t.Fatalf("could not locate %q by walking up to the filesystem root", relPath)
-		}
-		dir = parent
-	}
 }

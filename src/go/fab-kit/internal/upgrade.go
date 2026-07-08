@@ -3,14 +3,36 @@ package internal
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
 
+// runConfigUpgrade shells out to the pinned fab-go binary's `fab config upgrade`
+// to reconcile fab/project/config.yaml after a sync. FAIL-OPEN by contract: any
+// failure (a fab-go that predates the subcommand → unknown-command non-zero exit,
+// or any other error) prints a reminder and returns nil — an upgrade must never
+// break on the config step (decision 4). Both binaries ship in one brew package,
+// so binary/kit skew only occurs on explicit-version upgrades.
+func runConfigUpgrade(fabGoBin, repoRoot string) {
+	cmd := exec.Command(fabGoBin, "config", "upgrade")
+	cmd.Dir = repoRoot
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Note: could not auto-run `fab config upgrade` (%s). "+
+			"Run it manually after upgrading to refresh config.yaml's reference fence.\n",
+			strings.TrimSpace(string(out)))
+		return
+	}
+	if trimmed := strings.TrimSpace(string(out)); trimmed != "" {
+		fmt.Println(trimmed)
+	}
+}
+
 // Upgrade handles `fab upgrade-repo [version] [--latest]` — re-syncs skills to
-// the target version and then updates fab_version in config.yaml.
-// systemVersion is the embedded version of the fab-kit binary, threaded into
-// Sync so the version guard compares against the real binary version (F22).
+// the target version and then stamps fab/.fab-version + auto-runs the config
+// upgrader. systemVersion is the embedded version of the fab-kit binary, threaded
+// into Sync so the version guard compares against the real binary version (F22).
 //
 // Target resolution precedence (first match wins):
 //   - an explicit targetVersion arg always wins (the GitHub API is not called);
@@ -93,8 +115,9 @@ func Upgrade(systemVersion, targetVersion string, useLatest bool) error {
 	}
 	fmt.Printf("Target version: %s\n", targetVersion)
 
-	// Ensure target is cached
-	_, err = EnsureCached(targetVersion)
+	// Ensure target is cached — the returned path is the pinned fab-go binary the
+	// post-sync `fab config upgrade` auto-run shells out to.
+	fabGoBin, err := EnsureCached(targetVersion)
 	if err != nil {
 		return err
 	}
@@ -108,18 +131,27 @@ func Upgrade(systemVersion, targetVersion string, useLatest bool) error {
 	fmt.Printf("Upgrading to %s...\n", targetVersion)
 
 	// Run sync FIRST, passing the kit version explicitly. On failure,
-	// propagate the error (non-zero exit) without stamping fab_version or
-	// printing a success line — config.yaml stays on the old version, so a
+	// propagate the error (non-zero exit) without stamping the version or
+	// printing a success line — the pin stays on the old version, so a
 	// re-run of `fab upgrade-repo` retries the upgrade.
 	fmt.Println("Running sync...")
 	if err := runSync(systemVersion, targetVersion, false, false); err != nil {
 		return fmt.Errorf("sync failed: %w — run 'fab sync' to repair, then re-run 'fab upgrade-repo'", err)
 	}
 
-	// Stamp fab_version in config.yaml only after a successful sync (F18)
-	if err := setFabVersion(cfg.ConfigPath, targetVersion); err != nil {
-		return fmt.Errorf("cannot update config.yaml: %w", err)
+	// Stamp fab/.fab-version only after a successful sync (F18). config.yaml is no
+	// longer version-stamped (260708-j0qm) — the version lives in the plain-text
+	// sibling, and fab config upgrade is config.yaml's only writer.
+	if err := stampFabVersion(cfg.RepoRoot, targetVersion); err != nil {
+		return fmt.Errorf("cannot write fab/.fab-version: %w", err)
 	}
+
+	// Auto-run the config upgrader against the pinned fab-go: reconcile
+	// config.yaml (regenerate the managed fence, park removals, carry renames).
+	// FAIL-OPEN: if the pinned fab-go predates `fab config upgrade` (non-zero exit
+	// / unknown command), print a reminder and continue — an upgrade must never
+	// break on the config step (decision 4).
+	runConfigUpgrade(fabGoBin, cfg.RepoRoot)
 
 	// Display result
 	if currentVersion != "" {
