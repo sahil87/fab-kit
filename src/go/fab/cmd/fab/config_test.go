@@ -639,4 +639,3 @@ func containsKeyToken(haystack, token string) bool {
 	re := regexp.MustCompile(`(^|[^A-Za-z0-9_])` + regexp.QuoteMeta(token) + `([^A-Za-z0-9_]|$)`)
 	return re.MatchString(haystack)
 }
-
