@@ -375,14 +375,19 @@ func captureStderr(t *testing.T, fn func()) string {
 	}
 	orig := os.Stderr
 	os.Stderr = w
+	defer func() { os.Stderr = orig }()
 	done := make(chan string, 1)
 	go func() {
 		data, _ := io.ReadAll(r)
 		done <- string(data)
 	}()
-	fn()
-	os.Stderr = orig
-	w.Close()
+	// Wrap fn so the writer is closed even if fn panics or calls runtime.Goexit
+	// (e.g. t.Fatal from a future callback); otherwise the drain goroutine blocks
+	// on <-done forever and os.Stderr stays redirected into later tests.
+	func() {
+		defer w.Close()
+		fn()
+	}()
 	out := <-done
 	r.Close()
 	return out
