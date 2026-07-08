@@ -116,10 +116,11 @@ teammates and CI.
 Fields the decision-6 taxonomy does not enumerate (`stage_hooks`, `branch_prefix`) default to `project`
 — the conservative choice, since system-visibility is opt-in per the same rationale. (`fab_version` was
 machine-managed and, as of [Change 3 — landed], left `config.yaml` entirely for the plain-text sibling
-`fab/.fab-version`; it is no longer a config-file key and carries no scope — a stale `fab_version:` in a
-not-yet-migrated PROJECT file is an unknown key, ignored silently by the loader, while a stale
-`fab_version:` in the SYSTEM file is stripped as a named compat-window exception so a machine-global value
-never bleeds into a repo's resolved version.) Scope was metadata-only in
+`fab/.fab-version`; it is no longer a scoped/registry key and carries no scope — but it is not ignored: a
+stale `fab_version:` in a not-yet-migrated PROJECT file is still parsed by the loader and read as a legacy
+fallback when `fab/.fab-version` is absent (for one compat window, until the migration removes it), while a
+stale `fab_version:` in the SYSTEM file is stripped as a named compat-window exception so a machine-global
+value never bleeds into a repo's resolved version.) Scope was metadata-only in
 Change 1; **as of Change 2 it is enforced**: the cascade
 resolver prunes a project-scoped field found in the system file and emits a `fab: warning:` (fail-open —
 config must never brick), and `fab config init --system` scaffolds only the `system`/`both` fields. The
