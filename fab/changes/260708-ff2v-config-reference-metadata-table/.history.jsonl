@@ -1,0 +1,15 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-08T05:29:36Z"}
+{"args":"Restructure fab config reference (change 6nke, src/go/fab/internal/configref/) from a text-template renderer into a per-field metadata table: default, description, scope (project/system/both), advertise (C flag), renamed_from. fab config reference renders the table as commented YAML (output equivalent to today), add --json. Land the spec at docs/specs/config.md recording the schema decisions. Update _cli-fab.md and tests per constitution CLI-change rule, and the specs index. See fab/plans/sahil/config-upgrade.md Change 1 for full context.","cmd":"fab-new","event":"command","ts":"2026-07-08T05:29:36Z"}
+{"delta":"+3.8","event":"confidence","score":3.8,"trigger":"calc-score","ts":"2026-07-08T05:32:09Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-08T05:34:50Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-08T05:35:03Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-08T05:47:50Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-08T05:48:59Z"}
+{"event":"review","result":"failed","ts":"2026-07-08T06:00:45Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-08T06:00:45Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-08T06:03:20Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-08T06:10:36Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-08T06:18:10Z"}
+{"event":"review","result":"passed","ts":"2026-07-08T06:18:10Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-08T06:18:50Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-08T06:22:32Z"}
