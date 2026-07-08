@@ -1,0 +1,57 @@
+id: yogn
+name: 260708-yogn-preserve-config-comments-fab-version
+created: 2026-07-08T04:07:21Z
+created_by: Sahil Ahuja
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 4
+    acceptance_count: 15
+    acceptance_completed: 15
+confidence:
+    certain: 6
+    confident: 4
+    tentative: 0
+    unresolved: 0
+    score: 4.7
+    fuzzy: true
+    dimensions:
+        signal: 80.0
+        reversibility: 84.5
+        competence: 85.5
+        disambiguation: 80.0
+stage_metrics:
+    intake: {started_at: "2026-07-08T04:07:21Z", driver: fab-new, iterations: 1, completed_at: "2026-07-08T04:12:13Z"}
+    apply: {started_at: "2026-07-08T04:12:13Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-08T04:16:26Z"}
+    review: {started_at: "2026-07-08T04:16:26Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-08T04:23:34Z"}
+    hydrate: {started_at: "2026-07-08T04:23:34Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-08T04:25:48Z"}
+    ship: {started_at: "2026-07-08T04:25:48Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-08T04:27:35Z"}
+    review-pr: {started_at: "2026-07-08T04:27:35Z", driver: git-pr, iterations: 1, completed_at: "2026-07-08T04:37:49Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/473
+change_type_source: explicit
+true_impact:
+    added: 569
+    deleted: 17
+    net: 552
+    excluding:
+        added: 235
+        deleted: 14
+        net: 221
+    tests:
+        added: 179
+        deleted: 0
+        net: 179
+    computed_at: "2026-07-08T04:27:36Z"
+    computed_at_stage: ship
+summary: fab_version stamping is now a byte-preserving targeted line splice (setFabVersion in fab-kit init.go) — no longer strips config.yaml comments/order/indentation on upgrade; a stopgap until fab config upgrade deletes it
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-07-08T04:37:49Z
