@@ -165,7 +165,11 @@ using stdlib `encoding/json` only (no new dependencies). Each element is a per-f
   {
     "key": "agent.tiers",
     "default": {
-      "default": { "provider": "claude", "model": "...", "effort": "..." }
+      "default":  { "provider": "claude", "model": "...", "effort": "..." },
+      "operator": { "provider": "claude", "model": "...", "effort": "..." },
+      "doing":    { "provider": "claude", "model": "...", "effort": "..." },
+      "review":   { "provider": "claude", "model": "...", "effort": "..." },
+      "fast":     { "provider": "claude", "model": "...", "effort": "..." }
     },
     "description": "Per-stage model override. ...",
     "scope": "both",
@@ -174,6 +178,10 @@ using stdlib `encoding/json` only (no new dependencies). Each element is a per-f
 ]
 ```
 
+- The `agent.tiers` `default` is a map **keyed by tier name** (one entry per `agent.TierNames()` tier —
+  `default`, `operator`, `doing`, `review`, `fast`), each a `{provider, model, effort}` profile; the
+  first-level `default` key is the *default tier*, not a wrapper. Likewise `providers.default` is keyed
+  by provider name.
 - `renamed_from` is omitted when empty (`omitempty`), so it is absent from every object today.
 - Output is deterministic and byte-stable, like the commented-YAML rendering — the table is ordered and
   the marshalling is stable.

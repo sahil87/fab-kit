@@ -67,7 +67,13 @@ Design constraints on the table (from the plan doc + the existing package contra
 [
   {
     "key": "agent.tiers",
-    "default": {"default": {"provider": "claude", "model": "...", "effort": "..."}},
+    "default": {
+      "default":  {"provider": "claude", "model": "...", "effort": "..."},
+      "operator": {"provider": "claude", "model": "...", "effort": "..."},
+      "doing":    {"provider": "claude", "model": "...", "effort": "..."},
+      "review":   {"provider": "claude", "model": "...", "effort": "..."},
+      "fast":     {"provider": "claude", "model": "...", "effort": "..."}
+    },
     "description": "Per-stage model override. ...",
     "scope": "both",
     "advertise": true
