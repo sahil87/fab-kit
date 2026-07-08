@@ -28,10 +28,14 @@ func configCmd() *cobra.Command {
 // resolve-agent`. It prints the fully-commented reference config.yaml to
 // stdout and exits 0 on success (a usage error — e.g. an extra positional arg,
 // rejected by cobra.NoArgs — exits non-zero, as does the unreachable render
-// error). The output is GENERATED from Go constants (see internal/configref)
-// and byte-stable for a given binary version. No flags.
+// error). The output is GENERATED from a per-field metadata table (see
+// internal/configref) whose defaults are sourced from the binary's own Go
+// constants, and is byte-stable for a given binary version. The `--json` flag
+// emits that same table as a machine-readable JSON array instead of commented
+// YAML — the tooling surface the config-upgrade cascade/upgrade commands consume.
 func configReferenceCmd() *cobra.Command {
-	return &cobra.Command{
+	var asJSON bool
+	cmd := &cobra.Command{
 		Use:   "reference",
 		Short: "Print the fully-commented reference config.yaml (all available options)",
 		Long: "Prints a fully-commented reference fab/project/config.yaml to " +
@@ -39,12 +43,14 @@ func configReferenceCmd() *cobra.Command {
 			"and skill-consumed keys). Baseline keys appear live with example " +
 			"values; optional override blocks (agent.tiers, stage_hooks, " +
 			"branch_prefix) appear commented-out with fab-kit's built-in " +
-			"defaults. The output is generated from the binary's own constants " +
-			"(never hand-written) and is byte-stable for a given version. Pure " +
+			"defaults. The output is generated from a per-field metadata table " +
+			"(never hand-written; defaults sourced from the binary's own " +
+			"constants) and is byte-stable for a given version. Pass --json to " +
+			"emit the field table as a machine-readable JSON array instead. Pure " +
 			"query — writes no file.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			out, err := configref.Render()
+			out, err := renderReference(asJSON)
 			if err != nil {
 				return err
 			}
@@ -52,4 +58,16 @@ func configReferenceCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Emit the field metadata table as a JSON array (instead of commented YAML)")
+	return cmd
+}
+
+// renderReference selects the reference rendering: the machine-readable JSON
+// field table when asJSON is set, otherwise the commented YAML. Both are pure,
+// byte-stable renderings of the same per-field metadata table.
+func renderReference(asJSON bool) (string, error) {
+	if asJSON {
+		return configref.RenderJSON()
+	}
+	return configref.Render()
 }

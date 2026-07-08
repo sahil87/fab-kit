@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -273,6 +274,255 @@ func TestConfigReferenceRetiresLegacyKeys(t *testing.T) {
 		if containsKeyToken(out, gone) {
 			t.Errorf("retired key %q must not appear in the reference", gone)
 		}
+	}
+}
+
+// TestConfigReferenceJSONIsValidAndByteStable is the --json VALIDITY + STABILITY
+// contract: `fab config reference --json` emits a well-formed JSON array of
+// per-field objects, and repeated renders are byte-identical (the same
+// byte-stable stdout contract Change 2/3 tooling relies on).
+func TestConfigReferenceJSONIsValidAndByteStable(t *testing.T) {
+	first, err := configref.RenderJSON()
+	if err != nil {
+		t.Fatalf("RenderJSON returned an error: %v", err)
+	}
+	second, err := configref.RenderJSON()
+	if err != nil {
+		t.Fatalf("RenderJSON returned an error: %v", err)
+	}
+	if first != second {
+		t.Error("`fab config reference --json` output is not byte-stable across renders")
+	}
+
+	var arr []map[string]any
+	if err := json.Unmarshal([]byte(first), &arr); err != nil {
+		t.Fatalf("--json output is not valid JSON: %v", err)
+	}
+	if len(arr) == 0 {
+		t.Fatal("--json output parsed to an empty array")
+	}
+	for i, obj := range arr {
+		for _, required := range []string{"key", "description", "scope", "advertise"} {
+			if _, ok := obj[required]; !ok {
+				t.Errorf("--json element %d is missing required field %q", i, required)
+			}
+		}
+		// default is present on every element (may be null); renamed_from is
+		// omitted when empty (omitempty), which is every row today.
+		if _, ok := obj["default"]; !ok {
+			t.Errorf("--json element %d (%v) is missing the `default` field", i, obj["key"])
+		}
+		if _, ok := obj["renamed_from"]; ok {
+			t.Errorf("--json element %d (%v) should omit `renamed_from` (empty on every row today, omitempty)", i, obj["key"])
+		}
+	}
+}
+
+// TestConfigReferenceJSONEmptyDefaultConvention pins the uniform empty-default
+// convention (T002 / docs/specs/config.md § Default semantics): a field with no
+// meaningful built-in default emits JSON `null`, NEVER a typed empty (`[]`, `{}`,
+// `""`). This is the single "cascade falls back to absent" signal Change 2's
+// resolver consumes; a typed empty would leak a Go-side implementation detail with
+// no cascade meaning. Conversely, a non-null `default` must denote a real built-in
+// value (the claude provider and the five tier profiles today).
+func TestConfigReferenceJSONEmptyDefaultConvention(t *testing.T) {
+	out, err := configref.RenderJSON()
+	if err != nil {
+		t.Fatalf("RenderJSON returned an error: %v", err)
+	}
+	var arr []map[string]any
+	if err := json.Unmarshal([]byte(out), &arr); err != nil {
+		t.Fatalf("--json output is not valid JSON: %v", err)
+	}
+
+	// The only rows with a real built-in default today. Every other row is
+	// "no built-in default" and MUST render as JSON null (not [], {}, or "").
+	hasDefault := map[string]bool{
+		"providers":   true,
+		"agent.tiers": true,
+	}
+	for _, obj := range arr {
+		key, _ := obj["key"].(string)
+		def, present := obj["default"]
+		if !present {
+			t.Errorf("field %q is missing the `default` field", key)
+			continue
+		}
+		if hasDefault[key] {
+			if def == nil {
+				t.Errorf("field %q should carry a real built-in default, got null", key)
+			}
+			continue
+		}
+		if def != nil {
+			t.Errorf("field %q has no built-in default and must emit JSON null (uniform empty-default convention), got %#v", key, def)
+		}
+	}
+}
+
+// TestConfigReferenceJSONKeysMatchYAML is the NO-DRIFT contract between the two
+// renderings: every key the JSON dump advertises must be documented in the
+// commented-YAML reference (segment-wise, mirroring the binary-key coverage
+// check), so the machine-readable and human-readable views cannot silently
+// diverge. Also asserts the JSON key set equals the registry's FieldKeys().
+func TestConfigReferenceJSONKeysMatchYAML(t *testing.T) {
+	yaml, err := configref.Render()
+	if err != nil {
+		t.Fatalf("Render returned an error: %v", err)
+	}
+	jsonOut, err := configref.RenderJSON()
+	if err != nil {
+		t.Fatalf("RenderJSON returned an error: %v", err)
+	}
+
+	var arr []struct {
+		Key string `json:"key"`
+	}
+	if err := json.Unmarshal([]byte(jsonOut), &arr); err != nil {
+		t.Fatalf("--json output is not valid JSON: %v", err)
+	}
+
+	jsonKeys := make([]string, len(arr))
+	for i, e := range arr {
+		jsonKeys[i] = e.Key
+		// Each dotted key must be documented in the YAML: every segment appears
+		// as a key token (the reference documents some keys in dotted-prose form,
+		// so a per-segment presence check is the robust parity guard — same
+		// technique as TestConfigReferenceCoversBinaryKeys).
+		for _, seg := range strings.Split(e.Key, ".") {
+			if !containsKeyToken(yaml, seg) {
+				t.Errorf("JSON key %q (segment %q) is not documented in the commented-YAML reference (renderings drifted)", e.Key, seg)
+			}
+		}
+	}
+
+	registryKeys, err := configref.FieldKeys()
+	if err != nil {
+		t.Fatalf("FieldKeys returned an error: %v", err)
+	}
+	if !reflect.DeepEqual(jsonKeys, registryKeys) {
+		t.Errorf("--json key order/set does not match the registry FieldKeys():\n json:     %v\n registry: %v", jsonKeys, registryKeys)
+	}
+}
+
+// TestConfigReferenceRegistryLint is the FAIL-LOUD registry contract: every
+// field row has a non-empty description and a valid scope ∈ {project, system,
+// both}. The registry constructor (configref.Fields) runs this lint itself, so a
+// row added without metadata fails at construction — this test asserts the
+// invariant holds for the shipped table (and that Fields does not error).
+func TestConfigReferenceRegistryLint(t *testing.T) {
+	fields, err := configref.Fields()
+	if err != nil {
+		t.Fatalf("Fields returned an error (registry lint or tier invariant failed): %v", err)
+	}
+	if len(fields) == 0 {
+		t.Fatal("Fields returned an empty registry")
+	}
+	validScopes := map[configref.Scope]bool{
+		configref.ScopeProject: true,
+		configref.ScopeSystem:  true,
+		configref.ScopeBoth:    true,
+	}
+	for _, f := range fields {
+		if strings.TrimSpace(f.Description) == "" {
+			t.Errorf("field %q has an empty description", f.Key)
+		}
+		if !validScopes[f.Scope] {
+			t.Errorf("field %q has invalid scope %q (want project/system/both)", f.Key, f.Scope)
+		}
+		// renamed_from is empty on every row today (future field renames only).
+		if f.RenamedFrom != "" {
+			t.Errorf("field %q has a non-empty RenamedFrom %q; no historical rename is backfilled in this change", f.Key, f.RenamedFrom)
+		}
+	}
+}
+
+// TestConfigReferenceScopeAssignments pins the decision-6 scope taxonomy: the
+// preference-class fields (agent.tiers, providers) are `both`; the
+// semantics-class fields and the three unenumerated fields (stage_hooks,
+// branch_prefix, fab_version) are `project`. Enforcement lands in Change 2, but
+// the assignments are recorded and consumed as data now, so they are pinned.
+func TestConfigReferenceScopeAssignments(t *testing.T) {
+	fields, err := configref.Fields()
+	if err != nil {
+		t.Fatalf("Fields returned an error: %v", err)
+	}
+	got := make(map[string]configref.Scope, len(fields))
+	for _, f := range fields {
+		got[f.Key] = f.Scope
+	}
+	want := map[string]configref.Scope{
+		"project.name":               configref.ScopeProject,
+		"project.description":        configref.ScopeProject,
+		"project.linear_workspace":   configref.ScopeProject,
+		"source_paths":               configref.ScopeProject,
+		"test_paths":                 configref.ScopeProject,
+		"true_impact_exclude":        configref.ScopeProject,
+		"checklist.extra_categories": configref.ScopeProject,
+		"providers":                  configref.ScopeBoth,
+		"agent.tiers":                configref.ScopeBoth,
+		"stage_hooks":                configref.ScopeProject,
+		"branch_prefix":              configref.ScopeProject,
+		"fab_version":                configref.ScopeProject,
+	}
+	for key, wantScope := range want {
+		gotScope, ok := got[key]
+		if !ok {
+			t.Errorf("registry is missing expected field %q", key)
+			continue
+		}
+		if gotScope != wantScope {
+			t.Errorf("field %q scope = %q, want %q (decision 6)", key, gotScope, wantScope)
+		}
+	}
+}
+
+// TestConfigReferenceCommandJSONFlag drives the cobra command end to end with
+// --json: it prints the JSON table and exits 0, matches configref.RenderJSON(),
+// rejects an extra positional arg (cobra.NoArgs still applies), and leaves the
+// no-flag output contract-identical to configref.Render().
+func TestConfigReferenceCommandJSONFlag(t *testing.T) {
+	cmd := configCmd()
+	var out strings.Builder
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"reference", "--json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("`config reference --json` returned an error: %v", err)
+	}
+	want, err := configref.RenderJSON()
+	if err != nil {
+		t.Fatalf("RenderJSON returned an error: %v", err)
+	}
+	if out.String() != want {
+		t.Error("`config reference --json` stdout does not match configref.RenderJSON()")
+	}
+
+	// No-flag output is the commented YAML, unchanged.
+	cmdYAML := configCmd()
+	var yamlOut strings.Builder
+	cmdYAML.SetOut(&yamlOut)
+	cmdYAML.SetErr(&yamlOut)
+	cmdYAML.SetArgs([]string{"reference"})
+	if err := cmdYAML.Execute(); err != nil {
+		t.Fatalf("`config reference` returned an error: %v", err)
+	}
+	wantYAML, err := configref.Render()
+	if err != nil {
+		t.Fatalf("Render returned an error: %v", err)
+	}
+	if yamlOut.String() != wantYAML {
+		t.Error("`config reference` (no flag) stdout does not match configref.Render()")
+	}
+
+	// Extra positional arg is still rejected with --json.
+	cmdErr := configCmd()
+	var errBuf strings.Builder
+	cmdErr.SetOut(&errBuf)
+	cmdErr.SetErr(&errBuf)
+	cmdErr.SetArgs([]string{"reference", "--json", "extra"})
+	if err := cmdErr.Execute(); err == nil {
+		t.Error("`config reference --json extra` should be rejected (cobra.NoArgs)")
 	}
 }
 
