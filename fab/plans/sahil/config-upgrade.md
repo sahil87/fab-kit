@@ -34,6 +34,10 @@ replace** (never concatenate), scalars replace.
 
 ### Change 1 — reference table + `fab config reference` restructure (additive)
 
+> **SHIPPED** as `260708-ff2v` (PR #474). The registry landed as an ordered
+> `[]Field` with per-field `Segment` (rendered YAML block); `Render()` walks it
+> (byte-identical output), `--json` added, spec at `docs/specs/config.md`.
+
 `fab config reference` **already exists** (change `6nke` — fab-go
 `src/go/fab/internal/configref/`, ~257 lines) but as a text-template renderer
 (`refData` struct → template): no per-field metadata, no scope, no `--json`. This
@@ -79,6 +83,32 @@ change restructures it into a **per-field metadata table** — the single source
   tests; `ResolveConfig`/`readFabVersion` (fab-kit) and the shim's kit resolution
   (`configref`/`kitpath`) move to `.fab-version` with a config.yaml fallback for one
   compat window.
+- **Scaffold config.yaml deleted — init generates from the registry** (folded in
+  2026-07-08, follow-up to Change 1/ff2v; may split into its own follow-on change —
+  it touches fab-kit init rather than the upgrader). `src/kit/scaffold/fab/project/
+  config.yaml` is the last hand-maintained copy of defaults/comment prose (live
+  `agent.tiers` model literals, the claude `session_command`, the providers
+  narrative): value/prose drift is unguarded — `TestConfigReferenceSupersetsScaffoldKeys`
+  checks key *presence* only. Nothing in it is irreducibly scaffold-only, so don't
+  regenerate it — **delete it**:
+  - `fab init` writes the initial config.yaml from the registry (fab-kit shells out
+    to the installed fab-go, e.g. `fab config init`, same one-brew-package skew +
+    fail-open discipline as decision 4). Open sub-decision: the skew fallback when
+    the installed `fab` predates the subcommand — a fresh repo *needs* config.yaml
+    to pass preflight, so fail-open here means a minimal embedded stub (tiny,
+    bounded second copy) vs a printed instruction; decide at implementation.
+  - The registry gains **init/seed metadata**: which fields are written live at
+    init (the A-class identity fields: `project.*`, `source_paths`, `test_paths`)
+    and their value slots — `/fab-setup`'s `{PROJECT_NAME}`/`{SOURCE_PATHS}`/
+    `{TEST_PATHS}` detection becomes generator *input* instead of template
+    substitution. Everything else is fence territory from day one.
+  - The scaffold's **live `agent.tiers` pinning dies** with it: under
+    presence=intent (decision 2), tiers pinned at init are an accidental override
+    that stops tracking fab-kit's defaults as they move. Fresh projects inherit;
+    the fence advertises.
+  - Fold the scaffold's extra prose (multi-language `test_paths` examples) into
+    the registry descriptions; retire/replace the superset test (its
+    skill-consumed-key guard needs a new anchor once the file is gone).
 
 ## Resolved decisions (all user-confirmed 2026-07-08)
 
