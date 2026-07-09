@@ -79,7 +79,8 @@ fail-silent rule applies **asymmetrically**:
   (they land together via `brew install fab-kit`). Invoke them **bare**; no
   `command -v` gate is required.
 - **Genuinely-optional — `rk`, `hop`.** Each is a separate sibling formula the user
-  may or may not have installed (`rk` is run-kit; `hop` is the multi-repo
+  may or may not have installed (`rk` is run-kit — formula `sahil87/tap/run-kit`
+  since run-kit v3.0.0, with `rk` kept as a binary alias; `hop` is the multi-repo
   navigator). **Every `rk`/`hop` invocation — including `help-dump` — MUST be
   `command -v`-gated and fail silently** (never surface `command not found` or any
   error/warning when the tool is absent). Do NOT generalize this gate to `wt`/`idea`.
@@ -241,7 +242,7 @@ Terminal multiplexer commands used by the operator for agent observation and int
 
 ## rk (run-kit)
 
-run-kit is the tmux session manager with a web UI that hosts the operator's session. All commands below are subject to the **detection / fail-silent rule** stated once in `_preamble.md` § Run-Kit (rk) Reference — check `command -v rk` first and skip silently when rk is absent (never error, never warn). This section is the full operator-facing body the preamble points to; the exhaustive command surface is delegated to `rk help-dump` (see below).
+run-kit is the tmux session manager with a web UI that hosts the operator's session. Since run-kit v3.0.0 the Homebrew formula and primary binary are named `run-kit` (`sahil87/tap/run-kit`); `rk` is kept as a symlink alias and remains the invocation form used throughout fab skills. All commands below are subject to the **detection / fail-silent rule** stated once in `_preamble.md` § Run-Kit (rk) Reference — check `command -v rk` first and skip silently when rk is absent (never error, never warn). This section is the full operator-facing body the preamble points to; the exhaustive command surface is delegated to `rk help-dump` (see below).
 
 The gist below is the operator-used subset. The full `rk` surface (`daemon`, `doctor`, `serve`, `reaper`, `riff`, `init-conf`, `status`, `update`, …) is available via `command -v rk >/dev/null 2>&1 && rk help-dump` — gated and fail-silent like every other `rk` invocation (per § Reference Model and the `_preamble.md` rule above).
 
