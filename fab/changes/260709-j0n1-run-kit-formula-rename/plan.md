@@ -11,11 +11,11 @@
 ### Docs Accuracy: rk install-identity in `_cli-external.md`
 
 #### R1: Reference Model parenthetical names the current formula
-The § Reference Model bullet describing `rk` SHALL state the current formula identity — `rk` is run-kit, formula `sahil87/tap/run-kit` since run-kit v3.0.0, with `rk` kept as a binary alias — while leaving the `command -v`-gate / fail-silent rule of that bullet untouched.
+The § Reference Model bullet describing `rk` SHALL state the current formula identity — `rk` is run-kit, formula `sahil87/tap/run-kit` since run-kit v3.0.0, with `rk` kept as a symlink alias — while leaving the `command -v`-gate / fail-silent rule of that bullet untouched.
 
 - **GIVEN** `src/kit/skills/_cli-external.md` § Reference Model → Absent-binary discipline, the "Genuinely-optional — `rk`, `hop`" bullet
 - **WHEN** an agent reads the `rk` parenthetical for install identity
-- **THEN** it reads `` `rk` is run-kit — formula `sahil87/tap/run-kit` since run-kit v3.0.0, with `rk` kept as a binary alias``
+- **THEN** it reads `` `rk` is run-kit — formula `sahil87/tap/run-kit` since run-kit v3.0.0, with `rk` kept as a symlink alias``
 - **AND** the sentence "**Every `rk`/`hop` invocation … MUST be `command -v`-gated and fail silently**" and the "Do NOT generalize this gate to `wt`/`idea`" clause are unchanged
 
 #### R2: rk (run-kit) section intro pins the alias status and why `rk` is still used
@@ -54,7 +54,7 @@ Per the constitution ("Changes to skill files (`src/kit/skills/*.md`) MUST updat
 
 ### Phase 1: Skill edits
 
-- [x] T001 Edit `src/kit/skills/_cli-external.md` § Reference Model → Absent-binary discipline: change the `rk` parenthetical in the "Genuinely-optional — `rk`, `hop`" bullet from "(`rk` is run-kit; `hop` is the multi-repo navigator)" to "(`rk` is run-kit — formula `sahil87/tap/run-kit` since run-kit v3.0.0, with `rk` kept as a binary alias; `hop` is the multi-repo navigator)", leaving the gate rule untouched <!-- R1 -->
+- [x] T001 Edit `src/kit/skills/_cli-external.md` § Reference Model → Absent-binary discipline: change the `rk` parenthetical in the "Genuinely-optional — `rk`, `hop`" bullet from "(`rk` is run-kit; `hop` is the multi-repo navigator)" to "(`rk` is run-kit — formula `sahil87/tap/run-kit` since run-kit v3.0.0, with `rk` kept as a symlink alias; `hop` is the multi-repo navigator)", leaving the gate rule untouched <!-- R1 -->
 - [x] T002 Edit `src/kit/skills/_cli-external.md` § rk (run-kit): add one sentence after the existing opening sentence — "Since run-kit v3.0.0 the Homebrew formula and primary binary are named `run-kit` (`sahil87/tap/run-kit`); `rk` is kept as a symlink alias and remains the invocation form used throughout fab skills." <!-- R2 -->
 
 ### Phase 2: SPEC mirror

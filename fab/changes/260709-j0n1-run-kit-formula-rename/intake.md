@@ -19,7 +19,7 @@ An intake-time repo-wide sweep (grep for `tap/rk`, `Formula/rk`, `rk.rb`, `brew 
 
 ## Why
 
-1. **The pain point**: fab-kit's operator-facing external-CLI reference (`src/kit/skills/_cli-external.md`) documents rk's install identity — "`rk` … a separate sibling formula" — which is now imprecise: the formula is named `run-kit` (`sahil87/tap/run-kit`), and `rk` survives only as a binary alias. Under Constitution II (Docs Are Source of Truth) and the docs-accuracy checklist category, agents reading this reference could give a user stale install guidance (e.g., naming the formula `rk`).
+1. **The pain point**: fab-kit's operator-facing external-CLI reference (`src/kit/skills/_cli-external.md`) documents rk's install identity — "`rk` … a separate sibling formula" — which is now imprecise: the formula is named `run-kit` (`sahil87/tap/run-kit`), and `rk` survives only as a symlink alias. Under Constitution II (Docs Are Source of Truth) and the docs-accuracy checklist category, agents reading this reference could give a user stale install guidance (e.g., naming the formula `rk`).
 2. **If we don't fix it**: the drift is silent — `brew` still resolves the old name via `formula_renames.json` and the `rk` alias keeps every invocation working — so nothing breaks loudly; the docs just become progressively wrong about what run-kit *is*, and the next agent that documents or scripts against the formula name propagates the stale identity.
 3. **Why this approach**: a minimal docs-accuracy edit at the one live claim site (plus its constitution-mandated SPEC mirror), with an explicit *verified-unchanged* inventory for everything else. The sweep proved fab-kit never targets the formula by name (no `sahil87/tap/rk`, no `brew install rk`, no fixture/config references — zero hits), so a rename-style mass edit would be wrong: the correct change is small and surgical.
 
@@ -44,7 +44,7 @@ New text (only the parenthetical changes — the gate rule is untouched):
 ```markdown
 - **Genuinely-optional — `rk`, `hop`.** Each is a separate sibling formula the user
   may or may not have installed (`rk` is run-kit — formula `sahil87/tap/run-kit`
-  since run-kit v3.0.0, with `rk` kept as a binary alias; `hop` is the multi-repo
+  since run-kit v3.0.0, with `rk` kept as a symlink alias; `hop` is the multi-repo
   navigator). **Every `rk`/`hop` invocation — including `help-dump` — MUST be
   `command -v`-gated and fail silently** (never surface `command not found` or any
   error/warning when the tool is absent). Do NOT generalize this gate to `wt`/`idea`.

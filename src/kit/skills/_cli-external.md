@@ -80,7 +80,7 @@ fail-silent rule applies **asymmetrically**:
   `command -v` gate is required.
 - **Genuinely-optional — `rk`, `hop`.** Each is a separate sibling formula the user
   may or may not have installed (`rk` is run-kit — formula `sahil87/tap/run-kit`
-  since run-kit v3.0.0, with `rk` kept as a binary alias; `hop` is the multi-repo
+  since run-kit v3.0.0, with `rk` kept as a symlink alias; `hop` is the multi-repo
   navigator). **Every `rk`/`hop` invocation — including `help-dump` — MUST be
   `command -v`-gated and fail silently** (never surface `command not found` or any
   error/warning when the tool is absent). Do NOT generalize this gate to `wt`/`idea`.
