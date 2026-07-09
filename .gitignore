@@ -27,4 +27,5 @@ src/rust/fab/target/
 .logs/
 
 .fab-*
+!fab/.fab-version
 .uploads/

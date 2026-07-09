@@ -297,7 +297,15 @@ mode (not in this change).
 `fab_version` moves out of `config.yaml` entirely into a new plain-text sibling `fab/.fab-version`
 (one line, bare semver + newline, committed, sibling to `fab/.kit-migration-version`). This is what lets
 `fab config upgrade` be config.yaml's single writer — the one machine-managed field the old masher owned
-leaves the file. Both reader stacks (the fab-kit router's pinned-version resolution and the fab-go
+leaves the file. **Gitignore caveat** [2.15.2 — 8ken]: "committed" is only true if `.gitignore` does not
+swallow the file. The `.fab-*` line (added for the root runtime files `.fab-status.yaml`/`.fab-backend`/
+`.fab-runtime.yaml`) is **unanchored** — with no slash it matches at any depth, so it also ignores
+`fab/.fab-version`. A negation line `!fab/.fab-version` (immediately after `.fab-*`) is what un-ignores
+the file and makes the "committed" guarantee real. The shipped scaffold fragment
+(`src/kit/scaffold/fragment-.gitignore`) carries the negation, so every `fab sync` self-heals a project's
+`.gitignore`; the `2.15.1-to-2.15.2` migration verifies the negation and commits the file for
+already-shipped repos, and `stampFabVersion`'s callers emit a fail-open `fab: warning:` when the file is
+still ignored so the written-but-ignored version file can never go quiet again. Both reader stacks (the fab-kit router's pinned-version resolution and the fab-go
 preflight staleness check) read `.fab-version` first, with a config.yaml `fab_version:` fallback for one
 compat window. The `fab_version` row is removed from the registry and from the `internal/configscope`
 taxonomy — a stale `fab_version:` in a not-yet-migrated PROJECT file is an unknown key, ignored silently

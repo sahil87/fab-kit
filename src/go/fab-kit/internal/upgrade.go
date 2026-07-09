@@ -145,6 +145,7 @@ func Upgrade(systemVersion, targetVersion string, useLatest bool) error {
 	if err := stampFabVersion(cfg.RepoRoot, targetVersion); err != nil {
 		return fmt.Errorf("cannot write fab/.fab-version: %w", err)
 	}
+	warnIfFabVersionIgnored(cfg.RepoRoot)
 
 	// Auto-run the config upgrader against the pinned fab-go: reconcile
 	// config.yaml (regenerate the managed fence, park removals, carry renames).
