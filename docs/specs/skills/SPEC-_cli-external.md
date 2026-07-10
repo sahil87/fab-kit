@@ -19,7 +19,7 @@ One `##` section per tool (plus the framing Reference Model), mirroring the part
 | idea (Backlog Manager) | Backlog entry management feeding the change pipeline (backlog IDs consumed by `_intake` Step 0) |
 | hop (Multi-Repo Navigator) | Cross-repo navigation for the operator spanning multiple repos on one tmux server |
 | tmux | Pane/session primitives the operator builds on (`send-keys`, session/pane addressing) layered under `fab pane` |
-| rk (run-kit) | `rk context` (server-URL discovery, iframe windows, the proxy URL pattern, the Visual Display Recipe) and `rk notify` (the operator's default notification send) — the full body the `_preamble.md` § Run-Kit pointer forwards to |
+| rk (run-kit) | `rk context` (server-URL discovery, iframe windows, the proxy URL pattern, the Visual Display Recipe) and `rk notify` (the operator's default notification send) — the full body the `_preamble.md` § Run-Kit pointer forwards to. Since run-kit v3.0.0 the Homebrew formula and primary binary are named `run-kit` (`sahil87/tap/run-kit`); `rk` is kept as a symlink alias and remains the invocation form throughout fab skills |
 | /loop | The recurring-interval driver the operator uses for its monitoring tick |
 
 > The inventory mirrors the file's `##` section order. `_preamble.md` § Run-Kit carries only the `rk` detection/fail-silent rule and points here for the command body; a change to either side must keep the pointer accurate (cross-reference rule), and by the mirror rule, this SPEC's corresponding row.
