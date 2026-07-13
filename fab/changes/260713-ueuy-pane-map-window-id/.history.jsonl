@@ -1,0 +1,9 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-13T15:23:17Z"}
+{"args":"Task: add a stable window_id field to fab pane map --json output. run-kit joins pane-map output to its tmux snapshot by (session, window_index) with a 5s cache, so a tmux swap-window misattributes fab status until the cache expires. window_id (@N) is stable for a window's lifetime and travels with the window; window_index stays for backward compat. Changes: append #{window_id} as the trailing field of tmuxPaneFormat (making the possibly-empty @rk_agent_state a middle field), SplitN 7 in parsePaneLines with legacy 6/5-field tolerance, thread windowID through paneEntry/paneRow/resolvePane (both branches), emit nullable window_id in paneJSON after WindowIndex via toNullable. No table column, no flag changes, additive-only JSON.","cmd":"fab-new","event":"command","ts":"2026-07-13T15:23:17Z"}
+{"delta":"+5.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-07-13T15:25:38Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-13T15:27:22Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-13T15:27:32Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-13T15:33:31Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-13T15:42:24Z"}
+{"event":"review","result":"passed","ts":"2026-07-13T15:42:24Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-13T15:45:44Z"}
