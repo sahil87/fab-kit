@@ -419,11 +419,11 @@ func TestParsePaneLines(t *testing.T) {
 		}
 	})
 
-	t.Run("trailing empty agent-state field is preserved (unset option)", func(t *testing.T) {
-		// tmux emits the sixth field even when @rk_agent_state is unset,
-		// leaving the line ending in a tab. Newline-only trimming must NOT
-		// eat that trailing empty field — the pane is still parsed with an
-		// empty agentState.
+	t.Run("legacy trailing empty agent-state field is preserved (six-field line, unset option)", func(t *testing.T) {
+		// A legacy six-field line (no #{window_id}) whose @rk_agent_state is
+		// unset ends in a tab. Newline-only trimming must NOT eat that trailing
+		// empty field — the pane is still parsed with an empty agentState and an
+		// empty windowID.
 		input := "%3\talpha\t/home/user/repo\trunK\t2\t\n"
 		panes, err := parsePaneLines(input)
 		if err != nil {
@@ -437,6 +437,82 @@ func TestParsePaneLines(t *testing.T) {
 		}
 		if panes[0].agentState != "" {
 			t.Errorf("agentState = %q, want empty for unset option", panes[0].agentState)
+		}
+		if panes[0].windowID != "" {
+			t.Errorf("windowID = %q, want empty for legacy six-field line", panes[0].windowID)
+		}
+	})
+
+	t.Run("seventh field carries the window id", func(t *testing.T) {
+		input := "%3\talpha\t/home/user/repo\trunK\t2\tidle:1751800000\t@5\n"
+		panes, err := parsePaneLines(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(panes) != 1 {
+			t.Fatalf("expected 1 pane, got %d", len(panes))
+		}
+		if panes[0].agentState != "idle:1751800000" {
+			t.Errorf("agentState = %q, want idle:1751800000", panes[0].agentState)
+		}
+		if panes[0].windowID != "@5" {
+			t.Errorf("windowID = %q, want @5", panes[0].windowID)
+		}
+	})
+
+	t.Run("seven-field line with empty agent-state middle field parses windowID", func(t *testing.T) {
+		// @rk_agent_state now a MIDDLE field: an unset option yields an empty
+		// field between window_index and window_id (\t\t). windowID must still
+		// parse from the trailing field.
+		input := "%3\talpha\t/home/user/repo\trunK\t3\t\t@5\n"
+		panes, err := parsePaneLines(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(panes) != 1 {
+			t.Fatalf("expected 1 pane, got %d", len(panes))
+		}
+		if panes[0].agentState != "" {
+			t.Errorf("agentState = %q, want empty for the empty middle field", panes[0].agentState)
+		}
+		if panes[0].windowID != "@5" {
+			t.Errorf("windowID = %q, want @5", panes[0].windowID)
+		}
+	})
+
+	t.Run("legacy six-field line parses with empty windowID", func(t *testing.T) {
+		// A six-field line (agent-state present, no window_id) is a legacy
+		// format: agentState is populated, windowID is empty.
+		input := "%3\talpha\t/home/user/repo\trunK\t2\tactive:1751800000\n"
+		panes, err := parsePaneLines(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(panes) != 1 {
+			t.Fatalf("expected 1 pane, got %d", len(panes))
+		}
+		if panes[0].agentState != "active:1751800000" {
+			t.Errorf("agentState = %q, want active:1751800000", panes[0].agentState)
+		}
+		if panes[0].windowID != "" {
+			t.Errorf("windowID = %q, want empty for legacy six-field line", panes[0].windowID)
+		}
+	})
+
+	t.Run("legacy five-field line parses with empty agentState and windowID", func(t *testing.T) {
+		input := "%3\talpha\t/home/user/repo\trunK\t2\n"
+		panes, err := parsePaneLines(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(panes) != 1 {
+			t.Fatalf("expected 1 pane, got %d", len(panes))
+		}
+		if panes[0].agentState != "" {
+			t.Errorf("agentState = %q, want empty for legacy five-field line", panes[0].agentState)
+		}
+		if panes[0].windowID != "" {
+			t.Errorf("windowID = %q, want empty for legacy five-field line", panes[0].windowID)
 		}
 	})
 }
@@ -1482,5 +1558,140 @@ func TestPrintPaneTableDisplayStateUnchanged(t *testing.T) {
 	}
 	if strings.Contains(withState.String(), "display_state") {
 		t.Errorf("table output should not contain a display_state column:\n%s", withState.String())
+	}
+}
+
+// TestPrintPaneJSONWindowID verifies the window_id JSON field: a pane with a
+// window ID surfaces it as a string, a pane with an empty windowID emits null,
+// and the field sits immediately after window_index in the output.
+func TestPrintPaneJSONWindowID(t *testing.T) {
+	t.Run("pane surfaces its window_id", func(t *testing.T) {
+		var buf bytes.Buffer
+		cmd := &cobra.Command{}
+		cmd.SetOut(&buf)
+
+		rows := []paneRow{
+			{session: "runK", windowIndex: 2, windowID: "@5", pane: "%3", tab: "alpha", worktree: "myrepo.worktrees/alpha/", change: "260306-r3m7-add-retry-logic", stage: "apply", agent: "active"},
+		}
+		if err := printPaneJSON(cmd, rows); err != nil {
+			t.Fatal(err)
+		}
+
+		var result []paneJSON
+		if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+			t.Fatalf("invalid JSON: %v\n%s", err, buf.String())
+		}
+		r := result[0]
+		if r.WindowIndex != 2 {
+			t.Errorf("window_index = %d, want 2 (unchanged)", r.WindowIndex)
+		}
+		if r.WindowID == nil || *r.WindowID != "@5" {
+			t.Errorf("window_id = %v, want @5", ptrStr(r.WindowID))
+		}
+	})
+
+	t.Run("empty windowID emits null", func(t *testing.T) {
+		var buf bytes.Buffer
+		cmd := &cobra.Command{}
+		cmd.SetOut(&buf)
+
+		rows := []paneRow{
+			{session: "dev", windowIndex: 0, windowID: "", pane: "%7", tab: "scratch", worktree: "downloads/", change: "—", stage: "—", agent: "—"},
+		}
+		if err := printPaneJSON(cmd, rows); err != nil {
+			t.Fatal(err)
+		}
+
+		var result []paneJSON
+		if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+			t.Fatalf("invalid JSON: %v", err)
+		}
+		if result[0].WindowID != nil {
+			t.Errorf("window_id should be null for empty windowID, got %v", ptrStr(result[0].WindowID))
+		}
+	})
+
+	t.Run("window_id key placed immediately after window_index", func(t *testing.T) {
+		var buf bytes.Buffer
+		cmd := &cobra.Command{}
+		cmd.SetOut(&buf)
+
+		rows := []paneRow{
+			{session: "s", windowIndex: 0, windowID: "@9", pane: "%1", tab: "t", worktree: "w/", change: "c", stage: "apply", agent: "active"},
+		}
+		if err := printPaneJSON(cmd, rows); err != nil {
+			t.Fatal(err)
+		}
+		output := buf.String()
+		wiIdx := strings.Index(output, "\"window_index\"")
+		widIdx := strings.Index(output, "\"window_id\"")
+		paneIdx := strings.Index(output, "\"pane\"")
+		if wiIdx < 0 || widIdx < 0 || paneIdx < 0 {
+			t.Fatalf("missing expected keys in output:\n%s", output)
+		}
+		if !(wiIdx < widIdx && widIdx < paneIdx) {
+			t.Errorf("key order wrong: window_index@%d window_id@%d pane@%d — want window_index < window_id < pane", wiIdx, widIdx, paneIdx)
+		}
+	})
+}
+
+// TestResolvePaneWindowID verifies resolvePane threads the raw window ID from
+// the paneEntry into the paneRow in BOTH the git and non-git branches — a
+// window ID exists regardless of git/fab context.
+func TestResolvePaneWindowID(t *testing.T) {
+	t.Run("git branch threads windowID", func(t *testing.T) {
+		wtRoot := initGitRepo(t)
+		p := paneEntry{id: "%1", tab: "alpha", cwd: wtRoot, session: "runK", index: 0, windowID: "@5"}
+		row, ok := resolvePane(p, wtRoot, wtRoot)
+		if !ok {
+			t.Fatal("resolvePane returned ok=false")
+		}
+		if row.windowID != "@5" {
+			t.Errorf("windowID = %q, want @5 (git branch)", row.windowID)
+		}
+	})
+
+	t.Run("non-git branch threads windowID", func(t *testing.T) {
+		nonGit := t.TempDir()
+		p := paneEntry{id: "%2", tab: "scratch", cwd: nonGit, session: "dev", index: 1, windowID: "@7"}
+		row, ok := resolvePane(p, "", "")
+		if !ok {
+			t.Fatal("resolvePane returned ok=false")
+		}
+		if row.windowID != "@7" {
+			t.Errorf("windowID = %q, want @7 (non-git branch)", row.windowID)
+		}
+	})
+}
+
+// TestPrintPaneTableWindowIDUnchanged asserts the table output is unaffected by
+// the JSON-only window_id field: rendering identical rows with windowID set vs
+// cleared yields byte-identical tables, and no window_id column is added.
+func TestPrintPaneTableWindowIDUnchanged(t *testing.T) {
+	rows := []paneRow{
+		{session: "runK", windowIndex: 2, windowID: "@5", pane: "%3", tab: "alpha", worktree: "myrepo.worktrees/alpha/", change: "260306-r3m7-add-retry-logic", stage: "apply", agent: "active"},
+		{session: "dev", windowIndex: 1, windowID: "@8", pane: "%5", tab: "scratch", worktree: "downloads/", change: "—", stage: "—", agent: "—"},
+	}
+
+	var withID bytes.Buffer
+	cmdWith := &cobra.Command{}
+	cmdWith.SetOut(&withID)
+	printPaneTable(cmdWith, rows, true)
+
+	rowsNoID := make([]paneRow, len(rows))
+	copy(rowsNoID, rows)
+	for i := range rowsNoID {
+		rowsNoID[i].windowID = ""
+	}
+	var withoutID bytes.Buffer
+	cmdWithout := &cobra.Command{}
+	cmdWithout.SetOut(&withoutID)
+	printPaneTable(cmdWithout, rowsNoID, true)
+
+	if withID.String() != withoutID.String() {
+		t.Errorf("table output differs when windowID is set vs cleared:\nwith:\n%s\nwithout:\n%s", withID.String(), withoutID.String())
+	}
+	if strings.Contains(withID.String(), "window_id") || strings.Contains(withID.String(), "WinID") {
+		t.Errorf("table output should not contain a window_id column:\n%s", withID.String())
 	}
 }

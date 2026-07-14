@@ -31,7 +31,8 @@ func paneMapCmd() *cobra.Command {
 }
 
 // paneEntry holds a single tmux pane's ID, tab (window) name, current working directory,
-// session name, window index, and the raw @rk_agent_state pane option value.
+// session name, window index, the raw @rk_agent_state pane option value, and the
+// tmux window ID.
 type paneEntry struct {
 	id         string
 	tab        string
@@ -39,12 +40,14 @@ type paneEntry struct {
 	session    string
 	index      int
 	agentState string // raw @rk_agent_state option ("<state>:<epoch>"), "" when unset
+	windowID   string // raw tmux #{window_id} (e.g. "@5"); "" when absent (legacy line)
 }
 
 // paneRow holds the resolved data for a single output row.
 type paneRow struct {
 	session      string
 	windowIndex  int
+	windowID     string // raw tmux #{window_id} (e.g. "@5"); "" when absent; the JSON window_id source
 	pane         string
 	tab          string
 	worktree     string
@@ -162,13 +165,17 @@ const (
 	sessionAll                        // all sessions
 )
 
-// tmuxPaneFormat is the format string passed to tmux list-panes -F. The
-// trailing #{@rk_agent_state} carries the agent-state pane option so the
-// Agent column is resolved from the SAME list-panes call — zero extra
-// subprocesses (and the tmux_server disambiguation problem evaporates, since
-// a pane option lives on exactly one server's pane). tmux emits an empty
-// field when the option is unset.
-const tmuxPaneFormat = "#{pane_id}\t#{window_name}\t#{pane_current_path}\t#{session_name}\t#{window_index}\t#{@rk_agent_state}"
+// tmuxPaneFormat is the format string passed to tmux list-panes -F. It carries
+// seven tab-separated fields. #{@rk_agent_state} (field 6) carries the
+// agent-state pane option so the Agent column is resolved from the SAME
+// list-panes call — zero extra subprocesses (and the tmux_server disambiguation
+// problem evaporates, since a pane option lives on exactly one server's pane);
+// tmux emits an empty field for it when the option is unset, so it is a
+// possibly-empty MIDDLE field. #{window_id} (field 7) is the tmux server-assigned
+// window identifier (@N), stable for a window's lifetime and never empty — it is
+// deliberately the TRAILING field so the possibly-empty agent-state field can
+// never leave the line ending in a tab.
+const tmuxPaneFormat = "#{pane_id}\t#{window_name}\t#{pane_current_path}\t#{session_name}\t#{window_index}\t#{@rk_agent_state}\t#{window_id}"
 
 // discoverPanes runs `tmux list-panes` with session targeting and parses the output.
 // Uses tab as the field delimiter so that window names containing spaces are handled correctly.
@@ -227,12 +234,15 @@ func discoverAllSessions(server string) ([]paneEntry, error) {
 }
 
 // parsePaneLines parses tmux list-panes output into paneEntry slices. The
-// format string carries six tab-separated fields; the trailing
-// #{@rk_agent_state} field is empty when the option is unset. Trimming is
-// per-line and newline-only (never TrimSpace) so a trailing empty agent-state
-// field — which leaves the line ending in a tab — is preserved rather than
-// eaten. Lines with fewer than five fields are skipped; a five-field line
-// (no trailing agent-state field at all) is accepted with an empty state.
+// format string carries seven tab-separated fields. #{@rk_agent_state}
+// (field 6) is a possibly-empty MIDDLE field — empty when the option is unset;
+// #{window_id} (field 7) is the never-empty TRAILING field. Trimming is
+// per-line and newline-only (never TrimSpace), which stays load-bearing for
+// legacy SIX-field lines whose empty agent-state field left the line ending in
+// a tab. Lines are parsed with graded tolerance: seven fields yield both
+// agentState and windowID; a legacy six-field line yields agentState with an
+// empty windowID; a legacy five-field line yields neither; lines with fewer
+// than five fields are skipped.
 func parsePaneLines(output string) ([]paneEntry, error) {
 	var panes []paneEntry
 	for _, line := range strings.Split(output, "\n") {
@@ -240,14 +250,18 @@ func parsePaneLines(output string) ([]paneEntry, error) {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		parts := strings.SplitN(line, "\t", 6)
+		parts := strings.SplitN(line, "\t", 7)
 		if len(parts) < 5 {
 			continue
 		}
 		idx, _ := strconv.Atoi(parts[4])
 		agentState := ""
-		if len(parts) == 6 {
+		if len(parts) >= 6 {
 			agentState = strings.TrimSpace(parts[5])
+		}
+		windowID := ""
+		if len(parts) == 7 {
+			windowID = parts[6]
 		}
 		panes = append(panes, paneEntry{
 			id:         parts[0],
@@ -256,6 +270,7 @@ func parsePaneLines(output string) ([]paneEntry, error) {
 			session:    parts[3],
 			index:      idx,
 			agentState: agentState,
+			windowID:   windowID,
 		})
 	}
 	return panes, nil
@@ -316,6 +331,7 @@ func resolvePane(p paneEntry, wtRoot, mainRoot string) (paneRow, bool) {
 		return paneRow{
 			session:      p.session,
 			windowIndex:  p.index,
+			windowID:     p.windowID,
 			pane:         p.id,
 			tab:          p.tab,
 			worktree:     filepath.Base(p.cwd) + "/",
@@ -371,6 +387,7 @@ func resolvePane(p paneEntry, wtRoot, mainRoot string) (paneRow, bool) {
 	return paneRow{
 		session:      p.session,
 		windowIndex:  p.index,
+		windowID:     p.windowID,
 		pane:         p.id,
 		tab:          p.tab,
 		worktree:     wtDisplay,
@@ -404,6 +421,7 @@ func agentColumn(rawOption string) string {
 type paneJSON struct {
 	Session           string  `json:"session"`
 	WindowIndex       int     `json:"window_index"`
+	WindowID          *string `json:"window_id"`
 	Pane              string  `json:"pane"`
 	Tab               string  `json:"tab"`
 	Worktree          string  `json:"worktree"`
@@ -482,6 +500,7 @@ func printPaneJSON(cmd *cobra.Command, rows []paneRow) error {
 		out[i] = paneJSON{
 			Session:           r.session,
 			WindowIndex:       r.windowIndex,
+			WindowID:          toNullable(r.windowID),
 			Pane:              r.pane,
 			Tab:               r.tab,
 			Worktree:          r.worktree,
