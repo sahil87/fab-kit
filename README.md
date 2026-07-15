@@ -12,6 +12,18 @@ AI agents write code fast. The bottleneck is now your clarity: did you define th
 
 **Contents:** [The 6 Stages](#the-6-stages) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start) · [Why Fab Kit](#why-fab-kit) · [The 5 Cs](#the-5-cs-of-quality) · [Commands](#command-quick-reference)
 
+## Install
+
+```sh
+curl -fsSL https://shll.ai/install | sh -s -- fab-kit
+```
+
+Installs fab-kit (plus the shll meta-CLI) via Homebrew, handling tap trust automatically. To install the entire sahil87 toolkit instead:
+
+```sh
+curl -fsSL https://shll.ai/install | sh
+```
+
 ## The 6 Stages
 
 Every change (a self-contained feature or fix with its own folder) moves through six stages:
@@ -77,17 +89,11 @@ fab/changes/260101-abcd-add-spinner/
 
 ### Using Fab Kit
 
-Install with [Homebrew](https://brew.sh/) (macOS and Linux):
+See [Install](#install) above. You'll also need a few utilities fab depends on:
 
 ```bash
-brew tap sahil87/tap
-brew install fab-kit
-
-# Other utilities fab depends on
 brew install yq jq gh direnv
 ```
-
-This installs the `fab` CLI (router), `fab-kit` (workspace lifecycle), and standalone tools `wt` (worktree manager) and `idea` (backlog manager).
 
 * After installing `gh`, authenticate with `gh auth login`.
 * After installing `direnv`, add the hook [to your shell](https://direnv.net/docs/hook.html).
