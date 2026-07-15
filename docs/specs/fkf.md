@@ -95,10 +95,35 @@ domain index reads each file's row Description from this field, and the always-l
 routes on it. It is the one hand-curated frontmatter field — authored by every memory writer
 (hydrate, `/docs-hydrate-memory`, `docs-reorg-memory`) and kept accurate on every edit.
 
+**Length: a one-line index-row summary, capped at 500 characters.** `description:` is a routing
+signal, not a summary of record. It MUST be a single-line frontmatter scalar and SHOULD stay at or
+below **500 characters** — the unit is **characters (runes)**, measured on the value *after
+quote-stripping*. Detail (requirements, design decisions, history, prose) belongs in the file BODY
+(`## Overview`, `## Requirements`, `## Design Decisions`), never in the description. `fab memory-index`
+emits a **non-fatal advisory** stderr warning for a description over the cap, naming the file and the
+observed length; the cap is **advisory-only** — an over-length description **never fails**
+`fab memory-index --check` (the deliberate asymmetry with the *blocking* malformed-frontmatter check
+below: corruption blocks, over-length nags). The rationale for a cap: a giant single-line description
+bloats the hot, same-line index-row merge surface and degrades the routing signal the description
+exists to provide.
+
 Co-locating the description with the file (rather than in the index) is deliberate — the
 **Starlight lesson**: editing a description never touches the hot, churn-prone index row. It
 cannot be auto-derived from the H1/Overview without loss (Overview prose contains literal `|`
 pipes that break index tables, and an extracted first sentence degrades the routing signal).
+
+> **Malformed-frontmatter detection (blocking).** Because the index reads the `description:`
+> frontmatter verbatim, a *corrupted* frontmatter block silently propagates garbage into the
+> generated row (the drift check alone cannot catch it — committed garbage is byte-identical to
+> regenerated garbage). `fab memory-index` detects two malformed signatures per file — (a) an
+> **unclosed frontmatter block** (opens `---` with no subsequent standalone `---`) and (b) a
+> `description:` value that **starts with a quote but fails quote-stripping** (an unterminated
+> quote, e.g. a closing fence glued onto the value as `"…text…"---`) — and makes
+> `fab memory-index --check` **fail (exit ≥ 1) independent of index drift**, enumerating the
+> offending file(s). This is a **blocking** signal distinct from the advisory length warning above
+> and from the destructive-loss tier (§6.4): it is fixed by repairing the file's frontmatter, not by
+> a reorg, so it is **not** a `--check` tier-2 category and does not fire the refuse-before-regen
+> guards. Validation is stderr/exit-code only — it never changes the rendered index bytes.
 
 ### 3.3 Body (conventional headings, recommended — not mandated)
 
@@ -223,6 +248,45 @@ and on domain/sub-domain index files. Everything else in an index is derived.
 > command fills the generated body and round-trips the description. This is the Index Ownership
 > model — it avoids the contradiction of one step hand-editing an index the next step both
 > generates and forbids editing.
+
+### Merge policy: regenerate, never hand-merge (normative)
+
+Because an `index.md` (and a `log.md`, §6) is a pure function of its folder's contents, two branches
+that both touch a folder produce **conflicting edits to the same generated rows** — and the topic
+file that drove the change conflicts on the *same line* too. On any merge conflict in a generated
+`docs/memory/**/index.md` or `log.md`, agents **MUST NOT hand-merge the generated file.** Hand-merging
+a generated file is the failure mode this rule exists to prevent — it is how a corrupted row gets
+carried from one branch onto another. The procedure is mechanical:
+
+1. Resolve the conflicts in the **topic files** only (and any `.status.yaml` / `log.seed.md` seed
+   inputs the generation reads) — never in the `index.md` / `log.md` itself.
+2. **Re-run `fab memory-index`.**
+3. Take its output **wholesale** as the resolution (`git add` the regenerated index/log files).
+
+`fab memory-index --check` at review-pr backstops staleness: a hand-merged or forgotten-regen index
+surfaces as drift there. This is the operational counterpart to the byte-stability guarantee above —
+byte-stability makes the regenerate-wholesale resolution *always correct*, so there is never a reason
+to reconcile a generated file by hand.
+
+> **Optional `.gitattributes` merge-driver (non-normative aside — documentation only).** A project MAY
+> reduce the friction of the above by registering a custom merge driver that resolves generated
+> index/log conflicts by taking either side and deferring to the next `fab memory-index` regen. This
+> is **not auto-installed** by fab-kit (no tooling change, no migration) — it is a convenience a
+> project opts into by hand. Example (in the repo's `.gitattributes` plus a one-time `git config`):
+>
+> ```gitattributes
+> docs/memory/**/index.md merge=fab-regen
+> docs/memory/**/log.md   merge=fab-regen
+> ```
+> ```sh
+> # register the driver once per clone (or in a repo setup script):
+> git config merge.fab-regen.name "fab memory-index regenerates this"
+> git config merge.fab-regen.driver "true"   # accept either side; regen fixes it
+> ```
+>
+> The driver's `true` accepts one side without a textual conflict; the mandatory `fab memory-index`
+> re-run (step 2 above) then produces the correct bytes regardless of which side was taken. The
+> merge-driver only *suppresses the conflict marker* — it does **not** replace the regenerate step.
 
 **`fkf_version` on the root index** — see §8.
 

@@ -158,3 +158,88 @@ func TestHasFrontmatter_MissingFile(t *testing.T) {
 		t.Error("HasFrontmatter() = true, want false")
 	}
 }
+
+// hasKind reports whether findings contain one with the given kind.
+func hasKind(findings []Finding, kind string) bool {
+	for _, f := range findings {
+		if f.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
+// TestValidate_GluedFence pins the loom corruption verbatim: the description
+// line has the closing fence glued onto it (`description: "text"---`) with no
+// standalone closing `---` and no trailing newline. Both signatures must fire:
+// the fence is unclosed AND the description value fails quote-stripping. And
+// Field must return exactly what it returns today (unchanged extraction).
+func TestValidate_GluedFence(t *testing.T) {
+	// No trailing newline — the loom file lost it when the fence was glued on.
+	path := writeTestFile(t, "---\ndescription: \"a curated one-liner\"---")
+
+	findings := Validate(path)
+	if !hasKind(findings, KindUnclosedFence) {
+		t.Errorf("glued-fence must report an unclosed fence, got %+v", findings)
+	}
+	if !hasKind(findings, KindQuoteStripFailure) {
+		t.Errorf("glued-fence must report a quote-strip failure, got %+v", findings)
+	}
+	// Field's extraction is unchanged: the raw value (leading quote + trailing
+	// `"---`) is returned verbatim exactly as it renders into the index today.
+	if got := Field(path, "description"); got != "\"a curated one-liner\"---" {
+		t.Errorf("Field extraction must be unchanged, got %q", got)
+	}
+}
+
+// TestValidate_UnclosedFence: opens with `---` on line 1 but never closes.
+func TestValidate_UnclosedFence(t *testing.T) {
+	path := writeTestFile(t, "---\ndescription: \"clean value\"\nname: x\n# Body starts, no closing fence\n")
+
+	findings := Validate(path)
+	if !hasKind(findings, KindUnclosedFence) {
+		t.Errorf("unclosed fence must be reported, got %+v", findings)
+	}
+	// The description here is well-formed (matching quotes), so no quote-strip
+	// failure even though the fence is unclosed.
+	if hasKind(findings, KindQuoteStripFailure) {
+		t.Errorf("well-formed description must not report a quote-strip failure, got %+v", findings)
+	}
+}
+
+// TestValidate_CleanValues: well-formed frontmatter (quoted, unquoted, single-
+// quoted, empty) produces no findings — no false positives.
+func TestValidate_CleanValues(t *testing.T) {
+	cases := map[string]string{
+		"double-quoted": "---\ndescription: \"Clean summary\"\n---\n# Body",
+		"unquoted":      "---\ndescription: Clean summary\n---\n# Body",
+		"single-quoted": "---\ndescription: 'Clean summary'\n---\n# Body",
+		"empty":         "---\ndescription:\n---\n# Body",
+		"missing":       "---\nname: x\n---\n# Body",
+	}
+	for name, content := range cases {
+		t.Run(name, func(t *testing.T) {
+			path := writeTestFile(t, content)
+			if findings := Validate(path); len(findings) != 0 {
+				t.Errorf("clean %s frontmatter must produce no findings, got %+v", name, findings)
+			}
+		})
+	}
+}
+
+// TestValidate_NoFrontmatter: a file that does not open with `---` is not a
+// malformed-frontmatter file — it is simply a non-frontmatter file (Field
+// returns "" for it), so Validate reports nothing.
+func TestValidate_NoFrontmatter(t *testing.T) {
+	path := writeTestFile(t, "# Just a heading\nSome content\n")
+	if findings := Validate(path); len(findings) != 0 {
+		t.Errorf("a non-frontmatter file must produce no findings, got %+v", findings)
+	}
+}
+
+// TestValidate_MissingFile: an unreadable/absent file produces no findings.
+func TestValidate_MissingFile(t *testing.T) {
+	if findings := Validate("/nonexistent/file.md"); len(findings) != 0 {
+		t.Errorf("missing file must produce no findings, got %+v", findings)
+	}
+}

@@ -97,10 +97,10 @@ For each source: identify **domains** (logical topic areas) and **topics** withi
 For each topic:
 1. Create `docs/memory/{domain}/` if needed
 2. Create `docs/memory/{domain}/index.md` if needed — a stub carrying only the `description:` frontmatter one-liner for the domain, created before Step 4 runs (`fab memory-index` reads it into the root index row — see Index Ownership). When placing a topic into a sub-domain, likewise create the `docs/memory/{domain}/{sub-domain}/index.md` stub if needed
-3. If target file doesn't exist → create it from the canonical memory-file shape — **read `$(fab kit-path)/templates/memory.md`** (the single source of truth, the same on-demand template read used for `$(fab kit-path)/templates/intake.md`) and fill its leading FKF frontmatter (`type: memory` constant + a `description:` one-liner, per `$(fab kit-path)/reference/fkf.md` §3.1–§3.2) and its Overview / Requirements / Design Decisions skeleton. **No `## Changelog` section** — the template carries none and memory files no longer carry one (FKF §3.3); change history lives in the per-folder generated `log.md` (§6).
-4. If target file exists → **merge** new content, preserve existing/manually-added content; keep its `description:` frontmatter accurate, and **stamp the `type: memory` constant when the existing/legacy file is missing it** so the merge leaves an FKF-conforming file (FKF §2/§3.1 require `type: memory` on every memory file)
+3. If target file doesn't exist → create it from the canonical memory-file shape — **read `$(fab kit-path)/templates/memory.md`** (the single source of truth, the same on-demand template read used for `$(fab kit-path)/templates/intake.md`) and fill its leading FKF frontmatter (`type: memory` constant + a `description:` one-liner, per `$(fab kit-path)/reference/fkf.md` §3.1–§3.2) and its Overview / Requirements / Design Decisions skeleton. The `description:` is a curated **one-line index-row summary capped at 500 characters** (FKF §3.2) — detail belongs in the body, never in the description (`fab memory-index` warns over the cap). **No `## Changelog` section** — the template carries none and memory files no longer carry one (FKF §3.3); change history lives in the per-folder generated `log.md` (§6).
+4. If target file exists → **merge** new content, preserve existing/manually-added content; keep its `description:` frontmatter accurate **and within the 500-char one-liner cap** (FKF §3.2), and **stamp the `type: memory` constant when the existing/legacy file is missing it** so the merge leaves an FKF-conforming file (FKF §2/§3.1 require `type: memory` on every memory file)
 
-**Author the FKF frontmatter** on every file you create or whose summary changes — the `type: memory` constant (§3.1) plus the `description:` one-liner (§3.2) that is the source for the generated index row (Step 4). Do NOT hand-write index rows. **Bundle-relative cross-links**: any memory↔memory link you write MUST use the bundle-relative `/...` form (resolved from `docs/memory/`, FKF §7); links *out* of the bundle (source, specs, URLs) stay repo-relative/absolute-URL.
+**Author the FKF frontmatter** on every file you create or whose summary changes — the `type: memory` constant (§3.1) plus the `description:` one-liner (§3.2) that is the source for the generated index row (Step 4). The `description:` is capped at **500 characters** (FKF §3.2) — a routing signal, not a summary; detail belongs in the body. Do NOT hand-write index rows. **Bundle-relative cross-links**: any memory↔memory link you write MUST use the bundle-relative `/...` form (resolved from `docs/memory/`, FKF §7); links *out* of the bundle (source, specs, URLs) stay repo-relative/absolute-URL.
 
 **Shape bounds (SHOULD guidance)** when placing topics into domains:
 - Aim for **~5–12 topic files per folder**. Past ~12, `fab memory-index` warns — consider a sub-domain.
@@ -110,7 +110,7 @@ For each topic:
 
 ### Step 4: Regenerate Indexes (`fab memory-index`)
 
-Run `fab memory-index` once to regenerate the root (domains-only), every domain index, and every sub-domain index from folder contents + `description:` frontmatter (the single writer — see Index Ownership; never hand-edit rows). The index carries no dates — it is a pure function of content. Any non-fatal shape warnings it prints to stderr are advisory (over-wide / over-deep folders).
+Run `fab memory-index` once to regenerate the root (domains-only), every domain index, and every sub-domain index from folder contents + `description:` frontmatter (the single writer — see Index Ownership; never hand-edit rows). On any merge conflict in a generated `docs/memory/**/index.md` or `log.md`, do **not** hand-merge: resolve the topic files, re-run `fab memory-index`, take its output wholesale (FKF §5). The index carries no dates — it is a pure function of content. Any non-fatal shape warnings it prints to stderr are advisory (over-wide / over-deep folders, and an over-length `description:` over the 500-char cap).
 
 ---
 
@@ -153,7 +153,7 @@ Cross-reference against existing memory — exclude already-covered areas.
 
 ### Step 3: Memory File Generation
 
-For each selected gap: read **all source files** in scope, then synthesize into **one memory file per gap** from the canonical memory-file shape — **read `$(fab kit-path)/templates/memory.md`** and fill its full skeleton, per ingest Step 3 (FKF frontmatter pair `type: memory` + `description:`; **no `## Changelog`**; bundle-relative `/...` cross-links). Fill the scaffold from the analyzed code: Overview, Requirements as RFC 2119 statements derived from code not invented, Design Decisions where inferable; strip the template's guidance comments.
+For each selected gap: read **all source files** in scope, then synthesize into **one memory file per gap** from the canonical memory-file shape — **read `$(fab kit-path)/templates/memory.md`** and fill its full skeleton, per ingest Step 3 (FKF frontmatter pair `type: memory` + a curated `description:` one-liner **capped at 500 characters** per FKF §3.2 — detail goes in the body, not the description; **no `## Changelog`**; bundle-relative `/...` cross-links). Fill the scaffold from the analyzed code: Overview, Requirements as RFC 2119 statements derived from code not invented, Design Decisions where inferable; strip the template's guidance comments.
 
 Mark ambiguous inferences with `[INFERRED]` inline near the relevant requirement.
 
@@ -161,7 +161,7 @@ Mark ambiguous inferences with `[INFERRED]` inline near the relevant requirement
 
 ### Step 4: Regenerate Indexes
 
-Same as ingest mode Step 4 — run `fab memory-index` to regenerate the root (domains-only), domain, and sub-domain indexes from folder contents + frontmatter. Do not hand-edit index rows.
+Same as ingest mode Step 4 — run `fab memory-index` to regenerate the root (domains-only), domain, and sub-domain indexes from folder contents + frontmatter. Do not hand-edit index rows (and never hand-merge a generated index/log conflict — resolve topic files, re-run, take wholesale, FKF §5).
 
 ---
 
@@ -179,7 +179,7 @@ Backfill **walks `docs/memory/` itself** to find every topic file (a non-`index.
 
 For each discovered topic file missing `description:`:
 
-1. Read the file's **own content** — Overview, first section, or `# H1` — and synthesize a concise one-line summary.
+1. Read the file's **own content** — Overview, first section, or `# H1` — and synthesize a concise one-line summary. Keep it a **one-liner capped at 500 characters** (FKF §3.2) — a routing signal, not a summary of the file.
 2. **Prefer a curated index row** where one maps to this file. If an existing hand-curated index file (e.g., a pre-fab-kit `index.md` whose rows line up file-by-file with the topic files) has a row whose description text describes this file, use that curated text as the source — it is higher quality than re-synthesis.
 3. Write the FKF frontmatter (`type: memory` + synthesized `description:`, per ingest Step 3) as the **leading frontmatter block** — but take the **frontmatter shape only** from `$(fab kit-path)/templates/memory.md`, **never its body skeleton.** Backfill is a pure-frontmatter operation: **preserve the existing body byte-for-byte** — only prepend/edit the leading frontmatter, never the content below, never impose the template's Overview/Requirements/Design Decisions skeleton. In particular it does **NOT** strip an existing `## Changelog` section (removing the 20 existing per-file changelogs is a separate change — the FKF migration trajectory in the dev-repo design doc `docs/specs/fkf.md` §10 item 2).
 4. **Skip files that already have a `description:`** — backfill never overwrites an existing one (and stamps `type: memory` only when it is adding the frontmatter for the first time). This makes a second pass a no-op (idempotency — a fab-kit design principle).

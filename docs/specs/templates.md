@@ -479,15 +479,25 @@ warnings and the `docs-reorg-memory` Shape Report):
   exists. Never pre-build hierarchy; let clusters emerge.
 - **Reserved domains `_shared/` (cross-cutting) and `_unsorted/` (staging) are exempt** from
   the width warning.
+- **`description:` ≤ 500 characters** (soft cap, FKF §3.2) — over this, `fab memory-index` warns
+  (advisory only; it never fails `--check`).
 
 > Acting on these bounds (actually splitting/merging/flattening) is the `docs-reorg-memory`
 > skill's job (propose-then-apply); `fab memory-index` only *detects* and warns.
+>
+> **Blocking (distinct from the advisory bounds above):** `fab memory-index` also detects
+> **malformed frontmatter** (an unclosed `---` block, or a `description:` value that fails
+> quote-stripping — the glued-fence corruption) and makes `--check` **fail independent of index
+> drift** (a corrupted row is byte-identical to its regeneration, so the drift check alone can't
+> catch it). This is a source-file corruption fixed by repairing the frontmatter — not a tier-2
+> destructive-loss category, so it does not fire the refuse-before-regen guards (FKF §3.2 / §5).
 
 ### Individual File (`docs/memory/{domain}/{name}.md`)
 
 Memory files carry a leading `description:` frontmatter field — a curated one-line summary
-that `fab memory-index` reads into the domain-index row. It is co-located with the file
-(the Starlight lesson) so editing a description never touches the hot index row.
+(**capped at 500 characters**, FKF §3.2 — a routing signal, not a summary of record; detail
+belongs in the body) that `fab memory-index` reads into the domain-index row. It is co-located
+with the file (the Starlight lesson) so editing a description never touches the hot index row.
 
 ```markdown
 ---

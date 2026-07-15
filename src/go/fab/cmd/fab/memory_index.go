@@ -42,17 +42,30 @@ func memoryIndexCmd() *cobra.Command {
 			"domains _shared/ and _unsorted/ are width-exempt). --rebuild is the " +
 			"destructive escape hatch: it discards the frozen state and re-projects " +
 			"every log.md from current git (the pre-freeze behavior, opt-in) — for a " +
-			"corrupted log or a deliberate re-baseline. With --check, writes nothing " +
-			"and classifies drift by severity in the exit code: 0 = clean, 1 = benign " +
-			"drift (regen changes content but destroys nothing — e.g. an improved " +
-			"`description:`, or any log.md / FKF frontmatter drift; for log.md a " +
-			"benign FAIL means the committed " +
-			"log is missing a projected attributable (file-base, change-id) entry, or a " +
-			"frozen line was hand-edited render-unstably — a committed log that is a " +
-			"valid SUPERSET of the freeze-on-write merge PASSES), 2 = destructive loss " +
-			"(regen would wipe a curated description, drop a tombstone row, or flatten a " +
-			"custom grouping — index-only categories). --json emits the loss report " +
-			"machine-readably (with --check).",
+			"corrupted log or a deliberate re-baseline. Also emits non-fatal stderr " +
+			"warnings for malformed frontmatter (an unclosed `---` block or a " +
+			"`description:` value that fails quote-stripping — e.g. a glued closing " +
+			"fence) and for an over-long `description:` (soft cap 500 characters — a " +
+			"curated one-liner is intended; detail belongs in the file body). With " +
+			"--check, writes nothing and classifies index drift by severity in the exit " +
+			"code: 0 = clean, 1 = benign drift (regen changes content but destroys " +
+			"nothing — e.g. an improved `description:`, or any log.md / FKF frontmatter " +
+			"drift; for log.md a benign FAIL means the committed log is missing a " +
+			"projected attributable (file-base, change-id) entry, or a frozen line was " +
+			"hand-edited render-unstably — a committed log that is a valid SUPERSET of " +
+			"the freeze-on-write merge PASSES), 2 = destructive loss (regen would wipe a " +
+			"curated description, drop a tombstone row, or flatten a custom grouping — " +
+			"index-only categories). MALFORMED frontmatter is a separate blocking signal: " +
+			"it FLOORS the --check exit at 1 (enumerating the offending file(s) with a " +
+			"fix-the-frontmatter pointer) even when index drift is clean (tier 0) — the " +
+			"corruption must fail --check independent of drift, since the committed " +
+			"garbage row is byte-identical to what regeneration produces from the " +
+			"corrupted source. It is NOT a tier-2 destructive-loss category, so the " +
+			"hydrate/reorg refuse-before-regen guards (which fire only on exit 2) are " +
+			"unaffected. The over-length `description:` warning is advisory only — it " +
+			"never fails --check (corruption blocks, over-length nags). --json emits the " +
+			"loss report machine-readably (with --check), including an additive " +
+			"`malformed` array alongside the unchanged `tier`/`drift`/`losses` keys.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fabRoot, err := resolve.FabRoot()
@@ -142,6 +155,19 @@ func memoryIndexCmd() *cobra.Command {
 					return statErr == nil
 				}
 				report := memoryindex.Classify(checkTargets, memExists)
+				// Malformed frontmatter is a SOURCE-file corruption, orthogonal
+				// to the index-drift tier. Feed the gathered malformed warnings
+				// into the report so `--check` blocks on them independent of
+				// drift (the loom case is byte-clean drift but corrupt source).
+				for _, w := range warnings {
+					if w.IsMalformed() {
+						report.Malformed = append(report.Malformed, memoryindex.MalformedFinding{
+							Kind:   w.Kind,
+							Path:   w.Path,
+							Detail: w.Detail,
+						})
+					}
+				}
 				return emitCheckReport(cmd, report, jsonOut)
 			}
 
@@ -164,8 +190,8 @@ func memoryIndexCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVar(&check, "check", false, "Write nothing; encode drift severity in the exit code (0 clean / 1 benign drift / 2 destructive loss)")
-	cmd.Flags().BoolVar(&jsonOut, "json", false, "With --check, emit the loss report as JSON on stdout (suppresses human-readable text)")
+	cmd.Flags().BoolVar(&check, "check", false, "Write nothing; encode index-drift severity in the exit code (0 clean / 1 benign drift / 2 destructive loss). Malformed frontmatter floors the exit at 1 independent of drift")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "With --check, emit the loss report as JSON on stdout (suppresses human-readable text); includes an additive `malformed` array")
 	cmd.Flags().BoolVar(&rebuild, "rebuild", false, "DESTRUCTIVE: discard the frozen log.md state and re-project every log.md from current git (the pre-freeze behavior, opt-in). Ignored with --check (which never writes)")
 	return cmd
 }
@@ -180,14 +206,28 @@ const remediationPointer = "→ run /docs-reorg-memory to remediate (it relocate
 	"to _shared/removed-domains.md and backfills description: frontmatter via " +
 	"/docs-hydrate-memory) before regenerating."
 
-// emitCheckReport renders the --check report and maps the severity tier onto
-// the process exit code. Tier 0 returns nil (cobra → exit 0); tier 1 returns a
-// drift error (cobra → exit 1); tier 2 prints the loss enumeration + pointer
-// and os.Exit(2) — main() exits 1 on any returned error, so a non-1 code must
-// be set in-handler (the established pane_capture / pane_send pattern for
-// genuinely-needed non-1 codes). With --json the report is emitted as a single
-// object on stdout and human-readable text is suppressed; the exit dispatch is
-// identical so machine consumers branch on the code, not the text.
+// malformedRemediation is the fix-the-file pointer appended to the malformed-
+// frontmatter enumeration. Distinct from remediationPointer (the destructive-
+// loss /docs-reorg-memory pointer): malformed frontmatter is a SOURCE-file
+// corruption, not an index-target loss, and it is fixed by repairing the file's
+// frontmatter (restoring the closing `---` / matching quotes), not by a reorg.
+const malformedRemediation = "→ fix the frontmatter in the file(s) above " +
+	"(restore the closing `---` and matching quotes on `description:`) before regenerating."
+
+// emitCheckReport renders the --check report and maps its findings onto the
+// process exit code. INDEX-DRIFT tiers: tier 0 → exit 0; tier 1 → exit 1 (drift
+// error); tier 2 → exit 2 (loss enumeration + /docs-reorg-memory pointer).
+// MALFORMED frontmatter (source corruption, report.Malformed) is a SEPARATE
+// blocking signal orthogonal to the drift tier: any malformed finding FLOORS the
+// exit at 1 even when the tier is 0 (the loom case: byte-clean drift, corrupt
+// source), enumerating the offending file(s) to stderr with a fix-the-file
+// pointer. Exit precedence: tier 2 (exit 2) still wins over a malformed floor,
+// but the malformed files are enumerated in either case so they are never
+// silently swallowed by a co-occurring loss. main() exits 1 on any returned
+// error, so a non-1 code must be set in-handler via os.Exit (the established
+// pane_capture / pane_send pattern). With --json the report is emitted as a
+// single object on stdout and human-readable text is suppressed; the exit
+// dispatch is identical so machine consumers branch on the code, not the text.
 func emitCheckReport(cmd *cobra.Command, report memoryindex.LossReport, jsonOut bool) error {
 	if jsonOut {
 		enc := json.NewEncoder(cmd.OutOrStdout())
@@ -195,6 +235,20 @@ func emitCheckReport(cmd *cobra.Command, report memoryindex.LossReport, jsonOut 
 		if err := enc.Encode(report); err != nil {
 			return err
 		}
+	}
+
+	hasMalformed := len(report.Malformed) > 0
+	if hasMalformed && !jsonOut {
+		err := cmd.ErrOrStderr()
+		fmt.Fprintln(err, "malformed frontmatter — regeneration would propagate corrupted values into the index:")
+		for _, m := range report.Malformed {
+			fmt.Fprintf(err, "  [%s] %s", m.Kind, m.Path)
+			if m.Detail != "" {
+				fmt.Fprintf(err, ": %s", m.Detail)
+			}
+			fmt.Fprintln(err)
+		}
+		fmt.Fprintln(err, malformedRemediation)
 	}
 
 	switch report.Tier {
@@ -208,7 +262,7 @@ func emitCheckReport(cmd *cobra.Command, report memoryindex.LossReport, jsonOut 
 			fmt.Fprintln(err, remediationPointer)
 		}
 		os.Exit(2)
-		return nil // unreachable
+		return nil // unreachable — tier 2 wins over the malformed floor
 	case memoryindex.TierBenignDrift:
 		if jsonOut {
 			// JSON already emitted to stdout above. Exit 1 directly (mirroring the
@@ -220,6 +274,16 @@ func emitCheckReport(cmd *cobra.Command, report memoryindex.LossReport, jsonOut 
 		}
 		return fmt.Errorf("memory index out of date — run `fab memory-index`")
 	default:
+		// Tier 0 (no index drift). If frontmatter is malformed, block anyway —
+		// the whole point is that corruption must FAIL --check independent of
+		// drift (the loom case: committed garbage == regenerated garbage, tier 0).
+		if hasMalformed {
+			if jsonOut {
+				os.Exit(1)
+				return nil // unreachable
+			}
+			return fmt.Errorf("malformed frontmatter — fix the file(s) above and re-run `fab memory-index`")
+		}
 		return nil
 	}
 }

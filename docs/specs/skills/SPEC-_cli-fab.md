@@ -32,7 +32,7 @@ The partial is organized as one `##` section per command (or command group), plu
 | fab shell-init | Emit the shell-completion script |
 | fab impact | Git diff line-count math (added/deleted/net) between two refs |
 | fab pr-meta | Render a fab PR's `## Meta` block as final markdown |
-| fab memory-index | Deterministically (re)generate `docs/memory/` index + log files |
+| fab memory-index | Deterministically (re)generate `docs/memory/` index + log files. Emits (260715-xu0k) non-fatal stderr **malformed-frontmatter** warnings (unclosed `---` fence; `description:` value that fails quote-stripping — the loom glued-fence corruption) and an advisory over-length **`description:`** warning (soft cap 500 chars, hardcoded const, measured in runes). Malformed frontmatter is a **blocking** signal that floors `--check` at exit 1 **independent of index drift** (a corrupted row is byte-identical to its regeneration, so the drift tier alone can't catch it) but is NOT a tier-2 destructive-loss category and does not fire the refuse-before-regen guards; the length warning is advisory (never fails `--check`). `--check --json` gains an additive `malformed` array beside the unchanged `tier`/`drift`/`losses` keys. Neither validation changes the byte-stable rendered index output |
 | fab fab-help | The workflow overview / command summary (backs `/fab-help`) |
 | fab help-dump | Machine-readable command dump |
 | fab operator | Launch the operator in a dedicated tmux tab (singleton); degraded-behavior contract |
