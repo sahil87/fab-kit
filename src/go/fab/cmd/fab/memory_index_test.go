@@ -122,6 +122,41 @@ func TestMemoryIndexCmd_CheckMalformed_BlocksOnByteCleanTree(t *testing.T) {
 	}
 }
 
+// TestMemoryIndexCmd_CheckMalformed_BenignDriftErrorNamesMalformed pins that when
+// a malformed floor CO-OCCURS with benign drift (tier 1), the RETURNED error text
+// (not just the stderr enumeration) names the corruption — so a caller surfacing
+// only the error is not misled into treating it as mere staleness.
+func TestMemoryIndexCmd_CheckMalformed_BenignDriftErrorNamesMalformed(t *testing.T) {
+	repo := setupFabRepo(t)
+	// Clean baseline.
+	if err, _, _ := runMemoryIndex(t); err != nil {
+		t.Fatalf("regen failed: %v", err)
+	}
+	// Corrupt login.md's frontmatter (glued fence → malformed, renders verbatim so
+	// it does NOT drift the index on its own — the loom shape).
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "auth", "login.md"),
+		"---\ndescription: \"Login flow\"---")
+	// Separately change the auth domain description (valid) WITHOUT regenerating, so
+	// the committed root row is stale → benign drift (tier 1) layered on the floor.
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "auth", "index.md"),
+		"---\ndescription: \"Auth domain (revised)\"\n---\n# Auth Documentation\n")
+
+	err, _, stderr := runMemoryIndex(t, "--check")
+	if err == nil {
+		t.Fatal("benign drift + malformed --check must return an error")
+	}
+	if !strings.Contains(err.Error(), "malformed frontmatter") {
+		t.Errorf("returned error must name malformed frontmatter, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "out of date") {
+		t.Errorf("returned error should still name the drift, got: %v", err)
+	}
+	// stderr enumeration of the offending file is retained.
+	if !strings.Contains(stderr, "auth/login.md") {
+		t.Errorf("stderr must still enumerate the malformed file, got:\n%s", stderr)
+	}
+}
+
 // TestMemoryIndexCmd_CheckMalformed_JSONHasMalformedArray confirms the additive
 // `malformed` array is present and parseable, and that the existing
 // tier/drift/losses keys are unchanged, on a CLEAN tree (which returns nil, so

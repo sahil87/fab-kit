@@ -272,6 +272,13 @@ func emitCheckReport(cmd *cobra.Command, report memoryindex.LossReport, jsonOut 
 			os.Exit(1)
 			return nil // unreachable
 		}
+		// A malformed floor can co-occur with benign drift; the enumeration is
+		// already on stderr above, but the RETURNED error must also name the
+		// corruption so callers surfacing only the error text are not misled into
+		// treating it as mere staleness (mirrors the tier-0 malformed branch).
+		if hasMalformed {
+			return fmt.Errorf("memory index out of date and malformed frontmatter — regenerate, then fix the file(s) above and re-run `fab memory-index`")
+		}
 		return fmt.Errorf("memory index out of date — run `fab memory-index`")
 	default:
 		// Tier 0 (no index drift). If frontmatter is malformed, block anyway —

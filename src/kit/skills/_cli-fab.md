@@ -748,8 +748,8 @@ Data sourcing (all read by the command itself):
 Shape warnings (non-fatal, stderr — the "detect" half of the memory-tree-shape work):
 - `⚠ docs/memory/<domain> has <N> topic files (soft bound: ~12) — consider splitting into sub-domains`
   when a folder holds more than ~12 topic files.
-- `⚠ docs/memory/<domain>/<sub>/<deep> exceeds depth 3 — consider flattening` when nesting
-  exceeds 3 levels under `docs/memory/`.
+- `⚠ docs/memory/<domain>/<sub>/<deep> is nested <N> levels deep (max: 3) — consider flattening`
+  when nesting exceeds 3 levels under `docs/memory/`.
 - Reserved domains **`_shared/`** and **`_unsorted/`** are **exempt** from the width warning.
 - Warnings are advisory: they never block, never modify files, and never affect the byte-stable
   index output (so a regen-with-warnings is still idempotent).

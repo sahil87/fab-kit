@@ -143,8 +143,8 @@ func TestWarning_String(t *testing.T) {
 		t.Errorf("width warning should name count and bound, got: %q", got)
 	}
 	d := Warning{Path: "docs/memory/a/b/c", Kind: "depth", Depth: 4}
-	if !strings.Contains(d.String(), "exceeds depth 3") {
-		t.Errorf("depth warning should name max depth, got: %q", d.String())
+	if !strings.Contains(d.String(), "4 levels") || !strings.Contains(d.String(), "max: 3") {
+		t.Errorf("depth warning should name observed depth and max, got: %q", d.String())
 	}
 }
 

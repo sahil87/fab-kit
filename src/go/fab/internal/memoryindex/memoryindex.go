@@ -168,7 +168,7 @@ func (w Warning) String() string {
 		return fmt.Sprintf("⚠ %s has %d topic files (soft bound: ~%d) — consider splitting into sub-domains",
 			w.Path, w.Count, WidthWarnThreshold)
 	case KindDepth:
-		return fmt.Sprintf("⚠ %s exceeds depth %d — consider flattening", w.Path, MaxDepth)
+		return fmt.Sprintf("⚠ %s is nested %d levels deep (max: %d) — consider flattening", w.Path, w.Depth, MaxDepth)
 	case KindMalformedFence:
 		return fmt.Sprintf("✖ %s has malformed frontmatter — unclosed frontmatter block (no closing `---`)", w.Path)
 	case KindMalformedDescription:
