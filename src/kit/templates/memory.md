@@ -1,6 +1,10 @@
 ---
 type: memory
-description: "{One-line summary used by the generated domain-index row.}"
+# description: a curated ONE-LINE index-row summary — a routing signal, not a summary of record.
+# Cap: 500 characters (FKF §3.2). Keep it a single line; detail (requirements, design decisions,
+# history) belongs in the BODY sections below, NEVER in the description. `fab memory-index` emits an
+# advisory warning over the cap.
+description: "{One-line summary used by the generated domain-index row — ≤500 chars.}"
 ---
 # {File Name}
 

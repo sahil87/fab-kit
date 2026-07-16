@@ -191,6 +191,8 @@ After all `fix` comments are processed:
 
      When an explicit `<change>` was passed in Step 0, include it in the recovery's re-run command (`… then re-run /git-pr-review <change>.`) — an argless re-run would resolve the active change instead.
 
+     > **Never hand-merge a generated index/log (FKF §5).** If the `git pull --rebase` recovery (or any branch↔main reconciliation while addressing PR feedback) produces a conflict in a generated `docs/memory/**/index.md` or `log.md`, do **NOT** hand-resolve the generated file — hand-merging is how a corrupted row propagates from `main` onto the branch. Resolve the conflict in the **topic files** (and `.status.yaml` / `log.seed.md` seed inputs) only, then re-run `fab memory-index` and take its output **wholesale** (the index/log is a pure function of content). See `$(fab kit-path)/reference/fkf.md` §5.
+
 Print: `Fixed {N} comment(s) across {M} file(s)`
 
 ### Step 5.5: Post Replies

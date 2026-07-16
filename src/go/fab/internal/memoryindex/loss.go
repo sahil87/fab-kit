@@ -61,16 +61,39 @@ const (
 	TierDestructiveLoss Tier = 2
 )
 
+// MalformedFinding is one malformed-frontmatter finding surfaced by `--check`.
+// It is a SOURCE-file corruption (a mangled `description:` frontmatter block),
+// orthogonal to the index-drift Tier scheme: it blocks `--check` (floors the
+// exit at 1) independent of drift, but it is NOT a destructive-loss (tier-2)
+// category and does NOT extend the `losses[]` category enum — so the
+// hydrate/reorg refuse-before-regen guards (keyed on tier == 2) never fire on
+// mere source corruption, and `/docs-reorg-memory`'s `losses` consumer is
+// unaffected (intake #9 / plan Design Decision 1).
+type MalformedFinding struct {
+	// Kind is the malformed Warning kind (KindMalformedFence /
+	// KindMalformedDescription).
+	Kind string `json:"kind"`
+	// Path is the repo-relative memory file the corruption is in.
+	Path string `json:"path"`
+	// Detail is the offending frontmatter value (for the description kind), "".
+	Detail string `json:"detail,omitempty"`
+}
+
 // LossReport is the full classification of a --check run. It is the value
-// emitted by `--check --json` and the source of the tiered exit code.
+// emitted by `--check --json` and the source of the exit code.
 type LossReport struct {
-	// Tier is the highest severity found (0/1/2).
+	// Tier is the highest INDEX-DRIFT severity found (0/1/2). Unchanged by the
+	// malformed-frontmatter class — corruption is reported in Malformed below.
 	Tier Tier `json:"tier"`
 	// Drift is true when any index file differs from its regenerated form
 	// (true for tier 1 and tier 2; tier 2 is a strict subset of drift).
 	Drift bool `json:"drift"`
 	// Losses enumerates every destructive-loss finding (empty unless tier 2).
 	Losses []Loss `json:"losses"`
+	// Malformed enumerates malformed-frontmatter findings (source corruption).
+	// Additive to the `tier`/`drift`/`losses` contract — existing consumers
+	// ignore it. Non-empty ⇒ `--check` blocks (exit ≥ 1) regardless of Tier.
+	Malformed []MalformedFinding `json:"malformed"`
 }
 
 // CheckTarget is one index file's comparison inputs: its repo-relative path,
@@ -106,9 +129,11 @@ type CheckTarget struct {
 // relative path (folder or file) exists on disk — supplied by the cmd so this
 // function stays pure. The highest tier across all targets wins.
 func Classify(targets []CheckTarget, memExists func(relPath string) bool) LossReport {
-	// Losses is initialized non-nil so the --json shape is always `"losses": []`
-	// (not `null`) on tiers 0/1, matching the documented contract.
-	report := LossReport{Tier: TierClean, Losses: []Loss{}}
+	// Losses / Malformed are initialized non-nil so the --json shape is always
+	// `"losses": []` / `"malformed": []` (not `null`), matching the contract.
+	// Malformed is populated by the cmd (from the gathered warnings) after
+	// Classify — it is a source-corruption class, not an index-drift finding.
+	report := LossReport{Tier: TierClean, Losses: []Loss{}, Malformed: []MalformedFinding{}}
 
 	for _, t := range targets {
 		if t.Existing == t.Rendered {

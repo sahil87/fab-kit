@@ -143,8 +143,8 @@ func TestWarning_String(t *testing.T) {
 		t.Errorf("width warning should name count and bound, got: %q", got)
 	}
 	d := Warning{Path: "docs/memory/a/b/c", Kind: "depth", Depth: 4}
-	if !strings.Contains(d.String(), "exceeds depth 3") {
-		t.Errorf("depth warning should name max depth, got: %q", d.String())
+	if !strings.Contains(d.String(), "4 levels") || !strings.Contains(d.String(), "max: 3") {
+		t.Errorf("depth warning should name observed depth and max, got: %q", d.String())
 	}
 }
 
@@ -254,6 +254,159 @@ func TestGather_DepthWarning(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("expected a depth warning for a depth-4 file, got %+v", warnings)
+	}
+}
+
+// --- Malformed-frontmatter + description-length warnings (260715-xu0k) ------
+
+// warningsByKind returns all warnings of a given kind.
+func warningsByKind(warnings []Warning, kind string) []Warning {
+	var out []Warning
+	for _, w := range warnings {
+		if w.Kind == kind {
+			out = append(out, w)
+		}
+	}
+	return out
+}
+
+// TestGather_MalformedFrontmatter_GluedFence pins the loom corruption verbatim:
+// `description: "text"---` glued on one line with no closing fence and no
+// trailing newline. Gather must surface BOTH the unclosed-fence warning and the
+// malformed-description (quote-strip failure) warning naming the file — and the
+// rendered index output must stay byte-identical to the same tree carrying a
+// clean value (byte-stability, intake #3).
+func TestGather_MalformedFrontmatter_GluedFence(t *testing.T) {
+	repo := t.TempDir()
+	// The loom corruption, verbatim shape (no trailing newline).
+	writeFile(t, repo, "docs/memory/auth/login.md", "---\ndescription: \"a login flow\"---")
+	writeFile(t, repo, "docs/memory/auth/index.md",
+		"---\ndescription: \"Auth domain\"\n---\n# Auth Documentation\n")
+
+	_, domains, warnings, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fence := warningsByKind(warnings, KindMalformedFence)
+	if len(fence) != 1 || fence[0].Path != "docs/memory/auth/login.md" {
+		t.Errorf("expected one malformed-fence warning for auth/login.md, got %+v", fence)
+	}
+	desc := warningsByKind(warnings, KindMalformedDescription)
+	if len(desc) != 1 || desc[0].Path != "docs/memory/auth/login.md" {
+		t.Fatalf("expected one malformed-description warning for auth/login.md, got %+v", desc)
+	}
+	if desc[0].Detail != "\"a login flow\"---" {
+		t.Errorf("malformed-description warning should carry the offending value, got %q", desc[0].Detail)
+	}
+
+	// Byte-stability: the domain index row renders the corrupted value verbatim,
+	// exactly as it would today (validation never changes rendered bytes). The
+	// corrupted value goes through as the description cell (no crash, no repair).
+	out := RenderDomain(domains[0])
+	if !strings.Contains(out, "| [login](login.md) | \"a login flow\"--- |") {
+		t.Errorf("corrupted value must still render verbatim into the row (byte-stability), got:\n%s", out)
+	}
+}
+
+// TestGather_MalformedFrontmatter_DomainIndexStub confirms the validation pass
+// also covers domain/sub-domain index.md stubs (a corrupted domain description
+// mangles the root row exactly like a corrupted topic description).
+func TestGather_MalformedFrontmatter_DomainIndexStub(t *testing.T) {
+	repo := t.TempDir()
+	writeFile(t, repo, "docs/memory/auth/login.md",
+		"---\ndescription: \"clean\"\n---\n# Login\n")
+	// Domain index stub with an unclosed fence.
+	writeFile(t, repo, "docs/memory/auth/index.md",
+		"---\ndescription: \"Auth domain\"\n# Auth Documentation\n")
+
+	_, _, warnings, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fence := warningsByKind(warnings, KindMalformedFence)
+	if len(fence) != 1 || fence[0].Path != "docs/memory/auth/index.md" {
+		t.Errorf("expected a malformed-fence warning for the auth/index.md stub, got %+v", fence)
+	}
+}
+
+// TestGather_DescriptionLength_Boundary pins the exact 500-char boundary: 501
+// runes warns, 500 does not (strictly greater than the cap), and the warning
+// carries the observed length. Uses non-ASCII runes to confirm rune-counting
+// (not byte-counting).
+func TestGather_DescriptionLength_Boundary(t *testing.T) {
+	repo := t.TempDir()
+	over := strings.Repeat("é", DescriptionLenWarnThreshold+1) // 501 runes (1002 bytes)
+	atCap := strings.Repeat("a", DescriptionLenWarnThreshold)  // exactly 500 runes
+	writeFile(t, repo, "docs/memory/big/over.md",
+		"---\ndescription: \""+over+"\"\n---\n# Over\n")
+	writeFile(t, repo, "docs/memory/big/atcap.md",
+		"---\ndescription: \""+atCap+"\"\n---\n# AtCap\n")
+
+	_, _, warnings, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lengthWarns := warningsByKind(warnings, KindDescriptionLength)
+	if len(lengthWarns) != 1 {
+		t.Fatalf("expected exactly one length warning (the 501-rune file), got %+v", lengthWarns)
+	}
+	if lengthWarns[0].Path != "docs/memory/big/over.md" {
+		t.Errorf("length warning should name the over-length file, got %q", lengthWarns[0].Path)
+	}
+	if lengthWarns[0].Count != DescriptionLenWarnThreshold+1 {
+		t.Errorf("length warning should carry the rune count %d, got %d", DescriptionLenWarnThreshold+1, lengthWarns[0].Count)
+	}
+}
+
+// TestGather_CleanTree_NoMalformedOrLengthWarnings confirms a well-formed tree
+// (the byte-stable born-FKF shape) emits no malformed/length warnings.
+func TestGather_CleanTree_NoMalformedOrLengthWarnings(t *testing.T) {
+	repo := t.TempDir()
+	writeFile(t, repo, "docs/memory/auth/login.md",
+		"---\ndescription: \"Login flow\"\n---\n# Login\n")
+	writeFile(t, repo, "docs/memory/auth/index.md",
+		"---\ndescription: \"Auth domain\"\n---\n# Auth Documentation\n")
+	writeFile(t, repo, "docs/memory/index.md", "---\nfkf_version: \"0.1\"\n---\n# Memory Index\n")
+
+	_, _, warnings, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range warnings {
+		if w.IsMalformed() || w.Kind == KindDescriptionLength {
+			t.Errorf("clean tree must emit no malformed/length warning, got %+v", w)
+		}
+	}
+}
+
+// TestGather_WarningsDeterministicOrder confirms the sorted order (Path, then
+// Kind) holds across the new warning kinds interleaved with width/depth.
+func TestGather_WarningsDeterministicOrder(t *testing.T) {
+	repo := t.TempDir()
+	writeFile(t, repo, "docs/memory/aaa/topic.md", "---\ndescription: \"x\"---") // malformed
+	writeFile(t, repo, "docs/memory/zzz/topic.md",
+		"---\ndescription: \""+strings.Repeat("a", DescriptionLenWarnThreshold+1)+"\"\n---\n# T\n")
+
+	_, _, warnings, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Two runs must be byte-stable in order.
+	_, _, warnings2, _ := Gather(repo)
+	if len(warnings) != len(warnings2) {
+		t.Fatalf("warning count not stable: %d vs %d", len(warnings), len(warnings2))
+	}
+	for i := range warnings {
+		if warnings[i] != warnings2[i] {
+			t.Errorf("warning order not stable at %d: %+v vs %+v", i, warnings[i], warnings2[i])
+		}
+	}
+	// Sorted by Path ascending.
+	for i := 1; i < len(warnings); i++ {
+		if warnings[i-1].Path > warnings[i].Path {
+			t.Errorf("warnings not sorted by path: %q before %q", warnings[i-1].Path, warnings[i].Path)
+		}
 	}
 }
 

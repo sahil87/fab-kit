@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/frontmatter"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/lines"
@@ -46,7 +47,51 @@ const (
 	// MaxDepth is the maximum allowed nesting under docs/memory/ before a
 	// depth warning fires (docs/memory/{domain}/{sub-domain}/{topic}.md = 3).
 	MaxDepth = 3
+	// DescriptionLenWarnThreshold is the soft upper bound on a `description:`
+	// value's length (in characters/runes, measured on the quote-stripped
+	// single-line scalar). A description strictly longer than this triggers an
+	// advisory length warning. Hardcoded (the shape-bound-const pattern, like
+	// WidthWarnThreshold) — NOT config-overridable in this change. Curated
+	// one-liner is FKF §3.2's intent; detail belongs in the file body.
+	DescriptionLenWarnThreshold = 500
 )
+
+// Warning Kind values. The shape-bound kinds ("width"/"depth") are advisory;
+// the malformed-frontmatter kinds are the blocking corruption signals surfaced
+// to `--check` (see the cmd's LossReport.Malformed). "description-length" is
+// advisory (never blocks). All three new kinds keep the rendered index output
+// byte-identical — they are stderr/exit-code only (change 260715-xu0k).
+const (
+	// KindWidth: a folder holds more topic files than WidthWarnThreshold.
+	KindWidth = "width"
+	// KindDepth: nesting under docs/memory/ exceeds MaxDepth.
+	KindDepth = "depth"
+	// KindMalformedFence: a memory file's frontmatter block is unclosed (opens
+	// `---` with no closing `---`) — the loom glued-fence corruption is an
+	// instance. Blocking: fails `--check` independent of index drift.
+	KindMalformedFence = "malformed-fence"
+	// KindMalformedDescription: a `description:` value starts with a quote but
+	// fails quote-stripping (the glued-fence diagnostic, e.g. trailing `"---`).
+	// Blocking, like KindMalformedFence.
+	KindMalformedDescription = "malformed-description"
+	// KindDescriptionLength: a `description:` value exceeds
+	// DescriptionLenWarnThreshold characters. Advisory only — never blocks
+	// `--check` (the deliberate asymmetry: corruption blocks, over-length nags).
+	KindDescriptionLength = "description-length"
+)
+
+// malformedKinds is the set of Warning kinds that represent source-file
+// corruption the cmd's `--check` blocks on (as distinct from the advisory
+// shape/length warnings). Kept here so producer and consumer share one list.
+var malformedKinds = map[string]bool{
+	KindMalformedFence:       true,
+	KindMalformedDescription: true,
+}
+
+// IsMalformed reports whether w is a blocking malformed-frontmatter warning
+// (as opposed to an advisory width/depth/length warning). The cmd's `--check`
+// branch uses this to floor the exit code at 1 independent of the drift tier.
+func (w Warning) IsMalformed() bool { return malformedKinds[w.Kind] }
 
 // reservedDomains are exempt from the width warning: cross-cutting and staging
 // buckets that are deliberately broad (loom convention).
@@ -103,22 +148,34 @@ type RootData struct {
 	Domains []DomainRow // sorted lexicographically by Name
 }
 
-// Warning is a non-fatal shape-bound finding. String renders the stderr line.
+// Warning is a non-fatal finding surfaced to stderr (and, for the malformed
+// kinds, to the cmd's `--check` exit gate). String renders the stderr line.
+// Count is reused across kinds: file count (width) or description length
+// (description-length). Detail carries the offending frontmatter value for the
+// malformed-description kind.
 type Warning struct {
-	Path  string // repo-relative folder/path the finding is about
-	Kind  string // "width" | "depth"
-	Count int    // file count (width) — 0 for depth
-	Depth int    // observed depth (depth) — 0 for width
+	Path   string // repo-relative folder/file path the finding is about
+	Kind   string // one of the Kind* constants
+	Count  int    // file count (width) | description length (description-length)
+	Depth  int    // observed depth (depth) — 0 otherwise
+	Detail string // offending value (malformed-description) — "" otherwise
 }
 
-// String formats the advisory warning line written to stderr.
+// String formats the warning line written to stderr.
 func (w Warning) String() string {
 	switch w.Kind {
-	case "width":
+	case KindWidth:
 		return fmt.Sprintf("⚠ %s has %d topic files (soft bound: ~%d) — consider splitting into sub-domains",
 			w.Path, w.Count, WidthWarnThreshold)
-	case "depth":
-		return fmt.Sprintf("⚠ %s exceeds depth %d — consider flattening", w.Path, MaxDepth)
+	case KindDepth:
+		return fmt.Sprintf("⚠ %s is nested %d levels deep (max: %d) — consider flattening", w.Path, w.Depth, MaxDepth)
+	case KindMalformedFence:
+		return fmt.Sprintf("✖ %s has malformed frontmatter — unclosed frontmatter block (no closing `---`)", w.Path)
+	case KindMalformedDescription:
+		return fmt.Sprintf("✖ %s has malformed frontmatter — `description:` value fails quote-stripping (unterminated quote): %s", w.Path, w.Detail)
+	case KindDescriptionLength:
+		return fmt.Sprintf("⚠ %s has a %d-character `description:` (soft cap: %d) — trim to a one-liner; detail belongs in the file body",
+			w.Path, w.Count, DescriptionLenWarnThreshold)
 	default:
 		return fmt.Sprintf("⚠ %s", w.Path)
 	}
@@ -247,7 +304,7 @@ func Gather(repoRoot string) (RootData, []DomainData, []Warning, error) {
 		if !reservedDomains[domainName] && len(files) > WidthWarnThreshold {
 			warnings = append(warnings, Warning{
 				Path:  filepath.ToSlash(filepath.Join("docs", "memory", domainName)),
-				Kind:  "width",
+				Kind:  KindWidth,
 				Count: len(files),
 			})
 		}
@@ -255,13 +312,20 @@ func Gather(repoRoot string) (RootData, []DomainData, []Warning, error) {
 			if len(sd.Files) > WidthWarnThreshold {
 				warnings = append(warnings, Warning{
 					Path:  filepath.ToSlash(filepath.Join("docs", "memory", domainName, sd.Name)),
-					Kind:  "width",
+					Kind:  KindWidth,
 					Count: len(sd.Files),
 				})
 			}
 		}
 		warnings = append(warnings, depthWarnings(memRoot, domainDir)...)
 	}
+
+	// Frontmatter validation + description-length warnings — a read-only pass
+	// over every topic file and every index.md stub read for a description. It
+	// never touches the rendered output (byte-stability, intake #3); it only
+	// produces stderr/exit-code warnings. Walked separately from the render
+	// gather so the render path stays untouched.
+	warnings = append(warnings, frontmatterWarnings(memRoot)...)
 
 	sort.Slice(domains, func(i, j int) bool { return domains[i].Name < domains[j].Name })
 	sort.Slice(root.Domains, func(i, j int) bool { return root.Domains[i].Name < root.Domains[j].Name })
@@ -937,8 +1001,65 @@ func depthWarnings(memRoot, domainDir string) []Warning {
 			return nil
 		}
 		seen[dir] = true
-		out = append(out, Warning{Path: dir, Kind: "depth", Depth: depth})
+		out = append(out, Warning{Path: dir, Kind: KindDepth, Depth: depth})
 		return nil
 	})
 	return out
+}
+
+// frontmatterWarnings walks docs/memory/ and returns, per .md file, the
+// malformed-frontmatter findings (via internal/frontmatter.Validate) and the
+// advisory over-length `description:` warning. It inspects BOTH topic files and
+// the domain/sub-domain index.md stubs read for descriptions (a corrupted
+// domain description mangles the root row exactly as a corrupted topic
+// description mangles a domain row — the same silent-garbage vector). log.md /
+// log.seed.md are generated/curated log inputs, never frontmatter-bearing
+// concept documents, so they are skipped. The pass is read-only and never
+// affects rendered output (byte-stability, intake #3).
+func frontmatterWarnings(memRoot string) []Warning {
+	var out []Warning
+	_ = filepath.Walk(memRoot, func(p string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.HasSuffix(p, ".md") {
+			return nil
+		}
+		name := filepath.Base(p)
+		if name == "log.md" || name == seedFileName {
+			return nil // generated/curated log inputs — not frontmatter documents
+		}
+		// A file without an opening frontmatter fence is not a malformed
+		// document — index.md at the root deliberately carries no description
+		// stub in some trees, and a body-only topic file degrades gracefully.
+		if !frontmatter.HasFrontmatter(p) {
+			return nil
+		}
+		relPath := filepath.ToSlash(filepath.Join("docs", "memory", relOrBase(memRoot, p)))
+
+		for _, f := range frontmatter.Validate(p) {
+			switch f.Kind {
+			case frontmatter.KindUnclosedFence:
+				out = append(out, Warning{Path: relPath, Kind: KindMalformedFence})
+			case frontmatter.KindQuoteStripFailure:
+				out = append(out, Warning{Path: relPath, Kind: KindMalformedDescription, Detail: f.Detail})
+			}
+		}
+
+		// Advisory over-length check on the (quote-stripped) description value.
+		if desc := frontmatter.Field(p, "description"); desc != "" {
+			if n := utf8.RuneCountInString(desc); n > DescriptionLenWarnThreshold {
+				out = append(out, Warning{Path: relPath, Kind: KindDescriptionLength, Count: n})
+			}
+		}
+		return nil
+	})
+	return out
+}
+
+// relOrBase returns p relative to memRoot in slash form, falling back to the
+// base name when the relative computation fails (defensive — Walk always yields
+// a path under memRoot in practice).
+func relOrBase(memRoot, p string) string {
+	if rel, err := filepath.Rel(memRoot, p); err == nil {
+		return filepath.ToSlash(rel)
+	}
+	return filepath.Base(p)
 }

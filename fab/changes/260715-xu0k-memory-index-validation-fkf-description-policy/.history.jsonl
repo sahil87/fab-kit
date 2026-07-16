@@ -1,0 +1,17 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-15T14:56:10Z"}
+{"args":"memory-index frontmatter validation + generated-index merge policy + FKF description-length policy: detect malformed frontmatter (unclosed fence / glued description) in fab memory-index with --check failing on corruption; add regenerate-don't-hand-merge policy for generated index/log files; add FKF description-length policy wired into hydrate-time instructions plus advisory length warning","cmd":"fab-new","event":"command","ts":"2026-07-15T14:56:10Z"}
+{"delta":"+2.7","event":"confidence","score":2.7,"trigger":"calc-score","ts":"2026-07-15T14:59:20Z"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-07-15T15:05:28Z"}
+{"delta":"+0.7","event":"confidence","score":3.4,"trigger":"calc-score","ts":"2026-07-15T15:06:12Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-07-15T15:07:39Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-15T15:09:34Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-15T15:10:01Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-15T15:10:54Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-15T15:29:19Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-15T15:30:08Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-15T15:44:15Z"}
+{"event":"review","result":"passed","ts":"2026-07-15T15:44:15Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-15T15:47:10Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-15T15:56:00Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-07-15T15:58:13Z"}
+{"event":"review","result":"passed","ts":"2026-07-15T16:09:34Z"}

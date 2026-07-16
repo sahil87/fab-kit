@@ -1,0 +1,57 @@
+id: xu0k
+name: 260715-xu0k-memory-index-validation-fkf-description-policy
+created: 2026-07-15T14:56:10Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 15
+    acceptance_count: 22
+    acceptance_completed: 22
+confidence:
+    certain: 7
+    confident: 5
+    tentative: 2
+    unresolved: 0
+    score: 3.4
+    fuzzy: true
+    dimensions:
+        signal: 78.2
+        reversibility: 73.9
+        competence: 79.3
+        disambiguation: 74.3
+stage_metrics:
+    intake: {started_at: "2026-07-15T14:56:10Z", driver: fab-new, iterations: 1, completed_at: "2026-07-15T15:10:01Z"}
+    apply: {started_at: "2026-07-15T15:10:01Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-15T15:29:19Z"}
+    review: {started_at: "2026-07-15T15:29:19Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-15T15:44:15Z"}
+    hydrate: {started_at: "2026-07-15T15:44:15Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-15T15:56:00Z"}
+    ship: {started_at: "2026-07-15T15:56:00Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-15T15:58:13Z"}
+    review-pr: {started_at: "2026-07-15T15:58:13Z", driver: git-pr, iterations: 1, completed_at: "2026-07-15T16:09:34Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/481
+change_type_source: explicit
+true_impact:
+    added: 1430
+    deleted: 78
+    net: 1352
+    excluding:
+        added: 791
+        deleted: 58
+        net: 733
+    tests:
+        added: 335
+        deleted: 0
+        net: 335
+    computed_at: "2026-07-15T15:58:13Z"
+    computed_at_stage: ship
+summary: added fab memory-index malformed-frontmatter detection (blocking --check independent of drift, additive JSON malformed[]) + advisory 500-char description-length warning; FKF §3.2 description cap + §5 never-hand-merge generated-index policy wired into hydrate/ship skills
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-07-15T16:09:34Z

@@ -100,6 +100,12 @@ Setting `copilot` to `false` skips Phase 2 entirely. When the § Review Tools se
 │     explicit <change> when one was passed; argless resolves the
 │     active change), STOP without posting replies — no "Fixed"
 │     reply may cite an unpushed SHA
+│     └─ never-hand-merge pointer (260715-xu0k): a conflict in a
+│        generated docs/memory/**/index.md or log.md during the
+│        pull --rebase recovery (or any branch↔main reconciliation)
+│        is resolved by fixing topic files + re-running fab
+│        memory-index (wholesale), NOT by hand-editing the generated
+│        file (FKF §5)
 │
 ├─ Step 5.5: Post Replies
 │  ├─ Deduplicate: skip comments with existing disposition replies

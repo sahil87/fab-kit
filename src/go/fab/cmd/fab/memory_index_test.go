@@ -90,6 +90,138 @@ func TestMemoryIndexCmd_CheckJSON_CleanEmitsTier0(t *testing.T) {
 	}
 }
 
+// TestMemoryIndexCmd_CheckMalformed_BlocksOnByteCleanTree pins the loom case:
+// a tree whose committed indexes are byte-identical to their regenerated form
+// (index drift tier 0) but whose SOURCE frontmatter is malformed must still make
+// --check exit non-zero — the malformed detection runs independent of drift.
+// (Uses the non-JSON path so the error is capturable; the JSON path os.Exit(1)s.)
+func TestMemoryIndexCmd_CheckMalformed_BlocksOnByteCleanTree(t *testing.T) {
+	repo := setupFabRepo(t)
+	// Regenerate so every index is byte-stable (drift tier 0).
+	if err, _, _ := runMemoryIndex(t); err != nil {
+		t.Fatalf("regen failed: %v", err)
+	}
+	// Corrupt a topic file's frontmatter (the loom glued-fence, verbatim shape).
+	// This does NOT change the rendered row (the corrupted value already renders
+	// verbatim), so the index stays byte-clean — only the source is malformed.
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "auth", "login.md"),
+		"---\ndescription: \"Login flow\"---")
+	// Re-regenerate so the committed index reflects the (unchanged) rendered row,
+	// guaranteeing drift tier 0 — the malformed check must fail on its own.
+	if err, _, _ := runMemoryIndex(t); err != nil {
+		t.Fatalf("regen over corrupt source failed: %v", err)
+	}
+
+	err, _, stderr := runMemoryIndex(t, "--check")
+	if err == nil {
+		t.Error("malformed frontmatter on a byte-clean tree must make --check fail (exit ≥ 1)")
+	}
+	if !strings.Contains(stderr, "malformed frontmatter") ||
+		!strings.Contains(stderr, "auth/login.md") {
+		t.Errorf("--check stderr must enumerate the offending file, got:\n%s", stderr)
+	}
+}
+
+// TestMemoryIndexCmd_CheckMalformed_BenignDriftErrorNamesMalformed pins that when
+// a malformed floor CO-OCCURS with benign drift (tier 1), the RETURNED error text
+// (not just the stderr enumeration) names the corruption — so a caller surfacing
+// only the error is not misled into treating it as mere staleness.
+func TestMemoryIndexCmd_CheckMalformed_BenignDriftErrorNamesMalformed(t *testing.T) {
+	repo := setupFabRepo(t)
+	// Clean baseline.
+	if err, _, _ := runMemoryIndex(t); err != nil {
+		t.Fatalf("regen failed: %v", err)
+	}
+	// Corrupt login.md's frontmatter (glued fence → malformed, renders verbatim so
+	// it does NOT drift the index on its own — the loom shape).
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "auth", "login.md"),
+		"---\ndescription: \"Login flow\"---")
+	// Separately change the auth domain description (valid) WITHOUT regenerating, so
+	// the committed root row is stale → benign drift (tier 1) layered on the floor.
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "auth", "index.md"),
+		"---\ndescription: \"Auth domain (revised)\"\n---\n# Auth Documentation\n")
+
+	err, _, stderr := runMemoryIndex(t, "--check")
+	if err == nil {
+		t.Fatal("benign drift + malformed --check must return an error")
+	}
+	if !strings.Contains(err.Error(), "malformed frontmatter") {
+		t.Errorf("returned error must name malformed frontmatter, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "out of date") {
+		t.Errorf("returned error should still name the drift, got: %v", err)
+	}
+	// stderr enumeration of the offending file is retained.
+	if !strings.Contains(stderr, "auth/login.md") {
+		t.Errorf("stderr must still enumerate the malformed file, got:\n%s", stderr)
+	}
+}
+
+// TestMemoryIndexCmd_CheckMalformed_JSONHasMalformedArray confirms the additive
+// `malformed` array is present and parseable, and that the existing
+// tier/drift/losses keys are unchanged, on a CLEAN tree (which returns nil, so
+// no os.Exit — the malformed-populated JSON path exits and cannot be captured).
+func TestMemoryIndexCmd_CheckMalformed_JSONHasMalformedArray(t *testing.T) {
+	setupFabRepo(t)
+	if err, _, _ := runMemoryIndex(t); err != nil {
+		t.Fatalf("regen failed: %v", err)
+	}
+	err, out, _ := runMemoryIndex(t, "--check", "--json")
+	if err != nil {
+		t.Errorf("clean --check --json should return nil, got: %v", err)
+	}
+	var report struct {
+		Tier   int  `json:"tier"`
+		Drift  bool `json:"drift"`
+		Losses []struct {
+			Category string `json:"category"`
+		} `json:"losses"`
+		Malformed []struct {
+			Kind string `json:"kind"`
+			Path string `json:"path"`
+		} `json:"malformed"`
+	}
+	if jerr := json.Unmarshal([]byte(out), &report); jerr != nil {
+		t.Fatalf("--json stdout must be a parseable object, got %q (err %v)", out, jerr)
+	}
+	if report.Tier != 0 || report.Drift {
+		t.Errorf("clean tree → {tier:0, drift:false}, got tier=%d drift=%v", report.Tier, report.Drift)
+	}
+	// `malformed` must be present as an empty array (not null / absent).
+	if report.Malformed == nil {
+		t.Error("--json report must carry a non-null `malformed` array")
+	}
+	if len(report.Malformed) != 0 {
+		t.Errorf("clean tree → empty malformed array, got %+v", report.Malformed)
+	}
+	// The `malformed` key must literally appear in the JSON (non-null contract).
+	if !strings.Contains(out, "\"malformed\"") {
+		t.Errorf("--json must include the `malformed` key, got:\n%s", out)
+	}
+}
+
+// TestMemoryIndexCmd_CheckOverLength_DoesNotBlock pins the asymmetry: an
+// over-length `description:` on an otherwise-clean, malformed-free tree is
+// advisory only — --check exits 0 and the length warning prints to stderr.
+func TestMemoryIndexCmd_CheckOverLength_DoesNotBlock(t *testing.T) {
+	repo := setupFabRepo(t)
+	// Replace login.md's description with a 600-char one-liner (over the 500 cap).
+	long := strings.Repeat("x", 600)
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "auth", "login.md"),
+		"---\ndescription: \""+long+"\"\n---\n# Login\n")
+	// Regenerate so the (long-but-valid) description is reflected → drift tier 0.
+	if err, _, _ := runMemoryIndex(t); err != nil {
+		t.Fatalf("regen failed: %v", err)
+	}
+	err, _, stderr := runMemoryIndex(t, "--check")
+	if err != nil {
+		t.Errorf("over-length (advisory) alone must NOT fail --check, got: %v", err)
+	}
+	if !strings.Contains(stderr, "description:") || !strings.Contains(stderr, "soft cap") {
+		t.Errorf("--check stderr should carry the advisory length warning, got:\n%s", stderr)
+	}
+}
+
 // setupFabRepo creates a minimal fab/ + docs/memory/ tree in a temp dir and
 // chdirs into it so resolve.FabRoot() resolves. Returns the repo root.
 func setupFabRepo(t *testing.T) string {
