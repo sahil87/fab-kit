@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"sort"
-	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -11,10 +10,14 @@ import (
 // HelpDoc is the top-level shll.ai "command reference" contract document.
 // Field order is significant — it determines JSON key order, which must match
 // the frozen reference sample at sahil87/shll.ai:help/wt.json.
+//
+// Per the toolkit help-dump standard, the envelope is exactly
+// {tool, version, schema_version, root} — no captured_at. The capture timestamp
+// is owned by shll.ai (a tool cannot know its own capture time); the puller
+// stamps it after capture.
 type HelpDoc struct {
 	Tool          string `json:"tool"`           // literal "fab" (the user-facing binary, not "fab-kit")
 	Version       string `json:"version"`        // from main.version (ldflags); never hardcoded
-	CapturedAt    string `json:"captured_at"`    // RFC3339 UTC, e.g. 2026-06-03T12:34:56Z
 	SchemaVersion int    `json:"schema_version"` // literal 1
 	Root          Node   `json:"root"`
 }
@@ -56,7 +59,6 @@ func dumpDoc(root *cobra.Command, version string) HelpDoc {
 	return HelpDoc{
 		Tool:          "fab",
 		Version:       version,
-		CapturedAt:    time.Now().UTC().Format(time.RFC3339),
 		SchemaVersion: 1,
 		Root:          buildNode(root),
 	}

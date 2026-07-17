@@ -889,7 +889,7 @@ Output: version header, workflow diagram, grouped commands, typical flow, packag
 fab help-dump
 ```
 
-**Hidden, CI/build-time-only command.** Marked `Hidden: true`, so it does not appear in `fab --help` and is excluded from its own dumped tree. Takes no arguments. Walks the live cobra command tree of the rich `fab` CLI programmatically (not by regex-parsing `-h` text) and writes the frozen shll.ai "command reference" contract JSON to stdout.
+**Hidden, machine-consumer command** (invoked by shll.ai's puller on a schedule). Marked `Hidden: true`, so it does not appear in `fab --help` and is excluded from its own dumped tree. Takes no arguments. Walks the live cobra command tree of the rich `fab` CLI programmatically (not by regex-parsing `-h` text) and writes the frozen shll.ai "command reference" contract JSON to stdout.
 
 Contract shape (`schema_version: 1`):
 
@@ -897,7 +897,6 @@ Contract shape (`schema_version: 1`):
 {
   "tool": "fab",
   "version": "<main.version, from ldflags>",
-  "captured_at": "<RFC3339 UTC>",
   "schema_version": 1,
   "root": {
     "name": "fab",
@@ -912,7 +911,9 @@ Contract shape (`schema_version: 1`):
 
 Per node: `name=cmd.Name()`, `path=cmd.CommandPath()`, `short=cmd.Short`, `usage=cmd.UseLine()`, `text=cmd.UsageString()`. At every level the walk drops `completion`, `help`, and any `Hidden` command, then sorts surviving children by `Name()` for byte-stable output. JSON is 2-space indented with HTML escaping disabled, so `<`, `>`, `&` in help text are preserved verbatim.
 
-`tool` is the literal `"fab"` (the user-facing binary); the *output file* is named `help/fab-kit.json` (the repo/site slug) — these intentionally differ. Consumed by `.github/workflows/release.yml` (Help-dump → shll.ai step) to deliver an auto-merging PR into `sahil87/shll.ai`.
+The envelope is exactly `{tool, version, schema_version, root}`. Per the toolkit help-dump standard it carries **no `captured_at`** — the capture timestamp is owned by shll.ai (a tool cannot know its own capture time; the puller stamps it after capture).
+
+`tool` is the literal `"fab"` (the user-facing binary), which differs from the repo/site slug `fab-kit`. shll.ai's puller *pulls* this output on a schedule (invoking `fab help-dump` itself) and renders it as fab-kit's command reference — fab-kit pushes nothing (the former release-workflow push step was torn down in `260603-mtf9`).
 
 ---
 
