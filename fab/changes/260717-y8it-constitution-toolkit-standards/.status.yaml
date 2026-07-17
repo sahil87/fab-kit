@@ -1,0 +1,56 @@
+id: y8it
+name: 260717-y8it-constitution-toolkit-standards
+created: 2026-07-17T19:30:39Z
+created_by: sahil-noon
+change_type: docs
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 3
+    acceptance_count: 11
+    acceptance_completed: 11
+confidence:
+    certain: 4
+    confident: 3
+    tentative: 0
+    unresolved: 0
+    score: 4.9
+    fuzzy: true
+    dimensions:
+        signal: 75.0
+        reversibility: 90.0
+        competence: 90.0
+        disambiguation: 85.0
+stage_metrics:
+    intake: {started_at: "2026-07-17T19:30:39Z", driver: fab-new, iterations: 1, completed_at: "2026-07-17T19:35:58Z"}
+    apply: {started_at: "2026-07-17T19:35:58Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T19:38:51Z"}
+    review: {started_at: "2026-07-17T19:38:51Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T19:43:28Z"}
+    hydrate: {started_at: "2026-07-17T19:43:28Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T19:45:14Z"}
+    ship: {started_at: "2026-07-17T19:45:14Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T19:47:04Z"}
+    review-pr: {started_at: "2026-07-17T19:47:04Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T19:55:42Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/484
+change_type_source: explicit
+true_impact:
+    added: 287
+    deleted: 1
+    net: 286
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-07-17T19:47:04Z"
+    computed_at_stage: ship
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-07-17T19:55:42Z
