@@ -21,6 +21,8 @@ Advances through the 6-stage pipeline one step at a time. Each invocation handle
 
 **Prose optimization** (260620-skop): skill content trimmed to remove re-explanation of partial-owned concepts — the ~5 near-identical "dispatched block / sequencer owns transitions" blockquotes collapsed to one canonical statement (Normal Flow Step 1's dispatch contract) plus per-section references, the per-stage model paragraphs reduced to references, the Step 3 procedure table folded into prose, and Hydrate Step 4's long paragraph reformatted as a bullet list (same content); a `## Contents` TOC added to both the skill and this SPEC. No behavioral change (Flow / Tools / Sub-agents unchanged).
 
+**Present-truth hydrate merge** (260717-3plm): Hydrate Behavior now authors memory bodies as **current truth in present tense** (FKF §3.3, amended by this change). The former "Merge without duplication" bullet is rewritten as **merge as current truth**: the dedup unit is the **topic/section**, not the change — hydrate locates the section documenting a topic and **rewrites it to current truth** rather than appending (or updating-in-place) a change-keyed delta entry. Superseded statements are removed, not narrated (no "renamed X→Y in {id}", "this inverts {id}'s claim", "was `old.value`" in the body); the change's dated *what* is already captured once via `fab status set-summary` → `log.md`, and body provenance is citation-only (trailing `(change-id)` / `*Introduced by*`). The rewrite preserves the idempotency the by-change-name dedup gave (a re-run rewrites the same section to the same truth). Pattern-capture (Hydrate step 6) drops the "with the change name for traceability" phrasing for citation-form provenance (`*Introduced by*` / a trailing citation). Hydrate's FKF-frontmatter bullet also records the §3.2 **no-change-ids-in-`description:`** ban on both of its description clauses (create-path cap clause + update-existing clause) — the `description:` is a routing signal, not a provenance record, so change-id citations belong in the body. Flow-diagram wording refreshed to match (the HYDRATE box's merge note now reads "merge as current truth"); no structural change — the merge/idempotency semantics are unchanged in shape, only the keying (topic vs change), the change-id-free description, and the ban on transition narration are new.
+
 ## Flow
 
 ```
@@ -131,8 +133,8 @@ User invokes /fab-continue [change-name] [stage]
 │  │    (from template: FKF frontmatter type: memory │
 │  │     + curated description:; NO ## Changelog —   │
 │  │     bundle-relative /... memory↔memory links;   │
-│  │     merge without duplication — existing        │
-│  │     entries for this change updated in place)   │
+│  │     merge as current truth — rewrite the topic  │
+│  │     section, not a change-keyed delta)          │
 │  │  Bash: fab status set-summary <change> "<one-   │
 │  │     line what-changed>"  (C-lite summary:       │
 │  │     source; fab memory-index joins it with git  │

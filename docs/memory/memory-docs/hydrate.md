@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "The /docs-hydrate-memory skill — argument routing, three modes (ingest/generate/backfill), hydration rules, mechanical index regen, and the index-ownership model. All modes author FKF frontmatter (type + a curated one-line description under the 500-char cap — xu0k), skip per-file changelog, use bundle-relative links; backfill is body-preserving. Refuse-before-regen guard consults fab memory-index --check exit 2; the separate malformed-frontmatter blocking check the guard does not key on."
+description: "The /docs-hydrate-memory skill — argument routing, three modes (ingest/generate/backfill), hydration rules, mechanical index regen, and the index-ownership model. All modes author FKF frontmatter (type + a change-id-free description), merge each topic section as current truth, skip per-file changelog, use bundle-relative links; backfill is body-preserving. Refuse-before-regen guard consults fab memory-index --check exit 2, distinct from the malformed-frontmatter blocking check."
 ---
 # Hydrate
 
@@ -38,7 +38,7 @@ When arguments route to ingest mode:
 
 - Fetches/reads each source independently
 - Analyzes content and maps to domains
-- Creates or merges memory files in `docs/memory/{domain}/`, authoring each file's **FKF frontmatter** — both `type: memory` (the constant FKF type, [fkf.md](../../specs/fkf.md) §3.1) and a curated `description:` one-liner (§3.2 — a single-line scalar **capped at 500 characters/runes** on the quote-stripped value; it is a routing signal, so detail belongs in the file body, never the description — xu0k). A created file carries Overview / Requirements / Design Decisions sections — **no `## Changelog`** (FKF §3.3 removes per-file changelog tables; change history lives in the generated per-folder `log.md`, §6). Any memory↔memory cross-link in the body uses the **bundle-relative `/...` form** (§7, resolved from `docs/memory/`); links out of the bundle (sources, specs, URLs) stay repo-relative/absolute-URL (8fr5)
+- Creates or merges memory files in `docs/memory/{domain}/`, authoring each file's **FKF frontmatter** — both `type: memory` (the constant FKF type, [fkf.md](../../specs/fkf.md) §3.1) and a curated `description:` one-liner (§3.2 — a single-line scalar **capped at 500 characters/runes** on the quote-stripped value and **free of change-ids** (neither a trailing `— xu0k`-style suffix nor a `(d9rs)`-style citation); it is a routing signal, so detail and provenance citations belong in the file body, never the description). A created file carries Overview / Requirements / Design Decisions sections — **no `## Changelog`** (FKF §3.3 removes per-file changelog tables; change history lives in the generated per-folder `log.md`, §6). The body states **current truth in present tense** — no transition narration ("renamed X→Y in {id}", "supersedes {id}'s claim", "was `old.value`"); superseded statements are removed, not narrated (§3.3). Any memory↔memory cross-link in the body uses the **bundle-relative `/...` form** (§7, resolved from `docs/memory/`); links out of the bundle (sources, specs, URLs) stay repo-relative/absolute-URL
 - For a new domain (or sub-domain), creates the `index.md` **stub** — only the `description:` frontmatter one-liner — **before** `fab memory-index` runs (see Index Ownership Model below)
 - Regenerates all indexes (root + every domain + every sub-domain) mechanically via `fab memory-index` — never by hand-editing rows
 - Multiple sources are processed in a single pass; `fab memory-index` runs once at the end
@@ -53,7 +53,7 @@ Backfill migrates an **existing** hand-curated `docs/memory/` tree (typically pr
 
 - **Pure frontmatter operation, body-preserving**: backfill only prepends/edits the leading FKF frontmatter (`type: memory` + `description:` — it stamps `type: memory` alongside the synthesized `description:` so a backfilled file is FKF-conforming, [fkf.md](../../specs/fkf.md) §2 item 2; 8fr5) and creates missing `description:`-only index stubs. It NEVER touches a file's body (preserved byte-for-byte) — in particular it does **not** strip any existing `## Changelog` section a pre-fab-kit file still carries (stopping new changelog writes was 8fr5; the bulk strip of fab-kit's own per-file tables landed separately in the **oovf** cutover, FKF change 4/4, which also seeded their history into per-folder `log.seed.md` — but backfill itself stays strictly body-preserving and strips nothing). It also does NOT detect/relocate tombstone rows, flatten custom groupings, or move files — those structural concerns belong to `/docs-reorg-memory` (the restructure/author seam: reorg detects + relocates the one mechanical file; backfill synthesizes per-file descriptions).
 - **Independent re-scan, no caller manifest**: backfill walks `docs/memory/` itself to find every topic file (non-`index.md` `.md`) lacking a `description:` field — it does not receive a file list from its caller. This holds for both forms: the direct-user invocation and the reorg dispatch (reorg's prompt names the operation — "backfill this tree" — not the files; assumption #9). A file with no frontmatter, or frontmatter without a `description:` key, counts as missing (the same `frontmatter.Field` semantics the generator uses). The walk is the loose, idempotent seam between the two independently-invocable skills.
-- **Synthesis source**: for each discovered file, synthesize a one-line `description:` from the file's own content (Overview / first section / H1), keeping it a curated one-liner **within the 500-character cap** (FKF §3.2 — a routing signal, not a body summary; xu0k). Where an existing curated index row maps file-by-file to the file, **prefer the curated row text** — it is higher quality than re-synthesis.
+- **Synthesis source**: for each discovered file, synthesize a one-line `description:` from the file's own content (Overview / first section / H1), keeping it a curated one-liner **within the 500-character cap and free of change-ids** (FKF §3.2 — a routing signal, not a body summary or provenance record). Where an existing curated index row maps file-by-file to the file, **prefer the curated row text** — it is higher quality than re-synthesis (strip any change-ids from a reused row).
 - **Idempotent skip**: files that already carry a `description:` are skipped — backfill never overwrites an existing one, so a second pass over an already-converted tree is a no-op (no frontmatter rewrites, no body changes, byte-stable index — Constitution III).
 - **Stub-before-index** (Index Ownership Model below): backfill creates any missing domain/sub-domain `description:`-only `index.md` stub the same way ingest/generate do, so `fab memory-index` has the domain description to read.
 - **Caller-aware regen deferral**: backfill learns its caller from the dispatch prompt. When dispatched by reorg, it does NOT run `fab memory-index` (reorg runs it once at the end of its orchestration — the single regen for the whole run). When invoked directly by a user, it runs `fab memory-index` as the final step like the other modes. The direct-user form does NOT detect/relocate tombstones (assumption #11) — that stays reorg-only.
@@ -73,13 +73,13 @@ The skill carries a **refuse-before-regen guard** at every `fab memory-index` re
 
 `/docs-hydrate-memory` requires `docs/memory/` to exist. If missing, it aborts with: "docs/memory/ not found. Run /fab-setup first to create the memory directory."
 
-### Idempotent Hydration
+### Idempotent Hydration (merge as current truth)
 
-Safe to run repeatedly with the same sources:
+Safe to run repeatedly with the same sources. When a target file already exists, the merge is a **present-truth rewrite keyed on the topic/section**, not a change-keyed append (FKF §3.3):
 - New requirements from the source are added
-- Existing requirements are updated if source content changed
+- The section already documenting a topic is **rewritten to state current truth** — superseded statements are removed, not narrated (no "renamed X→Y in {id}", no "was `old.value`"); body provenance stays citation-only (a trailing `(change-id)` / the `*Introduced by*` field)
 - Manually-added content in memory files is preserved
-- No duplication of requirements on re-hydration
+- No duplication of requirements on re-hydration — a re-run rewrites the same section to the same current truth
 
 ### Index Ownership Model (defined once — d9rs)
 

@@ -1,0 +1,20 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-17T18:30:15Z"}
+{"args":"Amend FKF §3.3 with a normative present-truth body-style rule (no transition narration, no superseded behavior in bodies, provenance limited to trailing change-id citations + Introduced-by; no change-ids in description frontmatter) and fix the memory writers (fab-continue Hydrate, docs-hydrate-memory, memory template) so hydrate rewrites sections to current truth instead of appending change-keyed deltas","cmd":"fab-new","event":"command","ts":"2026-07-17T18:30:15Z"}
+{"delta":"+0.0","event":"confidence","score":4.8,"trigger":"calc-score","ts":"2026-07-17T18:34:52Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-07-17T18:36:01Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-17T18:37:26Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-17T18:37:41Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-17T18:38:28Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-17T18:46:15Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-17T18:47:14Z"}
+{"event":"review","result":"failed","ts":"2026-07-17T18:55:35Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-17T18:55:35Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-17T18:57:03Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-17T19:01:29Z"}
+{"event":"review","result":"failed","ts":"2026-07-17T19:24:43Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-17T19:24:43Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-17T19:29:40Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-17T19:42:05Z"}
+{"event":"review","result":"passed","ts":"2026-07-17T19:42:05Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-17T19:44:09Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-17T19:49:32Z"}

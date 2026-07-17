@@ -2,8 +2,9 @@
 type: memory
 # description: a curated ONE-LINE index-row summary — a routing signal, not a summary of record.
 # Cap: 500 characters (FKF §3.2). Keep it a single line; detail (requirements, design decisions,
-# history) belongs in the BODY sections below, NEVER in the description. `fab memory-index` emits an
-# advisory warning over the cap.
+# prose) belongs in the BODY sections below, NEVER in the description. NO change-ids in the
+# description (no `— xu0k` suffix, no `(d9rs)` citation) — provenance citations belong in the body.
+# `fab memory-index` emits an advisory warning over the cap.
 description: "{One-line summary used by the generated domain-index row — ≤500 chars.}"
 ---
 # {File Name}
@@ -16,8 +17,16 @@ description: "{One-line summary used by the generated domain-index row — ≤50
      particular section, so a small reference-pointer file may legitimately omit a
      GIVEN/WHEN/THEN scenario. This template scaffolds the full shape; fill the
      sections the content warrants and delete the rest. NO `## Changelog` section —
-     change history lives in the per-folder generated `log.md` (§6). Strip these
-     guidance comments on fill. -->
+     change history lives in the per-folder generated `log.md` (§6).
+
+     BODY STYLE — state current truth in present tense (FKF §3.3). Describe what IS,
+     not how it came to be: NO transition narration ("renamed X→Y in {id}", "this
+     inverts {id}'s claim", "was `old.value`"), and NEVER describe superseded behavior
+     — the previous state lives in `log.md`, git history, and archived change folders.
+     Provenance in the body is citation-only: a trailing `(change-id)` and the
+     `*Introduced by*: {change-name}` field on a Design Decision (kept below). Rationale
+     is NOT narration — Design Decisions' Why/Rejected stay as durable present-tense
+     intent. Strip these guidance comments on fill. -->
 
 ## Overview
 <!-- 1-2 sentences describing what this file covers. -->
