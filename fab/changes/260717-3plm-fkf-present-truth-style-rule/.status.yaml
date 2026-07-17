@@ -1,0 +1,56 @@
+id: 3plm
+name: 260717-3plm-fkf-present-truth-style-rule
+created: 2026-07-17T18:30:15Z
+created_by: sahil-noon
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 16
+    acceptance_count: 20
+    acceptance_completed: 20
+confidence:
+    certain: 8
+    confident: 5
+    tentative: 0
+    unresolved: 0
+    score: 4.8
+    fuzzy: true
+    dimensions:
+        signal: 80.8
+        reversibility: 81.5
+        competence: 86.2
+        disambiguation: 83.1
+stage_metrics:
+    intake: {started_at: "2026-07-17T18:30:15Z", driver: fab-new, iterations: 1, completed_at: "2026-07-17T18:37:41Z"}
+    apply: {started_at: "2026-07-17T19:24:43Z", driver: fab-fff, iterations: 3, completed_at: "2026-07-17T19:29:40Z"}
+    review: {started_at: "2026-07-17T19:29:40Z", driver: fab-fff, iterations: 3, completed_at: "2026-07-17T19:42:05Z"}
+    hydrate: {started_at: "2026-07-17T19:42:05Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T19:49:32Z"}
+    ship: {started_at: "2026-07-17T19:49:32Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T19:53:10Z"}
+    review-pr: {started_at: "2026-07-17T19:53:10Z", driver: git-pr, iterations: 1, completed_at: "2026-07-17T20:03:21Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/485
+true_impact:
+    added: 541
+    deleted: 59
+    net: 482
+    excluding:
+        added: 56
+        deleted: 18
+        net: 38
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-07-17T19:53:10Z"
+    computed_at_stage: ship
+summary: add FKF present-truth body-style rule + topic-keyed merge-as-current-truth and change-id-free-description rules to the memory-writer docs
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-07-17T20:03:21Z

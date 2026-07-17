@@ -70,7 +70,7 @@ routes on it. It is the one hand-curated frontmatter field — authored by every
 **Length: a one-line index-row summary, capped at 500 characters.** `description:` is a routing
 signal, not a summary of record. It MUST be a single-line frontmatter scalar and SHOULD stay at or
 below **500 characters** — the unit is **characters (runes)**, measured on the value *after
-quote-stripping*. Detail (requirements, design decisions, history, prose) belongs in the file BODY
+quote-stripping*. Detail (requirements, design decisions, prose) belongs in the file BODY
 (`## Overview`, `## Requirements`, `## Design Decisions`), never in the description. `fab memory-index`
 emits a **non-fatal advisory** stderr warning for a description over the cap, naming the file and the
 observed length; the cap is **advisory-only** — an over-length description **never fails**
@@ -81,6 +81,11 @@ Co-locating the description with the file (rather than in the index) is delibera
 description never touches the hot, churn-prone index row. It cannot be auto-derived from the
 H1/Overview without loss (Overview prose contains literal `|` pipes that break index tables, and an
 extracted first sentence degrades the routing signal).
+
+**No change-ids in `description:`.** The description MUST NOT carry change-ids — neither a
+trailing `— xu0k`-style suffix nor a `(d9rs)`-style citation. It is a routing signal, not a
+provenance record; change-id citations belong in the body (§3.3), never in the description. No
+enforcement is added — `fab memory-index` does not validate against it.
 
 > **Malformed-frontmatter detection (blocking).** Because the index reads the `description:`
 > frontmatter verbatim, a *corrupted* frontmatter block silently propagates garbage into the
@@ -135,6 +140,30 @@ review/intake *read from* them — so these headings remain the target shape and
 wherever the content warrants. But a small reference-pointer file need not invent a GIVEN/WHEN/THEN
 scenario: the rule is *SHOULD-use-these-conventional-headings-where-they-apply*, not
 *MUST-have-these-sections*.
+
+**Body style: state current truth in present tense (normative).** The body describes **what IS**,
+not how it came to be:
+
+- **Present tense, current truth.** Every statement describes the current contract. A memory file
+  is a statement of record, not an accumulated log of edits.
+- **No transition narration.** Never narrate a change *as* a change — no "renamed X→Y in {id}", no
+  "this inverts/supersedes {id}'s claim", no "was `old.value`". Describe the current value; the
+  previous one is not the body's concern.
+- **Superseded behavior is never described in the body.** The previous state belongs to the
+  per-folder generated `log.md` (§6, the dated *what*), git history (the diff), and archived change
+  folders (the full design) — the body carries only what IS. Consolidating a section to current
+  truth (dropping the superseded description) is the correct edit, not a loss. (Sole sanctioned
+  exception: `_shared/removed-domains.md`, whose body *is* removal records — a citation-carrying
+  tombstone ledger, not transition narration — protected by the `fab memory-index --check` tier-2
+  tombstone-loss guard and the `docs-reorg-memory` carve-out that authors it.)
+- **Provenance is citation-only.** The sole permitted provenance in a body is a trailing
+  `(change-id)` citation and the `*Introduced by*: {change-name}` field on a Design Decision. A
+  citation marks *where a current fact came from*; it does not narrate a transition. Citations are
+  deliberately preserved — a 6-char `(id)` cheaply defends a deliberate, easily-"fixed"-away
+  behavior against future regressions.
+- **Rationale survives distillation.** "Don't re-break this" content lives in Design Decisions'
+  `Why` / `Rejected` as durable, present-tense design intent — a rejected alternative is a design
+  *fact*, not transition narration. Token savings come from dropping narration, **never** rationale.
 
 > **No `## Changelog` section.** Per-file changelog tables are **removed** in FKF — change history
 > lives in the per-folder generated `log.md` (§6). This is the single biggest FKF divergence from

@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "`/docs-hydrate-memory` generate mode — codebase scanning, gap detection, interactive scoping, memory file generation + placement rules (target path, domain/sub-domain index stubs, shape bounds — d9rs)"
+description: "`/docs-hydrate-memory` generate mode — codebase scanning, gap detection, interactive scoping, memory file generation + placement rules (target path, domain/sub-domain index stubs, shape bounds); generated files carry a change-id-free description and a present-truth body (no `## Changelog`)"
 ---
 # Hydrate: Generate Mode
 
@@ -71,7 +71,7 @@ If only 1-3 gaps are found, the skill MAY skip the interactive prompt and procee
 
 ### Structured Memory Output
 
-For each selected gap, the skill SHALL generate a memory file in `docs/memory/{domain}/{topic}.md` following the memory file format: a leading `description:` frontmatter line (a curated one-line summary, consumed by the generated domain index) above the `# H1`, then Overview, Requirements with RFC 2119 keywords, Design Decisions, and Changelog. Generated files SHALL synthesize one file per gap (not per source file). When behavior is ambiguous, files SHOULD include `[INFERRED]` markers inline with explanations.
+For each selected gap, the skill SHALL generate a memory file in `docs/memory/{domain}/{topic}.md` following the memory file format: a leading FKF frontmatter block (`type: memory` + a curated one-line `description:` summary consumed by the generated domain index — capped at 500 chars and **free of change-ids**, [fkf.md](../../specs/fkf.md) §3.2) above the `# H1`, then Overview, Requirements with RFC 2119 keywords, and Design Decisions — **no `## Changelog`** (FKF §3.3; change history lives in the generated per-folder `log.md`). The body states **current truth in present tense**, with no transition narration (§3.3). Generated files SHALL synthesize one file per gap (not per source file). When behavior is ambiguous, files SHOULD include `[INFERRED]` markers inline with explanations.
 
 ### Placement Rules (d9rs)
 

@@ -183,7 +183,7 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 
 ## `/docs-hydrate-memory [sources...]`
 
-**Purpose**: Ingest external sources into `docs/memory/` with domain mapping and index maintenance. Safe to run repeatedly — content is merged into existing memory files without duplication.
+**Purpose**: Ingest external sources into `docs/memory/` with domain mapping and index maintenance. Safe to run repeatedly — content is merged into existing memory files as current truth without duplication (the affected topic section is rewritten to current truth, not appended as a change-keyed delta).
 
 **Prerequisite**: `docs/memory/` must exist (run `/fab-setup` first). If missing, abort with: *"docs/memory/ not found. Run /fab-setup first to create the memory directory."*
 
