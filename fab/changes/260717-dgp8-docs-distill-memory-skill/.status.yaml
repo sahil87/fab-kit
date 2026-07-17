@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 7
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-07-17T20:54:24Z", driver: fab-fff, iterations: 2, completed_at: "2026-07-17T20:59:47Z"}
     review: {started_at: "2026-07-17T20:59:47Z", driver: fab-fff, iterations: 2, completed_at: "2026-07-17T21:08:22Z"}
     hydrate: {started_at: "2026-07-17T21:08:22Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T21:13:31Z"}
-    ship: {started_at: "2026-07-17T21:13:31Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-07-17T21:13:31Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T21:15:56Z"}
+    review-pr: {started_at: "2026-07-17T21:15:56Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/487
 change_type_source: explicit
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 796
+    deleted: 5
+    net: 791
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 210
+        deleted: 3
+        net: 207
     tests:
-        added: 0
-        deleted: 0
+        added: 1
+        deleted: 1
         net: 0
-    computed_at: "2026-07-17T21:13:31Z"
-    computed_at_stage: hydrate
+    computed_at: "2026-07-17T21:15:56Z"
+    computed_at_stage: ship
 summary: documents the /docs-distill-memory skill — present-truth corpus remediation, one domain per run, propose-then-apply, intent-first removal classifier
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-07-17T21:13:31Z
+last_updated: 2026-07-17T21:15:56Z
