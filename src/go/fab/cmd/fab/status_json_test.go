@@ -1,11 +1,12 @@
 package main
 
 // --json output tests for the read-only `fab status` query subcommands
-// (260717-jx4w). Each subcommand emits via cmd.OutOrStdout(), so these tests
-// capture through cmd.SetOut(buf) and assert the decoded JSON shape — the
-// intake's stable per-subcommand contract (snake_case keys, ordered arrays for
-// list subcommands, [] not null for empty lists, {"summary":""} for empty
-// summary, and text/JSON parity on plan's live-acceptance read path).
+// (260717-jx4w). The --json branches emit via cmd.OutOrStdout() (the text
+// paths still write to os.Stdout via fmt.Print*), so these tests exercise the
+// JSON path: they capture through cmd.SetOut(buf) and assert the decoded JSON
+// shape — the intake's stable per-subcommand contract (snake_case keys, ordered
+// arrays for list subcommands, [] not null for empty lists, {"summary":""} for
+// empty summary, and text/JSON parity on plan's live-acceptance read path).
 
 import (
 	"bytes"
