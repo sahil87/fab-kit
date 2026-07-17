@@ -93,7 +93,7 @@ description: "One-line summary used by the generated domain-index row."
 OKF *recommends* `description`; FKF **requires** it, because it is **load-bearing**: the generated
 domain index reads each file's row Description from this field, and the always-load context layer
 routes on it. It is the one hand-curated frontmatter field — authored by every memory writer
-(hydrate, `/docs-hydrate-memory`, `docs-reorg-memory`) and kept accurate on every edit.
+(hydrate, `/docs-hydrate-memory`, `/docs-reorg-memory`, `/docs-distill-memory`) and kept accurate on every edit.
 
 **Length: a one-line index-row summary, capped at 500 characters.** `description:` is a routing
 signal, not a summary of record. It MUST be a single-line frontmatter scalar and SHOULD stay at or

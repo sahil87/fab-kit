@@ -40,6 +40,7 @@ var skillToGroupMap = map[string]string{
 	"docs-hydrate-specs":  "Maintenance",
 	"docs-reorg-specs":    "Maintenance",
 	"docs-reorg-memory":   "Maintenance",
+	"docs-distill-memory": "Maintenance",
 	"fab-operator":        "Maintenance",
 	"fab-setup":           "Setup",
 	"fab-help":            "Setup",
@@ -153,7 +154,7 @@ func runFabHelp(cmd *cobra.Command, args []string) error {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "  Quick change:  /fab-new \u2192 /fab-ff \u2192 /fab-archive")
 	fmt.Fprintln(w, "  Careful change: /fab-new \u2192 /fab-continue (repeat) \u2192 /fab-archive")
-	fmt.Fprintln(w, "  Maintain docs:  /docs-hydrate-memory, /docs-hydrate-specs, /docs-reorg-specs, /docs-reorg-memory")
+	fmt.Fprintln(w, "  Maintain docs:  /docs-hydrate-memory, /docs-hydrate-specs, /docs-reorg-specs, /docs-reorg-memory, /docs-distill-memory")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "PACKAGES")
 	fmt.Fprintln(w)
