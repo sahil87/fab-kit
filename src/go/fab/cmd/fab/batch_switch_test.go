@@ -140,10 +140,13 @@ func batchSwitchFixture(t *testing.T, sessionCommand string) (root, change strin
 	return root, change
 }
 
-// stubBatchSwitchTmuxCapture stubs `wt` (echoing a worktree path) and a `tmux`
-// that appends its full argument list to a capture file, prepended to $PATH.
-// runBatchSwitch invokes both via raw exec.Command (PATH-resolved). Returns the
-// capture file path.
+// stubBatchSwitchTmuxCapture stubs `wt` (echoing a worktree path), a `tmux`
+// that appends its full argument list to a capture file, and a `git` that reports
+// the branch missing (so branchExists routes to the positional and never touches
+// the network), all prepended to $PATH. runBatchSwitch invokes each via
+// exec.Command / pane.RunCmd (PATH-resolved). Returns the tmux capture file path.
+// These tests assert the tmux spawn command, not wt routing — the git stub only
+// keeps the probe hermetic.
 func stubBatchSwitchTmuxCapture(t *testing.T) string {
 	t.Helper()
 	bin := t.TempDir()
@@ -151,6 +154,7 @@ func stubBatchSwitchTmuxCapture(t *testing.T) string {
 	scripts := map[string]string{
 		"wt":   "echo /fake/worktrees/switch",
 		"tmux": `printf '%s\n' "$@" >> ` + capture,
+		"git":  `case "$1" in show-ref) exit 1 ;; ls-remote) exit 0 ;; *) exit 0 ;; esac`,
 	}
 	for name, body := range scripts {
 		if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
@@ -159,6 +163,191 @@ func stubBatchSwitchTmuxCapture(t *testing.T) string {
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	return capture
+}
+
+// stubBatchSwitchRouting stubs `git` (the branchExists probe), an argv-capturing
+// `wt`, and a no-op `tmux`, all prepended to $PATH. The `git` stub dispatches on
+// its first argument: `show-ref` exits per showRefExit (0 = branch exists locally),
+// `ls-remote` prints lsRemoteOut then exits per lsRemoteExit (non-empty stdout with
+// exit 0 = branch exists remotely). The `wt` stub appends its full argv to a capture
+// file, prints a fake worktree path, and exits per wtExit. Returns the wt-argv
+// capture file path. NEVER invokes the real installed wt (whose OLD dual semantics
+// differ from the migrated --checkout contract).
+func stubBatchSwitchRouting(t *testing.T, showRefExit, lsRemoteExit int, lsRemoteOut string, wtExit int) string {
+	t.Helper()
+	bin := t.TempDir()
+	wtCapture := filepath.Join(t.TempDir(), "wt-args")
+	gitBody := `case "$1" in
+  show-ref) exit ` + itoa(showRefExit) + ` ;;
+  ls-remote) printf '%s' "` + lsRemoteOut + `"; exit ` + itoa(lsRemoteExit) + ` ;;
+  *) exit 0 ;;
+esac`
+	wtBody := `printf '%s\n' "$@" >> ` + wtCapture + `
+echo /fake/worktrees/switch
+exit ` + itoa(wtExit)
+	scripts := map[string]string{
+		"git":  gitBody,
+		"wt":   wtBody,
+		"tmux": "exit 0",
+	}
+	for name, body := range scripts {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	return wtCapture
+}
+
+// itoa is a tiny local int→string helper so the stub bodies read cleanly without
+// pulling strconv into the test's import set.
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	neg := n < 0
+	if neg {
+		n = -n
+	}
+	var b []byte
+	for n > 0 {
+		b = append([]byte{byte('0' + n%10)}, b...)
+		n /= 10
+	}
+	if neg {
+		b = append([]byte{'-'}, b...)
+	}
+	return string(b)
+}
+
+// runBatchSwitchOnce is the shared driver for the routing tests: it builds the
+// command, runs runBatchSwitch for the single change, and returns captured stderr.
+func runBatchSwitchOnce(t *testing.T, change string) (stderr string, err error) {
+	t.Helper()
+	cmd := batchSwitchCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	err = runBatchSwitch(cmd, []string{change}, false, false)
+	return errOut.String(), err
+}
+
+// TestRunBatchSwitch_Routing verifies branchExists probe-and-route per wt's 2af2
+// contract: existing local branch → --checkout form; remote-only branch → --checkout
+// form; missing branch (both probes fail) → positional form; offline ls-remote →
+// positional form. The default tier's branch is the change folder name (no prefix
+// configured in the fixture).
+func TestRunBatchSwitch_Routing(t *testing.T) {
+	t.Run("existing local branch routes through --checkout", func(t *testing.T) {
+		_, change := batchSwitchFixture(t, "claude")
+		// show-ref exits 0 (local branch exists); ls-remote must NOT be consulted.
+		capture := stubBatchSwitchRouting(t, 0, 1, "", 0)
+
+		if stderr, err := runBatchSwitchOnce(t, change); err != nil {
+			t.Fatalf("expected nil error, got %v\nstderr: %s", err, stderr)
+		}
+		args, readErr := os.ReadFile(capture)
+		if readErr != nil {
+			t.Fatalf("reading wt capture: %v", readErr)
+		}
+		got := string(args)
+		if !strings.Contains(got, "--checkout\n"+change) {
+			t.Errorf("expected --checkout %s form, got wt argv:\n%s", change, got)
+		}
+		// The positional (bare change name as the trailing arg, no --checkout before it)
+		// must NOT appear — verify --checkout precedes the branch name.
+		if !strings.Contains(got, "--reuse") || !strings.Contains(got, "--worktree-name") {
+			t.Errorf("expected --reuse --worktree-name retained, got:\n%s", got)
+		}
+	})
+
+	t.Run("remote-only branch routes through --checkout", func(t *testing.T) {
+		_, change := batchSwitchFixture(t, "claude")
+		// show-ref exits 1 (no local branch); ls-remote prints a matching ref, exit 0.
+		capture := stubBatchSwitchRouting(t, 1, 0, "abc123\trefs/heads/"+change, 0)
+
+		if stderr, err := runBatchSwitchOnce(t, change); err != nil {
+			t.Fatalf("expected nil error, got %v\nstderr: %s", err, stderr)
+		}
+		args, readErr := os.ReadFile(capture)
+		if readErr != nil {
+			t.Fatalf("reading wt capture: %v", readErr)
+		}
+		if !strings.Contains(string(args), "--checkout\n"+change) {
+			t.Errorf("expected --checkout %s for remote-only branch, got:\n%s", change, string(args))
+		}
+	})
+
+	t.Run("missing branch routes through positional", func(t *testing.T) {
+		_, change := batchSwitchFixture(t, "claude")
+		// show-ref exits 1, ls-remote exits 0 with EMPTY output → branch missing.
+		capture := stubBatchSwitchRouting(t, 1, 0, "", 0)
+
+		if stderr, err := runBatchSwitchOnce(t, change); err != nil {
+			t.Fatalf("expected nil error, got %v\nstderr: %s", err, stderr)
+		}
+		args, readErr := os.ReadFile(capture)
+		if readErr != nil {
+			t.Fatalf("reading wt capture: %v", readErr)
+		}
+		got := string(args)
+		if strings.Contains(got, "--checkout") {
+			t.Errorf("expected positional form (no --checkout) for missing branch, got:\n%s", got)
+		}
+		// The change name must be the trailing positional arg.
+		if !strings.HasSuffix(strings.TrimRight(got, "\n"), change) {
+			t.Errorf("expected trailing positional %s, got:\n%s", change, got)
+		}
+	})
+
+	t.Run("offline ls-remote degrades to positional", func(t *testing.T) {
+		_, change := batchSwitchFixture(t, "claude")
+		// show-ref exits 1 (no local); ls-remote exits non-zero (offline) → not-remote.
+		capture := stubBatchSwitchRouting(t, 1, 2, "", 0)
+
+		if stderr, err := runBatchSwitchOnce(t, change); err != nil {
+			t.Fatalf("expected nil error, got %v\nstderr: %s", err, stderr)
+		}
+		args, readErr := os.ReadFile(capture)
+		if readErr != nil {
+			t.Fatalf("reading wt capture: %v", readErr)
+		}
+		if strings.Contains(string(args), "--checkout") {
+			t.Errorf("offline ls-remote must degrade to positional, got:\n%s", string(args))
+		}
+	})
+}
+
+// TestRunBatchSwitch_WtFailureSurfacesStderr verifies that a wt create failure is
+// warn-and-skipped (loop continues, no error returned) AND the child stderr is
+// surfaced via pane.StderrError in the warning line — the migration signal wt's
+// typed exit-2 error carries, which the old .Output() call discarded.
+func TestRunBatchSwitch_WtFailureSurfacesStderr(t *testing.T) {
+	_, change := batchSwitchFixture(t, "claude")
+	bin := t.TempDir()
+	// git: branch missing → positional; wt: exit 2 writing a diagnostic to stderr.
+	scripts := map[string]string{
+		"git":  "case \"$1\" in show-ref) exit 1 ;; ls-remote) exit 0 ;; *) exit 0 ;; esac",
+		"wt":   "echo \"Branch 'x' already exists: use --checkout\" >&2\nexit 2",
+		"tmux": "exit 0",
+	}
+	for name, body := range scripts {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	stderr, err := runBatchSwitchOnce(t, change)
+	if err != nil {
+		t.Fatalf("wt failure must warn-and-skip (no returned error), got: %v", err)
+	}
+	if !strings.Contains(stderr, "failed to create worktree for '"+change+"'") {
+		t.Errorf("missing warn-and-skip line, got:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "use --checkout") {
+		t.Errorf("wt child stderr not surfaced (pane.StderrError), got:\n%s", stderr)
+	}
 }
 
 // TestRunBatchSwitch_SpawnCommandProfileInjection verifies that the worker spawn

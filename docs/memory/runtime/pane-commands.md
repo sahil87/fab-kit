@@ -186,7 +186,7 @@ Shared pane-resolution logic lives in `src/go/fab/internal/pane/pane.go`:
 - `FindMainWorktreeRoot(cwds []string) string` — derives the main worktree root from pane CWDs via `git worktree list --porcelain`
 - `WithServer(server string, args ...string) []string` — the canonical argv-building helper (see Design Decisions)
 
-All tmux-invoking functions accept a trailing `server string` parameter and build their argv via `WithServer`. Callers in `cmd/fab/pane*.go` read the flag via `cmd.Flags().GetString("server")` and thread the value through. The `RunCmd`/`StderrError` pair is applied at the capture (`capturePaneContent`), send (both `send-keys` sites), operator (`tmux new-window`, `gitRepoRoot`), and batch-new (`wt create`, `tmux new-window`) subprocess sites — errors include the trimmed child stderr and the relevant identifier (pane ID / target).
+All tmux-invoking functions accept a trailing `server string` parameter and build their argv via `WithServer`. Callers in `cmd/fab/pane*.go` read the flag via `cmd.Flags().GetString("server")` and thread the value through. The `RunCmd`/`StderrError` pair is applied at the capture (`capturePaneContent`), send (both `send-keys` sites), operator (`tmux new-window`, `gitRepoRoot`), batch-new (`wt create`, `tmux new-window`), and batch-switch (`wt create` — added by 260717-otol when `batch switch` moved off `.Output()` to surface wt's typed exit-2 error in its warn-and-skip line) subprocess sites — errors include the trimmed child stderr and the relevant identifier (pane ID / target).
 
 ## Design Decisions
 

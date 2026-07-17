@@ -15,7 +15,7 @@ One `##` section per tool (plus the framing Reference Model), mirroring the part
 | Section | Covers |
 |---------|--------|
 | Reference Model | The hand-authored-gist-plus-`help-dump`-at-use-time convention; the universal silent-fail detection rule (`command -v <tool>`, skip silently when absent) shared by every external tool |
-| wt (Worktree Manager) | Worktree create/list/remove; worktree directory naming (`{adjective}-{noun}`); the operator's spawn-in-worktree rules |
+| wt (Worktree Manager) | Worktree create/list/remove; worktree directory naming (`{adjective}-{noun}`); the operator's spawn-in-worktree rules; the `wt create` branch-selection contract (260717-2af2) — positional `[branch]` is **new-branch-only** (exits 2 on an existing local/remote branch), `--checkout <branch>` is the explicit opt-in for an existing branch, and it **conflicts** with both `--base` and the positional; so spawning a known change probes branch existence and **routes** to `--checkout` (existing) or the positional (new) |
 | idea (Backlog Manager) | Backlog entry management feeding the change pipeline (backlog IDs consumed by `_intake` Step 0) |
 | hop (Multi-Repo Navigator) | Cross-repo navigation for the operator spanning multiple repos on one tmux server |
 | tmux | Pane/session primitives the operator builds on (`send-keys`, session/pane addressing) layered under `fab pane` |

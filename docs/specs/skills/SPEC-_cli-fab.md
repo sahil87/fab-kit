@@ -37,7 +37,7 @@ The partial is organized as one `##` section per command (or command group), plu
 | fab help-dump | Machine-readable command dump |
 | fab operator | Launch the operator in a dedicated tmux tab (singleton); degraded-behavior contract |
 | fab agent | Launch (or `--print`) the resolved agent session command in the current shell — resolves a tier's provider `session_command` with the profile substituted/appended; `[tier]` (default when omitted), `--print`, `--repo <path>`; replaces `fab spawn-command` (profile-resolved, not placeholder-stripped) |
-| fab batch | Multi-target batch operations |
+| fab batch | Multi-target batch operations. `switch` probes branch existence and routes `wt create` to `--checkout <branch>` (existing) or the positional (new) per wt's 260717-2af2 contract, surfacing the child stderr on failure |
 | Common Error Messages | The shared error strings and their meanings |
 
 > The inventory mirrors the file's `##` section order. When a command's signature changes, the constitution requires updating `_cli-fab.md` **and** its consumers' tests — and, by the mirror rule, this SPEC's corresponding row.
