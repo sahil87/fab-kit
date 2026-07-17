@@ -46,8 +46,11 @@ func TestDumpDoc_TopLevelContract(t *testing.T) {
 // re-introduction of the field (as a struct field or a raw map key) is caught.
 func TestDumpDoc_NoCapturedAt(t *testing.T) {
 	out := encodeDoc(t, dumpDoc(newSyntheticTree(), "9.9.9"))
-	if strings.Contains(out, "captured_at") {
-		t.Errorf("help-dump envelope must NOT contain captured_at (owned by shll.ai), got:\n%s", out)
+	// Match the JSON key token (`"captured_at":`), not the bare substring — a bare
+	// Contains would false-positive if `captured_at` ever appeared inside a node's
+	// text/short help body, which is byte-preserved into the envelope.
+	if strings.Contains(out, `"captured_at":`) {
+		t.Errorf("help-dump envelope must NOT contain a captured_at key (owned by shll.ai), got:\n%s", out)
 	}
 }
 
@@ -268,7 +271,9 @@ func TestHelpDumpCmd_MinimalConformance(t *testing.T) {
 	if doc.SchemaVersion != 1 {
 		t.Errorf("schema_version = %d, want 1", doc.SchemaVersion)
 	}
-	if strings.Contains(stdout.String(), "captured_at") {
-		t.Errorf("help-dump envelope must NOT contain captured_at, got:\n%s", stdout.String())
+	// Match the JSON key token, not the bare substring (see TestDumpDoc_NoCapturedAt):
+	// `captured_at` inside a command's text help body must not trigger a false failure.
+	if strings.Contains(stdout.String(), `"captured_at":`) {
+		t.Errorf("help-dump envelope must NOT contain a captured_at key, got:\n%s", stdout.String())
 	}
 }
