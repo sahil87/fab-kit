@@ -135,7 +135,17 @@ func branchExists(branch string) bool {
 	if exec.Command("git", "show-ref", "--verify", "--quiet", "refs/heads/"+branch).Run() == nil {
 		return true
 	}
-	out, err := exec.Command("git", "ls-remote", "--heads", "origin", branch).Output()
+	// Force the ls-remote probe non-interactive: GIT_TERMINAL_PROMPT=0 stops
+	// git from prompting for HTTPS credentials, and BatchMode=yes stops ssh
+	// from prompting for a passphrase or host-key confirmation. Without these
+	// the probe can block in tmux waiting on interactive auth instead of
+	// degrading to not-remote → positional as the routing above intends.
+	cmd := exec.Command("git", "ls-remote", "--heads", "origin", branch)
+	cmd.Env = append(os.Environ(),
+		"GIT_TERMINAL_PROMPT=0",
+		"GIT_SSH_COMMAND=ssh -o BatchMode=yes",
+	)
+	out, err := cmd.Output()
 	return err == nil && strings.TrimSpace(string(out)) != ""
 }
 

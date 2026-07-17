@@ -318,6 +318,51 @@ func TestRunBatchSwitch_Routing(t *testing.T) {
 	})
 }
 
+// TestRunBatchSwitch_LsRemoteProbeIsNonInteractive verifies the ls-remote probe
+// in branchExists runs with terminal prompts disabled — GIT_TERMINAL_PROMPT=0
+// (no HTTPS credential prompt) and BatchMode=yes via GIT_SSH_COMMAND (no ssh
+// passphrase / host-key prompt). Without these the probe can block in tmux on
+// interactive auth instead of degrading to not-remote → positional.
+func TestRunBatchSwitch_LsRemoteProbeIsNonInteractive(t *testing.T) {
+	_, change := batchSwitchFixture(t, "claude")
+	bin := t.TempDir()
+	envCapture := filepath.Join(t.TempDir(), "git-env")
+	// show-ref exits 1 (no local branch) so the ls-remote probe runs; the
+	// ls-remote arm records the auth-related env it was invoked with, then
+	// exits 0 with empty output (branch missing → positional).
+	gitBody := `case "$1" in
+  show-ref) exit 1 ;;
+  ls-remote) printf 'GIT_TERMINAL_PROMPT=%s\nGIT_SSH_COMMAND=%s\n' "$GIT_TERMINAL_PROMPT" "$GIT_SSH_COMMAND" > ` + envCapture + `; exit 0 ;;
+  *) exit 0 ;;
+esac`
+	scripts := map[string]string{
+		"git":  gitBody,
+		"wt":   "echo /fake/worktrees/switch\nexit 0",
+		"tmux": "exit 0",
+	}
+	for name, body := range scripts {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	if stderr, err := runBatchSwitchOnce(t, change); err != nil {
+		t.Fatalf("expected nil error, got %v\nstderr: %s", err, stderr)
+	}
+	envOut, readErr := os.ReadFile(envCapture)
+	if readErr != nil {
+		t.Fatalf("reading git env capture: %v", readErr)
+	}
+	got := string(envOut)
+	if !strings.Contains(got, "GIT_TERMINAL_PROMPT=0") {
+		t.Errorf("ls-remote probe must set GIT_TERMINAL_PROMPT=0, got env:\n%s", got)
+	}
+	if !strings.Contains(got, "BatchMode=yes") {
+		t.Errorf("ls-remote probe must set ssh BatchMode=yes via GIT_SSH_COMMAND, got env:\n%s", got)
+	}
+}
+
 // TestRunBatchSwitch_WtFailureSurfacesStderr verifies that a wt create failure is
 // warn-and-skipped (loop continues, no error returned) AND the child stderr is
 // surfaced via pane.StderrError in the warning line — the migration signal wt's
