@@ -645,17 +645,17 @@ fab-kit's Homebrew formula declares **wt** and **idea** as dependencies, so `bre
 | **wt** | Worktree isolation — each change runs in its own worktree (the foundation of [parallel changes](#parallel-by-default)). Used by `fab batch new` and `fab batch switch`. | [sahil87/wt](https://github.com/sahil87/wt) |
 | **idea** | Per-repo backlog (`fab/backlog.md`) that feeds `/fab-new`. `fab batch new` reads open ideas and creates a worktree per item. | [sahil87/idea](https://github.com/sahil87/idea) |
 
-See [companions.md](docs/specs/companions.md) for the integration architecture.
+See [companions.md](https://github.com/sahil87/fab-kit/blob/main/docs/specs/companions.md) for the integration architecture.
 
 ## Learn More
 
-- **[The Assembly Line](docs/specs/assembly-line.md)** - batch scripts, Gantt charts, and the full numbers behind parallel development
-- **[Design & Workflow Details](docs/specs/overview.md)** - principles, detailed stage descriptions, example workflows
-- **[User Flow Diagrams](docs/specs/user-flow.md)** - visual maps of the full pipeline, shortcuts, rework paths, and state machine
-- **[Full Command Reference](docs/specs/skills.md)** - detailed behavior for every `/fab-*` skill
-- **[SRAD Autonomy Framework](docs/specs/srad.md)** - how the pipeline handles ambiguity, confidence scoring, and autonomous execution gates
-- **[Glossary](docs/specs/glossary.md)** - all Fab terminology defined
-- **[Contributing](CONTRIBUTING.md)** - developing, extending, and releasing Fab Kit
+- **[The Assembly Line](https://github.com/sahil87/fab-kit/blob/main/docs/specs/assembly-line.md)** - batch scripts, Gantt charts, and the full numbers behind parallel development
+- **[Design & Workflow Details](https://github.com/sahil87/fab-kit/blob/main/docs/specs/overview.md)** - principles, detailed stage descriptions, example workflows
+- **[User Flow Diagrams](https://github.com/sahil87/fab-kit/blob/main/docs/specs/user-flow.md)** - visual maps of the full pipeline, shortcuts, rework paths, and state machine
+- **[Full Command Reference](https://github.com/sahil87/fab-kit/blob/main/docs/specs/skills.md)** - detailed behavior for every `/fab-*` skill
+- **[SRAD Autonomy Framework](https://github.com/sahil87/fab-kit/blob/main/docs/specs/srad.md)** - how the pipeline handles ambiguity, confidence scoring, and autonomous execution gates
+- **[Glossary](https://github.com/sahil87/fab-kit/blob/main/docs/specs/glossary.md)** - all Fab terminology defined
+- **[Contributing](https://github.com/sahil87/fab-kit/blob/main/CONTRIBUTING.md)** - developing, extending, and releasing Fab Kit
 
 ## Development
 

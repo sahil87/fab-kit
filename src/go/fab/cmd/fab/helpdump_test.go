@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -38,11 +37,20 @@ func TestDumpDoc_TopLevelContract(t *testing.T) {
 	if doc.Version != "9.9.9" {
 		t.Errorf("version = %q, want %q (must reflect passed-in value, not be hardcoded)", doc.Version, "9.9.9")
 	}
-	// captured_at must be a valid RFC3339 timestamp.
-	if doc.CapturedAt == "" {
-		t.Errorf("captured_at is empty")
-	} else if _, err := time.Parse(time.RFC3339, doc.CapturedAt); err != nil {
-		t.Errorf("captured_at = %q does not parse as RFC3339: %v", doc.CapturedAt, err)
+}
+
+// TestDumpDoc_NoCapturedAt pins the help-dump standard's forbidden field: the
+// emitted envelope MUST NOT carry captured_at (the capture timestamp is owned by
+// shll.ai's puller, which stamps it after capture — a tool cannot know its own
+// capture time). Asserting on the encoded bytes, not just the struct, so a future
+// re-introduction of the field (as a struct field or a raw map key) is caught.
+func TestDumpDoc_NoCapturedAt(t *testing.T) {
+	out := encodeDoc(t, dumpDoc(newSyntheticTree(), "9.9.9"))
+	// Match the JSON key token (`"captured_at":`), not the bare substring — a bare
+	// Contains would false-positive if `captured_at` ever appeared inside a node's
+	// text/short help body, which is byte-preserved into the envelope.
+	if strings.Contains(out, `"captured_at":`) {
+		t.Errorf("help-dump envelope must NOT contain a captured_at key (owned by shll.ai), got:\n%s", out)
 	}
 }
 
@@ -87,8 +95,9 @@ func assertKeyOrder(t *testing.T, out string, keys ...string) {
 func TestDumpDoc_JSONKeyOrder(t *testing.T) {
 	out := encodeDoc(t, dumpDoc(newSyntheticTree(), "9.9.9"))
 
-	// Top-level: tool, version, captured_at, schema_version, root.
-	assertKeyOrder(t, out, "tool", "version", "captured_at", "schema_version", "root")
+	// Top-level: tool, version, schema_version, root (no captured_at — the
+	// help-dump standard forbids it; the puller stamps the capture timestamp).
+	assertKeyOrder(t, out, "tool", "version", "schema_version", "root")
 
 	// Node: name, path, short, usage, text, commands. The synthetic root has a
 	// surviving child, so a nested node is present and its order is exercised too.
@@ -230,5 +239,41 @@ func TestHelpDumpCmd_IsHiddenNoArgs(t *testing.T) {
 	}
 	if err := cmd.Args(cmd, []string{"extra"}); err == nil {
 		t.Errorf("help-dump must reject positional args (cobra.NoArgs)")
+	}
+}
+
+// TestHelpDumpCmd_MinimalConformance is the standard's minimal contract-pinning
+// test, run end-to-end against the assembled root command (not just dumpDoc): the
+// command exits 0, writes valid JSON to stdout and nothing to stderr, and the
+// decoded envelope carries the expected tool and schema_version with no
+// captured_at. This is the surface the shll.ai puller invokes.
+func TestHelpDumpCmd_MinimalConformance(t *testing.T) {
+	root := newRootCmd()
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"help-dump"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("help-dump returned a non-nil error (want exit 0): %v", err)
+	}
+	if stderr.Len() != 0 {
+		t.Errorf("help-dump wrote to stderr (want empty): %q", stderr.String())
+	}
+
+	var doc HelpDoc
+	if err := json.Unmarshal(stdout.Bytes(), &doc); err != nil {
+		t.Fatalf("help-dump stdout is not valid JSON: %v\n%s", err, stdout.String())
+	}
+	if doc.Tool != "fab" {
+		t.Errorf("tool = %q, want %q", doc.Tool, "fab")
+	}
+	if doc.SchemaVersion != 1 {
+		t.Errorf("schema_version = %d, want 1", doc.SchemaVersion)
+	}
+	// Match the JSON key token, not the bare substring (see TestDumpDoc_NoCapturedAt):
+	// `captured_at` inside a command's text help body must not trigger a false failure.
+	if strings.Contains(stdout.String(), `"captured_at":`) {
+		t.Errorf("help-dump envelope must NOT contain a captured_at key, got:\n%s", stdout.String())
 	}
 }

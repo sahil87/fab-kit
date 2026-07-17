@@ -40,7 +40,6 @@ is not listed in `--help`, but the shape is stable across all of them:
 {
   "tool": "idea",
   "version": "v0.0.13",
-  "captured_at": "2026-06-16T04:33:36Z",
   "schema_version": 1,
   "root": {
     "name": "idea",
@@ -55,11 +54,14 @@ is not listed in `--help`, but the shape is stable across all of them:
 }
 ```
 
-Fields: `tool`, `version`, `captured_at` (part of the contract; may be empty or
-omitted on some tools — e.g. `wt` omits it, `hop` emits it empty), `schema_version`
-(currently `1`), and a recursive `root` → `commands[]` tree where each node carries
-`name`, `path`, `short`, `usage`, and `text`. The tree is recursive — `commands[]`
-nests for subcommand groups.
+Fields: `tool`, `version`, `schema_version` (currently `1`), and a recursive
+`root` → `commands[]` tree where each node carries `name`, `path`, `short`,
+`usage`, and `text`. The tree is recursive — `commands[]` nests for subcommand
+groups. Per the shll v0.0.23 help-dump standard the envelope carries **no
+`captured_at`**: the capture timestamp is owned by shll.ai's puller (a tool
+cannot know its own capture time — it is stamped after capture), so emitting it
+is forbidden toolkit-wide. `fab` and `wt` already omit it; any peer tool still
+emitting `captured_at` (empty or otherwise) drops it on its own release cadence.
 
 **Use it at use-time.** For any flag or subcommand **not** in the gist below, run
 `<tool> help-dump` (or `<tool> <cmd> --help`) and treat *that*, not this file, as
