@@ -85,9 +85,22 @@ func markRunReached(cmd *cobra.Command, reached *bool) {
 // Domain-specific in-handler exit codes (pane 2/3, memory-index 0/1/2) call
 // os.Exit directly from within their RunE and so bypass this mapping entirely —
 // their codes are preserved unchanged (the no-renumbering coexistence rule).
-func run(args []string, errW io.Writer) int {
+func run(args []string, outW, errW io.Writer) int {
 	root := newRootCmd()
 	root.SetArgs(args)
+	root.SetOut(outW)
+
+	// Inject cobra's auto-generated help/completion commands BEFORE wrapping, so
+	// their RunE handlers participate in the reached-run-phase signal. Execute()
+	// would otherwise add these AFTER markRunReached ran (see ExecuteC), leaving
+	// the completion subcommands' RunE unwrapped — a returned operational error
+	// (e.g. a write failure in `completion bash`) would then be misclassified as
+	// a usage error (exit 2) since `reached` never flips. Both calls are
+	// idempotent, so Execute()'s later re-invocation is a no-op. (The `help` and
+	// `__complete` commands use Run, not RunE, so they carry no returned error to
+	// classify; initializing help here is harmless and keeps the seam uniform.)
+	root.InitDefaultHelpCmd()
+	root.InitDefaultCompletionCmd()
 
 	reached := false
 	markRunReached(root, &reached)
@@ -103,5 +116,5 @@ func run(args []string, errW io.Writer) int {
 }
 
 func main() {
-	os.Exit(run(os.Args[1:], os.Stderr))
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
