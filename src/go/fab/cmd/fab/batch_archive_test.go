@@ -172,7 +172,7 @@ func TestArchiveLoop(t *testing.T) {
 		"260401-bb22-second-change",
 		thirdFolder,
 	}
-	archived, skipped, failed := archiveLoop(&out, &errOut, fabRoot, resolved)
+	archived, skipped, failed := archiveLoop(&out, &out, &errOut, fabRoot, resolved)
 
 	if archived != 2 {
 		t.Errorf("archived = %d, want 2", archived)
@@ -230,6 +230,12 @@ func TestBatchArchiveCmd_Structure(t *testing.T) {
 	if cmd.Flags().Lookup("list") != nil {
 		t.Error("--list flag must be removed")
 	}
+	if cmd.Flags().Lookup("quiet") == nil {
+		t.Error("missing --quiet flag")
+	}
+	if cmd.Flags().ShorthandLookup("q") == nil {
+		t.Error("missing -q shorthand for --quiet")
+	}
 }
 
 // forceTTY overrides the package-level isStdinTTY seam for the duration of a
@@ -272,7 +278,7 @@ func TestRunBatchArchive_EmptyYesSetIsBenignNoOp(t *testing.T) {
 
 	// --yes over an empty set must be a benign no-op (exit 0) — the empty-set
 	// check runs before the prompt/guard.
-	if err := runBatchArchive(cmd, nil, true, false); err != nil {
+	if err := runBatchArchive(cmd, nil, true, false, false); err != nil {
 		t.Fatalf("empty --yes set must be a benign no-op (exit 0), got: %v", err)
 	}
 	if !strings.Contains(out.String(), "No archivable changes found.") {
@@ -297,7 +303,7 @@ func TestRunBatchArchive_EmptyBareSetIsBenignNoOpBeforeGuard(t *testing.T) {
 	cmd.SetErr(&errOut)
 	cmd.SetIn(strings.NewReader(""))
 
-	if err := runBatchArchive(cmd, nil, false, false); err != nil {
+	if err := runBatchArchive(cmd, nil, false, false, false); err != nil {
 		t.Fatalf("empty bare set must be a benign no-op (exit 0) before the guard, got: %v", err)
 	}
 	if !strings.Contains(out.String(), "No archivable changes found.") {
@@ -318,7 +324,7 @@ func TestRunBatchArchive_ArchivedNameSoftSkips(t *testing.T) {
 	cmd.SetErr(&errOut)
 
 	// Explicit-args path: an archived name soft-skips with no prompt.
-	if err := runBatchArchive(cmd, []string{folder}, false, false); err != nil {
+	if err := runBatchArchive(cmd, []string{folder}, false, false, false); err != nil {
 		t.Fatalf("archived name must soft-skip (exit 0), got: %v", err)
 	}
 	if !strings.Contains(out.String(), folder+" — already archived, skipping") {
@@ -342,7 +348,7 @@ func TestRunBatchArchive_DryRunListsOnly(t *testing.T) {
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)
 
-	if err := runBatchArchive(cmd, nil, false, true); err != nil {
+	if err := runBatchArchive(cmd, nil, false, true, false); err != nil {
 		t.Fatalf("--dry-run must list, got error: %v", err)
 	}
 	if !strings.Contains(out.String(), "Archivable changes") {
@@ -371,7 +377,7 @@ func TestRunBatchArchive_DryRunYesMutuallyExclusive(t *testing.T) {
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)
 
-	err := runBatchArchive(cmd, nil, true, true)
+	err := runBatchArchive(cmd, nil, true, true, false)
 	if err == nil {
 		t.Fatal("expected error for --dry-run --yes (mutually exclusive)")
 	}
@@ -394,7 +400,7 @@ func TestRunBatchArchive_YesArchivesAllNoPrompt(t *testing.T) {
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)
 
-	if err := runBatchArchive(cmd, nil, true, false); err != nil {
+	if err := runBatchArchive(cmd, nil, true, false, false); err != nil {
 		t.Fatalf("--yes must archive all, got error: %v\nstderr:\n%s", err, errOut.String())
 	}
 	if strings.Contains(out.String(), "[y/N]") {
@@ -427,7 +433,7 @@ func TestRunBatchArchive_BarePromptYesArchives(t *testing.T) {
 	cmd.SetErr(&errOut)
 	cmd.SetIn(strings.NewReader("y\n"))
 
-	if err := runBatchArchive(cmd, nil, false, false); err != nil {
+	if err := runBatchArchive(cmd, nil, false, false, false); err != nil {
 		t.Fatalf("bare prompt + 'y' must archive, got error: %v\nstderr:\n%s", err, errOut.String())
 	}
 	if !strings.Contains(out.String(), "Archive these 1? [y/N]") {
@@ -455,7 +461,7 @@ func TestRunBatchArchive_BarePromptYesWordArchives(t *testing.T) {
 	cmd.SetErr(&errOut)
 	cmd.SetIn(strings.NewReader("YES\n"))
 
-	if err := runBatchArchive(cmd, nil, false, false); err != nil {
+	if err := runBatchArchive(cmd, nil, false, false, false); err != nil {
 		t.Fatalf("bare prompt + 'YES' must archive, got error: %v", err)
 	}
 	if !strings.Contains(out.String(), "Archived 1, skipped 0, failed 0.") {
@@ -478,7 +484,7 @@ func TestRunBatchArchive_BarePromptEnterAborts(t *testing.T) {
 	cmd.SetErr(&errOut)
 	cmd.SetIn(strings.NewReader("\n")) // bare Enter
 
-	if err := runBatchArchive(cmd, nil, false, false); err != nil {
+	if err := runBatchArchive(cmd, nil, false, false, false); err != nil {
 		t.Fatalf("bare prompt + Enter must abort with exit 0, got error: %v", err)
 	}
 	if strings.Contains(out.String(), "Archived 1") {
@@ -503,7 +509,7 @@ func TestRunBatchArchive_BarePromptNoAborts(t *testing.T) {
 	cmd.SetErr(&errOut)
 	cmd.SetIn(strings.NewReader("n\n"))
 
-	if err := runBatchArchive(cmd, nil, false, false); err != nil {
+	if err := runBatchArchive(cmd, nil, false, false, false); err != nil {
 		t.Fatalf("'n' must abort with exit 0, got error: %v", err)
 	}
 	if _, err := os.Stat(changeDir); err != nil {
@@ -526,7 +532,7 @@ func TestRunBatchArchive_NonTTYWithoutYesRefuses(t *testing.T) {
 	cmd.SetErr(&errOut)
 	cmd.SetIn(strings.NewReader("")) // non-interactive, would EOF
 
-	err := runBatchArchive(cmd, nil, false, false)
+	err := runBatchArchive(cmd, nil, false, false, false)
 	if err == nil {
 		t.Fatal("non-TTY without --yes must refuse with a non-zero exit")
 	}
@@ -561,7 +567,7 @@ func TestRunBatchArchive_ExplicitArgsNoPrompt(t *testing.T) {
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)
 
-	if err := runBatchArchive(cmd, []string{folder}, false, false); err != nil {
+	if err := runBatchArchive(cmd, []string{folder}, false, false, false); err != nil {
 		t.Fatalf("explicit args must archive without prompting, got error: %v\nstderr:\n%s", err, errOut.String())
 	}
 	if strings.Contains(out.String(), "[y/N]") {
@@ -602,7 +608,7 @@ func TestRunBatchArchive_AmbiguousNameSurfaces(t *testing.T) {
 	// The only target is ambiguous → nothing resolves → RunE returns the
 	// no-valid-changes error (exit 1), but the ambiguity must be reported
 	// distinctly, NOT as "could not resolve" or as an already-archived skip.
-	err := runBatchArchive(cmd, []string{"report"}, false, false)
+	err := runBatchArchive(cmd, []string{"report"}, false, false, false)
 	if err == nil {
 		t.Fatal("expected error: the sole target is ambiguous, nothing resolves")
 	}
@@ -631,11 +637,153 @@ func TestRunBatchArchive_NoValidChangesReturnsError(t *testing.T) {
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)
 
-	err := runBatchArchive(cmd, []string{"zzzz-nope"}, false, false)
+	err := runBatchArchive(cmd, []string{"zzzz-nope"}, false, false, false)
 	if err == nil {
 		t.Fatal("expected error when no target resolves")
 	}
 	if !strings.Contains(err.Error(), "No valid changes to archive.") {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// --- --quiet (o5f9): suppress per-change progress; retain footer, data, stderr ---
+
+// TestRunBatchArchive_QuietYesFooterOnly: --quiet --yes over a non-empty set
+// prints ONLY the summary footer — no "Archiving N changes..." preamble and no
+// per-change "  {name} — archived" lines.
+func TestRunBatchArchive_QuietYesFooterOnly(t *testing.T) {
+	root := t.TempDir()
+	makeArchivable(t, root, "260401-aa11-first")
+	makeArchivable(t, root, "260401-bb22-second")
+	chdirTestEnv(t, root, map[string]string{})
+
+	cmd := batchArchiveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	if err := runBatchArchive(cmd, nil, true, false, true); err != nil {
+		t.Fatalf("--quiet --yes must archive all, got error: %v\nstderr:\n%s", err, errOut.String())
+	}
+	got := out.String()
+	if strings.Contains(got, "Archiving 2 changes...") {
+		t.Errorf("--quiet must suppress the 'Archiving N changes...' preamble, got:\n%s", got)
+	}
+	if strings.Contains(got, "— archived") {
+		t.Errorf("--quiet must suppress per-change lines, got:\n%s", got)
+	}
+	if !strings.Contains(got, "Archived 2, skipped 0, failed 0.") {
+		t.Errorf("--quiet must retain the summary footer, got:\n%s", got)
+	}
+	// The footer, once its leading blank line is trimmed, is the ENTIRE stdout.
+	if strings.TrimSpace(got) != "Archived 2, skipped 0, failed 0." {
+		t.Errorf("--quiet --yes stdout must be footer-only, got:\n%q", got)
+	}
+}
+
+// TestRunBatchArchive_QuietExplicitArgsFooterOnly: --quiet with explicit args
+// suppresses the same per-change lines and keeps the footer.
+func TestRunBatchArchive_QuietExplicitArgsFooterOnly(t *testing.T) {
+	root := t.TempDir()
+	folder := "260401-aa11-first"
+	makeArchivable(t, root, folder)
+	chdirTestEnv(t, root, map[string]string{})
+
+	cmd := batchArchiveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	if err := runBatchArchive(cmd, []string{folder}, false, false, true); err != nil {
+		t.Fatalf("--quiet explicit args must archive, got error: %v\nstderr:\n%s", err, errOut.String())
+	}
+	got := out.String()
+	if strings.Contains(got, "— archived\n") && strings.Contains(got, folder+" — archived") {
+		t.Errorf("--quiet must suppress the per-change line, got:\n%s", got)
+	}
+	if strings.TrimSpace(got) != "Archived 1, skipped 0, failed 0." {
+		t.Errorf("--quiet explicit-args stdout must be footer-only, got:\n%q", got)
+	}
+}
+
+// TestRunBatchArchive_QuietEmptySetRetainsNoOp: --quiet over an empty set still
+// prints the empty-set no-op output (it is the run's outcome, not per-change
+// progress) and exits 0 (F49 preserved).
+func TestRunBatchArchive_QuietEmptySetRetainsNoOp(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "fab", "changes"), 0o755)
+	chdirTestEnv(t, root, map[string]string{})
+
+	cmd := batchArchiveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	if err := runBatchArchive(cmd, nil, true, false, true); err != nil {
+		t.Fatalf("--quiet empty --yes set must be a benign no-op (exit 0), got: %v", err)
+	}
+	if !strings.Contains(out.String(), "No archivable changes found.") {
+		t.Errorf("--quiet must retain the empty-set no-op notice, got:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "Archived 0, skipped 0, failed 0.") {
+		t.Errorf("--quiet must retain the zero footer, got:\n%s", out.String())
+	}
+}
+
+// TestRunBatchArchive_QuietRetainsStderr: --quiet must never touch stderr — an
+// unresolvable name still surfaces its warning while stdout carries only the
+// footer.
+func TestRunBatchArchive_QuietRetainsStderr(t *testing.T) {
+	root := t.TempDir()
+	makeArchivable(t, root, "260401-aa11-first")
+	chdirTestEnv(t, root, map[string]string{})
+
+	cmd := batchArchiveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	// Mix a resolvable change with an unresolvable one: the good one archives,
+	// the bad one warns on stderr — stderr must be untouched by --quiet.
+	if err := runBatchArchive(cmd, []string{"260401-aa11-first", "zzzz-nope"}, false, false, true); err != nil {
+		t.Fatalf("warn-and-skip must not error, got: %v", err)
+	}
+	if !strings.Contains(errOut.String(), "could not resolve 'zzzz-nope'") {
+		t.Errorf("--quiet must retain stderr warnings, got stderr:\n%s", errOut.String())
+	}
+	if strings.Contains(out.String(), "— archived") {
+		t.Errorf("--quiet must still suppress the per-change stdout line, got:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "Archived 1, skipped 0, failed 0.") {
+		t.Errorf("footer must still print, got:\n%s", out.String())
+	}
+}
+
+// TestRunBatchArchive_QuietDoesNotImplyYes: --quiet is orthogonal to consent —
+// a bare --quiet on a (forced) TTY still lists the set and prompts [y/N]; it
+// does NOT archive without a confirming answer.
+func TestRunBatchArchive_QuietDoesNotImplyYes(t *testing.T) {
+	root := t.TempDir()
+	folder := "260401-aa11-first"
+	changeDir := makeArchivable(t, root, folder)
+	chdirTestEnv(t, root, map[string]string{})
+	forceTTY(t, true)
+
+	cmd := batchArchiveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	cmd.SetIn(strings.NewReader("\n")) // bare Enter = default No
+
+	if err := runBatchArchive(cmd, nil, false, false, true); err != nil {
+		t.Fatalf("bare --quiet + Enter must abort with exit 0, got error: %v", err)
+	}
+	// The consent listing + prompt are NOT progress — they survive --quiet.
+	if !strings.Contains(out.String(), "Archive these 1? [y/N]") {
+		t.Errorf("--quiet must NOT suppress the consent prompt (not implied --yes), got:\n%s", out.String())
+	}
+	// Default No aborted — nothing archived.
+	if _, err := os.Stat(changeDir); err != nil {
+		t.Errorf("--quiet must not imply --yes: the change must remain in place, got: %v", err)
 	}
 }

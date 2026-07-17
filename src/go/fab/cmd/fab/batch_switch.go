@@ -14,23 +14,24 @@ import (
 )
 
 func batchSwitchCmd() *cobra.Command {
-	var listFlag, allFlag bool
+	var listFlag, allFlag, quietFlag bool
 
 	cmd := &cobra.Command{
 		Use:   "switch [change...]",
 		Short: "Open tmux tabs in worktrees for one or more changes",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runBatchSwitch(cmd, args, listFlag, allFlag)
+			return runBatchSwitch(cmd, args, listFlag, allFlag, quietFlag)
 		},
 	}
 
 	cmd.Flags().BoolVar(&listFlag, "list", false, "Show available changes")
 	cmd.Flags().BoolVar(&allFlag, "all", false, "Open tabs for all changes")
+	cmd.Flags().BoolVarP(&quietFlag, "quiet", "q", false, "Suppress per-change progress output")
 
 	return cmd
 }
 
-func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag bool) error {
+func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag, quietFlag bool) error {
 	w := cmd.OutOrStdout()
 	errW := cmd.ErrOrStderr()
 
@@ -65,7 +66,9 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag bool) e
 		if len(changes) == 0 {
 			return fmt.Errorf("No changes found.")
 		}
-		fmt.Fprintf(w, "Opening %d tabs for all changes...\n", len(changes))
+		if !quietFlag {
+			fmt.Fprintf(w, "Opening %d tabs for all changes...\n", len(changes))
+		}
 	} else {
 		changes = args
 	}
@@ -90,7 +93,9 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag bool) e
 			continue
 		}
 
-		fmt.Fprintf(w, "  %s\n", match)
+		if !quietFlag {
+			fmt.Fprintf(w, "  %s\n", match)
+		}
 
 		// Construct branch name
 		branchName := branchPrefix + match
