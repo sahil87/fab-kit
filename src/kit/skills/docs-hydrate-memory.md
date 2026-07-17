@@ -30,7 +30,7 @@ Hydrate `docs/memory/` from external sources or from codebase analysis.
 - **Generate mode** (folders, no arguments): Scans codebase for undocumented areas, presents interactive gap report, generates memory files.
 - **Backfill mode** (`backfill` keyword, or dispatched by `/docs-reorg-memory`): Re-scans an existing `docs/memory/` tree for topic files that lack `description:` frontmatter and adds the FKF frontmatter (`type: memory` + `description:`) — **body-preserving** (only prepends/edits leading frontmatter; never strips an existing `## Changelog` body). Used to migrate a pre-fab-kit, hand-curated tree to the fab-kit convention so `fab memory-index` stops rendering `—` for every row. Unlike generate mode (which *creates* files from source-code gaps), backfill *adds frontmatter to existing* files.
 
-Mode is determined automatically by argument type (ingest/generate) or by the explicit `backfill` keyword / reorg dispatch. Safe to run repeatedly — content is merged as current truth without duplication (the affected topic section is rewritten to current truth, not appended as a change-keyed delta) or overwriting manually-added content; backfill skips files that already have `description:`.
+Mode is determined automatically by argument type (ingest/generate) or by the explicit `backfill` keyword / reorg dispatch. Safe to run repeatedly — content is merged as current truth: the affected topic section is rewritten to current truth (not appended as a change-keyed delta), which neither duplicates existing entries nor overwrites manually-added content; backfill skips files that already have `description:`.
 
 ### Index Ownership
 
