@@ -55,6 +55,7 @@
 | `/fab-continue` (hydrate) | Completes the pipeline — hydrates change artifacts into memory files. |
 | `/fab-archive` | Standalone housekeeping skill — moves completed changes to `fab/changes/archive/`, updates archive index, clears pointer. Not a pipeline stage. Supports restore mode. |
 | `/docs-reorg-memory` | Analyzes memory files for themes and proposes reorganization. Read-only unless user approves changes. No active change required. |
+| `/docs-distill-memory` | Rewrites an existing memory domain's topic files to the FKF present-truth style — strips transition narration and superseded-state prose, caps/de-ids `description:` frontmatter, relocates rationale into Design Decisions. One domain per run; read-only unless user approves. No active change required. |
 | `/docs-reorg-specs` | Analyzes spec files for themes and proposes reorganization. Read-only unless user approves changes. No active change required. |
 | `/fab-switch` | Changes the active change by creating the `.fab-status.yaml` symlink. Supports partial/slug matching. |
 | `/fab-status` | Displays current change state — stage progress, plan counts (tasks + acceptance), suggested next command. |

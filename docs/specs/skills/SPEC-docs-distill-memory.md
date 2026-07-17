@@ -1,0 +1,87 @@
+# docs-distill-memory
+
+## Summary
+
+Rewrites an existing `docs/memory/` domain's topic files to the **FKF present-truth style** (`$(fab kit-path)/reference/fkf.md` §3.2, §3.3). The FKF present-truth rules govern what memory writers produce *going forward*; a corpus authored before them accumulates transition narration, superseded-state prose, and over-cap / change-id-carrying `description:` frontmatter. This skill is the remediation counterpart that cleans that **existing** corpus. **One domain per run, propose-then-apply**: read-only analysis over one named domain → a per-file proposed-rewrite report → apply **only on explicit user approval** (the `/docs-reorg-memory` posture). Not an autonomous bulk rewriter — these files encode load-bearing behavioral contracts, so a human approves per domain seeing per-file diffs.
+
+Introduced as the deliberately-deferred **step 3 of the present-truth effort**: steps 1–2 (the FKF §3.2 change-id ban + §3.3 present-truth body-style rule, and the forward-looking memory writers) shipped in `260717-3plm`; this skill cleans the corpus those rules did not retroactively fix.
+
+## Niche vs. the sibling doc skills
+
+- `/docs-reorg-memory` reorganizes **structure** (splits/merges/moves + bundle-relative link rewrites) — it never rewrites body prose to a style.
+- `/docs-hydrate-memory` **backfill** mode is body-preserving (adds frontmatter only); its ingest/generate modes author *new* content from sources/code.
+- `/fab-continue` **hydrate** writes each change's delta as current truth but only touches the sections its change affects.
+- `/docs-distill-memory` is the only skill that rewrites **existing** body prose to the present-truth style across a whole domain. Chosen as a **discoverable user-invocable skill**, not a `/docs-reorg-memory` mode (a mode is not discoverable).
+
+## Rewrite semantics (FKF §3.2 / §3.3)
+
+The normative source is the **shipped FKF extract** `$(fab kit-path)/reference/fkf.md` — the skill cites the extract (reachable in every user repo), not the dev-repo `docs/specs/fkf.md` (absent there). A rewrite:
+
+- **Removes transition narration** — "renamed X→Y in {id}", "supersedes/inverts {id}", "was `old.value`", "superseding the historical …".
+- **Removes superseded-state descriptions** — the body carries only what IS; previous states live in the per-folder generated `log.md`, git history, and archived change folders.
+- **Keeps allowed provenance** — trailing `(change-id)` citations and the `*Introduced by*: {change-name}` field on Design Decisions (§3.3: a 6-char `(id)` cheaply defends deliberate behavior). **Bare 4-char ids are treated identically to dated ids** — kept in trailing-citation position, removed when woven into narration.
+- **Fixes `description:` frontmatter** — strips change-ids (§3.2 ban — no `— xu0k`-style suffix, no `(d9rs)`-style citation) and compresses an over-cap value to the **≤500-character** routing-signal shape, moving displaced routing-irrelevant detail into the body where it isn't already present. Stamps the `type: memory` constant when an edited legacy file lacks it (§2/§3.1).
+
+## Rationale-preservation guard (the critical constraint)
+
+**Token savings come from dropping narration, NEVER rationale** (FKF §3.3 verbatim: *"'Don't re-break this' content lives in Design Decisions' `Why` / `Rejected` as durable, present-tense design intent — a rejected alternative is a design fact, not transition narration."*).
+
+- Deliberate-behavior / "don't re-break this" content is **RELOCATED** into `## Design Decisions` (`Why` / `Rejected`) as present-tense intent — never deleted.
+- **Deletion is safe only** for narration whose content is **already recorded elsewhere** (per-folder `log.md`, git history, archived change folders). Content recorded nowhere else and carrying intent is relocated, not dropped. When ambiguous, relocate — the safe default preserves.
+
+## Generated files & the tombstone exemption
+
+- **Generated files are never hand-edited** — `index.md` (root/domain/sub-domain) and `log.md` are written solely by `fab memory-index` (FKF §5, §6). The skill regenerates via `fab memory-index` after applying rewrites and never edits their rows or hand-merges a generated conflict.
+- **`log.seed.md` is a curated read-only SEED INPUT, not a generated file** — `fab memory-index` *reads* it during the seed-merge (like `description:` frontmatter) but never *writes* it; the generator stays the sole writer of `log.md`. It is nonetheless **excluded from distillation** — its body *is* a citation-carrying seed ledger of pre-FKF history in the §6.2 entry format, the same exclusion posture as `removed-domains.md`. The skill skips it entirely and never rewrites it.
+- **Refuse-before-regen guard** — before regenerating, the skill consults `fab memory-index --check` (`_cli-fab` § fab memory-index): exit 0/1 → regenerate; **exit 2** (destructive loss) → **refuse** and surface the `→ run /docs-reorg-memory to remediate …` pointer. This is a **no-op on born-compatible fab-kit trees** (always exit 0/1, never 2 — defense-in-depth, not dead code).
+- **`docs/memory/_shared/removed-domains.md` is EXEMPT** from rewrite — the §3.3 tombstone carve-out (its body *is* a citation-carrying removal ledger, not transition narration). fab-kit's own tree has no such file; the exemption matters in user projects, where `/docs-reorg-memory` authors it.
+
+## Context Loading
+
+Skill-file override of the always-load layer (the `_preamble` §1 contract keys on this section): **no active change, config, or constitution** required. Reads only `docs/memory/index.md`, the target domain's `index.md` (+ sub-domain indexes), every topic file in the target domain, and `$(fab kit-path)/reference/fkf.md`. The `fab memory-index` exit tiers are consulted via an in-body `_cli-fab` § fab memory-index pointer (not pre-loaded). Declares no `helpers:`.
+
+## Flow
+
+```
+User invokes /docs-distill-memory <domain>
+│
+├─ Pre-flight: docs/memory/index.md exists; docs/memory/{domain}/ exists with ≥1 topic file
+├─ Read (read-only): domain index + every topic file (recursing sub-domains) + $(fab kit-path)/reference/fkf.md
+│     skip index.md / log.md (generated), log.seed.md (curated read-only seed input, never generated), and _shared/removed-domains.md (tombstone exempt)
+├─ Classify per file: transition narration / superseded-state prose / description: defects (over-cap, change-ids)
+│     / rationale-carrying narration (RELOCATE) / allowed provenance (KEEP)
+│     removal candidate carries durable intent? → relocate; else intent-free + recorded elsewhere (log.md/git/archive) → delete
+├─ Report: per-file proposed rewrites (before/after for the non-obvious; every relocation shown)
+├─ (present report, ask for approval: apply all / cherry-pick / skip)
+│  └─ [if declined or already-distilled] report, stop — no mutation
+│
+└─ [if approved]
+   ├─ per approved file — Edit: rewrite body to present truth (remove approved narration; relocate rationale →
+   │        Design Decisions Why/Rejected; preserve trailing (change-id) + *Introduced by*); fix description:
+   │        (strip change-ids, cap ≤500 chars, displaced detail → body); stamp type: memory if legacy file lacks it
+   │
+   └─ once, after ALL approved rewrites (Step 5 — not per file):
+      ├─ Bash: fab memory-index --check  → exit 0/1 regenerate; exit 2 REFUSE (→ /docs-reorg-memory pointer)
+      └─ Bash: fab memory-index          (index tiers from folder contents + description: frontmatter; each
+               log.md from git history + per-change summaries, freeze-on-write append-only; byte-stable)
+```
+
+### Tools used
+
+| Tool | Purpose |
+|------|---------|
+| Read | The target domain's index + topic files + `$(fab kit-path)/reference/fkf.md` (read-only analysis) |
+| Edit/Write | Rewritten topic-file bodies + `description:` frontmatter to FKF present-truth style (only with approval); never `index.md`/`log.md`/`log.seed.md`, never `_shared/removed-domains.md` |
+| Bash | `fab memory-index --check` (refuse-before-regen: exit 2 → refuse + reorg pointer); `fab memory-index` to regenerate indexes/logs after approved rewrites |
+
+### Sub-agents
+
+None — the skill runs inline (no dispatched sub-agent).
+
+### Bookkeeping
+
+None — no `fab status` transition; the skill advances no pipeline stage and requires no active change.
+
+---
+
+*Mirror of `src/kit/skills/docs-distill-memory.md`. Introduced by 260717-dgp8-docs-distill-memory-skill (260717-dgp8).*

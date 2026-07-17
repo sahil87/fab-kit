@@ -757,6 +757,24 @@ Next: Complete intake.md, then /fab-continue
 
 ---
 
+## `/docs-distill-memory <domain>`
+
+**Purpose**: Rewrite an existing `docs/memory/` domain's topic files to the FKF present-truth style (`$(fab kit-path)/reference/fkf.md` §3.2, §3.3) — strip transition narration and superseded-state prose, cap/de-id `description:` frontmatter, and relocate rationale into Design Decisions. The corpus-remediation counterpart to the forward-looking memory writers (step 3 of the present-truth effort; steps 1–2 shipped in `260717-3plm`). Read-only by default — files only rewritten with explicit user approval.
+
+**Context**: `docs/memory/index.md`, the target domain's index and topic files, and `$(fab kit-path)/reference/fkf.md`. Does NOT require `.fab-status.yaml`, config, or constitution. Declares no `helpers:`.
+
+**Prerequisite**: `docs/memory/index.md` must exist and `docs/memory/{domain}/` must contain at least one topic file.
+
+**Behavior**:
+1. Read the named domain's topic files read-only; classify transition narration, superseded-state prose, `description:` defects (over-cap, change-ids), rationale-carrying narration (relocate), and allowed provenance (keep)
+2. Report per-file proposed rewrites (before/after for the non-obvious; every relocation shown); state per file whether content is deleted vs. relocated and where deleted content is already recorded
+3. User confirmation — apply all, cherry-pick specific files, or skip
+4. On approval, rewrite bodies to present truth (removing narration, relocating rationale into Design Decisions `Why`/`Rejected`, preserving trailing `(change-id)` + `*Introduced by*`), fix `description:` frontmatter, then regenerate indexes via `fab memory-index` — consulting `fab memory-index --check` first and refusing on exit 2 (destructive loss)
+
+**Key properties**: No active change required. One domain per run. Idempotent (an already-distilled domain proposes nothing; `fab memory-index` is byte-stable). Rationale is relocated, never deleted; deletion is confined to narration recorded elsewhere (log.md/git/archive). `_shared/removed-domains.md` is exempt (§3.3 tombstone carve-out). The generated files `index.md`/`log.md` are never hand-edited; `log.seed.md` is a curated read-only seed input (never written by the generator) that distillation excludes like a ledger. Moves no files (structural moves belong to `/docs-reorg-memory`).
+
+---
+
 ## `/docs-reorg-specs`
 
 **Purpose**: Analyze spec files for themes and propose a reorganization plan. Read-only by default — files only moved/rewritten with explicit user approval.
