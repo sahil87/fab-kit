@@ -20,7 +20,12 @@ func dispatchStartCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start <change> <stage>",
 		Short: "Launch a stage's resolved spawn command detached, reading the prompt on stdin",
-		Args:  cobra.ExactArgs(2),
+		Example: `  # Launch the apply stage's dispatch command, prompt on stdin
+  fab dispatch start b91h apply < prompt.md
+
+  # Enforce a 30-minute POSIX timeout inside the launch wrapper
+  fab dispatch start --timeout 1800 b91h apply < prompt.md`,
+		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runDispatchStart(cmd, args[0], args[1], timeout)
 		},

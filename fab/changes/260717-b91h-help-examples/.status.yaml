@@ -1,0 +1,55 @@
+id: b91h
+name: 260717-b91h-help-examples
+created: 2026-07-17T22:00:39Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 8
+    acceptance_count: 19
+    acceptance_completed: 19
+confidence:
+    certain: 1
+    confident: 4
+    tentative: 0
+    unresolved: 0
+    score: 4.6
+    fuzzy: true
+    dimensions:
+        signal: 67.0
+        reversibility: 85.0
+        competence: 75.0
+        disambiguation: 70.0
+stage_metrics:
+    intake: {started_at: "2026-07-17T22:00:39Z", driver: fab-new, iterations: 1, completed_at: "2026-07-17T22:04:07Z"}
+    apply: {started_at: "2026-07-17T22:04:07Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T22:12:24Z"}
+    review: {started_at: "2026-07-17T22:12:24Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T22:18:01Z"}
+    hydrate: {started_at: "2026-07-17T22:18:01Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T22:22:51Z"}
+    ship: {started_at: "2026-07-17T22:22:51Z", driver: fab-fff, iterations: 1}
+prs: []
+change_type_source: explicit
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-07-17T22:22:51Z"
+    computed_at_stage: hydrate
+summary: 'Toolkit principle P3 (layered help): shipped cobra Example: blocks on the 7 audit-named user-facing commands + a newRootCmd()-walking conformance test, closing the ptwh-deferred [b91h] gap; distribution.md § Toolkit Standards Conformance posture updated (P3 PASS after fix, 3 gaps remain)'
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-07-17T22:22:51Z

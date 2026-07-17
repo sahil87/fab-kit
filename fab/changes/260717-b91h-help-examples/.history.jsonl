@@ -1,0 +1,9 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-17T22:00:39Z"}
+{"args":"Toolkit principle №3 (help is layered) — add cobra Example: blocks to the multi-flag user-facing commands (batch archive, batch switch, config init, config show, resolve, score, dispatch start); deferred from 260717-ptwh principles audit","cmd":"fab-new","event":"command","ts":"2026-07-17T22:00:39Z"}
+{"delta":"+4.6","event":"confidence","score":4.6,"trigger":"calc-score","ts":"2026-07-17T22:01:56Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-17T22:03:52Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-17T22:04:07Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-17T22:12:24Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-17T22:18:01Z"}
+{"event":"review","result":"passed","ts":"2026-07-17T22:18:01Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-17T22:22:51Z"}

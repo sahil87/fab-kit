@@ -157,6 +157,11 @@ func configShowCmd() *cobra.Command {
 			"fields (agent.tiers, providers). --origin surfaces a typo'd override, which " +
 			"shows origin `default` when a file was expected to win. Pure query — writes " +
 			"no file.",
+		Example: `  # Print the effective (post-cascade) config
+  fab config show
+
+  # Annotate each field with its provenance (project / system / default)
+  fab config show --origin`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			fabRoot, err := resolve.FabRoot()
@@ -486,6 +491,14 @@ func configInitCmd() *cobra.Command {
 			"written live, followed by the managed reference fence — agent.tiers is NOT " +
 			"pinned (presence=intent). Both modes refuse to overwrite an existing file " +
 			"(no --force). Bare `fab config init` (neither flag) is a usage error.",
+		Example: `  # Write the ~/.fab-kit/config.yaml system-layer scaffold
+  fab config init --system
+
+  # Generate fab/project/config.yaml from the field registry
+  fab config init --project --name my-app --description "My application"
+
+  # Seed source/test paths (repeatable flags)
+  fab config init --project --name my-app --source-path src/ --test-path '**/*_test.go'`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			switch {
