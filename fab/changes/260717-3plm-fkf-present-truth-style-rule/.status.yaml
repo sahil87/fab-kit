@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 16
@@ -33,22 +33,24 @@ stage_metrics:
     apply: {started_at: "2026-07-17T19:24:43Z", driver: fab-fff, iterations: 3, completed_at: "2026-07-17T19:29:40Z"}
     review: {started_at: "2026-07-17T19:29:40Z", driver: fab-fff, iterations: 3, completed_at: "2026-07-17T19:42:05Z"}
     hydrate: {started_at: "2026-07-17T19:42:05Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T19:49:32Z"}
-    ship: {started_at: "2026-07-17T19:49:32Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-07-17T19:49:32Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T19:53:10Z"}
+    review-pr: {started_at: "2026-07-17T19:53:10Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/485
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 541
+    deleted: 59
+    net: 482
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 56
+        deleted: 18
+        net: 38
     tests:
         added: 0
         deleted: 0
         net: 0
-    computed_at: "2026-07-17T19:49:32Z"
-    computed_at_stage: hydrate
+    computed_at: "2026-07-17T19:53:10Z"
+    computed_at_stage: ship
 summary: add FKF present-truth body-style rule + topic-keyed merge-as-current-truth and change-id-free-description rules to the memory-writer docs
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-07-17T19:49:32Z
+last_updated: 2026-07-17T19:53:10Z
