@@ -1,0 +1,9 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-17T22:00:25Z"}
+{"args":"[jx4w] Toolkit principle 2: add --json to the fab status query subcommands (stable object schema across the status query surface)","cmd":"fab-new","event":"command","ts":"2026-07-17T22:00:25Z"}
+{"delta":"+4.5","event":"confidence","score":4.5,"trigger":"calc-score","ts":"2026-07-17T22:01:37Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-17T22:03:44Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-17T22:03:53Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-17T22:16:30Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-17T22:30:52Z"}
+{"event":"review","result":"passed","ts":"2026-07-17T22:30:52Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-17T22:34:28Z"}

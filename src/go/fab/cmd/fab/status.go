@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -94,22 +95,70 @@ func withStatusLock(changeArg string, fn func(statusFile *sf.StatusFile, statusP
 	})
 }
 
+// encodeJSON writes v to the command's stdout as indented JSON (two-space
+// indent, trailing newline via Encode), matching the `fab dispatch status
+// --json` precedent (dispatchStatusJSON). Shared by the read-only `fab status`
+// query subcommands' --json branches so the encoder mechanics are single-sourced.
+func encodeJSON(cmd *cobra.Command, v any) error {
+	enc := json.NewEncoder(cmd.OutOrStdout())
+	enc.SetIndent("", "  ")
+	return enc.Encode(v)
+}
+
+// JSON output shapes for the read-only `fab status` query subcommands. snake_case
+// keys match the .status.yaml field names. Ordered/list subcommands emit bare
+// arrays (a Go map would marshal alphabetically and destroy stage order) and are
+// not modeled as structs here.
+type (
+	confidenceJSON struct {
+		Certain    int     `json:"certain"`
+		Confident  int     `json:"confident"`
+		Tentative  int     `json:"tentative"`
+		Unresolved int     `json:"unresolved"`
+		Score      float64 `json:"score"`
+	}
+	planJSON struct {
+		Generated           bool `json:"generated"`
+		TaskCount           int  `json:"task_count"`
+		AcceptanceCount     int  `json:"acceptance_count"`
+		AcceptanceCompleted int  `json:"acceptance_completed"`
+	}
+	stageStateJSON struct {
+		Stage string `json:"stage"`
+		State string `json:"state"`
+	}
+	currentStageJSON struct {
+		Stage string `json:"stage"`
+	}
+	summaryJSON struct {
+		Summary string `json:"summary"`
+	}
+)
+
 func statusAllStagesCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFlag bool
+	cmd := &cobra.Command{
 		Use:   "all-stages",
 		Short: "List all stage IDs in order",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			for _, s := range status.AllStages() {
+			stages := status.AllStages()
+			if jsonFlag {
+				return encodeJSON(cmd, stages)
+			}
+			for _, s := range stages {
 				fmt.Println(s)
 			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Output as JSON")
+	return cmd
 }
 
 func statusProgressMapCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFlag bool
+	cmd := &cobra.Command{
 		Use:   "progress-map <change>",
 		Short: "Extract stage:state pairs",
 		Args:  cobra.ExactArgs(1),
@@ -118,12 +167,23 @@ func statusProgressMapCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			for _, ss := range status.ProgressMap(sf) {
+			pairs := status.ProgressMap(sf)
+			if jsonFlag {
+				// Array (not a map) so pipeline stage order is preserved.
+				out := make([]stageStateJSON, 0, len(pairs))
+				for _, ss := range pairs {
+					out = append(out, stageStateJSON{Stage: ss.Stage, State: ss.State})
+				}
+				return encodeJSON(cmd, out)
+			}
+			for _, ss := range pairs {
 				fmt.Printf("%s:%s\n", ss.Stage, ss.State)
 			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Output as JSON")
+	return cmd
 }
 
 func statusProgressLineCmd() *cobra.Command {
@@ -146,7 +206,8 @@ func statusProgressLineCmd() *cobra.Command {
 }
 
 func statusCurrentStageCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFlag bool
+	cmd := &cobra.Command{
 		Use:   "current-stage <change>",
 		Short: "Detect active stage",
 		Args:  cobra.ExactArgs(1),
@@ -155,14 +216,21 @@ func statusCurrentStageCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Println(status.CurrentStage(sf))
+			stage := status.CurrentStage(sf)
+			if jsonFlag {
+				return encodeJSON(cmd, currentStageJSON{Stage: stage})
+			}
+			fmt.Println(stage)
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Output as JSON")
+	return cmd
 }
 
 func statusDisplayStageCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFlag bool
+	cmd := &cobra.Command{
 		Use:   "display-stage <change>",
 		Short: "Display stage as stage:state",
 		Args:  cobra.ExactArgs(1),
@@ -172,14 +240,20 @@ func statusDisplayStageCmd() *cobra.Command {
 				return err
 			}
 			stage, state := status.DisplayStage(sf)
+			if jsonFlag {
+				return encodeJSON(cmd, stageStateJSON{Stage: stage, State: state})
+			}
 			fmt.Printf("%s:%s\n", stage, state)
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Output as JSON")
+	return cmd
 }
 
 func statusPlanCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFlag bool
+	cmd := &cobra.Command{
 		Use:   "plan <change>",
 		Short: "Extract plan fields",
 		Args:  cobra.ExactArgs(1),
@@ -193,11 +267,22 @@ func statusPlanCmd() *cobra.Command {
 			// hook-bypassing edit (sed, direct edit) cannot make `status plan`
 			// report stale acceptance progress. Falls back to the cache when
 			// plan.md / its ## Acceptance section is absent. (b)
+			//
+			// Compute once here; the text and --json paths below both render this
+			// single source of truth (so the two rendering paths cannot drift).
 			acceptanceCompleted := sf.Plan.AcceptanceCompleted
 			acceptanceCount := sf.Plan.AcceptanceCount
 			if done, total, ok := status.LiveAcceptance(filepath.Dir(statusPath)); ok {
 				acceptanceCompleted = done
 				acceptanceCount = total
+			}
+			if jsonFlag {
+				return encodeJSON(cmd, planJSON{
+					Generated:           sf.Plan.Generated,
+					TaskCount:           sf.Plan.TaskCount,
+					AcceptanceCount:     acceptanceCount,
+					AcceptanceCompleted: acceptanceCompleted,
+				})
 			}
 			fmt.Printf("generated:%v\n", sf.Plan.Generated)
 			fmt.Printf("task_count:%d\n", sf.Plan.TaskCount)
@@ -206,10 +291,13 @@ func statusPlanCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Output as JSON")
+	return cmd
 }
 
 func statusConfidenceCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFlag bool
+	cmd := &cobra.Command{
 		Use:   "confidence <change>",
 		Short: "Extract confidence fields",
 		Args:  cobra.ExactArgs(1),
@@ -217,6 +305,15 @@ func statusConfidenceCmd() *cobra.Command {
 			sf, _, _, err := loadStatus(args[0])
 			if err != nil {
 				return err
+			}
+			if jsonFlag {
+				return encodeJSON(cmd, confidenceJSON{
+					Certain:    sf.Confidence.Certain,
+					Confident:  sf.Confidence.Confident,
+					Tentative:  sf.Confidence.Tentative,
+					Unresolved: sf.Confidence.Unresolved,
+					Score:      sf.Confidence.Score,
+				})
 			}
 			fmt.Printf("certain:%d\n", sf.Confidence.Certain)
 			fmt.Printf("confident:%d\n", sf.Confidence.Confident)
@@ -227,6 +324,8 @@ func statusConfidenceCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Output as JSON")
+	return cmd
 }
 
 func statusValidateCmd() *cobra.Command {
@@ -531,7 +630,8 @@ func statusAddIssueCmd() *cobra.Command {
 }
 
 func statusGetIssuesCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFlag bool
+	cmd := &cobra.Command{
 		Use:   "get-issues <change>",
 		Short: "List issue IDs",
 		Args:  cobra.ExactArgs(1),
@@ -540,12 +640,20 @@ func statusGetIssuesCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if jsonFlag {
+				// Non-nil slice so an empty list marshals as [] (never null).
+				ids := make([]string, 0, len(sf.Issues))
+				ids = append(ids, sf.Issues...)
+				return encodeJSON(cmd, ids)
+			}
 			for _, id := range sf.Issues {
 				fmt.Println(id)
 			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Output as JSON")
+	return cmd
 }
 
 func statusAddPRCmd() *cobra.Command {
@@ -562,7 +670,8 @@ func statusAddPRCmd() *cobra.Command {
 }
 
 func statusGetPRsCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFlag bool
+	cmd := &cobra.Command{
 		Use:   "get-prs <change>",
 		Short: "List PR URLs",
 		Args:  cobra.ExactArgs(1),
@@ -571,12 +680,20 @@ func statusGetPRsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if jsonFlag {
+				// Non-nil slice so an empty list marshals as [] (never null).
+				urls := make([]string, 0, len(sf.PRs))
+				urls = append(urls, sf.PRs...)
+				return encodeJSON(cmd, urls)
+			}
 			for _, url := range sf.PRs {
 				fmt.Println(url)
 			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Output as JSON")
+	return cmd
 }
 
 func statusSetSummaryCmd() *cobra.Command {
@@ -593,7 +710,8 @@ func statusSetSummaryCmd() *cobra.Command {
 }
 
 func statusGetSummaryCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFlag bool
+	cmd := &cobra.Command{
 		Use:   "get-summary <change>",
 		Short: "Print the per-change log summary",
 		Args:  cobra.ExactArgs(1),
@@ -602,12 +720,19 @@ func statusGetSummaryCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if jsonFlag {
+				// Object-wrapped (not a bare string) so fields can be added
+				// additively; an empty summary emits {"summary":""}.
+				return encodeJSON(cmd, summaryJSON{Summary: sf.Summary})
+			}
 			// Empty summary prints an empty line (graceful absence — the FKF
 			// log.md generator falls back to the change slug).
 			fmt.Println(sf.Summary)
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Output as JSON")
+	return cmd
 }
 
 func optArg(args []string, idx int) string {
