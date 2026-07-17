@@ -33,9 +33,13 @@ Tests MUST conform to the implementation spec — never the other way around. Wh
 - `src/kit/` is the canonical source for all kit content (skills, templates, migrations). `.claude/skills/` contains deployed copies produced by `fab sync` and is gitignored — never edit files there directly
 - The core pipeline is six stages (`intake → apply → review → hydrate → ship → review-pr`). All human judgment is frontloaded to intake (the sole confidence gate); everything after intake runs unattended unless review-rework exhausts or PR feedback arrives. Requirement capture is co-generated into `plan.md`'s `## Requirements` section at apply entry — there is no separate `spec` stage or `spec.md` artifact
 
+### Toolkit Standards
+
+This tool is part of the sahil87 toolkit and MUST conform to the toolkit's published standards. The standards are enumerated by running `shll standards` — each entry names what it governs; read one with `shll standards <name>`. Before changing the CLI surface, help output, README.md, or docs/site/, the change MUST be checked against the standards governing that surface. If shll is unavailable, the canonical sources are the sahil87/shll repository's docs/site/standards/ tree (rendered on https://shll.ai). Standards added or revised there bind this repo without further amendment to this constitution.
+
 ## Governance
 
-**Version**: 1.3.0 | **Ratified**: 2026-02-06 | **Last Amended**: 2026-06-01
+**Version**: 1.4.0 | **Ratified**: 2026-02-06 | **Last Amended**: 2026-07-18
 
 <!-- 2026-06-01 (260601-j6cs): Merged the `spec` stage into `apply` and frontloaded
      SRAD scoring to intake — pipeline 7→6 stages, single intake gate, spec.md absorbed
@@ -48,4 +52,11 @@ Tests MUST conform to the implementation spec — never the other way around. Wh
      for `_generation`/`_review`). Content relocation only, zero semantic loss; the
      `_cli-fab.md` reference in the CLI constraint above is unaffected. No new normative
      MUST-rule was added. -->
+
+<!-- 2026-07-18 (260717-y8it): Added the `### Toolkit Standards` article under Additional
+     Constraints — binds this repo to the sahil87 toolkit's published standards via the
+     `shll standards` enumeration (canonical source: sahil87/shll docs/site/standards/,
+     rendered on https://shll.ai). Deliberately enumerates nothing (no standard names,
+     counts, or per-standard URLs) so the article stays correct as standards evolve.
+     New normative MUST-rule added → minor version bump 1.3.0 → 1.4.0. -->
 
