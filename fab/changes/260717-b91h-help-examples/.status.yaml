@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 8
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-07-17T22:04:07Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T22:12:24Z"}
     review: {started_at: "2026-07-17T22:12:24Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T22:18:01Z"}
     hydrate: {started_at: "2026-07-17T22:18:01Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T22:22:51Z"}
-    ship: {started_at: "2026-07-17T22:22:51Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-07-17T22:22:51Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T22:24:50Z"}
+    review-pr: {started_at: "2026-07-17T22:24:50Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/488
 change_type_source: explicit
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 529
+    deleted: 6
+    net: 523
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 130
+        deleted: 3
+        net: 127
     tests:
-        added: 0
+        added: 77
         deleted: 0
-        net: 0
-    computed_at: "2026-07-17T22:22:51Z"
-    computed_at_stage: hydrate
+        net: 77
+    computed_at: "2026-07-17T22:24:50Z"
+    computed_at_stage: ship
 summary: 'Toolkit principle P3 (layered help): shipped cobra Example: blocks on the 7 audit-named user-facing commands + a newRootCmd()-walking conformance test, closing the ptwh-deferred [b91h] gap; distribution.md § Toolkit Standards Conformance posture updated (P3 PASS after fix, 3 gaps remain)'
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-07-17T22:22:51Z
+last_updated: 2026-07-17T22:24:50Z
