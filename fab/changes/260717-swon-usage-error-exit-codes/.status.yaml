@@ -1,0 +1,55 @@
+id: swon
+name: 260717-swon-usage-error-exit-codes
+created: 2026-07-17T21:57:58Z
+created_by: Sahil Ahuja
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 6
+    acceptance_count: 16
+    acceptance_completed: 16
+confidence:
+    certain: 1
+    confident: 5
+    tentative: 0
+    unresolved: 0
+    score: 4.4
+    fuzzy: true
+    dimensions:
+        signal: 65.8
+        reversibility: 80.8
+        competence: 80.8
+        disambiguation: 70.8
+stage_metrics:
+    intake: {started_at: "2026-07-17T21:57:58Z", driver: fab-new, iterations: 1, completed_at: "2026-07-17T22:04:15Z"}
+    apply: {started_at: "2026-07-17T22:04:15Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T22:14:31Z"}
+    review: {started_at: "2026-07-17T22:14:31Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T22:31:22Z"}
+    hydrate: {started_at: "2026-07-17T22:31:22Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T22:35:52Z"}
+    ship: {started_at: "2026-07-17T22:35:52Z", driver: fab-fff, iterations: 1}
+prs: []
+change_type_source: explicit
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-07-17T22:35:52Z"
+    computed_at_stage: hydrate
+summary: fab/fab-go binary-wide exit-code convention (0 success / 1 operational / 2 usage) via run() + markRunReached RunE tree-walk; in-handler pane 2/3 + memory-index 0/1/2 schemes unchanged
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-07-17T22:35:52Z

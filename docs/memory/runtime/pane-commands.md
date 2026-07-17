@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "`fab pane {map,capture,send,process,window-name}` subcommand reference, persistent `--server`/`-L` flag, unified pane-family exit-code scheme (2 = pane missing / 3 = other tmux failure across capture/send/window-name), shared `internal/pane` helpers (`WithServer`, `RunCmd`/`StderrError`/`IsPaneMissing`/`PaneNotFoundError`, the targeted `display-message` pane-validation probe), pane map `display_state` + stable `window_id` (tmux `@N`) JSON fields, pane-ID-per-server semantics, motivating multi-socket use case, three-axis model (Change / Agent / Process), window-name primitives for idempotent / guarded tmux window rewrites"
+description: "`fab pane {map,capture,send,process,window-name}` subcommand reference, persistent `--server`/`-L` flag, unified pane-family exit-code scheme (2 = pane missing / 3 = other tmux failure across capture/send/window-name), shared `internal/pane` helpers (`WithServer`, `RunCmd`/`StderrError`/`IsPaneMissing`/`PaneNotFoundError`, the targeted `display-message` pane-validation probe), pane map `display_state` + stable `window_id` (tmux `@N`) JSON fields, pane-ID-per-server semantics, motivating multi-socket use case, three-axis model (Change / Agent / Process), window-name primitives for idempotent / guarded tmux window rewrites; swon: usage-error coexistence — a parse-time usage error on any pane verb exits 2 binary-wide (before the handler), while the in-handler pane 2/3 scheme is unchanged (bypasses main()'s mapping, no renumbering)"
 ---
 # Pane Commands
 
@@ -138,6 +138,12 @@ Atomic guarded swap. Reads the current name; if it begins with the literal strin
 | 3 | Any other tmux error: tmux not running / socket unreachable / rename failed / argument usage error (e.g., empty `<char>` or `<from>`). Stderr is propagated when tmux supplied it. |
 
 The primitives do not gate on `$TMUX`; they rely on tmux's own exec failure to surface "tmux not running" as exit 3, which lets callers run them via `--server` targeting outside a tmux client. The distinct 2 vs. 3 split lets `/fab-operator`'s removal path discriminate "pane gone" (exit 2 → treat as successful removal, window is gone anyway) from "pane alive but rename failed" (exit 3 → log warning and continue). Stderr mapping uses case-insensitive substring matching.
+
+### Usage-Error Coexistence with the Binary-Wide Exit-2 Convention (swon)
+
+The pane-family 2/3 scheme above (`2` = pane missing, `3` = other tmux failure, across `capture`/`send`/`window-name`) is set via an **in-handler `os.Exit`** from inside each verb's `RunE`. As of swon (260717) the `fab`/`fab-go` binary also has a **binary-wide usage-error convention** — `0` success / `1` operational failure / **`2` usage error** — where a *usage* error (an unknown/malformed flag, or a cobra arg-count violation on any pane verb) is caught at **parse/validation time, before the handler runs**, and exits `2` via the classifier in `main()`'s testable `run()` helper (execution-phase classification, no string matching — see [kit-architecture.md](/distribution/kit-architecture.md) § Binary-Wide Exit-Code Convention).
+
+The two `2`s **coexist without renumbering**: the in-handler pane `os.Exit(2|3)` calls **bypass `run()`'s usage/operational mapping entirely**, so the pane 2/3 scheme is **unchanged** — a missing pane still exits `2` in-handler, any other tmux failure still exits `3`, and `pane_exitcode_test.go` stays green unmodified. On a pane verb, exit `2` is therefore intentionally ambiguous between "usage error" (at parse time) and "pane missing" (in-handler); the codes are not renumbered because downstream consumers (operator/run-kit scripts) branch on the pane codes. Disambiguate on stderr wording (`Error: pane <id> not found` for the in-handler case vs. cobra's usage/flag error text for the parse-time case). `map` and `process` use plain `ERROR:`-formatted exit `1` for their in-handler errors and are unaffected — a *usage* error on them likewise exits `2` at parse time under the binary-wide convention.
 
 #### Output modes
 
