@@ -51,7 +51,7 @@ All tool references are in shared `_` files — operator4 does not duplicate too
 | Primitive | Reference |
 |-----------|-----------|
 | `fab pane map --all-sessions --json` (per-row `repo` field; nullable per-row `display_state` — the change's stage state, `active|ready|done|failed|pending|skipped`, `null` under the same conditions as `stage` (`failed` reachable since the DisplayStage failed tier shipped with 260612-dkn3)), `fab agent --print --repo`, `fab resolve`, `fab change list`, `fab status`, `fab score`, `fab operator tick-start` (server-keyed state path) | `_cli-fab.md` |
-| `wt list`, `wt create` (run in the target repo's directory), `wt delete`, `tmux` commands, `/loop` | `_cli-external.md` |
+| `wt list`, `wt create` (run in the target repo's directory; branch-selection probe-and-route per wt's 260717-2af2 contract — an existing branch takes `--checkout <branch>`, a missing one the new-branch-only positional), `wt delete`, `tmux` commands, `/loop` | `_cli-external.md` |
 | Change folder, branch, worktree naming | `_preamble.md` § Naming Conventions |
 
 The multi-repo primitives (`--all-sessions`, the `repo` JSON field, `fab agent --print --repo`, and the server-keyed state path) are provided by change 1 (`260607-h3jk`); this skill is the policy layer over them.

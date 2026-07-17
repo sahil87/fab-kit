@@ -114,11 +114,12 @@ idea help-dump                                     # wt/idea: assumed present, b
 | `--non-interactive` | Required for operator use — suppresses prompts |
 | `--worktree-name <name>` | Override the auto-generated worktree directory name |
 | `--reuse` | Reuse an existing worktree if one matches — requires `--worktree-name <name>` (the match key). Useful for autopilot respawns |
-| `--base <ref>` | Branch from a specific ref instead of the default. Used for sequenced autopilot (branch from prior change) |
-| `[branch]` | Positional — the git branch to create/checkout in the worktree |
+| `--base <ref>` | Branch from a specific ref instead of the default. Used for sequenced autopilot (branch from prior change). Conflicts with `--checkout` (both exit 2) |
+| `--checkout <branch>` | Put the worktree on an EXISTING local/remote branch (fetches remote-only branches). Conflicts with `--base` and with the positional (both exit 2) |
+| `[branch]` | Positional — name for a NEW branch only; exits 2 if the branch already exists locally or remotely (use `--checkout` for an existing branch) |
 
-**Example — known change**: `wt create --non-interactive --worktree-name <name> <change-folder-name>`
-**Example — autopilot respawn**: `wt create --non-interactive --reuse --worktree-name <name> <branch> --base <prev-change>`
+**Example — known change** (the change branch may already exist — created by `/fab-new` Step 11 in the original checkout — so probe and route): branch exists → `wt create --non-interactive --worktree-name <name> --checkout <change-folder-name>`; missing → `wt create --non-interactive --worktree-name <name> <change-folder-name>`.
+**Example — autopilot respawn**: branch exists → `wt create --non-interactive --reuse --worktree-name <name> --checkout <branch>`; missing → `wt create --non-interactive --reuse --worktree-name <name> <branch> --base <prev-change>`. (`--base` rides only the positional/new-branch arm — `--checkout`+`--base` is a hard exit-2 conflict, and an existing branch already embodies its start-point.)
 
 > The gist above is the operator-used subset. The full `wt` surface (e.g. `init`, `open`, `shell-init`, `update`) and the complete flag set for each command are available via `wt help-dump` (assumed present — bare, per § Reference Model).
 
@@ -130,9 +131,13 @@ When the operator creates a worktree for an agent, the naming strategy depends o
 
 #### Known change (already exists)
 
-Use the change folder name as the branch argument to `wt create`:
+The change's branch usually already exists (created by `/fab-new` Step 11 in the original checkout), so **probe branch existence and route** per wt's new-branch-only positional contract — passing an existing branch positionally exits 2. Probe local first (`git show-ref --verify --quiet refs/heads/<change-folder-name>`), then remote (`git ls-remote --heads origin <change-folder-name>`):
 
 ```
+# branch exists (the common case) → put the worktree ON the existing branch
+wt create --non-interactive --worktree-name <name> --checkout <change-folder-name>
+
+# branch missing → create it (new-branch positional)
 wt create --non-interactive --worktree-name <name> <change-folder-name>
 ```
 

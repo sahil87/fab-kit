@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/spf13/cobra"
 )
@@ -94,13 +95,23 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag bool) e
 		// Construct branch name
 		branchName := branchPrefix + match
 
-		// Create worktree
-		wtOut, err := exec.Command("wt", "create", "--non-interactive", "--reuse", "--worktree-name", match, branchName).Output()
+		// Create worktree. Route per wt's 2af2 contract: the positional is
+		// new-branch-only (exits 2 on an existing local/remote branch), and
+		// --checkout <branch> is the explicit opt-in for an existing branch.
+		// --reuse's name-collision short-circuit ignores branch selectors, so
+		// it is retained on both forms.
+		wtArgs := []string{"create", "--non-interactive", "--reuse", "--worktree-name", match}
+		if branchExists(branchName) {
+			wtArgs = append(wtArgs, "--checkout", branchName)
+		} else {
+			wtArgs = append(wtArgs, branchName)
+		}
+		wtOut, wtStderr, err := pane.RunCmd("wt", wtArgs...)
 		if err != nil {
-			fmt.Fprintf(errW, "Error: failed to create worktree for '%s', skipping\n", match)
+			fmt.Fprintf(errW, "Error: failed to create worktree for '%s' (%v), skipping\n", match, pane.StderrError(err, wtStderr))
 			continue
 		}
-		wtPath := strings.TrimSpace(string(wtOut))
+		wtPath := strings.TrimSpace(wtOut)
 
 		// Escape single quotes for shell
 		safe := strings.ReplaceAll(match, "'", "'\\''")
@@ -111,6 +122,31 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag bool) e
 	}
 
 	return nil
+}
+
+// branchExists reports whether branch exists locally or on origin, mirroring
+// wt's own BranchExistsLocally / BranchExistsRemotely checks
+// (internal/worktree/git.go in the wt repo) so fab's routing never disagrees
+// with wt's positional validation (positional = new-branch-only under the 2af2
+// contract). Local is checked first (no network); the origin ls-remote runs
+// only when the branch is not local. A failed/offline ls-remote degrades to
+// not-remote → positional → wt itself re-checks and errors visibly.
+func branchExists(branch string) bool {
+	if exec.Command("git", "show-ref", "--verify", "--quiet", "refs/heads/"+branch).Run() == nil {
+		return true
+	}
+	// Force the ls-remote probe non-interactive: GIT_TERMINAL_PROMPT=0 stops
+	// git from prompting for HTTPS credentials, and BatchMode=yes stops ssh
+	// from prompting for a passphrase or host-key confirmation. Without these
+	// the probe can block in tmux waiting on interactive auth instead of
+	// degrading to not-remote → positional as the routing above intends.
+	cmd := exec.Command("git", "ls-remote", "--heads", "origin", branch)
+	cmd.Env = append(os.Environ(),
+		"GIT_TERMINAL_PROMPT=0",
+		"GIT_SSH_COMMAND=ssh -o BatchMode=yes",
+	)
+	out, err := cmd.Output()
+	return err == nil && strings.TrimSpace(string(out)) != ""
 }
 
 // listChanges prints available changes (excluding archive).
