@@ -48,7 +48,7 @@ func TestNoTopLevelCommandCollidesWithRouterAllowlist(t *testing.T) {
 func parseRouterAllowlist(t *testing.T) map[string]bool {
 	t.Helper()
 
-	docPath := findCollisionDocFile(t, collisionDocRelPath)
+	docPath := findRepoFile(t, collisionDocRelPath)
 	data, err := os.ReadFile(docPath)
 	if err != nil {
 		t.Fatalf("read %s: %v", docPath, err)
@@ -66,9 +66,11 @@ func parseRouterAllowlist(t *testing.T) map[string]bool {
 	return set
 }
 
-// findCollisionDocFile resolves a repo-relative path by walking up from the
-// test's working directory (the changetypes_doc_test.go pattern).
-func findCollisionDocFile(t *testing.T, relPath string) string {
+// findRepoFile resolves a repo-relative path by walking up from the test's
+// working directory to the filesystem root (the changetypes_doc_test.go
+// pattern). Shared by the tests that read a committed repo file from an
+// arbitrary package depth (lifecycle-collision, skill drift-guard).
+func findRepoFile(t *testing.T, relPath string) string {
 	t.Helper()
 
 	dir, err := os.Getwd()

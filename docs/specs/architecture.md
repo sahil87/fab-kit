@@ -477,7 +477,7 @@ The `fab` binary (installed via `brew install fab-kit`) is a thin router. It dis
 
 ### Always-Route Policy
 
-The router always routes non-workspace commands to `fab-go` — it does not short-circuit on the presence or absence of `fab/project/config.yaml`. Per-command guards inside `fab-go` (typically a call to `resolve.FabRoot()`) are the authoritative answer to "does this command need project state?". Commands like `kit-path`, `pane`, `completion`, `help`, and `shell-init` run anywhere; workflow commands like `preflight`, `score`, `status`, `change` exit non-zero with `ERROR: fab/ directory not found` when invoked outside a fab repo.
+The router always routes non-workspace commands to `fab-go` — it does not short-circuit on the presence or absence of `fab/project/config.yaml`. Per-command guards inside `fab-go` (typically a call to `resolve.FabRoot()`) are the authoritative answer to "does this command need project state?". Commands like `kit-path`, `pane`, `completion`, `help`, `shell-init`, and `skill` run anywhere; workflow commands like `preflight`, `score`, `status`, `change` exit non-zero with `ERROR: fab/ directory not found` when invoked outside a fab repo.
 
 ### Version Selection
 
