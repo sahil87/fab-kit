@@ -172,9 +172,23 @@ restate an amended rule, it is left untouched.
 
 ### Design Decisions
 
-1. **Extend in place, don't restructure**: The rewrite-not-append core already shipped (`260717-3plm`). — *Why*: only the four residual leak classes are absent (grep-verified); reshaping shipped rules would be churn with no benefit. — *Rejected*: a fresh consolidated "writer contract" section — duplicates the normative homes the existing rules occupy and invites divergence.
-2. **Both `fkf.md` copies amended identically**: `docs/specs/fkf.md` + `src/kit/reference/fkf.md`. — *Why*: FKF's own single-sourcing note requires it; the same seam `[mxgu]` shares. — *Rejected*: amend only the shipped extract — the design doc would drift from the normative rules it documents.
-3. **Self-check as a numbered step, scoped to files touched this run**: not a corpus sweep. — *Why*: it is a self-review of this hydrate's own writes; a corpus sweep is `[dsrx]`'s job. — *Rejected*: making it a bullet under step 4 — a final re-read pass reads more naturally as its own step at the procedure's tail.
+#### Extend in place, don't restructure
+**Decision**: Add the four residual leak-class rules to the existing writer-contract homes rather than reshape the shipped rewrite-not-append core (`260717-3plm`).
+**Why**: only the four residual leak classes are absent (grep-verified); reshaping shipped rules would be churn with no benefit.
+**Rejected**: a fresh consolidated "writer contract" section — duplicates the normative homes the existing rules occupy and invites divergence.
+*Introduced by*: 260718-wrct-hydrate-rewrite-contract
+
+#### Both `fkf.md` copies amended identically
+**Decision**: Apply the §3.2/§3.3 amendments verbatim to both `docs/specs/fkf.md` and `src/kit/reference/fkf.md`.
+**Why**: FKF's own single-sourcing note requires it; the same seam `[mxgu]` shares.
+**Rejected**: amend only the shipped extract — the design doc would drift from the normative rules it documents.
+*Introduced by*: 260718-wrct-hydrate-rewrite-contract
+
+#### Self-check as its own numbered step
+**Decision**: Land the post-hydrate self-check as a distinct numbered step scoped to files touched this run, not a corpus sweep.
+**Why**: it is a self-review of this hydrate's own writes; a corpus sweep is `[dsrx]`'s job.
+**Rejected**: making it a bullet under step 4 — a final re-read pass reads more naturally as its own step at the procedure's tail.
+*Introduced by*: 260718-wrct-hydrate-rewrite-contract
 
 ## Tasks
 

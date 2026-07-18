@@ -83,8 +83,10 @@
        ### Non-Goals
        Each entry: - {what is excluded} — {brief reason, if not obvious}
        ### Design Decisions
-       Each entry uses the four-field shape (matching the memory ## Design Decisions
-       shape, FKF §3.3, so hydrate lifts it into memory without reshaping):
+       Each entry is a titled block matching the memory ## Design Decisions shape
+       (FKF §3.3), so hydrate lifts it into memory without reshaping — a per-entry
+       #### {Decision Title} heading above the four fields:
+         #### {Decision Title}
          **Decision**: {approach}
          **Why**: {rationale}
          **Rejected**: {alternative and why it was worse}
