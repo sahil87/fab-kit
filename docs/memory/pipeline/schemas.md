@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "Workflow schema authority — the Go state machine (`internal/status` + `internal/statusfile`): 6-stage pipeline, states, transitions, validation, 216-cell matrix test; the `.status.yaml` block schemas (`plan:`/`confidence:`/`true_impact:`/`summary:`/`change_type_source:`); `fab score`/`impact`/`pr-meta`; `log.md` C-lite + seed-merge + freeze-on-write; and the malformed-frontmatter-blocking vs advisory description-length `fab memory-index --check` asymmetry (xu0k)."
+description: "Workflow schema authority — the Go state machine (`internal/status` + `internal/statusfile`): 6-stage pipeline, states, transitions, validation, 216-cell matrix test; the `.status.yaml` block schemas (`plan:`/`confidence:`/`true_impact:`/`summary:`/`change_type_source:`); `fab score`/`impact`/`pr-meta` + the `fab status` query `--json` surface; `log.md` C-lite + seed-merge + freeze-on-write; the malformed-frontmatter-blocking vs advisory description-length `fab memory-index --check` asymmetry."
 ---
 # Schemas
 
@@ -79,6 +79,34 @@ Neither scripts nor skills parse a schema file — all workflow queries go throu
 
 For the full CLI reference, see `$(fab kit-path)/skills/_cli-fab.md` (headline command families inlined in `_preamble.md` § Common fab Commands).
 
+## `fab status` Read-Only Query `--json` (jx4w)
+
+The **nine** read-only `fab status` query subcommands accept a `--json` boolean flag emitting a stable machine-readable document, satisfying toolkit principle №2 (commands whose output is consumed programmatically MUST offer a machine-readable format) — the constitution's Toolkit Standards article binds this repo to that standard. The flag is registered per-subcommand as `cmd.Flags().BoolVar(&jsonFlag, "json", false, "Output as JSON")`; the default (no-flag) text output of every subcommand is **byte-identical** to before, so `--json` is purely additive and existing line-parsing consumers (e.g. `git-pr.md`'s `get-issues` read) keep working unchanged.
+
+The nine subcommands and their shapes:
+
+| Subcommand | `--json` shape |
+|------------|----------------|
+| `confidence <change>` | `{"certain":N,"confident":N,"tentative":N,"unresolved":N,"score":F}` (object; `score` is a float — the retired `indicative` key is not emitted) |
+| `plan <change>` | `{"generated":bool,"task_count":N,"acceptance_count":N,"acceptance_completed":N}` — the acceptance values use the **same live-acceptance read path as the text output** (see the Plan Block section) |
+| `progress-map <change>` | `[{"stage":"intake","state":"done"},…]` — an **ordered array**, not a map (a Go map marshals keys alphabetically and would destroy pipeline stage order) |
+| `display-stage <change>` | `{"stage":"apply","state":"active"}` |
+| `current-stage <change>` | `{"stage":"apply"}` |
+| `all-stages` | `["intake","apply","review","hydrate","ship","review-pr"]` (bare string array, no `<change>` arg) |
+| `get-issues <change>` | `["DEV-988"]` — empty slice → `[]`, never `null` |
+| `get-prs <change>` | `["https://…/pull/42"]` — empty slice → `[]`, never `null` |
+| `get-summary <change>` | `{"summary":"…"}` — object-wrapped (not a bare string) so fields can be added additively; empty/absent summary → `{"summary":""}` |
+
+**Excluded — the two non-data query subcommands carry no `--json`**: `progress-line` (visual decoration for human status lines, not programmatic data — principle №2 scopes the MUST to programmatically-consumed output) and `validate-status-file` (its contract is the exit code; it emits no data).
+
+**Emit mechanics** follow the `fab dispatch status --json` precedent (`dispatchStatusJSON`): a shared `encodeJSON(cmd, v)` helper in `cmd/fab/status.go` renders via `json.NewEncoder(cmd.OutOrStdout())` with `enc.SetIndent("", "  ")` (two-space indent, trailing newline from `Encode`). Object shapes are named `xxxJSON` struct types with `json:` tags (`confidenceJSON`/`planJSON`/`stageStateJSON`/`currentStageJSON`/`summaryJSON`; `progress-map` reuses `stageStateJSON` in a slice); ordered/list shapes emit bare Go slices (the `get-issues`/`get-prs` branches copy into a non-nil `make([]string, 0, …)` so an empty list marshals as `[]`, not `null`). JSON keys are snake_case matching the `.status.yaml` field names.
+
+**No `schema_version` field** — stability is guaranteed by the additive-only evolution rule (new fields optional), matching both existing fab `--json` surfaces (`dispatch status`, `config reference`), neither of which carries a version field. A version field can be added later without breaking consumers.
+
+The `plan --json` path computes the live-acceptance values **once** (before the `if jsonFlag` render branch) so the text and JSON paths render one shared source of truth and cannot drift — the `LiveAcceptance(changeDir)`-preferred-over-cache read described in the Plan Block section is used by both. The read-only query path stays lock-free (`loadStatus`; readers rely on `Save`'s temp+rename atomicity — no flock).
+
+The YAML emitters (`fab preflight`, `fab impact`, `fab score`) already produce a stable machine-parseable schema and are out of scope for this addition — they were never flagged by principle №2. Per-row CLI detail is in `_cli-fab.md` § fab status.
+
 ## Design Principles
 
 1. **Single Source of Truth** — one canonical definition in code, queried by all consumers via the CLI
@@ -117,7 +145,7 @@ The `Load()` function is tolerant of legacy `.status.yaml` files: it upgrades a 
 
 As of j6cs the apply-stage `plan.md` carries a `## Requirements` section (RFC-2119 + GIVEN/WHEN/THEN, the requirement discipline absorbed from the removed `spec.md`) alongside `## Tasks` and `## Acceptance` — these three `##` headings are the stable parser contract.
 
-**`acceptance_completed`/`acceptance_count` are read-time-derived; the `plan:` counter is a cache (jznd; writer moved to `fab status refresh` in y022).** As of 260615-jznd acceptance progress is the truth on disk: `status.LiveAcceptance(changeDir) (done, total int, ok bool)` (`internal/status/acceptance.go`) counts the `## Acceptance` checkboxes in `{changeDir}/plan.md` at READ time via the existing `hooklib.HasSectionHeading` + `CountSectionItemsBounded`/`CountCompletedSectionItemsBounded`, and the read sites — `internal/preflight`, `internal/prmeta` (`Gather`, both the plan.md and legacy tasks.md branches), and `cmd/fab status plan` — prefer the live count over the persisted `plan.acceptance_*` counter. The `plan:` counter remains a write-time **cache/fallback**, used only when `LiveAcceptance` returns `ok=false` (no `plan.md`, or no `## Acceptance` heading — e.g. an intake-only or pre-plan change). As of y022 the counter's writer is the pull-based `fab status refresh` (`internal/refresh.Refresh`), self-healed at the transition seams (`fab status advance`/`finish`, `fab preflight`) rather than a PostToolUse hook — this makes a refresh-bypassing mutation — `sed`, a direct `.status.yaml` edit, or a checkbox toggled by a tool/agent that never runs `fab status refresh` — no longer able to make the readers report a stale number. `fab score` is out of scope (it reads `intake.md` only — see [_shared/configuration.md](/_shared/configuration.md) and the `score-binary-source-version-skew` note).
+**`acceptance_completed`/`acceptance_count` are read-time-derived; the `plan:` counter is a cache (jznd; writer moved to `fab status refresh` in y022).** As of 260615-jznd acceptance progress is the truth on disk: `status.LiveAcceptance(changeDir) (done, total int, ok bool)` (`internal/status/acceptance.go`) counts the `## Acceptance` checkboxes in `{changeDir}/plan.md` at READ time via the existing `hooklib.HasSectionHeading` + `CountSectionItemsBounded`/`CountCompletedSectionItemsBounded`, and the read sites — `internal/preflight`, `internal/prmeta` (`Gather`, both the plan.md and legacy tasks.md branches), and `cmd/fab status plan` — prefer the live count over the persisted `plan.acceptance_*` counter. The `plan:` counter remains a write-time **cache/fallback**, used only when `LiveAcceptance` returns `ok=false` (no `plan.md`, or no `## Acceptance` heading — e.g. an intake-only or pre-plan change). As of y022 the counter's writer is the pull-based `fab status refresh` (`internal/refresh.Refresh`), self-healed at the transition seams (`fab status advance`/`finish`, `fab preflight`) rather than a PostToolUse hook — this makes a refresh-bypassing mutation — `sed`, a direct `.status.yaml` edit, or a checkbox toggled by a tool/agent that never runs `fab status refresh` — no longer able to make the readers report a stale number. `fab status plan`'s `--json` form shares this exact read path: it computes the live-acceptance-preferred values once, before branching on the flag, so the text and JSON renderings never diverge (see the `fab status` Read-Only Query `--json` section above). `fab score` is out of scope (it reads `intake.md` only — see [_shared/configuration.md](/_shared/configuration.md) and the `score-binary-source-version-skew` note).
 
 ## `.status.yaml` Change-Type Fields (jznd)
 
@@ -144,7 +172,7 @@ summary: "added the .status.yaml summary field + migration"   # optional; absent
 
 - **`summary`** is modeled **exactly** on `change_type_source`: `yaml:"summary,omitempty"`, serialized only when non-empty, dropped on write when empty (`syncToRaw` `case "summary"` → `dropKeyAt`), and inserted before `last_updated` on a sparse document that lacks the key (`insertKey`, same as `change_type_source`/`true_impact`). An absent/empty `summary` decodes to `""` and round-trips to absent, so every pre-5943 change behaves exactly as before. The `StatusFile.Summary` field (`internal/statusfile`) is decoded by `Load()`'s explicit `switch key` (not pure struct-tag decode — `Load` walks the raw mapping).
 - **`fab status set-summary <change> <text>`** sets the field and `Save`s via `status.SetSummary` (the conflict-free write path — each change touches only its own `.status.yaml`). Unlike `set-change-type` it has **no** `change_type_source: explicit`-style sticky side effect — `summary` has no inferring hook to guard against. An empty text clears the field.
-- **`fab status get-summary <change>`** prints `st.Summary` via the lock-free `loadStatus` reader. An absent/empty summary prints an empty line (graceful absence — the generator falls back to the change slug).
+- **`fab status get-summary <change>`** prints `st.Summary` via the lock-free `loadStatus` reader. An absent/empty summary prints an empty line (graceful absence — the generator falls back to the change slug). Its `--json` form emits `{"summary":"…"}` (empty → `{"summary":""}`) — see the `fab status` Read-Only Query `--json` section above.
 - **No stage auto-populates `summary`.** 5943 creates the field + verbs only; authoring is "written once during the change (at hydrate, or carried from the intake)" per §6.3, but that wiring is deferred to a later FKF change. bmzo's `fab memory-index` only **reads** the field (joining it into `log.md`) — it never writes it.
 - The template (`src/kit/templates/status.yaml`) seeds `summary: ""` between `prs: []` and `# true_impact`/`last_updated`. Migration `2.4.2-to-2.5.0` adds `summary: ""` to in-flight `fab/changes/*/.status.yaml` (before `last_updated`, idempotent — skips files already having the key, skips `archive/**`).
 
