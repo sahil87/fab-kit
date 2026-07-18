@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 13
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-07-18T19:34:26Z", driver: fab-fff, iterations: 2, completed_at: "2026-07-18T19:38:29Z"}
     review: {started_at: "2026-07-18T19:38:29Z", driver: fab-fff, iterations: 2, completed_at: "2026-07-18T20:06:39Z"}
     hydrate: {started_at: "2026-07-18T20:06:39Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-18T20:13:55Z"}
-    ship: {started_at: "2026-07-18T20:13:55Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-07-18T20:13:55Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-18T20:16:36Z"}
+    review-pr: {started_at: "2026-07-18T20:16:36Z", iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/502
 change_type_source: explicit
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 794
+    deleted: 96
+    net: 698
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 223
+        deleted: 46
+        net: 177
     tests:
-        added: 0
+        added: 66
         deleted: 0
-        net: 0
-    computed_at: "2026-07-18T20:13:55Z"
-    computed_at_stage: hydrate
+        net: 66
+    computed_at: "2026-07-18T20:16:36Z"
+    computed_at_stage: ship
 summary: 'Distill/reorg extensions: distill gains four removal classes (change-id heading suffixes, byte-identical dedup, DD changelog-bullet rewrite, TODO relocation to backlog) and a machine-surface survey; reorg gains file-level split-file/merge-file, duplicate-coverage detection, and _unsorted triage; description-length joins the memory-index --check --json warnings[] array.'
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-07-18T20:13:55Z
+last_updated: 2026-07-18T20:16:36Z
