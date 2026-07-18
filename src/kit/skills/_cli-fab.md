@@ -806,7 +806,10 @@ stderr/exit-code only). They split into a **BLOCKING** class (fails `--check`) a
 **ADVISORY** `⚠` (never fail `--check`):
 - `⚠ … has a <N>-character \`description:\` (soft cap: 500) — trim to a one-liner; detail belongs in the file body`
   when a `description:` value is in the **501–1000** range (over the 500 soft cap, at or under the
-  1000 blocking cap; `DescriptionLenWarnThreshold`, runes, NOT config-overridable).
+  1000 blocking cap; `DescriptionLenWarnThreshold`, runes, NOT config-overridable). As of **260718-dsrx**
+  this nag **rides the `--check --json` `warnings[]` array** (kind `description-length`, `count` = the rune
+  length) — the canonical machine surface the `/docs-distill-memory` survey consumes for its over-cap
+  heuristic, replacing an agent-side frontmatter re-check.
 - `⚠ … has <N> narration markers (threshold: 5) — distillation debt; consider /docs-distill-memory`
   when a **topic file's** body carries ≥ 5 narration markers — case-insensitive transition stems
   (`no longer`/`previously`/`renamed`/`supersed`) plus registry-gated change-id token **occurrences**
@@ -822,9 +825,10 @@ stderr/exit-code only). They split into a **BLOCKING** class (fails `--check`) a
   targets, repo-relative/external out of scope; targets inside fenced code blocks and inline code spans
   are skipped).
 
-The BLOCKING checks (malformed + change-id + over-cap) validate the `description:` on topic files AND
-the domain/sub-domain `index.md` stubs; the topic-file body meters (narration / size / broken-link) run
-on topic files only (index.md / log.md / log.seed.md excluded). The `_unsorted` check is per-folder.
+The BLOCKING checks (malformed + change-id + over-cap) — and the ADVISORY **description-length** nag,
+which validates the same `description:` field one tier down — run on topic files AND the domain/sub-domain
+`index.md` stubs; the topic-file body meters (narration / size / broken-link) run on topic files only
+(index.md / log.md / log.seed.md excluded). The `_unsorted` check is per-folder.
 
 Flags:
 - `--check` — write nothing; classify the rendered-vs-existing **index drift** (across every index
@@ -840,12 +844,15 @@ Flags:
 - `--json` (with `--check`) — emit the loss report as a single JSON object on **stdout** and
   suppress the human-readable text; the exit code is unchanged. Mirrors the `fab pane` /
   `fab migrations-status` `--json` convention (snake_case). Shape:
-  `{"tier": 0|1|2, "drift": bool, "losses": [{"category": "description"|"tombstone"|"grouping", "path": "<repo-rel index>", "detail": "<lost text | dropped link target | flattened heading>"}], "malformed": [{"kind": "malformed-fence"|"malformed-description"|"description-change-id"|"description-over-cap", "path": "<repo-rel file>", "detail": "<offending value | matched change-id, omitted for fence/over-cap>"}], "warnings": [{"kind": "narration-density"|"file-size"|"unsorted-nonempty"|"broken-link", "path": "<repo-rel file/folder>", "count": <N>, "bytes": <N — file-size findings only, omitted otherwise>, "detail": "<broken link target, omitted otherwise>"}]}`.
+  `{"tier": 0|1|2, "drift": bool, "losses": [{"category": "description"|"tombstone"|"grouping", "path": "<repo-rel index>", "detail": "<lost text | dropped link target | flattened heading>"}], "malformed": [{"kind": "malformed-fence"|"malformed-description"|"description-change-id"|"description-over-cap", "path": "<repo-rel file>", "detail": "<offending value | matched change-id, omitted for fence/over-cap>"}], "warnings": [{"kind": "description-length"|"narration-density"|"file-size"|"unsorted-nonempty"|"broken-link", "path": "<repo-rel file/folder>", "count": <N — rune length for description-length; line count for file-size; marker count for narration-density; staged-file count for unsorted-nonempty>, "bytes": <N — file-size findings only, omitted otherwise>, "detail": "<broken link target, omitted otherwise>"}]}`.
   The `malformed` array (blocking findings) is **additive** (260715-xu0k), and the `warnings` array
   (advisory findings — the machine surface [dsrx] consumes instead of parsing stderr) is **additive**
-  (260718-mxgu): the `tier`/`drift`/`losses` keys are unchanged, so `/docs-reorg-memory`'s
-  compatibility detection (which branches on `tier` / reads `losses`) is unaffected. `losses`,
-  `malformed`, and `warnings` are always present (empty arrays, never `null`).
+  (260718-mxgu, extended by 260718-dsrx to carry the `description-length` kind so the survey's
+  over-cap heuristic has a machine surface instead of an agent-side frontmatter re-check): the
+  `tier`/`drift`/`losses` keys are unchanged, so `/docs-reorg-memory`'s compatibility detection (which
+  branches on `tier` / reads `losses`) is unaffected — as is every existing `warnings[]` consumer (the
+  five advisory kinds join one additive array). `losses`, `malformed`, and `warnings` are always
+  present (empty arrays, never `null`).
 - `--rebuild` — **DESTRUCTIVE** freeze-on-write escape hatch (FKF §6.4): discard the accumulated
   frozen `log.md` state and re-project every `log.md` from current git (the pre-freeze behavior, made
   explicit and opt-in — it re-projects unattributable commits too). It can rewrite or drop frozen

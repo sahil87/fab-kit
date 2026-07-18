@@ -431,6 +431,72 @@ func TestMemoryIndexCmd_CheckJSON_WarningsArrayPopulated(t *testing.T) {
 	}
 }
 
+// TestMemoryIndexCmd_CheckJSON_WarningsArrayHasDescriptionLength pins R13/R14
+// (260718-dsrx): the 501–1000 advisory `description-length` nag now rides the
+// additive `--check --json` `warnings` array (the canonical signal source the
+// /docs-distill-memory survey consumes), carrying its rune length in `count`. A
+// 600-char one-line `description:` on an otherwise byte-clean tree is advisory
+// only (tier 0, returns nil → no os.Exit → stdout is capturable in-process).
+func TestMemoryIndexCmd_CheckJSON_WarningsArrayHasDescriptionLength(t *testing.T) {
+	repo := setupFabRepo(t)
+	// A 600-char single-line description: over the 500 soft cap, under the 1000
+	// blocking cap → the advisory description-length nag (NOT blocking).
+	const descLen = 600
+	long := strings.Repeat("x", descLen)
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "auth", "login.md"),
+		"---\ndescription: \""+long+"\"\n---\n# Login\n")
+	// Regenerate so the (long-but-valid) description is reflected → drift tier 0;
+	// the advisory finding must not affect the exit code.
+	if err, _, _ := runMemoryIndex(t); err != nil {
+		t.Fatalf("regen failed: %v", err)
+	}
+	err, out, _ := runMemoryIndex(t, "--check", "--json")
+	if err != nil {
+		t.Errorf("advisory-only (over-length) tier-0 tree --check --json should return nil, got: %v", err)
+	}
+	var report struct {
+		Tier      int        `json:"tier"`
+		Drift     bool       `json:"drift"`
+		Losses    []struct{} `json:"losses"`
+		Malformed []struct{} `json:"malformed"`
+		Warnings  []struct {
+			Kind  string `json:"kind"`
+			Path  string `json:"path"`
+			Count int    `json:"count"`
+		} `json:"warnings"`
+	}
+	if jerr := json.Unmarshal([]byte(out), &report); jerr != nil {
+		t.Fatalf("--json stdout must be a parseable object, got %q (err %v)", out, jerr)
+	}
+	if report.Tier != 0 || report.Drift {
+		t.Errorf("over-length alone must stay tier 0 (advisory), got tier=%d drift=%v", report.Tier, report.Drift)
+	}
+	if len(report.Malformed) != 0 {
+		t.Errorf("over-length is advisory, not blocking — malformed must be empty, got %+v", report.Malformed)
+	}
+	var sawDescLen bool
+	for _, w := range report.Warnings {
+		if w.Kind == "description-length" {
+			sawDescLen = true
+			// `count` carries the description rune length — it must be populated.
+			if w.Count != descLen {
+				t.Errorf("description-length warning must carry the rune length in `count` (want %d), got %+v", descLen, w)
+			}
+			if !strings.Contains(w.Path, "login.md") {
+				t.Errorf("description-length warning must name the offending file, got %+v", w)
+			}
+		}
+	}
+	if !sawDescLen {
+		t.Fatalf("the `warnings` array must carry a description-length finding, got %+v; out:\n%s", report.Warnings, out)
+	}
+	// The additive-array contract stays intact (existing consumers unaffected).
+	if !strings.Contains(out, "\"warnings\"") || !strings.Contains(out, "\"malformed\"") ||
+		!strings.Contains(out, "\"losses\"") {
+		t.Errorf("--json must still carry the warnings + malformed + losses keys, got:\n%s", out)
+	}
+}
+
 // TestMemoryIndexCmd_Help_DocumentsNewGuards pins R11: the cobra help text
 // exposes the new blocking findings, advisory kinds, and the `warnings` array.
 func TestMemoryIndexCmd_Help_DocumentsNewGuards(t *testing.T) {

@@ -1,0 +1,12 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-18T18:51:10Z"}
+{"args":"dsrx: distill/reorg extensions — drain the accretion debt (new distill removal classes, reorg file-splitting + duplicate-coverage + _unsorted triage, survey consumes mxgu warnings)","cmd":"fab-new","event":"command","ts":"2026-07-18T18:51:10Z"}
+{"delta":"+4.1","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-07-18T18:57:05Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-18T19:01:30Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-18T19:01:41Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-18T19:19:11Z"}
+{"event":"review","result":"failed","ts":"2026-07-18T19:34:26Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-18T19:34:26Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-18T19:38:29Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-18T20:06:39Z"}
+{"event":"review","result":"passed","ts":"2026-07-18T20:06:39Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-18T20:13:55Z"}

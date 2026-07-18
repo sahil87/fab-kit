@@ -181,10 +181,14 @@ func memoryIndexCmd() *cobra.Command {
 					// Advisory kinds carried on the JSON `warnings` array. Width
 					// and depth are advisory shape bounds that predate the machine
 					// surface and are stderr-only, so they are NOT emitted here —
-					// only the mxgu debt-meter kinds join the array.
+					// only the mxgu debt-meter kinds plus the 501–1000 description-
+					// length nag join the array (the length nag rides `warnings`
+					// as the canonical signal source the /docs-distill-memory survey
+					// consumes — 260718-dsrx — instead of an agent-side frontmatter
+					// re-check).
 					switch w.Kind {
-					case memoryindex.KindNarrationDensity, memoryindex.KindFileSize,
-						memoryindex.KindUnsorted, memoryindex.KindBrokenLink:
+					case memoryindex.KindDescriptionLength, memoryindex.KindNarrationDensity,
+						memoryindex.KindFileSize, memoryindex.KindUnsorted, memoryindex.KindBrokenLink:
 						report.Warnings = append(report.Warnings, memoryindex.WarningFinding{
 							Kind:   w.Kind,
 							Path:   w.Path,
@@ -217,7 +221,7 @@ func memoryIndexCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&check, "check", false, "Write nothing; encode index-drift severity in the exit code (0 clean / 1 benign drift / 2 destructive loss). Blocking source findings (malformed frontmatter, a change-id in `description:`, or a `description:` over 1000 runes) floor the exit at 1 independent of drift")
-	cmd.Flags().BoolVar(&jsonOut, "json", false, "With --check, emit the loss report as JSON on stdout (suppresses human-readable text); includes an additive `malformed` array (blocking findings) and an additive `warnings` array carrying the four advisory kinds — narration-density, file-size, unsorted-nonempty, broken-link (the 501–1000 description-length nag is deliberately excluded from the array)")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "With --check, emit the loss report as JSON on stdout (suppresses human-readable text); includes an additive `malformed` array (blocking findings) and an additive `warnings` array carrying the advisory kinds — description-length (the 501–1000 nag), narration-density, file-size, unsorted-nonempty, broken-link")
 	cmd.Flags().BoolVar(&rebuild, "rebuild", false, "DESTRUCTIVE: discard the frozen log.md state and re-project every log.md from current git (the pre-freeze behavior, opt-in). Ignored with --check (which never writes)")
 	return cmd
 }
