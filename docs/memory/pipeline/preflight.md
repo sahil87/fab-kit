@@ -19,7 +19,7 @@ The preflight script (`src/kit/scripts/lib/preflight.sh`) validates the active c
 - `name` — the change folder name (resolved via `lib/changeman.sh resolve`)
 - `change_dir` — path to `fab/changes/{name}/`, relative to `fab/`
 - `stage` — routing stage: what `/fab-continue` will produce next (derived via `get_current_stage` from `lib/statusman.sh`)
-- `display_stage` — display stage: "where you are" in the pipeline (derived via `get_display_stage` from `lib/statusman.sh`). Five-tier walk: first `active`, else first `failed` (tier added in dkn3 so parked review/review-pr failures surface instead of falling through to the last done stage), else first `ready`, else last `done`/`skipped`, else first `pending` (`intake` if nothing started) — see [change-lifecycle.md](/pipeline/change-lifecycle.md) "Deriving display stage"
+- `display_stage` — display stage: "where you are" in the pipeline (derived via `get_display_stage` from `lib/statusman.sh`). Five-tier walk: first `active`, else first `failed` (dkn3 — parked review/review-pr failures surface instead of falling through to the last done stage), else first `ready`, else last `done`/`skipped`, else first `pending` (`intake` if nothing started) — see [change-lifecycle.md](/pipeline/change-lifecycle.md) "Deriving display stage"
 - `display_state` — the state of the display stage: `active`, `ready`, `done`, `failed`, `pending`, or `skipped`
 - `progress` — full progress map (all 6 stages with their status, via `get_progress_map`)
 - `checklist.generated` — boolean (via `get_checklist`)
@@ -38,7 +38,7 @@ Agents consume this output by running the script via Bash and parsing the stdout
 The script validates in this order, stopping at the first failure:
 
 1. `fab/project/config.yaml` and `fab/project/constitution.md` exist (project initialized)
-1b. Sync staleness check (non-blocking) — compares `$(fab kit-path)/VERSION` against `fab_version` in `fab/project/config.yaml` (read via the shared `internal/config` accessor since 260612-ye8r — no local one-off parser); emits stderr warning if they differ, silently skips if either is unreadable. Does NOT exit or alter stdout
+1b. Sync staleness check (non-blocking) — compares `$(fab kit-path)/VERSION` against `fab_version` in `fab/project/config.yaml` (read via the shared `internal/config` accessor — ye8r); emits stderr warning if they differ, silently skips if either is unreadable. Does NOT exit or alter stdout
 2. Change name resolves (via `lib/changeman.sh resolve` — from `$1` override or `.fab-status.yaml`)
 3. Change directory `fab/changes/{name}/` exists
 4. `.status.yaml` exists within the change directory

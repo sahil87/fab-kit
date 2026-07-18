@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "`/fab-clarify` skill — intake-only (j6cs), dual modes (suggest/auto), intake taxonomy scan, structured questions, coverage reports, audit trail, grade reclassification, always-recompute intake score; hosts the [AUTO-MODE] Skill Invocation Protocol and is sole bulk-confirm authority (zc9m); bulk confirm evaluated before the zero-gaps exit, confirmations graded by recomputed composite (no fiat Certain), unified audit-trail placement rules (c5tr)"
+description: "`/fab-clarify` skill — intake-only, dual modes (suggest/auto), intake taxonomy scan, structured questions, coverage reports, audit trail, grade reclassification, always-recompute intake score; hosts the [AUTO-MODE] Skill Invocation Protocol and is the sole bulk-confirm authority; bulk confirm evaluated before the zero-gaps exit, confirmations graded by recomputed composite (no fiat Certain), unified audit-trail placement rules"
 ---
 # Clarify Skill
 
@@ -8,16 +8,16 @@ description: "`/fab-clarify` skill — intake-only (j6cs), dual modes (suggest/a
 
 ## Overview
 
-The `/fab-clarify` skill deepens and refines the **intake** artifact (`intake.md`) without advancing. As of j6cs it is **intake-only**: clarification is the intake-time, human-facing activity where the developer's decisions and disambiguation happen, gated by the single intake confidence gate. There is no post-intake clarify — inside apply, the agent resolves ambiguity inline as graded SRAD assumptions in `plan.md`'s `## Assumptions`, not via this skill. It operates in two modes depending on call context: **suggest mode** for interactive user-driven clarification, and **auto mode** for autonomous resolution (machine-readable result; no orchestrator currently invokes it — the former `/fab-ff`/`/fab-fff` auto-clarify steps were removed in j6cs).
+The `/fab-clarify` skill deepens and refines the **intake** artifact (`intake.md`) without advancing. It is **intake-only** (j6cs): clarification is the intake-time, human-facing activity where the developer's decisions and disambiguation happen, gated by the single intake confidence gate. There is no post-intake clarify — inside apply, the agent resolves ambiguity inline as graded SRAD assumptions in `plan.md`'s `## Assumptions`, not via this skill. It operates in two modes depending on call context: **suggest mode** for interactive user-driven clarification, and **auto mode** for autonomous resolution (machine-readable result; no orchestrator currently invokes it — j6cs).
 
 ## Requirements
 
 ### Dual-Mode Operation
 
-`/fab-clarify` SHALL support two modes, determined by the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol — since 260611-zc9m the protocol (prefix placement, detection, transitivity) is defined in `fab-clarify.md` § Skill Invocation Protocol itself, its sole referencer; `_preamble.md` carries only a 2-line pointer, and the preamble's live § Subagent Dispatch references the new location instead of restating it:
+`/fab-clarify` SHALL support two modes, determined by the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol — the protocol (prefix placement, detection, transitivity) is defined in `fab-clarify.md` § Skill Invocation Protocol itself, its sole referencer; `_preamble.md` carries only a 2-line pointer and its § Subagent Dispatch references that location (zc9m):
 
 - **Suggest mode**: Activated when the `[AUTO-MODE]` prefix is **absent** (e.g., user invokes `/fab-clarify` directly). Interactive, presents structured questions one at a time with recommendations and options.
-- **Auto mode**: Activated when the `[AUTO-MODE]` prefix is **present**. Autonomous, resolves gaps without user interaction and returns a machine-readable result. Retained for future use — no orchestrator currently invokes it (j6cs removed the `/fab-ff`/`/fab-fff` auto-clarify steps).
+- **Auto mode**: Activated when the `[AUTO-MODE]` prefix is **present**. Autonomous, resolves gaps without user interaction and returns a machine-readable result. Retained for future use — no orchestrator currently invokes it (j6cs).
 
 There SHALL be no `--suggest` or `--auto` flags on the clarify skill.
 
@@ -29,7 +29,7 @@ The skill SHALL perform a systematic scan of `intake.md` for gaps, ambiguities, 
 
 - **Intake**: scope boundaries, affected areas, blocking questions, impact completeness, affected memory coverage, Origin section completeness
 
-A passed `spec`, `plan`, or `tasks` argument is treated as a change name (those targets no longer exist — `spec` and `plan` were removed in j6cs; `tasks` in qszh). At apply or later, `/fab-clarify` STOPs with a pointer to `/fab-continue` for rework or editing `plan.md`'s `## Requirements` directly.
+A passed `spec`, `plan`, or `tasks` argument is treated as a change name (no such targets exist — j6cs, qszh). At apply or later, `/fab-clarify` STOPs with a pointer to `/fab-continue` for rework or editing `plan.md`'s `## Requirements` directly.
 
 The scan also detects:
 - `<!-- assumed: ... -->` markers left by any planning skill — Tentative assumptions to confirm or override
@@ -72,27 +72,27 @@ At the end of each session, the skill SHALL display a coverage summary with four
 
 #### Autonomous Resolution
 
-In auto mode, the skill SHALL resolve gaps in `intake.md` using available context (config, constitution, memory files). It classifies each gap as resolvable, blocking, or non-blocking. The scan includes `<!-- assumed: ... -->` markers — those confirmable from context are resolved (marker removed), others are classified as blocking or non-blocking. As of j6cs no orchestrator invokes auto mode; it is retained for future use and operates on `intake.md` only.
+In auto mode, the skill SHALL resolve gaps in `intake.md` using available context (config, constitution, memory files). It classifies each gap as resolvable, blocking, or non-blocking. The scan includes `<!-- assumed: ... -->` markers — those confirmable from context are resolved (marker removed), others are classified as blocking or non-blocking. No orchestrator invokes auto mode (j6cs); it is retained for future use and operates on `intake.md` only.
 
 #### Grade Reclassification
 
-When an assumption is resolved through the Step 3–4 Q&A path (a structured question answered directly by the user), the skill SHALL re-grade the corresponding row **by recomputed composite, not by fiat** — the same rule as bulk confirm: set S → 95 (R, A, D unchanged), recompute the composite per `_srad.md` § SRAD Scoring, and assign the grade by its half-open bands. A direct answer typically lands the row in Certain, but a row whose recomputed composite stays below the Certain band keeps its banded grade — the grade is derived from the dimensions, never forced (srad.md § Grades: a derived grade can never contradict its own S/R/A/D). This re-grading occurs immediately after each answer, before the next question is presented. **Bulk-confirmed rows are likewise NOT relabeled by fiat** (c5tr): the bulk-confirm Artifact Update sets S → 95 (R, A, D unchanged), recomputes the composite per `_srad.md` § SRAD Scoring, and assigns the grade by its half-open bands (Certain ≥ 80, Confident 50–80, Tentative 20–50, Unresolved < 20 — 4yi8) — a confirmed row whose recomputed composite stays below the Certain band remains Confident, with the confirmation recorded in Rationale. The skill restates no weights or thresholds — the formula is referenced, not inlined (inlining it was exactly the drift class the c5tr batch fixed).
+When an assumption is resolved through the Step 3–4 Q&A path (a structured question answered directly by the user), the skill SHALL re-grade the corresponding row **by recomputed composite, not by fiat** — the same rule as bulk confirm: set S → 95 (R, A, D unchanged), recompute the composite per `_srad.md` § SRAD Scoring, and assign the grade by its half-open bands. A direct answer typically lands the row in Certain, but a row whose recomputed composite stays below the Certain band keeps its banded grade — the grade is derived from the dimensions, never forced (srad.md § Grades: a derived grade can never contradict its own S/R/A/D). This re-grading occurs immediately after each answer, before the next question is presented. **Bulk-confirmed rows are likewise NOT relabeled by fiat** (c5tr): the bulk-confirm Artifact Update sets S → 95 (R, A, D unchanged), recomputes the composite per `_srad.md` § SRAD Scoring, and assigns the grade by its half-open bands (Certain ≥ 80, Confident 50–80, Tentative 20–50, Unresolved < 20 — 4yi8) — a confirmed row whose recomputed composite stays below the Certain band remains Confident, with the confirmation recorded in Rationale. The skill restates no weights or thresholds — the formula is referenced, not inlined (c5tr).
 
 #### Confidence Recomputation
 
-After each suggest-mode session, the skill SHALL recompute the confidence score by re-running `fab score --stage intake <change>` (the recompute step was **inverted in j6cs**: instead of skipping at intake, it now always runs at intake — `intake.md`'s `## Assumptions` table is the sole scoring source). The updated `confidence` block is written to `.status.yaml`. Under the demerit formula (4yi8 — superseding the Resolution-Average mean of tf5q) the score is `clamp(5.0 − Σ penalty(composite), 0, 5)` over the per-row S:R:A:D composites; re-grading a resolved assumption raises its per-row composite (a resolved row's dimensions — typically S — go up), which **lowers that row's penalty** and so raises the score. (There is no mean to dilute and no penalty count to reduce — each row's penalty is keyed directly on its own composite.) Auto mode also recomputes the intake score.
+After each suggest-mode session, the skill SHALL recompute the confidence score by re-running `fab score --stage intake <change>` — it always runs at intake; `intake.md`'s `## Assumptions` table is the sole scoring source (j6cs). The updated `confidence` block is written to `.status.yaml`. Under the demerit formula (4yi8) the score is `clamp(5.0 − Σ penalty(composite), 0, 5)` over the per-row S:R:A:D composites; re-grading a resolved assumption raises its per-row composite (a resolved row's dimensions — typically S — go up), which **lowers that row's penalty** and so raises the score. (There is no mean to dilute and no penalty count to reduce — each row's penalty is keyed directly on its own composite.) Auto mode also recomputes the intake score.
 
 #### Machine-Readable Result
 
-Auto mode SHALL return a structured result: `{resolved: N, blocking: N, non_blocking: N}`. If blocking issues exist, descriptions are included: `{..., blocking_issues: ["description"]}`. (Historically consumed by `/fab-ff`/`/fab-fff` to decide whether to continue or bail; those auto-clarify steps were removed in j6cs, so no current consumer reads this result.)
+Auto mode SHALL return a structured result: `{resolved: N, blocking: N, non_blocking: N}`. If blocking issues exist, descriptions are included: `{..., blocking_issues: ["description"]}`. (No current consumer reads this result — j6cs.)
 
 ### Bulk Confirm (Confident Assumptions)
 
 When the confidence score is low primarily due to many Confident (not Tentative/Unresolved) assumptions, suggest mode SHALL offer a bulk confirm flow (Step 2) after the taxonomy scan and tentative resolution (Step 1.5). This displays all Confident assumptions in a numbered list and lets the user confirm, change, or request explanation in a single conversational turn.
 
-**Bulk confirm is evaluated before the zero-gaps exit** (c5tr): Step 1.5 builds the prioritized question queue **without stopping** — the "No gaps found — artifact looks solid." early exit moved into Step 2's not-triggered branch, emitted only when the bulk-confirm trigger did not fire AND the Step 1.5 queue is empty. This makes bulk confirm reachable in its primary scenario — a marker-free, Confident-only intake sitting below the 3.0 gate has zero gaps, so the old Step 1.5 exit dead-ended it at "artifact looks solid" with no path to raise the score.
+**Bulk confirm is evaluated before the zero-gaps exit** (c5tr): Step 1.5 builds the prioritized question queue **without stopping**; the "No gaps found — artifact looks solid." early exit lives in Step 2's not-triggered branch, emitted only when the bulk-confirm trigger did not fire AND the Step 1.5 queue is empty. This keeps bulk confirm reachable in its primary scenario — a marker-free, Confident-only intake sitting below the 3.0 gate has zero gaps to queue, yet still needs a path to raise the score.
 
-`fab-clarify.md` (Step 2, Suggest Mode) is the **sole authority** for the bulk-confirm trigger and semantics (260611-zc9m): the former `_preamble.md` § Bulk Confirm subsection — which duplicated the trigger condition, the S → 95 upgrade semantics, and the internal step numbering verbatim — was cut to a one-sentence pointer.
+`fab-clarify.md` (Step 2, Suggest Mode) is the **sole authority** for the bulk-confirm trigger and semantics; `_preamble.md` carries only a one-sentence pointer (zc9m).
 
 #### Detection
 
@@ -126,7 +126,7 @@ The clarify skill SHALL never advance the stage in `.status.yaml`. It only updat
 
 - **`intake`** — operates on the intake stage (`progress.intake` in `{active, ready, done}`), scanning `intake.md`.
 
-The pre-flight stage guard MUST allow only `intake`. At any post-intake stage (`apply`, `review`, `hydrate`, `ship`, `review-pr`), `/fab-clarify` does not apply and STOPs with: "Clarification is intake-only. At apply or later, run /fab-continue for rework, or edit plan.md `## Requirements` directly. To re-clarify the intake, reset with /fab-continue intake first." If `intake.md` is missing entirely, it STOPs with "No intake.md found. Run /fab-new to create the intake first." The former `spec` and `plan` targets were removed in j6cs (and `tasks` in qszh); any such positional argument is treated as a change name.
+The pre-flight stage guard MUST allow only `intake`. At any post-intake stage (`apply`, `review`, `hydrate`, `ship`, `review-pr`), `/fab-clarify` does not apply and STOPs with: "Clarification is intake-only. At apply or later, run /fab-continue for rework, or edit plan.md `## Requirements` directly. To re-clarify the intake, reset with /fab-continue intake first." If `intake.md` is missing entirely, it STOPs with "No intake.md found. Run /fab-new to create the intake first." There are no `spec`/`plan`/`tasks` targets (j6cs, qszh); any such positional argument is treated as a change name.
 
 ## Design Decisions
 
@@ -165,10 +165,10 @@ The pre-flight stage guard MUST allow only `intake`. At any post-intake stage (`
 **Rejected**: Batch updates at session end — risks losing all clarifications on interruption.
 
 ### Grade Reclassification in Assumptions Table
-**Decision**: When `/fab-clarify` resolves a Tentative or Confident assumption, the grade is reclassified to Certain in-place in the artifact's `## Assumptions` table. The confidence recount then reads the updated table, producing a higher score.
+**Decision**: When `/fab-clarify` resolves a Tentative or Confident assumption, the row is re-graded in place in the artifact's `## Assumptions` table by recomputed composite (typically landing Certain — never by fiat). The confidence recount then reads the updated table, producing a higher score.
 **Why**: Keeps the source of truth co-located with the artifact. The recount reads the Assumptions table directly, so in-place updates make the recount naturally correct. This ensures scores increase after clarification.
 **Rejected**: Separate resolution tracking file — adds complexity, risks drift between the table and the tracker. Removing entries instead of reclassifying — loses the decision record.
-*Introduced by*: 260212-29xv-scoring-formula
+*Introduced by*: 260212-29xv-scoring-formula; *Updated by*: 260612-c5tr-scaffold-config-truth-srad-coherence (grade assigned by recomputed composite, not fiat)
 
 ### Bulk Confirm over AskUserQuestion
 **Decision**: The bulk confirm flow uses plain text display + conversational message parsing instead of per-item `AskUserQuestion` tool calls.
