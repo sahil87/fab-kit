@@ -26,7 +26,7 @@ src/kit/
 ├── skills/                 # Skill definitions (markdown prompts)
 │   ├── _preamble.md         # Shared context loading convention
 │   ├── _cli-fab.md          # Fab CLI command reference (selective via helpers: [_cli-fab])
-│   ├── _cli-external.md     # External CLI tools: wt, tmux, /loop (selective via `helpers:`)
+│   ├── _cli-external.md     # Fab-owned external-tool content (operator spawning choreography, escalation rk-notify usage, tmux/fab pane, /loop); wt/idea/rk/hop usage delegated to `<tool> skill` (selective via `helpers:`)
 │   ├── _generation.md       # Spec/tasks generation procedures (selective via `helpers:`)
 │   ├── _review.md           # Review procedures (selective via `helpers:`)
 │   ├── fab-setup.md
@@ -419,7 +419,7 @@ The `_` (underscore) prefix denotes internal partial files that are loaded by sk
 | `_cli-fab.md` | Selective (via `helpers: [_cli-fab]`) | Fab CLI command reference — commands and flags beyond the Common fab Commands headline in `_preamble`. Used only by `fab-operator` currently |
 | `_generation.md` | Selective (via `helpers: [_generation]`) | Spec/tasks/intake generation procedures. Used by `fab-new`, `fab-draft`, `fab-continue`, `fab-ff`, `fab-fff` |
 | `_review.md` | Selective (via `helpers: [_review]`) | Review procedures. Used by `fab-continue`, `fab-ff`, `fab-fff` |
-| `_cli-external.md` | Selective (via `helpers: [_cli-external]`) | External CLI tools: `wt` (worktree manager), `tmux` (reduced — `capture-pane`/`send-keys` internalized as `fab pane capture`/`fab pane send`; only `new-window` remains), `/loop`. Used only by `fab-operator` |
+| `_cli-external.md` | Selective (via `helpers: [_cli-external]`) | **Fab-owned** external-tool content only (clix): the operator spawning choreography, the escalation `rk notify` usage, the absent-binary discipline, `tmux` (reduced — `capture-pane`/`send-keys` internalized as `fab pane capture`/`fab pane send`; only `new-window` remains), and `/loop`. Each owned binary's *usage knowledge* — `wt`/`idea` (bare) and `rk`/`hop` (`command -v`-gated fail-silent) — is delegated at use-time to `<tool> skill` (with a silent `https://shll.ai/<tool>/skill` version-skew fallback), its command tree to `<tool> help-dump`. Used only by `fab-operator` |
 
 Only `_preamble.md` is always-loaded. All other helpers are opt-in via the `helpers:` frontmatter field on each skill. `_naming.md` and `_cli-rk.md` no longer exist as separate files — their content is inlined into `_preamble.md` (`## Naming Conventions`, `## Run-Kit (rk) Reference`).
 

@@ -1,6 +1,6 @@
 ---
 name: _cli-external
-description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), hop (multi-repo navigator), tmux, rk (run-kit: context/iframe/proxy/visual-display + notify), and /loop. Hand-authored gist (operator-critical commands/flags + integration semantics) per tool; the exhaustive command/flag surface is delegated to each tool's `help-dump` at use-time. Loaded by operator skills only."
+description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), hop (multi-repo navigator), tmux, rk (run-kit), and /loop. Carries only fab-owned content (operator spawning choreography, the escalation rk-notify usage, the tmux/pane and /loop notes); each owned tool's usage knowledge is delegated to `<tool> skill` at use-time (bare for wt/idea, `command -v`-gated fail-silent for rk/hop, with a version-skew fallback to the shll.ai bundle page), and its exhaustive command tree to `<tool> help-dump`. Loaded by operator skills only."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -24,11 +24,57 @@ metadata:
 
 ## Reference Model
 
-This file documents a hand-authored **gist** per tool — what each tool *is*, the
-commands and flags the operator's correctness depends on, and the integration
-semantics that tie the tools to fab. It is deliberately **not** an exhaustive
-command reference: the full command/flag surface is delegated to each tool's
-`help-dump` (below), so this file never goes stale against a tool's release cadence.
+This file documents only **fab-owned** content — what each tool *is* in one line,
+and the fab-specific integration choreography that no tool's own documentation
+carries (the operator's spawning sequence, the escalation `rk notify` usage, the
+`fab pane` internalization notes). It deliberately does **not** restate any
+tool-owned usage knowledge: that is delegated to each owned tool's own bundle at
+use-time, so this file never goes stale against a tool's release cadence.
+
+Each owned tool serves two use-time surfaces, and this file delegates to both:
+
+- **`<tool> skill`** — the tool's **usage briefing** (when to reach for it, its
+  capabilities map, composition patterns, gotchas). Use it for a tool's usage
+  knowledge beyond the fab-owned content retained here.
+- **`<tool> help-dump`** — the tool's **exhaustive command tree** as JSON. Use it
+  for any specific flag or subcommand.
+
+Both surfaces are **version-locked by construction** (embedded in the same binary
+as the flags they describe), so neither can document a capability the installed
+binary lacks.
+
+### The `skill` delegation (usage knowledge)
+
+For any owned tool's usage knowledge beyond the fab-owned content retained in this
+file, run `<tool> skill` at use-time — **bare** for `wt`/`idea` (assumed-present),
+**`command -v`-gated fail-silent** for `rk`/`hop` (genuinely-optional), per the
+absent-binary discipline below:
+
+```sh
+wt skill                                          # wt/idea: assumed present, bare
+idea skill
+command -v rk  >/dev/null 2>&1 && rk skill        # rk/hop: gated, fail silently
+command -v hop >/dev/null 2>&1 && hop skill
+```
+
+Per `shll standards skill`, `<tool> skill` prints a static, ≤150-line,
+agent-optimized usage briefing as raw markdown to stdout (exit 0, stderr empty),
+byte-identical to the tool repo's canonical `docs/site/skill.md`.
+
+**Version-skew fallback (required).** An installed tool may predate its `skill`
+subcommand. The invocation MUST **capability-probe** it — `<tool> skill` failing
+(non-zero exit, or no output) is the probe — and fall back **silently** to the
+shll.ai bundle-page pointer `https://shll.ai/<tool>/skill`; operator context
+loading MUST NOT break or surface an error on an older binary. For `rk`/`hop` this
+composes with the `command -v` gate: **absent** binary → skip entirely; **present
+but old** → the fallback pointer. The retained fab-owned choreography already
+covers the operator-critical `wt` semantics, so the fallback never needs to
+reproduce a tool gist.
+
+> The `skill` delegation scopes to the **four owned binaries** (`wt`, `idea`,
+> `rk`, `hop`) — the same scope as `help-dump` below. `tmux` is third-party and
+> has no `skill` bundle; `/loop` is a Claude Code skill, not a binary — neither
+> is covered.
 
 ### The `help-dump` contract
 
@@ -63,14 +109,14 @@ cannot know its own capture time — it is stamped after capture), so emitting i
 is forbidden toolkit-wide. `fab` and `wt` already omit it; any peer tool still
 emitting `captured_at` (empty or otherwise) drops it on its own release cadence.
 
-**Use it at use-time.** For any flag or subcommand **not** in the gist below, run
-`<tool> help-dump` (or `<tool> <cmd> --help`) and treat *that*, not this file, as
-authoritative for the exhaustive surface. The inlined gist tables are a deliberately
-curated subset (the operator-critical commands/flags + integration semantics).
+**Use it at use-time.** For any specific flag or subcommand, run `<tool> help-dump`
+(or `<tool> <cmd> --help`) and treat *that*, not this file, as authoritative for
+the exhaustive surface. `help-dump` is the command-tree sibling of `skill` above
+(usage knowledge) — this file inlines neither; both are delegated at use-time.
 
-> The `help-dump` delegation scopes to the **four owned binaries** (`wt`, `idea`,
-> `rk`, `hop`). `tmux` is third-party and has no `help-dump`; `/loop` is a Claude
-> Code skill, not a binary — neither is covered by the instruction above.
+> The `help-dump` delegation scopes to the same **four owned binaries** (`wt`,
+> `idea`, `rk`, `hop`) as the `skill` delegation. `tmux` is third-party and has no
+> `help-dump`; `/loop` is a Claude Code skill, not a binary — neither is covered.
 
 ### Absent-binary discipline (two install classes)
 
@@ -83,15 +129,19 @@ fail-silent rule applies **asymmetrically**:
 - **Genuinely-optional — `rk`, `hop`.** Each is a separate sibling formula the user
   may or may not have installed (`rk` is run-kit — formula `sahil87/tap/run-kit`
   since run-kit v3.0.0, with `rk` kept as a symlink alias; `hop` is the multi-repo
-  navigator). **Every `rk`/`hop` invocation — including `help-dump` — MUST be
-  `command -v`-gated and fail silently** (never surface `command not found` or any
-  error/warning when the tool is absent). Do NOT generalize this gate to `wt`/`idea`.
+  navigator). **Every `rk`/`hop` invocation — including `skill` and `help-dump` —
+  MUST be `command -v`-gated and fail silently** (never surface `command not found`
+  or any error/warning when the tool is absent). Do NOT generalize this gate to
+  `wt`/`idea`.
+
+This discipline governs **both** use-time delegations (`skill` and `help-dump`)
+identically — each is a per-tool invocation:
 
 ```sh
-command -v hop >/dev/null 2>&1 && hop help-dump   # rk/hop: gated, fail silently
-command -v rk  >/dev/null 2>&1 && rk help-dump    # rk/hop: gated, fail silently
-wt help-dump                                       # wt/idea: assumed present, bare
-idea help-dump                                     # wt/idea: assumed present, bare
+command -v hop >/dev/null 2>&1 && hop skill        # rk/hop: gated, fail silently
+command -v rk  >/dev/null 2>&1 && rk help-dump     # rk/hop: gated, fail silently
+wt skill                                            # wt/idea: assumed present, bare
+idea help-dump                                      # wt/idea: assumed present, bare
 ```
 
 ---
@@ -100,30 +150,15 @@ idea help-dump                                     # wt/idea: assumed present, b
 
 `wt` manages git worktrees for parallel development. Installed system-wide via `brew install fab-kit`.
 
-### Commands
-
-| Command | Usage | Purpose |
-|---------|-------|---------|
-| `list` | `wt list` | List all worktrees: names, branches, paths |
-| `list --path` | `wt list --path <name>` | Check if a worktree exists. Exit 0 = exists (prints path), exit 1 = not found |
-| `create` | `wt create --non-interactive [flags] [branch]` | Create a new worktree (see flags below) |
-| `delete` | `wt delete <name>` | Delete a worktree. Destructive — confirm first |
-
-### `wt create` Flags
-
-| Flag | Purpose |
-|------|---------|
-| `--non-interactive` | Required for operator use — suppresses prompts |
-| `--worktree-name <name>` | Override the auto-generated worktree directory name |
-| `--reuse` | Reuse an existing worktree if one matches — requires `--worktree-name <name>` (the match key). Useful for autopilot respawns |
-| `--base <ref>` | Branch from a specific ref instead of the default. Used for sequenced autopilot (branch from prior change). Conflicts with `--checkout` (both exit 2) |
-| `--checkout <branch>` | Put the worktree on an EXISTING local/remote branch (fetches remote-only branches). Conflicts with `--base` and with the positional (both exit 2) |
-| `[branch]` | Positional — name for a NEW branch only; exits 2 if the branch already exists locally or remotely (use `--checkout` for an existing branch) |
-
-**Example — known change** (the change branch may already exist — created by `/fab-new` Step 11 in the original checkout — so probe and route): branch exists → `wt create --non-interactive --worktree-name <name> --checkout <change-folder-name>`; missing → `wt create --non-interactive --worktree-name <name> <change-folder-name>`.
-**Example — autopilot respawn**: branch exists → `wt create --non-interactive --reuse --worktree-name <name> --checkout <branch>`; missing → `wt create --non-interactive --reuse --worktree-name <name> <branch> --base <prev-change>`. (`--base` rides only the positional/new-branch arm — `--checkout`+`--base` is a hard exit-2 conflict, and an existing branch already embodies its start-point.)
-
-> The gist above is the operator-used subset. The full `wt` surface (e.g. `init`, `open`, `shell-init`, `update`) and the complete flag set for each command are available via `wt help-dump` (assumed present — bare, per § Reference Model).
+> `wt`'s command set (`list`/`create`/`delete`/…), the `wt create` flags
+> (`--non-interactive`/`--worktree-name`/`--reuse`/`--base`/`--checkout` + the
+> positional `[branch]`), and its branch-selection contract (positional is
+> new-branch-only, exit 2 on an existing branch; `--checkout <branch>` is the
+> existing-branch opt-in and conflicts with both `--base` and the positional) are
+> **tool-owned** — read them at use-time via `wt skill` (usage) / `wt help-dump`
+> (flags), assumed present — bare, per § Reference Model. What stays below is
+> **fab-owned**: how the operator drives `wt create` for spawning, and which wt
+> form the fab routing rule selects when (that decision is fab's).
 
 > **Repo-targeted spawning (operator).** `wt` operates on the **current working directory's** repo. For multi-repo coordination, the operator MUST run `wt create` **in the target repo's directory** (the agent's absolute main-worktree root), so the new worktree lands under `$(dirname <target-repo>)/<repo-name>.worktrees/` — not under the operator's own repo. The operator reads that target repo's session command separately via `fab agent --print --repo <target-repo>` (see `_cli-fab.md`), never its own `config.yaml`.
 
@@ -133,7 +168,7 @@ When the operator creates a worktree for an agent, the naming strategy depends o
 
 #### Known change (already exists)
 
-The change's branch usually already exists (created by `/fab-new` Step 11 in the original checkout), so **probe branch existence and route** per wt's new-branch-only positional contract — passing an existing branch positionally exits 2. Probe local first (`git show-ref --verify --quiet refs/heads/<change-folder-name>`), then remote (`git ls-remote --heads origin <change-folder-name>`):
+The change's branch usually already exists (created by `/fab-new` Step 11 in the original checkout), so **probe branch existence and route** — the existing branch takes `--checkout`, a missing one the positional (wt's positional is new-branch-only; the exact contract is in `wt skill`, per § Reference Model). Probe local first (`git show-ref --verify --quiet refs/heads/<change-folder-name>`), then remote (`git ls-remote --heads origin <change-folder-name>`):
 
 ```
 # branch exists (the common case) → put the worktree ON the existing branch
@@ -157,74 +192,23 @@ The change folder doesn't exist yet, so there's no branch name to use:
 
 ## idea (Backlog Manager)
 
-Standalone binary for backlog idea management — CRUD for `fab/backlog.md`. Installed system-wide via `brew install fab-kit` (not a `fab` subcommand).
+Standalone binary for backlog idea management — CRUD for `fab/backlog.md` (the inbox that feeds `/fab-new <id>`). Installed system-wide via `brew install fab-kit` (not a `fab` subcommand).
 
-```
-idea <subcommand> [flags...]
-```
-
-| Subcommand | Usage | Purpose |
-|------------|-------|---------|
-| *(bare)* | `idea <text>` | Shorthand for `idea add <text>` (no `--id`/`--date` flags) |
-| `add` | `add <text> [--id <4char>] [--date <YYYY-MM-DD>]` | Add a new idea |
-| `list` | `list [-a] [--done] [--json] [--sort <id\|date>] [--reverse]` | List ideas |
-| `show` | `show <query> [--json]` | Show a single idea |
-| `done` | `done <query>` | Mark an idea as done |
-| `reopen` | `reopen <query>` | Reopen a completed idea |
-| `edit` | `edit <query> <new-text> [--id <4char>] [--date <YYYY-MM-DD>]` | Modify an idea |
-| `rm` | `rm <query> --force` | Delete an idea (requires --force) |
-
-> The verbs above are the operator-used subset. The full `idea` surface (e.g. `fmt`, `prune`, `shell-init`, `update`) is available via `idea help-dump` (assumed present — bare, per § Reference Model).
-
-### Persistent Flags
-
-| Flag | Purpose |
-|------|---------|
-| `--file <path>` | Override backlog file path (relative to git root). Also respects `IDEAS_FILE` env var. Priority: `--file` > `IDEAS_FILE` > default `fab/backlog.md` |
-| `--main` | Operate on the main worktree's backlog instead of the current worktree |
-
-By default, `idea` operates on the **current worktree's** `fab/backlog.md` (resolved via `git rev-parse --show-toplevel`). Pass `--main` to target the main worktree's backlog instead (resolved by running `git rev-parse --path-format=absolute --git-common-dir` and taking its parent directory as the main worktree root). In the main worktree, both behave identically.
-
-**Query matching**: Case-insensitive substring match on both the idea ID and text fields. Commands that modify a single idea (`show`, `done`, `reopen`, `edit`, `rm`) require exactly one match; zero matches returns "No idea matching", multiple matches returns disambiguation guidance.
-
-**Backlog format**:
-
-```
-- [ ] [a7k2] 2025-06-15: Add dark mode to settings page
-- [ ] [c3d4] 2025-06-10: DES-123 Link to a Linear ticket
-- [x] [e5f6] 2025-06-08: Fix login redirect bug
-```
-
-**Output format**:
-- Add: `Added: [{id}] {date}: {text}`
-- Done: `Done: - [x] [{id}] {date}: {text}`
-- Reopen: `Reopened: - [ ] [{id}] {date}: {text}`
-- Edit: `Updated: - [{status}] [{id}] {date}: {text}`
-- Rm: `Removed: - [{status}] [{id}] {date}: {text}`
+`idea`'s verbs (`add`/`list`/`show`/`done`/`reopen`/`edit`/`rm` + bare-text shorthand), its persistent flags (`--file`/`--main` + worktree-vs-main-backlog resolution), its query-matching rule, and the `fab/backlog.md` line format are all **tool-owned** — read them at use-time via `idea skill` (usage) / `idea help-dump` (flags), assumed present — bare, per § Reference Model.
 
 ---
 
 ## hop (Multi-Repo Navigator)
 
-`hop` is a **genuinely-optional** binary — a separate sibling formula, not a `fab-kit` Homebrew dependency, so it can legitimately be absent. Every `hop` invocation (including `hop help-dump`) MUST be `command -v hop`-gated and skip silently when absent (per § Reference Model — never surface `command not found` or any error/warning). This mirrors the `rk` fail-silent discipline.
+`hop` is a **genuinely-optional** binary — a separate sibling formula, not a `fab-kit` Homebrew dependency, so it can legitimately be absent. Every `hop` invocation MUST be `command -v hop`-gated and skip silently when absent (per § Reference Model — never surface `command not found` or any error/warning). This mirrors the `rk` fail-silent discipline.
+
+`hop` is the **repo locator** — the discovery front-end to the same repo/worktree space `wt` operates on: where `wt` enumerates the worktrees *within* a repo, `hop` enumerates the *repos* themselves (registered in `~/.config/hop/hop.yaml`). Its discovery commands (`ls`/`ls --trees`/`where`) and grammar are **tool-owned** — read them at use-time via the gated delegation:
 
 ```sh
-command -v hop >/dev/null 2>&1 && hop ls   # gate every hop call, fail silently
+command -v hop >/dev/null 2>&1 && hop skill   # usage briefing; gated, fail silently
 ```
 
-**What it is.** `hop` is the **discovery front-end to the same repo/worktree space `wt` operates on**: it locates, opens, and operates on repos registered in a `hop.yaml` registry (default `~/.config/hop/hop.yaml`). The grammar is `hop <selection> <action>` — selection is a repo name (substring → fzf on ambiguity), a `repo/worktree`, a group, or `--all`; action is a builtin verb (`cd`/`open`/`where`), a batch verb (`pull`/`push`/`sync`), or any PATH binary. Where `wt` enumerates the worktrees *within* a repo, `hop` enumerates the *repos* themselves.
-
-### Repo/worktree discovery (the operator-relevant subset)
-
-| Command | Usage | Purpose |
-|---------|-------|---------|
-| `ls` | `hop ls` | List all registered repos as aligned name/path columns — the most useful command for discovering where sibling repos live on disk (`--json` for machine-readable output) |
-| `ls --trees` | `hop ls --trees` | List repos **with worktree summaries**, fanning out to `wt list --json` per repo. This is the explicit `hop`↔`wt` seam: `hop` enumerates repos, `wt` enumerates each repo's worktrees |
-| `where` | `hop <name> where` | Echo the absolute path of a matching repo. `hop <name>/<wt> where` resolves a specific worktree (via `wt list --json`) |
-
-**Why it matters to the operator.** Multi-repo coordination needs the absolute main-worktree root of a *sibling* repo — e.g. to spawn an agent into it (see the **Repo-targeted spawning** note in the `wt` section, which requires running `wt create` in the target repo's directory and reading `fab agent --print --repo <target-repo>`). `hop ls` / `hop <name> where` is how an agent **discovers** those locations rather than hardcoding paths.
-
-**Full surface.** The rest of `hop` — `add`, `clone`, `rm`, `config` (`init`/`where`/`print`), `shell-init`, `update`, the batch verbs (`pull`/`push`/`sync`), and `--all` fan-out — is available via `command -v hop >/dev/null 2>&1 && hop help-dump`. The gist above covers only discovery.
+**Why it matters to the operator (fab-owned).** Multi-repo coordination needs the absolute main-worktree root of a *sibling* repo — e.g. to spawn an agent into it (see the **Repo-targeted spawning** note in the `wt` section, which requires running `wt create` in the target repo's directory and reading `fab agent --print --repo <target-repo>`). `hop` is how an agent **discovers** those locations rather than hardcoding paths; the specific discovery command is in `hop skill`.
 
 ---
 
@@ -249,73 +233,25 @@ Terminal multiplexer commands used by the operator for agent observation and int
 
 ## rk (run-kit)
 
-run-kit is the tmux session manager with a web UI that hosts the operator's session. Since run-kit v3.0.0 the Homebrew formula and primary binary are named `run-kit` (`sahil87/tap/run-kit`); `rk` is kept as a symlink alias and remains the invocation form used throughout fab skills. All commands below are subject to the **detection / fail-silent rule** stated once in `_preamble.md` § Run-Kit (rk) Reference — check `command -v rk` first and skip silently when rk is absent (never error, never warn). This section is the full operator-facing body the preamble points to; the exhaustive command surface is delegated to `rk help-dump` (see below).
+run-kit is the tmux session manager with a web UI that may host the operator's session. Since run-kit v3.0.0 the Homebrew formula and primary binary are named `run-kit` (`sahil87/tap/run-kit`); `rk` is kept as a symlink alias and remains the invocation form used throughout fab skills. All `rk` usage is subject to the **detection / fail-silent rule** stated once in `_preamble.md` § Run-Kit (rk) Reference — check `command -v rk` first and skip silently when rk is absent (never error, never warn).
 
-The gist below is the operator-used subset. The full `rk` surface (`daemon`, `doctor`, `serve`, `reaper`, `riff`, `init-conf`, `status`, `update`, …) is available via `command -v rk >/dev/null 2>&1 && rk help-dump` — gated and fail-silent like every other `rk` invocation (per § Reference Model and the `_preamble.md` rule above).
-
-### Notifications
-
-`rk notify` sends a Web Push notification via the local run-kit server to every subscribed browser/device:
+`rk`'s command surface is **tool-owned** — the `rk notify` contract (Web Push delivery, fail-silent-by-contract guarantee), `rk context` (server-URL discovery, iframe windows via `@rk_type`/`@rk_url`, the `/proxy/{port}/` pattern, the Visual Display Recipe + visual-explainer integration), and the rest (`daemon`/`doctor`/`serve`/…). Read it at use-time via the gated delegation:
 
 ```sh
-rk notify <message> [--title string]
+command -v rk >/dev/null 2>&1 && rk skill   # usage briefing; gated, fail silently
 ```
 
-- **Fail-silent by contract**: on any error (server unreachable, no subscriptions, bad request) `rk notify` exits 0 and prints nothing, so it never stalls a calling loop. This is run-kit's own guarantee — it composes with the preamble's detection rule for an end-to-end silent send.
-- **Operator default channel**: the operator's non-blocking Strategic escalation (`fab-operator.md` §5) uses `rk notify` as its default out-of-band notification send, gated on `command -v rk`:
+The **dynamic** environment (current server URL, session, pane) stays in `rk context` — run at use-time, never hardcoded. `rk skill` is the static usage briefing; `rk context` reports the live environment (the two are distinct per `shll standards skill`).
 
-  ```sh
-  command -v rk >/dev/null 2>&1 && rk notify "{change}: {summary} ({repo})" --title "Operator: strategic question"
-  ```
-- **Delivery model**: a real background mobile/desktop Web Push (run-kit holds the VAPID keypair and the device subscriptions). One user's subscriptions form a single feed across every operator on the box. `rk notify` itself reports nothing; the underlying `POST /api/notify` returns a `{"sent":N,"pruned":M}` summary if a caller needs delivery visibility (the operator does not — it relies on the fail-silent contract).
+### Operator escalation send (fab-owned)
 
-### Server URL Discovery
-
-Discover the server URL at **use-time** by running:
+The operator's non-blocking Strategic escalation (`fab-operator.md` §5) uses `rk notify` as its default out-of-band notification send — the fab-specific usage (message/title template), gated on `command -v rk` and relying on run-kit's fail-silent-by-contract guarantee:
 
 ```sh
-rk context 2>/dev/null | grep 'Server URL' | awk '{print $NF}'
+command -v rk >/dev/null 2>&1 && rk notify "{change}: {summary} ({repo})" --title "Operator: strategic question"
 ```
 
-Never hardcode the server URL — it can change between sessions.
-
-### Iframe Windows
-
-Create a tmux window that displays a web page instead of a terminal:
-
-```sh
-tmux new-window -n <name>
-tmux set-option -w @rk_type iframe
-tmux set-option -w @rk_url <url>
-```
-
-Change the URL of an existing iframe window:
-
-```sh
-tmux set-option -w @rk_url <new-url>
-```
-
-The rk server detects `@rk_type` and `@rk_url` changes automatically via SSE polling — no manual refresh needed.
-
-### Proxy
-
-Access local services through the rk server using the proxy URL pattern:
-
-```
-{server_url}/proxy/{port}/...
-```
-
-For example, a service on port 8080 is available at `{server_url}/proxy/8080/`.
-
-### Visual Display Recipe
-
-The canonical recipe for displaying HTML content in an iframe window is documented by `rk context` — run-kit owns this workflow because every step (loopback HTTP server, relative `/proxy/<port>/...` path, `@rk_type`/`@rk_url` tmux options) is run-kit-specific. Keeping the recipe in one place eliminates drift between fab-kit and run-kit.
-
-At use-time, call `rk context` and read the `### Visual Display Recipe` subsection of the output for the current 4-step flow (generate HTML → loopback HTTP server → iframe window with relative `@rk_url` → fail silently). Any step SHALL fail silently if its prerequisite is unavailable (rk missing, port in use, server start fails) — skip remaining steps without surfacing an error.
-
-#### Visual-Explainer Integration
-
-When the `visual-explainer` plugin is available, skills MAY delegate HTML generation to it (Step 1 of the `rk context` recipe), then follow the remaining steps to display the result. If `visual-explainer` is not available, skip the visual display entirely — no error, no fallback.
+This is the operator's *usage* of the tool, not the `rk notify` contract itself (that is tool-owned — see `rk skill`). When `rk` is absent, the operator falls back to a documented alternative channel per `fab-operator.md` §5 Notification Send.
 
 ---
 
