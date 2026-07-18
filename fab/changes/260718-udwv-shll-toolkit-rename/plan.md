@@ -43,7 +43,7 @@ After editing `docs/site/skill.md`, the committed embed copy `src/go/fab/cmd/fab
 - **GIVEN** `docs/site/skill.md` has been edited (R3)
 - **WHEN** `bash scripts/sync-skill.sh` is run
 - **THEN** `src/go/fab/cmd/fab/skill.md` is byte-identical to `docs/site/skill.md`
-- **AND** `go test ./fab/cmd/fab/ -run 'TestSkill' -count=1` (in `src/go`) passes, and the package's full test suite stays green
+- **AND** `go test ./cmd/fab/ -run 'TestSkill' -count=1` (run from the `src/go/fab` module root) passes, and the package's full test suite stays green
 
 ### Kit Skill + SPEC Mirror
 
@@ -94,7 +94,7 @@ In `fab/project/constitution.md:38`, `This tool is part of the sahil87 toolkit` 
 ### Phase 3: Integration & Verification
 
 - [x] T007 Re-run `bash scripts/sync-skill.sh` to regenerate the embedded copy `src/go/fab/cmd/fab/skill.md` from the edited canonical `docs/site/skill.md` (depends on T003) <!-- R4 -->
-- [x] T008 Run `cd src/go && go test ./fab/cmd/fab/ -run 'TestSkill' -count=1`, then the package's full tests, to confirm `TestSkillEmbedMatchesCanonical` and the bundle line-budget test pass (depends on T007) <!-- R4 -->
+- [x] T008 Run `cd src/go/fab && go test ./cmd/fab/ -run 'TestSkill' -count=1`, then the package's full tests, to confirm `TestSkillEmbedMatchesCanonical` and the bundle line-budget test pass (depends on T007) <!-- R4 -->
 - [x] T009 Repo-wide sweep verification: grep for remaining in-scope `sahil87 toolkit` / `sahil87 tool` / `@sahil87` prose (excluding `fab/changes/` archives, `.claude/`, `docs/memory/`, and identifier URLs) to confirm the class is fully swept <!-- R1 R2 R3 R5 R6 -->
 
 ## Execution Order
@@ -122,7 +122,7 @@ In `fab/project/constitution.md:38`, `This tool is part of the sahil87 toolkit` 
 
 ### Scenario Coverage
 
-- [x] A-009 R4: `cd src/go && go test ./fab/cmd/fab/ -count=1` (full package) is green <!-- verified from the module root: cd src/go/fab && go test ./cmd/fab/ -count=1 — there is no go.mod/go.work at src/go, so the literal cd src/go form does not run; the package (all 6 TestSkill* tests incl. TestSkillEmbedMatchesCanonical + TestSkillBundle_LineBudget) is green -->
+- [x] A-009 R4: `cd src/go/fab && go test ./cmd/fab/ -count=1` (full package, from the `src/go/fab` module root) is green <!-- there is no go.mod/go.work at src/go, so src/go/fab is the module root; the package (all 6 TestSkill* tests incl. TestSkillEmbedMatchesCanonical + TestSkillBundle_LineBudget) is green -->
 
 ### Edge Cases & Error Handling
 
