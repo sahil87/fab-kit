@@ -44,6 +44,14 @@ metadata:
 
 `fab -h` composes help from both binaries. `fab --version` prints the system binary version; inside a fab repo a second line shows the project-pinned version.
 
+### Exit-Code Convention (`fab-go` commands)
+
+The `fab-go` binary (everything the router does not dispatch to `fab-kit`) follows the toolkit convention: **`0` success / `1` operational failure / `2` usage error**. A **usage error** is a malformed invocation caught at parse/validation time — an unknown/malformed flag (`fab score --nope`), an arg-count violation (`fab score` with no args), an unknown subcommand (`fab nonsense`), or a mutually-exclusive flags-group conflict (`fab resolve --status --folder`). An **operational failure** is a syntactically valid invocation that fails on a runtime/data condition (a missing change, a failed preflight, a below-gate `--check-gate`, a tmux/gh/filesystem error). Success is `0`.
+
+**Classification rides on execution phase, not message strings**: `main()` (a testable `run()` helper) wraps every command's `RunE` so a shared flag records whether the resolved command's run phase began. Every usage class surfaces during cobra's `execute()` *before* any `RunE` runs (flag parse, `ValidateArgs`, unknown-subcommand `Find`/`legacyArgs`, `ValidateFlagGroups`), so the flag is still unset → exit `2`; an operational error originates from *inside* a `RunE` → exit `1`. No code path inspects stderr or the error message to classify — the same error-value discipline as `paneValidationExitCode`.
+
+**Coexistence with in-handler domain schemes (no renumbering)**: the pane family (`2` = pane missing, `3` = other tmux failure) and `fab memory-index --check` (`0`/`1`/`2`, `2` = destructive loss) set their non-1 codes via `os.Exit` *inside* the handler, which bypasses `main()`'s usage/operational mapping entirely — their codes are unchanged. For those subcommands exit `2` is therefore intentionally ambiguous between "usage error" (at parse time) and the domain meaning (in-handler); this is documented per subcommand, which principle №4 sanctions, rather than renumbered (renumbering would break the pinned pane test and downstream consumers). A usage error is a static caller bug fixable at authoring time, not a runtime condition scripts branch on, and stderr wording disambiguates.
+
 ### Workspace Command Exit Semantics
 
 Lifecycle commands fail loudly — a non-zero exit is the failure signal scripts and skills rely on. **Exception**: `sync` and `fab-kit migrations-status` reserve a distinct exit `3` for the "not a fab-managed repo" precondition (see the `sync` row and the `fab migrations-status` section) — that is *not* a failure but a "not applicable here" signal, so a caller branching on the exit code MUST treat exit `3` separately from the generic exit `1` = failure. All other lifecycle failures use the generic non-zero (exit `1`) path.
@@ -221,7 +229,7 @@ fab log review <change> <result> [rework]
 fab log transition <change> <stage> <action> [from] [reason] [driver]
 ```
 
-`command` is pure telemetry and **always exits 0** (given valid usage — cobra arg-count errors exit non-zero before RunE) — it owns its best-effort contract. On any internal failure (no fab root, an explicit `[change]` that doesn't resolve, unwritable `.history.jsonl`) it prints a one-line `Warning: fab log command: …` to stderr and still exits 0, so call sites need no `2>/dev/null || true` guard and a telemetry hiccup can never become a pipeline failure mode. When `[change]` is omitted, the active change resolves from `.fab-status.yaml` (silent no-op if absent/dangling). `review`/`confidence`/`transition` keep fail-loud non-zero exits (they are auto-logged by `fab status`/`fab score` — skills never call them directly).
+`command` is pure telemetry and **always exits 0** (given valid usage — cobra arg-count errors are usage errors that exit `2` before RunE) — it owns its best-effort contract. On any internal failure (no fab root, an explicit `[change]` that doesn't resolve, unwritable `.history.jsonl`) it prints a one-line `Warning: fab log command: …` to stderr and still exits 0, so call sites need no `2>/dev/null || true` guard and a telemetry hiccup can never become a pipeline failure mode. When `[change]` is omitted, the active change resolves from `.fab-status.yaml` (silent no-op if absent/dangling). `review`/`confidence`/`transition` keep fail-loud non-zero exits (they are auto-logged by `fab status`/`fab score` — skills never call them directly).
 
 **Common callers** — skills per `_preamble.md` Context Loading §2 (`fab log command "<skill>" "<change>"`); `finish/fail review` auto-log; `score` auto-logs confidence; `change new`/`change rename` auto-log.
 
@@ -244,7 +252,7 @@ fab resolve [--id|--folder|--dir|--status|--pane] [--server <name>] [<change>]
 | `--pane` | Tmux pane ID (errors `ERROR: no tmux pane found for change "<folder>"` if no matching pane) |
 | `--server <name>` / `-L <name>` | Pane mode only: target tmux socket (`tmux -L <name>`), searched server-wide across all sessions; skips the `$TMUX` requirement. Without it, pane lookup is current-session-only and requires `$TMUX` (`ERROR: not inside a tmux session` otherwise) |
 
-The five output-mode flags are **mutually exclusive** — passing two (e.g. `--status --folder`) exits non-zero with a flags-group error instead of silently picking one. `fab change resolve` is a thin wrapper over this same implementation with `--folder` mode fixed.
+The five output-mode flags are **mutually exclusive** — passing two (e.g. `--status --folder`) exits `2` (a usage error — a flags-group conflict, caught before RunE) instead of silently picking one. `fab change resolve` is a thin wrapper over this same implementation with `--folder` mode fixed.
 
 ---
 
@@ -334,7 +342,7 @@ Only the `--json` flag; no positional arguments (`fab config reference extra-arg
 
 **Output**: byte-stable for a given binary version (same convention as `fab resolve` / `fab resolve-agent`). The emitted document round-trips — its live keys parse cleanly back into `Config`.
 
-**Exit code**: 0 on success (pure query — no runtime error paths). A usage error (e.g. an extra positional argument, rejected by `cobra.NoArgs`) exits non-zero. Writes no file.
+**Exit code**: 0 on success (pure query — no runtime error paths). A usage error (e.g. an extra positional argument, rejected by `cobra.NoArgs`) exits `2` (caught before RunE). Writes no file.
 
 ### The config cascade (project > system > defaults)
 
@@ -405,7 +413,7 @@ The `fab hook` command family — `session-start`, `stop`, `user-prompt`, `artif
 
 Tmux pane operations with fab context enrichment. `fab pane <map|capture|send|process|window-name> [flags...]`
 
-**Pane-family exit codes** (capture, send, window-name): pane validation failures use a shared scheme so callers can branch on cause — `2` = pane missing, `3` = any other tmux failure (dead server, bad socket). `map` and `process` use plain `ERROR:`-formatted exit 1. (Non-tmux usage errors — bad flag values, cobra arg-count — exit 1 per command; see the per-verb rows.)
+**Pane-family exit codes** (capture, send, window-name): pane validation failures use a shared scheme so callers can branch on cause — `2` = pane missing, `3` = any other tmux failure (dead server, bad socket). `map` and `process` use plain `ERROR:`-formatted exit 1. **Usage-error coexistence**: a *usage* error on any pane verb — a bad flag or a cobra arg-count violation — exits `2` at parse time (the binary-wide convention above), caught before the handler runs; the in-handler `2` = pane-missing / `3` = tmux-failure scheme is a separate, in-handler `os.Exit` path that bypasses the usage/operational mapping. Exit `2` on a pane verb is therefore ambiguous between "usage error" (at parse time) and "pane missing" (in-handler) — disambiguate on stderr wording; the codes are not renumbered.
 
 **Persistent flag** (all subcommands): `--server <name>` / `-L <name>` (default `""`) — target tmux socket (`tmux -L <name>`). Defaults to `$TMUX` / tmux default. Lets daemons on one tmux server inspect panes on another.
 
@@ -861,6 +869,8 @@ Other exit codes:
   write failed. `Gather` runs before the `--check` branch, so a `--check` run also exits 1 on these —
   the exit-1 / exit-2 *tier* codes above apply only once gather succeeds and the comparison runs.
   Writes happen only on non-`--check` runs, so a write failure is non-`--check`-only.
+
+**Usage-error coexistence**: the `--check` tier-`2` (destructive loss) is an in-handler `os.Exit(2)` that bypasses the binary-wide usage/operational mapping (§ Exit-Code Convention). A *usage* error on `memory-index` — a bad flag or arg-count violation — instead exits `2` at parse time, before the handler runs. Both use code `2`, so it is ambiguous between "usage error" (parse-time) and "destructive loss" (in-handler `--check`) — disambiguate on stderr; the tiered `--check` scheme is not renumbered, and the hydrate guard's tier-2 branch is unaffected (it only ever runs `--check`, which reaches the handler).
 
 Consumers: the hydrate skills (`/docs-hydrate-memory` Step 4 + its refuse-before-regen guard,
 `/fab-continue` hydrate + its defense-in-depth guard) and `/docs-reorg-memory` (compatibility
