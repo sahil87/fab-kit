@@ -93,7 +93,7 @@ Each of the ten principles was assessed against `fab`'s actual behavior (prompt/
 
 ## `skill` — deferred, not yet adopted
 
-`fab skill` does not exist (no subcommand; no `docs/site/skill.md`). Per the standard's own Adoption section — *"Phased, per-repo… No tool ships `skill` today… A tool without a `skill` subcommand is not yet in violation"* (principle №10 is a SHOULD). **Not implemented in this change** by design. The consumer-side pairing is already tracked at backlog `[clix]`.
+`fab skill` does not exist (no subcommand; no `docs/site/skill.md`). Per the standard's own Adoption section — *"Phased, per-repo… No tool ships `skill` today… A tool without a `skill` subcommand is not yet in violation"* (principle №10 is a SHOULD). **Not implemented in this change** by design. **Deferred to `[fskl]`** — the adoption tracker (implement `fab skill` + the canonical `docs/site/skill.md` bundle, ≤150 lines static-only, embedded via the sync + drift-guard pattern). The consumer-side pairing is separately tracked at backlog `[clix]`.
 
 ---
 
@@ -104,6 +104,6 @@ Each of the ten principles was assessed against `fab`'s actual behavior (prompt/
 | `help-dump` | PASS after fix — 1 gap fixed (`captured_at` removed: `helpdump.go` + `helpdump_test.go` + `_cli-fab.md`) |
 | `readme-extraction` | PASS after fix — 8 slice-region relative links made absolute (`README.md`) |
 | `principles` | 6 PASS (1,5,6,7,8,10) + 4 deferred (P2→`[jx4w]`, P3→`[b91h]`, P4→`[swon]`, P9→`[o5f9]`); routing/wording/TTY/consent all conformant |
-| `skill` | deferred, not yet adopted (standard's Adoption section; consumer half at `[clix]`) |
+| `skill` | deferred, not yet adopted (standard's Adoption section; adoption tracked at `[fskl]`, consumer half at `[clix]`) |
 
 All mechanical-contract violations (help-dump + readme-extraction) are **fixed here**. All principle gaps are additive-multi-command or restructuring-sized and are **deferred** with backlog references. Tests green.
