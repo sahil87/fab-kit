@@ -22,7 +22,7 @@ One `##` section per tool (plus the framing Reference Model), mirroring the part
 | rk (run-kit) | The one-line identity + detection/fail-silent pointer, and the **fab-owned** operator escalation send (`rk notify` with the operator's `{change}: {summary} ({repo})` / `Operator: strategic question` template). The `rk notify` contract, `rk context` (server-URL/iframe/proxy/Visual Display Recipe), and the rest are tool-owned (`rk skill`; live environment via `rk context`). Since run-kit v3.0.0 the formula/binary are named `run-kit` (`sahil87/tap/run-kit`); `rk` is a symlink alias, the invocation form throughout fab skills |
 | /loop | The recurring-interval driver the operator uses for its monitoring tick (a Claude Code skill, not a binary — no `skill` bundle) |
 
-> The inventory mirrors the file's `##` section order. `_preamble.md` § Run-Kit carries only the `rk` detection/fail-silent rule and points here for the fab-owned escalation usage (no longer for a full command body — that is delegated to `rk skill`); a change to either side must keep the pointer accurate (cross-reference rule), and by the mirror rule, this SPEC's corresponding row.
+> The inventory mirrors the file's `##` section order. `_preamble.md` § Run-Kit carries the `rk` detection/fail-silent rule plus the matching version-skew fallback (`rk skill` probe → silent `https://shll.ai/rk/skill` pointer, so the always-load layer stays self-consistent) and points here for the fab-owned escalation usage (no longer for a full command body — that is delegated to `rk skill`); a change to either side must keep the pointer accurate (cross-reference rule), and by the mirror rule, this SPEC's corresponding row.
 
 ### Tools used
 
