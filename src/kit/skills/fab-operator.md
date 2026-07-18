@@ -363,7 +363,7 @@ In both branches the operator **continues ticking**. The user answers asynchrono
 
 ### Notification Send
 
-The notification is a single out-of-band shell send the operator runs when it auto-picks or leaves open a Strategic prompt. The **default channel is `rk notify`** (contract, gate, and fail-silent discipline per `_cli-external.md` § rk (run-kit) and `_preamble.md` § Run-Kit (rk) Reference). The operator-specific send — gated on `command -v rk`, with the operator's message/title template — is:
+The notification is a single out-of-band shell send the operator runs when it auto-picks or leaves open a Strategic prompt. The **default channel is `rk notify`** — the fab-owned operator escalation usage lives in `_cli-external.md` § rk (run-kit); the gate and fail-silent discipline are in `_preamble.md` § Run-Kit (rk) Reference; the `rk notify` contract itself is tool-owned (`rk skill`). The operator-specific send — gated on `command -v rk`, with the operator's message/title template — is:
 
 ```sh
 command -v rk >/dev/null 2>&1 && rk notify "{change}: {summary} ({repo})" --title "Operator: strategic question"

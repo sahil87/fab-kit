@@ -184,9 +184,9 @@ command -v rk >/dev/null 2>&1            # in conditionals
 
 If `rk` is not available, skip all rk operations silently. Never error, never warn. This fail-silent discipline applies to every rk command.
 
-### Command Reference (full body in `_cli-external.md`)
+### Command Reference (delegated to `rk skill`; fab-owned usage in `_cli-external.md`)
 
-The full `rk` command reference — `rk context` (server-URL discovery, iframe windows, the proxy pattern, and the Visual Display Recipe) and `rk notify` (the operator's default notification send) — lives in **`_cli-external.md` § rk (run-kit)**. That helper is loaded by operator skills only (not the always-load layer), so any skill that needs an rk command beyond the detection gate above reads it there. The detection/fail-silent rule above is the only rk content every skill carries inline.
+The `rk` command surface — `rk context` (server-URL discovery, iframe windows, the proxy pattern, the Visual Display Recipe) and the `rk notify` contract — is **tool-owned**: read it at use-time via `command -v rk >/dev/null 2>&1 && rk skill` (gated, fail-silent). The **fab-owned** rk usage — the operator's escalation `rk notify` send (message/title template) — lives in **`_cli-external.md` § rk (run-kit)**, loaded by operator skills only (not the always-load layer). The detection/fail-silent rule above is the only rk content every skill carries inline.
 
 ---
 
