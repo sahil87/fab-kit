@@ -5,7 +5,7 @@
 
 ## Origin
 
-> Migration sweeping every worktree's .claude/settings.local.json for removed `fab hook` entries — the 2.10.1-to-2.11.0 and 2.13.6-to-2.14.0 migrations only cleaned the checkout they ran in, while the committed fab/.fab-version gate means they never re-run in sibling checkouts; stale `fab hook *` hooks in the main checkout error on every Write/Edit in ALL worktree sessions (Claude Code resolves settings through worktrees to the main repo root)
+> Migration sweeping every worktree's .claude/settings.local.json for removed `fab hook` entries — the 2.10.1-to-2.11.0 and 2.13.6-to-2.14.0 migrations only cleaned the checkout they ran in, while the committed fab/.kit-migration-version gate means they never re-run in sibling checkouts; stale `fab hook *` hooks in the main checkout error on every Write/Edit in ALL worktree sessions (Claude Code resolves settings through worktrees to the main repo root)
 
 Conversational origin (`/fab-discuss` session, 2026-07-18): the user kept seeing `PostToolUse:Write hook error — ERROR: unknown command "hook" for "fab"` in a freshly created worktree. Investigation traced the full mechanism (documented under Why) and hand-cleaned fab-kit's own repo (84 worktrees + the main checkout). The user then approved filing the kit-side fix so other fab-kit users get the same cleanup via a migration.
 
