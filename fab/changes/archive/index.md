@@ -1,5 +1,35 @@
 # Archive Index
 
+- **260718-weoh-sweep-worktree-hook-settings** — Sweep Worktree Hook Settings
+- **260718-fskl-fab-skill-subcommand** — `fab skill` Subcommand + Canonical Skill Bundle
+- **260718-clix-slim-external-md** — Slim _cli-external.md to Fab-Owned Content
+- **260717-y8it-constitution-toolkit-standards** — Bind Constitution to sahil87 Toolkit Standards
+- **260717-swon-usage-error-exit-codes** — Usage-Error Exit Codes (Toolkit Principle №4)
+- **260717-ptwh-toolkit-standards-conformance** — Toolkit Standards Conformance
+- **260717-otol-batch-switch-explicit-checkout** — Migrate fab batch switch to wt's Explicit --checkout Contract
+- **260717-o5f9-batch-quiet-flag** — `--quiet` for `fab batch archive` + `fab batch switch`
+- **260717-jx4w-status-query-json** — Status Query `--json`
+- **260717-dgp8-docs-distill-memory-skill** — docs-distill-memory Skill
+- **260717-b91h-help-examples** — Help Examples — cobra `Example:` blocks on user-facing commands
+- **260717-3plm-fkf-present-truth-style-rule** — FKF Present-Truth Body-Style Rule + Memory-Writer Fixes
+- **260715-xu0k-memory-index-validation-fkf-description-policy** — Memory-Index Frontmatter Validation + Generated-Index Merge Policy + FKF Description-Length Policy
+- **260713-ueuy-pane-map-window-id** — Stable window_id in pane map JSON
+- **260709-j0n1-run-kit-formula-rename** — Reflect the run-kit rk→run-kit Formula Rename
+- **260708-yogn-preserve-config-comments-fab-version** — Preserve config.yaml Comments on fab_version Stamping
+- **260708-lpb5-config-cascade-visibility** — Config Cascade & Visibility Commands
+- **260708-j0qm-config-upgrade-migration** — Config Upgrade Command & fab_version Migration
+- **260708-ff2v-config-reference-metadata-table** — Config Reference Metadata Table
+- **260708-8ken-fab-version-gitignore-fix** — Un-gitignore fab/.fab-version
+- **260705-ioku-divest-agent-state-production** — Divest Agent Active/Idle State Production from fab-kit
+- **260705-52i9-sync-distinguishable-unmanaged-exit** — fab sync: distinguishable "not a fab-managed repo" exit code
+- **260704-pag2-single-review-agent** — Single Review Agent
+- **260703-gvxd-templated-claude-session-command** — Templated Claude session_command
+- **260702-tykw-agent-providers-role-tiers** — Agent Config v3 — Providers & Role Tiers
+- **260702-ho9y-providers-config-template** — Providers Config Template — Three Providers Pre-Filled
+- **260702-h65d-true-impact-recompute-at-ship** — true_impact Recorded as All-Zeros — Recompute at Ship
+- **260702-fyn5-backfill-providers-config-template** — Backfill Providers Config Template Migration
+- **260702-6tmi-spawn-command-placeholders** — Provider-forgiving spawn_command via `{model}`/`{effort}` placeholders
+- **260702-6nke-config-reference-command** — `fab config reference` — generated reference config.yaml command
 - **260702-aetz-cli-dispatch-skill-wiring** — CLI Dispatch Skill Wiring (3d)
 - **260702-6sgj-fab-dispatch-command** — `fab dispatch` — headless process manager for CLI-dispatched pipeline stages
 - **260702-24ec-tier-spawn-command** — Per-Tier spawn_command — Cross-Harness Stage Dispatch Opt-In
