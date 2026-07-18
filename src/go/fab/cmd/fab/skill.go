@@ -58,6 +58,14 @@ Not to be confused with fab's own kit-skills (the /fab-* markdown prompts that
 // runStandards). It writes the embedded bundle bytes verbatim to stdout — no
 // framing, no trailing newline added — and touches stderr not at all on success.
 func runSkill(stdout io.Writer) error {
-	_, err := stdout.Write(skillBundle)
-	return err
+	n, err := stdout.Write(skillBundle)
+	if err != nil {
+		return err
+	}
+	// io.Writer may report a short write (n < len(p)) with a nil error; treat
+	// that as a failure so a truncated bundle surfaces loudly instead of exiting 0.
+	if n < len(skillBundle) {
+		return io.ErrShortWrite
+	}
+	return nil
 }
