@@ -1,0 +1,57 @@
+id: o5f9
+name: 260717-o5f9-batch-quiet-flag
+created: 2026-07-17T21:58:05Z
+created_by: Sahil Ahuja
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 9
+    acceptance_count: 19
+    acceptance_completed: 19
+confidence:
+    certain: 3
+    confident: 5
+    tentative: 0
+    unresolved: 0
+    score: 4.8
+    fuzzy: true
+    dimensions:
+        signal: 71.9
+        reversibility: 86.9
+        competence: 86.3
+        disambiguation: 78.8
+stage_metrics:
+    intake: {started_at: "2026-07-17T21:58:05Z", driver: fab-new, iterations: 1, completed_at: "2026-07-17T22:04:05Z"}
+    apply: {started_at: "2026-07-17T22:04:05Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T22:12:33Z"}
+    review: {started_at: "2026-07-17T22:12:33Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T22:25:43Z"}
+    hydrate: {started_at: "2026-07-17T22:25:43Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T22:29:21Z"}
+    ship: {started_at: "2026-07-17T22:29:21Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T22:32:35Z"}
+    review-pr: {started_at: "2026-07-17T22:32:35Z", driver: git-pr, iterations: 1, completed_at: "2026-07-17T22:41:59Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/489
+true_impact:
+    added: 635
+    deleted: 48
+    net: 587
+    excluding:
+        added: 271
+        deleted: 42
+        net: 229
+    tests:
+        added: 227
+        deleted: 20
+        net: 207
+    computed_at: "2026-07-17T22:32:35Z"
+    computed_at_stage: ship
+change_type_source: explicit
+summary: add --quiet/-q to fab batch archive + switch (suppress per-change progress, keep footer/data/stderr; never implies --yes) — toolkit principle No.9
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-07-17T22:41:59Z

@@ -35,25 +35,35 @@ var isStdinTTY = func(in io.Reader) bool {
 }
 
 func batchArchiveCmd() *cobra.Command {
-	var yesFlag, dryRunFlag bool
+	var yesFlag, dryRunFlag, quietFlag bool
 
 	cmd := &cobra.Command{
 		Use:   "archive [change...]",
 		Short: "Archive multiple completed changes in one pass",
 		Long:  "Archives completed changes (hydrate done|skipped) mechanically (move, index, backlog, pointer) in a Go loop — no agent or Claude session is spawned.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runBatchArchive(cmd, args, yesFlag, dryRunFlag)
+			return runBatchArchive(cmd, args, yesFlag, dryRunFlag, quietFlag)
 		},
 	}
 
 	cmd.Flags().BoolVarP(&yesFlag, "yes", "y", false, "Archive all archivable changes without prompting")
 	cmd.Flags().BoolVar(&dryRunFlag, "dry-run", false, "Show what would be archived without archiving")
+	cmd.Flags().BoolVarP(&quietFlag, "quiet", "q", false, "Suppress per-change progress output (keep the summary footer and all stderr)")
 
 	return cmd
 }
 
-func runBatchArchive(cmd *cobra.Command, args []string, yesFlag, dryRunFlag bool) error {
+func runBatchArchive(cmd *cobra.Command, args []string, yesFlag, dryRunFlag, quietFlag bool) error {
 	w := cmd.OutOrStdout()
+
+	// --quiet routes per-change progress to a discard writer; data (the footer,
+	// the empty-set no-op, the --dry-run listing) and the consent flow keep
+	// writing to the real w, and stderr is never touched (principle №9: what
+	// survives --quiet is the data and the errors, never progress).
+	pw := w
+	if quietFlag {
+		pw = io.Discard
+	}
 
 	// --dry-run (preview-only) and --yes (assume-yes and do it) are
 	// contradictory. Error rather than silently picking one.
@@ -81,7 +91,7 @@ func runBatchArchive(cmd *cobra.Command, args []string, yesFlag, dryRunFlag bool
 	// (preserves the pre-redesign explicit-args behavior, incl. warn-and-skip
 	// and the No-valid-changes exit-1).
 	if len(args) > 0 {
-		return archiveResolvedNames(cmd, fabRoot, changesDir, args)
+		return archiveResolvedNames(cmd, pw, fabRoot, changesDir, args)
 	}
 
 	// Bare / --yes path: archive ALL archivable changes. archive is the one
@@ -133,16 +143,20 @@ func runBatchArchive(cmd *cobra.Command, args []string, yesFlag, dryRunFlag bool
 		}
 	}
 
-	fmt.Fprintf(w, "Archiving %d changes...\n", len(changes))
-	return archiveResolvedNames(cmd, fabRoot, changesDir, changes)
+	if !quietFlag {
+		fmt.Fprintf(w, "Archiving %d changes...\n", len(changes))
+	}
+	return archiveResolvedNames(cmd, pw, fabRoot, changesDir, changes)
 }
 
 // archiveResolvedNames resolves and validates each named change, then archives
 // the valid ones via archiveLoop. It is shared by the explicit-args path and
 // the bare/--yes archive-all path (the latter passes pre-filtered archivable
 // folder names). Unresolvable/not-ready names warn-and-skip; if nothing
-// resolves it returns the No-valid-changes error (exit 1).
-func archiveResolvedNames(cmd *cobra.Command, fabRoot, changesDir string, changes []string) error {
+// resolves it returns the No-valid-changes error (exit 1). pw is the progress
+// writer for per-change lines (io.Discard under --quiet); the footer stays on
+// the real stdout writer and errW is never gated.
+func archiveResolvedNames(cmd *cobra.Command, pw io.Writer, fabRoot, changesDir string, changes []string) error {
 	w := cmd.OutOrStdout()
 	errW := cmd.ErrOrStderr()
 
@@ -182,7 +196,7 @@ func archiveResolvedNames(cmd *cobra.Command, fabRoot, changesDir string, change
 		return fmt.Errorf("No valid changes to archive.")
 	}
 
-	_, _, failed := archiveLoop(w, errW, fabRoot, resolved)
+	_, _, failed := archiveLoop(w, pw, errW, fabRoot, resolved)
 	if failed > 0 {
 		return fmt.Errorf("%d change(s) failed to archive", failed)
 	}
@@ -193,13 +207,15 @@ func archiveResolvedNames(cmd *cobra.Command, fabRoot, changesDir string, change
 // archive.ArchiveWithBacklog. A per-change failure is reported and does not
 // abort the remaining changes. Already-archived changes are counted as skipped,
 // not failed. It returns the (archived, skipped, failed) counts and never calls
-// os.Exit so it can be unit-tested.
-func archiveLoop(w, errW io.Writer, fabRoot string, resolved []string) (archived, skipped, failed int) {
+// os.Exit so it can be unit-tested. Per-change progress lines go to pw (which is
+// io.Discard under --quiet); the summary footer always writes to w and warnings
+// always write to errW — neither is gated by --quiet (principle №9).
+func archiveLoop(w, pw, errW io.Writer, fabRoot string, resolved []string) (archived, skipped, failed int) {
 	for _, name := range resolved {
 		result, err := archivePkg.ArchiveWithBacklog(fabRoot, name, "")
 		if err != nil {
 			if errors.Is(err, archivePkg.ErrAlreadyArchived) {
-				fmt.Fprintf(w, "  %s — already archived, skipping\n", name)
+				fmt.Fprintf(pw, "  %s — already archived, skipping\n", name)
 				skipped++
 				continue
 			}
@@ -209,7 +225,7 @@ func archiveLoop(w, errW io.Writer, fabRoot string, resolved []string) (archived
 			// this loop, so count it as archived and surface the failure as
 			// a warning rather than failing the change.
 			if result != nil {
-				fmt.Fprintf(w, "  %s — archived\n", name)
+				fmt.Fprintf(pw, "  %s — archived\n", name)
 				fmt.Fprintf(errW, "    warning: %v\n", err)
 				archived++
 				continue
@@ -222,7 +238,7 @@ func archiveLoop(w, errW io.Writer, fabRoot string, resolved []string) (archived
 		if result.Backlog == "marked" {
 			line += " (backlog marked done)"
 		}
-		fmt.Fprintln(w, line)
+		fmt.Fprintln(pw, line)
 		archived++
 	}
 	fmt.Fprintf(w, "\nArchived %d, skipped %d, failed %d.\n", archived, skipped, failed)

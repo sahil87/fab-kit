@@ -1,0 +1,12 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-17T21:58:05Z"}
+{"args":"Add --quiet to fab batch archive + fab batch switch suppressing per-change progress while retaining the final summary and all stderr warnings (toolkit principle 9: bounded, high-signal output)","cmd":"fab-new","event":"command","ts":"2026-07-17T21:58:05Z"}
+{"delta":"+4.8","event":"confidence","score":4.8,"trigger":"calc-score","ts":"2026-07-17T22:00:13Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-17T22:03:57Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-17T22:04:05Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-17T22:05:18Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-17T22:12:33Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-17T22:25:43Z"}
+{"event":"review","result":"passed","ts":"2026-07-17T22:25:43Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-17T22:29:21Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-07-17T22:32:35Z"}
+{"event":"review","result":"passed","ts":"2026-07-17T22:41:59Z"}

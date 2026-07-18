@@ -51,7 +51,7 @@ func TestRunBatchSwitch_NoTmuxReturnsError(t *testing.T) {
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)
 
-	err := runBatchSwitch(cmd, []string{"whatever"}, false, false)
+	err := runBatchSwitch(cmd, []string{"whatever"}, false, false, false)
 	if err == nil {
 		t.Fatal("expected error outside tmux")
 	}
@@ -74,7 +74,7 @@ func TestRunBatchSwitch_UnresolvableWarnsAndSkips(t *testing.T) {
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)
 
-	if err := runBatchSwitch(cmd, []string{"zzzz-no-such-change"}, false, false); err != nil {
+	if err := runBatchSwitch(cmd, []string{"zzzz-no-such-change"}, false, false, false); err != nil {
 		t.Fatalf("warn-and-skip path must not error, got: %v", err)
 	}
 	stderr := errOut.String()
@@ -114,6 +114,12 @@ func TestBatchSwitchCmd_Structure(t *testing.T) {
 	}
 	if cmd.Flags().Lookup("all") == nil {
 		t.Error("missing --all flag")
+	}
+	if cmd.Flags().Lookup("quiet") == nil {
+		t.Error("missing --quiet flag")
+	}
+	if cmd.Flags().ShorthandLookup("q") == nil {
+		t.Error("missing -q shorthand for --quiet")
 	}
 }
 
@@ -228,7 +234,7 @@ func runBatchSwitchOnce(t *testing.T, change string) (stderr string, err error) 
 	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)
-	err = runBatchSwitch(cmd, []string{change}, false, false)
+	err = runBatchSwitch(cmd, []string{change}, false, false, false)
 	return errOut.String(), err
 }
 
@@ -409,7 +415,7 @@ func TestRunBatchSwitch_SpawnCommandProfileInjection(t *testing.T) {
 		var out, errOut bytes.Buffer
 		cmd.SetOut(&out)
 		cmd.SetErr(&errOut)
-		if err := runBatchSwitch(cmd, []string{change}, false, false); err != nil {
+		if err := runBatchSwitch(cmd, []string{change}, false, false, false); err != nil {
 			t.Fatalf("expected nil error, got %v\nstderr: %s", err, errOut.String())
 		}
 
@@ -434,7 +440,7 @@ func TestRunBatchSwitch_SpawnCommandProfileInjection(t *testing.T) {
 		var out, errOut bytes.Buffer
 		cmd.SetOut(&out)
 		cmd.SetErr(&errOut)
-		if err := runBatchSwitch(cmd, []string{change}, false, false); err != nil {
+		if err := runBatchSwitch(cmd, []string{change}, false, false, false); err != nil {
 			t.Fatalf("expected nil error, got %v\nstderr: %s", err, errOut.String())
 		}
 
@@ -446,4 +452,57 @@ func TestRunBatchSwitch_SpawnCommandProfileInjection(t *testing.T) {
 			t.Errorf("non-templated session_command missing the appended default profile:\n%s", string(args))
 		}
 	})
+}
+
+// --- --quiet (o5f9): suppress the preamble + per-change line; no new footer ---
+
+// TestRunBatchSwitch_QuietStdoutSilent: a successful --quiet switch produces
+// EMPTY stdout (no per-change "  {name}" line, and no summary footer is added)
+// while still creating the tmux window (the observable effect).
+func TestRunBatchSwitch_QuietStdoutSilent(t *testing.T) {
+	_, change := batchSwitchFixture(t, "claude")
+	capture := stubBatchSwitchTmuxCapture(t)
+
+	cmd := batchSwitchCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	if err := runBatchSwitch(cmd, []string{change}, false, false, true); err != nil {
+		t.Fatalf("--quiet switch must succeed, got error: %v\nstderr:\n%s", err, errOut.String())
+	}
+	if out.String() != "" {
+		t.Errorf("--quiet successful switch must produce empty stdout, got:\n%q", out.String())
+	}
+	// The tmux window is still created — quiet suppresses chatter, not the work.
+	args, readErr := os.ReadFile(capture)
+	if readErr != nil {
+		t.Fatalf("reading tmux capture: %v", readErr)
+	}
+	if !strings.Contains(string(args), "/fab-switch "+change) {
+		t.Errorf("--quiet must still create the tmux window, got tmux argv:\n%s", string(args))
+	}
+}
+
+// TestRunBatchSwitch_QuietRetainsStderr: under --quiet, an unresolvable name
+// still emits its "could not resolve" warning on stderr (data + errors survive).
+func TestRunBatchSwitch_QuietRetainsStderr(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "fab", "changes", "260401-ab12-add-feature"), 0o755)
+	chdirTestEnv(t, root, map[string]string{"TMUX": "/tmp/tmux-test/default,123,0"})
+
+	cmd := batchSwitchCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	if err := runBatchSwitch(cmd, []string{"zzzz-no-such-change"}, false, false, true); err != nil {
+		t.Fatalf("warn-and-skip path must not error, got: %v", err)
+	}
+	if !strings.Contains(errOut.String(), "could not resolve 'zzzz-no-such-change'") {
+		t.Errorf("--quiet must retain the stderr warning, got:\n%s", errOut.String())
+	}
+	if out.String() != "" {
+		t.Errorf("--quiet must keep stdout empty even when a name is skipped, got:\n%q", out.String())
+	}
 }
