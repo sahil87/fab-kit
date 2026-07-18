@@ -504,8 +504,15 @@ The **body states current truth in present tense** (FKF §3.3): no transition na
 X→Y in {id}", "this inverts {id}'s claim", "was `old.value`") and no description of superseded
 behavior — the previous state lives in the per-folder generated `log.md` (§6), git history, and
 archived change folders. Body provenance is citation-only: a trailing `(change-id)` and the
-`*Introduced by*: {change-name}` field on a Design Decision. There is **no `## Changelog` section**
-— FKF removes the per-file changelog table (§3.3); change history lives in `log.md`.
+`*Introduced by*: {change-name}` field on a Design Decision. **Headings carry no change-ids** — a
+heading names its topic (`## Dispatch States`), never a change (`### Dispatch States (xu0k)`); a
+change-id stays a citation in body text. **No operational TODOs** — follow-up work items belong in
+the backlog (`fab/backlog.md`) or the change folder, never a memory body. Any *why* / rejected
+alternative goes into a `## Design Decisions` entry in the four-field shape (**Decision** / **Why** /
+**Rejected** / *Introduced by*), never inline narration; the changelog-bullet shape
+(`- **{change-id} — retired X**`) is **banned inside `## Design Decisions`** (change history is
+`log.md`'s job, §6). There is **no `## Changelog` section** — FKF removes the per-file changelog
+table (§3.3); change history lives in `log.md`.
 
 ```markdown
 ---
@@ -578,7 +585,8 @@ docs/memory/
 When `/fab-continue` (hydrate) hydrates `plan.md` `## Requirements` into memory:
 
 1. **New memory file**: If the requirements reference a file that doesn't exist yet, create it from the individual memory file template (including the FKF frontmatter — `type: memory` + a curated, change-id-free `description:`) and place it under the domain folder, writing the body in present-truth style (FKF §3.3). If the domain doesn't exist, create the domain folder and a domain `index.md` carrying the domain's `description:` frontmatter.
-2. **Existing memory file (merge as current truth)**: Compare the plan's `## Requirements` against the current file to determine what's new, changed, or removed, then **rewrite the affected section to state current truth** — superseded statements are removed, not narrated as a change-keyed delta (FKF §3.3). Minimize edits to unchanged sections. Keep the `description:` frontmatter accurate and change-id-free (§3.2).
-3. **Index updates**: Run `fab memory-index` — it regenerates the root (domains-only) and every domain index deterministically from folder contents + frontmatter. Never hand-edit index rows; the command is the single writer.
-4. **What-changed summary (not a changelog row)**: Record the one-line what-changed **once** via `fab status set-summary {change} "<summary>"` — the C-lite `summary:` source field (FKF §6.3) that `fab memory-index` joins with git history to generate the per-folder `log.md`. Memory files carry **no `## Changelog` table** (§3.3).
-5. **Archive index**: Maintain `fab/changes/archive/index.md` listing all completed changes (most-recent-first). Each entry includes the change folder name and a one-line description. `/fab-archive` (via `fab change archive`) prepends the entry when moving a change into the date-bucketed archive.
+2. **Existing memory file (merge as current truth)**: Compare the plan's `## Requirements` against the current file to determine what's new, changed, or removed, then **rewrite the affected section to state current truth** — superseded statements are removed, not narrated as a change-keyed delta (FKF §3.3). Headings carry no change-ids (a heading names its topic, never a change); any *why* / rejected alternative goes into a four-field `## Design Decisions` entry (Decision / Why / Rejected / *Introduced by*), never inline narration or a `- **{change-id} — …**` changelog bullet. Minimize edits to unchanged sections. Keep the `description:` frontmatter accurate and change-id-free, and re-check it after any body edit (§3.2).
+3. **Post-hydrate self-check (before regen)**: Re-read every file touched *this run* and strip any transition phrasing / change-keyed delta paragraph / change-id heading reflexively introduced; confirm each touched `description:` still routes. A self-review of this run's own writes, not a corpus sweep.
+4. **Index updates**: Run `fab memory-index` — it regenerates the root (domains-only) and every domain index deterministically from folder contents + frontmatter. Never hand-edit index rows; the command is the single writer.
+5. **What-changed summary (not a changelog row)**: Record the one-line what-changed **once** via `fab status set-summary {change} "<summary>"` — the C-lite `summary:` source field (FKF §6.3) that `fab memory-index` joins with git history to generate the per-folder `log.md`. Memory files carry **no `## Changelog` table** (§3.3).
+6. **Archive index**: Maintain `fab/changes/archive/index.md` listing all completed changes (most-recent-first). Each entry includes the change folder name and a one-line description. `/fab-archive` (via `fab change archive`) prepends the entry when moving a change into the date-bucketed archive.
