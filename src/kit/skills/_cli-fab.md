@@ -779,24 +779,52 @@ Shape warnings (non-fatal, stderr — the "detect" half of the memory-tree-shape
 - Warnings are advisory: they never block, never modify files, and never affect the byte-stable
   index output (so a regen-with-warnings is still idempotent).
 
-Frontmatter warnings (stderr — the malformed-detection + description-length work, 260715-xu0k). All
-are gathered in the same pass as the shape warnings and printed to stderr on **both** the write and
-`--check` paths; **none change the byte-stable rendered index output** (a malformed value keeps
-rendering exactly as it does now — validation is stderr/exit-code only):
-- `✖ docs/memory/<domain>/<file>.md has malformed frontmatter — unclosed frontmatter block (no closing \`---\`)`
+Content warnings (stderr — the malformed-detection + description-length work of 260715-xu0k, plus the
+FKF present-truth guards of 260718-mxgu). All are gathered in the same pass as the shape warnings and
+printed to stderr on **both** the write and `--check` paths; **none change the byte-stable rendered
+index output** (an offending value keeps rendering exactly as it does now — validation is
+stderr/exit-code only). They split into a **BLOCKING** class (fails `--check`) and an **ADVISORY** class
+(never affects the exit code).
+
+**BLOCKING** `✖` (all four floor `--check` at exit 1 independent of index drift — see Exit codes):
+- `✖ … has malformed frontmatter — unclosed frontmatter block (no closing \`---\`)`
   when a file opens with `---` (line 1) but has no subsequent standalone `---`. The loom glued-fence
-  corruption (`description: "…"---` on one line) is an instance — gluing the fence onto the value
-  removes the closing fence entirely.
-- `✖ docs/memory/<domain>/<file>.md has malformed frontmatter — \`description:\` value fails quote-stripping (unterminated quote): <value>`
+  corruption (`description: "…"---` on one line) is an instance.
+- `✖ … has malformed frontmatter — \`description:\` value fails quote-stripping (unterminated quote): <value>`
   when the extracted `description:` value begins with a quote (`"`/`'`) but does not end with the
   matching quote (the specific glued-fence diagnostic, e.g. a value ending in `"---`).
-- `⚠ docs/memory/<domain>/<file>.md has a <N>-character \`description:\` (soft cap: 500) — trim to a one-liner; detail belongs in the file body`
-  when a `description:` value exceeds **500 characters** (measured in runes on the quote-stripped
-  value; hardcoded package const `DescriptionLenWarnThreshold`, NOT config-overridable). This one is
-  **advisory only** (see the `--check` asymmetry below).
-- The two `✖` **malformed** warnings are a **blocking** class (they fail `--check` — see Exit codes);
-  the `⚠` length warning is **advisory** (it never fails `--check`). Both the index-row `description:`
-  frontmatter on topic files AND the domain/sub-domain `index.md` stub descriptions are validated.
+- `✖ … \`description:\` carries a change-id (registry match: <id>) — descriptions are routing signals; move citations to the body (FKF §3.2)`
+  when a `description:` value carries a **registry-gated change-id** — a full `YYMMDD-XXXX-slug`
+  folder-name token whose registered folder matches, or a bare registered 4-char id (the same
+  `attributeCommit` false-positive-free gating: `code`/`yaml`/any unregistered 4-char word never
+  matches). The FKF §3.2 change-id ban is now **enforced** (260718-mxgu — the advisory-only posture
+  demonstrably failed).
+- `✖ … has a <N>-character \`description:\` (blocking cap: 1000, soft cap: 500) — trim to a one-liner; detail belongs in the file body`
+  when a `description:` value exceeds **1000 runes** (2× the soft cap — gross over-cap; hardcoded
+  package const `DescriptionBlockingLenThreshold`). The 501–1000 range keeps the advisory length nag below.
+
+**ADVISORY** `⚠` (never fail `--check`):
+- `⚠ … has a <N>-character \`description:\` (soft cap: 500) — trim to a one-liner; detail belongs in the file body`
+  when a `description:` value is in the **501–1000** range (over the 500 soft cap, at or under the
+  1000 blocking cap; `DescriptionLenWarnThreshold`, runes, NOT config-overridable).
+- `⚠ … has <N> narration markers (threshold: 5) — distillation debt; consider /docs-distill-memory`
+  when a **topic file's** body carries ≥ 5 narration markers — case-insensitive transition stems
+  (`no longer`/`previously`/`renamed`/`supersed`) plus registry-gated change-id token **occurrences**
+  (sanctioned citations count too — density is the distillation-debt signal, `NarrationMarkerWarnThreshold`).
+- `⚠ … is <N> lines / <K>KB (soft cap: ~400 lines / ~15KB) — consider splitting; see /docs-reorg-memory`
+  when a **topic file** exceeds **400 lines OR 15KB** (either bound; `FileSizeLineWarnThreshold` /
+  `FileSizeByteWarnThreshold`).
+- `⚠ docs/memory/_unsorted holds <N> staged file(s) — triage into domains (staging should trend to empty)`
+  when `docs/memory/_unsorted/` holds ≥ 1 topic file (a presence signal; `_unsorted` keeps its width exemption).
+- `⚠ … links to <target> — target does not exist`
+  per **bundle-relative** `](/...)` link target in a **topic file** body that does not resolve on disk
+  under `docs/memory/` (FKF §7 author-side nag — consumers tolerate broken links; only `/`-prefixed
+  targets, repo-relative/external out of scope; targets inside fenced code blocks and inline code spans
+  are skipped).
+
+The BLOCKING checks (malformed + change-id + over-cap) validate the `description:` on topic files AND
+the domain/sub-domain `index.md` stubs; the topic-file body meters (narration / size / broken-link) run
+on topic files only (index.md / log.md / log.seed.md excluded). The `_unsorted` check is per-folder.
 
 Flags:
 - `--check` — write nothing; classify the rendered-vs-existing **index drift** (across every index
@@ -805,16 +833,19 @@ Flags:
   The drift detection is the same byte-compare the write path uses; the destructive-loss half is a
   classifier + a small parser over the *existing* index rows/headings (pure functions in
   `internal/memoryindex`, unit-tested like `RenderRoot`/`Gather`) — and is skipped for `log.md`
-  targets (always benign drift). **Malformed frontmatter is a separate blocking signal** — it floors
-  the `--check` exit at 1 independent of index drift (see Exit codes); the advisory over-length
-  `description:` warning never affects the exit code.
+  targets (always benign drift). **The BLOCKING content class is a separate signal** — any blocking
+  finding (malformed frontmatter, a change-id in `description:`, or a `description:` over 1000 runes)
+  floors the `--check` exit at 1 independent of index drift (see Exit codes); the advisory warnings
+  (501–1000 length, narration, size, `_unsorted`, broken links) never affect the exit code.
 - `--json` (with `--check`) — emit the loss report as a single JSON object on **stdout** and
   suppress the human-readable text; the exit code is unchanged. Mirrors the `fab pane` /
   `fab migrations-status` `--json` convention (snake_case). Shape:
-  `{"tier": 0|1|2, "drift": bool, "losses": [{"category": "description"|"tombstone"|"grouping", "path": "<repo-rel index>", "detail": "<lost text | dropped link target | flattened heading>"}], "malformed": [{"kind": "malformed-fence"|"malformed-description", "path": "<repo-rel file>", "detail": "<offending value, omitted for fence>"}]}`.
-  The `malformed` array is **additive** (260715-xu0k): the `tier`/`drift`/`losses` keys are unchanged,
-  so `/docs-reorg-memory`'s compatibility detection (which branches on `tier` / reads `losses`) is
-  unaffected. `losses` and `malformed` are always present (empty arrays, never `null`).
+  `{"tier": 0|1|2, "drift": bool, "losses": [{"category": "description"|"tombstone"|"grouping", "path": "<repo-rel index>", "detail": "<lost text | dropped link target | flattened heading>"}], "malformed": [{"kind": "malformed-fence"|"malformed-description"|"description-change-id"|"description-over-cap", "path": "<repo-rel file>", "detail": "<offending value | matched change-id, omitted for fence/over-cap>"}], "warnings": [{"kind": "narration-density"|"file-size"|"unsorted-nonempty"|"broken-link", "path": "<repo-rel file/folder>", "count": <N>, "bytes": <N — file-size findings only, omitted otherwise>, "detail": "<broken link target, omitted otherwise>"}]}`.
+  The `malformed` array (blocking findings) is **additive** (260715-xu0k), and the `warnings` array
+  (advisory findings — the machine surface [dsrx] consumes instead of parsing stderr) is **additive**
+  (260718-mxgu): the `tier`/`drift`/`losses` keys are unchanged, so `/docs-reorg-memory`'s
+  compatibility detection (which branches on `tier` / reads `losses`) is unaffected. `losses`,
+  `malformed`, and `warnings` are always present (empty arrays, never `null`).
 - `--rebuild` — **DESTRUCTIVE** freeze-on-write escape hatch (FKF §6.4): discard the accumulated
   frozen `log.md` state and re-project every `log.md` from current git (the pre-freeze behavior, made
   explicit and opt-in — it re-projects unattributable commits too). It can rewrite or drop frozen
@@ -859,27 +890,33 @@ benign drift — see below):
   — it relocates tombstone rows itself and dispatches `/docs-hydrate-memory` backfill mode for the
   descriptions; backfill alone does not relocate tombstones.)
 
-**Malformed frontmatter — a distinct BLOCKING signal, not a drift tier (260715-xu0k).** The two `✖`
-malformed warnings above (unclosed fence, quote-strip failure) are **source-file corruption**,
-orthogonal to the index-drift tier. They **floor the `--check` exit at 1 even when index drift is
-clean (tier 0)** — the loom case is provably tier 0 (the committed garbage row is byte-identical to
-what regeneration produces from the corrupted source), so a pure drift comparison exits 0 and would
-never catch it; the malformed check runs independent of drift. When malformed frontmatter co-occurs
-with a tier-2 destructive loss, **exit 2 still wins** (the malformed files are enumerated either way).
-Malformed frontmatter is **NOT a tier-2 category** and does **NOT** extend the `losses[]` category
-enum: it is fixed by repairing the file's frontmatter (restore the closing `---` / matching quotes),
-not by `/docs-reorg-memory`, so it carries its own fix-the-file remediation and does **not** fire the
-hydrate/reorg refuse-before-regen guards (which key on exit == 2). The over-length `description:`
-warning is **advisory only** — it never affects the exit code (corruption blocks, over-length nags).
+**The BLOCKING content class — a distinct signal, not a drift tier (260715-xu0k + 260718-mxgu).** Four
+`✖` findings form the blocking class: malformed frontmatter (unclosed fence, quote-strip failure —
+source corruption, 260715-xu0k) plus the two FKF §3.2 description escalations (a registry-gated
+**change-id** in `description:`, and a **gross over-cap** `description:` > 1000 runes — 260718-mxgu).
+They **floor the `--check` exit at 1 even when index drift is clean (tier 0)** — the loom case is
+provably tier 0 (the committed garbage/over-cap/change-id row is byte-identical to what regeneration
+produces from the source), so a pure drift comparison exits 0 and would never catch it; the blocking
+checks run independent of drift. When a blocking finding co-occurs with a tier-2 destructive loss,
+**exit 2 still wins** (the blocking files are enumerated either way). The blocking class is **NOT a
+tier-2 category** and does **NOT** extend the `losses[]` category enum: each is fixed by editing the
+offending file (restore the closing `---` / matching quotes for corruption; trim an over-cap
+`description:` or move a change-id citation to the body for the escalations), not by
+`/docs-reorg-memory`, so it carries its own fix-the-file remediation and does **not** fire the
+hydrate/reorg refuse-before-regen guards (which key on exit == 2). The **advisory** warnings — the
+501–1000 length nag, narration density, file size, `_unsorted` staging, and broken links — never
+affect the exit code (blocking blocks, advisory nags). Internally the blocking predicate is
+`Warning.IsBlocking()` (the former `IsMalformed()`, generalized); the `--json` key stays `malformed`
+for consumer compatibility.
 
-Callers pick a threshold: **CI / pre-commit** fails on exit ≥ 1 (any drift **or** malformed
-frontmatter); the **hydrate / reorg refuse-before-regen guards** fail only on exit == 2 (destructive
-loss — malformed frontmatter does not reach them). A **born-FKF / born-compatible fab-kit
+Callers pick a threshold: **CI / pre-commit** fails on exit ≥ 1 (any drift **or** any blocking
+finding); the **hydrate / reorg refuse-before-regen guards** fail only on exit == 2 (destructive
+loss — the blocking class does not reach them). A **born-FKF / born-compatible fab-kit
 tree is provably never exit 2** (frontmatter present, no off-disk rows, domains-only root, native
 `log.md` exactly what the generator produces) — so the refuse-before-regen guards are no-ops on
 native trees and only ever fire on a pre-fab-kit tree. (A born-FKF tree that *later* has its
-frontmatter mangled by a bad edit exits 1 on the malformed floor — the corruption this change exists
-to block — never exit 2.)
+`description:` mangled, over-capped, or change-id-tagged by a bad edit exits 1 on the blocking floor —
+the debt this change exists to block — never exit 2.)
 
 Other exit codes:
 - non-zero (1) — an operational error: `docs/memory/` not found (or another `Gather` failure), or a

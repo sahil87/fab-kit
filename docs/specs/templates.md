@@ -479,18 +479,25 @@ warnings and the `docs-reorg-memory` Shape Report):
   exists. Never pre-build hierarchy; let clusters emerge.
 - **Reserved domains `_shared/` (cross-cutting) and `_unsorted/` (staging) are exempt** from
   the width warning.
-- **`description:` ≤ 500 characters** (soft cap, FKF §3.2) — over this, `fab memory-index` warns
-  (advisory only; it never fails `--check`).
+- **`description:` ≤ 500 characters** (soft cap, FKF §3.2) — the cap enforces in **two tiers**:
+  a description in the **501–1000** range draws an advisory `fab memory-index` warning (a trim nag
+  that never fails `--check`), and a **gross over-cap** description strictly longer than **1000
+  characters** (2× the soft cap) **BLOCKS** — it joins the blocking class below and fails `--check`.
 
 > Acting on these bounds (actually splitting/merging/flattening) is the `docs-reorg-memory`
 > skill's job (propose-then-apply); `fab memory-index` only *detects* and warns.
 >
-> **Blocking (distinct from the advisory bounds above):** `fab memory-index` also detects
-> **malformed frontmatter** (an unclosed `---` block, or a `description:` value that fails
-> quote-stripping — the glued-fence corruption) and makes `--check` **fail independent of index
-> drift** (a corrupted row is byte-identical to its regeneration, so the drift check alone can't
-> catch it). This is a source-file corruption fixed by repairing the frontmatter — not a tier-2
-> destructive-loss category, so it does not fire the refuse-before-regen guards (FKF §3.2 / §5).
+> **Blocking (distinct from the advisory bounds above):** `fab memory-index` also detects a
+> **blocking class** that makes `--check` **fail independent of index drift** (a corrupted or
+> offending row is byte-identical to its regeneration, so the drift check alone can't catch it).
+> Four `✖` findings are members: **malformed frontmatter** (an unclosed `---` block, or a
+> `description:` value that fails quote-stripping — the glued-fence corruption), a **registry-gated
+> change-id in `description:`** (the FKF §3.2 ban, now enforced — descriptions are routing signals;
+> citations belong in the body), and a **gross over-cap `description:`** (> 1000 characters, 2× the
+> 500 soft cap). None is a source-file loss fixed by a reorg — they are fixed by repairing the
+> frontmatter, trimming the description, or moving change-id citations to the body — and none is a
+> tier-2 destructive-loss category, so they do not fire the refuse-before-regen guards
+> (FKF §3.2 / §5).
 
 ### Individual File (`docs/memory/{domain}/{name}.md`)
 

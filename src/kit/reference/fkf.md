@@ -67,38 +67,47 @@ domain index reads each file's row Description from this field, and the always-l
 routes on it. It is the one hand-curated frontmatter field — authored by every memory writer
 (hydrate, `/docs-hydrate-memory`, `/docs-reorg-memory`, `/docs-distill-memory`) and kept accurate on every edit.
 
-**Length: a one-line index-row summary, capped at 500 characters.** `description:` is a routing
-signal, not a summary of record. It MUST be a single-line frontmatter scalar and SHOULD stay at or
-below **500 characters** — the unit is **characters (runes)**, measured on the value *after
-quote-stripping*. Detail (requirements, design decisions, prose) belongs in the file BODY
-(`## Overview`, `## Requirements`, `## Design Decisions`), never in the description. `fab memory-index`
-emits a **non-fatal advisory** stderr warning for a description over the cap, naming the file and the
-observed length; the cap is **advisory-only** — an over-length description **never fails**
-`fab memory-index --check` (the deliberate asymmetry with the *blocking* malformed-frontmatter check
-below: corruption blocks, over-length nags).
+**Length: a one-line index-row summary, capped at 500 characters (blocking past 1000).**
+`description:` is a routing signal, not a summary of record. It MUST be a single-line frontmatter
+scalar and SHOULD stay at or below **500 characters** — the unit is **characters (runes)**, measured
+on the value *after quote-stripping*. Detail (requirements, design decisions, prose) belongs in the
+file BODY (`## Overview`, `## Requirements`, `## Design Decisions`), never in the description. The cap
+enforces in **two tiers**: `fab memory-index` emits a **non-fatal advisory** stderr warning for a
+description in the **501–1000** range (over the soft cap — a trim nag that never fails
+`fab memory-index --check`), and **BLOCKS** — fails `--check`, joining the blocking class below — for a
+**gross over-cap** description strictly longer than **1000 characters** (2× the soft cap; the
+advisory-only posture demonstrably failed — 33×/50×-cap descriptions shipped straight through the nag).
 
 Co-locating the description with the file (rather than in the index) is deliberate: editing a
 description never touches the hot, churn-prone index row. It cannot be auto-derived from the
 H1/Overview without loss (Overview prose contains literal `|` pipes that break index tables, and an
 extracted first sentence degrades the routing signal).
 
-**No change-ids in `description:`.** The description MUST NOT carry change-ids — neither a
-trailing `— xu0k`-style suffix nor a `(d9rs)`-style citation. It is a routing signal, not a
-provenance record; change-id citations belong in the body (§3.3), never in the description. No
-enforcement is added — `fab memory-index` does not validate against it.
+**No change-ids in `description:` (enforced/blocking).** The description MUST NOT carry change-ids —
+neither a trailing `— xu0k`-style suffix nor a `(d9rs)`-style citation. It is a routing signal, not a
+provenance record; change-id citations belong in the body (§3.3), never in the description. This ban
+is **enforced**: `fab memory-index` **BLOCKS** (fails `--check`, joining the blocking class below) on a
+`description:` carrying a **registry-gated** change-id — a full `YYMMDD-XXXX-slug` folder-name token
+whose registered folder matches, or a bare registered 4-char id (the same false-positive-free registry
+gating the `log.md` change-id attribution uses, so `code`/`yaml`/any unregistered 4-char word never
+trips it). Detection covers topic files and domain/sub-domain `index.md` stubs alike.
 
-> **Malformed-frontmatter detection (blocking).** Because the index reads the `description:`
-> frontmatter verbatim, a *corrupted* frontmatter block silently propagates garbage into the
-> generated row (the drift check alone cannot catch it — committed garbage is byte-identical to
-> regenerated garbage). `fab memory-index` detects two malformed signatures per file — (a) an
-> **unclosed frontmatter block** (opens `---` with no subsequent standalone `---`) and (b) a
-> `description:` value that **starts with a quote but fails quote-stripping** (an unterminated
-> quote, e.g. a closing fence glued onto the value as `"…text…"---`) — and makes
-> `fab memory-index --check` **fail (exit ≥ 1) independent of index drift**, enumerating the
-> offending file(s). This is a **blocking** signal distinct from the advisory length warning above:
-> it is fixed by repairing the file's frontmatter, not by a reorg, so it is **not** a `--check`
-> tier-2 (destructive-loss) category and does not fire the refuse-before-regen guards. Validation is
-> stderr/exit-code only — it never changes the rendered index bytes.
+> **Blocking content class (§3.2 escalations + malformed frontmatter).** Because the index reads the
+> `description:` frontmatter verbatim, an *offending* description silently propagates into the
+> generated row (the drift check alone cannot catch it — committed byte-identical to regenerated).
+> `fab memory-index` treats **four** signatures as **BLOCKING** — they make `fab memory-index --check`
+> **fail (exit ≥ 1) independent of index drift**, enumerating the offending file(s): (a) an
+> **unclosed frontmatter block** (opens `---` with no subsequent standalone `---`); (b) a
+> `description:` value that **starts with a quote but fails quote-stripping** (an unterminated quote,
+> e.g. a closing fence glued on as `"…text…"---`); (c) a **registry-gated change-id** in
+> `description:` (the §3.2 ban above); and (d) a **gross over-cap** `description:` (> 1000 characters).
+> This is a **blocking** signal distinct from the advisory warnings (the 501–1000 length nag, plus the
+> per-topic-file debt meters — narration density, file size, `_unsorted/` non-empty, and broken
+> bundle-relative links — which never affect the exit code) and from the destructive-loss tier (§6.4):
+> each is fixed by editing the offending file (repair the frontmatter, or trim/de-cite the
+> `description:`), not by a reorg, so it is **not** a `--check` tier-2 category and does not fire the
+> refuse-before-regen guards (which key on exit == 2; exit 2 still wins when a tier-2 loss co-occurs).
+> Validation is stderr/exit-code only — it never changes the rendered index bytes.
 
 ### 3.3 Body (conventional headings, recommended — not mandated)
 

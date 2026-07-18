@@ -1,5 +1,5 @@
 ---
-description: "Agent & process runtime — fab pane primitives + the `@rk_agent_state` tmux pane-option agent-state reader (agent-state production divested to run-kit in ioku; `.fab-runtime.yaml` deleted) + the operator coordination skill (tmux-bound interactive path), and fab dispatch, the tmux-independent headless process manager for CLI-dispatched pipeline stages"
+description: "Agent & process runtime — fab pane primitives + the `@rk_agent_state` tmux pane-option agent-state reader (agent-state production divested to run-kit; `.fab-runtime.yaml` deleted) + the operator coordination skill (tmux-bound interactive path), and fab dispatch, the tmux-independent headless process manager for CLI-dispatched pipeline stages"
 ---
 # Runtime Documentation
 

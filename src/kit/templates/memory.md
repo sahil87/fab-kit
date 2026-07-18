@@ -4,7 +4,8 @@ type: memory
 # Cap: 500 characters (FKF §3.2). Keep it a single line; detail (requirements, design decisions,
 # prose) belongs in the BODY sections below, NEVER in the description. NO change-ids in the
 # description (no `— xu0k` suffix, no `(d9rs)` citation) — provenance citations belong in the body.
-# `fab memory-index` emits an advisory warning over the cap.
+# `fab memory-index` warns (advisory) at 501–1000 chars and BLOCKS `--check` past 1000 chars
+# (gross over-cap) or on any change-id in the description (FKF §3.2, enforced).
 description: "{One-line summary used by the generated domain-index row — ≤500 chars.}"
 ---
 # {File Name}

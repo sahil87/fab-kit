@@ -222,6 +222,227 @@ func TestMemoryIndexCmd_CheckOverLength_DoesNotBlock(t *testing.T) {
 	}
 }
 
+// TestMemoryIndexCmd_CheckChangeID_BlocksOnByteCleanTree pins R1/R3 end-to-end:
+// a registry-matched change-id in a `description:` floors --check at exit 1 on a
+// byte-clean tree (drift tier 0), and never reaches exit 2. Uses the non-JSON
+// path so the returned error is capturable (the JSON path os.Exit(1)s).
+func TestMemoryIndexCmd_CheckChangeID_BlocksOnByteCleanTree(t *testing.T) {
+	repo := setupFabRepo(t)
+	// Register id `xu0k` so the description token resolves.
+	mustWrite(t, filepath.Join(repo, "fab", "changes", "260715-xu0k-some-change", ".status.yaml"),
+		"id: xu0k\nname: 260715-xu0k-some-change\n")
+	// Rewrite login.md's description to cite the registered id, then regen so the
+	// committed row reflects it → drift tier 0; the change-id check must fail alone.
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "auth", "login.md"),
+		"---\ndescription: \"Login flow (xu0k)\"\n---\n# Login\n")
+	if err, _, _ := runMemoryIndex(t); err != nil {
+		t.Fatalf("regen over the change-id description failed: %v", err)
+	}
+	err, _, stderr := runMemoryIndex(t, "--check")
+	if err == nil {
+		t.Error("a change-id in `description:` on a byte-clean tree must make --check fail (exit ≥ 1)")
+	}
+	if !strings.Contains(stderr, "auth/login.md") || !strings.Contains(stderr, "xu0k") {
+		t.Errorf("--check stderr must enumerate the file + matched id, got:\n%s", stderr)
+	}
+}
+
+// TestMemoryIndexCmd_CheckOverCap_Blocks pins R2/R3: a `description:` over 1000
+// runes floors --check at exit 1 (blocking), distinct from the 501–1000 advisory.
+func TestMemoryIndexCmd_CheckOverCap_Blocks(t *testing.T) {
+	repo := setupFabRepo(t)
+	over := strings.Repeat("x", 1001) // > 1000 → blocking
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "auth", "login.md"),
+		"---\ndescription: \""+over+"\"\n---\n# Login\n")
+	if err, _, _ := runMemoryIndex(t); err != nil {
+		t.Fatalf("regen over the over-cap description failed: %v", err)
+	}
+	err, _, stderr := runMemoryIndex(t, "--check")
+	if err == nil {
+		t.Error("a >1000-rune `description:` must make --check fail (blocking)")
+	}
+	if !strings.Contains(stderr, "auth/login.md") || !strings.Contains(stderr, "blocking cap") {
+		t.Errorf("--check stderr should carry the over-cap blocking finding, got:\n%s", stderr)
+	}
+}
+
+// TestMemoryIndexCmd_ChangeIDLabel_NotFrontmatterCorruption confirms the
+// escalation-only stderr/error label reads "blocking `description:` findings",
+// NOT "malformed frontmatter" (the change-id/over-cap findings are not
+// frontmatter corruption).
+func TestMemoryIndexCmd_ChangeIDLabel_NotFrontmatterCorruption(t *testing.T) {
+	repo := setupFabRepo(t)
+	mustWrite(t, filepath.Join(repo, "fab", "changes", "260715-xu0k-some-change", ".status.yaml"),
+		"id: xu0k\nname: 260715-xu0k-some-change\n")
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "auth", "login.md"),
+		"---\ndescription: \"Login flow (xu0k)\"\n---\n# Login\n")
+	if err, _, _ := runMemoryIndex(t); err != nil {
+		t.Fatalf("regen failed: %v", err)
+	}
+	err, _, stderr := runMemoryIndex(t, "--check")
+	if err == nil {
+		t.Fatal("expected --check to fail on the change-id finding")
+	}
+	if strings.Contains(stderr, "malformed frontmatter") {
+		t.Errorf("an escalation-only run must NOT mislabel as 'malformed frontmatter', got:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "blocking `description:` findings") {
+		t.Errorf("escalation-only stderr should use the blocking-description label, got:\n%s", stderr)
+	}
+}
+
+// TestMemoryIndexCmd_CheckAdvisory_DoesNotBlock pins that the mxgu ADVISORY
+// findings (narration / size / _unsorted / broken link) alone never fail --check.
+func TestMemoryIndexCmd_CheckAdvisory_DoesNotBlock(t *testing.T) {
+	repo := setupFabRepo(t)
+	mustWrite(t, filepath.Join(repo, "fab", "changes", "260101-abcd-one", ".status.yaml"),
+		"id: abcd\nname: 260101-abcd-one\n")
+	// A topic file that trips narration density (advisory), a broken link
+	// (advisory), and is byte-clean on the index (regen after write).
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "auth", "login.md"),
+		"---\ndescription: \"Login flow\"\n---\n# Login\n\n"+
+			"previously A; no longer B; renamed C; supersedes D (abcd) abcd.\n"+
+			"[broken](/auth/nope.md)\n")
+	if err, _, _ := runMemoryIndex(t); err != nil {
+		t.Fatalf("regen failed: %v", err)
+	}
+	err, _, stderr := runMemoryIndex(t, "--check")
+	if err != nil {
+		t.Errorf("advisory findings alone must NOT fail --check, got: %v", err)
+	}
+	if !strings.Contains(stderr, "narration markers") || !strings.Contains(stderr, "target does not exist") {
+		t.Errorf("--check stderr should carry the advisory warnings, got:\n%s", stderr)
+	}
+}
+
+// TestMemoryIndexCmd_CheckJSON_WarningsArray pins R8: --check --json carries an
+// additive `warnings` array (empty-never-null on a clean tree) with tier/drift/
+// losses/malformed unchanged. Uses a clean tree (returns nil → no os.Exit, so
+// stdout is capturable).
+func TestMemoryIndexCmd_CheckJSON_WarningsArray(t *testing.T) {
+	setupFabRepo(t)
+	if err, _, _ := runMemoryIndex(t); err != nil {
+		t.Fatalf("regen failed: %v", err)
+	}
+	err, out, _ := runMemoryIndex(t, "--check", "--json")
+	if err != nil {
+		t.Errorf("clean --check --json should return nil, got: %v", err)
+	}
+	var report struct {
+		Tier      int        `json:"tier"`
+		Drift     bool       `json:"drift"`
+		Losses    []struct{} `json:"losses"`
+		Malformed []struct{} `json:"malformed"`
+		Warnings  []struct {
+			Kind string `json:"kind"`
+			Path string `json:"path"`
+		} `json:"warnings"`
+	}
+	if jerr := json.Unmarshal([]byte(out), &report); jerr != nil {
+		t.Fatalf("--json stdout must be a parseable object, got %q (err %v)", out, jerr)
+	}
+	if report.Tier != 0 || report.Drift {
+		t.Errorf("clean tree → {tier:0, drift:false}, got tier=%d drift=%v", report.Tier, report.Drift)
+	}
+	if report.Warnings == nil {
+		t.Error("--json report must carry a non-null `warnings` array")
+	}
+	if len(report.Warnings) != 0 {
+		t.Errorf("clean tree → empty warnings array, got %+v", report.Warnings)
+	}
+	if !strings.Contains(out, "\"warnings\"") {
+		t.Errorf("--json must include the `warnings` key, got:\n%s", out)
+	}
+	// The existing additive contract is intact.
+	if !strings.Contains(out, "\"malformed\"") || !strings.Contains(out, "\"losses\"") {
+		t.Errorf("--json must still carry the malformed + losses keys, got:\n%s", out)
+	}
+}
+
+// TestMemoryIndexCmd_CheckJSON_WarningsArrayPopulated pins A-027/R8: a POPULATED
+// `warnings` array is emitted on an advisory-only tier-0 tree (which returns nil
+// — no os.Exit — so stdout is capturable in-process). It also asserts the
+// additive `bytes` field is present on a byte-bound-only file-size finding (a
+// file over 15KB but under the 400-line cap — otherwise inexplicable in JSON).
+func TestMemoryIndexCmd_CheckJSON_WarningsArrayPopulated(t *testing.T) {
+	repo := setupFabRepo(t)
+	// Register an id so the narration meter's change-id occurrences resolve.
+	mustWrite(t, filepath.Join(repo, "fab", "changes", "260101-abcd-one", ".status.yaml"),
+		"id: abcd\nname: 260101-abcd-one\n")
+	// A narration-heavy topic file (≥5 markers): 3 stems + 2 change-id tokens.
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "auth", "login.md"),
+		"---\ndescription: \"Login flow\"\n---\n# Login\n\n"+
+			"previously A; no longer B; renamed C; supersedes D (abcd) abcd.\n")
+	// A byte-bound-only size finding: one long line over 15KB, well under 400
+	// lines — so `bytes` (not `count`) is what explains the finding.
+	bigOneLiner := "---\ndescription: \"Big\"\n---\n# Big\n\n" + strings.Repeat("x", 16*1024) + "\n"
+	mustWrite(t, filepath.Join(repo, "docs", "memory", "auth", "big.md"), bigOneLiner)
+	// Regenerate so the index rows reflect the (unchanged-by-advisories) tree →
+	// drift tier 0; the advisory findings do not affect the exit code.
+	if err, _, _ := runMemoryIndex(t); err != nil {
+		t.Fatalf("regen failed: %v", err)
+	}
+	err, out, _ := runMemoryIndex(t, "--check", "--json")
+	if err != nil {
+		t.Errorf("advisory-only tier-0 tree --check --json should return nil, got: %v", err)
+	}
+	var report struct {
+		Tier      int        `json:"tier"`
+		Malformed []struct{} `json:"malformed"`
+		Warnings  []struct {
+			Kind  string `json:"kind"`
+			Path  string `json:"path"`
+			Count int    `json:"count"`
+			Bytes int    `json:"bytes"`
+		} `json:"warnings"`
+	}
+	if jerr := json.Unmarshal([]byte(out), &report); jerr != nil {
+		t.Fatalf("--json stdout must be a parseable object, got %q (err %v)", out, jerr)
+	}
+	if report.Tier != 0 {
+		t.Errorf("advisory-only tree must stay tier 0, got tier=%d", report.Tier)
+	}
+	if len(report.Malformed) != 0 {
+		t.Errorf("no blocking findings expected, got %+v", report.Malformed)
+	}
+	if len(report.Warnings) == 0 {
+		t.Fatalf("the warnings array must be POPULATED on this tree, got empty; out:\n%s", out)
+	}
+	var sawNarration, sawByteSize bool
+	for _, w := range report.Warnings {
+		switch w.Kind {
+		case "narration-density":
+			sawNarration = true
+		case "file-size":
+			// A byte-bound-only trip: the additive `bytes` key must be populated
+			// (the line Count alone would be under the cap and inexplicable).
+			if w.Bytes <= 15*1024 {
+				t.Errorf("file-size finding must carry the byte size in `bytes`, got %+v", w)
+			}
+			sawByteSize = true
+		}
+	}
+	if !sawNarration || !sawByteSize {
+		t.Errorf("expected both a narration-density and a byte-bound file-size warning, got %+v", report.Warnings)
+	}
+	// The additive `bytes` key must literally appear in the JSON.
+	if !strings.Contains(out, "\"bytes\"") {
+		t.Errorf("--json must include the `bytes` key on a byte-bound file-size finding, got:\n%s", out)
+	}
+}
+
+// TestMemoryIndexCmd_Help_DocumentsNewGuards pins R11: the cobra help text
+// exposes the new blocking findings, advisory kinds, and the `warnings` array.
+func TestMemoryIndexCmd_Help_DocumentsNewGuards(t *testing.T) {
+	cmd := memoryIndexCmd()
+	help := cmd.Long + "\n" + cmd.UsageString()
+	for _, want := range []string{"change-id", "1000", "narration", "warnings"} {
+		if !strings.Contains(help, want) {
+			t.Errorf("memory-index help must mention %q, got:\n%s", want, help)
+		}
+	}
+}
+
 // setupFabRepo creates a minimal fab/ + docs/memory/ tree in a temp dir and
 // chdirs into it so resolve.FabRoot() resolves. Returns the repo root.
 func setupFabRepo(t *testing.T) string {
