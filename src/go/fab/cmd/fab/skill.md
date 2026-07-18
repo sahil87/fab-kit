@@ -50,7 +50,7 @@ One line per capability, keyed to its command:
 
 ## Composition patterns
 
-fab is one member of the [@sahil87 toolkit](https://shll.ai) and composes with its siblings
+fab is one member of the [shll toolkit](https://shll.ai) and composes with its siblings
 (toolkit principle: tools shell out to tools):
 
 - **`wt`** (worktrees) — `fab batch new`/`switch` shell out to `wt create` to spin up a

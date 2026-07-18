@@ -35,7 +35,7 @@ Tests MUST conform to the implementation spec — never the other way around. Wh
 
 ### Toolkit Standards
 
-This tool is part of the sahil87 toolkit and MUST conform to the toolkit's published standards. The standards are enumerated by running `shll standards` — each entry names what it governs; read one with `shll standards <name>`. Before changing the CLI surface, help output, README.md, or docs/site/, the change MUST be checked against the standards governing that surface. If shll is unavailable, the canonical sources are the sahil87/shll repository's docs/site/standards/ tree (rendered on https://shll.ai). Standards added or revised there bind this repo without further amendment to this constitution.
+This tool is part of the shll toolkit and MUST conform to the toolkit's published standards. The standards are enumerated by running `shll standards` — each entry names what it governs; read one with `shll standards <name>`. Before changing the CLI surface, help output, README.md, or docs/site/, the change MUST be checked against the standards governing that surface. If shll is unavailable, the canonical sources are the sahil87/shll repository's docs/site/standards/ tree (rendered on https://shll.ai). Standards added or revised there bind this repo without further amendment to this constitution.
 
 ## Governance
 
@@ -59,4 +59,11 @@ This tool is part of the sahil87 toolkit and MUST conform to the toolkit's publi
      rendered on https://shll.ai). Deliberately enumerates nothing (no standard names,
      counts, or per-standard URLs) so the article stays correct as standards evolve.
      New normative MUST-rule added → minor version bump 1.3.0 → 1.4.0. -->
+
+<!-- 2026-07-18 (260718-udwv): Renamed the toolkit "sahil87 toolkit" → "shll toolkit"
+     in the `### Toolkit Standards` article body, tracking the upstream toolkit rename
+     (sahil87/shll#56). Cosmetic wording only — no normative rule changed, no
+     enumeration added or removed; the `sahil87/shll` canonical-source reference is a
+     repo identifier and stays verbatim. No version bump (stays 1.4.0); Last Amended
+     already 2026-07-18. -->
 

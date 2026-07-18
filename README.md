@@ -1,6 +1,6 @@
 # Fab Kit
 
-> Part of [@sahil87's open source toolkit](https://shll.ai) — see all projects there.
+> Part of the [shll toolkit](https://shll.ai) — see all projects there.
 
 [![Latest release](https://img.shields.io/github/v/release/sahil87/fab-kit)](https://github.com/sahil87/fab-kit/releases) [![Downloads](https://img.shields.io/github/downloads/sahil87/fab-kit/total)](https://github.com/sahil87/fab-kit/releases) [![Stars](https://img.shields.io/github/stars/sahil87/fab-kit?style=social)](https://github.com/sahil87/fab-kit/stargazers) [![BundleDex](https://bundledex.net/badge/fab-kit.svg)](https://bundledex.net/bundles/fab-kit/)
 
@@ -18,7 +18,7 @@ AI agents write code fast. The bottleneck is now your clarity: did you define th
 curl -fsSL https://shll.ai/install | sh -s -- fab-kit
 ```
 
-Installs fab-kit (plus the shll meta-CLI) via Homebrew, handling tap trust automatically. To install the entire sahil87 toolkit instead:
+Installs fab-kit (plus the shll meta-CLI) via Homebrew, handling tap trust automatically. To install the entire shll toolkit instead:
 
 ```sh
 curl -fsSL https://shll.ai/install | sh
