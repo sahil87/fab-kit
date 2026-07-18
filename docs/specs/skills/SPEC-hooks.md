@@ -10,7 +10,7 @@ Canonical command reference: `src/kit/skills/_cli-fab.md` § fab hook (removed i
 
 ## Removed command family (2.14.0)
 
-The `fab hook` command family was deleted outright — command file, subcommands, and the `Sync` registration path all gone. There is **no shim period**: an un-migrated `.claude/settings.local.json` that still invokes any of these will get a cobra *unknown command* error (exit 1) until the `2.13.6-to-2.14.0` migration removes the entries.
+The `fab hook` command family was deleted outright — command file, subcommands, and the `Sync` registration path all gone. There is **no shim period**: an un-migrated `.claude/settings.local.json` that still invokes any of these will get a cobra *unknown command* error (exit 1) until the `2.13.6-to-2.14.0` migration removes the entries — supplemented by the `2.15.7-to-2.15.8` migration, which sweeps the entries out of **every** worktree (including the main checkout), reaching the per-checkout gitignored copies the version-gated migrations never re-ran against in sibling checkouts.
 
 | Subcommand | Former Claude Code event | Disposition |
 |------------|--------------------------|-------------|
@@ -20,7 +20,7 @@ The `fab hook` command family was deleted outright — command file, subcommands
 | `artifact-write` | PostToolUse (Write/Edit) | Removed — bookkeeping moved to pull-based `fab status refresh` (removed earlier as a shim in y022; the shim itself is now gone too) |
 | `sync` | n/a (setup) | Removed — fab registers no hooks, so there is nothing to sync |
 
-The `2.13.6-to-2.14.0` migration removes any lingering session-scoped settings entries (both the inline `fab hook …` and legacy `bash …/on-*.sh` forms) and deletes the dead `.fab-runtime.yaml`/`.fab-runtime.yaml.lock` files; the `2.10.1-to-2.11.0` migration removed the `artifact-write` PostToolUse entry earlier.
+The `2.13.6-to-2.14.0` migration removes any lingering session-scoped settings entries (both the inline `fab hook …` and legacy `bash …/on-*.sh` forms) and deletes the dead `.fab-runtime.yaml`/`.fab-runtime.yaml.lock` files; the `2.10.1-to-2.11.0` migration removed the `artifact-write` PostToolUse entry earlier. Both edited only the checkout they ran in, so the `2.15.7-to-2.15.8` migration re-sweeps the whole target set (any `fab hook <x>` prefix + the legacy `on-*.sh` shims) across **every** worktree — the main checkout included, since it is the settings root every worktree session resolves through.
 
 ## Agent state is a consumed convention (not a produced hook)
 
