@@ -1,0 +1,55 @@
+id: weoh
+name: 260718-weoh-sweep-worktree-hook-settings
+created: 2026-07-18T06:18:00Z
+created_by: Sahil Ahuja
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 7
+    acceptance_count: 18
+    acceptance_completed: 18
+confidence:
+    certain: 4
+    confident: 2
+    tentative: 0
+    unresolved: 0
+    score: 4.9
+    fuzzy: true
+    dimensions:
+        signal: 75.8
+        reversibility: 86.7
+        competence: 84.2
+        disambiguation: 80.0
+stage_metrics:
+    intake: {started_at: "2026-07-18T06:18:00Z", driver: fab-new, iterations: 1, completed_at: "2026-07-18T06:24:27Z"}
+    apply: {started_at: "2026-07-18T06:24:27Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-18T06:29:44Z"}
+    review: {started_at: "2026-07-18T06:29:44Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-18T06:37:05Z"}
+    hydrate: {started_at: "2026-07-18T06:37:05Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-18T06:43:14Z"}
+    ship: {started_at: "2026-07-18T06:43:14Z", driver: fab-fff, iterations: 1}
+prs: []
+change_type_source: explicit
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-07-18T06:43:14Z"
+    computed_at_stage: hydrate
+summary: Document the 2.15.7-to-2.15.8 worktree hook-settings sweep migration + the per-checkout-gitignored-state ⇒ all-worktrees Design Decision; cross-reference the sweep from runtime/pipeline/distribution memory that framed 2.13.6-to-2.14.0 as complete
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-07-18T06:43:14Z
