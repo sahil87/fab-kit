@@ -1,0 +1,17 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-18T06:10:32Z"}
+{"args":"Toolkit skill standard adoption — implement fab skill subcommand + canonical docs/site/skill.md bundle (backlog fskl)","cmd":"fab-new","event":"command","ts":"2026-07-18T06:10:32Z"}
+{"delta":"+4.8","event":"confidence","score":4.8,"trigger":"calc-score","ts":"2026-07-18T06:13:29Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-18T06:16:39Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-18T06:17:01Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-18T06:26:40Z"}
+{"event":"review","result":"failed","ts":"2026-07-18T06:42:29Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-18T06:42:29Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-18T06:49:28Z"}
+{"event":"review","result":"failed","ts":"2026-07-18T07:00:07Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-18T07:00:07Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-18T07:05:03Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-18T07:22:05Z"}
+{"event":"review","result":"passed","ts":"2026-07-18T07:22:05Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-18T07:26:07Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-07-18T07:29:24Z"}
+{"event":"review","result":"passed","ts":"2026-07-18T07:37:45Z"}

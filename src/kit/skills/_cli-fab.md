@@ -26,6 +26,7 @@ metadata:
 - fab migrations-status
 - fab kit-path
 - fab shell-init
+- fab skill
 - fab impact
 - fab pr-meta
 - fab memory-index
@@ -84,7 +85,7 @@ All commands accept the unified `<change>`: 4-char ID (`yobi`), folder substring
 
 ### Commands covered in `_preamble` Common fab Commands
 
-`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab pane`, `fab doctor`, `fab migrations-status`, `fab kit-path`, `fab shell-init`, `fab impact`, `fab pr-meta`, `fab memory-index`, `fab fab-help`, `fab help-dump`, `fab operator`, `fab agent`, `fab batch`) and extended flag details for the above.
+`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab pane`, `fab doctor`, `fab migrations-status`, `fab kit-path`, `fab shell-init`, `fab skill`, `fab impact`, `fab pr-meta`, `fab memory-index`, `fab fab-help`, `fab help-dump`, `fab operator`, `fab agent`, `fab batch`) and extended flag details for the above.
 
 ---
 
@@ -568,6 +569,20 @@ fab shell-init <bash|zsh|fish>
 ```
 
 Emits the shell-completion script for the given shell on stdout — the `tu`-style verb equivalent of (and delegated to) Cobra's auto-generated `fab completion <shell>`. Recommended install: add `eval "$(fab shell-init zsh)"` to `~/.zshrc` (or the bash/fish equivalent). Config-independent — works outside a fab repo. Human-setup-facing; no skill invokes it.
+
+---
+
+## fab skill
+
+```
+fab skill
+```
+
+Prints the fab **agent skill bundle** — a one-page, static, agent-first usage briefing (when to reach for fab, a capabilities map keyed to subcommands, composition patterns, the stdout/exit-code contracts, gotchas) to stdout as **raw markdown, byte-identical** to the repo's canonical `docs/site/skill.md`. **stderr empty on success, exit 0**, no rendering/pager/framing (an agent consumes the bytes directly). Takes no args/flags (`cobra.NoArgs`); an argued invocation is a usage error → exit `2` via the binary-wide `run()` classification. Config-independent — works outside a fab repo.
+
+This is the sahil87 toolkit-wide `skill` standard (contract: shll `docs/site/standards/skill.md`; sibling of the machine-readable `help-dump` contract). The bundle is embedded into the `fab-go` binary at build time (fab-go's first `go:embed`), so it is offline and version-locked to the release — the sync + drift-guard pattern `shll standards` established: a committed copy at `src/go/fab/cmd/fab/skill.md`, refreshed from the canonical `docs/site/skill.md` by `scripts/sync-skill.sh` (`//go:generate` pointer), pinned byte-honest by `TestSkillEmbedMatchesCanonical`. Because `docs/site/**` is the pulled site surface, the same page renders at `shll.ai/tools/fab-kit/skill` for free.
+
+**Disambiguation**: `fab skill` (this one static bundle command) is unrelated to fab's own **kit-skills** — the many `/fab-*` markdown prompts `fab sync` deploys to `.claude/skills/`. Same word, two concepts.
 
 ---
 
