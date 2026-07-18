@@ -790,11 +790,13 @@ func attributeCommit(subject string, reg map[string]changeMeta) (string, bool) {
 // wraps the banned §3.2 shapes — parentheses `(d9rs)`, colons, the `— xu0k`
 // suffix's spaces) and adds the prose/markdown punctuation a body/description
 // scan sees but a commit-subject scan does not: `,` `[` `]` newline, plus
-// sentence terminators (`.` `;` `!` `?`), quotes/backtick (`"` `'` “ ` “), the
-// em-dash `—` itself (so a GLUED `—xu0k` suffix with no surrounding space still
-// splits — the banned §3.2 suffix shape), and `*` (so a bolded `**xu0k**`
-// markdown citation tokenizes cleanly) so a citation like `(d9rs).`,
-// `see abcd;`, “ `xu0k` “, `—xu0k`, or `**xu0k**` tokenizes cleanly. It
+// sentence terminators (`.` `;` `!` `?`), the ASCII quotes/backtick (`"` `'`
+// and the backtick), the em-dash `—` itself (so a GLUED `—xu0k` suffix with no
+// surrounding space still splits — the banned §3.2 suffix shape), and `*` (so a
+// bolded `**xu0k**` markdown citation tokenizes cleanly) so a citation like
+// `(d9rs).`, `see abcd;`, `'xu0k'`, `—xu0k`, or `**xu0k**` tokenizes cleanly.
+// (Curly/smart quotes “ ” are NOT in the separator set — only the ASCII quotes
+// above are.) It
 // deliberately does NOT split on `-` — a full folder-name token
 // (YYMMDD-XXXX-slug) contains hyphens and must survive as one token (the
 // em-dash `—` U+2014 is a distinct rune from the ASCII hyphen `-` U+002D, so
