@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "The providers & role-tiers model (agent config v3, tykw) — the top-level `providers:` command table (opaque names → `session_command`/`dispatch_command`, the session-vs-dispatch split, claude built-in, absent `dispatch_command` = native, NO cross-fallback), the three-provider (claude/codex/gemini) starter template shipped by `fab config reference` + the scaffold as the on-ramp for adding a provider (template text only, gemini no `{effort}` + bare `gemini -m {model}` dispatch — ho9y), the five role tiers `default`/`operator`/`doing`/`review`/`fast` as `{provider, model, effort}` with per-field default-tier inheritance, the fixed non-overridable stage→tier mapping, `fab resolve-agent <stage|tier>` (spawn=→dispatch=, `provider=` line, tier-name acceptance, full-ID dispatch under --alias), the `fab agent [tier] [--print] [--repo]` launcher (retiring `fab spawn-command`), and where the provider/tier resolution is consumed (dispatch seam, operator launcher, batch worker spawns)"
+description: "The providers & role-tiers model (agent config v3) — the top-level `providers:` command table (opaque names → `session_command`/`dispatch_command`, claude built-in, absent `dispatch_command` = native, NO cross-fallback), the five role tiers (`default`/`operator`/`doing`/`review`/`fast`) as `{provider, model, effort}` with per-field inheritance, the fixed stage→tier mapping, `fab resolve-agent`, the `fab agent` launcher, and the resolution's consumers (dispatch seam, operator, batch spawns)."
 ---
 # Providers & Role Tiers
 
@@ -16,8 +16,8 @@ Agent config v3 (260702-tykw) splits **provider mechanics** (how to invoke an ag
 
 `fab/project/config.yaml` SHALL support a top-level `providers:` map keyed by **opaque, user-chosen provider names**. Each provider MAY carry two command fields, which SHALL NOT be merged into one:
 
-- **`session_command`** — opens an interactive agent **session** (the relocated `agent.spawn_command`). Consumed by `fab operator`, `fab batch new`/`batch switch`, and `fab agent`.
-- **`dispatch_command`** — runs ONE headless **stage task** via `fab dispatch` (the relocated per-tier `spawn_command`). **ABSENT `dispatch_command` = native Agent-tool dispatch** — there is **NO fallback** to `session_command`.
+- **`session_command`** — opens an interactive agent **session**. Consumed by `fab operator`, `fab batch new`/`batch switch`, and `fab agent`.
+- **`dispatch_command`** — runs ONE headless **stage task** via `fab dispatch`. **ABSENT `dispatch_command` = native Agent-tool dispatch** — there is **NO fallback** to `session_command`.
 
 fab-kit ships the **`claude` provider as the built-in default** (`defaultProviders` in `internal/agent`): the default `session_command`, no `dispatch_command` (native). A project's `providers:` block per-field-merges over the built-in via `agent.ResolveProvider(name)`.
 
@@ -51,7 +51,7 @@ The two fields are deliberately unmerged because session and dispatch are **diff
 
 ### Requirement: Five role tiers with per-field default-tier inheritance
 
-`agent.tiers` keys SHALL be the five **role tiers** — `default`, `operator`, `doing`, `review`, `fast` — replacing the former `thinking`/`doing`/`fast` cognitive-mode vocabulary. Each tier value SHALL be `{provider, model, effort}` (no command — the command lives on the provider). `thinking` is removed entirely: with `review` split into its own tier, `thinking`'s only remaining stage would be intake, which never dispatches.
+`agent.tiers` keys SHALL be the five **role tiers** — `default`, `operator`, `doing`, `review`, `fast`. Each tier value SHALL be `{provider, model, effort}` (no command — the command lives on the provider). There is no `thinking` tier: with `review` split into its own tier, `thinking`'s only remaining stage would be intake, which never dispatches.
 
 fab-kit's built-in default profiles (owned by `defaultTiers` in `internal/agent`, drift-guarded against `docs/specs/stage-models.md`):
 
@@ -95,7 +95,7 @@ The stage→tier mapping is **fab-owned and NOT user-overridable** (`stageTiers`
 - `provider=<name>` (omitted when empty),
 - `dispatch=<command>` — emitted **ONLY when the resolved tier's provider carries a `dispatch_command`** (its absence signals native dispatch; NO fallback). The command's `{model}`/`{effort}` are substituted via `spawn.WithProfile`, and the `{model}` is **ALWAYS the full model ID even under `--alias`** (an external CLI's `--model` flag takes a full ID; CLI dispatch never aliases).
 
-`--alias` maps the `model=` line to the Claude-Code Agent-tool short alias (`opus`/`sonnet`/`haiku`/`fable`) — the Agent tool's `model` param is a hard enum that rejects full IDs; the `dispatch=` line is unaffected (full ID). This renamed the pre-tykw optional third line `spawn=` → `dispatch=` to match the provider field.
+`--alias` maps the `model=` line to the Claude-Code Agent-tool short alias (`opus`/`sonnet`/`haiku`/`fable`) — the Agent tool's `model` param is a hard enum that rejects full IDs; the `dispatch=` line is unaffected (full ID).
 
 #### Scenario: `--alias` aliases `model=` while `dispatch=` keeps the full ID
 
@@ -107,11 +107,9 @@ The stage→tier mapping is **fab-owned and NOT user-overridable** (`stageTiers`
 
 `fab agent` SHALL resolve a tier profile (`default` when the tier is omitted; any of the five tier names accepted), compose `providers.<provider>.session_command` with `{model}`/`{effort}` substituted (or Claude-style flags appended for a non-templated command via `spawn.WithProfile`), and **exec it in the current shell** — `fab agent` starts the default-tier agent right here; `fab agent operator` starts the coordinator profile.
 
-- `--print` prints the fully-resolved command instead of executing — **this replaces `fab spawn-command`**, with a semantic upgrade: the output is **profile-resolved** (model/effort substituted), not placeholder-stripped as `fab spawn-command` was, so callers that spawn from the printed command finally get the tier profile.
-- `--repo <path>` reads the target repo's config (the operator's fetch-another-repo's-command use case, carried over from `fab spawn-command --repo`).
+- `--print` prints the fully-resolved command instead of executing — the output is **profile-resolved** (model/effort substituted), so callers that spawn from the printed command get the tier profile.
+- `--repo <path>` reads the target repo's config (the operator's fetch-another-repo's-command use case).
 - `fab agent` exec does NOT TTY-guard — exec-and-let-the-CLI-fail is acceptable (the underlying agent CLI already handles no-TTY), matching the document-don't-validate contract.
-
-`fab spawn-command` is **removed in the same release** (no deprecation alias — its only CLI consumer, the operator skill, ships and is updated in the same kit).
 
 ## Design Decisions
 
@@ -132,7 +130,7 @@ The stage→tier mapping is **fab-owned and NOT user-overridable** (`stageTiers`
 The provider/tier resolution feeds three runtime consumers:
 
 - **The dispatch seam** (`/fab-ff`, `/fab-fff`, `/fab-proceed`, `/fab-adopt`, and `/fab-continue`'s one-stage sequencer) calls `fab resolve-agent <stage> --alias` before each post-intake stage's sub-agent and **branches on the resolved `dispatch=` line**: absent ⇒ native Agent-tool dispatch (model via the Agent `model` param, effort via a prompt instruction); present ⇒ the CLI adapter `fab dispatch` (the profile rides the `dispatch=` command). See [_shared/context-loading.md](/_shared/context-loading.md) § Per-Stage Model Resolution and [pipeline/execution-skills.md](/pipeline/execution-skills.md) § Status-transition ownership.
-- **The operator launcher** (`fab operator`) resolves the **operator** tier in-process (previously it borrowed the doing tier via `fab resolve-agent apply`) and composes its session command from that tier's provider `session_command` + profile. See [operator.md](/runtime/operator.md).
-- **Batch worker spawns** (`fab batch new`/`switch` and the operator's repo-targeted worker spawns) compose from the **default-tier** provider `session_command` + the default profile — so workers spawn WITH a profile (the pre-tykw placeholder-stripping print path disappeared with `fab spawn-command`). See [operator.md](/runtime/operator.md) and [distribution/kit-architecture.md](/distribution/kit-architecture.md).
+- **The operator launcher** (`fab operator`) resolves the **operator** tier in-process and composes its session command from that tier's provider `session_command` + profile. See [operator.md](/runtime/operator.md).
+- **Batch worker spawns** (`fab batch new`/`switch` and the operator's repo-targeted worker spawns) compose from the **default-tier** provider `session_command` + the default profile — so workers spawn WITH a profile. See [operator.md](/runtime/operator.md) and [distribution/kit-architecture.md](/distribution/kit-architecture.md).
 
 The `dispatch_command` a tier's provider carries is *run* by [`fab dispatch`](/runtime/dispatch.md) (the headless process manager); this file and `fab resolve-agent` only *resolve and emit* it.

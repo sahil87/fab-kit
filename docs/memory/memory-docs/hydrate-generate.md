@@ -75,7 +75,7 @@ For each selected gap, the skill SHALL generate a memory file in `docs/memory/{d
 
 ### Placement Rules (d9rs)
 
-Before d9rs, placement rules (target path, domain creation, index stubs, shape bounds) were defined only under ingest mode; generate mode now states them explicitly, mirroring ingest Step 3:
+Placement rules (target path, domain creation, index stubs, shape bounds) mirror ingest Step 3:
 
 - **Target path**: `docs/memory/{domain}/{topic}.md` — or `docs/memory/{domain}/{sub-domain}/{topic}.md` when the topic belongs to an existing sub-domain
 - **Domain creation**: create the domain folder if needed, plus its `description:`-only `index.md` **stub** — the sub-domain stub likewise — **before** the index-regeneration step runs (see [hydrate](/memory-docs/hydrate.md) § Index Ownership Model)

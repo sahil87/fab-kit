@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "Agent-state divestment (ioku): fab reads the `@rk_agent_state` tmux pane option (value `state:epoch_seconds`, states active/waiting/idle, absent = unknown, epoch mandatory) via plain tmux `show-options`/`list-panes` — a data convention, NOT a run-kit software dependency; run-kit's `rk agent-setup` is the writer (not yet shipped). The whole former `.fab-runtime.yaml` `_agents` PRODUCER pipeline (hooks/GC/PID-walker/flock/`internal/runtime`+`internal/proc`) is deleted; fab is now a pure consumer. The pure `parseAgentState` parser + surviving `FormatIdleDuration`"
+description: "Agent-state divestment: fab reads the `@rk_agent_state` tmux pane option (`state:epoch_seconds`; states active/waiting/idle, absent = unknown) via plain tmux commands — a data convention, NOT a run-kit software dependency; run-kit's `rk agent-setup` is the writer. The former `.fab-runtime.yaml` `_agents` PRODUCER pipeline (hooks/GC/PID-walker/flock/`internal/runtime`+`internal/proc`) is deleted; fab is now a pure consumer, via the pure `parseAgentState` parser + surviving `FormatIdleDuration`."
 ---
 # Runtime Agents
 
