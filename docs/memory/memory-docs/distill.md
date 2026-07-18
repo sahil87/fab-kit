@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "The /docs-distill-memory skill — rewrites an existing memory domain's topic files to the FKF §3.2/§3.3 present-truth style, one domain per run, propose-then-apply (read-only until approval). Intent-first removal classifier: durable intent relocates into Design Decisions, intent-free narration recorded elsewhere is deleted, else relocate. Compresses over-cap descriptions, strips change-ids. Excludes generated index.md/log.md, curated log.seed.md, and removed-domains.md. Idempotent."
+description: "The /docs-distill-memory [<domain>] skill — rewrites an existing memory domain's topic files to the FKF §3.2/§3.3 present-truth style, one domain per run, propose-then-apply (read-only until approval). <domain> optional: named forces a full read; omitted runs a heuristic survey (over-cap/change-id descriptions + body narration markers) that flags candidate domains and auto-picks the first. Intent-first classifier relocates durable intent into Design Decisions rather than deleting it. Idempotent."
 ---
 # Distill
 
@@ -8,7 +8,7 @@ description: "The /docs-distill-memory skill — rewrites an existing memory dom
 
 ## Overview
 
-`/docs-distill-memory <domain>` rewrites an existing `docs/memory/` domain's topic files to the **FKF present-truth style** (`$(fab kit-path)/reference/fkf.md` §3.2/§3.3). The FKF present-truth rules govern what memory writers produce going forward; a corpus authored before them accumulates transition narration, superseded-state prose, and over-cap or change-id-carrying `description:` frontmatter. This skill is the remediation counterpart to the forward-looking writers — it is the only skill that rewrites **existing** body prose to the present-truth style across a whole domain. It is defined in `$(fab kit-path)/skills/docs-distill-memory.md` and auto-discovered by `fab sync`'s kit-skills-dir enumeration (no manifest registration).
+`/docs-distill-memory [<domain>]` rewrites an existing `docs/memory/` domain's topic files to the **FKF present-truth style** (`$(fab kit-path)/reference/fkf.md` §3.2/§3.3). The FKF present-truth rules govern what memory writers produce going forward; a corpus authored before them accumulates transition narration, superseded-state prose, and over-cap or change-id-carrying `description:` frontmatter. This skill is the remediation counterpart to the forward-looking writers — it is the only skill that rewrites **existing** body prose to the present-truth style across a whole domain. The `<domain>` argument is optional: named explicitly it forces a full read of that domain; omitted it runs a heuristic **survey** that flags candidate domains and auto-picks the first (see § No-Arg Survey Mode). It is defined in `$(fab kit-path)/skills/docs-distill-memory.md` and auto-discovered by `fab sync`'s kit-skills-dir enumeration (no manifest registration).
 
 > **Distinct from the sibling doc skills**: [hydrate](/memory-docs/hydrate.md) documents `/docs-hydrate-memory`, whose backfill mode is body-preserving (frontmatter only) and whose ingest/generate modes author *new* content. `/docs-reorg-memory` (see [templates](/memory-docs/templates.md) § Memory Tree Shape) reorganizes **structure** (splits/merges/moves + link rewrites), never body prose to a style. `/fab-continue` hydrate writes each change's delta as current truth but touches only the sections its change affects (see [execution-skills](/pipeline/execution-skills.md) § Hydrate Behavior). Distillation is the corpus-wide body-prose remediation none of those cover.
 
@@ -16,7 +16,27 @@ description: "The /docs-distill-memory skill — rewrites an existing memory dom
 
 ### One Domain Per Run, Propose-Then-Apply
 
-The skill operates on exactly one memory domain per invocation, named by its `docs/memory/` folder (e.g. `/docs-distill-memory pipeline`). It runs **read-only analysis** first, emits a **per-file proposed-rewrite report** (per-file diffs/summaries with before/after snippets for the non-obvious edits and every relocation), and applies rewrites **only on explicit user approval** — the same report → confirm-and-apply posture as `/docs-reorg-memory`. Confirmation offers **apply all**, **cherry-pick** (specific files), or **skip**; nothing mutates until the user approves. A multi-domain invocation is rejected — run the skill once per domain so each domain's diffs are approved on their own. Memory files encode load-bearing behavioral contracts, so a human gates each domain; the skill is never an autonomous bulk rewriter.
+The skill reads-in-full and rewrites exactly one memory domain per run, named by its `docs/memory/` folder (e.g. `/docs-distill-memory pipeline`) or auto-picked by the no-arg survey (§ No-Arg Survey Mode). "One domain per run" is a property of the **analysis+apply unit, not the invocation**: exactly one domain is read-in-full and rewritten per run whether it was named explicitly or auto-picked. It runs **read-only analysis** first, emits a **per-file proposed-rewrite report** (per-file diffs/summaries with before/after snippets for the non-obvious edits and every relocation), and applies rewrites **only on explicit user approval** — the same report → confirm-and-apply posture as `/docs-reorg-memory`. Confirmation offers **apply all**, **cherry-pick** (specific files), or **skip**; nothing mutates until the user approves. A multi-domain invocation is rejected — run the skill once per domain so each domain's diffs are approved on their own. Memory files encode load-bearing behavioral contracts, so a human gates each domain; the skill is never an autonomous bulk rewriter.
+
+### Optional `<domain>` — Named Override or Auto-Picked
+
+The `<domain>` argument is **optional**. Named explicitly, it is the **override**: the skill skips the survey heuristics and forces a full read of that domain. Omitted, the skill runs **survey mode** (§ No-Arg Survey Mode) — a heuristic scan that flags candidate domains and auto-picks the first. Domain resolution is case-insensitive substring match against folder names; an ambiguous name (matches >1 folder) or an unknown name aborts with the available-domains list. A multi-domain invocation aborts (one domain per run). A no-`<domain>` invocation is **survey mode, not an abort** — the only aborts are the ambiguous, unknown, and multiple-domains cases.
+
+### No-Arg Survey Mode
+
+A no-arg invocation runs a **heuristic survey** across all domains before any full read. The survey is a cheap scan — it ranks and picks, it does not classify exhaustively (the full read still runs once a domain is selected). It scans domains in the order of `docs/memory/index.md`'s domain table (deterministic, matches the user-facing landscape) and counts **flagged files** per domain using three defect classes — the same §3.2/§3.3 defects distillation fixes:
+
+1. **`description:` over the 500-character cap** (§3.2).
+2. **change-ids in `description:`** — a `— xu0k`-style suffix or a `(d9rs)`-style citation (§3.2 bans both).
+3. **narration markers in bodies** — a grep for the transition-narration patterns (`renamed`, `supersed`, `` was ` ``, `superseding the historical`, `inverts`), seeded from the full-read classification's own pattern list and extensible.
+
+A **missing `type: memory` is NOT a survey signal** — the full read stamps it once a domain is selected, so it does not affect ranking. The survey applies distillation's **exclusion set** (skip `index.md`, `log.md`, `log.seed.md`, `_shared/removed-domains.md`) and **recurses into sub-domains** like the full read. It then reports per-domain status, **auto-selects the first flagged domain** in domain-table order, announces the pick, and proceeds into the one-domain flow (full read → per-file report → approval gate, all unchanged). When nothing is flagged anywhere, it reports the terminal **"all domains distilled (survey heuristic)"** case and stops without reading or mutating anything.
+
+The survey is **heuristic**: a domain can pass the cheap scan while still carrying superseded-state prose. That is fine for ranking/picking, but the only silent-skip risk is the terminal all-clean case, so survey output **states the caveat** (`Survey is heuristic; run /docs-distill-memory <domain> to force a full read of a specific domain.`), mandatory on the all-clean case.
+
+### Dynamic `Next:` Line
+
+The skill's closing `Next:` line lists the **surveyed remaining candidate domains** — in `docs/memory/index.md` domain-table order, each with its flagged-file count — or reports "all domains distilled" when none remain. On a **no-arg** invocation the completion line reuses the Step 0 survey result minus the completed domain; a domain the user **skipped** or only **partially cherry-picked** stays listed while it still carries flagged files (the line reports surveyed truth). On an **explicit-`<domain>`** invocation (no upfront survey ran), the completion step runs the survey to populate the line.
 
 ### Present-Truth Rewrite Semantics (FKF §3.2/§3.3)
 
@@ -49,7 +69,7 @@ After applying rewrites, the skill regenerates the generated files via `fab memo
 
 ### Reduced Context Loading Override
 
-The skill file's `## Context Loading` section is the skill-file override the `_preamble.md` §1 always-load contract keys on: it does **not** load the always-load layer and requires **no active change, config, or constitution** (see [_shared/context-loading](/_shared/context-loading.md) § Exception Skills). It reads only the memory landscape (`docs/memory/index.md` + the target domain's `index.md` and any sub-domain index), every topic file in the target domain, and `$(fab kit-path)/reference/fkf.md` (the normative extract, so each rewrite cites the deployed rule). It declares no `helpers:`, reaching `_cli-fab` § fab memory-index by in-body pointer instead — the `/docs-reorg-memory` pointer style.
+The skill file's `## Context Loading` section is the skill-file override the `_preamble.md` §1 always-load contract keys on: it does **not** load the always-load layer and requires **no active change, config, or constitution** (see [_shared/context-loading](/_shared/context-loading.md) § Exception Skills). Once a target domain is resolved, it reads only the memory landscape (`docs/memory/index.md` + the target domain's `index.md` and any sub-domain index), every topic file in the target domain, and `$(fab kit-path)/reference/fkf.md` (the normative extract, so each rewrite cites the deployed rule). **Survey mode reads more broadly up front**: on a no-arg invocation, before a target domain exists, the survey scans **all** domains read-only — each domain's `index.md` plus enough of every topic file's `description:` frontmatter and body (a narration-marker grep) to count flagged files, recursing into sub-domains and honoring the exclusion set. That all-domains scan is not a full read; the full read is confined to the single domain the survey selects. It declares no `helpers:`, reaching `_cli-fab` § fab memory-index by in-body pointer instead — the `/docs-reorg-memory` pointer style.
 
 ### Idempotent Re-Runs
 
@@ -88,3 +108,10 @@ Re-running the skill on an already-distilled domain finds nothing to rewrite and
 **Why**: The skill ships to user repos where only the kit extract is reachable; deployed sibling skills cite it the same way.
 **Rejected**: Citing the dev-repo `docs/specs/fkf.md` — absent in user repos.
 *Introduced by*: 260717-dgp8-docs-distill-memory-skill
+
+### No-Arg Survey Over a Multi-Domain Loop or a Persistent State Marker
+
+**Decision**: The optional `<domain>` uses a no-arg heuristic **survey** that auto-picks the first flagged domain into the single one-domain flow, keeping the per-run unit at one domain.
+**Why**: Distillation is a one-time corpus sweep (the forward-looking writers already emit present truth), so the natural workflow is "run until nothing's left". The auto-pick gives a one-keystroke loop without hand-tracking remaining domains, while the survey stays read-only and re-runnable so a fully-distilled tree surveys clean every time. The one-domain-per-run guardrail was enforced at the invocation seam, but its rationale (per-domain approval granularity + rewrite-quality/context budget) is a property of the analysis+apply unit — forcing the user to name the domain bought no safety the Step 3 approval gate did not already provide.
+**Rejected**: (a) A multi-domain invocation expanding to sequential per-domain runs with per-domain approval gates — a single session chewing through all domains erodes rewrite quality as context fills, and the auto-pick already gives the one-keystroke loop; the multiple-domains abort stays. (b) A persistent distilled-state marker/tracking file — distillation is a one-time remediation sweep, and extra state violates the docs-are-source-of-truth ethos (Constitution II); survey-scanning each time is cheaper and stateless.
+*Introduced by*: 260718-ukpf-distill-noarg-survey

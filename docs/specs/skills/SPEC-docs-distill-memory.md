@@ -2,7 +2,7 @@
 
 ## Summary
 
-Rewrites an existing `docs/memory/` domain's topic files to the **FKF present-truth style** (`$(fab kit-path)/reference/fkf.md` §3.2, §3.3). The FKF present-truth rules govern what memory writers produce *going forward*; a corpus authored before them accumulates transition narration, superseded-state prose, and over-cap / change-id-carrying `description:` frontmatter. This skill is the remediation counterpart that cleans that **existing** corpus. **One domain per run, propose-then-apply**: read-only analysis over one named domain → a per-file proposed-rewrite report → apply **only on explicit user approval** (the `/docs-reorg-memory` posture). Not an autonomous bulk rewriter — these files encode load-bearing behavioral contracts, so a human approves per domain seeing per-file diffs.
+Rewrites an existing `docs/memory/` domain's topic files to the **FKF present-truth style** (`$(fab kit-path)/reference/fkf.md` §3.2, §3.3). The FKF present-truth rules govern what memory writers produce *going forward*; a corpus authored before them accumulates transition narration, superseded-state prose, and over-cap / change-id-carrying `description:` frontmatter. This skill is the remediation counterpart that cleans that **existing** corpus. **`<domain>` is optional**: named explicitly, it forces a full read of that domain; **omitted, it runs a no-arg survey mode** (Behavior Step 0) — a cheap heuristic scan across all domains that reports per-domain candidate counts, auto-picks the first flagged domain, and proceeds into the one-domain flow (or reports the terminal all-distilled case when nothing is flagged). **One domain per run, propose-then-apply**: read-only analysis over one domain (named or survey-picked) → a per-file proposed-rewrite report → apply **only on explicit user approval** (the `/docs-reorg-memory` posture). "One domain per run" is a property of the analysis+apply unit, not the invocation. Not an autonomous bulk rewriter — these files encode load-bearing behavioral contracts, so a human approves per domain seeing per-file diffs.
 
 Introduced as the deliberately-deferred **step 3 of the present-truth effort**: steps 1–2 (the FKF §3.2 change-id ban + §3.3 present-truth body-style rule, and the forward-looking memory writers) shipped in `260717-3plm`; this skill cleans the corpus those rules did not retroactively fix.
 
@@ -38,14 +38,25 @@ The normative source is the **shipped FKF extract** `$(fab kit-path)/reference/f
 
 ## Context Loading
 
-Skill-file override of the always-load layer (the `_preamble` §1 contract keys on this section): **no active change, config, or constitution** required. Reads only `docs/memory/index.md`, the target domain's `index.md` (+ sub-domain indexes), every topic file in the target domain, and `$(fab kit-path)/reference/fkf.md`. The `fab memory-index` exit tiers are consulted via an in-body `_cli-fab` § fab memory-index pointer (not pre-loaded). Declares no `helpers:`.
+Skill-file override of the always-load layer (the `_preamble` §1 contract keys on this section): **no active change, config, or constitution** required. Once a target domain is resolved (named or survey-picked), reads only `docs/memory/index.md`, the target domain's `index.md` (+ sub-domain indexes), every topic file in the target domain, and `$(fab kit-path)/reference/fkf.md`. **Survey mode reads more broadly up front**: on a no-arg invocation, before a target exists the survey scans **all** domains read-only (each domain's `index.md` + enough of every topic file's `description:` frontmatter and body to run the narration-marker grep and count flagged files, recursing sub-domains, honoring the exclusion set) — a cheap heuristic scan, not a full read; the full read is confined to the one domain the survey selects. The `fab memory-index` exit tiers are consulted via an in-body `_cli-fab` § fab memory-index pointer (not pre-loaded). Declares no `helpers:`.
 
 ## Flow
 
 ```
-User invokes /docs-distill-memory <domain>
+User invokes /docs-distill-memory [<domain>]
 │
-├─ Pre-flight: docs/memory/index.md exists; docs/memory/{domain}/ exists with ≥1 topic file
+├─ <domain> OMITTED → Step 0 Survey mode (no-arg):
+│     heuristic scan across ALL domains (docs/memory/index.md domain-table order), NOT a full read:
+│       count flagged files per domain by 3 classes — description: over 500-char cap / change-ids in
+│       description: / body narration markers (renamed, supersed, was `…`, superseding the historical, inverts).
+│       missing type: memory is NOT a survey signal. exclusions = distillation's (index.md, log.md,
+│       log.seed.md, _shared/removed-domains.md); recurse sub-domains.
+│     ├─ report per-domain candidate counts + heuristic CAVEAT
+│     ├─ [no domain flagged] → "all domains distilled (survey heuristic)" + caveat → STOP (no read, no mutation)
+│     └─ else auto-pick FIRST flagged domain → announce → proceed into the one-domain flow below (retain survey for Next:)
+│  <domain> GIVEN → override: skip survey, force a full read of that domain (straight to Pre-flight + Read)
+│
+├─ Pre-flight: docs/memory/index.md exists; the resolved/named docs/memory/{domain}/ exists with ≥1 topic file
 ├─ Read (read-only): domain index + every topic file (recursing sub-domains) + $(fab kit-path)/reference/fkf.md
 │     skip index.md / log.md (generated), log.seed.md (curated read-only seed input, never generated), and _shared/removed-domains.md (tombstone exempt)
 ├─ Classify per file: transition narration / superseded-state prose / description: defects (over-cap, change-ids)
@@ -55,24 +66,29 @@ User invokes /docs-distill-memory <domain>
 ├─ (present report, ask for approval: apply all / cherry-pick / skip)
 │  └─ [if declined or already-distilled] report, stop — no mutation
 │
-└─ [if approved]
-   ├─ per approved file — Edit: rewrite body to present truth (remove approved narration; relocate rationale →
-   │        Design Decisions Why/Rejected; preserve trailing (change-id) + *Introduced by*); fix description:
-   │        (strip change-ids, cap ≤500 chars, displaced detail → body); stamp type: memory if legacy file lacks it
-   │
-   └─ once, after ALL approved rewrites (Step 5 — not per file):
-      ├─ Bash: fab memory-index --check  → exit 0/1 regenerate; exit 2 REFUSE (→ /docs-reorg-memory pointer)
-      └─ Bash: fab memory-index          (index tiers from folder contents + description: frontmatter; each
-               log.md from git history + per-change summaries, freeze-on-write append-only; byte-stable)
+├─ [if approved]
+│  ├─ per approved file — Edit: rewrite body to present truth (remove approved narration; relocate rationale →
+│  │        Design Decisions Why/Rejected; preserve trailing (change-id) + *Introduced by*); fix description:
+│  │        (strip change-ids, cap ≤500 chars, displaced detail → body); stamp type: memory if legacy file lacks it
+│  │
+│  └─ once, after ALL approved rewrites (Step 5 — not per file):
+│     ├─ Bash: fab memory-index --check  → exit 0/1 regenerate; exit 2 REFUSE (→ /docs-reorg-memory pointer)
+│     └─ Bash: fab memory-index          (index tiers from folder contents + description: frontmatter; each
+│              log.md from git history + per-change summaries, freeze-on-write append-only; byte-stable)
+│
+└─ Dynamic Next: line — lists surveyed remaining candidate domains (with flagged-file counts, index.md order),
+      or "all domains distilled" when none remain. no-arg: reuse Step 0 survey minus the completed domain (a
+      skipped/partially-cherry-picked domain stays listed while still flagged); explicit <domain>: run the survey
+      at completion to populate it.
 ```
 
 ### Tools used
 
 | Tool | Purpose |
 |------|---------|
-| Read | The target domain's index + topic files + `$(fab kit-path)/reference/fkf.md` (read-only analysis) |
+| Read | The target domain's index + topic files + `$(fab kit-path)/reference/fkf.md` (read-only analysis). **Survey mode (no-arg)**: an up-front all-domains read-only scan — each domain's `index.md` + every topic file's `description:` frontmatter and body — to count flagged files before a target is picked |
 | Edit/Write | Rewritten topic-file bodies + `description:` frontmatter to FKF present-truth style (only with approval); never `index.md`/`log.md`/`log.seed.md`, never `_shared/removed-domains.md` |
-| Bash | `fab memory-index --check` (refuse-before-regen: exit 2 → refuse + reorg pointer); `fab memory-index` to regenerate indexes/logs after approved rewrites |
+| Bash | Survey mode: `grep` for narration markers across all domains' topic-file bodies (the heuristic body scan). After approved rewrites: `fab memory-index --check` (refuse-before-regen: exit 2 → refuse + reorg pointer) and `fab memory-index` to regenerate indexes/logs |
 
 ### Sub-agents
 

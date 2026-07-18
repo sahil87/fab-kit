@@ -757,21 +757,25 @@ Next: Complete intake.md, then /fab-continue
 
 ---
 
-## `/docs-distill-memory <domain>`
+## `/docs-distill-memory [<domain>]`
 
 **Purpose**: Rewrite an existing `docs/memory/` domain's topic files to the FKF present-truth style (`$(fab kit-path)/reference/fkf.md` §3.2, §3.3) — strip transition narration and superseded-state prose, cap/de-id `description:` frontmatter, and relocate rationale into Design Decisions. The corpus-remediation counterpart to the forward-looking memory writers (step 3 of the present-truth effort; steps 1–2 shipped in `260717-3plm`). Read-only by default — files only rewritten with explicit user approval.
 
 **Context**: `docs/memory/index.md`, the target domain's index and topic files, and `$(fab kit-path)/reference/fkf.md`. Does NOT require `.fab-status.yaml`, config, or constitution. Declares no `helpers:`.
 
-**Prerequisite**: `docs/memory/index.md` must exist and `docs/memory/{domain}/` must contain at least one topic file.
+**Prerequisite**: `docs/memory/index.md` must exist and the resolved (named or survey-picked) `docs/memory/{domain}/` must contain at least one topic file.
+
+**Arguments**: `<domain>` is **optional**. Named explicitly, it forces a full read of that domain (survey skipped). Omitted, it runs **survey mode** — a cheap heuristic scan across all domains that reports per-domain candidate counts, auto-picks the first flagged domain, and enters the one-domain flow (or reports the terminal all-distilled case). No-arg no longer aborts.
 
 **Behavior**:
-1. Read the named domain's topic files read-only; classify transition narration, superseded-state prose, `description:` defects (over-cap, change-ids), rationale-carrying narration (relocate), and allowed provenance (keep)
-2. Report per-file proposed rewrites (before/after for the non-obvious; every relocation shown); state per file whether content is deleted vs. relocated and where deleted content is already recorded
-3. User confirmation — apply all, cherry-pick specific files, or skip
-4. On approval, rewrite bodies to present truth (removing narration, relocating rationale into Design Decisions `Why`/`Rejected`, preserving trailing `(change-id)` + `*Introduced by*`), fix `description:` frontmatter, then regenerate indexes via `fab memory-index` — consulting `fab memory-index --check` first and refusing on exit 2 (destructive loss)
+1. **Survey mode (no-arg only)**: heuristic scan across all domains (in `docs/memory/index.md` domain-table order) counting flagged files by three classes — `description:` over the 500-char cap, change-ids in `description:`, and body narration markers (a missing `type: memory` is not a survey signal); exclusions match distillation's (`index.md`/`log.md`/`log.seed.md`/`_shared/removed-domains.md`), recursing sub-domains. Report per-domain counts with the heuristic caveat, auto-pick the first flagged domain (announce), then enter the one-domain flow. If nothing is flagged, report "all domains distilled (survey heuristic)" with the caveat and stop. An explicit `<domain>` skips this step.
+2. Read the resolved domain's topic files read-only; classify transition narration, superseded-state prose, `description:` defects (over-cap, change-ids), rationale-carrying narration (relocate), and allowed provenance (keep)
+3. Report per-file proposed rewrites (before/after for the non-obvious; every relocation shown); state per file whether content is deleted vs. relocated and where deleted content is already recorded
+4. User confirmation — apply all, cherry-pick specific files, or skip
+5. On approval, rewrite bodies to present truth (removing narration, relocating rationale into Design Decisions `Why`/`Rejected`, preserving trailing `(change-id)` + `*Introduced by*`), fix `description:` frontmatter, then regenerate indexes via `fab memory-index` — consulting `fab memory-index --check` first and refusing on exit 2 (destructive loss)
+6. Emit a **dynamic `Next:` line** listing surveyed remaining candidate domains (with flagged-file counts, in index.md order), or "all domains distilled" when none remain — replacing the former static `{another-domain}` placeholder. No-arg reuses the initial survey minus the completed domain (a skipped/partially-cherry-picked domain stays listed while still flagged); an explicit `<domain>` runs the survey at completion to populate it.
 
-**Key properties**: No active change required. One domain per run. Idempotent (an already-distilled domain proposes nothing; `fab memory-index` is byte-stable). Rationale is relocated, never deleted; deletion is confined to narration recorded elsewhere (log.md/git/archive). `_shared/removed-domains.md` is exempt (§3.3 tombstone carve-out). The generated files `index.md`/`log.md` are never hand-edited; `log.seed.md` is a curated read-only seed input (never written by the generator) that distillation excludes like a ledger. Moves no files (structural moves belong to `/docs-reorg-memory`).
+**Key properties**: No active change required. `<domain>` optional (named = full-read override; omitted = survey mode). One domain per run — a property of the analysis+apply unit, not the invocation (exactly one domain is read-in-full and rewritten per run, named or auto-picked). Idempotent (an already-distilled domain proposes nothing; a fully-distilled tree surveys clean every run; `fab memory-index` is byte-stable). Rationale is relocated, never deleted; deletion is confined to narration recorded elsewhere (log.md/git/archive). `_shared/removed-domains.md` is exempt (§3.3 tombstone carve-out). The generated files `index.md`/`log.md` are never hand-edited; `log.seed.md` is a curated read-only seed input (never written by the generator) that distillation excludes like a ledger. Moves no files (structural moves belong to `/docs-reorg-memory`).
 
 ---
 

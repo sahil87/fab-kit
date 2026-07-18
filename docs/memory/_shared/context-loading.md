@@ -168,7 +168,7 @@ The exception set is **declared by the skill files themselves** (the preamble ne
 - `/docs-hydrate-memory` — ingests/generates memory content, doesn't pre-load the landscape (explicit `## Context Loading` override section added in d9rs)
 - `/fab-help` — uses no context at all
 - `/fab-archive` — none beyond preflight (`fab change archive` reads `intake.md` and the backlog itself)
-- `/docs-hydrate-specs`, `/docs-reorg-memory`, `/docs-reorg-specs`, `/docs-distill-memory` — load their own doc-tree working sets (memory/spec indexes + files); no config, constitution, or active change (`/docs-distill-memory` reads the target domain's topic files + `$(fab kit-path)/reference/fkf.md`; see [distill](/memory-docs/distill.md))
+- `/docs-hydrate-specs`, `/docs-reorg-memory`, `/docs-reorg-specs`, `/docs-distill-memory` — load their own doc-tree working sets (memory/spec indexes + files); no config, constitution, or active change (`/docs-distill-memory` reads the selected domain's topic files + `$(fab kit-path)/reference/fkf.md`; a no-arg invocation first runs a read-only heuristic survey across all domains to pick that domain — see [distill](/memory-docs/distill.md))
 - `/fab-proceed` — skips preflight/context loading itself, delegating all pipeline context loading to `/fab-fff` (header context note)
 
 **Partial exception**: `/fab-operator` loads only `config.yaml`, `constitution.md`, and `context.md` (260611-zc9m — code-quality, code-review, and both doc indexes serve artifact generation/review, which the operator never does, and a long-lived session re-pays every loaded file after each `/clear`). See [runtime/operator.md](/runtime/operator.md).
