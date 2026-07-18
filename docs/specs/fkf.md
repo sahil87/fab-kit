@@ -188,14 +188,26 @@ not how it came to be:
   exception: `_shared/removed-domains.md`, whose body *is* removal records — a citation-carrying
   tombstone ledger, not transition narration — protected by the `fab memory-index --check` tier-2
   tombstone-loss guard and the `docs-reorg-memory` carve-out that authors it.)
-- **Provenance is citation-only.** The sole permitted provenance in a body is a trailing
-  `(change-id)` citation and the `*Introduced by*: {change-name}` field on a Design Decision. A
-  citation marks *where a current fact came from*; it does not narrate a transition. Citations are
-  deliberately preserved — a 6-char `(id)` cheaply defends a deliberate, easily-"fixed"-away
-  behavior against future regressions.
-- **Rationale survives distillation.** "Don't re-break this" content lives in Design Decisions'
-  `Why` / `Rejected` as durable, present-tense design intent — a rejected alternative is a design
-  *fact*, not transition narration. Token savings come from dropping narration, **never** rationale.
+- **Provenance is citation-only, and headings carry none.** The sole permitted provenance in a body
+  is a trailing `(change-id)` citation and the `*Introduced by*: {change-name}` field on a Design
+  Decision. A citation marks *where a current fact came from*; it does not narrate a transition.
+  Citations are deliberately preserved — a 6-char `(id)` cheaply defends a deliberate,
+  easily-"fixed"-away behavior against future regressions. **Heading text names its topic, never a
+  change**: a heading is `## Dispatch States`, never `### Dispatch States (xu0k)` or
+  `## xu0k — dispatch states`. Change-ids appear only as trailing citations in body text — never in
+  heading text.
+- **No operational TODOs.** Follow-up work items — TODOs, "still needs X", next-step checklists — are
+  never memory-body content. They belong in the project backlog (`fab/backlog.md`) or the originating
+  change folder. A memory body states what IS, not what remains to be done.
+- **Rationale survives distillation — as Design Decisions entries.** "Don't re-break this" content
+  lives in Design Decisions' `Why` / `Rejected` as durable, present-tense design intent — a rejected
+  alternative is a design *fact*, not transition narration. Token savings come from dropping
+  narration, **never** rationale. Any *why*, rejected alternative, or constraint explanation goes
+  into a `## Design Decisions` entry in the four-field shape (**Decision** / **Why** / **Rejected** /
+  *Introduced by*), never as inline narration in Overview/Requirements prose. The **changelog-bullet
+  shape is banned inside `## Design Decisions`**: an entry like `- **{change-id} — retired X**` is
+  change history (`log.md`'s job, §6), not a design decision — a DD entry heading is a decision
+  *title*, never a change-id.
 
 > **Why present-truth.** Change-keyed delta narration duplicates what `log.md` (the dated *what*),
 > git (the diff), and archived change folders already record; it accumulates monotonically (nothing

@@ -18,6 +18,8 @@ Distinct from generate mode (which *creates* files from source-code gaps), backf
 
 **Prose optimization** (260620-skop): skill content trimmed to remove re-explanation of partial-owned concepts (the `templates/memory.md` read + FKF frontmatter + no-`## Changelog` rule + shape bounds now stated once in ingest Step 3 and referenced from generate/backfill; refuse-before-regen guard and arg-classification reject strings compressed to pointers) and a `## Contents` TOC added; no behavioral change (Flow / Tools / Sub-agents unchanged).
 
+**Writer-contract additions** (260718-wrct): the body-authoring paths (ingest merge, ingest/generate create) gain the residual leak-class rules on top of present-truth: a **heading change-id ban** (a heading names its topic, never a change), a **post-body-edit `description:` re-check** (re-read the description after any body edit — one line, ≤500 chars, change-id-free), and a **rationale → Design Decisions** rule (any why / rejected alternative as a four-field `## Design Decisions` entry, never inline narration; the `- **{change-id} — retired X**` changelog-bullet shape banned inside `## Design Decisions`). A new **Step 3.5 post-hydrate self-check** in ingest and generate modes (before the Step 4 regen) re-reads the files written *this run* and strips any transition phrasing / change-keyed delta paragraph / change-id heading reflexively introduced, confirming descriptions still route — a self-review of this run's writes, not a corpus sweep. **Backfill mode is exempt** from both the §3.3 body rules and the Step 3.5 self-check (its body-preserving contract forbids body edits); backfill applies only the change-id-free `description:` rule of §3.2. The cited FKF §3.3 rules are amended identically in `docs/specs/fkf.md` and `src/kit/reference/fkf.md`. No Flow/Tools/Sub-agents change beyond the added Step 3.5 in ingest/generate.
+
 **Present-truth authoring** (260717-3plm): all authoring paths now follow the FKF present-truth body-style rule (§3.3, amended by this change) and the no-change-ids-in-`description:` clarification (§3.2). Ingest's **merge into an existing file** (Step 3 item 4) rewrites the affected section to **current truth** rather than appending a change-keyed delta — superseded statements are removed, not narrated (no "renamed X→Y in {id}", "was `old.value`"); body provenance is citation-only (trailing `(change-id)` / `*Introduced by*`). Every authored `description:` (ingest create/merge, generate, backfill synthesis) is **free of change-ids** — a routing signal, not a provenance record; provenance citations live in the body. Generate/ingest bodies are written in present tense (no transition narration). Backfill stays body-preserving (it authors only frontmatter, so the change-id-free description rule is the only present-truth rule it applies). No Flow/Tools/Sub-agents change.
 
 ## Flow
@@ -33,8 +35,11 @@ User invokes /docs-hydrate-memory [sources...|folders...|backfill]   (or /docs-r
 │  ├─ Read: $(fab kit-path)/templates/memory.md (canonical shape, on demand)
 │  ├─ (identify domains and topics)
 │  ├─ Write: docs/memory/{domain}/{file}.md (from template: FKF frontmatter
-│  │         type: memory + description:; no ## Changelog; bundle-relative /... links)
+│  │         type: memory + description:; no ## Changelog; bundle-relative /... links;
+│  │         headings carry no change-ids; why → 4-field Design Decisions, not narration)
 │  ├─ Write: new domain/sub-domain index.md stubs (description: only, before memory-index)
+│  ├─ Self-check (Step 3.5, files touched this run): strip any transition phrasing /
+│  │         change-id heading just introduced; descriptions still route
 │  └─ Bash: fab memory-index --check (refuse-before-regen: refuse on exit 2; no-op on
 │           born-compatible trees) → fab memory-index (regenerates root, domain, sub-domain indexes)
 │
@@ -43,12 +48,15 @@ User invokes /docs-hydrate-memory [sources...|folders...|backfill]   (or /docs-r
 │  ├─ Read: $(fab kit-path)/templates/memory.md (canonical shape, on demand)
 │  ├─ (interactive: present gap report)
 │  ├─ Write: docs/memory/{domain}/{file}.md (from template: FKF frontmatter
-│  │         type: memory + description:; no ## Changelog; bundle-relative /... links)
+│  │         type: memory + description:; no ## Changelog; bundle-relative /... links;
+│  │         headings carry no change-ids; why → 4-field Design Decisions, not narration)
 │  ├─ Write: new domain/sub-domain index.md stubs (description: only, before memory-index)
+│  ├─ Self-check (Step 3.5, files generated this run): strip any transition phrasing /
+│  │         change-id heading just introduced; descriptions still route
 │  └─ Bash: fab memory-index --check (refuse-before-regen: refuse on exit 2; no-op on
 │           born-compatible trees) → fab memory-index (regenerates root, domain, sub-domain indexes)
 │
-└── Backfill Mode (backfill keyword / reorg dispatch) ───
+└── Backfill Mode (backfill keyword / reorg dispatch — body-preserving, no self-check) ───
    ├─ Glob/Read: re-scan docs/memory/ itself (no caller manifest) for topic files missing description:
    ├─ Read: each file's own content (+ matching curated index row if any)
    ├─ Read: $(fab kit-path)/templates/memory.md — FRONTMATTER SHAPE ONLY (not the body skeleton)

@@ -83,7 +83,12 @@
        ### Non-Goals
        Each entry: - {what is excluded} — {brief reason, if not obvious}
        ### Design Decisions
-       Each entry: 1. **{Decision}**: {approach} — *Why*: {rationale} — *Rejected*: {alternative}
+       Each entry uses the four-field shape (matching the memory ## Design Decisions
+       shape, FKF §3.3, so hydrate lifts it into memory without reshaping):
+         **Decision**: {approach}
+         **Why**: {rationale}
+         **Rejected**: {alternative and why it was worse}
+         *Introduced by*: {change-name}
        ### Deprecated Requirements
        Include only when this change removes existing requirements. Each entry:
          #### {Requirement Name}

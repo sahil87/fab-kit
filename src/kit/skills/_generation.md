@@ -79,9 +79,11 @@ metadata:
      RFC 2119 requirement statements (MUST, SHALL, SHOULD, MAY), each with a stable `R#` ID and at
      least one GIVEN/WHEN/THEN scenario.
    - Include a `### Non-Goals` subsection (optional) for meaningful scope exclusions; a
-     `### Design Decisions` subsection (optional) for architectural choices (summary + rationale +
-     rejected alternatives); and a `### Deprecated Requirements` subsection if the change removes
-     existing requirements.
+     `### Design Decisions` subsection (optional) for architectural choices — each entry in the
+     **four-field shape** (**Decision** / **Why** / **Rejected** / *Introduced by*) matching the
+     memory `## Design Decisions` entry shape (FKF §3.3), so hydrate's pattern capture can lift a
+     plan DD entry into memory DD without reshaping; and a `### Deprecated Requirements` subsection
+     if the change removes existing requirements.
    - **No `[NEEDS CLARIFICATION]` markers.** Those are an intake-only construct (a human still needs
      to decide). An under-specified requirement encountered here is resolved inline as a graded SRAD
      assumption (Certain/Confident/Tentative) recorded in the plan's `## Assumptions` section — not

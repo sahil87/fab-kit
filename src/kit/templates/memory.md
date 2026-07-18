@@ -24,9 +24,24 @@ description: "{One-line summary used by the generated domain-index row — ≤50
      inverts {id}'s claim", "was `old.value`"), and NEVER describe superseded behavior
      — the previous state lives in `log.md`, git history, and archived change folders.
      Provenance in the body is citation-only: a trailing `(change-id)` and the
-     `*Introduced by*: {change-name}` field on a Design Decision (kept below). Rationale
-     is NOT narration — Design Decisions' Why/Rejected stay as durable present-tense
-     intent. Strip these guidance comments on fill. -->
+     `*Introduced by*: {change-name}` field on a Design Decision (kept below).
+
+     HEADINGS CARRY NO CHANGE-IDS — a heading names its topic (`## Dispatch States`),
+     never a change (`### Dispatch States (xu0k)`); change-ids stay citation-only in
+     body text.
+
+     NO OPERATIONAL TODOs — follow-up work items (TODOs, "still needs X", next-step
+     checklists) belong in the backlog (`fab/backlog.md`) or the change folder, never a
+     memory body. A body states what IS, not what remains to be done.
+
+     RATIONALE → DESIGN DECISIONS — any why / rejected alternative / constraint goes into
+     a `## Design Decisions` entry in the four-field shape (Decision / Why / Rejected /
+     *Introduced by*, kept below), never inline narration. Rationale is NOT narration —
+     Why/Rejected stay durable present-tense intent. The changelog-bullet shape
+     (`- **{change-id} — retired X**`) is BANNED inside Design Decisions — that is change
+     history (`log.md`'s job, §6), not a decision; a DD heading is a decision title.
+
+     Strip these guidance comments on fill. -->
 
 ## Overview
 <!-- 1-2 sentences describing what this file covers. -->

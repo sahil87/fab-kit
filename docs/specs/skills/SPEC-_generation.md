@@ -8,6 +8,8 @@ This is an internal partial (`user-invocable: false`) — never invoked directly
 
 **Prose optimization** (260620-skop): a `## Contents` TOC added to `_generation.md` (structural check, file >100 lines); no prose trimmed and no behavioral change (Flow unchanged).
 
+**Plan Design-Decisions entry shape** (260718-wrct): the Plan Generation Procedure's optional `### Design Decisions` subsection is aligned to the **four-field entry shape** (**Decision** / **Why** / **Rejected** / *Introduced by*), matching the memory `## Design Decisions` shape (FKF §3.3) so hydrate's pattern capture lifts a plan DD entry into memory DD without reshaping. `_generation.md` holds no memory-writing procedure, so this is its only touchpoint for the wrct writer-contract effort. No Flow change.
+
 ## Flow
 
 ```
