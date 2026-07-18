@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "`/docs-hydrate-specs` skill — structural gap detection between memory and specs, interactive propose-then-apply (incl. the no-target new-spec-file branch and aligned prompt/handler tokens — d9rs)"
+description: "`/docs-hydrate-specs` skill — structural gap detection between memory and specs, interactive propose-then-apply, incl. the no-target new-spec-file branch and aligned prompt/handler tokens"
 ---
 # Hydrate Specs
 
@@ -24,11 +24,11 @@ Output SHALL be capped at 3 gaps, ranked by impact: core behavioral rules and ke
 
 Each gap SHALL show the exact markdown that would be inserted, the source memory file, and the target spec file. The user confirms (yes), rejects (no), or stops (done) for each gap. Only confirmed additions are written.
 
-**Prompt/handler token alignment (d9rs)**: the Step 6 handler accepts exactly the tokens the Step 5 prompt offers — `yes` / `no` / `done` — with `skip rest` defined as an alias for `done`. Before d9rs the handler handled a "skip rest" token the prompt never offered.
+**Prompt/handler token alignment (d9rs)**: the Step 6 handler accepts exactly the tokens the Step 5 prompt offers — `yes` / `no` / `done` — with `skip rest` defined as an alias for `done`.
 
 ### Requirement: No-Target Branch (New Spec File)
 
-When no existing spec file is a suitable home for a gap, the proposal SHALL target a **new** spec file instead — `**Target**: docs/specs/{kebab-topic}.md (new file)` — with the preview showing the full proposed file content, matching sibling specs' tone. The same per-gap confirmation gates it; on `yes` the skill creates the proposed file and adds its row to `docs/specs/index.md` (the one index edit this skill makes). Specs stay human-curated (Constitution VI). Before d9rs, Step 5 had no branch for a gap with no suitable target.
+When no existing spec file is a suitable home for a gap, the proposal SHALL target a **new** spec file instead — `**Target**: docs/specs/{kebab-topic}.md (new file)` — with the preview showing the full proposed file content, matching sibling specs' tone. The same per-gap confirmation gates it; on `yes` the skill creates the proposed file and adds its row to `docs/specs/index.md` (the one index edit this skill makes). Specs stay human-curated (Constitution VI).
 
 ### Requirement: No Active Change Required
 
