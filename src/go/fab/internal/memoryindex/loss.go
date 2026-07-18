@@ -79,21 +79,51 @@ type MalformedFinding struct {
 	Detail string `json:"detail,omitempty"`
 }
 
+// WarningFinding is one ADVISORY warning surfaced by `--check --json` (the
+// machine surface [dsrx]'s survey/reorg extensions consume instead of parsing
+// stderr). It carries the advisory kinds only — narration density, file size,
+// _unsorted staging, and broken links; the BLOCKING kinds ride the Malformed
+// array instead. Additive to the `tier`/`drift`/`losses`/`malformed` contract —
+// existing consumers ignore it, and it never affects the exit code.
+type WarningFinding struct {
+	// Kind is the advisory Warning kind (KindNarrationDensity / KindFileSize /
+	// KindUnsorted / KindBrokenLink).
+	Kind string `json:"kind"`
+	// Path is the repo-relative folder/file the finding is about.
+	Path string `json:"path"`
+	// Count is the finding's numeric measure (marker count / line count /
+	// staged-file count); 0 when the kind carries no count (broken-link).
+	Count int `json:"count"`
+	// Bytes is the observed byte size for KindFileSize (so a byte-bound-only trip
+	// — over 15KB but under the line cap — is explicable in JSON rather than
+	// showing an under-cap line Count with no reason for the finding); 0 for
+	// every other kind. Omitted from JSON when 0.
+	Bytes int `json:"bytes,omitempty"`
+	// Detail is the broken-link target for KindBrokenLink; "" otherwise.
+	Detail string `json:"detail,omitempty"`
+}
+
 // LossReport is the full classification of a --check run. It is the value
 // emitted by `--check --json` and the source of the exit code.
 type LossReport struct {
 	// Tier is the highest INDEX-DRIFT severity found (0/1/2). Unchanged by the
-	// malformed-frontmatter class — corruption is reported in Malformed below.
+	// blocking-frontmatter class — corruption/escalations are in Malformed below.
 	Tier Tier `json:"tier"`
 	// Drift is true when any index file differs from its regenerated form
 	// (true for tier 1 and tier 2; tier 2 is a strict subset of drift).
 	Drift bool `json:"drift"`
 	// Losses enumerates every destructive-loss finding (empty unless tier 2).
 	Losses []Loss `json:"losses"`
-	// Malformed enumerates malformed-frontmatter findings (source corruption).
-	// Additive to the `tier`/`drift`/`losses` contract — existing consumers
-	// ignore it. Non-empty ⇒ `--check` blocks (exit ≥ 1) regardless of Tier.
+	// Malformed enumerates the BLOCKING findings (malformed frontmatter +
+	// the two description escalations — registry-gated change-id, gross
+	// over-cap). Additive to the `tier`/`drift`/`losses` contract — existing
+	// consumers ignore it. Non-empty ⇒ `--check` blocks (exit ≥ 1) regardless
+	// of Tier. The JSON key stays `malformed` for consumer compatibility even
+	// though the internal blocking set is now broader than pure corruption.
 	Malformed []MalformedFinding `json:"malformed"`
+	// Warnings enumerates the ADVISORY findings (density / size / _unsorted /
+	// broken links). Additive; never affects the exit code. Empty-never-null.
+	Warnings []WarningFinding `json:"warnings"`
 }
 
 // CheckTarget is one index file's comparison inputs: its repo-relative path,
@@ -129,11 +159,12 @@ type CheckTarget struct {
 // relative path (folder or file) exists on disk — supplied by the cmd so this
 // function stays pure. The highest tier across all targets wins.
 func Classify(targets []CheckTarget, memExists func(relPath string) bool) LossReport {
-	// Losses / Malformed are initialized non-nil so the --json shape is always
-	// `"losses": []` / `"malformed": []` (not `null`), matching the contract.
-	// Malformed is populated by the cmd (from the gathered warnings) after
-	// Classify — it is a source-corruption class, not an index-drift finding.
-	report := LossReport{Tier: TierClean, Losses: []Loss{}, Malformed: []MalformedFinding{}}
+	// Losses / Malformed / Warnings are initialized non-nil so the --json shape
+	// is always `"losses": []` / `"malformed": []` / `"warnings": []` (not
+	// `null`), matching the contract. Malformed and Warnings are populated by the
+	// cmd (from the gathered warnings) after Classify — they are source/advisory
+	// classes, not index-drift findings.
+	report := LossReport{Tier: TierClean, Losses: []Loss{}, Malformed: []MalformedFinding{}, Warnings: []WarningFinding{}}
 
 	for _, t := range targets {
 		if t.Existing == t.Rendered {

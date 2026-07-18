@@ -1,0 +1,16 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-18T13:16:22Z"}
+{"args":"mxgu — Change A: fab memory-index guards for FKF present-truth debt (escalate description guards to blocking, new advisory warnings: narration density / file size / _unsorted, broken memory-link detection)","cmd":"fab-new","event":"command","ts":"2026-07-18T13:16:22Z"}
+{"delta":"+4.2","event":"confidence","score":4.2,"trigger":"calc-score","ts":"2026-07-18T13:18:59Z"}
+{"delta":"+0.0","event":"confidence","score":4.2,"trigger":"calc-score","ts":"2026-07-18T13:19:22Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-18T13:22:11Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-18T13:22:48Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-18T13:46:18Z"}
+{"event":"review","result":"failed","ts":"2026-07-18T14:10:19Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-18T14:10:19Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-18T14:20:09Z"}
+{"event":"review","result":"failed","ts":"2026-07-18T14:30:02Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-18T14:30:02Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-18T14:32:45Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-18T14:37:39Z"}
+{"event":"review","result":"passed","ts":"2026-07-18T14:37:39Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-18T14:47:46Z"}

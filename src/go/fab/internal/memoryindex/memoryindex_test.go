@@ -374,8 +374,8 @@ func TestGather_CleanTree_NoMalformedOrLengthWarnings(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, w := range warnings {
-		if w.IsMalformed() || w.Kind == KindDescriptionLength {
-			t.Errorf("clean tree must emit no malformed/length warning, got %+v", w)
+		if w.IsBlocking() || w.Kind == KindDescriptionLength {
+			t.Errorf("clean tree must emit no blocking/length warning, got %+v", w)
 		}
 	}
 }
@@ -603,6 +603,377 @@ func TestGather_SubDomainRenderIdempotent(t *testing.T) {
 	}
 	if RenderDomain(domains[0]) != RenderDomain(domains2[0]) {
 		t.Error("re-gathering the same tree produced a different parent render")
+	}
+}
+
+// --- mxgu guards: description escalations + advisory body meters -----------
+
+// registerFixtureChange writes a minimal .status.yaml so gatherChangeRegistry
+// registers `id` (folder name YYMMDD-id-slug), letting the registry-gated
+// change-id scans resolve in a Gather over repo. Gather derives fabRoot as
+// repo/fab, so the change lives under repo/fab/changes/.
+func registerFixtureChange(t *testing.T, repo, folder string) {
+	t.Helper()
+	writeFile(t, repo, "fab/changes/"+folder+"/.status.yaml",
+		"id: "+strings.SplitN(folder, "-", 3)[1]+"\nname: "+folder+"\n")
+}
+
+// TestGather_DescriptionChangeID_Blocking pins R1: a registry-matched change-id
+// in a description is a BLOCKING finding (IsBlocking), naming the file + matched
+// id; a non-registered 4-char token never fires (registry-gated).
+func TestGather_DescriptionChangeID_Blocking(t *testing.T) {
+	repo := t.TempDir()
+	registerFixtureChange(t, repo, "260715-xu0k-some-change")
+	// Topic file whose description cites the registered id xu0k (banned §3.2 shape).
+	writeFile(t, repo, "docs/memory/runtime/dispatch.md",
+		"---\ndescription: \"Dispatch runtime — see (xu0k)\"\n---\n# Dispatch\n")
+	// Control: a description mentioning "code" / "yaml" (not registered) → no hit.
+	writeFile(t, repo, "docs/memory/runtime/config.md",
+		"---\ndescription: \"config in yaml and code\"\n---\n# Config\n")
+
+	_, _, warnings, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hits := warningsByKind(warnings, KindDescriptionChangeID)
+	if len(hits) != 1 || hits[0].Path != "docs/memory/runtime/dispatch.md" {
+		t.Fatalf("expected exactly one change-id blocking finding for dispatch.md, got %+v", hits)
+	}
+	if !strings.Contains(hits[0].Detail, "xu0k") {
+		t.Errorf("change-id finding should carry the matched id, got %q", hits[0].Detail)
+	}
+	if !hits[0].IsBlocking() {
+		t.Error("change-id-in-description must be a BLOCKING finding")
+	}
+}
+
+// TestGather_DescriptionChangeID_IndexStub confirms the blocking change-id check
+// also covers domain/sub-domain index.md stubs (same scope as malformed checks).
+func TestGather_DescriptionChangeID_IndexStub(t *testing.T) {
+	repo := t.TempDir()
+	registerFixtureChange(t, repo, "260401-bbbb-live")
+	writeFile(t, repo, "docs/memory/auth/login.md",
+		"---\ndescription: \"clean\"\n---\n# Login\n")
+	writeFile(t, repo, "docs/memory/auth/index.md",
+		"---\ndescription: \"Auth domain — bbbb\"\n---\n# Auth Documentation\n")
+
+	_, _, warnings, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hits := warningsByKind(warnings, KindDescriptionChangeID)
+	if len(hits) != 1 || hits[0].Path != "docs/memory/auth/index.md" {
+		t.Fatalf("expected a change-id finding on the index.md stub, got %+v", hits)
+	}
+}
+
+// TestGather_DescriptionOverCap_Boundary pins R2: > 1000 runes BLOCKS
+// (KindDescriptionOverCap), 1000 exactly stays advisory (KindDescriptionLength),
+// and the two are mutually exclusive (a >1000 file is not double-reported).
+func TestGather_DescriptionOverCap_Boundary(t *testing.T) {
+	repo := t.TempDir()
+	over := strings.Repeat("é", DescriptionBlockingLenThreshold+1) // 1001 runes → BLOCKS
+	atCap := strings.Repeat("a", DescriptionBlockingLenThreshold)  // exactly 1000 → advisory
+	writeFile(t, repo, "docs/memory/big/over.md",
+		"---\ndescription: \""+over+"\"\n---\n# Over\n")
+	writeFile(t, repo, "docs/memory/big/atcap.md",
+		"---\ndescription: \""+atCap+"\"\n---\n# AtCap\n")
+
+	_, _, warnings, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	overWarns := warningsByKind(warnings, KindDescriptionOverCap)
+	if len(overWarns) != 1 || overWarns[0].Path != "docs/memory/big/over.md" {
+		t.Fatalf("expected one over-cap blocking finding for over.md, got %+v", overWarns)
+	}
+	if overWarns[0].Count != DescriptionBlockingLenThreshold+1 {
+		t.Errorf("over-cap finding should carry the rune count %d, got %d", DescriptionBlockingLenThreshold+1, overWarns[0].Count)
+	}
+	if !overWarns[0].IsBlocking() {
+		t.Error("gross over-cap must be a BLOCKING finding")
+	}
+	// The 1000-rune file is advisory (over 500), NOT blocking, and NOT double-reported.
+	lenWarns := warningsByKind(warnings, KindDescriptionLength)
+	if len(lenWarns) != 1 || lenWarns[0].Path != "docs/memory/big/atcap.md" {
+		t.Fatalf("expected one advisory length warning for atcap.md, got %+v", lenWarns)
+	}
+	for _, w := range warnings {
+		if w.Path == "docs/memory/big/over.md" && w.Kind == KindDescriptionLength {
+			t.Error("a >1000-rune description must not ALSO emit the advisory length warning")
+		}
+	}
+}
+
+// TestGather_NarrationDensity_Boundary pins R4: fires at exactly 5 markers
+// (stems + registry-gated change-id tokens), not at 4; advisory (not blocking).
+func TestGather_NarrationDensity_Boundary(t *testing.T) {
+	repo := t.TempDir()
+	registerFixtureChange(t, repo, "260101-abcd-one")
+	// 3 stem hits + 2 change-id tokens = 5 → warns.
+	body5 := "# T\n\nThis was previously X and is no longer Y; it supersedes Z (abcd) again abcd.\n"
+	writeFile(t, repo, "docs/memory/dom/five.md",
+		"---\ndescription: \"clean\"\n---\n"+body5)
+	// 4 markers (3 stems + 1 id) → does NOT warn.
+	body4 := "# T\n\npreviously A, no longer B, this supersedes C (abcd).\n"
+	writeFile(t, repo, "docs/memory/dom/four.md",
+		"---\ndescription: \"clean\"\n---\n"+body4)
+
+	_, _, warnings, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hits := warningsByKind(warnings, KindNarrationDensity)
+	if len(hits) != 1 || hits[0].Path != "docs/memory/dom/five.md" {
+		t.Fatalf("narration warning should fire only on the 5-marker file, got %+v", hits)
+	}
+	if hits[0].Count < NarrationMarkerWarnThreshold {
+		t.Errorf("narration finding should report count ≥ %d, got %d", NarrationMarkerWarnThreshold, hits[0].Count)
+	}
+	if hits[0].IsBlocking() {
+		t.Error("narration density must be ADVISORY, not blocking")
+	}
+}
+
+// TestGather_NarrationStemsCaseInsensitive confirms the stems match
+// case-insensitively and that "supersed" covers the -e/-ed/-es family.
+func TestGather_NarrationStemsCaseInsensitive(t *testing.T) {
+	repo := t.TempDir()
+	body := "# T\n\nPREVIOUSLY, Renamed, No Longer, Supersede, superseded, SUPERSEDES.\n"
+	writeFile(t, repo, "docs/memory/dom/topic.md",
+		"---\ndescription: \"clean\"\n---\n"+body)
+	_, _, warnings, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// previously(1) + renamed(1) + no longer(1) + supersed×3 = 6 ≥ 5 → warns.
+	if len(warningsByKind(warnings, KindNarrationDensity)) != 1 {
+		t.Errorf("case-insensitive stems should total ≥5 and warn, got %+v", warnings)
+	}
+}
+
+// TestGather_FileSize_LineAndByteBounds pins R5: either bound (>400 lines OR
+// >15KB) trips the advisory size warning; a small file does not. The reported
+// line count matches `wc -l` (the newline-byte count) — no phantom +1 on a
+// trailing-newline file.
+func TestGather_FileSize_LineAndByteBounds(t *testing.T) {
+	repo := t.TempDir()
+	// Exactly FileSizeLineWarnThreshold+1 newline bytes (== wc -l), small bytes →
+	// the minimal line-bound trip. A trailing-newline file must NOT be
+	// over-counted: the reported Count must equal the newline count, not +1.
+	wantLines := FileSizeLineWarnThreshold + 1
+	manyLines := strings.Repeat("x\n", wantLines) // ends in "\n" → wc -l == wantLines
+	writeFile(t, repo, "docs/memory/dom/lines.md", manyLines)
+	// Few lines, > 15KB → byte bound.
+	bigBytes := "---\ndescription: \"d\"\n---\n# T\n" + strings.Repeat("x", FileSizeByteWarnThreshold+1)
+	writeFile(t, repo, "docs/memory/dom/bytes.md", bigBytes)
+	// Small file → no warning.
+	writeFile(t, repo, "docs/memory/dom/small.md", "---\ndescription: \"d\"\n---\n# T\n")
+
+	_, _, warnings, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sizeWarns := warningsByKind(warnings, KindFileSize)
+	got := map[string]Warning{}
+	for _, w := range sizeWarns {
+		got[w.Path] = w
+		if w.IsBlocking() {
+			t.Error("file-size must be ADVISORY, not blocking")
+		}
+	}
+	linesW, okLines := got["docs/memory/dom/lines.md"]
+	if !okLines {
+		t.Errorf("the line-heavy file should warn, got %+v", sizeWarns)
+	} else if linesW.Count != wantLines {
+		// wc -l semantics: a trailing-newline file reports exactly the newline
+		// count (the former `Count("\n")+1` reported wantLines+1 here).
+		t.Errorf("reported line count must match wc -l (%d), got %d", wantLines, linesW.Count)
+	}
+	if _, ok := got["docs/memory/dom/bytes.md"]; !ok {
+		t.Errorf("the byte-heavy file should warn, got %+v", sizeWarns)
+	}
+	if _, ok := got["docs/memory/dom/small.md"]; ok {
+		t.Error("a small file must not emit a size warning")
+	}
+}
+
+// TestGather_UnsortedNonEmpty pins R6: a non-empty _unsorted/ warns (advisory,
+// reporting the topic-file count) while keeping its width exemption.
+func TestGather_UnsortedNonEmpty(t *testing.T) {
+	repo := t.TempDir()
+	for i := 0; i < 4; i++ {
+		writeFile(t, repo, "docs/memory/_unsorted/note"+string(rune('a'+i))+".md",
+			"---\ndescription: \"d\"\n---\n# N\n")
+	}
+	_, _, warnings, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hits := warningsByKind(warnings, KindUnsorted)
+	if len(hits) != 1 || hits[0].Path != "docs/memory/_unsorted" || hits[0].Count != 4 {
+		t.Fatalf("expected one _unsorted warning naming the folder + count 4, got %+v", hits)
+	}
+	if hits[0].IsBlocking() {
+		t.Error("_unsorted presence must be ADVISORY")
+	}
+	// _unsorted keeps its width exemption — no width warning even at 4>… (well
+	// under 12 here) and none even when over-wide (reservedDomains covers it).
+	for _, w := range warnings {
+		if w.Kind == KindWidth && w.Path == "docs/memory/_unsorted" {
+			t.Error("_unsorted must stay width-exempt")
+		}
+	}
+}
+
+// TestGather_UnsortedEmpty_NoWarning confirms an empty (or absent) _unsorted
+// emits no staging warning.
+func TestGather_UnsortedEmpty_NoWarning(t *testing.T) {
+	repo := t.TempDir()
+	writeFile(t, repo, "docs/memory/dom/topic.md", "---\ndescription: \"d\"\n---\n# T\n")
+	_, _, warnings, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warningsByKind(warnings, KindUnsorted)) != 0 {
+		t.Errorf("no _unsorted folder → no staging warning, got %+v", warnings)
+	}
+}
+
+// TestGather_BrokenLink_FiresAndSkipsFences pins R7: a broken bundle-relative
+// link warns (naming source + target), a resolvable one does not, and a link
+// inside a fenced code block is skipped (documentation example, not a live link).
+func TestGather_BrokenLink_FiresAndSkipsFences(t *testing.T) {
+	repo := t.TempDir()
+	// A real target on disk so the resolvable link does NOT warn.
+	writeFile(t, repo, "docs/memory/runtime/dispatch.md", "---\ndescription: \"d\"\n---\n# Dispatch\n")
+	body := "# Schemas\n\n" +
+		"See [dispatch](/runtime/dispatch.md) — resolves.\n" +
+		"Also [typo](/runtime/dispach.md) — broken.\n" +
+		"A format example `[base](/{domain}/base.md)` in an inline code span — skipped.\n" +
+		"```\n" +
+		"example link ](/{domain}/base.md) inside a code fence — must be skipped\n" +
+		"```\n"
+	writeFile(t, repo, "docs/memory/pipeline/schemas.md",
+		"---\ndescription: \"d\"\n---\n"+body)
+
+	_, _, warnings, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hits := warningsByKind(warnings, KindBrokenLink)
+	if len(hits) != 1 {
+		t.Fatalf("expected exactly one broken-link warning (fenced example skipped, resolvable link ok), got %+v", hits)
+	}
+	if hits[0].Detail != "/runtime/dispach.md" || hits[0].Path != "docs/memory/pipeline/schemas.md" {
+		t.Errorf("broken-link warning should name source + target, got %+v", hits[0])
+	}
+	if hits[0].IsBlocking() {
+		t.Error("broken-link must be ADVISORY")
+	}
+}
+
+// TestGather_BrokenLink_AnchorAndExternalScope confirms a #anchor is stripped
+// before the on-disk resolve, and external/repo-relative links are out of scope.
+func TestGather_BrokenLink_AnchorAndExternalScope(t *testing.T) {
+	repo := t.TempDir()
+	writeFile(t, repo, "docs/memory/runtime/dispatch.md", "---\ndescription: \"d\"\n---\n# Dispatch\n")
+	body := "# T\n\n" +
+		"[anchored](/runtime/dispatch.md#section) — resolves (anchor stripped).\n" +
+		"[external](https://example.com/x.md) — out of scope.\n" +
+		"[repo-rel](../../specs/index.md) — out of scope (not /-prefixed).\n"
+	writeFile(t, repo, "docs/memory/dom/topic.md", "---\ndescription: \"d\"\n---\n"+body)
+	_, _, warnings, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warningsByKind(warnings, KindBrokenLink)) != 0 {
+		t.Errorf("anchored-but-resolvable + external + repo-relative links must not warn, got %+v", warnings)
+	}
+}
+
+// TestGather_NewGuards_ByteStability confirms none of the new findings changes
+// the rendered index output (byte-stability, intake #3): a tree with a change-id
+// description, an over-cap description, narration, size, and broken links renders
+// the same rows as a Gather that observed them.
+func TestGather_NewGuards_ByteStability(t *testing.T) {
+	repo := t.TempDir()
+	registerFixtureChange(t, repo, "260715-xu0k-x")
+	writeFile(t, repo, "docs/memory/dom/topic.md",
+		"---\ndescription: \"cites xu0k here\"\n---\n# Topic\n\nno longer previously renamed supersed xu0k\n[broken](/nope.md)\n")
+	writeFile(t, repo, "docs/memory/dom/index.md",
+		"---\ndescription: \"Dom domain\"\n---\n# Dom Documentation\n")
+
+	_, domains, warnings, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Findings fired (proving the pass ran), yet the row renders the description verbatim.
+	if len(warnings) == 0 {
+		t.Fatal("expected the new guards to fire on this tree")
+	}
+	out := RenderDomain(domains[0])
+	if !strings.Contains(out, "| [topic](topic.md) | cites xu0k here |") {
+		t.Errorf("the description must render verbatim into the row (byte-stability), got:\n%s", out)
+	}
+}
+
+// TestGather_NewGuards_CleanTreeSilent confirms a well-formed tree fires none of
+// the new blocking OR advisory guards (born-FKF shape).
+func TestGather_NewGuards_CleanTreeSilent(t *testing.T) {
+	repo := t.TempDir()
+	writeFile(t, repo, "docs/memory/auth/login.md",
+		"---\ndescription: \"Login flow\"\n---\n# Login\n\nA short present-tense topic file.\n")
+	writeFile(t, repo, "docs/memory/auth/index.md",
+		"---\ndescription: \"Auth domain\"\n---\n# Auth Documentation\n")
+	_, _, warnings, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range warnings {
+		switch w.Kind {
+		case KindDescriptionChangeID, KindDescriptionOverCap, KindNarrationDensity,
+			KindFileSize, KindUnsorted, KindBrokenLink:
+			t.Errorf("clean tree must emit no mxgu guard, got %+v", w)
+		}
+	}
+}
+
+// TestScanChangeIDs_GatingShapes unit-tests the shared scanner: it matches a full
+// folder-name token and a bare registered id, dedups, and rejects unregistered
+// tokens (including a coincidental slug whose folder does not match).
+func TestScanChangeIDs_GatingShapes(t *testing.T) {
+	reg := map[string]changeMeta{
+		"xu0k": {Folder: "260715-xu0k-some-change", Slug: "some-change"},
+		"bbbb": {Folder: "260401-bbbb-live", Slug: "live"},
+	}
+	// full folder token, bare id (twice → dedup), a bare unregistered word.
+	got := scanChangeIDs("see 260715-xu0k-some-change and (bbbb), yaml code bbbb", reg)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 unique ids (xu0k, bbbb), got %v", got)
+	}
+	// A folder token whose id is registered but folder mismatches must NOT match.
+	if ids := scanChangeIDs("260715-xu0k-different-slug", reg); len(ids) != 0 {
+		t.Errorf("a mismatched folder token must not resolve, got %v", ids)
+	}
+	// An unregistered 4-char token never matches (false-positive-freedom).
+	if ids := scanChangeIDs("code yaml this than with call", reg); len(ids) != 0 {
+		t.Errorf("unregistered tokens must not resolve, got %v", ids)
+	}
+	// A GLUED em-dash suffix `—xu0k` (no surrounding space) must still tokenize
+	// to the bare id — the banned §3.2 suffix shape can't escape by omitting the
+	// space (T024). The em-dash is U+2014, distinct from the ASCII hyphen.
+	if ids := scanChangeIDs("Dispatch runtime—xu0k", reg); len(ids) != 1 || ids[0] != "xu0k" {
+		t.Errorf("a glued —xu0k suffix must resolve, got %v", ids)
+	}
+	// A bolded markdown citation `**xu0k**` must tokenize cleanly (the `*` split).
+	if ids := scanChangeIDs("see **xu0k** for detail", reg); len(ids) != 1 || ids[0] != "xu0k" {
+		t.Errorf("a bolded **xu0k** citation must resolve, got %v", ids)
+	}
+	// A full folder token glued to an em-dash still resolves (hyphens in the
+	// folder token survive — only the em-dash splits).
+	if ids := scanChangeIDs("intro—260715-xu0k-some-change—end", reg); len(ids) != 1 || ids[0] != "xu0k" {
+		t.Errorf("a full folder token bracketed by em-dashes must resolve, got %v", ids)
 	}
 }
 

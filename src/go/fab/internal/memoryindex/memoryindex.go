@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -54,6 +55,27 @@ const (
 	// WidthWarnThreshold) — NOT config-overridable in this change. Curated
 	// one-liner is FKF §3.2's intent; detail belongs in the file body.
 	DescriptionLenWarnThreshold = 500
+	// DescriptionBlockingLenThreshold is the BLOCKING upper bound on a
+	// `description:` value's rune length — 2× the advisory soft cap
+	// (DescriptionLenWarnThreshold). A description strictly longer than this
+	// FAILS `--check` (joins the blocking class), not merely nags: the 501–1000
+	// range keeps the advisory length warning; past 1000 the check blocks. The
+	// advisory-only posture demonstrably failed (33×/50× descriptions shipped
+	// straight through the nag — mxgu). Hardcoded shape-bound const, NOT config.
+	DescriptionBlockingLenThreshold = 1000
+	// NarrationMarkerWarnThreshold is the advisory threshold on a topic file's
+	// narration-marker count (transition stems + registry-gated change-id tokens
+	// in the body — the distillation-debt meter). A file reaching this count
+	// triggers an advisory warning. Hardcoded shape-bound const, NOT config.
+	NarrationMarkerWarnThreshold = 5
+	// FileSizeLineWarnThreshold is the advisory soft cap on a topic file's line
+	// count. A file strictly over this triggers an advisory size warning (the
+	// mega-file split signal). Hardcoded shape-bound const, NOT config.
+	FileSizeLineWarnThreshold = 400
+	// FileSizeByteWarnThreshold is the advisory soft cap on a topic file's byte
+	// size (15KB = 15×1024). A file strictly over this triggers the same
+	// advisory size warning (either bound trips it). Hardcoded const, NOT config.
+	FileSizeByteWarnThreshold = 15 * 1024
 )
 
 // Warning Kind values. The shape-bound kinds ("width"/"depth") are advisory;
@@ -78,20 +100,54 @@ const (
 	// DescriptionLenWarnThreshold characters. Advisory only — never blocks
 	// `--check` (the deliberate asymmetry: corruption blocks, over-length nags).
 	KindDescriptionLength = "description-length"
+	// KindDescriptionChangeID: a `description:` value carries a registry-gated
+	// change-id token (a full YYMMDD-XXXX-slug folder-name token or a bare
+	// registered 4-char id). BLOCKING — the FKF §3.2 change-id ban is now
+	// enforced. Descriptions are routing signals; citations belong in the body.
+	KindDescriptionChangeID = "description-change-id"
+	// KindDescriptionOverCap: a `description:` value exceeds
+	// DescriptionBlockingLenThreshold runes (2× the soft cap). BLOCKING — gross
+	// over-cap fails `--check` (the 501–1000 advisory nag demonstrably failed).
+	KindDescriptionOverCap = "description-over-cap"
+	// KindNarrationDensity: a topic file's narration-marker count (transition
+	// stems + registry-gated change-id tokens in the body) reaches
+	// NarrationMarkerWarnThreshold. ADVISORY — the standing distillation-debt
+	// meter (counts sanctioned citations too; density is the signal).
+	KindNarrationDensity = "narration-density"
+	// KindFileSize: a topic file exceeds FileSizeLineWarnThreshold lines OR
+	// FileSizeByteWarnThreshold bytes. ADVISORY — the mega-file split signal.
+	KindFileSize = "file-size"
+	// KindUnsorted: docs/memory/_unsorted/ holds ≥1 topic file. ADVISORY —
+	// staging should trend to empty (a presence signal, not a shape bound;
+	// _unsorted keeps its width exemption).
+	KindUnsorted = "unsorted-nonempty"
+	// KindBrokenLink: a bundle-relative `](/...)` link target in a topic file
+	// body does not resolve on disk under docs/memory/. ADVISORY — FKF §7 says
+	// consumers tolerate broken links; this is the author-side nag.
+	KindBrokenLink = "broken-link"
 )
 
-// malformedKinds is the set of Warning kinds that represent source-file
-// corruption the cmd's `--check` blocks on (as distinct from the advisory
-// shape/length warnings). Kept here so producer and consumer share one list.
-var malformedKinds = map[string]bool{
+// blockingKinds is the set of Warning kinds that FAIL the cmd's `--check`
+// (as distinct from the advisory shape/length/density/size warnings). It
+// generalizes the former malformed-frontmatter set: the two malformed
+// corruption kinds plus the two description escalations (registry-gated
+// change-id, gross over-cap). All four floor `--check` at exit 1 independent of
+// index drift and ride the additive `malformed` JSON array; none is a tier-2
+// destructive-loss category (exit 2 stays reserved), so the hydrate/reorg
+// refuse-before-regen guards (keyed on exit == 2) are unaffected. Kept here so
+// producer and consumer share one list.
+var blockingKinds = map[string]bool{
 	KindMalformedFence:       true,
 	KindMalformedDescription: true,
+	KindDescriptionChangeID:  true,
+	KindDescriptionOverCap:   true,
 }
 
-// IsMalformed reports whether w is a blocking malformed-frontmatter warning
-// (as opposed to an advisory width/depth/length warning). The cmd's `--check`
-// branch uses this to floor the exit code at 1 independent of the drift tier.
-func (w Warning) IsMalformed() bool { return malformedKinds[w.Kind] }
+// IsBlocking reports whether w is a blocking finding (malformed frontmatter or a
+// description escalation) as opposed to an advisory width/depth/length/density/
+// size/staging/link warning. The cmd's `--check` branch uses this to floor the
+// exit code at 1 independent of the drift tier.
+func (w Warning) IsBlocking() bool { return blockingKinds[w.Kind] }
 
 // reservedDomains are exempt from the width warning: cross-cutting and staging
 // buckets that are deliberately broad (loom convention).
@@ -148,17 +204,21 @@ type RootData struct {
 	Domains []DomainRow // sorted lexicographically by Name
 }
 
-// Warning is a non-fatal finding surfaced to stderr (and, for the malformed
+// Warning is a non-fatal finding surfaced to stderr (and, for the blocking
 // kinds, to the cmd's `--check` exit gate). String renders the stderr line.
-// Count is reused across kinds: file count (width) or description length
-// (description-length). Detail carries the offending frontmatter value for the
-// malformed-description kind.
+// Count is reused across kinds: file count (width), description rune length
+// (description-length / description-over-cap), narration-marker count
+// (narration-density), or line count (file-size). Bytes carries the byte size
+// (file-size). Detail carries the offending frontmatter value
+// (malformed-description), the matched change-id (description-change-id), or the
+// broken link target (broken-link).
 type Warning struct {
 	Path   string // repo-relative folder/file path the finding is about
 	Kind   string // one of the Kind* constants
-	Count  int    // file count (width) | description length (description-length)
+	Count  int    // file count (width) | description rune length | marker count | line count
 	Depth  int    // observed depth (depth) — 0 otherwise
-	Detail string // offending value (malformed-description) — "" otherwise
+	Bytes  int    // observed byte size (file-size) — 0 otherwise
+	Detail string // offending value / matched change-id / broken link target — "" otherwise
 }
 
 // String formats the warning line written to stderr.
@@ -176,6 +236,23 @@ func (w Warning) String() string {
 	case KindDescriptionLength:
 		return fmt.Sprintf("⚠ %s has a %d-character `description:` (soft cap: %d) — trim to a one-liner; detail belongs in the file body",
 			w.Path, w.Count, DescriptionLenWarnThreshold)
+	case KindDescriptionChangeID:
+		return fmt.Sprintf("✖ %s `description:` carries a change-id (registry match: %s) — descriptions are routing signals; move citations to the body (FKF §3.2)",
+			w.Path, w.Detail)
+	case KindDescriptionOverCap:
+		return fmt.Sprintf("✖ %s has a %d-character `description:` (blocking cap: %d, soft cap: %d) — trim to a one-liner; detail belongs in the file body",
+			w.Path, w.Count, DescriptionBlockingLenThreshold, DescriptionLenWarnThreshold)
+	case KindNarrationDensity:
+		return fmt.Sprintf("⚠ %s has %d narration markers (threshold: %d) — distillation debt; consider /docs-distill-memory",
+			w.Path, w.Count, NarrationMarkerWarnThreshold)
+	case KindFileSize:
+		return fmt.Sprintf("⚠ %s is %d lines / %dKB (soft cap: ~%d lines / ~%dKB) — consider splitting; see /docs-reorg-memory",
+			w.Path, w.Count, w.Bytes/1024, FileSizeLineWarnThreshold, FileSizeByteWarnThreshold/1024)
+	case KindUnsorted:
+		return fmt.Sprintf("⚠ %s holds %d staged file(s) — triage into domains (staging should trend to empty)",
+			w.Path, w.Count)
+	case KindBrokenLink:
+		return fmt.Sprintf("⚠ %s links to %s — target does not exist", w.Path, w.Detail)
 	default:
 		return fmt.Sprintf("⚠ %s", w.Path)
 	}
@@ -308,6 +385,16 @@ func Gather(repoRoot string) (RootData, []DomainData, []Warning, error) {
 				Count: len(files),
 			})
 		}
+		// _unsorted staging presence (advisory): staging should trend to empty,
+		// so ANY topic file present is the signal. _unsorted keeps its width
+		// exemption (above) — this is a presence signal, not a shape bound.
+		if domainName == "_unsorted" && len(files) > 0 {
+			warnings = append(warnings, Warning{
+				Path:  filepath.ToSlash(filepath.Join("docs", "memory", domainName)),
+				Kind:  KindUnsorted,
+				Count: len(files),
+			})
+		}
 		for _, sd := range subDomains {
 			if len(sd.Files) > WidthWarnThreshold {
 				warnings = append(warnings, Warning{
@@ -320,12 +407,20 @@ func Gather(repoRoot string) (RootData, []DomainData, []Warning, error) {
 		warnings = append(warnings, depthWarnings(memRoot, domainDir)...)
 	}
 
-	// Frontmatter validation + description-length warnings — a read-only pass
-	// over every topic file and every index.md stub read for a description. It
-	// never touches the rendered output (byte-stability, intake #3); it only
-	// produces stderr/exit-code warnings. Walked separately from the render
-	// gather so the render path stays untouched.
-	warnings = append(warnings, frontmatterWarnings(memRoot)...)
+	// Frontmatter validation + description/body/link/staging warnings — a
+	// read-only pass over every topic file and every index.md stub read for a
+	// description. It never touches the rendered output (byte-stability, intake
+	// #3); it only produces stderr/exit-code warnings. Walked separately from
+	// the render gather so the render path stays untouched. The change registry
+	// (fab/changes/* + archive/**) is gathered ONCE here and threaded into the
+	// pass so the registry-gated change-id checks (description blocking + body
+	// narration meter) resolve tokens without a per-file registry walk. fabRoot
+	// is derived from repoRoot the same way the cmd derives repoRoot from
+	// fabRoot (repoRoot = filepath.Dir(fabRoot)); a missing fab/changes yields an
+	// empty registry (gatherChangeRegistry degrades gracefully — no false
+	// change-id matches, exactly the born-FKF / test-tree case).
+	reg := gatherChangeRegistry(filepath.Join(repoRoot, "fab"))
+	warnings = append(warnings, frontmatterWarnings(memRoot, reg)...)
 
 	sort.Slice(domains, func(i, j int) bool { return domains[i].Name < domains[j].Name })
 	sort.Slice(root.Domains, func(i, j int) bool { return root.Domains[i].Name < root.Domains[j].Name })
@@ -333,7 +428,12 @@ func Gather(repoRoot string) (RootData, []DomainData, []Warning, error) {
 		if warnings[i].Path != warnings[j].Path {
 			return warnings[i].Path < warnings[j].Path
 		}
-		return warnings[i].Kind < warnings[j].Kind
+		if warnings[i].Kind != warnings[j].Kind {
+			return warnings[i].Kind < warnings[j].Kind
+		}
+		// Detail tiebreaks same-(path,kind) warnings (e.g. multiple broken links
+		// in one file) so the order is fully deterministic / byte-stable.
+		return warnings[i].Detail < warnings[j].Detail
 	})
 
 	return root, domains, warnings, nil
@@ -685,6 +785,76 @@ func attributeCommit(subject string, reg map[string]changeMeta) (string, bool) {
 	return "", false
 }
 
+// changeIDTokenSep splits text into candidate change-id tokens. It starts from
+// attributeCommit's delimiters (whitespace, slash, and the punctuation that
+// wraps the banned §3.2 shapes — parentheses `(d9rs)`, colons, the `— xu0k`
+// suffix's spaces) and adds the prose/markdown punctuation a body/description
+// scan sees but a commit-subject scan does not: `,` `[` `]` newline, plus
+// sentence terminators (`.` `;` `!` `?`), quotes/backtick (`"` `'` “ ` “), the
+// em-dash `—` itself (so a GLUED `—xu0k` suffix with no surrounding space still
+// splits — the banned §3.2 suffix shape), and `*` (so a bolded `**xu0k**`
+// markdown citation tokenizes cleanly) so a citation like `(d9rs).`,
+// `see abcd;`, “ `xu0k` “, `—xu0k`, or `**xu0k**` tokenizes cleanly. It
+// deliberately does NOT split on `-` — a full folder-name token
+// (YYMMDD-XXXX-slug) contains hyphens and must survive as one token (the
+// em-dash `—` U+2014 is a distinct rune from the ASCII hyphen `-` U+002D, so
+// splitting on it does not fragment folder tokens).
+func changeIDTokenSep(r rune) bool {
+	switch r {
+	case ' ', '/', '\t', '\n', '\r', '(', ')', ':', ',', '[', ']',
+		'.', ';', '!', '?', '"', '\'', '`', '—', '*':
+		return true
+	}
+	return false
+}
+
+// changeIDTokenID resolves a single candidate token to a registry-gated
+// change-id, or "" when it does not resolve. A token counts only in
+// attributeCommit's two gated shapes: a full YYMMDD-XXXX-slug folder-name token
+// whose registered folder matches (so a coincidental slug cannot mis-attribute),
+// or a bare registered 4-char id. False-positive-free — "code"/"yaml" and any
+// unregistered 4-char word never resolve.
+func changeIDTokenID(tok string, reg map[string]changeMeta) string {
+	if id, _ := extractIDSlug(tok); id != "" {
+		if meta, ok := reg[id]; ok && meta.Folder == tok {
+			return id
+		}
+	}
+	if _, ok := reg[tok]; ok {
+		return tok
+	}
+	return ""
+}
+
+// scanChangeIDs returns the registry-gated change-ids appearing in text,
+// DEDUPLICATED, in first-seen order — the set used by the `description:`
+// blocking check (which reports the matched id(s), so uniqueness is what matters).
+func scanChangeIDs(text string, reg map[string]changeMeta) []string {
+	var ids []string
+	seen := map[string]bool{}
+	for _, tok := range strings.FieldsFunc(text, changeIDTokenSep) {
+		if id := changeIDTokenID(tok, reg); id != "" && !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+// countChangeIDOccurrences returns the TOTAL number of registry-gated change-id
+// tokens in text (NOT deduplicated) — the density measure the narration-marker
+// meter needs (three citations of the same id are three provenance markers, not
+// one; the audit counts occurrences: run-kit 1,066, loom 2,121).
+func countChangeIDOccurrences(text string, reg map[string]changeMeta) int {
+	n := 0
+	for _, tok := range strings.FieldsFunc(text, changeIDTokenSep) {
+		if changeIDTokenID(tok, reg) != "" {
+			n++
+		}
+	}
+	return n
+}
+
 // LogTarget is one folder's rendered log.md: its path and content, built by
 // GatherLogs. The cmd appends these to its byte-stable write / --check loop.
 type LogTarget struct {
@@ -1008,15 +1178,22 @@ func depthWarnings(memRoot, domainDir string) []Warning {
 }
 
 // frontmatterWarnings walks docs/memory/ and returns, per .md file, the
-// malformed-frontmatter findings (via internal/frontmatter.Validate) and the
-// advisory over-length `description:` warning. It inspects BOTH topic files and
-// the domain/sub-domain index.md stubs read for descriptions (a corrupted
-// domain description mangles the root row exactly as a corrupted topic
-// description mangles a domain row — the same silent-garbage vector). log.md /
-// log.seed.md are generated/curated log inputs, never frontmatter-bearing
-// concept documents, so they are skipped. The pass is read-only and never
-// affects rendered output (byte-stability, intake #3).
-func frontmatterWarnings(memRoot string) []Warning {
+// blocking + advisory findings that need a read-only content pass. The pass is
+// read-only and never affects rendered output (byte-stability, intake #3):
+//
+//   - Description findings (both topic files AND domain/sub-domain index.md
+//     stubs — a corrupted/over-cap/change-id-laden domain description mangles
+//     the root row exactly as one on a topic file mangles a domain row):
+//     malformed-frontmatter (via internal/frontmatter.Validate), the blocking
+//     registry-gated change-id finding, and the length findings (advisory
+//     501–1000 vs. blocking gross over-cap > 1000, mutually exclusive).
+//   - Topic-file BODY findings (topic files only — index.md is a generated
+//     stub, never a concept document): narration-marker density, size, and
+//     broken bundle-relative links.
+//
+// log.md / log.seed.md are generated/curated log inputs, never concept
+// documents, so they are skipped entirely.
+func frontmatterWarnings(memRoot string, reg map[string]changeMeta) []Warning {
 	var out []Warning
 	_ = filepath.Walk(memRoot, func(p string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() || !strings.HasSuffix(p, ".md") {
@@ -1024,33 +1201,178 @@ func frontmatterWarnings(memRoot string) []Warning {
 		}
 		name := filepath.Base(p)
 		if name == "log.md" || name == seedFileName {
-			return nil // generated/curated log inputs — not frontmatter documents
-		}
-		// A file without an opening frontmatter fence is not a malformed
-		// document — index.md at the root deliberately carries no description
-		// stub in some trees, and a body-only topic file degrades gracefully.
-		if !frontmatter.HasFrontmatter(p) {
-			return nil
+			return nil // generated/curated log inputs — not concept documents
 		}
 		relPath := filepath.ToSlash(filepath.Join("docs", "memory", relOrBase(memRoot, p)))
+		isIndex := name == "index.md"
 
-		for _, f := range frontmatter.Validate(p) {
-			switch f.Kind {
-			case frontmatter.KindUnclosedFence:
-				out = append(out, Warning{Path: relPath, Kind: KindMalformedFence})
-			case frontmatter.KindQuoteStripFailure:
-				out = append(out, Warning{Path: relPath, Kind: KindMalformedDescription, Detail: f.Detail})
+		// Description findings — inspected on both topic files and index.md stubs,
+		// only when the file actually opens a frontmatter block (a body-only file
+		// degrades gracefully; the root index.md often carries no description stub).
+		if frontmatter.HasFrontmatter(p) {
+			for _, f := range frontmatter.Validate(p) {
+				switch f.Kind {
+				case frontmatter.KindUnclosedFence:
+					out = append(out, Warning{Path: relPath, Kind: KindMalformedFence})
+				case frontmatter.KindQuoteStripFailure:
+					out = append(out, Warning{Path: relPath, Kind: KindMalformedDescription, Detail: f.Detail})
+				}
+			}
+			if desc := frontmatter.Field(p, "description"); desc != "" {
+				// Blocking change-id in the description (registry-gated §3.2 ban).
+				if ids := scanChangeIDs(desc, reg); len(ids) > 0 {
+					out = append(out, Warning{Path: relPath, Kind: KindDescriptionChangeID, Detail: strings.Join(ids, ", ")})
+				}
+				// Length: gross over-cap (> 1000) BLOCKS; 501–1000 stays advisory —
+				// mutually exclusive so a >1000 description is not double-reported.
+				if n := utf8.RuneCountInString(desc); n > DescriptionBlockingLenThreshold {
+					out = append(out, Warning{Path: relPath, Kind: KindDescriptionOverCap, Count: n})
+				} else if n > DescriptionLenWarnThreshold {
+					out = append(out, Warning{Path: relPath, Kind: KindDescriptionLength, Count: n})
+				}
 			}
 		}
 
-		// Advisory over-length check on the (quote-stripped) description value.
-		if desc := frontmatter.Field(p, "description"); desc != "" {
-			if n := utf8.RuneCountInString(desc); n > DescriptionLenWarnThreshold {
-				out = append(out, Warning{Path: relPath, Kind: KindDescriptionLength, Count: n})
-			}
+		// Topic-file BODY findings — index.md is a generated stub, never scanned.
+		if !isIndex {
+			out = append(out, topicBodyWarnings(memRoot, p, relPath, reg)...)
 		}
 		return nil
 	})
+	return out
+}
+
+// topicBodyWarnings returns the advisory body findings for one topic file:
+// narration-marker density (transition stems + registry-gated change-id tokens,
+// fires at ≥ NarrationMarkerWarnThreshold), size (> line OR > byte cap), and
+// broken bundle-relative links (`](/...)` targets absent under docs/memory/,
+// skipping fenced code blocks). All advisory — none affects the exit code.
+// A file that cannot be read yields no findings (graceful degradation).
+func topicBodyWarnings(memRoot, p, relPath string, reg map[string]changeMeta) []Warning {
+	data, err := os.ReadFile(p)
+	if err != nil {
+		return nil
+	}
+	content := string(data)
+	body := stripFrontmatter(content)
+	var out []Warning
+
+	// Narration-marker density: case-insensitive transition-stem hits + the
+	// registry-gated change-id token OCCURRENCES in the body (the debt meter
+	// counts sanctioned citations too, and each occurrence — density is the
+	// signal, not violation; three cites of one id are three markers).
+	markers := countNarrationStems(body) + countChangeIDOccurrences(body, reg)
+	if markers >= NarrationMarkerWarnThreshold {
+		out = append(out, Warning{Path: relPath, Kind: KindNarrationDensity, Count: markers})
+	}
+
+	// Size: > line cap OR > byte cap (either bound). Line count matches `wc -l`
+	// (the count of newline bytes), so the reported metric agrees with what an
+	// author sees from `wc -l`; a final unterminated line adds 1 (as `wc -l`
+	// omits it, but a canonical memory file ends in a trailing newline). Byte
+	// size = file bytes.
+	nLines := strings.Count(content, "\n")
+	if len(content) > 0 && !strings.HasSuffix(content, "\n") {
+		nLines++ // count a trailing line with no terminating newline
+	}
+	if nLines > FileSizeLineWarnThreshold || len(data) > FileSizeByteWarnThreshold {
+		out = append(out, Warning{Path: relPath, Kind: KindFileSize, Count: nLines, Bytes: len(data)})
+	}
+
+	// Broken bundle-relative links: `](/...)` targets absent on disk under
+	// docs/memory/. Code-fenced examples are skipped (documentation, not links).
+	for _, tgt := range brokenBundleLinks(memRoot, body) {
+		out = append(out, Warning{Path: relPath, Kind: KindBrokenLink, Detail: tgt})
+	}
+	return out
+}
+
+// narrationStems are the case-insensitive transition-narration substrings the
+// density meter counts (FKF §3.3 "no transition narration"). "supersed" covers
+// supersede/superseded/supersedes.
+var narrationStems = []string{"no longer", "previously", "renamed", "supersed"}
+
+// countNarrationStems returns the total case-insensitive substring-hit count of
+// every narration stem in body.
+func countNarrationStems(body string) int {
+	lower := strings.ToLower(body)
+	total := 0
+	for _, s := range narrationStems {
+		total += strings.Count(lower, s)
+	}
+	return total
+}
+
+// stripFrontmatter returns content with a leading `---`-fenced YAML frontmatter
+// block removed (so body scans never count frontmatter tokens). A file without
+// a leading fence is returned unchanged.
+func stripFrontmatter(content string) string {
+	lines := strings.Split(content, "\n")
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return content
+	}
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(lines[i]) == "---" {
+			return strings.Join(lines[i+1:], "\n")
+		}
+	}
+	return content // unclosed fence → treat whole thing as body (malformed check owns it)
+}
+
+// bundleLinkPattern matches a markdown link whose target begins with `/` (a
+// bundle-relative memory↔memory link, FKF §7). Group 1 is the target.
+var bundleLinkPattern = regexp.MustCompile(`\]\((/[^)\s]+)\)`)
+
+// inlineCodeSpan matches a markdown inline code span (“ `…` “). Its content is
+// documentation shown verbatim (e.g. a log-line format example), never a live
+// link, so it is elided before link matching.
+var inlineCodeSpan = regexp.MustCompile("`[^`]*`")
+
+// brokenBundleLinks returns the bundle-relative link targets in body that do
+// NOT resolve on disk under memRoot, deduplicated in first-seen order. Only
+// `/`-prefixed targets are checked (repo-relative and external links are out of
+// scope — no false positives on links out of the bundle). Both FENCED code
+// blocks (``` ``` ```) and INLINE code spans (“ `…` “) are skipped: this repo's
+// own memory docs carry illustrative link-format examples like
+// “ `[base](/{domain}[/{sub}]/base.md)` “ and “ `](/bundle/rel.md)` “ inside
+// code markup that are not live links (FKF §7 says consumers tolerate broken
+// links; this is the author-side nag, not a literal-example linter). A trailing
+// `#anchor` is stripped before the on-disk resolve.
+func brokenBundleLinks(memRoot, body string) []string {
+	var out []string
+	seen := map[string]bool{}
+	inFence := false
+	for _, line := range strings.Split(body, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "```") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
+		// Elide inline code spans so a link shown as a format example inside
+		// backticks is not scanned as a live cross-link.
+		scan := inlineCodeSpan.ReplaceAllString(line, "")
+		for _, m := range bundleLinkPattern.FindAllStringSubmatch(scan, -1) {
+			target := m[1]
+			if seen[target] {
+				continue
+			}
+			seen[target] = true
+			// Strip a trailing #anchor before resolving the path on disk.
+			relTarget := target
+			if i := strings.IndexByte(relTarget, '#'); i >= 0 {
+				relTarget = relTarget[:i]
+			}
+			relTarget = strings.TrimPrefix(relTarget, "/")
+			if relTarget == "" {
+				continue // bare "/" or "/#anchor" — not a file target
+			}
+			if _, statErr := os.Stat(filepath.Join(memRoot, filepath.FromSlash(relTarget))); statErr != nil {
+				out = append(out, target)
+			}
+		}
+	}
 	return out
 }
 
