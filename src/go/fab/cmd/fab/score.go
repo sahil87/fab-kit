@@ -15,7 +15,12 @@ func scoreCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "score <change>",
 		Short: "Compute confidence score from Assumptions table",
-		Args:  cobra.ExactArgs(1),
+		Example: `  # Compute and persist the intake confidence score
+  fab score b91h
+
+  # Read-only gate check — exits non-zero below the threshold
+  fab score --check-gate --stage intake b91h`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fabRoot, err := resolve.FabRoot()
 			if err != nil {

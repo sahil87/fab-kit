@@ -14,7 +14,18 @@ func resolveCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "resolve [change]",
 		Short: "Resolve a change reference to a canonical output",
-		Args:  cobra.MaximumNArgs(1),
+		Example: `  # 4-char ID of the active change (default output)
+  fab resolve
+
+  # Full folder name for a change reference
+  fab resolve --folder b91h
+
+  # Path to the change's .status.yaml
+  fab resolve --status b91h
+
+  # tmux pane ID, targeting a specific tmux socket
+  fab resolve --pane -L work b91h`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			changeArg := ""
 			if len(args) > 0 {

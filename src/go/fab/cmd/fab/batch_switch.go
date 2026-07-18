@@ -19,6 +19,14 @@ func batchSwitchCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "switch [change...]",
 		Short: "Open tmux tabs in worktrees for one or more changes",
+		Example: `  # Show available changes
+  fab batch switch --list
+
+  # Open tmux tabs in worktrees for two changes
+  fab batch switch b91h ptwh
+
+  # Open tabs for all changes
+  fab batch switch --all`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runBatchSwitch(cmd, args, listFlag, allFlag, quietFlag)
 		},

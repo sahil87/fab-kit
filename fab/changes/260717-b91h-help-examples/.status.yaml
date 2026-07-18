@@ -1,0 +1,57 @@
+id: b91h
+name: 260717-b91h-help-examples
+created: 2026-07-17T22:00:39Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 8
+    acceptance_count: 19
+    acceptance_completed: 19
+confidence:
+    certain: 1
+    confident: 4
+    tentative: 0
+    unresolved: 0
+    score: 4.6
+    fuzzy: true
+    dimensions:
+        signal: 67.0
+        reversibility: 85.0
+        competence: 75.0
+        disambiguation: 70.0
+stage_metrics:
+    intake: {started_at: "2026-07-17T22:00:39Z", driver: fab-new, iterations: 1, completed_at: "2026-07-17T22:04:07Z"}
+    apply: {started_at: "2026-07-17T22:04:07Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T22:12:24Z"}
+    review: {started_at: "2026-07-17T22:12:24Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T22:18:01Z"}
+    hydrate: {started_at: "2026-07-17T22:18:01Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T22:22:51Z"}
+    ship: {started_at: "2026-07-17T22:22:51Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-17T22:24:50Z"}
+    review-pr: {started_at: "2026-07-17T22:24:50Z", driver: git-pr, iterations: 1, completed_at: "2026-07-17T22:33:11Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/488
+change_type_source: explicit
+true_impact:
+    added: 529
+    deleted: 6
+    net: 523
+    excluding:
+        added: 130
+        deleted: 3
+        net: 127
+    tests:
+        added: 77
+        deleted: 0
+        net: 77
+    computed_at: "2026-07-17T22:24:50Z"
+    computed_at_stage: ship
+summary: 'Toolkit principle P3 (layered help): shipped cobra Example: blocks on the 7 audit-named user-facing commands + a newRootCmd()-walking conformance test, closing the ptwh-deferred [b91h] gap; distribution.md § Toolkit Standards Conformance posture updated (P3 PASS after fix, 3 gaps remain)'
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-07-17T22:33:11Z

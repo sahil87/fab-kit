@@ -41,6 +41,14 @@ func batchArchiveCmd() *cobra.Command {
 		Use:   "archive [change...]",
 		Short: "Archive multiple completed changes in one pass",
 		Long:  "Archives completed changes (hydrate done|skipped) mechanically (move, index, backlog, pointer) in a Go loop — no agent or Claude session is spawned.",
+		Example: `  # Preview what would be archived, without archiving
+  fab batch archive --dry-run
+
+  # Archive all archivable changes without prompting
+  fab batch archive --yes
+
+  # Archive two specific changes (4-char ID or folder substring)
+  fab batch archive b91h ptwh`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runBatchArchive(cmd, args, yesFlag, dryRunFlag, quietFlag)
 		},
