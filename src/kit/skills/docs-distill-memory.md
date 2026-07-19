@@ -34,6 +34,10 @@ The normative source is the shipped FKF extract `$(fab kit-path)/reference/fkf.m
 
 - **Removes transition narration** — no "renamed X→Y in {id}", no "this inverts/supersedes {id}'s claim", no "was `old.value`", no "superseding the historical …".
 - **Removes superseded-state descriptions** — the body carries only what IS. Previous states belong to the per-folder generated `log.md`, git history, and archived change folders.
+- **Strips change-id heading suffixes** — a heading is `## Dispatch States`, never `### Dispatch States (xu0k)` or `## xu0k — dispatch states`; the token is removed (kept as a trailing body citation when provenance matters). Recognition is registry-gated (full `YYMMDD-XXXX-slug` always; bare 4-char id only when registry-plausible).
+- **Dedupes byte-identical duplicate headings/blocks** — the later of a byte-identical duplicated block is removed. **Near-duplicates are flagged for manual review, never auto-merged** — content judgment stays with the human gate.
+- **Rewrites Design-Decisions changelog bullets** — a `- **{change-id} — retired X**`-shaped bullet inside `## Design Decisions` (the shape §3.3 bans there) is rewritten to the four-field entry (durable decision) or removed (pure change history in `log.md`/git). **Never fabricates rationale** — an entry with no derivable `Why`/`Rejected` carries only the fields that exist (Decision + *Introduced by*).
+- **Relocates operational TODOs → `fab/backlog.md`** — follow-up work items (TODOs, "still needs X", next-step checklists) are never memory-body content (§3.3). They are **relocated to the backlog, never deleted**.
 - **Keeps allowed provenance** — trailing `(change-id)` citations and the `*Introduced by*: {change-name}` field on Design Decisions. Per §3.3, a 6-char `(id)` cheaply defends a deliberate, easily-"fixed"-away behavior against future regressions. **Bare 4-char ids count the same as dated ids** — in trailing-citation position they stay; woven into narration they go with the narration.
 - **Fixes `description:` frontmatter** — strips change-ids (§3.2 bans them: no trailing `— xu0k`-style suffix, no `(d9rs)`-style citation) and compresses an over-cap description to the **≤500-character** routing-signal shape, moving displaced routing-irrelevant detail into the body where it is not already present.
 
@@ -83,9 +87,9 @@ This section is the skill-file override the `_preamble.md` §1 contract keys on 
 - Every topic file in the target domain (recursing into sub-domains) — the rewrite subjects.
 - `$(fab kit-path)/reference/fkf.md` — the shipped normative extract (§3.2 `description` rules incl. the 500-char cap and change-id ban; §3.3 present-truth body style incl. the tombstone carve-out). Read it so every proposed rewrite cites the deployed rule, not a remembered one.
 
-**Survey mode reads more broadly up front.** On a no-arg invocation (Behavior Step 0), *before* a target domain exists the survey performs a cheap heuristic scan across **all** domains — reading each domain's `index.md`, plus enough of every topic file's `description:` frontmatter and body (a narration-marker grep) to count flagged files (recursing into sub-domains, honoring the distillation exclusion set). This all-domains scan is read-only and is not a full Step 1 read; the full read is confined to the single domain the survey selects. An explicit `<domain>` skips the survey and reads only the target-domain set above.
+**Survey mode reads the machine surface up front, not the corpus.** On a no-arg invocation (Behavior Step 0), *before* a target domain exists the survey runs a single `fab memory-index --check --json` and reads its JSON `malformed[]`/`warnings[]` arrays to count flagged files per domain — it does **not** read every topic file's frontmatter and body. This is the canonical machine-surface path; only the **older-binary fallback** (Step 0) reverts to the legacy all-domains read-only grep scan (each domain's `index.md` + enough of every topic file's `description:` and body to run the narration-marker grep, recursing sub-domains, honoring the distillation exclusion set). Either way the all-domains survey is not a full Step 1 read; the full read is confined to the single domain the survey selects. An explicit `<domain>` skips the survey and reads only the target-domain set above.
 
-For the `fab memory-index` exit tiers and the refuse-before-regen pointer, consult **`_cli-fab` § fab memory-index** by in-body pointer (below) — it is not pre-loaded.
+For the `fab memory-index --check --json` shape (the `malformed[]`/`warnings[]` kinds the survey aggregates), the exit tiers, and the refuse-before-regen pointer, consult **`_cli-fab` § fab memory-index** by in-body pointer (below) — it is not pre-loaded.
 
 ---
 
@@ -95,17 +99,26 @@ For the `fab memory-index` exit tiers and the refuse-before-regen pointer, consu
 
 Runs **only when `<domain>` was omitted**. An explicit `<domain>` skips this step entirely and goes straight to Step 1 (the override forces a full read regardless of survey heuristics).
 
-The survey is a **cheap heuristic scan** over every domain — it does NOT do the full Step 1 read. Its job is to rank/pick, not to classify exhaustively; the full read still runs once a domain is selected. Scan domains in the order of `docs/memory/index.md`'s domain table (deterministic, matches the user-facing landscape).
+The survey is a **cheap machine-surface read** over every domain — it does NOT do the full Step 1 read. Its job is to rank/pick, not to classify exhaustively; the full read still runs once a domain is selected. It reports per domain in the order of `docs/memory/index.md`'s domain table (deterministic, matches the user-facing landscape).
 
-For each domain, count **flagged files** using three heuristics — the same §3.2/§3.3 defect classes distillation fixes:
+**Signal source: one `fab memory-index --check --json` invocation.** The survey runs `fab memory-index --check --json` **once** and consumes its structured output — the **canonical** signal source (`_cli-fab` § fab memory-index), not an agent-side grep of frontmatter and bodies. Per-domain **flagged-file counts** aggregate from four finding kinds — the same §3.2/§3.3 defect classes distillation fixes:
 
-1. **`description:` over the 500-char cap** — a frontmatter `description:` value longer than 500 characters (§3.2).
-2. **change-ids in `description:`** — a `description:` carrying a `— xu0k`-style suffix or a `(d9rs)`-style citation (§3.2 bans them).
-3. **narration markers in bodies** — a grep for the transition-narration patterns from Step 1 (e.g. `renamed`, `supersed`, `` was ` ``, `superseding the historical`, `inverts`). The list is seeded from Step 1's canonical patterns and is extensible (the "e.g." is deliberate).
+1. `malformed[]` kind **`description-change-id`** — a `description:` carrying a registry-gated change-id (§3.2 ban, enforced/blocking).
+2. `malformed[]` kind **`description-over-cap`** — a `description:` over the 1000-rune blocking cap (§3.2).
+3. `warnings[]` kind **`description-length`** — a `description:` in the 501–1000 advisory band, over the 500-char soft cap (§3.2).
+4. `warnings[]` kind **`narration-density`** — a topic file whose body carries ≥5 narration markers (§3.3 distillation-debt meter).
+
+**Aggregation rules:** a file with **multiple findings counts once** (dedupe by `path`); a **sub-domain file rolls up to its domain** — the first path segment under `docs/memory/` (so `docs/memory/pipeline/runtime/x.md` counts under `pipeline`). The survey **re-applies the distillation exclusion set to the JSON finding paths** — it drops any finding whose path is an `index.md` or `_shared/removed-domains.md` before counting. The primitive scans neither exhaustively: it inspects `index.md` stubs for the three description-tier kinds (`description-change-id` / `description-over-cap` / `description-length`) and treats `_shared/removed-domains.md` as an ordinary topic file (its citation-dense rows trip `narration-density`), so their findings would otherwise be miscounted against a distilled domain. (`log.md` / `log.seed.md` never appear — the walker skips them.) Re-applying the exclusion set keeps a fully-distilled tree surveying clean and leaves the auto-pick semantics unchanged.
+
+**The check's exit code does NOT gate the survey** — the survey *consumes the report*, it is not a regen guard. Exit 1 (benign drift) and exit 2 (destructive loss) still produce a survey (the JSON is emitted on all `--check` exits). The refuse-before-regen exit-2 handling is a Step 5 concern, unrelated to surveying.
 
 A **missing `type: memory` is NOT a survey signal** — the full read (Step 1 / Step 4) stamps it once a domain is selected, so it does not affect ranking.
 
-**Survey exclusions** match distillation's: skip `index.md`, `log.md` (generated), `log.seed.md` (curated read-only seed input), and `_shared/removed-domains.md` (tombstone exemption); **recurse into sub-domains** like Step 1.
+**Older-binary fallback.** When `fab memory-index --check --json` is unavailable, or its output lacks the `warnings` key (an older binary that predates the machine surface), the survey **falls back to the legacy agent-side grep heuristics verbatim** — the three §3.2/§3.3 classes below — and **warns the user to upgrade `fab`** (mirroring `/docs-reorg-memory`'s Step 1 older-binary fallback posture):
+
+1. **`description:` over the 500-char cap** — a frontmatter `description:` value longer than 500 characters (§3.2).
+2. **change-ids in `description:`** — a `description:` carrying a `— xu0k`-style suffix or a `(d9rs)`-style citation (§3.2 bans them).
+3. **narration markers in bodies** — a grep for the transition-narration patterns from Step 1 (e.g. `renamed`, `supersed`, `` was ` ``, `superseding the historical`, `inverts`). The list is seeded from Step 1's canonical patterns and is extensible (the "e.g." is deliberate). The fallback **survey exclusions** match distillation's: skip `index.md`, `log.md`, `log.seed.md`, and `_shared/removed-domains.md`; **recurse into sub-domains** like Step 1.
 
 Then:
 
@@ -124,10 +137,14 @@ Read the target domain's `index.md` and every topic file (recursing into sub-dom
 3. **`description:` frontmatter defects** — a value over the **500-character** cap, or one carrying change-ids (a `— xu0k`-style suffix or a `(d9rs)`-style citation) — both banned/capped by §3.2.
 4. **Rationale carried inside narration** — deliberate-behavior / "don't re-break this" content woven into transition prose (candidates for **relocation**, per the guard).
 5. **Allowed provenance already present** — trailing `(change-id)` citations and `*Introduced by*` fields (to be **preserved**).
+6. **Change-id heading suffixes** *(§3.3 — heading text names its topic, never a change)* — a heading carrying a change-id token: `### Dispatch States (xu0k)`, `## Foo — 260718-mxgu`, `## xu0k — dispatch states`. Token recognition is **registry-gated** (the same posture the mxgu change-id checks use): a full `YYMMDD-XXXX-slug` token always matches; a bare 4-char id matches **only** when it is registry-plausible (present under `fab/changes/*` / `archive/**`) — the Step 3 human gate covers residual false positives. Candidate for **stripping the token, keeping the heading text**.
+7. **Literal duplicate headings/blocks** *(§3.3 — a body states current truth once)* — a **byte-identical** duplicated heading pair or block within one file (e.g. the same `## Foo`-headed block appearing twice verbatim). Candidate for **removing the later byte-identical duplicate**. A merely *similar* (non-byte-identical) block is a **near-duplicate** — flagged for the human, never auto-removed.
+8. **Design-Decisions changelog bullets** *(§3.3 — the changelog-bullet shape is banned inside `## Design Decisions`)* — a `- **{change-id} — retired X**`-shaped bullet inside a `## Design Decisions` section. Candidate for **rewrite to the four-field entry** (durable decision) or **removal** (pure change history already in `log.md`/git).
+9. **Embedded operational TODOs** *(§3.3 — follow-up work items are never memory-body content)* — a TODO, "still needs X", or next-step checklist item in a memory body. Candidate for **relocation to `fab/backlog.md`** (never deletion — Step 4).
 
 Skip `index.md` / `log.md` (generated), `log.seed.md` (a curated read-only seed input — never written by the generator, and excluded from distillation like a ledger), and `_shared/removed-domains.md` (tombstone exemption) — never rewrite them.
 
-Classify every removal candidate — intent first: does it carry durable intent (a deliberate-behavior defense, a "don't re-break this", a rejected alternative)? If yes → **relocate into Design Decisions**, do not delete — regardless of where else it is recorded. Only intent-free narration whose content is already recorded elsewhere (per-folder `log.md`, git history, an archived change folder) is **safe to delete**. When in doubt, relocate.
+Classify every removal candidate — intent first: does it carry durable intent (a deliberate-behavior defense, a "don't re-break this", a rejected alternative)? If yes → **relocate into Design Decisions**, do not delete — regardless of where else it is recorded. Only intent-free narration whose content is already recorded elsewhere (per-folder `log.md`, git history, an archived change folder) is **safe to delete**. When in doubt, relocate. (The class-8 DD-bullet rewrite runs this same intent test; class 9 is a **relocation**, never a deletion.)
 
 ### Step 2: Per-file proposed-rewrite report
 
@@ -140,14 +157,20 @@ Emit a per-file report so the user sees the full blast radius before approving �
 - description: 5,912 → 418 chars (change-ids stripped: 260703-gvxd, +12 bare); displaced detail → body ## Overview
 - remove transition narration: 3 lines (recorded in log.md — safe)
     - "renamed operator4 → operator in 260703-gvxd, superseding the historical …"
+- strip change-id heading suffixes: 2 headings (kept as trailing citations where provenance matters)
+    - "### Dispatch States (xu0k)" → "### Dispatch States"
+- dedupe byte-identical blocks: 1 (near-duplicates flagged: 1 — see below, NOT auto-merged)
+- rewrite DD changelog bullets: 1 — "- **260703-gvxd — retired the poll shim**" → four-field Design Decision entry
+- RELOCATE TODOs → fab/backlog.md: 1 — "TODO: delete the stale gh secret" (relocated, never deleted)
 - RELOCATE to Design Decisions (Why): 1 block — the Copilot poll-predicate "do not simplify" note (recorded nowhere else — intent preserved)
 - keep: trailing (change-id) citations ×7, *Introduced by* ×2
+- ⚠ near-duplicate flagged for manual review (NOT auto-merged): the two "## Retry policy" sections differ by one sentence
 
 ### docs/memory/{domain}/{other}.md
 - no changes — already present-truth
 ```
 
-Show enough of each proposed edit (before/after snippets for the non-obvious ones, especially every **relocation**) that the user can judge it. State per file whether any content is deleted vs. relocated, and name where deleted content is already recorded.
+Show enough of each proposed edit (before/after snippets for the non-obvious ones, especially every **relocation** — both the Design-Decisions relocations and every TODO → `fab/backlog.md` relocation) that the user can judge it. State per file whether any content is deleted vs. relocated, and name where deleted content is already recorded. **Every near-duplicate (class 7) is flagged for manual review, never listed as an auto-removal** — content judgment stays with the human gate.
 
 If the domain is already present-truth, report **"no rewrites proposed — {domain} is already distilled"** and stop (idempotency — Constitution III).
 
@@ -160,11 +183,21 @@ Options: **Apply all**, **Cherry-pick** (select specific files), **Skip** (keep 
 For each approved file:
 
 1. **Rewrite the body to present truth** (§3.3) — remove the approved transition-narration / superseded-state lines; **relocate** each rationale block into a `## Design Decisions` entry (`Why` / `Rejected`, present-tense; add `*Introduced by*: {change-name}` when the change is known); preserve trailing `(change-id)` citations and existing `*Introduced by*` fields verbatim.
-2. **Fix the `description:` frontmatter** (§3.2) — strip change-ids; compress to a ≤500-character single-line routing signal; move displaced routing-irrelevant detail into the body (`## Overview` / `## Requirements` / `## Design Decisions`) where it is not already present.
-3. **Stamp the `type: memory` constant** — keep it when present; **stamp it if the legacy file lacks it** (FKF §2/§3.1 require it on every memory file, and every writer that touches a file leaves it conforming). This runs for every approved file regardless of whether its `description:` needed changing — a file with an already-conforming description must still be left with `type: memory`.
-4. **Bundle-relative links** (§7) — if a rewrite touches a memory↔memory link, keep the bundle-relative `/...` form (resolved from `docs/memory/`); links out of the bundle (source, specs, URLs) stay repo-relative / absolute-URL. This skill moves no files, so it creates no new link breakage.
+2. **Strip change-id heading suffixes** (§3.3, class 6) — remove the change-id token from each approved heading, keeping the heading text (`### Dispatch States (xu0k)` → `### Dispatch States`). If the stripped token carried provenance worth keeping, add it back as a **trailing `(change-id)` citation in the section body** (allowed provenance, per the keep-list) — never leave it in the heading.
+3. **Remove byte-identical duplicate blocks** (§3.3, class 7) — delete the later of a **byte-identical** duplicated heading pair/block. **Never auto-merge a near-duplicate** — a non-byte-identical similar block was flagged for manual review in Step 2 and is left untouched here (content judgment is the human's, not this skill's).
+4. **Rewrite Design-Decisions changelog bullets** (§3.3, class 8) — a `- **{change-id} — retired X**`-shaped bullet inside `## Design Decisions`: when it encodes a **durable decision**, rewrite it to the four-field entry (**Decision** / **Why** / **Rejected** / *Introduced by* — the change-id moves into *Introduced by* or a trailing citation); when it is **pure change history** already recorded in `log.md`/git, remove it under the Step 1 deletion-safety rule. **Never fabricate rationale** — when `Why`/`Rejected` content is not derivable from the bullet or its surrounding context, the rewritten entry carries only the fields that exist (Decision + *Introduced by*).
+5. **Relocate operational TODOs → `fab/backlog.md`** (§3.3, class 9) — **relocate, never delete** (follow-up work items belong in the project backlog, not a memory body). Remove the TODO from the memory body and append a standard backlog entry to `fab/backlog.md`:
 
-Never touch `index.md` / `log.md` (Step 5 regenerates them), `log.seed.md` (a curated read-only seed input — the generator reads it, never writes it), or `_shared/removed-domains.md` (exempt).
+   ```markdown
+   - [ ] [{fresh-4char-id}] {YYYY-MM-DD}: {TODO text} (relocated from docs/memory/{domain}/{file}.md by /docs-distill-memory)
+   ```
+
+   Generate a fresh 4-char id (lowercase alphanumeric, not colliding with a registered change or an existing backlog id) and today's date. Append under the backlog's `## Open` section (create the section if absent). **If `fab/backlog.md` does not exist** (user repos), create it with a minimal `# Backlog` header first. Relocation honors the Step 3 approval unit: a file the user **skips or cherry-picks away keeps its TODOs** — no orphaned relocation is written for an un-approved file.
+6. **Fix the `description:` frontmatter** (§3.2) — strip change-ids; compress to a ≤500-character single-line routing signal; move displaced routing-irrelevant detail into the body (`## Overview` / `## Requirements` / `## Design Decisions`) where it is not already present.
+7. **Stamp the `type: memory` constant** — keep it when present; **stamp it if the legacy file lacks it** (FKF §2/§3.1 require it on every memory file, and every writer that touches a file leaves it conforming). This runs for every approved file regardless of whether its `description:` needed changing — a file with an already-conforming description must still be left with `type: memory`.
+8. **Bundle-relative links** (§7) — if a rewrite touches a memory↔memory link, keep the bundle-relative `/...` form (resolved from `docs/memory/`); links out of the bundle (source, specs, URLs) stay repo-relative / absolute-URL. This skill moves no files, so it creates no new link breakage.
+
+Never touch `index.md` / `log.md` (Step 5 regenerates them), `log.seed.md` (a curated read-only seed input — the generator reads it, never writes it), or `_shared/removed-domains.md` (exempt). `fab/backlog.md` (class 9 relocation target) is the **one** file outside `docs/memory/` this skill writes.
 
 ### Step 5: Regenerate indexes (refuse-before-regen guard)
 
@@ -219,7 +252,7 @@ Apply these rewrites? (apply all / cherry-pick / skip)
 After apply:
 
 ```
-Distillation complete — {F} files rewritten, {D} narration lines removed, {R} rationale blocks relocated to Design Decisions, {C} descriptions capped/de-id'd. Indexes regenerated via fab memory-index; no generated file hand-edited.
+Distillation complete — {F} files rewritten, {D} narration lines removed, {H} change-id heading suffixes stripped, {B} byte-identical blocks deduped ({N} near-duplicates flagged), {DD} DD changelog bullets rewritten, {T} TODOs relocated → fab/backlog.md, {R} rationale blocks relocated to Design Decisions, {C} descriptions capped/de-id'd. Indexes regenerated via fab memory-index; no generated file hand-edited.
 ```
 
 If no changes needed: `No rewrites proposed — {domain} is already distilled (present-truth).`
@@ -255,8 +288,9 @@ Next: all domains distilled (survey heuristic) — /docs-reorg-memory or /fab-ne
 | Domain folder missing / no topic files | Abort: "Domain '{domain}' not found (or has no topic files). Available: {list domain folders}." |
 | Ambiguous domain (matches >1 folder) | Abort: "'{domain}' matches {N} domains: {list}. Name one." |
 | Multiple domains passed | Abort: "One domain per run — run /docs-distill-memory once per domain so each domain's diffs are approved separately." |
-| `fab memory-index --check` exit 2 (destructive loss) | Refuse to regenerate; surface the `→ run /docs-reorg-memory to remediate …` pointer (no-op on born-compatible fab-kit trees — not dead code) |
-| `fab memory-index` unavailable (older binary) | Warn; the rewrites are applied but indexes are not regenerated — tell the user to upgrade `fab` and re-run `fab memory-index` |
+| `fab memory-index --check --json` unavailable / no `warnings` key (older binary) — **survey mode** | Fall back to the legacy agent-side grep heuristics (the three §3.2/§3.3 classes) verbatim and warn to upgrade `fab`; the survey still runs (Behavior Step 0 older-binary fallback) |
+| `fab memory-index --check` exit 2 (destructive loss) | Refuse to regenerate; surface the `→ run /docs-reorg-memory to remediate …` pointer (no-op on born-compatible fab-kit trees — not dead code). *(Survey mode does NOT gate on exit code — exit 2 still surveys.)* |
+| `fab memory-index` unavailable (older binary) — **regeneration** | Warn; the rewrites are applied but indexes are not regenerated — tell the user to upgrade `fab` and re-run `fab memory-index` |
 
 ---
 
@@ -269,10 +303,12 @@ Next: all domains distilled (survey heuristic) — /docs-reorg-memory or /fab-ne
 | Requires config/constitution? | No |
 | Argument | `[<domain>]` optional — named forces a full read of that domain; omitted runs survey mode (heuristic scan → per-domain report → auto-pick first candidate → existing one-domain flow) |
 | Scope per run | One domain, propose-then-apply (read-only until explicit approval) — the per-run unit is one domain read-in-full and rewritten, whether named explicitly or auto-picked by the survey |
-| Modifies memory files? | Yes — rewrites topic-file bodies + `description:` frontmatter to FKF present-truth style, only with explicit confirmation. `_shared/removed-domains.md` is exempt (§3.3 tombstone carve-out) |
-| Preserves rationale? | Yes — deliberate-behavior/"don't re-break" content is relocated into Design Decisions (`Why`/`Rejected`), never deleted; deletion is confined to narration recorded elsewhere (log.md/git/archive) |
-| Preserves provenance? | Yes — trailing `(change-id)` citations and `*Introduced by*` fields are kept; change-ids are stripped only from `description:` frontmatter (§3.2) |
-| Moves files? | No — this skill rewrites in place; structural moves belong to /docs-reorg-memory |
+| Modifies memory files? | Yes — rewrites topic-file bodies + `description:` frontmatter to FKF present-truth style (transition narration, superseded state, change-id heading suffixes, byte-identical duplicate blocks, DD changelog bullets), only with explicit confirmation. `_shared/removed-domains.md` is exempt (§3.3 tombstone carve-out) |
+| Writes outside `docs/memory/`? | Yes — one file: `fab/backlog.md` (operational-TODO relocation target, §3.3 class 9 — created with a `# Backlog` header when absent). Never deletes a TODO |
+| Preserves rationale? | Yes — deliberate-behavior/"don't re-break" content is relocated into Design Decisions (`Why`/`Rejected`), never deleted; deletion is confined to narration recorded elsewhere (log.md/git/archive). **Never fabricates rationale** — a DD-bullet rewrite with no derivable Why/Rejected carries only Decision + *Introduced by* |
+| Preserves provenance? | Yes — trailing `(change-id)` citations and `*Introduced by*` fields are kept; change-ids are stripped from `description:` frontmatter (§3.2) and from heading text (§3.3 — kept as a trailing body citation when provenance matters) |
+| Auto-merges near-duplicates? | No — only **byte-identical** within-file blocks are auto-removed; near-duplicates are flagged for manual review. Cross-file duplicate coverage belongs to /docs-reorg-memory |
+| Moves files? | No — this skill rewrites in place; structural moves (incl. cross-file splits/merges) belong to /docs-reorg-memory |
 | Idempotent? | Yes — an already-distilled domain proposes nothing; `fab memory-index` regeneration is byte-stable (Constitution III) |
 | Indexes hand-edited? | No — regenerated by `fab memory-index`; honors the refuse-before-regen `--check` exit-2 guard |
 
