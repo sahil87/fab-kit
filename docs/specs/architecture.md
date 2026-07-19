@@ -456,7 +456,7 @@ Multiple versions coexist; each repo pins its own via `fab/.fab-version`. Auto-d
 Three version locations:
 
 - **`$(fab kit-path)/VERSION`** — the cached engine version (per release)
-- **`fab/.fab-version`** — the project's pin (plain-text, one line, sibling to `.kit-migration-version`); the router resolves the fab-go binary from it, and preflight warns when it diverges from the deployed engine ("skills may be out of sync — run fab sync"). Readers fall back to a legacy `fab_version:` key in `config.yaml` for one compat window (until the `2.14.0-to-2.15.0` migration moves it)
+- **`fab/.fab-version`** — the project's pin (plain-text, one line, sibling to `.kit-migration-version`) and the **sole** version source; the router resolves the fab-go binary from it, and preflight warns when it diverges from the deployed engine ("skills may be out of sync — run fab sync"). A stale legacy `fab_version:` key left in `config.yaml` is no longer read (the compat-window fallback closed in 260719-kq7v; the `2.14.0-to-2.15.0` migration moves the value for pre-2.15 repos)
 - **`fab/.kit-migration-version`** — the version the project's file formats were written for; drives migration discovery
 
 ### Batch Operations

@@ -116,27 +116,33 @@ type ProjectConfig struct {
 // staleness skip). The documented per-caller fallbacks make this safe for
 // malformed configs — a deliberate, recorded semantic for the consolidation.
 type Config struct {
-	StageHooks        map[string]StageHook      `yaml:"stage_hooks"`
-	TrueImpactExclude []string                  `yaml:"true_impact_exclude"`
-	TestPaths         []string                  `yaml:"test_paths"`
-	BranchPrefix      string                    `yaml:"branch_prefix"`
-	FabVersion        string                    `yaml:"fab_version"`
-	Providers         map[string]ProviderConfig `yaml:"providers"`
-	Agent             AgentConfig               `yaml:"agent"`
-	Project           ProjectConfig             `yaml:"project"`
+	StageHooks        map[string]StageHook `yaml:"stage_hooks"`
+	TrueImpactExclude []string             `yaml:"true_impact_exclude"`
+	TestPaths         []string             `yaml:"test_paths"`
+	BranchPrefix      string               `yaml:"branch_prefix"`
+	// FabVersion is NOT parsed from config.yaml — the version pin lives in the
+	// plain-text sibling fab/.fab-version (260708-j0qm). The explicit `yaml:"-"`
+	// (not a bare untagged field) stops yaml.v3 from matching the lowercased field
+	// name, so a stale `fab_version:` key in config.yaml is an inert unknown key.
+	// The field is populated only by Load's readDotFabVersion overlay and consumed
+	// by GetFabVersion → preflight's staleness check.
+	FabVersion string                    `yaml:"-"`
+	Providers  map[string]ProviderConfig `yaml:"providers"`
+	Agent      AgentConfig               `yaml:"agent"`
+	Project    ProjectConfig             `yaml:"project"`
 }
 
 // Load reads fab/project/config.yaml from fabRoot and returns the parsed config.
 // Returns an empty config if the file doesn't exist.
 //
-// fab_version resolution (260708-j0qm): the version now lives in the plain-text
+// fab_version resolution (260708-j0qm): the version lives in the plain-text
 // sibling file fab/.fab-version, written by `fab init`/`fab upgrade-repo` and
-// stamped there instead of into config.yaml. Load reads .fab-version FIRST and,
-// for one compat window, falls back to a config.yaml `fab_version:` key (repos
-// not yet migrated by 2.14.0-to-2.15.0). The .fab-version value always wins when
-// present. LoadPath itself is version-agnostic — it takes a bare path with no
-// repo-root context — so the .fab-version overlay lives here in Load, the only
-// seam that knows fabRoot.
+// stamped there instead of into config.yaml. It is the SOLE source — Load reads
+// it via the readDotFabVersion overlay and overwrites Config.FabVersion when
+// present. config.yaml is never consulted for the version (Config.FabVersion is
+// tagged `yaml:"-"`). LoadPath itself is version-agnostic — it takes a bare path
+// with no repo-root context — so the .fab-version overlay lives here in Load, the
+// only seam that knows fabRoot.
 func Load(fabRoot string) (*Config, error) {
 	cfg, err := LoadPath(filepath.Join(fabRoot, "project", "config.yaml"))
 	if err != nil {
@@ -150,8 +156,8 @@ func Load(fabRoot string) (*Config, error) {
 
 // readDotFabVersion reads the bare-semver value from fab/.fab-version, or "" when
 // the file is absent/empty/unreadable (fail-open — a missing .fab-version simply
-// defers to the config.yaml fallback in Load). The file is a one-line plain-text
-// sibling to fab/.kit-migration-version.
+// leaves Config.FabVersion empty, which preflight's staleness check silently
+// skips). The file is a one-line plain-text sibling to fab/.kit-migration-version.
 func readDotFabVersion(fabRoot string) string {
 	data, err := os.ReadFile(filepath.Join(fabRoot, ".fab-version"))
 	if err != nil {
@@ -314,17 +320,12 @@ func loadSystemLayer() map[string]any {
 // job, and yaml.v3 ignores unknown keys at unmarshal anyway). path names the
 // system file in the warning.
 //
-// fab_version is a NAMED compat-window exception (260708-j0qm): it left the config
-// registry/scope table (it is now the plain-text sibling fab/.fab-version), so it is
-// no longer a `known` scoped key and would otherwise fall through as an ignored
-// unknown key. But fab_version is REPO-scoped state that Config still models for one
-// compat window, so a stale `fab_version:` sitting in the (machine-global) system
-// file must NOT bleed into a repo's resolved version. It is stripped here silently
-// (no warning — it is migration residue, not a user error) so the system layer can
-// never contribute a fab_version to the merge. Removed once the compat-window
-// Config.FabVersion field goes.
+// fab_version is not a config key — it lives in the plain-text sibling
+// fab/.fab-version (260708-j0qm) and Config.FabVersion is tagged `yaml:"-"`, so a
+// stale `fab_version:` here is an inert unknown key (nothing unmarshals it) and is
+// left in place silently like any other unknown key. It can never reach a repo's
+// resolved version.
 func pruneProjectScoped(m map[string]any, path string) {
-	delete(m, "fab_version") // compat-window residue — never a system-layer version source
 	for key := range m {
 		scope, known := configscope.ScopeFor(key)
 		if !known {

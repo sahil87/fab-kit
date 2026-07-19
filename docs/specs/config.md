@@ -116,11 +116,10 @@ teammates and CI.
 Fields the decision-6 taxonomy does not enumerate (`stage_hooks`, `branch_prefix`) default to `project`
 — the conservative choice, since system-visibility is opt-in per the same rationale. (`fab_version` was
 machine-managed and, as of [Change 3 — landed], left `config.yaml` entirely for the plain-text sibling
-`fab/.fab-version`; it is no longer a scoped/registry key and carries no scope — but it is not ignored: a
-stale `fab_version:` in a not-yet-migrated PROJECT file is still parsed by the loader and read as a legacy
-fallback when `fab/.fab-version` is absent (for one compat window, until the migration removes it), while a
-stale `fab_version:` in the SYSTEM file is stripped as a named compat-window exception so a machine-global
-value never bleeds into a repo's resolved version.) Scope was metadata-only in
+`fab/.fab-version`; it is no longer a scoped/registry/config key and carries no scope. The compat-window
+config.yaml `fab_version:` fallback that both reader stacks kept has been **closed** [260719-kq7v]: a stale
+`fab_version:` in either the PROJECT or the SYSTEM file is now an inert unknown key — `Config.FabVersion` is
+tagged `yaml:"-"`, so nothing unmarshals it and it can never bleed into a repo's resolved version.) Scope was metadata-only in
 Change 1; **as of Change 2 it is enforced**: the cascade
 resolver prunes a project-scoped field found in the system file and emits a `fab: warning:` (fail-open —
 config must never brick), and `fab config init --system` scaffolds only the `system`/`both` fields. The
@@ -306,13 +305,13 @@ the file and makes the "committed" guarantee real. The shipped scaffold fragment
 `.gitignore`; the `2.15.1-to-2.15.2` migration verifies the negation and commits the file for
 already-shipped repos, and `stampFabVersion`'s callers emit a fail-open `fab: warning:` when the file is
 still ignored so the written-but-ignored version file can never go quiet again. Both reader stacks (the fab-kit router's pinned-version resolution and the fab-go
-preflight staleness check) read `.fab-version` first, with a config.yaml `fab_version:` fallback for one
-compat window. The `fab_version` row is removed from the registry and from the `internal/configscope`
-taxonomy — a stale `fab_version:` in a not-yet-migrated PROJECT file is an unknown key, ignored silently
-by the loader until the migration removes it; a stale `fab_version:` in the SYSTEM file is stripped as a
-named compat-window exception (it is repo-scoped state and must never contribute a machine-global value to
-a repo's resolved version). The `2.14.0-to-2.15.0` migration (a user-data restructure per the
-constitution) moves the value and deletes the key; it is sentinel-guarded and idempotent. Historical
+preflight staleness check) read `fab/.fab-version` as the **sole** version source — the one-compat-window
+config.yaml `fab_version:` fallback they briefly kept has been closed [260719-kq7v]. The `fab_version` row is
+removed from the registry and from the `internal/configscope` taxonomy, and `Config.FabVersion` is tagged
+`yaml:"-"`, so a stale `fab_version:` in either config file is an inert unknown key — nothing unmarshals it
+and it can never contribute to a repo's resolved version. The `2.14.0-to-2.15.0` migration (a user-data
+restructure per the constitution) moves the value and deletes the key for pre-2.15 repos; it is
+sentinel-guarded and idempotent. Historical
 comment-backfill migrations (e.g. `2.13.1-to-2.13.2`) are left untouched; that pattern is **retired going
 forward** — field adds/renames/removals are mechanical registry data reconciled by `fab config upgrade`.
 

@@ -115,8 +115,7 @@ func TestLoad_WidenedKeys(t *testing.T) {
 	dir := t.TempDir()
 	fabRoot := filepath.Join(dir, "fab")
 	os.MkdirAll(filepath.Join(fabRoot, "project"), 0o755)
-	content := `fab_version: 1.2.3
-branch_prefix: "feature/"
+	content := `branch_prefix: "feature/"
 providers:
   claude:
     session_command: "claude --effort high"
@@ -125,6 +124,9 @@ project:
   linear_workspace: acme
 `
 	os.WriteFile(filepath.Join(fabRoot, "project", "config.yaml"), []byte(content), 0o644)
+	// The version pin is the plain-text sibling (config.yaml fab_version: is no
+	// longer parsed).
+	os.WriteFile(filepath.Join(fabRoot, ".fab-version"), []byte("1.2.3\n"), 0o644)
 
 	cfg, err := Load(fabRoot)
 	if err != nil {
@@ -170,10 +172,11 @@ func TestLoad_FabVersionFromDotFile(t *testing.T) {
 	}
 }
 
-// TestLoad_FabVersionFallbackToConfig pins the one-compat-window fallback: when
-// fab/.fab-version is absent (a not-yet-migrated repo), Load falls back to the
-// config.yaml fab_version: key with no error.
-func TestLoad_FabVersionFallbackToConfig(t *testing.T) {
+// TestLoad_FabVersionConfigKeyIgnored pins the sole-source behavior (260719-kq7v):
+// with no fab/.fab-version, a stale fab_version: key in config.yaml is an inert
+// unknown key — Config.FabVersion is tagged `yaml:"-"`, so GetFabVersion returns ""
+// with no error (the config.yaml key is never parsed).
+func TestLoad_FabVersionConfigKeyIgnored(t *testing.T) {
 	isolateSystemConfig(t)
 	dir := t.TempDir()
 	fabRoot := filepath.Join(dir, "fab")
@@ -186,8 +189,8 @@ func TestLoad_FabVersionFallbackToConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if got := cfg.GetFabVersion(); got != "2.14.0" {
-		t.Errorf("GetFabVersion = %q, want %q (config.yaml fallback when .fab-version absent)", got, "2.14.0")
+	if got := cfg.GetFabVersion(); got != "" {
+		t.Errorf("GetFabVersion = %q, want \"\" (config.yaml fab_version: is no longer parsed)", got)
 	}
 }
 
@@ -694,10 +697,10 @@ source_paths:
 
 // TestScope_PruneAllProjectScopedFields walks every project-scoped top-level key
 // through the pruner and asserts each is dropped with a warning, while the two
-// both-scoped keys survive. A stale fab_version in the SYSTEM file (which left
-// config.yaml in 260708-j0qm) is a NAMED compat-window exception: it is stripped
-// SILENTLY (no warning) so a machine-global value never bleeds into a repo's
-// resolved version — it is migration residue, not a user error.
+// both-scoped keys survive. fab_version is not a config key (it lives in
+// fab/.fab-version, 260708-j0qm), so a stale system-file fab_version: is an inert
+// unknown key — left in place SILENTLY like any other unknown key (nothing
+// unmarshals it, so it can never bleed into a repo's resolved version).
 func TestScope_PruneAllProjectScopedFields(t *testing.T) {
 	warnings := captureWarnings(t)
 	m := map[string]any{
@@ -708,7 +711,7 @@ func TestScope_PruneAllProjectScopedFields(t *testing.T) {
 		"checklist":           map[string]any{"extra_categories": []any{"d"}},
 		"stage_hooks":         map[string]any{"apply": map[string]any{"pre": "x"}},
 		"branch_prefix":       "p/",
-		"fab_version":         "1.0.0", // compat-window residue — stripped silently
+		"fab_version":         "1.0.0", // not a config key — an inert unknown key
 		"agent":               map[string]any{"tiers": map[string]any{}},
 		"providers":           map[string]any{"claude": map[string]any{}},
 	}
@@ -724,13 +727,14 @@ func TestScope_PruneAllProjectScopedFields(t *testing.T) {
 			t.Errorf("both-scoped key %q must survive in the system layer", kept)
 		}
 	}
-	// fab_version must be STRIPPED from the system layer (repo-scoped state must not
-	// bleed in from a machine-global file), but SILENTLY — no warning.
-	if _, ok := m["fab_version"]; ok {
-		t.Error("a system-file fab_version must be stripped (repo-scoped state, never a system-layer version source)")
+	// fab_version is an unknown key (not scoped): left in place silently, no warning.
+	// It cannot bleed into the resolved version because Config.FabVersion is
+	// tagged `yaml:"-"` and nothing unmarshals it.
+	if _, ok := m["fab_version"]; !ok {
+		t.Error("an unknown system-file key (fab_version) must be left in place, like any unrecognized key")
 	}
 	if strings.Contains(warnings(), "fab_version") {
-		t.Errorf("the fab_version strip must be silent (migration residue, not a user error), got %q", warnings())
+		t.Errorf("an unknown key must be ignored silently (no warning), got %q", warnings())
 	}
 	if c := strings.Count(warnings(), "fab: warning:"); c != 7 {
 		t.Errorf("expected 7 pruning warnings (one per project-scoped key), got %d", c)
@@ -738,8 +742,10 @@ func TestScope_PruneAllProjectScopedFields(t *testing.T) {
 }
 
 // TestScope_SystemFabVersionDoesNotBleedIntoResolvedConfig is the end-to-end guard
-// for the compat-window strip: a fab_version in the system file must NOT become the
-// repo's Config.FabVersion, even when the project file (and .fab-version) carry none.
+// that a fab_version in the system file never becomes the repo's Config.FabVersion:
+// fab_version is not a config key (Config.FabVersion is `yaml:"-"`), so it is an
+// inert unknown key that nothing unmarshals — the resolved version comes only from
+// fab/.fab-version.
 func TestScope_SystemFabVersionDoesNotBleedIntoResolvedConfig(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

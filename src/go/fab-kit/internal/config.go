@@ -5,16 +5,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 const configRelPath = "fab/project/config.yaml"
 
 // dotFabVersionRelPath is the plain-text sibling that holds the pinned engine
 // version as of 260708-j0qm — fab_version moved out of config.yaml to here (a
-// one-line file, sibling to fab/.kit-migration-version). config.yaml's
-// fab_version: key is read only as a one-compat-window fallback.
+// one-line file, sibling to fab/.kit-migration-version). It is the sole version
+// source; config.yaml's fab_version: key is no longer consulted.
 const dotFabVersionRelPath = "fab/.fab-version"
 
 // ExitNotManaged is the process exit code the fab-kit binary uses when a
@@ -71,7 +69,7 @@ func resolveConfigFrom(startDir string) (*ConfigResult, error) {
 	for {
 		candidate := filepath.Join(dir, configRelPath)
 		if _, err := os.Stat(candidate); err == nil {
-			version, err := readFabVersion(dir, candidate)
+			version, err := readFabVersion(dir)
 			if err != nil {
 				return nil, err
 			}
@@ -91,33 +89,16 @@ func resolveConfigFrom(startDir string) (*ConfigResult, error) {
 	}
 }
 
-// readFabVersion resolves the pinned engine version for a repo. As of 260708-j0qm
-// the version lives in the plain-text sibling fab/.fab-version; readFabVersion
-// reads it FIRST and, for one compat window, falls back to a config.yaml
-// fab_version: key (repos not yet migrated by 2.14.0-to-2.15.0). repoRoot anchors
-// the .fab-version lookup; configPath is the located config.yaml. An empty result
-// from both sources is a real error — the router needs a pinned version.
-func readFabVersion(repoRoot, configPath string) (string, error) {
-	// 1. fab/.fab-version (authoritative post-migration).
-	if data, err := os.ReadFile(filepath.Join(repoRoot, dotFabVersionRelPath)); err == nil {
+// readFabVersion resolves the pinned engine version for a repo from the plain-text
+// sibling fab/.fab-version (the sole source since 260708-j0qm; config.yaml is no
+// longer consulted). repoRoot anchors the lookup. An absent, empty, or unreadable
+// fab/.fab-version is a real error — the router needs a pinned version.
+func readFabVersion(repoRoot string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(repoRoot, dotFabVersionRelPath))
+	if err == nil {
 		if v := strings.TrimSpace(string(data)); v != "" {
 			return v, nil
 		}
 	}
-
-	// 2. Fallback: config.yaml fab_version: key (pre-migration compat window).
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return "", fmt.Errorf("cannot read %s: %w", configPath, err)
-	}
-	var cfg struct {
-		FabVersion string `yaml:"fab_version"`
-	}
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return "", fmt.Errorf("cannot parse %s: %w", configPath, err)
-	}
-	if cfg.FabVersion == "" {
-		return "", fmt.Errorf("no fab version found in fab/.fab-version or config.yaml. Run 'fab init' to set one")
-	}
-	return cfg.FabVersion, nil
+	return "", fmt.Errorf("no fab version found in fab/.fab-version. Run 'fab init' (new repo) or 'fab upgrade-repo' (existing repo) to set one")
 }

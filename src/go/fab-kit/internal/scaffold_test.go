@@ -614,11 +614,11 @@ func TestScaffoldDirectories_PreExistingMigrationVersion(t *testing.T) {
 	fabDir := filepath.Join(repoRoot, "fab")
 	kitDir := scaffoldKitDir(t, "1.6.1")
 
-	// Simulate Init() having already stamped both config.yaml and .kit-migration-version.
+	// Simulate Init() having already written config.yaml and .kit-migration-version.
 	if err := os.MkdirAll(filepath.Join(fabDir, "project"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(fabDir, "project", "config.yaml"), []byte("fab_version: 1.6.1\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(fabDir, "project", "config.yaml"), []byte("project:\n  name: test\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(fabDir, ".kit-migration-version"), []byte("1.6.1\n"), 0644); err != nil {
@@ -646,7 +646,7 @@ func TestScaffoldDirectories_ExistingProjectWithoutMigrationVersion(t *testing.T
 	if err := os.MkdirAll(filepath.Join(fabDir, "project"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(fabDir, "project", "config.yaml"), []byte("fab_version: 0.43.0\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(fabDir, "project", "config.yaml"), []byte("project:\n  name: test\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 

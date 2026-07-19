@@ -57,17 +57,11 @@ func Valid(s Scope) bool {
 // It is the SINGLE source for the taxonomy: configref derives each Field.Scope
 // from ScopeFor(topLevel(field.Key)), and the loader prunes on it directly.
 //
-// fab_version is intentionally ABSENT (260708-j0qm): it moved out of config.yaml
-// to the plain-text sibling fab/.fab-version and is no longer a scoped/registry
-// key, so it carries no scope. It is NOT, however, ignored: a stale `fab_version:`
-// in a not-yet-migrated PROJECT file is still parsed by internal/config (the
-// Config.FabVersion field survives one compat window) and read as a legacy
-// fallback when fab/.fab-version is absent, until the 2.14.0-to-2.15.0 migration
-// removes it. In the SYSTEM file it is handled differently: fab_version is repo-scoped state, so the
-// loader (internal/config.pruneProjectScoped) STRIPS a system-file fab_version as a
-// named compat-window exception — it must never bleed a machine-global value into a
-// repo's resolved version. That strip is not driven by this table (fab_version has
-// no scope row); it is a one-off in the loader, removed with the compat window.
+// fab_version is intentionally ABSENT (260708-j0qm): it is not a config key — the
+// version pin lives in the plain-text sibling fab/.fab-version, and Config.FabVersion
+// is tagged `yaml:"-"`. It carries no scope, so ScopeFor reports it unknown. A stale
+// `fab_version:` left in either config file is an inert unknown key: nothing
+// unmarshals it, so it can never contribute to a repo's resolved version.
 var keyScopes = map[string]Scope{
 	"project":             ScopeProject,
 	"source_paths":        ScopeProject,

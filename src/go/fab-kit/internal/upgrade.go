@@ -44,8 +44,8 @@ func runConfigUpgrade(fabGoBin, repoRoot string) {
 //     which has no real release tag to sync to.
 //
 // Ordering contract (F18): Sync runs FIRST (with the kit version passed
-// explicitly) and fab_version is stamped only after Sync succeeds. A failed
-// sync therefore exits non-zero, leaves config.yaml on the old version, and
+// explicitly) and fab/.fab-version is stamped only after Sync succeeds. A failed
+// sync therefore exits non-zero, leaves fab/.fab-version on the old version, and
 // a re-run retries instead of short-circuiting on "Already on the latest
 // version".
 func Upgrade(systemVersion, targetVersion string, useLatest bool) error {

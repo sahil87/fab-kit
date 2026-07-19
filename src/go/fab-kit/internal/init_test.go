@@ -343,7 +343,7 @@ func TestInit_ThreadsVersionsIntoSync(t *testing.T) {
 	}
 	// The version is stamped into fab/.fab-version (not config.yaml).
 	repoRoot := dir
-	v, err := readFabVersion(repoRoot, filepath.Join(dir, "fab", "project", "config.yaml"))
+	v, err := readFabVersion(repoRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -497,7 +497,7 @@ func TestInit_FromSubdirectoryWritesAtRepoRoot(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(subdir, "fab")); !os.IsNotExist(err) {
 		t.Error("Init wrote fab/ into the subdirectory instead of the repo root")
 	}
-	v, err := readFabVersion(root, filepath.Join(root, "fab", "project", "config.yaml"))
+	v, err := readFabVersion(root)
 	if err != nil {
 		t.Fatalf("version not resolvable at repo root: %v", err)
 	}
