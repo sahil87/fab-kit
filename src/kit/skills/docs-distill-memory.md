@@ -1,6 +1,6 @@
 ---
 name: docs-distill-memory
-description: "Rewrite existing memory files to the FKF present-truth style — strip transition narration and superseded-state prose, cap descriptions, relocate rationale into Design Decisions. Optional <domain>: named forces a full read; omitted runs a survey that flags candidate domains and auto-picks one. One domain per run; read-only until you approve."
+description: "Rewrite existing memory files to the FKF present-truth style — strip transition narration and superseded-state prose, cap descriptions, relocate rationale into Design Decisions. Optional <domain>: named forces a full read of that one domain; omitted surveys all domains and loops every flagged one sequentially. One domain per approval unit (per-domain gate retained); read-only until you approve."
 ---
 
 # /docs-distill-memory [<domain>]
@@ -24,7 +24,7 @@ description: "Rewrite existing memory files to the FKF present-truth style — s
 
 Rewrite an existing `docs/memory/` domain's topic files to the **FKF present-truth style** (`$(fab kit-path)/reference/fkf.md` §3.2, §3.3). The FKF present-truth rules govern what memory writers produce *going forward*; a corpus authored before them accumulates transition narration, superseded-state prose, and over-cap / change-id-carrying `description:` frontmatter. This skill cleans that existing corpus — it is the remediation counterpart to the forward-looking writers (hydrate, `/docs-hydrate-memory`, `/docs-reorg-memory`), which already emit current truth.
 
-**One domain per run, propose-then-apply.** The skill runs **read-only analysis** over one domain's topic files — named explicitly, or (with no `<domain>`) auto-picked by a heuristic **survey** across all domains (Behavior Step 0) — produces a **per-file proposed-rewrite report**, and applies **only on explicit user approval** — the same posture as `/docs-reorg-memory` (its report → confirm-and-apply shape). These files encode load-bearing behavioral contracts, so a human approves per domain, seeing per-file diffs. It is **not** an autonomous bulk rewriter. "One domain per run" is a property of the analysis+apply unit, not the invocation: whether the domain is named or auto-picked, exactly one is read-in-full and rewritten per run.
+**One domain per approval/apply unit, propose-then-apply.** The skill runs **read-only analysis** over a domain's topic files — the domain named explicitly, or (with no `<domain>`) each flagged domain in turn as the heuristic **survey** (Behavior Step 0) loops all of them sequentially (Behavior Step 6) — produces a **per-file proposed-rewrite report**, and applies **only on explicit user approval** — the same posture as `/docs-reorg-memory` (its report → confirm-and-apply shape). These files encode load-bearing behavioral contracts, so a human approves **per domain**, seeing per-file diffs. It is **not** an autonomous bulk rewriter. "One domain" is a property of the analysis+apply/approval unit, not the invocation: exactly one domain is read-in-full, reported, approved, and rewritten as a unit — a no-arg invocation iterates that unit over every flagged domain, an explicit `<domain>` runs it once.
 
 > **Distinct from the sibling doc skills.** `/docs-reorg-memory` reorganizes **structure** (splits/merges/moves + link rewrites) — it never rewrites body prose to a style. `/docs-hydrate-memory` backfill mode is **body-preserving** (adds frontmatter only); its ingest/generate modes author *new* content. `/fab-continue` hydrate writes each change's delta as current truth but only touches the sections its change affects. This skill is the only one that rewrites **existing** body prose to the present-truth style across a whole domain.
 
@@ -60,20 +60,20 @@ When you cannot tell whether a narration line encodes durable intent, treat it a
 
 ## Arguments
 
-- **`<domain>`** *(optional)* — the single memory domain to distill, named by its `docs/memory/` folder (e.g. `pipeline`, `distribution`, `runtime`, `_shared`). Case-insensitive substring match against domain folder names; an ambiguous or unknown name is handled per Error Handling. **One domain per run** — the skill rejects a multi-domain invocation (run it once per domain so each domain's diffs are approved on their own).
-  - **When omitted**, the skill runs **survey mode** (Behavior Step 0): a cheap heuristic scan over all domains that reports per-domain status, auto-selects the first domain with candidates, announces the pick, and proceeds into the one-domain flow. No-arg no longer aborts.
-  - **When given explicitly**, the domain is the **override** — the skill skips the survey heuristics and forces a full read of that domain (Behavior Step 1 onward).
+- **`<domain>`** *(optional)* — a single memory domain to distill, named by its `docs/memory/` folder (e.g. `pipeline`, `distribution`, `runtime`, `_shared`). Case-insensitive substring match against domain folder names; an ambiguous or unknown name is handled per Error Handling. The skill rejects a **multi-domain** invocation (to distill several domains, run no-arg — it loops all flagged domains — or run it once per named domain).
+  - **When omitted**, the skill runs **survey mode** (Behavior Step 0): a cheap heuristic scan over all domains that reports per-domain status, builds the flagged-domain worklist, and then **loops every flagged domain sequentially** (Behavior Step 6) in `docs/memory/index.md` domain-table order — running the one-domain flow (full read → per-file report → **per-domain approval** → apply → regen) as the loop body per domain. No-arg no longer aborts and no longer stops after one domain.
+  - **When given explicitly**, the domain is the **override** — the skill skips the survey heuristics, forces a full read of that domain (Behavior Step 1 onward), and runs the one-domain flow **once** (no loop).
 
-The "one domain per run" rule is a property of the analysis+apply unit, not the invocation: exactly one domain is read-in-full and rewritten per run whether it was named explicitly or auto-picked by the survey.
+**One domain per approval/apply unit, iterated within a single invocation.** "One domain" is a property of the approval/apply unit — one domain is read-in-full, reported, approved, and rewritten as a unit, with the human seeing that domain's per-file diffs — **not** of the invocation. A no-arg invocation iterates that unit over every flagged domain; an explicit `<domain>` runs it once.
 
 ---
 
 ## Pre-flight
 
 1. `docs/memory/index.md` must exist and be readable.
-2. **Resolve the domain**:
-   - **`<domain>` omitted** → run **survey mode** (Behavior Step 0). The survey selects the domain to distill; the topic-file precondition below is then checked against that selected domain. A no-arg invocation never aborts for a missing argument.
-   - **`<domain>` given** → the named domain folder `docs/memory/{domain}/` must exist and contain at least one topic file (a non-`index.md`/`log.md`/`log.seed.md` `.md` file). An ambiguous or unknown name is handled per Error Handling.
+2. **Resolve the domain(s)**:
+   - **`<domain>` omitted** → run **survey mode** (Behavior Step 0). The survey builds the flagged-domain worklist the all-domains loop (Behavior Step 6) iterates; the topic-file precondition below is checked per domain as the loop reaches it. A no-arg invocation never aborts for a missing argument.
+   - **`<domain>` given** → the named domain folder `docs/memory/{domain}/` must exist and contain at least one topic file (a non-`index.md`/`log.md`/`log.seed.md` `.md` file). An ambiguous or unknown name is handled per Error Handling. Runs the one-domain flow once (no loop).
 
 If check 1 fails — or a resolved/named domain folder is missing or has no topic files — STOP with the matching Error Handling message.
 
@@ -81,13 +81,13 @@ If check 1 fails — or a resolved/named domain folder is missing or has no topi
 
 ## Context Loading
 
-This section is the skill-file override the `_preamble.md` §1 contract keys on — the skill does **NOT** load the always-load layer. It requires **no active change, config, or constitution**. Once a target domain is resolved (named explicitly, or auto-picked by the survey), it reads only:
+This section is the skill-file override the `_preamble.md` §1 contract keys on — the skill does **NOT** load the always-load layer. It requires **no active change, config, or constitution**. For each target domain (named explicitly, or reached in turn as the no-arg loop iterates the survey worklist), it reads only:
 
 - `docs/memory/index.md` and the target domain's `docs/memory/{domain}/index.md` (and any sub-domain `index.md`) — the domain landscape.
 - Every topic file in the target domain (recursing into sub-domains) — the rewrite subjects.
 - `$(fab kit-path)/reference/fkf.md` — the shipped normative extract (§3.2 `description` rules incl. the 500-char cap and change-id ban; §3.3 present-truth body style incl. the tombstone carve-out). Read it so every proposed rewrite cites the deployed rule, not a remembered one.
 
-**Survey mode reads the machine surface up front, not the corpus.** On a no-arg invocation (Behavior Step 0), *before* a target domain exists the survey runs a single `fab memory-index --check --json` and reads its JSON `malformed[]`/`warnings[]` arrays to count flagged files per domain — it does **not** read every topic file's frontmatter and body. This is the canonical machine-surface path; only the **older-binary fallback** (Step 0) reverts to the legacy all-domains read-only grep scan (each domain's `index.md` + enough of every topic file's `description:` and body to run the narration-marker grep, recursing sub-domains, honoring the distillation exclusion set). Either way the all-domains survey is not a full Step 1 read; the full read is confined to the single domain the survey selects. An explicit `<domain>` skips the survey and reads only the target-domain set above.
+**Survey mode reads the machine surface up front, not the corpus.** On a no-arg invocation (Behavior Step 0), *before* any domain's full read the survey runs a single `fab memory-index --check --json` and reads its JSON `malformed[]`/`warnings[]` arrays to count flagged files per domain — it does **not** read every topic file's frontmatter and body. This is the canonical machine-surface path; only the **older-binary fallback** (Step 0) reverts to the legacy all-domains read-only grep scan (each domain's `index.md` + enough of every topic file's `description:` and body to run the narration-marker grep, recursing sub-domains, honoring the distillation exclusion set). Either way the all-domains survey is not a full Step 1 read; the full read is confined to each domain as the loop (Behavior Step 6) reaches it. An explicit `<domain>` skips the survey and reads only the target-domain set above.
 
 For the `fab memory-index --check --json` shape (the `malformed[]`/`warnings[]` kinds the survey aggregates), the exit tiers, and the refuse-before-regen pointer, consult **`_cli-fab` § fab memory-index** by in-body pointer (below) — it is not pre-loaded.
 
@@ -97,9 +97,9 @@ For the `fab memory-index --check --json` shape (the `malformed[]`/`warnings[]` 
 
 ### Step 0: Survey mode (no-arg only)
 
-Runs **only when `<domain>` was omitted**. An explicit `<domain>` skips this step entirely and goes straight to Step 1 (the override forces a full read regardless of survey heuristics).
+Runs **only when `<domain>` was omitted**. An explicit `<domain>` skips this step entirely and goes straight to Step 1 (the override forces a full read regardless of survey heuristics, and does NOT loop — see Step 6).
 
-The survey is a **cheap machine-surface read** over every domain — it does NOT do the full Step 1 read. Its job is to rank/pick, not to classify exhaustively; the full read still runs once a domain is selected. It reports per domain in the order of `docs/memory/index.md`'s domain table (deterministic, matches the user-facing landscape).
+The survey is a **cheap machine-surface read** over every domain — it does NOT do the full Step 1 read. Its job is to rank the flagged domains and drive the all-domains loop, not to classify exhaustively; the full read still runs once per domain inside the loop. It reports per domain in the order of `docs/memory/index.md`'s domain table (deterministic, matches the user-facing landscape).
 
 **Signal source: one `fab memory-index --check --json` invocation.** The survey runs `fab memory-index --check --json` **once** and consumes its structured output — the **canonical** signal source (`_cli-fab` § fab memory-index), not an agent-side grep of frontmatter and bodies. Per-domain **flagged-file counts** aggregate from four finding kinds — the same §3.2/§3.3 defect classes distillation fixes:
 
@@ -108,7 +108,7 @@ The survey is a **cheap machine-surface read** over every domain — it does NOT
 3. `warnings[]` kind **`description-length`** — a `description:` in the 501–1000 advisory band, over the 500-char soft cap (§3.2).
 4. `warnings[]` kind **`narration-density`** — a topic file whose body carries ≥5 narration markers (§3.3 distillation-debt meter).
 
-**Aggregation rules:** a file with **multiple findings counts once** (dedupe by `path`); a **sub-domain file rolls up to its domain** — the first path segment under `docs/memory/` (so `docs/memory/pipeline/runtime/x.md` counts under `pipeline`). The survey **re-applies the distillation exclusion set to the JSON finding paths** — it drops any finding whose path is an `index.md` or `_shared/removed-domains.md` before counting. The primitive scans neither exhaustively: it inspects `index.md` stubs for the three description-tier kinds (`description-change-id` / `description-over-cap` / `description-length`) and treats `_shared/removed-domains.md` as an ordinary topic file (its citation-dense rows trip `narration-density`), so their findings would otherwise be miscounted against a distilled domain. (`log.md` / `log.seed.md` never appear — the walker skips them.) Re-applying the exclusion set keeps a fully-distilled tree surveying clean and leaves the auto-pick semantics unchanged.
+**Aggregation rules:** a file with **multiple findings counts once** (dedupe by `path`); a **sub-domain file rolls up to its domain** — the first path segment under `docs/memory/` (so `docs/memory/pipeline/runtime/x.md` counts under `pipeline`). The survey **re-applies the distillation exclusion set to the JSON finding paths** — it drops any finding whose path is an `index.md` or `_shared/removed-domains.md` before counting. The primitive scans neither exhaustively: it inspects `index.md` stubs for the three description-tier kinds (`description-change-id` / `description-over-cap` / `description-length`) and treats `_shared/removed-domains.md` as an ordinary topic file (its citation-dense rows trip `narration-density`), so their findings would otherwise be miscounted against a distilled domain. (`log.md` / `log.seed.md` never appear — the walker skips them.) Re-applying the exclusion set keeps a fully-distilled tree surveying clean — the worklist comes up empty and the loop reports the terminal all-distilled state.
 
 **The check's exit code does NOT gate the survey** — the survey *consumes the report*, it is not a regen guard. Exit 1 (benign drift) and exit 2 (destructive loss) still produce a survey (the JSON is emitted on all `--check` exits). The refuse-before-regen exit-2 handling is a Step 5 concern, unrelated to surveying.
 
@@ -123,12 +123,14 @@ A **missing `type: memory` is NOT a survey signal** — the full read (Step 1 / 
 Then:
 
 1. **Report per-domain status** — which domains have flagged files and how many (see § Output). State the heuristic **caveat**.
-2. **Auto-select the first domain with candidates** (first in the `docs/memory/index.md` domain-table order that has ≥1 flagged file), **announce the pick**, and proceed into Step 1 for that domain — the full read, per-file report, and Step 3 approval gate are all unchanged. Retain the survey result to populate the completion `Next:` line (§ Output).
+2. **Build the flagged-domain worklist** — every domain with ≥1 flagged file, in `docs/memory/index.md` domain-table order. This is the loop's fixed worklist: the survey runs **once** and the loop iterates this initial list (**no re-survey between domains**). Announce the worklist, then enter **Step 6 (all-domains loop)** — each domain runs the unchanged one-domain flow (full read → per-file report → Step 3 approval → apply → regen) as the loop body.
 3. **If no domain has any flagged file**, report the terminal **"all domains distilled (survey heuristic)"** case with the caveat (§ Output) and stop — nothing is read in full and nothing is mutated.
 
-> The survey is heuristic: a domain can pass the cheap scan while still carrying superseded-state prose. That is fine for ranking/picking (the full read catches it once selected); the only silent-skip risk is the terminal all-clean case, so its output MUST carry the caveat.
+> The survey is heuristic: a domain can pass the cheap scan while still carrying superseded-state prose. That is fine for ranking the worklist (the full read catches it once the loop reaches that domain); the only silent-skip risk is the terminal all-clean case, so its output MUST carry the caveat.
 
 ### Step 1: Read the domain (read-only)
+
+> **Steps 1–5 are the one-domain flow — the *approval/apply unit*.** On an explicit `<domain>` they run once for that domain. On a no-arg invocation they are the **loop body**: Step 6 iterates them over every flagged domain in the survey worklist, one domain per approval unit. Nothing below changes between the two entry paths.
 
 Read the target domain's `index.md` and every topic file (recursing into sub-domains). For each topic file, identify:
 
@@ -210,11 +212,24 @@ After applying rewrites, regenerate the generated files — **never hand-edit th
 
 Heed any non-fatal shape/length warnings `fab memory-index` prints — a still-over-cap `description:` warning (501–1000 chars, advisory) is a signal to trim further. Note the two `description:` escalations are **blocking**, not advisory: a change-id in `description:`, or a gross over-cap value (> 1000 chars, 2× the 500 soft cap), fails `--check` (FKF §3.2) — so a distillation run that leaves either in place will not regenerate clean.
 
+### Step 6: All-domains loop (no-arg only)
+
+Runs **only on a no-arg invocation** (an explicit `<domain>` runs Steps 1–5 once for that domain and stops — no loop). After the Step 0 survey builds the flagged-domain worklist, iterate **every flagged domain sequentially in `docs/memory/index.md` domain-table order**, running Steps 1–5 (the one-domain flow) as the loop body for each. The loop runs **in the main session** — the Step 3 approval prompt is interactive and must reach the user, so there is **no per-domain subagent dispatch**.
+
+Loop semantics:
+
+- **Survey once, no re-survey between domains** — the loop iterates the *initial* Step 0 worklist. A file mutated in one domain never changes another domain's membership, so no re-survey is needed (or run).
+- **Per-domain approval is the unit** — each domain gets its own Step 3 prompt (apply all / cherry-pick / skip). Bulk approval across all domains in one prompt is **deliberately NOT offered** — it would collapse the human safeguard on load-bearing memory files.
+- **Skip → untouched, loop continues** — a **skipped** domain (Step 3 skip, or a cherry-pick that leaves flagged files) stays untouched and the loop moves to the next domain; it is reported in the terminal summary as skipped/remaining.
+- **Already-distilled domain → report and continue** — a domain whose full read (Step 1) finds nothing reports "no rewrites proposed — {domain} is already distilled" (Step 2) and the loop continues to the next domain (the survey is heuristic, so a worklist domain can turn out clean on the full read).
+- **Exit-2 within one domain → per-domain handling, then continue** — an exit-2 refuse-before-regen event (Step 5) is handled per the existing per-domain posture (report the reorg-remediation pointer, defer that domain's regen); it does **not** silently swallow the remaining domains. Continue the loop (or stop and report) per that domain's error-handling outcome — remaining domains are never dropped without a report.
+- **Terminal state** — when the worklist is exhausted, report either **"all domains distilled"** (every flagged domain processed) or a summary listing the **skipped/remaining** domains (§ Output). The dynamic `Next:` line reports that same surveyed truth (§ Output → Dynamic `Next:` line) — it no longer drives per-domain re-invocation.
+
 ---
 
 ## Output
 
-**Survey report (no-arg only, Step 0)** — emitted before the pick is announced:
+**Survey report (no-arg only, Step 0)** — emitted before the all-domains loop begins:
 
 ```
 Surveying docs/memory/ — heuristic scan across {N} domains (read-only)...
@@ -225,9 +240,10 @@ Surveying docs/memory/ — heuristic scan across {N} domains (read-only)...
   pipeline       —
   runtime        1 file flagged
 
-Survey is heuristic; run /docs-distill-memory <domain> to force a full read of a specific domain.
+Survey is heuristic; run /docs-distill-memory <domain> to force a full read of a single domain.
 
-Auto-picking _shared (first flagged domain) → reading its topic files in full...
+Looping 3 flagged domains in index order: _shared → distribution → runtime.
+Distilling _shared (1 of 3) → reading its topic files in full...
 ```
 
 If the survey finds nothing anywhere (terminal all-clean case):
@@ -239,42 +255,52 @@ All domains distilled (survey heuristic) — no candidate domains flagged.
 Survey is heuristic; run /docs-distill-memory <domain> to force a full read of a specific domain.
 ```
 
-**Per-domain distillation** (after a domain is selected — explicitly or by the survey):
+**Per-domain distillation** (each loop iteration; also the whole output on an explicit `<domain>`):
 
 ```
-Distilling docs/memory/{domain}/ — reading {N} topic files (read-only)...
+Distilling docs/memory/{domain}/ ({i} of {M}) — reading {N} topic files (read-only)...
 
 {per-file proposed-rewrite report}
 
 Apply these rewrites? (apply all / cherry-pick / skip)
 ```
 
-After apply:
+After each domain's apply:
 
 ```
-Distillation complete — {F} files rewritten, {D} narration lines removed, {H} change-id heading suffixes stripped, {B} byte-identical blocks deduped ({N} near-duplicates flagged), {DD} DD changelog bullets rewritten, {T} TODOs relocated → fab/backlog.md, {R} rationale blocks relocated to Design Decisions, {C} descriptions capped/de-id'd. Indexes regenerated via fab memory-index; no generated file hand-edited.
+{domain} distilled — {F} files rewritten, {D} narration lines removed, {H} change-id heading suffixes stripped, {B} byte-identical blocks deduped ({N} near-duplicates flagged), {DD} DD changelog bullets rewritten, {T} TODOs relocated → fab/backlog.md, {R} rationale blocks relocated to Design Decisions, {C} descriptions capped/de-id'd. Indexes regenerated via fab memory-index; no generated file hand-edited.
 ```
 
-If no changes needed: `No rewrites proposed — {domain} is already distilled (present-truth).`
+Per-domain, when no changes are needed: `No rewrites proposed — {domain} is already distilled (present-truth).` — the loop continues to the next domain.
 
-If the user declined: `Analysis reported; {domain} left intact (no files mutated).`
+Per-domain, when the user declines/skips: `Analysis reported; {domain} left intact (no files mutated).` — the loop continues to the next domain (the domain stays listed as skipped/remaining in the terminal summary).
 
-If `fab memory-index --check` returned exit 2: report the refuse-before-regen pointer and stop before regenerating (rewrites already applied stay; regeneration is deferred to the reorg remediation).
+Per-domain, if `fab memory-index --check` returned exit 2: report the refuse-before-regen pointer for that domain and stop that domain's regeneration (rewrites already applied stay; regeneration is deferred to the reorg remediation). Remaining domains are handled per the Step 6 exit-2 posture — never silently dropped.
 
-**Dynamic `Next:` line** — the skill's closing line (below) lists the surveyed remaining candidate domains, or reports all-distilled when none remain:
+**Terminal summary (no-arg, after the worklist is exhausted)** — one of:
 
-- On a **no-arg** invocation, reuse the Step 0 survey result minus the completed domain. A domain the user **skipped** or only **partially cherry-picked** stays listed while it still carries flagged files (the line reports surveyed truth).
+```
+All domains distilled — {M} domains processed ({F} files rewritten total). No candidates remain (survey heuristic).
+```
+
+```
+Distillation loop complete — {P} of {M} domains distilled; {S} skipped/remaining: _shared (2 files flagged), runtime (1 file flagged).
+```
+
+**Dynamic `Next:` line** — the skill's closing line (below) reports the surveyed **skipped/remaining** domains (surveyed truth), or all-distilled when none remain. It **reports state; it no longer drives per-domain re-invocation**:
+
+- On a **no-arg** invocation, the line reflects the initial Step 0 survey minus every domain fully distilled this run. A domain the user **skipped** or only **partially cherry-picked** stays listed while it still carries flagged files.
 - On an **explicit-`<domain>`** invocation (no upfront survey ran), run the survey at completion to populate the line.
-- Candidates are listed in `docs/memory/index.md` domain-table order, each with its flagged-file count. Example:
-
-```
-Next: /docs-distill-memory _shared (2 files flagged), /docs-distill-memory runtime (1 file flagged), /docs-reorg-memory, or /fab-new
-```
-
-or, when the survey finds no remaining candidates:
+- Skipped/remaining domains are listed in `docs/memory/index.md` domain-table order, each with its flagged-file count, as a pointer for a follow-up **targeted** run. Example:
 
 ```
 Next: all domains distilled (survey heuristic) — /docs-reorg-memory or /fab-new
+```
+
+or, when the user skipped or partially cherry-picked domains that still carry flagged files:
+
+```
+Next: skipped/remaining — /docs-distill-memory _shared (2 files flagged), /docs-distill-memory runtime (1 file flagged); or /docs-reorg-memory, /fab-new
 ```
 
 ---
@@ -284,10 +310,10 @@ Next: all domains distilled (survey heuristic) — /docs-reorg-memory or /fab-ne
 | Condition | Action |
 |-----------|--------|
 | `docs/memory/index.md` missing | Abort: "docs/memory/ not found. Run /fab-setup first." |
-| No `<domain>` argument | *(not an error — runs survey mode, Behavior Step 0)* |
-| Domain folder missing / no topic files | Abort: "Domain '{domain}' not found (or has no topic files). Available: {list domain folders}." |
+| No `<domain>` argument | *(not an error — runs survey mode + the all-domains loop, Behavior Steps 0 and 6)* |
+| Domain folder missing / no topic files (explicit `<domain>`) | Abort: "Domain '{domain}' not found (or has no topic files). Available: {list domain folders}." |
 | Ambiguous domain (matches >1 folder) | Abort: "'{domain}' matches {N} domains: {list}. Name one." |
-| Multiple domains passed | Abort: "One domain per run — run /docs-distill-memory once per domain so each domain's diffs are approved separately." |
+| Multiple domains passed | Abort: "One domain per named run — run /docs-distill-memory with no argument to loop every flagged domain (each still approved on its own), or name a single domain." |
 | `fab memory-index --check --json` unavailable / no `warnings` key (older binary) — **survey mode** | Fall back to the legacy agent-side grep heuristics (the three §3.2/§3.3 classes) verbatim and warn to upgrade `fab`; the survey still runs (Behavior Step 0 older-binary fallback) |
 | `fab memory-index --check` exit 2 (destructive loss) | Refuse to regenerate; surface the `→ run /docs-reorg-memory to remediate …` pointer (no-op on born-compatible fab-kit trees — not dead code). *(Survey mode does NOT gate on exit code — exit 2 still surveys.)* |
 | `fab memory-index` unavailable (older binary) — **regeneration** | Warn; the rewrites are applied but indexes are not regenerated — tell the user to upgrade `fab` and re-run `fab memory-index` |
@@ -301,18 +327,18 @@ Next: all domains distilled (survey heuristic) — /docs-reorg-memory or /fab-ne
 | Advances stage? | No |
 | Requires active change? | No |
 | Requires config/constitution? | No |
-| Argument | `[<domain>]` optional — named forces a full read of that domain; omitted runs survey mode (heuristic scan → per-domain report → auto-pick first candidate → existing one-domain flow) |
-| Scope per run | One domain, propose-then-apply (read-only until explicit approval) — the per-run unit is one domain read-in-full and rewritten, whether named explicitly or auto-picked by the survey |
+| Argument | `[<domain>]` optional — named forces a full read of that one domain (no loop); omitted runs survey mode then the all-domains loop (heuristic scan → per-domain report → loop every flagged domain sequentially in index order, one-domain flow per domain) |
+| Scope per run | One domain per **approval/apply unit**, propose-then-apply (read-only until explicit approval), iterated within a single invocation — a no-arg invocation loops the unit over every flagged domain; an explicit `<domain>` runs it once. Each domain is read-in-full, reported, approved, and rewritten as its own unit (per-domain gate; no bulk approval) |
 | Modifies memory files? | Yes — rewrites topic-file bodies + `description:` frontmatter to FKF present-truth style (transition narration, superseded state, change-id heading suffixes, byte-identical duplicate blocks, DD changelog bullets), only with explicit confirmation. `_shared/removed-domains.md` is exempt (§3.3 tombstone carve-out) |
 | Writes outside `docs/memory/`? | Yes — one file: `fab/backlog.md` (operational-TODO relocation target, §3.3 class 9 — created with a `# Backlog` header when absent). Never deletes a TODO |
 | Preserves rationale? | Yes — deliberate-behavior/"don't re-break" content is relocated into Design Decisions (`Why`/`Rejected`), never deleted; deletion is confined to narration recorded elsewhere (log.md/git/archive). **Never fabricates rationale** — a DD-bullet rewrite with no derivable Why/Rejected carries only Decision + *Introduced by* |
 | Preserves provenance? | Yes — trailing `(change-id)` citations and `*Introduced by*` fields are kept; change-ids are stripped from `description:` frontmatter (§3.2) and from heading text (§3.3 — kept as a trailing body citation when provenance matters) |
 | Auto-merges near-duplicates? | No — only **byte-identical** within-file blocks are auto-removed; near-duplicates are flagged for manual review. Cross-file duplicate coverage belongs to /docs-reorg-memory |
 | Moves files? | No — this skill rewrites in place; structural moves (incl. cross-file splits/merges) belong to /docs-reorg-memory |
-| Idempotent? | Yes — an already-distilled domain proposes nothing; `fab memory-index` regeneration is byte-stable (Constitution III) |
+| Idempotent? | Yes — an already-distilled domain proposes nothing; a fully-distilled tree surveys clean so the no-arg loop's worklist is empty (terminal all-distilled); `fab memory-index` regeneration is byte-stable (Constitution III) |
 | Indexes hand-edited? | No — regenerated by `fab memory-index`; honors the refuse-before-regen `--check` exit-2 guard |
 
 ---
 
-Next: {surveyed remaining candidate domains, e.g. /docs-distill-memory runtime (1 file flagged), …}, /docs-reorg-memory, or /fab-new
-<!-- Dynamic: populated from the survey (§ Output → Dynamic `Next:` line). Lists the surveyed remaining candidates in docs/memory/index.md domain-table order with flagged-file counts; when none remain, reports "all domains distilled (survey heuristic)" instead. Not the former static {another-domain} placeholder. -->
+Next: {surveyed skipped/remaining domains, e.g. skipped/remaining — /docs-distill-memory runtime (1 file flagged); or /docs-reorg-memory, /fab-new}
+<!-- Dynamic: populated from the survey (§ Output → Dynamic `Next:` line). Reports the surveyed SKIPPED/REMAINING domains in docs/memory/index.md domain-table order with flagged-file counts — a pointer for a follow-up targeted run, NOT per-domain re-invocation (the no-arg loop already processes every flagged domain in one invocation). When none remain, reports "all domains distilled (survey heuristic)" instead. -->

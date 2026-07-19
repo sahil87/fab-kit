@@ -705,17 +705,22 @@ func TestGather_DescriptionOverCap_Boundary(t *testing.T) {
 	}
 }
 
-// TestGather_NarrationDensity_Boundary pins R4: fires at exactly 5 markers
-// (stems + registry-gated change-id tokens), not at 4; advisory (not blocking).
+// TestGather_NarrationDensity_Boundary pins R1/R3: fires at exactly 5 markers
+// (stems + non-sanctioned-position change-id tokens), not at 4; advisory (not
+// blocking). Change-ids in a parenthesized `(id)` citation and on an
+// `*Introduced by*:` field line do NOT count — only prose-woven ids and stems do.
 func TestGather_NarrationDensity_Boundary(t *testing.T) {
 	repo := t.TempDir()
 	registerFixtureChange(t, repo, "260101-abcd-one")
-	// 3 stem hits + 2 change-id tokens = 5 → warns.
-	body5 := "# T\n\nThis was previously X and is no longer Y; it supersedes Z (abcd) again abcd.\n"
+	// 3 stem hits + 2 prose change-id tokens = 5 → warns. The `(abcd)` is a
+	// SANCTIONED parenthesized citation and does NOT count; the two bare `abcd`
+	// tokens woven into prose do.
+	body5 := "# T\n\nThis previously X and is no longer Y; it supersedes Z (abcd) — abcd then abcd.\n"
 	writeFile(t, repo, "docs/memory/dom/five.md",
 		"---\ndescription: \"clean\"\n---\n"+body5)
-	// 4 markers (3 stems + 1 id) → does NOT warn.
-	body4 := "# T\n\npreviously A, no longer B, this supersedes C (abcd).\n"
+	// 4 markers (3 stems + 1 prose id) → does NOT warn. The `(abcd)` citation is
+	// sanctioned (uncounted); only the one bare prose `abcd` counts.
+	body4 := "# T\n\npreviously A, no longer B, this supersedes C (abcd) plus abcd.\n"
 	writeFile(t, repo, "docs/memory/dom/four.md",
 		"---\ndescription: \"clean\"\n---\n"+body4)
 
@@ -732,6 +737,69 @@ func TestGather_NarrationDensity_Boundary(t *testing.T) {
 	}
 	if hits[0].IsBlocking() {
 		t.Error("narration density must be ADVISORY, not blocking")
+	}
+}
+
+// TestGather_NarrationDensity_SanctionedCitationsDontCount pins R1: a distilled
+// file carrying ONLY sanctioned change-id citations — trailing `(id)`
+// parenthesized citations and `*Introduced by*:` field lines — plus fewer than 5
+// stems does NOT flag, even when the raw id-occurrence count is well over the
+// threshold. This is the false positive the change fixes: distillation KEEPS
+// exactly these citations, so a fully-distilled file must clear the flag.
+func TestGather_NarrationDensity_SanctionedCitationsDontCount(t *testing.T) {
+	repo := t.TempDir()
+	registerFixtureChange(t, repo, "260101-abcd-one")
+	registerFixtureChange(t, repo, "260202-efgh-two")
+	// A distilled DD-bearing body: 8 sanctioned change-id occurrences (six
+	// parenthesized citations + two on *Introduced by*: lines) and only 1 stem.
+	// Under the old count-everything rule this was 9 markers (flag); under the
+	// position-aware rule it is 1 (no flag).
+	distilled := "# Topic\n\n" +
+		"The dispatch runtime resolves the tier per stage (abcd).\n" +
+		"State transitions are owned by the sequencer (efgh).\n" +
+		"The poll predicate must not be simplified (abcd).\n\n" +
+		"## Design Decisions\n\n" +
+		"### Tier resolution\n" +
+		"**Decision**: Resolve once before dispatch (abcd).\n" +
+		"**Why**: One resolution keeps the profile stable (efgh).\n" +
+		"*Introduced by*: 260101-abcd-one\n\n" +
+		"### State ownership\n" +
+		"**Decision**: The sequencer owns transitions previously (efgh).\n" +
+		"*Introduced by*: 260202-efgh-two\n"
+	writeFile(t, repo, "docs/memory/dom/distilled.md",
+		"---\ndescription: \"Dispatch runtime — tier resolution and state ownership\"\n---\n"+distilled)
+
+	_, _, warnings, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hits := warningsByKind(warnings, KindNarrationDensity); len(hits) != 0 {
+		t.Errorf("a distilled file carrying only sanctioned citations must NOT flag narration-density, got %+v", hits)
+	}
+}
+
+// TestGather_NarrationDensity_ProseIDsStillCount pins R1: change-ids woven into
+// prose (outside the sanctioned positions) still count as density markers, so a
+// file narrating ids remains flaggable even with zero transition stems.
+func TestGather_NarrationDensity_ProseIDsStillCount(t *testing.T) {
+	repo := t.TempDir()
+	registerFixtureChange(t, repo, "260101-abcd-one")
+	// 0 stems + 5 bare prose ids (none parenthesized, none on an *Introduced by*:
+	// line) = 5 markers → warns.
+	body := "# T\n\nSee abcd and abcd; also abcd, abcd, abcd for the woven-in ids.\n"
+	writeFile(t, repo, "docs/memory/dom/prose.md",
+		"---\ndescription: \"clean\"\n---\n"+body)
+
+	_, _, warnings, err := Gather(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hits := warningsByKind(warnings, KindNarrationDensity)
+	if len(hits) != 1 || hits[0].Path != "docs/memory/dom/prose.md" {
+		t.Fatalf("prose-woven ids must still count toward density, got %+v", hits)
+	}
+	if hits[0].Count < NarrationMarkerWarnThreshold {
+		t.Errorf("5 prose ids should meet the threshold, got count %d", hits[0].Count)
 	}
 }
 

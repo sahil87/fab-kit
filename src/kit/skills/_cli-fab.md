@@ -812,8 +812,11 @@ stderr/exit-code only). They split into a **BLOCKING** class (fails `--check`) a
   heuristic, replacing an agent-side frontmatter re-check.
 - `⚠ … has <N> narration markers (threshold: 5) — distillation debt; consider /docs-distill-memory`
   when a **topic file's** body carries ≥ 5 narration markers — case-insensitive transition stems
-  (`no longer`/`previously`/`renamed`/`supersed`) plus registry-gated change-id token **occurrences**
-  (sanctioned citations count too — density is the distillation-debt signal, `NarrationMarkerWarnThreshold`).
+  (`no longer`/`previously`/`renamed`/`supersed`) plus registry-gated change-id tokens **outside the
+  §3.3-sanctioned citation positions** (`NarrationMarkerWarnThreshold`). A trailing `(change-id)`
+  citation and a change-id on an `*Introduced by*:` field line do NOT count — they are the provenance
+  distillation KEEPS, so a fully-distilled file clears the flag; a change-id woven into prose still
+  counts (density signal for narrated ids).
 - `⚠ … is <N> lines / <K>KB (soft cap: ~400 lines / ~15KB) — consider splitting; see /docs-reorg-memory`
   when a **topic file** exceeds **400 lines OR 15KB** (either bound; `FileSizeLineWarnThreshold` /
   `FileSizeByteWarnThreshold`).

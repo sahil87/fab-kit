@@ -65,8 +65,9 @@ const (
 	DescriptionBlockingLenThreshold = 1000
 	// NarrationMarkerWarnThreshold is the advisory threshold on a topic file's
 	// narration-marker count (transition stems + registry-gated change-id tokens
-	// in the body — the distillation-debt meter). A file reaching this count
-	// triggers an advisory warning. Hardcoded shape-bound const, NOT config.
+	// in the body that fall OUTSIDE the §3.3-sanctioned citation positions — the
+	// distillation-debt meter). A file reaching this count triggers an advisory
+	// warning. Hardcoded shape-bound const, NOT config.
 	NarrationMarkerWarnThreshold = 5
 	// FileSizeLineWarnThreshold is the advisory soft cap on a topic file's line
 	// count. A file strictly over this triggers an advisory size warning (the
@@ -110,9 +111,12 @@ const (
 	// over-cap fails `--check` (the 501–1000 advisory nag demonstrably failed).
 	KindDescriptionOverCap = "description-over-cap"
 	// KindNarrationDensity: a topic file's narration-marker count (transition
-	// stems + registry-gated change-id tokens in the body) reaches
-	// NarrationMarkerWarnThreshold. ADVISORY — the standing distillation-debt
-	// meter (counts sanctioned citations too; density is the signal).
+	// stems + registry-gated change-id tokens in the body OUTSIDE the sanctioned
+	// citation positions — a parenthesized `(id)` citation, an `*Introduced by*:`
+	// field line) reaches NarrationMarkerWarnThreshold. ADVISORY — the standing
+	// distillation-debt meter. Sanctioned citations are KEPT by distillation, so
+	// they are not scored as debt (a distilled file with only allowed citations
+	// clears the flag); an id woven into prose still counts.
 	KindNarrationDensity = "narration-density"
 	// KindFileSize: a topic file exceeds FileSizeLineWarnThreshold lines OR
 	// FileSizeByteWarnThreshold bytes. ADVISORY — the mega-file split signal.
@@ -843,16 +847,56 @@ func scanChangeIDs(text string, reg map[string]changeMeta) []string {
 	return ids
 }
 
-// countChangeIDOccurrences returns the TOTAL number of registry-gated change-id
-// tokens in text (NOT deduplicated) — the density measure the narration-marker
-// meter needs (three citations of the same id are three provenance markers, not
-// one; the audit counts occurrences: run-kit 1,066, loom 2,121).
-func countChangeIDOccurrences(text string, reg map[string]changeMeta) int {
+// parenCitationPattern matches a parenthesized `(change-id)` citation — a single
+// candidate token wrapped in parentheses with no other content (optional inner
+// spaces tolerated, e.g. `( xu0k )`). The captured group is the inner token; the
+// caller resolves it against the registry so only a genuine change-id counts as a
+// sanctioned citation (a `(see the docs)` group whose inner text has a space is
+// not a lone token and never matches). This is the §3.3-sanctioned trailing
+// citation form the narration-density meter must NOT count.
+var parenCitationPattern = regexp.MustCompile(`\(\s*([^()\s]+)\s*\)`)
+
+// introducedByLinePattern matches a Design-Decisions `*Introduced by*:` field
+// line (leading whitespace tolerated). Every change-id on such a line is
+// sanctioned provenance (§3.3), so the meter skips the whole line.
+var introducedByLinePattern = regexp.MustCompile(`(?i)^\s*\*introduced by\*\s*:`)
+
+// countNonSanctionedChangeIDs returns the number of registry-gated change-id
+// token OCCURRENCES that appear OUTSIDE the two §3.3-sanctioned positions:
+//   - a parenthesized `(change-id)` trailing citation (both a full
+//     YYMMDD-XXXX-slug token and a bare registered 4-char id), and
+//   - any change-id on an `*Introduced by*:` Design-Decisions field line.
+//
+// A change-id woven into prose (outside those positions) still counts — an id
+// embedded in narration is a genuine density signal. This inverts the former
+// count-everything rule (which counted sanctioned citations too, so a
+// fully-distilled file that kept its allowed citations could never clear the
+// flag): distillation is told to KEEP exactly these citations, so they must not
+// be scored as debt. Occurrences are NOT deduplicated — three prose mentions of
+// one id are three markers.
+func countNonSanctionedChangeIDs(body string, reg map[string]changeMeta) int {
 	n := 0
-	for _, tok := range strings.FieldsFunc(text, changeIDTokenSep) {
-		if changeIDTokenID(tok, reg) != "" {
-			n++
+	for _, line := range strings.Split(body, "\n") {
+		// (b) An *Introduced by*: field line — every id on it is sanctioned.
+		if introducedByLinePattern.MatchString(line) {
+			continue
 		}
+		// Total resolved change-id occurrences on the line.
+		total := 0
+		for _, tok := range strings.FieldsFunc(line, changeIDTokenSep) {
+			if changeIDTokenID(tok, reg) != "" {
+				total++
+			}
+		}
+		// (a) Subtract each lone-parenthesized `(change-id)` citation — the
+		// inner token resolves and was the sole content of its parens group.
+		sanctioned := 0
+		for _, m := range parenCitationPattern.FindAllStringSubmatch(line, -1) {
+			if changeIDTokenID(m[1], reg) != "" {
+				sanctioned++
+			}
+		}
+		n += total - sanctioned
 	}
 	return n
 }
@@ -1245,8 +1289,9 @@ func frontmatterWarnings(memRoot string, reg map[string]changeMeta) []Warning {
 }
 
 // topicBodyWarnings returns the advisory body findings for one topic file:
-// narration-marker density (transition stems + registry-gated change-id tokens,
-// fires at ≥ NarrationMarkerWarnThreshold), size (> line OR > byte cap), and
+// narration-marker density (transition stems + registry-gated change-id tokens
+// outside the §3.3-sanctioned citation positions, fires at ≥
+// NarrationMarkerWarnThreshold), size (> line OR > byte cap), and
 // broken bundle-relative links (`](/...)` targets absent under docs/memory/,
 // skipping fenced code blocks). All advisory — none affects the exit code.
 // A file that cannot be read yields no findings (graceful degradation).
@@ -1260,10 +1305,13 @@ func topicBodyWarnings(memRoot, p, relPath string, reg map[string]changeMeta) []
 	var out []Warning
 
 	// Narration-marker density: case-insensitive transition-stem hits + the
-	// registry-gated change-id token OCCURRENCES in the body (the debt meter
-	// counts sanctioned citations too, and each occurrence — density is the
-	// signal, not violation; three cites of one id are three markers).
-	markers := countNarrationStems(body) + countChangeIDOccurrences(body, reg)
+	// registry-gated change-id token occurrences in the body that fall OUTSIDE
+	// the two §3.3-sanctioned positions (a parenthesized `(id)` citation, an
+	// `*Introduced by*:` field line). The sanctioned citations are exactly what
+	// distillation is told to KEEP, so they are not counted as debt — a
+	// fully-distilled file that retains only its allowed citations clears the
+	// flag. An id woven into prose still counts (density signal for narrated ids).
+	markers := countNarrationStems(body) + countNonSanctionedChangeIDs(body, reg)
 	if markers >= NarrationMarkerWarnThreshold {
 		out = append(out, Warning{Path: relPath, Kind: KindNarrationDensity, Count: markers})
 	}

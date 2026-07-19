@@ -85,7 +85,7 @@ The primitive is the single source of truth for what regen would destroy — reo
 - **`file-size`** findings (a topic file over ~400 lines OR ~15KB, carrying `count` = lines and `bytes`) → the **Shape Report file rows** (split candidates, Step 3).
 - **`unsorted-nonempty`** finding (a non-empty `docs/memory/_unsorted/`) → the **`_unsorted/` staging triage** pass (Step 3/4).
 
-So one call feeds compatibility detection (`losses[]`), the file-split Shape Report rows (`warnings[]` `file-size`), and the `_unsorted/` triage (`warnings[]` `unsorted-nonempty`). Record all three alongside the shape/theme measurements.
+So one call feeds compatibility detection (`losses[]`), the file-split Shape Report rows (`warnings[]` `file-size`), and the `_unsorted/` triage (`warnings[]` `unsorted-nonempty`). Record all three alongside the shape/theme measurements. The **completion chain to `/docs-distill-memory`** (§ Output) reuses this **same** call's `malformed[]` + `warnings[]` output once more at completion — a fourth reuse, no second `fab memory-index` call.
 
 > **Older-binary fallback.** If `fab memory-index` does not support `--check`'s loss tiers / `--json` (an older binary — `--json` is unknown, the exit code is binary clean/dirty with no tier 2, or the `warnings` key is absent), fall back to the **legacy prose detection** during the read-all-files pass: a topic file with no frontmatter or no `description:` key is a missing-description finding (`frontmatter.Field` semantics); a row in an existing index whose `docs/memory/`-relative link target is absent on disk is a tombstone candidate (relative-target-absent is the primary signal, strikethrough `~~...~~` a non-required corroborating hint, external/absolute links excluded); a `### Apps`/`### Packages`-style heading in the root `index.md` beyond the domains-only table is a custom-grouping finding. **The `warnings[]` consumers also fall back**: file-size split candidates are measured from the read-all-files pass's approximate line counts (Step 1 already records them); `_unsorted/` staging is read by a direct `docs/memory/_unsorted/` folder listing. Then warn the user to upgrade `fab` so detection becomes mechanical.
 
@@ -269,6 +269,26 @@ When compatibility remediation ran, also report: `Compatibility migration: {T} t
 
 If no changes needed: `Current structure is well-organized — no reorganization needed.` (and the Shape Report shows all folders within bounds).
 
+### Completion chain → `/docs-distill-memory`
+
+After the completion output above (regardless of whether any migration ran — the composition order is *structure first (reorg), prose second (distill)*), emit a `Next:` line pointing at `/docs-distill-memory` so the fixed reorg → distill order is self-guiding with zero new command surface. This is the other half of the bidirectional chain — distill already points back at reorg in its own `Next:` line.
+
+**Reuse the Step 1 call — no second survey.** Reorg already runs a single `fab memory-index --check --json` (Step 1, one call feeding three consumers). Its `warnings[]` array already carries the `narration-density` and description-tier findings, so the chain reuses **that call's output** — it does **not** run a second `fab memory-index` call. The counts therefore reflect the **Step 1 pre-migration snapshot** — best-effort: approved migrations (moves, `split-file`/`merge-file`, and especially the compatibility description-backfill) can make them stale by completion; that is fine, because distill re-surveys at entry. Aggregate the flagged files with **distill's survey rule** so the two skills' counts agree:
+
+- Count four finding kinds — `malformed[]` `description-change-id` + `description-over-cap` (blocking) and `warnings[]` `description-length` (501–1000 advisory) + `narration-density`.
+- A file with **multiple findings counts once** (dedupe by `path`); a **sub-domain file rolls up to its domain** (first path segment under `docs/memory/`).
+- **Re-apply the distillation exclusion set** — drop any finding whose path is an `index.md` or `_shared/removed-domains.md` before counting.
+
+Then emit, when N ≥ 1 flagged files across M domains (listed **first**, before the other options):
+
+```
+Next: /docs-distill-memory (N files flagged across M domains), or /fab-new
+```
+
+When N = 0 (nothing flagged), omit the count-bearing pointer and emit the normal completion `Next:` (e.g. `Next: /fab-new`).
+
+**Older-binary fallback (graceful degradation).** On the older-binary path (no `warnings[]` machine surface — the same fallback Step 1 already handles, with its upgrade warning), the counts are unavailable, so **omit them**: emit a plain pointer `Next: /docs-distill-memory, or /fab-new` (or the normal `Next:` line) — never a fabricated `(N files flagged …)` count. This follows the `_preamble` § Next Steps Convention skill-file-wins carve-out (reorg defines its own completion ending).
+
 ---
 
 ## Error Handling
@@ -305,3 +325,4 @@ If no changes needed: `Current structure is well-organized — no reorganization
 | Dispatches sub-agents? | Yes — `/docs-hydrate-memory` backfill mode (general-purpose sub-agent, standard subagent context) for per-file description synthesis during compatibility orchestration |
 | Link rewriting | Skill-driven (the agent edits links per the Link Impact list) — NOT a `fab` subcommand |
 | Indexes hand-edited? | No — regenerated by `fab memory-index` (domain + sub-domain tiers) |
+| Chains to `/docs-distill-memory`? | Yes — completion emits `Next: /docs-distill-memory (N files flagged across M domains)` (N ≥ 1) reusing the Step 1 `--check --json` `warnings[]` (no second call, distill's four-kind aggregation); the fixed structure-then-prose order made self-guiding. Older-binary ⇒ plain pointer, no counts |

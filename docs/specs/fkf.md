@@ -271,9 +271,11 @@ job; the index command only detects and warns.
 bounds, `fab memory-index` emits per-topic-file advisory warnings that measure distillation debt and
 staging hygiene — the standing meters an audit would otherwise have to run by hand. None affects the
 exit code (unlike the §3.2 blocking escalations): **narration-marker density** (transition stems
-`no longer`/`previously`/`renamed`/`supersed` plus registry-gated change-id token occurrences in the
-body — a file reaching ~5 markers warns; sanctioned citations count too, because density, not
-violation, is the signal), **file size** (a topic file over ~400 lines or ~15KB is a split
+`no longer`/`previously`/`renamed`/`supersed` plus registry-gated change-id tokens in the body that
+fall **outside** the §3.3-sanctioned citation positions — a file reaching ~5 markers warns. A trailing
+`(change-id)` citation and a change-id on an `*Introduced by*:` field line do NOT count: they are the
+provenance distillation KEEPS, so a fully-distilled file clears the flag; a change-id woven into prose
+still counts (a density signal for narrated ids)), **file size** (a topic file over ~400 lines or ~15KB is a split
 candidate), **`_unsorted/` non-empty** (staging should trend to empty — any topic file present
 warns), and **broken bundle-relative links** (a `](/...)` memory↔memory target absent on disk; the
 author-side counterpart to §7's consumer-tolerates-broken-links posture — only `/`-prefixed targets,
