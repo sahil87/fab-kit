@@ -177,7 +177,7 @@ The existing `cp -r` distribution method SHALL continue to work, given the syste
 
 ### Sync Staleness Detection
 
-Preflight compares `$(fab kit-path)/VERSION` against the project's pinned version — read from `fab/.fab-version` first, falling back to `fab_version:` in `config.yaml` for one compat window (j0qm) — and emits a non-blocking stderr warning when they differ:
+Preflight compares `$(fab kit-path)/VERSION` against the project's pinned version — read from `fab/.fab-version` only (j0qm; `Config.FabVersion` is tagged `yaml:"-"`, so config.yaml's `fab_version:` key is never consulted) — and emits a non-blocking stderr warning when they differ:
 
 - `⚠ Skills may be out of sync — run fab sync to refresh (engine X, project Y)`
 

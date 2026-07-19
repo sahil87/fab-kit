@@ -23,21 +23,22 @@ var runSync = Sync
 // Sync performs the full workspace sync using the cached kit directory.
 // systemVersion is the embedded version of the fab-kit binary (feeds the
 // version guard). kitVersion is the kit content version to sync; when empty
-// (the plain `fab sync` path) it is read from fab_version in config.yaml.
-// Init and Upgrade pass kitVersion explicitly so config.yaml can be stamped
+// (the plain `fab sync` path) it is read from fab/.fab-version.
+// Init and Upgrade pass kitVersion explicitly so fab/.fab-version can be stamped
 // only AFTER a successful sync (and so the guard compares the real binary
 // version, not the kit version against itself).
 // shimOnly runs steps 1-5 only; projectOnly runs step 6 only.
 func Sync(systemVersion, kitVersion string, shimOnly, projectOnly bool) error {
-	// Resolve the kit version from config.yaml unless the caller provided it.
-	// The managed-repo check is a fab/project/config.yaml walk-up that does not
-	// depend on git, so it MUST gate before gitRepoRoot(): a directory that is
-	// neither git-tracked nor fab-managed exits with ExitNotManaged (3), the
-	// distinguishable "not a fab-managed repo" signal, rather than collapsing to
-	// the git-root-resolution error's generic exit 1. This keeps `fab sync`
+	// Resolve the kit version from fab/.fab-version unless the caller provided it
+	// (RequireManagedRepo → readFabVersion reads that plain-text sibling — the sole
+	// source since 260708-j0qm). The managed-repo check is a fab/project/config.yaml
+	// walk-up that does not depend on git, so it MUST gate before gitRepoRoot(): a
+	// directory that is neither git-tracked nor fab-managed exits with ExitNotManaged
+	// (3), the distinguishable "not a fab-managed repo" signal, rather than collapsing
+	// to the git-root-resolution error's generic exit 1. This keeps `fab sync`
 	// symmetric with `fab-kit migrations-status`, which has no git precondition
 	// and already exits 3 in the same directory. Init/Upgrade pass kitVersion
-	// explicitly (config.yaml is not yet stamped), so they skip this check.
+	// explicitly (fab/.fab-version is not yet stamped), so they skip this check.
 	fabVersion := kitVersion
 	if fabVersion == "" {
 		cfg, err := RequireManagedRepo()

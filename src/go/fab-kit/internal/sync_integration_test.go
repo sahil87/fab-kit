@@ -78,7 +78,8 @@ func setupSyncRepo(t *testing.T) string {
 	if err := os.MkdirAll(filepath.Join(repo, "fab", "project"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	writeOrFatal(filepath.Join(repo, "fab", "project", "config.yaml"), "fab_version: \"dev\"\n", 0644)
+	writeOrFatal(filepath.Join(repo, "fab", "project", "config.yaml"), "project:\n  name: test\n", 0644)
+	writeOrFatal(filepath.Join(repo, "fab", ".fab-version"), "dev\n", 0644)
 	if err := os.MkdirAll(filepath.Join(repo, "fab", "sync"), 0755); err != nil {
 		t.Fatal(err)
 	}

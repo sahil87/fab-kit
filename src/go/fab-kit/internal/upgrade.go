@@ -44,28 +44,30 @@ func runConfigUpgrade(fabGoBin, repoRoot string) {
 //     which has no real release tag to sync to.
 //
 // Ordering contract (F18): Sync runs FIRST (with the kit version passed
-// explicitly) and fab_version is stamped only after Sync succeeds. A failed
-// sync therefore exits non-zero, leaves config.yaml on the old version, and
+// explicitly) and fab/.fab-version is stamped only after Sync succeeds. A failed
+// sync therefore exits non-zero, leaves fab/.fab-version on the old version, and
 // a re-run retries instead of short-circuiting on "Already on the latest
 // version".
 func Upgrade(systemVersion, targetVersion string, useLatest bool) error {
 	// Must be in a fab repo
 	cfg, err := ResolveConfig()
 	if err != nil {
-		// If the error is about missing fab_version, that's OK for upgrade
-		// Try to find config.yaml without requiring fab_version
+		// A missing/unreadable fab/.fab-version is OK for upgrade — the whole
+		// point of upgrade-repo is to (re)stamp the pin. Locate config.yaml by
+		// walking up from CWD (same as ResolveConfig) so upgrade-repo works from
+		// any subdirectory inside the repo, then proceed without a pinned version.
 		cwd, wdErr := os.Getwd()
 		if wdErr != nil {
 			return err
 		}
-		configPath := filepath.Join(cwd, "fab", "project", "config.yaml")
-		if _, statErr := os.Stat(configPath); statErr != nil {
+		repoRoot, configPath := findConfigDir(cwd)
+		if repoRoot == "" {
 			return fmt.Errorf("not in a fab-managed repo. Run 'fab init' to set one up")
 		}
 		// config exists but fab_version missing — proceed with upgrade
 		cfg = &ConfigResult{
 			ConfigPath: configPath,
-			RepoRoot:   cwd,
+			RepoRoot:   repoRoot,
 			FabVersion: "",
 		}
 	}

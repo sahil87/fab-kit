@@ -97,18 +97,12 @@ func TestConfigReferenceCoversBinaryKeys(t *testing.T) {
 		t.Fatal("reflection produced no yaml key segments — walk is broken")
 	}
 
-	// fab_version is a LEGACY-FALLBACK-ONLY field on Config (260708-j0qm): it moved
-	// out of config.yaml to the plain-text sibling fab/.fab-version, and the
-	// reference no longer documents it. Config keeps the `fab_version` yaml tag
-	// solely to parse a not-yet-migrated config.yaml for one compat window, so it
-	// is deliberately exempt from the reference-coverage guard (see the positive
-	// "not documented" assertion in TestConfigReferenceOmitsRelocatedFabVersion).
-	exempt := map[string]struct{}{"fab_version": {}}
-
+	// fab_version is NOT a config key (260708-j0qm): it lives in the plain-text
+	// sibling fab/.fab-version and Config.FabVersion is tagged `yaml:"-"`, so
+	// yamlKeySegments skips it and it never appears in `segments` — no exemption is
+	// needed here (the positive "not documented" assertion lives in
+	// TestConfigReferenceOmitsRelocatedFabVersion).
 	for seg := range segments {
-		if _, skip := exempt[seg]; skip {
-			continue
-		}
 		if !containsKeyToken(out, seg) {
 			t.Errorf("binary-consumed config key %q (from Config yaml tags) is not documented in `fab config reference`", seg)
 		}

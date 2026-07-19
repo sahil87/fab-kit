@@ -145,9 +145,11 @@ func checkSyncStaleness(fabRoot string) {
 		return
 	}
 
-	// fab_version via the shared internal/config loader (single config.yaml
-	// parser). Silent-skip semantics preserved: any read/parse failure or an
-	// empty value means no warning — the check is advisory only.
+	// fab_version via the shared internal/config loader — Load overlays the
+	// value from the plain-text sibling fab/.fab-version (the sole source since
+	// 260708-j0qm; config.yaml is not consulted). Silent-skip semantics preserved:
+	// any read/parse failure or an empty value means no warning — the check is
+	// advisory only.
 	cfg, err := config.Load(fabRoot)
 	if err != nil {
 		return
