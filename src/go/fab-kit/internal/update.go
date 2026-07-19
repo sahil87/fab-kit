@@ -28,8 +28,8 @@ func Update(currentVersion string, skipBrewUpdate bool) error {
 
 	fmt.Printf("Current version: v%s\n", currentVersion)
 
-	// Refresh Homebrew index (unless skipped). Brew runs unbounded with the
-	// terminal inherited — the shll update standard forbids SIGKILLing a
+	// Refresh Homebrew index (unless skipped). Brew runs unbounded with
+	// stdout/stderr inherited — the shll update standard forbids SIGKILLing a
 	// package manager or capping `brew upgrade` with a short hard timeout
 	// (a 120s kill once landed mid-keg-swap and corrupted the install).
 	// A hung brew is visible to the user, and Ctrl-C (SIGINT) is brew-trapped.
